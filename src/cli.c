@@ -1183,7 +1183,6 @@ static void cli_io_handler(struct appctx *appctx)
 		 * on the response buffer.
 		 */
 		sc_shutr(sc);
-		res->flags |= CF_READ_EVENT;
 	}
 
  out:

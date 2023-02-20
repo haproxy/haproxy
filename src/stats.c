@@ -4506,10 +4506,8 @@ static void http_stats_io_handler(struct appctx *appctx)
 	}
 
 	if (appctx->st0 == STAT_HTTP_END) {
-		if (!(res->flags & CF_SHUTR)) {
-			res->flags |= CF_READ_EVENT;
+		if (!(res->flags & CF_SHUTR))
 			sc_shutr(sc);
-		}
 
 		/* eat the whole request */
 		if (co_data(req)) {

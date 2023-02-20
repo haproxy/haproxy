@@ -2003,7 +2003,6 @@ static void hlua_socket_handler(struct appctx *appctx)
 	if (ctx->die) {
 		sc_shutw(sc);
 		sc_shutr(sc);
-		sc_ic(sc)->flags |= CF_READ_EVENT;
 		notification_wake(&ctx->wake_on_read);
 		notification_wake(&ctx->wake_on_write);
 		stream_shutdown(__sc_strm(sc), SF_ERR_KILLED);
@@ -9426,7 +9425,6 @@ void hlua_applet_tcp_fct(struct appctx *ctx)
 	struct hlua_tcp_ctx *tcp_ctx = ctx->svcctx;
 	struct stconn *sc = appctx_sc(ctx);
 	struct stream *strm = __sc_strm(sc);
-	struct channel *res = sc_ic(sc);
 	struct act_rule *rule = ctx->rule;
 	struct proxy *px = strm->be;
 	struct hlua *hlua = tcp_ctx->hlua;
@@ -9450,7 +9448,6 @@ void hlua_applet_tcp_fct(struct appctx *ctx)
 
 		/* eat the whole request */
 		co_skip(sc_oc(sc), co_data(sc_oc(sc)));
-		res->flags |= CF_READ_EVENT;
 		sc_shutr(sc);
 		return;
 
@@ -9732,10 +9729,8 @@ void hlua_applet_http_fct(struct appctx *ctx)
 
   done:
 	if (http_ctx->flags & APPLET_DONE) {
-		if (!(res->flags & CF_SHUTR)) {
-			res->flags |= CF_READ_EVENT;
+		if (!(res->flags & CF_SHUTR))
 			sc_shutr(sc);
-		}
 
 		/* eat the whole request */
 		if (co_data(req)) {

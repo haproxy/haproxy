@@ -3195,7 +3195,6 @@ send_msgs:
 				}
 				sc_shutw(sc);
 				sc_shutr(sc);
-				sc_ic(sc)->flags |= CF_READ_EVENT;
 				goto out;
 			}
 		}

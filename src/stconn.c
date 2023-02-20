@@ -533,8 +533,8 @@ static void sc_app_shutr(struct stconn *sc)
 	struct channel *ic = sc_ic(sc);
 
 	if (ic->flags & CF_SHUTR)
-		return;
-	ic->flags |= CF_SHUTR;
+
+	ic->flags |= CF_SHUTR|CF_READ_EVENT;
 	sc_ep_report_read_activity(sc);
 	sc_ep_reset_rex(sc);
 
@@ -569,7 +569,7 @@ static void sc_app_shutw(struct stconn *sc)
 	oc->flags &= ~CF_SHUTW_NOW;
 	if (oc->flags & CF_SHUTW)
 		return;
-	oc->flags |= CF_SHUTW;
+	oc->flags |= CF_SHUTW|CF_WRITE_EVENT;
 	sc_ep_reset_wex(sc);
 
 	if (tick_isset(sc->hcto)) {
@@ -676,7 +676,7 @@ static void sc_app_shutr_conn(struct stconn *sc)
 
 	if (ic->flags & CF_SHUTR)
 		return;
-	ic->flags |= CF_SHUTR;
+	ic->flags |= CF_SHUTR|CF_READ_EVENT;
 	sc_ep_reset_rex(sc);
 
 	if (!sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
@@ -710,7 +710,7 @@ static void sc_app_shutw_conn(struct stconn *sc)
 	oc->flags &= ~CF_SHUTW_NOW;
 	if (oc->flags & CF_SHUTW)
 		return;
-	oc->flags |= CF_SHUTW;
+	oc->flags |= CF_SHUTW|CF_WRITE_EVENT;
 	sc_ep_reset_wex(sc);
 
 	if (tick_isset(sc->hcto)) {
@@ -898,7 +898,7 @@ static void sc_app_shutr_applet(struct stconn *sc)
 
 	if (ic->flags & CF_SHUTR)
 		return;
-	ic->flags |= CF_SHUTR;
+	ic->flags |= CF_SHUTR|CF_READ_EVENT;
 	sc_ep_reset_rex(sc);
 
 	/* Note: on shutr, we don't call the applet */
@@ -933,7 +933,7 @@ static void sc_app_shutw_applet(struct stconn *sc)
 	oc->flags &= ~CF_SHUTW_NOW;
 	if (oc->flags & CF_SHUTW)
 		return;
-	oc->flags |= CF_SHUTW;
+	oc->flags |= CF_SHUTW|CF_WRITE_EVENT;
 	sc_ep_reset_wex(sc);
 
 	if (tick_isset(sc->hcto)) {
@@ -1240,7 +1240,7 @@ static void sc_conn_read0(struct stconn *sc)
 
 	if (ic->flags & CF_SHUTR)
 		return;
-	ic->flags |= CF_SHUTR;
+	ic->flags |= CF_SHUTR|CF_READ_EVENT;
 	sc_ep_report_read_activity(sc);
 	sc_ep_reset_rex(sc);
 
@@ -1589,7 +1589,6 @@ static int sc_conn_recv(struct stconn *sc)
 		ret = 1;
 	else if (sc_ep_test(sc, SE_FL_EOS)) {
 		/* we received a shutdown */
-		ic->flags |= CF_READ_EVENT;
 		if (ic->flags & CF_AUTO_CLOSE)
 			channel_shutw_now(ic);
 		sc_conn_read0(sc);
@@ -1874,7 +1873,6 @@ static int sc_conn_process(struct stconn *sc)
 	 */
 	if (sc_ep_test(sc, SE_FL_EOS) && !(ic->flags & CF_SHUTR)) {
 		/* we received a shutdown */
-		ic->flags |= CF_READ_EVENT;
 		if (ic->flags & CF_AUTO_CLOSE)
 			channel_shutw_now(ic);
 		sc_conn_read0(sc);

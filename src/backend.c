@@ -2023,7 +2023,6 @@ void back_try_conn_req(struct stream *s)
 			sc_shutr(sc);
 			sc_shutw(sc);
 			sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
-			req->flags |= CF_WRITE_EVENT;
 
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
@@ -2184,7 +2183,6 @@ void back_handle_st_req(struct stream *s)
 			sc_shutr(sc);
 			sc_shutw(sc);
 			sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
-			s->req.flags |= CF_WRITE_EVENT;
 			s->conn_err_type = STRM_ET_CONN_RES;
 			sc->state = SC_ST_CLO;
 			if (s->srv_error)
@@ -2211,7 +2209,6 @@ void back_handle_st_req(struct stream *s)
 		sc_shutr(sc);
 		sc_shutw(sc);
 		sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
-		s->req.flags |= CF_WRITE_EVENT;
 		if (!s->conn_err_type)
 			s->conn_err_type = STRM_ET_CONN_OTHER;
 		sc->state = SC_ST_CLO;
@@ -2347,8 +2344,6 @@ void back_handle_st_cer(struct stream *s)
 		/* shutw is enough to stop a connecting socket */
 		sc_shutw(sc);
 		sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
-		s->req.flags |= CF_WRITE_EVENT;
-		s->res.flags |= CF_READ_EVENT;
 
 		sc->state = SC_ST_CLO;
 		if (s->srv_error)
@@ -2382,8 +2377,6 @@ void back_handle_st_cer(struct stream *s)
 		/* shutw is enough to stop a connecting socket */
 		sc_shutw(sc);
 		sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
-		s->req.flags |= CF_WRITE_EVENT;
-		s->res.flags |= CF_READ_EVENT;
 
 		sc->state = SC_ST_CLO;
 		if (s->srv_error)

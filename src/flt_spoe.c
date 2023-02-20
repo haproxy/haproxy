@@ -1303,7 +1303,6 @@ spoe_release_appctx(struct appctx *appctx)
 
 		sc_shutw(sc);
 		sc_shutr(sc);
-		sc_ic(sc)->flags |= CF_READ_EVENT;
 	}
 
 	/* Destroy the task attached to this applet */
@@ -2022,7 +2021,6 @@ spoe_handle_appctx(struct appctx *appctx)
 
 			sc_shutw(sc);
 			sc_shutr(sc);
-			sc_ic(sc)->flags |= CF_READ_EVENT;
 			__fallthrough;
 
 		case SPOE_APPCTX_ST_END:

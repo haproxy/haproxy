@@ -1598,7 +1598,6 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 
 		case PROMEX_ST_END:
 			if (!(res->flags & CF_SHUTR)) {
-				res->flags |= CF_READ_EVENT;
 				sc_shutr(sc);
 			}
 	}
@@ -1614,7 +1613,6 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 	return;
 
   error:
-	res->flags |= CF_READ_EVENT;
 	sc_shutr(sc);
 	sc_shutw(sc);
 	goto out;
