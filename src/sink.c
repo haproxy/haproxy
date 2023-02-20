@@ -322,12 +322,6 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	if (unlikely(stopping))
 		goto close;
 
-	/* for rex because it seems reset to timeout
-	 * and we don't want expire on this case
-	 * with a syslog server
-	 */
-	sc_ep_reset_rex(sc_opposite(sc));
-
 	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
 		goto close;
 
@@ -466,12 +460,6 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	/* if stopping was requested, close immediately */
 	if (unlikely(stopping))
 		goto close;
-
-	/* for rex because it seems reset to timeout
-	 * and we don't want expire on this case
-	 * with a syslog server
-	 */
-	sc_ep_reset_rex(sc_opposite(sc));
 
 	/* an error was detected */
 	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
@@ -626,10 +614,6 @@ static int sink_forward_session_init(struct appctx *appctx)
 	s->uniq_id = 0;
 
 	s->res.flags |= CF_READ_DONTWAIT;
-	/* Set rex to eternity to not expire on idle recv:
-	 * We are using a syslog server.
-	 */
-	sc_ep_reset_rex(s->scb);
 	applet_expect_no_data(appctx);
 	sft->appctx = appctx;
 

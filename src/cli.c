@@ -2827,13 +2827,9 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->scf->ioto = strm_fe(s)->timeout.client;
 		s->scb->ioto = TICK_ETERNITY;
 
-		sc_ep_reset_rex(s->scf);
-		sc_ep_reset_wex(s->scf);
 		s->req.analyse_exp = TICK_ETERNITY;
-
-		sc_ep_reset_rex(s->scb);
-		sc_ep_reset_wex(s->scb);
 		s->res.analyse_exp = TICK_ETERNITY;
+
 		s->scb->hcto = TICK_ETERNITY;
 
 		/* we're removing the analysers, we MUST re-enable events detection.

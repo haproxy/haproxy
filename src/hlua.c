@@ -2523,9 +2523,6 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	/* update buffers. */
 	appctx_wakeup(appctx);
 
-	sc_ep_reset_rex(s->scf);;
-	sc_ep_reset_wex(s->scb);
-
 	/* Update length sent. */
 	lua_pop(L, 1);
 	lua_pushinteger(L, sent + len);
@@ -3017,10 +3014,6 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 	s->sess->fe->timeout.connect = tmout;
 	s->scf->ioto = tmout;
 	s->scb->ioto = tmout;
-	sc_ep_set_rex(s->scf, tmout);
-	sc_ep_set_wex(s->scf, tmout);
-	sc_ep_set_rex(s->scb, tmout);
-	sc_ep_set_wex(s->scb, tmout);
 
 	s->task->expire = tick_add_ifset(now_ms, tmout);
 	task_queue(s->task);
@@ -8083,7 +8076,6 @@ __LJMP static int hlua_txn_done(lua_State *L)
 		channel_auto_close(req);
 		channel_erase(req);
 
-		sc_ep_set_wex(s->scb, s->scf->ioto);
 		channel_auto_read(res);
 		channel_auto_close(res);
 		channel_shutr_now(res);

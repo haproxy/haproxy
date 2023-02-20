@@ -201,8 +201,6 @@ struct stconn;
  * <sc>     is the stream connector we're attached to, or NULL
  * <lra>    is the last read activity
  * <fsb>    is the first send blocked
- * <rex>    is the expiration date for a read, in ticks
- * <wex>    is the expiration date for a write or connect, in ticks
  * <flags>  SE_FL_*
  *
  * <lra> should be updated when a read activity is detected. It can be a
@@ -219,8 +217,6 @@ struct sedesc {
 	unsigned int flags;
 	unsigned int lra;
 	unsigned int fsb;
-	int rex;
-	int wex;
 };
 
 /* sc_app_ops describes the application layer's operations and notification

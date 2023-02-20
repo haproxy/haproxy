@@ -834,10 +834,6 @@ static int dns_session_init(struct appctx *appctx)
 	s->uniq_id = 0;
 
 	s->res.flags |= CF_READ_DONTWAIT;
-	/* set rex to eternity to not expire on idle recv:
-	 * We are using a syslog server.
-	 */
-	sc_ep_reset_rex(s->scb);
 	applet_expect_no_data(appctx);
 	ds->appctx = appctx;
 	return 0;

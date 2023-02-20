@@ -855,7 +855,6 @@ void stream_retnclose(struct stream *s, const struct buffer *msg)
 	if (likely(msg && msg->data))
 		co_inject(oc, msg->area, msg->data);
 
-	sc_ep_set_wex(s->scf, s->scf->ioto);
 	channel_auto_read(oc);
 	channel_auto_close(oc);
 	channel_shutr_now(oc);
@@ -949,7 +948,6 @@ static void back_establish(struct stream *s)
 		 */
 		sc_chk_rcv(s->scb);
 	}
-	sc_ep_reset_wex(s->scf);
 	/* If we managed to get the whole response, and we don't have anything
 	 * left to send, or can't, switch to SC_ST_DIS now. */
 	if (rep->flags & (CF_SHUTR | CF_SHUTW)) {
@@ -2426,11 +2424,6 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				scf->ioto = sess->fe->timeout.clientfin;
 			if ((req->flags & (CF_SHUTR|CF_SHUTW)) && tick_isset(s->be->timeout.serverfin))
 				scb->ioto = s->be->timeout.serverfin;
-
-			sc_ep_set_rex(scf, scf->ioto);
-			sc_ep_set_wex(scf, scb->ioto);
-			sc_ep_set_rex(scb, scb->ioto);
-			sc_ep_set_wex(scb, scf->ioto);
 		}
 	}
 

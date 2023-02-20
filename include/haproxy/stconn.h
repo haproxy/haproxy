@@ -187,37 +187,6 @@ static forceinline int sc_ep_snd_ex(const struct stconn *sc)
 		: TICK_ETERNITY);
 }
 
-static forceinline int sc_ep_rex(const struct stconn *sc)
-{
-	return sc->sedesc->rex;
-}
-
-static forceinline int sc_ep_wex(const struct stconn *sc)
-{
-	return sc->sedesc->wex;
-}
-
-static forceinline void sc_ep_reset_rex(struct stconn *sc)
-{
-	sc->sedesc->rex = TICK_ETERNITY;
-}
-
-static forceinline void sc_ep_reset_wex(struct stconn *sc)
-{
-	sc->sedesc->wex = TICK_ETERNITY;
-}
-
-
-static forceinline void sc_ep_set_rex(struct stconn *sc, unsigned int rto)
-{
-	sc->sedesc->rex = tick_add_ifset(now_ms, rto);
-}
-
-static forceinline void sc_ep_set_wex(struct stconn *sc, unsigned int wto)
-{
-	sc->sedesc->wex = tick_add_ifset(now_ms, wto);
-}
-
 /* Returns the stream endpoint from an connector, without any control */
 static inline void *__sc_endp(const struct stconn *sc)
 {
