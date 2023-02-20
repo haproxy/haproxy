@@ -199,6 +199,13 @@
  */
 #define ONLY_ONCE() ({ static char __cnt; !_HA_ATOMIC_XCHG(&__cnt, 1); })
 
+/* makes a string from a constant (number or macro), avoids the need for
+ * printf("%d") format just to dump a setting limit or value in an error
+ * message. We use two levels so that macros are resolved.
+ */
+#define _TOSTR(x) #x
+#define TOSTR(x) _TOSTR(x)
+
 /*
  * Gcc >= 3 provides the ability for the program to give hints to the
  * compiler about what branch of an if is most likely to be taken. This
