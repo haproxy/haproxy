@@ -568,9 +568,7 @@ static void sc_app_shutw(struct stconn *sc)
 	if (oc->flags & CF_SHUTW)
 		return;
 	oc->flags |= CF_SHUTW|CF_WRITE_EVENT;
-
-	if (tick_isset(sc->hcto))
-		sc->ioto = sc->hcto;
+	sc_set_hcto(sc);
 
 	switch (sc->state) {
 	case SC_ST_RDY:
@@ -701,9 +699,7 @@ static void sc_app_shutw_conn(struct stconn *sc)
 	if (oc->flags & CF_SHUTW)
 		return;
 	oc->flags |= CF_SHUTW|CF_WRITE_EVENT;
-
-	if (tick_isset(sc->hcto))
-		sc->ioto = sc->hcto;
+	sc_set_hcto(sc);
 
 	switch (sc->state) {
 	case SC_ST_RDY:
@@ -898,9 +894,7 @@ static void sc_app_shutw_applet(struct stconn *sc)
 	if (oc->flags & CF_SHUTW)
 		return;
 	oc->flags |= CF_SHUTW|CF_WRITE_EVENT;
-
-	if (tick_isset(sc->hcto))
-		sc->ioto = sc->hcto;
+	sc_set_hcto(sc);
 
 	/* on shutw we always wake the applet up */
 	appctx_wakeup(__sc_appctx(sc));

@@ -401,4 +401,19 @@ static inline void sc_check_timeouts(const struct stconn *sc)
 		sc_oc(sc)->flags |= CF_WRITE_TIMEOUT;
 }
 
+static inline void sc_set_hcto(struct stconn *sc)
+{
+	struct stream *strm = __sc_strm(sc);
+
+	if (sc->flags & SC_FL_ISBACK) {
+		if ((strm->flags & SF_BE_ASSIGNED) && tick_isset(strm->be->timeout.serverfin))
+			sc->ioto = strm->be->timeout.serverfin;
+	}
+	else {
+		if (tick_isset(strm_fe(strm)->timeout.clientfin))
+			sc->ioto = strm_fe(strm)->timeout.clientfin;
+	}
+
+}
+
 #endif /* _HAPROXY_SC_STRM_H */
