@@ -3112,6 +3112,8 @@ static void qc_txb_release(struct quic_conn *qc)
 	/* For the moment sending function is responsible to purge the buffer
 	 * entirely. It may change in the future but this requires to be able
 	 * to reuse old data.
+	 * For the momemt we do not care to leave data in the buffer for
+	 * a connection which is supposed to be killed asap.
 	 */
 	BUG_ON_HOT(buf && b_data(buf));
 
@@ -3444,9 +3446,11 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 
 /* Send datagrams stored in <buf>.
  *
- * This function always returns 1 for success. Even if sendto() syscall failed,
- * buffer is drained and packets are considered as emitted. QUIC loss detection
- * mechanism is used as a back door way to retry sending.
+ * This function returns 1 for success. Even if sendto() syscall failed,
+ * buffer is drained and packets are considered as emitted and this function returns 1
+ * There is a unique exception when sendto() fails with ECONNREFUSED as errno,
+ * this function returns 0.
+ * QUIC loss detection mechanism is used as a back door way to retry sending.
  */
 int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 {
@@ -3494,6 +3498,7 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 					/* Let's kill this connection asap. */
 					TRACE_PROTO("UDP port unreachable", QUIC_EV_CONN_SPPKTS, qc);
 					qc_kill_conn(qc);
+					b_del(buf, buf->data);
 					goto leave;
 				}
 
