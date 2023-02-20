@@ -3320,6 +3320,27 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			}
 		}
 
+		/* RFC 9000 14.1 Initial datagram size
+		 * a server MUST expand the payload of all UDP datagrams carrying ack-eliciting
+		 * Initial packets to at least the smallest allowed maximum datagram size of
+		 * 1200 bytes.
+		 *
+		 * Ensure that no ack-eliciting packets are sent into too small datagrams
+		 */
+		if (pkt_type == QUIC_PACKET_TYPE_INITIAL && !LIST_ISEMPTY(tel_frms)) {
+			if (end - pos < QUIC_INITIAL_PACKET_MINLEN) {
+				TRACE_PROTO("No more enough room to build an Initial packets",
+				            QUIC_EV_CONN_PHPKTS, qc);
+				goto out;
+			}
+
+			/* Pad this Initial packet if there is no ack-eliciting frames to send from
+			 * the next packet number space.
+			 */
+			if (LIST_ISEMPTY(next_tel_frms))
+				padding = 1;
+		}
+
 		if (qc->negotiated_version) {
 			ver = qc->negotiated_version;
 			if (qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL])
