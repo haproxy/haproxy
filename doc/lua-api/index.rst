@@ -20,7 +20,7 @@ is the **initialisation mode**, and the second is the **runtime mode**.
   the Lua code seems to be run in blocking, but it is not the case.
 
 The Lua code is loaded in one or more files. These files contains main code and
-functions. Lua have 7 execution context.
+functions. Lua has 8 execution contexts.
 
 1. The Lua file **body context**. It is executed during the load of the Lua file
    in the HAProxy `[global]` section with the directive `lua-load`. It is
@@ -71,6 +71,9 @@ functions. Lua have 7 execution context.
    callback functions. Lua filters are registered using
    `core.register_filter()`. Each declared filter is prefixed by the string
    "lua.".
+
+8. The **event context**: Inside a function that handles events subscribed
+   through `core.event_sub()` or `Server.event_sub()`.
 
 
 HAProxy Lua Hello world
@@ -726,7 +729,7 @@ Core class
 
 .. js:function:: core.register_task(func[, arg1[, arg2[, ...[, arg4]]]])
 
-  **context**: body, init, task, action, sample-fetch, converter
+  **context**: body, init, task, action, sample-fetch, converter, event
 
   Register and start independent task. The task is started when the HAProxy
   main scheduler starts. For example this type of tasks can be executed to
@@ -911,6 +914,70 @@ Core class
 	    8: (string) "entry"
 	]
 ..
+
+.. js:function:: core.event_sub(event_types, func)
+
+  **context**: body, init, task, action, sample-fetch, converter
+
+  Register a function that will be called on specific system events.
+
+  :param array event_types: array of string containing the event types you want to subscribe to
+  :param function func: is the Lua function called when one of the subscribed events occur.
+  :returns: A :ref:`event_sub_class` object.
+
+  List of available event types :
+
+   **SERVER** Family:
+
+    * **SERVER_ADD**: when a server is added
+    * **SERVER_DEL**: when a server is removed
+    * **SERVER_DOWN**: when a server state goes from UP to DOWN
+    * **SERVER_UP**: when a server state goes from DOWN to UP
+
+   .. Note::
+     You may also use **SERVER** in **event_types** to subscribe to all server events types at once.
+
+  The prototype of the Lua function used as argument is:
+
+.. code-block:: lua
+
+    function(event, event_data, sub)
+..
+
+  * **event** (*string*): the event type (one of the **event_types** you specified when subscribing)
+  * **event_data**: specific to each event family (For **SERVER** family, a :ref:`server_event_class` object)
+  * **sub**: class to manage the subscription from within the event (a :ref:`event_sub_class` object)
+
+  .. Warning::
+    The callback function will only be scheduled on the very same thread that
+    performed the subscription.
+
+    Moreover, each thread treats events sequentially. It means that if you have,
+    let's say SERVER_UP followed by a SERVER_DOWN in a short timelapse, then
+    the cb function will first be called with SERVER_UP, and once it's done
+    handling the event, the cb function will be called again with SERVER_DOWN.
+
+    This is to ensure event consistency when it comes to logging / triggering logic
+    from lua.
+
+    Your lua cb function may yield if needed, but you're pleased to process the
+    event as fast as possible to prevent the event queue from growing up, depending
+    on the event flow that is expected for the given subscription.
+
+    To prevent abuses, if the event queue for the current subscription goes over
+    a certain amount of unconsumed events, the subscription will pause itself
+    automatically for as long as it takes for your handler to catch up. This would
+    lead to events being missed, so an error will be reported in the logs to warn
+    you about that.
+    This is not something you want to let happen too often, it may indicate that
+    you subscribed to an event that is occurring too frequently or/and that your
+    callback function is too slow to keep up the pace and you should review it.
+
+    If you want to do some parallel processing because your callback functions are
+    slow: you might want to create subtasks from lua using
+    :js:func:`core.register_task()` from within your callback function to perform
+    the heavy job in a dedicated task and allow remaining events to be processed
+    more quickly.
 
 .. _proxy_class:
 
@@ -1243,6 +1310,44 @@ Listener class
   :param class_listener ls: A :ref:`listener_class` which indicates the
     manipulated listener.
   :returns: a key/value table containing stats
+
+.. _event_sub_class:
+
+EventSub class
+==============
+
+.. js:function:: EventSub.unsub()
+
+  End the subscription, the callback function will not be called again.
+
+.. _server_event_class:
+
+ServerEvent class
+=================
+
+.. js:attribute:: ServerEvent.name
+
+  Contains the name of the server.
+
+.. js:attribute:: ServerEvent.puid
+
+  Contains the proxy-unique uid of the server
+
+.. js:attribute:: ServerEvent.rid
+
+  Contains the revision ID of the server
+
+.. js:attribute:: ServerEvent.proxy_name
+
+  Contains the name of the proxy to which the server belongs
+
+.. js:attribute:: ServerEvent.reference
+
+  Reference to the live server (A :ref:`server_class`).
+
+  .. Warning::
+     Not available if the server was removed in the meantime.
+     (Will never be set for SERVER_DEL event since the server does not exist anymore)
 
 .. _concat_class:
 

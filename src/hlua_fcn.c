@@ -35,6 +35,7 @@
 #include <haproxy/server.h>
 #include <haproxy/stats.h>
 #include <haproxy/stick_table.h>
+#include <haproxy/event_hdl.h>
 #include <haproxy/stream-t.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
@@ -44,6 +45,7 @@ static int class_concat_ref;
 static int class_proxy_ref;
 static int class_server_ref;
 static int class_listener_ref;
+static int class_event_sub_ref;
 static int class_regex_ref;
 static int class_stktable_ref;
 static int class_proxy_list_ref;
@@ -1810,6 +1812,45 @@ void hlua_listable_proxies(lua_State *L, char capabilities)
 	lua_setmetatable(L, -2);
 }
 
+int hlua_event_sub_unsub(lua_State *L)
+{
+	struct event_hdl_sub *sub = hlua_checkudata(L, 1, class_event_sub_ref);
+
+	BUG_ON(!sub);
+	event_hdl_take(sub); /* keep a reference on sub until the item is GCed */
+	event_hdl_unsubscribe(sub); /* will automatically call event_hdl_drop() */
+	return 0;
+}
+
+int hlua_event_sub_gc(lua_State *L)
+{
+	struct event_hdl_sub *sub = hlua_checkudata(L, 1, class_event_sub_ref);
+
+	BUG_ON(!sub);
+	event_hdl_drop(sub); /* final drop of the reference */
+	return 0;
+}
+
+int hlua_fcn_new_event_sub(lua_State *L, struct event_hdl_sub *sub)
+{
+	lua_newtable(L);
+
+	/* Pop a class event_sub metatable and affect it to the userdata. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_event_sub_ref);
+	lua_setmetatable(L, -2);
+
+	lua_pushlightuserdata(L, sub);
+	lua_rawseti(L, -2, 0);
+
+	/* userdata is affected: increment sub refcount */
+	event_hdl_take(sub);
+
+	/* set public methods */
+	hlua_class_function(L, "unsub", hlua_event_sub_unsub);
+
+	return 1;
+}
+
 /* This Lua function take a string, a list of separators.
  * It tokenize the input string using the list of separators
  * as separator.
@@ -2097,6 +2138,11 @@ void hlua_fcn_reg_core_fcn(lua_State *L)
 	hlua_class_function(L, "get_stats", hlua_listener_get_stats);
 	lua_settable(L, -3); /* -> META["__index"] = TABLE */
 	class_listener_ref = hlua_register_metatable(L, CLASS_LISTENER);
+
+	/* Create event_sub object. */
+	lua_newtable(L);
+	hlua_class_function(L, "__gc", hlua_event_sub_gc);
+	class_event_sub_ref = hlua_register_metatable(L, CLASS_EVENT_SUB);
 
 	/* Create server object. */
 	lua_newtable(L);

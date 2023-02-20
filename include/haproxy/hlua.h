@@ -53,6 +53,7 @@ void hlua_init();
 int hlua_post_init();
 void hlua_applet_tcp_fct(struct appctx *ctx);
 void hlua_applet_http_fct(struct appctx *ctx);
+int hlua_event_sub(lua_State *L, event_hdl_sub_list *sub_list);
 struct task *hlua_process_task(struct task *task, void *context, unsigned int state);
 const char *hlua_show_current_location(const char *pfx);
 
