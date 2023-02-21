@@ -327,14 +327,17 @@ shell {
 
 client c4 -connect ${h1_clearlst_sock} {
     txreq
+    expect_close
 } -run
 
 client c5 -connect ${h1_clearlst_sock} {
     txreq
+    expect_close
 } -run
 
 client c6 -connect ${h1_clearlst_sock} {
     txreq
+    expect_close
 } -run
 
 barrier b1 sync
@@ -355,14 +358,17 @@ shell {
 
 client c7 -connect ${h1_clearlst_sock} {
     txreq
+    expect_close
 } -run
 
 client c8 -connect ${h1_clearlst_sock} {
     txreq
+    expect_close
 } -run
 
 client c9 -connect ${h1_clearlst_sock} {
     txreq
+    expect_close
 } -run
 
 barrier b1 sync
@@ -377,12 +383,15 @@ shell {
 # "No shared cipher" errors
 client c10 -connect ${h1_wrongcipherslst_sock} {
     txreq
+    expect_close
 } -run
 client c11 -connect ${h1_wrongcipherslst_sock} {
     txreq
+    expect_close
 } -run
 client c12 -connect ${h1_wrongcipherslst_sock} {
     txreq
+    expect_close
 } -run
 
 
@@ -399,22 +408,27 @@ client c13 -connect ${h1_backenderrorslst_sock} {
 barrier b2 sync
 client c14 -connect ${h1_backenderrorslst_sock} {
     txreq
+    expect_close
 } -run
 barrier b2 sync
 client c15 -connect ${h1_backenderrorslst_sock} {
     txreq
+    expect_close
 } -run
 barrier b2 sync
 client c16 -connect ${h1_backenderrorslst_sock} {
     txreq
+    expect_close
 } -run
 barrier b2 sync
 client c17 -connect ${h1_backenderrorslst_sock} {
     txreq
+    expect_close
 } -run
 barrier b2 sync
 client c18 -connect ${h1_backenderrorslst_sock} {
     txreq
+    expect_close
 } -run
 
 syslog Slg_cust_fmt -wait
