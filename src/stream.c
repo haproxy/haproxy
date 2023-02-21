@@ -206,10 +206,10 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 			      task, s, s->flags, s->conn_err_type, txn->flags, txn->req.flags, txn->rsp.flags, txn->status);
 	}
 	else {
-		chunk_appendf(&trace_buf, " - t=%p s=(%p,0x%08x,0x%x) scf=(%p,%d,0x%08x) scb=(%p,%d,0x%08x) retries=%d",
+		chunk_appendf(&trace_buf, " - t=%p s=(%p,0x%08x,0x%x) scf=(%p,%d,0x%08x,0x%x) scb=(%p,%d,0x%08x,0x%x) retries=%d",
 			      task, s, s->flags, s->conn_err_type,
-			      s->scf, s->scf->state, s->scf->flags,
-			      s->scb, s->scb->state, s->scb->flags,
+			      s->scf, s->scf->state, s->scf->flags, s->scf->sedesc->flags,
+			      s->scb, s->scb->state, s->scb->flags, s->scb->sedesc->flags,
 			      s->conn_retries);
 	}
 
