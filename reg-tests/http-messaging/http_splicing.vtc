@@ -4,6 +4,7 @@ varnishtest "A test to validate h1 splicing support"
 
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.6-dev0)'"
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(LINUX_SPLICE)'"
+feature cmd "$HAPROXY_PROGRAM $HAPROXY_ARGS -cc 'enabled(FAST-FORWARD)'"
 feature ignore_unknown_macro
 
 #REGTEST_TYPE=slow
