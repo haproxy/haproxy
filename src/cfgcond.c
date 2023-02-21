@@ -28,6 +28,7 @@ const struct cond_pred_kw cond_predicates[] = {
 	{ "openssl_version_atleast", CFG_PRED_OSSL_VERSION_ATLEAST,   ARG1(1, STR)         },
 	{ "openssl_version_before",  CFG_PRED_OSSL_VERSION_BEFORE,    ARG1(1, STR)         },
 	{ "ssllib_name_startswith",  CFG_PRED_SSLLIB_NAME_STARTSWITH, ARG1(1, STR)         },
+	{ "enabled",                 CFG_PRED_ENABLED,                ARG1(1, STR)         },
 	{ NULL, CFG_PRED_NONE, 0 }
 };
 
@@ -175,6 +176,33 @@ int cfg_parse_cond_term(const char **text, struct cfg_cond_term **term, char **e
 	return -1;
 }
 
+/* evaluate a "enabled" expression. Only a subset of options are matched. It
+ * returns 1 if the option is enabled. 0 is returned is the option is not
+ * enabled or if it is not recognized.
+ */
+static int cfg_eval_cond_enabled(const char *str)
+{
+	if (strcmp(str, "POLL") == 0)
+		return !!(global.tune.options & GTUNE_USE_POLL);
+	else if (strcmp(str, "EPOLL") == 0)
+		return !!(global.tune.options & GTUNE_USE_EPOLL);
+	else if (strcmp(str, "KQUEUE") == 0)
+		return !!(global.tune.options & GTUNE_USE_EPOLL);
+	else if (strcmp(str, "EVPORTS") == 0)
+		return !!(global.tune.options & GTUNE_USE_EVPORTS);
+	else if (strcmp(str, "SPLICE") == 0)
+		return !!(global.tune.options & GTUNE_USE_SPLICE);
+	else if (strcmp(str, "GETADDRINFO") == 0)
+		return !!(global.tune.options & GTUNE_USE_GAI);
+	else if (strcmp(str, "REUSEPORT") == 0)
+		return !!(global.tune.options & GTUNE_USE_REUSEPORT);
+	else if (strcmp(str, "FAST-FORWARD") == 0)
+		return !!(global.tune.options & GTUNE_USE_FAST_FWD);
+	else if (strcmp(str, "SERVER-SSL-VERIFY-NONE") == 0)
+		return !!(global.ssl_server_verify == SSL_SERVER_VERIFY_NONE);
+	return 0;
+}
+
 /* evaluate a condition term on a .if/.elif line. The condition was already
  * parsed in <term>. Returns -1 on error (in which case err is filled with a
  * message, and only in this case), 0 if the condition is false, 1 if it's
@@ -258,6 +286,10 @@ int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err)
 		}
 		case CFG_PRED_SSLLIB_NAME_STARTSWITH: { // checks if the current SSL library's name starts with a specified string (can be used to distinguish OpenSSL from LibreSSL or BoringSSL)
 			ret = openssl_compare_current_name(term->args[0].data.str.area) == 0;
+			break;
+		}
+		case CFG_PRED_ENABLED: { // checks if the arg matches on a subset of enabled options
+			ret = cfg_eval_cond_enabled(term->args[0].data.str.area) != 0;
 			break;
 		}
 		default:

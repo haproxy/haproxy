@@ -877,6 +877,12 @@ The list of currently supported predicates is the following:
                             version syntax is the same as shown by "haproxy -v"
                             and missing components are assumed as being zero.
 
+  - enabled(<opt>)        : returns true if the option <opt> is enabled at
+                            run-time. Only a subset of options are supported:
+			        POLL, EPOLL, KQUEUE, EVPORTS, SPLICE,
+				GETADDRINFO, REUSEPORT, FAST-FORWARD,
+				SERVER-SSL-VERIFY-NONE
+
 Example:
 
    .if defined(HAPROXY_MWORKER)
