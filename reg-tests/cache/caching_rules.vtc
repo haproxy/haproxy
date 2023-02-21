@@ -67,6 +67,18 @@ server s1 {
     txresp -hdr "Cache-Control: max-age=500" \
         -hdr "Age: 100" -bodylen 140
 
+
+    # "Control-Cache: no-cache" on client request but still stored in cache
+    rxreq
+    expect req.url == "/nocache"
+    txresp -hdr "Cache-Control: max-age=500" \
+        -hdr "Age: 100" -bodylen 140
+
+    rxreq
+    expect req.url == "/nocache"
+    txresp -hdr "Cache-Control: max-age=500" \
+        -hdr "Age: 100" -bodylen 140
+
 } -start
 
 server s2 {
@@ -220,5 +232,25 @@ client c1 -connect ${h1_fe_sock} {
         expect resp.status == 200
         expect resp.bodylen == 140
         expect resp.http.X-Cache-Hit == 1
+
+        # Cache-Control: no-cache
+        txreq -url "/nocache" -hdr "Cache-Control: no-cache"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 140
+        expect resp.http.X-Cache-Hit == 0
+
+        txreq -url "/nocache" -hdr "Cache-Control: no-cache"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 140
+        expect resp.http.X-Cache-Hit == 0
+
+        txreq -url "/nocache"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 140
+        expect resp.http.X-Cache-Hit == 1
+
 
 } -run

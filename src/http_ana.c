@@ -3772,7 +3772,7 @@ void http_check_response_for_cacheability(struct stream *s, struct channel *res)
 	/* We won't store an entry that has neither a cache validator nor an
 	 * explicit expiration time, as suggested in RFC 7234#3. */
 	if (!has_freshness_info && !has_validator)
-		txn->flags |= TX_CACHE_IGNORE;
+		txn->flags &= ~TX_CACHEABLE;
 }
 
 /*

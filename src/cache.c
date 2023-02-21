@@ -1101,7 +1101,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 
 	http_check_response_for_cacheability(s, &s->res);
 
-	if (!(txn->flags & TX_CACHEABLE) || !(txn->flags & TX_CACHE_COOK) || (txn->flags & TX_CACHE_IGNORE))
+	if (!(txn->flags & TX_CACHEABLE) || !(txn->flags & TX_CACHE_COOK))
 		goto out;
 
 	shctx_lock(shctx);

@@ -61,7 +61,7 @@
 /* cacheability management, bits values 0x1000 to 0x3000 (0-3 shift 12) */
 #define TX_CACHEABLE	0x00001000	/* at least part of the response is cacheable */
 #define TX_CACHE_COOK	0x00002000	/* a cookie in the response is cacheable */
-#define TX_CACHE_IGNORE 0x00004000	/* do not retrieve object from cache, or avoid caching response */
+#define TX_CACHE_IGNORE 0x00004000	/* do not retrieve object from cache */
 #define TX_CACHE_SHIFT	12		/* bit shift */
 
 #define TX_CON_WANT_TUN 0x00008000	/* Will be a tunnel (CONNECT or 101-Switching-Protocol) */
