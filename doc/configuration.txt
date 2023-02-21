@@ -778,6 +778,10 @@ file, or could be inherited by a program (See 3.7. Programs):
 * HAPROXY_MASTER_CLI: In master-worker mode, listeners addresses of the master
   CLI, separated by semicolons.
 
+* HAPROXY_STARTUP_VERSION: contains the version used to start, in master-worker
+  mode this is the version which was used to start the master, even after
+  updating the binary and reloading.
+
 In addition, some pseudo-variables are internally resolved and may be used as
 regular variables. Pseudo-variables always start with a dot ('.'), and are the
 only ones where the dot is permitted. The current list of pseudo-variables is:
