@@ -470,6 +470,9 @@ static int mworker_sockpair_register_per_thread()
 	if (tid != 0)
 		return 1;
 
+	if (proc_self->ipc_fd[1] < 0) /* proc_self was incomplete and we can't find the socketpair */
+		return 1;
+
 	fd_set_nonblock(proc_self->ipc_fd[1]);
 	/* register the wrapper to handle read 0 when the master exits */
 	fdtab[proc_self->ipc_fd[1]].iocb = mworker_accept_wrapper;
