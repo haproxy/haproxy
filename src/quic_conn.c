@@ -2554,7 +2554,7 @@ static void qc_prep_fast_retrans(struct quic_conn *qc,
 	struct eb64_node *node;
 	struct quic_tx_packet *pkt;
 
-	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
+	TRACE_ENTER(QUIC_EV_CONN_SPPKTS, qc);
 
 	BUG_ON(frms1 == frms2);
 
@@ -2613,7 +2613,7 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 	struct quic_tx_packet *pkt;
 	struct list *tmp = &itmp;
 
-	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
+	TRACE_ENTER(QUIC_EV_CONN_SPPKTS, qc);
  start:
 	pkt = NULL;
 	pkts = &qel->pktns->tx.pkts;
@@ -2635,10 +2635,16 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 	/* When building a packet from another one, the field which may increase the
 	 * packet size is the packet number. And the maximum increase is 4 bytes.
 	 */
-	if (!quic_peer_validated_addr(qc) && qc_is_listener(qc) &&
-	    pkt->len + 4 > 3 * qc->rx.bytes - qc->tx.prep_bytes) {
-		TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_PRSAFRM, qc);
-		goto end;
+	if (!quic_peer_validated_addr(qc) && qc_is_listener(qc)) {
+		size_t dglen = pkt->len + 4;
+
+		dglen += pkt->next ? pkt->next->len + 4 : 0;
+		if (dglen > 3 * qc->rx.bytes - qc->tx.prep_bytes) {
+			TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_SPPKTS, qc, pkt);
+			if (pkt->next)
+				TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_SPPKTS, qc, pkt->next);
+			goto end;
+		}
 	}
 
 	qel->pktns->tx.pto_probe += 1;
@@ -2652,7 +2658,7 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 			pkt = pkt->next;
 			tmp = &htmp;
 			hqel->pktns->tx.pto_probe += 1;
-			TRACE_DEVEL("looping for next packet", QUIC_EV_CONN_PRSAFRM, qc);
+			TRACE_DEVEL("looping for next packet", QUIC_EV_CONN_SPPKTS, qc);
 			goto requeue;
 		}
 	}
@@ -2661,7 +2667,7 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 	LIST_SPLICE(ifrms, &itmp);
 	LIST_SPLICE(hfrms, &htmp);
 
-	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_SPPKTS, qc);
 }
 
 static void qc_cc_err_count_inc(struct quic_conn *qc, struct quic_frame *frm)
@@ -3329,7 +3335,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		 */
 		if (pkt_type == QUIC_PACKET_TYPE_INITIAL && !LIST_ISEMPTY(tel_frms)) {
 			if (end - pos < QUIC_INITIAL_PACKET_MINLEN) {
-				TRACE_PROTO("No more enough room to build an Initial packets",
+				TRACE_PROTO("No more enough room to build an Initial packet",
 				            QUIC_EV_CONN_PHPKTS, qc);
 				goto out;
 			}
