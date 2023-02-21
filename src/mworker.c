@@ -166,16 +166,25 @@ struct mworker_proc *mworker_proc_new()
 
 /*
  * unserialize the proc list from the environment
+ * Return < 0 upon error.
  */
 int mworker_env_to_proc_list()
 {
-	char *msg, *token = NULL, *s1;
+	char *env, *msg, *omsg = NULL, *token = NULL, *s1;
 	struct mworker_proc *child;
 	int minreloads = INT_MAX; /* minimum number of reloads to chose which processes are "current" ones */
+	int err = 0;
 
-	msg = getenv("HAPROXY_PROCESSES");
-	if (!msg)
+	env = getenv("HAPROXY_PROCESSES");
+	if (!env)
 		return 0;
+
+	omsg = msg = strdup(env);
+	if (!msg) {
+		ha_alert("Out of memory while trying to allocate a worker process structure.");
+		err = -1;
+		goto out;
+	}
 
 	while ((token = strtok_r(msg, "|", &s1))) {
 		char *subtoken = NULL;
@@ -185,8 +194,9 @@ int mworker_env_to_proc_list()
 
 		child = mworker_proc_new();
 		if (!child) {
-			ha_alert("Out of memory while trying to allocate a worker process structure.");
-			return -1;
+			ha_alert("out of memory while trying to allocate a worker process structure.");
+			err = -1;
+			goto out;
 		}
 
 		while ((subtoken = strtok_r(token, ";", &s2))) {
@@ -244,7 +254,9 @@ int mworker_env_to_proc_list()
 
 	unsetenv("HAPROXY_PROCESSES");
 
-	return 0;
+out:
+	free(omsg);
+	return err;
 }
 
 /* Signal blocking and unblocking */
