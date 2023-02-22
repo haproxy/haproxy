@@ -335,6 +335,38 @@ static inline size_t b_contig_space(const struct buffer *b)
 	return left;
 }
 
+/* b_getblk_ofs() : gets one full block of data at once from a buffer, starting
+ * from offset <offset> after the buffer's area, and for exactly <len> bytes.
+ * As a convenience to avoid complex checks in callers, the offset is allowed
+ * to exceed a valid one by no more than one buffer size, and will automatically
+ * be wrapped. The caller is responsible for ensuring that <len> doesn't exceed
+ * the known length of the available data at this position, otherwise undefined
+ * data will be returned. This is meant to be used on concurrently accessed
+ * buffers, so that a reader can read a known area while the buffer is being fed
+ * and trimmed. The function guarantees never to use ->head nor ->data. The
+ * buffer is left unaffected. It always returns the number of bytes copied.
+ */
+static inline size_t b_getblk_ofs(const struct buffer *buf, char *blk, size_t len, size_t offset)
+{
+	size_t firstblock;
+
+	if (offset >= buf->size)
+		offset -= buf->size;
+
+	BUG_ON(offset >= buf->size);
+
+	firstblock = buf->size - offset;
+
+	if (firstblock >= len)
+		firstblock = len;
+
+	memcpy(blk, b_orig(buf) + offset, firstblock);
+
+	if (len > firstblock)
+		memcpy(blk + firstblock, b_orig(buf), len - firstblock);
+	return len;
+}
+
 /* b_getblk() : gets one full block of data at once from a buffer, starting
  * from offset <offset> after the buffer's head, and limited to no more than
  * <len> bytes. The caller is responsible for ensuring that neither <offset>
