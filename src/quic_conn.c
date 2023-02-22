@@ -1885,12 +1885,6 @@ static inline int qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 				close = 1;
 			}
 
-			if (QUIC_FT_STREAM_8 <= frm->type && frm->type <= QUIC_FT_STREAM_F) {
-				/* Mark this STREAM frame as lost. A look up their stream descriptor
-				 * will be performed to check the stream is not consumed or released.
-				 */
-				frm->flags |= QUIC_FL_TX_FRAME_LOST;
-			}
 			LIST_APPEND(&tmp, &frm->list);
 			TRACE_DEVEL("frame requeued", QUIC_EV_CONN_PRSAFRM, qc, frm);
 		}
@@ -2513,6 +2507,8 @@ static void qc_dup_pkt_frms(struct quic_conn *qc,
 				TRACE_DEVEL("updated partially acked frame",
 				            QUIC_EV_CONN_PRSAFRM, qc, frm);
 			}
+
+			strm_frm->dup = 1;
 			break;
 		}
 
@@ -6987,7 +6983,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 			break;
 
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
-			if (cf->flags & QUIC_FL_TX_FRAME_LOST) {
+			if (cf->stream.dup) {
 				struct eb64_node *node = NULL;
 				struct qc_stream_desc *stream_desc = NULL;
 				struct quic_stream *strm = &cf->stream;
@@ -7094,6 +7090,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				/* FIN bit reset */
 				new_cf->type &= ~QUIC_STREAM_FRAME_TYPE_FIN_BIT;
 				new_cf->stream.data = cf->stream.data;
+				new_cf->stream.dup = cf->stream.dup;
 				TRACE_DEVEL("split frame", QUIC_EV_CONN_PRSAFRM, qc, new_cf);
 				if (cf->origin) {
 					TRACE_DEVEL("duplicated frame", QUIC_EV_CONN_PRSAFRM, qc);
