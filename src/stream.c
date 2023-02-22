@@ -221,7 +221,7 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 
 	/* If txn defined, don't display all channel info */
 	if (src->verbosity == STRM_VERB_SIMPLE || txn) {
-		chunk_appendf(&trace_buf, " req=(%p .fl=0x%08x .exp=,%u)",
+		chunk_appendf(&trace_buf, " req=(%p .fl=0x%08x .exp=%u)",
 			      req, req->flags, req->analyse_exp);
 		chunk_appendf(&trace_buf, " res=(%p .fl=0x%08x .exp=%u)",
 			      res, res->flags, res->analyse_exp);
@@ -3356,9 +3356,9 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 			      (sc_ep_test(scf, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scf, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
 			      scf->sedesc->se, sc_ep_get(scf), scf->wait_event.events);
 		chunk_appendf(&trash, " rex=%s",
-			      sc_ep_rex(scf) ? human_time(TICKS_TO_MS(sc_ep_rex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+			      sc_ep_rcv_ex(scf) ? human_time(TICKS_TO_MS(sc_ep_rcv_ex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
 		chunk_appendf(&trash, " wex=%s\n",
-			      sc_ep_wex(scf) ? human_time(TICKS_TO_MS(sc_ep_wex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+			      sc_ep_snd_ex(scf) ? human_time(TICKS_TO_MS(sc_ep_snd_ex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
 
 		if ((conn = sc_conn(scf)) != NULL) {
 			if (conn->mux && conn->mux->show_sd) {
@@ -3402,9 +3402,9 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 			      (sc_ep_test(scb, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scb, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
 			      scb->sedesc->se, sc_ep_get(scb), scb->wait_event.events);
 		chunk_appendf(&trash, " rex=%s",
-			      sc_ep_rex(scb) ? human_time(TICKS_TO_MS(sc_ep_rex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+			      sc_ep_rcv_ex(scb) ? human_time(TICKS_TO_MS(sc_ep_rcv_ex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
 		chunk_appendf(&trash, " wex=%s\n",
-			      sc_ep_wex(scb) ? human_time(TICKS_TO_MS(sc_ep_wex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+			      sc_ep_snd_ex(scb) ? human_time(TICKS_TO_MS(sc_ep_snd_ex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
 
 		if ((conn = sc_conn(scb)) != NULL) {
 			if (conn->mux && conn->mux->show_sd) {
@@ -3698,24 +3698,24 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		chunk_appendf(&trash," scf=[%d,%1xh,fd=%d",
 			      curr_strm->scf->state, curr_strm->scf->flags, conn_fd(conn));
 		chunk_appendf(&trash, ",rex=%s",
-			      sc_ep_rex(curr_strm->scf) ?
-			      human_time(TICKS_TO_MS(sc_ep_rex(curr_strm->scf) - now_ms),
+			      sc_ep_rcv_ex(curr_strm->scf) ?
+			      human_time(TICKS_TO_MS(sc_ep_rcv_ex(curr_strm->scf) - now_ms),
 					 TICKS_TO_MS(1000)) : "");
 		chunk_appendf(&trash,",wex=%s]",
-			      sc_ep_wex(curr_strm->scf) ?
-			      human_time(TICKS_TO_MS(sc_ep_wex(curr_strm->scf) - now_ms),
+			      sc_ep_snd_ex(curr_strm->scf) ?
+			      human_time(TICKS_TO_MS(sc_ep_snd_ex(curr_strm->scf) - now_ms),
 					 TICKS_TO_MS(1000)) : "");
 
 		conn = sc_conn(curr_strm->scb);
 		chunk_appendf(&trash, " scb=[%d,%1xh,fd=%d",
 			      curr_strm->scb->state, curr_strm->scb->flags, conn_fd(conn));
 		chunk_appendf(&trash, ",rex=%s",
-			      sc_ep_rex(curr_strm->scb) ?
-			      human_time(TICKS_TO_MS(sc_ep_rex(curr_strm->scb) - now_ms),
+			      sc_ep_rcv_ex(curr_strm->scb) ?
+			      human_time(TICKS_TO_MS(sc_ep_rcv_ex(curr_strm->scb) - now_ms),
 					 TICKS_TO_MS(1000)) : "");
 		chunk_appendf(&trash, ",wex=%s]",
-			      sc_ep_wex(curr_strm->scb) ?
-			      human_time(TICKS_TO_MS(sc_ep_wex(curr_strm->scb) - now_ms),
+			      sc_ep_snd_ex(curr_strm->scb) ?
+			      human_time(TICKS_TO_MS(sc_ep_snd_ex(curr_strm->scb) - now_ms),
 					 TICKS_TO_MS(1000)) : "");
 
 		chunk_appendf(&trash,
