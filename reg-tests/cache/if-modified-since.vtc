@@ -61,10 +61,6 @@ haproxy h1 -conf {
                server www ${s1_addr}:${s1_port}
                http-response cache-store my_cache
 
-               # Remove Transfer-Encoding header because of a vtest issue with
-               # 304-Not-Modified responses
-               http-after-response del-header transfer-encoding if { status eq 304 }
-
        cache my_cache
                total-max-size 3
                max-age 20
@@ -114,41 +110,35 @@ client c1 -connect ${h1_fe_sock} {
        # "Last-Modified" version
        txreq -url "/last_modified" \
               -hdr "If-Modified-Since: Thu, 15 Oct 2020 22:23:24 GMT"
-       rxresp
+       rxresphdrs
        expect resp.status == 304
-       expect resp.bodylen == 0
        # "Date" version
        txreq -url "/date" \
               -hdr "If-Modified-Since: Thu, 22 Oct 2020 16:51:12 GMT"
-       rxresp
+       rxresphdrs
        expect resp.status == 304
-       expect resp.bodylen == 0
        # "Last-Modified" and "Date" version
        txreq -url "/last_modified_and_date" \
               -hdr "If-Modified-Since: Thu, 15 Oct 2020 16:51:12 GMT"
-       rxresp
+       rxresphdrs
        expect resp.status == 304
-       expect resp.bodylen == 0
 
 
        # Later date
        # "Last-Modified" version
        txreq -url "/last_modified" \
               -hdr "If-Modified-Since: Thu, 22 Oct 2020 23:00:00 GMT"
-       rxresp
+       rxresphdrs
        expect resp.status == 304
-       expect resp.bodylen == 0
        # "Date" version
        txreq -url "/date" \
               -hdr "If-Modified-Since: Thu, 22 Oct 2020 23:00:00 GMT"
-       rxresp
+       rxresphdrs
        expect resp.status == 304
-       expect resp.bodylen == 0
        # "Last-Modified" and "Date" version
        txreq -url "/last_modified_and_date" \
               -hdr "If-Modified-Since: Thu, 22 Oct 2020 23:00:00 GMT"
-       rxresp
+       rxresphdrs
        expect resp.status == 304
-       expect resp.bodylen == 0
 
 } -run
