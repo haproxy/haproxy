@@ -202,15 +202,16 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 
 	/* If txn defined info about HTTP msgs, otherwise info about SI. */
 	if (txn) {
-		chunk_appendf(&trace_buf, " - t=%p s=(%p,0x%08x,0x%x) txn.flags=0x%08x, http.flags=(0x%08x,0x%08x) status=%d",
-			      task, s, s->flags, s->conn_err_type, txn->flags, txn->req.flags, txn->rsp.flags, txn->status);
+		chunk_appendf(&trace_buf, " - t=%p t.exp=%u s=(%p,0x%08x,0x%x) txn.flags=0x%08x, http.flags=(0x%08x,0x%08x) status=%d",
+			      task, task->expire, s, s->flags, s->conn_err_type, txn->flags, txn->req.flags, txn->rsp.flags, txn->status);
 	}
 	else {
-		chunk_appendf(&trace_buf, " - t=%p s=(%p,0x%08x,0x%x) scf=(%p,%d,0x%08x,0x%x) scb=(%p,%d,0x%08x,0x%x) scf.exp(r,w)=(%u,%u) scb.exp(r,w)=(%u,%u) retries=%d",
-			      task, s, s->flags, s->conn_err_type,
+		chunk_appendf(&trace_buf, " - t=%p t.exp=%u s=(%p,0x%08x,0x%x) scf=(%p,%d,0x%08x,0x%x) scb=(%p,%d,0x%08x,0x%x) scf.exp(r,w)=(%u,%u) scb.exp(r,w)=(%u,%u) retries=%d",
+			      task, task->expire, s, s->flags, s->conn_err_type,
 			      s->scf, s->scf->state, s->scf->flags, s->scf->sedesc->flags,
 			      s->scb, s->scb->state, s->scb->flags, s->scb->sedesc->flags,
-			      sc_ep_rex(s->scf), sc_ep_wex(s->scf), sc_ep_rex(s->scb), sc_ep_wex(s->scb),
+			      sc_ep_rcv_ex(s->scf), sc_ep_snd_ex(s->scf),
+			      sc_ep_rcv_ex(s->scb), sc_ep_snd_ex(s->scb),
 			      s->conn_retries);
 	}
 
