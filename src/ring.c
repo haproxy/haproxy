@@ -142,7 +142,6 @@ struct ring *ring_resize(struct ring *ring, size_t size)
 		b_getblk(&ring->buf, area, ring->buf.data, 0);
 		area = HA_ATOMIC_XCHG(&ring->buf.area, area);
 		ring->buf.size = size;
-		ring->buf.head = 0;
 	}
 
 	HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
