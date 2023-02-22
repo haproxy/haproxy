@@ -1285,6 +1285,50 @@ struct server *findserver(const struct proxy *px, const char *name) {
 	return target;
 }
 
+/*
+ * This function finds a server with matching "<puid> x <rid>" within
+ * selected proxy <px>.
+ * Using the combination of proxy-uid + revision id ensures that the function
+ * will either return the server we're expecting or NULL if it has been removed
+ * from the proxy.
+ */
+struct server *findserver_unique_id(const struct proxy *px, int puid, uint32_t rid) {
+
+	struct server *cursrv;
+
+	if (!px)
+		return NULL;
+
+	for (cursrv = px->srv; cursrv; cursrv = cursrv->next) {
+		if (cursrv->puid == puid && cursrv->rid == rid)
+			return cursrv;
+	}
+
+	return NULL;
+}
+
+/*
+ * This function finds a server with matching "<name> x <rid>" within
+ * selected proxy <px>.
+ * Using the combination of name + revision id ensures that the function will
+ * either return the server we're expecting or NULL if it has been removed
+ * from the proxy.
+ */
+struct server *findserver_unique_name(const struct proxy *px, const char *name, uint32_t rid) {
+
+	struct server *cursrv;
+
+	if (!px)
+		return NULL;
+
+	for (cursrv = px->srv; cursrv; cursrv = cursrv->next) {
+		if (!strcmp(cursrv->id, name) && cursrv->rid == rid)
+			return cursrv;
+	}
+
+	return NULL;
+}
+
 /* This function checks that the designated proxy has no http directives
  * enabled. It will output a warning if there are, and will fix some of them.
  * It returns the number of fatal errors encountered. This should be called
