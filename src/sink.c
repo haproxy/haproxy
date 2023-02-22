@@ -632,6 +632,7 @@ static int sink_forward_session_init(struct appctx *appctx)
 	 * We are using a syslog server.
 	 */
 	sc_ep_reset_rex(s->scb);
+	applet_expect_no_data(appctx);
 	sft->appctx = appctx;
 
 	return 0;

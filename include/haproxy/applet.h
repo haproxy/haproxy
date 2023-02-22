@@ -166,6 +166,23 @@ static inline void applet_need_more_data(struct appctx *appctx)
 	se_fl_set(appctx->sedesc, SE_FL_WAIT_DATA);
 }
 
+/* The applet indicates that it does not expect data from the opposite endpoint.
+ * This way the stream know it should not trigger read timeout on the other
+ * side.
+ */
+static inline void applet_expect_no_data(struct appctx *appctx)
+{
+	se_fl_set(appctx->sedesc, SE_FL_EXP_NO_DATA);
+}
+
+/* The applet indicates that it expects data from the opposite endpoint. This
+ * way the stream know it may trigger read timeout on the other side.
+ */
+static inline void applet_expect_data(struct appctx *appctx)
+{
+	se_fl_clr(appctx->sedesc, SE_FL_EXP_NO_DATA);
+}
+
 /* writes chunk <chunk> into the input channel of the stream attached to this
  * appctx's endpoint, and marks the SC_FL_NEED_ROOM on a channel full error.
  * See ci_putchk() for the list of return codes.
