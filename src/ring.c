@@ -42,7 +42,6 @@ void ring_init(struct ring *ring, void *area, size_t size)
 	HA_RWLOCK_INIT(&ring->lock);
 	LIST_INIT(&ring->waiters);
 	ring->readers_count = 0;
-	ring->ofs = 0;
 	ring->buf = b_make(area, size, 0, 0);
 	/* write the initial RC byte */
 	b_putchr(&ring->buf, 0);
@@ -221,7 +220,6 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 		BUG_ON(b_data(buf) < 1 + dellenlen + dellen);
 
 		b_del(buf, 1 + dellenlen + dellen);
-		ring->ofs += 1 + dellenlen + dellen;
 	}
 
 	/* OK now we do have room */
