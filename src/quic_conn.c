@@ -1489,6 +1489,17 @@ static int quic_packet_encrypt(unsigned char *payload, size_t payload_len,
 	goto leave;
 }
 
+/* Select the correct TLS cipher context to used to decipher <pkt> packet
+ * attached to <qc> connection from <qel> encryption level.
+ */
+static inline struct quic_tls_ctx *qc_select_tls_ctx(struct quic_conn *qc,
+                                                     struct quic_enc_level *qel,
+                                                     struct quic_rx_packet *pkt)
+{
+	return pkt->type != QUIC_PACKET_TYPE_INITIAL ? &qel->tls_ctx :
+		pkt->version == qc->negotiated_version ? &qc->negotiated_ictx : &qel->tls_ctx;
+}
+
 /* Decrypt <pkt> packet using encryption level <qel> for <qc> connection.
  * Decryption is done in place in packet buffer.
  *
@@ -1499,7 +1510,7 @@ static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
 {
 	int ret, kp_changed;
 	unsigned char iv[QUIC_TLS_IV_LEN];
-	struct quic_tls_ctx *tls_ctx = &qel->tls_ctx;
+	struct quic_tls_ctx *tls_ctx = qc_select_tls_ctx(qc, qel, pkt);
 	EVP_CIPHER_CTX *rx_ctx = tls_ctx->rx.ctx;
 	unsigned char *rx_iv = tls_ctx->rx.iv;
 	size_t rx_iv_sz = tls_ctx->rx.ivlen;
@@ -4011,7 +4022,6 @@ int quic_update_ack_ranges_list(struct quic_conn *qc,
  */
 static inline void qc_rm_hp_pkts(struct quic_conn *qc, struct quic_enc_level *el)
 {
-	struct quic_tls_ctx *tls_ctx;
 	struct quic_rx_packet *pqpkt, *pkttmp;
 	struct quic_enc_level *app_qel;
 
@@ -4023,8 +4033,11 @@ static inline void qc_rm_hp_pkts(struct quic_conn *qc, struct quic_enc_level *el
 		            QUIC_EV_CONN_ELRMHP, qc);
 		goto out;
 	}
-	tls_ctx = &el->tls_ctx;
+
 	list_for_each_entry_safe(pqpkt, pkttmp, &el->rx.pqpkts, list) {
+		struct quic_tls_ctx *tls_ctx;
+
+		tls_ctx = qc_select_tls_ctx(qc, el, pqpkt);
 		if (!qc_do_rm_hp(qc, pqpkt, tls_ctx, el->pktns->rx.largest_pn,
 		                 pqpkt->data + pqpkt->pn_offset, pqpkt->data)) {
 			TRACE_ERROR("hp removing error", QUIC_EV_CONN_ELRMHP, qc);
@@ -5554,11 +5567,13 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 	qel = &qc->els[tel];
 
 	if (qc_qel_may_rm_hp(qc, qel)) {
+		struct quic_tls_ctx *tls_ctx = qc_select_tls_ctx(qc, qel, pkt);
+
 		 /* Note that the following function enables us to unprotect the packet
 		 * number and its length subsequently used to decrypt the entire
 		 * packets.
 		 */
-		if (!qc_do_rm_hp(qc, pkt, &qel->tls_ctx,
+		if (!qc_do_rm_hp(qc, pkt, tls_ctx,
 		                 qel->pktns->rx.largest_pn, pn, beg)) {
 			TRACE_PROTO("hp error", QUIC_EV_CONN_TRMHP, qc);
 			goto out;
