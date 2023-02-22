@@ -330,13 +330,11 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 	if (unlikely(ofs == ~0)) {
 		ofs = 0;
 		HA_ATOMIC_INC(b_peek(buf, ofs));
-		ofs += ring->ofs;
 	}
 
 	/* we were already there, adjust the offset to be relative to
 	 * the buffer's head and remove us from the counter.
 	 */
-	ofs -= ring->ofs;
 	BUG_ON(ofs >= buf->size);
 	HA_ATOMIC_DEC(b_peek(buf, ofs));
 
@@ -380,7 +378,6 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 out:
 
 	HA_ATOMIC_INC(b_peek(buf, ofs));
-	ofs += ring->ofs;
 	ns->dgram->ofs_req = ofs;
 	HA_RWLOCK_RDUNLOCK(DNS_LOCK, &ring->lock);
 	HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
@@ -498,7 +495,6 @@ static void dns_session_io_handler(struct appctx *appctx)
 		ofs = 0;
 
 		HA_ATOMIC_INC(b_peek(buf, ofs));
-		ofs += ring->ofs;
 	}
 
 	/* in this loop, ofs always points to the counter byte that precedes
@@ -509,7 +505,6 @@ static void dns_session_io_handler(struct appctx *appctx)
 		/* we were already there, adjust the offset to be relative to
 		 * the buffer's head and remove us from the counter.
 		 */
-		ofs -= ring->ofs;
 		BUG_ON(ofs >= buf->size);
 		HA_ATOMIC_DEC(b_peek(buf, ofs));
 
@@ -637,7 +632,6 @@ static void dns_session_io_handler(struct appctx *appctx)
 		}
 
 		HA_ATOMIC_INC(b_peek(buf, ofs));
-		ofs += ring->ofs;
 		ds->ofs = ofs;
 	}
 	HA_RWLOCK_RDUNLOCK(DNS_LOCK, &ring->lock);
@@ -1129,13 +1123,11 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned int 
 	if (unlikely(ofs == ~0)) {
 		ofs = 0;
 		HA_ATOMIC_INC(b_peek(buf, ofs));
-		ofs += ring->ofs;
 	}
 
 	/* we were already there, adjust the offset to be relative to
 	 * the buffer's head and remove us from the counter.
 	 */
-	ofs -= ring->ofs;
 	BUG_ON(ofs >= buf->size);
 	HA_ATOMIC_DEC(b_peek(buf, ofs));
 
@@ -1224,7 +1216,6 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned int 
 	}
 
 	HA_ATOMIC_INC(b_peek(buf, ofs));
-	ofs += ring->ofs;
 	dss->ofs_req = ofs;
 	HA_RWLOCK_RDUNLOCK(DNS_LOCK, &ring->lock);
 

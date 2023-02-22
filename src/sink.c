@@ -362,9 +362,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	 */
 	if (unlikely(ofs == ~0)) {
 		ofs = 0;
-
 		HA_ATOMIC_INC(b_peek(buf, ofs));
-		ofs += ring->ofs;
 	}
 
 	/* in this loop, ofs always points to the counter byte that precedes
@@ -375,7 +373,6 @@ static void sink_forward_io_handler(struct appctx *appctx)
 		/* we were already there, adjust the offset to be relative to
 		 * the buffer's head and remove us from the counter.
 		 */
-		ofs -= ring->ofs;
 		BUG_ON(ofs >= buf->size);
 		HA_ATOMIC_DEC(b_peek(buf, ofs));
 
@@ -407,9 +404,8 @@ static void sink_forward_io_handler(struct appctx *appctx)
 		}
 
 		HA_ATOMIC_INC(b_peek(buf, ofs));
-		ofs += ring->ofs;
+		last_ofs = b_tail_ofs(buf);
 		sft->ofs = ofs;
-		last_ofs = ring->ofs;
 	}
 	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);
 
@@ -417,7 +413,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 		/* let's be woken up once new data arrive */
 		HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 		LIST_APPEND(&ring->waiters, &appctx->wait_entry);
-		ofs = ring->ofs;
+		ofs = b_tail_ofs(buf);
 		HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
 		if (ofs != last_ofs) {
 			/* more data was added into the ring between the
@@ -502,9 +498,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	 */
 	if (unlikely(ofs == ~0)) {
 		ofs = 0;
-
 		HA_ATOMIC_INC(b_peek(buf, ofs));
-		ofs += ring->ofs;
 	}
 
 	/* in this loop, ofs always points to the counter byte that precedes
@@ -515,7 +509,6 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 		/* we were already there, adjust the offset to be relative to
 		 * the buffer's head and remove us from the counter.
 		 */
-		ofs -= ring->ofs;
 		BUG_ON(ofs >= buf->size);
 		HA_ATOMIC_DEC(b_peek(buf, ofs));
 
@@ -551,7 +544,6 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 		}
 
 		HA_ATOMIC_INC(b_peek(buf, ofs));
-		ofs += ring->ofs;
 		sft->ofs = ofs;
 	}
 	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);

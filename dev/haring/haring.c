@@ -123,20 +123,14 @@ int dump_ring(struct ring *ring, size_t ofs, int flags)
 		ofs = 0;
 
 		/* going to the end means looking at tail-1 */
-		if (flags & RING_WF_SEEK_NEW)
-			ofs += b_data(&buf) - 1;
+		ofs = (flags & RING_WF_SEEK_NEW) ? buf.data - 1 : 0;
 
 		//HA_ATOMIC_INC(b_peek(&buf, ofs));
-		ofs += ring->ofs;
 	}
 
 	while (1) {
 		//HA_RWLOCK_RDLOCK(LOGSRV_LOCK, &ring->lock);
 
-		/* we were already there, adjust the offset to be relative to
-		 * the buffer's head and remove us from the counter.
-		 */
-		ofs -= ring->ofs;
 		if (ofs >= buf.size) {
 			fprintf(stderr, "FATAL error at %d\n", __LINE__);
 			return 1;
@@ -203,7 +197,6 @@ int dump_ring(struct ring *ring, size_t ofs, int flags)
 		}
 
 		//HA_ATOMIC_INC(b_peek(&buf, ofs));
-		ofs += ring->ofs;
 		//HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);
 
 		if (!(flags & RING_WF_WAIT_MODE))

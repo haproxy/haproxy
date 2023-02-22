@@ -31,7 +31,7 @@
 /* context used to dump the contents of a ring via "show events" or "show errors" */
 struct show_ring_ctx {
 	struct ring *ring; /* ring to be dumped */
-	size_t ofs;        /* offset to restart from, ~0 = end */
+	size_t ofs;        /* storage offset to restart from; ~0=oldest */
 	uint flags;        /* set of RING_WF_* */
 };
 
@@ -278,8 +278,9 @@ int ring_attach(struct ring *ring)
 	return 1;
 }
 
-/* detach an appctx from a ring. The appctx is expected to be waiting at
- * offset <ofs>. Nothing is done if <ring> is NULL.
+/* detach an appctx from a ring. The appctx is expected to be waiting at offset
+ * <ofs> relative to the beginning of the storage, or ~0 if not waiting yet.
+ * Nothing is done if <ring> is NULL.
  */
 void ring_detach_appctx(struct ring *ring, struct appctx *appctx, size_t ofs)
 {
@@ -289,7 +290,11 @@ void ring_detach_appctx(struct ring *ring, struct appctx *appctx, size_t ofs)
 	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 	if (ofs != ~0) {
 		/* reader was still attached */
-		ofs -= ring->ofs;
+		if (ofs < b_head_ofs(&ring->buf))
+			ofs += b_size(&ring->buf) - b_head_ofs(&ring->buf);
+		else
+			ofs -= b_head_ofs(&ring->buf);
+
 		BUG_ON(ofs >= b_size(&ring->buf));
 		LIST_DEL_INIT(&appctx->wait_entry);
 		HA_ATOMIC_DEC(b_peek(&ring->buf, ofs));
@@ -340,7 +345,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	struct stconn *sc = appctx_sc(appctx);
 	struct ring *ring = ctx->ring;
 	struct buffer *buf = &ring->buf;
-	size_t ofs = ctx->ofs;
+	size_t ofs;
 	size_t last_ofs;
 	uint64_t msg_len;
 	size_t len, cnt;
@@ -363,21 +368,19 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	 * existing messages before grabbing a reference to a location. This
 	 * value cannot be produced after initialization.
 	 */
-	if (unlikely(ofs == ~0)) {
-		ofs = 0;
-
+	if (unlikely(ctx->ofs == ~0)) {
 		/* going to the end means looking at tail-1 */
-		if (ctx->flags & RING_WF_SEEK_NEW)
-			ofs += b_data(buf) - 1;
-
-		HA_ATOMIC_INC(b_peek(buf, ofs));
-		ofs += ring->ofs;
+		ctx->ofs = b_peek_ofs(buf, (ctx->flags & RING_WF_SEEK_NEW) ? b_data(buf) - 1 : 0);
+		HA_ATOMIC_INC(b_orig(buf) + ctx->ofs);
 	}
 
 	/* we were already there, adjust the offset to be relative to
 	 * the buffer's head and remove us from the counter.
 	 */
-	ofs -= ring->ofs;
+	ofs = ctx->ofs - b_head_ofs(buf);
+	if (ctx->ofs < b_head_ofs(buf))
+		ofs += b_size(buf);
+
 	BUG_ON(ofs >= buf->size);
 	HA_ATOMIC_DEC(b_peek(buf, ofs));
 
@@ -413,9 +416,8 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	}
 
 	HA_ATOMIC_INC(b_peek(buf, ofs));
-	ofs += ring->ofs;
-	last_ofs = ring->ofs;
-	ctx->ofs = ofs;
+	last_ofs = b_tail_ofs(buf);
+	ctx->ofs = b_peek_ofs(buf, ofs);
 	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);
 
 	if (ret && (ctx->flags & RING_WF_WAIT_MODE)) {
@@ -426,7 +428,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 			/* let's be woken up once new data arrive */
 			HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 			LIST_APPEND(&ring->waiters, &appctx->wait_entry);
-			ofs = ring->ofs;
+			ofs = b_tail_ofs(&ring->buf);
 			HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
 			if (ofs != last_ofs) {
 				/* more data was added into the ring between the
