@@ -2423,8 +2423,14 @@ static size_t qc_recv_buf(struct stconn *sc, struct buffer *buf,
 			se_fl_set(qcs->sd, SE_FL_ERROR);
 
 		/* Set end-of-input if FIN received and all data extracted. */
-		if (fin)
+		if (fin) {
 			se_fl_set(qcs->sd, SE_FL_EOI);
+
+			/* If request EOM is reported to the upper layer, it means the
+			 * QCS now expects data from the opposite side.
+			 */
+			se_expect_data(qcs->sd);
+		}
 
 		if (b_size(&qcs->rx.app_buf)) {
 			b_free(&qcs->rx.app_buf);
