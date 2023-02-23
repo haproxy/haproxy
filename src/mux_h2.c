@@ -1537,6 +1537,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	h2s->sd->se   = h2s;
 	h2s->sd->conn = h2c->conn;
 	se_fl_set(h2s->sd, SE_FL_T_MUX | SE_FL_ORPHAN | SE_FL_NOT_FIRST);
+	se_expect_no_data(h2s->sd);
 
 	/* FIXME wrong analogy between ext-connect and websocket, this need to
 	 * be refine.
@@ -6401,8 +6402,16 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 		if (htx_is_empty(buf_htx))
 			se_fl_set(h2s->sd, SE_FL_EOI);
 	}
-	else if (htx_is_empty(h2s_htx))
+	else if (htx_is_empty(h2s_htx)) {
 		buf_htx->flags |= (h2s_htx->flags & HTX_FL_EOM);
+
+		if (!(h2c->flags & H2_CF_IS_BACK) && (buf_htx->flags & HTX_FL_EOM)) {
+			/* If request EOM is reported to the upper layer, it means the
+			 * H2S now expects data from the opposite side.
+			 */
+			se_expect_data(h2s->sd);
+		}
+	}
 
 	buf_htx->extra = (h2s_htx->extra ? (h2s_htx->data + h2s_htx->extra) : 0);
 	htx_to_buf(buf_htx, buf);
