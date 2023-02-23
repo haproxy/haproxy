@@ -557,6 +557,40 @@ static inline void b_putchr(struct buffer *b, char c)
 	b->data++;
 }
 
+/* b_putblk_ofs(): puts one full block of data of length <len> from <blk> into
+ * the buffer, starting from absolute offset <offset> after the buffer's area.
+ * As a convenience to avoid complex checks in callers, the offset is allowed
+ * to exceed a valid one by no more than one buffer size, and will automatically
+ * be wrapped. The caller is responsible for ensuring that <len> doesn't exceed
+ * the known length of the available room at this position, otherwise data may
+ * be overwritten. The buffer's length is *not* updated, so generally the caller
+ * will have updated it before calling this function. This is meant to be used
+ * on concurrently accessed buffers, so that a writer can append data while a
+ * reader is blocked by other means from reaching the current area The function
+ * guarantees never to use ->head nor ->data. It always returns the number of
+ * bytes copied.
+ */
+static inline size_t b_putblk_ofs(struct buffer *buf, char *blk, size_t len, size_t offset)
+{
+	size_t firstblock;
+
+	if (offset >= buf->size)
+		offset -= buf->size;
+
+	BUG_ON(offset >= buf->size);
+
+	firstblock = buf->size - offset;
+
+	if (firstblock >= len)
+		firstblock = len;
+
+	memcpy(b_orig(buf) + offset, blk, firstblock);
+
+	if (len > firstblock)
+		memcpy(b_orig(buf), blk + firstblock, len - firstblock);
+	return len;
+}
+
 /* __b_putblk() : tries to append <len> bytes from block <blk> to the end of
  * buffer <b> without checking for free space (it's up to the caller to do it).
  * Supports wrapping. It must not be called with len == 0.
