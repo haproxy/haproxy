@@ -24,7 +24,8 @@
 
 #include <stdint.h>
 
-#include <haproxy/list-t.h>
+#include <haproxy/api-t.h>
+#include <haproxy/thread-t.h>
 
 /* event data struct are defined as followed */
 struct event_hdl_cb_data_template {
@@ -72,8 +73,13 @@ struct event_hdl_sub_type
 	uint16_t subtype;
 };
 
-/* event_hdl_sub_list is an alias to mt_list (please use this for portability) */
-typedef struct mt_list event_hdl_sub_list;
+struct event_hdl_sub_list_head {
+	struct mt_list head;
+	__decl_thread(HA_SPINLOCK_T insert_lock);
+};
+
+/* event_hdl_sub_list is an alias (please use this for portability) */
+typedef struct event_hdl_sub_list_head event_hdl_sub_list;
 /* event_hdl_async_equeue is an alias to mt_list (please use this for portability) */
 typedef struct mt_list event_hdl_async_equeue;
 

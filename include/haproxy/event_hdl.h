@@ -221,6 +221,14 @@ uint64_t event_hdl_id(const char *scope, const char *name);
  * If <sub_list> is not specified (equals NULL):
  * global subscription list (process wide) will be used.
  *
+ * For identified subscriptions (EVENT_HDL_ID_*), the function is safe against
+ * concurrent subscriptions attempts with the same ID: the ID will only be
+ * inserted once in the list and subsequent attempts will yield an error.
+ * However, trying to register the same ID multiple times is considered as
+ * an error (no specific error code is returned in this case) so the check should
+ * be performed by the caller if it is expected. (The caller must ensure that the ID
+ * is unique to prevent the error from being raised)
+ *
  * Returns 1 in case of success, 0 in case of failure (invalid argument / memory error)
  */
 int event_hdl_subscribe(event_hdl_sub_list *sub_list,
@@ -422,7 +430,8 @@ static inline struct event_hdl_async_event *event_hdl_async_equeue_pop(event_hdl
  */
 static inline void event_hdl_sub_list_init(event_hdl_sub_list *sub_list)
 {
-	MT_LIST_INIT(sub_list);
+	MT_LIST_INIT(&sub_list->head);
+	HA_SPIN_INIT(&sub_list->insert_lock);
 }
 
 /* use this function when you need to destroy <sub_list>

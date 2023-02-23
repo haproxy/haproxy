@@ -425,6 +425,7 @@ enum lock_label {
 	IDLE_CONNS_LOCK,
 	QUIC_LOCK,
 	OCSP_LOCK,
+	EHDL_LOCK,
 	OTHER_LOCK,
 	/* WT: make sure never to use these ones outside of development,
 	 * we need them for lock profiling!
