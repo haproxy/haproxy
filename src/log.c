@@ -4347,7 +4347,7 @@ static struct applet syslog_applet = {
 
 /* Atomically append an event to applet >ctx>'s output, prepending it with its
  * size in decimal followed by a space.
- * The line is read from <buf> at offset <ofs> relative to the buffer's head,
+ * The line is read from <buf> at offset <ofs> relative to the buffer's origin,
  * for <len> bytes. It returns the number of bytes consumed from the input
  * buffer on success, -1 if it temporarily cannot (buffer full), -2 if it will
  * never be able to (too large msg). The input buffer is not modified. The
@@ -4372,7 +4372,7 @@ ssize_t syslog_applet_append_event(void *ctx, const struct buffer *buf, size_t o
 		return -2;
 
 	/* try to transfer it or report full */
-	trash.data += b_getblk(buf, trash.area + trash.data, len, ofs);
+	trash.data += b_getblk_ofs(buf, trash.area + trash.data, len, ofs);
 	if (applet_putchk(appctx, &trash) == -1)
 		return -1;
 

@@ -343,7 +343,8 @@ int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t
 	uint64_t msg_len;
 	ssize_t copied;
 	size_t len, cnt;
-	size_t ofs;
+	size_t ofs; /* absolute offset from the buffer's origin */
+	size_t pos; /* relative position from head (0..data-1) */
 	int ret;
 
 	HA_RWLOCK_RDLOCK(RING_LOCK, &ring->lock);
@@ -362,47 +363,49 @@ int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t
 		HA_ATOMIC_INC(b_orig(buf) + *ofs_ptr);
 	}
 
-	/* we were already there, adjust the offset to be relative to
-	 * the buffer's head and remove us from the counter.
-	 */
-	ofs = *ofs_ptr - b_head_ofs(buf);
-	if (*ofs_ptr < b_head_ofs(buf))
-		ofs += b_size(buf);
-
+	ofs = *ofs_ptr;
 	BUG_ON(ofs >= buf->size);
-	HA_ATOMIC_DEC(b_peek(buf, ofs));
+	HA_ATOMIC_DEC(b_orig(buf) + ofs);
 
 	/* in this loop, ofs always points to the counter byte that precedes
 	 * the message so that we can take our reference there if we have to
 	 * stop before the end (ret=0).
 	 */
 	ret = 1;
-	while (ofs + 1 < b_data(buf)) {
+	while (1) {
+		/* relative position in the buffer */
+		pos = b_rel_ofs(buf, ofs);
+
+		if (pos + 1 >= b_data(buf)) {
+			/* no more data */
+			break;
+		}
+
 		cnt = 1;
-		len = b_peek_varint(buf, ofs + cnt, &msg_len);
+		len = b_peek_varint(buf, pos + cnt, &msg_len);
 		if (!len)
 			break;
 		cnt += len;
-		BUG_ON(msg_len + ofs + cnt + 1 > b_data(buf));
+		BUG_ON(msg_len + pos + cnt + 1 > b_data(buf));
 
 		copied = msg_handler(ctx, buf, ofs + cnt, msg_len);
 		if (copied == -2) {
 			/* too large a message to ever fit, let's skip it */
-			ofs += cnt + msg_len;
-			continue;
+			goto skip;
 		}
 		else if (copied == -1) {
 			/* output full */
 			ret = 0;
 			break;
 		}
-		ofs += cnt + msg_len;
+	skip:
+		ofs = b_add_ofs(buf, ofs, cnt + msg_len);
 	}
 
-	HA_ATOMIC_INC(b_peek(buf, ofs));
+	HA_ATOMIC_INC(b_orig(buf) + ofs);
 	if (last_ofs_ptr)
 		*last_ofs_ptr = b_tail_ofs(buf);
-	*ofs_ptr = b_peek_ofs(buf, ofs);
+	*ofs_ptr = ofs;
 	HA_RWLOCK_RDUNLOCK(RING_LOCK, &ring->lock);
 	return ret;
 }
