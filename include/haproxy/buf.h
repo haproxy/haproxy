@@ -91,6 +91,18 @@ static inline size_t b_full(const struct buffer *b)
 	return !b_room(b);
 }
 
+/* b_add_ofs() : return new offset within buffer after applying wrapping. Only
+ * offsets resulting from initial positions added to counts within buffer size
+ * limits are handled.
+ */
+static inline size_t b_add_ofs(const struct buffer *b, size_t ofs, size_t count)
+{
+	ofs += count;
+	if (ofs >= b->size)
+		ofs -= b->size;
+	return ofs;
+}
+
 
 /* b_stop() : returns the pointer to the byte following the end of the buffer,
  * which may be out of the buffer if the buffer ends on the last byte of the
