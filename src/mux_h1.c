@@ -782,7 +782,12 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct stconn *sc, struct
 		h1s->sd->conn   = h1c->conn;
 		se_fl_set(h1s->sd, SE_FL_T_MUX | SE_FL_ORPHAN);
 	}
-
+	/* When a request starts, the H1S does not expect data while the request
+	 * is not finished. It does not mean the response must not be received,
+	 * especially if headers were already forwarded. But it is not
+	 * mandatory.
+	 */
+	se_expect_no_data(h1s->sd);
 	h1s->sess = sess;
 
 	if (h1c->px->options2 & PR_O2_REQBUG_OK)
@@ -1773,6 +1778,13 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		else if (h1m->state == H1_MSG_DONE) {
 			TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "H1 request fully rcvd" : "H1 response fully rcvd"),
 				   H1_EV_RX_DATA|H1_EV_RX_EOI, h1c->conn, h1s, htx);
+
+			if (!(h1c->flags & H1C_F_IS_BACK)) {
+				/* The request was fully received. It means the H1S now
+				 * expect data from the opposite side
+				 */
+				se_expect_data(h1s->sd);
+			}
 
 			if ((h1m->flags & H1_MF_RESP) &&
 			    ((h1s->meth == HTTP_METH_CONNECT && h1s->status >= 200 && h1s->status < 300) || h1s->status == 101))
@@ -3783,6 +3795,14 @@ static int h1_rcv_pipe(struct stconn *sc, struct pipe *pipe, unsigned int count)
 			if (!h1m->curr_len) {
 				h1m->state = H1_MSG_DONE;
 				h1c->flags &= ~H1C_F_WANT_SPLICE;
+
+				if (!(h1c->flags & H1C_F_IS_BACK)) {
+					/* The request was fully received. It means the H1S now
+					 * expect data from the opposite side
+					 */
+					se_expect_data(h1s->sd);
+				}
+
 				TRACE_STATE("payload fully received", H1_EV_STRM_RECV, h1c->conn, h1s);
 			}
 		}
