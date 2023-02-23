@@ -103,6 +103,15 @@ static inline size_t b_add_ofs(const struct buffer *b, size_t ofs, size_t count)
 	return ofs;
 }
 
+/* b_rel_ofs() : take an absolute offset in the buffer, and return it relative
+ * to the buffer's head for use with b_peek().
+ */
+static inline size_t b_rel_ofs(const struct buffer *b, size_t ofs)
+{
+	if (ofs < b->head)
+		ofs += b->size;
+	return ofs - b->head;
+}
 
 /* b_stop() : returns the pointer to the byte following the end of the buffer,
  * which may be out of the buffer if the buffer ends on the last byte of the
