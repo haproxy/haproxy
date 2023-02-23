@@ -782,6 +782,11 @@ file, or could be inherited by a program (See 3.7. Programs):
   mode this is the version which was used to start the master, even after
   updating the binary and reloading.
 
+* HAPROXY_BRANCH: contains the HAProxy branch version (such as "2.8"). It does
+  not contain the full version number. It can be useful in case of migration
+  if resources (such as maps or certificates) are in a path containing the
+  branch number.
+
 In addition, some pseudo-variables are internally resolved and may be used as
 regular variables. Pseudo-variables always start with a dot ('.'), and are the
 only ones where the dot is permitted. The current list of pseudo-variables is:

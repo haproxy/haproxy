@@ -2090,6 +2090,7 @@ static void init(int argc, char **argv)
 		setenv("HAPROXY_HTTP_LOG_FMT", default_http_log_format, 1);
 		setenv("HAPROXY_HTTPS_LOG_FMT", default_https_log_format, 1);
 		setenv("HAPROXY_TCP_LOG_FMT", default_tcp_log_format, 1);
+		setenv("HAPROXY_BRANCH", PRODUCT_BRANCH, 1);
 		list_for_each_entry(wl, &cfg_cfgfiles, list) {
 			int ret;
 
@@ -2116,6 +2117,7 @@ static void init(int argc, char **argv)
 			}
 		}
 		/* remove temporary environment variables. */
+		unsetenv("HAPROXY_BRANCH");
 		unsetenv("HAPROXY_HTTP_LOG_FMT");
 		unsetenv("HAPROXY_HTTPS_LOG_FMT");
 		unsetenv("HAPROXY_TCP_LOG_FMT");
