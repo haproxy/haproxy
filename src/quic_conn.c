@@ -253,6 +253,16 @@ static inline void enc_debug_info_init(struct enc_debug_info *edi,
 	edi->pn = pn;
 }
 
+/* Used only for QUIC TLS key phase traces */
+struct quic_kp_trace {
+	const unsigned char *rx_sec;
+	size_t rx_seclen;
+	const struct quic_tls_kp *rx;
+	const unsigned char *tx_sec;
+	size_t tx_seclen;
+	const struct quic_tls_kp *tx;
+};
+
 /* Trace callback for QUIC.
  * These traces always expect that arg1, if non-null, is of type connection.
  */
@@ -310,6 +320,27 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				quic_tls_secret_hexdump(&trace_buf, tx_sec, 32);
 			quic_tls_keys_hexdump(&trace_buf, &tls_ctx->tx);
 		}
+
+		if ((mask & QUIC_EV_CONN_KP) && qc) {
+			/* Initial read & write secrets. */
+			const struct quic_kp_trace *kp = a2;
+
+			if (kp) {
+				if (kp->rx) {
+					chunk_appendf(&trace_buf, "\n  RX kp");
+					if (kp->rx_sec)
+						quic_tls_secret_hexdump(&trace_buf, kp->rx_sec, kp->rx_seclen);
+					quic_tls_kp_keys_hexdump(&trace_buf, kp->rx);
+				}
+				if (kp->tx) {
+					chunk_appendf(&trace_buf, "\n  TX kp");
+					if (kp->tx_sec)
+						quic_tls_secret_hexdump(&trace_buf, kp->tx_sec, kp->tx_seclen);
+					quic_tls_kp_keys_hexdump(&trace_buf, kp->tx);
+				}
+			}
+		}
+
 		if (mask & (QUIC_EV_CONN_RSEC|QUIC_EV_CONN_RWSEC)) {
 			const enum ssl_encryption_level_t *level = a2;
 
@@ -819,25 +850,34 @@ static inline void qc_set_timer(struct quic_conn *qc)
 static int quic_tls_key_update(struct quic_conn *qc)
 {
 	struct quic_tls_ctx *tls_ctx = &qc->els[QUIC_TLS_ENC_LEVEL_APP].tls_ctx;
-	struct quic_tls_secrets *rx, *tx;
+	struct quic_tls_secrets *rx = &tls_ctx->rx;
+	struct quic_tls_secrets *tx = &tls_ctx->tx;
+	/* Used only for the traces */
+	struct quic_kp_trace kp_trace = {
+		.rx_sec = rx->secret,
+		.rx_seclen = rx->secretlen,
+		.tx_sec = tx->secret,
+		.tx_seclen = tx->secretlen,
+	};
+	/* The next key phase secrets to be derived */
 	struct quic_tls_kp *nxt_rx = &qc->ku.nxt_rx;
 	struct quic_tls_kp *nxt_tx = &qc->ku.nxt_tx;
 	const struct quic_version *ver =
 		qc->negotiated_version ? qc->negotiated_version : qc->original_version;
 	int ret = 0;
 
-	TRACE_ENTER(QUIC_EV_CONN_RWSEC, qc);
+	TRACE_ENTER(QUIC_EV_CONN_KP, qc);
 
-	tls_ctx = &qc->els[QUIC_TLS_ENC_LEVEL_APP].tls_ctx;
-	rx = &tls_ctx->rx;
-	tx = &tls_ctx->tx;
 	nxt_rx = &qc->ku.nxt_rx;
 	nxt_tx = &qc->ku.nxt_tx;
 
+	TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_SPPKTS, qc, 0, 0, 0,
+	             "nxt_rx->secretlen=%llu rx->secretlen=%llu",
+	             (ull)nxt_rx->secretlen, (ull)rx->secretlen);
 	/* Prepare new RX secrets */
 	if (!quic_tls_sec_update(rx->md, ver, nxt_rx->secret, nxt_rx->secretlen,
 	                         rx->secret, rx->secretlen)) {
-		TRACE_ERROR("New RX secret update failed", QUIC_EV_CONN_RWSEC, qc);
+		TRACE_ERROR("New RX secret update failed", QUIC_EV_CONN_KP, qc);
 		goto leave;
 	}
 
@@ -845,14 +885,15 @@ static int quic_tls_key_update(struct quic_conn *qc)
 	                          nxt_rx->key, nxt_rx->keylen,
 	                          nxt_rx->iv, nxt_rx->ivlen, NULL, 0,
 	                          nxt_rx->secret, nxt_rx->secretlen)) {
-		TRACE_ERROR("New RX key derivation failed", QUIC_EV_CONN_RWSEC, qc);
+		TRACE_ERROR("New RX key derivation failed", QUIC_EV_CONN_KP, qc);
 		goto leave;
 	}
 
+	kp_trace.rx = nxt_rx;
 	/* Prepare new TX secrets */
 	if (!quic_tls_sec_update(tx->md, ver, nxt_tx->secret, nxt_tx->secretlen,
 	                         tx->secret, tx->secretlen)) {
-		TRACE_ERROR("New TX secret update failed", QUIC_EV_CONN_RWSEC, qc);
+		TRACE_ERROR("New TX secret update failed", QUIC_EV_CONN_KP, qc);
 		goto leave;
 	}
 
@@ -860,17 +901,18 @@ static int quic_tls_key_update(struct quic_conn *qc)
 	                          nxt_tx->key, nxt_tx->keylen,
 	                          nxt_tx->iv, nxt_tx->ivlen, NULL, 0,
 	                          nxt_tx->secret, nxt_tx->secretlen)) {
-		TRACE_ERROR("New TX key derivation failed", QUIC_EV_CONN_RWSEC, qc);
+		TRACE_ERROR("New TX key derivation failed", QUIC_EV_CONN_KP, qc);
 		goto leave;
 	}
 
+	kp_trace.tx = nxt_tx;
 	if (nxt_rx->ctx) {
 		EVP_CIPHER_CTX_free(nxt_rx->ctx);
 		nxt_rx->ctx = NULL;
 	}
 
 	if (!quic_tls_rx_ctx_init(&nxt_rx->ctx, tls_ctx->rx.aead, nxt_rx->key)) {
-		TRACE_ERROR("could not initial RX TLS cipher context", QUIC_EV_CONN_RWSEC, qc);
+		TRACE_ERROR("could not initial RX TLS cipher context", QUIC_EV_CONN_KP, qc);
 		goto leave;
 	}
 
@@ -880,13 +922,13 @@ static int quic_tls_key_update(struct quic_conn *qc)
 	}
 
 	if (!quic_tls_rx_ctx_init(&nxt_tx->ctx, tls_ctx->tx.aead, nxt_tx->key)) {
-		TRACE_ERROR("could not initial RX TLS cipher context", QUIC_EV_CONN_RWSEC, qc);
+		TRACE_ERROR("could not initial RX TLS cipher context", QUIC_EV_CONN_KP, qc);
 		goto leave;
 	}
 
 	ret = 1;
  leave:
-	TRACE_LEAVE(QUIC_EV_CONN_RWSEC, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_KP, qc, &kp_trace);
 	return ret;
 }
 
@@ -1543,6 +1585,7 @@ static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
 			}
 			else if (pkt->pn > qel->pktns->rx.largest_pn) {
 				/* Next key phase */
+				TRACE_PROTO("Key phase changed", QUIC_EV_CONN_RXPKT, qc);
 				kp_changed = 1;
 				rx_ctx = qc->ku.nxt_rx.ctx;
 				rx_iv  = qc->ku.nxt_rx.iv;

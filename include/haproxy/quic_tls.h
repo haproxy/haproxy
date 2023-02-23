@@ -31,6 +31,8 @@
 
 void quic_tls_keys_hexdump(struct buffer *buf,
                            const struct quic_tls_secrets *secs);
+void quic_tls_kp_keys_hexdump(struct buffer *buf,
+                              const struct quic_tls_kp *kp);
 
 void quic_tls_secret_hexdump(struct buffer *buf,
                              const unsigned char *secret, size_t secret_len);

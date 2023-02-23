@@ -57,6 +57,23 @@ void quic_tls_keys_hexdump(struct buffer *buf,
 		chunk_appendf(buf, "%02x", secs->hp_key[i]);
 }
 
+/* Dump the RX/TX secrets of <kp> QUIC TLS key phase */
+void quic_tls_kp_keys_hexdump(struct buffer *buf,
+                              const struct quic_tls_kp *kp)
+{
+	int i;
+
+	chunk_appendf(buf, "\n        secret=");
+	for (i = 0; i < kp->secretlen; i++)
+		chunk_appendf(buf, "%02x", kp->secret[i]);
+	chunk_appendf(buf, "\n        key=");
+	for (i = 0; i < kp->keylen; i++)
+		chunk_appendf(buf, "%02x", kp->key[i]);
+	chunk_appendf(buf, "\n        iv=");
+	for (i = 0; i < kp->ivlen; i++)
+		chunk_appendf(buf, "%02x", kp->iv[i]);
+}
+
 /* Dump <secret> TLS secret. */
 void quic_tls_secret_hexdump(struct buffer *buf,
                              const unsigned char *secret, size_t secret_len)
