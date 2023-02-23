@@ -15,7 +15,6 @@
 #include <haproxy/quic_conn.h>
 
 #define _GNU_SOURCE
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -3446,11 +3445,12 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 
 /* Send datagrams stored in <buf>.
  *
- * This function returns 1 for success. Even if sendto() syscall failed,
- * buffer is drained and packets are considered as emitted and this function returns 1
- * There is a unique exception when sendto() fails with ECONNREFUSED as errno,
- * this function returns 0.
- * QUIC loss detection mechanism is used as a back door way to retry sending.
+ * This function returns 1 for success. On error, there is several behavior
+ * depending on underlying sendto() error :
+ * - for a fatal error, 0 is returned and connection is killed.
+ * - a transient error is assimilated to a success case with 1 returned.
+ *   Remaining data are purged from the buffer and will eventually be detected
+ *   as lost which gives the opportunity to retry sending.
  */
 int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 {
@@ -3490,18 +3490,13 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 		 * quic-conn fd management.
 		 */
 		if (!skip_sendto) {
-			int syscall_errno;
-
-			syscall_errno = 0;
-			if (qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0, &syscall_errno)) {
-				if (syscall_errno == ECONNREFUSED) {
-					/* Let's kill this connection asap. */
-					TRACE_PROTO("UDP port unreachable", QUIC_EV_CONN_SPPKTS, qc);
-					qc_kill_conn(qc);
-					b_del(buf, buf->data);
-					goto leave;
-				}
-
+			int ret = qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0);
+			if (ret < 0) {
+				qc_kill_conn(qc);
+				b_del(buf, buf->data);
+				goto leave;
+			}
+			else if (!ret) {
 				skip_sendto = 1;
 				TRACE_ERROR("sendto error, simulate sending for the rest of data", QUIC_EV_CONN_SPPKTS, qc);
 			}
