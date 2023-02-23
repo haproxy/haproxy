@@ -105,6 +105,16 @@ static inline void se_fl_set_error(struct sedesc *se)
 		se_fl_set(se, SE_FL_ERR_PENDING);
 }
 
+static inline void se_expect_no_data(struct sedesc *se)
+{
+	se_fl_set(se, SE_FL_EXP_NO_DATA);
+}
+
+static inline void se_expect_data(struct sedesc *se)
+{
+	se_fl_clr(se, SE_FL_EXP_NO_DATA);
+}
+
 /* stream connector version */
 static forceinline void sc_ep_zero(struct stconn *sc)
 {
