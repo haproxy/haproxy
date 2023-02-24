@@ -475,37 +475,37 @@ void show_lock_stats()
 
 		if (lock_stats[lbl].num_write_locked)
 			fprintf(stderr,
-			        "\t # write lock  : %lu\n"
-			        "\t # write unlock: %lu (%ld)\n"
+			        "\t # write lock  : %llu\n"
+			        "\t # write unlock: %llu (%lld)\n"
 			        "\t # wait time for write     : %.3f msec\n"
 			        "\t # wait time for write/lock: %.3f nsec\n",
-			        lock_stats[lbl].num_write_locked,
-			        lock_stats[lbl].num_write_unlocked,
-			        lock_stats[lbl].num_write_unlocked - lock_stats[lbl].num_write_locked,
+			        (ullong)lock_stats[lbl].num_write_locked,
+			        (ullong)lock_stats[lbl].num_write_unlocked,
+			        (llong)(lock_stats[lbl].num_write_unlocked - lock_stats[lbl].num_write_locked),
 			        (double)lock_stats[lbl].nsec_wait_for_write / 1000000.0,
 			        lock_stats[lbl].num_write_locked ? ((double)lock_stats[lbl].nsec_wait_for_write / (double)lock_stats[lbl].num_write_locked) : 0);
 
 		if (lock_stats[lbl].num_seek_locked)
 			fprintf(stderr,
-			        "\t # seek lock   : %lu\n"
-			        "\t # seek unlock : %lu (%ld)\n"
+			        "\t # seek lock   : %llu\n"
+			        "\t # seek unlock : %llu (%lld)\n"
 			        "\t # wait time for seek      : %.3f msec\n"
 			        "\t # wait time for seek/lock : %.3f nsec\n",
-			        lock_stats[lbl].num_seek_locked,
-			        lock_stats[lbl].num_seek_unlocked,
-			        lock_stats[lbl].num_seek_unlocked - lock_stats[lbl].num_seek_locked,
+			        (ullong)lock_stats[lbl].num_seek_locked,
+			        (ullong)lock_stats[lbl].num_seek_unlocked,
+			        (llong)(lock_stats[lbl].num_seek_unlocked - lock_stats[lbl].num_seek_locked),
 			        (double)lock_stats[lbl].nsec_wait_for_seek / 1000000.0,
 			        lock_stats[lbl].num_seek_locked ? ((double)lock_stats[lbl].nsec_wait_for_seek / (double)lock_stats[lbl].num_seek_locked) : 0);
 
 		if (lock_stats[lbl].num_read_locked)
 			fprintf(stderr,
-			        "\t # read lock   : %lu\n"
-			        "\t # read unlock : %lu (%ld)\n"
+			        "\t # read lock   : %llu\n"
+			        "\t # read unlock : %llu (%lld)\n"
 			        "\t # wait time for read      : %.3f msec\n"
 			        "\t # wait time for read/lock : %.3f nsec\n",
-			        lock_stats[lbl].num_read_locked,
-			        lock_stats[lbl].num_read_unlocked,
-			        lock_stats[lbl].num_read_unlocked - lock_stats[lbl].num_read_locked,
+			        (ullong)lock_stats[lbl].num_read_locked,
+			        (ullong)lock_stats[lbl].num_read_unlocked,
+			        (llong)(lock_stats[lbl].num_read_unlocked - lock_stats[lbl].num_read_locked),
 			        (double)lock_stats[lbl].nsec_wait_for_read / 1000000.0,
 			        lock_stats[lbl].num_read_locked ? ((double)lock_stats[lbl].nsec_wait_for_read / (double)lock_stats[lbl].num_read_locked) : 0);
 	}
