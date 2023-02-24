@@ -187,7 +187,7 @@ haproxy h2 -conf {
 # ipmask tests
 client c1 -connect ${h1_fe1_sock} -proxy2 "192.168.1.101:1234 127.0.0.1:2345" {
     txreq -hdr "Addr1: 2001:db8::1" \
-        -hdr "Addr2: 2001:db8::bad:c0f:ffff" \
+        -hdr "Addr2: [2001:db8::bad:c0f:ffff]" \
         -hdr "Addr3: 2001:db8:c001:c01a:ffff:ffff:10:ffff" \
         -hdr "Addr4: ::FFFF:192.168.1.101" \
         -hdr "Addr5: 192.168.1.2" \
