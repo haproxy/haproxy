@@ -1024,7 +1024,15 @@ static int smp_fetch_hdr_ip(const struct arg *args, struct sample *smp, const ch
 				/* IPv4 address suffixed with ':' followed by a valid port number */
 				smp->data.type = SMP_T_IPV4;
 				break;
+			} else if (temp->area[0] == '[' && temp->area[smp->data.u.str.data-1] == ']') {
+				/* IPv6 address enclosed in square brackets */
+				temp->area[smp->data.u.str.data-1] = '\0';
+				if (inet_pton(AF_INET6, temp->area+1, &smp->data.u.ipv6)) {
+					smp->data.type = SMP_T_IPV6;
+					break;
+				}
 			} else if (inet_pton(AF_INET6, temp->area, &smp->data.u.ipv6)) {
+				/* plain IPv6 address */
 				smp->data.type = SMP_T_IPV6;
 				break;
 			}
