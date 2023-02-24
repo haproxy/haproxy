@@ -1,7 +1,7 @@
 varnishtest "Minimal tests for 1.9 converters: ipmask,concat,strcmp,field,word"
 feature ignore_unknown_macro
 
-# ipmask tests server
+# ipmask,hdr_ip tests server
 server s1 {
    rxreq
    expect req.method == "GET"
@@ -28,6 +28,12 @@ server s1 {
    expect req.http.test5mask24 == "192.168.1.0"
    expect req.http.test6mask24 == "192.168.1.0"
    expect req.http.test6mask25 == "192.168.1.128"
+
+   expect req.http.ipv4plain    == "192.168.2.1"
+   expect req.http.ipv4port     == "192.168.2.1"
+   expect req.http.ipv6plain    == "2001:db8:c001:c01a:ffff:ffff:20:ffff"
+   expect req.http.ipv6brackets == "2001:db8:c001:c01a:ffff:ffff:20:ffff"
+
    txresp
 } -start
 
@@ -65,7 +71,7 @@ server s2 {
 } -start
 
 
-# ipmask tests with accept-proxy bind
+# ipmask,hdr_ip tests with accept-proxy bind
 haproxy h1 -conf {
   defaults
     mode http
@@ -112,6 +118,12 @@ haproxy h1 -conf {
     http-request track-sc0 src,ipmask(24) table be1
     http-request track-sc1 hdr_ip(Addr4),ipmask(32) table be1
     http-request track-sc2 hdr_ip(Addr3),ipmask(24,64) table be1
+
+    # hdr_ip tests
+    http-request set-header IPv4plain    %[req.hdr_ip(AddrIPv4plain)]
+    http-request set-header IPv4port     %[req.hdr_ip(AddrIPv4port)]
+    http-request set-header IPv6plain    %[req.hdr_ip(AddrIPv6plain)]
+    http-request set-header IPv6brackets %[req.hdr_ip(AddrIPv6brackets)]
 
     default_backend be1
 
@@ -184,14 +196,18 @@ haproxy h2 -conf {
     server s2 ${s2_addr}:${s2_port}
 } -start
 
-# ipmask tests
+# ipmask,hdr_ip tests
 client c1 -connect ${h1_fe1_sock} -proxy2 "192.168.1.101:1234 127.0.0.1:2345" {
     txreq -hdr "Addr1: 2001:db8::1" \
         -hdr "Addr2: 2001:db8::bad:c0f:ffff" \
         -hdr "Addr3: 2001:db8:c001:c01a:ffff:ffff:10:ffff" \
         -hdr "Addr4: ::FFFF:192.168.1.101" \
         -hdr "Addr5: 192.168.1.2" \
-        -hdr "Addr6: 192.168.1.255"
+        -hdr "Addr6: 192.168.1.255" \
+        -hdr "AddrIPv4plain: 192.168.2.1" \
+        -hdr "AddrIPv4port: 192.168.2.1:6789" \
+        -hdr "AddrIPv6plain: 2001:db8:c001:c01a:ffff:ffff:20:ffff" \
+        -hdr "AddrIPv6brackets: [2001:db8:c001:c01a:ffff:ffff:20:ffff]"
     rxresp
     expect resp.status == 200
 } -run
