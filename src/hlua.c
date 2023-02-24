@@ -8607,6 +8607,11 @@ __LJMP static int hlua_register_init(lua_State *L)
 
 	MAY_LJMP(check_args(L, 1, "register_init"));
 
+	if (hlua_gethlua(L)) {
+		/* runtime processing */
+		WILL_LJMP(luaL_error(L, "register_init: not available outside of body context"));
+	}
+
 	ref = MAY_LJMP(hlua_checkfunction(L, 1));
 
 	init = calloc(1, sizeof(*init));
@@ -8974,6 +8979,11 @@ __LJMP static int hlua_register_converters(lua_State *L)
 
 	MAY_LJMP(check_args(L, 2, "register_converters"));
 
+	if (hlua_gethlua(L)) {
+		/* runtime processing */
+		WILL_LJMP(luaL_error(L, "register_converters: not available outside of body context"));
+	}
+
 	/* First argument : converter name. */
 	name = MAY_LJMP(luaL_checkstring(L, 1));
 
@@ -9052,6 +9062,11 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 	struct buffer *trash;
 
 	MAY_LJMP(check_args(L, 2, "register_fetches"));
+
+	if (hlua_gethlua(L)) {
+		/* runtime processing */
+		WILL_LJMP(luaL_error(L, "register_fetches: not available outside of body context"));
+	}
 
 	/* First argument : sample-fetch name. */
 	name = MAY_LJMP(luaL_checkstring(L, 1));
@@ -9894,6 +9909,11 @@ __LJMP static int hlua_register_action(lua_State *L)
 	if (lua_gettop(L) < 3 || lua_gettop(L) > 4)
 		WILL_LJMP(luaL_error(L, "'register_action' needs between 3 and 4 arguments"));
 
+	if (hlua_gethlua(L)) {
+		/* runtime processing */
+		WILL_LJMP(luaL_error(L, "register_action: not available outside of body context"));
+	}
+
 	/* First argument : converter name. */
 	name = MAY_LJMP(luaL_checkstring(L, 1));
 
@@ -10059,6 +10079,11 @@ __LJMP static int hlua_register_service(lua_State *L)
 	struct action_kw *akw;
 
 	MAY_LJMP(check_args(L, 3, "register_service"));
+
+	if (hlua_gethlua(L)) {
+		/* runtime processing */
+		WILL_LJMP(luaL_error(L, "register_service: not available outside of body context"));
+	}
 
 	/* First argument : converter name. */
 	name = MAY_LJMP(luaL_checkstring(L, 1));
@@ -10336,6 +10361,11 @@ __LJMP static int hlua_register_cli(lua_State *L)
 	const char *errmsg;
 
 	MAY_LJMP(check_args(L, 3, "register_cli"));
+
+	if (hlua_gethlua(L)) {
+		/* runtime processing */
+		WILL_LJMP(luaL_error(L, "register_cli: not available outside of body context"));
+	}
 
 	/* First argument : an array of maximum 5 keywords. */
 	if (!lua_istable(L, 1))
@@ -11153,6 +11183,11 @@ __LJMP static int hlua_register_filter(lua_State *L)
 	int len;
 
 	MAY_LJMP(check_args(L, 3, "register_filter"));
+
+	if (hlua_gethlua(L)) {
+		/* runtime processing */
+		WILL_LJMP(luaL_error(L, "register_filter: not available outside of body context"));
+	}
 
 	/* First argument : filter name. */
 	name = MAY_LJMP(luaL_checkstring(L, 1));
