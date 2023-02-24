@@ -417,6 +417,8 @@ static size_t h1_copy_msg_data(struct htx **dsthtx, struct buffer *srcbuf, size_
 	/* Be prepared to create at least one HTX block by reserving its size
 	 * and adjust <count> accordingly.
 	 */
+	if (max <= sizeof(struct htx_blk))
+		goto end;
 	max -= sizeof(struct htx_blk);
 	if (count > max)
 		count = max;
@@ -507,8 +509,7 @@ static size_t h1_parse_chunk(struct h1m *h1m, struct htx **dsthtx,
 	case H1_MSG_DATA:
 	  new_chunk:
 		used = htx_used_space(*dsthtx);
-
-		if (b_data(srcbuf) == ofs || !lmax)
+		if (b_data(srcbuf) == ofs || lmax <= sizeof(struct htx_blk))
 			break;
 
 		sz =  b_data(srcbuf) - ofs;
@@ -588,6 +589,10 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 	uint64_t chksz;
 	struct htx_ret htxret;
 
+	lmax = *max;
+	if (lmax <= sizeof(struct htx_blk))
+		goto out;
+
 	/* source info :
 	 *  start : pointer at <ofs> position
 	 *  end   : pointer marking the end of data to parse
@@ -616,7 +621,6 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 	 * from <max>. Then we must adjust it if it exceeds the free size in the
 	 * block.
 	 */
-	lmax = *max;
 	if (!dpos)
 		lmax -= sizeof(struct htx_blk);
 	if (lmax > htx_get_blksz(htxret.blk) - dpos)
@@ -829,7 +833,7 @@ size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 {
 	size_t sz, total = 0;
 
-	if (b_data(srcbuf) == ofs || !max)
+	if (b_data(srcbuf) == ofs || max <= sizeof(struct htx_blk))
 		return 0;
 
 	if (h1m->flags & H1_MF_CLEN) {
