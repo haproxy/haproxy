@@ -4152,7 +4152,7 @@ static inline int qc_treat_rx_crypto_frms(struct quic_conn *qc,
  * Return 1 if succeeded, 0 if not.
  */
 int qc_treat_rx_pkts(struct quic_conn *qc, struct quic_enc_level *cur_el,
-                     struct quic_enc_level *next_el, int force_ack)
+                     struct quic_enc_level *next_el)
 {
 	int ret = 0;
 	struct eb64_node *node;
@@ -4188,7 +4188,7 @@ int qc_treat_rx_pkts(struct quic_conn *qc, struct quic_enc_level *cur_el,
 			else {
 				struct quic_arng ar = { .first = pkt->pn, .last = pkt->pn };
 
-				if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING || force_ack) {
+				if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING) {
 					qel->pktns->flags |= QUIC_FL_PKTNS_ACK_REQUIRED;
 					qel->pktns->rx.nb_aepkts_since_last_ack++;
 					qc_idle_timer_rearm(qc, 1);
@@ -4597,7 +4597,7 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
 	if (!LIST_ISEMPTY(&qel->rx.pqpkts) && qc_qel_may_rm_hp(qc, qel))
 		qc_rm_hp_pkts(qc, qel);
 
-	if (!qc_treat_rx_pkts(qc, qel, NULL, 0)) {
+	if (!qc_treat_rx_pkts(qc, qel, NULL)) {
 		TRACE_DEVEL("qc_treat_rx_pkts() failed", QUIC_EV_CONN_IO_CB, qc);
 		goto out;
 	}
@@ -4643,7 +4643,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	/* Early-data encryption level */
 	struct quic_enc_level *eqel;
 	struct buffer *buf = NULL;
-	int st, force_ack, zero_rtt;
+	int st, zero_rtt;
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
 	eqel = &qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA];
@@ -4684,9 +4684,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	if (!LIST_ISEMPTY(&qel->rx.pqpkts) && qc_qel_may_rm_hp(qc, qel))
 		qc_rm_hp_pkts(qc, qel);
 
-	force_ack = qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] ||
-		qel == &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
-	if (!qc_treat_rx_pkts(qc, qel, next_qel, force_ack))
+	if (!qc_treat_rx_pkts(qc, qel, next_qel))
 		goto out;
 
 	if (qc->flags & QUIC_FL_CONN_TO_KILL) {
