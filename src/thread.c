@@ -1311,7 +1311,7 @@ int thread_resolve_group_mask(struct thread_set *ts, int defgrp, char **err)
 	}
 
 	/* update the thread_set */
-	if (!thread_set_first_group(&new_ts)) {
+	if (!thread_set_nth_group(&new_ts, 0)) {
 		memprintf(err, "'thread' directive only references non-existing threads");
 		return -1;
 	}

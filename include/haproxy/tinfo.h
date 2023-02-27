@@ -68,33 +68,36 @@ static inline int thread_set_is_empty(const struct thread_set *ts)
 	return 1;
 }
 
-/* returns the number starting at 1 of the first thread-group set in thread set
+/* returns the number starting at 1 of the <n>th thread-group set in thread set
  * <ts>, or zero if the set is empty or if thread numbers are only absolute.
+ * <n> starts at zero and corresponds to the number of non-empty groups to be
+ * skipped (i.e. 0 returns the first one).
  */
-static inline int thread_set_first_group(const struct thread_set *ts)
+static inline int thread_set_nth_group(const struct thread_set *ts, int n)
 {
 	int i;
 
 	if (ts->nbgrp) {
 		for (i = 0; i < MAX_TGROUPS; i++)
-			if (ts->rel[i])
+			if (ts->rel[i] && !n--)
 				return i + 1;
 	}
 	return 0;
 }
 
-/* returns the thread mask of the first assigned thread-group in the thread
+/* returns the thread mask of the <n>th assigned thread-group in the thread
  * set <ts> for relative sets, the first thread mask at all in case of absolute
  * sets, or zero if the set is empty. This is only used temporarily to ease the
- * transition.
+ * transition. <n> starts at zero and corresponds to the number of non-empty
+ * groups to be skipped (i.e. 0 returns the first one).
  */
-static inline ulong thread_set_first_tmask(const struct thread_set *ts)
+static inline ulong thread_set_nth_tmask(const struct thread_set *ts, int n)
 {
 	int i;
 
 	if (ts->nbgrp) {
 		for (i = 0; i < MAX_TGROUPS; i++)
-			if (ts->rel[i])
+			if (ts->rel[i] && !n--)
 				return ts->rel[i];
 	}
 	return ts->abs[0];

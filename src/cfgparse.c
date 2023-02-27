@@ -3016,8 +3016,8 @@ init_proxies_list_stage1:
 					}
 
 					/* assign the first (and only) thread and group */
-					new_li->rx.bind_thread = thread_set_first_tmask(&new_ts);
-					new_li->rx.bind_tgroup = thread_set_first_group(&new_ts);
+					new_li->rx.bind_thread = thread_set_nth_tmask(&new_ts, 0);
+					new_li->rx.bind_tgroup = thread_set_nth_group(&new_ts, 0);
 					done -= todo;
 
 					shard++;
@@ -4458,8 +4458,8 @@ init_proxies_list_stage2:
 
 					/* apply thread masks and groups to all receivers */
 					list_for_each_entry(li, &bind_conf->listeners, by_bind) {
-						li->rx.bind_thread = thread_set_first_tmask(&bind_conf->thread_set);
-						li->rx.bind_tgroup = thread_set_first_group(&bind_conf->thread_set);
+						li->rx.bind_thread = thread_set_nth_tmask(&bind_conf->thread_set, 0);
+						li->rx.bind_tgroup = thread_set_nth_group(&bind_conf->thread_set, 0);
 					}
 
 					if (bind_conf->xprt->prepare_bind_conf &&
