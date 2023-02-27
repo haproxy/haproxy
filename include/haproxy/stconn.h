@@ -448,11 +448,14 @@ static inline void sc_need_room(struct stconn *sc)
 }
 
 /* The stream endpoint indicates that it's ready to consume data from the
- * stream's output buffer.
+ * stream's output buffer. Report a send activity if the SE is unblocked.
  */
 static inline void se_will_consume(struct sedesc *se)
 {
-	se_fl_clr(se, SE_FL_WONT_CONSUME);
+	if (se_fl_test(se, SE_FL_WONT_CONSUME)) {
+		se_fl_clr(se, SE_FL_WONT_CONSUME);
+		sc_ep_report_send_activity(se->sc);
+	}
 }
 
 /* The stream endpoint indicates that it's not willing to consume data from the
@@ -469,7 +472,7 @@ static inline void se_wont_consume(struct sedesc *se)
  */
 static inline void se_need_more_data(struct sedesc *se)
 {
-	se_fl_clr(se, SE_FL_WONT_CONSUME);
+	se_will_consume(se);
 	se_fl_set(se, SE_FL_WAIT_DATA);
 }
 

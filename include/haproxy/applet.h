@@ -141,29 +141,28 @@ static inline void applet_have_no_more_data(struct appctx *appctx)
 }
 
 /* The applet indicates that it's ready to consume data from the stream's
- * output buffer.
+ * output buffer. Rely on the corresponding SE function
  */
 static inline void applet_will_consume(struct appctx *appctx)
 {
-	se_fl_clr(appctx->sedesc, SE_FL_WONT_CONSUME);
+	se_will_consume(appctx->sedesc);
 }
 
 /* The applet indicates that it's not willing to consume data from the stream's
- * output buffer.
+ * output buffer.  Rely on the corresponding SE function
  */
 static inline void applet_wont_consume(struct appctx *appctx)
 {
-	se_fl_set(appctx->sedesc, SE_FL_WONT_CONSUME);
+	se_wont_consume(appctx->sedesc);
 }
 
 /* The applet indicates that it's willing to consume data from the stream's
  * output buffer, but that there's not enough, so it doesn't want to be woken
- * up until more are presented.
+ * up until more are presented. Rely on the corresponding SE function
  */
 static inline void applet_need_more_data(struct appctx *appctx)
 {
-	se_fl_clr(appctx->sedesc, SE_FL_WONT_CONSUME);
-	se_fl_set(appctx->sedesc, SE_FL_WAIT_DATA);
+	se_need_more_data(appctx->sedesc);
 }
 
 /* The applet indicates that it does not expect data from the opposite endpoint.
