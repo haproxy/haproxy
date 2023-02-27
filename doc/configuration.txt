@@ -15394,10 +15394,21 @@ thread [<thread-group>/]<thread-set>[,...]
   an absolute notation or a relative one, as those not set will be resolved at
   the end of the parsing.
 
+  It is important to know that each listener described by a "bind" line creates
+  at least one socket represented by at least one file descriptor. Since file
+  descriptors cannot span multiple thread groups, if a "bind" line specifies a
+  thread range that covers more than one group, several file descriptors will
+  automatically be created so that there is at least one per group. Technically
+  speaking they all refer to the same socket in the kernel, but they will get a
+  distinct identifier in haproxy and will even have a dedicated stats entry if
+  "option socket-stats" is used.
+
   The main purpose is to have multiple bind lines sharing the same IP:port but
   not the same thread in a listener, so that the system can distribute the
   incoming connections into multiple queues, bypassing haproxy's internal queue
   load balancing. Currently Linux 3.9 and above is known for supporting this.
+  See also the "shards" keyword above that automates duplication of "bind"
+  lines and their assignment to multiple groups of threads.
 
 tls-ticket-keys <keyfile>
   Sets the TLS ticket keys file to load the keys from. The keys need to be 48

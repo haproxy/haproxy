@@ -2995,10 +2995,10 @@ init_proxies_list_stage1:
 
 			/* apply thread masks and groups to all receivers */
 			list_for_each_entry(li, &bind_conf->listeners, by_bind) {
-				struct listener *new_li;
+				struct listener *new_li, *ref;
 				struct thread_set new_ts;
-				int shard, shards, todo, done, grp;
-				ulong mask, bit;
+				int shard, shards, todo, done, grp, dups;
+				ulong mask, gmask, bit;
 
 				shards = bind_conf->settings.shards;
 				todo = thread_set_count(&bind_conf->thread_set);
@@ -3042,17 +3042,55 @@ init_proxies_list_stage1:
 
 					BUG_ON(!new_ts.grps); // no more bits left unassigned
 
-					if (atleast2(new_ts.grps)) {
-						ha_alert("Proxy '%s': shard number %d spans %d groups in 'bind %s' at [%s:%d]\n",
-							 curproxy->id, shard, my_popcountl(new_ts.grps), bind_conf->arg, bind_conf->file, bind_conf->line);
-						cfgerr++;
-						err_code |= ERR_FATAL | ERR_ALERT;
-						goto out;
-					}
+					/* Create all required listeners for all bound groups. If more than one group is
+					 * needed, the first receiver serves as a reference, and subsequent ones point to
+					 * it. We already have a listener available in new_li() so we only allocate a new
+					 * one if we're not on the last one. We count the remaining groups by copying their
+					 * mask into <gmask> and dropping the lowest bit at the end of the loop until there
+					 * is no more. Ah yes, it's not pretty :-/
+					 */
+					ref = new_li;
+					gmask = new_ts.grps;
+					for (dups = 0; gmask; dups++) {
+						/* assign the first (and only) thread and group */
+						new_li->rx.bind_thread = thread_set_nth_tmask(&new_ts, dups);
+						new_li->rx.bind_tgroup = thread_set_nth_group(&new_ts, dups);
 
-					/* assign the first (and only) thread and group */
-					new_li->rx.bind_thread = thread_set_nth_tmask(&new_ts, 0);
-					new_li->rx.bind_tgroup = thread_set_nth_group(&new_ts, 0);
+						if (dups) {
+							/* it has been allocated already in the previous round */
+							shard_info_attach(&new_li->rx, ref->rx.shard_info);
+							new_li->rx.flags |= RX_F_MUST_DUP;
+						}
+
+						gmask &= gmask - 1; // drop lowest bit
+						if (gmask) {
+							/* yet another listener expected in this shard, let's
+							 * chain it.
+							 */
+							struct listener *tmp_li = clone_listener(new_li);
+
+							if (!tmp_li) {
+								ha_alert("Out of memory while trying to allocate extra listener for group %u of shard %d in %s %s\n",
+									 new_li->rx.bind_tgroup, shard, proxy_type_str(curproxy), curproxy->id);
+								cfgerr++;
+								err_code |= ERR_FATAL | ERR_ALERT;
+								goto out;
+							}
+
+							/* if we're forced to create at least two listeners, we have to
+							 * allocate a shared shard_info that's linked to from the reference
+							 * and each other listener, so we'll create it here.
+							 */
+							if (!shard_info_attach(&ref->rx, NULL)) {
+								ha_alert("Out of memory while trying to allocate shard_info for listener for group %u of shard %d in %s %s\n",
+									 new_li->rx.bind_tgroup, shard, proxy_type_str(curproxy), curproxy->id);
+								cfgerr++;
+								err_code |= ERR_FATAL | ERR_ALERT;
+								goto out;
+							}
+							new_li = tmp_li;
+						}
+					}
 					done -= todo;
 
 					shard++;
