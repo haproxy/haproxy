@@ -888,9 +888,9 @@ The list of currently supported predicates is the following:
 
   - enabled(<opt>)        : returns true if the option <opt> is enabled at
                             run-time. Only a subset of options are supported:
-			        POLL, EPOLL, KQUEUE, EVPORTS, SPLICE,
-				GETADDRINFO, REUSEPORT, FAST-FORWARD,
-				SERVER-SSL-VERIFY-NONE
+                                POLL, EPOLL, KQUEUE, EVPORTS, SPLICE,
+                                GETADDRINFO, REUSEPORT, FAST-FORWARD,
+                                SERVER-SSL-VERIFY-NONE
 
 Example:
 
@@ -5452,7 +5452,7 @@ errorfiles <name> [<code> ...]
 
   Example :
         errorfiles generic
-	errorfiles site-1 403 404
+        errorfiles site-1 403 404
 
 
 errorloc <code> <url>
@@ -6057,7 +6057,7 @@ http-check comment <string>
 
 http-check connect [default] [port <expr>] [addr <ip>] [send-proxy]
                    [via-socks4] [ssl] [sni <sni>] [alpn <alpn>] [linger]
-		   [proto <name>] [comment <msg>]
+                   [proto <name>] [comment <msg>]
   Opens a new connection to perform an HTTP health check
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -7181,7 +7181,7 @@ http-request replace-value <name> <match-regex> <replace-fmt>
 http-request return [status <code>] [content-type <type>]
           [ { default-errorfiles | errorfile <file> | errorfiles <name> |
               file <file> | lf-file <file> | string <str> | lf-string <fmt> } ]
-	  [ hdr <name> <fmt> ]*
+          [ hdr <name> <fmt> ]*
           [ { if | unless } <condition> ]
 
   This stops the evaluation of the rules and immediately returns a response. The
@@ -8004,7 +8004,7 @@ http-response replace-value <name> <regex-match> <replace-fmt>
 http-response return [status <code>] [content-type <type>]
           [ { default-errorfiles | errorfile <file> | errorfiles <name> |
               file <file> | lf-file <file> | string <str> | lf-string <fmt> } ]
-	  [ hdr <name> <value> ]*
+          [ hdr <name> <value> ]*
           [ { if | unless } <condition> ]
 
   This stops the evaluation of the rules and immediately returns a
@@ -9152,7 +9152,7 @@ no option forwarded
   Default behavior enables proto parameter and injects original client ip.
 
   The equivalent explicit/manual configuration would be:
-	option forwarded proto for
+        option forwarded proto for
 
   The keyword 'by' is used to enable 'by' parameter ("nodename") in
   forwarded header. It allows to embed request proxy information.
@@ -11061,9 +11061,9 @@ retry-on [space-delimited list of keywords]
 
       all-retryable-errors
                         retry request for any error that are considered
-			retryable. This currently activates "conn-failure",
-			"empty-response", "junk-response", "response-timeout",
-			"0rtt-rejected", "500", "502", "503", and "504".
+                        retryable. This currently activates "conn-failure",
+                        "empty-response", "junk-response", "response-timeout",
+                        "0rtt-rejected", "500", "502", "503", and "504".
 
   Using this directive replaces any previous settings with the new ones; it is
   not cumulative.
