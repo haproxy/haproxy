@@ -619,7 +619,7 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 		                     &quic_stats_module);
 
 		if (errno == EAGAIN || errno == EWOULDBLOCK ||
-		    errno == ENOTCONN || errno == EINPROGRESS || errno == EBADF) {
+		    errno == ENOTCONN || errno == EINPROGRESS) {
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
 				HA_ATOMIC_INC(&prx_counters->socket_full);
 			else
