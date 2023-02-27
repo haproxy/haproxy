@@ -127,7 +127,7 @@ void fd_add_to_fd_list(volatile struct fdlist *list, int fd)
 	int last;
 
 redo_next:
-	next = fdtab[fd].update.next;
+	next = HA_ATOMIC_LOAD(&fdtab[fd].update.next);
 	/* Check that we're not already in the cache, and if not, lock us. */
 	if (next > -2)
 		goto done;
@@ -194,7 +194,7 @@ void fd_rm_from_fd_list(volatile struct fdlist *list, int fd)
 lock_self:
 #if (defined(HA_CAS_IS_8B) || defined(HA_HAVE_CAS_DW))
 	next_list.ent.next = next_list.ent.prev = -2;
-	cur_list.ent = fdtab[fd].update;
+	cur_list.ent = *(volatile typeof(fdtab->update)*)&fdtab[fd].update;
 	/* First, attempt to lock our own entries */
 	do {
 		/* The FD is not in the FD cache, give up */
@@ -214,7 +214,7 @@ lock_self:
 
 #else
 lock_self_next:
-	next = fdtab[fd].update.next;
+	next = HA_ATOMIC_LOAD(&fdtab[fd].update.next);
 	if (next == -2)
 		goto lock_self_next;
 	if (next <= -3)
@@ -222,7 +222,7 @@ lock_self_next:
 	if (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].update.next, &next, -2)))
 		goto lock_self_next;
 lock_self_prev:
-	prev = fdtab[fd].update.prev;
+	prev = HA_ATOMIC_LOAD(&fdtab[fd].update.prev);
 	if (prev == -2)
 		goto lock_self_prev;
 	if (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].update.prev, &prev, -2)))
