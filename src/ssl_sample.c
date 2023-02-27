@@ -997,6 +997,82 @@ out:
 	return ret;
 }
 
+/*
+ *  returns a string of comma separated SAN in a client certificate, Use "GENERAL_NAME_print"
+ *  Example:  "IP Address:127.0.0.1, IP Address:127.0.0.2, IP Address:127.0.0.3, URI:http://docs.haproxy.org/2.7/, DNS:ca.tests.haproxy.com"
+ */
+static int
+smp_fetch_ssl_x_san(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	int cert_peer = (kw[4] == 'c' || kw[4] == 's') ? 1 : 0;
+	int conn_server = (kw[4] == 's') ? 1 : 0;
+	STACK_OF(GENERAL_NAME) *names;
+	X509 *crt = NULL;
+	int ret = 0;
+	struct buffer *smp_trash;
+	struct connection *conn;
+	SSL *ssl;
+	int i, read;
+	BIO *bio = NULL;
+
+	if (conn_server)
+		conn = smp->strm ? sc_conn(smp->strm->scb) : NULL;
+	else
+		conn = objt_conn(smp->sess->origin);
+
+	ssl = ssl_sock_get_ssl_object(conn);
+	if (!ssl)
+		return 0;
+
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	if (cert_peer)
+		crt = ssl_sock_get_peer_certificate(ssl);
+	else
+		crt = SSL_get_certificate(ssl);
+	if (!crt)
+		goto out;
+
+	names = X509_get_ext_d2i(crt, NID_subject_alt_name, NULL, NULL);
+	if (!names)
+		goto out;
+
+	smp_trash = get_trash_chunk();
+
+        bio = BIO_new(BIO_s_mem());
+	if (!bio)
+		goto out;
+
+	for (i = 0; i < sk_GENERAL_NAME_num(names); i++) {
+		GENERAL_NAME *name = sk_GENERAL_NAME_value(names, i);
+		if (i != 0)
+			BIO_puts(bio, ", ");
+		GENERAL_NAME_print(bio, name);
+	}
+
+	sk_GENERAL_NAME_pop_free(names, GENERAL_NAME_free);
+
+	read = BIO_read(bio, smp_trash->area, smp_trash->size-1);
+	if (read <= 0) /* nothing to read, prevent negative array index */
+		goto out;
+	smp_trash->area[read] = '\0';
+	smp_trash->data = read;
+
+	smp->flags = SMP_F_VOL_SESS;
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str = *smp_trash;
+	ret = 1;
+out:
+	/* SSL_get_peer_certificate, it increase X509 * ref count */
+	if (cert_peer && crt)
+		X509_free(crt);
+	BIO_free(bio);
+	return ret;
+}
+
 /* string, returns notbefore date in ASN1_UTCTIME format.
  * The 5th keyword char is used to know if SSL_get_certificate or SSL_get_peer_certificate
  * should be use.
@@ -2343,6 +2419,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_c_r_dn",             smp_fetch_ssl_r_dn,           ARG3(0,STR,SINT,STR),val_dnfmt,    SMP_T_STR,  SMP_USE_L5CLI },
 #endif
 	{ "ssl_c_sig_alg",          smp_fetch_ssl_x_sig_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_c_san",              smp_fetch_ssl_x_san,          0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_s_dn",             smp_fetch_ssl_x_s_dn,         ARG3(0,STR,SINT,STR),val_dnfmt,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_serial",           smp_fetch_ssl_x_serial,       0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_c_sha1",             smp_fetch_ssl_x_sha1,         0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },

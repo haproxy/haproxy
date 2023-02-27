@@ -22920,6 +22920,7 @@ ssl_c_notafter                                     string
 ssl_c_notbefore                                    string
 ssl_c_r_dn([<entry>[,<occ>[,<format>]]])           string
 ssl_c_s_dn([<entry>[,<occ>[,<format>]]])           string
+ssl_c_san                                          string
 ssl_c_serial                                       binary
 ssl_c_sha1                                         binary
 ssl_c_sig_alg                                      string
@@ -23263,6 +23264,23 @@ ssl_c_s_dn([<entry>[,<occ>[,<format>]]]) : string
   LDAP v3.
   If you'd like to modify the format only you can specify an empty string
   and zero for the first two parameters. Example: ssl_c_s_dn(,0,rfc2253)
+
+ssl_c_san : string
+  When the incoming connection was made over an SSL/TLS transport layer, and was
+  provided with a client certificate. Returns a string of comma separated
+  Subject Alt Name fields contained into the provided certificate.
+
+  This can be used to inspect the client certificate.
+
+  Example:
+
+    acl is_valid_client_cert ssl_c_used && ! ssl_c_verify
+    http-request set-header X-SSL-Client-SAN %[ssl_c_san] if is_valid_client_cert
+
+  will results in:
+
+    X-SSL-Client-SAN: IP Address:127.0.0.1, IP Address:127.0.0.2, IP Address:127.0.0.3, URI:http://docs.haproxy.org/2.7/, DNS:ca.tests.haproxy.com
+
 
 ssl_c_serial : binary
   Returns the serial of the certificate presented by the client when the
