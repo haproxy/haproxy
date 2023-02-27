@@ -1566,6 +1566,46 @@ static void stream_update_both_sc(struct stream *s)
 	}
 }
 
+/* check SC and channel timeouts, and close the corresponding stream connectors
+ * for future reads or writes.
+ * Note: this will also concern upper layers but we do not touch any other
+ * flag. We must be careful and correctly detect state changes when calling
+ * them.
+ */
+static void stream_handle_timeouts(struct stream *s)
+{
+	stream_check_conn_timeout(s);
+
+	sc_check_timeouts(s->scf);
+	channel_check_timeout(&s->req);
+	if (unlikely((s->req.flags & (CF_SHUTW|CF_WRITE_TIMEOUT)) == CF_WRITE_TIMEOUT)) {
+		s->scb->flags |= SC_FL_NOLINGER;
+		sc_shutw(s->scb);
+	}
+
+	if (unlikely((s->req.flags & (CF_SHUTR|CF_READ_TIMEOUT)) == CF_READ_TIMEOUT)) {
+		if (s->scf->flags & SC_FL_NOHALF)
+			s->scf->flags |= SC_FL_NOLINGER;
+		sc_shutr(s->scf);
+	}
+
+	sc_check_timeouts(s->scb);
+	channel_check_timeout(&s->res);
+	if (unlikely((s->res.flags & (CF_SHUTW|CF_WRITE_TIMEOUT)) == CF_WRITE_TIMEOUT)) {
+		s->scf->flags |= SC_FL_NOLINGER;
+		sc_shutw(s->scf);
+	}
+
+	if (unlikely((s->res.flags & (CF_SHUTR|CF_READ_TIMEOUT)) == CF_READ_TIMEOUT)) {
+		if (s->scb->flags & SC_FL_NOHALF)
+			s->scb->flags |= SC_FL_NOLINGER;
+		sc_shutr(s->scb);
+		}
+
+	if (HAS_FILTERS(s))
+		flt_stream_check_timeouts(s);
+}
+
 /* if the current task's wake_date was set, it's being profiled, thus we may
  * report latencies and CPU usages in logs, so it's desirable to update the
  * latency when entering process_stream().
@@ -1727,41 +1767,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 * stream connectors when their timeouts have expired.
 	 */
 	if (unlikely(s->pending_events & TASK_WOKEN_TIMER)) {
-		stream_check_conn_timeout(s);
-
-		/* check SC and channel timeouts, and close the corresponding stream connectors
-		 * for future reads or writes. Note: this will also concern upper layers
-		 * but we do not touch any other flag. We must be careful and correctly
-		 * detect state changes when calling them.
-		 */
-		sc_check_timeouts(scf);
-		channel_check_timeout(req);
-		if (unlikely((req->flags & (CF_SHUTW|CF_WRITE_TIMEOUT)) == CF_WRITE_TIMEOUT)) {
-			scb->flags |= SC_FL_NOLINGER;
-			sc_shutw(scb);
-		}
-
-		if (unlikely((req->flags & (CF_SHUTR|CF_READ_TIMEOUT)) == CF_READ_TIMEOUT)) {
-			if (scf->flags & SC_FL_NOHALF)
-				scf->flags |= SC_FL_NOLINGER;
-			sc_shutr(scf);
-		}
-
-		sc_check_timeouts(scb);
-		channel_check_timeout(res);
-		if (unlikely((res->flags & (CF_SHUTW|CF_WRITE_TIMEOUT)) == CF_WRITE_TIMEOUT)) {
-			scf->flags |= SC_FL_NOLINGER;
-			sc_shutw(scf);
-		}
-
-		if (unlikely((res->flags & (CF_SHUTR|CF_READ_TIMEOUT)) == CF_READ_TIMEOUT)) {
-			if (scb->flags & SC_FL_NOHALF)
-				scb->flags |= SC_FL_NOLINGER;
-			sc_shutr(scb);
-		}
-
-		if (HAS_FILTERS(s))
-			flt_stream_check_timeouts(s);
+		stream_handle_timeouts(s);
 
 		/* Once in a while we're woken up because the task expires. But
 		 * this does not necessarily mean that a timeout has been reached.
