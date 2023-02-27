@@ -137,6 +137,30 @@ int sockpair_bind_receiver(struct receiver *rx, char **errmsg)
 	if (rx->flags & RX_F_BOUND)
 		return ERR_NONE;
 
+	if (rx->flags & RX_F_MUST_DUP) {
+		/* this is a secondary receiver that is an exact copy of a
+		 * reference which must already be bound (or has failed).
+		 * We'll try to dup() the other one's FD and take it. We
+		 * try hard not to reconfigure the socket since it's shared.
+		 */
+		BUG_ON(!rx->shard_info);
+		if (!(rx->shard_info->ref->flags & RX_F_BOUND)) {
+			/* it's assumed that the first one has already reported
+			 * the error, let's not spam with another one, and do
+			 * not set ERR_ALERT.
+			 */
+			err |= ERR_RETRYABLE;
+			goto bind_ret_err;
+		}
+		/* taking the other one's FD will result in it being marked
+		 * extern and being dup()ed. Let's mark the receiver as
+		 * inherited so that it properly bypasses all second-stage
+		 * setup and avoids being passed to new processes.
+		 */
+		rx->flags |= RX_F_INHERITED;
+		rx->fd = rx->shard_info->ref->fd;
+	}
+
 	if (rx->fd == -1) {
 		err |= ERR_FATAL | ERR_ALERT;
 		memprintf(errmsg, "sockpair may be only used with inherited FDs");
@@ -164,6 +188,7 @@ int sockpair_bind_receiver(struct receiver *rx, char **errmsg)
 	if (errmsg && *errmsg)
 		memprintf(errmsg, "%s for [fd %d]", *errmsg, rx->fd);
 
+ bind_ret_err:
 	return err;
 
  bind_close_return:
