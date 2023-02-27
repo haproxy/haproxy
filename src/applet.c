@@ -250,17 +250,15 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	if (count != co_data(sc_oc(sc))) {
 		sc_oc(sc)->flags |= CF_WRITE_EVENT | CF_WROTE_DATA;
 		sc_have_room(sc_opposite(sc));
-		sc_ep_report_send_activity(sc);
-	}
-	else {
-		if (sc_ep_test(sc, SE_FL_WONT_CONSUME))
-			sc_ep_report_send_activity(sc);
-		else
-			sc_ep_report_blocked_send(sc);
 	}
 
 	if (sc_ic(sc)->flags & CF_READ_EVENT)
 		sc_ep_report_read_activity(sc);
+
+	if (channel_is_empty(sc_oc(sc)))
+		sc_ep_report_send_activity(sc);
+	else
+		sc_ep_report_blocked_send(sc);
 
 	/* measure the call rate and check for anomalies when too high */
 	if (((b_size(sc_ib(sc)) && sc->flags & SC_FL_NEED_BUFF) || // asks for a buffer which is present

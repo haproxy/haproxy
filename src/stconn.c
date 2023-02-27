@@ -1667,12 +1667,8 @@ static int sc_conn_send(struct stconn *sc)
 		oc->flags |= CF_WRITE_EVENT | CF_WROTE_DATA;
 		if (sc->state == SC_ST_CON)
 			sc->state = SC_ST_RDY;
-
 		sc_have_room(sc_opposite(sc));
-		sc_ep_report_send_activity(sc);
 	}
-	else
-		sc_ep_report_blocked_send(sc);
 
 	if (sc_ep_test(sc, SE_FL_ERROR | SE_FL_ERR_PENDING)) {
 		oc->flags |= CF_WRITE_EVENT;
@@ -1681,9 +1677,14 @@ static int sc_conn_send(struct stconn *sc)
 		return 1;
 	}
 
-	/* We couldn't send all of our data, let the mux know we'd like to send more */
-	if (!channel_is_empty(oc))
+	if (channel_is_empty(oc))
+		sc_ep_report_send_activity(sc);
+	else {
+		/* We couldn't send all of our data, let the mux know we'd like to send more */
 		conn->mux->subscribe(sc, SUB_RETRY_SEND, &sc->wait_event);
+		sc_ep_report_blocked_send(sc);
+	}
+
 	return did_send;
 }
 
