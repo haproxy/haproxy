@@ -16471,15 +16471,53 @@ parse-resolv-conf
   placed in the resolvers section in place of this directive.
 
 hold <status> <period>
-  Defines <period> during which the last name resolution should be kept based
-  on last resolution <status>
-    <status> : last name resolution status. Acceptable values are "nx",
-               "other", "refused", "timeout", "valid", "obsolete".
-    <period> : interval between two successive name resolution when the last
-               answer was in <status>. It follows the HAProxy time format.
-               <period> is in milliseconds by default.
+  Upon receiving the DNS response <status>, determines whether a server's state
+  should change from UP to DOWN. To make that determination, it checks whether
+  any valid status has been received during the past <period> in order to
+  counteract the just received invalid status.
 
-  Default value is 10s for "valid", 0s for "obsolete" and 30s for others.
+    <status> : last name resolution status.
+           nx        After receiving an NXDOMAIN status, check for any valid
+                     status during the concluding period.
+
+           refused   After receiving a REFUSED status, check for any valid
+                     status during the concluding period.
+
+           timeout   After the "timeout retry" has struck, check for any
+                     valid status during the concluding period.
+
+           other     After receiving any other invalid status, check for any
+                     valid status during the concluding period.
+
+           valid     Applies only to "http-request do-resolve" and
+                     "tcp-request content do-resolve" actions. It defines the
+                     period for which the server will maintain a valid response
+                     before triggering another resolution. It does not affect
+                     dynamic resolution of servers.
+
+           obsolete  Defines how long to wait before removing obsolete DNS
+                     records after an updated answer record is received. It
+                     applies to SRV records.
+
+    <period> : Amount of time into the past during which a valid response must
+               have been received. It follows the HAProxy time format and is in
+               milliseconds by default.
+
+  For a server that relies on dynamic DNS resolution to determine its IP
+  address, receiving an invalid DNS response, such as NXDOMAIN, will lead to
+  changing the server's state from UP to DOWN. The hold directives define how
+  far into the past to look for a valid response. If a valid response has been
+  received within <period>, the just received invalid status will be ignored.
+
+  Unless a valid response has been receiving during the concluding period, the
+  server will be marked as DOWN. For example, if "hold nx 30s" is set and the
+  last received DNS response was NXDOMAIN, the server will be marked DOWN
+  unless a valid response has been received during the last 30 seconds.
+
+  A server in the DOWN state will be marked UP immediately upon receiving a
+  valid status from the DNS server.
+
+  A separate behavior exists for "hold valid" and "hold obsolete".
 
 resolve_retries <nb>
   Defines the number <nb> of queries to send to resolve a server name before
