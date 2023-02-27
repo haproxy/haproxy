@@ -348,7 +348,11 @@ void _fd_delete_orphan(int fd)
 }
 
 /* Deletes an FD from the fdsets. The file descriptor is also closed, possibly
- * asynchronously. Only the owning thread may do this.
+ * asynchronously. It is safe to call it from another thread from the same
+ * group as the FD's or from a thread from a different group. However if called
+ * from a thread from another group, there is an extra cost involved because
+ * the operation is performed under thread isolation, so doing so must be
+ * reserved for ultra-rare cases (e.g. stopping a listener).
  */
 void fd_delete(int fd)
 {
@@ -367,8 +371,27 @@ void fd_delete(int fd)
 
 	/* the tgid cannot change before a complete close so we should never
 	 * face the situation where we try to close an fd that was reassigned.
+	 * However there is one corner case where this happens, it's when an
+	 * attempt to pause a listener fails (e.g. abns), leaving the listener
+	 * in fault state and it is forcefully stopped. This needs to be done
+	 * under isolation, and it's quite rare (i.e. once per such FD per
+	 * process). Since we'll be isolated we can clear the thread mask and
+	 * close the FD ourselves.
 	 */
-	BUG_ON(fd_tgid(fd) != ti->tgid && !thread_isolated() && !(global.mode & MODE_STOPPING));
+	if (unlikely(fd_tgid(fd) != ti->tgid)) {
+		int must_isolate = !thread_isolated() && !(global.mode & MODE_STOPPING);
+
+		if (must_isolate)
+			thread_isolate();
+
+		HA_ATOMIC_STORE(&fdtab[fd].thread_mask, 0);
+		HA_ATOMIC_STORE(&fdtab[fd].running_mask, 0);
+		_fd_delete_orphan(fd);
+
+		if (must_isolate)
+			thread_release();
+		return;
+	}
 
 	/* we must postpone removal of an FD that may currently be in use
 	 * by another thread. This can happen in the following two situations:
