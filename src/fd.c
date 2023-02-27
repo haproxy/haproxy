@@ -296,11 +296,13 @@ done:
 /* deletes the FD once nobody uses it anymore, as detected by the caller by its
  * thread_mask being zero and its running mask turning to zero. There is no
  * protection against concurrent accesses, it's up to the caller to make sure
- * only the last thread will call it. This is only for internal use, please use
- * fd_delete() instead.
+ * only the last thread will call it. If called under isolation, it is safe to
+ * call this from another group than the FD's. This is only for internal use,
+ * please use fd_delete() instead.
  */
 void _fd_delete_orphan(int fd)
 {
+	int tgrp = fd_tgid(fd);
 	uint fd_disown;
 
 	fd_disown = fdtab[fd].state & FD_DISOWN;
@@ -318,7 +320,7 @@ void _fd_delete_orphan(int fd)
 		cur_poller.clo(fd);
 
 	/* we don't want this FD anymore in the global list */
-	fd_rm_from_fd_list(&update_list[tgid - 1], fd);
+	fd_rm_from_fd_list(&update_list[tgrp - 1], fd);
 
 	/* no more updates on this FD are relevant anymore */
 	HA_ATOMIC_STORE(&fdtab[fd].update_mask, 0);
