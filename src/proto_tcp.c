@@ -603,6 +603,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		goto tcp_return;
 	}
 
+	if (listener->rx.flags & RX_F_MUST_DUP)
+		goto done;
+
 	fd = listener->rx.fd;
 
 	if (listener->bind_conf->options & BC_O_NOLINGER)
@@ -723,6 +726,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 #endif
 
+ done:
 	/* the socket is ready */
 	listener_set_state(listener, LI_LISTEN);
 	goto tcp_return;

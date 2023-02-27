@@ -124,6 +124,9 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		goto uxst_return;
 	}
 
+	if (listener->rx.flags & RX_F_MUST_DUP)
+		goto done;
+
 	fd = listener->rx.fd;
 	ready = sock_accepting_conn(&listener->rx) > 0;
 
@@ -134,6 +137,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		goto uxst_close_return;
 	}
 
+ done:
 	/* the socket is now listening */
 	listener_set_state(listener, LI_LISTEN);
 	return err;
