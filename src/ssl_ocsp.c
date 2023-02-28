@@ -1150,7 +1150,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 leave:
 	if (ctx->cur_ocsp) {
 		/* Something went wrong, reinsert the entry in the tree. */
-		ssl_ocsp_update_insert(ctx->cur_ocsp);
+		ssl_ocsp_update_insert_after_error(ctx->cur_ocsp);
 		/* Release the reference kept on the updated ocsp response. */
 		ssl_sock_free_ocsp(ctx->cur_ocsp);
 		ctx->cur_ocsp = NULL;
