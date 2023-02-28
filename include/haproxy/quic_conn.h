@@ -712,6 +712,7 @@ int quic_get_dgram_dcid(unsigned char *buf, const unsigned char *end,
 int qc_send_mux(struct quic_conn *qc, struct list *frms);
 
 void qc_notify_close(struct quic_conn *qc);
+int qc_notify_send(struct quic_conn *qc);
 
 void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm);
 

@@ -1699,11 +1699,8 @@ static int quic_stream_try_to_consume(struct quic_conn *qc,
 static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
                                          struct quic_frame *frm)
 {
-	int stream_acked;
-
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc, frm);
 
-	stream_acked = 0;
 	switch (frm->type) {
 	case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 	{
@@ -1732,7 +1729,6 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 		TRACE_DEVEL("acked stream", QUIC_EV_CONN_ACKSTRM, qc, strm_frm, stream);
 		if (offset <= stream->ack_offset) {
 			if (qc_stream_desc_ack(&stream, offset, len)) {
-				stream_acked = 1;
 				TRACE_DEVEL("stream consumed", QUIC_EV_CONN_ACKSTRM,
 				            qc, strm_frm, stream);
 			}
@@ -1753,21 +1749,13 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 			eb64_insert(&stream->acked_frms, &strm_frm->offset);
 		}
 
-		stream_acked |= quic_stream_try_to_consume(qc, stream);
+		quic_stream_try_to_consume(qc, stream);
 	}
 	break;
 	default:
 		qc_release_frm(qc, frm);
 	}
 
-	if (stream_acked) {
-		if (qc->subs && qc->subs->events & SUB_RETRY_SEND) {
-			tasklet_wakeup(qc->subs->tasklet);
-			qc->subs->events &= ~SUB_RETRY_SEND;
-			if (!qc->subs->events)
-				qc->subs = NULL;
-		}
-	}
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
 }
@@ -2238,6 +2226,7 @@ static inline int qc_parse_ack_frm(struct quic_conn *qc,
 		if (quic_peer_validated_addr(qc))
 			qc->path->loss.pto_count = 0;
 		qc_set_timer(qc);
+		qc_notify_send(qc);
 	}
 
 	ret = 1;
@@ -4818,14 +4807,7 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 
 	if (qc->path->in_flight) {
 		pktns = quic_pto_pktns(qc, qc->state >= QUIC_HS_ST_CONFIRMED, NULL);
-		if (qc->subs && qc->subs->events & SUB_RETRY_SEND) {
-			pktns->tx.pto_probe = QUIC_MAX_NB_PTO_DGRAMS;
-			tasklet_wakeup(qc->subs->tasklet);
-			qc->subs->events &= ~SUB_RETRY_SEND;
-			if (!qc->subs->events)
-				qc->subs = NULL;
-		}
-		else {
+		if (!qc_notify_send(qc)) {
 			if (pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL]) {
 				if (qc_may_probe_ipktns(qc)) {
 					qc->flags |= QUIC_FL_CONN_RETRANS_NEEDED;
@@ -7768,6 +7750,26 @@ void qc_notify_close(struct quic_conn *qc)
 		            QUIC_FL_CONN_NOTIFY_CLOSE, qc);
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
+}
+
+/* Wake-up upper layer if waiting for send to be ready.
+ *
+ * Returns 1 if upper layer has been woken up else 0.
+ */
+int qc_notify_send(struct quic_conn *qc)
+{
+	if (qc->subs && qc->subs->events & SUB_RETRY_SEND) {
+		if (quic_path_prep_data(qc->path)) {
+			tasklet_wakeup(qc->subs->tasklet);
+			qc->subs->events &= ~SUB_RETRY_SEND;
+			if (!qc->subs->events)
+				qc->subs = NULL;
+
+			return 1;
+		}
+	}
+
+	return 0;
 }
 
 
