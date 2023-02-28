@@ -492,8 +492,16 @@ static void quic_conn_sock_fd_iocb(int fd)
 
 	TRACE_ENTER(QUIC_EV_CONN_RCV, qc);
 
-	tasklet_wakeup_after(NULL, qc->wait_event.tasklet);
-	fd_stop_recv(fd);
+	if (fd_send_active(fd) && fd_send_ready(fd)) {
+		TRACE_DEVEL("send ready", QUIC_EV_CONN_RCV, qc);
+		fd_stop_send(fd);
+		tasklet_wakeup_after(NULL, qc->wait_event.tasklet);
+	}
+
+	if (fd_recv_ready(fd)) {
+		tasklet_wakeup_after(NULL, qc->wait_event.tasklet);
+		fd_stop_recv(fd);
+	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_RCV, qc);
 }
@@ -516,6 +524,9 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 
 	do {
 		if (qc_test_fd(qc)) {
+			if (!fd_send_ready(qc->fd))
+				return 0;
+
 			ret = send(qc->fd, b_peek(buf, b_head_ofs(buf)), sz,
 			           MSG_DONTWAIT | MSG_NOSIGNAL);
 		}
@@ -626,6 +637,8 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 				HA_ATOMIC_INC(&prx_counters->sendto_err);
 
 			/* transient error */
+			fd_want_send(qc->fd);
+			fd_cant_send(qc->fd);
 			TRACE_PRINTF(TRACE_LEVEL_USER, QUIC_EV_CONN_SPPKTS, qc, 0, 0, 0,
 			             "UDP send failure errno=%d (%s)", errno, strerror(errno));
 			return 0;

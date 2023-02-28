@@ -3436,8 +3436,10 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
  *
  * This function returns 1 for success. On error, there is several behavior
  * depending on underlying sendto() error :
- * - for a fatal error, 0 is returned and connection is killed.
- * - a transient error is assimilated to a success case with 1 returned.
+ * - for an unrecoverable error, 0 is returned and connection is killed.
+ * - a transient error is handled differently if connection has its owned
+ *   socket. If this is the case, 0 is returned and socket is subscribed on the
+ *   poller. The other case is assimilated to a success case with 1 returned.
  *   Remaining data are purged from the buffer and will eventually be detected
  *   as lost which gives the opportunity to retry sending.
  */
@@ -3481,11 +3483,19 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 		if (!skip_sendto) {
 			int ret = qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0);
 			if (ret < 0) {
+				TRACE_ERROR("sendto fatal error", QUIC_EV_CONN_SPPKTS, qc);
 				qc_kill_conn(qc);
 				b_del(buf, buf->data);
 				goto leave;
 			}
 			else if (!ret) {
+				/* Connection owned socket : poller will wake us up when transient error is cleared. */
+				if (qc_test_fd(qc)) {
+					TRACE_ERROR("sendto error, subscribe to poller", QUIC_EV_CONN_SPPKTS, qc);
+					goto leave;
+				}
+
+				/* No connection owned-socket : rely on retransmission to retry sending. */
 				skip_sendto = 1;
 				TRACE_ERROR("sendto error, simulate sending for the rest of data", QUIC_EV_CONN_SPPKTS, qc);
 			}
@@ -4260,7 +4270,8 @@ static int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
 			break;
 
 		if (!qc_send_ppkts(buf, qc->xprt_ctx)) {
-			qc_txb_release(qc);
+			if (qc->flags & QUIC_FL_CONN_TO_KILL)
+				qc_txb_release(qc);
 			goto err;
 		}
 	}
@@ -4359,7 +4370,8 @@ int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
 	}
 
 	if (ret && !qc_send_ppkts(buf, qc->xprt_ctx)) {
-		qc_txb_release(qc);
+		if (qc->flags & QUIC_FL_CONN_TO_KILL)
+			qc_txb_release(qc);
 		goto out;
 	}
 
@@ -4665,7 +4677,8 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	}
 
 	if (ret && !qc_send_ppkts(buf, qc->xprt_ctx)) {
-		qc_txb_release(qc);
+		if (qc->flags & QUIC_FL_CONN_TO_KILL)
+			qc_txb_release(qc);
 		goto out;
 	}
 
