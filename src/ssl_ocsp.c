@@ -1724,10 +1724,166 @@ int ocsp_update_check_cfg_consistency(struct ckch_store *store, struct crtlist_e
 	return err_code;
 }
 
+struct show_ocsp_updates_ctx {
+	struct certificate_ocsp *cur_ocsp;
+};
+
+/*
+ * Parsing function for 'show ssl ocsp-updates [nb]'.
+ */
+static int cli_parse_show_ocsp_updates(char **args, char *payload, struct appctx *appctx, void *private)
+{
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
+	struct show_ocsp_updates_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
+	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
+
+	return 0;
+#else
+	return cli_err(appctx, "HAProxy was compiled against a version of OpenSSL that doesn't support OCSP stapling.\n");
+#endif
+}
+
+/*
+ * Dump information about an ocsp response concerning ocsp auto update.
+ * It follows the following format :
+ * OCSP Certid | Path | Next Update | Last Update | Successes | Failures | Last Update Status | Last Update Status (str)
+ * Return 0 in case of success.
+ */
+static int dump_ocsp_update_info(struct certificate_ocsp *ocsp, struct buffer *out)
+{
+	struct tm tm = {};
+	char *ret;
+	int i;
+	time_t next_update;
+
+	/* Dump OCSP certid */
+	for (i = 0; i < ocsp->key_length; ++i) {
+		chunk_appendf(out, "%02x", ocsp->key_data[i]);
+	}
+
+	chunk_appendf(out, " | ");
+
+	/* Dump path */
+	chunk_appendf(out, "%s", ocsp->path);
+
+	chunk_appendf(out, " | ");
+
+	/* Dump next update time */
+	if (ocsp->next_update.key != 0) {
+		next_update = ocsp->next_update.key;
+		get_localtime(ocsp->next_update.key, &tm);
+	} else {
+		next_update = date.tv_sec;
+		get_localtime(date.tv_sec, &tm);
+	}
+	ret = localdate2str_log(b_orig(out)+b_data(out), next_update, &tm, b_size(out)-b_data(out));
+
+	if (ret == NULL)
+		return 1;
+
+	out->data = (ret - out->area);
+
+	chunk_appendf(out, " | ");
+
+	/* Dump last update time or "-" if no update occurred yet */
+	if (ocsp->last_update) {
+		get_localtime(ocsp->last_update, &tm);
+		ret = localdate2str_log(b_orig(out)+b_data(out), ocsp->last_update, &tm, b_size(out)-b_data(out));
+
+		if (ret == NULL)
+			return 1;
+
+		out->data = (ret - out->area);
+	} else
+		chunk_appendf(out, "-");
+
+	chunk_appendf(out, " | ");
+
+	/* Number of successful updates */
+	chunk_appendf(out, "%d", ocsp->num_success);
+
+	chunk_appendf(out, " | ");
+
+	/* Number of failed updates */
+	chunk_appendf(out, "%d", ocsp->num_failure);
+
+	chunk_appendf(out, " | ");
+
+	/* Last update status */
+	chunk_appendf(out, "%d", ocsp->last_update_status);
+
+	chunk_appendf(out, " | ");
+
+	/* Last update status str */
+	if (ocsp->last_update_status >= OCSP_UPDT_ERR_LAST)
+		chunk_appendf(out, "-");
+	else
+		chunk_appendf(out, "%s", istptr(ocsp_update_errors[ocsp->last_update_status]));
+
+	chunk_appendf(out, "\n");
+
+	return 0;
+}
+
+static int cli_io_handler_show_ocsp_updates(struct appctx *appctx)
+{
+	struct show_ocsp_updates_ctx *ctx = appctx->svcctx;
+	struct eb64_node *node;
+	struct certificate_ocsp *ocsp = NULL;
+	struct buffer *trash = get_trash_chunk();
+
+	if (!ctx->cur_ocsp) {
+		node = eb64_first(&ocsp_update_tree);
+		chunk_appendf(trash, "OCSP Certid | Path | Next Update | Last Update | Successes | Failures | Last Update Status | Last Update Status (str)\n");
+
+		/* Look for an entry currently being updated */
+		ocsp = ssl_ocsp_task_ctx.cur_ocsp;
+		if (ocsp) {
+			if (dump_ocsp_update_info(ocsp, trash))
+				goto end;
+		}
+
+		if (applet_putchk(appctx, trash) == -1)
+			goto yield;
+
+	} else {
+		node = &((struct certificate_ocsp*)ctx->cur_ocsp)->next_update;
+	}
+
+	while (node) {
+		ocsp = eb64_entry(node, struct certificate_ocsp, next_update);
+
+		chunk_reset(trash);
+		if (dump_ocsp_update_info(ocsp, trash))
+			goto end;
+
+		if (applet_putchk(appctx, trash) == -1) {
+			ctx->cur_ocsp = ocsp;
+			goto yield;
+		}
+
+		node = eb64_next(node);
+	}
+
+end:
+	return 1;
+
+yield:
+	return 0; /* should come back */
+}
+
+static void cli_release_show_ocsp_updates(struct appctx *appctx)
+{
+	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
+}
+
+
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "ocsp-response", NULL }, "set ssl ocsp-response <resp|payload>    : update a certificate's OCSP Response from a base64-encode DER",      cli_parse_set_ocspresponse, NULL },
 
 	{ { "show", "ssl", "ocsp-response", NULL },"show ssl ocsp-response [id]             : display the IDs of the OCSP responses used in memory, or the details of a single OCSP response", cli_parse_show_ocspresponse, cli_io_handler_show_ocspresponse, NULL },
+	{ { "show", "ssl", "ocsp-updates", NULL }, "show ssl ocsp-updates                   : display information about the next 'nb' ocsp responses that will be updated automatically", cli_parse_show_ocsp_updates, cli_io_handler_show_ocsp_updates, cli_release_show_ocsp_updates },
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 	{ { "update", "ssl", "ocsp-response", NULL }, "update ssl ocsp-response <certfile>  : send ocsp request and update stored ocsp response",                  cli_parse_update_ocsp_response, cli_io_handler_update_ocsp_response, cli_release_update_ocsp_response },
 #endif

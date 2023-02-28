@@ -3468,6 +3468,37 @@ show ssl ocsp-response [<id>]
       Next Update: Oct 12 15:43:38 2048 GMT
       [...]
 
+show ssl ocsp-updates
+  Display information about the entries concerned by the OCSP update mechanism.
+  The command will output one line per OCSP response and will contain the
+  expected update time of the response as well as the time of the last
+  successful update and counters of successful and failed updates. It will also
+  give the status of the last update (successful or not) in numerical form as
+  well as text form. See below for a full list of possible errors. The lines
+  will be sorted by ascending 'Next Update' time. The lines will also contain a
+  path to the first frontend certificate that uses the OCSP response.
+  See "show ssl ocsp-response" command and "ocsp-update" option for more
+  information on the OCSP auto update.
+
+  The update error codes and error strings can be the following:
+
+  +----+-------------------------------------+
+  | ID | message                             |
+  +----+-------------------------------------+
+  |  0 | "Unknown"                           |
+  |  1 | "Update successful"                 |
+  |  2 | "HTTP error"                        |
+  |  3 | "Missing \"ocsp-response\" header"  |
+  |  4 | "OCSP response check failure"       |
+  |  5 | "Error during insertion"            |
+  +----+-------------------------------------+
+
+    Example :
+      $ echo "show ssl ocsp-updates" | socat /tmp/haproxy.sock -
+        OCSP Certid | Path | Next Update | Last Update | Successes | Failures | Last Update Status | Last Update Status (str)
+            303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015 | /path_to_cert/cert.pem | 30/Jan/2023:00:08:09 +0000 | - | 0 | 1 | 2 | HTTP error
+            304b300906052b0e03021a0500041448dac9a0fb2bd32d4ff0de68d2f567b735f9b3c40414142eb317b75856cbae500940e61faf9d8b14c2c6021203e16a7aa01542f291237b454a627fdea9c1 | /path_to_cert/other_cert.pem | 30/Jan/2023:01:07:09 +0000 | 30/Jan/2023:00:07:09 +0000 | 1 | 0 | 1 | Update successful
+
 show ssl providers
   Display the names of the providers loaded by OpenSSL during init. Provider
   loading can indeed be configured via the OpenSSL configuration file and this
