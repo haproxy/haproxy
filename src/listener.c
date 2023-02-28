@@ -141,7 +141,7 @@ struct task *accept_queue_process(struct task *t, void *context, unsigned int st
 			break;
 
 		li = __objt_listener(conn->target);
-		_HA_ATOMIC_INC(&li->thr_conn[tid]);
+		_HA_ATOMIC_INC(&li->thr_conn[ti->ltid]);
 		ret = li->bind_conf->accept(conn);
 		if (ret <= 0) {
 			/* connection was terminated by the application */
@@ -1170,8 +1170,8 @@ void listener_accept(struct listener *l)
 				 *             than t2.
 				 */
 
-				q1 += l->thr_conn[base + t1];
-				q2 += l->thr_conn[base + t2];
+				q1 += l->thr_conn[t1];
+				q2 += l->thr_conn[t2];
 
 				if (q1 - q2 < 0) {
 					t = t1;
@@ -1214,7 +1214,7 @@ void listener_accept(struct listener *l)
 #endif // USE_THREAD
 
  local_accept:
-		_HA_ATOMIC_INC(&l->thr_conn[tid]);
+		_HA_ATOMIC_INC(&l->thr_conn[ti->ltid]);
 		ret = l->bind_conf->accept(cli_conn);
 		if (unlikely(ret <= 0)) {
 			/* The connection was closed by stream_accept(). Either
@@ -1319,7 +1319,7 @@ void listener_release(struct listener *l)
 	if (fe)
 		_HA_ATOMIC_DEC(&fe->feconn);
 	_HA_ATOMIC_DEC(&l->nbconn);
-	_HA_ATOMIC_DEC(&l->thr_conn[tid]);
+	_HA_ATOMIC_DEC(&l->thr_conn[ti->ltid]);
 
 	if (l->state == LI_FULL || l->state == LI_LIMITED)
 		relax_listener(l, 0, 0);

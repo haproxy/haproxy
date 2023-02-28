@@ -236,7 +236,7 @@ struct listener {
 	struct mt_list wait_queue;	/* link element to make the listener wait for something (LI_LIMITED)  */
 	char *name;			/* listener's name */
 
-	unsigned int thr_conn[MAX_THREADS]; /* number of connections per thread */
+	unsigned int thr_conn[MAX_THREADS_PER_GROUP]; /* number of connections per thread for the group */
 
 	struct list by_fe;              /* chaining in frontend's list of listeners */
 	struct list by_bind;            /* chaining in bind_conf's list of listeners */
