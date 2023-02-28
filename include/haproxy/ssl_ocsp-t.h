@@ -49,6 +49,11 @@ struct certificate_ocsp {
 	STACK_OF(X509) *chain;
 	struct eb64_node next_update;	/* Key of items inserted in ocsp_update_tree (sorted by absolute date) */
 	struct buffer *uri;	/* First OCSP URI contained in the corresponding certificate */
+
+	/* OCSP update stats */
+	u64 last_update;		/* Time of last successful update */
+	unsigned int num_success;	/* Number of successful updates */
+	unsigned int num_failure;	/* Number of failed updates */
 };
 
 struct ocsp_cbk_arg {

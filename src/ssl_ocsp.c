@@ -1043,6 +1043,9 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 
 			ctx->flags &= ~HC_F_RES_END;
 
+			++ocsp->num_success;
+			ocsp->last_update = now.tv_sec;
+
 			/* Reinsert the entry into the update list so that it can be updated later */
 			ssl_ocsp_update_insert(ocsp);
 			/* Release the reference kept on the updated ocsp response. */
@@ -1150,6 +1153,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 leave:
 	if (ctx->cur_ocsp) {
 		/* Something went wrong, reinsert the entry in the tree. */
+		++ctx->cur_ocsp->num_failure;
 		ssl_ocsp_update_insert_after_error(ctx->cur_ocsp);
 		/* Release the reference kept on the updated ocsp response. */
 		ssl_sock_free_ocsp(ctx->cur_ocsp);
@@ -1170,8 +1174,10 @@ wait:
 
 http_error:
 	/* Reinsert certificate into update list so that it can be updated later */
-	if (ocsp)
+	if (ocsp) {
+		++ocsp->num_failure;
 		ssl_ocsp_update_insert_after_error(ocsp);
+	}
 
 	if (hc)
 		httpclient_stop_and_destroy(hc);
