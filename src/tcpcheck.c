@@ -1412,7 +1412,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 		    (istlen(vsn) == 8 && (*(vsn.ptr+5) > '1' || (*(vsn.ptr+5) == '1' && *(vsn.ptr+7) >= '1'))))
 			slflags |= HTX_SL_F_VER_11;
 		slflags |= (HTX_SL_F_XFER_LEN|HTX_SL_F_CLEN);
-		if (!isttest(send->http.body))
+		if (!(send->http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT) && !isttest(send->http.body))
 			slflags |= HTX_SL_F_BODYLESS;
 
 		htx = htx_from_buf(&check->bo);
