@@ -1188,6 +1188,8 @@ The following keywords are supported in the "global" section :
    - tune.ssl.lifetime
    - tune.ssl.maxrecord
    - tune.ssl.ssl-ctx-cache-size
+   - tune.ssl.ocsp-update.maxdelay
+   - tune.ssl.ocsp-update.mindelay
    - tune.vars.global-max-size
    - tune.vars.proc-max-size
    - tune.vars.reqres-max-size
@@ -3350,6 +3352,25 @@ tune.ssl.maxrecord <number>
   tune.idletimer above). See also tune.ssl.hard-maxrecord.
 
 tune.ssl.ssl-ctx-cache-size <number>
+  Sets the size of the cache used to store generated certificates to <number>
+  entries. This is a LRU cache. Because generating a SSL certificate
+  dynamically is expensive, they are cached. The default cache size is set to
+  1000 entries.
+
+tune.ssl.ocsp-update.maxdelay <number>
+  Sets the maximum interval between two automatic updates of the same OCSP
+  response. This time is expressed in seconds and defaults to 3600 (1 hour). It
+  must be set to a higher value than "tune.ssl.ocsp-update.mindelay". See
+  option "ocsp-update" for more information about the auto update mechanism.
+
+tune.ssl.ocsp-update.mindelay <number>
+  Sets the minimum interval between two automatic updates of the same OCSP
+  response. This time is expressed in seconds and defaults to 300 (5 minutes).
+  It is particularly useful for OCSP response that do not have explicit
+  expiration times. It must be set to a lower value than
+  "tune.ssl.ocsp-update.maxdelay". See option "ocsp-update" for more
+  information about the auto update mechanism.
+
   Sets the size of the cache used to store generated certificates to <number>
   entries. This is a LRU cache. Because generating a SSL certificate
   dynamically is expensive, they are cached. The default cache size is set to
@@ -14946,7 +14967,11 @@ ocsp-update [ off | on ]
   short time after init.
   On the other hand, if a certificate has an OCSP uri specified and no OCSP
   response, setting this option to 'on' for the given certificate will ensure
-  that the OCSP response gets fetched automatically right after init.
+  that the OCSP response gets fetched automatically right after init.  The
+  default minimum and maximum delays (5 minutes and 1 hour respectively) can be
+  configured by the "tune.ssl.ocsp-update.maxdelay" and
+  "tune.ssl.ocsp-update.mindelay" global options.
+
   Whenever an OCSP response is updated by the auto update task, a dedicated log
   line is emitted. It will follow a dedicated log-format that looks like the
   following "%ci:%cp [%tr] %ft %[ssl_ocsp_certid] %[ssl_ocsp_status]

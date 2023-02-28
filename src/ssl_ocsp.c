@@ -183,10 +183,6 @@ struct eb_root cert_ocsp_tree = EB_ROOT_UNIQUE;
 __decl_thread(HA_SPINLOCK_T ocsp_tree_lock);
 
 struct eb_root ocsp_update_tree = EB_ROOT; /* updatable ocsp responses sorted by next_update in absolute time */
-#define SSL_OCSP_UPDATE_DELAY_MAX 60*60 /* 1H */
-#define SSL_OCSP_UPDATE_DELAY_MIN 5*60  /* 5 minutes */
-#define SSL_OCSP_UPDATE_MARGIN 60   /* 1 minute */
-#define SSL_OCSP_HTTP_ERR_REPLAY 60 /* 1 minute */
 
 /* This function starts to check if the OCSP response (in DER format) contained
  * in chunk 'ocsp_response' is valid (else exits on error).
@@ -916,7 +912,7 @@ static inline void ssl_ocsp_set_next_update(struct certificate_ocsp *ocsp)
 {
 	int update_margin = (ocsp->expire >= SSL_OCSP_UPDATE_MARGIN) ? SSL_OCSP_UPDATE_MARGIN : 0;
 
-	ocsp->next_update.key = MIN(now.tv_sec + SSL_OCSP_UPDATE_DELAY_MAX,
+	ocsp->next_update.key = MIN(now.tv_sec + global_ssl.ocsp_update.delay_max,
 	                            ocsp->expire - update_margin);
 
 	/* An already existing valid OCSP response that expires within less than
@@ -925,7 +921,7 @@ static inline void ssl_ocsp_set_next_update(struct certificate_ocsp *ocsp)
 	 * update of the same response. */
 	if (b_data(&ocsp->response))
 		ocsp->next_update.key = MAX(ocsp->next_update.key,
-		                            now.tv_sec + SSL_OCSP_UPDATE_DELAY_MIN);
+		                            now.tv_sec + global_ssl.ocsp_update.delay_min);
 }
 
 /*
@@ -980,7 +976,7 @@ int ssl_ocsp_update_insert_after_error(struct certificate_ocsp *ocsp)
 	 * being at most 1 hour (with the current default values).
 	 */
 	replay_delay = MIN(SSL_OCSP_HTTP_ERR_REPLAY * (1 << ocsp->fail_count),
-	                   SSL_OCSP_UPDATE_DELAY_MAX);
+	                   global_ssl.ocsp_update.delay_max);
 
 	if (ocsp->next_update.key < now.tv_sec + replay_delay)
 		ocsp->next_update.key = now.tv_sec + replay_delay;

@@ -132,7 +132,11 @@ struct global_ssl global_ssl = {
 	.extra_files = SSL_GF_ALL,
 	.extra_files_noext = 0,
 #ifdef HAVE_SSL_KEYLOG
-	.keylog = 0
+	.keylog = 0,
+#endif
+#ifndef OPENSSL_NO_OCSP
+	.ocsp_update.delay_max = SSL_OCSP_UPDATE_DELAY_MAX,
+	.ocsp_update.delay_min = SSL_OCSP_UPDATE_DELAY_MIN,
 #endif
 };
 

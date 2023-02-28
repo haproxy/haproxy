@@ -33,6 +33,11 @@
 extern int ocsp_ex_index;
 #endif
 
+#define SSL_OCSP_UPDATE_DELAY_MAX 60*60 /* 1H */
+#define SSL_OCSP_UPDATE_DELAY_MIN 5*60  /* 5 minutes */
+#define SSL_OCSP_UPDATE_MARGIN 60   /* 1 minute */
+#define SSL_OCSP_HTTP_ERR_REPLAY 60 /* 1 minute */
+
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 /*
  * struct alignment works here such that the key.key is the same as key_data
