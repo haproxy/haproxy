@@ -846,6 +846,11 @@ void ssl_destroy_ocsp_update_task(void)
 
 	ssl_sock_free_ocsp(ssl_ocsp_task_ctx.cur_ocsp);
 	ssl_ocsp_task_ctx.cur_ocsp = NULL;
+
+	if (ssl_ocsp_task_ctx.hc) {
+		httpclient_stop_and_destroy(ssl_ocsp_task_ctx.hc);
+		ssl_ocsp_task_ctx.hc = NULL;
+	}
 }
 
 static inline void ssl_ocsp_set_next_update(struct certificate_ocsp *ocsp)
