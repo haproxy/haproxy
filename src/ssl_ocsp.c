@@ -417,6 +417,18 @@ static inline int ocsp_certid_print(BIO *bp, OCSP_CERTID *certid, int indent)
 	return 1;
 }
 
+
+enum {
+	SHOW_OCSPRESP_FMT_DFLT,
+	SHOW_OCSPRESP_FMT_TEXT,
+	SHOW_OCSPRESP_FMT_B64
+};
+
+struct show_ocspresp_cli_ctx {
+	struct certificate_ocsp *ocsp;
+	int format;
+};
+
 /*
  * Dump the details about an OCSP response in DER format stored in
  * <ocsp_response> into buffer <out>.
@@ -500,6 +512,29 @@ end:
 }
 
 /*
+ * Dump the contents of an OCSP response in DER format stored in
+ * <ocsp_response> into buffer <out> after converting it to base64.
+ * Returns 0 in case of success.
+ */
+static int ssl_ocsp_response_print_base64(struct buffer *ocsp_response, struct buffer *out)
+{
+	int b64len = 0;
+
+	b64len = a2base64(b_orig(ocsp_response), b_data(ocsp_response),
+	                  b_orig(out), b_size(out));
+
+	if (b64len < 0)
+		return 1;
+
+	out->data = b64len;
+
+	/* Add empty line */
+	chunk_appendf(ocsp_response, "\n");
+
+	return 0;
+}
+
+/*
  * Dump the details of the OCSP response of ID <ocsp_certid> into buffer <out>.
  * Returns 0 in case of success.
  */
@@ -528,29 +563,31 @@ int ssl_get_ocspresponse_detail(unsigned char *ocsp_certid, struct buffer *out)
  */
 static int cli_io_handler_show_ocspresponse_detail(struct appctx *appctx)
 {
-	struct buffer *trash = alloc_trash_chunk();
-	struct certificate_ocsp *ocsp = appctx->svcctx;
+	struct buffer *trash = get_trash_chunk();
+	struct show_ocspresp_cli_ctx *ctx = appctx->svcctx;
+	struct certificate_ocsp *ocsp = ctx->ocsp;
+	int retval = 0;
 
-	if (trash == NULL)
-		return 1;
-
-	if (ssl_ocsp_response_print(&ocsp->response, trash)) {
-		free_trash_chunk(trash);
-		return 1;
+	switch (ctx->format) {
+	case SHOW_OCSPRESP_FMT_DFLT:
+	case SHOW_OCSPRESP_FMT_TEXT:
+		retval = ssl_ocsp_response_print(&ocsp->response, trash);
+		break;
+	case SHOW_OCSPRESP_FMT_B64:
+		retval = ssl_ocsp_response_print_base64(&ocsp->response, trash);
+		break;
 	}
+
+	if (retval)
+		return 1;
 
 	if (applet_putchk(appctx, trash) == -1)
 		goto yield;
 
 	appctx->svcctx = NULL;
-	if (trash)
-		free_trash_chunk(trash);
 	return 1;
 
 yield:
-	if (trash)
-		free_trash_chunk(trash);
-
 	return 0;
 }
 
@@ -1643,17 +1680,32 @@ static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx 
 static int cli_parse_show_ocspresponse(char **args, char *payload, struct appctx *appctx, void *private)
 {
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
+
+	struct show_ocspresp_cli_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+	int certid_arg_idx = 3;
+
 	if (*args[3]) {
 		struct certificate_ocsp *ocsp = NULL;
 		char key[OCSP_MAX_CERTID_ASN1_LENGTH] = {};
 		int key_length = OCSP_MAX_CERTID_ASN1_LENGTH;
 		char *key_ptr = key;
 
-		if (strlen(args[3]) > OCSP_MAX_CERTID_ASN1_LENGTH*2) {
+		if (strcmp(args[3], "text") == 0) {
+			ctx->format = SHOW_OCSPRESP_FMT_TEXT;
+			++certid_arg_idx;
+		} else if (strcmp(args[3], "base64") == 0) {
+			ctx->format = SHOW_OCSPRESP_FMT_B64;
+			++certid_arg_idx;
+		}
+
+		if (ctx->format != SHOW_OCSPRESP_FMT_DFLT && !*args[certid_arg_idx])
+			return cli_err(appctx, "'show ssl ocsp-response [text|base64]' expects a valid certid.\n");
+
+		if (strlen(args[certid_arg_idx]) > OCSP_MAX_CERTID_ASN1_LENGTH*2) {
 			return cli_err(appctx, "'show ssl ocsp-response' received a too big key.\n");
 		}
 
-		if (!parse_binary(args[3], &key_ptr, &key_length, NULL)) {
+		if (!parse_binary(args[certid_arg_idx], &key_ptr, &key_length, NULL)) {
 			return cli_err(appctx, "'show ssl ocsp-response' received an invalid key.\n");
 		}
 
@@ -1667,7 +1719,7 @@ static int cli_parse_show_ocspresponse(char **args, char *payload, struct appctx
 		++ocsp->refcount;
 		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 
-		appctx->svcctx = ocsp;
+		ctx->ocsp = ocsp;
 		appctx->io_handler = cli_io_handler_show_ocspresponse_detail;
 	}
 
@@ -1692,6 +1744,7 @@ static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
 	struct certificate_ocsp *ocsp = NULL;
 	BIO *bio = NULL;
 	int write = -1;
+	struct show_ocspresp_cli_ctx *ctx = appctx->svcctx;
 
 	if (trash == NULL)
 		return 1;
@@ -1705,11 +1758,11 @@ static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
 	if ((bio = BIO_new(BIO_s_mem())) == NULL)
 		goto end;
 
-	if (!appctx->svcctx) {
+	if (!ctx->ocsp) {
 		chunk_appendf(trash, "# Certificate IDs\n");
 		node = ebmb_first(&cert_ocsp_tree);
 	} else {
-		node = &((struct certificate_ocsp *)appctx->svcctx)->key;
+		node = &ctx->ocsp->key;
 	}
 
 	while (node) {
@@ -1751,7 +1804,6 @@ static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
 
 end:
 	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
-	appctx->svcctx = NULL;
 	free_trash_chunk(trash);
 	free_trash_chunk(tmp);
 	BIO_free(bio);
@@ -1763,7 +1815,7 @@ yield:
 	BIO_free(bio);
 
 	++ocsp->refcount;
-	appctx->svcctx = ocsp;
+	ctx->ocsp = ocsp;
 	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 	return 0;
 #else
@@ -2015,12 +2067,12 @@ smp_fetch_ssl_ocsp_success_cnt(const struct arg *args, struct sample *smp, const
 
 
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "set", "ssl", "ocsp-response", NULL }, "set ssl ocsp-response <resp|payload>    : update a certificate's OCSP Response from a base64-encode DER",      cli_parse_set_ocspresponse, NULL },
+	{ { "set", "ssl", "ocsp-response", NULL }, "set ssl ocsp-response <resp|payload>       : update a certificate's OCSP Response from a base64-encode DER",      cli_parse_set_ocspresponse, NULL },
 
-	{ { "show", "ssl", "ocsp-response", NULL },"show ssl ocsp-response [id]             : display the IDs of the OCSP responses used in memory, or the details of a single OCSP response", cli_parse_show_ocspresponse, cli_io_handler_show_ocspresponse, NULL },
-	{ { "show", "ssl", "ocsp-updates", NULL }, "show ssl ocsp-updates                   : display information about the next 'nb' ocsp responses that will be updated automatically", cli_parse_show_ocsp_updates, cli_io_handler_show_ocsp_updates, cli_release_show_ocsp_updates },
+	{ { "show", "ssl", "ocsp-response", NULL },"show ssl ocsp-response [[text|base64] id]  : display the IDs of the OCSP responses used in memory, or the details of a single OCSP response (in text or base64 format)", cli_parse_show_ocspresponse, cli_io_handler_show_ocspresponse, NULL },
+	{ { "show", "ssl", "ocsp-updates", NULL }, "show ssl ocsp-updates                      : display information about the next 'nb' ocsp responses that will be updated automatically", cli_parse_show_ocsp_updates, cli_io_handler_show_ocsp_updates, cli_release_show_ocsp_updates },
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
-	{ { "update", "ssl", "ocsp-response", NULL }, "update ssl ocsp-response <certfile>  : send ocsp request and update stored ocsp response",                  cli_parse_update_ocsp_response, cli_io_handler_update_ocsp_response, cli_release_update_ocsp_response },
+	{ { "update", "ssl", "ocsp-response", NULL }, "update ssl ocsp-response <certfile>     : send ocsp request and update stored ocsp response",                  cli_parse_update_ocsp_response, cli_io_handler_update_ocsp_response, cli_release_update_ocsp_response },
 #endif
 	{ { NULL }, NULL, NULL, NULL }
 }};

@@ -3432,13 +3432,16 @@ show ssl crt-list [-n] [<filename>]
     ecdsa.pem:3 [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3] localhost !www.test1.com
     ecdsa.pem:4 [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3]
 
-show ssl ocsp-response [<id>]
+show ssl ocsp-response [[text|base64] <id>]
   Display the IDs of the OCSP tree entries corresponding to all the OCSP
   responses used in HAProxy, as well as the issuer's name and key hash and the
-  serial number of the certificate for which the OCSP response was built.
-  If a valid <id> is provided, display the contents of the corresponding OCSP
-  response. The information displayed is the same as in an "openssl ocsp -respin
-  <ocsp-response> -text" call.
+  serial number of the certificate for which the OCSP response was built.  If a
+  valid <id> is provided, display the contents of the corresponding OCSP
+  response. When an <id> is provided, it it possible to format in which the
+  data is dumped. The 'text' option is the default one and it allows to display
+  detailed information about the OCSP response the same way as in an "openssl
+  ocsp -respin <ocsp-response> -text" call. The 'base64' format allows to dump
+  the contents of an OCSP response in base64.
 
   Example :
 
@@ -3467,6 +3470,9 @@ show ssl ocsp-response [<id>]
       This Update: May 27 15:43:38 2021 GMT
       Next Update: Oct 12 15:43:38 2048 GMT
       [...]
+
+    $ echo "show ssl ocsp-response base64 304b300906052b0e03021a0500041448dac[...]" | socat /var/run/haproxy.sock -
+      MIIB8woBAKCCAewwggHoBgkrBgEFBQcwAQEEggHZMIIB1TCBvqE[...]
 
 show ssl ocsp-updates
   Display information about the entries concerned by the OCSP update mechanism.
