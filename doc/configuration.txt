@@ -14947,6 +14947,18 @@ ocsp-update [ off | on ]
   On the other hand, if a certificate has an OCSP uri specified and no OCSP
   response, setting this option to 'on' for the given certificate will ensure
   that the OCSP response gets fetched automatically right after init.
+  Whenever an OCSP response is updated by the auto update task, a dedicated log
+  line is emitted. It will follow a dedicated log-format that looks like the
+  following "%ci:%cp [%tr] %ft %[ssl_ocsp_certid] %[ssl_ocsp_status]
+  %{+Q}[ssl_ocsp_status_str] %[ssl_ocsp_fail_cnt] %[ssl_ocsp_success_cnt]". The
+  specified "ssl_ocsp" sample fetches are not "public" because they cannot have
+  valid values when fetched out of the OCSP auto update process. Here is an
+  example of such a log line (with the longer outputs truncated for
+  readability):
+    <134>Feb 13 16:20:21 haproxy[37352]: -:- [13/Feb/2023:16:20:20.311] <HC_OCSP> \
+    303B30090[...] 2 "HTTP error" 0 0
+  See "show ssl ocsp-updates" CLI command for a full list of error codes and
+  error messages.
 
 prefer-client-ciphers
   Use the client's preference when selecting the cipher suite, by default
