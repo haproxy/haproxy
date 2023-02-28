@@ -176,7 +176,7 @@ uint64_t event_hdl_id(const char *scope, const char *name);
  * to perform subscription lookup by id
  * <equeue>: pointer to event_hdl_async_event queue where the pending
  * events will be pushed. Cannot be NULL.
- * <task>: pointer to tasklet responsible for consuming the events.
+ * <task>: pointer to task(let) responsible for consuming the events.
 *  Cannot be NULL.
  * <_private>: pointer to private data that will be handled to <func>
  * <_private_free>: pointer to 'event_hdl_private_free' prototyped function
@@ -187,7 +187,7 @@ uint64_t event_hdl_id(const char *scope, const char *name);
 	(struct event_hdl){ .id = _id,						\
 			    .dorigin = _EVENT_HDL_CALLING_PLACE,		\
 			    .async = EVENT_HDL_ASYNC_MODE_ADVANCED,		\
-			    .async_task = task,					\
+			    .async_task = (struct tasklet *)task,		\
 			    .async_equeue = equeue,				\
 			    .private = _private,				\
 			    .private_free = _private_free }
@@ -201,7 +201,7 @@ uint64_t event_hdl_id(const char *scope, const char *name);
  *
  * <equeue>: pointer to event_hdl_async_event queue where the pending
  * events will be pushed. Cannot be NULL.
- * <task>: pointer to tasklet responsible for consuming the events
+ * <task>: pointer to task(let) responsible for consuming the events
  * Cannot be NULL.
  * <_private>: pointer to private data that will be handled to <func>
  * <_private_free>: pointer to 'event_hdl_private_free' prototyped function

@@ -196,6 +196,20 @@ void event_hdl_async_free_event(struct event_hdl_async_event *e)
 	pool_free(pool_head_sub_event, e);
 }
 
+/* wakeup the task depending on its type:
+ * normal async mode internally uses tasklets but advanced async mode
+ * allows both tasks and tasklets.
+ * While tasks and tasklets may be easily casted, we need to use the proper
+ * API to wake them up (the waiting queues are exclusive).
+ */
+static void event_hdl_task_wakeup(struct tasklet *task)
+{
+	if (TASK_IS_TASKLET(task))
+		tasklet_wakeup(task);
+	else
+		task_wakeup((struct task *)task, TASK_WOKEN_OTHER); /* TODO: switch to TASK_WOKEN_EVENT? */
+}
+
 /* task handler used for normal async subscription mode
  * if you use advanced async subscription mode, you can use this
  * as an example to implement your own task wrapper
@@ -306,7 +320,7 @@ static inline void _event_hdl_unsubscribe(struct event_hdl_sub *del_sub)
 		lock = MT_LIST_APPEND_LOCKED(del_sub->hdl.async_equeue, &del_sub->async_end->mt_list);
 
 		/* wake up the task */
-		tasklet_wakeup(del_sub->hdl.async_task);
+		event_hdl_task_wakeup(del_sub->hdl.async_task);
 
 		/* unlock END EVENT (we're done, the task is now free to consume it) */
 		MT_LIST_UNLOCK_ELT(&del_sub->async_end->mt_list, lock);
@@ -774,7 +788,7 @@ static int _event_hdl_publish(event_hdl_sub_list *sub_list, struct event_hdl_sub
 				MT_LIST_APPEND(cur_sub->hdl.async_equeue, &new_event->mt_list);
 
 				/* wake up the task */
-				tasklet_wakeup(cur_sub->hdl.async_task);
+				event_hdl_task_wakeup(cur_sub->hdl.async_task);
 			} /* end async mode */
 		} /* end hdl should be notified */
 	} /* end mt_list */

@@ -144,8 +144,8 @@ Registering a handler comes into multiple flavors:
 			sync mode here is that 'unsafe' data provided
 			by the data structure may not be used.
 		task:
-			handler is a user defined task that uses an event queue
-			to consume pending events.
+			handler is a user defined task(let) that uses an event
+			queue to consume pending events.
 			This mode is interesting when you need to perform
 			advanced operations or you need to handle the event
 			in an already existing task context.
@@ -395,9 +395,9 @@ by event_hdl facility to push you events according to your subscription:
 ```
 
 
-Then, you need to declare a tasklet (or reuse existing tasklet)
+Then, you need to declare a task(let) (or reuse existing task(let))
 
-It is your responsibility to make sure that the tasklet still exists
+It is your responsibility to make sure that the task(let) still exists
 (is not freed) when calling the subscribe function
 (and that the task remains valid as long as the subscription is).
 
@@ -485,9 +485,9 @@ to perform the subscription:
 ```
 
 Note:  it is not recommended to perform multiple subscriptions
-       that share the same event queue or same tasklet (or both)
+       that share the same event queue or same task(let) (or both)
 
-       That is, having more than one subscription waking a tasklet
+       That is, having more than one subscription waking a task(let)
        and/or feeding the same event queue.
 
        No check is performed on this when registering, so the API
