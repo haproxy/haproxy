@@ -4216,7 +4216,7 @@ static int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
 	buf = qc_txb_alloc(qc);
 	if (!buf) {
 		TRACE_ERROR("buffer allocation failed", QUIC_EV_CONN_TXPKT, qc);
-		goto leave;
+		goto err;
 	}
 
 	/* Prepare and send packets until we could not further prepare packets. */
@@ -4231,25 +4231,28 @@ static int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
 		b_reset(buf);
 
 		ret = qc_prep_app_pkts(qc, buf, frms);
-		if (ret == -1)
+		if (ret == -1) {
+			qc_txb_release(qc);
 			goto err;
-		else if (ret == 0)
-			goto out;
+		}
 
-		if (!qc_send_ppkts(buf, qc->xprt_ctx))
+		if (!ret)
+			break;
+
+		if (!qc_send_ppkts(buf, qc->xprt_ctx)) {
+			qc_txb_release(qc);
 			goto err;
+		}
 	}
 
- out:
 	status = 1;
 	qc_txb_release(qc);
- leave:
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 	return status;
 
  err:
-	qc_txb_release(qc);
-	goto leave;
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_TXPKT, qc);
+	return 0;
 }
 
 /* Try to send application frames from list <frms> on connection <qc>. Use this
@@ -4327,20 +4330,22 @@ int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
 	}
 
 	ret = qc_prep_pkts(qc, buf, tel, tel_frms, next_tel, next_tel_frms);
-	if (ret == -1)
+	if (ret == -1) {
+		qc_txb_release(qc);
 		goto out;
-	else if (ret == 0)
-		goto skip_send;
+	}
 
-	if (!qc_send_ppkts(buf, qc->xprt_ctx))
+	if (ret && !qc_send_ppkts(buf, qc->xprt_ctx)) {
+		qc_txb_release(qc);
 		goto out;
+	}
 
- skip_send:
+	qc_txb_release(qc);
 	status = 1;
+
  out:
 	TRACE_STATE("no more need old data for probing", QUIC_EV_CONN_TXPKT, qc);
 	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
-	qc_txb_release(qc);
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 	return status;
@@ -4628,13 +4633,17 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 
 	ret = qc_prep_pkts(qc, buf, tel, &qc->els[tel].pktns->tx.frms,
 	                   next_tel, &qc->els[next_tel].pktns->tx.frms);
-	if (ret == -1)
+	if (ret == -1) {
+		qc_txb_release(qc);
 		goto out;
-	else if (ret == 0)
-		goto skip_send;
+	}
 
-	if (!qc_send_ppkts(buf, qc->xprt_ctx))
+	if (ret && !qc_send_ppkts(buf, qc->xprt_ctx)) {
+		qc_txb_release(qc);
 		goto out;
+	}
+
+	qc_txb_release(qc);
 
  skip_send:
 	/* Check if there is something to do for the next level.
@@ -4648,7 +4657,6 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	}
 
  out:
-	qc_txb_release(qc);
 	TRACE_LEAVE(QUIC_EV_CONN_IO_CB, qc, &st, &ssl_err);
 	return t;
 }
