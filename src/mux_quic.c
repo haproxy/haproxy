@@ -1603,8 +1603,13 @@ static int qc_send_frames(struct qcc *qcc, struct list *frms)
 		goto err;
 	}
 
-	if (!qc_send_mux(qcc->conn->handle.qc, frms))
+	if (!qc_send_mux(qcc->conn->handle.qc, frms)) {
+		/* TODO should subscribe only for a transient send error */
+		TRACE_DEVEL("error on send, subscribing", QMUX_EV_QCC_SEND, qcc->conn);
+		qcc->conn->xprt->subscribe(qcc->conn, qcc->conn->xprt_ctx,
+		                           SUB_RETRY_SEND, &qcc->wait_event);
 		goto err;
+	}
 
 	/* If there is frames left at this stage, transport layer is blocked.
 	 * Subscribe on it to retry later.

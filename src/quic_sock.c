@@ -496,6 +496,7 @@ static void quic_conn_sock_fd_iocb(int fd)
 		TRACE_DEVEL("send ready", QUIC_EV_CONN_RCV, qc);
 		fd_stop_send(fd);
 		tasklet_wakeup_after(NULL, qc->wait_event.tasklet);
+		qc_notify_send(qc);
 	}
 
 	if (fd_recv_ready(fd)) {

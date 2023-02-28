@@ -7809,7 +7809,8 @@ void qc_notify_close(struct quic_conn *qc)
 int qc_notify_send(struct quic_conn *qc)
 {
 	if (qc->subs && qc->subs->events & SUB_RETRY_SEND) {
-		if (quic_path_prep_data(qc->path)) {
+		if (quic_path_prep_data(qc->path) &&
+		    (!qc_test_fd(qc) || !fd_send_active(qc->fd))) {
 			tasklet_wakeup(qc->subs->tasklet);
 			qc->subs->events &= ~SUB_RETRY_SEND;
 			if (!qc->subs->events)
