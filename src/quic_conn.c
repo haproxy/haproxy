@@ -4183,6 +4183,34 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 	return ret;
 }
 
+/* Flush txbuf for <qc> connection. This must be called prior to a packet
+ * preparation when txbuf contains older data. A send will be conducted for
+ * these data.
+ *
+ * Returns 1 on success : buffer is empty and can be use for packet
+ * preparation. On error 0 is returned.
+ */
+static int qc_purge_txbuf(struct quic_conn *qc, struct buffer *buf)
+{
+	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
+
+	/* This operation can only be conducted if txbuf is not empty. This
+	 * case only happens for connection with their owned socket due to an
+	 * older transient sendto() error.
+	 */
+	BUG_ON(!qc_test_fd(qc));
+
+	if (b_data(buf) && !qc_send_ppkts(buf, qc->xprt_ctx)) {
+		if (qc->flags & QUIC_FL_CONN_TO_KILL)
+			qc_txb_release(qc);
+		TRACE_DEVEL("leaving in error", QUIC_EV_CONN_TXPKT, qc);
+		return 0;
+	}
+
+	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
+	return 1;
+}
+
 /* Try to send application frames from list <frms> on connection <qc>.
  *
  * Use qc_send_app_probing wrapper when probing with old data.
@@ -4207,6 +4235,9 @@ static int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
 		TRACE_ERROR("buffer allocation failed", QUIC_EV_CONN_TXPKT, qc);
 		goto err;
 	}
+
+	if (b_data(buf) && !qc_purge_txbuf(qc, buf))
+		goto err;
 
 	/* Prepare and send packets until we could not further prepare packets. */
 	while (1) {
@@ -4305,6 +4336,9 @@ int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
 		TRACE_ERROR("buffer allocation failed", QUIC_EV_CONN_TXPKT, qc);
 		goto leave;
 	}
+
+	if (b_data(buf) && !qc_purge_txbuf(qc, buf))
+		goto out;
 
 	/* Currently buf cannot be non-empty at this stage. Even if a previous
 	 * sendto() has failed it is emptied to simulate packet emission and
@@ -4612,6 +4646,9 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	buf = qc_txb_alloc(qc);
 	if (!buf)
 		goto out;
+
+	if (b_data(buf) && !qc_purge_txbuf(qc, buf))
+		goto skip_send;
 
 	/* Currently buf cannot be non-empty at this stage. Even if a previous
 	 * sendto() has failed it is emptied to simulate packet emission and
