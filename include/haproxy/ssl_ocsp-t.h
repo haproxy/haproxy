@@ -42,8 +42,8 @@ struct certificate_ocsp {
 	struct ebmb_node key;
 	unsigned char key_data[OCSP_MAX_CERTID_ASN1_LENGTH];
 	unsigned int key_length;
-	struct buffer response;
 	int refcount;
+	struct buffer response;
 	long expire;
 	X509 *issuer;
 	STACK_OF(X509) *chain;
