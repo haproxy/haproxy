@@ -5828,6 +5828,7 @@ static int srv_migrate_conns_to_remove(struct eb_root *idle_tree, struct mt_list
 
 		hash_node = ebmb_entry(node, struct conn_hash_node, node);
 		eb_delete(node);
+		hash_node->conn->flags &= ~CO_FL_LIST_MASK;
 		MT_LIST_APPEND(toremove_list, &hash_node->conn->toremove_list);
 		i++;
 
@@ -5885,6 +5886,7 @@ void srv_release_conn(struct server *srv, struct connection *conn)
 	/* Remove the connection from any tree (safe, idle or available) */
 	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	conn_delete_from_tree(&conn->hash_node->node);
+	conn->flags &= ~CO_FL_LIST_MASK;
 	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 }
 

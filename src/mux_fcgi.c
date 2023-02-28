@@ -3140,8 +3140,10 @@ struct task *fcgi_timeout_task(struct task *t, void *context, unsigned int state
 		/* We're about to destroy the connection, so make sure nobody attempts
 		 * to steal it from us.
 		 */
-		if (fconn->conn->flags & CO_FL_LIST_MASK)
+		if (fconn->conn->flags & CO_FL_LIST_MASK) {
 			conn_delete_from_tree(&fconn->conn->hash_node->node);
+			fconn->conn->flags &= ~CO_FL_LIST_MASK;
+		}
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
