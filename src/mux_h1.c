@@ -1912,7 +1912,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 				se_fl_set(h1s->sd, SE_FL_EOI);
 				TRACE_STATE("report EOI to SE", H1_EV_RX_DATA, h1c->conn, h1s);
 			}
-			else if (h1m->state < H1_MSG_DONE) {
+			else if (h1m->state < H1_MSG_DONE && (h1m->state != H1_MSG_RPBEFORE || b_data(&h1c->ibuf))) {
 				se_fl_set(h1s->sd, SE_FL_ERROR);
 				TRACE_ERROR("message aborted, set error on SC", H1_EV_RX_DATA|H1_EV_H1S_ERR, h1c->conn, h1s);
 			}
