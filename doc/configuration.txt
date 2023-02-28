@@ -15143,7 +15143,7 @@ thread [<thread-group>/]<thread-set>[,...]
   threads (every other thread starting at 2). If instead thread number ranges
   are used, then all threads included in the range from the first to the last
   thread number are validated. The numbers are either relative to the group
-  or absolute dependeing on the presence of a thread group number. If the first
+  or absolute depending on the presence of a thread group number. If the first
   thread number is omitted, "1" is used, representing either the first thread
   of the group or the first thread of the process. If the last thread number is
   omitted, either the last thread number of the group (32 or 64) is used, or
