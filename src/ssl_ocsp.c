@@ -908,6 +908,8 @@ int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
 	 */
 	ssl_ocsp_set_next_update(ocsp);
 
+	ocsp->fail_count = 0;
+
 	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 	eb64_insert(&ocsp_update_tree, &ocsp->next_update);
 	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
@@ -924,13 +926,27 @@ int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
  */
 int ssl_ocsp_update_insert_after_error(struct certificate_ocsp *ocsp)
 {
-	/* Set next_update based on current time and the various OCSP
+	int replay_delay = 0;
+	/*
+	 * Set next_update based on current time and the various OCSP
 	 * minimum/maximum update times.
 	 */
 	ssl_ocsp_set_next_update(ocsp);
 
-	if (ocsp->next_update.key < now.tv_sec + SSL_OCSP_HTTP_ERR_REPLAY)
-		ocsp->next_update.key = now.tv_sec + SSL_OCSP_HTTP_ERR_REPLAY;
+	++ocsp->fail_count;
+
+	/*
+	 * The replay delay will be increased for every consecutive update
+	 * failure, up to the SSL_OCSP_UPDATE_DELAY_MAX delay. It will ensure
+	 * that the replay delay will be one minute for the first failure and
+	 * will be multiplied by 2 for every subsequent failures, while still
+	 * being at most 1 hour (with the current default values).
+	 */
+	replay_delay = MIN(SSL_OCSP_HTTP_ERR_REPLAY * (1 << ocsp->fail_count),
+	                   SSL_OCSP_UPDATE_DELAY_MAX);
+
+	if (ocsp->next_update.key < now.tv_sec + replay_delay)
+		ocsp->next_update.key = now.tv_sec + replay_delay;
 
 	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 	eb64_insert(&ocsp_update_tree, &ocsp->next_update);
