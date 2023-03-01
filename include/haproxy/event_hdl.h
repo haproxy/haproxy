@@ -425,6 +425,12 @@ static inline struct event_hdl_async_event *event_hdl_async_equeue_pop(event_hdl
 	return MT_LIST_POP(queue, struct event_hdl_async_event *, mt_list);
 }
 
+/* use this for advanced async mode to check if the event queue is empty */
+static inline int event_hdl_async_equeue_isempty(event_hdl_async_equeue *queue)
+{
+	return MT_LIST_ISEMPTY(queue);
+}
+
 /* use this to initialize <sub_list> event subscription list */
 void event_hdl_sub_list_init(event_hdl_sub_list *sub_list);
 
