@@ -79,8 +79,14 @@ struct event_hdl_sub_list_head {
 
 /* event_hdl_sub_list is an alias (please use this for portability) */
 typedef struct event_hdl_sub_list_head event_hdl_sub_list;
+
+struct event_hdl_async_equeue_head {
+	struct mt_list head;
+	uint32_t size; /* near realtime size, not fully synced with head (to be used as a hint) */
+};
+
 /* event_hdl_async_equeue is an alias to mt_list (please use this for portability) */
-typedef struct mt_list event_hdl_async_equeue;
+typedef struct event_hdl_async_equeue_head event_hdl_async_equeue;
 
 /* subscription mgmt from event */
 struct event_hdl_sub_mgmt

@@ -317,7 +317,8 @@ static inline void _event_hdl_unsubscribe(struct event_hdl_sub *del_sub)
 		 * consumed the END event before the wakeup, and some tasks
 		 * kill themselves (ie: normal async mode) when they receive such event
 		 */
-		lock = MT_LIST_APPEND_LOCKED(del_sub->hdl.async_equeue, &del_sub->async_end->mt_list);
+		HA_ATOMIC_INC(&del_sub->hdl.async_equeue->size);
+		lock = MT_LIST_APPEND_LOCKED(&del_sub->hdl.async_equeue->head, &del_sub->async_end->mt_list);
 
 		/* wake up the task */
 		event_hdl_task_wakeup(del_sub->hdl.async_task);
@@ -462,7 +463,7 @@ struct event_hdl_sub *event_hdl_subscribe_ptr(event_hdl_sub_list *sub_list,
 				/* memory error */
 				goto memory_error;
 			}
-			MT_LIST_INIT(&task_ctx->e_queue);
+			event_hdl_async_equeue_init(&task_ctx->e_queue);
 			task_ctx->func = new_sub->hdl.async_ptr;
 
 			new_sub->hdl.async_equeue = &task_ctx->e_queue;
@@ -785,7 +786,8 @@ static int _event_hdl_publish(event_hdl_sub_list *sub_list, struct event_hdl_sub
 
 				/* appending new event to event hdl queue */
 				MT_LIST_INIT(&new_event->mt_list);
-				MT_LIST_APPEND(cur_sub->hdl.async_equeue, &new_event->mt_list);
+				HA_ATOMIC_INC(&cur_sub->hdl.async_equeue->size);
+				MT_LIST_APPEND(&cur_sub->hdl.async_equeue->head, &new_event->mt_list);
 
 				/* wake up the task */
 				event_hdl_task_wakeup(cur_sub->hdl.async_task);

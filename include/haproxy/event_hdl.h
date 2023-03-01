@@ -416,19 +416,31 @@ void event_hdl_async_free_event(struct event_hdl_async_event *e);
 /* use this for advanced async mode to initialize event queue */
 static inline void event_hdl_async_equeue_init(event_hdl_async_equeue *queue)
 {
-	MT_LIST_INIT(queue);
+	MT_LIST_INIT(&queue->head);
+	queue->size = 0;
 }
 
 /* use this for advanced async mode to pop an event from event queue */
 static inline struct event_hdl_async_event *event_hdl_async_equeue_pop(event_hdl_async_equeue *queue)
 {
-	return MT_LIST_POP(queue, struct event_hdl_async_event *, mt_list);
+	struct event_hdl_async_event *event;
+
+	event = MT_LIST_POP(&queue->head, struct event_hdl_async_event *, mt_list);
+	if (event)
+		HA_ATOMIC_DEC(&queue->size);
+	return event;
 }
 
 /* use this for advanced async mode to check if the event queue is empty */
 static inline int event_hdl_async_equeue_isempty(event_hdl_async_equeue *queue)
 {
-	return MT_LIST_ISEMPTY(queue);
+	return MT_LIST_ISEMPTY(&queue->head);
+}
+
+/* use this for advanced async mode to check if the event queue size */
+static inline uint32_t event_hdl_async_equeue_size(event_hdl_async_equeue *queue)
+{
+	return HA_ATOMIC_LOAD(&queue->size);
 }
 
 /* use this to initialize <sub_list> event subscription list */
