@@ -4235,7 +4235,8 @@ static void http_end_request(struct stream *s)
 		 */
 		chn->flags |= CF_NEVER_WAIT;
 
-		if (txn->rsp.msg_state < HTTP_MSG_DONE && s->scb->state != SC_ST_CLO) {
+		if (txn->rsp.msg_state < HTTP_MSG_BODY ||
+		    (txn->rsp.msg_state < HTTP_MSG_DONE && s->scb->state != SC_ST_CLO)) {
 			/* The server has not finished to respond and the
 			 * backend SC is not closed, so we don't want to move in
 			 * order not to upset it.
