@@ -1099,7 +1099,7 @@ static int tlskeys_finalize_config(void)
  * Returns 1 if no ".ocsp" file found, 0 if OCSP status extension is
  * successfully enabled, or -1 in other error case.
  */
-static int ssl_sock_load_ocsp(SSL_CTX *ctx, struct ckch_data *data, STACK_OF(X509) *chain)
+static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *data, STACK_OF(X509) *chain)
 {
 	X509 *x, *issuer;
 	int i, ret = -1;
@@ -1159,7 +1159,7 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, struct ckch_data *data, STACK_OF(X50
 	if (!i || (i > OCSP_MAX_CERTID_ASN1_LENGTH))
 		goto out;
 
-	ocsp = calloc(1, sizeof(*ocsp));
+	ocsp = calloc(1, sizeof(*ocsp)+strlen(path)+1);
 	if (!ocsp)
 		goto out;
 
@@ -1261,6 +1261,8 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, struct ckch_data *data, STACK_OF(X50
 				goto out;
 			}
 
+			strcpy(iocsp->path, path);
+
 			ssl_ocsp_update_insert(iocsp);
 		}
 	}
@@ -1286,7 +1288,7 @@ out:
 #endif
 
 #ifdef OPENSSL_IS_BORINGSSL
-static int ssl_sock_load_ocsp(SSL_CTX *ctx, struct ckch_data *data, STACK_OF(X509) *chain)
+static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *data, STACK_OF(X509) *chain)
 {
 	return SSL_CTX_set_ocsp_response(ctx, (const uint8_t *)ckch->ocsp_response->area, ckch->ocsp_response->data);
 }
@@ -3462,7 +3464,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, struct ckch_data *data, 
 	 * ocsp tree even if no ocsp_response was known during init, unless the
 	 * frontend's conf disables ocsp update explicitely.
 	 */
-	if (ssl_sock_load_ocsp(ctx, data, find_chain) < 0) {
+	if (ssl_sock_load_ocsp(path, ctx, data, find_chain) < 0) {
 		if (data->ocsp_response)
 			memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
 				  err && *err ? *err : "", path);
