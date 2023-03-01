@@ -122,6 +122,8 @@ void unbind_listener(struct listener *listener);
  */
 int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
                      int portl, int porth, int fd, struct protocol *proto, char **err);
+struct shard_info *shard_info_attach(struct receiver *rx, struct shard_info *si);
+void shard_info_detach(struct receiver *rx);
 struct listener *clone_listener(struct listener *src);
 
 /* Delete a listener from its protocol's list of listeners. The listener's

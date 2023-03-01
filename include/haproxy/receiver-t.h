@@ -52,6 +52,17 @@ struct rx_settings {
 	int shards;                       /* number of shards, 0=not set yet, -1="by-thread" */
 };
 
+/* info about a shard that is shared between multiple groups. Receivers that
+ * are alone in their shard do not have a shard_info.
+ */
+struct shard_info {
+	uint nbgroups;                         /* number of groups in this shard (=#rx); Zero = unused. */
+	uint nbthreads;                        /* number of threads in this shard (>=nbgroups) */
+	ulong tgroup_mask;                     /* bitmask of thread groups having a member here */
+	struct receiver *ref;                  /* first one, reference for FDs to duplicate */
+	struct receiver *members[MAX_TGROUPS]; /* all members of the shard (one per thread group) */
+};
+
 /* This describes a receiver with all its characteristics (address, options, etc) */
 struct receiver {
 	int fd;                          /* handle we receive from (fd only for now) */
@@ -62,6 +73,7 @@ struct receiver {
 	unsigned long bind_thread;       /* bitmask of threads allowed on this receiver */
 	uint bind_tgroup;                /* thread group ID: 0=global IDs, non-zero=local IDs */
 	struct rx_settings *settings;    /* points to the settings used by this receiver */
+	struct shard_info *shard_info;   /* points to info about the owning shard, NULL if single rx */
 	struct list proto_list;          /* list in the protocol header */
 #ifdef USE_QUIC
 	struct mt_list rxbuf_list;       /* list of buffers to receive and dispatch QUIC datagrams. */

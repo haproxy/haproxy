@@ -806,13 +806,84 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 	return 1;
 }
 
+/* Optionally allocates a new shard info (if si == NULL) for receiver rx and
+ * assigns it to it, or attaches to an existing one. If the rx already had a
+ * shard_info, it is simply returned. It is illegal to call this function with
+ * an rx that's part of a group that is already attached. Attaching means the
+ * shard_info's thread count and group count are updated so the rx's group is
+ * added to the shard_info's group mask. The rx are added to the members in the
+ * attachment order, though it must not matter. It is meant for boot time setup
+ * and is not thread safe. NULL is returned on allocation failure.
+ */
+struct shard_info *shard_info_attach(struct receiver *rx, struct shard_info *si)
+{
+	if (rx->shard_info)
+		return rx->shard_info;
+
+	if (!si) {
+		si = calloc(1, sizeof(*si));
+		if (!si)
+			return NULL;
+
+		si->ref = rx;
+	}
+
+	rx->shard_info = si;
+	BUG_ON (si->tgroup_mask & 1UL << (rx->bind_tgroup - 1));
+	si->tgroup_mask |= 1UL << (rx->bind_tgroup - 1);
+	si->nbgroups     = my_popcountl(si->tgroup_mask);
+	si->nbthreads   += my_popcountl(rx->bind_thread);
+	si->members[si->nbgroups - 1] = rx;
+	return si;
+}
+
+/* Detaches the rx from an optional shard_info it may be attached to. If so,
+ * the thread counts, group masks and refcounts are updated. The members list
+ * remains contiguous by replacing the current entry with the last one. The
+ * reference continues to point to the first receiver. If the group count
+ * reaches zero, the shard_info is automatically released.
+ */
+void shard_info_detach(struct receiver *rx)
+{
+	struct shard_info *si = rx->shard_info;
+	uint gr;
+
+	if (!si)
+		return;
+
+	rx->shard_info = NULL;
+
+	/* find the member slot this rx was attached to */
+	for (gr = 0; gr < MAX_TGROUPS && si->members[gr] != rx; gr++)
+		;
+
+	BUG_ON(gr == MAX_TGROUPS);
+
+	si->nbthreads   -= my_popcountl(rx->bind_thread);
+	si->tgroup_mask &= ~(1UL << (rx->bind_tgroup - 1));
+	si->nbgroups     = my_popcountl(si->tgroup_mask);
+
+	/* replace the member by the last one. If we removed the reference, we
+	 * have to switch to another one. It's always the first entry so we can
+	 * simply enforce it upon every removal.
+	 */
+	si->members[gr] = si->members[si->nbgroups];
+	si->members[si->nbgroups] = NULL;
+	si->ref = si->members[0];
+
+	if (!si->nbgroups)
+		free(si);
+}
+
 /* clones listener <src> and returns the new one. All dynamically allocated
  * fields are reallocated (name for now). The new listener is inserted before
  * the original one in the bind_conf and frontend lists. This allows it to be
  * duplicated while iterating over the current list. The original listener must
  * only be in the INIT or ASSIGNED states, and the new listener will only be
  * placed into the INIT state. The counters are always set to NULL. Maxsock is
- * updated. Returns NULL on allocation error.
+ * updated. Returns NULL on allocation error. The shard_info is never taken so
+ * that the caller can decide what to do with it depending on how it intends to
+ * clone the listener.
  */
 struct listener *clone_listener(struct listener *src)
 {
@@ -830,6 +901,7 @@ struct listener *clone_listener(struct listener *src)
 	}
 
 	l->rx.owner = l;
+	l->rx.shard_info = NULL;
 	l->state = LI_INIT;
 	l->counters = NULL;
 	l->extra_counters = NULL;
@@ -865,6 +937,7 @@ void __delete_listener(struct listener *listener)
 	if (listener->state == LI_ASSIGNED) {
 		listener_set_state(listener, LI_INIT);
 		LIST_DELETE(&listener->rx.proto_list);
+		shard_info_detach(&listener->rx);
 		listener->rx.proto->nb_receivers--;
 		_HA_ATOMIC_DEC(&jobs);
 		_HA_ATOMIC_DEC(&listeners);
