@@ -1118,10 +1118,9 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *sc)
 	struct channel *req, *res;
 	int co_data;
 
-	s->conn_retries++;
 	if (s->conn_retries >= s->be->conn_retries)
 		return -1;
-
+	s->conn_retries++;
 	if (objt_server(s->target)) {
 		if (s->flags & SF_CURR_SESS) {
 			s->flags &= ~SF_CURR_SESS;
