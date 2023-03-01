@@ -1217,7 +1217,15 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		if (sc_ep_test(s->scb, SE_FL_ERROR)) {
 			struct connection *conn = sc_conn(s->scb);
 
-			/* Perform a L7 retry because server refuses the early data. */
+
+			if ((txn->flags & TX_L7_RETRY) &&
+			    (s->be->retry_type & PR_RE_DISCONNECTED) &&
+			    (!conn || conn->err_code != CO_ER_SSL_EARLY_FAILED)) {
+				if (co_data(rep) || do_l7_retry(s, s->scb) == 0)
+					return 0;
+			}
+
+			/* Perform a L7 retry on empty response or because server refuses the early data. */
 			if ((txn->flags & TX_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_EARLY_ERROR) &&
 			    conn && conn->err_code == CO_ER_SSL_EARLY_FAILED &&
