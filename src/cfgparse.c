@@ -2998,18 +2998,16 @@ init_proxies_list_stage1:
 						bit = (bind_conf->thread_set.rel[grp] & ~mask) & -(bind_conf->thread_set.rel[grp] & ~mask);
 						new_ts.rel[grp] |= bit;
 						mask |= bit;
-
-						if (!atleast2(new_ts.rel[grp])) // first time we add a bit: new group
-							new_ts.nbgrp++;
+						new_ts.grps |= 1UL << grp;
 
 						done += shards;
 					};
 
-					BUG_ON(!new_ts.nbgrp); // no more bits left unassigned
+					BUG_ON(!new_ts.grps); // no more bits left unassigned
 
-					if (new_ts.nbgrp > 1) {
+					if (atleast2(new_ts.grps)) {
 						ha_alert("Proxy '%s': shard number %d spans %d groups in 'bind %s' at [%s:%d]\n",
-							 curproxy->id, shard, new_ts.nbgrp, bind_conf->arg, bind_conf->file, bind_conf->line);
+							 curproxy->id, shard, my_popcountl(new_ts.grps), bind_conf->arg, bind_conf->file, bind_conf->line);
 						cfgerr++;
 						err_code |= ERR_FATAL | ERR_ALERT;
 						goto out;
@@ -4450,7 +4448,7 @@ init_proxies_list_stage2:
 						free(err);
 						cfgerr++;
 					}
-					else if (bind_conf->thread_set.nbgrp > 1) {
+					else if (atleast2(bind_conf->thread_set.grps)) {
 						ha_alert("Peers section '%s': 'thread' spans more than one group in 'bind %s' at [%s:%d].\n",
 							 curpeers->peers_fe->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 						cfgerr++;

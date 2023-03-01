@@ -1240,7 +1240,7 @@ int thread_resolve_group_mask(struct thread_set *ts, int defgrp, char **err)
 	ulong mask, imask;
 	uint g;
 
-	if (!ts->nbgrp) {
+	if (!ts->grps) {
 		/* unspecified group, IDs are global */
 		if (thread_set_is_empty(ts)) {
 			/* all threads of all groups, unless defgrp is set and
@@ -1248,7 +1248,8 @@ int thread_resolve_group_mask(struct thread_set *ts, int defgrp, char **err)
 			 */
 			for (g = defgrp ? defgrp-1 : 0; g < (defgrp ? defgrp : global.nbtgroups); g++) {
 				new_ts.rel[g] = ha_tgroup_info[g].threads_enabled;
-				new_ts.nbgrp++;
+				if (new_ts.rel[g])
+					new_ts.grps |= 1UL << g;
 			}
 		} else {
 			/* some absolute threads are set, we must remap them to
@@ -1271,9 +1272,9 @@ int thread_resolve_group_mask(struct thread_set *ts, int defgrp, char **err)
 				/* now the mask exactly matches the threads to be enabled
 				 * in this group.
 				 */
-				if (!new_ts.rel[g] && mask)
-					new_ts.nbgrp++;
 				new_ts.rel[g] |= mask;
+				if (new_ts.rel[g])
+					new_ts.grps |= 1UL << g;
 			}
 		}
 	} else {
@@ -1310,7 +1311,8 @@ int thread_resolve_group_mask(struct thread_set *ts, int defgrp, char **err)
 			}
 
 			new_ts.rel[g] = imask & mask;
-			new_ts.nbgrp++;
+			if (new_ts.rel[g])
+				new_ts.grps |= 1UL << g;
 		}
 	}
 
@@ -1521,8 +1523,7 @@ int parse_thread_set(const char *arg, struct thread_set *ts, char **err)
 		if (ts) {
 			if (is_rel) {
 				/* group-relative thread numbers */
-				if (!ts->rel[tg - 1])
-					ts->nbgrp++;
+				ts->grps |= 1UL << (tg - 1);
 
 				if (max >= min) {
 					for (v = min; v <= max; v++)
