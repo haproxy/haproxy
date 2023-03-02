@@ -912,7 +912,7 @@ static inline void ssl_ocsp_set_next_update(struct certificate_ocsp *ocsp)
 {
 	int update_margin = (ocsp->expire >= SSL_OCSP_UPDATE_MARGIN) ? SSL_OCSP_UPDATE_MARGIN : 0;
 
-	ocsp->next_update.key = MIN(now.tv_sec + global_ssl.ocsp_update.delay_max,
+	ocsp->next_update.key = MIN(date.tv_sec + global_ssl.ocsp_update.delay_max,
 	                            ocsp->expire - update_margin);
 
 	/* An already existing valid OCSP response that expires within less than
@@ -921,7 +921,7 @@ static inline void ssl_ocsp_set_next_update(struct certificate_ocsp *ocsp)
 	 * update of the same response. */
 	if (b_data(&ocsp->response))
 		ocsp->next_update.key = MAX(ocsp->next_update.key,
-		                            now.tv_sec + global_ssl.ocsp_update.delay_min);
+		                            date.tv_sec + global_ssl.ocsp_update.delay_min);
 }
 
 /*
@@ -978,8 +978,8 @@ int ssl_ocsp_update_insert_after_error(struct certificate_ocsp *ocsp)
 	replay_delay = MIN(SSL_OCSP_HTTP_ERR_REPLAY * (1 << ocsp->fail_count),
 	                   global_ssl.ocsp_update.delay_max);
 
-	if (ocsp->next_update.key < now.tv_sec + replay_delay)
-		ocsp->next_update.key = now.tv_sec + replay_delay;
+	if (ocsp->next_update.key < date.tv_sec + replay_delay)
+		ocsp->next_update.key = date.tv_sec + replay_delay;
 
 	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 	eb64_insert(&ocsp_update_tree, &ocsp->next_update);
@@ -1136,7 +1136,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 			ctx->flags &= ~HC_F_RES_END;
 
 			++ocsp->num_success;
-			ocsp->last_update = now.tv_sec;
+			ocsp->last_update = date.tv_sec;
 			ctx->update_status = OCSP_UPDT_OK;
 			ocsp->last_update_status = ctx->update_status;
 
@@ -1152,8 +1152,8 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 			/* Set next_wakeup to the new first entry of the tree */
 			eb = eb64_first(&ocsp_update_tree);
 			if (eb) {
-				if (eb->key > now.tv_sec)
-					next_wakeup = (eb->key - now.tv_sec)*1000;
+				if (eb->key > date.tv_sec)
+					next_wakeup = (eb->key - date.tv_sec)*1000;
 				else
 					next_wakeup = 0;
 			}
@@ -1176,8 +1176,8 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 			goto wait;
 		}
 
-		if (eb->key > now.tv_sec) {
-			next_wakeup = (eb->key - now.tv_sec)*1000;
+		if (eb->key > date.tv_sec) {
+			next_wakeup = (eb->key - date.tv_sec)*1000;
 			HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 			goto leave;
 		}
@@ -1288,8 +1288,8 @@ http_error:
 	/* Set next_wakeup to the new first entry of the tree */
 	eb = eb64_first(&ocsp_update_tree);
 	if (eb) {
-		if (eb->key > now.tv_sec)
-			next_wakeup = (eb->key - now.tv_sec)*1000;
+		if (eb->key > date.tv_sec)
+			next_wakeup = (eb->key - date.tv_sec)*1000;
 		else
 			next_wakeup = 0;
 	}
