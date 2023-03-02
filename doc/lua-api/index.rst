@@ -919,6 +919,10 @@ Proxy class
 
   Contain the name of the proxy.
 
+  .. warning::
+     This attribute is now deprecated and will eventually be removed.
+     Please use :js:func:`Proxy.get_name()` function instead.
+
 .. js:function:: Proxy.get_name()
 
   Returns the name of the proxy.
@@ -926,6 +930,10 @@ Proxy class
 .. js:attribute:: Proxy.uuid
 
   Contain the unique identifier of the proxy.
+
+  .. warning::
+     This attribute is now deprecated and will eventually be removed.
+     Please use :js:func:`Proxy.get_uuid()` function instead.
 
 .. js:function:: Proxy.get_uuid()
 
@@ -1014,6 +1022,10 @@ Server class
 
   Contain the name of the server.
 
+  .. warning::
+     This attribute is now deprecated and will eventually be removed.
+     Please use :js:func:`Server.get_name()` function instead.
+
 .. js:function:: Server.get_name(sv)
 
   Returns the name of the server.
@@ -1021,6 +1033,10 @@ Server class
 .. js:attribute:: Server.puid
 
   Contain the proxy unique identifier of the server.
+
+  .. warning::
+     This attribute is now deprecated and will eventually be removed.
+     Please use :js:func:`Server.get_puid()` function instead.
 
 .. js:function:: Server.get_puid(sv)
 
