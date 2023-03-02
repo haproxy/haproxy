@@ -818,6 +818,7 @@ void sock_conn_iocb(int fd)
 	struct connection *conn = fdtab[fd].owner;
 	unsigned int flags;
 	int need_wake = 0;
+	struct tasklet *t;
 
 	if (unlikely(!conn)) {
 		activity[tid].conn_dead++;
@@ -845,11 +846,12 @@ void sock_conn_iocb(int fd)
 		 */
 		flags = 0;
 		if (conn->subs && conn->subs->events & SUB_RETRY_SEND) {
+			t = conn->subs->tasklet;
 			need_wake = 0; // wake will be called after this I/O
-			tasklet_wakeup(conn->subs->tasklet);
 			conn->subs->events &= ~SUB_RETRY_SEND;
 			if (!conn->subs->events)
 				conn->subs = NULL;
+			tasklet_wakeup(t);
 		}
 		fd_stop_send(fd);
 	}
@@ -865,11 +867,12 @@ void sock_conn_iocb(int fd)
 		 */
 		flags = 0;
 		if (conn->subs && conn->subs->events & SUB_RETRY_RECV) {
+			t = conn->subs->tasklet;
 			need_wake = 0; // wake will be called after this I/O
-			tasklet_wakeup(conn->subs->tasklet);
 			conn->subs->events &= ~SUB_RETRY_RECV;
 			if (!conn->subs->events)
 				conn->subs = NULL;
+			tasklet_wakeup(t);
 		}
 		fd_stop_recv(fd);
 	}
