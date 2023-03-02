@@ -160,7 +160,7 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 	if (!ocsp ||
 	    !ocsp->response.area ||
 	    !ocsp->response.data ||
-	    (ocsp->expire < now.tv_sec))
+	    (ocsp->expire < date.tv_sec))
 		return SSL_TLSEXT_ERR_NOACK;
 
 	ssl_buf = OPENSSL_malloc(ocsp->response.data);
