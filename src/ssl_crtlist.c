@@ -1322,6 +1322,16 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 		goto error;
 	}
 
+	/* No need to check 'ocsp-update' inconsistency on a store that is not
+	 * used yet (it was just added through the CLI for instance).
+	 */
+	if (!LIST_ISEMPTY(&store->ckch_inst) &&
+	    ocsp_update_check_cfg_consistency(store, entry, cert_path, &err))
+		goto error;
+
+	if (entry->ssl_conf)
+		store->data->ocsp_update_mode = entry->ssl_conf->ocsp_update;
+
 	/* check if it's possible to insert this new crtlist_entry */
 	entry->node.key = store;
 	inserted = ebpt_insert(&crtlist->entries, &entry->node);

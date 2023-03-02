@@ -1268,6 +1268,15 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 			strcpy(iocsp->path, path);
 
 			ssl_ocsp_update_insert(iocsp);
+			/* If we are during init the update task is not
+			 * scheduled yet so a wakeup won't do anything.
+			 * Otherwise, if the OCSP was added through the CLI, we
+			 * wake the task up to manage the case of a new entry
+			 * that needs to be updated before the previous first
+			 * entry.
+			 */
+			if (ocsp_update_task)
+				task_wakeup(ocsp_update_task, TASK_WOKEN_MSG);
 		}
 	}
 

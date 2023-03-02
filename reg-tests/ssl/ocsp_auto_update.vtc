@@ -442,3 +442,79 @@ shell {
 
 haproxy h5 -wait
 process p5 -wait
+
+
+####################
+#                  #
+# SIXTH TEST CASE  #
+#                  #
+####################
+
+# Check that a new certificate added via the CLI to a crt-list with
+# the 'ocsp-update on' option will be taken into account by the OCSP
+# auto update task
+#
+process p6 "openssl ocsp -index ${testdir}/ocsp_update/index.txt -rsigner ${testdir}/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/ocsp_update/ocsp_update_rootca.crt -nrequest 1 -ndays 1 -port 12346 -timeout 5" -start
+
+barrier b6 cond 2 -cyclic
+
+syslog Syslog_http6 -level info {
+    recv
+    expect ~ "GET /MEMwQTA%2FMD0wOzAJBgUrDgMCGgUABBSKg%2BAGD6%2F3Ccp%2Bm5VSKi6BY1%2FaCgQU9lKw5DXV6pI4UVCPCtvpLYXeAHoCAhAV HTTP/1.1"
+
+    barrier b6 sync
+} -start
+
+haproxy h6 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-buffer-size 1
+        stats socket "${tmpdir}/h6/stats" level admin
+        crt-base ${testdir}
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend ssl-fe
+        bind "${tmpdir}/ssl.sock" ssl crt-list ${testdir}/simple.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        http-request return status 200
+
+    listen http_rebound_lst
+        mode http
+        option httplog
+        log ${Syslog_http6_addr}:${Syslog_http6_port} local0
+        bind "127.0.0.1:12345"
+        server s1 "127.0.0.1:12346"
+} -start
+
+# We need to "enable" the cli with a first cli call before using it only through socats
+haproxy h6 -cli {
+    send "show ssl cert"
+    expect ~ ""
+}
+
+# Create a new certificate that has an OCSP uri and add it to the
+# existing CLI with the 'ocsp-update on' command.
+shell {
+    echo "new ssl cert ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa" | socat "${tmpdir}/h6/stats" -
+    printf "set ssl cert ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa <<\n$(cat ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa)\n\n" | socat "${tmpdir}/h6/stats" -
+    printf "set ssl cert ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa.issuer <<\n$(cat ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa.issuer)\n\n" | socat "${tmpdir}/h6/stats" -
+    echo "commit ssl cert ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa" | socat "${tmpdir}/h6/stats" -
+
+    printf "add ssl crt-list ${testdir}/simple.crt-list <<\n${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa [ocsp-update on] foo.com\n\n" | socat "${tmpdir}/h6/stats" -
+}
+
+barrier b6 sync
+
+shell "sleep 1"
+
+haproxy h6 -cli {
+    send "show ssl ocsp-updates"
+    expect ~ "303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016 .*| 1 | 0 | 1 | Update successful"
+}

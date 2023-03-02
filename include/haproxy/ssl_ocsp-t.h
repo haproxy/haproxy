@@ -81,6 +81,7 @@ struct ocsp_cbk_arg {
 
 extern struct eb_root cert_ocsp_tree;
 extern struct eb_root ocsp_update_tree;
+extern struct task *ocsp_update_task;
 
 __decl_thread(extern HA_SPINLOCK_T ocsp_tree_lock);
 
