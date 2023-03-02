@@ -909,6 +909,13 @@ static void dump_crtlist_sslconf(struct buffer *buf, const struct ssl_bind_conf 
 		space++;
 	}
 
+	if (conf->ocsp_update != SSL_SOCK_OCSP_UPDATE_DFLT) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "ocsp-update %s",
+		              conf->ocsp_update == SSL_SOCK_OCSP_UPDATE_OFF ? "off" : "on");
+		space++;
+	}
+
 	chunk_appendf(buf, "]");
 
 	return;
