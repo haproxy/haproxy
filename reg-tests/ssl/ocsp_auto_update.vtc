@@ -348,3 +348,97 @@ shell {
 
 haproxy h4 -wait
 process p3 -wait
+
+
+####################
+#                  #
+# FIFTH TEST CASE  #
+#  (CLI COMMAND)   #
+#                  #
+####################
+
+# Test the "show ssl ocsp-updates" command as well as the new 'base64' parameter
+# to the "show ssl ocsp-response" command.
+
+
+process p5 "openssl ocsp -index ${testdir}/ocsp_update/index.txt -rsigner ${testdir}/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/ocsp_update/ocsp_update_rootca.crt -nrequest 2 -ndays 1 -port 12346 -timeout 5" -start
+
+barrier b5 cond 2 -cyclic
+
+syslog Syslog_http5 -level info {
+    recv
+    expect ~ "GET /MEMwQTA%2FMD0wOzAJBgUrDgMCGgUABBSKg%2BAGD6%2F3Ccp%2Bm5VSKi6BY1%2FaCgQU9lKw5DXV6pI4UVCPCtvpLYXeAHoCAhAV HTTP/1.1"
+
+    recv
+    expect ~ "GET /MEMwQTA%2FMD0wOzAJBgUrDgMCGgUABBSKg%2BAGD6%2F3Ccp%2Bm5VSKi6BY1%2FaCgQU9lKw5DXV6pI4UVCPCtvpLYXeAHoCAhAW HTTP/1.1"
+
+    barrier b5 sync
+} -start
+
+haproxy h5 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-buffer-size 1
+        stats socket "${tmpdir}/h5/stats" level admin
+        crt-base ${testdir}/ocsp_update
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend ssl-rsa-fe
+        bind "${tmpdir}/ssl7.sock" ssl crt-list ${testdir}/ocsp_update/multicert_rsa.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        http-request return status 200
+
+    frontend ssl-ecdsa-fe
+        bind "${tmpdir}/ssl8.sock" ssl crt-list ${testdir}/ocsp_update/multicert_ecdsa.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        http-request return status 200
+
+    listen http_rebound_lst
+        mode http
+        option httplog
+        log ${Syslog_http5_addr}:${Syslog_http5_port} local0
+        bind "127.0.0.1:12345"
+        server s1 "127.0.0.1:12346"
+} -start
+
+barrier b5 sync
+
+shell "sleep 1"
+
+# Use "show ssl ocsp-updates" CLI command
+# We should have one line per OCSP response and each one of them should have been successfully updated once
+# The command's output follows this format:
+# OCSP Certid | Next Update | Last Update | Successes | Failures | Last Update Status | Last Update Status (str)
+haproxy h5 -cli {
+    send "show ssl ocsp-updates"
+    expect ~ "303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015 .*| 1 | 0 | 1 | Update successful"
+
+    send "show ssl ocsp-updates"
+    expect ~ "303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016 .*| 1 | 0 | 1 | Update successful"
+}
+
+# Use "show ssl ocsp-response" command to dump an OCSP response in base64
+shell {
+    ocsp_resp_file="${tmpdir}.ocsp_resp.der"
+
+   echo "show ssl ocsp-response base64 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015" | socat "${tmpdir}/h5/stats" - | base64 -d > $ocsp_resp_file
+
+   if [ $? -eq 0 ]
+   then
+       ocsp_resp_txt="$(openssl ocsp -respin $ocsp_resp_file -noverify -text)"
+       echo "$ocsp_resp_txt" | grep "Issuer Name Hash: 8A83E0060FAFF709CA7E9B95522A2E81635FDA0A" && \
+       echo "$ocsp_resp_txt" | grep "Issuer Key Hash: F652B0E435D5EA923851508F0ADBE92D85DE007A" && \
+       echo "$ocsp_resp_txt" | grep "Serial Number: 1015" && \
+       echo "$ocsp_resp_txt" | grep "Cert Status: revoked"
+   else
+       return 1
+   fi
+}
+
+haproxy h5 -wait
+process p5 -wait
