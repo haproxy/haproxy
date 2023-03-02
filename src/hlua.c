@@ -8657,8 +8657,10 @@ __LJMP static int hlua_register_init(lua_State *L)
 	ref = MAY_LJMP(hlua_checkfunction(L, 1));
 
 	init = calloc(1, sizeof(*init));
-	if (!init)
+	if (!init) {
+		hlua_unref(L, ref);
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	}
 
 	init->function_ref = ref;
 	LIST_APPEND(&hlua_init_functions[hlua_state_id], &init->l);
@@ -8731,6 +8733,7 @@ static int hlua_register_task(lua_State *L)
 
   alloc_error:
 	task_destroy(task);
+	hlua_unref(L, ref);
 	hlua_ctx_destroy(hlua);
 	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 	return 0; /* Never reached */
@@ -9044,6 +9047,7 @@ __LJMP static int hlua_register_converters(lua_State *L)
 		if (fcn->function_ref[hlua_state_id] != -1) {
 			ha_warning("Trying to register converter 'lua.%s' more than once. "
 			           "This will become a hard error in version 2.5.\n", name);
+			hlua_unref(L, fcn->function_ref[hlua_state_id]);
 		}
 		fcn->function_ref[hlua_state_id] = ref;
 		return 0;
@@ -9087,6 +9091,7 @@ __LJMP static int hlua_register_converters(lua_State *L)
 
   alloc_error:
 	release_hlua_function(fcn);
+	hlua_unref(L, ref);
 	ha_free(&sck);
 	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 	return 0; /* Never reached */
@@ -9128,6 +9133,7 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 		if (fcn->function_ref[hlua_state_id] != -1) {
 			ha_warning("Trying to register sample-fetch 'lua.%s' more than once. "
 			           "This will become a hard error in version 2.5.\n", name);
+			hlua_unref(L, fcn->function_ref[hlua_state_id]);
 		}
 		fcn->function_ref[hlua_state_id] = ref;
 		return 0;
@@ -9172,6 +9178,7 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 
   alloc_error:
 	release_hlua_function(fcn);
+	hlua_unref(L, ref);
 	ha_free(&sfk);
 	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 	return 0; /* Never reached */
@@ -9976,8 +9983,10 @@ __LJMP static int hlua_register_action(lua_State *L)
 	/* browse the second argument as an array. */
 	lua_pushnil(L);
 	while (lua_next(L, 2) != 0) {
-		if (lua_type(L, -1) != LUA_TSTRING)
+		if (lua_type(L, -1) != LUA_TSTRING) {
+			hlua_unref(L, ref);
 			WILL_LJMP(luaL_error(L, "register_action: second argument must be a table of strings"));
+		}
 
 		/* Check if action exists */
 		trash = get_trash_chunk();
@@ -9998,6 +10007,7 @@ __LJMP static int hlua_register_action(lua_State *L)
 			if (fcn->function_ref[hlua_state_id] != -1) {
 				ha_warning("Trying to register action 'lua.%s' more than once. "
 				           "This will become a hard error in version 2.5.\n", name);
+				hlua_unref(L, fcn->function_ref[hlua_state_id]);
 			}
 			fcn->function_ref[hlua_state_id] = ref;
 
@@ -10050,6 +10060,7 @@ __LJMP static int hlua_register_action(lua_State *L)
 			http_res_keywords_register(akl);
 		else {
 			release_hlua_function(fcn);
+			hlua_unref(L, ref);
 			if (akl)
 				ha_free((char **)&(akl->kw[0].kw));
 			ha_free(&akl);
@@ -10069,6 +10080,7 @@ __LJMP static int hlua_register_action(lua_State *L)
 
   alloc_error:
 	release_hlua_function(fcn);
+	hlua_unref(L, ref);
 	ha_free(&akl);
 	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 	return 0; /* Never reached */
@@ -10148,6 +10160,7 @@ __LJMP static int hlua_register_service(lua_State *L)
 		if (fcn->function_ref[hlua_state_id] != -1) {
 			ha_warning("Trying to register service 'lua.%s' more than once. "
 			           "This will become a hard error in version 2.5.\n", name);
+			hlua_unref(L, fcn->function_ref[hlua_state_id]);
 		}
 		fcn->function_ref[hlua_state_id] = ref;
 		return 0;
@@ -10187,6 +10200,7 @@ __LJMP static int hlua_register_service(lua_State *L)
 		akl->kw[0].parse = action_register_service_http;
 	else {
 		release_hlua_function(fcn);
+		hlua_unref(L, ref);
 		if (akl)
 			ha_free((char **)&(akl->kw[0].kw));
 		ha_free(&akl);
@@ -10207,6 +10221,7 @@ __LJMP static int hlua_register_service(lua_State *L)
 
   alloc_error:
 	release_hlua_function(fcn);
+	hlua_unref(L, ref);
 	ha_free(&akl);
 	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 	return 0; /* Never reached */
@@ -10428,10 +10443,14 @@ __LJMP static int hlua_register_cli(lua_State *L)
 	lua_pushnil(L);
 	memset(kw, 0, sizeof(kw));
 	while (lua_next(L, 1) != 0) {
-		if (index >= CLI_PREFIX_KW_NB)
+		if (index >= CLI_PREFIX_KW_NB) {
+			hlua_unref(L, ref_io);
 			WILL_LJMP(luaL_argerror(L, 1, "1st argument must be a table with a maximum of 5 entries"));
-		if (lua_type(L, -1) != LUA_TSTRING)
+		}
+		if (lua_type(L, -1) != LUA_TSTRING) {
+			hlua_unref(L, ref_io);
 			WILL_LJMP(luaL_argerror(L, 1, "1st argument must be a table filled with strings"));
+		}
 		kw[index] = lua_tostring(L, -1);
 		if (index == 0)
 			chunk_printf(trash, "%s", kw[index]);
@@ -10446,6 +10465,7 @@ __LJMP static int hlua_register_cli(lua_State *L)
 		if (fcn->function_ref[hlua_state_id] != -1) {
 			ha_warning("Trying to register CLI keyword 'lua.%s' more than once. "
 			           "This will become a hard error in version 2.5.\n", trash->area);
+			hlua_unref(L, fcn->function_ref[hlua_state_id]);
 		}
 		fcn->function_ref[hlua_state_id] = ref_io;
 		return 0;
@@ -10521,6 +10541,7 @@ __LJMP static int hlua_register_cli(lua_State *L)
 
   error:
 	release_hlua_function(fcn);
+	hlua_unref(L, ref_io);
 	if (cli_kws) {
 		for (i = 0; i < index; i++)
 			ha_free((char **)&(cli_kws->kw[0].str_kw[i]));
@@ -11251,6 +11272,10 @@ __LJMP static int hlua_register_filter(lua_State *L)
 		if (reg_flt->flt_ref[hlua_state_id] != -1 ||  reg_flt->fun_ref[hlua_state_id] != -1) {
 			ha_warning("Trying to register filter 'lua.%s' more than once. "
 				   "This will become a hard error in version 2.5.\n", name);
+			if (reg_flt->flt_ref[hlua_state_id] != -1)
+				hlua_unref(L, reg_flt->flt_ref[hlua_state_id]);
+			if (reg_flt->fun_ref[hlua_state_id] != -1)
+				hlua_unref(L, reg_flt->fun_ref[hlua_state_id]);
 		}
 		reg_flt->flt_ref[hlua_state_id] = flt_ref;
 		reg_flt->fun_ref[hlua_state_id] = fun_ref;
@@ -11288,6 +11313,8 @@ __LJMP static int hlua_register_filter(lua_State *L)
 
   alloc_error:
 	release_hlua_reg_filter(reg_flt);
+	hlua_unref(L, flt_ref);
+	hlua_unref(L, fun_ref);
 	ha_free(&fkl);
 	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 	return 0; /* Never reached */
