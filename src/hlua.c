@@ -472,7 +472,8 @@ static inline int reg_flt_to_stack_id(struct hlua_reg_filter *reg_flt)
 
 /* Used to check an Lua function type in the stack. It creates and
  * returns a reference of the function. This function throws an
- * error if the rgument is not a "function".
+ * error if the argument is not a "function".
+ * When no longer used, the ref must be released with hlua_unref()
  */
 __LJMP unsigned int hlua_checkfunction(lua_State *L, int argno)
 {
@@ -486,7 +487,8 @@ __LJMP unsigned int hlua_checkfunction(lua_State *L, int argno)
 
 /* Used to check an Lua table type in the stack. It creates and
  * returns a reference of the table. This function throws an
- * error if the rgument is not a "table".
+ * error if the argument is not a "table".
+ * When no longer used, the ref must be released with hlua_unref()
  */
 __LJMP unsigned int hlua_checktable(lua_State *L, int argno)
 {
@@ -496,6 +498,46 @@ __LJMP unsigned int hlua_checktable(lua_State *L, int argno)
 	}
 	lua_pushvalue(L, argno);
 	return luaL_ref(L, LUA_REGISTRYINDEX);
+}
+
+/* Get a reference to the object that is at the top of the stack
+ * The referenced object will be popped from the stack
+ *
+ * The function returns the reference to the object which must
+ * be cleared using hlua_unref() when no longer used
+ */
+__LJMP int hlua_ref(lua_State *L)
+{
+	return MAY_LJMP(luaL_ref(L, LUA_REGISTRYINDEX));
+}
+
+/* Pushes a reference previously created using luaL_ref(L, LUA_REGISTRYINDEX)
+ * on <L> stack
+ * (ie: hlua_checkfunction(), hlua_checktable() or hlua_ref())
+ *
+ * When the reference is no longer used, it should be released by calling
+ * hlua_unref()
+ *
+ * <L> can be from any co-routine as long as it belongs to the same lua
+ * parent state that the one used to get the reference.
+ */
+void hlua_pushref(lua_State *L, int ref)
+{
+	lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+}
+
+/* Releases a reference previously created using luaL_ref(L, LUA_REGISTRYINDEX)
+ * (ie: hlua_checkfunction(), hlua_checktable() or hlua_ref())
+ *
+ * This will allow the reference to be reused and the referred object
+ * to be garbage collected.
+ *
+ * <L> can be from any co-routine as long as it belongs to the same lua
+ * parent state that the one used to get the reference.
+ */
+void hlua_unref(lua_State *L, int ref)
+{
+	luaL_unref(L, LUA_REGISTRYINDEX, ref);
 }
 
 __LJMP const char *hlua_traceback(lua_State *L, const char* sep)
