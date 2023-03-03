@@ -10,8 +10,6 @@
  *
  */
 
-/* forwarded header (7239 RFC) */
-
 #include <haproxy/sample.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_ext.h>
@@ -24,16 +22,6 @@
 #include <haproxy/arg.h>
 #include <haproxy/initcall.h>
 #include <haproxy/tools.h>
-
-/* check if char is a valid obfuscated identifier char
- * (according to 7239 RFC)
- * Returns non zero value for valid char
- */
-static int http_7239_valid_obfsc(char c)
-{
-	return (isalnum((unsigned char)c) ||
-                (c == '.' || c == '-' || c == '_'));
-}
 
 /*
  * =========== ANALYZE ===========
@@ -70,6 +58,16 @@ static inline int http_7239_extract_port(struct ist *input, uint16_t *port)
 		*port = (uint16_t)port_cast;
 	*input = istadv(*input, it);
 	return 1;
+}
+
+/* check if char is a valid obfuscated identifier char
+ * (according to 7239 RFC)
+ * Returns non zero value for valid char
+ */
+static inline int http_7239_valid_obfsc(char c)
+{
+	return (isalnum((unsigned char)c) ||
+                (c == '.' || c == '-' || c == '_'));
 }
 
 /* checks if <input> contains rfc7239 compliant obfuscated identifier
@@ -948,6 +946,9 @@ static inline int _proxy_http_parse_7239_expr(char **args, int *cur_arg,
 	return err_code;
 }
 
+/* forwarded/7239 RFC: tries to parse "option forwarded" config keyword
+ * Returns a composition of ERR_ABORT, ERR_ALERT, ERR_FATAL, ERR_WARN
+ */
 int proxy_http_parse_7239(char **args, int cur_arg,
                           struct proxy *curproxy, const struct proxy *defpx,
                           const char *file, int linenum)
@@ -1200,7 +1201,9 @@ int proxy_http_compile_7239(struct proxy *curproxy)
 	return err;
 }
 
-/* x-forwarded-for */
+/* x-forwarded-for: tries to parse "option forwardfor" config keyword
+ * Returns a composition of ERR_NONE, ERR_FATAL, ERR_ALERT
+ */
 int proxy_http_parse_xff(char **args, int cur_arg,
                          struct proxy *curproxy, const struct proxy *defpx,
                          const char *file, int linenum)
@@ -1281,7 +1284,9 @@ int proxy_http_parse_xff(char **args, int cur_arg,
 	return err_code;
 }
 
-/* x-original-to */
+/* x-original-to: tries to parse "option originalto" config keyword
+ * Returns a composition of ERR_NONE, ERR_FATAL, ERR_ALERT
+ */
 int proxy_http_parse_xot(char **args, int cur_arg,
                          struct proxy *curproxy, const struct proxy *defpx,
                          const char *file, int linenum)
