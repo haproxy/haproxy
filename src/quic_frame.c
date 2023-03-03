@@ -1155,7 +1155,7 @@ int qc_build_frm(unsigned char **buf, const unsigned char *end,
 		goto leave;
 	}
 
-	TRACE_PROTO("frame", QUIC_EV_CONN_BFRM, qc, frm);
+	TRACE_PROTO("TX frame", QUIC_EV_CONN_BFRM, qc, frm);
 	*pos++ = frm->type;
 	if (!quic_frame_builders[frm->type].func(&pos, end, frm, qc)) {
 		TRACE_DEVEL("frame building error", QUIC_EV_CONN_BFRM, qc, frm);

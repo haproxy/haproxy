@@ -3429,7 +3429,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			/* Pad this Initial packet if there is no ack-eliciting frames to send from
 			 * the next packet number space.
 			 */
-			if (LIST_ISEMPTY(next_tel_frms))
+			if (!next_tel_frms || LIST_ISEMPTY(next_tel_frms))
 				padding = 1;
 		}
 
@@ -4538,6 +4538,14 @@ static int qc_dgrams_retransmit(struct quic_conn *qc)
 				/* Put back unsent frames in their packet number spaces */
 				LIST_SPLICE(&iqel->pktns->tx.frms, &ifrms);
 				LIST_SPLICE(&hqel->pktns->tx.frms, &hfrms);
+			}
+			else {
+				if (!(qc->flags & QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED)) {
+					iqel->pktns->tx.pto_probe = 1;
+					if (!qc_send_hdshk_pkts(qc, 0, QUIC_TLS_ENC_LEVEL_INITIAL, &ifrms,
+					                        QUIC_TLS_ENC_LEVEL_NONE, NULL))
+						goto leave;
+				}
 			}
 		}
 		TRACE_STATE("no more need to probe Initial packet number space",
@@ -7456,6 +7464,9 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	len_sz = quic_int_getsize(len);
 	/* Add this packet size to <dglen> */
 	dglen += head_len + len_sz + len;
+	/* Note that <padding> is true only when building an Handshake packet
+	 * coalesced to an Initial packet.
+	 */
 	if (padding && dglen < QUIC_INITIAL_PACKET_MINLEN) {
 		/* This is a maximum padding size */
 		padding_len = QUIC_INITIAL_PACKET_MINLEN - dglen;
@@ -7475,10 +7486,22 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 			/* If we cannot send a frame, we send a PING frame. */
 			add_ping_frm = 1;
 			len += 1;
+			dglen += 1;
+			/* Note that only we are in the case where this Initial packet
+			 * is not coalesced to an Handshake packet. We must directly
+			 * pad the datragram.
+			 */
+			if (pkt->type == QUIC_PACKET_TYPE_INITIAL && dglen < QUIC_INITIAL_PACKET_MINLEN) {
+				padding_len = QUIC_INITIAL_PACKET_MINLEN - dglen;
+				padding_len -= quic_int_getsize(len + padding_len) - len_sz;
+				len += padding_len;
+			}
 		}
-		/* If there is no frame at all to follow, add at least a PADDING frame. */
-		if (!ack_frm_len && !cc)
-			len += padding_len = QUIC_PACKET_PN_MAXLEN - *pn_len;
+		else {
+			/* If there is no frame at all to follow, add at least a PADDING frame. */
+			if (!ack_frm_len && !cc)
+				len += padding_len = QUIC_PACKET_PN_MAXLEN - *pn_len;
+		}
 	}
 
 	if (pkt->type != QUIC_PACKET_TYPE_SHORT && !quic_enc_int(&pos, end, len))
