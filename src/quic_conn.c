@@ -2658,6 +2658,7 @@ static void qc_prep_fast_retrans(struct quic_conn *qc,
 	 */
 	if (!quic_peer_validated_addr(qc) && qc_is_listener(qc) &&
 	    pkt->len + 4 > 3 * qc->rx.bytes - qc->tx.prep_bytes) {
+		qc->flags |= QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED;
 		TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_SPPKTS, qc, pkt);
 		goto leave;
 	}
@@ -2724,6 +2725,7 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 
 		dglen += pkt->next ? pkt->next->len + 4 : 0;
 		if (dglen > 3 * qc->rx.bytes - qc->tx.prep_bytes) {
+			qc->flags |= QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED;
 			TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_SPPKTS, qc, pkt);
 			if (pkt->next)
 				TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_SPPKTS, qc, pkt->next);
@@ -6788,20 +6790,22 @@ static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	const struct quic_version *qv = pkt->version;
 	struct quic_enc_level *qel = NULL;
 	size_t b_cspace;
-	int io_cb_wakeup = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT, qc, pkt, NULL, qv);
 
 	if (pkt->flags & QUIC_FL_RX_PACKET_DGRAM_FIRST &&
-	    !quic_peer_validated_addr(qc) &&
 	    qc->flags & QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED) {
 		TRACE_PROTO("PTO timer must be armed after anti-amplication was reached",
 					QUIC_EV_CONN_LPKT, qc, NULL, NULL, qv);
+		TRACE_DEVEL("needs to wakeup the timer task after the amplification limit was reached",
+		            QUIC_EV_CONN_LPKT, qc);
 		/* Reset the anti-amplification bit. It will be set again
 		 * when sending the next packet if reached again.
 		 */
 		qc->flags &= ~QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED;
-		io_cb_wakeup = 1;
+		qc_set_timer(qc);
+		if (qc->timer_task && tick_isset(qc->timer) && tick_is_lt(qc->timer, now_ms))
+			task_wakeup(qc->timer_task, TASK_WOKEN_MSG);
 	}
 
 	if (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
@@ -6856,14 +6860,6 @@ static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
 
  drop:
 	HA_ATOMIC_INC(&qc->prx_counters->dropped_pkt);
-	if (io_cb_wakeup) {
-		TRACE_DEVEL("needs to wakeup the timer task after the amplification limit was reached",
-		            QUIC_EV_CONN_LPKT, qc);
-		qc_set_timer(qc);
-		if (qc->timer_task && tick_isset(qc->timer) && tick_is_lt(qc->timer, now_ms))
-			task_wakeup(qc->timer_task, TASK_WOKEN_MSG);
-	}
-
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc ? qc : NULL, pkt, NULL, qv);
 }
 
