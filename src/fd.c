@@ -319,6 +319,19 @@ void _fd_delete_orphan(int fd)
 	if (cur_poller.clo)
 		cur_poller.clo(fd);
 
+	/* now we're about to reset some of this FD's fields. We don't want
+	 * anyone to grab it anymore and we need to make sure those which could
+	 * possibly have stumbled upon it right now are leaving before we
+	 * proceed. This is done in two steps. First we reset the tgid so that
+	 * fd_take_tgid() and fd_grab_tgid() fail, then we wait for existing
+	 * ref counts to drop. Past this point we're alone dealing with the
+	 * FD's thead/running/update/polled masks.
+	 */
+	fd_reset_tgid(fd);
+
+	while (_HA_ATOMIC_LOAD(&fdtab[fd].refc_tgid) != 0) // refc==0 ?
+		__ha_cpu_relax();
+
 	/* we don't want this FD anymore in the global list */
 	fd_rm_from_fd_list(&update_list[tgrp - 1], fd);
 
@@ -331,7 +344,6 @@ void _fd_delete_orphan(int fd)
 	polled_mask[fd].poll_recv = polled_mask[fd].poll_send = 0;
 
 	fdtab[fd].state = 0;
-	fd_reset_tgid(fd);
 
 #ifdef DEBUG_FD
 	fdtab[fd].event_count = 0;
