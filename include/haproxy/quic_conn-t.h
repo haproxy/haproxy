@@ -657,6 +657,7 @@ struct quic_conn {
 	struct quic_cid scid; /* first SCID of our endpoint - not updated when a new SCID is used */
 	struct eb_root cids; /* tree of quic_connection_id - used to match a received packet DCID with a connection */
 	uint64_t next_cid_seq_num;
+	uint64_t curr_cid_seq_num;
 
 	struct quic_enc_level els[QUIC_TLS_ENC_LEVEL_MAX];
 	struct quic_pktns pktns[QUIC_TLS_PKTNS_MAX];

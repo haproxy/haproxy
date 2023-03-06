@@ -220,6 +220,8 @@ DECLARE_STATIC_POOL(pool_head_quic_cstream, "quic_cstream", sizeof(struct quic_c
 DECLARE_POOL(pool_head_quic_frame, "quic_frame", sizeof(struct quic_frame));
 DECLARE_STATIC_POOL(pool_head_quic_arng, "quic_arng", sizeof(struct quic_arng_node));
 
+static struct quic_connection_id *new_quic_cid(struct eb_root *root,
+                                               struct quic_conn *qc);
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned char *buf_end,
                                            struct quic_enc_level *qel, struct quic_tls_ctx *ctx,
                                            struct list *frms, struct quic_conn *qc,
@@ -2948,6 +2950,88 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 	return ret;
 }
 
+
+/* Remove the connection ID from with <seq_num> as sequence number.
+ * Return 1 if a connection ID was effectively removed, 0 if not.
+ */
+static int qc_retire_connection_seq_num(struct quic_conn *qc, uint64_t seq_num)
+{
+	struct eb64_node *node;
+	struct quic_connection_id *cid;
+
+	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
+	node = eb64_lookup(&qc->cids, seq_num);
+	if (!node)
+		return 0;
+
+	cid = eb64_entry(node, struct quic_connection_id, seq_num);
+	ebmb_delete(&cid->node);
+	eb64_delete(&cid->seq_num);
+	pool_free(pool_head_quic_connection_id, cid);
+	TRACE_PROTO("CID retired", QUIC_EV_CONN_PSTRM, qc);
+
+	TRACE_LEAVE(QUIC_EV_CONN_PRSHPKT, qc);
+	return 1;
+}
+
+/* Allocate a new connection ID for <qc> connection and build a NEW_CONNECTION_ID
+ * frame to be sent.
+ * Return 1 if succeeded, 0 if not.
+ */
+static int qc_build_new_connection_id_frm(struct quic_conn *qc,
+                                          struct quic_connection_id *cid)
+{
+	int ret = 0;
+	struct quic_frame *frm;
+	struct quic_enc_level *qel;
+
+	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
+
+	qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
+	frm = qc_frm_alloc(QUIC_FT_NEW_CONNECTION_ID);
+	if (!frm) {
+		TRACE_ERROR("frame allocation error", QUIC_EV_CONN_IO_CB, qc);
+		goto leave;
+	}
+
+	quic_connection_id_to_frm_cpy(frm, cid);
+	LIST_APPEND(&qel->pktns->tx.frms, &frm->list);
+	ret = 1;
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_PRSHPKT, qc);
+	return ret;
+}
+
+
+/* Handle RETIRE_CONNECTION_ID frame from <frm> frame.
+ * Return 1 if succeeded, 0 if not.
+ */
+static int qc_handle_retire_connection_id_frm(struct quic_conn *qc,
+                                              struct quic_frame *frm)
+{
+	int ret = 0;
+	struct quic_retire_connection_id *rcid = &frm->retire_connection_id;
+
+	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
+
+	if (rcid->seq_num >= qc->next_cid_seq_num) {
+		TRACE_PROTO("CID seq. number too big", QUIC_EV_CONN_PSTRM, qc, frm);
+		quic_set_connection_close(qc, quic_err_transport(QC_ERR_PROTOCOL_VIOLATION));
+		goto leave;
+	}
+
+	if (rcid->seq_num == qc->curr_cid_seq_num) {
+		TRACE_PROTO("cannot retire the current CID", QUIC_EV_CONN_PSTRM, qc, frm);
+		quic_set_connection_close(qc, quic_err_transport(QC_ERR_PROTOCOL_VIOLATION));
+		goto leave;
+	}
+
+	ret = 1;
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_PRSHPKT, qc);
+	return ret;
+}
+
 /* Parse all the frames of <pkt> QUIC packet for QUIC connection <qc> and <qel>
  * as encryption level.
  * Returns 1 if succeeded, 0 if failed.
@@ -3087,9 +3171,29 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			HA_ATOMIC_INC(&qc->prx_counters->streams_data_blocked_uni);
 			break;
 		case QUIC_FT_NEW_CONNECTION_ID:
-		case QUIC_FT_RETIRE_CONNECTION_ID:
 			/* XXX TO DO XXX */
 			break;
+		case QUIC_FT_RETIRE_CONNECTION_ID:
+		{
+			struct quic_connection_id *cid;
+
+			if (!qc_handle_retire_connection_id_frm(qc, &frm))
+				goto leave;
+
+			if (!qc_retire_connection_seq_num(qc, frm.retire_connection_id.seq_num))
+				break;
+
+			cid = new_quic_cid(&qc->cids, qc);
+			if (!cid) {
+				TRACE_ERROR("CID allocation error", QUIC_EV_CONN_IO_CB, qc);
+			}
+			else {
+				/* insert the allocated CID in the receiver datagram handler tree */
+				ebmb_insert(&quic_dghdlrs[tid].cids, &cid->node, cid->cid.len);
+				qc_build_new_connection_id_frm(qc, cid);
+			}
+			break;
+		}
 		case QUIC_FT_CONNECTION_CLOSE:
 		case QUIC_FT_CONNECTION_CLOSE_APP:
 			/* Increment the error counters */
@@ -5190,6 +5294,8 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		goto err;
 	}
 
+	/* The sequence number of the current CID is the same as for <icid>. */
+	qc->curr_cid_seq_num = icid->seq_num.key;
 	if ((global.tune.options & GTUNE_QUIC_SOCK_PER_CONN) &&
 	    is_addr(local_addr)) {
 		TRACE_USER("Allocate a socket for QUIC connection", QUIC_EV_CONN_INIT, qc);
