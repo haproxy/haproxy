@@ -3725,8 +3725,7 @@ static int quic_stateless_reset_token_init(struct quic_conn *qc,
 	return ret;
 }
 
-/* Allocate a new CID with <seq_num> as sequence number and attach it to <root>
- * ebtree.
+/* Allocate a new CID and attach it to <root> ebtree.
  *
  * The CID is randomly generated in part with the result altered to be
  * associated with the current thread ID. This means this function must only
@@ -3735,8 +3734,7 @@ static int quic_stateless_reset_token_init(struct quic_conn *qc,
  * Returns the new CID if succeeded, NULL if not.
  */
 static struct quic_connection_id *new_quic_cid(struct eb_root *root,
-                                               struct quic_conn *qc,
-                                               int seq_num)
+                                               struct quic_conn *qc)
 {
 	struct quic_connection_id *cid;
 
@@ -3763,7 +3761,7 @@ static struct quic_connection_id *new_quic_cid(struct eb_root *root,
 
 	cid->qc = qc;
 
-	cid->seq_num.key = seq_num;
+	cid->seq_num.key = qc->next_cid_seq_num++;
 	cid->retire_prior_to = 0;
 	/* insert the allocated CID in the quic_conn tree */
 	eb64_insert(root, &cid->seq_num);
@@ -3784,7 +3782,7 @@ static struct quic_connection_id *new_quic_cid(struct eb_root *root,
  */
 static int quic_build_post_handshake_frames(struct quic_conn *qc)
 {
-	int ret = 0, i, first, max;
+	int ret = 0, max;
 	struct quic_enc_level *qel;
 	struct quic_frame *frm, *frmbak;
 	struct list frm_list = LIST_HEAD_INIT(frm_list);
@@ -3805,13 +3803,14 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 	}
 
 	/* Initialize <max> connection IDs minus one: there is
-	 * already one connection ID used for the current connection.
+	 * already one connection ID used for the current connection. Also limit
+	 * the number of connection IDs sent to the peer to 4 (3 from this function
+	 * plus 1 for the current connection.
+	 * Note that active_connection_id_limit >= 2: this has been already checked
+	 * when receiving this parameter.
 	 */
-	first = 1;
-	max = qc->tx.params.active_connection_id_limit;
-
-	/* TODO: check limit */
-	for (i = first; i < max; i++) {
+	max = QUIC_MIN(qc->tx.params.active_connection_id_limit - 1, (uint64_t)3);
+	while (max--) {
 		struct quic_connection_id *cid;
 
 		frm = qc_frm_alloc(QUIC_FT_NEW_CONNECTION_ID);
@@ -3820,7 +3819,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 			goto err;
 		}
 
-		cid = new_quic_cid(&qc->cids, qc, i);
+		cid = new_quic_cid(&qc->cids, qc);
 		if (!cid) {
 			qc_frm_free(&frm);
 			TRACE_ERROR("CID allocation error", QUIC_EV_CONN_IO_CB, qc);
@@ -3847,7 +3846,10 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 	list_for_each_entry_safe(frm, frmbak, &frm_list, list)
 		qc_frm_free(&frm);
 
-	node = eb64_lookup_ge(&qc->cids, first);
+	/* The first CID sequence number value used to allocated CIDs by this function is 1,
+	 * 0 being the sequence number of the CID for this connection.
+	 */
+	node = eb64_lookup_ge(&qc->cids, 1);
 	while (node) {
 		struct quic_connection_id *cid;
 
@@ -5179,7 +5181,10 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->mux_state = QC_MUX_NULL;
 	qc->err = quic_err_transport(QC_ERR_NO_ERROR);
 
-	icid = new_quic_cid(&qc->cids, qc, 0);
+	/* Initialize the next CID sequence number to be used for this connection. */
+	qc->next_cid_seq_num = 0;
+	/* Insert the CID for this connection with 0 as sequence number. */
+	icid = new_quic_cid(&qc->cids, qc);
 	if (!icid) {
 		TRACE_ERROR("Could not allocate a new connection ID", QUIC_EV_CONN_INIT, qc);
 		goto err;
