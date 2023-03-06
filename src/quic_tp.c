@@ -609,6 +609,13 @@ static int quic_transport_params_decode(struct quic_transport_params *p, int ser
 	    !p->initial_source_connection_id_present)
 		return 0;
 
+	/* Note that if not received by the peer, active_connection_id_limit will
+	 * have QUIC_TP_DFLT_ACTIVE_CONNECTION_ID_LIMIT as default value. This
+	 * is also the minimum value for this transport parameter.
+	 */
+	if (p->active_connection_id_limit < QUIC_TP_DFLT_ACTIVE_CONNECTION_ID_LIMIT)
+		return 0;
+
 	return 1;
 }
 
