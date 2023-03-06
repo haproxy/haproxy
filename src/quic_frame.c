@@ -31,7 +31,7 @@ const char *quic_frame_type_string(enum quic_frame_type ft)
 	case QUIC_FT_ACK:
 		return "ACK";
 	case QUIC_FT_ACK_ECN:
-		return "ACK_ENC";
+		return "ACK_ECN";
 	case QUIC_FT_RESET_STREAM:
 		return "RESET_STREAM";
 	case QUIC_FT_STOP_SENDING:
