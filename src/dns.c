@@ -317,7 +317,6 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 	buf = &ring->buf;
 
 	HA_RWLOCK_RDLOCK(DNS_LOCK, &ring->lock);
-	ofs = ns->dgram->ofs_req;
 
 	/* explanation for the initialization below: it would be better to do
 	 * this in the parsing function but this would occasionally result in
@@ -327,14 +326,17 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 	 * existing messages before grabbing a reference to a location. This
 	 * value cannot be produced after initialization.
 	 */
-	if (unlikely(ofs == ~0)) {
-		ofs = 0;
-		HA_ATOMIC_INC(b_peek(buf, ofs));
+	if (unlikely(ns->dgram->ofs_req == ~0)) {
+		ns->dgram->ofs_req = b_peek_ofs(buf, 0);
+		HA_ATOMIC_INC(b_orig(buf) + ns->dgram->ofs_req);
 	}
 
 	/* we were already there, adjust the offset to be relative to
 	 * the buffer's head and remove us from the counter.
 	 */
+	ofs = ns->dgram->ofs_req - b_head_ofs(buf);
+	if (ns->dgram->ofs_req < b_head_ofs(buf))
+		ofs += b_size(buf);
 	BUG_ON(ofs >= buf->size);
 	HA_ATOMIC_DEC(b_peek(buf, ofs));
 
@@ -376,12 +378,10 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 	fd_stop_send(fd);
 
 out:
-
 	HA_ATOMIC_INC(b_peek(buf, ofs));
-	ns->dgram->ofs_req = ofs;
+	ns->dgram->ofs_req = b_peek_ofs(buf, ofs);
 	HA_RWLOCK_RDUNLOCK(DNS_LOCK, &ring->lock);
 	HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
-
 }
 
 /* proto_udp callback functions for a DNS resolution */
