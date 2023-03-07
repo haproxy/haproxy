@@ -1449,7 +1449,6 @@ static int qc_do_rm_hp(struct quic_conn *qc,
 	uint32_t truncated_pn = 0;
 	unsigned char mask[5] = {0};
 	unsigned char *sample;
-	EVP_CIPHER_CTX *cctx = NULL;
 
 	TRACE_ENTER(QUIC_EV_CONN_RMHP, qc);
 
@@ -1458,12 +1457,6 @@ static int qc_do_rm_hp(struct quic_conn *qc,
 	/* Check there is enough data in this packet. */
 	if (pkt->len - (pn - byte0) < QUIC_PACKET_PN_MAXLEN + sizeof mask) {
 		TRACE_PROTO("too short packet", QUIC_EV_CONN_RMHP, qc, pkt);
-		goto leave;
-	}
-
-	cctx = EVP_CIPHER_CTX_new();
-	if (!cctx) {
-		TRACE_ERROR("memory allocation failed", QUIC_EV_CONN_RMHP, qc, pkt);
 		goto leave;
 	}
 
@@ -1488,8 +1481,6 @@ static int qc_do_rm_hp(struct quic_conn *qc,
 
 	ret = 1;
  leave:
-	if (cctx)
-		EVP_CIPHER_CTX_free(cctx);
 	TRACE_LEAVE(QUIC_EV_CONN_RMHP, qc);
 	return ret;
 }
