@@ -71,6 +71,7 @@ enum {
 #define FD_EXPORTED_BIT    20  /* FD is exported and must not be closed */
 #define FD_EXCL_SYSCALL_BIT 21 /* a syscall claims exclusivity on this FD */
 #define FD_DISOWN_BIT      22  /* this fd will be closed by some external code */
+#define FD_MUST_CLOSE_BIT  23  /* this fd will be closed by some external code */
 
 
 /* and flag values */
@@ -112,6 +113,7 @@ enum {
 #define FD_EXPORTED         (1U << FD_EXPORTED_BIT)
 #define FD_EXCL_SYSCALL     (1U << FD_EXCL_SYSCALL_BIT)
 #define FD_DISOWN           (1U << FD_DISOWN_BIT)
+#define FD_MUST_CLOSE       (1U << FD_MUST_CLOSE_BIT)
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
