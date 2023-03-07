@@ -8204,6 +8204,11 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 
 		chunk_appendf(&trash, "\n");
 
+		chunk_appendf(&trash, "  loc. TPs:");
+		quic_transport_params_dump(&trash, qc, &qc->rx.params);
+		chunk_appendf(&trash, "  rem. TPs:");
+		quic_transport_params_dump(&trash, qc, &qc->tx.params);
+
 		/* Connection state */
 		if (qc->flags & QUIC_FL_CONN_CLOSING)
 			chunk_appendf(&trash, "  st=closing          ");
