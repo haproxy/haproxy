@@ -489,9 +489,8 @@ static void dns_session_io_handler(struct appctx *appctx)
 	 * value cannot be produced after initialization.
 	 */
 	if (unlikely(ds->ofs == ~0)) {
-		ds->ofs = 0;
-
-		HA_ATOMIC_INC(b_peek(buf, ds->ofs));
+		ds->ofs = b_peek_ofs(buf, 0);
+		HA_ATOMIC_INC(b_orig(buf) + ds->ofs);
 	}
 
 	/* in this loop, ofs always points to the counter byte that precedes
@@ -1120,8 +1119,8 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned int 
 	 * value cannot be produced after initialization.
 	 */
 	if (unlikely(dss->ofs_req == ~0)) {
-		dss->ofs_req = 0;
-		HA_ATOMIC_INC(b_peek(buf, dss->ofs_req));
+		dss->ofs_req = b_peek_ofs(buf, 0);
+		HA_ATOMIC_INC(b_orig(buf) + dss->ofs_req);
 	}
 
 	/* we were already there, adjust the offset to be relative to
