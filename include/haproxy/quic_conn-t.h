@@ -398,6 +398,8 @@ struct quic_dgram {
 #define QUIC_FL_RX_PACKET_ACK_ELICITING (1UL << 0)
 /* Packet is the first one in the containing datagram. */
 #define QUIC_FL_RX_PACKET_DGRAM_FIRST   (1UL << 1)
+/* Spin bit set */
+#define QUIC_FL_RX_PACKET_SPIN_BIT   (1UL << 2)
 
 struct quic_rx_packet {
 	struct list list;
@@ -608,6 +610,7 @@ enum qc_mux_state {
 
 /* Flags at connection level */
 #define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED  (1U << 0)
+#define QUIC_FL_CONN_SPIN_BIT                    (1U << 1) /* Spin bit set by remote peer */
 #define QUIC_FL_CONN_POST_HANDSHAKE_FRAMES_BUILT (1U << 2)
 #define QUIC_FL_CONN_LISTENER                    (1U << 3)
 #define QUIC_FL_CONN_ACCEPT_REGISTERED           (1U << 4)

@@ -4190,6 +4190,31 @@ int quic_update_ack_ranges_list(struct quic_conn *qc,
 	TRACE_LEAVE(QUIC_EV_CONN_RXPKT, qc);
 	return ret;
 }
+
+/* Detect the value of the spin bit to be used. */
+static inline void qc_handle_spin_bit(struct quic_conn *qc, struct quic_rx_packet *pkt,
+                                      struct quic_enc_level *qel)
+{
+	uint64_t largest_pn = qel->pktns->rx.largest_pn;
+
+	if (qel != &qc->els[QUIC_TLS_ENC_LEVEL_APP] || largest_pn == -1 ||
+	    pkt->pn <= largest_pn)
+		return;
+
+	if (qc_is_listener(qc)) {
+		if (pkt->flags & QUIC_FL_RX_PACKET_SPIN_BIT)
+			qc->flags |= QUIC_FL_CONN_SPIN_BIT;
+		else
+			qc->flags &= ~QUIC_FL_CONN_SPIN_BIT;
+	}
+	else {
+		if (pkt->flags & QUIC_FL_RX_PACKET_SPIN_BIT)
+			qc->flags &= ~QUIC_FL_CONN_SPIN_BIT;
+		else
+			qc->flags |= QUIC_FL_CONN_SPIN_BIT;
+	}
+}
+
 /* Remove the header protection of packets at <el> encryption level.
  * Always succeeds.
  */
@@ -4216,6 +4241,7 @@ static inline void qc_rm_hp_pkts(struct quic_conn *qc, struct quic_enc_level *el
 			TRACE_ERROR("hp removing error", QUIC_EV_CONN_ELRMHP, qc);
 		}
 		else {
+			qc_handle_spin_bit(qc, pqpkt, el);
 			/* The AAD includes the packet number field */
 			pqpkt->aad_len = pqpkt->pn_offset + pqpkt->pnl;
 			/* Store the packet into the tree of packets to decrypt. */
@@ -5763,6 +5789,7 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 			goto out;
 		}
 
+		qc_handle_spin_bit(qc, pkt, qel);
 		/* The AAD includes the packet number field. */
 		pkt->aad_len = pkt->pn_offset + pkt->pnl;
 		if (pkt->len - pkt->aad_len < QUIC_TLS_TAG_LEN) {
@@ -5845,6 +5872,8 @@ static inline int qc_parse_hd_form(struct quic_rx_packet *pkt,
 		}
 	}
 	else {
+		if (byte0 & QUIC_PACKET_SPIN_BIT)
+			pkt->flags |= QUIC_FL_RX_PACKET_SPIN_BIT;
 		pkt->type = QUIC_PACKET_TYPE_SHORT;
 		*long_header = 0;
 	}
@@ -7023,6 +7052,8 @@ static int quic_build_packet_short_header(unsigned char **buf, const unsigned ch
                                           unsigned char tls_flags)
 {
 	int ret = 0;
+	unsigned char spin_bit =
+		(qc->flags & QUIC_FL_CONN_SPIN_BIT) ? QUIC_PACKET_SPIN_BIT : 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
@@ -7032,7 +7063,7 @@ static int quic_build_packet_short_header(unsigned char **buf, const unsigned ch
 	}
 
 	/* #0 byte flags */
-	*(*buf)++ = QUIC_PACKET_FIXED_BIT |
+	*(*buf)++ = QUIC_PACKET_FIXED_BIT | spin_bit |
 		((tls_flags & QUIC_FL_TLS_KP_BIT_SET) ? QUIC_PACKET_KEY_PHASE_BIT : 0) | (pn_len - 1);
 	/* Destination connection ID */
 	if (qc->dcid.len) {
