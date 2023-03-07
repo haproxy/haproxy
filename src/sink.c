@@ -344,7 +344,6 @@ static void sink_forward_io_handler(struct appctx *appctx)
 		HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 		goto close;
 	}
-	ofs = sft->ofs;
 
 	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 	LIST_DEL_INIT(&appctx->wait_entry);
@@ -360,9 +359,9 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	 * existing messages before grabbing a reference to a location. This
 	 * value cannot be produced after initialization.
 	 */
-	if (unlikely(ofs == ~0)) {
-		ofs = 0;
-		HA_ATOMIC_INC(b_peek(buf, ofs));
+	if (unlikely(sft->ofs == ~0)) {
+		sft->ofs = b_peek_ofs(buf, 0);
+		HA_ATOMIC_INC(b_orig(buf) + sft->ofs);
 	}
 
 	/* in this loop, ofs always points to the counter byte that precedes
@@ -373,6 +372,9 @@ static void sink_forward_io_handler(struct appctx *appctx)
 		/* we were already there, adjust the offset to be relative to
 		 * the buffer's head and remove us from the counter.
 		 */
+		ofs = sft->ofs - b_head_ofs(buf);
+		if (sft->ofs < b_head_ofs(buf))
+			ofs += b_size(buf);
 		BUG_ON(ofs >= buf->size);
 		HA_ATOMIC_DEC(b_peek(buf, ofs));
 
@@ -405,7 +407,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 
 		HA_ATOMIC_INC(b_peek(buf, ofs));
 		last_ofs = b_tail_ofs(buf);
-		sft->ofs = ofs;
+		sft->ofs = b_peek_ofs(buf, ofs);
 	}
 	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);
 
@@ -480,7 +482,6 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 		HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 		goto close;
 	}
-	ofs = sft->ofs;
 
 	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 	LIST_DEL_INIT(&appctx->wait_entry);
@@ -496,9 +497,9 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	 * existing messages before grabbing a reference to a location. This
 	 * value cannot be produced after initialization.
 	 */
-	if (unlikely(ofs == ~0)) {
-		ofs = 0;
-		HA_ATOMIC_INC(b_peek(buf, ofs));
+	if (unlikely(sft->ofs == ~0)) {
+		sft->ofs = b_peek_ofs(buf, 0);
+		HA_ATOMIC_INC(b_orig(buf) + sft->ofs);
 	}
 
 	/* in this loop, ofs always points to the counter byte that precedes
@@ -509,6 +510,9 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 		/* we were already there, adjust the offset to be relative to
 		 * the buffer's head and remove us from the counter.
 		 */
+		ofs = sft->ofs - b_head_ofs(buf);
+		if (sft->ofs < b_head_ofs(buf))
+			ofs += b_size(buf);
 		BUG_ON(ofs >= buf->size);
 		HA_ATOMIC_DEC(b_peek(buf, ofs));
 
@@ -544,7 +548,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 		}
 
 		HA_ATOMIC_INC(b_peek(buf, ofs));
-		sft->ofs = ofs;
+		sft->ofs = b_peek_ofs(buf, ofs);
 	}
 	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);
 
