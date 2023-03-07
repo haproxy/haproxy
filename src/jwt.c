@@ -275,10 +275,12 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 {
 	const EVP_MD *evp = NULL;
 	EVP_MD_CTX *evp_md_ctx;
+	EVP_PKEY_CTX *pkey_ctx = NULL;
 	enum jwt_vrfy_status retval = JWT_VRFY_KO;
 	struct ebmb_node *eb;
 	struct jwt_cert_tree_entry *entry = NULL;
 	int is_ecdsa = 0;
+	int padding = RSA_PKCS1_PADDING;
 
 	switch(ctx->alg) {
 	case JWS_ALG_RS256:
@@ -302,6 +304,19 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 	case JWS_ALG_ES512:
 		evp = EVP_sha512();
 		is_ecdsa = 1;
+		break;
+
+	case JWS_ALG_PS256:
+		evp = EVP_sha256();
+		padding = RSA_PKCS1_PSS_PADDING;
+		break;
+	case JWS_ALG_PS384:
+		evp = EVP_sha384();
+		padding = RSA_PKCS1_PSS_PADDING;
+		break;
+	case JWS_ALG_PS512:
+		evp = EVP_sha512();
+		padding = RSA_PKCS1_PSS_PADDING;
 		break;
 	default: break;
 	}
@@ -337,11 +352,14 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 		}
 	}
 
-	if (EVP_DigestVerifyInit(evp_md_ctx, NULL, evp, NULL, entry->pkey) == 1 &&
-	    EVP_DigestVerifyUpdate(evp_md_ctx, (const unsigned char*)ctx->jose.start,
-	                           ctx->jose.length + ctx->claims.length + 1) == 1 &&
-	    EVP_DigestVerifyFinal(evp_md_ctx, (const unsigned char*)decoded_signature->area, decoded_signature->data) == 1) {
-		retval = JWT_VRFY_OK;
+	if (EVP_DigestVerifyInit(evp_md_ctx, &pkey_ctx, evp, NULL, entry->pkey) == 1) {
+		if (is_ecdsa || EVP_PKEY_CTX_set_rsa_padding(pkey_ctx, padding) > 0) {
+			if (EVP_DigestVerifyUpdate(evp_md_ctx, (const unsigned char*)ctx->jose.start,
+						   ctx->jose.length + ctx->claims.length + 1) == 1 &&
+			    EVP_DigestVerifyFinal(evp_md_ctx, (const unsigned char*)decoded_signature->area, decoded_signature->data) == 1) {
+				retval = JWT_VRFY_OK;
+			}
+		}
 	}
 
 end:
@@ -420,16 +438,15 @@ enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer 
 	case JWS_ALG_ES256:
 	case JWS_ALG_ES384:
 	case JWS_ALG_ES512:
-		/* RSASSA-PKCS1-v1_5 + SHA-XXX */
-		/* ECDSA using P-XXX and SHA-XXX */
-		retval = jwt_jwsverify_rsa_ecdsa(&ctx, decoded_sig);
-		break;
 	case JWS_ALG_PS256:
 	case JWS_ALG_PS384:
 	case JWS_ALG_PS512:
-	default:
+		/* RSASSA-PKCS1-v1_5 + SHA-XXX */
+		/* ECDSA using P-XXX and SHA-XXX */
 		/* RSASSA-PSS using SHA-XXX and MGF1 with SHA-XXX */
-
+		retval = jwt_jwsverify_rsa_ecdsa(&ctx, decoded_sig);
+		break;
+	default:
 		/* Not managed yet */
 		retval = JWT_VRFY_UNMANAGED_ALG;
 		break;

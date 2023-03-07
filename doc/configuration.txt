@@ -17867,9 +17867,8 @@ jwt_verify(<alg>,<key>)
   below for a full list of the possible return values.
 
   For now, only JWS tokens using the Compact Serialization format can be
-  processed (three dot-separated base64-url encoded strings). Among the
-  accepted algorithms for a JWS (see section 3.1 of RFC7518), the PSXXX ones
-  are not managed yet.
+  processed (three dot-separated base64-url encoded strings). All the
+  algorithms mentioned in section 3.1 of RFC7518 are managed.
 
   If the used algorithm is of the HMAC family, <key> should be the secret used
   in the HMAC signature calculation. Otherwise, <key> should be the path to the
@@ -17894,7 +17893,7 @@ jwt_verify(<alg>,<key>)
   |  0 | "Verification failure"                                               |
   |  1 | "Verification success"                                               |
   | -1 | "Unknown algorithm (not mentioned in RFC7518)"                       |
-  | -2 | "Unmanaged algorithm (PSXXX algorithm family)"                       |
+  | -2 | "Unmanaged algorithm"                                                |
   | -3 | "Invalid token"                                                      |
   | -4 | "Out of memory"                                                      |
   | -5 | "Unknown certificate"                                                |

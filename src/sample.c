@@ -3867,19 +3867,9 @@ static int sample_conv_jwt_verify_check(struct arg *args, struct sample_conv *co
 	if (args[0].type == ARGT_STR) {
 		enum jwt_alg alg = jwt_parse_alg(args[0].data.str.area, args[0].data.str.data);
 
-		switch(alg) {
-		case JWT_ALG_DEFAULT:
+		if (alg == JWT_ALG_DEFAULT) {
 			memprintf(err, "unknown JWT algorithm: %s", args[0].data.str.area);
 			return 0;
-
-		case JWS_ALG_PS256:
-		case JWS_ALG_PS384:
-		case JWS_ALG_PS512:
-			memprintf(err, "RSASSA-PSS JWS signing not managed yet");
-			return 0;
-
-		default:
-			break;
 		}
 	}
 
