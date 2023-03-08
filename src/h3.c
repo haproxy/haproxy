@@ -187,8 +187,9 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 	switch (type) {
 	case H3_UNI_S_T_CTRL:
 		if (h3c->flags & H3_CF_UNI_CTRL_SET) {
+			TRACE_ERROR("duplicated control stream", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 			qcc_emit_cc_app(qcs->qcc, H3_STREAM_CREATION_ERROR, 1);
-			return -1;
+			goto err;
 		}
 		h3c->flags |= H3_CF_UNI_CTRL_SET;
 		h3s->type = H3S_T_CTRL;
@@ -201,8 +202,9 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 
 	case H3_UNI_S_T_QPACK_DEC:
 		if (h3c->flags & H3_CF_UNI_QPACK_DEC_SET) {
+			TRACE_ERROR("duplicated qpack decoder stream", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 			qcc_emit_cc_app(qcs->qcc, H3_STREAM_CREATION_ERROR, 1);
-			return -1;
+			goto err;
 		}
 		h3c->flags |= H3_CF_UNI_QPACK_DEC_SET;
 		h3s->type = H3S_T_QPACK_DEC;
@@ -211,8 +213,9 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 
 	case H3_UNI_S_T_QPACK_ENC:
 		if (h3c->flags & H3_CF_UNI_QPACK_ENC_SET) {
+			TRACE_ERROR("duplicated qpack encoder stream", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 			qcc_emit_cc_app(qcs->qcc, H3_STREAM_CREATION_ERROR, 1);
-			return -1;
+			goto err;
 		}
 		h3c->flags |= H3_CF_UNI_QPACK_ENC_SET;
 		h3s->type = H3S_T_QPACK_ENC;
@@ -225,14 +228,19 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 		 * Implementations MUST [...] abort reading on unidirectional
 		 * streams that have unknown or unsupported types.
 		 */
+		TRACE_STATE("abort reading on unknown uni stream type", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 		qcc_abort_stream_read(qcs);
-		return -1;
-	};
+		goto err;
+	}
 
 	h3s->flags |= H3_SF_UNI_INIT;
 
 	TRACE_LEAVE(H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 	return len;
+
+ err:
+	TRACE_DEVEL("leaving on error", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
+	return -1;
 }
 
 /* Parse a buffer <b> for a <qcs> uni-stream which does not contains H3 frames.
