@@ -2941,30 +2941,6 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 	return ret;
 }
 
-
-/* Remove the connection ID from with <seq_num> as sequence number.
- * Return 1 if a connection ID was effectively removed, 0 if not.
- */
-static int qc_retire_connection_seq_num(struct quic_conn *qc, uint64_t seq_num)
-{
-	struct eb64_node *node;
-	struct quic_connection_id *cid;
-
-	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
-	node = eb64_lookup(&qc->cids, seq_num);
-	if (!node)
-		return 0;
-
-	cid = eb64_entry(node, struct quic_connection_id, seq_num);
-	ebmb_delete(&cid->node);
-	eb64_delete(&cid->seq_num);
-	pool_free(pool_head_quic_connection_id, cid);
-	TRACE_PROTO("CID retired", QUIC_EV_CONN_PSTRM, qc);
-
-	TRACE_LEAVE(QUIC_EV_CONN_PRSHPKT, qc);
-	return 1;
-}
-
 /* Allocate a new connection ID for <qc> connection and build a NEW_CONNECTION_ID
  * frame to be sent.
  * Return 1 if succeeded, 0 if not.
@@ -2995,32 +2971,60 @@ static int qc_build_new_connection_id_frm(struct quic_conn *qc,
 
 
 /* Handle RETIRE_CONNECTION_ID frame from <frm> frame.
- * Return 1 if succeeded, 0 if not.
+ * Return 1 if succeeded, 0 if not. If succeeded, also set <cid_to_retire>
+ * to the CID to be retired if not already retired.
  */
 static int qc_handle_retire_connection_id_frm(struct quic_conn *qc,
-                                              struct quic_frame *frm)
+                                              struct quic_frame *frm,
+                                              struct quic_cid *dcid,
+                                              struct quic_connection_id **cid_to_retire)
 {
 	int ret = 0;
 	struct quic_retire_connection_id *rcid = &frm->retire_connection_id;
+	struct eb64_node *node;
+	struct quic_connection_id *cid;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
 
+	/* RFC 9000 19.16. RETIRE_CONNECTION_ID Frames:
+	 * Receipt of a RETIRE_CONNECTION_ID frame containing a sequence number greater
+	 * than any previously sent to the peer MUST be treated as a connection error
+	 * of type PROTOCOL_VIOLATION.
+	 */
 	if (rcid->seq_num >= qc->next_cid_seq_num) {
 		TRACE_PROTO("CID seq. number too big", QUIC_EV_CONN_PSTRM, qc, frm);
-		quic_set_connection_close(qc, quic_err_transport(QC_ERR_PROTOCOL_VIOLATION));
-		goto leave;
+		goto protocol_violation;
 	}
 
-	if (rcid->seq_num == qc->curr_cid_seq_num) {
+	/* RFC 9000 19.16. RETIRE_CONNECTION_ID Frames:
+	 * The sequence number specified in a RETIRE_CONNECTION_ID frame MUST NOT refer to
+	 * the Destination Connection ID field of the packet in which the frame is contained.
+	 * The peer MAY treat this as a connection error of type PROTOCOL_VIOLATION.
+	 */
+	node = eb64_lookup(&qc->cids, rcid->seq_num);
+	if (!node) {
+		TRACE_PROTO("CID already retired", QUIC_EV_CONN_PSTRM, qc, frm);
+		goto out;
+	}
+
+	cid = eb64_entry(node, struct quic_connection_id, seq_num);
+	/* Note that the length of <dcid> has already been checked. It must match the
+	 * length of the CIDs which have been provided to the peer.
+	 */
+	if (!memcmp(dcid->data, cid->cid.data, QUIC_HAP_CID_LEN)) {
 		TRACE_PROTO("cannot retire the current CID", QUIC_EV_CONN_PSTRM, qc, frm);
-		quic_set_connection_close(qc, quic_err_transport(QC_ERR_PROTOCOL_VIOLATION));
-		goto leave;
+		goto protocol_violation;
 	}
 
+	*cid_to_retire = cid;
+ out:
 	ret = 1;
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_PRSHPKT, qc);
 	return ret;
+ protocol_violation:
+	quic_set_connection_close(qc, quic_err_transport(QC_ERR_PROTOCOL_VIOLATION));
+	goto leave;
 }
 
 /* Remove a <qc> quic-conn from its ha_thread_ctx list. If <closing> is true,
@@ -3199,13 +3203,18 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		case QUIC_FT_RETIRE_CONNECTION_ID:
 		{
-			struct quic_connection_id *cid;
+			struct quic_connection_id *cid = NULL;
 
-			if (!qc_handle_retire_connection_id_frm(qc, &frm))
+			if (!qc_handle_retire_connection_id_frm(qc, &frm, &pkt->dcid, &cid))
 				goto leave;
 
-			if (!qc_retire_connection_seq_num(qc, frm.retire_connection_id.seq_num))
+			if (!cid)
 				break;
+
+			ebmb_delete(&cid->node);
+			eb64_delete(&cid->seq_num);
+			pool_free(pool_head_quic_connection_id, cid);
+			TRACE_PROTO("CID retired", QUIC_EV_CONN_PSTRM, qc);
 
 			cid = new_quic_cid(&qc->cids, qc);
 			if (!cid) {
@@ -5346,8 +5355,6 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		goto err;
 	}
 
-	/* The sequence number of the current CID is the same as for <icid>. */
-	qc->curr_cid_seq_num = icid->seq_num.key;
 	if ((global.tune.options & GTUNE_QUIC_SOCK_PER_CONN) &&
 	    is_addr(local_addr)) {
 		TRACE_USER("Allocate a socket for QUIC connection", QUIC_EV_CONN_INIT, qc);
