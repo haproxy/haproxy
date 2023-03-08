@@ -3023,6 +3023,39 @@ static int qc_handle_retire_connection_id_frm(struct quic_conn *qc,
 	return ret;
 }
 
+/* Remove a <qc> quic-conn from its ha_thread_ctx list. If <closing> is true,
+ * it will immediately be reinserted in the ha_thread_ctx quic_conns_clo list.
+ */
+static void qc_detach_th_ctx_list(struct quic_conn *qc, int closing)
+{
+	struct bref *bref, *back;
+
+	/* Detach CLI context watchers currently dumping this connection.
+	 * Reattach them to the next quic_conn instance.
+	 */
+	list_for_each_entry_safe(bref, back, &qc->back_refs, users) {
+		/* Remove watcher from this quic_conn instance. */
+		LIST_DEL_INIT(&bref->users);
+
+		/* Attach it to next instance unless it was the last list element. */
+		if (qc->el_th_ctx.n != &th_ctx->quic_conns &&
+		    qc->el_th_ctx.n != &th_ctx->quic_conns_clo) {
+			struct quic_conn *next = LIST_NEXT(&qc->el_th_ctx,
+			                                   struct quic_conn *,
+			                                   el_th_ctx);
+			LIST_APPEND(&next->back_refs, &bref->users);
+		}
+		bref->ref = qc->el_th_ctx.n;
+		__ha_barrier_store();
+	}
+
+	/* Remove quic_conn from global ha_thread_ctx list. */
+	LIST_DEL_INIT(&qc->el_th_ctx);
+
+	if (closing)
+		LIST_APPEND(&th_ctx->quic_conns_clo, &qc->el_th_ctx);
+}
+
 /* Parse all the frames of <pkt> QUIC packet for QUIC connection <qc> and <qel>
  * as encryption level.
  * Returns 1 if succeeded, 0 if failed.
@@ -3205,6 +3238,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				 * state.
 				 */
 				qc->flags |= QUIC_FL_CONN_DRAINING|QUIC_FL_CONN_IMMEDIATE_CLOSE;
+				qc_detach_th_ctx_list(qc, 1);
 				qc_idle_timer_do_rearm(qc);
 				qc_notify_close(qc);
 			}
@@ -3730,6 +3764,7 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 			if (!(qc->flags & QUIC_FL_CONN_CLOSING) &&
 			    (pkt->flags & QUIC_FL_TX_PACKET_CC)) {
 				qc->flags |= QUIC_FL_CONN_CLOSING;
+				qc_detach_th_ctx_list(qc, 1);
 				qc_notify_close(qc);
 
 				/* RFC 9000 10.2. Immediate Close:
@@ -5438,7 +5473,6 @@ void quic_conn_release(struct quic_conn *qc)
 	struct eb64_node *node;
 	struct quic_tls_ctx *app_tls_ctx;
 	struct quic_rx_packet *pkt, *pktback;
-	struct bref *bref, *back;
 
 	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
 
@@ -5517,25 +5551,7 @@ void quic_conn_release(struct quic_conn *qc)
 		quic_free_arngs(qc, &qc->pktns[i].rx.arngs);
 	}
 
-	/* Detach CLI context watchers currently dumping this connection.
-	 * Reattach them to the next quic_conn instance.
-	 */
-	list_for_each_entry_safe(bref, back, &qc->back_refs, users) {
-		/* Remove watcher from this quic_conn instance. */
-		LIST_DEL_INIT(&bref->users);
-
-		/* Attach it to next instance unless it was the last list element. */
-		if (qc->el_th_ctx.n != &th_ctx->quic_conns) {
-			struct quic_conn *next = LIST_NEXT(&qc->el_th_ctx,
-			                                   struct quic_conn *,
-			                                   el_th_ctx);
-			LIST_APPEND(&next->back_refs, &bref->users);
-		}
-		bref->ref = qc->el_th_ctx.n;
-		__ha_barrier_store();
-	}
-	/* Remove quic_conn from global ha_thread_ctx list. */
-	LIST_DELETE(&qc->el_th_ctx);
+	qc_detach_th_ctx_list(qc, 0);
 
 	pool_free(pool_head_quic_conn_rxbuf, qc->rx.buf.area);
 	pool_free(pool_head_quic_conn, qc);
@@ -8324,8 +8340,10 @@ static void init_quic()
 {
 	int thr;
 
-	for (thr = 0; thr < MAX_THREADS; ++thr)
+	for (thr = 0; thr < MAX_THREADS; ++thr) {
 		LIST_INIT(&ha_thread_ctx[thr].quic_conns);
+		LIST_INIT(&ha_thread_ctx[thr].quic_conns_clo);
+	}
 }
 INITCALL0(STG_INIT, init_quic);
 
