@@ -725,5 +725,19 @@ void qc_kill_conn(struct quic_conn *qc);
 int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *qc,
                      struct listener *li);
 
+/* Wake up every QUIC connections on closing/draining state if process stopping
+ * is active. They will be immediately released so this ensures haproxy process
+ * stopping is not delayed by them.
+ */
+static inline void quic_handle_stopping(void)
+{
+	struct quic_conn *qc;
+
+	if (stopping) {
+		list_for_each_entry(qc, &th_ctx->quic_conns_clo, el_th_ctx)
+			task_wakeup(qc->idle_timer_task, TASK_WOKEN_OTHER);
+	}
+}
+
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_QUIC_CONN_H */
