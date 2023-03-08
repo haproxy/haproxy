@@ -1858,7 +1858,6 @@ static inline int qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
                                                 struct list *pktns_frm_list)
 {
 	struct quic_frame *frm, *frmbak;
-	struct list tmp = LIST_HEAD_INIT(tmp);
 	struct list *pkt_frm_list = &pkt->frms;
 	uint64_t pn = pkt->pn_node.key;
 	int close = 0;
@@ -1932,12 +1931,10 @@ static inline int qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 				close = 1;
 			}
 
-			LIST_APPEND(&tmp, &frm->list);
+			LIST_APPEND(pktns_frm_list, &frm->list);
 			TRACE_DEVEL("frame requeued", QUIC_EV_CONN_PRSAFRM, qc, frm);
 		}
 	}
-
-	LIST_SPLICE(pktns_frm_list, &tmp);
 
  end:
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
