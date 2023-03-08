@@ -8183,9 +8183,25 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 		int i;
 
 		if (ctx->bref.ref == &ha_thread_ctx[ctx->thr].quic_conns) {
+			/* If closing connections requested through "all", move
+			 * to quic_conns_clo list after browsing quic_conns.
+			 * Else move directly to the next quic_conns thread.
+			 */
+			if (ctx->flags & QC_CLI_FL_SHOW_ALL) {
+				ctx->bref.ref = ha_thread_ctx[ctx->thr].quic_conns_clo.n;
+				continue;
+			}
+
+			done = 1;
+		}
+		else if (ctx->bref.ref == &ha_thread_ctx[ctx->thr].quic_conns_clo) {
+			/* Closing list entirely browsed, go to next quic_conns
+			 * thread.
+			 */
 			done = 1;
 		}
 		else {
+			/* Retrieve next element of the current list. */
 			qc = LIST_ELEM(ctx->bref.ref, struct quic_conn *, el_th_ctx);
 			if ((int)(qc->qc_epoch - ctx->epoch) > 0)
 				done = 1;
@@ -8195,13 +8211,8 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 			++ctx->thr;
 			if (ctx->thr >= global.nbthread)
 				break;
+			/* Switch to next thread quic_conns list. */
 			ctx->bref.ref = ha_thread_ctx[ctx->thr].quic_conns.n;
-			continue;
-		}
-
-		if (!(ctx->flags & QC_CLI_FL_SHOW_ALL) &&
-		    qc->flags & (QUIC_FL_CONN_CLOSING|QUIC_FL_CONN_DRAINING)) {
-			ctx->bref.ref = qc->el_th_ctx.n;
 			continue;
 		}
 
