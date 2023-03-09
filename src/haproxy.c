@@ -2783,6 +2783,13 @@ void deinit(void)
 	/* we don't need to free sink_proxies_list proxies since it is
 	 * already handled in sink_deinit()
 	 */
+	p = cfg_log_forward;
+	/* we need to manually clean cfg_log_forward proxy list */
+	while (p) {
+		p0 = p;
+		p = p->next;
+		free_proxy(p0);
+	}
 
 	/* destroy all referenced defaults proxies  */
 	proxy_destroy_all_unref_defaults();
