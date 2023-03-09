@@ -624,6 +624,18 @@ static int debug_parse_cli_exec(char **args, char *payload, struct appctx *appct
 	thread_release();
 	return cli_err(appctx, "Failed to execute command.\n");
 }
+
+/* handles SIGRTMAX to inject random delays on the receiving thread in order
+ * to try to increase the likelihood to reproduce inter-thread races. The
+ * signal is periodically sent by a task initiated by "debug dev delay-inj".
+ */
+void debug_delay_inj_sighandler(int sig, siginfo_t *si, void *arg)
+{
+	volatile int i = statistical_prng_range(10000);
+
+	while (i--)
+		__ha_cpu_relax();
+}
 #endif
 
 /* parse a "debug dev hex" command. It always returns 1. */
@@ -871,6 +883,65 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 		return cli_dynmsg(appctx, LOG_INFO, msg);
 	return 1;
 }
+
+#if defined(DEBUG_DEV)
+static struct task *debug_delay_inj_task(struct task *t, void *ctx, unsigned int state)
+{
+	unsigned long *tctx = ctx; // [0] = interval, [1] = nbwakeups
+	unsigned long inter = tctx[0];
+	unsigned long count = tctx[1];
+	unsigned long rnd;
+
+	if (inter)
+		t->expire = tick_add(now_ms, inter);
+	else
+		task_wakeup(t, TASK_WOKEN_MSG);
+
+	/* wake a random thread */
+	while (count--) {
+		rnd = statistical_prng_range(global.nbthread);
+		ha_tkill(rnd, SIGRTMAX);
+	}
+	return t;
+}
+
+/* parse a "debug dev delay-inj" command
+ * debug dev delay-inj <inter> <count>
+ */
+static int debug_parse_delay_inj(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	unsigned long *tctx; // [0] = inter, [2] = count
+	struct task *task;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[4])
+		return cli_err(appctx,  "Usage: debug dev delay-inj <inter_ms> <count>*\n");
+
+	_HA_ATOMIC_INC(&debug_commands_issued);
+
+	tctx = calloc(sizeof(*tctx), 2);
+	if (!tctx)
+		goto fail;
+
+	tctx[0] = atoi(args[3]);
+	tctx[1] = atoi(args[4]);
+
+	task = task_new_here/*anywhere*/();
+	if (!task)
+		goto fail;
+
+	task->process = debug_delay_inj_task;
+	task->context = tctx;
+	task_wakeup(task, TASK_WOKEN_INIT);
+	return 1;
+
+ fail:
+	free(tctx);
+	return cli_err(appctx, "Not enough memory");
+}
+#endif // DEBUG_DEV
 
 static struct task *debug_task_handler(struct task *t, void *ctx, unsigned int state)
 {
@@ -1623,6 +1694,9 @@ static int init_debug_per_thread()
 	/* unblock the DEBUGSIG signal we intend to use */
 	sigemptyset(&set);
 	sigaddset(&set, DEBUGSIG);
+#if defined(DEBUG_DEV)
+	sigaddset(&set, SIGRTMAX);
+#endif
 	ha_sigmask(SIG_UNBLOCK, &set, NULL);
 	return 1;
 }
@@ -1642,6 +1716,14 @@ static int init_debug()
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = SA_SIGINFO;
 	sigaction(DEBUGSIG, &sa, NULL);
+
+#if defined(DEBUG_DEV)
+	sa.sa_handler = NULL;
+	sa.sa_sigaction = debug_delay_inj_sighandler;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_SIGINFO;
+	sigaction(SIGRTMAX, &sa, NULL);
+#endif
 	return ERR_NONE;
 }
 
@@ -1658,6 +1740,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "deadlock", NULL }, "debug dev deadlock [nbtask]             : deadlock between this number of tasks",   debug_parse_cli_deadlock, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "delay", NULL },    "debug dev delay  [ms]                   : sleep this long",                         debug_parse_cli_delay, NULL, NULL, NULL, ACCESS_EXPERT },
 #if defined(DEBUG_DEV)
+	{{ "debug", "dev", "delay-inj", NULL },"debug dev delay-inj <inter> <count>     : inject random delays into threads",       debug_parse_delay_inj, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "exec",  NULL },    "debug dev exec   [cmd] ...              : show this command's output",              debug_parse_cli_exec,  NULL, NULL, NULL, ACCESS_EXPERT },
 #endif
 	{{ "debug", "dev", "fd", NULL },       "debug dev fd                            : scan for rogue/unhandled FDs",            debug_parse_cli_fd,    debug_iohandler_fd, NULL, NULL, ACCESS_EXPERT },
