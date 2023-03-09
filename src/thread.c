@@ -357,7 +357,9 @@ void ha_rwlock_init(HA_RWLOCK_T *l)
 	HA_RWLOCK_INIT(l);
 }
 
-/* returns the number of CPUs the current process is enabled to run on */
+/* returns the number of CPUs the current process is enabled to run on,
+ * regardless of any MAX_THREADS limitation.
+ */
 static int thread_cpus_enabled()
 {
 	int ret = 1;
@@ -378,7 +380,6 @@ static int thread_cpus_enabled()
 #endif
 #endif
 	ret = MAX(ret, 1);
-	ret = MIN(ret, MAX_THREADS);
 	return ret;
 }
 
@@ -1076,6 +1077,7 @@ static void __thread_init(void)
 	preload_libgcc_s();
 
 	thread_cpus_enabled_at_boot = thread_cpus_enabled();
+	thread_cpus_enabled_at_boot = MIN(thread_cpus_enabled_at_boot, MAX_THREADS);
 
 	memprintf(&ptr, "Built with multi-threading support (MAX_TGROUPS=%d, MAX_THREADS=%d, default=%d).",
 		  MAX_TGROUPS, MAX_THREADS, thread_cpus_enabled_at_boot);
