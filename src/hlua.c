@@ -8686,18 +8686,37 @@ __LJMP static int hlua_register_init(lua_State *L)
  *
  * Lua prototype:
  *
- *   <none> core.register_task(<function>)
+ *   <none> core.register_task(<function>[, <arg1>[, <arg2>[, ...[, <arg4>]]]])
+ *
+ * <arg1..4> are optional arguments that will be provided to <function>
  */
 static int hlua_register_task(lua_State *L)
 {
 	struct hlua *hlua = NULL;
 	struct task *task = NULL;
 	int ref;
+	int nb_arg;
+	int it;
+	int arg_ref[4]; /* optional arguments */
 	int state_id;
 
-	MAY_LJMP(check_args(L, 1, "register_task"));
+	nb_arg = lua_gettop(L);
+	if (nb_arg < 1)
+		WILL_LJMP(luaL_error(L, "register_task: <func> argument is required"));
+	else if (nb_arg > 5)
+		WILL_LJMP(luaL_error(L, "register_task: no more that 4 optional arguments may be provided"));
 
+	/* first arg: function ref */
 	ref = MAY_LJMP(hlua_checkfunction(L, 1));
+
+	/* extract optional args (if any) */
+	it = 0;
+	while (--nb_arg) {
+		lua_pushvalue(L, 2 + it);
+		arg_ref[it] = hlua_ref(L); /* get arg reference */
+		it += 1;
+	}
+	nb_arg = it;
 
 	/* Get the reference state. If the reference is NULL, L is the master
 	 * state, otherwise hlua->T is.
@@ -8731,12 +8750,26 @@ static int hlua_register_task(lua_State *L)
 	if (!hlua_ctx_init(hlua, state_id, task))
 		goto alloc_error;
 
+	/* Ensure there is enough space on the stack for the function
+	 * plus optional arguments
+	 */
+	if (!lua_checkstack(hlua->T, (1 + nb_arg)))
+		goto alloc_error;
+
 	/* Restore the function in the stack. */
 	hlua_pushref(hlua->T, ref);
 	/* function ref not needed anymore since it was pushed to the substack */
 	hlua_unref(L, ref);
 
-	hlua->nargs = 0;
+	hlua->nargs = nb_arg;
+
+	/* push optional arguments to the function */
+	for (it = 0; it < nb_arg; it++) {
+		/* push arg to the stack */
+		hlua_pushref(hlua->T, arg_ref[it]);
+		/* arg ref not needed anymore since it was pushed to the substack */
+		hlua_unref(L, arg_ref[it]);
+	}
 
 	/* Schedule task. */
 	task_wakeup(task, TASK_WOKEN_INIT);
@@ -8746,6 +8779,9 @@ static int hlua_register_task(lua_State *L)
   alloc_error:
 	task_destroy(task);
 	hlua_unref(L, ref);
+	for (it = 0; it < nb_arg; it++) {
+		hlua_unref(L, arg_ref[it]);
+	}
 	hlua_ctx_destroy(hlua);
 	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 	return 0; /* Never reached */

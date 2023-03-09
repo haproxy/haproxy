@@ -720,7 +720,7 @@ Core class
 
   It takes no input, and no output is expected.
 
-.. js:function:: core.register_task(func)
+.. js:function:: core.register_task(func[, arg1[, arg2[, ...[, arg4]]]])
 
   **context**: body, init, task, action, sample-fetch, converter
 
@@ -728,16 +728,19 @@ Core class
   main scheduler starts. For example this type of tasks can be executed to
   perform complex health checks.
 
-  :param function func: is the Lua function called to work as initializer.
+  :param function func: is the Lua function called to work as an async task.
+
+  Up to 4 optional arguments (all types supported) may be passed to the function.
+  (They will be passed as-is to the task function)
 
   The prototype of the Lua function used as argument is:
 
 .. code-block:: lua
 
-    function()
+    function([arg1[, arg2[, ...[, arg4]]]])
 ..
 
-  It takes no input, and no output is expected.
+  It takes up to 4 optional arguments (provided when registering), and no output is expected.
 
 .. js:function:: core.register_cli([path], usage, func)
 
