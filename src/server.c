@@ -2452,10 +2452,8 @@ struct server *srv_drop(struct server *srv)
 	free(srv->addr_node.key);
 	free(srv->lb_nodes);
 
-	if (srv->use_ssl == 1 || srv->check.use_ssl == 1 || (srv->proxy->options & PR_O_TCPCHK_SSL)) {
-		if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->destroy_srv)
-			xprt_get(XPRT_SSL)->destroy_srv(srv);
-	}
+	if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->destroy_srv)
+		xprt_get(XPRT_SSL)->destroy_srv(srv);
 	HA_SPIN_DESTROY(&srv->lock);
 
 	LIST_DELETE(&srv->global_list);
