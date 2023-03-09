@@ -538,6 +538,7 @@ struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi)
 	qcs = qcs_new(qcc, *next, type);
 	if (!qcs) {
 		TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn);
+		qcc_emit_cc(qcc, QC_ERR_INTERNAL_ERROR);
 		return NULL;
 	}
 
@@ -597,8 +598,8 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 
 		qcs = qcs_new(qcc, *largest, type);
 		if (!qcs) {
-			/* TODO emit RESET_STREAM */
 			TRACE_ERROR("stream fallocation failure", QMUX_EV_QCS_NEW, qcc->conn);
+			qcc_emit_cc(qcc, QC_ERR_INTERNAL_ERROR);
 			goto err;
 		}
 
