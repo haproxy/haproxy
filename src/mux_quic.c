@@ -751,7 +751,10 @@ static void qcs_consume(struct qcs *qcs, uint64_t bytes)
 	if (qcs->rx.msd - qcs->rx.offset < qcs->rx.msd_init / 2) {
 		TRACE_DATA("increase stream credit via MAX_STREAM_DATA", QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		frm = qc_frm_alloc(QUIC_FT_MAX_STREAM_DATA);
-		BUG_ON(!frm); /* TODO handle this properly */
+		if (!frm) {
+			qcc_emit_cc(qcc, QC_ERR_INTERNAL_ERROR);
+			return;
+		}
 
 		qcs->rx.msd = qcs->rx.offset + qcs->rx.msd_init;
 
@@ -767,7 +770,10 @@ static void qcs_consume(struct qcs *qcs, uint64_t bytes)
 	if (qcc->lfctl.md - qcc->lfctl.offsets_consume < qcc->lfctl.md_init / 2) {
 		TRACE_DATA("increase conn credit via MAX_DATA", QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		frm = qc_frm_alloc(QUIC_FT_MAX_DATA);
-		BUG_ON(!frm); /* TODO handle this properly */
+		if (!frm) {
+			qcc_emit_cc(qcc, QC_ERR_INTERNAL_ERROR);
+			return;
+		}
 
 		qcc->lfctl.md = qcc->lfctl.offsets_consume + qcc->lfctl.md_init;
 
@@ -1359,7 +1365,10 @@ static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 		if (qcc->lfctl.cl_bidi_r > qcc->lfctl.ms_bidi_init / 2) {
 			TRACE_DATA("increase max stream limit with MAX_STREAMS_BIDI", QMUX_EV_QCC_SEND, qcc->conn);
 			frm = qc_frm_alloc(QUIC_FT_MAX_STREAMS_BIDI);
-			BUG_ON(!frm); /* TODO handle this properly */
+			if (!frm) {
+				qcc_emit_cc(qcc, QC_ERR_INTERNAL_ERROR);
+				goto err;
+			}
 
 			frm->max_streams_bidi.max_streams = qcc->lfctl.ms_bidi +
 			                                    qcc->lfctl.cl_bidi_r;
@@ -1381,6 +1390,10 @@ static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 	TRACE_LEAVE(QMUX_EV_QCS_END, qcc->conn);
 
 	return 0;
+
+ err:
+	TRACE_DEVEL("leaving on error", QMUX_EV_QCS_END, qcc->conn);
+	return 1;
 }
 
 /* detaches the QUIC stream from its QCC and releases it to the QCS pool. */
