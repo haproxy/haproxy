@@ -1155,7 +1155,7 @@ int thread_map_to_groups()
 		q = ut / ug;
 		r = ut % ug;
 		if ((q + !!r) > MAX_THREADS_PER_GROUP) {
-			ha_alert("Too many remaining unassigned threads (%d) for thread groups (%d). Please increase thread-groups or make sure to keep thread numbers contiguous\n", ug, ut);
+			ha_alert("Too many remaining unassigned threads (%d) for thread groups (%d). Please increase thread-groups or make sure to keep thread numbers contiguous\n", ut, ug);
 			return -1;
 		}
 
