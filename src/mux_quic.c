@@ -1141,6 +1141,11 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
+	if (qcc->flags & QC_CF_CC_EMIT) {
+		TRACE_DATA("connection closed", QMUX_EV_QCC_RECV, qcc->conn);
+		goto err;
+	}
+
 	/* RFC 9000 19.10. MAX_STREAM_DATA Frames
 	 *
 	 * Receiving a MAX_STREAM_DATA frame for a locally
@@ -1149,10 +1154,8 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 	 * receives a MAX_STREAM_DATA frame for a receive-only stream MUST
 	 * terminate the connection with error STREAM_STATE_ERROR.
 	 */
-	if (qcc_get_qcs(qcc, id, 0, 1, &qcs)) {
-		TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
-		return 1;
-	}
+	if (qcc_get_qcs(qcc, id, 0, 1, &qcs))
+		goto err;
 
 	if (qcs) {
 		TRACE_PROTO("receiving MAX_STREAM_DATA", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
@@ -1173,6 +1176,10 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 	return 0;
+
+ err:
+	TRACE_DEVEL("leaving on error", QMUX_EV_QCC_RECV, qcc->conn);
+	return 1;
 }
 
 /* Handle a new RESET_STREAM frame from stream ID <id> with error code <err>
@@ -1186,6 +1193,11 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 	struct qcs *qcs;
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
+
+	if (qcc->flags & QC_CF_CC_EMIT) {
+		TRACE_DATA("connection closed", QMUX_EV_QCC_RECV, qcc->conn);
+		goto err;
+	}
 
 	/* RFC 9000 19.4. RESET_STREAM Frames
 	 *
@@ -1248,6 +1260,11 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
+	if (qcc->flags & QC_CF_CC_EMIT) {
+		TRACE_DATA("connection closed", QMUX_EV_QCC_RECV, qcc->conn);
+		goto err;
+	}
+
 	/* RFC 9000 19.5. STOP_SENDING Frames
 	 *
 	 * Receiving a STOP_SENDING frame for a
@@ -1256,10 +1273,8 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 	 * endpoint that receives a STOP_SENDING frame for a receive-only stream
 	 * MUST terminate the connection with error STREAM_STATE_ERROR.
 	 */
-	if (qcc_get_qcs(qcc, id, 0, 1, &qcs)) {
-		TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
-		return 1;
-	}
+	if (qcc_get_qcs(qcc, id, 0, 1, &qcs))
+		goto err;
 
 	if (!qcs)
 		goto out;
@@ -1317,6 +1332,10 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
  out:
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 	return 0;
+
+ err:
+	TRACE_DEVEL("leaving on error", QMUX_EV_QCC_RECV, qcc->conn);
+	return 1;
 }
 
 /* Signal the closing of remote stream with id <id>. Flow-control for new
@@ -1360,7 +1379,8 @@ static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 /* detaches the QUIC stream from its QCC and releases it to the QCS pool. */
 static void qcs_destroy(struct qcs *qcs)
 {
-	struct connection *conn = qcs->qcc->conn;
+	struct qcc *qcc = qcs->qcc;
+	struct connection *conn = qcc->conn;
 	const uint64_t id = qcs->id;
 
 	TRACE_ENTER(QMUX_EV_QCS_END, conn, qcs);
@@ -1370,8 +1390,10 @@ static void qcs_destroy(struct qcs *qcs)
 	 */
 	BUG_ON(qcs->tx.offset < qcs->tx.sent_offset);
 
-	if (quic_stream_is_remote(qcs->qcc, id))
-		qcc_release_remote_stream(qcs->qcc, id);
+	if (!(qcc->flags & QC_CF_CC_EMIT)) {
+		if (quic_stream_is_remote(qcc, id))
+			qcc_release_remote_stream(qcc, id);
+	}
 
 	qcs_free(qcs);
 
