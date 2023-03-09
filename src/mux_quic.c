@@ -31,6 +31,9 @@ static void qcc_emit_cc(struct qcc *qcc, int err)
 {
 	TRACE_ENTER(QMUX_EV_QCC_END, qcc->conn);
 
+	/* This function must not be called multiple times. */
+	BUG_ON(qcc->flags & QC_CF_CC_EMIT);
+
 	TRACE_STATE("set CONNECTION_CLOSE on quic-conn", QMUX_EV_QCC_WAKE, qcc->conn);
 	quic_set_connection_close(qcc->conn->handle.qc, quic_err_transport(err));
 	qcc->flags |= QC_CF_CC_EMIT;
@@ -831,6 +834,9 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 void qcc_emit_cc_app(struct qcc *qcc, int err, int immediate)
 {
 	TRACE_ENTER(QMUX_EV_QCC_END, qcc->conn);
+
+	/* This function must not be called multiple times after immediate is set. */
+	BUG_ON(qcc->flags & QC_CF_CC_EMIT);
 
 	if (immediate) {
 		quic_set_connection_close(qcc->conn->handle.qc, quic_err_app(err));
