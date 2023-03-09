@@ -289,6 +289,16 @@
 #define DEFAULT_MAXCONN 100
 #endif
 
+/* Define a maxconn which will be used in the master process once it re-exec to
+ * the MODE_MWORKER_WAIT and won't change when SYSTEM_MAXCONN is set.
+ *
+ * 100 must be enough for the master since it only does communication between
+ * the master and the workers, and the master CLI.
+ */
+#ifndef MASTER_MAXCONN
+#define MASTER_MAXCONN 100
+#endif
+
 /* Minimum check interval for spread health checks. Servers with intervals
  * greater than or equal to this value will have their checks spread apart
  * and will be considered when searching the minimal interval.
