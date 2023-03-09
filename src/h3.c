@@ -181,7 +181,9 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 
 	ret = b_quic_dec_int(&type, b, &len);
 	if (!ret) {
-		ABORT_NOW();
+		/* not enough data to decode uni stream type, retry later */
+		TRACE_DATA("cannot decode uni stream type due to incomplete data", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
+		goto out;
 	}
 
 	switch (type) {
@@ -235,6 +237,7 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 
 	h3s->flags |= H3_SF_UNI_INIT;
 
+ out:
 	TRACE_LEAVE(H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 	return len;
 
@@ -994,9 +997,14 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 	TRACE_ENTER(H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 
 	if (quic_stream_is_uni(qcs->id) && !(h3s->flags & H3_SF_UNI_INIT)) {
-		if ((ret = h3_init_uni_stream(h3c, qcs, b)) < 0) {
+		ret = h3_init_uni_stream(h3c, qcs, b);
+		if (ret < 0) {
 			TRACE_ERROR("cannot initialize uni stream", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 			goto err;
+		}
+		else if (!ret) {
+			/* not enough data to initialize uni stream, retry later */
+			goto done;
 		}
 
 		total += ret;
