@@ -1786,8 +1786,11 @@ int init_srv_agent_check(struct server *srv)
 
 static void deinit_srv_check(struct server *srv)
 {
-	if (srv->check.state & CHK_ST_CONFIGURED)
+	if (srv->check.state & CHK_ST_CONFIGURED) {
 		free_check(&srv->check);
+		/* it is safe to drop now since the main server reference is still held by the proxy */
+		srv_drop(srv);
+	}
 	srv->check.state &= ~CHK_ST_CONFIGURED & ~CHK_ST_ENABLED;
 	srv->do_check = 0;
 }
@@ -1795,8 +1798,11 @@ static void deinit_srv_check(struct server *srv)
 
 static void deinit_srv_agent_check(struct server *srv)
 {
-	if (srv->agent.state & CHK_ST_CONFIGURED)
+	if (srv->agent.state & CHK_ST_CONFIGURED) {
 		free_check(&srv->agent);
+		/* it is safe to drop now since the main server reference is still held by the proxy */
+		srv_drop(srv);
+	}
 
 	srv->agent.state &= ~CHK_ST_CONFIGURED & ~CHK_ST_ENABLED & ~CHK_ST_AGENT;
 	srv->do_agent = 0;
