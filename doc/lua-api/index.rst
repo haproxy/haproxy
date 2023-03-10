@@ -924,6 +924,7 @@ Core class
   :param array event_types: array of string containing the event types you want to subscribe to
   :param function func: is the Lua function called when one of the subscribed events occur.
   :returns: A :ref:`event_sub_class` object.
+  :see: :js:func:`Server.event_sub()`.
 
   List of available event types :
 
@@ -1297,6 +1298,69 @@ Server class
 
   :param class_server sv: A :ref:`server_class` which indicates the manipulated
     server.
+
+.. js:function:: Server.event_sub(sv, event_types, func)
+
+  Register a function that will be called on specific server events.
+  It works exactly like :js:func:`core.event_sub()` except that the subscription
+  will be performed within the server dedicated subscription list instead of the
+  global one.
+  (Your callback function will only be called for server events affecting sv)
+
+  See :js:func:`core.event_sub()` for function usage.
+
+  A key advantage to using :js:func:`Server.event_sub()` over
+  :js:func:`core.event_sub()` for servers is that :js:func:`Server.event_sub()`
+  allows you to be notified for servers events of a single server only.
+  It removes the needs for extra filtering in your callback function if you only
+  care about a single server, and also prevents useless wakeups.
+
+  For instance, if you want to be notified for UP/DOWN events on a given set of
+  servers, it is recommended to peform multiple per-server subscriptions since
+  it will be more efficient that doing a single global subscription that will
+  filter the received events.
+  Unless you really want to be notified for servers events of ALL servers of
+  course, which could make sense given you setup but should be avoided if you
+  have an important number of servers as it will add a significant load on your
+  haproxy process in case of multiple servers state change in a short amount of
+  time.
+
+  .. Note::
+     You may also combine :js:func:`core.event_sub()` with
+     :js:func:`Server.event_sub()`.
+
+     Also, don't forget that you can use :js:func:`core.register_task()` from
+     your callback function if needed. (ie: parallel work)
+
+  Here is a working example combining :js:func:`core.event_sub()` with
+  :js:func:`Server.event_sub()` and :js:func:`core.register_task()`
+  (This only serves as a demo, this is not necessarily useful to do so)
+
+.. code-block:: lua
+
+  core.event_sub({"SERVER_ADD"}, function(event, data, sub)
+    -- in the global event handler
+    if data["reference"] ~= nil then
+      print("Tracking new server: ", data["name"])
+      data["reference"]:event_sub({"SERVER_UP", "SERVER_DOWN"}, function(event, data, sub)
+        -- in the per-server event handler
+	if data["reference"] ~= nil then
+          core.register_task(function(server)
+            -- subtask to perform some async work (e.g.: HTTP API calls, sending emails...)
+            print("ASYNC: SERVER ", server:get_name(), " is ", event == "SERVER_UP" and "UP" or "DOWN")
+          end, data["reference"])
+        end
+      end)
+    end
+  end)
+
+..
+
+  In this example, we will first track global server addition events.
+  For each newly added server ("add server" on the cli), we will register a
+  UP/DOWN server subscription.
+  Then, the callback function will schedule the event handling in an async
+  subtask which will receive the server reference as an argument.
 
 .. _listener_class:
 

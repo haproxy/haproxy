@@ -1374,6 +1374,27 @@ int hlua_server_agent_force_down(lua_State *L)
 	return 0;
 }
 
+/* hlua_event_sub wrapper for per-server subscription:
+ *
+ * hlua_event_sub() is called with sv->e_subs subscription list and
+ * lua arguments are passed as-is (skipping the first argument which
+ * is the server ctx)
+ */
+int hlua_server_event_sub(lua_State *L)
+{
+	struct server *sv;
+
+	sv = hlua_check_server(L, 1);
+	if (sv == NULL) {
+		return 0;
+	}
+	/* remove first argument from the stack (server) */
+	lua_remove(L, 1);
+
+	/* try to subscribe within server's subscription list */
+	return hlua_event_sub(L, &sv->e_subs);
+}
+
 int hlua_fcn_new_server(lua_State *L, struct server *srv)
 {
 	lua_newtable(L);
@@ -1413,6 +1434,7 @@ int hlua_fcn_new_server(lua_State *L, struct server *srv)
 	hlua_class_function(L, "agent_disable", hlua_server_agent_disable);
 	hlua_class_function(L, "agent_force_up", hlua_server_agent_force_up);
 	hlua_class_function(L, "agent_force_down", hlua_server_agent_force_down);
+	hlua_class_function(L, "event_sub", hlua_server_event_sub);
 
 	return 1;
 }
