@@ -301,6 +301,35 @@ int event_hdl_lookup_resubscribe(event_hdl_sub_list *sub_list,
 struct event_hdl_sub *event_hdl_lookup_take(event_hdl_sub_list *sub_list,
                                             uint64_t lookup_id);
 
+/* pause an existing subscription <sub>
+ * the subscription will no longer receive events (reversible)
+ * This can be reverted thanks to _resume() function
+ */
+void event_hdl_pause(struct event_hdl_sub *sub);
+
+/* resume an existing subscription <sub>
+ * that was previously paused using _pause() function
+ */
+void event_hdl_resume(struct event_hdl_sub *sub);
+
+/* Same as event_hdl_pause() for identified subscriptions:
+ * use this function to pause the subscription <lookup_ip>
+ * within <sub_list> list.
+ * If <sub_list> is NULL, global subscription list will be used.
+ * Returns 1 for SUCCESS and 0 if not found
+ */
+int event_hdl_lookup_pause(event_hdl_sub_list *sub_list,
+                           uint64_t lookup_id);
+
+/* Same as event_hdl_resume() for identified subscriptions:
+ * use this function to resume the subscription <lookup_ip>
+ * within <sub_list> list.
+ * If <sub_list> is NULL, global subscription list will be used.
+ * Returns 1 for SUCCESS and 0 if not found
+ */
+int event_hdl_lookup_resume(event_hdl_sub_list *sub_list,
+                            uint64_t lookup_id);
+
 /* ------ PUBLISHING FUNCTIONS ------ */
 
 /* this macro is provided as an internal helper for EVENT_HDL_TRIGGER to automatically

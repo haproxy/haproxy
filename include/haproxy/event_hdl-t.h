@@ -206,12 +206,16 @@ struct event_hdl {
 	void				*private;
 };
 
+/* flags for event_hdl_sub struct (32 bits) */
+#define EHDL_SUB_F_PAUSED        0x0001  /* subscription will temporarily ignore events */
+
 /* list elem: subscription (handler subscribed to specific events)
  */
 struct event_hdl_sub {
 	struct mt_list			mt_list;
 	/* event type subscription */
 	struct event_hdl_sub_type	sub;
+	uint32_t                        flags;
 	/* event handler */
 	struct event_hdl		hdl;
 	/* used to guarantee that END event will be delivered

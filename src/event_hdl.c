@@ -444,6 +444,7 @@ struct event_hdl_sub *event_hdl_subscribe_ptr(event_hdl_sub_list *sub_list,
 	/* assignments */
 	new_sub->sub.family = e_type.family;
 	new_sub->sub.subtype = e_type.subtype;
+	new_sub->flags = 0;
 	new_sub->hdl = hdl;
 
 	if (hdl.async) {
@@ -596,6 +597,38 @@ int event_hdl_resubscribe(struct event_hdl_sub *cur_sub, struct event_hdl_sub_ty
 	return _event_hdl_resub_async(cur_sub, type);
 }
 
+void _event_hdl_pause(struct event_hdl_sub *cur_sub)
+{
+	cur_sub->flags |= EHDL_SUB_F_PAUSED;
+}
+
+void event_hdl_pause(struct event_hdl_sub *cur_sub)
+{
+	struct mt_list lock;
+
+	lock = MT_LIST_LOCK_ELT(&cur_sub->mt_list);
+	if (lock.next != &cur_sub->mt_list)
+		_event_hdl_pause(cur_sub);
+	// else already removed
+	MT_LIST_UNLOCK_ELT(&cur_sub->mt_list, lock);
+}
+
+void _event_hdl_resume(struct event_hdl_sub *cur_sub)
+{
+	cur_sub->flags &= ~EHDL_SUB_F_PAUSED;
+}
+
+void event_hdl_resume(struct event_hdl_sub *cur_sub)
+{
+	struct mt_list lock;
+
+	lock = MT_LIST_LOCK_ELT(&cur_sub->mt_list);
+	if (lock.next != &cur_sub->mt_list)
+		_event_hdl_resume(cur_sub);
+	// else already removed
+	MT_LIST_UNLOCK_ELT(&cur_sub->mt_list, lock);
+}
+
 void event_hdl_unsubscribe(struct event_hdl_sub *del_sub)
 {
 	_event_hdl_unsubscribe_async(del_sub);
@@ -660,6 +693,48 @@ int event_hdl_lookup_resubscribe(event_hdl_sub_list *sub_list,
 	return status;
 }
 
+int event_hdl_lookup_pause(event_hdl_sub_list *sub_list,
+                           uint64_t lookup_id)
+{
+	struct event_hdl_sub *cur_sub = NULL;
+	struct mt_list *elt1, elt2;
+	int found = 0;
+
+	if (!sub_list)
+		sub_list = &global_event_hdl_sub_list; /* fall back to global list */
+
+	mt_list_for_each_entry_safe(cur_sub, &sub_list->head, mt_list, elt1, elt2) {
+		if (lookup_id == cur_sub->hdl.id) {
+			/* we found matching registered hdl */
+			_event_hdl_pause(cur_sub);
+			found = 1;
+			break; /* id is unique, stop searching */
+		}
+	}
+	return found;
+}
+
+int event_hdl_lookup_resume(event_hdl_sub_list *sub_list,
+                            uint64_t lookup_id)
+{
+	struct event_hdl_sub *cur_sub = NULL;
+	struct mt_list *elt1, elt2;
+	int found = 0;
+
+	if (!sub_list)
+		sub_list = &global_event_hdl_sub_list; /* fall back to global list */
+
+	mt_list_for_each_entry_safe(cur_sub, &sub_list->head, mt_list, elt1, elt2) {
+		if (lookup_id == cur_sub->hdl.id) {
+			/* we found matching registered hdl */
+			_event_hdl_resume(cur_sub);
+			found = 1;
+			break; /* id is unique, stop searching */
+		}
+	}
+	return found;
+}
+
 struct event_hdl_sub *event_hdl_lookup_take(event_hdl_sub_list *sub_list,
                                             uint64_t lookup_id)
 {
@@ -694,9 +769,10 @@ static int _event_hdl_publish(event_hdl_sub_list *sub_list, struct event_hdl_sub
 	int error = 0;
 
 	mt_list_for_each_entry_safe(cur_sub, &sub_list->head, mt_list, elt1, elt2) {
-		/* notify each function that has subscribed to sub_family.type */
+		/* notify each function that has subscribed to sub_family.type, unless paused */
 		if ((cur_sub->sub.family == e_type.family) &&
-		    ((cur_sub->sub.subtype & e_type.subtype) == e_type.subtype)) {
+		    ((cur_sub->sub.subtype & e_type.subtype) == e_type.subtype) &&
+		    !(cur_sub->flags & EHDL_SUB_F_PAUSED)) {
 			/* hdl should be notified */
 			if (!cur_sub->hdl.async) {
 				/* sync mode: simply call cb pointer
