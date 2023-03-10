@@ -1,6 +1,207 @@
 ChangeLog :
 ===========
 
+2023/03/10 : 2.8-dev5
+    - MINOR: ssl: rename confusing ssl_bind_kws
+    - BUG/MINOR: config: crt-list keywords mistaken for bind ssl keywords
+    - BUG/MEDIUM: http-ana: Detect closed SC on opposite side during body forwarding
+    - BUG/MEDIUM: stconn: Don't rearm the read expiration date if EOI was reached
+    - MINOR: global: Add an option to disable the data fast-forward
+    - MINOR: haproxy: Add an command option to disable data fast-forward
+    - REGTESTS: Remove unsupported feature command in http_splicing.vtc
+    - BUG/MEDIUM: wdt: fix wrong thread being checked for sleeping
+    - BUG/MINOR: sched: properly report long_rq when tasks remain in the queue
+    - BUG/MEDIUM: sched: allow a bit more TASK_HEAVY to be processed when needed
+    - MINOR: threads: add flags to know if a thread is started and/or running
+    - MINOR: h3/hq-interop: handle no data in decode_qcs() with FIN set
+    - BUG/MINOR: mux-quic: transfer FIN on empty STREAM frame
+    - BUG/MINOR: mworker: prevent incorrect values in uptime
+    - MINOR: h3: add traces on decode_qcs callback
+    - BUG/MINOR: quic: Possible unexpected counter incrementation on send*() errors
+    - MINOR: quic: Add new traces about by connection RX buffer handling
+    - MINOR: quic: Move code to wakeup the timer task to avoid anti-amplication deadlock
+    - BUG/MINOR: quic: Really cancel the connection timer from qc_set_timer()
+    - MINOR: quic: Simplication for qc_set_timer()
+    - MINOR: quic: Kill the connections on ICMP (port unreachable) packet receipt
+    - MINOR: quic: Add traces to qc_kill_conn()
+    - MINOR: quic: Make qc_dgrams_retransmit() return a status.
+    - BUG/MINOR: quic: Missing call to task_queue() in qc_idle_timer_do_rearm()
+    - MINOR: quic: Add a trace to identify connections which sent Initial packet.
+    - MINOR: quic: Add <pto_count> to the traces
+    - BUG/MINOR: quic: Do not probe with too little Initial packets
+    - BUG/MINOR: quic: Wrong initialization for io_cb_wakeup boolean
+    - BUG/MINOR: quic: Do not drop too small datagrams with Initial packets
+    - BUG/MINOR: quic: Missing padding for short packets
+    - MINOR: quic: adjust request reject when MUX is already freed
+    - BUG/MINOR: quic: also send RESET_STREAM if MUX released
+    - BUG/MINOR: quic: acknowledge STREAM frame even if MUX is released
+    - BUG/MINOR: h3: prevent hypothetical demux failure on int overflow
+    - MEDIUM: h3: enforce GOAWAY by resetting higher unhandled stream
+    - MINOR: mux-quic: define qc_shutdown()
+    - MINOR: mux-quic: define qc_process()
+    - MINOR: mux-quic: implement client-fin timeout
+    - MEDIUM: mux-quic: properly implement soft-stop
+    - MINOR: quic: mark quic-conn as jobs on socket allocation
+    - MEDIUM: quic: trigger fast connection closing on process stopping
+    - MINOR: mux-h2/traces: do not log h2s pointer for dummy streams
+    - MINOR: mux-h2/traces: add a missing TRACE_LEAVE() in h2s_frt_handle_headers()
+    - BUG/MEDIUM: quic: Missing TX buffer draining from qc_send_ppkts()
+    - DEBUG: stream: Add a BUG_ON to never exit process_stream with an expired task
+    - DOC: config: Fix description of options about HTTP connection modes
+    - MINOR: proxy: Only consider backend httpclose option for server connections
+    - BUG/MINOR: haproxy: Fix option to disable the fast-forward
+    - DOC: config: Add the missing tune.fail-alloc option from global listing
+    - MINOR: cfgcond: Implement strstr condition expression
+    - MINOR: cfgcond: Implement enabled condition expression
+    - REGTESTS: Skip http_splicing.vtc script if fast-forward is disabled
+    - REGTESTS: Fix ssl_errors.vtc script to wait for connections close
+    - BUG/MINOR: mworker: stop doing strtok directly from the env
+    - BUG/MEDIUM: mworker: prevent inconsistent reload when upgrading from old versions
+    - BUG/MEDIUM: mworker: don't register mworker_accept_wrapper() when master FD is wrong
+    - MINOR: startup: HAPROXY_STARTUP_VERSION contains the version used to start
+    - BUG/MINOR: cache: Cache response even if request has "no-cache" directive
+    - BUG/MINOR: cache: Check cache entry is complete in case of Vary
+    - MINOR: compiler: add a TOSTR() macro to turn a value into a string
+    - BUG/MINOR: lua/httpclient: missing free in hlua_httpclient_send()
+    - BUG/MEDIUM: httpclient/lua: fix a race between lua GC and hlua_ctx_destroy
+    - MEDIUM: channel: Remove CF_READ_NOEXP flag
+    - MAJOR: channel: Remove flags to report READ or WRITE errors
+    - DEBUG: stream/trace: Add sedesc flags in trace messages
+    - MINOR: channel/stconn: Move rto/wto from the channel to the stconn
+    - MEDIUM: channel/stconn: Move rex/wex timer from the channel to the sedesc
+    - MEDIUM: stconn: Don't requeue the stream's task after I/O
+    - MEDIUM: stconn: Replace read and write timeouts by a unique I/O timeout
+    - MEDIUM: stconn: Add two date to track successful reads and blocked sends
+    - MINOR: applet/stconn: Add a SE flag to specify an endpoint does not expect data
+    - MAJOR: stream: Use SE descriptor date to detect read/write timeouts
+    - MINOR: stream: Dump the task expiration date in trace messages
+    - MINOR: stream: Report rex/wex value using the sedesc date in trace messages
+    - MINOR: stream: Use relative expiration date in trace messages
+    - MINOR: stconn: Always report READ/WRITE event on shutr/shutw
+    - CLEANUP: stconn: Remove old read and write expiration dates
+    - MINOR: stconn: Set half-close timeout using proxy settings
+    - MINOR: stconn: Remove half-closed timeout
+    - REGTESTS: cache: Use rxresphdrs to only get headers for 304 responses
+    - MINOR: stconn: Add functions to set/clear SE_FL_EXP_NO_DATA flag from endpoint
+    - BUG/MINOR: proto_ux: report correct error when bind_listener fails
+    - BUG/MINOR: protocol: fix minor memory leak in protocol_bind_all()
+    - MINOR: proto_uxst: add resume method
+    - MINOR: listener/api: add lli hint to listener functions
+    - MINOR: listener: add relax_listener() function
+    - MINOR: listener: workaround for closing a tiny race between resume_listener() and stopping
+    - MINOR: listener: make sure we don't pause/resume bypassed listeners
+    - BUG/MEDIUM: listener: fix pause_listener() suspend return value handling
+    - BUG/MINOR: listener: fix resume_listener() resume return value handling
+    - BUG/MEDIUM: resume from LI_ASSIGNED in default_resume_listener()
+    - MINOR: listener: pause_listener() becomes suspend_listener()
+    - BUG/MEDIUM: listener/proxy: fix listeners notify for proxy resume
+    - BUG/MINOR: sock_unix: match finalname with tempname in sock_unix_addrcmp()
+    - MEDIUM: proto_ux: properly suspend named UNIX listeners
+    - MINOR: proto_ux: ability to dump ABNS names in error messages
+    - MINOR: haproxy: always protocol unbind on startup error path
+    - BUILD: quic: 32-bits compilation issue with %zu in quic_rx_pkts_del()
+    - BUG/MINOR: ring: do not realign ring contents on resize
+    - MEDIUM: ring: make the offset relative to the head/tail instead of absolute
+    - CLEANUP: ring: remove the now unused ring's offset
+    - MINOR: config: add HAPROXY_BRANCH environment variable
+    - BUILD: thead: Fix several 32 bits compilation issues with uint64_t variables
+    - BUG/MEDIUM: fd: avoid infinite loops in fd_add_to_fd_list and fd_rm_from_fd_list
+    - BUG/MEDIUM: h1-htx: Never copy more than the max data allowed during parsing
+    - BUG/MINOR: stream: Remove BUG_ON about the task expiration in process_stream()
+    - MINOR: stream: Handle stream's timeouts in a dedicated function
+    - MEDIUM: stream: Eventually handle stream timeouts when exiting process_stream()
+    - MINOR: stconn: Report a send activity when endpoint is willing to consume data
+    - BUG/MEDIUM: stconn: Report a blocked send if some output data are not consumed
+    - MEDIUM: mux-h1: Don't expect data from server as long as request is unfinished
+    - MEDIUM: mux-h2: Don't expect data from server as long as request is unfinished
+    - MEDIUM: mux-quic: Don't expect data from server as long as request is unfinished
+    - DOC: config: Clarify the meaning of 'hold' in the 'resolvers' section
+    - DOC: config: Replace TABs by spaces
+    - BUG/MINOR: fd: used the update list from the fd's group instead of tgid
+    - BUG/MEDIUM: fd: make fd_delete() support being called from a different group
+    - CLEANUP: listener: only store conn counts for local threads
+    - MINOR: tinfo: make thread_set functions return nth group/mask instead of first
+    - MEDIUM: quic: improve fatal error handling on send
+    - MINOR: quic: consider EBADF as critical on send()
+    - BUG/MEDIUM: connection: Clear flags when a conn is removed from an idle list
+    - BUG/MINOR: mux-h1: Don't report an error on an early response close
+    - BUG/MINOR: http-check: Don't set HTX_SL_F_BODYLESS flag with a log-format body
+    - BUG/MINOR: http-check: Skip C-L header for empty body when it's not mandatory
+    - BUG/MINOR: http-fetch: recognize IPv6 addresses in square brackets in req.hdr_ip()
+    - REGTEST: added tests covering smp_fetch_hdr_ip()
+    - MINOR: quic: simplify return path in send functions
+    - MINOR: quic: implement qc_notify_send()
+    - MINOR: quic: purge txbuf before preparing new packets
+    - MEDIUM: quic: implement poller subscribe on sendto error
+    - MINOR: quic: notify on send ready
+    - BUG/MINOR: http-ana: Don't increment conn_retries counter before the L7 retry
+    - BUG/MINOR: http-ana: Do a L7 retry on read error if there is no response
+    - BUG/MEDIUM: http-ana: Don't close request side when waiting for response
+    - BUG/MINOR: mxu-h1: Report a parsing error on abort with pending data
+    - MINOR: ssl: Destroy ocsp update http_client during cleanup
+    - MINOR: ssl: Reinsert ocsp update entries later in case of unknown error
+    - MINOR: ssl: Add ocsp update success/failure counters
+    - MINOR: ssl: Store specific ocsp update errors in response and update ctx
+    - MINOR: ssl: Add certificate's path to certificate_ocsp structure
+    - MINOR: ssl: Add 'show ssl ocsp-updates' CLI command
+    - MINOR: ssl: Add sample fetches related to OCSP update
+    - MINOR: ssl: Use dedicated proxy and log-format for OCSP update
+    - MINOR: ssl: Reorder struct certificate_ocsp members
+    - MINOR: ssl: Increment OCSP update replay delay in case of failure
+    - MINOR: ssl: Add way to dump ocsp response in base64
+    - MINOR: ssl: Add global options to modify ocsp update min/max delay
+    - REGTESTS: ssl: Fix ocsp update crt-lists
+    - REGTESTS: ssl: Add test for new ocsp update cli commands
+    - MINOR: ssl: Add ocsp-update information to "show ssl crt-list"
+    - BUG/MINOR: ssl: Fix ocsp-update when using "add ssl crt-list"
+    - MINOR: ssl: Replace now.tv_sec with date.tv_sec in ocsp update task
+    - BUG/MINOR: ssl: Use 'date' instead of 'now' in ocsp stapling callback
+    - BUG/MEDIUM: quic: properly handle duplicated STREAM frames
+    - BUG/MINOR: cli: fix CLI handler "set anon global-key" call
+    - MINOR: http_ext: adding some documentation, forgot to inline function
+    - BUG/MINOR: quic: Do not send too small datagrams (with Initial packets)
+    - MINOR: quic: Add a BUG_ON_HOT() call for too small datagrams
+    - BUG/MINOR: quic: Ensure to be able to build datagrams to be retransmitted
+    - BUG/MINOR: quic: v2 Initial packets decryption failed
+    - MINOR: quic: Add traces about QUIC TLS key update
+    - BUG/MINOR: quic: Remove force_ack for Initial,Handshake packets
+    - BUG/MINOR: quic: Ensure not to retransmit packets with no ack-eliciting frames
+    - BUG/MINOR: quic: Do not resend already acked frames
+    - BUG/MINOR: quic: Missing detections of amplification limit reached
+    - MINOR: quic: Send PING frames when probing Initial packet number space
+    - BUG/MEDIUM: quic: do not crash when handling STREAM on released MUX
+    - BUG/MAJOR: fd/thread: fix race between updates and closing FD
+    - BUG/MEDIUM: dns: ensure ring offset is properly reajusted to head
+    - BUG/MINOR: mux-quic: properly init STREAM frame as not duplicated
+    - MINOR: quic: Do not accept wrong active_connection_id_limit values
+    - MINOR: quic: Store the next connection IDs sequence number in the connection
+    - MINOR: quic: Typo fix for ACK_ECN frame
+    - MINOR: quic: RETIRE_CONNECTION_ID frame handling (RX)
+    - MINOR: quic: Useless TLS context allocations in qc_do_rm_hp()
+    - MINOR: quic: Add spin bit support
+    - MINOR: quic: Add transport parameters to "show quic"
+    - BUG/MEDIUM: sink/forwarder: ensure ring offset is properly readjusted to head
+    - BUG/MINOR: dns: fix ring offset calculation on first read
+    - BUG/MINOR: dns: fix ring offset calculation in dns_resolve_send()
+    - MINOR: jwt: Add support for RSA-PSS signatures (PS256 algorithm)
+    - MINOR: h3: add traces on h3_init_uni_stream() error paths
+    - MINOR: quic: create a global list dedicated for closing QUIC conns
+    - MINOR: quic: handle new closing list in show quic
+    - MEDIUM: quic: release closing connections on stopping
+    - BUG/MINOR: quic: Wrong RETIRE_CONNECTION_ID sequence number check
+    - MINOR: fd/cli: report the polling mask in "show fd"
+    - CLEANUP: sock: always perform last connection updates before wakeup
+    - MINOR: quic: Do not stress the peer during retransmissions of lost packets
+    - BUG/MINOR: init: properly detect NUMA bindings on large systems
+    - BUG/MINOR: thread: report thread and group counts in the correct order
+    - BUG/MAJOR: fd/threads: close a race on closing connections after takeover
+    - MINOR: debug: add random delay injection with "debug dev delay-inj"
+    - BUG/MINOR: mworker: use MASTER_MAXCONN as default maxconn value
+    - BUG/MINOR: quic: Missing listener accept queue tasklet wakeups
+    - MINOR: quic_sock: un-statify quic_conn_sock_fd_iocb()
+    - DOC: config: fix typo "dependeing" in bind thread description
+    - DOC/CLEANUP: fix typos
+
 2023/02/14 : 2.8-dev4
     - BUG/MINOR: stats: fix source buffer size for http dump
     - BUG/MEDIUM: stats: fix resolvers dump
