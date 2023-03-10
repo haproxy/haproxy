@@ -486,7 +486,7 @@ void quic_lstnr_sock_fd_iocb(int fd)
 }
 
 /* FD-owned quic-conn socket callback. */
-static void quic_conn_sock_fd_iocb(int fd)
+void quic_conn_sock_fd_iocb(int fd)
 {
 	struct quic_conn *qc = fdtab[fd].owner;
 

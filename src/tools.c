@@ -61,6 +61,7 @@ extern void *__elf_aux_vector;
 #include <haproxy/namespace.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/protocol.h>
+#include <haproxy/quic_sock.h>
 #include <haproxy/resolvers.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/sock.h>
@@ -5090,6 +5091,9 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 #ifdef SSL_MODE_ASYNC
 		{ .func = ssl_async_fd_free, .name = "ssl_async_fd_free" },
 		{ .func = ssl_async_fd_handler, .name = "ssl_async_fd_handler" },
+#endif
+#ifdef USE_QUIC
+		{ .func = quic_conn_sock_fd_iocb, .name = "quic_conn_sock_fd_iocb" },
 #endif
 	};
 
