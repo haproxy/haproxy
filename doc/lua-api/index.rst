@@ -1042,6 +1042,17 @@ Server class
 
   Returns the proxy unique identifier of the server.
 
+.. js:function:: Server.get_rid(sv)
+
+  Returns the rid (revision ID) of the server.
+  It is an unsigned integer that is set upon server creation. Value is derived
+  from a global counter that starts at 0 and is incremented each time one or
+  multiple server deletions are followed by a server addition (meaning that
+  old name/id reuse could occur).
+
+  Combining server name/id with server rid yields a process-wide unique
+  identifier.
+
 .. js:function:: Server.is_draining(sv)
 
   Return true if the server is currently draining sticky connections.

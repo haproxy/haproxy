@@ -990,6 +990,22 @@ int hlua_server_get_puid(lua_State *L)
 	return 1;
 }
 
+int hlua_server_get_rid(lua_State *L)
+{
+	struct server *srv;
+	char buffer[12];
+
+	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	snprintf(buffer, sizeof(buffer), "%d", srv->rid);
+	lua_pushstring(L, buffer);
+	return 1;
+}
+
 int hlua_server_get_name(lua_State *L)
 {
 	struct server *srv;
@@ -1373,6 +1389,7 @@ int hlua_fcn_new_server(lua_State *L, struct server *srv)
 	/* set public methods */
 	hlua_class_function(L, "get_name", hlua_server_get_name);
 	hlua_class_function(L, "get_puid", hlua_server_get_puid);
+	hlua_class_function(L, "get_rid", hlua_server_get_rid);
 	hlua_class_function(L, "is_draining", hlua_server_is_draining);
 	hlua_class_function(L, "set_maxconn", hlua_server_set_maxconn);
 	hlua_class_function(L, "get_maxconn", hlua_server_get_maxconn);
