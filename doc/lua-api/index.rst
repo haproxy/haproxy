@@ -2955,7 +2955,7 @@ AppletHTTP class
                           will only be set if it was defined elsewhere (i.e. used
                           within the configuration). For global variables (using the
                           "proc" scope), they will only be updated and never created.
-                           It is highly recommended to always set this to true.
+                          It is highly recommended to always set this to true.
 
   :see: :js:func:`AppletHTTP.unset_var`
   :see: :js:func:`AppletHTTP.get_var`
@@ -3072,7 +3072,7 @@ AppletTCP class
                           will only be set if it was defined elsewhere (i.e. used
                           within the configuration). For global variables (using the
                           "proc" scope), they will only be updated and never created.
-                           It is highly recommended to always set this to true.
+                          It is highly recommended to always set this to true.
 
   :see: :js:func:`AppletTCP.unset_var`
   :see: :js:func:`AppletTCP.get_var`
@@ -3144,6 +3144,7 @@ StickTable class
    comparison operators as keys followed by data type name and value pairs.
    Check out the HAProxy docs for "show table" for more details. For the
    reference, the supported operators are:
+
      "eq", "ne", "le", "lt", "ge", "gt"
 
    For large tables, execution of this function can take a long time (for
