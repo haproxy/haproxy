@@ -288,6 +288,7 @@ haproxy h4 -conf {
         mode http
         option httplog
         bind "127.0.0.1:12345"
+        http-response set-var(proc.processed) int(1)
         server s1 "127.0.0.1:12346"
 } -start
 
@@ -319,10 +320,17 @@ shell {
     # Store the current "Produced At" in order to ensure that after the update
     # the OCSP response actually changed
     produced_at=$(echo "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015" | socat "${tmpdir}/h4/stats" - | grep "Produced At")
-    # We should receive the OCSP response's details on the standard output when calling
-    # 'update ssl ocsp-response'
-    ocsp_response=$(echo "update ssl ocsp-response ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa" | socat "${tmpdir}/h4/stats" -)
 
+    echo "update ssl ocsp-response ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa" | socat "${tmpdir}/h4/stats" -
+    while ! echo "get var proc.processed" | socat "${tmpdir}/h4/stats" - | grep 'proc.processed: type=sint value=<1>'
+    do
+        echo "get var proc.processed" | socat "${tmpdir}/h4/stats" - >> /tmp/toto
+        sleep 0.5
+    done
+
+    echo "experimental-mode on;set var proc.processed int(0)" | socat "${tmpdir}/h4/stats" -
+
+    ocsp_response=$(echo "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015" | socat "${tmpdir}/h4/stats" -)
     new_produced_at=$(echo "$ocsp_response" | grep "Produced At")
 
     echo "$ocsp_response" | grep -q "Serial Number: 1015" && \
@@ -335,10 +343,17 @@ shell {
     # Store the current "Produced At" in order to ensure that after the update
     # the OCSP response actually changed
     produced_at=$(echo "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016" | socat "${tmpdir}/h4/stats" - | grep "Produced At")
-    # We should receive the OCSP response's details on the standard output when calling
-    # 'update ssl ocsp-response'
-    ocsp_response=$(echo "update ssl ocsp-response ${testdir}/ocsp_update/multicert/server_ocsp_ecdsa.pem" | socat "${tmpdir}/h4/stats" -)
 
+    echo "update ssl ocsp-response ${testdir}/ocsp_update/multicert/server_ocsp_ecdsa.pem" | socat "${tmpdir}/h4/stats" -
+    while ! echo "get var proc.processed" | socat "${tmpdir}/h4/stats" - | grep 'proc.processed: type=sint value=<1>'
+    do
+        echo "get var proc.processed" | socat "${tmpdir}/h4/stats" - >> /tmp/toto
+        sleep 0.5
+    done
+
+    echo "experimental-mode on;set var proc.processed int(0)" | socat "${tmpdir}/h4/stats" -
+
+    ocsp_response=$(echo "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016" | socat "${tmpdir}/h4/stats" -)
     new_produced_at=$(echo "$ocsp_response" | grep "Produced At")
 
     echo "$ocsp_response" | grep -q "Serial Number: 1016" && \
@@ -482,7 +497,7 @@ haproxy h6 -conf {
         timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend ssl-fe
-        bind "${tmpdir}/ssl.sock" ssl crt-list ${testdir}/simple.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl9.sock" ssl crt-list ${testdir}/simple.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
         http-request return status 200
 
     listen http_rebound_lst

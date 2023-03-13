@@ -1116,18 +1116,17 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 	tlsextStatusCb callback;
 #endif
 	struct buffer *ocsp_uri = get_trash_chunk();
+	char *err = NULL;
 
 
 	x = data->cert;
 	if (!x)
 		goto out;
 
-	if (data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON) {
-		ssl_ocsp_get_uri_from_cert(x, ocsp_uri, NULL);
-		/* We should have an "OCSP URI" field in order for auto update to work. */
-		if (b_data(ocsp_uri) == 0)
-			goto out;
-	}
+	ssl_ocsp_get_uri_from_cert(x, ocsp_uri, &err);
+	/* We should have an "OCSP URI" field in order for auto update to work. */
+	if (data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON && b_data(ocsp_uri) == 0)
+		goto out;
 
 	/* In case of ocsp update mode set to 'on', this function might be
 	 * called with no known ocsp response. If no ocsp uri can be found in
@@ -1244,29 +1243,29 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 		ha_warning("%s.\n", warn);
 	}
 
-	if (data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON) {
 
-		/* Do not insert the same certificate_ocsp structure in the
-		 * update tree more than once. */
-		if (!ocsp) {
-			/* Issuer certificate is not included in the certificate
-			 * chain, it will have to be treated separately during
-			 * ocsp response validation. */
-			if (issuer == data->ocsp_issuer) {
-				iocsp->issuer = issuer;
-				X509_up_ref(issuer);
-			}
-			if (data->chain)
-				iocsp->chain = X509_chain_up_ref(data->chain);
+	/* Do not insert the same certificate_ocsp structure in the
+	 * update tree more than once. */
+	if (!ocsp) {
+		/* Issuer certificate is not included in the certificate
+		 * chain, it will have to be treated separately during
+		 * ocsp response validation. */
+		if (issuer == data->ocsp_issuer) {
+			iocsp->issuer = issuer;
+			X509_up_ref(issuer);
+		}
+		if (data->chain)
+			iocsp->chain = X509_chain_up_ref(data->chain);
 
-			iocsp->uri = calloc(1, sizeof(*iocsp->uri));
-			if (!chunk_dup(iocsp->uri, ocsp_uri)) {
-				ha_free(&iocsp->uri);
-				goto out;
-			}
+		iocsp->uri = calloc(1, sizeof(*iocsp->uri));
+		if (!chunk_dup(iocsp->uri, ocsp_uri)) {
+			ha_free(&iocsp->uri);
+			goto out;
+		}
 
-			strcpy(iocsp->path, path);
+		strcpy(iocsp->path, path);
 
+		if (data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON) {
 			ssl_ocsp_update_insert(iocsp);
 			/* If we are during init the update task is not
 			 * scheduled yet so a wakeup won't do anything.
