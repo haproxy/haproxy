@@ -1273,6 +1273,7 @@ leave:
 	}
 	if (hc)
 		httpclient_stop_and_destroy(hc);
+	ctx->hc = NULL;
 	free_trash_chunk(req_url);
 	free_trash_chunk(req_body);
 	task->expire = tick_add(now_ms, next_wakeup);
