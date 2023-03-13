@@ -64,6 +64,14 @@ haproxy h1 -cli {
     expect ~ "Cert Status: good"
 }
 
+# Test the "show ssl ocsp-response" command with a certificate path as parameter
+shell {
+    ocsp_response=$(echo "show ssl ocsp-response ${testdir}/show_ocsp_server.pem" | socat "${tmpdir}/h1/stats" -)
+
+    echo "$ocsp_response" | grep "Responder Id: C = FR, O = HAProxy Technologies, CN = ocsp.haproxy.com" &&
+    echo "$ocsp_response" | grep "Cert Status: good"
+}
+
 # Test the "show ssl cert foo.pem.ocsp" command
 haproxy h1 -cli {
     send "show ssl cert"

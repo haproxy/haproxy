@@ -1464,31 +1464,52 @@ static int cli_parse_show_ocspresponse(char **args, char *payload, struct appctx
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 
 	struct show_ocspresp_cli_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
-	int certid_arg_idx = 3;
+	int arg_idx = 3;
 
 	if (*args[3]) {
 		struct certificate_ocsp *ocsp = NULL;
 		char key[OCSP_MAX_CERTID_ASN1_LENGTH] = {};
 		int key_length = OCSP_MAX_CERTID_ASN1_LENGTH;
 		char *key_ptr = key;
+		unsigned char *p;
+		struct ckch_store *ckch_store = NULL;
 
 		if (strcmp(args[3], "text") == 0) {
 			ctx->format = SHOW_OCSPRESP_FMT_TEXT;
-			++certid_arg_idx;
+			++arg_idx;
 		} else if (strcmp(args[3], "base64") == 0) {
 			ctx->format = SHOW_OCSPRESP_FMT_B64;
-			++certid_arg_idx;
+			++arg_idx;
 		}
 
-		if (ctx->format != SHOW_OCSPRESP_FMT_DFLT && !*args[certid_arg_idx])
+		if (ctx->format != SHOW_OCSPRESP_FMT_DFLT && !*args[arg_idx])
 			return cli_err(appctx, "'show ssl ocsp-response [text|base64]' expects a valid certid.\n");
 
-		if (strlen(args[certid_arg_idx]) > OCSP_MAX_CERTID_ASN1_LENGTH*2) {
-			return cli_err(appctx, "'show ssl ocsp-response' received a too big key.\n");
+		/* Try to convert parameter into an OCSP certid first, and consider it
+		 * as a filename if it fails. */
+		if (strlen(args[arg_idx]) > OCSP_MAX_CERTID_ASN1_LENGTH*2 ||
+		    !parse_binary(args[arg_idx], &key_ptr, &key_length, NULL)) {
+
+			key_ptr = key;
+			key_length = 0;
+
+			/* The operations on the CKCH architecture are locked so we can
+			 * manipulate ckch_store and ckch_inst */
+			if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock)) {
+				return cli_err(appctx, "Operations on certificates are currently locked!\n");
+			}
+
+			ckch_store = ckchs_lookup(args[arg_idx]);
+
+			if (ckch_store) {
+				p = (unsigned char*)key;
+				key_length = i2d_OCSP_CERTID(ckch_store->data->ocsp_cid, &p);
+			}
+			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 		}
 
-		if (!parse_binary(args[certid_arg_idx], &key_ptr, &key_length, NULL)) {
-			return cli_err(appctx, "'show ssl ocsp-response' received an invalid key.\n");
+		if (key_length == 0) {
+			return cli_err(appctx, "'show ssl ocsp-response' expects a valid certid or certificate path.\n");
 		}
 
 		HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
@@ -1496,7 +1517,7 @@ static int cli_parse_show_ocspresponse(char **args, char *payload, struct appctx
 
 		if (!ocsp) {
 			HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
-			return cli_err(appctx, "Certificate ID does not match any certificate.\n");
+			return cli_err(appctx, "Certificate ID or path does not match any certificate.\n");
 		}
 		++ocsp->refcount;
 		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
