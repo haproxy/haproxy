@@ -1582,6 +1582,9 @@ static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
 		}
 		chunk_appendf(trash, "\n");
 
+		/* Dump the certificate path */
+		chunk_appendf(trash, "Certificate path : %s\n", ocsp->path);
+
 		p = ocsp->key_data;
 
 		/* Decode the certificate ID (serialized into the key). */
