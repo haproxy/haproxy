@@ -510,6 +510,7 @@ Core class
   frontend http_frt
     mode http
     http-request lua.hello-world
+
 ..
 
   A second example using arguments
@@ -520,6 +521,7 @@ Core class
      txn:Info("Hello world for " .. arg)
   end
   core.register_action("hello-world", { "tcp-req", "http-req" }, hello_world, 2)
+
 ..
 
   This example code is used in HAProxy configuration like this:
@@ -529,6 +531,7 @@ Core class
   frontend tcp_frt
     mode tcp
     tcp-request content lua.hello-world everybody
+
 ..
 
 .. js:function:: core.register_converters(name, func)
@@ -644,6 +647,7 @@ Core class
   frontend http
     mode http
     filter lua.my-filter arg1 arg2 arg3
+
 ..
 
   :see: :js:class:`Filter`
