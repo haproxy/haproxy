@@ -8719,6 +8719,9 @@ static int hlua_register_task(lua_State *L)
 
 	/* Restore the function in the stack. */
 	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, ref);
+	/* function ref not needed anymore since it was pushed to the substack */
+	hlua_unref(L, ref);
+
 	hlua->nargs = 0;
 
 	/* Schedule task. */
