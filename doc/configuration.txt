@@ -14972,18 +14972,34 @@ ocsp-update [ off | on ]
   configured by the "tune.ssl.ocsp-update.maxdelay" and
   "tune.ssl.ocsp-update.mindelay" global options.
 
-  Whenever an OCSP response is updated by the auto update task, a dedicated log
-  line is emitted. It will follow a dedicated log-format that looks like the
-  following "%ci:%cp [%tr] %ft %[ssl_ocsp_certid] %[ssl_ocsp_status]
-  %{+Q}[ssl_ocsp_status_str] %[ssl_ocsp_fail_cnt] %[ssl_ocsp_success_cnt]". The
-  specified "ssl_ocsp" sample fetches are not "public" because they cannot have
-  valid values when fetched out of the OCSP auto update process. Here is an
-  example of such a log line (with the longer outputs truncated for
-  readability):
-    <134>Feb 13 16:20:21 haproxy[37352]: -:- [13/Feb/2023:16:20:20.311] <HC_OCSP> \
-    303B30090[...] 2 "HTTP error" 0 0
+  Whenever an OCSP response is updated by the auto update task or following a
+  call to the "update ssl ocsp-response" CLI command, a dedicated log line is
+  emitted. It follows a dedicated log-format that contains the following header
+  "%ci:%cp [%tr] %ft" and is followed by specific OCSP-related information:
+    - the path of the corresponding frontend certificate
+    - a numerical update status
+    - a textual update status
+    - the number of update failures for the given response
+    - the number of update successes for the givan response
   See "show ssl ocsp-updates" CLI command for a full list of error codes and
-  error messages.
+  error messages. This line is emitted regardless of the success or failure of
+  the concerned OCSP response update.
+  The OCSP request/response is sent and received through an http_client
+  instance that has the dontlog-normal option set and that uses the regular
+  HTTP log format in case of error (unreachable OCSP responder for instance).
+  If such an error occurs, another log line that contains HTTP-related
+  information will then be emitted alongside the "regular" OCSP one (which will
+  likely have "HTTP error" as text status).
+
+  but if a purely HTTP error happens
+  (unreachable OCSP responder for instance), an extra log line that follows the
+  regular HTTP log-format will be emitted.
+  Here are two examples of such log lines, with a successful OCSP update log line first
+  and then an example of an HTTP error with the two different lines:
+    <134>Mar  6 11:16:53 haproxy[14872]: -:- [06/Mar/2023:11:16:52.808] <OCSP-UPDATE> /path_to_cert/foo.pem 1 "Update successful" 0 1
+
+    <134>Mar  6 11:18:55 haproxy[14872]: -:- [06/Mar/2023:11:18:54.207] <OCSP-UPDATE> /path_to_cert/bar.pem 2 "HTTP error" 1 0
+    <134>Mar  6 11:18:55 haproxy[14872]: -:- [06/Mar/2023:11:18:52.200] <OCSP-UPDATE> -/- 2/0/-1/-1/3009 503 217 - - SC-- 0/0/0/0/3 0/0 {} "GET http://127.0.0.1:12345/MEMwQTA%2FMD0wOzAJBgUrDgMCGgUABBSKg%2BAGD6%2F3Ccp%2Bm5VSKi6BY1%2FaCgQU9lKw5DXV6pI4UVCPCtvpLYXeAHoCAhAV HTTP/1.1"
 
 prefer-client-ciphers
   Use the client's preference when selecting the cipher suite, by default

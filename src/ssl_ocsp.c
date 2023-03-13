@@ -1301,7 +1301,7 @@ http_error:
 	return task;
 }
 
-char ocspupdate_log_format[] = "%ci:%cp [%tr] %ft %[ssl_ocsp_certid] %[ssl_ocsp_status] %{+Q}[ssl_ocsp_status_str] %[ssl_ocsp_fail_cnt] %[ssl_ocsp_success_cnt]";
+char ocspupdate_log_format[] = "%ci:%cp [%tr] %ft %[ssl_ocsp_certname] %[ssl_ocsp_status] %{+Q}[ssl_ocsp_status_str] %[ssl_ocsp_fail_cnt] %[ssl_ocsp_success_cnt]";
 
 /*
  * Initialize the proxy for the OCSP update HTTP client with 2 servers, one for
@@ -1310,7 +1310,7 @@ char ocspupdate_log_format[] = "%ci:%cp [%tr] %ft %[ssl_ocsp_certid] %[ssl_ocsp_
 static int ssl_ocsp_update_precheck()
 {
 	/* initialize the OCSP update dedicated httpclient */
-	httpclient_ocsp_update_px = httpclient_create_proxy("<HC_OCSP>");
+	httpclient_ocsp_update_px = httpclient_create_proxy("<OCSP-UPDATE>");
 	if (!httpclient_ocsp_update_px)
 		return 1;
 	httpclient_ocsp_update_px->conf.error_logformat_string = strdup(ocspupdate_log_format);
@@ -2006,6 +2006,20 @@ smp_fetch_ssl_ocsp_certid(const struct arg *args, struct sample *smp, const char
 }
 
 static int
+smp_fetch_ssl_ocsp_certname(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct certificate_ocsp *ocsp = ssl_ocsp_task_ctx.cur_ocsp;
+
+	if (!ocsp)
+		return 0;
+
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str.area = ocsp->path;
+	smp->data.u.str.data = strlen(ocsp->path);
+	return 1;
+}
+
+static int
 smp_fetch_ssl_ocsp_status(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct certificate_ocsp *ocsp = ssl_ocsp_task_ctx.cur_ocsp;
@@ -2085,6 +2099,7 @@ INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_ocsp_certid",                 smp_fetch_ssl_ocsp_certid,             0,                   NULL,    SMP_T_STR, SMP_USE_L5SRV },
+	{ "ssl_ocsp_certname",               smp_fetch_ssl_ocsp_certname,           0,                   NULL,    SMP_T_STR, SMP_USE_L5SRV },
 	{ "ssl_ocsp_status",                 smp_fetch_ssl_ocsp_status,             0,                   NULL,    SMP_T_SINT, SMP_USE_L5SRV },
 	{ "ssl_ocsp_status_str",             smp_fetch_ssl_ocsp_status_str,         0,                   NULL,    SMP_T_STR, SMP_USE_L5SRV },
 	{ "ssl_ocsp_fail_cnt",               smp_fetch_ssl_ocsp_fail_cnt,           0,                   NULL,    SMP_T_SINT, SMP_USE_L5SRV },
