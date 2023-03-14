@@ -142,6 +142,15 @@ struct ssl_bind_conf *crtlist_dup_ssl_conf(struct ssl_bind_conf *src)
 		if (!dst->ecdhe)
 			goto error;
 	}
+
+	dst->ssl_methods_cfg.flags = src->ssl_methods_cfg.flags;
+	dst->ssl_methods_cfg.min = src->ssl_methods_cfg.min;
+	dst->ssl_methods_cfg.max = src->ssl_methods_cfg.max;
+
+	dst->ssl_methods.flags = src->ssl_methods.flags;
+	dst->ssl_methods.min = src->ssl_methods.min;
+	dst->ssl_methods.max = src->ssl_methods.max;
+
 	return dst;
 
 error:
