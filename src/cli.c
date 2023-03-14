@@ -1286,6 +1286,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		const void *ctx = NULL;
 		const void *xprt_ctx = NULL;
 		uint32_t conn_flags = 0;
+		uint8_t conn_err = 0;
 		int is_back = 0;
 		int suspicious = 0;
 
@@ -1303,6 +1304,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		else if (fdt.iocb == sock_conn_iocb) {
 			conn = (const struct connection *)fdt.owner;
 			conn_flags = conn->flags;
+			conn_err   = conn->err_code;
 			mux        = conn->mux;
 			ctx        = conn->ctx;
 			xprt       = conn->xprt;
@@ -1352,7 +1354,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			chunk_appendf(&trash, ")");
 		}
 		else if (fdt.iocb == sock_conn_iocb) {
-			chunk_appendf(&trash, ") back=%d cflg=0x%08x", is_back, conn_flags);
+			chunk_appendf(&trash, ") back=%d cflg=0x%08x cerr=%d", is_back, conn_flags, conn_err);
 
 			if (conn->handle.fd != fd) {
 				chunk_appendf(&trash, " fd=%d(BOGUS)", conn->handle.fd);
