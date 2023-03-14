@@ -2394,6 +2394,48 @@ struct task *process_resolvers(struct task *t, void *context, unsigned int state
 
 	/* Handle all resolutions in the wait list */
 	list_for_each_entry_safe(res, resback, &resolvers->resolutions.wait, list) {
+
+		if (unlikely(stopping)) {
+			/* If haproxy is stopping, check if the resolution to know if it must be run or not.
+			 * If at least a requester is a stream (because of a do-resolv action) or if there
+			 * is a requester attached to a running proxy, the resolution is performed.
+			 * Otherwise, it is skipped for now.
+			 */
+			struct resolv_requester *req;
+			int must_run = 0;
+
+			list_for_each_entry(req, &res->requesters, list) {
+				struct proxy *px = NULL;
+
+				switch (obj_type(req->owner)) {
+					case OBJ_TYPE_SERVER:
+						px = __objt_server(req->owner)->proxy;
+						break;
+					case OBJ_TYPE_SRVRQ:
+						px = __objt_resolv_srvrq(req->owner)->proxy;
+						break;
+					case OBJ_TYPE_STREAM:
+						/* Always perform the resolution */
+						must_run = 1;
+						break;
+					default:
+						break;
+				}
+				/* Perform the resolution if the proxy is not stopped or disabled */
+				if (px && !(px->flags & (PR_FL_DISABLED|PR_FL_STOPPED)))
+					must_run = 1;
+
+				if (must_run)
+					break;
+			}
+
+			if (!must_run) {
+				/* Skip the reolsution. reset it and wait for the next wakeup */
+				resolv_reset_resolution(res);
+				continue;
+			}
+		}
+
 		if (LIST_ISEMPTY(&res->requesters)) {
 			abort_resolution(res);
 			continue;
