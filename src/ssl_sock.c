@@ -6998,7 +6998,7 @@ static int ssl_sock_show_fd(struct buffer *buf, const struct connection *conn, c
 		chunk_appendf(&trash, " xctx.conn=%p(BOGUS)", sctx->conn);
 		ret = 1;
 	}
-	chunk_appendf(&trash, " xctx.st=%d", sctx->xprt_st);
+	chunk_appendf(&trash, " xctx.st=%d .err=%ld", sctx->xprt_st, sctx->error_code);
 
 	if (sctx->xprt) {
 		chunk_appendf(&trash, " .xprt=%s", sctx->xprt->name);
