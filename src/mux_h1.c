@@ -1930,6 +1930,11 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 				TRACE_STATE("Re-enable output processing", H1_EV_TX_DATA|H1_EV_H1S_BLK|H1_EV_STRM_WAKE, h1c->conn, h1s);
 			}
 		}
+		if (h1c->flags & H1C_F_ERROR) {
+			/* Report a terminal error to the SE if a previous read error was detected */
+			se_fl_set(h1s->sd, SE_FL_ERROR);
+			TRACE_STATE("report ERROR to SE", H1_EV_RX_DATA|H1_EV_H1S_ERR, h1c->conn, h1s);
+		}
 	}
 
   end:
