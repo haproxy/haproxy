@@ -1809,23 +1809,29 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 
 /* Remove <largest> down to <smallest> node entries from <pkts> tree of TX packet,
  * deallocating them, and their TX frames.
- * Returns the last node reached to be used for the next range.
  * May be NULL if <largest> node could not be found.
  */
-static inline struct eb64_node *qc_ackrng_pkts(struct quic_conn *qc,
-                                               struct eb_root *pkts,
-                                               unsigned int *pkt_flags,
-                                               struct list *newly_acked_pkts,
-                                               struct eb64_node *largest_node,
-                                               uint64_t largest, uint64_t smallest)
+static inline void qc_ackrng_pkts(struct quic_conn *qc,
+                                  struct eb_root *pkts,
+                                  unsigned int *pkt_flags,
+                                  struct list *newly_acked_pkts,
+                                  struct eb64_node *largest_node,
+                                  uint64_t largest, uint64_t smallest)
 {
 	struct eb64_node *node;
 	struct quic_tx_packet *pkt;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
 
-	node = largest_node ? largest_node : eb64_lookup_le(pkts, largest);
-	while (node && node->key >= smallest) {
+	node = eb64_lookup_ge(pkts, smallest);
+	if (!node)
+		goto leave;
+
+	largest_node = largest_node ? largest_node : eb64_lookup_le(pkts, largest);
+	if (!largest_node)
+		goto leave;
+
+	while (node && node->key <= largest_node->key) {
 		struct quic_frame *frm, *frmbak;
 
 		pkt = eb64_entry(node, struct quic_tx_packet, pn_node);
@@ -1838,12 +1844,12 @@ static inline struct eb64_node *qc_ackrng_pkts(struct quic_conn *qc,
 		 * detach the previous one and the next one from <pkt>.
 		 */
 		quic_tx_packet_dgram_detach(pkt);
-		node = eb64_prev(node);
+		node = eb64_next(node);
 		eb64_delete(&pkt->pn_node);
 	}
 
+ leave:
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
-	return node;
 }
 
 /* Remove all frames from <pkt_frm_list> and reinsert them in the same order
