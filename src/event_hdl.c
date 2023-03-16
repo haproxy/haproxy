@@ -16,6 +16,7 @@
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/errors.h>
+#include <haproxy/signal.h>
 #include <haproxy/xxhash.h>
 
 /* event types changes in event_hdl-t.h file should be reflected in the
@@ -51,10 +52,31 @@ static int event_hdl_async_max_notif_at_once = 10;
 /* global subscription list (implicit where NULL is used as sublist argument) */
 static event_hdl_sub_list global_event_hdl_sub_list;
 
+/* every known subscription lists are tracked in this list (including the global one) */
+static struct mt_list known_event_hdl_sub_list = MT_LIST_HEAD_INIT(known_event_hdl_sub_list);
+
+static void _event_hdl_sub_list_destroy(event_hdl_sub_list *sub_list);
+
+static void event_hdl_deinit(struct sig_handler *sh)
+{
+	event_hdl_sub_list *cur_list;
+	struct mt_list *elt1, elt2;
+
+	/* destroy all known subscription lists */
+	mt_list_for_each_entry_safe(cur_list, &known_event_hdl_sub_list, known, elt1, elt2) {
+		/* remove cur elem from list */
+		MT_LIST_DELETE_SAFE(elt1);
+		/* then destroy it */
+		_event_hdl_sub_list_destroy(cur_list);
+	}
+}
+
 static void event_hdl_init(void)
 {
 	/* initialize global subscription list */
 	event_hdl_sub_list_init(&global_event_hdl_sub_list);
+	/* register the deinit function, will be called on soft-stop */
+	signal_register_fct(0, event_hdl_deinit, 0);
 }
 
 /* general purpose hashing function when you want to compute
@@ -159,6 +181,7 @@ void event_hdl_async_free_event(struct event_hdl_async_event *e)
 		 * (it is already removed from mt_list, no race can occur)
 		 */
 		event_hdl_drop(e->sub_mgmt.this);
+		HA_ATOMIC_DEC(&jobs);
 	}
 	else if (e->_data &&
 	         HA_ATOMIC_SUB_FETCH(&e->_data->refcount, 1) == 0) {
@@ -381,6 +404,7 @@ struct event_hdl_sub *event_hdl_subscribe_ptr(event_hdl_sub_list *sub_list,
 	struct event_hdl_sub *new_sub = NULL;
 	struct mt_list *elt1, elt2;
 	struct event_hdl_async_task_default_ctx	*task_ctx = NULL;
+	struct mt_list lock;
 
 	if (!sub_list)
 		sub_list = &global_event_hdl_sub_list; /* fall back to global list */
@@ -453,12 +477,13 @@ struct event_hdl_sub *event_hdl_subscribe_ptr(event_hdl_sub_list *sub_list,
 	/* ready for registration */
 	MT_LIST_INIT(&new_sub->mt_list);
 
+	lock = MT_LIST_LOCK_ELT(&sub_list->known);
+
 	/* check if such identified hdl is not already registered */
 	if (hdl.id) {
 		struct event_hdl_sub *cur_sub;
 		uint8_t found = 0;
 
-		HA_SPIN_LOCK(EHDL_LOCK, &sub_list->insert_lock);
 		mt_list_for_each_entry_safe(cur_sub, &sub_list->head, mt_list, elt1, elt2) {
 			if (hdl.id == cur_sub->hdl.id) {
 				/* we found matching registered hdl */
@@ -468,10 +493,20 @@ struct event_hdl_sub *event_hdl_subscribe_ptr(event_hdl_sub_list *sub_list,
 		}
 		if (found) {
 			/* error already registered */
-			HA_SPIN_UNLOCK(EHDL_LOCK, &sub_list->insert_lock);
+			MT_LIST_UNLOCK_ELT(&sub_list->known, lock);
 			event_hdl_report_hdl_state(ha_alert, &hdl, "SUB", "could not subscribe: subscription with this id already exists");
 			goto cleanup;
 		}
+	}
+
+	if (lock.next == &sub_list->known) {
+		/* this is an expected corner case on de-init path, a subscribe attempt
+		 * was made but the subscription list is already destroyed, we pretend
+		 * it is a memory/IO error since it should not be long before haproxy
+		 * enters the deinit() function anyway
+		 */
+		MT_LIST_UNLOCK_ELT(&sub_list->known, lock);
+		goto cleanup;
 	}
 
 	/* Append in list (global or user specified list).
@@ -479,6 +514,14 @@ struct event_hdl_sub *event_hdl_subscribe_ptr(event_hdl_sub_list *sub_list,
 	 * so that async handlers are executed first
 	 */
 	if (hdl.async) {
+		/* Prevent the task from being aborted on soft-stop: let's wait
+		 * until the END event is acknowledged by the task.
+		 * (decrease is performed in event_hdl_async_free_event())
+		 *
+		 * If we don't do this, event_hdl API will leak and we won't give
+		 * a chance to the event-handling task to perform cleanup
+		 */
+		HA_ATOMIC_INC(&jobs);
 		/* async mode, insert at the beginning of the list */
 		MT_LIST_INSERT(&sub_list->head, &new_sub->mt_list);
 	} else {
@@ -486,8 +529,7 @@ struct event_hdl_sub *event_hdl_subscribe_ptr(event_hdl_sub_list *sub_list,
 		MT_LIST_APPEND(&sub_list->head, &new_sub->mt_list);
 	}
 
-	if (hdl.id)
-		HA_SPIN_UNLOCK(EHDL_LOCK, &sub_list->insert_lock);
+	MT_LIST_UNLOCK_ELT(&sub_list->known, lock);
 
 	return new_sub;
 
@@ -763,7 +805,21 @@ void event_hdl_sub_list_init(event_hdl_sub_list *sub_list)
 {
 	BUG_ON(!sub_list); /* unexpected, global sublist is managed internally */
 	MT_LIST_INIT(&sub_list->head);
-	HA_SPIN_INIT(&sub_list->insert_lock);
+	MT_LIST_APPEND(&known_event_hdl_sub_list, &sub_list->known);
+}
+
+/* internal function, assumes that sub_list ptr is always valid */
+static void _event_hdl_sub_list_destroy(event_hdl_sub_list *sub_list)
+{
+	struct event_hdl_sub *cur_sub;
+	struct mt_list *elt1, elt2;
+
+	mt_list_for_each_entry_safe(cur_sub, &sub_list->head, mt_list, elt1, elt2) {
+		/* remove cur elem from list */
+		MT_LIST_DELETE_SAFE(elt1);
+		/* then free it */
+		_event_hdl_unsubscribe(cur_sub);
+	}
 }
 
 /* when a subscription list is no longer used, call this
@@ -772,17 +828,10 @@ void event_hdl_sub_list_init(event_hdl_sub_list *sub_list)
  */
 void event_hdl_sub_list_destroy(event_hdl_sub_list *sub_list)
 {
-	struct event_hdl_sub *cur_sub;
-	struct mt_list *elt1, elt2;
-
 	BUG_ON(!sub_list); /* unexpected, global sublist is managed internally */
-	mt_list_for_each_entry_safe(cur_sub, &sub_list->head, mt_list, elt1, elt2) {
-		/* remove cur elem from list */
-		MT_LIST_DELETE_SAFE(elt1);
-		/* then free it */
-		_event_hdl_unsubscribe(cur_sub);
-	}
-	HA_SPIN_DESTROY(&sub_list->insert_lock);
+	if (!MT_LIST_DELETE(&sub_list->known))
+		return; /* already destroyed */
+	_event_hdl_sub_list_destroy(sub_list);
 }
 
 INITCALL0(STG_INIT, event_hdl_init);

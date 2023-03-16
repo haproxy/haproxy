@@ -444,7 +444,6 @@ static const char *lock_label(enum lock_label label)
 	case IDLE_CONNS_LOCK:      return "IDLE_CONNS";
 	case QUIC_LOCK:            return "QUIC";
 	case OCSP_LOCK:            return "OCSP";
-	case EHDL_LOCK:            return "EVENT_HDL";
 	case OTHER_LOCK:           return "OTHER";
 	case DEBUG1_LOCK:          return "DEBUG1";
 	case DEBUG2_LOCK:          return "DEBUG2";

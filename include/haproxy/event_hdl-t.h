@@ -25,7 +25,6 @@
 #include <stdint.h>
 
 #include <haproxy/api-t.h>
-#include <haproxy/thread-t.h>
 
 /* event data struct are defined as followed */
 struct event_hdl_cb_data_template {
@@ -75,7 +74,7 @@ struct event_hdl_sub_type
 
 struct event_hdl_sub_list_head {
 	struct mt_list head;
-	__decl_thread(HA_SPINLOCK_T insert_lock);
+	struct mt_list known; /* api uses this to track known subscription lists */
 };
 
 /* event_hdl_sub_list is an alias (please use this for portability) */
