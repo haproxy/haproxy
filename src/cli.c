@@ -1039,7 +1039,7 @@ static void cli_io_handler(struct appctx *appctx)
 
 			/* re-adjust req buffer */
 			co_skip(sc_oc(sc), reql);
-			req->flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
+			sc_opposite(sc)->flags |= SC_FL_RCV_ONCE; /* we plan to read small requests */
 		}
 		else {	/* output functions */
 			struct cli_print_ctx *ctx;
@@ -2636,7 +2636,7 @@ read_again:
 	/* We don't know yet to which server we will connect */
 	channel_dont_connect(req);
 
-	req->flags |= CF_READ_DONTWAIT;
+	s->scf->flags |= SC_FL_RCV_ONCE;
 
 	/* need more data */
 	if (!ci_data(req))
@@ -2738,7 +2738,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->res.analysers &= ~AN_RES_WAIT_CLI;
 		return 0;
 	}
-	rep->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
+	s->scb->flags |= SC_FL_RCV_ONCE; /* try to get back here ASAP */
 	rep->flags |= CF_NEVER_WAIT;
 
 	/* don't forward the close */
@@ -2869,7 +2869,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->store_count = 0;
 		s->uniq_id = global.req_count++;
 
-		s->req.flags |= CF_READ_DONTWAIT; /* one read is usually enough */
+		s->scf->flags |= SC_FL_RCV_ONCE; /* one read is usually enough */
 
 		s->req.flags |= CF_WAKE_ONCE; /* need to be called again if there is some command left in the request */
 

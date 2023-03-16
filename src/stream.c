@@ -921,7 +921,7 @@ static void back_establish(struct stream *s)
 		}
 	}
 	else {
-		rep->flags |= CF_READ_DONTWAIT; /* a single read is enough to get response headers */
+		s->scb->flags |= SC_FL_RCV_ONCE; /* a single read is enough to get response headers */
 	}
 
 	rep->analysers |= strm_fe(s)->fe_rsp_ana | s->be->be_rsp_ana;

@@ -138,7 +138,7 @@ int frontend_accept(struct stream *s)
 	}
 
 	if (fe->mode == PR_MODE_HTTP)
-		s->req.flags |= CF_READ_DONTWAIT; /* one read is usually enough */
+		s->scf->flags |= SC_FL_RCV_ONCE; /* one read is usually enough */
 
 	if (unlikely(fe->nb_req_cap > 0)) {
 		if ((s->req_cap = pool_zalloc(fe->req_cap_pool)) == NULL)

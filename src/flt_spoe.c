@@ -1245,7 +1245,7 @@ spoe_init_appctx(struct appctx *appctx)
 	applet_need_more_data(appctx);
 
 	s->do_log = NULL;
-	s->res.flags |= CF_READ_DONTWAIT;
+	s->scb->flags |= SC_FL_RCV_ONCE;
 
 	HA_SPIN_LOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
 	LIST_APPEND(&agent->rt[tid].applets, &spoe_appctx->list);

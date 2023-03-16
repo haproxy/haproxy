@@ -1071,9 +1071,8 @@ static int httpclient_applet_init(struct appctx *appctx)
 		s->scb->dst = addr;
 	}
 
-	s->scb->flags |= SC_FL_NOLINGER;
+	s->scb->flags |= (SC_FL_RCV_ONCE|SC_FL_NOLINGER);
 	s->flags |= SF_ASSIGNED;
-	s->res.flags |= CF_READ_DONTWAIT;
 
 	/* applet is waiting for data */
 	applet_need_more_data(appctx);

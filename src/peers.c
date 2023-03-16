@@ -1096,14 +1096,12 @@ static int peer_session_init(struct appctx *appctx)
 
 	/* initiate an outgoing connection */
 	s->scb->dst = addr;
-	s->scb->flags |= SC_FL_NOLINGER;
+	s->scb->flags |= (SC_FL_RCV_ONCE|SC_FL_NOLINGER);
 	s->flags = SF_ASSIGNED;
 	s->target = peer_session_target(peer, s);
 
 	s->do_log = NULL;
 	s->uniq_id = 0;
-
-	s->res.flags |= CF_READ_DONTWAIT;
 
 	_HA_ATOMIC_INC(&active_peers);
 	return 0;
@@ -3200,7 +3198,7 @@ send_msgs:
 		}
 	}
 out:
-	sc_oc(sc)->flags |= CF_READ_DONTWAIT;
+	sc_opposite(sc)->flags |= SC_FL_RCV_ONCE;
 
 	if (curpeer)
 		HA_SPIN_UNLOCK(PEER_LOCK, &curpeer->lock);

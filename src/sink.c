@@ -601,7 +601,7 @@ static int sink_forward_session_init(struct appctx *appctx)
 
 	s = appctx_strm(appctx);
 	s->scb->dst = addr;
-	s->scb->flags |= SC_FL_NOLINGER;
+	s->scb->flags |= (SC_FL_RCV_ONCE|SC_FL_NOLINGER);
 
 	s->target = &sft->srv->obj_type;
 	s->flags = SF_ASSIGNED;
@@ -609,7 +609,6 @@ static int sink_forward_session_init(struct appctx *appctx)
 	s->do_log = NULL;
 	s->uniq_id = 0;
 
-	s->res.flags |= CF_READ_DONTWAIT;
 	applet_expect_no_data(appctx);
 	sft->appctx = appctx;
 

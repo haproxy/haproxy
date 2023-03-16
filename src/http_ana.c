@@ -1368,7 +1368,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		}
 
 		channel_dont_close(rep);
-		rep->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
+		s->scb->flags |= SC_FL_RCV_ONCE; /* try to get back here ASAP */
 		DBG_TRACE_DEVEL("waiting for more data",
 				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 0;

@@ -1116,7 +1116,7 @@ static void sc_notify(struct stconn *sc)
 	}
 
 	if (ic->flags & CF_READ_EVENT)
-		ic->flags &= ~CF_READ_DONTWAIT;
+		sc->flags &= ~SC_FL_RCV_ONCE;
 }
 
 /*
@@ -1382,8 +1382,8 @@ static int sc_conn_recv(struct stconn *sc)
 		if (sc_ep_test(sc, SE_FL_EOI))
 			break;
 
-		if ((ic->flags & CF_READ_DONTWAIT) || --read_poll <= 0) {
-			/* we're stopped by the channel's policy */
+		if ((sc->flags & SC_FL_RCV_ONCE) || --read_poll <= 0) {
+			/* we don't expect to read more data */
 			sc_wont_read(sc);
 			break;
 		}

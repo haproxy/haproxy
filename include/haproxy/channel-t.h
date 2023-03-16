@@ -106,7 +106,7 @@
 #define CF_WROTE_DATA     0x00040000  /* some data were sent from this buffer */
 /* unused 0x00080000 - 0x00100000  */
 #define CF_KERN_SPLICING  0x00200000  /* kernel splicing desired for this channel */
-#define CF_READ_DONTWAIT  0x00400000  /* wake the task up after every read (eg: HTTP request) */
+/* unused 0x00400000 */
 #define CF_AUTO_CONNECT   0x00800000  /* consumer may attempt to establish a new connection */
 
 #define CF_DONT_READ      0x01000000  /* disable reading for now */
@@ -140,10 +140,10 @@ static forceinline char *chn_show_flags(char *buf, size_t len, const char *delim
 	_(CF_WRITE_TIMEOUT,
 	_(CF_WAKE_WRITE, _(CF_SHUTW, _(CF_SHUTW_NOW, _(CF_AUTO_CLOSE,
 	_(CF_STREAMER, _(CF_STREAMER_FAST, _(CF_WROTE_DATA,
-	_(CF_KERN_SPLICING, _(CF_READ_DONTWAIT,
+	_(CF_KERN_SPLICING,
 	_(CF_AUTO_CONNECT, _(CF_DONT_READ, _(CF_EXPECT_MORE,
 	_(CF_SEND_DONTWAIT, _(CF_NEVER_WAIT, _(CF_WAKE_ONCE, _(CF_FLT_ANALYZE,
-	_(CF_EOI, _(CF_ISRESP))))))))))))))))))))))));
+	_(CF_EOI, _(CF_ISRESP)))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

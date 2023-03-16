@@ -125,6 +125,8 @@ enum sc_flags {
 	SC_FL_WONT_READ     = 0x00000080,  /* SC doesn't want to read data */
 	SC_FL_NEED_BUFF     = 0x00000100,  /* SC waits for an rx buffer allocation to complete */
 	SC_FL_NEED_ROOM     = 0x00000200,  /* SC needs more room in the rx buffer to store incoming data */
+
+	SC_FL_RCV_ONCE      = 0x00000400,  /* Don't loop to receive data. cleared after a sucessful receive */
 };
 
 /* This function is used to report flags in debugging tools. Please reflect
@@ -139,7 +141,8 @@ static forceinline char *sc_show_flags(char *buf, size_t len, const char *delim,
 	/* flags */
 	_(SC_FL_ISBACK, _(SC_FL_NOLINGER, _(SC_FL_NOHALF,
 	_(SC_FL_DONT_WAKE, _(SC_FL_INDEP_STR, _(SC_FL_WONT_READ,
-	_(SC_FL_NEED_BUFF, _(SC_FL_NEED_ROOM))))))));
+	_(SC_FL_NEED_BUFF, _(SC_FL_NEED_ROOM,
+	_(SC_FL_RCV_ONCE)))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
