@@ -3813,6 +3813,16 @@ static int h2_send(struct h2c *h2c)
 		if (h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MROOM))
 			flags |= CO_SFL_MSG_MORE;
 
+		if (!br_single(h2c->mbuf)) {
+			/* usually we want to emit small TLS records to speed
+			 * up the decoding on the client. That's what is being
+			 * done by default. However if there is more than one
+			 * buffer being allocated, we're streaming large data
+			 * so we stich to large records.
+			 */
+			flags |= CO_SFL_STREAMER;
+		}
+
 		for (buf = br_head(h2c->mbuf); b_size(buf); buf = br_del_head(h2c->mbuf)) {
 			if (b_data(buf)) {
 				int ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), flags);
