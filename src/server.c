@@ -5828,7 +5828,6 @@ static int srv_migrate_conns_to_remove(struct eb_root *idle_tree, struct mt_list
 
 		hash_node = ebmb_entry(node, struct conn_hash_node, node);
 		eb_delete(node);
-		hash_node->conn->flags &= ~CO_FL_LIST_MASK;
 		MT_LIST_APPEND(toremove_list, &hash_node->conn->toremove_list);
 		i++;
 

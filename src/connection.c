@@ -146,7 +146,7 @@ int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake)
 	     ((conn->flags ^ old_flags) & CO_FL_NOTIFY_DONE) ||
 	     ((old_flags & CO_FL_WAIT_XPRT) && !(conn->flags & CO_FL_WAIT_XPRT))) &&
 	    conn->mux && conn->mux->wake) {
-		uint conn_in_list = conn->flags & CO_FL_LIST_MASK;
+		uint conn_in_list = conn_get_idle_flag(conn);
 		struct server *srv = objt_server(conn->target);
 
 		if (conn_in_list) {

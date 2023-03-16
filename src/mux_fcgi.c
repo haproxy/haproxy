@@ -2957,7 +2957,7 @@ struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int state)
 		conn = fconn->conn;
 		TRACE_POINT(FCGI_EV_FCONN_WAKE, conn);
 
-		conn_in_list = conn->flags & CO_FL_LIST_MASK;
+		conn_in_list = conn_get_idle_flag(conn);
 		if (conn_in_list)
 			conn_delete_from_tree(&conn->hash_node->node);
 
@@ -3140,10 +3140,8 @@ struct task *fcgi_timeout_task(struct task *t, void *context, unsigned int state
 		/* We're about to destroy the connection, so make sure nobody attempts
 		 * to steal it from us.
 		 */
-		if (fconn->conn->flags & CO_FL_LIST_MASK) {
+		if (fconn->conn->flags & CO_FL_LIST_MASK)
 			conn_delete_from_tree(&fconn->conn->hash_node->node);
-			fconn->conn->flags &= ~CO_FL_LIST_MASK;
-		}
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}

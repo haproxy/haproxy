@@ -316,6 +316,16 @@ static inline void conn_set_private(struct connection *conn)
 	}
 }
 
+/* Used to know if a connection is in an idle list. It returns connection flag
+ * corresponding to the idle list if the connection is idle (CO_FL_SAFE_LIST or
+ * CO_FL_IDLE_LIST) or 0 otherwise. Note that if the connection is scheduled to
+ * be removed, 0 is returned, regardless the connection flags.
+ */
+static inline unsigned int conn_get_idle_flag(const struct connection *conn)
+{
+	return (!MT_LIST_INLIST(&conn->toremove_list) ? conn->flags & CO_FL_LIST_MASK : 0);
+}
+
 static inline void conn_force_unsubscribe(struct connection *conn)
 {
 	if (!conn->subs)
