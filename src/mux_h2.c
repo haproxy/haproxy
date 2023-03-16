@@ -4312,7 +4312,7 @@ static void h2_detach(struct sedesc *sd)
 		/* refresh the timeout if none was active, so that the last
 		 * leaving stream may arm it.
 		 */
-		if (!tick_isset(h2c->task->expire))
+		if (h2c->task && !tick_isset(h2c->task->expire))
 			h2c_update_timeout(h2c);
 		return;
 	}
