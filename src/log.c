@@ -3663,8 +3663,7 @@ static void syslog_io_handler(struct appctx *appctx)
 
 missing_data:
 	/* we need more data to read */
-	sc_oc(sc)->flags |= CF_READ_DONTWAIT;
-
+	applet_need_more_data(appctx);
 	return;
 
 missing_budget:
