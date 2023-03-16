@@ -3835,8 +3835,17 @@ static int h2_send(struct h2c *h2c)
 		if (released)
 			offer_buffers(NULL, released);
 
-		/* wrote at least one byte, the buffer is not full anymore */
-		if (sent)
+		/* Normally if wrote at least one byte, the buffer is not full
+		 * anymore. However, if it was marked full because all of its
+		 * buffers were used, we don't want to instantly wake up many
+		 * streams because we'd create a thundering herd effect, notably
+		 * when data are flushed in small chunks. Instead we wait for
+		 * the buffer to be decongested again before allowing to send
+		 * again. It also has the added benefit of not pumping more
+		 * data from the other side when it's known that this one is
+		 * still congested.
+		 */
+		if (sent && br_single(h2c->mbuf))
 			h2c->flags &= ~(H2_CF_MUX_MFULL | H2_CF_DEM_MROOM);
 	}
 
