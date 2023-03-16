@@ -484,7 +484,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		req->analysers &= ~AN_REQ_FLT_XFER_DATA;
 		req->analysers |= AN_REQ_HTTP_XFER_BODY;
 
-		req->flags |= CF_SEND_DONTWAIT;
+		s->scb->flags |= SC_FL_SND_ASAP;
 		s->flags |= SF_ASSIGNED;
 		goto done;
 	}
@@ -510,10 +510,10 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	 * If this happens, then the data will not come immediately, so we must
 	 * send all what we have without waiting. Note that due to the small gain
 	 * in waiting for the body of the request, it's easier to simply put the
-	 * CF_SEND_DONTWAIT flag any time. It's a one-shot flag so it will remove
-	 * itself once used.
+	 * SC_FL_SND_ASAP flag on the back SC any time. It's a one-shot flag so it
+	 * will remove itself once used.
 	 */
-	req->flags |= CF_SEND_DONTWAIT;
+	s->scb->flags |= SC_FL_SND_ASAP;
 
  done:	/* done with this analyser, continue with next ones that the calling
 	 * points will have set, if any.
@@ -1479,7 +1479,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		msg->flags = 0;
 		txn->status = 0;
 		s->logs.t_data = -1; /* was not a response yet */
-		rep->flags |= CF_SEND_DONTWAIT; /* Send ASAP informational messages */
+		s->scf->flags |= SC_FL_SND_ASAP; /* Send ASAP informational messages */
 		goto next_one;
 	}
 
@@ -4456,7 +4456,7 @@ int http_forward_proxy_resp(struct stream *s, int final)
 		/* Send ASAP informational messages. Rely on CF_EOI for final
 		 * response.
 		 */
-		res->flags |= CF_SEND_DONTWAIT;
+		s->scf->flags |= SC_FL_SND_ASAP;
 	}
 
 	data = htx->data - co_data(res);

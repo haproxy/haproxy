@@ -1591,7 +1591,8 @@ static int sc_conn_send(struct stconn *sc)
 		 */
 		unsigned int send_flag = 0;
 
-		if ((!(oc->flags & (CF_NEVER_WAIT|CF_SEND_DONTWAIT)) &&
+		if ((!(sc->flags & SC_FL_SND_ASAP) &&
+		     !(oc->flags & CF_NEVER_WAIT) &&
 		     ((oc->to_forward && oc->to_forward != CHN_INFINITE_FORWARD) ||
 		      (oc->flags & CF_EXPECT_MORE) ||
 		      (IS_HTX_STRM(s) &&
@@ -1637,7 +1638,8 @@ static int sc_conn_send(struct stconn *sc)
 
 			if (!co_data(oc)) {
 				/* Always clear both flags once everything has been sent, they're one-shot */
-				oc->flags &= ~(CF_EXPECT_MORE | CF_SEND_DONTWAIT);
+				oc->flags &= ~CF_EXPECT_MORE;
+				sc->flags &= ~SC_FL_SND_ASAP;
 			}
 			/* if some data remain in the buffer, it's only because the
 			 * system buffers are full, we will try next time.

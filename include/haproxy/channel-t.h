@@ -111,7 +111,7 @@
 
 #define CF_DONT_READ      0x01000000  /* disable reading for now */
 #define CF_EXPECT_MORE    0x02000000  /* more data expected to be sent very soon (one-shoot) */
-#define CF_SEND_DONTWAIT  0x04000000  /* don't wait for sending data (one-shoot) */
+/* unused 0x04000000 */
 #define CF_NEVER_WAIT     0x08000000  /* never wait for sending data (permanent) */
 
 #define CF_WAKE_ONCE      0x10000000  /* pretend there is activity on this channel (one-shoot) */
@@ -142,8 +142,8 @@ static forceinline char *chn_show_flags(char *buf, size_t len, const char *delim
 	_(CF_STREAMER, _(CF_STREAMER_FAST, _(CF_WROTE_DATA,
 	_(CF_KERN_SPLICING,
 	_(CF_AUTO_CONNECT, _(CF_DONT_READ, _(CF_EXPECT_MORE,
-	_(CF_SEND_DONTWAIT, _(CF_NEVER_WAIT, _(CF_WAKE_ONCE, _(CF_FLT_ANALYZE,
-	_(CF_EOI, _(CF_ISRESP)))))))))))))))))))))));
+	_(CF_NEVER_WAIT, _(CF_WAKE_ONCE, _(CF_FLT_ANALYZE,
+	_(CF_EOI, _(CF_ISRESP))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
