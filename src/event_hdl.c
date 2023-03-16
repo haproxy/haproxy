@@ -759,6 +759,13 @@ int event_hdl_publish(event_hdl_sub_list *sub_list,
 	}
 }
 
+void event_hdl_sub_list_init(event_hdl_sub_list *sub_list)
+{
+	BUG_ON(!sub_list); /* unexpected, global sublist is managed internally */
+	MT_LIST_INIT(&sub_list->head);
+	HA_SPIN_INIT(&sub_list->insert_lock);
+}
+
 /* when a subscription list is no longer used, call this
  * to do the cleanup and make sure all related subscriptions are
  * safely ended according to their types
@@ -768,8 +775,7 @@ void event_hdl_sub_list_destroy(event_hdl_sub_list *sub_list)
 	struct event_hdl_sub *cur_sub;
 	struct mt_list *elt1, elt2;
 
-	if (!sub_list)
-		sub_list = &global_event_hdl_sub_list; /* fall back to global list */
+	BUG_ON(!sub_list); /* unexpected, global sublist is managed internally */
 	mt_list_for_each_entry_safe(cur_sub, &sub_list->head, mt_list, elt1, elt2) {
 		/* remove cur elem from list */
 		MT_LIST_DELETE_SAFE(elt1);

@@ -425,20 +425,13 @@ static inline struct event_hdl_async_event *event_hdl_async_equeue_pop(event_hdl
 	return MT_LIST_POP(queue, struct event_hdl_async_event *, mt_list);
 }
 
-/* use this to initialize an event subscription list
- * (event_hdl_sub_list)
- */
-static inline void event_hdl_sub_list_init(event_hdl_sub_list *sub_list)
-{
-	MT_LIST_INIT(&sub_list->head);
-	HA_SPIN_INIT(&sub_list->insert_lock);
-}
+/* use this to initialize <sub_list> event subscription list */
+void event_hdl_sub_list_init(event_hdl_sub_list *sub_list);
 
 /* use this function when you need to destroy <sub_list>
- * subscription list
+ * event subscription list
  * All subscriptions will be removed and properly freed according
  * to their types
- * If <sub_list> is NULL, global subscription list will be used.
  */
 void event_hdl_sub_list_destroy(event_hdl_sub_list *sub_list);
 
