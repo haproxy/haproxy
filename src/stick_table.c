@@ -5326,6 +5326,7 @@ static struct action_kw_list http_res_kws = { { }, {
 INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_kws);
 
 static struct action_kw_list http_after_res_kws = { { }, {
+	{ "sc-add-gpc",  parse_add_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc",  parse_inc_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc0", parse_inc_gpc,  KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc1", parse_inc_gpc,  KWF_MATCH_PREFIX },
