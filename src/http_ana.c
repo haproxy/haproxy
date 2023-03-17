@@ -4233,7 +4233,7 @@ static void http_end_request(struct stream *s)
 		 * to shut this side, and 2) the server is waiting for us to
 		 * send pending data.
 		 */
-		chn->flags |= CF_NEVER_WAIT;
+		s->scb->flags |= SC_FL_SND_NEVERWAIT;
 
 		if (txn->rsp.msg_state < HTTP_MSG_BODY ||
 		    (txn->rsp.msg_state < HTTP_MSG_DONE && s->scb->state != SC_ST_CLO)) {
@@ -4313,7 +4313,7 @@ static void http_end_request(struct stream *s)
   end:
 	chn->analysers &= AN_REQ_FLT_END;
 	if (txn->req.msg_state == HTTP_MSG_TUNNEL) {
-		chn->flags |= CF_NEVER_WAIT;
+		s->scb->flags |= SC_FL_SND_NEVERWAIT;
 		if (HAS_REQ_DATA_FILTERS(s))
 			chn->analysers |= AN_REQ_FLT_XFER_DATA;
 	}
@@ -4409,7 +4409,7 @@ static void http_end_response(struct stream *s)
   end:
 	chn->analysers &= AN_RES_FLT_END;
 	if (txn->rsp.msg_state == HTTP_MSG_TUNNEL) {
-		chn->flags |= CF_NEVER_WAIT;
+		s->scf->flags |= SC_FL_SND_NEVERWAIT;
 		if (HAS_RSP_DATA_FILTERS(s))
 			chn->analysers |= AN_RES_FLT_XFER_DATA;
 	}

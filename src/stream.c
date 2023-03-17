@@ -529,8 +529,8 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	s->res.analysers = 0;
 
 	if (sess->fe->options2 & PR_O2_NODELAY) {
-		s->req.flags |= CF_NEVER_WAIT;
-		s->res.flags |= CF_NEVER_WAIT;
+		s->scf->flags |= SC_FL_SND_NEVERWAIT;
+		s->scb->flags |= SC_FL_SND_NEVERWAIT;
 	}
 
 	s->scb->ioto = TICK_ETERNITY;

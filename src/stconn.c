@@ -1591,8 +1591,7 @@ static int sc_conn_send(struct stconn *sc)
 		 */
 		unsigned int send_flag = 0;
 
-		if ((!(sc->flags & SC_FL_SND_ASAP) &&
-		     !(oc->flags & CF_NEVER_WAIT) &&
+		if ((!(sc->flags & (SC_FL_SND_ASAP|SC_FL_SND_NEVERWAIT)) &&
 		     ((oc->to_forward && oc->to_forward != CHN_INFINITE_FORWARD) ||
 		      (oc->flags & CF_EXPECT_MORE) ||
 		      (IS_HTX_STRM(s) &&

@@ -2739,7 +2739,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		return 0;
 	}
 	s->scb->flags |= SC_FL_RCV_ONCE; /* try to get back here ASAP */
-	rep->flags |= CF_NEVER_WAIT;
+	s->scf->flags |= SC_FL_SND_NEVERWAIT;
 
 	/* don't forward the close */
 	channel_dont_close(&s->res);
@@ -2847,8 +2847,8 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		sc_set_state(s->scb, SC_ST_INI);
 		s->scb->flags &= SC_FL_ISBACK | SC_FL_DONT_WAKE; /* we're in the context of process_stream */
-		s->req.flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT|CF_WROTE_DATA);
-		s->res.flags &= ~(CF_SHUTR|CF_SHUTR_NOW|CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_EVENT|CF_NEVER_WAIT|CF_WROTE_DATA|CF_READ_EVENT);
+		s->req.flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_STREAMER|CF_STREAMER_FAST|CF_WROTE_DATA);
+		s->res.flags &= ~(CF_SHUTR|CF_SHUTR_NOW|CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_EVENT|CF_WROTE_DATA|CF_READ_EVENT);
 		s->flags &= ~(SF_DIRECT|SF_ASSIGNED|SF_BE_ASSIGNED|SF_FORCE_PRST|SF_IGNORE_PRST);
 		s->flags &= ~(SF_CURR_SESS|SF_REDIRECTABLE|SF_SRV_REUSED);
 		s->flags &= ~(SF_ERR_MASK|SF_FINST_MASK|SF_REDISP);
@@ -2869,6 +2869,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->store_count = 0;
 		s->uniq_id = global.req_count++;
 
+		s->scf->flags &= ~SC_FL_SND_NEVERWAIT;
 		s->scf->flags |= SC_FL_RCV_ONCE; /* one read is usually enough */
 
 		s->req.flags |= CF_WAKE_ONCE; /* need to be called again if there is some command left in the request */

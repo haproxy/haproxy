@@ -2473,8 +2473,8 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 
 	s->flags |= SF_BE_ASSIGNED;
 	if (be->options2 & PR_O2_NODELAY) {
-		s->req.flags |= CF_NEVER_WAIT;
-		s->res.flags |= CF_NEVER_WAIT;
+		s->scf->flags |= SC_FL_SND_NEVERWAIT;
+		s->scb->flags |= SC_FL_SND_NEVERWAIT;
 	}
 
 	return 1;
