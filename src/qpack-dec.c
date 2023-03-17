@@ -335,7 +335,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 				goto out;
 			}
 
-			if (static_tbl) {
+			if (static_tbl && index < QPACK_SHT_SIZE) {
 				name = qpack_sht[index].n;
 				value = qpack_sht[index].v;
 			}
@@ -370,7 +370,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 				goto out;
 			}
 
-			if (static_tbl) {
+			if (static_tbl && index < QPACK_SHT_SIZE) {
 				name = qpack_sht[index].n;
 			}
 			else {
