@@ -1,0 +1,7 @@
+These files are example lua scripts that can be customized
+if necessary.
+
+They can be loaded with the 'lua-load' keyword like this:
+
+    lua-load /path/to/lua_script.lua
+
