@@ -110,8 +110,7 @@
 #define CF_AUTO_CONNECT   0x00800000  /* consumer may attempt to establish a new connection */
 
 #define CF_DONT_READ      0x01000000  /* disable reading for now */
-#define CF_EXPECT_MORE    0x02000000  /* more data expected to be sent very soon (one-shoot) */
-/* unused 0x04000000 - 0x08000000 */
+/* unused 0x02000000 - 0x08000000 */
 
 #define CF_WAKE_ONCE      0x10000000  /* pretend there is activity on this channel (one-shoot) */
 #define CF_FLT_ANALYZE    0x20000000  /* at least one filter is still analyzing this channel */
@@ -140,9 +139,9 @@ static forceinline char *chn_show_flags(char *buf, size_t len, const char *delim
 	_(CF_WAKE_WRITE, _(CF_SHUTW, _(CF_SHUTW_NOW, _(CF_AUTO_CLOSE,
 	_(CF_STREAMER, _(CF_STREAMER_FAST, _(CF_WROTE_DATA,
 	_(CF_KERN_SPLICING,
-	_(CF_AUTO_CONNECT, _(CF_DONT_READ, _(CF_EXPECT_MORE,
+	_(CF_AUTO_CONNECT, _(CF_DONT_READ,
 	_(CF_WAKE_ONCE, _(CF_FLT_ANALYZE,
-	_(CF_EOI, _(CF_ISRESP)))))))))))))))))))));
+	_(CF_EOI, _(CF_ISRESP))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

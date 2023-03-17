@@ -129,6 +129,7 @@ enum sc_flags {
 	SC_FL_RCV_ONCE      = 0x00000400,  /* Don't loop to receive data. cleared after a sucessful receive */
 	SC_FL_SND_ASAP      = 0x00000800,  /* Don't wait for sending. cleared when all data were sent */
 	SC_FL_SND_NEVERWAIT = 0x00001000,  /* Never wait for sending (permanent) */
+	SC_FL_SND_EXP_MORE  = 0x00001000,  /* More data expected to be sent very soon. cleared when all data were sent */
 };
 
 /* This function is used to report flags in debugging tools. Please reflect
@@ -144,7 +145,7 @@ static forceinline char *sc_show_flags(char *buf, size_t len, const char *delim,
 	_(SC_FL_ISBACK, _(SC_FL_NOLINGER, _(SC_FL_NOHALF,
 	_(SC_FL_DONT_WAKE, _(SC_FL_INDEP_STR, _(SC_FL_WONT_READ,
 	_(SC_FL_NEED_BUFF, _(SC_FL_NEED_ROOM,
-	_(SC_FL_RCV_ONCE, _(SC_FL_SND_ASAP, _(SC_FL_SND_NEVERWAIT)))))))))));
+	_(SC_FL_RCV_ONCE, _(SC_FL_SND_ASAP, _(SC_FL_SND_NEVERWAIT, _(SC_FL_SND_EXP_MORE))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

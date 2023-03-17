@@ -1066,7 +1066,7 @@ static void sc_notify(struct stconn *sc)
 	 */
 	if (!channel_is_empty(ic) &&
 	    sc_ep_test(sco, SE_FL_WAIT_DATA) &&
-	    (!(ic->flags & CF_EXPECT_MORE) || c_full(ic) || ci_data(ic) == 0 || ic->pipe)) {
+	    (!(sc->flags & SC_FL_SND_EXP_MORE) || c_full(ic) || ci_data(ic) == 0 || ic->pipe)) {
 		int new_len, last_len;
 
 		last_len = co_data(ic);
@@ -1593,7 +1593,7 @@ static int sc_conn_send(struct stconn *sc)
 
 		if ((!(sc->flags & (SC_FL_SND_ASAP|SC_FL_SND_NEVERWAIT)) &&
 		     ((oc->to_forward && oc->to_forward != CHN_INFINITE_FORWARD) ||
-		      (oc->flags & CF_EXPECT_MORE) ||
+		      (sc->flags & SC_FL_SND_EXP_MORE) ||
 		      (IS_HTX_STRM(s) &&
 		       (!(oc->flags & (CF_EOI|CF_SHUTR)) && htx_expect_more(htxbuf(&oc->buf)))))) ||
 		    ((oc->flags & CF_ISRESP) &&
@@ -1637,8 +1637,7 @@ static int sc_conn_send(struct stconn *sc)
 
 			if (!co_data(oc)) {
 				/* Always clear both flags once everything has been sent, they're one-shot */
-				oc->flags &= ~CF_EXPECT_MORE;
-				sc->flags &= ~SC_FL_SND_ASAP;
+				sc->flags &= ~(SC_FL_SND_ASAP|SC_FL_SND_EXP_MORE);
 			}
 			/* if some data remain in the buffer, it's only because the
 			 * system buffers are full, we will try next time.

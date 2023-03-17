@@ -958,7 +958,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	msg->msg_state = HTTP_MSG_ENDING;
 
   ending:
-	req->flags &= ~CF_EXPECT_MORE; /* no more data are expected */
+	s->scb->flags &= ~SC_FL_SND_EXP_MORE; /* no more data are expected to be send */
 
 	/* other states, ENDING...TUNNEL */
 	if (msg->msg_state >= HTTP_MSG_DONE)
@@ -1040,7 +1040,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		channel_dont_close(req);
 
 	/* We know that more data are expected, but we couldn't send more that
-	 * what we did. So we always set the CF_EXPECT_MORE flag so that the
+	 * what we did. So we always set the SC_FL_SND_EXP_MORE flag so that the
 	 * system knows it must not set a PUSH on this first part. Interactive
 	 * modes are already handled by the stream sock layer. We must not do
 	 * this in content-length mode because it could present the MSG_MORE
@@ -1048,7 +1048,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	 * additional delay to be observed by the receiver.
 	 */
 	if (HAS_REQ_DATA_FILTERS(s))
-		req->flags |= CF_EXPECT_MORE;
+		s->scb->flags |= SC_FL_SND_EXP_MORE;
 
 	DBG_TRACE_DEVEL("waiting for more data to forward",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
@@ -1638,7 +1638,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	txn->status = 0;
 	s->logs.logwait = 0;
 	s->logs.level = 0;
-	s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
+	s->scf->flags &= ~SC_FL_SND_EXP_MORE; /* speed up sending a previous response */
 	http_reply_and_close(s, txn->status, NULL);
 	DBG_TRACE_DEVEL("leaving by closing K/A connection",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
@@ -2072,7 +2072,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	msg->msg_state = HTTP_MSG_ENDING;
 
   ending:
-	res->flags &= ~CF_EXPECT_MORE; /* no more data are expected */
+	s->scf->flags &= ~SC_FL_SND_EXP_MORE; /* no more data are expected to be sent */
 
 	/* other states, ENDING...TUNNEL */
 	if (msg->msg_state >= HTTP_MSG_DONE)
@@ -2143,7 +2143,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		channel_dont_close(res);
 
 	/* We know that more data are expected, but we couldn't send more that
-	 * what we did. So we always set the CF_EXPECT_MORE flag so that the
+	 * what we did. So we always set the SC_FL_SND_EXP_MORE flag so that the
 	 * system knows it must not set a PUSH on this first part. Interactive
 	 * modes are already handled by the stream sock layer. We must not do
 	 * this in content-length mode because it could present the MSG_MORE
@@ -2151,7 +2151,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	 * additional delay to be observed by the receiver.
 	 */
 	if (HAS_RSP_DATA_FILTERS(s))
-		res->flags |= CF_EXPECT_MORE;
+		s->scf->flags |= SC_FL_SND_EXP_MORE;
 
 	/* the stream handler will take care of timeouts and errors */
 	DBG_TRACE_DEVEL("waiting for more data to forward",
