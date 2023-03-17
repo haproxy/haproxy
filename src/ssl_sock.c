@@ -214,6 +214,7 @@ static int ha_ssl_write(BIO *h, const char *buf, int num)
 {
 	struct buffer tmpbuf;
 	struct ssl_sock_ctx *ctx;
+	uint flags;
 	int ret;
 
 	ctx = BIO_get_data(h);
@@ -221,7 +222,8 @@ static int ha_ssl_write(BIO *h, const char *buf, int num)
 	tmpbuf.area = (void *)(uintptr_t)buf;
 	tmpbuf.data = num;
 	tmpbuf.head = 0;
-	ret = ctx->xprt->snd_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, num, 0);
+	flags = (ctx->xprt_st & SSL_SOCK_SEND_MORE) ? CO_SFL_MSG_MORE : 0;
+	ret = ctx->xprt->snd_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, num, flags);
 	if (ret == 0 && !(ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH))) {
 		BIO_set_retry_write(h);
 		ret = -1;
@@ -6448,6 +6450,11 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 			 */
 			ctx->xprt_st |= SSL_SOCK_SEND_UNLIMITED;
 		}
+
+		if (try < count || flags & CO_SFL_MSG_MORE)
+			ctx->xprt_st |= SSL_SOCK_SEND_MORE;
+		else
+			ctx->xprt_st &= ~SSL_SOCK_SEND_MORE;
 
 #ifdef SSL_READ_EARLY_DATA_SUCCESS
 		if (!SSL_is_init_finished(ctx->ssl) && conn_is_back(conn)) {

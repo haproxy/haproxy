@@ -49,6 +49,7 @@
 #define SSL_SOCK_ST_FL_16K_WBFSIZE  0x00000002
 #define SSL_SOCK_SEND_UNLIMITED     0x00000004
 #define SSL_SOCK_RECV_HEARTBEAT     0x00000008
+#define SSL_SOCK_SEND_MORE          0x00000010  /* set MSG_MORE at lower levels */
 
 /* bits 0xFFFFFF00 are reserved to store verify errors.
  * The CA en CRT error codes will be stored on 7 bits each
