@@ -3798,6 +3798,7 @@ static int h2_send(struct h2c *h2c)
 		unsigned int flags = 0;
 		unsigned int released = 0;
 		struct buffer *buf;
+		uint to_send;
 
 		/* fill as much as we can into the current buffer */
 		while (((h2c->flags & (H2_CF_MUX_MFULL|H2_CF_MUX_MALLOC)) == 0) && !done)
@@ -3813,7 +3814,8 @@ static int h2_send(struct h2c *h2c)
 		if (h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MROOM))
 			flags |= CO_SFL_MSG_MORE;
 
-		if (!br_single(h2c->mbuf)) {
+		to_send = br_count(h2c->mbuf);
+		if (to_send > 1) {
 			/* usually we want to emit small TLS records to speed
 			 * up the decoding on the client. That's what is being
 			 * done by default. However if there is more than one
@@ -3825,12 +3827,14 @@ static int h2_send(struct h2c *h2c)
 
 		for (buf = br_head(h2c->mbuf); b_size(buf); buf = br_del_head(h2c->mbuf)) {
 			if (b_data(buf)) {
-				int ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), flags);
+				int ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf),
+							      flags | (to_send > 1 ? CO_SFL_MSG_MORE : 0));
 				if (!ret) {
 					done = 1;
 					break;
 				}
 				sent = 1;
+				to_send--;
 				TRACE_DATA("sent data", H2_EV_H2C_SEND, h2c->conn, 0, buf, (void*)(long)ret);
 				b_del(buf, ret);
 				if (b_data(buf)) {
