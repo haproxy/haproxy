@@ -2822,13 +2822,30 @@ static int h1_recv(struct h1c *h1c)
 	if (b_data(&h1c->ibuf) > 0 && b_data(&h1c->ibuf) < 128)
 		b_slow_realign_ofs(&h1c->ibuf, trash.area, sizeof(struct htx));
 
+	max = buf_room_for_htx_data(&h1c->ibuf);
+
 	/* avoid useless reads after first responses */
 	if (!h1c->h1s ||
 	    (!(h1c->flags & H1C_F_IS_BACK) && h1c->h1s->req.state == H1_MSG_RQBEFORE) ||
-	    ((h1c->flags & H1C_F_IS_BACK) && h1c->h1s->res.state == H1_MSG_RPBEFORE))
+	    ((h1c->flags & H1C_F_IS_BACK) && h1c->h1s->res.state == H1_MSG_RPBEFORE)) {
 		flags |= CO_RFL_READ_ONCE;
 
-	max = buf_room_for_htx_data(&h1c->ibuf);
+		/* we know that the first read will be constrained to a smaller
+		 * read by the stream layer in order to respect the reserve.
+		 * Reading too much will result in global.tune.maxrewrite being
+		 * left at the end of the buffer, and in a very small read
+		 * being performed again to complete them (typically 16 bytes
+		 * freed in the index after headers were consumed) before
+		 * another larger read. Instead, given that we know we're
+		 * waiting for a header and we'll be limited, let's perform a
+		 * shorter first read that the upper layer can retrieve by just
+		 * a pointer swap and the next read will be doable at once in
+		 * an empty buffer.
+		 */
+		if (max > global.tune.bufsize - global.tune.maxrewrite)
+			max = global.tune.bufsize - global.tune.maxrewrite;
+	}
+
 	if (max) {
 		if (h1c->flags & H1C_F_IN_FULL) {
 			h1c->flags &= ~H1C_F_IN_FULL;
