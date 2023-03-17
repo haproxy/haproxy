@@ -5903,6 +5903,7 @@ http-after-response <action> <options...> [ { if | unless } <condition> ]
     - del-map(<file-name>) <key fmt>
     - replace-header <name> <regex-match> <replace-fmt>
     - replace-value <name> <regex-match> <replace-fmt>
+    - sc-add-gpc(<idx>,<sc-id>) { <int> | <expr> }
     - sc-inc-gpc(<idx>,<sc-id>)
     - sc-inc-gpc0(<sc-id>)
     - sc-inc-gpc1(<sc-id>)
@@ -5999,6 +6000,13 @@ http-after-response replace-value <name> <regex-match> <replace-fmt>
 
     # outputs:
     Cache-Control: max-age=3600, private
+
+http-after-response sc-add-gpc(<idx>,<sc-id>) { <int> | <expr> }
+                                           [ { if | unless } <condition> ]
+
+  This action increments the General Purpose Counter according to the sticky
+  counter designated by <sc-id>. Please refer to "http-request sc-add-gpc" for
+  a complete description.
 
 http-after-response sc-inc-gpc(<idx>,<sc-id>) [ { if | unless } <condition> ]
 http-after-response sc-inc-gpc0(<sc-id>) [ { if | unless } <condition> ]
@@ -6650,6 +6658,7 @@ http-request <action> [options...] [ { if | unless } <condition> ]
     - replace-uri <match-regex> <replace-fmt>
     - replace-value <name> <match-regex> <replace-fmt>
     - return [status <code>] [content-type <type>] ...
+    - sc-add-gpc(<idx>,<sc-id>) { <int> | <expr> }
     - sc-inc-gpc(<idx>,<sc-id>)
     - sc-inc-gpc0(<sc-id>)
     - sc-inc-gpc1(<sc-id>)
@@ -7855,6 +7864,7 @@ http-response <action> <options...> [ { if | unless } <condition> ]
     - replace-header <name> <regex-match> <replace-fmt>
     - replace-value <name> <regex-match> <replace-fmt>
     - return [status <code>] [content-type <type>] ...
+    - sc-add-gpc(<idx>,<sc-id>) { <int> | <expr> }
     - sc-inc-gpc(<idx>,<sc-id>)
     - sc-inc-gpc0(<sc-id>)
     - sc-inc-gpc1(<sc-id>)
@@ -8032,6 +8042,13 @@ http-response return [status <code>] [content-type <type>]
   This stops the evaluation of the rules and immediately returns a
   response. Please refer to "http-request return" for a complete
   description. No further "http-response" rules are evaluated.
+
+http-response sc-add-gpc(<idx>,<sc-id>) { <int> | <expr> }
+                                           [ { if | unless } <condition> ]
+
+  This action increments the General Purpose Counter according to the sticky
+  counter designated by <sc-id>. Please refer to "http-request sc-add-gpc" for
+  a complete description.
 
 http-response sc-inc-gpc(<idx>,<sc-id>) [ { if | unless } <condition> ]
 http-response sc-inc-gpc0(<sc-id>) [ { if | unless } <condition> ]
@@ -12911,6 +12928,7 @@ tcp-request connection <action> <options...> [ { if | unless } <condition> ]
     - expect-netscaler-cip layer4
     - expect-proxy layer4
     - reject
+    - sc-add-gpc(<idx>,<sc-id>) { <int> | <expr> }
     - sc-inc-gpc(<idx>,<sc-id>)
     - sc-inc-gpc0(<sc-id>)
     - sc-inc-gpc1(<sc-id>)
@@ -13008,6 +13026,13 @@ tcp-request connection reject [ { if | unless } <condition> ]
   filtering capacity. If logging is absolutely desired, then "tcp-request
   content" rules should be used instead, as "tcp-request session" rules will
   not log either.
+
+tcp-request connection sc-add-gpc(<idx>,<sc-id>) { <int> | <expr> }
+                                           [ { if | unless } <condition> ]
+
+  This action increments the General Purpose Counter according to the sticky
+  counter designated by <sc-id>. Please refer to "http-request sc-add-gpc" for
+  a complete description.
 
 tcp-request connection sc-inc-gpc(<idx>,<sc-id>) [ { if | unless } <condition> ]
 tcp-request connection sc-inc-gpc0(<sc-id>) [ { if | unless } <condition> ]
@@ -13122,6 +13147,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - capture <sample> len <length>
     - do-resolve(<var>,<resolvers>,[ipv4,ipv6]) <expr>
     - reject
+    - sc-add-gpc(<idx>,<sc-id>) { <int> | <expr> }
     - sc-inc-gpc(<idx>,<sc-id>)
     - sc-inc-gpc0(<sc-id>)
     - sc-inc-gpc1(<sc-id>)
@@ -13297,6 +13323,13 @@ tcp-request content reject [ { if | unless } <condition> ]
 
   This is used to reject the connection. No further "tcp-request content" rules
   are evaluated.
+
+tcp-request content sc-add-gpc(<idx>,<sc-id>) { <int> | <expr> }
+                                           [ { if | unless } <condition> ]
+
+  This action increments the General Purpose Counter according to the sticky
+  counter designated by <sc-id>. Please refer to "http-request sc-add-gpc" for
+  a complete description.
 
 tcp-request content sc-inc-gpc(<idx>,<sc-id>) [ { if | unless } <condition> ]
 tcp-request content sc-inc-gpc0(<sc-id>) [ { if | unless } <condition> ]
@@ -13518,6 +13551,7 @@ tcp-request session <action> [{if | unless} <condition>]
   supported:
     - accept
     - reject
+    - sc-add-gpc(<idx>,<sc-id>) { <int> | <expr> }
     - sc-inc-gpc(<idx>,<sc-id>)
     - sc-inc-gpc0(<sc-id>)
     - sc-inc-gpc1(<sc-id>)
@@ -13588,6 +13622,13 @@ tcp-request session reject [ { if | unless } <condition> ]
 
   This is used to reject the connection. No further "tcp-request session" rules
   are evaluated.
+
+tcp-request session sc-add-gpc(<idx>,<sc-id>) { <int> | <expr> }
+                                           [ { if | unless } <condition> ]
+
+  This action increments the General Purpose Counter according to the sticky
+  counter designated by <sc-id>. Please refer to "http-request sc-add-gpc" for
+  a complete description.
 
 tcp-request session sc-inc-gpc(<idx>,<sc-id>) [ { if | unless } <condition> ]
 tcp-request session sc-inc-gpc0(<sc-id>) [ { if | unless } <condition> ]
@@ -13690,6 +13731,7 @@ tcp-response content <action> [{if | unless} <condition>]
     - accept
     - close
     - reject
+    - sc-add-gpc(<idx>,<sc-id>) { <int> | <expr> }
     - sc-inc-gpc(<idx>,<sc-id>)
     - sc-inc-gpc0(<sc-id>)
     - sc-inc-gpc1(<sc-id>)
@@ -13749,6 +13791,13 @@ tcp-response content reject [ { if | unless } <condition> ]
 
   This is used to reject the response. No further "tcp-response content" rules
   are evaluated.
+
+tcp-response content sc-add-gpc(<idx>,<sc-id>) { <int> | <expr> }
+                                           [ { if | unless } <condition> ]
+
+  This action increments the General Purpose Counter according to the sticky
+  counter designated by <sc-id>. Please refer to "http-request sc-add-gpc" for
+  a complete description.
 
 tcp-response content sc-inc-gpc(<idx>,<sc-id>) [ { if | unless } <condition> ]
 tcp-response content sc-inc-gpc0(<sc-id>) [ { if | unless } <condition> ]
