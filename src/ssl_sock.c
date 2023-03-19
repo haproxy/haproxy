@@ -1296,6 +1296,8 @@ out:
 	if (warn)
 		free(warn);
 
+	free(err);
+
 	return ret;
 }
 
