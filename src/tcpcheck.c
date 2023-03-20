@@ -421,6 +421,7 @@ static void tcpcheck_expect_onerror_message(struct buffer *msg, struct check *ch
 					    int match, struct ist info)
 {
 	struct sample *smp;
+	int is_empty;
 
 	/* Follows these step to produce the info message:
 	 *     1. if info field is already provided, copy it
@@ -438,9 +439,18 @@ static void tcpcheck_expect_onerror_message(struct buffer *msg, struct check *ch
 		goto comment;
 	}
 
-       if (check->type == PR_O2_TCPCHK_CHK &&
-	   (check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) != TCPCHK_RULES_TCP_CHK)
-	       goto comment;
+	is_empty = (IS_HTX_SC(check->sc) ? htx_is_empty(htxbuf(&check->bi)) : !b_data(&check->bi));
+	if (is_empty) {
+		TRACE_ERROR("empty response", CHK_EV_RX_DATA|CHK_EV_RX_ERR, check);
+		chunk_printf(msg, "TCPCHK got an empty response at step %d",
+			     tcpcheck_get_step_id(check, rule));
+		goto comment;
+	}
+
+	if (check->type == PR_O2_TCPCHK_CHK &&
+	    (check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) != TCPCHK_RULES_TCP_CHK) {
+		goto comment;
+	}
 
 	chunk_strcat(msg, (match ? "TCPCHK matched unwanted content" : "TCPCHK did not match content"));
 	switch (rule->expect.type) {
@@ -1597,31 +1607,10 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 		TRACE_ERROR("connection error during recv", CHK_EV_RX_DATA|CHK_EV_RX_ERR, check);
 		goto stop;
 	}
-	if (!cur_read) {
-		if (sc_ep_test(sc, SE_FL_EOI)) {
-			/* If EOI is set, it means there is a response or an error */
-			goto out;
-		}
-
-		if (!sc_ep_test(sc, SE_FL_WANT_ROOM | SE_FL_ERROR | SE_FL_EOS)) {
-			conn->mux->subscribe(sc, SUB_RETRY_RECV, &sc->wait_event);
-			TRACE_DEVEL("waiting for response", CHK_EV_RX_DATA, check);
-			goto wait_more_data;
-		}
-
-		if (is_empty) {
-			int status;
-
-			chunk_printf(&trash, "TCPCHK got an empty response at step %d",
-				     tcpcheck_get_step_id(check, rule));
-			if (rule->comment)
-				chunk_appendf(&trash, " comment: '%s'", rule->comment);
-
-			TRACE_ERROR("empty response", CHK_EV_RX_DATA|CHK_EV_RX_ERR, check);
-			status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7RSP);
-			set_server_check_status(check, status, trash.area);
-			goto stop;
-		}
+	else if (!cur_read && !sc_ep_test(sc, SE_FL_WANT_ROOM | SE_FL_ERROR | SE_FL_EOS)) {
+		conn->mux->subscribe(sc, SUB_RETRY_RECV, &sc->wait_event);
+		TRACE_DEVEL("waiting for response", CHK_EV_RX_DATA, check);
+		goto wait_more_data;
 	}
 	TRACE_DATA("data received", CHK_EV_RX_DATA, check, 0, 0, (size_t[]){cur_read});
 
