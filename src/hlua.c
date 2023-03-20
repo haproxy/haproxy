@@ -475,7 +475,7 @@ static inline int reg_flt_to_stack_id(struct hlua_reg_filter *reg_flt)
  * error if the argument is not a "function".
  * When no longer used, the ref must be released with hlua_unref()
  */
-__LJMP unsigned int hlua_checkfunction(lua_State *L, int argno)
+__LJMP int hlua_checkfunction(lua_State *L, int argno)
 {
 	if (!lua_isfunction(L, argno)) {
 		const char *msg = lua_pushfstring(L, "function expected, got %s", luaL_typename(L, argno));
@@ -490,7 +490,7 @@ __LJMP unsigned int hlua_checkfunction(lua_State *L, int argno)
  * error if the argument is not a "table".
  * When no longer used, the ref must be released with hlua_unref()
  */
-__LJMP unsigned int hlua_checktable(lua_State *L, int argno)
+__LJMP int hlua_checktable(lua_State *L, int argno)
 {
 	if (!lua_istable(L, argno)) {
 		const char *msg = lua_pushfstring(L, "table expected, got %s", luaL_typename(L, argno));
