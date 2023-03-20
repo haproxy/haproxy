@@ -11857,6 +11857,10 @@ int hlua_post_init_state(lua_State *L)
 
 	list_for_each_entry(init, &hlua_init_functions[hlua_state_id], l) {
 		lua_rawgeti(L, LUA_REGISTRYINDEX, init->function_ref);
+		/* function ref should be released right away since it was pushed
+		 * on the stack and will not be used anymore
+		 */
+		hlua_unref(L, init->function_ref);
 
 #if defined(LUA_VERSION_NUM) && LUA_VERSION_NUM >= 504
 		ret = lua_resume(L, L, 0, &nres);
