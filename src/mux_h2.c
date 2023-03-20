@@ -962,6 +962,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 
 	h2c->proxy = prx;
 	h2c->task = NULL;
+	h2c->wait_event.tasklet = NULL;
 	h2c->idle_start = now_ms;
 	if (tick_isset(h2c->timeout)) {
 		t = task_new_here();
