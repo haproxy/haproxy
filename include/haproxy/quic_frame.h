@@ -255,11 +255,15 @@ static inline void qc_frm_free(struct quic_frame **frm)
 }
 
 /* Move forward <strm> STREAM frame by <data> bytes. */
-static inline void qc_stream_frm_mv_fwd(struct quic_stream *strm, uint64_t data)
+static inline void qc_stream_frm_mv_fwd(struct quic_frame *frm, uint64_t data)
 {
+	struct quic_stream *strm = &frm->stream;
 	struct buffer cf_buf;
 
+	/* Set offset bit if not already there. */
 	strm->offset.key += data;
+	frm->type |= QUIC_STREAM_FRAME_TYPE_OFF_BIT;
+
 	strm->len -= data;
 	cf_buf = b_make(b_orig(strm->buf),
 	                b_size(strm->buf),
