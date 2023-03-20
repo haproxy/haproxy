@@ -2004,8 +2004,10 @@ static void qc_shutdown(struct qcc *qcc)
 {
 	TRACE_ENTER(QMUX_EV_QCC_END, qcc->conn);
 
-	if (qcc->flags & QC_CF_APP_SHUT)
+	if (qcc->flags & (QC_CF_APP_SHUT|QC_CF_CC_EMIT)) {
+		TRACE_DATA("connection closed", QMUX_EV_QCC_END, qcc->conn);
 		goto out;
+	}
 
 	if (qcc->app_ops && qcc->app_ops->shutdown) {
 		qcc->app_ops->shutdown(qcc->ctx);
