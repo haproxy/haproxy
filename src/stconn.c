@@ -256,12 +256,6 @@ int sc_attach_mux(struct stconn *sc, void *sd, void *ctx)
 	struct connection *conn = ctx;
 	struct sedesc *sedesc = sc->sedesc;
 
-	sedesc->se = sd;
-	sedesc->conn = ctx;
-	se_fl_set(sedesc, SE_FL_T_MUX);
-	se_fl_clr(sedesc, SE_FL_DETACHED);
-	if (!conn->ctx)
-		conn->ctx = sc;
 	if (sc_strm(sc)) {
 		if (!sc->wait_event.tasklet) {
 			sc->wait_event.tasklet = tasklet_new();
@@ -286,6 +280,13 @@ int sc_attach_mux(struct stconn *sc, void *sd, void *ctx)
 
 		sc->app_ops = &sc_app_check_ops;
 	}
+
+	sedesc->se = sd;
+	sedesc->conn = ctx;
+	se_fl_set(sedesc, SE_FL_T_MUX);
+	se_fl_clr(sedesc, SE_FL_DETACHED);
+	if (!conn->ctx)
+		conn->ctx = sc;
 	return 0;
 }
 
