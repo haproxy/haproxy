@@ -171,8 +171,12 @@ struct stconn *sc_new_from_endp(struct sedesc *sd, struct session *sess, struct 
 	if (unlikely(!sc))
 		return NULL;
 	if (unlikely(!stream_new(sess, sc, input))) {
-		pool_free(pool_head_connstream, sc);
 		sd->sc = NULL;
+		if (sc->sedesc != sd) {
+			/* none was provided so sc_new() allocated one */
+			sedesc_free(sc->sedesc);
+		}
+		pool_free(pool_head_connstream, sc);
 		se_fl_set(sd, SE_FL_ORPHAN);
 		return NULL;
 	}
