@@ -582,8 +582,8 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
  out_fail_accept:
 	flt_stream_release(s, 0);
 	LIST_DELETE(&s->list);
- out_fail_alloc_scb:
 	sc_free(s->scb);
+ out_fail_alloc_scb:
  out_fail_attach_scf:
 	task_destroy(t);
  out_fail_alloc:
