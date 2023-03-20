@@ -10577,7 +10577,7 @@ static int hlua_filter_init_per_thread(struct proxy *px, struct flt_conf *fconf)
 		lua_insert(L, -2);
 		lua_settable(L, -4);
 	}
-	flt_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+	flt_ref = hlua_ref(L);
 
 	/* Remove the original lua filter class from the stack */
 	lua_pop(L, 1);
@@ -10789,7 +10789,7 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 
 		/* Save a ref on the filter ctx */
 		lua_pushvalue(s->hlua->T, 1);
-		flt_ctx->ref = luaL_ref(s->hlua->T, LUA_REGISTRYINDEX);
+		flt_ctx->ref = hlua_ref(s->hlua->T);
 		filter->ctx = flt_ctx;
 		break;
 	case HLUA_E_ERRMSG:
