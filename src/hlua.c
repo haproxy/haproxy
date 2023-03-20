@@ -8720,7 +8720,7 @@ static int hlua_register_task(lua_State *L)
 		goto alloc_error;
 
 	/* Restore the function in the stack. */
-	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, ref);
+	hlua_pushref(hlua->T, ref);
 	/* function ref not needed anymore since it was pushed to the substack */
 	hlua_unref(L, ref);
 
@@ -8794,7 +8794,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 		}
 
 		/* Restore the function in the stack. */
-		lua_rawgeti(stream->hlua->T, LUA_REGISTRYINDEX, fcn->function_ref[stream->hlua->state_id]);
+		hlua_pushref(stream->hlua->T, fcn->function_ref[stream->hlua->state_id]);
 
 		/* convert input sample and pust-it in the stack. */
 		if (!lua_checkstack(stream->hlua->T, 1)) {
@@ -8931,7 +8931,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		}
 
 		/* Restore the function in the stack. */
-		lua_rawgeti(stream->hlua->T, LUA_REGISTRYINDEX, fcn->function_ref[stream->hlua->state_id]);
+		hlua_pushref(stream->hlua->T, fcn->function_ref[stream->hlua->state_id]);
 
 		/* push arguments in the stack. */
 		if (!hlua_txn_new(stream->hlua->T, stream, smp->px, smp->opt & SMP_OPT_DIR, hflags)) {
@@ -9276,7 +9276,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		}
 
 		/* Restore the function in the stack. */
-		lua_rawgeti(s->hlua->T, LUA_REGISTRYINDEX, rule->arg.hlua_rule->fcn->function_ref[s->hlua->state_id]);
+		hlua_pushref(s->hlua->T, rule->arg.hlua_rule->fcn->function_ref[s->hlua->state_id]);
 
 		/* Create and and push object stream in the stack. */
 		if (!hlua_txn_new(s->hlua->T, s, px, dir, hflags)) {
@@ -9462,7 +9462,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx)
 	}
 
 	/* Restore the function in the stack. */
-	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, ctx->rule->arg.hlua_rule->fcn->function_ref[hlua->state_id]);
+	hlua_pushref(hlua->T, ctx->rule->arg.hlua_rule->fcn->function_ref[hlua->state_id]);
 
 	/* Create and and push object stream in the stack. */
 	if (!hlua_applet_tcp_new(hlua->T, ctx)) {
@@ -9653,7 +9653,7 @@ static int hlua_applet_http_init(struct appctx *ctx)
 	}
 
 	/* Restore the function in the stack. */
-	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, ctx->rule->arg.hlua_rule->fcn->function_ref[hlua->state_id]);
+	hlua_pushref(hlua->T, ctx->rule->arg.hlua_rule->fcn->function_ref[hlua->state_id]);
 
 	/* Create and and push object stream in the stack. */
 	if (!hlua_applet_http_new(hlua->T, ctx)) {
@@ -10285,7 +10285,7 @@ static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx,
 	}
 
 	/* Restore the function in the stack. */
-	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, fcn->function_ref[hlua->state_id]);
+	hlua_pushref(hlua->T, fcn->function_ref[hlua->state_id]);
 
 	/* Once the arguments parsed, the CLI is like an AppletTCP,
 	 * so push AppletTCP in the stack.
@@ -10563,10 +10563,10 @@ static int hlua_filter_init_per_thread(struct proxy *px, struct flt_conf *fconf)
 	pos = lua_gettop(L);
 
 	/* The filter parsing function */
-	lua_rawgeti(L, LUA_REGISTRYINDEX, conf->reg->fun_ref[state_id]);
+	hlua_pushref(L, conf->reg->fun_ref[state_id]);
 
 	/* Push the filter class on the stack and resolve all callbacks */
-	lua_rawgeti(L, LUA_REGISTRYINDEX, conf->reg->flt_ref[state_id]);
+	hlua_pushref(L, conf->reg->flt_ref[state_id]);
 
 	/* Duplicate the filter class so each filter will have its own copy */
 	lua_newtable(L);
@@ -10583,7 +10583,7 @@ static int hlua_filter_init_per_thread(struct proxy *px, struct flt_conf *fconf)
 	lua_pop(L, 1);
 
 	/* Push the copy on the stack */
-	lua_rawgeti(L, LUA_REGISTRYINDEX, flt_ref);
+	hlua_pushref(L, flt_ref);
 
 	/* extra args are pushed in a table */
 	lua_newtable(L);
@@ -10754,7 +10754,7 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 			goto end;
 		}
 
-		lua_rawgeti(s->hlua->T, LUA_REGISTRYINDEX, conf->ref[s->hlua->state_id]);
+		hlua_pushref(s->hlua->T, conf->ref[s->hlua->state_id]);
 		if (lua_getfield(s->hlua->T, -1, "new") != LUA_TFUNCTION) {
 			SEND_ERR(s->be, "Lua filter '%s': 'new' field is not a function.\n",
 				 conf->reg->name);
@@ -10885,7 +10885,7 @@ static int hlua_filter_callback(struct stream *s, struct filter *filter, const c
 			goto end;
 		}
 
-		lua_rawgeti(flt_hlua->T, LUA_REGISTRYINDEX, flt_ctx->ref);
+		hlua_pushref(flt_hlua->T, flt_ctx->ref);
 		if (lua_getfield(flt_hlua->T, -1, fun) != LUA_TFUNCTION) {
 			RESET_SAFE_LJMP(flt_hlua);
 			goto end;
@@ -11124,7 +11124,7 @@ static int hlua_filter_parse_fct(char **args, int *cur_arg, struct proxy *px,
 	hlua_flt_ops->detach            = hlua_filter_delete;
 
 	/* Push the filter class on the stack and resolve all callbacks */
-	lua_rawgeti(L, LUA_REGISTRYINDEX, reg_flt->flt_ref[state_id]);
+	hlua_pushref(L, reg_flt->flt_ref[state_id]);
 
 	if (lua_getfield(L, -1, "start_analyze") == LUA_TFUNCTION)
 		hlua_flt_ops->channel_start_analyze = hlua_filter_start_analyze;
@@ -11883,7 +11883,7 @@ int hlua_post_init_state(lua_State *L)
 	}
 
 	list_for_each_entry(init, &hlua_init_functions[hlua_state_id], l) {
-		lua_rawgeti(L, LUA_REGISTRYINDEX, init->function_ref);
+		hlua_pushref(L, init->function_ref);
 		/* function ref should be released right away since it was pushed
 		 * on the stack and will not be used anymore
 		 */
