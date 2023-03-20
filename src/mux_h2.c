@@ -1397,7 +1397,9 @@ static int h2_fragment_headers(struct buffer *b, uint32_t mfs)
 
 /* marks stream <h2s> as CLOSED and decrement the number of active streams for
  * its connection if the stream was not yet closed. Please use this exclusively
- * before closing a stream to ensure stream count is well maintained.
+ * before closing a stream to ensure stream count is well maintained. Note that
+ * it does explicitly support being called with a partially initialized h2s
+ * (e.g. sd==NULL).
  */
 static inline void h2s_close(struct h2s *h2s)
 {
@@ -1406,7 +1408,7 @@ static inline void h2s_close(struct h2s *h2s)
 		h2s->h2c->nb_streams--;
 		if (!h2s->id)
 			h2s->h2c->nb_reserved--;
-		if (h2s_sc(h2s)) {
+		if (h2s->sd && h2s_sc(h2s)) {
 			if (!se_fl_test(h2s->sd, SE_FL_EOS) && !b_data(&h2s->rxbuf))
 				h2s_notify_recv(h2s);
 		}
