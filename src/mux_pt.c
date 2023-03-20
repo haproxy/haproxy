@@ -527,15 +527,17 @@ static size_t mux_pt_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count
 	}
 	b_realign_if_empty(buf);
 	ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, count, flags);
-	if (conn_xprt_read0_pending(conn)) {
-		se_fl_clr(ctx->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
-		se_fl_set(ctx->sd, SE_FL_EOS);
-		TRACE_DEVEL("read0 on connection", PT_EV_RX_DATA, conn, sc);
-	}
 	if (conn->flags & CO_FL_ERROR) {
 		se_fl_clr(ctx->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
+		if (conn_xprt_read0_pending(conn))
+			se_fl_set(ctx->sd, SE_FL_EOS);
 		se_fl_set(ctx->sd, SE_FL_ERROR);
 		TRACE_DEVEL("error on connection", PT_EV_RX_DATA|PT_EV_CONN_ERR, conn, sc);
+	}
+	else if (conn_xprt_read0_pending(conn)) {
+		se_fl_clr(ctx->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
+		se_fl_set(ctx->sd, (SE_FL_EOI|SE_FL_EOS));
+		TRACE_DEVEL("read0 on connection", PT_EV_RX_DATA, conn, sc);
 	}
   end:
 	TRACE_LEAVE(PT_EV_RX_DATA, conn, sc, buf, (size_t[]){ret});
@@ -603,13 +605,15 @@ static int mux_pt_rcv_pipe(struct stconn *sc, struct pipe *pipe, unsigned int co
 	TRACE_ENTER(PT_EV_RX_DATA, conn, sc, 0, (size_t[]){count});
 
 	ret = conn->xprt->rcv_pipe(conn, conn->xprt_ctx, pipe, count);
-	if (conn_xprt_read0_pending(conn))  {
-		se_fl_set(ctx->sd, SE_FL_EOS);
-		TRACE_DEVEL("read0 on connection", PT_EV_RX_DATA, conn, sc);
-	}
 	if (conn->flags & CO_FL_ERROR) {
+		if (conn_xprt_read0_pending(conn))
+			se_fl_set(ctx->sd, SE_FL_EOS);
 		se_fl_set(ctx->sd, SE_FL_ERROR);
 		TRACE_DEVEL("error on connection", PT_EV_RX_DATA|PT_EV_CONN_ERR, conn, sc);
+	}
+	else if (conn_xprt_read0_pending(conn))  {
+		se_fl_set(ctx->sd, (SE_FL_EOS|SE_FL_EOI));
+		TRACE_DEVEL("read0 on connection", PT_EV_RX_DATA, conn, sc);
 	}
 
 	TRACE_LEAVE(PT_EV_RX_DATA, conn, sc, 0, (size_t[]){ret});
