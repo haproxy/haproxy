@@ -10641,7 +10641,7 @@ static void hlua_filter_deinit_per_thread(struct proxy *px, struct flt_conf *fco
 
 	state_id = reg_flt_to_stack_id(conf->reg);
 	L = hlua_states[state_id];
-	luaL_unref(L, LUA_REGISTRYINDEX, conf->ref[state_id]);
+	hlua_unref(L, conf->ref[state_id]);
 }
 
 static int hlua_filter_init(struct proxy *px, struct flt_conf *fconf)
@@ -10836,7 +10836,7 @@ static void hlua_filter_delete(struct stream *s, struct filter *filter)
 {
 	struct hlua_flt_ctx *flt_ctx = filter->ctx;
 
-	luaL_unref(s->hlua->T, LUA_REGISTRYINDEX, flt_ctx->ref);
+	hlua_unref(s->hlua->T, flt_ctx->ref);
 	hlua_ctx_destroy(flt_ctx->hlua[0]);
 	hlua_ctx_destroy(flt_ctx->hlua[1]);
 	pool_free(pool_head_hlua_flt_ctx, flt_ctx);
