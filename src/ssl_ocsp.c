@@ -1341,7 +1341,6 @@ REGISTER_PRE_CHECK(ssl_ocsp_update_precheck);
 
 static int cli_parse_update_ocsp_response(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	int errcode = 0;
 	char *err = NULL;
 	struct ckch_store *ckch_store = NULL;
 	struct certificate_ocsp *ocsp = NULL;
@@ -1358,7 +1357,6 @@ static int cli_parse_update_ocsp_response(char **args, char *payload, struct app
 	 * manipulate ckch_store and ckch_inst */
 	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock)) {
 		memprintf(&err, "%sCan't update the certificate!\nOperations on certificates are currently locked!\n", err ? err : "");
-		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
 	}
 
@@ -1366,7 +1364,6 @@ static int cli_parse_update_ocsp_response(char **args, char *payload, struct app
 
 	if (!ckch_store) {
 		memprintf(&err, "%sUnknown certificate! 'update ssl ocsp-response' expects an already known certificate file name.\n", err ? err : "");
-		errcode |= ERR_ALERT | ERR_FATAL;
 		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 		goto end;
 	}
@@ -1381,7 +1378,6 @@ static int cli_parse_update_ocsp_response(char **args, char *payload, struct app
 	ocsp = (struct certificate_ocsp *)ebmb_lookup(&cert_ocsp_tree, key, OCSP_MAX_CERTID_ASN1_LENGTH);
 	if (!ocsp) {
 		memprintf(&err, "%s'update ssl ocsp-response' only works on certificates that already have a known OCSP response.\n", err ? err : "");
-		errcode |= ERR_ALERT | ERR_FATAL;
 		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 		goto end;
 	}
@@ -1404,10 +1400,7 @@ static int cli_parse_update_ocsp_response(char **args, char *payload, struct app
 	return 0;
 
 end:
-	if (errcode & ERR_CODE) {
-		return cli_dynerr(appctx, memprintf(&err, "%sCan't send ocsp request for %s!\n", err ? err : "", args[3]));
-	}
-	return cli_dynmsg(appctx, LOG_NOTICE, err);
+	return cli_dynerr(appctx, memprintf(&err, "%sCan't send ocsp request for %s!\n", err ? err : "", args[3]));
 }
 
 #endif  /* !defined OPENSSL_IS_BORINGSSL */
