@@ -44,6 +44,8 @@ enum quic_cc_algo_state_type {
 	QUIC_CC_ST_SS,
 	/* Congestion avoidance. */
 	QUIC_CC_ST_CA,
+	/* Recovery period. */
+	QUIC_CC_ST_RP,
 };
 
 enum quic_cc_event_type {

@@ -189,6 +189,7 @@ static void quic_enter_recovery(struct quic_cc *cc)
 	}
 	path->cwnd = (CUBIC_BETA * path->cwnd) >> CUBIC_BETA_SCALE_SHIFT;
 	c->ssthresh =  QUIC_MAX(path->cwnd, path->min_cwnd);
+	cc->algo->state = QUIC_CC_ST_RP;
 }
 
 /* Congestion slow-start callback. */
@@ -200,10 +201,6 @@ static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc, ev);
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
-		/* Do not increase the congestion window in recovery period. */
-		if (ev->ack.time_sent <= c->recovery_start_time)
-			goto out;
-
 		path->cwnd += ev->ack.acked;
 		/* Exit to congestion avoidance if slow start threshold is reached. */
 		if (path->cwnd >= c->ssthresh)
@@ -211,10 +208,6 @@ static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		break;
 
 	case QUIC_CC_EVT_LOSS:
-		/* Do not decrease the congestion window when already in recovery period. */
-		if (ev->loss.time_sent <= c->recovery_start_time)
-			goto out;
-
 		quic_enter_recovery(cc);
 		/* Exit to congestion avoidance. */
 		cc->algo->state = QUIC_CC_ST_CA;
@@ -232,22 +225,12 @@ static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 /* Congestion avoidance callback. */
 static void quic_cc_cubic_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 {
-	struct cubic *c = quic_cc_priv(cc);
-
 	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc, ev);
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
-		/* Do not increase the congestion window when already in recovery period. */
-		if (ev->ack.time_sent <= c->recovery_start_time)
-			goto out;
-
 		quic_cubic_update(cc, ev->ack.acked);
 		break;
 	case QUIC_CC_EVT_LOSS:
-		/* Do not decrease the congestion window when already in recovery period. */
-		if (ev->loss.time_sent <= c->recovery_start_time)
-			goto out;
-
 		quic_enter_recovery(cc);
 		break;
 	case QUIC_CC_EVT_ECN_CE:
@@ -259,10 +242,43 @@ static void quic_cc_cubic_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc, NULL, cc);
 }
 
+/* Recovery period callback */
+static void quic_cc_cubic_rp_cb(struct quic_cc *cc, struct quic_cc_event *ev)
+{
+	struct cubic *c = quic_cc_priv(cc);
+
+	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc, ev);
+
+	BUG_ON(!tick_isset(c->recovery_start_time));
+
+	switch (ev->type) {
+	case QUIC_CC_EVT_ACK:
+		/* RFC 9022 7.3.2. Recovery
+		 * A recovery period ends and the sender enters congestion avoidance when a
+		 * packet sent during the recovery period is acknowledged.
+		 */
+		if (tick_is_le(ev->ack.time_sent, c->recovery_start_time))
+			goto leave;
+
+		cc->algo->state = QUIC_CC_ST_CA;
+		c->recovery_start_time = TICK_ETERNITY;
+		break;
+	case QUIC_CC_EVT_LOSS:
+		break;
+	case QUIC_CC_EVT_ECN_CE:
+		/* TODO */
+		break;
+	}
+
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc, NULL, cc);
+}
+
 static void (*quic_cc_cubic_state_cbs[])(struct quic_cc *cc,
                                       struct quic_cc_event *ev) = {
 	[QUIC_CC_ST_SS] = quic_cc_cubic_ss_cb,
 	[QUIC_CC_ST_CA] = quic_cc_cubic_ca_cb,
+	[QUIC_CC_ST_RP] = quic_cc_cubic_rp_cb,
 };
 
 static void quic_cc_cubic_event(struct quic_cc *cc, struct quic_cc_event *ev)

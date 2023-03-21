@@ -43,6 +43,8 @@ static inline const char *quic_cc_state_str(enum quic_cc_algo_state_type state)
 		return "ss";
 	case QUIC_CC_ST_CA:
 		return "ca";
+	case QUIC_CC_ST_RP:
+		return "rp";
 	default:
 		return "unknown";
 	}
