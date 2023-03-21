@@ -305,6 +305,7 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state);
 static void h1_shutw_conn(struct connection *conn);
 static void h1_wake_stream_for_recv(struct h1s *h1s);
 static void h1_wake_stream_for_send(struct h1s *h1s);
+static void h1s_destroy(struct h1s *h1s);
 
 /* returns the stconn associated to the H1 stream */
 static forceinline struct stconn *h1s_sc(const struct h1s *h1s)
@@ -803,7 +804,7 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct stconn *sc, struct
 
   fail:
 	TRACE_DEVEL("leaving on error", H1_EV_STRM_NEW|H1_EV_STRM_ERR, h1c->conn);
-	pool_free(pool_head_h1s, h1s);
+	h1s_destroy(h1s);
 	return NULL;
 }
 
@@ -837,7 +838,7 @@ static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct stconn *sc, struct
 
   fail:
 	TRACE_DEVEL("leaving on error", H1_EV_STRM_NEW|H1_EV_STRM_ERR, h1c->conn);
-	pool_free(pool_head_h1s, h1s);
+	h1s_destroy(h1s);
 	return NULL;
 }
 
