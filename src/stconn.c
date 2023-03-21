@@ -1829,6 +1829,11 @@ static int sc_applet_process(struct stconn *sc)
 		ic->flags |= (CF_EOI|CF_READ_EVENT);
 	}
 
+	if (sc_ep_test(sc, SE_FL_EOS)) {
+		/* we received a shutdown */
+		sc_shutr(sc);
+	}
+
 	/* If the applet wants to write and the channel is closed, it's a
 	 * broken pipe and it must be reported.
 	 */
