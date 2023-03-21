@@ -58,7 +58,10 @@ static inline int buffer_almost_full(const struct buffer *buf)
 
 /* Ensures that <buf> is allocated, or allocates it. If no memory is available,
  * ((char *)1) is assigned instead with a zero size. The allocated buffer is
- * returned, or NULL in case no memory is available.
+ * returned, or NULL in case no memory is available. Since buffers only contain
+ * user data, poisonning is always disabled as it brings no benefit and impacts
+ * performance. Due to the difficult buffer_wait management, they are not
+ * subject to forced allocation failures either.
  */
 #define b_alloc(_buf) \
 ({						\
@@ -67,7 +70,7 @@ static inline int buffer_almost_full(const struct buffer *buf)
 						\
 	if (!_retbuf->size) {			\
 		*_retbuf = BUF_WANTED;					\
-		_area = pool_alloc_flag(pool_head_buffer, POOL_F_NO_POISON); \
+		_area = pool_alloc_flag(pool_head_buffer, POOL_F_NO_POISON | POOL_F_NO_FAIL); \
 		if (unlikely(!_area)) {					\
 			activity[tid].buf_wait++;			\
 			_retbuf = NULL;					\
