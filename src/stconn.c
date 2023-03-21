@@ -1472,21 +1472,23 @@ static int sc_conn_recv(struct stconn *sc)
 		ret = 1;
 	}
 
-	if (sc_ep_test(sc, SE_FL_ERROR))
-		ret = 1;
-	else if (sc_ep_test(sc, SE_FL_EOS)) {
+	if (sc_ep_test(sc, SE_FL_EOS)) {
 		/* we received a shutdown */
 		if (ic->flags & CF_AUTO_CLOSE)
 			channel_shutw_now(ic);
 		sc_conn_read0(sc);
 		ret = 1;
 	}
+
+	if (sc_ep_test(sc, SE_FL_ERROR))
+		ret = 1;
 	else if (!(sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM)) &&
 		 !(ic->flags & CF_SHUTR)) {
 		/* Subscribe to receive events if we're blocking on I/O */
 		conn->mux->subscribe(sc, SUB_RETRY_RECV, &sc->wait_event);
 		se_have_no_more_data(sc->sedesc);
-	} else {
+	}
+	else {
 		se_have_more_data(sc->sedesc);
 		ret = 1;
 	}
