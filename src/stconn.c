@@ -1196,10 +1196,6 @@ static int sc_conn_recv(struct stconn *sc)
 	if (!conn->mux)
 		return 0;
 
-	/* stop here if we reached the end of data */
-	if (sc_ep_test(sc, SE_FL_EOS))
-		goto end_recv;
-
 	/* stop immediately on errors. Note that we DON'T want to stop on
 	 * POLL_ERR, as the poller might report a write error while there
 	 * are still data available in the recv buffer. This typically
