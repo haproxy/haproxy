@@ -1822,6 +1822,13 @@ static int sc_applet_process(struct stconn *sc)
 
 	BUG_ON(!sc_appctx(sc));
 
+	/* Report EOI on the channel if it was reached from the applet point of
+	 * view. */
+	if (sc_ep_test(sc, SE_FL_EOI) && !(ic->flags & CF_EOI)) {
+		sc_ep_report_read_activity(sc);
+		ic->flags |= (CF_EOI|CF_READ_EVENT);
+	}
+
 	/* If the applet wants to write and the channel is closed, it's a
 	 * broken pipe and it must be reported.
 	 */
