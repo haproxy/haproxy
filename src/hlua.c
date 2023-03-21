@@ -162,15 +162,33 @@ static inline void lua_drop_global_lock()
 	HA_SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock);
 }
 
-/* lua lock helpers: only lock when required */
+/* lua lock helpers: only lock when required
+ *
+ * state_id == 0: we're operating on the main lua stack (shared between
+ * os threads), so we need to acquire the main lock
+ *
+ * If the thread already owns the lock (_hlua_locked != 0), skip the lock
+ * attempt. This could happen if we run under protected lua environment.
+ * Not doing this could result in deadlocks because of nested locking
+ * attempts from the same thread
+ */
+static THREAD_LOCAL int _hlua_locked = 0;
 static inline void hlua_lock(struct hlua *hlua)
 {
-	if (hlua->state_id == 0)
+	if (hlua->state_id != 0)
+		return;
+	if (!_hlua_locked)
 		lua_take_global_lock();
+	_hlua_locked += 1;
 }
 static inline void hlua_unlock(struct hlua *hlua)
 {
-	if (hlua->state_id == 0)
+	if (hlua->state_id != 0)
+		return;
+	BUG_ON(_hlua_locked <= 0);
+	_hlua_locked--;
+	/* drop the lock once the lock count reaches 0 */
+	if (!_hlua_locked)
 		lua_drop_global_lock();
 }
 
@@ -1277,21 +1295,12 @@ __LJMP void hlua_yieldk(lua_State *L, int nresults, int ctx,
  * initialisation fails (example: out of memory error), the lua function
  * throws an error (longjmp).
  *
- * In some case (at least one), this function can be called from safe
- * environment, so we must not initialise it. While the support of
- * threads appear, the safe environment set a lock to ensure only one
- * Lua execution at a time. If we initialize safe environment in another
- * safe environment, we have a dead lock.
- *
- * set "already_safe" true if the context is initialized form safe
- * Lua function.
- *
  * This function manipulates two Lua stacks: the main and the thread. Only
  * the main stack can fail. The thread is not manipulated. This function
  * MUST NOT manipulate the created thread stack state, because it is not
  * protected against errors thrown by the thread stack.
  */
-int hlua_ctx_init(struct hlua *lua, int state_id, struct task *task, int already_safe)
+int hlua_ctx_init(struct hlua *lua, int state_id, struct task *task)
 {
 	lua->Mref = LUA_REFNIL;
 	lua->flags = 0;
@@ -1300,24 +1309,20 @@ int hlua_ctx_init(struct hlua *lua, int state_id, struct task *task, int already
 	lua->state_id = state_id;
 	LIST_INIT(&lua->com);
 	MT_LIST_INIT(&lua->hc_list);
-	if (!already_safe) {
-		if (!SET_SAFE_LJMP_PARENT(lua)) {
-			lua->Tref = LUA_REFNIL;
-			return 0;
-		}
+	if (!SET_SAFE_LJMP_PARENT(lua)) {
+		lua->Tref = LUA_REFNIL;
+		return 0;
 	}
 	lua->T = lua_newthread(hlua_states[state_id]);
 	if (!lua->T) {
 		lua->Tref = LUA_REFNIL;
-		if (!already_safe)
-			RESET_SAFE_LJMP_PARENT(lua);
+		RESET_SAFE_LJMP_PARENT(lua);
 		return 0;
 	}
 	hlua_sethlua(lua);
 	lua->Tref = luaL_ref(hlua_states[state_id], LUA_REGISTRYINDEX);
 	lua->task = task;
-	if (!already_safe)
-		RESET_SAFE_LJMP_PARENT(lua);
+	RESET_SAFE_LJMP_PARENT(lua);
 	return 1;
 }
 
@@ -8723,7 +8728,7 @@ static int hlua_register_task(lua_State *L)
 	task->context = hlua;
 	task->process = hlua_process_task;
 
-	if (!hlua_ctx_init(hlua, state_id, task, 1))
+	if (!hlua_ctx_init(hlua, state_id, task))
 		goto alloc_error;
 
 	/* Restore the function in the stack. */
@@ -8774,7 +8779,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 		}
 		HLUA_INIT(hlua);
 		stream->hlua = hlua;
-		if (!hlua_ctx_init(stream->hlua, fcn_ref_to_stack_id(fcn), stream->task, 0)) {
+		if (!hlua_ctx_init(stream->hlua, fcn_ref_to_stack_id(fcn), stream->task)) {
 			SEND_ERR(stream->be, "Lua converter '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
 		}
@@ -8911,7 +8916,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		}
 		hlua->T = NULL;
 		stream->hlua = hlua;
-		if (!hlua_ctx_init(stream->hlua, fcn_ref_to_stack_id(fcn), stream->task, 0)) {
+		if (!hlua_ctx_init(stream->hlua, fcn_ref_to_stack_id(fcn), stream->task)) {
 			SEND_ERR(stream->be, "Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
 		}
@@ -9253,7 +9258,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		}
 		HLUA_INIT(hlua);
 		s->hlua = hlua;
-		if (!hlua_ctx_init(s->hlua, fcn_ref_to_stack_id(rule->arg.hlua_rule->fcn), s->task, 0)) {
+		if (!hlua_ctx_init(s->hlua, fcn_ref_to_stack_id(rule->arg.hlua_rule->fcn), s->task)) {
 			SEND_ERR(px, "Lua action '%s': can't initialize Lua context.\n",
 			         rule->arg.hlua_rule->fcn->name);
 			goto end;
@@ -9440,7 +9445,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx)
 	 * permits to save performances because a systematic
 	 * Lua initialization cause 5% performances loss.
 	 */
-	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(ctx->rule->arg.hlua_rule->fcn), task, 0)) {
+	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(ctx->rule->arg.hlua_rule->fcn), task)) {
 		SEND_ERR(strm->be, "Lua applet tcp '%s': can't initialize Lua context.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		return -1;
@@ -9631,7 +9636,7 @@ static int hlua_applet_http_init(struct appctx *ctx)
 	 * permits to save performances because a systematic
 	 * Lua initialization cause 5% performances loss.
 	 */
-	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(ctx->rule->arg.hlua_rule->fcn), task, 0)) {
+	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(ctx->rule->arg.hlua_rule->fcn), task)) {
 		SEND_ERR(strm->be, "Lua applet http '%s': can't initialize Lua context.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		return -1;
@@ -10270,7 +10275,7 @@ static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx,
 	ctx->task->process = hlua_applet_wakeup;
 
 	/* Initialises the Lua context */
-	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(fcn), ctx->task, 0)) {
+	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(fcn), ctx->task)) {
 		SEND_ERR(NULL, "Lua cli '%s': can't initialize Lua context.\n", fcn->name);
 		goto error;
 	}
@@ -10706,7 +10711,7 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 		}
 		HLUA_INIT(hlua);
 		s->hlua = hlua;
-		if (!hlua_ctx_init(s->hlua, reg_flt_to_stack_id(conf->reg), s->task, 0)) {
+		if (!hlua_ctx_init(s->hlua, reg_flt_to_stack_id(conf->reg), s->task)) {
 			SEND_ERR(s->be, "Lua filter '%s': can't initialize Lua context.\n",
 			         conf->reg->name);
 			ret = 0;
@@ -10731,8 +10736,8 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 	}
 	HLUA_INIT(flt_ctx->hlua[0]);
 	HLUA_INIT(flt_ctx->hlua[1]);
-	if (!hlua_ctx_init(flt_ctx->hlua[0], reg_flt_to_stack_id(conf->reg), s->task, 0) ||
-	    !hlua_ctx_init(flt_ctx->hlua[1], reg_flt_to_stack_id(conf->reg), s->task, 0)) {
+	if (!hlua_ctx_init(flt_ctx->hlua[0], reg_flt_to_stack_id(conf->reg), s->task) ||
+	    !hlua_ctx_init(flt_ctx->hlua[1], reg_flt_to_stack_id(conf->reg), s->task)) {
 		SEND_ERR(s->be, "Lua filter '%s': can't initialize filter Lua context.\n",
 			 conf->reg->name);
 		ret = 0;
