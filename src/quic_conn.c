@@ -5188,6 +5188,7 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 			}
 		}
 		else if (pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT]) {
+			pktns->tx.pto_probe = QUIC_MAX_NB_PTO_DGRAMS;
 			/* Wake up upper layer if waiting to send new data. */
 			if (!qc_notify_send(qc)) {
 				TRACE_STATE("needs to probe 01RTT packet number space", QUIC_EV_CONN_TXPKT, qc);
@@ -8107,14 +8108,22 @@ void qc_notify_close(struct quic_conn *qc)
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
 }
 
-/* Wake-up upper layer if waiting for send to be ready.
+/* Wake-up upper layer for sending if all conditions are met :
+ * - room in congestion window or probe packet to sent
+ * - socket FD ready to sent or listener socket used
  *
  * Returns 1 if upper layer has been woken up else 0.
  */
 int qc_notify_send(struct quic_conn *qc)
 {
+	const struct quic_pktns *pktns = &qc->pktns[QUIC_TLS_PKTNS_01RTT];
+
 	if (qc->subs && qc->subs->events & SUB_RETRY_SEND) {
-		if (quic_path_prep_data(qc->path) &&
+		/* RFC 9002 7.5. Probe Timeout
+		 *
+		 * Probe packets MUST NOT be blocked by the congestion controller.
+		 */
+		if ((quic_path_prep_data(qc->path) || pktns->tx.pto_probe) &&
 		    (!qc_test_fd(qc) || !fd_send_active(qc->fd))) {
 			tasklet_wakeup(qc->subs->tasklet);
 			qc->subs->events &= ~SUB_RETRY_SEND;
