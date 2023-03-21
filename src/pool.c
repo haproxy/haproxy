@@ -1080,10 +1080,16 @@ int pool_parse_debugging(const char *str, char **err)
 				 */
 				if (dbg_options[v].flg == POOL_DBG_UAF)
 					new_dbg |= POOL_DBG_NO_CACHE;
+				/* fail should preset the tune.fail-alloc ratio to 1%  */
+				if (dbg_options[v].flg == POOL_DBG_FAIL_ALLOC)
+					mem_fail_rate = 1;
 				break;
 			}
 			else if (isteq(feat, ist(dbg_options[v].clr))) {
 				new_dbg &= ~dbg_options[v].flg;
+				/* no-fail should reset the tune.fail-alloc ratio */
+				if (dbg_options[v].flg == POOL_DBG_FAIL_ALLOC)
+					mem_fail_rate = 0;
 				break;
 			}
 		}

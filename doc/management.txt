@@ -290,7 +290,8 @@ list of options is :
       - fail / no-fail:
         This enables randomly failing memory allocations, in conjunction with
         the global "tune.fail-alloc" setting. This is used to detect missing
-        error checks in the code.
+        error checks in the code. Setting the option presets the ratio to 1%
+        failure rate.
 
       - no-merge / merge:
         By default, pools of very similar sizes are merged, resulting in more
