@@ -1591,7 +1591,6 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 				channel_add_input(res, 1);
 			}
 		        res_htx->flags |= HTX_FL_EOM;
-			res->flags |= CF_EOI;
 			se_fl_set(appctx->sedesc, SE_FL_EOI);
 			appctx->st0 = PROMEX_ST_END;
 			__fallthrough;
