@@ -1397,6 +1397,8 @@ static int cli_parse_update_ocsp_response(char **args, char *payload, struct app
 
 	task_wakeup(ocsp_update_task, TASK_WOKEN_MSG);
 
+	free(err);
+
 	return 0;
 
 end:
