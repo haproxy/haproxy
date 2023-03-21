@@ -8179,7 +8179,7 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 	struct show_quic_ctx *ctx = appctx->svcctx;
 	struct stconn *sc = appctx_sc(appctx);
 	struct quic_conn *qc;
-	struct quic_enc_level *qel;
+	struct quic_pktns *pktns;
 	struct eb64_node *node;
 	struct qc_stream_desc *stream;
 	char bufaddr[INET6_ADDRSTRLEN], bufport[6];
@@ -8307,21 +8307,21 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 
 		chunk_appendf(&trash, "\n");
 
-		/* Encryption levels */
-		qel = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL];
+		/* Packet number spaces information */
+		pktns = &qc->pktns[QUIC_TLS_PKTNS_INITIAL];
 		chunk_appendf(&trash, "  [initl]             rx.ackrng=%-6zu tx.inflight=%-6zu",
-		              qel->pktns->rx.arngs.sz, qel->pktns->tx.in_flight);
-		qel = &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
+		              pktns->rx.arngs.sz, pktns->tx.in_flight);
+		pktns = &qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE];
 		chunk_appendf(&trash, "           [hndshk] rx.ackrng=%-6zu tx.inflight=%-6zu\n",
-		              qel->pktns->rx.arngs.sz, qel->pktns->tx.in_flight);
-		qel = &qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA];
-		chunk_appendf(&trash, "  [0-rtt]             rx.ackrng=%-6zu tx.inflight=%-6zu",
-		              qel->pktns->rx.arngs.sz, qel->pktns->tx.in_flight);
-		qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
-		chunk_appendf(&trash, "           [1-rtt]  rx.ackrng=%-6zu tx.inflight=%-6zu",
-		              qel->pktns->rx.arngs.sz, qel->pktns->tx.in_flight);
+		              pktns->rx.arngs.sz, pktns->tx.in_flight);
+		pktns = &qc->pktns[QUIC_TLS_PKTNS_01RTT];
+		chunk_appendf(&trash, "  [01rtt]             rx.ackrng=%-6zu tx.inflight=%-6zu\n",
+		              pktns->rx.arngs.sz, pktns->tx.in_flight);
 
-		chunk_appendf(&trash, "\n");
+		chunk_appendf(&trash, "  srtt=%-4u rttvar=%-4u rttmin=%-4u ptoc=%-4u cwnd=%-6zu\n",
+		              qc->path->loss.srtt >> 3, qc->path->loss.rtt_var >> 2,
+		              qc->path->loss.rtt_min, qc->path->loss.pto_count, qc->path->cwnd);
+
 
 		/* Streams */
 		node = eb64_first(&qc->streams_by_id);
