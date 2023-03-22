@@ -1261,7 +1261,9 @@ int thread_resolve_group_mask(struct thread_set *ts, int defgrp, char **err)
 				uint base  = ha_tgroup_info[g].base % LONGBITS;
 
 				mask = ts->abs[block] >> base;
-				if (base && ha_tgroup_info[g].count > (LONGBITS - base))
+				if (base &&
+				    (block + 1) < sizeof(ts->abs) / sizeof(ts->abs[0]) &&
+				    ha_tgroup_info[g].count > (LONGBITS - base))
 					mask |= ts->abs[block + 1] << (LONGBITS - base);
 				mask &= nbits(ha_tgroup_info[g].count);
 				mask &= ha_tgroup_info[g].threads_enabled;
