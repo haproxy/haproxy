@@ -6070,20 +6070,45 @@ int openssl_compare_current_name(const char *name)
 /* redefine dlopen() so that we can detect unexpected replacement of some
  * critical symbols, typically init/alloc/free functions coming from alternate
  * libraries. When called, a tainted flag is set (TAINTED_SHARED_LIBS).
+ * It's important to understand that the dynamic linker will present the
+ * first loaded of each symbol to all libs, so that if haproxy is linked
+ * with a new lib that uses a static inline or a #define to replace an old
+ * function, and a dependency was linked against an older version of that
+ * lib that had a function there, that lib would use all of the newer
+ * versions of the functions that are already loaded in haproxy, except
+ * for that unique function which would continue to be the old one. This
+ * creates all sort of problems when init code allocates smaller structs
+ * than required for example but uses new functions on them, etc. Thus what
+ * we do here is to try to detect API consistency: we take a fingerprint of
+ * a number of known functions, and verify that if they change in a loaded
+ * library, either there all appeared or all disappeared, but not partially.
+ * We can check up to 64 symbols that belong to individual groups that are
+ * checked together.
  */
 void *dlopen(const char *filename, int flags)
 {
 	static void *(*_dlopen)(const char *filename, int flags);
 	struct {
 		const char *name;
+		uint64_t bit, grp;
 		void *curr, *next;
 	} check_syms[] = {
-		{ .name = "SSL_library_init", },
-		{ .name = "X509_free", },
+		/* openssl checks: group bits 0x7ff */
+		{ .name="OPENSSL_init",                  .bit = 0x0000000000000001, .grp = 0x00000000000003ff, }, // openssl 1.0 / 1.1 / 3.0
+		{ .name="OPENSSL_init_crypto",           .bit = 0x0000000000000002, .grp = 0x00000000000003ff, }, // openssl 1.1 / 3.0 (libcrypto)
+		{ .name="OPENSSL_init_ssl",              .bit = 0x0000000000000004, .grp = 0x00000000000003ff, }, // openssl 1.1 / 3.0 (libssl)
+		{ .name="SSL_library_init",              .bit = 0x0000000000000008, .grp = 0x00000000000003ff, }, // openssl 1.x
+		{ .name="ENGINE_init",                   .bit = 0x0000000000000010, .grp = 0x00000000000003ff, }, // openssl 1.x / 3.x with engine
+		{ .name="EVP_CIPHER_CTX_init",           .bit = 0x0000000000000020, .grp = 0x00000000000003ff, }, // openssl 1.0
+		{ .name="HMAC_Init",                     .bit = 0x0000000000000040, .grp = 0x00000000000003ff, }, // openssl 1.x
+		{ .name="SSL_is_quic",                   .bit = 0x0000000000000080, .grp = 0x00000000000003ff, }, // quictls
+		{ .name="SSL_CTX_new_ex",                .bit = 0x0000000000000100, .grp = 0x00000000000003ff, }, // openssl 3.x
+		{ .name="SSL_CTX_get0_security_ex_data", .bit = 0x0000000000000200, .grp = 0x00000000000003ff, }, // openssl 1.x / 3.x
 		/* insert only above, 0 must be the last one */
 		{ 0 },
 	};
 	const char *trace;
+	uint64_t own_fp, lib_fp; // symbols fingerprints
 	void *addr;
 	void *ret;
 	int sym = 0;
@@ -6100,11 +6125,15 @@ void *dlopen(const char *filename, int flags)
 	 * current and the next value, because we might already have replaced
 	 * some of them in an inconsistent way (i.e. not all), and we're only
 	 * interested in verifying that a loaded library doesn't come with a
-	 * completely different definition that would be incompatible.
+	 * completely different definition that would be incompatible. We'll
+	 * keep a fingerprint of our own symbols.
 	 */
+	own_fp = 0;
 	for (sym = 0; check_syms[sym].name; sym++) {
 		check_syms[sym].curr = get_sym_curr_addr(check_syms[sym].name);
 		check_syms[sym].next = get_sym_next_addr(check_syms[sym].name);
+		if (check_syms[sym].curr || check_syms[sym].next)
+			own_fp |= check_syms[sym].bit;
 	}
 
 	/* now open the requested lib */
@@ -6115,22 +6144,43 @@ void *dlopen(const char *filename, int flags)
 	mark_tainted(TAINTED_SHARED_LIBS);
 
 	/* and check that critical symbols didn't change */
+	lib_fp = 0;
 	for (sym = 0; check_syms[sym].name; sym++) {
-		if (!check_syms[sym].curr && !check_syms[sym].next)
-			continue;
-
 		addr = dlsym(ret, check_syms[sym].name);
-		if (!addr || addr == check_syms[sym].curr || addr == check_syms[sym].next)
-			continue;
+		if (addr)
+			lib_fp |= check_syms[sym].bit;
+	}
 
-		/* OK it's clear that this symbol was redefined */
-		mark_tainted(TAINTED_REDEFINITION);
+	if (lib_fp != own_fp) {
+		/* let's check what changed:  */
+		uint64_t mask = 0;
 
-		trace = hlua_show_current_location("\n    ");
-		ha_warning("dlopen(): shared library '%s' brings a different definition of symbol '%s'. The process cannot be trusted anymore!%s%s\n",
-		           filename, check_syms[sym].name,
-		           trace ? " Suspected call location: \n    " : "",
-		           trace ? trace : "");
+		for (sym = 0; check_syms[sym].name; sym++) {
+			mask = check_syms[sym].grp;
+
+			/* new group of symbols. If they all appeared together
+			 * their use will be consistent. If none appears, it's
+			 * just that the lib doesn't use them. If some appear
+			 * or disappear, it means the lib relies on a different
+			 * dependency and will end up with a mix.
+			 */
+			if (!(own_fp & mask) || !(lib_fp & mask) ||
+			    (own_fp & mask) == (lib_fp & mask))
+				continue;
+
+			/* let's report a symbol that really changes */
+			if (!((own_fp ^ lib_fp) & check_syms[sym].bit))
+				continue;
+
+			/* OK it's clear that this symbol was redefined */
+			mark_tainted(TAINTED_REDEFINITION);
+
+			trace = hlua_show_current_location("\n    ");
+			ha_warning("dlopen(): shared library '%s' brings a different and inconsistent definition of symbol '%s'. The process cannot be trusted anymore!%s%s\n",
+				   filename, check_syms[sym].name,
+				   trace ? " Suspected call location: \n    " : "",
+				   trace ? trace : "");
+		}
 	}
 
 	return ret;
