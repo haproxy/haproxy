@@ -9063,7 +9063,7 @@ __LJMP static int hlua_event_hdl_cb_data_push_args(struct hlua_event_sub *hlua_s
 		/* attempt to provide reference server object
 		 * (if it wasn't removed yet, SERVER_DEL will never succeed here)
 		 */
-		px = proxy_find_by_name(e_server->safe.proxy_name, PR_CAP_BE, 0);
+		px = proxy_find_by_id(e_server->safe.proxy_uuid, PR_CAP_BE, 0);
 		BUG_ON(!px);
 		server = findserver_unique_id(px, e_server->safe.puid, e_server->safe.rid);
 		if (server) {
