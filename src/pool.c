@@ -213,7 +213,7 @@ static void detect_allocator(void)
 
 int is_trim_enabled(void)
 {
-	return using_default_allocator;
+	return !disable_trim && using_default_allocator;
 }
 
 static int mem_should_fail(const struct pool_head *pool)
