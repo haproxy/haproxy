@@ -62,6 +62,18 @@ static void quic_cc_nr_slow_start(struct quic_cc *cc)
 	nr->recovery_start_time = 0;
 }
 
+/* Enter a recovery period. */
+static void quic_cc_nr_enter_recovery(struct quic_cc *cc)
+{
+	struct quic_path *path;
+	struct nr *nr = quic_cc_priv(cc);
+
+	path = container_of(cc, struct quic_path, cc);
+	nr->recovery_start_time = now_ms;
+	nr->ssthresh = QUIC_MAX(path->cwnd >> 1, path->min_cwnd);
+	cc->algo->state = QUIC_CC_ST_RP;
+}
+
 /* Slow start callback. */
 static void quic_cc_nr_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 {
@@ -72,10 +84,6 @@ static void quic_cc_nr_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	path = container_of(cc, struct quic_path, cc);
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
-		/* Do not increase the congestion window in recovery period. */
-		if (ev->ack.time_sent <= nr->recovery_start_time)
-			return;
-
 		path->cwnd += ev->ack.acked;
 		/* Exit to congestion avoidance if slow start threshold is reached. */
 		if (path->cwnd > nr->ssthresh)
@@ -83,10 +91,7 @@ static void quic_cc_nr_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		break;
 
 	case QUIC_CC_EVT_LOSS:
-		path->cwnd = QUIC_MAX(path->cwnd >> 1, path->min_cwnd);
-		nr->ssthresh = path->cwnd;
-		/* Exit to congestion avoidance. */
-		cc->algo->state = QUIC_CC_ST_CA;
+		quic_cc_nr_enter_recovery(cc);
 		break;
 
 	case QUIC_CC_EVT_ECN_CE:
@@ -108,9 +113,6 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	case QUIC_CC_EVT_ACK:
 	{
 		uint64_t acked;
-		/* Do not increase the congestion window in recovery period. */
-		if (ev->ack.time_sent <= nr->recovery_start_time)
-			goto out;
 
 		/* Increasing the congestion window by (acked / cwnd)
 		 */
@@ -121,13 +123,7 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	}
 
 	case QUIC_CC_EVT_LOSS:
-		/* Do not decrease the congestion window when already in recovery period. */
-		if (ev->loss.time_sent <= nr->recovery_start_time)
-			goto out;
-
-		nr->recovery_start_time = now_ms;
-		nr->ssthresh = path->cwnd;
-		path->cwnd = QUIC_MAX(path->cwnd >> 1, path->min_cwnd);
+		quic_cc_nr_enter_recovery(cc);
 		break;
 
 	case QUIC_CC_EVT_ECN_CE:
@@ -139,6 +135,40 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc, NULL, cc);
 }
 
+/*  Recovery period callback. */
+static void quic_cc_nr_rp_cb(struct quic_cc *cc, struct quic_cc_event *ev)
+{
+	struct quic_path *path;
+	struct nr *nr = quic_cc_priv(cc);
+
+	BUG_ON(!tick_isset(nr->recovery_start_time));
+
+	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc, ev);
+	path = container_of(cc, struct quic_path, cc);
+	switch (ev->type) {
+	case QUIC_CC_EVT_ACK:
+		/* RFC 9022 7.3.2. Recovery
+		 * A recovery period ends and the sender enters congestion avoidance when a
+		 * packet sent during the recovery period is acknowledged.
+		 */
+		if (tick_is_le(ev->ack.time_sent, nr->recovery_start_time))
+			goto leave;
+
+		cc->algo->state = QUIC_CC_ST_CA;
+		nr->recovery_start_time = TICK_ETERNITY;
+		path->cwnd = nr->ssthresh;
+		break;
+	case QUIC_CC_EVT_LOSS:
+		/* Do nothing */
+		break;
+	case QUIC_CC_EVT_ECN_CE:
+		/* XXX TO DO XXX */
+		break;
+	}
+
+ leave:
+	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc, ev);
+}
 static void quic_cc_nr_state_trace(struct buffer *buf, const struct quic_cc *cc)
 {
 	struct quic_path *path;
@@ -156,6 +186,7 @@ static void (*quic_cc_nr_state_cbs[])(struct quic_cc *cc,
                                       struct quic_cc_event *ev) = {
 	[QUIC_CC_ST_SS] = quic_cc_nr_ss_cb,
 	[QUIC_CC_ST_CA] = quic_cc_nr_ca_cb,
+	[QUIC_CC_ST_RP] = quic_cc_nr_rp_cb,
 };
 
 static void quic_cc_nr_event(struct quic_cc *cc, struct quic_cc_event *ev)
