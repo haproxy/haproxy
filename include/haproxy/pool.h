@@ -101,6 +101,7 @@ extern int mem_poison_byte;
 /* set of POOL_DBG_* flags */
 extern uint pool_debugging;
 
+int is_trim_enabled(void);
 void *pool_get_from_os(struct pool_head *pool);
 void pool_put_to_os(struct pool_head *pool, void *ptr);
 void *pool_alloc_nocache(struct pool_head *pool);

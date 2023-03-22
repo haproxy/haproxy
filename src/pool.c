@@ -177,11 +177,10 @@ static void detect_allocator(void)
 
 	my_mallctl = mallctl;
 #endif
-
-	if (!my_mallctl) {
+	if (!my_mallctl)
 		my_mallctl = get_sym_curr_addr("mallctl");
-		using_default_allocator = (my_mallctl == NULL);
-	}
+
+	using_default_allocator = (my_mallctl == NULL);
 
 	if (!my_mallctl) {
 #if defined(HA_HAVE_MALLOC_TRIM)
@@ -212,7 +211,7 @@ static void detect_allocator(void)
 	}
 }
 
-static int is_trim_enabled(void)
+int is_trim_enabled(void)
 {
 	return using_default_allocator;
 }
