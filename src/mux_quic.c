@@ -1416,13 +1416,17 @@ static int qcs_xfer_data(struct qcs *qcs, struct buffer *out, struct buffer *in)
 
 	BUG_ON_HOT(qcs->tx.offset > qcs->tx.msd);
 	/* do not exceed flow control limit */
-	if (qcs->tx.offset + to_xfer > qcs->tx.msd)
+	if (qcs->tx.offset + to_xfer > qcs->tx.msd) {
+		TRACE_DATA("do not exceed stream flow control", QMUX_EV_QCS_SEND, qcc->conn, qcs);
 		to_xfer = qcs->tx.msd - qcs->tx.offset;
+	}
 
 	BUG_ON_HOT(qcc->tx.offsets > qcc->rfctl.md);
 	/* do not overcome flow control limit on connection */
-	if (qcc->tx.offsets + to_xfer > qcc->rfctl.md)
+	if (qcc->tx.offsets + to_xfer > qcc->rfctl.md) {
+		TRACE_DATA("do not exceed conn flow control", QMUX_EV_QCS_SEND, qcc->conn, qcs);
 		to_xfer = qcc->rfctl.md - qcc->tx.offsets;
+	}
 
 	if (!left && !to_xfer)
 		goto out;
@@ -1749,18 +1753,21 @@ static int _qc_send_qcs(struct qcs *qcs, struct list *frms)
 	int xfer = 0;
 	char fin = 0;
 
+	TRACE_ENTER(QMUX_EV_QCS_SEND, qcc->conn, qcs);
+
 	/* Cannot send STREAM on remote unidirectional streams. */
 	BUG_ON(quic_stream_is_uni(qcs->id) && quic_stream_is_remote(qcc, qcs->id));
 
 	/* Allocate <out> buffer if necessary. */
 	if (!out) {
 		if (qcc->flags & QC_CF_CONN_FULL)
-			return 0;
+			goto out;
 
 		out = qc_stream_buf_alloc(qcs->stream, qcs->tx.offset);
 		if (!out) {
+			TRACE_STATE("cannot allocate stream desc buffer", QMUX_EV_QCS_SEND, qcc->conn, qcs);
 			qcc->flags |= QC_CF_CONN_FULL;
-			return 0;
+			goto out;
 		}
 	}
 
@@ -1791,6 +1798,8 @@ static int _qc_send_qcs(struct qcs *qcs, struct list *frms)
 		if (ret < 0) { ABORT_NOW(); /* TODO handle this properly */ }
 	}
 
+ out:
+	TRACE_LEAVE(QMUX_EV_QCS_SEND, qcc->conn, qcs);
 	return xfer;
 }
 
