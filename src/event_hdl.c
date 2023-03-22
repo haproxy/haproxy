@@ -173,6 +173,14 @@ static void event_hdl_report_hdl_state(event_hdl_report_hdl_state_func report_fu
 		    state);
 }
 
+static inline void _event_hdl_async_data_drop(struct event_hdl_async_event_data *data)
+{
+	if (HA_ATOMIC_SUB_FETCH(&data->refcount, 1) == 0) {
+		/* we were the last one holding a reference to event data - free required */
+		pool_free(pool_head_sub_event_data, data);
+	}
+}
+
 void event_hdl_async_free_event(struct event_hdl_async_event *e)
 {
 	if (unlikely(event_hdl_sub_type_equal(e->type, EVENT_HDL_SUB_END))) {
@@ -183,11 +191,8 @@ void event_hdl_async_free_event(struct event_hdl_async_event *e)
 		event_hdl_drop(e->sub_mgmt.this);
 		HA_ATOMIC_DEC(&jobs);
 	}
-	else if (e->_data &&
-	         HA_ATOMIC_SUB_FETCH(&e->_data->refcount, 1) == 0) {
-		/* we are the last event holding reference to event data - free required */
-		pool_free(pool_head_sub_event_data, e->_data); /* data wrapper */
-	}
+	else if (e->_data)
+		_event_hdl_async_data_drop(e->_data); /* data wrapper */
 	pool_free(pool_head_sub_event, e);
 }
 
@@ -563,7 +568,7 @@ void event_hdl_drop(struct event_hdl_sub *sub)
 	if (HA_ATOMIC_SUB_FETCH(&sub->refcount, 1) != 0)
 		return;
 
-	/* we are the last event holding reference to event data - free required */
+	/* we were the last one holding a reference to event sub - free required */
 	if (sub->hdl.private_free) {
 		/* free private data if specified upon registration */
 		sub->hdl.private_free(sub->hdl.private);
@@ -746,7 +751,14 @@ static int _event_hdl_publish(event_hdl_sub_list *sub_list, struct event_hdl_sub
 
 						/* async data assignment */
 						memcpy(async_data->data, data->_ptr, data->_size);
-						async_data->refcount = 0; /* initialize async->refcount (first use, atomic operation not required) */
+						/* Initialize refcount, we start at 1 to prevent async
+						 * data from being freed by an async handler while we
+						 * still use it. We will drop the reference when the
+						 * publish is over.
+						 *
+						 * (first use, atomic operation not required)
+						 */
+						async_data->refcount = 1;
 					}
 					new_event->_data = async_data;
 					new_event->data = async_data->data;
@@ -766,6 +778,10 @@ static int _event_hdl_publish(event_hdl_sub_list *sub_list, struct event_hdl_sub
 			} /* end async mode */
 		} /* end hdl should be notified */
 	} /* end mt_list */
+	if (async_data) {
+		/* we finished publishing, drop the reference on async data */
+		_event_hdl_async_data_drop(async_data);
+	}
 	if (error) {
 		event_hdl_report_hdl_state(ha_warning, &cur_sub->hdl, "PUBLISH", "memory error");
 		return 0;
