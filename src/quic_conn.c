@@ -5435,6 +5435,10 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	                                    qc->scid.data, qc->scid.len, token_odcid))
 		goto err;
 
+	/* Initialize the idle timeout of the connection at the "max_idle_timeout"
+	 * value from local transport parameters.
+	 */
+	qc->max_idle_timeout = qc->rx.params.max_idle_timeout;
 	qc->wait_event.tasklet = tasklet_new();
 	if (!qc->wait_event.tasklet) {
 		TRACE_ERROR("tasklet_new() failed", QUIC_EV_CONN_TXPKT);
