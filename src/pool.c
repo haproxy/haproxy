@@ -108,6 +108,7 @@ static int mem_fail_rate __read_mostly = 0;
 static int using_default_allocator __read_mostly = 1;
 static int disable_trim __read_mostly = 0;
 static int(*my_mallctl)(const char *, void *, size_t *, void *, size_t) = NULL;
+static int(*_malloc_trim)(size_t) = NULL;
 
 /* ask the allocator to trim memory pools.
  * This must run under thread isolation so that competing threads trying to
@@ -209,11 +210,31 @@ static void detect_allocator(void)
 		using_default_allocator = (malloc_default_zone() != NULL);
 #endif
 	}
+
+	/* detect presence of malloc_trim() */
+	_malloc_trim = get_sym_next_addr("malloc_trim");
 }
 
 int is_trim_enabled(void)
 {
 	return !disable_trim && using_default_allocator;
+}
+
+/* replace the libc's malloc_trim() so that we can also intercept the calls
+ * from child libraries when the allocator is not the default one.
+ */
+int malloc_trim(size_t pad)
+{
+	int ret = 0;
+
+	if (disable_trim)
+		return ret;
+
+	if (_malloc_trim && using_default_allocator) {
+		/* we're typically on glibc and not overridden */
+		ret = _malloc_trim(pad);
+	}
+	return ret;
 }
 
 static int mem_should_fail(const struct pool_head *pool)
@@ -1185,7 +1206,7 @@ INITCALL0(STG_PREPARE, init_pools);
 /* Report in build options if trim is supported */
 static void pools_register_build_options(void)
 {
-	if (is_trim_enabled()) {
+	if (is_trim_enabled() && _malloc_trim) {
 		char *ptr = NULL;
 		memprintf(&ptr, "Support for malloc_trim() is enabled.");
 		hap_register_build_opts(ptr, 1);
