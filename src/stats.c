@@ -4506,15 +4506,8 @@ static void http_stats_io_handler(struct appctx *appctx)
 	}
 
 	if (appctx->st0 == STAT_HTTP_END) {
-		if (!(res->flags & CF_SHUTR))
-			sc_shutr(sc);
-
-		/* eat the whole request */
-		if (co_data(req)) {
-			req_htx = htx_from_buf(&req->buf);
-			co_htx_skip(req, req_htx, co_data(req));
-			htx_to_buf(req_htx, &req->buf);
-		}
+		se_fl_set(appctx->sedesc, SE_FL_EOS);
+		applet_will_consume(appctx);
 	}
 
  out:
@@ -4526,7 +4519,15 @@ static void http_stats_io_handler(struct appctx *appctx)
 	 * emitting large blocks into small TCP windows.
 	 */
 	htx_to_buf(res_htx, &res->buf);
-	if (!channel_is_empty(res))
+	if (appctx->st0 == STAT_HTTP_END) {
+		/* eat the whole request */
+		if (co_data(req)) {
+			req_htx = htx_from_buf(&req->buf);
+			co_htx_skip(req, req_htx, co_data(req));
+			htx_to_buf(req_htx, &req->buf);
+		}
+	}
+	else if (!channel_is_empty(res))
 		applet_wont_consume(appctx);
 }
 
