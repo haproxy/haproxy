@@ -120,44 +120,10 @@ static void trim_all_pools(void)
 {
 	int isolated = thread_isolated();
 
-	if (disable_trim)
-		return;
-
 	if (!isolated)
 		thread_isolate();
 
-	if (my_mallctl) {
-		unsigned int i, narenas = 0;
-		size_t len = sizeof(narenas);
-
-		if (my_mallctl("arenas.narenas", &narenas, &len, NULL, 0) == 0) {
-			for (i = 0; i < narenas; i ++) {
-				char mib[32] = {0};
-				snprintf(mib, sizeof(mib), "arena.%u.purge", i);
-				(void)my_mallctl(mib, NULL, NULL, NULL, 0);
-			}
-		}
-	} else {
-#if defined(HA_HAVE_MALLOC_TRIM)
-		if (using_default_allocator)
-			malloc_trim(0);
-#elif defined(HA_HAVE_MALLOC_ZONE)
-		if (using_default_allocator) {
-			vm_address_t *zones;
-			unsigned int i, nzones;
-
-			if (malloc_get_all_zones(0, NULL, &zones, &nzones) == KERN_SUCCESS) {
-				for (i = 0; i < nzones; i ++) {
-					malloc_zone_t *zone = (malloc_zone_t *)zones[i];
-
-					/* we cannot purge anonymous zones */
-					if (zone->zone_name)
-						malloc_zone_pressure_relief(zone, 0);
-				}
-			}
-		}
-#endif
-	}
+	malloc_trim(0);
 
 	if (!isolated)
 		thread_release();
@@ -230,10 +196,52 @@ int malloc_trim(size_t pad)
 	if (disable_trim)
 		return ret;
 
-	if (_malloc_trim && using_default_allocator) {
+	if (my_mallctl) {
+		/* here we're on jemalloc and malloc_trim() is called either
+		 * by haproxy or another dependency (the worst case that
+		 * normally crashes). Instead of just failing, we can actually
+		 * emulate it so let's do it now.
+		 */
+		unsigned int i, narenas = 0;
+		size_t len = sizeof(narenas);
+
+		if (my_mallctl("arenas.narenas", &narenas, &len, NULL, 0) == 0) {
+			for (i = 0; i < narenas; i ++) {
+				char mib[32] = {0};
+				snprintf(mib, sizeof(mib), "arena.%u.purge", i);
+				(void)my_mallctl(mib, NULL, NULL, NULL, 0);
+				ret = 1; // success
+			}
+		}
+	}
+	else if (!using_default_allocator) {
+		/* special allocators that can be LD_PRELOADed end here */
+		ret = 0; // did nothing
+	}
+	else if (_malloc_trim) {
 		/* we're typically on glibc and not overridden */
 		ret = _malloc_trim(pad);
 	}
+#if defined(HA_HAVE_MALLOC_ZONE)
+	else {
+		/* we're on MacOS, there's an equivalent mechanism */
+		vm_address_t *zones;
+		unsigned int i, nzones;
+
+		if (malloc_get_all_zones(0, NULL, &zones, &nzones) == KERN_SUCCESS) {
+			for (i = 0; i < nzones; i ++) {
+				malloc_zone_t *zone = (malloc_zone_t *)zones[i];
+
+				/* we cannot purge anonymous zones */
+				if (zone->zone_name) {
+					malloc_zone_pressure_relief(zone, 0);
+					ret = 1; // success
+				}
+			}
+		}
+	}
+#endif
+	/* here we have ret=0 if nothing was release, or 1 if some were */
 	return ret;
 }
 
