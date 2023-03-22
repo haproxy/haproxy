@@ -1405,6 +1405,10 @@ ServerEvent class
 
   Contains the name of the proxy to which the server belongs
 
+.. js:attribute:: ServerEvent.proxy_uuid
+
+  Contains the uuid of the proxy to which the server belongs
+
 .. js:attribute:: ServerEvent.reference
 
   Reference to the live server (A :ref:`server_class`).

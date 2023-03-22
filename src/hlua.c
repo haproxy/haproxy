@@ -9059,6 +9059,10 @@ __LJMP static int hlua_event_hdl_cb_data_push_args(struct hlua_event_sub *hlua_s
 		lua_pushstring(hlua->T, "proxy_name");
 		lua_pushstring(hlua->T, e_server->safe.proxy_name);
 		lua_settable(hlua->T, -3);
+		/* Add server proxy uuid */
+		lua_pushstring(hlua->T, "proxy_uuid");
+		lua_pushinteger(hlua->T, e_server->safe.proxy_uuid);
+		lua_settable(hlua->T, -3);
 
 		/* attempt to provide reference server object
 		 * (if it wasn't removed yet, SERVER_DEL will never succeed here)
