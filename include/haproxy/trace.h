@@ -134,7 +134,7 @@
 			_msg_len = snprintf(_msg, sizeof(_msg), (fmt), ##args);	\
 			if (_msg_len >= sizeof(_msg))				\
 				_msg_len = sizeof(_msg) - 1;			\
-			_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE,	\
+			_trace((level), (mask), TRACE_SOURCE,	\
 			       trc_loc, func, a1, a2, a3, a4,			\
 			       &trace_no_cb, ist2(_msg, _msg_len));		\
 		}								\
