@@ -188,11 +188,6 @@ static void detect_allocator(void)
 	_malloc_trim = get_sym_next_addr("malloc_trim");
 }
 
-int is_trim_enabled(void)
-{
-	return !disable_trim && using_default_allocator;
-}
-
 /* replace the libc's malloc_trim() so that we can also intercept the calls
  * from child libraries when the allocator is not the default one.
  */
@@ -1221,10 +1216,11 @@ INITCALL0(STG_PREPARE, init_pools);
 /* Report in build options if trim is supported */
 static void pools_register_build_options(void)
 {
-	if (is_trim_enabled() && _malloc_trim) {
+	if (!using_default_allocator) {
 		char *ptr = NULL;
-		memprintf(&ptr, "Support for malloc_trim() is enabled.");
+		memprintf(&ptr, "Running with a replaced memory allocator (e.g. via LD_PRELOAD).");
 		hap_register_build_opts(ptr, 1);
+		mark_tainted(TAINTED_REPLACED_MEM_ALLOCATOR);
 	}
 }
 INITCALL0(STG_REGISTER, pools_register_build_options);

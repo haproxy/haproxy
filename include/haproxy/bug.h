@@ -221,6 +221,7 @@ enum tainted_flags {
 	TAINTED_BUG                    = 0x00000020, /* a BUG_ON triggered */
 	TAINTED_SHARED_LIBS            = 0x00000040, /* a shared library was loaded */
 	TAINTED_REDEFINITION           = 0x00000080, /* symbol redefinition detected */
+	TAINTED_REPLACED_MEM_ALLOCATOR = 0x00000100, /* memory allocator was replaced using LD_PRELOAD */
 };
 
 /* this is a bit field made of TAINTED_*, and is declared in haproxy.c */
