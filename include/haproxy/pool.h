@@ -103,6 +103,7 @@ extern uint pool_debugging;
 
 int is_trim_enabled(void);
 int malloc_trim(size_t pad);
+void trim_all_pools(void);
 
 void *pool_get_from_os(struct pool_head *pool);
 void pool_put_to_os(struct pool_head *pool, void *ptr);

@@ -116,7 +116,7 @@ static int(*_malloc_trim)(size_t) = NULL;
  * its job. We just have to be careful as callers might already be isolated
  * themselves.
  */
-static void trim_all_pools(void)
+void trim_all_pools(void)
 {
 	int isolated = thread_isolated();
 
