@@ -105,7 +105,7 @@ struct show_pools_ctx {
 };
 
 static int mem_fail_rate __read_mostly = 0;
-static int using_default_allocator __read_mostly = 1;
+static int using_default_allocator __read_mostly = 1; // linked-in allocator or LD_PRELOADed one ?
 static int disable_trim __read_mostly = 0;
 static int(*my_mallctl)(const char *, void *, size_t *, void *, size_t) = NULL;
 static int(*_malloc_trim)(size_t) = NULL;
@@ -144,10 +144,17 @@ static void detect_allocator(void)
 
 	my_mallctl = mallctl;
 #endif
-	if (!my_mallctl)
+	if (!my_mallctl) {
+		/* trick: we won't enter here if mallctl() is known at link
+		 * time. This allows to detect if the symbol was changed since
+		 * the program was linked, indicating it's not running on the
+		 * expected allocator (due to an LD_PRELOAD) and that we must
+		 * be extra cautious and avoid some optimizations that are
+		 * known to break such as malloc_trim().
+		 */
 		my_mallctl = get_sym_curr_addr("mallctl");
-
-	using_default_allocator = (my_mallctl == NULL);
+		using_default_allocator = (my_mallctl == NULL);
+	}
 
 	if (!my_mallctl) {
 #if defined(HA_HAVE_MALLOC_TRIM)
