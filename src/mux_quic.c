@@ -857,6 +857,15 @@ void qcc_reset_stream(struct qcs *qcs, int err)
 	qcs->flags |= QC_SF_TO_RESET;
 	qcs->err = err;
 
+	/* Remove prepared stream data from connection flow-control calcul. */
+	if (qcs->tx.offset > qcs->tx.sent_offset) {
+		const uint64_t diff = qcs->tx.offset - qcs->tx.sent_offset;
+		BUG_ON(qcc->tx.offsets - diff < qcc->tx.sent_offsets);
+		qcc->tx.offsets -= diff;
+		/* Reset qcs offset to prevent BUG_ON() on qcs_destroy(). */
+		qcs->tx.offset = qcs->tx.sent_offset;
+	}
+
 	qcc_send_stream(qcs, 1);
 	tasklet_wakeup(qcc->wait_event.tasklet);
 }
@@ -1355,6 +1364,11 @@ static void qcs_destroy(struct qcs *qcs)
 	const uint64_t id = qcs->id;
 
 	TRACE_ENTER(QMUX_EV_QCS_END, conn, qcs);
+
+	/* MUST not removed a stream with sending prepared data left. This is
+	 * to ensure consistency on connection flow-control calculation.
+	 */
+	BUG_ON(qcs->tx.offset < qcs->tx.sent_offset);
 
 	if (quic_stream_is_remote(qcs->qcc, id))
 		qcc_release_remote_stream(qcs->qcc, id);
