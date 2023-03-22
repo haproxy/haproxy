@@ -1117,7 +1117,7 @@ int qcc_recv_max_data(struct qcc *qcc, uint64_t max)
 	TRACE_PROTO("receiving MAX_DATA", QMUX_EV_QCC_RECV, qcc->conn);
 	if (qcc->rfctl.md < max) {
 		qcc->rfctl.md = max;
-		TRACE_DEVEL("increase remote max-data", QMUX_EV_QCC_RECV, qcc->conn);
+		TRACE_DATA("increase remote max-data", QMUX_EV_QCC_RECV, qcc->conn);
 
 		if (qcc->flags & QC_CF_BLK_MFCTL) {
 			qcc->flags &= ~QC_CF_BLK_MFCTL;
@@ -1158,7 +1158,7 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 		TRACE_PROTO("receiving MAX_STREAM_DATA", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		if (max > qcs->tx.msd) {
 			qcs->tx.msd = max;
-			TRACE_DEVEL("increase remote max-stream-data", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+			TRACE_DATA("increase remote max-stream-data", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
 
 			if (qcs->flags & QC_SF_BLK_SFCTL) {
 				qcs->flags &= ~QC_SF_BLK_SFCTL;
