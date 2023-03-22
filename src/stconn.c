@@ -1096,11 +1096,11 @@ static void sc_notify(struct stconn *sc)
 	if (/* changes on the production side that must be handled:
 	     *  - An error on receipt: SE_FL_ERROR
 	     *  - A read event: shutdown for reads (CF_READ_EVENT + SHUTR)
-	     *                  end of input (CF_READ_EVENT + CF_EOI)
+	     *                  end of input (CF_READ_EVENT + SC_FL_EOI)
 	     *                  data received and no fast-forwarding (CF_READ_EVENT + !to_forward)
 	     *                  read event while consumer side is not established (CF_READ_EVENT + sco->state != SC_ST_EST)
 	     */
-	    ((ic->flags & CF_READ_EVENT) && ((ic->flags & (CF_SHUTR|CF_EOI)) || !ic->to_forward || sco->state != SC_ST_EST)) ||
+		((ic->flags & CF_READ_EVENT) && ((sc->flags & SC_FL_EOI) || (ic->flags & CF_SHUTR) || !ic->to_forward || sco->state != SC_ST_EST)) ||
 	    sc_ep_test(sc, SE_FL_ERROR) ||
 
 	    /* changes on the consumption side */
@@ -1466,9 +1466,10 @@ static int sc_conn_recv(struct stconn *sc)
 
 	/* Report EOI on the channel if it was reached from the mux point of
 	 * view. */
-	if (sc_ep_test(sc, SE_FL_EOI) && !(ic->flags & CF_EOI)) {
+	if (sc_ep_test(sc, SE_FL_EOI) && !(sc->flags & SC_FL_EOI)) {
 		sc_ep_report_read_activity(sc);
-		ic->flags |= (CF_EOI|CF_READ_EVENT);
+		sc->flags |= SC_FL_EOI;
+		ic->flags |= CF_READ_EVENT;
 		ret = 1;
 	}
 
@@ -1528,6 +1529,7 @@ int sc_conn_sync_recv(struct stconn *sc)
 static int sc_conn_send(struct stconn *sc)
 {
 	struct connection *conn = __sc_conn(sc);
+	struct stconn *sco = sc_opposite(sc);
 	struct stream *s = __sc_strm(sc);
 	struct channel *oc = sc_oc(sc);
 	int ret;
@@ -1597,7 +1599,7 @@ static int sc_conn_send(struct stconn *sc)
 		     ((oc->to_forward && oc->to_forward != CHN_INFINITE_FORWARD) ||
 		      (sc->flags & SC_FL_SND_EXP_MORE) ||
 		      (IS_HTX_STRM(s) &&
-		       (!(oc->flags & (CF_EOI|CF_SHUTR)) && htx_expect_more(htxbuf(&oc->buf)))))) ||
+		       (!(sco->flags & SC_FL_EOI) && !(oc->flags & CF_SHUTR) && htx_expect_more(htxbuf(&oc->buf)))))) ||
 		    ((oc->flags & CF_ISRESP) &&
 		     ((oc->flags & (CF_AUTO_CLOSE|CF_SHUTW_NOW)) == (CF_AUTO_CLOSE|CF_SHUTW_NOW))))
 			send_flag |= CO_SFL_MSG_MORE;
@@ -1775,8 +1777,10 @@ static int sc_conn_process(struct stconn *sc)
 	 *       wake callback. Otherwise sc_conn_recv()/sc_conn_send() already take
 	 *       care of it.
 	 */
-	if (sc_ep_test(sc, SE_FL_EOI) && !(ic->flags & CF_EOI))
-		ic->flags |= (CF_EOI|CF_READ_EVENT);
+	if (sc_ep_test(sc, SE_FL_EOI) && !(sc->flags & SC_FL_EOI)) {
+		sc->flags |= SC_FL_EOI;
+		ic->flags |= CF_READ_EVENT;
+	}
 
 	/* Second step : update the stream connector and channels, try to forward any
 	 * pending data, then possibly wake the stream up based on the new
@@ -1824,9 +1828,10 @@ static int sc_applet_process(struct stconn *sc)
 
 	/* Report EOI on the channel if it was reached from the applet point of
 	 * view. */
-	if (sc_ep_test(sc, SE_FL_EOI) && !(ic->flags & CF_EOI)) {
+	if (sc_ep_test(sc, SE_FL_EOI) && !(sc->flags & SC_FL_EOI)) {
 		sc_ep_report_read_activity(sc);
-		ic->flags |= (CF_EOI|CF_READ_EVENT);
+		sc->flags |= SC_FL_EOI;
+		ic->flags |= CF_READ_EVENT;
 	}
 
 	if (sc_ep_test(sc, SE_FL_EOS)) {

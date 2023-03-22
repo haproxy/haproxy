@@ -114,7 +114,7 @@
 
 #define CF_WAKE_ONCE      0x10000000  /* pretend there is activity on this channel (one-shoot) */
 #define CF_FLT_ANALYZE    0x20000000  /* at least one filter is still analyzing this channel */
-#define CF_EOI            0x40000000  /* end-of-input has been reached */
+/* unuse 0x40000000 */
 #define CF_ISRESP         0x80000000  /* 0 = request channel, 1 = response channel */
 
 /* Masks which define input events for stream analysers */
@@ -141,7 +141,7 @@ static forceinline char *chn_show_flags(char *buf, size_t len, const char *delim
 	_(CF_KERN_SPLICING,
 	_(CF_AUTO_CONNECT, _(CF_DONT_READ,
 	_(CF_WAKE_ONCE, _(CF_FLT_ANALYZE,
-	_(CF_EOI, _(CF_ISRESP))))))))))))))))))));
+	_(CF_ISRESP)))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

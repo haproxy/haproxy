@@ -114,7 +114,7 @@ enum sc_flags {
 	SC_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
 	SC_FL_ISBACK        = 0x00000001,  /* Set for SC on back-side */
 
-	/* not used: 0x00000002 */
+	SC_FL_EOI           = 0x00000002,  /* End of input was reached. no more data will be received from the endpoint */
 	/* not used: 0x00000004 */
 
 	SC_FL_NOLINGER      = 0x00000008,  /* may close without lingering. One-shot. */
@@ -142,10 +142,10 @@ static forceinline char *sc_show_flags(char *buf, size_t len, const char *delim,
 	/* prologue */
 	_(0);
 	/* flags */
-	_(SC_FL_ISBACK, _(SC_FL_NOLINGER, _(SC_FL_NOHALF,
+	_(SC_FL_ISBACK, _(SC_FL_EOI, _(SC_FL_NOLINGER, _(SC_FL_NOHALF,
 	_(SC_FL_DONT_WAKE, _(SC_FL_INDEP_STR, _(SC_FL_WONT_READ,
 	_(SC_FL_NEED_BUFF, _(SC_FL_NEED_ROOM,
-	_(SC_FL_RCV_ONCE, _(SC_FL_SND_ASAP, _(SC_FL_SND_NEVERWAIT, _(SC_FL_SND_EXP_MORE))))))))))));
+	_(SC_FL_RCV_ONCE, _(SC_FL_SND_ASAP, _(SC_FL_SND_NEVERWAIT, _(SC_FL_SND_EXP_MORE)))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

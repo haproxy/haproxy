@@ -911,7 +911,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
 	if (req->to_forward) {
 		if (req->to_forward == CHN_INFINITE_FORWARD) {
-			if (req->flags & CF_EOI)
+			if (s->scf->flags & SC_FL_EOI)
 				msg->msg_state = HTTP_MSG_ENDING;
 		}
 		else {
@@ -1134,7 +1134,7 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *sc)
 	res = &s->res;
 	/* Remove any write error from the request, and read error from the response */
 	req->flags &= ~(CF_WRITE_TIMEOUT | CF_SHUTW | CF_SHUTW_NOW);
-	res->flags &= ~(CF_READ_TIMEOUT | CF_SHUTR | CF_EOI | CF_READ_EVENT | CF_SHUTR_NOW);
+	res->flags &= ~(CF_READ_TIMEOUT | CF_SHUTR | CF_READ_EVENT | CF_SHUTR_NOW);
 	res->analysers &= AN_RES_FLT_END;
 	s->conn_err_type = STRM_ET_NONE;
 	s->flags &= ~(SF_CONN_EXP | SF_ERR_MASK | SF_FINST_MASK);
@@ -2019,7 +2019,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 
 	if (res->to_forward) {
 		if (res->to_forward == CHN_INFINITE_FORWARD) {
-			if (res->flags & CF_EOI)
+			if (s->scb->flags & SC_FL_EOI)
 				msg->msg_state = HTTP_MSG_ENDING;
 		}
 		else {
@@ -4449,11 +4449,11 @@ int http_forward_proxy_resp(struct stream *s, int final)
 		channel_auto_read(res);
 		channel_auto_close(res);
 		channel_shutr_now(res);
-		res->flags |= CF_EOI; /* The response is terminated, add EOI */
+		s->scb->flags |= SC_FL_EOI; /* The response is terminated, add EOI */
 		htxbuf(&res->buf)->flags |= HTX_FL_EOM; /* no more data are expected */
 	}
 	else {
-		/* Send ASAP informational messages. Rely on CF_EOI for final
+		/* Send ASAP informational messages. Rely on SC_FL_EOI for final
 		 * response.
 		 */
 		s->scf->flags |= SC_FL_SND_ASAP;

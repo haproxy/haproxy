@@ -1848,8 +1848,10 @@ skip_reuse:
 	 *       wake callback. Otherwise si_cs_recv()/si_cs_send() already take
 	 *       care of it.
 	 */
-	if (sc_ep_test(s->scb, SE_FL_EOI) && !(sc_ic(s->scb)->flags & CF_EOI))
-		sc_ic(s->scb)->flags |= (CF_EOI|CF_READ_EVENT);
+	if (sc_ep_test(s->scb, SE_FL_EOI) && !(s->scb->flags & SC_FL_EOI)) {
+		s->scb->flags |= SC_FL_EOI;
+		sc_ic(s->scb)->flags |= CF_READ_EVENT;
+	}
 
 	/* catch all sync connect while the mux is not already installed */
 	if (!srv_conn->mux && !(srv_conn->flags & CO_FL_WAIT_XPRT)) {
