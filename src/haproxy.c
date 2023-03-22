@@ -2310,7 +2310,7 @@ static void init(int argc, char **argv)
 	if (global.mode & MODE_DUMP_LIBS) {
 		qfprintf(stdout, "List of loaded object files:\n");
 		chunk_reset(&trash);
-		if (dump_libs(&trash, 0))
+		if (dump_libs(&trash, ((arg_mode & (MODE_QUIET|MODE_VERBOSE)) == MODE_VERBOSE)))
 			printf("%s", trash.area);
 	}
 #endif

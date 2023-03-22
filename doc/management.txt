@@ -271,6 +271,9 @@ list of options is :
 
        ./haproxy -W -q -c -dL -f foo.cfg | tar -T - -hzcf archive.tgz
 
+   When started in verbose mode (-V) the shared libraries' address ranges are
+   also enumerated, unless the quiet mode is in use (-q).
+
   -dM[<byte>[,]][help|options,...] : forces memory poisoning, and/or changes
     memory other debugging options. Memory poisonning means that each and every
     memory region allocated with malloc() or pool_alloc() will be filled with
