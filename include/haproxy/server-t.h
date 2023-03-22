@@ -429,6 +429,7 @@ struct event_hdl_cb_data_server {
 		 */
 		char name[64];       /* server name/id */
 		char proxy_name[64]; /* id of proxy the server belongs to */
+		int proxy_uuid;      /* uuid of the proxy the server belongs to */
 		int puid;            /* proxy-unique server ID */
 		uint32_t rid;        /* server id revision */
 		unsigned int flags;  /* server flags */

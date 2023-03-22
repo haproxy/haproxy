@@ -151,8 +151,12 @@ static inline void srv_event_hdl_publish(struct event_hdl_sub_type event, struct
 	cb_data.safe.rid = srv->rid;
 	cb_data.safe.flags = srv->flags;
 	snprintf(cb_data.safe.name, sizeof(cb_data.safe.name), "%s", srv->id);
-	if (srv->proxy)
+	cb_data.safe.proxy_name[0] = '\0';
+	cb_data.safe.proxy_uuid = -1; /* default value */
+	if (srv->proxy) {
+		cb_data.safe.proxy_uuid = srv->proxy->uuid;
 		snprintf(cb_data.safe.proxy_name, sizeof(cb_data.safe.proxy_name), "%s", srv->proxy->id);
+	}
 	/* unsafe data assignments */
 	cb_data.unsafe.ptr = srv;
 	cb_data.unsafe.thread_isolate = thread_isolate;
