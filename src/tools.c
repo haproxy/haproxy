@@ -6078,8 +6078,6 @@ void *dlopen(const char *filename, int flags)
 		const char *name;
 		void *curr, *next;
 	} check_syms[] = {
-		{ .name = "malloc", },
-		{ .name = "free", },
 		{ .name = "SSL_library_init", },
 		{ .name = "X509_free", },
 		/* insert only above, 0 must be the last one */
@@ -6100,7 +6098,7 @@ void *dlopen(const char *filename, int flags)
 
 	/* save a few pointers to critical symbols. We keep a copy of both the
 	 * current and the next value, because we might already have replaced
-	 * some of them (e.g. malloc/free with DEBUG_MEM_STATS), and we're only
+	 * some of them in an inconsistent way (i.e. not all), and we're only
 	 * interested in verifying that a loaded library doesn't come with a
 	 * completely different definition that would be incompatible.
 	 */
