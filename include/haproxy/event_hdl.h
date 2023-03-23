@@ -332,8 +332,8 @@ int event_hdl_lookup_resume(event_hdl_sub_list *sub_list,
 
 /* ------ PUBLISHING FUNCTIONS ------ */
 
-/* this macro is provided as an internal helper for EVENT_HDL_TRIGGER to automatically
- * populate data as required by event_hdl publish function
+/* this macro is provided as an internal helper to automatically populate
+ * data for fixed length structs as required by event_hdl publish function
  */
 #define _EVENT_HDL_CB_DATA_ASSERT(size)					\
 	({								\
