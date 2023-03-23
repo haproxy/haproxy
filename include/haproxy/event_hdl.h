@@ -346,10 +346,34 @@ int event_hdl_lookup_resume(event_hdl_sub_list *sub_list,
 		char __static_assert[(size <= EVENT_HDL_ASYNC_EVENT_DATA) ? 1 : -1];\
 		(size);							\
 	})
-#define _EVENT_HDL_CB_DATA(data,size)					\
+#define _EVENT_HDL_CB_DATA(data,size,mfree)				\
 	(&(struct event_hdl_cb_data){ ._ptr = data,			\
-				      ._size = size })
-#define EVENT_HDL_CB_DATA(data)		_EVENT_HDL_CB_DATA(data, _EVENT_HDL_CB_DATA_ASSERT(sizeof(*data)))
+				      ._size = size,			\
+				      ._mfree = mfree })
+
+/* Use this when 'safe' data is completely standalone */
+#define EVENT_HDL_CB_DATA(data)						\
+	_EVENT_HDL_CB_DATA(data,					\
+			   _EVENT_HDL_CB_DATA_ASSERT(sizeof(*data)),	\
+			   NULL)
+/* Use this when 'safe' data points to dynamically allocated members
+ * that require freeing when the event is completely consumed
+ * (data in itself may be statically allocated as with
+ *  EVENT_HDL_CB_DATA since the publish function will take
+ *  care of copying it for async handlers)
+ *
+ * mfree function will be called with data as argument
+ * (or copy of data in async context) when the event is completely
+ * consumed (sync and async handlers included). This will give you
+ * enough context to perform the required cleanup steps.
+ *
+ * mfree should be prototyped like this:
+ *    void (*mfree)(const void *data)
+ */
+#define EVENT_HDL_CB_DATA_DM(data, mfree)				\
+	_EVENT_HDL_CB_DATA(data,                                        \
+			   _EVENT_HDL_CB_DATA_ASSERT(sizeof(*data)),    \
+			   mfree)
 
 /* event publishing function
  * this function should be called from anywhere in the code to notify

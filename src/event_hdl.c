@@ -177,6 +177,17 @@ static inline void _event_hdl_async_data_drop(struct event_hdl_async_event_data 
 {
 	if (HA_ATOMIC_SUB_FETCH(&data->refcount, 1) == 0) {
 		/* we were the last one holding a reference to event data - free required */
+		if (data->mfree) {
+			/* Some event data members are dynamically allocated and thus
+			 * require specific cleanup using user-provided function.
+			 * We directly pass a pointer to internal data storage but
+			 * we only expect the cleanup function to typecast it in the
+			 * relevant data type to give enough context to the function to
+			 * perform the cleanup on data members, and not actually freeing
+			 * data pointer since it is our internal buffer :)
+			 */
+			data->mfree(&data->data);
+		}
 		pool_free(pool_head_sub_event_data, data);
 	}
 }
@@ -828,7 +839,8 @@ static int _event_hdl_publish(event_hdl_sub_list *sub_list, struct event_hdl_sub
 				new_event->sub_mgmt = EVENT_HDL_SUB_MGMT_ASYNC(cur_sub);
 				if (data) {
 					/* if this fails, please adjust EVENT_HDL_ASYNC_EVENT_DATA in
-					 * event_hdl-t.h file
+					 * event_hdl-t.h file or consider providing dynamic struct members
+					 * to reduce overall struct size
 					 */
 					BUG_ON(data->_size > sizeof(async_data->data));
 					if (!async_data) {
@@ -842,6 +854,7 @@ static int _event_hdl_publish(event_hdl_sub_list *sub_list, struct event_hdl_sub
 
 						/* async data assignment */
 						memcpy(async_data->data, data->_ptr, data->_size);
+						async_data->mfree = data->_mfree;
 						/* Initialize refcount, we start at 1 to prevent async
 						 * data from being freed by an async handler while we
 						 * still use it. We will drop the reference when the
@@ -873,6 +886,12 @@ static int _event_hdl_publish(event_hdl_sub_list *sub_list, struct event_hdl_sub
 	if (async_data) {
 		/* we finished publishing, drop the reference on async data */
 		_event_hdl_async_data_drop(async_data);
+	} else {
+		/* no async subscribers, we are responsible for calling the data
+		 * member freeing function if it was provided
+		 */
+		if (data && data->_mfree)
+			data->_mfree(data->_ptr);
 	}
 	if (error) {
 		event_hdl_report_hdl_state(ha_warning, &cur_sub->hdl, "PUBLISH", "memory error");

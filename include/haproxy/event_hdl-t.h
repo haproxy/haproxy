@@ -56,10 +56,15 @@ struct event_hdl_cb_data_template {
  * refcount is used to keep track of references so that
  * data can be freed when not used anymore
  */
+typedef void (*event_hdl_data_free)(const void *data);
 struct event_hdl_async_event_data
 {
 	/* internal storage */
 	char data[EVENT_HDL_ASYNC_EVENT_DATA];
+	/* user-provided free function if event data relies on
+	 * dynamic members that require specific cleanup
+	 */
+	event_hdl_data_free mfree;
 	uint32_t refcount;
 };
 
@@ -126,6 +131,10 @@ struct event_hdl_cb_data {
 	void *_ptr;
 	/* internal use: holds actual data size*/
 	size_t _size;
+	/* user specified freeing function for event_hdl_cb_data_type
+	 * struct members
+	 */
+	event_hdl_data_free _mfree;
 };
 
 /* struct provided to event_hdl_cb_* handlers
