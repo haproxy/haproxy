@@ -420,6 +420,8 @@ struct server {
 struct event_hdl_cb_data_server {
 	/* provided by:
 	 *   EVENT_HDL_SUB_SERVER_ADD
+	 *   EVENT_HDL_SUB_SERVER_DEL
+	 *   EVENT_HDL_SUB_SERVER_UP
 	 *   EVENT_HDL_SUB_SERVER_DOWN
 	 */
 	struct {
