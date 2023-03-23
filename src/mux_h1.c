@@ -3849,6 +3849,18 @@ static int h1_rcv_pipe(struct stconn *sc, struct pipe *pipe, unsigned int count)
   end:
 	if (conn_xprt_read0_pending(h1c->conn)) {
 		se_fl_set(h1s->sd, SE_FL_EOS);
+		TRACE_STATE("report EOS to SE", H1_EV_STRM_RECV, h1c->conn, h1s);
+		if (h1m->state >= H1_MSG_DONE || !(h1m->flags & H1_MF_XFER_LEN)) {
+			/* DONE or TUNNEL or SHUTR without XFER_LEN, set
+			 * EOI on the stream connector */
+			se_fl_set(h1s->sd, SE_FL_EOI);
+			TRACE_STATE("report EOI to SE", H1_EV_STRM_RECV, h1c->conn, h1s);
+		}
+		else {
+			se_fl_set(h1s->sd, SE_FL_ERROR);
+			h1c->flags = (h1c->flags & ~H1C_F_WANT_SPLICE) | H1C_F_ERROR;
+			TRACE_ERROR("message aborted, set error on SC", H1_EV_STRM_RECV|H1_EV_H1S_ERR, h1c->conn, h1s);
+		}
 		h1c->flags = (h1c->flags & ~H1C_F_WANT_SPLICE) | H1C_F_EOS;
 		TRACE_STATE("Allow xprt rcv_buf on read0", H1_EV_STRM_RECV, h1c->conn, h1s);
 	}
