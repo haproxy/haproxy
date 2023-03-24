@@ -166,7 +166,30 @@ int srv_getinter(const struct check *check)
 	return (check->fastinter)?(check->fastinter):(check->inter);
 }
 
-/*
+/* fill common server event data members struct
+ * must be called with server lock or under thread isolate
+ */
+static inline void _srv_event_hdl_prepare(struct event_hdl_cb_data_server *cb_data,
+                                          struct server *srv, uint8_t thread_isolate)
+{
+	/* safe data assignments */
+	cb_data->safe.puid = srv->puid;
+	cb_data->safe.rid = srv->rid;
+	cb_data->safe.flags = srv->flags;
+	snprintf(cb_data->safe.name, sizeof(cb_data->safe.name), "%s", srv->id);
+	cb_data->safe.proxy_name[0] = '\0';
+	cb_data->safe.proxy_uuid = -1; /* default value */
+	if (srv->proxy) {
+		cb_data->safe.proxy_uuid = srv->proxy->uuid;
+		snprintf(cb_data->safe.proxy_name, sizeof(cb_data->safe.proxy_name), "%s", srv->proxy->id);
+	}
+	/* unsafe data assignments */
+	cb_data->unsafe.ptr = srv;
+	cb_data->unsafe.thread_isolate = thread_isolate;
+	cb_data->unsafe.srv_lock = !thread_isolate;
+}
+
+/* general server event publishing:
  * Use this to publish EVENT_HDL_SUB_SERVER family type event
  * from srv facility
  * Event will be published in both global subscription list and
@@ -174,25 +197,13 @@ int srv_getinter(const struct check *check)
  * server ptr must be valid
  * must be called with srv lock or under thread_isolate
  */
-static inline void srv_event_hdl_publish(struct event_hdl_sub_type event, struct server *srv, uint8_t thread_isolate)
+static void srv_event_hdl_publish(struct event_hdl_sub_type event,
+                                  struct server *srv, uint8_t thread_isolate)
 {
 	struct event_hdl_cb_data_server cb_data;
 
-	/* safe data assignments */
-	cb_data.safe.puid = srv->puid;
-	cb_data.safe.rid = srv->rid;
-	cb_data.safe.flags = srv->flags;
-	snprintf(cb_data.safe.name, sizeof(cb_data.safe.name), "%s", srv->id);
-	cb_data.safe.proxy_name[0] = '\0';
-	cb_data.safe.proxy_uuid = -1; /* default value */
-	if (srv->proxy) {
-		cb_data.safe.proxy_uuid = srv->proxy->uuid;
-		snprintf(cb_data.safe.proxy_name, sizeof(cb_data.safe.proxy_name), "%s", srv->proxy->id);
-	}
-	/* unsafe data assignments */
-	cb_data.unsafe.ptr = srv;
-	cb_data.unsafe.thread_isolate = thread_isolate;
-	cb_data.unsafe.srv_lock = !thread_isolate;
+	/* prepare event data */
+	_srv_event_hdl_prepare(&cb_data, srv, thread_isolate);
 	/* publish in server dedicated sub list */
 	event_hdl_publish(&srv->e_subs, event, EVENT_HDL_CB_DATA(&cb_data));
 	/* publish in global subscription list */
