@@ -228,8 +228,8 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned c
                                            const struct quic_version *ver, size_t dglen, int pkt_type,
                                            int force_ack, int padding, int probe, int cc, int *err);
 struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);
-static void qc_idle_timer_do_rearm(struct quic_conn *qc);
-static void qc_idle_timer_rearm(struct quic_conn *qc, int read);
+static void qc_idle_timer_do_rearm(struct quic_conn *qc, int arm_ack);
+static void qc_idle_timer_rearm(struct quic_conn *qc, int read, int arm_ack);
 static int qc_conn_alloc_ssl_ctx(struct quic_conn *qc);
 static int quic_conn_init_timer(struct quic_conn *qc);
 static int quic_conn_init_idle_timer_task(struct quic_conn *qc);
@@ -3255,7 +3255,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				 */
 				qc->flags |= QUIC_FL_CONN_DRAINING|QUIC_FL_CONN_IMMEDIATE_CLOSE;
 				qc_detach_th_ctx_list(qc, 1);
-				qc_idle_timer_do_rearm(qc);
+				qc_idle_timer_do_rearm(qc, 0);
 				qc_notify_close(qc);
 			}
 			break;
@@ -3370,8 +3370,7 @@ static void qc_txb_store(struct buffer *buf, uint16_t length,
 static int qc_may_build_pkt(struct quic_conn *qc, struct list *frms,
                             struct quic_enc_level *qel, int cc, int probe, int force_ack)
 {
-	unsigned int must_ack = force_ack ||
-		(LIST_ISEMPTY(frms) && (qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED));
+	unsigned int must_ack = force_ack || (qc->flags & QUIC_FL_CONN_ACK_TIMER_FIRED);
 
 	/* Do not build any more packet if the TX secrets are not available or
 	 * if there is nothing to send, i.e. if no CONNECTION_CLOSE or ACK are required
@@ -3775,7 +3774,7 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 				pkt->pktns->tx.time_of_last_eliciting = time_sent;
 				qc->path->ifae_pkts++;
 				if (qc->flags & QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ)
-					qc_idle_timer_rearm(qc, 0);
+					qc_idle_timer_rearm(qc, 0, 0);
 			}
 			if (!(qc->flags & QUIC_FL_CONN_CLOSING) &&
 			    (pkt->flags & QUIC_FL_TX_PACKET_CC)) {
@@ -3792,7 +3791,7 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 				 * Rearm the idle timeout only one time when entering closing
 				 * state.
 				 */
-				qc_idle_timer_do_rearm(qc);
+				qc_idle_timer_do_rearm(qc, 0);
 				if (qc->timer_task) {
 					task_destroy(qc->timer_task);
 					qc->timer_task = NULL;
@@ -4398,7 +4397,7 @@ int qc_treat_rx_pkts(struct quic_conn *qc, struct quic_enc_level *cur_el,
 				if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING) {
 					qel->pktns->flags |= QUIC_FL_PKTNS_ACK_REQUIRED;
 					qel->pktns->rx.nb_aepkts_since_last_ack++;
-					qc_idle_timer_rearm(qc, 1);
+					qc_idle_timer_rearm(qc, 1, 1);
 				}
 				if (pkt->pn > largest_pn) {
 					largest_pn = pkt->pn;
@@ -5609,26 +5608,42 @@ static int quic_conn_init_timer(struct quic_conn *qc)
 	return ret;
 }
 
-/* Rearm the idle timer for <qc> QUIC connection. */
-static void qc_idle_timer_do_rearm(struct quic_conn *qc)
+/* Rearm the idle timer or the ack timer (if not already armde) for <qc> QUIC
+ * connection. */
+static void qc_idle_timer_do_rearm(struct quic_conn *qc, int arm_ack)
 {
 	unsigned int expire;
 
 	if (stopping && qc->flags & (QUIC_FL_CONN_CLOSING|QUIC_FL_CONN_DRAINING)) {
 		TRACE_STATE("executing idle timer immediately on stopping", QUIC_EV_CONN_IDLE_TIMER, qc);
+		qc->ack_expire = TICK_ETERNITY;
 		task_wakeup(qc->idle_timer_task, TASK_WOKEN_MSG);
 	}
 	else {
 		expire = QUIC_MAX(3 * quic_pto(qc), qc->max_idle_timeout);
-		qc->idle_timer_task->expire = tick_add(now_ms, MS_TO_TICKS(expire));
-		task_queue(qc->idle_timer_task);
+		qc->idle_expire = tick_add(now_ms, MS_TO_TICKS(expire));
+		if (arm_ack) {
+			/* Arm the ack timer only if not already armed. */
+			if (!tick_isset(qc->ack_expire)) {
+				qc->ack_expire = tick_add(now_ms, MS_TO_TICKS(QUIC_ACK_DELAY));
+				qc->idle_timer_task->expire = qc->ack_expire;
+				task_queue(qc->idle_timer_task);
+				TRACE_PROTO("ack timer armed", QUIC_EV_CONN_SSLALERT, qc);
+			}
+		}
+		else {
+			qc->idle_timer_task->expire = tick_first(qc->ack_expire, qc->idle_expire);
+			task_queue(qc->idle_timer_task);
+		}
 	}
 }
 
-/* Rearm the idle timer for <qc> QUIC connection depending on <read> boolean
- * which is set to 1 when receiving a packet , and 0 when sending packet
+/* Rearm the idle timer or ack timer for <qc> QUIC connection depending on <read>
+ * and <arm_ack> booleans. The former is set to 1 when receiving a packet ,
+ * and 0 when sending packet. <arm_ack> is set to 1 if this is the ack timer
+ * which must be rearmed.
  */
-static void qc_idle_timer_rearm(struct quic_conn *qc, int read)
+static void qc_idle_timer_rearm(struct quic_conn *qc, int read, int arm_ack)
 {
 	TRACE_ENTER(QUIC_EV_CONN_IDLE_TIMER, qc);
 
@@ -5638,7 +5653,7 @@ static void qc_idle_timer_rearm(struct quic_conn *qc, int read)
 	else {
 		qc->flags &= ~QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ;
 	}
-	qc_idle_timer_do_rearm(qc);
+	qc_idle_timer_do_rearm(qc, arm_ack);
 
 	TRACE_LEAVE(QUIC_EV_CONN_IDLE_TIMER, qc);
 }
@@ -5651,6 +5666,16 @@ struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 	unsigned int qc_flags = qc->flags;
 
 	TRACE_ENTER(QUIC_EV_CONN_IDLE_TIMER, qc);
+
+	if (tick_is_expired(qc->ack_expire, now_ms)) {
+		TRACE_PROTO("ack timer expired", QUIC_EV_CONN_SSLALERT, qc);
+		qc->ack_expire = TICK_ETERNITY;
+		/* Note that ->idle_expire is always set. */
+		t->expire = qc->idle_expire;
+		qc->flags |= QUIC_FL_CONN_ACK_TIMER_FIRED;
+		tasklet_wakeup(qc->wait_event.tasklet);
+		goto requeue;
+	}
 
 	/* Notify the MUX before settings QUIC_FL_CONN_EXP_TIMER or the MUX
 	 * might free the quic-conn too early via quic_close().
@@ -5674,8 +5699,13 @@ struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 		HA_ATOMIC_DEC(&prx_counters->half_open_conn);
 	}
 
+ leave:
 	TRACE_LEAVE(QUIC_EV_CONN_IDLE_TIMER, qc);
 	return NULL;
+
+ requeue:
+	TRACE_LEAVE(QUIC_EV_CONN_IDLE_TIMER, qc);
+	return t;
 }
 
 /* Initialize the idle timeout task for <qc>.
@@ -5695,7 +5725,8 @@ static int quic_conn_init_idle_timer_task(struct quic_conn *qc)
 
 	qc->idle_timer_task->process = qc_idle_timer_task;
 	qc->idle_timer_task->context = qc;
-	qc_idle_timer_rearm(qc, 1);
+	qc->ack_expire = TICK_ETERNITY;
+	qc_idle_timer_rearm(qc, 1, 0);
 	task_queue(qc->idle_timer_task);
 
 	ret = 1;
@@ -7884,11 +7915,18 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 		pkt->in_flight_len = pkt->len;
 		qc->path->prep_in_flight += pkt->len;
 	}
-	/* Always reset this flags */
+	/* Always reset this flag */
 	qc->flags &= ~QUIC_FL_CONN_IMMEDIATE_CLOSE;
 	if (pkt->flags & QUIC_FL_TX_PACKET_ACK) {
 		qel->pktns->flags &= ~QUIC_FL_PKTNS_ACK_REQUIRED;
 		qel->pktns->rx.nb_aepkts_since_last_ack = 0;
+		qc->flags &= ~QUIC_FL_CONN_ACK_TIMER_FIRED;
+		if (tick_isset(qc->ack_expire)) {
+		    qc->ack_expire = TICK_ETERNITY;
+		    qc->idle_timer_task->expire = qc->idle_expire;
+		    task_queue(qc->idle_timer_task);
+		    TRACE_PROTO("ack timer cancelled", QUIC_EV_CONN_TXPKT, qc);
+		}
 	}
 
 	pkt->pktns = qel->pktns;

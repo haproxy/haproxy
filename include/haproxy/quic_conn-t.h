@@ -394,6 +394,7 @@ struct quic_dgram {
  * ACK frame was sent
  */
 #define QUIC_MAX_RX_AEPKTS_SINCE_LAST_ACK       2
+#define QUIC_ACK_DELAY   (QUIC_TP_DFLT_MAX_ACK_DELAY - 5)
 /* Flag a received packet as being an ack-eliciting packet. */
 #define QUIC_FL_RX_PACKET_ACK_ELICITING (1UL << 0)
 /* Packet is the first one in the containing datagram. */
@@ -622,6 +623,7 @@ enum qc_mux_state {
 /* gap here */
 #define QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED   (1U << 11) /* The half-open connection counter was decremented */
 #define QUIC_FL_CONN_HANDSHAKE_SPEED_UP          (1U << 12) /* Handshake speeding up was done */
+#define QUIC_FL_CONN_ACK_TIMER_FIRED             (1U << 13) /* idle timer triggered for acknowledgements */
 #define QUIC_FL_CONN_TO_KILL                     (1U << 24) /* Unusable connection, to be killed */
 #define QUIC_FL_CONN_TX_TP_RECEIVED              (1U << 25) /* Peer transport parameters have been received (used for the transmitting part) */
 #define QUIC_FL_CONN_FINALIZED                   (1U << 26) /* QUIC connection finalized (functional, ready to send/receive) */
@@ -729,6 +731,8 @@ struct quic_conn {
 	unsigned int timer;
 	/* Idle timer task */
 	struct task *idle_timer_task;
+	unsigned int idle_expire;
+	unsigned int ack_expire;
 	unsigned int flags;
 
 	/* When in closing state, number of packet before sending CC */
