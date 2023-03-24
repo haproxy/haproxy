@@ -288,6 +288,16 @@ static void quic_cc_cubic_event(struct quic_cc *cc, struct quic_cc_event *ev)
 
 static void quic_cc_cubic_state_trace(struct buffer *buf, const struct quic_cc *cc)
 {
+	struct quic_path *path;
+	struct cubic *c = quic_cc_priv(cc);
+
+	path = container_of(cc, struct quic_path, cc);
+	chunk_appendf(buf, " state=%s cwnd=%llu ssthresh=%d rpst=%dms",
+	              quic_cc_state_str(cc->algo->state),
+	              (unsigned long long)path->cwnd,
+	              (int)c->ssthresh,
+	              !tick_isset(c->recovery_start_time) ? -1 :
+	              TICKS_TO_MS(tick_remain(c->recovery_start_time, now_ms)));
 }
 
 struct quic_cc_algo quic_cc_algo_cubic = {
