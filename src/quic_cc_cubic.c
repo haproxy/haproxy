@@ -1,5 +1,6 @@
-#include <haproxy/trace.h>
 #include <haproxy/quic_cc.h>
+#include <haproxy/ticks.h>
+#include <haproxy/trace.h>
 
 /* This source file is highly inspired from Linux kernel source file
  * implementation for TCP Cubic. In fact, we have no choice if we do
@@ -198,7 +199,8 @@ static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	struct quic_path *path = container_of(cc, struct quic_path, cc);
 	struct cubic *c = quic_cc_priv(cc);
 
-	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc, ev);
+	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc);
+	TRACE_PROTO("CC cubic", QUIC_EV_CONN_CC, cc->qc, ev);
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
 		path->cwnd += ev->ack.acked;
@@ -219,13 +221,15 @@ static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	}
 
  out:
-	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc, NULL, cc);
+	TRACE_PROTO("CC cubic", QUIC_EV_CONN_CC, cc->qc, NULL, cc);
+	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc);
 }
 
 /* Congestion avoidance callback. */
 static void quic_cc_cubic_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 {
-	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc, ev);
+	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc);
+	TRACE_PROTO("CC cubic", QUIC_EV_CONN_CC, cc->qc, ev);
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
 		quic_cubic_update(cc, ev->ack.acked);
@@ -239,7 +243,7 @@ static void quic_cc_cubic_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	}
 
  out:
-	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc, NULL, cc);
+	TRACE_PROTO("CC cubic", QUIC_EV_CONN_CC, cc->qc, NULL, cc);
 }
 
 /* Recovery period callback */
@@ -248,6 +252,7 @@ static void quic_cc_cubic_rp_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	struct cubic *c = quic_cc_priv(cc);
 
 	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc, ev);
+	TRACE_PROTO("CC cubic", QUIC_EV_CONN_CC, cc->qc, ev);
 
 	BUG_ON(!tick_isset(c->recovery_start_time));
 
@@ -257,8 +262,10 @@ static void quic_cc_cubic_rp_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		 * A recovery period ends and the sender enters congestion avoidance when a
 		 * packet sent during the recovery period is acknowledged.
 		 */
-		if (tick_is_le(ev->ack.time_sent, c->recovery_start_time))
+		if (tick_is_le(ev->ack.time_sent, c->recovery_start_time)) {
+			TRACE_PROTO("CC cubic (still in recov. period)", QUIC_EV_CONN_CC, cc->qc);
 			goto leave;
+		}
 
 		cc->algo->state = QUIC_CC_ST_CA;
 		c->recovery_start_time = TICK_ETERNITY;
@@ -271,6 +278,7 @@ static void quic_cc_cubic_rp_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	}
 
  leave:
+	TRACE_PROTO("CC cubic", QUIC_EV_CONN_CC, cc->qc, NULL, cc);
 	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc, NULL, cc);
 }
 

@@ -80,7 +80,8 @@ static void quic_cc_nr_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	struct quic_path *path;
 	struct nr *nr = quic_cc_priv(cc);
 
-	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc, ev);
+	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc);
+	TRACE_PROTO("CC reno", QUIC_EV_CONN_CC, cc->qc, ev);
 	path = container_of(cc, struct quic_path, cc);
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
@@ -98,7 +99,8 @@ static void quic_cc_nr_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		/* XXX TO DO XXX */
 		break;
 	}
-	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc,, cc);
+	TRACE_PROTO("CC reno", QUIC_EV_CONN_CC, cc->qc, NULL, cc);
+	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc);
 }
 
 /* Congestion avoidance callback. */
@@ -107,7 +109,8 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	struct quic_path *path;
 	struct nr *nr = quic_cc_priv(cc);
 
-	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc, ev);
+	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc);
+	TRACE_PROTO("CC reno", QUIC_EV_CONN_CC, cc->qc, ev);
 	path = container_of(cc, struct quic_path, cc);
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
@@ -132,7 +135,8 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	}
 
  out:
-	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc, NULL, cc);
+	TRACE_PROTO("CC reno", QUIC_EV_CONN_CC, cc->qc, NULL, cc);
+	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc);
 }
 
 /*  Recovery period callback. */
@@ -143,7 +147,8 @@ static void quic_cc_nr_rp_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 
 	BUG_ON(!tick_isset(nr->recovery_start_time));
 
-	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc, ev);
+	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc);
+	TRACE_PROTO("CC reno", QUIC_EV_CONN_CC, cc->qc, ev);
 	path = container_of(cc, struct quic_path, cc);
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
@@ -151,8 +156,10 @@ static void quic_cc_nr_rp_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		 * A recovery period ends and the sender enters congestion avoidance when a
 		 * packet sent during the recovery period is acknowledged.
 		 */
-		if (tick_is_le(ev->ack.time_sent, nr->recovery_start_time))
+		if (tick_is_le(ev->ack.time_sent, nr->recovery_start_time)) {
+			TRACE_PROTO("CC reno (still in recovery period)", QUIC_EV_CONN_CC, cc->qc, ev);
 			goto leave;
+		}
 
 		cc->algo->state = QUIC_CC_ST_CA;
 		nr->recovery_start_time = TICK_ETERNITY;
@@ -167,6 +174,7 @@ static void quic_cc_nr_rp_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	}
 
  leave:
+	TRACE_PROTO("CC reno", QUIC_EV_CONN_CC, cc->qc, ev);
 	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc, ev);
 }
 static void quic_cc_nr_state_trace(struct buffer *buf, const struct quic_cc *cc)

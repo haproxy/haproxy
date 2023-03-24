@@ -20,7 +20,7 @@ void quic_loss_srtt_update(struct quic_loss *ql,
                            struct quic_conn *qc)
 {
 	TRACE_ENTER(QUIC_EV_CONN_RTTUPDT, qc);
-	TRACE_DEVEL("Loss info update", QUIC_EV_CONN_RTTUPDT, qc, &rtt, &ack_delay, ql);
+	TRACE_PROTO("TX loss srtt update", QUIC_EV_CONN_RTTUPDT, qc, &rtt, &ack_delay, ql);
 
 	ql->latest_rtt = rtt;
 	if (!ql->rtt_min) {
@@ -46,7 +46,7 @@ void quic_loss_srtt_update(struct quic_loss *ql,
 		ql->srtt += rtt - (ql->srtt >> 3);
 	}
 
-	TRACE_DEVEL("Loss info update", QUIC_EV_CONN_RTTUPDT, qc,,, ql);
+	TRACE_PROTO("TX loss srtt update", QUIC_EV_CONN_RTTUPDT, qc,,, ql);
 	TRACE_LEAVE(QUIC_EV_CONN_RTTUPDT, qc);
 }
 
@@ -62,9 +62,9 @@ struct quic_pktns *quic_loss_pktns(struct quic_conn *qc)
 	TRACE_ENTER(QUIC_EV_CONN_SPTO, qc);
 
 	pktns = &qc->pktns[QUIC_TLS_PKTNS_INITIAL];
-	TRACE_DEVEL("pktns", QUIC_EV_CONN_SPTO, qc, pktns);
+	TRACE_PROTO("TX loss pktns", QUIC_EV_CONN_SPTO, qc, pktns);
 	for (i = QUIC_TLS_PKTNS_HANDSHAKE; i < QUIC_TLS_PKTNS_MAX; i++) {
-		TRACE_DEVEL("pktns", QUIC_EV_CONN_SPTO, qc, &qc->pktns[i]);
+		TRACE_PROTO("TX loss pktns", QUIC_EV_CONN_SPTO, qc, &qc->pktns[i]);
 		if (!tick_isset(pktns->tx.loss_time) ||
 		    qc->pktns[i].tx.loss_time < pktns->tx.loss_time)
 			pktns = &qc->pktns[i];
@@ -118,7 +118,7 @@ struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
 
 		if (i == QUIC_TLS_PKTNS_01RTT) {
 			if (!handshake_confirmed) {
-				TRACE_STATE("handshake not already completed", QUIC_EV_CONN_SPTO, qc);
+				TRACE_STATE("TX PTO handshake not already completed", QUIC_EV_CONN_SPTO, qc);
 				pktns = p;
 				goto out;
 			}
@@ -132,13 +132,14 @@ struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
 			lpto = tmp_pto;
 			pktns = p;
 		}
-		TRACE_DEVEL("pktns", QUIC_EV_CONN_SPTO, qc, p);
+		TRACE_PROTO("TX PTO", QUIC_EV_CONN_SPTO, qc, p);
 	}
 
  out:
 	if (pto)
 		*pto = lpto;
-	TRACE_LEAVE(QUIC_EV_CONN_SPTO, qc, pktns, &duration);
+	TRACE_PROTO("TX PTO", QUIC_EV_CONN_SPTO, qc, pktns, &duration);
+	TRACE_LEAVE(QUIC_EV_CONN_SPTO, qc);
 
 	return pktns;
 }
@@ -159,7 +160,8 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 	struct quic_loss *ql;
 	unsigned int loss_delay;
 
-	TRACE_ENTER(QUIC_EV_CONN_PKTLOSS, qc, pktns);
+	TRACE_ENTER(QUIC_EV_CONN_PKTLOSS, qc);
+	TRACE_PROTO("TX loss", QUIC_EV_CONN_PKTLOSS, qc, pktns);
 	pkts = &pktns->tx.pkts;
 	pktns->tx.loss_time = TICK_ETERNITY;
 	if (eb_is_empty(pkts))
@@ -200,6 +202,7 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 	}
 
  out:
-	TRACE_LEAVE(QUIC_EV_CONN_PKTLOSS, qc, pktns, lost_pkts);
+	TRACE_PROTO("TX loss", QUIC_EV_CONN_PKTLOSS, qc, pktns, lost_pkts);
+	TRACE_LEAVE(QUIC_EV_CONN_PKTLOSS, qc);
 }
 

@@ -59,7 +59,7 @@ static inline void quic_tp_version_info_dump(struct buffer *b,
 				chunk_appendf(b, "0x%08x", ntohl(*ver));
 		}
 	}
-	chunk_appendf(b, ")\n");
+	chunk_appendf(b, ")");
 }
 
 static inline void quic_transport_params_dump(struct buffer *b,
@@ -119,7 +119,7 @@ static inline void quic_transport_params_dump(struct buffer *b,
 			prev = 1;
 			chunk_appendf(b, "pref_addr");
 		}
-		chunk_appendf(b, ")\n");
+		chunk_appendf(b, ")");
 	}
 
 	quic_tp_version_info_dump(b, &p->version_information, local);

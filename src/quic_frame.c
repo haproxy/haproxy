@@ -286,7 +286,7 @@ static int quic_build_ack_frame(unsigned char **buf, const unsigned char *end,
 
 	ar = eb64_last(&tx_ack->arngs->root);
 	ar_node = eb64_entry(ar, struct quic_arng_node, first);
-	TRACE_DEVEL("ack range", QUIC_EV_CONN_PRSAFRM,
+	TRACE_PROTO("TX ack range", QUIC_EV_CONN_PRSAFRM,
 	            qc,, &ar_node->last, &ar_node->first.key);
 	if (!quic_enc_int(buf, end, ar_node->last) ||
 	    !quic_enc_int(buf, end, tx_ack->ack_delay) ||
@@ -296,7 +296,7 @@ static int quic_build_ack_frame(unsigned char **buf, const unsigned char *end,
 
 	while ((prev_ar = eb64_prev(ar))) {
 		prev_ar_node = eb64_entry(prev_ar, struct quic_arng_node, first);
-		TRACE_DEVEL("ack range", QUIC_EV_CONN_PRSAFRM, qc,,
+		TRACE_PROTO("TX ack range", QUIC_EV_CONN_PRSAFRM, qc,,
 		            &prev_ar_node->last, &prev_ar_node->first.key);
 		if (!quic_enc_int(buf, end, ar_node->first.key - prev_ar_node->last - 2) ||
 		    !quic_enc_int(buf, end, prev_ar_node->last - prev_ar_node->first.key))
@@ -1115,11 +1115,12 @@ int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
 		goto leave;
 	}
 
-	TRACE_PROTO("frame", QUIC_EV_CONN_PRSFRM, qc, frm);
 	if (!parser->func(frm, qc, buf, end)) {
 		TRACE_DEVEL("parsing error", QUIC_EV_CONN_PRSFRM, qc, frm);
 		goto leave;
 	}
+
+	TRACE_PROTO("RX frm", QUIC_EV_CONN_PSTRM, qc, frm);
 
 	pkt->flags |= parser->flags;
 
@@ -1155,10 +1156,10 @@ int qc_build_frm(unsigned char **buf, const unsigned char *end,
 		goto leave;
 	}
 
-	TRACE_PROTO("TX frame", QUIC_EV_CONN_BFRM, qc, frm);
+	TRACE_PROTO("TX frm", QUIC_EV_CONN_BFRM, qc, frm);
 	*pos++ = frm->type;
 	if (!quic_frame_builders[frm->type].func(&pos, end, frm, qc)) {
-		TRACE_DEVEL("frame building error", QUIC_EV_CONN_BFRM, qc, frm);
+		TRACE_ERROR("frame building error", QUIC_EV_CONN_BFRM, qc, frm);
 		goto leave;
 	}
 
