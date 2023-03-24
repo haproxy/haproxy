@@ -53,14 +53,14 @@ static inline const char *quic_cc_state_str(enum quic_cc_algo_state_type state)
 /* Return a human readable string from <ev> control congestion event type. */
 static inline void quic_cc_event_trace(struct buffer *buf, const struct quic_cc_event *ev)
 {
-	chunk_appendf(buf, " event type=");
+	chunk_appendf(buf, " event=");
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
-		chunk_appendf(buf, "ack acked=%llu time_sent:%u",
-		              (unsigned long long)ev->ack.acked, ev->ack.time_sent);
+		chunk_appendf(buf, "ack acked=%llu time_sent:%dms",
+		              (unsigned long long)ev->ack.acked, TICKS_TO_MS(tick_remain(ev->ack.time_sent, now_ms)));
 		break;
 	case QUIC_CC_EVT_LOSS:
-		chunk_appendf(buf, "loss now_ms=%u time_sent=%u", now_ms, ev->loss.time_sent);
+		chunk_appendf(buf, "loss time_sent=%dms", TICKS_TO_MS(tick_remain(ev->loss.time_sent, now_ms)));
 		break;
 	case QUIC_CC_EVT_ECN_CE:
 		chunk_appendf(buf, "ecn_ce");
