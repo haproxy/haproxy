@@ -5757,7 +5757,7 @@ static void srv_update_status(struct server *s)
 
 			tmptrash = alloc_trash_chunk();
 			if (tmptrash) {
-				if (!(s->next_admin & SRV_ADMF_FDRAIN)) {
+				if (s->cur_admin & SRV_ADMF_FDRAIN) {
 					chunk_printf(tmptrash,
 						     "%sServer %s/%s is %s (leaving forced drain)",
 						     s->flags & SRV_F_BACKUP ? "Backup " : "",
