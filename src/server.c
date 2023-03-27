@@ -5270,8 +5270,7 @@ int srv_apply_track(struct server *srv, struct proxy *curproxy)
 }
 
 /*
- * This function applies server's status changes, it is
- * is designed to be called asynchronously.
+ * This function applies server's status changes.
  *
  * Must be called with the server lock held. This may also be called at init
  * time as the result of parsing the state file, in which case no lock will be
