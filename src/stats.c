@@ -150,7 +150,7 @@ const struct name_desc info_fields[INF_TOTAL_FIELDS] = {
 	[INF_BUSY_POLLING]                   = { .name = "BusyPolling",                 .desc = "1 if busy-polling is currently in use on the worker process, otherwise zero (config.busy-polling)" },
 	[INF_FAILED_RESOLUTIONS]             = { .name = "FailedResolutions",           .desc = "Total number of failed DNS resolutions in current worker process since started" },
 	[INF_TOTAL_BYTES_OUT]                = { .name = "TotalBytesOut",               .desc = "Total number of bytes emitted by current worker process since started" },
-	[INF_TOTAL_SPLICED_BYTES_OUT]        = { .name = "TotalSplicdedBytesOut",       .desc = "Total number of bytes emitted by current worker process through a kernel pipe since started" },
+	[INF_TOTAL_SPLICED_BYTES_OUT]        = { .name = "TotalSplicedBytesOut",        .desc = "Total number of bytes emitted by current worker process through a kernel pipe since started" },
 	[INF_BYTES_OUT_RATE]                 = { .name = "BytesOutRate",                .desc = "Number of bytes emitted by current worker process over the last second" },
 	[INF_DEBUG_COMMANDS_ISSUED]          = { .name = "DebugCommandsIssued",         .desc = "Number of debug commands issued on this process (anything > 0 is unsafe)" },
 	[INF_CUM_LOG_MSGS]                   = { .name = "CumRecvLogs",                 .desc = "Total number of log messages received by log-forwarding listeners on this worker process since started" },
