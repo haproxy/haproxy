@@ -9029,13 +9029,21 @@ static void hlua_event_handler(struct hlua *hlua)
 	}
 }
 
-__LJMP static int hlua_event_hdl_cb_data_push_args(struct hlua_event_sub *hlua_sub,
-                                                   struct event_hdl_sub_type event, void *data)
+/* This function pushes various arguments such as event type and event data to
+ * the lua function that will be called to consume the event.
+ */
+__LJMP static void hlua_event_hdl_cb_push_args(struct hlua_event_sub *hlua_sub,
+                                               struct event_hdl_async_event *e)
 {
 	struct hlua *hlua = hlua_sub->hlua;
+	struct event_hdl_sub_type event = e->type;
+	void *data = e->data;
 
+	/* push event type */
 	hlua->nargs = 1;
 	lua_pushstring(hlua->T, event_hdl_sub_type_to_string(event));
+
+	/* push event data (according to event type) */
 	if (event_hdl_sub_family_equal(EVENT_HDL_SUB_SERVER, event)) {
 		struct event_hdl_cb_data_server *e_server = data;
 		struct proxy *px;
@@ -9079,8 +9087,6 @@ __LJMP static int hlua_event_hdl_cb_data_push_args(struct hlua_event_sub *hlua_s
 	/* sub mgmt */
 	hlua->nargs += 1;
 	hlua_fcn_new_event_sub(hlua->T, hlua_sub->sub);
-
-	return 1;
 }
 
 /* events runner: if there's an ongoing hlua event handling process, finish it
@@ -9160,10 +9166,7 @@ static struct task *hlua_event_runner(struct task *task, void *context, unsigned
 
 		/* push args */
 		hlua_sub->hlua->nargs = 0;
-		if (!hlua_event_hdl_cb_data_push_args(hlua_sub, event->type, event->data)) {
-			RESET_SAFE_LJMP(hlua_sub->hlua);
-			goto skip_event;
-		}
+		MAY_LJMP(hlua_event_hdl_cb_push_args(hlua_sub, event));
 
 		/* At this point the execution is safe. */
 		RESET_SAFE_LJMP(hlua_sub->hlua);
