@@ -654,6 +654,7 @@ h2c_is_dead(const struct h2c *h2c)
 {
 	if (eb_is_empty(&h2c->streams_by_id) &&     /* don't close if streams exist */
 	    ((h2c->flags & H2_CF_ERROR) ||          /* errors close immediately */
+	     (h2c->flags & H2_CF_ERR_PENDING && h2c->st0 < H2_CS_FRAME_H) || /* early error during connect */
 	     (h2c->st0 >= H2_CS_ERROR && !h2c->task) || /* a timeout stroke earlier */
 	     (!(h2c->conn->owner)) || /* Nobody's left to take care of the connection, drop it now */
 	     (!br_data(h2c->mbuf) &&  /* mux buffer empty, also process clean events below */
@@ -3772,11 +3773,6 @@ static int h2_send(struct h2c *h2c)
 		return 1;
 	}
 
-	if (conn->flags & CO_FL_WAIT_XPRT) {
-		/* a handshake was requested */
-		goto schedule;
-	}
-
 	/* This loop is quite simple : it tries to fill as much as it can from
 	 * pending streams into the existing buffer until it's reportedly full
 	 * or the end of send requests is reached. Then it tries to send this
@@ -3797,7 +3793,7 @@ static int h2_send(struct h2c *h2c)
 	 */
 
 	done = 0;
-	while (!done) {
+	while (!(conn->flags & CO_FL_WAIT_XPRT) && !done) {
 		unsigned int flags = 0;
 		unsigned int released = 0;
 		struct buffer *buf;
@@ -3880,11 +3876,11 @@ static int h2_send(struct h2c *h2c)
 		h2_resume_each_sending_h2s(h2c, &h2c->send_list);
 
 	/* We're done, no more to send */
-	if (!br_data(h2c->mbuf)) {
+	if (!(conn->flags & CO_FL_WAIT_XPRT) && !br_data(h2c->mbuf)) {
 		TRACE_DEVEL("leaving with everything sent", H2_EV_H2C_SEND, h2c->conn);
 		goto end;
 	}
-schedule:
+
 	if (!(conn->flags & CO_FL_ERROR) && !(h2c->wait_event.events & SUB_RETRY_SEND)) {
 		TRACE_STATE("more data to send, subscribing", H2_EV_H2C_SEND, h2c->conn);
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_SEND, &h2c->wait_event);
