@@ -1,6 +1,79 @@
 ChangeLog :
 ===========
 
+2023/03/28 : 2.8-dev6
+    - BUG/MEDIUM: mux-pt: Set EOS on error on sending path if read0 was received
+    - MINOR: ssl: Change the ocsp update log-format
+    - MINOR: ssl: Use ocsp update task for "update ssl ocsp-response" command
+    - BUG/MINOR: ssl: Fix double free in ocsp update deinit
+    - MINOR: ssl: Accept certpath as param in "show ssl ocsp-response" CLI command
+    - MINOR: ssl: Add certificate path to 'show ssl ocsp-response' output
+    - BUG/MEDIUM: proxy: properly stop backends on soft-stop
+    - BUG/MEDIUM: resolvers: Properly stop server resolutions on soft-stop
+    - DEBUG: cli/show_fd: Display connection error code
+    - DEBUG: ssl-sock/show_fd: Display SSL error code
+    - BUG/MEDIUM: mux-h1: Don't block SE_FL_ERROR if EOS is not reported on H1C
+    - BUG/MINOR: tcp_sample: fix a bug in fc_dst_port and fc_dst_is_local sample fetches
+    - BUG/MINOR: quic: Missing STREAM frame length updates
+    - BUG/MEDIUM: connection: Preserve flags when a conn is removed from an idle list
+    - BUG/MINOR: mux-h2: make sure the h2c task exists before refreshing it
+    - MINOR: buffer: add br_count() to return the number of allocated bufs
+    - MINOR: buffer: add br_single() to check if a buffer ring has more than one buf
+    - BUG/MEDIUM: mux-h2: only restart sending when mux buffer is decongested
+    - BUG/MINOR: mux-h2: set CO_SFL_STREAMER when sending lots of data
+    - BUG/MINOR: quic: Missing STREAM frame data pointer updates
+    - MINOR: stick-table: add sc-add-gpc() to http-after-response
+    - MINOR: doc: missing entries for sc-add-gpc()
+    - BUG/MAJOR: qpack: fix possible read out of bounds in static table
+    - OPTIM: mux-h1: limit first read size to avoid wrapping
+    - MINOR: mux-h2: set CO_SFL_MSG_MORE when sending multiple buffers
+    - MINOR: ssl-sock: pass the CO_SFL_MSG_MORE info down the stack
+    - MINOR: quic: Stop stressing the acknowledgments process (RX ACK frames)
+    - BUG/MINOR: quic: Dysfunctional 01RTT packet number space probing
+    - BUG/MEDIUM: stream: do not try to free a failed stream-conn
+    - BUG/MEDIUM: mux-h2: do not try to free an unallocated h2s->sd
+    - BUG/MEDIUM: mux-h2: erase h2c->wait_event.tasklet on error path
+    - BUG/MEDIUM: stconn: don't set the type before allocation succeeds
+    - BUG/MINOR: stconn: fix sedesc memory leak on stream allocation failure
+    - MINOR: dynbuf: set POOL_F_NO_FAIL on buffer allocation
+    - MINOR: pools: preset the allocation failure rate to 1% with -dMfail
+    - BUG/MEDIUM: mux-h1: properly destroy a partially allocated h1s
+    - BUG/MEDIUM: applet: only set appctx->sedesc on successful allocation
+    - BUG/MINOR: quic: wake up MUX on probing only for 01RTT
+    - BUG/MINOR: quic: ignore congestion window on probing for MUX wakeup
+    - BUILD: thread: implement thread_harmless_end_sig() for threadless builds
+    - BUILD: thread: silence a build warning when threads are disabled
+    - MINOR: debug: support dumping the libs addresses when running in verbose mode
+    - BUG/MINOR: illegal use of the malloc_trim() function if jemalloc is used
+    - BUG/MINOR: trace: fix hardcoded level for TRACE_PRINTF
+    - BUG/MEDIUM: mux-quic: release data from conn flow-control on qcs reset
+    - MINOR: mux-quic: complete traces for qcs emission
+    - MINOR: mux-quic: adjust trace level for MAX_DATA/MAX_STREAM_DATA recv
+    - MINOR: mux-quic: add flow-control info to minimal trace level
+    - MINOR: pools: make sure 'no-memory-trimming' is always used
+    - MINOR: pools: intercept malloc_trim() instead of trying to plug holes
+    - MEDIUM: pools: move the compat code from trim_all_pools() to malloc_trim()
+    - MINOR: pools: export trim_all_pools()
+    - MINOR: pattern: use trim_all_pools() instead of a conditional malloc_trim()
+    - MINOR: tools: relax dlopen() on malloc/free checks
+    - MEDIUM: tools: further relax dlopen() checks too consider grouped symbols
+    - BUG/MINOR: pools: restore detection of built-in allocator
+    - MINOR: pools: report a replaced memory allocator instead of just malloc_trim()
+    - BUG/MINOR: h3: properly handle incomplete remote uni stream type
+    - BUG/MINOR: mux-quic: prevent CC status to be erased by shutdown
+    - MINOR: mux-quic: interrupt qcc_recv*() operations if CC scheduled
+    - MINOR: mux-quic: ensure CONNECTION_CLOSE is scheduled once per conn
+    - MINOR: mux-quic: close on qcs allocation failure
+    - MINOR: mux-quic: close on frame alloc failure
+    - BUG/MINOR: syslog: Request for more data if message was not fully received
+    - BUG/MEDIUM: stats: Consume the request except when parsing the POST payload
+    - DOC: config: set-var() dconv rendering issues
+    - BUG/MEDIUM: mux-h1: Wakeup H1C on shutw if there is no I/O subscription
+    - BUG/MINOR: applet/new: fix sedesc freeing logic
+    - BUG/MINOR: quic: Missing STREAM frame type updated
+    - BUILD: da: extends CFLAGS to support API v3 from 3.1.7 and onwards.
+    - BUG/MINOR: ssl: Stop leaking `err` in ssl_sock_load_ocsp()
+
 2023/03/10 : 2.8-dev5
     - MINOR: ssl: rename confusing ssl_bind_kws
     - BUG/MINOR: config: crt-list keywords mistaken for bind ssl keywords
