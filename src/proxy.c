@@ -1988,20 +1988,6 @@ struct task *manage_proxy(struct task *t, void *context, unsigned int state)
 	 * global resource here.
 	 */
 
-	/* first, let's check if we need to stop the proxy */
-	if (unlikely(stopping && !(p->flags & (PR_FL_DISABLED|PR_FL_STOPPED)))) {
-		int t;
-		t = tick_remain(now_ms, p->stop_time);
-		if (t == 0) {
-			stop_proxy(p);
-			/* try to free more memory */
-			pool_gc(NULL);
-		}
-		else {
-			next = tick_first(next, p->stop_time);
-		}
-	}
-
 	/* If the proxy holds a stick table, we need to purge all unused
 	 * entries. These are all the ones in the table with ref_cnt == 0
 	 * and all the ones in the pool used to allocate new entries. Any
