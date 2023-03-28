@@ -4506,7 +4506,8 @@ static void http_stats_io_handler(struct appctx *appctx)
 	}
 
 	if (appctx->st0 == STAT_HTTP_END) {
-		se_fl_set(appctx->sedesc, SE_FL_EOS);
+		if (!(res->flags & CF_SHUTR))
+			sc_shutr(sc);
 		applet_will_consume(appctx);
 	}
 
