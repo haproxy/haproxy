@@ -1902,7 +1902,7 @@ static int smp_fetch_url_param(const struct arg *args, struct sample *smp, const
 		name_len = args->data.str.data;
 	}
 
-	if (args[1].type)
+	if (args[1].type && *args[1].data.str.area)
 		delim = *args[1].data.str.area;
 
 	if (!smp->ctx.a[0]) { // first call, find the query string
