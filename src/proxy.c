@@ -2017,8 +2017,8 @@ struct task *manage_proxy(struct task *t, void *context, unsigned int state)
 			 * to push to a new process and
 			 * we are free to flush the table.
 			 */
-			stktable_trash_oldest(p->table, p->table->current);
-			pool_gc(NULL);
+			if (stktable_trash_oldest(p->table, p->table->current))
+				pool_gc(NULL);
 		}
 		if (p->table->current) {
 			/* some entries still remain, let's recheck in one second */
