@@ -1890,9 +1890,11 @@ static int smp_fetch_url_param(const struct arg *args, struct sample *smp, const
 	char delim = '?';
 	const char *name;
 	int name_len;
+	char insensitive = 0;
 
 	if ((args[0].type && args[0].type != ARGT_STR) ||
-	    (args[1].type && args[1].type != ARGT_STR))
+		(args[1].type && args[1].type != ARGT_STR) ||
+	    (args[2].type && args[2].type != ARGT_STR))
 		return 0;
 
 	name = "";
@@ -1904,6 +1906,8 @@ static int smp_fetch_url_param(const struct arg *args, struct sample *smp, const
 
 	if (args[1].type && *args[1].data.str.area)
 		delim = *args[1].data.str.area;
+	if (args[2].type && *args[2].data.str.area == 'i')
+		insensitive = 1;
 
 	if (!smp->ctx.a[0]) { // first call, find the query string
 		struct htx *htx = smp_prefetch_htx(smp, chn, NULL, 1);
@@ -1926,7 +1930,7 @@ static int smp_fetch_url_param(const struct arg *args, struct sample *smp, const
 		 */
 	}
 
-	return smp_fetch_param(delim, name, name_len, args, smp, kw, private, 0);
+	return smp_fetch_param(delim, name, name_len, args, smp, kw, private, insensitive);
 }
 
 /* This function iterates over each parameter of the body. This requires
@@ -1941,8 +1945,10 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 	struct channel *chn = SMP_REQ_CHN(smp);
 	const char *name;
 	int name_len;
+	char insensitive = 0;
 
-	if (args[0].type && args[0].type != ARGT_STR)
+	if ((args[0].type && args[0].type != ARGT_STR) ||
+	    (args[1].type && args[1].type != ARGT_STR))
 		return 0;
 
 	name = "";
@@ -1951,6 +1957,9 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 		name     = args[0].data.str.area;
 		name_len = args[0].data.str.data;
 	}
+
+	if (args[1].type && *args[1].data.str.area == 'i')
+		insensitive = 1;
 
 	if (!smp->ctx.a[0]) { // first call, find the query string
 		struct htx *htx = smp_prefetch_htx(smp, chn, NULL, 1);
@@ -1984,7 +1993,7 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 
 	}
 
-	return smp_fetch_param('&', name, name_len, args, smp, kw, private, 0);
+	return smp_fetch_param('&', name, name_len, args, smp, kw, private, insensitive);
 }
 
 /* Return the signed integer value for the specified url parameter (see url_param
@@ -2179,7 +2188,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "req.body",           smp_fetch_body,               0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 	{ "req.body_len",       smp_fetch_body_len,           0,                NULL,    SMP_T_SINT, SMP_USE_HRQHV },
 	{ "req.body_size",      smp_fetch_body_size,          0,                NULL,    SMP_T_SINT, SMP_USE_HRQHV },
-	{ "req.body_param",     smp_fetch_body_param,         ARG1(0,STR),      NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
+	{ "req.body_param",     smp_fetch_body_param,         ARG2(0,STR,STR),  NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 
 	{ "req.hdrs",           smp_fetch_hdrs,               0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 	{ "req.hdrs_bin",       smp_fetch_hdrs_bin,           0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
@@ -2239,9 +2248,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "url32+src",          smp_fetch_url32_src,          0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 	{ "url_ip",             smp_fetch_url_ip,             0,                NULL,    SMP_T_IPV4, SMP_USE_HRQHV },
 	{ "url_port",           smp_fetch_url_port,           0,                NULL,    SMP_T_SINT, SMP_USE_HRQHV },
-	{ "url_param",          smp_fetch_url_param,          ARG2(0,STR,STR),  NULL,    SMP_T_STR,  SMP_USE_HRQHV },
-	{ "urlp"     ,          smp_fetch_url_param,          ARG2(0,STR,STR),  NULL,    SMP_T_STR,  SMP_USE_HRQHV },
-	{ "urlp_val",           smp_fetch_url_param_val,      ARG2(0,STR,STR),  NULL,    SMP_T_SINT, SMP_USE_HRQHV },
+	{ "url_param",          smp_fetch_url_param,          ARG3(0,STR,STR,STR),  NULL,    SMP_T_STR,  SMP_USE_HRQHV },
+	{ "urlp"     ,          smp_fetch_url_param,          ARG3(0,STR,STR,STR),  NULL,    SMP_T_STR,  SMP_USE_HRQHV },
+	{ "urlp_val",           smp_fetch_url_param_val,      ARG3(0,STR,STR,STR),  NULL,    SMP_T_SINT, SMP_USE_HRQHV },
 
 	{ /* END */ },
 }};
