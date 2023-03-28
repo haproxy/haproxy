@@ -7659,10 +7659,17 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 			 * is not coalesced to an Handshake packet. We must directly
 			 * pad the datragram.
 			 */
-			if (pkt->type == QUIC_PACKET_TYPE_INITIAL && dglen < QUIC_INITIAL_PACKET_MINLEN) {
-				padding_len = QUIC_INITIAL_PACKET_MINLEN - dglen;
-				padding_len -= quic_int_getsize(len + padding_len) - len_sz;
-				len += padding_len;
+			if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
+				if (dglen < QUIC_INITIAL_PACKET_MINLEN) {
+					padding_len = QUIC_INITIAL_PACKET_MINLEN - dglen;
+					padding_len -= quic_int_getsize(len + padding_len) - len_sz;
+					len += padding_len;
+				}
+			}
+			else {
+				/* Note that +1 is for the PING frame */
+				if (*pn_len + 1 < QUIC_PACKET_PN_MAXLEN)
+					len += padding_len = QUIC_PACKET_PN_MAXLEN - *pn_len - 1;
 			}
 		}
 		else {
