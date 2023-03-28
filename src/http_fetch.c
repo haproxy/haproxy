@@ -1833,14 +1833,14 @@ static int smp_fetch_cookie_val(const struct arg *args, struct sample *smp, cons
  * in ctx->a[1], and the optional second part in (ctx->a[2]..ctx->a[3]). The
  * pointers are updated for next iteration before leaving.
  */
-static int smp_fetch_param(char delim, const char *name, int name_len, const struct arg *args, struct sample *smp, const char *kw, void *private)
+static int smp_fetch_param(char delim, const char *name, int name_len, const struct arg *args, struct sample *smp, const char *kw, void *private, char insensitive)
 {
 	const char *vstart, *vend;
 	struct buffer *temp;
 	const char **chunks = (const char **)smp->ctx.a;
 
 	if (!http_find_next_url_param(chunks, name, name_len,
-	                         &vstart, &vend, delim))
+	                         &vstart, &vend, delim, insensitive))
 		return 0;
 
 	/* Create sample. If the value is contiguous, return the pointer as CONST,
@@ -1926,7 +1926,7 @@ static int smp_fetch_url_param(const struct arg *args, struct sample *smp, const
 		 */
 	}
 
-	return smp_fetch_param(delim, name, name_len, args, smp, kw, private);
+	return smp_fetch_param(delim, name, name_len, args, smp, kw, private, 0);
 }
 
 /* This function iterates over each parameter of the body. This requires
@@ -1984,7 +1984,7 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 
 	}
 
-	return smp_fetch_param('&', name, name_len, args, smp, kw, private);
+	return smp_fetch_param('&', name, name_len, args, smp, kw, private, 0);
 }
 
 /* Return the signed integer value for the specified url parameter (see url_param

@@ -995,7 +995,7 @@ int http_parse_qvalue(const char *qvalue, const char **end)
  */
 const char *http_find_url_param_pos(const char **chunks,
                                     const char* url_param_name, size_t url_param_name_l,
-                                    char delim)
+                                    char delim, char insensitive)
 {
 	const char *pos, *last, *equal;
 	const char **bufs = chunks;
@@ -1032,9 +1032,16 @@ const char *http_find_url_param_pos(const char **chunks,
 				if (bufs[2] + l2 > bufs[3])
 					return NULL;
 
-				if (memcmp(pos,     url_param_name,    l1) == 0 &&
-				    memcmp(bufs[2], url_param_name+l1, l2) == 0)
-					return pos;
+				if (insensitive) {
+					if (strncasecmp(pos,     url_param_name,    l1) == 0 &&
+						strncasecmp(bufs[2], url_param_name+l1, l2) == 0)
+						return pos;
+				}
+				else {
+					if (memcmp(pos,     url_param_name,    l1) == 0 &&
+						memcmp(bufs[2], url_param_name+l1, l2) == 0)
+						return pos;
+				}
 
 				/* Perform wrapping and jump the string who fail the comparison. */
 				bufs += 2;
@@ -1042,9 +1049,14 @@ const char *http_find_url_param_pos(const char **chunks,
 				last = bufs[1];
 
 			} else {
-				/* process a simple comparison. */
-				if (memcmp(pos, url_param_name, url_param_name_l) == 0)
-					return pos;
+					/* process a simple comparison.*/
+				if (insensitive) {
+					if (strncasecmp(pos, url_param_name, url_param_name_l) == 0)
+						return pos;
+				} else {
+					if (memcmp(pos, url_param_name, url_param_name_l) == 0)
+						return pos;
+				}
 				pos += url_param_name_l + 1;
 				if (fix_pointer_if_wrap(chunks, &pos))
 					last = bufs[2];
@@ -1078,7 +1090,7 @@ const char *http_find_url_param_pos(const char **chunks,
  */
 int http_find_next_url_param(const char **chunks,
                              const char* url_param_name, size_t url_param_name_l,
-                             const char **vstart, const char **vend, char delim)
+                             const char **vstart, const char **vend, char delim, char insensitive)
 {
 	const char *arg_start, *qs_end;
 	const char *value_start, *value_end;
@@ -1089,7 +1101,7 @@ int http_find_next_url_param(const char **chunks,
 		/* Looks for an argument name. */
 		arg_start = http_find_url_param_pos(chunks,
 		                                    url_param_name, url_param_name_l,
-		                                    delim);
+		                                    delim, insensitive);
 		/* Check for wrapping. */
 		if (arg_start >= qs_end)
 			qs_end = chunks[3];

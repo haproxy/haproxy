@@ -54,10 +54,10 @@ char *http_extract_cookie_value(char *hdr, const char *hdr_end,
 int http_parse_qvalue(const char *qvalue, const char **end);
 const char *http_find_url_param_pos(const char **chunks,
                                     const char* url_param_name,
-                                    size_t url_param_name_l, char delim);
+                                    size_t url_param_name_l, char delim, char insensitive);
 int http_find_next_url_param(const char **chunks,
                              const char* url_param_name, size_t url_param_name_l,
-                             const char **vstart, const char **vend, char delim);
+                             const char **vstart, const char **vend, char delim, char insensitive);
 
 int http_parse_header(const struct ist hdr, struct ist *name, struct ist *value);
 int http_parse_stline(const struct ist line, struct ist *p1, struct ist *p2, struct ist *p3);
