@@ -1410,6 +1410,26 @@ int hlua_server_agent_force_down(lua_State *L)
 	return 0;
 }
 
+/* returns the tracked server, if any */
+int hlua_server_tracking(lua_State *L)
+{
+	struct server *sv;
+	struct server *tracked;
+
+	sv = hlua_check_server(L, 1);
+	if (sv == NULL) {
+		return 0;
+	}
+
+	tracked = sv->track;
+	if (tracked == NULL)
+		lua_pushnil(L);
+	else
+		hlua_fcn_new_server(L, tracked);
+
+	return 1;
+}
+
 /* hlua_event_sub wrapper for per-server subscription:
  *
  * hlua_event_sub() is called with sv->e_subs subscription list and
@@ -1472,6 +1492,7 @@ int hlua_fcn_new_server(lua_State *L, struct server *srv)
 	hlua_class_function(L, "agent_disable", hlua_server_agent_disable);
 	hlua_class_function(L, "agent_force_up", hlua_server_agent_force_up);
 	hlua_class_function(L, "agent_force_down", hlua_server_agent_force_down);
+	hlua_class_function(L, "tracking", hlua_server_tracking);
 	hlua_class_function(L, "event_sub", hlua_server_event_sub);
 
 	return 1;
