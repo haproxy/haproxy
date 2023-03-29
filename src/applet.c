@@ -125,6 +125,23 @@ void appctx_free_on_early_error(struct appctx *appctx)
 	appctx_free(appctx);
 }
 
+void appctx_free(struct appctx *appctx)
+{
+	/* The task is supposed to be run on this thread, so we can just
+	 * check if it's running already (or about to run) or not
+	 */
+	if (!(appctx->t->state & (TASK_QUEUED | TASK_RUNNING))) {
+		__appctx_free(appctx);
+	}
+	else {
+		/* if it's running, or about to run, defer the freeing
+		 * until the callback is called.
+		 */
+		appctx->state |= APPLET_WANT_DIE;
+		task_wakeup(appctx->t, TASK_WOKEN_OTHER);
+	}
+}
+
 /* reserves a command context of at least <size> bytes in the <appctx>, for
  * use by a CLI command or any regular applet. The pointer to this context is
  * stored in ctx.svcctx and is returned. The caller doesn't need to release

@@ -46,6 +46,7 @@ void appctx_shut(struct appctx *appctx);
 struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int thr);
 int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buffer *input);
 void appctx_free_on_early_error(struct appctx *appctx);
+void appctx_free(struct appctx *appctx);
 
 static inline struct appctx *appctx_new_here(struct applet *applet, struct sedesc *sedesc)
 {
@@ -86,22 +87,6 @@ static inline void __appctx_free(struct appctx *appctx)
 	sedesc_free(appctx->sedesc);
 	pool_free(pool_head_appctx, appctx);
 	_HA_ATOMIC_DEC(&nb_applets);
-}
-
-static inline void appctx_free(struct appctx *appctx)
-{
-	/* The task is supposed to be run on this thread, so we can just
-	 * check if it's running already (or about to run) or not
-	 */
-	if (!(appctx->t->state & (TASK_QUEUED | TASK_RUNNING)))
-		__appctx_free(appctx);
-	else {
-		/* if it's running, or about to run, defer the freeing
-		 * until the callback is called.
-		 */
-		appctx->state |= APPLET_WANT_DIE;
-		task_wakeup(appctx->t, TASK_WOKEN_OTHER);
-	}
 }
 
 /* wakes up an applet when conditions have changed. We're using a macro here in
