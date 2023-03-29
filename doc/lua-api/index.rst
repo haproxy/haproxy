@@ -1166,6 +1166,14 @@ Server class
    server.
   :returns: a boolean
 
+.. js:function:: Server.is_dynamic(sv)
+
+  Return true if the server was instantiated at runtime (e.g.: from the cli)
+
+  :param class_server sv: A :ref:`server_class` which indicates the manipulated
+   server.
+  :returns: a boolean
+
 .. js:function:: Server.set_maxconn(sv, weight)
 
   Dynamically change the maximum connections of the server. See the management
