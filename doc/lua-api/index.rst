@@ -1158,6 +1158,14 @@ Server class
    server.
   :returns: a boolean
 
+.. js:function:: Server.is_backup(sv)
+
+  Return true if the server is a backup server
+
+  :param class_server sv: A :ref:`server_class` which indicates the manipulated
+   server.
+  :returns: a boolean
+
 .. js:function:: Server.set_maxconn(sv, weight)
 
   Dynamically change the maximum connections of the server. See the management

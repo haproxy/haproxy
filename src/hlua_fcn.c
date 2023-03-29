@@ -1072,6 +1072,20 @@ int hlua_server_is_draining(lua_State *L)
 	return 1;
 }
 
+int hlua_server_is_backup(lua_State *L)
+{
+	struct server *srv;
+
+	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	lua_pushboolean(L, (srv->flags & SRV_F_BACKUP));
+	return 1;
+}
+
 int hlua_server_set_maxconn(lua_State *L)
 {
 	struct server *srv;
@@ -1422,6 +1436,7 @@ int hlua_fcn_new_server(lua_State *L, struct server *srv)
 	hlua_class_function(L, "get_puid", hlua_server_get_puid);
 	hlua_class_function(L, "get_rid", hlua_server_get_rid);
 	hlua_class_function(L, "is_draining", hlua_server_is_draining);
+	hlua_class_function(L, "is_backup", hlua_server_is_backup);
 	hlua_class_function(L, "set_maxconn", hlua_server_set_maxconn);
 	hlua_class_function(L, "get_maxconn", hlua_server_get_maxconn);
 	hlua_class_function(L, "set_weight", hlua_server_set_weight);
