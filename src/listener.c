@@ -1190,6 +1190,7 @@ void listener_accept(struct listener *l)
 			uint n0, n1, n2, r1, r2, t, t1, t2;
 			const struct tgroup_info *g1, *g2;
 			ulong m1, m2;
+			uint *thr_idx_ptr;
 
 			/* The principle is that we have two running indexes,
 			 * each visiting in turn all threads bound to this
@@ -1215,7 +1216,8 @@ void listener_accept(struct listener *l)
 			/* keep a copy for the final update. thr_idx is composite
 			 * and made of (n2<<16) + n1.
 			 */
-			n0 = l->thr_idx;
+			thr_idx_ptr = l->rx.shard_info ? &((struct listener *)(l->rx.shard_info->ref->owner))->thr_idx : &l->thr_idx;
+			n0 = _HA_ATOMIC_LOAD(thr_idx_ptr);
 			while (1) {
 				int q1, q2;
 
@@ -1392,7 +1394,7 @@ void listener_accept(struct listener *l)
 				n1 += (n2 << 16);
 
 				/* try to update the index */
-				if (likely(_HA_ATOMIC_CAS(&l->thr_idx, &n0, n1)))
+				if (likely(_HA_ATOMIC_CAS(thr_idx_ptr, &n0, n1)))
 					break;
 			} /* end of main while() loop */
 
