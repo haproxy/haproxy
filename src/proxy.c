@@ -2003,11 +2003,40 @@ struct task *manage_proxy(struct task *t, void *context, unsigned int state)
 			 * to push to a new process and
 			 * we are free to flush the table.
 			 */
-			if (stktable_trash_oldest(p->table, p->table->current))
+			int budget;
+			int cleaned_up;
+
+			/* We purposely enforce a budget limitation since we don't want
+			 * to spend too much time purging old entries
+			 *
+			 * This is known to cause the watchdog to occasionnaly trigger if
+			 * the table is huge and all entries become available for purge
+			 * at the same time
+			 *
+			 * Moreover, we must also anticipate the pool_gc() call which
+			 * will also be much slower if there is too much work at once
+			 */
+			budget = MIN(p->table->current, (1 << 15)); /* max: 32K */
+			cleaned_up = stktable_trash_oldest(p->table, budget);
+			if (cleaned_up) {
+				/* immediately release freed memory since we are stopping */
 				pool_gc(NULL);
+				if (cleaned_up > (budget / 2)) {
+					/* most of the budget was used to purge entries,
+					 * it is very likely that there are still trashable
+					 * entries in the table, reschedule a new cleanup
+					 * attempt ASAP
+					 */
+					t->expire = TICK_ETERNITY;
+					task_wakeup(t, TASK_WOKEN_RES);
+					return t;
+				}
+			}
 		}
 		if (p->table->current) {
-			/* some entries still remain, let's recheck in one second */
+			/* some entries still remain but are not yet available
+			 * for cleanup, let's recheck in one second
+			 */
 			next = tick_first(next, tick_add(now_ms, 1000));
 		}
 	}
