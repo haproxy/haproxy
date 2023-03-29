@@ -466,8 +466,6 @@ static void mux_pt_shutr(struct stconn *sc, enum co_shr_mode mode)
 
 	TRACE_ENTER(PT_EV_STRM_SHUT, conn, sc);
 
-	if (se_fl_test(ctx->sd, SE_FL_SHR))
-		return;
 	se_fl_clr(ctx->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 	if (conn_xprt_ready(conn) && conn->xprt->shutr)
 		conn->xprt->shutr(conn, conn->xprt_ctx,
@@ -487,8 +485,6 @@ static void mux_pt_shutw(struct stconn *sc, enum co_shw_mode mode)
 
 	TRACE_ENTER(PT_EV_STRM_SHUT, conn, sc);
 
-	if (se_fl_test(ctx->sd, SE_FL_SHW))
-		return;
 	if (conn_xprt_ready(conn) && conn->xprt->shutw)
 		conn->xprt->shutw(conn, conn->xprt_ctx,
 		    (mode == CO_SHW_NORMAL));

@@ -3550,8 +3550,6 @@ static void h1_shutw(struct stconn *sc, enum co_shw_mode mode)
 
 	TRACE_ENTER(H1_EV_STRM_SHUT, h1c->conn, h1s, 0, (size_t[]){mode});
 
-	if (se_fl_test(h1s->sd, SE_FL_SHW))
-		goto end;
 	if (se_fl_test(h1s->sd, SE_FL_KILL_CONN)) {
 		TRACE_STATE("stream wants to kill the connection", H1_EV_STRM_SHUT, h1c->conn, h1s);
 		goto do_shutw;
