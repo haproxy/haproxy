@@ -21,10 +21,169 @@
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
+#include <haproxy/trace.h>
 
 unsigned int nb_applets = 0;
 
 DECLARE_POOL(pool_head_appctx,  "appctx",  sizeof(struct appctx));
+
+
+/* trace source and events */
+static void applet_trace(enum trace_level level, uint64_t mask,
+			 const struct trace_source *src,
+			 const struct ist where, const struct ist func,
+			 const void *a1, const void *a2, const void *a3, const void *a4);
+
+/* The event representation is split like this :
+ *   app  - applet
+  */
+static const struct trace_event applet_trace_events[] = {
+#define           APPLET_EV_NEW       (1ULL <<  0)
+	{ .mask = APPLET_EV_NEW,      .name = "app_new",      .desc = "new appctx" },
+#define           APPLET_EV_FREE      (1ULL <<  1)
+	{ .mask = APPLET_EV_FREE,     .name = "app_free",     .desc = "free appctx" },
+#define           APPLET_EV_RELEASE   (1ULL <<  2)
+	{ .mask = APPLET_EV_RELEASE,  .name = "app_release",  .desc = "release appctx" },
+#define           APPLET_EV_PROCESS   (1ULL <<  3)
+	{ .mask = APPLET_EV_PROCESS,  .name = "app_proc",     .desc = "process appctx" },
+#define           APPLET_EV_ERR       (1ULL <<  4)
+	{ .mask = APPLET_EV_ERR,      .name = "app_err",      .desc = "error on appctx" },
+#define           APPLET_EV_START     (1ULL <<  5)
+	{ .mask = APPLET_EV_START,    .name = "app_start",   .desc = "start appctx" },
+	{}
+};
+
+static const struct name_desc applet_trace_lockon_args[4] = {
+	/* arg1 */ { /* already used by the applet */ },
+	/* arg2 */ { },
+	/* arg3 */ { },
+	/* arg4 */ { }
+};
+
+static const struct name_desc applet_trace_decoding[] = {
+#define STRM_VERB_CLEAN    1
+	{ .name="clean",    .desc="only user-friendly stuff, generally suitable for level \"user\"" },
+#define STRM_VERB_MINIMAL  2
+	{ .name="minimal",  .desc="report info on streams and connectors" },
+#define STRM_VERB_SIMPLE   3
+	{ .name="simple",   .desc="add info on request and response channels" },
+#define STRM_VERB_ADVANCED 4
+	{ .name="advanced", .desc="add info on channel's buffer for data and developer levels only" },
+#define STRM_VERB_COMPLETE 5
+	{ .name="complete", .desc="add info on channel's buffer" },
+	{ /* end */ }
+};
+
+static struct trace_source trace_applet = {
+	.name = IST("applet"),
+	.desc = "Applet endpoint",
+	.arg_def = TRC_ARG1_APPCTX,  // TRACE()'s first argument is always an appctx
+	.default_cb = applet_trace,
+	.known_events = applet_trace_events,
+	.lockon_args = applet_trace_lockon_args,
+	.decoding = applet_trace_decoding,
+	.report_events = ~0,  // report everything by default
+};
+
+#define TRACE_SOURCE &trace_applet
+INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
+
+/* the applet traces always expect that arg1, if non-null, is of a appctx (from
+ * which we can derive everything).
+ */
+static void applet_trace(enum trace_level level, uint64_t mask, const struct trace_source *src,
+			 const struct ist where, const struct ist func,
+			 const void *a1, const void *a2, const void *a3, const void *a4)
+{
+	const struct appctx *appctx = a1;
+	const struct stconn *sc = NULL, *sco = NULL;
+	const struct stream *s = NULL;
+	const struct channel *ic = NULL, *oc = NULL;
+
+	if (!appctx || src->verbosity < STRM_VERB_CLEAN)
+		return;
+
+	sc = appctx_sc(appctx);
+	if (sc) {
+		s = sc_strm(sc);
+		sco = sc_opposite(sc);
+		ic = sc_ic(sc);
+		oc = sc_oc(sc);
+	}
+
+	/* General info about the stream (htx/tcp, id...) */
+	if (s)
+		chunk_appendf(&trace_buf, " : [%s,%s]",
+			      appctx->applet->name, ((s->flags & SF_HTX) ? "HTX" : "TCP"));
+	else
+		chunk_appendf(&trace_buf, " : [%s]", appctx->applet->name);
+
+	if (sc)
+		/* local and opposite stream connector state */
+		chunk_appendf(&trace_buf, " SC=(%s,%s)",
+			      sc_state_str(sc->state), sc_state_str(sco->state));
+	else
+		/* local and opposite stream connector state */
+		chunk_appendf(&trace_buf, " SC=(none,none)");
+
+	if (src->verbosity == STRM_VERB_CLEAN)
+		return;
+
+	chunk_appendf(&trace_buf, " appctx=%p .t=%p .t.exp=%d .state=%d .st0=%d .st1=%d",
+		      appctx, appctx->t, tick_isset(appctx->t->expire) ? TICKS_TO_MS(appctx->t->expire - now_ms) : TICK_ETERNITY,
+		      appctx->state, appctx->st0, appctx->st1);
+
+	if (!sc || src->verbosity == STRM_VERB_MINIMAL)
+		return;
+
+	chunk_appendf(&trace_buf, " - s=(%p,0x%08x,0x%x)", s, s->flags, s->conn_err_type);
+
+	chunk_appendf(&trace_buf, " sc=(%p,%d,0x%08x,0x%x) sco=(%p,%d,0x%08x,0x%x) sc.exp(r,w)=(%d,%d) sc.exp(r,w)=(%d,%d)",
+		      sc, sc->state, sc->flags, sc->sedesc->flags,
+		      sco, sco->state, sco->flags, sco->sedesc->flags,
+		      tick_isset(sc_ep_rcv_ex(sc)) ? TICKS_TO_MS(sc_ep_rcv_ex(sc) - now_ms) : TICK_ETERNITY,
+		      tick_isset(sc_ep_snd_ex(sc)) ? TICKS_TO_MS(sc_ep_snd_ex(sc) - now_ms) : TICK_ETERNITY,
+		      tick_isset(sc_ep_rcv_ex(sco)) ? TICKS_TO_MS(sc_ep_rcv_ex(sco) - now_ms) : TICK_ETERNITY,
+		      tick_isset(sc_ep_snd_ex(sco)) ? TICKS_TO_MS(sc_ep_snd_ex(sco) - now_ms) : TICK_ETERNITY);
+
+
+	/* If txn defined, don't display all channel info */
+	if (src->verbosity == STRM_VERB_SIMPLE) {
+		chunk_appendf(&trace_buf, " ic=(%p .fl=0x%08x .exp=%d)",
+			      ic, ic->flags, tick_isset(ic->analyse_exp) ? TICKS_TO_MS(ic->analyse_exp - now_ms) : TICK_ETERNITY);
+		chunk_appendf(&trace_buf, " oc=(%p .fl=0x%08x .exp=%d)",
+			      oc, oc->flags, tick_isset(oc->analyse_exp) ? TICKS_TO_MS(oc->analyse_exp - now_ms) : TICK_ETERNITY);
+	}
+	else {
+		chunk_appendf(&trace_buf, " ic=(%p .fl=0x%08x .ana=0x%08x .exp=%u .o=%lu .tot=%llu .to_fwd=%u)",
+			      ic, ic->flags, ic->analysers, ic->analyse_exp,
+			      (long)ic->output, ic->total, ic->to_forward);
+		chunk_appendf(&trace_buf, " oc=(%p .fl=0x%08x .ana=0x%08x .exp=%u .o=%lu .tot=%llu .to_fwd=%u)",
+			      oc, oc->flags, oc->analysers, oc->analyse_exp,
+			      (long)oc->output, oc->total, oc->to_forward);
+	}
+
+	if (src->verbosity == STRM_VERB_SIMPLE ||
+	    (src->verbosity == STRM_VERB_ADVANCED && src->level < TRACE_LEVEL_DATA))
+		return;
+
+	/* channels' buffer info */
+	if (s->flags & SF_HTX) {
+		struct htx *ichtx = htxbuf(&ic->buf);
+		struct htx *ochtx = htxbuf(&oc->buf);
+
+		chunk_appendf(&trace_buf, " htx=(%u/%u#%u, %u/%u#%u)",
+			      ichtx->data, ichtx->size, htx_nbblks(ichtx),
+			      ochtx->data, ochtx->size, htx_nbblks(ochtx));
+	}
+	else {
+		chunk_appendf(&trace_buf, " buf=(%u@%p+%u/%u, %u@%p+%u/%u)",
+			      (unsigned int)b_data(&ic->buf), b_orig(&ic->buf),
+			      (unsigned int)b_head_ofs(&ic->buf), (unsigned int)b_size(&ic->buf),
+			      (unsigned int)b_data(&oc->buf), b_orig(&oc->buf),
+			      (unsigned int)b_head_ofs(&oc->buf), (unsigned int)b_size(&oc->buf));
+	}
+}
 
 /* Tries to allocate a new appctx and initialize all of its fields. The appctx
  * is returned on success, NULL on failure. The appctx must be released using
@@ -40,9 +199,13 @@ struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int t
 	/* Backend appctx cannot be started on another thread than the local one */
 	BUG_ON(thr != tid && sedesc);
 
+	TRACE_ENTER(APPLET_EV_NEW);
+
 	appctx = pool_zalloc(pool_head_appctx);
-	if (unlikely(!appctx))
+	if (unlikely(!appctx)) {
+		TRACE_ERROR("APPCTX allocation failure", APPLET_EV_NEW|APPLET_EV_ERR);
 		goto fail_appctx;
+	}
 
 	LIST_INIT(&appctx->wait_entry);
 	appctx->obj_type = OBJ_TYPE_APPCTX;
@@ -50,13 +213,17 @@ struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int t
 	appctx->sess = NULL;
 
 	appctx->t = task_new_on(thr);
-	if (unlikely(!appctx->t))
+	if (unlikely(!appctx->t)) {
+		TRACE_ERROR("APPCTX task allocation failure", APPLET_EV_NEW|APPLET_EV_ERR);
 		goto fail_task;
+	}
 
 	if (!sedesc) {
 		sedesc = sedesc_new();
-		if (unlikely(!sedesc))
+		if (unlikely(!sedesc)) {
+			TRACE_ERROR("APPCTX sedesc allocation failure", APPLET_EV_NEW|APPLET_EV_ERR);
 			goto fail_endp;
+		}
 		sedesc->se = appctx;
 		se_fl_set(sedesc, SE_FL_T_APPLET | SE_FL_ORPHAN);
 	}
@@ -70,6 +237,8 @@ struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int t
 	appctx->buffer_wait.wakeup_cb = appctx_buf_available;
 
 	_HA_ATOMIC_INC(&nb_applets);
+
+	TRACE_LEAVE(APPLET_EV_NEW, appctx);
 	return appctx;
 
   fail_endp:
@@ -99,14 +268,21 @@ int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buff
 	 */
 	BUG_ON(!se_fl_test(appctx->sedesc, SE_FL_ORPHAN));
 
+	TRACE_ENTER(APPLET_EV_START, appctx);
+
 	sess = session_new(px, NULL, &appctx->obj_type);
-	if (!sess)
-		return -1;
-	if (!sc_new_from_endp(appctx->sedesc, sess, input)) {
-		session_free(sess);
+	if (!sess) {
+		TRACE_ERROR("APPCTX session allocation failure", APPLET_EV_START|APPLET_EV_ERR, appctx);
 		return -1;
 	}
+	if (!sc_new_from_endp(appctx->sedesc, sess, input)) {
+		session_free(sess);
+		TRACE_ERROR("APPCTX sc allocation failure", APPLET_EV_START|APPLET_EV_ERR, appctx);
+		return -1;
+	}
+
 	appctx->sess = sess;
+	TRACE_LEAVE(APPLET_EV_START, appctx);
 	return 0;
 }
 
@@ -131,6 +307,7 @@ void appctx_free(struct appctx *appctx)
 	 * check if it's running already (or about to run) or not
 	 */
 	if (!(appctx->t->state & (TASK_QUEUED | TASK_RUNNING))) {
+		TRACE_POINT(APPLET_EV_FREE, appctx);
 		__appctx_free(appctx);
 	}
 	else {
@@ -139,6 +316,7 @@ void appctx_free(struct appctx *appctx)
 		 */
 		appctx->state |= APPLET_WANT_DIE;
 		task_wakeup(appctx->t, TASK_WOKEN_OTHER);
+		TRACE_DEVEL("Cannot release APPCTX now, wake it up", APPLET_EV_FREE, appctx);
 	}
 }
 
@@ -178,10 +356,12 @@ void appctx_shut(struct appctx *appctx)
 	if (se_fl_test(appctx->sedesc, SE_FL_SHR | SE_FL_SHW))
 		return;
 
+	TRACE_ENTER(APPLET_EV_RELEASE, appctx);
 	if (appctx->applet->release)
 		appctx->applet->release(appctx);
 
 	se_fl_set(appctx->sedesc, SE_FL_SHRR | SE_FL_SHWN);
+	TRACE_LEAVE(APPLET_EV_RELEASE, appctx);
 }
 
 /* Callback used to wake up an applet when a buffer is available. The applet
@@ -224,7 +404,10 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	unsigned int rate;
 	size_t count;
 
+	TRACE_ENTER(APPLET_EV_PROCESS, app);
+
 	if (app->state & APPLET_WANT_DIE) {
+		TRACE_DEVEL("APPCTX want die, release it", APPLET_EV_FREE, app);
 		__appctx_free(app);
 		return NULL;
 	}
@@ -236,10 +419,12 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 		BUG_ON(!app->applet->init);
 
 		if (appctx_init(app) == -1) {
+			TRACE_DEVEL("APPCTX init failed", APPLET_EV_FREE|APPLET_EV_ERR, app);
 			appctx_free_on_early_error(app);
 			return NULL;
 		}
 		BUG_ON(!app->sess || !appctx_sc(app) || !appctx_strm(app));
+		TRACE_DEVEL("APPCTX initialized", APPLET_EV_PROCESS, app);
 	}
 
 	sc = appctx_sc(app);
@@ -262,6 +447,8 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 
 	count = co_data(sc_oc(sc));
 	app->applet->fct(app);
+
+	TRACE_POINT(APPLET_EV_PROCESS, app);
 
 	/* now check if the applet has released some room and forgot to
 	 * notify the other side about it.
@@ -292,5 +479,6 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 
 	sc->app_ops->wake(sc);
 	channel_release_buffer(sc_ic(sc), &app->buffer_wait);
+	TRACE_LEAVE(APPLET_EV_PROCESS, app);
 	return t;
 }

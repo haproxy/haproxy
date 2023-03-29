@@ -98,6 +98,7 @@ int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *
 	const struct connection *conn = NULL;
 	const struct check *check = NULL;
 	const struct quic_conn *qc = NULL;
+	const struct appctx *appctx = NULL;
 	const void *lockon_ptr = NULL;
 
 	if (likely(src->state == TRACE_STATE_STOPPED))
@@ -123,12 +124,17 @@ int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *
 	if (src->arg_def & TRC_ARGS_QCON)
 		qc = trace_pick_arg(src->arg_def & TRC_ARGS_QCON, a1, a2, a3, a4);
 
+	if (src->arg_def & TRC_ARGS_APPCTX)
+		appctx = trace_pick_arg(src->arg_def & TRC_ARGS_APPCTX, a1, a2, a3, a4);
+
 	if (!sess && strm)
 		sess = strm->sess;
 	else if (!sess && conn && LIST_INLIST(&conn->session_list))
 		sess = conn->owner;
 	else if (!sess && check)
 		sess = check->sess;
+	else if (!sess && appctx)
+		sess = appctx->sess;
 
 	if (sess) {
 		fe = sess->fe;
@@ -173,20 +179,21 @@ int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *
 	/* we may want to lock on a particular object */
 	if (src->lockon != TRACE_LOCKON_NOTHING) {
 		switch (src->lockon) {
-		case TRACE_LOCKON_BACKEND:    lockon_ptr = be;   break;
-		case TRACE_LOCKON_CONNECTION: lockon_ptr = conn; break;
-		case TRACE_LOCKON_FRONTEND:   lockon_ptr = fe;   break;
-		case TRACE_LOCKON_LISTENER:   lockon_ptr = li;   break;
-		case TRACE_LOCKON_SERVER:     lockon_ptr = srv;  break;
-		case TRACE_LOCKON_SESSION:    lockon_ptr = sess; break;
-		case TRACE_LOCKON_STREAM:     lockon_ptr = strm; break;
-		case TRACE_LOCKON_CHECK:      lockon_ptr = check; break;
-		case TRACE_LOCKON_THREAD:     lockon_ptr = ti;   break;
-		case TRACE_LOCKON_QCON:       lockon_ptr = qc;   break;
-		case TRACE_LOCKON_ARG1:       lockon_ptr = a1;   break;
-		case TRACE_LOCKON_ARG2:       lockon_ptr = a2;   break;
-		case TRACE_LOCKON_ARG3:       lockon_ptr = a3;   break;
-		case TRACE_LOCKON_ARG4:       lockon_ptr = a4;   break;
+		case TRACE_LOCKON_BACKEND:    lockon_ptr = be;     break;
+		case TRACE_LOCKON_CONNECTION: lockon_ptr = conn;   break;
+		case TRACE_LOCKON_FRONTEND:   lockon_ptr = fe;     break;
+		case TRACE_LOCKON_LISTENER:   lockon_ptr = li;     break;
+		case TRACE_LOCKON_SERVER:     lockon_ptr = srv;    break;
+		case TRACE_LOCKON_SESSION:    lockon_ptr = sess;   break;
+		case TRACE_LOCKON_STREAM:     lockon_ptr = strm;   break;
+		case TRACE_LOCKON_CHECK:      lockon_ptr = check;  break;
+		case TRACE_LOCKON_THREAD:     lockon_ptr = ti;     break;
+		case TRACE_LOCKON_QCON:       lockon_ptr = qc;     break;
+		case TRACE_LOCKON_APPCTX:     lockon_ptr = appctx; break;
+		case TRACE_LOCKON_ARG1:       lockon_ptr = a1;     break;
+		case TRACE_LOCKON_ARG2:       lockon_ptr = a2;     break;
+		case TRACE_LOCKON_ARG3:       lockon_ptr = a3;     break;
+		case TRACE_LOCKON_ARG4:       lockon_ptr = a4;     break;
 		default: break; // silence stupid gcc -Wswitch
 		}
 
@@ -576,6 +583,10 @@ static int trace_parse_statement(char **args, const char **msg)
 				chunk_appendf(&trash, "  %c stream     : lock on the stream that started the trace\n",
 				              src->lockon == TRACE_LOCKON_STREAM ? '*' : ' ');
 
+			if (src->arg_def & TRC_ARGS_APPCTX)
+				chunk_appendf(&trash, "  %c applet     : lock on the applet that started the trace\n",
+				              src->lockon == TRACE_LOCKON_APPCTX ? '*' : ' ');
+
 			chunk_appendf(&trash, "  %c thread     : lock on the thread that started the trace\n",
 				      src->lockon == TRACE_LOCKON_THREAD ? '*' : ' ');
 
@@ -637,6 +648,10 @@ static int trace_parse_statement(char **args, const char **msg)
 		}
 		else if ((src->arg_def & TRC_ARGS_STRM) && strcmp(name, "stream") == 0) {
 			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_STREAM);
+			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
+		}
+		else if ((src->arg_def & TRC_ARGS_APPCTX) && strcmp(name, "appctx") == 0) {
+			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_APPCTX);
 			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 		}
 		else if (strcmp(name, "thread") == 0) {
