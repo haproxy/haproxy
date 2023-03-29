@@ -1068,7 +1068,7 @@ int hlua_server_is_draining(lua_State *L)
 		return 1;
 	}
 
-	lua_pushinteger(L, server_is_draining(srv));
+	lua_pushboolean(L, server_is_draining(srv));
 	return 1;
 }
 
