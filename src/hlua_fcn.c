@@ -1430,6 +1430,30 @@ int hlua_server_tracking(lua_State *L)
 	return 1;
 }
 
+/* returns an array of servers tracking the current server */
+int hlua_server_get_trackers(lua_State *L)
+{
+	struct server *sv;
+	struct server *cur_tracker;
+	int index;
+
+	sv = hlua_check_server(L, 1);
+	if (sv == NULL) {
+		return 0;
+	}
+
+	lua_newtable(L);
+	cur_tracker = sv->trackers;
+	for (index = 1; cur_tracker; cur_tracker = cur_tracker->tracknext, index++) {
+		if (!lua_checkstack(L, 5))
+			luaL_error(L, "Lua out of memory error.");
+		hlua_fcn_new_server(L, cur_tracker);
+		/* array index starts at 1 in Lua */
+		lua_rawseti(L, -2, index);
+	}
+	return 1;
+}
+
 /* hlua_event_sub wrapper for per-server subscription:
  *
  * hlua_event_sub() is called with sv->e_subs subscription list and
@@ -1493,6 +1517,7 @@ int hlua_fcn_new_server(lua_State *L, struct server *srv)
 	hlua_class_function(L, "agent_force_up", hlua_server_agent_force_up);
 	hlua_class_function(L, "agent_force_down", hlua_server_agent_force_down);
 	hlua_class_function(L, "tracking", hlua_server_tracking);
+	hlua_class_function(L, "get_trackers", hlua_server_get_trackers);
 	hlua_class_function(L, "event_sub", hlua_server_event_sub);
 
 	return 1;

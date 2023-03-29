@@ -1346,6 +1346,15 @@ Server class
   :returns: A :ref:`server_class` which indicates the tracked server or nil if
    the server doesn't track another one.
 
+.. js:function:: Server.get_trackers(sv)
+
+  Check if the current server is being tracked by other servers.
+
+  :param class_server sv: A :ref:`server_class` which indicates the manipulated
+   server.
+  :returns: An array of :ref:`server_class` which indicates the tracking
+   servers (might be empty)
+
 .. js:function:: Server.event_sub(sv, event_types, func)
 
   Register a function that will be called on specific server events.
