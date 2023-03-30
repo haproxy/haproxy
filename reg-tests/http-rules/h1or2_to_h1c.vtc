@@ -131,7 +131,7 @@ haproxy h1 -conf {
 	http-request set-header     sl1      "%[req.fhdr(sl1)] method=<%[var(req.method)]>; uri=<%[var(req.uri)]>; path=<%[var(req.path)]>;"
 	http-request set-header     sl1      "%[req.fhdr(sl1)] query=<%[var(req.query)]>; param=<%[var(req.param)]>"
 	http-request set-header     sl2      "%[req.fhdr(sl2)] method=<%[method]>; uri=<%[url]>; path=<%[path]>; "
-	http-request set-header     sl2      "%[req.fhdr(sl2)] query=<%[query]>; param=<%[url_param(qs_arg)]>"
+	http-request set-header     sl2      "%[req.fhdr(sl2)] query=<%[query]>; param=<%[url_param(QS_arg,,i)]>"
 	http-request set-header     hdr      "%[req.fhdr(hdr)] hdr1=<%[req.hdr(hdr1)]>; fhdr1=<%[req.fhdr(hdr1)]>;"
 	http-request set-header     hdr      "%[req.fhdr(hdr)] hdr2=<%[req.hdr(hdr2)]>; fhdr2=<%[req.fhdr(hdr2)]>;"
 	http-request set-header     hdr      "%[req.fhdr(hdr)] hdr3=<%[req.hdr(hdr3)]>; fhdr3=<%[req.fhdr(hdr3)]>;"
