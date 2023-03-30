@@ -398,7 +398,7 @@ int co_getblk(const struct channel *chn, char *blk, int len, int offset)
 	if (chn->flags & CF_SHUTW)
 		return -1;
 
-	if (len + offset > co_data(chn)) {
+	if (len + offset > co_data(chn) || co_data(chn) == 0) {
 		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW))
 			return -1;
 		return 0;
