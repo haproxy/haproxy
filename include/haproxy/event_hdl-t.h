@@ -229,7 +229,7 @@ struct event_hdl_sub {
 	/* TODO: atomic_call_counter for stats?! */
 };
 
-#define ESUB_INDEX(n)				(1 << n)
+#define ESUB_INDEX(n)				(1 << (n - 1))
 
 #define EVENT_HDL_SUB_TYPE(_family, _type)	((struct event_hdl_sub_type){ .family = _family, .subtype = ESUB_INDEX(_type) })
 #define EVENT_HDL_SUB_FAMILY(_family)		((struct event_hdl_sub_type){ .family = _family, .subtype = ~0 })
