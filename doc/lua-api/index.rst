@@ -948,6 +948,9 @@ Core class
     * **SERVER_UP**: when a server state goes from DOWN to UP
     * **SERVER_STATE**: when a server state changes
     * **SERVER_ADMIN**: when a server administrative state changes
+    * **SERVER_CHECK**: when a server's check status change is reported.
+      Be careful when subscribing to this type since many events might be
+      generated.
 
    .. Note::
      Use **SERVER** in **event_types** to subscribe to all server events types
@@ -1540,6 +1543,13 @@ See :js:func:`core.event_sub()` for more info.
 
   .. Note::
      Only available for SERVER_ADMIN event
+
+.. js:attribute:: ServerEvent.check
+
+  A :ref:`server_event_checkres_class`
+
+  .. Note::
+     Only available for SERVER_CHECK event
 
 .. _server_event_checkres_class:
 

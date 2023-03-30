@@ -9259,6 +9259,21 @@ __LJMP static void hlua_event_hdl_cb_push_args(struct hlua_event_sub *hlua_sub,
 
 			lua_settable(hlua->T, -3); /* admin table */
 		}
+		else if (event_hdl_sub_type_equal(EVENT_HDL_SUB_SERVER_CHECK, event)) {
+			struct event_hdl_cb_data_server_check *check = data;
+
+			if (!lua_checkstack(hlua->T, 20))
+				WILL_LJMP(luaL_error(hlua->T, "Lua out of memory error."));
+
+			/* check subclass */
+			lua_pushstring(hlua->T, "check");
+			lua_newtable(hlua->T);
+
+			/* check result snapshot */
+			hlua_event_hdl_cb_push_event_checkres(hlua->T, &check->safe.res);
+
+			lua_settable(hlua->T, -3); /* check table */
+		}
 
 		/* attempt to provide reference server object
 		 * (if it wasn't removed yet, SERVER_DEL will never succeed here)
