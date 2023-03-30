@@ -443,6 +443,7 @@ struct event_hdl_cb_data_server {
 	 *   EVENT_HDL_SUB_SERVER_DOWN
 	 *   EVENT_HDL_SUB_SERVER_STATE
 	 *   EVENT_HDL_SUB_SERVER_ADMIN
+	 *   EVENT_HDL_SUB_SERVER_CHECK
 	 */
 	struct {
 		/* safe data can be safely used from both
@@ -541,6 +542,25 @@ struct event_hdl_cb_data_server_admin {
 		enum srv_adm_st_chg_cause cause;
 	} safe;
 	/* no unsafe data */
+};
+
+/* data provided to EVENT_HDL_SUB_SERVER_CHECK handlers through
+ * event_hdl facility
+ *
+ * Note that this may be casted to regular event_hdl_cb_data_server if
+ * you don't care about check related optional info
+ */
+struct event_hdl_cb_data_server_check {
+	/* provided by:
+	 *   EVENT_HDL_SUB_SERVER_CHECK
+	 */
+	struct event_hdl_cb_data_server server;                 /* must be at the beginning */
+	struct {
+		struct event_hdl_cb_data_server_checkres res;   /* check result snapshot */
+	} safe;
+	struct {
+		struct check *ptr;                              /* check ptr */
+	} unsafe;
 };
 
 /* Storage structure to load server-state lines from a flat file into

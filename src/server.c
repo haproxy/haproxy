@@ -262,6 +262,27 @@ static void srv_event_hdl_publish(struct event_hdl_sub_type event,
 	_srv_event_hdl_publish(event, cb_data, srv);
 }
 
+/* Publish SERVER_CHECK event
+ *
+ * This special event will contain extra hints related to the check itself
+ *
+ * Must be called with server lock held
+ */
+void srv_event_hdl_publish_check(struct server *srv, struct check *check)
+{
+	struct event_hdl_cb_data_server_check cb_data;
+
+	/* check event provides additional info about the server check */
+	_srv_event_hdl_prepare_checkres(&cb_data.safe.res, check);
+
+	cb_data.unsafe.ptr = check;
+
+	/* prepare event data (common server data) */
+	_srv_event_hdl_prepare((struct event_hdl_cb_data_server *)&cb_data, srv, 0);
+
+	_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_CHECK, cb_data, srv);
+}
+
 /*
  * Check that we did not get a hash collision.
  * Unlikely, but it can happen. The server's proxy must be at least

@@ -66,6 +66,7 @@ int srv_init_per_thr(struct server *srv);
 void srv_set_ssl(struct server *s, int use_ssl);
 const char *srv_adm_st_chg_cause(enum srv_adm_st_chg_cause cause);
 const char *srv_op_st_chg_cause(enum srv_op_st_chg_cause cause);
+void srv_event_hdl_publish_check(struct server *srv, struct check *check);
 
 /* functions related to server name resolution */
 int srv_prepare_for_resolution(struct server *srv, const char *hostname);
