@@ -1466,7 +1466,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 	res_htx = htx_from_buf(&res->buf);
 	total = res_htx->data;
 
-	if (unlikely(sc->state == SC_ST_DIS || sc->state == SC_ST_CLO))
+	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW))))
 		goto out;
 
 	/* Check if the input buffer is available. */
@@ -1474,9 +1474,6 @@ static void http_cache_io_handler(struct appctx *appctx)
 		sc_need_room(sc);
 		goto out;
 	}
-
-	if (res->flags & (CF_SHUTW|CF_SHUTR|CF_SHUTW_NOW))
-		appctx->st0 = HTX_CACHE_END;
 
 	if (appctx->st0 == HTX_CACHE_INIT) {
 		ctx->next = block_ptr(cache_ptr);
@@ -1531,8 +1528,8 @@ static void http_cache_io_handler(struct appctx *appctx)
 	}
 
   end:
-	if (!(res->flags & CF_SHUTR) && appctx->st0 == HTX_CACHE_END)
-		sc_shutr(sc);
+	if (appctx->st0 == HTX_CACHE_END)
+		se_fl_set(appctx->sedesc, SE_FL_EOS);
 
   out:
 	total = res_htx->data - total;
@@ -1557,6 +1554,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 	res_htx = htx_from_buf(&res->buf);
 
 	total = 0;
+	se_fl_set(appctx->sedesc, SE_FL_ERROR);
 	appctx->st0 = HTX_CACHE_END;
 	goto end;
 }
