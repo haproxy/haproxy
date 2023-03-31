@@ -3577,6 +3577,9 @@ static void syslog_io_handler(struct appctx *appctx)
 	char *message;
 	size_t size;
 
+	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW))))
+		goto out;
+
 	max_accept = l->bind_conf->maxaccept ? l->bind_conf->maxaccept : 1;
 	while (co_data(sc_oc(sc))) {
 		char c;
@@ -3669,7 +3672,6 @@ missing_data:
 missing_budget:
 	/* it may remain some stuff to do, let's retry later */
 	appctx_wakeup(appctx);
-
 	return;
 
 parse_error:
@@ -3677,16 +3679,17 @@ parse_error:
 		_HA_ATOMIC_INC(&l->counters->failed_req);
 	_HA_ATOMIC_INC(&frontend->fe_counters.failed_req);
 
-	goto close;
+	goto error;
 
 cli_abort:
 	if (l->counters)
 		_HA_ATOMIC_INC(&l->counters->cli_aborts);
 	_HA_ATOMIC_INC(&frontend->fe_counters.cli_aborts);
 
-close:
-	sc_shutw(sc);
-	sc_shutr(sc);
+error:
+	se_fl_set(appctx->sedesc, SE_FL_ERROR);
+
+out:
 	return;
 }
 
