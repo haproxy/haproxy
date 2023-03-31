@@ -211,8 +211,6 @@ static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 
 	case QUIC_CC_EVT_LOSS:
 		quic_enter_recovery(cc);
-		/* Exit to congestion avoidance. */
-		cc->algo->state = QUIC_CC_ST_CA;
 		break;
 
 	case QUIC_CC_EVT_ECN_CE:
@@ -244,6 +242,7 @@ static void quic_cc_cubic_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 
  out:
 	TRACE_PROTO("CC cubic", QUIC_EV_CONN_CC, cc->qc, NULL, cc);
+	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc);
 }
 
 /* Recovery period callback */
