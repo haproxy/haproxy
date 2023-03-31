@@ -2408,7 +2408,7 @@ static inline int peer_recv_msg(struct appctx *appctx, char *msg_head, size_t ms
 	return 1;
 
  incomplete:
-	if (reql < 0 || (sc_oc(sc)->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
+	if (reql < 0) {
 		/* there was an error or the message was truncated */
 		appctx->st0 = PEER_SESS_ST_END;
 		return -1;
@@ -2923,6 +2923,11 @@ static void peer_io_handler(struct appctx *appctx)
 	unsigned int maj_ver, min_ver;
 	int prev_state;
 
+	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW)))) {
+		co_skip(sc_oc(sc), co_data(sc_oc(sc)));
+		goto out;
+	}
+
 	/* Check if the input buffer is available. */
 	if (sc_ib(sc)->size == 0) {
 		sc_need_room(sc);
@@ -3191,8 +3196,8 @@ send_msgs:
 					HA_SPIN_UNLOCK(PEER_LOCK, &curpeer->lock);
 					curpeer = NULL;
 				}
-				sc_shutw(sc);
-				sc_shutr(sc);
+				se_fl_set(appctx->sedesc, SE_FL_EOS|SE_FL_EOI);
+				co_skip(sc_oc(sc), co_data(sc_oc(sc)));
 				goto out;
 			}
 		}
