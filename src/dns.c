@@ -444,6 +444,11 @@ static void dns_session_io_handler(struct appctx *appctx)
 	size_t len, cnt, ofs;
 	int ret = 0;
 
+	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW)))) {
+		co_skip(sc_oc(sc), co_data(sc_oc(sc)));
+		goto out;
+	}
+
 	/* if stopping was requested, close immediately */
 	if (unlikely(stopping))
 		goto close;
@@ -456,14 +461,6 @@ static void dns_session_io_handler(struct appctx *appctx)
 	if (ds->shutdown)
 		goto close;
 
-	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
-		goto close;
-
-	/* con closed by server side, we will skip data write and drain data from channel */
-	if ((sc_oc(sc)->flags & CF_SHUTW)) {
-		goto read;
-	}
-
 	/* if the connection is not established, inform the stream that we want
 	 * to be notified whenever the connection completes.
 	 */
@@ -471,7 +468,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 		applet_need_more_data(appctx);
 		se_need_remote_conn(appctx->sedesc);
 		applet_have_more_data(appctx);
-		return;
+		goto out;
 	}
 
 	HA_RWLOCK_WRLOCK(DNS_LOCK, &ring->lock);
@@ -644,14 +641,11 @@ static void dns_session_io_handler(struct appctx *appctx)
 		applet_have_no_more_data(appctx);
 	}
 
-read:
-
 	/* if session is not a waiter it means there is no committed
 	 * message into rx_buf and we are free to use it
 	 * Note: we need a load barrier here to not miss the
 	 * delete from the list
 	 */
-
 	__ha_barrier_load();
 	if (!LIST_INLIST_ATOMIC(&ds->waiter)) {
 		while (1) {
@@ -664,7 +658,7 @@ read:
 				ret = co_getblk(sc_oc(sc), (char *)&msg_len, 2, 0);
 				if (ret <= 0) {
 					if (ret == -1)
-						goto close;
+						goto error;
 					applet_need_more_data(appctx);
 					break;
 				}
@@ -685,7 +679,7 @@ read:
 				ret = co_getblk(sc_oc(sc), ds->rx_msg.area + ds->rx_msg.offset, co_data(sc_oc(sc)), 0);
 				if (ret <= 0) {
 					if (ret == -1)
-						goto close;
+						goto error;
 					applet_need_more_data(appctx);
 					break;
 				}
@@ -707,7 +701,7 @@ read:
 			ret = co_getblk(sc_oc(sc), ds->rx_msg.area + ds->rx_msg.offset, ds->rx_msg.len - ds->rx_msg.offset, 0);
 			if (ret <= 0) {
 				if (ret == -1)
-					goto close;
+					goto error;
 				applet_need_more_data(appctx);
 				break;
 			}
@@ -756,20 +750,18 @@ read:
 
 			break;
 		}
-
-		if (!LIST_INLIST(&ds->waiter)) {
-			/* there is no more pending data to read and the con was closed by the server side */
-			if (!co_data(sc_oc(sc)) && (sc_oc(sc)->flags & CF_SHUTW)) {
-				goto close;
-			}
-		}
-
 	}
 
+out:
 	return;
+
 close:
-	sc_shutw(sc);
-	sc_shutr(sc);
+	se_fl_set(appctx->sedesc, SE_FL_EOS|SE_FL_EOI);
+	goto out;
+
+error:
+	se_fl_set(appctx->sedesc, SE_FL_ERROR);
+	goto out;
 }
 
 void dns_queries_flush(struct dns_session *ds)
