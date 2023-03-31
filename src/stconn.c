@@ -487,8 +487,6 @@ struct appctx *sc_applet_create(struct stconn *sc, struct applet *app)
 {
 	struct appctx *appctx;
 
-	DPRINTF(stderr, "registering handler %p for sc %p (was %p)\n", app, sc, sc_strm_task(sc));
-
 	appctx = appctx_new_here(app, sc->sedesc);
 	if (!appctx)
 		return NULL;
@@ -613,10 +611,6 @@ static void sc_app_chk_rcv(struct stconn *sc)
 {
 	struct channel *ic = sc_ic(sc);
 
-	DPRINTF(stderr, "%s: sc=%p, sc->state=%d ic->flags=%08x oc->flags=%08x\n",
-		__FUNCTION__,
-		sc, sc->state, ic->flags, sc_oc(sc)->flags);
-
 	if (ic->pipe) {
 		/* stop reading */
 		sc_need_room(sc);
@@ -632,10 +626,6 @@ static void sc_app_chk_rcv(struct stconn *sc)
 static void sc_app_chk_snd(struct stconn *sc)
 {
 	struct channel *oc = sc_oc(sc);
-
-	DPRINTF(stderr, "%s: sc=%p, sc->state=%d ic->flags=%08x oc->flags=%08x\n",
-		__FUNCTION__,
-		sc, sc->state, sc_ic(sc)->flags, oc->flags);
 
 	if (unlikely(sc->state != SC_ST_EST || (oc->flags & CF_SHUTW)))
 		return;
@@ -941,10 +931,6 @@ static void sc_app_chk_rcv_applet(struct stconn *sc)
 
 	BUG_ON(!sc_appctx(sc));
 
-	DPRINTF(stderr, "%s: sc=%p, sc->state=%d ic->flags=%08x oc->flags=%08x\n",
-		__FUNCTION__,
-		sc, sc->state, ic->flags, sc_oc(sc)->flags);
-
 	if (!ic->pipe) {
 		/* (re)start reading */
 		appctx_wakeup(__sc_appctx(sc));
@@ -957,10 +943,6 @@ static void sc_app_chk_snd_applet(struct stconn *sc)
 	struct channel *oc = sc_oc(sc);
 
 	BUG_ON(!sc_appctx(sc));
-
-	DPRINTF(stderr, "%s: sc=%p, sc->state=%d ic->flags=%08x oc->flags=%08x\n",
-		__FUNCTION__,
-		sc, sc->state, sc_ic(sc)->flags, oc->flags);
 
 	if (unlikely(sc->state != SC_ST_EST || (oc->flags & CF_SHUTW)))
 		return;
