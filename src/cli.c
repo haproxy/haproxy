@@ -893,14 +893,12 @@ static void cli_io_handler(struct appctx *appctx)
 	int reql;
 	int len;
 
-	if (unlikely(sc->state == SC_ST_DIS || sc->state == SC_ST_CLO))
+	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW))))
 		goto out;
 
 	/* Check if the input buffer is available. */
-	if (res->buf.size == 0) {
-		/* buf.size==0 means we failed to get a buffer and were
-		 * already subscribed to a wait list to get a buffer.
-		 */
+	if (!b_size(&res->buf)) {
+		sc_need_room(sc);
 		goto out;
 	}
 
@@ -913,10 +911,7 @@ static void cli_io_handler(struct appctx *appctx)
 			appctx->cli_level = bind_conf->level;
 		}
 		else if (appctx->st0 == CLI_ST_END) {
-			/* Let's close for real now. We just close the request
-			 * side, the conditions below will complete if needed.
-			 */
-			sc_shutw(sc);
+			se_fl_set(appctx->sedesc, SE_FL_EOS);
 			free_trash_chunk(appctx->chunk);
 			appctx->chunk = NULL;
 			break;
@@ -928,6 +923,7 @@ static void cli_io_handler(struct appctx *appctx)
 			if (!appctx->chunk) {
 				appctx->chunk = alloc_trash_chunk();
 				if (!appctx->chunk) {
+					se_fl_set(appctx->sedesc, SE_FL_ERROR);
 					appctx->st0 = CLI_ST_END;
 					continue;
 				}
@@ -960,6 +956,7 @@ static void cli_io_handler(struct appctx *appctx)
 			if (reql <= 0) { /* closed or EOL not found */
 				if (reql == 0)
 					break;
+				se_fl_set(appctx->sedesc, SE_FL_ERROR);
 				appctx->st0 = CLI_ST_END;
 				continue;
 			}
@@ -987,6 +984,7 @@ static void cli_io_handler(struct appctx *appctx)
 			 */
 			len = reql - 1;
 			if (str[len] != '\n') {
+				se_fl_set(appctx->sedesc, SE_FL_ERROR);
 				appctx->st0 = CLI_ST_END;
 				continue;
 			}
@@ -1143,13 +1141,13 @@ static void cli_io_handler(struct appctx *appctx)
 				break;
 			}
 
-			/* Now we close the output if one of the writers did so,
-			 * or if we're not in interactive mode and the request
-			 * buffer is empty. This still allows pipelined requests
-			 * to be sent in non-interactive mode.
+			/* Now we close the output if we're not in interactive
+			 * mode and the request buffer is empty. This still
+			 * allows pipelined requests to be sent in
+			 * non-interactive mode.
 			 */
-			if (((res->flags & (CF_SHUTW|CF_SHUTW_NOW))) ||
-			   (!(appctx->st1 & APPCTX_CLI_ST1_PROMPT) && !co_data(req) && (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)))) {
+			if (!(appctx->st1 & APPCTX_CLI_ST1_PROMPT) && !co_data(req) && (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD))) {
+				se_fl_set(appctx->sedesc, SE_FL_EOI);
 				appctx->st0 = CLI_ST_END;
 				continue;
 			}
@@ -1173,27 +1171,6 @@ static void cli_io_handler(struct appctx *appctx)
 				goto out;
 			}
 		}
-	}
-
-	if ((res->flags & CF_SHUTR) && (sc->state == SC_ST_EST)) {
-		DPRINTF(stderr, "%s@%d: sc to buf closed. req=%08x, res=%08x, st=%d\n",
-			__FUNCTION__, __LINE__, req->flags, res->flags, sc->state);
-		/* Other side has closed, let's abort if we have no more processing to do
-		 * and nothing more to consume. This is comparable to a broken pipe, so
-		 * we forward the close to the request side so that it flows upstream to
-		 * the client.
-		 */
-		sc_shutw(sc);
-	}
-
-	if ((req->flags & CF_SHUTW) && (sc->state == SC_ST_EST) && (appctx->st0 < CLI_ST_OUTPUT)) {
-		DPRINTF(stderr, "%s@%d: buf to sc closed. req=%08x, res=%08x, st=%d\n",
-			__FUNCTION__, __LINE__, req->flags, res->flags, sc->state);
-		/* We have no more processing to do, and nothing more to send, and
-		 * the client side has closed. So we'll forward this state downstream
-		 * on the response buffer.
-		 */
-		sc_shutr(sc);
 	}
 
  out:
