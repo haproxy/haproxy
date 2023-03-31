@@ -607,7 +607,7 @@ OPTIONS_OBJS += src/quic_conn.o src/mux_quic.o src/h3.o src/xprt_quic.o    \
                 src/quic_cc_newreno.o src/quic_cc_cubic.o src/qpack-tbl.o  \
                 src/qpack-dec.o src/hq_interop.o src/quic_stream.o         \
                 src/h3_stats.o src/qmux_http.o src/cfgparse-quic.o         \
-                src/cbuf.o src/quic_cc.o
+                src/cbuf.o src/quic_cc.o src/quic_cc_nocc.o
 endif
 
 ifneq ($(USE_LUA),)

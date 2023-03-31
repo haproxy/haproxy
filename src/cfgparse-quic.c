@@ -20,16 +20,27 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
                                    struct bind_conf *conf, char **err)
 {
 	struct quic_cc_algo *cc_algo;
+	char *arg;
 
 	if (!*args[cur_arg + 1]) {
 		memprintf(err, "'%s' : missing control congestion algorithm", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if (strcmp(args[cur_arg + 1], "newreno") == 0)
+	arg = args[cur_arg + 1];
+	if (strcmp(arg, "newreno") == 0)
 	    cc_algo = &quic_cc_algo_nr;
-	else if (strcmp(args[cur_arg + 1], "cubic") == 0)
+	else if (strcmp(arg, "cubic") == 0)
 	    cc_algo = &quic_cc_algo_cubic;
+	else if (strlen(arg) >= 6 && strncmp(arg, "nocc-", 5) == 0) {
+		if (!experimental_directives_allowed) {
+			ha_alert("'%s' algo is experimental, must be allowed via a global 'expose-experimental-directives'\n", arg);
+			return ERR_ALERT | ERR_FATAL;
+		}
+
+	    cc_algo = &quic_cc_algo_nocc;
+	    quic_cc_nocc_fixed_cwnd = atoi(arg + 5);
+	}
 	else {
 		memprintf(err, "'%s' : unknown control congestion algorithm", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
