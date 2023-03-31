@@ -700,16 +700,19 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 	uint32_t sz;
 	int ret;
 
+	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW))))
+		goto out;
+
 	/* The IO handler could be called after the release, so we need to
 	 * check if hc is still there to run the IO handler */
 	if (!hc)
-		return;
+		goto out;
 
 	while (1) {
 
 		/* required to stop */
 		if (hc->flags & HTTPCLIENT_FA_STOP)
-			goto end;
+			goto error;
 
 		switch(appctx->st0) {
 
@@ -735,8 +738,9 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				else
 					appctx->st0 = HTTPCLIENT_S_REQ_BODY;
 
-				goto more; /* we need to leave the IO handler once we wrote the request */
-			break;
+				goto out; /* we need to leave the IO handler once we wrote the request */
+				break;
+
 			case HTTPCLIENT_S_REQ_BODY:
 				/* call the payload callback */
 				{
@@ -750,7 +754,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 						htx = htx_from_buf(&req->buf);
 
 						if (htx_is_empty(hc_htx))
-							goto more;
+							goto out;
 
 						if (htx_is_empty(htx)) {
 							size_t data = hc_htx->data;
@@ -783,30 +787,31 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 
 					htx = htx_from_buf(&req->buf);
 					if (!htx)
-						goto more;
+						goto out;
 
 					/* if the request contains the HTX_FL_EOM, we finished the request part. */
-					if (htx->flags & HTX_FL_EOM) {
-						se_fl_set(appctx->sedesc, SE_FL_EOI);
+					if (htx->flags & HTX_FL_EOM)
 						appctx->st0 = HTTPCLIENT_S_RES_STLINE;
-					}
 
 					goto process_data; /* we need to leave the IO handler once we wrote the request */
 				}
-			break;
+				break;
 
 			case HTTPCLIENT_S_RES_STLINE:
+				/* Request is finished, report EOI */
+				se_fl_set(appctx->sedesc, SE_FL_EOI);
+
 				/* copy the start line in the hc structure,then remove the htx block */
 				if (!co_data(res))
-					goto more;
+					goto out;
 				htx = htxbuf(&res->buf);
 				if (!htx)
-					goto more;
+					goto out;
 				blk = htx_get_head_blk(htx);
 				if (blk && (htx_get_blk_type(blk) == HTX_BLK_RES_SL))
 					sl = htx_get_blk_ptr(htx, blk);
 				if (!sl || (!(sl->flags & HTX_SL_F_IS_RESP)))
-					goto more;
+					goto out;
 
 				/* copy the status line in the httpclient */
 				hc->res.status = sl->info.res.status;
@@ -837,10 +842,10 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 					struct http_hdr hdrs[global.tune.max_http_hdr];
 
 					if (!co_data(res))
-						goto more;
+						goto out;
 					htx = htxbuf(&res->buf);
 					if (!htx)
-						goto more;
+						goto out;
 
 					hdr_num = 0;
 					blk = htx_get_head_blk(htx);
@@ -869,7 +874,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 						/* alloc and copy the headers in the httpclient struct */
 						hc->res.hdrs = calloc((hdr_num + 1), sizeof(*hc->res.hdrs));
 						if (!hc->res.hdrs)
-							goto end;
+							goto error;
 						memcpy(hc->res.hdrs, hdrs, sizeof(struct http_hdr) * (hdr_num + 1));
 
 						/* caller callback */
@@ -885,7 +890,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 						appctx->st0 = HTTPCLIENT_S_RES_BODY;
 					}
 				}
-			break;
+				break;
 
 			case HTTPCLIENT_S_RES_BODY:
 				/*
@@ -893,14 +898,14 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				 * push them in the hc->res.buf buffer in a raw format.
 				 */
 				if (!co_data(res))
-					goto more;
+					goto out;
 
 				htx = htxbuf(&res->buf);
 				if (!htx || htx_is_empty(htx))
-					goto more;
+					goto out;
 
 				if (!b_alloc(&hc->res.buf))
-					goto more;
+					goto out;
 
 				if (b_full(&hc->res.buf))
 					goto process_data;
@@ -952,47 +957,35 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 
 				/* if not finished, should be called again */
 				if (!(htx_is_empty(htx) && (htx->flags & HTX_FL_EOM)))
-					goto more;
+					goto out;
 
 
 				/* end of message, we should quit */
 				appctx->st0 = HTTPCLIENT_S_RES_END;
-			break;
+				break;
 
 			case HTTPCLIENT_S_RES_END:
-				goto end;
-			break;
+				se_fl_set(appctx->sedesc, SE_FL_EOS);
+				goto out;
+				break;
 		}
 	}
 
-process_data:
-
-	sc_will_read(sc);
-
+out:
 	return;
+
+process_data:
+	sc_will_read(sc);
+	goto out;
+
 full:
 	/* There was not enough room in the response channel */
 	sc_need_room(sc);
+	goto out;
 
-more:
-	/* we'll automatically be called again on missing data */
-	if (appctx->st0 == HTTPCLIENT_S_RES_END)
-		goto end;
-
-	/* The state machine tries to handle as much data as possible, if there
-	 * isn't any data to handle and a shutdown is detected, let's stop
-	 * everything */
-	if ((req->flags & (CF_SHUTR|CF_SHUTR_NOW)) ||
-	    (res->flags & CF_SHUTW) ||
-	    ((res->flags & CF_SHUTW_NOW) && channel_is_empty(res))) {
-		goto end;
-	}
-	return;
-
-end:
-	sc_shutw(sc);
-	sc_shutr(sc);
-	return;
+error:
+	se_fl_set(appctx->sedesc, SE_FL_ERROR);
+	goto out;
 }
 
 static int httpclient_applet_init(struct appctx *appctx)
