@@ -2685,9 +2685,19 @@ show events [<sink>] [-w] [-n]
   combined with "-w" to only report new events. For convenience, "-wn" or "-nw"
   may be used to enable both options at once.
 
-show fd [<fd>]
+show fd [-!plcfbsd]* [<fd>]
   Dump the list of either all open file descriptors or just the one number <fd>
-  if specified. This is only aimed at developers who need to observe internal
+  if specified. A set of flags may optionally be passed to restrict the dump
+  only to certain FD types or to omit certain FD types. When '-' or '!' are
+  encountered, the selection is inverted for the following characters in the
+  same argument. The inversion is reset before each argument word delimited by
+  white spaces. Selectable FD types include 'p' for pipes, 'l' for listeners,
+  'c' for connections (any type), 'f' for frontend connections, 'b' for backend
+  connections (any type), 's' for connections to servers, 'd' for connections
+  to the "dispatch" address or the backend's transparent address. With this,
+  'b' is a shortcut for 'sd' and 'c' for 'fb' or 'fsd'. 'c!f' is equivalent to
+  'b' ("any connections except frontend connections" are indeed backend
+  connections). This is only aimed at developers who need to observe internal
   states in order to debug complex issues such as abnormal CPU usages. One fd
   is reported per lines, and for each of them, its state in the poller using
   upper case letters for enabled flags and lower case for disabled flags, using
