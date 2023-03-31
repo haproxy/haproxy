@@ -4441,7 +4441,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 
 	res_htx = htx_from_buf(&res->buf);
 
-	if (unlikely(sc->state == SC_ST_DIS || sc->state == SC_ST_CLO))
+	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW))))
 		goto out;
 
 	/* Check if the input buffer is available. */
@@ -4449,10 +4449,6 @@ static void http_stats_io_handler(struct appctx *appctx)
 		sc_need_room(sc);
 		goto out;
 	}
-
-	/* check that the output is not closed */
-	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_SHUTR))
-		appctx->st0 = STAT_HTTP_END;
 
 	/* all states are processed in sequence */
 	if (appctx->st0 == STAT_HTTP_HEAD) {
@@ -4505,8 +4501,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 	}
 
 	if (appctx->st0 == STAT_HTTP_END) {
-		if (!(res->flags & CF_SHUTR))
-			sc_shutr(sc);
+		se_fl_set(appctx->sedesc, SE_FL_EOS);
 		applet_will_consume(appctx);
 	}
 
