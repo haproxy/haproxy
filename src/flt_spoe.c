@@ -1266,7 +1266,6 @@ spoe_init_appctx(struct appctx *appctx)
 static void
 spoe_release_appctx(struct appctx *appctx)
 {
-	struct stconn  *sc          = appctx_sc(appctx);
 	struct spoe_appctx  *spoe_appctx = SPOE_APPCTX(appctx);
 	struct spoe_agent   *agent;
 	struct spoe_context *ctx, *back;
@@ -1300,9 +1299,6 @@ spoe_release_appctx(struct appctx *appctx)
 		appctx->st0 = SPOE_APPCTX_ST_END;
 		if (spoe_appctx->status_code == SPOE_FRM_ERR_NONE)
 			spoe_appctx->status_code = SPOE_FRM_ERR_IO;
-
-		sc_shutw(sc);
-		sc_shutr(sc);
 	}
 
 	/* Destroy the task attached to this applet */
@@ -1403,18 +1399,15 @@ spoe_handle_connect_appctx(struct appctx *appctx)
 	char *frame, *buf;
 	int   ret;
 
-	if (sc_state_in(sc->state, SC_SB_CER|SC_SB_DIS|SC_SB_CLO)) {
-		/* closed */
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
-		goto exit;
-	}
-
-	if (!sc_state_in(sc->state, SC_SB_RDY|SC_SB_EST)) {
-		/* not connected yet */
-		applet_have_more_data(appctx);
-		task_wakeup(__sc_strm(sc)->task, TASK_WOKEN_MSG);
-		goto stop;
-	}
+	/* if the connection is not established, inform the stream that we want
+         * to be notified whenever the connection completes.
+         */
+        if (sc_opposite(sc)->state < SC_ST_EST) {
+                applet_need_more_data(appctx);
+                se_need_remote_conn(appctx->sedesc);
+                applet_have_more_data(appctx);
+                goto stop;
+        }
 
 	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT) {
 		SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: appctx=%p"
@@ -1468,12 +1461,6 @@ spoe_handle_connecting_appctx(struct appctx *appctx)
 	struct spoe_agent  *agent  = SPOE_APPCTX(appctx)->agent;
 	char  *frame;
 	int    ret;
-
-
-	if (sc->state == SC_ST_CLO || sc_opposite(sc)->state == SC_ST_CLO) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
-		goto exit;
-	}
 
 	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT) {
 		SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: appctx=%p"
@@ -1722,11 +1709,6 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 	struct spoe_agent       *agent = SPOE_APPCTX(appctx)->agent;
 	int ret, skip_sending = 0, skip_receiving = 0, active_s = 0, active_r = 0, close_asap = 0;
 
-	if (sc->state == SC_ST_CLO || sc_opposite(sc)->state == SC_ST_CLO) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
-		goto exit;
-	}
-
 	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT) {
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_TOUT;
 		appctx->st0 = SPOE_APPCTX_ST_DISCONNECT;
@@ -1831,22 +1813,14 @@ spoe_handle_processing_appctx(struct appctx *appctx)
   next:
 	SPOE_APPCTX(appctx)->task->expire = tick_add_ifset(now_ms, agent->timeout.idle);
 	return 0;
-
-  exit:
-	appctx->st0 = SPOE_APPCTX_ST_EXIT;
-	return 0;
 }
 
 static int
 spoe_handle_disconnect_appctx(struct appctx *appctx)
 {
-	struct stconn *sc    = appctx_sc(appctx);
 	struct spoe_agent  *agent = SPOE_APPCTX(appctx)->agent;
 	char *frame, *buf;
 	int   ret;
-
-	if (sc->state == SC_ST_CLO || sc_opposite(sc)->state == SC_ST_CLO)
-		goto exit;
 
 	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT)
 		goto exit;
@@ -1896,11 +1870,6 @@ spoe_handle_disconnecting_appctx(struct appctx *appctx)
 	struct stconn *sc = appctx_sc(appctx);
 	char  *frame;
 	int    ret;
-
-	if (sc->state == SC_ST_CLO || sc_opposite(sc)->state == SC_ST_CLO) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
-		goto exit;
-	}
 
 	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT) {
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_TOUT;
@@ -1964,6 +1933,11 @@ spoe_handle_appctx(struct appctx *appctx)
 	if (SPOE_APPCTX(appctx) == NULL)
 		return;
 
+	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW)))) {
+		co_skip(sc_oc(sc), co_data(sc_oc(sc)));
+		goto out;
+	}
+
 	SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_NONE;
 	agent = SPOE_APPCTX(appctx)->agent;
 
@@ -2018,18 +1992,17 @@ spoe_handle_appctx(struct appctx *appctx)
 		case SPOE_APPCTX_ST_EXIT:
 			appctx->st0 = SPOE_APPCTX_ST_END;
 			SPOE_APPCTX(appctx)->task->expire = TICK_ETERNITY;
-
-			sc_shutw(sc);
-			sc_shutr(sc);
+			se_fl_set(appctx->sedesc, SE_FL_EOS);
+			if (SPOE_APPCTX(appctx)->status_code != SPOE_FRM_ERR_NONE)
+				se_fl_set(appctx->sedesc, SE_FL_ERROR);
+			else
+				se_fl_set(appctx->sedesc, SE_FL_EOI);
 			__fallthrough;
 
 		case SPOE_APPCTX_ST_END:
 			return;
 	}
   out:
-	if (stopping)
-		spoe_wakeup_appctx(appctx);
-
 	if (SPOE_APPCTX(appctx)->task->expire != TICK_ETERNITY)
 		task_queue(SPOE_APPCTX(appctx)->task);
 }
