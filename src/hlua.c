@@ -2000,12 +2000,17 @@ static void hlua_socket_handler(struct appctx *appctx)
 	struct hlua_csk_ctx *ctx = appctx->svcctx;
 	struct stconn *sc = appctx_sc(appctx);
 
-	if (ctx->die) {
-		sc_shutw(sc);
-		sc_shutr(sc);
+	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW)))) {
 		notification_wake(&ctx->wake_on_read);
 		notification_wake(&ctx->wake_on_write);
-		stream_shutdown(__sc_strm(sc), SF_ERR_KILLED);
+		return;
+	}
+
+	if (ctx->die) {
+		se_fl_set(appctx->sedesc, SE_FL_EOI|SE_FL_EOS);
+		notification_wake(&ctx->wake_on_read);
+		notification_wake(&ctx->wake_on_write);
+		return;
 	}
 
 	/* If we can't write, wakeup the pending write signals. */
@@ -2036,12 +2041,6 @@ static void hlua_socket_handler(struct appctx *appctx)
 	/* Wake the tasks which wants to read if the buffer contains data. */
 	if (!channel_is_empty(sc_oc(sc)))
 		notification_wake(&ctx->wake_on_read);
-
-	/* Some data were injected in the buffer, notify the stream
-	 * interface.
-	 */
-	if (!channel_is_empty(sc_ic(sc)))
-		sc_update(sc);
 
 	/* If write notifications are registered, we considers we want
 	 * to write, so we clear the blocking flag.
@@ -9421,33 +9420,26 @@ void hlua_applet_tcp_fct(struct appctx *ctx)
 	struct proxy *px = strm->be;
 	struct hlua *hlua = tcp_ctx->hlua;
 
-	/* The applet execution is already done. */
-	if (tcp_ctx->flags & APPLET_DONE) {
-		/* eat the whole request */
-		co_skip(sc_oc(sc), co_data(sc_oc(sc)));
-		return;
-	}
+	if (unlikely(se_fl_test(ctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW))))
+		goto out;
 
-	/* If the stream is disconnect or closed, ldo nothing. */
-	if (unlikely(sc->state == SC_ST_DIS || sc->state == SC_ST_CLO))
-		return;
+	/* The applet execution is already done. */
+	if (tcp_ctx->flags & APPLET_DONE)
+		goto out;
 
 	/* Execute the function. */
 	switch (hlua_ctx_resume(hlua, 1)) {
 	/* finished. */
 	case HLUA_E_OK:
 		tcp_ctx->flags |= APPLET_DONE;
-
-		/* eat the whole request */
-		co_skip(sc_oc(sc), co_data(sc_oc(sc)));
-		sc_shutr(sc);
-		return;
+		se_fl_set(ctx->sedesc, SE_FL_EOI|SE_FL_EOS);
+		break;
 
 	/* yield. */
 	case HLUA_E_AGAIN:
 		if (hlua->wake_time != TICK_ETERNITY)
 			task_schedule(tcp_ctx->task, hlua->wake_time);
-		return;
+		break;
 
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
@@ -9482,12 +9474,15 @@ void hlua_applet_tcp_fct(struct appctx *ctx)
 		goto error;
 	}
 
-error:
+out:
+	/* eat the whole request */
+	co_skip(sc_oc(sc), co_data(sc_oc(sc)));
+	return;
 
-	/* For all other cases, just close the stream. */
-	sc_shutw(sc);
-	sc_shutr(sc);
+error:
+	se_fl_set(ctx->sedesc, SE_FL_ERROR);
 	tcp_ctx->flags |= APPLET_DONE;
+	goto out;
 }
 
 static void hlua_applet_tcp_release(struct appctx *ctx)
@@ -9620,8 +9615,11 @@ void hlua_applet_http_fct(struct appctx *ctx)
 
 	res_htx = htx_from_buf(&res->buf);
 
-	/* If the stream is disconnect or closed, ldo nothing. */
-	if (unlikely(sc->state == SC_ST_DIS || sc->state == SC_ST_CLO))
+	if (unlikely(se_fl_test(ctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW))))
+		goto out;
+
+	/* The applet execution is already done. */
+	if (http_ctx->flags & APPLET_DONE)
 		goto out;
 
 	/* Check if the input buffer is available. */
@@ -9629,9 +9627,6 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		sc_need_room(sc);
 		goto out;
 	}
-	/* check that the output is not closed */
-	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_SHUTR))
-		http_ctx->flags |= APPLET_DONE;
 
 	/* Set the currently running flag. */
 	if (!HLUA_IS_RUNNING(hlua) &&
@@ -9642,11 +9637,8 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		}
 	}
 
-	/* Executes The applet if it is not done. */
-	if (!(http_ctx->flags & APPLET_DONE)) {
-
-		/* Execute the function. */
-		switch (hlua_ctx_resume(hlua, 1)) {
+	/* Execute the function. */
+	switch (hlua_ctx_resume(hlua, 1)) {
 		/* finished. */
 		case HLUA_E_OK:
 			http_ctx->flags |= APPLET_DONE;
@@ -9662,39 +9654,38 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		case HLUA_E_ERRMSG:
 			/* Display log. */
 			SEND_ERR(px, "Lua applet http '%s': %s.\n",
-			         rule->arg.hlua_rule->fcn->name, lua_tostring(hlua->T, -1));
+				 rule->arg.hlua_rule->fcn->name, lua_tostring(hlua->T, -1));
 			lua_pop(hlua->T, 1);
 			goto error;
 
 		case HLUA_E_ETMOUT:
 			SEND_ERR(px, "Lua applet http '%s': execution timeout.\n",
-			         rule->arg.hlua_rule->fcn->name);
+				 rule->arg.hlua_rule->fcn->name);
 			goto error;
 
 		case HLUA_E_NOMEM:
 			SEND_ERR(px, "Lua applet http '%s': out of memory error.\n",
-			         rule->arg.hlua_rule->fcn->name);
+				 rule->arg.hlua_rule->fcn->name);
 			goto error;
 
 		case HLUA_E_YIELD: /* unexpected */
 			SEND_ERR(px, "Lua applet http '%s': yield not allowed.\n",
-			         rule->arg.hlua_rule->fcn->name);
+				 rule->arg.hlua_rule->fcn->name);
 			goto error;
 
 		case HLUA_E_ERR:
 			/* Display log. */
 			SEND_ERR(px, "Lua applet http '%s' return an unknown error.\n",
-			         rule->arg.hlua_rule->fcn->name);
+				 rule->arg.hlua_rule->fcn->name);
 			goto error;
 
 		default:
 			goto error;
-		}
 	}
 
 	if (http_ctx->flags & APPLET_DONE) {
 		if (http_ctx->flags & APPLET_RSP_SENT)
-			goto done;
+			goto out;
 
 		if (!(http_ctx->flags & APPLET_HDR_SENT))
 			goto error;
@@ -9713,26 +9704,19 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		}
 
 		res_htx->flags |= HTX_FL_EOM;
-		se_fl_set(ctx->sedesc, SE_FL_EOI);
+		se_fl_set(ctx->sedesc, SE_FL_EOI|SE_FL_EOS);
 		strm->txn->status = http_ctx->status;
 		http_ctx->flags |= APPLET_RSP_SENT;
 	}
 
-  done:
-	if (http_ctx->flags & APPLET_DONE) {
-		if (!(res->flags & CF_SHUTR))
-			sc_shutr(sc);
-
-		/* eat the whole request */
-		if (co_data(req)) {
-			req_htx = htx_from_buf(&req->buf);
-			co_htx_skip(req, req_htx, co_data(req));
-			htx_to_buf(req_htx, &req->buf);
-		}
-	}
-
   out:
 	htx_to_buf(res_htx, &res->buf);
+	/* eat the whole request */
+	if (co_data(req)) {
+		req_htx = htx_from_buf(&req->buf);
+		co_htx_skip(req, req_htx, co_data(req));
+		htx_to_buf(req_htx, &req->buf);
+	}
 	return;
 
   error:
@@ -9750,11 +9734,15 @@ void hlua_applet_http_fct(struct appctx *ctx)
                 memcpy(res->buf.area, b_head(err), b_data(err));
                 res_htx = htx_from_buf(&res->buf);
 		channel_add_input(res, res_htx->data);
+		se_fl_set(ctx->sedesc, SE_FL_EOI|SE_FL_EOS);
 	}
+	else
+		se_fl_set(ctx->sedesc, SE_FL_ERROR);
+
 	if (!(strm->flags & SF_ERR_MASK))
 		strm->flags |= SF_ERR_RESOURCE;
 	http_ctx->flags |= APPLET_DONE;
-	goto done;
+	goto out;
 }
 
 static void hlua_applet_http_release(struct appctx *ctx)
