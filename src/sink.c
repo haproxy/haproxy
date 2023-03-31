@@ -318,15 +318,11 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	size_t len, cnt, ofs, last_ofs;
 	int ret = 0;
 
+	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW))))
+		goto out;
+
 	/* if stopping was requested, close immediately */
 	if (unlikely(stopping))
-		goto close;
-
-	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
-		goto close;
-
-	/* con closed by server side */
-	if ((sc_oc(sc)->flags & CF_SHUTW))
 		goto close;
 
 	/* if the connection is not established, inform the stream that we want
@@ -336,7 +332,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 		applet_need_more_data(appctx);
 		se_need_remote_conn(appctx->sedesc);
 		applet_have_more_data(appctx);
-		return;
+		goto out;
 	}
 
 	HA_SPIN_LOCK(SFT_LOCK, &sft->lock);
@@ -427,13 +423,13 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	}
 	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 
+out:
 	/* always drain data from server */
 	co_skip(sc_oc(sc), sc_oc(sc)->output);
 	return;
 
 close:
-	sc_shutw(sc);
-	sc_shutr(sc);
+	se_fl_set(appctx->sedesc, SE_FL_EOS|SE_FL_EOI);
 }
 
 /*
@@ -454,16 +450,11 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	int ret = 0;
 	char *p;
 
+	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW))))
+		goto out;
+
 	/* if stopping was requested, close immediately */
 	if (unlikely(stopping))
-		goto close;
-
-	/* an error was detected */
-	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
-		goto close;
-
-	/* con closed by server side */
-	if ((sc_oc(sc)->flags & CF_SHUTW))
 		goto close;
 
 	/* if the connection is not established, inform the stream that we want
@@ -473,7 +464,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 		applet_need_more_data(appctx);
 		se_need_remote_conn(appctx->sedesc);
 		applet_have_more_data(appctx);
-		return;
+		goto out;
 	}
 
 	HA_SPIN_LOCK(SFT_LOCK, &sft->lock);
@@ -559,13 +550,14 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	}
 	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 
+  out:
 	/* always drain data from server */
 	co_skip(sc_oc(sc), sc_oc(sc)->output);
 	return;
 
 close:
-	sc_shutw(sc);
-	sc_shutr(sc);
+	se_fl_set(appctx->sedesc, SE_FL_EOS|SE_FL_EOI);
+	goto out;
 }
 
 void __sink_forward_session_deinit(struct sink_forward_target *sft)
