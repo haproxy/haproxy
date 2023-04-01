@@ -204,7 +204,7 @@ struct stconn;
  * <flags>  SE_FL_*
  *
  * <lra> should be updated when a read activity is detected. It can be a
- *       sucessful receive, when a shutr is reported or when receives are
+ *       successful receive, when a shutr is reported or when receives are
  *       unblocked.
 
  * <fsb> should be updated when the first send of a series is blocked and reset

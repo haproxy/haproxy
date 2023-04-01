@@ -354,7 +354,7 @@ static int smp_conv_req_capture(const struct arg *args, struct sample *smp, void
 	fe = strm_fe(smp->strm);
 	idx = args->data.sint;
 
-	/* Check the availibity of the capture id. */
+	/* Check the availability of the capture id. */
 	if (idx > fe->nb_req_cap - 1)
 		return 0;
 
@@ -399,7 +399,7 @@ static int smp_conv_res_capture(const struct arg *args, struct sample *smp, void
 	fe = strm_fe(smp->strm);
 	idx = args->data.sint;
 
-	/* Check the availibity of the capture id. */
+	/* Check the availability of the capture id. */
 	if (idx > fe->nb_rsp_cap - 1)
 		return 0;
 

@@ -165,7 +165,7 @@ spoe_encode_data(struct sample *smp, char **buf, char *end)
 			 * context. ctx.a[0] is the pointer to the length and ctx.a[1] is the
 			 * pointer to the offset. If the offset is greater than 0, it means the
 			 * sample is partially encoded. In this case, we only need to encode the
-			 * reamining. When all the sample is encoded, the offset is reset to 0.
+			 * remaining. When all the sample is encoded, the offset is reset to 0.
 			 * So the caller know it can try to encode the next sample. */
 			struct buffer *chk = &smp->data.u.str;
 			unsigned int *len  = smp->ctx.a[0];

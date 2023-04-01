@@ -3390,7 +3390,7 @@ tune.ssl.ocsp-update.mindelay <number>
 tune.stick-counters <number>
   Sets the number of stick-counters that may be tracked at the same time by a
   connection or a request via "track-sc*" actions in "tcp-request" or
-  "http-request" rules. The defaut value is set at build time by the macro
+  "http-request" rules. The default value is set at build time by the macro
   MAX_SESS_STK_CTR, and defaults to 3. With this setting it is possible to
   change the value and ignore the one passed at build time. Increasing this
   value may be needed when porting complex configurations to haproxy, but users
@@ -9175,7 +9175,7 @@ no option forwarded
                     those result will be used as 'for' parameter nodeport value
 
 
-  Since HAProxy works in reverse-proxy mode, servers are loosing some request
+  Since HAProxy works in reverse-proxy mode, servers are losing some request
   context (request origin: client ip address, protocol used...)
 
   A common way to address this limitation is to use the well known
@@ -9189,7 +9189,7 @@ no option forwarded
   forwarded header (RFC7239).
   More information here: https://www.rfc-editor.org/rfc/rfc7239.html
 
-  The use of this single header allow to convey multiple informations
+  The use of this single header allow to convey numerous details
   within the same header, and most importantly, fixes the proxy chaining
   issue. (the rfc allows for multiple chained proxies to append their own
   values to an already existing header).

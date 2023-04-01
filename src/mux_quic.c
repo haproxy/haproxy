@@ -58,7 +58,7 @@ static void qc_free_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
 
 /* Free <qcs> instance. This function is reserved for internal usage : it must
  * only be called on qcs alloc error or on connection shutdown. Else
- * qcs_destroy must be prefered to handle QUIC flow-control increase.
+ * qcs_destroy must be preferred to handle QUIC flow-control increase.
  */
 static void qcs_free(struct qcs *qcs)
 {

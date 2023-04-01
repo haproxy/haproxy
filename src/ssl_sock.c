@@ -3478,7 +3478,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, struct ckch_data *data, 
 	/* Load OCSP Info into context
 	 * If OCSP update mode is set to 'on', an entry will be created in the
 	 * ocsp tree even if no ocsp_response was known during init, unless the
-	 * frontend's conf disables ocsp update explicitely.
+	 * frontend's conf disables ocsp update explicitly.
 	 */
 	if (ssl_sock_load_ocsp(path, ctx, data, find_chain) < 0) {
 		if (data->ocsp_response)

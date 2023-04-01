@@ -501,7 +501,7 @@ struct appctx *sc_applet_create(struct stconn *sc, struct applet *app)
 	return appctx;
 }
 
-/* Conditionnaly forward the close to the wirte side. It return 1 if it can be
+/* Conditionally forward the close to the write side. It return 1 if it can be
  * forwarded. It is the caller responsibility to forward the close to the write
  * side. Otherwise, 0 is returned. In this case, CF_SHUTW_NOW flag may be set on
  * the channel if we are only waiting for the outgoing data to be flushed.

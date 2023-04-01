@@ -1452,7 +1452,7 @@ int parse_thread_set(const char *arg, struct thread_set *ts, char **err)
 		}
 		else {
 			if (sep != set && *sep && *sep != '-' && *sep != ',') {
-				// Only delimitors are permitted around digits.
+				// Only delimiters are permitted around digits.
 				memprintf(err, "invalid character '%c' in thread set specification: '%s'.", *sep, set);
 				return -1;
 			}

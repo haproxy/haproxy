@@ -166,7 +166,7 @@ static inline int http_7239_extract_ipv6(struct ist *input, struct in6_addr *ip)
 /* checks if <input> contains rfc7239 compliant host
  * <quoted> is used to determine if the current input is being extracted
  * from a quoted (non zero) or unquoted (zero) token, as the parsing rules
- * differ wheteher the input is quoted or not according to the rfc.
+ * differ whether the input is quoted or not according to the rfc.
  * Returns 1 for success and 0 for failure
  * if <host> is not NULL, it will be set to the extracted value contained
  * in <input>
@@ -213,7 +213,7 @@ static inline int http_7239_extract_host(struct ist *input, struct ist *host, in
 /* checks if <input> contains rfc7239 compliant nodename
  * <quoted> is used to determine if the current input is being extracted
  * from a quoted (non zero) or unquoted (zero) token, as the parsing rules
- * differ wheteher the input is quoted or not according to the rfc.
+ * differ whether the input is quoted or not according to the rfc.
  * Returns 1 for success and 0 for failure
  * if <nodename> is not NULL, it will be set to the extracted value contained
  * in <input>
@@ -279,7 +279,7 @@ static inline int http_7239_extract_nodename(struct ist *input, struct forwarded
 /* checks if <input> contains rfc7239 compliant nodeport
  * <quoted> is used to determine if the current input is being extracted
  * from a quoted (non zero) or unquoted (zero) token, as the parsing rules
- * differ wheteher the input is quoted or not according to the rfc.
+ * differ whether the input is quoted or not according to the rfc.
  * Returns 1 for success and 0 for failure
  * if <nodeport> is not NULL, it will be set to the extracted value contained
  * in <input>
@@ -317,7 +317,7 @@ static inline int http_7239_extract_nodeport(struct ist *input, struct forwarded
 /* checks if <input> contains rfc7239 compliant node (nodename:nodeport token)
  * <quoted> is used to determine if the current input is being extracted
  * from a quoted (non zero) or unquoted (zero) token, as the parsing rules
- * differ wheteher the input is quoted or not according to the rfc.
+ * differ whether the input is quoted or not according to the rfc.
  * Returns 1 for success and 0 for failure
  * if <node> is not NULL, it will be set to the extracted value contained
  * in <input>
@@ -651,7 +651,7 @@ static inline void http_build_7239_header_host(struct buffer *out,
 		{
 			struct ist validate = ist2(str, str_len);
 			/* host check, to ensure rfc compliant output
-			 * (assumming host is quoted/escaped)
+			 * (assuming host is quoted/escaped)
 			 */
 			if (http_7239_extract_host(&validate, NULL, 1) && !istlen(validate))
 				chunk_memcat(out, str, str_len);
@@ -689,7 +689,7 @@ static int http_build_7239_header(struct buffer *out,
 			((conn_is_ssl(cli_conn)) ? "https" : "http"));
 	}
 	if (curproxy->http_ext->fwd->p_host.mode) {
-		/* always add quotes for host parameter to make output compliancy checks simpler */
+		/* always add quotes for host parameter to make output compliance checks simpler */
 		chunk_appendf(out, "%shost=\"", ((out->data) ? ";" : ""));
 		/* ignore return value for now, but could be useful some day */
 		http_build_7239_header_host(out, s, curproxy, htx, &curproxy->http_ext->fwd->p_host);
@@ -1676,7 +1676,7 @@ void http_ext_softclean(struct proxy *curproxy)
 	}
 }
 
-/* Perform some consitency checks on px.http_ext after parsing
+/* Perform some consistency checks on px.http_ext after parsing
  * is completed.
  * We make sure to perform a softclean in case some options were
  * to be disabled in this check. This way we can release some memory.

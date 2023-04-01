@@ -845,7 +845,7 @@ static int h2_avail_streams(struct connection *conn)
 	return ret1;
 }
 
-/* inconditionally produce a trace of the header. Please do not call this one
+/* Unconditionally produce a trace of the header. Please do not call this one
  * and use h2_trace_header() instead which first checks if traces are enabled.
  */
 void _h2_trace_header(const struct ist hn, const struct ist hv,

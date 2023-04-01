@@ -30,7 +30,7 @@
 #include <haproxy/http-t.h>
 #include <haproxy/htx-t.h>
 
-/* ->extra field value when the payload lenght is unknown (non-chunked message
+/* ->extra field value when the payload length is unknown (non-chunked message
  * with no "Content-length" header)
  */
 #define HTX_UNKOWN_PAYLOAD_LENGTH ULLONG_MAX

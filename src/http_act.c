@@ -1379,7 +1379,7 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 		s->txn->status = 103;
 	}
 
-	/* Add the HTTP Early Hint HTTP 103 response heade */
+	/* Add the HTTP Early Hint HTTP 103 response header */
 	value->data = build_logline(s, b_tail(value), b_room(value), &rule->arg.http.fmt);
 	if (!htx_add_header(htx, rule->arg.http.str, ist2(b_head(value), b_data(value))))
 		goto error;

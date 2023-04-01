@@ -57,7 +57,7 @@
 
 /* Flags set on the SPOE applet */
 #define SPOE_APPCTX_FL_PIPELINING    0x00000001 /* Set if pipelining is supported */
-#define SPOE_APPCTX_FL_ASYNC         0x00000002 /* Set if asynchronus frames is supported */
+#define SPOE_APPCTX_FL_ASYNC         0x00000002 /* Set if asynchronous frames is supported */
 #define SPOE_APPCTX_FL_FRAGMENTATION 0x00000004 /* Set if fragmentation is supported */
 
 #define SPOE_APPCTX_ERR_NONE    0x00000000 /* no error yet, leave it to zero */

@@ -2319,7 +2319,7 @@ int ssl_sock_get_alpn(const struct connection *conn, void *xprt_ctx,
  * MUST be called after having received the remote transport parameters which
  * are parsed when the TLS callback for the ClientHello message is called upon
  * SSL_do_handshake() calls, not necessarily at the first time as this TLS
- * message may be splitted between packets
+ * message may be split between packets
  * Return 1 if succeeded, 0 if not.
  */
 static int qc_conn_finalize(struct quic_conn *qc, int server)
@@ -2781,7 +2781,7 @@ static void qc_cc_err_count_inc(struct quic_conn *qc, struct quic_frame *frm)
  * TODO this function is closely related to H3. Its place should be in H3 layer
  * instead of quic-conn but this requires an architecture adjustment.
  *
- * Returns 1 on sucess else 0.
+ * Returns 1 on success else 0.
  */
 static int qc_h3_request_reject(struct quic_conn *qc, uint64_t id)
 {

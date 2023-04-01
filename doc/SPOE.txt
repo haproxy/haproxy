@@ -230,7 +230,7 @@ max-frame-size <number>
 
 max-waiting-frames <number>
   Set the maximum number of frames waiting for an acknowledgement on the same
-  connection. This value is only used when the pipelinied or asynchronus
+  connection. This value is only used when the pipelinied or asynchronous
   exchanges between HAProxy and SPOA are enabled. By default, it is set to 20.
 
 messages <msg-name> ...
@@ -248,7 +248,7 @@ messages <msg-name> ...
 
 option async
 no option async
-  Enable or disable the support of asynchronus exchanges between HAProxy and
+  Enable or disable the support of asynchronous exchanges between HAProxy and
   SPOA. By default, this option is enabled.
 
 
