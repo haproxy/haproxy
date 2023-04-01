@@ -140,6 +140,10 @@ jobs:
         # the '-n' soft limit to the hard limit, thus failing to run.
         ulimit -n 65536
         make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
+    - name: Config syntax check memleak smoke testing
+      if: ${{ contains(matrix.name, 'ASAN') }}
+      run: |
+        ./haproxy -f .github/h2spec.config -c
     - name: Show VTest results
       if: ${{ failure() && steps.vtest.outcome == 'failure' }}
       run: |
