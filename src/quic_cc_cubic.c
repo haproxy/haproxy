@@ -23,6 +23,7 @@
 
 /* K cube factor: (1 - beta) / c */
 struct cubic {
+	uint32_t state;
 	uint32_t ssthresh;
 	uint32_t remaining_inc;
 	uint32_t remaining_tcp_inc;
@@ -39,8 +40,7 @@ static void quic_cc_cubic_reset(struct quic_cc *cc)
 	struct cubic *c = quic_cc_priv(cc);
 
 	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc);
-	cc->algo->state = QUIC_CC_ST_SS;
-
+	c->state = QUIC_CC_ST_SS;
 	c->ssthresh = QUIC_CC_INFINITE_SSTHESH;
 	c->remaining_inc = 0;
 	c->remaining_tcp_inc = 0;
@@ -198,7 +198,7 @@ static void quic_enter_recovery(struct quic_cc *cc)
 	}
 	path->cwnd = (CUBIC_BETA * path->cwnd) >> CUBIC_BETA_SCALE_SHIFT;
 	c->ssthresh =  QUIC_MAX(path->cwnd, path->min_cwnd);
-	cc->algo->state = QUIC_CC_ST_RP;
+	c->state = QUIC_CC_ST_RP;
 	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc, NULL, cc);
 }
 
@@ -216,7 +216,7 @@ static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 			path->cwnd += ev->ack.acked;
 		/* Exit to congestion avoidance if slow start threshold is reached. */
 		if (path->cwnd >= c->ssthresh)
-			cc->algo->state = QUIC_CC_ST_CA;
+			c->state = QUIC_CC_ST_CA;
 		break;
 
 	case QUIC_CC_EVT_LOSS:
@@ -276,7 +276,7 @@ static void quic_cc_cubic_rp_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 			goto leave;
 		}
 
-		cc->algo->state = QUIC_CC_ST_CA;
+		c->state = QUIC_CC_ST_CA;
 		c->recovery_start_time = TICK_ETERNITY;
 		break;
 	case QUIC_CC_EVT_LOSS:
@@ -300,7 +300,9 @@ static void (*quic_cc_cubic_state_cbs[])(struct quic_cc *cc,
 
 static void quic_cc_cubic_event(struct quic_cc *cc, struct quic_cc_event *ev)
 {
-	return quic_cc_cubic_state_cbs[cc->algo->state](cc, ev);
+	struct cubic *c = quic_cc_priv(cc);
+
+	return quic_cc_cubic_state_cbs[c->state](cc, ev);
 }
 
 static void quic_cc_cubic_state_trace(struct buffer *buf, const struct quic_cc *cc)
@@ -310,7 +312,7 @@ static void quic_cc_cubic_state_trace(struct buffer *buf, const struct quic_cc *
 
 	path = container_of(cc, struct quic_path, cc);
 	chunk_appendf(buf, " state=%s cwnd=%llu ssthresh=%d rpst=%dms",
-	              quic_cc_state_str(cc->algo->state),
+	              quic_cc_state_str(c->state),
 	              (unsigned long long)path->cwnd,
 	              (int)c->ssthresh,
 	              !tick_isset(c->recovery_start_time) ? -1 :

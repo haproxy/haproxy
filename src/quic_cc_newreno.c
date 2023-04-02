@@ -31,6 +31,7 @@
 
 /* Newreno state */
 struct nr {
+	uint32_t state;
 	uint32_t ssthresh;
 	uint32_t recovery_start_time;
 	uint32_t remain_acked;
@@ -40,7 +41,7 @@ static int quic_cc_nr_init(struct quic_cc *cc)
 {
 	struct nr *nr = quic_cc_priv(cc);
 
-	cc->algo->state = QUIC_CC_ST_SS;
+	nr->state = QUIC_CC_ST_SS;
 	nr->ssthresh = QUIC_CC_INFINITE_SSTHESH;
 	nr->recovery_start_time = 0;
 	nr->remain_acked = 0;
@@ -57,7 +58,7 @@ static void quic_cc_nr_slow_start(struct quic_cc *cc)
 	path = container_of(cc, struct quic_path, cc);
 	path->cwnd = path->min_cwnd;
 	/* Re-entering slow start state. */
-	cc->algo->state = QUIC_CC_ST_SS;
+	nr->state = QUIC_CC_ST_SS;
 	/* Recovery start time reset */
 	nr->recovery_start_time = 0;
 }
@@ -71,7 +72,7 @@ static void quic_cc_nr_enter_recovery(struct quic_cc *cc)
 	path = container_of(cc, struct quic_path, cc);
 	nr->recovery_start_time = now_ms;
 	nr->ssthresh = QUIC_MAX(path->cwnd >> 1, path->min_cwnd);
-	cc->algo->state = QUIC_CC_ST_RP;
+	nr->state = QUIC_CC_ST_RP;
 }
 
 /* Slow start callback. */
@@ -88,7 +89,7 @@ static void quic_cc_nr_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		path->cwnd += ev->ack.acked;
 		/* Exit to congestion avoidance if slow start threshold is reached. */
 		if (path->cwnd > nr->ssthresh)
-			cc->algo->state = QUIC_CC_ST_CA;
+			nr->state = QUIC_CC_ST_CA;
 		break;
 
 	case QUIC_CC_EVT_LOSS:
@@ -161,7 +162,7 @@ static void quic_cc_nr_rp_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 			goto leave;
 		}
 
-		cc->algo->state = QUIC_CC_ST_CA;
+		nr->state = QUIC_CC_ST_CA;
 		nr->recovery_start_time = TICK_ETERNITY;
 		path->cwnd = nr->ssthresh;
 		break;
@@ -184,7 +185,7 @@ static void quic_cc_nr_state_trace(struct buffer *buf, const struct quic_cc *cc)
 
 	path = container_of(cc, struct quic_path, cc);
 	chunk_appendf(buf, " state=%s cwnd=%llu ssthresh=%ld recovery_start_time=%llu",
-	              quic_cc_state_str(cc->algo->state),
+	              quic_cc_state_str(nr->state),
 	              (unsigned long long)path->cwnd,
 	              (long)nr->ssthresh,
 	              (unsigned long long)nr->recovery_start_time);
@@ -199,7 +200,9 @@ static void (*quic_cc_nr_state_cbs[])(struct quic_cc *cc,
 
 static void quic_cc_nr_event(struct quic_cc *cc, struct quic_cc_event *ev)
 {
-	return quic_cc_nr_state_cbs[cc->algo->state](cc, ev);
+	struct nr *nr = quic_cc_priv(cc);
+
+	return quic_cc_nr_state_cbs[nr->state](cc, ev);
 }
 
 struct quic_cc_algo quic_cc_algo_nr = {

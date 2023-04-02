@@ -66,7 +66,7 @@ static void (*quic_cc_nocc_state_cbs[])(struct quic_cc *cc,
 
 static void quic_cc_nocc_event(struct quic_cc *cc, struct quic_cc_event *ev)
 {
-	return quic_cc_nocc_state_cbs[cc->algo->state](cc, ev);
+	return quic_cc_nocc_state_cbs[QUIC_CC_ST_SS](cc, ev);
 }
 
 struct quic_cc_algo quic_cc_algo_nocc = {
