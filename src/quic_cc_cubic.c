@@ -203,7 +203,8 @@ static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	TRACE_PROTO("CC cubic", QUIC_EV_CONN_CC, cc->qc, ev);
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
-		path->cwnd += ev->ack.acked;
+		if (path->cwnd < QUIC_CC_INFINITE_SSTHESH - ev->ack.acked)
+			path->cwnd += ev->ack.acked;
 		/* Exit to congestion avoidance if slow start threshold is reached. */
 		if (path->cwnd >= c->ssthresh)
 			cc->algo->state = QUIC_CC_ST_CA;
