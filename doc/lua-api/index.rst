@@ -1174,6 +1174,22 @@ Server class
    server.
   :returns: a boolean
 
+.. js:function:: Server.get_cur_sess(sv)
+
+  Return the number of currently active sessions on the server
+
+  :param class_server sv: A :ref:`server_class` which indicates the manipulated
+   server.
+  :returns: an integer
+
+.. js:function:: Server.get_pend_conn(sv)
+
+  Return the number of pending connections to the server
+
+  :param class_server sv: A :ref:`server_class` which indicates the manipulated
+   server.
+  :returns: an integer
+
 .. js:function:: Server.set_maxconn(sv, weight)
 
   Dynamically change the maximum connections of the server. See the management
