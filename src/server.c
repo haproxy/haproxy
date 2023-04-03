@@ -104,6 +104,23 @@ struct dict server_key_dict = {
 	.values = EB_ROOT_UNIQUE,
 };
 
+static const char *srv_adm_st_chg_cause_str[] = {
+	[SRV_ADM_STCHGC_NONE] = "",
+	[SRV_ADM_STCHGC_DNS_NOENT] = "entry removed from SRV record",
+	[SRV_ADM_STCHGC_DNS_NOIP] = "No IP for server ",
+	[SRV_ADM_STCHGC_DNS_NX] = "DNS NX status",
+	[SRV_ADM_STCHGC_DNS_TIMEOUT] = "DNS timeout status",
+	[SRV_ADM_STCHGC_DNS_REFUSED] = "DNS refused status",
+	[SRV_ADM_STCHGC_DNS_UNSPEC] = "unspecified DNS error",
+	[SRV_ADM_STCHGC_STATS_DISABLE] = "'disable' on stats page",
+	[SRV_ADM_STCHGC_STATS_STOP] = "'stop' on stats page"
+};
+
+const char *srv_adm_st_chg_cause(enum srv_adm_st_chg_cause cause)
+{
+	return srv_adm_st_chg_cause_str[cause];
+}
+
 int srv_downtime(const struct server *s)
 {
 	if ((s->cur_state != SRV_ST_STOPPED) || s->last_change >= now.tv_sec)		// ignore negative time
@@ -1702,7 +1719,7 @@ void srv_set_stopping(struct server *s, const char *reason, struct check *check)
  *
  * Must be called with the server lock held.
  */
-void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause)
+void srv_set_admin_flag(struct server *s, enum srv_admin mode, enum srv_adm_st_chg_cause cause)
 {
 	struct server *srv;
 
@@ -1714,8 +1731,7 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause
 		return;
 
 	s->next_admin |= mode;
-	if (cause)
-		strlcpy2(s->adm_st_chg_cause, cause, sizeof(s->adm_st_chg_cause));
+	s->adm_st_chg_cause = cause;
 
 	/* propagate changes */
 	srv_update_status(s);
@@ -1792,10 +1808,10 @@ static void srv_propagate_admin_state(struct server *srv)
 	for (srv2 = srv->trackers; srv2; srv2 = srv2->tracknext) {
 		HA_SPIN_LOCK(SERVER_LOCK, &srv2->lock);
 		if (srv->next_admin & (SRV_ADMF_MAINT | SRV_ADMF_CMAINT))
-			srv_set_admin_flag(srv2, SRV_ADMF_IMAINT, NULL);
+			srv_set_admin_flag(srv2, SRV_ADMF_IMAINT, SRV_ADM_STCHGC_NONE);
 
 		if (srv->next_admin & SRV_ADMF_DRAIN)
-			srv_set_admin_flag(srv2, SRV_ADMF_IDRAIN, NULL);
+			srv_set_admin_flag(srv2, SRV_ADMF_IDRAIN, SRV_ADM_STCHGC_NONE);
 		HA_SPIN_UNLOCK(SERVER_LOCK, &srv2->lock);
 	}
 }
@@ -3510,7 +3526,7 @@ int srvrq_update_srv_status(struct server *s, int has_no_ip)
 	if (s->next_admin & SRV_ADMF_RMAINT)
 		return 1;
 
-	srv_set_admin_flag(s, SRV_ADMF_RMAINT, "entry removed from SRV record");
+	srv_set_admin_flag(s, SRV_ADMF_RMAINT, SRV_ADM_STCHGC_DNS_NOENT);
 	return 0;
 }
 
@@ -3546,8 +3562,7 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 			if (has_no_ip) {
 				if (s->next_admin & SRV_ADMF_RMAINT)
 					return 1;
-				srv_set_admin_flag(s, SRV_ADMF_RMAINT,
-				    "No IP for server ");
+				srv_set_admin_flag(s, SRV_ADMF_RMAINT, SRV_ADM_STCHGC_DNS_NOIP);
 				return 0;
 			}
 
@@ -3569,7 +3584,7 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 
 			if (s->next_admin & SRV_ADMF_RMAINT)
 				return 1;
-			srv_set_admin_flag(s, SRV_ADMF_RMAINT, "DNS NX status");
+			srv_set_admin_flag(s, SRV_ADMF_RMAINT, SRV_ADM_STCHGC_DNS_NX);
 			return 0;
 
 		case RSLV_STATUS_TIMEOUT:
@@ -3580,7 +3595,7 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 
 			if (s->next_admin & SRV_ADMF_RMAINT)
 				return 1;
-			srv_set_admin_flag(s, SRV_ADMF_RMAINT, "DNS timeout status");
+			srv_set_admin_flag(s, SRV_ADMF_RMAINT, SRV_ADM_STCHGC_DNS_TIMEOUT);
 			return 0;
 
 		case RSLV_STATUS_REFUSED:
@@ -3591,7 +3606,7 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 
 			if (s->next_admin & SRV_ADMF_RMAINT)
 				return 1;
-			srv_set_admin_flag(s, SRV_ADMF_RMAINT, "DNS refused status");
+			srv_set_admin_flag(s, SRV_ADMF_RMAINT, SRV_ADM_STCHGC_DNS_REFUSED);
 			return 0;
 
 		default:
@@ -3602,7 +3617,7 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 
 			if (s->next_admin & SRV_ADMF_RMAINT)
 				return 1;
-			srv_set_admin_flag(s, SRV_ADMF_RMAINT, "unspecified DNS error");
+			srv_set_admin_flag(s, SRV_ADMF_RMAINT, SRV_ADM_STCHGC_DNS_UNSPEC);
 			return 0;
 	}
 
@@ -4021,7 +4036,7 @@ static int srv_iterate_initaddr(struct server *srv)
 			break;
 
 		case SRV_IADDR_NONE:
-			srv_set_admin_flag(srv, SRV_ADMF_RMAINT, NULL);
+			srv_set_admin_flag(srv, SRV_ADMF_RMAINT, SRV_ADM_STCHGC_NONE);
 			if (return_code) {
 				ha_warning("could not resolve address '%s', disabling server.\n",
 					   name);
@@ -5447,7 +5462,9 @@ static void srv_update_status(struct server *s)
 				chunk_printf(tmptrash,
 				    "%sServer %s/%s was DOWN and now enters maintenance%s%s%s",
 				    s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id,
-				    *(s->adm_st_chg_cause) ? " (" : "", s->adm_st_chg_cause, *(s->adm_st_chg_cause) ? ")" : "");
+				    (s->adm_st_chg_cause) ? " (" : "",
+				    srv_adm_st_chg_cause(s->adm_st_chg_cause),
+				    (s->adm_st_chg_cause) ? ")" : "");
 
 				srv_append_status(tmptrash, s, NULL, -1, (s->next_admin & SRV_ADMF_FMAINT));
 
@@ -5486,7 +5503,9 @@ static void srv_update_status(struct server *s)
 				             "%sServer %s/%s is going DOWN for maintenance%s%s%s",
 				             s->flags & SRV_F_BACKUP ? "Backup " : "",
 				             s->proxy->id, s->id,
-				             *(s->adm_st_chg_cause) ? " (" : "", s->adm_st_chg_cause, *(s->adm_st_chg_cause) ? ")" : "");
+				             (s->adm_st_chg_cause) ? " (" : "",
+				             srv_adm_st_chg_cause(s->adm_st_chg_cause),
+				             (s->adm_st_chg_cause) ? ")" : "");
 
 				srv_append_status(tmptrash, s, NULL, xferred, (s->next_admin & SRV_ADMF_FMAINT));
 
@@ -5669,7 +5688,9 @@ static void srv_update_status(struct server *s)
 			if (tmptrash) {
 				chunk_printf(tmptrash, "%sServer %s/%s enters drain state%s%s%s",
 					     s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id,
-				             *(s->adm_st_chg_cause) ? " (" : "", s->adm_st_chg_cause, *(s->adm_st_chg_cause) ? ")" : "");
+				             (s->adm_st_chg_cause) ? " (" : "",
+				             srv_adm_st_chg_cause(s->adm_st_chg_cause),
+				             (s->adm_st_chg_cause) ? ")" : "");
 
 				srv_append_status(tmptrash, s, NULL, xferred, (s->next_admin & SRV_ADMF_FDRAIN));
 
@@ -5748,8 +5769,8 @@ static void srv_update_status(struct server *s)
 		}
 	}
 
-	/* Re-set log strings to empty */
-	*s->adm_st_chg_cause = 0;
+	/* Re-set adm st change to none */
+	s->adm_st_chg_cause = SRV_ADM_STCHGC_NONE;
 
 	/* explicitly commit state changes (even if it was already applied implicitly
 	 * by some lb state change function), so we don't miss anything

@@ -64,6 +64,7 @@ void srv_take(struct server *srv);
 struct server *srv_drop(struct server *srv);
 int srv_init_per_thr(struct server *srv);
 void srv_set_ssl(struct server *s, int use_ssl);
+const char *srv_adm_st_chg_cause(enum srv_adm_st_chg_cause cause);
 
 /* functions related to server name resolution */
 int srv_prepare_for_resolution(struct server *srv, const char *hostname);
@@ -152,7 +153,7 @@ void srv_set_stopping(struct server *s, const char *reason, struct check *check)
  * is done. If <cause> is non-null, it will be displayed at the end of the log
  * lines to justify the state change.
  */
-void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause);
+void srv_set_admin_flag(struct server *s, enum srv_admin mode, enum srv_adm_st_chg_cause cause);
 
 /* Disables admin flag <mode> (among SRV_ADMF_*) on server <s>. This is used to
  * stop enforcing either maint mode or drain mode. It is not allowed to set more
@@ -212,7 +213,7 @@ static inline int server_is_draining(const struct server *s)
  */
 static inline void srv_adm_set_maint(struct server *s)
 {
-	srv_set_admin_flag(s, SRV_ADMF_FMAINT, NULL);
+	srv_set_admin_flag(s, SRV_ADMF_FMAINT, SRV_ADM_STCHGC_NONE);
 	srv_clr_admin_flag(s, SRV_ADMF_FDRAIN);
 }
 
@@ -221,7 +222,7 @@ static inline void srv_adm_set_maint(struct server *s)
  */
 static inline void srv_adm_set_drain(struct server *s)
 {
-	srv_set_admin_flag(s, SRV_ADMF_FDRAIN, NULL);
+	srv_set_admin_flag(s, SRV_ADMF_FDRAIN, SRV_ADM_STCHGC_NONE);
 	srv_clr_admin_flag(s, SRV_ADMF_FMAINT);
 }
 

@@ -4170,7 +4170,7 @@ static int stats_process_http_post(struct stconn *sc)
 						if (!(sv->cur_admin & SRV_ADMF_FMAINT)) {
 							altered_servers++;
 							total_servers++;
-							srv_set_admin_flag(sv, SRV_ADMF_FMAINT, "'disable' on stats page");
+							srv_set_admin_flag(sv, SRV_ADMF_FMAINT, SRV_ADM_STCHGC_STATS_DISABLE);
 						}
 						break;
 					case ST_ADM_ACTION_ENABLE:
@@ -4182,7 +4182,7 @@ static int stats_process_http_post(struct stconn *sc)
 						break;
 					case ST_ADM_ACTION_STOP:
 						if (!(sv->cur_admin & SRV_ADMF_FDRAIN)) {
-							srv_set_admin_flag(sv, SRV_ADMF_FDRAIN, "'stop' on stats page");
+							srv_set_admin_flag(sv, SRV_ADMF_FDRAIN, SRV_ADM_STCHGC_STATS_STOP);
 							altered_servers++;
 							total_servers++;
 						}

@@ -189,6 +189,19 @@ enum srv_log_proto {
         SRV_LOG_PROTO_OCTET_COUNTING, // TCP frames: MSGLEN SP MSG
 };
 
+/* srv administrative change causes */
+enum srv_adm_st_chg_cause {
+	SRV_ADM_STCHGC_NONE = 0,
+	SRV_ADM_STCHGC_DNS_NOENT,     /* entry removed from srv record */
+	SRV_ADM_STCHGC_DNS_NOIP,      /* no server ip in the srv record */
+	SRV_ADM_STCHGC_DNS_NX,        /* resolution spent too much time in NX state */
+	SRV_ADM_STCHGC_DNS_TIMEOUT,   /* resolution timeout */
+	SRV_ADM_STCHGC_DNS_REFUSED,   /* query refused by dns server */
+	SRV_ADM_STCHGC_DNS_UNSPEC,    /* unspecified dns error */
+	SRV_ADM_STCHGC_STATS_DISABLE, /* legacy disable from the stats */
+	SRV_ADM_STCHGC_STATS_STOP     /* legacy stop from the stats */
+};
+
 struct pid_list {
 	struct list list;
 	pid_t pid;
@@ -403,8 +416,8 @@ struct server {
 		long duration;
 		short status, code;
 		char reason[128];
-	} op_st_chg;				/* operational status change's reason */
-	char adm_st_chg_cause[48];		/* administrative status change's cause */
+	} op_st_chg;					/* operational status change's reason */
+	enum srv_adm_st_chg_cause adm_st_chg_cause;	/* administrative status change's cause */
 
 	event_hdl_sub_list e_subs;		/* event_hdl: server's subscribers list (atomically updated) */
 
