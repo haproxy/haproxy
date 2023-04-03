@@ -462,6 +462,45 @@ int fd_set_cloexec(int fd)
 	return DISGUISE(ret);
 }
 
+/* Migrate a FD to a new thread <new_tid>. It is explicitly permitted to
+ * migrate to another thread group, the function takes the necessary locking
+ * for this. It is even permitted to migrate from a foreign group to another,
+ * but the calling thread must be certain that the FD is not about to close
+ * when doing so, reason why it is highly recommended that only one of the
+ * FD's owners performs this operation. The polling is completely disabled.
+ * The operation never fails.
+ */
+void fd_migrate_on(int fd, uint new_tid)
+{
+	struct thread_info *new_ti = &ha_thread_info[new_tid];
+
+	/* we must be alone to work on this idle FD. If not, it means that its
+	 * poller is currently waking up and is about to use it, likely to
+	 * close it on shut/error, but maybe also to process any unexpectedly
+	 * pending data. It's also possible that the FD was closed and
+	 * reassigned to another thread group, so let's be careful.
+	 */
+	fd_lock_tgid(fd, new_ti->tgid);
+
+	/* now we have exclusive access to it. From now FD belongs to tid_bit
+	 * for this tgid.
+	 */
+	HA_ATOMIC_STORE(&fdtab[fd].thread_mask, new_ti->ltid_bit);
+
+	/* Make sure the FD doesn't have the active bit. It is possible that
+	 * the fd is polled by the thread that used to own it, the new thread
+	 * is supposed to call subscribe() later, to activate polling.
+	 */
+	fd_stop_both(fd);
+
+	/* we're done with it. As soon as we unlock it, other threads from the
+	 * target group can manipulate it. However it may only disappear once
+	 * we drop the reference.
+	 */
+	fd_unlock_tgid(fd);
+	fd_drop_tgid(fd);
+}
+
 /*
  * Take over a FD belonging to another thread.
  * unexpected_conn is the expected owner of the fd.

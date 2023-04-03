@@ -67,6 +67,9 @@ int fd_set_nonblock(int fd);
 /* makes the fd close-on-exec; returns -1 on failure. */
 int fd_set_cloexec(int fd);
 
+/* Migrate a FD to a new thread <new_tid>. */
+void fd_migrate_on(int fd, uint new_tid);
+
 /*
  * Take over a FD belonging to another thread.
  * Returns 0 on success, and -1 on failure.
