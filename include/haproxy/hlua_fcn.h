@@ -34,6 +34,7 @@ void *hlua_checkudata(lua_State *L, int ud, int class_ref);
 int hlua_register_metatable(struct lua_State *L, char *name);
 void hlua_fcn_reg_core_fcn(lua_State *L);
 int hlua_dump_object(lua_State *L);
+int hlua_fcn_new_proxy(lua_State *L, struct proxy *px);
 int hlua_fcn_new_server(lua_State *L, struct server *srv);
 int hlua_fcn_new_event_sub(lua_State *L, struct event_hdl_sub *sub);
 

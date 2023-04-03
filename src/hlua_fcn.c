@@ -941,6 +941,25 @@ int hlua_server_get_stats(lua_State *L)
 
 }
 
+int hlua_server_get_proxy(lua_State *L)
+{
+	struct server *srv;
+
+	srv = hlua_check_server(L, 1);
+	if (srv == NULL) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	if (!srv->proxy) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	hlua_fcn_new_proxy(L, srv->proxy);
+	return 1;
+}
+
 int hlua_server_get_addr(lua_State *L)
 {
 	struct server *srv;
@@ -1503,6 +1522,7 @@ int hlua_fcn_new_server(lua_State *L, struct server *srv)
 	hlua_class_function(L, "set_addr", hlua_server_set_addr);
 	hlua_class_function(L, "get_addr", hlua_server_get_addr);
 	hlua_class_function(L, "get_stats", hlua_server_get_stats);
+	hlua_class_function(L, "get_proxy", hlua_server_get_proxy);
 	hlua_class_function(L, "shut_sess", hlua_server_shut_sess);
 	hlua_class_function(L, "set_drain", hlua_server_set_drain);
 	hlua_class_function(L, "set_maint", hlua_server_set_maint);

@@ -1233,6 +1233,14 @@ Server class
    server.
   :returns: a key/value table containing stats
 
+.. js:function:: Server.get_proxy(sv)
+
+  Returns the parent proxy to which the server belongs.
+
+  :param class_server sv: A :ref:`server_class` which indicates the manipulated
+   server.
+  :returns: a :ref:`proxy_class` or nil if not available
+
 .. js:function:: Server.shut_sess(sv)
 
   Shutdown all the sessions attached to the server. See the management socket
