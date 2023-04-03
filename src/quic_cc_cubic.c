@@ -263,8 +263,6 @@ static void quic_cc_cubic_rp_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc, ev);
 	TRACE_PROTO("CC cubic", QUIC_EV_CONN_CC, cc->qc, ev, cc);
 
-	BUG_ON(!tick_isset(c->recovery_start_time));
-
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
 		/* RFC 9022 7.3.2. Recovery

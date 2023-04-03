@@ -146,8 +146,6 @@ static void quic_cc_nr_rp_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	struct quic_path *path;
 	struct nr *nr = quic_cc_priv(cc);
 
-	BUG_ON(!tick_isset(nr->recovery_start_time));
-
 	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc);
 	TRACE_PROTO("CC reno", QUIC_EV_CONN_CC, cc->qc, ev);
 	path = container_of(cc, struct quic_path, cc);
