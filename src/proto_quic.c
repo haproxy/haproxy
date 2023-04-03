@@ -734,7 +734,6 @@ static int quic_alloc_dghdlrs(void)
 		dghdlr->task->context = dghdlr;
 		dghdlr->task->process = quic_lstnr_dghdlr;
 
-		dghdlr->odcids = EB_ROOT_UNIQUE;
 		dghdlr->cids = EB_ROOT_UNIQUE;
 
 		MT_LIST_INIT(&dghdlr->dgrams);

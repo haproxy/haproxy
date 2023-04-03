@@ -5638,7 +5638,6 @@ void quic_conn_release(struct quic_conn *qc)
 		tasklet_free(qc->wait_event.tasklet);
 
 	/* remove the connection from receiver cids trees */
-	ebmb_delete(&qc->odcid_node);
 	ebmb_delete(&qc->scid_node);
 	free_quic_conn_cids(qc);
 
@@ -6463,9 +6462,9 @@ static int send_retry(int fd, struct sockaddr_storage *addr,
 	return !ret;
 }
 
-/* Retrieve a quic_conn instance from the <pkt> DCID field. If the packet is of
- * type INITIAL, the ODCID tree is first used. In this case, <saddr> is
- * concatenated to the <pkt> DCID field.
+/* Retrieve a quic_conn instance from the <pkt> DCID field. If the packet is an
+ * INITIAL or 0RTT type, we may have to use client address <saddr> if an ODCID
+ * is used.
  *
  * Returns the instance or NULL if not found.
  */
@@ -6480,38 +6479,24 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 
 	TRACE_ENTER(QUIC_EV_CONN_RXPKT);
 
-	/* Look first into ODCIDs tree for INITIAL/0-RTT packets. */
-	if (pkt->type == QUIC_PACKET_TYPE_INITIAL ||
-	    pkt->type == QUIC_PACKET_TYPE_0RTT) {
-		/* DCIDs of first packets coming from multiple clients may have
-		 * the same values. Let's distinguish them by concatenating the
-		 * socket addresses.
-		 */
-		quic_cid_saddr_cat(&pkt->dcid, saddr);
-		node = ebmb_lookup(&quic_dghdlrs[tid].odcids, pkt->dcid.data,
-		                   pkt->dcid.len + pkt->dcid.addrlen);
-		if (node) {
-			qc = ebmb_entry(node, struct quic_conn, odcid_node);
-			goto end;
-		}
+	/* First look into DCID tree. */
+	node = ebmb_lookup(&quic_dghdlrs[tid].cids, pkt->dcid.data, pkt->dcid.len);
+
+	/* If not found on an Initial/0-RTT packet, it could be because an
+	 * ODCID is reused by the client. Calculate the derived CID value to
+	 * retrieve it from the DCID tree.
+	 */
+	if (!node && (pkt->type == QUIC_PACKET_TYPE_INITIAL ||
+	     pkt->type == QUIC_PACKET_TYPE_0RTT)) {
+		uint64_t hash = quic_derive_cid(&pkt->dcid, saddr);
+		node = ebmb_lookup(&quic_dghdlrs[tid].cids, &hash, sizeof(hash));
 	}
 
-	/* Look into DCIDs tree for non-INITIAL/0-RTT packets. This may be used
-	 * also for INITIAL/0-RTT non-first packets with the final DCID in
-	 * used.
-	 */
-	node = ebmb_lookup(&quic_dghdlrs[tid].cids, pkt->dcid.data, pkt->dcid.len);
 	if (!node)
 		goto end;
 
 	id = ebmb_entry(node, struct quic_connection_id, node);
 	qc = id->qc;
-
-	/* If found in DCIDs tree, remove the quic_conn from the ODCIDs tree.
-	 * If already done, this is a noop.
-	 */
-	if (qc)
-		ebmb_delete(&qc->odcid_node);
 
  end:
 	TRACE_LEAVE(QUIC_EV_CONN_RXPKT, qc);
@@ -6701,9 +6686,6 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				goto err;
 
 			HA_ATOMIC_INC(&prx_counters->half_open_conn);
-			/* Insert the DCID the QUIC client has chosen (only for listeners) */
-			ebmb_insert(&quic_dghdlrs[tid].odcids, &qc->odcid_node,
-			            qc->odcid.len + qc->odcid.addrlen);
 		}
 	}
 	else if (!qc) {
