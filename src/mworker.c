@@ -567,7 +567,8 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	char *uptime = NULL;
 	char *reloadtxt = NULL;
 
-	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
+	/* FIXME: Don't watch the other side !*/
+	if (unlikely(chn_cons(sc_ic(sc))->flags & SC_FL_SHUTW))
 		return 1;
 
 	if (up < 0) /* must never be negative because of clock drift */
@@ -713,9 +714,9 @@ static int cli_io_handler_show_loadstatus(struct appctx *appctx)
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
-	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
+	/* FIXME: Don't watch the other side !*/
+	if (unlikely(chn_cons(sc_ic(sc))->flags & SC_FL_SHUTW))
 		return 1;
-
 
 	env = getenv("HAPROXY_LOAD_SUCCESS");
 	if (!env)

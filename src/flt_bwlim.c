@@ -151,7 +151,7 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 		 */
 		ret = tokens;
 		if (tokens < conf->min_size) {
-			ret = ((chn_prod(chn)->flags & SC_FL_EOI) || (chn->flags & CF_SHUTR))
+			ret = (chn_prod(chn)->flags & (SC_FL_EOI|SC_FL_SHUTR))
 				? MIN(len, conf->min_size)
 				: conf->min_size;
 

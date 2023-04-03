@@ -40,12 +40,6 @@
  *   - read-only indicators reported by lower data levels :
  *     CF_STREAMER, CF_STREAMER_FAST
  *
- *   - write-once status flags reported by the stream connector layer :
- *     CF_SHUTR, CF_SHUTW
- *
- *   - persistent control flags managed only by application level :
- *     CF_SHUT*_NOW, CF_*_ENA
- *
  * The flags have been arranged for readability, so that the read and write
  * bits have the same position in a byte (read being the lower byte and write
  * the second one). All flag names are relative to the channel. For instance,
@@ -58,10 +52,7 @@
 #define CF_READ_TIMEOUT   0x00000004  /* timeout while waiting for producer */
 /* unused 0x00000008 */
 
-/* unused: 0x00000010 */
-#define CF_SHUTR          0x00000020  /* producer has already shut down */
-#define CF_SHUTR_NOW      0x00000040  /* the producer must shut down for reads ASAP */
-/* 0x00000080 unused */
+/* unused: 0x00000010 - 0x00000080 */
 
 #define CF_WRITE_EVENT    0x00000100  /* a write event detected on consumer side */
 /* unused: 0x00000200 */
@@ -69,36 +60,8 @@
 /* unused 0x00000800 */
 
 #define CF_WAKE_WRITE     0x00001000  /* wake the task up when there's write activity */
-#define CF_SHUTW          0x00002000  /* consumer has already shut down */
-#define CF_SHUTW_NOW      0x00004000  /* the consumer must shut down for writes ASAP */
+/* unused: 0x00002000 - 0x00004000 */
 #define CF_AUTO_CLOSE     0x00008000  /* producer can forward shutdown to other side */
-
-/* When CF_SHUTR_NOW is set, it is strictly forbidden for the producer to alter
- * the buffer contents. When CF_SHUTW_NOW is set, the consumer is free to perform
- * a shutw() when it has consumed the last contents, otherwise the session processor
- * will do it anyway.
- *
- * The SHUT* flags work like this :
- *
- *  SHUTR SHUTR_NOW  meaning
- *    0       0      normal case, connection still open and data is being read
- *    0       1      closing : the producer cannot feed data anymore but can close
- *    1       0      closed: the producer has closed its input channel.
- *    1       1      impossible
- *
- *  SHUTW SHUTW_NOW  meaning
- *    0       0      normal case, connection still open and data is being written
- *    0       1      closing: the consumer can send last data and may then close
- *    1       0      closed: the consumer has closed its output channel.
- *    1       1      impossible
- *
- * The SHUTW_NOW flag should be set by the session processor when SHUTR and AUTO_CLOSE
- * are both set. And it may also be set by the producer when it detects SHUTR while
- * directly forwarding data to the consumer.
- *
- * The SHUTR_NOW flag is mostly used to force the producer to abort when an error is
- * detected on the consumer side.
- */
 
 #define CF_STREAMER       0x00010000  /* the producer is identified as streaming data */
 #define CF_STREAMER_FAST  0x00020000  /* the consumer seems to eat the stream very fast */
@@ -120,9 +83,6 @@
 /* Masks which define input events for stream analysers */
 #define CF_MASK_ANALYSER  (CF_READ_EVENT|CF_READ_TIMEOUT|CF_WRITE_EVENT|CF_WAKE_ONCE)
 
-/* Mask for static flags which cause analysers to be woken up when they change */
-#define CF_MASK_STATIC    (CF_SHUTR|CF_SHUTW|CF_SHUTR_NOW|CF_SHUTW_NOW)
-
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
  * __APPEND_FLAG macro. The new end of the buffer is returned.
@@ -134,14 +94,14 @@ static forceinline char *chn_show_flags(char *buf, size_t len, const char *delim
 	_(0);
 	/* flags */
 	_(CF_READ_EVENT, _(CF_READ_TIMEOUT,
-	_(CF_SHUTR, _(CF_SHUTR_NOW, _(CF_WRITE_EVENT,
+	_(CF_WRITE_EVENT,
 	_(CF_WRITE_TIMEOUT,
-	_(CF_WAKE_WRITE, _(CF_SHUTW, _(CF_SHUTW_NOW, _(CF_AUTO_CLOSE,
+	_(CF_WAKE_WRITE, _(CF_AUTO_CLOSE,
 	_(CF_STREAMER, _(CF_STREAMER_FAST, _(CF_WROTE_DATA,
 	_(CF_KERN_SPLICING,
 	_(CF_AUTO_CONNECT, _(CF_DONT_READ,
 	_(CF_WAKE_ONCE, _(CF_FLT_ANALYZE,
-	_(CF_ISRESP)))))))))))))))))));
+	_(CF_ISRESP)))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

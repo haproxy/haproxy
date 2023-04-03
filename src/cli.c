@@ -1213,7 +1213,8 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 	struct stconn *sc = appctx_sc(appctx);
 	char **var = ctx->var;
 
-	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
+	/* FIXME: Don't watch the other side !*/
+	if (unlikely(chn_cons(sc_ic(sc))->flags & SC_FL_SHUTW))
 		return 1;
 
 	chunk_reset(&trash);
@@ -1251,7 +1252,8 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 	int fd = fdctx->fd;
 	int ret = 1;
 
-	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
+	/* FIXME: Don't watch the other side !*/
+	if (unlikely(chn_cons(sc_ic(sc))->flags & SC_FL_SHUTW))
 		goto end;
 
 	chunk_reset(&trash);
@@ -2685,7 +2687,7 @@ send_status:
 	goto read_again;
 
 missing_data:
-        if (req->flags & CF_SHUTR) {
+        if (chn_prod(req)->flags & SC_FL_SHUTR) {
                 /* There is no more request or a only a partial one and we
                  * receive a close from the client, we can leave */
                 channel_shutw_now(&s->res);
@@ -2709,7 +2711,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	struct proxy *be = s->be;
 
 	if (sc_ep_test(s->scb, SE_FL_ERR_PENDING|SE_FL_ERROR) || (rep->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT)) ||
-	    ((rep->flags & CF_SHUTW) && (rep->to_forward || co_data(rep)))) {
+	    ((chn_cons(rep)->flags & SC_FL_SHUTW) && (rep->to_forward || co_data(rep)))) {
 		pcli_reply_and_close(s, "Can't connect to the target CLI!\n");
 		s->req.analysers &= ~AN_REQ_WAIT_CLI;
 		s->res.analysers &= ~AN_RES_WAIT_CLI;
@@ -2734,7 +2736,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		return 0;
 	}
 
-	if (rep->flags & CF_SHUTR) {
+	if (chn_prod(rep)->flags & SC_FL_SHUTR) {
 		/* stream cleanup */
 
 		pcli_write_prompt(s);
@@ -2823,9 +2825,11 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		sockaddr_free(&s->scb->dst);
 
 		sc_set_state(s->scb, SC_ST_INI);
+		s->scb->flags &= ~(SC_FL_SHUTW|SC_FL_SHUTW_NOW);
 		s->scb->flags &= SC_FL_ISBACK | SC_FL_DONT_WAKE; /* we're in the context of process_stream */
-		s->req.flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_STREAMER|CF_STREAMER_FAST|CF_WROTE_DATA);
-		s->res.flags &= ~(CF_SHUTR|CF_SHUTR_NOW|CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_EVENT|CF_WROTE_DATA|CF_READ_EVENT);
+
+		s->req.flags &= ~(CF_AUTO_CONNECT|CF_STREAMER|CF_STREAMER_FAST|CF_WROTE_DATA);
+		s->res.flags &= ~(CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_EVENT|CF_WROTE_DATA|CF_READ_EVENT);
 		s->flags &= ~(SF_DIRECT|SF_ASSIGNED|SF_BE_ASSIGNED|SF_FORCE_PRST|SF_IGNORE_PRST);
 		s->flags &= ~(SF_CURR_SESS|SF_REDIRECTABLE|SF_SRV_REUSED);
 		s->flags &= ~(SF_ERR_MASK|SF_FINST_MASK|SF_REDISP);
@@ -2846,6 +2850,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->store_count = 0;
 		s->uniq_id = global.req_count++;
 
+		s->scf->flags &= ~(SC_FL_SHUTR|SC_FL_SHUTR_NOW);
 		s->scf->flags &= ~SC_FL_SND_NEVERWAIT;
 		s->scf->flags |= SC_FL_RCV_ONCE; /* one read is usually enough */
 

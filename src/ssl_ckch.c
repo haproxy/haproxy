@@ -2148,7 +2148,8 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 	struct ckch_store *old_ckchs, *new_ckchs = NULL;
 	struct ckch_inst *ckchi;
 
-	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
+	/* FIXME: Don't watch the other side !*/
+	if (unlikely(chn_cons(sc_ic(sc))->flags & SC_FL_SHUTW))
 		goto end;
 
 	while (1) {
@@ -2824,7 +2825,8 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 	struct ckch_inst_link *ckchi_link;
 	char *path;
 
-	if (unlikely(sc_ic(sc)->flags & CF_SHUTW))
+	/* FIXME: Don't watch the other side !*/
+	if (unlikely(chn_cons(sc_ic(sc))->flags & SC_FL_SHUTW))
 		goto end;
 
 	/* The ctx was already validated by the ca-file/crl-file parsing

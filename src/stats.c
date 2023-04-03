@@ -4473,7 +4473,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 	if (appctx->st0 == STAT_HTTP_POST) {
 		if (stats_process_http_post(sc))
 			appctx->st0 = STAT_HTTP_LAST;
-		else if (req->flags & CF_SHUTR)
+		else if (chn_prod(req)->flags & SC_FL_SHUTR)
 			appctx->st0 = STAT_HTTP_DONE;
 	}
 

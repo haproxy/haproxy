@@ -1016,11 +1016,11 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 	 *  - the input in closed and no data is pending
 	 *  - There is a READ/WRITE timeout
 	 */
-	if (chn->flags & CF_SHUTW) {
+	if (chn_cons(chn)->flags & SC_FL_SHUTW) {
 		ret = 1;
 		goto end;
 	}
-	if (chn->flags & CF_SHUTR) {
+	if (chn_prod(chn)->flags & SC_FL_SHUTR) {
 		if (((s->flags & SF_HTX) && htx_is_empty(htxbuf(&chn->buf))) || c_empty(chn)) {
 			ret = 1;
 			goto end;

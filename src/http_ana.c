@@ -114,7 +114,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		/* A SHUTR at this stage means we are performing a "destructive"
 		 * HTTP upgrade (TCP>H2). In this case, we can leave.
 		 */
-		if (req->flags & CF_SHUTR) {
+		if (chn_prod(req)->flags & SC_FL_SHUTR) {
 			s->logs.logwait = 0;
                         s->logs.level = 0;
 			channel_abort(&s->req);
@@ -767,7 +767,7 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	 * there and that the timeout has not expired.
 	 */
 	channel_dont_connect(req);
-	if (!(req->flags & CF_SHUTR) &&
+	if (!(chn_prod(req)->flags & SC_FL_SHUTR) &&
 	    !tick_is_expired(req->analyse_exp, now_ms)) {
 		/* Be sure to drain all data from the request channel */
 		channel_htx_erase(req, htxbuf(&req->buf));
@@ -985,7 +985,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (!(txn->flags & TX_CON_WANT_TUN))
 		channel_dont_close(req);
 
-	if ((req->flags & CF_SHUTW) && co_data(req)) {
+	if ((chn_cons(req)->flags & SC_FL_SHUTW) && co_data(req)) {
 		/* request errors are most likely due to the server aborting the
 		 * transfer. */
 		goto return_srv_abort;
@@ -1004,7 +1004,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	 * it can be abused to exhaust source ports. */
 	if (s->be->options & PR_O_ABRT_CLOSE) {
 		channel_auto_read(req);
-		if ((req->flags & CF_SHUTR) && !(txn->flags & TX_CON_WANT_TUN))
+		if ((chn_prod(req)->flags & SC_FL_SHUTR) && !(txn->flags & TX_CON_WANT_TUN))
 			s->scb->flags |= SC_FL_NOLINGER;
 		channel_auto_close(req);
 	}
@@ -1020,12 +1020,12 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
  missing_data_or_waiting:
 	/* stop waiting for data if the input is closed before the end */
-	if (msg->msg_state < HTTP_MSG_ENDING && req->flags & CF_SHUTR)
+	if (msg->msg_state < HTTP_MSG_ENDING && chn_prod(req)->flags & SC_FL_SHUTR)
 		goto return_cli_abort;
 
  waiting:
 	/* waiting for the last bits to leave the buffer */
-	if (req->flags & CF_SHUTW)
+	if (chn_cons(req)->flags & SC_FL_SHUTW)
 		goto return_srv_abort;
 
 	/* When TE: chunked is used, we need to get there again to parse remaining
@@ -1132,9 +1132,11 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *sc)
 
 	req = &s->req;
 	res = &s->res;
+
 	/* Remove any write error from the request, and read error from the response */
-	req->flags &= ~(CF_WRITE_TIMEOUT | CF_SHUTW | CF_SHUTW_NOW);
-	res->flags &= ~(CF_READ_TIMEOUT | CF_SHUTR | CF_READ_EVENT | CF_SHUTR_NOW);
+	s->scf->flags &= ~(SC_FL_SHUTR|SC_FL_SHUTR_NOW);
+	req->flags &= ~CF_WRITE_TIMEOUT;
+	res->flags &= ~(CF_READ_TIMEOUT | CF_READ_EVENT);
 	res->analysers &= AN_RES_FLT_END;
 	s->conn_err_type = STRM_ET_NONE;
 	s->flags &= ~(SF_CONN_EXP | SF_ERR_MASK | SF_FINST_MASK);
@@ -1144,6 +1146,7 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *sc)
 	res->analyse_exp = TICK_ETERNITY;
 	res->total = 0;
 
+	s->scb->flags &= ~(SC_FL_SHUTW|SC_FL_SHUTW_NOW);
 	if (sc_reset_endp(s->scb) < 0) {
 		if (!(s->flags & SF_ERR_MASK))
 			s->flags |= SF_ERR_INTERNAL;
@@ -1293,7 +1296,9 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		}
 
 		/* 3: client abort with an abortonclose */
-		else if ((rep->flags & CF_SHUTR) && ((s->req.flags & (CF_SHUTR|CF_SHUTW)) == (CF_SHUTR|CF_SHUTW))) {
+		else if ((chn_prod(rep)->flags & SC_FL_SHUTR) &&
+			 (chn_prod(&s->req)->flags & SC_FL_SHUTR) &&
+			 (chn_cons(&s->req)->flags & SC_FL_SHUTW)) {
 			_HA_ATOMIC_INC(&sess->fe->fe_counters.cli_aborts);
 			_HA_ATOMIC_INC(&s->be->be_counters.cli_aborts);
 			if (sess->listener && sess->listener->counters)
@@ -1315,7 +1320,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		}
 
 		/* 4: close from server, capture the response if the server has started to respond */
-		else if (rep->flags & CF_SHUTR) {
+		else if (chn_prod(rep)->flags & SC_FL_SHUTR) {
 			if ((txn->flags & TX_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_DISCONNECTED)) {
 				if (co_data(rep) || do_l7_retry(s, s->scb) == 0) {
@@ -2057,7 +2062,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	if (htx->data != co_data(res))
 		goto missing_data_or_waiting;
 
-	if (!(msg->flags & HTTP_MSGF_XFER_LEN) && res->flags & CF_SHUTR) {
+	if (!(msg->flags & HTTP_MSGF_XFER_LEN) && (chn_prod(res)->flags & SC_FL_SHUTR)) {
 		msg->msg_state = HTTP_MSG_ENDING;
 		goto ending;
 	}
@@ -2101,7 +2106,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 
 	channel_dont_close(res);
 
-	if ((res->flags & CF_SHUTW) && co_data(res)) {
+	if ((chn_cons(res)->flags & SC_FL_SHUTW) && co_data(res)) {
 		/* response errors are most likely due to the client aborting
 		 * the transfer. */
 		goto return_cli_abort;
@@ -2117,7 +2122,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	return 0;
 
   missing_data_or_waiting:
-	if (res->flags & CF_SHUTW)
+	if (chn_cons(res)->flags & SC_FL_SHUTW)
 		goto return_cli_abort;
 
 	/* stop waiting for data if the input is closed before the end. If the
@@ -2125,8 +2130,9 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	 * so we don't want to count this as a server abort. Otherwise it's a
 	 * server abort.
 	 */
-	if (msg->msg_state < HTTP_MSG_ENDING && res->flags & CF_SHUTR) {
-		if ((s->req.flags & (CF_SHUTR|CF_SHUTW)) == (CF_SHUTR|CF_SHUTW))
+	if (msg->msg_state < HTTP_MSG_ENDING && (chn_prod(res)->flags & SC_FL_SHUTR)) {
+		if ((chn_prod(&s->req)->flags & SC_FL_SHUTR) &&
+		    (chn_cons(&s->req)->flags & SC_FL_SHUTW))
 			goto return_cli_abort;
 		/* If we have some pending data, we continue the processing */
 		if (htx_is_empty(htx))
@@ -2670,7 +2676,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
 			if (sc_ep_test(s->scf, SE_FL_ERROR) ||
-			    ((s->req.flags & CF_SHUTR) &&
+			    ((chn_prod(&s->req)->flags & SC_FL_SHUTR) &&
 			     (px->options & PR_O_ABRT_CLOSE)))
 				act_opts |= ACT_OPT_FINAL;
 
@@ -2833,7 +2839,7 @@ resume_execution:
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
 			if (sc_ep_test(s->scf, SE_FL_ERROR) ||
-			    ((s->req.flags & CF_SHUTR) &&
+			    ((chn_prod(&s->req)->flags & SC_FL_SHUTR) &&
 			     (px->options & PR_O_ABRT_CLOSE)))
 				act_opts |= ACT_OPT_FINAL;
 
@@ -4081,7 +4087,7 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	}
 
 	/* we get here if we need to wait for more data */
-	if (!(chn->flags & CF_SHUTR)) {
+	if (!(chn_prod(chn)->flags & SC_FL_SHUTR)) {
 		if (!tick_isset(chn->analyse_exp))
 			chn->analyse_exp = tick_add_ifset(now_ms, time);
 		ret = HTTP_RULE_RES_YIELD;
@@ -4270,7 +4276,7 @@ static void http_end_request(struct stream *s)
 			    txn->rsp.msg_state != HTTP_MSG_CLOSED)
 				goto check_channel_flags;
 
-			if (!(chn->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
+			if (!(chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW))) {
 				channel_shutr_now(chn);
 				channel_shutw_now(chn);
 			}
@@ -4304,7 +4310,7 @@ static void http_end_request(struct stream *s)
 
   check_channel_flags:
 	/* Here, we are in HTTP_MSG_DONE or HTTP_MSG_TUNNEL */
-	if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
+	if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW)) {
 		/* if we've just closed an output, let's switch */
 		txn->req.msg_state = HTTP_MSG_CLOSING;
 		goto http_msg_closing;
@@ -4369,7 +4375,7 @@ static void http_end_response(struct stream *s)
 			/* we're not expecting any new data to come for this
 			 * transaction, so we can close it.
 			 */
-			if (!(chn->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
+			if (!(chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW))) {
 				channel_shutr_now(chn);
 				channel_shutw_now(chn);
 			}
@@ -4400,7 +4406,7 @@ static void http_end_response(struct stream *s)
 
   check_channel_flags:
 	/* Here, we are in HTTP_MSG_DONE or HTTP_MSG_TUNNEL */
-	if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
+	if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW)) {
 		/* if we've just closed an output, let's switch */
 		txn->rsp.msg_state = HTTP_MSG_CLOSING;
 		goto http_msg_closing;

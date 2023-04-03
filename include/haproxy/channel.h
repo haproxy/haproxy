@@ -514,13 +514,13 @@ static inline int channel_may_recv(const struct channel *chn)
 /* Returns true if the channel's input is already closed */
 static inline int channel_input_closed(struct channel *chn)
 {
-	return ((chn->flags & CF_SHUTR) != 0);
+	return ((chn_prod(chn)->flags & SC_FL_SHUTR) != 0);
 }
 
 /* Returns true if the channel's output is already closed */
 static inline int channel_output_closed(struct channel *chn)
 {
-	return ((chn->flags & CF_SHUTW) != 0);
+	return ((chn_cons(chn)->flags & SC_FL_SHUTW) != 0);
 }
 
 /* Check channel timeouts, and set the corresponding flags. */
@@ -551,19 +551,20 @@ static inline void channel_htx_erase(struct channel *chn, struct htx *htx)
 /* marks the channel as "shutdown" ASAP for reads */
 static inline void channel_shutr_now(struct channel *chn)
 {
-	chn->flags |= CF_SHUTR_NOW;
+	chn_prod(chn)->flags |= SC_FL_SHUTR_NOW;
 }
 
 /* marks the channel as "shutdown" ASAP for writes */
 static inline void channel_shutw_now(struct channel *chn)
 {
-	chn->flags |= CF_SHUTW_NOW;
+	chn_cons(chn)->flags |= SC_FL_SHUTW_NOW;
 }
 
 /* marks the channel as "shutdown" ASAP in both directions */
 static inline void channel_abort(struct channel *chn)
 {
-	chn->flags |= CF_SHUTR_NOW | CF_SHUTW_NOW;
+	chn_prod(chn)->flags |= SC_FL_SHUTR_NOW;
+	chn_cons(chn)->flags |= SC_FL_SHUTW_NOW;
 	chn->flags &= ~CF_AUTO_CONNECT;
 }
 
@@ -986,8 +987,8 @@ static inline int ci_putstr(struct channel *chn, const char *str)
 static inline int co_getchr(struct channel *chn)
 {
 	/* closed or empty + imminent close = -2; empty = -1 */
-	if (unlikely((chn->flags & CF_SHUTW) || channel_is_empty(chn))) {
-		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW))
+	if (unlikely((chn_cons(chn)->flags & SC_FL_SHUTW) || channel_is_empty(chn))) {
+		if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW))
 			return -2;
 		return -1;
 	}

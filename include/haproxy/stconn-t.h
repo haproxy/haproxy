@@ -109,6 +109,33 @@ static forceinline char *se_show_flags(char *buf, size_t len, const char *delim,
 
 /* stconn flags.
  * Please also update the sc_show_flags() function below in case of changes.
+ *
+ * When SC_FL_SHUTR_NOW is set, it is strictly forbidden for the producer to alter
+ * the buffer contents. When SC_FL_SHUTW_NOW is set, the consumer is free to perform
+ * a shutw() when it has consumed the last contents, otherwise the session processor
+ * will do it anyway.
+ *
+ * The SHUT* flags work like this :
+ *
+ *  SHUTR SHUTR_NOW  meaning
+ *    0       0      normal case, connection still open and data is being read
+ *    0       1      closing : the producer cannot feed data anymore but can close
+ *    1       0      closed: the producer has closed its input channel.
+ *    1       1      impossible
+ *
+ *  SHUTW SHUTW_NOW  meaning
+ *    0       0      normal case, connection still open and data is being written
+ *    0       1      closing: the consumer can send last data and may then close
+ *    1       0      closed: the consumer has closed its output channel.
+ *    1       1      impossible
+ *
+ * The SHUTW_NOW flag should be set by the session processor when SHUTR and AUTO_CLOSE
+ * are both set. And it may also be set by the producer when it detects SHUTR while
+ * directly forwarding data to the consumer.
+ *
+ * The SHUTR_NOW flag is mostly used to force the producer to abort when an error is
+ * detected on the consumer side.
+ *
  */
 enum sc_flags {
 	SC_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
@@ -130,6 +157,11 @@ enum sc_flags {
 	SC_FL_SND_ASAP      = 0x00000800,  /* Don't wait for sending. cleared when all data were sent */
 	SC_FL_SND_NEVERWAIT = 0x00001000,  /* Never wait for sending (permanent) */
 	SC_FL_SND_EXP_MORE  = 0x00001000,  /* More data expected to be sent very soon. cleared when all data were sent */
+
+	SC_FL_SHUTR_NOW     = 0x00002000,  /* SC is shut down for reads */
+	SC_FL_SHUTW_NOW     = 0x00004000,  /* SC must shut down for reads ASAP */
+	SC_FL_SHUTR         = 0x00008000,  /* SC is shut down for writes */
+	SC_FL_SHUTW         = 0x00010000,  /* SC must shut down for writes ASAP */
 };
 
 /* This function is used to report flags in debugging tools. Please reflect
@@ -145,7 +177,8 @@ static forceinline char *sc_show_flags(char *buf, size_t len, const char *delim,
 	_(SC_FL_ISBACK, _(SC_FL_EOI, _(SC_FL_NOLINGER, _(SC_FL_NOHALF,
 	_(SC_FL_DONT_WAKE, _(SC_FL_INDEP_STR, _(SC_FL_WONT_READ,
 	_(SC_FL_NEED_BUFF, _(SC_FL_NEED_ROOM,
-	_(SC_FL_RCV_ONCE, _(SC_FL_SND_ASAP, _(SC_FL_SND_NEVERWAIT, _(SC_FL_SND_EXP_MORE)))))))))))));
+        _(SC_FL_RCV_ONCE, _(SC_FL_SND_ASAP, _(SC_FL_SND_NEVERWAIT, _(SC_FL_SND_EXP_MORE,
+	_(SC_FL_SHUTR_NOW, _(SC_FL_SHUTW_NOW, _(SC_FL_SHUTR, _(SC_FL_SHUTW)))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
