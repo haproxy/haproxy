@@ -15,6 +15,7 @@
 #include <openssl/err.h>
 #include <openssl/rand.h>
 #include <openssl/hmac.h>
+#include <openssl/rsa.h>
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 #include <openssl/ocsp.h>
 #endif
