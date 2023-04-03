@@ -1808,6 +1808,24 @@ int hlua_proxy_shut_bcksess(lua_State *L)
 	return 0;
 }
 
+int hlua_proxy_get_srv_act(lua_State *L)
+{
+	struct proxy *px;
+
+	px = hlua_check_proxy(L, 1);
+	lua_pushinteger(L, px->srv_act);
+	return 1;
+}
+
+int hlua_proxy_get_srv_bck(lua_State *L)
+{
+	struct proxy *px;
+
+	px = hlua_check_proxy(L, 1);
+	lua_pushinteger(L, px->srv_bck);
+	return 1;
+}
+
 int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 {
 	struct listener *lst;
@@ -1832,6 +1850,8 @@ int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 	hlua_class_function(L, "shut_bcksess", hlua_proxy_shut_bcksess);
 	hlua_class_function(L, "get_cap", hlua_proxy_get_cap);
 	hlua_class_function(L, "get_mode", hlua_proxy_get_mode);
+	hlua_class_function(L, "get_srv_act", hlua_proxy_get_srv_act);
+	hlua_class_function(L, "get_srv_bck", hlua_proxy_get_srv_bck);
 	hlua_class_function(L, "get_stats", hlua_proxy_get_stats);
 
 	/* Browse and register servers. */

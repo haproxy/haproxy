@@ -1097,6 +1097,24 @@ Proxy class
    proxy.
   :returns: a string "tcp", "http", "health" or "unknown"
 
+.. js:function:: Proxy.get_srv_act(px)
+
+  Returns the number of current active servers for the current proxy that are
+  eligible for LB.
+
+  :param class_proxy px: A :ref:`proxy_class` which indicates the manipulated
+   proxy.
+  :returns: an integer
+
+.. js:function:: Proxy.get_srv_bck(px)
+
+  Returns the number backup servers for the current proxy that are eligible
+  for LB.
+
+  :param class_proxy px: A :ref:`proxy_class` which indicates the manipulated
+   proxy.
+  :returns: an integer
+
 .. js:function:: Proxy.get_stats(px)
 
   Returns a table containing the proxy statistics. The statistics returned are
