@@ -34,10 +34,13 @@
 
 #include <haproxy/buf-t.h>
 
+/* Compression flags */
+
+#define COMP_FL_OFFLOAD		0x00000001 /* Compression offload */
 struct comp {
 	struct comp_algo *algos;
 	struct comp_type *types;
-	unsigned int offload;
+	unsigned int flags;
 };
 
 struct comp_ctx {

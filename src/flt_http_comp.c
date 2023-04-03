@@ -451,8 +451,8 @@ select_compression_request_header(struct comp_state *st, struct stream *s, struc
 
 	/* remove all occurrences of the header when "compression offload" is set */
 	if (st->comp_algo) {
-		if ((s->be->comp && s->be->comp->offload) ||
-		    (strm_fe(s)->comp && strm_fe(s)->comp->offload)) {
+		if ((s->be->comp && (s->be->comp->flags & COMP_FL_OFFLOAD)) ||
+		    (strm_fe(s)->comp && (strm_fe(s)->comp->flags & COMP_FL_OFFLOAD))) {
 			http_remove_header(htx, &ctx);
 			ctx.blk = NULL;
 			while (http_find_header(htx, ist("Accept-Encoding"), &ctx, 1))
@@ -690,7 +690,7 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 				  args[0], args[1]);
 			ret = 1;
 		}
-		comp->offload = 1;
+		comp->flags |= COMP_FL_OFFLOAD;
 	}
 	else if (strcmp(args[1], "type") == 0) {
 		int cur_arg = 2;
