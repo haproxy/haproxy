@@ -2424,9 +2424,9 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if (!req->analysers && s->tunnel_timeout) {
 			scf->ioto = scb->ioto = s->tunnel_timeout;
 
-			if ((req->flags & (CF_SHUTR|CF_SHUTW)) && tick_isset(sess->fe->timeout.clientfin))
+			if (((req->flags & CF_SHUTR) || (res->flags & CF_SHUTW)) && tick_isset(sess->fe->timeout.clientfin))
 				scf->ioto = sess->fe->timeout.clientfin;
-			if ((req->flags & (CF_SHUTR|CF_SHUTW)) && tick_isset(s->be->timeout.serverfin))
+			if (((res->flags & CF_SHUTR) || (req->flags & CF_SHUTW)) && tick_isset(s->be->timeout.serverfin))
 				scb->ioto = s->be->timeout.serverfin;
 		}
 	}
