@@ -471,7 +471,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	     (b_size(sc_ib(sc)) && !b_data(sc_ib(sc)) && sc->flags & SC_FL_NEED_ROOM) || // asks for room in an empty buffer
 	     (b_data(sc_ob(sc)) && sc_is_send_allowed(sc)) || // asks for data already present
 	     (!b_data(sc_ib(sc)) && b_data(sc_ob(sc)) && // didn't return anything ...
-	      (!(sc_oc(sc)->flags & CF_WRITE_EVENT) && (chn_cons(sc_oc(sc))->flags & SC_FL_SHUTW_NOW))))) { // ... and left data pending after a shut
+	      (!(sc_oc(sc)->flags & CF_WRITE_EVENT) && (sc->flags & SC_FL_SHUTW_NOW))))) { // ... and left data pending after a shut
 		rate = update_freq_ctr(&app->call_rate, 1);
 		if (rate >= 100000 && app->call_rate.prev_ctr) // looped like this more than 100k times over last second
 			stream_dump_and_crash(&app->obj_type, read_freq_ctr(&app->call_rate));

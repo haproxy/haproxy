@@ -3209,7 +3209,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 	extern const char *monthname[12];
 
 	/* FIXME: Don't watch the other side !*/
-	if (unlikely(chn_cons(sc_ic(sc))->flags & SC_FL_SHUTW))
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW))
 		return 1;
 
 	chunk_reset(&trash);

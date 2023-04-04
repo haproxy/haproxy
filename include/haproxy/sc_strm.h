@@ -286,9 +286,7 @@ static inline void sc_shutw(struct stconn *sc)
 __attribute__((warn_unused_result))
 static inline int sc_is_recv_allowed(const struct stconn *sc)
 {
-	struct channel *ic = sc_ic(sc);
-
-	if (chn_prod(ic)->flags & SC_FL_SHUTR)
+	if (sc->flags & SC_FL_SHUTR)
 		return 0;
 
 	if (sc_ep_test(sc, SE_FL_APPLET_NEED_CONN))
@@ -365,9 +363,7 @@ static inline const char *sc_state_str(int state)
 __attribute__((warn_unused_result))
 static inline int sc_is_send_allowed(const struct stconn *sc)
 {
-	struct channel *oc = sc_oc(sc);
-
-	if (chn_cons(oc)->flags & SC_FL_SHUTW)
+	if (sc->flags & SC_FL_SHUTW)
 		return 0;
 
 	return !sc_ep_test(sc, SE_FL_WAIT_DATA | SE_FL_WONT_CONSUME);
@@ -375,8 +371,8 @@ static inline int sc_is_send_allowed(const struct stconn *sc)
 
 static inline int sc_rcv_may_expire(const struct stconn *sc)
 {
-	if ((chn_prod(sc_ic(sc))->flags & SC_FL_SHUTR) ||
-	     (sc_ic(sc)->flags & (CF_READ_TIMEOUT|CF_READ_EVENT)))
+	if ((sc->flags & SC_FL_SHUTR) ||
+	    (sc_ic(sc)->flags & (CF_READ_TIMEOUT|CF_READ_EVENT)))
 		return 0;
 	if (sc->flags & (SC_FL_EOI|SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))
 		return 0;
@@ -387,7 +383,7 @@ static inline int sc_rcv_may_expire(const struct stconn *sc)
 
 static inline int sc_snd_may_expire(const struct stconn *sc)
 {
-	if ((chn_cons(sc_oc(sc))->flags & SC_FL_SHUTW) ||
+	if ((sc->flags & SC_FL_SHUTW) ||
 	    (sc_oc(sc)->flags & (CF_WRITE_TIMEOUT|CF_WRITE_EVENT)))
 		return 0;
 	if (sc_ep_test(sc, SE_FL_WONT_CONSUME))

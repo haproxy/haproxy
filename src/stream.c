@@ -3599,7 +3599,8 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		goto done;
 	}
 
-	if (unlikely(chn_cons(sc_ic(sc))->flags & SC_FL_SHUTW)) {
+	/* FIXME: Don't watch the other side !*/
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW)) {
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last stream being dumped.
 		 */

@@ -8262,7 +8262,7 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 		goto done;
 
 	/* FIXME: Don't watch the other side !*/
-	if (unlikely(chn_cons(sc_ic(sc))->flags & SC_FL_SHUTW)) {
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW)) {
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last stream being dumped.
 		 */

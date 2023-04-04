@@ -5044,7 +5044,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 	 *     data though.
 	 */
 	/* FIXME: Don't watch the other side !*/
-	if (unlikely(chn_cons(sc_ic(sc))->flags & SC_FL_SHUTW)) {
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW)) {
 		/* in case of abort, remove any refcount we might have set on an entry */
 		if (ctx->state == STATE_DUMP) {
 			stksess_kill_if_expired(ctx->t, ctx->entry, 1);

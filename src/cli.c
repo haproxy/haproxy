@@ -1214,7 +1214,7 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 	char **var = ctx->var;
 
 	/* FIXME: Don't watch the other side !*/
-	if (unlikely(chn_cons(sc_ic(sc))->flags & SC_FL_SHUTW))
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW))
 		return 1;
 
 	chunk_reset(&trash);
@@ -1253,7 +1253,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 	int ret = 1;
 
 	/* FIXME: Don't watch the other side !*/
-	if (unlikely(chn_cons(sc_ic(sc))->flags & SC_FL_SHUTW))
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW))
 		goto end;
 
 	chunk_reset(&trash);
