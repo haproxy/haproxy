@@ -537,7 +537,7 @@ static void sc_app_shutr(struct stconn *sc)
 	struct channel *ic = sc_ic(sc);
 
 	if (ic->flags & CF_SHUTR)
-
+		return;
 	ic->flags |= CF_SHUTR|CF_READ_EVENT;
 	sc_ep_report_read_activity(sc);
 
