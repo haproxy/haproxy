@@ -202,6 +202,17 @@ enum srv_adm_st_chg_cause {
 	SRV_ADM_STCHGC_STATS_STOP     /* legacy stop from the stats */
 };
 
+/* srv operational change causes */
+enum srv_op_st_chg_cause {
+	SRV_OP_STCHGC_NONE = 0,
+	SRV_OP_STCHGC_HEALTH,         /* changed from a health check */
+	SRV_OP_STCHGC_AGENT,          /* changed from an agent check */
+	SRV_OP_STCHGC_CLI,            /* changed from the cli */
+	SRV_OP_STCHGC_LUA,            /* changed from lua */
+	SRV_OP_STCHGC_STATS_WEB,      /* changed from the web interface */
+	SRV_OP_STCHGC_STATEFILE       /* changed from state file */
+};
+
 struct pid_list {
 	struct list list;
 	pid_t pid;
@@ -412,11 +423,7 @@ struct server {
 		int nb_low;
 		int nb_high;
 	} tmpl_info;
-	struct {
-		long duration;
-		short status, code;
-		char reason[128];
-	} op_st_chg;					/* operational status change's reason */
+	enum srv_op_st_chg_cause op_st_chg_cause;	/* operational status change's cause */
 	enum srv_adm_st_chg_cause adm_st_chg_cause;	/* administrative status change's cause */
 
 	event_hdl_sub_list e_subs;		/* event_hdl: server's subscribers list (atomically updated) */

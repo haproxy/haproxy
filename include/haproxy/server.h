@@ -65,6 +65,7 @@ struct server *srv_drop(struct server *srv);
 int srv_init_per_thr(struct server *srv);
 void srv_set_ssl(struct server *s, int use_ssl);
 const char *srv_adm_st_chg_cause(enum srv_adm_st_chg_cause cause);
+const char *srv_op_st_chg_cause(enum srv_op_st_chg_cause cause);
 
 /* functions related to server name resolution */
 int srv_prepare_for_resolution(struct server *srv, const char *hostname);
@@ -141,9 +142,9 @@ void srv_shutdown_backup_streams(struct proxy *px, int why);
 void srv_append_status(struct buffer *msg, struct server *s, struct check *,
 		       int xferred, int forced);
 
-void srv_set_stopped(struct server *s, const char *reason, struct check *check);
-void srv_set_running(struct server *s, const char *reason, struct check *check);
-void srv_set_stopping(struct server *s, const char *reason, struct check *check);
+void srv_set_stopped(struct server *s, enum srv_op_st_chg_cause cause);
+void srv_set_running(struct server *s, enum srv_op_st_chg_cause cause);
+void srv_set_stopping(struct server *s, enum srv_op_st_chg_cause cause);
 
 /* Enables admin flag <mode> (among SRV_ADMF_*) on server <s>. This is used to
  * enforce either maint mode or drain mode. It is not allowed to set more than

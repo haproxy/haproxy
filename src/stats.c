@@ -4211,7 +4211,7 @@ static int stats_process_http_post(struct stconn *sc)
 					case ST_ADM_ACTION_HRUNN:
 						if (!(sv->track)) {
 							sv->check.health = sv->check.rise + sv->check.fall - 1;
-							srv_set_running(sv, "changed from Web interface", NULL);
+							srv_set_running(sv, SRV_OP_STCHGC_STATS_WEB);
 							altered_servers++;
 							total_servers++;
 						}
@@ -4219,7 +4219,7 @@ static int stats_process_http_post(struct stconn *sc)
 					case ST_ADM_ACTION_HNOLB:
 						if (!(sv->track)) {
 							sv->check.health = sv->check.rise + sv->check.fall - 1;
-							srv_set_stopping(sv, "changed from Web interface", NULL);
+							srv_set_stopping(sv, SRV_OP_STCHGC_STATS_WEB);
 							altered_servers++;
 							total_servers++;
 						}
@@ -4227,7 +4227,7 @@ static int stats_process_http_post(struct stconn *sc)
 					case ST_ADM_ACTION_HDOWN:
 						if (!(sv->track)) {
 							sv->check.health = 0;
-							srv_set_stopped(sv, "changed from Web interface", NULL);
+							srv_set_stopped(sv, SRV_OP_STCHGC_STATS_WEB);
 							altered_servers++;
 							total_servers++;
 						}
@@ -4249,7 +4249,7 @@ static int stats_process_http_post(struct stconn *sc)
 					case ST_ADM_ACTION_ARUNN:
 						if (sv->agent.state & CHK_ST_ENABLED) {
 							sv->agent.health = sv->agent.rise + sv->agent.fall - 1;
-							srv_set_running(sv, "changed from Web interface", NULL);
+							srv_set_running(sv, SRV_OP_STCHGC_STATS_WEB);
 							altered_servers++;
 							total_servers++;
 						}
@@ -4257,7 +4257,7 @@ static int stats_process_http_post(struct stconn *sc)
 					case ST_ADM_ACTION_ADOWN:
 						if (sv->agent.state & CHK_ST_ENABLED) {
 							sv->agent.health = 0;
-							srv_set_stopped(sv, "changed from Web interface", NULL);
+							srv_set_stopped(sv, SRV_OP_STCHGC_STATS_WEB);
 							altered_servers++;
 							total_servers++;
 						}

@@ -244,7 +244,7 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 	switch (srv_op_state) {
 		case SRV_ST_STOPPED:
 			srv->check.health = 0;
-			srv_set_stopped(srv, "changed from server-state after a reload", NULL);
+			srv_set_stopped(srv, SRV_OP_STCHGC_STATEFILE);
 			break;
 		case SRV_ST_STARTING:
 			/* If rise == 1 there is no STARTING state, let's switch to
@@ -252,7 +252,7 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 			 */
 			if (srv->check.rise == 1) {
 				srv->check.health = srv->check.rise + srv->check.fall - 1;
-				srv_set_running(srv, "", NULL);
+				srv_set_running(srv, SRV_OP_STCHGC_NONE);
 				break;
 			}
 			if (srv->check.health < 1 || srv->check.health >= srv->check.rise)
@@ -265,17 +265,17 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 			 */
 			if (srv->check.fall == 1) {
 				srv->check.health = 0;
-				srv_set_stopped(srv, "changed from server-state after a reload", NULL);
+				srv_set_stopped(srv, SRV_OP_STCHGC_STATEFILE);
 				break;
 			}
 			if (srv->check.health < srv->check.rise ||
 			    srv->check.health > srv->check.rise + srv->check.fall - 2)
 				srv->check.health = srv->check.rise;
-			srv_set_stopping(srv, "changed from server-state after a reload", NULL);
+			srv_set_stopping(srv, SRV_OP_STCHGC_STATEFILE);
 			break;
 		case SRV_ST_RUNNING:
 			srv->check.health = srv->check.rise + srv->check.fall - 1;
-			srv_set_running(srv, "", NULL);
+			srv_set_running(srv, SRV_OP_STCHGC_NONE);
 			break;
 	}
 
