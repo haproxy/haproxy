@@ -189,6 +189,51 @@ static inline void _srv_event_hdl_prepare(struct event_hdl_cb_data_server *cb_da
 	cb_data->unsafe.srv_lock = !thread_isolate;
 }
 
+/* take an event-check snapshot from a live check */
+void _srv_event_hdl_prepare_checkres(struct event_hdl_cb_data_server_checkres *checkres,
+                                     struct check *check)
+{
+	checkres->agent = !!(check->state & CHK_ST_AGENT);
+	checkres->result = check->result;
+	checkres->duration = check->duration;
+	checkres->reason.status = check->status;
+	checkres->reason.code = check->code;
+	checkres->health.cur = check->health;
+	checkres->health.rise = check->rise;
+	checkres->health.fall = check->fall;
+}
+
+/* Prepare SERVER_STATE event
+ *
+ * This special event will contain extra hints related to the state change
+ *
+ * Must be called with server lock held
+ */
+void _srv_event_hdl_prepare_state(struct event_hdl_cb_data_server_state *cb_data,
+                                  struct server *srv, int type, int cause,
+                                  enum srv_state prev_state, int requeued)
+{
+	/* state event provides additional info about the server state change */
+	cb_data->safe.type = type;
+	cb_data->safe.new_state = srv->cur_state;
+	cb_data->safe.old_state = prev_state;
+	cb_data->safe.requeued = requeued;
+	if (type) {
+		/* administrative */
+		cb_data->safe.adm_st_chg.cause = cause;
+	}
+	else {
+		/* operational */
+		cb_data->safe.op_st_chg.cause = cause;
+		if (cause == SRV_OP_STCHGC_HEALTH || cause == SRV_OP_STCHGC_AGENT) {
+			struct check *check = (cause == SRV_OP_STCHGC_HEALTH) ? &srv->check : &srv->agent;
+
+			/* provide additional check-related state change result */
+			_srv_event_hdl_prepare_checkres(&cb_data->safe.op_st_chg.check, check);
+		}
+	}
+}
+
 /* server event publishing helper: publish in both global and
  * server dedicated subscription list.
  */
@@ -5744,11 +5789,19 @@ static void srv_update_status(struct server *s, int type, int cause)
 {
 	int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
 	enum srv_state srv_prev_state = s->cur_state;
+	union {
+		struct event_hdl_cb_data_server_state state;
+		struct event_hdl_cb_data_server common;
+	} cb_data;
+	int requeued;
+
+	/* prepare common server event data */
+	_srv_event_hdl_prepare(&cb_data.common, s, 0);
 
 	if (type)
-		_srv_update_status_adm(s, cause);
+		requeued = _srv_update_status_adm(s, cause);
 	else
-		_srv_update_status_op(s, cause);
+		requeued = _srv_update_status_op(s, cause);
 
 	/* explicitly commit state changes (even if it was already applied implicitly
 	 * by some lb state change function), so we don't miss anything
@@ -5767,6 +5820,11 @@ static void srv_update_status(struct server *s, int type, int cause)
 			s->counters.down_trans++;
 		}
 		s->last_change = ns_to_sec(now_ns);
+
+		/* publish the state change */
+		_srv_event_hdl_prepare_state(&cb_data.state,
+		                             s, type, cause, srv_prev_state, requeued);
+		_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_STATE, cb_data.state, s);
 	}
 
 	/* check if backend stats must be updated due to the server state change */
