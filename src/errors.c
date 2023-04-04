@@ -419,7 +419,7 @@ static void print_message_args(int use_usermsgs_ctx, const char *label, const ch
 }
 
 /*
- * Displays the message on stderr with the date and pid. Overrides the quiet
+ * Displays the message on stderr with the pid. Overrides the quiet
  * mode during startup.
  */
 void ha_alert(const char *fmt, ...)
@@ -443,7 +443,7 @@ void ha_alert(const char *fmt, ...)
 }
 
 /*
- * Displays the message on stderr with the date and pid.
+ * Displays the message on stderr with the pid.
  */
 void ha_warning(const char *fmt, ...)
 {
@@ -504,7 +504,7 @@ void ha_diag_warning(const char *fmt, ...)
 }
 
 /*
- * Displays the message on stderr with the date and pid.
+ * Displays the message on stderr with the pid.
  */
 void ha_notice(const char *fmt, ...)
 {
