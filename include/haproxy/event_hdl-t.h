@@ -141,11 +141,12 @@ struct event_hdl_cb
 	/* manage the subscription responsible for handing the event to us */
 	const struct event_hdl_sub_mgmt	*sub_mgmt;
 
-	/* used for the function wants to make sure
+	/* may be used by sync event handler to ensure
 	 * it runs in sync mode, and thus is eligible to access unsafe data.
 	 * This could save the day when users are copy-pasting function
 	 * logic from a sync handler to an async handler without
 	 * taking appropriate precautions and unsafe accesses are performed.
+	 * (See EVENT_HDL_ASSERT_SYNC macro API helper)
 	 */
 	uint8_t				_sync;
 };
