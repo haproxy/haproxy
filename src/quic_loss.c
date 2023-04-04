@@ -128,7 +128,7 @@ struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
 
 		p = &qc->pktns[i];
 		tmp_pto = tick_add(p->tx.time_of_last_eliciting, duration);
-		if (!tick_isset(lpto) || tmp_pto < lpto) {
+		if (!tick_isset(lpto) || tick_is_lt(tmp_pto, lpto)) {
 			lpto = tmp_pto;
 			pktns = p;
 		}
