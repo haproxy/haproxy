@@ -1484,6 +1484,7 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 						   struct act_rule *rule, char **err)
 {
 	int cap = 0, cur_arg;
+	const char *p;
 
 	if (args[*orig_arg-1][0] == 'e') {
 		rule->action = ACT_CUSTOM;
@@ -1532,6 +1533,23 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 	free(px->conf.lfs_file);
 	px->conf.lfs_file = strdup(px->conf.args.file);
 	px->conf.lfs_line = px->conf.args.line;
+
+	/* some characters are totally forbidden in header names and
+	 * may happen by accident when writing configs, causing strange
+	 * failures in field. Better catch these ones early, nobody will
+	 * miss them. In particular, a colon at the end (or anywhere
+	 * after the first char) or a space/cr anywhere due to misplaced
+	 * quotes are hard to spot.
+	 */
+	for (p = istptr(rule->arg.http.str); p < istend(rule->arg.http.str); p++) {
+		if (HTTP_IS_TOKEN(*p))
+			continue;
+		if (p == istptr(rule->arg.http.str) && *p == ':')
+			continue;
+		/* we only report this as-is but it will not cause an error */
+		memprintf(err, "header name '%s' contains forbidden character '%c'", istptr(rule->arg.http.str), *p);
+		break;
+	}
 
 	*orig_arg = cur_arg + 1;
 	return ACT_RET_PRS_OK;
