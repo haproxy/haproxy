@@ -1369,6 +1369,7 @@ static inline void hlua_sendlog(struct proxy *px, int level, const char *msg)
 
 /* This function just ensure that the yield will be always
  * returned with a timeout and permit to set some flags
+ * <timeout> is a tick value
  */
 __LJMP void hlua_yieldk(lua_State *L, int nresults, int ctx,
                         lua_KFunction k, int timeout, unsigned int flags)
@@ -8627,7 +8628,7 @@ __LJMP static int hlua_sleep_yield(lua_State *L, int status, lua_KContext ctx)
 __LJMP static int hlua_sleep(lua_State *L)
 {
 	unsigned int delay;
-	unsigned int wakeup_ms;
+	int wakeup_ms; // tick value
 
 	MAY_LJMP(check_args(L, 1, "sleep"));
 
@@ -8642,7 +8643,7 @@ __LJMP static int hlua_sleep(lua_State *L)
 __LJMP static int hlua_msleep(lua_State *L)
 {
 	unsigned int delay;
-	unsigned int wakeup_ms;
+	int wakeup_ms; // tick value
 
 	MAY_LJMP(check_args(L, 1, "msleep"));
 
@@ -9814,7 +9815,7 @@ __LJMP static int hlua_set_wake_time(lua_State *L)
 {
 	struct hlua *hlua;
 	unsigned int delay;
-	unsigned int wakeup_ms;
+	int wakeup_ms; // tick value
 
 	/* Get hlua struct, or NULL if we execute from main lua state */
 	hlua = hlua_gethlua(L);
