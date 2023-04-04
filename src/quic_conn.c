@@ -8358,9 +8358,9 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 		else
 			chunk_appendf(&trash, "mux=released                                  ");
 
-		expire = qc->idle_timer_task->expire;
+		expire = qc->idle_expire;
 		chunk_appendf(&trash, "expire=%02ds ",
-		              expire > now_ms ? (expire - now_ms) / 1000 : 0);
+		              TICKS_TO_MS(tick_remain(now_ms, expire)) / 1000);
 
 		chunk_appendf(&trash, "\n");
 
