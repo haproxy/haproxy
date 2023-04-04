@@ -8390,9 +8390,9 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 		chunk_appendf(&trash, "  [01rtt]             rx.ackrng=%-6zu tx.inflight=%-6zu\n",
 		              pktns->rx.arngs.sz, pktns->tx.in_flight);
 
-		chunk_appendf(&trash, "  srtt=%-4u rttvar=%-4u rttmin=%-4u ptoc=%-4u cwnd=%-6zu\n",
+		chunk_appendf(&trash, "  srtt=%-4u rttvar=%-4u rttmin=%-4u ptoc=%-4u cwnd=%-6llu\n",
 		              qc->path->loss.srtt >> 3, qc->path->loss.rtt_var >> 2,
-		              qc->path->loss.rtt_min, qc->path->loss.pto_count, qc->path->cwnd);
+		              qc->path->loss.rtt_min, qc->path->loss.pto_count, (ullong)qc->path->cwnd);
 
 
 		/* Streams */
