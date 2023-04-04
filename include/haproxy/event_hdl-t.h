@@ -23,6 +23,7 @@
 # define _HAPROXY_EVENT_HDL_T_H
 
 #include <stdint.h>
+#include <sys/time.h>
 
 #include <haproxy/api-t.h>
 
@@ -120,6 +121,7 @@ struct event_hdl_async_event
 	 */
 	void					*data;
 	void	 				*private;
+	struct timeval				when;
 	struct event_hdl_sub_mgmt		sub_mgmt;
 };
 

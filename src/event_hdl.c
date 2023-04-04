@@ -836,6 +836,7 @@ static int _event_hdl_publish(event_hdl_sub_list *sub_list, struct event_hdl_sub
 				}
 				new_event->type = e_type;
 				new_event->private = cur_sub->hdl.private;
+				new_event->when = date;
 				new_event->sub_mgmt = EVENT_HDL_SUB_MGMT_ASYNC(cur_sub);
 				if (data) {
 					/* if this fails, please adjust EVENT_HDL_ASYNC_EVENT_DATA in
