@@ -5681,6 +5681,9 @@ struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 
 	TRACE_ENTER(QUIC_EV_CONN_IDLE_TIMER, qc);
 
+	if ((state & TASK_WOKEN_ANY) == TASK_WOKEN_TIMER && !tick_is_expired(t->expire, now_ms))
+		goto requeue;
+
 	if (tick_is_expired(qc->ack_expire, now_ms)) {
 		TRACE_PROTO("ack timer expired", QUIC_EV_CONN_SSLALERT, qc);
 		qc->ack_expire = TICK_ETERNITY;
