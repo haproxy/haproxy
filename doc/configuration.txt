@@ -14659,7 +14659,8 @@ crt <cert>
   Indication field matching one of their CN or alt subjects. Wildcards are
   supported, where a wildcard character '*' is used instead of the first
   hostname component (e.g. *.example.org matches www.example.org but not
-  www.sub.example.org).
+  www.sub.example.org). If an empty directory is used, HAProxy will not start
+  unless the "strict-sni" keyword is used.
 
   If no SNI is provided by the client or if the SSL library does not support
   TLS extensions, or if the client provides an SNI hostname which does not
@@ -15162,8 +15163,11 @@ ssl-min-ver [ SSLv3 | TLSv1.0 | TLSv1.1 | TLSv1.2 | TLSv1.3 ]
 strict-sni
   This setting is only available when support for OpenSSL was built in. The
   SSL/TLS negotiation is allow only if the client provided an SNI which match
-  a certificate. The default certificate is not used.
-  See the "crt" option for more information.
+  a certificate. The default certificate is not used. This option also allows
+  to start without any certificate on a bind line, so an empty directory could
+  be used and filled later from the stats socket.
+  See the "crt" option for more information. See "add ssl crt-list" command in
+  the management guide.
 
 tcp-ut <delay>
   Sets the TCP User Timeout for all incoming connections instantiated from this
