@@ -1194,6 +1194,13 @@ void listener_accept(struct listener *l)
 				t1 += (t2 << 16);
 			} while (unlikely(!_HA_ATOMIC_CAS(&l->thr_idx, &t0, t1)));
 
+			if (l->rx.proto && l->rx.proto->set_affinity) {
+				if (l->rx.proto->set_affinity(cli_conn, base + t)) {
+					/* Failed migration, stay on the same thread. */
+					goto local_accept;
+				}
+			}
+
 			/* We successfully selected the best thread "t" for this
 			 * connection. We use deferred accepts even if it's the
 			 * local thread because tests show that it's the best
