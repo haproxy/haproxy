@@ -1901,8 +1901,10 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 			memprintf(errmsg, "proxy '%s': out of memory for default compression options", curproxy->id);
 			return 1;
 		}
-		curproxy->comp->algos = defproxy->comp->algos;
-		curproxy->comp->types = defproxy->comp->types;
+		curproxy->comp->algos_res = defproxy->comp->algos_res;
+		curproxy->comp->algo_req = defproxy->comp->algo_req;
+		curproxy->comp->types_res = defproxy->comp->types_res;
+		curproxy->comp->types_req = defproxy->comp->types_req;
 	}
 
 	if (defproxy->check_path)

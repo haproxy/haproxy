@@ -110,7 +110,7 @@ const struct comp_algo comp_algos[] =
  * Add a content-type in the configuration
  * Returns 0 in case of success, 1 in case of allocation failure.
  */
-int comp_append_type(struct comp *comp, const char *type)
+int comp_append_type(struct comp_type **types, const char *type)
 {
 	struct comp_type *comp_type;
 
@@ -119,8 +119,8 @@ int comp_append_type(struct comp *comp, const char *type)
 		return 1;
 	comp_type->name_len = strlen(type);
 	comp_type->name = strdup(type);
-	comp_type->next = comp->types;
-	comp->types = comp_type;
+	comp_type->next = *types;
+	*types = comp_type;
 	return 0;
 }
 
@@ -129,7 +129,7 @@ int comp_append_type(struct comp *comp, const char *type)
  * Returns 0 in case of success, -1 if the <algo> is unmanaged, 1 in case of
  * allocation failure.
  */
-int comp_append_algo(struct comp *comp, const char *algo)
+int comp_append_algo(struct comp_algo **algos, const char *algo)
 {
 	struct comp_algo *comp_algo;
 	int i;
@@ -140,8 +140,8 @@ int comp_append_algo(struct comp *comp, const char *algo)
 			if (!comp_algo)
 				return 1;
 			memmove(comp_algo, &comp_algos[i], sizeof(struct comp_algo));
-			comp_algo->next = comp->algos;
-			comp->algos = comp_algo;
+			comp_algo->next = *algos;
+			*algos = comp_algo;
 			return 0;
 		}
 	}

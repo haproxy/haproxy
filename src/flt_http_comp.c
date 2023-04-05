@@ -415,8 +415,8 @@ select_compression_request_header(struct comp_state *st, struct stream *s, struc
 	}
 
 	/* search for the algo in the backend in priority or the frontend */
-	if ((s->be->comp && (comp_algo_back = s->be->comp->algos)) ||
-	    (strm_fe(s)->comp && (comp_algo_back = strm_fe(s)->comp->algos))) {
+	if ((s->be->comp && (comp_algo_back = s->be->comp->algos_res)) ||
+	    (strm_fe(s)->comp && (comp_algo_back = strm_fe(s)->comp->algos_res))) {
 		int best_q = 0;
 
 		ctx.blk = NULL;
@@ -485,8 +485,8 @@ select_compression_request_header(struct comp_state *st, struct stream *s, struc
 	}
 
 	/* identity is implicit does not require headers */
-	if ((s->be->comp && (comp_algo_back = s->be->comp->algos)) ||
-	    (strm_fe(s)->comp && (comp_algo_back = strm_fe(s)->comp->algos))) {
+	if ((s->be->comp && (comp_algo_back = s->be->comp->algos_res)) ||
+	    (strm_fe(s)->comp && (comp_algo_back = strm_fe(s)->comp->algos_res))) {
 		for (comp_algo = comp_algo_back; comp_algo; comp_algo = comp_algo->next) {
 			if (comp_algo->cfg_name_len == 8 && memcmp(comp_algo->cfg_name, "identity", 8) == 0) {
 				st->comp_algo[COMP_DIR_RES] = comp_algo;
@@ -571,8 +571,8 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 		if (ctx.value.len >= 9 && strncasecmp("multipart", ctx.value.ptr, 9) == 0)
 			goto fail;
 
-		if ((s->be->comp && (comp_type = s->be->comp->types)) ||
-		    (strm_fe(s)->comp && (comp_type = strm_fe(s)->comp->types))) {
+		if ((s->be->comp && (comp_type = s->be->comp->types_res)) ||
+		    (strm_fe(s)->comp && (comp_type = strm_fe(s)->comp->types_res))) {
 			for (; comp_type; comp_type = comp_type->next) {
 				if (ctx.value.len >= comp_type->name_len &&
 				    strncasecmp(ctx.value.ptr, comp_type->name, comp_type->name_len) == 0)
@@ -585,8 +585,8 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 		}
 	}
 	else { /* no content-type header */
-		if ((s->be->comp && s->be->comp->types) ||
-		    (strm_fe(s)->comp && strm_fe(s)->comp->types))
+		if ((s->be->comp && s->be->comp->types_res) ||
+		    (strm_fe(s)->comp && strm_fe(s)->comp->types_res))
 			goto fail; /* a content-type was required */
 	}
 
@@ -674,7 +674,7 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 	else
 		comp = proxy->comp;
 
-	if (strcmp(args[1], "algo") == 0) {
+	if (strcmp(args[1], "algo") == 0 || strcmp(args[1], "algo-res") == 0) {
 		struct comp_ctx *ctx;
 		int              cur_arg = 2;
 
@@ -685,7 +685,7 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 			goto end;
 		}
 		while (*(args[cur_arg])) {
-			int retval = comp_append_algo(comp, args[cur_arg]);
+			int retval = comp_append_algo(&comp->algos_res, args[cur_arg]);
 			if (retval) {
 				if (retval < 0)
 					memprintf(err, "'%s' : '%s' is not a supported algorithm.",
@@ -697,8 +697,8 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 				goto end;
 			}
 
-			if (proxy->comp->algos->init(&ctx, 9) == 0)
-				proxy->comp->algos->end(&ctx);
+			if (proxy->comp->algos_res->init(&ctx, 9) == 0)
+				proxy->comp->algos_res->end(&ctx);
 			else {
 				memprintf(err, "'%s' : Can't init '%s' algorithm.",
 					  args[0], args[cur_arg]);
@@ -717,7 +717,7 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 		}
 		comp->flags |= COMP_FL_OFFLOAD;
 	}
-	else if (strcmp(args[1], "type") == 0) {
+	else if (strcmp(args[1], "type") == 0 || strcmp(args[1], "type-res") == 0) {
 		int cur_arg = 2;
 
 		if (!*args[cur_arg]) {
@@ -726,7 +726,7 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 			goto end;
 		}
 		while (*(args[cur_arg])) {
-			if (comp_append_type(comp, args[cur_arg])) {
+			if (comp_append_type(&comp->types_res, args[cur_arg])) {
 				memprintf(err, "'%s': out of memory.", args[0]);
 				ret = -1;
 				goto end;

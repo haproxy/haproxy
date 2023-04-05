@@ -43,8 +43,10 @@
 
 #define COMP_FL_OFFLOAD		0x00000001 /* Compression offload */
 struct comp {
-	struct comp_algo *algos;
-	struct comp_type *types;
+	struct comp_algo *algos_res; /* Algos available for response */
+	struct comp_algo *algo_req;  /* Algo to use for request */
+	struct comp_type *types_req; /* Types to be compressed for requests */
+	struct comp_type *types_res; /* Types to be compressed for responses */
 	unsigned int flags;
 };
 

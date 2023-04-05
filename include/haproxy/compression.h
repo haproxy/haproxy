@@ -27,8 +27,8 @@
 
 extern unsigned int compress_min_idle;
 
-int comp_append_type(struct comp *comp, const char *type);
-int comp_append_algo(struct comp *comp, const char *algo);
+int comp_append_type(struct comp_type **types, const char *type);
+int comp_append_algo(struct comp_algo **algos, const char *algo);
 
 #ifdef USE_ZLIB
 extern long zlib_used_memory;
