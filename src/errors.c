@@ -145,6 +145,7 @@ void startup_logs_init()
 		if (!r)
 			goto error;
 
+		str_fd = NULL;
 		memprintf(&str_fd, "%d", fd);
 		setenv("HAPROXY_STARTUPLOGS_FD", str_fd, 1);
 		ha_free(&str_fd);
