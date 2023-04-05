@@ -62,11 +62,11 @@ struct quic_cid_tree *quic_cid_trees;
 
 DECLARE_STATIC_POOL(pool_head_quic_rxbuf, "quic_rxbuf", QUIC_RX_BUFSZ);
 
-static void quic_add_listener(struct protocol *proto, struct listener *listener);
 static int quic_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static int quic_connect_server(struct connection *conn, int flags);
 static void quic_enable_listener(struct listener *listener);
 static void quic_disable_listener(struct listener *listener);
+static int quic_set_affinity(struct connection *conn, int new_tid);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 struct protocol proto_quic4 = {
@@ -77,7 +77,7 @@ struct protocol proto_quic4 = {
 	.listen         = quic_bind_listener,
 	.enable         = quic_enable_listener,
 	.disable        = quic_disable_listener,
-	.add            = quic_add_listener,
+	.add            = default_add_listener,
 	.unbind         = default_unbind_listener,
 	.suspend        = default_suspend_listener,
 	.resume         = default_resume_listener,
@@ -85,6 +85,7 @@ struct protocol proto_quic4 = {
 	.get_src        = quic_sock_get_src,
 	.get_dst        = quic_sock_get_dst,
 	.connect        = quic_connect_server,
+	.set_affinity   = quic_set_affinity,
 
 	/* binding layer */
 	.rx_suspend     = udp_suspend_receiver,
@@ -117,7 +118,7 @@ struct protocol proto_quic6 = {
 	.listen         = quic_bind_listener,
 	.enable         = quic_enable_listener,
 	.disable        = quic_disable_listener,
-	.add            = quic_add_listener,
+	.add            = default_add_listener,
 	.unbind         = default_unbind_listener,
 	.suspend        = default_suspend_listener,
 	.resume         = default_resume_listener,
@@ -125,6 +126,7 @@ struct protocol proto_quic6 = {
 	.get_src        = quic_sock_get_src,
 	.get_dst        = quic_sock_get_dst,
 	.connect        = quic_connect_server,
+	.set_affinity   = quic_set_affinity,
 
 	/* binding layer */
 	.rx_suspend     = udp_suspend_receiver,
@@ -525,17 +527,6 @@ int quic_connect_server(struct connection *conn, int flags)
 	return SF_ERR_NONE;  /* connection is OK */
 }
 
-/* Add listener <listener> to protocol <proto>. Technically speaking we just
- * initialize a few entries which should be doable during quic_bind_listener().
- * The end of the initialization goes on with the default function.
- */
-static void quic_add_listener(struct protocol *proto, struct listener *listener)
-{
-	listener->rx.flags |= RX_F_LOCAL_ACCEPT;
-
-	default_add_listener(proto, listener);
-}
-
 /* Allocate the RX buffers for <l> listener.
  * Return 1 if succeeded, 0 if not.
  */
@@ -714,6 +705,12 @@ static void quic_disable_listener(struct listener *l)
 	 */
 	if (fd_updt)
 		fd_stop_recv(l->rx.fd);
+}
+
+static int quic_set_affinity(struct connection *conn, int new_tid)
+{
+	struct quic_conn *qc = conn->handle.qc;
+	return qc_set_tid_affinity(qc, new_tid);
 }
 
 static int quic_alloc_dghdlrs(void)
