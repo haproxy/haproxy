@@ -130,6 +130,8 @@ static forceinline char *txn_show_flags(char *buf, size_t len, const char *delim
 #define HTTP_MSGF_BODYLESS    0x00000040  /* The message has no body (content-length = 0) */
 #define HTTP_MSGF_CONN_UPG    0x00000080  /* The message contains "Connection: Upgrade" header */
 
+#define HTTP_MSGF_EXPECT_CHECKED 0x00000100  /* Expect header was already handled, if any */
+
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
  * __APPEND_FLAG macro. The new end of the buffer is returned.
@@ -142,7 +144,7 @@ static forceinline char *hmsg_show_flags(char *buf, size_t len, const char *deli
 	/* flags */
 	_(HTTP_MSGF_CNT_LEN, _(HTTP_MSGF_TE_CHNK, _(HTTP_MSGF_XFER_LEN,
 	_(HTTP_MSGF_VER_11, _(HTTP_MSGF_SOFT_RW, _(HTTP_MSGF_COMPRESSING,
-	_(HTTP_MSGF_BODYLESS, _(HTTP_MSGF_CONN_UPG))))))));
+	_(HTTP_MSGF_BODYLESS, _(HTTP_MSGF_CONN_UPG, _(HTTP_MSGF_EXPECT_CHECKED)))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

@@ -4049,7 +4049,7 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	if (txn->meth == HTTP_METH_CONNECT || (msg->flags & HTTP_MSGF_BODYLESS))
 		goto end;
 
-	if (!(chn->flags & CF_ISRESP) && msg->msg_state < HTTP_MSG_DATA) {
+	if (!(chn->flags & CF_ISRESP)) {
 		if (http_handle_expect_hdr(s, htx, msg) == -1) {
 			ret = HTTP_RULE_RES_ERROR;
 			goto end;
@@ -4749,7 +4749,8 @@ static int http_handle_expect_hdr(struct stream *s, struct htx *htx, struct http
 	/* If we have HTTP/1.1 message with a body and Expect: 100-continue,
 	 * then we must send an HTTP/1.1 100 Continue intermediate response.
 	 */
-	if (msg->msg_state == HTTP_MSG_BODY && (msg->flags & HTTP_MSGF_VER_11) &&
+	if (!(msg->flags & HTTP_MSGF_EXPECT_CHECKED) &&
+	    (msg->flags & HTTP_MSGF_VER_11) &&
 	    (msg->flags & (HTTP_MSGF_CNT_LEN|HTTP_MSGF_TE_CHNK))) {
 		struct ist hdr = { .ptr = "Expect", .len = 6 };
 		struct http_hdr_ctx ctx;
@@ -4763,6 +4764,7 @@ static int http_handle_expect_hdr(struct stream *s, struct htx *htx, struct http
 			http_remove_header(htx, &ctx);
 		}
 	}
+	msg->flags |= HTTP_MSGF_EXPECT_CHECKED;
 	return 0;
 }
 
