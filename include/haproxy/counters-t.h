@@ -36,9 +36,10 @@ struct fe_counters {
 	long long bytes_in;                     /* number of bytes transferred from the client to the server */
 	long long bytes_out;                    /* number of bytes transferred from the server to the client */
 
-	long long comp_in;                      /* input bytes fed to the compressor */
-	long long comp_out;                     /* output bytes emitted by the compressor */
-	long long comp_byp;                     /* input bytes that bypassed the compressor (cpu/ram/bw limitation) */
+	/* compression counters, index 0 for requests, 1 for responses */
+	long long comp_in[2];                   /* input bytes fed to the compressor */
+	long long comp_out[2];                  /* output bytes emitted by the compressor */
+	long long comp_byp[2];                  /* input bytes that bypassed the compressor (cpu/ram/bw limitation) */
 
 	long long denied_req;                   /* blocked requests because of security concerns */
 	long long denied_resp;                  /* blocked responses because of security concerns */
@@ -80,9 +81,10 @@ struct be_counters {
 	long long bytes_in;                     /* number of bytes transferred from the client to the server */
 	long long bytes_out;                    /* number of bytes transferred from the server to the client */
 
-	long long comp_in;                      /* input bytes fed to the compressor */
-	long long comp_out;                     /* output bytes emitted by the compressor */
-	long long comp_byp;                     /* input bytes that bypassed the compressor (cpu/ram/bw limitation) */
+	/* compression counters, index 0 for requests, 1 for responses */
+	long long comp_in[2];                   /* input bytes fed to the compressor */
+	long long comp_out[2];                  /* output bytes emitted by the compressor */
+	long long comp_byp[2];                  /* input bytes that bypassed the compressor (cpu/ram/bw limitation) */
 
 	long long denied_req;                   /* blocked requests because of security concerns */
 	long long denied_resp;                  /* blocked responses because of security concerns */

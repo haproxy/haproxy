@@ -1847,13 +1847,13 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 				break;
 			}
 			case ST_F_COMP_IN:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.comp_in);
+				metric = mkf_u64(FN_COUNTER, px->fe_counters.comp_in[COMP_DIR_RES]);
 				break;
 			case ST_F_COMP_OUT:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.comp_out);
+				metric = mkf_u64(FN_COUNTER, px->fe_counters.comp_out[COMP_DIR_RES]);
 				break;
 			case ST_F_COMP_BYP:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.comp_byp);
+				metric = mkf_u64(FN_COUNTER, px->fe_counters.comp_byp[COMP_DIR_RES]);
 				break;
 			case ST_F_COMP_RSP:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.comp_rsp);
@@ -2878,13 +2878,13 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 				metric = mkf_u64(FN_COUNTER, px->be_counters.srv_aborts);
 				break;
 			case ST_F_COMP_IN:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.comp_in);
+				metric = mkf_u64(FN_COUNTER, px->be_counters.comp_in[COMP_DIR_RES]);
 				break;
 			case ST_F_COMP_OUT:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.comp_out);
+				metric = mkf_u64(FN_COUNTER, px->be_counters.comp_out[COMP_DIR_RES]);
 				break;
 			case ST_F_COMP_BYP:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.comp_byp);
+				metric = mkf_u64(FN_COUNTER, px->be_counters.comp_byp[COMP_DIR_RES]);
 				break;
 			case ST_F_COMP_RSP:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.comp_rsp);
