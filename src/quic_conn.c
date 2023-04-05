@@ -5421,10 +5421,9 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		                                      &quic_stats_module);
 		qc->flags |= QUIC_FL_CONN_LISTENER;
 		qc->state = QUIC_HS_ST_SERVER_INITIAL;
-		/* Copy the initial DCID with the address. */
+		/* Copy the client original DCID. */
 		qc->odcid.len = dcid->len;
-		qc->odcid.addrlen = dcid->addrlen;
-		memcpy(qc->odcid.data, dcid->data, dcid->len + dcid->addrlen);
+		memcpy(qc->odcid.data, dcid->data, dcid->len);
 
 		/* copy the packet SCID to reuse it as DCID for sending */
 		if (scid->len)
@@ -8165,9 +8164,6 @@ int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len)
 	struct ebmb_node *node;
 	struct quic_connection_id *id;
 
-	/* For ODCID, address is concatenated to it after qc.odcid.len so this
-	 * comparison is safe.
-	 */
 	if ((qc->scid.len == dcid_len &&
 	     memcmp(qc->scid.data, dcid, dcid_len) == 0) ||
 	    (qc->odcid.len == dcid_len &&

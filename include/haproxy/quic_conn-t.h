@@ -282,9 +282,8 @@ extern const struct quic_version *preferred_version;
  * <data> member must be the first one.
  */
 struct quic_cid {
-	unsigned char data[QUIC_CID_MAXLEN + sizeof(in_port_t) + sizeof(struct in6_addr)];
-	unsigned char len; /* size of QUIC CID, excluding possible concatenated address */
-	unsigned char addrlen; /* size of port + IP if present in data*/
+	unsigned char data[QUIC_CID_MAXLEN];
+	unsigned char len; /* size of QUIC CID */
 };
 
 /* QUIC connection id attached to a QUIC connection.
@@ -651,12 +650,7 @@ struct quic_conn {
 	unsigned char enc_params[QUIC_TP_MAX_ENCLEN]; /* encoded QUIC transport parameters */
 	size_t enc_params_len;
 
-	/*
-	 * Original DCID used by clients on first Initial packets.
-	 * <odcid> is concatenated with the socket src address.
-	 */
-	struct quic_cid odcid;
-
+	struct quic_cid odcid; /* First DCID used by client on its Initial packet. */
 	struct quic_cid dcid; /* DCID of our endpoint - not updated when a new DCID is used */
 	struct ebmb_node scid_node; /* used only for client side (backend) */
 	struct quic_cid scid; /* first SCID of our endpoint - not updated when a new SCID is used */
