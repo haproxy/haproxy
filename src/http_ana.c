@@ -797,9 +797,8 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
  * reached the buffer. It must only be called after the standard HTTP request
  * processing has occurred, because it expects the request to be parsed and will
  * look for the Expect header. It may send a 100-Continue interim response. It
- * takes in input any state starting from HTTP_MSG_BODY and leaves with one of
- * HTTP_MSG_CHK_SIZE, HTTP_MSG_DATA or HTTP_MSG_TRAILERS. It returns zero if it
- * needs to read more data, or 1 once it has completed its analysis.
+ * returns zero if it needs to read more data, or 1 once it has completed its
+ * analysis.
  */
 int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit)
 {
@@ -4056,10 +4055,8 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 		}
 	}
 
-	msg->msg_state = HTTP_MSG_DATA;
-
-	/* Now we're in HTTP_MSG_DATA. We just need to know if all data have
-	 * been received or if the buffer is full.
+	/* Now we're are waiting for the payload. We just need to know if all
+	 * data have been received or if the buffer is full.
 	 */
 	if ((htx->flags & HTX_FL_EOM) ||
 	    htx_get_tail_type(htx) > HTX_BLK_DATA ||
