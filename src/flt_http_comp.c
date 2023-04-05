@@ -32,8 +32,12 @@ const char *http_comp_flt_id = "compression filter";
 struct flt_ops comp_ops;
 
 struct comp_state {
-	struct comp_ctx  *comp_ctx;   /* compression context */
-	struct comp_algo *comp_algo;  /* compression algorithm if not NULL */
+	/*
+	 * For both comp_ctx and comp_algo, COMP_DIR_REQ is the index
+	 * for requests, and COMP_DIR_RES for responses
+	 */
+	struct comp_ctx  *comp_ctx[2];   /* compression context */
+	struct comp_algo *comp_algo[2];  /* compression algorithm if not NULL */
 	unsigned int      flags;      /* COMP_STATE_* */
 };
 
@@ -49,14 +53,14 @@ static int select_compression_request_header(struct comp_state *st,
 static int select_compression_response_header(struct comp_state *st,
 					      struct stream *s,
 					      struct http_msg *msg);
-static int set_compression_response_header(struct comp_state *st,
-					   struct stream *s,
-					   struct http_msg *msg);
+static int set_compression_header(struct comp_state *st,
+			          struct stream *s,
+				  struct http_msg *msg);
 
 static int htx_compression_buffer_init(struct htx *htx, struct buffer *out);
 static int htx_compression_buffer_add_data(struct comp_state *st, const char *data, size_t len,
-					    struct buffer *out);
-static int htx_compression_buffer_end(struct comp_state *st, struct buffer *out, int end);
+					    struct buffer *out, int dir);
+static int htx_compression_buffer_end(struct comp_state *st, struct buffer *out, int end, int dir);
 
 /***********************************************************************/
 static int
@@ -94,8 +98,10 @@ comp_strm_init(struct stream *s, struct filter *filter)
 	if (st == NULL)
 		return -1;
 
-	st->comp_algo = NULL;
-	st->comp_ctx  = NULL;
+	st->comp_algo[COMP_DIR_REQ] = NULL;
+	st->comp_algo[COMP_DIR_RES] = NULL;
+	st->comp_ctx[COMP_DIR_REQ]  = NULL;
+	st->comp_ctx[COMP_DIR_RES] = NULL;
 	st->flags     = 0;
 	filter->ctx   = st;
 
@@ -116,8 +122,10 @@ comp_strm_deinit(struct stream *s, struct filter *filter)
 		return;
 
 	/* release any possible compression context */
-	if (st->comp_algo)
-		st->comp_algo->end(&st->comp_ctx);
+	if (st->comp_algo[COMP_DIR_REQ])
+		st->comp_algo[COMP_DIR_REQ]->end(&st->comp_ctx[COMP_DIR_REQ]);
+	if (st->comp_algo[COMP_DIR_RES])
+		st->comp_algo[COMP_DIR_RES]->end(&st->comp_ctx[COMP_DIR_RES]);
 	pool_free(pool_head_comp_state, st);
 	filter->ctx = NULL;
 }
@@ -135,8 +143,8 @@ comp_http_headers(struct stream *s, struct filter *filter, struct http_msg *msg)
 	else {
 		/* Response headers have already been checked in
 		 * comp_http_post_analyze callback. */
-		if (st->comp_algo) {
-			if (!set_compression_response_header(st, s, msg))
+		if (st->comp_algo[COMP_DIR_RES]) {
+			if (!set_compression_header(st, s, msg))
 				goto end;
 			register_data_filter(s, msg->chn, filter);
 			st->flags |= COMP_STATE_PROCESSING;
@@ -176,6 +184,12 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 	struct htx_ret htxret = htx_find_offset(htx, offset);
 	struct htx_blk *blk, *next;
 	int ret, consumed = 0, to_forward = 0, last = 0;
+	int dir;
+
+	if (msg->chn->flags & CF_ISRESP)
+		dir = COMP_DIR_RES;
+	else
+		dir = COMP_DIR_REQ;
 
 	blk = htxret.blk;
 	offset = htxret.ret;
@@ -207,8 +221,8 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 					v.len = len;
 				}
 
-				ret = htx_compression_buffer_add_data(st, v.ptr, v.len, &trash);
-				if (ret < 0 || htx_compression_buffer_end(st, &trash, last) < 0)
+				ret = htx_compression_buffer_add_data(st, v.ptr, v.len, &trash, dir);
+				if (ret < 0 || htx_compression_buffer_end(st, &trash, last, dir) < 0)
 					goto error;
 				BUG_ON(v.len != ret);
 
@@ -228,7 +242,7 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 
 			case HTX_BLK_TLR:
 			case HTX_BLK_EOT:
-				if (htx_compression_buffer_end(st, &trash, 1) < 0)
+				if (htx_compression_buffer_end(st, &trash, 1, dir) < 0)
 					goto error;
 				if (b_data(&trash)) {
 					struct htx_blk *last = htx_add_last_data(htx, ist2(b_head(&trash), b_data(&trash)));
@@ -261,7 +275,7 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 	if (to_forward != consumed)
 		flt_update_offsets(filter, msg->chn, to_forward - consumed);
 
-	if (st->comp_ctx && st->comp_ctx->cur_lvl > 0) {
+	if (st->comp_ctx[dir] && st->comp_ctx[dir]->cur_lvl > 0) {
 		update_freq_ctr(&global.comp_bps_in, consumed);
 		_HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.comp_in, consumed);
 		_HA_ATOMIC_ADD(&s->be->be_counters.comp_in, consumed);
@@ -285,7 +299,7 @@ comp_http_end(struct stream *s, struct filter *filter,
 {
 	struct comp_state *st = filter->ctx;
 
-	if (!(msg->chn->flags & CF_ISRESP) || !st || !st->comp_algo)
+	if (!(msg->chn->flags & CF_ISRESP) || !st || !st->comp_algo[COMP_DIR_RES])
 		goto end;
 
 	if (strm_fe(s)->mode == PR_MODE_HTTP)
@@ -298,15 +312,24 @@ comp_http_end(struct stream *s, struct filter *filter,
 
 /***********************************************************************/
 static int
-set_compression_response_header(struct comp_state *st, struct stream *s, struct http_msg *msg)
+set_compression_header(struct comp_state *st, struct stream *s, struct http_msg *msg)
 {
 	struct htx *htx = htxbuf(&msg->chn->buf);
 	struct htx_sl *sl;
 	struct http_hdr_ctx ctx;
+	struct comp_algo *comp_algo;
+	int comp_index;
+
+	if (msg->chn->flags & CF_ISRESP)
+		comp_index = COMP_DIR_RES;
+	else
+		comp_index = COMP_DIR_REQ;
 
 	sl = http_get_stline(htx);
 	if (!sl)
 		goto error;
+
+	comp_algo = st->comp_algo[comp_index];
 
 	/* add "Transfer-Encoding: chunked" header */
 	if (!(msg->flags & HTTP_MSGF_TE_CHNK)) {
@@ -348,8 +371,8 @@ set_compression_response_header(struct comp_state *st, struct stream *s, struct 
 	 * Accept-Encoding header, and SHOULD NOT be used in the Content-Encoding
 	 * header.
 	 */
-	if (st->comp_algo->cfg_name_len != 8 || memcmp(st->comp_algo->cfg_name, "identity", 8) != 0) {
-		struct ist v = ist2(st->comp_algo->ua_name, st->comp_algo->ua_name_len);
+	if (comp_algo->cfg_name_len != 8 || memcmp(comp_algo->cfg_name, "identity", 8) != 0) {
+		struct ist v = ist2(comp_algo->ua_name, comp_algo->ua_name_len);
 
 		if (!http_add_header(htx, ist("Content-Encoding"), v))
 			goto error;
@@ -358,8 +381,8 @@ set_compression_response_header(struct comp_state *st, struct stream *s, struct 
 	return 1;
 
   error:
-	st->comp_algo->end(&st->comp_ctx);
-	st->comp_algo = NULL;
+	st->comp_algo[comp_index]->end(&st->comp_ctx[comp_index]);
+	st->comp_algo[comp_index] = NULL;
 	return 0;
 }
 
@@ -387,7 +410,7 @@ select_compression_request_header(struct comp_state *st, struct stream *s, struc
 	     *(ctx.value.ptr + 30) < '6' ||
 	     (*(ctx.value.ptr + 30) == '6' &&
 	      (ctx.value.len < 54 || memcmp(ctx.value.ptr + 51, "SV1", 3) != 0)))) {
-		st->comp_algo = NULL;
+		st->comp_algo[COMP_DIR_RES] = NULL;
 		return 0;
 	}
 
@@ -441,7 +464,7 @@ select_compression_request_header(struct comp_state *st, struct stream *s, struc
 			for (comp_algo = comp_algo_back; comp_algo; comp_algo = comp_algo->next) {
 				if (*(ctx.value.ptr) == '*' ||
 				    word_match(ctx.value.ptr, toklen, comp_algo->ua_name, comp_algo->ua_name_len)) {
-					st->comp_algo = comp_algo;
+					st->comp_algo[COMP_DIR_RES] = comp_algo;
 					best_q = q;
 					break;
 				}
@@ -450,7 +473,7 @@ select_compression_request_header(struct comp_state *st, struct stream *s, struc
 	}
 
 	/* remove all occurrences of the header when "compression offload" is set */
-	if (st->comp_algo) {
+	if (st->comp_algo[COMP_DIR_RES]) {
 		if ((s->be->comp && (s->be->comp->flags & COMP_FL_OFFLOAD)) ||
 		    (strm_fe(s)->comp && (strm_fe(s)->comp->flags & COMP_FL_OFFLOAD))) {
 			http_remove_header(htx, &ctx);
@@ -466,13 +489,13 @@ select_compression_request_header(struct comp_state *st, struct stream *s, struc
 	    (strm_fe(s)->comp && (comp_algo_back = strm_fe(s)->comp->algos))) {
 		for (comp_algo = comp_algo_back; comp_algo; comp_algo = comp_algo->next) {
 			if (comp_algo->cfg_name_len == 8 && memcmp(comp_algo->cfg_name, "identity", 8) == 0) {
-				st->comp_algo = comp_algo;
+				st->comp_algo[COMP_DIR_RES] = comp_algo;
 				return 1;
 			}
 		}
 	}
 
-	st->comp_algo = NULL;
+	st->comp_algo[COMP_DIR_RES] = NULL;
 	return 0;
 }
 
@@ -488,7 +511,7 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 	struct comp_type *comp_type;
 
 	/* no common compression algorithm was found in request header */
-	if (st->comp_algo == NULL)
+	if (st->comp_algo[COMP_DIR_RES] == NULL)
 		goto fail;
 
 	/* compression already in progress */
@@ -577,13 +600,13 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 		goto fail;
 
 	/* initialize compression */
-	if (st->comp_algo->init(&st->comp_ctx, global.tune.comp_maxlevel) < 0)
+	if (st->comp_algo[COMP_DIR_RES]->init(&st->comp_ctx[COMP_DIR_RES], global.tune.comp_maxlevel) < 0)
 		goto fail;
 	msg->flags |= HTTP_MSGF_COMPRESSING;
 	return 1;
 
   fail:
-	st->comp_algo = NULL;
+	st->comp_algo[COMP_DIR_RES] = NULL;
 	return 0;
 }
 
@@ -603,18 +626,20 @@ htx_compression_buffer_init(struct htx *htx, struct buffer *out)
 
 static int
 htx_compression_buffer_add_data(struct comp_state *st, const char *data, size_t len,
-				struct buffer *out)
+				struct buffer *out, int dir)
 {
-	return st->comp_algo->add_data(st->comp_ctx, data, len, out);
+
+	return st->comp_algo[dir]->add_data(st->comp_ctx[dir], data, len, out);
 }
 
 static int
-htx_compression_buffer_end(struct comp_state *st, struct buffer *out, int end)
+htx_compression_buffer_end(struct comp_state *st, struct buffer *out, int end, int dir)
 {
+
 	if (end)
-		return st->comp_algo->finish(st->comp_ctx, out);
+		return st->comp_algo[dir]->finish(st->comp_ctx[dir], out);
 	else
-		return st->comp_algo->flush(st->comp_ctx, out);
+		return st->comp_algo[dir]->flush(st->comp_ctx[dir], out);
 }
 
 
@@ -836,8 +861,8 @@ smp_fetch_res_comp_algo(const struct arg *args, struct sample *smp,
 
 		smp->data.type = SMP_T_STR;
 		smp->flags = SMP_F_CONST;
-		smp->data.u.str.area = st->comp_algo->cfg_name;
-		smp->data.u.str.data = st->comp_algo->cfg_name_len;
+		smp->data.u.str.area = st->comp_algo[COMP_DIR_RES]->cfg_name;
+		smp->data.u.str.data = st->comp_algo[COMP_DIR_RES]->cfg_name_len;
 		return 1;
 	}
 	return 0;

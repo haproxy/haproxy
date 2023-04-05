@@ -34,6 +34,11 @@
 
 #include <haproxy/buf-t.h>
 
+/* Direction index */
+
+#define COMP_DIR_REQ 0
+#define COMP_DIR_RES 1
+
 /* Compression flags */
 
 #define COMP_FL_OFFLOAD		0x00000001 /* Compression offload */
