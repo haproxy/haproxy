@@ -1096,9 +1096,6 @@ void listener_accept(struct listener *l)
 
 
 #if defined(USE_THREAD)
-		if (l->rx.flags & RX_F_LOCAL_ACCEPT)
-			goto local_accept;
-
 		mask = l->rx.bind_thread & _HA_ATOMIC_LOAD(&tg->threads_enabled);
 		if (atleast2(mask) && (global.tune.options & GTUNE_LISTENER_MQ) && !stopping) {
 			struct accept_queue_ring *ring;
