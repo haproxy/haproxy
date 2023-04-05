@@ -5014,13 +5014,25 @@ clitcpka-intvl <timeout>
 
 
 compression algo <algorithm> ...
+compression algo-req <algorithm>
+compression algo-res <algorithm>
 compression type <mime type> ...
   Enable HTTP compression.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
   Arguments :
-    algo     is followed by the list of supported compression algorithms.
-    type     is followed by the list of MIME types that will be compressed.
+    algo     is followed by the list of supported compression algorithms for
+             responses (legacy keyword)
+    algo-req is followed by compression algorithm for request (only one is
+	     provided).
+    algo-res is followed by the list of supported compression algorithms for
+             responses.
+    type     is followed by the list of MIME types that will be compressed for
+             responses (legacy keyword).
+    type-req is followed by the list of MIME types that will be compressed for
+             requests.
+    type-res is followed by the list of MIME types that will be compressed for
+             responses.
 
   The currently supported algorithms are :
     identity     this is mostly for debugging, and it was useful for developing
@@ -5077,7 +5089,7 @@ compression type <mime type> ...
         compression algo gzip
         compression type text/html text/plain
 
-  See also : "compression offload"
+  See also : "compression offload", "compression direction"
 
 compression offload
   Makes HAProxy work as a compression offloader only.
@@ -5099,7 +5111,15 @@ compression offload
   If this setting is used in a defaults section, a warning is emitted and the
   option is ignored.
 
-  See also : "compression type", "compression algo"
+  See also : "compression type", "compression algo", "compression direction"
+
+compression direction <direction>
+  Makes haproxy able to compress both requests and responses.
+  Valid values are "request", to compress only requests, "response", to
+  compress only responses, or "both", when you want to compress both.
+  The default value is "response".
+
+  See also : "compression type", "compression algo", "compression offload"
 
 cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               [ postonly ] [ preserve ] [ httponly ] [ secure ]

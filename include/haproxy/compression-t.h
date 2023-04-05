@@ -42,6 +42,9 @@
 /* Compression flags */
 
 #define COMP_FL_OFFLOAD		0x00000001 /* Compression offload */
+#define COMP_FL_DIR_REQ		0x00000002 /* Compress requests */
+#define COMP_FL_DIR_RES		0x00000004 /* Compress responses */
+
 struct comp {
 	struct comp_algo *algos_res; /* Algos available for response */
 	struct comp_algo *algo_req;  /* Algo to use for request */

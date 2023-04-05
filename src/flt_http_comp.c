@@ -130,17 +130,109 @@ comp_strm_deinit(struct stream *s, struct filter *filter)
 	filter->ctx = NULL;
 }
 
+static void
+comp_prepare_compress_request(struct comp_state *st, struct stream *s, struct http_msg *msg)
+{
+	struct htx *htx = htxbuf(&msg->chn->buf);
+	struct http_txn *txn = s->txn;
+	struct http_hdr_ctx ctx;
+	struct comp_type *comp_type;
+
+	ctx.blk = NULL;
+	/* Already compressed, don't bother */
+	if (http_find_header(htx, ist("Content-Encoding"), &ctx, 1))
+		return;
+	/* HTTP < 1.1 should not be compressed */
+	if (!(msg->flags & HTTP_MSGF_VER_11) || !(txn->req.flags & HTTP_MSGF_VER_11))
+		return;
+	comp_type = NULL;
+
+	/*
+	 * We don't want to compress content-types not listed in the "compression type" directive if any. If no content-type was found but configuration
+	 * requires one, we don't compress either. Backend has the priority.
+	 */
+	ctx.blk = NULL;
+	if (http_find_header(htx, ist("Content-Type"), &ctx, 1)) {
+		if ((s->be->comp && (comp_type = s->be->comp->types_req)) ||
+		    (strm_fe(s)->comp && (comp_type = strm_fe(s)->comp->types_req))) {
+			for (; comp_type; comp_type = comp_type->next) {
+				if (ctx.value.len >= comp_type->name_len &&
+				    strncasecmp(ctx.value.ptr, comp_type->name, comp_type->name_len) == 0)
+					/* this Content-Type should be compressed */
+					break;
+			}
+			/* this Content-Type should not be compressed */
+			if (comp_type == NULL)
+				goto fail;
+		}
+	}
+	else { /* no content-type header */
+		if ((s->be->comp && s->be->comp->types_req) ||
+		    (strm_fe(s)->comp && strm_fe(s)->comp->types_req))
+			goto fail; /* a content-type was required */
+	}
+
+	/* limit compression rate */
+	if (global.comp_rate_lim > 0)
+		if (read_freq_ctr(&global.comp_bps_in) > global.comp_rate_lim)
+			goto fail;
+
+	/* limit cpu usage */
+	if (th_ctx->idle_pct < compress_min_idle)
+		goto fail;
+
+	if (txn->meth == HTTP_METH_HEAD)
+		return;
+	if (s->be->comp->algo_req != NULL)
+		st->comp_algo[COMP_DIR_REQ] = s->be->comp->algo_req;
+	else if (strm_fe(s)->comp->algo_req != NULL)
+		st->comp_algo[COMP_DIR_REQ] = strm_fe(s)->comp->algo_req;
+
+
+	/* limit compression rate */
+	if (global.comp_rate_lim > 0)
+		if (read_freq_ctr(&global.comp_bps_in) > global.comp_rate_lim)
+			goto fail;
+
+	/* limit cpu usage */
+	if (th_ctx->idle_pct < compress_min_idle)
+		goto fail;
+
+	/* initialize compression */
+	if (st->comp_algo[COMP_DIR_REQ]->init(&st->comp_ctx[COMP_DIR_REQ], global.tune.comp_maxlevel) < 0)
+		goto fail;
+
+	return;
+fail:
+	st->comp_algo[COMP_DIR_REQ] = NULL;
+}
+
 static int
 comp_http_headers(struct stream *s, struct filter *filter, struct http_msg *msg)
 {
 	struct comp_state *st = filter->ctx;
+	int comp_flags = 0;
 
 	if (!strm_fe(s)->comp && !s->be->comp)
 		goto end;
+	if (strm_fe(s)->comp)
+		comp_flags |= strm_fe(s)->comp->flags;
+	if (s->be->comp)
+		comp_flags |= s->be->comp->flags;
 
-	if (!(msg->chn->flags & CF_ISRESP))
-		select_compression_request_header(st, s, msg);
-	else {
+	if (!(msg->chn->flags & CF_ISRESP)) {
+		if (comp_flags & COMP_FL_DIR_REQ) {
+			    comp_prepare_compress_request(st, s, msg);
+			    if (st->comp_algo[COMP_DIR_REQ]) {
+				    if (!set_compression_header(st, s, msg))
+					    goto end;
+				    register_data_filter(s, msg->chn, filter);
+				    st->flags |= COMP_STATE_PROCESSING;
+			    }
+		}
+		if (comp_flags & COMP_FL_DIR_RES)
+			select_compression_request_header(st, s, msg);
+	} else if (comp_flags & COMP_FL_DIR_RES) {
 		/* Response headers have already been checked in
 		 * comp_http_post_analyze callback. */
 		if (st->comp_algo[COMP_DIR_RES]) {
@@ -669,6 +761,8 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 
 	if (proxy->comp == NULL) {
 		comp = calloc(1, sizeof(*comp));
+		/* Always default to compress responses */
+		comp->flags = COMP_FL_DIR_RES;
 		proxy->comp = comp;
 	}
 	else
@@ -709,6 +803,30 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 			continue;
 		}
 	}
+	else if (strcmp(args[1], "algo-req") == 0) {
+		struct comp_ctx *ctx;
+		int retval = comp_append_algo(&comp->algo_req, args[2]);
+
+		if (retval) {
+			if (retval < 0)
+				memprintf(err, "'%s' : '%s' is not a supported algorithm.",
+				    args[0], args[2]);
+			else
+				memprintf(err, "'%s' : out of memory while parsing algo '%s'.",
+				    args[0], args[2]);
+			ret = -1;
+			goto end;
+		}
+
+		if (proxy->comp->algo_req->init(&ctx, 9) == 0)
+			proxy->comp->algo_req->end(&ctx);
+		else {
+			memprintf(err, "'%s' : Can't init '%s' algorithm.",
+			    args[0], args[2]);
+			ret = -1;
+			goto end;
+		}
+	}
 	else if (strcmp(args[1], "offload") == 0) {
 		if (proxy->cap & PR_CAP_DEF) {
 			memprintf(err, "'%s' : '%s' ignored in 'defaults' section.",
@@ -735,8 +853,46 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 			continue;
 		}
 	}
+	else if (strcmp(args[1], "type-req") == 0) {
+		int cur_arg = 2;
+
+		if (!*args[cur_arg]) {
+			memprintf(err, "'%s' expects <type>.", args[0]);
+			ret = -1;
+			goto end;
+		}
+		while (*(args[cur_arg])) {
+			if (comp_append_type(&comp->types_req, args[cur_arg])) {
+				memprintf(err, "'%s': out of memory.", args[0]);
+				ret = -1;
+				goto end;
+			}
+			cur_arg++;
+			continue;
+		}
+	}
+	else if (strcmp(args[1], "direction") == 0) {
+		if (!args[2]) {
+			memprintf(err, "'%s' expects 'request', 'response', or 'both'.", args[0]);
+			ret = -1;
+			goto end;
+		}
+		if (strcmp(args[2], "request") == 0) {
+			comp->flags &= ~COMP_FL_DIR_RES;
+			comp->flags |= COMP_FL_DIR_REQ;
+		} else if (strcmp(args[2], "response") == 0) {
+			comp->flags &= COMP_FL_DIR_REQ;
+			comp->flags |= COMP_FL_DIR_RES;
+		} else if (strcmp(args[2], "both") == 0)
+			comp->flags |= COMP_FL_DIR_REQ | COMP_FL_DIR_RES;
+		else {
+			memprintf(err, "'%s' expects 'request', 'response', or 'both'.", args[0]);
+			ret = -1;
+			goto end;
+		}
+	}
 	else {
-		memprintf(err, "'%s' expects 'algo', 'type' or 'offload'",
+		memprintf(err, "'%s' expects 'algo', 'type' 'direction' or 'offload'",
 			  args[0]);
 		ret = -1;
 		goto end;
