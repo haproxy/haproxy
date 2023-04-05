@@ -734,7 +734,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			if (tick_isset(qc->idle_expire))
 				chunk_appendf(&trace_buf, " idle_expire=%ums",
 				              TICKS_TO_MS(tick_remain(now_ms, qc->idle_expire)));
-			if (tick_isset(qc->idle_timer_task->expire))
+			if (qc->idle_timer_task && tick_isset(qc->idle_timer_task->expire))
 				chunk_appendf(&trace_buf, " expire=%ums",
 				              TICKS_TO_MS(tick_remain(now_ms, qc->idle_timer_task->expire)));
 		}
@@ -5685,7 +5685,7 @@ struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 		goto requeue;
 
 	if (tick_is_expired(qc->ack_expire, now_ms)) {
-		TRACE_PROTO("ack timer expired", QUIC_EV_CONN_SSLALERT, qc);
+		TRACE_PROTO("ack timer expired", QUIC_EV_CONN_IDLE_TIMER, qc);
 		qc->ack_expire = TICK_ETERNITY;
 		/* Note that ->idle_expire is always set. */
 		t->expire = qc->idle_expire;
@@ -5704,8 +5704,10 @@ struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 	 * responsible to call quic_close to release it.
 	 */
 	qc->flags |= QUIC_FL_CONN_EXP_TIMER;
-	if (qc->mux_state != QC_MUX_READY)
+	if (qc->mux_state != QC_MUX_READY) {
 		quic_conn_release(qc);
+		qc = NULL;
+	}
 
 	/* TODO if the quic-conn cannot be freed because of the MUX, we may at
 	 * least clean some parts of it such as the tasklet.
@@ -5713,7 +5715,7 @@ struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 
 	if (!(qc_flags & QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED)) {
 		qc_flags |= QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED;
-		TRACE_DEVEL("dec half open counter", QUIC_EV_CONN_SSLALERT, qc);
+		TRACE_DEVEL("dec half open counter", QUIC_EV_CONN_IDLE_TIMER, qc);
 		HA_ATOMIC_DEC(&prx_counters->half_open_conn);
 	}
 
