@@ -105,7 +105,7 @@ static void applet_trace(enum trace_level level, uint64_t mask, const struct tra
 
 	sc = appctx_sc(appctx);
 	if (sc) {
-		s = sc_strm(sc);
+		s = __sc_strm(sc);
 		sco = sc_opposite(sc);
 		ic = sc_ic(sc);
 		oc = sc_oc(sc);
