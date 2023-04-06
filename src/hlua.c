@@ -354,6 +354,7 @@ static int class_txn_reply_ref;
  * with hlua timer's API exclusively.
  * 0 means no timeout
  */
+static uint32_t hlua_timeout_burst = 1000; /* burst timeout. */
 static uint32_t hlua_timeout_session = 4000; /* session timeout. */
 static uint32_t hlua_timeout_task = 0; /* task timeout. */
 static uint32_t hlua_timeout_applet = 4000; /* applet timeout. */
@@ -423,7 +424,11 @@ static inline void hlua_timer_stop(struct hlua_timer *timer)
 	timer->burst += _hlua_time_burst(timer);
 }
 
-/* check the timers for current hlua context
+/* check the timers for current hlua context:
+ * - first check for burst timeout (max execution time for the current
+     hlua resume, ie: time between effective yields)
+ * - then check for yield cumulative timeout
+ *
  * Returns 1 if the check succeeded and 0 if it failed
  * (ie: timeout exceeded)
  */
@@ -431,6 +436,8 @@ static inline int hlua_timer_check(const struct hlua_timer *timer)
 {
 	uint32_t pburst = _hlua_time_burst(timer); /* pending burst time in ms */
 
+	if (hlua_timeout_burst && (timer->burst + pburst) > hlua_timeout_burst)
+		return 0; /* burst timeout exceeded */
 	if (timer->max && (timer->cumulative + timer->burst + pburst) > timer->max)
 		return 0; /* cumulative timeout exceeded */
 	return 1; /* ok */
@@ -11967,6 +11974,14 @@ static int hlua_read_timeout(char **args, int section_type, struct proxy *curpx,
 	return 0;
 }
 
+static int hlua_burst_timeout(char **args, int section_type, struct proxy *curpx,
+                              const struct proxy *defpx, const char *file, int line,
+                              char **err)
+{
+	return hlua_read_timeout(args, section_type, curpx, defpx,
+	                         file, line, err, &hlua_timeout_burst);
+}
+
 static int hlua_session_timeout(char **args, int section_type, struct proxy *curpx,
                                 const struct proxy *defpx, const char *file, int line,
                                 char **err)
@@ -12269,6 +12284,7 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "tune.lua.session-timeout", hlua_session_timeout },
 	{ CFG_GLOBAL, "tune.lua.task-timeout",    hlua_task_timeout },
 	{ CFG_GLOBAL, "tune.lua.service-timeout", hlua_applet_timeout },
+	{ CFG_GLOBAL, "tune.lua.burst-timeout",   hlua_burst_timeout },
 	{ CFG_GLOBAL, "tune.lua.forced-yield",    hlua_forced_yield },
 	{ CFG_GLOBAL, "tune.lua.maxmem",          hlua_parse_maxmem },
 	{ 0, NULL, NULL },

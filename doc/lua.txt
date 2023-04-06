@@ -253,9 +253,10 @@ not the difference between the end time and the start time. The groups are:
 
 The corresponding tune options are:
 
- - tune.lua.session-timeout (fetches, converters and action)
+ - tune.lua.session-timeout (action, filter, cli)
  - tune.lua.task-timeout    (task)
  - tune.lua.service-timeout (services)
+ - tune.lua.burst-timeout (max time between two lua yields)
 
 The task does not have a timeout because it runs in background along the
 HAProxy process life.

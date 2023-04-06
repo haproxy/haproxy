@@ -3055,6 +3055,56 @@ tune.lua.session-timeout <timeout>
   counts only the pure Lua runtime. If the Lua does a sleep, the sleep is
   not taken in account. The default timeout is 4s.
 
+tune.lua.burst-timeout <timeout>
+  The "burst" execution timeout applies to any Lua handler. If the handler
+  fails to finish or yield before timeout is reached, it will be aborted to
+  prevent thread contention, to prevent traffic from not being served for too
+  long, and ultimately to prevent the process from crashing because of the
+  watchdog kicking in. Unlike other lua timeouts which are yield-cumulative,
+  burst-timeout will ensure that the time spent in a single lua execution
+  window does not exceed the configured timeout.
+
+  Yielding here means that the lua execution is effectively interrupted
+  either through an explicit call to lua-yielding function such as
+  core.(m)sleep() or core.yield(), or following an automatic forced-yield
+  (see tune.lua.forced-yield) and that it will be resumed later when the
+  related task is set for rescheduling. Not all lua handlers may yield: we have
+  to make a distinction between yieldable handlers and unyieldable handlers.
+
+  For yieldable handlers (tasks, actions..), reaching the timeout means
+  "tune.lua.forced-yield" might be too high for the system, reducing it
+  could improve the situation, but it could also be a good idea to check if
+  adding manual yields at some key points within the lua function helps or not.
+  It may also indicate that the handler is spending too much time in a specific
+  lua library function that cannot be interrupted.
+
+  For unyieldable handlers (lua converters, sample fetches), it could simply
+  indicate that the handler is doing too much computation, which could result
+  from an improper design given that such handlers, which often block the
+  request execution flow, are expected to terminate quickly to allow the
+  request processing to go through. A common resolution approach here would be
+  to try to better optimize the lua function for speed since decreasing
+  "tune.lua.forced-yield" won't help.
+
+  This timeout only counts the pure Lua runtime. If the Lua does a core.sleep,
+  the sleeping time is not taken in account. The default timeout is 1000ms.
+
+  Note: if a lua GC cycle is initiated from the handler (either explicitly
+  requested or automatically triggered by lua after some time), the GC cycle
+  time will also be accounted for.
+
+  Indeed, there is no way to deduce the GC cycle time, so this could lead to
+  some false positives on saturated systems (where GC is having hard time to
+  catch up and consumes most of the available execution runtime). If it were
+  to be the case, here are some resolution leads:
+
+    - checking if the script could be optimized to reduce lua memory footprint
+    - fine-tuning lua GC parameters and / or requesting manual GC cycles
+      (see: https://www.lua.org/manual/5.4/manual.html#pdf-collectgarbage)
+    - increasing tune.lua.burst-timeout
+
+  Setting value to 0 completely disables this protection.
+
 tune.lua.service-timeout <timeout>
   This is the execution timeout for the Lua services. This is useful for
   preventing infinite loops or spending too much time in Lua. This timeout
