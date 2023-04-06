@@ -3117,13 +3117,13 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		{
 			unsigned int rtt_sample;
 
-			rtt_sample = 0;
+			rtt_sample = UINT_MAX;
 			if (!qc_parse_ack_frm(qc, &frm, qel, &rtt_sample, &pos, end)) {
 				// trace already emitted by function above
 				goto leave;
 			}
 
-			if (rtt_sample) {
+			if (rtt_sample != UINT_MAX) {
 				unsigned int ack_delay;
 
 				ack_delay = !quic_application_pktns(qel->pktns, qc) ? 0 :
