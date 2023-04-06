@@ -87,6 +87,7 @@ static void quic_cc_nr_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
 		path->cwnd += ev->ack.acked;
+		path->mcwnd = QUIC_MAX(path->cwnd, path->mcwnd);
 		/* Exit to congestion avoidance if slow start threshold is reached. */
 		if (path->cwnd > nr->ssthresh)
 			nr->state = QUIC_CC_ST_CA;
@@ -123,6 +124,7 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		acked = ev->ack.acked * path->mtu + nr->remain_acked;
 		nr->remain_acked = acked % path->cwnd;
 		path->cwnd += acked / path->cwnd;
+		path->mcwnd = QUIC_MAX(path->cwnd, path->mcwnd);
 		break;
 	}
 
@@ -182,11 +184,14 @@ static void quic_cc_nr_state_trace(struct buffer *buf, const struct quic_cc *cc)
 	struct nr *nr = quic_cc_priv(cc);
 
 	path = container_of(cc, struct quic_path, cc);
-	chunk_appendf(buf, " state=%s cwnd=%llu ssthresh=%ld recovery_start_time=%llu",
+	chunk_appendf(buf, " state=%s cwnd=%llu mcwnd=%llu ssthresh=%ld rpst=%dms pktloss=%llu",
 	              quic_cc_state_str(nr->state),
 	              (unsigned long long)path->cwnd,
+	              (unsigned long long)path->mcwnd,
 	              (long)nr->ssthresh,
-	              (unsigned long long)nr->recovery_start_time);
+	              !tick_isset(nr->recovery_start_time) ? -1 :
+	              TICKS_TO_MS(tick_remain(nr->recovery_start_time, now_ms)),
+	              (unsigned long long)path->loss.nb_lost_pkt);
 }
 
 static void (*quic_cc_nr_state_cbs[])(struct quic_cc *cc,

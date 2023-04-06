@@ -168,6 +168,7 @@ static inline void quic_cubic_update(struct quic_cc *cc, uint32_t acked)
 	}
 
 	path->cwnd += inc;
+	path->mcwnd = QUIC_MAX(path->cwnd, path->mcwnd);
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc);
 }
@@ -217,6 +218,7 @@ static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		/* Exit to congestion avoidance if slow start threshold is reached. */
 		if (path->cwnd >= c->ssthresh)
 			c->state = QUIC_CC_ST_CA;
+		path->mcwnd = QUIC_MAX(path->cwnd, path->mcwnd);
 		break;
 
 	case QUIC_CC_EVT_LOSS:
@@ -309,9 +311,10 @@ static void quic_cc_cubic_state_trace(struct buffer *buf, const struct quic_cc *
 	struct cubic *c = quic_cc_priv(cc);
 
 	path = container_of(cc, struct quic_path, cc);
-	chunk_appendf(buf, " state=%s cwnd=%llu ssthresh=%d rpst=%dms",
+	chunk_appendf(buf, " state=%s cwnd=%llu mcwnd=%llu ssthresh=%d rpst=%dms",
 	              quic_cc_state_str(c->state),
 	              (unsigned long long)path->cwnd,
+	              (unsigned long long)path->mcwnd,
 	              (int)c->ssthresh,
 	              !tick_isset(c->recovery_start_time) ? -1 :
 	              TICKS_TO_MS(tick_remain(c->recovery_start_time, now_ms)));

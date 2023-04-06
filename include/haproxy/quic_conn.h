@@ -538,6 +538,7 @@ static inline void quic_path_init(struct quic_path *path, int ipv4,
 	quic_loss_init(&path->loss);
 	path->mtu = max_dgram_sz;
 	path->cwnd = QUIC_MIN(10 * max_dgram_sz, QUIC_MAX(max_dgram_sz << 1, 14720U));
+	path->mcwnd = path->cwnd;
 	path->min_cwnd = max_dgram_sz << 1;
 	path->prep_in_flight = 0;
 	path->in_flight = 0;
