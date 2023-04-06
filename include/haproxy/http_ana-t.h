@@ -224,8 +224,8 @@ enum h1_state {
  */
 struct http_msg {
 	enum h1_state msg_state;               /* where we are in the current message parsing */
-	unsigned char flags;                   /* flags describing the message (HTTP version, ...) */
-	/* 5 bytes unused here */
+	/* 3 bytes unused here */
+	unsigned int flags;                    /* flags describing the message (HTTP version, ...) */
 	struct channel *chn;                   /* pointer to the channel transporting the message */
 };
 
