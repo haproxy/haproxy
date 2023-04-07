@@ -3182,7 +3182,7 @@ int srv_update_addr(struct server *s, void *ip, int ip_sin_family, const char *u
 			inet_ntop(s->addr.ss_family, &((struct sockaddr_in6 *)&s->addr)->sin6_addr, oldip, INET6_ADDRSTRLEN);
 			break;
 		default:
-			strcpy(oldip, "(none)");
+			strlcpy2(oldip, "(none)", sizeof(oldip));
 			break;
 		};
 

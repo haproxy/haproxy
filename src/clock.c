@@ -415,7 +415,7 @@ char *timeofday_as_iso_us(int pad)
 		get_localtime(new_date.tv_sec, &tm);
 		offset = get_gmt_offset(new_date.tv_sec, &tm);
 		if (unlikely(strftime(iso_time_str, sizeof(iso_time_str), "%Y-%m-%dT%H:%M:%S.000000+00:00", &tm) != 32))
-			strcpy(iso_time_str, "YYYY-mm-ddTHH:MM:SS.000000-00:00"); // make the failure visible but respect format.
+			strlcpy2(iso_time_str, "YYYY-mm-ddTHH:MM:SS.000000-00:00", sizeof(iso_time_str)); // make the failure visible but respect format.
 		iso_time_str[26] = offset[0];
 		iso_time_str[27] = offset[1];
 		iso_time_str[28] = offset[2];

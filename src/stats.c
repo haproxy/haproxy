@@ -2994,7 +2994,7 @@ static void stats_dump_html_px_hdr(struct stconn *sc, struct proxy *px)
 		if (ctx->scope_len) {
 			const char *scope_ptr = stats_scope_ptr(appctx, sc);
 
-			strcpy(scope_txt, STAT_SCOPE_PATTERN);
+			strlcpy2(scope_txt, STAT_SCOPE_PATTERN, sizeof(scope_txt));
 			memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), scope_ptr, ctx->scope_len);
 			scope_txt[strlen(STAT_SCOPE_PATTERN) + ctx->scope_len] = 0;
 		}
@@ -3645,7 +3645,7 @@ static void stats_dump_html_info(struct stconn *sc, struct uri_auth *uri)
 	/* scope_txt = search pattern + search query, ctx->scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
 	scope_txt[0] = 0;
 	if (ctx->scope_len) {
-		strcpy(scope_txt, STAT_SCOPE_PATTERN);
+		strlcpy2(scope_txt, STAT_SCOPE_PATTERN, sizeof(scope_txt));
 		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), scope_ptr, ctx->scope_len);
 		scope_txt[strlen(STAT_SCOPE_PATTERN) + ctx->scope_len] = 0;
 	}
@@ -4395,7 +4395,7 @@ static int stats_send_http_redirect(struct stconn *sc, struct htx *htx)
 	if (ctx->scope_len) {
 		const char *scope_ptr = stats_scope_ptr(appctx, sc);
 
-		strcpy(scope_txt, STAT_SCOPE_PATTERN);
+		strlcpy2(scope_txt, STAT_SCOPE_PATTERN, sizeof(scope_txt));
 		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), scope_ptr, ctx->scope_len);
 		scope_txt[strlen(STAT_SCOPE_PATTERN) + ctx->scope_len] = 0;
 	}

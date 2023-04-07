@@ -78,7 +78,7 @@ int frontend_accept(struct stream *s)
 						addr_to_str(dst, sn, sizeof(sn));
 						port = get_host_port(dst);
 					} else {
-						strcpy(sn, "undetermined address");
+						strlcpy2(sn, "undetermined address", sizeof(sn));
 						port = 0;
 					}
 					send_log(fe, LOG_INFO, "Connect from %s:%d to %s:%d (%s/%s)\n",
