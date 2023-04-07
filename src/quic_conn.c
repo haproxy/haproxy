@@ -5245,6 +5245,11 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 
 	if (qc->path->in_flight) {
 		pktns = quic_pto_pktns(qc, qc->state >= QUIC_HS_ST_CONFIRMED, NULL);
+		if (!pktns->tx.in_flight) {
+			TRACE_PROTO("No in flight packets to probe with", QUIC_EV_CONN_TXPKT, qc);
+			goto out;
+		}
+
 		if (pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL]) {
 			if (qc_may_probe_ipktns(qc)) {
 				qc->flags |= QUIC_FL_CONN_RETRANS_NEEDED;
