@@ -4262,9 +4262,10 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 	if (*args[cur_arg] && *args[cur_arg+1] &&
 	    (strcmp(args[cur_arg], "EHLO") == 0 || strcmp(args[cur_arg], "HELO") == 0)) {
 		/* <EHLO|HELO> + space (1) + <host> + null byte (1) */
-		cmd = calloc(strlen(args[cur_arg]) + 1 + strlen(args[cur_arg+1]) + 1, sizeof(*cmd));
+		size_t len = strlen(args[cur_arg]) + 1 + strlen(args[cur_arg+1]) + 1;
+		cmd = calloc(len, 1);
 		if (cmd)
-			sprintf(cmd, "%s %s", args[cur_arg], args[cur_arg+1]);
+			snprintf(cmd, len, "%s %s", args[cur_arg], args[cur_arg+1]);
 	}
 	else {
 		/* this just hits the default for now, but you could potentially expand it to allow for other stuff
