@@ -8711,6 +8711,41 @@ __LJMP static int hlua_set_nice(lua_State *L)
 	return 0;
 }
 
+/* safe lua coroutine.create() function:
+ *
+ * This is a simple wrapper for coroutine.create() that
+ * ensures the current hlua state ctx is available from
+ * the new subroutine state
+ */
+__LJMP static int hlua_coroutine_create(lua_State *L)
+{
+	lua_State *new; /* new coroutine state */
+	struct hlua **hlua_store;
+	struct hlua *hlua = hlua_gethlua(L);
+
+	new = lua_newthread(L);
+	if (!new)
+		return 0;
+
+	hlua_store = lua_getextraspace(new);
+	/* Expose current hlua ctx on new lua thread
+	 * (hlua_gethlua() will properly return the last "known"
+	 *  hlua ctx instead of NULL when it is called from such coroutines)
+	 */
+	*hlua_store = hlua;
+
+	/* new lua thread is on the top of the stack, we
+	 * need to duplicate first stack argument (<f> from coroutine.create(<f>))
+	 * on the top of the stack to be able to use xmove() to move it on the new
+	 * stack
+	 */
+	lua_pushvalue(L, 1);
+	/* move <f> function to the new stack */
+	lua_xmove(L, new, 1);
+	/* new lua thread is back at the top of the stack */
+	return 1;
+}
+
 /* This function is used as a callback of a task. It is called by the
  * HAProxy task subsystem when the task is awaked. The LUA runtime can
  * return an E_AGAIN signal, the emmiter of this signal must set a
@@ -12840,6 +12875,16 @@ lua_State *hlua_init_state(int thread_num)
 	/* Apply configured prepend path */
 	list_for_each_entry(pp, &prepend_path_list, l)
 		hlua_prepend_path(L, pp->type, pp->path);
+
+	/*
+	 * Override some lua functions.
+	 *
+	 */
+
+	/* push our "safe" coroutine.create() function */
+	lua_getglobal(L, "coroutine");
+	lua_pushcclosure(L, hlua_coroutine_create, 0);
+	lua_setfield(L, -2, "create");
 
 	/*
 	 *
