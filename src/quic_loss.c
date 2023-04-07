@@ -118,7 +118,7 @@ struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
 
 		if (i == QUIC_TLS_PKTNS_01RTT) {
 			if (!handshake_confirmed) {
-				TRACE_STATE("TX PTO handshake not already completed", QUIC_EV_CONN_SPTO, qc);
+				TRACE_STATE("TX PTO handshake not already confirmed", QUIC_EV_CONN_SPTO, qc);
 				pktns = p;
 				goto out;
 			}
