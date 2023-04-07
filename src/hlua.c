@@ -1562,6 +1562,18 @@ void hlua_hook(lua_State *L, lua_Debug *ar)
 	if (!hlua)
 		return;
 
+	if (hlua->T != L) {
+		/* We don't want to enforce a yield on a sub coroutine, since
+		 * we have no guarantees that the yield will be handled properly.
+		 * Indeed, only the hlua->T coroutine is being handled through
+		 * hlua_ctx_resume() function.
+		 *
+		 * Instead, we simply check for timeouts and wait for the sub
+		 * coroutine to finish..
+		 */
+		goto check_timeout;
+	}
+
 	/* Lua cannot yield when its returning from a function,
 	 * so, we can fix the interrupt hook to 1 instruction,
 	 * expecting that the function is finished.
@@ -1596,6 +1608,7 @@ void hlua_hook(lua_State *L, lua_Debug *ar)
 		return;
 	}
 
+ check_timeout:
 	/* If we cannot yield, check the timeout. */
 	if (!hlua_timer_check(&hlua->timer)) {
 		lua_pushfstring(L, "execution timeout");
