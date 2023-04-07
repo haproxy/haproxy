@@ -658,6 +658,8 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			             (unsigned long long)qc->path->in_flight);
 			if (pkt) {
 				const struct quic_frame *frm;
+				if (pkt->flags & QUIC_FL_TX_PACKET_ACK)
+				    chunk_appendf(&trace_buf, " ack");
 				chunk_appendf(&trace_buf, " pn=%lu(%s) iflen=%llu",
 				              (unsigned long)pkt->pn_node.key,
 				              pkt->pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL] ? "I" :
