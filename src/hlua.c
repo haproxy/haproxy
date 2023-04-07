@@ -10954,6 +10954,7 @@ __LJMP static int hlua_register_cli(lua_State *L)
 	const char *kw[5];
 	struct cli_kw *cli_kw;
 	const char *errmsg;
+	char *end;
 
 	MAY_LJMP(check_args(L, 3, "register_cli"));
 
@@ -11055,12 +11056,21 @@ __LJMP static int hlua_register_cli(lua_State *L)
 		errmsg = "Lua out of memory error.";
 		goto error;
 	}
-	strncat((char *)fcn->name, "<lua.cli", len);
+
+	end = fcn->name;
+	len = 8;
+	memcpy(end, "<lua.cli", len);
+	end += len;
+
 	for (i = 0; i < index; i++) {
-		strncat((char *)fcn->name, ".", len);
-		strncat((char *)fcn->name, cli_kws->kw[0].str_kw[i], len);
+		*(end++) = '.';
+		len = strlen(cli_kws->kw[0].str_kw[i]);
+		memcpy(end, cli_kws->kw[0].str_kw[i], len);
+		end += len;
 	}
-	strncat((char *)fcn->name, ">", len);
+	*(end++) = '>';
+	*(end++) = 0;
+
 	fcn->function_ref[hlua_state_id] = ref_io;
 
 	/* Fill last entries. */
