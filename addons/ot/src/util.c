@@ -553,8 +553,8 @@ int flt_ot_sample_to_str(const struct sample_data *data, char *value, size_t siz
 		}
 		else if (data->u.str.data > 0) {
 			retval = data->u.str.data;
-
-			(void)strncat(value, data->u.str.area, retval);
+			memcpy(value, data->u.str.area, retval);
+			value[retval] = '\0';
 		}
 		else {
 			/*
@@ -615,8 +615,8 @@ int flt_ot_sample_to_str(const struct sample_data *data, char *value, size_t siz
 			FLT_OT_ERR("sample data size too large");
 		} else {
 			retval = data->u.meth.str.data;
-
-			(void)strncat(value, data->u.meth.str.area, retval);
+			memcpy(value, data->u.meth.str.area, retval);
+			value[retval] = '\0';
 		}
 	}
 	else {
