@@ -382,6 +382,43 @@ struct mem_stats {
 
 #endif /* DEBUG_MEM_STATS*/
 
+/* Add warnings to users of such functions. These will be reported at link time
+ * indicating what file name and line used them. The goal is to remind their
+ * users that these are extremely unsafe functions that never have a valid
+ * reason for being used.
+ */
+#undef strcat
+__attribute__warning("\n"
+"  * WARNING! strcat() must never be used, because there is no convenient way\n"
+"  *          to use it that is safe. Use memcpy() instead!\n")
+extern char *strcat(char *__restrict dest, const char *__restrict src);
+
+#undef strcpy
+__attribute__warning("\n"
+"  * WARNING! strcpy() must never be used, because there is no convenient way\n"
+"  *          to use it that is safe. Use memcpy() or strlcpy2() instead!\n")
+extern char *strcpy(char *__restrict dest, const char *__restrict src);
+
+#undef strncat
+__attribute__warning("\n"
+"  * WARNING! strncat() must never be used, because there is no convenient way\n"
+"  *          to use it that is safe. Use memcpy() instead!\n")
+extern char *strncat(char *__restrict dest, const char *__restrict src, size_t n);
+
+#undef sprintf
+__attribute__warning("\n"
+"  * WARNING! sprintf() must never be used, because there is no convenient way\n"
+"  *          to use it that is safe. Use snprintf() instead!\n")
+extern int sprintf(char *__restrict dest, const char *__restrict fmt, ...);
+
+#if defined(_VA_LIST_DEFINED) || defined(_VA_LIST_DECLARED) || defined(_VA_LIST)
+#undef vsprintf
+__attribute__warning("\n"
+"  * WARNING! vsprintf() must never be used, because there is no convenient way\n"
+"  *          to use it that is safe. Use vsnprintf() instead!\n")
+extern int vsprintf(char *__restrict dest, const char *__restrict fmt, va_list ap);
+#endif
+
 #endif /* _HAPROXY_BUG_H */
 
 /*
