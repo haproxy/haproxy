@@ -3433,7 +3433,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct buffer *buf,
 	while (b_contig_space(buf) >= (int)qc->path->mtu + dg_headlen) {
 		int err, probe, cc;
 
-		TRACE_POINT(QUIC_EV_CONN_PHPKTS, qc, qel);
+		TRACE_PROTO("TX prep app pkts", QUIC_EV_CONN_PHPKTS, qc, qel);
 		probe = 0;
 		cc =  qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE;
 		/* We do not probe if an immediate close was asked */
@@ -3463,7 +3463,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct buffer *buf,
 			 * MTU, we are here because of the congestion control window. There is
 			 * no need to try to reuse this buffer.
 			 */
-			TRACE_DEVEL("could not prepare anymore packet", QUIC_EV_CONN_PHPKTS, qc);
+			TRACE_PROTO("could not prepare anymore packet", QUIC_EV_CONN_PHPKTS, qc, qel);
 			goto out;
 		default:
 			break;
@@ -3538,7 +3538,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			(qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] ||
 			 qel == &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
 
-		TRACE_PROTO("TX prep pks", QUIC_EV_CONN_PHPKTS, qc, qel);
+		TRACE_PROTO("TX prep pkts", QUIC_EV_CONN_PHPKTS, qc, qel);
 		probe = 0;
 		cc =  qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE;
 		/* We do not probe if an immediate close was asked */
@@ -3619,7 +3619,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			 */
 			if (prv_pkt)
 				qc_txb_store(buf, dglen, first_pkt);
-			TRACE_DEVEL("could not prepare anymore packet", QUIC_EV_CONN_PHPKTS, qc);
+			TRACE_PROTO("could not prepare anymore packet", QUIC_EV_CONN_PHPKTS, qc, qel);
 			goto out;
 		default:
 			break;
