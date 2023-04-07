@@ -50,9 +50,10 @@
  * second one.
  */
 #define comma_for_one1 ,
-#define ____equals_1(x, y, ...) (y)
-#define ___equals_1(x, ...) ____equals_1(x, 0)
-#define __equals_1(x) ___equals_1(comma_for_one ## x 1)
+#define _____equals_1(x, y, ...) (y)
+#define ____equals_1(x, ...) _____equals_1(x, 0)
+#define ___equals_1(x)       ____equals_1(comma_for_one ## x 1)
+#define __equals_1(x)        ___equals_1(x)
 
 /* gcc 5 and clang 3 brought __has_attribute(), which is not well documented in
  * the case of gcc, but is convenient since handled at the preprocessor level.
