@@ -2172,6 +2172,7 @@ out:
 		ha_warning("Cannot make the unix socket non-blocking\n");
 		goto out;
 	}
+	se_fl_set(appctx->sedesc, SE_FL_EOI);
 	appctx->st0 = CLI_ST_END;
 	free(cmsgbuf);
 	free(tmpbuf);
@@ -2186,9 +2187,11 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 	else if (*args[0] == 'p')
 		/* prompt */
 		appctx->st1 ^= APPCTX_CLI_ST1_PROMPT;
-	else if (*args[0] == 'q')
+	else if (*args[0] == 'q') {
 		/* quit */
+		se_fl_set(appctx->sedesc, SE_FL_EOI);
 		appctx->st0 = CLI_ST_END;
+	}
 
 	return 1;
 }
