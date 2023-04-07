@@ -1119,7 +1119,7 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 #endif
 	struct buffer *ocsp_uri = get_trash_chunk();
 	char *err = NULL;
-
+	size_t path_len;
 
 	x = data->cert;
 	if (!x)
@@ -1164,7 +1164,8 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 	if (!i || (i > OCSP_MAX_CERTID_ASN1_LENGTH))
 		goto out;
 
-	ocsp = calloc(1, sizeof(*ocsp)+strlen(path)+1);
+	path_len = strlen(path);
+	ocsp = calloc(1, sizeof(*ocsp) + path_len + 1);
 	if (!ocsp)
 		goto out;
 
@@ -1265,7 +1266,13 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 			goto out;
 		}
 
-		strcpy(iocsp->path, path);
+		/* Note: if we arrive here, ocsp==NULL because iocsp==ocsp
+		 * after the ebmb_insert(), which indicates that we've
+		 * just inserted this new node and that it's the one for
+		 * which we previously allocated enough room for path_len+1
+		 * chars.
+		 */
+		memcpy(iocsp->path, path, path_len + 1);
 
 		if (data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON) {
 			ssl_ocsp_update_insert(iocsp);
