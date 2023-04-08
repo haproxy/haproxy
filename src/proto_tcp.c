@@ -709,7 +709,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (listener->bind_conf->options & BC_O_DEF_ACCEPT) {
 		struct accept_filter_arg accept;
 		memset(&accept, 0, sizeof(accept));
-		strlcpy2(accept.af_name, sizeof(accept.af_name), "dataready");
+		strlcpy2(accept.af_name, "dataready", sizeof(accept.af_name));
 		if (setsockopt(fd, SOL_SOCKET, SO_ACCEPTFILTER, &accept, sizeof(accept)) == -1) {
 			chunk_appendf(msg, "%scannot enable ACCEPT_FILTER", msg->data ? ", " : "");
 			err |= ERR_WARN;
