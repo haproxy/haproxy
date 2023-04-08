@@ -1,6 +1,155 @@
 ChangeLog :
 ===========
 
+2023/04/08 : 2.8-dev7
+    - BUG/MINOR: stats: Don't replace sc_shutr() by SE_FL_EOS flag yet
+    - BUG/MEDIUM: mux-h2: Be able to detect connection error during handshake
+    - BUG/MINOR: quic: Missing padding in very short probe packets
+    - MINOR: proxy/pool: prevent unnecessary calls to pool_gc()
+    - CLEANUP: proxy: remove stop_time related dead code
+    - DOC/MINOR: reformat configuration.txt's "quoting and escaping" table
+    - MINOR: http_fetch: Add support for empty delim in url_param
+    - MINOR: http_fetch: add case insensitive support for smp_fetch_url_param
+    - MINOR: http_fetch: Add case-insensitive argument for url_param/urlp_val
+    - REGTESTS : Add test support for case insentitive for url_param
+    - BUG/MEDIUM: proxy/sktable: prevent watchdog trigger on soft-stop
+    - BUG/MINOR: backend: make be_usable_srv() consistent when stopping
+    - BUG/MINOR: ssl: Remove dead code in cli_parse_update_ocsp_response
+    - BUG/MINOR: ssl: Fix potential leak in cli_parse_update_ocsp_response
+    - BUG/MINOR: ssl: ssl-(min|max)-ver parameter not duplicated for bundles in crt-list
+    - BUG/MINOR: quic: Wrong use of now_ms timestamps (cubic algo)
+    - MINOR: quic: Add recovery related information to "show quic"
+    - BUG/MINOR: quic: Wrong use of now_ms timestamps (newreno algo)
+    - BUG/MINOR: quic: Missing max_idle_timeout initialization for the connection
+    - MINOR: quic: Implement cubic state trace callback
+    - MINOR: quic: Adjustments for generic control congestion traces
+    - MINOR: quic: Traces adjustments at proto level.
+    - MEDIUM: quic: Ack delay implementation
+    - BUG/MINOR: quic: Wrong rtt variance computing
+    - MINOR: cli: support filtering on FD types in "show fd"
+    - MINOR: quic: Add a fake congestion control algorithm named "nocc"
+    - CI: run smoke tests on config syntax to check memory related issues
+    - CLEANUP: assorted typo fixes in the code and comments
+    - CI: exclude doc/{design-thoughts,internals} from spell check
+    - BUG/MINOR: quic: Remaining useless statements in cubic slow start callback
+    - BUG/MINOR: quic: Cubic congestion control window may wrap
+    - MINOR: quic: Add missing traces in cubic algorithm implementation
+    - BUG/MAJOR: quic: Congestion algorithms states shared between the connection
+    - BUG/MINOR: ssl: Undefined reference when building with OPENSSL_NO_DEPRECATED
+    - BUG/MINOR: quic: Remove useless BUG_ON() in newreno and cubic algo implementation
+    - MINOR: http-act: emit a warning when a header field name contains forbidden chars
+    - DOC: config: strict-sni allows to start without certificate
+    - MINOR: quic: Add trace to debug idle timer task issues
+    - BUG/MINOR: quic: Unexpected connection closures upon idle timer task execution
+    - BUG/MINOR: quic: Wrong idle timer expiration (during 20s)
+    - BUILD: quic: 32bits compilation issue in cli_io_handler_dump_quic()
+    - BUG/MINOR: quic: Possible wrong PTO computing
+    - BUG/MINOR: tcpcheck: Be able to expect an empty response
+    - BUG/MEDIUM: stconn: Add a missing return statement in sc_app_shutr()
+    - BUG/MINOR: stream: Fix test on channels flags to set clientfin/serverfin touts
+    - MINOR: applet: Uninline appctx_free()
+    - MEDIUM: applet/trace: Register a new trace source with its events
+    - CLEANUP: stconn: Remove remaining debug messages
+    - BUG/MEDIUM: channel: Improve reports for shut in co_getblk()
+    - BUG/MEDIUM: dns: Properly handle error when a response consumed
+    - MINOR: stconn: Remove unecessary test on SE_FL_EOS before receiving data
+    - MINOR: stconn/channel: Move CF_READ_DONTWAIT into the SC and rename it
+    - MINOR: stconn/channel: Move CF_SEND_DONTWAIT into the SC and rename it
+    - MINOR: stconn/channel: Move CF_NEVER_WAIT into the SC and rename it
+    - MINOR: stconn/channel: Move CF_EXPECT_MORE into the SC and rename it
+    - MINOR: mux-pt: Report end-of-input with the end-of-stream after a read
+    - BUG/MINOR: mux-h1: Properly report EOI/ERROR on read0 in h1_rcv_pipe()
+    - CLEANUP: mux-h1/mux-pt: Remove useless test on SE_FL_SHR/SE_FL_SHW flags
+    - MINOR: mux-h1: Report an error to the SE descriptor on truncated message
+    - MINOR: stconn: Always ack EOS at the end of sc_conn_recv()
+    - MINOR: stconn/applet: Handle EOI in the applet .wake callback function
+    - MINOR: applet: No longer set EOI on the SC
+    - MINOR: stconn/applet: Handle EOS in the applet .wake callback function
+    - MEDIUM: cache: Use the sedesc to report and detect end of processing
+    - MEDIUM: cli: Use the sedesc to report and detect end of processing
+    - MINOR: dns: Remove the test on the opposite SC state to send requests
+    - MEDIUM: dns: Use the sedesc to report and detect end of processing
+    - MEDIUM: spoe: Use the sedesc to report and detect end of processing
+    - MEDIUM: hlua/applet: Use the sedesc to report and detect end of processing
+    - MEDIUM: log: Use the sedesc to report and detect end of processing
+    - MEDIUM: peers: Use the sedesc to report and detect end of processing
+    - MINOR: sink: Remove the tests on the opposite SC state to process messages
+    - MEDIUM: sink: Use the sedesc to report and detect end of processing
+    - MEDIUM: stats: Use the sedesc to report and detect end of processing
+    - MEDIUM: promex: Use the sedesc to report and detect end of processing
+    - MEDIUM: http_client: Use the sedesc to report and detect end of processing
+    - MINOR: stconn/channel: Move CF_EOI into the SC and rename it
+    - MEDIUM: tree-wide: Move flags about shut from the channel to the SC
+    - MINOR: tree-wide: Simplifiy some tests on SHUT flags by accessing SCs directly
+    - MINOR: stconn/applet: Add BUG_ON_HOT() to be sure SE_FL_EOS is never set alone
+    - MINOR: server: add SRV_F_DELETED flag
+    - BUG/MINOR: server/del: fix srv->next pointer consistency
+    - BUG/MINOR: stats: properly handle server stats dumping resumption
+    - BUG/MINOR: sink: free forward_px on deinit()
+    - BUG/MINOR: log: free log forward proxies on deinit()
+    - MINOR: server: always call ssl->destroy_srv when available
+    - MINOR: server: correctly free servers on deinit()
+    - BUG/MINOR: hlua: hook yield does not behave as expected
+    - MINOR: hlua: properly handle hlua_process_task HLUA_E_ETMOUT
+    - BUG/MINOR: hlua: enforce proper running context for register_x functions
+    - MINOR: hlua: Fix two functions that return nothing useful
+    - MEDIUM: hlua: Dynamic list of frontend/backend in Lua
+    - MINOR: hlua_fcn: alternative to old proxy and server attributes
+    - MEDIUM: hlua_fcn: dynamic server iteration and indexing
+    - MEDIUM: hlua_fcn/api: remove some old server and proxy attributes
+    - CLEANUP: hlua: fix conflicting comment in hlua_ctx_destroy()
+    - MINOR: hlua: add simple hlua reference handling API
+    - MINOR: hlua: fix return type for hlua_checkfunction() and hlua_checktable()
+    - BUG/MINOR: hlua: fix reference leak in core.register_task()
+    - BUG/MINOR: hlua: fix reference leak in hlua_post_init_state()
+    - BUG/MINOR: hlua: prevent function and table reference leaks on errors
+    - CLEANUP: hlua: use hlua_ref() instead of luaL_ref()
+    - CLEANUP: hlua: use hlua_pushref() instead of lua_rawgeti()
+    - CLEANUP: hlua: use hlua_unref() instead of luaL_unref()
+    - MINOR: hlua: simplify lua locking
+    - BUG/MEDIUM: hlua: prevent deadlocks with main lua lock
+    - MINOR: hlua_fcn: add server->get_rid() method
+    - MINOR: hlua: support for optional arguments to core.register_task()
+    - DOC: lua: silence "literal block ends without a blank line" Sphinx warnings
+    - DOC: lua: silence "Unexpected indentation" Sphinx warnings
+    - BUG/MINOR: event_hdl: fix rid storage type
+    - BUG/MINOR: event_hdl: make event_hdl_subscribe thread-safe
+    - MINOR: event_hdl: global sublist management clarification
+    - BUG/MEDIUM: event_hdl: clean soft-stop handling
+    - BUG/MEDIUM: event_hdl: fix async data refcount issue
+    - MINOR: event_hdl: normal tasks support for advanced async mode
+    - MINOR: event_hdl: add event_hdl_async_equeue_isempty() function
+    - MINOR: event_hdl: add event_hdl_async_equeue_size() function
+    - MINOR: event_hdl: pause/resume for subscriptions
+    - MINOR: proxy: add findserver_unique_id() and findserver_unique_name()
+    - MEDIUM: hlua/event_hdl: initial support for event handlers
+    - MINOR: hlua/event_hdl: per-server event subscription
+    - EXAMPLES: add basic event_hdl lua example script
+    - MINOR: http-ana: Add a HTTP_MSGF flag to state the Expect header was checked
+    - BUG/MINOR: http-ana: Don't switch message to DATA when waiting for payload
+    - BUG/MINOR: quic: Possible crashes in qc_idle_timer_task()
+    - MINOR: quic: derive first DCID from client ODCID
+    - MINOR: quic: remove ODCID dedicated tree
+    - MINOR: quic: remove address concatenation to ODCID
+    - BUG/MINOR: mworker: unset more internal variables from program section
+    - BUG/MINOR: errors: invalid use of memprintf in startup_logs_init()
+    - MINOR: applet: Use unsafe version to get stream from SC in the trace function
+    - BUG/MUNOR: http-ana: Use an unsigned integer for http_msg flags
+    - MINOR: compression: Make compression offload a flag
+    - MINOR: compression: Prepare compression code for request compression
+    - MINOR: compression: Store algo and type for both request and response
+    - MINOR: compression: Count separately request and response compression
+    - MEDIUM: compression: Make it so we can compress requests as well.
+    - BUG/MINOR: lua: remove incorrect usage of strncat()
+    - CLEANUP: tcpcheck: remove the only occurrence of sprintf() in the code
+    - CLEANUP: ocsp: do no use strpcy() to copy a path!
+    - CLEANUP: tree-wide: remove strpcy() from constant strings
+    - CLEANUP: opentracing: remove the last two occurrences of strncat()
+    - BUILD: compiler: fix __equals_1() on older compilers
+    - MINOR: compiler: define a __attribute__warning() macro
+    - BUILD: bug.h: add a warning in the base API when unsafe functions are used
+    - BUG/MEDIUM: listeners: Use the right parameters for strlcpy2().
+
 2023/03/28 : 2.8-dev6
     - BUG/MEDIUM: mux-pt: Set EOS on error on sending path if read0 was received
     - MINOR: ssl: Change the ocsp update log-format
