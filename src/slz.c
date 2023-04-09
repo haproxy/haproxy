@@ -166,9 +166,9 @@ union ref {
  * 32-bit words into output buffer. X must not contain non-zero bits above
  * xbits.
  */
-static inline void enqueue24(struct slz_stream *strm, uint32_t x, uint32_t xbits)
+static inline void enqueue24(struct slz_stream *strm, uint64_t x, uint32_t xbits)
 {
-	uint64_t queue = strm->queue + ((uint64_t)x << strm->qbits);
+	uint64_t queue = strm->queue + (x << strm->qbits);
 	uint32_t qbits = strm->qbits + xbits;
 
 	if (__builtin_expect(qbits >= 32, 1)) {
@@ -293,7 +293,8 @@ static inline void copy_32b(struct slz_stream *strm, uint32_t x)
 	strm->outbuf += 4;
 }
 
-static inline void send_huff(struct slz_stream *strm, uint32_t code)
+/* Using long because faster on 64-bit (can save one shift) */
+static inline void send_huff(struct slz_stream *strm, unsigned long code)
 {
 	uint32_t bits;
 
