@@ -388,6 +388,9 @@ static inline uint32_t slz_hash(uint32_t a)
 	// but provides a slightly smoother hash
 	__asm__ volatile("crc32l %1,%0" : "+r"(a) : "r"(0));
 	return a >> (32 - HASH_BITS);
+#elif defined(HAVE_FAST_MULT)
+	// optimal factor for HASH_BITS=12 and HASH_BITS=13 among 48k tested: 0x1af42f
+	return (a * 0x1af42f) >> (32 - HASH_BITS);
 #else
 	return ((a << 19) + (a << 6) - a) >> (32 - HASH_BITS);
 #endif

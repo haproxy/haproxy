@@ -38,6 +38,7 @@
 #define UNALIGNED_LE_OK
 #define UNALIGNED_FASTER
 #define USE_64BIT_QUEUE
+#define HAVE_FAST_MULT
 #elif defined(__i386__) || defined(__i486__) || defined(__i586__) || defined(__i686__)
 #define UNALIGNED_LE_OK
 //#define UNALIGNED_FASTER
@@ -47,6 +48,7 @@
 #elif defined(__ARM_ARCH_8A) || defined(__ARM_FEATURE_UNALIGNED)
 #define UNALIGNED_LE_OK
 #define UNALIGNED_FASTER
+#define HAVE_FAST_MULT
 #endif
 
 /* Log2 of the size of the hash table used for the references table. */
