@@ -383,6 +383,11 @@ static inline uint32_t slz_hash(uint32_t a)
 	__asm__ volatile("crc32w %0,%0,%1" : "+r"(a) : "r"(0));
 #  endif
 	return a >> (32 - HASH_BITS);
+#elif defined(__SSE4_2__) && defined(USE_CRC32C_HASH)
+	// SSE 4.2 offers CRC32C which is a bit slower than the multiply
+	// but provides a slightly smoother hash
+	__asm__ volatile("crc32l %1,%0" : "+r"(a) : "r"(0));
+	return a >> (32 - HASH_BITS);
 #else
 	return ((a << 19) + (a << 6) - a) >> (32 - HASH_BITS);
 #endif
