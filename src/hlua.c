@@ -10870,10 +10870,6 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 	sc = appctx_sc(appctx);
 	fcn = ctx->fcn;
 
-	/* If the stream is disconnect or closed, ldo nothing. */
-	if (unlikely(sc->state == SC_ST_DIS || sc->state == SC_ST_CLO))
-		return 1;
-
 	/* Execute the function. */
 	switch (hlua_ctx_resume(hlua, 1)) {
 
