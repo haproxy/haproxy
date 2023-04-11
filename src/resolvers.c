@@ -2451,8 +2451,18 @@ struct task *process_resolvers(struct task *t, void *context, unsigned int state
 			LIST_APPEND(&resolvers->resolutions.wait, &res->list);
 		}
 	}
+
 	resolv_update_resolvers_timeout(resolvers);
 	HA_SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
+
+	if (unlikely(stopping)) {
+		struct dns_nameserver *ns;
+
+		list_for_each_entry(ns, &resolvers->nameservers, list) {
+			if (ns->stream)
+				task_wakeup(ns->stream->task_idle, TASK_WOKEN_MSG);
+		}
+	}
 
 	/* now we can purge all queued deletions */
 	leave_resolver_code();
