@@ -616,7 +616,7 @@ enum qc_mux_state {
 /* Flags at connection level */
 #define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED  (1U << 0)
 #define QUIC_FL_CONN_SPIN_BIT                    (1U << 1) /* Spin bit set by remote peer */
-#define QUIC_FL_CONN_POST_HANDSHAKE_FRAMES_BUILT (1U << 2)
+#define QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS    (1U << 2) /* HANDSHAKE_DONE must be sent */
 #define QUIC_FL_CONN_LISTENER                    (1U << 3)
 #define QUIC_FL_CONN_ACCEPT_REGISTERED           (1U << 4)
 #define QUIC_FL_CONN_TX_MUX_CONTEXT              (1U << 5) /* sending in progress from the MUX layer */

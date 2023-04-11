@@ -2459,6 +2459,7 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 		/* I/O callback switch */
 		qc->wait_event.tasklet->process = quic_conn_app_io_cb;
 		if (qc_is_listener(ctx->qc)) {
+			qc->flags |= QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS;
 			qc->state = QUIC_HS_ST_CONFIRMED;
 			/* The connection is ready to be accepted. */
 			quic_accept_push_qc(qc);
@@ -4141,7 +4142,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 	}
 
 	LIST_SPLICE(&qel->pktns->tx.frms, &frm_list);
-	qc->flags |= QUIC_FL_CONN_POST_HANDSHAKE_FRAMES_BUILT;
+	qc->flags &= ~QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS;
 
 	ret = 1;
  leave:
@@ -4780,6 +4781,14 @@ int qc_send_mux(struct quic_conn *qc, struct list *frms)
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 	BUG_ON(qc->mux_state != QC_MUX_READY); /* Only MUX can uses this function so it must be ready. */
 
+	/* Try to send post handshake frames first unless on 0-RTT. */
+	if ((qc->flags & QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS) &&
+	    qc->state >= QUIC_HS_ST_COMPLETE) {
+		struct quic_enc_level *qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
+		quic_build_post_handshake_frames(qc);
+		qc_send_app_pkts(qc, &qel->pktns->tx.frms);
+	}
+
 	TRACE_STATE("preparing data (from MUX)", QUIC_EV_CONN_TXPKT, qc);
 	qc->flags |= QUIC_FL_CONN_TX_MUX_CONTEXT;
 	ret = qc_send_app_pkts(qc, frms);
@@ -4967,6 +4976,15 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
 	if (qc_test_fd(qc))
 		qc_rcv_buf(qc);
 
+	/* Prepare post-handshake frames
+	 * - after connection is instantiated (accept is done)
+	 * - handshake state is completed (may not be the case here in 0-RTT)
+	 */
+	if ((qc->flags & QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS) && qc->conn &&
+	    qc->state >= QUIC_HS_ST_COMPLETE) {
+		quic_build_post_handshake_frames(qc);
+	}
+
 	/* Retranmissions */
 	if (qc->flags & QUIC_FL_CONN_RETRANS_NEEDED) {
 		TRACE_STATE("retransmission needed", QUIC_EV_CONN_IO_CB, qc);
@@ -5090,10 +5108,6 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 
 	st = qc->state;
 	if (st >= QUIC_HS_ST_COMPLETE) {
-		if (!(qc->flags & QUIC_FL_CONN_POST_HANDSHAKE_FRAMES_BUILT) &&
-		    !quic_build_post_handshake_frames(qc))
-			goto out;
-
 		if (!(qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].tls_ctx.flags &
 		           QUIC_FL_TLS_SECRETS_DCD)) {
 			/* Discard the Handshake keys. */
