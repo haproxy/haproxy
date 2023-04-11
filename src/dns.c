@@ -1005,7 +1005,7 @@ static struct task *dns_process_idle_exp(struct task *t, void *context, unsigned
 
 	target = (dss->max_active_conns - cur_active_conns) / 2;
 	list_for_each_entry_safe(ds, dsb, &dss->idle_sess, list) {
-		if (!target)
+		if (!stopping && !target)
 			break;
 
 		/* remove conn to pending list to ensure it won't be reused */
