@@ -135,8 +135,6 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 	/* mux-quic can now be considered ready. */
 	qc->mux_state = QC_MUX_READY;
 
-	tasklet_wakeup(qc->wait_event.tasklet);
-
 	ret = 1;
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_NEW, qc);
