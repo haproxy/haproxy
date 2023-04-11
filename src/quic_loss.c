@@ -93,19 +93,18 @@ struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
 		(ql->srtt >> 3) +
 		(QUIC_MAX(ql->rtt_var, QUIC_TIMER_GRANULARITY) << ql->pto_count);
 
-	if (!qc->path->in_flight) {
-		struct quic_enc_level *hel;
-
-		hel = &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
-		if (quic_tls_has_tx_sec(hel)) {
-			pktns = &qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE];
-		}
-		else {
-			pktns = &qc->pktns[QUIC_TLS_PKTNS_INITIAL];
-		}
-		lpto = tick_add(now_ms, duration);
-		goto out;
-	}
+	/* RFC 9002 6.2.2.1. Before Address Validation
+	 *
+	 * the client MUST set the PTO timer if the client has not received an
+	 * acknowledgment for any of its Handshake packets and the handshake is
+	 * not confirmed (see Section 4.1.2 of [QUIC-TLS]), even if there are no
+	 * packets in flight.
+	 *
+	 * TODO implement the above paragraph for QUIC on backend side. Note
+	 * that if now_ms is used this function is not reentrant anymore and can
+	 * not be used anytime without side-effect (for example after QUIC
+	 * connection migration).
+	 */
 
 	lpto = TICK_ETERNITY;
 	pktns = p = &qc->pktns[QUIC_TLS_PKTNS_INITIAL];
