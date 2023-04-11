@@ -2999,7 +2999,7 @@ static int h1_process(struct h1c * h1c)
 				h1c->flags |= H1C_F_UPG_H2C;
 				if (h1c->state == H1_CS_UPGRADING) {
 					BUG_ON(!h1s);
-					se_fl_set(h1s->sd, SE_FL_EOS); /* Set EOS here to release the SC */
+					se_fl_set(h1s->sd, SE_FL_EOI|SE_FL_EOS); /* Set EOS here to release the SC */
 				}
 				TRACE_STATE("release h1c to perform H2 upgrade ", H1_EV_RX_DATA|H1_EV_H1C_WAKE);
 				goto release;
@@ -3156,7 +3156,7 @@ static int h1_process(struct h1c * h1c)
 		BUG_ON(!h1s);
 
 		if (h1c->flags & H1C_F_EOS) {
-			se_fl_set(h1s->sd, SE_FL_EOS);
+			se_fl_set(h1s->sd, SE_FL_EOI|SE_FL_EOS);
 			TRACE_STATE("report EOS to SE", H1_EV_H1C_RECV, conn, h1s);
 		}
 		if (h1c->flags & (H1C_F_ERR_PENDING|H1C_F_ERROR)) {
