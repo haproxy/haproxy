@@ -4459,8 +4459,10 @@ static void http_stats_io_handler(struct appctx *appctx)
 
 	res_htx = htx_from_buf(&res->buf);
 
-	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW))))
+	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW)))) {
+		appctx->st0 = STAT_HTTP_END;
 		goto out;
+	}
 
 	/* Check if the input buffer is available. */
 	if (!b_size(&res->buf)) {
