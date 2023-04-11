@@ -6450,8 +6450,11 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 			if (h2s->flags & H2_SF_BODY_TUNNEL)
 				se_fl_set(h2s->sd, SE_FL_EOS);
 		}
-		if (h2c_read0_pending(h2c) || h2s->st == H2_SS_CLOSED)
+		if (h2c_read0_pending(h2c) || h2s->st == H2_SS_CLOSED) {
 			se_fl_set(h2s->sd, SE_FL_EOS);
+			if (!se_fl_test(h2s->sd, SE_FL_EOI))
+				se_fl_set(h2s->sd, SE_FL_ERROR);
+		}
 		if (se_fl_test(h2s->sd, SE_FL_ERR_PENDING))
 			se_fl_set(h2s->sd, SE_FL_ERROR);
 		if (b_size(&h2s->rxbuf)) {
