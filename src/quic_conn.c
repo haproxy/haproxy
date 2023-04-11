@@ -8481,6 +8481,8 @@ int qc_set_tid_affinity(struct quic_conn *qc, uint new_tid)
 	}
 
 	/* Reinit IO tasklet. */
+	if (qc->wait_event.tasklet->state & TASK_IN_LIST)
+		qc->flags |= QUIC_FL_CONN_IO_TO_REQUEUE;
 	tasklet_kill(qc->wait_event.tasklet);
 	/* In most cases quic_conn_app_io_cb is used but for 0-RTT quic_conn_io_cb can be still activated. */
 	t3->process = qc->wait_event.tasklet->process;
@@ -8491,8 +8493,8 @@ int qc_set_tid_affinity(struct quic_conn *qc, uint new_tid)
 
 	/* Rebind the connection FD. */
 	if (qc_test_fd(qc)) {
+		/* Reading is reactivated by the new thread. */
 		fd_migrate_on(qc->fd, new_tid);
-		/* TODO need to reactivate reading on the new thread. */
 	}
 
 	/* Remove conn from per-thread list instance. */
@@ -8522,6 +8524,29 @@ int qc_set_tid_affinity(struct quic_conn *qc, uint new_tid)
 
 	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_SET_AFFINITY, qc);
 	return 1;
+}
+
+/* Must be called after qc_set_tid_affinity() on the new thread. */
+void qc_finalize_affinity_rebind(struct quic_conn *qc)
+{
+	TRACE_ENTER(QUIC_EV_CONN_SET_AFFINITY, qc);
+
+	/* Reactivate FD polling if connection socket is active. */
+	qc_want_recv(qc);
+
+	/* Reactivate timer task if needed. */
+	qc_set_timer(qc);
+
+	/* Idle timer task is always active. */
+	task_queue(qc->idle_timer_task);
+
+	/* Reactivate IO tasklet if needed. */
+	if (qc->flags & QUIC_FL_CONN_IO_TO_REQUEUE) {
+		tasklet_wakeup(qc->wait_event.tasklet);
+		qc->flags &= ~QUIC_FL_CONN_IO_TO_REQUEUE;
+	}
+
+	TRACE_LEAVE(QUIC_EV_CONN_SET_AFFINITY, qc);
 }
 
 /* appctx context used by "show quic" command */

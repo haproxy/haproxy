@@ -701,6 +701,7 @@ static inline void quic_handle_stopping(void)
 }
 
 int qc_set_tid_affinity(struct quic_conn *qc, uint tid);
+void qc_finalize_affinity_rebind(struct quic_conn *qc);
 
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_QUIC_CONN_H */

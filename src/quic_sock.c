@@ -878,6 +878,15 @@ void qc_release_fd(struct quic_conn *qc, int reinit)
 	}
 }
 
+/* Wrapper for fd_want_recv(). Safe even if connection does not used its owned
+ * socket.
+ */
+void qc_want_recv(struct quic_conn *qc)
+{
+	if (qc_test_fd(qc))
+		fd_want_recv(qc->fd);
+}
+
 /*********************** QUIC accept queue management ***********************/
 /* per-thread accept queues */
 struct quic_accept_queue *quic_accept_queues;

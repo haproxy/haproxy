@@ -65,6 +65,7 @@ static inline char qc_test_fd(struct quic_conn *qc)
 void qc_alloc_fd(struct quic_conn *qc, const struct sockaddr_storage *src,
                  const struct sockaddr_storage *dst);
 void qc_release_fd(struct quic_conn *qc, int reinit);
+void qc_want_recv(struct quic_conn *qc);
 
 void quic_accept_push_qc(struct quic_conn *qc);
 
