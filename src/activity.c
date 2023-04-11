@@ -1109,6 +1109,7 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	chunk_appendf(&trash, "cpust_ms_tot:"); SHOW_TOT(thr, activity[thr].cpust_total / 2);
 	chunk_appendf(&trash, "cpust_ms_1s:");  SHOW_TOT(thr, read_freq_ctr(&activity[thr].cpust_1s) / 2);
 	chunk_appendf(&trash, "cpust_ms_15s:"); SHOW_TOT(thr, read_freq_ctr_period(&activity[thr].cpust_15s, 15000) / 2);
+	chunk_appendf(&trash, "avg_cpu_pct:");  SHOW_AVG(thr, (100 - ha_thread_ctx[thr].idle_pct));
 	chunk_appendf(&trash, "avg_loop_us:");  SHOW_AVG(thr, swrate_avg(activity[thr].avg_loop_us, TIME_STATS_SAMPLES));
 	chunk_appendf(&trash, "accepted:");     SHOW_TOT(thr, activity[thr].accepted);
 	chunk_appendf(&trash, "accq_pushed:");  SHOW_TOT(thr, activity[thr].accq_pushed);
