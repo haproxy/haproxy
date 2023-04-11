@@ -3245,7 +3245,7 @@ void resolvers_setup_proxy(struct proxy *px)
 	px->conn_retries = 1;
 	px->timeout.server = TICK_ETERNITY;
 	px->timeout.client = TICK_ETERNITY;
-	px->timeout.connect = TICK_ETERNITY;
+	px->timeout.connect = 1000; // by default same than timeout.resolve
 	px->accept = NULL;
 	px->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON;
 }
@@ -3714,8 +3714,11 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			}
 			if (args[1][2] == 't')
 				curr_resolvers->timeout.retry = tout;
-			else
+			else {
 				curr_resolvers->timeout.resolve = tout;
+				curr_resolvers->px->timeout.connect = tout;
+			}
+
 		}
 		else {
 			ha_alert("parsing [%s:%d] : '%s' expects 'retry' or 'resolve' and <time> as arguments got '%s'.\n",
