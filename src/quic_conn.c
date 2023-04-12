@@ -3860,8 +3860,7 @@ leave:
  * as HKDF input secret to generate this token.
  * Return 1 if succeeded, 0 if not.
  */
-static int quic_stateless_reset_token_cpy(struct quic_conn *qc,
-                                          unsigned char *buf, size_t len,
+static int quic_stateless_reset_token_cpy(unsigned char *buf, size_t len,
                                           const unsigned char *salt, size_t saltlen)
 {
 	/* Input secret */
@@ -3872,23 +3871,17 @@ static int quic_stateless_reset_token_cpy(struct quic_conn *qc,
 	size_t labellen = sizeof label - 1;
 	int ret;
 
-	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
-
 	ret = quic_hkdf_extract_and_expand(EVP_sha256(), buf, len,
 	                                    key, keylen, salt, saltlen, label, labellen);
-	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 	return ret;
 }
 
 /* Initialize the stateless reset token attached to <cid> connection ID.
  * Returns 1 if succeeded, 0 if not.
  */
-static int quic_stateless_reset_token_init(struct quic_conn *qc,
-                                           struct quic_connection_id *quic_cid)
+static int quic_stateless_reset_token_init(struct quic_connection_id *quic_cid)
 {
 	int ret;
-
-	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
 	if (global.cluster_secret) {
 		/* Output secret */
@@ -3898,7 +3891,7 @@ static int quic_stateless_reset_token_init(struct quic_conn *qc,
 		const unsigned char *cid = quic_cid->cid.data;
 		size_t cidlen = quic_cid->cid.len;
 
-		ret = quic_stateless_reset_token_cpy(qc, token, tokenlen, cid, cidlen);
+		ret = quic_stateless_reset_token_cpy(token, tokenlen, cid, cidlen);
 	}
 	else {
 		/* TODO: RAND_bytes() should be replaced */
@@ -3906,7 +3899,6 @@ static int quic_stateless_reset_token_init(struct quic_conn *qc,
 		                 sizeof quic_cid->stateless_reset_token) == 1;
 	}
 
-	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 	return ret;
 }
 
@@ -4009,7 +4001,7 @@ static struct quic_connection_id *new_quic_cid(struct eb_root *root,
 		memcpy(cid->cid.data, &hash, sizeof(hash));
 	}
 
-	if (quic_stateless_reset_token_init(qc, cid) != 1) {
+	if (quic_stateless_reset_token_init(cid) != 1) {
 		TRACE_ERROR("quic_stateless_reset_token_init() failed", QUIC_EV_CONN_TXPKT, qc);
 		goto err;
 	}
@@ -6200,7 +6192,7 @@ static int send_stateless_reset(struct listener *l, struct sockaddr_storage *dst
 
 	/* Clear the most significant bit, and set the second one */
 	*pkt = (*pkt & ~0x80) | 0x40;
-	if (!quic_stateless_reset_token_cpy(NULL, pkt + rndlen, QUIC_STATELESS_RESET_TOKEN_LEN,
+	if (!quic_stateless_reset_token_cpy(pkt + rndlen, QUIC_STATELESS_RESET_TOKEN_LEN,
 	                                    rxpkt->dcid.data, rxpkt->dcid.len))
 		goto leave;
 
