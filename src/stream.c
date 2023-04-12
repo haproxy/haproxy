@@ -1578,6 +1578,9 @@ static void stream_handle_timeouts(struct stream *s)
 
 	sc_check_timeouts(s->scf);
 	channel_check_timeout(&s->req);
+	sc_check_timeouts(s->scb);
+	channel_check_timeout(&s->res);
+
 	if (unlikely(!(s->scb->flags & SC_FL_SHUTW) && (s->req.flags & CF_WRITE_TIMEOUT))) {
 		s->scb->flags |= SC_FL_NOLINGER;
 		sc_shutw(s->scb);
@@ -1588,9 +1591,6 @@ static void stream_handle_timeouts(struct stream *s)
 			s->scf->flags |= SC_FL_NOLINGER;
 		sc_shutr(s->scf);
 	}
-
-	sc_check_timeouts(s->scb);
-	channel_check_timeout(&s->res);
 	if (unlikely(!(s->scf->flags & SC_FL_SHUTW) && (s->res.flags & CF_WRITE_TIMEOUT))) {
 		s->scf->flags |= SC_FL_NOLINGER;
 		sc_shutw(s->scf);
