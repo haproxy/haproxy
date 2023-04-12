@@ -1194,7 +1194,7 @@ static int sc_conn_recv(struct stconn *sc)
 	/* If another call to sc_conn_recv() failed, and we subscribed to
 	 * recv events already, give up now.
 	 */
-	if (sc->wait_event.events & SUB_RETRY_RECV)
+	if ((sc->wait_event.events & SUB_RETRY_RECV) || sc_waiting_room(sc))
 		return 0;
 
 	/* maybe we were called immediately after an asynchronous shutr */
@@ -1220,7 +1220,6 @@ static int sc_conn_recv(struct stconn *sc)
 
 	/* prepare to detect if the mux needs more room */
 	sc_ep_clr(sc, SE_FL_WANT_ROOM);
-	BUG_ON(sc_waiting_room(sc));
 
 	if ((ic->flags & (CF_STREAMER | CF_STREAMER_FAST)) && !co_data(ic) &&
 	    global.tune.idle_timer &&
