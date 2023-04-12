@@ -229,7 +229,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned c
                                            struct quic_enc_level *qel, struct quic_tls_ctx *ctx,
                                            struct list *frms, struct quic_conn *qc,
                                            const struct quic_version *ver, size_t dglen, int pkt_type,
-                                           int force_ack, int padding, int probe, int cc, int *err);
+                                           int must_ack, int padding, int probe, int cc, int *err);
 struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);
 static void qc_idle_timer_do_rearm(struct quic_conn *qc, int arm_ack);
 static void qc_idle_timer_rearm(struct quic_conn *qc, int read, int arm_ack);
@@ -3383,12 +3383,25 @@ static void qc_txb_store(struct buffer *buf, uint16_t length,
  * with <frms> as ack-eliciting frame list to send, 0 if not.
  * <cc> must equal to 1 if an immediate close was asked, 0 if not.
  * <probe> must equalt to 1 if a probing packet is required, 0 if not.
- * <force_ack> may be set to 1 if you want to force an ack.
+ * Also set <*must_ack> to inform the caller if an acknowledgement should be sent.
  */
 static int qc_may_build_pkt(struct quic_conn *qc, struct list *frms,
-                            struct quic_enc_level *qel, int cc, int probe, int force_ack)
+                            struct quic_enc_level *qel, int cc, int probe,
+                            int *must_ack)
 {
-	unsigned int must_ack = force_ack || (qc->flags & QUIC_FL_CONN_ACK_TIMER_FIRED);
+	int force_ack =
+		qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] ||
+		qel == &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
+	int nb_aepkts_since_last_ack = qel->pktns->rx.nb_aepkts_since_last_ack;
+
+	/* An acknowledgement must be sent if this has been forced by the caller,
+	 * typically during the handshake when the packets must be acknowledged as
+	 * soon as possible. This is also the case when the ack delay timer has been
+	 * triggered, or at least every QUIC_MAX_RX_AEPKTS_SINCE_LAST_ACK packets.
+	 */
+	*must_ack = (qc->flags & QUIC_FL_CONN_ACK_TIMER_FIRED) ||
+		((qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) &&
+		 (force_ack || nb_aepkts_since_last_ack >= QUIC_MAX_RX_AEPKTS_SINCE_LAST_ACK));
 
 	/* Do not build any more packet if the TX secrets are not available or
 	 * if there is nothing to send, i.e. if no CONNECTION_CLOSE or ACK are required
@@ -3397,7 +3410,7 @@ static int qc_may_build_pkt(struct quic_conn *qc, struct list *frms,
 	 * congestion control limit is reached for prepared data
 	 */
 	if (!quic_tls_has_tx_sec(qel) ||
-	    (!cc && !probe && !must_ack &&
+	    (!cc && !probe && !*must_ack &&
 	     (LIST_ISEMPTY(frms) || qc->path->prep_in_flight >= qc->path->cwnd))) {
 		return 0;
 	}
@@ -3433,7 +3446,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct buffer *buf,
 	total = 0;
 	pos = (unsigned char *)b_tail(buf);
 	while (b_contig_space(buf) >= (int)qc->path->mtu + dg_headlen) {
-		int err, probe, cc;
+		int err, probe, cc, must_ack;
 
 		TRACE_PROTO("TX prep app pkts", QUIC_EV_CONN_PHPKTS, qc, qel);
 		probe = 0;
@@ -3442,7 +3455,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct buffer *buf,
 		if (!cc)
 			probe = qel->pktns->tx.pto_probe;
 
-		if (!qc_may_build_pkt(qc, frms, qel, cc, probe, 0))
+		if (!qc_may_build_pkt(qc, frms, qel, cc, probe, &must_ack))
 			break;
 
 		/* Leave room for the datagram header */
@@ -3455,7 +3468,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct buffer *buf,
 		}
 
 		pkt = qc_build_pkt(&pos, end, qel, &qel->tls_ctx, frms, qc, NULL, 0,
-		                   QUIC_PACKET_TYPE_SHORT, 0, 0, probe, cc, &err);
+		                   QUIC_PACKET_TYPE_SHORT, must_ack, 0, probe, cc, &err);
 		switch (err) {
 		case -2:
 			// trace already emitted by function above
@@ -3532,13 +3545,10 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	pos = (unsigned char *)b_head(buf);
 	first_pkt = prv_pkt = NULL;
 	while (b_contig_space(buf) >= (int)qc->path->mtu + dg_headlen || prv_pkt) {
-		int err, probe, cc;
+		int err, probe, cc, must_ack;
 		enum quic_pkt_type pkt_type;
 		struct quic_tls_ctx *tls_ctx;
 		const struct quic_version *ver;
-		int force_ack = (qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) &&
-			(qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] ||
-			 qel == &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
 
 		TRACE_PROTO("TX prep pkts", QUIC_EV_CONN_PHPKTS, qc, qel);
 		probe = 0;
@@ -3547,7 +3557,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		if (!cc)
 			probe = qel->pktns->tx.pto_probe;
 
-		if (!qc_may_build_pkt(qc, frms, qel, cc, probe, force_ack)) {
+		if (!qc_may_build_pkt(qc, frms, qel, cc, probe, &must_ack)) {
 			if (prv_pkt)
 				qc_txb_store(buf, dglen, first_pkt);
 			/* Let's select the next encryption level */
@@ -3610,7 +3620,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 
 		cur_pkt = qc_build_pkt(&pos, end, qel, tls_ctx, frms,
 		                       qc, ver, dglen, pkt_type,
-		                       force_ack, padding, probe, cc, &err);
+		                       must_ack, padding, probe, cc, &err);
 		switch (err) {
 		case -2:
 			// trace already emitted by function above
@@ -7637,7 +7647,7 @@ static void qc_build_cc_frm(struct quic_conn *qc, struct quic_enc_level *qel,
 static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
                            size_t dglen, struct quic_tx_packet *pkt,
                            int64_t pn, size_t *pn_len, unsigned char **buf_pn,
-                           int force_ack, int padding, int cc, int probe,
+                           int must_ack, int padding, int cc, int probe,
                            struct quic_enc_level *qel, struct quic_conn *qc,
                            const struct quic_version *ver, struct list *frms)
 {
@@ -7651,8 +7661,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	int add_ping_frm;
 	struct list frm_list = LIST_HEAD_INIT(frm_list);
 	struct quic_frame *cf;
-	int must_ack, ret = 0;
-	int nb_aepkts_since_last_ack;
+	int ret = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
@@ -7695,11 +7704,8 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	head_len = pos - beg;
 	/* Build an ACK frame if required. */
 	ack_frm_len = 0;
-	nb_aepkts_since_last_ack = qel->pktns->rx.nb_aepkts_since_last_ack;
-	must_ack = !qel->pktns->tx.pto_probe &&
-		(force_ack || ((qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) &&
-		 (LIST_ISEMPTY(frms) || nb_aepkts_since_last_ack >= QUIC_MAX_RX_AEPKTS_SINCE_LAST_ACK)));
-	if (must_ack) {
+	/* Do not ack and probe at the same time. */
+	if ((must_ack || (qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED)) && !qel->pktns->tx.pto_probe) {
 	    struct quic_arngs *arngs = &qel->pktns->rx.arngs;
 	    BUG_ON(eb_is_empty(&qel->pktns->rx.arngs.root));
 		ack_frm.tx_ack.arngs = arngs;
@@ -7931,7 +7937,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
                                            struct quic_enc_level *qel,
                                            struct quic_tls_ctx *tls_ctx, struct list *frms,
                                            struct quic_conn *qc, const struct quic_version *ver,
-                                           size_t dglen, int pkt_type, int force_ack,
+                                           size_t dglen, int pkt_type, int must_ack,
                                            int padding, int probe, int cc, int *err)
 {
 	struct quic_tx_packet *ret_pkt = NULL;
@@ -7959,7 +7965,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 
 	pn = qel->pktns->tx.next_pn + 1;
 	if (!qc_do_build_pkt(*pos, buf_end, dglen, pkt, pn, &pn_len, &buf_pn,
-	                     force_ack, padding, cc, probe, qel, qc, ver, frms)) {
+	                     must_ack, padding, cc, probe, qel, qc, ver, frms)) {
 		// trace already emitted by function above
 		*err = -1;
 		goto err;
