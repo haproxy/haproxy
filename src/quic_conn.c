@@ -7294,6 +7294,9 @@ static int quic_ack_frm_reduce_sz(struct quic_conn *qc,
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
 	ack_delay_sz = quic_int_getsize(ack_frm->tx_ack.ack_delay);
+	if (limit <= ack_delay_sz - 1)
+		goto leave;
+
 	/* A frame is made of 1 byte for the frame type. */
 	room = limit - ack_delay_sz - 1;
 	if (!quic_rm_last_ack_ranges(qc, ack_frm->tx_ack.arngs, room))
@@ -7721,6 +7724,9 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		 * This will be decided after having computed the ack-eliciting frames
 		 * to be added to this packet.
 		 */
+		if (end - pos <= 1 + *pn_len)
+			goto no_room;
+
 		ack_frm_len = quic_ack_frm_reduce_sz(qc, &ack_frm, end - 1 - *pn_len - pos);
 		if (!ack_frm_len)
 			goto no_room;
