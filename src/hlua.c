@@ -66,6 +66,7 @@
 #include <haproxy/vars.h>
 #include <haproxy/xref.h>
 #include <haproxy/event_hdl.h>
+#include <haproxy/check.h>
 
 /* Lua uses longjmp to perform yield or throwing errors. This
  * macro is used only for identifying the function that can
@@ -9029,6 +9030,67 @@ static void hlua_event_handler(struct hlua *hlua)
 	}
 }
 
+__LJMP static void hlua_event_hdl_cb_push_event_checkres(lua_State *L,
+                                                         struct event_hdl_cb_data_server_checkres *check)
+{
+	lua_pushstring(L, "agent");
+	lua_pushboolean(L, check->agent);
+	lua_settable(L, -3);
+	lua_pushstring(L, "result");
+	switch (check->result) {
+		case CHK_RES_FAILED:
+			lua_pushstring(L, "FAILED");
+			break;
+		case CHK_RES_PASSED:
+			lua_pushstring(L, "PASSED");
+			break;
+		case CHK_RES_CONDPASS:
+			lua_pushstring(L, "CONDPASS");
+			break;
+		default:
+			lua_pushnil(L);
+			break;
+	}
+	lua_settable(L, -3);
+
+	lua_pushstring(L, "duration");
+	lua_pushinteger(L, check->duration);
+	lua_settable(L, -3);
+
+	lua_pushstring(L, "reason");
+	lua_newtable(L);
+
+	lua_pushstring(L, "short");
+	lua_pushstring(L, get_check_status_info(check->reason.status));
+	lua_settable(L, -3);
+	lua_pushstring(L, "desc");
+	lua_pushstring(L, get_check_status_description(check->reason.status));
+	lua_settable(L, -3);
+	if (check->reason.status >= HCHK_STATUS_L57DATA) {
+		/* code only available when the check reached data analysis stage */
+		lua_pushstring(L, "code");
+		lua_pushinteger(L, check->reason.code);
+		lua_settable(L, -3);
+	}
+
+	lua_settable(L, -3); /* reason table */
+
+	lua_pushstring(L, "health");
+	lua_newtable(L);
+
+	lua_pushstring(L, "cur");
+	lua_pushinteger(L, check->health.cur);
+	lua_settable(L, -3);
+	lua_pushstring(L, "rise");
+	lua_pushinteger(L, check->health.rise);
+	lua_settable(L, -3);
+	lua_pushstring(L, "fall");
+	lua_pushinteger(L, check->health.fall);
+	lua_settable(L, -3);
+
+	lua_settable(L, -3); /* health table */
+}
+
 /* This function pushes various arguments such as event type and event data to
  * the lua function that will be called to consume the event.
  */
@@ -9071,6 +9133,73 @@ __LJMP static void hlua_event_hdl_cb_push_args(struct hlua_event_sub *hlua_sub,
 		lua_pushstring(hlua->T, "proxy_uuid");
 		lua_pushinteger(hlua->T, e_server->safe.proxy_uuid);
 		lua_settable(hlua->T, -3);
+
+		/* special events, fetch additional info with explicit type casting */
+		if (event_hdl_sub_type_equal(EVENT_HDL_SUB_SERVER_STATE, event)) {
+			struct event_hdl_cb_data_server_state *state = data;
+			int it;
+
+			if (!lua_checkstack(hlua->T, 20))
+				WILL_LJMP(luaL_error(hlua->T, "Lua out of memory error."));
+
+			/* state subclass */
+			lua_pushstring(hlua->T, "state");
+			lua_newtable(hlua->T);
+
+			lua_pushstring(hlua->T, "admin");
+			lua_pushboolean(hlua->T, state->safe.type);
+			lua_settable(hlua->T, -3);
+
+			/* is it because of a check ? */
+			if (!state->safe.type &&
+			    (state->safe.op_st_chg.cause == SRV_OP_STCHGC_HEALTH ||
+			     state->safe.op_st_chg.cause == SRV_OP_STCHGC_AGENT)) {
+				/* yes, provide check result */
+				lua_pushstring(hlua->T, "check");
+				lua_newtable(hlua->T);
+				hlua_event_hdl_cb_push_event_checkres(hlua->T, &state->safe.op_st_chg.check);
+				lua_settable(hlua->T, -3); /* check table */
+			}
+
+			lua_pushstring(hlua->T, "cause");
+			if (state->safe.type)
+				lua_pushstring(hlua->T, srv_adm_st_chg_cause(state->safe.adm_st_chg.cause));
+			else
+				lua_pushstring(hlua->T, srv_op_st_chg_cause(state->safe.op_st_chg.cause));
+			lua_settable(hlua->T, -3);
+
+			/* old_state, new_state */
+			for (it = 0; it < 2; it++) {
+				enum srv_state srv_state = (!it) ? state->safe.old_state : state->safe.new_state;
+
+				lua_pushstring(hlua->T, (!it) ? "old_state" : "new_state");
+				switch (srv_state) {
+					case SRV_ST_STOPPED:
+						lua_pushstring(hlua->T, "STOPPED");
+						break;
+					case SRV_ST_STOPPING:
+						lua_pushstring(hlua->T, "STOPPING");
+						break;
+					case SRV_ST_STARTING:
+						lua_pushstring(hlua->T, "STARTING");
+						break;
+					case SRV_ST_RUNNING:
+						lua_pushstring(hlua->T, "RUNNING");
+						break;
+					default:
+						lua_pushnil(hlua->T);
+						break;
+				}
+				lua_settable(hlua->T, -3);
+			}
+
+			/* requeued */
+			lua_pushstring(hlua->T, "requeued");
+			lua_pushinteger(hlua->T, state->safe.requeued);
+			lua_settable(hlua->T, -3);
+
+			lua_settable(hlua->T, -3); /* state table */
+		}
 
 		/* attempt to provide reference server object
 		 * (if it wasn't removed yet, SERVER_DEL will never succeed here)

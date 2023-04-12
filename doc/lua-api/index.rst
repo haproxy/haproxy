@@ -946,10 +946,14 @@ Core class
     * **SERVER_DEL**: when a server is removed
     * **SERVER_DOWN**: when a server state goes from UP to DOWN
     * **SERVER_UP**: when a server state goes from DOWN to UP
+    * **SERVER_STATE**: when a server state changes
 
    .. Note::
-     You may also use **SERVER** in **event_types** to subscribe to all server
-     events types at once.
+     Use **SERVER** in **event_types** to subscribe to all server events types
+     at once. Note that this should only be used for testing purposes since a
+     single event source could result in multiple events types being generated.
+     (e.g.: SERVER_STATE will always be generated for each SERVER_DOWN or
+     SERVER_UP)
 
   The prototype of the Lua function used as argument is:
 
@@ -1521,6 +1525,111 @@ See :js:func:`core.event_sub()` for more info.
      Not available if the server was removed in the meantime.
      (Will never be set for SERVER_DEL event since the server does not exist
      anymore)
+
+.. js:attribute:: ServerEvent.state
+
+  A :ref:`server_event_state_class`
+
+  .. Note::
+     Only available for SERVER_STATE event
+
+.. _server_event_checkres_class:
+
+ServerEventCheckRes class
+=========================
+
+.. js:class:: ServerEventCheckRes
+
+This class describes the result of a server's check.
+
+.. js:attribute:: ServerEventCheckRes.result
+
+  Effective check result.
+
+  Check result is a string and will be set to one of the following values:
+    - "FAILED": the check failed
+    - "PASSED": the check succeeded
+    - "CONDPASS": the check conditionally passed
+
+.. js:attribute:: ServerEventCheckRes.agent
+
+  Boolean set to true if the check is an agent check.
+  Else it is a health check.
+
+.. js:attribute:: ServerEventCheckRes.duration
+
+  Check's duration in milliseconds
+
+.. js:attribute:: ServerEventCheckRes.reason
+
+  Check's status. An array containing three fields:
+    - **short**: a string representing check status short name
+    - **desc**: a string representing check status description
+    - **code**: an integer, this extra information is provided for checks
+      that went through the data analysis stage (>= layer 5)
+
+.. js:attribute:: ServerEventCheckRes.health
+
+  An array containing values about check's health (integers):
+    - **cur**: current health counter:
+       - 0 to (**rise** - 1) = BAD
+       - **rise** to (**rise** + **fall** - 1) = GOOD
+    - **rise**: server will be considered as operational after **rise**
+      consecutive successful checks
+    - **fall**: server will be considered as dead after **fall** consecutive
+      unsuccessful checks
+
+.. _server_event_state_class:
+
+ServerEventState class
+======================
+
+.. js:class:: ServerEventState
+
+This class contains additional info related to **SERVER_STATE** event.
+
+.. js:attribute:: ServerEventState.admin
+
+  Boolean set to true if the server state change is due to an administrative
+  change. Else it is an operational change.
+
+.. js:attribute:: ServerEventState.check
+
+  A :ref:`server_event_checkres_class`, provided if the state change is
+  due to a server check (must be an operational change).
+
+.. js:attribute:: ServerEventState.cause
+
+  Printable state change cause. Might be empty.
+
+.. js:attribute:: ServerEventState.new_state
+
+  New server state due to operational or admin change.
+
+  It is a string that can be any of the following values:
+    - "STOPPED": The server is down
+    - "STOPPING": The server is up but soft-stopping
+    - "STARTING": The server is warming up
+    - "RUNNING": The server is fully up
+
+.. js:attribute:: ServerEventState.old_state
+
+  Previous server state prior to the operational or admin change.
+
+  Can be any value described in **new_state**, but they should differ.
+
+.. js:attribute:: ServerEventState.requeued
+
+  Number of connections that were requeued due to the server state change.
+
+  For a server going DOWN: it is the number of pending server connections
+  that are requeued to the backend (such connections will be redispatched
+  to any server that is suitable according to the configured load balancing
+  algorithm).
+
+  For a server doing UP: it is the number of pending connections on the
+  backend that may be redispatched to the server according to the load
+  balancing algorithm that is in use.
 
 .. _concat_class:
 
