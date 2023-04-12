@@ -1782,7 +1782,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if (!((scf->flags | scb->flags) & (SC_FL_SHUTR|SC_FL_SHUTW)) &&
 		    !((req->flags | res->flags) & (CF_READ_EVENT|CF_READ_TIMEOUT|CF_WRITE_EVENT|CF_WRITE_TIMEOUT)) &&
 		    !(s->flags & SF_CONN_EXP) &&
-		    !((sc_ep_get(scf) | scb->flags) & SE_FL_ERROR) &&
+		    !((sc_ep_get(scf) | sc_ep_get(scb)) & SE_FL_ERROR) &&
 		    ((s->pending_events & TASK_WOKEN_ANY) == TASK_WOKEN_TIMER)) {
 			scf->flags &= ~SC_FL_DONT_WAKE;
 			scb->flags &= ~SC_FL_DONT_WAKE;
