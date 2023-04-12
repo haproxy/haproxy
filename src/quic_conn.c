@@ -5670,7 +5670,6 @@ void quic_conn_release(struct quic_conn *qc)
 		tasklet_free(qc->wait_event.tasklet);
 
 	/* remove the connection from receiver cids trees */
-	ebmb_delete(&qc->scid_node);
 	free_quic_conn_cids(qc);
 
 	conn_ctx = qc->xprt_ctx;
