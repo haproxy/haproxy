@@ -146,17 +146,17 @@ static inline void free_quic_conn_cids(struct quic_conn *conn)
 
 	node = eb64_first(&conn->cids);
 	while (node) {
-		struct quic_connection_id *cid;
+		struct quic_connection_id *conn_id;
 
-		cid = eb64_entry(node, struct quic_connection_id, seq_num);
+		conn_id = eb64_entry(node, struct quic_connection_id, seq_num);
 
 		/* remove the CID from the receiver tree */
-		ebmb_delete(&cid->node);
+		ebmb_delete(&conn_id->node);
 
 		/* remove the CID from the quic_conn tree */
 		node = eb64_next(node);
-		eb64_delete(&cid->seq_num);
-		pool_free(pool_head_quic_connection_id, cid);
+		eb64_delete(&conn_id->seq_num);
+		pool_free(pool_head_quic_connection_id, conn_id);
 	}
 }
 
