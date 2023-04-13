@@ -3906,8 +3906,7 @@ static int quic_stateless_reset_token_init(struct quic_connection_id *conn_id)
 	return ret;
 }
 
-/* Generate a CID directly derived from <orig> CID and <addr> address. The CID
- * is then marked with the current thread ID.
+/* Generate a CID directly derived from <orig> CID and <addr> address.
  *
  * Returns the derived CID.
  */
@@ -3961,9 +3960,6 @@ struct quic_cid quic_derive_cid(const struct quic_cid *orig,
 	for (i = 0; i < sizeof(hash); ++i)
 		cid.data[i] = hash >> ((sizeof(hash) * 7) - (8 * i));
 	cid.len = sizeof(hash);
-
-	/* Mark the current thread id in the CID. */
-	quic_pin_cid_to_tid(cid.data, tid);
 
 	return cid;
 }
@@ -4055,7 +4051,6 @@ static struct quic_connection_id *new_quic_cid(struct eb_root *root,
 			TRACE_ERROR("RAND_bytes() failed", QUIC_EV_CONN_TXPKT, qc);
 			goto err;
 		}
-		quic_pin_cid_to_tid(conn_id->cid.data, tid);
 	}
 	else {
 		/* Derive the new CID value from original CID. */

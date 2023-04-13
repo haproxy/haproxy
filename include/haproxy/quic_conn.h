@@ -208,17 +208,6 @@ static inline void quic_connection_id_to_frm_cpy(struct quic_frame *dst,
 	to->stateless_reset_token = src->stateless_reset_token;
 }
 
-/* Modify <cid> to have a CID linked to the thread ID <target_tid> that
- * quic_get_cid_tid() will be able to extract return.
- */
-static inline void quic_pin_cid_to_tid(unsigned char *cid, uint target_tid)
-{
-	uint16_t prev_id;
-
-	prev_id = read_n16(cid);
-	write_n16(cid, (prev_id & ~4095) | target_tid);
-}
-
 /* Return a 32-bits integer in <val> from QUIC packet with <buf> as address.
  * Makes <buf> point to the data after this 32-bits value if succeeded.
  * Note that these 32-bits integers are network bytes ordered.
