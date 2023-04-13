@@ -8162,7 +8162,7 @@ __LJMP static int hlua_txn_done(lua_State *L)
 
 		channel_auto_read(res);
 		channel_auto_close(res);
-		channel_shutr_now(res);
+		sc_schedule_abort(s->scb);
 
 		finst = ((htxn->dir == SMP_OPT_DIR_REQ) ? SF_FINST_R : SF_FINST_D);
 		goto done;

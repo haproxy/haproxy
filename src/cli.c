@@ -2360,7 +2360,7 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 		return argl; /* return the number of elements in the array */
 
 	} else if (strcmp("quit", args[0]) == 0) {
-		channel_shutr_now(&s->req);
+		sc_schedule_abort(s->scf);
 		channel_shutw_now(&s->res);
 		return argl; /* return the number of elements in the array */
 	} else if (strcmp(args[0], "operator") == 0) {

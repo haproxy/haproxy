@@ -861,7 +861,7 @@ void stream_retnclose(struct stream *s, const struct buffer *msg)
 
 	channel_auto_read(oc);
 	channel_auto_close(oc);
-	channel_shutr_now(oc);
+	sc_schedule_abort(s->scb);
 }
 
 int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout)
@@ -2309,7 +2309,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		else {
 			s->scb->state = SC_ST_CLO; /* shutw+ini = abort */
 			channel_shutw_now(req);        /* fix buffer flags upon abort */
-			channel_shutr_now(res);
+			sc_schedule_abort(scb);
 		}
 	}
 
@@ -2381,7 +2381,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* shutdown(write) done on server side, we must stop the client too */
 	if (unlikely((scb->flags & SC_FL_SHUTW) && !(scf->flags & (SC_FL_SHUTR|SC_FL_ABRT_WANTED))) &&
 	    !req->analysers)
-		channel_shutr_now(req);
+		sc_schedule_abort(scf);
 
 	/* shutdown(read) pending */
 	if (unlikely((scf->flags & (SC_FL_SHUTR|SC_FL_ABRT_WANTED)) == SC_FL_ABRT_WANTED)) {
@@ -2501,7 +2501,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* shutdown(write) done on the client side, we must stop the server too */
 	if (unlikely((scf->flags & SC_FL_SHUTW) && !(scb->flags & (SC_FL_SHUTR|SC_FL_ABRT_WANTED))) &&
 	    !res->analysers)
-		channel_shutr_now(res);
+		sc_schedule_abort(scb);
 
 	/* shutdown(read) pending */
 	if (unlikely((scb->flags & (SC_FL_SHUTR|SC_FL_ABRT_WANTED)) == SC_FL_ABRT_WANTED)) {
@@ -2782,7 +2782,7 @@ void stream_shutdown(struct stream *stream, int why)
 		return;
 
 	channel_shutw_now(&stream->req);
-	channel_shutr_now(&stream->res);
+	sc_schedule_abort(stream->scb);
 	stream->task->nice = 1024;
 	if (!(stream->flags & SF_ERR_MASK))
 		stream->flags |= why;

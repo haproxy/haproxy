@@ -4273,7 +4273,7 @@ static void http_end_request(struct stream *s)
 				goto check_channel_flags;
 
 			if (!(chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW))) {
-				channel_shutr_now(chn);
+				sc_schedule_abort(s->scf);
 				channel_shutw_now(chn);
 			}
 		}
@@ -4372,7 +4372,7 @@ static void http_end_response(struct stream *s)
 			 * transaction, so we can close it.
 			 */
 			if (!(chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW))) {
-				channel_shutr_now(chn);
+				sc_schedule_abort(s->scb);
 				channel_shutw_now(chn);
 			}
 		}
@@ -4449,7 +4449,7 @@ int http_forward_proxy_resp(struct stream *s, int final)
 
 		channel_auto_read(res);
 		channel_auto_close(res);
-		channel_shutr_now(res);
+		sc_schedule_abort(s->scb);
 		s->scb->flags |= SC_FL_EOI; /* The response is terminated, add EOI */
 		htxbuf(&res->buf)->flags |= HTX_FL_EOM; /* no more data are expected */
 	}
@@ -4512,7 +4512,7 @@ end:
 	channel_htx_erase(&s->req, htxbuf(&s->req.buf));
 	channel_auto_read(&s->res);
 	channel_auto_close(&s->res);
-	channel_shutr_now(&s->res);
+	sc_schedule_abort(s->scb);
 }
 
 struct http_reply *http_error_message(struct stream *s)

@@ -414,4 +414,10 @@ static inline void sc_set_hcto(struct stconn *sc)
 
 }
 
+/* Schedule an abort for the SC */
+static inline void sc_schedule_abort(struct stconn *sc)
+{
+	sc->flags |= SC_FL_ABRT_WANTED;
+}
+
 #endif /* _HAPROXY_SC_STRM_H */
