@@ -720,8 +720,7 @@ static enum act_return http_action_reject(struct act_rule *rule, struct proxy *p
                                           struct session *sess, struct stream *s, int flags)
 {
 	sc_must_kill_conn(chn_prod(&s->req));
-	channel_abort(&s->req);
-	channel_abort(&s->res);
+	stream_abort(s);
 	s->req.analysers &= AN_REQ_FLT_END;
 	s->res.analysers &= AN_RES_FLT_END;
 

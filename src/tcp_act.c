@@ -337,8 +337,7 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
  out:
 	/* kill the stream if any */
 	if (strm) {
-		channel_abort(&strm->req);
-		channel_abort(&strm->res);
+		stream_abort(strm);
 		strm->req.analysers &= AN_REQ_FLT_END;
 		strm->res.analysers &= AN_RES_FLT_END;
 		if (strm->flags & SF_BE_ASSIGNED)

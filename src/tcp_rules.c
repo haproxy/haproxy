@@ -255,8 +255,7 @@ resume_execution:
 
  reject:
 	sc_must_kill_conn(chn_prod(req));
-	channel_abort(req);
-	channel_abort(&s->res);
+	stream_abort(s);
 
  abort:
 	req->analysers &= AN_REQ_FLT_END;
@@ -453,8 +452,7 @@ resume_execution:
 
  reject:
 	sc_must_kill_conn(chn_prod(rep));
-	channel_abort(rep);
-	channel_abort(&s->req);
+	stream_abort(s);
 
   abort:
 	rep->analysers &= AN_RES_FLT_END;

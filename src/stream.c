@@ -830,6 +830,13 @@ void stream_process_counters(struct stream *s)
 	}
 }
 
+/* Abort processing on the both channels in same time */
+void stream_abort(struct stream *s)
+{
+	channel_abort(&s->req);
+	channel_abort(&s->res);
+}
+
 /*
  * Returns a message to the client ; the connection is shut down for read,
  * and the request is cleared so that no server connection can be initiated.
@@ -1143,8 +1150,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 
  sw_failed:
 	/* immediately abort this request in case of allocation failure */
-	channel_abort(&s->req);
-	channel_abort(&s->res);
+	stream_abort(s);
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_RESOURCE;
@@ -1515,8 +1521,7 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 			 */
 			s->logs.logwait = 0;
 			s->logs.level = 0;
-			channel_abort(&s->req);
-			channel_abort(&s->res);
+			stream_abort(s);
 			s->req.analysers &= AN_REQ_FLT_END;
 			s->req.analyse_exp = TICK_ETERNITY;
 		}
@@ -3030,8 +3035,7 @@ static enum act_return tcp_action_switch_stream_mode(struct act_rule *rule, stru
 
 	if (!IS_HTX_STRM(s) && mode == PR_MODE_HTTP) {
 		if (!stream_set_http_mode(s, mux_proto)) {
-			channel_abort(&s->req);
-			channel_abort(&s->res);
+			stream_abort(s);
 			return ACT_RET_ABRT;
 		}
 	}

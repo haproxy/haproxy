@@ -117,8 +117,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		if (chn_prod(req)->flags & SC_FL_SHUTR) {
 			s->logs.logwait = 0;
                         s->logs.level = 0;
-			channel_abort(&s->req);
-			channel_abort(&s->res);
+			stream_abort(s);
 			req->analysers &= AN_REQ_FLT_END;
 			req->analyse_exp = TICK_ETERNITY;
 			DBG_TRACE_LEAVE(STRM_EV_STRM_ANA, s);
