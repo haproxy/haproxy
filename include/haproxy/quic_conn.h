@@ -674,6 +674,8 @@ int quic_set_app_ops(struct quic_conn *qc, const unsigned char *alpn, size_t alp
 int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len);
 int quic_get_dgram_dcid(unsigned char *buf, const unsigned char *end,
                         unsigned char **dcid, size_t *dcid_len);
+struct quic_cid quic_derive_cid(const struct quic_cid *orig,
+                                const struct sockaddr_storage *addr);
 int qc_send_mux(struct quic_conn *qc, struct list *frms);
 
 void qc_notify_close(struct quic_conn *qc);

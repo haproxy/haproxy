@@ -3910,16 +3910,18 @@ static int quic_stateless_reset_token_init(struct quic_connection_id *conn_id)
 /* Generate a CID directly derived from <orig> CID and <addr> address. The CID
  * is then marked with the current thread ID.
  *
- * Returns a new 64-bits CID value.
+ * Returns the derived CID.
  */
-static uint64_t quic_derive_cid(const struct quic_cid *orig,
+struct quic_cid quic_derive_cid(const struct quic_cid *orig,
                                 const struct sockaddr_storage *addr)
 {
+	struct quic_cid cid;
 	const struct sockaddr_in *in;
 	const struct sockaddr_in6 *in6;
 	char *buf = trash.area;
 	size_t idx = 0;
 	uint64_t hash;
+	int i;
 
 	/* Prepare buffer for hash using original CID first. */
 	memcpy(buf, orig->data, orig->len);
@@ -3948,7 +3950,6 @@ static uint64_t quic_derive_cid(const struct quic_cid *orig,
 	default:
 		/* TODO to implement */
 		ABORT_NOW();
-		return 0;
 	}
 
 	/* Avoid similar values between multiple haproxy process. */
@@ -3958,10 +3959,14 @@ static uint64_t quic_derive_cid(const struct quic_cid *orig,
 	/* Hash the final buffer content. */
 	hash = XXH64(buf, idx, 0);
 
-	/* Mark the current thread id in the CID. */
-	quic_pin_cid_to_tid((uchar *)&hash, tid);
+	for (i = 0; i < sizeof(hash); ++i)
+		cid.data[i] = hash >> ((sizeof(hash) * 7) - (8 * i));
+	cid.len = sizeof(hash);
 
-	return hash;
+	/* Mark the current thread id in the CID. */
+	quic_pin_cid_to_tid(cid.data, tid);
+
+	return cid;
 }
 
 /* Allocate a new CID and attach it to <root> ebtree.
@@ -4002,8 +4007,7 @@ static struct quic_connection_id *new_quic_cid(struct eb_root *root,
 	}
 	else {
 		/* Derive the new CID value from original CID. */
-		const uint64_t hash = quic_derive_cid(orig, addr);
-		memcpy(conn_id->cid.data, &hash, sizeof(hash));
+		conn_id->cid = quic_derive_cid(orig, addr);
 	}
 
 	if (quic_stateless_reset_token_init(conn_id) != 1) {
@@ -6524,8 +6528,8 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 	 */
 	if (!node && (pkt->type == QUIC_PACKET_TYPE_INITIAL ||
 	     pkt->type == QUIC_PACKET_TYPE_0RTT)) {
-		uint64_t hash = quic_derive_cid(&pkt->dcid, saddr);
-		node = ebmb_lookup(&quic_dghdlrs[tid].cids, &hash, sizeof(hash));
+		const struct quic_cid derive_cid = quic_derive_cid(&pkt->dcid, saddr);
+		node = ebmb_lookup(&quic_dghdlrs[tid].cids, derive_cid.data, derive_cid.len);
 	}
 
 	if (!node)
