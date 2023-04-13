@@ -2022,7 +2022,7 @@ void back_try_conn_req(struct stream *s)
 				process_srv_queue(srv);
 
 			/* Failed and not retryable. */
-			sc_shutr(sc);
+			sc_abort(sc);
 			sc_shutw(sc);
 			sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
 
@@ -2082,7 +2082,7 @@ void back_try_conn_req(struct stream *s)
 			if (srv)
 				_HA_ATOMIC_INC(&srv->counters.failed_conns);
 			_HA_ATOMIC_INC(&s->be->be_counters.failed_conns);
-			sc_shutr(sc);
+			sc_abort(sc);
 			sc_shutw(sc);
 			req->flags |= CF_WRITE_TIMEOUT;
 			if (!s->conn_err_type)
@@ -2142,7 +2142,7 @@ abort_connection:
 	/* give up */
 	s->conn_exp = TICK_ETERNITY;
 	s->flags &= ~SF_CONN_EXP;
-	sc_shutr(sc);
+	sc_abort(sc);
 	sc_shutw(sc);
 	sc->state = SC_ST_CLO;
 	if (s->srv_error)
@@ -2182,7 +2182,7 @@ void back_handle_st_req(struct stream *s)
 			 */
 			s->flags &= ~(SF_ERR_MASK | SF_FINST_MASK);
 
-			sc_shutr(sc);
+			sc_abort(sc);
 			sc_shutw(sc);
 			sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
 			s->conn_err_type = STRM_ET_CONN_RES;
@@ -2208,7 +2208,7 @@ void back_handle_st_req(struct stream *s)
 		}
 
 		/* we did not get any server, let's check the cause */
-		sc_shutr(sc);
+		sc_abort(sc);
 		sc_shutw(sc);
 		sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
 		if (!s->conn_err_type)

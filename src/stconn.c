@@ -24,19 +24,19 @@ DECLARE_POOL(pool_head_connstream, "stconn", sizeof(struct stconn));
 DECLARE_POOL(pool_head_sedesc, "sedesc", sizeof(struct sedesc));
 
 /* functions used by default on a detached stream connector */
-static void sc_app_shutr(struct stconn *sc);
+static void sc_app_abort(struct stconn *sc);
 static void sc_app_shutw(struct stconn *sc);
 static void sc_app_chk_rcv(struct stconn *sc);
 static void sc_app_chk_snd(struct stconn *sc);
 
 /* functions used on a mux-based stream connector */
-static void sc_app_shutr_conn(struct stconn *sc);
+static void sc_app_abort_conn(struct stconn *sc);
 static void sc_app_shutw_conn(struct stconn *sc);
 static void sc_app_chk_rcv_conn(struct stconn *sc);
 static void sc_app_chk_snd_conn(struct stconn *sc);
 
 /* functions used on an applet-based stream connector */
-static void sc_app_shutr_applet(struct stconn *sc);
+static void sc_app_abort_applet(struct stconn *sc);
 static void sc_app_shutw_applet(struct stconn *sc);
 static void sc_app_chk_rcv_applet(struct stconn *sc);
 static void sc_app_chk_snd_applet(struct stconn *sc);
@@ -50,7 +50,7 @@ static int sc_applet_process(struct stconn *sc);
 struct sc_app_ops sc_app_conn_ops = {
 	.chk_rcv = sc_app_chk_rcv_conn,
 	.chk_snd = sc_app_chk_snd_conn,
-	.shutr   = sc_app_shutr_conn,
+	.abort   = sc_app_abort_conn,
 	.shutw   = sc_app_shutw_conn,
 	.wake    = sc_conn_process,
 	.name    = "STRM",
@@ -60,7 +60,7 @@ struct sc_app_ops sc_app_conn_ops = {
 struct sc_app_ops sc_app_embedded_ops = {
 	.chk_rcv = sc_app_chk_rcv,
 	.chk_snd = sc_app_chk_snd,
-	.shutr   = sc_app_shutr,
+	.abort   = sc_app_abort,
 	.shutw   = sc_app_shutw,
 	.wake    = NULL,   /* may never be used */
 	.name    = "NONE", /* may never be used */
@@ -70,7 +70,7 @@ struct sc_app_ops sc_app_embedded_ops = {
 struct sc_app_ops sc_app_applet_ops = {
 	.chk_rcv = sc_app_chk_rcv_applet,
 	.chk_snd = sc_app_chk_snd_applet,
-	.shutr   = sc_app_shutr_applet,
+	.abort   = sc_app_abort_applet,
 	.shutw   = sc_app_shutw_applet,
 	.wake    = sc_applet_process,
 	.name    = "STRM",
@@ -80,7 +80,7 @@ struct sc_app_ops sc_app_applet_ops = {
 struct sc_app_ops sc_app_check_ops = {
 	.chk_rcv = NULL,
 	.chk_snd = NULL,
-	.shutr   = NULL,
+	.abort   = NULL,
 	.shutw   = NULL,
 	.wake    = wake_srv_chk,
 	.name    = "CHCK",
@@ -530,7 +530,7 @@ static inline int sc_cond_forward_shutw(struct stconn *sc)
  * reflect the new state. If the stream connector has SC_FL_NOHALF, we also
  * forward the close to the write side. The owner task is woken up if it exists.
  */
-static void sc_app_shutr(struct stconn *sc)
+static void sc_app_abort(struct stconn *sc)
 {
 	struct channel *ic = sc_ic(sc);
 
@@ -655,7 +655,7 @@ static void sc_app_chk_snd(struct stconn *sc)
  * descriptors are then shutdown or closed accordingly. The function
  * automatically disables polling if needed.
  */
-static void sc_app_shutr_conn(struct stconn *sc)
+static void sc_app_abort_conn(struct stconn *sc)
 {
 	struct channel *ic = sc_ic(sc);
 
@@ -738,7 +738,7 @@ static void sc_app_shutw_conn(struct stconn *sc)
 		__fallthrough;
 	case SC_ST_CON:
 		/* we may have to close a pending connection, and mark the
-		 * response buffer as shutr
+		 * response buffer as abort
 		 */
 		sc_conn_shut(sc);
 		__fallthrough;
@@ -851,7 +851,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
  * we also forward the close to the write side. The owner task is woken up if
  * it exists.
  */
-static void sc_app_shutr_applet(struct stconn *sc)
+static void sc_app_abort_applet(struct stconn *sc)
 {
 	struct channel *ic = sc_ic(sc);
 
@@ -862,7 +862,7 @@ static void sc_app_shutr_applet(struct stconn *sc)
 	sc->flags |= SC_FL_ABRT_DONE;
 	ic->flags |= CF_READ_EVENT;
 
-	/* Note: on shutr, we don't call the applet */
+	/* Note: on abort, we don't call the applet */
 
 	if (!sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
 		return;
@@ -1197,7 +1197,7 @@ static int sc_conn_recv(struct stconn *sc)
 	if ((sc->wait_event.events & SUB_RETRY_RECV) || sc_waiting_room(sc))
 		return 0;
 
-	/* maybe we were called immediately after an asynchronous shutr */
+	/* maybe we were called immediately after an asynchronous abort */
 	if (sc->flags & SC_FL_ABRT_DONE)
 		return 1;
 
@@ -1847,7 +1847,7 @@ static int sc_applet_process(struct stconn *sc)
 
 	if (sc_ep_test(sc, SE_FL_EOS)) {
 		/* we received a shutdown */
-		sc_shutr(sc);
+		sc_abort(sc);
 	}
 
 	/* If the applet wants to write and the channel is closed, it's a

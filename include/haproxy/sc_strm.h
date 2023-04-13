@@ -262,13 +262,6 @@ static inline void sc_must_kill_conn(struct stconn *sc)
 }
 
 
-/* Sends a shutr to the endpoint using the data layer */
-static inline void sc_shutr(struct stconn *sc)
-{
-	if (likely(sc->app_ops->shutr))
-		sc->app_ops->shutr(sc);
-}
-
 /* Sends a shutw to the endpoint using the data layer */
 static inline void sc_shutw(struct stconn *sc)
 {
@@ -418,6 +411,13 @@ static inline void sc_set_hcto(struct stconn *sc)
 static inline void sc_schedule_abort(struct stconn *sc)
 {
 	sc->flags |= SC_FL_ABRT_WANTED;
+}
+
+/* Abort the SC and notify the endpoint using the data layer */
+static inline void sc_abort(struct stconn *sc)
+{
+	if (likely(sc->app_ops->abort))
+		sc->app_ops->abort(sc);
 }
 
 /* Schedule a shutdown for the SC */

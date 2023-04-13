@@ -393,7 +393,7 @@ resume_execution:
 			else if (rule->action == ACT_TCP_CLOSE) {
 				chn_prod(rep)->flags |= SC_FL_NOLINGER | SC_FL_NOHALF;
 				sc_must_kill_conn(chn_prod(rep));
-				sc_shutr(chn_prod(rep));
+				sc_abort(chn_prod(rep));
 				sc_shutw(chn_prod(rep));
 				s->last_rule_file = rule->conf.file;
 				s->last_rule_line = rule->conf.line;
