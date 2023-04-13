@@ -398,9 +398,10 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 			if (qel) {
 				const struct quic_pktns *pktns = qel->pktns;
-				chunk_appendf(&trace_buf, " qel=%c pto_count=%d cwnd=%llu ppif=%lld pif=%llu "
+				chunk_appendf(&trace_buf, " qel=%c flags=0x%x pto_count=%d cwnd=%llu ppif=%lld pif=%llu "
 				              "if=%llu pp=%u",
 				              quic_enc_level_char_from_qel(qel, qc),
+				              qel->pktns->flags,
 				              qc->path->loss.pto_count,
 				              (unsigned long long)qc->path->cwnd,
 				              (unsigned long long)qc->path->prep_in_flight,
@@ -504,8 +505,9 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			if (qel) {
 				const struct quic_pktns *pktns = qel->pktns;
 				chunk_appendf(&trace_buf,
-				              " qel=%c state=%s ack?%d pto_count=%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u off=%llu",
+				              " qel=%c flags=0x%x state=%s ack?%d pto_count=%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u off=%llu",
 				              quic_enc_level_char_from_qel(qel, qc),
+				              qel->pktns->flags,
 				              quic_hdshk_state_str(qc->state),
 				              !!(qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED),
 				              qc->path->loss.pto_count,
