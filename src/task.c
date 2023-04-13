@@ -170,7 +170,7 @@ void __tasklet_wakeup_on(struct tasklet *tl, int thr)
  */
 struct list *__tasklet_wakeup_after(struct list *head, struct tasklet *tl)
 {
-	BUG_ON(tid != tl->tid);
+	BUG_ON(tl->tid >= 0 && tid != tl->tid);
 	/* this tasklet runs on the caller thread */
 	if (!head) {
 		if (tl->state & TASK_HEAVY) {
