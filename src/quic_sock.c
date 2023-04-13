@@ -221,16 +221,14 @@ static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner
 		goto err;
 
 	if ((cid_tid = quic_get_cid_tid(dcid, dcid_len, saddr, buf, len)) < 0) {
-		/* CID not found. Ensure only one thread will handle this CID
-		 * to avoid duplicating connection creation. This code may not
-		 * work if using thread-mask on the listener but is only here
-		 * for a short time.
-		 *
-		 * TODO this code implies the thread used for QUIC handshake is
-		 * directly derived from client chosen CID. This association
-		 * must be broken.
+		/* Use the current thread if CID not found. If a clients opens
+		 * a connection with multiple packets, it is possible that
+		 * several threads will deal with datagrams sharing the same
+		 * CID. For this reason, the CID tree insertion will be
+		 * conducted as an atomic operation and the datagram ultimately
+		 * redispatch by the late thread.
 		 */
-		cid_tid = dcid[0] % global.nbthread;
+		cid_tid = tid;
 	}
 
 	/* All the members must be initialized! */

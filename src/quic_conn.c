@@ -4065,10 +4065,11 @@ static struct quic_connection_id *new_quic_cid(struct eb_root *root,
 	conn_id->qc = qc;
 	HA_ATOMIC_STORE(&conn_id->tid, tid);
 
-	conn_id->seq_num.key = qc->next_cid_seq_num++;
+	conn_id->seq_num.key = qc ? qc->next_cid_seq_num++ : 0;
 	conn_id->retire_prior_to = 0;
 	/* insert the allocated CID in the quic_conn tree */
-	eb64_insert(root, &conn_id->seq_num);
+	if (root)
+		eb64_insert(root, &conn_id->seq_num);
 
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 	return conn_id;
@@ -5451,6 +5452,7 @@ static int parse_retry_token(struct quic_conn *qc,
 static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                                      struct quic_cid *dcid, struct quic_cid *scid,
                                      const struct quic_cid *token_odcid,
+                                     struct quic_connection_id *conn_id,
                                      struct sockaddr_storage *local_addr,
                                      struct sockaddr_storage *peer_addr,
                                      int server, int token, void *owner)
@@ -5458,7 +5460,6 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	int i;
 	struct quic_conn *qc;
 	/* Initial CID. */
-	struct quic_connection_id *conn_id;
 	char *buf_area = NULL;
 	struct listener *l = NULL;
 	struct quic_cc_algo *cc_algo = NULL;
@@ -5527,19 +5528,10 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->mux_state = QC_MUX_NULL;
 	qc->err = quic_err_transport(QC_ERR_NO_ERROR);
 
+	conn_id->qc = qc;
+	eb64_insert(&qc->cids, &conn_id->seq_num);
 	/* Initialize the next CID sequence number to be used for this connection. */
-	qc->next_cid_seq_num = 0;
-	/* Generate the first connection CID. This is derived from the client
-	 * ODCID and address. This allows to retrieve the connection from the
-	 * ODCID without storing it in the CID tree. This is an interesting
-	 * optimization as the client is expected to stop using its ODCID in
-	 * favor of our generated value.
-	 */
-	conn_id = new_quic_cid(&qc->cids, qc, dcid, peer_addr);
-	if (!conn_id) {
-		TRACE_ERROR("Could not allocate a new connection ID", QUIC_EV_CONN_INIT, qc);
-		goto err;
-	}
+	qc->next_cid_seq_num = 1;
 
 	if ((global.tune.options & GTUNE_QUIC_SOCK_PER_CONN) &&
 	    is_addr(local_addr)) {
@@ -5552,10 +5544,6 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		if (qc_test_fd(qc))
 			_HA_ATOMIC_INC(&jobs);
 	}
-
-	/* insert the allocated CID in the receiver datagram handler tree */
-	if (server)
-		quic_cid_insert(conn_id);
 
 	/* Select our SCID which is the first CID with 0 as sequence number. */
 	qc->scid = conn_id->cid;
@@ -6557,20 +6545,22 @@ static int send_retry(int fd, struct sockaddr_storage *addr,
  */
 static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
                                                    struct listener *l,
-                                                   struct sockaddr_storage *saddr)
+                                                   struct sockaddr_storage *saddr,
+                                                   int *new_tid)
 {
 	struct quic_conn *qc = NULL;
 	struct ebmb_node *node;
 	struct quic_connection_id *conn_id;
 	struct quic_cid_tree *tree;
+	uint conn_id_tid;
 
 	TRACE_ENTER(QUIC_EV_CONN_RXPKT);
+	*new_tid = -1;
 
 	/* First look into DCID tree. */
 	tree = &quic_cid_trees[_quic_cid_tree_idx(pkt->dcid.data)];
 	HA_RWLOCK_RDLOCK(QC_CID_LOCK, &tree->lock);
 	node = ebmb_lookup(&tree->root, pkt->dcid.data, pkt->dcid.len);
-	HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
 
 	/* If not found on an Initial/0-RTT packet, it could be because an
 	 * ODCID is reused by the client. Calculate the derived CID value to
@@ -6580,19 +6570,26 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 	     pkt->type == QUIC_PACKET_TYPE_0RTT)) {
 		const struct quic_cid derive_cid = quic_derive_cid(&pkt->dcid, saddr);
 
+		HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
+
 		tree = &quic_cid_trees[quic_cid_tree_idx(&derive_cid)];
 		HA_RWLOCK_RDLOCK(QC_CID_LOCK, &tree->lock);
 		node = ebmb_lookup(&tree->root, derive_cid.data, derive_cid.len);
-		HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
 	}
 
 	if (!node)
 		goto end;
 
 	conn_id = ebmb_entry(node, struct quic_connection_id, node);
+	conn_id_tid = HA_ATOMIC_LOAD(&conn_id->tid);
+	if (conn_id_tid != tid) {
+		*new_tid = conn_id_tid;
+		goto end;
+	}
 	qc = conn_id->qc;
 
  end:
+	HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
 	TRACE_LEAVE(QUIC_EV_CONN_RXPKT, qc);
 	return qc;
 }
@@ -6719,7 +6716,8 @@ static inline int quic_padding_check(const unsigned char *buf,
  */
 static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
                                                    struct quic_dgram *dgram,
-                                                   struct listener *l)
+                                                   struct listener *l,
+                                                   int *new_tid)
 {
 	struct quic_cid token_odcid = { .len = 0 };
 	struct quic_conn *qc = NULL;
@@ -6728,10 +6726,16 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT);
 
+	*new_tid = -1;
+
 	prx = l->bind_conf->frontend;
 	prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
 
-	qc = retrieve_qc_conn_from_cid(pkt, l, &dgram->saddr);
+	qc = retrieve_qc_conn_from_cid(pkt, l, &dgram->saddr, new_tid);
+
+	/* If connection already created on another thread. */
+        if (!qc && *new_tid != -1 && tid != *new_tid)
+		goto out;
 
 	if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
 		BUG_ON(!pkt->version); /* This must not happen. */
@@ -6742,6 +6746,9 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 		}
 
 		if (!qc) {
+			struct quic_cid_tree *tree;
+			struct ebmb_node *node;
+			struct quic_connection_id *conn_id;
 			int ipv4;
 
 			if (global.cluster_secret && !pkt->token_len && !(l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) &&
@@ -6773,8 +6780,32 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 			pkt->saddr = dgram->saddr;
 			ipv4 = dgram->saddr.ss_family == AF_INET;
 
+			/* Generate the first connection CID. This is derived from the client
+			 * ODCID and address. This allows to retrieve the connection from the
+			 * ODCID without storing it in the CID tree. This is an interesting
+			 * optimization as the client is expected to stop using its ODCID in
+			 * favor of our generated value.
+			 */
+			conn_id = new_quic_cid(NULL, NULL, &pkt->dcid, &pkt->saddr);
+			if (!conn_id)
+				goto err;
+
+			tree = &quic_cid_trees[quic_cid_tree_idx(&conn_id->cid)];
+			HA_RWLOCK_WRLOCK(QC_CID_LOCK, &tree->lock);
+			node = ebmb_insert(&tree->root, &conn_id->node, conn_id->cid.len);
+			if (node != &conn_id->node) {
+				pool_free(pool_head_quic_connection_id, conn_id);
+
+				conn_id = ebmb_entry(node, struct quic_connection_id, node);
+				*new_tid = HA_ATOMIC_LOAD(&conn_id->tid);
+			}
+			HA_RWLOCK_WRUNLOCK(QC_CID_LOCK, &tree->lock);
+
+			if (*new_tid != -1)
+				goto out;
+
 			qc = qc_new_conn(pkt->version, ipv4, &pkt->dcid, &pkt->scid, &token_odcid,
-			                 &dgram->daddr, &pkt->saddr, 1,
+			                 conn_id, &dgram->daddr, &pkt->saddr, 1,
 			                 !!pkt->token_len, l);
 			if (qc == NULL)
 				goto err;
@@ -8185,11 +8216,20 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 		 * with different DCID as the first one in the same datagram.
 		 */
 		if (!qc) {
-			qc = from_qc ? from_qc : quic_rx_pkt_retrieve_conn(pkt, dgram, li);
+			int new_tid = -1;
+
+			qc = from_qc ? from_qc : quic_rx_pkt_retrieve_conn(pkt, dgram, li, &new_tid);
 			/* qc is NULL if receiving a non Initial packet for an
 			 * unknown connection.
 			 */
 			if (!qc) {
+				if (new_tid >= 0) {
+					MT_LIST_APPEND(&quic_dghdlrs[new_tid].dgrams,
+					               &dgram->handler_list);
+					tasklet_wakeup(quic_dghdlrs[new_tid].task);
+					goto out;
+				}
+
 				/* Skip the entire datagram. */
 				pkt->len = end - pos;
 				goto next;
@@ -8239,6 +8279,7 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 	/* Mark this datagram as consumed */
 	HA_ATOMIC_STORE(&dgram->buf, NULL);
 
+ out:
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
 	return 0;
 
