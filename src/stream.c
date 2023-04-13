@@ -960,7 +960,7 @@ static void back_establish(struct stream *s)
  * also counts a failed request if the server state has not reached the request
  * stage.
  */
-static void sess_set_term_flags(struct stream *s)
+void sess_set_term_flags(struct stream *s)
 {
 	if (!(s->flags & SF_FINST_MASK)) {
 		if (s->scb->state == SC_ST_INI) {
