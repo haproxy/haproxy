@@ -5,7 +5,7 @@ feature ignore_unknown_macro
 
 server s1 {
     rxreq
-    txresp
+    txresp  -hdr "Connection: close"
 } -repeat 4 -start
 
 syslog Slg_1 -level info {
