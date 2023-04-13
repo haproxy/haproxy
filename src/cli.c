@@ -2855,7 +2855,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->store_count = 0;
 		s->uniq_id = global.req_count++;
 
-		s->scf->flags &= ~(SC_FL_SHUTR|SC_FL_SHUTR_NOW);
+		s->scf->flags &= ~(SC_FL_SHUTR|SC_FL_ABRT_WANTED);
 		s->scf->flags &= ~SC_FL_SND_NEVERWAIT;
 		s->scf->flags |= SC_FL_RCV_ONCE; /* one read is usually enough */
 

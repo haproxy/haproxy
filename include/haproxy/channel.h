@@ -551,7 +551,7 @@ static inline void channel_htx_erase(struct channel *chn, struct htx *htx)
 /* marks the channel as "shutdown" ASAP for reads */
 static inline void channel_shutr_now(struct channel *chn)
 {
-	chn_prod(chn)->flags |= SC_FL_SHUTR_NOW;
+	chn_prod(chn)->flags |= SC_FL_ABRT_WANTED;
 }
 
 /* marks the channel as "shutdown" ASAP for writes */
@@ -563,7 +563,7 @@ static inline void channel_shutw_now(struct channel *chn)
 /* marks the channel as "shutdown" ASAP in both directions */
 static inline void channel_abort(struct channel *chn)
 {
-	chn_prod(chn)->flags |= SC_FL_SHUTR_NOW;
+	chn_prod(chn)->flags |= SC_FL_ABRT_WANTED;
 	chn_cons(chn)->flags |= SC_FL_SHUTW_NOW;
 	chn->flags |= CF_AUTO_CLOSE;
 	chn->flags &= ~CF_AUTO_CONNECT;

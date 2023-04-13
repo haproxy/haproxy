@@ -1132,7 +1132,7 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *sc)
 	res = &s->res;
 
 	/* Remove any write error from the request, and read error from the response */
-	s->scf->flags &= ~(SC_FL_SHUTR|SC_FL_SHUTR_NOW);
+	s->scf->flags &= ~(SC_FL_SHUTR|SC_FL_ABRT_WANTED);
 	req->flags &= ~CF_WRITE_TIMEOUT;
 	res->flags &= ~(CF_READ_TIMEOUT | CF_READ_EVENT);
 	res->analysers &= AN_RES_FLT_END;
