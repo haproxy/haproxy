@@ -615,7 +615,7 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 	smp->flags = SMP_F_VOL_TEST;
 
 	if (!finished && (check || (chn && !channel_full(chn, global.tune.maxrewrite) &&
-				    !(chn_prod(chn)->flags & (SC_FL_EOI|SC_FL_SHUTR)))))
+				    !(chn_prod(chn)->flags & (SC_FL_EOI|SC_FL_ABRT_DONE)))))
 		smp->flags |= SMP_F_MAY_CHANGE;
 
 	return 1;

@@ -484,7 +484,7 @@ int ci_getblk_nc(const struct channel *chn,
                  char **blk2, size_t *len2)
 {
 	if (unlikely(ci_data(chn) == 0)) {
-		if (chn_prod(chn)->flags & SC_FL_SHUTR)
+		if (chn_prod(chn)->flags & SC_FL_ABRT_DONE)
 			return -1;
 		return 0;
 	}

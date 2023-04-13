@@ -514,7 +514,7 @@ static inline int channel_may_recv(const struct channel *chn)
 /* Returns true if the channel's input is already closed */
 static inline int channel_input_closed(struct channel *chn)
 {
-	return ((chn_prod(chn)->flags & SC_FL_SHUTR) != 0);
+	return ((chn_prod(chn)->flags & SC_FL_ABRT_DONE) != 0);
 }
 
 /* Returns true if the channel's output is already closed */

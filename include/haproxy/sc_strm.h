@@ -286,7 +286,7 @@ static inline void sc_shutw(struct stconn *sc)
 __attribute__((warn_unused_result))
 static inline int sc_is_recv_allowed(const struct stconn *sc)
 {
-	if (sc->flags & SC_FL_SHUTR)
+	if (sc->flags & SC_FL_ABRT_DONE)
 		return 0;
 
 	if (sc_ep_test(sc, SE_FL_APPLET_NEED_CONN))
@@ -371,7 +371,7 @@ static inline int sc_is_send_allowed(const struct stconn *sc)
 
 static inline int sc_rcv_may_expire(const struct stconn *sc)
 {
-	if ((sc->flags & SC_FL_SHUTR) ||
+	if ((sc->flags & SC_FL_ABRT_DONE) ||
 	    (sc_ic(sc)->flags & (CF_READ_TIMEOUT|CF_READ_EVENT)))
 		return 0;
 	if (sc->flags & (SC_FL_EOI|SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))

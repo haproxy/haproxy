@@ -1020,7 +1020,7 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 		ret = 1;
 		goto end;
 	}
-	if (chn_prod(chn)->flags & SC_FL_SHUTR) {
+	if (chn_prod(chn)->flags & SC_FL_ABRT_DONE) {
 		if (((s->flags & SF_HTX) && htx_is_empty(htxbuf(&chn->buf))) || c_empty(chn)) {
 			ret = 1;
 			goto end;
