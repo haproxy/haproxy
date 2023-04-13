@@ -1587,7 +1587,7 @@ static void stream_handle_timeouts(struct stream *s)
 
 	if (unlikely(!(s->scb->flags & SC_FL_SHUT_DONE) && (s->req.flags & CF_WRITE_TIMEOUT))) {
 		s->scb->flags |= SC_FL_NOLINGER;
-		sc_shutw(s->scb);
+		sc_shutdown(s->scb);
 	}
 
 	if (unlikely(!(s->scf->flags & SC_FL_ABRT_DONE) && (s->req.flags & CF_READ_TIMEOUT))) {
@@ -1597,7 +1597,7 @@ static void stream_handle_timeouts(struct stream *s)
 	}
 	if (unlikely(!(s->scf->flags & SC_FL_SHUT_DONE) && (s->res.flags & CF_WRITE_TIMEOUT))) {
 		s->scf->flags |= SC_FL_NOLINGER;
-		sc_shutw(s->scf);
+		sc_shutdown(s->scf);
 	}
 
 	if (unlikely(!(s->scb->flags & SC_FL_ABRT_DONE) && (s->res.flags & CF_READ_TIMEOUT))) {
@@ -1827,7 +1827,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (unlikely(sc_ep_test(scf, SE_FL_ERROR))) {
 		if (sc_state_in(scf->state, SC_SB_EST|SC_SB_DIS)) {
 			sc_abort(scf);
-			sc_shutw(scf);
+			sc_shutdown(scf);
 			//sc_report_error(scf); TODO: Be sure it is useless
 			if (!(req->analysers) && !(res->analysers)) {
 				_HA_ATOMIC_INC(&s->be->be_counters.cli_aborts);
@@ -1847,7 +1847,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (unlikely(sc_ep_test(scb, SE_FL_ERROR))) {
 		if (sc_state_in(scb->state, SC_SB_EST|SC_SB_DIS)) {
 			sc_abort(scb);
-			sc_shutw(scb);
+			sc_shutdown(scb);
 			//sc_report_error(scb); TODO: Be sure it is useless
 			_HA_ATOMIC_INC(&s->be->be_counters.failed_resp);
 			if (srv)
@@ -2375,7 +2375,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		     channel_is_empty(req))) {
 		if (sc_ep_test(s->scf, SE_FL_ERROR))
 			scb->flags |= SC_FL_NOLINGER;
-		sc_shutw(scb);
+		sc_shutdown(scb);
 	}
 
 	/* shutdown(write) done on server side, we must stop the client too */
@@ -2495,7 +2495,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* shutdown(write) pending */
 	if (unlikely((scf->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) == SC_FL_SHUT_WANTED &&
 		     channel_is_empty(res))) {
-		sc_shutw(scf);
+		sc_shutdown(scf);
 	}
 
 	/* shutdown(write) done on the client side, we must stop the server too */

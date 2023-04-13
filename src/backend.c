@@ -2023,7 +2023,7 @@ void back_try_conn_req(struct stream *s)
 
 			/* Failed and not retryable. */
 			sc_abort(sc);
-			sc_shutw(sc);
+			sc_shutdown(sc);
 			sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
 
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
@@ -2083,7 +2083,7 @@ void back_try_conn_req(struct stream *s)
 				_HA_ATOMIC_INC(&srv->counters.failed_conns);
 			_HA_ATOMIC_INC(&s->be->be_counters.failed_conns);
 			sc_abort(sc);
-			sc_shutw(sc);
+			sc_shutdown(sc);
 			req->flags |= CF_WRITE_TIMEOUT;
 			if (!s->conn_err_type)
 				s->conn_err_type = STRM_ET_QUEUE_TO;
@@ -2143,7 +2143,7 @@ abort_connection:
 	s->conn_exp = TICK_ETERNITY;
 	s->flags &= ~SF_CONN_EXP;
 	sc_abort(sc);
-	sc_shutw(sc);
+	sc_shutdown(sc);
 	sc->state = SC_ST_CLO;
 	if (s->srv_error)
 		s->srv_error(s, sc);
@@ -2183,7 +2183,7 @@ void back_handle_st_req(struct stream *s)
 			s->flags &= ~(SF_ERR_MASK | SF_FINST_MASK);
 
 			sc_abort(sc);
-			sc_shutw(sc);
+			sc_shutdown(sc);
 			sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
 			s->conn_err_type = STRM_ET_CONN_RES;
 			sc->state = SC_ST_CLO;
@@ -2209,7 +2209,7 @@ void back_handle_st_req(struct stream *s)
 
 		/* we did not get any server, let's check the cause */
 		sc_abort(sc);
-		sc_shutw(sc);
+		sc_shutdown(sc);
 		sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
 		if (!s->conn_err_type)
 			s->conn_err_type = STRM_ET_CONN_OTHER;
@@ -2250,7 +2250,7 @@ void back_handle_st_con(struct stream *s)
 	    ((chn_cons(req)->flags & SC_FL_SHUT_WANTED) &&
 	     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
 		sc->flags |= SC_FL_NOLINGER;
-		sc_shutw(sc);
+		sc_shutdown(sc);
 		s->conn_err_type |= STRM_ET_CONN_ABRT;
 		if (s->srv_error)
 			s->srv_error(s, sc);
@@ -2344,7 +2344,7 @@ void back_handle_st_cer(struct stream *s)
 			process_srv_queue(objt_server(s->target));
 
 		/* shutw is enough to stop a connecting socket */
-		sc_shutw(sc);
+		sc_shutdown(sc);
 		sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
 
 		sc->state = SC_ST_CLO;
@@ -2377,7 +2377,7 @@ void back_handle_st_cer(struct stream *s)
 			process_srv_queue(objt_server(s->target));
 
 		/* shutw is enough to stop a connecting socket */
-		sc_shutw(sc);
+		sc_shutdown(sc);
 		sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
 
 		sc->state = SC_ST_CLO;
@@ -2475,7 +2475,7 @@ void back_handle_st_rdy(struct stream *s)
 		     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
 			/* give up */
 			sc->flags |= SC_FL_NOLINGER;
-			sc_shutw(sc);
+			sc_shutdown(sc);
 			s->conn_err_type |= STRM_ET_CONN_ABRT;
 			if (s->srv_error)
 				s->srv_error(s, sc);

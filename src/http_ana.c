@@ -4178,7 +4178,7 @@ void http_perform_server_redirect(struct stream *s, struct stconn *sc)
 
 	/* return without error. */
 	sc_abort(sc);
-	sc_shutw(sc);
+	sc_shutdown(sc);
 	s->conn_err_type = STRM_ET_NONE;
 	sc->state = SC_ST_CLO;
 

@@ -2748,7 +2748,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		s->scb->flags |= SC_FL_NOLINGER | SC_FL_NOHALF;
 		sc_abort(s->scb);
-		sc_shutw(s->scb);
+		sc_shutdown(s->scb);
 
 		/*
 		 * starting from there this the same code as

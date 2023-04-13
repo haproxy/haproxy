@@ -25,19 +25,19 @@ DECLARE_POOL(pool_head_sedesc, "sedesc", sizeof(struct sedesc));
 
 /* functions used by default on a detached stream connector */
 static void sc_app_abort(struct stconn *sc);
-static void sc_app_shutw(struct stconn *sc);
+static void sc_app_shut(struct stconn *sc);
 static void sc_app_chk_rcv(struct stconn *sc);
 static void sc_app_chk_snd(struct stconn *sc);
 
 /* functions used on a mux-based stream connector */
 static void sc_app_abort_conn(struct stconn *sc);
-static void sc_app_shutw_conn(struct stconn *sc);
+static void sc_app_shut_conn(struct stconn *sc);
 static void sc_app_chk_rcv_conn(struct stconn *sc);
 static void sc_app_chk_snd_conn(struct stconn *sc);
 
 /* functions used on an applet-based stream connector */
 static void sc_app_abort_applet(struct stconn *sc);
-static void sc_app_shutw_applet(struct stconn *sc);
+static void sc_app_shut_applet(struct stconn *sc);
 static void sc_app_chk_rcv_applet(struct stconn *sc);
 static void sc_app_chk_snd_applet(struct stconn *sc);
 
@@ -51,7 +51,7 @@ struct sc_app_ops sc_app_conn_ops = {
 	.chk_rcv = sc_app_chk_rcv_conn,
 	.chk_snd = sc_app_chk_snd_conn,
 	.abort   = sc_app_abort_conn,
-	.shutw   = sc_app_shutw_conn,
+	.shutdown= sc_app_shut_conn,
 	.wake    = sc_conn_process,
 	.name    = "STRM",
 };
@@ -61,7 +61,7 @@ struct sc_app_ops sc_app_embedded_ops = {
 	.chk_rcv = sc_app_chk_rcv,
 	.chk_snd = sc_app_chk_snd,
 	.abort   = sc_app_abort,
-	.shutw   = sc_app_shutw,
+	.shutdown= sc_app_shut,
 	.wake    = NULL,   /* may never be used */
 	.name    = "NONE", /* may never be used */
 };
@@ -71,7 +71,7 @@ struct sc_app_ops sc_app_applet_ops = {
 	.chk_rcv = sc_app_chk_rcv_applet,
 	.chk_snd = sc_app_chk_snd_applet,
 	.abort   = sc_app_abort_applet,
-	.shutw   = sc_app_shutw_applet,
+	.shutdown= sc_app_shut_applet,
 	.wake    = sc_applet_process,
 	.name    = "STRM",
 };
@@ -81,7 +81,7 @@ struct sc_app_ops sc_app_check_ops = {
 	.chk_rcv = NULL,
 	.chk_snd = NULL,
 	.abort   = NULL,
-	.shutw   = NULL,
+	.shutdown= NULL,
 	.wake    = wake_srv_chk,
 	.name    = "CHCK",
 };
@@ -504,7 +504,7 @@ struct appctx *sc_applet_create(struct stconn *sc, struct applet *app)
  * side. Otherwise, 0 is returned. In this case, SC_FL_SHUT_WANTED flag may be set on
  * the consumer SC if we are only waiting for the outgoing data to be flushed.
  */
-static inline int sc_cond_forward_shutw(struct stconn *sc)
+static inline int sc_cond_forward_shut(struct stconn *sc)
 {
 	/* The close must not be forwarded */
 	if (!(sc->flags & SC_FL_ABRT_DONE) || !(sc->flags & SC_FL_NOHALF))
@@ -549,8 +549,8 @@ static void sc_app_abort(struct stconn *sc)
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
-	else if (sc_cond_forward_shutw(sc))
-		return sc_app_shutw(sc);
+	else if (sc_cond_forward_shut(sc))
+		return sc_app_shut(sc);
 
 	/* note that if the task exists, it must unregister itself once it runs */
 	if (!(sc->flags & SC_FL_DONT_WAKE))
@@ -564,7 +564,7 @@ static void sc_app_abort(struct stconn *sc)
  * reflect the new state. It does also close everything if the SC was marked as
  * being in error state. The owner task is woken up if it exists.
  */
-static void sc_app_shutw(struct stconn *sc)
+static void sc_app_shut(struct stconn *sc)
 {
 	struct channel *ic = sc_ic(sc);
 	struct channel *oc = sc_oc(sc);
@@ -675,8 +675,8 @@ static void sc_app_abort_conn(struct stconn *sc)
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
-	else if (sc_cond_forward_shutw(sc))
-		return sc_app_shutw_conn(sc);
+	else if (sc_cond_forward_shut(sc))
+		return sc_app_shut_conn(sc);
 }
 
 /*
@@ -687,7 +687,7 @@ static void sc_app_abort_conn(struct stconn *sc)
  * everything if the SC was marked as being in error state. If there is a
  * data-layer shutdown, it is called.
  */
-static void sc_app_shutw_conn(struct stconn *sc)
+static void sc_app_shut_conn(struct stconn *sc)
 {
 	struct channel *ic = sc_ic(sc);
 	struct channel *oc = sc_oc(sc);
@@ -815,7 +815,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 		if ((oc->flags & CF_AUTO_CLOSE) &&
 		    ((sc->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) == SC_FL_SHUT_WANTED) &&
 		    sc_state_in(sc->state, SC_SB_RDY|SC_SB_EST)) {
-			sc_shutw(sc);
+			sc_shutdown(sc);
 			goto out_wakeup;
 		}
 
@@ -873,8 +873,8 @@ static void sc_app_abort_applet(struct stconn *sc)
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
-	else if (sc_cond_forward_shutw(sc))
-		return sc_app_shutw_applet(sc);
+	else if (sc_cond_forward_shut(sc))
+		return sc_app_shut_applet(sc);
 }
 
 /*
@@ -884,7 +884,7 @@ static void sc_app_abort_applet(struct stconn *sc)
  * updated to reflect the new state. It does also close everything if the SI
  * was marked as being in error state. The owner task is woken up if it exists.
  */
-static void sc_app_shutw_applet(struct stconn *sc)
+static void sc_app_shut_applet(struct stconn *sc)
 {
 	struct channel *ic = sc_ic(sc);
 	struct channel *oc = sc_oc(sc);
@@ -1044,7 +1044,7 @@ static void sc_notify(struct stconn *sc)
 
 		if (((sc->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) == SC_FL_SHUT_WANTED) &&
 		    (sc->state == SC_ST_EST) && (!conn || !(conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS))))
-			sc_shutw(sc);
+			sc_shutdown(sc);
 	}
 
 	/* indicate that we may be waiting for data from the output channel or
@@ -1151,7 +1151,7 @@ static void sc_conn_read0(struct stconn *sc)
 	if (sc->flags & SC_FL_SHUT_DONE)
 		goto do_close;
 
-	if (sc_cond_forward_shutw(sc)) {
+	if (sc_cond_forward_shut(sc)) {
 		/* we want to immediately forward this close to the write side */
 		/* force flag on ssl to keep stream in cache */
 		sc_conn_shutw(sc, CO_SHW_SILENT);

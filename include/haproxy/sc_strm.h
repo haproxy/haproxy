@@ -255,19 +255,12 @@ static inline int sc_get_dst(struct stconn *sc)
 }
 
 
-/* Marks on the stream connector that next shutw must kill the whole connection */
+/* Marks on the stream connector that next shutdown must kill the whole connection */
 static inline void sc_must_kill_conn(struct stconn *sc)
 {
 	sc_ep_set(sc, SE_FL_KILL_CONN);
 }
 
-
-/* Sends a shutw to the endpoint using the data layer */
-static inline void sc_shutw(struct stconn *sc)
-{
-	if (likely(sc->app_ops->shutw))
-		sc->app_ops->shutw(sc);
-}
 
 /* Returns non-zero if the stream connector is allowed to receive from the
  * endpoint, which means that no flag indicating a blocked channel, lack of
@@ -424,6 +417,13 @@ static inline void sc_abort(struct stconn *sc)
 static inline void sc_schedule_shutdown(struct stconn *sc)
 {
 	sc->flags |= SC_FL_SHUT_WANTED;
+}
+
+/* Shutdown the SC and notify the endpoint using the data layer */
+static inline void sc_shutdown(struct stconn *sc)
+{
+	if (likely(sc->app_ops->shutdown))
+		sc->app_ops->shutdown(sc);
 }
 
 #endif /* _HAPROXY_SC_STRM_H */

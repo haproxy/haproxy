@@ -266,7 +266,7 @@ struct sc_app_ops {
 	void (*chk_rcv)(struct stconn *);    /* chk_rcv function, may not be null */
 	void (*chk_snd)(struct stconn *);    /* chk_snd function, may not be null */
 	void (*abort)(struct stconn *);      /* abort function, may not be null */
-	void (*shutw)(struct stconn *);      /* shut write function, may not be null */
+	void (*shutdown)(struct stconn *);   /* shutdown function, may not be null */
 	int  (*wake)(struct stconn *);       /* data-layer callback to report activity */
 	char name[8];                        /* data layer name, zero-terminated */
 };
