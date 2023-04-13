@@ -1050,9 +1050,6 @@ static int
 handle_analyzer_result(struct stream *s, struct channel *chn,
 		       unsigned int an_bit, int ret)
 {
-	int finst;
-	int status = 0;
-
 	if (ret < 0)
 		goto return_bad_req;
 	else if (!ret)
@@ -1067,36 +1064,27 @@ handle_analyzer_result(struct stream *s, struct channel *chn,
 
  return_bad_req:
 	/* An error occurs */
-	channel_abort(&s->req);
-	channel_abort(&s->res);
-
-	if (!(chn->flags & CF_ISRESP)) {
-		s->req.analysers &= AN_REQ_FLT_END;
-		finst = SF_FINST_R;
-		status = 400;
-		/* FIXME: incr counters */
-	}
-	else {
-		s->res.analysers &= AN_RES_FLT_END;
-		finst = SF_FINST_H;
-		status = 502;
-		/* FIXME: incr counters */
-	}
-
 	if (IS_HTX_STRM(s)) {
-		/* Do not do that when we are waiting for the next request */
+		http_set_term_flags(s);
+
 		if (s->txn->status > 0)
 			http_reply_and_close(s, s->txn->status, NULL);
 		else {
-			s->txn->status = status;
-			http_reply_and_close(s, status, http_error_message(s));
+			s->txn->status = (!(chn->flags & CF_ISRESP)) ? 400 : 502;
+			http_reply_and_close(s, s->txn->status, http_error_message(s));
 		}
 	}
+	else {
+		sess_set_term_flags(s);
+		stream_retnclose(s, NULL);
+	}
 
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_PRXCOND;
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= finst;
+	if (!(chn->flags & CF_ISRESP))
+		s->req.analysers &= AN_REQ_FLT_END;
+	else
+		s->res.analysers &= AN_RES_FLT_END;
+
+
 	DBG_TRACE_DEVEL("leaving on error", STRM_EV_FLT_ANA|STRM_EV_FLT_ERR, s);
 	return 0;
 
