@@ -1854,7 +1854,7 @@ static int bind_parse_proto(char **args, int cur_arg, struct proxy *px, struct b
 	return 0;
 }
 
-/* parse the "shards" bind keyword. Takes an integer or "by-thread" */
+/* parse the "shards" bind keyword. Takes an integer, "by-thread", or "by-group" */
 static int bind_parse_shards(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	int val;
@@ -1866,6 +1866,8 @@ static int bind_parse_shards(char **args, int cur_arg, struct proxy *px, struct 
 
 	if (strcmp(args[cur_arg + 1], "by-thread") == 0) {
 		val = -1; /* -1 = "by-thread", will be fixed in check_config_validity() */
+	} else if (strcmp(args[cur_arg + 1], "by-group") == 0) {
+		val = -2; /* -2 = "by-group", will be fixed in check_config_validity() */
 	} else {
 		val = atol(args[cur_arg + 1]);
 		if (val < 1 || val > MAX_THREADS) {

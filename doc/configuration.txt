@@ -15141,7 +15141,7 @@ quic-force-retry
   See https://www.rfc-editor.org/rfc/rfc9000.html#section-8.1.2 for more
   information about QUIC retry.
 
-shards <number> | by-thread
+shards <number> | by-thread | by-group
   In multi-threaded mode, on operating systems supporting multiple listeners on
   the same IP:port, this will automatically create this number of multiple
   identical listeners for the same line, all bound to a fair share of the number
@@ -15157,7 +15157,11 @@ shards <number> | by-thread
   thread). The special "by-thread" value also creates as many shards as there
   are threads on the "bind" line. Since the system will evenly distribute the
   incoming traffic between all these shards, it is important that this number
-  is an integral divisor of the number of threads.
+  is an integral divisor of the number of threads. Alternately, the other
+  special value "by-group" will create one shard per thread group. This can
+  be useful when dealing with many threads and not wanting to create too many
+  sockets. The load distribution will be a bit less optimal but the contention
+  (especially in the system) will still be lower than with a single socket.
 
 ssl
   This setting is only available when support for OpenSSL was built in. It

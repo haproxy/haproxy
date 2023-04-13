@@ -2972,9 +2972,11 @@ init_proxies_list_stage1:
 				shards = bind_conf->settings.shards;
 				todo = thread_set_count(&bind_conf->thread_set);
 
-				/* special values: -1 = "by-thread" */
+				/* special values: -1 = "by-thread", -2 = "by-group" */
 				if (shards == -1)
 					shards = todo;
+				else if (shards == -2)
+					shards = my_popcountl(bind_conf->thread_set.grps);
 
 				/* no more shards than total threads */
 				if (shards > todo)
