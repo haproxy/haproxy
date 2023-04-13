@@ -1956,7 +1956,7 @@ int srv_redispatch_connect(struct stream *s)
 static int back_may_abort_req(struct channel *req, struct stream *s)
 {
 	return (sc_ep_test(s->scf, SE_FL_ERROR) ||
-	        ((chn_cons(req)->flags & (SC_FL_SHUT_WANTED|SC_FL_SHUT_DONE)) &&  /* empty and client aborted */
+	        ((s->scb->flags & (SC_FL_SHUT_WANTED|SC_FL_SHUT_DONE)) &&  /* empty and client aborted */
 	         (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE))));
 }
 
@@ -2241,13 +2241,12 @@ void back_handle_st_con(struct stream *s)
 {
 	struct stconn *sc = s->scb;
 	struct channel *req = &s->req;
-	struct channel *rep = &s->res;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
 	/* the client might want to abort */
-	if ((chn_cons(rep)->flags & SC_FL_SHUT_DONE) ||
-	    ((chn_cons(req)->flags & SC_FL_SHUT_WANTED) &&
+	if ((s->scf->flags & SC_FL_SHUT_DONE) ||
+	    ((s->scb->flags & SC_FL_SHUT_WANTED) &&
 	     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
 		sc->flags |= SC_FL_NOLINGER;
 		sc_shutdown(sc);
@@ -2434,7 +2433,6 @@ void back_handle_st_rdy(struct stream *s)
 {
 	struct stconn *sc = s->scb;
 	struct channel *req = &s->req;
-	struct channel *rep = &s->res;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
@@ -2470,8 +2468,8 @@ void back_handle_st_rdy(struct stream *s)
 	 */
 	if (!(req->flags & CF_WROTE_DATA)) {
 		/* client abort ? */
-		if ((chn_cons(rep)->flags & SC_FL_SHUT_DONE) ||
-		    ((chn_cons(req)->flags & SC_FL_SHUT_WANTED) &&
+		if ((s->scf->flags & SC_FL_SHUT_DONE) ||
+		    ((s->scb->flags & SC_FL_SHUT_WANTED) &&
 		     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
 			/* give up */
 			sc->flags |= SC_FL_NOLINGER;

@@ -1956,7 +1956,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (((req->flags & ~rqf_last) & CF_MASK_ANALYSER) ||
 	    ((scf->flags ^ scf_flags) & (SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) ||
 	    ((scb->flags ^ scb_flags) & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) ||
-	    (req->analysers && (chn_cons(req)->flags & SC_FL_SHUT_DONE)) ||
+	    (req->analysers && (scb->flags & SC_FL_SHUT_DONE)) ||
 	    scf->state != rq_prod_last ||
 	    scb->state != rq_cons_last ||
 	    s->pending_events & TASK_WOKEN_MSG) {
@@ -2061,7 +2061,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (((res->flags & ~rpf_last) & CF_MASK_ANALYSER) ||
 	    ((scb->flags ^ scb_flags) & (SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) ||
 	    ((scf->flags ^ scf_flags) & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) ||
-	    (res->analysers && (chn_cons(res)->flags & SC_FL_SHUT_DONE)) ||
+	    (res->analysers && (scf->flags & SC_FL_SHUT_DONE)) ||
 	    scf->state != rp_cons_last ||
 	    scb->state != rp_prod_last ||
 	    s->pending_events & TASK_WOKEN_MSG) {

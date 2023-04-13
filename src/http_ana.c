@@ -983,7 +983,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (!(txn->flags & TX_CON_WANT_TUN))
 		channel_dont_close(req);
 
-	if ((chn_cons(req)->flags & SC_FL_SHUT_DONE) && co_data(req)) {
+	if ((s->scb->flags & SC_FL_SHUT_DONE) && co_data(req)) {
 		/* request errors are most likely due to the server aborting the
 		 * transfer. */
 		goto return_srv_abort;
@@ -1023,7 +1023,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
  waiting:
 	/* waiting for the last bits to leave the buffer */
-	if (chn_cons(req)->flags & SC_FL_SHUT_DONE)
+	if (s->scb->flags & SC_FL_SHUT_DONE)
 		goto return_srv_abort;
 
 	/* When TE: chunked is used, we need to get there again to parse remaining
@@ -1296,7 +1296,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		/* 3: client abort with an abortonclose */
 		else if ((chn_prod(rep)->flags & SC_FL_ABRT_DONE) &&
 			 (chn_prod(&s->req)->flags & SC_FL_ABRT_DONE) &&
-			 (chn_cons(&s->req)->flags & SC_FL_SHUT_DONE)) {
+			 (s->scb->flags & SC_FL_SHUT_DONE)) {
 			_HA_ATOMIC_INC(&sess->fe->fe_counters.cli_aborts);
 			_HA_ATOMIC_INC(&s->be->be_counters.cli_aborts);
 			if (sess->listener && sess->listener->counters)
@@ -2104,7 +2104,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 
 	channel_dont_close(res);
 
-	if ((chn_cons(res)->flags & SC_FL_SHUT_DONE) && co_data(res)) {
+	if ((s->scf->flags & SC_FL_SHUT_DONE) && co_data(res)) {
 		/* response errors are most likely due to the client aborting
 		 * the transfer. */
 		goto return_cli_abort;
@@ -2120,7 +2120,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	return 0;
 
   missing_data_or_waiting:
-	if (chn_cons(res)->flags & SC_FL_SHUT_DONE)
+	if (s->scf->flags & SC_FL_SHUT_DONE)
 		goto return_cli_abort;
 
 	/* stop waiting for data if the input is closed before the end. If the
@@ -2130,7 +2130,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	 */
 	if (msg->msg_state < HTTP_MSG_ENDING && (chn_prod(res)->flags & SC_FL_ABRT_DONE)) {
 		if ((chn_prod(&s->req)->flags & SC_FL_ABRT_DONE) &&
-		    (chn_cons(&s->req)->flags & SC_FL_SHUT_DONE))
+		    (s->scb->flags & SC_FL_SHUT_DONE))
 			goto return_cli_abort;
 		/* If we have some pending data, we continue the processing */
 		if (htx_is_empty(htx))
@@ -4272,7 +4272,7 @@ static void http_end_request(struct stream *s)
 			    txn->rsp.msg_state != HTTP_MSG_CLOSED)
 				goto check_channel_flags;
 
-			if (!(chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))) {
+			if (!(s->scb->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))) {
 				sc_schedule_abort(s->scf);
 				sc_schedule_shutdown(s->scb);
 			}
@@ -4306,7 +4306,7 @@ static void http_end_request(struct stream *s)
 
   check_channel_flags:
 	/* Here, we are in HTTP_MSG_DONE or HTTP_MSG_TUNNEL */
-	if (chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) {
+	if (s->scb->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) {
 		/* if we've just closed an output, let's switch */
 		txn->req.msg_state = HTTP_MSG_CLOSING;
 		goto http_msg_closing;
@@ -4371,7 +4371,7 @@ static void http_end_response(struct stream *s)
 			/* we're not expecting any new data to come for this
 			 * transaction, so we can close it.
 			 */
-			if (!(chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))) {
+			if (!(s->scf->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))) {
 				sc_schedule_abort(s->scb);
 				sc_schedule_shutdown(s->scf);
 			}
@@ -4402,7 +4402,7 @@ static void http_end_response(struct stream *s)
 
   check_channel_flags:
 	/* Here, we are in HTTP_MSG_DONE or HTTP_MSG_TUNNEL */
-	if (chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) {
+	if (s->scf->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) {
 		/* if we've just closed an output, let's switch */
 		txn->rsp.msg_state = HTTP_MSG_CLOSING;
 		goto http_msg_closing;

@@ -1369,7 +1369,7 @@ static int sc_conn_recv(struct stconn *sc)
 		cur_read += ret;
 
 		/* if we're allowed to directly forward data, we must update ->o */
-		if (ic->to_forward && !(chn_cons(ic)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))) {
+		if (ic->to_forward && !(sc_opposite(sc)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))) {
 			unsigned long fwd = ret;
 			if (ic->to_forward != CHN_INFINITE_FORWARD) {
 				if (fwd > ic->to_forward)
