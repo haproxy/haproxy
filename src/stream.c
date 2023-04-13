@@ -1955,7 +1955,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* Analyse request */
 	if (((req->flags & ~rqf_last) & CF_MASK_ANALYSER) ||
 	    ((scf->flags ^ scf_flags) & (SC_FL_SHUTR|SC_FL_ABRT_WANTED)) ||
-	    ((scb->flags ^ scb_flags) & (SC_FL_SHUTW|SC_FL_SHUTW_NOW)) ||
+	    ((scb->flags ^ scb_flags) & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)) ||
 	    (req->analysers && (chn_cons(req)->flags & SC_FL_SHUTW)) ||
 	    scf->state != rq_prod_last ||
 	    scb->state != rq_cons_last ||
@@ -2043,7 +2043,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		req->flags &= ~CF_WAKE_ONCE;
 		rqf_last = req->flags;
 		scf_flags = (scf_flags & ~(SC_FL_SHUTR|SC_FL_ABRT_WANTED)) | (scf->flags & (SC_FL_SHUTR|SC_FL_ABRT_WANTED));
-		scb_flags = (scb_flags & ~(SC_FL_SHUTW|SC_FL_SHUTW_NOW)) | (scb->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW));
+		scb_flags = (scb_flags & ~(SC_FL_SHUTW|SC_FL_SHUT_WANTED)) | (scb->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED));
 
 		if (((scf->flags ^ scf_flags_ana) & SC_FL_SHUTR) || ((scb->flags ^ scb_flags_ana) & SC_FL_SHUTW))
 			goto resync_request;
@@ -2060,7 +2060,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 	if (((res->flags & ~rpf_last) & CF_MASK_ANALYSER) ||
 	    ((scb->flags ^ scb_flags) & (SC_FL_SHUTR|SC_FL_ABRT_WANTED)) ||
-	    ((scf->flags ^ scf_flags) & (SC_FL_SHUTW|SC_FL_SHUTW_NOW)) ||
+	    ((scf->flags ^ scf_flags) & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)) ||
 	    (res->analysers && (chn_cons(res)->flags & SC_FL_SHUTW)) ||
 	    scf->state != rp_cons_last ||
 	    scb->state != rp_prod_last ||
@@ -2116,7 +2116,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		res->flags &= ~CF_WAKE_ONCE;
 		rpf_last = res->flags;
 		scb_flags = (scb_flags & ~(SC_FL_SHUTR|SC_FL_ABRT_WANTED)) | (scb->flags & (SC_FL_SHUTR|SC_FL_ABRT_WANTED));
-		scf_flags = (scf_flags & ~(SC_FL_SHUTW|SC_FL_SHUTW_NOW)) | (scf->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW));
+		scf_flags = (scf_flags & ~(SC_FL_SHUTW|SC_FL_SHUT_WANTED)) | (scf->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED));
 
 		if (((scb->flags ^ scb_flags_ana) & SC_FL_SHUTR) || ((scf->flags ^ scf_flags_ana) & SC_FL_SHUTW))
 			goto resync_response;
@@ -2251,7 +2251,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			 */
 			co_set_data(req, htx->data);
 			if ((global.tune.options & GTUNE_USE_FAST_FWD) &&
-			    !(scf->flags & SC_FL_SHUTR) && !(scb->flags & SC_FL_SHUTW_NOW))
+			    !(scf->flags & SC_FL_SHUTR) && !(scb->flags & SC_FL_SHUT_WANTED))
 				channel_htx_forward_forever(req, htx);
 		}
 		else {
@@ -2260,7 +2260,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			 */
 			c_adv(req, ci_data(req));
 			if ((global.tune.options & GTUNE_USE_FAST_FWD) &&
-			    !(scf->flags & SC_FL_SHUTR) && !(scb->flags & SC_FL_SHUTW_NOW))
+			    !(scf->flags & SC_FL_SHUTR) && !(scb->flags & SC_FL_SHUT_WANTED))
 				channel_forward_forever(req);
 		}
 	}
@@ -2284,7 +2284,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* reflect what the L7 analysers have seen last */
 	rqf_last = req->flags;
 	scf_flags = (scf_flags & ~(SC_FL_SHUTR|SC_FL_ABRT_WANTED)) | (scf->flags & (SC_FL_SHUTR|SC_FL_ABRT_WANTED));
-	scb_flags = (scb_flags & ~(SC_FL_SHUTW|SC_FL_SHUTW_NOW)) | (scb->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW));
+	scb_flags = (scb_flags & ~(SC_FL_SHUTW|SC_FL_SHUT_WANTED)) | (scb->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED));
 
 	/* it's possible that an upper layer has requested a connection setup or abort.
 	 * There are 2 situations where we decide to establish a new connection :
@@ -2365,13 +2365,13 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 * connection setup unless the backend has abortonclose set.
 	 */
 	if (unlikely((req->flags & CF_AUTO_CLOSE) && (scf->flags & SC_FL_SHUTR) &&
-		     !(scb->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW)) &&
+		     !(scb->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)) &&
 		     (scb->state != SC_ST_CON || (s->be->options & PR_O_ABRT_CLOSE)))) {
 		channel_shutw_now(req);
 	}
 
 	/* shutdown(write) pending */
-	if (unlikely((scb->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW)) == SC_FL_SHUTW_NOW &&
+	if (unlikely((scb->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)) == SC_FL_SHUT_WANTED &&
 		     channel_is_empty(req))) {
 		if (sc_ep_test(s->scf, SE_FL_ERROR))
 			scb->flags |= SC_FL_NOLINGER;
@@ -2409,7 +2409,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 * recent call to channel_abort().
 	 */
 	if (unlikely((!res->analysers || (res->analysers == AN_RES_FLT_END && !(res->flags & CF_FLT_ANALYZE))) &&
-		     !(scf->flags & SC_FL_ABRT_WANTED) && !(scb->flags & SC_FL_SHUTW_NOW) &&
+		     !(scf->flags & SC_FL_ABRT_WANTED) && !(scb->flags & SC_FL_SHUT_WANTED) &&
 		     sc_state_in(scb->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO) &&
 		     (res->to_forward != CHN_INFINITE_FORWARD))) {
 		/* This buffer is freewheeling, there's no analyser
@@ -2427,7 +2427,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			 */
 			co_set_data(res, htx->data);
 			if ((global.tune.options & GTUNE_USE_FAST_FWD) &&
-			    !(scf->flags & SC_FL_SHUTR) && !(scb->flags & SC_FL_SHUTW_NOW))
+			    !(scf->flags & SC_FL_SHUTR) && !(scb->flags & SC_FL_SHUT_WANTED))
 				channel_htx_forward_forever(res, htx);
 		}
 		else {
@@ -2436,7 +2436,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			 */
 			c_adv(res, ci_data(res));
 			if ((global.tune.options & GTUNE_USE_FAST_FWD) &&
-			    !(scf->flags & SC_FL_SHUTR) && !(scb->flags & SC_FL_SHUTW_NOW))
+			    !(scf->flags & SC_FL_SHUTR) && !(scb->flags & SC_FL_SHUT_WANTED))
 				channel_forward_forever(res);
 		}
 
@@ -2473,7 +2473,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* reflect what the L7 analysers have seen last */
 	rpf_last = res->flags;
 	scb_flags = (scb_flags & ~(SC_FL_SHUTR|SC_FL_ABRT_WANTED)) | (scb->flags & (SC_FL_SHUTR|SC_FL_ABRT_WANTED));
-	scf_flags = (scf_flags & ~(SC_FL_SHUTW|SC_FL_SHUTW_NOW)) | (scf->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW));
+	scf_flags = (scf_flags & ~(SC_FL_SHUTW|SC_FL_SHUT_WANTED)) | (scf->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED));
 
 	/* Let's see if we can send the pending response now */
 	sc_conn_sync_send(scf);
@@ -2488,12 +2488,12 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 	/* first, let's check if the response buffer needs to shutdown(write) */
 	if (unlikely((res->flags & CF_AUTO_CLOSE) && (scb->flags & SC_FL_SHUTR) &&
-		     !(scf->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW)))) {
+		     !(scf->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)))) {
 		channel_shutw_now(res);
 	}
 
 	/* shutdown(write) pending */
-	if (unlikely((scf->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW)) == SC_FL_SHUTW_NOW &&
+	if (unlikely((scf->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)) == SC_FL_SHUT_WANTED &&
 		     channel_is_empty(res))) {
 		sc_shutw(scf);
 	}
@@ -2520,7 +2520,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		goto resync_request;
 
 	if (((scb->flags ^ scb_flags) & (SC_FL_SHUTR|SC_FL_ABRT_WANTED)) ||
-	    ((scf->flags ^ scf_flags) & (SC_FL_SHUTW|SC_FL_SHUTW_NOW)))
+	    ((scf->flags ^ scf_flags) & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)))
 		goto resync_response;
 
 	if (((req->flags ^ rqf_last) | (res->flags ^ rpf_last)) & CF_MASK_ANALYSER)
@@ -2778,7 +2778,7 @@ void default_srv_error(struct stream *s, struct stconn *sc)
 /* kill a stream and set the termination flags to <why> (one of SF_ERR_*) */
 void stream_shutdown(struct stream *stream, int why)
 {
-	if (stream->scb->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW))
+	if (stream->scb->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED))
 		return;
 
 	channel_shutw_now(&stream->req);

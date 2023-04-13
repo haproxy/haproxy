@@ -551,14 +551,14 @@ static inline void channel_htx_erase(struct channel *chn, struct htx *htx)
 /* marks the channel as "shutdown" ASAP for writes */
 static inline void channel_shutw_now(struct channel *chn)
 {
-	chn_cons(chn)->flags |= SC_FL_SHUTW_NOW;
+	chn_cons(chn)->flags |= SC_FL_SHUT_WANTED;
 }
 
 /* marks the channel as "shutdown" ASAP in both directions */
 static inline void channel_abort(struct channel *chn)
 {
 	chn_prod(chn)->flags |= SC_FL_ABRT_WANTED;
-	chn_cons(chn)->flags |= SC_FL_SHUTW_NOW;
+	chn_cons(chn)->flags |= SC_FL_SHUT_WANTED;
 	chn->flags |= CF_AUTO_CLOSE;
 	chn->flags &= ~CF_AUTO_CONNECT;
 }
@@ -983,7 +983,7 @@ static inline int co_getchr(struct channel *chn)
 {
 	/* closed or empty + imminent close = -2; empty = -1 */
 	if (unlikely((chn_cons(chn)->flags & SC_FL_SHUTW) || channel_is_empty(chn))) {
-		if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW))
+		if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED))
 			return -2;
 		return -1;
 	}

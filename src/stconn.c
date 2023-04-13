@@ -501,7 +501,7 @@ struct appctx *sc_applet_create(struct stconn *sc, struct applet *app)
 
 /* Conditionally forward the close to the write side. It return 1 if it can be
  * forwarded. It is the caller responsibility to forward the close to the write
- * side. Otherwise, 0 is returned. In this case, SC_FL_SHUTW_NOW flag may be set on
+ * side. Otherwise, 0 is returned. In this case, SC_FL_SHUT_WANTED flag may be set on
  * the consumer SC if we are only waiting for the outgoing data to be flushed.
  */
 static inline int sc_cond_forward_shutw(struct stconn *sc)
@@ -569,7 +569,7 @@ static void sc_app_shutw(struct stconn *sc)
 	struct channel *ic = sc_ic(sc);
 	struct channel *oc = sc_oc(sc);
 
-	sc->flags &= ~SC_FL_SHUTW_NOW;
+	sc->flags &= ~SC_FL_SHUT_WANTED;
 	if (sc->flags & SC_FL_SHUTW)
 		return;
 	sc->flags |= SC_FL_SHUTW;
@@ -694,7 +694,7 @@ static void sc_app_shutw_conn(struct stconn *sc)
 
 	BUG_ON(!sc_conn(sc));
 
-	sc->flags &= ~SC_FL_SHUTW_NOW;
+	sc->flags &= ~SC_FL_SHUT_WANTED;
 	if (sc->flags & SC_FL_SHUTW)
 		return;
 	sc->flags |= SC_FL_SHUTW;
@@ -813,13 +813,13 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 		 * chunk and need to close.
 		 */
 		if ((oc->flags & CF_AUTO_CLOSE) &&
-		    ((sc->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW)) == SC_FL_SHUTW_NOW) &&
+		    ((sc->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)) == SC_FL_SHUT_WANTED) &&
 		    sc_state_in(sc->state, SC_SB_RDY|SC_SB_EST)) {
 			sc_shutw(sc);
 			goto out_wakeup;
 		}
 
-		if ((sc->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW)) == 0)
+		if ((sc->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)) == 0)
 			sc_ep_set(sc, SE_FL_WAIT_DATA);
 	}
 	else {
@@ -891,7 +891,7 @@ static void sc_app_shutw_applet(struct stconn *sc)
 
 	BUG_ON(!sc_appctx(sc));
 
-	sc->flags &= ~SC_FL_SHUTW_NOW;
+	sc->flags &= ~SC_FL_SHUT_WANTED;
 	if (sc->flags & SC_FL_SHUTW)
 		return;
 	sc->flags |= SC_FL_SHUTW;
@@ -1011,7 +1011,7 @@ void sc_update_tx(struct stconn *sc)
 	if (channel_is_empty(oc)) {
 		/* stop writing */
 		if (!sc_ep_test(sc, SE_FL_WAIT_DATA)) {
-			if ((sc->flags & SC_FL_SHUTW_NOW) == 0)
+			if ((sc->flags & SC_FL_SHUT_WANTED) == 0)
 				sc_ep_set(sc, SE_FL_WAIT_DATA);
 		}
 		return;
@@ -1042,17 +1042,17 @@ static void sc_notify(struct stconn *sc)
 	if (channel_is_empty(oc)) {
 		struct connection *conn = sc_conn(sc);
 
-		if (((sc->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW)) == SC_FL_SHUTW_NOW) &&
+		if (((sc->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)) == SC_FL_SHUT_WANTED) &&
 		    (sc->state == SC_ST_EST) && (!conn || !(conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS))))
 			sc_shutw(sc);
 	}
 
 	/* indicate that we may be waiting for data from the output channel or
-	 * we're about to close and can't expect more data if SC_FL_SHUTW_NOW is there.
+	 * we're about to close and can't expect more data if SC_FL_SHUT_WANTED is there.
 	 */
-	if (!(sc->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW)))
+	if (!(sc->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)))
 		sc_ep_set(sc, SE_FL_WAIT_DATA);
-	else if ((sc->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW)) == SC_FL_SHUTW_NOW)
+	else if ((sc->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)) == SC_FL_SHUT_WANTED)
 		sc_ep_clr(sc, SE_FL_WAIT_DATA);
 
 	if (oc->flags & CF_DONT_READ)
@@ -1118,7 +1118,7 @@ static void sc_notify(struct stconn *sc)
 	      (sc->flags & SC_FL_SHUTW) ||
 	      (((oc->flags & CF_WAKE_WRITE) ||
 		(!(oc->flags & CF_AUTO_CLOSE) &&
-		 !(sc->flags & (SC_FL_SHUTW_NOW|SC_FL_SHUTW)))) &&
+		 !(sc->flags & (SC_FL_SHUT_WANTED|SC_FL_SHUTW)))) &&
 	       (sco->state != SC_ST_EST ||
 		(channel_is_empty(oc) && !oc->to_forward)))))) {
 		task_wakeup(task, TASK_WOKEN_IO);
@@ -1165,7 +1165,7 @@ static void sc_conn_read0(struct stconn *sc)
 	/* OK we completely close the socket here just as if we went through sc_shut[rw]() */
 	sc_conn_shut(sc);
 
-	sc->flags &= ~SC_FL_SHUTW_NOW;
+	sc->flags &= ~SC_FL_SHUT_WANTED;
 	sc->flags |= SC_FL_SHUTW;
 
 	sc->state = SC_ST_DIS;
@@ -1369,7 +1369,7 @@ static int sc_conn_recv(struct stconn *sc)
 		cur_read += ret;
 
 		/* if we're allowed to directly forward data, we must update ->o */
-		if (ic->to_forward && !(chn_cons(ic)->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW))) {
+		if (ic->to_forward && !(chn_cons(ic)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED))) {
 			unsigned long fwd = ret;
 			if (ic->to_forward != CHN_INFINITE_FORWARD) {
 				if (fwd > ic->to_forward)
@@ -1612,7 +1612,7 @@ static int sc_conn_send(struct stconn *sc)
 		       (!(sco->flags & (SC_FL_EOI|SC_FL_SHUTR)) && htx_expect_more(htxbuf(&oc->buf)))))) ||
 		    ((oc->flags & CF_ISRESP) &&
 		     (oc->flags & CF_AUTO_CLOSE) &&
-		     (sc->flags & SC_FL_SHUTW_NOW)))
+		     (sc->flags & SC_FL_SHUT_WANTED)))
 			send_flag |= CO_SFL_MSG_MORE;
 
 		if (oc->flags & CF_STREAMER)

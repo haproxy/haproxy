@@ -1144,7 +1144,7 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *sc)
 	res->analyse_exp = TICK_ETERNITY;
 	res->total = 0;
 
-	s->scb->flags &= ~(SC_FL_SHUTW|SC_FL_SHUTW_NOW);
+	s->scb->flags &= ~(SC_FL_SHUTW|SC_FL_SHUT_WANTED);
 	if (sc_reset_endp(s->scb) < 0) {
 		if (!(s->flags & SF_ERR_MASK))
 			s->flags |= SF_ERR_INTERNAL;
@@ -4272,7 +4272,7 @@ static void http_end_request(struct stream *s)
 			    txn->rsp.msg_state != HTTP_MSG_CLOSED)
 				goto check_channel_flags;
 
-			if (!(chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW))) {
+			if (!(chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED))) {
 				sc_schedule_abort(s->scf);
 				channel_shutw_now(chn);
 			}
@@ -4306,7 +4306,7 @@ static void http_end_request(struct stream *s)
 
   check_channel_flags:
 	/* Here, we are in HTTP_MSG_DONE or HTTP_MSG_TUNNEL */
-	if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW)) {
+	if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)) {
 		/* if we've just closed an output, let's switch */
 		txn->req.msg_state = HTTP_MSG_CLOSING;
 		goto http_msg_closing;
@@ -4371,7 +4371,7 @@ static void http_end_response(struct stream *s)
 			/* we're not expecting any new data to come for this
 			 * transaction, so we can close it.
 			 */
-			if (!(chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW))) {
+			if (!(chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED))) {
 				sc_schedule_abort(s->scb);
 				channel_shutw_now(chn);
 			}
@@ -4402,7 +4402,7 @@ static void http_end_response(struct stream *s)
 
   check_channel_flags:
 	/* Here, we are in HTTP_MSG_DONE or HTTP_MSG_TUNNEL */
-	if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUTW_NOW)) {
+	if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)) {
 		/* if we've just closed an output, let's switch */
 		txn->rsp.msg_state = HTTP_MSG_CLOSING;
 		goto http_msg_closing;
