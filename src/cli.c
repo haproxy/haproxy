@@ -2692,7 +2692,7 @@ send_status:
 	goto read_again;
 
 missing_data:
-        if (chn_prod(req)->flags & SC_FL_ABRT_DONE) {
+        if (s->scf->flags & SC_FL_ABRT_DONE) {
                 /* There is no more request or a only a partial one and we
                  * receive a close from the client, we can leave */
 		sc_schedule_shutdown(s->scf);
@@ -2741,7 +2741,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		return 0;
 	}
 
-	if (chn_prod(rep)->flags & SC_FL_ABRT_DONE) {
+	if (s->scb->flags & SC_FL_ABRT_DONE) {
 		/* stream cleanup */
 
 		pcli_write_prompt(s);

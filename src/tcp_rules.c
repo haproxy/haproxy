@@ -117,7 +117,7 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 	 */
 
 	if ((s->scf->flags & (SC_FL_EOI|SC_FL_ABRT_DONE)) || channel_full(req, global.tune.maxrewrite) ||
-	    sc_waiting_room(chn_prod(req)) ||
+	    sc_waiting_room(s->scf) ||
 	    !s->be->tcp_req.inspect_delay || tick_is_expired(s->rules_exp, now_ms)) {
 		partial = SMP_OPT_FINAL;
 		/* Action may yield while the inspect_delay is not expired and there is no read error */
@@ -254,7 +254,7 @@ resume_execution:
 		_HA_ATOMIC_INC(&sess->listener->counters->failed_req);
 
  reject:
-	sc_must_kill_conn(chn_prod(req));
+	sc_must_kill_conn(s->scf);
 	stream_abort(s);
 
  abort:
@@ -299,7 +299,7 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 	 * - if one rule returns KO, then return KO
 	 */
 	if ((s->scb->flags & (SC_FL_EOI|SC_FL_ABRT_DONE)) || channel_full(rep, global.tune.maxrewrite) ||
-	    sc_waiting_room(chn_prod(rep)) ||
+	    sc_waiting_room(s->scb) ||
 	    !s->be->tcp_rep.inspect_delay || tick_is_expired(s->rules_exp, now_ms)) {
 		partial = SMP_OPT_FINAL;
 		/* Action may yield while the inspect_delay is not expired and there is no read error */
@@ -391,10 +391,10 @@ resume_execution:
 				goto deny;
 			}
 			else if (rule->action == ACT_TCP_CLOSE) {
-				chn_prod(rep)->flags |= SC_FL_NOLINGER | SC_FL_NOHALF;
-				sc_must_kill_conn(chn_prod(rep));
-				sc_abort(chn_prod(rep));
-				sc_shutdown(chn_prod(rep));
+				s->scb->flags |= SC_FL_NOLINGER | SC_FL_NOHALF;
+				sc_must_kill_conn(s->scb);
+				sc_abort(s->scb);
+				sc_shutdown(s->scb);
 				s->last_rule_file = rule->conf.file;
 				s->last_rule_line = rule->conf.line;
 				goto end;
@@ -451,7 +451,7 @@ resume_execution:
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_resp);
 
  reject:
-	sc_must_kill_conn(chn_prod(rep));
+	sc_must_kill_conn(s->scb);
 	stream_abort(s);
 
   abort:
