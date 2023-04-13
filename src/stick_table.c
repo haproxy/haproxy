@@ -788,7 +788,7 @@ struct stktable_type stktable_types[SMP_TYPES] = {
  * Returns 0 on successful parsing, else 1.
  * <myidx> is set at next configuration <args> index.
  */
-int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *key_size)
+int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *key_size, const char *file, int linenum)
 {
 	for (*type = 0; *type < SMP_TYPES; (*type)++) {
 		if (!stktable_types[*type].kw)
@@ -801,10 +801,14 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
 
 		if (stktable_types[*type].flags & STK_F_CUSTOM_KEYSIZE) {
 			if (strcmp("len", args[*myidx]) == 0) {
+				char *stop;
+
 				(*myidx)++;
-				*key_size = atol(args[*myidx]);
-				if (!*key_size)
-					break;
+				*key_size = strtol(args[*myidx], &stop, 10);
+				if (*stop != '\0' || !*key_size) {
+					ha_alert("parsing [%s:%d] : 'len' expects a positive integer argument.\n", file, linenum);
+					return 1;
+				}
 				if (*type == SMP_T_STR) {
 					/* null terminated string needs +1 for '\0'. */
 					(*key_size)++;
@@ -814,6 +818,7 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
 		}
 		return 0;
 	}
+	ha_alert("parsing [%s:%d] : %s: unknown type '%s'.\n", file, linenum, args[0], args[*myidx]);
 	return 1;
 }
 
@@ -975,9 +980,7 @@ int parse_stick_table(const char *file, int linenum, char **args,
 		}
 		else if (strcmp(args[idx], "type") == 0) {
 			idx++;
-			if (stktable_parse_type(args, &idx, &t->type, &t->key_size) != 0) {
-				ha_alert("parsing [%s:%d] : %s: unknown type '%s'.\n",
-					 file, linenum, args[0], args[idx]);
+			if (stktable_parse_type(args, &idx, &t->type, &t->key_size, file, linenum) != 0) {
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
