@@ -1865,7 +1865,7 @@ static int bind_parse_shards(char **args, int cur_arg, struct proxy *px, struct 
 	}
 
 	if (strcmp(args[cur_arg + 1], "by-thread") == 0) {
-		val = MAX_THREADS; /* will be trimmed later anyway */
+		val = -1; /* -1 = "by-thread", will be fixed in check_config_validity() */
 	} else {
 		val = atol(args[cur_arg + 1]);
 		if (val < 1 || val > MAX_THREADS) {

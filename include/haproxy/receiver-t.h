@@ -50,7 +50,7 @@ struct rx_settings {
 	char *interface;                  /* interface name or NULL */
 	const struct netns_entry *netns;  /* network namespace of the listener*/
 	unsigned int options;             /* receiver options (RX_O_*) */
-	uint shards;                      /* number of shards */
+	int shards;                       /* number of shards, 0=not set yet, -1="by-thread" */
 };
 
 /* This describes a receiver with all its characteristics (address, options, etc) */

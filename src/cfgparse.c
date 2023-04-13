@@ -2972,6 +2972,10 @@ init_proxies_list_stage1:
 				shards = bind_conf->settings.shards;
 				todo = thread_set_count(&bind_conf->thread_set);
 
+				/* special values: -1 = "by-thread" */
+				if (shards == -1)
+					shards = todo;
+
 				/* no more shards than total threads */
 				if (shards > todo)
 					shards = todo;
