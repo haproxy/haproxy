@@ -382,12 +382,12 @@ static inline void fd_claim_tgid(int fd, uint desired_tgid)
 	BUG_ON(!desired_tgid);
 
 	desired_tgid += 0x10000; // refcount=1
-	old = desired_tgid;
+	old = 0;                 // assume unused (most likely)
 	while (1) {
-		old &= 0xffff;
 		if (_HA_ATOMIC_CAS(&fdtab[fd].refc_tgid, &old, desired_tgid))
 			break;
 		__ha_cpu_relax();
+		old &= 0xffff;
 	}
 }
 
