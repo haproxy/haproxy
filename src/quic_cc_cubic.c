@@ -197,8 +197,8 @@ static void quic_enter_recovery(struct quic_cc *cc)
 	else {
 		c->last_w_max = path->cwnd;
 	}
-	path->cwnd = (CUBIC_BETA * path->cwnd) >> CUBIC_BETA_SCALE_SHIFT;
-	c->ssthresh =  QUIC_MAX(path->cwnd, path->min_cwnd);
+	c->ssthresh = (CUBIC_BETA * path->cwnd) >> CUBIC_BETA_SCALE_SHIFT;
+	path->cwnd =  QUIC_MAX(c->ssthresh, (uint32_t)path->min_cwnd);
 	c->state = QUIC_CC_ST_RP;
 	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc, NULL, cc);
 }

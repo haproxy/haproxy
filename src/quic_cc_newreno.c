@@ -71,7 +71,8 @@ static void quic_cc_nr_enter_recovery(struct quic_cc *cc)
 
 	path = container_of(cc, struct quic_path, cc);
 	nr->recovery_start_time = now_ms;
-	nr->ssthresh = QUIC_MAX(path->cwnd >> 1, path->min_cwnd);
+	nr->ssthresh = path->cwnd >> 1;
+	path->cwnd = QUIC_MAX(nr->ssthresh, (uint32_t)path->min_cwnd);
 	nr->state = QUIC_CC_ST_RP;
 }
 
