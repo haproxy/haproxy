@@ -330,6 +330,39 @@ static forceinline void fd_drop_tgid(int fd)
 	HA_ATOMIC_SUB(&fdtab[fd].refc_tgid, 0x10000);
 }
 
+/* Unlock a tgid currently locked by fd_lock_tgid(). This will effectively
+ * allow threads from the FD's tgid to check the masks and manipulate the FD.
+ */
+static forceinline void fd_unlock_tgid(int fd)
+{
+	HA_ATOMIC_AND(&fdtab[fd].refc_tgid, 0xffff7fffU);
+}
+
+/* Switch the FD's TGID to the new value with a refcount of 1 and the lock bit
+ * set. It doesn't care about the current TGID, except that it will wait for
+ * the FD not to be already switching and having its refcount cleared. After
+ * the function returns, the caller is free to manipulate the masks, and it
+ * must call fd_unlock_tgid() to drop the lock, allowing threads from the
+ * designated group to use the FD. Finally a call to fd_drop_tgid() will be
+ * needed to drop the reference.
+ */
+static inline void fd_lock_tgid(int fd, uint desired_tgid)
+{
+	uint old;
+
+	BUG_ON(!desired_tgid);
+
+	old = tgid;  // assume we start from the caller's tgid
+	desired_tgid |= 0x18000; // refcount=1, lock bit=1.
+
+	while (1) {
+		old &= 0x7fff; // expect no lock and refcount==0
+		if (_HA_ATOMIC_CAS(&fdtab[fd].refc_tgid, &old, desired_tgid))
+			break;
+		__ha_cpu_relax();
+	}
+}
+
 /* Grab a reference to the FD's TGID, and return the tgid. Note that a TGID of
  * zero indicates the FD was closed, thus also fails (i.e. no need to drop it).
  * On non-zero (success), the caller must release it using fd_drop_tgid().
@@ -387,7 +420,7 @@ static inline void fd_claim_tgid(int fd, uint desired_tgid)
 		if (_HA_ATOMIC_CAS(&fdtab[fd].refc_tgid, &old, desired_tgid))
 			break;
 		__ha_cpu_relax();
-		old &= 0xffff;
+		old &= 0x7fff;   // keep only the tgid and drop the lock
 	}
 }
 
