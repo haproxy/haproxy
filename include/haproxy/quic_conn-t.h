@@ -646,8 +646,6 @@ struct quic_conn {
 	int fd;
 	/* QUIC transport parameters TLS extension */
 	int tps_tls_ext;
-	/* Thread ID this connection is attached to */
-	int tid;
 	int state;
 	enum qc_mux_state mux_state; /* status of the connection/mux layer */
 	struct quic_err err;

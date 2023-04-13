@@ -5573,11 +5573,6 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->wait_event.tasklet->process = quic_conn_io_cb;
 	qc->wait_event.tasklet->context = qc;
 	qc->wait_event.events = 0;
-	/* Set tasklet tid based on the SCID selected by us for this
-	 * connection. The upper layer will also be binded on the same thread.
-	 */
-	qc->tid = quic_get_cid_tid(qc->scid.data, &l->rx);
-	qc->wait_event.tasklet->tid = qc->tid;
 	qc->subs = NULL;
 
 	if (qc_conn_alloc_ssl_ctx(qc) ||
@@ -5715,7 +5710,7 @@ static int quic_conn_init_timer(struct quic_conn *qc)
 	/* Attach this task to the same thread ID used for the connection */
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
 
-	qc->timer_task = task_new_on(qc->tid);
+	qc->timer_task = task_new_here();
 	if (!qc->timer_task) {
 		TRACE_ERROR("timer task allocation failed", QUIC_EV_CONN_NEW, qc);
 		goto leave;
@@ -8419,7 +8414,7 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 		}
 
 		/* CIDs */
-		chunk_appendf(&trash, "* %p[%02u]: scid=", qc, qc->tid);
+		chunk_appendf(&trash, "* %p[%02u]: scid=", qc, ctx->thr);
 		for (cid_len = 0; cid_len < qc->scid.len; ++cid_len)
 			chunk_appendf(&trash, "%02x", qc->scid.data[cid_len]);
 		while (cid_len++ < 20)

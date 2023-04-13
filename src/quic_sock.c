@@ -879,8 +879,8 @@ struct quic_accept_queue *quic_accept_queues;
  */
 void quic_accept_push_qc(struct quic_conn *qc)
 {
-	struct quic_accept_queue *queue = &quic_accept_queues[qc->tid];
-	struct li_per_thread *lthr = &qc->li->per_thr[qc->tid];
+	struct quic_accept_queue *queue = &quic_accept_queues[tid];
+	struct li_per_thread *lthr = &qc->li->per_thr[tid];
 
 	/* early return if accept is already in progress/done for this
 	 * connection
@@ -904,7 +904,7 @@ void quic_accept_push_qc(struct quic_conn *qc)
 	MT_LIST_APPEND(&lthr->quic_accept.conns, &qc->accept_list);
 
 	/* 3. wake up the queue tasklet */
-	tasklet_wakeup(quic_accept_queues[qc->tid].tasklet);
+	tasklet_wakeup(quic_accept_queues[tid].tasklet);
 }
 
 /* Tasklet handler to accept QUIC connections. Call listener_accept on every
