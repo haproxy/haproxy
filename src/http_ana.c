@@ -4446,7 +4446,6 @@ int http_forward_proxy_resp(struct stream *s, int final)
 
 		channel_auto_read(req);
 		channel_abort(req);
-		channel_auto_close(req);
 		channel_htx_erase(req, htxbuf(&req->buf));
 
 		channel_auto_read(res);
@@ -4511,7 +4510,6 @@ end:
 
 	channel_auto_read(&s->req);
 	channel_abort(&s->req);
-	channel_auto_close(&s->req);
 	channel_htx_erase(&s->req, htxbuf(&s->req.buf));
 	channel_auto_read(&s->res);
 	channel_auto_close(&s->res);

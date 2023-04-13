@@ -8158,7 +8158,6 @@ __LJMP static int hlua_txn_done(lua_State *L)
 
 		channel_auto_read(req);
 		channel_abort(req);
-		channel_auto_close(req);
 		channel_erase(req);
 
 		channel_auto_read(res);

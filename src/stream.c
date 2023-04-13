@@ -846,7 +846,6 @@ void stream_retnclose(struct stream *s, const struct buffer *msg)
 
 	channel_auto_read(ic);
 	channel_abort(ic);
-	channel_auto_close(ic);
 	channel_erase(ic);
 	channel_truncate(oc);
 

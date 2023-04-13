@@ -565,6 +565,7 @@ static inline void channel_abort(struct channel *chn)
 {
 	chn_prod(chn)->flags |= SC_FL_SHUTR_NOW;
 	chn_cons(chn)->flags |= SC_FL_SHUTW_NOW;
+	chn->flags |= CF_AUTO_CLOSE;
 	chn->flags &= ~CF_AUTO_CONNECT;
 }
 
