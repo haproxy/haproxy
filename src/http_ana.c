@@ -4274,7 +4274,7 @@ static void http_end_request(struct stream *s)
 
 			if (!(chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED))) {
 				sc_schedule_abort(s->scf);
-				channel_shutw_now(chn);
+				sc_schedule_shutdown(s->scb);
 			}
 		}
 		goto check_channel_flags;
@@ -4283,7 +4283,7 @@ static void http_end_request(struct stream *s)
 	if (txn->req.msg_state == HTTP_MSG_CLOSING) {
 	  http_msg_closing:
 		/* nothing else to forward, just waiting for the output buffer
-		 * to be empty and for the shutw_now to take effect.
+		 * to be empty and for the shut_wanted to take effect.
 		 */
 		if (channel_is_empty(chn)) {
 			txn->req.msg_state = HTTP_MSG_CLOSED;
@@ -4373,7 +4373,7 @@ static void http_end_response(struct stream *s)
 			 */
 			if (!(chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED))) {
 				sc_schedule_abort(s->scb);
-				channel_shutw_now(chn);
+				sc_schedule_shutdown(s->scf);
 			}
 		}
 		goto check_channel_flags;
@@ -4382,7 +4382,7 @@ static void http_end_response(struct stream *s)
 	if (txn->rsp.msg_state == HTTP_MSG_CLOSING) {
 	  http_msg_closing:
 		/* nothing else to forward, just waiting for the output buffer
-		 * to be empty and for the shutw_now to take effect.
+		 * to be empty and for the shut_wanted to take effect.
 		 */
 		if (channel_is_empty(chn)) {
 			txn->rsp.msg_state = HTTP_MSG_CLOSED;

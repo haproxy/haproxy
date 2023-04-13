@@ -548,11 +548,6 @@ static inline void channel_htx_erase(struct channel *chn, struct htx *htx)
 	channel_erase(chn);
 }
 
-/* marks the channel as "shutdown" ASAP for writes */
-static inline void channel_shutw_now(struct channel *chn)
-{
-	chn_cons(chn)->flags |= SC_FL_SHUT_WANTED;
-}
 
 /* marks the channel as "shutdown" ASAP in both directions */
 static inline void channel_abort(struct channel *chn)

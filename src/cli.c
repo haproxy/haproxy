@@ -2361,7 +2361,7 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 
 	} else if (strcmp("quit", args[0]) == 0) {
 		sc_schedule_abort(s->scf);
-		channel_shutw_now(&s->res);
+		sc_schedule_shutdown(s->scf);
 		return argl; /* return the number of elements in the array */
 	} else if (strcmp(args[0], "operator") == 0) {
 		if (!pcli_has_level(s, ACCESS_LVL_OPER)) {
@@ -2640,7 +2640,7 @@ read_again:
 
 		if (!(s->pcli_flags & PCLI_F_PAYLOAD)) {
 			/* we send only 1 command per request, and we write close after it */
-			channel_shutw_now(req);
+			sc_schedule_shutdown(s->scb);
 		} else {
 			pcli_write_prompt(s);
 		}
@@ -2695,7 +2695,7 @@ missing_data:
         if (chn_prod(req)->flags & SC_FL_SHUTR) {
                 /* There is no more request or a only a partial one and we
                  * receive a close from the client, we can leave */
-                channel_shutw_now(&s->res);
+		sc_schedule_shutdown(s->scf);
                 s->req.analysers &= ~AN_REQ_WAIT_CLI;
                 return 1;
         }

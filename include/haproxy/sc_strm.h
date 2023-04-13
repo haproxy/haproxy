@@ -420,4 +420,10 @@ static inline void sc_schedule_abort(struct stconn *sc)
 	sc->flags |= SC_FL_ABRT_WANTED;
 }
 
+/* Schedule a shutdown for the SC */
+static inline void sc_schedule_shutdown(struct stconn *sc)
+{
+	sc->flags |= SC_FL_SHUT_WANTED;
+}
+
 #endif /* _HAPROXY_SC_STRM_H */

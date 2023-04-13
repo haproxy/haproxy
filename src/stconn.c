@@ -511,11 +511,11 @@ static inline int sc_cond_forward_shutw(struct stconn *sc)
 		return 0;
 
 	if (!channel_is_empty(sc_ic(sc))) {
-		/* the close to the write side cannot be forwarded now because
+		/* the shutdown cannot be forwarded now because
 		 * we should flush outgoing data first. But instruct the output
 		 * channel it should be done ASAP.
 		 */
-		channel_shutw_now(sc_oc(sc));
+		sc_schedule_shutdown(sc);
 		return 0;
 	}
 
@@ -1484,7 +1484,7 @@ static int sc_conn_recv(struct stconn *sc)
 	if (sc_ep_test(sc, SE_FL_EOS)) {
 		/* we received a shutdown */
 		if (ic->flags & CF_AUTO_CLOSE)
-			channel_shutw_now(ic);
+			sc_schedule_shutdown(sc_opposite(sc));
 		sc_conn_read0(sc);
 		ret = 1;
 	}
@@ -1777,7 +1777,7 @@ static int sc_conn_process(struct stconn *sc)
 	if (sc_ep_test(sc, SE_FL_EOS) && !(sc->flags & SC_FL_SHUTR)) {
 		/* we received a shutdown */
 		if (ic->flags & CF_AUTO_CLOSE)
-			channel_shutw_now(ic);
+			sc_schedule_shutdown(sc_opposite(sc));
 		sc_conn_read0(sc);
 	}
 

@@ -2308,7 +2308,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		}
 		else {
 			s->scb->state = SC_ST_CLO; /* shutw+ini = abort */
-			channel_shutw_now(req);        /* fix buffer flags upon abort */
+			sc_schedule_shutdown(scb);
 			sc_schedule_abort(scb);
 		}
 	}
@@ -2367,7 +2367,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (unlikely((req->flags & CF_AUTO_CLOSE) && (scf->flags & SC_FL_SHUTR) &&
 		     !(scb->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)) &&
 		     (scb->state != SC_ST_CON || (s->be->options & PR_O_ABRT_CLOSE)))) {
-		channel_shutw_now(req);
+		sc_schedule_shutdown(scb);
 	}
 
 	/* shutdown(write) pending */
@@ -2489,7 +2489,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* first, let's check if the response buffer needs to shutdown(write) */
 	if (unlikely((res->flags & CF_AUTO_CLOSE) && (scb->flags & SC_FL_SHUTR) &&
 		     !(scf->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)))) {
-		channel_shutw_now(res);
+		sc_schedule_shutdown(scf);
 	}
 
 	/* shutdown(write) pending */
@@ -2781,7 +2781,7 @@ void stream_shutdown(struct stream *stream, int why)
 	if (stream->scb->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED))
 		return;
 
-	channel_shutw_now(&stream->req);
+	sc_schedule_shutdown(stream->scb);
 	sc_schedule_abort(stream->scb);
 	stream->task->nice = 1024;
 	if (!(stream->flags & SF_ERR_MASK))
