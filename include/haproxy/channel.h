@@ -520,7 +520,7 @@ static inline int channel_input_closed(struct channel *chn)
 /* Returns true if the channel's output is already closed */
 static inline int channel_output_closed(struct channel *chn)
 {
-	return ((chn_cons(chn)->flags & SC_FL_SHUTW) != 0);
+	return ((chn_cons(chn)->flags & SC_FL_SHUT_DONE) != 0);
 }
 
 /* Check channel timeouts, and set the corresponding flags. */
@@ -977,8 +977,8 @@ static inline int ci_putstr(struct channel *chn, const char *str)
 static inline int co_getchr(struct channel *chn)
 {
 	/* closed or empty + imminent close = -2; empty = -1 */
-	if (unlikely((chn_cons(chn)->flags & SC_FL_SHUTW) || channel_is_empty(chn))) {
-		if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED))
+	if (unlikely((chn_cons(chn)->flags & SC_FL_SHUT_DONE) || channel_is_empty(chn))) {
+		if (chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))
 			return -2;
 		return -1;
 	}

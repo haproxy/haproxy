@@ -161,7 +161,7 @@ enum sc_flags {
 	SC_FL_ABRT_WANTED   = 0x00002000,  /* An abort was requested and must be performed ASAP */
 	SC_FL_SHUT_WANTED   = 0x00004000,  /* A shutdown was requested and mux be performed ASAP */
 	SC_FL_ABRT_DONE     = 0x00008000,  /* An abort was performed for the SC */
-	SC_FL_SHUTW         = 0x00010000,  /* SC must shut down for writes ASAP */
+	SC_FL_SHUT_DONE     = 0x00010000,  /* A shutdown was performed for the SC */
 };
 
 /* This function is used to report flags in debugging tools. Please reflect
@@ -178,7 +178,7 @@ static forceinline char *sc_show_flags(char *buf, size_t len, const char *delim,
 	_(SC_FL_DONT_WAKE, _(SC_FL_INDEP_STR, _(SC_FL_WONT_READ,
 	_(SC_FL_NEED_BUFF, _(SC_FL_NEED_ROOM,
         _(SC_FL_RCV_ONCE, _(SC_FL_SND_ASAP, _(SC_FL_SND_NEVERWAIT, _(SC_FL_SND_EXP_MORE,
-	_(SC_FL_ABRT_WANTED, _(SC_FL_SHUT_WANTED, _(SC_FL_ABRT_DONE, _(SC_FL_SHUTW)))))))))))))))));
+	_(SC_FL_ABRT_WANTED, _(SC_FL_SHUT_WANTED, _(SC_FL_ABRT_DONE, _(SC_FL_SHUT_DONE)))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

@@ -1117,7 +1117,7 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 	 * created.
 	 */
 	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW))
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
 		goto end;
 
 	switch (ctx->state) {

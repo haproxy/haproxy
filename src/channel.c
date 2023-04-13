@@ -206,8 +206,8 @@ int co_getdelim(const struct channel *chn, char *str, int len, const char *delim
 	max = len;
 
 	/* closed or empty + imminent close = -1; empty = 0 */
-	if (unlikely((chn_cons(chn)->flags & SC_FL_SHUTW) || channel_is_empty(chn))) {
-		if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED))
+	if (unlikely((chn_cons(chn)->flags & SC_FL_SHUT_DONE) || channel_is_empty(chn))) {
+		if (chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))
 			ret = -1;
 		goto out;
 	}
@@ -252,7 +252,7 @@ int co_getdelim(const struct channel *chn, char *str, int len, const char *delim
 	if (ret > 0 && ret < len &&
 	    (ret < co_data(chn) || channel_may_recv(chn)) &&
 	    !found &&
-	    !(chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)))
+	    !(chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)))
 		ret = 0;
  out:
 	if (max)
@@ -279,8 +279,8 @@ int co_getword(const struct channel *chn, char *str, int len, char sep)
 	max = len;
 
 	/* closed or empty + imminent close = -1; empty = 0 */
-	if (unlikely((chn_cons(chn)->flags & SC_FL_SHUTW) || channel_is_empty(chn))) {
-		if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED))
+	if (unlikely((chn_cons(chn)->flags & SC_FL_SHUT_DONE) || channel_is_empty(chn))) {
+		if (chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))
 			ret = -1;
 		goto out;
 	}
@@ -303,7 +303,7 @@ int co_getword(const struct channel *chn, char *str, int len, char sep)
 	if (ret > 0 && ret < len &&
 	    (ret < co_data(chn) || channel_may_recv(chn)) &&
 	    *(str-1) != sep &&
-	    !(chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)))
+	    !(chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)))
 		ret = 0;
  out:
 	if (max)
@@ -330,8 +330,8 @@ int co_getline(const struct channel *chn, char *str, int len)
 	max = len;
 
 	/* closed or empty + imminent close = -1; empty = 0 */
-	if (unlikely((chn_cons(chn)->flags & SC_FL_SHUTW) || channel_is_empty(chn))) {
-		if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED))
+	if (unlikely((chn_cons(chn)->flags & SC_FL_SHUT_DONE) || channel_is_empty(chn))) {
+		if (chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))
 			ret = -1;
 		goto out;
 	}
@@ -354,7 +354,7 @@ int co_getline(const struct channel *chn, char *str, int len)
 	if (ret > 0 && ret < len &&
 	    (ret < co_data(chn) || channel_may_recv(chn)) &&
 	    *(str-1) != '\n' &&
-	    !(chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)))
+	    !(chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)))
 		ret = 0;
  out:
 	if (max)
@@ -372,11 +372,11 @@ int co_getline(const struct channel *chn, char *str, int len)
  */
 int co_getchar(const struct channel *chn, char *c)
 {
-	if (chn_cons(chn)->flags & SC_FL_SHUTW)
+	if (chn_cons(chn)->flags & SC_FL_SHUT_DONE)
 		return -1;
 
 	if (unlikely(co_data(chn) == 0)) {
-		if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED))
+		if (chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))
 			return -1;
 		return 0;
 	}
@@ -395,11 +395,11 @@ int co_getchar(const struct channel *chn, char *c)
  */
 int co_getblk(const struct channel *chn, char *blk, int len, int offset)
 {
-	if (chn_cons(chn)->flags & SC_FL_SHUTW)
+	if (chn_cons(chn)->flags & SC_FL_SHUT_DONE)
 		return -1;
 
 	if (len + offset > co_data(chn) || co_data(chn) == 0) {
-		if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED))
+		if (chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))
 			return -1;
 		return 0;
 	}
@@ -418,7 +418,7 @@ int co_getblk(const struct channel *chn, char *blk, int len, int offset)
 int co_getblk_nc(const struct channel *chn, const char **blk1, size_t *len1, const char **blk2, size_t *len2)
 {
 	if (unlikely(co_data(chn) == 0)) {
-		if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED))
+		if (chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))
 			return -1;
 		return 0;
 	}
@@ -460,7 +460,7 @@ int co_getline_nc(const struct channel *chn,
 		}
 	}
 
-	if (chn_cons(chn)->flags & (SC_FL_SHUTW|SC_FL_SHUT_WANTED)) {
+	if (chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) {
 		/* If we have found no LF and the buffer is shut, then
 		 * the resulting string is made of the concatenation of
 		 * the pending blocks (1 or 2).
@@ -536,7 +536,7 @@ int ci_getline_nc(const struct channel *chn,
 		}
 	}
 
-	if (chn_cons(chn)->flags & SC_FL_SHUTW) {
+	if (chn_cons(chn)->flags & SC_FL_SHUT_DONE) {
 		/* If we have found no LF and the buffer is shut, then
 		 * the resulting string is made of the concatenation of
 		 * the pending blocks (1 or 2).

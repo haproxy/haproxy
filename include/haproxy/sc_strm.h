@@ -356,7 +356,7 @@ static inline const char *sc_state_str(int state)
 __attribute__((warn_unused_result))
 static inline int sc_is_send_allowed(const struct stconn *sc)
 {
-	if (sc->flags & SC_FL_SHUTW)
+	if (sc->flags & SC_FL_SHUT_DONE)
 		return 0;
 
 	return !sc_ep_test(sc, SE_FL_WAIT_DATA | SE_FL_WONT_CONSUME);
@@ -376,7 +376,7 @@ static inline int sc_rcv_may_expire(const struct stconn *sc)
 
 static inline int sc_snd_may_expire(const struct stconn *sc)
 {
-	if ((sc->flags & SC_FL_SHUTW) ||
+	if ((sc->flags & SC_FL_SHUT_DONE) ||
 	    (sc_oc(sc)->flags & (CF_WRITE_TIMEOUT|CF_WRITE_EVENT)))
 		return 0;
 	if (sc_ep_test(sc, SE_FL_WONT_CONSUME))

@@ -349,7 +349,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 	struct pat_ref_elt *elt;
 
 	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW)) {
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE)) {
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last ref_elt being dumped.
 		 */

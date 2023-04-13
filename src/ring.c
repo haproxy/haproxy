@@ -350,7 +350,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	int ret;
 
 	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW))
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
 		return 1;
 
 	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
@@ -423,7 +423,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		/* we've drained everything and are configured to wait for more
 		 * data or an event (keypress, close)
 		 */
-		if (!sc_oc(sc)->output && !(sc->flags & SC_FL_SHUTW)) {
+		if (!sc_oc(sc)->output && !(sc->flags & SC_FL_SHUT_DONE)) {
 			/* let's be woken up once new data arrive */
 			HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 			LIST_APPEND(&ring->waiters, &appctx->wait_entry);

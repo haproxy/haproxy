@@ -625,7 +625,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	int i, j, max;
 
 	/* FIXME: Don't watch the other side ! */
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW))
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
 		return 1;
 
 	chunk_reset(&trash);
@@ -889,7 +889,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 	int i, max;
 
 	/* FIXME: Don't watch the other side ! */
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW))
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
 		return 1;
 
 	/* It's not possible to scan queues in small chunks and yield in the
@@ -1030,7 +1030,7 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	int thr;
 
 	/* FIXME: Don't watch the other side ! */
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW))
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
 		return 1;
 
 	chunk_reset(&trash);

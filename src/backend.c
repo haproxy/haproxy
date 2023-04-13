@@ -1956,7 +1956,7 @@ int srv_redispatch_connect(struct stream *s)
 static int back_may_abort_req(struct channel *req, struct stream *s)
 {
 	return (sc_ep_test(s->scf, SE_FL_ERROR) ||
-	        ((chn_cons(req)->flags & (SC_FL_SHUT_WANTED|SC_FL_SHUTW)) &&  /* empty and client aborted */
+	        ((chn_cons(req)->flags & (SC_FL_SHUT_WANTED|SC_FL_SHUT_DONE)) &&  /* empty and client aborted */
 	         (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE))));
 }
 
@@ -2246,7 +2246,7 @@ void back_handle_st_con(struct stream *s)
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
 	/* the client might want to abort */
-	if ((chn_cons(rep)->flags & SC_FL_SHUTW) ||
+	if ((chn_cons(rep)->flags & SC_FL_SHUT_DONE) ||
 	    ((chn_cons(req)->flags & SC_FL_SHUT_WANTED) &&
 	     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
 		sc->flags |= SC_FL_NOLINGER;
@@ -2470,7 +2470,7 @@ void back_handle_st_rdy(struct stream *s)
 	 */
 	if (!(req->flags & CF_WROTE_DATA)) {
 		/* client abort ? */
-		if ((chn_cons(rep)->flags & SC_FL_SHUTW) ||
+		if ((chn_cons(rep)->flags & SC_FL_SHUT_DONE) ||
 		    ((chn_cons(req)->flags & SC_FL_SHUT_WANTED) &&
 		     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
 			/* give up */

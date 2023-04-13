@@ -1216,7 +1216,7 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 	char **var = ctx->var;
 
 	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW))
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
 		return 1;
 
 	chunk_reset(&trash);
@@ -1255,7 +1255,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 	int ret = 1;
 
 	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW))
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
 		goto end;
 
 	chunk_reset(&trash);
@@ -2686,7 +2686,7 @@ send_help:
 
 send_status:
 	s->pcli_flags |= PCLI_F_RELOAD;
-	/* dont' use ci_putblk here because SHUTW could have been sent */
+	/* dont' use ci_putblk here because SHUT_DONE could have been sent */
 	b_reset(&req->buf);
 	b_putblk(&req->buf, "_loadstatus;quit\n", 17);
 	goto read_again;
@@ -2716,7 +2716,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	struct proxy *be = s->be;
 
 	if (sc_ep_test(s->scb, SE_FL_ERR_PENDING|SE_FL_ERROR) || (rep->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT)) ||
-	    ((chn_cons(rep)->flags & SC_FL_SHUTW) && (rep->to_forward || co_data(rep)))) {
+	    ((chn_cons(rep)->flags & SC_FL_SHUT_DONE) && (rep->to_forward || co_data(rep)))) {
 		pcli_reply_and_close(s, "Can't connect to the target CLI!\n");
 		s->req.analysers &= ~AN_REQ_WAIT_CLI;
 		s->res.analysers &= ~AN_RES_WAIT_CLI;
@@ -2830,7 +2830,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		sockaddr_free(&s->scb->dst);
 
 		sc_set_state(s->scb, SC_ST_INI);
-		s->scb->flags &= ~(SC_FL_SHUTW|SC_FL_SHUT_WANTED);
+		s->scb->flags &= ~(SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED);
 		s->scb->flags &= SC_FL_ISBACK | SC_FL_DONT_WAKE; /* we're in the context of process_stream */
 
 		s->req.flags &= ~(CF_AUTO_CONNECT|CF_STREAMER|CF_STREAMER_FAST|CF_WROTE_DATA);

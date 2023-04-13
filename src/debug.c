@@ -314,7 +314,7 @@ static int cli_io_handler_show_threads(struct appctx *appctx)
 	int thr;
 
 	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW))
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
 		return 1;
 
 	if (appctx->st0)
@@ -1162,7 +1162,7 @@ static int debug_iohandler_fd(struct appctx *appctx)
 	int i, fd;
 
 	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW))
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
 		goto end;
 
 	chunk_reset(&trash);
@@ -1370,7 +1370,7 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 	int ret = 1;
 
 	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUTW))
+	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
 		goto end;
 
 	if (!ctx->width) {
