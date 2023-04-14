@@ -907,7 +907,7 @@ static void back_establish(struct stream *s)
 	s->flags &= ~SF_CONN_EXP;
 
 	/* errors faced after sending data need to be reported */
-	if (((s->scb->flags & SC_FL_ERROR) || sc_ep_test(s->scb, SE_FL_ERROR)) && req->flags & CF_WROTE_DATA) {
+	if ((s->scb->flags & SC_FL_ERROR) && req->flags & CF_WROTE_DATA) {
 		s->req.flags |= CF_WRITE_EVENT;
 		s->res.flags |= CF_READ_EVENT;
 		s->conn_err_type = STRM_ET_DATA_ERR;
@@ -1786,7 +1786,6 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if (!((scf->flags | scb->flags) & (SC_FL_ERROR|SC_FL_ABRT_DONE|SC_FL_SHUT_DONE)) &&
 		    !((req->flags | res->flags) & (CF_READ_EVENT|CF_READ_TIMEOUT|CF_WRITE_EVENT|CF_WRITE_TIMEOUT)) &&
 		    !(s->flags & SF_CONN_EXP) &&
-		    !((sc_ep_get(scf) | sc_ep_get(scb)) & SE_FL_ERROR) &&
 		    ((s->pending_events & TASK_WOKEN_ANY) == TASK_WOKEN_TIMER)) {
 			scf->flags &= ~SC_FL_DONT_WAKE;
 			scb->flags &= ~SC_FL_DONT_WAKE;
@@ -1824,7 +1823,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 * connection setup code must be able to deal with any type of abort.
 	 */
 	srv = objt_server(s->target);
-	if (unlikely((scf->flags & SC_FL_ERROR) || sc_ep_test(scf, SE_FL_ERROR))) {
+	if (unlikely(scf->flags & SC_FL_ERROR)) {
 		if (sc_state_in(scf->state, SC_SB_EST|SC_SB_DIS)) {
 			sc_abort(scf);
 			sc_shutdown(scf);
@@ -1844,7 +1843,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		}
 	}
 
-	if (unlikely((scb->flags & SC_FL_ERROR) || sc_ep_test(scb, SE_FL_ERROR))) {
+	if (unlikely(scb->flags & SC_FL_ERROR)) {
 		if (sc_state_in(scb->state, SC_SB_EST|SC_SB_DIS)) {
 			sc_abort(scb);
 			sc_shutdown(scb);
@@ -2141,10 +2140,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 */
 	srv = objt_server(s->target);
 	if (unlikely(!(s->flags & SF_ERR_MASK))) {
-		if ((scf->flags & SC_FL_ERROR) || sc_ep_test(s->scf, SE_FL_ERROR) || req->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT)) {
+		if ((scf->flags & SC_FL_ERROR) || req->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT)) {
 			/* Report it if the client got an error or a read timeout expired */
 			req->analysers &= AN_REQ_FLT_END;
-			if ((scf->flags & SC_FL_ERROR) || sc_ep_test(s->scf, SE_FL_ERROR)) {
+			if (scf->flags & SC_FL_ERROR) {
 				_HA_ATOMIC_INC(&s->be->be_counters.cli_aborts);
 				_HA_ATOMIC_INC(&sess->fe->fe_counters.cli_aborts);
 				if (sess->listener && sess->listener->counters)
@@ -2186,10 +2185,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 					channel_erase(req);
 			}
 		}
-		else if ((scb->flags & SC_FL_ERROR) || sc_ep_test(s->scb, SE_FL_ERROR) || res->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT)) {
+		else if ((scb->flags & SC_FL_ERROR) || res->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT)) {
 			/* Report it if the server got an error or a read timeout expired */
 			res->analysers &= AN_RES_FLT_END;
-			if ((scb->flags & SC_FL_ERROR) || sc_ep_test(s->scb, SE_FL_ERROR)) {
+			if (scb->flags & SC_FL_ERROR) {
 				_HA_ATOMIC_INC(&s->be->be_counters.srv_aborts);
 				_HA_ATOMIC_INC(&sess->fe->fe_counters.srv_aborts);
 				if (sess->listener && sess->listener->counters)
@@ -2373,7 +2372,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* shutdown(write) pending */
 	if (unlikely((scb->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) == SC_FL_SHUT_WANTED &&
 		     channel_is_empty(req))) {
-		if ((scf->flags & SC_FL_ERROR) || sc_ep_test(s->scf, SE_FL_ERROR))
+		if (scf->flags & SC_FL_ERROR)
 			scb->flags |= SC_FL_NOLINGER;
 		sc_shutdown(scb);
 	}
@@ -2393,8 +2392,6 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* Benchmarks have shown that it's optimal to do a full resync now */
 	if (scf->state == SC_ST_DIS ||
 	    sc_state_in(scb->state, SC_SB_RDY|SC_SB_DIS) ||
-	    (sc_ep_test(scf, SE_FL_ERROR) && scf->state != SC_ST_CLO) ||
-	    (sc_ep_test(scb, SE_FL_ERROR) && scb->state != SC_ST_CLO) ||
 	    ((scf->flags & SC_FL_ERROR) && scf->state != SC_ST_CLO) ||
 	    ((scb->flags & SC_FL_ERROR) && scb->state != SC_ST_CLO))
 		goto resync_stconns;
@@ -2514,8 +2511,6 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 	if (scf->state == SC_ST_DIS ||
 	    sc_state_in(scb->state, SC_SB_RDY|SC_SB_DIS) ||
-	    (sc_ep_test(scf, SE_FL_ERROR) && scf->state != SC_ST_CLO) ||
-	    (sc_ep_test(scb, SE_FL_ERROR) && scb->state != SC_ST_CLO) ||
 	    ((scf->flags & SC_FL_ERROR) && scf->state != SC_ST_CLO) ||
 	    ((scb->flags & SC_FL_ERROR) && scb->state != SC_ST_CLO))
 		goto resync_stconns;
