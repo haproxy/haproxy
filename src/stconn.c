@@ -798,8 +798,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 
 	if (sc_ep_test(sc, SE_FL_ERROR | SE_FL_ERR_PENDING) || sc_is_conn_error(sc)) {
 		/* Write error on the file descriptor */
-		if (sc->state >= SC_ST_CON && sc_ep_test(sc, SE_FL_EOS))
-			sc_ep_set(sc, SE_FL_ERROR);
+		BUG_ON(sc_ep_test(sc, SE_FL_EOS|SE_FL_ERROR|SE_FL_ERR_PENDING) == (SE_FL_EOS|SE_FL_ERR_PENDING));
 		goto out_wakeup;
 	}
 
@@ -1554,8 +1553,7 @@ static int sc_conn_send(struct stconn *sc)
 		 */
 		if (sc->state < SC_ST_CON)
 			return 0;
-		if (sc_ep_test(sc, SE_FL_EOS))
-		    sc_ep_set(sc, SE_FL_ERROR);
+		BUG_ON(sc_ep_test(sc, SE_FL_EOS|SE_FL_ERROR|SE_FL_ERR_PENDING) == (SE_FL_EOS|SE_FL_ERR_PENDING));
 		return 1;
 	}
 
@@ -1670,8 +1668,7 @@ static int sc_conn_send(struct stconn *sc)
 
 	if (sc_ep_test(sc, SE_FL_ERROR | SE_FL_ERR_PENDING)) {
 		oc->flags |= CF_WRITE_EVENT;
-		if (sc_ep_test(sc, SE_FL_EOS))
-			sc_ep_set(sc, SE_FL_ERROR);
+		BUG_ON(sc_ep_test(sc, SE_FL_EOS|SE_FL_ERROR|SE_FL_ERR_PENDING) == (SE_FL_EOS|SE_FL_ERR_PENDING));
 		return 1;
 	}
 
