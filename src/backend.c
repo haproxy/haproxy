@@ -1822,8 +1822,10 @@ skip_reuse:
 	 * sockets, socket pairs, andoccasionally TCP connections on the
 	 * loopback on a heavily loaded system.
 	 */
-	if (srv_conn->flags & CO_FL_ERROR)
+	if (srv_conn->flags & CO_FL_ERROR) {
 		sc_ep_set(s->scb, SE_FL_ERROR);
+		s->scb->flags |= SC_FL_ERROR;
+	}
 
 	/* If we had early data, and the handshake ended, then
 	 * we can remove the flag, and attempt to wake the task up,
@@ -2025,6 +2027,7 @@ void back_try_conn_req(struct stream *s)
 			sc_abort(sc);
 			sc_shutdown(sc);
 			sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
+			sc->flags |= SC_FL_ERROR;
 
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
@@ -2045,6 +2048,7 @@ void back_try_conn_req(struct stream *s)
 		 */
 		sc->state = SC_ST_CER;
 		sc_ep_clr(sc, SE_FL_ERROR);
+		sc->flags &= ~SC_FL_ERROR;
 		back_handle_st_cer(s);
 
 		DBG_TRACE_STATE("connection error, retry", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
@@ -2185,6 +2189,7 @@ void back_handle_st_req(struct stream *s)
 			sc_abort(sc);
 			sc_shutdown(sc);
 			sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
+			sc->flags |= SC_FL_ERROR;
 			s->conn_err_type = STRM_ET_CONN_RES;
 			sc->state = SC_ST_CLO;
 			if (s->srv_error)
@@ -2211,6 +2216,7 @@ void back_handle_st_req(struct stream *s)
 		sc_abort(sc);
 		sc_shutdown(sc);
 		sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
+		sc->flags |= SC_FL_ERROR;
 		if (!s->conn_err_type)
 			s->conn_err_type = STRM_ET_CONN_OTHER;
 		sc->state = SC_ST_CLO;
@@ -2345,6 +2351,7 @@ void back_handle_st_cer(struct stream *s)
 		/* shutw is enough to stop a connecting socket */
 		sc_shutdown(sc);
 		sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
+		sc->flags |= SC_FL_ERROR;
 
 		sc->state = SC_ST_CLO;
 		if (s->srv_error)
@@ -2378,6 +2385,7 @@ void back_handle_st_cer(struct stream *s)
 		/* shutw is enough to stop a connecting socket */
 		sc_shutdown(sc);
 		sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
+		sc->flags |= SC_FL_ERROR;
 
 		sc->state = SC_ST_CLO;
 		if (s->srv_error)
