@@ -1482,8 +1482,10 @@ static int sc_conn_recv(struct stconn *sc)
 		ret = 1;
 	}
 
-	if (sc_ep_test(sc, SE_FL_ERROR))
+	if (sc_ep_test(sc, SE_FL_ERROR)) {
+		sc->flags |= SC_FL_ERROR;
 		ret = 1;
+	}
 	else if (!(sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM)) &&
 		 !(sc->flags & SC_FL_ABRT_DONE)) {
 		/* Subscribe to receive events if we're blocking on I/O */
@@ -1663,6 +1665,8 @@ static int sc_conn_send(struct stconn *sc)
 	if (sc_ep_test(sc, SE_FL_ERROR | SE_FL_ERR_PENDING)) {
 		oc->flags |= CF_WRITE_EVENT;
 		BUG_ON(sc_ep_test(sc, SE_FL_EOS|SE_FL_ERROR|SE_FL_ERR_PENDING) == (SE_FL_EOS|SE_FL_ERR_PENDING));
+		if (sc_ep_test(sc, SE_FL_ERROR))
+			sc_ep_set(sc, SC_FL_ERROR);
 		return 1;
 	}
 
@@ -1734,8 +1738,10 @@ static int sc_conn_process(struct stconn *sc)
 	 */
 
 	if (sc->state >= SC_ST_CON) {
-		if (sc_is_conn_error(sc))
+		if (sc_is_conn_error(sc)) {
 			sc_ep_set(sc, SE_FL_ERROR);
+			sc->flags |= SC_FL_ERROR;
+		}
 	}
 
 	/* If we had early data, and the handshake ended, then
@@ -1783,6 +1789,9 @@ static int sc_conn_process(struct stconn *sc)
 		sc->flags |= SC_FL_EOI;
 		ic->flags |= CF_READ_EVENT;
 	}
+
+	if (sc_ep_test(sc, SE_FL_ERROR))
+		sc->flags |= SC_FL_ERROR;
 
 	/* Second step : update the stream connector and channels, try to forward any
 	 * pending data, then possibly wake the stream up based on the new
@@ -1835,6 +1844,9 @@ static int sc_applet_process(struct stconn *sc)
 		sc->flags |= SC_FL_EOI;
 		ic->flags |= CF_READ_EVENT;
 	}
+
+	if (sc_ep_test(sc, SE_FL_ERROR))
+		sc->flags |= SC_FL_ERROR;
 
 	if (sc_ep_test(sc, SE_FL_EOS)) {
 		/* we received a shutdown */

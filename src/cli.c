@@ -2830,7 +2830,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		sockaddr_free(&s->scb->dst);
 
 		sc_set_state(s->scb, SC_ST_INI);
-		s->scb->flags &= ~(SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED);
+		s->scb->flags &= ~(SC_FL_ERROR|SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED);
 		s->scb->flags &= SC_FL_ISBACK | SC_FL_DONT_WAKE; /* we're in the context of process_stream */
 
 		s->req.flags &= ~(CF_AUTO_CONNECT|CF_STREAMER|CF_STREAMER_FAST|CF_WROTE_DATA);
@@ -2855,7 +2855,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->store_count = 0;
 		s->uniq_id = global.req_count++;
 
-		s->scf->flags &= ~(SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED);
+		s->scf->flags &= ~(SC_FL_ERROR|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED);
 		s->scf->flags &= ~SC_FL_SND_NEVERWAIT;
 		s->scf->flags |= SC_FL_RCV_ONCE; /* one read is usually enough */
 
