@@ -437,9 +437,6 @@ void sc_destroy(struct stconn *sc)
 /* Resets the stream connector endpoint. It happens when the app layer want to renew
  * its endpoint. For a connection retry for instance. If a mux or an applet is
  * attached, a new endpoint is created. Returns -1 on error and 0 on success.
- *
- * Only SE_FL_ERROR flag is removed on the endpoint. Orther flags are preserved.
- * It is the caller responsibility to remove other flags if needed.
  */
 int sc_reset_endp(struct stconn *sc)
 {
@@ -447,7 +444,6 @@ int sc_reset_endp(struct stconn *sc)
 
 	BUG_ON(!sc->app);
 
-	sc_ep_clr(sc, SE_FL_ERROR);
 	if (!__sc_endp(sc)) {
 		/* endpoint not attached or attached to a mux with no
 		 * target. Thus the endpoint will not be release but just
@@ -461,10 +457,8 @@ int sc_reset_endp(struct stconn *sc)
 	/* allocate the new endpoint first to be able to set error if it
 	 * fails */
 	new_sd = sedesc_new();
-	if (!unlikely(new_sd)) {
-		sc_ep_set(sc, SE_FL_ERROR);
+	if (!unlikely(new_sd))
 		return -1;
-	}
 
 	/* The app is still attached, the sc will not be released */
 	sc_detach_endp(&sc);
