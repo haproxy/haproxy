@@ -1664,8 +1664,6 @@ static int sc_conn_send(struct stconn *sc)
 	if (sc_ep_test(sc, SE_FL_ERROR | SE_FL_ERR_PENDING)) {
 		oc->flags |= CF_WRITE_EVENT;
 		BUG_ON(sc_ep_test(sc, SE_FL_EOS|SE_FL_ERROR|SE_FL_ERR_PENDING) == (SE_FL_EOS|SE_FL_ERR_PENDING));
-		if (sc_ep_test(sc, SE_FL_ERROR))
-			sc_ep_set(sc, SC_FL_ERROR);
 		return 1;
 	}
 
