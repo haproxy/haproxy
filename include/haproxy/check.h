@@ -67,6 +67,7 @@ const char *get_check_status_description(short check_status);
 const char *get_check_status_info(short check_status);
 int httpchk_build_status_header(struct server *s, struct buffer *buf);
 void __health_adjust(struct server *s, short status);
+void check_append_info(struct buffer *msg, struct check *check);
 void set_server_check_status(struct check *check, short status, const char *desc);
 void chk_report_conn_err(struct check *check, int errno_bck, int expired);
 void check_notify_failure(struct check *check);

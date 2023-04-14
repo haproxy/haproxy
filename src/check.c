@@ -428,6 +428,31 @@ const char *get_analyze_status(short analyze_status) {
 		return analyze_statuses[HANA_STATUS_UNKNOWN].desc;
 }
 
+/* append check info to buffer msg */
+void check_append_info(struct buffer *msg, struct check *check)
+{
+	if (!check)
+		return;
+	chunk_appendf(msg, ", reason: %s", get_check_status_description(check->status));
+
+	if (check->status >= HCHK_STATUS_L57DATA)
+		chunk_appendf(msg, ", code: %d", check->code);
+
+	if (check->desc[0]) {
+		struct buffer src;
+
+		chunk_appendf(msg, ", info: \"");
+
+		chunk_initlen(&src, check->desc, 0, strlen(check->desc));
+		chunk_asciiencode(msg, &src, '"');
+
+		chunk_appendf(msg, "\"");
+	}
+
+	if (check->duration >= 0)
+		chunk_appendf(msg, ", check duration: %ldms", check->duration);
+}
+
 /* Sets check->status, update check->duration and fill check->result with an
  * adequate CHK_RES_* value. The new check->health is computed based on the
  * result.
@@ -528,7 +553,7 @@ void set_server_check_status(struct check *check, short status, const char *desc
 		             (check->result == CHK_RES_CONDPASS) ? "conditionally ":"",
 		             (check->result >= CHK_RES_PASSED)   ? "succeeded" : "failed");
 
-		srv_append_status(&trash, s, check, -1, 0);
+		check_append_info(&trash, check);
 
 		chunk_appendf(&trash, ", status: %d/%d %s",
 		             (check->health >= check->rise) ? check->health - check->rise + 1 : check->health,

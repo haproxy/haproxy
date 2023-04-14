@@ -1511,57 +1511,33 @@ void srv_shutdown_backup_streams(struct proxy *px, int why)
 			srv_shutdown_streams(srv, why);
 }
 
-/* Appends some information to a message string related to a server going UP or
- * DOWN.  If both <forced> and <reason> are null and the server tracks another
- * one, a "via" information will be provided to know where the status came from.
- * If <check> is non-null, an entire string describing the check result will be
- * appended after a comma and a space (eg: to report some information from the
- * check that changed the state). In the other case, the string will be built
- * using the check results stored into the struct server if present.
+static void srv_append_op_chg_cause(struct buffer *msg, struct server *s, struct check *check)
+{
+	if (check)
+		check_append_info(msg, check);
+	else if (s->op_st_chg.reason && *s->op_st_chg.reason)
+		chunk_appendf(msg, ", %s", s->op_st_chg.reason);
+}
+
+static void srv_append_adm_chg_cause(struct buffer *msg, struct server *s)
+{
+	if (s->adm_st_chg_cause)
+		chunk_appendf(msg, " (%s)", srv_adm_st_chg_cause(s->adm_st_chg_cause));
+}
+
+/* Appends some information to a message string related to a server tracking
+ * or requeued connections info.
+ *
+ * If <forced> is null and the server tracks another one, a "via"
  * If <xferred> is non-negative, some information about requeued sessions are
  * provided.
  *
  * Must be called with the server lock held.
  */
-void srv_append_status(struct buffer *msg, struct server *s,
-		       struct check *check, int xferred, int forced)
+static void srv_append_more(struct buffer *msg, struct server *s,
+                            int xferred, int forced)
 {
-	short status = s->op_st_chg.status;
-	short code = s->op_st_chg.code;
-	long duration = s->op_st_chg.duration;
-	char *desc = s->op_st_chg.reason;
-
-	if (check) {
-		status = check->status;
-		code = check->code;
-		duration = check->duration;
-		desc = check->desc;
-	}
-
-	if (status != -1) {
-		chunk_appendf(msg, ", reason: %s", get_check_status_description(status));
-
-		if (status >= HCHK_STATUS_L57DATA)
-			chunk_appendf(msg, ", code: %d", code);
-
-		if (desc && *desc) {
-			struct buffer src;
-
-			chunk_appendf(msg, ", info: \"");
-
-			chunk_initlen(&src, desc, 0, strlen(desc));
-			chunk_asciiencode(msg, &src, '"');
-
-			chunk_appendf(msg, "\"");
-		}
-
-		if (duration >= 0)
-			chunk_appendf(msg, ", check duration: %ldms", duration);
-	}
-        else if (desc && *desc) {
-                chunk_appendf(msg, ", %s", desc);
-        }
-	else if (!forced && s->track) {
+	if (!forced && s->track) {
 		chunk_appendf(msg, " via %s/%s", s->track->proxy->id, s->track->id);
 	}
 
@@ -5354,7 +5330,9 @@ static void srv_update_status(struct server *s)
 				             "%sServer %s/%s is DOWN", s->flags & SRV_F_BACKUP ? "Backup " : "",
 				             s->proxy->id, s->id);
 
-				srv_append_status(tmptrash, s, NULL, xferred, 0);
+				srv_append_op_chg_cause(tmptrash, s, NULL);
+				srv_append_more(tmptrash, s, xferred, 0);
+
 				ha_warning("%s.\n", tmptrash->area);
 
 				/* we don't send an alert if the server was previously paused */
@@ -5382,7 +5360,8 @@ static void srv_update_status(struct server *s)
 				             "%sServer %s/%s is stopping", s->flags & SRV_F_BACKUP ? "Backup " : "",
 				             s->proxy->id, s->id);
 
-				srv_append_status(tmptrash, s, NULL, xferred, 0);
+				srv_append_op_chg_cause(tmptrash, s, NULL);
+				srv_append_more(tmptrash, s, xferred, 0);
 
 				ha_warning("%s.\n", tmptrash->area);
 				send_log(s->proxy, LOG_NOTICE, "%s.\n",
@@ -5424,7 +5403,9 @@ static void srv_update_status(struct server *s)
 				             "%sServer %s/%s is UP", s->flags & SRV_F_BACKUP ? "Backup " : "",
 				             s->proxy->id, s->id);
 
-				srv_append_status(tmptrash, s, NULL, xferred, 0);
+				srv_append_op_chg_cause(tmptrash, s, NULL);
+				srv_append_more(tmptrash, s, xferred, 0);
+
 				ha_warning("%s.\n", tmptrash->area);
 				send_log(s->proxy, LOG_NOTICE, "%s.\n",
 					 tmptrash->area);
@@ -5460,13 +5441,10 @@ static void srv_update_status(struct server *s)
 			tmptrash = alloc_trash_chunk();
 			if (tmptrash) {
 				chunk_printf(tmptrash,
-				    "%sServer %s/%s was DOWN and now enters maintenance%s%s%s",
-				    s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id,
-				    (s->adm_st_chg_cause) ? " (" : "",
-				    srv_adm_st_chg_cause(s->adm_st_chg_cause),
-				    (s->adm_st_chg_cause) ? ")" : "");
-
-				srv_append_status(tmptrash, s, NULL, -1, (s->next_admin & SRV_ADMF_FMAINT));
+				    "%sServer %s/%s was DOWN and now enters maintenance",
+				    s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id);
+				srv_append_adm_chg_cause(tmptrash, s);
+				srv_append_more(tmptrash, s, -1, (s->next_admin & SRV_ADMF_FMAINT));
 
 				if (!(global.mode & MODE_STARTING)) {
 					ha_warning("%s.\n", tmptrash->area);
@@ -5500,14 +5478,11 @@ static void srv_update_status(struct server *s)
 			tmptrash = alloc_trash_chunk();
 			if (tmptrash) {
 				chunk_printf(tmptrash,
-				             "%sServer %s/%s is going DOWN for maintenance%s%s%s",
+				             "%sServer %s/%s is going DOWN for maintenance",
 				             s->flags & SRV_F_BACKUP ? "Backup " : "",
-				             s->proxy->id, s->id,
-				             (s->adm_st_chg_cause) ? " (" : "",
-				             srv_adm_st_chg_cause(s->adm_st_chg_cause),
-				             (s->adm_st_chg_cause) ? ")" : "");
-
-				srv_append_status(tmptrash, s, NULL, xferred, (s->next_admin & SRV_ADMF_FMAINT));
+				             s->proxy->id, s->id);
+				srv_append_adm_chg_cause(tmptrash, s);
+				srv_append_more(tmptrash, s, xferred, (s->next_admin & SRV_ADMF_FMAINT));
 
 				if (!(global.mode & MODE_STARTING)) {
 					ha_warning("%s.\n", tmptrash->area);
@@ -5686,13 +5661,10 @@ static void srv_update_status(struct server *s)
 
 			tmptrash = alloc_trash_chunk();
 			if (tmptrash) {
-				chunk_printf(tmptrash, "%sServer %s/%s enters drain state%s%s%s",
-					     s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id,
-				             (s->adm_st_chg_cause) ? " (" : "",
-				             srv_adm_st_chg_cause(s->adm_st_chg_cause),
-				             (s->adm_st_chg_cause) ? ")" : "");
-
-				srv_append_status(tmptrash, s, NULL, xferred, (s->next_admin & SRV_ADMF_FDRAIN));
+				chunk_printf(tmptrash, "%sServer %s/%s enters drain state",
+					     s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id);
+				srv_append_adm_chg_cause(tmptrash, s);
+				srv_append_more(tmptrash, s, xferred, (s->next_admin & SRV_ADMF_FDRAIN));
 
 				if (!(global.mode & MODE_STARTING)) {
 					ha_warning("%s.\n", tmptrash->area);
