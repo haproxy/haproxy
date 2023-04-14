@@ -1725,11 +1725,11 @@ static int sc_conn_process(struct stconn *sc)
 
 	/* First step, report to the stream connector what was detected at the
 	 * connection layer : errors and connection establishment.
-	 * Only add SE_FL_ERROR if we're connected, or we're attempting to
+	 * Only add SC_FL_ERROR if we're connected, or we're attempting to
 	 * connect, we may get there because we got woken up, but only run
 	 * after process_stream() noticed there were an error, and decided
 	 * to retry to connect, the connection may still have CO_FL_ERROR,
-	 * and we don't want to add SE_FL_ERROR back
+	 * and we don't want to add SC_FL_ERROR back
 	 *
 	 * Note: This test is only required because sc_conn_process is also the SI
 	 *       wake callback. Otherwise sc_conn_recv()/sc_conn_send() already take
@@ -1737,10 +1737,8 @@ static int sc_conn_process(struct stconn *sc)
 	 */
 
 	if (sc->state >= SC_ST_CON) {
-		if (sc_is_conn_error(sc)) {
-			sc_ep_set(sc, SE_FL_ERROR);
+		if (sc_is_conn_error(sc))
 			sc->flags |= SC_FL_ERROR;
-		}
 	}
 
 	/* If we had early data, and the handshake ended, then

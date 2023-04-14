@@ -1822,10 +1822,8 @@ skip_reuse:
 	 * sockets, socket pairs, andoccasionally TCP connections on the
 	 * loopback on a heavily loaded system.
 	 */
-	if (srv_conn->flags & CO_FL_ERROR) {
-		sc_ep_set(s->scb, SE_FL_ERROR);
+	if (srv_conn->flags & CO_FL_ERROR)
 		s->scb->flags |= SC_FL_ERROR;
-	}
 
 	/* If we had early data, and the handshake ended, then
 	 * we can remove the flag, and attempt to wake the task up,
@@ -2026,7 +2024,6 @@ void back_try_conn_req(struct stream *s)
 			/* Failed and not retryable. */
 			sc_abort(sc);
 			sc_shutdown(sc);
-			sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
 			sc->flags |= SC_FL_ERROR;
 
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
@@ -2047,7 +2044,6 @@ void back_try_conn_req(struct stream *s)
 		 * allocation problem, so we want to retry now.
 		 */
 		sc->state = SC_ST_CER;
-		sc_ep_clr(sc, SE_FL_ERROR);
 		sc->flags &= ~SC_FL_ERROR;
 		back_handle_st_cer(s);
 
@@ -2188,7 +2184,6 @@ void back_handle_st_req(struct stream *s)
 
 			sc_abort(sc);
 			sc_shutdown(sc);
-			sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
 			sc->flags |= SC_FL_ERROR;
 			s->conn_err_type = STRM_ET_CONN_RES;
 			sc->state = SC_ST_CLO;
@@ -2215,7 +2210,6 @@ void back_handle_st_req(struct stream *s)
 		/* we did not get any server, let's check the cause */
 		sc_abort(sc);
 		sc_shutdown(sc);
-		sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
 		sc->flags |= SC_FL_ERROR;
 		if (!s->conn_err_type)
 			s->conn_err_type = STRM_ET_CONN_OTHER;
@@ -2350,7 +2344,6 @@ void back_handle_st_cer(struct stream *s)
 
 		/* shutw is enough to stop a connecting socket */
 		sc_shutdown(sc);
-		sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
 		sc->flags |= SC_FL_ERROR;
 
 		sc->state = SC_ST_CLO;
@@ -2369,7 +2362,7 @@ void back_handle_st_cer(struct stream *s)
 	 * layers in an unexpected state (i.e < ST_CONN).
 	 *
 	 * Note: the stream connector will be switched to ST_REQ, ST_ASS or
-	 * ST_TAR and SE_FL_ERROR and SF_CONN_EXP flags will be unset.
+	 * ST_TAR and SC_FL_ERROR and SF_CONN_EXP flags will be unset.
 	 */
 	if (sc_reset_endp(sc) < 0) {
 		if (!s->conn_err_type)
@@ -2384,7 +2377,6 @@ void back_handle_st_cer(struct stream *s)
 
 		/* shutw is enough to stop a connecting socket */
 		sc_shutdown(sc);
-		sc_ep_set(sc, SE_FL_ERROR|SE_FL_EOS);
 		sc->flags |= SC_FL_ERROR;
 
 		sc->state = SC_ST_CLO;

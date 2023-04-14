@@ -1805,11 +1805,9 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 *       must be be reviewed too.
 	 */
 	if (!stream_alloc_work_buffer(s)) {
-		sc_ep_set(s->scf, SE_FL_ERROR);
 		scf->flags |= SC_FL_ERROR;
 		s->conn_err_type = STRM_ET_CONN_RES;
 
-		sc_ep_set(s->scb, SE_FL_ERROR);
 		scb->flags |= SC_FL_ERROR;
 		s->conn_err_type = STRM_ET_CONN_RES;
 
