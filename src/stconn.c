@@ -1847,6 +1847,8 @@ static int sc_applet_process(struct stconn *sc)
 		sc_abort(sc);
 	}
 
+	BUG_ON(sc_ep_test(sc, SE_FL_HAVE_NO_DATA|SE_FL_EOI) == SE_FL_EOI);
+
 	/* If the applet wants to write and the channel is closed, it's a
 	 * broken pipe and it must be reported.
 	 */
