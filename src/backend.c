@@ -1955,7 +1955,7 @@ int srv_redispatch_connect(struct stream *s)
 /* Check if the connection request is in such a state that it can be aborted. */
 static int back_may_abort_req(struct channel *req, struct stream *s)
 {
-	return ((s->scf->flags & SC_FL_ERROR) || sc_ep_test(s->scf, SE_FL_ERROR) ||
+	return ((s->scf->flags & SC_FL_ERROR) ||
 	        ((s->scb->flags & (SC_FL_SHUT_WANTED|SC_FL_SHUT_DONE)) &&  /* empty and client aborted */
 	         (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE))));
 }
@@ -2260,9 +2260,9 @@ void back_handle_st_con(struct stream *s)
 
  done:
 	/* retryable error ? */
-	if ((s->flags & SF_CONN_EXP) || sc_ep_test(sc, SE_FL_ERROR) || (sc->flags & SC_FL_ERROR)) {
+	if ((s->flags & SF_CONN_EXP) || (sc->flags & SC_FL_ERROR)) {
 		if (!s->conn_err_type) {
-			if ((sc->flags & SC_FL_ERROR) || sc_ep_test(sc, SE_FL_ERROR))
+			if ((sc->flags & SC_FL_ERROR))
 				s->conn_err_type = STRM_ET_CONN_ERR;
 			else
 				s->conn_err_type = STRM_ET_CONN_TO;
@@ -2288,7 +2288,7 @@ void back_handle_st_con(struct stream *s)
 void back_handle_st_cer(struct stream *s)
 {
 	struct stconn *sc = s->scb;
-	int must_tar = !!(sc->flags & SC_FL_ERROR) || sc_ep_test(sc, SE_FL_ERROR);
+	int must_tar = !!(sc->flags & SC_FL_ERROR);
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
@@ -2306,7 +2306,7 @@ void back_handle_st_cer(struct stream *s)
 			_HA_ATOMIC_DEC(&__objt_server(s->target)->cur_sess);
 		}
 
-		if (((sc->flags & SC_FL_ERROR) || sc_ep_test(sc, SE_FL_ERROR)) &&
+		if ((sc->flags & SC_FL_ERROR) &&
 		    conn && conn->err_code == CO_ER_SSL_MISMATCH_SNI) {
 			/* We tried to connect to a server which is configured
 			 * with "verify required" and which doesn't have the
@@ -2482,7 +2482,7 @@ void back_handle_st_rdy(struct stream *s)
 		}
 
 		/* retryable error ? */
-		if (sc->flags & SC_FL_ERROR || sc_ep_test(sc, SE_FL_ERROR)) {
+		if (sc->flags & SC_FL_ERROR) {
 			if (!s->conn_err_type)
 				s->conn_err_type = STRM_ET_CONN_ERR;
 			sc->state = SC_ST_CER;
