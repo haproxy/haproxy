@@ -784,7 +784,7 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	 */
 	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
-	http_reply_and_close(s, txn->status, (!(s->scf->flags & SC_FL_ERROR) && !sc_ep_test(s->scf, SE_FL_ERROR) ? http_error_message(s) : NULL));
+	http_reply_and_close(s, txn->status, (!(s->scf->flags & SC_FL_ERROR) ? http_error_message(s) : NULL));
 	http_set_term_flags(s);
 
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
@@ -1215,7 +1215,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
   next_one:
 	if (unlikely(htx_is_empty(htx) || htx->first == -1)) {
 		/* 1: have we encountered a read error ? */
-		if ((s->scb->flags & SC_FL_ERROR) || sc_ep_test(s->scb, SE_FL_ERROR)) {
+		if (s->scb->flags & SC_FL_ERROR) {
 			struct connection *conn = sc_conn(s->scb);
 
 
@@ -2672,7 +2672,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
-			if ((s->scf->flags & SC_FL_ERROR) || sc_ep_test(s->scf, SE_FL_ERROR) ||
+			if ((s->scf->flags & SC_FL_ERROR) ||
 			    ((s->scf->flags & SC_FL_ABRT_DONE) &&
 			     (px->options & PR_O_ABRT_CLOSE)))
 				act_opts |= ACT_OPT_FINAL;
@@ -2835,7 +2835,7 @@ resume_execution:
 
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
-			if ((s->scf->flags & SC_FL_ERROR) || sc_ep_test(s->scf, SE_FL_ERROR) ||
+			if ((s->scf->flags & SC_FL_ERROR) ||
 			    ((s->scf->flags & SC_FL_ABRT_DONE) &&
 			     (px->options & PR_O_ABRT_CLOSE)))
 				act_opts |= ACT_OPT_FINAL;
