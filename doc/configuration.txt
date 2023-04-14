@@ -7839,11 +7839,11 @@ http-request wait-for-body time <time> [ at-least <bytes> ]
              [ { if | unless } <condition> ]
 
   This will delay the processing of the request waiting for the payload for at
-  most <time> milliseconds. if "at-least" argument is specified, HAProxy stops
-  to wait the payload when the first <bytes> bytes are received. 0 means no
-  limit, it is the default value. Regardless the "at-least" argument value,
+  most <time> milliseconds. If the "at-least" argument is specified, HAProxy
+  stops to wait when the first <bytes> payload bytes are received. 0 means no
+  limit, which is the default value. Regardless of the "at-least" argument value,
   HAProxy stops to wait if the whole payload is received or if the request
-  buffer is full.  This action may be used as a replacement to "option
+  buffer is full. This action may be used as a replacement to "option
   http-buffer-request".
 
   Arguments :
