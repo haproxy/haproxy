@@ -2715,7 +2715,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	struct proxy *fe = strm_fe(s);
 	struct proxy *be = s->be;
 
-	if (sc_ep_test(s->scb, SE_FL_ERROR) || (rep->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT)) ||
+	if ((s->scb->flags & SC_FL_ERROR) || sc_ep_test(s->scb, SE_FL_ERROR) || (rep->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT)) ||
 	    ((s->scf->flags & SC_FL_SHUT_DONE) && (rep->to_forward || co_data(rep)))) {
 		pcli_reply_and_close(s, "Can't connect to the target CLI!\n");
 		s->req.analysers &= ~AN_REQ_WAIT_CLI;

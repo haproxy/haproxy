@@ -579,8 +579,8 @@ static void sc_app_shut(struct stconn *sc)
 		 * However, if SC_FL_NOLINGER is explicitly set, we know there is
 		 * no risk so we close both sides immediately.
 		 */
-		if (!sc_ep_test(sc, SE_FL_ERROR) && !(sc->flags & SC_FL_NOLINGER) &&
-		    !(sc->flags & SC_FL_ABRT_DONE) && !(ic->flags & CF_DONT_READ))
+		if (!(sc->flags & (SC_FL_ERROR|SC_FL_NOLINGER|SC_FL_ABRT_DONE)) && !sc_ep_test(sc, SE_FL_ERROR) &&
+		    !(ic->flags & CF_DONT_READ))
 			return;
 
 		__fallthrough;
@@ -705,7 +705,7 @@ static void sc_app_shut_conn(struct stconn *sc)
 		 * no risk so we close both sides immediately.
 		 */
 
-		if (sc_ep_test(sc, SE_FL_ERROR)) {
+		if ((sc->flags & SC_FL_ERROR) || sc_ep_test(sc, SE_FL_ERROR)) {
 			/* quick close, the socket is already shut anyway */
 		}
 		else if (sc->flags & SC_FL_NOLINGER) {
@@ -903,8 +903,7 @@ static void sc_app_shut_applet(struct stconn *sc)
 		 * However, if SC_FL_NOLINGER is explicitly set, we know there is
 		 * no risk so we close both sides immediately.
 		 */
-		if (!sc_ep_test(sc, SE_FL_ERROR) && !(sc->flags & SC_FL_NOLINGER) &&
-		    !(sc->flags & SC_FL_ABRT_DONE) &&
+		if (!(sc->flags & (SC_FL_ERROR|SC_FL_NOLINGER|SC_FL_ABRT_DONE)) && !sc_ep_test(sc, SE_FL_ERROR) &&
 		    !(ic->flags & CF_DONT_READ))
 			return;
 
@@ -1095,14 +1094,14 @@ static void sc_notify(struct stconn *sc)
 
 	/* wake the task up only when needed */
 	if (/* changes on the production side that must be handled:
-	     *  - An error on receipt: SE_FL_ERROR
+	     *  - An error on receipt: SC_FL_ERROR
 	     *  - A read event: shutdown for reads (CF_READ_EVENT + ABRT_DONE)
 	     *                  end of input (CF_READ_EVENT + SC_FL_EOI)
 	     *                  data received and no fast-forwarding (CF_READ_EVENT + !to_forward)
 	     *                  read event while consumer side is not established (CF_READ_EVENT + sco->state != SC_ST_EST)
 	     */
 		((ic->flags & CF_READ_EVENT) && ((sc->flags & SC_FL_EOI) || (sc->flags & SC_FL_ABRT_DONE) || !ic->to_forward || sco->state != SC_ST_EST)) ||
-	    sc_ep_test(sc, SE_FL_ERROR) ||
+		(sc->flags & SC_FL_ERROR) || sc_ep_test(sc, SE_FL_ERROR) ||
 
 	    /* changes on the consumption side */
 	    sc_ep_test(sc, SE_FL_ERR_PENDING) ||
