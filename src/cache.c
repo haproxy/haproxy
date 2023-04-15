@@ -425,12 +425,12 @@ static void delete_entry(struct cache_entry *del_entry)
 
 static inline struct shared_context *shctx_ptr(struct cache *cache)
 {
-	return (struct shared_context *)((unsigned char *)cache - ((struct shared_context *)NULL)->data);
+	return (struct shared_context *)((unsigned char *)cache -  offsetof(struct shared_context, data));
 }
 
 static inline struct shared_block *block_ptr(struct cache_entry *entry)
 {
-	return (struct shared_block *)((unsigned char *)entry - ((struct shared_block *)NULL)->data);
+	return (struct shared_block *)((unsigned char *)entry - offsetof(struct shared_block, data));
 }
 
 

@@ -4205,7 +4205,7 @@ static inline void sh_ssl_sess_free_blocks(struct shared_block *first, struct sh
 /* return first block from sh_ssl_sess  */
 static inline struct shared_block *sh_ssl_sess_first_block(struct sh_ssl_sess_hdr *sh_ssl_sess)
 {
-	return (struct shared_block *)((unsigned char *)sh_ssl_sess - ((struct shared_block *)NULL)->data);
+	return (struct shared_block *)((unsigned char *)sh_ssl_sess - offsetof(struct shared_block, data));
 
 }
 
