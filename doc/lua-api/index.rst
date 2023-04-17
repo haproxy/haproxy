@@ -1487,6 +1487,12 @@ EventSub class
 ServerEvent class
 =================
 
+.. js:class:: ServerEvent
+
+This class is provided with every **SERVER** events.
+
+See :js:func:`core.event_sub()` for more info.
+
 .. js:attribute:: ServerEvent.name
 
   Contains the name of the server.
