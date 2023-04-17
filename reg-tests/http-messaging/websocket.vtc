@@ -27,7 +27,10 @@ server s1 {
 	  -hdr "connection: upgrade" \
 	  -hdr "upgrade: websocket" \
 	  -hdr "sec-websocket-accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
-} -repeat 2 -start
+
+        recv 4
+	send "PONG"
+} -start
 
 # non-conformant server: no websocket key
 server s2 {
@@ -124,6 +127,9 @@ client c1 -connect ${hap_fe1_sock} {
 	expect resp.http.connection == "upgrade"
 	expect resp.http.upgrade == "websocket"
 	expect resp.http.sec-websocket-accept == "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
+
+	send "PING"
+	recv 4
 } -run
 
 # missing websocket key

@@ -2089,10 +2089,9 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		}
 	}
 
-	if ((txn->meth == HTTP_METH_CONNECT && txn->status >= 200 && txn->status < 300) || txn->status == 101 ||
-	    !(msg->flags & HTTP_MSGF_XFER_LEN)) {
+	if (!(txn->flags & TX_CON_WANT_TUN) && !(msg->flags & HTTP_MSGF_XFER_LEN)) {
+		/* One-side tunnel */
 		msg->msg_state = HTTP_MSG_TUNNEL;
-		goto ending;
 	}
 	else {
 		msg->msg_state = HTTP_MSG_DONE;
@@ -4255,8 +4254,10 @@ static void http_end_request(struct stream *s)
 			/* Tunnel mode will not have any analyser so it needs to
 			 * poll for reads.
 			 */
-			channel_auto_read(chn);
+			channel_auto_read(&s->req);
 			txn->req.msg_state = HTTP_MSG_TUNNEL;
+			channel_auto_read(&s->res);
+			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
 		}
 		else {
 			/* we're not expecting any new data to come for this
@@ -4363,7 +4364,9 @@ static void http_end_response(struct stream *s)
 		 * direction, and sometimes for a close to be effective.
 		 */
 		if (txn->flags & TX_CON_WANT_TUN) {
-			channel_auto_read(chn);
+			channel_auto_read(&s->req);
+			txn->req.msg_state = HTTP_MSG_TUNNEL;
+			channel_auto_read(&s->res);
 			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
 		}
 		else {
