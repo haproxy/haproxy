@@ -5335,9 +5335,6 @@ static void srv_update_status(struct server *s)
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
-			if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
-				set_backend_down(s->proxy);
-
 			s->counters.down_trans++;
 		}
 		else if ((s->cur_state != SRV_ST_STOPPING) && (s->next_state == SRV_ST_STOPPING)) {
@@ -5365,17 +5362,9 @@ static void srv_update_status(struct server *s)
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
-
-			if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
-				set_backend_down(s->proxy);
 		}
 		else if (((s->cur_state != SRV_ST_RUNNING) && (s->next_state == SRV_ST_RUNNING))
 			 || ((s->cur_state != SRV_ST_STARTING) && (s->next_state == SRV_ST_STARTING))) {
-			if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
-				if (s->proxy->last_change < now.tv_sec)		// ignore negative times
-					s->proxy->down_time += now.tv_sec - s->proxy->last_change;
-				s->proxy->last_change = now.tv_sec;
-			}
 
 			if (s->cur_state == SRV_ST_STOPPED && s->last_change < now.tv_sec)	// ignore negative times
 				s->down_time += now.tv_sec - s->last_change;
@@ -5429,9 +5418,6 @@ static void srv_update_status(struct server *s)
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
-
-			if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
-				set_backend_down(s->proxy);
 		}
 		else if (s->cur_eweight != s->next_eweight) {
 			/* now propagate the status change to any LB algorithms */
@@ -5445,9 +5431,6 @@ static void srv_update_status(struct server *s)
 				if (px->lbprm.set_server_status_down)
 					px->lbprm.set_server_status_down(s);
 			}
-
-			if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
-				set_backend_down(s->proxy);
 		}
 
 		s->next_admin = next_admin;
@@ -5526,9 +5509,6 @@ static void srv_update_status(struct server *s)
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
-			if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
-				set_backend_down(s->proxy);
-
 			s->counters.down_trans++;
 		}
 	}
@@ -5548,7 +5528,6 @@ static void srv_update_status(struct server *s)
 		 * that the server might still be in drain mode, which is naturally dealt
 		 * with by the lower level functions.
 		 */
-
 		if (s->check.state & CHK_ST_ENABLED) {
 			s->check.state &= ~CHK_ST_PAUSED;
 			check->health = check->rise; /* start OK but check immediately */
@@ -5624,11 +5603,6 @@ static void srv_update_status(struct server *s)
 			if (px->lbprm.set_server_status_down)
 				px->lbprm.set_server_status_down(s);
 		}
-
-		if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
-			set_backend_down(s->proxy);
-		else if (!prev_srv_count && (s->proxy->srv_bck || s->proxy->srv_act))
-			s->proxy->last_change = now.tv_sec;
 
 		/* If the server is set with "on-marked-up shutdown-backup-sessions",
 		 * and it's not a backup server and its effective weight is > 0,
@@ -5733,17 +5707,9 @@ static void srv_update_status(struct server *s)
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
-
-			if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
-				set_backend_down(s->proxy);
 		}
 		else if ((s->cur_admin & SRV_ADMF_DRAIN) && !(s->next_admin & SRV_ADMF_DRAIN)) {
 			/* OK completely leaving drain mode */
-			if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
-				if (s->proxy->last_change < now.tv_sec)         // ignore negative times
-					s->proxy->down_time += now.tv_sec - s->proxy->last_change;
-				s->proxy->last_change = now.tv_sec;
-			}
 
 			if (s->last_change < now.tv_sec)                        // ignore negative times
 				s->down_time += now.tv_sec - s->last_change;
@@ -5826,6 +5792,18 @@ static void srv_update_status(struct server *s)
 	 * by some lb state change function), so we don't miss anything
 	 */
 	srv_lb_commit_status(s);
+
+	/* check if backend stats must be updated due to the server state change */
+	if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
+		set_backend_down(s->proxy); /* backend going down */
+	else if (!prev_srv_count && (s->proxy->srv_bck || s->proxy->srv_act)) {
+		/* backend was down and is back up again:
+		 * no helper function, updating last_change and backend downtime stats
+		 */
+		if (s->proxy->last_change < now.tv_sec)         // ignore negative times
+			s->proxy->down_time += now.tv_sec - s->proxy->last_change;
+		s->proxy->last_change = now.tv_sec;
+	}
 }
 
 struct task *srv_cleanup_toremove_conns(struct task *task, void *context, unsigned int state)
