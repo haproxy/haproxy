@@ -48,6 +48,27 @@ static inline size_t qc_frm_len(struct quic_frame *frm)
 	size_t len = 0;
 
 	switch (frm->type) {
+	case QUIC_FT_ACK: {
+		struct quic_tx_ack *tx_ack = &frm->tx_ack;
+		struct eb64_node *ar, *prev_ar;
+		struct quic_arng_node *ar_node, *prev_ar_node;
+
+		ar = eb64_last(&tx_ack->arngs->root);
+		ar_node = eb64_entry(ar, struct quic_arng_node, first);
+		len += 1 + quic_int_getsize(ar_node->last);
+		len += quic_int_getsize(tx_ack->ack_delay);
+		len += quic_int_getsize(tx_ack->arngs->sz - 1);
+		len += quic_int_getsize(ar_node->last - ar_node->first.key);
+
+		while ((prev_ar = eb64_prev(ar))) {
+			prev_ar_node = eb64_entry(prev_ar, struct quic_arng_node, first);
+			len += quic_int_getsize(ar_node->first.key - prev_ar_node->last - 2);
+			len += quic_int_getsize(prev_ar_node->last - prev_ar_node->first.key);
+			ar = prev_ar;
+			ar_node = eb64_entry(ar, struct quic_arng_node, first);
+		}
+		break;
+	}
 	case QUIC_FT_RESET_STREAM: {
 		struct quic_reset_stream *f = &frm->reset_stream;
 		len += 1 + quic_int_getsize(f->id) +

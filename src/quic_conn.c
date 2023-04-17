@@ -4206,46 +4206,6 @@ static inline size_t sack_gap(struct quic_arng_node *p,
 	return p->first.key - q->last - 2;
 }
 
-
-/* Remove the last elements of <ack_ranges> list of ack range updating its
- * encoded size until it goes below <limit>.
- * Returns 1 if succeeded, 0 if not (no more element to remove).
- */
-static int quic_rm_last_ack_ranges(struct quic_conn *qc,
-                                   struct quic_arngs *arngs, size_t limit)
-{
-	int ret = 0;
-	struct eb64_node *last, *prev;
-
-	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
-
-	last = eb64_last(&arngs->root);
-	while (last && arngs->enc_sz > limit) {
-		struct quic_arng_node *last_node, *prev_node;
-
-		prev = eb64_prev(last);
-		if (!prev) {
-			TRACE_DEVEL("<last> not found", QUIC_EV_CONN_TXPKT, qc);
-			goto out;
-		}
-
-		last_node = eb64_entry(last, struct quic_arng_node, first);
-		prev_node = eb64_entry(prev, struct quic_arng_node, first);
-		arngs->enc_sz -= quic_int_getsize(last_node->last - last_node->first.key);
-		arngs->enc_sz -= quic_int_getsize(sack_gap(prev_node, last_node));
-		arngs->enc_sz -= quic_decint_size_diff(arngs->sz);
-		--arngs->sz;
-		eb64_delete(last);
-		pool_free(pool_head_quic_arng, last);
-		last = prev;
-	}
-
-	ret = 1;
- out:
-	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
-	return ret;
-}
-
 /* Set the encoded size of <arngs> QUIC ack ranges. */
 static void quic_arngs_set_enc_sz(struct quic_conn *qc, struct quic_arngs *arngs)
 {
@@ -7407,33 +7367,6 @@ static int quic_apply_header_protection(struct quic_conn *qc, unsigned char *buf
 	return ret;
 }
 
-/* Reduce the encoded size of <ack_frm> ACK frame removing the last
- * ACK ranges if needed to a value below <limit> in bytes.
- * Return 1 if succeeded, 0 if not.
- */
-static int quic_ack_frm_reduce_sz(struct quic_conn *qc,
-                                  struct quic_frame *ack_frm, size_t limit)
-{
-	size_t room, ack_delay_sz;
-	int ret = 0;
-
-	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
-
-	ack_delay_sz = quic_int_getsize(ack_frm->tx_ack.ack_delay);
-	if (limit <= ack_delay_sz - 1)
-		goto leave;
-
-	/* A frame is made of 1 byte for the frame type. */
-	room = limit - ack_delay_sz - 1;
-	if (!quic_rm_last_ack_ranges(qc, ack_frm->tx_ack.arngs, room))
-		goto leave;
-
-	ret = 1 + ack_delay_sz + ack_frm->tx_ack.arngs->enc_sz;
- leave:
-	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
-	return ret;
-}
-
 /* Prepare into <outlist> as most as possible ack-eliciting frame from their
  * <inlist> prebuilt frames for <qel> encryption level to be encoded in a buffer
  * with <room> as available room, and <*len> the packet Length field initialized
@@ -7853,8 +7786,8 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		if (end - pos <= 1 + *pn_len)
 			goto no_room;
 
-		ack_frm_len = quic_ack_frm_reduce_sz(qc, &ack_frm, end - 1 - *pn_len - pos);
-		if (!ack_frm_len)
+		ack_frm_len = qc_frm_len(&ack_frm);
+		if (ack_frm_len > end - 1 - *pn_len - pos)
 			goto no_room;
 	}
 
