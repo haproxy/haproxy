@@ -1821,6 +1821,37 @@ struct task *sc_conn_io_cb(struct task *t, void *ctx, unsigned int state)
 	return t;
 }
 
+/*
+ * This function propagates an end-of-stream received from an applet. It
+ * updates the stream connector. If it is is already shut, the applet is
+ * released. Otherwise, we try to forward the shutdown, immediately or ASAP.
+ */
+static void sc_applet_eos(struct stconn *sc)
+{
+	struct channel *ic = sc_ic(sc);
+
+	BUG_ON(!sc_appctx(sc));
+
+	if (sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))
+		return;
+	sc->flags |= SC_FL_EOS;
+	ic->flags |= CF_READ_EVENT;
+
+	/* Note: on abort, we don't call the applet */
+
+	if (!sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
+		return;
+
+	if (sc->flags & SC_FL_SHUT_DONE) {
+		appctx_shut(__sc_appctx(sc));
+		sc->state = SC_ST_DIS;
+		if (sc->flags & SC_FL_ISBACK)
+			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
+	}
+	else if (sc_cond_forward_shut(sc))
+		return sc_app_shut_applet(sc);
+}
+
 /* Callback to be used by applet handlers upon completion. It updates the stream
  * (which may or may not take this opportunity to try to forward data), then
  * may re-enable the applet's based on the channels and stream connector's final
@@ -1845,7 +1876,7 @@ static int sc_applet_process(struct stconn *sc)
 
 	if (sc_ep_test(sc, SE_FL_EOS)) {
 		/* we received a shutdown */
-		sc_abort(sc);
+		sc_applet_eos(sc);
 	}
 
 	BUG_ON(sc_ep_test(sc, SE_FL_HAVE_NO_DATA|SE_FL_EOI) == SE_FL_EOI);
