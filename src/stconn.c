@@ -1121,11 +1121,11 @@ static void sc_notify(struct stconn *sc)
 }
 
 /*
- * This function propagates a null read received on a socket-based connection.
+ * This function propagates an end-of-stream received on a socket-based connection.
  * It updates the stream connector. If the stream connector has SC_FL_NOHALF,
  * the close is also forwarded to the write side as an abort.
  */
-static void sc_conn_read0(struct stconn *sc)
+static void sc_conn_eos(struct stconn *sc)
 {
 	struct channel *ic = sc_ic(sc);
 
@@ -1133,7 +1133,7 @@ static void sc_conn_read0(struct stconn *sc)
 
 	if (sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))
 		return;
-	sc->flags |= SC_FL_ABRT_DONE;
+	sc->flags |= SC_FL_EOS;
 	ic->flags |= CF_READ_EVENT;
 	sc_ep_report_read_activity(sc);
 
@@ -1477,7 +1477,7 @@ static int sc_conn_recv(struct stconn *sc)
 		/* we received a shutdown */
 		if (ic->flags & CF_AUTO_CLOSE)
 			sc_schedule_shutdown(sc_opposite(sc));
-		sc_conn_read0(sc);
+		sc_conn_eos(sc);
 		ret = 1;
 	}
 
@@ -1766,11 +1766,11 @@ static int sc_conn_process(struct stconn *sc)
 	 *       wake callback. Otherwise sc_conn_recv()/sc_conn_send() already take
 	 *       care of it.
 	 */
-	if (sc_ep_test(sc, SE_FL_EOS) && !(sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))) {
+	if (sc_ep_test(sc, SE_FL_EOS) && !(sc->flags & SC_FL_EOS)) {
 		/* we received a shutdown */
 		if (ic->flags & CF_AUTO_CLOSE)
 			sc_schedule_shutdown(sc_opposite(sc));
-		sc_conn_read0(sc);
+		sc_conn_eos(sc);
 	}
 
 	/* Report EOI on the channel if it was reached from the mux point of
