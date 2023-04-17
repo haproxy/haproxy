@@ -321,6 +321,9 @@ struct quic_arng_node {
 	uint64_t last;
 };
 
+/* The maximum number of ack ranges to be built in ACK frames */
+#define QUIC_MAX_ACK_RANGES   32
+
 /* Structure to maintain a set of ACK ranges to be used to build ACK frames. */
 struct quic_arngs {
 	/* ebtree of ACK ranges organized by their first value. */

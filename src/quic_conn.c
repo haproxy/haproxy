@@ -4246,6 +4246,16 @@ struct quic_arng_node *quic_insert_new_range(struct quic_conn *qc,
 
 	TRACE_ENTER(QUIC_EV_CONN_RXPKT, qc);
 
+	if (arngs->sz >= QUIC_MAX_ACK_RANGES) {
+		struct eb64_node *last;
+
+		last = eb64_last(&arngs->root);
+		BUG_ON(last == NULL);
+		eb64_delete(last);
+		pool_free(pool_head_quic_arng, last);
+		arngs->sz--;
+	}
+
 	new_ar = pool_alloc(pool_head_quic_arng);
 	if (!new_ar) {
 		TRACE_ERROR("ack range allocation failed", QUIC_EV_CONN_RXPKT, qc);
