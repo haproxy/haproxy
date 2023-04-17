@@ -3583,7 +3583,7 @@ static void syslog_io_handler(struct appctx *appctx)
 	}
 
 	max_accept = l->bind_conf->maxaccept ? l->bind_conf->maxaccept : 1;
-	while (co_data(sc_oc(sc))) {
+	while (1) {
 		char c;
 
 		if (max_accept <= 0)
