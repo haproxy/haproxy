@@ -3389,7 +3389,7 @@ static int ssl_sock_load_cert_chain(const char *path, const struct ckch_data *da
 #ifdef SSL_CTX_set1_chain
 	if (!SSL_CTX_set1_chain(ctx, *find_chain)) {
 		ret = ERR_get_error();
-		memprintf(err, "%sunable to load chain certificate into SSL Context '%s': %s. Make sure you are linking against Openssl >= 1.0.2.\n",
+		memprintf(err, "%sunable to load chain certificate into SSL Context '%s': %s.\n",
 			  err && *err ? *err : "", path,  ERR_reason_error_string(ret));
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
