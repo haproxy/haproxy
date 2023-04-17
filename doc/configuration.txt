@@ -2885,6 +2885,28 @@ tune.fd.edge-triggered { on | off }  [ EXPERIMENTAL ]
   certain scenarios. This is still experimental, it may result in frozen
   connections if bugs are still present, and is disabled by default.
 
+tune.h2.be.initial-window-size <number>
+  Sets the HTTP/2 initial window size for outgoing connections, which is the
+  number of bytes the server can respond before waiting for an acknowledgment
+  from HAProxy. This setting only affects payload contents, not headers. When
+  not set, the common default value set by tune.h2.initial-window-size applies.
+  It can make sense to slightly increase this value to allow faster downloads
+  or to reduce CPU usage on the servers, at the expense of creating unfairness
+  between clients. It doesn't affect resource usage.
+  See also: tune.h2.initial-window-size.
+
+tune.h2.fe.initial-window-size <number>
+  Sets the HTTP/2 initial window size for incoming connections, which is the
+  number of bytes the client can upload before waiting for an acknowledgment
+  from HAProxy. This setting only affects payload contents (i.e. the body of
+  POST requests), not headers. When not set, the common default value set by
+  tune.h2.initial-window-size applies. It can make sense to increase this value
+  to allow faster uploads. The default value of 65536 allows up to 5 Mbps of
+  bandwidth per client over a 100 ms ping time, and 500 Mbps for 1 ms ping
+  time. It doesn't affect resource usage. Using too large values may cause
+  clients to experience a lack of responsiveness if pages are accessed in
+  parallel to large uploads. See also: tune.h2.initial-window-size.
+
 tune.h2.header-table-size <number>
   Sets the HTTP/2 dynamic header table size. It defaults to 4096 bytes and
   cannot be larger than 65536 bytes. A larger value may help certain clients
@@ -2893,14 +2915,16 @@ tune.h2.header-table-size <number>
   change it.
 
 tune.h2.initial-window-size <number>
-  Sets the HTTP/2 initial window size, which is the number of bytes the client
-  can upload before waiting for an acknowledgment from HAProxy. This setting
-  only affects payload contents (i.e. the body of POST requests), not headers.
-  The default value is 65536, which roughly allows up to 5 Mbps of upload
-  bandwidth per client over a network showing a 100 ms ping time, or 500 Mbps
-  over a 1-ms local network. It can make sense to increase this value to allow
-  faster uploads, or to reduce it to increase fairness when dealing with many
-  clients. It doesn't affect resource usage.
+  Sets the default value for the HTTP/2 initial window size, on both incoming
+  and outgoing connections. This value is used for incoming connections when
+  tune.h2.fe.initial-window-size is not set, and by outgoing connections when
+  tune.h2.be.initial-window-size is not set. The default value is 65536, which
+  for uploads roughly allows up to 5 Mbps of bandwidth per client over a
+  network showing a 100 ms ping time, or 500 Mbps over a 1-ms local network.
+  Given that changing the default value will both increase upload speeds and
+  cause more unfairness between clients on downloads, it is recommended to
+  instead use the side-specific settings tune.h2.fe.initial-window-size and
+  tune.h2.be.initial-window-size.
 
 tune.h2.max-concurrent-streams <number>
   Sets the HTTP/2 maximum number of concurrent streams per connection (ie the

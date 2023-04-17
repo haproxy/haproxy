@@ -403,7 +403,9 @@ DECLARE_STATIC_POOL(pool_head_h2s, "h2s", sizeof(struct h2s));
 
 /* a few settings from the global section */
 static int h2_settings_header_table_size      =  4096; /* initial value */
-static int h2_settings_initial_window_size    = 65536; /* initial value */
+static int h2_settings_initial_window_size    = 65536; /* default initial value */
+static int h2_be_settings_initial_window_size =     0; /* backend's default initial value */
+static int h2_fe_settings_initial_window_size =     0; /* frontend's default initial value */
 static unsigned int h2_settings_max_concurrent_streams = 100;
 static int h2_settings_max_frame_size         = 0;     /* unset */
 
@@ -1641,6 +1643,7 @@ static int h2c_send_settings(struct h2c *h2c)
 	struct buffer *res;
 	char buf_data[100]; // enough for 15 settings
 	struct buffer buf;
+	int iws;
 	int mfs;
 	int ret = 0;
 
@@ -1670,10 +1673,15 @@ static int h2c_send_settings(struct h2c *h2c)
 		chunk_memcat(&buf, str, 6);
 	}
 
-	if (h2_settings_initial_window_size != 65535) {
+	iws = (h2c->flags & H2_CF_IS_BACK) ?
+	      h2_be_settings_initial_window_size:
+	      h2_fe_settings_initial_window_size;
+	iws = iws ? iws : h2_settings_initial_window_size;
+
+	if (iws != 65535) {
 		char str[6] = "\x00\x04"; /* initial_window_size */
 
-		write_n32(str + 2, h2_settings_initial_window_size);
+		write_n32(str + 2, iws);
 		chunk_memcat(&buf, str, 6);
 	}
 
@@ -6893,16 +6901,23 @@ static int h2_parse_header_table_size(char **args, int section_type, struct prox
 	return 0;
 }
 
-/* config parser for global "tune.h2.initial-window-size" */
+/* config parser for global "tune.h2.{be.,fe.,}initial-window-size" */
 static int h2_parse_initial_window_size(char **args, int section_type, struct proxy *curpx,
                                         const struct proxy *defpx, const char *file, int line,
                                         char **err)
 {
+	int *vptr;
+
 	if (too_many_args(1, args, err, NULL))
 		return -1;
 
-	h2_settings_initial_window_size = atoi(args[1]);
-	if (h2_settings_initial_window_size < 0) {
+	/* backend/frontend/default */
+	vptr = (args[0][8] == 'b') ? &h2_be_settings_initial_window_size :
+	       (args[0][8] == 'f') ? &h2_fe_settings_initial_window_size :
+	       &h2_settings_initial_window_size;
+
+	*vptr = atoi(args[1]);
+	if (*vptr < 0) {
 		memprintf(err, "'%s' expects a positive numeric value.", args[0]);
 		return -1;
 	}
@@ -6977,6 +6992,8 @@ INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_h2);
 
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "tune.h2.be.initial-window-size", h2_parse_initial_window_size    },
+	{ CFG_GLOBAL, "tune.h2.fe.initial-window-size", h2_parse_initial_window_size    },
 	{ CFG_GLOBAL, "tune.h2.header-table-size",      h2_parse_header_table_size      },
 	{ CFG_GLOBAL, "tune.h2.initial-window-size",    h2_parse_initial_window_size    },
 	{ CFG_GLOBAL, "tune.h2.max-concurrent-streams", h2_parse_max_concurrent_streams },
