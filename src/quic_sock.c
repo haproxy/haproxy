@@ -150,7 +150,7 @@ struct connection *quic_sock_accept_conn(struct listener *l, int *status)
 	struct li_per_thread *lthr = &l->per_thr[tid];
 
 	qc = MT_LIST_POP(&lthr->quic_accept.conns, struct quic_conn *, accept_list);
-	if (!qc)
+	if (!qc || qc->flags & (QUIC_FL_CONN_CLOSING|QUIC_FL_CONN_DRAINING))
 		goto done;
 
 	if (!new_quic_cli_conn(qc, l, &qc->peer_addr))
