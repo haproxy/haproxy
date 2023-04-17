@@ -5485,9 +5485,6 @@ static void srv_update_status(struct server *s)
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
-			/* commit new admin status */
-
-			s->cur_admin = s->next_admin;
 		}
 		else {	/* server was still running */
 			check->health = 0; /* failure */
@@ -5702,8 +5699,6 @@ static void srv_update_status(struct server *s)
 			}
 		}
 		/* don't report anything when leaving drain mode and remaining in maintenance */
-
-		s->cur_admin = s->next_admin;
 	}
 
 	if (!(s->next_admin & SRV_ADMF_MAINT)) {
@@ -5821,15 +5816,16 @@ static void srv_update_status(struct server *s)
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
-
-			/* commit new admin status */
-
-			s->cur_admin = s->next_admin;
 		}
 	}
 
 	/* Re-set log strings to empty */
 	*s->adm_st_chg_cause = 0;
+
+	/* explicitly commit state changes (even if it was already applied implicitly
+	 * by some lb state change function), so we don't miss anything
+	 */
+	srv_lb_commit_status(s);
 }
 
 struct task *srv_cleanup_toremove_conns(struct task *task, void *context, unsigned int state)
