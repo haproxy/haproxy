@@ -131,6 +131,9 @@ enum quic_pkt_type {
 	 * own convenience.
 	 */
 	QUIC_PACKET_TYPE_SHORT,
+
+	/* unknown type */
+	QUIC_PACKET_TYPE_UNKNOWN
 };
 
 /* Packet number field length. */

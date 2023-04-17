@@ -119,6 +119,11 @@ const struct quic_version quic_versions[] = {
 const size_t quic_versions_nb = sizeof quic_versions / sizeof *quic_versions;
 /* Listener only preferred version */
 const struct quic_version *preferred_version;
+/* RFC 8999 5.4. Version
+ * A Version field with a
+ * value of 0x00000000 is reserved for version negotiation
+ */
+const struct quic_version quic_version_VN_reserved = { .num = 0, };
 
 /* trace source and events */
 static void quic_trace(enum trace_level level, uint64_t mask, \
@@ -5884,7 +5889,8 @@ static inline int quic_packet_read_long_header(unsigned char **buf, const unsign
 		/* Check that the length of this received DCID matches the CID lengths
 		 * of our implementation for non Initials packets only.
 		 */
-		if (pkt->type != QUIC_PACKET_TYPE_INITIAL &&
+		if (pkt->version && pkt->version->num &&
+		    pkt->type != QUIC_PACKET_TYPE_INITIAL &&
 		    pkt->type != QUIC_PACKET_TYPE_0RTT &&
 		    dcid_len != QUIC_HAP_CID_LEN) {
 			TRACE_ERROR("wrong DCID length", QUIC_EV_CONN_RXPKT);
@@ -6015,64 +6021,6 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 	return ret;
 }
 
-/* Parse the header form from <byte0> first byte of <pkt> packet to set its type.
- * Also set <*long_header> to 1 if this form is long, 0 if not and the version
- * of this packet into <*version>.
- */
-static inline int qc_parse_hd_form(struct quic_rx_packet *pkt,
-                                   unsigned char **buf, const unsigned char *end,
-                                   int *long_header, uint32_t *version)
-{
-	int ret = 0;
-	const unsigned char byte0 = **buf;
-
-	TRACE_ENTER(QUIC_EV_CONN_RXPKT);
-
-	(*buf)++;
-	if (byte0 & QUIC_PACKET_LONG_HEADER_BIT) {
-		unsigned char type =
-			(byte0 >> QUIC_PACKET_TYPE_SHIFT) & QUIC_PACKET_TYPE_BITMASK;
-
-		*long_header = 1;
-		/* Version */
-		if (!quic_read_uint32(version, (const unsigned char **)buf, end)) {
-			TRACE_ERROR("could not read the packet version", QUIC_EV_CONN_RXPKT);
-			goto out;
-		}
-
-		if (*version != QUIC_PROTOCOL_VERSION_2) {
-			pkt->type = type;
-		}
-		else {
-			switch (type) {
-			case 0:
-				pkt->type = QUIC_PACKET_TYPE_RETRY;
-				break;
-			case 1:
-				pkt->type = QUIC_PACKET_TYPE_INITIAL;
-				break;
-			case 2:
-				pkt->type = QUIC_PACKET_TYPE_0RTT;
-				break;
-			case 3:
-				pkt->type = QUIC_PACKET_TYPE_HANDSHAKE;
-				break;
-			}
-		}
-	}
-	else {
-		if (byte0 & QUIC_PACKET_SPIN_BIT)
-			pkt->flags |= QUIC_FL_RX_PACKET_SPIN_BIT;
-		pkt->type = QUIC_PACKET_TYPE_SHORT;
-		*long_header = 0;
-	}
-
-	ret = 1;
- out:
-	TRACE_LEAVE(QUIC_EV_CONN_RXPKT);
-	return ret;
-}
-
 /* Return the QUIC version (quic_version struct) with <version> as version number
  * if supported or NULL if not.
  */
@@ -6080,11 +6028,78 @@ static inline const struct quic_version *qc_supported_version(uint32_t version)
 {
 	int i;
 
+	if (unlikely(!version))
+		return &quic_version_VN_reserved;
+
 	for (i = 0; i < quic_versions_nb; i++)
 		if (quic_versions[i].num == version)
 			return &quic_versions[i];
 
 	return NULL;
+}
+
+/* Parse a QUIC packet header starting at <buf> without exceeding <end>.
+ * Version and type are stored in <pkt> packet instance. Type is set to unknown
+ * on two occasions : for unsupported version, in this case version field is
+ * set to NULL; for Version Negotiation packet with version number set to 0.
+ *
+ * Returns 1 on success else 0.
+ */
+int qc_parse_hd_form(struct quic_rx_packet *pkt,
+                     unsigned char **buf, const unsigned char *end)
+{
+	uint32_t version;
+	int ret = 0;
+	const unsigned char byte0 = **buf;
+
+	TRACE_ENTER(QUIC_EV_CONN_RXPKT);
+	pkt->version = NULL;
+	pkt->type = QUIC_PACKET_TYPE_UNKNOWN;
+
+	(*buf)++;
+	if (byte0 & QUIC_PACKET_LONG_HEADER_BIT) {
+		unsigned char type =
+			(byte0 >> QUIC_PACKET_TYPE_SHIFT) & QUIC_PACKET_TYPE_BITMASK;
+
+		/* Version */
+		if (!quic_read_uint32(&version, (const unsigned char **)buf, end)) {
+			TRACE_ERROR("could not read the packet version", QUIC_EV_CONN_RXPKT);
+			goto out;
+		}
+
+		pkt->version = qc_supported_version(version);
+		if (version && pkt->version) {
+			if (version != QUIC_PROTOCOL_VERSION_2) {
+				pkt->type = type;
+			}
+			else {
+				switch (type) {
+				case 0:
+					pkt->type = QUIC_PACKET_TYPE_RETRY;
+					break;
+				case 1:
+					pkt->type = QUIC_PACKET_TYPE_INITIAL;
+					break;
+				case 2:
+					pkt->type = QUIC_PACKET_TYPE_0RTT;
+					break;
+				case 3:
+					pkt->type = QUIC_PACKET_TYPE_HANDSHAKE;
+					break;
+				}
+			}
+		}
+	}
+	else {
+		if (byte0 & QUIC_PACKET_SPIN_BIT)
+			pkt->flags |= QUIC_FL_RX_PACKET_SPIN_BIT;
+		pkt->type = QUIC_PACKET_TYPE_SHORT;
+	}
+
+	ret = 1;
+ out:
+	TRACE_LEAVE(QUIC_EV_CONN_RXPKT);
+	return ret;
 }
 
 /*
@@ -6743,8 +6758,6 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 	const unsigned char *beg = buf;
 	struct proxy *prx;
 	struct quic_counters *prx_counters;
-	int long_header = 0;
-	uint32_t version = 0;
 	const struct quic_version *qv = NULL;
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT);
@@ -6778,15 +6791,15 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 	}
 
 	/* Header form */
-	if (!qc_parse_hd_form(pkt, &buf, end, &long_header, &version)) {
+	if (!qc_parse_hd_form(pkt, &buf, end)) {
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 		goto drop;
 	}
 
-	if (long_header) {
+	if (pkt->type != QUIC_PACKET_TYPE_SHORT) {
 		uint64_t len;
-
 		TRACE_PROTO("long header packet received", QUIC_EV_CONN_LPKT);
+
 		if (!quic_packet_read_long_header(&buf, end, pkt)) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto drop;
@@ -6803,14 +6816,14 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 		}
 
 		/* Retry of Version Negotiation packets are only sent by servers */
-		if (pkt->type == QUIC_PACKET_TYPE_RETRY || !version) {
+		if (pkt->type == QUIC_PACKET_TYPE_RETRY ||
+		    (pkt->version && !pkt->version->num)) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto drop;
 		}
 
 		/* RFC9000 6. Version Negotiation */
-		qv = qc_supported_version(version);
-		if (!qv) {
+		if (!pkt->version) {
 			 /* unsupported version, send Negotiation packet */
 			if (send_version_negotiation(l->rx.fd, &dgram->saddr, pkt)) {
 				TRACE_ERROR("VN packet not sent", QUIC_EV_CONN_LPKT);
@@ -6820,7 +6833,6 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 			TRACE_PROTO("VN packet sent", QUIC_EV_CONN_LPKT);
 			goto drop_silent;
 		}
-		pkt->version = qv;
 
 		/* For Initial packets, and for servers (QUIC clients connections),
 		 * there is no Initial connection IDs storage.

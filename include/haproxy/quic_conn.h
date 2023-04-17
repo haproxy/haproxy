@@ -687,6 +687,8 @@ void quic_conn_release(struct quic_conn *qc);
 
 void qc_kill_conn(struct quic_conn *qc);
 
+int qc_parse_hd_form(struct quic_rx_packet *pkt,
+                     unsigned char **buf, const unsigned char *end);
 int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *qc,
                      struct listener *li);
 
