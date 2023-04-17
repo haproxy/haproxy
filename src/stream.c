@@ -954,7 +954,7 @@ static void back_establish(struct stream *s)
 	}
 	/* If we managed to get the whole response, and we don't have anything
 	 * left to send, or can't, switch to SC_ST_DIS now. */
-	if ((s->scb->flags & SC_FL_ABRT_DONE) || (s->scf->flags & SC_FL_SHUT_DONE)) {
+	if ((s->scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) || (s->scf->flags & SC_FL_SHUT_DONE)) {
 		s->scb->state = SC_ST_DIS;
 		DBG_TRACE_STATE("response channel shutdwn for read/write", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 	}
@@ -1590,7 +1590,7 @@ static void stream_handle_timeouts(struct stream *s)
 		sc_shutdown(s->scb);
 	}
 
-	if (unlikely(!(s->scf->flags & SC_FL_ABRT_DONE) && (s->req.flags & CF_READ_TIMEOUT))) {
+	if (unlikely(!(s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) && (s->req.flags & CF_READ_TIMEOUT))) {
 		if (s->scf->flags & SC_FL_NOHALF)
 			s->scf->flags |= SC_FL_NOLINGER;
 		sc_abort(s->scf);
@@ -1600,7 +1600,7 @@ static void stream_handle_timeouts(struct stream *s)
 		sc_shutdown(s->scf);
 	}
 
-	if (unlikely(!(s->scb->flags & SC_FL_ABRT_DONE) && (s->res.flags & CF_READ_TIMEOUT))) {
+	if (unlikely(!(s->scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) && (s->res.flags & CF_READ_TIMEOUT))) {
 		if (s->scb->flags & SC_FL_NOHALF)
 			s->scb->flags |= SC_FL_NOLINGER;
 		sc_abort(s->scb);
@@ -1783,7 +1783,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		 * So let's not run a whole stream processing if only an expiration
 		 * timeout needs to be refreshed.
 		 */
-		if (!((scf->flags | scb->flags) & (SC_FL_ERROR|SC_FL_ABRT_DONE|SC_FL_SHUT_DONE)) &&
+		if (!((scf->flags | scb->flags) & (SC_FL_ERROR|SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_SHUT_DONE)) &&
 		    !((req->flags | res->flags) & (CF_READ_EVENT|CF_READ_TIMEOUT|CF_WRITE_EVENT|CF_WRITE_TIMEOUT)) &&
 		    !(s->flags & SF_CONN_EXP) &&
 		    ((s->pending_events & TASK_WOKEN_ANY) == TASK_WOKEN_TIMER)) {
@@ -1953,7 +1953,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
  resync_request:
 	/* Analyse request */
 	if (((req->flags & ~rqf_last) & CF_MASK_ANALYSER) ||
-	    ((scf->flags ^ scf_flags) & (SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) ||
+	    ((scf->flags ^ scf_flags) & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) ||
 	    ((scb->flags ^ scb_flags) & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) ||
 	    (req->analysers && (scb->flags & SC_FL_SHUT_DONE)) ||
 	    scf->state != rq_prod_last ||
@@ -2041,10 +2041,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		rq_cons_last = scb->state;
 		req->flags &= ~CF_WAKE_ONCE;
 		rqf_last = req->flags;
-		scf_flags = (scf_flags & ~(SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) | (scf->flags & (SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED));
+		scf_flags = (scf_flags & ~(SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) | (scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED));
 		scb_flags = (scb_flags & ~(SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) | (scb->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED));
 
-		if (((scf->flags ^ scf_flags_ana) & SC_FL_ABRT_DONE) || ((scb->flags ^ scb_flags_ana) & SC_FL_SHUT_DONE))
+		if (((scf->flags ^ scf_flags_ana) & (SC_FL_EOS|SC_FL_ABRT_DONE)) || ((scb->flags ^ scb_flags_ana) & SC_FL_SHUT_DONE))
 			goto resync_request;
 	}
 
@@ -2058,7 +2058,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* Analyse response */
 
 	if (((res->flags & ~rpf_last) & CF_MASK_ANALYSER) ||
-	    ((scb->flags ^ scb_flags) & (SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) ||
+	    ((scb->flags ^ scb_flags) & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) ||
 	    ((scf->flags ^ scf_flags) & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) ||
 	    (res->analysers && (scf->flags & SC_FL_SHUT_DONE)) ||
 	    scf->state != rp_cons_last ||
@@ -2114,10 +2114,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		rp_prod_last = scb->state;
 		res->flags &= ~CF_WAKE_ONCE;
 		rpf_last = res->flags;
-		scb_flags = (scb_flags & ~(SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) | (scb->flags & (SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED));
+		scb_flags = (scb_flags & ~(SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) | (scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED));
 		scf_flags = (scf_flags & ~(SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) | (scf->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED));
 
-		if (((scb->flags ^ scb_flags_ana) & SC_FL_ABRT_DONE) || ((scf->flags ^ scf_flags_ana) & SC_FL_SHUT_DONE))
+		if (((scb->flags ^ scb_flags_ana) & (SC_FL_EOS|SC_FL_ABRT_DONE)) || ((scf->flags ^ scf_flags_ana) & SC_FL_SHUT_DONE))
 			goto resync_response;
 	}
 
@@ -2250,7 +2250,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			 */
 			co_set_data(req, htx->data);
 			if ((global.tune.options & GTUNE_USE_FAST_FWD) &&
-			    !(scf->flags & SC_FL_ABRT_DONE) && !(scb->flags & SC_FL_SHUT_WANTED))
+			    !(scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) && !(scb->flags & SC_FL_SHUT_WANTED))
 				channel_htx_forward_forever(req, htx);
 		}
 		else {
@@ -2259,14 +2259,14 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			 */
 			c_adv(req, ci_data(req));
 			if ((global.tune.options & GTUNE_USE_FAST_FWD) &&
-			    !(scf->flags & SC_FL_ABRT_DONE) && !(scb->flags & SC_FL_SHUT_WANTED))
+			    !(scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) && !(scb->flags & SC_FL_SHUT_WANTED))
 				channel_forward_forever(req);
 		}
 	}
 
 	/* check if it is wise to enable kernel splicing to forward request data */
 	if (!(req->flags & CF_KERN_SPLICING) &&
-	    !(scf->flags & SC_FL_ABRT_DONE) &&
+	    !(scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
 	    req->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
 	    (sc_conn(scf) && __sc_conn(scf)->xprt && __sc_conn(scf)->xprt->rcv_pipe &&
@@ -2282,7 +2282,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 	/* reflect what the L7 analysers have seen last */
 	rqf_last = req->flags;
-	scf_flags = (scf_flags & ~(SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) | (scf->flags & (SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED));
+	scf_flags = (scf_flags & ~(SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) | (scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED));
 	scb_flags = (scb_flags & ~(SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) | (scb->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED));
 
 	/* it's possible that an upper layer has requested a connection setup or abort.
@@ -2363,7 +2363,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 * the other side's timeout as well. However this doesn't have effect during the
 	 * connection setup unless the backend has abortonclose set.
 	 */
-	if (unlikely((req->flags & CF_AUTO_CLOSE) && (scf->flags & SC_FL_ABRT_DONE) &&
+	if (unlikely((req->flags & CF_AUTO_CLOSE) && (scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
 		     !(scb->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) &&
 		     (scb->state != SC_ST_CON || (s->be->options & PR_O_ABRT_CLOSE)))) {
 		sc_schedule_shutdown(scb);
@@ -2378,12 +2378,12 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	}
 
 	/* shutdown(write) done on server side, we must stop the client too */
-	if (unlikely((scb->flags & SC_FL_SHUT_DONE) && !(scf->flags & (SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED))) &&
+	if (unlikely((scb->flags & SC_FL_SHUT_DONE) && !(scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED))) &&
 	    !req->analysers)
 		sc_schedule_abort(scf);
 
 	/* shutdown(read) pending */
-	if (unlikely((scf->flags & (SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) == SC_FL_ABRT_WANTED)) {
+	if (unlikely((scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) == SC_FL_ABRT_WANTED)) {
 		if (scf->flags & SC_FL_NOHALF)
 			scf->flags |= SC_FL_NOLINGER;
 		sc_abort(scf);
@@ -2397,7 +2397,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		goto resync_stconns;
 
 	/* otherwise we want to check if we need to resync the req buffer or not */
-	if (((scf->flags ^ scf_flags) & SC_FL_ABRT_DONE) || ((scb->flags ^ scb_flags) & SC_FL_SHUT_DONE))
+	if (((scf->flags ^ scf_flags) & (SC_FL_EOS|SC_FL_ABRT_DONE)) || ((scb->flags ^ scb_flags) & SC_FL_SHUT_DONE))
 		goto resync_request;
 
 	/* perform output updates to the response buffer */
@@ -2426,7 +2426,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			 */
 			co_set_data(res, htx->data);
 			if ((global.tune.options & GTUNE_USE_FAST_FWD) &&
-			    !(scf->flags & SC_FL_ABRT_DONE) && !(scb->flags & SC_FL_SHUT_WANTED))
+			    !(scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) && !(scb->flags & SC_FL_SHUT_WANTED))
 				channel_htx_forward_forever(res, htx);
 		}
 		else {
@@ -2435,7 +2435,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			 */
 			c_adv(res, ci_data(res));
 			if ((global.tune.options & GTUNE_USE_FAST_FWD) &&
-			    !(scf->flags & SC_FL_ABRT_DONE) && !(scb->flags & SC_FL_SHUT_WANTED))
+			    !(scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) && !(scb->flags & SC_FL_SHUT_WANTED))
 				channel_forward_forever(res);
 		}
 
@@ -2446,16 +2446,16 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if (!req->analysers && s->tunnel_timeout) {
 			scf->ioto = scb->ioto = s->tunnel_timeout;
 
-			if ((scf->flags & (SC_FL_ABRT_DONE|SC_FL_SHUT_DONE)) && tick_isset(sess->fe->timeout.clientfin))
+			if ((scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_SHUT_DONE)) && tick_isset(sess->fe->timeout.clientfin))
 				scf->ioto = sess->fe->timeout.clientfin;
-			if ((scb->flags & (SC_FL_ABRT_DONE|SC_FL_SHUT_DONE)) && tick_isset(s->be->timeout.serverfin))
+			if ((scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_SHUT_DONE)) && tick_isset(s->be->timeout.serverfin))
 				scb->ioto = s->be->timeout.serverfin;
 		}
 	}
 
 	/* check if it is wise to enable kernel splicing to forward response data */
 	if (!(res->flags & CF_KERN_SPLICING) &&
-	    !(scb->flags & SC_FL_ABRT_DONE) &&
+	    !(scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
 	    res->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
 	    (sc_conn(scf) && __sc_conn(scf)->xprt && __sc_conn(scf)->xprt->snd_pipe &&
@@ -2471,7 +2471,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 	/* reflect what the L7 analysers have seen last */
 	rpf_last = res->flags;
-	scb_flags = (scb_flags & ~(SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) | (scb->flags & (SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED));
+	scb_flags = (scb_flags & ~(SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) | (scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED));
 	scf_flags = (scf_flags & ~(SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) | (scf->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED));
 
 	/* Let's see if we can send the pending response now */
@@ -2486,7 +2486,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 */
 
 	/* first, let's check if the response buffer needs to shutdown(write) */
-	if (unlikely((res->flags & CF_AUTO_CLOSE) && (scb->flags & SC_FL_ABRT_DONE) &&
+	if (unlikely((res->flags & CF_AUTO_CLOSE) && (scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
 		     !(scf->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)))) {
 		sc_schedule_shutdown(scf);
 	}
@@ -2498,12 +2498,12 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	}
 
 	/* shutdown(write) done on the client side, we must stop the server too */
-	if (unlikely((scf->flags & SC_FL_SHUT_DONE) && !(scb->flags & (SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED))) &&
+	if (unlikely((scf->flags & SC_FL_SHUT_DONE) && !(scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED))) &&
 	    !res->analysers)
 		sc_schedule_abort(scb);
 
 	/* shutdown(read) pending */
-	if (unlikely((scb->flags & (SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) == SC_FL_ABRT_WANTED)) {
+	if (unlikely((scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) == SC_FL_ABRT_WANTED)) {
 		if (scb->flags & SC_FL_NOHALF)
 			scb->flags |= SC_FL_NOLINGER;
 		sc_abort(scb);
@@ -2518,7 +2518,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if ((req->flags & ~rqf_last) & CF_MASK_ANALYSER)
 		goto resync_request;
 
-	if (((scb->flags ^ scb_flags) & (SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) ||
+	if (((scb->flags ^ scb_flags) & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) ||
 	    ((scf->flags ^ scf_flags) & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)))
 		goto resync_response;
 

@@ -114,7 +114,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		/* An abort at this stage means we are performing a "destructive"
 		 * HTTP upgrade (TCP>H2). In this case, we can leave.
 		 */
-		if (s->scf->flags & SC_FL_ABRT_DONE) {
+		if (s->scf->flags & (SC_FL_ABRT_DONE|SC_FL_EOS)) {
 			s->logs.logwait = 0;
                         s->logs.level = 0;
 			stream_abort(s);
@@ -766,7 +766,7 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	 * there and that the timeout has not expired.
 	 */
 	channel_dont_connect(req);
-	if (!(s->scf->flags & SC_FL_ABRT_DONE) &&
+	if (!(s->scf->flags & (SC_FL_ABRT_DONE|SC_FL_EOS)) &&
 	    !tick_is_expired(req->analyse_exp, now_ms)) {
 		/* Be sure to drain all data from the request channel */
 		channel_htx_erase(req, htxbuf(&req->buf));
@@ -1002,7 +1002,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	 * it can be abused to exhaust source ports. */
 	if (s->be->options & PR_O_ABRT_CLOSE) {
 		channel_auto_read(req);
-		if ((s->scf->flags & SC_FL_ABRT_DONE) && !(txn->flags & TX_CON_WANT_TUN))
+		if ((s->scf->flags & (SC_FL_ABRT_DONE|SC_FL_EOS)) && !(txn->flags & TX_CON_WANT_TUN))
 			s->scb->flags |= SC_FL_NOLINGER;
 		channel_auto_close(req);
 	}
@@ -1018,7 +1018,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
  missing_data_or_waiting:
 	/* stop waiting for data if the input is closed before the end */
-	if (msg->msg_state < HTTP_MSG_ENDING && (s->scf->flags & SC_FL_ABRT_DONE))
+	if (msg->msg_state < HTTP_MSG_ENDING && (s->scf->flags & (SC_FL_ABRT_DONE|SC_FL_EOS)))
 		goto return_cli_abort;
 
  waiting:
@@ -1132,7 +1132,7 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *sc)
 	res = &s->res;
 
 	/* Remove any write error from the request, and read error from the response */
-	s->scf->flags &= ~(SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED);
+	s->scf->flags &= ~(SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED);
 	req->flags &= ~CF_WRITE_TIMEOUT;
 	res->flags &= ~(CF_READ_TIMEOUT | CF_READ_EVENT);
 	res->analysers &= AN_RES_FLT_END;
@@ -1294,8 +1294,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		}
 
 		/* 3: client abort with an abortonclose */
-		else if ((s->scb->flags & (SC_FL_ABRT_DONE|SC_FL_SHUT_DONE)) == (SC_FL_ABRT_DONE|SC_FL_SHUT_DONE) &&
-			 (s->scf->flags & SC_FL_ABRT_DONE)) {
+		else if ((s->scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) && (s->scb->flags & SC_FL_SHUT_DONE) &&
+			 (s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))) {
 			_HA_ATOMIC_INC(&sess->fe->fe_counters.cli_aborts);
 			_HA_ATOMIC_INC(&s->be->be_counters.cli_aborts);
 			if (sess->listener && sess->listener->counters)
@@ -1317,7 +1317,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		}
 
 		/* 4: close from server, capture the response if the server has started to respond */
-		else if (s->scb->flags & SC_FL_ABRT_DONE) {
+		else if (s->scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) {
 			if ((txn->flags & TX_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_DISCONNECTED)) {
 				if (co_data(rep) || do_l7_retry(s, s->scb) == 0) {
@@ -2059,7 +2059,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	if (htx->data != co_data(res))
 		goto missing_data_or_waiting;
 
-	if (!(msg->flags & HTTP_MSGF_XFER_LEN) && (s->scb->flags & SC_FL_ABRT_DONE)) {
+	if (!(msg->flags & HTTP_MSGF_XFER_LEN) && (s->scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))) {
 		msg->msg_state = HTTP_MSG_ENDING;
 		goto ending;
 	}
@@ -2126,8 +2126,8 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	 * so we don't want to count this as a server abort. Otherwise it's a
 	 * server abort.
 	 */
-	if (msg->msg_state < HTTP_MSG_ENDING && (s->scb->flags & SC_FL_ABRT_DONE)) {
-		if ((s->scf->flags & SC_FL_ABRT_DONE) &&
+	if (msg->msg_state < HTTP_MSG_ENDING && (s->scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))) {
+		if ((s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
 		    (s->scb->flags & SC_FL_SHUT_DONE))
 			goto return_cli_abort;
 		/* If we have some pending data, we continue the processing */
@@ -2672,7 +2672,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
 			if ((s->scf->flags & SC_FL_ERROR) ||
-			    ((s->scf->flags & SC_FL_ABRT_DONE) &&
+			    ((s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
 			     (px->options & PR_O_ABRT_CLOSE)))
 				act_opts |= ACT_OPT_FINAL;
 
@@ -2835,7 +2835,7 @@ resume_execution:
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
 			if ((s->scf->flags & SC_FL_ERROR) ||
-			    ((s->scf->flags & SC_FL_ABRT_DONE) &&
+			    ((s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
 			     (px->options & PR_O_ABRT_CLOSE)))
 				act_opts |= ACT_OPT_FINAL;
 
@@ -4081,7 +4081,7 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	}
 
 	/* we get here if we need to wait for more data */
-	if (!(chn_prod(chn)->flags & SC_FL_ABRT_DONE)) {
+	if (!(chn_prod(chn)->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))) {
 		if (!tick_isset(chn->analyse_exp))
 			chn->analyse_exp = tick_add_ifset(now_ms, time);
 		ret = HTTP_RULE_RES_YIELD;

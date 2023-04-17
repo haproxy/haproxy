@@ -158,10 +158,12 @@ enum sc_flags {
 	SC_FL_SND_NEVERWAIT = 0x00001000,  /* Never wait for sending (permanent) */
 	SC_FL_SND_EXP_MORE  = 0x00001000,  /* More data expected to be sent very soon. cleared when all data were sent */
 
-	SC_FL_ABRT_WANTED   = 0x00002000,  /* An abort was requested and must be performed ASAP */
-	SC_FL_SHUT_WANTED   = 0x00004000,  /* A shutdown was requested and mux be performed ASAP */
+	SC_FL_ABRT_WANTED   = 0x00002000,  /* An abort was requested and must be performed ASAP (up side to down side) */
+	SC_FL_SHUT_WANTED   = 0x00004000,  /* A shutdown was requested and mux be performed ASAP (up side to down side) */
 	SC_FL_ABRT_DONE     = 0x00008000,  /* An abort was performed for the SC */
 	SC_FL_SHUT_DONE     = 0x00010000,  /* A shutdown was performed for the SC */
+
+	SC_FL_EOS           = 0x00020000,  /* End of stream was reached (from down side to up side) */
 };
 
 /* This function is used to report flags in debugging tools. Please reflect
@@ -178,7 +180,8 @@ static forceinline char *sc_show_flags(char *buf, size_t len, const char *delim,
 	_(SC_FL_DONT_WAKE, _(SC_FL_INDEP_STR, _(SC_FL_WONT_READ,
 	_(SC_FL_NEED_BUFF, _(SC_FL_NEED_ROOM,
         _(SC_FL_RCV_ONCE, _(SC_FL_SND_ASAP, _(SC_FL_SND_NEVERWAIT, _(SC_FL_SND_EXP_MORE,
-	_(SC_FL_ABRT_WANTED, _(SC_FL_SHUT_WANTED, _(SC_FL_ABRT_DONE, _(SC_FL_SHUT_DONE))))))))))))))))));
+	_(SC_FL_ABRT_WANTED, _(SC_FL_SHUT_WANTED, _(SC_FL_ABRT_DONE, _(SC_FL_SHUT_DONE,
+	_(SC_FL_EOS)))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

@@ -2692,7 +2692,7 @@ send_status:
 	goto read_again;
 
 missing_data:
-        if (s->scf->flags & SC_FL_ABRT_DONE) {
+        if (s->scf->flags & (SC_FL_ABRT_DONE|SC_FL_EOS)) {
                 /* There is no more request or a only a partial one and we
                  * receive a close from the client, we can leave */
 		sc_schedule_shutdown(s->scf);
@@ -2741,7 +2741,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		return 0;
 	}
 
-	if (s->scb->flags & SC_FL_ABRT_DONE) {
+	if (s->scb->flags & (SC_FL_ABRT_DONE|SC_FL_EOS)) {
 		/* stream cleanup */
 
 		pcli_write_prompt(s);
@@ -2855,7 +2855,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->store_count = 0;
 		s->uniq_id = global.req_count++;
 
-		s->scf->flags &= ~(SC_FL_ERROR|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED);
+		s->scf->flags &= ~(SC_FL_EOS|SC_FL_ERROR|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED);
 		s->scf->flags &= ~SC_FL_SND_NEVERWAIT;
 		s->scf->flags |= SC_FL_RCV_ONCE; /* one read is usually enough */
 
