@@ -5273,6 +5273,23 @@ int srv_apply_track(struct server *srv, struct proxy *curproxy)
 	return 0;
 }
 
+/* This function propagates srv state change to lb algorithms */
+static void srv_lb_propagate(struct server *s)
+{
+	struct proxy *px = s->proxy;
+
+	if (px->lbprm.update_server_eweight)
+		px->lbprm.update_server_eweight(s);
+	else if (srv_willbe_usable(s)) {
+		if (px->lbprm.set_server_status_up)
+			px->lbprm.set_server_status_up(s);
+	}
+	else {
+		if (px->lbprm.set_server_status_down)
+			px->lbprm.set_server_status_down(s);
+	}
+}
+
 /*
  * This function applies server's status changes.
  *
@@ -5369,16 +5386,7 @@ static void srv_update_status(struct server *s)
 
 			server_recalc_eweight(s, 0);
 			/* now propagate the status change to any LB algorithms */
-			if (px->lbprm.update_server_eweight)
-				px->lbprm.update_server_eweight(s);
-			else if (srv_willbe_usable(s)) {
-				if (px->lbprm.set_server_status_up)
-					px->lbprm.set_server_status_up(s);
-			}
-			else {
-				if (px->lbprm.set_server_status_down)
-					px->lbprm.set_server_status_down(s);
-			}
+			srv_lb_propagate(s);
 
 			/* If the server is set with "on-marked-up shutdown-backup-sessions",
 			 * and it's not a backup server and its effective weight is > 0,
@@ -5415,16 +5423,7 @@ static void srv_update_status(struct server *s)
 		}
 		else if (s->cur_eweight != s->next_eweight) {
 			/* now propagate the status change to any LB algorithms */
-			if (px->lbprm.update_server_eweight)
-				px->lbprm.update_server_eweight(s);
-			else if (srv_willbe_usable(s)) {
-				if (px->lbprm.set_server_status_up)
-					px->lbprm.set_server_status_up(s);
-			}
-			else {
-				if (px->lbprm.set_server_status_down)
-					px->lbprm.set_server_status_down(s);
-			}
+			srv_lb_propagate(s);
 		}
 
 		s->next_admin = next_admin;
@@ -5584,16 +5583,7 @@ static void srv_update_status(struct server *s)
 
 		server_recalc_eweight(s, 0);
 		/* now propagate the status change to any LB algorithms */
-		if (px->lbprm.update_server_eweight)
-			px->lbprm.update_server_eweight(s);
-		else if (srv_willbe_usable(s)) {
-			if (px->lbprm.set_server_status_up)
-				px->lbprm.set_server_status_up(s);
-		}
-		else {
-			if (px->lbprm.set_server_status_down)
-				px->lbprm.set_server_status_down(s);
-		}
+		srv_lb_propagate(s);
 
 		/* If the server is set with "on-marked-up shutdown-backup-sessions",
 		 * and it's not a backup server and its effective weight is > 0,
@@ -5730,16 +5720,7 @@ static void srv_update_status(struct server *s)
 			}
 
 			/* now propagate the status change to any LB algorithms */
-			if (px->lbprm.update_server_eweight)
-				px->lbprm.update_server_eweight(s);
-			else if (srv_willbe_usable(s)) {
-				if (px->lbprm.set_server_status_up)
-					px->lbprm.set_server_status_up(s);
-			}
-			else {
-				if (px->lbprm.set_server_status_down)
-					px->lbprm.set_server_status_down(s);
-			}
+			srv_lb_propagate(s);
 		}
 		else if ((s->next_admin & SRV_ADMF_DRAIN)) {
 			/* remaining in drain mode after removing one of its flags */
