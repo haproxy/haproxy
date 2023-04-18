@@ -5319,8 +5319,7 @@ static void srv_update_status(struct server *s)
 		s->next_admin = s->cur_admin;
 
 		if ((s->cur_state != SRV_ST_STOPPED) && (s->next_state == SRV_ST_STOPPED)) {
-			if (s->proxy->lbprm.set_server_status_down)
-				s->proxy->lbprm.set_server_status_down(s);
+			srv_lb_propagate(s);
 
 			if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
 				srv_shutdown_streams(s, SF_ERR_DOWN);
@@ -5354,8 +5353,7 @@ static void srv_update_status(struct server *s)
 			}
 		}
 		else if ((s->cur_state != SRV_ST_STOPPING) && (s->next_state == SRV_ST_STOPPING)) {
-			if (s->proxy->lbprm.set_server_status_down)
-				s->proxy->lbprm.set_server_status_down(s);
+			srv_lb_propagate(s);
 
 			/* we might have streams queued on this server and waiting for
 			 * a connection. Those which are redispatchable will be queued
@@ -5466,8 +5464,7 @@ static void srv_update_status(struct server *s)
 			check->health = 0; /* failure */
 
 			s->next_state = SRV_ST_STOPPED;
-			if (s->proxy->lbprm.set_server_status_down)
-				s->proxy->lbprm.set_server_status_down(s);
+			srv_lb_propagate(s);
 
 			if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
 				srv_shutdown_streams(s, SF_ERR_DOWN);
@@ -5660,8 +5657,7 @@ static void srv_update_status(struct server *s)
 		if (!(s->cur_admin & SRV_ADMF_DRAIN) && (s->next_admin & SRV_ADMF_DRAIN)) {
 			/* drain state is applied only if not yet in maint */
 
-			if (px->lbprm.set_server_status_down)
-				px->lbprm.set_server_status_down(s);
+			srv_lb_propagate(s);
 
 			/* we might have streams queued on this server and waiting for
 			 * a connection. Those which are redispatchable will be queued
