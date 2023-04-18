@@ -627,8 +627,6 @@ int assign_server(struct stream *s)
 	struct server *srv = NULL, *prev_srv;
 	int err;
 
-	DPRINTF(stderr,"assign_server : s=%p\n",s);
-
 	err = SRV_STATUS_INTERNAL;
 	if (unlikely(s->pend_pos || s->flags & SF_ASSIGNED))
 		goto out_err;
