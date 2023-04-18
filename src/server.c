@@ -5276,9 +5276,7 @@ static void srv_lb_propagate(struct server *s)
  */
 static void srv_update_status(struct server *s)
 {
-	struct check *check = &s->check;
 	int xferred;
-	struct proxy *px = s->proxy;
 	int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
 	int srv_was_stopping = (s->cur_state == SRV_ST_STOPPING) || (s->cur_admin & SRV_ADMF_DRAIN);
 	enum srv_state srv_prev_state = s->cur_state;
@@ -5418,7 +5416,7 @@ static void srv_update_status(struct server *s)
 	if (!(s->cur_admin & SRV_ADMF_MAINT) && (s->next_admin & SRV_ADMF_MAINT)) {
 		if (s->check.state & CHK_ST_ENABLED) {
 			s->check.state |= CHK_ST_PAUSED;
-			check->health = 0;
+			s->check.health = 0;
 		}
 
 		if (s->cur_state == SRV_ST_STOPPED) {	/* server was already down */
@@ -5440,7 +5438,7 @@ static void srv_update_status(struct server *s)
 			}
 		}
 		else {	/* server was still running */
-			check->health = 0; /* failure */
+			s->check.health = 0; /* failure */
 
 			s->next_state = SRV_ST_STOPPED;
 			srv_lb_propagate(s);
@@ -5496,7 +5494,7 @@ static void srv_update_status(struct server *s)
 		 */
 		if (s->check.state & CHK_ST_ENABLED) {
 			s->check.state &= ~CHK_ST_PAUSED;
-			check->health = check->rise; /* start OK but check immediately */
+			s->check.health = s->check.rise; /* start OK but check immediately */
 		}
 
 		if ((!s->track || s->track->next_state != SRV_ST_STOPPED) &&
