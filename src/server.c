@@ -5287,6 +5287,7 @@ static void srv_update_status(struct server *s)
 	struct proxy *px = s->proxy;
 	int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
 	int srv_was_stopping = (s->cur_state == SRV_ST_STOPPING) || (s->cur_admin & SRV_ADMF_DRAIN);
+	enum srv_state srv_prev_state = s->cur_state;
 	int log_level;
 	struct buffer *tmptrash = NULL;
 
@@ -5301,7 +5302,6 @@ static void srv_update_status(struct server *s)
 		s->next_admin = s->cur_admin;
 
 		if ((s->cur_state != SRV_ST_STOPPED) && (s->next_state == SRV_ST_STOPPED)) {
-			s->last_change = now.tv_sec;
 			if (s->proxy->lbprm.set_server_status_down)
 				s->proxy->lbprm.set_server_status_down(s);
 
@@ -5338,7 +5338,6 @@ static void srv_update_status(struct server *s)
 			s->counters.down_trans++;
 		}
 		else if ((s->cur_state != SRV_ST_STOPPING) && (s->next_state == SRV_ST_STOPPING)) {
-			s->last_change = now.tv_sec;
 			if (s->proxy->lbprm.set_server_status_down)
 				s->proxy->lbprm.set_server_status_down(s);
 
@@ -5366,10 +5365,6 @@ static void srv_update_status(struct server *s)
 		else if (((s->cur_state != SRV_ST_RUNNING) && (s->next_state == SRV_ST_RUNNING))
 			 || ((s->cur_state != SRV_ST_STARTING) && (s->next_state == SRV_ST_STARTING))) {
 
-			if (s->cur_state == SRV_ST_STOPPED && s->last_change < now.tv_sec)	// ignore negative times
-				s->down_time += now.tv_sec - s->last_change;
-
-			s->last_change = now.tv_sec;
 			if (s->next_state == SRV_ST_STARTING && s->warmup)
 				task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
 
@@ -5471,7 +5466,6 @@ static void srv_update_status(struct server *s)
 		}
 		else {	/* server was still running */
 			check->health = 0; /* failure */
-			s->last_change = now.tv_sec;
 
 			s->next_state = SRV_ST_STOPPED;
 			if (s->proxy->lbprm.set_server_status_down)
@@ -5540,7 +5534,6 @@ static void srv_update_status(struct server *s)
 				s->next_state = SRV_ST_STOPPING;
 			}
 			else {
-				s->last_change = now.tv_sec;
 				s->next_state = SRV_ST_STARTING;
 				if (s->slowstart > 0) {
 					if (s->warmup)
@@ -5679,7 +5672,6 @@ static void srv_update_status(struct server *s)
 		if (!(s->cur_admin & SRV_ADMF_DRAIN) && (s->next_admin & SRV_ADMF_DRAIN)) {
 			/* drain state is applied only if not yet in maint */
 
-			s->last_change = now.tv_sec;
 			if (px->lbprm.set_server_status_down)
 				px->lbprm.set_server_status_down(s);
 
@@ -5710,10 +5702,6 @@ static void srv_update_status(struct server *s)
 		}
 		else if ((s->cur_admin & SRV_ADMF_DRAIN) && !(s->next_admin & SRV_ADMF_DRAIN)) {
 			/* OK completely leaving drain mode */
-
-			if (s->last_change < now.tv_sec)                        // ignore negative times
-				s->down_time += now.tv_sec - s->last_change;
-			s->last_change = now.tv_sec;
 			server_recalc_eweight(s, 0);
 
 			tmptrash = alloc_trash_chunk();
@@ -5792,6 +5780,16 @@ static void srv_update_status(struct server *s)
 	 * by some lb state change function), so we don't miss anything
 	 */
 	srv_lb_commit_status(s);
+
+	/* check if server stats must be updated due the the server state change */
+	if (srv_prev_state != s->cur_state) {
+		if (srv_prev_state == SRV_ST_STOPPED) {
+			/* server was down and no longer is */
+			if (s->last_change < now.tv_sec)                        // ignore negative times
+				s->down_time += now.tv_sec - s->last_change;
+		}
+		s->last_change = now.tv_sec;
+	}
 
 	/* check if backend stats must be updated due to the server state change */
 	if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
