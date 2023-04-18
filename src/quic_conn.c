@@ -3253,8 +3253,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				TRACE_ERROR("CID allocation error", QUIC_EV_CONN_IO_CB, qc);
 			}
 			else {
-				/* insert the allocated CID in the receiver datagram handler tree */
-				ebmb_insert(&quic_dghdlrs[tid].cids, &conn_id->node, conn_id->cid.len);
+				quic_cid_insert(conn_id);
 				qc_build_new_connection_id_frm(qc, conn_id);
 			}
 			break;
@@ -3969,6 +3968,59 @@ struct quic_cid quic_derive_cid(const struct quic_cid *orig,
 	return cid;
 }
 
+/* Retrieve the thread ID associated to QUIC connection ID <cid> of length
+ * <cid_len>. CID may be not found on the CID tree because it is an ODCID. In
+ * this case, it will derived using client address <cli_addr> as hash
+ * parameter. However, this is done only if <buf> points to an INITIAL or 0RTT
+ * packet of length <len>.
+ *
+ * Returns the thread ID or a negative error code.
+ */
+int quic_get_cid_tid(const unsigned char *cid, size_t cid_len,
+                     const struct sockaddr_storage *cli_addr,
+                     unsigned char *buf, size_t buf_len)
+{
+	struct quic_cid_tree *tree;
+	struct quic_connection_id *conn_id;
+	struct ebmb_node *node;
+
+	tree = &quic_cid_trees[_quic_cid_tree_idx(cid)];
+	HA_RWLOCK_RDLOCK(QC_CID_LOCK, &tree->lock);
+	node = ebmb_lookup(&tree->root, cid, cid_len);
+	HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
+
+	if (!node) {
+		struct quic_cid orig, derive_cid;
+		struct quic_rx_packet pkt;
+
+		if (!qc_parse_hd_form(&pkt, &buf, buf + buf_len))
+			goto not_found;
+
+		if (pkt.type != QUIC_PACKET_TYPE_INITIAL &&
+		    pkt.type != QUIC_PACKET_TYPE_0RTT) {
+			goto not_found;
+		}
+
+		memcpy(orig.data, cid, cid_len);
+		orig.len = cid_len;
+		derive_cid = quic_derive_cid(&orig, cli_addr);
+
+		tree = &quic_cid_trees[quic_cid_tree_idx(&derive_cid)];
+		HA_RWLOCK_RDLOCK(QC_CID_LOCK, &tree->lock);
+		node = ebmb_lookup(&tree->root, cid, cid_len);
+		HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
+	}
+
+	if (!node)
+		goto not_found;
+
+	conn_id = ebmb_entry(node, struct quic_connection_id, node);
+	return HA_ATOMIC_LOAD(&conn_id->tid);
+
+ not_found:
+	return -1;
+}
+
 /* Allocate a new CID and attach it to <root> ebtree.
  *
  * If <orig> and <addr> params are non null, the new CID value is directly
@@ -4016,6 +4068,7 @@ static struct quic_connection_id *new_quic_cid(struct eb_root *root,
 	}
 
 	conn_id->qc = qc;
+	HA_ATOMIC_STORE(&conn_id->tid, tid);
 
 	conn_id->seq_num.key = qc->next_cid_seq_num++;
 	conn_id->retire_prior_to = 0;
@@ -4082,8 +4135,10 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 			goto err;
 		}
 
-		/* insert the allocated CID in the receiver datagram handler tree */
-		ebmb_insert(&quic_dghdlrs[tid].cids, &conn_id->node, conn_id->cid.len);
+		/* TODO To prevent CID tree locking, all CIDs created here
+		 * could be allocated at the same time as the first one.
+		 */
+		quic_cid_insert(conn_id);
 
 		quic_connection_id_to_frm_cpy(frm, conn_id);
 		LIST_APPEND(&frm_list, &frm->list);
@@ -4114,7 +4169,8 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 			break;
 
 		node = eb64_next(node);
-		ebmb_delete(&conn_id->node);
+		quic_cid_delete(conn_id);
+
 		eb64_delete(&conn_id->seq_num);
 		pool_free(pool_head_quic_connection_id, conn_id);
 	}
@@ -5504,7 +5560,7 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 	/* insert the allocated CID in the receiver datagram handler tree */
 	if (server)
-		ebmb_insert(&quic_dghdlrs[tid].cids, &conn_id->node, conn_id->cid.len);
+		quic_cid_insert(conn_id);
 
 	/* Select our SCID which is the first CID with 0 as sequence number. */
 	qc->scid = conn_id->cid;
@@ -6511,11 +6567,15 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 	struct quic_conn *qc = NULL;
 	struct ebmb_node *node;
 	struct quic_connection_id *conn_id;
+	struct quic_cid_tree *tree;
 
 	TRACE_ENTER(QUIC_EV_CONN_RXPKT);
 
 	/* First look into DCID tree. */
-	node = ebmb_lookup(&quic_dghdlrs[tid].cids, pkt->dcid.data, pkt->dcid.len);
+	tree = &quic_cid_trees[_quic_cid_tree_idx(pkt->dcid.data)];
+	HA_RWLOCK_RDLOCK(QC_CID_LOCK, &tree->lock);
+	node = ebmb_lookup(&tree->root, pkt->dcid.data, pkt->dcid.len);
+	HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
 
 	/* If not found on an Initial/0-RTT packet, it could be because an
 	 * ODCID is reused by the client. Calculate the derived CID value to
@@ -6524,7 +6584,11 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 	if (!node && (pkt->type == QUIC_PACKET_TYPE_INITIAL ||
 	     pkt->type == QUIC_PACKET_TYPE_0RTT)) {
 		const struct quic_cid derive_cid = quic_derive_cid(&pkt->dcid, saddr);
-		node = ebmb_lookup(&quic_dghdlrs[tid].cids, derive_cid.data, derive_cid.len);
+
+		tree = &quic_cid_trees[quic_cid_tree_idx(&derive_cid)];
+		HA_RWLOCK_RDLOCK(QC_CID_LOCK, &tree->lock);
+		node = ebmb_lookup(&tree->root, derive_cid.data, derive_cid.len);
+		HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
 	}
 
 	if (!node)
@@ -8196,9 +8260,12 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
  */
 int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len)
 {
-	struct ebmb_node *node;
+	const uchar idx = _quic_cid_tree_idx(dcid);
 	struct quic_connection_id *conn_id;
+	struct ebmb_node *node = NULL;
+	struct quic_cid_tree *tree = &quic_cid_trees[idx];
 
+	/* Test against our default CID or client ODCID. */
 	if ((qc->scid.len == dcid_len &&
 	     memcmp(qc->scid.data, dcid, dcid_len) == 0) ||
 	    (qc->odcid.len == dcid_len &&
@@ -8206,7 +8273,17 @@ int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len)
 		return 1;
 	}
 
-	node = ebmb_lookup(&quic_dghdlrs[tid].cids, dcid, dcid_len);
+	/* Test against our other CIDs. This can happen if the client has
+	 * decided to switch to a new one.
+	 *
+	 * TODO to avoid locking, loop through qc.cids as an alternative.
+	 *
+	 * TODO set it to our default CID to avoid this operation next time.
+	 */
+	HA_RWLOCK_RDLOCK(QC_CID_LOCK, &tree->lock);
+	node = ebmb_lookup(&tree->root, dcid, dcid_len);
+	HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
+
 	if (node) {
 		conn_id = ebmb_entry(node, struct quic_connection_id, node);
 		if (qc == conn_id->qc)

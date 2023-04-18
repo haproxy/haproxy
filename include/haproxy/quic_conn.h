@@ -38,6 +38,7 @@
 #include <haproxy/ticks.h>
 
 #include <haproxy/listener.h>
+#include <haproxy/proto_quic.h>
 #include <haproxy/quic_cc.h>
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_enc.h>
@@ -137,9 +138,41 @@ static inline void quic_cid_dump(struct buffer *buf,
 	chunk_appendf(buf, ")");
 }
 
-/* Free the CIDs attached to <conn> QUIC connection. This must be called under
- * the CID lock.
- */
+/* Return tree index where <cid> is stored. */
+static inline uchar _quic_cid_tree_idx(const unsigned char *cid)
+{
+	return cid[0];
+}
+
+/* Return tree index where <cid> is stored. */
+static inline uchar quic_cid_tree_idx(const struct quic_cid *cid)
+{
+	return _quic_cid_tree_idx(cid->data);
+}
+
+/* Insert <conn_id> into global CID tree as a thread-safe operation. */
+static inline void quic_cid_insert(struct quic_connection_id *conn_id)
+{
+	const uchar idx = quic_cid_tree_idx(&conn_id->cid);
+	struct quic_cid_tree *tree = &quic_cid_trees[idx];
+
+	HA_RWLOCK_WRLOCK(QC_CID_LOCK, &tree->lock);
+	ebmb_insert(&tree->root, &conn_id->node, conn_id->cid.len);
+	HA_RWLOCK_WRUNLOCK(QC_CID_LOCK, &tree->lock);
+}
+
+/* Remove <conn_id> from global CID tree as a thread-safe operation. */
+static inline void quic_cid_delete(struct quic_connection_id *conn_id)
+{
+	const uchar idx = quic_cid_tree_idx(&conn_id->cid);
+	struct quic_cid_tree *tree = &quic_cid_trees[idx];
+
+	HA_RWLOCK_WRLOCK(QC_CID_LOCK, &tree->lock);
+	ebmb_delete(&conn_id->node);
+	HA_RWLOCK_WRUNLOCK(QC_CID_LOCK, &tree->lock);
+}
+
+/* Free the CIDs attached to <conn> QUIC connection. */
 static inline void free_quic_conn_cids(struct quic_conn *conn)
 {
 	struct eb64_node *node;
@@ -151,7 +184,7 @@ static inline void free_quic_conn_cids(struct quic_conn *conn)
 		conn_id = eb64_entry(node, struct quic_connection_id, seq_num);
 
 		/* remove the CID from the receiver tree */
-		ebmb_delete(&conn_id->node);
+		quic_cid_delete(conn_id);
 
 		/* remove the CID from the quic_conn tree */
 		node = eb64_next(node);
@@ -173,39 +206,6 @@ static inline void quic_connection_id_to_frm_cpy(struct quic_frame *dst,
 	to->cid.len = src->cid.len;
 	to->cid.data = src->cid.data;
 	to->stateless_reset_token = src->stateless_reset_token;
-}
-
-/* extract a TID from a CID for receiver <rx>, from 0 to global.nbthread-1 and
- * in any case no more than 4095. It takes into account the bind_conf's thread
- * group and the bind_conf's thread mask. The algorithm is the following: most
- * packets contain a valid thread ID for the bind_conf, which means that the
- * retrieved ID directly maps to a bound thread ID. If that's not the case,
- * then we have to remap it. The resulting thread ID will then differ but will
- * be correctly encoded and decoded.
- */
-static inline uint quic_get_cid_tid(const unsigned char *cid, const struct receiver *rx)
-{
-	uint id, grp;
-	uint base, count;
-
-	id = read_n16(cid) & 4095;
-	grp = rx->bind_tgroup;
-	base  = ha_tgroup_info[grp - 1].base;
-	count = ha_tgroup_info[grp - 1].count;
-
-	if (base <= id && id < base + count &&
-	    rx->bind_thread & ha_thread_info[id].ltid_bit)
-		return id; // part of the group and bound: valid
-
-	/* The thread number isn't valid, it doesn't map to a thread bound on
-	 * this receiver. Let's reduce it to one of the thread(s) valid for
-	 * that receiver.
-	 */
-	count = my_popcountl(rx->bind_thread);
-	id = count - 1 - id % count;
-	id = mask_find_rank_bit(id, rx->bind_thread);
-	id += base;
-	return id;
 }
 
 /* Modify <cid> to have a CID linked to the thread ID <target_tid> that
@@ -676,6 +676,9 @@ int quic_get_dgram_dcid(unsigned char *buf, const unsigned char *end,
                         unsigned char **dcid, size_t *dcid_len);
 struct quic_cid quic_derive_cid(const struct quic_cid *orig,
                                 const struct sockaddr_storage *addr);
+int quic_get_cid_tid(const unsigned char *cid, size_t cid_len,
+                     const struct sockaddr_storage *cli_addr,
+                     unsigned char *buf, size_t buf_len);
 int qc_send_mux(struct quic_conn *qc, struct list *frms);
 
 void qc_notify_close(struct quic_conn *qc);

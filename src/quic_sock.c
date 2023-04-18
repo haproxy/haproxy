@@ -209,7 +209,6 @@ static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner
                                      struct quic_dgram *new_dgram, struct list *dgrams)
 {
 	struct quic_dgram *dgram;
-	const struct listener *l = owner;
 	unsigned char *dcid;
 	size_t dcid_len;
 	int cid_tid;
@@ -221,7 +220,18 @@ static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner
 	if (!dgram)
 		goto err;
 
-	cid_tid = quic_get_cid_tid(dcid, &l->rx);
+	if ((cid_tid = quic_get_cid_tid(dcid, dcid_len, saddr, buf, len)) < 0) {
+		/* CID not found. Ensure only one thread will handle this CID
+		 * to avoid duplicating connection creation. This code may not
+		 * work if using thread-mask on the listener but is only here
+		 * for a short time.
+		 *
+		 * TODO this code implies the thread used for QUIC handshake is
+		 * directly derived from client chosen CID. This association
+		 * must be broken.
+		 */
+		cid_tid = dcid[0] % global.nbthread;
+	}
 
 	/* All the members must be initialized! */
 	dgram->owner = owner;
