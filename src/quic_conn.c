@@ -7771,8 +7771,13 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		goto no_room;
 
 	/* Encode the token length (0) for an Initial packet. */
-	if (pkt->type == QUIC_PACKET_TYPE_INITIAL)
+	if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
+		if (end <= pos)
+			goto no_room;
+
 		*pos++ = 0;
+	}
+
 	head_len = pos - beg;
 	/* Build an ACK frame if required. */
 	ack_frm_len = 0;
