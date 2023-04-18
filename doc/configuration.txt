@@ -2895,6 +2895,20 @@ tune.h2.be.initial-window-size <number>
   between clients. It doesn't affect resource usage.
   See also: tune.h2.initial-window-size.
 
+tune.h2.be.max-concurrent-streams <number>
+  Sets the HTTP/2 maximum number of concurrent streams per outgoing connection
+  (i.e. the number of outstanding requests on a single connection to a server).
+  When not set, the default set by tune.h2.max-concurrent-streams applies. A
+  smaller value than the default 100 may improve a site's responsiveness at the
+  expense of maintaining more established connections to the servers. When the
+  "http-reuse" setting is set to "always", it is recommended to reduce this
+  value so as not to mix too many different clients over the same connection,
+  because if a client is slower than others, a mechanism known as "head of
+  line blocking" tends to cause cascade effect on download speed for all
+  clients sharing a connection (keep tune.h2.be.initial-window-size low in this
+  case). It is highly recommended not to increase this value; some might find
+  it optimal to run at low values (1..5 typically).
+
 tune.h2.fe.initial-window-size <number>
   Sets the HTTP/2 initial window size for incoming connections, which is the
   number of bytes the client can upload before waiting for an acknowledgment
@@ -2906,6 +2920,16 @@ tune.h2.fe.initial-window-size <number>
   time. It doesn't affect resource usage. Using too large values may cause
   clients to experience a lack of responsiveness if pages are accessed in
   parallel to large uploads. See also: tune.h2.initial-window-size.
+
+tune.h2.fe.max-concurrent-streams <number>
+  Sets the HTTP/2 maximum number of concurrent streams per incoming connection
+  (i.e. the number of outstanding requests on a single connection from a
+  client). When not set, the default set by tune.h2.max-concurrent-streams
+  applies. A larger value than the default 100 may sometimes slightly improve
+  the page load time for complex sites with lots of small objects over high
+  latency networks but can also result in using more memory by allowing a
+  client to allocate more resources at once. The default value of 100 is
+  generally good and it is recommended not to change this value.
 
 tune.h2.header-table-size <number>
   Sets the HTTP/2 dynamic header table size. It defaults to 4096 bytes and
@@ -2927,13 +2951,15 @@ tune.h2.initial-window-size <number>
   tune.h2.be.initial-window-size.
 
 tune.h2.max-concurrent-streams <number>
-  Sets the HTTP/2 maximum number of concurrent streams per connection (ie the
-  number of outstanding requests on a single connection). The default value is
-  100. A larger one may slightly improve page load time for complex sites when
-  visited over high latency networks, but increases the amount of resources a
-  single client may allocate. A value of zero disables the limit so a single
-  client may create as many streams as allocatable by HAProxy. It is highly
-  recommended not to change this value.
+  Sets the default HTTP/2 maximum number of concurrent streams per connection
+  (i.e. the number of outstanding requests on a single connection). Ths value
+  is used for incoming connections when tune.h2.fe.max-concurrent-streams is
+  not set, and for outgoing connections when tune.h2.be.max-concurrent-streams
+  is not set. The default value is 100. The impact varies depending on the side
+  so please see the two settings above for more details. It is recommended not
+  to use this setting and to switch to the per-side ones instead. A value of
+  zero disables the limit so a single client may create as many streams as
+  allocatable by HAProxy. It is highly recommended not to change this value.
 
 tune.h2.max-frame-size <number>
   Sets the HTTP/2 maximum frame size that HAProxy announces it is willing to
