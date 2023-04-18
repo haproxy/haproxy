@@ -50,7 +50,7 @@
 #include <haproxy/event_hdl.h>
 
 
-static void srv_update_status(struct server *s);
+static void srv_update_status(struct server *s, int type, int cause);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
 static void srv_cleanup_connections(struct server *srv);
 
@@ -1526,9 +1526,9 @@ void srv_shutdown_backup_streams(struct proxy *px, int why)
 			srv_shutdown_streams(srv, why);
 }
 
-static void srv_append_op_chg_cause(struct buffer *msg, struct server *s)
+static void srv_append_op_chg_cause(struct buffer *msg, struct server *s, enum srv_op_st_chg_cause cause)
 {
-	switch (s->op_st_chg_cause) {
+	switch (cause) {
 		case SRV_OP_STCHGC_NONE:
 			break; /* do nothing */
 		case SRV_OP_STCHGC_HEALTH:
@@ -1538,15 +1538,15 @@ static void srv_append_op_chg_cause(struct buffer *msg, struct server *s)
 			check_append_info(msg, &s->agent);
 			break;
 		default:
-			chunk_appendf(msg, ", %s", srv_op_st_chg_cause(s->op_st_chg_cause));
+			chunk_appendf(msg, ", %s", srv_op_st_chg_cause(cause));
 			break;
 	}
 }
 
-static void srv_append_adm_chg_cause(struct buffer *msg, struct server *s)
+static void srv_append_adm_chg_cause(struct buffer *msg, struct server *s, enum srv_adm_st_chg_cause cause)
 {
-	if (s->adm_st_chg_cause)
-		chunk_appendf(msg, " (%s)", srv_adm_st_chg_cause(s->adm_st_chg_cause));
+	if (cause)
+		chunk_appendf(msg, " (%s)", srv_adm_st_chg_cause(cause));
 }
 
 /* Appends some information to a message string related to a server tracking
@@ -1595,10 +1595,9 @@ void srv_set_stopped(struct server *s, enum srv_op_st_chg_cause cause)
 		return;
 
 	s->next_state = SRV_ST_STOPPED;
-	s->op_st_chg_cause = cause;
 
 	/* propagate changes */
-	srv_update_status(s);
+	srv_update_status(s, 0, cause);
 
 	for (srv = s->trackers; srv; srv = srv->tracknext) {
 		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
@@ -1624,13 +1623,12 @@ void srv_set_running(struct server *s, enum srv_op_st_chg_cause cause)
 		return;
 
 	s->next_state = SRV_ST_STARTING;
-	s->op_st_chg_cause = cause;
 
 	if (s->slowstart <= 0)
 		s->next_state = SRV_ST_RUNNING;
 
 	/* propagate changes */
-	srv_update_status(s);
+	srv_update_status(s, 0, cause);
 
 	for (srv = s->trackers; srv; srv = srv->tracknext) {
 		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
@@ -1656,10 +1654,9 @@ void srv_set_stopping(struct server *s, enum srv_op_st_chg_cause cause)
 		return;
 
 	s->next_state = SRV_ST_STOPPING;
-	s->op_st_chg_cause = cause;
 
 	/* propagate changes */
-	srv_update_status(s);
+	srv_update_status(s, 0, cause);
 
 	for (srv = s->trackers; srv; srv = srv->tracknext) {
 		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
@@ -1690,10 +1687,9 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, enum srv_adm_st_c
 		return;
 
 	s->next_admin |= mode;
-	s->adm_st_chg_cause = cause;
 
 	/* propagate changes */
-	srv_update_status(s);
+	srv_update_status(s, 1, cause);
 
 	/* stop going down if the equivalent flag was already present (forced or inherited) */
 	if (((mode & SRV_ADMF_MAINT) && (s->next_admin & ~mode & SRV_ADMF_MAINT)) ||
@@ -1735,7 +1731,7 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 	s->next_admin &= ~mode;
 
 	/* propagate changes */
-	srv_update_status(s);
+	srv_update_status(s, 1, SRV_ADM_STCHGC_NONE);
 
 	/* stop going down if the equivalent flag is still present (forced or inherited) */
 	if (((mode & SRV_ADMF_MAINT) && (s->next_admin & SRV_ADMF_MAINT)) ||
@@ -1878,7 +1874,7 @@ void server_recalc_eweight(struct server *sv, int must_update)
 
 	/* propagate changes only if needed (i.e. not recursively) */
 	if (must_update)
-		srv_update_status(sv);
+		srv_update_status(sv, 0, SRV_OP_STCHGC_NONE);
 }
 
 /*
@@ -5270,8 +5266,11 @@ static void srv_lb_propagate(struct server *s)
  * Must be called with the server lock held. This may also be called at init
  * time as the result of parsing the state file, in which case no lock will be
  * held, and the server's warmup task can be null.
+ * <type> should be 0 for operational and 1 for administrative
+ * <cause> must be srv_op_st_chg_cause enum for operational and
+ * srv_adm_st_chg_cause enum for administrative
  */
-static void srv_update_status(struct server *s)
+static void srv_update_status(struct server *s, int type, int cause)
 {
 	int xferred;
 	int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
@@ -5279,6 +5278,8 @@ static void srv_update_status(struct server *s)
 	enum srv_state srv_prev_state = s->cur_state;
 	int log_level;
 	struct buffer *tmptrash = NULL;
+	enum srv_op_st_chg_cause op_cause = (!type) ? cause : SRV_OP_STCHGC_NONE;
+	enum srv_adm_st_chg_cause adm_cause = (type) ? cause : SRV_ADM_STCHGC_NONE;
 
 	/* If currently main is not set we try to apply pending state changes */
 	if (!(s->cur_admin & SRV_ADMF_MAINT)) {
@@ -5311,7 +5312,7 @@ static void srv_update_status(struct server *s)
 				             "%sServer %s/%s is DOWN", s->flags & SRV_F_BACKUP ? "Backup " : "",
 				             s->proxy->id, s->id);
 
-				srv_append_op_chg_cause(tmptrash, s);
+				srv_append_op_chg_cause(tmptrash, s, op_cause);
 				srv_append_more(tmptrash, s, xferred, 0);
 
 				ha_warning("%s.\n", tmptrash->area);
@@ -5341,7 +5342,7 @@ static void srv_update_status(struct server *s)
 				             "%sServer %s/%s is stopping", s->flags & SRV_F_BACKUP ? "Backup " : "",
 				             s->proxy->id, s->id);
 
-				srv_append_op_chg_cause(tmptrash, s);
+				srv_append_op_chg_cause(tmptrash, s, op_cause);
 				srv_append_more(tmptrash, s, xferred, 0);
 
 				ha_warning("%s.\n", tmptrash->area);
@@ -5384,7 +5385,7 @@ static void srv_update_status(struct server *s)
 				             "%sServer %s/%s is UP", s->flags & SRV_F_BACKUP ? "Backup " : "",
 				             s->proxy->id, s->id);
 
-				srv_append_op_chg_cause(tmptrash, s);
+				srv_append_op_chg_cause(tmptrash, s, op_cause);
 				srv_append_more(tmptrash, s, xferred, 0);
 
 				ha_warning("%s.\n", tmptrash->area);
@@ -5404,9 +5405,6 @@ static void srv_update_status(struct server *s)
 		s->next_admin = next_admin;
 	}
 
-	/* reset operational change cause */
-	s->op_st_chg_cause = SRV_OP_STCHGC_NONE;
-
 	/* Now we try to apply pending admin changes */
 
 	/* Maintenance must also disable health checks */
@@ -5422,7 +5420,7 @@ static void srv_update_status(struct server *s)
 				chunk_printf(tmptrash,
 				    "%sServer %s/%s was DOWN and now enters maintenance",
 				    s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id);
-				srv_append_adm_chg_cause(tmptrash, s);
+				srv_append_adm_chg_cause(tmptrash, s, adm_cause);
 				srv_append_more(tmptrash, s, -1, (s->next_admin & SRV_ADMF_FMAINT));
 
 				if (!(global.mode & MODE_STARTING)) {
@@ -5460,7 +5458,7 @@ static void srv_update_status(struct server *s)
 				             "%sServer %s/%s is going DOWN for maintenance",
 				             s->flags & SRV_F_BACKUP ? "Backup " : "",
 				             s->proxy->id, s->id);
-				srv_append_adm_chg_cause(tmptrash, s);
+				srv_append_adm_chg_cause(tmptrash, s, adm_cause);
 				srv_append_more(tmptrash, s, xferred, (s->next_admin & SRV_ADMF_FMAINT));
 
 				if (!(global.mode & MODE_STARTING)) {
@@ -5642,7 +5640,7 @@ static void srv_update_status(struct server *s)
 			if (tmptrash) {
 				chunk_printf(tmptrash, "%sServer %s/%s enters drain state",
 					     s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id);
-				srv_append_adm_chg_cause(tmptrash, s);
+				srv_append_adm_chg_cause(tmptrash, s, adm_cause);
 				srv_append_more(tmptrash, s, xferred, (s->next_admin & SRV_ADMF_FDRAIN));
 
 				if (!(global.mode & MODE_STARTING)) {
@@ -5719,9 +5717,6 @@ static void srv_update_status(struct server *s)
 			}
 		}
 	}
-
-	/* Re-set adm st change to none */
-	s->adm_st_chg_cause = SRV_ADM_STCHGC_NONE;
 
 	/* explicitly commit state changes (even if it was already applied implicitly
 	 * by some lb state change function), so we don't miss anything

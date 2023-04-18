@@ -423,8 +423,6 @@ struct server {
 		int nb_low;
 		int nb_high;
 	} tmpl_info;
-	enum srv_op_st_chg_cause op_st_chg_cause;	/* operational status change's cause */
-	enum srv_adm_st_chg_cause adm_st_chg_cause;	/* administrative status change's cause */
 
 	event_hdl_sub_list e_subs;		/* event_hdl: server's subscribers list (atomically updated) */
 
