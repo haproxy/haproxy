@@ -4256,8 +4256,8 @@ static void http_end_request(struct stream *s)
 			 */
 			channel_auto_read(&s->req);
 			txn->req.msg_state = HTTP_MSG_TUNNEL;
-			channel_auto_read(&s->res);
-			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
+			if (txn->rsp.msg_state != HTTP_MSG_TUNNEL)
+				s->res.flags |= CF_WAKE_ONCE;
 		}
 		else {
 			/* we're not expecting any new data to come for this
@@ -4318,6 +4318,8 @@ static void http_end_request(struct stream *s)
 		s->scb->flags |= SC_FL_SND_NEVERWAIT;
 		if (HAS_REQ_DATA_FILTERS(s))
 			chn->analysers |= AN_REQ_FLT_XFER_DATA;
+		else
+			c_adv(chn, htxbuf(&chn->buf)->data - co_data(chn));
 	}
 	channel_auto_close(chn);
 	channel_auto_read(chn);
@@ -4364,10 +4366,10 @@ static void http_end_response(struct stream *s)
 		 * direction, and sometimes for a close to be effective.
 		 */
 		if (txn->flags & TX_CON_WANT_TUN) {
-			channel_auto_read(&s->req);
-			txn->req.msg_state = HTTP_MSG_TUNNEL;
 			channel_auto_read(&s->res);
 			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
+			if (txn->req.msg_state != HTTP_MSG_TUNNEL)
+				s->req.flags |= CF_WAKE_ONCE;
 		}
 		else {
 			/* we're not expecting any new data to come for this
@@ -4416,6 +4418,8 @@ static void http_end_response(struct stream *s)
 		s->scf->flags |= SC_FL_SND_NEVERWAIT;
 		if (HAS_RSP_DATA_FILTERS(s))
 			chn->analysers |= AN_RES_FLT_XFER_DATA;
+		else
+			c_adv(chn, htxbuf(&chn->buf)->data - co_data(chn));
 	}
 	channel_auto_close(chn);
 	channel_auto_read(chn);
