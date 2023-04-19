@@ -1229,7 +1229,7 @@ void listener_accept(struct listener *l)
 			 */
 			thr_idx_ptr = l->rx.shard_info ? &((struct listener *)(l->rx.shard_info->ref->owner))->thr_idx : &l->thr_idx;
 			while (1) {
-				int q1, q2;
+				int q0, q1, q2;
 
 				/* calculate r1/g1/t1 first (ascending idx) */
 				n0 = _HA_ATOMIC_LOAD(thr_idx_ptr);
@@ -1337,12 +1337,15 @@ void listener_accept(struct listener *l)
 
 				/* here we have (r1,g1,t1) that designate the first receiver, its
 				 * thread group and local thread, and (r2,g2,t2) that designate
-				 * the second receiver, its thread group and local thread.
+				 * the second receiver, its thread group and local thread. We'll
+				 * also consider the local thread with q0.
 				 */
+				q0 = accept_queue_ring_len(&accept_queue_rings[tid]);
 				q1 = accept_queue_ring_len(&accept_queue_rings[g1->base + t1]);
 				q2 = accept_queue_ring_len(&accept_queue_rings[g2->base + t2]);
 
 				/* add to this the currently active connections */
+				q0 += _HA_ATOMIC_LOAD(&l->thr_conn[ti->ltid]);
 				if (l->rx.shard_info) {
 					q1 += _HA_ATOMIC_LOAD(&((struct listener *)l->rx.shard_info->members[r1]->owner)->thr_conn[t1]);
 					q2 += _HA_ATOMIC_LOAD(&((struct listener *)l->rx.shard_info->members[r2]->owner)->thr_conn[t2]);
@@ -1361,12 +1364,17 @@ void listener_accept(struct listener *l)
 				 *   q1 = q2 : both are equally loaded, thus we pick t1
 				 *             and update t1 as it will become more loaded
 				 *             than t2.
+				 * On top of that, if in the end the current thread appears
+				 * to be as good of a deal, we'll prefer it over a foreign
+				 * one as it will improve locality and avoid a migration.
 				 */
 
 				if (q1 - q2 < 0) {
 					t = g1->base + t1;
+					if (q0 <= q1)
+						t = tid;
 
-					if (l->rx.shard_info)
+					if (l->rx.shard_info && t != tid)
 						new_li = l->rx.shard_info->members[r1]->owner;
 
 					t2--;
@@ -1378,15 +1386,19 @@ void listener_accept(struct listener *l)
 				}
 				else if (q1 - q2 > 0) {
 					t = g2->base + t2;
+					if (q0 <= q2)
+						t = tid;
 
-					if (l->rx.shard_info)
+					if (l->rx.shard_info && t != tid)
 						new_li = l->rx.shard_info->members[r2]->owner;
 					goto updt_t1;
 				}
-				else {
+				else { // q1 == q2
 					t = g1->base + t1;
+					if (q0 < q1) // local must be strictly better than both
+						t = tid;
 
-					if (l->rx.shard_info)
+					if (l->rx.shard_info && t != tid)
 						new_li = l->rx.shard_info->members[r1]->owner;
 				updt_t1:
 					t1++;
