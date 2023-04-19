@@ -1,0 +1,212 @@
+#REGTEST_TYPE=devel
+
+# This teg-test verifies that different ALPN values on the "server" line
+# will negotiate the expected protocol depending on the ALPN "bind" line.
+# It requires OpenSSL >= 1.0.2 for ALPN
+
+varnishtest "Test the bind 'alpn' setting"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.8-dev7)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && openssl_version_atleast(1.0.2)'"
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen px-clr
+        bind "fd@${clearfe}"
+	default-server ssl verify none
+
+        # first digit select the alpn sent by the client, second digit, the server one
+        use-server s00 if { path /00 }
+                                        server s00 "${tmpdir}/ssl0.sock"
+        use-server s01 if { path /01 }
+                                        server s01 "${tmpdir}/ssl1.sock"
+        use-server s02 if { path /02 }
+                                        server s02 "${tmpdir}/ssl2.sock"
+        use-server s03 if { path /03 }
+                                        server s03 "${tmpdir}/ssl3.sock"
+        use-server s04 if { path /04 }
+                                        server s04 "${tmpdir}/ssl4.sock"
+
+        use-server s10 if { path /10 }
+                                        server s10 "${tmpdir}/ssl0.sock" alpn http/1.1
+        use-server s11 if { path /11 }
+                                        server s11 "${tmpdir}/ssl1.sock" alpn http/1.1
+        use-server s12 if { path /12 }
+                                        server s12 "${tmpdir}/ssl2.sock" alpn http/1.1
+        use-server s13 if { path /13 }
+                                        server s13 "${tmpdir}/ssl3.sock" alpn http/1.1
+        use-server s14 if { path /14 }
+                                        server s14 "${tmpdir}/ssl4.sock" alpn http/1.1
+
+        use-server s20 if { path /20 }
+                                        server s20 "${tmpdir}/ssl0.sock" alpn h2
+        use-server s21 if { path /21 }
+                                        server s21 "${tmpdir}/ssl1.sock" alpn h2
+        use-server s22 if { path /22 }
+                                        server s22 "${tmpdir}/ssl2.sock" alpn h2
+        use-server s23 if { path /23 }
+                                        server s23 "${tmpdir}/ssl3.sock" alpn h2
+        use-server s24 if { path /24 }
+                                        server s24 "${tmpdir}/ssl4.sock" alpn h2
+
+        use-server s30 if { path /30 }
+                                        server s30 "${tmpdir}/ssl0.sock" alpn h2,http/1.1
+        use-server s31 if { path /31 }
+                                        server s31 "${tmpdir}/ssl1.sock" alpn h2,http/1.1
+        use-server s32 if { path /32 }
+                                        server s32 "${tmpdir}/ssl2.sock" alpn h2,http/1.1
+        use-server s33 if { path /33 }
+                                        server s33 "${tmpdir}/ssl3.sock" alpn h2,http/1.1
+        use-server s34 if { path /34 }
+                                        server s34 "${tmpdir}/ssl4.sock" alpn h2,http/1.1
+
+    frontend fe-ssl
+        bind "${tmpdir}/ssl0.sock" ssl crt ${testdir}/common.pem
+        bind "${tmpdir}/ssl1.sock" ssl crt ${testdir}/common.pem alpn http/1.1 
+        bind "${tmpdir}/ssl2.sock" ssl crt ${testdir}/common.pem alpn h2
+        bind "${tmpdir}/ssl3.sock" ssl crt ${testdir}/common.pem alpn h2,http/1.1
+        bind "${tmpdir}/ssl4.sock" ssl crt ${testdir}/common.pem no-alpn
+        http-request return status 200 hdr x-alpn _%[ssl_fc_alpn] hdr x-path %[path] hdr x-ver _%[req.ver]
+} -start
+
+# client sends no alpn
+client c1 -connect ${h1_clearfe_sock} {
+    txreq -url "/00"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_"
+    expect resp.http.x-ver == "_1.1"
+
+    txreq -url "/01"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_"
+    expect resp.http.x-ver == "_1.1"
+
+    txreq -url "/02"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_"
+    expect resp.http.x-ver == "_1.1"
+
+    txreq -url "/03"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_"
+    expect resp.http.x-ver == "_1.1"
+
+    txreq -url "/04"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_"
+    expect resp.http.x-ver == "_1.1"
+} -run
+
+# client sends alpn=http/1.1
+client c1 -connect ${h1_clearfe_sock} {
+    txreq -url "/10"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_"
+    expect resp.http.x-ver == "_1.1"
+
+    txreq -url "/11"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_http/1.1"
+    expect resp.http.x-ver == "_1.1"
+
+    txreq -url "/12"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_"
+    expect resp.http.x-ver == "_1.1"
+
+    txreq -url "/13"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_http/1.1"
+    expect resp.http.x-ver == "_1.1"
+
+    txreq -url "/14"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_"
+    expect resp.http.x-ver == "_1.1"
+} -run
+
+# client sends alpn=h2
+client c1 -connect ${h1_clearfe_sock} {
+    txreq -url "/20"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_"
+    expect resp.http.x-ver == "_1.1"
+
+    txreq -url "/21"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_"
+    expect resp.http.x-ver == "_1.1"
+
+    txreq -url "/22"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_h2"
+    expect resp.http.x-ver == "_2.0"
+
+    txreq -url "/23"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_h2"
+    expect resp.http.x-ver == "_2.0"
+
+    txreq -url "/24"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_"
+    expect resp.http.x-ver == "_1.1"
+} -run
+
+# client sends alpn=h2,http/1.1
+client c1 -connect ${h1_clearfe_sock} {
+    txreq -url "/30"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_"
+    expect resp.http.x-ver == "_1.1"
+
+    txreq -url "/31"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_http/1.1"
+    expect resp.http.x-ver == "_1.1"
+
+    txreq -url "/32"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_h2"
+    expect resp.http.x-ver == "_2.0"
+
+    txreq -url "/33"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_h2"
+    expect resp.http.x-ver == "_2.0"
+
+    txreq -url "/34"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_"
+    expect resp.http.x-ver == "_1.1"
+} -run
