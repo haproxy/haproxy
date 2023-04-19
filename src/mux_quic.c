@@ -1785,7 +1785,8 @@ static int qcs_send_stop_sending(struct qcs *qcs)
  * is then generated and inserted in <frms> list.
  *
  * Returns the total bytes transferred between qcs and quic_stream buffers. Can
- * be null if out buffer cannot be allocated.
+ * be null if out buffer cannot be allocated. On error a negative error code is
+ * used.
  */
 static int _qc_send_qcs(struct qcs *qcs, struct list *frms)
 {
@@ -1835,14 +1836,17 @@ static int _qc_send_qcs(struct qcs *qcs, struct list *frms)
 
 	/* Build a new STREAM frame with <out> buffer. */
 	if (qcs->tx.sent_offset != qcs->tx.offset || fin) {
-		int ret;
-		ret = qcs_build_stream_frm(qcs, out, fin, frms);
-		if (ret < 0) { ABORT_NOW(); /* TODO handle this properly */ }
+		if (qcs_build_stream_frm(qcs, out, fin, frms) < 0)
+			goto err;
 	}
 
  out:
 	TRACE_LEAVE(QMUX_EV_QCS_SEND, qcc->conn, qcs);
 	return xfer;
+
+ err:
+	TRACE_DEVEL("leaving on error", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+	return -1;
 }
 
 /* Proceed to sending. Loop through all available streams for the <qcc>
@@ -1853,8 +1857,10 @@ static int _qc_send_qcs(struct qcs *qcs, struct list *frms)
 static int qc_send(struct qcc *qcc)
 {
 	struct list frms = LIST_HEAD_INIT(frms);
+	/* Temporary list for QCS on error. */
+	struct list qcs_failed = LIST_HEAD_INIT(qcs_failed);
 	struct qcs *qcs, *qcs_tmp;
-	int total = 0;
+	int ret, total = 0;
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
 
@@ -1913,8 +1919,16 @@ static int qc_send(struct qcc *qcc)
 			continue;
 		}
 
-		if (!(qcs->flags & QC_SF_BLK_SFCTL))
-			total += _qc_send_qcs(qcs, &frms);
+		if (!(qcs->flags & QC_SF_BLK_SFCTL)) {
+			if ((ret = _qc_send_qcs(qcs, &frms)) < 0) {
+				/* Temporarily remove QCS from send-list. */
+				LIST_DEL_INIT(&qcs->el_send);
+				LIST_APPEND(&qcs_failed, &qcs->el_send);
+				continue;
+			}
+
+			total += ret;
+		}
 	}
 
 	/* Retry sending until no frame to send, data rejected or connection
@@ -1924,15 +1938,22 @@ static int qc_send(struct qcc *qcc)
 		/* Reloop over <qcc.send_list>. Useful for streams which have
 		 * fulfilled their qc_stream_desc buf and have now release it.
 		 */
-		list_for_each_entry(qcs, &qcc->send_list, el_send) {
+		list_for_each_entry_safe(qcs, qcs_tmp, &qcc->send_list, el_send) {
 			/* Only streams blocked on flow-control or waiting on a
 			 * new qc_stream_desc should be present in send_list as
 			 * long as transport layer can handle all data.
 			 */
 			BUG_ON(qcs->stream->buf && !(qcs->flags & QC_SF_BLK_SFCTL));
 
-			if (!(qcs->flags & QC_SF_BLK_SFCTL))
-				total += _qc_send_qcs(qcs, &frms);
+			if (!(qcs->flags & QC_SF_BLK_SFCTL)) {
+				if ((ret = _qc_send_qcs(qcs, &frms)) < 0) {
+					LIST_DEL_INIT(&qcs->el_send);
+					LIST_APPEND(&qcs_failed, &qcs->el_send);
+					continue;
+				}
+
+				total += ret;
+			}
 		}
 	}
 
@@ -1943,6 +1964,17 @@ static int qc_send(struct qcc *qcc)
 
 		list_for_each_entry_safe(frm, frm2, &frms, list)
 			qc_frm_free(&frm);
+	}
+
+	/* Re-insert on-error QCS at the end of the send-list. */
+	if (!LIST_ISEMPTY(&qcs_failed)) {
+		list_for_each_entry_safe(qcs, qcs_tmp, &qcs_failed, el_send) {
+			LIST_DEL_INIT(&qcs->el_send);
+			LIST_APPEND(&qcc->send_list, &qcs->el_send);
+		}
+
+		if (!(qcc->flags & QC_CF_BLK_MFCTL))
+			tasklet_wakeup(qcc->wait_event.tasklet);
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
