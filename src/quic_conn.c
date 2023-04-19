@@ -8252,6 +8252,8 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 	return 0;
 
  err:
+	/* Mark this datagram as consumed as maybe at least some packets were parsed. */
+	HA_ATOMIC_STORE(&dgram->buf, NULL);
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
 	return -1;
 }
