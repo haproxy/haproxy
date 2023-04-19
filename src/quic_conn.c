@@ -5414,7 +5414,7 @@ static int parse_retry_token(struct quic_conn *qc,
 	}
 
 	timestamp = ntohl(read_u32(token + odcid_len));
-	if (timestamp + MS_TO_TICKS(QUIC_RETRY_DURATION_MS) <= now_ms) {
+	if (tick_is_expired(tick_add(timestamp, MS_TO_TICKS(QUIC_RETRY_DURATION_MS)), now_ms)) {
 		TRACE_ERROR("token has expired", QUIC_EV_CONN_LPKT, qc);
 		goto leave;
 	}
