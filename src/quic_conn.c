@@ -4724,7 +4724,7 @@ static int qc_purge_txbuf(struct quic_conn *qc, struct buffer *buf)
  */
 static int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
 {
-	int status = 0;
+	int status = 0, ret;
 	struct buffer *buf;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
@@ -4739,8 +4739,7 @@ static int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
 		goto err;
 
 	/* Prepare and send packets until we could not further prepare packets. */
-	while (1) {
-		int ret;
+	do {
 		/* Currently buf cannot be non-empty at this stage. Even if a
 		 * previous sendto() has failed it is emptied to simulate
 		 * packet emission and rely on QUIC lost detection to try to
@@ -4750,23 +4749,19 @@ static int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
 		b_reset(buf);
 
 		ret = qc_prep_app_pkts(qc, buf, frms);
-		if (ret == -1) {
-			qc_txb_release(qc);
-			goto err;
-		}
 
-		if (!ret)
-			break;
-
-		if (!qc_send_ppkts(buf, qc->xprt_ctx)) {
+		if (b_data(buf) && !qc_send_ppkts(buf, qc->xprt_ctx)) {
 			if (qc->flags & QUIC_FL_CONN_TO_KILL)
 				qc_txb_release(qc);
 			goto err;
 		}
-	}
+	} while (ret > 0);
+
+	qc_txb_release(qc);
+	if (ret < 0)
+		goto err;
 
 	status = 1;
-	qc_txb_release(qc);
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 	return status;
 
@@ -8142,7 +8137,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 
 	quic_packet_encrypt(payload, payload_len, first_byte, aad_len, pn, tls_ctx, qc, &encrypt_failure);
 	if (encrypt_failure) {
-		/* TODO Unrecoverable failure, what to do of unencrypted input data ? */
+		/* TODO Unrecoverable failure, unencrypted data should be returned to the caller. */
 		WARN_ON("quic_packet_encrypt failure");
 		*err = -2;
 		goto err;
@@ -8152,7 +8147,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	pkt->len += QUIC_TLS_TAG_LEN;
 	quic_apply_header_protection(qc, first_byte, buf_pn, pn_len, tls_ctx, &encrypt_failure);
 	if (encrypt_failure) {
-		/* TODO Unrecoverable failure, what to do of unencrypted input data ? */
+		/* TODO Unrecoverable failure, unencrypted data should be returned to the caller. */
 		WARN_ON("quic_apply_header_protection failure");
 		*err = -2;
 		goto err;
