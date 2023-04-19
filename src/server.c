@@ -1581,10 +1581,9 @@ static void srv_append_more(struct buffer *msg, struct server *s,
 	}
 }
 
-/* Marks server <s> down, regardless of its checks' statuses. The server is
- * registered in a list to postpone the counting of the remaining servers on
- * the proxy and transfers queued streams whenever possible to other servers at
- * a sync point. Maintenance servers are ignored.
+/* Marks server <s> down, regardless of its checks' statuses. The server
+ * transfers queued streams whenever possible to other servers at a sync
+ * point. Maintenance servers are ignored.
  *
  * Must be called with the server lock held.
  */
@@ -1609,9 +1608,8 @@ void srv_set_stopped(struct server *s, enum srv_op_st_chg_cause cause)
 }
 
 /* Marks server <s> up regardless of its checks' statuses and provided it isn't
- * in maintenance. The server is registered in a list to postpone the counting
- * of the remaining servers on the proxy and tries to grab requests from the
- * proxy at a sync point. Maintenance servers are ignored.
+ * in maintenance. The server tries to grab requests from the proxy at a sync
+ * point. Maintenance servers are ignored.
  *
  * Must be called with the server lock held.
  */
@@ -1642,9 +1640,8 @@ void srv_set_running(struct server *s, enum srv_op_st_chg_cause cause)
 }
 
 /* Marks server <s> stopping regardless of its checks' statuses and provided it
- * isn't in maintenance. The server is registered in a list to postpone the
- * counting of the remaining servers on the proxy and tries to grab requests
- * from the proxy. Maintenance servers are ignored.
+ * isn't in maintenance. The server tries to redispatch pending requests
+ * to the proxy. Maintenance servers are ignored.
  *
  * Must be called with the server lock held.
  */
