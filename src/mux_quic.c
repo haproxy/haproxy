@@ -2379,13 +2379,6 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	qcc_reset_idle_start(qcc);
 	LIST_INIT(&qcc->opening_list);
 
-	if (!conn_is_back(conn)) {
-		if (!LIST_INLIST(&conn->stopping_list)) {
-			LIST_APPEND(&mux_stopping_data[tid].list,
-			            &conn->stopping_list);
-		}
-	}
-
 	HA_ATOMIC_STORE(&conn->handle.qc->qcc, qcc);
 
 	if (qcc_install_app_ops(qcc, conn->handle.qc->app_ops)) {
@@ -2397,6 +2390,10 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 
 	if (qcc->app_ops == &h3_ops)
 		proxy_inc_fe_cum_sess_ver_ctr(sess->listener, prx, 3);
+
+	/* Register conn for idle front closing. This is done once everything is allocated. */
+	if (!conn_is_back(conn))
+		LIST_APPEND(&mux_stopping_data[tid].list, &conn->stopping_list);
 
 	/* init read cycle */
 	tasklet_wakeup(qcc->wait_event.tasklet);
