@@ -14618,6 +14618,8 @@ alpn <protocols>
 
   QUIC supports only h3 and hq-interop as ALPN. h3 is for HTTP/3 and hq-interop
   is used for http/0.9 and QUIC interop runner (see https://interop.seemann.io).
+  Each "alpn" statement will replace a previous one. In order to remove them,
+  use "no-alpn".
 
 backlog <backlog>
   Sets the socket's backlog to this value. If unspecified or 0, the frontend's
@@ -15006,6 +15008,12 @@ nice <nice>
   processing or bulk transfers which are less sensible to latency. For example,
   it may make sense to use a positive value for an SMTP socket and a negative
   one for an RDP socket.
+
+no-alpn
+  Disables ALPN processing (technically speaking this sets the ALPN string to
+  an empty string that will not be advertised). It permits to cancel a previous
+  occurrence of an "alpn" setting and to disable application protocol
+  negotiation. See also "alpn".
 
 no-ca-names
   This setting is only available when support for OpenSSL was built in. It
