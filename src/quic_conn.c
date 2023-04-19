@@ -5471,6 +5471,7 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc_init_fd(qc);
 
 	LIST_INIT(&qc->back_refs);
+	LIST_INIT(&qc->el_th_ctx);
 
 	/* Now proceeds to allocation of qc members. */
 
