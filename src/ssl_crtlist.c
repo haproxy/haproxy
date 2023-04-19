@@ -827,7 +827,10 @@ static void dump_crtlist_sslconf(struct buffer *buf, const struct ssl_bind_conf 
 		int comma = 0;
 
 		if (space) chunk_appendf(buf, " ");
-		chunk_appendf(buf, "alpn ");
+		if (len)
+			chunk_appendf(buf, "alpn ");
+		else
+			chunk_appendf(buf, "no-alpn");
 		while (len) {
 			unsigned short size;
 
