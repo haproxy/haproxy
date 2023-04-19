@@ -5349,9 +5349,6 @@ static int _srv_update_status_op(struct server *s, enum srv_op_st_chg_cause caus
 		 */
 		xferred = pendconn_redistribute(s);
 
-		/* no maintenance + server DOWN: publish event SERVER DOWN */
-		srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_DOWN, s, 0);
-
 		tmptrash = alloc_trash_chunk();
 		if (tmptrash) {
 			chunk_printf(tmptrash,
@@ -5419,9 +5416,6 @@ static int _srv_update_status_op(struct server *s, enum srv_op_st_chg_cause caus
 		 * will take as many as we can handle.
 		 */
 		xferred = pendconn_grab_from_px(s);
-
-		/* no maintenance + server going UP: publish event SERVER UP */
-		srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_UP, s, 0);
 
 		tmptrash = alloc_trash_chunk();
 		if (tmptrash) {
@@ -5504,9 +5498,6 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 			 */
 			xferred = pendconn_redistribute(s);
 
-			/* maintenance on previously running server: publish event SERVER DOWN */
-			srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_DOWN, s, 0);
-
 			tmptrash = alloc_trash_chunk();
 			if (tmptrash) {
 				chunk_printf(tmptrash,
@@ -5563,12 +5554,6 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 					s->next_state = SRV_ST_RUNNING;
 			}
 
-		}
-
-		/* ignore if server stays down when leaving maintenance mode */
-		if (s->next_state != SRV_ST_STOPPED) {
-			/* leaving maintenance + server UP: publish event SERVER UP */
-			srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_UP, s, 0);
 		}
 
 		tmptrash = alloc_trash_chunk();
@@ -5814,10 +5799,12 @@ static void srv_update_status(struct server *s, int type, int cause)
 			/* server was down and no longer is */
 			if (s->last_change < ns_to_sec(now_ns))                        // ignore negative times
 				s->down_time += ns_to_sec(now_ns) - s->last_change;
+			_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_UP, cb_data.common, s);
 		}
 		else if (s->cur_state == SRV_ST_STOPPED) {
 			/* server was up and is currently down */
 			s->counters.down_trans++;
+			_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_DOWN, cb_data.common, s);
 		}
 		s->last_change = ns_to_sec(now_ns);
 
