@@ -5335,7 +5335,6 @@ static void srv_update_status(struct server *s)
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
-			s->counters.down_trans++;
 		}
 		else if ((s->cur_state != SRV_ST_STOPPING) && (s->next_state == SRV_ST_STOPPING)) {
 			if (s->proxy->lbprm.set_server_status_down)
@@ -5503,7 +5502,6 @@ static void srv_update_status(struct server *s)
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
-			s->counters.down_trans++;
 		}
 	}
 	else if ((s->cur_admin & SRV_ADMF_MAINT) && !(s->next_admin & SRV_ADMF_MAINT)) {
@@ -5787,6 +5785,10 @@ static void srv_update_status(struct server *s)
 			/* server was down and no longer is */
 			if (s->last_change < now.tv_sec)                        // ignore negative times
 				s->down_time += now.tv_sec - s->last_change;
+		}
+		else if (s->cur_state == SRV_ST_STOPPED) {
+			/* server was up and is currently down */
+			s->counters.down_trans++;
 		}
 		s->last_change = now.tv_sec;
 	}
