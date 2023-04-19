@@ -1324,6 +1324,16 @@ void listener_accept(struct listener *l)
 					break;
 				}
 
+				/* tests show that it's worth checking that other threads have not
+				 * already changed the index to save the rest of the calculation,
+				 * or we'd have to redo it anyway.
+				 */
+				n1 = _HA_ATOMIC_LOAD(thr_idx_ptr);
+				if (n0 != n1) {
+					n0 = n1;
+					continue;
+				}
+
 				/* here we have (r1,g1,t1) that designate the first receiver, its
 				 * thread group and local thread, and (r2,g2,t2) that designate
 				 * the second receiver, its thread group and local thread.
