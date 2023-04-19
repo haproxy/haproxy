@@ -2932,6 +2932,12 @@ init_proxies_list_stage1:
 			 * HTTP/2 and absolutely require buffers 16kB or larger.
 			 */
 #ifdef USE_OPENSSL
+			/* no-alpn ? If so, it's the right moment to remove it */
+			if (bind_conf->ssl_conf.alpn_str && !bind_conf->ssl_conf.alpn_len) {
+				free(bind_conf->ssl_conf.alpn_str);
+				bind_conf->ssl_conf.alpn_str = NULL;
+			}
+
 			if (curproxy->mode == PR_MODE_HTTP && global.tune.bufsize < 16384) {
 #ifdef OPENSSL_NPN_NEGOTIATED
 				/* check NPN */

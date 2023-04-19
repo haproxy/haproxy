@@ -1331,12 +1331,34 @@ static int bind_parse_verify(char **args, int cur_arg, struct proxy *px, struct 
 	return ssl_bind_parse_verify(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
 
+/* parse the "no-alpn" ssl-bind keyword, storing an empty ALPN string */
+static int ssl_bind_parse_no_alpn(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
+{
+	free(conf->alpn_str);
+	conf->alpn_len = 0;
+	conf->alpn_str = strdup("");
+
+	if (!conf->alpn_str) {
+		memprintf(err, "'%s' : out of memory", *args);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	return 0;
+}
+
+/* parse the "no-alpn" bind keyword, storing an empty ALPN string */
+static int bind_parse_no_alpn(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	return ssl_bind_parse_no_alpn(args, cur_arg, px, &conf->ssl_conf, 0, err);
+}
+
+
 /* parse the "no-ca-names" bind keyword */
 static int ssl_bind_parse_no_ca_names(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
 	conf->no_ca_names = 1;
 	return 0;
 }
+
 static int bind_parse_no_ca_names(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	return ssl_bind_parse_no_ca_names(args, cur_arg, px, &conf->ssl_conf, 0, err);
@@ -1984,6 +2006,7 @@ struct ssl_crtlist_kw ssl_crtlist_kws[] = {
 	{ "crl-file",              ssl_bind_parse_crl_file,         1 }, /* set certificate revocation list file use on client cert verify */
 	{ "curves",                ssl_bind_parse_curves,           1 }, /* set SSL curve suite */
 	{ "ecdhe",                 ssl_bind_parse_ecdhe,            1 }, /* defines named curve for elliptic curve Diffie-Hellman */
+	{ "no-alpn",               ssl_bind_parse_no_alpn,          0 }, /* disable sending ALPN */
 	{ "no-ca-names",           ssl_bind_parse_no_ca_names,      0 }, /* do not send ca names to clients (ca_file related) */
 	{ "npn",                   ssl_bind_parse_npn,              1 }, /* set NPN supported protocols */
 	{ "ssl-min-ver",           ssl_bind_parse_tls_method_minmax,1 }, /* minimum version */
@@ -2019,6 +2042,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "force-tlsv12",          bind_parse_tls_method_options, 0 }, /* force TLSv12 */
 	{ "force-tlsv13",          bind_parse_tls_method_options, 0 }, /* force TLSv13 */
 	{ "generate-certificates", bind_parse_generate_certs,     0 }, /* enable the server certificates generation */
+	{ "no-alpn",               bind_parse_no_alpn,            0 }, /* disable sending ALPN */
 	{ "no-ca-names",           bind_parse_no_ca_names,        0 }, /* do not send ca names to clients (ca_file related) */
 	{ "no-sslv3",              bind_parse_tls_method_options, 0 }, /* disable SSLv3 */
 	{ "no-tlsv10",             bind_parse_tls_method_options, 0 }, /* disable TLSv10 */
