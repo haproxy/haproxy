@@ -1707,7 +1707,6 @@ static int h3_attach(struct qcs *qcs, void *conn_ctx)
 	h3s = pool_alloc(pool_head_h3s);
 	if (!h3s) {
 		TRACE_ERROR("h3s allocation failure", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
-		qcc_emit_cc_app(qcs->qcc, H3_INTERNAL_ERROR, 1);
 		goto err;
 	}
 
