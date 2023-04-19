@@ -4875,7 +4875,7 @@ bind /<path> [, ...] [param*]
             bind "fd@${FD_APP1}"
 
         listen h3_quic_proxy
-            bind quic4@10.0.0.1:8888 ssl crt /etc/mycrt alpn h3
+            bind quic4@10.0.0.1:8888 ssl crt /etc/mycrt
 
   Note: regarding Linux's abstract namespace sockets, HAProxy uses the whole
         sun_path length is used for the address length. Some other programs
@@ -14606,20 +14606,29 @@ alpn <protocols>
   delimited list of protocol names, for instance: "http/1.1,http/1.0" (without
   quotes). This requires that the SSL library is built with support for TLS
   extensions enabled (check with haproxy -vv). The ALPN extension replaces the
-  initial NPN extension. ALPN is required to enable HTTP/2 on an HTTP frontend.
-  Versions of OpenSSL prior to 1.0.2 didn't support ALPN and only supposed the
-  now obsolete NPN extension. At the time of writing this, most browsers still
-  support both ALPN and NPN for HTTP/2 so a fallback to NPN may still work for
-  a while. But ALPN must be used whenever possible. If both HTTP/2 and HTTP/1.1
-  are expected to be supported, both versions can be advertised, in order of
-  preference, like below :
+  initial NPN extension. At the protocol layer, ALPN is required to enable
+  HTTP/2 on an HTTPS frontend and HTTP/3 on a QUIC frontend. However, when such
+  frontends have none of "npn", "alpn" and "no-alpn" set, a default value of
+  "h2,http/1.1" will be used for a regular HTTPS frontend, and "h3" for a QUIC
+  frontend. Versions of OpenSSL prior to 1.0.2 didn't support ALPN and only
+  supposed the now obsolete NPN extension. At the time of writing this, most
+  browsers still support both ALPN and NPN for HTTP/2 so a fallback to NPN may
+  still work for a while. But ALPN must be used whenever possible. Protocols
+  not advertised are not negotiated. For example it is possible to only accept
+  HTTP/2 connections with this:
 
-       bind :443 ssl crt pub.pem alpn h2,http/1.1
+       bind :443 ssl crt pub.pem alpn h2  # explicitly disable HTTP/1.1
 
   QUIC supports only h3 and hq-interop as ALPN. h3 is for HTTP/3 and hq-interop
   is used for http/0.9 and QUIC interop runner (see https://interop.seemann.io).
   Each "alpn" statement will replace a previous one. In order to remove them,
   use "no-alpn".
+
+  Note that some old browsers such as Firefox 88 used to experience issues with
+  WebSocket over H2, and in case such a setup is encountered, it may be needed
+  to either explicitly disable HTTP/2 in the "alpn" string by forcing it to
+  "http/1.1" or "no-alpn", or to enable "h2-workaround-bogus-websocket-clients"
+  globally.
 
 backlog <backlog>
   Sets the socket's backlog to this value. If unspecified or 0, the frontend's
@@ -14828,6 +14837,12 @@ crt-list <file>
   never match except if no other certificate matches. This way the first
   declared certificate act as a fallback.
 
+  When no ALPN is set, the "bind" line's default one is used. If a "bind" line
+  has no "no-alpn", "alpn" nor "npn" set, a default value will be used
+  depending on the protocol (see "alpn" above). However if the "bind" line has
+  a different default, or explicitly disables ALPN using "no-alpn", it is
+  possible to force a specific value for a certificate.
+
   crt-list file example:
         cert1.pem !*
         # comment
@@ -15013,7 +15028,11 @@ no-alpn
   Disables ALPN processing (technically speaking this sets the ALPN string to
   an empty string that will not be advertised). It permits to cancel a previous
   occurrence of an "alpn" setting and to disable application protocol
-  negotiation. See also "alpn".
+  negotiation. It may also be used to prevent a listener from negotiating ALPN
+  with a client on an HTTPS or QUIC listener; by default, HTTPS listeners will
+  advertise "h2,http/1.1" and QUIC listeners will advertise "h3". See also
+  "alpn" bove. Note that when using "crt-list", a certificate may override the
+  "alpn" setting and re-enable its processing.
 
 no-ca-names
   This setting is only available when support for OpenSSL was built in. It

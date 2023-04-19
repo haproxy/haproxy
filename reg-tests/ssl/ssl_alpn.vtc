@@ -117,7 +117,7 @@ client c1 -connect ${h1_clearfe_sock} {
     txreq -url "/10"
     rxresp
     expect resp.status == 200
-    expect resp.http.x-alpn == "_"
+    expect resp.http.x-alpn == "_http/1.1"
     expect resp.http.x-ver == "_1.1"
 
     txreq -url "/11"
@@ -150,8 +150,8 @@ client c1 -connect ${h1_clearfe_sock} {
     txreq -url "/20"
     rxresp
     expect resp.status == 200
-    expect resp.http.x-alpn == "_"
-    expect resp.http.x-ver == "_1.1"
+    expect resp.http.x-alpn == "_h2"
+    expect resp.http.x-ver == "_2.0"
 
     txreq -url "/21"
     rxresp
@@ -183,8 +183,8 @@ client c1 -connect ${h1_clearfe_sock} {
     txreq -url "/30"
     rxresp
     expect resp.status == 200
-    expect resp.http.x-alpn == "_"
-    expect resp.http.x-ver == "_1.1"
+    expect resp.http.x-alpn == "_h2"
+    expect resp.http.x-ver == "_2.0"
 
     txreq -url "/31"
     rxresp

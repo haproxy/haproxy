@@ -2937,6 +2937,30 @@ init_proxies_list_stage1:
 				free(bind_conf->ssl_conf.alpn_str);
 				bind_conf->ssl_conf.alpn_str = NULL;
 			}
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+			else if (!bind_conf->ssl_conf.alpn_str && !bind_conf->ssl_conf.npn_str &&
+				 ((bind_conf->options & BC_O_USE_SSL) || bind_conf->xprt == xprt_get(XPRT_QUIC)) &&
+				 curproxy->mode == PR_MODE_HTTP && global.tune.bufsize >= 16384) {
+
+				/* Neither ALPN nor NPN were explicitly set nor disabled, we're
+				 * in HTTP mode with an SSL or QUIC listener, we can enable ALPN.
+				 * Note that it's in binary form.
+				 */
+				if (bind_conf->xprt == xprt_get(XPRT_QUIC))
+					bind_conf->ssl_conf.alpn_str = strdup("\002h3");
+				else
+					bind_conf->ssl_conf.alpn_str = strdup("\002h2\010http/1.1");
+
+				if (!bind_conf->ssl_conf.alpn_str) {
+					ha_alert("Proxy '%s': out of memory while trying to allocate a default alpn string in 'bind %s' at [%s:%d].\n",
+						 curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+					cfgerr++;
+					err_code |= ERR_FATAL | ERR_ALERT;
+					goto out;
+				}
+				bind_conf->ssl_conf.alpn_len = strlen(bind_conf->ssl_conf.alpn_str);
+			}
+#endif
 
 			if (curproxy->mode == PR_MODE_HTTP && global.tune.bufsize < 16384) {
 #ifdef OPENSSL_NPN_NEGOTIATED
