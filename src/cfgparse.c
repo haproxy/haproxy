@@ -71,6 +71,7 @@
 #include <haproxy/namespace.h>
 #include <haproxy/quic_sock.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/openssl-compat.h>
 #include <haproxy/peers-t.h>
 #include <haproxy/peers.h>
 #include <haproxy/pool.h>
