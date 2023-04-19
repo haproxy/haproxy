@@ -6867,7 +6867,6 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 	const unsigned char *beg = buf;
 	struct proxy *prx;
 	struct quic_counters *prx_counters;
-	const struct quic_version *qv = NULL;
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT);
 
@@ -6952,7 +6951,7 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 			if (!quic_dec_int(&token_len, (const unsigned char **)&buf, end) ||
 				end - buf < token_len) {
 				TRACE_PROTO("Packet dropped",
-				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
+				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
 				goto drop;
 			}
 
@@ -6962,10 +6961,10 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 			if (global.cluster_secret && !token_len) {
 				if (l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) {
 					TRACE_PROTO("Initial without token, sending retry",
-					            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
-					if (send_retry(l->rx.fd, &dgram->saddr, pkt, qv)) {
+					            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+					if (send_retry(l->rx.fd, &dgram->saddr, pkt, pkt->version)) {
 						TRACE_PROTO("Error during Retry generation",
-						            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
+						            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
 						goto drop_silent;
 					}
 
@@ -6978,7 +6977,7 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 				 * cluster secret.
 				 */
 				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT,
-				            NULL, NULL, NULL, qv);
+				            NULL, NULL, NULL, pkt->version);
 				goto drop;
 			}
 
@@ -6989,7 +6988,7 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 		else if (pkt->type != QUIC_PACKET_TYPE_0RTT) {
 			if (pkt->dcid.len != QUIC_HAP_CID_LEN) {
 				TRACE_PROTO("Packet dropped",
-				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
+				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
 				goto drop;
 			}
 		}
@@ -6997,7 +6996,7 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 		if (!quic_dec_int(&len, (const unsigned char **)&buf, end) ||
 			end - buf < len) {
 			TRACE_PROTO("Packet dropped",
-			            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qv);
+			            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
 			goto drop;
 		}
 
@@ -7056,7 +7055,7 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 		pkt->len = end - beg;
 	}
 
-	TRACE_PROTO("RX pkt parsed", QUIC_EV_CONN_LPKT, NULL, pkt, NULL, qv);
+	TRACE_PROTO("RX pkt parsed", QUIC_EV_CONN_LPKT, NULL, pkt, NULL, pkt->version);
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
 	return 0;
 
@@ -7065,7 +7064,7 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
  drop_silent:
 	if (!pkt->len)
 		pkt->len = end - beg;
-	TRACE_PROTO("RX pkt parsing failed", QUIC_EV_CONN_LPKT, NULL, pkt, NULL, qv);
+	TRACE_PROTO("RX pkt parsing failed", QUIC_EV_CONN_LPKT, NULL, pkt, NULL, pkt->version);
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
 	return -1;
 }
