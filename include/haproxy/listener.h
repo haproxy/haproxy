@@ -212,6 +212,19 @@ extern struct accept_queue_ring accept_queue_rings[MAX_THREADS] __attribute__((a
 extern const char* li_status_st[LI_STATE_COUNT];
 enum li_status get_li_status(struct listener *l);
 
+static inline uint accept_queue_ring_len(const struct accept_queue_ring *ring)
+{
+	uint idx, head, tail, len;
+
+	idx  = _HA_ATOMIC_LOAD(&ring->idx);  /* (head << 16) + tail */
+	head = idx >> 16;
+	tail = idx & 0xffff;
+	len  = tail + ACCEPT_QUEUE_SIZE - head;
+	if (len >= ACCEPT_QUEUE_SIZE)
+		len -= ACCEPT_QUEUE_SIZE;
+	return len;
+}
+
 #endif /* _HAPROXY_LISTENER_H */
 
 /*

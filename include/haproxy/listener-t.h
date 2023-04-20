@@ -289,9 +289,9 @@ struct bind_kw_list {
 /* The per-thread accept queue ring, must be a power of two minus 1 */
 #define ACCEPT_QUEUE_SIZE ((1<<10) - 1)
 
+/* head and tail are both 16 bits so that idx can be accessed atomically */
 struct accept_queue_ring {
-	unsigned int head;
-	unsigned int tail;
+	uint32_t idx;             /* (head << 16) | tail */
 	struct tasklet *tasklet;  /* tasklet of the thread owning this ring */
 	struct connection *entry[ACCEPT_QUEUE_SIZE] __attribute((aligned(64)));
 };

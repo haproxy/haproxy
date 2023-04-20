@@ -68,10 +68,10 @@ struct connection *accept_queue_pop_sc(struct accept_queue_ring *ring)
 	unsigned int pos, next;
 	struct connection *ptr;
 	struct connection **e;
+	uint32_t idx = _HA_ATOMIC_LOAD(&ring->idx);  /* (head << 16) + tail */
 
-	pos = ring->head;
-
-	if (pos == ring->tail)
+	pos = idx >> 16;
+	if (pos == (uint16_t)idx)
 		return NULL;
 
 	next = pos + 1;
@@ -93,7 +93,10 @@ struct connection *accept_queue_pop_sc(struct accept_queue_ring *ring)
 	*e = NULL;
 
 	__ha_barrier_store();
-	ring->head = next;
+	do {
+		pos = (next << 16) | (idx & 0xffff);
+	} while (unlikely(!HA_ATOMIC_CAS(&ring->idx, &idx, pos) && __ha_cpu_relax()));
+
 	return ptr;
 }
 
@@ -105,15 +108,17 @@ struct connection *accept_queue_pop_sc(struct accept_queue_ring *ring)
 int accept_queue_push_mp(struct accept_queue_ring *ring, struct connection *conn)
 {
 	unsigned int pos, next;
+	uint32_t idx = _HA_ATOMIC_LOAD(&ring->idx);  /* (head << 16) + tail */
 
-	pos = ring->tail;
 	do {
+		pos = (uint16_t)idx;
 		next = pos + 1;
 		if (next >= ACCEPT_QUEUE_SIZE)
 			next = 0;
-		if (next == ring->head)
+		if (next == (idx >> 16))
 			return 0; // ring full
-	} while (unlikely(!_HA_ATOMIC_CAS(&ring->tail, &pos, next)));
+		next |= (idx & 0xffff0000U);
+	} while (unlikely(!_HA_ATOMIC_CAS(&ring->idx, &idx, next) && __ha_cpu_relax()));
 
 	ring->entry[pos] = conn;
 	__ha_barrier_store();
@@ -1230,13 +1235,8 @@ void listener_accept(struct listener *l)
 				}
 
 				/* now we have two distinct thread IDs belonging to the mask */
-				q1 = accept_queue_rings[base + t1].tail - accept_queue_rings[base + t1].head + ACCEPT_QUEUE_SIZE;
-				if (q1 >= ACCEPT_QUEUE_SIZE)
-					q1 -= ACCEPT_QUEUE_SIZE;
-
-				q2 = accept_queue_rings[base + t2].tail - accept_queue_rings[base + t2].head + ACCEPT_QUEUE_SIZE;
-				if (q2 >= ACCEPT_QUEUE_SIZE)
-					q2 -= ACCEPT_QUEUE_SIZE;
+				q1 = accept_queue_ring_len(&accept_queue_rings[base + t1]);
+				q2 = accept_queue_ring_len(&accept_queue_rings[base + t2]);
 
 				/* we have 3 possibilities now :
 				 *   q1 < q2 : t1 is less loaded than t2, so we pick it
