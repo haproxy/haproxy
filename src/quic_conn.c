@@ -8391,12 +8391,14 @@ int qc_notify_send(struct quic_conn *qc)
 }
 
 /* Move a <qc> QUIC connection and its resources from the current thread to the
- * new one <new_tid>. After this call, the connection cannot be dereferenced
- * anymore on the current thread.
+ * new one <new_tid> optionally in association with <new_li> (since it may need
+ * to change when migrating to a thread from a different group, otherwise leave
+ * it NULL). After this call, the connection cannot be dereferenced anymore on
+ * the current thread.
  *
  * Returns 0 on success else non-zero.
  */
-int qc_set_tid_affinity(struct quic_conn *qc, uint new_tid)
+int qc_set_tid_affinity(struct quic_conn *qc, uint new_tid, struct listener *new_li)
 {
 	struct task *t1 = NULL, *t2 = NULL;
 	struct tasklet *t3 = NULL;
@@ -8457,6 +8459,13 @@ int qc_set_tid_affinity(struct quic_conn *qc, uint new_tid)
 	node = eb64_first(&qc->cids);
 	BUG_ON(!node || eb64_next(node)); /* One and only one CID must be present before affinity rebind. */
 	conn_id = eb64_entry(node, struct quic_connection_id, seq_num);
+
+	/* At this point no connection was accounted for yet on this
+	 * listener so it's OK to just swap the pointer.
+	 */
+	if (new_li && new_li != qc->li)
+		qc->li = new_li;
+
 	/* Rebinding is considered done when CID points to the new thread. No
 	 * access should be done to quic-conn instance after it.
 	 */

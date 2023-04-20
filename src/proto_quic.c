@@ -707,10 +707,14 @@ static void quic_disable_listener(struct listener *l)
 		fd_stop_recv(l->rx.fd);
 }
 
+/* change the connection's thread to <new_tid>. For frontend connections, the
+ * target is a listener, and the caller is responsible for guaranteeing that
+ * the listener assigned to the connection is bound to the requested thread.
+ */
 static int quic_set_affinity(struct connection *conn, int new_tid)
 {
 	struct quic_conn *qc = conn->handle.qc;
-	return qc_set_tid_affinity(qc, new_tid);
+	return qc_set_tid_affinity(qc, new_tid, objt_listener(conn->target));
 }
 
 static int quic_alloc_dghdlrs(void)
