@@ -229,7 +229,7 @@ struct listener {
 	uint16_t flags;                 /* listener flags: LI_F_* */
 	int luid;			/* listener universally unique ID, used for SNMP */
 	int nbconn;			/* current number of connections on this listener */
-	unsigned int thr_idx;           /* thread indexes for queue distribution : (t2<<16)+t1 */
+	unsigned long thr_idx;          /* thread indexes for queue distribution (see listener_accept()) */
 	__decl_thread(HA_RWLOCK_T lock);
 
 	struct fe_counters *counters;	/* statistics counters */

@@ -1187,10 +1187,11 @@ void listener_accept(struct listener *l)
 		if (l->rx.shard_info || atleast2(mask)) {
 			struct accept_queue_ring *ring;
 			struct listener *new_li;
-			uint n0, n1, n2, r1, r2, t, t1, t2;
+			uint r1, r2, t, t1, t2;
+			ulong n0, n1;
 			const struct tgroup_info *g1, *g2;
 			ulong m1, m2;
-			uint *thr_idx_ptr;
+			ulong *thr_idx_ptr;
 
 			/* The principle is that we have two running indexes,
 			 * each visiting in turn all threads bound to this
@@ -1202,8 +1203,18 @@ void listener_accept(struct listener *l)
 			 * Each thread number is encoded as a combination of
 			 * times the receiver number and its local thread
 			 * number from 0 to MAX_THREADS_PER_GROUP - 1. The two
-			 * indexes are stored as 16 bit numbers in the thr_idx
-			 * variable.
+			 * indexes are stored as 10/12 bit numbers in the thr_idx
+			 * array, since there are up to LONGBITS threads and
+			 * groups that can be represented. They are represented
+			 * like this:
+			 *           31:20    19:15   14:10    9:5     4:0
+			 *   32b: [ counter | r2num | t2num | r1num | t1num ]
+			 *
+			 *           63:24    23:18   17:12   11:6     5:0
+			 *   64b: [ counter | r2num | t2num | r1num | t1num ]
+			 *
+			 * The change counter is only used to avoid swapping too
+			 * old a value when the value loops back.
 			 *
 			 * In the loop below we have this for each index:
 			 *   - n is the thread index
@@ -1217,23 +1228,16 @@ void listener_accept(struct listener *l)
 			 * and made of (n2<<16) + n1.
 			 */
 			thr_idx_ptr = l->rx.shard_info ? &((struct listener *)(l->rx.shard_info->ref->owner))->thr_idx : &l->thr_idx;
-			n0 = _HA_ATOMIC_LOAD(thr_idx_ptr);
 			while (1) {
 				int q1, q2;
 
+				/* calculate r1/g1/t1 first (ascending idx) */
+				n0 = _HA_ATOMIC_LOAD(thr_idx_ptr);
 				new_li = NULL;
 
-				n2 = n1 = n0;
-				n2 >>= 16;
-				n1 &= 0xFFFF;
+				t1 = (uint)n0 & (LONGBITS - 1);
+				r1 = ((uint)n0 / LONGBITS) & (LONGBITS - 1);
 
-				/* t1 walks low to high bits ;
-				 * t2 walks high to low.
-				 */
-
-				/* calculate r1/g1/t1 first */
-				r1 = n1 / MAX_THREADS_PER_GROUP;
-				t1 = n1 % MAX_THREADS_PER_GROUP;
 				while (1) {
 					if (l->rx.shard_info) {
 						/* multiple listeners, take the group into account */
@@ -1270,9 +1274,9 @@ void listener_accept(struct listener *l)
 					break;
 				}
 
-				/* now r2/g2/t2 */
-				r2 = n2 / MAX_THREADS_PER_GROUP;
-				t2 = n2 % MAX_THREADS_PER_GROUP;
+				/* now r2/g2/t2 (descending idx) */
+				t2 = ((uint)n0 / LONGBITS / LONGBITS) & (LONGBITS - 1);
+				r2 = ((uint)n0 / LONGBITS / LONGBITS / LONGBITS) & (LONGBITS - 1);
 
 				/* if running in round-robin mode ("fair"), we don't need
 				 * to go further.
@@ -1328,11 +1332,8 @@ void listener_accept(struct listener *l)
 				 * already changed the index to save the rest of the calculation,
 				 * or we'd have to redo it anyway.
 				 */
-				n1 = _HA_ATOMIC_LOAD(thr_idx_ptr);
-				if (n0 != n1) {
-					n0 = n1;
+				if (n0 != _HA_ATOMIC_LOAD(thr_idx_ptr))
 					continue;
-				}
 
 				/* here we have (r1,g1,t1) that designate the first receiver, its
 				 * thread group and local thread, and (r2,g2,t2) that designate
@@ -1396,16 +1397,20 @@ void listener_accept(struct listener *l)
 					}
 				}
 
-				/* the target thread number is in <t> now */
+				/* The target thread number is in <t> now. Let's
+				 * compute the new index and try to update it.
+				 */
 
-				/* new value for thr_idx */
-				n1 = ((r1 & 63) * MAX_THREADS_PER_GROUP) + t1;
-				n2 = ((r2 & 63) * MAX_THREADS_PER_GROUP) + t2;
-				n1 += (n2 << 16);
-
-				/* try to update the index */
+				/* take previous counter and increment it */
+				n1  = n0 & -(ulong)(LONGBITS * LONGBITS * LONGBITS * LONGBITS);
+				n1 += LONGBITS * LONGBITS * LONGBITS * LONGBITS;
+				n1 += (((r2 * LONGBITS) + t2) * LONGBITS * LONGBITS);
+				n1 += (r1 * LONGBITS) + t1;
 				if (likely(_HA_ATOMIC_CAS(thr_idx_ptr, &n0, n1)))
 					break;
+
+				/* bah we lost the race, try again */
+				__ha_cpu_relax();
 			} /* end of main while() loop */
 
 			/* we may need to update the listener in the connection
