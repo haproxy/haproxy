@@ -187,7 +187,7 @@ struct global global = {
 		 }
 	},
 	.tune = {
-		.options = GTUNE_LISTENER_MQ,
+		.options = GTUNE_LISTENER_MQ_OPT,
 		.bufsize = (BUFSIZE + 2*sizeof(void *) - 1) & -(2*sizeof(void *)),
 		.maxrewrite = MAXREWRITE,
 		.reserved_bufs = RESERVED_BUFS,

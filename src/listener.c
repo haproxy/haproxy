@@ -1099,7 +1099,7 @@ void listener_accept(struct listener *l)
 
 #if defined(USE_THREAD)
 		mask = l->rx.bind_thread & _HA_ATOMIC_LOAD(&tg->threads_enabled);
-		if (atleast2(mask) && (global.tune.options & GTUNE_LISTENER_MQ) && !stopping) {
+		if (atleast2(mask) && (global.tune.options & GTUNE_LISTENER_MQ_ANY) && !stopping) {
 			struct accept_queue_ring *ring;
 			unsigned int t, t0, t1, t2;
 			int base = tg->base;
@@ -1138,6 +1138,14 @@ void listener_accept(struct listener *l)
 						t1 = 0;
 					}
 					t1 += my_ffsl(m1) - 1;
+				}
+
+				/* if running in round-robin mode ("fair"), we don't need
+				 * to go further.
+				 */
+				if ((global.tune.options & GTUNE_LISTENER_MQ_ANY) == GTUNE_LISTENER_MQ_FAIR) {
+					t = t1;
+					goto updt_t1;
 				}
 
 				if (unlikely(!(m2 & (1UL << t2)) || t1 == t2)) {
@@ -1184,6 +1192,7 @@ void listener_accept(struct listener *l)
 				}
 				else {
 					t = t1;
+				updt_t1:
 					t1++;
 					if (t1 >= LONGBITS)
 						t1 = 0;
@@ -1898,7 +1907,7 @@ static int bind_parse_thread(char **args, int cur_arg, struct proxy *px, struct 
 	return 0;
 }
 
-/* config parser for global "tune.listener.multi-queue", accepts "on" or "off" */
+/* config parser for global "tune.listener.multi-queue", accepts "on", "fair" or "off" */
 static int cfg_parse_tune_listener_mq(char **args, int section_type, struct proxy *curpx,
                                       const struct proxy *defpx, const char *file, int line,
                                       char **err)
@@ -1907,11 +1916,13 @@ static int cfg_parse_tune_listener_mq(char **args, int section_type, struct prox
 		return -1;
 
 	if (strcmp(args[1], "on") == 0)
-		global.tune.options |= GTUNE_LISTENER_MQ;
+		global.tune.options = (global.tune.options & ~GTUNE_LISTENER_MQ_ANY) | GTUNE_LISTENER_MQ_OPT;
+	else if (strcmp(args[1], "fair") == 0)
+		global.tune.options = (global.tune.options & ~GTUNE_LISTENER_MQ_ANY) | GTUNE_LISTENER_MQ_FAIR;
 	else if (strcmp(args[1], "off") == 0)
-		global.tune.options &= ~GTUNE_LISTENER_MQ;
+		global.tune.options &= ~GTUNE_LISTENER_MQ_ANY;
 	else {
-		memprintf(err, "'%s' expects either 'on' or 'off' but got '%s'.", args[0], args[1]);
+		memprintf(err, "'%s' expects either 'on', 'fair', or 'off' but got '%s'.", args[0], args[1]);
 		return -1;
 	}
 	return 0;
