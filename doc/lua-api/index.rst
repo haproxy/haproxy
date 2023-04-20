@@ -942,12 +942,16 @@ Core class
 
 .. code-block:: lua
 
-    function(event, event_data, sub)
+    function(event, event_data, sub, when)
 ..
 
   * **event** (*string*): the event type (one of the **event_types** you specified when subscribing)
   * **event_data**: specific to each event family (For **SERVER** family, a :ref:`server_event_class` object)
   * **sub**: class to manage the subscription from within the event (a :ref:`event_sub_class` object)
+  * **when**: timestamp corresponding to the date when the event was generated.
+    It is an integer representing the number of seconds elapsed since Epoch.
+    It may be provided as optional argument to `os.date()` lua function to
+    convert it to a string according to a given format string.
 
   .. Warning::
     The callback function will only be scheduled on the very same thread that

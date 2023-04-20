@@ -9087,6 +9087,10 @@ __LJMP static void hlua_event_hdl_cb_push_args(struct hlua_event_sub *hlua_sub,
 	/* sub mgmt */
 	hlua->nargs += 1;
 	hlua_fcn_new_event_sub(hlua->T, hlua_sub->sub);
+
+	/* when? */
+	hlua->nargs += 1;
+	lua_pushinteger(hlua->T, e->when.tv_sec);
 }
 
 /* events runner: if there's an ongoing hlua event handling process, finish it
