@@ -1859,7 +1859,7 @@ static int qc_send(struct qcc *qcc)
 	struct list frms = LIST_HEAD_INIT(frms);
 	/* Temporary list for QCS on error. */
 	struct list qcs_failed = LIST_HEAD_INIT(qcs_failed);
-	struct qcs *qcs, *qcs_tmp;
+	struct qcs *qcs, *qcs_tmp, *first_qcs = NULL;
 	int ret, total = 0;
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
@@ -1882,6 +1882,10 @@ static int qc_send(struct qcc *qcc)
 
 	/* Send STREAM/STOP_SENDING/RESET_STREAM data for registered streams. */
 	list_for_each_entry_safe(qcs, qcs_tmp, &qcc->send_list, el_send) {
+		/* Check if all QCS were processed. */
+		if (qcs == first_qcs)
+			break;
+
 		/* Stream must not be present in send_list if it has nothing to send. */
 		BUG_ON(!(qcs->flags & (QC_SF_TO_STOP_SENDING|QC_SF_TO_RESET)) &&
 		       !qcs_need_sending(qcs));
@@ -1928,6 +1932,16 @@ static int qc_send(struct qcc *qcc)
 			}
 
 			total += ret;
+			if (ret) {
+				/* Move QCS with some bytes transferred at the
+				 * end of send-list for next iterations.
+				 */
+				LIST_DEL_INIT(&qcs->el_send);
+				LIST_APPEND(&qcc->send_list, &qcs->el_send);
+				/* Remember first moved QCS as checkpoint to interrupt loop */
+				if (!first_qcs)
+					first_qcs = qcs;
+			}
 		}
 	}
 
