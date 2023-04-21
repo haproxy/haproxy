@@ -31,6 +31,11 @@
 
 struct mailers *mailers = NULL;
 
+/* Set to 1 to disable email sending through checks even if the
+ * mailers are configured to do so. (e.g.: disable from lua)
+ */
+int send_email_disabled = 0;
+
 DECLARE_STATIC_POOL(pool_head_email_alert,   "email_alert",   sizeof(struct email_alert));
 
 /****************************** Email alerts ******************************/
@@ -304,6 +309,9 @@ void send_email_alert(struct server *s, int level, const char *format, ...)
 	char buf[1024];
 	int len;
 	struct proxy *p = s->proxy;
+
+	if (send_email_disabled)
+		return;
 
 	if (!p->email_alert.mailers.m || level > p->email_alert.level || format == NULL)
 		return;

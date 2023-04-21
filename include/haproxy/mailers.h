@@ -32,6 +32,7 @@
 #include <haproxy/server-t.h>
 
 extern struct mailers *mailers;
+extern int send_email_disabled;
 
 int init_email_alert(struct mailers *mailers, struct proxy *p, char **err);
 void send_email_alert(struct server *s, int priority, const char *format, ...)

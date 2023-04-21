@@ -1010,6 +1010,17 @@ Core class
     perform the heavy job in a dedicated task and allow remaining events to be
     processed more quickly.
 
+.. js:function:: core.disable_legacy_mailers()
+
+  **LEGACY**
+
+  **context**: body, init
+
+  Disable the sending of email alerts through the legacy email sending
+  function when mailers are used in the configuration.
+
+  Use this when sending email alerts directly from lua.
+
 .. _proxy_class:
 
 Proxy class

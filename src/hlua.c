@@ -67,6 +67,7 @@
 #include <haproxy/xref.h>
 #include <haproxy/event_hdl.h>
 #include <haproxy/check.h>
+#include <haproxy/mailers.h>
 
 /* Lua uses longjmp to perform yield or throwing errors. This
  * macro is used only for identifying the function that can
@@ -1927,6 +1928,21 @@ static int hlua_set_map(lua_State *L)
 	else
 		pat_ref_add(ref, key, value, NULL);
 	HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
+	return 0;
+}
+
+/* This function disables the sending of email through the
+ * legacy email sending function which is implemented using
+ * checks.
+ *
+ * It may not be used during runtime.
+ */
+__LJMP static int hlua_disable_legacy_mailers(lua_State *L)
+{
+	if (hlua_gethlua(L))
+		WILL_LJMP(luaL_error(L, "disable_legacy_mailers: "
+		                        "not available outside of init or body context"));
+	send_email_disabled = 1;
 	return 0;
 }
 
@@ -13141,6 +13157,7 @@ lua_State *hlua_init_state(int thread_num)
 	hlua_class_function(L, "Warning", hlua_log_warning);
 	hlua_class_function(L, "Alert", hlua_log_alert);
 	hlua_class_function(L, "done", hlua_done);
+	hlua_class_function(L, "disable_legacy_mailers", hlua_disable_legacy_mailers);
 	hlua_fcn_reg_core_fcn(L);
 
 	lua_setglobal(L, "core");
