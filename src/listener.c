@@ -205,19 +205,21 @@ REGISTER_POST_DEINIT(accept_queue_deinit);
 
 #endif // USE_THREAD
 
-/* Memory allocation and initialization of the per_thr field.
+/* Memory allocation and initialization of the per_thr field (one entry per
+ * bound thread).
  * Returns 0 if the field has been successfully initialized, -1 on failure.
  */
 int li_init_per_thr(struct listener *li)
 {
+	int nbthr = MIN(global.nbthread, MAX_THREADS_PER_GROUP);
 	int i;
 
 	/* allocate per-thread elements for listener */
-	li->per_thr = calloc(global.nbthread, sizeof(*li->per_thr));
+	li->per_thr = calloc(nbthr, sizeof(*li->per_thr));
 	if (!li->per_thr)
 		return -1;
 
-	for (i = 0; i < global.nbthread; ++i) {
+	for (i = 0; i < nbthr; ++i) {
 		MT_LIST_INIT(&li->per_thr[i].quic_accept.list);
 		MT_LIST_INIT(&li->per_thr[i].quic_accept.conns);
 

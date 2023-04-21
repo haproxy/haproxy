@@ -246,7 +246,7 @@ struct listener {
 		struct eb32_node id;	/* place in the tree of used IDs */
 	} conf;				/* config information */
 
-	struct li_per_thread *per_thr;  /* per-thread fields */
+	struct li_per_thread *per_thr;  /* per-thread fields (one per thread in the group) */
 
 	EXTRA_COUNTERS(extra_counters);
 };

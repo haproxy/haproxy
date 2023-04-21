@@ -147,7 +147,7 @@ int quic_sock_accepting_conn(const struct receiver *rx)
 struct connection *quic_sock_accept_conn(struct listener *l, int *status)
 {
 	struct quic_conn *qc;
-	struct li_per_thread *lthr = &l->per_thr[tid];
+	struct li_per_thread *lthr = &l->per_thr[ti->ltid];
 
 	qc = MT_LIST_POP(&lthr->quic_accept.conns, struct quic_conn *, accept_list);
 	if (!qc || qc->flags & (QUIC_FL_CONN_CLOSING|QUIC_FL_CONN_DRAINING))
@@ -897,7 +897,7 @@ struct quic_accept_queue *quic_accept_queues;
 void quic_accept_push_qc(struct quic_conn *qc)
 {
 	struct quic_accept_queue *queue = &quic_accept_queues[tid];
-	struct li_per_thread *lthr = &qc->li->per_thr[tid];
+	struct li_per_thread *lthr = &qc->li->per_thr[ti->ltid];
 
 	/* early return if accept is already in progress/done for this
 	 * connection
