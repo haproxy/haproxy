@@ -8863,7 +8863,7 @@ __LJMP static int hlua_register_init(lua_State *L)
  *
  * <arg1..4> are optional arguments that will be provided to <function>
  */
-static int hlua_register_task(lua_State *L)
+__LJMP static int hlua_register_task(lua_State *L)
 {
 	struct hlua *hlua = NULL;
 	struct task *task = NULL;
