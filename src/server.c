@@ -5776,6 +5776,7 @@ static void srv_update_status(struct server *s, int type, int cause)
 	enum srv_state srv_prev_state = s->cur_state;
 	union {
 		struct event_hdl_cb_data_server_state state;
+		struct event_hdl_cb_data_server_admin admin;
 		struct event_hdl_cb_data_server common;
 	} cb_data;
 	int requeued;
@@ -5783,8 +5784,15 @@ static void srv_update_status(struct server *s, int type, int cause)
 	/* prepare common server event data */
 	_srv_event_hdl_prepare(&cb_data.common, s, 0);
 
-	if (type)
+	if (type) {
+		cb_data.admin.safe.cause = cause;
+		cb_data.admin.safe.old_admin = s->cur_admin;
+		cb_data.admin.safe.new_admin = s->next_admin;
 		requeued = _srv_update_status_adm(s, cause);
+		cb_data.admin.safe.requeued = requeued;
+		/* publish admin change */
+		_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_ADMIN, cb_data.admin, s);
+	}
 	else
 		requeued = _srv_update_status_op(s, cause);
 

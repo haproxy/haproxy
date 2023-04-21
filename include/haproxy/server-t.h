@@ -442,6 +442,7 @@ struct event_hdl_cb_data_server {
 	 *   EVENT_HDL_SUB_SERVER_UP
 	 *   EVENT_HDL_SUB_SERVER_DOWN
 	 *   EVENT_HDL_SUB_SERVER_STATE
+	 *   EVENT_HDL_SUB_SERVER_ADMIN
 	 */
 	struct {
 		/* safe data can be safely used from both
@@ -518,6 +519,26 @@ struct event_hdl_cb_data_server_state {
 				enum srv_adm_st_chg_cause cause;
 			} adm_st_chg;
 		};
+	} safe;
+	/* no unsafe data */
+};
+
+/* data provided to EVENT_HDL_SUB_SERVER_ADMIN handlers through
+ * event_hdl facility
+ *
+ * Note that this may be casted to regular event_hdl_cb_data_server if
+ * you don't care about admin related optional info
+ */
+struct event_hdl_cb_data_server_admin {
+	/* provided by:
+	 *   EVENT_HDL_SUB_SERVER_ADMIN
+	 */
+	struct event_hdl_cb_data_server server; /* must be at the beginning */
+	struct {
+		enum srv_admin old_admin, new_admin;
+		uint32_t requeued; /* requeued connections due to server admin change */
+		/* admin change cause */
+		enum srv_adm_st_chg_cause cause;
 	} safe;
 	/* no unsafe data */
 };
