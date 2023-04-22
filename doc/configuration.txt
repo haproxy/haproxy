@@ -15297,6 +15297,14 @@ shards <number> | by-thread | by-group
   sockets. The load distribution will be a bit less optimal but the contention
   (especially in the system) will still be lower than with a single socket.
 
+  On operating systems that do not support multiple sockets bound to the same
+  address, "by-thread" and "by-group" will automatically fall back to a single
+  shard. For "by-group" this is done without any warning since it doesn't
+  change anything for a single group, and will result in sockets being
+  duplicated for each group anyway. However, for "by-thread", a diagnostic
+  warning will be emitted if this happens since the resulting number of
+  listeners will not be the expected one.
+
 ssl
   This setting is only available when support for OpenSSL was built in. It
   enables SSL deciphering on connections instantiated from this listener. A
