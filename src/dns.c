@@ -421,8 +421,7 @@ int dns_dgram_init(struct dns_nameserver *ns, struct sockaddr_storage *sk)
 	}
 	return 0;
 out:
-	if (dgram->ring_req)
-		ring_free(dgram->ring_req);
+	ring_free(dgram->ring_req);
 
 	free(dgram);
 

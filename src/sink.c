@@ -1164,8 +1164,7 @@ error:
 		free(sft);
 
 	if (sink) {
-		if (sink->ctx.ring)
-			ring_free(sink->ctx.ring);
+		ring_free(sink->ctx.ring);
 
 		LIST_DELETE(&sink->sink_list);
 		free(sink->name);

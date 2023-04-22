@@ -2484,13 +2484,11 @@ static void resolvers_destroy(struct resolvers *resolvers)
 				fd_delete(ns->dgram->conn.t.sock.fd);
 				close(ns->dgram->conn.t.sock.fd);
 			}
-			if (ns->dgram->ring_req)
-				ring_free(ns->dgram->ring_req);
+			ring_free(ns->dgram->ring_req);
 			free(ns->dgram);
 		}
 		if (ns->stream) {
-			if (ns->stream->ring_req)
-				ring_free(ns->stream->ring_req);
+			ring_free(ns->stream->ring_req);
 			task_destroy(ns->stream->task_req);
 			task_destroy(ns->stream->task_rsp);
 			free(ns->stream);
