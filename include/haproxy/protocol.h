@@ -38,6 +38,12 @@ void protocol_register(struct protocol *proto);
  */
 void protocol_unregister(struct protocol *proto);
 
+/* clears flag <flag> on all protocols. */
+void protocol_clrf_all(uint flag);
+
+/* sets flag <flag> on all protocols. */
+void protocol_setf_all(uint flag);
+
 /* binds all listeners of all registered protocols. Returns a composition
  * of ERR_NONE, ERR_RETRYABLE, ERR_FATAL, ERR_ABORT.
  */

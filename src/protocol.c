@@ -61,6 +61,28 @@ void protocol_unregister(struct protocol *proto)
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 }
 
+/* clears flag <flag> on all protocols. */
+void protocol_clrf_all(uint flag)
+{
+	struct protocol *proto;
+
+	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
+	list_for_each_entry(proto, &protocols, list)
+		proto->flags &= ~flag;
+	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
+}
+
+/* sets flag <flag> on all protocols. */
+void protocol_setf_all(uint flag)
+{
+	struct protocol *proto;
+
+	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
+	list_for_each_entry(proto, &protocols, list)
+		proto->flags |= flag;
+	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
+}
+
 /* binds all listeners of all registered protocols. Returns a composition
  * of ERR_NONE, ERR_RETRYABLE, ERR_FATAL.
  */
