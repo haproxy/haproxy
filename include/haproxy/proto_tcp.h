@@ -28,8 +28,8 @@
 #include <haproxy/listener-t.h>
 #include <haproxy/sample-t.h>
 
-extern struct protocol proto_tcp4;
-extern struct protocol proto_tcp6;
+extern struct protocol proto_tcpv4;
+extern struct protocol proto_tcpv6;
 
 int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct sockaddr_storage *remote);
 int tcp_connect_server(struct connection *conn, int flags);
