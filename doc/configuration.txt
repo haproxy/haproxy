@@ -3045,7 +3045,8 @@ tune.listener.default-shards { by-process | by-thread | by-group }
   sockets on a same address. Note that "by-group" will remain equivalent to
   "by-process" for default configurations involving a single thread group, and
   will fall back to sharing the same socket on systems that do not support this
-  mechanism. As such, it is the recommended setting.
+  mechanism. The default is "by-group" with a fallback to "by-process" for
+  systems or socket families that do not support multiple bindings.
 
 tune.listener.multi-queue { on | fair | off }
   Enables ('on' / 'fair') or disables ('off') the listener's multi-queue accept
