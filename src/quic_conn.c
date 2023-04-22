@@ -5688,8 +5688,7 @@ void quic_conn_release(struct quic_conn *qc)
 		qc->timer_task = NULL;
 	}
 
-	if (qc->wait_event.tasklet)
-		tasklet_free(qc->wait_event.tasklet);
+	tasklet_free(qc->wait_event.tasklet);
 
 	/* remove the connection from receiver cids trees */
 	free_quic_conn_cids(qc);
@@ -8478,8 +8477,7 @@ int qc_set_tid_affinity(struct quic_conn *qc, uint new_tid, struct listener *new
  err:
 	task_destroy(t1);
 	task_destroy(t2);
-	if (t3)
-		tasklet_free(t3);
+	tasklet_free(t3);
 
 	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_SET_AFFINITY, qc);
 	return 1;

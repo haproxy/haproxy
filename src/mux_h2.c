@@ -1077,8 +1077,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	hpack_dht_free(h2c->ddht);
   fail:
 	task_destroy(t);
-	if (h2c->wait_event.tasklet)
-		tasklet_free(h2c->wait_event.tasklet);
+	tasklet_free(h2c->wait_event.tasklet);
 	pool_free(pool_head_h2c, h2c);
   fail_no_h2c:
 	if (!conn_is_back(conn))
@@ -1140,8 +1139,7 @@ static void h2_release(struct h2c *h2c)
 		task_wakeup(h2c->task, TASK_WOKEN_OTHER);
 		h2c->task = NULL;
 	}
-	if (h2c->wait_event.tasklet)
-		tasklet_free(h2c->wait_event.tasklet);
+	tasklet_free(h2c->wait_event.tasklet);
 	if (conn && h2c->wait_event.events != 0)
 		conn->xprt->unsubscribe(conn, conn->xprt_ctx, h2c->wait_event.events,
 					&h2c->wait_event);

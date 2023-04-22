@@ -231,8 +231,7 @@ void sc_free(struct stconn *sc)
 		BUG_ON(!sc_ep_test(sc, SE_FL_DETACHED));
 		sedesc_free(sc->sedesc);
 	}
-	if (sc->wait_event.tasklet)
-		tasklet_free(sc->wait_event.tasklet);
+	tasklet_free(sc->wait_event.tasklet);
 	pool_free(pool_head_connstream, sc);
 }
 
@@ -417,8 +416,7 @@ static void sc_detach_app(struct stconn **scp)
 	sockaddr_free(&sc->src);
 	sockaddr_free(&sc->dst);
 
-	if (sc->wait_event.tasklet)
-		tasklet_free(sc->wait_event.tasklet);
+	tasklet_free(sc->wait_event.tasklet);
 	sc->wait_event.tasklet = NULL;
 	sc->wait_event.events = 0;
 	sc_free_cond(scp);

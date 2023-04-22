@@ -707,8 +707,7 @@ static int fcgi_init(struct connection *conn, struct proxy *px, struct session *
 
   fail:
 	task_destroy(t);
-	if (fconn->wait_event.tasklet)
-		tasklet_free(fconn->wait_event.tasklet);
+	tasklet_free(fconn->wait_event.tasklet);
 	pool_free(pool_head_fcgi_conn, fconn);
   fail_conn:
 	conn->ctx = conn_ctx; // restore saved ctx
@@ -766,8 +765,7 @@ static void fcgi_release(struct fcgi_conn *fconn)
 		task_wakeup(fconn->task, TASK_WOKEN_OTHER);
 		fconn->task = NULL;
 	}
-	if (fconn->wait_event.tasklet)
-		tasklet_free(fconn->wait_event.tasklet);
+	tasklet_free(fconn->wait_event.tasklet);
 	if (conn && fconn->wait_event.events != 0)
 		conn->xprt->unsubscribe(conn, conn->xprt_ctx, fconn->wait_event.events,
 					&fconn->wait_event);

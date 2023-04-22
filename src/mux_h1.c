@@ -995,8 +995,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 
   fail:
 	task_destroy(t);
-	if (h1c->wait_event.tasklet)
-		tasklet_free(h1c->wait_event.tasklet);
+	tasklet_free(h1c->wait_event.tasklet);
 	pool_free(pool_head_h1c, h1c);
  fail_h1c:
 	if (!conn_is_back(conn))

@@ -568,8 +568,7 @@ struct event_hdl_sub *event_hdl_subscribe_ptr(event_hdl_sub_list *sub_list,
  cleanup:
 	if (new_sub) {
 		if (hdl.async == EVENT_HDL_ASYNC_MODE_NORMAL) {
-			if (new_sub->hdl.async_task)
-				tasklet_free(new_sub->hdl.async_task);
+			tasklet_free(new_sub->hdl.async_task);
 			if (task_ctx)
 				pool_free(pool_head_sub_taskctx, task_ctx);
 		}

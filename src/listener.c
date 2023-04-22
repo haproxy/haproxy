@@ -201,8 +201,7 @@ static void accept_queue_deinit()
 	int i;
 
 	for (i = 0; i < global.nbthread; i++) {
-		if (accept_queue_rings[i].tasklet)
-			tasklet_free(accept_queue_rings[i].tasklet);
+		tasklet_free(accept_queue_rings[i].tasklet);
 	}
 }
 

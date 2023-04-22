@@ -331,8 +331,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
  fail_free_sd:
 	sedesc_free(ctx->sd);
  fail_free_ctx:
-	if (ctx->wait_event.tasklet)
-		tasklet_free(ctx->wait_event.tasklet);
+	tasklet_free(ctx->wait_event.tasklet);
 	pool_free(pool_head_pt_ctx, ctx);
  fail:
 	TRACE_DEVEL("leaving in error", PT_EV_CONN_NEW|PT_EV_CONN_END|PT_EV_CONN_ERR);
