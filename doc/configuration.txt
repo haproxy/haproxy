@@ -3023,6 +3023,30 @@ tune.idletimer <timeout>
   clicking). There should be no reason for changing this value. Please check
   tune.ssl.maxrecord below.
 
+tune.listener.default-shards { by-process | by-thread | by-group }
+  Normally, all "bind" lines will create a single shard, that is, a single
+  socket that all threads of the process will listen to. With many threads,
+  this is not very efficient, and may even induce some important overhead in
+  the kernel for updating the polling state or even distributing events to the
+  various threads. Modern operating systems support balancing of incoming
+  connections, a mechanism that will consist in permitting multiple sockets to
+  be bound to the same address and port, and to evenly distribute all incoming
+  connections to these sockets so that each thread only sees the connections
+  that are waiting in the socket it is bound to. This significantly reduces
+  kernel-side overhead and increases performance in the incoming connection
+  path. This is usually enabled in HAProxy using the "shards" setting on "bind"
+  lines, which defaults to 1, meaning that each listener will be unique in the
+  process. On systems with many processors, it may be more convenient to change
+  the default setting to "by-thread" in order to always create one listening
+  socket per thread, or "by-group" in order to always create one listening
+  socket per thread group. Be careful about the file descriptor usage with
+  "by-thread" as each listener will need as many sockets as there are threads.
+  Also some operating systems (e.g. FreeBSD) are limited to no more than 256
+  sockets on a same address. Note that "by-group" will remain equivalent to
+  "by-process" for default configurations involving a single thread group, and
+  will fall back to sharing the same socket on systems that do not support this
+  mechanism. As such, it is the recommended setting.
+
 tune.listener.multi-queue { on | fair | off }
   Enables ('on' / 'fair') or disables ('off') the listener's multi-queue accept
   which spreads the incoming traffic to all threads a "bind" line is allowed to

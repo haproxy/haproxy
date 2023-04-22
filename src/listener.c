@@ -1918,7 +1918,7 @@ struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *file,
 	bind_conf->settings.ux.uid = -1;
 	bind_conf->settings.ux.gid = -1;
 	bind_conf->settings.ux.mode = 0;
-	bind_conf->settings.shards = 1;
+	bind_conf->settings.shards = global.tune.default_shards;
 	bind_conf->xprt = xprt;
 	bind_conf->frontend = fe;
 	bind_conf->analysers = fe->fe_req_ana;
@@ -2298,6 +2298,27 @@ static int bind_parse_thread(char **args, int cur_arg, struct proxy *px, struct 
 	return 0;
 }
 
+/* config parser for global "tune.listener.default-shards" */
+static int cfg_parse_tune_listener_shards(char **args, int section_type, struct proxy *curpx,
+                                          const struct proxy *defpx, const char *file, int line,
+                                          char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "by-thread") == 0)
+		global.tune.default_shards = -1;
+	else if (strcmp(args[1], "by-group") == 0)
+		global.tune.default_shards = -2;
+	else if (strcmp(args[1], "by-process") == 0)
+		global.tune.default_shards = 1;
+	else {
+		memprintf(err, "'%s' expects either 'by-process', 'by-group', or 'by-thread' but got '%s'.", args[0], args[1]);
+		return -1;
+	}
+	return 0;
+}
+
 /* config parser for global "tune.listener.multi-queue", accepts "on", "fair" or "off" */
 static int cfg_parse_tune_listener_mq(char **args, int section_type, struct proxy *curpx,
                                       const struct proxy *defpx, const char *file, int line,
@@ -2366,6 +2387,7 @@ INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
 
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "tune.listener.default-shards",   cfg_parse_tune_listener_shards  },
 	{ CFG_GLOBAL, "tune.listener.multi-queue",      cfg_parse_tune_listener_mq      },
 	{ 0, NULL, NULL }
 }};
