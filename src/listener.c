@@ -1669,7 +1669,7 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 
 		/* special values: -1 = "by-thread", -2 = "by-group" */
 		if (shards == -1) {
-			if (li->rx.proto->flags & PROTO_F_REUSEPORT_SUPPORTED)
+			if (protocol_supports_flag(li->rx.proto, PROTO_F_REUSEPORT_SUPPORTED))
 				shards = todo;
 			else {
 				if (fe != global.cli_fe)
@@ -1680,14 +1680,14 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 			}
 		}
 		else if (shards == -2)
-			shards = (li->rx.proto->flags & PROTO_F_REUSEPORT_SUPPORTED) ? my_popcountl(bind_conf->thread_set.grps) : 1;
+			shards = protocol_supports_flag(li->rx.proto, PROTO_F_REUSEPORT_SUPPORTED) ? my_popcountl(bind_conf->thread_set.grps) : 1;
 
 		/* no more shards than total threads */
 		if (shards > todo)
 			shards = todo;
 
 		/* We also need to check if an explicit shards count was set and cannot be honored */
-		if (shards > 1 && !(li->rx.proto->flags & PROTO_F_REUSEPORT_SUPPORTED)) {
+		if (shards > 1 && !protocol_supports_flag(li->rx.proto, PROTO_F_REUSEPORT_SUPPORTED)) {
 			ha_warning("[%s:%d]: Disabling sharding for listener in %s '%s' because SO_REUSEPORT is disabled\n",
 			           bind_conf->file, bind_conf->line, proxy_type_str(fe), fe->id);
 			shards = 1;

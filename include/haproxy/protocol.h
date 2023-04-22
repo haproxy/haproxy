@@ -44,6 +44,14 @@ void protocol_clrf_all(uint flag);
 /* sets flag <flag> on all protocols. */
 void protocol_setf_all(uint flag);
 
+/* Checks if protocol <proto> supports PROTO_F flag <flag>. Returns zero if not,
+ * non-zero if supported. It may return a cached value from a previous test,
+ * and may run live tests then update the proto's flags to cache a result. It's
+ * better to call it only if needed so that it doesn't result in modules being
+ * loaded in case of a live test.
+ */
+int protocol_supports_flag(struct protocol *proto, uint flag);
+
 /* binds all listeners of all registered protocols. Returns a composition
  * of ERR_NONE, ERR_RETRYABLE, ERR_FATAL, ERR_ABORT.
  */

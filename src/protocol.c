@@ -83,6 +83,25 @@ void protocol_setf_all(uint flag)
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 }
 
+/* Checks if protocol <proto> supports PROTO_F flag <flag>. Returns zero if not,
+ * non-zero if supported. It may return a cached value from a previous test,
+ * and may run live tests then update the proto's flags to cache a result. It's
+ * better to call it only if needed so that it doesn't result in modules being
+ * loaded in case of a live test. It is only supposed to be used during boot.
+ */
+int protocol_supports_flag(struct protocol *proto, uint flag)
+{
+	if (flag == PROTO_F_REUSEPORT_SUPPORTED) {
+		/* check if the protocol supports SO_REUSEPORT */
+		if (!(_HA_ATOMIC_LOAD(&proto->flags) & PROTO_F_REUSEPORT_SUPPORTED))
+			return 0;
+
+		/* OK it looks like it is supported */
+		return 1;
+	}
+	return 0;
+}
+
 /* binds all listeners of all registered protocols. Returns a composition
  * of ERR_NONE, ERR_RETRYABLE, ERR_FATAL.
  */
