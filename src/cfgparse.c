@@ -4385,7 +4385,7 @@ init_proxies_list_stage2:
 				if (!LIST_ISEMPTY(&curpeers->peers_fe->conf.bind)) {
 					struct list *l;
 					struct bind_conf *bind_conf;
-					struct listener *li;
+					int ret;
 
 					l = &curpeers->peers_fe->conf.bind;
 					bind_conf = LIST_ELEM(l->n, typeof(bind_conf), by_fe);
@@ -4401,23 +4401,12 @@ init_proxies_list_stage2:
 						}
 					}
 
-					err = NULL;
-					if (thread_resolve_group_mask(&bind_conf->thread_set, 1, &err) < 0) {
-						ha_alert("Peers section '%s': %s in 'bind %s' at [%s:%d].\n",
-							 curpeers->peers_fe->id, err, bind_conf->arg, bind_conf->file, bind_conf->line);
-						free(err);
-						cfgerr++;
-					}
-					else if (atleast2(bind_conf->thread_set.grps)) {
-						ha_alert("Peers section '%s': 'thread' spans more than one group in 'bind %s' at [%s:%d].\n",
-							 curpeers->peers_fe->id, bind_conf->arg, bind_conf->file, bind_conf->line);
-						cfgerr++;
-					}
-
-					/* apply thread masks and groups to all receivers */
-					list_for_each_entry(li, &bind_conf->listeners, by_bind) {
-						li->rx.bind_thread = thread_set_nth_tmask(&bind_conf->thread_set, 0);
-						li->rx.bind_tgroup = thread_set_nth_group(&bind_conf->thread_set, 0);
+					/* finish the bind setup */
+					ret = bind_complete_thread_setup(bind_conf, &err_code);
+					if (ret != 0) {
+						cfgerr += ret;
+						if (err_code & ERR_FATAL)
+							goto out;
 					}
 
 					if (bind_conf->xprt->prepare_bind_conf &&
