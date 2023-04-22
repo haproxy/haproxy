@@ -995,6 +995,65 @@ void sock_ignore_events(struct connection *conn, int event_type)
 		fd_stop_send(conn->handle.fd);
 }
 
+/* Live check to see if a socket type supports SO_REUSEPORT for the specified
+ * family and socket() settings. Returns non-zero on success, 0 on failure. Use
+ * protocol_supports_flag() instead, which checks cached flags.
+ */
+int _sock_supports_reuseport(const struct proto_fam *fam, int type, int protocol)
+{
+	int ret = 0;
+#ifdef SO_REUSEPORT
+	struct sockaddr_storage ss;
+	socklen_t sl = sizeof(ss);
+	int fd1, fd2;
+
+	/* for the check, we'll need two sockets */
+	fd1 = fd2 = -1;
+
+	/* ignore custom sockets */
+	if (!fam || fam->sock_domain >= AF_MAX)
+		goto leave;
+
+	fd1 = socket(fam->sock_domain, type, protocol);
+	if (fd1 < 0)
+		goto leave;
+
+	if (setsockopt(fd1, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) < 0)
+		goto leave;
+
+	/* bind to any address assigned by the kernel, we'll then try to do it twice */
+	memset(&ss, 0, sizeof(ss));
+	ss.ss_family = fam->sock_family;
+	if (bind(fd1, (struct sockaddr *)&ss, fam->sock_addrlen) < 0)
+		goto leave;
+
+	if (getsockname(fd1, (struct sockaddr *)&ss, &sl) < 0)
+		goto leave;
+
+	fd2 = socket(fam->sock_domain, type, protocol);
+	if (fd2 < 0)
+		goto leave;
+
+	if (setsockopt(fd2, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) < 0)
+		goto leave;
+
+	if (bind(fd2, (struct sockaddr *)&ss, sl) < 0)
+		goto leave;
+
+	/* OK we could bind twice to the same address:port, REUSEPORT
+	 * is supported for this protocol.
+	 */
+	ret = 1;
+
+ leave:
+	if (fd2 >= 0)
+		close(fd2);
+	if (fd1 >= 0)
+		close(fd1);
+#endif
+	return ret;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

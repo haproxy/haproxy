@@ -49,6 +49,7 @@ int sock_conn_check(struct connection *conn);
 int sock_drain(struct connection *conn);
 int sock_check_events(struct connection *conn, int event_type);
 void sock_ignore_events(struct connection *conn, int event_type);
+int _sock_supports_reuseport(const struct proto_fam *fam, int type, int protocol);
 
 
 #endif /* _HAPROXY_SOCK_H */
