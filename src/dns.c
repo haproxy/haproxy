@@ -777,10 +777,8 @@ void dns_queries_flush(struct dns_session *ds)
 
 void dns_session_free(struct dns_session *ds)
 {
-	if (ds->rx_msg.area)
-		pool_free(dns_msg_buf, ds->rx_msg.area);
-	if (ds->tx_ring_area)
-		pool_free(dns_msg_buf, ds->tx_ring_area);
+	pool_free(dns_msg_buf, ds->rx_msg.area);
+	pool_free(dns_msg_buf, ds->tx_ring_area);
 	if (ds->task_exp)
 		task_destroy(ds->task_exp);
 
@@ -1084,10 +1082,8 @@ struct dns_session *dns_session_new(struct dns_stream_server *dss)
 error:
 	if (ds->task_exp)
 		task_destroy(ds->task_exp);
-	if (ds->rx_msg.area)
-		pool_free(dns_msg_buf, ds->rx_msg.area);
-	if (ds->tx_ring_area)
-		pool_free(dns_msg_buf, ds->tx_ring_area);
+	pool_free(dns_msg_buf, ds->rx_msg.area);
+	pool_free(dns_msg_buf, ds->tx_ring_area);
 
 	pool_free(dns_session_pool, ds);
 

@@ -278,8 +278,7 @@ static struct quic_dgram *quic_rxbuf_purge_dgrams(struct quic_receiver_buf *buf)
 		b_del(&buf->buf, cur->len);
 
 		/* Free last found unused datagram. */
-		if (prev)
-			pool_free(pool_head_quic_dgram, prev);
+		pool_free(pool_head_quic_dgram, prev);
 		prev = cur;
 	}
 
