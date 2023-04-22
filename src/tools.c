@@ -6093,17 +6093,20 @@ void *dlopen(const char *filename, int flags)
 		uint64_t bit, grp;
 		void *curr, *next;
 	} check_syms[] = {
-		/* openssl checks: group bits 0x7ff */
-		{ .name="OPENSSL_init",                  .bit = 0x0000000000000001, .grp = 0x00000000000003ff, }, // openssl 1.0 / 1.1 / 3.0
-		{ .name="OPENSSL_init_crypto",           .bit = 0x0000000000000002, .grp = 0x00000000000003ff, }, // openssl 1.1 / 3.0 (libcrypto)
-		{ .name="OPENSSL_init_ssl",              .bit = 0x0000000000000004, .grp = 0x00000000000003ff, }, // openssl 1.1 / 3.0 (libssl)
-		{ .name="SSL_library_init",              .bit = 0x0000000000000008, .grp = 0x00000000000003ff, }, // openssl 1.x
-		{ .name="ENGINE_init",                   .bit = 0x0000000000000010, .grp = 0x00000000000003ff, }, // openssl 1.x / 3.x with engine
-		{ .name="EVP_CIPHER_CTX_init",           .bit = 0x0000000000000020, .grp = 0x00000000000003ff, }, // openssl 1.0
-		{ .name="HMAC_Init",                     .bit = 0x0000000000000040, .grp = 0x00000000000003ff, }, // openssl 1.x
-		{ .name="SSL_is_quic",                   .bit = 0x0000000000000080, .grp = 0x00000000000003ff, }, // quictls
-		{ .name="SSL_CTX_new_ex",                .bit = 0x0000000000000100, .grp = 0x00000000000003ff, }, // openssl 3.x
-		{ .name="SSL_CTX_get0_security_ex_data", .bit = 0x0000000000000200, .grp = 0x00000000000003ff, }, // openssl 1.x / 3.x
+		/* openssl's libcrypto checks: group bits 0x1f */
+		{ .name="OPENSSL_init",                  .bit = 0x0000000000000001, .grp = 0x000000000000001f, }, // openssl 1.0 / 1.1 / 3.0
+		{ .name="OPENSSL_init_crypto",           .bit = 0x0000000000000002, .grp = 0x000000000000001f, }, // openssl 1.1 / 3.0
+		{ .name="ENGINE_init",                   .bit = 0x0000000000000004, .grp = 0x000000000000001f, }, // openssl 1.x / 3.x with engine
+		{ .name="EVP_CIPHER_CTX_init",           .bit = 0x0000000000000008, .grp = 0x000000000000001f, }, // openssl 1.0
+		{ .name="HMAC_Init",                     .bit = 0x0000000000000010, .grp = 0x000000000000001f, }, // openssl 1.x
+
+		/* openssl's libssl checks: group bits 0x3e0 */
+		{ .name="OPENSSL_init_ssl",              .bit = 0x0000000000000020, .grp = 0x00000000000003e0, }, // openssl 1.1 / 3.0
+		{ .name="SSL_library_init",              .bit = 0x0000000000000040, .grp = 0x00000000000003e0, }, // openssl 1.x
+		{ .name="SSL_is_quic",                   .bit = 0x0000000000000080, .grp = 0x00000000000003e0, }, // quictls
+		{ .name="SSL_CTX_new_ex",                .bit = 0x0000000000000100, .grp = 0x00000000000003e0, }, // openssl 3.x
+		{ .name="SSL_CTX_get0_security_ex_data", .bit = 0x0000000000000200, .grp = 0x00000000000003e0, }, // openssl 1.x / 3.x
+
 		/* insert only above, 0 must be the last one */
 		{ 0 },
 	};
