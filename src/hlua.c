@@ -9113,7 +9113,7 @@ static struct task *hlua_event_runner(struct task *task, void *context, unsigned
 
 		/* We reached the limit of pending events in the queue: we should
 		 * warn the user, and temporarily pause the subscription to give a chance
-		 * to the handler to catch up? (it also prevents ressource shortage since
+		 * to the handler to catch up? (it also prevents resource shortage since
 		 * the queue could grow indefinitely otherwise)
 		 * TODO: find a way to inform the handler that it missed some events
 		 * (example: stats within the subscription in event_hdl api exposed via lua api?)
@@ -9176,7 +9176,7 @@ static struct task *hlua_event_runner(struct task *task, void *context, unsigned
 		RESET_SAFE_LJMP(hlua_sub->hlua);
 
 		/* At this point the event was successfully translated into hlua ctx,
-		 * or hlua error occured, so we can safely discard it
+		 * or hlua error occurred, so we can safely discard it
 		 */
 		event_hdl_async_free_event(event);
 		event = NULL;
@@ -9199,7 +9199,7 @@ static struct task *hlua_event_runner(struct task *task, void *context, unsigned
 			task_wakeup(task, TASK_WOKEN_OTHER);
 		}
 		else if (hlua_sub->paused) {
-			/* empty queue, the handler catched up: resume the subscription */
+			/* empty queue, the handler caught up: resume the subscription */
 			event_hdl_resume(hlua_sub->sub);
 			hlua_sub->paused = 0;
 		}
@@ -9307,7 +9307,7 @@ __LJMP static struct event_hdl_sub_type hlua_check_event_sub_types(lua_State *L,
 /* Wrapper for hlua_fcn_new_event_sub(): catch errors raised by
  * the function to prevent LJMP
  *
- * If no error occured, the function returns 1, else it returns 0 and
+ * If no error occurred, the function returns 1, else it returns 0 and
  * the error message is pushed at the top of the stack
  */
 __LJMP static int _hlua_new_event_sub_safe(lua_State *L)
@@ -9327,7 +9327,7 @@ static int hlua_new_event_sub_safe(lua_State *L, struct event_hdl_sub *sub)
 		case LUA_OK:
 			return 1;
 		default:
-			/* error was catched */
+			/* error was caught */
 			return 0;
 	}
 }

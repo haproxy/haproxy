@@ -1338,7 +1338,7 @@ Server class
   care about a single server, and also prevents useless wakeups.
 
   For instance, if you want to be notified for UP/DOWN events on a given set of
-  servers, it is recommended to peform multiple per-server subscriptions since
+  servers, it is recommended to perform multiple per-server subscriptions since
   it will be more efficient that doing a single global subscription that will
   filter the received events.
   Unless you really want to be notified for servers events of ALL servers of

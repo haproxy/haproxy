@@ -1023,7 +1023,7 @@ int hlua_server_get_name(lua_State *L)
 }
 
 /* __index metamethod for server class
- * support for additionnal keys that are missing from the main table
+ * support for additional keys that are missing from the main table
  * stack:1 = table (server class), stack:2 = requested key
  * Returns 1 if key is supported
  * else returns 0 to make lua return NIL value to the caller
@@ -1567,7 +1567,7 @@ int hlua_proxy_get_uuid(lua_State *L)
 }
 
 /* __index metamethod for proxy class
- * support for additionnal keys that are missing from the main table
+ * support for additional keys that are missing from the main table
  * stack:1 = table (proxy class), stack:2 = requested key
  * Returns 1 if key is supported
  * else returns 0 to make lua return NIL value to the caller

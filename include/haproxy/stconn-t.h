@@ -153,7 +153,7 @@ enum sc_flags {
 	SC_FL_NEED_BUFF     = 0x00000100,  /* SC waits for an rx buffer allocation to complete */
 	SC_FL_NEED_ROOM     = 0x00000200,  /* SC needs more room in the rx buffer to store incoming data */
 
-	SC_FL_RCV_ONCE      = 0x00000400,  /* Don't loop to receive data. cleared after a sucessful receive */
+	SC_FL_RCV_ONCE      = 0x00000400,  /* Don't loop to receive data. cleared after a successful receive */
 	SC_FL_SND_ASAP      = 0x00000800,  /* Don't wait for sending. cleared when all data were sent */
 	SC_FL_SND_NEVERWAIT = 0x00001000,  /* Never wait for sending (permanent) */
 	SC_FL_SND_EXP_MORE  = 0x00001000,  /* More data expected to be sent very soon. cleared when all data were sent */
