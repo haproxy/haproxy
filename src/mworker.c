@@ -502,8 +502,7 @@ void mworker_cleanlisteners()
 		/* disable this peer section so that it kills itself */
 		if (curpeers->sighandler)
 			signal_unregister_handler(curpeers->sighandler);
-		if (curpeers->sync_task)
-			task_destroy(curpeers->sync_task);
+		task_destroy(curpeers->sync_task);
 		curpeers->sync_task = NULL;
 		curpeers->peers_fe = NULL;
 	}

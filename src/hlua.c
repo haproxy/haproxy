@@ -9257,8 +9257,7 @@ static struct event_hdl_sub *hlua_event_subscribe(event_hdl_sub_list *list, stru
 
  mem_error:
 	if (hlua_sub) {
-		if (hlua_sub->task)
-			task_destroy(hlua_sub->task);
+		task_destroy(hlua_sub->task);
 		if (hlua_sub->hlua)
 			hlua_ctx_destroy(hlua_sub->hlua);
 		pool_free(pool_head_hlua_event_sub, hlua_sub);

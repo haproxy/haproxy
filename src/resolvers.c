@@ -2491,10 +2491,8 @@ static void resolvers_destroy(struct resolvers *resolvers)
 		if (ns->stream) {
 			if (ns->stream->ring_req)
 				ring_free(ns->stream->ring_req);
-			if (ns->stream->task_req)
-				task_destroy(ns->stream->task_req);
-			if (ns->stream->task_rsp)
-				task_destroy(ns->stream->task_rsp);
+			task_destroy(ns->stream->task_req);
+			task_destroy(ns->stream->task_rsp);
 			free(ns->stream);
 		}
 		LIST_DEL_INIT(&ns->list);

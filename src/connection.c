@@ -2451,8 +2451,7 @@ static void deinit_idle_conns(void)
 	int i;
 
 	for (i = 0; i < global.nbthread; i++) {
-		if (idle_conns[i].cleanup_task)
-			task_destroy(idle_conns[i].cleanup_task);
+		task_destroy(idle_conns[i].cleanup_task);
 	}
 }
 REGISTER_POST_DEINIT(deinit_idle_conns);
