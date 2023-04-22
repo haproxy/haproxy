@@ -71,8 +71,9 @@ struct proto_fam {
 	char name[PROTO_NAME_LEN];                      /* family name, zero-terminated */
 	int sock_domain;				/* socket domain, as passed to socket()   */
 	sa_family_t sock_family;			/* socket family, for sockaddr */
+	ushort l3_addrlen;				/* layer3 address length, used by hashes */
 	socklen_t sock_addrlen;				/* socket address length, used by bind() */
-	int l3_addrlen;					/* layer3 address length, used by hashes */
+	/* 4-bytes hole here */
 	int (*addrcmp)(const struct sockaddr_storage *, const struct sockaddr_storage *); /* compare addresses (like memcmp) */
 	int (*bind)(struct receiver *rx, char **errmsg); /* bind a receiver */
 	int (*get_src)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve connection's src addr */
