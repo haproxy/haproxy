@@ -14,6 +14,7 @@
 #include <haproxy/arg.h>
 #include <haproxy/cfgcond.h>
 #include <haproxy/global.h>
+#include <haproxy/proto_tcp.h>
 #include <haproxy/tools.h>
 
 /* supported condition predicates */
@@ -195,7 +196,7 @@ static int cfg_eval_cond_enabled(const char *str)
 	else if (strcmp(str, "GETADDRINFO") == 0)
 		return !!(global.tune.options & GTUNE_USE_GAI);
 	else if (strcmp(str, "REUSEPORT") == 0)
-		return !!(global.tune.options & GTUNE_USE_REUSEPORT);
+		return !!(proto_tcpv4.flags & PROTO_F_REUSEPORT_SUPPORTED);
 	else if (strcmp(str, "FAST-FORWARD") == 0)
 		return !!(global.tune.options & GTUNE_USE_FAST_FWD);
 	else if (strcmp(str, "SERVER-SSL-VERIFY-NONE") == 0)

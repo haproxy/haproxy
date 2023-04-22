@@ -105,6 +105,9 @@ struct protocol proto_quic4 = {
 	.default_iocb   = quic_lstnr_sock_fd_iocb,
 	.receivers      = LIST_HEAD_INIT(proto_quic4.receivers),
 	.nb_receivers   = 0,
+#ifdef SO_REUSEPORT
+	.flags          = PROTO_F_REUSEPORT_SUPPORTED,
+#endif
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_quic4);
@@ -146,6 +149,9 @@ struct protocol proto_quic6 = {
 	.default_iocb   = quic_lstnr_sock_fd_iocb,
 	.receivers      = LIST_HEAD_INIT(proto_quic6.receivers),
 	.nb_receivers   = 0,
+#ifdef SO_REUSEPORT
+	.flags          = PROTO_F_REUSEPORT_SUPPORTED,
+#endif
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_quic6);

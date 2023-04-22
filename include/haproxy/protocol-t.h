@@ -64,6 +64,9 @@ enum proto_type {
 #define CONNECT_DELACK_ALWAYS                   0x00000004 /* Use a delayed ACK */
 #define CONNECT_CAN_USE_TFO                     0x00000008 /* We can use TFO for this connection */
 
+/* Flags for protocol->flags */
+#define PROTO_F_REUSEPORT_SUPPORTED             0x00000001 /* SO_REUSEPORT is supported */
+
 /* protocol families define standard functions acting on a given address family
  * for a socket implementation, such as AF_INET/PF_INET for example.
  */

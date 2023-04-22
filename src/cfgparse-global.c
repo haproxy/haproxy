@@ -20,6 +20,7 @@
 #include <haproxy/global.h>
 #include <haproxy/log.h>
 #include <haproxy/peers.h>
+#include <haproxy/protocol.h>
 #include <haproxy/tools.h>
 
 /* some keywords that are still being parsed using strcmp() and are not
@@ -171,7 +172,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "noreuseport") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
-		global.tune.options &= ~GTUNE_USE_REUSEPORT;
+		protocol_clrf_all(PROTO_F_REUSEPORT_SUPPORTED);
 	}
 	else if (strcmp(args[0], "quiet") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))

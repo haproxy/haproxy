@@ -1589,9 +1589,6 @@ static void init_args(int argc, char **argv)
 #if defined(USE_GETADDRINFO)
 	global.tune.options |= GTUNE_USE_GAI;
 #endif
-#if defined(SO_REUSEPORT)
-	global.tune.options |= GTUNE_USE_REUSEPORT;
-#endif
 #ifdef USE_THREAD
 	global.tune.options |= GTUNE_IDLE_POOL_SHARED;
 #endif
@@ -1650,7 +1647,7 @@ static void init_args(int argc, char **argv)
 #endif
 #if defined(SO_REUSEPORT)
 			else if (*flag == 'd' && flag[1] == 'R')
-				global.tune.options &= ~GTUNE_USE_REUSEPORT;
+				protocol_clrf_all(PROTO_F_REUSEPORT_SUPPORTED);
 #endif
 			else if (*flag == 'd' && flag[1] == 'F')
 				global.tune.options &= ~GTUNE_USE_FAST_FWD;

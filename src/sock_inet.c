@@ -376,7 +376,7 @@ int sock_inet_bind_receiver(struct receiver *rx, char **errmsg)
 	/* OpenBSD and Linux 3.9 support this. As it's present in old libc versions of
 	 * Linux, it might return an error that we will silently ignore.
 	 */
-	if (!ext && (global.tune.options & GTUNE_USE_REUSEPORT))
+	if (!ext && (rx->proto->flags & PROTO_F_REUSEPORT_SUPPORTED))
 		setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
 #endif
 
@@ -384,7 +384,7 @@ int sock_inet_bind_receiver(struct receiver *rx, char **errmsg)
 	/* FreeBSD 12 and above use this to load-balance incoming connections.
 	 * This is limited to 256 listeners per group however.
 	 */
-	if (!ext && (global.tune.options & GTUNE_USE_REUSEPORT))
+	if (!ext && (rx->proto->flags & PROTO_F_REUSEPORT_SUPPORTED))
 		setsockopt(fd, SOL_SOCKET, SO_REUSEPORT_LB, &one, sizeof(one));
 #endif
 
