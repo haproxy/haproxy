@@ -34,6 +34,9 @@ extern int sock_inet6_tcp_maxseg_default;
 extern struct proto_fam proto_fam_inet4;
 extern struct proto_fam proto_fam_inet6;
 
+/* extrenal types */
+struct receiver;
+
 int sock_inet4_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b);
 int sock_inet6_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b);
 void sock_inet_set_port(struct sockaddr_storage *addr, int port);
