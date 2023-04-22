@@ -380,6 +380,14 @@ int sock_inet_bind_receiver(struct receiver *rx, char **errmsg)
 		setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
 #endif
 
+#ifdef SO_REUSEPORT_LB
+	/* FreeBSD 12 and above use this to load-balance incoming connections.
+	 * This is limited to 256 listeners per group however.
+	 */
+	if (!ext && (global.tune.options & GTUNE_USE_REUSEPORT))
+		setsockopt(fd, SOL_SOCKET, SO_REUSEPORT_LB, &one, sizeof(one));
+#endif
+
 	if (!ext && (rx->settings->options & RX_O_FOREIGN)) {
 		switch (addr_inet.ss_family) {
 		case AF_INET:
