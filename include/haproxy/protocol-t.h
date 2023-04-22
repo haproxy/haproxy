@@ -66,6 +66,7 @@ enum proto_type {
 
 /* Flags for protocol->flags */
 #define PROTO_F_REUSEPORT_SUPPORTED             0x00000001 /* SO_REUSEPORT is supported */
+#define PROTO_F_REUSEPORT_TESTED                0x00000002 /* SO_REUSEPORT support was tested */
 
 /* protocol families define standard functions acting on a given address family
  * for a socket implementation, such as AF_INET/PF_INET for example.

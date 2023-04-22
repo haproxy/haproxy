@@ -21,6 +21,7 @@
 #include <haproxy/proto_quic.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
+#include <haproxy/sock.h>
 #include <haproxy/tools.h>
 
 
@@ -92,12 +93,23 @@ void protocol_setf_all(uint flag)
 int protocol_supports_flag(struct protocol *proto, uint flag)
 {
 	if (flag == PROTO_F_REUSEPORT_SUPPORTED) {
+		int ret = 0;
+
 		/* check if the protocol supports SO_REUSEPORT */
 		if (!(_HA_ATOMIC_LOAD(&proto->flags) & PROTO_F_REUSEPORT_SUPPORTED))
 			return 0;
 
-		/* OK it looks like it is supported */
-		return 1;
+		/* at least nobody said it was not supported */
+		if (_HA_ATOMIC_LOAD(&proto->flags) & PROTO_F_REUSEPORT_TESTED)
+			return 1;
+
+		/* run a live check */
+		ret = _sock_supports_reuseport(proto->fam, proto->sock_type, proto->sock_prot);
+		if (!ret)
+			_HA_ATOMIC_AND(&proto->flags, ~PROTO_F_REUSEPORT_SUPPORTED);
+
+		_HA_ATOMIC_OR(&proto->flags, PROTO_F_REUSEPORT_TESTED);
+		return ret;
 	}
 	return 0;
 }
