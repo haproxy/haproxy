@@ -1653,7 +1653,7 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 	char *err;
 
 	err = NULL;
-	if (thread_resolve_group_mask(&bind_conf->thread_set, (fe == global.cli_fe) ? 1 : 0, &err) < 0) {
+	if (thread_resolve_group_mask(&bind_conf->thread_set, 0, &err) < 0) {
 		ha_alert("%s '%s': %s in 'bind %s' at [%s:%d].\n",
 			 proxy_type_str(fe),
 			 fe->id, err, bind_conf->arg, bind_conf->file, bind_conf->line);
