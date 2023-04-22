@@ -621,6 +621,9 @@ static inline void task_destroy(struct task *t)
 /* Should only be called by the thread responsible for the tasklet */
 static inline void tasklet_free(struct tasklet *tl)
 {
+	if (!tl)
+		return;
+
 	if (MT_LIST_DELETE(list_to_mt_list(&tl->list)))
 		_HA_ATOMIC_DEC(&ha_thread_ctx[tl->tid >= 0 ? tl->tid : tid].rq_total);
 
