@@ -127,9 +127,9 @@ struct protocol {
 	/* default I/O handler */
 	void (*default_iocb)(int fd);                   /* generic I/O handler (typically accept callback) */
 
-
+	/* 4-byte hole here on 64-bit machines */
+	uint nb_receivers;                              /* number of receivers (under proto_lock) */
 	struct list receivers;				/* list of receivers using this protocol (under proto_lock) */
-	int nb_receivers;				/* number of receivers (under proto_lock) */
 	struct list list;				/* list of registered protocols (under proto_lock) */
 };
 
