@@ -92,6 +92,8 @@ struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg);
  */
 static inline const char *proxy_type_str(struct proxy *proxy)
 {
+	if (proxy->mode == PR_MODE_PEERS)
+		return "peers section";
 	return proxy_cap_str(proxy->cap);
 }
 
