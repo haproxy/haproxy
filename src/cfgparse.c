@@ -2701,6 +2701,9 @@ static int numa_detect_topology()
 	BUG_ON(ndomains > MAXMEMDOM);
 	ha_cpuset_zero(&node_cpu_set);
 
+	if (ndomains < 2)
+		goto leave;
+
 	/*
 	 * We retrieve the first active valid CPU domain
 	 * with active cpu and binding it, we returns
@@ -2726,7 +2729,7 @@ static int numa_detect_topology()
 		}
 		break;
 	}
-
+ leave:
 	return ha_cpuset_count(&node_cpu_set);
 }
 
