@@ -617,7 +617,7 @@ static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
 		global.cli_fe->maxconn = maxconn;
 	}
 	else if (strcmp(args[1], "bind-process") == 0) {
-		memprintf(err, "'%s' is not supported anymore.", args[0]);
+		memprintf(err, "'%s %s' is not supported anymore.", args[0], args[1]);
 		return -1;
 	}
 	else {
