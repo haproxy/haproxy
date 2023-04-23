@@ -1,6 +1,207 @@
 ChangeLog :
 ===========
 
+2023/04/23 : 2.8-dev8
+    - BUG/MEDIUM: cli: Set SE_FL_EOI flag for '_getsocks' and 'quit' commands
+    - BUG/MEDIUM: cli: Eat output data when waiting for appctx shutdown
+    - BUG/MEDIUM: http-client: Eat output data when waiting for appctx shutdown
+    - BUG/MEDIUM: stats: Eat output data when waiting for appctx shutdown
+    - BUG/MEDIUM: log: Eat output data when waiting for appctx shutdown
+    - BUG/MEDIUM: dns: Kill idle DNS sessions during stopping stage
+    - BUG/MINOR: resolvers: Wakeup DNS idle task on stopping
+    - BUG/MEDIUM: resolvers: Force the connect timeout for DNS resolutions
+    - MINOR: hlua: Stop to check the SC state when executing a hlua cli command
+    - BUG/MEDIUM: mux-h1: Report EOI when a TCP connection is upgraded to H2
+    - BUG/MEDIUM: mux-h2: Never set SE_FL_EOS without SE_FL_EOI or SE_FL_ERROR
+    - MINOR: quic: Trace fix in quic_pto_pktns() (handshaske status)
+    - BUG/MINOR: quic: Wrong packet number space probing before confirmed handshake
+    - MINOR: quic: Modify qc_try_rm_hp() traces
+    - MINOR: quic: Dump more information at proto level when building packets
+    - MINOR: quic: Add a trace for packet with an ACK frame
+    - MINOR: activity: add a line reporting the average CPU usage to "show activity"
+    - BUG/MINOR: stick_table: alert when type len has incorrect characters
+    - MINOR: thread: keep a bitmask of enabled groups in thread_set
+    - MINOR: fd: optimize fd_claim_tgid() for use in fd_insert()
+    - MINOR: fd: add a lock bit with the tgid
+    - MINOR: fd: implement fd_migrate_on() to migrate on a non-local thread
+    - MINOR: receiver: reserve special values for "shards"
+    - MINOR: bind-conf: support a new shards value: "by-group"
+    - BUG/MEDIUM: fd: don't wait for tmask to stabilize if we're not in it.
+    - MINOR: quic: Add packet loss and maximum cc window to "show quic"
+    - BUG/MINOR: quic: Ignored less than 1ms RTTs
+    - MINOR: quic: Add connection flags to traces
+    - BUG/MEDIUM: quic: Code sanitization about acknowledgements requirements
+    - BUG/MINOR: quic: Possible wrapped values used as ACK tree purging limit.
+    - BUG/MINOR: quic: SIGFPE in quic_cubic_update()
+    - MINOR: quic: Display the packet number space flags in traces
+    - MINOR: quic: Remove a useless test about probing in qc_prep_pkts()
+    - BUG/MINOR: quic: Wrong Application encryption level selection when probing
+    - CI: bump "actions/checkout" to v3 for cross zoo matrix
+    - CI: enable monthly test on Fedora Rawhide
+    - BUG/MINOR: stream: Fix test on SE_FL_ERROR on the wrong entity
+    - BUG/MEDIUM: stream: Report write timeouts before testing the flags
+    - BUG/MEDIUM: stconn: Do nothing in sc_conn_recv() when the SC needs more room
+    - MINOR: stream: Uninline and export sess_set_term_flags() function
+    - MINOR: filters: Review and simplify errors handling
+    - REGTESTS: fix the race conditions in log_uri.vtc
+    - MINOR: channel: Forwad close to other side on abort
+    - MINOR: stream: Introduce stream_abort() to abort on both sides in same time
+    - MINOR: stconn: Rename SC_FL_SHUTR_NOW in SC_FL_ABRT_WANTED
+    - MINOR: channel/stconn: Replace channel_shutr_now() by sc_schedule_abort()
+    - MINOR: stconn: Rename SC_FL_SHUTW_NOW in SC_FL_SHUT_WANTED
+    - MINOR: channel/stconn: Replace channel_shutw_now() by sc_schedule_shutdown()
+    - MINOR: stconn: Rename SC_FL_SHUTR in SC_FL_ABRT_DONE
+    - MINOR: channel/stconn: Replace sc_shutr() by sc_abort()
+    - MINOR: stconn: Rename SC_FL_SHUTW in SC_FL_SHUT_DONE
+    - MINOR: channel/stconn: Replace sc_shutw() by sc_shutdown()
+    - MINOR: tree-wide: Replace several chn_cons() by the corresponding SC
+    - MINOR: tree-wide: Replace several chn_prod() by the corresponding SC
+    - BUG/MINOR: cli: Don't close when SE_FL_ERR_PENDING is set in cli analyzer
+    - MINOR: stconn: Stop to set SE_FL_ERROR on sending path
+    - MEDIUM: stconn: Forbid applets with more to deliver if EOI was reached
+    - MINOR: stconn: Don't clear SE_FL_ERROR when endpoint is reset
+    - MINOR: stconn: Add a flag to ack endpoint errors at SC level
+    - MINOR: backend: Set SC_FL_ERROR on connection error
+    - MINOR: stream: Set SC_FL_ERROR on channels' buffer allocation error
+    - MINOR: tree-wide: Test SC_FL_ERROR with SE_FL_ERROR from upper layer
+    - MEDIUM: tree-wide: Stop to set SE_FL_ERROR from upper layer
+    - MEDIUM: backend: Stop to use SE flags to detect connection errors
+    - MEDIUM: stream: Stop to use SE flags to detect read errors from analyzers
+    - MEDIUM: stream: Stop to use SE flags to detect endpoint errors
+    - MEDIUM: stconn: Rely on SC flags to handle errors instead of SE flags
+    - BUG/MINOR: stconn: Don't set SE_FL_ERROR at the end of sc_conn_send()
+    - BUG/MINOR: quic: Do not use ack delay during the handshakes
+    - CLEANUP: use "offsetof" where appropriate
+    - MINOR: ssl: remove OpenSSL 1.0.2 mention into certificate loading error
+    - BUG/MEDIUM: http-ana: Properly switch the request in tunnel mode on upgrade
+    - BUG/MEDIUM: log: Properly handle client aborts in syslog applet
+    - MINOR: stconn: Add a flag to report EOS at the stream-connector level
+    - MINOR: stconn: Propagate EOS from a mux to the attached stream-connector
+    - MINOR: stconn: Propagate EOS from an applet to the attached stream-connector
+    - MINOR: mux-h2: make the initial window size configurable per side
+    - MINOR: mux-h2: make the max number of concurrent streams configurable per side
+    - BUG/MINOR: task: allow to use tasklet_wakeup_after with tid -1
+    - CLEANUP: quic: remove unused QUIC_LOCK label
+    - CLEANUP: quic: remove unused scid_node
+    - CLEANUP: quic: remove unused qc param on stateless reset token
+    - CLEANUP: quic: rename quic_connection_id vars
+    - MINOR: quic: remove uneeded tasklet_wakeup after accept
+    - MINOR: quic: adjust Rx packet type parsing
+    - MINOR: quic: adjust quic CID derive API
+    - MINOR: quic: remove TID ref from quic_conn
+    - MEDIUM: quic: use a global CID trees list
+    - MINOR: quic: remove TID encoding in CID
+    - MEDIUM: quic: handle conn bootstrap/handshake on a random thread
+    - MINOR: quic: do not proceed to accept for closing conn
+    - MINOR: protocol: define new callback set_affinity
+    - MINOR: quic: delay post handshake frames after accept
+    - MEDIUM: quic: implement thread affinity rebinding
+    - BUG/MINOR: quic: transform qc_set_timer() as a reentrant function
+    - MINOR: quic: properly finalize thread rebinding
+    - MAJOR: quic: support thread balancing on accept
+    - MINOR: listener: remove unneeded local accept flag
+    - BUG/MINOR: http-ana: Update analyzers on both sides when switching in TUNNEL mode
+    - CLEANUP: backend: Remove useless debug message in assign_server()
+    - CLEANUP: cli: Remove useless debug message in cli_io_handler()
+    - BUG/MEDIUM: stconn: Propagate error on the SC on sending path
+    - MINOR: config: add "no-alpn" support for bind lines
+    - REGTESTS: add a new "ssl_alpn" test to test ALPN negotiation
+    - DOC: add missing documentation for "no-alpn" on bind lines
+    - MINOR: ssl: do not set ALPN callback with the empty string
+    - MINOR: ssl_crtlist: dump "no-alpn" on "show crtlist" when "no-alpn" was set
+    - MEDIUM: config: set useful ALPN defaults for HTTPS and QUIC
+    - BUG/MEDIUM: quic: prevent crash on Retry sending
+    - BUG/MINOR: cfgparse: make sure to include openssl-compat
+    - MINOR: clock: add now_mono_time_fast() function
+    - MINOR: clock: add now_cpu_time_fast() function
+    - MEDIUM: hlua: reliable timeout detection
+    - MEDIUM: hlua: introduce tune.lua.burst-timeout
+    - CLEANUP: hlua: avoid confusion between internal timers and tick based timers
+    - MINOR: hlua: hook yield on known lua state
+    - MINOR: hlua: safe coroutine.create()
+    - BUG/MINOR: quic: Stop removing ACK ranges when building packets
+    - MINOR: quic: Do not allocate too much ack ranges
+    - BUG/MINOR: quic: Unchecked buffer length when building the token
+    - BUG/MINOR: quic: Wrong Retry token generation timestamp computing
+    - BUG/MINOR: mux-quic: fix crash with app ops install failure
+    - BUG/MINOR: mux-quic: properly handle STREAM frame alloc failure
+    - BUG/MINOR: h3: fix crash on h3s alloc failure
+    - BUG/MINOR: quic: prevent crash on qc_new_conn() failure
+    - BUG/MINOR: quic: consume Rx datagram even on error
+    - CLEANUP: errors: fix obsolete function comments
+    - CLEANUP: server: fix update_status() function comment
+    - MINOR: server/event_hdl: add proxy_uuid to event_hdl_cb_data_server
+    - MINOR: hlua/event_hdl: rely on proxy_uuid instead of proxy_name for lookups
+    - MINOR: hlua/event_hdl: expose proxy_uuid variable in server events
+    - MINOR: hlua/event_hdl: fix return type for hlua_event_hdl_cb_data_push_args
+    - MINOR: server/event_hdl: prepare for upcoming refactors
+    - BUG/MINOR: event_hdl: don't waste 1 event subtype slot
+    - CLEANUP: event_hdl: updating obsolete comment for EVENT_HDL_CB_DATA
+    - CLEANUP: event_hdl: fix comment typo about _sync assertion
+    - MINOR: event_hdl: dynamically allocated event data members
+    - MINOR: event_hdl: provide event->when for advanced handlers
+    - MINOR: hlua/event_hdl: timestamp for events
+    - DOC: lua: restore 80 char limitation
+    - BUG/MINOR: server: incorrect report for tracking servers leaving drain
+    - MINOR: server: explicitly commit state change in srv_update_status()
+    - BUG/MINOR: server: don't miss proxy stats update on server state transitions
+    - BUG/MINOR: server: don't miss server stats update on server state transitions
+    - BUG/MINOR: server: don't use date when restoring last_change from state file
+    - MINOR: server: central update for server counters on state change
+    - MINOR: server: propagate server state change to lb through single function
+    - MINOR: server: propagate lb changes through srv_lb_propagate()
+    - MINOR: server: change adm_st_chg_cause storage type
+    - MINOR: server: srv_append_status refacto
+    - MINOR: server: change srv_op_st_chg_cause storage type
+    - CLEANUP: server: remove unused variables in srv_update_status()
+    - CLEANUP: server: fix srv_set_{running, stopping, stopped} function comment
+    - MINOR: server: pass adm and op cause to srv_update_status()
+    - MEDIUM: server: split srv_update_status() in two functions
+    - MINOR: server/event_hdl: prepare for server event data wrapper
+    - MINOR: quic: support migrating the listener as well
+    - MINOR: quic_sock: index li->per_thr[] on local thread id, not global one
+    - MINOR: listener: support another thread dispatch mode: "fair"
+    - MINOR: receiver: add a struct shard_info to store info about each shard
+    - MINOR: receiver: add RX_F_MUST_DUP to indicate that an rx must be duped
+    - MEDIUM: proto: duplicate receivers marked RX_F_MUST_DUP
+    - MINOR: proto: skip socket setup for duped FDs
+    - MEDIUM: config: permit to start a bind on multiple groups at once
+    - MINOR: listener: make accept_queue index atomic
+    - MEDIUM: listener: rework thread assignment to consider all groups
+    - MINOR: listener: use a common thr_idx from the reference listener
+    - MINOR: listener: resync with the thread index before heavy calculations
+    - MINOR: listener: make sure to avoid ABA updates in per-thread index
+    - MINOR: listener: always compare the local thread as well
+    - MINOR: Make `tasklet_free()` safe to be called with `NULL`
+    - CLEANUP: Stop checking the pointer before calling `tasklet_free()`
+    - CLEANUP: Stop checking the pointer before calling `pool_free()`
+    - CLEANUP: Stop checking the pointer before calling `task_free()`
+    - CLEANUP: Stop checking the pointer before calling `ring_free()`
+    - BUG/MINOR: cli: clarify error message about stats bind-process
+    - CI: cirrus-ci: bump FreeBSD image to 13-1
+    - REGTESTS: remove unsupported "stats bind-process" keyword
+    - CI: extend spellchecker whitelist, add "clen" as well
+    - CLEANUP: assorted typo fixes in the code and comments
+    - BUG/MINOR: sock_inet: use SO_REUSEPORT_LB where available
+    - BUG/MINOR: tools: check libssl and libcrypto separately
+    - BUG/MINOR: config: fix NUMA topology detection on FreeBSD
+    - BUILD: sock_inet: forward-declare struct receiver
+    - BUILD: proto_tcp: export the correct names for proto_tcpv[46]
+    - CLEANUP: protocol: move the l3_addrlen to plug a hole in proto_fam
+    - CLEANUP: protocol: move the nb_receivers to plug a hole in protocol
+    - REORG: listener: move the bind_conf's thread setup code to listener.c
+    - MINOR: proxy: make proxy_type_str() recognize peers sections
+    - MEDIUM: peers: call bind_complete_thread_setup() to finish the config
+    - MINOR: protocol: add a flags field to store info about protocols
+    - MINOR: protocol: move the global reuseport flag to the protocols
+    - MINOR: listener: automatically adjust shards based on support for SO_REUSEPORT
+    - MINOR: protocol: add a function to check if some features are supported
+    - MINOR: sock: add a function to check for SO_REUSEPORT support at runtime
+    - MINOR: protocol: perform a live check for SO_REUSEPORT support
+    - MINOR: listener: do not restrict CLI to first group anymore
+    - MINOR: listener: add a new global tune.listener.default-shards setting
+    - MEDIUM: listener: switch the default sharding to by-group
+
 2023/04/08 : 2.8-dev7
     - BUG/MINOR: stats: Don't replace sc_shutr() by SE_FL_EOS flag yet
     - BUG/MEDIUM: mux-h2: Be able to detect connection error during handshake
