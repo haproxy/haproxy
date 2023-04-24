@@ -6889,21 +6889,21 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 	return NULL;
 }
 
-/* Parse a QUIC packet starting at <buf>. Data won't be read after <end> even
+/* Parse a QUIC packet starting at <pos>. Data won't be read after <end> even
  * if the packet is incomplete. This function will populate fields of <pkt>
  * instance, most notably its length. <dgram> is the UDP datagram which
  * contains the parsed packet. <l> is the listener instance on which it was
  * received.
  *
  * Returns 0 on success else non-zero. Packet length is guaranteed to be set to
- * the real packet value or to cover all data between <buf> and <end> : this is
+ * the real packet value or to cover all data between <pos> and <end> : this is
  * useful to reject a whole datagram.
  */
 static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
-                             unsigned char *buf, const unsigned char *end,
+                             unsigned char *pos, const unsigned char *end,
                              struct quic_dgram *dgram, struct listener *l)
 {
-	const unsigned char *beg = buf;
+	const unsigned char *beg = pos;
 	struct proxy *prx;
 	struct quic_counters *prx_counters;
 
@@ -6915,21 +6915,21 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 	 * packet with parsed packet number from others.
 	 */
 	pkt->pn_node.key = (uint64_t)-1;
-	if (end <= buf) {
+	if (end <= pos) {
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 		goto drop;
 	}
 
 	/* Fixed bit */
-	if (!(*buf & QUIC_PACKET_FIXED_BIT)) {
+	if (!(*pos & QUIC_PACKET_FIXED_BIT)) {
 		if (!(pkt->flags & QUIC_FL_RX_PACKET_DGRAM_FIRST) &&
-		    quic_padding_check(buf, end)) {
+		    quic_padding_check(pos, end)) {
 			/* Some browsers may pad the remaining datagram space with null bytes.
 			 * That is what we called add padding out of QUIC packets. Such
 			 * datagrams must be considered as valid. But we can only consume
 			 * the remaining space.
 			 */
-			pkt->len = end - buf;
+			pkt->len = end - pos;
 			goto drop_silent;
 		}
 
@@ -6938,7 +6938,7 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 	}
 
 	/* Header form */
-	if (!qc_parse_hd_form(pkt, &buf, end)) {
+	if (!qc_parse_hd_form(pkt, &pos, end)) {
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 		goto drop;
 	}
@@ -6947,7 +6947,7 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 		uint64_t len;
 		TRACE_PROTO("long header packet received", QUIC_EV_CONN_LPKT);
 
-		if (!quic_packet_read_long_header(&buf, end, pkt)) {
+		if (!quic_packet_read_long_header(&pos, end, pkt)) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto drop;
 		}
@@ -6987,8 +6987,8 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 		if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
 			uint64_t token_len;
 
-			if (!quic_dec_int(&token_len, (const unsigned char **)&buf, end) ||
-				end - buf < token_len) {
+			if (!quic_dec_int(&token_len, (const unsigned char **)&pos, end) ||
+				end - pos < token_len) {
 				TRACE_PROTO("Packet dropped",
 				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
 				goto drop;
@@ -7020,9 +7020,9 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 				goto drop;
 			}
 
-			pkt->token = buf;
+			pkt->token = pos;
 			pkt->token_len = token_len;
-			buf += pkt->token_len;
+			pos += pkt->token_len;
 		}
 		else if (pkt->type != QUIC_PACKET_TYPE_0RTT) {
 			if (pkt->dcid.len != QUIC_HAP_CID_LEN) {
@@ -7032,8 +7032,8 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 			}
 		}
 
-		if (!quic_dec_int(&len, (const unsigned char **)&buf, end) ||
-			end - buf < len) {
+		if (!quic_dec_int(&len, (const unsigned char **)&pos, end) ||
+			end - pos < len) {
 			TRACE_PROTO("Packet dropped",
 			            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
 			goto drop;
@@ -7042,7 +7042,7 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 		/* Packet Number is stored here. Packet Length totalizes the
 		 * rest of the content.
 		 */
-		pkt->pn_offset = buf - beg;
+		pkt->pn_offset = pos - beg;
 		pkt->len = pkt->pn_offset + len;
 
 		/* RFC 9000. Initial Datagram Size
@@ -7069,12 +7069,12 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 	}
 	else {
 		TRACE_PROTO("RX short header packet", QUIC_EV_CONN_LPKT);
-		if (end - buf < QUIC_HAP_CID_LEN) {
+		if (end - pos < QUIC_HAP_CID_LEN) {
 			TRACE_PROTO("RX pkt dropped", QUIC_EV_CONN_LPKT);
 			goto drop;
 		}
 
-		memcpy(pkt->dcid.data, buf, QUIC_HAP_CID_LEN);
+		memcpy(pkt->dcid.data, pos, QUIC_HAP_CID_LEN);
 		pkt->dcid.len = QUIC_HAP_CID_LEN;
 
 		/* When multiple QUIC packets are coalesced on the same UDP datagram,
@@ -7087,9 +7087,9 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 			goto drop;
 		}
 
-		buf += QUIC_HAP_CID_LEN;
+		pos += QUIC_HAP_CID_LEN;
 
-		pkt->pn_offset = buf - beg;
+		pkt->pn_offset = pos - beg;
 		/* A short packet is the last one of a UDP datagram. */
 		pkt->len = end - beg;
 	}
