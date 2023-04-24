@@ -7338,10 +7338,11 @@ static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc ? qc : NULL);
 }
 
-/* This function builds into <buf> buffer a QUIC long packet header.
+/* This function builds into a buffer at <pos> position a QUIC long packet header,
+ * <end> being one byte past the end of this buffer.
  * Return 1 if enough room to build this header, 0 if not.
  */
-static int quic_build_packet_long_header(unsigned char **buf, const unsigned char *end,
+static int quic_build_packet_long_header(unsigned char **pos, const unsigned char *end,
                                          int type, size_t pn_len,
                                          struct quic_conn *qc, const struct quic_version *ver)
 {
@@ -7349,28 +7350,28 @@ static int quic_build_packet_long_header(unsigned char **buf, const unsigned cha
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT, qc);
 
-	if (end - *buf < sizeof ver->num + qc->dcid.len + qc->scid.len + 3) {
+	if (end - *pos < sizeof ver->num + qc->dcid.len + qc->scid.len + 3) {
 		TRACE_DEVEL("not enough room", QUIC_EV_CONN_LPKT, qc);
 		goto leave;
 	}
 
 	type = quic_pkt_type(type, ver->num);
 	/* #0 byte flags */
-	*(*buf)++ = QUIC_PACKET_FIXED_BIT | QUIC_PACKET_LONG_HEADER_BIT |
+	*(*pos)++ = QUIC_PACKET_FIXED_BIT | QUIC_PACKET_LONG_HEADER_BIT |
 		(type << QUIC_PACKET_TYPE_SHIFT) | (pn_len - 1);
 	/* Version */
-	quic_write_uint32(buf, end, ver->num);
-	*(*buf)++ = qc->dcid.len;
+	quic_write_uint32(pos, end, ver->num);
+	*(*pos)++ = qc->dcid.len;
 	/* Destination connection ID */
 	if (qc->dcid.len) {
-		memcpy(*buf, qc->dcid.data, qc->dcid.len);
-		*buf += qc->dcid.len;
+		memcpy(*pos, qc->dcid.data, qc->dcid.len);
+		*pos += qc->dcid.len;
 	}
 	/* Source connection ID */
-	*(*buf)++ = qc->scid.len;
+	*(*pos)++ = qc->scid.len;
 	if (qc->scid.len) {
-		memcpy(*buf, qc->scid.data, qc->scid.len);
-		*buf += qc->scid.len;
+		memcpy(*pos, qc->scid.data, qc->scid.len);
+		*pos += qc->scid.len;
 	}
 
 	ret = 1;
@@ -7379,10 +7380,11 @@ static int quic_build_packet_long_header(unsigned char **buf, const unsigned cha
 	return ret;
 }
 
-/* This function builds into <buf> buffer a QUIC short packet header.
+/* This function builds into a buffer at <pos> position a QUIC short packet header,
+ * <end> being one byte past the end of this buffer.
  * Return 1 if enough room to build this header, 0 if not.
  */
-static int quic_build_packet_short_header(unsigned char **buf, const unsigned char *end,
+static int quic_build_packet_short_header(unsigned char **pos, const unsigned char *end,
                                           size_t pn_len, struct quic_conn *qc,
                                           unsigned char tls_flags)
 {
@@ -7392,18 +7394,18 @@ static int quic_build_packet_short_header(unsigned char **buf, const unsigned ch
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
-	if (end - *buf < 1 + qc->dcid.len) {
+	if (end - *pos < 1 + qc->dcid.len) {
 		TRACE_DEVEL("not enough room", QUIC_EV_CONN_LPKT, qc);
 		goto leave;
 	}
 
 	/* #0 byte flags */
-	*(*buf)++ = QUIC_PACKET_FIXED_BIT | spin_bit |
+	*(*pos)++ = QUIC_PACKET_FIXED_BIT | spin_bit |
 		((tls_flags & QUIC_FL_TLS_KP_BIT_SET) ? QUIC_PACKET_KEY_PHASE_BIT : 0) | (pn_len - 1);
 	/* Destination connection ID */
 	if (qc->dcid.len) {
-		memcpy(*buf, qc->dcid.data, qc->dcid.len);
-		*buf += qc->dcid.len;
+		memcpy(*pos, qc->dcid.data, qc->dcid.len);
+		*pos += qc->dcid.len;
 	}
 
 	ret = 1;
@@ -7412,12 +7414,12 @@ static int quic_build_packet_short_header(unsigned char **buf, const unsigned ch
 	return ret;
 }
 
-/* Apply QUIC header protection to the packet with <buf> as first byte address,
+/* Apply QUIC header protection to the packet with <pos> as first byte address,
  * <pn> as address of the Packet number field, <pnlen> being this field length
  * with <aead> as AEAD cipher and <key> as secret key.
  * Returns 1 if succeeded or 0 if failed.
  */
-static int quic_apply_header_protection(struct quic_conn *qc, unsigned char *buf,
+static int quic_apply_header_protection(struct quic_conn *qc, unsigned char *pos,
                                         unsigned char *pn, size_t pnlen,
                                         struct quic_tls_ctx *tls_ctx)
 
@@ -7436,7 +7438,7 @@ static int quic_apply_header_protection(struct quic_conn *qc, unsigned char *buf
 		goto out;
 	}
 
-	*buf ^= mask[0] & (*buf & QUIC_PACKET_LONG_HEADER_BIT ? 0xf : 0x1f);
+	*pos ^= mask[0] & (*pos & QUIC_PACKET_LONG_HEADER_BIT ? 0xf : 0x1f);
 	for (i = 0; i < pnlen; i++)
 		pn[i] ^= mask[i + 1];
 
