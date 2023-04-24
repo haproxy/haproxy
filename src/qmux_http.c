@@ -78,6 +78,9 @@ size_t qcs_http_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count,
 
 	htx = htx_from_buf(buf);
 
+	if (htx->extra && htx->extra == HTX_UNKOWN_PAYLOAD_LENGTH)
+		qcs->flags |= QC_SF_UNKNOWN_PL_LENGTH;
+
 	ret = qcs->qcc->app_ops->snd_buf(qcs, htx, count);
 	*fin = (htx->flags & HTX_FL_EOM) && htx_is_empty(htx);
 

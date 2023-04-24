@@ -2567,8 +2567,10 @@ static size_t qc_send_buf(struct stconn *sc, struct buffer *buf,
 	}
 
 	ret = qcs_http_snd_buf(qcs, buf, count, &fin);
-	if (fin)
+	if (fin) {
+		TRACE_STATE("reached stream fin", QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 		qcs->flags |= QC_SF_FIN_STREAM;
+	}
 
 	if (ret || fin) {
 		qcc_send_stream(qcs, 0);
@@ -2668,21 +2670,30 @@ static int qc_wake(struct connection *conn)
 static void qc_shutw(struct stconn *sc, enum co_shw_mode mode)
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
+	struct qcc *qcc = qcs->qcc;
 
-	TRACE_ENTER(QMUX_EV_STRM_SHUT, qcs->qcc->conn, qcs);
+	TRACE_ENTER(QMUX_EV_STRM_SHUT, qcc->conn, qcs);
 
-	/* If QC_SF_FIN_STREAM is not set and stream is not closed locally, it
-	 * means that upper layer reported an early closure. A RESET_STREAM is
-	 * necessary if not already scheduled.
-	 */
-
+	/* Early closure reported if QC_SF_FIN_STREAM not yet set. */
 	if (!qcs_is_close_local(qcs) &&
 	    !(qcs->flags & (QC_SF_FIN_STREAM|QC_SF_TO_RESET))) {
-		qcc_reset_stream(qcs, 0);
-		se_fl_set_error(qcs->sd);
+
+		if (qcs->flags & QC_SF_UNKNOWN_PL_LENGTH) {
+			/* Close stream with a FIN STREAM frame. */
+			TRACE_STATE("set FIN STREAM", QMUX_EV_STRM_SHUT, qcc->conn, qcs);
+			qcs->flags |= QC_SF_FIN_STREAM;
+			qcc_send_stream(qcs, 0);
+		}
+		else {
+			/* RESET_STREAM necessary. */
+			qcc_reset_stream(qcs, 0);
+			se_fl_set_error(qcs->sd);
+		}
+
+		tasklet_wakeup(qcc->wait_event.tasklet);
 	}
 
-	TRACE_LEAVE(QMUX_EV_STRM_SHUT, qcs->qcc->conn, qcs);
+	TRACE_LEAVE(QMUX_EV_STRM_SHUT, qcc->conn, qcs);
 }
 
 /* for debugging with CLI's "show sess" command. May emit multiple lines, each

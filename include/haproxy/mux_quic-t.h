@@ -123,6 +123,7 @@ struct qcc {
 #define QC_SF_TO_RESET          0x00000080  /* a RESET_STREAM must be sent */
 #define QC_SF_HREQ_RECV         0x00000100  /* a full HTTP request has been received */
 #define QC_SF_TO_STOP_SENDING   0x00000200  /* a STOP_SENDING must be sent */
+#define QC_SF_UNKNOWN_PL_LENGTH 0x00000400  /* HTX EOM may be missing from the stream layer */
 
 /* Maximum size of stream Rx buffer. */
 #define QC_S_RX_BUF_SZ   (global.tune.bufsize - NCB_RESERVED_SZ)
