@@ -4961,8 +4961,10 @@ static int qc_dgrams_retransmit(struct quic_conn *qc)
 			TRACE_PROTO("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &frms2);
 			if (!LIST_ISEMPTY(&frms1)) {
 				aqel->pktns->tx.pto_probe = 1;
-				if (!qc_send_app_probing(qc, &frms1))
+				if (!qc_send_app_probing(qc, &frms1)) {
+					qc_free_frm_list(&frms2, qc);
 					goto leave;
+				}
 
 				/* Put back unsent frames into their packet number spaces */
 				LIST_SPLICE(&aqel->pktns->tx.frms, &frms1);
