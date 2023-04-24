@@ -32,12 +32,12 @@
 
 const char *quic_frame_type_string(enum quic_frame_type ft);
 
-int qc_build_frm(unsigned char **buf, const unsigned char *end,
+int qc_build_frm(unsigned char **pos, const unsigned char *end,
                  struct quic_frame *frm, struct quic_tx_packet *pkt,
                  struct quic_conn *conn);
 
 int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
-                 const unsigned char **buf, const unsigned char *end,
+                 const unsigned char **pos, const unsigned char *end,
                  struct quic_conn *conn);
 
 /* Return the length of <frm> frame if succeeded, -1 if not (unknown frames
