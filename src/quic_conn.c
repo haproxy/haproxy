@@ -5352,8 +5352,16 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 	TRACE_ENTER(QUIC_EV_CONN_PTIMER, qc);
 	TRACE_PROTO("process timer", QUIC_EV_CONN_PTIMER, qc,
 	            NULL, NULL, &qc->path->ifae_pkts);
+
 	task->expire = TICK_ETERNITY;
 	pktns = quic_loss_pktns(qc);
+
+	if (qc->flags & (QUIC_FL_CONN_DRAINING|QUIC_FL_CONN_TO_KILL)) {
+		TRACE_PROTO("cancelled action (draining state)", QUIC_EV_CONN_PTIMER, qc);
+		task = NULL;
+		goto out;
+	}
+
 	if (tick_isset(pktns->tx.loss_time)) {
 		struct list lost_pkts = LIST_HEAD_INIT(lost_pkts);
 
