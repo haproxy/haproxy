@@ -217,7 +217,7 @@ DECLARE_STATIC_POOL(pool_head_quic_conn_ctx,
                     "quic_conn_ctx", sizeof(struct ssl_sock_ctx));
 DECLARE_STATIC_POOL(pool_head_quic_conn, "quic_conn", sizeof(struct quic_conn));
 DECLARE_POOL(pool_head_quic_connection_id,
-             "quic_connnection_id", sizeof(struct quic_connection_id));
+             "quic_connection_id", sizeof(struct quic_connection_id));
 DECLARE_POOL(pool_head_quic_dgram, "quic_dgram", sizeof(struct quic_dgram));
 DECLARE_POOL(pool_head_quic_rx_packet, "quic_rx_packet", sizeof(struct quic_rx_packet));
 DECLARE_POOL(pool_head_quic_tx_packet, "quic_tx_packet", sizeof(struct quic_tx_packet));
