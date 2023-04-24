@@ -3741,6 +3741,48 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	return ret;
 }
 
+/* Free all frames in <l> list. In addition also remove all these frames
+ * from the original ones if they are the results of duplications.
+ */
+static inline void qc_free_frm_list(struct list *l, struct quic_conn *qc)
+{
+	struct quic_frame *frm, *frmbak;
+
+	list_for_each_entry_safe(frm, frmbak, l, list) {
+		LIST_DEL_INIT(&frm->ref);
+		qc_frm_free(&frm);
+	}
+}
+
+/* Free <pkt> TX packet and all the packets coalesced to it. */
+static inline void qc_free_tx_coalesced_pkts(struct quic_conn *qc, struct quic_tx_packet *p)
+{
+	struct quic_tx_packet *pkt, *nxt_pkt;
+
+	for (pkt = p; pkt; pkt = nxt_pkt) {
+		qc_free_frm_list(&pkt->frms, qc);
+		nxt_pkt = pkt->next;
+		pool_free(pool_head_quic_tx_packet, pkt);
+	}
+}
+
+/* Purge <buf> TX buffer from its prepare packets. */
+static void qc_purge_tx_buf(struct quic_conn *qc, struct buffer *buf)
+{
+	while (b_contig_data(buf, 0)) {
+		uint16_t dglen;
+		struct quic_tx_packet *pkt;
+		size_t headlen = sizeof dglen + sizeof pkt;
+
+		dglen = read_u16(b_head(buf));
+		pkt = read_ptr(b_head(buf) + sizeof dglen);
+		qc_free_tx_coalesced_pkts(qc, pkt);
+		b_del(buf, dglen + headlen);
+	}
+
+	BUG_ON(b_data(buf));
+}
+
 /* Send datagrams stored in <buf>.
  *
  * This function returns 1 for success. On error, there is several behavior
@@ -3792,9 +3834,11 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 		if (!skip_sendto) {
 			int ret = qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0);
 			if (ret < 0) {
-				TRACE_ERROR("sendto fatal error", QUIC_EV_CONN_SPPKTS, qc);
+				TRACE_ERROR("sendto fatal error", QUIC_EV_CONN_SPPKTS, qc, first_pkt);
 				qc_kill_conn(qc);
-				b_del(buf, buf->data);
+				qc_free_tx_coalesced_pkts(qc, first_pkt);
+				b_del(buf, dglen + headlen);
+				qc_purge_tx_buf(qc, buf);
 				goto leave;
 			}
 			else if (!ret) {
