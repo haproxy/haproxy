@@ -6131,7 +6131,7 @@ static inline const struct quic_version *qc_supported_version(uint32_t version)
 	return NULL;
 }
 
-/* Parse a QUIC packet header starting at <buf> without exceeding <end>.
+/* Parse a QUIC packet header starting at <pos> postion without exceeding <end>.
  * Version and type are stored in <pkt> packet instance. Type is set to unknown
  * on two occasions : for unsupported version, in this case version field is
  * set to NULL; for Version Negotiation packet with version number set to 0.
@@ -6139,23 +6139,23 @@ static inline const struct quic_version *qc_supported_version(uint32_t version)
  * Returns 1 on success else 0.
  */
 int qc_parse_hd_form(struct quic_rx_packet *pkt,
-                     unsigned char **buf, const unsigned char *end)
+                     unsigned char **pos, const unsigned char *end)
 {
 	uint32_t version;
 	int ret = 0;
-	const unsigned char byte0 = **buf;
+	const unsigned char byte0 = **pos;
 
 	TRACE_ENTER(QUIC_EV_CONN_RXPKT);
 	pkt->version = NULL;
 	pkt->type = QUIC_PACKET_TYPE_UNKNOWN;
 
-	(*buf)++;
+	(*pos)++;
 	if (byte0 & QUIC_PACKET_LONG_HEADER_BIT) {
 		unsigned char type =
 			(byte0 >> QUIC_PACKET_TYPE_SHIFT) & QUIC_PACKET_TYPE_BITMASK;
 
 		/* Version */
-		if (!quic_read_uint32(&version, (const unsigned char **)buf, end)) {
+		if (!quic_read_uint32(&version, (const unsigned char **)pos, end)) {
 			TRACE_ERROR("could not read the packet version", QUIC_EV_CONN_RXPKT);
 			goto out;
 		}
