@@ -5882,8 +5882,14 @@ struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 		qc->ack_expire = TICK_ETERNITY;
 		/* Note that ->idle_expire is always set. */
 		t->expire = qc->idle_expire;
-		qc->flags |= QUIC_FL_CONN_ACK_TIMER_FIRED;
-		tasklet_wakeup(qc->wait_event.tasklet);
+		/* Do not wakeup the I/O handler in DRAINING state or if the
+		 * connection must be killed as soon as possible.
+		 */
+		if (!(qc->flags & (QUIC_FL_CONN_DRAINING|QUIC_FL_CONN_TO_KILL))) {
+			qc->flags |= QUIC_FL_CONN_ACK_TIMER_FIRED;
+			tasklet_wakeup(qc->wait_event.tasklet);
+		}
+
 		goto requeue;
 	}
 
