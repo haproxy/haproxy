@@ -8072,9 +8072,9 @@ static inline void quic_tx_packet_init(struct quic_tx_packet *pkt, int type)
 	pkt->refcnt = 0;
 }
 
-/* Build a packet into <buf> packet buffer with <pkt_type> as packet
- * type for <qc> QUIC connection from <qel> encryption level from <frms> list
- * of prebuilt frames.
+/* Build a packet into a buffer at <pos> position, <end> pointing to one byte past
+ * the end of this buffer, with <pkt_type> as packet type for <qc> QUIC connection
+ * at <qel> encryption level with <frms> list of prebuilt frames.
  *
  * Return -2 if the packet could not be allocated or encrypted for any reason,
  * -1 if there was not enough room to build a packet.
@@ -8084,7 +8084,7 @@ static inline void quic_tx_packet_init(struct quic_tx_packet *pkt, int type)
  * control window limitation.
  */
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
-                                           const unsigned char *buf_end,
+                                           const unsigned char *end,
                                            struct quic_enc_level *qel,
                                            struct quic_tls_ctx *tls_ctx, struct list *frms,
                                            struct quic_conn *qc, const struct quic_version *ver,
@@ -8094,7 +8094,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	struct quic_tx_packet *ret_pkt = NULL;
 	/* The pointer to the packet number field. */
 	unsigned char *buf_pn;
-	unsigned char *beg, *end, *payload;
+	unsigned char *first_byte, *last_byte, *payload;
 	int64_t pn;
 	size_t pn_len, payload_len, aad_len;
 	struct quic_tx_packet *pkt;
@@ -8110,32 +8110,32 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	}
 
 	quic_tx_packet_init(pkt, pkt_type);
-	beg = *pos;
+	first_byte = *pos;
 	pn_len = 0;
 	buf_pn = NULL;
 
 	pn = qel->pktns->tx.next_pn + 1;
-	if (!qc_do_build_pkt(*pos, buf_end, dglen, pkt, pn, &pn_len, &buf_pn,
+	if (!qc_do_build_pkt(*pos, end, dglen, pkt, pn, &pn_len, &buf_pn,
 	                     must_ack, padding, cc, probe, qel, qc, ver, frms)) {
 		// trace already emitted by function above
 		*err = -1;
 		goto err;
 	}
 
-	end = beg + pkt->len;
+	last_byte = first_byte + pkt->len;
 	payload = buf_pn + pn_len;
-	payload_len = end - payload;
-	aad_len = payload - beg;
+	payload_len = last_byte - payload;
+	aad_len = payload - first_byte;
 
-	if (!quic_packet_encrypt(payload, payload_len, beg, aad_len, pn, tls_ctx, qc)) {
+	if (!quic_packet_encrypt(payload, payload_len, first_byte, aad_len, pn, tls_ctx, qc)) {
 		// trace already emitted by function above
 		*err = -2;
 		goto err;
 	}
 
-	end += QUIC_TLS_TAG_LEN;
+	last_byte += QUIC_TLS_TAG_LEN;
 	pkt->len += QUIC_TLS_TAG_LEN;
-	if (!quic_apply_header_protection(qc, beg, buf_pn, pn_len, tls_ctx)) {
+	if (!quic_apply_header_protection(qc, first_byte, buf_pn, pn_len, tls_ctx)) {
 		// trace already emitted by function above
 		*err = -2;
 		goto err;
@@ -8148,8 +8148,9 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 		qc->flags |= QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED;
 		TRACE_PROTO("anti-amplification limit reached", QUIC_EV_CONN_TXPKT, qc);
 	}
+
 	/* Now that a correct packet is built, let us consume <*pos> buffer. */
-	*pos = end;
+	*pos = last_byte;
 	/* Attach the built packet to its tree. */
 	pkt->pn_node.key = pn;
 	/* Set the packet in fligth length for in flight packet only. */
