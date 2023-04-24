@@ -8370,10 +8370,11 @@ int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len)
 	return 0;
 }
 
-/* Retrieve the DCID from a QUIC datagram or packet with <buf> as first octet.
+/* Retrieve the DCID from a QUIC datagram or packet at <pos> postition,
+ * <end> being at one byte past the end of this datagram.
  * Returns 1 if succeeded, 0 if not.
  */
-int quic_get_dgram_dcid(unsigned char *buf, const unsigned char *end,
+int quic_get_dgram_dcid(unsigned char *pos, const unsigned char *end,
                         unsigned char **dcid, size_t *dcid_len)
 {
 	int ret = 0, long_header;
@@ -8381,24 +8382,24 @@ int quic_get_dgram_dcid(unsigned char *buf, const unsigned char *end,
 
 	TRACE_ENTER(QUIC_EV_CONN_RXPKT);
 
-	if (!(*buf & QUIC_PACKET_FIXED_BIT)) {
+	if (!(*pos & QUIC_PACKET_FIXED_BIT)) {
 		TRACE_PROTO("fixed bit not set", QUIC_EV_CONN_RXPKT);
 		goto err;
 	}
 
-	long_header = *buf & QUIC_PACKET_LONG_HEADER_BIT;
+	long_header = *pos & QUIC_PACKET_LONG_HEADER_BIT;
 	minlen = long_header ? QUIC_LONG_PACKET_MINLEN :
 		QUIC_SHORT_PACKET_MINLEN + QUIC_HAP_CID_LEN + QUIC_TLS_TAG_LEN;
 	skip = long_header ? QUIC_LONG_PACKET_DCID_OFF : QUIC_SHORT_PACKET_DCID_OFF;
-	if (end - buf < minlen)
+	if (end - pos < minlen)
 		goto err;
 
-	buf += skip;
-	*dcid_len = long_header ? *buf++ : QUIC_HAP_CID_LEN;
-	if (*dcid_len > QUIC_CID_MAXLEN || end - buf <= *dcid_len)
+	pos += skip;
+	*dcid_len = long_header ? *pos++ : QUIC_HAP_CID_LEN;
+	if (*dcid_len > QUIC_CID_MAXLEN || end - pos <= *dcid_len)
 		goto err;
 
-	*dcid = buf;
+	*dcid = pos;
 
 	ret = 1;
  leave:
