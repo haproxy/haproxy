@@ -189,15 +189,15 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 	 */
 	frm_node = eb64_first(&stream->acked_frms);
 	while (frm_node) {
-		struct qf_stream *strm;
+		struct qf_stream *strm_frm;
 		struct quic_frame *frm;
 
-		strm = eb64_entry(frm_node, struct qf_stream, offset);
+		strm_frm = eb64_entry(frm_node, struct qf_stream, offset);
 
 		frm_node = eb64_next(frm_node);
-		eb64_delete(&strm->offset);
+		eb64_delete(&strm_frm->offset);
 
-		frm = container_of(strm, struct quic_frame, stream);
+		frm = container_of(strm_frm, struct quic_frame, stream);
 		qc_release_frm(qc, frm);
 	}
 

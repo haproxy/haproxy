@@ -576,11 +576,11 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 		}
 
 		if (mask & QUIC_EV_CONN_ACKSTRM) {
-			const struct qf_stream *s = a2;
+			const struct qf_stream *strm_frm = a2;
 			const struct qc_stream_desc *stream = a3;
 
-			if (s)
-				chunk_appendf(&trace_buf, " off=%llu len=%llu", (ull)s->offset.key, (ull)s->len);
+			if (strm_frm)
+				chunk_appendf(&trace_buf, " off=%llu len=%llu", (ull)strm_frm->offset.key, (ull)strm_frm->len);
 			if (stream)
 				chunk_appendf(&trace_buf, " ack_offset=%llu", (ull)stream->ack_offset);
 		}
@@ -1737,13 +1737,13 @@ static int quic_stream_try_to_consume(struct quic_conn *qc,
 	ret = 0;
 	frm_node = eb64_first(&stream->acked_frms);
 	while (frm_node) {
-		struct qf_stream *strm;
+		struct qf_stream *strm_frm;
 		struct quic_frame *frm;
 		size_t offset, len;
 
-		strm = eb64_entry(frm_node, struct qf_stream, offset);
-		offset = strm->offset.key;
-		len = strm->len;
+		strm_frm = eb64_entry(frm_node, struct qf_stream, offset);
+		offset = strm_frm->offset.key;
+		len = strm_frm->len;
 
 		if (offset > stream->ack_offset)
 			break;
@@ -1751,7 +1751,7 @@ static int quic_stream_try_to_consume(struct quic_conn *qc,
 		if (qc_stream_desc_ack(&stream, offset, len)) {
 			/* cf. next comment : frame may be freed at this stage. */
 			TRACE_DEVEL("stream consumed", QUIC_EV_CONN_ACKSTRM,
-			            qc, stream ? strm : NULL, stream);
+			            qc, stream ? strm_frm : NULL, stream);
 			ret = 1;
 		}
 
@@ -1766,9 +1766,9 @@ static int quic_stream_try_to_consume(struct quic_conn *qc,
 		}
 
 		frm_node = eb64_next(frm_node);
-		eb64_delete(&strm->offset);
+		eb64_delete(&strm_frm->offset);
 
-		frm = container_of(strm, struct quic_frame, stream);
+		frm = container_of(strm_frm, struct quic_frame, stream);
 		qc_release_frm(qc, frm);
 	}
 
@@ -2209,7 +2209,7 @@ static inline int qc_parse_ack_frm(struct quic_conn *qc,
                                    unsigned int *rtt_sample,
                                    const unsigned char **pos, const unsigned char *end)
 {
-	struct qf_ack *ack = &frm->ack;
+	struct qf_ack *ack_frm = &frm->ack;
 	uint64_t smallest, largest;
 	struct eb_root *pkts;
 	struct eb64_node *largest_node;
@@ -2220,26 +2220,26 @@ static inline int qc_parse_ack_frm(struct quic_conn *qc,
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
 
-	if (ack->largest_ack > qel->pktns->tx.next_pn) {
+	if (ack_frm->largest_ack > qel->pktns->tx.next_pn) {
 		TRACE_DEVEL("ACK for not sent packet", QUIC_EV_CONN_PRSAFRM,
-		            qc, NULL, &ack->largest_ack);
+		            qc, NULL, &ack_frm->largest_ack);
 		goto err;
 	}
 
-	if (ack->first_ack_range > ack->largest_ack) {
+	if (ack_frm->first_ack_range > ack_frm->largest_ack) {
 		TRACE_DEVEL("too big first ACK range", QUIC_EV_CONN_PRSAFRM,
-		            qc, NULL, &ack->first_ack_range);
+		            qc, NULL, &ack_frm->first_ack_range);
 		goto err;
 	}
 
-	largest = ack->largest_ack;
-	smallest = largest - ack->first_ack_range;
+	largest = ack_frm->largest_ack;
+	smallest = largest - ack_frm->first_ack_range;
 	pkts = &qel->pktns->tx.pkts;
 	pkt_flags = 0;
 	largest_node = NULL;
 	time_sent = 0;
 
-	if ((int64_t)ack->largest_ack > qel->pktns->rx.largest_acked_pn) {
+	if ((int64_t)ack_frm->largest_ack > qel->pktns->rx.largest_acked_pn) {
 		largest_node = eb64_lookup(pkts, largest);
 		if (!largest_node) {
 			TRACE_DEVEL("Largest acked packet not found",
@@ -2258,7 +2258,7 @@ static inline int qc_parse_ack_frm(struct quic_conn *qc,
 
 		qc_ackrng_pkts(qc, pkts, &pkt_flags, &newly_acked_pkts,
 		               largest_node, largest, smallest);
-		if (!ack->ack_range_num--)
+		if (!ack_frm->ack_range_num--)
 			break;
 
 		if (!quic_dec_int(&gap, pos, end)) {
@@ -2295,7 +2295,7 @@ static inline int qc_parse_ack_frm(struct quic_conn *qc,
 
 	if (time_sent && (pkt_flags & QUIC_FL_TX_PACKET_ACK_ELICITING)) {
 		*rtt_sample = tick_remain(time_sent, now_ms);
-		qel->pktns->rx.largest_acked_pn = ack->largest_ack;
+		qel->pktns->rx.largest_acked_pn = ack_frm->largest_ack;
 	}
 
 	if (!LIST_ISEMPTY(&newly_acked_pkts)) {
@@ -2903,15 +2903,15 @@ static struct ncbuf *quic_get_ncbuf(struct ncbuf *ncbuf)
  * CRYPTO data.
  */
 static int qc_handle_crypto_frm(struct quic_conn *qc,
-                                struct qf_crypto *frm, struct quic_rx_packet *pkt,
+                                struct qf_crypto *crypto_frm, struct quic_rx_packet *pkt,
                                 struct quic_enc_level *qel, int *fast_retrans)
 {
 	int ret = 0;
 	enum ncb_ret ncb_ret;
 	/* XXX TO DO: <cfdebug> is used only for the traces. */
 	struct quic_rx_crypto_frm cfdebug = {
-		.offset_node.key = frm->offset,
-		.len = frm->len,
+		.offset_node.key = crypto_frm->offset,
+		.len = crypto_frm->len,
 	};
 	struct quic_cstream *cstream = qel->cstream;
 	struct ncbuf *ncbuf = &qel->cstream->rx.ncbuf;
@@ -2923,10 +2923,10 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 		goto done;
 	}
 
-	if (unlikely(frm->offset < cstream->rx.offset)) {
+	if (unlikely(crypto_frm->offset < cstream->rx.offset)) {
 		size_t diff;
 
-		if (frm->offset + frm->len <= cstream->rx.offset) {
+		if (crypto_frm->offset + crypto_frm->len <= cstream->rx.offset) {
 			/* Nothing to do */
 			TRACE_PROTO("Already received CRYPTO data",
 						QUIC_EV_CONN_RXPKT, qc, pkt, &cfdebug);
@@ -2939,20 +2939,20 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 		TRACE_PROTO("Partially already received CRYPTO data",
 		            QUIC_EV_CONN_RXPKT, qc, pkt, &cfdebug);
 
-		diff = cstream->rx.offset - frm->offset;
-		frm->len -= diff;
-		frm->data += diff;
-		frm->offset = cstream->rx.offset;
+		diff = cstream->rx.offset - crypto_frm->offset;
+		crypto_frm->len -= diff;
+		crypto_frm->data += diff;
+		crypto_frm->offset = cstream->rx.offset;
 	}
 
-	if (frm->offset == cstream->rx.offset && ncb_is_empty(ncbuf)) {
-		if (!qc_provide_cdata(qel, qc->xprt_ctx, frm->data, frm->len,
+	if (crypto_frm->offset == cstream->rx.offset && ncb_is_empty(ncbuf)) {
+		if (!qc_provide_cdata(qel, qc->xprt_ctx, crypto_frm->data, crypto_frm->len,
 		                      pkt, &cfdebug)) {
 			// trace already emitted by function above
 			goto leave;
 		}
 
-		cstream->rx.offset += frm->len;
+		cstream->rx.offset += crypto_frm->len;
 		TRACE_DEVEL("increment crypto level offset", QUIC_EV_CONN_PHPKTS, qc, qel);
 		goto done;
 	}
@@ -2963,9 +2963,9 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 		goto leave;
 	}
 
-	/* frm->offset > cstream-trx.offset */
-	ncb_ret = ncb_add(ncbuf, frm->offset - cstream->rx.offset,
-	                  (const char *)frm->data, frm->len, NCB_ADD_COMPARE);
+	/* crypto_frm->offset > cstream-trx.offset */
+	ncb_ret = ncb_add(ncbuf, crypto_frm->offset - cstream->rx.offset,
+	                  (const char *)crypto_frm->data, crypto_frm->len, NCB_ADD_COMPARE);
 	if (ncb_ret != NCB_RET_OK) {
 		if (ncb_ret == NCB_RET_DATA_REJ) {
 			TRACE_ERROR("overlapping data rejected", QUIC_EV_CONN_PRSHPKT, qc);
@@ -3024,7 +3024,7 @@ static int qc_handle_retire_connection_id_frm(struct quic_conn *qc,
                                               struct quic_connection_id **to_retire)
 {
 	int ret = 0;
-	struct qf_retire_connection_id *rcid = &frm->retire_connection_id;
+	struct qf_retire_connection_id *rcid_frm = &frm->retire_connection_id;
 	struct eb64_node *node;
 	struct quic_connection_id *conn_id;
 
@@ -3035,7 +3035,7 @@ static int qc_handle_retire_connection_id_frm(struct quic_conn *qc,
 	 * than any previously sent to the peer MUST be treated as a connection error
 	 * of type PROTOCOL_VIOLATION.
 	 */
-	if (rcid->seq_num >= qc->next_cid_seq_num) {
+	if (rcid_frm->seq_num >= qc->next_cid_seq_num) {
 		TRACE_PROTO("CID seq. number too big", QUIC_EV_CONN_PSTRM, qc, frm);
 		goto protocol_violation;
 	}
@@ -3045,7 +3045,7 @@ static int qc_handle_retire_connection_id_frm(struct quic_conn *qc,
 	 * the Destination Connection ID field of the packet in which the frame is contained.
 	 * The peer MAY treat this as a connection error of type PROTOCOL_VIOLATION.
 	 */
-	node = eb64_lookup(&qc->cids, rcid->seq_num);
+	node = eb64_lookup(&qc->cids, rcid_frm->seq_num);
 	if (!node) {
 		TRACE_PROTO("CID already retired", QUIC_EV_CONN_PSTRM, qc, frm);
 		goto out;
@@ -3154,16 +3154,16 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		}
 		case QUIC_FT_RESET_STREAM:
 			if (qc->mux_state == QC_MUX_READY) {
-				struct qf_reset_stream *rs = &frm.reset_stream;
-				qcc_recv_reset_stream(qc->qcc, rs->id, rs->app_error_code, rs->final_size);
+				struct qf_reset_stream *rs_frm = &frm.reset_stream;
+				qcc_recv_reset_stream(qc->qcc, rs_frm->id, rs_frm->app_error_code, rs_frm->final_size);
 			}
 			break;
 		case QUIC_FT_STOP_SENDING:
 		{
-			struct qf_stop_sending *stop_sending = &frm.stop_sending;
+			struct qf_stop_sending *ss_frm = &frm.stop_sending;
 			if (qc->mux_state == QC_MUX_READY) {
-				if (qcc_recv_stop_sending(qc->qcc, stop_sending->id,
-				                          stop_sending->app_error_code)) {
+				if (qcc_recv_stop_sending(qc->qcc, ss_frm->id,
+				                          ss_frm->app_error_code)) {
 					TRACE_ERROR("qcc_recv_stop_sending() failed", QUIC_EV_CONN_PRSHPKT, qc);
 					goto leave;
 				}
@@ -3176,19 +3176,19 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 		{
-			struct qf_stream *stream = &frm.stream;
-			unsigned nb_streams = qc->rx.strms[qcs_id_type(stream->id)].nb_streams;
+			struct qf_stream *strm_frm = &frm.stream;
+			unsigned nb_streams = qc->rx.strms[qcs_id_type(strm_frm->id)].nb_streams;
 			const char fin = frm.type & QUIC_STREAM_FRAME_TYPE_FIN_BIT;
 
 			/* The upper layer may not be allocated. */
 			if (qc->mux_state != QC_MUX_READY) {
-				if ((stream->id >> QCS_ID_TYPE_SHIFT) < nb_streams) {
+				if ((strm_frm->id >> QCS_ID_TYPE_SHIFT) < nb_streams) {
 					TRACE_DATA("Already closed stream", QUIC_EV_CONN_PRSHPKT, qc);
 				}
 				else {
 					TRACE_DEVEL("No mux for new stream", QUIC_EV_CONN_PRSHPKT, qc);
 					if (qc->app_ops == &h3_ops) {
-						if (!qc_h3_request_reject(qc, stream->id)) {
+						if (!qc_h3_request_reject(qc, strm_frm->id)) {
 							TRACE_ERROR("error on request rejection", QUIC_EV_CONN_PRSHPKT, qc);
 							/* This packet will not be acknowledged */
 							goto leave;
@@ -3203,7 +3203,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				break;
 			}
 
-			if (!qc_handle_strm_frm(pkt, stream, qc, fin)) {
+			if (!qc_handle_strm_frm(pkt, strm_frm, qc, fin)) {
 				TRACE_ERROR("qc_handle_strm_frm() failed", QUIC_EV_CONN_PRSHPKT, qc);
 				goto leave;
 			}
@@ -3212,15 +3212,15 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		}
 		case QUIC_FT_MAX_DATA:
 			if (qc->mux_state == QC_MUX_READY) {
-				struct qf_max_data *data = &frm.max_data;
-				qcc_recv_max_data(qc->qcc, data->max_data);
+				struct qf_max_data *md_frm = &frm.max_data;
+				qcc_recv_max_data(qc->qcc, md_frm->max_data);
 			}
 			break;
 		case QUIC_FT_MAX_STREAM_DATA:
 			if (qc->mux_state == QC_MUX_READY) {
-				struct qf_max_stream_data *data = &frm.max_stream_data;
-				if (qcc_recv_max_stream_data(qc->qcc, data->id,
-				                              data->max_stream_data)) {
+				struct qf_max_stream_data *msd_frm = &frm.max_stream_data;
+				if (qcc_recv_max_stream_data(qc->qcc, msd_frm->id,
+				                              msd_frm->max_stream_data)) {
 					TRACE_ERROR("qcc_recv_max_stream_data() failed", QUIC_EV_CONN_PRSHPKT, qc);
 					goto leave;
 				}
@@ -7557,13 +7557,13 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 			if (cf->stream.dup) {
 				struct eb64_node *node = NULL;
 				struct qc_stream_desc *stream_desc = NULL;
-				struct qf_stream *strm = &cf->stream;
+				struct qf_stream *strm_frm = &cf->stream;
 
 				/* As this frame has been already lost, ensure the stream is always
 				 * available or the range of this frame is not consumed before
 				 * resending it.
 				 */
-				node = eb64_lookup(&qc->streams_by_id, strm->id);
+				node = eb64_lookup(&qc->streams_by_id, strm_frm->id);
 				if (!node) {
 					TRACE_DEVEL("released stream", QUIC_EV_CONN_PRSAFRM, qc, cf);
 					qc_frm_free(&cf);
@@ -7571,14 +7571,14 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				}
 
 				stream_desc = eb64_entry(node, struct qc_stream_desc, by_id);
-				if (strm->offset.key + strm->len <= stream_desc->ack_offset) {
+				if (strm_frm->offset.key + strm_frm->len <= stream_desc->ack_offset) {
 					TRACE_DEVEL("ignored frame frame in already acked range",
 					            QUIC_EV_CONN_PRSAFRM, qc, cf);
 					qc_frm_free(&cf);
 					continue;
 				}
-				else if (strm->offset.key < stream_desc->ack_offset) {
-					uint64_t diff = stream_desc->ack_offset - strm->offset.key;
+				else if (strm_frm->offset.key < stream_desc->ack_offset) {
+					uint64_t diff = stream_desc->ack_offset - strm_frm->offset.key;
 
 					qc_stream_frm_mv_fwd(cf, diff);
 					TRACE_DEVEL("updated partially acked frame",

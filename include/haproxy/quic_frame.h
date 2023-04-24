@@ -278,18 +278,18 @@ static inline void qc_frm_free(struct quic_frame **frm)
 /* Move forward <strm> STREAM frame by <data> bytes. */
 static inline void qc_stream_frm_mv_fwd(struct quic_frame *frm, uint64_t data)
 {
-	struct qf_stream *strm = &frm->stream;
+	struct qf_stream *strm_frm = &frm->stream;
 	struct buffer cf_buf;
 
 	/* Set offset bit if not already there. */
-	strm->offset.key += data;
+	strm_frm->offset.key += data;
 	frm->type |= QUIC_STREAM_FRAME_TYPE_OFF_BIT;
 
-	strm->len -= data;
-	cf_buf = b_make(b_orig(strm->buf),
-	                b_size(strm->buf),
-	                (char *)strm->data - b_orig(strm->buf), 0);
-	strm->data = (unsigned char *)b_peek(&cf_buf, data);
+	strm_frm->len -= data;
+	cf_buf = b_make(b_orig(strm_frm->buf),
+	                b_size(strm_frm->buf),
+	                (char *)strm_frm->data - b_orig(strm_frm->buf), 0);
+	strm_frm->data = (unsigned char *)b_peek(&cf_buf, data);
 }
 
 #endif /* USE_QUIC */
