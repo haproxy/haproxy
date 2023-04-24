@@ -199,11 +199,11 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 	return t;
 }
 
-/* Retrieve the DCID from the datagram found in <buf> and deliver it to the
+/* Retrieve the DCID from the datagram found at <pos> position and deliver it to the
  * correct datagram handler.
  * Return 1 if a correct datagram could be found, 0 if not.
  */
-static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner,
+static int quic_lstnr_dgram_dispatch(unsigned char *pos, size_t len, void *owner,
                                      struct sockaddr_storage *saddr,
                                      struct sockaddr_storage *daddr,
                                      struct quic_dgram *new_dgram, struct list *dgrams)
@@ -213,14 +213,14 @@ static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner
 	size_t dcid_len;
 	int cid_tid;
 
-	if (!len || !quic_get_dgram_dcid(buf, buf + len, &dcid, &dcid_len))
+	if (!len || !quic_get_dgram_dcid(pos, pos + len, &dcid, &dcid_len))
 		goto err;
 
 	dgram = new_dgram ? new_dgram : pool_alloc(pool_head_quic_dgram);
 	if (!dgram)
 		goto err;
 
-	if ((cid_tid = quic_get_cid_tid(dcid, dcid_len, saddr, buf, len)) < 0) {
+	if ((cid_tid = quic_get_cid_tid(dcid, dcid_len, saddr, pos, len)) < 0) {
 		/* Use the current thread if CID not found. If a clients opens
 		 * a connection with multiple packets, it is possible that
 		 * several threads will deal with datagrams sharing the same
@@ -233,7 +233,7 @@ static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner
 
 	/* All the members must be initialized! */
 	dgram->owner = owner;
-	dgram->buf = buf;
+	dgram->buf = pos;
 	dgram->len = len;
 	dgram->dcid = dcid;
 	dgram->dcid_len = dcid_len;
@@ -262,12 +262,12 @@ static int quic_lstnr_dgram_dispatch(unsigned char *buf, size_t len, void *owner
  *
  * Returns the last unused datagram or NULL if no occurrence found.
  */
-static struct quic_dgram *quic_rxbuf_purge_dgrams(struct quic_receiver_buf *buf)
+static struct quic_dgram *quic_rxbuf_purge_dgrams(struct quic_receiver_buf *rbuf)
 {
 	struct quic_dgram *cur, *prev = NULL;
 
-	while (!LIST_ISEMPTY(&buf->dgram_list)) {
-		cur = LIST_ELEM(buf->dgram_list.n, struct quic_dgram *, recv_list);
+	while (!LIST_ISEMPTY(&rbuf->dgram_list)) {
+		cur = LIST_ELEM(rbuf->dgram_list.n, struct quic_dgram *, recv_list);
 
 		/* Loop until a not yet consumed datagram is found. */
 		if (HA_ATOMIC_LOAD(&cur->buf))
@@ -275,7 +275,7 @@ static struct quic_dgram *quic_rxbuf_purge_dgrams(struct quic_receiver_buf *buf)
 
 		/* Clear buffer of current unused datagram. */
 		LIST_DELETE(&cur->recv_list);
-		b_del(&buf->buf, cur->len);
+		b_del(&rbuf->buf, cur->len);
 
 		/* Free last found unused datagram. */
 		pool_free(pool_head_quic_dgram, prev);
