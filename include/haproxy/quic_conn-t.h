@@ -521,20 +521,6 @@ struct quic_crypto_buf {
 	size_t sz;
 };
 
-/* QUIC buffer structure used to build outgoing packets. */
-struct q_buf {
-	/* Points to the data in this buffer. */
-	unsigned char *area;
-	/* Points to the current position to write into this buffer. */
-	unsigned char *pos;
-	/* Point to the end of this buffer past one. */
-	const unsigned char *end;
-	/* The number of data bytes in this buffer. */
-	size_t data;
-	/* The list of packets attached to this buffer which have not been already sent. */
-	struct list pkts;
-};
-
 /* Crypto data stream (one by encryption level) */
 struct quic_cstream {
 	struct {
