@@ -3744,7 +3744,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 /* Free all frames in <l> list. In addition also remove all these frames
  * from the original ones if they are the results of duplications.
  */
-static inline void qc_free_frm_list(struct list *l, struct quic_conn *qc)
+static inline void qc_free_frm_list(struct list *l)
 {
 	struct quic_frame *frm, *frmbak;
 
@@ -3755,19 +3755,19 @@ static inline void qc_free_frm_list(struct list *l, struct quic_conn *qc)
 }
 
 /* Free <pkt> TX packet and all the packets coalesced to it. */
-static inline void qc_free_tx_coalesced_pkts(struct quic_conn *qc, struct quic_tx_packet *p)
+static inline void qc_free_tx_coalesced_pkts(struct quic_tx_packet *p)
 {
 	struct quic_tx_packet *pkt, *nxt_pkt;
 
 	for (pkt = p; pkt; pkt = nxt_pkt) {
-		qc_free_frm_list(&pkt->frms, qc);
+		qc_free_frm_list(&pkt->frms);
 		nxt_pkt = pkt->next;
 		pool_free(pool_head_quic_tx_packet, pkt);
 	}
 }
 
 /* Purge <buf> TX buffer from its prepare packets. */
-static void qc_purge_tx_buf(struct quic_conn *qc, struct buffer *buf)
+static void qc_purge_tx_buf(struct buffer *buf)
 {
 	while (b_contig_data(buf, 0)) {
 		uint16_t dglen;
@@ -3776,7 +3776,7 @@ static void qc_purge_tx_buf(struct quic_conn *qc, struct buffer *buf)
 
 		dglen = read_u16(b_head(buf));
 		pkt = read_ptr(b_head(buf) + sizeof dglen);
-		qc_free_tx_coalesced_pkts(qc, pkt);
+		qc_free_tx_coalesced_pkts(pkt);
 		b_del(buf, dglen + headlen);
 	}
 
@@ -3836,9 +3836,9 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 			if (ret < 0) {
 				TRACE_ERROR("sendto fatal error", QUIC_EV_CONN_SPPKTS, qc, first_pkt);
 				qc_kill_conn(qc);
-				qc_free_tx_coalesced_pkts(qc, first_pkt);
+				qc_free_tx_coalesced_pkts(first_pkt);
 				b_del(buf, dglen + headlen);
-				qc_purge_tx_buf(qc, buf);
+				qc_purge_tx_buf(buf);
 				goto leave;
 			}
 			else if (!ret) {
@@ -4962,7 +4962,7 @@ static int qc_dgrams_retransmit(struct quic_conn *qc)
 			if (!LIST_ISEMPTY(&frms1)) {
 				aqel->pktns->tx.pto_probe = 1;
 				if (!qc_send_app_probing(qc, &frms1)) {
-					qc_free_frm_list(&frms2, qc);
+					qc_free_frm_list(&frms2);
 					goto leave;
 				}
 
