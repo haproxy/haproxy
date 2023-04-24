@@ -5954,10 +5954,10 @@ static int quic_conn_init_idle_timer_task(struct quic_conn *qc)
 	return ret;
 }
 
-/* Parse into <pkt> a long header located at <*buf> buffer, <end> begin a pointer to the end
+/* Parse into <pkt> a long header located at <*pos> position, <end> begin a pointer to the end
  * past one byte of this buffer.
  */
-static inline int quic_packet_read_long_header(unsigned char **buf, const unsigned char *end,
+static inline int quic_packet_read_long_header(unsigned char **pos, const unsigned char *end,
                                                struct quic_rx_packet *pkt)
 {
 	int ret = 0;
@@ -5965,15 +5965,15 @@ static inline int quic_packet_read_long_header(unsigned char **buf, const unsign
 
 	TRACE_ENTER(QUIC_EV_CONN_RXPKT);
 
-	if (end == *buf) {
+	if (end == *pos) {
 		TRACE_ERROR("buffer data consumed",  QUIC_EV_CONN_RXPKT);
 		goto leave;
 	}
 
 	/* Destination Connection ID Length */
-	dcid_len = *(*buf)++;
+	dcid_len = *(*pos)++;
 	/* We want to be sure we can read <dcid_len> bytes and one more for <scid_len> value */
-	if (dcid_len > QUIC_CID_MAXLEN || end - *buf < dcid_len + 1) {
+	if (dcid_len > QUIC_CID_MAXLEN || end - *pos < dcid_len + 1) {
 		TRACE_ERROR("too long DCID",  QUIC_EV_CONN_RXPKT);
 		goto leave;
 	}
@@ -5990,23 +5990,23 @@ static inline int quic_packet_read_long_header(unsigned char **buf, const unsign
 			goto leave;
 		}
 
-		memcpy(pkt->dcid.data, *buf, dcid_len);
+		memcpy(pkt->dcid.data, *pos, dcid_len);
 	}
 
 	pkt->dcid.len = dcid_len;
-	*buf += dcid_len;
+	*pos += dcid_len;
 
 	/* Source Connection ID Length */
-	scid_len = *(*buf)++;
-	if (scid_len > QUIC_CID_MAXLEN || end - *buf < scid_len) {
+	scid_len = *(*pos)++;
+	if (scid_len > QUIC_CID_MAXLEN || end - *pos < scid_len) {
 		TRACE_ERROR("too long SCID",  QUIC_EV_CONN_RXPKT);
 		goto leave;
 	}
 
 	if (scid_len)
-		memcpy(pkt->scid.data, *buf, scid_len);
+		memcpy(pkt->scid.data, *pos, scid_len);
 	pkt->scid.len = scid_len;
-	*buf += scid_len;
+	*pos += scid_len;
 
 	ret = 1;
  leave:
