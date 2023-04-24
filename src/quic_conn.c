@@ -3914,12 +3914,12 @@ leave:
 	return ret;
 }
 
-/* Copy into <buf> buffer a stateless reset token depending on the
+/* Copy at <pos> position a stateless reset token depending on the
  * <salt> salt input. This is the cluster secret which will be derived
  * as HKDF input secret to generate this token.
  * Return 1 if succeeded, 0 if not.
  */
-static int quic_stateless_reset_token_cpy(unsigned char *buf, size_t len,
+static int quic_stateless_reset_token_cpy(unsigned char *pos, size_t len,
                                           const unsigned char *salt, size_t saltlen)
 {
 	/* Input secret */
@@ -3930,7 +3930,7 @@ static int quic_stateless_reset_token_cpy(unsigned char *buf, size_t len,
 	size_t labellen = sizeof label - 1;
 	int ret;
 
-	ret = quic_hkdf_extract_and_expand(EVP_sha256(), buf, len,
+	ret = quic_hkdf_extract_and_expand(EVP_sha256(), pos, len,
 	                                    key, keylen, salt, saltlen, label, labellen);
 	return ret;
 }
@@ -3971,13 +3971,13 @@ struct quic_cid quic_derive_cid(const struct quic_cid *orig,
 	struct quic_cid cid;
 	const struct sockaddr_in *in;
 	const struct sockaddr_in6 *in6;
-	char *buf = trash.area;
+	char *pos = trash.area;
 	size_t idx = 0;
 	uint64_t hash;
 	int i;
 
 	/* Prepare buffer for hash using original CID first. */
-	memcpy(buf, orig->data, orig->len);
+	memcpy(pos, orig->data, orig->len);
 	idx += orig->len;
 
 	/* Concatenate client address. */
@@ -3985,18 +3985,18 @@ struct quic_cid quic_derive_cid(const struct quic_cid *orig,
 	case AF_INET:
 		in = (struct sockaddr_in *)addr;
 
-		memcpy(&buf[idx], &in->sin_addr, sizeof(in->sin_addr));
+		memcpy(&pos[idx], &in->sin_addr, sizeof(in->sin_addr));
 		idx += sizeof(in->sin_addr);
-		memcpy(&buf[idx], &in->sin_port, sizeof(in->sin_port));
+		memcpy(&pos[idx], &in->sin_port, sizeof(in->sin_port));
 		idx += sizeof(in->sin_port);
 		break;
 
 	case AF_INET6:
 		in6 = (struct sockaddr_in6 *)addr;
 
-		memcpy(&buf[idx], &in6->sin6_addr, sizeof(in6->sin6_addr));
+		memcpy(&pos[idx], &in6->sin6_addr, sizeof(in6->sin6_addr));
 		idx += sizeof(in6->sin6_addr);
-		memcpy(&buf[idx], &in6->sin6_port, sizeof(in6->sin6_port));
+		memcpy(&pos[idx], &in6->sin6_port, sizeof(in6->sin6_port));
 		idx += sizeof(in6->sin6_port);
 		break;
 
@@ -4006,11 +4006,11 @@ struct quic_cid quic_derive_cid(const struct quic_cid *orig,
 	}
 
 	/* Avoid similar values between multiple haproxy process. */
-	memcpy(&buf[idx], boot_seed, sizeof(boot_seed));
+	memcpy(&pos[idx], boot_seed, sizeof(boot_seed));
 	idx += sizeof(boot_seed);
 
 	/* Hash the final buffer content. */
-	hash = XXH64(buf, idx, 0);
+	hash = XXH64(pos, idx, 0);
 
 	for (i = 0; i < sizeof(hash); ++i)
 		cid.data[i] = hash >> ((sizeof(hash) * 7) - (8 * i));
@@ -4022,14 +4022,14 @@ struct quic_cid quic_derive_cid(const struct quic_cid *orig,
 /* Retrieve the thread ID associated to QUIC connection ID <cid> of length
  * <cid_len>. CID may be not found on the CID tree because it is an ODCID. In
  * this case, it will derived using client address <cli_addr> as hash
- * parameter. However, this is done only if <buf> points to an INITIAL or 0RTT
+ * parameter. However, this is done only if <pos> points to an INITIAL or 0RTT
  * packet of length <len>.
  *
  * Returns the thread ID or a negative error code.
  */
 int quic_get_cid_tid(const unsigned char *cid, size_t cid_len,
                      const struct sockaddr_storage *cli_addr,
-                     unsigned char *buf, size_t buf_len)
+                     unsigned char *pos, size_t len)
 {
 	struct quic_cid_tree *tree;
 	struct quic_connection_id *conn_id;
@@ -4044,7 +4044,7 @@ int quic_get_cid_tid(const unsigned char *cid, size_t cid_len,
 		struct quic_cid orig, derive_cid;
 		struct quic_rx_packet pkt;
 
-		if (!qc_parse_hd_form(&pkt, &buf, buf + buf_len))
+		if (!qc_parse_hd_form(&pkt, &pos, pos + len))
 			goto not_found;
 
 		if (pkt.type != QUIC_PACKET_TYPE_INITIAL &&
