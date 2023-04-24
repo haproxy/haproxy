@@ -199,7 +199,7 @@ static inline void free_quic_conn_cids(struct quic_conn *conn)
 static inline void quic_connection_id_to_frm_cpy(struct quic_frame *dst,
                                                  struct quic_connection_id *src)
 {
-	struct quic_new_connection_id *to = &dst->new_connection_id;
+	struct qf_new_connection_id *to = &dst->new_connection_id;
 
 	to->seq_num = src->seq_num.key;
 	to->retire_prior_to = src->retire_prior_to;
@@ -388,7 +388,7 @@ static inline int quic_packet_number_encode(unsigned char **buf,
  * <conn> QUIC connection. Note that the value of <ack_delay> coming from
  * ACK frame is in microseconds.
  */
-static inline unsigned int quic_ack_delay_ms(struct quic_ack *ack_frm,
+static inline unsigned int quic_ack_delay_ms(struct qf_ack *ack_frm,
                                              struct quic_conn *conn)
 {
 	return (ack_frm->ack_delay << conn->tx.params.ack_delay_exponent) / 1000;

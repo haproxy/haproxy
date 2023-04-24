@@ -113,11 +113,11 @@ enum quic_frame_type {
 /* Maximum phrase length in CONNECTION_CLOSE frame */
 #define QUIC_CC_REASON_PHRASE_MAXLEN   64
 
-struct quic_padding {
+struct qf_padding {
 	size_t len;
 };
 
-struct quic_ack {
+struct qf_ack {
 	uint64_t largest_ack;
 	uint64_t ack_delay;
 	uint64_t ack_range_num;
@@ -125,35 +125,35 @@ struct quic_ack {
 };
 
 /* Structure used when emitting ACK frames. */
-struct quic_tx_ack {
+struct qf_tx_ack {
 	uint64_t ack_delay;
 	struct quic_arngs *arngs;
 };
 
-struct quic_reset_stream {
+struct qf_reset_stream {
 	uint64_t id;
 	uint64_t app_error_code;
 	uint64_t final_size;
 };
 
-struct quic_stop_sending {
+struct qf_stop_sending {
 	uint64_t id;
 	uint64_t app_error_code;
 };
 
-struct quic_crypto {
+struct qf_crypto {
 	uint64_t offset;
 	uint64_t len;
 	const struct quic_enc_level *qel;
 	const unsigned char *data;
 };
 
-struct quic_new_token {
+struct qf_new_token {
 	uint64_t len;
 	const unsigned char *data;
 };
 
-struct quic_stream {
+struct qf_stream {
 	uint64_t id;
 	struct qc_stream_desc *stream;
 
@@ -177,33 +177,33 @@ struct quic_stream {
 	char dup; /* set for duplicated frame : this forces to check for the underlying qc_stream_buf instance before emitting it. */
 };
 
-struct quic_max_data {
+struct qf_max_data {
 	uint64_t max_data;
 };
 
-struct quic_max_stream_data {
+struct qf_max_stream_data {
 	uint64_t id;
 	uint64_t max_stream_data;
 };
 
-struct quic_max_streams {
+struct qf_max_streams {
 	uint64_t max_streams;
 };
 
-struct quic_data_blocked {
+struct qf_data_blocked {
 	uint64_t limit;
 };
 
-struct quic_stream_data_blocked {
+struct qf_stream_data_blocked {
 	uint64_t id;
 	uint64_t limit;
 };
 
-struct quic_streams_blocked {
+struct qf_streams_blocked {
 	uint64_t limit;
 };
 
-struct quic_new_connection_id {
+struct qf_new_connection_id {
 	uint64_t seq_num;
 	uint64_t retire_prior_to;
 	struct {
@@ -213,26 +213,26 @@ struct quic_new_connection_id {
 	const unsigned char *stateless_reset_token;
 };
 
-struct quic_retire_connection_id {
+struct qf_retire_connection_id {
 	uint64_t seq_num;
 };
 
-struct quic_path_challenge {
+struct qf_path_challenge {
 	unsigned char data[QUIC_PATH_CHALLENGE_LEN];
 };
 
-struct quic_path_challenge_response {
+struct qf_path_challenge_response {
 	unsigned char data[QUIC_PATH_CHALLENGE_LEN];
 };
 
-struct quic_connection_close {
+struct qf_connection_close {
 	uint64_t error_code;
 	uint64_t frame_type;
 	uint64_t reason_phrase_len;
 	unsigned char reason_phrase[QUIC_CC_REASON_PHRASE_MAXLEN];
 };
 
-struct quic_connection_close_app {
+struct qf_connection_close_app {
 	uint64_t error_code;
 	uint64_t reason_phrase_len;
 	unsigned char reason_phrase[QUIC_CC_REASON_PHRASE_MAXLEN];
@@ -243,28 +243,28 @@ struct quic_frame {
 	struct quic_tx_packet *pkt; /* Last Tx packet used to send the frame. */
 	unsigned char type;         /* QUIC frame type. */
 	union {
-		struct quic_padding padding;
-		struct quic_ack ack;
-		struct quic_tx_ack tx_ack;
-		struct quic_crypto crypto;
-		struct quic_reset_stream reset_stream;
-		struct quic_stop_sending stop_sending;
-		struct quic_new_token new_token;
-		struct quic_stream stream;
-		struct quic_max_data max_data;
-		struct quic_max_stream_data max_stream_data;
-		struct quic_max_streams max_streams_bidi;
-		struct quic_max_streams max_streams_uni;
-		struct quic_data_blocked data_blocked;
-		struct quic_stream_data_blocked stream_data_blocked;
-		struct quic_streams_blocked streams_blocked_bidi;
-		struct quic_streams_blocked streams_blocked_uni;
-		struct quic_new_connection_id new_connection_id;
-		struct quic_retire_connection_id retire_connection_id;
-		struct quic_path_challenge path_challenge;
-		struct quic_path_challenge_response path_challenge_response;
-		struct quic_connection_close connection_close;
-		struct quic_connection_close_app connection_close_app;
+		struct qf_padding padding;
+		struct qf_ack ack;
+		struct qf_tx_ack tx_ack;
+		struct qf_crypto crypto;
+		struct qf_reset_stream reset_stream;
+		struct qf_stop_sending stop_sending;
+		struct qf_new_token new_token;
+		struct qf_stream stream;
+		struct qf_max_data max_data;
+		struct qf_max_stream_data max_stream_data;
+		struct qf_max_streams max_streams_bidi;
+		struct qf_max_streams max_streams_uni;
+		struct qf_data_blocked data_blocked;
+		struct qf_stream_data_blocked stream_data_blocked;
+		struct qf_streams_blocked streams_blocked_bidi;
+		struct qf_streams_blocked streams_blocked_uni;
+		struct qf_new_connection_id new_connection_id;
+		struct qf_retire_connection_id retire_connection_id;
+		struct qf_path_challenge path_challenge;
+		struct qf_path_challenge_response path_challenge_response;
+		struct qf_connection_close connection_close;
+		struct qf_connection_close_app connection_close_app;
 	};
 	struct quic_frame *origin;  /* Parent frame. Set if frame is a duplicate (used for retransmission). */
 	struct list reflist;        /* List head containing duplicated children frames. */

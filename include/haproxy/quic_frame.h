@@ -49,7 +49,7 @@ static inline size_t qc_frm_len(struct quic_frame *frm)
 
 	switch (frm->type) {
 	case QUIC_FT_ACK: {
-		struct quic_tx_ack *tx_ack = &frm->tx_ack;
+		struct qf_tx_ack *tx_ack = &frm->tx_ack;
 		struct eb64_node *ar, *prev_ar;
 		struct quic_arng_node *ar_node, *prev_ar_node;
 
@@ -70,102 +70,102 @@ static inline size_t qc_frm_len(struct quic_frame *frm)
 		break;
 	}
 	case QUIC_FT_RESET_STREAM: {
-		struct quic_reset_stream *f = &frm->reset_stream;
+		struct qf_reset_stream *f = &frm->reset_stream;
 		len += 1 + quic_int_getsize(f->id) +
 			quic_int_getsize(f->app_error_code) + quic_int_getsize(f->final_size);
 		break;
 	}
 	case QUIC_FT_STOP_SENDING: {
-		struct quic_stop_sending *f = &frm->stop_sending;
+		struct qf_stop_sending *f = &frm->stop_sending;
 		len += 1 + quic_int_getsize(f->id) + quic_int_getsize(f->app_error_code);
 		break;
 	}
 	case QUIC_FT_CRYPTO: {
-		struct quic_crypto *f = &frm->crypto;
+		struct qf_crypto *f = &frm->crypto;
 		len += 1 + quic_int_getsize(f->offset) + quic_int_getsize(f->len) + f->len;
 		break;
 	}
 	case QUIC_FT_NEW_TOKEN: {
-		struct quic_new_token *f = &frm->new_token;
+		struct qf_new_token *f = &frm->new_token;
 		len += 1 + quic_int_getsize(f->len) + f->len;
 		break;
 	}
 	case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F: {
-		struct quic_stream *f = &frm->stream;
+		struct qf_stream *f = &frm->stream;
 		len += 1 + quic_int_getsize(f->id) +
 			((frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) ? quic_int_getsize(f->offset.key) : 0) +
 			((frm->type & QUIC_STREAM_FRAME_TYPE_LEN_BIT) ? quic_int_getsize(f->len) : 0) + f->len;
 		break;
 	}
 	case QUIC_FT_MAX_DATA: {
-		struct quic_max_data *f = &frm->max_data;
+		struct qf_max_data *f = &frm->max_data;
 		len += 1 + quic_int_getsize(f->max_data);
 		break;
 	}
 	case QUIC_FT_MAX_STREAM_DATA: {
-		struct quic_max_stream_data *f = &frm->max_stream_data;
+		struct qf_max_stream_data *f = &frm->max_stream_data;
 		len += 1 + quic_int_getsize(f->id) + quic_int_getsize(f->max_stream_data);
 		break;
 	}
 	case QUIC_FT_MAX_STREAMS_BIDI: {
-		struct quic_max_streams *f = &frm->max_streams_bidi;
+		struct qf_max_streams *f = &frm->max_streams_bidi;
 		len += 1 + quic_int_getsize(f->max_streams);
 		break;
 	}
 	case QUIC_FT_MAX_STREAMS_UNI: {
-		struct quic_max_streams *f = &frm->max_streams_uni;
+		struct qf_max_streams *f = &frm->max_streams_uni;
 		len += 1 + quic_int_getsize(f->max_streams);
 		break;
 	}
 	case QUIC_FT_DATA_BLOCKED: {
-		struct quic_data_blocked *f = &frm->data_blocked;
+		struct qf_data_blocked *f = &frm->data_blocked;
 		len += 1 + quic_int_getsize(f->limit);
 		break;
 	}
 	case QUIC_FT_STREAM_DATA_BLOCKED: {
-		struct quic_stream_data_blocked *f = &frm->stream_data_blocked;
+		struct qf_stream_data_blocked *f = &frm->stream_data_blocked;
 		len += 1 + quic_int_getsize(f->id) + quic_int_getsize(f->limit);
 		break;
 	}
 	case QUIC_FT_STREAMS_BLOCKED_BIDI: {
-		struct quic_streams_blocked *f = &frm->streams_blocked_bidi;
+		struct qf_streams_blocked *f = &frm->streams_blocked_bidi;
 		len += 1 + quic_int_getsize(f->limit);
 		break;
 	}
 	case QUIC_FT_STREAMS_BLOCKED_UNI: {
-		struct quic_streams_blocked *f = &frm->streams_blocked_uni;
+		struct qf_streams_blocked *f = &frm->streams_blocked_uni;
 		len += 1 + quic_int_getsize(f->limit);
 		break;
 	}
 	case QUIC_FT_NEW_CONNECTION_ID: {
-		struct quic_new_connection_id *f = &frm->new_connection_id;
+		struct qf_new_connection_id *f = &frm->new_connection_id;
 		len += 1 + quic_int_getsize(f->seq_num) + quic_int_getsize(f->retire_prior_to) +
 			quic_int_getsize(f->cid.len) + f->cid.len + QUIC_STATELESS_RESET_TOKEN_LEN;
 		break;
 	}
 	case QUIC_FT_RETIRE_CONNECTION_ID: {
-		struct quic_retire_connection_id *f = &frm->retire_connection_id;
+		struct qf_retire_connection_id *f = &frm->retire_connection_id;
 		len += 1 + quic_int_getsize(f->seq_num);
 		break;
 	}
 	case QUIC_FT_PATH_CHALLENGE: {
-		struct quic_path_challenge *f = &frm->path_challenge;
+		struct qf_path_challenge *f = &frm->path_challenge;
 		len += 1 + sizeof f->data;
 		break;
 	}
 	case QUIC_FT_PATH_RESPONSE: {
-		struct quic_path_challenge_response *f = &frm->path_challenge_response;
+		struct qf_path_challenge_response *f = &frm->path_challenge_response;
 		len += 1 + sizeof f->data;
 		break;
 	}
 	case QUIC_FT_CONNECTION_CLOSE: {
-		struct quic_connection_close *f = &frm->connection_close;
+		struct qf_connection_close *f = &frm->connection_close;
 		len += 1 + quic_int_getsize(f->error_code) + quic_int_getsize(f->frame_type) +
 			quic_int_getsize(f->reason_phrase_len) + f->reason_phrase_len;
 		break;
 	}
 	case QUIC_FT_CONNECTION_CLOSE_APP: {
-		struct quic_connection_close *f = &frm->connection_close;
+		struct qf_connection_close *f = &frm->connection_close;
 		len += 1 + quic_int_getsize(f->error_code) +
 			quic_int_getsize(f->reason_phrase_len) + f->reason_phrase_len;
 		break;
@@ -278,7 +278,7 @@ static inline void qc_frm_free(struct quic_frame **frm)
 /* Move forward <strm> STREAM frame by <data> bytes. */
 static inline void qc_stream_frm_mv_fwd(struct quic_frame *frm, uint64_t data)
 {
-	struct quic_stream *strm = &frm->stream;
+	struct qf_stream *strm = &frm->stream;
 	struct buffer cf_buf;
 
 	/* Set offset bit if not already there. */

@@ -109,28 +109,28 @@ void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm)
 	switch (frm->type) {
 	case QUIC_FT_CRYPTO:
 	{
-		const struct quic_crypto *cf = &frm->crypto;
+		const struct qf_crypto *cf = &frm->crypto;
 		chunk_appendf(buf, " cfoff=%llu cflen=%llu",
 		              (ull)cf->offset, (ull)cf->len);
 		break;
 	}
 	case QUIC_FT_RESET_STREAM:
 	{
-		const struct quic_reset_stream *rs = &frm->reset_stream;
+		const struct qf_reset_stream *rs = &frm->reset_stream;
 		chunk_appendf(buf, " id=%llu app_error_code=%llu final_size=%llu",
 		              (ull)rs->id, (ull)rs->app_error_code, (ull)rs->final_size);
 		break;
 	}
 	case QUIC_FT_STOP_SENDING:
 	{
-		const struct quic_stop_sending *s = &frm->stop_sending;
+		const struct qf_stop_sending *s = &frm->stop_sending;
 		chunk_appendf(&trace_buf, " id=%llu app_error_code=%llu",
 		              (ull)s->id, (ull)s->app_error_code);
 		break;
 	}
 	case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 	{
-		const struct quic_stream *s = &frm->stream;
+		const struct qf_stream *s = &frm->stream;
 		chunk_appendf(&trace_buf, " uni=%d fin=%d id=%llu off=%llu len=%llu",
 		              !!(s->id & QUIC_STREAM_FRAME_ID_DIR_BIT),
 		              !!(frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT),
@@ -139,63 +139,63 @@ void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm)
 	}
 	case QUIC_FT_MAX_DATA:
 	{
-		const struct quic_max_data *s = &frm->max_data;
+		const struct qf_max_data *s = &frm->max_data;
 		chunk_appendf(&trace_buf, " max_data=%llu", (ull)s->max_data);
 		break;
 	}
 	case QUIC_FT_MAX_STREAM_DATA:
 	{
-		const struct quic_max_stream_data *s = &frm->max_stream_data;
+		const struct qf_max_stream_data *s = &frm->max_stream_data;
 		chunk_appendf(&trace_buf, " id=%llu max_stream_data=%llu",
 		              (ull)s->id, (ull)s->max_stream_data);
 		break;
 	}
 	case QUIC_FT_MAX_STREAMS_BIDI:
 	{
-		const struct quic_max_streams *s = &frm->max_streams_bidi;
+		const struct qf_max_streams *s = &frm->max_streams_bidi;
 		chunk_appendf(&trace_buf, " max_streams=%llu", (ull)s->max_streams);
 		break;
 	}
 	case QUIC_FT_MAX_STREAMS_UNI:
 	{
-		const struct quic_max_streams *s = &frm->max_streams_uni;
+		const struct qf_max_streams *s = &frm->max_streams_uni;
 		chunk_appendf(&trace_buf, " max_streams=%llu", (ull)s->max_streams);
 		break;
 	}
 	case QUIC_FT_DATA_BLOCKED:
 	{
-		const struct quic_data_blocked *s = &frm->data_blocked;
+		const struct qf_data_blocked *s = &frm->data_blocked;
 		chunk_appendf(&trace_buf, " limit=%llu", (ull)s->limit);
 		break;
 	}
 	case QUIC_FT_STREAM_DATA_BLOCKED:
 	{
-		const struct quic_stream_data_blocked *s = &frm->stream_data_blocked;
+		const struct qf_stream_data_blocked *s = &frm->stream_data_blocked;
 		chunk_appendf(&trace_buf, " id=%llu limit=%llu",
 		              (ull)s->id, (ull)s->limit);
 		break;
 	}
 	case QUIC_FT_STREAMS_BLOCKED_BIDI:
 	{
-		const struct quic_streams_blocked *s = &frm->streams_blocked_bidi;
+		const struct qf_streams_blocked *s = &frm->streams_blocked_bidi;
 		chunk_appendf(&trace_buf, " limit=%llu", (ull)s->limit);
 		break;
 	}
 	case QUIC_FT_STREAMS_BLOCKED_UNI:
 	{
-		const struct quic_streams_blocked *s = &frm->streams_blocked_uni;
+		const struct qf_streams_blocked *s = &frm->streams_blocked_uni;
 		chunk_appendf(&trace_buf, " limit=%llu", (ull)s->limit);
 		break;
 	}
 	case QUIC_FT_RETIRE_CONNECTION_ID:
 	{
-		const struct quic_retire_connection_id *rci = &frm->retire_connection_id;
+		const struct qf_retire_connection_id *rci = &frm->retire_connection_id;
 		chunk_appendf(&trace_buf, " seq_num=%llu", (ull)rci->seq_num);
 		break;
 	}
 	case QUIC_FT_CONNECTION_CLOSE:
 	{
-		const struct quic_connection_close *cc = &frm->connection_close;
+		const struct qf_connection_close *cc = &frm->connection_close;
 		size_t plen = QUIC_MIN((size_t)cc->reason_phrase_len, sizeof cc->reason_phrase);
 		chunk_appendf(&trace_buf,
 		              " error_code=%llu frame_type=%llu reason_phrase_len=%llu",
@@ -207,7 +207,7 @@ void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm)
 	}
 	case QUIC_FT_CONNECTION_CLOSE_APP:
 	{
-		const struct quic_connection_close_app *cc = &frm->connection_close_app;
+		const struct qf_connection_close_app *cc = &frm->connection_close_app;
 		size_t plen = QUIC_MIN((size_t)cc->reason_phrase_len, sizeof cc->reason_phrase);
 		chunk_appendf(&trace_buf,
 		              " error_code=%llu reason_phrase_len=%llu",
@@ -225,7 +225,7 @@ void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm)
 static int quic_build_padding_frame(unsigned char **buf, const unsigned char *end,
                                     struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_padding *padding = &frm->padding;
+	struct qf_padding *padding = &frm->padding;
 
 	if (end - *buf < padding->len - 1)
 		return 0;
@@ -243,7 +243,7 @@ static int quic_parse_padding_frame(struct quic_frame *frm, struct quic_conn *qc
                                     const unsigned char **buf, const unsigned char *end)
 {
 	const unsigned char *beg;
-	struct quic_padding *padding = &frm->padding;
+	struct qf_padding *padding = &frm->padding;
 
 	beg = *buf;
 	padding->len = 1;
@@ -280,7 +280,7 @@ static int quic_parse_ping_frame(struct quic_frame *frm, struct quic_conn *qc,
 static int quic_build_ack_frame(unsigned char **buf, const unsigned char *end,
                                 struct quic_frame *frm, struct quic_conn *qc)
 {
-	struct quic_tx_ack *tx_ack = &frm->tx_ack;
+	struct qf_tx_ack *tx_ack = &frm->tx_ack;
 	struct eb64_node *ar, *prev_ar;
 	struct quic_arng_node *ar_node, *prev_ar_node;
 
@@ -316,7 +316,7 @@ static int quic_parse_ack_frame_header(struct quic_frame *frm, struct quic_conn 
                                        const unsigned char **buf, const unsigned char *end)
 {
 	int ret;
-	struct quic_ack *ack = &frm->ack;
+	struct qf_ack *ack = &frm->ack;
 
 	ret = quic_dec_int(&ack->largest_ack, buf, end);
 	if (!ret)
@@ -343,7 +343,7 @@ static int quic_parse_ack_frame_header(struct quic_frame *frm, struct quic_conn 
 static int quic_build_ack_ecn_frame(unsigned char **buf, const unsigned char *end,
                                     struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_ack *ack = &frm->ack;
+	struct qf_ack *ack = &frm->ack;
 
 	return quic_enc_int(buf, end, ack->largest_ack) &&
 		quic_enc_int(buf, end, ack->ack_delay) &&
@@ -357,7 +357,7 @@ static int quic_build_ack_ecn_frame(unsigned char **buf, const unsigned char *en
 static int quic_parse_ack_ecn_frame(struct quic_frame *frm, struct quic_conn *qc,
                                     const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_ack *ack = &frm->ack;
+	struct qf_ack *ack = &frm->ack;
 
 	return quic_dec_int(&ack->largest_ack, buf, end) &&
 		quic_dec_int(&ack->ack_delay, buf, end) &&
@@ -371,7 +371,7 @@ static int quic_parse_ack_ecn_frame(struct quic_frame *frm, struct quic_conn *qc
 static int quic_build_reset_stream_frame(unsigned char **buf, const unsigned char *end,
                                          struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_reset_stream *reset_stream = &frm->reset_stream;
+	struct qf_reset_stream *reset_stream = &frm->reset_stream;
 
 	return quic_enc_int(buf, end, reset_stream->id) &&
 		quic_enc_int(buf, end, reset_stream->app_error_code) &&
@@ -384,7 +384,7 @@ static int quic_build_reset_stream_frame(unsigned char **buf, const unsigned cha
 static int quic_parse_reset_stream_frame(struct quic_frame *frm, struct quic_conn *qc,
                                          const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_reset_stream *reset_stream = &frm->reset_stream;
+	struct qf_reset_stream *reset_stream = &frm->reset_stream;
 
 	return quic_dec_int(&reset_stream->id, buf, end) &&
 		quic_dec_int(&reset_stream->app_error_code, buf, end) &&
@@ -397,7 +397,7 @@ static int quic_parse_reset_stream_frame(struct quic_frame *frm, struct quic_con
 static int quic_build_stop_sending_frame(unsigned char **buf, const unsigned char *end,
                                          struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_stop_sending *stop_sending = &frm->stop_sending;
+	struct qf_stop_sending *stop_sending = &frm->stop_sending;
 
 	return quic_enc_int(buf, end, stop_sending->id) &&
 		quic_enc_int(buf, end, stop_sending->app_error_code);
@@ -409,7 +409,7 @@ static int quic_build_stop_sending_frame(unsigned char **buf, const unsigned cha
 static int quic_parse_stop_sending_frame(struct quic_frame *frm, struct quic_conn *qc,
                                          const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_stop_sending *stop_sending = &frm->stop_sending;
+	struct qf_stop_sending *stop_sending = &frm->stop_sending;
 
 	return quic_dec_int(&stop_sending->id, buf, end) &&
 		quic_dec_int(&stop_sending->app_error_code, buf, end);
@@ -421,7 +421,7 @@ static int quic_parse_stop_sending_frame(struct quic_frame *frm, struct quic_con
 static int quic_build_crypto_frame(unsigned char **buf, const unsigned char *end,
                                    struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_crypto *crypto = &frm->crypto;
+	struct qf_crypto *crypto = &frm->crypto;
 	const struct quic_enc_level *qel = crypto->qel;
 	size_t offset, len;
 
@@ -456,7 +456,7 @@ static int quic_build_crypto_frame(unsigned char **buf, const unsigned char *end
 static int quic_parse_crypto_frame(struct quic_frame *frm, struct quic_conn *qc,
                                    const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_crypto *crypto = &frm->crypto;
+	struct qf_crypto *crypto = &frm->crypto;
 
 	if (!quic_dec_int(&crypto->offset, buf, end) ||
 	    !quic_dec_int(&crypto->len, buf, end) || end - *buf < crypto->len)
@@ -474,7 +474,7 @@ static int quic_parse_crypto_frame(struct quic_frame *frm, struct quic_conn *qc,
 static int quic_build_new_token_frame(unsigned char **buf, const unsigned char *end,
                                       struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_new_token *new_token = &frm->new_token;
+	struct qf_new_token *new_token = &frm->new_token;
 
 	if (!quic_enc_int(buf, end, new_token->len) || end - *buf < new_token->len)
 		return 0;
@@ -490,7 +490,7 @@ static int quic_build_new_token_frame(unsigned char **buf, const unsigned char *
 static int quic_parse_new_token_frame(struct quic_frame *frm, struct quic_conn *qc,
                                       const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_new_token *new_token = &frm->new_token;
+	struct qf_new_token *new_token = &frm->new_token;
 
 	if (!quic_dec_int(&new_token->len, buf, end) || end - *buf < new_token->len)
 		return 0;
@@ -507,7 +507,7 @@ static int quic_parse_new_token_frame(struct quic_frame *frm, struct quic_conn *
 static int quic_build_stream_frame(unsigned char **buf, const unsigned char *end,
                                    struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_stream *stream = &frm->stream;
+	struct qf_stream *stream = &frm->stream;
 	const unsigned char *wrap;
 
 	/* Caller must set OFF bit if and only if a non-null offset is used. */
@@ -544,7 +544,7 @@ static int quic_build_stream_frame(unsigned char **buf, const unsigned char *end
 static int quic_parse_stream_frame(struct quic_frame *frm, struct quic_conn *qc,
                                    const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_stream *stream = &frm->stream;
+	struct qf_stream *stream = &frm->stream;
 
 	if (!quic_dec_int(&stream->id, buf, end))
 		return 0;
@@ -575,7 +575,7 @@ static int quic_parse_stream_frame(struct quic_frame *frm, struct quic_conn *qc,
 static int quic_build_max_data_frame(unsigned char **buf, const unsigned char *end,
                                      struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_max_data *max_data = &frm->max_data;
+	struct qf_max_data *max_data = &frm->max_data;
 
 	return quic_enc_int(buf, end, max_data->max_data);
 }
@@ -586,7 +586,7 @@ static int quic_build_max_data_frame(unsigned char **buf, const unsigned char *e
 static int quic_parse_max_data_frame(struct quic_frame *frm, struct quic_conn *qc,
                                      const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_max_data *max_data = &frm->max_data;
+	struct qf_max_data *max_data = &frm->max_data;
 
 	return quic_dec_int(&max_data->max_data, buf, end);
 }
@@ -597,7 +597,7 @@ static int quic_parse_max_data_frame(struct quic_frame *frm, struct quic_conn *q
 static int quic_build_max_stream_data_frame(unsigned char **buf, const unsigned char *end,
                                             struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_max_stream_data *max_stream_data = &frm->max_stream_data;
+	struct qf_max_stream_data *max_stream_data = &frm->max_stream_data;
 
 	return quic_enc_int(buf, end, max_stream_data->id) &&
 		quic_enc_int(buf, end, max_stream_data->max_stream_data);
@@ -609,7 +609,7 @@ static int quic_build_max_stream_data_frame(unsigned char **buf, const unsigned 
 static int quic_parse_max_stream_data_frame(struct quic_frame *frm, struct quic_conn *qc,
                                             const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_max_stream_data *max_stream_data = &frm->max_stream_data;
+	struct qf_max_stream_data *max_stream_data = &frm->max_stream_data;
 
 	return quic_dec_int(&max_stream_data->id, buf, end) &&
 		quic_dec_int(&max_stream_data->max_stream_data, buf, end);
@@ -621,7 +621,7 @@ static int quic_parse_max_stream_data_frame(struct quic_frame *frm, struct quic_
 static int quic_build_max_streams_bidi_frame(unsigned char **buf, const unsigned char *end,
                                              struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_max_streams *max_streams_bidi = &frm->max_streams_bidi;
+	struct qf_max_streams *max_streams_bidi = &frm->max_streams_bidi;
 
 	return quic_enc_int(buf, end, max_streams_bidi->max_streams);
 }
@@ -633,7 +633,7 @@ static int quic_build_max_streams_bidi_frame(unsigned char **buf, const unsigned
 static int quic_parse_max_streams_bidi_frame(struct quic_frame *frm, struct quic_conn *qc,
                                              const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_max_streams *max_streams_bidi = &frm->max_streams_bidi;
+	struct qf_max_streams *max_streams_bidi = &frm->max_streams_bidi;
 
 	return quic_dec_int(&max_streams_bidi->max_streams, buf, end);
 }
@@ -644,7 +644,7 @@ static int quic_parse_max_streams_bidi_frame(struct quic_frame *frm, struct quic
 static int quic_build_max_streams_uni_frame(unsigned char **buf, const unsigned char *end,
                                             struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_max_streams *max_streams_uni = &frm->max_streams_uni;
+	struct qf_max_streams *max_streams_uni = &frm->max_streams_uni;
 
 	return quic_enc_int(buf, end, max_streams_uni->max_streams);
 }
@@ -656,7 +656,7 @@ static int quic_build_max_streams_uni_frame(unsigned char **buf, const unsigned 
 static int quic_parse_max_streams_uni_frame(struct quic_frame *frm, struct quic_conn *qc,
                                             const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_max_streams *max_streams_uni = &frm->max_streams_uni;
+	struct qf_max_streams *max_streams_uni = &frm->max_streams_uni;
 
 	return quic_dec_int(&max_streams_uni->max_streams, buf, end);
 }
@@ -667,7 +667,7 @@ static int quic_parse_max_streams_uni_frame(struct quic_frame *frm, struct quic_
 static int quic_build_data_blocked_frame(unsigned char **buf, const unsigned char *end,
                                          struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_data_blocked *data_blocked = &frm->data_blocked;
+	struct qf_data_blocked *data_blocked = &frm->data_blocked;
 
 	return quic_enc_int(buf, end, data_blocked->limit);
 }
@@ -678,7 +678,7 @@ static int quic_build_data_blocked_frame(unsigned char **buf, const unsigned cha
 static int quic_parse_data_blocked_frame(struct quic_frame *frm, struct quic_conn *qc,
                                          const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_data_blocked *data_blocked = &frm->data_blocked;
+	struct qf_data_blocked *data_blocked = &frm->data_blocked;
 
 	return quic_dec_int(&data_blocked->limit, buf, end);
 }
@@ -689,7 +689,7 @@ static int quic_parse_data_blocked_frame(struct quic_frame *frm, struct quic_con
 static int quic_build_stream_data_blocked_frame(unsigned char **buf, const unsigned char *end,
                                                 struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_stream_data_blocked *stream_data_blocked = &frm->stream_data_blocked;
+	struct qf_stream_data_blocked *stream_data_blocked = &frm->stream_data_blocked;
 
 	return quic_enc_int(buf, end, stream_data_blocked->id) &&
 		quic_enc_int(buf, end, stream_data_blocked->limit);
@@ -701,7 +701,7 @@ static int quic_build_stream_data_blocked_frame(unsigned char **buf, const unsig
 static int quic_parse_stream_data_blocked_frame(struct quic_frame *frm, struct quic_conn *qc,
                                                 const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_stream_data_blocked *stream_data_blocked = &frm->stream_data_blocked;
+	struct qf_stream_data_blocked *stream_data_blocked = &frm->stream_data_blocked;
 
 	return quic_dec_int(&stream_data_blocked->id, buf, end) &&
 		quic_dec_int(&stream_data_blocked->limit, buf, end);
@@ -713,7 +713,7 @@ static int quic_parse_stream_data_blocked_frame(struct quic_frame *frm, struct q
 static int quic_build_streams_blocked_bidi_frame(unsigned char **buf, const unsigned char *end,
                                                  struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_streams_blocked *streams_blocked_bidi = &frm->streams_blocked_bidi;
+	struct qf_streams_blocked *streams_blocked_bidi = &frm->streams_blocked_bidi;
 
 	return quic_enc_int(buf, end, streams_blocked_bidi->limit);
 }
@@ -725,7 +725,7 @@ static int quic_build_streams_blocked_bidi_frame(unsigned char **buf, const unsi
 static int quic_parse_streams_blocked_bidi_frame(struct quic_frame *frm, struct quic_conn *qc,
                                                  const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_streams_blocked *streams_blocked_bidi = &frm->streams_blocked_bidi;
+	struct qf_streams_blocked *streams_blocked_bidi = &frm->streams_blocked_bidi;
 
 	return quic_dec_int(&streams_blocked_bidi->limit, buf, end);
 }
@@ -736,7 +736,7 @@ static int quic_parse_streams_blocked_bidi_frame(struct quic_frame *frm, struct 
 static int quic_build_streams_blocked_uni_frame(unsigned char **buf, const unsigned char *end,
                                                 struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_streams_blocked *streams_blocked_uni = &frm->streams_blocked_uni;
+	struct qf_streams_blocked *streams_blocked_uni = &frm->streams_blocked_uni;
 
 	return quic_enc_int(buf, end, streams_blocked_uni->limit);
 }
@@ -748,7 +748,7 @@ static int quic_build_streams_blocked_uni_frame(unsigned char **buf, const unsig
 static int quic_parse_streams_blocked_uni_frame(struct quic_frame *frm, struct quic_conn *qc,
                                                 const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_streams_blocked *streams_blocked_uni = &frm->streams_blocked_uni;
+	struct qf_streams_blocked *streams_blocked_uni = &frm->streams_blocked_uni;
 
 	return quic_dec_int(&streams_blocked_uni->limit, buf, end);
 }
@@ -759,7 +759,7 @@ static int quic_parse_streams_blocked_uni_frame(struct quic_frame *frm, struct q
 static int quic_build_new_connection_id_frame(unsigned char **buf, const unsigned char *end,
                                               struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_new_connection_id *new_cid = &frm->new_connection_id;
+	struct qf_new_connection_id *new_cid = &frm->new_connection_id;
 
 	if (!quic_enc_int(buf, end, new_cid->seq_num) ||
 	    !quic_enc_int(buf, end, new_cid->retire_prior_to) ||
@@ -784,7 +784,7 @@ static int quic_build_new_connection_id_frame(unsigned char **buf, const unsigne
 static int quic_parse_new_connection_id_frame(struct quic_frame *frm, struct quic_conn *qc,
                                               const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_new_connection_id *new_cid = &frm->new_connection_id;
+	struct qf_new_connection_id *new_cid = &frm->new_connection_id;
 
 	if (!quic_dec_int(&new_cid->seq_num, buf, end) ||
 	    !quic_dec_int(&new_cid->retire_prior_to, buf, end) || end <= *buf)
@@ -810,7 +810,7 @@ static int quic_parse_new_connection_id_frame(struct quic_frame *frm, struct qui
 static int quic_build_retire_connection_id_frame(unsigned char **buf, const unsigned char *end,
                                                  struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_retire_connection_id *retire_connection_id = &frm->retire_connection_id;
+	struct qf_retire_connection_id *retire_connection_id = &frm->retire_connection_id;
 
 	return quic_enc_int(buf, end, retire_connection_id->seq_num);
 }
@@ -821,7 +821,7 @@ static int quic_build_retire_connection_id_frame(unsigned char **buf, const unsi
 static int quic_parse_retire_connection_id_frame(struct quic_frame *frm, struct quic_conn *qc,
                                                  const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_retire_connection_id *retire_connection_id = &frm->retire_connection_id;
+	struct qf_retire_connection_id *retire_connection_id = &frm->retire_connection_id;
 
 	return quic_dec_int(&retire_connection_id->seq_num, buf, end);
 }
@@ -832,7 +832,7 @@ static int quic_parse_retire_connection_id_frame(struct quic_frame *frm, struct 
 static int quic_build_path_challenge_frame(unsigned char **buf, const unsigned char *end,
                                            struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_path_challenge *path_challenge = &frm->path_challenge;
+	struct qf_path_challenge *path_challenge = &frm->path_challenge;
 
 	if (end - *buf < sizeof path_challenge->data)
 		return 0;
@@ -849,7 +849,7 @@ static int quic_build_path_challenge_frame(unsigned char **buf, const unsigned c
 static int quic_parse_path_challenge_frame(struct quic_frame *frm, struct quic_conn *qc,
                                            const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_path_challenge *path_challenge = &frm->path_challenge;
+	struct qf_path_challenge *path_challenge = &frm->path_challenge;
 
 	if (end - *buf < sizeof path_challenge->data)
 		return 0;
@@ -867,7 +867,7 @@ static int quic_parse_path_challenge_frame(struct quic_frame *frm, struct quic_c
 static int quic_build_path_response_frame(unsigned char **buf, const unsigned char *end,
                                           struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_path_challenge_response *path_challenge_response = &frm->path_challenge_response;
+	struct qf_path_challenge_response *path_challenge_response = &frm->path_challenge_response;
 
 	if (end - *buf < sizeof path_challenge_response->data)
 		return 0;
@@ -884,7 +884,7 @@ static int quic_build_path_response_frame(unsigned char **buf, const unsigned ch
 static int quic_parse_path_response_frame(struct quic_frame *frm, struct quic_conn *qc,
                                           const unsigned char **buf, const unsigned char *end)
 {
-	struct quic_path_challenge_response *path_challenge_response = &frm->path_challenge_response;
+	struct qf_path_challenge_response *path_challenge_response = &frm->path_challenge_response;
 
 	if (end - *buf < sizeof path_challenge_response->data)
 		return 0;
@@ -903,7 +903,7 @@ static int quic_parse_path_response_frame(struct quic_frame *frm, struct quic_co
 static int quic_build_connection_close_frame(unsigned char **buf, const unsigned char *end,
                                              struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_connection_close *cc = &frm->connection_close;
+	struct qf_connection_close *cc = &frm->connection_close;
 
 	if (!quic_enc_int(buf, end, cc->error_code) ||
 	    !quic_enc_int(buf, end, cc->frame_type) ||
@@ -926,7 +926,7 @@ static int quic_parse_connection_close_frame(struct quic_frame *frm, struct quic
                                              const unsigned char **buf, const unsigned char *end)
 {
 	size_t plen;
-	struct quic_connection_close *cc = &frm->connection_close;
+	struct qf_connection_close *cc = &frm->connection_close;
 
 	if (!quic_dec_int(&cc->error_code, buf, end) ||
 	    !quic_dec_int(&cc->frame_type, buf, end) ||
@@ -949,7 +949,7 @@ static int quic_parse_connection_close_frame(struct quic_frame *frm, struct quic
 static int quic_build_connection_close_app_frame(unsigned char **buf, const unsigned char *end,
                                                  struct quic_frame *frm, struct quic_conn *conn)
 {
-	struct quic_connection_close_app *cc = &frm->connection_close_app;
+	struct qf_connection_close_app *cc = &frm->connection_close_app;
 
 	if (!quic_enc_int(buf, end, cc->error_code) ||
 	    !quic_enc_int(buf, end, cc->reason_phrase_len) ||
@@ -971,7 +971,7 @@ static int quic_parse_connection_close_app_frame(struct quic_frame *frm, struct 
                                                  const unsigned char **buf, const unsigned char *end)
 {
 	size_t plen;
-	struct quic_connection_close_app *cc = &frm->connection_close_app;
+	struct qf_connection_close_app *cc = &frm->connection_close_app;
 
 	if (!quic_dec_int(&cc->error_code, buf, end) ||
 	    !quic_dec_int(&cc->reason_phrase_len, buf, end) ||

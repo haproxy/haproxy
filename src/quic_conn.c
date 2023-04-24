@@ -576,7 +576,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 		}
 
 		if (mask & QUIC_EV_CONN_ACKSTRM) {
-			const struct quic_stream *s = a2;
+			const struct qf_stream *s = a2;
 			const struct qc_stream_desc *stream = a3;
 
 			if (s)
@@ -1737,11 +1737,11 @@ static int quic_stream_try_to_consume(struct quic_conn *qc,
 	ret = 0;
 	frm_node = eb64_first(&stream->acked_frms);
 	while (frm_node) {
-		struct quic_stream *strm;
+		struct qf_stream *strm;
 		struct quic_frame *frm;
 		size_t offset, len;
 
-		strm = eb64_entry(frm_node, struct quic_stream, offset);
+		strm = eb64_entry(frm_node, struct qf_stream, offset);
 		offset = strm->offset.key;
 		len = strm->len;
 
@@ -1787,7 +1787,7 @@ static inline void qc_treat_acked_tx_frm(struct quic_conn *qc,
 	switch (frm->type) {
 	case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 	{
-		struct quic_stream *strm_frm = &frm->stream;
+		struct qf_stream *strm_frm = &frm->stream;
 		struct eb64_node *node = NULL;
 		struct qc_stream_desc *stream = NULL;
 		const size_t offset = strm_frm->offset.key;
@@ -1917,7 +1917,7 @@ static inline int qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 		switch (frm->type) {
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 		{
-			struct quic_stream *strm_frm = &frm->stream;
+			struct qf_stream *strm_frm = &frm->stream;
 			struct eb64_node *node = NULL;
 			struct qc_stream_desc *stream_desc;
 
@@ -2209,7 +2209,7 @@ static inline int qc_parse_ack_frm(struct quic_conn *qc,
                                    unsigned int *rtt_sample,
                                    const unsigned char **pos, const unsigned char *end)
 {
-	struct quic_ack *ack = &frm->ack;
+	struct qf_ack *ack = &frm->ack;
 	uint64_t smallest, largest;
 	struct eb_root *pkts;
 	struct eb64_node *largest_node;
@@ -2532,7 +2532,7 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
  * containing the frame must not be acknowledged.
  */
 static inline int qc_handle_strm_frm(struct quic_rx_packet *pkt,
-                                     struct quic_stream *strm_frm,
+                                     struct qf_stream *strm_frm,
                                      struct quic_conn *qc, char fin)
 {
 	int ret;
@@ -2579,7 +2579,7 @@ static void qc_dup_pkt_frms(struct quic_conn *qc,
 		switch (frm->type) {
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 		{
-			struct quic_stream *strm_frm = &frm->stream;
+			struct qf_stream *strm_frm = &frm->stream;
 			struct eb64_node *node = NULL;
 			struct qc_stream_desc *stream_desc;
 
@@ -2903,7 +2903,7 @@ static struct ncbuf *quic_get_ncbuf(struct ncbuf *ncbuf)
  * CRYPTO data.
  */
 static int qc_handle_crypto_frm(struct quic_conn *qc,
-                                struct quic_crypto *frm, struct quic_rx_packet *pkt,
+                                struct qf_crypto *frm, struct quic_rx_packet *pkt,
                                 struct quic_enc_level *qel, int *fast_retrans)
 {
 	int ret = 0;
@@ -3024,7 +3024,7 @@ static int qc_handle_retire_connection_id_frm(struct quic_conn *qc,
                                               struct quic_connection_id **to_retire)
 {
 	int ret = 0;
-	struct quic_retire_connection_id *rcid = &frm->retire_connection_id;
+	struct qf_retire_connection_id *rcid = &frm->retire_connection_id;
 	struct eb64_node *node;
 	struct quic_connection_id *conn_id;
 
@@ -3154,13 +3154,13 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		}
 		case QUIC_FT_RESET_STREAM:
 			if (qc->mux_state == QC_MUX_READY) {
-				struct quic_reset_stream *rs = &frm.reset_stream;
+				struct qf_reset_stream *rs = &frm.reset_stream;
 				qcc_recv_reset_stream(qc->qcc, rs->id, rs->app_error_code, rs->final_size);
 			}
 			break;
 		case QUIC_FT_STOP_SENDING:
 		{
-			struct quic_stop_sending *stop_sending = &frm.stop_sending;
+			struct qf_stop_sending *stop_sending = &frm.stop_sending;
 			if (qc->mux_state == QC_MUX_READY) {
 				if (qcc_recv_stop_sending(qc->qcc, stop_sending->id,
 				                          stop_sending->app_error_code)) {
@@ -3176,7 +3176,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 		{
-			struct quic_stream *stream = &frm.stream;
+			struct qf_stream *stream = &frm.stream;
 			unsigned nb_streams = qc->rx.strms[qcs_id_type(stream->id)].nb_streams;
 			const char fin = frm.type & QUIC_STREAM_FRAME_TYPE_FIN_BIT;
 
@@ -3212,13 +3212,13 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		}
 		case QUIC_FT_MAX_DATA:
 			if (qc->mux_state == QC_MUX_READY) {
-				struct quic_max_data *data = &frm.max_data;
+				struct qf_max_data *data = &frm.max_data;
 				qcc_recv_max_data(qc->qcc, data->max_data);
 			}
 			break;
 		case QUIC_FT_MAX_STREAM_DATA:
 			if (qc->mux_state == QC_MUX_READY) {
-				struct quic_max_stream_data *data = &frm.max_stream_data;
+				struct qf_max_stream_data *data = &frm.max_stream_data;
 				if (qcc_recv_max_stream_data(qc->qcc, data->id,
 				                              data->max_stream_data)) {
 					TRACE_ERROR("qcc_recv_max_stream_data() failed", QUIC_EV_CONN_PRSHPKT, qc);
@@ -7557,7 +7557,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 			if (cf->stream.dup) {
 				struct eb64_node *node = NULL;
 				struct qc_stream_desc *stream_desc = NULL;
-				struct quic_stream *strm = &cf->stream;
+				struct qf_stream *strm = &cf->stream;
 
 				/* As this frame has been already lost, ensure the stream is always
 				 * available or the range of this frame is not consumed before
