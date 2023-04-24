@@ -6340,12 +6340,12 @@ static int quic_generate_retry_token_aad(unsigned char *aad,
 
 /* QUIC server only function.
  * Generate the token to be used in Retry packets. The token is written to
- * <buf> with <len> as length. <odcid> is the original destination connection
+ * <token> with <len> as length. <odcid> is the original destination connection
  * ID and <dcid> is our side destination connection ID (or client source
  * connection ID).
  * Returns the length of the encoded token or 0 on error.
  */
-static int quic_generate_retry_token(unsigned char *buf, size_t len,
+static int quic_generate_retry_token(unsigned char *token, size_t len,
                                      const uint32_t version,
                                      const struct quic_cid *odcid,
                                      const struct quic_cid *dcid,
@@ -6393,7 +6393,7 @@ static int quic_generate_retry_token(unsigned char *buf, size_t len,
 	}
 
 	/* Token build */
-	p = buf;
+	p = token;
 	*p++ = QUIC_TOKEN_FMT_RETRY,
 	*p++ = odcid->len;
 	memcpy(p, odcid->data, odcid->len);
@@ -6402,7 +6402,7 @@ static int quic_generate_retry_token(unsigned char *buf, size_t len,
 	p += sizeof timestamp;
 
 	/* Do not encrypt the QUIC_TOKEN_FMT_RETRY byte */
-	if (!quic_tls_encrypt(buf + 1, p - buf - 1, aad, aadlen, ctx, aead, key, iv)) {
+	if (!quic_tls_encrypt(token + 1, p - token - 1, aad, aadlen, ctx, aead, key, iv)) {
 		TRACE_ERROR("quic_tls_encrypt() failed", QUIC_EV_CONN_TXPKT);
 		goto err;
 	}
@@ -6412,7 +6412,7 @@ static int quic_generate_retry_token(unsigned char *buf, size_t len,
 	p += sizeof salt;
 	EVP_CIPHER_CTX_free(ctx);
 
-	ret = p - buf;
+	ret = p - token;
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT);
 	return ret;
