@@ -507,6 +507,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 		if (mask & QUIC_EV_CONN_PHPKTS) {
 			const struct quic_enc_level *qel = a2;
+			const struct list *l = a3;
 
 			if (qel) {
 				const struct quic_pktns *pktns = qel->pktns;
@@ -523,6 +524,14 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				              (unsigned long long)pktns->tx.in_flight,
 				              pktns->tx.pto_probe,
 				              qel->cstream ? (unsigned long long)qel->cstream->rx.offset : 0);
+			}
+
+			if (l) {
+				const struct quic_frame *frm;
+				list_for_each_entry(frm, l, list) {
+					chunk_appendf(&trace_buf, " frm@%p", frm);
+					chunk_frm_appendf(&trace_buf, frm);
+				}
 			}
 		}
 
@@ -3456,7 +3465,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct buffer *buf,
 	while (b_contig_space(buf) >= (int)qc->path->mtu + dg_headlen) {
 		int err, probe, cc, must_ack;
 
-		TRACE_PROTO("TX prep app pkts", QUIC_EV_CONN_PHPKTS, qc, qel);
+		TRACE_PROTO("TX prep app pkts", QUIC_EV_CONN_PHPKTS, qc, qel, frms);
 		probe = 0;
 		cc =  qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE;
 		/* We do not probe if an immediate close was asked */
@@ -4731,7 +4740,7 @@ static forceinline int qc_send_app_probing(struct quic_conn *qc,
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
-	TRACE_STATE("preparing old data (probing)", QUIC_EV_CONN_TXPKT, qc);
+	TRACE_PROTO("preparing old data (probing)", QUIC_EV_CONN_FRMLIST, qc, frms);
 	qc->flags |= QUIC_FL_CONN_RETRANS_OLD_DATA;
 	ret = qc_send_app_pkts(qc, frms);
 	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
@@ -7812,7 +7821,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	if (!cc && !LIST_ISEMPTY(frms)) {
 		ssize_t room = end - pos;
 
-		TRACE_DEVEL("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, frms);
+		TRACE_PROTO("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, frms);
 		/* Initialize the length of the frames built below to <len>.
 		 * If any frame could be successfully built by qc_build_frms(),
 		 * we will have len_frms > len.
@@ -7820,7 +7829,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		len_frms = len;
 		if (!qc_build_frms(&frm_list, frms,
 		                   end - pos, &len_frms, pos - beg, qel, qc)) {
-			TRACE_DEVEL("Not enough room", QUIC_EV_CONN_TXPKT,
+			TRACE_PROTO("Not enough room", QUIC_EV_CONN_TXPKT,
 			            qc, NULL, NULL, &room);
 			if (!ack_frm_len && !qel->pktns->tx.pto_probe)
 				goto no_room;
@@ -7919,7 +7928,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		list_for_each_entry_safe(cf, tmp_cf, &frm_list, list) {
 			if (!qc_build_frm(&pos, end, cf, pkt, qc)) {
 				ssize_t room = end - pos;
-				TRACE_DEVEL("Not enough room", QUIC_EV_CONN_TXPKT,
+				TRACE_PROTO("Not enough room", QUIC_EV_CONN_TXPKT,
 				            qc, NULL, NULL, &room);
 				/* Note that <cf> was added from <frms> to <frm_list> list by
 				 * qc_build_frms().
@@ -7959,7 +7968,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 
 	if (pos == payload) {
 		/* No payload was built because of congestion control */
-		TRACE_DEVEL("limited by congestion control", QUIC_EV_CONN_TXPKT, qc);
+		TRACE_PROTO("limited by congestion control", QUIC_EV_CONN_TXPKT, qc);
 		goto no_room;
 	}
 
@@ -7974,7 +7983,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	LIST_SPLICE(&pkt->frms, &frm_list);
 
 	ret = 1;
-	TRACE_DEVEL("Packet ack-eliciting frames", QUIC_EV_CONN_TXPKT, qc, pkt);
+	TRACE_PROTO("Packet ack-eliciting frames", QUIC_EV_CONN_TXPKT, qc, pkt);
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 	return ret;
@@ -7982,7 +7991,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
  no_room:
 	/* Replace the pre-built frames which could not be add to this packet */
 	LIST_SPLICE(frms, &frm_list);
-	TRACE_DEVEL("Remaining ack-eliciting frames", QUIC_EV_CONN_FRMLIST, qc, frms);
+	TRACE_PROTO("Remaining ack-eliciting frames", QUIC_EV_CONN_FRMLIST, qc, frms);
 	goto leave;
 }
 
