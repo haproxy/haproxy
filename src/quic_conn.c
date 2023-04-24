@@ -6749,18 +6749,18 @@ static int qc_conn_alloc_ssl_ctx(struct quic_conn *qc)
 	goto leave;
 }
 
-/* Check that all the bytes between <buf> included and <end> address
+/* Check that all the bytes between <pos> included and <end> address
  * excluded are null. This is the responsibility of the caller to
- * check that there is at least one byte between <buf> end <end>.
+ * check that there is at least one byte between <pos> end <end>.
  * Return 1 if this all the bytes are null, 0 if not.
  */
-static inline int quic_padding_check(const unsigned char *buf,
+static inline int quic_padding_check(const unsigned char *pos,
                                      const unsigned char *end)
 {
-	while (buf < end && !*buf)
-		buf++;
+	while (pos < end && !*pos)
+		pos++;
 
-	return buf == end;
+	return pos == end;
 }
 
 /* Find the associated connection to the packet <pkt> or create a new one if
