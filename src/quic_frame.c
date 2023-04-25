@@ -520,6 +520,10 @@ static int quic_build_stream_frame(unsigned char **buf, const unsigned char *end
 	     (!quic_enc_int(buf, end, strm_frm->len) || end - *buf < strm_frm->len)))
 		return 0;
 
+	/* No need for data memcpy if no payload. */
+	if (!strm_frm->len)
+		return 1;
+
 	wrap = (const unsigned char *)b_wrap(strm_frm->buf);
 	if (strm_frm->data + strm_frm->len > wrap) {
 		size_t to_copy = wrap - strm_frm->data;
