@@ -40,6 +40,23 @@
 
 #define DUMP_TRACE() do { extern void ha_backtrace_to_stderr(void); ha_backtrace_to_stderr(); } while (0)
 
+/* First, let's try to handle some arch-specific crashing methods. We prefer
+ * the macro to the function because when opening the core, the debugger will
+ * directly show the calling point (e.g. the BUG_ON() condition) based on the
+ * line number, while the function will create new line numbers. But the
+ * function is needed e.g. if some pragmas are needed.
+ */
+
+#if defined(__i386__) || defined(__x86_64__)
+#define ha_crash_now() do {						\
+		/* ud2 opcode: 2 bytes, raises illegal instruction */	\
+		__asm__ volatile(".byte 0x0f,0x0b\n");			\
+		my_unreachable();					\
+	} while (0)
+
+#else // not x86
+
+/* generic implementation, causes a segfault */
 static inline __attribute((always_inline)) void ha_crash_now(void)
 {
 #if __GNUC_PREREQ__(5, 0)
@@ -55,6 +72,8 @@ static inline __attribute((always_inline)) void ha_crash_now(void)
 #endif
 	my_unreachable();
 }
+
+#endif // end of arch-specific ha_crash_now() definitions
 
 #ifdef DEBUG_USE_ABORT
 /* abort() is better recognized by code analysis tools */
