@@ -1530,10 +1530,18 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 
 	frm->stream.stream = qcs->stream;
 	frm->stream.id = qcs->id;
-	frm->stream.buf = out;
-	frm->stream.data = (unsigned char *)b_peek(out, head);
 	frm->stream.offset.key = 0;
 	frm->stream.dup = 0;
+
+	if (total) {
+		frm->stream.buf = out;
+		frm->stream.data = (unsigned char *)b_peek(out, head);
+	}
+	else {
+		/* Empty STREAM frame. */
+		frm->stream.buf = NULL;
+		frm->stream.data = NULL;
+	}
 
 	/* FIN is positioned only when the buffer has been totally emptied. */
 	if (fin)
@@ -1544,6 +1552,9 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 		frm->stream.offset.key = qcs->tx.sent_offset;
 	}
 
+	/* Always set length bit as we do not know if there is remaining frames
+	 * in the final packet after this STREAM.
+	 */
 	frm->type |= QUIC_STREAM_FRAME_TYPE_LEN_BIT;
 	frm->stream.len = total;
 
