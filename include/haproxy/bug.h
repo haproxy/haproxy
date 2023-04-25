@@ -54,6 +54,13 @@
 		my_unreachable();					\
 	} while (0)
 
+#elif defined(__aarch64__)
+#define ha_crash_now() do {						\
+		/* udf#imm16: 4 bytes (), raises illegal instruction */	\
+		__asm__ volatile(".byte 0x00,0x00,0x00,0x00\n");	\
+		my_unreachable();					\
+	} while (0)
+
 #else // not x86
 
 /* generic implementation, causes a segfault */
