@@ -189,13 +189,23 @@ static inline void _srv_event_hdl_prepare(struct event_hdl_cb_data_server *cb_da
 	cb_data->unsafe.srv_lock = !thread_isolate;
 }
 
-/* general server event publishing:
+/* server event publishing helper: publish in both global and
+ * server dedicated subscription list.
+ */
+#define _srv_event_hdl_publish(e, d, s)                                 \
+        ({                                                              \
+                /* publish in server dedicated sub list */              \
+                event_hdl_publish(&s->e_subs, e, EVENT_HDL_CB_DATA(&d));\
+                /* publish in global subscription list */               \
+                event_hdl_publish(NULL, e, EVENT_HDL_CB_DATA(&d));      \
+        })
+
+/* General server event publishing:
  * Use this to publish EVENT_HDL_SUB_SERVER family type event
- * from srv facility
- * Event will be published in both global subscription list and
- * server dedicated subscription list
- * server ptr must be valid
- * must be called with srv lock or under thread_isolate
+ * from srv facility.
+ *
+ * server ptr must be valid.
+ * Must be called with srv lock or under thread_isolate.
  */
 static void srv_event_hdl_publish(struct event_hdl_sub_type event,
                                   struct server *srv, uint8_t thread_isolate)
@@ -204,10 +214,7 @@ static void srv_event_hdl_publish(struct event_hdl_sub_type event,
 
 	/* prepare event data */
 	_srv_event_hdl_prepare(&cb_data, srv, thread_isolate);
-	/* publish in server dedicated sub list */
-	event_hdl_publish(&srv->e_subs, event, EVENT_HDL_CB_DATA(&cb_data));
-	/* publish in global subscription list */
-	event_hdl_publish(NULL, event, EVENT_HDL_CB_DATA(&cb_data));
+	_srv_event_hdl_publish(event, cb_data, srv);
 }
 
 /*
