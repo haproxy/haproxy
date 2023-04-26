@@ -4,8 +4,9 @@
 # All fields are optional. 0 assumed when absent.
 
 USAGE=\
-"Usage: %s [-l <len>] [-t <type>] [-f <flags>] [-i <sid>] > hdr.bin
-        Numbers are decimal or 0xhex. Not set=0.
+"Usage: %s [-l <len> ] [-t <type>] [-f <flags>] [-i <sid>] [ -d <data> ] > hdr.bin
+        Numbers are decimal or 0xhex. Not set=0. If <data> is passed, it points
+        to a file that is read and chunked into frames of <len> bytes.
 
 Supported symbolic types (case insensitive prefix match):
    DATA        (0x00)      PUSH_PROMISE   (0x05)
@@ -108,6 +109,7 @@ while [ -n "$1" -a -z "${1##-*}" ]; do
 		-t)        TYPE="$2"     ; shift 2 ;;
 		-f)        FLAGS="$2"    ; shift 2 ;;
 		-i)        ID="$2"       ; shift 2 ;;
+		-d)        DATA="$2"     ; shift 2 ;;
 		-h|--help) usage "${0##*}"; quit;;
 		*)         usage "${0##*}"; die ;;
 	esac
@@ -133,6 +135,17 @@ if [ -n "${ID##[0-9]*}" ]; then
 	die
 fi
 
-mkframe "$LEN" "$TYPE" "$FLAGS" "$ID"
+if [ -z "$DATA" ]; then
+	mkframe "$LEN" "$TYPE" "$FLAGS" "$ID"
+else
+	# read file $DATA in <LEN> chunks and send it in multiple frames
+	# advertising their respective lengths.
+	[ $LEN -gt 0 ] || LEN=16384
+
+	while read -rN "$LEN" payload || [ ${#payload} -gt 0 ]; do
+		mkframe "${#payload}" "$TYPE" "$FLAGS" "$ID"
+		echo -n "$payload"
+	done < "$DATA"
+fi
 
 exit 0
