@@ -1021,6 +1021,8 @@ Core class
 
   Use this when sending email alerts directly from lua.
 
+  :see: :js:func:`Proxy.get_mailers()`
+
 .. _proxy_class:
 
 Proxy class
@@ -1142,6 +1144,63 @@ Proxy class
   :param class_proxy px: A :ref:`proxy_class` which indicates the manipulated
    proxy.
   :returns: a key/value table containing stats
+
+.. js:function:: Proxy.get_mailers(px)
+
+  **LEGACY**
+
+  Returns a table containing mailers config for the current proxy or nil
+  if mailers are not available for the proxy.
+
+  :param class_proxy px: A :ref:`proxy_class` which indicates the manipulated
+   proxy.
+  :returns: a :ref:`proxy_mailers_class` containing proxy mailers config
+
+.. _proxy_mailers_class:
+
+ProxyMailers class
+==================
+
+**LEGACY**
+
+.. js:class:: ProxyMailers
+
+  This class provides mailers config for a given proxy.
+
+  If sending emails directly from lua, please consider
+  :js:func:`core.disable_legacy_mailers()` to disable the email sending from
+  haproxy. (Or email alerts will be sent twice...)
+
+.. js:attribute:: ProxyMailers.track_server_health
+
+  Boolean set to true if the option "log-health-checks" is configured on
+  the proxy, meaning that all server checks event should trigger email alerts.
+
+.. js:attribute:: ProxyMailers.log_level
+
+  An integer, the maximum log level that triggers email alerts. It is a number
+  between 0 and 7 as defined by option "email-alert level".
+
+.. js:attribute:: ProxyMailers.mailservers
+
+  An array containing the list of mail servers that should receive email alerts.
+  Each array entry is a name:desc pair where desc represents the full server
+  address (including port) as described in haproxy's configuration file.
+
+.. js:attribute:: ProxyMailers.smtp_hostname
+
+  A string containing the hostname to use for the SMTP transaction.
+  (option "email-alert myhostname")
+
+.. js:attribute:: ProxyMailers.smtp_from
+
+  A string containing the "MAIL FROM" address to use for the SMTP transaction.
+  (option "email-alert from")
+
+.. js:attribute:: ProxyMailers.smtp_to
+
+  A string containing the "RCPT TO" address to use for the SMTP transaction.
+  (option "email-alert to")
 
 .. _server_class:
 

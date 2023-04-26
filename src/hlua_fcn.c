@@ -39,6 +39,7 @@
 #include <haproxy/stream-t.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
+#include <haproxy/mailers.h>
 
 /* Contains the class reference of the concat object. */
 static int class_concat_ref;
@@ -1826,6 +1827,76 @@ int hlua_proxy_get_srv_bck(lua_State *L)
 	return 1;
 }
 
+/* Get mailers config info, used to implement email alert sending
+ * according to mailers config from lua.
+ */
+int hlua_proxy_get_mailers(lua_State *L)
+{
+	struct proxy *px;
+	int it;
+	struct mailer *mailer;
+
+	px = hlua_check_proxy(L, 1);
+
+	if (!px->email_alert.mailers.m)
+		return 0; /* email-alert mailers not found on proxy */
+
+	lua_newtable(L);
+
+	/* option log-health-checks */
+	lua_pushstring(L, "track_server_health");
+	lua_pushboolean(L, (px->options2 & PR_O2_LOGHCHKS));
+	lua_settable(L, -3);
+
+	/* email-alert level */
+	lua_pushstring(L, "log_level");
+	lua_pushinteger(L, px->email_alert.level);
+	lua_settable(L, -3);
+
+	/* email-alert mailers */
+	lua_pushstring(L, "mailservers");
+	lua_newtable(L);
+	for (it = 0, mailer = px->email_alert.mailers.m->mailer_list;
+	     it < px->email_alert.mailers.m->count; it++, mailer = mailer->next) {
+		char *srv_address;
+
+		lua_pushstring(L, mailer->id);
+
+		/* For now, we depend on mailer->addr to restore mailer's address which
+		 * was converted using str2sa_range() on startup.
+		 *
+		 * FIXME?:
+		 * It could be a good idea to pass the raw address (unparsed) to allow fqdn
+		 * to be resolved at runtime, unless we consider this as a pure legacy mode
+		 * and mailers config support is going to be removed in the future?
+		 */
+		srv_address = sa2str(&mailer->addr, get_host_port(&mailer->addr), 0);
+		if (srv_address) {
+			lua_pushstring(L, srv_address);
+			ha_free(&srv_address);
+			lua_settable(L, -3);
+		}
+	}
+	lua_settable(L, -3);
+
+	/* email-alert myhostname */
+	lua_pushstring(L, "smtp_hostname");
+	lua_pushstring(L, px->email_alert.myhostname);
+	lua_settable(L, -3);
+
+	/* email-alert from */
+	lua_pushstring(L, "smtp_from");
+	lua_pushstring(L, px->email_alert.from);
+	lua_settable(L, -3);
+
+	/* email-alert to */
+	lua_pushstring(L, "smtp_to");
+	lua_pushstring(L, px->email_alert.to);
+	lua_settable(L, -3);
+
+	return 1;
+}
+
 int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 {
 	struct listener *lst;
@@ -1853,6 +1924,7 @@ int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 	hlua_class_function(L, "get_srv_act", hlua_proxy_get_srv_act);
 	hlua_class_function(L, "get_srv_bck", hlua_proxy_get_srv_bck);
 	hlua_class_function(L, "get_stats", hlua_proxy_get_stats);
+	hlua_class_function(L, "get_mailers", hlua_proxy_get_mailers);
 
 	/* Browse and register servers. */
 	lua_pushstring(L, "servers");
