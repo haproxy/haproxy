@@ -160,7 +160,7 @@ struct task *accept_queue_process(struct task *t, void *context, unsigned int st
 		if (!(li->bind_conf->options & BC_O_UNLIMITED)) {
 			HA_ATOMIC_UPDATE_MAX(&global.sps_max,
 			                     update_freq_ctr(&global.sess_per_sec, 1));
-			if (li->bind_conf && li->bind_conf->options & BC_O_USE_SSL) {
+			if (li->bind_conf->options & BC_O_USE_SSL) {
 				HA_ATOMIC_UPDATE_MAX(&global.ssl_max,
 				                     update_freq_ctr(&global.ssl_per_sec, 1));
 			}
