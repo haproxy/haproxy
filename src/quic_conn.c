@@ -8524,12 +8524,10 @@ int qc_set_tid_affinity(struct quic_conn *qc, uint new_tid, struct listener *new
 		fd_migrate_on(qc->fd, new_tid);
 	}
 
-	/* Remove conn from per-thread list instance. */
+	/* Remove conn from per-thread list instance. It will be hidden from
+	 * "show quic" until rebinding is completed.
+	 */
 	qc_detach_th_ctx_list(qc, 0);
-	/* Connection must not be closing or else it must be inserted in quic_conns_clo list instance instead. */
-	BUG_ON(qc->flags & (QUIC_FL_CONN_CLOSING|QUIC_FL_CONN_DRAINING));
-	LIST_APPEND(&ha_thread_ctx[new_tid].quic_conns, &qc->el_th_ctx);
-	qc->qc_epoch = HA_ATOMIC_LOAD(&qc_epoch);
 
 	node = eb64_first(&qc->cids);
 	BUG_ON(!node || eb64_next(node)); /* One and only one CID must be present before affinity rebind. */
@@ -8568,6 +8566,16 @@ void qc_finalize_affinity_rebind(struct quic_conn *qc)
 	/* This function must not be called twice after an affinity rebind. */
 	BUG_ON(!(qc->flags & QUIC_FL_CONN_AFFINITY_CHANGED));
 	qc->flags &= ~QUIC_FL_CONN_AFFINITY_CHANGED;
+
+	/* A connection must not pass to closing state until affinity rebind
+	 * is completed. Else quic_handle_stopping() may miss it during process
+	 * stopping cleanup.
+	 */
+	BUG_ON(qc->flags & (QUIC_FL_CONN_CLOSING|QUIC_FL_CONN_DRAINING));
+
+	/* Reinsert connection in ha_thread_ctx global list. */
+	LIST_APPEND(&th_ctx->quic_conns, &qc->el_th_ctx);
+	qc->qc_epoch = HA_ATOMIC_LOAD(&qc_epoch);
 
 	/* Reactivate FD polling if connection socket is active. */
 	qc_want_recv(qc);
