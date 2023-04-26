@@ -51,7 +51,7 @@ def determine_latest_openssl(ssl):
 @functools.lru_cache(5)
 def determine_latest_libressl(ssl):
     libressl_download_list = urllib.request.urlopen(
-        "http://ftp.openbsd.org/pub/OpenBSD/LibreSSL/"
+        "https://cdn.openbsd.org/pub/OpenBSD/LibreSSL/"
     )
     for line in libressl_download_list.readlines():
         decoded_line = line.decode("utf-8")
