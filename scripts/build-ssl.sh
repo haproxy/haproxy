@@ -59,7 +59,7 @@ build_openssl () {
 download_libressl () {
     if [ ! -f "download-cache/libressl-${LIBRESSL_VERSION}.tar.gz" ]; then
         wget -P download-cache/ \
-	    "https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-${LIBRESSL_VERSION}.tar.gz"
+	    "https://cdn.openbsd.org/pub/OpenBSD/LibreSSL/libressl-${LIBRESSL_VERSION}.tar.gz"
     fi
 }
 
