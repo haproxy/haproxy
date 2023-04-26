@@ -308,6 +308,7 @@ struct spoe_agent {
 		struct freq_ctr conn_per_sec;   /* connections per second */
 		struct freq_ctr err_per_sec;    /* connection errors per second */
 
+		unsigned int    idles;          /* # of idle applets */
 		struct eb_root  idle_applets;   /* idle SPOE applets available to process data */
 		struct list     applets;        /* all SPOE applets for this agent */
 		struct list     sending_queue;  /* Queue of streams waiting to send data */

@@ -1294,6 +1294,7 @@ spoe_release_appctx(struct appctx *appctx)
 		if (appctx->st0 == SPOE_APPCTX_ST_IDLE) {
 			eb32_delete(&spoe_appctx->node);
 			_HA_ATOMIC_DEC(&agent->counters.idles);
+			agent->rt[tid].idles--;
 		}
 
 		appctx->st0 = SPOE_APPCTX_ST_END;
@@ -1494,6 +1495,7 @@ spoe_handle_connecting_appctx(struct appctx *appctx)
 
 		default:
 			_HA_ATOMIC_INC(&agent->counters.idles);
+			agent->rt[tid].idles++;
 			appctx->st0 = SPOE_APPCTX_ST_IDLE;
 			SPOE_APPCTX(appctx)->node.key = 0;
 			eb32_insert(&agent->rt[tid].idle_applets, &SPOE_APPCTX(appctx)->node);
@@ -1803,6 +1805,7 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 			goto next;
 		}
 		_HA_ATOMIC_INC(&agent->counters.idles);
+		agent->rt[tid].idles++;
 		appctx->st0 = SPOE_APPCTX_ST_IDLE;
 		eb32_insert(&agent->rt[tid].idle_applets, &SPOE_APPCTX(appctx)->node);
 	}
@@ -1960,6 +1963,7 @@ spoe_handle_appctx(struct appctx *appctx)
 
 		case SPOE_APPCTX_ST_IDLE:
 			_HA_ATOMIC_DEC(&agent->counters.idles);
+			agent->rt[tid].idles--;
 			eb32_delete(&SPOE_APPCTX(appctx)->node);
 			if (stopping &&
 			    LIST_ISEMPTY(&agent->rt[tid].sending_queue) &&
@@ -2066,8 +2070,8 @@ spoe_queue_context(struct spoe_context *ctx)
 	struct spoe_appctx *spoe_appctx;
 
 	/* Check if we need to create a new SPOE applet or not. */
-	if (!eb_is_empty(&agent->rt[tid].idle_applets) &&
-	    (agent->rt[tid].processing == 1 || agent->rt[tid].processing < read_freq_ctr(&agent->rt[tid].processing_per_sec)))
+	if (agent->rt[tid].processing < agent->rt[tid].idles  ||
+	    agent->rt[tid].processing < read_freq_ctr(&agent->rt[tid].processing_per_sec))
 		goto end;
 
 	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
@@ -3107,6 +3111,7 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 		conf->agent->rt[i].engine_id    = NULL;
 		conf->agent->rt[i].frame_size   = conf->agent->max_frame_size;
 		conf->agent->rt[i].processing   = 0;
+		conf->agent->rt[i].idles        = 0;
 		LIST_INIT(&conf->agent->rt[i].applets);
 		LIST_INIT(&conf->agent->rt[i].sending_queue);
 		LIST_INIT(&conf->agent->rt[i].waiting_queue);
