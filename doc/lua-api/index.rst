@@ -947,6 +947,7 @@ Core class
     * **SERVER_DOWN**: when a server state goes from UP to DOWN
     * **SERVER_UP**: when a server state goes from DOWN to UP
     * **SERVER_STATE**: when a server state changes
+    * **SERVER_ADMIN**: when a server administrative state changes
 
    .. Note::
      Use **SERVER** in **event_types** to subscribe to all server events types
@@ -1533,6 +1534,13 @@ See :js:func:`core.event_sub()` for more info.
   .. Note::
      Only available for SERVER_STATE event
 
+.. js:attribute:: ServerEvent.admin
+
+  A :ref:`server_event_admin_class`
+
+  .. Note::
+     Only available for SERVER_ADMIN event
+
 .. _server_event_checkres_class:
 
 ServerEventCheckRes class
@@ -1630,6 +1638,45 @@ This class contains additional info related to **SERVER_STATE** event.
   For a server doing UP: it is the number of pending connections on the
   backend that may be redispatched to the server according to the load
   balancing algorithm that is in use.
+
+.. _server_event_admin_class:
+
+ServerEventAdmin class
+======================
+
+.. js:class:: ServerEventAdmin
+
+This class contains additional info related to **SERVER_ADMIN** event.
+
+.. js:attribute:: ServerEventAdmin.cause
+
+  Printable admin state change cause. Might be empty.
+
+.. js:attribute:: ServerEventAdmin.new_admin
+
+  New server admin state due to the admin change.
+
+  It is an array of string containing a composition of following values:
+    - "**MAINT**": server is in maintenance mode
+    - "FMAINT": server is in forced maintenance mode (MAINT is also set)
+    - "IMAINT": server is in inherited maintenance mode (MAINT is also set)
+    - "RMAINT": server is in resolve maintenance mode (MAINT is also set)
+    - "CMAINT": server is in config maintenance mode (MAINT is also set)
+    - "**DRAIN**": server is in drain mode
+    - "FDRAIN": server is in forced drain mode (DRAIN is also set)
+    - "IDRAIN": server is in inherited drain mode (DRAIN is also set)
+
+.. js:attribute:: ServerEventAdmin.old_admin
+
+  Previous server admin state prior to the admin change.
+
+  Values are presented as in **new_admin**, but they should differ.
+  (Comparing old and new helps to find out the change(s))
+
+.. js:attribute:: ServerEventAdmin.requeued
+
+  Same as :js:attr:`ServerEventState.requeued` but when the requeue is due to
+  the server administrative state change.
 
 .. _concat_class:
 

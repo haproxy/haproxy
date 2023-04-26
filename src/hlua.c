@@ -9200,6 +9200,65 @@ __LJMP static void hlua_event_hdl_cb_push_args(struct hlua_event_sub *hlua_sub,
 
 			lua_settable(hlua->T, -3); /* state table */
 		}
+		else if (event_hdl_sub_type_equal(EVENT_HDL_SUB_SERVER_ADMIN, event)) {
+			struct event_hdl_cb_data_server_admin *admin = data;
+			int it;
+
+			if (!lua_checkstack(hlua->T, 20))
+				WILL_LJMP(luaL_error(hlua->T, "Lua out of memory error."));
+
+			/* admin subclass */
+			lua_pushstring(hlua->T, "admin");
+			lua_newtable(hlua->T);
+
+			lua_pushstring(hlua->T, "cause");
+			lua_pushstring(hlua->T, srv_adm_st_chg_cause(admin->safe.cause));
+			lua_settable(hlua->T, -3);
+
+			/* old_admin, new_admin */
+			for (it = 0; it < 2; it++) {
+				enum srv_admin srv_admin = (!it) ? admin->safe.old_admin : admin->safe.new_admin;
+
+				lua_pushstring(hlua->T, (!it) ? "old_admin" : "new_admin");
+
+				/* admin state matrix */
+				lua_newtable(hlua->T);
+
+				lua_pushstring(hlua->T, "MAINT");
+				lua_pushboolean(hlua->T, srv_admin & SRV_ADMF_MAINT);
+				lua_settable(hlua->T, -3);
+				lua_pushstring(hlua->T, "FMAINT");
+				lua_pushboolean(hlua->T, srv_admin & SRV_ADMF_FMAINT);
+				lua_settable(hlua->T, -3);
+				lua_pushstring(hlua->T, "IMAINT");
+				lua_pushboolean(hlua->T, srv_admin & SRV_ADMF_IMAINT);
+				lua_settable(hlua->T, -3);
+				lua_pushstring(hlua->T, "RMAINT");
+				lua_pushboolean(hlua->T, srv_admin & SRV_ADMF_RMAINT);
+				lua_settable(hlua->T, -3);
+				lua_pushstring(hlua->T, "CMAINT");
+				lua_pushboolean(hlua->T, srv_admin & SRV_ADMF_CMAINT);
+				lua_settable(hlua->T, -3);
+
+				lua_pushstring(hlua->T, "DRAIN");
+				lua_pushboolean(hlua->T, srv_admin & SRV_ADMF_DRAIN);
+				lua_settable(hlua->T, -3);
+				lua_pushstring(hlua->T, "FDRAIN");
+				lua_pushboolean(hlua->T, srv_admin & SRV_ADMF_FDRAIN);
+				lua_settable(hlua->T, -3);
+				lua_pushstring(hlua->T, "IDRAIN");
+				lua_pushboolean(hlua->T, srv_admin & SRV_ADMF_IDRAIN);
+				lua_settable(hlua->T, -3);
+
+				lua_settable(hlua->T, -3); /* matrix table */
+			}
+			/* requeued */
+			lua_pushstring(hlua->T, "requeued");
+			lua_pushinteger(hlua->T, admin->safe.requeued);
+			lua_settable(hlua->T, -3);
+
+			lua_settable(hlua->T, -3); /* admin table */
+		}
 
 		/* attempt to provide reference server object
 		 * (if it wasn't removed yet, SERVER_DEL will never succeed here)
