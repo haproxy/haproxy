@@ -628,6 +628,7 @@ enum qc_mux_state {
 #define QUIC_FL_CONN_RETRANS_NEEDED              (1U << 7)
 #define QUIC_FL_CONN_RETRANS_OLD_DATA            (1U << 8) /* retransmission in progress for probing with already sent data */
 #define QUIC_FL_CONN_TLS_ALERT                   (1U << 9)
+#define QUIC_FL_CONN_AFFINITY_CHANGED            (1U << 10) /* qc_finalize_affinity_rebind() must be called to finalize affinity rebind */
 /* gap here */
 #define QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED   (1U << 11) /* The half-open connection counter was decremented */
 #define QUIC_FL_CONN_HANDSHAKE_SPEED_UP          (1U << 12) /* Handshake speeding up was done */
