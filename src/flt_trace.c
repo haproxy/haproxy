@@ -43,7 +43,7 @@ struct trace_config {
 	do {									\
 		if (!(conf->flags & TRACE_F_QUIET))				\
 			fprintf(stderr, "%d.%06d [%-20s] " fmt "\n",		\
-				(int)now.tv_sec, (int)now.tv_usec, (conf)->name,\
+				(int)date.tv_sec, (int)date.tv_usec, (conf)->name,\
 				##__VA_ARGS__);					\
 	} while (0)
 
@@ -51,7 +51,7 @@ struct trace_config {
 	do {												\
 		if (!(conf->flags & TRACE_F_QUIET))							\
 			fprintf(stderr, "%d.%06d [%-20s] [strm %p(%x) 0x%08x 0x%08x] " fmt "\n",	\
-				(int)now.tv_sec, (int)now.tv_usec, (conf)->name,			\
+				(int)date.tv_sec, (int)date.tv_usec, (conf)->name,			\
 				strm, (strm ? ((struct stream *)strm)->uniq_id : ~0U),			\
 				(strm ? strm->req.analysers : 0), (strm ? strm->res.analysers : 0),	\
 				##__VA_ARGS__);								\
