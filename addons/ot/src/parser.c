@@ -1134,7 +1134,7 @@ static int flt_ot_parse(char **args, int *cur_arg, struct proxy *px, struct flt_
 #ifdef DEBUG_OT
 	FLT_OT_RUN_ONCE(
 #  ifndef DEBUG_OT_SYSTIME
-		(void)memcpy(&(flt_ot_debug.start), &now, sizeof(flt_ot_debug.start));
+		(void)memcpy(&(flt_ot_debug.start), &date, sizeof(flt_ot_debug.start));
 #  endif
 
 		flt_ot_debug.level = FLT_OT_DEBUG_LEVEL;
