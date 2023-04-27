@@ -366,11 +366,11 @@ struct spoe_context {
 	} frag_ctx; /* Info about fragmented frames, valid on if SPOE_CTX_FL_FRAGMENTED is set */
 
 	struct {
-		struct timeval tv_start;    /* start date of the current event/group */
-		struct timeval tv_request;  /* date the frame processing starts (reset for each frag) */
-		struct timeval tv_queue;    /* date the frame is queued (reset for each frag) */
-		struct timeval tv_wait;     /* date the stream starts waiting for a response */
-		struct timeval tv_response; /* date the response processing starts */
+		ullong         start_ts;    /* start date of the current event/group */
+		ullong         request_ts;  /* date the frame processing starts (reset for each frag) */
+		ullong         queue_ts;    /* date the frame is queued (reset for each frag) */
+		ullong         wait_ts;     /* date the stream starts waiting for a response */
+		ullong         response_ts; /* date the response processing starts */
 		long           t_request;   /* delay to encode and push the frame in queue (cumulative for frags) */
 		long           t_queue;     /* delay before the frame gets out the sending queue (cumulative for frags) */
 		long           t_waiting;   /* delay before the response is reveived */

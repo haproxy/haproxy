@@ -259,15 +259,15 @@ generate_pseudo_uuid()
 	return my_strndup(trash.area, trash.data);
 }
 
-
+/* set/add to <t> the elapsed time since <since> and now */
 static inline void
-spoe_update_stat_time(struct timeval *tv, long *t)
+spoe_update_stat_time(ullong *since, long *t)
 {
 	if (*t == -1)
-		*t = ns_to_ms(tv_to_ns(&now) - tv_to_ns(tv));
+		*t = ns_to_ms(tv_to_ns(&now) - *since);
 	else
-		*t += ns_to_ms(tv_to_ns(&now) - tv_to_ns(tv));
-	tv_zero(tv);
+		*t += ns_to_ms(tv_to_ns(&now) - *since);
+	*since = 0;
 }
 
 /********************************************************************
@@ -1310,7 +1310,7 @@ spoe_release_appctx(struct appctx *appctx)
 		LIST_DELETE(&ctx->list);
 		LIST_INIT(&ctx->list);
 		_HA_ATOMIC_DEC(&agent->counters.nb_waiting);
-		spoe_update_stat_time(&ctx->stats.tv_wait, &ctx->stats.t_waiting);
+		spoe_update_stat_time(&ctx->stats.wait_ts, &ctx->stats.t_waiting);
 		ctx->spoe_appctx = NULL;
 		ctx->state = SPOE_CTX_ST_ERROR;
 		ctx->status_code = (spoe_appctx->status_code + 0x100);
@@ -1362,7 +1362,7 @@ spoe_release_appctx(struct appctx *appctx)
 			LIST_DELETE(&ctx->list);
 			LIST_INIT(&ctx->list);
 			_HA_ATOMIC_DEC(&agent->counters.nb_sending);
-			spoe_update_stat_time(&ctx->stats.tv_queue, &ctx->stats.t_queue);
+			spoe_update_stat_time(&ctx->stats.queue_ts, &ctx->stats.t_queue);
 			ctx->spoe_appctx = NULL;
 			ctx->state = SPOE_CTX_ST_ERROR;
 			ctx->status_code = (spoe_appctx->status_code + 0x100);
@@ -1372,7 +1372,7 @@ spoe_release_appctx(struct appctx *appctx)
 			LIST_DELETE(&ctx->list);
 			LIST_INIT(&ctx->list);
 			_HA_ATOMIC_DEC(&agent->counters.nb_waiting);
-			spoe_update_stat_time(&ctx->stats.tv_wait, &ctx->stats.t_waiting);
+			spoe_update_stat_time(&ctx->stats.wait_ts, &ctx->stats.t_waiting);
 			ctx->spoe_appctx = NULL;
 			ctx->state = SPOE_CTX_ST_ERROR;
 			ctx->status_code = (spoe_appctx->status_code + 0x100);
@@ -1566,7 +1566,7 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx, int *skip)
 			LIST_DELETE(&ctx->list);
 			LIST_INIT(&ctx->list);
 			_HA_ATOMIC_DEC(&agent->counters.nb_sending);
-			spoe_update_stat_time(&ctx->stats.tv_queue, &ctx->stats.t_queue);
+			spoe_update_stat_time(&ctx->stats.queue_ts, &ctx->stats.t_queue);
 			ctx->spoe_appctx = NULL;
 			ctx->state = SPOE_CTX_ST_ERROR;
 			ctx->status_code = (SPOE_APPCTX(appctx)->status_code + 0x100);
@@ -1586,7 +1586,7 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx, int *skip)
 			LIST_DELETE(&ctx->list);
 			LIST_INIT(&ctx->list);
 			_HA_ATOMIC_DEC(&agent->counters.nb_sending);
-			spoe_update_stat_time(&ctx->stats.tv_queue, &ctx->stats.t_queue);
+			spoe_update_stat_time(&ctx->stats.queue_ts, &ctx->stats.t_queue);
 			ctx->spoe_appctx = SPOE_APPCTX(appctx);
 			if (!(ctx->flags & SPOE_CTX_FL_FRAGMENTED) ||
 			    (ctx->frag_ctx.flags & SPOE_FRM_FL_FIN))
@@ -1621,7 +1621,7 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx, int *skip)
 		LIST_APPEND(&SPOE_APPCTX(appctx)->waiting_queue, &ctx->list);
 	}
 	_HA_ATOMIC_INC(&agent->counters.nb_waiting);
-	ctx->stats.tv_wait = now;
+	ctx->stats.wait_ts = tv_to_ns(&now);
 	SPOE_APPCTX(appctx)->frag_ctx.ctx    = NULL;
 	SPOE_APPCTX(appctx)->frag_ctx.cursid = 0;
 	SPOE_APPCTX(appctx)->frag_ctx.curfid = 0;
@@ -1677,8 +1677,8 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx, int *skip)
 			LIST_DELETE(&ctx->list);
 			LIST_INIT(&ctx->list);
 			_HA_ATOMIC_DEC(&agent->counters.nb_waiting);
-			spoe_update_stat_time(&ctx->stats.tv_wait, &ctx->stats.t_waiting);
-			ctx->stats.tv_response = now;
+			spoe_update_stat_time(&ctx->stats.wait_ts, &ctx->stats.t_waiting);
+			ctx->stats.response_ts = tv_to_ns(&now);
 			if (ctx->spoe_appctx) {
 				ctx->spoe_appctx->cur_fpa--;
 				ctx->spoe_appctx = NULL;
@@ -2129,8 +2129,8 @@ spoe_queue_context(struct spoe_context *ctx)
 	 * already assigned and wakeup all idle applets. Otherwise, don't queue
 	 * it. */
 	_HA_ATOMIC_INC(&agent->counters.nb_sending);
-	spoe_update_stat_time(&ctx->stats.tv_request, &ctx->stats.t_request);
-	ctx->stats.tv_queue = now;
+	spoe_update_stat_time(&ctx->stats.request_ts, &ctx->stats.t_request);
+	ctx->stats.queue_ts = tv_to_ns(&now);
 	if (ctx->spoe_appctx)
 		return 1;
 	LIST_APPEND(&agent->rt[tid].sending_queue, &ctx->list);
@@ -2533,13 +2533,13 @@ static void
 spoe_update_stats(struct stream *s, struct spoe_agent *agent,
 		  struct spoe_context *ctx, int dir)
 {
-	if (!tv_iszero(&ctx->stats.tv_start)) {
-		spoe_update_stat_time(&ctx->stats.tv_start, &ctx->stats.t_process);
-		ctx->stats.t_total  += ctx->stats.t_process;
-		tv_zero(&ctx->stats.tv_request);
-		tv_zero(&ctx->stats.tv_queue);
-		tv_zero(&ctx->stats.tv_wait);
-		tv_zero(&ctx->stats.tv_response);
+	if (ctx->stats.start_ts != 0) {
+		spoe_update_stat_time(&ctx->stats.start_ts, &ctx->stats.t_process);
+		ctx->stats.t_total    += ctx->stats.t_process;
+		ctx->stats.request_ts  = 0;
+		ctx->stats.queue_ts    = 0;
+		ctx->stats.wait_ts     = 0;
+		ctx->stats.response_ts = 0;
 	}
 
 	if (agent->var_t_process) {
@@ -2600,8 +2600,8 @@ spoe_start_processing(struct spoe_agent *agent, struct spoe_context *ctx, int di
 		return 0;
 
 	agent->rt[tid].processing++;
-	ctx->stats.tv_start   = now;
-	ctx->stats.tv_request = now;
+	ctx->stats.start_ts   = tv_to_ns(&now);
+	ctx->stats.request_ts = tv_to_ns(&now);
 	ctx->stats.t_request  = -1;
 	ctx->stats.t_queue    = -1;
 	ctx->stats.t_waiting  = -1;
@@ -2711,8 +2711,8 @@ spoe_process_messages(struct stream *s, struct spoe_context *ctx,
 	}
 
 	if (ctx->state == SPOE_CTX_ST_ENCODING_MSGS) {
-		if (tv_iszero(&ctx->stats.tv_request))
-			ctx->stats.tv_request = now;
+		if (ctx->stats.request_ts == 0)
+			ctx->stats.request_ts = tv_to_ns(&now);
 		if (!spoe_acquire_buffer(&ctx->buffer, &ctx->buffer_wait))
 			goto out;
 		ret = spoe_encode_messages(s, ctx, messages, dir, type);
@@ -2742,7 +2742,7 @@ spoe_process_messages(struct stream *s, struct spoe_context *ctx,
 		ret = 1;
 		ctx->frame_id++;
 		ctx->state = SPOE_CTX_ST_READY;
-		spoe_update_stat_time(&ctx->stats.tv_response, &ctx->stats.t_response);
+		spoe_update_stat_time(&ctx->stats.response_ts, &ctx->stats.t_response);
 		goto end;
 	}
 
@@ -2750,7 +2750,7 @@ spoe_process_messages(struct stream *s, struct spoe_context *ctx,
 	return ret;
 
   skip:
-	tv_zero(&ctx->stats.tv_start);
+	ctx->stats.start_ts = 0;
 	ctx->state = SPOE_CTX_ST_READY;
 	spoe_stop_processing(agent, ctx);
 	return 1;
@@ -2921,11 +2921,11 @@ spoe_create_context(struct stream *s, struct filter *filter)
 	ctx->frame_id    = 1;
 	ctx->process_exp = TICK_ETERNITY;
 
-	tv_zero(&ctx->stats.tv_start);
-	tv_zero(&ctx->stats.tv_request);
-	tv_zero(&ctx->stats.tv_queue);
-	tv_zero(&ctx->stats.tv_wait);
-	tv_zero(&ctx->stats.tv_response);
+	ctx->stats.start_ts   =  0;
+	ctx->stats.request_ts =  0;
+	ctx->stats.queue_ts   =  0;
+	ctx->stats.wait_ts    =  0;
+	ctx->stats.response_ts=  0;
 	ctx->stats.t_request  = -1;
 	ctx->stats.t_queue    = -1;
 	ctx->stats.t_waiting  = -1;
@@ -2960,11 +2960,11 @@ spoe_reset_context(struct spoe_context *ctx)
 	ctx->state  = SPOE_CTX_ST_READY;
 	ctx->flags &= ~(SPOE_CTX_FL_PROCESS|SPOE_CTX_FL_FRAGMENTED);
 
-	tv_zero(&ctx->stats.tv_start);
-	tv_zero(&ctx->stats.tv_request);
-	tv_zero(&ctx->stats.tv_queue);
-	tv_zero(&ctx->stats.tv_wait);
-	tv_zero(&ctx->stats.tv_response);
+	ctx->stats.start_ts   =  0;
+	ctx->stats.request_ts =  0;
+	ctx->stats.queue_ts   =  0;
+	ctx->stats.wait_ts    =  0;
+	ctx->stats.response_ts=  0;
 	ctx->stats.t_request  = -1;
 	ctx->stats.t_queue    = -1;
 	ctx->stats.t_waiting  = -1;
