@@ -44,7 +44,7 @@ static void dadwlog(dw_config_t cfg, const char* msg)
 {
 	time_t now = time(NULL);
 	char buf[26] = {0};
-	ctime_r(&date, buf);
+	ctime_r(&now, buf);
 	buf[24] = 0;
 	fprintf(stderr, "%s: %s\n", buf, msg);
 }
@@ -63,7 +63,7 @@ static dw_status_t dadwnot(void *a, dw_config_t *cfg)
 	jsond = da_getdatacreation(&o->atlas);
 	dwgetfinalp(o->dcfg.info, atlasp, sizeof(atlasp));
 	ctime_r(&jsond, jsondbuf);
-	ctime_r(&date, buf);
+	ctime_r(&now, buf);
 	jsondbuf[24] = 0;
 	buf[24] = 0;
 
@@ -150,7 +150,7 @@ int main(int argc, char **argv)
 
 	if (!dset) {
 		time_t now = time(NULL);
-		struct tm *cnow = gmtime(&date);
+		struct tm *cnow = gmtime(&now);
 		memcpy(&global_deviceatlassch.o.dcfg.info.rtm, cnow, offsetof(struct tm, tm_mday));
 	}
 

@@ -76,7 +76,7 @@ static int open_trace()
 	if (!log)
 		log = stderr;
 
-	now_ptr = &date;
+	now_ptr = &now;
 	if (getenv("HAPROXY_TRACE_FAST") != NULL) {
 		fast_time = 1;
 		now_ptr = &trace_now;
