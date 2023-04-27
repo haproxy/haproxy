@@ -45,7 +45,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		sess->fe = fe;
 		sess->origin = origin;
 		sess->accept_date = date; /* user-visible date for logging */
-		sess->tv_accept   = now;  /* corrected date for internal use */
+		sess->accept_ts = tv_to_ns(&now);  /* corrected date for internal use */
 		sess->stkctr = NULL;
 		if (pool_head_stk_ctr) {
 			sess->stkctr = pool_alloc(pool_head_stk_ctr);
@@ -432,7 +432,7 @@ int conn_complete_session(struct connection *conn)
 {
 	struct session *sess = conn->owner;
 
-	sess->t_handshake = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&sess->tv_accept));
+	sess->t_handshake = ns_to_ms(tv_to_ns(&now) - sess->accept_ts);
 
 	if (conn->flags & CO_FL_ERROR)
 		goto fail;

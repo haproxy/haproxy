@@ -49,7 +49,7 @@ struct session {
 	struct listener *listener;      /* the listener by which the request arrived */
 	enum obj_type *origin;          /* the connection / applet which initiated this session */
 	struct timeval accept_date;     /* date of the session's accept() in user date */
-	struct timeval tv_accept;       /* date of the session's accept() in internal date (monotonic) */
+	ullong accept_ts;               /* date of the session's accept() in internal date (monotonic) */
 	struct stkctr *stkctr;          /* stick counters for tcp-connection */
 	struct vars vars;               /* list of variables for the session scope. */
 	struct task *task;              /* handshake timeout processing */

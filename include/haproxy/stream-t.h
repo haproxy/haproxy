@@ -185,10 +185,10 @@ struct strm_logs {
 	int logwait;                    /* log fields waiting to be collected : LW_* */
 	int level;                      /* log level to force + 1 if > 0, -1 = no log */
 	struct timeval accept_date;     /* date of the stream's accept() in user date */
-	struct timeval tv_accept;       /* date of the stream's accept() in internal date (monotonic) */
+	ullong accept_ts;               /* date of the session's accept() in internal date (monotonic) */
 	long t_handshake;               /* handshake duration, -1 if never occurs */
 	long t_idle;                    /* idle duration, -1 if never occurs */
-	struct timeval tv_request;      /* date the request arrives, {0,0} if never occurs */
+	ullong request_ts;              /* date when the request arrives in internal date */
 	long  t_queue;                  /* delay before the stream gets out of the connect queue, -1 if never occurs */
 	long  t_connect;                /* delay before the connect() to the server succeeds, -1 if never occurs */
 	long  t_data;                   /* delay before the first data byte from the server ... */

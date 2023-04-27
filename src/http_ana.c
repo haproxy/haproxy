@@ -439,7 +439,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	if (!s->target && http_stats_check_uri(s, txn, px)) {
 		s->target = &http_stats_applet.obj_type;
 		if (unlikely(!sc_applet_create(s->scb, objt_applet(s->target)))) {
-			s->logs.tv_request = now;
+			s->logs.request_ts = tv_to_ns(&now);
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_RESOURCE;
 			goto return_int_err;
@@ -562,7 +562,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	if (s->be->cookie_name || sess->fe->capture_name)
 		http_manage_client_side_cookies(s, req);
 
-	s->logs.tv_request = now;
+	s->logs.request_ts = tv_to_ns(&now);
 	stream_inc_http_err_ctr(s);
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.denied_req);
 	if (s->flags & SF_BE_ASSIGNED)
@@ -716,7 +716,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	req->analyse_exp = TICK_ETERNITY;
 	req->analysers &= ~an_bit;
 
-	s->logs.tv_request = now;
+	s->logs.request_ts = tv_to_ns(&now);
 	/* OK let's go on with the BODY now */
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 1;
@@ -782,7 +782,7 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	 * It will not cause trouble to the logs because we can exclude
 	 * the tarpitted connections by filtering on the 'PT' status flags.
 	 */
-	s->logs.t_queue = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&s->logs.tv_accept));
+	s->logs.t_queue = ns_to_ms(tv_to_ns(&now) - s->logs.accept_ts);
 
 	http_reply_and_close(s, txn->status, (!(s->scf->flags & SC_FL_ERROR) ? http_error_message(s) : NULL));
 	http_set_term_flags(s);
@@ -824,7 +824,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 
  http_end:
 	/* The situation will not evolve, so let's give up on the analysis. */
-	s->logs.tv_request = now;  /* update the request timer to reflect full request */
+	s->logs.request_ts = tv_to_ns(&now);  /* update the request timer to reflect full request */
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
@@ -1585,7 +1585,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
   end:
 	/* we want to have the response time before we start processing it */
-	s->logs.t_data = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&s->logs.tv_accept));
+	s->logs.t_data = ns_to_ms(tv_to_ns(&now) - s->logs.accept_ts);
 
 	/* end of job, return OK */
 	rep->analysers &= ~an_bit;
@@ -2442,7 +2442,7 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 
 	if (rule->flags & REDIRECT_FLAG_FROM_REQ) {
 		/* let's log the request time */
-		s->logs.tv_request = now;
+		s->logs.request_ts = tv_to_ns(&now);
 		req->analysers &= AN_REQ_FLT_END;
 
 		if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */

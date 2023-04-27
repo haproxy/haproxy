@@ -364,7 +364,7 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	s->flags = 0;
 	s->logs.logwait = sess->fe->to_log;
 	s->logs.level = 0;
-	tv_zero(&s->logs.tv_request);
+	s->logs.request_ts = 0;
 	s->logs.t_queue = -1;
 	s->logs.t_connect = -1;
 	s->logs.t_data = -1;
@@ -375,7 +375,7 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	s->obj_type = OBJ_TYPE_STREAM;
 
 	s->logs.accept_date = sess->accept_date;
-	s->logs.tv_accept = sess->tv_accept;
+	s->logs.accept_ts = sess->accept_ts;
 	s->logs.t_handshake = sess->t_handshake;
 	s->logs.t_idle = sess->t_idle;
 
@@ -902,7 +902,7 @@ static void back_establish(struct stream *s)
 	/* First, centralize the timers information, and clear any irrelevant
 	 * timeout.
 	 */
-	s->logs.t_connect = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&s->logs.tv_accept));
+	s->logs.t_connect = ns_to_ms(tv_to_ns(&now) - s->logs.accept_ts);
 	s->conn_exp = TICK_ETERNITY;
 	s->flags &= ~SF_CONN_EXP;
 
@@ -2595,7 +2595,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	}
 
 	if (!(s->flags & SF_IGNORE)) {
-		s->logs.t_close = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&s->logs.tv_accept));
+		s->logs.t_close = ns_to_ms(tv_to_ns(&now) - s->logs.accept_ts);
 
 		stream_process_counters(s);
 
@@ -2660,8 +2660,8 @@ void stream_update_time_stats(struct stream *s)
 	if (t_connect < 0 || t_data < 0)
 		return;
 
-	if (tv_isge(&s->logs.tv_request, &s->logs.tv_accept))
-		t_request = ns_to_ms(tv_to_ns(&s->logs.tv_request) - tv_to_ns(&s->logs.tv_accept));
+	if ((llong)(s->logs.request_ts - s->logs.accept_ts) >= 0)
+		t_request = ns_to_ms(s->logs.request_ts - s->logs.accept_ts);
 
 	t_data    -= t_connect;
 	t_connect -= t_queue;
@@ -3699,7 +3699,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		chunk_appendf(&trash,
 			     " ts=%02x epoch=%#x age=%s calls=%u rate=%u cpu=%llu lat=%llu",
 		             curr_strm->task->state, curr_strm->stream_epoch,
-			     human_time(now.tv_sec - curr_strm->logs.tv_accept.tv_sec, 1),
+		             human_time(now.tv_sec - ns_to_sec(curr_strm->logs.accept_ts), 1),
 		             curr_strm->task->calls, read_freq_ctr(&curr_strm->call_rate),
 		             (unsigned long long)curr_strm->cpu_time, (unsigned long long)curr_strm->lat_time);
 

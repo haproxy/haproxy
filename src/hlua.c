@@ -8295,7 +8295,7 @@ __LJMP static int hlua_txn_done(lua_State *L)
 	finst = ((htxn->dir == SMP_OPT_DIR_REQ) ? SF_FINST_R : SF_FINST_H);
 	if (htxn->dir == SMP_OPT_DIR_REQ) {
 		/* let's log the request time */
-		s->logs.tv_request = now;
+		s->logs.request_ts = tv_to_ns(&now);
 		if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
 			_HA_ATOMIC_INC(&s->sess->fe->fe_counters.intercepted_req);
 	}

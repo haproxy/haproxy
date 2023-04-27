@@ -1284,7 +1284,7 @@ static enum act_return http_action_auth(struct act_rule *rule, struct proxy *px,
 		goto fail;
 
 	/* Note: Only eval on the request */
-	s->logs.tv_request = now;
+	s->logs.request_ts = tv_to_ns(&now);
 	req->analysers &= AN_REQ_FLT_END;
 
 	if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
@@ -2279,7 +2279,7 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
 
 	if (rule->from == ACT_F_HTTP_REQ) {
 		/* let's log the request time */
-		s->logs.tv_request = now;
+		s->logs.request_ts = tv_to_ns(&now);
 		req->analysers &= AN_REQ_FLT_END;
 
 		if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */

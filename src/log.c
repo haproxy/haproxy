@@ -2010,15 +2010,15 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		uniq_id = _HA_ATOMIC_FETCH_ADD(&global.req_count, 1);
 
 		/* prepare a valid log structure */
-		tmp_strm_log.tv_accept = sess->tv_accept;
+		tmp_strm_log.accept_ts = sess->accept_ts;
 		tmp_strm_log.accept_date = sess->accept_date;
 		tmp_strm_log.t_handshake = sess->t_handshake;
 		tmp_strm_log.t_idle = (sess->t_idle >= 0 ? sess->t_idle : 0);
-		tv_zero(&tmp_strm_log.tv_request);
+		tmp_strm_log.request_ts = 0;
 		tmp_strm_log.t_queue = -1;
 		tmp_strm_log.t_connect = -1;
 		tmp_strm_log.t_data = -1;
-		tmp_strm_log.t_close = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&sess->tv_accept));
+		tmp_strm_log.t_close = ns_to_ms(tv_to_ns(&now) - sess->accept_ts);
 		tmp_strm_log.bytes_in = 0;
 		tmp_strm_log.bytes_out = 0;
 		tmp_strm_log.prx_queue_pos = 0;
@@ -2058,8 +2058,8 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	}
 
 	t_request = -1;
-	if (tv_isge(&logs->tv_request, &logs->tv_accept))
-		t_request = ns_to_ms(tv_to_ns(&logs->tv_request) - tv_to_ns(&logs->tv_accept));
+	if ((llong)(logs->request_ts - logs->accept_ts) >= 0)
+		t_request = ns_to_ms(logs->request_ts - logs->accept_ts);
 
 	tmplog = dst;
 
