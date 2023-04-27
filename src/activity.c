@@ -1089,7 +1089,7 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	tv_remain(&start_time, &now, &up);
 
 	chunk_appendf(&trash, "thread_id: %u (%u..%u)\n", tid + 1, 1, global.nbthread);
-	chunk_appendf(&trash, "date_now: %lu.%06lu\n", (ulong)now.tv_sec, (ulong)now.tv_usec);
+	chunk_appendf(&trash, "date_now: %lu.%06lu\n", (ulong)date.tv_sec, (ulong)date.tv_usec);
 	chunk_appendf(&trash, "uptime_now: %lu.%06lu\n", (ulong)up.tv_sec, (ulong)up.tv_usec);
 	chunk_appendf(&trash, "ctxsw:");        SHOW_TOT(thr, activity[thr].ctxsw);
 	chunk_appendf(&trash, "tasksw:");       SHOW_TOT(thr, activity[thr].tasksw);
