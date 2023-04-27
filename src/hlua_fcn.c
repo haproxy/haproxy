@@ -300,12 +300,20 @@ void *hlua_checkudata(lua_State *L, int ud, int class_ref)
 /* This function return the current date at epoch format in milliseconds. */
 int hlua_now(lua_State *L)
 {
+	/* WT: the doc says "returns the current time" and later says that it's
+	 * monotonic. So the best fit is to use start_date+(now-start_time).
+	 */
+	struct timeval tv;
+
+	tv_remain(&start_time, &now, &tv);
+	tv_add(&tv, &tv, &start_date);
+
 	lua_newtable(L);
 	lua_pushstring(L, "sec");
-	lua_pushinteger(L, now.tv_sec);
+	lua_pushinteger(L, tv.tv_sec);
 	lua_rawset(L, -3);
 	lua_pushstring(L, "usec");
-	lua_pushinteger(L, now.tv_usec);
+	lua_pushinteger(L, tv.tv_usec);
 	lua_rawset(L, -3);
 	return 1;
 }
