@@ -1026,7 +1026,8 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	struct stconn *sc = appctx_sc(appctx);
 	struct show_activity_ctx *actctx = appctx->svcctx;
 	int tgt = actctx->thr; // target thread, -1 for all, 0 for total only
-	struct timeval up;
+	uint up_sec, up_usec;
+	ullong up;
 	int thr;
 
 	/* FIXME: Don't watch the other side ! */
@@ -1086,11 +1087,13 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	} while (0)
 
 	/* retrieve uptime */
-	tv_remain(&start_time, &now, &up);
+	up = tv_to_ns(&now) - tv_to_ns(&start_time);
+	up_sec = ns_to_sec(up);
+	up_usec = (up / 1000U) % 1000000U;
 
 	chunk_appendf(&trash, "thread_id: %u (%u..%u)\n", tid + 1, 1, global.nbthread);
 	chunk_appendf(&trash, "date_now: %lu.%06lu\n", (ulong)date.tv_sec, (ulong)date.tv_usec);
-	chunk_appendf(&trash, "uptime_now: %lu.%06lu\n", (ulong)up.tv_sec, (ulong)up.tv_usec);
+	chunk_appendf(&trash, "uptime_now: %u.%06u\n", up_sec, up_usec);
 	chunk_appendf(&trash, "ctxsw:");        SHOW_TOT(thr, activity[thr].ctxsw);
 	chunk_appendf(&trash, "tasksw:");       SHOW_TOT(thr, activity[thr].tasksw);
 	chunk_appendf(&trash, "empty_rq:");     SHOW_TOT(thr, activity[thr].empty_rq);
