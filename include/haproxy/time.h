@@ -109,6 +109,52 @@ static inline struct timeval * __tv_from_ms(struct timeval *tv, unsigned long ms
 	return tv;
 }
 
+/*
+ * Converts a struct timeval to a relative timestamp in nanoseconds (only
+ * wraps every 585 years, i.e. never for our purpose).
+ */
+static forceinline ullong tv_to_ns(const struct timeval *tv)
+{
+	ullong ret;
+
+	ret  = (ullong)tv->tv_sec  * 1000000000ULL;
+	ret += (ullong)tv->tv_usec * 1000ULL;
+	return ret;
+}
+
+/* turns nanoseconds to seconds, just to avoid typos */
+static forceinline uint ns_to_sec(ullong ns)
+{
+	return ns / 1000000000ULL;
+}
+
+/* turns nanoseconds to milliseconds, just to avoid typos */
+static forceinline uint ns_to_ms(ullong ns)
+{
+	return ns / 1000000ULL;
+}
+
+/* turns seconds to nanoseconds, just to avoid typos */
+static forceinline ullong sec_to_ns(uint sec)
+{
+	return sec * 1000000000ULL;
+}
+
+/* turns milliseconds to nanoseconds, just to avoid typos */
+static forceinline ullong ms_to_ns(uint ms)
+{
+	return ms * 1000000ULL;
+}
+
+/* turns microseconds to nanoseconds, just to avoid typos */
+static forceinline ullong us_to_ns(uint us)
+{
+	return us * 1000ULL;
+}
+
+/* creates a struct timeval from a relative timestamp in nanosecond */
+#define NS_TO_TV(t) ((const struct timeval){ .tv_sec = t / 1000000000ULL, .tv_usec = (t % 1000000000ULL) / 1000U })
+
 /* Return a number of 1024Hz ticks between 0 and 1023 for input number of
  * usecs between 0 and 999999. This function has been optimized to remove
  * any divide and multiply, as it is completely optimized away by the compiler
