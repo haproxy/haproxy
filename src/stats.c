@@ -4604,9 +4604,10 @@ static int stats_dump_typed_info_fields(struct buffer *out,
  */
 int stats_fill_info(struct field *info, int len, uint flags)
 {
-	struct timeval up;
 	struct buffer *out = get_trash_chunk();
 	uint64_t glob_out_bytes, glob_spl_bytes, glob_out_b32;
+	uint up_sec, up_usec;
+	ullong up;
 	int thr;
 
 #ifdef USE_OPENSSL
@@ -4627,7 +4628,9 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	}
 	glob_out_b32 *= 32; // values are 32-byte units
 
-	tv_remain(&start_time, &now, &up);
+	up = tv_to_ns(&now) - tv_to_ns(&start_time);
+	up_sec = ns_to_sec(up);
+	up_usec = (up / 1000U) % 1000000U;
 
 	if (len < INF_TOTAL_FIELDS)
 		return 0;
@@ -4646,9 +4649,9 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	info[INF_PID]                            = mkf_u32(FO_STATUS, pid);
 
 	info[INF_UPTIME]                         = mkf_str(FN_DURATION, chunk_newstr(out));
-	chunk_appendf(out, "%ud %uh%02um%02us", (uint)up.tv_sec / 86400, ((uint)up.tv_sec % 86400) / 3600, ((uint)up.tv_sec % 3600) / 60, ((uint)up.tv_sec % 60));
+	chunk_appendf(out, "%ud %uh%02um%02us", up_sec / 86400, (up_sec % 86400) / 3600, (up_sec % 3600) / 60, (up_sec % 60));
 
-	info[INF_UPTIME_SEC]                     = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_DURATION, up.tv_sec + up.tv_usec / 1000000.0) : mkf_u32(FN_DURATION, up.tv_sec);
+	info[INF_UPTIME_SEC]                     = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_DURATION, up_sec + up_usec / 1000000.0) : mkf_u32(FN_DURATION, up_sec);
 	info[INF_START_TIME_SEC]                 = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_DURATION, start_date.tv_sec + start_date.tv_usec / 1000000.0) : mkf_u32(FN_DURATION, start_date.tv_sec);
 	info[INF_MEMMAX_MB]                      = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax);
 	info[INF_MEMMAX_BYTES]                   = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax * 1048576L);
