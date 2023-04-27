@@ -2626,7 +2626,7 @@ read_again:
 
 	/* If there is data available for analysis, log the end of the idle time. */
 	if (c_data(req) && s->logs.t_idle == -1)
-		s->logs.t_idle = tv_ms_elapsed(&s->logs.tv_accept, &now) - s->logs.t_handshake;
+		s->logs.t_idle = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&s->logs.tv_accept)) - s->logs.t_handshake;
 
 	to_forward = pcli_parse_request(s, req, &errmsg, &next_pid);
 	if (to_forward > 0) {
@@ -2762,7 +2762,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				sess_change_server(s, NULL);
 		}
 
-		s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
+		s->logs.t_close = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&s->logs.tv_accept));
 		stream_process_counters(s);
 
 		/* don't count other requests' data */

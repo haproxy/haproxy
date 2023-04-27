@@ -492,7 +492,7 @@ void set_server_check_status(struct check *check, short status, const char *desc
 		check->duration = -1;
 	else if (!tv_iszero(&check->start)) {
 		/* set_server_check_status() may be called more than once */
-		check->duration = tv_ms_elapsed(&check->start, &now);
+		check->duration = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&check->start));
 		tv_zero(&check->start);
 	}
 

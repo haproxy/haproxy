@@ -902,7 +902,7 @@ static void back_establish(struct stream *s)
 	/* First, centralize the timers information, and clear any irrelevant
 	 * timeout.
 	 */
-	s->logs.t_connect = tv_ms_elapsed(&s->logs.tv_accept, &now);
+	s->logs.t_connect = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&s->logs.tv_accept));
 	s->conn_exp = TICK_ETERNITY;
 	s->flags &= ~SF_CONN_EXP;
 
@@ -2595,7 +2595,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	}
 
 	if (!(s->flags & SF_IGNORE)) {
-		s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
+		s->logs.t_close = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&s->logs.tv_accept));
 
 		stream_process_counters(s);
 
@@ -2661,7 +2661,7 @@ void stream_update_time_stats(struct stream *s)
 		return;
 
 	if (tv_isge(&s->logs.tv_request, &s->logs.tv_accept))
-		t_request = tv_ms_elapsed(&s->logs.tv_accept, &s->logs.tv_request);
+		t_request = ns_to_ms(tv_to_ns(&s->logs.tv_request) - tv_to_ns(&s->logs.tv_accept));
 
 	t_data    -= t_connect;
 	t_connect -= t_queue;

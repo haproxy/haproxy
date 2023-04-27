@@ -2018,7 +2018,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		tmp_strm_log.t_queue = -1;
 		tmp_strm_log.t_connect = -1;
 		tmp_strm_log.t_data = -1;
-		tmp_strm_log.t_close = tv_ms_elapsed(&sess->tv_accept, &now);
+		tmp_strm_log.t_close = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&sess->tv_accept));
 		tmp_strm_log.bytes_in = 0;
 		tmp_strm_log.bytes_out = 0;
 		tmp_strm_log.prx_queue_pos = 0;
@@ -2059,7 +2059,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 	t_request = -1;
 	if (tv_isge(&logs->tv_request, &logs->tv_accept))
-		t_request = tv_ms_elapsed(&logs->tv_accept, &logs->tv_request);
+		t_request = ns_to_ms(tv_to_ns(&logs->tv_request) - tv_to_ns(&logs->tv_accept));
 
 	tmplog = dst;
 

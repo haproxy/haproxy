@@ -782,7 +782,7 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	 * It will not cause trouble to the logs because we can exclude
 	 * the tarpitted connections by filtering on the 'PT' status flags.
 	 */
-	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
+	s->logs.t_queue = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&s->logs.tv_accept));
 
 	http_reply_and_close(s, txn->status, (!(s->scf->flags & SC_FL_ERROR) ? http_error_message(s) : NULL));
 	http_set_term_flags(s);
@@ -1585,7 +1585,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
   end:
 	/* we want to have the response time before we start processing it */
-	s->logs.t_data = tv_ms_elapsed(&s->logs.tv_accept, &now);
+	s->logs.t_data = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&s->logs.tv_accept));
 
 	/* end of job, return OK */
 	rep->analysers &= ~an_bit;

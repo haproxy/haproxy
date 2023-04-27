@@ -2024,7 +2024,7 @@ void back_try_conn_req(struct stream *s)
 			sc_shutdown(sc);
 			sc->flags |= SC_FL_ERROR;
 
-			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
+			s->logs.t_queue = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&s->logs.tv_accept));
 
 			/* we may need to know the position in the queue for logging */
 			pendconn_cond_unlink(s->pend_pos);
@@ -2060,7 +2060,7 @@ void back_try_conn_req(struct stream *s)
 			if (unlikely(!(s->flags & SF_ASSIGNED)))
 				sc->state = SC_ST_REQ;
 			else {
-				s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
+				s->logs.t_queue = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&s->logs.tv_accept));
 				sc->state = SC_ST_ASS;
 			}
 			DBG_TRACE_STATE("dequeue connection request", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
@@ -2072,7 +2072,7 @@ void back_try_conn_req(struct stream *s)
 			/* ... and timeout expired */
 			s->conn_exp = TICK_ETERNITY;
 			s->flags &= ~SF_CONN_EXP;
-			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
+			s->logs.t_queue = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&s->logs.tv_accept));
 
 			/* we may need to know the position in the queue for logging */
 			pendconn_cond_unlink(s->pend_pos);
@@ -2094,7 +2094,7 @@ void back_try_conn_req(struct stream *s)
 
 		/* Connection remains in queue, check if we have to abort it */
 		if (back_may_abort_req(req, s)) {
-			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
+			s->logs.t_queue = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&s->logs.tv_accept));
 
 			/* we may need to know the position in the queue for logging */
 			pendconn_cond_unlink(s->pend_pos);
@@ -2219,7 +2219,7 @@ void back_handle_st_req(struct stream *s)
 	}
 
 	/* The server is assigned */
-	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
+	s->logs.t_queue = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&s->logs.tv_accept));
 	sc->state = SC_ST_ASS;
 	be_set_sess_last(s->be);
 	DBG_TRACE_STATE("connection request assigned to a server", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
@@ -2442,7 +2442,7 @@ void back_handle_st_rdy(struct stream *s)
 
 		if (tv_iszero(&s->logs.tv_request))
 			s->logs.tv_request = now;
-		s->logs.t_queue   = tv_ms_elapsed(&s->logs.tv_accept, &now);
+		s->logs.t_queue = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&s->logs.tv_accept));
 		be_set_sess_last(s->be);
 	}
 

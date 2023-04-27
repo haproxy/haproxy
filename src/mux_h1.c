@@ -3017,7 +3017,7 @@ static int h1_process(struct h1c * h1c)
 		}
 
 		if (h1s->sess->t_idle == -1)
-			h1s->sess->t_idle = tv_ms_elapsed(&h1s->sess->tv_accept, &now) - h1s->sess->t_handshake;
+			h1s->sess->t_idle = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&h1s->sess->tv_accept)) - h1s->sess->t_handshake;
 
 		/* Get the stream rxbuf */
 		buf = h1_get_buf(h1c, &h1s->rxbuf);

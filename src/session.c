@@ -432,7 +432,7 @@ int conn_complete_session(struct connection *conn)
 {
 	struct session *sess = conn->owner;
 
-	sess->t_handshake = tv_ms_elapsed(&sess->tv_accept, &now);
+	sess->t_handshake = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&sess->tv_accept));
 
 	if (conn->flags & CO_FL_ERROR)
 		goto fail;

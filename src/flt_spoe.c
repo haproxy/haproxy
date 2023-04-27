@@ -264,9 +264,9 @@ static inline void
 spoe_update_stat_time(struct timeval *tv, long *t)
 {
 	if (*t == -1)
-		*t = tv_ms_elapsed(tv, &now);
+		*t = ns_to_ms(tv_to_ns(&now) - tv_to_ns(tv));
 	else
-		*t += tv_ms_elapsed(tv, &now);
+		*t += ns_to_ms(tv_to_ns(&now) - tv_to_ns(tv));
 	tv_zero(tv);
 }
 
