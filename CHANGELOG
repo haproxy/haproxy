@@ -1,6 +1,66 @@
 ChangeLog :
 ===========
 
+2023/04/28 : 2.8-dev9
+    - MINOR: quic: Move traces at proto level
+    - BUG/MINOR: quic: Possible memory leak from TX packets
+    - BUG/MINOR: quic: Possible leak during probing retransmissions
+    - BUG/MINOR: quic: Useless probing retransmission in draining or killing state
+    - BUG/MINOR: quic: Useless I/O handler task wakeups (draining, killing state)
+    - CLEANUP: quic: rename frame types with an explicit prefix
+    - CLEANUP: quic: rename frame variables
+    - CLEANUP: quic: Remove useless parameters passes to qc_purge_tx_buf()
+    - CLEANUP: quic: Rename <buf> variable to <token> in quic_generate_retry_token()
+    - CLEANUP: quic: Rename <buf> variable into quic_padding_check()
+    - CLEANUP: quic: Rename <buf> variable into quic_rx_pkt_parse()
+    - CLEANUP: quic: Rename <buf> variable for several low level functions
+    - CLEANUP: quic: Make qc_build_pkt() be more readable
+    - CLEANUP: quic: Rename quic_get_dgram_dcid() <buf> variable
+    - CLEANUP: quic: Rename several <buf> variables at low level
+    - CLEANUP: quic: Rename <buf> variable into quic_packet_read_long_header()
+    - CLEANUP: quic: Rename <buf> variable into qc_parse_hd_form()
+    - CLEANUP: quic: Rename several <buf> variables into quic_sock.c
+    - DEBUG: crash using an invalid opcode on x86/x86_64 instead of an invalid access
+    - DEBUG: crash using an invalid opcode on aarch64 instead of an invalid access
+    - DEV: h2: add a script "mkhdr" to build h2 frames from scratch
+    - DEV: h2: support reading frame payload from a file
+    - MINOR: acme.sh: add the deploy script for acme.sh in admin directory
+    - BUG/MEDIUM: mux-quic: do not emit RESET_STREAM for unknown length
+    - BUG/MEDIUM: mux-quic: improve streams fairness to prevent early timeout
+    - BUG/MINOR: quic: prevent buggy memcpy for empty STREAM
+    - MINOR: mux-quic: do not set buffer for empty STREAM frame
+    - MINOR: mux-quic: do not allocate Tx buf for empty STREAM frame
+    - MINOR: quic: finalize affinity change as soon as possible
+    - BUG/MINOR: quic: fix race on quic_conns list during affinity rebind
+    - CI: switch to Fastly CDN to download LibreSSL
+    - BUILD: ssl: switch LibreSSL to Fastly CDN
+    - BUG/MINOR: clock: fix a few occurrences of 'now' being used in place of 'date'
+    - BUG/MINOR: spoe: use "date" not "now" in debug messages
+    - BUG/MINOR: activity: show wall-clock date, not internal date in show activity
+    - BUG/MINOR: opentracing: use 'date' instead of 'now' in debug output
+    - Revert "BUG/MINOR: clock: fix a few occurrences of 'now' being used in place of 'date'"
+    - BUG/MINOR: calltrace: fix 'now' being used in place of 'date'
+    - BUG/MINOR: trace: show wall-clock date, not internal date in show activity
+    - BUG/MINOR: hlua: return wall-clock date, not internal date in core.now()
+    - BUG/MEDIUM: spoe: Don't start new applet if there are enough idle ones
+    - BUG/MINOR: stconn: Fix SC flags with same value
+    - BUG/MINOR: resolvers: Use sc_need_room() to wait more room when dumping stats
+    - BUG/MEDIUM: tcpcheck: Don't eval custom expect rule on an empty buffer
+    - BUG/MINOR: stats: report the correct start date in "show info"
+    - MINOR: time: add conversions to/from nanosecond timestamps
+    - MINOR: time: replace calls to tv_ms_elapsed() with a linear subtract
+    - MINOR: spoe: switch the timeval-based timestamps to nanosecond timestamps
+    - MEDIUM: tree-wide: replace timeval with nanoseconds in tv_accept and tv_request
+    - MINOR: stats: use nanoseconds, not timeval to compute uptime
+    - MINOR: activity: use nanoseconds, not timeval to compute uptime
+    - MINOR: checks: use a nanosecond counters instead of timeval for checks->start
+    - MINOR: clock: do not use now.tv_sec anymore
+    - MEDIUM: clock: replace timeval "now" with integer "now_ns"
+    - MINOR: clock: replace the timeval start_time with start_time_ns
+    - MINOR: sample: Add bc_rtt and bc_rttvar
+    - MINOR: quic: use real sending rate measurement
+    - MINOR: proxy: factorize send rate measurement
+
 2023/04/23 : 2.8-dev8
     - BUG/MEDIUM: cli: Set SE_FL_EOI flag for '_getsocks' and 'quit' commands
     - BUG/MEDIUM: cli: Eat output data when waiting for appctx shutdown
