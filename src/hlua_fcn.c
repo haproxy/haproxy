@@ -305,8 +305,7 @@ int hlua_now(lua_State *L)
 	 */
 	struct timeval tv;
 
-	tv = NS_TO_TV(now_ns);
-	tv_remain(&start_time, &tv, &tv);  // tv = now_ns - start_time
+	tv = NS_TO_TV(now_ns - start_time_ns);
 	tv_add(&tv, &tv, &start_date);
 
 	lua_newtable(L);
