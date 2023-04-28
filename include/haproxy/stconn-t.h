@@ -156,14 +156,14 @@ enum sc_flags {
 	SC_FL_RCV_ONCE      = 0x00000400,  /* Don't loop to receive data. cleared after a successful receive */
 	SC_FL_SND_ASAP      = 0x00000800,  /* Don't wait for sending. cleared when all data were sent */
 	SC_FL_SND_NEVERWAIT = 0x00001000,  /* Never wait for sending (permanent) */
-	SC_FL_SND_EXP_MORE  = 0x00001000,  /* More data expected to be sent very soon. cleared when all data were sent */
+	SC_FL_SND_EXP_MORE  = 0x00002000,  /* More data expected to be sent very soon. cleared when all data were sent */
 
-	SC_FL_ABRT_WANTED   = 0x00002000,  /* An abort was requested and must be performed ASAP (up side to down side) */
-	SC_FL_SHUT_WANTED   = 0x00004000,  /* A shutdown was requested and mux be performed ASAP (up side to down side) */
-	SC_FL_ABRT_DONE     = 0x00008000,  /* An abort was performed for the SC */
-	SC_FL_SHUT_DONE     = 0x00010000,  /* A shutdown was performed for the SC */
+	SC_FL_ABRT_WANTED   = 0x00004000,  /* An abort was requested and must be performed ASAP (up side to down side) */
+	SC_FL_SHUT_WANTED   = 0x00008000,  /* A shutdown was requested and mux be performed ASAP (up side to down side) */
+	SC_FL_ABRT_DONE     = 0x00010000,  /* An abort was performed for the SC */
+	SC_FL_SHUT_DONE     = 0x00020000,  /* A shutdown was performed for the SC */
 
-	SC_FL_EOS           = 0x00020000,  /* End of stream was reached (from down side to up side) */
+	SC_FL_EOS           = 0x00040000,  /* End of stream was reached (from down side to up side) */
 };
 
 /* This function is used to report flags in debugging tools. Please reflect
