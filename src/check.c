@@ -471,7 +471,7 @@ void set_server_check_status(struct check *check, short status, const char *desc
 	if (status == HCHK_STATUS_START) {
 		check->result = CHK_RES_UNKNOWN;	/* no result yet */
 		check->desc[0] = '\0';
-		check->start = now;
+		check->start = tv_to_ns(&now);
 		return;
 	}
 
@@ -490,10 +490,10 @@ void set_server_check_status(struct check *check, short status, const char *desc
 
 	if (status == HCHK_STATUS_HANA)
 		check->duration = -1;
-	else if (!tv_iszero(&check->start)) {
+	else if (check->start) {
 		/* set_server_check_status() may be called more than once */
-		check->duration = ns_to_ms(tv_to_ns(&now) - tv_to_ns(&check->start));
-		tv_zero(&check->start);
+		check->duration = ns_to_ms(tv_to_ns(&now) - check->start);
+		check->start = 0;
 	}
 
 	/* no change is expected if no state change occurred */
@@ -1499,7 +1499,7 @@ int start_check_task(struct check *check, int mininter,
 
 	/* check this every ms */
 	t->expire = tick_add(now_ms, MS_TO_TICKS(mininter * srvpos / nbcheck));
-	check->start = now;
+	check->start = tv_to_ns(&now);
 	task_queue(t);
 
 	return 1;

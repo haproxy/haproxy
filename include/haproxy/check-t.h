@@ -156,7 +156,7 @@ struct check {
 	struct buffer bi, bo;			/* input and output buffers to send/recv check */
 	struct buffer_wait buf_wait;            /* Wait list for buffer allocation */
 	struct task *task;			/* the task associated to the health check processing, NULL if disabled */
-	struct timeval start;			/* last health check start time */
+	ullong start;				/* last health check start time */
 	long duration;				/* time in ms took to finish last health check */
 	short status, code;			/* check result, check code */
 	unsigned short port;			/* the port to use for the health checks */
