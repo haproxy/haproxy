@@ -24,7 +24,6 @@
 #include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
 #include <haproxy/global-t.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
@@ -662,13 +661,6 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 
 	if (ret != sz)
 		return 0;
-
-	/* we count the total bytes sent, and the send rate for 32-byte blocks.
-	 * The reason for the latter is that freq_ctr are limited to 4GB and
-	 * that it's not enough per second.
-	 */
-	_HA_ATOMIC_ADD(&th_ctx->out_bytes, ret);
-	update_freq_ctr(&th_ctx->out_32bps, (ret + 16) / 32);
 
 	return ret;
 }
