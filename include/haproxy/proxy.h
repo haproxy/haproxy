@@ -30,6 +30,7 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/ticks.h>
+#include <haproxy/thread.h>
 
 extern struct proxy *proxies_list;
 extern struct eb_root used_proxy_id;	/* list of proxy IDs in use */
@@ -233,6 +234,22 @@ static inline int in_proxies_list(struct proxy *list, struct proxy *proxy)
 			return 1;
 
 	return 0;
+}
+
+/* Add <bytes> to the global total bytes sent and adjust the send rate. Set
+ * <splice> if this was sent usigin splicing.
+ */
+static inline void increment_send_rate(uint64_t bytes, int splice)
+{
+	/* We count the total bytes sent, and the send rate for 32-byte blocks.
+	 * The reason for the latter is that freq_ctr are limited to 4GB and
+	 * that it's not enough per second.
+	 */
+
+	if (splice)
+		_HA_ATOMIC_ADD(&th_ctx->spliced_out_bytes, bytes);
+	_HA_ATOMIC_ADD(&th_ctx->out_bytes, bytes);
+	update_freq_ctr(&th_ctx->out_32bps, (bytes + 16) / 32);
 }
 
 #endif /* _HAPROXY_PROXY_H */

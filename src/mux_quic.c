@@ -5,7 +5,6 @@
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
-#include <haproxy/freq_ctr.h>
 #include <haproxy/h3.h>
 #include <haproxy/list.h>
 #include <haproxy/ncbuf.h>
@@ -20,7 +19,6 @@
 #include <haproxy/quic_tp-t.h>
 #include <haproxy/ssl_sock-t.h>
 #include <haproxy/stconn.h>
-#include <haproxy/thread.h>
 #include <haproxy/trace.h>
 
 DECLARE_POOL(pool_head_qcc, "qcc", sizeof(struct qcc));
@@ -1648,13 +1646,8 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 
 		/* Add measurement for send rate. This is done at the MUX layer
 		 * to account only for STREAM frames without retransmission.
-		 *
-		 * we count the total bytes sent, and the send rate for 32-byte blocks.
-		 * The reason for the latter is that freq_ctr are limited to 4GB and
-		 * that it's not enough per second.
 		 */
-		_HA_ATOMIC_ADD(&th_ctx->out_bytes, ret);
-		update_freq_ctr(&th_ctx->out_32bps, (ret + 16) / 32);
+		increment_send_rate(diff, 0);
 	}
 
 	if (qcs->tx.offset == qcs->tx.sent_offset && !b_data(&qcs->tx.buf)) {

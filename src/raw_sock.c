@@ -26,9 +26,9 @@
 #include <haproxy/connection.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
 #include <haproxy/global.h>
 #include <haproxy/pipe.h>
+#include <haproxy/proxy.h>
 #include <haproxy/tools.h>
 
 
@@ -147,15 +147,9 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
  leave:
-	if (retval > 0) {
-		/* we count the total bytes sent, and the send rate for 32-byte
-		 * blocks. The reason for the latter is that freq_ctr are
-		 * limited to 4GB and that it's not enough per second.
-		 */
-		_HA_ATOMIC_ADD(&th_ctx->out_bytes, retval);
-		_HA_ATOMIC_ADD(&th_ctx->spliced_out_bytes, retval);
-		update_freq_ctr(&th_ctx->out_32bps, (retval + 16) / 32);
-	}
+	if (retval > 0)
+		increment_send_rate(retval, 1);
+
 	return retval;
 
  out_read0:
@@ -416,14 +410,9 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 	}
 
-	if (done > 0) {
-		/* we count the total bytes sent, and the send rate for 32-byte
-		 * blocks. The reason for the latter is that freq_ctr are
-		 * limited to 4GB and that it's not enough per second.
-		 */
-		_HA_ATOMIC_ADD(&th_ctx->out_bytes, done);
-		update_freq_ctr(&th_ctx->out_32bps, (done + 16) / 32);
-	}
+	if (done > 0)
+		increment_send_rate(done, 0);
+
 	return done;
 }
 
