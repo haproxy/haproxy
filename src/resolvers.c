@@ -2693,7 +2693,7 @@ static int stats_dump_resolv_to_buffer(struct stconn *sc,
 	return 1;
 
   full:
-	sc_have_room(sc);
+	sc_need_room(sc);
 	return 0;
 }
 
