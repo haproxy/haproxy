@@ -114,10 +114,10 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
 		       s->proxy->beconn * s->maxconn / s->proxy->fullconn);
 
 	if ((s->cur_state == SRV_ST_STARTING) &&
-	    now.tv_sec < s->last_change + s->slowstart &&
-	    now.tv_sec >= s->last_change) {
+	    ns_to_sec(tv_to_ns(&now)) < s->last_change + s->slowstart &&
+	    ns_to_sec(tv_to_ns(&now)) >= s->last_change) {
 		unsigned int ratio;
-		ratio = 100 * (now.tv_sec - s->last_change) / s->slowstart;
+		ratio = 100 * (ns_to_sec(tv_to_ns(&now)) - s->last_change) / s->slowstart;
 		max = MAX(1, max * ratio / 100);
 	}
 	return max;

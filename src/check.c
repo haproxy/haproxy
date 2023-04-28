@@ -1029,9 +1029,9 @@ int httpchk_build_status_header(struct server *s, struct buffer *buf)
 		      s->queue.length);
 
 	if ((s->cur_state == SRV_ST_STARTING) &&
-	    now.tv_sec < s->last_change + s->slowstart &&
-	    now.tv_sec >= s->last_change) {
-		ratio = MAX(1, 100 * (now.tv_sec - s->last_change) / s->slowstart);
+	    ns_to_sec(tv_to_ns(&now)) < s->last_change + s->slowstart &&
+	    ns_to_sec(tv_to_ns(&now)) >= s->last_change) {
+		ratio = MAX(1, 100 * (ns_to_sec(tv_to_ns(&now)) - s->last_change) / s->slowstart);
 		chunk_appendf(buf, "; throttle=%d%%", ratio);
 	}
 

@@ -28,6 +28,7 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/stream-t.h>
+#include <haproxy/time.h>
 
 int assign_server(struct stream *s);
 int assign_server_address(struct stream *s);
@@ -64,7 +65,7 @@ static inline int be_usable_srv(struct proxy *be)
 /* set the time of last session on the backend */
 static inline void be_set_sess_last(struct proxy *be)
 {
-	be->be_counters.last_sess = now.tv_sec;
+	be->be_counters.last_sess = ns_to_sec(tv_to_ns(&now));
 }
 
 /* This function returns non-zero if the designated server will be

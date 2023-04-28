@@ -1650,7 +1650,7 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, char **errmsg)
 	}
 
 	init_new_proxy(curproxy);
-	curproxy->last_change = now.tv_sec;
+	curproxy->last_change = ns_to_sec(tv_to_ns(&now));
 	curproxy->id = strdup(name);
 	curproxy->cap = cap;
 
@@ -2839,7 +2839,7 @@ static int dump_servers_state(struct stconn *sc)
 		dump_server_addr(&srv->check.addr, srv_check_addr);
 		dump_server_addr(&srv->agent.addr, srv_agent_addr);
 
-		srv_time_since_last_change = now.tv_sec - srv->last_change;
+		srv_time_since_last_change = ns_to_sec(tv_to_ns(&now)) - srv->last_change;
 		bk_f_forced_id = px->options & PR_O_FORCED_ID ? 1 : 0;
 		srv_f_forced_id = srv->flags & SRV_F_FORCED_ID ? 1 : 0;
 

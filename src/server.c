@@ -138,16 +138,16 @@ const char *srv_op_st_chg_cause(enum srv_op_st_chg_cause cause)
 
 int srv_downtime(const struct server *s)
 {
-	if ((s->cur_state != SRV_ST_STOPPED) || s->last_change >= now.tv_sec)		// ignore negative time
+	if ((s->cur_state != SRV_ST_STOPPED) || s->last_change >= ns_to_sec(tv_to_ns(&now)))		// ignore negative time
 		return s->down_time;
 
-	return now.tv_sec - s->last_change + s->down_time;
+	return ns_to_sec(tv_to_ns(&now)) - s->last_change + s->down_time;
 }
 
 int srv_lastsession(const struct server *s)
 {
 	if (s->counters.last_sess)
-		return now.tv_sec - s->counters.last_sess;
+		return ns_to_sec(tv_to_ns(&now)) - s->counters.last_sess;
 
 	return -1;
 }
@@ -1867,7 +1867,7 @@ void server_recalc_eweight(struct server *sv, int must_update)
 	struct proxy *px = sv->proxy;
 	unsigned w;
 
-	if (now.tv_sec < sv->last_change || now.tv_sec >= sv->last_change + sv->slowstart) {
+	if (ns_to_sec(tv_to_ns(&now)) < sv->last_change || ns_to_sec(tv_to_ns(&now)) >= sv->last_change + sv->slowstart) {
 		/* go to full throttle if the slowstart interval is reached */
 		if (sv->next_state == SRV_ST_STARTING)
 			sv->next_state = SRV_ST_RUNNING;
@@ -1877,7 +1877,7 @@ void server_recalc_eweight(struct server *sv, int must_update)
 	 * It must also start immediately, at least at the minimal step when leaving maintenance.
 	 */
 	if ((sv->next_state == SRV_ST_STARTING) && (px->lbprm.algo & BE_LB_PROP_DYN))
-		w = (px->lbprm.wdiv * (now.tv_sec - sv->last_change) + sv->slowstart) / sv->slowstart;
+		w = (px->lbprm.wdiv * (ns_to_sec(tv_to_ns(&now)) - sv->last_change) + sv->slowstart) / sv->slowstart;
 	else
 		w = px->lbprm.wdiv;
 
@@ -2358,7 +2358,7 @@ struct server *new_server(struct proxy *proxy)
 	event_hdl_sub_list_init(&srv->e_subs);
 
 	srv->next_state = SRV_ST_RUNNING; /* early server setup */
-	srv->last_change = now.tv_sec;
+	srv->last_change = ns_to_sec(tv_to_ns(&now));
 
 	srv->check.obj_type = OBJ_TYPE_CHECK;
 	srv->check.status = HCHK_STATUS_INI;
@@ -4685,7 +4685,7 @@ static int init_srv_slowstart(struct server *srv)
 		if (srv->next_state == SRV_ST_STARTING) {
 			task_schedule(srv->warmup,
 			              tick_add(now_ms,
-			                       MS_TO_TICKS(MAX(1000, (now.tv_sec - srv->last_change)) / 20)));
+			                       MS_TO_TICKS(MAX(1000, (ns_to_sec(tv_to_ns(&now)) - srv->last_change)) / 20)));
 		}
 	}
 
@@ -5752,14 +5752,14 @@ static void srv_update_status(struct server *s, int type, int cause)
 	if (srv_prev_state != s->cur_state) {
 		if (srv_prev_state == SRV_ST_STOPPED) {
 			/* server was down and no longer is */
-			if (s->last_change < now.tv_sec)                        // ignore negative times
-				s->down_time += now.tv_sec - s->last_change;
+			if (s->last_change < ns_to_sec(tv_to_ns(&now)))                        // ignore negative times
+				s->down_time += ns_to_sec(tv_to_ns(&now)) - s->last_change;
 		}
 		else if (s->cur_state == SRV_ST_STOPPED) {
 			/* server was up and is currently down */
 			s->counters.down_trans++;
 		}
-		s->last_change = now.tv_sec;
+		s->last_change = ns_to_sec(tv_to_ns(&now));
 	}
 
 	/* check if backend stats must be updated due to the server state change */
@@ -5769,9 +5769,9 @@ static void srv_update_status(struct server *s, int type, int cause)
 		/* backend was down and is back up again:
 		 * no helper function, updating last_change and backend downtime stats
 		 */
-		if (s->proxy->last_change < now.tv_sec)         // ignore negative times
-			s->proxy->down_time += now.tv_sec - s->proxy->last_change;
-		s->proxy->last_change = now.tv_sec;
+		if (s->proxy->last_change < ns_to_sec(tv_to_ns(&now)))         // ignore negative times
+			s->proxy->down_time += ns_to_sec(tv_to_ns(&now)) - s->proxy->last_change;
+		s->proxy->last_change = ns_to_sec(tv_to_ns(&now));
 	}
 }
 

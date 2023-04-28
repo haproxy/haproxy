@@ -3760,7 +3760,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		px->conf.file = strdup(file);
 		px->conf.line = linenum;
 		px->mode = PR_MODE_SYSLOG;
-		px->last_change = now.tv_sec;
+		px->last_change = ns_to_sec(tv_to_ns(&now));
 		px->cap = PR_CAP_FE;
 		px->maxconn = 10;
 		px->timeout.client = TICK_ETERNITY;

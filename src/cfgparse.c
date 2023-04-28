@@ -660,7 +660,7 @@ static struct peer *cfg_peers_add_peer(struct peers *peers,
 	peers->remote = p;
 	p->conf.file = strdup(file);
 	p->conf.line = linenum;
-	p->last_change = now.tv_sec;
+	p->last_change = ns_to_sec(tv_to_ns(&now));
 	p->xprt  = xprt_get(XPRT_RAW);
 	p->sock_init_arg = NULL;
 	HA_SPIN_INIT(&p->lock);
@@ -838,7 +838,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		cfg_peers = curpeers;
 		curpeers->conf.file = strdup(file);
 		curpeers->conf.line = linenum;
-		curpeers->last_change = now.tv_sec;
+		curpeers->last_change = ns_to_sec(tv_to_ns(&now));
 		curpeers->id = strdup(args[1]);
 		curpeers->disabled = 0;
 	}

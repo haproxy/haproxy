@@ -64,7 +64,7 @@
 int be_lastsession(const struct proxy *be)
 {
 	if (be->be_counters.last_sess)
-		return now.tv_sec - be->be_counters.last_sess;
+		return ns_to_sec(tv_to_ns(&now)) - be->be_counters.last_sess;
 
 	return -1;
 }
@@ -2505,7 +2505,7 @@ void back_handle_st_rdy(struct stream *s)
  */
 void set_backend_down(struct proxy *be)
 {
-	be->last_change = now.tv_sec;
+	be->last_change = ns_to_sec(tv_to_ns(&now));
 	_HA_ATOMIC_INC(&be->down_trans);
 
 	if (!(global.mode & MODE_STARTING)) {
@@ -2578,10 +2578,10 @@ no_cookie:
 }
 
 int be_downtime(struct proxy *px) {
-	if (px->lbprm.tot_weight && px->last_change < now.tv_sec)  // ignore negative time
+	if (px->lbprm.tot_weight && px->last_change < ns_to_sec(tv_to_ns(&now)))  // ignore negative time
 		return px->down_time;
 
-	return now.tv_sec - px->last_change + px->down_time;
+	return ns_to_sec(tv_to_ns(&now)) - px->last_change + px->down_time;
 }
 
 /*

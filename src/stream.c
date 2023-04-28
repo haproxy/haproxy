@@ -3372,7 +3372,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 
 		chunk_appendf(&trash,
 			     " age=%s)\n",
-			     human_time(now.tv_sec - strm->logs.accept_date.tv_sec, 1));
+			     human_time(ns_to_sec(tv_to_ns(&now)) - strm->logs.accept_date.tv_sec, 1));
 
 		if (strm->txn)
 			chunk_appendf(&trash,
@@ -3699,7 +3699,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		chunk_appendf(&trash,
 			     " ts=%02x epoch=%#x age=%s calls=%u rate=%u cpu=%llu lat=%llu",
 		             curr_strm->task->state, curr_strm->stream_epoch,
-		             human_time(now.tv_sec - ns_to_sec(curr_strm->logs.accept_ts), 1),
+		             human_time(ns_to_sec(tv_to_ns(&now)) - ns_to_sec(curr_strm->logs.accept_ts), 1),
 		             curr_strm->task->calls, read_freq_ctr(&curr_strm->call_rate),
 		             (unsigned long long)curr_strm->cpu_time, (unsigned long long)curr_strm->lat_time);
 
