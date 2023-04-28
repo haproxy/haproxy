@@ -101,7 +101,7 @@ static inline struct stconn *qc_attach_sc(struct qcs *qcs, struct buffer *buf)
 	se_expect_no_data(qcs->sd);
 
 	/* TODO duplicated from mux_h2 */
-	sess->t_idle = ns_to_ms(tv_to_ns(&now) - sess->accept_ts) - sess->t_handshake;
+	sess->t_idle = ns_to_ms(now_ns - sess->accept_ts) - sess->t_handshake;
 
 	if (!sc_new_from_endp(qcs->sd, sess, buf))
 		return NULL;
@@ -116,7 +116,7 @@ static inline struct stconn *qc_attach_sc(struct qcs *qcs, struct buffer *buf)
 
 	/* TODO duplicated from mux_h2 */
 	sess->accept_date = date;
-	sess->accept_ts   = tv_to_ns(&now);
+	sess->accept_ts   = now_ns;
 	sess->t_handshake = 0;
 	sess->t_idle = 0;
 

@@ -2345,7 +2345,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 				metric = mkf_str(FO_STATUS, fld_status);
 				break;
 			case ST_F_LASTCHG:
-				metric = mkf_u32(FN_AGE, ns_to_sec(tv_to_ns(&now)) - sv->last_change);
+				metric = mkf_u32(FN_AGE, ns_to_sec(now_ns) - sv->last_change);
 				break;
 			case ST_F_WEIGHT:
 				metric = mkf_u32(FN_AVG, (sv->cur_eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
@@ -2800,7 +2800,7 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 				metric = mkf_u64(FN_COUNTER, px->down_trans);
 				break;
 			case ST_F_LASTCHG:
-				metric = mkf_u32(FN_AGE, ns_to_sec(tv_to_ns(&now)) - px->last_change);
+				metric = mkf_u32(FN_AGE, ns_to_sec(now_ns) - px->last_change);
 				break;
 			case ST_F_DOWNTIME:
 				if (px->srv)
@@ -3555,7 +3555,7 @@ static void stats_dump_html_info(struct stconn *sc, struct uri_auth *uri)
 {
 	struct appctx *appctx = __sc_appctx(sc);
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	unsigned int up = (ns_to_sec(tv_to_ns(&now)) - start_time.tv_sec);
+	unsigned int up = (ns_to_sec(now_ns) - start_time.tv_sec);
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
 	const char *scope_ptr = stats_scope_ptr(appctx, sc);
 	unsigned long long bps;
@@ -4628,7 +4628,7 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	}
 	glob_out_b32 *= 32; // values are 32-byte units
 
-	up = tv_to_ns(&now) - tv_to_ns(&start_time);
+	up = now_ns - tv_to_ns(&start_time);
 	up_sec = ns_to_sec(up);
 	up_usec = (up / 1000U) % 1000000U;
 

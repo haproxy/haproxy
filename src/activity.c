@@ -1087,7 +1087,7 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	} while (0)
 
 	/* retrieve uptime */
-	up = tv_to_ns(&now) - tv_to_ns(&start_time);
+	up = now_ns - tv_to_ns(&start_time);
 	up_sec = ns_to_sec(up);
 	up_usec = (up / 1000U) % 1000000U;
 

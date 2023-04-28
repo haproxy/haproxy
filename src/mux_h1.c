@@ -3017,7 +3017,7 @@ static int h1_process(struct h1c * h1c)
 		}
 
 		if (h1s->sess->t_idle == -1)
-			h1s->sess->t_idle = ns_to_ms(tv_to_ns(&now) - h1s->sess->accept_ts) - h1s->sess->t_handshake;
+			h1s->sess->t_idle = ns_to_ms(now_ns - h1s->sess->accept_ts) - h1s->sess->t_handshake;
 
 		/* Get the stream rxbuf */
 		buf = h1_get_buf(h1c, &h1s->rxbuf);
@@ -3427,7 +3427,7 @@ static void h1_detach(struct sedesc *sd)
 	h1c = h1s->h1c;
 
 	sess->accept_date = date;
-	sess->accept_ts   = tv_to_ns(&now);
+	sess->accept_ts   = now_ns;
 	sess->t_handshake = 0;
 	sess->t_idle      = -1;
 

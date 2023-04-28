@@ -454,7 +454,7 @@ static struct proxy *cli_alloc_fe(const char *name, const char *file, int line)
 	init_new_proxy(fe);
 	fe->next = proxies_list;
 	proxies_list = fe;
-	fe->last_change = ns_to_sec(tv_to_ns(&now));
+	fe->last_change = ns_to_sec(now_ns);
 	fe->id = strdup("GLOBAL");
 	fe->cap = PR_CAP_FE|PR_CAP_INT;
 	fe->maxconn = 10;                 /* default to 10 concurrent connections */
@@ -2626,7 +2626,7 @@ read_again:
 
 	/* If there is data available for analysis, log the end of the idle time. */
 	if (c_data(req) && s->logs.t_idle == -1)
-		s->logs.t_idle = ns_to_ms(tv_to_ns(&now) - s->logs.accept_ts) - s->logs.t_handshake;
+		s->logs.t_idle = ns_to_ms(now_ns - s->logs.accept_ts) - s->logs.t_handshake;
 
 	to_forward = pcli_parse_request(s, req, &errmsg, &next_pid);
 	if (to_forward > 0) {
@@ -2762,7 +2762,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				sess_change_server(s, NULL);
 		}
 
-		s->logs.t_close = ns_to_ms(tv_to_ns(&now) - s->logs.accept_ts);
+		s->logs.t_close = ns_to_ms(now_ns - s->logs.accept_ts);
 		stream_process_counters(s);
 
 		/* don't count other requests' data */
@@ -2784,7 +2784,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		stream_update_time_stats(s);
 
 		s->logs.accept_date = date; /* user-visible date for logging */
-		s->logs.accept_ts = tv_to_ns(&now);  /* corrected date for internal use */
+		s->logs.accept_ts = now_ns;  /* corrected date for internal use */
 		s->logs.t_handshake = 0; /* There are no handshake in keep alive connection. */
 		s->logs.t_idle = -1;
 		s->logs.request_ts = 0;

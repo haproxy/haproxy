@@ -902,7 +902,7 @@ static void back_establish(struct stream *s)
 	/* First, centralize the timers information, and clear any irrelevant
 	 * timeout.
 	 */
-	s->logs.t_connect = ns_to_ms(tv_to_ns(&now) - s->logs.accept_ts);
+	s->logs.t_connect = ns_to_ms(now_ns - s->logs.accept_ts);
 	s->conn_exp = TICK_ETERNITY;
 	s->flags &= ~SF_CONN_EXP;
 
@@ -2595,7 +2595,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	}
 
 	if (!(s->flags & SF_IGNORE)) {
-		s->logs.t_close = ns_to_ms(tv_to_ns(&now) - s->logs.accept_ts);
+		s->logs.t_close = ns_to_ms(now_ns - s->logs.accept_ts);
 
 		stream_process_counters(s);
 
@@ -3372,7 +3372,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 
 		chunk_appendf(&trash,
 			     " age=%s)\n",
-			     human_time(ns_to_sec(tv_to_ns(&now)) - strm->logs.accept_date.tv_sec, 1));
+			     human_time(ns_to_sec(now_ns) - strm->logs.accept_date.tv_sec, 1));
 
 		if (strm->txn)
 			chunk_appendf(&trash,
@@ -3699,7 +3699,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		chunk_appendf(&trash,
 			     " ts=%02x epoch=%#x age=%s calls=%u rate=%u cpu=%llu lat=%llu",
 		             curr_strm->task->state, curr_strm->stream_epoch,
-		             human_time(ns_to_sec(tv_to_ns(&now)) - ns_to_sec(curr_strm->logs.accept_ts), 1),
+		             human_time(ns_to_sec(now_ns) - ns_to_sec(curr_strm->logs.accept_ts), 1),
 		             curr_strm->task->calls, read_freq_ctr(&curr_strm->call_rate),
 		             (unsigned long long)curr_strm->cpu_time, (unsigned long long)curr_strm->lat_time);
 

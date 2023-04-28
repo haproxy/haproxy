@@ -145,7 +145,7 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 
 		/* check this in one ms */
 		t->expire    = TICK_ETERNITY;
-		check->start = tv_to_ns(&now);
+		check->start = now_ns;
 		task_queue(t);
 	}
 

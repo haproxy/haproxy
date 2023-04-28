@@ -28,13 +28,13 @@
 
 struct timeval                   start_date;      /* the process's start date in wall-clock time */
 struct timeval                   start_time;      /* the process's start date in internal monotonic time */
-volatile ullong                  global_now;      /* common monotonic date between all threads (32:32) */
+volatile ullong                  global_now_ns;   /* common monotonic date between all threads, in ns (wraps every 585 yr) */
 volatile uint                    global_now_ms;   /* common monotonic date in milliseconds (may wrap) */
 
-THREAD_ALIGNED(64) static ullong now_offset;      /* global offset between system time and global time */
+THREAD_ALIGNED(64) static llong  now_offset;      /* global offset between system time and global time in ns */
 
+THREAD_LOCAL ullong              now_ns;          /* internal monotonic date derived from real clock, in ns (wraps every 585 yr) */
 THREAD_LOCAL uint                now_ms;          /* internal monotonic date in milliseconds (may wrap) */
-THREAD_LOCAL struct timeval      now;             /* internal monotonic date derived from real clock */
 THREAD_LOCAL struct timeval      date;            /* the real current date (wall-clock time) */
 
 static THREAD_LOCAL struct timeval before_poll;   /* system date before calling poll() */
@@ -174,8 +174,8 @@ int clock_setup_signal_timer(void *tmr, int sig, int val)
 	return ret;
 }
 
-/* clock_update_date: sets <date> to system time, and sets <now> to something as
- * close as possible to real time, following a monotonic function. The main
+/* clock_update_date: sets <date> to system time, and sets <now_ns> to something
+ * as close as possible to real time, following a monotonic function. The main
  * principle consists in detecting backwards and forwards time jumps and adjust
  * an offset to correct them. This function should be called once after each
  * poll, and never farther apart than MAX_DELAY_MS*2. The poll's timeout should
@@ -186,19 +186,19 @@ int clock_setup_signal_timer(void *tmr, int sig, int val)
  * clock_init_thread_date() must also have been called once for each thread.
  *
  * An offset is used to adjust the current time (date), to figure a monotonic
- * local time (now). The offset is not critical, as it is only updated after a
- * clock jump is detected. From this point all threads will apply it to their
+ * local time (now_ns). The offset is not critical, as it is only updated after
+ * a clock jump is detected. From this point all threads will apply it to their
  * locally measured time, and will then agree around a common monotonic
- * global_now value that serves to further refine their local time. As it is
- * not possible to atomically update a timeval, both global_now and the
- * now_offset values are instead stored as 64-bit integers made of two 32 bit
- * values for the tv_sec and tv_usec parts. The offset is made of two signed
- * ints so that the clock can be adjusted in the two directions.
+ * global_now_ns value that serves to further refine their local time. Both
+ * now_ns and global_now_ns are 64-bit integers counting nanoseconds since a
+ * vague reference (it starts roughly 20s before the next wrap-around of the
+ * millisecond counter after boot). The offset is also an integral number of
+ * nanoseconds, but it's signed so that the clock can be adjusted in the two
+ * directions.
  */
 void clock_update_local_date(int max_wait, int interrupted)
 {
 	struct timeval min_deadline, max_deadline;
-	ullong ofs;
 
 	gettimeofday(&date, NULL);
 
@@ -216,56 +216,39 @@ void clock_update_local_date(int max_wait, int interrupted)
 	_tv_ms_add(&min_deadline, &before_poll, max_wait);
 	_tv_ms_add(&max_deadline, &before_poll, max_wait + 100);
 
-	ofs = HA_ATOMIC_LOAD(&now_offset);
-
 	if (unlikely(__tv_islt(&date, &before_poll)                    || // big jump backwards
 		     (!interrupted && __tv_islt(&date, &min_deadline)) || // small jump backwards
 		     __tv_islt(&max_deadline, &date))) {                  // big jump forwards
 		if (!interrupted)
-			_tv_ms_add(&now, &now, max_wait);
+			now_ns += ms_to_ns(max_wait);
 	} else {
 		/* The date is still within expectations. Let's apply the
 		 * now_offset to the system date. Note: ofs if made of two
 		 * independent signed ints.
 		 */
-		now.tv_sec  = date.tv_sec  + (int)(ofs >> 32); // note: may be positive or negative
-		now.tv_usec = date.tv_usec + (int)ofs;         // note: may be positive or negative
-		if ((int)now.tv_usec < 0) {
-			now.tv_usec += 1000000;
-			now.tv_sec  -= 1;
-		} else if (now.tv_usec >= 1000000) {
-			now.tv_usec -= 1000000;
-			now.tv_sec  += 1;
-		}
+		now_ns = tv_to_ns(&date) + HA_ATOMIC_LOAD(&now_offset);
 	}
-	now_ms = __tv_to_ms(&now);
+	now_ms = ns_to_ms(now_ns);
 }
 
 void clock_update_global_date()
 {
-	struct timeval tmp_now;
+	ullong old_now_ns;
 	uint old_now_ms;
-	ullong old_now;
-	ullong new_now;
-	ullong ofs_new;
-	uint sec_ofs, usec_ofs;
 
 	/* now that we have bounded the local time, let's check if it's
 	 * realistic regarding the global date, which only moves forward,
 	 * otherwise catch up.
 	 */
-	old_now    = global_now;
+	old_now_ns = _HA_ATOMIC_LOAD(&global_now_ns);
 	old_now_ms = global_now_ms;
 
 	do {
-		tmp_now.tv_sec  = (unsigned int)(old_now >> 32);
-		tmp_now.tv_usec = old_now & 0xFFFFFFFFU;
+		if (now_ns < old_now_ns)
+			now_ns = old_now_ns;
 
-		if (__tv_islt(&now, &tmp_now))
-			now = tmp_now;
-
-		/* now <now> is expected to be the most accurate date,
-		 * equal to <global_now> or newer. Updating the global
+		/* now <now_ns> is expected to be the most accurate date,
+		 * equal to <global_now_ns> or newer. Updating the global
 		 * date too often causes extreme contention and is not
 		 * needed: it's only used to help threads run at the
 		 * same date in case of local drift, and the global date,
@@ -276,34 +259,24 @@ void clock_update_global_date()
 		 * synchronized no better than 32 microseconds, so that's
 		 * what we're doing here.
 		 */
+		now_ms = ns_to_ms(now_ns);
 
-		new_now = ((ullong)now.tv_sec << 32) + (uint)now.tv_usec;
-		now_ms = __tv_to_ms(&now);
-
-		if (!((new_now ^ old_now) & ~0x1FULL))
+		if (!((now_ns ^ old_now_ns) & ~0x7FFFULL))
 			return;
 
-		/* let's try to update the global <now> (both in timeval
+		/* let's try to update the global_now_ns (both in nanoseconds
 		 * and ms forms) or loop again.
 		 */
-	} while ((!_HA_ATOMIC_CAS(&global_now, &old_now, new_now) ||
+	} while ((!_HA_ATOMIC_CAS(&global_now_ns, &old_now_ns, now_ns) ||
 		  (now_ms  != old_now_ms && !_HA_ATOMIC_CAS(&global_now_ms, &old_now_ms, now_ms))) &&
 		 __ha_cpu_relax());
 
-	/* <now> and <now_ms> are now updated to the last value of global_now
-	 * and global_now_ms, which were also monotonically updated. We can
-	 * compute the latest offset, we don't care who writes it last, the
-	 * variations will not break the monotonic property.
+	/* <now_ns> and <now_ms> are now updated to the last value of
+	 * global_now_ns and global_now_ms, which were also monotonically
+	 * updated. We can compute the latest offset, we don't care who writes
+	 * it last, the variations will not break the monotonic property.
 	 */
-
-	sec_ofs  = now.tv_sec  - date.tv_sec;
-	usec_ofs = now.tv_usec - date.tv_usec;
-	if ((int)usec_ofs < 0) {
-		usec_ofs += 1000000;
-		sec_ofs  -= 1;
-	}
-	ofs_new = ((ullong)sec_ofs << 32) + usec_ofs;
-	HA_ATOMIC_STORE(&now_offset, ofs_new);
+	HA_ATOMIC_STORE(&now_offset, now_ns - tv_to_ns(&date));
 }
 
 /* must be called once at boot to initialize some global variables */
@@ -311,9 +284,9 @@ void clock_init_process_date(void)
 {
 	now_offset = 0;
 	gettimeofday(&date, NULL);
-	now = after_poll = before_poll = date;
-	global_now = ((ullong)date.tv_sec << 32) + (uint)date.tv_usec;
-	global_now_ms = now.tv_sec * 1000 + now.tv_usec / 1000;
+	after_poll = before_poll = date;
+	now_ns = global_now_ns = tv_to_ns(&date);
+	global_now_ms = ns_to_ms(now_ns);
 
 	/* force time to wrap 20s after boot: we first compute the time offset
 	 * that once applied to the wall-clock date will make the local time
@@ -321,8 +294,10 @@ void clock_init_process_date(void)
 	 * and will be used to recompute the local time, both of which will
 	 * match and continue from this shifted date.
 	 */
-	now_offset = (uint64_t)(-(global_now_ms / 1000U) - BOOT_TIME_WRAP_SEC) << 32;
-	global_now += now_offset;
+	now_offset = sec_to_ns((uint)((uint)(-global_now_ms) / 1000U - BOOT_TIME_WRAP_SEC));
+	global_now_ns += now_offset;
+	now_ns = global_now_ns;
+	now_ms = global_now_ms = ns_to_ms(now_ns);
 
 	th_ctx->idle_pct = 100;
 	clock_update_date(0, 1);
@@ -333,14 +308,10 @@ void clock_init_process_date(void)
  */
 void clock_init_thread_date(void)
 {
-	ullong old_now;
-
 	gettimeofday(&date, NULL);
 	after_poll = before_poll = date;
 
-	old_now = _HA_ATOMIC_LOAD(&global_now);
-	now.tv_sec = old_now >> 32;
-	now.tv_usec = (uint)old_now;
+	now_ns = _HA_ATOMIC_LOAD(&global_now_ns);
 	th_ctx->idle_pct = 100;
 	th_ctx->prev_cpu_time  = now_cpu_time();
 	clock_update_date(0, 1);

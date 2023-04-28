@@ -1509,7 +1509,7 @@ static void init_early(int argc, char **argv)
 	tzset();
 	clock_init_process_date();
 	start_date = date;
-	start_time = now;
+	start_time = NS_TO_TV(now_ns);
 	pid = getpid();
 
 	/* Set local host name and adjust some environment variables.

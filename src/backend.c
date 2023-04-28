@@ -64,7 +64,7 @@
 int be_lastsession(const struct proxy *be)
 {
 	if (be->be_counters.last_sess)
-		return ns_to_sec(tv_to_ns(&now)) - be->be_counters.last_sess;
+		return ns_to_sec(now_ns) - be->be_counters.last_sess;
 
 	return -1;
 }
@@ -2024,7 +2024,7 @@ void back_try_conn_req(struct stream *s)
 			sc_shutdown(sc);
 			sc->flags |= SC_FL_ERROR;
 
-			s->logs.t_queue = ns_to_ms(tv_to_ns(&now) - s->logs.accept_ts);
+			s->logs.t_queue = ns_to_ms(now_ns - s->logs.accept_ts);
 
 			/* we may need to know the position in the queue for logging */
 			pendconn_cond_unlink(s->pend_pos);
@@ -2060,7 +2060,7 @@ void back_try_conn_req(struct stream *s)
 			if (unlikely(!(s->flags & SF_ASSIGNED)))
 				sc->state = SC_ST_REQ;
 			else {
-				s->logs.t_queue = ns_to_ms(tv_to_ns(&now) - s->logs.accept_ts);
+				s->logs.t_queue = ns_to_ms(now_ns - s->logs.accept_ts);
 				sc->state = SC_ST_ASS;
 			}
 			DBG_TRACE_STATE("dequeue connection request", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
@@ -2072,7 +2072,7 @@ void back_try_conn_req(struct stream *s)
 			/* ... and timeout expired */
 			s->conn_exp = TICK_ETERNITY;
 			s->flags &= ~SF_CONN_EXP;
-			s->logs.t_queue = ns_to_ms(tv_to_ns(&now) - s->logs.accept_ts);
+			s->logs.t_queue = ns_to_ms(now_ns - s->logs.accept_ts);
 
 			/* we may need to know the position in the queue for logging */
 			pendconn_cond_unlink(s->pend_pos);
@@ -2094,7 +2094,7 @@ void back_try_conn_req(struct stream *s)
 
 		/* Connection remains in queue, check if we have to abort it */
 		if (back_may_abort_req(req, s)) {
-			s->logs.t_queue = ns_to_ms(tv_to_ns(&now) - s->logs.accept_ts);
+			s->logs.t_queue = ns_to_ms(now_ns - s->logs.accept_ts);
 
 			/* we may need to know the position in the queue for logging */
 			pendconn_cond_unlink(s->pend_pos);
@@ -2219,7 +2219,7 @@ void back_handle_st_req(struct stream *s)
 	}
 
 	/* The server is assigned */
-	s->logs.t_queue = ns_to_ms(tv_to_ns(&now) - s->logs.accept_ts);
+	s->logs.t_queue = ns_to_ms(now_ns - s->logs.accept_ts);
 	sc->state = SC_ST_ASS;
 	be_set_sess_last(s->be);
 	DBG_TRACE_STATE("connection request assigned to a server", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
@@ -2441,8 +2441,8 @@ void back_handle_st_rdy(struct stream *s)
 		BUG_ON(!sc_appctx(s->scb));
 
 		if (!s->logs.request_ts)
-			s->logs.request_ts = tv_to_ns(&now);
-		s->logs.t_queue = ns_to_ms(tv_to_ns(&now) - s->logs.accept_ts);
+			s->logs.request_ts = now_ns;
+		s->logs.t_queue = ns_to_ms(now_ns - s->logs.accept_ts);
 		be_set_sess_last(s->be);
 	}
 
@@ -2505,7 +2505,7 @@ void back_handle_st_rdy(struct stream *s)
  */
 void set_backend_down(struct proxy *be)
 {
-	be->last_change = ns_to_sec(tv_to_ns(&now));
+	be->last_change = ns_to_sec(now_ns);
 	_HA_ATOMIC_INC(&be->down_trans);
 
 	if (!(global.mode & MODE_STARTING)) {
@@ -2578,10 +2578,10 @@ no_cookie:
 }
 
 int be_downtime(struct proxy *px) {
-	if (px->lbprm.tot_weight && px->last_change < ns_to_sec(tv_to_ns(&now)))  // ignore negative time
+	if (px->lbprm.tot_weight && px->last_change < ns_to_sec(now_ns))  // ignore negative time
 		return px->down_time;
 
-	return ns_to_sec(tv_to_ns(&now)) - px->last_change + px->down_time;
+	return ns_to_sec(now_ns) - px->last_change + px->down_time;
 }
 
 /*

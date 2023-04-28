@@ -471,7 +471,7 @@ void set_server_check_status(struct check *check, short status, const char *desc
 	if (status == HCHK_STATUS_START) {
 		check->result = CHK_RES_UNKNOWN;	/* no result yet */
 		check->desc[0] = '\0';
-		check->start = tv_to_ns(&now);
+		check->start = now_ns;
 		return;
 	}
 
@@ -492,7 +492,7 @@ void set_server_check_status(struct check *check, short status, const char *desc
 		check->duration = -1;
 	else if (check->start) {
 		/* set_server_check_status() may be called more than once */
-		check->duration = ns_to_ms(tv_to_ns(&now) - check->start);
+		check->duration = ns_to_ms(now_ns - check->start);
 		check->start = 0;
 	}
 
@@ -1029,9 +1029,9 @@ int httpchk_build_status_header(struct server *s, struct buffer *buf)
 		      s->queue.length);
 
 	if ((s->cur_state == SRV_ST_STARTING) &&
-	    ns_to_sec(tv_to_ns(&now)) < s->last_change + s->slowstart &&
-	    ns_to_sec(tv_to_ns(&now)) >= s->last_change) {
-		ratio = MAX(1, 100 * (ns_to_sec(tv_to_ns(&now)) - s->last_change) / s->slowstart);
+	    ns_to_sec(now_ns) < s->last_change + s->slowstart &&
+	    ns_to_sec(now_ns) >= s->last_change) {
+		ratio = MAX(1, 100 * (ns_to_sec(now_ns) - s->last_change) / s->slowstart);
 		chunk_appendf(buf, "; throttle=%d%%", ratio);
 	}
 
@@ -1499,7 +1499,7 @@ int start_check_task(struct check *check, int mininter,
 
 	/* check this every ms */
 	t->expire = tick_add(now_ms, MS_TO_TICKS(mininter * srvpos / nbcheck));
-	check->start = tv_to_ns(&now);
+	check->start = now_ns;
 	task_queue(t);
 
 	return 1;

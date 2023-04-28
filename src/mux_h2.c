@@ -1573,7 +1573,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	 * request) and the idle time, which is the delay since the previous
 	 * request. We can set the value now, it will be copied by stream_new().
 	 */
-	sess->t_idle = ns_to_ms(tv_to_ns(&now) - sess->accept_ts) - sess->t_handshake;
+	sess->t_idle = ns_to_ms(now_ns - sess->accept_ts) - sess->t_handshake;
 
 	if (!sc_new_from_endp(h2s->sd, sess, input))
 		goto out_close;
@@ -1586,7 +1586,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	 * right now.
 	 */
 	sess->accept_date = date;
-	sess->accept_ts   = tv_to_ns(&now);
+	sess->accept_ts   = now_ns;
 	sess->t_handshake = 0;
 	sess->t_idle = 0;
 

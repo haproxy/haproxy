@@ -27,9 +27,9 @@
 
 extern struct timeval              start_date;    /* the process's start date in wall-clock time */
 extern struct timeval              start_time;    /* the process's start date in internal monotonic time */
-extern volatile ullong             global_now;    /* common monotonic date between all threads (32:32) */
+extern volatile ullong             global_now_ns; /* common monotonic date between all threads, in ns (wraps every 585 yr) */
 
-extern THREAD_LOCAL struct timeval now;           /* internal monotonic date derived from real clock */
+extern THREAD_LOCAL ullong         now_ns;        /* internal monotonic date derived from real clock, in ns (wraps every 585 yr) */
 extern THREAD_LOCAL struct timeval date;          /* the real current date (wall-clock time) */
 
 uint64_t now_cpu_time_thread(int thr);

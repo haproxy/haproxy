@@ -2018,7 +2018,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		tmp_strm_log.t_queue = -1;
 		tmp_strm_log.t_connect = -1;
 		tmp_strm_log.t_data = -1;
-		tmp_strm_log.t_close = ns_to_ms(tv_to_ns(&now) - sess->accept_ts);
+		tmp_strm_log.t_close = ns_to_ms(now_ns - sess->accept_ts);
 		tmp_strm_log.bytes_in = 0;
 		tmp_strm_log.bytes_out = 0;
 		tmp_strm_log.prx_queue_pos = 0;
@@ -3760,7 +3760,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		px->conf.file = strdup(file);
 		px->conf.line = linenum;
 		px->mode = PR_MODE_SYSLOG;
-		px->last_change = ns_to_sec(tv_to_ns(&now));
+		px->last_change = ns_to_sec(now_ns);
 		px->cap = PR_CAP_FE;
 		px->maxconn = 10;
 		px->timeout.client = TICK_ETERNITY;

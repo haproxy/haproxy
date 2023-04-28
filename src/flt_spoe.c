@@ -264,9 +264,9 @@ static inline void
 spoe_update_stat_time(ullong *since, long *t)
 {
 	if (*t == -1)
-		*t = ns_to_ms(tv_to_ns(&now) - *since);
+		*t = ns_to_ms(now_ns - *since);
 	else
-		*t += ns_to_ms(tv_to_ns(&now) - *since);
+		*t += ns_to_ms(now_ns - *since);
 	*since = 0;
 }
 
@@ -1621,7 +1621,7 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx, int *skip)
 		LIST_APPEND(&SPOE_APPCTX(appctx)->waiting_queue, &ctx->list);
 	}
 	_HA_ATOMIC_INC(&agent->counters.nb_waiting);
-	ctx->stats.wait_ts = tv_to_ns(&now);
+	ctx->stats.wait_ts = now_ns;
 	SPOE_APPCTX(appctx)->frag_ctx.ctx    = NULL;
 	SPOE_APPCTX(appctx)->frag_ctx.cursid = 0;
 	SPOE_APPCTX(appctx)->frag_ctx.curfid = 0;
@@ -1678,7 +1678,7 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx, int *skip)
 			LIST_INIT(&ctx->list);
 			_HA_ATOMIC_DEC(&agent->counters.nb_waiting);
 			spoe_update_stat_time(&ctx->stats.wait_ts, &ctx->stats.t_waiting);
-			ctx->stats.response_ts = tv_to_ns(&now);
+			ctx->stats.response_ts = now_ns;
 			if (ctx->spoe_appctx) {
 				ctx->spoe_appctx->cur_fpa--;
 				ctx->spoe_appctx = NULL;
@@ -2130,7 +2130,7 @@ spoe_queue_context(struct spoe_context *ctx)
 	 * it. */
 	_HA_ATOMIC_INC(&agent->counters.nb_sending);
 	spoe_update_stat_time(&ctx->stats.request_ts, &ctx->stats.t_request);
-	ctx->stats.queue_ts = tv_to_ns(&now);
+	ctx->stats.queue_ts = now_ns;
 	if (ctx->spoe_appctx)
 		return 1;
 	LIST_APPEND(&agent->rt[tid].sending_queue, &ctx->list);
@@ -2600,8 +2600,8 @@ spoe_start_processing(struct spoe_agent *agent, struct spoe_context *ctx, int di
 		return 0;
 
 	agent->rt[tid].processing++;
-	ctx->stats.start_ts   = tv_to_ns(&now);
-	ctx->stats.request_ts = tv_to_ns(&now);
+	ctx->stats.start_ts   = now_ns;
+	ctx->stats.request_ts = now_ns;
 	ctx->stats.t_request  = -1;
 	ctx->stats.t_queue    = -1;
 	ctx->stats.t_waiting  = -1;
@@ -2712,7 +2712,7 @@ spoe_process_messages(struct stream *s, struct spoe_context *ctx,
 
 	if (ctx->state == SPOE_CTX_ST_ENCODING_MSGS) {
 		if (ctx->stats.request_ts == 0)
-			ctx->stats.request_ts = tv_to_ns(&now);
+			ctx->stats.request_ts = now_ns;
 		if (!spoe_acquire_buffer(&ctx->buffer, &ctx->buffer_wait))
 			goto out;
 		ret = spoe_encode_messages(s, ctx, messages, dir, type);
@@ -3019,7 +3019,7 @@ spoe_init(struct proxy *px, struct flt_conf *fconf)
 
 	/* conf->agent_fe was already initialized during the config
 	 * parsing. Finish initialization. */
-        conf->agent_fe.last_change = ns_to_sec(tv_to_ns(&now));
+        conf->agent_fe.last_change = ns_to_sec(now_ns);
         conf->agent_fe.cap = PR_CAP_FE;
         conf->agent_fe.mode = PR_MODE_TCP;
         conf->agent_fe.maxconn = 0;

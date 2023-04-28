@@ -3234,7 +3234,7 @@ int check_action_do_resolve(struct act_rule *rule, struct proxy *px, char **err)
 
 void resolvers_setup_proxy(struct proxy *px)
 {
-	px->last_change = ns_to_sec(tv_to_ns(&now));
+	px->last_change = ns_to_sec(now_ns);
 	px->cap = PR_CAP_FE | PR_CAP_BE;
 	px->maxconn = 0;
 	px->conn_retries = 1;
