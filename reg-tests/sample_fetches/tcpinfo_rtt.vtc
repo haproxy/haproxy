@@ -1,0 +1,39 @@
+varnishtest "Test declaration of TCP rtt fetches"
+
+# feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(v2.8-dev8)'"
+feature ignore_unknown_macro
+
+server s1 {
+        rxreq
+        txresp
+}  -start
+
+haproxy h1 -conf {
+  defaults common
+      mode http
+      timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+      timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+      timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+  frontend fe from common
+      bind "fd@${feh1}"
+
+      default_backend be
+
+  backend be from common
+
+      http-response set-header x-test1 "%[fc_rtt]"
+      http-response set-header x-test2 "%[bc_rtt(us)]"
+      http-response set-header x-test3 "%[fc_rttvar]"
+      http-response set-header x-test4 "%[bc_rttvar]"
+
+      server s1 ${s1_addr}:${s1_port}
+
+} -start
+
+client c1 -connect ${h1_feh1_sock} {
+        txreq -req GET -url /
+        rxresp
+        expect resp.status == 200
+        expect resp.http.x-test2 ~ "[0-9]+"
+} -run

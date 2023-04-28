@@ -401,6 +401,35 @@ smp_fetch_fc_rttvar(const struct arg *args, struct sample *smp, const char *kw, 
 	return 1;
 }
 
+/* get the mean rtt of a backend connection */
+static int
+smp_fetch_bc_rtt(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!get_tcp_info(args, smp, 1, 0))
+		return 0;
+
+	/* By default or if explicitly specified, convert rtt to ms */
+	if (!args || args[0].type == ARGT_STOP || args[0].data.sint == TIME_UNIT_MS)
+		smp->data.u.sint = (smp->data.u.sint + 500) / 1000;
+
+	return 1;
+}
+
+/* get the variance of the mean rtt of a backend connection */
+static int
+smp_fetch_bc_rttvar(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!get_tcp_info(args, smp, 1, 1))
+		return 0;
+
+	/* By default or if explicitly specified, convert rttvar to ms */
+	if (!args || args[0].type == ARGT_STOP || args[0].data.sint == TIME_UNIT_MS)
+		smp->data.u.sint = (smp->data.u.sint + 500) / 1000;
+
+	return 1;
+}
+
+
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__)
 /* get the unacked counter on a client connection */
 static int
@@ -497,6 +526,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 #ifdef TCP_INFO
 	{ "fc_rtt",           smp_fetch_fc_rtt,           ARG1(0,STR), val_fc_time_value, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "fc_rttvar",        smp_fetch_fc_rttvar,        ARG1(0,STR), val_fc_time_value, SMP_T_SINT, SMP_USE_L4CLI },
+	{ "bc_rtt",           smp_fetch_bc_rtt,           ARG1(0,STR), val_fc_time_value, SMP_T_SINT, SMP_USE_L4CLI },
+	{ "bc_rttvar",        smp_fetch_bc_rttvar,        ARG1(0,STR), val_fc_time_value, SMP_T_SINT, SMP_USE_L4CLI },
+
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__)
 	{ "fc_unacked",       smp_fetch_fc_unacked,       ARG1(0,STR), var_fc_counter, SMP_T_SINT, SMP_USE_L4CLI },
 #endif
