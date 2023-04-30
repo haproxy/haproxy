@@ -24,9 +24,34 @@ haproxy h1 -conf {
         server www1 ${s1_addr}:${s1_port}
 } -start
 
+haproxy h2 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    resolvers systemdns
+        parse-resolv-conf
+
+    frontend myfrontend
+        bind "fd@${my_fe}"
+        default_backend test
+
+    backend test
+        server www1 ${s1_addr}:${s1_port} resolvers systemdns resolve-prefer ipv4
+} -start
+
 haproxy h1 -cli {
     send "set server test/www1 fqdn foo.fqdn"
     expect ~ "set server <b>/<s> fqdn failed because no resolution is configured."
     send "show servers state test"
     expect ~ "test 1 www1 ${s1_addr} .* - ${s1_port}"
+} -wait
+
+haproxy h2 -cli {
+    send "set server test/www1 fqdn localhost"
+    expect ~ "test/www1 changed its FQDN from \\(null\\) to localhost"
+    send "show servers state test"
+    expect ~ "test 1 www1 127.0.0.1 .* localhost"
 } -wait
