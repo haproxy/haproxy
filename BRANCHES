@@ -13,7 +13,7 @@ increases by one. It effectively grows as a decimal number increased by 0.1 per
 version.
 
 The complete version is made of the branch suffixed with "-dev" followed by a
-sequence number during development, then by "." followed by a number when the
+sequence number during developmenen by "." followed by a number when the
 development of that branch is finished and the branch enters a maintenance
 phase. The first release of a branch starts at ".0". Immediately after ".0" is
 issued, the next branch is created as "-dev0" as an exact copy of the previous
