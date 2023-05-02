@@ -2056,6 +2056,12 @@ static void qc_treat_ack_of_ack(struct quic_conn *qc,
 			break;
 		}
 
+		/* Do not empty the tree: the first ACK range contains the
+		 * largest acknowledged packet number.
+		 */
+		if (arngs->sz == 1)
+			break;
+
 		eb64_delete(ar);
 		pool_free(pool_head_quic_arng, ar_node);
 		arngs->sz--;
