@@ -2209,6 +2209,7 @@ static void hlua_socket_handler(struct appctx *appctx)
 	struct stconn *sc = appctx_sc(appctx);
 
 	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW)))) {
+		co_skip(sc_oc(sc), co_data(sc_oc(sc)));
 		notification_wake(&ctx->wake_on_read);
 		notification_wake(&ctx->wake_on_write);
 		return;
