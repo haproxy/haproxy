@@ -772,10 +772,8 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 
 	if (!*args[3]) {
 		return cli_err(appctx,
-			       "Usage: debug dev stream { <obj> <op> <value> | wake }*\n"
-			       "     <obj>   = {strm | strm.f | strm.x |\n"
-			       "                scf.s | scb.s |\n"
-			       "                txn.f | req.f | res.f}\n"
+			       "Usage: debug dev stream [ strm=<ptr> ] { <obj> <op> <value> | wake }*\n"
+			       "     <obj>   = { strm.f | strm.x | scf.s | scb.s | txn.f | req.f | res.f }\n"
 			       "     <op>    = {'' (show) | '=' (assign) | '^' (xor) | '+' (or) | '-' (andnot)}\n"
 			       "     <value> = 'now' | 64-bit dec/hex integer (0x prefix supported)\n"
 			       "     'wake' wakes the stream asssigned to 'strm' (default: current)\n"
