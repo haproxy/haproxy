@@ -2574,7 +2574,14 @@ static size_t qc_recv_buf(struct stconn *sc, struct buffer *buf,
 		}
 	}
 
-	if (ret) {
+	/* Restart demux if it was interrupted on full buffer. */
+	if (ret && qcs->flags & QC_SF_DEM_FULL) {
+		/* There must be data left for demux if it was interrupted on
+		 * full buffer. If this assumption is incorrect wakeup is not
+		 * necessary.
+		 */
+		BUG_ON(!ncb_data(&qcs->rx.ncbuf, 0));
+
 		qcs->flags &= ~QC_SF_DEM_FULL;
 		tasklet_wakeup(qcs->qcc->wait_event.tasklet);
 	}
