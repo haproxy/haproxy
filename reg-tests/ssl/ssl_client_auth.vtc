@@ -50,14 +50,7 @@ haproxy h1 -conf {
         # crl-file: revocation list for client auth: the client1 certificate is revoked
         bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify optional crt-ignore-err X509_V_ERR_CERT_REVOKED,X509_V_ERR_CERT_HAS_EXPIRED crl-file ${testdir}/crl-auth.pem
 
-        acl cert_expired ssl_c_verify,x509_v_err_str -m str X509_V_ERR_CERT_HAS_EXPIRED
-        acl cert_revoked ssl_c_verify,x509_v_err_str -m str X509_V_ERR_CERT_REVOKED
-        acl cert_ok      ssl_c_verify,x509_v_err_str -m str X509_V_OK
-
-        http-response add-header X-SSL Ok if cert_ok
-        http-response add-header X-SSL Expired if cert_expired
-        http-response add-header X-SSL Revoked if cert_revoked
-
+        http-response add-header X-SSL %[ssl_c_verify,x509_v_err_str]
         server s1 ${s1_addr}:${s1_port}
 } -start
 
@@ -65,19 +58,19 @@ client c1 -connect ${h1_clearlst_sock} {
   txreq
   rxresp
   expect resp.status == 200
-  expect resp.http.x-ssl == "Ok"
+  expect resp.http.x-ssl == "X509_V_OK"
 } -run
 
 client c1 -connect ${h1_clearlst_sock} {
   txreq
   rxresp
   expect resp.status == 200
-  expect resp.http.x-ssl == "Expired"
+  expect resp.http.x-ssl == "X509_V_ERR_CERT_HAS_EXPIRED"
 } -run
 
 client c1 -connect ${h1_clearlst_sock} {
   txreq
   rxresp
   expect resp.status == 200
-  expect resp.http.x-ssl == "Revoked"
+  expect resp.http.x-ssl == "X509_V_ERR_CERT_REVOKED"
 } -run
