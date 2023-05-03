@@ -56,6 +56,9 @@ void hlua_applet_http_fct(struct appctx *ctx);
 int hlua_event_sub(lua_State *L, event_hdl_sub_list *sub_list);
 struct task *hlua_process_task(struct task *task, void *context, unsigned int state);
 const char *hlua_show_current_location(const char *pfx);
+int hlua_ref(lua_State *L);
+void hlua_pushref(lua_State *L, int ref);
+void hlua_unref(lua_State *L, int ref);
 
 #else /* USE_LUA */
 
