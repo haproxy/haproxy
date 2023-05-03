@@ -2091,9 +2091,6 @@ static int qc_purge_streams(struct qcc *qcc)
 				release = 1;
 				continue;
 			}
-
-			qcc->conn->xprt->subscribe(qcc->conn, qcc->conn->xprt_ctx,
-			                           SUB_RETRY_SEND, &qcc->wait_event);
 		}
 	}
 
