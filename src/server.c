@@ -5756,7 +5756,7 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 			if (tmptrash) {
 				if (!(s->next_admin & SRV_ADMF_FDRAIN)) {
 					chunk_printf(tmptrash,
-					             "%sServer %s/%s is leaving forced drain but remains in drain mode",
+					             "%sServer %s/%s remains in drain mode",
 					             s->flags & SRV_F_BACKUP ? "Backup " : "",
 					             s->proxy->id, s->id);
 
