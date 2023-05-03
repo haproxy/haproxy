@@ -883,6 +883,117 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 	return 1;
 }
 
+/* parse a "debug dev stream" command */
+/*
+ *  debug dev task <ptr> [ "wake" | "expire" | "kill" ]
+ *  Show/change status of a task/tasklet
+ */
+static int debug_parse_cli_task(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	const struct ha_caller *caller;
+	struct task *t;
+	char *endarg;
+	char *msg;
+	void *ptr;
+	int ret = 1;
+	int task_ok;
+	int arg;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	/* parse the pointer value */
+	ptr = (void *)strtoll(args[3], &endarg, 0);
+	if (!*args[3] || *endarg)
+		goto usage;
+
+	_HA_ATOMIC_INC(&debug_commands_issued);
+
+	/* everything below must run under thread isolation till reaching label "leave" */
+	thread_isolate();
+
+	/* struct tasklet is smaller than struct task and is sufficient to check
+	 * the TASK_COMMON part.
+	 */
+	if (!may_access(ptr) || !may_access(ptr + sizeof(struct tasklet) - 1) ||
+	    ((const struct tasklet *)ptr)->tid  < -1 ||
+	    ((const struct tasklet *)ptr)->tid  >= (int)MAX_THREADS) {
+		ret = cli_err(appctx, "The designated memory area doesn't look like a valid task/tasklet\n");
+		goto leave;
+	}
+
+	t = ptr;
+	caller = t->caller;
+	msg = NULL;
+	task_ok = may_access(t + sizeof(*t) - 1);
+
+	chunk_reset(&trash);
+	resolve_sym_name(&trash, NULL, (const void *)t->process);
+
+	/* we need to be careful here because we may dump a freed task that's
+	 * still in the pool cache, containing garbage in pointers.
+	 */
+	if (!*args[4]) {
+		memprintf(&msg, "%s%p: %s state=%#x tid=%d process=%s ctx=%p calls=%d last=%s:%d intl=%d",
+			  msg ? msg : "", t, (t->state & TASK_F_TASKLET) ? "tasklet" : "task",
+			  t->state, t->tid, trash.area, t->context, t->calls,
+			  caller && may_access(caller) && may_access(caller->func) && isalnum(*caller->func) ? caller->func : "0",
+			  caller ? t->caller->line : 0,
+			  (t->state & TASK_F_TASKLET) ? LIST_INLIST(&((const struct tasklet *)t)->list) : 0);
+
+		if (task_ok && !(t->state & TASK_F_TASKLET))
+			memprintf(&msg, "%s inrq=%d inwq=%d exp=%d nice=%d",
+				  msg ? msg : "", task_in_rq(t), task_in_wq(t), t->expire, t->nice);
+
+		memprintf(&msg, "%s\n", msg ? msg : "");
+	}
+
+	for (arg = 4; *args[arg]; arg++) {
+		if (strcmp(args[arg], "expire") == 0) {
+			if (t->state & TASK_F_TASKLET) {
+				/* do nothing for tasklets */
+			}
+			else if (task_ok) {
+				/* unlink task and wake with timer flag */
+				__task_unlink_wq(t);
+				t->expire = now_ms;
+				task_wakeup(t, TASK_WOKEN_TIMER);
+			}
+		} else if (strcmp(args[arg], "wake") == 0) {
+			/* wake with all flags but init / timer */
+			if (t->state & TASK_F_TASKLET)
+				tasklet_wakeup((struct tasklet *)t);
+			else if (task_ok)
+				task_wakeup(t, TASK_WOKEN_ANY & ~(TASK_WOKEN_INIT|TASK_WOKEN_TIMER));
+		} else if (strcmp(args[arg], "kill") == 0) {
+			/* Kill the task. This is not idempotent! */
+			if (!(t->state & TASK_KILLED)) {
+				if (t->state & TASK_F_TASKLET)
+					tasklet_kill((struct tasklet *)t);
+				else if (task_ok)
+					task_kill(t);
+			}
+		} else {
+			thread_release();
+			goto usage;
+		}
+	}
+
+	if (msg && *msg)
+		ret = cli_dynmsg(appctx, LOG_INFO, msg);
+ leave:
+	thread_release();
+	return ret;
+ usage:
+	return cli_err(appctx,
+		       "Usage: debug dev task <ptr> [ wake | expire | kill ]\n"
+		       "  By default, dumps some info on task/tasklet <ptr>. 'wake' will wake it up\n"
+		       "  with all conditions flags but init/exp. 'expire' will expire the entry, and\n"
+		       "  'kill' will kill it (warning: may crash since later not idempotent!). All\n"
+		       "  changes may crash the process if performed on a wrong object!\n"
+		       );
+}
+
 #if defined(DEBUG_DEV)
 static struct task *debug_delay_inj_task(struct task *t, void *ctx, unsigned int state)
 {
@@ -1757,6 +1868,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "sched", NULL },    "debug dev sched  {task|tasklet} [k=v]*  : stress the scheduler",                    debug_parse_cli_sched, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "stream",NULL },    "debug dev stream [k=v]*                 : show/manipulate stream flags",            debug_parse_cli_stream,NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "sym",   NULL },    "debug dev sym    <addr>                 : resolve symbol address",                  debug_parse_cli_sym,   NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "task",  NULL },    "debug dev task <ptr> [wake|expire|kill] : show/wake/expire/kill task/tasklet",      debug_parse_cli_task,  NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "tkill", NULL },    "debug dev tkill  [thr] [sig]            : send signal to thread",                   debug_parse_cli_tkill, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "warn",  NULL },    "debug dev warn                          : call WARN_ON() and possibly crash",       debug_parse_cli_warn,  NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "write", NULL },    "debug dev write  [size]                 : write that many bytes in return",         debug_parse_cli_write, NULL, NULL, NULL, ACCESS_EXPERT },
