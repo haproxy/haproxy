@@ -35,6 +35,7 @@ struct show_prof_ctx {
 /* CLI context for the "show activity" command */
 struct show_activity_ctx {
 	int thr;         /* thread ID to show or -1 for all */
+	int line;        /* line number being dumped */
 };
 
 #if defined(DEBUG_MEM_STATS)
@@ -1027,13 +1028,12 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	struct show_activity_ctx *actctx = appctx->svcctx;
 	int tgt = actctx->thr; // target thread, -1 for all, 0 for total only
 	uint up_sec, up_usec;
+	int base_line;
 	ullong up;
 
 	/* FIXME: Don't watch the other side ! */
 	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
 		return 1;
-
-	chunk_reset(&trash);
 
 	/* this macro is used below to dump values. The thread number is "thr",
 	 * and runs from 0 to nbt-1 when values are printed using the formula.
@@ -1081,51 +1081,63 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	up_sec = ns_to_sec(up);
 	up_usec = (up / 1000U) % 1000000U;
 
-	chunk_appendf(&trash, "thread_id: %u (%u..%u)\n", tid + 1, 1, global.nbthread);
-	chunk_appendf(&trash, "date_now: %lu.%06lu\n", (ulong)date.tv_sec, (ulong)date.tv_usec);
-	chunk_appendf(&trash, "uptime_now: %u.%06u\n", up_sec, up_usec);
+	/* iterate over all dump lines. It happily skips over holes so it's
+	 * not a problem not to have an exact match, we just need to have
+	 * stable and consistent lines during a dump.
+	 */
+	base_line = __LINE__;
+	do {
+		chunk_reset(&trash);
 
-	SHOW_VAL("ctxsw:",        activity[thr].ctxsw, _tot);
-	SHOW_VAL("tasksw:",       activity[thr].tasksw, _tot);
-	SHOW_VAL("empty_rq:",     activity[thr].empty_rq, _tot);
-	SHOW_VAL("long_rq:",      activity[thr].long_rq, _tot);
-	SHOW_VAL("loops:",        activity[thr].loops, _tot);
-	SHOW_VAL("wake_tasks:",   activity[thr].wake_tasks, _tot);
-	SHOW_VAL("wake_signal:",  activity[thr].wake_signal, _tot);
-	SHOW_VAL("poll_io:",      activity[thr].poll_io, _tot);
-	SHOW_VAL("poll_exp:",     activity[thr].poll_exp, _tot);
-	SHOW_VAL("poll_drop_fd:", activity[thr].poll_drop_fd, _tot);
-	SHOW_VAL("poll_skip_fd:", activity[thr].poll_skip_fd, _tot);
-	SHOW_VAL("conn_dead:",    activity[thr].conn_dead, _tot);
-	SHOW_VAL("stream_calls:", activity[thr].stream_calls, _tot);
-	SHOW_VAL("pool_fail:",    activity[thr].pool_fail, _tot);
-	SHOW_VAL("buf_wait:",     activity[thr].buf_wait, _tot);
-	SHOW_VAL("cpust_ms_tot:", activity[thr].cpust_total / 2, _tot);
-	SHOW_VAL("cpust_ms_1s:",  read_freq_ctr(&activity[thr].cpust_1s) / 2, _tot);
-	SHOW_VAL("cpust_ms_15s:", read_freq_ctr_period(&activity[thr].cpust_15s, 15000) / 2, _tot);
-	SHOW_VAL("avg_cpu_pct:",  (100 - ha_thread_ctx[thr].idle_pct), (_tot + _nbt/2) / _nbt);
-	SHOW_VAL("avg_loop_us:",  swrate_avg(activity[thr].avg_loop_us, TIME_STATS_SAMPLES), (_tot + _nbt/2) / _nbt);
-	SHOW_VAL("accepted:",     activity[thr].accepted, _tot);
-	SHOW_VAL("accq_pushed:",  activity[thr].accq_pushed, _tot);
-	SHOW_VAL("accq_full:",    activity[thr].accq_full, _tot);
+		switch (actctx->line + base_line) {
+		case __LINE__: chunk_appendf(&trash, "thread_id: %u (%u..%u)\n", tid + 1, 1, global.nbthread); break;
+		case __LINE__: chunk_appendf(&trash, "date_now: %lu.%06lu\n", (ulong)date.tv_sec, (ulong)date.tv_usec); break;
+		case __LINE__: chunk_appendf(&trash, "uptime_now: %u.%06u\n", up_sec, up_usec); break;
+		case __LINE__: SHOW_VAL("ctxsw:",        activity[thr].ctxsw, _tot); break;
+		case __LINE__: SHOW_VAL("tasksw:",       activity[thr].tasksw, _tot); break;
+		case __LINE__: SHOW_VAL("empty_rq:",     activity[thr].empty_rq, _tot); break;
+		case __LINE__: SHOW_VAL("long_rq:",      activity[thr].long_rq, _tot); break;
+		case __LINE__: SHOW_VAL("loops:",        activity[thr].loops, _tot); break;
+		case __LINE__: SHOW_VAL("wake_tasks:",   activity[thr].wake_tasks, _tot); break;
+		case __LINE__: SHOW_VAL("wake_signal:",  activity[thr].wake_signal, _tot); break;
+		case __LINE__: SHOW_VAL("poll_io:",      activity[thr].poll_io, _tot); break;
+		case __LINE__: SHOW_VAL("poll_exp:",     activity[thr].poll_exp, _tot); break;
+		case __LINE__: SHOW_VAL("poll_drop_fd:", activity[thr].poll_drop_fd, _tot); break;
+		case __LINE__: SHOW_VAL("poll_skip_fd:", activity[thr].poll_skip_fd, _tot); break;
+		case __LINE__: SHOW_VAL("conn_dead:",    activity[thr].conn_dead, _tot); break;
+		case __LINE__: SHOW_VAL("stream_calls:", activity[thr].stream_calls, _tot); break;
+		case __LINE__: SHOW_VAL("pool_fail:",    activity[thr].pool_fail, _tot); break;
+		case __LINE__: SHOW_VAL("buf_wait:",     activity[thr].buf_wait, _tot); break;
+		case __LINE__: SHOW_VAL("cpust_ms_tot:", activity[thr].cpust_total / 2, _tot); break;
+		case __LINE__: SHOW_VAL("cpust_ms_1s:",  read_freq_ctr(&activity[thr].cpust_1s) / 2, _tot); break;
+		case __LINE__: SHOW_VAL("cpust_ms_15s:", read_freq_ctr_period(&activity[thr].cpust_15s, 15000) / 2, _tot); break;
+		case __LINE__: SHOW_VAL("avg_cpu_pct:",  (100 - ha_thread_ctx[thr].idle_pct), (_tot + _nbt/2) / _nbt); break;
+		case __LINE__: SHOW_VAL("avg_loop_us:",  swrate_avg(activity[thr].avg_loop_us, TIME_STATS_SAMPLES), (_tot + _nbt/2) / _nbt); break;
+		case __LINE__: SHOW_VAL("accepted:",     activity[thr].accepted, _tot); break;
+		case __LINE__: SHOW_VAL("accq_pushed:",  activity[thr].accq_pushed, _tot); break;
+		case __LINE__: SHOW_VAL("accq_full:",    activity[thr].accq_full, _tot); break;
 #ifdef USE_THREAD
-	SHOW_VAL("accq_ring:",    accept_queue_ring_len(&accept_queue_rings[thr]), _tot);
-	SHOW_VAL("fd_takeover:",  activity[thr].fd_takeover, _tot);
+		case __LINE__: SHOW_VAL("accq_ring:",    accept_queue_ring_len(&accept_queue_rings[thr]), _tot); break;
+		case __LINE__: SHOW_VAL("fd_takeover:",  activity[thr].fd_takeover, _tot); break;
 #endif
 
 #if defined(DEBUG_DEV)
-	/* keep these ones at the end */
-	SHOW_VAL("ctr0:",         activity[thr].ctr0, _tot);
-	SHOW_VAL("ctr1:",         activity[thr].ctr1, _tot);
-	SHOW_VAL("ctr2:",         activity[thr].ctr2, _tot);
+			/* keep these ones at the end */
+		case __LINE__: SHOW_VAL("ctr0:",         activity[thr].ctr0, _tot); break;
+		case __LINE__: SHOW_VAL("ctr1:",         activity[thr].ctr1, _tot); break;
+		case __LINE__: SHOW_VAL("ctr2:",         activity[thr].ctr2, _tot); break;
 #endif
-
-	if (applet_putchk(appctx, &trash) == -1) {
-		chunk_reset(&trash);
-		chunk_printf(&trash, "[output too large, cannot dump]\n");
-	}
-
+		}
 #undef SHOW_VAL
+
+		if (applet_putchk(appctx, &trash) == -1) {
+			/* buffer full, retry later */
+			return 0;
+		}
+		/* line was dumped, let's commit it */
+		actctx->line++;
+	} while (actctx->line + base_line < __LINE__);
+
 	/* dump complete */
 	return 1;
 }
