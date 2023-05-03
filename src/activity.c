@@ -1037,7 +1037,8 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	chunk_reset(&trash);
 
 #undef SHOW_VAL
-#define SHOW_VAL(t, x, formula)						\
+#define SHOW_VAL(header, t, x, formula)					\
+	chunk_appendf(&trash, header);					\
 	do {								\
 		unsigned int _v[MAX_THREADS];				\
 		unsigned int _tot;					\
@@ -1069,39 +1070,40 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	chunk_appendf(&trash, "thread_id: %u (%u..%u)\n", tid + 1, 1, global.nbthread);
 	chunk_appendf(&trash, "date_now: %lu.%06lu\n", (ulong)date.tv_sec, (ulong)date.tv_usec);
 	chunk_appendf(&trash, "uptime_now: %u.%06u\n", up_sec, up_usec);
-	chunk_appendf(&trash, "ctxsw:");        SHOW_VAL(thr, activity[thr].ctxsw, _tot);
-	chunk_appendf(&trash, "tasksw:");       SHOW_VAL(thr, activity[thr].tasksw, _tot);
-	chunk_appendf(&trash, "empty_rq:");     SHOW_VAL(thr, activity[thr].empty_rq, _tot);
-	chunk_appendf(&trash, "long_rq:");      SHOW_VAL(thr, activity[thr].long_rq, _tot);
-	chunk_appendf(&trash, "loops:");        SHOW_VAL(thr, activity[thr].loops, _tot);
-	chunk_appendf(&trash, "wake_tasks:");   SHOW_VAL(thr, activity[thr].wake_tasks, _tot);
-	chunk_appendf(&trash, "wake_signal:");  SHOW_VAL(thr, activity[thr].wake_signal, _tot);
-	chunk_appendf(&trash, "poll_io:");      SHOW_VAL(thr, activity[thr].poll_io, _tot);
-	chunk_appendf(&trash, "poll_exp:");     SHOW_VAL(thr, activity[thr].poll_exp, _tot);
-	chunk_appendf(&trash, "poll_drop_fd:"); SHOW_VAL(thr, activity[thr].poll_drop_fd, _tot);
-	chunk_appendf(&trash, "poll_skip_fd:"); SHOW_VAL(thr, activity[thr].poll_skip_fd, _tot);
-	chunk_appendf(&trash, "conn_dead:");    SHOW_VAL(thr, activity[thr].conn_dead, _tot);
-	chunk_appendf(&trash, "stream_calls:"); SHOW_VAL(thr, activity[thr].stream_calls, _tot);
-	chunk_appendf(&trash, "pool_fail:");    SHOW_VAL(thr, activity[thr].pool_fail, _tot);
-	chunk_appendf(&trash, "buf_wait:");     SHOW_VAL(thr, activity[thr].buf_wait, _tot);
-	chunk_appendf(&trash, "cpust_ms_tot:"); SHOW_VAL(thr, activity[thr].cpust_total / 2, _tot);
-	chunk_appendf(&trash, "cpust_ms_1s:");  SHOW_VAL(thr, read_freq_ctr(&activity[thr].cpust_1s) / 2, _tot);
-	chunk_appendf(&trash, "cpust_ms_15s:"); SHOW_VAL(thr, read_freq_ctr_period(&activity[thr].cpust_15s, 15000) / 2, _tot);
-	chunk_appendf(&trash, "avg_cpu_pct:");  SHOW_VAL(thr, (100 - ha_thread_ctx[thr].idle_pct), (_tot + _nbt/2) / _nbt);
-	chunk_appendf(&trash, "avg_loop_us:");  SHOW_VAL(thr, swrate_avg(activity[thr].avg_loop_us, TIME_STATS_SAMPLES), (_tot + _nbt/2) / _nbt);
-	chunk_appendf(&trash, "accepted:");     SHOW_VAL(thr, activity[thr].accepted, _tot);
-	chunk_appendf(&trash, "accq_pushed:");  SHOW_VAL(thr, activity[thr].accq_pushed, _tot);
-	chunk_appendf(&trash, "accq_full:");    SHOW_VAL(thr, activity[thr].accq_full, _tot);
+
+	SHOW_VAL("ctxsw:",        thr, activity[thr].ctxsw, _tot);
+	SHOW_VAL("tasksw:",       thr, activity[thr].tasksw, _tot);
+	SHOW_VAL("empty_rq:",     thr, activity[thr].empty_rq, _tot);
+	SHOW_VAL("long_rq:",      thr, activity[thr].long_rq, _tot);
+	SHOW_VAL("loops:",        thr, activity[thr].loops, _tot);
+	SHOW_VAL("wake_tasks:",   thr, activity[thr].wake_tasks, _tot);
+	SHOW_VAL("wake_signal:",  thr, activity[thr].wake_signal, _tot);
+	SHOW_VAL("poll_io:",      thr, activity[thr].poll_io, _tot);
+	SHOW_VAL("poll_exp:",     thr, activity[thr].poll_exp, _tot);
+	SHOW_VAL("poll_drop_fd:", thr, activity[thr].poll_drop_fd, _tot);
+	SHOW_VAL("poll_skip_fd:", thr, activity[thr].poll_skip_fd, _tot);
+	SHOW_VAL("conn_dead:",    thr, activity[thr].conn_dead, _tot);
+	SHOW_VAL("stream_calls:", thr, activity[thr].stream_calls, _tot);
+	SHOW_VAL("pool_fail:",    thr, activity[thr].pool_fail, _tot);
+	SHOW_VAL("buf_wait:",     thr, activity[thr].buf_wait, _tot);
+	SHOW_VAL("cpust_ms_tot:", thr, activity[thr].cpust_total / 2, _tot);
+	SHOW_VAL("cpust_ms_1s:",  thr, read_freq_ctr(&activity[thr].cpust_1s) / 2, _tot);
+	SHOW_VAL("cpust_ms_15s:", thr, read_freq_ctr_period(&activity[thr].cpust_15s, 15000) / 2, _tot);
+	SHOW_VAL("avg_cpu_pct:",  thr, (100 - ha_thread_ctx[thr].idle_pct), (_tot + _nbt/2) / _nbt);
+	SHOW_VAL("avg_loop_us:",  thr, swrate_avg(activity[thr].avg_loop_us, TIME_STATS_SAMPLES), (_tot + _nbt/2) / _nbt);
+	SHOW_VAL("accepted:",     thr, activity[thr].accepted, _tot);
+	SHOW_VAL("accq_pushed:",  thr, activity[thr].accq_pushed, _tot);
+	SHOW_VAL("accq_full:",    thr, activity[thr].accq_full, _tot);
 #ifdef USE_THREAD
-	chunk_appendf(&trash, "accq_ring:");    SHOW_VAL(thr, accept_queue_ring_len(&accept_queue_rings[thr]), _tot);
-	chunk_appendf(&trash, "fd_takeover:");  SHOW_VAL(thr, activity[thr].fd_takeover, _tot);
+	SHOW_VAL("accq_ring:",    thr, accept_queue_ring_len(&accept_queue_rings[thr]), _tot);
+	SHOW_VAL("fd_takeover:",  thr, activity[thr].fd_takeover, _tot);
 #endif
 
 #if defined(DEBUG_DEV)
 	/* keep these ones at the end */
-	chunk_appendf(&trash, "ctr0:");         SHOW_VAL(thr, activity[thr].ctr0, _tot);
-	chunk_appendf(&trash, "ctr1:");         SHOW_VAL(thr, activity[thr].ctr1, _tot);
-	chunk_appendf(&trash, "ctr2:");         SHOW_VAL(thr, activity[thr].ctr2, _tot);
+	SHOW_VAL("ctr0:",         thr, activity[thr].ctr0, _tot);
+	SHOW_VAL("ctr1:",         thr, activity[thr].ctr1, _tot);
+	SHOW_VAL("ctr2:",         thr, activity[thr].ctr2, _tot);
 #endif
 
 	if (applet_putchk(appctx, &trash) == -1) {
