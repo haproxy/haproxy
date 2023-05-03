@@ -1655,6 +1655,18 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 	TRACE_LEAVE(QMUX_EV_QCS_SEND, qcc->conn, qcs);
 }
 
+/* Returns true if subscribe set, false otherwise. */
+static int qcc_subscribe_send(struct qcc *qcc)
+{
+	struct connection *conn = qcc->conn;
+	if (qcc->wait_event.events & SUB_RETRY_SEND)
+		return 1;
+
+	TRACE_DEVEL("subscribe for send", QMUX_EV_QCC_SEND, qcc->conn);
+	conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_SEND, &qcc->wait_event);
+	return 1;
+}
+
 /* Wrapper for send on transport layer. Send a list of frames <frms> for the
  * connection <qcc>.
  *
@@ -1670,10 +1682,9 @@ static int qc_send_frames(struct qcc *qcc, struct list *frms)
 	}
 
 	if (!qc_send_mux(qcc->conn->handle.qc, frms)) {
+		TRACE_DEVEL("error on sending", QMUX_EV_QCC_SEND, qcc->conn);
 		/* TODO should subscribe only for a transient send error */
-		TRACE_DEVEL("error on send, subscribing", QMUX_EV_QCC_SEND, qcc->conn);
-		qcc->conn->xprt->subscribe(qcc->conn, qcc->conn->xprt_ctx,
-		                           SUB_RETRY_SEND, &qcc->wait_event);
+		qcc_subscribe_send(qcc);
 		goto err;
 	}
 
@@ -1681,9 +1692,8 @@ static int qc_send_frames(struct qcc *qcc, struct list *frms)
 	 * Subscribe on it to retry later.
 	 */
 	if (!LIST_ISEMPTY(frms)) {
-		TRACE_DEVEL("remaining frames to send, subscribing", QMUX_EV_QCC_SEND, qcc->conn);
-		qcc->conn->xprt->subscribe(qcc->conn, qcc->conn->xprt_ctx,
-		                           SUB_RETRY_SEND, &qcc->wait_event);
+		TRACE_DEVEL("remaining frames to send", QMUX_EV_QCC_SEND, qcc->conn);
+		qcc_subscribe_send(qcc);
 		goto err;
 	}
 
