@@ -36,6 +36,7 @@ struct show_prof_ctx {
 struct show_activity_ctx {
 	int thr;         /* thread ID to show or -1 for all */
 	int line;        /* line number being dumped */
+	int col;         /* columnline being dumped, 0 to nbt+1 */
 };
 
 #if defined(DEBUG_MEM_STATS)
@@ -1037,6 +1038,13 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 
 	/* this macro is used below to dump values. The thread number is "thr",
 	 * and runs from 0 to nbt-1 when values are printed using the formula.
+	 * We normally try to dmup integral lines in order to keep counters
+	 * consistent. If we fail once on a line, we'll detect it next time
+	 * because we'll have committed actctx->col=1 thanks to the header
+	 * always being dumped individually. We'll be called again thanks to
+	 * the header being present, leaving some data in the buffer. In this
+	 * case once we restart we'll proceed one column at a time to make sure
+	 * we don't overflow the buffer again.
 	 */
 #undef SHOW_VAL
 #define SHOW_VAL(header, x, formula)					\
@@ -1044,12 +1052,13 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 		unsigned int _v[MAX_THREADS];				\
 		unsigned int _tot;					\
 		const int _nbt = global.nbthread;			\
+		int restarted = actctx->col > 0;			\
 		int thr;						\
 		_tot = thr = 0;						\
 		do {							\
 			_tot += _v[thr] = (x);				\
 		} while (++thr < _nbt);					\
-		for (thr = -2; thr <= _nbt; thr++) {			\
+		for (thr = actctx->col - 2; thr <= _nbt; thr++) {	\
 			if (thr == -2) {				\
 				/* line header */			\
 				chunk_appendf(&trash, "%s", header);	\
@@ -1073,7 +1082,20 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 					      (_nbt > 1 && tgt < 0) ?	\
 					      " ]" : "");		\
 			}						\
+			if (thr == -2 || restarted) {			\
+				/* failed once, emit one column at a time */\
+				if (applet_putchk(appctx, &trash) == -1) \
+					break; /* main loop handles it */ \
+				chunk_reset(&trash);			\
+				actctx->col = thr + 3;			\
+			}						\
 		}							\
+		if (applet_putchk(appctx, &trash) == -1)		\
+			break; /* main loop will handle it */		\
+		/* OK dump done for this line */			\
+		chunk_reset(&trash);					\
+		if (thr > _nbt)						\
+			actctx->col = 0;				\
 	} while (0)
 
 	/* retrieve uptime */
@@ -1129,6 +1151,8 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 #endif
 		}
 #undef SHOW_VAL
+
+		/* try to dump what was possibly not dumped yet */
 
 		if (applet_putchk(appctx, &trash) == -1) {
 			/* buffer full, retry later */
