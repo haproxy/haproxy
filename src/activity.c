@@ -1028,7 +1028,6 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	int tgt = actctx->thr; // target thread, -1 for all, 0 for total only
 	uint up_sec, up_usec;
 	ullong up;
-	int thr;
 
 	/* FIXME: Don't watch the other side ! */
 	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
@@ -1036,30 +1035,45 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 
 	chunk_reset(&trash);
 
+	/* this macro is used below to dump values. The thread number is "thr",
+	 * and runs from 0 to nbt-1 when values are printed using the formula.
+	 */
 #undef SHOW_VAL
-#define SHOW_VAL(header, t, x, formula)					\
-	chunk_appendf(&trash, header);					\
+#define SHOW_VAL(header, x, formula)					\
 	do {								\
 		unsigned int _v[MAX_THREADS];				\
 		unsigned int _tot;					\
-		const unsigned int _nbt = global.nbthread;		\
-		_tot = t = 0;						\
+		const int _nbt = global.nbthread;			\
+		int thr;						\
+		_tot = thr = 0;						\
 		do {							\
-			_tot += _v[t] = (x);				\
-		} while (++t < _nbt);					\
-		if (_nbt == 1) {					\
-			chunk_appendf(&trash, " %u\n", _tot);		\
-			break;						\
+			_tot += _v[thr] = (x);				\
+		} while (++thr < _nbt);					\
+		for (thr = -2; thr <= _nbt; thr++) {			\
+			if (thr == -2) {				\
+				/* line header */			\
+				chunk_appendf(&trash, "%s", header);	\
+			}						\
+			else if (thr == -1) {				\
+				/* aggregate value only for multi-thread: all & 0 */ \
+				if (_nbt > 1 && tgt <= 0)		\
+					chunk_appendf(&trash, " %u%s",	\
+						      (formula),	\
+						      (tgt < 0) ?	\
+						      " [" : "");	\
+			}						\
+			else if (thr < _nbt) {				\
+				/* individual value only for all or exact value */ \
+				if (tgt == -1 || tgt == thr+1)		\
+					chunk_appendf(&trash, " %u",	\
+						      _v[thr]);		\
+			}						\
+			else /* thr == _nbt */ {			\
+				chunk_appendf(&trash, "%s\n",		\
+					      (_nbt > 1 && tgt < 0) ?	\
+					      " ]" : "");		\
+			}						\
 		}							\
-		if (tgt == -1) {					\
-			chunk_appendf(&trash, " %u [", (formula));	\
-			for (t = 0; t < _nbt; t++)			\
-				chunk_appendf(&trash, " %u", _v[t]);	\
-			chunk_appendf(&trash, " ]\n");			\
-		} else if (tgt == 0)					\
-			chunk_appendf(&trash, " %u\n", (formula));	\
-		else							\
-			chunk_appendf(&trash, " %u\n", _v[tgt-1]);	\
 	} while (0)
 
 	/* retrieve uptime */
@@ -1071,39 +1085,39 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	chunk_appendf(&trash, "date_now: %lu.%06lu\n", (ulong)date.tv_sec, (ulong)date.tv_usec);
 	chunk_appendf(&trash, "uptime_now: %u.%06u\n", up_sec, up_usec);
 
-	SHOW_VAL("ctxsw:",        thr, activity[thr].ctxsw, _tot);
-	SHOW_VAL("tasksw:",       thr, activity[thr].tasksw, _tot);
-	SHOW_VAL("empty_rq:",     thr, activity[thr].empty_rq, _tot);
-	SHOW_VAL("long_rq:",      thr, activity[thr].long_rq, _tot);
-	SHOW_VAL("loops:",        thr, activity[thr].loops, _tot);
-	SHOW_VAL("wake_tasks:",   thr, activity[thr].wake_tasks, _tot);
-	SHOW_VAL("wake_signal:",  thr, activity[thr].wake_signal, _tot);
-	SHOW_VAL("poll_io:",      thr, activity[thr].poll_io, _tot);
-	SHOW_VAL("poll_exp:",     thr, activity[thr].poll_exp, _tot);
-	SHOW_VAL("poll_drop_fd:", thr, activity[thr].poll_drop_fd, _tot);
-	SHOW_VAL("poll_skip_fd:", thr, activity[thr].poll_skip_fd, _tot);
-	SHOW_VAL("conn_dead:",    thr, activity[thr].conn_dead, _tot);
-	SHOW_VAL("stream_calls:", thr, activity[thr].stream_calls, _tot);
-	SHOW_VAL("pool_fail:",    thr, activity[thr].pool_fail, _tot);
-	SHOW_VAL("buf_wait:",     thr, activity[thr].buf_wait, _tot);
-	SHOW_VAL("cpust_ms_tot:", thr, activity[thr].cpust_total / 2, _tot);
-	SHOW_VAL("cpust_ms_1s:",  thr, read_freq_ctr(&activity[thr].cpust_1s) / 2, _tot);
-	SHOW_VAL("cpust_ms_15s:", thr, read_freq_ctr_period(&activity[thr].cpust_15s, 15000) / 2, _tot);
-	SHOW_VAL("avg_cpu_pct:",  thr, (100 - ha_thread_ctx[thr].idle_pct), (_tot + _nbt/2) / _nbt);
-	SHOW_VAL("avg_loop_us:",  thr, swrate_avg(activity[thr].avg_loop_us, TIME_STATS_SAMPLES), (_tot + _nbt/2) / _nbt);
-	SHOW_VAL("accepted:",     thr, activity[thr].accepted, _tot);
-	SHOW_VAL("accq_pushed:",  thr, activity[thr].accq_pushed, _tot);
-	SHOW_VAL("accq_full:",    thr, activity[thr].accq_full, _tot);
+	SHOW_VAL("ctxsw:",        activity[thr].ctxsw, _tot);
+	SHOW_VAL("tasksw:",       activity[thr].tasksw, _tot);
+	SHOW_VAL("empty_rq:",     activity[thr].empty_rq, _tot);
+	SHOW_VAL("long_rq:",      activity[thr].long_rq, _tot);
+	SHOW_VAL("loops:",        activity[thr].loops, _tot);
+	SHOW_VAL("wake_tasks:",   activity[thr].wake_tasks, _tot);
+	SHOW_VAL("wake_signal:",  activity[thr].wake_signal, _tot);
+	SHOW_VAL("poll_io:",      activity[thr].poll_io, _tot);
+	SHOW_VAL("poll_exp:",     activity[thr].poll_exp, _tot);
+	SHOW_VAL("poll_drop_fd:", activity[thr].poll_drop_fd, _tot);
+	SHOW_VAL("poll_skip_fd:", activity[thr].poll_skip_fd, _tot);
+	SHOW_VAL("conn_dead:",    activity[thr].conn_dead, _tot);
+	SHOW_VAL("stream_calls:", activity[thr].stream_calls, _tot);
+	SHOW_VAL("pool_fail:",    activity[thr].pool_fail, _tot);
+	SHOW_VAL("buf_wait:",     activity[thr].buf_wait, _tot);
+	SHOW_VAL("cpust_ms_tot:", activity[thr].cpust_total / 2, _tot);
+	SHOW_VAL("cpust_ms_1s:",  read_freq_ctr(&activity[thr].cpust_1s) / 2, _tot);
+	SHOW_VAL("cpust_ms_15s:", read_freq_ctr_period(&activity[thr].cpust_15s, 15000) / 2, _tot);
+	SHOW_VAL("avg_cpu_pct:",  (100 - ha_thread_ctx[thr].idle_pct), (_tot + _nbt/2) / _nbt);
+	SHOW_VAL("avg_loop_us:",  swrate_avg(activity[thr].avg_loop_us, TIME_STATS_SAMPLES), (_tot + _nbt/2) / _nbt);
+	SHOW_VAL("accepted:",     activity[thr].accepted, _tot);
+	SHOW_VAL("accq_pushed:",  activity[thr].accq_pushed, _tot);
+	SHOW_VAL("accq_full:",    activity[thr].accq_full, _tot);
 #ifdef USE_THREAD
-	SHOW_VAL("accq_ring:",    thr, accept_queue_ring_len(&accept_queue_rings[thr]), _tot);
-	SHOW_VAL("fd_takeover:",  thr, activity[thr].fd_takeover, _tot);
+	SHOW_VAL("accq_ring:",    accept_queue_ring_len(&accept_queue_rings[thr]), _tot);
+	SHOW_VAL("fd_takeover:",  activity[thr].fd_takeover, _tot);
 #endif
 
 #if defined(DEBUG_DEV)
 	/* keep these ones at the end */
-	SHOW_VAL("ctr0:",         thr, activity[thr].ctr0, _tot);
-	SHOW_VAL("ctr1:",         thr, activity[thr].ctr1, _tot);
-	SHOW_VAL("ctr2:",         thr, activity[thr].ctr2, _tot);
+	SHOW_VAL("ctr0:",         activity[thr].ctr0, _tot);
+	SHOW_VAL("ctr1:",         activity[thr].ctr1, _tot);
+	SHOW_VAL("ctr2:",         activity[thr].ctr2, _tot);
 #endif
 
 	if (applet_putchk(appctx, &trash) == -1) {
