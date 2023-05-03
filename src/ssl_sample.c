@@ -411,6 +411,17 @@ static int sample_conv_x509_v_err(const struct arg *arg_p, struct sample *smp, v
 		smp->flags |= SMP_F_CONST;
 
 		return 1;
+	} else {
+		struct buffer *smp_trash = get_trash_chunk();
+
+		/* if the conversion failed, output the numbers as string */
+		chunk_printf(smp_trash, "%llu", smp->data.u.sint);
+
+		smp->data.u.str = *smp_trash;
+		smp->data.type = SMP_T_STR;
+		smp->flags &= ~SMP_F_CONST;
+
+		return 1;
 	}
 
 	return 0;

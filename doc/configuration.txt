@@ -19105,6 +19105,9 @@ x509_v_err_str
   is useful in ACL in order to have a configuration which works with multiple
   version of OpenSSL since some codes might change when changing version.
 
+  When the corresponding constant name was not found, outputs the numerical
+  value as a string.
+
   The list of constant provided by OpenSSL can be found at
   https://www.openssl.org/docs/manmaster/man3/X509_STORE_CTX_get_error.html#ERROR-CODES
   Be careful to read the page for the right version of OpenSSL.
@@ -19120,6 +19123,9 @@ x509_v_err_str
     http-response add-header X-SSL Ok if cert_ok
     http-response add-header X-SSL Expired if cert_expired
     http-response add-header X-SSL Revoked if cert_revoked
+
+    http-response add-header X-SSL-verify %[ssl_c_verify,x509_v_err_str]
+
 
 7.3.2. Fetching samples from internal states
 --------------------------------------------
