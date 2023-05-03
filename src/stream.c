@@ -3372,7 +3372,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 
 		chunk_appendf(&trash,
 			     " age=%s)\n",
-			     human_time(ns_to_sec(now_ns) - strm->logs.accept_date.tv_sec, 1));
+			     human_time(ns_to_sec(now_ns) - ns_to_sec(strm->logs.accept_ts), 1));
 
 		if (strm->txn)
 			chunk_appendf(&trash,
