@@ -1843,6 +1843,15 @@ static int _qc_send_qcs(struct qcs *qcs, struct list *frms)
 
 	/* Build a new STREAM frame with <out> buffer. */
 	if (qcs->tx.sent_offset != qcs->tx.offset || fin) {
+		/* Skip STREAM frame allocation if already subscribed for send.
+		 * Happens on sendto transient error or network congestion.
+		 */
+		if (qcc->wait_event.events & SUB_RETRY_SEND) {
+			TRACE_DEVEL("already subscribed for sending",
+			            QMUX_EV_QCS_SEND, qcc->conn, qcs);
+			goto err;
+		}
+
 		if (qcs_build_stream_frm(qcs, out, fin, frms) < 0)
 			goto err;
 	}
@@ -1870,6 +1879,12 @@ static int qc_send(struct qcc *qcc)
 	int ret, total = 0;
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
+
+	/* TODO if socket in transient error, sending should be temporarily
+	 * disabled for all frames. However, checking for send subscription is
+	 * not valid as this may be caused by a congestion error which only
+	 * apply for STREAM frames.
+	 */
 
 	/* Check for locally detected connection error. */
 	if (qcc->flags & QC_CF_ERRL) {
