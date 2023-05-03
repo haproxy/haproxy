@@ -937,7 +937,7 @@ static int debug_parse_cli_task(char **args, char *payload, struct appctx *appct
 		memprintf(&msg, "%s%p: %s state=%#x tid=%d process=%s ctx=%p calls=%d last=%s:%d intl=%d",
 			  msg ? msg : "", t, (t->state & TASK_F_TASKLET) ? "tasklet" : "task",
 			  t->state, t->tid, trash.area, t->context, t->calls,
-			  caller && may_access(caller) && may_access(caller->func) && isalnum(*caller->func) ? caller->func : "0",
+			  caller && may_access(caller) && may_access(caller->func) && isalnum((uchar)*caller->func) ? caller->func : "0",
 			  caller ? t->caller->line : 0,
 			  (t->state & TASK_F_TASKLET) ? LIST_INLIST(&((const struct tasklet *)t)->list) : 0);
 
