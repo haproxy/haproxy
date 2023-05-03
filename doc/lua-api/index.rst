@@ -758,6 +758,9 @@ Core class
   It takes up to 4 optional arguments (provided when registering), and no
   output is expected.
 
+  See also :js:func:`core.queue` to dynamically pass data between main context
+  and tasks or even between tasks.
+
 .. js:function:: core.register_cli([path], usage, func)
 
   **context**: body
@@ -848,6 +851,14 @@ Core class
   This function returns a new concat object.
 
   :returns: A :ref:`concat_class` object.
+
+.. js:function:: core.queue()
+
+  **context**: body, init, task, event, action, sample-fetch, converter
+
+  This function returns a new queue object.
+
+  :returns: A :ref:`queue_class` object.
 
 .. js:function:: core.done(data)
 
@@ -1757,6 +1768,83 @@ This class contains additional info related to **SERVER_ADMIN** event.
 
   Same as :js:attr:`ServerEventState.requeued` but when the requeue is due to
   the server administrative state change.
+
+.. _queue_class:
+
+Queue class
+===========
+
+.. js:class:: Queue
+
+  This class provides a generic FIFO storage mechanism that may be shared
+  between multiple lua contexts to easily pass data between them, as stock
+  Lua doesn't provide easy methods for passing data between multiple coroutines.
+
+  inter-task example:
+
+.. code-block:: lua
+
+  -- script wide shared queue
+  local queue = core.queue()
+
+  -- master task
+  core.register_task(function()
+    -- send the date every second
+    while true do
+      queue:push(os.date("%c", core.now().sec))
+      core.sleep(1)
+    end
+  end)
+
+  -- worker task
+  core.register_task(function()
+    while true do
+      -- print the date sent by master
+      print(queue:pop_wait())
+    end
+  end)
+..
+
+  Of course, queue may also be used as a local storage mechanism.
+
+  Use :js:func:`core.queue` to get a new Queue object.
+
+.. js:function:: Queue.size(queue)
+
+  This function returns the number of items within the Queue.
+
+  :param class_queue queue: A :ref:`queue_class` to the current queue
+
+.. js:function:: Queue.push(queue, item)
+
+  This function pushes the item (may be of any type) to the queue.
+  Pushed item cannot be nil or invalid, or an error will be thrown.
+
+  :param class_queue queue: A :ref:`queue_class` to the current queue
+  :returns: boolean true for success and false for error
+
+.. js:function:: Queue.pop(queue)
+
+  This function immediately tries to pop an item from the queue.
+  It returns nil of no item is available at the time of the call.
+
+  :param class_queue queue: A :ref:`queue_class` to the current queue
+  :returns: the item at the top of the stack (any type) or nil if no items
+
+.. js:function:: Queue.pop_wait(queue)
+
+  **context**: task
+
+  This is an alternative to pop() that may be used within task contexts.
+
+  The call waits for data if no item is currently available. This may be
+  useful when used in a while loop to prevent cpu waste.
+
+  Note that this requires yielding, thus it is only available within contexts
+  that support yielding (mainly task context).
+
+  :param class_queue queue: A :ref:`queue_class` to the current queue
+  :returns: the item at the top of the stack (any type) or nil in case of error
 
 .. _concat_class:
 
