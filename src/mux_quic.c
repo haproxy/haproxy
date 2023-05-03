@@ -2534,7 +2534,8 @@ static void qc_detach(struct sedesc *sd)
 
 	qcc_rm_sc(qcc);
 
-	if (!qcs_is_close_local(qcs) && !(qcc->conn->flags & CO_FL_ERROR)) {
+	if (!qcs_is_close_local(qcs) && !(qcc->conn->flags & CO_FL_ERROR) &&
+	    !(qcc->flags & QC_CF_ERRL)) {
 		TRACE_STATE("remaining data, detaching qcs", QMUX_EV_STRM_END, qcc->conn, qcs);
 		qcs->flags |= QC_SF_DETACH;
 		qcc_refresh_timeout(qcc);
@@ -2611,7 +2612,8 @@ static size_t qc_recv_buf(struct stconn *sc, struct buffer *buf,
 		BUG_ON(!ncb_data(&qcs->rx.ncbuf, 0));
 
 		qcs->flags &= ~QC_SF_DEM_FULL;
-		tasklet_wakeup(qcs->qcc->wait_event.tasklet);
+		if (!(qcs->qcc->flags & QC_CF_ERRL))
+			tasklet_wakeup(qcs->qcc->wait_event.tasklet);
 	}
 
 	TRACE_LEAVE(QMUX_EV_STRM_RECV, qcs->qcc->conn, qcs);
@@ -2726,6 +2728,11 @@ static void qc_shutw(struct stconn *sc, enum co_shw_mode mode)
 
 	TRACE_ENTER(QMUX_EV_STRM_SHUT, qcc->conn, qcs);
 
+	if (qcc->flags & QC_CF_ERRL) {
+		TRACE_DEVEL("connection on error", QMUX_EV_QCC_END, qcc->conn);
+		goto out;
+	}
+
 	/* Early closure reported if QC_SF_FIN_STREAM not yet set. */
 	if (!qcs_is_close_local(qcs) &&
 	    !(qcs->flags & (QC_SF_FIN_STREAM|QC_SF_TO_RESET))) {
@@ -2745,6 +2752,7 @@ static void qc_shutw(struct stconn *sc, enum co_shw_mode mode)
 		tasklet_wakeup(qcc->wait_event.tasklet);
 	}
 
+ out:
 	TRACE_LEAVE(QMUX_EV_STRM_SHUT, qcc->conn, qcs);
 }
 
