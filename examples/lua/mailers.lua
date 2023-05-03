@@ -16,6 +16,8 @@ local SYSLOG_LEVEL = {
 	["DEBUG"] = 7
 }
 
+local mailqueue = core.queue()
+
 -- smtp : send SMTP message
 --
 -- Copyright 2018 Thierry Fournier
@@ -140,28 +142,16 @@ local function send_email_alert(srv, level, message, when)
 		return
 	end
 
-	-- email sending is performed asynchronously
-	core.register_task(function(mailers, msg, when)
-		for name, mailsrv in pairs(mailers.mailservers) do
-			local mailsrv_ip, mailsrv_port = string.match(mailsrv, "([^:]+):([^:]+)")
-			local date = os.date("%a, %d %b %Y %T %z (%Z)", when)
-			local c = core.concat()
+	-- email sending is performed asynchronously thanks to mailqueue
+	local job = {}
 
-			c:add(string.format("From: %s\r\n", mailers.smtp_from))
-			c:add(string.format("To: %s\r\n", mailers.smtp_to))
-			c:add(string.format("Date: %s\r\n", date))
-			c:add(string.format("Subject: [HAProxy Alert] %s\r\n", msg))
-			c:add("\r\n")
-			c:add(string.format("%s\r\n", msg))
+	job.mailconf = mailers
+	job.when = when
+	job.msg = message
 
-			local ret, reason = smtp_send_email(mailsrv_ip, mailsrv_port,
-							    mailers.smtp_hostname, mailers.smtp_from,
-							    mailers.smtp_to, c:dump())
-			if ret == false then
-				core.Warning("Can't send email: " .. reason)
-			end
-			end
-	end, mailers, message, when)
+	-- enqueue email job
+	mailqueue:push(job)
+
 end
 
 local function srv_get_check_details(check)
@@ -388,4 +378,41 @@ core.register_task(function()
 		end
 	end
 
+end)
+
+-- mail queue
+core.register_task(function()
+	while true
+	do
+		local job = mailqueue:pop_wait()
+
+		if job ~= nil then
+			local date = os.date("%a, %d %b %Y %T %z (%Z)", job.when)
+			local c = core.concat()
+
+			-- prepare email body
+			c:add(string.format("From: %s\r\n", job.mailconf.smtp_from))
+			c:add(string.format("To: %s\r\n", job.mailconf.smtp_to))
+			c:add(string.format("Date: %s\r\n", date))
+			c:add(string.format("Subject: [HAProxy Alert] %s\r\n", job.msg))
+			c:add("\r\n")
+			c:add(string.format("%s\r\n", job.msg))
+
+			-- send email to all mailservers
+			for name, mailsrv in pairs(job.mailconf.mailservers) do
+				-- split mailsrv (ip:port) in 2 variables
+				local mailsrv_ip, mailsrv_port = string.match(mailsrv, "([^:]+):([^:]+)")
+
+				-- finally, send email to server
+				local ret, reason = smtp_send_email(mailsrv_ip, mailsrv_port,
+								    job.mailconf.smtp_hostname,
+								    job.mailconf.smtp_from,
+								    job.mailconf.smtp_to,
+								    c:dump())
+				if ret == false then
+					core.Warning("Can't send email alert to ".. name .. ": " .. reason)
+				end
+			end
+		end
+	end
 end)
