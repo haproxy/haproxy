@@ -319,7 +319,7 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 	/* always show the prompt/help/quit commands */
 	chunk_strcat(tmp,
 	             "  help [<command>]                        : list matching or all commands\n"
-	             "  prompt                                  : toggle interactive mode with prompt\n"
+	             "  prompt [timed]                          : toggle interactive mode with prompt\n"
 	             "  quit                                    : disconnect\n");
 
 	chunk_init(&out, NULL, 0);
@@ -1115,6 +1115,7 @@ static void cli_io_handler(struct appctx *appctx)
 
 			/* The post-command prompt is either LF alone or LF + '> ' in interactive mode */
 			if (appctx->st0 == CLI_ST_PROMPT) {
+				char prompt_buf[20];
 				const char *prompt = "";
 
 				if (appctx->st1 & APPCTX_CLI_ST1_PROMPT) {
@@ -1124,6 +1125,13 @@ static void cli_io_handler(struct appctx *appctx)
 					 */
 					if (appctx->chunk->data && appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)
 						prompt = "+ ";
+					else if (appctx->st1 & APPCTX_CLI_ST1_TIMED) {
+						uint up = ns_to_sec(now_ns - start_time_ns);
+						snprintf(prompt_buf, sizeof(prompt_buf),
+							 "\n[%u:%02u:%02u:%02u]> ",
+							 (up / 86400), (up / 3600) % 24, (up / 60) % 60, up % 60);
+						prompt = prompt_buf;
+					}
 					else
 						prompt = "\n> ";
 				}
@@ -2187,7 +2195,12 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 		cli_gen_usage_msg(appctx, args);
 	else if (*args[0] == 'p')
 		/* prompt */
-		appctx->st1 ^= APPCTX_CLI_ST1_PROMPT;
+		if (strcmp(args[1], "timed") == 0) {
+			appctx->st1 |= APPCTX_CLI_ST1_PROMPT;
+			appctx->st1 ^= APPCTX_CLI_ST1_TIMED;
+		}
+		else
+			appctx->st1 ^= APPCTX_CLI_ST1_PROMPT;
 	else if (*args[0] == 'q') {
 		/* quit */
 		se_fl_set(appctx->sedesc, SE_FL_EOI);

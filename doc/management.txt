@@ -1497,6 +1497,20 @@ For this reason, when debugging by hand, it's quite common to start with the
    ...
    >
 
+Optionally the process' uptime may be displayed in the prompt. In order to
+enable this, the "prompt timed" command will enable the prompt and toggle the
+displaying of the time. The uptime is displayed in format "d:hh:mm:ss" where
+"d" is the number of days, and "hh", "mm", "ss" are respectively the number
+of hours, minutes and seconds on two digits each:
+
+   # socat /var/run/haproxy readline
+   prompt timed
+
+   [23:03:34:39]> show version
+   2.8-dev9-e5e622-18
+
+   [23:03:34:41]> quit
+
 Since multiple commands may be issued at once, haproxy uses the empty line as a
 delimiter to mark an end of output for each command, and takes care of ensuring
 that no command can emit an empty line on output. A script can thus easily
