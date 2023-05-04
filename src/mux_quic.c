@@ -216,7 +216,7 @@ static inline int qcc_is_dead(const struct qcc *qcc)
 	 * - error detected locally
 	 * - MUX timeout expired or unset
 	 */
-	if (qcc->conn->flags & CO_FL_ERROR || qcc->flags & QC_CF_ERRL_DONE ||
+	if (qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL_DONE) ||
 	    !qcc->task) {
 		return 1;
 	}
@@ -1900,6 +1900,12 @@ static int qc_send(struct qcc *qcc)
 	 * apply for STREAM frames.
 	 */
 
+	/* Check for transport error. */
+	if (qcc->flags & QC_CF_ERR_CONN || qcc->conn->flags & CO_FL_ERROR) {
+		TRACE_DEVEL("connection on error", QMUX_EV_QCC_SEND, qcc->conn);
+		goto out;
+	}
+
 	/* Check for locally detected connection error. */
 	if (qcc->flags & QC_CF_ERRL) {
 		/* Prepare a CONNECTION_CLOSE if not already done. */
@@ -2039,6 +2045,12 @@ static int qc_send(struct qcc *qcc)
 	}
 
  out:
+	if (qcc->conn->flags & CO_FL_ERROR && !(qcc->flags & QC_CF_ERR_CONN)) {
+		TRACE_ERROR("error reported by transport layer",
+		            QMUX_EV_QCC_SEND, qcc->conn);
+		qcc->flags |= QC_CF_ERR_CONN;
+	}
+
 	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
 	return total;
 }
@@ -2134,7 +2146,7 @@ static void qc_shutdown(struct qcc *qcc)
 {
 	TRACE_ENTER(QMUX_EV_QCC_END, qcc->conn);
 
-	if (qcc->flags & QC_CF_ERRL) {
+	if (qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL)) {
 		TRACE_DATA("connection on error", QMUX_EV_QCC_END, qcc->conn);
 		goto out;
 	}
@@ -2183,7 +2195,7 @@ static int qc_wake_some_streams(struct qcc *qcc)
 		if (!qcs_sc(qcs))
 			continue;
 
-		if (qcc->conn->flags & CO_FL_ERROR || qcc->flags & QC_CF_ERRL) {
+		if (qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL)) {
 			TRACE_POINT(QMUX_EV_QCC_WAKE, qcc->conn, qcs);
 			se_fl_set_error(qcs->sd);
 			qcs_alert(qcs);
@@ -2243,7 +2255,7 @@ static int qc_process(struct qcc *qcc)
 	}
 
 	/* Report error if set on stream endpoint layer. */
-	if (qcc->flags & QC_CF_ERRL)
+	if (qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL))
 		qc_wake_some_streams(qcc);
 
  out:
@@ -2571,8 +2583,8 @@ static void qc_detach(struct sedesc *sd)
 
 	qcc_rm_sc(qcc);
 
-	if (!qcs_is_close_local(qcs) && !(qcc->conn->flags & CO_FL_ERROR) &&
-	    !(qcc->flags & QC_CF_ERRL)) {
+	if (!qcs_is_close_local(qcs) &&
+	    !(qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL))) {
 		TRACE_STATE("remaining data, detaching qcs", QMUX_EV_STRM_END, qcc->conn, qcs);
 		qcs->flags |= QC_SF_DETACH;
 		qcc_refresh_timeout(qcc);
@@ -2671,7 +2683,7 @@ static size_t qc_send_buf(struct stconn *sc, struct buffer *buf,
 	BUG_ON_HOT(qcs->flags & QC_SF_DETACH);
 
 	/* Report error if set on stream endpoint layer. */
-	if (qcs->qcc->flags & QC_CF_ERRL) {
+	if (qcs->qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL)) {
 		se_fl_set(qcs->sd, SE_FL_ERROR);
 		TRACE_DEVEL("connection in error", QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 		goto end;
@@ -2766,7 +2778,7 @@ static void qc_shutw(struct stconn *sc, enum co_shw_mode mode)
 
 		if (qcs->flags & QC_SF_UNKNOWN_PL_LENGTH) {
 			/* Close stream with a FIN STREAM frame. */
-			if (!(qcc->flags & QC_CF_ERRL)) {
+			if (!(qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL))) {
 				TRACE_STATE("set FIN STREAM",
 				            QMUX_EV_STRM_SHUT, qcc->conn, qcs);
 				qcs->flags |= QC_SF_FIN_STREAM;
@@ -2775,7 +2787,7 @@ static void qc_shutw(struct stconn *sc, enum co_shw_mode mode)
 		}
 		else {
 			/* RESET_STREAM necessary. */
-			if (!(qcc->flags & QC_CF_ERRL))
+			if (!(qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL)))
 				qcc_reset_stream(qcs, 0);
 			se_fl_set_error(qcs->sd);
 		}

@@ -33,6 +33,7 @@ enum qcs_type {
 #define QC_CF_BLK_MFCTL 0x00000004 /* sending blocked due to connection flow-control */
 #define QC_CF_CONN_FULL 0x00000008 /* no stream buffers available on connection */
 #define QC_CF_APP_SHUT  0x00000010 /* Application layer shutdown done. */
+#define QC_CF_ERR_CONN  0x00000020 /* fatal error reported by transport layer */
 
 struct qcc {
 	struct connection *conn;
