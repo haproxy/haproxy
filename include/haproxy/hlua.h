@@ -59,6 +59,7 @@ const char *hlua_show_current_location(const char *pfx);
 int hlua_ref(lua_State *L);
 void hlua_pushref(lua_State *L, int ref);
 void hlua_unref(lua_State *L, int ref);
+struct hlua *hlua_gethlua(lua_State *L);
 
 #else /* USE_LUA */
 

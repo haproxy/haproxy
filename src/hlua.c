@@ -1294,7 +1294,7 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
  *  - hlua_gethlua : return the hlua context associated with an lua_State.
  *  - hlua_sethlua : create the association between hlua context and lua_state.
  */
-static inline struct hlua *hlua_gethlua(lua_State *L)
+inline struct hlua *hlua_gethlua(lua_State *L)
 {
 	struct hlua **hlua = lua_getextraspace(L);
 	return *hlua;
