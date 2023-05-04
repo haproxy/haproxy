@@ -198,12 +198,12 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 	              ha_thread_ctx[thr].rq_total,
 		      ha_thread_info[thr].tgid, ha_thread_info[thr].ltid + 1,
 	              stuck,
-	              !!(th_ctx->flags & TH_FL_TASK_PROFILING));
+	              !!(ha_thread_ctx[thr].flags & TH_FL_TASK_PROFILING));
 
 	chunk_appendf(buf,
-	              " harmless=%d wantrdv=%d",
+	              " harmless=%d isolated=%d",
 	              !!(_HA_ATOMIC_LOAD(&ha_tgroup_ctx[tgrp-1].threads_harmless) & thr_bit),
-	              !!(th_ctx->flags & TH_FL_TASK_PROFILING));
+		      isolated_thread == thr);
 
 	chunk_appendf(buf, "\n");
 	chunk_appendf(buf, "             cpu_ns: poll=%llu now=%llu diff=%llu\n", p, n, n-p);
