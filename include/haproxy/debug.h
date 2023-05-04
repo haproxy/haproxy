@@ -30,7 +30,6 @@ void ha_thread_dump_one(int thr, int from_signal);
 void ha_thread_dump(struct buffer *buf, int thr);
 void ha_dump_backtrace(struct buffer *buf, const char *prefix, int dump);
 void ha_backtrace_to_stderr(void);
-void ha_thread_dump_all_to_trash(void);
 void ha_panic(void);
 
 #endif /* _HAPROXY_DEBUG_H */

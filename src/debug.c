@@ -117,9 +117,9 @@ void ha_dump_backtrace(struct buffer *buf, const char *prefix, int dump)
 		addr = resolve_sym_name(buf, ": ", callers[j]);
 		if ((dump & 3) == 0) {
 			/* dump not started, will start *after* ha_thread_dump_one(),
-			 * ha_thread_dump_all_to_trash, ha_panic and ha_backtrace_to_stderr
+			 * ha_panic and ha_backtrace_to_stderr
 			 */
-			if (addr == ha_thread_dump_all_to_trash || addr == ha_panic ||
+			if (addr == ha_panic ||
 			    addr == ha_backtrace_to_stderr || addr == ha_thread_dump_one)
 				dump++;
 			*buf = bak;
@@ -128,7 +128,7 @@ void ha_dump_backtrace(struct buffer *buf, const char *prefix, int dump)
 
 		if ((dump & 3) == 1) {
 			/* starting */
-			if (addr == ha_thread_dump_all_to_trash || addr == ha_panic ||
+			if (addr == ha_panic ||
 			    addr == ha_backtrace_to_stderr || addr == ha_thread_dump_one) {
 				*buf = bak;
 				continue;
@@ -1692,18 +1692,6 @@ static void debug_release_memstats(struct appctx *appctx)
 	ha_free(&ctx->match);
 }
 #endif
-
-/* This function dumps all threads' state to the trash. Depending on the
- * build options it will either inspect them directly or will signal each
- * thread in turn to report their own dump.
- */
-void ha_thread_dump_all_to_trash()
-{
-	unsigned int thr;
-
-	for (thr = 0; thr < global.nbthread; thr++)
-		ha_thread_dump(&trash, thr);
-}
 
 #ifdef USE_THREAD_DUMP
 
