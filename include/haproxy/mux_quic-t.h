@@ -13,6 +13,7 @@
 #include <haproxy/htx-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/ncbuf-t.h>
+#include <haproxy/quic_frame-t.h>
 #include <haproxy/quic_stream-t.h>
 #include <haproxy/stconn-t.h>
 
@@ -27,10 +28,11 @@ enum qcs_type {
 	QCS_MAX_TYPES
 };
 
-#define QC_CF_CC_EMIT   0x00000001 /* A CONNECTION_CLOSE is set by the MUX */
-#define QC_CF_BLK_MFCTL 0x00000002 /* sending blocked due to connection flow-control */
-#define QC_CF_CONN_FULL 0x00000004 /* no stream buffers available on connection */
-#define QC_CF_APP_SHUT  0x00000008 /* Application layer shutdown done. */
+#define QC_CF_ERRL      0x00000001 /* fatal error detected locally, connection should be closed soon */
+#define QC_CF_ERRL_DONE 0x00000002 /* local error properly handled, connection can be released */
+#define QC_CF_BLK_MFCTL 0x00000004 /* sending blocked due to connection flow-control */
+#define QC_CF_CONN_FULL 0x00000008 /* no stream buffers available on connection */
+#define QC_CF_APP_SHUT  0x00000010 /* Application layer shutdown done. */
 
 struct qcc {
 	struct connection *conn;
@@ -107,6 +109,7 @@ struct qcc {
 	int timeout;
 	int shut_timeout;
 	int idle_start; /* base time for http-keep-alive timeout */
+	struct quic_err err; /* code for locally detected error */
 
 	const struct qcc_app_ops *app_ops;
 	void *ctx; /* Application layer context */

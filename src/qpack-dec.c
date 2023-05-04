@@ -111,7 +111,7 @@ int qpack_decode_enc(struct buffer *buf, int fin, void *ctx)
 	 * connection error of type H3_CLOSED_CRITICAL_STREAM.
 	 */
 	if (fin) {
-		qcc_emit_cc_app(qcs->qcc, H3_CLOSED_CRITICAL_STREAM, 1);
+		qcc_set_error(qcs->qcc, H3_CLOSED_CRITICAL_STREAM);
 		return -1;
 	}
 
@@ -158,7 +158,7 @@ int qpack_decode_dec(struct buffer *buf, int fin, void *ctx)
 	 * connection error of type H3_CLOSED_CRITICAL_STREAM.
 	 */
 	if (fin) {
-		qcc_emit_cc_app(qcs->qcc, H3_CLOSED_CRITICAL_STREAM, 1);
+		qcc_set_error(qcs->qcc, H3_CLOSED_CRITICAL_STREAM);
 		return -1;
 	}
 

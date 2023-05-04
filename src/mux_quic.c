@@ -24,24 +24,6 @@
 DECLARE_POOL(pool_head_qcc, "qcc", sizeof(struct qcc));
 DECLARE_POOL(pool_head_qcs, "qcs", sizeof(struct qcs));
 
-/* Emit a CONNECTION_CLOSE with error <err>. This will interrupt all future
- * send/receive operations.
- */
-static void qcc_emit_cc(struct qcc *qcc, int err)
-{
-	TRACE_ENTER(QMUX_EV_QCC_END, qcc->conn);
-
-	/* This function must not be called multiple times. */
-	BUG_ON(qcc->flags & QC_CF_CC_EMIT);
-
-	TRACE_STATE("set CONNECTION_CLOSE on quic-conn", QMUX_EV_QCC_ERR, qcc->conn);
-	quic_set_connection_close(qcc->conn->handle.qc, quic_err_transport(err));
-	qcc->flags |= QC_CF_CC_EMIT;
-	tasklet_wakeup(qcc->wait_event.tasklet);
-
-	TRACE_LEAVE(QMUX_EV_QCC_END, qcc->conn);
-}
-
 static void qc_free_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
 {
 	struct buffer buf;
@@ -225,13 +207,19 @@ static forceinline void qcc_rm_hreq(struct qcc *qcc)
 
 static inline int qcc_is_dead(const struct qcc *qcc)
 {
-	/* Mux connection is considered dead if :
-	 * - all stream-desc are detached AND
-	 *   = connection is on error OR
-	 *   = mux timeout has already fired or is unset
+	/* Maintain connection if stream endpoints are still active. */
+	if (qcc->nb_sc)
+		return 0;
+
+	/* Connection considered dead if either :
+	 * - remote error detected at tranport level
+	 * - error detected locally
+	 * - MUX timeout expired or unset
 	 */
-	if (!qcc->nb_sc && ((qcc->conn->flags & CO_FL_ERROR) || !qcc->task))
+	if (qcc->conn->flags & CO_FL_ERROR || qcc->flags & QC_CF_ERRL_DONE ||
+	    !qcc->task) {
 		return 1;
+	}
 
 	return 0;
 }
@@ -508,6 +496,21 @@ void qcs_notify_send(struct qcs *qcs)
 	}
 }
 
+/* A fatal error is detected locally for <qcc> connection. It should be closed
+ * with a CONNECTION_CLOSE using <err> code. This function must not be called
+ * more than once by connection.
+ */
+void qcc_set_error(struct qcc *qcc, int err)
+{
+	/* This must not be called multiple times per connection. */
+	BUG_ON(qcc->flags & QC_CF_ERRL);
+
+	TRACE_STATE("connection on error", QMUX_EV_QCC_ERR, qcc->conn);
+
+	qcc->flags |= QC_CF_ERRL;
+	qcc->err = quic_err_app(err);
+}
+
 /* Open a locally initiated stream for the connection <qcc>. Set <bidi> for a
  * bidirectional stream, else an unidirectional stream is opened. The next
  * available ID on the connection will be used according to the stream type.
@@ -538,7 +541,7 @@ struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi)
 	qcs = qcs_new(qcc, *next, type);
 	if (!qcs) {
 		TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn);
-		qcc_emit_cc(qcc, QC_ERR_INTERNAL_ERROR);
+		qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR);
 		return NULL;
 	}
 
@@ -585,7 +588,7 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 	                                   qcc->lfctl.ms_uni * 4;
 	if (id >= max_id) {
 		TRACE_ERROR("flow control error", QMUX_EV_QCS_NEW|QMUX_EV_PROTO_ERR, qcc->conn);
-		qcc_emit_cc(qcc, QC_ERR_STREAM_LIMIT_ERROR);
+		qcc_set_error(qcc, QC_ERR_STREAM_LIMIT_ERROR);
 		goto err;
 	}
 
@@ -599,7 +602,7 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 		qcs = qcs_new(qcc, *largest, type);
 		if (!qcs) {
 			TRACE_ERROR("stream fallocation failure", QMUX_EV_QCS_NEW, qcc->conn);
-			qcc_emit_cc(qcc, QC_ERR_INTERNAL_ERROR);
+			qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR);
 			goto err;
 		}
 
@@ -658,13 +661,13 @@ int qcc_get_qcs(struct qcc *qcc, uint64_t id, int receive_only, int send_only,
 
 	if (!receive_only && quic_stream_is_uni(id) && quic_stream_is_remote(qcc, id)) {
 		TRACE_ERROR("receive-only stream not allowed", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS|QMUX_EV_PROTO_ERR, qcc->conn, NULL, &id);
-		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
+		qcc_set_error(qcc, QC_ERR_STREAM_STATE_ERROR);
 		goto err;
 	}
 
 	if (!send_only && quic_stream_is_uni(id) && quic_stream_is_local(qcc, id)) {
 		TRACE_ERROR("send-only stream not allowed", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS|QMUX_EV_PROTO_ERR, qcc->conn, NULL, &id);
-		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
+		qcc_set_error(qcc, QC_ERR_STREAM_STATE_ERROR);
 		goto err;
 	}
 
@@ -696,7 +699,7 @@ int qcc_get_qcs(struct qcc *qcc, uint64_t id, int receive_only, int send_only,
 		 * stream.
 		 */
 		TRACE_ERROR("locally initiated stream not yet created", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS|QMUX_EV_PROTO_ERR, qcc->conn, NULL, &id);
-		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
+		qcc_set_error(qcc, QC_ERR_STREAM_STATE_ERROR);
 		goto err;
 	}
 	else {
@@ -752,7 +755,7 @@ static void qcs_consume(struct qcs *qcs, uint64_t bytes)
 		TRACE_DATA("increase stream credit via MAX_STREAM_DATA", QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		frm = qc_frm_alloc(QUIC_FT_MAX_STREAM_DATA);
 		if (!frm) {
-			qcc_emit_cc(qcc, QC_ERR_INTERNAL_ERROR);
+			qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR);
 			return;
 		}
 
@@ -771,7 +774,7 @@ static void qcs_consume(struct qcs *qcs, uint64_t bytes)
 		TRACE_DATA("increase conn credit via MAX_DATA", QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		frm = qc_frm_alloc(QUIC_FT_MAX_DATA);
 		if (!frm) {
-			qcc_emit_cc(qcc, QC_ERR_INTERNAL_ERROR);
+			qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR);
 			return;
 		}
 
@@ -828,38 +831,6 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
  err:
 	TRACE_LEAVE(QMUX_EV_QCS_RECV, qcc->conn, qcs);
 	return 1;
-}
-
-/* Emit a CONNECTION_CLOSE_APP with error <err>. Reserved for application error
- * code. To close the connection right away, set <immediate> : this is useful
- * when dealing with a connection fatal error. Else a graceful shutdown will be
- * conducted : the error-code is only registered. The lower layer is
- * responsible to close the connection when deemed suitable. Note that in this
- * case the error code might be overwritten if an immediate close is requested
- * in the interval.
- */
-void qcc_emit_cc_app(struct qcc *qcc, int err, int immediate)
-{
-	TRACE_ENTER(QMUX_EV_QCC_END, qcc->conn);
-
-	/* This function must not be called multiple times after immediate is set. */
-	BUG_ON(qcc->flags & QC_CF_CC_EMIT);
-
-	if (immediate) {
-		quic_set_connection_close(qcc->conn->handle.qc, quic_err_app(err));
-		qcc->flags |= QC_CF_CC_EMIT;
-		tasklet_wakeup(qcc->wait_event.tasklet);
-	}
-	else {
-		/* Only register the error code for graceful shutdown.
-		 * Do not overwrite quic-conn existing code if already set.
-		 * TODO implement a wrapper function for this in quic-conn module
-		 */
-		if (!(qcc->conn->handle.qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))
-			qcc->conn->handle.qc->err = quic_err_app(err);
-	}
-
-	TRACE_LEAVE(QMUX_EV_QCC_END, qcc->conn);
 }
 
 /* Prepare for the emission of RESET_STREAM on <qcs> with error code <err>. */
@@ -985,8 +956,8 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
-	if (qcc->flags & QC_CF_CC_EMIT) {
-		TRACE_DATA("connection closed", QMUX_EV_QCC_RECV, qcc->conn);
+	if (qcc->flags & QC_CF_ERRL) {
+		TRACE_DATA("connection on error", QMUX_EV_QCC_RECV, qcc->conn);
 		goto err;
 	}
 
@@ -1018,7 +989,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	if (qcs->flags & QC_SF_SIZE_KNOWN &&
 	    (offset + len > qcs->rx.offset_max || (fin && offset + len < qcs->rx.offset_max))) {
 		TRACE_ERROR("final size error", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV|QMUX_EV_PROTO_ERR, qcc->conn, qcs);
-		qcc_emit_cc(qcc, QC_ERR_FINAL_SIZE_ERROR);
+		qcc_set_error(qcc, QC_ERR_FINAL_SIZE_ERROR);
 		goto err;
 	}
 
@@ -1051,7 +1022,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 			 */
 			TRACE_ERROR("flow control error", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV|QMUX_EV_PROTO_ERR,
 			            qcc->conn, qcs);
-			qcc_emit_cc(qcc, QC_ERR_FLOW_CONTROL_ERROR);
+			qcc_set_error(qcc, QC_ERR_FLOW_CONTROL_ERROR);
 			goto err;
 		}
 	}
@@ -1090,7 +1061,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 			 */
 			TRACE_ERROR("overlapping data rejected", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV|QMUX_EV_PROTO_ERR,
 			            qcc->conn, qcs);
-			qcc_emit_cc(qcc, QC_ERR_PROTOCOL_VIOLATION);
+			qcc_set_error(qcc, QC_ERR_PROTOCOL_VIOLATION);
 			return 1;
 
 		case NCB_RET_GAP_SIZE:
@@ -1158,8 +1129,8 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
-	if (qcc->flags & QC_CF_CC_EMIT) {
-		TRACE_DATA("connection closed", QMUX_EV_QCC_RECV, qcc->conn);
+	if (qcc->flags & QC_CF_ERRL) {
+		TRACE_DATA("connection on error", QMUX_EV_QCC_RECV, qcc->conn);
 		goto err;
 	}
 
@@ -1211,8 +1182,8 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
-	if (qcc->flags & QC_CF_CC_EMIT) {
-		TRACE_DATA("connection closed", QMUX_EV_QCC_RECV, qcc->conn);
+	if (qcc->flags & QC_CF_ERRL) {
+		TRACE_DATA("connection on error", QMUX_EV_QCC_RECV, qcc->conn);
 		goto err;
 	}
 
@@ -1223,7 +1194,7 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 	 */
 	if (qcc_get_qcs(qcc, id, 1, 0, &qcs)) {
 		TRACE_ERROR("RESET_STREAM for send-only stream received", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
-		qcc_emit_cc(qcc, QC_ERR_STREAM_STATE_ERROR);
+		qcc_set_error(qcc, QC_ERR_STREAM_STATE_ERROR);
 		goto err;
 	}
 
@@ -1243,7 +1214,7 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 	if (qcs->rx.offset_max > final_size ||
 	    ((qcs->flags & QC_SF_SIZE_KNOWN) && qcs->rx.offset_max != final_size)) {
 		TRACE_ERROR("final size error on RESET_STREAM", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
-		qcc_emit_cc(qcc, QC_ERR_FINAL_SIZE_ERROR);
+		qcc_set_error(qcc, QC_ERR_FINAL_SIZE_ERROR);
 		goto err;
 	}
 
@@ -1277,8 +1248,8 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
-	if (qcc->flags & QC_CF_CC_EMIT) {
-		TRACE_DATA("connection closed", QMUX_EV_QCC_RECV, qcc->conn);
+	if (qcc->flags & QC_CF_ERRL) {
+		TRACE_DATA("connection on error", QMUX_EV_QCC_RECV, qcc->conn);
 		goto err;
 	}
 
@@ -1370,7 +1341,7 @@ static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 			TRACE_DATA("increase max stream limit with MAX_STREAMS_BIDI", QMUX_EV_QCC_SEND, qcc->conn);
 			frm = qc_frm_alloc(QUIC_FT_MAX_STREAMS_BIDI);
 			if (!frm) {
-				qcc_emit_cc(qcc, QC_ERR_INTERNAL_ERROR);
+				qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR);
 				goto err;
 			}
 
@@ -1414,7 +1385,7 @@ static void qcs_destroy(struct qcs *qcs)
 	 */
 	BUG_ON(qcs->tx.offset < qcs->tx.sent_offset);
 
-	if (!(qcc->flags & QC_CF_CC_EMIT)) {
+	if (!(qcc->flags & QC_CF_ERRL)) {
 		if (quic_stream_is_remote(qcc, id))
 			qcc_release_remote_stream(qcc, id);
 	}
@@ -1885,7 +1856,19 @@ static int qc_send(struct qcc *qcc)
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
 
-	if (qcc->conn->flags & CO_FL_SOCK_WR_SH || qcc->flags & QC_CF_CC_EMIT) {
+	/* Check for locally detected connection error. */
+	if (qcc->flags & QC_CF_ERRL) {
+		/* Prepare a CONNECTION_CLOSE if not already done. */
+		if (!(qcc->flags & QC_CF_ERRL_DONE)) {
+			TRACE_DATA("report a connection error", QMUX_EV_QCC_SEND|QMUX_EV_QCC_ERR, qcc->conn);
+			quic_set_connection_close(qcc->conn->handle.qc, qcc->err);
+			qcc->flags |= QC_CF_ERRL_DONE;
+		}
+		TRACE_DEVEL("connection on error", QMUX_EV_QCC_SEND, qcc->conn);
+		goto err;
+	}
+
+	if (qcc->conn->flags & CO_FL_SOCK_WR_SH) {
 		qcc->conn->flags |= CO_FL_ERROR;
 		TRACE_DEVEL("connection on error", QMUX_EV_QCC_SEND, qcc->conn);
 		goto err;
@@ -2032,7 +2015,8 @@ static int qc_recv(struct qcc *qcc)
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
-	if (qcc->flags & QC_CF_CC_EMIT) {
+	if (qcc->flags & QC_CF_ERRL) {
+		TRACE_DATA("connection on error", QMUX_EV_QCC_RECV, qcc->conn);
 		TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 		return 0;
 	}
@@ -2113,18 +2097,32 @@ static void qc_shutdown(struct qcc *qcc)
 {
 	TRACE_ENTER(QMUX_EV_QCC_END, qcc->conn);
 
-	if (qcc->flags & (QC_CF_APP_SHUT|QC_CF_CC_EMIT)) {
-		TRACE_DATA("connection closed", QMUX_EV_QCC_END, qcc->conn);
+	if (qcc->flags & QC_CF_ERRL) {
+		TRACE_DATA("connection on error", QMUX_EV_QCC_END, qcc->conn);
 		goto out;
 	}
 
+	if (qcc->flags & QC_CF_APP_SHUT)
+		goto out;
+
+	TRACE_STATE("perform graceful shutdown", QMUX_EV_QCC_END, qcc->conn);
 	if (qcc->app_ops && qcc->app_ops->shutdown) {
 		qcc->app_ops->shutdown(qcc->ctx);
 		qc_send(qcc);
 	}
 	else {
-		qcc_emit_cc_app(qcc, QC_ERR_NO_ERROR, 0);
+		qcc->err = quic_err_app(QC_ERR_NO_ERROR);
 	}
+
+	/* Register "no error" code at transport layer. Do not use
+	 * quic_set_connection_close() as retransmission may be performed to
+	 * finalized transfers. Do not overwrite quic-conn existing code if
+	 * already set.
+	 *
+	 * TODO implement a wrapper function for this in quic-conn module
+	 */
+	if (!(qcc->conn->handle.qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))
+		qcc->conn->handle.qc->err = qcc->err;
 
  out:
 	qcc->flags |= QC_CF_APP_SHUT;
