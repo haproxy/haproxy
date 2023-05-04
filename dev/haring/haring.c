@@ -23,6 +23,8 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
+/* we do not implement BUG_ON() */
+#undef DEBUG_STRICT
 
 #include <sys/mman.h>
 #include <sys/stat.h>
