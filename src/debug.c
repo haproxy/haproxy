@@ -298,9 +298,10 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 	if (hlua && hlua->T) {
 		chunk_appendf(buf, "stack traceback:\n    ");
 		append_prefixed_str(buf, hlua_traceback(hlua->T, "\n    "), pfx, '\n', 0);
-		b_putchr(buf, '\n');
 	}
-	else
+
+	/* we may need to terminate the current line */
+	if (*b_peek(buf, b_data(buf)-1) != '\n')
 		b_putchr(buf, '\n');
 #endif
 }
