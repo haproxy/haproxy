@@ -370,14 +370,18 @@ static int cli_io_handler_show_threads(struct appctx *appctx)
 	else
 		thr = 0;
 
-	chunk_reset(&trash);
-	ha_thread_dump_all_to_trash();
+	do {
+		chunk_reset(&trash);
+		ha_thread_dump(&trash, thr);
 
-	if (applet_putchk(appctx, &trash) == -1) {
-		/* failed, try again */
-		appctx->st1 = thr;
-		return 0;
-	}
+		if (applet_putchk(appctx, &trash) == -1) {
+			/* failed, try again */
+			appctx->st1 = thr;
+			return 0;
+		}
+		thr++;
+	} while (thr < global.nbthread);
+
 	return 1;
 }
 
