@@ -851,8 +851,12 @@ void qcc_emit_cc_app(struct qcc *qcc, int err, int immediate)
 		tasklet_wakeup(qcc->wait_event.tasklet);
 	}
 	else {
-		/* Only register the error code for graceful shutdown. */
-		qcc->conn->handle.qc->err = quic_err_app(err);
+		/* Only register the error code for graceful shutdown.
+		 * Do not overwrite quic-conn existing code if already set.
+		 * TODO implement a wrapper function for this in quic-conn module
+		 */
+		if (!(qcc->conn->handle.qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))
+			qcc->conn->handle.qc->err = quic_err_app(err);
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_END, qcc->conn);
