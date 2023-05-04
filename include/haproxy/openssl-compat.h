@@ -520,5 +520,9 @@ static inline unsigned long ERR_peek_error_func(const char **func)
 #define SSL_CTX_set1_curves_list SSL_CTX_set1_curves_list
 #endif
 
+#if !defined(SSL_CTX_set1_sigalgs_list) && defined(SSL_CTRL_SET_SIGALGS_LIST)
+#define SSL_CTX_set1_sigalgs_list SSL_CTX_set1_sigalgs_list
+#endif
+
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_OPENSSL_COMPAT_H */
