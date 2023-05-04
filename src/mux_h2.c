@@ -1560,7 +1560,11 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	h2s->sd->se   = h2s;
 	h2s->sd->conn = h2c->conn;
 	se_fl_set(h2s->sd, SE_FL_T_MUX | SE_FL_ORPHAN | SE_FL_NOT_FIRST);
-	se_expect_no_data(h2s->sd);
+	/* The request is not finished, don't expect data from the opposite side
+	 * yet
+	 */
+	if (!(h2c->dff & (H2_F_HEADERS_END_STREAM| H2_F_DATA_END_STREAM)))
+		se_expect_no_data(h2s->sd);
 
 	/* FIXME wrong analogy between ext-connect and websocket, this need to
 	 * be refine.
@@ -6430,7 +6434,6 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 		htx_to_buf(h2s_htx, &h2s->rxbuf);
 		goto end;
 	}
-
 	ret = h2s_htx->data;
 	buf_htx = htx_from_buf(buf);
 
@@ -6452,13 +6455,6 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	}
 	else if (htx_is_empty(h2s_htx)) {
 		buf_htx->flags |= (h2s_htx->flags & HTX_FL_EOM);
-
-		if (!(h2c->flags & H2_CF_IS_BACK) && (buf_htx->flags & HTX_FL_EOM)) {
-			/* If request EOM is reported to the upper layer, it means the
-			 * H2S now expects data from the opposite side.
-			 */
-			se_expect_data(h2s->sd);
-		}
 	}
 
 	buf_htx->extra = (h2s_htx->extra ? (h2s_htx->data + h2s_htx->extra) : 0);
@@ -6470,6 +6466,13 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	if (b_data(&h2s->rxbuf))
 		se_fl_set(h2s->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 	else {
+		if (!(h2c->flags & H2_CF_IS_BACK) && (h2s->flags & H2_SF_ES_RCVD)) {
+			/* If request ES is reported to the upper layer, it means the
+			 * H2S now expects data from the opposite side.
+			 */
+			se_expect_data(h2s->sd);
+		}
+
 		se_fl_clr(h2s->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 		if (h2s->flags & H2_SF_ES_RCVD) {
 			se_fl_set(h2s->sd, SE_FL_EOI);
