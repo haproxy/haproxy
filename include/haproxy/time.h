@@ -153,7 +153,7 @@ static forceinline ullong us_to_ns(uint us)
 }
 
 /* creates a struct timeval from a relative timestamp in nanosecond */
-#define NS_TO_TV(t) ((const struct timeval){ .tv_sec = t / 1000000000ULL, .tv_usec = (t % 1000000000ULL) / 1000U })
+#define NS_TO_TV(t) ((const struct timeval){ .tv_sec = (t) / 1000000000ULL, .tv_usec = ((t) % 1000000000ULL) / 1000U })
 
 /* Return a number of 1024Hz ticks between 0 and 1023 for input number of
  * usecs between 0 and 999999. This function has been optimized to remove
