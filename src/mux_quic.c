@@ -34,7 +34,7 @@ static void qcc_emit_cc(struct qcc *qcc, int err)
 	/* This function must not be called multiple times. */
 	BUG_ON(qcc->flags & QC_CF_CC_EMIT);
 
-	TRACE_STATE("set CONNECTION_CLOSE on quic-conn", QMUX_EV_QCC_WAKE, qcc->conn);
+	TRACE_STATE("set CONNECTION_CLOSE on quic-conn", QMUX_EV_QCC_ERR, qcc->conn);
 	quic_set_connection_close(qcc->conn->handle.qc, quic_err_transport(err));
 	qcc->flags |= QC_CF_CC_EMIT;
 	tasklet_wakeup(qcc->wait_event.tasklet);
@@ -2448,7 +2448,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	HA_ATOMIC_STORE(&conn->handle.qc->qcc, qcc);
 
 	if (qcc_install_app_ops(qcc, conn->handle.qc->app_ops)) {
-		TRACE_PROTO("Cannot install app layer", QMUX_EV_QCC_NEW, qcc->conn);
+		TRACE_PROTO("Cannot install app layer", QMUX_EV_QCC_NEW|QMUX_EV_QCC_ERR, qcc->conn);
 		/* prepare a CONNECTION_CLOSE frame */
 		quic_set_connection_close(conn->handle.qc, quic_err_transport(QC_ERR_APPLICATION_ERROR));
 		goto fail_install_app_ops;

@@ -48,6 +48,8 @@ static const struct trace_event qmux_trace_events[] = {
 	{ .mask = QMUX_EV_QCS_BUILD_STRM, .name = "qcs_build_stream_frm", .desc = "qcs_build_stream_frm" },
 #define           QMUX_EV_PROTO_ERR     (1ULL << 17)
 	{ .mask = QMUX_EV_PROTO_ERR,    .name = "proto_err",    .desc = "protocol error" },
+#define           QMUX_EV_QCC_ERR       (1ULL << 18)
+	{ .mask = QMUX_EV_QCC_ERR,      .name = "qcc_err",      .desc = "connection on error" },
 	{ }
 };
 
