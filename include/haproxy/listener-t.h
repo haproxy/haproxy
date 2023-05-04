@@ -144,6 +144,7 @@ struct ssl_bind_conf {
 	char *curves;	           /* curves suite to use for ECDHE */
 	char *ecdhe;               /* named curve to use for ECDHE */
 	char *sigalgs;             /* Signature algorithms */
+	char *client_sigalgs;      /* Client Signature algorithms */
 	struct tls_version_filter ssl_methods_cfg; /* original ssl methods found in configuration */
 	struct tls_version_filter ssl_methods; /* actual ssl methods used at runtime */
 #endif

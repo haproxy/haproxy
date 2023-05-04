@@ -77,6 +77,9 @@ void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)
 #if defined(SSL_CTX_set1_sigalgs_list)
 		ha_free(&conf->sigalgs);
 #endif
+#if defined(SSL_CTX_set1_client_sigalgs_list)
+		ha_free(&conf->client_sigalgs);
+#endif
 	}
 }
 
@@ -158,6 +161,13 @@ struct ssl_bind_conf *crtlist_dup_ssl_conf(struct ssl_bind_conf *src)
 	if (src->sigalgs) {
 		dst->sigalgs = strdup(src->sigalgs);
 		if (!dst->sigalgs)
+			goto error;
+	}
+#endif
+#if defined(SSL_CTX_set1_client_sigalgs_list)
+	if (src->client_sigalgs) {
+		dst->client_sigalgs = strdup(src->client_sigalgs);
+		if (!dst->client_sigalgs)
 			goto error;
 	}
 #endif

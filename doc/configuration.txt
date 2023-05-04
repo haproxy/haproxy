@@ -1095,6 +1095,7 @@ The following keywords are supported in the "global" section :
    - setenv
    - ssl-default-bind-ciphers
    - ssl-default-bind-ciphersuites
+   - ssl-default-bind-client-sigalgs
    - ssl-default-bind-curves
    - ssl-default-bind-options
    - ssl-default-bind-sigalgs
@@ -2167,6 +2168,21 @@ ssl-default-bind-ciphersuites <ciphersuites>
   cipher configuration for TLSv1.2 and earlier, please check the
   "ssl-default-bind-ciphers" keyword. Please check the "bind" keyword for more
   information.
+
+ssl-default-bind-client-sigalgs <sigalgs>
+  This setting is only available when support for OpenSSL was built in. It sets
+  the default string describing the list of signature algorithms related to
+  client authentication for all "bind" lines which do not explicitly define
+  theirs. The format of the string is a colon-delimited list of signature
+  algorithms. Each signature algorithm can use one of two forms: TLS1.3 signature
+  scheme names ("rsa_pss_rsae_sha256") or the public key algorithm + digest form
+  ("ECDSA+SHA256"). A list can contain both forms. For more information on the
+  format, see SSL_CTX_set1_client_sigalgs(3). A list of signature algorithms is
+  also available in RFC8446 section 4.2.3 and in OpenSSL in the ssl/t1_lib.c
+  file.  This setting is not applicable to TLSv1.1 and earlier versions of the
+  protocol as the signature algorithms aren't separately negotiated in these
+  versions. It is not recommended to change this setting unless compatibility
+  with a middlebox is required.
 
 ssl-default-bind-curves <curves>
   This setting is only available when support for OpenSSL was built in. It sets
@@ -14808,6 +14824,13 @@ ciphersuites <ciphersuites>
   TLSv1.3 handshake. The format of the string is defined in "man 1 ciphers" from
   OpenSSL man pages under the "ciphersuites" section. For cipher configuration
   for TLSv1.2 and earlier, please check the "ciphers" keyword.
+
+client-sigalgs <sigalgs>
+  This setting is only available when support for OpenSSL was built in. It sets
+  the string describing the list of signature algorithms related to client
+  authentication that are negotiated . The format of the string is defined in
+  "man 3 SSL_CTX_set1_client_sigalgs" from the OpenSSL man pages. It is not
+  recommended to use this setting if no specific usecase was identified.
 
 crl-file <crlfile>
   This setting is only available when support for OpenSSL was built in. It

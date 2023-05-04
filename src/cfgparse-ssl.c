@@ -344,6 +344,33 @@ static int ssl_parse_global_sigalgs(char **args, int section_type, struct proxy 
 }
 #endif
 
+#if defined(SSL_CTX_set1_client_sigalgs_list)
+/*
+ * parse the "ssl-default-bind-client-sigalgs" keyword in a global section.
+ * Returns <0 on alert, >0 on warning, 0 on success.
+ */
+static int ssl_parse_global_client_sigalgs(char **args, int section_type, struct proxy *curpx,
+                                   const struct proxy *defpx, const char *file, int line,
+				   char **err)
+{
+	char **target;
+
+	target = &global_ssl.listen_default_client_sigalgs;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "global statement '%s' expects signature algorithms as an arguments.", args[0]);
+		return -1;
+	}
+
+	free(*target);
+	*target = strdup(args[1]);
+	return 0;
+}
+#endif
+
 /* parse various global tune.ssl settings consisting in positive integers.
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
@@ -844,6 +871,26 @@ static int ssl_bind_parse_sigalgs(char **args, int cur_arg, struct proxy *px, st
 static int bind_parse_sigalgs(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	return ssl_bind_parse_sigalgs(args, cur_arg, px, &conf->ssl_conf, 0, err);
+}
+
+/* parse the "client-sigalgs" bind keyword */
+static int ssl_bind_parse_client_sigalgs(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
+{
+#if defined(SSL_CTX_set1_client_sigalgs_list)
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing signature algorithm list", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	conf->client_sigalgs = strdup(args[cur_arg + 1]);
+	return 0;
+#else
+	memprintf(err, "'%s' : library does not support setting signature algorithms", args[cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#endif
+}
+static int bind_parse_client_sigalgs(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	return ssl_bind_parse_client_sigalgs(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
 
 
@@ -2056,6 +2103,7 @@ struct ssl_crtlist_kw ssl_crtlist_kws[] = {
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	{ "ciphersuites",          ssl_bind_parse_ciphersuites,     1 }, /* set TLS 1.3 cipher suite */
 #endif
+	{ "client-sigalgs",        ssl_bind_parse_client_sigalgs,     1 }, /* set SSL client signature algorithms */
 	{ "crl-file",              ssl_bind_parse_crl_file,         1 }, /* set certificate revocation list file use on client cert verify */
 	{ "curves",                ssl_bind_parse_curves,           1 }, /* set SSL curve suite */
 	{ "ecdhe",                 ssl_bind_parse_ecdhe,            1 }, /* defines named curve for elliptic curve Diffie-Hellman */
@@ -2084,6 +2132,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	{ "ciphersuites",          bind_parse_ciphersuites,       1 }, /* set TLS 1.3 cipher suite */
 #endif
+	{ "client-sigalgs",        bind_parse_client_sigalgs,     1 }, /* set SSL client signature algorithms */
 	{ "crl-file",              bind_parse_crl_file,           1 }, /* set certificate revocation list file use on client cert verify */
 	{ "crt",                   bind_parse_crt,                1 }, /* load SSL certificates from this location */
 	{ "crt-ignore-err",        bind_parse_ignore_err,         1 }, /* set error IDs to ignore on verify depth == 0 */
@@ -2209,6 +2258,9 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 #endif
 #if defined(SSL_CTX_set1_sigalgs_list)
 	{ CFG_GLOBAL, "ssl-default-bind-sigalgs", ssl_parse_global_sigalgs },
+#endif
+#if defined(SSL_CTX_set1_client_sigalgs_list)
+	{ CFG_GLOBAL, "ssl-default-bind-client-sigalgs", ssl_parse_global_client_sigalgs },
 #endif
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	{ CFG_GLOBAL, "ssl-default-bind-ciphersuites", ssl_parse_global_ciphersuites },

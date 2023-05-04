@@ -282,6 +282,9 @@ struct global_ssl {
 #if defined(SSL_CTX_set1_sigalgs_list)
 	char *listen_default_sigalgs;
 #endif
+#if defined(SSL_CTX_set1_sigalgs_list)
+	char *listen_default_client_sigalgs;
+#endif
 	int listen_default_ssloptions;
 	int connect_default_ssloptions;
 	struct tls_version_filter listen_default_sslmethods;
