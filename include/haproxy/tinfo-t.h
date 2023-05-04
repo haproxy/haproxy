@@ -28,6 +28,8 @@
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/thread-t.h>
 
+/* forward declarations for types used below */
+struct buffer;
 
 /* Threads sets are known either by a set of absolute thread numbers, or by a
  * set of relative thread numbers within a group, for each group. The default
@@ -161,6 +163,7 @@ struct thread_ctx {
 	struct freq_ctr out_32bps;              /* #of 32-byte blocks emitted per second */
 	unsigned long long out_bytes;           /* total #of bytes emitted */
 	unsigned long long spliced_out_bytes;   /* total #of bytes emitted though a kernel pipe */
+	struct buffer *thread_dump_buffer;      /* NULL out of dump, valid during a dump, 0x01 once done */
 
 	ALWAYS_ALIGN(128);
 };

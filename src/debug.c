@@ -66,7 +66,10 @@
 #define THREAD_DUMP_FSYNC     0x00008000U
 #define THREAD_DUMP_PMASK     0x7FFF0000U
 
-volatile unsigned int thread_dump_state = 0;
+/* Points to a copy of the buffer where the dump functions should write, when
+ * non-null. It's only used by debuggers for core dump analysis.
+ */
+struct buffer *thread_dump_buffer = NULL;
 unsigned int panic_started = 0;
 unsigned int debug_commands_issued = 0;
 
@@ -114,11 +117,11 @@ void ha_dump_backtrace(struct buffer *buf, const char *prefix, int dump)
 		dump_addr_and_bytes(buf, pfx2, callers[j], 8);
 		addr = resolve_sym_name(buf, ": ", callers[j]);
 		if ((dump & 3) == 0) {
-			/* dump not started, will start *after*
+			/* dump not started, will start *after* ha_thread_dump_one(),
 			 * ha_thread_dump_all_to_trash, ha_panic and ha_backtrace_to_stderr
 			 */
 			if (addr == ha_thread_dump_all_to_trash || addr == ha_panic ||
-			    addr == ha_backtrace_to_stderr)
+			    addr == ha_backtrace_to_stderr || addr == ha_thread_dump_one)
 				dump++;
 			*buf = bak;
 			continue;
@@ -127,7 +130,7 @@ void ha_dump_backtrace(struct buffer *buf, const char *prefix, int dump)
 		if ((dump & 3) == 1) {
 			/* starting */
 			if (addr == ha_thread_dump_all_to_trash || addr == ha_panic ||
-			    addr == ha_backtrace_to_stderr) {
+			    addr == ha_backtrace_to_stderr || addr == ha_thread_dump_one) {
 				*buf = bak;
 				continue;
 			}
@@ -165,16 +168,22 @@ void ha_backtrace_to_stderr(void)
 		DISGUISE(write(2, b.area, b.data));
 }
 
-/* Dumps to the buffer some known information for the desired thread, and
- * optionally extra info for the current thread. The dump will be appended to
- * the buffer, so the caller is responsible for preliminary initializing it.
- * The calling thread ID needs to be passed in <calling_tid> to display a star
- * in front of the calling thread's line (usually it's tid). Any stuck thread
- * is also prefixed with a '>'.
- * It must be called under thread isolation.
+/* Dumps to the thread's buffer some known information for the desired thread,
+ * and optionally extra info when it's safe to do so (current thread or
+ * isolated). The dump will be appended to the buffer, so the caller is
+ * responsible for preliminary initializing it. The <from_signal> argument will
+ * indicate if the function is called from the debug signal handler, indicating
+ * the thread was dumped upon request from another one, otherwise if the thread
+ * it the current one, a star ('*') will be displayed in front of the thread to
+ * indicate the requesting one. Any stuck thread is also prefixed with a '>'.
+ * The caller is responsible for atomically setting up the thread's dump buffer
+ * to point to a valid buffer with enough room. Output will be truncated if it
+ * does not fit. When the dump is complete, the dump buffer will be switched to
+ * (void*)0x1 that the caller must turn to 0x0 once the contents are collected.
  */
-void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
+void ha_thread_dump_one(int thr, int from_signal)
 {
+	struct buffer *buf = HA_ATOMIC_LOAD(&ha_thread_ctx[thr].thread_dump_buffer);
 	unsigned long thr_bit = ha_thread_info[thr].ltid_bit;
 	unsigned long long p = ha_thread_ctx[thr].prev_cpu_time;
 	unsigned long long n = now_cpu_time_thread(thr);
@@ -184,7 +193,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 	chunk_appendf(buf,
 	              "%c%cThread %-2u: id=0x%llx act=%d glob=%d wq=%d rq=%d tl=%d tlsz=%d rqsz=%d\n"
 	              "     %2u/%-2u   stuck=%d prof=%d",
-	              (thr == calling_tid) ? '*' : ' ', stuck ? '>' : ' ', thr + 1,
+	              (thr == tid && !from_signal) ? '*' : ' ', stuck ? '>' : ' ', thr + 1,
 		      ha_get_pthread_id(thr),
 		      thread_has_tasks(),
 	              !eb_is_empty(&ha_thread_ctx[thr].rqueue_shared),
@@ -210,13 +219,13 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 
 	/* this is the end of what we can dump from outside the current thread */
 
-	if (thr != tid)
-		return;
+	if (thr != tid && !thread_isolated())
+		goto leave;
 
 	chunk_appendf(buf, "             curr_task=");
 	ha_task_dump(buf, th_ctx->current, "             ");
 
-	if (stuck) {
+	if (stuck && thr == tid) {
 		/* We only emit the backtrace for stuck threads in order not to
 		 * waste precious output buffer space with non-interesting data.
 		 * Please leave this as the last instruction in this function
@@ -225,8 +234,47 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 		 */
 		ha_dump_backtrace(buf, "             ", 0);
 	}
+ leave:
+	/* end of dump, setting the buffer to 0x1 will tell the caller we're done */
+	HA_ATOMIC_STORE(&ha_thread_ctx[thr].thread_dump_buffer, (void*)0x1UL);
 }
 
+/* Triggers a thread dump from thread <thr>, either directly if it's the
+ * current thread or if thread dump signals are not implemented, or by sending
+ * a signal if it's a remote one and the feature is supported. The buffer <buf>
+ * will get the dump appended, and the caller is responsible for making sure
+ * there is enough room otherwise some contents will be truncated.
+ */
+void ha_thread_dump(struct buffer *buf, int thr)
+{
+	struct buffer *old = NULL;
+
+	/* try to impose our dump buffer and to reserve the target thread's
+	 * next dump for us.
+	 */
+	do {
+		if (old)
+			ha_thread_relax();
+		old = NULL;
+	} while (!HA_ATOMIC_CAS(&ha_thread_ctx[thr].thread_dump_buffer, &old, buf));
+
+#ifdef USE_THREAD_DUMP
+	/* asking the remote thread to dump itself allows to get more details
+	 * including a backtrace.
+	 */
+	if (thr != tid)
+		ha_tkill(thr, DEBUGSIG);
+	else
+#endif
+		ha_thread_dump_one(thr, thr != tid);
+
+	/* now wait for the dump to be done, and release it */
+	do {
+		if (old)
+			ha_thread_relax();
+		old = (void*)0x01;
+	} while (!HA_ATOMIC_CAS(&ha_thread_ctx[thr].thread_dump_buffer, &old, 0));
+}
 
 /* dumps into the buffer some information related to task <task> (which may
  * either be a task or a tasklet, and prepend each line except the first one
@@ -360,6 +408,7 @@ void ha_panic()
 		 */
 		return;
 	}
+	thread_dump_buffer = &trash;
 	chunk_reset(&trash);
 	chunk_appendf(&trash, "Thread %u is about to kill the process.\n", tid + 1);
 	ha_thread_dump_all_to_trash();
@@ -1626,53 +1675,19 @@ static void debug_release_memstats(struct appctx *appctx)
 }
 #endif
 
-#ifndef USE_THREAD_DUMP
-
-/* This function dumps all threads' state to the trash. This version is the
- * most basic one, which doesn't inspect other threads.
+/* This function dumps all threads' state to the trash. Depending on the
+ * build options it will either inspect them directly or will signal each
+ * thread in turn to report their own dump.
  */
 void ha_thread_dump_all_to_trash()
 {
 	unsigned int thr;
 
 	for (thr = 0; thr < global.nbthread; thr++)
-		ha_thread_dump(&trash, thr, tid);
+		ha_thread_dump(&trash, thr);
 }
 
-#else /* below USE_THREAD_DUMP is set */
-
-/* ID of the thread requesting the dump */
-static unsigned int thread_dump_tid;
-
-/* points to the buffer where the dump functions should write. It must
- * have already been initialized by the requester. Nothing is done if
- * it's NULL.
- */
-struct buffer *thread_dump_buffer = NULL;
-
-/* initiates a thread dump */
-void ha_thread_dump_all_to_trash()
-{
-	unsigned int old;
-
-	/* initiate a dump starting from first thread. Use a CAS so that we do
-	 * not wait if we're not the first one, but we wait for a previous dump
-	 * to finish.
-	 */
-	while (1) {
-		old = 0;
-		if (HA_ATOMIC_CAS(&thread_dump_state, &old, THREAD_DUMP_FSYNC))
-			break;
-		ha_thread_relax();
-	}
-	thread_dump_buffer = &trash;
-	thread_dump_tid = tid;
-	ha_tkillall(DEBUGSIG);
-
-	/* the call above contains a raise() so we're certain to return after
-	 * returning from the sighandler, hence when the dump is complete.
-	 */
-}
+#ifdef USE_THREAD_DUMP
 
 /* handles DEBUGSIG to dump the state of the thread it's working on. This is
  * appended at the end of thread_dump_buffer which must be protected against
@@ -1680,126 +1695,19 @@ void ha_thread_dump_all_to_trash()
  */
 void debug_handler(int sig, siginfo_t *si, void *arg)
 {
+	struct buffer *buf = HA_ATOMIC_LOAD(&th_ctx->thread_dump_buffer);
 	int harmless = is_thread_harmless();
-	int running = 0;
-	uint prev;
-	uint next;
 
 	/* first, let's check it's really for us and that we didn't just get
 	 * a spurious DEBUGSIG.
 	 */
-	if (!_HA_ATOMIC_LOAD(&thread_dump_state))
+	if (!buf || buf == (void*)(0x1UL))
 		return;
 
-	/* There are 5 phases in the dump process:
-	 *   1- wait for all threads to sync or the first one to start
-	 *   2- wait for our turn, i.e. when tid appears in lower bits.
-	 *   3- perform the action if our tid is there
-	 *   4- pass tid to the number of the next thread to dump or
-	 *      reset running counter if we're last one.
-	 *   5- wait for running to be zero and decrement the count
+	/* now dump the current state into the designated buffer, and indicate
+	 * we come from a sig handler.
 	 */
-
-	/* wait for all previous threads to finish first */
-	if (!harmless)
-		thread_harmless_now();
-
-	if (HA_ATOMIC_FETCH_ADD(&thread_dump_state, 1) == THREAD_DUMP_FSYNC) {
-		/* the first one which lands here is responsible for constantly
-		 * recounting the number of active theads and switching from
-		 * SYNC to DUMP.
-		 */
-		while (1) {
-			int first = -1; // first tid to dump
-			int thr;
-
-			running = 0;
-			for (thr = 0; thr < global.nbthread; thr++) {
-				if (ha_thread_info[thr].tg->threads_enabled & ha_thread_info[thr].ltid_bit) {
-					running++;
-					if (first < 0)
-						first = thr;
-				}
-			}
-
-			if ((HA_ATOMIC_LOAD(&thread_dump_state) & THREAD_DUMP_TMASK) == running) {
-				/* all threads are there, let's try to start */
-				prev = THREAD_DUMP_FSYNC | running;
-				next = (running << 16) | first;
-				if (HA_ATOMIC_CAS(&thread_dump_state, &prev, next))
-					break;
-				/* it failed! maybe a thread appeared late (e.g. during boot), let's
-				 * recount.
-				 */
-			}
-			ha_thread_relax();
-		}
-	}
-
-	/* all threads: let's wait for the SYNC flag to disappear; tid is reset at
-	 * the same time to the first valid tid to dump and pmask will reflect the
-	 * number of participants.
-	 */
-	while (HA_ATOMIC_LOAD(&thread_dump_state) & THREAD_DUMP_FSYNC)
-		ha_thread_relax();
-
-	/* wait for our turn */
-	while ((HA_ATOMIC_LOAD(&thread_dump_state) & THREAD_DUMP_TMASK) != tid)
-		ha_thread_relax();
-
-	if (!harmless)
-		thread_harmless_end_sig();
-
-	/* dump if needed */
-	if (thread_dump_buffer)
-		ha_thread_dump(thread_dump_buffer, tid, thread_dump_tid);
-
-	/* figure which is the next thread ID to dump among enabled ones. Note
-	 * that this relies on the fact that we're not creating new threads in
-	 * the middle of a dump, which is normally granted by the harmless bits
-	 * anyway.
-	 */
-	for (next = tid + 1; next < global.nbthread; next++) {
-		if (unlikely(next >= MAX_THREADS)) {
-			/* just to please gcc 6.5 who guesses the ranges wrong. */
-			continue;
-		}
-
-		if (ha_thread_info[next].tg &&
-		    ha_thread_info[next].tg->threads_enabled & ha_thread_info[next].ltid_bit)
-			break;
-	}
-
-	/* if there are threads left to dump, we atomically set the next one,
-	 * otherwise we'll clear dump and set the thread part to the number of
-	 * threads that need to disappear.
-	 */
-	if (next < global.nbthread) {
-		next = (HA_ATOMIC_LOAD(&thread_dump_state) & THREAD_DUMP_PMASK) | next;
-		HA_ATOMIC_STORE(&thread_dump_state, next);
-	} else {
-		thread_dump_buffer = NULL; // was the last one
-		running = (HA_ATOMIC_LOAD(&thread_dump_state) & THREAD_DUMP_PMASK) >> 16;
-		HA_ATOMIC_STORE(&thread_dump_state, running);
-	}
-
-	/* now wait for all others to finish dumping: the lowest part will turn
-	 * to zero. Then all others decrement the done part. We must not change
-	 * the harmless status anymore because one of the other threads might
-	 * have been interrupted in thread_isolate() waiting for all others to
-	 * become harmless, and changing the situation here would break that
-	 * promise.
-	 */
-
-	/* wait for everyone to finish*/
-	while (HA_ATOMIC_LOAD(&thread_dump_state) & THREAD_DUMP_PMASK)
-		ha_thread_relax();
-
-	/* we're gone. Past this point anything can happen including another
-	 * thread trying to re-trigger a dump, so thread_dump_buffer and
-	 * thread_dump_tid may become invalid immediately after this call.
-	 */
-	HA_ATOMIC_SUB(&thread_dump_state, 1);
+	ha_thread_dump_one(tid, 1);
 
 	/* mark the current thread as stuck to detect it upon next invocation
 	 * if it didn't move.
