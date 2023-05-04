@@ -1563,7 +1563,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	/* The request is not finished, don't expect data from the opposite side
 	 * yet
 	 */
-	if (!(h2c->dff & (H2_F_HEADERS_END_STREAM| H2_F_DATA_END_STREAM)))
+	if (!(h2c->dff & (H2_F_HEADERS_END_STREAM| H2_F_DATA_END_STREAM|H2_SF_BODY_TUNNEL)))
 		se_expect_no_data(h2s->sd);
 
 	/* FIXME wrong analogy between ext-connect and websocket, this need to
@@ -6466,7 +6466,7 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	if (b_data(&h2s->rxbuf))
 		se_fl_set(h2s->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 	else {
-		if (!(h2c->flags & H2_CF_IS_BACK) && (h2s->flags & H2_SF_ES_RCVD)) {
+		if (!(h2c->flags & H2_CF_IS_BACK) && (h2s->flags & (H2_SF_BODY_TUNNEL|H2_SF_ES_RCVD))) {
 			/* If request ES is reported to the upper layer, it means the
 			 * H2S now expects data from the opposite side.
 			 */
