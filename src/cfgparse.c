@@ -516,13 +516,12 @@ int parse_process_number(const char *arg, unsigned long *proc, int max, int *aut
 #ifdef USE_CPU_AFFINITY
 /* Parse cpu sets. Each CPU set is either a unique number between 0 and
  * ha_cpuset_size() - 1 or a range with two such numbers delimited by a dash
- * ('-'). If <comma_allowed> is set, each CPU set can be a list of unique
- * numbers or ranges separated by a comma. It is also possible to specify
- * multiple cpu numbers or ranges in distinct argument in <args>. On success,
- * it returns 0, otherwise it returns 1 with an error message in <err>.
+ * ('-'). Each CPU set can be a list of unique numbers or ranges separated by
+ * a comma. It is also possible to specify multiple cpu numbers or ranges in
+ * distinct argument in <args>. On success, it returns 0, otherwise it returns
+ * 1 with an error message in <err>.
  */
-unsigned long parse_cpu_set(const char **args, struct hap_cpuset *cpu_set,
-                            int comma_allowed, char **err)
+unsigned long parse_cpu_set(const char **args, struct hap_cpuset *cpu_set, char **err)
 {
 	int cur_arg = 0;
 	const char *arg;
@@ -541,7 +540,7 @@ unsigned long parse_cpu_set(const char **args, struct hap_cpuset *cpu_set,
 
 		low = high = str2uic(arg);
 
-		comma = comma_allowed ? strchr(arg, ',') : NULL;
+		comma = strchr(arg, ',');
 		dash = strchr(arg, '-');
 
 		if (dash && (!comma || dash < comma))
@@ -2637,7 +2636,7 @@ static int numa_detect_topology()
 
 	parse_cpu_set_args[0] = trash.area;
 	parse_cpu_set_args[1] = "\0";
-	if (parse_cpu_set(parse_cpu_set_args, &active_cpus, 1, &err)) {
+	if (parse_cpu_set(parse_cpu_set_args, &active_cpus, &err)) {
 		ha_notice("Cannot read online CPUs list: '%s'. Will not try to refine binding\n", err);
 		free(err);
 		goto free_scandir_entries;

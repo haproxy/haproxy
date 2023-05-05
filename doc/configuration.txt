@@ -1332,7 +1332,7 @@ cluster-secret <secret>
   startup. This allows to use features which rely on it, albeit with some
   limitations.
 
-cpu-map [auto:]<thread-group>[/<thread-set>] <cpu-set>...
+cpu-map [auto:]<thread-group>[/<thread-set>] <cpu-set>[,...] [...]
   On some operating systems, it is possible to bind a thread group or a thread
   to a specific CPU set. This means that the designated threads will never run
   on other CPUs. The "cpu-map" directive specifies CPU sets for individual
@@ -1349,12 +1349,12 @@ cpu-map [auto:]<thread-group>[/<thread-set>] <cpu-set>...
   using "all", only odd numbers using "odd" or even numbers using "even", just
   like with the "thread" bind directive. The second and forthcoming arguments
   are CPU sets. Each CPU set is either a unique number starting at 0 for the
-  first CPU or a range with two such numbers delimited by a dash ('-'). Outside
-  of Linux and BSDs, there may be a limitation on the maximum CPU index to
-  either 31 or 63. Multiple CPU numbers or ranges may be specified, and the
-  processes or threads will be allowed to bind to all of them. Obviously,
-  multiple "cpu-map" directives may be specified. Each "cpu-map" directive will
-  replace the previous ones when they overlap.
+  first CPU or a range with two such numbers delimited by a dash ('-'). These
+  CPU numbers and ranges may be repeated by delimiting them with commas or by
+  passing more ranges as new arguments on the same line. Outside of Linux and
+  BSD operating systems, there may be a limitation on the maximum CPU index to
+  either 31 or 63. Multiple "cpu-map" directives may be specified, but each
+  "cpu-map" directive will replace the previous ones when they overlap.
 
   Ranges can be partially defined. The higher bound can be omitted. In such
   case, it is replaced by the corresponding maximum value, 32 or 64 depending
@@ -1387,6 +1387,7 @@ cpu-map [auto:]<thread-group>[/<thread-set>] <cpu-set>...
       cpu-map auto:1/1-4   0-3
       cpu-map auto:1/1-4   0-1 2-3
       cpu-map auto:1/1-4   3 2 1 0
+      cpu-map auto:1/1-4   3,2,1,0
 
       # bind each thread to exactly one CPU using all/odd/even keyword
       cpu-map auto:1/all   0-63
@@ -1406,10 +1407,10 @@ cpu-map [auto:]<thread-group>[/<thread-set>] <cpu-set>...
       # Map 80 threads to one physical socket and 80 others to another socket
       # without forcing assignment. These are split into 4 groups since no
       # group may have more than 64 threads.
-      cpu-map 1/1-40   0-39 80-119    # node0, siblings 0 & 1
-      cpu-map 2/1-40   0-39 80-119
-      cpu-map 3/1-40   40-79 120-159  # node1, siblings 0 & 1
-      cpu-map 4/1-40   40-79 120-159
+      cpu-map 1/1-40   0-39,80-119    # node0, siblings 0 & 1
+      cpu-map 2/1-40   0-39,80-119
+      cpu-map 3/1-40   40-79,120-159  # node1, siblings 0 & 1
+      cpu-map 4/1-40   40-79,120-159
 
 
 crt-base <dir>
