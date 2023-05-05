@@ -4929,7 +4929,7 @@ __LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KCont
 	 * applet, and returns a yield.
 	 */
 	if (l < len) {
-		sc_need_room(sc);
+		sc_need_room(sc, channel_recv_max(chn) + 1);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_send_yield, TICK_ETERNITY, 0));
 	}
 
@@ -5472,7 +5472,7 @@ __LJMP static int hlua_applet_http_send_yield(lua_State *L, int status, lua_KCon
 	if (l < len) {
 	  snd_yield:
 		htx_to_buf(htx, &res->buf);
-		sc_need_room(sc);
+		sc_need_room(sc, channel_recv_max(res) + 1);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_send_yield, TICK_ETERNITY, 0));
 	}
 
@@ -5776,7 +5776,7 @@ __LJMP static int hlua_applet_http_start_response_yield(lua_State *L, int status
 	struct channel *res = sc_ic(sc);
 
 	if (co_data(res)) {
-		sc_need_room(sc);
+		sc_need_room(sc, -1);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_start_response_yield, TICK_ETERNITY, 0));
 	}
 	return MAY_LJMP(hlua_applet_http_send_response(L));
@@ -10390,7 +10390,7 @@ void hlua_applet_http_fct(struct appctx *ctx)
 
 	/* Check if the input buffer is available. */
 	if (!b_size(&res->buf)) {
-		sc_need_room(sc);
+		sc_need_room(sc, 0);
 		goto out;
 	}
 
@@ -10463,7 +10463,7 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		 */
 		if (htx_is_empty(res_htx) && (strm->txn->rsp.flags & (HTTP_MSGF_XFER_LEN|HTTP_MSGF_CNT_LEN)) == HTTP_MSGF_XFER_LEN) {
 			if (!htx_add_endof(res_htx, HTX_BLK_EOT)) {
-				sc_need_room(sc);
+				sc_need_room(sc, sizeof(struct htx_blk)+1);
 				goto out;
 			}
 			channel_add_input(res, 1);
@@ -11029,7 +11029,7 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 	case HLUA_E_AGAIN:
 		/* We want write. */
 		if (HLUA_IS_WAKERESWR(hlua))
-			sc_need_room(sc);
+			sc_need_room(sc, -1);
 		/* Set the timeout. */
 		if (hlua->wake_time != TICK_ETERNITY)
 			task_schedule(hlua->task, hlua->wake_time);

@@ -178,7 +178,7 @@ static inline int applet_putchk(struct appctx *appctx, struct buffer *chunk)
 
 	ret = ci_putchk(sc_ic(se->sc), chunk);
 	if (ret == -1)
-		sc_need_room(se->sc);
+		sc_need_room(se->sc, chunk->data);
 
 	return ret;
 }
@@ -194,7 +194,7 @@ static inline int applet_putblk(struct appctx *appctx, const char *blk, int len)
 
 	ret = ci_putblk(sc_ic(se->sc), blk, len);
 	if (ret == -1)
-		sc_need_room(se->sc);
+		sc_need_room(se->sc, len);
 
 	return ret;
 }
@@ -211,7 +211,7 @@ static inline int applet_putstr(struct appctx *appctx, const char *str)
 
 	ret = ci_putstr(sc_ic(se->sc), str);
 	if (ret == -1)
-		sc_need_room(se->sc);
+		sc_need_room(se->sc, strlen(str));
 
 	return ret;
 }
@@ -227,7 +227,7 @@ static inline int applet_putchr(struct appctx *appctx, char chr)
 
 	ret = ci_putchr(sc_ic(se->sc), chr);
 	if (ret == -1)
-		sc_need_room(se->sc);
+		sc_need_room(se->sc, 1);
 
 	return ret;
 }

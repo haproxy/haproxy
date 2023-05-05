@@ -726,15 +726,19 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				 * it's the first call, we can freely copy the
 				 * request from the httpclient buffer */
 				ret = b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
-				if (!ret)
-					goto full;
+				if (!ret) {
+					sc_need_room(sc, 0);
+					goto out;
+				}
 
 				if (!b_data(&hc->req.buf))
 					b_free(&hc->req.buf);
 
 				htx = htx_from_buf(&req->buf);
-				if (!htx)
-					goto full;
+				if (!htx) {
+					sc_need_room(sc, 0);
+					goto out;
+				}
 
 				channel_add_input(req, htx->data);
 
@@ -981,11 +985,6 @@ out:
 
 process_data:
 	sc_will_read(sc);
-	goto out;
-
-full:
-	/* There was not enough room in the response channel */
-	sc_need_room(sc);
 	goto out;
 
 error:

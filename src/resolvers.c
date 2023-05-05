@@ -2722,8 +2722,10 @@ int stats_dump_resolvers(struct stconn *sc,
 		list_for_each_entry_from(ns, &resolver->nameservers, list) {
 			ctx->obj2 = ns;
 
-			if (buffer_almost_full(&rep->buf))
+			if (buffer_almost_full(&rep->buf)) {
+				sc_need_room(sc, b_size(&rep->buf) / 2);
 				goto full;
+			}
 
 			if (!stats_dump_resolv_to_buffer(sc, ns,
 			                                 stats, stats_count,

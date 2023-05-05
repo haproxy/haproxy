@@ -900,7 +900,7 @@ static void cli_io_handler(struct appctx *appctx)
 
 	/* Check if the input buffer is available. */
 	if (!b_size(&res->buf)) {
-		sc_need_room(sc);
+		sc_need_room(sc, 0);
 		goto out;
 	}
 
@@ -937,7 +937,7 @@ static void cli_io_handler(struct appctx *appctx)
 			 * would want to return some info right after parsing.
 			 */
 			if (buffer_almost_full(sc_ib(sc))) {
-				sc_need_room(sc);
+				sc_need_room(sc, b_size(&res->buf) / 2);
 				break;
 			}
 

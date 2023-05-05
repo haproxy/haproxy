@@ -609,7 +609,7 @@ static void sc_app_chk_rcv(struct stconn *sc)
 
 	if (ic->pipe) {
 		/* stop reading */
-		sc_need_room(sc);
+		sc_need_room(sc, -1);
 	}
 	else {
 		/* (re)start reading */
@@ -1269,7 +1269,7 @@ static int sc_conn_recv(struct stconn *sc)
 			/* the pipe is full or we have read enough data that it
 			 * could soon be full. Let's stop before needing to poll.
 			 */
-			sc_need_room(sc);
+			sc_need_room(sc, 0);
 			goto done_recv;
 		}
 
@@ -1339,7 +1339,7 @@ static int sc_conn_recv(struct stconn *sc)
 			 */
 			BUG_ON(c_empty(ic));
 
-			sc_need_room(sc);
+			sc_need_room(sc, channel_recv_max(ic) + 1);
 			/* Add READ_PARTIAL because some data are pending but
 			 * cannot be xferred to the channel
 			 */
@@ -1353,7 +1353,7 @@ static int sc_conn_recv(struct stconn *sc)
 			 * here to proceed.
 			 */
 			if (flags & CO_RFL_BUF_FLUSH)
-				sc_need_room(sc);
+				sc_need_room(sc, -1);
 			break;
 		}
 

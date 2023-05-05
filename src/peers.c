@@ -1623,7 +1623,7 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 			/* pretend we're full so that we get back ASAP */
 			struct stconn *sc = appctx_sc(appctx);
 
-			sc_need_room(sc);
+			sc_need_room(sc, 0);
 			ret = -1;
 			break;
 		}
@@ -2652,7 +2652,7 @@ static inline int peer_send_msgs(struct appctx *appctx,
 				/* pretend we're full so that we get back ASAP */
 				struct stconn *sc = appctx_sc(appctx);
 
-				sc_need_room(sc);
+				sc_need_room(sc, 0);
 				return -1;
 			}
 		}
@@ -2925,7 +2925,7 @@ static void peer_io_handler(struct appctx *appctx)
 
 	/* Check if the input buffer is available. */
 	if (sc_ib(sc)->size == 0) {
-		sc_need_room(sc);
+		sc_need_room(sc, 0);
 		goto out;
 	}
 

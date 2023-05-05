@@ -1147,9 +1147,9 @@ spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 	memcpy(buf, (char *)&netint, 4);
 	ret = applet_putblk(appctx, buf, framesz+4);
 	if (ret <= 0) {
-		if ((ret == -3 && b_is_null(&sc_ic(sc)->buf)) || ret == -1) {
+		if (ret == -3 && b_is_null(&sc_ic(sc)->buf)) {
 			/* WT: is this still needed for the case ret==-3 ? */
-			sc_need_room(sc);
+			sc_need_room(sc, 0);
 			return 1; /* retry */
 		}
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;

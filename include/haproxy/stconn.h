@@ -433,6 +433,7 @@ static inline void sc_have_room(struct stconn *sc)
 {
 	if (sc->flags & SC_FL_NEED_ROOM) {
 		sc->flags &= ~SC_FL_NEED_ROOM;
+		sc->room_needed = 0;
 		sc_ep_report_read_activity(sc);
 	}
 }
@@ -441,10 +442,14 @@ static inline void sc_have_room(struct stconn *sc)
  * by lack of room. Since it indicates a willingness to deliver data to the
  * buffer that will have to be retried. Usually the caller will also clear
  * SE_FL_HAVE_NO_DATA to be called again as soon as SC_FL_NEED_ROOM is cleared.
+ *
+ * The caller is responsible to specified the amount of free space required to
+ * progress.
  */
-static inline void sc_need_room(struct stconn *sc)
+static inline void sc_need_room(struct stconn *sc, ssize_t room_needed)
 {
 	sc->flags |= SC_FL_NEED_ROOM;
+	sc->room_needed = room_needed;
 }
 
 /* The stream endpoint indicates that it's ready to consume data from the

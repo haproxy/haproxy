@@ -3386,8 +3386,10 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 
 			newline = ctx->bol;
 			newptr = dump_text_line(&trash, es->buf, global.tune.bufsize, es->buf_len, &newline, ctx->ptr);
-			if (newptr == ctx->ptr)
+			if (newptr == ctx->ptr) {
+				sc_need_room(sc, 0);
 				goto cant_send_unlock;
+			}
 
 			if (applet_putchk(appctx, &trash) == -1)
 				goto cant_send_unlock;
@@ -3410,7 +3412,6 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
  cant_send_unlock:
 	HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &ctx->px->lock);
  cant_send:
-	sc_need_room(sc);
 	return 0;
 }
 
