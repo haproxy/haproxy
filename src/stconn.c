@@ -1664,8 +1664,10 @@ static int sc_conn_send(struct stconn *sc)
 		oc->flags |= CF_WRITE_EVENT | CF_WROTE_DATA;
 		if (sc->state == SC_ST_CON)
 			sc->state = SC_ST_RDY;
-		sc_have_room(sc_opposite(sc));
 	}
+
+	if (!sco->room_needed || (did_send && (sco->room_needed < 0 || channel_recv_max(sc_oc(sc)) >= sco->room_needed)))
+		sc_have_room(sco);
 
 	if (sc_ep_test(sc, SE_FL_ERROR | SE_FL_ERR_PENDING)) {
 		oc->flags |= CF_WRITE_EVENT;
