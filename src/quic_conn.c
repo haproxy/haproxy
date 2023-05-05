@@ -8595,12 +8595,17 @@ void qc_finalize_affinity_rebind(struct quic_conn *qc)
 	TRACE_LEAVE(QUIC_EV_CONN_SET_AFFINITY, qc);
 }
 
+enum quic_dump_format {
+	QUIC_DUMP_FMT_FULL,
+};
+
 /* appctx context used by "show quic" command */
 struct show_quic_ctx {
 	unsigned int epoch;
 	struct bref bref; /* back-reference to the quic-conn being dumped */
 	unsigned int thr;
 	int flags;
+	enum quic_dump_format format;
 };
 
 #define QC_CLI_FL_SHOW_ALL 0x1 /* show closing/draining connections */
@@ -8608,6 +8613,7 @@ struct show_quic_ctx {
 static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct show_quic_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+	int argc = 2;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
@@ -8615,13 +8621,132 @@ static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx
 	ctx->epoch = _HA_ATOMIC_FETCH_ADD(&qc_epoch, 1);
 	ctx->thr = 0;
 	ctx->flags = 0;
+	ctx->format = QUIC_DUMP_FMT_FULL;
 
-	if (*args[2] && strcmp(args[2], "all") == 0)
-		ctx->flags |= QC_CLI_FL_SHOW_ALL;
+	if (strcmp(args[argc], "full") == 0) {
+		/* format already used as default value */
+		++argc;
+	}
+
+	while (*args[argc]) {
+		if (strcmp(args[argc], "all") == 0)
+			ctx->flags |= QC_CLI_FL_SHOW_ALL;
+
+		++argc;
+	}
 
 	LIST_INIT(&ctx->bref.users);
 
 	return 0;
+}
+
+/* Dump for "show quic" with "full" format. */
+static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
+{
+	struct quic_pktns *pktns;
+	struct eb64_node *node;
+	struct qc_stream_desc *stream;
+	char bufaddr[INET6_ADDRSTRLEN], bufport[6];
+	int expire, i;
+	unsigned char cid_len;
+
+	/* CIDs */
+	chunk_appendf(&trash, "* %p[%02u]: scid=", qc, ctx->thr);
+	for (cid_len = 0; cid_len < qc->scid.len; ++cid_len)
+		chunk_appendf(&trash, "%02x", qc->scid.data[cid_len]);
+	while (cid_len++ < 20)
+		chunk_appendf(&trash, "..");
+
+	chunk_appendf(&trash, " dcid=");
+	for (cid_len = 0; cid_len < qc->dcid.len; ++cid_len)
+		chunk_appendf(&trash, "%02x", qc->dcid.data[cid_len]);
+	while (cid_len++ < 20)
+		chunk_appendf(&trash, "..");
+
+	chunk_appendf(&trash, "\n");
+
+	chunk_appendf(&trash, "  loc. TPs:");
+	quic_transport_params_dump(&trash, qc, &qc->rx.params);
+	chunk_appendf(&trash, "\n");
+	chunk_appendf(&trash, "  rem. TPs:");
+	quic_transport_params_dump(&trash, qc, &qc->tx.params);
+	chunk_appendf(&trash, "\n");
+
+	/* Connection state */
+	if (qc->flags & QUIC_FL_CONN_CLOSING)
+		chunk_appendf(&trash, "  st=closing          ");
+	else if (qc->flags & QUIC_FL_CONN_DRAINING)
+		chunk_appendf(&trash, "  st=draining         ");
+	else if (qc->state < QUIC_HS_ST_CONFIRMED)
+		chunk_appendf(&trash, "  st=handshake        ");
+	else
+		chunk_appendf(&trash, "  st=opened           ");
+
+	if (qc->mux_state == QC_MUX_NULL)
+		chunk_appendf(&trash, "mux=null                                      ");
+	else if (qc->mux_state == QC_MUX_READY)
+		chunk_appendf(&trash, "mux=ready                                     ");
+	else
+		chunk_appendf(&trash, "mux=released                                  ");
+
+	expire = qc->idle_expire;
+	chunk_appendf(&trash, "expire=%02ds ",
+	              TICKS_TO_MS(tick_remain(now_ms, expire)) / 1000);
+
+	chunk_appendf(&trash, "\n");
+
+	/* Socket */
+	chunk_appendf(&trash, "  fd=%d", qc->fd);
+	if (qc->local_addr.ss_family == AF_INET ||
+	    qc->local_addr.ss_family == AF_INET6) {
+		addr_to_str(&qc->local_addr, bufaddr, sizeof(bufaddr));
+		port_to_str(&qc->local_addr, bufport, sizeof(bufport));
+		chunk_appendf(&trash, "               from=%s:%s", bufaddr, bufport);
+
+		addr_to_str(&qc->peer_addr, bufaddr, sizeof(bufaddr));
+		port_to_str(&qc->peer_addr, bufport, sizeof(bufport));
+		chunk_appendf(&trash, " to=%s:%s", bufaddr, bufport);
+	}
+
+	chunk_appendf(&trash, "\n");
+
+	/* Packet number spaces information */
+	pktns = &qc->pktns[QUIC_TLS_PKTNS_INITIAL];
+	chunk_appendf(&trash, "  [initl]             rx.ackrng=%-6zu tx.inflight=%-6zu",
+	              pktns->rx.arngs.sz, pktns->tx.in_flight);
+	pktns = &qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE];
+	chunk_appendf(&trash, "           [hndshk] rx.ackrng=%-6zu tx.inflight=%-6zu\n",
+	              pktns->rx.arngs.sz, pktns->tx.in_flight);
+	pktns = &qc->pktns[QUIC_TLS_PKTNS_01RTT];
+	chunk_appendf(&trash, "  [01rtt]             rx.ackrng=%-6zu tx.inflight=%-6zu\n",
+	              pktns->rx.arngs.sz, pktns->tx.in_flight);
+
+	chunk_appendf(&trash, "  srtt=%-4u rttvar=%-4u rttmin=%-4u ptoc=%-4u cwnd=%-6llu"
+	                      " mcwnd=%-6llu lostpkts=%-6llu\n",
+	              qc->path->loss.srtt >> 3, qc->path->loss.rtt_var >> 2,
+	              qc->path->loss.rtt_min, qc->path->loss.pto_count, (ullong)qc->path->cwnd,
+	              (ullong)qc->path->mcwnd, (ullong)qc->path->loss.nb_lost_pkt);
+
+
+	/* Streams */
+	node = eb64_first(&qc->streams_by_id);
+	i = 0;
+	while (node) {
+		stream = eb64_entry(node, struct qc_stream_desc, by_id);
+		node = eb64_next(node);
+
+		chunk_appendf(&trash, "  | stream=%-8llu", (unsigned long long)stream->by_id.key);
+		chunk_appendf(&trash, " off=%-8llu ack=%-8llu",
+		              (unsigned long long)stream->buf_offset,
+		              (unsigned long long)stream->ack_offset);
+
+		if (!(++i % 3)) {
+			chunk_appendf(&trash, "\n");
+			i = 0;
+		}
+	}
+
+	chunk_appendf(&trash, "\n");
 }
 
 static int cli_io_handler_dump_quic(struct appctx *appctx)
@@ -8629,12 +8754,6 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 	struct show_quic_ctx *ctx = appctx->svcctx;
 	struct stconn *sc = appctx_sc(appctx);
 	struct quic_conn *qc;
-	struct quic_pktns *pktns;
-	struct eb64_node *node;
-	struct qc_stream_desc *stream;
-	char bufaddr[INET6_ADDRSTRLEN], bufport[6];
-	int expire;
-	unsigned char cid_len;
 
 	thread_isolate();
 
@@ -8664,7 +8783,6 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 
 	while (1) {
 		int done = 0;
-		int i;
 
 		if (ctx->bref.ref == &ha_thread_ctx[ctx->thr].quic_conns) {
 			/* If closing connections requested through "all", move
@@ -8700,103 +8818,11 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 			continue;
 		}
 
-		/* CIDs */
-		chunk_appendf(&trash, "* %p[%02u]: scid=", qc, ctx->thr);
-		for (cid_len = 0; cid_len < qc->scid.len; ++cid_len)
-			chunk_appendf(&trash, "%02x", qc->scid.data[cid_len]);
-		while (cid_len++ < 20)
-			chunk_appendf(&trash, "..");
-
-		chunk_appendf(&trash, " dcid=");
-		for (cid_len = 0; cid_len < qc->dcid.len; ++cid_len)
-			chunk_appendf(&trash, "%02x", qc->dcid.data[cid_len]);
-		while (cid_len++ < 20)
-			chunk_appendf(&trash, "..");
-
-		chunk_appendf(&trash, "\n");
-
-		chunk_appendf(&trash, "  loc. TPs:");
-		quic_transport_params_dump(&trash, qc, &qc->rx.params);
-		chunk_appendf(&trash, "\n");
-		chunk_appendf(&trash, "  rem. TPs:");
-		quic_transport_params_dump(&trash, qc, &qc->tx.params);
-		chunk_appendf(&trash, "\n");
-
-		/* Connection state */
-		if (qc->flags & QUIC_FL_CONN_CLOSING)
-			chunk_appendf(&trash, "  st=closing          ");
-		else if (qc->flags & QUIC_FL_CONN_DRAINING)
-			chunk_appendf(&trash, "  st=draining         ");
-		else if (qc->state < QUIC_HS_ST_CONFIRMED)
-			chunk_appendf(&trash, "  st=handshake        ");
-		else
-			chunk_appendf(&trash, "  st=opened           ");
-
-		if (qc->mux_state == QC_MUX_NULL)
-			chunk_appendf(&trash, "mux=null                                      ");
-		else if (qc->mux_state == QC_MUX_READY)
-			chunk_appendf(&trash, "mux=ready                                     ");
-		else
-			chunk_appendf(&trash, "mux=released                                  ");
-
-		expire = qc->idle_expire;
-		chunk_appendf(&trash, "expire=%02ds ",
-		              TICKS_TO_MS(tick_remain(now_ms, expire)) / 1000);
-
-		chunk_appendf(&trash, "\n");
-
-		/* Socket */
-		chunk_appendf(&trash, "  fd=%d", qc->fd);
-		if (qc->local_addr.ss_family == AF_INET ||
-		    qc->local_addr.ss_family == AF_INET6) {
-			addr_to_str(&qc->local_addr, bufaddr, sizeof(bufaddr));
-			port_to_str(&qc->local_addr, bufport, sizeof(bufport));
-			chunk_appendf(&trash, "               from=%s:%s", bufaddr, bufport);
-
-			addr_to_str(&qc->peer_addr, bufaddr, sizeof(bufaddr));
-			port_to_str(&qc->peer_addr, bufport, sizeof(bufport));
-			chunk_appendf(&trash, " to=%s:%s", bufaddr, bufport);
+		switch (ctx->format) {
+		case QUIC_DUMP_FMT_FULL:
+			dump_quic_full(ctx, qc);
+			break;
 		}
-
-		chunk_appendf(&trash, "\n");
-
-		/* Packet number spaces information */
-		pktns = &qc->pktns[QUIC_TLS_PKTNS_INITIAL];
-		chunk_appendf(&trash, "  [initl]             rx.ackrng=%-6zu tx.inflight=%-6zu",
-		              pktns->rx.arngs.sz, pktns->tx.in_flight);
-		pktns = &qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE];
-		chunk_appendf(&trash, "           [hndshk] rx.ackrng=%-6zu tx.inflight=%-6zu\n",
-		              pktns->rx.arngs.sz, pktns->tx.in_flight);
-		pktns = &qc->pktns[QUIC_TLS_PKTNS_01RTT];
-		chunk_appendf(&trash, "  [01rtt]             rx.ackrng=%-6zu tx.inflight=%-6zu\n",
-		              pktns->rx.arngs.sz, pktns->tx.in_flight);
-
-		chunk_appendf(&trash, "  srtt=%-4u rttvar=%-4u rttmin=%-4u ptoc=%-4u cwnd=%-6llu"
-		                      " mcwnd=%-6llu lostpkts=%-6llu\n",
-		              qc->path->loss.srtt >> 3, qc->path->loss.rtt_var >> 2,
-		              qc->path->loss.rtt_min, qc->path->loss.pto_count, (ullong)qc->path->cwnd,
-		              (ullong)qc->path->mcwnd, (ullong)qc->path->loss.nb_lost_pkt);
-
-
-		/* Streams */
-		node = eb64_first(&qc->streams_by_id);
-		i = 0;
-		while (node) {
-			stream = eb64_entry(node, struct qc_stream_desc, by_id);
-			node = eb64_next(node);
-
-			chunk_appendf(&trash, "  | stream=%-8llu", (unsigned long long)stream->by_id.key);
-			chunk_appendf(&trash, " off=%-8llu ack=%-8llu",
-			              (unsigned long long)stream->buf_offset,
-			              (unsigned long long)stream->ack_offset);
-
-			if (!(++i % 3)) {
-				chunk_appendf(&trash, "\n");
-				i = 0;
-			}
-		}
-
-		chunk_appendf(&trash, "\n");
 
 		if (applet_putchk(appctx, &trash) == -1) {
 			/* Register show_quic_ctx to quic_conn instance. */
