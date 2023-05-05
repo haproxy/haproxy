@@ -845,12 +845,12 @@ fail:
 }
 
 /* prepends then outputs the argument msg with a syslog-type severity depending on severity_output value */
-static int cli_output_msg(struct channel *chn, const char *msg, int severity, int severity_output)
+static int cli_output_msg(struct appctx *appctx, const char *msg, int severity, int severity_output)
 {
 	struct buffer *tmp;
 
 	if (likely(severity_output == CLI_SEVERITY_NONE))
-		return ci_putblk(chn, msg, strlen(msg));
+		return applet_putstr(appctx, msg);
 
 	tmp = get_trash_chunk();
 	chunk_reset(tmp);
@@ -873,7 +873,7 @@ static int cli_output_msg(struct channel *chn, const char *msg, int severity, in
 	}
 	chunk_appendf(tmp, "%s", msg);
 
-	return ci_putblk(chn, tmp->area, strlen(tmp->area));
+	return applet_putchk(appctx, tmp);
 }
 
 /* This I/O handler runs as an applet embedded in a stream connector. It is
@@ -1082,7 +1082,7 @@ static void cli_io_handler(struct appctx *appctx)
 					msg = "Internal error.\n";
 				}
 
-				if (cli_output_msg(res, msg, sev, cli_get_severity_output(appctx)) != -1) {
+				if (cli_output_msg(appctx, msg, sev, cli_get_severity_output(appctx)) != -1) {
 					if (appctx->st0 == CLI_ST_PRINT_DYN ||
 					    appctx->st0 == CLI_ST_PRINT_DYNERR) {
 						ha_free(&ctx->err);
@@ -1093,8 +1093,6 @@ static void cli_io_handler(struct appctx *appctx)
 					}
 					appctx->st0 = CLI_ST_PROMPT;
 				}
-				else
-					sc_need_room(sc);
 				break;
 
 			case CLI_ST_CALLBACK: /* use custom pointer */
