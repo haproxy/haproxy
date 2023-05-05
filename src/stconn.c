@@ -1088,7 +1088,7 @@ static void sc_notify(struct stconn *sc)
 		/* check if the consumer has freed some space either in the
 		 * buffer or in the pipe.
 		 */
-		if (new_len < last_len)
+		if (!sc->room_needed || (new_len < last_len && (sc->room_needed < 0 || channel_recv_max(ic) >= sc->room_needed)))
 			sc_have_room(sc);
 	}
 
