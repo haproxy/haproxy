@@ -8596,6 +8596,7 @@ void qc_finalize_affinity_rebind(struct quic_conn *qc)
 }
 
 enum quic_dump_format {
+	QUIC_DUMP_FMT_ONELINE,
 	QUIC_DUMP_FMT_FULL,
 };
 
@@ -8621,10 +8622,14 @@ static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx
 	ctx->epoch = _HA_ATOMIC_FETCH_ADD(&qc_epoch, 1);
 	ctx->thr = 0;
 	ctx->flags = 0;
-	ctx->format = QUIC_DUMP_FMT_FULL;
+	ctx->format = QUIC_DUMP_FMT_ONELINE;
 
-	if (strcmp(args[argc], "full") == 0) {
+	if (strcmp(args[argc], "oneline") == 0) {
 		/* format already used as default value */
+		++argc;
+	}
+	else if (strcmp(args[argc], "full") == 0) {
+		ctx->format = QUIC_DUMP_FMT_FULL;
 		++argc;
 	}
 
@@ -8638,6 +8643,54 @@ static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx
 	LIST_INIT(&ctx->bref.users);
 
 	return 0;
+}
+
+/* Dump for "show quic" with "oneline" format. */
+static void dump_quic_oneline(struct show_quic_ctx *ctx, struct quic_conn *qc)
+{
+	char bufaddr[INET6_ADDRSTRLEN], bufport[6];
+	unsigned char cid_len;
+
+	chunk_appendf(&trash, "%p[%02u]/%-.12s ", qc, ctx->thr,
+	              qc->li->bind_conf->frontend->id);
+
+	/* State */
+	if (qc->flags & QUIC_FL_CONN_CLOSING)
+		chunk_appendf(&trash, "CLOSE   ");
+	else if (qc->flags & QUIC_FL_CONN_DRAINING)
+		chunk_appendf(&trash, "DRAIN   ");
+	else if (qc->state < QUIC_HS_ST_COMPLETE)
+		chunk_appendf(&trash, "HDSHK   ");
+	else
+		chunk_appendf(&trash, "ESTAB   ");
+
+	/* Bytes in flight / Lost packets */
+	chunk_appendf(&trash, "%9llu %6llu %6llu   ",
+	              (ullong)qc->path->in_flight,
+	              (ullong)qc->path->ifae_pkts,
+	              (ullong)qc->path->loss.nb_lost_pkt);
+
+	/* Socket */
+	if (qc->local_addr.ss_family == AF_INET ||
+	    qc->local_addr.ss_family == AF_INET6) {
+		addr_to_str(&qc->peer_addr, bufaddr, sizeof(bufaddr));
+		port_to_str(&qc->peer_addr, bufport, sizeof(bufport));
+		chunk_appendf(&trash, "%15s:%s ", bufaddr, bufport);
+
+		addr_to_str(&qc->local_addr, bufaddr, sizeof(bufaddr));
+		port_to_str(&qc->local_addr, bufport, sizeof(bufport));
+		chunk_appendf(&trash, "%15s:%s      ", bufaddr, bufport);
+	}
+
+	/* CIDs */
+	for (cid_len = 0; cid_len < qc->scid.len; ++cid_len)
+		chunk_appendf(&trash, "%02x", qc->scid.data[cid_len]);
+
+	chunk_appendf(&trash, " ");
+	for (cid_len = 0; cid_len < qc->dcid.len; ++cid_len)
+		chunk_appendf(&trash, "%02x", qc->dcid.data[cid_len]);
+
+	chunk_appendf(&trash, "\n");
 }
 
 /* Dump for "show quic" with "full" format. */
@@ -8779,6 +8832,15 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 	else if (!ctx->bref.ref) {
 		/* First invocation. */
 		ctx->bref.ref = ha_thread_ctx[ctx->thr].quic_conns.n;
+
+		/* Print legend for oneline format. */
+		if (ctx->format == QUIC_DUMP_FMT_ONELINE) {
+			chunk_appendf(&trash, "# conn/frontend       state   "
+				      "in_flight infl_p lost_p                    "
+				      "from                    to      "
+				      "local & remote CIDs\n");
+			applet_putchk(appctx, &trash);
+		}
 	}
 
 	while (1) {
@@ -8821,6 +8883,9 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 		switch (ctx->format) {
 		case QUIC_DUMP_FMT_FULL:
 			dump_quic_full(ctx, qc);
+			break;
+		case QUIC_DUMP_FMT_ONELINE:
+			dump_quic_oneline(ctx, qc);
 			break;
 		}
 

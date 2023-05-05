@@ -2988,10 +2988,10 @@ show quic [<format>] [all]
   Dump information on all active QUIC frontend connections. This command is
   restricted and can only be issued on sockets configured for levels "operator"
   or "admin". An optional format can be specified as first argument to control
-  the verbosity. Currently only supported value is "full" which is the default
-  if format is unspecified. By default, connections on closing or draining
-  state are not displayed. Use the extra argument "all" to include them in the
-  output.
+  the verbosity. Currently supported values are "oneline" which is the default
+  if format is unspecified or "full". By default, connections on closing or
+  draining state are not displayed. Use the extra argument "all" to include
+  them in the output.
 
 show servers conn [<backend>]
   Dump the current and idle connections state of the servers belonging to the
