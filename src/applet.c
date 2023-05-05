@@ -400,7 +400,7 @@ int appctx_buf_available(void *arg)
 struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 {
 	struct appctx *app = context;
-	struct stconn *sc;
+	struct stconn *sc, *sco;
 	unsigned int rate;
 	size_t count;
 
@@ -428,6 +428,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	}
 
 	sc = appctx_sc(app);
+	sco = sc_opposite(sc);
 
 	/* We always pretend the applet can't get and doesn't want to
 	 * put, it's up to it to change this if needed. This ensures
@@ -455,8 +456,11 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	 */
 	if (count != co_data(sc_oc(sc))) {
 		sc_oc(sc)->flags |= CF_WRITE_EVENT | CF_WROTE_DATA;
-		sc_have_room(sc_opposite(sc));
+		if (sco->room_needed < 0 || channel_recv_max(sc_oc(sc)) >= sco->room_needed)
+			sc_have_room(sco);
 	}
+	else if (!sco->room_needed)
+		sc_have_room(sco);
 
 	if (sc_ic(sc)->flags & CF_READ_EVENT)
 		sc_ep_report_read_activity(sc);
