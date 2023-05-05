@@ -2671,7 +2671,6 @@ static int stats_dump_resolv_to_buffer(struct stconn *sc,
                                     struct list *stat_modules)
 {
 	struct appctx *appctx = __sc_appctx(sc);
-	struct channel *rep = sc_ic(sc);
 	struct stats_module *mod;
 	size_t idx = 0;
 
@@ -2687,13 +2686,12 @@ static int stats_dump_resolv_to_buffer(struct stconn *sc,
 	if (!stats_dump_one_line(stats, idx, appctx))
 		return 0;
 
-	if (!stats_putchk(rep, NULL))
+	if (!stats_putchk(appctx, NULL))
 		goto full;
 
 	return 1;
 
   full:
-	sc_need_room(sc);
 	return 0;
 }
 
@@ -2740,7 +2738,6 @@ int stats_dump_resolvers(struct stconn *sc,
 	return 1;
 
   full:
-	sc_need_room(sc);
 	return 0;
 }
 

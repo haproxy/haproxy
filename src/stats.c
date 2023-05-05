@@ -305,20 +305,26 @@ static inline enum stats_domain_px_cap stats_px_get_cap(uint32_t domain)
 
 static void stats_dump_json_schema(struct buffer *out);
 
-int stats_putchk(struct channel *chn, struct htx *htx)
+int stats_putchk(struct appctx *appctx, struct htx *htx)
 {
+	struct stconn *sc = appctx_sc(appctx);
+	struct channel *chn = sc_ic(sc);
 	struct buffer *chk = &trash_chunk;
 
 	if (htx) {
-		if (chk->data >= channel_htx_recv_max(chn, htx))
+		if (chk->data >= channel_htx_recv_max(chn, htx)) {
+			sc_need_room(sc, chk->data);
 			return 0;
-		if (!htx_add_data_atonce(htx, ist2(chk->area, chk->data)))
+		}
+		if (!htx_add_data_atonce(htx, ist2(chk->area, chk->data))) {
+			sc_need_room(sc, 0);
 			return 0;
+		}
 		channel_add_input(chn, chk->data);
 		chk->data = 0;
 	}
 	else  {
-		if (ci_putchk(chn, chk) == -1)
+		if (applet_putchk(appctx, chk) == -1)
 			return 0;
 	}
 	return 1;
@@ -3196,7 +3202,7 @@ more:
 	case STAT_PX_ST_TH:
 		if (ctx->flags & STAT_FMT_HTML) {
 			stats_dump_html_px_hdr(sc, px);
-			if (!stats_putchk(rep, htx))
+			if (!stats_putchk(appctx, htx))
 				goto full;
 		}
 
@@ -3206,7 +3212,7 @@ more:
 	case STAT_PX_ST_FE:
 		/* print the frontend */
 		if (stats_dump_fe_stats(sc, px)) {
-			if (!stats_putchk(rep, htx))
+			if (!stats_putchk(appctx, htx))
 				goto full;
 			ctx->flags |= STAT_STARTED;
 			if (ctx->field)
@@ -3244,7 +3250,7 @@ more:
 
 			/* print the frontend */
 			if (stats_dump_li_stats(sc, px, l)) {
-				if (!stats_putchk(rep, htx))
+				if (!stats_putchk(appctx, htx))
 					goto full;
 				ctx->flags |= STAT_STARTED;
 				if (ctx->field)
@@ -3327,7 +3333,7 @@ more:
 			}
 
 			if (stats_dump_sv_stats(sc, px, sv)) {
-				if (!stats_putchk(rep, htx))
+				if (!stats_putchk(appctx, htx))
 					goto full;
 				ctx->flags |= STAT_STARTED;
 				if (ctx->field)
@@ -3342,7 +3348,7 @@ more:
 	case STAT_PX_ST_BE:
 		/* print the backend */
 		if (stats_dump_be_stats(sc, px)) {
-			if (!stats_putchk(rep, htx))
+			if (!stats_putchk(appctx, htx))
 				goto full;
 			ctx->flags |= STAT_STARTED;
 			if (ctx->field)
@@ -3356,7 +3362,7 @@ more:
 	case STAT_PX_ST_END:
 		if (ctx->flags & STAT_FMT_HTML) {
 			stats_dump_html_px_end(sc, px);
-			if (!stats_putchk(rep, htx))
+			if (!stats_putchk(appctx, htx))
 				goto full;
 		}
 
@@ -3372,7 +3378,6 @@ more:
 	}
 
   full:
-	sc_need_room(sc);
 	/* restore previous field */
 	ctx->field = current_field;
 	return 0;
@@ -3891,7 +3896,6 @@ static int stats_dump_stat_to_buffer(struct stconn *sc, struct htx *htx,
 {
 	struct appctx *appctx = __sc_appctx(sc);
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	struct channel *rep = sc_ic(sc);
 	enum stats_domain domain = ctx->domain;
 
 	chunk_reset(&trash_chunk);
@@ -3911,7 +3915,7 @@ static int stats_dump_stat_to_buffer(struct stconn *sc, struct htx *htx,
 		else if (!(ctx->flags & STAT_FMT_TYPED))
 			stats_dump_csv_header(ctx->domain);
 
-		if (!stats_putchk(rep, htx))
+		if (!stats_putchk(appctx, htx))
 			goto full;
 
 		if (ctx->flags & STAT_JSON_SCHM) {
@@ -3924,7 +3928,7 @@ static int stats_dump_stat_to_buffer(struct stconn *sc, struct htx *htx,
 	case STAT_STATE_INFO:
 		if (ctx->flags & STAT_FMT_HTML) {
 			stats_dump_html_info(sc, uri);
-			if (!stats_putchk(rep, htx))
+			if (!stats_putchk(appctx, htx))
 				goto full;
 		}
 
@@ -3963,7 +3967,7 @@ static int stats_dump_stat_to_buffer(struct stconn *sc, struct htx *htx,
 				stats_dump_html_end();
 			else
 				stats_dump_json_end();
-			if (!stats_putchk(rep, htx))
+			if (!stats_putchk(appctx, htx))
 				goto full;
 		}
 
@@ -3980,7 +3984,6 @@ static int stats_dump_stat_to_buffer(struct stconn *sc, struct htx *htx,
 	}
 
   full:
-	sc_need_room(sc);
 	return 0;
 
 }
