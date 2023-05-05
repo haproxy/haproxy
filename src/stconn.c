@@ -973,6 +973,13 @@ void sc_update_rx(struct stconn *sc)
 	if (sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))
 		return;
 
+	/* Unblock the SC if it needs room and the free space is large enough (0
+	 * means it can always be unblocked). Do not unblock it if -1 was
+	 * specified.
+	 */
+	if (!sc->room_needed || (sc->room_needed > 0 && channel_recv_max(ic) >= sc->room_needed))
+		sc_have_room(sc);
+
 	/* Read not closed, update FD status and timeout for reads */
 	if (ic->flags & CF_DONT_READ)
 		sc_wont_read(sc);
