@@ -165,7 +165,7 @@ static inline void quic_cid_insert(struct quic_connection_id *conn_id)
 static inline void quic_cid_delete(struct quic_connection_id *conn_id)
 {
 	const uchar idx = quic_cid_tree_idx(&conn_id->cid);
-	struct quic_cid_tree *tree = &quic_cid_trees[idx];
+	struct quic_cid_tree __maybe_unused *tree = &quic_cid_trees[idx];
 
 	HA_RWLOCK_WRLOCK(QC_CID_LOCK, &tree->lock);
 	ebmb_delete(&conn_id->node);
