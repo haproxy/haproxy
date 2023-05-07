@@ -2986,7 +2986,7 @@ tune.h2.initial-window-size <number>
 
 tune.h2.max-concurrent-streams <number>
   Sets the default HTTP/2 maximum number of concurrent streams per connection
-  (i.e. the number of outstanding requests on a single connection). Ths value
+  (i.e. the number of outstanding requests on a single connection). This value
   is used for incoming connections when tune.h2.fe.max-concurrent-streams is
   not set, and for outgoing connections when tune.h2.be.max-concurrent-streams
   is not set. The default value is 100. The impact varies depending on the side
@@ -3097,7 +3097,7 @@ tune.listener.multi-queue { on | fair | off }
   the probability to find the least loaded thread with the first mode is low.
   Finally it is possible to forcefully disable the redistribution mechanism
   using "off" for troubleshooting, or for situations where connections are
-  short-lived and it is estimated that the operating system alredy provides a
+  short-lived and it is estimated that the operating system already provides a
   good enough distribution. The default is "on".
 
 tune.lua.forced-yield <number>

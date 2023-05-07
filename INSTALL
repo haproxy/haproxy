@@ -482,7 +482,7 @@ and see what is happening. However it is not convenient at all to observe what
 flags are passed to the compiler nor what compiler is involved. Simply append
 "V=1" to the "make" command line to switch to verbose mode and display the
 details again. It is recommended to use this option when cross-compiling to
-verify that the paths are correct and that /usr/include is never invovled.
+verify that the paths are correct and that /usr/include is never involved.
 
 You may want to build specific target binaries which do not match your native
 compiler's target. This is particularly true on 64-bit systems when you want
