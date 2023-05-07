@@ -1,6 +1,85 @@
 ChangeLog :
 ===========
 
+2023/05/07 : 2.8-dev10
+    - BUG/MINOR: stats: fix typo in `TotalSplicedBytesOut` field name
+    - REGTESTS: add success test, "set server" via fqdn
+    - MINOR: ssl: disable CRL checks with WolfSSL when no CRL file
+    - BUG/MINOR: stream/cli: fix stream age calculation in "show sess"
+    - MINOR: debug: clarify "debug dev stream" help message
+    - DEBUG: cli: add "debug dev task" to show/wake/expire/kill tasks and tasklets
+    - BUG/MINOR: ssl/sample: x509_v_err_str converter output when not found
+    - REGTESTS: ssl: simplify X509_V code check in ssl_client_auth.vtc
+    - BUILD: cli: fix build on Windows due to isalnum() implemented as a macro
+    - MINOR: activity: use a single macro to iterate over all fields
+    - MINOR: activity: show the line header inside the SHOW_VAL macro
+    - MINOR: activity: iterate over all fields in a main loop for dumping
+    - MINOR: activity: allow "show activity" to restart dumping on any line
+    - MINOR: activity: allow "show activity" to restart in the middle of a line
+    - DEV: haring: automatically disable DEBUG_STRICT
+    - DEV: haring: update readme to suggest using the same build options for haring
+    - BUG/MINOR: debug: fix incorrect profiling status reporting in show threads
+    - MINOR: debug: permit the "debug dev loop" to run under isolation
+    - BUG/MEDIUM: mux-h2: Properly handle end of request to expect data from server
+    - BUG/MINOR: mux-quic: prevent quic_conn error code to be overwritten
+    - MINOR: mux-quic: add trace event for local error
+    - MINOR: mux-quic: wake up after recv only if avail data
+    - MINOR: mux-quic: adjust local error API
+    - MINOR: mux-quic: report local error on stream endpoint asap
+    - MINOR: mux-quic: close connection asap on local error
+    - BUG/MINOR: debug: do not emit empty lines in thread dumps
+    - BUG/MINOR: mux-h2: Also expect data when waiting for a tunnel establishment
+    - BUG/MINOR: time: fix NS_TO_TV macro
+    - MEDIUM: debug: simplify the thread dump mechanism
+    - MINOR: debug: write panic dump to stderr one thread at a time
+    - MINOR: debug: make "show threads" properly iterate over all threads
+    - CLEANUP: debug: remove the now unused ha_thread_dump_all_to_trash()
+    - MINOR: ssl: allow to change the server signature algorithm
+    - MINOR: ssl: allow to change the signature algorithm for client authentication
+    - MINOR: cli: Use applet API to write output message
+    - MINOR: stats: Use the applet API to write data
+    - MINOR: peers: Use the applet API to send message
+    - MINOR: stconn: Add a field to specify the room needed by the SC to progress
+    - MEDIUM: tree-wide: Change sc API to specify required free space to progress
+    - BUG/MEDIUM: stconn: Unblock SC from stream if there is enough room to progrees
+    - MEDIUM: applet: Check room needed to unblock opposite SC when data was consumed
+    - MEDIUM: stconn: Check room needed to unblock SC on fast-forward
+    - MEDIUM: stconn: Check room needed to unblock opposite SC when data was sent
+    - MINOR: hlua_fcn: fix Server.is_draining() return type
+    - MINOR: hlua_fcn: add Server.is_backup()
+    - MINOR: hlua_fcn: add Server.is_dynamic()
+    - MINOR: hlua_fcn: add Server.tracking()
+    - MINOR: hlua_fcn: add Server.get_trackers()
+    - MINOR: hlua_fcn: add Server.get_proxy()
+    - MINOR: hlua_fcn: add Server.get_pend_conn() and Server.get_cur_sess()
+    - MINOR: hlua_fcn: add Proxy.get_srv_act() and Proxy.get_srv_bck()
+    - DOC: lua/event: add ServerEvent class header
+    - MINOR: server/event_hdl: publish macro helper
+    - MINOR: server/event_hdl: add SERVER_STATE event
+    - OPTIM: server: publish UP/DOWN events from STATE change
+    - MINOR: hlua: expose SERVER_STATE event
+    - MINOR: server/event_hdl: add SERVER_ADMIN event
+    - MINOR: hlua: expose SERVER_ADMIN event
+    - MINOR: checks/event_hdl: SERVER_CHECK event
+    - MINOR: hlua/event_hdl: expose SERVER_CHECK event
+    - MINOR: mailers/hlua: disable email sending from lua
+    - MINOR: hlua: expose proxy mailers
+    - EXAMPLES: add lua mailers script to replace tcpcheck mailers
+    - BUG/MINOR: hlua: spinning loop in hlua_socket_handler()
+    - MINOR: server: fix message report when IDRAIN is set and MAINT is cleared
+    - CLEANUP: hlua: hlua_register_task() may longjmp
+    - REGTESTS: use lua mailer script for mailers tests
+    - MINOR: hlua: declare hlua_{ref,pushref,unref} functions
+    - MINOR: hlua: declare hlua_gethlua() function
+    - MINOR: hlua: declare hlua_yieldk() function
+    - MINOR: hlua_fcn: add Queue class
+    - EXAMPLES: mailqueue for lua mailers script
+    - MINOR: quic: add format argument for "show quic"
+    - MINOR: quic: implement oneline format for "show quic"
+    - MINOR: config: allow cpu-map to take commas in lists of ranges
+    - CLEANUP: fix a few reported typos in code comments
+    - DOC: fix a few reported typos in the config and install doc
+
 2023/04/28 : 2.8-dev9
     - MINOR: quic: Move traces at proto level
     - BUG/MINOR: quic: Possible memory leak from TX packets
