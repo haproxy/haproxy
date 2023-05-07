@@ -6131,7 +6131,7 @@ static inline const struct quic_version *qc_supported_version(uint32_t version)
 	return NULL;
 }
 
-/* Parse a QUIC packet header starting at <pos> postion without exceeding <end>.
+/* Parse a QUIC packet header starting at <pos> position without exceeding <end>.
  * Version and type are stored in <pkt> packet instance. Type is set to unknown
  * on two occasions : for unsupported version, in this case version field is
  * set to NULL; for Version Negotiation packet with version number set to 0.
@@ -8373,7 +8373,7 @@ int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len)
 	return 0;
 }
 
-/* Retrieve the DCID from a QUIC datagram or packet at <pos> postition,
+/* Retrieve the DCID from a QUIC datagram or packet at <pos> position,
  * <end> being at one byte past the end of this datagram.
  * Returns 1 if succeeded, 0 if not.
  */

@@ -2682,7 +2682,7 @@ send_help:
 
 send_status:
 	s->pcli_flags |= PCLI_F_RELOAD;
-	/* dont' use ci_putblk here because SHUT_DONE could have been sent */
+	/* don't use ci_putblk here because SHUT_DONE could have been sent */
 	b_reset(&req->buf);
 	b_putblk(&req->buf, "_loadstatus;quit\n", 17);
 	goto read_again;
