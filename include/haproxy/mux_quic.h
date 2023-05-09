@@ -12,7 +12,7 @@
 #include <haproxy/mux_quic-t.h>
 #include <haproxy/stream.h>
 
-void qcc_set_error(struct qcc *qcc, int err);
+void qcc_set_error(struct qcc *qcc, int err, int app);
 struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi);
 struct buffer *qc_get_buf(struct qcs *qcs, struct buffer *bptr);
 

@@ -191,7 +191,7 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 	case H3_UNI_S_T_CTRL:
 		if (h3c->flags & H3_CF_UNI_CTRL_SET) {
 			TRACE_ERROR("duplicated control stream", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
-			qcc_set_error(qcs->qcc, H3_STREAM_CREATION_ERROR);
+			qcc_set_error(qcs->qcc, H3_STREAM_CREATION_ERROR, 1);
 			goto err;
 		}
 		h3c->flags |= H3_CF_UNI_CTRL_SET;
@@ -206,7 +206,7 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 	case H3_UNI_S_T_QPACK_DEC:
 		if (h3c->flags & H3_CF_UNI_QPACK_DEC_SET) {
 			TRACE_ERROR("duplicated qpack decoder stream", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
-			qcc_set_error(qcs->qcc, H3_STREAM_CREATION_ERROR);
+			qcc_set_error(qcs->qcc, H3_STREAM_CREATION_ERROR, 1);
 			goto err;
 		}
 		h3c->flags |= H3_CF_UNI_QPACK_DEC_SET;
@@ -217,7 +217,7 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 	case H3_UNI_S_T_QPACK_ENC:
 		if (h3c->flags & H3_CF_UNI_QPACK_ENC_SET) {
 			TRACE_ERROR("duplicated qpack encoder stream", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
-			qcc_set_error(qcs->qcc, H3_STREAM_CREATION_ERROR);
+			qcc_set_error(qcs->qcc, H3_STREAM_CREATION_ERROR, 1);
 			goto err;
 		}
 		h3c->flags |= H3_CF_UNI_QPACK_ENC_SET;
@@ -1031,7 +1031,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 	 */
 	if (h3s->type == H3S_T_CTRL && fin) {
 		TRACE_ERROR("control stream closed by remote peer", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-		qcc_set_error(qcs->qcc, H3_CLOSED_CRITICAL_STREAM);
+		qcc_set_error(qcs->qcc, H3_CLOSED_CRITICAL_STREAM, 1);
 		goto err;
 	}
 
@@ -1067,7 +1067,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 
 			if (!h3_is_frame_valid(h3c, qcs, ftype)) {
 				TRACE_ERROR("received an invalid frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-				qcc_set_error(qcs->qcc, H3_FRAME_UNEXPECTED);
+				qcc_set_error(qcs->qcc, H3_FRAME_UNEXPECTED, 1);
 				goto err;
 			}
 
@@ -1090,7 +1090,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 			 */
 			if (flen > QC_S_RX_BUF_SZ) {
 				TRACE_ERROR("received a too big frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-				qcc_set_error(qcs->qcc, H3_EXCESSIVE_LOAD);
+				qcc_set_error(qcs->qcc, H3_EXCESSIVE_LOAD, 1);
 				goto err;
 			}
 			break;
@@ -1129,7 +1129,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 			ret = h3_parse_settings_frm(qcs->qcc->ctx, b, flen);
 			if (ret < 0) {
 				TRACE_ERROR("error on SETTINGS parsing", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-				qcc_set_error(qcs->qcc, h3c->err);
+				qcc_set_error(qcs->qcc, h3c->err, 1);
 				goto err;
 			}
 			h3c->flags |= H3_CF_SETTINGS_RECV;
@@ -1163,7 +1163,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 		return b_data(b);
 	}
 	else if (h3c->err) {
-		qcc_set_error(qcs->qcc, h3c->err);
+		qcc_set_error(qcs->qcc, h3c->err, 1);
 		return b_data(b);
 	}
 
@@ -1670,7 +1670,7 @@ static int h3_close(struct qcs *qcs, enum qcc_app_ops_close_side side)
 	 */
 	if (qcs == h3c->ctrl_strm || h3s->type == H3S_T_CTRL) {
 		TRACE_ERROR("closure detected on control stream", H3_EV_H3S_END, qcs->qcc->conn, qcs);
-		qcc_set_error(qcs->qcc, H3_CLOSED_CRITICAL_STREAM);
+		qcc_set_error(qcs->qcc, H3_CLOSED_CRITICAL_STREAM, 1);
 		return 1;
 	}
 
