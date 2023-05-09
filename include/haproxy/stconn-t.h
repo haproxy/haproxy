@@ -110,30 +110,31 @@ static forceinline char *se_show_flags(char *buf, size_t len, const char *delim,
 /* stconn flags.
  * Please also update the sc_show_flags() function below in case of changes.
  *
- * When SC_FL_SHUTR_NOW is set, it is strictly forbidden for the producer to alter
- * the buffer contents. When SC_FL_SHUTW_NOW is set, the consumer is free to perform
- * a shutw() when it has consumed the last contents, otherwise the session processor
- * will do it anyway.
+ * When SC_FL_ABRT_WANTED/SC_FL_EOS is set, it is strictly forbidden for the
+ * producer to alter the buffer contents. In this case, the consumer is free to
+ * perform a shutdown when it has consumed the last contents, otherwise the
+ * session processor will do it anyway. SC_FL_ABRT* are set at the upper layer
+ * level (the stream) while SC_FL_EOS is set at the SE layer.
  *
- * The SHUT* flags work like this :
+ * The SC_FL_SHUT_WANTED flaga should be set by the session processor when
+ * SC_FLABRT_DONE/SC_FL_EOS and CF_AUTO_CLOSE are both set. And it may also be
+ * set by the producer when it detects SC_FL_EOS while directly forwarding data to the
+ * consumer.
  *
- *  SHUTR SHUTR_NOW  meaning
- *    0       0      normal case, connection still open and data is being read
- *    0       1      closing : the producer cannot feed data anymore but can close
- *    1       0      closed: the producer has closed its input channel.
- *    1       1      impossible
+ * The SHUT/ABRT flags work like this :
  *
- *  SHUTW SHUTW_NOW  meaning
- *    0       0      normal case, connection still open and data is being written
- *    0       1      closing: the consumer can send last data and may then close
- *    1       0      closed: the consumer has closed its output channel.
- *    1       1      impossible
+ *  ABRT_WANTED ABRT_DONE  meaning
+ *      0           0      normal case, connection still open and data is being read
+ *      1           0      closing : the producer cannot feed data anymore but can close
+ *     0/1          1      closed: the producer has closed its input channel.
  *
- * The SHUTW_NOW flag should be set by the session processor when SHUTR and AUTO_CLOSE
- * are both set. And it may also be set by the producer when it detects SHUTR while
- * directly forwarding data to the consumer.
+ *  SHUT_WANTED SHUT_DONE  meaning
+ *      0          0      normal case, connection still open and data is being written
+ *      1          0      closing: the consumer can send last data and may then close
+ *     0/1         1      closed: the consumer has closed its output channel.
  *
- * The SHUTR_NOW flag is mostly used to force the producer to abort when an error is
+ *
+ * The ABRT_WANTED flag is mostly used to force the producer to abort when an error is
  * detected on the consumer side.
  *
  */
