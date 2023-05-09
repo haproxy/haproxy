@@ -3228,12 +3228,16 @@ more:
 		/* obj2 points to listeners list as initialized above */
 		for (; ctx->obj2 != &px->conf.listeners; ctx->obj2 = l->by_fe.n) {
 			if (htx) {
-				if (htx_almost_full(htx))
+				if (htx_almost_full(htx)) {
+					sc_need_room(sc, htx->size / 2);
 					goto full;
+				}
 			}
 			else {
-				if (buffer_almost_full(&rep->buf))
+				if (buffer_almost_full(&rep->buf)) {
+					sc_need_room(sc, b_size(&rep->buf) / 2);
 					goto full;
+				}
 			}
 
 			l = LIST_ELEM(ctx->obj2, struct listener *, by_fe);
@@ -3294,12 +3298,16 @@ more:
 			srv_take(sv);
 
 			if (htx) {
-				if (htx_almost_full(htx))
+				if (htx_almost_full(htx)) {
+					sc_need_room(sc, htx->size / 2);
 					goto full;
+				}
 			}
 			else {
-				if (buffer_almost_full(&rep->buf))
+				if (buffer_almost_full(&rep->buf)) {
+					sc_need_room(sc, b_size(&rep->buf) / 2);
 					goto full;
+				}
 			}
 
 			if (ctx->flags & STAT_BOUND) {
