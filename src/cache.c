@@ -1513,7 +1513,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 		if (len) {
 			ret = htx_cache_dump_msg(appctx, res_htx, len, HTX_BLK_UNUSED);
 			if (ret < len) {
-				sc_need_room(sc, len - ret);
+				sc_need_room(sc, channel_htx_recv_max(res, res_htx) + 1);
 				goto out;
 			}
 		}
