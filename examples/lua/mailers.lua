@@ -26,7 +26,11 @@ local mailqueue = core.queue()
 -- EHLO was replaced with HELO for better compatibility with
 -- basic mail server implementations
 --
-function smtp_send_email(server, port, domain, from, to, data)
+-- <server> should contain the full server address (including port) in the
+-- same format used in haproxy config file. It will be passed as it is to
+-- tcp::connect() without explicit port argument. See Socket.connect()
+-- manual for more information.
+function smtp_send_email(server, domain, from, to, data)
         local ret
         local reason
         local tcp = core.tcp()
@@ -51,8 +55,8 @@ function smtp_send_email(server, port, domain, from, to, data)
                 end
         end
 
-        if tcp:connect(server, port) == nil then
-                return false, "Can't connect to \""..server..":"..port.."\""
+        if tcp:connect(server) == nil then
+                return false, "Can't connect to \""..server.."\""
         end
 
         ret, reason = smtp_wait_code(tcp, '^220 ')
@@ -400,11 +404,8 @@ core.register_task(function()
 
 			-- send email to all mailservers
 			for name, mailsrv in pairs(job.mailconf.mailservers) do
-				-- split mailsrv (ip:port) in 2 variables
-				local mailsrv_ip, mailsrv_port = string.match(mailsrv, "([^:]+):([^:]+)")
-
 				-- finally, send email to server
-				local ret, reason = smtp_send_email(mailsrv_ip, mailsrv_port,
+				local ret, reason = smtp_send_email(mailsrv,
 								    job.mailconf.smtp_hostname,
 								    job.mailconf.smtp_from,
 								    job.mailconf.smtp_to,
