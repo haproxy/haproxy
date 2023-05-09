@@ -1715,7 +1715,8 @@ static int qcs_send_reset(struct qcs *qcs)
 
 	LIST_APPEND(&frms, &frm->list);
 	if (qc_send_frames(qcs->qcc, &frms)) {
-		qc_frm_free(&frm);
+		if (!LIST_ISEMPTY(&frms))
+			qc_frm_free(&frm);
 		TRACE_DEVEL("cannot send RESET_STREAM", QMUX_EV_QCS_SEND, qcs->qcc->conn, qcs);
 		return 1;
 	}
@@ -1770,7 +1771,8 @@ static int qcs_send_stop_sending(struct qcs *qcs)
 
 	LIST_APPEND(&frms, &frm->list);
 	if (qc_send_frames(qcs->qcc, &frms)) {
-		qc_frm_free(&frm);
+		if (!LIST_ISEMPTY(&frms))
+			qc_frm_free(&frm);
 		TRACE_DEVEL("cannot send STOP_SENDING", QMUX_EV_QCS_SEND, qcs->qcc->conn, qcs);
 		return 1;
 	}
