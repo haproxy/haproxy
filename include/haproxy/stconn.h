@@ -24,6 +24,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
+#include <haproxy/htx-t.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/stconn-t.h>
 
@@ -444,12 +445,13 @@ static inline void sc_have_room(struct stconn *sc)
  * SE_FL_HAVE_NO_DATA to be called again as soon as SC_FL_NEED_ROOM is cleared.
  *
  * The caller is responsible to specified the amount of free space required to
- * progress.
+ * progress. However, to be sure the SC can be unblocked a max value cannot be
+ * eceeded : (BUFSIZE - RESERVE - HTX OVERHEAD)
  */
 static inline void sc_need_room(struct stconn *sc, ssize_t room_needed)
 {
 	sc->flags |= SC_FL_NEED_ROOM;
-	sc->room_needed = room_needed;
+	sc->room_needed = MIN(global.tune.bufsize - global.tune.maxrewrite - sizeof(struct htx), room_needed);
 }
 
 /* The stream endpoint indicates that it's ready to consume data from the
