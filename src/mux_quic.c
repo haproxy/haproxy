@@ -510,6 +510,15 @@ void qcc_set_error(struct qcc *qcc, int err, int app)
 
 	qcc->flags |= QC_CF_ERRL;
 	qcc->err = app ? quic_err_app(err) : quic_err_transport(err);
+
+	/* TODO
+	 * Ensure qc_send() will be conducted to convert QC_CF_ERRL in
+	 * QC_CF_ERRL_DONE with CONNECTION_CLOSE frame emission. This may be
+	 * unnecessary if we are currently in the MUX tasklet context, but it
+	 * is too tedious too not forget a wakeup outside of this function for
+	 * the moment.
+	 */
+	tasklet_wakeup(qcc->wait_event.tasklet);
 }
 
 /* Open a locally initiated stream for the connection <qcc>. Set <bidi> for a
