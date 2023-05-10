@@ -600,6 +600,11 @@ static int _hlua_queue_pop(lua_State *L, struct hlua_queue *queue)
 	/* push lua obj on the stack */
 	hlua_pushref(L, item->ref);
 
+	/* obj ref should be released right away since it was pushed
+	 * on the stack and will not be used anymore
+	 */
+	hlua_unref(L, item->ref);
+
 	/* free the queue item */
 	pool_free(pool_head_hlua_queue, item);
 
