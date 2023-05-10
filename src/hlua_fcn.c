@@ -564,12 +564,18 @@ static int hlua_queue_push(lua_State *L)
 		return 0;
 	}
 	BUG_ON(!queue);
+
 	item = pool_alloc(pool_head_hlua_queue);
 	if (!item) {
+		/* memory error */
 		lua_pushboolean(L, 0);
 		return 1;
 	}
+
+	/* get a reference from lua object at the top of the stack */
 	item->ref = hlua_ref(L);
+
+	/* push new entry to the queue */
 	MT_LIST_INIT(&item->list);
 	HA_ATOMIC_INC(&queue->size);
 	MT_LIST_APPEND(&queue->list, &item->list);
