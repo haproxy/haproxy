@@ -102,7 +102,7 @@ dump_and_reset() {
 
 ### main entry point
 
-ctx=top
+ctx=strm
 while read -r; do
         [ "$REPLY" != "EOF" ] || break  # for debugging
 
@@ -129,10 +129,12 @@ while read -r; do
         elif [[ "$REPLY" =~ ^0x ]]; then
                 # here we dump what we have and we reset
                 dump_and_reset
-                ctx=top;
+                ctx=strm;
         fi
 
-        if [ $ctx = task ]; then
+        if [ $ctx = strm ]; then
+                ! [[ "$REPLY" =~ [[:blank:]]flags=([^[:blank:]]*) ]]      || append_flag strm.flg    strm "${BASH_REMATCH[1]}"
+        elif [ $ctx = task ]; then
                 ! [[ "$REPLY" =~ \(state=([^[:blank:]]*) ]]               || append_flag task.state  task "${BASH_REMATCH[1]}"
         elif [ $ctx = txn ]; then
                 ! [[ "$REPLY" =~ [[:blank:]]meth=([^[:blank:]]*) ]]       || append_str txn.meth "${BASH_REMATCH[1]}" "${HTTP_METH[$((${BASH_REMATCH[1]}))]}"
