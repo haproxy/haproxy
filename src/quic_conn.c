@@ -814,6 +814,9 @@ void qc_kill_conn(struct quic_conn *qc)
 	TRACE_PROTO("killing the connection", QUIC_EV_CONN_KILL, qc);
 	qc->flags |= QUIC_FL_CONN_TO_KILL;
 	task_wakeup(qc->idle_timer_task, TASK_WOKEN_OTHER);
+
+	qc_notify_err(qc);
+
 	TRACE_LEAVE(QUIC_EV_CONN_KILL, qc);
 }
 
@@ -1286,6 +1289,7 @@ void quic_set_connection_close(struct quic_conn *qc, const struct quic_err err)
 	qc->flags |= QUIC_FL_CONN_IMMEDIATE_CLOSE;
 	qc->err.code = err.code;
 	qc->err.app  = err.app;
+
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
 }
@@ -1972,6 +1976,7 @@ static inline int qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 			if (++frm->loss_count >= global.tune.quic_max_frame_loss) {
 				TRACE_ERROR("retransmission limit reached, closing the connection", QUIC_EV_CONN_PRSAFRM, qc);
 				quic_set_connection_close(qc, quic_err_transport(QC_ERR_INTERNAL_ERROR));
+				qc_notify_err(qc);
 				close = 1;
 			}
 
@@ -2976,6 +2981,7 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 		if (ncb_ret == NCB_RET_DATA_REJ) {
 			TRACE_ERROR("overlapping data rejected", QUIC_EV_CONN_PRSHPKT, qc);
 			quic_set_connection_close(qc, quic_err_transport(QC_ERR_PROTOCOL_VIOLATION));
+			qc_notify_err(qc);
 		}
 		else if (ncb_ret == NCB_RET_GAP_SIZE) {
 			TRACE_ERROR("cannot bufferize frame due to gap size limit",
@@ -3074,6 +3080,7 @@ static int qc_handle_retire_connection_id_frm(struct quic_conn *qc,
 	return ret;
  protocol_violation:
 	quic_set_connection_close(qc, quic_err_transport(QC_ERR_PROTOCOL_VIOLATION));
+	qc_notify_err(qc);
 	goto leave;
 }
 
@@ -3297,7 +3304,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				qc->flags |= QUIC_FL_CONN_DRAINING|QUIC_FL_CONN_IMMEDIATE_CLOSE;
 				qc_detach_th_ctx_list(qc, 1);
 				qc_idle_timer_do_rearm(qc, 0);
-				qc_notify_close(qc);
+				qc_notify_err(qc);
 			}
 			break;
 		case QUIC_FT_HANDSHAKE_DONE:
@@ -3885,7 +3892,6 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 			    (pkt->flags & QUIC_FL_TX_PACKET_CC)) {
 				qc->flags |= QUIC_FL_CONN_CLOSING;
 				qc_detach_th_ctx_list(qc, 1);
-				qc_notify_close(qc);
 
 				/* RFC 9000 10.2. Immediate Close:
 				 * The closing and draining connection states exist to ensure
@@ -4810,6 +4816,12 @@ int qc_send_mux(struct quic_conn *qc, struct list *frms)
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 	BUG_ON(qc->mux_state != QC_MUX_READY); /* Only MUX can uses this function so it must be ready. */
+
+	if (qc->conn->flags & CO_FL_SOCK_WR_SH) {
+		qc->conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH;
+		TRACE_DEVEL("connection on error", QUIC_EV_CONN_TXPKT, qc);
+		return 0;
+	}
 
 	/* Try to send post handshake frames first unless on 0-RTT. */
 	if ((qc->flags & QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS) &&
@@ -5903,7 +5915,7 @@ struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 	/* Notify the MUX before settings QUIC_FL_CONN_EXP_TIMER or the MUX
 	 * might free the quic-conn too early via quic_close().
 	 */
-	qc_notify_close(qc);
+	qc_notify_err(qc);
 
 	/* If the MUX is still alive, keep the quic-conn. The MUX is
 	 * responsible to call quic_close to release it.
@@ -8420,25 +8432,26 @@ int quic_get_dgram_dcid(unsigned char *pos, const unsigned char *end,
 	goto leave;
 }
 
-/* Notify the MUX layer if alive about an imminent close of <qc>. */
-void qc_notify_close(struct quic_conn *qc)
+/* Notify upper layer of a fatal error which forces to close the connection. */
+void qc_notify_err(struct quic_conn *qc)
 {
 	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
 
-	if (qc->flags & QUIC_FL_CONN_NOTIFY_CLOSE)
-		goto leave;
+	if (qc->mux_state == QC_MUX_READY) {
+		TRACE_STATE("error notified to mux", QUIC_EV_CONN_CLOSE, qc);
 
-	qc->flags |= QUIC_FL_CONN_NOTIFY_CLOSE;
-	/* wake up the MUX */
-	if (qc->mux_state == QC_MUX_READY && qc->conn->mux->wake) {
-		TRACE_STATE("connection closure notidfied to mux",
-		            QUIC_FL_CONN_NOTIFY_CLOSE, qc);
-		qc->conn->mux->wake(qc->conn);
+		/* Mark socket as closed. */
+		qc->conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
+
+		/* TODO quic-conn layer must stay active until MUX is released.
+		 * Thus, we have to wake up directly to ensure upper stream
+		 * layer will be notified of the error. If a proper separation
+		 * is made between MUX and quic-conn layer, wake up could be
+		 * conducted only with qc.subs.
+		 */
+		tasklet_wakeup(qc->qcc->wait_event.tasklet);
 	}
-	else
-		TRACE_STATE("connection closure not notidfied to mux",
-		            QUIC_FL_CONN_NOTIFY_CLOSE, qc);
- leave:
+
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
 }
 

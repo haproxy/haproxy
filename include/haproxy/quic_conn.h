@@ -670,7 +670,7 @@ int quic_get_cid_tid(const unsigned char *cid, size_t cid_len,
                      unsigned char *buf, size_t buf_len);
 int qc_send_mux(struct quic_conn *qc, struct list *frms);
 
-void qc_notify_close(struct quic_conn *qc);
+void qc_notify_err(struct quic_conn *qc);
 int qc_notify_send(struct quic_conn *qc);
 
 void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm);

@@ -1659,6 +1659,11 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 static int qcc_subscribe_send(struct qcc *qcc)
 {
 	struct connection *conn = qcc->conn;
+
+	/* Do not subscribe if lower layer in error. */
+	if (conn->flags & CO_FL_ERROR)
+		return 0;
+
 	if (qcc->wait_event.events & SUB_RETRY_SEND)
 		return 1;
 
@@ -1683,7 +1688,6 @@ static int qc_send_frames(struct qcc *qcc, struct list *frms)
 
 	if (!qc_send_mux(qcc->conn->handle.qc, frms)) {
 		TRACE_DEVEL("error on sending", QMUX_EV_QCC_SEND, qcc->conn);
-		/* TODO should subscribe only for a transient send error */
 		qcc_subscribe_send(qcc);
 		goto err;
 	}
@@ -2730,11 +2734,6 @@ static int qc_wake(struct connection *conn)
 	struct qcc *qcc = conn->ctx;
 
 	TRACE_ENTER(QMUX_EV_QCC_WAKE, conn);
-
-	if (conn->handle.qc->flags & QUIC_FL_CONN_NOTIFY_CLOSE)
-		qcc->conn->flags |= (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH);
-
-	qc_send(qcc);
 
 	if (qc_process(qcc)) {
 		TRACE_STATE("releasing dead connection", QMUX_EV_QCC_WAKE, qcc->conn);
