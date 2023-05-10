@@ -1701,7 +1701,7 @@ static int qc_send_frames(struct qcc *qcc, struct list *frms)
 	return 0;
 
  err:
-	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
+	TRACE_DEVEL("leaving on error", QMUX_EV_QCC_SEND, qcc->conn);
 	return 1;
 }
 
@@ -1904,14 +1904,13 @@ static int qc_send(struct qcc *qcc)
 			quic_set_connection_close(qcc->conn->handle.qc, qcc->err);
 			qcc->flags |= QC_CF_ERRL_DONE;
 		}
-		TRACE_DEVEL("connection on error", QMUX_EV_QCC_SEND, qcc->conn);
-		goto err;
+		goto out;
 	}
 
 	if (qcc->conn->flags & CO_FL_SOCK_WR_SH) {
 		qcc->conn->flags |= CO_FL_ERROR;
 		TRACE_DEVEL("connection on error", QMUX_EV_QCC_SEND, qcc->conn);
-		goto err;
+		goto out;
 	}
 
 	if (!LIST_ISEMPTY(&qcc->lfctl.frms)) {
@@ -1922,7 +1921,7 @@ static int qc_send(struct qcc *qcc)
 	}
 
 	if (qcc->flags & QC_CF_BLK_MFCTL)
-		goto err;
+		goto out;
 
 	/* Send STREAM/STOP_SENDING/RESET_STREAM data for registered streams. */
 	list_for_each_entry_safe(qcs, qcs_tmp, &qcc->send_list, el_send) {
@@ -1941,7 +1940,7 @@ static int qc_send(struct qcc *qcc)
 		 */
 		if (qcs->flags & QC_SF_TO_STOP_SENDING) {
 			if (qcs_send_stop_sending(qcs))
-				goto out;
+				goto sent_done;
 
 			/* Remove stream from send_list if it had only STOP_SENDING
 			 * to send.
@@ -1954,7 +1953,7 @@ static int qc_send(struct qcc *qcc)
 
 		if (qcs->flags & QC_SF_TO_RESET) {
 			if (qcs_send_reset(qcs))
-				goto out;
+				goto sent_done;
 
 			/* RFC 9000 3.3. Permitted Frame Types
 			 *
@@ -2015,7 +2014,7 @@ static int qc_send(struct qcc *qcc)
 		}
 	}
 
- out:
+ sent_done:
 	/* Deallocate frames that the transport layer has rejected. */
 	if (!LIST_ISEMPTY(&frms)) {
 		struct quic_frame *frm, *frm2;
@@ -2035,12 +2034,9 @@ static int qc_send(struct qcc *qcc)
 			tasklet_wakeup(qcc->wait_event.tasklet);
 	}
 
+ out:
 	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
 	return total;
-
- err:
-	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
-	return 0;
 }
 
 /* Proceed on receiving. Loop through all streams from <qcc> and use decode_qcs
