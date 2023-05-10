@@ -583,18 +583,18 @@ static int hlua_queue_push(lua_State *L)
 	return 1;
 }
 
-/* queue:pop(): returns the first item at the top of que queue or nil if
- * the queue is empty.
+/* internal queue pop helper, returns 1 if it successfuly popped an item
+ * from the queue and pushed it on lua stack.
+ *
+ * Else it returns 0 (nothing is pushed on the stack)
  */
 static int _hlua_queue_pop(lua_State *L, struct hlua_queue *queue)
 {
 	struct hlua_queue_item *item;
 
 	item = MT_LIST_POP(&queue->list, typeof(item), list);
-	if (!item) {
-		lua_pushnil(L);
-		return 1; /* nothing in queue, return nil */
-	}
+	if (!item)
+		return 0; /* nothing in queue */
 
 	HA_ATOMIC_DEC(&queue->size);
 	/* push lua obj on the stack */
@@ -605,12 +605,20 @@ static int _hlua_queue_pop(lua_State *L, struct hlua_queue *queue)
 
 	return 1;
 }
+
+/* queue:pop(): returns the first item at the top of que queue or nil if
+ * the queue is empty.
+ */
 static int hlua_queue_pop(lua_State *L)
 {
 	struct hlua_queue *queue = hlua_check_queue(L, 1);
 
 	BUG_ON(!queue);
-	return _hlua_queue_pop(L, queue);
+	if (!_hlua_queue_pop(L, queue)) {
+		/* nothing in queue, push nil */
+		lua_pushnil(L);
+	}
+	return 1; /* either item or nil is at the top of the stack */
 }
 
 /* queue:pop_wait(): same as queue:pop() but doesn't return on empty queue.
