@@ -1905,6 +1905,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		curproxy->comp->algo_req = defproxy->comp->algo_req;
 		curproxy->comp->types_res = defproxy->comp->types_res;
 		curproxy->comp->types_req = defproxy->comp->types_req;
+		curproxy->comp->flags = defproxy->comp->flags;
 	}
 
 	if (defproxy->check_path)
