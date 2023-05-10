@@ -1719,7 +1719,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	unsigned int rqf_last, rpf_last;
 	unsigned int rq_prod_last, rq_cons_last;
 	unsigned int rp_cons_last, rp_prod_last;
-	unsigned int req_ana_back;
+	unsigned int req_ana_back, res_ana_back;
 	struct channel *req, *res;
 	struct stconn *scf, *scb;
 	unsigned int rate;
@@ -2121,6 +2121,11 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			goto resync_response;
 	}
 
+	/* we'll monitor the response analysers because some response analysers
+	 * may be enabled/disabled later
+	 */
+	res_ana_back = res->analysers;
+
 	/* maybe someone has added some request analysers, so we must check and loop */
 	if (req->analysers & ~req_ana_back)
 		goto resync_request;
@@ -2521,10 +2526,12 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		goto resync_request;
 
 	if (((scb->flags ^ scb_flags) & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) ||
-	    ((scf->flags ^ scf_flags) & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)))
+	    ((scf->flags ^ scf_flags) & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) ||
+	    (res->analysers ^ res_ana_back))
 		goto resync_response;
 
-	if (((req->flags ^ rqf_last) | (res->flags ^ rpf_last)) & CF_MASK_ANALYSER)
+	if ((((req->flags ^ rqf_last) | (res->flags ^ rpf_last)) & CF_MASK_ANALYSER) ||
+	    (req->analysers ^ req_ana_back))
 		goto resync_request;
 
 	/* we're interested in getting wakeups again */
