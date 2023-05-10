@@ -192,7 +192,7 @@ static int plen1(const char *s) {
 }
 
 static int plen2(const char *s) {
-  int i = 0, n = 0;
+  int i = 0, __attribute__((unused)) n = 0;
   while (s[i] != '\0' && s[i] != '.' && s[i] != '[')
     n++, i += s[i] == '\\' ? 2 : 1;
   // printf("PLEN: s: [%s], [%.*s] => %d\n", s, i, s, n);
@@ -724,7 +724,7 @@ static int is_digit(int c) {
 /* NOTE: strtod() implementation by Yasuhiro Matsumoto. */
 static double mystrtod(const char *str, char **end) {
   double d = 0.0;
-  int sign = 1, n = 0;
+  int sign = 1, __attribute__((unused)) n = 0;
   const char *p = str, *a = str;
 
   /* decimal part */
