@@ -2738,24 +2738,23 @@ static void qc_shutw(struct stconn *sc, enum co_shw_mode mode)
 
 	TRACE_ENTER(QMUX_EV_STRM_SHUT, qcc->conn, qcs);
 
-	if (qcc->flags & QC_CF_ERRL) {
-		TRACE_DEVEL("connection on error", QMUX_EV_QCC_END, qcc->conn);
-		goto out;
-	}
-
 	/* Early closure reported if QC_SF_FIN_STREAM not yet set. */
 	if (!qcs_is_close_local(qcs) &&
 	    !(qcs->flags & (QC_SF_FIN_STREAM|QC_SF_TO_RESET))) {
 
 		if (qcs->flags & QC_SF_UNKNOWN_PL_LENGTH) {
 			/* Close stream with a FIN STREAM frame. */
-			TRACE_STATE("set FIN STREAM", QMUX_EV_STRM_SHUT, qcc->conn, qcs);
-			qcs->flags |= QC_SF_FIN_STREAM;
-			qcc_send_stream(qcs, 0);
+			if (!(qcc->flags & QC_CF_ERRL)) {
+				TRACE_STATE("set FIN STREAM",
+				            QMUX_EV_STRM_SHUT, qcc->conn, qcs);
+				qcs->flags |= QC_SF_FIN_STREAM;
+				qcc_send_stream(qcs, 0);
+			}
 		}
 		else {
 			/* RESET_STREAM necessary. */
-			qcc_reset_stream(qcs, 0);
+			if (!(qcc->flags & QC_CF_ERRL))
+				qcc_reset_stream(qcs, 0);
 			se_fl_set_error(qcs->sd);
 		}
 
