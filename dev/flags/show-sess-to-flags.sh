@@ -16,6 +16,10 @@
 # out. It's mostly a matter of taste, they're equivalent.
 #
 # Usage: socat /path/to/socket - <<< "show sess all" | ./$0 > output
+#
+# options:
+#    --color=never, --no-color: never colorize output
+#    --color=always: always colorize output (default: only on terminal)
 
 # look for "flags in path then in dev/flags/flags then next to the script"
 FLAGS="${FLAGS:-$(command -v flags)}"
@@ -82,7 +86,15 @@ dump_and_reset() {
 
         line=0
         while [ $line -lt ${#out[@]} ]; do
-                echo "${out[$line]}"
+                if [ -n "$COLOR" ]; then
+                        # highlight name=value for values made of upper case letters
+                        echo "${out[$line]}" | \
+                                sed -e 's,\(^0x.*\),\x1b[1;37m\1\x1b[0m,g' \
+                                    -e 's,\([^ ,=]*\)=\([A-Z][^:, ]*\),\x1b[1;36m\1\x1b[0m=\x1b[1;33m\2\x1b[0m,g'
+
+                else
+                        echo "${out[$line]}"
+                fi
                 ((line++))
         done
 
@@ -101,6 +113,21 @@ dump_and_reset() {
 }
 
 ### main entry point
+
+if [ -t 1 ]; then
+        # terminal on stdout, enable color by default
+        COLOR=1
+else
+        COLOR=
+fi
+
+if [ "$1" == "--no-color" -o "$1" == "--color=never" ]; then
+        shift
+        COLOR=
+elif [ "$1" == "--color=always" ]; then
+        shift
+        COLOR=1
+fi
 
 ctx=strm
 while read -r; do
