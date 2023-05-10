@@ -2143,6 +2143,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if ((scf->flags & SC_FL_ERROR) || req->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT)) {
 			/* Report it if the client got an error or a read timeout expired */
 			req->analysers &= AN_REQ_FLT_END;
+			channel_auto_close(req);
 			if (scf->flags & SC_FL_ERROR) {
 				_HA_ATOMIC_INC(&s->be->be_counters.cli_aborts);
 				_HA_ATOMIC_INC(&sess->fe->fe_counters.cli_aborts);
@@ -2188,6 +2189,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		else if ((scb->flags & SC_FL_ERROR) || res->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT)) {
 			/* Report it if the server got an error or a read timeout expired */
 			res->analysers &= AN_RES_FLT_END;
+			channel_auto_close(res);
 			if (scb->flags & SC_FL_ERROR) {
 				_HA_ATOMIC_INC(&s->be->be_counters.srv_aborts);
 				_HA_ATOMIC_INC(&sess->fe->fe_counters.srv_aborts);
