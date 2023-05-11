@@ -243,6 +243,7 @@ void free_proxy(struct proxy *p)
 			free(rdr->cond);
 		}
 		free(rdr->rdr_str);
+		free(rdr->cookie_str);
 		list_for_each_entry_safe(lf, lfb, &rdr->rdr_fmt, list) {
 			LIST_DELETE(&lf->list);
 			release_sample_expr(lf->expr);
