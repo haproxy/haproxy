@@ -800,6 +800,9 @@ static int cli_parse_request(struct appctx *appctx)
 	for (; i < MAX_CLI_ARGS + 1; i++)
 		args[i] = p;
 
+	if (!**args)
+		return 0;
+
 	kw = cli_find_kw(args);
 	if (!kw ||
 	    (kw->level & ~appctx->cli_level & ACCESS_MASTER_ONLY) ||
