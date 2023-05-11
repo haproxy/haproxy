@@ -1770,7 +1770,6 @@ static enum act_parse_ret parse_http_del_header(const char **args, int *orig_arg
 /* Release memory allocated by an http redirect action. */
 static void release_http_redir(struct act_rule *rule)
 {
-	struct logformat_node *lf, *lfb;
 	struct redirect_rule *redir;
 
 	redir = rule->arg.redir;
@@ -1778,19 +1777,7 @@ static void release_http_redir(struct act_rule *rule)
 		return;
 
 	LIST_DELETE(&redir->list);
-	if (redir->cond) {
-		prune_acl_cond(redir->cond);
-		free(redir->cond);
-	}
-	free(redir->rdr_str);
-	free(redir->cookie_str);
-	list_for_each_entry_safe(lf, lfb, &redir->rdr_fmt, list) {
-		LIST_DELETE(&lf->list);
-		release_sample_expr(lf->expr);
-		free(lf->arg);
-		free(lf);
-	}
-	free(redir);
+	http_free_redirect_rule(redir);
 }
 
 /* Parse a "redirect" action. It returns ACT_RET_PRS_OK on success,
