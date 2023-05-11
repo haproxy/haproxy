@@ -758,6 +758,24 @@ static inline int htx_expect_more(const struct htx *htx)
 	return !(htx->flags & HTX_FL_EOM);
 }
 
+/* Set EOM flag in <htx>. This function is useful if the HTX message is empty.
+ * In this case, an EOT block is appended first to ensure the EOM will be
+ * forwarded as expected. This is a workaround as it is not possibly currently
+ * to push an empty HTX DATA block.
+ *
+ * Returns 1 on success else 0.
+ */
+static inline int htx_set_eom(struct htx *htx)
+{
+	if (htx_is_empty(htx)) {
+		if (!htx_add_endof(htx, HTX_BLK_EOT))
+			return 0;
+	}
+
+	htx->flags |= HTX_FL_EOM;
+	return 1;
+}
+
 /* Copy an HTX message stored in the buffer <msg> to <htx>. We take care to
  * not overwrite existing data. All the message is copied or nothing. It returns
  * 1 on success and 0 on error.
