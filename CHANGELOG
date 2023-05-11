@@ -1,6 +1,33 @@
 ChangeLog :
 ===========
 
+2023/05/11 : 2.8-dev11
+    - BUILD: debug: do not check the isolated_thread variable in non-threaded builds
+    - BUILD: quic: fix build warning when threads are disabled
+    - CI: more granular failure on generating build matrix
+    - CLEANUP: quic: No more used q_buf structure
+    - CLEANUP: quic: Rename several <buf> variables in quic_frame.(c|h)
+    - CLEANUP: quic: Typo fix for quic_connection_id pool
+    - BUG/MINOR: quic: Wrong key update cipher context initialization for encryption
+    - BUG/MEDIUM: cache: Don't request more room than the max allowed
+    - MEDIUM: stconn: Be sure to always be able to unblock a SC that needs room
+    - EXAMPLES: fix IPV6 support for lua mailers script
+    - BUILD: ssl: buggy -Werror=dangling-pointer since gcc 13.0
+    - DOC: stconn: Update comments about ABRT/SHUT for stconn structure
+    - BUG/MEDIUM: stats: Require more room if buffer is almost full
+    - DOC: configuration: add info about ssl-engine for 2.6
+    - BUG/MINOR: mux-quic: fix transport VS app CONNECTION_CLOSE
+    - BUG/MEDIUM: mux-quic: wakeup tasklet to close on error
+    - DEV: flags: add a script to decode most flags in the "show sess all" output
+    - BUG/MINOR: quic: Possible crash when dumping version information
+    - BUG/MINOR: config: make compression work again in defaults section
+    - BUG/MEDIUM: stream: Forward shutdowns when unhandled errors are caught
+    - MEDIUM: stream: Resync analyzers at the end of process_stream() on change
+    - DEV: flags: add missing stream flags to show-sess-to-flags
+    - DEV: flags/show-sess-to-flags: only retrieve hex digits from hex fields
+    - DEV: flags/show-sess-to-flags: add support for color output
+    - CLEANUP: src/listener.c: remove redundant NULL check
+
 2023/05/07 : 2.8-dev10
     - BUG/MINOR: stats: fix typo in `TotalSplicedBytesOut` field name
     - REGTESTS: add success test, "set server" via fqdn
