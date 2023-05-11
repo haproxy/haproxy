@@ -810,9 +810,11 @@ static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
 	enum ncb_ret ret;
 
 	data0 = malloc(bufsize);
+	BUG_ON(!data0);
 	memset(data0, 0xff, bufsize);
 
 	bufarea = malloc(bufsize);
+	BUG_ON(!bufarea);
 
 	fprintf(stderr, "running unit tests\n");
 
