@@ -809,6 +809,10 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 			}
 
 			node = malloc(sizeof(*node));
+			if (!node) {
+				memprintf(err, "out of memory error");
+				goto error;
+			}
 			memcpy(node, logsrv, sizeof(struct logsrv));
 			node->ref = logsrv;
 			LIST_INIT(&node->list);
