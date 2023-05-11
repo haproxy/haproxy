@@ -132,6 +132,7 @@ static forceinline char *strm_show_flags(char *buf, size_t len, const char *deli
 #define PCLI_F_PROMPT   0x10000
 #define PCLI_F_PAYLOAD  0x20000
 #define PCLI_F_RELOAD   0x40000 /* this is the "reload" stream, quits after displaying reload status */
+#define PCLI_F_TIMED    0x80000 /* the prompt shows the process' uptime */
 
 
 /* error types reported on the streams for more accurate reporting.

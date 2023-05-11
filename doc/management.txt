@@ -1511,6 +1511,18 @@ of hours, minutes and seconds on two digits each:
 
    [23:03:34:41]> quit
 
+When the timed prompt is set on the master CLI, the prompt will display the
+currently selected process' uptime, so this will work for the master, current
+worker or an older worker:
+
+  master> prompt timed
+  [0:00:00:50] master> show proc
+  (...)
+  [0:00:00:58] master> @!11955     <-- master, switch to current worker
+  [0:00:01:03] 11955> @!11942      <-- current worker, switch to older worker
+  [0:00:02:17] 11942> @            <-- older worker, switch back to master
+  [0:00:01:10] master>
+
 Since multiple commands may be issued at once, haproxy uses the empty line as a
 delimiter to mark an end of output for each command, and takes care of ensuring
 that no command can emit an empty line on output. A script can thus easily

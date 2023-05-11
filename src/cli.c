@@ -2221,11 +2221,46 @@ void pcli_write_prompt(struct stream *s)
 	if (s->pcli_flags & PCLI_F_PAYLOAD) {
 		chunk_appendf(msg, "+ ");
 	} else {
-		if (s->pcli_next_pid == 0)
+		if (s->pcli_next_pid == 0) {
+			/* master's prompt */
+			if (s->pcli_flags & PCLI_F_TIMED) {
+				uint up = ns_to_sec(now_ns - start_time_ns);
+				chunk_appendf(msg, "[%u:%02u:%02u:%02u] ",
+				         (up / 86400), (up / 3600) % 24, (up / 60) % 60, up % 60);
+			}
+
 			chunk_appendf(msg, "master%s",
 			              (proc_self->failedreloads > 0) ? "[ReloadFailed]" : "");
-		else
+		}
+		else {
+			/* worker's prompt */
+			if (s->pcli_flags & PCLI_F_TIMED) {
+				const struct mworker_proc *tmp, *proc;
+				uint up;
+
+				/* set proc to the worker corresponding to pcli_next_pid or NULL */
+				proc = NULL;
+				list_for_each_entry(tmp, &proc_list, list) {
+					if (!(tmp->options & PROC_O_TYPE_WORKER))
+						continue;
+					if (tmp->pid == s->pcli_next_pid) {
+						proc = tmp;
+						break;
+					}
+				}
+
+				if (!proc)
+					chunk_appendf(msg, "[gone] ");
+				else {
+					up = date.tv_sec - proc->timestamp;
+					if ((int)up < 0) /* must never be negative because of clock drift */
+						up = 0;
+					chunk_appendf(msg, "[%u:%02u:%02u:%02u] ",
+						      (up / 86400), (up / 3600) % 24, (up / 60) % 60, up % 60);
+				}
+			}
 			chunk_appendf(msg, "%d", s->pcli_next_pid);
+		}
 
 		if (s->pcli_flags & (ACCESS_EXPERIMENTAL|ACCESS_EXPERT|ACCESS_MCLI_DEBUG)) {
 			chunk_appendf(msg, "(");
@@ -2368,9 +2403,13 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 			*next_pid = target_pid;
 		return 1;
 	} else if (strcmp("prompt", args[0]) == 0) {
-		s->pcli_flags ^= PCLI_F_PROMPT;
+		if (argl >= 2 && strcmp(args[1], "timed") == 0) {
+			s->pcli_flags |= PCLI_F_PROMPT;
+			s->pcli_flags ^= PCLI_F_TIMED;
+		}
+		else
+			s->pcli_flags ^= PCLI_F_PROMPT;
 		return argl; /* return the number of elements in the array */
-
 	} else if (strcmp("quit", args[0]) == 0) {
 		sc_schedule_abort(s->scf);
 		sc_schedule_shutdown(s->scf);
