@@ -177,8 +177,8 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 
 	TRACE_ENTER(H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 
-	BUG_ON_HOT(!quic_stream_is_uni(qcs->id) ||
-	           h3s->flags & H3_SF_UNI_INIT);
+	/* Function reserved to uni streams. Must be called only once per stream instance. */
+	BUG_ON(!quic_stream_is_uni(qcs->id) || h3s->flags & H3_SF_UNI_INIT);
 
 	ret = b_quic_dec_int(&type, b, &len);
 	if (!ret) {
@@ -257,8 +257,8 @@ static ssize_t h3_parse_uni_stream_no_h3(struct qcs *qcs, struct buffer *b, int 
 {
 	struct h3s *h3s = qcs->ctx;
 
-	BUG_ON_HOT(!quic_stream_is_uni(qcs->id) ||
-	           !(h3s->flags & H3_SF_UNI_NO_H3));
+	/* Function reserved to non-HTTP/3 unidirectional streams. */
+	BUG_ON(!quic_stream_is_uni(qcs->id) || !(h3s->flags & H3_SF_UNI_NO_H3));
 
 	switch (h3s->type) {
 	case H3S_T_QPACK_DEC:
@@ -309,7 +309,8 @@ static int h3_is_frame_valid(struct h3c *h3c, struct qcs *qcs, uint64_t ftype)
 	struct h3s *h3s = qcs->ctx;
 	const uint64_t id = qcs->id;
 
-	BUG_ON_HOT(h3s->type == H3S_T_UNKNOWN);
+	/* Stream type must be known to ensure frame is valid for this stream. */
+	BUG_ON(h3s->type == H3S_T_UNKNOWN);
 
 	switch (ftype) {
 	case H3_FT_DATA:

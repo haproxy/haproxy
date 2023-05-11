@@ -183,7 +183,7 @@ static forceinline void qcc_reset_idle_start(struct qcc *qcc)
 /* Decrement <qcc> sc. */
 static forceinline void qcc_rm_sc(struct qcc *qcc)
 {
-	BUG_ON_HOT(!qcc->nb_sc);
+	BUG_ON(!qcc->nb_sc); /* Ensure sc count is always valid (ie >=0). */
 	--qcc->nb_sc;
 
 	/* Reset qcc idle start for http-keep-alive timeout. Timeout will be
@@ -196,7 +196,7 @@ static forceinline void qcc_rm_sc(struct qcc *qcc)
 /* Decrement <qcc> hreq. */
 static forceinline void qcc_rm_hreq(struct qcc *qcc)
 {
-	BUG_ON_HOT(!qcc->nb_hreq);
+	BUG_ON(!qcc->nb_hreq); /* Ensure http req count is always valid (ie >=0). */
 	--qcc->nb_hreq;
 
 	/* Reset qcc idle start for http-keep-alive timeout. Timeout will be
@@ -587,7 +587,8 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 
 	TRACE_ENTER(QMUX_EV_QCS_NEW, qcc->conn);
 
-	BUG_ON_HOT(quic_stream_is_local(qcc, id));
+	/* Function reserved to remote stream IDs. */
+	BUG_ON(quic_stream_is_local(qcc, id));
 
 	if (quic_stream_is_bidi(id)) {
 		largest = &qcc->largest_bidi_r;
