@@ -141,10 +141,7 @@ spoe_release_message(struct spoe_message *msg)
 		prune_acl(acl);
 		free(acl);
 	}
-	if (msg->cond) {
-		prune_acl_cond(msg->cond);
-		free(msg->cond);
-	}
+	free_acl_cond(msg->cond);
 	free(msg);
 }
 

@@ -200,8 +200,7 @@ void free_proxy(struct proxy *p)
 
 	list_for_each_entry_safe(cond, condb, &p->mon_fail_cond, list) {
 		LIST_DELETE(&cond->list);
-		prune_acl_cond(cond);
-		free(cond);
+		free_acl_cond(cond);
 	}
 
 	EXTRA_COUNTERS_FREE(p->extra_counters_fe);
@@ -215,7 +214,7 @@ void free_proxy(struct proxy *p)
 
 	list_for_each_entry_safe(srule, sruleb, &p->server_rules, list) {
 		LIST_DELETE(&srule->list);
-		prune_acl_cond(srule->cond);
+		free_acl_cond(srule->cond);
 		list_for_each_entry_safe(lf, lfb, &srule->expr, list) {
 			LIST_DELETE(&lf->list);
 			release_sample_expr(lf->expr);
@@ -223,16 +222,12 @@ void free_proxy(struct proxy *p)
 			free(lf);
 		}
 		free(srule->file);
-		free(srule->cond);
 		free(srule);
 	}
 
 	list_for_each_entry_safe(rule, ruleb, &p->switching_rules, list) {
 		LIST_DELETE(&rule->list);
-		if (rule->cond) {
-			prune_acl_cond(rule->cond);
-			free(rule->cond);
-		}
+		free_acl_cond(rule->cond);
 		free(rule->file);
 		free(rule);
 	}

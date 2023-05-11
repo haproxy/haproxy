@@ -1408,9 +1408,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		rule->file = strdup(file);
 		if (!rule->file) {
 		  use_backend_alloc_error:
-			if (cond)
-				prune_acl_cond(cond);
-			ha_free(&cond);
+			free_acl_cond(cond);
 			if (rule)
 				ha_free(&(rule->be.name));
 			ha_free(&rule);
@@ -1464,9 +1462,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		rule->file = strdup(file);
 		if (!rule->file) {
 		  use_server_alloc_error:
-			if (cond)
-				prune_acl_cond(cond);
-			ha_free(&cond);
+			free_acl_cond(cond);
 			if (rule)
 				ha_free(&(rule->srv.name));
 			ha_free(&rule);
@@ -1510,9 +1506,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		rule = calloc(1, sizeof(*rule));
 		if (!rule) {
-			if (cond)
-				prune_acl_cond(cond);
-			ha_free(&cond);
+			free_acl_cond(cond);
 			goto alloc_error;
 		}
 		rule->cond = cond;
@@ -1678,9 +1672,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		rule = calloc(1, sizeof(*rule));
 		if (!rule) {
-			if (cond)
-				prune_acl_cond(cond);
-			ha_free(&cond);
+			free_acl_cond(cond);
 			goto alloc_error;
 		}
 		rule->cond = cond;
@@ -1733,9 +1725,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 			rule = calloc(1, sizeof(*rule));
 			if (!rule) {
-				if (cond)
-					prune_acl_cond(cond);
-				ha_free(&cond);
+				free_acl_cond(cond);
 				goto alloc_error;
 			}
 			rule->cond = cond;

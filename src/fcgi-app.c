@@ -125,10 +125,7 @@ static void fcgi_release_rule_conf(struct fcgi_rule_conf *rule)
 		return;
 	free(rule->name);
 	free(rule->value);
-	if (rule->cond) {
-		prune_acl_cond(rule->cond);
-		free(rule->cond);
-	}
+	free_acl_cond(rule->cond);
 	free(rule);
 }
 
@@ -760,10 +757,7 @@ static int fcgi_app_add_rule(struct fcgi_app *curapp, enum fcgi_rule_type type, 
 		free(rule->value);
 		free(rule);
 	}
-	if (cond) {
-		prune_acl_cond(cond);
-		free(cond);
-	}
+	free_acl_cond(cond);
 	memprintf(err, "out of memory");
 	return 0;
 }

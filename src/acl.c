@@ -1007,8 +1007,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
  out_free_term:
 	free(cur_term);
  out_free_suite:
-	prune_acl_cond(cond);
-	free(cond);
+	free_acl_cond(cond);
  out_return:
 	return NULL;
 }
@@ -1337,6 +1336,7 @@ void acl_dump_kwd(void)
 	}
 }
 
+/* Purge everything in the acl_cond <cond>, then free <cond> */
 void free_acl_cond(struct acl_cond *cond)
 {
 	struct acl_term_suite *suite, *suiteb;

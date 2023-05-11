@@ -528,10 +528,7 @@ void flt_ot_conf_scope_free(struct flt_ot_conf_scope **ptr)
 		FLT_OT_LIST_DEL(&(acl->list));
 		FLT_OT_FREE(acl);
 	}
-	if ((*ptr)->cond != NULL) {
-		prune_acl_cond((*ptr)->cond);
-		FLT_OT_FREE((*ptr)->cond);
-	}
+	free_acl_cond((*ptr)->cond);
 	FLT_OT_LIST_DESTROY(context, &((*ptr)->contexts));
 	FLT_OT_LIST_DESTROY(span, &((*ptr)->spans));
 	FLT_OT_LIST_DESTROY(str, &((*ptr)->finish));

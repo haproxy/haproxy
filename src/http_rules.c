@@ -322,10 +322,7 @@ void http_free_redirect_rule(struct redirect_rule *rdr)
 {
 	struct logformat_node *lf, *lfb;
 
-	if (rdr->cond) {
-		prune_acl_cond(rdr->cond);
-		free(rdr->cond);
-	}
+	free_acl_cond(rdr->cond);
 	free(rdr->rdr_str);
 	free(rdr->cookie_str);
 	list_for_each_entry_safe(lf, lfb, &rdr->rdr_fmt, list) {
@@ -519,8 +516,7 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		http_free_redirect_rule(rule);
 	else if (cond) {
 		/* rule not yet allocated, but cond already is */
-		prune_acl_cond(cond);
-		free(cond);
+		free_acl_cond(cond);
 	}
 
 	return NULL;
