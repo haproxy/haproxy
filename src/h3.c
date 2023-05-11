@@ -1036,8 +1036,19 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 	}
 
 	if (!b_data(b) && fin && quic_stream_is_bidi(qcs->id)) {
+		struct buffer *appbuf;
+		struct htx *htx;
+
 		TRACE_PROTO("received FIN without data", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-		qcs_http_handle_standalone_fin(qcs);
+		appbuf = qc_get_buf(qcs, &qcs->rx.app_buf);
+		BUG_ON(!appbuf);
+
+		htx = htx_from_buf(appbuf);
+		if (!htx_set_eom(htx)) {
+			TRACE_ERROR("cannot set EOM", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+			h3c->err = H3_INTERNAL_ERROR;
+		}
+		htx_to_buf(htx, appbuf);
 		goto done;
 	}
 
