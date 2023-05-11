@@ -1068,6 +1068,7 @@ The following keywords are supported in the "global" section :
    - h1-case-adjust-file
    - h2-workaround-bogus-websocket-clients
    - hard-stop-after
+   - httpclient.resolvers.disabled
    - httpclient.resolvers.id
    - httpclient.resolvers.prefer
    - httpclient.ssl.ca-file
@@ -1680,6 +1681,12 @@ hard-stop-after <time>
       hard-stop-after 30s
 
   See also: grace
+
+httpclient.resolvers.disabled <on|off>
+  Disable the DNS resolution of the httpclient. Prevent the creation of the
+  "default" resolvers section.
+
+  Default value is off.
 
 httpclient.resolvers.id <resolvers id>
   This option defines the resolvers section with which the httpclient will try

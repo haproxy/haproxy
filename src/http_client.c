@@ -53,6 +53,7 @@ static struct applet httpclient_applet;
 static int hard_error_resolvers = 0;
 static char *resolvers_id = NULL;
 static char *resolvers_prefer = NULL;
+static int resolvers_disabled = 0;
 
 /* --- This part of the file implement an HTTP client over the CLI ---
  * The functions will be  starting by "hc_cli" for "httpclient cli"
@@ -1138,6 +1139,10 @@ static int httpclient_resolve_init(struct proxy *px)
 	       { "" }
 	};
 
+
+	if (resolvers_disabled)
+		return 0;
+
 	if (!resolvers_id)
 		resolvers_id = strdup("default");
 
@@ -1432,6 +1437,25 @@ static int httpclient_parse_global_resolvers(char **args, int section_type, stru
 	return 0;
 }
 
+/* config parser for global "httpclient.resolvers.disabled", accepts "on" or "off" */
+static int httpclient_parse_global_resolvers_disabled(char **args, int section_type, struct proxy *curpx,
+                                      const struct proxy *defpx, const char *file, int line,
+                                      char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		resolvers_disabled = 1;
+	else if (strcmp(args[1], "off") == 0)
+		resolvers_disabled = 0;
+	else {
+		memprintf(err, "'%s' expects either 'on' or 'off' but got '%s'.", args[0], args[1]);
+		return -1;
+	}
+	return 0;
+}
+
 static int httpclient_parse_global_prefer(char **args, int section_type, struct proxy *curpx,
                                         const struct proxy *defpx, const char *file, int line,
                                         char **err)
@@ -1497,6 +1521,7 @@ static int httpclient_parse_global_verify(char **args, int section_type, struct 
 #endif /* ! USE_OPENSSL */
 
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "httpclient.resolvers.disabled", httpclient_parse_global_resolvers_disabled },
 	{ CFG_GLOBAL, "httpclient.resolvers.id", httpclient_parse_global_resolvers },
 	{ CFG_GLOBAL, "httpclient.resolvers.prefer", httpclient_parse_global_prefer },
 #ifdef USE_OPENSSL
