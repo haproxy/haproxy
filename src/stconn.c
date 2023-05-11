@@ -19,6 +19,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/stconn.h>
+#include <haproxy/xref.h>
 
 DECLARE_POOL(pool_head_connstream, "stconn", sizeof(struct stconn));
 DECLARE_POOL(pool_head_sedesc, "sedesc", sizeof(struct sedesc));
@@ -94,6 +95,7 @@ void sedesc_init(struct sedesc *sedesc)
 	sedesc->sc = NULL;
 	sedesc->lra = TICK_ETERNITY;
 	sedesc->fsb = TICK_ETERNITY;
+	sedesc->xref.peer = NULL;
 	se_fl_setall(sedesc, SE_FL_NONE);
 }
 
@@ -271,6 +273,7 @@ int sc_attach_mux(struct stconn *sc, void *sd, void *ctx)
 		}
 
 		sc->app_ops = &sc_app_conn_ops;
+		xref_create(&sc->sedesc->xref, &sc_opposite(sc)->sedesc->xref);
 	}
 	else if (sc_check(sc)) {
 		if (!sc->wait_event.tasklet) {
@@ -304,8 +307,10 @@ static void sc_attach_applet(struct stconn *sc, void *sd)
 	sc->sedesc->se = sd;
 	sc_ep_set(sc, SE_FL_T_APPLET);
 	sc_ep_clr(sc, SE_FL_DETACHED);
-	if (sc_strm(sc))
+	if (sc_strm(sc)) {
 		sc->app_ops = &sc_app_applet_ops;
+		xref_create(&sc->sedesc->xref, &sc_opposite(sc)->sedesc->xref);
+	}
 }
 
 /* Attaches a stconn to a app layer and sets the relevant
@@ -349,6 +354,15 @@ static void sc_detach_endp(struct stconn **scp)
 
 	if (!sc)
 		return;
+
+	if (sc->sedesc) {
+		struct xref *peer;
+
+		/* Remove my link in the original objects. */
+		peer = xref_get_peer_and_lock(&sc->sedesc->xref);
+		if (peer)
+			xref_disconnect(&sc->sedesc->xref, peer);
+	}
 
 	if (sc_ep_test(sc, SE_FL_T_MUX)) {
 		struct connection *conn = __sc_conn(sc);

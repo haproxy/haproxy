@@ -25,6 +25,7 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/show_flags-t.h>
+#include <haproxy/xref-t.h>
 
 /* Stream Endpoint Flags.
  * Please also update the se_show_flags() function below in case of changes.
@@ -245,6 +246,7 @@ struct stconn;
  * <lra>    is the last read activity
  * <fsb>    is the first send blocked
  * <flags>  SE_FL_*
+ * <xref>   cross reference with the opposite SC
  *
  * <lra> should be updated when a read activity is detected. It can be a
  *       successful receive, when a shutr is reported or when receives are
@@ -260,6 +262,7 @@ struct sedesc {
 	unsigned int flags;
 	unsigned int lra;
 	unsigned int fsb;
+	struct xref xref;
 };
 
 /* sc_app_ops describes the application layer's operations and notification
