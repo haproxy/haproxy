@@ -449,6 +449,7 @@ static void qcs_alert(struct qcs *qcs)
 		qcs_notify_send(qcs);
 	}
 	else if (qcs_sc(qcs) && qcs->sd->sc->app_ops->wake) {
+		TRACE_POINT(QMUX_EV_STRM_WAKE, qcs->qcc->conn, qcs);
 		qcs->sd->sc->app_ops->wake(qcs->sd->sc);
 	}
 }
@@ -479,6 +480,7 @@ int qcs_subscribe(struct qcs *qcs, int event_type, struct wait_event *es)
 void qcs_notify_recv(struct qcs *qcs)
 {
 	if (qcs->subs && qcs->subs->events & SUB_RETRY_RECV) {
+		TRACE_POINT(QMUX_EV_STRM_WAKE, qcs->qcc->conn, qcs);
 		tasklet_wakeup(qcs->subs->tasklet);
 		qcs->subs->events &= ~SUB_RETRY_RECV;
 		if (!qcs->subs->events)
@@ -489,6 +491,7 @@ void qcs_notify_recv(struct qcs *qcs)
 void qcs_notify_send(struct qcs *qcs)
 {
 	if (qcs->subs && qcs->subs->events & SUB_RETRY_SEND) {
+		TRACE_POINT(QMUX_EV_STRM_WAKE, qcs->qcc->conn, qcs);
 		tasklet_wakeup(qcs->subs->tasklet);
 		qcs->subs->events &= ~SUB_RETRY_SEND;
 		if (!qcs->subs->events)
