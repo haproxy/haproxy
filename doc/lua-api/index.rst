@@ -217,7 +217,7 @@ Core class
 
 .. js:attribute:: core.proxies
 
-  **context**: task, action, sample-fetch, converter
+  **context**: init, task, action, sample-fetch, converter
 
   This attribute is a table of declared proxies (frontend and backends). Each
   proxy give an access to his list of listeners and servers. The table is
@@ -232,7 +232,7 @@ Core class
 
 .. js:attribute:: core.backends
 
-  **context**: task, action, sample-fetch, converter
+  **context**: init, task, action, sample-fetch, converter
 
   This attribute is a table of declared proxies with backend capability. Each
   proxy give an access to his list of listeners and servers. The table is
@@ -243,7 +243,7 @@ Core class
 
 .. js:attribute:: core.frontends
 
-  **context**: task, action, sample-fetch, converter
+  **context**: init, task, action, sample-fetch, converter
 
   This attribute is a table of declared proxies with frontend capability. Each
   proxy give an access to his list of listeners and servers. The table is
