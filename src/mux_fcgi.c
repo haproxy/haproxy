@@ -3883,8 +3883,11 @@ static size_t fcgi_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, 
 			if (!(fstrm->h1m.flags & (H1_MF_VER_11|H1_MF_XFER_LEN)))
 				se_fl_set(fstrm->sd, SE_FL_EOS);
 		}
-		if (fcgi_conn_read0_pending(fconn))
+		if (fcgi_conn_read0_pending(fconn)) {
 			se_fl_set(fstrm->sd, SE_FL_EOS);
+			if (!se_fl_test(fstrm->sd, SE_FL_EOI))
+				se_fl_set(fstrm->sd, SE_FL_ERROR);
+		}
 		if (se_fl_test(fstrm->sd, SE_FL_ERR_PENDING))
 			se_fl_set(fstrm->sd, SE_FL_ERROR);
 		fcgi_release_buf(fconn, &fstrm->rxbuf);
