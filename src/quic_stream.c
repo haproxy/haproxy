@@ -241,12 +241,12 @@ struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
 	if (!qc_stream_buf_avail(qc))
 		return NULL;
 
-	++qc->stream_buf_count;
-
 	stream->buf_offset = offset;
 	stream->buf = pool_alloc(pool_head_quic_stream_buf);
 	if (!stream->buf)
 		return NULL;
+
+	++qc->stream_buf_count;
 
 	stream->buf->buf = BUF_NULL;
 	LIST_APPEND(&stream->buf_list, &stream->buf->list);
