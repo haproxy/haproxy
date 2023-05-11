@@ -843,21 +843,6 @@ static struct acl *find_acl_default(const char *acl_name, struct list *known_acl
 	return NULL;
 }
 
-/* Purge everything in the acl_cond <cond>, then return <cond>. */
-struct acl_cond *prune_acl_cond(struct acl_cond *cond)
-{
-	struct acl_term_suite *suite, *tmp_suite;
-	struct acl_term *term, *tmp_term;
-
-	/* iterate through all term suites and free all terms and all suites */
-	list_for_each_entry_safe(suite, tmp_suite, &cond->suites, list) {
-		list_for_each_entry_safe(term, tmp_term, &suite->terms, list)
-			free(term);
-		free(suite);
-	}
-	return cond;
-}
-
 /* Parse an ACL condition starting at <args>[0], relying on a list of already
  * known ACLs passed in <known_acl>. The new condition is returned (or NULL in
  * case of low memory). Supports multiple conditions separated by "or". If

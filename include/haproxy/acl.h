@@ -74,9 +74,6 @@ struct acl *prune_acl(struct acl *acl);
  */
 struct acl *parse_acl(const char **args, struct list *known_acl, char **err, struct arg_list *al, const char *file, int line);
 
-/* Purge everything in the acl_cond <cond>, then return <cond>. */
-struct acl_cond *prune_acl_cond(struct acl_cond *cond);
-
 /* Parse an ACL condition starting at <args>[0], relying on a list of already
  * known ACLs passed in <known_acl>. The new condition is returned (or NULL in
  * case of low memory). Supports multiple conditions separated by "or".
