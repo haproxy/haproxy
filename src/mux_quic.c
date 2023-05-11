@@ -426,13 +426,17 @@ struct buffer *qc_get_buf(struct qcs *qcs, struct buffer *bptr)
 	return b_alloc(bptr);
 }
 
+/* Allocate if needed buffer <ncbuf> for stream <qcs>.
+ *
+ * Returns the buffer instance or NULL on allocation failure.
+ */
 static struct ncbuf *qc_get_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
 {
 	struct buffer buf = BUF_NULL;
 
 	if (ncb_is_null(ncbuf)) {
-		b_alloc(&buf);
-		BUG_ON(b_is_null(&buf));
+		if (!b_alloc(&buf))
+			return NULL;
 
 		*ncbuf = ncb_make(buf.area, buf.size, 0);
 		ncb_init(ncbuf, 0);
@@ -1043,9 +1047,9 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	}
 
 	if (!qc_get_ncbuf(qcs, &qcs->rx.ncbuf) || ncb_is_null(&qcs->rx.ncbuf)) {
-		/* TODO should mark qcs as full */
-		ABORT_NOW();
-		return 1;
+		TRACE_ERROR("receive ncbuf alloc failure", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+		qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0);
+		goto err;
 	}
 
 	TRACE_DATA("newly received offset", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
