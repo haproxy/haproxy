@@ -754,7 +754,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 
 			rxbuf_tail = (unsigned char *)b_tail(&rxbuf->buf);
 			__b_putblk(&rxbuf->buf, (char *)dgram_buf, new_dgram->len);
-			if (!quic_lstnr_dgram_dispatch(rxbuf_tail, ret, l, &qc->peer_addr, &daddr,
+			if (!quic_lstnr_dgram_dispatch(rxbuf_tail, ret, l, &saddr, &daddr,
 			                               new_dgram, &rxbuf->dgram_list)) {
 				/* TODO count lost datagrams. */
 				b_sub(&buf, ret);
