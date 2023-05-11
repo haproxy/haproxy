@@ -343,6 +343,7 @@ enum info_field {
 	INF_POOL_USED_BYTES,
 	INF_START_TIME_SEC,
 	INF_TAINTED,
+	INF_WARNINGS,
 
 	/* must always be the last one */
 	INF_TOTAL_FIELDS

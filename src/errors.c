@@ -20,6 +20,7 @@
 /* A global buffer used to store all startup alerts/warnings. It will then be
  * retrieve on the CLI. */
 struct ring *startup_logs = NULL;
+uint tot_warnings = 0;
 #ifdef USE_SHM_OPEN
 static struct ring *shm_startup_logs = NULL;
 #endif
@@ -450,6 +451,7 @@ void ha_warning(const char *fmt, ...)
 	va_list argp;
 
 	warned |= WARN_ANY;
+	HA_ATOMIC_INC(&tot_warnings);
 
 	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE) ||
 	    !(global.mode & MODE_STARTING)) {

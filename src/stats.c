@@ -156,6 +156,7 @@ const struct name_desc info_fields[INF_TOTAL_FIELDS] = {
 	[INF_CUM_LOG_MSGS]                   = { .name = "CumRecvLogs",                 .desc = "Total number of log messages received by log-forwarding listeners on this worker process since started" },
 	[INF_BUILD_INFO]                     = { .name = "Build info",                  .desc = "Build info" },
 	[INF_TAINTED]                        = { .name = "Tainted",                     .desc = "Experimental features used" },
+	[INF_WARNINGS]                       = { .name = "TotalWarnings",               .desc = "Total warnings issued" },
 };
 
 const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
@@ -3600,7 +3601,7 @@ static void stats_dump_html_info(struct stconn *sc, struct uri_auth *uri)
 	              "<h3>&gt; General process information</h3>\n"
 	              "<table border=0><tr><td align=\"left\" nowrap width=\"1%%\">\n"
 	              "<p><b>pid = </b> %d (process #%d, nbproc = %d, nbthread = %d)<br>\n"
-	              "<b>uptime = </b> %dd %dh%02dm%02ds<br>\n"
+	              "<b>uptime = </b> %dd %dh%02dm%02ds; warnings = %u<br>\n"
 	              "<b>system limits:</b> memmax = %s%s; ulimit-n = %d<br>\n"
 	              "<b>maxsock = </b> %d; <b>maxconn = </b> %d; <b>maxpipes = </b> %d<br>\n"
 	              "current conns = %d; current pipes = %d/%d; conn rate = %d/sec; bit rate = %.3f %cbps<br>\n"
@@ -3636,6 +3637,7 @@ static void stats_dump_html_info(struct stconn *sc, struct uri_auth *uri)
 	              pid, 1, 1, global.nbthread,
 	              up / 86400, (up % 86400) / 3600,
 	              (up % 3600) / 60, (up % 60),
+	              HA_ATOMIC_LOAD(&tot_warnings),
 	              global.rlimit_memmax ? ultoa(global.rlimit_memmax) : "unlimited",
 	              global.rlimit_memmax ? " MB" : "",
 	              global.rlimit_nofile,
@@ -4737,6 +4739,7 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	info[INF_CUM_LOG_MSGS]                   = mkf_u32(FN_COUNTER, cum_log_messages);
 
 	info[INF_TAINTED]                        = mkf_str(FO_STATUS, chunk_newstr(out));
+	info[INF_WARNINGS]                       = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&tot_warnings));
 	chunk_appendf(out, "%#x", get_tainted());
 
 	return 1;

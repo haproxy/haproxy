@@ -68,6 +68,7 @@ enum {
 void usermsgs_clr(const char *prefix);
 int usermsgs_empty(void);
 const char *usermsgs_str(void);
+extern uint tot_warnings;
 
 /************ Error reporting functions ***********/
 
