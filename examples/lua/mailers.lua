@@ -362,9 +362,9 @@ end
 -- disable legacy email-alerts since email-alerts will be sent from lua directly
 core.disable_legacy_mailers()
 
--- event subscription are purposely performed in a task to prevent email
--- alerts from being generated too early (when process is starting up)
-core.register_task(function()
+-- event subscriptions are purposely performed in an init function to prevent
+-- email alerts from being generated too early (when process is starting up)
+core.register_init(function()
 
 	-- do nothing if not on primary thread
 	-- this prevents emails from being sent multiple times when
