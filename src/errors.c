@@ -229,7 +229,8 @@ static void usermsgs_put(const struct ist *msg)
 	/* Allocate the buffer if not already done. */
 	if (unlikely(b_is_null(&usermsgs_buf))) {
 		usermsgs_buf.area = malloc(USER_MESSAGES_BUFSIZE * sizeof(char));
-		usermsgs_buf.size = USER_MESSAGES_BUFSIZE;
+		if (usermsgs_buf.area)
+			usermsgs_buf.size = USER_MESSAGES_BUFSIZE;
 	}
 
 	if (likely(!b_is_null(&usermsgs_buf))) {
