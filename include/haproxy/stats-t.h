@@ -469,6 +469,7 @@ enum stat_field {
 	ST_F_H1REQ,
 	ST_F_H2REQ,
 	ST_F_H3REQ,
+	ST_F_PROTO,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS

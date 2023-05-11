@@ -1086,6 +1086,8 @@ static int stats_dump_fields_html(struct buffer *out,
 			else if (*field_str(stats, ST_F_ADDR))
 				chunk_appendf(out, "%s, ", field_str(stats, ST_F_ADDR));
 
+			chunk_appendf(out, "proto=%s, ", field_str(stats, ST_F_PROTO));
+
 			/* id */
 			chunk_appendf(out, "id: %d</div>", stats[ST_F_SID].u.u32);
 		}
@@ -2077,6 +2079,9 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 						break;
 					}
 				}
+				break;
+			case ST_F_PROTO:
+				metric = mkf_str(FO_STATUS, l->rx.proto->name);
 				break;
 			default:
 				/* not used for listen. If a specific metric
