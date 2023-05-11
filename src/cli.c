@@ -50,6 +50,7 @@
 #include <haproxy/pipe.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
+#include <haproxy/quic_sock.h>
 #include <haproxy/sample-t.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/server.h>
@@ -1285,6 +1286,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		const struct xprt_ops *xprt = NULL;
 		const void *ctx = NULL;
 		const void *xprt_ctx = NULL;
+		const struct quic_conn *qc = NULL;
 		uint32_t conn_flags = 0;
 		uint8_t conn_err = 0;
 		int is_back = 0;
@@ -1318,10 +1320,26 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			if (conn->handle.fd != fd)
 				suspicious = 1;
 		}
+#if defined(USE_QUIC)
+		else if (fdt.iocb == quic_conn_sock_fd_iocb) {
+			qc = fdtab[fd].owner;
+			li = qc ? qc->li : NULL;
+			xprt_ctx   = qc ? qc->xprt_ctx : NULL;
+			conn = qc ? qc->conn : NULL;
+			xprt = conn ? conn->xprt : NULL; // in fact it's &ssl_quic
+			mux = conn ? conn->mux : NULL;
+			/* quic_conns don't always have a connection but they
+			 * always have an xprt_ctx.
+			 */
+		}
+		else if (fdt.iocb == quic_lstnr_sock_fd_iocb) {
+			li = objt_listener(fdtab[fd].owner);
+		}
+#endif
 		else if (fdt.iocb == sock_accept_iocb)
 			li = fdt.owner;
 
-		if (!((conn &&
+		if (!(((conn || xprt_ctx) &&
 		       ((match & CLI_SHOWFD_F_SV && sv) ||
 			(match & CLI_SHOWFD_F_PX && px) ||
 			(match & CLI_SHOWFD_F_FE && li))) ||
@@ -1364,11 +1382,14 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		if (!fdt.owner) {
 			chunk_appendf(&trash, ")");
 		}
-		else if (fdt.iocb == sock_conn_iocb) {
+		else if (conn) {
 			chunk_appendf(&trash, ") back=%d cflg=0x%08x cerr=%d", is_back, conn_flags, conn_err);
 
-			if (conn->handle.fd != fd) {
+			if (!(conn->flags & CO_FL_FDLESS) && conn->handle.fd != fd) {
 				chunk_appendf(&trash, " fd=%d(BOGUS)", conn->handle.fd);
+				suspicious = 1;
+			} else if ((conn->flags & CO_FL_FDLESS) && (qc != conn->handle.qc)) {
+				chunk_appendf(&trash, " qc=%p(BOGUS)", conn->handle.qc);
 				suspicious = 1;
 			} else {
 				struct sockaddr_storage sa;
@@ -1402,7 +1423,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 
 			if (mux) {
 				chunk_appendf(&trash, " mux=%s ctx=%p", mux->name, ctx);
-				if (!ctx)
+				if (!ctx && !qc)
 					suspicious = 1;
 				if (mux->show_fd)
 					suspicious |= mux->show_fd(&trash, fdt.owner);
@@ -1418,7 +1439,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 					suspicious |= xprt->show_fd(&trash, conn, xprt_ctx);
 			}
 		}
-		else if (fdt.iocb == sock_accept_iocb) {
+		else if (li && !xprt_ctx) {
 			struct sockaddr_storage sa;
 			socklen_t salen;
 
