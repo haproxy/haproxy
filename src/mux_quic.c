@@ -417,11 +417,13 @@ static int qcs_is_close_remote(struct qcs *qcs)
 	return qcs->st == QC_SS_HREM || qcs->st == QC_SS_CLO;
 }
 
+/* Allocate if needed buffer <bptr> for stream <qcs>.
+ *
+ * Returns the buffer instance or NULL on allocation failure.
+ */
 struct buffer *qc_get_buf(struct qcs *qcs, struct buffer *bptr)
 {
-	struct buffer *buf = b_alloc(bptr);
-	BUG_ON(!buf);
-	return buf;
+	return b_alloc(bptr);
 }
 
 static struct ncbuf *qc_get_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
@@ -1411,7 +1413,7 @@ static void qcs_destroy(struct qcs *qcs)
 /* Transfer as much as possible data on <qcs> from <in> to <out>. This is done
  * in respect with available flow-control at stream and connection level.
  *
- * Returns the total bytes of transferred data.
+ * Returns the total bytes of transferred data or a negative error code.
  */
 static int qcs_xfer_data(struct qcs *qcs, struct buffer *out, struct buffer *in)
 {
@@ -1421,7 +1423,10 @@ static int qcs_xfer_data(struct qcs *qcs, struct buffer *out, struct buffer *in)
 
 	TRACE_ENTER(QMUX_EV_QCS_SEND, qcc->conn, qcs);
 
-	qc_get_buf(qcs, out);
+	if (!qc_get_buf(qcs, out)) {
+		TRACE_ERROR("buffer alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+		goto err;
+	}
 
 	/*
 	 * QCS out buffer diagram
@@ -1473,6 +1478,10 @@ static int qcs_xfer_data(struct qcs *qcs, struct buffer *out, struct buffer *in)
 	}
 
 	return total;
+
+ err:
+	TRACE_DEVEL("leaving on error", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+	return -1;
 }
 
 /* Prepare a STREAM frame for <qcs> instance using <out> as payload. The frame
@@ -1838,6 +1847,9 @@ static int _qc_send_qcs(struct qcs *qcs, struct list *frms)
 
 		/* Transfer data from <buf> to <out>. */
 		xfer = qcs_xfer_data(qcs, out, buf);
+		if (xfer < 0)
+			goto err;
+
 		if (xfer > 0) {
 			qcs_notify_send(qcs);
 			qcs->flags &= ~QC_SF_BLK_MROOM;
