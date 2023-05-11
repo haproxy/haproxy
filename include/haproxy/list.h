@@ -72,7 +72,12 @@
 	} while (0)
 
 /* removes an element from a list and returns it */
+#if defined(DEBUG_LIST)
+/* purposely corrupt the detached element to detect use-after-delete */
+#define LIST_DELETE(el) ({ typeof(el) __ret = (el); (el)->n->p = (el)->p; (el)->p->n = (el)->n; *(__ret) = (struct list)ILH; (__ret);})
+#else
 #define LIST_DELETE(el) ({ typeof(el) __ret = (el); (el)->n->p = (el)->p; (el)->p->n = (el)->n; (__ret); })
+#endif
 
 /* removes an element from a list, initializes it and returns it.
  * This is faster than LIST_DELETE+LIST_INIT as we avoid reloading the pointers.
