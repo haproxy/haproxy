@@ -344,6 +344,7 @@ enum info_field {
 	INF_START_TIME_SEC,
 	INF_TAINTED,
 	INF_WARNINGS,
+	INF_MAXCONN_REACHED,
 
 	/* must always be the last one */
 	INF_TOTAL_FIELDS

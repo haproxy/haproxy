@@ -157,6 +157,7 @@ const struct name_desc info_fields[INF_TOTAL_FIELDS] = {
 	[INF_BUILD_INFO]                     = { .name = "Build info",                  .desc = "Build info" },
 	[INF_TAINTED]                        = { .name = "Tainted",                     .desc = "Experimental features used" },
 	[INF_WARNINGS]                       = { .name = "TotalWarnings",               .desc = "Total warnings issued" },
+	[INF_MAXCONN_REACHED]                = { .name = "MaxconnReached",              .desc = "Number of times an accepted connection resulted in Maxconn being reached" },
 };
 
 const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
@@ -3603,7 +3604,7 @@ static void stats_dump_html_info(struct stconn *sc, struct uri_auth *uri)
 	              "<p><b>pid = </b> %d (process #%d, nbproc = %d, nbthread = %d)<br>\n"
 	              "<b>uptime = </b> %dd %dh%02dm%02ds; warnings = %u<br>\n"
 	              "<b>system limits:</b> memmax = %s%s; ulimit-n = %d<br>\n"
-	              "<b>maxsock = </b> %d; <b>maxconn = </b> %d; <b>maxpipes = </b> %d<br>\n"
+	              "<b>maxsock = </b> %d; <b>maxconn = </b> %d; <b>reached = </b> %llu; <b>maxpipes = </b> %d<br>\n"
 	              "current conns = %d; current pipes = %d/%d; conn rate = %d/sec; bit rate = %.3f %cbps<br>\n"
 	              "Running tasks: %d/%d; idle = %d %%<br>\n"
 	              "</td><td align=\"center\" nowrap>\n"
@@ -3641,7 +3642,7 @@ static void stats_dump_html_info(struct stconn *sc, struct uri_auth *uri)
 	              global.rlimit_memmax ? ultoa(global.rlimit_memmax) : "unlimited",
 	              global.rlimit_memmax ? " MB" : "",
 	              global.rlimit_nofile,
-	              global.maxsock, global.maxconn, global.maxpipes,
+	              global.maxsock, global.maxconn, HA_ATOMIC_LOAD(&maxconn_reached), global.maxpipes,
 	              actconn, pipes_used, pipes_used+pipes_free, read_freq_ctr(&global.conn_per_sec),
 		      bps >= 1000000000UL ? (bps / 1000000000.0) : bps >= 1000000UL ? (bps / 1000000.0) : (bps / 1000.0),
 		      bps >= 1000000000UL ? 'G' : bps >= 1000000UL ? 'M' : 'k',
@@ -4740,6 +4741,7 @@ int stats_fill_info(struct field *info, int len, uint flags)
 
 	info[INF_TAINTED]                        = mkf_str(FO_STATUS, chunk_newstr(out));
 	info[INF_WARNINGS]                       = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&tot_warnings));
+	info[INF_MAXCONN_REACHED]                = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&maxconn_reached));
 	chunk_appendf(out, "%#x", get_tainted());
 
 	return 1;

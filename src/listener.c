@@ -47,6 +47,8 @@ struct bind_kw_list bind_keywords = {
 /* list of the temporarily limited listeners because of lack of resource */
 static struct mt_list global_listener_queue = MT_LIST_HEAD_INIT(global_listener_queue);
 static struct task *global_listener_queue_task;
+/* number of times an accepted connection resulted in maxconn being reached */
+ullong maxconn_reached = 0;
 __decl_thread(static HA_RWLOCK_T global_listener_rwlock);
 
 /* listener status for stats */
@@ -1163,6 +1165,12 @@ void listener_accept(struct listener *l)
 		}
 
 		_HA_ATOMIC_INC(&activity[tid].accepted);
+
+		/* count the number of times an accepted connection resulted in
+		 * maxconn being reached.
+		 */
+		if (unlikely(_HA_ATOMIC_LOAD(&actconn) + 1 >= global.maxconn))
+			_HA_ATOMIC_INC(&maxconn_reached);
 
 		/* past this point, l->bind_conf->accept() will automatically decrement
 		 * l->nbconn, feconn and actconn once done. Setting next_*conn=0

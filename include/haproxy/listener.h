@@ -220,6 +220,9 @@ extern struct accept_queue_ring accept_queue_rings[MAX_THREADS] __attribute__((a
 extern const char* li_status_st[LI_STATE_COUNT];
 enum li_status get_li_status(struct listener *l);
 
+/* number of times an accepted connection resulted in maxconn being reached */
+extern ullong maxconn_reached;
+
 static inline uint accept_queue_ring_len(const struct accept_queue_ring *ring)
 {
 	uint idx, head, tail, len;
