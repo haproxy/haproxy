@@ -317,6 +317,26 @@ struct act_rule *parse_http_after_res_cond(const char **args, const char *file, 
 	return NULL;
 }
 
+/* completely free redirect rule */
+void http_free_redirect_rule(struct redirect_rule *rdr)
+{
+	struct logformat_node *lf, *lfb;
+
+	if (rdr->cond) {
+		prune_acl_cond(rdr->cond);
+		free(rdr->cond);
+	}
+	free(rdr->rdr_str);
+	free(rdr->cookie_str);
+	list_for_each_entry_safe(lf, lfb, &rdr->rdr_fmt, list) {
+		LIST_DELETE(&lf->list);
+		release_sample_expr(lf->expr);
+		free(lf->arg);
+		free(lf);
+	}
+	free(rdr);
+}
+
 /* Parses a redirect rule. Returns the redirect rule on success or NULL on error,
  * with <err> filled with the error message. If <use_fmt> is not null, builds a
  * dynamic log-format rule instead of a static string. Parameter <dir> indicates

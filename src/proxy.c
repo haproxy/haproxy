@@ -32,6 +32,7 @@
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_ext.h>
+#include <haproxy/http_rules.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/obj_type-t.h>
@@ -238,19 +239,7 @@ void free_proxy(struct proxy *p)
 
 	list_for_each_entry_safe(rdr, rdrb, &p->redirect_rules, list) {
 		LIST_DELETE(&rdr->list);
-		if (rdr->cond) {
-			prune_acl_cond(rdr->cond);
-			free(rdr->cond);
-		}
-		free(rdr->rdr_str);
-		free(rdr->cookie_str);
-		list_for_each_entry_safe(lf, lfb, &rdr->rdr_fmt, list) {
-			LIST_DELETE(&lf->list);
-			release_sample_expr(lf->expr);
-			free(lf->arg);
-			free(lf);
-		}
-		free(rdr);
+		http_free_redirect_rule(rdr);
 	}
 
 	list_for_each_entry_safe(log, logb, &p->logsrvs, list) {
