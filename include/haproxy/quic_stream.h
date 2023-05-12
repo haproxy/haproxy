@@ -16,7 +16,7 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing);
 
 struct buffer *qc_stream_buf_get(struct qc_stream_desc *stream);
 struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
-                                   uint64_t offset);
+                                   uint64_t offset, int *avail);
 void qc_stream_buf_release(struct qc_stream_desc *stream);
 
 #endif /* USE_QUIC */

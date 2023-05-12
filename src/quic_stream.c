@@ -215,12 +215,11 @@ struct buffer *qc_stream_buf_get(struct qc_stream_desc *stream)
 	return &stream->buf->buf;
 }
 
-/* Check if a new stream buffer can be allocated for the connection <qc>.
- * Returns a boolean.
- */
+/* Returns the count of available buffer left for <qc>. */
 static int qc_stream_buf_avail(struct quic_conn *qc)
 {
-	return qc->stream_buf_count < global.tune.quic_streams_buf;
+	BUG_ON(qc->stream_buf_count > global.tune.quic_streams_buf);
+	return global.tune.quic_streams_buf - qc->stream_buf_count;
 }
 
 /* Allocate a new current buffer for <stream>. The buffer limit count for the
@@ -228,17 +227,19 @@ static int qc_stream_buf_avail(struct quic_conn *qc)
  * is not NULL prior to this call. The new buffer represents stream payload at
  * offset <offset>.
  *
- * Returns the buffer or NULL.
+ * Returns the buffer or NULL on error. Caller may check <avail> to ensure if
+ * the connection buffer limit was reached or a fatal error was encountered.
  */
 struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
-                                   uint64_t offset)
+                                   uint64_t offset, int *avail)
 {
 	struct quic_conn *qc = stream->qc;
 
 	/* current buffer must be released first before allocate a new one. */
 	BUG_ON(stream->buf);
 
-	if (!qc_stream_buf_avail(qc))
+	*avail = qc_stream_buf_avail(qc);
+	if (!*avail)
 		return NULL;
 
 	stream->buf_offset = offset;
