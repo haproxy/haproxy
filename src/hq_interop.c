@@ -88,7 +88,7 @@ static ssize_t hq_interop_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 	htx_add_endof(htx, HTX_BLK_EOH);
 	htx_to_buf(htx, &htx_buf);
 
-	if (!qc_attach_sc(qcs, &htx_buf))
+	if (!qc_attach_sc(qcs, &htx_buf, fin))
 		return -1;
 
 	b_free(&htx_buf);

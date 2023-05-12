@@ -680,7 +680,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	htx_to_buf(htx, &htx_buf);
 	htx = NULL;
 
-	if (!qc_attach_sc(qcs, &htx_buf)) {
+	if (!qc_attach_sc(qcs, &htx_buf, fin)) {
 		h3c->err = H3_INTERNAL_ERROR;
 		len = -1;
 		goto out;

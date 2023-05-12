@@ -639,7 +639,7 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 	return NULL;
 }
 
-struct stconn *qc_attach_sc(struct qcs *qcs, struct buffer *buf)
+struct stconn *qc_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
 {
 	struct qcc *qcc = qcs->qcc;
 	struct session *sess = qcc->conn->owner;
@@ -678,6 +678,11 @@ struct stconn *qc_attach_sc(struct qcs *qcs, struct buffer *buf)
 	 */
 	BUG_ON_HOT(!LIST_INLIST(&qcs->el_opening));
 	LIST_DEL_INIT(&qcs->el_opening);
+
+	if (fin) {
+		TRACE_STATE("report end-of-input", QMUX_EV_STRM_RECV, qcc->conn, qcs);
+		se_fl_set(qcs->sd, SE_FL_EOI);
+	}
 
 	return qcs->sd->sc;
 }
@@ -2717,7 +2722,7 @@ static size_t qc_recv_buf(struct stconn *sc, struct buffer *buf,
 	else {
 		se_fl_clr(qcs->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 
-		/* Set end-of-input if FIN received and all data extracted. */
+		/* Set end-of-input when full message properly received. */
 		if (fin) {
 			TRACE_STATE("report end-of-input", QMUX_EV_STRM_RECV, qcc->conn, qcs);
 			se_fl_set(qcs->sd, SE_FL_EOI);
