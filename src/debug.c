@@ -982,7 +982,7 @@ static int debug_parse_cli_task(char **args, char *payload, struct appctx *appct
 		return 1;
 
 	/* parse the pointer value */
-	ptr = (void *)strtoll(args[3], &endarg, 0);
+	ptr = (void *)strtoul(args[3], &endarg, 0);
 	if (!*args[3] || *endarg)
 		goto usage;
 
