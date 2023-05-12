@@ -10,6 +10,8 @@
  *
  */
 
+#include <haproxy/ssl_sock-t.h>
+
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
 #include <haproxy/global.h>
@@ -346,6 +348,46 @@ static void session_prepare_log_prefix(struct session *sess)
 		chunk_appendf(&trash, "] %s/%d", sess->fe->id, sess->listener->luid);
 }
 
+
+/* fill the trash buffer with the string to use for send_log during
+ * session_kill_embryonic(). Add log prefix and error string.
+ *
+ * The function is able to dump an SSL error string when CO_ER_SSL_HANDSHAKE
+ * is met.
+ */
+static void session_build_err_string(struct session *sess)
+{
+	struct connection *conn = __objt_conn(sess->origin);
+	const char *err_msg;
+	struct ssl_sock_ctx __maybe_unused *ssl_ctx;
+
+	err_msg	= conn_err_code_str(conn);
+	session_prepare_log_prefix(sess); /* use trash buffer */
+
+#ifdef USE_OPENSSL
+	ssl_ctx = conn_get_ssl_sock_ctx(conn);
+
+
+	if (conn->err_code == CO_ER_SSL_HANDSHAKE && ssl_ctx) {
+		const char *err_ssl_str = ERR_error_string(ssl_ctx->error_code, NULL);
+
+		chunk_appendf(&trash, ": SSL handshake failure (%s)\n", err_ssl_str);
+	}
+
+	else
+#endif /* ! USE_OPENSSL */
+
+	if (err_msg)
+		chunk_appendf(&trash, ": %s\n", err_msg);
+	else
+		chunk_appendf(&trash, ": unknown connection error (code=%d flags=%08x)\n",
+		              conn->err_code, conn->flags);
+
+	return;
+}
+
+
+
 /* This function kills an existing embryonic session. It stops the connection's
  * transport layer, releases assigned resources, resumes the listener if it was
  * disabled and finally kills the file descriptor. This function requires that
@@ -357,7 +399,6 @@ static void session_kill_embryonic(struct session *sess, unsigned int state)
 	struct connection *conn = __objt_conn(sess->origin);
 	struct task *task = sess->task;
 	unsigned int log = sess->fe->to_log;
-	const char *err_msg;
 
 	if (sess->fe->options2 & PR_O2_LOGERRORS)
 		level = LOG_ERR;
@@ -386,14 +427,8 @@ static void session_kill_embryonic(struct session *sess, unsigned int state)
 			sess_log(sess);
 		}
 		else {
-			session_prepare_log_prefix(sess);
-			err_msg = conn_err_code_str(conn);
-			if (err_msg)
-				send_log(sess->fe, level, "%s: %s\n", trash.area,
-					 err_msg);
-			else
-				send_log(sess->fe, level, "%s: unknown connection error (code=%d flags=%08x)\n",
-					 trash.area, conn->err_code, conn->flags);
+			session_build_err_string(sess);
+			send_log(sess->fe, level, "%s", trash.area);
 		}
 	}
 
