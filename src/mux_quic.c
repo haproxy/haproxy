@@ -2569,6 +2569,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
  fail_install_app_ops:
 	if (qcc->app_ops && qcc->app_ops->release)
 		qcc->app_ops->release(qcc->ctx);
+	task_destroy(qcc->task);
  fail_no_timeout_task:
 	tasklet_free(qcc->wait_event.tasklet);
  fail_no_tasklet:
