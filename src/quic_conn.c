@@ -742,13 +742,6 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 		}
 
-		if (mask & QUIC_EV_CONN_RCV) {
-			const struct quic_dgram *dgram = a2;
-
-			if (dgram)
-				chunk_appendf(&trace_buf, " dgram.len=%zu", dgram->len);
-		}
-
 		if (mask & QUIC_EV_CONN_IDLE_TIMER) {
 			if (tick_isset(qc->ack_expire))
 				chunk_appendf(&trace_buf, " ack_expire=%ums",
@@ -761,6 +754,38 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				              TICKS_TO_MS(tick_remain(now_ms, qc->idle_timer_task->expire)));
 		}
 	}
+
+	if (mask & QUIC_EV_CONN_RCV) {
+		int i;
+		const struct quic_dgram *dgram = a2;
+		char bufaddr[INET6_ADDRSTRLEN], bufport[6];
+
+		if (qc) {
+			addr_to_str(&qc->peer_addr, bufaddr, sizeof(bufaddr));
+			port_to_str(&qc->peer_addr, bufport, sizeof(bufport));
+			chunk_appendf(&trace_buf, " peer_addr=%s:%s ", bufaddr, bufport);
+		}
+
+		if (dgram) {
+			chunk_appendf(&trace_buf, " dgram.len=%zu", dgram->len);
+			/* Socket */
+			if (dgram->saddr.ss_family == AF_INET ||
+				dgram->saddr.ss_family == AF_INET6) {
+				addr_to_str(&dgram->saddr, bufaddr, sizeof(bufaddr));
+				port_to_str(&dgram->saddr, bufport, sizeof(bufport));
+				chunk_appendf(&trace_buf, "saddr=%s:%s ", bufaddr, bufport);
+
+				addr_to_str(&dgram->daddr, bufaddr, sizeof(bufaddr));
+				port_to_str(&dgram->daddr, bufport, sizeof(bufport));
+				chunk_appendf(&trace_buf, "daddr=%s:%s ", bufaddr, bufport);
+			}
+			/* DCID */
+			for (i = 0; i < dgram->dcid_len; ++i)
+				chunk_appendf(&trace_buf, "%02x", dgram->dcid[i]);
+
+		}
+	}
+
 	if (mask & QUIC_EV_CONN_LPKT) {
 		const struct quic_rx_packet *pkt = a2;
 		const uint64_t *len = a3;
