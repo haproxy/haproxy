@@ -1989,11 +1989,11 @@ void proxy_cond_disable(struct proxy *p)
 	 * peers, etc) we must not report them at all as they're not really on
 	 * the data plane but on the control plane.
 	 */
-	if (p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP || p->mode == PR_MODE_SYSLOG)
+	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP || p->mode == PR_MODE_SYSLOG) && !(p->cap & PR_CAP_INT))
 		ha_warning("Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
 			   p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 
-	if (p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
+	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP) && !(p->cap & PR_CAP_INT))
 		send_log(p, LOG_WARNING, "Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
 			 p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 
