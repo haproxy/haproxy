@@ -2305,9 +2305,26 @@ void pcli_write_prompt(struct stream *s)
 	co_inject(oc, msg->area, msg->data);
 }
 
-
 /* The pcli_* functions are used for the CLI proxy in the master */
 
+
+/* flush the input buffer and output an error */
+void pcli_error(struct stream *s, const char *msg)
+{
+	struct buffer *buf = get_trash_chunk();
+	struct channel *oc = &s->res;
+	struct channel *ic = &s->req;
+
+	chunk_initstr(buf, msg);
+
+	if (likely(buf && buf->data))
+		co_inject(oc, buf->area, buf->data);
+
+	channel_erase(ic);
+
+}
+
+/* flush the input buffer, output the error and close */
 void pcli_reply_and_close(struct stream *s, const char *msg)
 {
 	struct buffer *buf = get_trash_chunk();
@@ -2740,13 +2757,12 @@ read_again:
 		pcli_write_prompt(s);
 		goto read_again;
 	} else if (to_forward == -1) {
-                if (errmsg) {
-                        /* there was an error during the parsing */
-                        pcli_reply_and_close(s, errmsg);
-                        s->req.analysers &= ~AN_REQ_WAIT_CLI;
-                        return 0;
-                }
-                goto missing_data;
+                if (!errmsg) /* no error means missing data */
+			goto missing_data;
+
+		/* there was an error during the parsing */
+		pcli_error(s, errmsg);
+		pcli_write_prompt(s);
 	}
 
 	return 0;
