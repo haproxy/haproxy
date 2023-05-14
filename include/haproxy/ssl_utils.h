@@ -39,6 +39,7 @@ int ssl_sock_get_dn_entry(X509_NAME *a, const struct buffer *entry, int pos,
 int ssl_sock_get_dn_formatted(X509_NAME *a, const struct buffer *format, struct buffer *out);
 int ssl_sock_get_dn_oneline(X509_NAME *a, struct buffer *out);
 X509* ssl_sock_get_peer_certificate(SSL *ssl);
+X509* ssl_sock_get_verified_chain_root(SSL *ssl);
 unsigned int openssl_version_parser(const char *version);
 void exclude_tls_grease(char *input, int len, struct buffer *output);
 int x509_v_err_str_to_int(const char *str);

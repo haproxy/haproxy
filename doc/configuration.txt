@@ -20768,6 +20768,20 @@ ssl_c_notbefore : string
   YYMMDDhhmmss[Z] when the incoming connection was made over an SSL/TLS
   transport layer.
 
+ssl_c_r_dn([<entry>[,<occ>[,<format>]]]) : string
+  When the incoming connection was made over an SSL/TLS transport layer, and is
+  successfully validated with the configured ca-file, returns the full
+  distinguished name of the root CA of the certificate presented by the client
+  when no <entry> is specified, or the value of the first given entry found from
+  the beginning of the DN. If a positive/negative occurrence number is specified
+  as the optional second argument, it returns the value of the nth given entry
+  value from the beginning/end of the DN. For instance, "ssl_c_r_dn(OU,2)" the
+  second organization unit, and "ssl_c_r_dn(CN)" retrieves the common name. The
+  <format> parameter allows you to receive the DN suitable for consumption by
+  different protocols. Currently supported is rfc2253 for LDAP v3. If you'd like
+  to modify the format only you can specify an empty string and zero for the
+  first two parameters. Example: ssl_c_r_dn(,0,rfc2253)
+
 ssl_c_s_dn([<entry>[,<occ>[,<format>]]]) : string
   When the incoming connection was made over an SSL/TLS transport layer,
   returns the full distinguished name of the subject of the certificate

@@ -318,6 +318,33 @@ X509* ssl_sock_get_peer_certificate(SSL *ssl)
 }
 
 /*
+ * This function fetches the x509* for the root CA of client certificate
+ * from the verified chain. We use the SSL_get0_verified_chain and get the
+ * last certificate in the x509 stack.
+ *
+ * Returns NULL in case of failure.
+*/
+X509* ssl_sock_get_verified_chain_root(SSL *ssl)
+{
+	STACK_OF(X509) *chain = NULL;
+	X509 *crt = NULL;
+	int i;
+
+	chain = SSL_get0_verified_chain(ssl);
+	if (!chain)
+		return NULL;
+
+	for (i = 0; i < sk_X509_num(chain); i++) {
+		crt = sk_X509_value(chain, i);
+
+		if (X509_check_issued(crt, crt) == X509_V_OK)
+			break;
+	}
+
+	return crt;
+}
+
+/*
  * Take an OpenSSL version in text format and return a numeric openssl version
  * Return 0 if it failed to parse the version
  *

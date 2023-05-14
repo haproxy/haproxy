@@ -538,6 +538,62 @@ smp_fetch_ssl_fc_has_crt(const struct arg *args, struct sample *smp, const char 
 	return 1;
 }
 
+/* string, returns a string of a formatted full dn \C=..\O=..\OU=.. \CN=.. of the
+ * client certificate's root CA.
+ */
+static int
+smp_fetch_ssl_r_dn(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	X509 *crt = NULL;
+	X509_NAME *name;
+	int ret = 0;
+	struct buffer *smp_trash;
+	struct connection *conn;
+	SSL *ssl;
+
+	conn = objt_conn(smp->sess->origin);
+	ssl = ssl_sock_get_ssl_object(conn);
+	if (!ssl)
+		return 0;
+
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	crt = ssl_sock_get_verified_chain_root(ssl);
+	if (!crt)
+		goto out;
+
+	name = X509_get_subject_name(crt);
+	if (!name)
+		goto out;
+
+	smp_trash = get_trash_chunk();
+	if (args[0].type == ARGT_STR && args[0].data.str.data > 0) {
+		int pos = 1;
+
+		if (args[1].type == ARGT_SINT)
+			pos = args[1].data.sint;
+
+		if (ssl_sock_get_dn_entry(name, &args[0].data.str, pos, smp_trash) <= 0)
+			goto out;
+	}
+	else if (args[2].type == ARGT_STR && args[2].data.str.data > 0) {
+		if (ssl_sock_get_dn_formatted(name, &args[2].data.str, smp_trash) <= 0)
+			goto out;
+	}
+	else if (ssl_sock_get_dn_oneline(name, smp_trash) <= 0)
+		goto out;
+
+	smp->flags = SMP_F_VOL_SESS;
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str = *smp_trash;
+	ret = 1;
+out:
+	return ret;
+}
+
 /* binary, returns a certificate in a binary chunk (der/raw).
  * The 5th keyword char is used to know if SSL_get_certificate or SSL_get_peer_certificate
  * should be use.
@@ -2142,6 +2198,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_c_key_alg",          smp_fetch_ssl_x_key_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_notafter",         smp_fetch_ssl_x_notafter,     0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_notbefore",        smp_fetch_ssl_x_notbefore,    0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_c_r_dn",             smp_fetch_ssl_r_dn,           ARG3(0,STR,SINT,STR),val_dnfmt,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_sig_alg",          smp_fetch_ssl_x_sig_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_s_dn",             smp_fetch_ssl_x_s_dn,         ARG3(0,STR,SINT,STR),val_dnfmt,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_serial",           smp_fetch_ssl_x_serial,       0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
