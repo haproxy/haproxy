@@ -6396,11 +6396,11 @@ static int quic_generate_retry_token(unsigned char *token, size_t len,
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT);
 
-	/* We copy the odcid into the token, prefixed by its one byte
-	 * length, the format token byte. It is followed by an AEAD TAG, and finally
+	/* The token is made of the token format byte, the ODCID prefixed by its one byte
+	 * length, the creation timestamp, an AEAD TAG, and finally
 	 * the random bytes used to derive the secret to encrypt the token.
 	 */
-	if (1 + dcid->len + 1 + QUIC_TLS_TAG_LEN + sizeof salt > len)
+	if (1 + odcid->len + 1 + sizeof(timestamp) + QUIC_TLS_TAG_LEN + QUIC_RETRY_TOKEN_SALTLEN > len)
 		goto err;
 
 	aadlen = quic_generate_retry_token_aad(aad, version, dcid, addr);
