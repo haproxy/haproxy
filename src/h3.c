@@ -1061,6 +1061,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 		if (!(appbuf = qc_get_buf(qcs, &qcs->rx.app_buf))) {
 			TRACE_ERROR("data buffer alloc failure", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 			h3c->err = H3_INTERNAL_ERROR;
+			goto err;
 		}
 
 		htx = htx_from_buf(appbuf);
