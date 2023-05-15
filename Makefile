@@ -690,7 +690,7 @@ ifneq ($(USE_51DEGREES),)
     ifeq ($(USE_THREAD),)
       51DEGREES_CFLAGS += -DFIFTYONEDEGREES_NO_THREADING -DFIFTYONE_DEGREES_NO_THREADING
     endif
-    USE_ATOMIC          = implicit
+    USE_LIBATOMIC       = implicit
   endif # 51DEGREES_VER==4
 
   ifeq ($(51DEGREES_VER),3)  # v3 here
