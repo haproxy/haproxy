@@ -1844,12 +1844,12 @@ static int _qc_send_qcs(struct qcs *qcs, struct list *frms)
 			out = qc_stream_buf_alloc(qcs->stream, qcs->tx.offset,
 			                          &buf_avail);
 			if (!out) {
-				if (!buf_avail) {
+				if (buf_avail) {
 					TRACE_ERROR("stream desc alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
 					goto err;
 				}
 
-				TRACE_STATE("cannot allocate stream desc buffer", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+				TRACE_STATE("hitting stream desc buffer limit", QMUX_EV_QCS_SEND, qcc->conn, qcs);
 				qcc->flags |= QC_CF_CONN_FULL;
 				goto out;
 			}
