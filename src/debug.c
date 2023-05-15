@@ -1004,7 +1004,7 @@ static int debug_parse_cli_task(char **args, char *payload, struct appctx *appct
 	t = ptr;
 	caller = t->caller;
 	msg = NULL;
-	task_ok = may_access(t + sizeof(*t) - 1);
+	task_ok = may_access(ptr + sizeof(*t) - 1);
 
 	chunk_reset(&trash);
 	resolve_sym_name(&trash, NULL, (const void *)t->process);
