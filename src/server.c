@@ -5387,6 +5387,7 @@ static int _srv_update_status_op(struct server *s, enum srv_op_st_chg_cause caus
 				 tmptrash->area);
 			send_email_alert(s, log_level, "%s",
 					 tmptrash->area);
+			free_trash_chunk(tmptrash);
 		}
 	}
 	else if ((s->cur_state != SRV_ST_STOPPING) && (s->next_state == SRV_ST_STOPPING)) {
