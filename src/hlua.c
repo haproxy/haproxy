@@ -9329,7 +9329,7 @@ static struct task *hlua_event_runner(struct task *task, void *context, unsigned
 	const char *error = NULL;
 
 	if (!hlua_sub->paused && event_hdl_async_equeue_size(&hlua_sub->equeue) > 100) {
-		const char *trace;
+		const char *trace = NULL;
 
 		/* We reached the limit of pending events in the queue: we should
 		 * warn the user, and temporarily pause the subscription to give a chance
@@ -9345,14 +9345,19 @@ static struct task *hlua_event_runner(struct task *task, void *context, unsigned
 		event_hdl_pause(hlua_sub->sub);
 		hlua_sub->paused = 1;
 
-		/* The following Lua calls can fail. */
-		if (!SET_SAFE_LJMP(hlua_sub->hlua))
-			trace = NULL;
-		trace = hlua_traceback(hlua_sub->hlua->T, ", ");
-		/* At this point the execution is safe. */
-		RESET_SAFE_LJMP(hlua_sub->hlua);
-
-		ha_warning("Lua event_hdl: pausing the subscription because the function fails to keep up the pace (%u unconsumed events): %s\n", event_hdl_async_equeue_size(&hlua_sub->equeue), ((trace) ? trace : ""));
+		if (SET_SAFE_LJMP(hlua_sub->hlua)) {
+			/* The following Lua call may fail. */
+			trace = hlua_traceback(hlua_sub->hlua->T, ", ");
+			/* At this point the execution is safe. */
+			RESET_SAFE_LJMP(hlua_sub->hlua);
+		} else {
+			/* Lua error was raised while fetching lua trace from current ctx */
+			SEND_ERR(NULL, "Lua event_hdl: unexpected error (memory failure?).\n");
+		}
+		ha_warning("Lua event_hdl: pausing the subscription because the handler fails "
+			   "to keep up the pace (%u unconsumed events) from %s.\n",
+			   event_hdl_async_equeue_size(&hlua_sub->equeue),
+			   (trace) ? trace : "[unknown]");
 	}
 
 	if (HLUA_IS_RUNNING(hlua_sub->hlua)) {
