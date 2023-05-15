@@ -351,18 +351,16 @@ int sc_attach_strm(struct stconn *sc, struct stream *strm)
 static void sc_detach_endp(struct stconn **scp)
 {
 	struct stconn *sc = *scp;
+	struct xref *peer;
 
 	if (!sc)
 		return;
 
-	if (sc->sedesc) {
-		struct xref *peer;
 
-		/* Remove my link in the original objects. */
-		peer = xref_get_peer_and_lock(&sc->sedesc->xref);
-		if (peer)
-			xref_disconnect(&sc->sedesc->xref, peer);
-	}
+	/* Remove my link in the original objects. */
+	peer = xref_get_peer_and_lock(&sc->sedesc->xref);
+	if (peer)
+		xref_disconnect(&sc->sedesc->xref, peer);
 
 	if (sc_ep_test(sc, SE_FL_T_MUX)) {
 		struct connection *conn = __sc_conn(sc);
