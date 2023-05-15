@@ -603,34 +603,41 @@ static void h2c_update_timeout(struct h2c *h2c)
 
 	if (h2c_may_expire(h2c)) {
 		/* no more streams attached */
-		if (h2c->last_sid >= 0) {
-			/* GOAWAY sent, closing in progress */
-			h2c->task->expire = tick_add_ifset(now_ms, h2c->shut_timeout);
-			is_idle_conn = 1;
-		} else if (br_data(h2c->mbuf)) {
+		if (br_data(h2c->mbuf)) {
 			/* pending output data: always the regular data timeout */
 			h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
-		} else if (!(h2c->flags & H2_CF_IS_BACK) && h2c->max_id > 0 && !b_data(&h2c->dbuf)) {
-			/* idle after having seen one stream => keep-alive */
-			int to;
-
-			if (tick_isset(h2c->proxy->timeout.httpka))
-				to = h2c->proxy->timeout.httpka;
-			else
-				to = h2c->proxy->timeout.httpreq;
-
-			h2c->task->expire = tick_add_ifset(h2c->idle_start, to);
-			is_idle_conn = 1;
 		} else {
-			/* before first request, or started to deserialize a
-			 * new req => http-request, but only set, not refresh.
-			 */
-			int exp = (h2c->flags & H2_CF_IS_BACK) ? TICK_ETERNITY : h2c->proxy->timeout.httpreq;
-			h2c->task->expire = tick_add_ifset(h2c->idle_start, exp);
+			/* no stream, no output data */
+			if (!(h2c->flags & H2_CF_IS_BACK)) {
+				int to;
+
+				if (h2c->max_id > 0 && !b_data(&h2c->dbuf) &&
+				    tick_isset(h2c->proxy->timeout.httpka)) {
+					/* idle after having seen one stream => keep-alive */
+					to = h2c->proxy->timeout.httpka;
+				} else {
+					/* before first request, or started to deserialize a
+					 * new req => http-request.
+					 */
+					to = h2c->proxy->timeout.httpreq;
+				}
+
+				h2c->task->expire = tick_add_ifset(h2c->idle_start, to);
+				is_idle_conn = 1;
+			}
+
+			if (h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED)) {
+				/* GOAWAY sent (or failed), closing in progress */
+				int exp = tick_add_ifset(now_ms, h2c->shut_timeout);
+
+				h2c->task->expire = tick_first(h2c->task->expire, exp);
+				is_idle_conn = 1;
+			}
+
+			/* if a timeout above was not set, fall back to the default one */
+			if (!tick_isset(h2c->task->expire))
+				h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
 		}
-		/* if a timeout above was not set, fall back to the default one */
-		if (!tick_isset(h2c->task->expire))
-			h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
 
 		if ((h2c->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) &&
 		    is_idle_conn && tick_isset(global.close_spread_end)) {
