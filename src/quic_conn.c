@@ -6508,6 +6508,16 @@ static int quic_retry_token_check(struct quic_rx_packet *pkt,
 		goto err;
 	}
 
+	/* The token is made of the token format byte, the ODCID prefixed by its one byte
+	 * length, the creation timestamp, an AEAD TAG, and finally
+	 * the random bytes used to derive the secret to encrypt the token.
+	 */
+	if (tokenlen < 2 + QUIC_ODCID_MINLEN + sizeof(uint32_t) + QUIC_TLS_TAG_LEN + QUIC_RETRY_TOKEN_SALTLEN ||
+	    tokenlen > 2 + QUIC_CID_MAXLEN + sizeof(uint32_t) + QUIC_TLS_TAG_LEN + QUIC_RETRY_TOKEN_SALTLEN) {
+		TRACE_ERROR("invalid token length", QUIC_EV_CONN_LPKT, qc);
+		goto err;
+	}
+
 	aadlen = quic_generate_retry_token_aad(aad, qv->num, &pkt->scid, &dgram->saddr);
 	salt = token + tokenlen - QUIC_RETRY_TOKEN_SALTLEN;
 	if (!quic_tls_derive_retry_token_secret(EVP_sha256(), key, sizeof key, iv, sizeof iv,
@@ -6521,7 +6531,7 @@ static int quic_retry_token_check(struct quic_rx_packet *pkt,
 		goto err;
 	}
 
-	/* Do not decrypt the QUIC_TOKEN_FMT_RETRY byte */
+	/* The token is prefixed by a one-byte length format which is not ciphered. */
 	if (!quic_tls_decrypt2(buf, token + 1, tokenlen - QUIC_RETRY_TOKEN_SALTLEN - 1, aad, aadlen,
 	                       ctx, aead, key, iv)) {
 		TRACE_ERROR("Could not decrypt retry token", QUIC_EV_CONN_LPKT, qc);
