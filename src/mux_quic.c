@@ -1217,12 +1217,20 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 		goto err;
 	}
 
+	/* RFC 9000 3.2. Receiving Stream States
+	 *
+	 * A RESET_STREAM signal might be suppressed or withheld
+	 * if stream data is completely received and is buffered to be read by
+	 * the application. If the RESET_STREAM is suppressed, the receiving
+	 * part of the stream remains in "Data Recvd".
+	 */
 	if (!qcs || qcs_is_close_remote(qcs))
 		goto out;
 
 	TRACE_PROTO("receiving RESET_STREAM", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
 	qcs_idle_open(qcs);
 
+	/* Ensure stream closure is not forbidden by application protocol. */
 	if (qcc->app_ops->close) {
 		if (qcc->app_ops->close(qcs, QCC_APP_OPS_CLOSE_SIDE_RD)) {
 			TRACE_ERROR("closure rejected by app layer", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
@@ -1237,7 +1245,14 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 		goto err;
 	}
 
-	qcs->flags |= QC_SF_SIZE_KNOWN;
+	/* RFC 9000 3.2. Receiving Stream States
+	 *
+	 * An
+	 * implementation MAY interrupt delivery of stream data, discard any
+	 * data that was not consumed, and signal the receipt of the
+	 * RESET_STREAM.
+	 */
+	qcs->flags |= QC_SF_SIZE_KNOWN|QC_SF_RECV_RESET;
 	qcs_close_remote(qcs);
 	qc_free_ncbuf(qcs, &qcs->rx.ncbuf);
 
@@ -2667,6 +2682,21 @@ static size_t qc_recv_buf(struct stconn *sc, struct buffer *buf,
 			 * QCS now expects data from the opposite side.
 			 */
 			se_expect_data(qcs->sd);
+		}
+
+		/* Set end-of-stream on read closed. */
+		if (qcs->flags & QC_SF_RECV_RESET ||
+		    qcc->conn->flags & CO_FL_SOCK_RD_SH) {
+			TRACE_STATE("report end-of-stream", QMUX_EV_STRM_RECV, qcc->conn, qcs);
+			se_fl_set(qcs->sd, SE_FL_EOS);
+
+			/* Set error if EOI not reached. This may happen on
+			 * RESET_STREAM reception or connection error.
+			 */
+			if (!se_fl_test(qcs->sd, SE_FL_EOI)) {
+				TRACE_STATE("report error on stream aborted", QMUX_EV_STRM_RECV, qcc->conn, qcs);
+				se_fl_set(qcs->sd, SE_FL_EOS | SE_FL_ERROR);
+			}
 		}
 
 		if (se_fl_test(qcs->sd, SE_FL_ERR_PENDING)) {
