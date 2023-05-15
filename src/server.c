@@ -5411,7 +5411,6 @@ static int _srv_update_status_op(struct server *s, enum srv_op_st_chg_cause caus
 			send_log(s->proxy, LOG_NOTICE, "%s.\n",
 				 tmptrash->area);
 			free_trash_chunk(tmptrash);
-			tmptrash = NULL;
 		}
 	}
 	else if (((s->cur_state != SRV_ST_RUNNING) && (s->next_state == SRV_ST_RUNNING))
@@ -5453,7 +5452,6 @@ static int _srv_update_status_op(struct server *s, enum srv_op_st_chg_cause caus
 			send_email_alert(s, LOG_NOTICE, "%s",
 					 tmptrash->area);
 			free_trash_chunk(tmptrash);
-			tmptrash = NULL;
 		}
 	}
 	else if (s->cur_eweight != s->next_eweight) {
@@ -5499,7 +5497,6 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 						 tmptrash->area);
 				}
 				free_trash_chunk(tmptrash);
-				tmptrash = NULL;
 			}
 		}
 		else {	/* server was still running */
@@ -5534,7 +5531,6 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 						 tmptrash->area);
 				}
 				free_trash_chunk(tmptrash);
-				tmptrash = NULL;
 			}
 		}
 	}
@@ -5607,7 +5603,6 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 			send_log(s->proxy, LOG_NOTICE, "%s.\n",
 				 tmptrash->area);
 			free_trash_chunk(tmptrash);
-			tmptrash = NULL;
 		}
 
 		server_recalc_eweight(s, 0);
@@ -5647,7 +5642,6 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 				send_log(s->proxy, LOG_NOTICE, "%s.\n",
 					 tmptrash->area);
 				free_trash_chunk(tmptrash);
-				tmptrash = NULL;
 			}
 		}
 		if (!(s->next_admin & SRV_ADMF_RMAINT) && (s->cur_admin & SRV_ADMF_RMAINT)) {
@@ -5665,7 +5659,6 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 				send_log(s->proxy, LOG_NOTICE, "%s.\n",
 					 tmptrash->area);
 				free_trash_chunk(tmptrash);
-				tmptrash = NULL;
 			}
 		}
 		else if (!(s->next_admin & SRV_ADMF_IMAINT) && (s->cur_admin & SRV_ADMF_IMAINT)) {
@@ -5679,7 +5672,6 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 				send_log(s->proxy, LOG_NOTICE, "%s.\n",
 					 tmptrash->area);
 				free_trash_chunk(tmptrash);
-				tmptrash = NULL;
 			}
 		}
 		/* don't report anything when leaving drain mode and remaining in maintenance */
@@ -5712,7 +5704,6 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 							 tmptrash->area);
 				}
 				free_trash_chunk(tmptrash);
-				tmptrash = NULL;
 			}
 		}
 		else if ((s->cur_admin & SRV_ADMF_DRAIN) && !(s->next_admin & SRV_ADMF_DRAIN)) {
@@ -5743,7 +5734,6 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 				send_log(s->proxy, LOG_NOTICE, "%s.\n",
 					 tmptrash->area);
 				free_trash_chunk(tmptrash);
-				tmptrash = NULL;
 			}
 
 			/* now propagate the status change to any LB algorithms */
@@ -5774,7 +5764,6 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 				send_log(s->proxy, LOG_NOTICE, "%s.\n",
 					 tmptrash->area);
 				free_trash_chunk(tmptrash);
-				tmptrash = NULL;
 			}
 		}
 	}
