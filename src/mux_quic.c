@@ -19,6 +19,7 @@
 #include <haproxy/quic_tp-t.h>
 #include <haproxy/ssl_sock-t.h>
 #include <haproxy/stconn.h>
+#include <haproxy/time.h>
 #include <haproxy/trace.h>
 
 DECLARE_POOL(pool_head_qcc, "qcc", sizeof(struct qcc));
@@ -636,6 +637,49 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
  err:
 	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn);
 	return NULL;
+}
+
+struct stconn *qc_attach_sc(struct qcs *qcs, struct buffer *buf)
+{
+	struct qcc *qcc = qcs->qcc;
+	struct session *sess = qcc->conn->owner;
+
+	qcs->sd = sedesc_new();
+	if (!qcs->sd)
+		return NULL;
+
+	qcs->sd->se   = qcs;
+	qcs->sd->conn = qcc->conn;
+	se_fl_set(qcs->sd, SE_FL_T_MUX | SE_FL_ORPHAN | SE_FL_NOT_FIRST);
+	se_expect_no_data(qcs->sd);
+
+	/* TODO duplicated from mux_h2 */
+	sess->t_idle = ns_to_ms(now_ns - sess->accept_ts) - sess->t_handshake;
+
+	if (!sc_new_from_endp(qcs->sd, sess, buf))
+		return NULL;
+
+	/* QC_SF_HREQ_RECV must be set once for a stream. Else, nb_hreq counter
+	 * will be incorrect for the connection.
+	 */
+	BUG_ON_HOT(qcs->flags & QC_SF_HREQ_RECV);
+	qcs->flags |= QC_SF_HREQ_RECV;
+	++qcc->nb_sc;
+	++qcc->nb_hreq;
+
+	/* TODO duplicated from mux_h2 */
+	sess->accept_date = date;
+	sess->accept_ts   = now_ns;
+	sess->t_handshake = 0;
+	sess->t_idle = 0;
+
+	/* A stream must have been registered for HTTP wait before attaching
+	 * it to sedesc. See <qcs_wait_http_req> for more info.
+	 */
+	BUG_ON_HOT(!LIST_INLIST(&qcs->el_opening));
+	LIST_DEL_INIT(&qcs->el_opening);
+
+	return qcs->sd->sc;
 }
 
 /* Use this function for a stream <id> which is not in <qcc> stream tree. It
