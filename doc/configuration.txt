@@ -42,7 +42,8 @@ Summary
 2.3.      Environment variables
 2.4.      Conditional blocks
 2.5.      Time format
-2.6.      Examples
+2.6.      Size format
+2.7.      Examples
 
 3.    Global parameters
 3.1.      Process management and security
@@ -980,7 +981,23 @@ for every keyword. Supported units are :
   - d  : days.    1d = 24h = 1440m = 86400s = 86400000ms
 
 
-2.6. Examples
+2.6. Size format
+----------------
+
+Some parameters involve values representing size, such as bandwidth limits.
+These values are generally expressed in bytes (unless explicitly stated
+otherwise) but may be expressed in any other unit by suffixing the unit to the
+numeric value. It is important to consider this because it will not be repeated
+for every keyword. Supported units are case insensitive :
+
+  - k : kilobytes. 1 kilobyte = 1024 bytes
+  - m : megabytes. 1 megabyte = 1048576 bytes
+  - g : gigabytes. 1 gigabyte = 1073741824 bytes
+
+Both time and size formats require integers, decimal notation is not allowed.
+
+
+2.7. Examples
 -------------
 
     # Simple configuration for an HTTP proxy listening on port 80 on all
