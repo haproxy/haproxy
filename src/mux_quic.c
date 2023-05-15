@@ -2644,10 +2644,11 @@ static size_t qc_recv_buf(struct stconn *sc, struct buffer *buf,
                           size_t count, int flags)
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
+	struct qcc *qcc = qcs->qcc;
 	size_t ret = 0;
 	char fin = 0;
 
-	TRACE_ENTER(QMUX_EV_STRM_RECV, qcs->qcc->conn, qcs);
+	TRACE_ENTER(QMUX_EV_STRM_RECV, qcc->conn, qcs);
 
 	ret = qcs_http_rcv_buf(qcs, buf, count, &fin);
 
@@ -2656,17 +2657,21 @@ static size_t qc_recv_buf(struct stconn *sc, struct buffer *buf,
 	}
 	else {
 		se_fl_clr(qcs->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
-		if (se_fl_test(qcs->sd, SE_FL_ERR_PENDING))
-			se_fl_set(qcs->sd, SE_FL_ERROR);
 
 		/* Set end-of-input if FIN received and all data extracted. */
 		if (fin) {
+			TRACE_STATE("report end-of-input", QMUX_EV_STRM_RECV, qcc->conn, qcs);
 			se_fl_set(qcs->sd, SE_FL_EOI);
 
 			/* If request EOM is reported to the upper layer, it means the
 			 * QCS now expects data from the opposite side.
 			 */
 			se_expect_data(qcs->sd);
+		}
+
+		if (se_fl_test(qcs->sd, SE_FL_ERR_PENDING)) {
+			TRACE_STATE("report error", QMUX_EV_STRM_RECV, qcc->conn, qcs);
+			se_fl_set(qcs->sd, SE_FL_ERROR);
 		}
 
 		if (b_size(&qcs->rx.app_buf)) {
@@ -2684,11 +2689,11 @@ static size_t qc_recv_buf(struct stconn *sc, struct buffer *buf,
 		BUG_ON(!ncb_data(&qcs->rx.ncbuf, 0));
 
 		qcs->flags &= ~QC_SF_DEM_FULL;
-		if (!(qcs->qcc->flags & QC_CF_ERRL))
-			tasklet_wakeup(qcs->qcc->wait_event.tasklet);
+		if (!(qcc->flags & QC_CF_ERRL))
+			tasklet_wakeup(qcc->wait_event.tasklet);
 	}
 
-	TRACE_LEAVE(QMUX_EV_STRM_RECV, qcs->qcc->conn, qcs);
+	TRACE_LEAVE(QMUX_EV_STRM_RECV, qcc->conn, qcs);
 
 	return ret;
 }
