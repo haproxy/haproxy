@@ -324,6 +324,7 @@ X509* ssl_sock_get_peer_certificate(SSL *ssl)
  *
  * Returns NULL in case of failure.
 */
+#ifdef HAVE_SSL_get0_verified_chain
 X509* ssl_sock_get_verified_chain_root(SSL *ssl)
 {
 	STACK_OF(X509) *chain = NULL;
@@ -343,6 +344,7 @@ X509* ssl_sock_get_verified_chain_root(SSL *ssl)
 
 	return crt;
 }
+#endif
 
 /*
  * Take an OpenSSL version in text format and return a numeric openssl version

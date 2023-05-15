@@ -90,6 +90,7 @@
 
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 #define HAVE_SSL_KEYLOG
+#define HAVE_SSL_get0_verified_chain
 #endif
 
 

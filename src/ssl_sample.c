@@ -541,6 +541,7 @@ smp_fetch_ssl_fc_has_crt(const struct arg *args, struct sample *smp, const char 
 /* string, returns a string of a formatted full dn \C=..\O=..\OU=.. \CN=.. of the
  * client certificate's root CA.
  */
+#ifdef HAVE_SSL_get0_verified_chain
 static int
 smp_fetch_ssl_r_dn(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -593,6 +594,7 @@ smp_fetch_ssl_r_dn(const struct arg *args, struct sample *smp, const char *kw, v
 out:
 	return ret;
 }
+#endif
 
 /* binary, returns a certificate in a binary chunk (der/raw).
  * The 5th keyword char is used to know if SSL_get_certificate or SSL_get_peer_certificate
@@ -2198,7 +2200,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_c_key_alg",          smp_fetch_ssl_x_key_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_notafter",         smp_fetch_ssl_x_notafter,     0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_notbefore",        smp_fetch_ssl_x_notbefore,    0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+#ifdef HAVE_SSL_get0_verified_chain
 	{ "ssl_c_r_dn",             smp_fetch_ssl_r_dn,           ARG3(0,STR,SINT,STR),val_dnfmt,    SMP_T_STR,  SMP_USE_L5CLI },
+#endif
 	{ "ssl_c_sig_alg",          smp_fetch_ssl_x_sig_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_s_dn",             smp_fetch_ssl_x_s_dn,         ARG3(0,STR,SINT,STR),val_dnfmt,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_serial",           smp_fetch_ssl_x_serial,       0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },

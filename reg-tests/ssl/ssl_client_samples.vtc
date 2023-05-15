@@ -1,8 +1,8 @@
 #REGTEST_TYPE=devel
 
 varnishtest "Test the ssl_c_* sample fetches"
-#REQUIRE_VERSION=2.2
-#REQUIRE_OPTIONS=OPENSSL
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.8-dev11)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && openssl_version_atleast(1.1.1)'"
 feature ignore_unknown_macro
 
 server s1 -repeat 3 {
