@@ -69,7 +69,7 @@ haproxy h1 -conf {
 	#  /hrqvar, /hrqacc1, /hrqred1, /hrqrej1, /hrqrej2,
 	#  /hrsacc1, /hrsred1, /hrsrej1, /hrsrej2
 
-	tcp-response inspect-delay 10s
+	tcp-response inspect-delay 1s
         tcp-request  content set-var(txn.path) path  # must have no effect
         tcp-request  content accept if { var(txn.path) -m beg /trqacc1 /hrqrej1 }
         tcp-request  content reject if { var(txn.path) -m beg /trqrej1 }
