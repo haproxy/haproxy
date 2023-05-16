@@ -1327,8 +1327,13 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	}
 
  reschedule:
-	while (tick_is_expired(t->expire, now_ms))
-		t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
+	if (proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
+		t->expire = TICK_ETERNITY;
+	else {
+		while (tick_is_expired(t->expire, now_ms))
+			t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
+	}
+
  out_unlock:
 	if (check->server)
 		HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
