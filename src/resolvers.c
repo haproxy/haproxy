@@ -459,7 +459,7 @@ void resolv_trigger_resolution(struct resolv_requester *req)
 	/* The resolution must not be triggered yet. Use the cached response, if
 	 * valid */
 	exp = tick_add(res->last_resolution, resolvers->hold.valid);
-	if (resolvers->t && (res->status != RSLV_STATUS_VALID ||
+	if (resolvers->t && (!tick_isset(resolvers->t->expire) || res->status != RSLV_STATUS_VALID ||
 	    !tick_isset(res->last_resolution) || tick_is_expired(exp, now_ms))) {
 		/* If the resolution is not running and the requester is a
 		 * server, reset the resolution timer to force a quick
@@ -2456,6 +2456,9 @@ struct task *process_resolvers(struct task *t, void *context, unsigned int state
 
 	if (unlikely(stopping)) {
 		struct dns_nameserver *ns;
+
+		if (LIST_ISEMPTY(&resolvers->resolutions.curr))
+			t->expire = TICK_ETERNITY;
 
 		list_for_each_entry(ns, &resolvers->nameservers, list) {
 			if (ns->stream)
