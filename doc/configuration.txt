@@ -13699,6 +13699,9 @@ tcp-request inspect-delay <timeout>
   Obviously this is unlikely to be very useful and might even be racy, so such
   setups are not recommended.
 
+  Note the inspection delay is shortened if an connection error or shutdown is
+  experienced or if the request buffer appears as full.
+
   As soon as a rule matches, the request is released and continues as usual. If
   the timeout is reached and no rule matches, the default policy will be to let
   it pass through unaffected.
