@@ -1528,36 +1528,33 @@ static int qc_do_rm_hp(struct quic_conn *qc,
  * address, with <payload_len> as payload length, <aad> as address of
  * the ADD and <aad_len> as AAD length depending on the <tls_ctx> QUIC TLS
  * context.
- * Returns 1 if succeeded, 0 if not.
+ *
+ * TODO no error is expected as encryption is done in place but encryption
+ * manual is unclear. <fail> will be set to true if an error is detected.
  */
-static int quic_packet_encrypt(unsigned char *payload, size_t payload_len,
-                               unsigned char *aad, size_t aad_len, uint64_t pn,
-                               struct quic_tls_ctx *tls_ctx, struct quic_conn *qc)
+static void quic_packet_encrypt(unsigned char *payload, size_t payload_len,
+                                unsigned char *aad, size_t aad_len, uint64_t pn,
+                                struct quic_tls_ctx *tls_ctx, struct quic_conn *qc,
+                                int *fail)
 {
-	int ret = 0;
 	unsigned char iv[QUIC_TLS_IV_LEN];
 	unsigned char *tx_iv = tls_ctx->tx.iv;
 	size_t tx_iv_sz = tls_ctx->tx.ivlen;
 	struct enc_debug_info edi;
 
 	TRACE_ENTER(QUIC_EV_CONN_ENCPKT, qc);
+	*fail = 0;
 
 	quic_aead_iv_build(iv, sizeof iv, tx_iv, tx_iv_sz, pn);
 
 	if (!quic_tls_encrypt(payload, payload_len, aad, aad_len,
 	                      tls_ctx->tx.ctx, tls_ctx->tx.aead, tls_ctx->tx.key, iv)) {
 		TRACE_ERROR("QUIC packet encryption failed", QUIC_EV_CONN_ENCPKT, qc);
-		goto err;
+		*fail = 1;
+		enc_debug_info_init(&edi, payload, payload_len, aad, aad_len, pn);
 	}
 
-	ret = 1;
- leave:
 	TRACE_LEAVE(QUIC_EV_CONN_ENCPKT, qc);
-	return ret;
-
- err:
-	enc_debug_info_init(&edi, payload, payload_len, aad, aad_len, pn);
-	goto leave;
 }
 
 /* Select the correct TLS cipher context to used to decipher <pkt> packet
@@ -7429,14 +7426,16 @@ static int quic_build_packet_short_header(unsigned char **pos, const unsigned ch
 /* Apply QUIC header protection to the packet with <pos> as first byte address,
  * <pn> as address of the Packet number field, <pnlen> being this field length
  * with <aead> as AEAD cipher and <key> as secret key.
- * Returns 1 if succeeded or 0 if failed.
+ *
+ * TODO no error is expected as encryption is done in place but encryption
+ * manual is unclear. <fail> will be set to true if an error is detected.
  */
-static int quic_apply_header_protection(struct quic_conn *qc, unsigned char *pos,
+void quic_apply_header_protection(struct quic_conn *qc, unsigned char *pos,
                                         unsigned char *pn, size_t pnlen,
-                                        struct quic_tls_ctx *tls_ctx)
+                                        struct quic_tls_ctx *tls_ctx, int *fail)
 
 {
-	int i, ret = 0;
+	int i;
 	/* We need an IV of at least 5 bytes: one byte for bytes #0
 	 * and at most 4 bytes for the packet number
 	 */
@@ -7445,8 +7444,11 @@ static int quic_apply_header_protection(struct quic_conn *qc, unsigned char *pos
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
+	*fail = 0;
+
 	if (!quic_tls_aes_encrypt(mask, pn + QUIC_PACKET_PN_MAXLEN, sizeof mask, aes_ctx)) {
 		TRACE_ERROR("could not apply header protection", QUIC_EV_CONN_TXPKT, qc);
+		*fail = 1;
 		goto out;
 	}
 
@@ -7454,10 +7456,8 @@ static int quic_apply_header_protection(struct quic_conn *qc, unsigned char *pos
 	for (i = 0; i < pnlen; i++)
 		pn[i] ^= mask[i + 1];
 
-	ret = 1;
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
-	return ret;
 }
 
 /* Prepare into <outlist> as most as possible ack-eliciting frame from their
@@ -8110,6 +8110,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	int64_t pn;
 	size_t pn_len, payload_len, aad_len;
 	struct quic_tx_packet *pkt;
+	int encrypt_failure = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 	TRACE_PROTO("TX pkt build", QUIC_EV_CONN_TXPKT, qc, NULL, qel);
@@ -8139,16 +8140,20 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	payload_len = last_byte - payload;
 	aad_len = payload - first_byte;
 
-	if (!quic_packet_encrypt(payload, payload_len, first_byte, aad_len, pn, tls_ctx, qc)) {
-		// trace already emitted by function above
+	quic_packet_encrypt(payload, payload_len, first_byte, aad_len, pn, tls_ctx, qc, &encrypt_failure);
+	if (encrypt_failure) {
+		/* TODO Unrecoverable failure, what to do of unencrypted input data ? */
+		WARN_ON("quic_packet_encrypt failure");
 		*err = -2;
 		goto err;
 	}
 
 	last_byte += QUIC_TLS_TAG_LEN;
 	pkt->len += QUIC_TLS_TAG_LEN;
-	if (!quic_apply_header_protection(qc, first_byte, buf_pn, pn_len, tls_ctx)) {
-		// trace already emitted by function above
+	quic_apply_header_protection(qc, first_byte, buf_pn, pn_len, tls_ctx, &encrypt_failure);
+	if (encrypt_failure) {
+		/* TODO Unrecoverable failure, what to do of unencrypted input data ? */
+		WARN_ON("quic_apply_header_protection failure");
 		*err = -2;
 		goto err;
 	}
