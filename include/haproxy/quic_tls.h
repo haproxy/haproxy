@@ -96,8 +96,8 @@ int quic_tls_sec_update(const EVP_MD *md, const struct quic_version *qv,
                         unsigned char *new_sec, size_t new_seclen,
                         const unsigned char *sec, size_t seclen);
 
-int quic_aead_iv_build(unsigned char *iv, size_t ivlen,
-                       unsigned char *aead_iv, size_t aead_ivlen, uint64_t pn);
+void quic_aead_iv_build(unsigned char *iv, size_t ivlen,
+                        unsigned char *aead_iv, size_t aead_ivlen, uint64_t pn);
 
 /* HP protection (AES) */
 int quic_tls_dec_aes_ctx_init(EVP_CIPHER_CTX **aes_ctx,

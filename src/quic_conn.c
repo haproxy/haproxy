@@ -1542,10 +1542,7 @@ static int quic_packet_encrypt(unsigned char *payload, size_t payload_len,
 
 	TRACE_ENTER(QUIC_EV_CONN_ENCPKT, qc);
 
-	if (!quic_aead_iv_build(iv, sizeof iv, tx_iv, tx_iv_sz, pn)) {
-		TRACE_ERROR("AEAD IV building for encryption failed", QUIC_EV_CONN_ENCPKT, qc);
-		goto err;
-	}
+	quic_aead_iv_build(iv, sizeof iv, tx_iv, tx_iv_sz, pn);
 
 	if (!quic_tls_encrypt(payload, payload_len, aad, aad_len,
 	                      tls_ctx->tx.ctx, tls_ctx->tx.aead, tls_ctx->tx.key, iv)) {
@@ -1626,10 +1623,7 @@ static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
 		}
 	}
 
-	if (!quic_aead_iv_build(iv, sizeof iv, rx_iv, rx_iv_sz, pkt->pn)) {
-		TRACE_ERROR("quic_aead_iv_build() failed", QUIC_EV_CONN_RXPKT, qc);
-		goto leave;
-	}
+	quic_aead_iv_build(iv, sizeof iv, rx_iv, rx_iv_sz, pkt->pn);
 
 	ret = quic_tls_decrypt(pkt->data + pkt->aad_len, pkt->len - pkt->aad_len,
 	                       pkt->data, pkt->aad_len,

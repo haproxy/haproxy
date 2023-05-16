@@ -326,17 +326,16 @@ int quic_tls_sec_update(const EVP_MD *md, const struct quic_version *qv,
  * <aead_ivlen> as size depending on <pn> packet number.
  * This is the function which must be called to build an AEAD IV for the AEAD cryptographic algorithm
  * used to encrypt/decrypt the QUIC packet payloads depending on the packet number <pn>.
- * This function fails and return 0 only if the two buffer lengths are different, 1 if not.
  */
-int quic_aead_iv_build(unsigned char *iv, size_t ivlen,
-                       unsigned char *aead_iv, size_t aead_ivlen, uint64_t pn)
+void quic_aead_iv_build(unsigned char *iv, size_t ivlen,
+                        unsigned char *aead_iv, size_t aead_ivlen, uint64_t pn)
 {
 	int i;
 	unsigned int shift;
 	unsigned char *pos = iv;
 
-	if (ivlen != aead_ivlen)
-		return 0;
+	/* Input buffers must have the same size. */
+	BUG_ON(ivlen != aead_ivlen);
 
 	for (i = 0; i < ivlen - sizeof pn; i++)
 		*pos++ = *aead_iv++;
@@ -345,8 +344,6 @@ int quic_aead_iv_build(unsigned char *iv, size_t ivlen,
 	shift = 56;
 	for (i = aead_ivlen - sizeof pn; i < aead_ivlen ; i++, shift -= 8)
 		*pos++ = *aead_iv++ ^ (pn >> shift);
-
-	return 1;
 }
 
 /* Initialize the cipher context for RX part of <tls_ctx> QUIC TLS context.
