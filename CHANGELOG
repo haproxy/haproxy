@@ -1,6 +1,92 @@
 ChangeLog :
 ===========
 
+2023/05/17 : 2.8-dev12
+    - BUILD: mjson: Fix warning about unused variables
+    - MINOR: spoe: Don't stop disabled proxies
+    - BUG/MEDIUM: filters: Don't deinit filters for disabled proxies during startup
+    - BUG/MINOR: hlua_fcn/queue: fix broken pop_wait()
+    - BUG/MINOR: hlua_fcn/queue: fix reference leak
+    - CLEANUP: hlua_fcn/queue: make queue:push() easier to read
+    - BUG/MINOR: quic: Buggy acknowlegments of acknowlegments function
+    - DEBUG: list: add DEBUG_LIST to purposely corrupt list heads after delete
+    - MINOR: stats: report the total number of warnings issued
+    - MINOR: stats: report the number of times the global maxconn was reached
+    - BUG/MINOR: mux-quic: do not prevent shutw on error
+    - BUG/MINOR: mux-quic: do not free frame already released by quic-conn
+    - BUG/MINOR: mux-quic: no need to subscribe for detach streams
+    - MINOR: mux-quic: add traces for stream wake
+    - MINOR: mux-quic: do not send STREAM frames if already subscribe
+    - MINOR: mux-quic: factorize send subscribing
+    - MINOR: mux-quic: simplify return path of qc_send()
+    - MEDIUM: quic: streamline error notification
+    - MEDIUM: mux-quic: adjust transport layer error handling
+    - MINOR: stats: report the listener's protocol along with the address in stats
+    - BUG/MEDIUM: mux-fcgi: Never set SE_FL_EOS without SE_FL_EOI or SE_FL_ERROR
+    - BUG/MEDIUM: mux-fcgi: Don't request more room if mux is waiting for more data
+    - MINOR: stconn: Add a cross-reference between SE descriptor
+    - BUG/MINOR: proxy: missing free in free_proxy for redirect rules
+    - MINOR: proxy: add http_free_redirect_rule() function
+    - BUG/MINOR: http_rules: fix errors paths in http_parse_redirect_rule()
+    - CLEANUP: http_act: use http_free_redirect_rule() to clean redirect act
+    - MINOR: tree-wide: use free_acl_cond() where relevant
+    - CLEANUP: acl: discard prune_acl_cond() function
+    - BUG/MINOR: cli: don't complain about empty command on empty lines
+    - MINOR: cli: add an option to display the uptime in the CLI's prompt
+    - MINOR: master/cli: also implement the timed prompt on the master CLI
+    - MINOR: cli: make "show fd" identify QUIC connections and listeners
+    - MINOR: httpclient: allow to disable the DNS resolvers of the httpclient
+    - BUILD: debug: fix build issue on 32-bit platforms in "debug dev task"
+    - MINOR: ncbuf: missing malloc checks in standalone code
+    - DOC: lua: fix core.{proxies,frontends,backends} visibility
+    - EXAMPLES: fix race condition in lua mailers script
+    - BUG/MINOR: errors: handle malloc failure in usermsgs_put()
+    - BUG/MINOR: log: fix memory error handling in parse_logsrv()
+    - BUG/MINOR: quic: Wrong redispatch for external data on connection socket
+    - MINOR: htx: add function to set EOM reliably
+    - MINOR: mux-quic: remove dedicated function to handle standalone FIN
+    - BUG/MINOR: mux-quic: properly handle buf alloc failure
+    - BUG/MINOR: mux-quic: handle properly recv ncbuf alloc failure
+    - BUG/MINOR: quic: do not alloc buf count on alloc failure
+    - BUG/MINOR: mux-quic: differentiate failure on qc_stream_desc alloc
+    - BUG/MINOR: mux-quic: free task on qc_init() app ops failure
+    - MEDIUM: session/ssl: return the SSL error string during a SSL handshake error
+    - CI: enable monthly Fedora Rawhide clang builds
+    - MEDIUM: mworker/cli: does not disconnect the master CLI upon error
+    - MINOR: stconn: Remove useless test on sedesc on detach to release the xref
+    - MEDIUM: proxy: stop emitting logs for internal proxies when stopping
+    - MINOR: ssl: add new sample ssl_c_r_dn
+    - BUG/MEDIUM: mux-h2: make sure control frames do not refresh the idle timeout
+    - BUILD: ssl: ssl_c_r_dn fetches uses  functiosn only available since 1.1.1
+    - BUG/MINOR: mux-quic: handle properly Tx buf exhaustion
+    - BUG/MINOR: h3: missing goto on buf alloc failure
+    - BUILD: ssl: get0_verified chain is available on libreSSL
+    - BUG/MINOR: makefile: use USE_LIBATOMIC instead of USE_ATOMIC
+    - MINOR: mux-quic: add trace to stream rcv_buf operation
+    - MINOR: mux-quic: properly report end-of-stream on recv
+    - MINOR: mux-quic: uninline qc_attach_sc()
+    - BUG/MEDIUM: mux-quic: fix EOI for request without payload
+    - MINOR: checks: make sure spread-checks is used also at boot time
+    - BUG/MINOR: tcp-rules: Don't shortened the inspect-delay when EOI is set
+    - REGTESTS: log: Reduce response inspect-delay for last_rule.vtc
+    - DOC: config: Clarify conditions to shorten the inspect-delay for TCP rules
+    - CLEANUP: server: remove useless tmptrash assigments in srv_update_status()
+    - BUG/MINOR: server: memory leak in _srv_update_status_op() on server DOWN
+    - CLEANUP: check; Remove some useless assignments to NULL
+    - CLEANUP: stats: update the trash chunk where it's used
+    - MINOR: clock: measure the total boot time
+    - MINOR: stats: report the boot time in "show info"
+    - BUG/MINOR: checks: postpone the startup of health checks by the boot time
+    - MINOR: clock: provide a function to automatically adjust now_offset
+    - BUG/MINOR: clock: automatically adjust the internal clock with the boot time
+    - CLEANUP: fcgi-app; Remove useless assignment to NULL
+    - REGTESTS: log: Reduce again response inspect-delay for last_rule.vtc
+    - CI: drop Fedora m32 pipeline in favour of cross matrix
+    - MEDIUM: checks: Stop scheduling healthchecks during stopping stage
+    - MEDIUM: resolvers: Stop scheduling resolution during stopping stage
+    - BUG/MINOR: hlua: SET_SAFE_LJMP misuse in hlua_event_runner()
+    - BUG/MINOR: debug: fix pointer check in debug_parse_cli_task()
+
 2023/05/11 : 2.8-dev11
     - BUILD: debug: do not check the isolated_thread variable in non-threaded builds
     - BUILD: quic: fix build warning when threads are disabled
