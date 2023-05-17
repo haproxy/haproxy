@@ -2247,8 +2247,19 @@ static void init(int argc, char **argv)
 		exit(1);
 	}
 
+	/* update the ready date that will be used to count the startup time
+	 * during config checks (e.g. to schedule certain tasks if needed)
+	 */
+	clock_update_date(0, 1);
+	ready_date = date;
+
 	/* Note: global.nbthread will be initialized as part of this call */
 	err_code |= check_config_validity();
+
+	/* update the ready date to also account for the check time */
+	clock_update_date(0, 1);
+	ready_date = date;
+
 	for (px = proxies_list; px; px = px->next) {
 		struct server *srv;
 		struct post_proxy_check_fct *ppcf;
@@ -3507,6 +3518,10 @@ int main(int argc, char **argv)
 			         argv[0], (int)limit.rlim_cur, global.maxconn, global.maxsock,
 				 global.maxsock);
 	}
+
+	/* update the ready date a last time to also account for final setup time */
+	clock_update_date(0, 1);
+	ready_date = date;
 
 	if (global.mode & (MODE_DAEMON | MODE_MWORKER | MODE_MWORKER_WAIT)) {
 		int ret = 0;
