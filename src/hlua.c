@@ -798,6 +798,21 @@ __LJMP static int hlua_arg2lua(lua_State *L, const struct arg *arg)
  * and try to convert it in an HAProxy argument entry. This is useful
  * with sample fetch wrappers. The input arguments are given to the
  * lua wrapper and converted as arg list by the function.
+ *
+ * Note: although lua_tolstring() may raise a memory error according to
+ * lua documentation, in practise this could only happen when using to
+ * use lua_tolstring() on a number (lua will try to push the number as a
+ * string on the stack, and this may result in memory failure), so here we
+ * assume that hlua_lua2arg() will never raise an exception since it is
+ * exclusively used with lua string inputs.
+ *
+ * Note2: You should be extra careful when using <arg> argument, since
+ * string arguments rely on lua_tolstring() which returns a pointer to lua
+ * object that may be garbage collected at any time when removed from lua
+ * stack, thus you should make sure that <arg> is only used from a local
+ * scope within lua context (and not exported or stored in a lua-independent
+ * ctx) and that related lua object still exists when accessing arg data.
+ * See: https://www.lua.org/manual/5.4/manual.html#4.1.3
  */
 static int hlua_lua2arg(lua_State *L, int ud, struct arg *arg)
 {
