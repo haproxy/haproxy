@@ -506,7 +506,7 @@ DECLARE_STATIC_POOL(pool_head_hlua_event_sub, "hlua_esub", sizeof(struct hlua_ev
  * LUA stack contains arguments according with an required ARG_T
  * format.
  */
-static int hlua_arg2lua(lua_State *L, const struct arg *arg);
+__LJMP static int hlua_arg2lua(lua_State *L, const struct arg *arg);
 static int hlua_lua2arg(lua_State *L, int ud, struct arg *arg);
 __LJMP static int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
                                      uint64_t mask, struct proxy *p);
@@ -764,7 +764,7 @@ static int hlua_pusherror(lua_State *L, const char *fmt, ...)
  * It takes an array of "arg", and each entry of the array is
  * converted and pushed in the LUA stack.
  */
-static int hlua_arg2lua(lua_State *L, const struct arg *arg)
+__LJMP static int hlua_arg2lua(lua_State *L, const struct arg *arg)
 {
 	switch (arg->type) {
 	case ARGT_SINT:
@@ -9721,7 +9721,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 					RESET_SAFE_LJMP(stream->hlua);
 					return 0;
 				}
-				hlua_arg2lua(stream->hlua->T, arg_p);
+				MAY_LJMP(hlua_arg2lua(stream->hlua->T, arg_p));
 				stream->hlua->nargs++;
 			}
 		}
@@ -9857,7 +9857,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 				RESET_SAFE_LJMP(stream->hlua);
 				return 0;
 			}
-			hlua_arg2lua(stream->hlua->T, arg_p);
+			MAY_LJMP(hlua_arg2lua(stream->hlua->T, arg_p));
 			stream->hlua->nargs++;
 		}
 
