@@ -270,7 +270,6 @@ static int fcgi_flt_check(struct proxy *px, struct flt_conf *fconf)
 			LIST_APPEND(&fcgi_conf->param_rules, &rule->list);
 		else /* FCGI_RULE_PASS_HDR/FCGI_RULE_HIDE_HDR */
 			LIST_APPEND(&fcgi_conf->hdr_rules, &rule->list);
-		rule = NULL;
 	}
 	return 0;
 
