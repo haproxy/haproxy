@@ -158,6 +158,7 @@ const struct name_desc info_fields[INF_TOTAL_FIELDS] = {
 	[INF_TAINTED]                        = { .name = "Tainted",                     .desc = "Experimental features used" },
 	[INF_WARNINGS]                       = { .name = "TotalWarnings",               .desc = "Total warnings issued" },
 	[INF_MAXCONN_REACHED]                = { .name = "MaxconnReached",              .desc = "Number of times an accepted connection resulted in Maxconn being reached" },
+	[INF_BOOTTIME_MS]                    = { .name = "BootTime_ms",                 .desc = "How long ago it took to parse and process the config before being ready (milliseconds)" },
 };
 
 const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
@@ -4630,6 +4631,7 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	uint64_t glob_out_bytes, glob_spl_bytes, glob_out_b32;
 	uint up_sec, up_usec;
 	ullong up;
+	ulong boot;
 	int thr;
 
 #ifdef USE_OPENSSL
@@ -4653,6 +4655,8 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	up = now_ns - start_time_ns;
 	up_sec = ns_to_sec(up);
 	up_usec = (up / 1000U) % 1000000U;
+
+	boot = tv_ms_remain(&start_date, &ready_date);
 
 	if (len < INF_TOTAL_FIELDS)
 		return 0;
@@ -4748,6 +4752,7 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	chunk_appendf(out, "%#x", get_tainted());
 	info[INF_WARNINGS]                       = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&tot_warnings));
 	info[INF_MAXCONN_REACHED]                = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&maxconn_reached));
+	info[INF_BOOTTIME_MS]                    = mkf_u32(FN_DURATION, boot);
 
 	return 1;
 }
