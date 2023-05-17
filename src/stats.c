@@ -4745,9 +4745,9 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	info[INF_CUM_LOG_MSGS]                   = mkf_u32(FN_COUNTER, cum_log_messages);
 
 	info[INF_TAINTED]                        = mkf_str(FO_STATUS, chunk_newstr(out));
+	chunk_appendf(out, "%#x", get_tainted());
 	info[INF_WARNINGS]                       = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&tot_warnings));
 	info[INF_MAXCONN_REACHED]                = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&maxconn_reached));
-	chunk_appendf(out, "%#x", get_tainted());
 
 	return 1;
 }
