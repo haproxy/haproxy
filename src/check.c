@@ -1494,6 +1494,14 @@ int start_check_task(struct check *check, int mininter,
 	if (mininter < srv_getinter(check))
 		mininter = srv_getinter(check);
 
+	if (global.spread_checks > 0) {
+		int rnd;
+
+		rnd  = srv_getinter(check) * global.spread_checks / 100;
+		rnd -= (int) (2 * rnd * (ha_random32() / 4294967295.0));
+		mininter += rnd;
+	}
+
 	if (global.max_spread_checks && mininter > global.max_spread_checks)
 		mininter = global.max_spread_checks;
 
