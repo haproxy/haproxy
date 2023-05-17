@@ -947,9 +947,28 @@ __LJMP static int hlua_smp2lua_str(lua_State *L, struct sample *smp)
 	return 1;
 }
 
-/* the following functions are used to convert an Lua type in a
- * struct sample. This is useful to provide data from a converter
- * to the LUA code.
+/* The following function is used to convert a Lua type to a
+ * struct sample. This is useful to provide data from LUA code to
+ * a converter.
+ *
+ * Note: although lua_tolstring() may raise a memory error according to
+ * lua documentation, in practise this could only happen when using to
+ * use lua_tolstring() on a number (lua will try to push the number as a
+ * string on the stack, and this may result in memory failure), so here we
+ * assume that hlua_lua2arg() will never raise an exception since it is
+ * exclusively used with lua string inputs.
+ *
+ * Note2: You should be extra careful when using <smp> argument, since
+ * string arguments rely on lua_tolstring() which returns a pointer to lua
+ * object that may be garbage collected at any time when removed from lua
+ * stack, thus you should make sure that <smp> is only used from a local
+ * scope within lua context (not exported or stored in a lua-independent
+ * ctx) and that related lua object still exists when accessing arg data.
+ * See: https://www.lua.org/manual/5.4/manual.html#4.1.3
+ *
+ * If you don't comply with this usage restriction, then you should consider
+ * duplicating the smp using smp_dup() to make it portable (little overhead),
+ * as this will ensure that the smp always points to valid memory block.
  */
 static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp)
 {
