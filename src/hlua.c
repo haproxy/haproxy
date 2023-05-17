@@ -510,7 +510,7 @@ static int hlua_arg2lua(lua_State *L, const struct arg *arg);
 static int hlua_lua2arg(lua_State *L, int ud, struct arg *arg);
 __LJMP static int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
                                      uint64_t mask, struct proxy *p);
-static int hlua_smp2lua(lua_State *L, struct sample *smp);
+__LJMP static int hlua_smp2lua(lua_State *L, struct sample *smp);
 __LJMP static int hlua_smp2lua_str(lua_State *L, struct sample *smp);
 static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp);
 
@@ -834,7 +834,7 @@ static int hlua_lua2arg(lua_State *L, int ud, struct arg *arg)
  * in Lua type. This useful to convert the return of the
  * fetches or converters.
  */
-static int hlua_smp2lua(lua_State *L, struct sample *smp)
+__LJMP static int hlua_smp2lua(lua_State *L, struct sample *smp)
 {
 	switch (smp->data.type) {
 	case SMP_T_SINT:
@@ -4417,7 +4417,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	if (hsmp->flags & HLUA_F_AS_STRING)
 		MAY_LJMP(hlua_smp2lua_str(L, &smp));
 	else
-		hlua_smp2lua(L, &smp);
+		MAY_LJMP(hlua_smp2lua(L, &smp));
 
   end:
 	free_args(args);
@@ -4548,7 +4548,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	if (hsmp->flags & HLUA_F_AS_STRING)
 		MAY_LJMP(hlua_smp2lua_str(L, &smp));
 	else
-		hlua_smp2lua(L, &smp);
+		MAY_LJMP(hlua_smp2lua(L, &smp));
   end:
 	free_args(args);
 	return 1;
@@ -4712,7 +4712,7 @@ __LJMP static int hlua_applet_tcp_get_var(lua_State *L)
 		return 1;
 	}
 
-	return hlua_smp2lua(L, &smp);
+	return MAY_LJMP(hlua_smp2lua(L, &smp));
 }
 
 __LJMP static int hlua_applet_tcp_set_priv(lua_State *L)
@@ -5201,7 +5201,7 @@ __LJMP static int hlua_applet_http_get_var(lua_State *L)
 		return 1;
 	}
 
-	return hlua_smp2lua(L, &smp);
+	return MAY_LJMP(hlua_smp2lua(L, &smp));
 }
 
 __LJMP static int hlua_applet_http_set_priv(lua_State *L)
@@ -7802,7 +7802,7 @@ __LJMP static int hlua_get_var(lua_State *L)
 		return 1;
 	}
 
-	return hlua_smp2lua(L, &smp);
+	return MAY_LJMP(hlua_smp2lua(L, &smp));
 }
 
 __LJMP static int hlua_set_priv(lua_State *L)
@@ -9710,7 +9710,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 			RESET_SAFE_LJMP(stream->hlua);
 			return 0;
 		}
-		hlua_smp2lua(stream->hlua->T, smp);
+		MAY_LJMP(hlua_smp2lua(stream->hlua->T, smp));
 		stream->hlua->nargs = 1;
 
 		/* push keywords in the stack. */
