@@ -511,7 +511,7 @@ static int hlua_lua2arg(lua_State *L, int ud, struct arg *arg);
 __LJMP static int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
                                      uint64_t mask, struct proxy *p);
 static int hlua_smp2lua(lua_State *L, struct sample *smp);
-static int hlua_smp2lua_str(lua_State *L, struct sample *smp);
+__LJMP static int hlua_smp2lua_str(lua_State *L, struct sample *smp);
 static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp);
 
 __LJMP static int hlua_http_get_headers(lua_State *L, struct http_msg *msg);
@@ -886,7 +886,7 @@ static int hlua_smp2lua(lua_State *L, struct sample *smp)
  * in Lua strings. This is useful to convert the return of the
  * fetches or converters.
  */
-static int hlua_smp2lua_str(lua_State *L, struct sample *smp)
+__LJMP static int hlua_smp2lua_str(lua_State *L, struct sample *smp)
 {
 	switch (smp->data.type) {
 
@@ -4415,7 +4415,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 
 	/* Convert the returned sample in lua value. */
 	if (hsmp->flags & HLUA_F_AS_STRING)
-		hlua_smp2lua_str(L, &smp);
+		MAY_LJMP(hlua_smp2lua_str(L, &smp));
 	else
 		hlua_smp2lua(L, &smp);
 
@@ -4546,7 +4546,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 
 	/* Convert the returned sample in lua value. */
 	if (hsmp->flags & HLUA_F_AS_STRING)
-		hlua_smp2lua_str(L, &smp);
+		MAY_LJMP(hlua_smp2lua_str(L, &smp));
 	else
 		hlua_smp2lua(L, &smp);
   end:
