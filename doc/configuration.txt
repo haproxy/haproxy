@@ -20628,7 +20628,7 @@ future information. Those generally include the results of SSL negotiations.
 ssl_bc : boolean
   Returns true when the back connection was made via an SSL/TLS transport
   layer and is locally deciphered. This means the outgoing connection was made
-  other a server with the "ssl" option. It can be used in a tcp-check or an
+  to a server with the "ssl" option. It can be used in a tcp-check or an
   http-check ruleset.
 
 ssl_bc_alg_keysize : integer
