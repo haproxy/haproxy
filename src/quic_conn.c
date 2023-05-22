@@ -8662,10 +8662,12 @@ static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx
 static void dump_quic_oneline(struct show_quic_ctx *ctx, struct quic_conn *qc)
 {
 	char bufaddr[INET6_ADDRSTRLEN], bufport[6];
+	int ret;
 	unsigned char cid_len;
 
-	chunk_appendf(&trash, "%p[%02u]/%-.12s ", qc, ctx->thr,
-	              qc->li->bind_conf->frontend->id);
+	ret = chunk_appendf(&trash, "%p[%02u]/%-.12s ", qc, ctx->thr,
+	                    qc->li->bind_conf->frontend->id);
+	chunk_appendf(&trash, "%*s", 36 - ret, " "); /* align output */
 
 	/* State */
 	if (qc->flags & QUIC_FL_CONN_CLOSING)
@@ -8688,11 +8690,11 @@ static void dump_quic_oneline(struct show_quic_ctx *ctx, struct quic_conn *qc)
 	    qc->local_addr.ss_family == AF_INET6) {
 		addr_to_str(&qc->peer_addr, bufaddr, sizeof(bufaddr));
 		port_to_str(&qc->peer_addr, bufport, sizeof(bufport));
-		chunk_appendf(&trash, "%15s:%s ", bufaddr, bufport);
+		chunk_appendf(&trash, "%15s:%-5s ", bufaddr, bufport);
 
 		addr_to_str(&qc->local_addr, bufaddr, sizeof(bufaddr));
 		port_to_str(&qc->local_addr, bufport, sizeof(bufport));
-		chunk_appendf(&trash, "%15s:%s      ", bufaddr, bufport);
+		chunk_appendf(&trash, "%15s:%-5s   ", bufaddr, bufport);
 	}
 
 	/* CIDs */
@@ -8848,9 +8850,9 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 
 		/* Print legend for oneline format. */
 		if (ctx->format == QUIC_DUMP_FMT_ONELINE) {
-			chunk_appendf(&trash, "# conn/frontend       state   "
-				      "in_flight infl_p lost_p                    "
-				      "from                    to      "
+			chunk_appendf(&trash, "# conn/frontend                     state   "
+				      "in_flight infl_p lost_p               "
+				      "from                    to          "
 				      "local & remote CIDs\n");
 			applet_putchk(appctx, &trash);
 		}
