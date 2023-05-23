@@ -1222,6 +1222,8 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		}
 
 		if (isdigit((unsigned char)*port1)) {	/* single port or range */
+			char *endptr;
+
 			port2 = strchr(port1, '-');
 			if (port2) {
 				if (!(opts & PA_O_PORT_RANGE)) {
@@ -1232,8 +1234,16 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			}
 			else
 				port2 = port1;
-			portl = atoi(port1);
-			porth = atoi(port2);
+			portl = strtol(port1, &endptr, 10);
+			if (*endptr != '\0') {
+				memprintf(err, "invalid character '%c' in port number '%s' in '%s'", *endptr, port1, str);
+				goto out;
+			}
+			porth = strtol(port2, &endptr, 10);
+			if (*endptr != '\0') {
+				memprintf(err, "invalid character '%c' in port number '%s' in '%s'", *endptr, port2, str);
+				goto out;
+			}
 
 			if (portl < !!(opts & PA_O_PORT_MAND) || portl > 65535) {
 				memprintf(err, "invalid port '%s'", port1);
@@ -1253,19 +1263,30 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			porta = portl;
 		}
 		else if (*port1 == '-') { /* negative offset */
+			char *endptr;
+
 			if (!(opts & PA_O_PORT_OFS)) {
 				memprintf(err, "port offset not permitted here in '%s'", str);
 				goto out;
 			}
-			portl = atoi(port1 + 1);
+			portl = strtol(port1 + 1, &endptr, 10);
+			if (*endptr != '\0') {
+				memprintf(err, "invalid character '%c' in port number '%s' in '%s'", *endptr, port1 + 1, str);
+				goto out;
+			}
 			porta = -portl;
 		}
 		else if (*port1 == '+') { /* positive offset */
+			char *endptr;
+
 			if (!(opts & PA_O_PORT_OFS)) {
 				memprintf(err, "port offset not permitted here in '%s'", str);
 				goto out;
 			}
-			porth = atoi(port1 + 1);
+			porth = strtol(port1 + 1,  &endptr, 10);
+			if (*endptr != '\0') {
+				memprintf(err, "invalid character '%c' in port number '%s' in '%s'", *endptr, port1 + 1, str);
+				goto out;
 			}
 			porta = porth;
 		}
