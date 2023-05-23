@@ -77,8 +77,14 @@ static forceinline void se_fl_setall(struct sedesc *se, uint all)
 	se->flags = all;
 }
 
+/* sets flags <on> on se->flags and handles ERR_PENDING to ERROR promotion if
+ * needed (upon EOI/EOS).
+ */
 static forceinline void se_fl_set(struct sedesc *se, uint on)
 {
+	if (((on & (SE_FL_EOS|SE_FL_EOI)) && se->flags & SE_FL_ERR_PENDING) ||
+	    ((on & SE_FL_ERR_PENDING) && se->flags & (SE_FL_EOI|SE_FL_EOS)))
+		on |= SE_FL_ERROR;
 	se->flags |= on;
 }
 
