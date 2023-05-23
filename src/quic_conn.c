@@ -8970,7 +8970,7 @@ static void cli_release_show_quic(struct appctx *appctx)
 }
 
 static struct cli_kw_list cli_kws = {{ }, {
-	{ { "show", "quic", NULL }, "show quic : display quic connections status", cli_parse_show_quic, cli_io_handler_dump_quic, cli_release_show_quic },
+	{ { "show", "quic", NULL }, "show quic [<format>] [all]              : display quic connections status", cli_parse_show_quic, cli_io_handler_dump_quic, cli_release_show_quic },
 	{{},}
 }};
 
