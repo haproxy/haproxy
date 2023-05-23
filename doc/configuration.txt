@@ -1107,6 +1107,7 @@ The following keywords are supported in the "global" section :
    - pidfile
    - pp2-never-send-local
    - presetenv
+   - prealloc-fd
    - resetenv
    - set-dumpable
    - set-var
@@ -2083,6 +2084,12 @@ presetenv <name> <value>
   is NOT overwritten. The changes immediately take effect so that the next line
   in the configuration file sees the new value. See also "setenv", "resetenv",
   and "unsetenv".
+
+prealloc-fd
+  Performs a one-time open of the maximum file descriptor which results in a
+  pre-allocation of the kernel's data structures. This prevents short pauses
+  when nbthread>1 and HAProxy opens a file descriptor which requires the kernel
+  to expand its data structures.
 
 resetenv [<name> ...]
   Removes all environment variables except the ones specified in argument. It

@@ -3522,6 +3522,14 @@ int main(int argc, char **argv)
 				 global.maxsock);
 	}
 
+	if (global.prealloc_fd && fcntl((int)limit.rlim_cur - 1, F_GETFD) == -1) {
+		if (dup2(0, (int)limit.rlim_cur - 1) == -1)
+			ha_warning("[%s.main()] Unable to preallocate file descriptor %lu : %s",
+			           argv[0], limit.rlim_cur-1, strerror(errno));
+		else
+			close((int)limit.rlim_cur - 1);
+	}
+
 	/* update the ready date a last time to also account for final setup time */
 	clock_update_date(0, 1);
 	clock_adjust_now_offset();

@@ -1357,3 +1357,21 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	return err_code;
 }
 
+static int cfg_parse_prealloc_fd(char **args, int section_type, struct proxy *curpx,
+                            const struct proxy *defpx, const char *file, int line,
+                            char **err)
+{
+	if (too_many_args(0, args, err, NULL))
+		return -1;
+
+	global.prealloc_fd = 1;
+
+	return 0;
+}
+
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "prealloc-fd", cfg_parse_prealloc_fd },
+	{ 0, NULL, NULL },
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
