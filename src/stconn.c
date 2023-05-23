@@ -1514,7 +1514,6 @@ static int sc_conn_recv(struct stconn *sc)
 		ret = 1;
 	}
 
-	BUG_ON_HOT((sc_ep_get(sc) & (SE_FL_EOI|SE_FL_EOS|SE_FL_ERROR)) == SE_FL_EOS);
 	return ret;
 }
 

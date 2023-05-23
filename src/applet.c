@@ -481,8 +481,6 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 			stream_dump_and_crash(&app->obj_type, read_freq_ctr(&app->call_rate));
 	}
 
-	BUG_ON_HOT((sc_ep_get(sc) & (SE_FL_EOI|SE_FL_EOS|SE_FL_ERROR)) == SE_FL_EOS);
-
 	sc->app_ops->wake(sc);
 	channel_release_buffer(sc_ic(sc), &app->buffer_wait);
 	TRACE_LEAVE(APPLET_EV_PROCESS, app);
