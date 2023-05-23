@@ -1,0 +1,74 @@
+2023-05-23 - closing states on the stream endpoint descriptor
+
+This document deals with the current flags on the SE desc:
+
+ - SE_FL_ERR_PENDING: an error was met while sending, but some incoming data
+   might still be pending. This flag will be promoted to SE_FL_ERROR when the
+   SE_FL_EOI or SE_FL_EOS flags are set via the standard API (se_fl_set()).
+
+ - SE_FL_ERROR ("ERR"): an error was met, last data were received if any, and no
+   more progress will happen.
+
+ - SE_FL_EOI ("EOI"): the end of the input message was seen, without implying
+   an end of the connection nor the end of event reporting for this stream. For
+   example and end of HTTP request or response will set EOI, after which it's
+   still possible (in case of a request) to bring an abort or error. Said
+   differently, the expected end of the message was seen.
+
+ - SE_FL_EOS ("EOS"): the definitive end of the input data was detected. It may
+   result from an error, an abort, a connection shutdown, and no more receive
+   events will be reported.
+
+The different muxes (H1,H2,H3) can face slightly different situations due to
+the nature, properties, and limitations of their underlying protocols, and will
+set these 3 flags to best translate the lower layer's situation and report it
+to the upper layer:
+
+ +-----------+-----------------------------------------------------------------
+ |ERR EOS EOI| Description per mux
+ +-----------+-----------------------------------------------------------------
+ | 0   0   0 | all: transfer still in progress
+ +-----------+-----------------------------------------------------------------
+ | 0   0   1 | H1: end of message reached.
+ |           | H2: "ES" flag seen on a frame.
+ |           | H3: not set
+ +-----------+-----------------------------------------------------------------
+ | 0   1   0 | H1: not set (*1)
+ |           | H2: not set (*2)
+ |           | H3: RST received before FIN (client stops uploading)
+ +-----------+-----------------------------------------------------------------
+ | 0   1   1 | H1: end of message + read0, such as close response or aborted
+ |           |     request
+ |           | H2: not set (*2)
+ |           | H3: end of message reached (any subsequent RSTs are ignored)
+ +-----------+-----------------------------------------------------------------
+ | 1   0   0 | all: could be used to report a protocol error (ex: invalid chunk
+ |           |      encoding, forbidden response header seen from a server).
+ +-----------+-----------------------------------------------------------------
+ | 1   0   1 | all: could be used to report an internal error or a downstream
+ |           |      protocol error, such as a forbidden header in an HTX block
+ |           |      coming from the stream layer or the impossibility to encode
+ |           |      a message. Seems unused right now.
+ +-----------+-----------------------------------------------------------------
+ | 1   1   0 | H1: truncated client input data before response, or truncated
+ |           |     response from the server
+ |           | H2: RST or read0 received before end of input message
+ |           | H3: RST + STOP_SENDING before FIN
+ +-----------+-----------------------------------------------------------------
+ | 1   1   1 | H1: error face while sending after end of input message
+ |           | H2: RST or read0 received after end of input message
+ |           | H3: STOP_SENDING received after a frame with FIN
+ +-----------+-----------------------------------------------------------------
+
+*1: EOS alone is currently not set by H1, however this situation could best
+    describe an H1 upload that was interrupted by the client while receiving
+    an early response, a reused persistent server connection that delivered a
+    read0 immediately after the request was sent, or a truncated server
+    response (or possibly one in close mode when no C-L was advertised). Right
+    now these situations are always accompanied with an ERR flag in addition to
+    the EOS one.
+
+*2: H2 doesn't set EOS without ERR because currently the only ways to close a
+    stream in H2 are by resetting the stream (which conveys an error) or
+    closing the connection (which renders it unusable in both directions and
+    prevents from sending as well).
