@@ -972,12 +972,12 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 
 	str2 = back = env_expand(strdup(str));
 	if (str2 == NULL) {
-		memprintf(err, "out of memory in '%s'\n", __FUNCTION__);
+		memprintf(err, "out of memory in '%s'", __FUNCTION__);
 		goto out;
 	}
 
 	if (!*str2) {
-		memprintf(err, "'%s' resolves to an empty address (environment variable missing?)\n", str);
+		memprintf(err, "'%s' resolves to an empty address (environment variable missing?)", str);
 		goto out;
 	}
 
@@ -1114,14 +1114,14 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 
 		new_fd = strtol(str2, &endptr, 10);
 		if (!*str2 || new_fd < 0 || *endptr) {
-			memprintf(err, "file descriptor '%s' is not a valid integer in '%s'\n", str2, str);
+			memprintf(err, "file descriptor '%s' is not a valid integer in '%s'", str2, str);
 			goto out;
 		}
 
 		/* just verify that it's a socket */
 		addr_len = sizeof(ss2);
 		if (getsockname(new_fd, (struct sockaddr *)&ss2, &addr_len) == -1) {
-			memprintf(err, "cannot use file descriptor '%d' : %s.\n", new_fd, strerror(errno));
+			memprintf(err, "cannot use file descriptor '%d' : %s.", new_fd, strerror(errno));
 			goto out;
 		}
 
@@ -1133,7 +1133,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 
 		new_fd = strtol(str2, &endptr, 10);
 		if (!*str2 || new_fd < 0 || *endptr) {
-			memprintf(err, "file descriptor '%s' is not a valid integer in '%s'\n", str2, str);
+			memprintf(err, "file descriptor '%s' is not a valid integer in '%s'", str2, str);
 			goto out;
 		}
 
@@ -1143,14 +1143,14 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 
 			addr_len = sizeof(ss);
 			if (getsockname(new_fd, (struct sockaddr *)&ss, &addr_len) == -1) {
-				memprintf(err, "cannot use file descriptor '%d' : %s.\n", new_fd, strerror(errno));
+				memprintf(err, "cannot use file descriptor '%d' : %s.", new_fd, strerror(errno));
 				goto out;
 			}
 
 			addr_len = sizeof(type);
 			if (getsockopt(new_fd, SOL_SOCKET, SO_TYPE, &type, &addr_len) != 0 ||
 			    (type == SOCK_STREAM) != (proto_type == PROTO_TYPE_STREAM)) {
-				memprintf(err, "socket on file descriptor '%d' is of the wrong type.\n", new_fd);
+				memprintf(err, "socket on file descriptor '%d' is of the wrong type.", new_fd);
 				goto out;
 			}
 
@@ -1159,7 +1159,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			((struct sockaddr_in *)&ss)->sin_addr.s_addr = new_fd;
 			((struct sockaddr_in *)&ss)->sin_port = 0;
 		} else {
-			memprintf(err, "a file descriptor is not acceptable here in '%s'\n", str);
+			memprintf(err, "a file descriptor is not acceptable here in '%s'", str);
 			goto out;
 		}
 	}
@@ -1178,7 +1178,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 
 		adr_len = strlen(str2);
 		if (adr_len > max_path_len) {
-			memprintf(err, "socket path '%s' too long (max %d)\n", str, max_path_len);
+			memprintf(err, "socket path '%s' too long (max %d)", str, max_path_len);
 			goto out;
 		}
 
@@ -1266,10 +1266,11 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 				goto out;
 			}
 			porth = atoi(port1 + 1);
+			}
 			porta = porth;
 		}
 		else if (*port1) { /* other any unexpected char */
-			memprintf(err, "invalid character '%c' in port number '%s' in '%s'\n", *port1, port1, str);
+			memprintf(err, "invalid character '%c' in port number '%s' in '%s'", *port1, port1, str);
 			goto out;
 		}
 		else if (opts & PA_O_PORT_MAND) {
@@ -1285,7 +1286,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		if (str2ip2(str2, &ss, 0) == NULL) {
 			if ((!(opts & PA_O_RESOLVE) && !fqdn) ||
 			    ((opts & PA_O_RESOLVE) && str2ip2(str2, &ss, 1) == NULL)) {
-				memprintf(err, "invalid address: '%s' in '%s'\n", str2, str);
+				memprintf(err, "invalid address: '%s' in '%s'", str2, str);
 				goto out;
 			}
 
@@ -1300,11 +1301,11 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	}
 
 	if (ctrl_type == SOCK_STREAM && !(opts & PA_O_STREAM)) {
-		memprintf(err, "stream-type address not acceptable in '%s'\n", str);
+		memprintf(err, "stream-type address not acceptable in '%s'", str);
 		goto out;
 	}
 	else if (ctrl_type == SOCK_DGRAM && !(opts & PA_O_DGRAM)) {
-		memprintf(err, "dgram-type address not acceptable in '%s'\n", str);
+		memprintf(err, "dgram-type address not acceptable in '%s'", str);
 		goto out;
 	}
 
