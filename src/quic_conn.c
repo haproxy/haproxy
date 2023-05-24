@@ -7373,8 +7373,8 @@ static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
 
  drop:
 	HA_ATOMIC_INC(&qc->prx_counters->dropped_pkt);
-	TRACE_PROTO("packet drop", QUIC_EV_CONN_LPKT, qc ? qc : NULL, pkt, NULL, qv);
-	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc ? qc : NULL);
+	TRACE_PROTO("packet drop", QUIC_EV_CONN_LPKT, qc, pkt, NULL, qv);
+	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc);
 }
 
 /* This function builds into a buffer at <pos> position a QUIC long packet header,
