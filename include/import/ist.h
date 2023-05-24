@@ -109,9 +109,10 @@
 	0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff, \
 }
 
-#ifdef USE_OBSOLETE_LINKER
+#if defined(USE_OBSOLETE_LINKER) || defined(__TINYC__)
 /* some old linkers and some non-ELF platforms have issues with the weak
- * attribute so we turn these arrays to literals there.
+ * attribute so we turn these arrays to literals there. TCC silently ignores
+ * it so we switch to literal as well.
  */
 #define ist_lc ((const unsigned char[256])_IST_LC)
 #define ist_uc ((const unsigned char[256])_IST_UC)
