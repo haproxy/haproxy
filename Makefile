@@ -958,16 +958,16 @@ help:
 	     else \
 	        echo "Current TARGET: $(TARGET) (custom target)"; \
 	     fi; \
+	     echo;echo "Enabled features for TARGET '$(TARGET)' (disable with 'USE_xxx=') :"; \
+	     set -- $(enabled_opts); echo "  $$*" | (fmt || cat) 2>/dev/null; \
+	     echo;echo "Disabled features for TARGET '$(TARGET)' (enable with 'USE_xxx=1') :"; \
+	     set -- $(disabled_opts); echo "  $$*" | (fmt || cat) 2>/dev/null; \
 	   else \
-	     echo "TARGET not set, you may pass 'TARGET=xxx' to set one among :";\
+	     echo "TARGET not set, you should pass 'TARGET=xxx' to set one among :";\
 	     echo "  linux-glibc, linux-glibc-legacy, solaris, freebsd, dragonfly, netbsd,"; \
 	     echo "  osx, openbsd, aix51, aix52, aix72-gcc, cygwin, haiku, generic,"; \
 	     echo "  custom"; \
 	   fi
-	@echo;echo "Enabled features for TARGET '$(TARGET)' (disable with 'USE_xxx=') :"
-	@set -- $(enabled_opts); echo "  $$*" | (fmt || cat) 2>/dev/null
-	@echo;echo "Disabled features for TARGET '$(TARGET)' (enable with 'USE_xxx=1') :"
-	@set -- $(disabled_opts); echo "  $$*" | (fmt || cat) 2>/dev/null
 
 # Used only to force a rebuild if some build options change, but we don't do
 # it for certain targets which take no build options
