@@ -22,6 +22,9 @@ NEW=
 DIR=
 DOC=( )
 
+# need to have group write on emitted files for others to update
+umask 002
+
 die() {
 	[ "$#" -eq 0 ] || echo "$*" >&2
 	exit 1
