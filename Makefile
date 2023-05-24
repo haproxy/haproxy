@@ -970,13 +970,21 @@ help:
 	   fi
 
 # Used only to force a rebuild if some build options change, but we don't do
-# it for certain targets which take no build options
-ifneq (reg-tests, $(firstword $(MAKECMDGOALS)))
+# it for certain build targets which take no build options nor when the
+# TARGET variable is not set since we're not building, by definition.
+IGNORE_OPTS=help install install-man install-doc install-bin \
+	uninstall clean tags cscope tar git-tar version update-version \
+	opts reg-tests reg-tests-help admin/halog/halog dev/flags/flags \
+	dev/haring/haring dev/poll/poll dev/tcploop/tcploop
+
+ifneq ($(TARGET),)
+ifeq ($(filter $(firstword $(MAKECMDGOALS)),$(IGNORE_OPTS)),)
 build_opts = $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(VERBOSE_CFLAGS) $(DEBUG)\' > .build_opts.new; if cmp -s .build_opts .build_opts.new; then rm -f .build_opts.new; else mv -f .build_opts.new .build_opts; fi)
 .build_opts: $(build_opts)
 else
 .build_opts:
-endif # reg-tests
+endif # ignore_opts
+endif # non-empty target
 
 haproxy: $(OPTIONS_OBJS) $(OBJS)
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
