@@ -103,7 +103,7 @@ HAProxy requires a working GCC or Clang toolchain and GNU make :
     may want to retry with "gmake" which is the name commonly used for GNU make
     on BSD systems.
 
-  - GCC >= 4.2 (up to 12 tested). Older versions can be made to work with a
+  - GCC >= 4.2 (up to 13 tested). Older versions can be made to work with a
     few minor adaptations if really needed. Newer versions may sometimes break
     due to compiler regressions or behaviour changes. The version shipped with
     your operating system is very likely to work with no trouble. Clang >= 3.0
@@ -227,21 +227,41 @@ to forcefully enable it using "USE_LIBCRYPT=1".
 -----------------
 For SSL/TLS, it is necessary to use a cryptography library. HAProxy currently
 supports the OpenSSL library, and is known to build and work with branches
-1.0.0, 1.0.1, 1.0.2, 1.1.0, 1.1.1, and 3.0.x. OpenSSL follows a long-term
+1.0.0, 1.0.1, 1.0.2, 1.1.0, 1.1.1, 3.0 and 3.1. OpenSSL follows a long-term
 support cycle similar to HAProxy's, and each of the branches above receives its
 own fixes, without forcing you to upgrade to another branch. There is no excuse
 for staying vulnerable by not applying a fix available for your version. There
 is always a small risk of regression when jumping from one branch to another
 one, especially when it's very new, so it's preferable to observe for a while
-if you use a different version than your system's defaults.
+if you use a different version than your system's defaults. Specifically, it
+has been well established that OpenSSL 3.0 can be 2 to 20 times slower than
+earlier versions on multiprocessor systems due to design issues that cannot be
+fixed without a major redesign, so in this case upgrading should be carefully
+thought about (please see https://github.com/openssl/openssl/issues/20286 and
+https://github.com/openssl/openssl/issues/17627). If a migration to 3.x is
+mandated by support reasons, at least 3.1 recovers a small fraction of this
+important loss.
 
 Three OpenSSL derivatives called LibreSSL, BoringSSL and QUICTLS are reported
 to work as well. While there are some efforts from the community to ensure they
 work well, OpenSSL remains the primary target and this means that in case of
 conflicting choices, OpenSSL support will be favored over other options. Note
 that OpenSSL is not compatible when building haproxy with QUIC support. In this
-case, QUICTLS is the preferred alternative.  See the section about QUIC in this
-document.
+case, QUICTLS is the preferred alternative.  As of writing this, the QuicTLS
+project follows OpenSSL very closely and provides update simultaneously, but
+being a volunteer-driven project, its long-term future does not look certain
+enough to convince operating systems to package it, so it needs to be build
+locally. See the section about QUIC in this document.
+
+A fifth option is wolfSSL (https://github.com/wolfSSL/wolfssl). It is the only
+supported alternative stack not based on OpenSSL, yet which implements almost
+all of its API and natively supports QUIC. At the time of writing, the vast
+majority of SSL features are well supported by wolfSSL though advanced users
+might notice tiny differences that the wolfSSL and HAProxy teams are working on
+together to address in the wolfSSL code base as of May 2023. This stack is not
+affected by OpenSSL's design issue regarding multi-processor systems and is
+viewed by the HAProxy team as the most promising mid-term solution for general
+deployments and QUIC deployments.
 
 In order to enable SSL/TLS support, simply pass "USE_OPENSSL=1" on the command
 line and the default library present on your system will be used :
@@ -255,6 +275,12 @@ SSL library files using SSL_LIB. Example :
 
   $ make TARGET=generic \
     USE_OPENSSL=1 SSL_INC=/opt/ssl-1.1.1/include SSL_LIB=/opt/ssl-1.1.1/lib
+
+Building with wolfSSL requires to specify the API variant on the "make"
+command line, for example:
+
+  $ make -j $(nproc) TARGET=generic USE_OPENSSL_WOLFSSL=1 USE_QUIC=1 \
+    SSL_INC=/opt/wolfssl-5.6.0/include SSL_LIB=/opt/wolfssl-5.6.0/lib
 
 In order to link OpenSSL statically against HAProxy, first download OpenSSL
 from https://www.openssl.org/ then build it with the "no-shared" keyword and
@@ -280,6 +306,18 @@ acceleration that might be present on your system. Due to API changes that
 appeared with OpenSSL 3.0 and cause lots of build warnings, engines are not
 enabled by default anymore in HAProxy 2.6. It is required to pass USE_ENGINE=1
 if they are desired.
+
+If for any reason you are forced to use OpenSSL 3.x and the performance is not
+acceptable at all, you may want to try replacing the pthread locks that OpenSSL
+uses with HAProxy's much lighter locks that are able to emulate them:
+
+  $ make TARGET=generic \
+    USE_OPENSSL=1 USE_PTHREAD_EMULATION=1
+
+On large multi-processor systems, this may result in a performance increase of
+50 to 100% on OpenSSL 3.0 depending on the level of contention, but this will
+of course not recover everything. It should not be used by distro packagers as
+it is a bit less observable.
 
 
 4.6) Compression
@@ -332,14 +370,14 @@ library name in the "LUA_LIB_NAME" variable.
 If Lua is not provided on your system, it can be very simply built locally. It
 can be downloaded from https://www.lua.org/, extracted and built, for example :
 
-  $ cd /opt/lua-5.3.5
+  $ cd /opt/lua-5.4.6
   $ make linux
 
 The path to the include files and library files may be set using "LUA_INC" and
 "LUA_LIB" respectively. For example :
 
   $ make TARGET=generic \
-    USE_LUA=1 LUA_INC=/opt/lua-5.3.5/src LUA_LIB=/opt/lua-5.3.5/src
+    USE_LUA=1 LUA_INC=/opt/lua-5.4.6/src LUA_LIB=/opt/lua-5.4.6/src
 
 
 4.8) Device detection
@@ -392,6 +430,11 @@ target. Common issues may include:
 
   - many openssl errors
     => your OpenSSL version really is too old, do not enable OpenSSL
+
+  - quic_conn-t.h: field 'level' has incomplete type
+    => you tried to build QUIC with the legacy OpenSSL library, which does
+       not support QUIC. Either disable QUIC with "USE_QUIC=" or use any
+       other supported compatible library.
 
 
 4.11) QUIC
