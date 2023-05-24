@@ -608,6 +608,7 @@ struct quic_conn_cntrs {
 	long long socket_full;           /* total number of EAGAIN errors on sendto() calls */
 	long long sendto_err;            /* total number of errors on sendto() calls, EAGAIN excepted */
 	long long sendto_err_unknown;    /* total number of errors on sendto() calls which are currently not supported */
+	long long sent_pkt;              /* total number of sent packets */
 	long long lost_pkt;              /* total number of lost packets */
 	long long conn_migration_done;   /* total number of connection migration handled */
 	/* Streams related counters */

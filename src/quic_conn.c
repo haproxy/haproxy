@@ -3893,6 +3893,7 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 			 * Initial packets to at least the smallest allowed maximum datagram size of
 			 * 1200 bytes.
 			 */
+			qc->cntrs.sent_pkt++;
 			BUG_ON_HOT(pkt->type == QUIC_PACKET_TYPE_INITIAL &&
 			           (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING) &&
 			           dglen < QUIC_INITIAL_PACKET_MINLEN);
@@ -5732,6 +5733,7 @@ static inline void quic_conn_prx_cntrs_update(struct quic_conn *qc)
 	HA_ATOMIC_ADD(&qc->prx_counters->socket_full, qc->cntrs.socket_full);
 	HA_ATOMIC_ADD(&qc->prx_counters->sendto_err, qc->cntrs.sendto_err);
 	HA_ATOMIC_ADD(&qc->prx_counters->sendto_err_unknown, qc->cntrs.sendto_err_unknown);
+	HA_ATOMIC_ADD(&qc->prx_counters->sent_pkt, qc->cntrs.sent_pkt);
 	HA_ATOMIC_ADD(&qc->prx_counters->lost_pkt, qc->path->loss.nb_lost_pkt);
 	HA_ATOMIC_ADD(&qc->prx_counters->conn_migration_done, qc->cntrs.conn_migration_done);
 	/* Stream related counters */
