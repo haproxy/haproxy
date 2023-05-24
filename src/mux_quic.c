@@ -1307,7 +1307,7 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 	qc_free_ncbuf(qcs, &qcs->rx.ncbuf);
 
 	if (qcs_sc(qcs)) {
-		se_fl_set_error(qcs->sd);
+		se_fl_set(qcs->sd, SE_FL_EOS);
 		qcs_alert(qcs);
 	}
 
