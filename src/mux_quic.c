@@ -883,6 +883,13 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 			TRACE_ERROR("decoding error", QMUX_EV_QCS_RECV, qcc->conn, qcs);
 			goto err;
 		}
+
+		if (qcs->flags & QC_SF_TO_RESET) {
+			if (qcs_sc(qcs) && !se_fl_test(qcs->sd, SE_FL_ERROR|SE_FL_ERR_PENDING)) {
+				se_fl_set_error(qcs->sd);
+				qcs_alert(qcs);
+			}
+		}
 	}
 	else {
 		TRACE_DATA("ignore read on stream", QMUX_EV_QCS_RECV, qcc->conn, qcs);
@@ -1398,6 +1405,12 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 	 */
 	qcc_reset_stream(qcs, err);
 
+	/* Report send error to stream-endpoint layer. */
+	if (qcs_sc(qcs)) {
+		se_fl_set_error(qcs->sd);
+		qcs_alert(qcs);
+	}
+
 	if (qcc_may_expire(qcc) && !qcc->nb_hreq)
 		qcc_refresh_timeout(qcc);
 
@@ -1814,11 +1827,6 @@ static int qcs_send_reset(struct qcs *qcs)
 			qc_frm_free(&frm);
 		TRACE_DEVEL("cannot send RESET_STREAM", QMUX_EV_QCS_SEND, qcs->qcc->conn, qcs);
 		return 1;
-	}
-
-	if (qcs_sc(qcs)) {
-		se_fl_set_error(qcs->sd);
-		qcs_alert(qcs);
 	}
 
 	qcs_close_local(qcs);
