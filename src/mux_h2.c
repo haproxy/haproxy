@@ -1447,6 +1447,26 @@ static inline void h2s_close(struct h2s *h2s)
 	h2s->st = H2_SS_CLOSED;
 }
 
+/* Check h2c and h2s flags to evaluate if EOI/EOS/ERR_PENDING/ERROR flags must
+ * be set on the SE.
+ */
+static inline void h2s_propagate_term_flags(struct h2c *h2c, struct h2s *h2s)
+{
+	if (h2s->flags & H2_SF_ES_RCVD) {
+		se_fl_set(h2s->sd, SE_FL_EOI);
+		/* Add EOS flag for tunnel */
+		if (h2s->flags & H2_SF_BODY_TUNNEL)
+			se_fl_set(h2s->sd, SE_FL_EOS);
+	}
+	if (h2c_read0_pending(h2c) || h2s->st == H2_SS_CLOSED) {
+		se_fl_set(h2s->sd, SE_FL_EOS);
+		if (!se_fl_test(h2s->sd, SE_FL_EOI))
+			se_fl_set(h2s->sd, SE_FL_ERROR);
+	}
+	if (se_fl_test(h2s->sd, SE_FL_ERR_PENDING))
+		se_fl_set(h2s->sd, SE_FL_ERROR);
+}
+
 /* detaches an H2 stream from its H2C and releases it to the H2S pool. */
 /* h2s_destroy should only ever be called by the thread that owns the stream,
  * that means that a tasklet should be used if we want to destroy the h2s
@@ -6468,19 +6488,7 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 		}
 
 		se_fl_clr(h2s->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
-		if (h2s->flags & H2_SF_ES_RCVD) {
-			se_fl_set(h2s->sd, SE_FL_EOI);
-			/* Add EOS flag for tunnel */
-			if (h2s->flags & H2_SF_BODY_TUNNEL)
-				se_fl_set(h2s->sd, SE_FL_EOS);
-		}
-		if (h2c_read0_pending(h2c) || h2s->st == H2_SS_CLOSED) {
-			se_fl_set(h2s->sd, SE_FL_EOS);
-			if (!se_fl_test(h2s->sd, SE_FL_EOI))
-				se_fl_set(h2s->sd, SE_FL_ERROR);
-		}
-		if (se_fl_test(h2s->sd, SE_FL_ERR_PENDING))
-			se_fl_set(h2s->sd, SE_FL_ERROR);
+		h2s_propagate_term_flags(h2c, h2s);
 		if (b_size(&h2s->rxbuf)) {
 			b_free(&h2s->rxbuf);
 			offer_buffers(NULL, 1);
