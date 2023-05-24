@@ -190,7 +190,6 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 			eb64_delete(&pkt->pn_node);
 			LIST_APPEND(lost_pkts, &pkt->list);
 			ql->nb_lost_pkt++;
-			HA_ATOMIC_INC(&qc->prx_counters->lost_pkt);
 		}
 		else {
 			if (tick_isset(pktns->tx.loss_time))

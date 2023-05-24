@@ -3259,16 +3259,16 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		case QUIC_FT_MAX_STREAMS_UNI:
 			break;
 		case QUIC_FT_DATA_BLOCKED:
-			HA_ATOMIC_INC(&qc->prx_counters->data_blocked);
+			qc->cntrs.data_blocked++;
 			break;
 		case QUIC_FT_STREAM_DATA_BLOCKED:
-			HA_ATOMIC_INC(&qc->prx_counters->stream_data_blocked);
+			qc->cntrs.stream_data_blocked++;
 			break;
 		case QUIC_FT_STREAMS_BLOCKED_BIDI:
-			HA_ATOMIC_INC(&qc->prx_counters->streams_data_blocked_bidi);
+			qc->cntrs.streams_data_blocked_bidi++;
 			break;
 		case QUIC_FT_STREAMS_BLOCKED_UNI:
-			HA_ATOMIC_INC(&qc->prx_counters->streams_data_blocked_uni);
+			qc->cntrs.streams_data_blocked_uni++;
 			break;
 		case QUIC_FT_NEW_CONNECTION_ID:
 			/* XXX TO DO XXX */
@@ -4605,7 +4605,7 @@ int qc_treat_rx_pkts(struct quic_conn *qc, struct quic_enc_level *cur_el,
 				/* Drop the packet */
 				TRACE_ERROR("packet parsing failed -> dropped",
 				            QUIC_EV_CONN_RXPKT, qc, pkt);
-				HA_ATOMIC_INC(&qc->prx_counters->dropped_parsing);
+				qc->cntrs.dropped_parsing++;
 			}
 			else {
 				struct quic_arng ar = { .first = pkt->pn, .last = pkt->pn };
@@ -5702,6 +5702,9 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	if (!qc_new_isecs(qc, ictx,qc->original_version, dcid->data, dcid->len, 1))
 		goto err;
 
+	/* Counters initialization */
+	memset(&qc->cntrs, 0, sizeof qc->cntrs);
+
 	LIST_APPEND(&th_ctx->quic_conns, &qc->el_th_ctx);
 	qc->qc_epoch = HA_ATOMIC_LOAD(&qc_epoch);
 
@@ -5717,6 +5720,25 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	}
 	TRACE_LEAVE(QUIC_EV_CONN_INIT);
 	return NULL;
+}
+
+/* Update the proxy counters of <qc> QUIC connection from its counters */
+static inline void quic_conn_prx_cntrs_update(struct quic_conn *qc)
+{
+	BUG_ON(!qc->prx_counters);
+	HA_ATOMIC_ADD(&qc->prx_counters->dropped_pkt, qc->cntrs.dropped_pkt);
+	HA_ATOMIC_ADD(&qc->prx_counters->dropped_pkt_bufoverrun, qc->cntrs.dropped_pkt_bufoverrun);
+	HA_ATOMIC_ADD(&qc->prx_counters->dropped_parsing, qc->cntrs.dropped_parsing);
+	HA_ATOMIC_ADD(&qc->prx_counters->socket_full, qc->cntrs.socket_full);
+	HA_ATOMIC_ADD(&qc->prx_counters->sendto_err, qc->cntrs.sendto_err);
+	HA_ATOMIC_ADD(&qc->prx_counters->sendto_err_unknown, qc->cntrs.sendto_err_unknown);
+	HA_ATOMIC_ADD(&qc->prx_counters->lost_pkt, qc->path->loss.nb_lost_pkt);
+	HA_ATOMIC_ADD(&qc->prx_counters->conn_migration_done, qc->cntrs.conn_migration_done);
+	/* Stream related counters */
+	HA_ATOMIC_ADD(&qc->prx_counters->data_blocked, qc->cntrs.data_blocked);
+	HA_ATOMIC_ADD(&qc->prx_counters->stream_data_blocked, qc->cntrs.stream_data_blocked);
+	HA_ATOMIC_ADD(&qc->prx_counters->streams_data_blocked_bidi, qc->cntrs.streams_data_blocked_bidi);
+	HA_ATOMIC_ADD(&qc->prx_counters->streams_data_blocked_uni, qc->cntrs.streams_data_blocked_uni);
 }
 
 /* Release the quic_conn <qc>. The connection is removed from the CIDs tree.
@@ -5809,6 +5831,7 @@ void quic_conn_release(struct quic_conn *qc)
 
 	qc_detach_th_ctx_list(qc, 0);
 
+	quic_conn_prx_cntrs_update(qc);
 	pool_free(pool_head_quic_conn_rxbuf, qc->rx.buf.area);
 	pool_free(pool_head_quic_conn, qc);
 	qc = NULL;
@@ -6923,7 +6946,10 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 	return qc;
 
  err:
-	HA_ATOMIC_INC(&prx_counters->dropped_pkt);
+	if (qc)
+		qc->cntrs.dropped_pkt++;
+	else
+		HA_ATOMIC_INC(&prx_counters->dropped_pkt);
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
 	return NULL;
 }
@@ -7230,7 +7256,7 @@ static int qc_handle_conn_migration(struct quic_conn *qc,
 
 	qc->local_addr = *local_addr;
 	qc->peer_addr = *peer_addr;
-	HA_ATOMIC_INC(&qc->prx_counters->conn_migration_done);
+	qc->cntrs.conn_migration_done++;
 
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc);
 	return 0;
@@ -7336,7 +7362,7 @@ static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		if (b_tail(&qc->rx.buf) + b_cspace < b_wrap(&qc->rx.buf)) {
 			TRACE_PROTO("Packet dropped",
 			            QUIC_EV_CONN_LPKT, qc, NULL, NULL, qv);
-			HA_ATOMIC_INC(&qc->prx_counters->dropped_pkt_bufoverrun);
+			qc->cntrs.dropped_pkt_bufoverrun++;
 			goto drop_silent;
 		}
 
@@ -7349,7 +7375,7 @@ static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		if (b_contig_space(&qc->rx.buf) < pkt->len) {
 			TRACE_PROTO("Too big packet",
 			            QUIC_EV_CONN_LPKT, qc, pkt, &pkt->len, qv);
-			HA_ATOMIC_INC(&qc->prx_counters->dropped_pkt_bufoverrun);
+			qc->cntrs.dropped_pkt_bufoverrun++;
 			goto drop_silent;
 		}
 	}
@@ -7372,7 +7398,7 @@ static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	return;
 
  drop:
-	HA_ATOMIC_INC(&qc->prx_counters->dropped_pkt);
+	qc->cntrs.dropped_pkt++;
 	TRACE_PROTO("packet drop", QUIC_EV_CONN_LPKT, qc, pkt, NULL, qv);
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc);
 }

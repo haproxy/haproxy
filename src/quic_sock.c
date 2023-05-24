@@ -631,17 +631,12 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 	} while (ret < 0 && errno == EINTR);
 
 	if (ret < 0) {
-		struct proxy *prx = qc->li->bind_conf->frontend;
-		struct quic_counters *prx_counters =
-		  EXTRA_COUNTERS_GET(prx->extra_counters_fe,
-		                     &quic_stats_module);
-
 		if (errno == EAGAIN || errno == EWOULDBLOCK ||
 		    errno == ENOTCONN || errno == EINPROGRESS) {
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
-				HA_ATOMIC_INC(&prx_counters->socket_full);
+				qc->cntrs.socket_full++;
 			else
-				HA_ATOMIC_INC(&prx_counters->sendto_err);
+				qc->cntrs.sendto_err++;
 
 			/* transient error */
 			fd_want_send(qc->fd);
@@ -652,7 +647,7 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 		}
 		else {
 			/* unrecoverable error */
-			HA_ATOMIC_INC(&prx_counters->sendto_err_unknown);
+			qc->cntrs.sendto_err_unknown++;
 			TRACE_PRINTF(TRACE_LEVEL_USER, QUIC_EV_CONN_SPPKTS, qc, 0, 0, 0,
 			             "UDP send failure errno=%d (%s)", errno, strerror(errno));
 			return -1;

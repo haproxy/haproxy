@@ -600,6 +600,23 @@ enum qc_mux_state {
 	QC_MUX_RELEASED, /* released, data can be dropped */
 };
 
+/* Counters at QUIC connection level */
+struct quic_conn_cntrs {
+	long long dropped_pkt;           /* total number of dropped packets */
+	long long dropped_pkt_bufoverrun;/* total number of dropped packets because of buffer overrun */
+	long long dropped_parsing;       /* total number of dropped packets upon parsing errors */
+	long long socket_full;           /* total number of EAGAIN errors on sendto() calls */
+	long long sendto_err;            /* total number of errors on sendto() calls, EAGAIN excepted */
+	long long sendto_err_unknown;    /* total number of errors on sendto() calls which are currently not supported */
+	long long lost_pkt;              /* total number of lost packets */
+	long long conn_migration_done;   /* total number of connection migration handled */
+	/* Streams related counters */
+	long long data_blocked;              /* total number of times DATA_BLOCKED frame was received */
+	long long stream_data_blocked;       /* total number of times STEAM_DATA_BLOCKED frame was received */
+	long long streams_data_blocked_bidi; /* total number of times STREAMS_DATA_BLOCKED_BIDI frame was received */
+	long long streams_data_blocked_uni;  /* total number of times STREAMS_DATA_BLOCKED_UNI frame was received */
+};
+
 /* The number of buffers for outgoing packets (must be a power of two). */
 #define QUIC_CONN_TX_BUFS_NB 8
 
@@ -728,6 +745,9 @@ struct quic_conn {
 	unsigned int nb_pkt_since_cc;
 
 	const struct qcc_app_ops *app_ops;
+	/* QUIC connection level counters */
+	struct quic_conn_cntrs cntrs;
+	/* Proxy counters */
 	struct quic_counters *prx_counters;
 
 	struct list el_th_ctx; /* list elem in ha_thread_ctx */
