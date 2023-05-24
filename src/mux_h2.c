@@ -2819,6 +2819,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	h2s->st = H2_SS_OPEN;
 	h2s->flags |= flags;
 	h2s->body_len = body_len;
+	h2s_propagate_term_flags(h2c, h2s);
 
  done:
 	if (h2s->flags & H2_SF_ES_RCVD) {
