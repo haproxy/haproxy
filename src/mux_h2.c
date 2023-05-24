@@ -2801,9 +2801,6 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	h2s->body_len = body_len;
 
  done:
-	if (h2c->dff & H2_F_HEADERS_END_STREAM)
-		h2s->flags |= H2_SF_ES_RCVD;
-
 	if (h2s->flags & H2_SF_ES_RCVD) {
 		if (h2s->st == H2_SS_OPEN)
 			h2s->st = H2_SS_HREM;
@@ -2902,9 +2899,6 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		HA_ATOMIC_INC(&h2c->px_counters->strm_proto_err);
 		goto fail;
 	}
-
-	if (h2c->dff & H2_F_HEADERS_END_STREAM)
-		h2s->flags |= H2_SF_ES_RCVD;
 
 	if (se_fl_test(h2s->sd, SE_FL_ERROR) && h2s->st < H2_SS_ERROR)
 		h2s->st = H2_SS_ERROR;
@@ -4961,6 +4955,7 @@ next_frame:
 		}
 		/* no more data are expected for this message */
 		htx->flags |= HTX_FL_EOM;
+		*flags |= H2_SF_ES_RCVD;
 	}
 
 	if (msgf & H2_MSGF_EXT_CONNECT)
@@ -5011,6 +5006,7 @@ next_frame:
 		TRACE_STATE("failed to append HTX trailers into rxbuf", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR, h2c->conn);
 		goto fail;
 	}
+	*flags |= H2_SF_ES_RCVD;
 	goto done;
 }
 
