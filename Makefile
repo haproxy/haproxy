@@ -984,6 +984,8 @@ build_opts = $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(
 else
 .build_opts:
 endif # ignore_opts
+else
+.build_opts:
 endif # non-empty target
 
 haproxy: $(OPTIONS_OBJS) $(OBJS)
