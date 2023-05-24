@@ -127,6 +127,13 @@
 #define __maybe_unused __attribute__((unused))
 #endif
 
+/* TCC doesn't support weak attribute, sections etc and needs the more portable
+ * obsolete linker model instead.
+ */
+#if defined(__TINYC__) && !defined(USE_OBSOLETE_LINKER)
+#define USE_OBSOLETE_LINKER 1
+#endif
+
 /* These macros are used to declare a section name for a variable.
  * WARNING: keep section names short, as MacOS limits them to 16 characters.
  * The _START and _STOP attributes have to be placed after the start and stop
