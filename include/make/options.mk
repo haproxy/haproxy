@@ -39,7 +39,7 @@ reset_opt_vars = $(foreach name,INC LIB CFLAGS LDFLAGS SRC,$(eval $(1)_$(name)=)
 reset_opts_vars = $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(call reset_opt_vars,$(opt)))
 
 # append $(1)_{C,LD}FLAGS into OPTIONS_{C,LD}FLAGS if not empty
-define collect_opt_flags =
+define collect_opt_flags
   ifneq ($$($(1)_CFLAGS),)
     OPTIONS_CFLAGS += $$($(1)_CFLAGS)
   endif
