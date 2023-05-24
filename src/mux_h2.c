@@ -1570,7 +1570,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	/* The request is not finished, don't expect data from the opposite side
 	 * yet
 	 */
-	if (!(h2c->dff & (H2_F_HEADERS_END_STREAM| H2_F_DATA_END_STREAM|H2_SF_BODY_TUNNEL)))
+	if (!(h2c->dff & (H2_F_HEADERS_END_STREAM| H2_F_DATA_END_STREAM)) && !(flags & H2_SF_BODY_TUNNEL))
 		se_expect_no_data(h2s->sd);
 
 	/* FIXME wrong analogy between ext-connect and websocket, this need to
