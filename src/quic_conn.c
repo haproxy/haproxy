@@ -6832,7 +6832,7 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 	qc = retrieve_qc_conn_from_cid(pkt, l, &dgram->saddr, new_tid);
 
 	/* If connection already created or rebinded on another thread. */
-        if (!qc && *new_tid != -1 && tid != *new_tid)
+	if (!qc && *new_tid != -1 && tid != *new_tid)
 		goto out;
 
 	if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
