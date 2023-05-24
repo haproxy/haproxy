@@ -1,6 +1,51 @@
 ChangeLog :
 ===========
 
+2023/05/24 : 2.8-dev13
+    - DOC: add size format section to manual
+    - CLEANUP: mux-quic/h3: complete BUG_ON with comments
+    - MINOR: quic: remove return val of quic_aead_iv_build()
+    - MINOR: quic: use WARN_ON for encrypt failures
+    - BUG/MINOR: quic: handle Tx packet allocation failure properly
+    - MINOR: quic: fix alignment of oneline show quic
+    - MEDIUM: stconn/applet: Allow SF_SL_EOS flag alone
+    - MEDIUM: stconn: make the SE_FL_ERR_PENDING to ERROR transition systematic
+    - DOC: internal: add a bit of documentation for the stconn closing conditions
+    - DOC/MINOR: config: Fix typo in description for `ssl_bc` in configuration.txt
+    - BUILD: quic: re-enable chacha20_poly1305 for libressl
+    - MINOR: mux-quic: set both EOI EOS for stream fin
+    - MINOR: mux-quic: only set EOS on RESET_STREAM recv
+    - MINOR: mux-quic: report error on stream-endpoint earlier
+    - BUILD: makefile: fix build issue on GNU make < 3.82
+    - BUG/MINOR: mux-h2: Check H2_SF_BODY_TUNNEL on H2S flags and not demux frame ones
+    - MINOR: mux-h2: Set H2_SF_ES_RCVD flag when decoding the HEADERS frame
+    - MINOR: mux-h2: Add a function to propagate termination flags from h2s to SE
+    - BUG/MEDIUM: mux-h2: Propagate termination flags when frontend SC is created
+    - DEV: add a Lua helper script for SSL keys logging
+    - CLEANUP: makefile: don't display a dummy features list without a target
+    - BUILD: makefile: do not erase build options for some build options
+    - MINOR: quic: Add low level traces (addresses, DCID)
+    - BUG/MINOR: quic: Wrong token length check (quic_generate_retry_token())
+    - BUG/MINOR: quic: Missing Retry token length on receipt
+    - MINOR: quic: Align "show quic" command help information
+    - CLEANUP: quic: Indentation fix quic_rx_pkt_retrieve_conn()
+    - CLEANUP: quic: Useless tests in qc_rx_pkt_handle()
+    - MINOR: quic: Add some counters at QUIC connection level
+    - MINOR: quic: Add a counter for sent packets
+    - MINOR: hlua: hlua_smp2lua_str() may LJMP
+    - MINOR: hlua: hlua_smp2lua() may LJMP
+    - MINOR: hlua: hlua_arg2lua() may LJMP
+    - DOC: hlua: document hlua_lua2arg() function
+    - DOC: hlua: document hlua_lua2smp() function
+    - BUG/MINOR: hlua: unsafe hlua_lua2smp() usage
+    - BUILD: makefile: commit the tiny FreeBSD makefile stub
+    - BUILD: makefile: fix build options when building tools first
+    - BUILD: ist: do not put a cast in an array declaration
+    - BUILD: ist: use the literal declaration for ist_lc/ist_uc under TCC
+    - BUILD: compiler: systematically set USE_OBSOLETE_LINKER with TCC
+    - DOC: install: update reference to known supported versions
+    - SCRIPTS: publish-release: update the umask to keep group write access
+
 2023/05/17 : 2.8-dev12
     - BUILD: mjson: Fix warning about unused variables
     - MINOR: spoe: Don't stop disabled proxies
