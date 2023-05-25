@@ -2523,30 +2523,12 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	/* Server parameters, params used for RX flow control. */
 	lparams = &conn->handle.qc->rx.params;
 
-	qcc->rx.max_data = lparams->initial_max_data;
 	qcc->tx.sent_offsets = qcc->tx.offsets = 0;
 
-	/* Client initiated streams must respect the server flow control. */
-	qcc->strms[QCS_CLT_BIDI].max_streams = lparams->initial_max_streams_bidi;
 	qcc->strms[QCS_CLT_BIDI].nb_streams = 0;
-	qcc->strms[QCS_CLT_BIDI].rx.max_data = 0;
-	qcc->strms[QCS_CLT_BIDI].tx.max_data = lparams->initial_max_stream_data_bidi_remote;
-
-	qcc->strms[QCS_CLT_UNI].max_streams = lparams->initial_max_streams_uni;
 	qcc->strms[QCS_CLT_UNI].nb_streams = 0;
-	qcc->strms[QCS_CLT_UNI].rx.max_data = 0;
-	qcc->strms[QCS_CLT_UNI].tx.max_data = lparams->initial_max_stream_data_uni;
-
-	/* Server initiated streams must respect the server flow control. */
-	qcc->strms[QCS_SRV_BIDI].max_streams = 0;
 	qcc->strms[QCS_SRV_BIDI].nb_streams = 0;
-	qcc->strms[QCS_SRV_BIDI].rx.max_data = lparams->initial_max_stream_data_bidi_local;
-	qcc->strms[QCS_SRV_BIDI].tx.max_data = 0;
-
-	qcc->strms[QCS_SRV_UNI].max_streams = 0;
 	qcc->strms[QCS_SRV_UNI].nb_streams = 0;
-	qcc->strms[QCS_SRV_UNI].rx.max_data = lparams->initial_max_stream_data_uni;
-	qcc->strms[QCS_SRV_UNI].tx.max_data = 0;
 
 	LIST_INIT(&qcc->lfctl.frms);
 	qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = lparams->initial_max_streams_bidi;
