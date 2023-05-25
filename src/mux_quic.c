@@ -677,7 +677,7 @@ struct stconn *qc_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
 
 	if (fin) {
 		TRACE_STATE("report end-of-input", QMUX_EV_STRM_RECV, qcc->conn, qcs);
-		se_fl_set(qcs->sd, SE_FL_EOI|SE_FL_EOS);
+		se_fl_set(qcs->sd, SE_FL_EOI);
 	}
 
 	return qcs->sd->sc;
@@ -1308,11 +1308,6 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 	qcs_close_remote(qcs);
 	qc_free_ncbuf(qcs, &qcs->rx.ncbuf);
 
-	if (qcs_sc(qcs)) {
-		se_fl_set(qcs->sd, SE_FL_EOS);
-		qcs_alert(qcs);
-	}
-
  out:
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 	return 0;
@@ -1402,6 +1397,12 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 
 	/* Report send error to stream-endpoint layer. */
 	if (qcs_sc(qcs)) {
+		/* If FIN already reached, future RESET_STREAMS will be ignored.
+		 * Manually set EOS in this case.
+		 */
+		if (se_fl_test(qcs->sd, SE_FL_EOI))
+			se_fl_set(qcs->sd, SE_FL_EOS);
+
 		se_fl_set_error(qcs->sd);
 		qcs_alert(qcs);
 	}
@@ -2706,7 +2707,7 @@ static size_t qc_recv_buf(struct stconn *sc, struct buffer *buf,
 		/* Set end-of-input when full message properly received. */
 		if (fin) {
 			TRACE_STATE("report end-of-input", QMUX_EV_STRM_RECV, qcc->conn, qcs);
-			se_fl_set(qcs->sd, SE_FL_EOI|SE_FL_EOS);
+			se_fl_set(qcs->sd, SE_FL_EOI);
 
 			/* If request EOM is reported to the upper layer, it means the
 			 * QCS now expects data from the opposite side.
@@ -2725,7 +2726,7 @@ static size_t qc_recv_buf(struct stconn *sc, struct buffer *buf,
 			 */
 			if (!se_fl_test(qcs->sd, SE_FL_EOI)) {
 				TRACE_STATE("report error on stream aborted", QMUX_EV_STRM_RECV, qcc->conn, qcs);
-				se_fl_set(qcs->sd, SE_FL_EOS | SE_FL_ERROR);
+				se_fl_set(qcs->sd, SE_FL_ERROR);
 			}
 		}
 
