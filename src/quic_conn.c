@@ -8778,9 +8778,10 @@ static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
 	struct eb64_node *node;
 	struct qc_stream_desc *stream;
 	char bufaddr[INET6_ADDRSTRLEN], bufport[6];
-	int expire, i;
+	int expire, i, addnl;
 	unsigned char cid_len;
 
+	addnl = 0;
 	/* CIDs */
 	chunk_appendf(&trash, "* %p[%02u]: scid=", qc, ctx->thr);
 	for (cid_len = 0; cid_len < qc->scid.len; ++cid_len)
@@ -8853,11 +8854,57 @@ static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
 	              pktns->rx.arngs.sz, pktns->tx.in_flight);
 
 	chunk_appendf(&trash, "  srtt=%-4u rttvar=%-4u rttmin=%-4u ptoc=%-4u cwnd=%-6llu"
-	                      " mcwnd=%-6llu lostpkts=%-6llu\n",
+	                      " mcwnd=%-6llu sentpkts=%-6llu lostpkts=%-6llu\n",
 	              qc->path->loss.srtt >> 3, qc->path->loss.rtt_var >> 2,
 	              qc->path->loss.rtt_min, qc->path->loss.pto_count, (ullong)qc->path->cwnd,
-	              (ullong)qc->path->mcwnd, (ullong)qc->path->loss.nb_lost_pkt);
+	              (ullong)qc->path->mcwnd, (ullong)qc->cntrs.sent_pkt, (ullong)qc->path->loss.nb_lost_pkt);
 
+	if (qc->cntrs.dropped_pkt) {
+		chunk_appendf(&trash, " droppkts=%-6llu", qc->cntrs.dropped_pkt);
+		addnl = 1;
+	}
+	if (qc->cntrs.dropped_pkt_bufoverrun) {
+		chunk_appendf(&trash, " dropbuff=%-6llu", qc->cntrs.dropped_pkt_bufoverrun);
+		addnl = 1;
+	}
+	if (qc->cntrs.dropped_parsing) {
+		chunk_appendf(&trash, " droppars=%-6llu", qc->cntrs.dropped_parsing);
+		addnl = 1;
+	}
+	if (qc->cntrs.socket_full) {
+		chunk_appendf(&trash, " sockfull=%-6llu", qc->cntrs.socket_full);
+		addnl = 1;
+	}
+	if (qc->cntrs.sendto_err) {
+		chunk_appendf(&trash, " sendtoerr=%-6llu", qc->cntrs.sendto_err);
+		addnl = 1;
+	}
+	if (qc->cntrs.sendto_err_unknown) {
+		chunk_appendf(&trash, " sendtounknerr=%-6llu", qc->cntrs.sendto_err);
+		addnl = 1;
+	}
+	if (qc->cntrs.conn_migration_done) {
+		chunk_appendf(&trash, " migrdone=%-6llu", qc->cntrs.conn_migration_done);
+		addnl = 1;
+	}
+	if (qc->cntrs.data_blocked) {
+		chunk_appendf(&trash, " datablocked=%-6llu", qc->cntrs.data_blocked);
+		addnl = 1;
+	}
+	if (qc->cntrs.stream_data_blocked) {
+		chunk_appendf(&trash, " sdatablocked=%-6llu", qc->cntrs.stream_data_blocked);
+		addnl = 1;
+	}
+	if (qc->cntrs.streams_blocked_bidi) {
+		chunk_appendf(&trash, " sblockebidi=%-6llu", qc->cntrs.streams_blocked_bidi);
+		addnl = 1;
+	}
+	if (qc->cntrs.streams_blocked_uni) {
+		chunk_appendf(&trash, " sblockeduni=%-6llu", qc->cntrs.streams_blocked_uni);
+		addnl = 1;
+	}
+	if (addnl)
+		chunk_appendf(&trash, "\n");
 
 	/* Streams */
 	node = eb64_first(&qc->streams_by_id);
