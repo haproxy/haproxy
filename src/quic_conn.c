@@ -3265,10 +3265,10 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			qc->cntrs.stream_data_blocked++;
 			break;
 		case QUIC_FT_STREAMS_BLOCKED_BIDI:
-			qc->cntrs.streams_data_blocked_bidi++;
+			qc->cntrs.streams_blocked_bidi++;
 			break;
 		case QUIC_FT_STREAMS_BLOCKED_UNI:
-			qc->cntrs.streams_data_blocked_uni++;
+			qc->cntrs.streams_blocked_uni++;
 			break;
 		case QUIC_FT_NEW_CONNECTION_ID:
 			/* XXX TO DO XXX */
@@ -5739,8 +5739,8 @@ static inline void quic_conn_prx_cntrs_update(struct quic_conn *qc)
 	/* Stream related counters */
 	HA_ATOMIC_ADD(&qc->prx_counters->data_blocked, qc->cntrs.data_blocked);
 	HA_ATOMIC_ADD(&qc->prx_counters->stream_data_blocked, qc->cntrs.stream_data_blocked);
-	HA_ATOMIC_ADD(&qc->prx_counters->streams_data_blocked_bidi, qc->cntrs.streams_data_blocked_bidi);
-	HA_ATOMIC_ADD(&qc->prx_counters->streams_data_blocked_uni, qc->cntrs.streams_data_blocked_uni);
+	HA_ATOMIC_ADD(&qc->prx_counters->streams_blocked_bidi, qc->cntrs.streams_blocked_bidi);
+	HA_ATOMIC_ADD(&qc->prx_counters->streams_blocked_uni, qc->cntrs.streams_blocked_uni);
 }
 
 /* Release the quic_conn <qc>. The connection is removed from the CIDs tree.

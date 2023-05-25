@@ -613,9 +613,9 @@ struct quic_conn_cntrs {
 	long long conn_migration_done;   /* total number of connection migration handled */
 	/* Streams related counters */
 	long long data_blocked;              /* total number of times DATA_BLOCKED frame was received */
-	long long stream_data_blocked;       /* total number of times STEAM_DATA_BLOCKED frame was received */
-	long long streams_data_blocked_bidi; /* total number of times STREAMS_DATA_BLOCKED_BIDI frame was received */
-	long long streams_data_blocked_uni;  /* total number of times STREAMS_DATA_BLOCKED_UNI frame was received */
+	long long stream_data_blocked;       /* total number of times STREAM_DATA_BLOCKED frame was received */
+	long long streams_blocked_bidi;      /* total number of times STREAMS_BLOCKED_BIDI frame was received */
+	long long streams_blocked_uni;       /* total number of times STREAMS_BLOCKED_UNI frame was received */
 };
 
 /* The number of buffers for outgoing packets (must be a power of two). */

@@ -81,11 +81,11 @@ static struct name_desc quic_stats[] = {
 	[QUIC_ST_DATA_BLOCKED]              = { .name = "quic_data_blocked",
 	                                        .desc = "Total number of received DATA_BLOCKED frames" },
 	[QUIC_ST_STREAM_DATA_BLOCKED]       = { .name = "quic_stream_data_blocked",
-	                                        .desc = "Total number of received STREAMS_BLOCKED frames" },
-	[QUIC_ST_STREAMS_DATA_BLOCKED_BIDI] = { .name = "quic_streams_data_blocked_bidi",
-	                                        .desc = "Total number of received STREAM_DATA_BLOCKED_BIDI frames" },
-	[QUIC_ST_STREAMS_DATA_BLOCKED_UNI]  = { .name = "quic_streams_data_blocked_uni",
-	                                        .desc = "Total number of received STREAM_DATA_BLOCKED_UNI frames" },
+	                                        .desc = "Total number of received STREAM_DATA_BLOCKED frames" },
+	[QUIC_ST_STREAMS_BLOCKED_BIDI]      = { .name = "quic_streams_blocked_bidi",
+	                                        .desc = "Total number of received STREAMS_BLOCKED_BIDI frames" },
+	[QUIC_ST_STREAMS_BLOCKED_UNI]       = { .name = "quic_streams_blocked_uni",
+	                                        .desc = "Total number of received STREAMS_BLOCKED_UNI frames" },
 };
 
 struct quic_counters quic_counters;
@@ -135,8 +135,8 @@ static void quic_fill_stats(void *data, struct field *stats)
 	/* Streams related counters */
 	stats[QUIC_ST_DATA_BLOCKED]              = mkf_u64(FN_COUNTER, counters->data_blocked);
 	stats[QUIC_ST_STREAM_DATA_BLOCKED]       = mkf_u64(FN_COUNTER, counters->stream_data_blocked);
-	stats[QUIC_ST_STREAMS_DATA_BLOCKED_BIDI] = mkf_u64(FN_COUNTER, counters->streams_data_blocked_bidi);
-	stats[QUIC_ST_STREAMS_DATA_BLOCKED_UNI]  = mkf_u64(FN_COUNTER, counters->streams_data_blocked_uni);
+	stats[QUIC_ST_STREAMS_BLOCKED_BIDI]      = mkf_u64(FN_COUNTER, counters->streams_blocked_bidi);
+	stats[QUIC_ST_STREAMS_BLOCKED_UNI]       = mkf_u64(FN_COUNTER, counters->streams_blocked_uni);
 }
 
 struct stats_module quic_stats_module = {

@@ -50,8 +50,8 @@ enum {
 	/* Stream related counters */
 	QUIC_ST_DATA_BLOCKED,
 	QUIC_ST_STREAM_DATA_BLOCKED,
-	QUIC_ST_STREAMS_DATA_BLOCKED_BIDI,
-	QUIC_ST_STREAMS_DATA_BLOCKED_UNI,
+	QUIC_ST_STREAMS_BLOCKED_BIDI,
+	QUIC_ST_STREAMS_BLOCKED_UNI,
 	QUIC_STATS_COUNT /* must be the last */
 };
 
@@ -96,9 +96,9 @@ struct quic_counters {
 	long long quic_transp_err_unknown_error;      /* total number of UNKNOWN_ERROR connection errors */
 	/* Streams related counters */
 	long long data_blocked;              /* total number of times DATA_BLOCKED frame was received */
-	long long stream_data_blocked;       /* total number of times STEAM_DATA_BLOCKED frame was received */
-	long long streams_data_blocked_bidi; /* total number of times STREAMS_DATA_BLOCKED_BIDI frame was received */
-	long long streams_data_blocked_uni;  /* total number of times STREAMS_DATA_BLOCKED_UNI frame was received */
+	long long stream_data_blocked;       /* total number of times STREAM_DATA_BLOCKED frame was received */
+	long long streams_blocked_bidi;      /* total number of times STREAMS_BLOCKED_BIDI frame was received */
+	long long streams_blocked_uni;       /* total number of times STREAMS_BLOCKED_UNI frame was received */
 };
 
 #endif /* USE_QUIC */
