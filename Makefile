@@ -574,7 +574,7 @@ endif
 # This is for the WolfSSL variant of the OpenSSL API. Setting it implies
 # OPENSSL so it's not necessary to set the latter.
 ifneq ($(USE_OPENSSL_WOLFSSL),)
-  SSL_CFLAGS      := $(if $(SSL_INC),-I$(SSL_INC) -I$(SSL_INC)/wolfssl)
+  SSL_CFLAGS      := $(if $(SSL_INC),-I$(SSL_INC)/wolfssl -I$(SSL_INC))
   SSL_LDFLAGS     := $(if $(SSL_LIB),-L$(SSL_LIB)) -lwolfssl
   # always automatically set USE_OPENSSL
   USE_OPENSSL     := $(if $(USE_OPENSSL),$(USE_OPENSSL),implicit)
