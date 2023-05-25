@@ -256,12 +256,14 @@ locally. See the section about QUIC in this document.
 A fifth option is wolfSSL (https://github.com/wolfSSL/wolfssl). It is the only
 supported alternative stack not based on OpenSSL, yet which implements almost
 all of its API and natively supports QUIC. At the time of writing, the vast
-majority of SSL features are well supported by wolfSSL though advanced users
-might notice tiny differences that the wolfSSL and HAProxy teams are working on
-together to address in the wolfSSL code base as of May 2023. This stack is not
-affected by OpenSSL's design issue regarding multi-processor systems and is
-viewed by the HAProxy team as the most promising mid-term solution for general
-deployments and QUIC deployments.
+majority of SSL features are well supported by wolfSSL though not everything is
+exposed in haproxy yet, advanced users might notice tiny differences that the
+wolfSSL and HAProxy teams are working on together to address in the wolfSSL
+code base. Features like SSL resume, crt-list and client auth might not work as
+expected. As of May 2023, wolfSSL support is considered experimental. This
+stack is not affected by OpenSSL's design issue regarding multi-processor
+systems and is viewed by the HAProxy team as the most promising mid-term
+solution for general deployments and QUIC deployments.
 
 In order to enable SSL/TLS support, simply pass "USE_OPENSSL=1" on the command
 line and the default library present on your system will be used :
@@ -275,6 +277,12 @@ SSL library files using SSL_LIB. Example :
 
   $ make TARGET=generic \
     USE_OPENSSL=1 SSL_INC=/opt/ssl-1.1.1/include SSL_LIB=/opt/ssl-1.1.1/lib
+
+To use HAProxy with WolfSSL, WolfSSL must be built with haproxy support, at
+least WolfSSL 5.6.0 is needed, but a development version migh be needed for
+some of the features:
+
+  $ ./configure --enable-haproxy --enable-quic --prefix=/opt/wolfssl-5.6.0/
 
 Building with wolfSSL requires to specify the API variant on the "make"
 command line, for example:
