@@ -68,9 +68,6 @@ static void qcs_free(struct qcs *qcs)
 	qc_free_ncbuf(qcs, &qcs->rx.ncbuf);
 	b_free(&qcs->tx.buf);
 
-	BUG_ON(!qcc->strms[qcs_id_type(qcs->id)].nb_streams);
-	--qcc->strms[qcs_id_type(qcs->id)].nb_streams;
-
 	/* Remove qcs from qcc tree. */
 	eb64_delete(&qcs->by_id);
 
@@ -109,8 +106,6 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	/* store transport layer stream descriptor in qcc tree */
 	qcs->id = qcs->by_id.key = id;
 	eb64_insert(&qcc->streams_by_id, &qcs->by_id);
-
-	qcc->strms[type].nb_streams++;
 
 	/* Allocate transport layer stream descriptor. Only needed for TX. */
 	if (!quic_stream_is_uni(id) || !quic_stream_is_remote(qcc, id)) {
@@ -2524,11 +2519,6 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	lparams = &conn->handle.qc->rx.params;
 
 	qcc->tx.sent_offsets = qcc->tx.offsets = 0;
-
-	qcc->strms[QCS_CLT_BIDI].nb_streams = 0;
-	qcc->strms[QCS_CLT_UNI].nb_streams = 0;
-	qcc->strms[QCS_SRV_BIDI].nb_streams = 0;
-	qcc->strms[QCS_SRV_UNI].nb_streams = 0;
 
 	LIST_INIT(&qcc->lfctl.frms);
 	qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = lparams->initial_max_streams_bidi;

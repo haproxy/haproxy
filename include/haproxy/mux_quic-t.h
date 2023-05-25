@@ -41,10 +41,6 @@ struct qcc {
 	uint64_t nb_hreq; /* number of in-progress http requests */
 	uint32_t flags; /* QC_CF_* */
 
-	struct {
-		uint64_t nb_streams;  /* Number of open streams */
-	} strms[QCS_MAX_TYPES];
-
 	/* flow-control fields set by us enforced on our side. */
 	struct {
 		struct list frms; /* prepared frames related to flow-control  */
