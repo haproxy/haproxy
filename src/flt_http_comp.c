@@ -408,7 +408,7 @@ set_compression_header(struct comp_state *st, struct stream *s, struct http_msg 
 {
 	struct htx *htx = htxbuf(&msg->chn->buf);
 	struct htx_sl *sl;
-	struct http_hdr_ctx ctx;
+	struct http_hdr_ctx ctx, last_vary;
 	struct comp_algo *comp_algo;
 	int comp_index;
 
@@ -454,8 +454,29 @@ set_compression_header(struct comp_state *st, struct stream *s, struct http_msg 
 		}
 	}
 
-	if (!http_add_header(htx, ist("Vary"), ist("Accept-Encoding")))
-		goto error;
+	/* Add "Vary: Accept-Encoding" header but only if it is not found. */
+	ctx.blk = NULL;
+	last_vary.blk = NULL;
+	while (http_find_header(htx, ist("Vary"), &ctx, 0)) {
+		if (isteqi(ctx.value, ist("Accept-Encoding")))
+			break;
+		last_vary = ctx;
+	}
+	/* No "Accept-Encoding" value found. */
+	if (ctx.blk == NULL) {
+		if (last_vary.blk == NULL) {
+			/* No Vary header found at all. Add our header */
+			if (!http_add_header(htx, ist("Vary"), ist("Accept-Encoding")))
+				goto error;
+		}
+		else  {
+			/* At least one Vary header found. Append the value to
+			 * the last one.
+			 */
+			if (!http_append_header_value(htx, &last_vary, ist("Accept-Encoding")))
+				goto error;
+		}
+	}
 
 	/*
 	 * Add Content-Encoding header when it's not identity encoding.

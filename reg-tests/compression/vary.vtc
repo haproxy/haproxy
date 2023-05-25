@@ -59,6 +59,56 @@ server s1 {
 } -repeat 2 -start
 
 
+server s2 {
+        rxreq
+        expect req.url == "/vary/no-vary"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/vary/accept-encoding"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "Vary: Accept-Encoding" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/vary/other"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "Vary: Other" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/vary/accept-encoding-and-other"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "Vary: Accept-Encoding,Other" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/vary/other-and-accept-encoding"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "Vary: Other,Accept-Encoding" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/vary/empty"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "Vary: " \
+          -bodylen 100
+} -start
+
+
 haproxy h1 -conf {
     global
         # WT: limit false-positives causing "HTTP header incomplete" due to
@@ -87,6 +137,16 @@ haproxy h1 -conf {
 
     backend be-nothing
         server www ${s1_addr}:${s1_port}
+
+    frontend fe-vary
+        bind "fd@${fe_vary}"
+        default_backend be-vary
+
+    backend be-vary
+        compression algo gzip
+        compression type text/plain
+        server www ${s2_addr}:${s2_port}
+
 } -start
 
 client c1 -connect ${h1_fe_gzip_sock} {
@@ -187,5 +247,62 @@ client c2 -connect ${h1_fe_nothing_sock} {
         rxresp
         expect resp.status == 200
         expect resp.http.vary == "<undef>"
+        expect resp.bodylen == 100
+} -run
+
+
+client c3 -connect ${h1_fe_vary_sock} {
+        txreq -url "/vary/no-vary" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.vary == "Accept-Encoding"
+        gunzip
+        expect resp.bodylen == 100
+
+        txreq -url "/vary/accept-encoding" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.vary == "Accept-Encoding"
+        gunzip
+        expect resp.bodylen == 100
+
+        txreq -url "/vary/other" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.vary == "Other,Accept-Encoding"
+        gunzip
+        expect resp.bodylen == 100
+
+        txreq -url "/vary/accept-encoding-and-other" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.vary == "Accept-Encoding,Other"
+        gunzip
+        expect resp.bodylen == 100
+
+        txreq -url "/vary/other-and-accept-encoding" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.vary == "Other,Accept-Encoding"
+        gunzip
+        expect resp.bodylen == 100
+
+        txreq -url "/vary/empty" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.vary == "Accept-Encoding"
+        gunzip
         expect resp.bodylen == 100
 } -run
