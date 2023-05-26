@@ -1066,8 +1066,8 @@ static void *dummy_thread_function(void *data)
 static inline void preload_libgcc_s(void)
 {
 	pthread_t dummy_thread;
-	pthread_create(&dummy_thread, NULL, dummy_thread_function, NULL);
-	pthread_join(dummy_thread, NULL);
+	if (pthread_create(&dummy_thread, NULL, dummy_thread_function, NULL) == 0)
+		pthread_join(dummy_thread, NULL);
 }
 
 static void __thread_init(void)
