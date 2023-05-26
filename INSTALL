@@ -227,17 +227,19 @@ to forcefully enable it using "USE_LIBCRYPT=1".
 -----------------
 For SSL/TLS, it is necessary to use a cryptography library. HAProxy currently
 supports the OpenSSL library, and is known to build and work with branches
-1.0.0, 1.0.1, 1.0.2, 1.1.0, 1.1.1, 3.0 and 3.1. OpenSSL follows a long-term
-support cycle similar to HAProxy's, and each of the branches above receives its
-own fixes, without forcing you to upgrade to another branch. There is no excuse
-for staying vulnerable by not applying a fix available for your version. There
-is always a small risk of regression when jumping from one branch to another
-one, especially when it's very new, so it's preferable to observe for a while
-if you use a different version than your system's defaults. Specifically, it
-has been well established that OpenSSL 3.0 can be 2 to 20 times slower than
-earlier versions on multiprocessor systems due to design issues that cannot be
-fixed without a major redesign, so in this case upgrading should be carefully
-thought about (please see https://github.com/openssl/openssl/issues/20286 and
+1.0.0, 1.0.1, 1.0.2, 1.1.0, 1.1.1, 3.0 and 3.1. It is recommended to use at
+least OpenSSL 1.1.1 to have support for all SSL keywords and configuration in
+HAProxy. OpenSSL follows a long-term support cycle similar to HAProxy's, and
+each of the branches above receives its own fixes, without forcing you to
+upgrade to another branch. There is no excuse for staying vulnerable by not
+applying a fix available for your version. There is always a small risk of
+regression when jumping from one branch to another one, especially when it's
+very new, so it's preferable to observe for a while if you use a different
+version than your system's defaults. Specifically, it has been well established
+that OpenSSL 3.0 can be 2 to 20 times slower than earlier versions on
+multiprocessor systems due to design issues that cannot be fixed without a
+major redesign, so in this case upgrading should be carefully thought about
+(please see https://github.com/openssl/openssl/issues/20286 and
 https://github.com/openssl/openssl/issues/17627). If a migration to 3.x is
 mandated by support reasons, at least 3.1 recovers a small fraction of this
 important loss.
