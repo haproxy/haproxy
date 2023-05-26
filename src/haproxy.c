@@ -3524,8 +3524,8 @@ int main(int argc, char **argv)
 
 	if (global.prealloc_fd && fcntl((int)limit.rlim_cur - 1, F_GETFD) == -1) {
 		if (dup2(0, (int)limit.rlim_cur - 1) == -1)
-			ha_warning("[%s.main()] Unable to preallocate file descriptor %lu : %s",
-			           argv[0], limit.rlim_cur-1, strerror(errno));
+			ha_warning("[%s.main()] Unable to preallocate file descriptor %d : %s",
+			           argv[0], (int)limit.rlim_cur - 1, strerror(errno));
 		else
 			close((int)limit.rlim_cur - 1);
 	}
