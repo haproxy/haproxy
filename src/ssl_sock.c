@@ -7561,13 +7561,15 @@ static void __ssl_sock_init(void)
 	ERR_load_SSL_strings();
 #endif
 	ha_meth = BIO_meth_new(0x666, "ha methods");
-	BIO_meth_set_write(ha_meth, ha_ssl_write);
-	BIO_meth_set_read(ha_meth, ha_ssl_read);
-	BIO_meth_set_ctrl(ha_meth, ha_ssl_ctrl);
-	BIO_meth_set_create(ha_meth, ha_ssl_new);
-	BIO_meth_set_destroy(ha_meth, ha_ssl_free);
-	BIO_meth_set_puts(ha_meth, ha_ssl_puts);
-	BIO_meth_set_gets(ha_meth, ha_ssl_gets);
+	if (ha_meth != NULL) {
+		BIO_meth_set_write(ha_meth, ha_ssl_write);
+		BIO_meth_set_read(ha_meth, ha_ssl_read);
+		BIO_meth_set_ctrl(ha_meth, ha_ssl_ctrl);
+		BIO_meth_set_create(ha_meth, ha_ssl_new);
+		BIO_meth_set_destroy(ha_meth, ha_ssl_free);
+		BIO_meth_set_puts(ha_meth, ha_ssl_puts);
+		BIO_meth_set_gets(ha_meth, ha_ssl_gets);
+	}
 
 	HA_SPIN_INIT(&ckch_lock);
 
