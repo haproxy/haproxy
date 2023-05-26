@@ -18258,7 +18258,7 @@ jwt_verify(<alg>,<key>)
      # JOSE header and use a public certificate to verify a signature
      http-request set-var(txn.bearer) http_auth_bearer
      http-request set-var(txn.jwt_alg) var(txn.bearer),jwt_header_query('$.alg')
-     http-request deny unless { var(txn.jwt_alg) "RS256" }
+     http-request deny unless { var(txn.jwt_alg) -m str "RS256" }
      http-request deny unless { var(txn.bearer),jwt_verify(txn.jwt_alg,"/path/to/crt.pem") 1 }
 
 language(<value>[,<default>])
