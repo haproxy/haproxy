@@ -202,20 +202,13 @@ static inline int __stksess_kill_if_expired(struct stktable *t, struct stksess *
 static inline void stksess_kill_if_expired(struct stktable *t, struct stksess *ts, int decrefcnt)
 {
 
+	if (decrefcnt && HA_ATOMIC_SUB_FETCH(&ts->ref_cnt, 1) != 0)
+		return;
+
 	if (t->expire != TICK_ETERNITY && tick_is_expired(ts->expire, now_ms)) {
 		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
-		if (decrefcnt)
-			ts->ref_cnt--;
-
 		__stksess_kill_if_expired(t, ts);
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
-	}
-	else {
-		if (decrefcnt) {
-			HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &t->lock);
-			HA_ATOMIC_DEC(&ts->ref_cnt);
-			HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->lock);
-		}
 	}
 }
 

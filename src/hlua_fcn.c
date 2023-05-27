@@ -924,7 +924,7 @@ int hlua_stktable_lookup(lua_State *L)
 
 	lua_newtable(L);
 	lua_pushstring(L, "use");
-	lua_pushinteger(L, ts->ref_cnt - 1);
+	lua_pushinteger(L, HA_ATOMIC_LOAD(&ts->ref_cnt) - 1);
 	lua_settable(L, -3);
 
 	lua_pushstring(L, "expire");
@@ -932,9 +932,7 @@ int hlua_stktable_lookup(lua_State *L)
 	lua_settable(L, -3);
 
 	hlua_stktable_entry(L, t, ts);
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
-	ts->ref_cnt--;
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_ATOMIC_DEC(&ts->ref_cnt);
 
 	return 1;
 }
@@ -1052,7 +1050,7 @@ int hlua_stktable_dump(lua_State *L)
 			HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 			return 1;
 		}
-		ts->ref_cnt++;
+		HA_ATOMIC_INC(&ts->ref_cnt);
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 
 		/* multi condition/value filter */
@@ -1094,7 +1092,7 @@ int hlua_stktable_dump(lua_State *L)
 
 		if (skip_entry) {
 			HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
-			ts->ref_cnt--;
+			HA_ATOMIC_DEC(&ts->ref_cnt);
 			continue;
 		}
 
@@ -1118,7 +1116,7 @@ int hlua_stktable_dump(lua_State *L)
 		hlua_stktable_entry(L, t, ts);
 		lua_settable(L, -3);
 		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
-		ts->ref_cnt--;
+		HA_ATOMIC_DEC(&ts->ref_cnt);
 	}
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 

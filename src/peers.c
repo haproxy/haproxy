@@ -1597,18 +1597,15 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 			continue;
 		}
 
-		ts->ref_cnt++;
+		HA_ATOMIC_INC(&ts->ref_cnt);
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
 
 		ret = peer_send_updatemsg(st, appctx, ts, updateid, new_pushed, use_timed);
-		if (ret <= 0) {
-			HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
-			ts->ref_cnt--;
-			break;
-		}
-
 		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
-		ts->ref_cnt--;
+		HA_ATOMIC_DEC(&ts->ref_cnt);
+		if (ret <= 0)
+			break;
+
 		st->last_pushed = updateid;
 
 		if (peer_stksess_lookup == peer_teach_process_stksess_lookup &&
