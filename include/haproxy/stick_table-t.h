@@ -162,18 +162,10 @@ struct stktable {
 	                           * the same configuration section.
 	                           */
 	struct ebpt_node name;    /* Stick-table are lookup by name here. */
-	struct eb_root keys;      /* head of sticky session tree */
-	struct eb_root exps;      /* head of sticky session expiration tree */
-	struct eb_root updates;   /* head of sticky updates sequence tree */
 	struct pool_head *pool;   /* pool used to allocate sticky sessions */
 	struct task *exp_task;    /* expiration task */
 	struct task *sync_task;   /* sync task */
-	unsigned int update;
-	unsigned int localupdate;
-	unsigned int commitupdate;/* used to identify the latest local updates
-				     pending for sync */
-	unsigned int refcnt;     /* number of local peer over all peers sections
-				    attached to this table */
+
 	uint64_t hash_seed;      /* hash seed used by shards */
 	union {
 		struct peers *p; /* sync peers */
@@ -184,7 +176,6 @@ struct stktable {
 	size_t key_size;          /* size of a key, maximum size in case of string */
 	unsigned int server_key_type; /* What type of key is used to identify servers */
 	unsigned int size;        /* maximum number of sticky sessions in table */
-	unsigned int current;     /* number of sticky sessions currently in table */
 	int nopurge;              /* if non-zero, don't purge sticky sessions when full */
 	int expire;               /* time to live for sticky sessions (milliseconds) */
 	int data_size;            /* the size of the data that is prepended *before* stksess */
@@ -201,7 +192,22 @@ struct stktable {
 		const char *file;     /* The file where the stick-table is declared. */
 		int line;             /* The line in this <file> the stick-table is declared. */
 	} conf;
+
+	THREAD_ALIGN(64);
+
+	struct eb_root keys;      /* head of sticky session tree */
+	struct eb_root exps;      /* head of sticky session expiration tree */
+	unsigned int refcnt;     /* number of local peer over all peers sections
+				    attached to this table */
+	unsigned int current;     /* number of sticky sessions currently in table */
 	__decl_thread(HA_RWLOCK_T lock); /* lock related to the table */
+
+	THREAD_ALIGN(64);
+
+	struct eb_root updates;   /* head of sticky updates sequence tree, uses updt_lock */
+	unsigned int update;      /* uses updt_lock */
+	unsigned int localupdate; /* uses updt_lock */
+	unsigned int commitupdate;/* used to identify the latest local updates pending for sync, uses updt_lock */
 };
 
 extern struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES];
