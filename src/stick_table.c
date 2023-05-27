@@ -565,9 +565,9 @@ void stktable_requeue_exp(struct stktable *t, const struct stksess *ts)
 		new_exp = tick_first(expire, old_exp);
 	}
 
-	task_queue(t->exp_task);
-
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+
+	task_queue(t->exp_task);
 }
 
 /* Returns a valid or initialized stksess for the specified stktable_key in the
