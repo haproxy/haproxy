@@ -100,7 +100,14 @@ void thread_isolate()
 
 	/* wait for all threads to become harmless. They cannot change their
 	 * mind once seen thanks to rdv_requests above, unless they pass in
-	 * front of us.
+	 * front of us. For this reason we proceed in 4 steps:
+	 *   1) wait for all threads to declare themselves harmless
+	 *   2) try to grab the isolated_thread exclusivity
+	 *   3) verify again that all threads are harmless, since another one
+	 *      that was isolating between 1 and 2 could have dropped its
+	 *      harmless state there.
+	 *   4) drop harmless flag (which also has the benefit of leaving
+	 *      all other threads wait on reads instead of writes.
 	 */
 	while (1) {
 		for (tgrp = 0; tgrp < global.nbtgroups; tgrp++) {
@@ -114,17 +121,18 @@ void thread_isolate()
 			} while (1);
 		}
 
-		/* Now we've seen all threads marked harmless, we can try to run
-		 * by competing with other threads to win the race of the isolated
-		 * thread. It eventually converges since winners will enventually
-		 * relax their request and go back to wait for this to be over.
-		 * Competing on this only after seeing all threads harmless limits
-		 * the write contention.
+		/* all other ones are harmless. isolated_thread will contain
+		 * ~0U if no other one competes, !=tid if another one got it,
+		 * tid if the current thread already grabbed it on the previous
+		 * round.
 		 */
 		thr = _HA_ATOMIC_LOAD(&isolated_thread);
-		if (thr == ~0U && _HA_ATOMIC_CAS(&isolated_thread, &thr, tid))
-			break; // we won!
-		ha_thread_relax();
+		if (thr == tid)
+			break; // we won and we're certain everyone is harmless
+
+		/* try to win the race against others */
+		if (thr != ~0U || !_HA_ATOMIC_CAS(&isolated_thread, &thr, tid))
+			ha_thread_relax();
 	}
 
 	/* the thread is no longer harmless as it runs */
@@ -161,7 +169,14 @@ void thread_isolate_full()
 
 	/* wait for all threads to become harmless. They cannot change their
 	 * mind once seen thanks to rdv_requests above, unless they pass in
-	 * front of us.
+	 * front of us. For this reason we proceed in 4 steps:
+	 *   1) wait for all threads to declare themselves harmless
+	 *   2) try to grab the isolated_thread exclusivity
+	 *   3) verify again that all threads are harmless, since another one
+	 *      that was isolating between 1 and 2 could have dropped its
+	 *      harmless state there.
+	 *   4) drop harmless flag (which also has the benefit of leaving
+	 *      all other threads wait on reads instead of writes.
 	 */
 	while (1) {
 		for (tgrp = 0; tgrp < global.nbtgroups; tgrp++) {
@@ -176,17 +191,17 @@ void thread_isolate_full()
 			} while (1);
 		}
 
-		/* Now we've seen all threads marked harmless and idle, we can
-		 * try to run by competing with other threads to win the race
-		 * of the isolated thread. It eventually converges since winners
-		 * will enventually relax their request and go back to wait for
-		 * this to be over. Competing on this only after seeing all
-		 * threads harmless+idle limits the write contention.
+		/* all other ones are harmless and idle. isolated_thread will
+		 * contain ~0U if no other one competes, !=tid if another one
+		 * got it, tid if the current thread already grabbed it on the
+		 * previous round.
 		 */
 		thr = _HA_ATOMIC_LOAD(&isolated_thread);
-		if (thr == ~0U && _HA_ATOMIC_CAS(&isolated_thread, &thr, tid))
-			break; // we won!
-		ha_thread_relax();
+		if (thr == tid)
+			break; // we won and we're certain everyone is harmless
+
+		if (thr != ~0U || !_HA_ATOMIC_CAS(&isolated_thread, &thr, tid))
+			ha_thread_relax();
 	}
 
 	/* we're not idle nor harmless anymore at this point. Other threads
@@ -195,6 +210,11 @@ void thread_isolate_full()
 	 */
 	_HA_ATOMIC_AND(&tg_ctx->threads_idle, ~ti->ltid_bit);
 	_HA_ATOMIC_AND(&tg_ctx->threads_harmless, ~ti->ltid_bit);
+
+	/* the thread is isolated until it calls thread_release() which will
+	 * 1) reset isolated_thread to ~0;
+	 * 2) decrement rdv_requests.
+	 */
 }
 
 /* Cancels the effect of thread_isolate() by resetting the ID of the isolated
