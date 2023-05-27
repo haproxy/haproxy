@@ -119,7 +119,11 @@ int __stksess_kill(struct stktable *t, struct stksess *ts)
 		return 0;
 
 	eb32_delete(&ts->exp);
-	eb32_delete(&ts->upd);
+	if (ts->upd.node.leaf_p) {
+		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
+		eb32_delete(&ts->upd);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
+	}
 	ebmb_delete(&ts->key);
 	__stksess_free(t, ts);
 	return 1;
@@ -278,7 +282,11 @@ int __stktable_trash_oldest(struct stktable *t, int to_batch)
 
 		/* session expired, trash it */
 		ebmb_delete(&ts->key);
-		eb32_delete(&ts->upd);
+		if (ts->upd.node.leaf_p) {
+			HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
+			eb32_delete(&ts->upd);
+			HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
+		}
 		__stksess_free(t, ts);
 		batched++;
 	}
@@ -441,7 +449,7 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 			 * or not scheduled for at least one peer.
 			 */
 			if (!locked++)
-				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
+				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
 
 			if (!ts->upd.node.leaf_p
 			    || (int)(t->commitupdate - ts->upd.key) >= 0
@@ -460,7 +468,7 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 		else {
 			/* If this entry is not in the tree */
 			if (!locked++)
-				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
+				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
 
 			if (!ts->upd.node.leaf_p) {
 				ts->upd.key= (++t->update)+(2147483648U);
@@ -474,7 +482,7 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 	}
 
 	if (locked)
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
 
 	if (decrefcnt)
 		HA_ATOMIC_DEC(&ts->ref_cnt);
@@ -664,6 +672,7 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 	struct stktable *t = context;
 	struct stksess *ts;
 	struct eb32_node *eb;
+	int updt_locked = 0;
 	int looped = 0;
 	int exp_next;
 
@@ -726,7 +735,13 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 
 		/* session expired, trash it */
 		ebmb_delete(&ts->key);
-		eb32_delete(&ts->upd);
+		if (ts->upd.node.leaf_p) {
+			if (!updt_locked) {
+				updt_locked = 1;
+				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
+			}
+			eb32_delete(&ts->upd);
+		}
 		__stksess_free(t, ts);
 	}
 
@@ -735,6 +750,8 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 
 out_unlock:
 	task->expire = exp_next;
+	if (updt_locked)
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 	return task;
 }
