@@ -424,6 +424,7 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 {
 	struct eb32_node * eb;
 	int locked = 0;
+	int do_wakeup = 0;
 
 	if (expire != HA_ATOMIC_LOAD(&ts->expire)) {
 		/* we'll need to set the expiration and to wake up the expiration timer .*/
@@ -452,7 +453,7 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 					eb32_insert(&t->updates, &ts->upd);
 				}
 			}
-			task_wakeup(t->sync_task, TASK_WOKEN_MSG);
+			do_wakeup = 1;
 		}
 		else {
 			/* If this entry is not in the tree */
@@ -482,6 +483,9 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 
 	if (locked)
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+
+	if (do_wakeup)
+		task_wakeup(t->sync_task, TASK_WOKEN_MSG);
 }
 
 /* Update the expiration timer for <ts> but do not touch its expiration node.
