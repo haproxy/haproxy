@@ -454,7 +454,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
-	if (!qc_get_buf(qcs, &htx_buf)) {
+	if (!qcs_get_buf(qcs, &htx_buf)) {
 		TRACE_ERROR("HTX buffer alloc failure", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 		h3c->err = H3_INTERNAL_ERROR;
 		len = -1;
@@ -681,7 +681,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	htx_to_buf(htx, &htx_buf);
 	htx = NULL;
 
-	if (!qc_attach_sc(qcs, &htx_buf, fin)) {
+	if (!qcs_attach_sc(qcs, &htx_buf, fin)) {
 		h3c->err = H3_INTERNAL_ERROR;
 		len = -1;
 		goto out;
@@ -752,7 +752,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
-	if (!qc_get_buf(qcs, &htx_buf)) {
+	if (!qcs_get_buf(qcs, &htx_buf)) {
 		TRACE_ERROR("HTX buffer alloc failure", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 		h3c->err = H3_INTERNAL_ERROR;
 		len = -1;
@@ -868,7 +868,7 @@ static ssize_t h3_data_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_DATA, qcs->qcc->conn, qcs);
 
-	if (!(appbuf = qc_get_buf(qcs, &qcs->rx.app_buf))) {
+	if (!(appbuf = qcs_get_buf(qcs, &qcs->rx.app_buf))) {
 		TRACE_ERROR("data buffer alloc failure", H3_EV_RX_FRAME|H3_EV_RX_DATA, qcs->qcc->conn, qcs);
 		h3c->err = H3_INTERNAL_ERROR;
 		len = -1;
@@ -1059,7 +1059,7 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 		struct htx *htx;
 
 		TRACE_PROTO("received FIN without data", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-		if (!(appbuf = qc_get_buf(qcs, &qcs->rx.app_buf))) {
+		if (!(appbuf = qcs_get_buf(qcs, &qcs->rx.app_buf))) {
 			TRACE_ERROR("data buffer alloc failure", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 			h3c->err = H3_INTERNAL_ERROR;
 			goto err;
