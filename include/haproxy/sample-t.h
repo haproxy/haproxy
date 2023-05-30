@@ -34,6 +34,7 @@
  */
 enum {
 	SMP_T_ANY = 0,   /* pseudo type: any type */
+	SMP_T_SAME,      /* special: output type hint for converters that don't alter input type (out == in) */
 	SMP_T_BOOL,      /* boolean */
 	SMP_T_SINT,      /* signed 64bits integer type */
 	SMP_T_ADDR,      /* pseudo type: could be ipv4 or ipv6 */

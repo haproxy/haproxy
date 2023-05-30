@@ -49,6 +49,7 @@
 /* sample type names */
 const char *smp_to_type[SMP_TYPES] = {
 	[SMP_T_ANY]  = "any",
+	[SMP_T_SAME] = "same",
 	[SMP_T_BOOL] = "bool",
 	[SMP_T_SINT] = "sint",
 	[SMP_T_ADDR] = "addr",
@@ -331,20 +332,48 @@ static const char *fetch_ckp_names[SMP_CKP_ENTRIES] = {
 	[SMP_CKP_CLI_PARSER] = "CLI parser",
 };
 
-/* This function returns the type of the data returned by the sample_expr.
- * It assumes that the <expr> and all of its converters are properly
- * initialized.
+/* This function returns the most accurate expected type of the data returned
+ * by the sample_expr. It assumes that the <expr> and all of its converters are
+ * properly initialized.
  */
-inline
 int smp_expr_output_type(struct sample_expr *expr)
 {
-	struct sample_conv_expr *smp_expr;
+	struct sample_conv_expr *cur_smp = NULL;
+	int cur_type = SMP_T_ANY;  /* current type in the chain */
+	int next_type = SMP_T_ANY; /* next type in the chain */
 
 	if (!LIST_ISEMPTY(&expr->conv_exprs)) {
-		smp_expr = LIST_PREV(&expr->conv_exprs, struct sample_conv_expr *, list);
-		return smp_expr->conv->out_type;
+		/* Ignore converters that output SMP_T_SAME if switching to them is
+		 * conversion-free. (such converter's output match with input, thus only
+		 * their input is considered)
+		 *
+		 * We start looking at the end of conv list and then loop back until the
+		 * sample fetch for better performance (it is more likely to find the last
+		 * effective output type near the end of the chain)
+		 */
+		do {
+			struct list *cur_head = (cur_smp) ? &cur_smp->list : &expr->conv_exprs;
+
+			cur_smp = LIST_PREV(cur_head, struct sample_conv_expr *, list);
+			if (cur_smp->conv->out_type != SMP_T_SAME) {
+				/* current converter has effective out_type */
+				cur_type = cur_smp->conv->out_type;
+				goto out;
+			}
+			else if (sample_casts[cur_type][next_type] != c_none)
+				return next_type; /* switching to next type is not conversion-free */
+
+			next_type = cur_smp->conv->in_type;
+		} while (cur_smp != LIST_NEXT(&expr->conv_exprs, struct sample_conv_expr *, list));
 	}
-	return expr->fetch->out_type;
+	/* conv list empty or doesn't have effective out_type,
+	 * falling back to sample fetch out_type
+	 */
+	cur_type = expr->fetch->out_type;
+ out:
+	if (sample_casts[cur_type][next_type] != c_none)
+		return next_type; /* switching to next type is not conversion-free */
+	return cur_type;
 }
 
 
@@ -993,16 +1022,17 @@ static int c_bool2bin(struct sample *smp)
 /*****************************************************************/
 
 sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
-/*            to:  ANY     BOOL       SINT       ADDR        IPV4      IPV6        STR         BIN         METH */
-/* from:  ANY */ { c_none, c_pseudo,  c_pseudo,  c_pseudo,   c_pseudo, c_pseudo,   c_pseudo,   c_pseudo,   c_pseudo,   },
-/*       BOOL */ { c_none, c_none,    c_none,    NULL,       NULL,     NULL,       c_int2str,  c_bool2bin, NULL,       },
-/*       SINT */ { c_none, c_none,    c_none,    c_int2ip,   c_int2ip, c_int2ipv6, c_int2str,  c_int2bin,  NULL,       },
-/*       ADDR */ { c_none, NULL,      NULL,      c_pseudo,   c_pseudo, c_pseudo,   c_pseudo,   c_pseudo,   NULL,       },
-/*       IPV4 */ { c_none, NULL,      c_ip2int,  c_none,     c_none,   c_ip2ipv6,  c_ip2str,   c_addr2bin, NULL,       },
-/*       IPV6 */ { c_none, NULL,      NULL,      c_none,     c_ipv62ip,c_none,     c_ipv62str, c_addr2bin, NULL,       },
-/*        STR */ { c_none, c_str2int, c_str2int, c_str2addr, c_str2ip, c_str2ipv6, c_none,     c_none,     c_str2meth, },
-/*        BIN */ { c_none, NULL,      NULL,      NULL,       NULL,     NULL,       c_bin2str,  c_none,     c_str2meth, },
-/*       METH */ { c_none, NULL,      NULL,      NULL,       NULL,     NULL,       c_meth2str, c_meth2str, c_none,     }
+/*            to:  ANY     SAME      BOOL       SINT       ADDR        IPV4       IPV6        STR         BIN         METH */
+/* from:  ANY */ { c_none, NULL,     c_pseudo,  c_pseudo,  c_pseudo,   c_pseudo,  c_pseudo,   c_pseudo,   c_pseudo,   c_pseudo   },
+/*       SAME */ { NULL,   NULL,     NULL,      NULL,      NULL,       NULL,      NULL,       NULL,       NULL,       NULL       },
+/*       BOOL */ { c_none, NULL,     c_none,    c_none,    NULL,       NULL,      NULL,       c_int2str,  c_bool2bin, NULL       },
+/*       SINT */ { c_none, NULL,     c_none,    c_none,    c_int2ip,   c_int2ip,  c_int2ipv6, c_int2str,  c_int2bin,  NULL       },
+/*       ADDR */ { c_none, NULL,     NULL,      NULL,      c_pseudo,   c_pseudo,  c_pseudo,   c_pseudo,   c_pseudo,   NULL       },
+/*       IPV4 */ { c_none, NULL,     NULL,      c_ip2int,  c_none,     c_none,    c_ip2ipv6,  c_ip2str,   c_addr2bin, NULL       },
+/*       IPV6 */ { c_none, NULL,     NULL,      NULL,      c_none,     c_ipv62ip, c_none,     c_ipv62str, c_addr2bin, NULL       },
+/*        STR */ { c_none, NULL,     c_str2int, c_str2int, c_str2addr, c_str2ip,  c_str2ipv6, c_none,     c_none,     c_str2meth },
+/*        BIN */ { c_none, NULL,     NULL,      NULL,      NULL,       NULL,      NULL,       c_bin2str,  c_none,     c_str2meth },
+/*       METH */ { c_none, NULL,     NULL,      NULL,      NULL,       NULL,      NULL,       c_meth2str, c_meth2str, c_none     }
 };
 
 /* Process the converters (if any) for a sample expr after the first fetch
@@ -1103,7 +1133,15 @@ int sample_parse_expr_cnv(char **str, int *idx, char **endptr, char **err_msg, s
 			goto out_error;
 		}
 
-		prev_type = conv->out_type;
+		/* Ignore converters that output SMP_T_SAME if switching to them is
+		 * conversion-free. (such converter's output match with input, thus only
+		 * their input is considered)
+		 */
+		if (conv->out_type != SMP_T_SAME)
+			prev_type = conv->out_type;
+		else if (sample_casts[prev_type][conv->in_type] != c_none)
+			prev_type = conv->in_type;
+
 		conv_expr = calloc(1, sizeof(*conv_expr));
 		if (!conv_expr)
 			goto out_error;
@@ -4488,7 +4526,7 @@ INITCALL1(STG_REGISTER, sample_register_fetches, &smp_kws);
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "add_item",sample_conv_add_item,     ARG3(2,STR,STR,STR),   smp_check_add_item,       SMP_T_STR,  SMP_T_STR  },
-	{ "debug",   sample_conv_debug,        ARG2(0,STR,STR),       smp_check_debug,          SMP_T_ANY,  SMP_T_ANY  },
+	{ "debug",   sample_conv_debug,        ARG2(0,STR,STR),       smp_check_debug,          SMP_T_ANY,  SMP_T_SAME },
 	{ "b64dec",  sample_conv_base642bin,   0,                     NULL,                     SMP_T_STR,  SMP_T_BIN  },
 	{ "base64",  sample_conv_bin2base64,   0,                     NULL,                     SMP_T_BIN,  SMP_T_STR  },
 	{ "concat",  sample_conv_concat,       ARG3(1,STR,STR,STR),   smp_check_concat,         SMP_T_STR,  SMP_T_STR  },
