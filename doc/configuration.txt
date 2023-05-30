@@ -2041,9 +2041,6 @@ nbthread <number>
   output of "haproxy -vv".
 
 no-quic
-  Warning: QUIC support in HAProxy is currently experimental. Configuration may
-  change without deprecation in the future.
-
   Disable QUIC transport protocol. All the QUIC listeners will still be created.
   But they will not bind their addresses. Hence, no QUIC traffic will be
   processed by haproxy. See also "quic_enabled" sample fetch.
@@ -3320,9 +3317,6 @@ tune.pool-low-fd-ratio <number>
   default is 20.
 
 tune.quic.frontend.conn-tx-buffers.limit <number>
-  Warning: QUIC support in HAProxy is currently experimental. Configuration may
-  change without deprecation in the future.
-
   This settings defines the maximum number of buffers allocated for a QUIC
   connection on data emission. By default, it is set to 30. QUIC buffers are
   drained on ACK reception. This setting has a direct impact on the throughput
@@ -3330,9 +3324,6 @@ tune.quic.frontend.conn-tx-buffers.limit <number>
   time-trip. Each buffer is tune.bufsize.
 
 tune.quic.frontend.max-idle-timeout <timeout>
-  Warning: QUIC support in HAProxy is currently experimental. Configuration may
-  change without deprecation in the future.
-
   Sets the QUIC max_idle_timeout transport parameters in milliseconds for
   frontends which determines the period of time after which a connection silently
   closes if it has remained inactive during an effective period of time deduced
@@ -3344,9 +3335,6 @@ tune.quic.frontend.max-idle-timeout <timeout>
   The default value is 30000.
 
 tune.quic.frontend.max-streams-bidi <number>
-  Warning: QUIC support in HAProxy is currently experimental. Configuration may
-  change without deprecation in the future.
-
   Sets the QUIC initial_max_streams_bidi transport parameter for frontends.
   This is the initial maximum number of bidirectional streams the remote peer
   will be authorized to open. This determines the number of concurrent client
@@ -3355,18 +3343,12 @@ tune.quic.frontend.max-streams-bidi <number>
   The default value is 100.
 
 tune.quic.max-frame-loss <number>
-  Warning: QUIC support in HAProxy is currently experimental. Configuration may
-  change without deprecation in the future.
-
   Sets the limit for which a single QUIC frame can be marked as lost. If
   exceeded, the connection is considered as failing and is closed immediately.
 
   The default value is 10.
 
 tune.quic.retry-threshold <number>
-  Warning: QUIC support in HAProxy is currently experimental. Configuration may
-  change without deprecation in the future.
-
   Dynamically enables the Retry feature for all the configured QUIC listeners
   as soon as this number of half open connections is reached. A half open
   connection is a connection whose handshake has not already successfully
@@ -3381,9 +3363,6 @@ tune.quic.retry-threshold <number>
   information about QUIC retry.
 
 tune.quic.socket-owner { listener | connection }
-  Warning: QUIC support in HAProxy is currently experimental. Configuration may
-  change without deprecation in the future.
-
   Specifies how QUIC connections will use socket for receive/send operations.
   Connections can share listener socket or each connection can allocate its
   own socket.
@@ -15353,8 +15332,6 @@ proto <name>
   h2" on the bind line.
 
 quic-cc-algo [ cubic | newreno ]
-  Warning: QUIC support in HAProxy is currently experimental. Configuration may
-
   This is a QUIC specific setting to select the congestion control algorithm
   for any connection attempts to the configured QUIC listeners. They are similar
   to those used by TCP.
@@ -15362,9 +15339,6 @@ quic-cc-algo [ cubic | newreno ]
   Default value: cubic
 
 quic-force-retry
-  Warning: QUIC support in HAProxy is currently experimental. Configuration may
-  change without deprecation in the future.
-
   This is a QUIC specific setting which forces the use of the QUIC Retry feature
   for all the connection attempts to the configured QUIC listeners. It consists
   in veryfying the peers are able to receive packets at the transport address
@@ -19553,9 +19527,6 @@ queue([<backend>]) : integer
   also the "avg_queue", "be_conn", and "be_sess_rate" fetches.
 
 quic_enabled : boolean
-  Warning: QUIC support in HAProxy is currently experimental. Configuration may
-  change without deprecation in the future.
-
   Return true when the support for QUIC transport protocol was compiled and
   if this procotol was not disabled by "no-quic" global option. See also "no-quic"
   global option.
