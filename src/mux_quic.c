@@ -2493,8 +2493,8 @@ static struct task *qc_timeout_task(struct task *t, void *ctx, unsigned int stat
 	return t;
 }
 
-static int qc_init(struct connection *conn, struct proxy *prx,
-                   struct session *sess, struct buffer *input)
+static int qmux_init(struct connection *conn, struct proxy *prx,
+                     struct session *sess, struct buffer *input)
 {
 	struct qcc *qcc;
 	struct quic_transport_params *lparams, *rparams;
@@ -2625,7 +2625,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	return -1;
 }
 
-static void qc_destroy(void *ctx)
+static void qmux_destroy(void *ctx)
 {
 	struct qcc *qcc = ctx;
 
@@ -2634,7 +2634,7 @@ static void qc_destroy(void *ctx)
 	TRACE_LEAVE(QMUX_EV_QCC_END);
 }
 
-static void qc_detach(struct sedesc *sd)
+static void qmux_strm_detach(struct sedesc *sd)
 {
 	struct qcs *qcs = sd->se;
 	struct qcc *qcc = qcs->qcc;
@@ -2686,8 +2686,8 @@ static void qc_detach(struct sedesc *sd)
 }
 
 /* Called from the upper layer, to receive data */
-static size_t qc_recv_buf(struct stconn *sc, struct buffer *buf,
-                          size_t count, int flags)
+static size_t qmux_strm_rcv_buf(struct stconn *sc, struct buffer *buf,
+                                size_t count, int flags)
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
 	struct qcc *qcc = qcs->qcc;
@@ -2759,8 +2759,8 @@ static size_t qc_recv_buf(struct stconn *sc, struct buffer *buf,
 	return ret;
 }
 
-static size_t qc_send_buf(struct stconn *sc, struct buffer *buf,
-                          size_t count, int flags)
+static size_t qmux_strm_snd_buf(struct stconn *sc, struct buffer *buf,
+                                size_t count, int flags)
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
 	size_t ret = 0;
@@ -2806,8 +2806,8 @@ static size_t qc_send_buf(struct stconn *sc, struct buffer *buf,
  * as at least one event is still subscribed. The <event_type> must only be a
  * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0.
  */
-static int qc_subscribe(struct stconn *sc, int event_type,
-                        struct wait_event *es)
+static int qmux_strm_subscribe(struct stconn *sc, int event_type,
+                               struct wait_event *es)
 {
 	return qcs_subscribe(__sc_mux_strm(sc), event_type, es);
 }
@@ -2816,7 +2816,7 @@ static int qc_subscribe(struct stconn *sc, int event_type,
  * The <es> pointer is not allowed to differ from the one passed to the
  * subscribe() call. It always returns zero.
  */
-static int qc_unsubscribe(struct stconn *sc, int event_type, struct wait_event *es)
+static int qmux_strm_unsubscribe(struct stconn *sc, int event_type, struct wait_event *es)
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
 
@@ -2830,7 +2830,7 @@ static int qc_unsubscribe(struct stconn *sc, int event_type, struct wait_event *
 	return 0;
 }
 
-static int qc_wake(struct connection *conn)
+static int qmux_wake(struct connection *conn)
 {
 	struct qcc *qcc = conn->ctx;
 
@@ -2854,7 +2854,7 @@ static int qc_wake(struct connection *conn)
 	return 1;
 }
 
-static void qc_shutw(struct stconn *sc, enum co_shw_mode mode)
+static void qmux_strm_shutw(struct stconn *sc, enum co_shw_mode mode)
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
 	struct qcc *qcc = qcs->qcc;
@@ -2893,7 +2893,7 @@ static void qc_shutw(struct stconn *sc, enum co_shw_mode mode)
  * line is used. Each field starts with a space so it's safe to print it after
  * existing fields.
  */
-static int qc_show_sd(struct buffer *msg, struct sedesc *sd, const char *pfx)
+static int qmux_strm_show_sd(struct buffer *msg, struct sedesc *sd, const char *pfx)
 {
 	struct qcs *qcs = sd->se;
 	struct qcc *qcc;
@@ -2915,22 +2915,22 @@ static int qc_show_sd(struct buffer *msg, struct sedesc *sd, const char *pfx)
 }
 
 
-static const struct mux_ops qc_ops = {
-	.init = qc_init,
-	.destroy = qc_destroy,
-	.detach = qc_detach,
-	.rcv_buf = qc_recv_buf,
-	.snd_buf = qc_send_buf,
-	.subscribe = qc_subscribe,
-	.unsubscribe = qc_unsubscribe,
-	.wake = qc_wake,
-	.shutw = qc_shutw,
-	.show_sd = qc_show_sd,
+static const struct mux_ops qmux_ops = {
+	.init        = qmux_init,
+	.destroy     = qmux_destroy,
+	.detach      = qmux_strm_detach,
+	.rcv_buf     = qmux_strm_rcv_buf,
+	.snd_buf     = qmux_strm_snd_buf,
+	.subscribe   = qmux_strm_subscribe,
+	.unsubscribe = qmux_strm_unsubscribe,
+	.wake        = qmux_wake,
+	.shutw       = qmux_strm_shutw,
+	.show_sd     = qmux_strm_show_sd,
 	.flags = MX_FL_HTX|MX_FL_NO_UPG|MX_FL_FRAMED,
 	.name = "QUIC",
 };
 
 static struct mux_proto_list mux_proto_quic =
-  { .token = IST("quic"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_FE, .mux = &qc_ops };
+  { .token = IST("quic"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_FE, .mux = &qmux_ops };
 
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_quic);
