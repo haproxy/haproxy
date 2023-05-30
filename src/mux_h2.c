@@ -75,7 +75,7 @@ struct h2c {
 
 	int timeout;        /* idle timeout duration in ticks */
 	int shut_timeout;   /* idle timeout duration in ticks after GOAWAY was sent */
-	int idle_start;     /* date of the last time the connection went idle */
+	int idle_start;     /* date of the last time the connection went idle (no stream + empty mbuf), or the start of current http req */
 	/* 32-bit hole here */
 	unsigned int nb_streams;  /* number of streams in the tree */
 	unsigned int nb_sc;       /* number of attached stream connectors */
@@ -3411,7 +3411,8 @@ static void h2_process_demux(struct h2c *h2c)
 			}
 
 			/* transition to HEADERS frame ends the keep-alive idle
-			 * timer and starts the http-request idle delay.
+			 * timer and starts the http-request idle delay. It uses
+			 * the idle_start timer as well.
 			 */
 			if (hdr.ft == H2_FT_HEADERS)
 				h2c->idle_start = now_ms;
@@ -3823,6 +3824,7 @@ static int h2_send(struct h2c *h2c)
 		if (h2c->flags & H2_CF_RCVD_SHUT)
 			h2c->flags |= H2_CF_ERROR;
 		b_reset(br_tail(h2c->mbuf));
+		h2c->idle_start = now_ms;
 		return 1;
 	}
 
@@ -3931,6 +3933,8 @@ static int h2_send(struct h2c *h2c)
 	/* We're done, no more to send */
 	if (!(conn->flags & CO_FL_WAIT_XPRT) && !br_data(h2c->mbuf)) {
 		TRACE_DEVEL("leaving with everything sent", H2_EV_H2C_SEND, h2c->conn);
+		if (!h2c->nb_sc)
+			h2c->idle_start = now_ms;
 		goto end;
 	}
 
@@ -4366,7 +4370,7 @@ static void h2_detach(struct sedesc *sd)
 	sess = h2s->sess;
 	h2c = h2s->h2c;
 	h2c->nb_sc--;
-	if (!h2c->nb_sc)
+	if (!h2c->nb_sc && !br_data(h2c->mbuf))
 		h2c->idle_start = now_ms;
 
 	if ((h2c->flags & (H2_CF_IS_BACK|H2_CF_DEM_TOOMANY)) == H2_CF_DEM_TOOMANY &&
