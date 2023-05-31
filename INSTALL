@@ -284,11 +284,19 @@ To use HAProxy with WolfSSL, WolfSSL must be built with haproxy support, at
 least WolfSSL 5.6.0 is needed, but a development version migh be needed for
 some of the features:
 
+  $ cd ~/build/wolfssl
   $ ./configure --enable-haproxy --enable-quic --prefix=/opt/wolfssl-5.6.0/
+  $ make -j $(nproc)
+  $ make install
 
-Building with wolfSSL requires to specify the API variant on the "make"
+Please also note that wolfSSL supports many platform-specific features that may
+affect performance, and that for production uses it might be a good idea to
+check them using "./configure --help". Please refer to the lib's documentation.
+
+Building HAProxy with wolfSSL requires to specify the API variant on the "make"
 command line, for example:
 
+  $ cd ~/build/haproxy
   $ make -j $(nproc) TARGET=generic USE_OPENSSL_WOLFSSL=1 USE_QUIC=1 \
     SSL_INC=/opt/wolfssl-5.6.0/include SSL_LIB=/opt/wolfssl-5.6.0/lib
 
@@ -470,10 +478,20 @@ On a development environment, use SSL_INC and SSL_LIB when building haproxy to
 point to the correct cryptographic library. It may be useful to specify QUICTLS
 location via rpath for haproxy execution. Example :
 
-  $ make TARGET=generic \
+  $ make -j $(nproc) TARGET=generic \
     USE_QUIC=1 \
     USE_OPENSSL=1 SSL_INC=/opt/quictls/include SSL_LIB=/opt/quictls/lib \
     LDFLAGS="-Wl,-rpath,/opt/quictls/lib"
+
+Alternately, building against wolfSSL is supported as well, for example this
+way assuming that wolfSSL was installed in /opt/wolfssl-5.6.0 as shown in 4.5:
+
+  $ make -j $(nproc) TARGET=generic \
+    USE_QUIC=1 \
+    USE_OPENSSL_WOLFSSL=1 \
+    SSL_INC=/opt/wolfssl-5.6.0/include SSL_LIB=/opt/wolfssl-5.6.0/lib
+    LDFLAGS="-Wl,-rpath,/opt/wolfssl-5.6.0/lib"
+
 
 5) How to build HAProxy
 =======================
