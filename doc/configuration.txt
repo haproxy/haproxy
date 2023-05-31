@@ -3732,7 +3732,8 @@ peers <peersect>
   Creates a new peer list with name <peersect>. It is an independent section,
   which is referenced by one or more stick-tables.
 
-bind [<address>]:<port_range> [, ...] [param*]
+bind [<address>]:port [param*]
+bind /<path> [param*]
   Defines the binding parameters of the local peer of this "peers" section.
   Such lines are not supported with "peer" line in the same "peers" section.
 
@@ -3767,16 +3768,17 @@ log <address> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
   log information about the "peers" listener. See "log" option for proxies for
   more details.
 
-peer <peername> <ip>:<port> [param*]
+peer <peername> [<address>]:port [param*]
+peer <peername> /<path> [param*]
   Defines a peer inside a peers section.
   If <peername> is set to the local peer name (by default hostname, or forced
   using "-L" command line option or "localpeer" global configuration setting),
-  HAProxy will listen for incoming remote peer connection on <ip>:<port>.
-  Otherwise, <ip>:<port> defines where to connect to in order to join the
-  remote peer, and <peername> is used at the protocol level to identify and
+  HAProxy will listen for incoming remote peer connection on the provided
+  address.  Otherwise, the address defines where to connect to in order to join
+  the remote peer, and <peername> is used at the protocol level to identify and
   validate the remote peer on the server side.
 
-  During a soft restart, local peer <ip>:<port> is used by the old instance to
+  During a soft restart, local peer address is used by the old instance to
   connect the new one and initiate a complete replication (teaching process).
 
   It is strongly recommended to have the exact same peers declaration on all
@@ -3790,12 +3792,13 @@ peer <peername> <ip>:<port> [param*]
   Note: "peer" keyword may transparently be replaced by "server" keyword (see
   "server" keyword explanation below).
 
-server <peername> [<ip>:<port>] [param*]
+server <peername> [<address>:<port>] [param*]
+server <peername> [/<path>] [param*]
   As previously mentioned, "peer" keyword may be replaced by "server" keyword
   with a support for all "server" parameters found in 5.2 paragraph that are
-  related to transport settings. If the underlying peer is local, <ip>:<port>
-  parameters must not be present; these parameters must be provided on a "bind"
-  line (see "bind" keyword of this "peers" section).
+  related to transport settings. If the underlying peer is local, the address
+  parameter must not be present; it must be provided on a "bind" line (see
+  "bind" keyword of this "peers" section).
 
   A number of "server" parameters are irrelevant for "peers" sections. Peers by
   nature do not support dynamic host name resolution nor health checks, hence
