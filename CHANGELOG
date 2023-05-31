@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2023/05/31 : 2.9-dev0
+    - MINOR: version: mention that it's development again
+
 2023/05/31 : 2.8.0
     - MINOR: compression: Improve the way Vary header is added
     - BUILD: makefile: search for SSL_INC/wolfssl before SSL_INC
