@@ -1,6 +1,35 @@
 ChangeLog :
 ===========
 
+2023/05/31 : 2.8.0
+    - MINOR: compression: Improve the way Vary header is added
+    - BUILD: makefile: search for SSL_INC/wolfssl before SSL_INC
+    - MINOR: init: pre-allocate kernel data structures on init
+    - DOC: install: add details about WolfSSL
+    - BUG/MINOR: ssl_sock: add check for ha_meth
+    - BUG/MINOR: thread: add a check for pthread_create
+    - BUILD: init: print rlim_cur as regular integer
+    - DOC: install: specify the minimum openssl version recommended
+    - CLEANUP: mux-quic: remove unneeded fields in qcc
+    - MINOR: mux-quic: remove nb_streams from qcc
+    - MINOR: quic: fix stats naming for flow control BLOCKED frames
+    - BUG/MEDIUM: mux-quic: only set EOI on FIN
+    - BUG/MEDIUM: threads: fix a tiny race in thread_isolate()
+    - DOC: config: fix rfc7239 converter examples
+    - DOC: quic: remove experimental status for QUIC
+    - CLEANUP: mux-quic: rename functions for mux_ops
+    - CLEANUP: mux-quic: rename internal functions
+    - BUG/MINOR: mux-h2: refresh the idle_timer when the mux is empty
+    - DOC: config: Fix bind/server/peer documentation in the peers section
+    - BUILD: Makefile: use -pthread not -lpthread when threads are enabled
+    - CLEANUP: doc: remove 21 totally obsolete docs
+    - DOC: install: mention the common strict-aliasing warning on older compilers
+    - DOC: install: clarify a few points on the wolfSSL build method
+    - MINOR: quic: Add QUIC connection statistical counters values to "show quic"
+    - EXAMPLES: update the basic-config-edge file for 2.8
+    - MINOR: quic/cli: clarify the "show quic" help message
+    - MINOR: version: mention that it's LTS now.
+
 2023/05/24 : 2.8-dev13
     - DOC: add size format section to manual
     - CLEANUP: mux-quic/h3: complete BUG_ON with comments
