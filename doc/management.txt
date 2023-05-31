@@ -3010,7 +3010,7 @@ show resolvers [<resolvers section id>]
     too_big: too big response
     outdated: number of response arrived too late (after another name server)
 
-show quic [<format>] [all]
+show quic [oneline|full] [all]
   Dump information on all active QUIC frontend connections. This command is
   restricted and can only be issued on sockets configured for levels "operator"
   or "admin". An optional format can be specified as first argument to control
