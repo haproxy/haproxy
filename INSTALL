@@ -446,6 +446,10 @@ target. Common issues may include:
        not support QUIC. Either disable QUIC with "USE_QUIC=" or use any
        other supported compatible library.
 
+  - many "dereferencing pointer 'sa.985' does break strict-aliasing rules"
+    => these warnings happen on old compilers (typically gcc-4.4), and may
+       safely be ignored; newer ones are better on these.
+
 
 4.11) QUIC
 ----------
