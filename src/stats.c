@@ -274,6 +274,7 @@ const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
 	[ST_F_H1REQ]                         = { .name = "h1req",                       .desc = "Total number of HTTP/1 sessions processed by this object since the worker process started" },
 	[ST_F_H2REQ]                         = { .name = "h2req",                       .desc = "Total number of hTTP/2 sessions processed by this object since the worker process started" },
 	[ST_F_H3REQ]                         = { .name = "h3req",                       .desc = "Total number of HTTP/3 sessions processed by this object since the worker process started" },
+	[ST_F_PROTO]                         = { .name = "proto",                       .desc = "Protocol" },
 };
 
 /* one line of info */
