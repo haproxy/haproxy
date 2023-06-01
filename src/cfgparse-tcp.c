@@ -142,6 +142,7 @@ static int bind_parse_interface(char **args, int cur_arg, struct proxy *px, stru
 		return ERR_ALERT | ERR_FATAL;
 	}
 
+	ha_free(&conf->settings.interface);
 	conf->settings.interface = strdup(args[cur_arg + 1]);
 	return 0;
 }
