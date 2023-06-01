@@ -327,6 +327,7 @@ void free_proxy(struct proxy *p)
 			bind_conf->xprt->destroy_bind_conf(bind_conf);
 		free(bind_conf->file);
 		free(bind_conf->arg);
+		free(bind_conf->settings.interface);
 		LIST_DELETE(&bind_conf->by_fe);
 		free(bind_conf);
 	}
