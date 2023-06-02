@@ -355,7 +355,9 @@ enum info_field {
 /* Stats fields for CSV output. For any field added here, please add the text
  * representation in the stat_fields array. Please only append at the end,
  * before the ST_F_TOTAL_FIELDS entry, and never insert anything in the middle
- * nor at the beginning.
+ * nor at the beginning.When adding an entry here, one must always add a
+ * corresponding one in stat_fields[] otherwise Lua's get_stats() will break,
+ * and "show stats" will show a null.
  */
 enum stat_field {
 	ST_F_PXNAME,
