@@ -38,6 +38,7 @@
 *.rej
 *.orig
 *.bak
+*.sw[op]
 # And reject some specific files
 /admin/halog/halog
 /admin/dyncookie/dyncookie
