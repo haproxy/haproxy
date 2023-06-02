@@ -37,6 +37,10 @@
 #include <openssl/provider.h>
 #endif
 
+#ifdef USE_QUIC_OPENSSL_COMPAT
+#include <haproxy/quic_openssl_compat.h>
+#endif
+
 #if defined(LIBRESSL_VERSION_NUMBER)
 /* LibreSSL is a fork of OpenSSL 1.0.1g but pretends to be 2.0.0, thus
  * systematically breaking when some code is written for a specific version
