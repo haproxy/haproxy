@@ -389,6 +389,9 @@ static inline void sc_set_hcto(struct stconn *sc)
 {
 	struct stream *strm = __sc_strm(sc);
 
+	if (IS_HTX_STRM(strm))
+		return;
+
 	if (sc->flags & SC_FL_ISBACK) {
 		if ((strm->flags & SF_BE_ASSIGNED) && tick_isset(strm->be->timeout.serverfin))
 			sc->ioto = strm->be->timeout.serverfin;

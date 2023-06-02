@@ -2453,10 +2453,12 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if (!req->analysers && s->tunnel_timeout) {
 			scf->ioto = scb->ioto = s->tunnel_timeout;
 
-			if ((scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_SHUT_DONE)) && tick_isset(sess->fe->timeout.clientfin))
-				scf->ioto = sess->fe->timeout.clientfin;
-			if ((scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_SHUT_DONE)) && tick_isset(s->be->timeout.serverfin))
-				scb->ioto = s->be->timeout.serverfin;
+			if (!IS_HTX_STRM(s)) {
+				if ((scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_SHUT_DONE)) && tick_isset(sess->fe->timeout.clientfin))
+					scf->ioto = sess->fe->timeout.clientfin;
+				if ((scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_SHUT_DONE)) && tick_isset(s->be->timeout.serverfin))
+					scb->ioto = s->be->timeout.serverfin;
+			}
 		}
 	}
 
