@@ -6668,8 +6668,8 @@ static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl)
 		goto retry;
 	}
 
-	if (!SSL_set_quic_method(*ssl, &ha_quic_method) ||
-	    !SSL_set_ex_data(*ssl, ssl_qc_app_data_index, qc)) {
+	if (!SSL_set_ex_data(*ssl, ssl_qc_app_data_index, qc) ||
+	    !SSL_set_quic_method(*ssl, &ha_quic_method)) {
 		SSL_free(*ssl);
 		*ssl = NULL;
 		if (!retry--)
