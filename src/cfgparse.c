@@ -744,6 +744,14 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 
+			/* Only one listener supported. Compare first listener
+			 * against the last one. It must be the same one.
+			 */
+			if (bind_conf->listeners.n != bind_conf->listeners.p) {
+				ha_alert("parsing [%s:%d] : Only one listener per \"peers\" section is authorized. Multiple listening addresses or port range are not supported.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
 			/*
 			 * Newly allocated listener is at the end of the list
 			 */
@@ -4371,6 +4379,19 @@ init_proxies_list_stage2:
 				curpeers->peers_fe->flags |= PR_FL_READY;
 				p = curpeers->remote;
 				while (p) {
+					struct peer *other_peer;
+
+					for (other_peer = curpeers->remote; other_peer && other_peer != p; other_peer = other_peer->next) {
+						if (strcmp(other_peer->id, p->id) == 0) {
+							ha_alert("Peer section '%s' [%s:%d]: another peer named '%s' was already defined at line %s:%d, please use distinct names.\n",
+								 curpeers->peers_fe->id,
+								 p->conf.file, p->conf.line,
+								 other_peer->id, other_peer->conf.file, other_peer->conf.line);
+							cfgerr++;
+							break;
+						}
+					}
+
 					if (p->srv) {
 						if (p->srv->use_ssl == 1 && xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv)
 							cfgerr += xprt_get(XPRT_SSL)->prepare_srv(p->srv);

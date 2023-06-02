@@ -2771,7 +2771,9 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 
 		sk = str2sa_range(args[*cur_arg], &port, &port1, &port2, NULL, NULL,
 		                  &errmsg, NULL, &fqdn,
-		                  (parse_flags & SRV_PARSE_INITIAL_RESOLVE ? PA_O_RESOLVE : 0) | PA_O_PORT_OK | PA_O_PORT_OFS | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
+		                  (parse_flags & SRV_PARSE_INITIAL_RESOLVE ? PA_O_RESOLVE : 0) | PA_O_PORT_OK |
+				  (parse_flags & SRV_PARSE_IN_PEER_SECTION ? PA_O_PORT_MAND : PA_O_PORT_OFS) |
+				  PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
 		if (!sk) {
 			ha_alert("%s\n", errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
