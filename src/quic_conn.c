@@ -6721,9 +6721,11 @@ static int qc_conn_alloc_ssl_ctx(struct quic_conn *qc)
 		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl) == -1)
 		        goto err;
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifndef USE_QUIC_OPENSSL_COMPAT
 		/* Enabling 0-RTT */
 		if (bc->ssl_conf.early_data)
 			SSL_set_quic_early_data_enabled(ctx->ssl, 1);
+#endif
 #endif
 
 		SSL_set_accept_state(ctx->ssl);
