@@ -1444,7 +1444,9 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 #  if defined(SSL_OP_NO_ANTI_REPLAY)
 	if (bind_conf->ssl_conf.early_data) {
 		SSL_CTX_set_options(ctx, SSL_OP_NO_ANTI_REPLAY);
+#ifndef USE_QUIC_OPENSSL_COMPAT
 		SSL_CTX_set_max_early_data(ctx, 0xffffffff);
+#endif
 	}
 #  endif /* !SSL_OP_NO_ANTI_REPLAY */
 	SSL_CTX_set_client_hello_cb(ctx, ssl_sock_switchctx_cbk, NULL);
