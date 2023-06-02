@@ -313,7 +313,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER USE_POLL                        \
            USE_THREAD_DUMP USE_EVPORTS USE_OT USE_QUIC USE_PROMEX             \
            USE_MEMORY_PROFILING USE_SHM_OPEN                                  \
            USE_STATIC_PCRE USE_STATIC_PCRE2                                   \
-           USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT
+           USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT USE_QUIC_OPENSSL_COMPAT
 
 # preset all variables for all supported build options among use_opts
 $(reset_opts_vars)
@@ -608,6 +608,10 @@ OPTIONS_OBJS += src/quic_conn.o src/mux_quic.o src/h3.o src/xprt_quic.o    \
                 src/qpack-dec.o src/hq_interop.o src/quic_stream.o         \
                 src/h3_stats.o src/qmux_http.o src/cfgparse-quic.o         \
                 src/cbuf.o src/quic_cc.o src/quic_cc_nocc.o
+endif
+
+ifneq ($(USE_QUIC_OPENSSL_COMPAT),)
+OPTIONS_OBJS += src/quic_openssl_compat.o
 endif
 
 ifneq ($(USE_LUA),)
