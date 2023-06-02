@@ -17745,7 +17745,7 @@ rfc7239_n2np
     # extract 'by' field from forwarded header, extract node port from
     # resulting node identifier and store the result in req.fnp
     http-request set-var(req.fnp) req.hdr(forwarded),rfc7239_field(by),rfc7239_n2np
-    #input: "by=\"127.0.0.1:9999\""
+    #input: "127.0.0.1:9999"
     #  output: 9999 (integer)
     #input: "[ab:cd:ff:ff:ff:ff:ff:ff]:9998"
     #  output: 9998 (integer)
