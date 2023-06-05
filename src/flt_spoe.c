@@ -1730,12 +1730,6 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 		      (agent->b.be->queue.length ||
 		       (srv && (srv->queue.length || (srv->maxconn && srv->served >= srv_dynamic_maxconn(srv))))));
 
-	/* Don"t try to send new frame we are waiting for at lease a ack, in
-	 * sync mode or if applet must be closed ASAP
-	 */
-	if (appctx->st0 == SPOE_APPCTX_ST_WAITING_SYNC_ACK || (close_asap && SPOE_APPCTX(appctx)->cur_fpa))
-		skip_sending = 1;
-
 	/* receiving_frame loop */
 	while (!skip_receiving) {
 		ret = spoe_handle_receiving_frame_appctx(appctx, &skip_receiving);
@@ -1755,6 +1749,12 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 				break;
 		}
 	}
+
+	/* Don"t try to send new frame we are waiting for at lease a ack, in
+	 * sync mode or if applet must be closed ASAP
+	 */
+	if (appctx->st0 == SPOE_APPCTX_ST_WAITING_SYNC_ACK || (close_asap && SPOE_APPCTX(appctx)->cur_fpa))
+		skip_sending = 1;
 
 	/* send_frame loop */
 	while (!skip_sending && SPOE_APPCTX(appctx)->cur_fpa < agent->max_fpa) {
