@@ -989,104 +989,40 @@ sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
 /*       METH */ { c_none, NULL,      NULL,      NULL,       NULL,     NULL,       c_meth2str, c_meth2str, c_none,     }
 };
 
-/*
- * Parse a sample expression configuration:
- *        fetch keyword followed by format conversion keywords.
- * Returns a pointer on allocated sample expression structure.
- * <al> is an arg_list serving as a list head to report missing dependencies.
- * It may be NULL if such dependencies are not allowed. Otherwise, the caller
- * must have set al->ctx if al is set.
+/* Process the converters (if any) for a sample expr after the first fetch
+ * keyword. We have two supported syntaxes for the converters, which can be
+ * combined:
+ *  - comma-delimited list of converters just after the keyword and args ;
+ *  - one converter per keyword (if <idx> != NULL)
+ *    FIXME: should we continue to support this old syntax?
+ * The combination allows to have each keyword being a comma-delimited
+ * series of converters.
+ *
+ * We want to process the former first, then the latter. For this we start
+ * from the beginning of the supposed place in the exiting conv chain, which
+ * starts at the last comma (<start> which is then referred to as endt).
+ *
  * If <endptr> is non-nul, it will be set to the first unparsed character
  * (which may be the final '\0') on success. If it is nul, the expression
  * must be properly terminated by a '\0' otherwise an error is reported.
+ *
+ * <expr> should point the the sample expression that is already initialized
+ * with the sample fetch that precedes the converters chain.
+ *
+ * The function returns a positive value for success and 0 for failure, in which
+ * case <err_msg> will point to an allocated string that brings some info
+ * about the failure. It is the caller's responsibility to free it.
  */
-struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, int line, char **err_msg, struct arg_list *al, char **endptr)
+int sample_parse_expr_cnv(char **str, int *idx, char **endptr, char **err_msg, struct arg_list *al, const char *file, int line,
+                          struct sample_expr *expr, const char *start)
 {
-	const char *begw; /* beginning of word */
-	const char *endw; /* end of word */
-	const char *endt; /* end of term */
-	struct sample_expr *expr = NULL;
-	struct sample_fetch *fetch;
 	struct sample_conv *conv;
-	unsigned long prev_type;
-	char *fkw = NULL;
+	const char *endt = start; /* end of term */
+	const char *begw;         /* beginning of word */
+	const char *endw;         /* end of word */
 	char *ckw = NULL;
-	int err_arg;
-
-	begw = str[*idx];
-	for (endw = begw; is_idchar(*endw); endw++)
-		;
-
-	if (endw == begw) {
-		memprintf(err_msg, "missing fetch method");
-		goto out_error;
-	}
-
-	/* keep a copy of the current fetch keyword for error reporting */
-	fkw = my_strndup(begw, endw - begw);
-
-	fetch = find_sample_fetch(begw, endw - begw);
-	if (!fetch) {
-		memprintf(err_msg, "unknown fetch method '%s'", fkw);
-		goto out_error;
-	}
-
-	/* At this point, we have :
-	 *   - begw : beginning of the keyword
-	 *   - endw : end of the keyword, first character not part of keyword
-	 */
-
-	if (fetch->out_type >= SMP_TYPES) {
-		memprintf(err_msg, "returns type of fetch method '%s' is unknown", fkw);
-		goto out_error;
-	}
-	prev_type = fetch->out_type;
-
-	expr = calloc(1, sizeof(*expr));
-	if (!expr)
-		goto out_error;
-
-	LIST_INIT(&(expr->conv_exprs));
-	expr->fetch = fetch;
-	expr->arg_p = empty_arg_list;
-
-	/* Note that we call the argument parser even with an empty string,
-	 * this allows it to automatically create entries for mandatory
-	 * implicit arguments (eg: local proxy name).
-	 */
-	if (al) {
-		al->kw = expr->fetch->kw;
-		al->conv = NULL;
-	}
-	if (make_arg_list(endw, -1, fetch->arg_mask, &expr->arg_p, err_msg, &endt, &err_arg, al) < 0) {
-		memprintf(err_msg, "fetch method '%s' : %s", fkw, *err_msg);
-		goto out_error;
-	}
-
-	/* now endt is our first char not part of the arg list, typically the
-	 * comma after the sample fetch name or after the closing parenthesis,
-	 * or the NUL char.
-	 */
-
-	if (!expr->arg_p) {
-		expr->arg_p = empty_arg_list;
-	}
-	else if (fetch->val_args && !fetch->val_args(expr->arg_p, err_msg)) {
-		memprintf(err_msg, "invalid args in fetch method '%s' : %s", fkw, *err_msg);
-		goto out_error;
-	}
-
-	/* Now process the converters if any. We have two supported syntaxes
-	 * for the converters, which can be combined :
-	 *  - comma-delimited list of converters just after the keyword and args ;
-	 *  - one converter per keyword
-	 * The combination allows to have each keyword being a comma-delimited
-	 * series of converters.
-	 *
-	 * We want to process the former first, then the latter. For this we start
-	 * from the beginning of the supposed place in the exiting conv chain, which
-	 * starts at the last comma (endt).
-	 */
+	unsigned long prev_type = expr->fetch->out_type;
+	int success = 1;
 
 	while (1) {
 		struct sample_conv_expr *conv_expr;
@@ -1101,7 +1037,7 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 			if (ckw)
 				memprintf(err_msg, "missing comma after converter '%s'", ckw);
 			else
-				memprintf(err_msg, "missing comma after fetch keyword '%s'", fkw);
+				memprintf(err_msg, "missing comma after fetch keyword");
 			goto out_error;
 		}
 
@@ -1114,7 +1050,9 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 		begw = endt; /* start of converter */
 
 		if (!*begw) {
-			/* none ? skip to next string */
+			/* none ? skip to next string if idx is set */
+			if (!idx)
+				break; /* end of converters */
 			(*idx)++;
 			begw = str[*idx];
 			if (!begw || !*begw)
@@ -1124,13 +1062,13 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 		for (endw = begw; is_idchar(*endw); endw++)
 			;
 
-		free(ckw);
+		ha_free(&ckw);
 		ckw = my_strndup(begw, endw - begw);
 
 		conv = find_sample_conv(begw, endw - begw);
 		if (!conv) {
 			/* we found an isolated keyword that we don't know, it's not ours */
-			if (begw == str[*idx]) {
+			if (idx && begw == str[*idx]) {
 				endt = begw;
 				break;
 			}
@@ -1139,7 +1077,7 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 		}
 
 		if (conv->in_type >= SMP_TYPES || conv->out_type >= SMP_TYPES) {
-			memprintf(err_msg, "returns type of converter '%s' is unknown", ckw);
+			memprintf(err_msg, "return type of converter '%s' is unknown", ckw);
 			goto out_error;
 		}
 
@@ -1185,10 +1123,105 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 		/* end found, let's stop here */
 		*endptr = (char *)endt;
 	}
+ out:
+	free(ckw);
+	return success;
+
+ out_error:
+	success = 0;
+	goto out;
+}
+
+/*
+ * Parse a sample expression configuration:
+ *        fetch keyword followed by format conversion keywords.
+ *
+ * <al> is an arg_list serving as a list head to report missing dependencies.
+ * It may be NULL if such dependencies are not allowed. Otherwise, the caller
+ * must have set al->ctx if al is set.
+ *
+ * Returns a pointer on allocated sample expression structure or NULL in case
+ * of error, in which case <err_msg> will point to an allocated string that
+ * brings some info about the failure. It is the caller's responsibility to
+ * free it.
+ */
+struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, int line, char **err_msg, struct arg_list *al, char **endptr)
+{
+	const char *begw; /* beginning of word */
+	const char *endw; /* end of word */
+	const char *endt; /* end of term */
+	struct sample_expr *expr = NULL;
+	struct sample_fetch *fetch;
+	char *fkw = NULL;
+	int err_arg;
+
+	begw = str[*idx];
+	for (endw = begw; is_idchar(*endw); endw++)
+		;
+
+	if (endw == begw) {
+		memprintf(err_msg, "missing fetch method");
+		goto out_error;
+	}
+
+	/* keep a copy of the current fetch keyword for error reporting */
+	fkw = my_strndup(begw, endw - begw);
+
+	fetch = find_sample_fetch(begw, endw - begw);
+	if (!fetch) {
+		memprintf(err_msg, "unknown fetch method '%s'", fkw);
+		goto out_error;
+	}
+
+	/* At this point, we have :
+	 *   - begw : beginning of the keyword
+	 *   - endw : end of the keyword, first character not part of keyword
+	 */
+
+	if (fetch->out_type >= SMP_TYPES) {
+		memprintf(err_msg, "returns type of fetch method '%s' is unknown", fkw);
+		goto out_error;
+	}
+
+	expr = calloc(1, sizeof(*expr));
+	if (!expr)
+		goto out_error;
+
+	LIST_INIT(&(expr->conv_exprs));
+	expr->fetch = fetch;
+	expr->arg_p = empty_arg_list;
+
+	/* Note that we call the argument parser even with an empty string,
+	 * this allows it to automatically create entries for mandatory
+	 * implicit arguments (eg: local proxy name).
+	 */
+	if (al) {
+		al->kw = expr->fetch->kw;
+		al->conv = NULL;
+	}
+	if (make_arg_list(endw, -1, fetch->arg_mask, &expr->arg_p, err_msg, &endt, &err_arg, al) < 0) {
+		memprintf(err_msg, "fetch method '%s' : %s", fkw, *err_msg);
+		goto out_error;
+	}
+
+	/* now endt is our first char not part of the arg list, typically the
+	 * comma after the sample fetch name or after the closing parenthesis,
+	 * or the NUL char.
+	 */
+
+	if (!expr->arg_p) {
+		expr->arg_p = empty_arg_list;
+	}
+	else if (fetch->val_args && !fetch->val_args(expr->arg_p, err_msg)) {
+		memprintf(err_msg, "invalid args in fetch method '%s' : %s", fkw, *err_msg);
+		goto out_error;
+	}
+
+	if (!sample_parse_expr_cnv(str, idx, endptr, err_msg, al, file, line, expr, endt))
+		goto out_error;
 
  out:
 	free(fkw);
-	free(ckw);
 	return expr;
 
 out_error:

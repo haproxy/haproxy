@@ -138,8 +138,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	struct sample_expr *smp = NULL;
 	int idx = 0;
 	char *ckw = NULL;
-	const char *begw;
-	const char *endw;
 	const char *endt;
 	int cur_type;
 	int nbargs;
@@ -209,106 +207,18 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			memprintf(err, "in argument to '%s', %s", aclkw->kw, *err);
 			goto out_free_smp;
 		}
-		arg = endt;
 
 		/* look for the beginning of the converters list. Those directly attached
-		 * to the ACL keyword are found just after <arg> which points to the comma.
+		 * to the ACL keyword are found just after the comma.
 		 * If we find any converter, then we don't use the ACL keyword's match
 		 * anymore but the one related to the converter's output type.
 		 */
-		cur_type = smp->fetch->out_type;
-		while (*arg) {
-			struct sample_conv *conv;
-			struct sample_conv_expr *conv_expr;
-			int err_arg;
-			int argcnt;
-
-			if (*arg && *arg != ',') {
-				if (ckw)
-					memprintf(err, "ACL keyword '%s' : missing comma after converter '%s'.",
-						  aclkw->kw, ckw);
-				else
-					memprintf(err, "ACL keyword '%s' : missing comma after fetch keyword.",
-						  aclkw->kw);
-				goto out_free_smp;
-			}
-
-			/* FIXME: how long should we support such idiocies ? Maybe we
-			 * should already warn ?
-			 */
-			while (*arg == ',') /* then trailing commas */
-				arg++;
-
-			begw = arg; /* start of converter keyword */
-
-			if (!*begw)
-				/* none ? end of converters */
-				break;
-
-			for (endw = begw; is_idchar(*endw); endw++)
-				;
-
-			free(ckw);
-			ckw = my_strndup(begw, endw - begw);
-
-			conv = find_sample_conv(begw, endw - begw);
-			if (!conv) {
-				/* Unknown converter method */
-				memprintf(err, "ACL keyword '%s' : unknown converter '%s'.",
-					  aclkw->kw, ckw);
-				goto out_free_smp;
-			}
-
-			arg = endw;
-
-			if (conv->in_type >= SMP_TYPES || conv->out_type >= SMP_TYPES) {
-				memprintf(err, "ACL keyword '%s' : returns type of converter '%s' is unknown.",
-					  aclkw->kw, ckw);
-				goto out_free_smp;
-			}
-
-			/* If impossible type conversion */
-			if (!sample_casts[cur_type][conv->in_type]) {
-				memprintf(err, "ACL keyword '%s' : converter '%s' cannot be applied.",
-					  aclkw->kw, ckw);
-				goto out_free_smp;
-			}
-
-			cur_type = conv->out_type;
-			conv_expr = calloc(1, sizeof(*conv_expr));
-			if (!conv_expr)
-				goto out_free_smp;
-
-			LIST_APPEND(&(smp->conv_exprs), &(conv_expr->list));
-			conv_expr->conv = conv;
-			acl_conv_found = 1;
-
-			if (al) {
-				al->kw = smp->fetch->kw;
-				al->conv = conv_expr->conv->kw;
-			}
-			argcnt = make_arg_list(endw, -1, conv->arg_mask, &conv_expr->arg_p, err, &arg, &err_arg, al);
-			if (argcnt < 0) {
-				memprintf(err, "ACL keyword '%s' : invalid arg %d in converter '%s' : %s.",
-				          aclkw->kw, err_arg+1, ckw, *err);
-				goto out_free_smp;
-			}
-
-			if (argcnt && !conv->arg_mask) {
-				memprintf(err, "converter '%s' does not support any args", ckw);
-				goto out_free_smp;
-			}
-
-			if (!conv_expr->arg_p)
-				conv_expr->arg_p = empty_arg_list;
-
-			if (conv->val_args && !conv->val_args(conv_expr->arg_p, conv, file, line, err)) {
-				memprintf(err, "ACL keyword '%s' : invalid args in converter '%s' : %s.",
-					  aclkw->kw, ckw, *err);
-				goto out_free_smp;
-			}
+		if (!sample_parse_expr_cnv((char **)args, NULL, NULL, err, al, file, line, smp, endt)) {
+			if (err)
+				memprintf(err, "ACL keyword '%s' : %s", aclkw->kw, *err);
+			goto out_free_smp;
 		}
-		ha_free(&ckw);
+		acl_conv_found = !LIST_ISEMPTY(&smp->conv_exprs);
 	}
 	else {
 		/* This is not an ACL keyword, so we hope this is a sample fetch
@@ -321,8 +231,10 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			memprintf(err, "%s in ACL expression '%s'", *err, *args);
 			goto out_return;
 		}
-		cur_type = smp_expr_output_type(smp);
 	}
+
+	/* get last effective output type for smp */
+	cur_type = smp_expr_output_type(smp);
 
 	expr = calloc(1, sizeof(*expr));
 	if (!expr) {
