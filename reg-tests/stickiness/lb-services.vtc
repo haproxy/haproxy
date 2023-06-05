@@ -1,6 +1,6 @@
 vtest "A reg test for stickiness"
 feature ignore_unknown_macro
-
+#REGTEST_TYPE=slow
 
 # The aim of this test is to check that "stick on" rules
 # do the job they are supposed to do.
@@ -79,7 +79,7 @@ haproxy h1 -arg "-L A" -conf {
         use_backend be1 if acl_be1
         use_backend be2 if acl_be2
         bind "fd@${fe}"
-} -start
+}
 
 # h2/be1 servers
 server s5 {
@@ -147,9 +147,12 @@ haproxy h2 -arg "-L B" -conf {
         use_backend be1 if acl_be1
         use_backend be2 if acl_be2
         bind "fd@${fe}"
-} -start
+}
 
+haproxy h1 -start
 delay 0.2
+haproxy h2 -start
+delay 2
 
 client cx -connect ${h1_fe_sock} {
     txreq -url "/be1?client=c1"
