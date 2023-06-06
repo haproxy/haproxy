@@ -997,7 +997,7 @@ sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
 /* from:  ANY */ { c_none, c_pseudo,  c_pseudo,  c_pseudo,   c_pseudo, c_pseudo,   c_pseudo,   c_pseudo,   c_pseudo,   },
 /*       BOOL */ { c_none, c_none,    c_none,    NULL,       NULL,     NULL,       c_int2str,  c_bool2bin, NULL,       },
 /*       SINT */ { c_none, c_none,    c_none,    c_int2ip,   c_int2ip, c_int2ipv6, c_int2str,  c_int2bin,  NULL,       },
-/*       ADDR */ { c_none, NULL,      NULL,      NULL,       NULL,     NULL,       NULL,       NULL,       NULL,       },
+/*       ADDR */ { c_none, NULL,      NULL,      c_pseudo,   c_pseudo, c_pseudo,   c_pseudo,   c_pseudo,   NULL,       },
 /*       IPV4 */ { c_none, NULL,      c_ip2int,  c_none,     c_none,   c_ip2ipv6,  c_ip2str,   c_addr2bin, NULL,       },
 /*       IPV6 */ { c_none, NULL,      NULL,      c_none,     c_ipv62ip,c_none,     c_ipv62str, c_addr2bin, NULL,       },
 /*        STR */ { c_none, c_str2int, c_str2int, c_str2addr, c_str2ip, c_str2ipv6, c_none,     c_none,     c_str2meth, },
