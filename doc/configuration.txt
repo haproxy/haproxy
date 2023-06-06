@@ -4936,7 +4936,7 @@ bind /<path> [, ...] [param*]
                       was the FD of an accept(). Should be used carefully.
                     - 'quic4@' -> address is resolved as IPv4 and protocol UDP
                       is used. Note that to achieve the best performance with a
-                      large traffic you should keep "tune.quic.conn-owner" on
+                      large traffic you should keep "tune.quic.socket-owner" on
                       connection. Else QUIC connections will be multiplexed
                       over the listener socket. Another alternative would be to
                       duplicate QUIC listener instances over several threads,
