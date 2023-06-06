@@ -59,6 +59,7 @@ int smp_resolve_args(struct proxy *p, char **err);
 int smp_check_date_unit(struct arg *args, char **err);
 int smp_expr_output_type(struct sample_expr *expr);
 int c_none(struct sample *smp);
+int c_pseudo(struct sample *smp);
 int smp_dup(struct sample *smp);
 
 /*

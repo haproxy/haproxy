@@ -864,6 +864,22 @@ int c_none(struct sample *smp)
 	return 1;
 }
 
+/* special converter function used by pseudo types in the compatibility matrix
+ * to inform that the conversion is theorically allowed at parsing time.
+ *
+ * However, being a pseudo type, it may not be emitted by fetches or converters
+ * so this function should never be called. If this is the case, then it means
+ * that a pseudo type has been used as a final output type at runtime, which is
+ * considered as a bug and should be fixed. To help spot this kind of bug, the
+ * process will crash in this case.
+ */
+int c_pseudo(struct sample *smp)
+{
+	ABORT_NOW(); // die loudly
+	/* never reached */
+	return 0;
+}
+
 static int c_str2int(struct sample *smp)
 {
 	const char *str;
@@ -978,7 +994,7 @@ static int c_bool2bin(struct sample *smp)
 
 sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
 /*            to:  ANY     BOOL       SINT       ADDR        IPV4      IPV6        STR         BIN         METH */
-/* from:  ANY */ { c_none, c_none,    c_none,    c_none,     c_none,   c_none,     c_none,     c_none,     c_none,     },
+/* from:  ANY */ { c_none, c_pseudo,  c_pseudo,  c_pseudo,   c_pseudo, c_pseudo,   c_pseudo,   c_pseudo,   c_pseudo,   },
 /*       BOOL */ { c_none, c_none,    c_none,    NULL,       NULL,     NULL,       c_int2str,  c_bool2bin, NULL,       },
 /*       SINT */ { c_none, c_none,    c_none,    c_int2ip,   c_int2ip, c_int2ipv6, c_int2str,  c_int2bin,  NULL,       },
 /*       ADDR */ { c_none, NULL,      NULL,      NULL,       NULL,     NULL,       NULL,       NULL,       NULL,       },

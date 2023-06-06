@@ -26,9 +26,14 @@
 #include <haproxy/api-t.h>
 #include <haproxy/sample_data-t.h>
 
-/* input and output sample types */
+/* input and output sample types
+ *
+ * Some of them are pseudo types which means that they can be used for
+ * in_type and out_type in sample (fetches/conv) definitions (they serve as
+ * compatibility and conversion hints) but they cannot be emitted at runtime.
+ */
 enum {
-	SMP_T_ANY = 0,   /* any type */
+	SMP_T_ANY = 0,   /* pseudo type: any type */
 	SMP_T_BOOL,      /* boolean */
 	SMP_T_SINT,      /* signed 64bits integer type */
 	SMP_T_ADDR,      /* ipv4 or ipv6, only used for input type compatibility */
