@@ -1112,7 +1112,7 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 write:
 
 	if (!write_secret)
-		goto out;
+		goto keyupdate_init;
 
 	tx = &tls_ctx->tx;
 	if (!quic_tls_secrets_keys_alloc(tx)) {
@@ -1157,6 +1157,8 @@ write:
 		}
 	}
 
+ keyupdate_init:
+	/* Store the secret provided by the TLS stack, required for keyupdate. */
 	if (level == ssl_encryption_application) {
 		struct quic_tls_kp *prv_rx = &qc->ku.prv_rx;
 		struct quic_tls_kp *nxt_rx = &qc->ku.nxt_rx;
