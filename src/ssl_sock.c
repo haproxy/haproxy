@@ -4799,6 +4799,11 @@ static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_con
 	}
 #endif
 
+#ifdef USE_QUIC_OPENSSL_COMPAT
+	if (!quic_tls_compat_init(bind_conf, ctx))
+		cfgerr |= ERR_ALERT | ERR_FATAL;
+#endif
+
 	return cfgerr;
 }
 
