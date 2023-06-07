@@ -4486,6 +4486,9 @@ void SSL_CTX_keylog(const SSL *ssl, const char *line)
 	char *lastarg = NULL;
 	char *dst = NULL;
 
+#ifdef USE_QUIC_OPENSSL_COMPAT
+	quic_tls_compat_keylog_callback(ssl, line);
+#endif
 	keylog = SSL_get_ex_data(ssl, ssl_keylog_index);
 	if (!keylog)
 		return;
