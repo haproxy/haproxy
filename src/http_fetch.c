@@ -2162,7 +2162,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	 */
 	{ "hdr",                smp_fetch_chn_hdr,            ARG2(0,STR,SINT), val_hdr, SMP_T_STR,  SMP_USE_HRQHV|SMP_USE_HRSHV },
 	{ "hdr_cnt",            smp_fetch_hdr_cnt,            ARG1(0,STR),      NULL,    SMP_T_SINT, SMP_USE_HRQHV },
-	{ "hdr_ip",             smp_fetch_hdr_ip,             ARG2(0,STR,SINT), val_hdr, SMP_T_IPV4, SMP_USE_HRQHV },
+	{ "hdr_ip",             smp_fetch_hdr_ip,             ARG2(0,STR,SINT), val_hdr, SMP_T_ADDR, SMP_USE_HRQHV },
 	{ "hdr_val",            smp_fetch_hdr_val,            ARG2(0,STR,SINT), val_hdr, SMP_T_SINT, SMP_USE_HRQHV },
 
 	{ "http_auth_type",     smp_fetch_http_auth_type,     0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
@@ -2213,7 +2213,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "req.fhdr_cnt",       smp_fetch_fhdr_cnt,           ARG1(0,STR),      NULL,    SMP_T_SINT, SMP_USE_HRQHV },
 	{ "req.hdr",            smp_fetch_hdr,                ARG2(0,STR,SINT), val_hdr, SMP_T_STR,  SMP_USE_HRQHV },
 	{ "req.hdr_cnt",        smp_fetch_hdr_cnt,            ARG1(0,STR),      NULL,    SMP_T_SINT, SMP_USE_HRQHV },
-	{ "req.hdr_ip",         smp_fetch_hdr_ip,             ARG2(0,STR,SINT), val_hdr, SMP_T_IPV4, SMP_USE_HRQHV },
+	{ "req.hdr_ip",         smp_fetch_hdr_ip,             ARG2(0,STR,SINT), val_hdr, SMP_T_ADDR, SMP_USE_HRQHV },
 	{ "req.hdr_names",      smp_fetch_hdr_names,          ARG1(0,STR),      NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "req.hdr_val",        smp_fetch_hdr_val,            ARG2(0,STR,SINT), val_hdr, SMP_T_SINT, SMP_USE_HRQHV },
 
@@ -2226,7 +2226,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "res.fhdr_cnt",       smp_fetch_fhdr_cnt,           ARG1(0,STR),      NULL,    SMP_T_SINT, SMP_USE_HRSHV },
 	{ "res.hdr",            smp_fetch_hdr,                ARG2(0,STR,SINT), val_hdr, SMP_T_STR,  SMP_USE_HRSHV },
 	{ "res.hdr_cnt",        smp_fetch_hdr_cnt,            ARG1(0,STR),      NULL,    SMP_T_SINT, SMP_USE_HRSHV },
-	{ "res.hdr_ip",         smp_fetch_hdr_ip,             ARG2(0,STR,SINT), val_hdr, SMP_T_IPV4, SMP_USE_HRSHV },
+	{ "res.hdr_ip",         smp_fetch_hdr_ip,             ARG2(0,STR,SINT), val_hdr, SMP_T_ADDR, SMP_USE_HRSHV },
 	{ "res.hdr_names",      smp_fetch_hdr_names,          ARG1(0,STR),      NULL,    SMP_T_STR,  SMP_USE_HRSHV },
 	{ "res.hdr_val",        smp_fetch_hdr_val,            ARG2(0,STR,SINT), val_hdr, SMP_T_SINT, SMP_USE_HRSHV },
 
@@ -2238,7 +2238,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	/* shdr is valid only on the response and is used for ACL compatibility */
 	{ "shdr",               smp_fetch_hdr,                ARG2(0,STR,SINT), val_hdr, SMP_T_STR,  SMP_USE_HRSHV },
 	{ "shdr_cnt",           smp_fetch_hdr_cnt,            ARG1(0,STR),      NULL,    SMP_T_SINT, SMP_USE_HRSHV },
-	{ "shdr_ip",            smp_fetch_hdr_ip,             ARG2(0,STR,SINT), val_hdr, SMP_T_IPV4, SMP_USE_HRSHV },
+	{ "shdr_ip",            smp_fetch_hdr_ip,             ARG2(0,STR,SINT), val_hdr, SMP_T_ADDR, SMP_USE_HRSHV },
 	{ "shdr_val",           smp_fetch_hdr_val,            ARG2(0,STR,SINT), val_hdr, SMP_T_SINT, SMP_USE_HRSHV },
 
 	{ "status",             smp_fetch_stcode,             0,                NULL,    SMP_T_SINT, SMP_USE_HRSHP },

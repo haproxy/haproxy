@@ -498,29 +498,29 @@ smp_fetch_fc_reordering(const struct arg *args, struct sample *smp, const char *
 #endif // TCP_INFO
 
 /* Note: must not be declared <const> as its list will be overwritten.
- * Note: fetches that may return multiple types must be declared as the lowest
- * common denominator, the type that can be casted into all other ones. For
- * instance v4/v6 must be declared v4.
+ * Note: fetches that may return multiple types should be declared using the
+ * appropriate pseudo-type. If not available it must be declared as the lowest
+ * common denominator, the type that can be casted into all other ones.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
-	{ "bc_dst",      smp_fetch_dst,   0, NULL, SMP_T_IPV4, SMP_USE_L4SRV },
+	{ "bc_dst",      smp_fetch_dst,   0, NULL, SMP_T_ADDR, SMP_USE_L4SRV },
 	{ "bc_dst_port", smp_fetch_dport, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
-	{ "bc_src",      smp_fetch_src,   0, NULL, SMP_T_IPV4, SMP_USE_L4SRV },
+	{ "bc_src",      smp_fetch_src,   0, NULL, SMP_T_ADDR, SMP_USE_L4SRV },
 	{ "bc_src_port", smp_fetch_sport, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
 
-	{ "dst",      smp_fetch_dst,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
+	{ "dst",      smp_fetch_dst,   0, NULL, SMP_T_ADDR, SMP_USE_L4CLI },
 	{ "dst_is_local", smp_fetch_dst_is_local, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "dst_port", smp_fetch_dport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 
-	{ "fc_dst",      smp_fetch_dst,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
+	{ "fc_dst",      smp_fetch_dst,   0, NULL, SMP_T_ADDR, SMP_USE_L4CLI },
 	{ "fc_dst_is_local", smp_fetch_dst_is_local, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "fc_dst_port", smp_fetch_dport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 
-	{ "fc_src",      smp_fetch_src,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
+	{ "fc_src",      smp_fetch_src,   0, NULL, SMP_T_ADDR, SMP_USE_L4CLI },
 	{ "fc_src_is_local", smp_fetch_src_is_local, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "fc_src_port", smp_fetch_sport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 
-	{ "src",      smp_fetch_src,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
+	{ "src",      smp_fetch_src,   0, NULL, SMP_T_ADDR, SMP_USE_L4CLI },
 	{ "src_is_local", smp_fetch_src_is_local, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "src_port", smp_fetch_sport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 #ifdef TCP_INFO

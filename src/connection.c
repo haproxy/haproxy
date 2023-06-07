@@ -2267,9 +2267,9 @@ int smp_fetch_fc_err_str(const struct arg *args, struct sample *smp, const char 
 }
 
 /* Note: must not be declared <const> as its list will be overwritten.
- * Note: fetches that may return multiple types must be declared as the lowest
- * common denominator, the type that can be casted into all other ones. For
- * instance v4/v6 must be declared v4.
+ * Note: fetches that may return multiple types should be declared using the
+ * appropriate pseudo-type. If not available it must be declared as the lowest
+ * common denominator, the type that can be casted into all other ones.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "bc_err", smp_fetch_fc_err, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
