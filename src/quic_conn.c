@@ -1458,7 +1458,6 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 # endif
 	SSL_CTX_set_tlsext_servername_arg(ctx, bind_conf);
 #endif
-	SSL_CTX_set_quic_method(ctx, &ha_quic_method);
 
 	return cfgerr;
 }
