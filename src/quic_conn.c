@@ -1458,6 +1458,10 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 # endif
 	SSL_CTX_set_tlsext_servername_arg(ctx, bind_conf);
 #endif
+#ifdef USE_QUIC_OPENSSL_COMPAT
+	if (!quic_tls_compat_init(bind_conf, ctx))
+		cfgerr |= ERR_ALERT | ERR_FATAL;
+#endif
 
 	return cfgerr;
 }
