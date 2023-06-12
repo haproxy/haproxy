@@ -322,6 +322,23 @@ static inline char quic_packet_type_enc_level_char(int packet_type)
 	}
 }
 
+/* Return a character to identify the packet number space <pktns> of <qc> QUIC
+ * connection. 'I' for Initial packet number space, 'H' for Handshake packet
+ * space, and 'A' for Application data number space, or '-' if not found.
+ */
+static inline char quic_pktns_char(const struct quic_conn *qc,
+                                   const struct quic_pktns *pktns)
+{
+	if (pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT])
+		return 'A';
+	else if (pktns == &qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE])
+		return 'H';
+	else if (pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL])
+		return 'I';
+
+	return '-';
+}
+
 /* Return the TLS encryption level to be used for <packet_type>
  * QUIC packet type.
  * Returns -1 if there is no TLS encryption level for <packet_type>

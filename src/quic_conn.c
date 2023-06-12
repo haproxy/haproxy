@@ -614,9 +614,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			const struct list *lost_pkts = a3;
 
 			if (pktns) {
-				chunk_appendf(&trace_buf, " pktns=%s",
-				              pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL] ? "I" :
-				              pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT] ? "01RTT": "H");
+				chunk_appendf(&trace_buf, " pktns=%c", quic_pktns_char(qc, pktns));
 				if (pktns->tx.loss_time)
 				              chunk_appendf(&trace_buf, " loss_time=%dms",
 				                            TICKS_TO_MS(tick_remain(now_ms, pktns->tx.loss_time)));
@@ -639,9 +637,8 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				chunk_appendf(&trace_buf, " ifae_pkts=%llu",
 				              (unsigned long long)*ifae_pkts);
 			if (pktns) {
-				chunk_appendf(&trace_buf, " pktns=%s pp=%d",
-				              pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL] ? "I" :
-				              pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT] ? "01RTT": "H",
+				chunk_appendf(&trace_buf, " pktns=%c pp=%d",
+				              quic_pktns_char(qc, pktns),
 				              pktns->tx.pto_probe);
 				if (mask & (QUIC_EV_CONN_STIMER|QUIC_EV_CONN_SPTO)) {
 					if (pktns->tx.in_flight)
@@ -677,10 +674,9 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				const struct quic_frame *frm;
 				if (pkt->flags & QUIC_FL_TX_PACKET_ACK)
 				    chunk_appendf(&trace_buf, " ack");
-				chunk_appendf(&trace_buf, " pn=%lu(%s) iflen=%llu",
+				chunk_appendf(&trace_buf, " pn=%lu(%c) iflen=%llu",
 				              (unsigned long)pkt->pn_node.key,
-				              pkt->pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL] ? "I" :
-				              pkt->pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT] ? "01RTT": "H",
+				              quic_pktns_char(qc, pkt->pktns),
 				              (unsigned long long)pkt->in_flight_len);
 				chunk_appendf(&trace_buf, " rx.bytes=%llu tx.bytes=%llu",
 				              (unsigned long long)qc->rx.bytes,
