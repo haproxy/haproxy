@@ -367,11 +367,13 @@ static void session_build_err_string(struct session *sess)
 #ifdef USE_OPENSSL
 	ssl_ctx = conn_get_ssl_sock_ctx(conn);
 
-
-	if (conn->err_code == CO_ER_SSL_HANDSHAKE && ssl_ctx) {
-		const char *err_ssl_str = ERR_error_string(ssl_ctx->error_code, NULL);
-
-		chunk_appendf(&trash, ": SSL handshake failure (%s)\n", err_ssl_str);
+	/* when the SSL error code is present and during a SSL Handshake failure,
+	 * try to dump the error string from OpenSSL */
+	if (conn->err_code == CO_ER_SSL_HANDSHAKE && ssl_ctx && ssl_ctx->error_code != 0) {
+		chunk_appendf(&trash, ": SSL handshake failure (");
+		ERR_error_string_n(ssl_ctx->error_code, b_orig(&trash)+b_data(&trash), b_room(&trash));
+		trash.data = strlen(b_orig(&trash));
+		chunk_appendf(&trash, ")\n");
 	}
 
 	else
