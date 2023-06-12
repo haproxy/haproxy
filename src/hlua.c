@@ -5353,7 +5353,7 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 	/* The message was fully consumed and no more data are expected
 	 * (EOM flag set).
 	 */
-	if (htx_is_empty(htx) && (sc->flags & SC_FL_EOI))
+	if (htx_is_empty(htx) && (sc_opposite(sc)->flags & SC_FL_EOI))
 		stop = 1;
 
 	htx_to_buf(htx, &req->buf);
@@ -5445,7 +5445,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 	/* The message was fully consumed and no more data are expected
 	 * (EOM flag set).
 	 */
-	if (htx_is_empty(htx) && (sc->flags & SC_FL_EOI))
+	if (htx_is_empty(htx) && (sc_opposite(sc)->flags & SC_FL_EOI))
 		len = 0;
 
 	htx_to_buf(htx, &req->buf);
