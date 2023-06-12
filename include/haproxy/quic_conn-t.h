@@ -537,32 +537,6 @@ struct quic_cstream {
 	struct qc_stream_desc *desc;
 };
 
-struct quic_enc_level {
-	enum ssl_encryption_level_t level;
-	struct quic_tls_ctx tls_ctx;
-	struct {
-		/* The packets received by the listener I/O handler
-		   with header protection removed. */
-		struct eb_root pkts;
-		/* Liste of QUIC packets with protected header. */
-		struct list pqpkts;
-	} rx;
-	struct {
-		struct {
-			struct quic_crypto_buf **bufs;
-			/* The number of element in use in the previous array. */
-			size_t nb_buf;
-			/* The total size of the CRYPTO data stored in the CRYPTO buffers. */
-			size_t sz;
-			/* The offset of the CRYPT0 data stream. */
-			uint64_t offset;
-		} crypto;
-	} tx;
-	/* Crypto data stream */
-	struct quic_cstream *cstream;
-	struct quic_pktns *pktns;
-};
-
 struct quic_path {
 	/* Control congestion. */
 	struct quic_cc cc;

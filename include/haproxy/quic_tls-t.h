@@ -19,6 +19,10 @@
 
 #include <openssl/evp.h>
 
+#include <import/ebtree.h>
+
+#include <haproxy/openssl-compat.h>
+
 /* It seems TLS 1.3 ciphersuites macros differ between openssl and boringssl */
 
 #if defined(OPENSSL_IS_BORINGSSL)
@@ -161,6 +165,42 @@ struct quic_tls_ctx {
 	struct quic_tls_secrets rx;
 	struct quic_tls_secrets tx;
 	unsigned char flags;
+};
+
+struct quic_enc_level {
+	/* Encryption level, as defined by the TLS stack. */
+	enum ssl_encryption_level_t level;
+	/* TLS encryption context (AEAD only) */
+	struct quic_tls_ctx tls_ctx;
+
+	/* RX part */
+	struct {
+		/* The packets received by the listener I/O handler
+		 * with header protection removed.
+		 */
+		struct eb_root pkts;
+		/* List of QUIC packets with protected header. */
+		struct list pqpkts;
+	} rx;
+
+	/* TX part */
+	struct {
+		struct {
+			/* Array of CRYPTO data buffers */
+			struct quic_crypto_buf **bufs;
+			/* The number of element in use in the previous array. */
+			size_t nb_buf;
+			/* The total size of the CRYPTO data stored in the CRYPTO buffers. */
+			size_t sz;
+			/* The offset of the CRYPT0 data stream. */
+			uint64_t offset;
+		} crypto;
+	} tx;
+
+	/* Crypto data stream */
+	struct quic_cstream *cstream;
+	/* Packet number space */
+	struct quic_pktns *pktns;
 };
 
 #endif /* USE_QUIC */
