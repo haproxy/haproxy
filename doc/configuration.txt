@@ -1179,6 +1179,7 @@ The following keywords are supported in the "global" section :
    - tune.h2.header-table-size
    - tune.h2.initial-window-size
    - tune.h2.max-concurrent-streams
+   - tune.h2.max-frame-size
    - tune.http.cookielen
    - tune.http.logurilen
    - tune.http.maxhdr
