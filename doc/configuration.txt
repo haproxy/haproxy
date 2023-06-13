@@ -2965,6 +2965,7 @@ tune.h2.be.initial-window-size <number>
   It can make sense to slightly increase this value to allow faster downloads
   or to reduce CPU usage on the servers, at the expense of creating unfairness
   between clients. It doesn't affect resource usage.
+
   See also: tune.h2.initial-window-size.
 
 tune.h2.be.max-concurrent-streams <number>
@@ -2991,7 +2992,9 @@ tune.h2.fe.initial-window-size <number>
   bandwidth per client over a 100 ms ping time, and 500 Mbps for 1 ms ping
   time. It doesn't affect resource usage. Using too large values may cause
   clients to experience a lack of responsiveness if pages are accessed in
-  parallel to large uploads. See also: tune.h2.initial-window-size.
+  parallel to large uploads.
+
+  See also: tune.h2.initial-window-size.
 
 tune.h2.fe.max-concurrent-streams <number>
   Sets the HTTP/2 maximum number of concurrent streams per incoming connection
