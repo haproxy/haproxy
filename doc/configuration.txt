@@ -1172,6 +1172,10 @@ The following keywords are supported in the "global" section :
    - tune.disable-fast-forward
    - tune.fail-alloc
    - tune.fd.edge-triggered
+   - tune.h2.be.initial-window-size
+   - tune.h2.be.max-concurrent-streams
+   - tune.h2.fe.initial-window-size
+   - tune.h2.fe.max-concurrent-streams
    - tune.h2.header-table-size
    - tune.h2.initial-window-size
    - tune.h2.max-concurrent-streams
