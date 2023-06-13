@@ -25,7 +25,8 @@
 #include <haproxy/dynbuf.h>
 #include <haproxy/pool.h>
 #include <haproxy/openssl-compat.h>
-#include <haproxy/quic_conn-t.h>
+#include <haproxy/quic_conn.h>
+#include <haproxy/quic_frame.h>
 #include <haproxy/quic_tls-t.h>
 #include <haproxy/trace.h>
 
@@ -320,6 +321,96 @@ static inline char quic_packet_type_enc_level_char(int packet_type)
 	default:
 		return '-';
 	}
+}
+
+/* Initialize a QUIC packet number space.
+ * Never fails.
+ */
+static inline void quic_pktns_init(struct quic_pktns *pktns)
+{
+	LIST_INIT(&pktns->tx.frms);
+	pktns->tx.next_pn = -1;
+	pktns->tx.pkts = EB_ROOT_UNIQUE;
+	pktns->tx.time_of_last_eliciting = 0;
+	pktns->tx.loss_time = TICK_ETERNITY;
+	pktns->tx.pto_probe = 0;
+	pktns->tx.in_flight = 0;
+	pktns->tx.ack_delay = 0;
+
+	pktns->rx.largest_pn = -1;
+	pktns->rx.largest_acked_pn = -1;
+	pktns->rx.arngs.root = EB_ROOT_UNIQUE;
+	pktns->rx.arngs.sz = 0;
+	pktns->rx.arngs.enc_sz = 0;
+	pktns->rx.nb_aepkts_since_last_ack = 0;
+	pktns->rx.largest_time_received = 0;
+
+	pktns->flags = 0;
+}
+
+static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns, struct quic_conn *qc)
+{
+	struct eb64_node *node;
+
+	node = eb64_first(&pktns->tx.pkts);
+	while (node) {
+		struct quic_tx_packet *pkt;
+		struct quic_frame *frm, *frmbak;
+
+		pkt = eb64_entry(node, struct quic_tx_packet, pn_node);
+		node = eb64_next(node);
+		if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)
+			qc->path->ifae_pkts--;
+		list_for_each_entry_safe(frm, frmbak, &pkt->frms, list) {
+			qc_frm_unref(frm, qc);
+			LIST_DEL_INIT(&frm->list);
+			quic_tx_packet_refdec(frm->pkt);
+			qc_frm_free(&frm);
+		}
+		eb64_delete(&pkt->pn_node);
+		quic_tx_packet_refdec(pkt);
+	}
+}
+
+/* Discard <pktns> packet number space attached to <qc> QUIC connection.
+ * Its loss information are reset. Deduce the outstanding bytes for this
+ * packet number space from the outstanding bytes for the path of this
+ * connection.
+ * Note that all the non acknowledged TX packets and their frames are freed.
+ * Always succeeds.
+ */
+static inline void quic_pktns_discard(struct quic_pktns *pktns,
+                                      struct quic_conn *qc)
+{
+	qc->path->in_flight -= pktns->tx.in_flight;
+	qc->path->prep_in_flight -= pktns->tx.in_flight;
+	qc->path->loss.pto_count = 0;
+
+	pktns->tx.time_of_last_eliciting = 0;
+	pktns->tx.loss_time = TICK_ETERNITY;
+	pktns->tx.pto_probe = 0;
+	pktns->tx.in_flight = 0;
+	quic_pktns_tx_pkts_release(pktns, qc);
+}
+
+/* Return 1 if <pktns> matches with the Application packet number space of
+ * <conn> connection which is common to the 0-RTT and 1-RTT encryption levels, 0
+ * if not (handshake packets).
+ */
+static inline int quic_application_pktns(struct quic_pktns *pktns, struct quic_conn *qc)
+{
+	return pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT];
+}
+
+/* Returns the current largest acknowledged packet number if exists, -1 if not */
+static inline int64_t quic_pktns_get_largest_acked_pn(struct quic_pktns *pktns)
+{
+	struct eb64_node *ar = eb64_last(&pktns->rx.arngs.root);
+
+	if (!ar)
+		return -1;
+
+	return eb64_entry(ar, struct quic_arng_node, first)->last;
 }
 
 /* Return a character to identify the packet number space <pktns> of <qc> QUIC

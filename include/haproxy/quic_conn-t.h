@@ -322,19 +322,6 @@ struct quic_arng_node {
 	uint64_t last;
 };
 
-/* The maximum number of ack ranges to be built in ACK frames */
-#define QUIC_MAX_ACK_RANGES   32
-
-/* Structure to maintain a set of ACK ranges to be used to build ACK frames. */
-struct quic_arngs {
-	/* ebtree of ACK ranges organized by their first value. */
-	struct eb_root root;
-	/* The number of ACK ranges is this tree */
-	size_t sz;
-	/* The number of bytes required to encode this ACK ranges lists. */
-	size_t enc_sz;
-};
-
 /* Flag the packet number space as having received a packet */
 #define QUIC_FL_PKTNS_PKT_RECEIVED  (1UL << 0)
 /* Flag the packet number space as requiring an ACK frame to be sent. */
@@ -348,39 +335,6 @@ struct quic_arngs {
 
 /* The maximum number of dgrams which may be sent upon PTO expirations. */
 #define QUIC_MAX_NB_PTO_DGRAMS         2
-
-/* QUIC packet number space */
-struct quic_pktns {
-	struct {
-		/* List of frames to send. */
-		struct list frms;
-		/* Next packet number to use for transmissions. */
-		int64_t next_pn;
-		/* The packet which has been sent. */
-		struct eb_root pkts;
-		/* The time the most recent ack-eliciting packer was sent. */
-		unsigned int time_of_last_eliciting;
-		/* The time this packet number space has experienced packet loss. */
-		unsigned int loss_time;
-		/* Boolean to denote if we must send probe packet. */
-		unsigned int pto_probe;
-		/* In flight bytes for this packet number space. */
-		size_t in_flight;
-		/* The acknowledgement delay of the packet with the largest packet number */
-		uint64_t ack_delay;
-	} tx;
-	struct {
-		/* Largest packet number */
-		int64_t largest_pn;
-		/* Largest acked sent packet. */
-		int64_t largest_acked_pn;
-		struct quic_arngs arngs;
-		unsigned int nb_aepkts_since_last_ack;
-		/* The time the packet with the largest packet number was received */
-		uint64_t largest_time_received;
-	} rx;
-	unsigned int flags;
-};
 
 /* QUIC datagram */
 struct quic_dgram {

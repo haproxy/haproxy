@@ -26,6 +26,7 @@
 #error "Must define USE_OPENSSL"
 #endif
 
+#include <import/eb64tree.h>
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_frame-t.h>
