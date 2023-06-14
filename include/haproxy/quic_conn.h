@@ -413,6 +413,7 @@ static inline void quic_pktns_init(struct quic_pktns *pktns)
 	pktns->tx.pkts = EB_ROOT_UNIQUE;
 	pktns->tx.time_of_last_eliciting = 0;
 	pktns->tx.loss_time = TICK_ETERNITY;
+	pktns->tx.pto_probe = 0;
 	pktns->tx.in_flight = 0;
 	pktns->tx.ack_delay = 0;
 
