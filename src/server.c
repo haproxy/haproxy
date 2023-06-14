@@ -2404,6 +2404,7 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	if (srv_tmpl)
 		srv->srvrq = src->srvrq;
 
+	srv->netns                    = src->netns;
 	srv->check.via_socks4         = src->check.via_socks4;
 	srv->socks4_addr              = src->socks4_addr;
 }
