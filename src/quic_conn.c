@@ -5716,7 +5716,9 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 /* Update the proxy counters of <qc> QUIC connection from its counters */
 static inline void quic_conn_prx_cntrs_update(struct quic_conn *qc)
 {
-	BUG_ON(!qc->prx_counters);
+	if (!qc->prx_counters)
+		return;
+
 	HA_ATOMIC_ADD(&qc->prx_counters->dropped_pkt, qc->cntrs.dropped_pkt);
 	HA_ATOMIC_ADD(&qc->prx_counters->dropped_pkt_bufoverrun, qc->cntrs.dropped_pkt_bufoverrun);
 	HA_ATOMIC_ADD(&qc->prx_counters->dropped_parsing, qc->cntrs.dropped_parsing);
