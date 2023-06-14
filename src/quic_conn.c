@@ -3720,19 +3720,9 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		 */
 		if ((tel == QUIC_TLS_ENC_LEVEL_INITIAL || tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE) &&
 		    next_tel != QUIC_TLS_ENC_LEVEL_NONE && (LIST_ISEMPTY(frms))) {
-			/* If QUIC_TLS_ENC_LEVEL_HANDSHAKE was already reached let's try
-			 * QUIC_TLS_ENC_LEVEL_APP except if the connection was probing.
-			 */
-			if (tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE && next_tel == tel) {
-				if ((qc->pktns->flags & QUIC_FL_PKTNS_PROBE_NEEDED)) {
-					TRACE_PROTO("skip APP enc. level", QUIC_EV_CONN_PHPKTS, qc);
-					qc_txb_store(buf, dglen, first_pkt);
-					goto out;
-				}
-
+			/* If QUIC_TLS_ENC_LEVEL_HANDSHAKE was already reached let's try QUIC_TLS_ENC_LEVEL_APP */
+			if (tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE && next_tel == tel)
 				next_tel = QUIC_TLS_ENC_LEVEL_APP;
-			}
-
 			tel = next_tel;
 			if (tel == QUIC_TLS_ENC_LEVEL_APP)
 				frms = &qc->els[tel].pktns->tx.frms;
