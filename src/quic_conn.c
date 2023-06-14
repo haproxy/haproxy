@@ -8737,13 +8737,14 @@ static void dump_quic_oneline(struct show_quic_ctx *ctx, struct quic_conn *qc)
 	/* Socket */
 	if (qc->local_addr.ss_family == AF_INET ||
 	    qc->local_addr.ss_family == AF_INET6) {
+		addr_to_str(&qc->local_addr, bufaddr, sizeof(bufaddr));
+		port_to_str(&qc->local_addr, bufport, sizeof(bufport));
+		chunk_appendf(&trash, "%15s:%-5s   ", bufaddr, bufport);
+
 		addr_to_str(&qc->peer_addr, bufaddr, sizeof(bufaddr));
 		port_to_str(&qc->peer_addr, bufport, sizeof(bufport));
 		chunk_appendf(&trash, "%15s:%-5s ", bufaddr, bufport);
 
-		addr_to_str(&qc->local_addr, bufaddr, sizeof(bufaddr));
-		port_to_str(&qc->local_addr, bufport, sizeof(bufport));
-		chunk_appendf(&trash, "%15s:%-5s   ", bufaddr, bufport);
 	}
 
 	/* CIDs */
@@ -8819,11 +8820,11 @@ static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
 	    qc->local_addr.ss_family == AF_INET6) {
 		addr_to_str(&qc->local_addr, bufaddr, sizeof(bufaddr));
 		port_to_str(&qc->local_addr, bufport, sizeof(bufport));
-		chunk_appendf(&trash, "               from=%s:%s", bufaddr, bufport);
+		chunk_appendf(&trash, "               local_addr=%s:%s", bufaddr, bufport);
 
 		addr_to_str(&qc->peer_addr, bufaddr, sizeof(bufaddr));
 		port_to_str(&qc->peer_addr, bufport, sizeof(bufport));
-		chunk_appendf(&trash, " to=%s:%s", bufaddr, bufport);
+		chunk_appendf(&trash, " foreign_addr=%s:%s", bufaddr, bufport);
 	}
 
 	chunk_appendf(&trash, "\n");
@@ -8947,8 +8948,8 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 		/* Print legend for oneline format. */
 		if (ctx->format == QUIC_DUMP_FMT_ONELINE) {
 			chunk_appendf(&trash, "# conn/frontend                     state   "
-				      "in_flight infl_p lost_p               "
-				      "from                    to          "
+				      "in_flight infl_p lost_p         "
+				      "Local Address           Foreign Address      "
 				      "local & remote CIDs\n");
 			applet_putchk(appctx, &trash);
 		}
