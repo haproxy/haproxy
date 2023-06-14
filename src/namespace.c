@@ -54,6 +54,7 @@ static void netns_sig_stop(struct sig_handler *sh)
 		entry = container_of(node, struct netns_entry, node);
 		free(entry->node.key);
 		close(entry->fd);
+		free(entry);
 		node = next;
 	}
 }
