@@ -6806,14 +6806,22 @@ static int qc_conn_alloc_ssl_ctx(struct quic_conn *qc)
 
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
 
-	ctx = pool_zalloc(pool_head_quic_conn_ctx);
+	ctx = pool_alloc(pool_head_quic_conn_ctx);
 	if (!ctx) {
 		TRACE_ERROR("SSL context allocation failed", QUIC_EV_CONN_TXPKT);
 		goto err;
 	}
 
-	ctx->subs = NULL;
+	ctx->conn = NULL;
+	ctx->bio = NULL;
+	ctx->xprt = NULL;
 	ctx->xprt_ctx = NULL;
+	memset(&ctx->wait_event, 0, sizeof(ctx->wait_event));
+	ctx->subs = NULL;
+	ctx->xprt_st = 0;
+	ctx->error_code = 0;
+	ctx->early_buf = BUF_NULL;
+	ctx->sent_early_data = 0;
 	ctx->qc = qc;
 
 	if (qc_is_listener(qc)) {
