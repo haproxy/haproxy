@@ -357,6 +357,20 @@ static inline enum quic_tls_pktns quic_tls_pktns(enum quic_tls_enc_level level)
 	}
 }
 
+/* Reset all members of <ctx> to default values. */
+static inline void quic_tls_ctx_reset(struct quic_tls_ctx *ctx)
+{
+	ctx->rx.ctx = NULL;
+	ctx->rx.hp_ctx = NULL;
+	ctx->rx.iv = NULL;
+	ctx->rx.key = NULL;
+
+	ctx->tx.ctx = NULL;
+	ctx->tx.hp_ctx = NULL;
+	ctx->tx.iv = NULL;
+	ctx->tx.key = NULL;
+}
+
 /* Erase and free the secrets for a QUIC encryption level with <ctx> as
  * context.
  * Always succeeds.
@@ -394,8 +408,7 @@ static inline void quic_tls_ctx_secs_free(struct quic_tls_ctx *ctx)
 	pool_free(pool_head_quic_tls_iv,  ctx->tx.iv);
 	pool_free(pool_head_quic_tls_key, ctx->tx.key);
 
-	ctx->rx.iv = ctx->tx.iv = NULL;
-	ctx->rx.key = ctx->tx.key = NULL;
+	quic_tls_ctx_reset(ctx);
 }
 
 /* Allocate the secrete keys for a QUIC encryption level with <ctx> as context.
@@ -612,6 +625,15 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 	return 0;
 }
 
+/* Reset all members of <tls_kp> to default values. */
+static inline void quic_tls_ku_reset(struct quic_tls_kp *tls_kp)
+{
+	tls_kp->ctx = NULL;
+	tls_kp->secret = NULL;
+	tls_kp->iv = NULL;
+	tls_kp->key = NULL;
+}
+
 /* Release the memory allocated for all the key update key phase
  * structures for <qc> QUIC connection.
  * Always succeeds.
@@ -622,14 +644,17 @@ static inline void quic_tls_ku_free(struct quic_conn *qc)
 	pool_free(pool_head_quic_tls_secret, qc->ku.prv_rx.secret);
 	pool_free(pool_head_quic_tls_iv,     qc->ku.prv_rx.iv);
 	pool_free(pool_head_quic_tls_key,    qc->ku.prv_rx.key);
+	quic_tls_ku_reset(&qc->ku.prv_rx);
 	EVP_CIPHER_CTX_free(qc->ku.nxt_rx.ctx);
 	pool_free(pool_head_quic_tls_secret, qc->ku.nxt_rx.secret);
 	pool_free(pool_head_quic_tls_iv,     qc->ku.nxt_rx.iv);
 	pool_free(pool_head_quic_tls_key,    qc->ku.nxt_rx.key);
+	quic_tls_ku_reset(&qc->ku.nxt_rx);
 	EVP_CIPHER_CTX_free(qc->ku.nxt_tx.ctx);
 	pool_free(pool_head_quic_tls_secret, qc->ku.nxt_tx.secret);
 	pool_free(pool_head_quic_tls_iv,     qc->ku.nxt_tx.iv);
 	pool_free(pool_head_quic_tls_key,    qc->ku.nxt_tx.key);
+	quic_tls_ku_reset(&qc->ku.nxt_tx);
 }
 
 /* Initialize <kp> key update secrets, allocating the required memory.

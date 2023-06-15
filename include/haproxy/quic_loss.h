@@ -34,6 +34,7 @@
 
 static inline void quic_loss_init(struct quic_loss *ql)
 {
+	ql->latest_rtt = 0;
 	ql->srtt = QUIC_LOSS_INITIAL_RTT << 3;
 	ql->rtt_var = (QUIC_LOSS_INITIAL_RTT >> 1) << 2;
 	ql->rtt_min = 0;
