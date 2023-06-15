@@ -7023,10 +7023,7 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 
 	prx = l->bind_conf->frontend;
 	prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
-	/* This ist only to please to traces and distinguish the
-	 * packet with parsed packet number from others.
-	 */
-	pkt->pn_node.key = (uint64_t)-1;
+
 	if (end <= pos) {
 		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 		goto drop;
@@ -8350,22 +8347,31 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 	pos = dgram->buf;
 	end = pos + dgram->len;
 	do {
-		/* TODO replace zalloc -> alloc. */
-		pkt = pool_zalloc(pool_head_quic_rx_packet);
+		pkt = pool_alloc(pool_head_quic_rx_packet);
 		if (!pkt) {
 			TRACE_ERROR("RX packet allocation failed", QUIC_EV_CONN_LPKT);
 			goto err;
 		}
 
+		LIST_INIT(&pkt->qc_rx_pkt_list);
 		pkt->version = NULL;
+		pkt->type = QUIC_PACKET_TYPE_UNKNOWN;
 		pkt->pn_offset = 0;
+		pkt->len = 0;
+		pkt->raw_len = 0;
+		pkt->token = NULL;
+		pkt->token_len = 0;
+		pkt->aad_len = 0;
+		pkt->data = NULL;
+		pkt->pn_node.key = (uint64_t)-1;
+		pkt->refcnt = 0;
+		pkt->flags = 0;
+		pkt->time_received = now_ms;
 
 		/* Set flag if pkt is the first one in dgram. */
 		if (pos == dgram->buf)
 			pkt->flags |= QUIC_FL_RX_PACKET_DGRAM_FIRST;
 
-		LIST_INIT(&pkt->qc_rx_pkt_list);
-		pkt->time_received = now_ms;
 		quic_rx_packet_refinc(pkt);
 		if (quic_rx_pkt_parse(pkt, pos, end, dgram, li))
 			goto next;
