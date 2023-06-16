@@ -6901,6 +6901,15 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 			if (!conn_id)
 				goto err;
 
+			qc = qc_new_conn(pkt->version, ipv4, &pkt->dcid, &pkt->scid, &token_odcid,
+			                 conn_id, &dgram->daddr, &pkt->saddr, 1,
+			                 !!pkt->token_len, l);
+			if (qc == NULL) {
+				eb64_delete(&conn_id->seq_num);
+				pool_free(pool_head_quic_connection_id, conn_id);
+				goto err;
+			}
+
 			tree = &quic_cid_trees[quic_cid_tree_idx(&conn_id->cid)];
 			HA_RWLOCK_WRLOCK(QC_CID_LOCK, &tree->lock);
 			node = ebmb_insert(&tree->root, &conn_id->node, conn_id->cid.len);
@@ -6909,17 +6918,13 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 
 				conn_id = ebmb_entry(node, struct quic_connection_id, node);
 				*new_tid = HA_ATOMIC_LOAD(&conn_id->tid);
+				quic_conn_release(qc);
+				qc = NULL;
 			}
 			HA_RWLOCK_WRUNLOCK(QC_CID_LOCK, &tree->lock);
 
 			if (*new_tid != -1)
 				goto out;
-
-			qc = qc_new_conn(pkt->version, ipv4, &pkt->dcid, &pkt->scid, &token_odcid,
-			                 conn_id, &dgram->daddr, &pkt->saddr, 1,
-			                 !!pkt->token_len, l);
-			if (qc == NULL)
-				goto err;
 
 			HA_ATOMIC_INC(&prx_counters->half_open_conn);
 		}
