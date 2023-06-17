@@ -5542,6 +5542,8 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 	/* Initialize in priority qc members required for a safe dealloc. */
 
+	/* Prevents these CID to be dumped by TRACE() calls */
+	qc->scid.len = qc->odcid.len = qc->dcid.len = 0;
 	/* required to use MTLIST_IN_LIST */
 	MT_LIST_INIT(&qc->accept_list);
 
@@ -5688,9 +5690,11 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->tx.nb_buf = QUIC_CONN_TX_BUFS_NB;
 	qc->tx.wbuf = qc->tx.rbuf = 0;
 	qc->tx.bytes = qc->tx.prep_bytes = 0;
+	memset(&qc->tx.params, 0, sizeof(qc->tx.params));
 	qc->tx.buf = BUF_NULL;
 	/* RX part. */
 	qc->rx.bytes = 0;
+	memset(&qc->rx.params, 0, sizeof(qc->rx.params));
 	qc->rx.buf = b_make(qc->rx.buf.area, QUIC_CONN_RX_BUFSZ, 0, 0);
 	for (i = 0; i < QCS_MAX_TYPES; i++)
 		qc->rx.strms[i].nb_streams = 0;
