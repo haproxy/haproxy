@@ -218,8 +218,12 @@ int mworker_env_to_proc_list()
 
 			} else if (strncmp(subtoken, "fd=", 3) == 0) {
 				child->ipc_fd[0] = atoi(subtoken+3);
+				if (child->ipc_fd[0] > -1)
+					global.maxsock++;
 			} else if (strncmp(subtoken, "cfd=", 4) == 0) {
 				child->ipc_fd[1] = atoi(subtoken+4);
+				if (child->ipc_fd[1] > -1)
+					global.maxsock++;
 			} else if (strncmp(subtoken, "pid=", 4) == 0) {
 				child->pid = atoi(subtoken+4);
 			} else if (strncmp(subtoken, "reloads=", 8) == 0) {
