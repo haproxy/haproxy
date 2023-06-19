@@ -364,11 +364,16 @@ static inline void quic_tls_ctx_reset(struct quic_tls_ctx *ctx)
 	ctx->rx.hp_ctx = NULL;
 	ctx->rx.iv = NULL;
 	ctx->rx.key = NULL;
+	ctx->rx.pn = 0;
 
 	ctx->tx.ctx = NULL;
 	ctx->tx.hp_ctx = NULL;
 	ctx->tx.iv = NULL;
 	ctx->tx.key = NULL;
+	/* Not used on the TX path. */
+	ctx->tx.pn = 0;
+
+	ctx->flags = 0;
 }
 
 /* Erase and free the secrets for a QUIC encryption level with <ctx> as

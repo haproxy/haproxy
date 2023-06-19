@@ -153,6 +153,7 @@ struct quic_tls_secrets {
 	size_t ivlen;
 	unsigned char *key;
 	size_t keylen;
+	/* Used only on the RX part to store the largest received packet number */
 	int64_t pn;
 };
 
