@@ -66,7 +66,7 @@ struct quic_pktns *quic_loss_pktns(struct quic_conn *qc)
 	for (i = QUIC_TLS_PKTNS_HANDSHAKE; i < QUIC_TLS_PKTNS_MAX; i++) {
 		TRACE_PROTO("TX loss pktns", QUIC_EV_CONN_SPTO, qc, &qc->pktns[i]);
 		if (!tick_isset(pktns->tx.loss_time) ||
-		    qc->pktns[i].tx.loss_time < pktns->tx.loss_time)
+		    tick_is_lt(qc->pktns[i].tx.loss_time, pktns->tx.loss_time))
 			pktns = &qc->pktns[i];
 	}
 
