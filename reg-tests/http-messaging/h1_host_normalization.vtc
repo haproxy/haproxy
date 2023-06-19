@@ -3,154 +3,195 @@ varnishtest "H1 authority validation and host normalizarion based on the scheme 
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.6-dev0)'"
 feature ignore_unknown_macro
 
+barrier b1 cond 2 -cyclic
+
 syslog S1 -level info {
     # C1
     recv
     expect ~ "^.* uri: GET http://toto:poue@hostname/c1 HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
 
     # C2
     recv
     expect ~ "^.* uri: GET http://hostname:8080/c2 HTTP/1.1; host: {hostname:8080}$"
+    barrier b1 sync
 
     # C3
     recv
     expect ~ "^.* uri: GET https://hostname/c3 HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
 
     # C4
     recv
     expect ~ "^.* uri: GET https://hostname:80/c4 HTTP/1.1; host: {hostname:80}$"
+    barrier b1 sync
 
     # C5
     recv
     expect ~ "^.* uri: CONNECT hostname:80 HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
     recv
     expect ~ "^.* uri: CONNECT hostname:80 HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
     recv
     expect ~ "^.* uri: CONNECT hostname:80 HTTP/1.1; host: {hostname:}$"
+    barrier b1 sync
 
     # C6
     recv
     expect ~ "^.* uri: CONNECT hostname:443 HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
     recv
     expect ~ "^.* uri: CONNECT hostname:443 HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
     recv
     expect ~ "^.* uri: CONNECT hostname:443 HTTP/1.1; host: {hostname:}$"
+    barrier b1 sync
 
     # C7
     recv
     expect ~ "^.* uri: CONNECT hostname:8443 HTTP/1.1; host: {hostname:8443}$"
+    barrier b1 sync
 
     # C8
     recv
     expect ~ "^.* uri: <BADREQ>; host: $"
+    barrier b1 sync
 
     # C9
     recv
     expect ~ "^.* uri: <BADREQ>; host: $"
+    barrier b1 sync
 
     # C10
     recv
     expect ~ "^.* uri: <BADREQ>; host: $"
+    barrier b1 sync
 
     # C11
     recv
     expect ~ "^.* uri: <BADREQ>; host: $"
+    barrier b1 sync
 
     # C12
     recv
     expect ~ "^.* uri: <BADREQ>; host: $"
+    barrier b1 sync
 
     # C13
     recv
     expect ~ "^.* uri: <BADREQ>; host: $"
+    barrier b1 sync
 
     # C14
     recv
     expect ~ "^.* uri: <BADREQ>; host: $"
+    barrier b1 sync
 
     # C15
     recv
     expect ~ "^.* uri: <BADREQ>; host: $"
+    barrier b1 sync
 
     # C16
     recv
     expect ~ "^.* uri: <BADREQ>; host: $"
+    barrier b1 sync
 
     # C17
     recv
+    barrier b1 sync
     expect ~ "^.* uri: <BADREQ>; host: $"
 
     # C18
     recv
     expect ~ "^.* uri: <BADREQ>; host: $"
+    barrier b1 sync
 
     # C19
     recv
     expect ~ "^.* uri: <BADREQ>; host: $"
+    barrier b1 sync
 
     # C20
     recv
     expect ~ "^.* uri: GET http://hostname/c20 HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
 
     # C21
     recv
     expect ~ "^.* uri: GET https://hostname/c21 HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
 
     # C22
     recv
     expect ~ "^.* uri: GET http://hostname/c22 HTTP/1.1; host: {hostname:80}$"
+    barrier b1 sync
 
     # C23
     recv
     expect ~ "^.* uri: GET https://hostname/c23 HTTP/1.1; host: {hostname:443}$"
+    barrier b1 sync
 
     # C24
     recv
     expect ~ "^.* uri: GET http://hostname/c24 HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
 
     # C25
     recv
     expect ~ "^.* uri: GET https://hostname/c25 HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
 
     # C26
     recv
     expect ~ "^.* uri: GET http://hostname/c26 HTTP/1.1; host: {hostname:}$"
+    barrier b1 sync
 
     # C27
     recv
     expect ~ "^.* uri: GET https://hostname/c27 HTTP/1.1; host: {hostname:}$"
+    barrier b1 sync
 
     # C28
     recv
     expect ~ "^.* uri: GET http://hostname/c28 HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
 
     # C29
     recv
     expect ~ "^.* uri: GET http://hostname/c29 HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
 
     # C30
     recv
     expect ~ "^.* uri: GET https://hostname/c30 HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
 
     # C31
     recv
     expect ~ "^.* uri: GET https://hostname/c31 HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
 
     # C32
     recv
     expect ~ "^.* uri: GET http:// HTTP/1.1; host: {}$"
+    barrier b1 sync
 
     # C33
     recv
     expect ~ "^.* uri: GET https:// HTTP/1.1; host: {}$"
+    barrier b1 sync
 
     # C34
     recv
     expect ~ "^.* uri: GET http:// HTTP/1.1; host: {}$"
+    barrier b1 sync
 
     # C35
     recv
     expect ~ "^.* uri: GET https:// HTTP/1.1; host: {}$"
+
 } -start
 
 haproxy h1 -conf {
@@ -182,6 +223,9 @@ client c1 -connect ${h1_fe_sock} {
     expect resp.status == 200
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # port 8080 with http scheme => no normalization
 client c2 -connect ${h1_fe_sock} {
     txreq \
@@ -192,6 +236,9 @@ client c2 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 200
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 # default port 443 with https scheme => should be normalized
 client c3 -connect ${h1_fe_sock} {
@@ -204,6 +251,9 @@ client c3 -connect ${h1_fe_sock} {
     expect resp.status == 200
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # port 80 with https scheme => no normalization
 client c4 -connect ${h1_fe_sock} {
     txreq \
@@ -215,6 +265,9 @@ client c4 -connect ${h1_fe_sock} {
     expect resp.status == 200
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # CONNECT on port 80 => should be normalized
 client c5 -connect ${h1_fe_sock} {
     txreq \
@@ -225,6 +278,10 @@ client c5 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 200
 } -run
+
+# Wait matching on log message
+barrier b1 sync
+
 client c5 -connect ${h1_fe_sock} {
 
     txreq \
@@ -235,6 +292,10 @@ client c5 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 200
 } -run
+
+# Wait matching on log message
+barrier b1 sync
+
 client c5 -connect ${h1_fe_sock} {
 
     txreq \
@@ -245,6 +306,9 @@ client c5 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 200
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 # CONNECT on port 443 => should be normalized
 client c6 -connect ${h1_fe_sock} {
@@ -256,6 +320,10 @@ client c6 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 200
 } -run
+
+# Wait matching on log message
+barrier b1 sync
+
 client c6 -connect ${h1_fe_sock} {
     txreq \
       -req "CONNECT" \
@@ -265,6 +333,10 @@ client c6 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 200
 } -run
+
+# Wait matching on log message
+barrier b1 sync
+
 client c6 -connect ${h1_fe_sock} {
     txreq \
       -req "CONNECT" \
@@ -274,6 +346,9 @@ client c6 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 200
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 # CONNECT on port non-default port => no normalization
 client c7 -connect ${h1_fe_sock} {
@@ -286,6 +361,9 @@ client c7 -connect ${h1_fe_sock} {
     expect resp.status == 200
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # host miss-match => error
 client c8 -connect ${h1_fe_sock} {
     txreq \
@@ -296,6 +374,9 @@ client c8 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 400
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 # port miss-match => error
 client c9 -connect ${h1_fe_sock} {
@@ -308,6 +389,9 @@ client c9 -connect ${h1_fe_sock} {
     expect resp.status == 400
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # no host port with a non-default port in abs-uri  => error
 client c10 -connect ${h1_fe_sock} {
     txreq \
@@ -319,6 +403,9 @@ client c10 -connect ${h1_fe_sock} {
     expect resp.status == 400
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # non-default host port with a default in abs-uri  => error
 client c11 -connect ${h1_fe_sock} {
     txreq \
@@ -329,6 +416,9 @@ client c11 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 400
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 # miss-match between host headers => error
 client c12 -connect ${h1_fe_sock} {
@@ -342,6 +432,9 @@ client c12 -connect ${h1_fe_sock} {
     expect resp.status == 400
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # miss-match between host headers but with a normalization => error
 client c13 -connect ${h1_fe_sock} {
     txreq \
@@ -354,6 +447,9 @@ client c13 -connect ${h1_fe_sock} {
     expect resp.status == 400
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # CONNECT authoriy without port => error
 client c14 -connect ${h1_fe_sock} {
     txreq \
@@ -364,6 +460,9 @@ client c14 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 400
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 # host miss-match with CONNECT => error
 client c15 -connect ${h1_fe_sock} {
@@ -376,6 +475,9 @@ client c15 -connect ${h1_fe_sock} {
     expect resp.status == 400
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # port miss-match with CONNECT => error
 client c16 -connect ${h1_fe_sock} {
     txreq \
@@ -386,6 +488,9 @@ client c16 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 400
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 # no host port with non-default port in CONNECT authority => error
 client c17 -connect ${h1_fe_sock} {
@@ -398,6 +503,9 @@ client c17 -connect ${h1_fe_sock} {
     expect resp.status == 400
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # no authority => error
 client c18 -connect ${h1_fe_sock} {
     txreq \
@@ -409,6 +517,9 @@ client c18 -connect ${h1_fe_sock} {
     expect resp.status == 400
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # no authority => error
 client c19 -connect ${h1_fe_sock} {
     txreq \
@@ -419,6 +530,9 @@ client c19 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 400
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 
 # default port 80 with http scheme but no port for host value => should be normalized
@@ -432,6 +546,9 @@ client c20 -connect ${h1_fe_sock} {
     expect resp.status == 200
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 
 # default port 443 with https scheme but no port for host value => should be normalized
 client c21 -connect ${h1_fe_sock} {
@@ -443,6 +560,9 @@ client c21 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 200
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 
 # http scheme, no port for the authority but default port for host value => no normalization
@@ -456,6 +576,9 @@ client c22 -connect ${h1_fe_sock} {
     expect resp.status == 200
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # https scheme, no port for the authority but default port for host value => no normalization
 client c23 -connect ${h1_fe_sock} {
     txreq \
@@ -466,6 +589,9 @@ client c23 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 200
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 
 # http scheme, empty port for the authority and no port for host value => should be normalized
@@ -479,6 +605,9 @@ client c24 -connect ${h1_fe_sock} {
     expect resp.status == 200
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # https scheme, empty port for the authority and no port for host value => should be normalized
 client c25 -connect ${h1_fe_sock} {
     txreq \
@@ -489,6 +618,9 @@ client c25 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 200
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 # http scheme, no port for the authority and empty port for host value => no normalization
 client c26 -connect ${h1_fe_sock} {
@@ -501,6 +633,9 @@ client c26 -connect ${h1_fe_sock} {
     expect resp.status == 200
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # https scheme, no port for the authority and empty port for host value => no normalization
 client c27 -connect ${h1_fe_sock} {
     txreq \
@@ -511,6 +646,9 @@ client c27 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 200
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 # http scheme, default port for the authority and empty port for host value => should be normalized
 client c28 -connect ${h1_fe_sock} {
@@ -523,6 +661,9 @@ client c28 -connect ${h1_fe_sock} {
     expect resp.status == 200
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # http scheme, empty port for the authority and default port for host value => should be normalized
 client c29 -connect ${h1_fe_sock} {
     txreq \
@@ -533,6 +674,9 @@ client c29 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 200
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 # https scheme, default port for the authority and empty port for host value => should be normalized
 client c30 -connect ${h1_fe_sock} {
@@ -545,6 +689,9 @@ client c30 -connect ${h1_fe_sock} {
     expect resp.status == 200
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # https scheme, empty port for the authority and default port for host value => should be normalized
 client c31 -connect ${h1_fe_sock} {
     txreq \
@@ -555,6 +702,9 @@ client c31 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 200
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 # Strange cases
 client c32 -connect ${h1_fe_sock} {
@@ -567,6 +717,9 @@ client c32 -connect ${h1_fe_sock} {
     expect resp.status == 200
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 
 client c33 -connect ${h1_fe_sock} {
     txreq \
@@ -578,6 +731,9 @@ client c33 -connect ${h1_fe_sock} {
     expect resp.status == 200
 } -run
 
+# Wait matching on log message
+barrier b1 sync
+
 # Strange cases
 client c34 -connect ${h1_fe_sock} {
     txreq \
@@ -588,6 +744,9 @@ client c34 -connect ${h1_fe_sock} {
     rxresp
     expect resp.status == 200
 } -run
+
+# Wait matching on log message
+barrier b1 sync
 
 
 client c35 -connect ${h1_fe_sock} {
