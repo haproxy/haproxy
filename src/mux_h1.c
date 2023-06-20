@@ -1950,6 +1950,884 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	return 0;
 }
 
+/* Try to send the request line from the HTX message <htx> for the stream
+ * <h1s>. It returns the number of bytes consumed or zero if nothing was done or
+ * if an error occurred. No more than <count> bytes can be sent.
+ */
+static size_t h1_make_reqline(struct h1s *h1s, struct h1m *h1m, struct htx *htx, size_t count)
+{
+	struct h1c *h1c = h1s->h1c;
+        struct htx_blk *blk;
+	struct htx_sl *sl;
+	enum htx_blk_type type;
+	uint32_t sz;
+	size_t ret = 0;
+
+	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx, (size_t[]){count});
+
+	while (1) {
+		blk = htx_get_head_blk(htx);
+		if (!blk)
+			goto end;
+		type = htx_get_blk_type(blk);
+		sz = htx_get_blksz(blk);
+		if (type == HTX_BLK_UNUSED)
+			continue;
+		if (type != HTX_BLK_REQ_SL || sz > count)
+			goto error;
+		break;
+	}
+
+	TRACE_USER("sending request headers", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx);
+
+	if (b_space_wraps(&h1c->obuf))
+		b_slow_realign(&h1c->obuf, trash.area, b_data(&h1c->obuf));
+
+	sl = htx_get_blk_ptr(htx, blk);
+	if (!h1_format_htx_reqline(sl, &h1c->obuf))
+		goto full;
+
+	h1s->meth = sl->info.req.meth;
+	h1_parse_req_vsn(h1m, sl);
+
+	h1m->flags |= H1_MF_XFER_LEN;
+	if (sl->flags & HTX_SL_F_BODYLESS)
+		h1m->flags |= H1_MF_CLEN;
+	if (h1s->meth == HTTP_METH_HEAD)
+		h1s->flags |= H1S_F_BODYLESS_RESP;
+
+	if (h1s->flags & H1S_F_RX_BLK) {
+		h1s->flags &= ~H1S_F_RX_BLK;
+		h1_wake_stream_for_recv(h1s);
+		TRACE_STATE("Re-enable input processing", H1_EV_TX_DATA|H1_EV_H1S_BLK|H1_EV_STRM_WAKE, h1c->conn, h1s);
+	}
+
+	h1m->state = H1_MSG_HDR_NAME;
+	ret += sz;
+	htx_remove_blk(htx, blk);
+
+  end:
+	TRACE_LEAVE(H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx, (size_t[]){ret});
+	return ret;
+
+  full:
+	TRACE_STATE("h1c obuf full", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
+	h1c->flags |= H1C_F_OUT_FULL;
+	goto end;
+
+  error:
+	htx->flags |= HTX_FL_PROCESSING_ERROR;
+	h1s->flags |= H1S_F_PROCESSING_ERROR;
+	se_fl_set(h1s->sd, SE_FL_ERROR);
+	TRACE_ERROR("processing error on request start-line",
+		    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+	goto end;
+}
+
+/* Try to send the status line from the HTX message <htx> for the stream
+ * <h1s>. It returns the number of bytes consumed or zero if nothing was done or
+ * if an error occurred. No more than <count> bytes can be sent.
+ */
+static size_t h1_make_stline(struct h1s *h1s, struct h1m *h1m, struct htx *htx, size_t count)
+{
+	struct h1c *h1c = h1s->h1c;
+	struct htx_blk *blk;
+	struct htx_sl *sl;
+	enum htx_blk_type type;
+	uint32_t sz;
+	size_t ret = 0;
+
+	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx, (size_t[]){count});
+
+	while (1) {
+		blk = htx_get_head_blk(htx);
+		if (!blk)
+			goto end;
+
+		type = htx_get_blk_type(blk);
+		sz = htx_get_blksz(blk);
+
+		if (type == HTX_BLK_UNUSED)
+			continue;
+		if (type != HTX_BLK_RES_SL || sz > count)
+			goto error;
+		break;
+	}
+
+	TRACE_USER("sending response headers", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx);
+
+	if (b_space_wraps(&h1c->obuf))
+		b_slow_realign(&h1c->obuf, trash.area, b_data(&h1c->obuf));
+
+	sl = htx_get_blk_ptr(htx, blk);
+	if (!h1_format_htx_stline(sl, &h1c->obuf))
+		goto full;
+
+	h1s->status = sl->info.res.status;
+	h1_parse_res_vsn(h1m, sl);
+
+	if (sl->flags & HTX_SL_F_XFER_LEN)
+		h1m->flags |= H1_MF_XFER_LEN;
+	if (h1s->status < 200)
+		h1s->flags |= H1S_F_HAVE_O_CONN;
+	else if (h1s->status == 204 || h1s->status == 304)
+		h1s->flags |= H1S_F_BODYLESS_RESP;
+
+	h1m->state = H1_MSG_HDR_NAME;
+	ret += sz;
+	htx_remove_blk(htx, blk);
+
+  end:
+	TRACE_LEAVE(H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx, (size_t[]){ret});
+	return ret;
+
+  full:
+	TRACE_STATE("h1c obuf full", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
+	h1c->flags |= H1C_F_OUT_FULL;
+	goto end;
+
+  error:
+	htx->flags |= HTX_FL_PROCESSING_ERROR;
+	h1s->flags |= H1S_F_PROCESSING_ERROR;
+	se_fl_set(h1s->sd, SE_FL_ERROR);
+	TRACE_ERROR("processing error on response start-line",
+		    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+	goto end;
+}
+
+/* Try to send the message headers from the HTX message <htx> for the stream
+ * <h1s>. It returns the number of bytes consumed or zero if nothing was done or
+ * if an error occurred. No more than <count> bytes can be sent.
+ */
+static size_t h1_make_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx, size_t count)
+{
+	struct h1c *h1c = h1s->h1c;
+	struct htx_blk *blk;
+	struct buffer outbuf;
+	enum htx_blk_type type;
+	struct ist n, v;
+	uint32_t sz;
+	size_t ret = 0;
+
+	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx, (size_t[]){count});
+
+	if (b_space_wraps(&h1c->obuf))
+		b_slow_realign(&h1c->obuf, trash.area, b_data(&h1c->obuf));
+	outbuf = b_make(b_tail(&h1c->obuf), b_contig_space(&h1c->obuf), 0, 0);
+
+	blk = htx_get_head_blk(htx);
+	while (blk) {
+		type = htx_get_blk_type(blk);
+		sz = htx_get_blksz(blk);
+
+		if (type == HTX_BLK_HDR) {
+			if (sz > count)
+				goto error;
+
+			n = htx_get_blk_name(htx, blk);
+			v = htx_get_blk_value(htx, blk);
+
+			/* Skip all pseudo-headers */
+			if (*(n.ptr) == ':')
+				goto nextblk;
+
+			if (isteq(n, ist("transfer-encoding"))) {
+				if ((h1m->flags & H1_MF_RESP) && (h1s->status < 200 || h1s->status == 204))
+					goto nextblk;
+				if (h1_parse_xfer_enc_header(h1m, v) < 0)
+					goto error;
+                        }
+			else if (isteq(n, ist("content-length"))) {
+				if ((h1m->flags & H1_MF_RESP) && (h1s->status < 200 || h1s->status == 204))
+					goto nextblk;
+				/* Only skip C-L header with invalid value. */
+				if (h1_parse_cont_len_header(h1m, &v) < 0)
+					goto nextblk; // FIXME: must be handled as an error
+			}
+			else if (isteq(n, ist("connection"))) {
+				h1_parse_connection_header(h1m, &v);
+				if (!v.len)
+					goto nextblk;
+			}
+			else if (isteq(n, ist("upgrade"))) {
+				h1_parse_upgrade_header(h1m, v);
+			}
+			else if ((isteq(n, ist("sec-websocket-accept")) && h1m->flags & H1_MF_RESP) ||
+				 (isteq(n, ist("sec-websocket-key")) && !(h1m->flags & H1_MF_RESP))) {
+				h1s->flags |= H1S_F_HAVE_WS_KEY;
+			}
+			else if (isteq(n, ist("te"))) {
+				/* "te" may only be sent with "trailers" if this value
+				 * is present, otherwise it must be deleted.
+				 */
+				v = istist(v, ist("trailers"));
+				if (!isttest(v) || (v.len > 8 && v.ptr[8] != ','))
+					goto nextblk;
+				v = ist("trailers");
+			}
+
+			/* Skip header if same name is used to add the server name */
+			if (!(h1m->flags & H1_MF_RESP) && isttest(h1c->px->server_id_hdr_name) &&
+			    isteqi(n, h1c->px->server_id_hdr_name))
+				goto nextblk;
+
+			/* Try to adjust the case of the header name */
+			if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
+				h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
+			if (!h1_format_htx_hdr(n, v, &outbuf))
+				goto full;
+		}
+		else if (type == HTX_BLK_EOH) {
+			h1m->state = H1_MSG_LAST_LF;
+			break; /* Do not consume this block */
+                }
+		else if (type == HTX_BLK_UNUSED)
+			goto nextblk;
+		else
+			goto error;
+
+	  nextblk:
+		ret += sz;
+		count -= sz;
+		blk = htx_remove_blk(htx, blk);
+	}
+
+  copy:
+	b_add(&h1c->obuf, outbuf.data);
+
+  end:
+	TRACE_LEAVE(H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx, (size_t[]){ret});
+	return ret;
+
+  full:
+	TRACE_STATE("h1c obuf full", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
+	h1c->flags |= H1C_F_OUT_FULL;
+	goto copy;
+
+  error:
+	ret = 0;
+	htx->flags |= HTX_FL_PROCESSING_ERROR;
+	h1s->flags |= H1S_F_PROCESSING_ERROR;
+	se_fl_set(h1s->sd, SE_FL_ERROR);
+	TRACE_ERROR("processing error on message headers",
+		    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+	goto end;
+}
+
+/* Handle the EOH and perform last processing before sending the data. It
+ * returns the number of bytes consumed or zero if nothing was done or if an
+ * error occurred. No more than <count> bytes can be sent.
+ */
+static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, size_t count)
+{
+	struct h1c *h1c = h1s->h1c;
+	struct htx_blk *blk;
+	struct buffer outbuf;
+	enum htx_blk_type type;
+	struct ist n, v;
+	uint32_t sz;
+	size_t ret = 0;
+
+	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx, (size_t[]){count});
+
+	while (1) {
+		blk = htx_get_head_blk(htx);
+		if (!blk)
+			goto end;
+
+		type = htx_get_blk_type(blk);
+		sz = htx_get_blksz(blk);
+
+                if (type == HTX_BLK_UNUSED)
+			continue;
+		if (type != HTX_BLK_EOH || sz > count)
+			goto error;
+		break;
+	}
+
+	if (b_space_wraps(&h1c->obuf))
+		b_slow_realign(&h1c->obuf, trash.area, b_data(&h1c->obuf));
+	outbuf = b_make(b_tail(&h1c->obuf), b_contig_space(&h1c->obuf), 0, 0);
+
+	/* Deal with "Connection" header */
+	if (!(h1s->flags & H1S_F_HAVE_O_CONN)) {
+		if ((htx->flags & HTX_FL_PROXY_RESP) && h1s->req.state != H1_MSG_DONE) {
+			/* If the reply comes from haproxy while the request is
+			 * not finished, we force the connection close. */
+			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+			TRACE_STATE("force close mode (resp)", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+		}
+		else if ((h1m->flags & (H1_MF_XFER_ENC|H1_MF_CLEN)) == (H1_MF_XFER_ENC|H1_MF_CLEN)) {
+			/* T-E + C-L: force close */
+			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+			TRACE_STATE("force close mode (T-E + C-L)", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+		}
+		else if ((h1m->flags & (H1_MF_VER_11|H1_MF_XFER_ENC)) == H1_MF_XFER_ENC) {
+			/* T-E + HTTP/1.0: force close */
+			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+			TRACE_STATE("force close mode (T-E + HTTP/1.0)", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+		}
+
+		/* the conn_mode must be processed. So do it */
+		n = ist("connection");
+		v = ist("");
+		h1_process_output_conn_mode(h1s, h1m, &v);
+		if (v.len) {
+			/* Try to adjust the case of the header name */
+			if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
+				h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
+			if (!h1_format_htx_hdr(n, v, &outbuf))
+				goto full;
+		}
+		h1s->flags |= H1S_F_HAVE_O_CONN;
+	}
+
+	/* Deal with "Transfer-Encoding" header */
+	if ((h1s->meth != HTTP_METH_CONNECT &&
+	     (h1m->flags & (H1_MF_VER_11|H1_MF_RESP|H1_MF_CLEN|H1_MF_CHNK|H1_MF_XFER_LEN)) ==
+	     (H1_MF_VER_11|H1_MF_XFER_LEN)) ||
+	    (h1s->status >= 200 && !(h1s->flags & H1S_F_BODYLESS_RESP) &&
+	     !(h1s->meth == HTTP_METH_CONNECT && h1s->status >= 200 && h1s->status < 300) &&
+	     (h1m->flags & (H1_MF_VER_11|H1_MF_RESP|H1_MF_CLEN|H1_MF_CHNK|H1_MF_XFER_LEN)) ==
+	     (H1_MF_VER_11|H1_MF_RESP|H1_MF_XFER_LEN))) {
+		/* chunking needed but header not seen */
+		n = ist("transfer-encoding");
+		v = ist("chunked");
+		if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
+			h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
+		if (!h1_format_htx_hdr(n, v, &outbuf))
+			goto full;
+		TRACE_STATE("add \"Transfer-Encoding: chunked\"", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
+		h1m->flags |= H1_MF_CHNK;
+	}
+
+	/* Add the server name to a header (if requested) */
+	if (!(h1s->flags & H1S_F_HAVE_SRV_NAME) &&
+	    !(h1m->flags & H1_MF_RESP) && isttest(h1c->px->server_id_hdr_name)) {
+		struct server *srv = objt_server(h1c->conn->target);
+
+		if (srv) {
+			n = h1c->px->server_id_hdr_name;
+			v = ist(srv->id);
+
+			/* Try to adjust the case of the header name */
+			if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
+				h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
+			if (!h1_format_htx_hdr(n, v, &outbuf))
+				goto full;
+		}
+		TRACE_STATE("add server name header", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
+		h1s->flags |= H1S_F_HAVE_SRV_NAME;
+	}
+
+	/* Add websocket handshake key if needed */
+	if (!(h1s->flags & H1S_F_HAVE_WS_KEY) &&
+	    (h1m->flags & (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) == (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) {
+		if (!(h1m->flags & H1_MF_RESP)) {
+			/* generate a random websocket key
+			 * stored in the session to
+			 * verify it on the response side
+                         */
+			h1_generate_random_ws_input_key(h1s->ws_key);
+
+			if (!h1_format_htx_hdr(ist("Sec-Websocket-Key"),
+					       ist(h1s->ws_key),
+					       &outbuf)) {
+				goto full;
+			}
+		}
+		else {
+			/* add the response header key */
+			char key[29];
+
+			h1_calculate_ws_output_key(h1s->ws_key, key);
+			if (!h1_format_htx_hdr(ist("Sec-Websocket-Accept"),
+					       ist(key),
+					       &outbuf)) {
+				goto full;
+			}
+		}
+		h1s->flags |= H1S_F_HAVE_WS_KEY;
+	}
+
+	/*
+	 * All  headers was sent, now process EOH
+	 */
+	if (!(h1m->flags & H1_MF_RESP) && h1s->meth == HTTP_METH_CONNECT) {
+		if (!chunk_memcat(&outbuf, "\r\n", 2))
+			goto full;
+		/* a CONNECT request was sent. Output processing is now blocked
+		 * waiting the server response.
+		 */
+		h1m->state = H1_MSG_DONE;
+		h1s->flags |= H1S_F_TX_BLK;
+		TRACE_STATE("CONNECT request waiting for tunnel mode", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
+	}
+	else if ((h1m->flags & H1_MF_RESP) &&
+		 ((h1s->meth == HTTP_METH_CONNECT && h1s->status >= 200 && h1s->status < 300) || h1s->status == 101)) {
+		if (!chunk_memcat(&outbuf, "\r\n", 2))
+			goto full;
+		/* a successful reply to a CONNECT or a protocol switching is sent
+		 * to the client. Switch the response to tunnel mode.
+		 */
+		h1_set_tunnel_mode(h1s);
+	}
+	else if ((h1m->flags & H1_MF_RESP) &&
+		 h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) {
+		if (!chunk_memcat(&outbuf, "\r\n", 2))
+			goto full;
+		/* 1xx response was sent, reset response processing */
+		h1m_init_res(h1m);
+		h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
+		h1s->flags &= ~H1S_F_HAVE_O_CONN;
+		TRACE_STATE("1xx response xferred", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
+	}
+	else if (htx_is_unique_blk(htx, blk) &&
+		 ((htx->flags & HTX_FL_EOM) || ((h1m->flags & H1_MF_CLEN) && !h1m->curr_len))) {
+		/* EOM flag is set and it is the last block or there is no
+		 * payload. If cannot be removed now. We must emit the end of
+		 * the message first to be sure the output buffer is not full
+		 */
+		if ((h1m->flags & H1_MF_CHNK) && !(h1s->flags & H1S_F_BODYLESS_RESP)) {
+			if (!chunk_memcat(&outbuf, "\r\n0\r\n\r\n", 7))
+				goto full;
+		}
+		else if (!chunk_memcat(&outbuf, "\r\n", 2))
+			goto full;
+		h1m->state = H1_MSG_DONE;
+	}
+	else {
+		if (!chunk_memcat(&outbuf, "\r\n", 2))
+			goto full;
+		h1m->state = H1_MSG_DATA;
+	}
+
+	TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request headers xferred" : "H1 response headers xferred"),
+		    H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
+	ret += sz;
+	htx_remove_blk(htx, blk);
+
+  copy:
+	b_add(&h1c->obuf, outbuf.data);
+  end:
+	TRACE_LEAVE(H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx, (size_t[]){ret});
+	return ret;
+
+   full:
+	TRACE_STATE("h1c obuf full", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
+	h1c->flags |= H1C_F_OUT_FULL;
+	goto copy;
+
+  error:
+	htx->flags |= HTX_FL_PROCESSING_ERROR;
+	h1s->flags |= H1S_F_PROCESSING_ERROR;
+	se_fl_set(h1s->sd, SE_FL_ERROR);
+	TRACE_ERROR("processing error on message EOH",
+		    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+	goto end;
+}
+
+/* Try to send the message payload from the HTX message <htx> for the stream
+ * <h1s>. In this case, we are not in TUNNEL mode. It returns the number of
+ * bytes consumed or zero if nothing was done or if an error occurred. No more
+ * than <count> bytes can be sent.
+ */
+static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf, size_t count)
+{
+	struct h1c *h1c = h1s->h1c;
+	struct htx *htx = htx_from_buf(buf);
+	struct htx_blk *blk;
+	struct buffer outbuf;
+	enum htx_blk_type type;
+	struct ist v;
+	uint32_t sz;
+	size_t ret = 0;
+	int last_data = 0;
+
+	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx, (size_t[]){count});
+	blk = htx_get_head_blk(htx);
+
+	/* Perform some optimizations to reduce the number of buffer copies.  If
+	 * the mux's buffer is empty and the htx area contains exactly one data
+	 * block of the same size as the requested count, then it's possible to
+	 * simply swap the caller's buffer with the mux's output buffer and
+	 * adjust offsets and length to match the entire DATA HTX block in the
+	 * middle. In this case we perform a true zero-copy operation from
+	 * end-to-end. This is the situation that happens all the time with
+	 * large files.
+	 */
+	if ((!(h1m->flags & H1_MF_RESP) || !(h1s->flags & H1S_F_BODYLESS_RESP)) &&
+	    !b_data(&h1c->obuf) &&
+	    htx_nbblks(htx) == 1 &&
+	    htx_get_blk_type(blk) == HTX_BLK_DATA &&
+	    htx_get_blk_value(htx, blk).len == count) {
+		void *old_area;
+
+		if (h1m->flags & H1_MF_CLEN) {
+			if (count > h1m->curr_len) {
+				TRACE_ERROR("too much payload, more than announced",
+					    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+				goto error;
+			}
+			h1m->curr_len -= count;
+			if (!h1m->curr_len)
+				last_data = 1;
+		}
+		if (last_data == 1 || (htx->flags & HTX_FL_EOM))
+			h1m->state = H1_MSG_DONE;
+
+		old_area = h1c->obuf.area;
+		h1c->obuf.area = buf->area;
+		h1c->obuf.head = sizeof(struct htx) + blk->addr;
+		h1c->obuf.data = count;
+
+		buf->area = old_area;
+		buf->data = buf->head = 0;
+
+		htx = (struct htx *)buf->area;
+		htx_reset(htx);
+
+		/* The message is chunked. We need to emit the chunk size and
+		 * eventually the last chunk. We have at least the size of the
+		 * struct htx to write the chunk envelope. It should be enough.
+		 */
+		if (h1m->flags & H1_MF_CHNK) {
+			h1_emit_chunk_size(&h1c->obuf, count);
+			h1_emit_chunk_crlf(&h1c->obuf);
+			if (h1m->state == H1_MSG_DONE) {
+				/* Emit the last chunk too at the buffer's end */
+				b_putblk(&h1c->obuf, "0\r\n\r\n", 5);
+			}
+		}
+
+		ret = count;
+		TRACE_PROTO("H1 message payload data xferred (zero-copy)", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){ret});
+		goto end;
+	}
+
+	if (b_space_wraps(&h1c->obuf))
+		b_slow_realign(&h1c->obuf, trash.area, b_data(&h1c->obuf));
+	outbuf = b_make(b_tail(&h1c->obuf), b_contig_space(&h1c->obuf), 0, 0);
+
+	while (blk) {
+                uint32_t vlen, chklen;
+
+		type = htx_get_blk_type(blk);
+		sz = htx_get_blksz(blk);
+                vlen = sz;
+		if (type == HTX_BLK_DATA) {
+			if (vlen > count) {
+				/* Get the maximum amount of data we can xferred */
+				vlen = count;
+			}
+			else if (htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_EOM)) {
+				/* It is the last block of this message. After this one,
+				 * only tunneled data may be forwarded. */
+				TRACE_DEVEL("last message block", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s);
+				last_data = 1;
+			}
+			if (h1m->flags & H1_MF_CLEN) {
+				if (vlen > h1m->curr_len) {
+					TRACE_ERROR("too much payload, more than announced",
+						    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+					goto error;
+				}
+			}
+			if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
+				TRACE_PROTO("Skip data for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx);
+				goto nextblk;
+			}
+			chklen = 0;
+			if (h1m->flags & H1_MF_CHNK) {
+				chklen = b_room(&outbuf);
+				chklen = ((chklen < 16) ? 1 : (chklen < 256) ? 2 :
+					  (chklen < 4096) ? 3 : (chklen < 65536) ? 4 :
+					  (chklen < 1048576) ? 5 : 8);
+				chklen += 4; /* 2 x CRLF */
+
+				/* If it is the end of the chunked message (without EOT), reserve the
+				 * last chunk size */
+				if (last_data)
+					chklen += 5;
+			}
+			if (vlen + chklen > b_room(&outbuf)) {
+				/* too large for the buffer */
+				if (chklen >= b_room(&outbuf))
+					goto full;
+				vlen = b_room(&outbuf) - chklen;
+				last_data = 0;
+			}
+
+			v = htx_get_blk_value(htx, blk);
+			v.len = vlen;
+			if (!h1_format_htx_data(v, &outbuf, !!(h1m->flags & H1_MF_CHNK)))
+				goto full;
+
+			/* Space already reserved, so it must succeed */
+			if ((h1m->flags & H1_MF_CHNK) && last_data && !chunk_memcat(&outbuf, "0\r\n\r\n", 5))
+				goto error;
+		}
+		else if (type == HTX_BLK_EOT || type == HTX_BLK_TLR) {
+			if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
+				/* Do nothing the payload must be skipped
+				 * because it is a bodyless response
+				 */
+			}
+			else if (h1m->flags & H1_MF_CHNK) {
+				/* Emit last chunk for chunked messages only */
+				if (!chunk_memcat(&outbuf, "0\r\n", 3))
+                                        goto full;
+			}
+			h1m->state = H1_MSG_TRAILERS;
+			break;
+		}
+		else if (type == HTX_BLK_UNUSED)
+			goto nextblk;
+		else
+			goto error;
+	nextblk:
+		ret += vlen;
+		count -= vlen;
+		if (sz == vlen)
+			blk = htx_remove_blk(htx, blk);
+		else {
+			htx_cut_data_blk(htx, blk, vlen);
+			break;
+		}
+		if (h1m->flags & H1_MF_CLEN) {
+			h1m->curr_len -= vlen;
+			if (!h1m->curr_len)
+				last_data = 1;
+		}
+		if (last_data)
+			h1m->state = H1_MSG_DONE;
+	}
+
+  copy:
+	TRACE_PROTO("H1 message payload data xferred", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){ret});
+	b_add(&h1c->obuf, outbuf.data);
+  end:
+	TRACE_LEAVE(H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx, (size_t[]){ret});
+	return ret;
+  full:
+	TRACE_STATE("h1c obuf full", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
+	h1c->flags |= H1C_F_OUT_FULL;
+	goto copy;
+  error:
+	ret = 0;
+	htx->flags |= HTX_FL_PROCESSING_ERROR;
+	h1s->flags |= H1S_F_PROCESSING_ERROR;
+	se_fl_set(h1s->sd, SE_FL_ERROR);
+	TRACE_ERROR("processing error on message payload",
+		    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+	goto end;
+}
+
+/* Try to send the tunneled data from the HTX message <htx> for the stream
+ * <h1s>. In this case, we are in TUNNEL mode. It returns the number of bytes
+ * consumed or zero if nothing was done or if an error occurred. No more than
+ * <count> bytes can be sent.
+ */
+static size_t h1_make_tunnel(struct h1s *h1s, struct h1m *h1m, struct buffer *buf, size_t count)
+{
+	struct h1c *h1c = h1s->h1c;
+	struct htx *htx = htx_from_buf(buf);
+	struct htx_blk *blk;
+	struct buffer outbuf;
+	enum htx_blk_type type;
+	struct ist v;
+	uint32_t sz;
+	size_t ret = 0;
+
+	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx, (size_t[]){count});
+
+	blk = htx_get_head_blk(htx);
+
+	/* Perform some optimizations to reduce the number of buffer copies.  If
+	 * the mux's buffer is empty and the htx area contains exactly one data
+	 * block of the same size as the requested count, then it's possible to
+	 * simply swap the caller's buffer with the mux's output buffer and
+	 * adjust offsets and length to match the entire DATA HTX block in the
+	 * middle. In this case we perform a true zero-copy operation from
+	 * end-to-end. This is the situation that happens all the time with
+	 * large files.
+	 */
+	if (!b_data(&h1c->obuf) &&
+	    htx_nbblks(htx) == 1 &&
+	    htx_get_blk_type(blk) == HTX_BLK_DATA &&
+	    htx_get_blksz(blk) == count) {
+		void *old_area;
+
+		old_area = h1c->obuf.area;
+		h1c->obuf.area = buf->area;
+		h1c->obuf.head = sizeof(struct htx) + blk->addr;
+		h1c->obuf.data = count;
+
+		buf->area = old_area;
+		buf->data = buf->head = 0;
+
+		htx = (struct htx *)buf->area;
+		htx_reset(htx);
+
+		ret = count;
+		TRACE_PROTO("H1 tunneled data xferred (zero-copy)", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){ret});
+		goto end;
+	}
+
+	if (b_space_wraps(&h1c->obuf))
+		b_slow_realign(&h1c->obuf, trash.area, b_data(&h1c->obuf));
+	outbuf = b_make(b_tail(&h1c->obuf), b_contig_space(&h1c->obuf), 0, 0);
+
+	while (blk) {
+		uint32_t vlen;
+
+		type = htx_get_blk_type(blk);
+		sz = htx_get_blksz(blk);
+		vlen = sz;
+
+		if (type == HTX_BLK_DATA) {
+			if (vlen > count) {
+				/* Get the maximum amount of data we can xferred */
+				vlen = count;
+			}
+
+			if (vlen > b_room(&outbuf)) {
+				/* too large for the buffer */
+				vlen = b_room(&outbuf);
+			}
+
+			v = htx_get_blk_value(htx, blk);
+			v.len = vlen;
+			if (!h1_format_htx_data(v, &outbuf, 0))
+				goto full;
+		}
+		else if (type == HTX_BLK_UNUSED)
+			goto nextblk;
+		else
+			goto error;
+
+	  nextblk:
+		ret += vlen;
+		count -= vlen;
+		if (sz == vlen)
+			blk = htx_remove_blk(htx, blk);
+		else {
+			htx_cut_data_blk(htx, blk, vlen);
+                        break;
+		}
+	}
+
+  copy:
+	TRACE_PROTO("H1 tunneled data xferred", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){ret});
+	b_add(&h1c->obuf, outbuf.data);
+
+  end:
+	TRACE_LEAVE(H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx, (size_t[]){ret});
+	return ret;
+
+  full:
+	TRACE_STATE("h1c obuf full", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
+	h1c->flags |= H1C_F_OUT_FULL;
+	goto copy;
+
+  error:
+	ret = 0;
+	htx->flags |= HTX_FL_PROCESSING_ERROR;
+	h1s->flags |= H1S_F_PROCESSING_ERROR;
+	se_fl_set(h1s->sd, SE_FL_ERROR);
+	TRACE_ERROR("processing error on tunneled",
+		    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+	goto end;
+}
+
+/* Try to send the trailers from the HTX message <htx> for the stream <h1s>. It
+ * returns the number of bytes consumed or zero if nothing was done or if an
+ * error occurred. No more than <count> bytes can be sent.
+ */
+static size_t h1_make_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx, size_t count)
+{
+	struct h1c *h1c = h1s->h1c;
+	struct htx_blk *blk;
+	struct buffer outbuf;
+	enum htx_blk_type type;
+	struct ist n, v;
+	uint32_t sz;
+	size_t ret = 0;
+
+	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_TLRS, h1c->conn, h1s, htx, (size_t[]){count});
+
+	if (b_space_wraps(&h1c->obuf))
+		b_slow_realign(&h1c->obuf, trash.area, b_data(&h1c->obuf));
+	chunk_reset(&outbuf);
+	outbuf = b_make(b_tail(&h1c->obuf), b_contig_space(&h1c->obuf), 0, 0);
+
+	blk = htx_get_head_blk(htx);
+	while (blk) {
+		type = htx_get_blk_type(blk);
+		sz = htx_get_blksz(blk);
+x
+		if (type == HTX_BLK_TLR) {
+			if (sz > count)
+				goto error;
+
+			if (!(h1m->flags & H1_MF_CHNK) || ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)))
+				goto nextblk;
+
+			n = htx_get_blk_name(htx, blk);
+			v = htx_get_blk_value(htx, blk);
+
+			/* Try to adjust the case of the header name */
+			if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
+				h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
+			if (!h1_format_htx_hdr(n, v, &outbuf))
+				goto full;
+		}
+		else if (type == HTX_BLK_EOT) {
+			if (!(h1m->flags & H1_MF_CHNK) || ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP))) {
+				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request trailers skipped" : "H1 response trailers skipped"),
+					    H1_EV_TX_DATA|H1_EV_TX_TLRS, h1c->conn, h1s);
+			}
+			else {
+				if (!chunk_memcat(&outbuf, "\r\n", 2))
+					goto full;
+				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request trailers xferred" : "H1 response trailers xferred"),
+					    H1_EV_TX_DATA|H1_EV_TX_TLRS, h1c->conn, h1s);
+			}
+			h1m->state = H1_MSG_DONE;
+		}
+		else if (type == HTX_BLK_UNUSED)
+			goto nextblk;
+		else
+			goto error;
+
+	  nextblk:
+		ret += sz;
+		count -= sz;
+		blk = htx_remove_blk(htx, blk);
+	}
+
+  copy:
+	b_add(&h1c->obuf, outbuf.data);
+
+  end:
+	TRACE_LEAVE(H1_EV_TX_DATA|H1_EV_TX_TLRS, h1c->conn, h1s, htx, (size_t[]){ret});
+	return ret;
+
+  full:
+	TRACE_STATE("h1c obuf full", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
+	h1c->flags |= H1C_F_OUT_FULL;
+	goto copy;
+
+  error:
+	ret = 0;
+	htx->flags |= HTX_FL_PROCESSING_ERROR;
+	h1s->flags |= H1S_F_PROCESSING_ERROR;
+	se_fl_set(h1s->sd, SE_FL_ERROR);
+	TRACE_ERROR("processing error on message trailers",
+		    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+	goto end;
+}
+
 /*
  * Process outgoing data. It parses data and transfer them from the channel buffer into
  * h1c->obuf. It returns the number of bytes parsed and transferred if > 0, or
@@ -1959,16 +2837,13 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 {
 	struct h1s *h1s = h1c->h1s;
 	struct h1m *h1m;
-	struct htx *chn_htx = NULL;
-	struct htx_blk *blk;
-	struct buffer tmp;
-	size_t total = 0;
-	int last_data = 0;
+	struct htx *htx;
+	size_t ret, total = 0;
 
-	chn_htx = htxbuf(buf);
-	TRACE_ENTER(H1_EV_TX_DATA, h1c->conn, h1s, chn_htx, (size_t[]){count});
+	htx = htxbuf(buf);
+	TRACE_ENTER(H1_EV_TX_DATA, h1c->conn, h1s, htx, (size_t[]){count});
 
-	if (htx_is_empty(chn_htx))
+	if (htx_is_empty(htx))
 		goto end;
 
 	if (h1s->flags & (H1S_F_INTERNAL_ERROR|H1S_F_PROCESSING_ERROR|H1S_F_TX_BLK))
@@ -1979,593 +2854,99 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 		TRACE_STATE("waiting for h1c obuf allocation", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
 		goto end;
 	}
-
 	h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->res : &h1s->req);
 
-	/* the htx is non-empty thus has at least one block */
-	blk = htx_get_head_blk(chn_htx);
-
-	/* Perform some optimizations to reduce the number of buffer copies.
-	 * First, if the mux's buffer is empty and the htx area contains
-	 * exactly one data block of the same size as the requested count,
-	 * then it's possible to simply swap the caller's buffer with the
-	 * mux's output buffer and adjust offsets and length to match the
-	 * entire DATA HTX block in the middle. In this case we perform a
-	 * true zero-copy operation from end-to-end. This is the situation
-	 * that happens all the time with large files. Second, if this is not
-	 * possible, but the mux's output buffer is empty, we still have an
-	 * opportunity to avoid the copy to the intermediary buffer, by making
-	 * the intermediary buffer's area point to the output buffer's area.
-	 * In this case we want to skip the HTX header to make sure that copies
-	 * remain aligned and that this operation remains possible all the
-	 * time. This goes for headers, data blocks and any data extracted from
-	 * the HTX blocks.
-	 */
-	if (!b_data(&h1c->obuf)) {
-		if ((h1m->state == H1_MSG_DATA || h1m->state == H1_MSG_TUNNEL) &&
-		    (!(h1m->flags & H1_MF_RESP) || !(h1s->flags & H1S_F_BODYLESS_RESP)) &&
-		    htx_nbblks(chn_htx) == 1 &&
-		    htx_get_blk_type(blk) == HTX_BLK_DATA &&
-		    htx_get_blk_value(chn_htx, blk).len == count) {
-			void *old_area;
-
-			TRACE_PROTO("sending message data (zero-copy)", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx, (size_t[]){count});
-			if (h1m->state == H1_MSG_DATA) {
-				if (h1m->flags & H1_MF_CLEN) {
-					if (count > h1m->curr_len) {
-						TRACE_ERROR("too much payload, more than announced",
-							    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
-						goto error;
-					}
-					h1m->curr_len -= count;
-					if (!h1m->curr_len)
-						last_data = 1;
-				}
-				if (chn_htx->flags & HTX_FL_EOM) {
-					TRACE_DEVEL("last message block", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s);
-					last_data = 1;
-				}
-			}
-
-			old_area = h1c->obuf.area;
-			h1c->obuf.area = buf->area;
-			h1c->obuf.head = sizeof(struct htx) + blk->addr;
-			h1c->obuf.data = count;
-
-			buf->area = old_area;
-			buf->data = buf->head = 0;
-
-			chn_htx = (struct htx *)buf->area;
-			htx_reset(chn_htx);
-
-			/* The message is chunked. We need to emit the chunk
-			 * size and eventually the last chunk. We have at least
-			 * the size of the struct htx to write the chunk
-			 * envelope. It should be enough.
-			 */
-			if (h1m->flags & H1_MF_CHNK) {
-				h1_emit_chunk_size(&h1c->obuf, count);
-				h1_emit_chunk_crlf(&h1c->obuf);
-				if (last_data) {
-					/* Emit the last chunk too at the buffer's end */
-					b_putblk(&h1c->obuf, "0\r\n\r\n", 5);
-				}
-			}
-
-			if (h1m->state == H1_MSG_DATA)
-				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request payload data xferred" : "H1 response payload data xferred"),
-					    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){count});
-			else
-				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request tunneled data xferred" : "H1 response tunneled data xferred"),
-					    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){count});
-
-			total += count;
-			if (last_data) {
-				h1m->state = H1_MSG_DONE;
-				if (h1s->flags & H1S_F_RX_BLK) {
-					h1s->flags &= ~H1S_F_RX_BLK;
-					h1_wake_stream_for_recv(h1s);
-					TRACE_STATE("Re-enable input processing", H1_EV_TX_DATA|H1_EV_H1S_BLK|H1_EV_STRM_WAKE, h1c->conn, h1s);
-				}
-
-				TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "H1 request fully xferred" : "H1 response fully xferred"),
-					   H1_EV_TX_DATA, h1c->conn, h1s);
-			}
-			goto out;
-		}
-		tmp.area = h1c->obuf.area + h1c->obuf.head;
-	}
-	else
-		tmp.area = trash.area;
-
-	tmp.data = 0;
-	tmp.size = b_room(&h1c->obuf);
-	while (count && !(h1s->flags & (H1S_F_PROCESSING_ERROR|H1S_F_TX_BLK)) && blk) {
-		struct htx_sl *sl;
-		struct ist n, v;
-		enum htx_blk_type type = htx_get_blk_type(blk);
-		uint32_t sz = htx_get_blksz(blk);
-		uint32_t vlen, chklen;
-
-		vlen = sz;
-		if (type != HTX_BLK_DATA && vlen > count)
-			goto full;
-
-		if (type == HTX_BLK_UNUSED)
-			goto nextblk;
-
+	while (!(h1c->flags & H1C_F_OUT_FULL) &&
+	       !(h1s->flags & (H1S_F_PROCESSING_ERROR|H1S_F_TX_BLK)) &&
+	       !htx_is_empty(htx) && count) {
 		switch (h1m->state) {
 			case H1_MSG_RQBEFORE:
-				if (type != HTX_BLK_REQ_SL)
-					goto error;
-				TRACE_USER("sending request headers", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, chn_htx);
-				sl = htx_get_blk_ptr(chn_htx, blk);
-				h1s->meth = sl->info.req.meth;
-				h1_parse_req_vsn(h1m, sl);
-				if (!h1_format_htx_reqline(sl, &tmp))
-					goto full;
-				h1m->flags |= H1_MF_XFER_LEN;
-				if (sl->flags & HTX_SL_F_BODYLESS)
-					h1m->flags |= H1_MF_CLEN;
-				h1m->state = H1_MSG_HDR_FIRST;
-				if (h1s->meth == HTTP_METH_HEAD)
-					h1s->flags |= H1S_F_BODYLESS_RESP;
-				if (h1s->flags & H1S_F_RX_BLK) {
-					h1s->flags &= ~H1S_F_RX_BLK;
-					h1_wake_stream_for_recv(h1s);
-					TRACE_STATE("Re-enable input processing", H1_EV_TX_DATA|H1_EV_H1S_BLK|H1_EV_STRM_WAKE, h1c->conn, h1s);
-				}
+				ret = h1_make_reqline(h1s, h1m, htx, count);
 				break;
 
 			case H1_MSG_RPBEFORE:
-				if (type != HTX_BLK_RES_SL)
-					goto error;
-				TRACE_USER("sending response headers", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, chn_htx);
-				sl = htx_get_blk_ptr(chn_htx, blk);
-				h1s->status = sl->info.res.status;
-				h1_parse_res_vsn(h1m, sl);
-				if (!h1_format_htx_stline(sl, &tmp))
-					goto full;
-				if (sl->flags & HTX_SL_F_XFER_LEN)
-					h1m->flags |= H1_MF_XFER_LEN;
-				if (h1s->status < 200)
-					h1s->flags |= H1S_F_HAVE_O_CONN;
-				else if (h1s->status == 204 || h1s->status == 304)
-					h1s->flags |= H1S_F_BODYLESS_RESP;
-				h1m->state = H1_MSG_HDR_FIRST;
+				ret = h1_make_stline(h1s, h1m, htx, count);
 				break;
 
-			case H1_MSG_HDR_FIRST:
 			case H1_MSG_HDR_NAME:
-			case H1_MSG_HDR_L2_LWS:
-				if (type == HTX_BLK_EOH)
-					goto last_lf;
-				if (type != HTX_BLK_HDR)
-					goto error;
-
-				h1m->state = H1_MSG_HDR_NAME;
-				n = htx_get_blk_name(chn_htx, blk);
-				v = htx_get_blk_value(chn_htx, blk);
-
-				/* Skip all pseudo-headers */
-				if (*(n.ptr) == ':')
-					goto skip_hdr;
-
-				if (isteq(n, ist("transfer-encoding"))) {
-					if ((h1m->flags & H1_MF_RESP) && (h1s->status < 200 || h1s->status == 204))
-						goto skip_hdr;
-					h1_parse_xfer_enc_header(h1m, v);
-				}
-				else if (isteq(n, ist("content-length"))) {
-					if ((h1m->flags & H1_MF_RESP) && (h1s->status < 200 || h1s->status == 204))
-						goto skip_hdr;
-					/* Only skip C-L header with invalid value. */
-					if (h1_parse_cont_len_header(h1m, &v) < 0)
-						goto skip_hdr;
-				}
-				else if (isteq(n, ist("connection"))) {
-					h1_parse_connection_header(h1m, &v);
-					if (!v.len)
-						goto skip_hdr;
-				}
-				else if (isteq(n, ist("upgrade"))) {
-					h1_parse_upgrade_header(h1m, v);
-				}
-				else if ((isteq(n, ist("sec-websocket-accept")) &&
-				          h1m->flags & H1_MF_RESP) ||
-				         (isteq(n, ist("sec-websocket-key")) &&
-				          !(h1m->flags & H1_MF_RESP))) {
-					h1s->flags |= H1S_F_HAVE_WS_KEY;
-				}
-				else if (isteq(n, ist("te"))) {
-					/* "te" may only be sent with "trailers" if this value
-					 * is present, otherwise it must be deleted.
-					 */
-					v = istist(v, ist("trailers"));
-					if (!isttest(v) || (v.len > 8 && v.ptr[8] != ','))
-						goto skip_hdr;
-					v = ist("trailers");
-				}
-
-				/* Skip header if same name is used to add the server name */
-				if (!(h1m->flags & H1_MF_RESP) && isttest(h1c->px->server_id_hdr_name) &&
-				    isteqi(n, h1c->px->server_id_hdr_name))
-					goto skip_hdr;
-
-				/* Try to adjust the case of the header name */
-				if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
-					h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
-				if (!h1_format_htx_hdr(n, v, &tmp))
-					goto full;
-			  skip_hdr:
-				h1m->state = H1_MSG_HDR_L2_LWS;
+				ret = h1_make_headers(h1s, h1m, htx, count);
 				break;
 
 			case H1_MSG_LAST_LF:
-				if (type != HTX_BLK_EOH)
-					goto error;
-			  last_lf:
-				h1m->state = H1_MSG_LAST_LF;
-				if (!(h1s->flags & H1S_F_HAVE_O_CONN)) {
-					if ((chn_htx->flags & HTX_FL_PROXY_RESP) && h1s->req.state != H1_MSG_DONE) {
-						/* If the reply comes from haproxy while the request is
-						 * not finished, we force the connection close. */
-						h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
-						TRACE_STATE("force close mode (resp)", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
-					}
-					else if ((h1m->flags & (H1_MF_XFER_ENC|H1_MF_CLEN)) == (H1_MF_XFER_ENC|H1_MF_CLEN)) {
-						/* T-E + C-L: force close */
-						h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
-						TRACE_STATE("force close mode (T-E + C-L)", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
-					}
-					else if ((h1m->flags & (H1_MF_VER_11|H1_MF_XFER_ENC)) == H1_MF_XFER_ENC) {
-						/* T-E + HTTP/1.0: force close */
-						h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
-						TRACE_STATE("force close mode (T-E + HTTP/1.0)", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
-					}
-
-					/* the conn_mode must be processed. So do it */
-					n = ist("connection");
-					v = ist("");
-					h1_process_output_conn_mode(h1s, h1m, &v);
-					if (v.len) {
-						/* Try to adjust the case of the header name */
-						if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
-							h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
-						if (!h1_format_htx_hdr(n, v, &tmp))
-							goto full;
-					}
-					h1s->flags |= H1S_F_HAVE_O_CONN;
-				}
-
-				if ((h1s->meth != HTTP_METH_CONNECT &&
-				     (h1m->flags & (H1_MF_VER_11|H1_MF_RESP|H1_MF_CLEN|H1_MF_CHNK|H1_MF_XFER_LEN)) ==
-				     (H1_MF_VER_11|H1_MF_XFER_LEN)) ||
-				    (h1s->status >= 200 && !(h1s->flags & H1S_F_BODYLESS_RESP) &&
-				     !(h1s->meth == HTTP_METH_CONNECT && h1s->status >= 200 && h1s->status < 300) &&
-				     (h1m->flags & (H1_MF_VER_11|H1_MF_RESP|H1_MF_CLEN|H1_MF_CHNK|H1_MF_XFER_LEN)) ==
-				     (H1_MF_VER_11|H1_MF_RESP|H1_MF_XFER_LEN))) {
-					/* chunking needed but header not seen */
-					n = ist("transfer-encoding");
-					v = ist("chunked");
-					if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
-						h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
-					if (!h1_format_htx_hdr(n, v, &tmp))
-						goto full;
-					TRACE_STATE("add \"Transfer-Encoding: chunked\"", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
-					h1m->flags |= H1_MF_CHNK;
-				}
-
-				/* Now add the server name to a header (if requested) */
-				if (!(h1s->flags & H1S_F_HAVE_SRV_NAME) &&
-				    !(h1m->flags & H1_MF_RESP) && isttest(h1c->px->server_id_hdr_name)) {
-					struct server *srv = objt_server(h1c->conn->target);
-
-					if (srv) {
-						n = h1c->px->server_id_hdr_name;
-						v = ist(srv->id);
-
-						/* Try to adjust the case of the header name */
-						if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
-							h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
-						if (!h1_format_htx_hdr(n, v, &tmp))
-							goto full;
-					}
-					TRACE_STATE("add server name header", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
-					h1s->flags |= H1S_F_HAVE_SRV_NAME;
-				}
-
-				/* Add websocket handshake key if needed */
-				if (!(h1s->flags & H1S_F_HAVE_WS_KEY) &&
-				    (h1m->flags & (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) == (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) {
-					if (!(h1m->flags & H1_MF_RESP)) {
-						/* generate a random websocket key
-						 * stored in the session to
-						 * verify it on the response side
-						 */
-						h1_generate_random_ws_input_key(h1s->ws_key);
-
-						if (!h1_format_htx_hdr(ist("Sec-Websocket-Key"),
-						                       ist(h1s->ws_key),
-						                       &tmp)) {
-							goto full;
-						}
-					}
-					else {
-						/* add the response header key */
-						char key[29];
-						h1_calculate_ws_output_key(h1s->ws_key, key);
-						if (!h1_format_htx_hdr(ist("Sec-Websocket-Accept"),
-						                       ist(key),
-						                       &tmp)) {
-							goto full;
-						}
-					}
-					h1s->flags |= H1S_F_HAVE_WS_KEY;
-				}
-
-				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request headers xferred" : "H1 response headers xferred"),
-					    H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
-
-				if (!(h1m->flags & H1_MF_RESP) && h1s->meth == HTTP_METH_CONNECT) {
-					if (!chunk_memcat(&tmp, "\r\n", 2))
-						goto full;
-					goto done;
-				}
-				else if ((h1m->flags & H1_MF_RESP) &&
-					 ((h1s->meth == HTTP_METH_CONNECT && h1s->status >= 200 && h1s->status < 300) || h1s->status == 101)) {
-					if (!chunk_memcat(&tmp, "\r\n", 2))
-						goto full;
-					goto done;
-				}
-				else if ((h1m->flags & H1_MF_RESP) &&
-					 h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) {
-					if (!chunk_memcat(&tmp, "\r\n", 2))
-						goto full;
-					h1m_init_res(&h1s->res);
-					h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
-					h1s->flags &= ~H1S_F_HAVE_O_CONN;
-					TRACE_STATE("1xx response xferred", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
-				}
-				else {
-					/* EOM flag is set or empty payload (C-L to 0) and it is the last block */
-					if (htx_is_unique_blk(chn_htx, blk) &&
-					    ((chn_htx->flags & HTX_FL_EOM) || ((h1m->flags & H1_MF_CLEN) && !h1m->curr_len))) {
-						if ((h1m->flags & H1_MF_CHNK) && !(h1s->flags & H1S_F_BODYLESS_RESP)) {
-							if (!chunk_memcat(&tmp, "\r\n0\r\n\r\n", 7))
-								goto full;
-						}
-						else if (!chunk_memcat(&tmp, "\r\n", 2))
-							goto full;
-						goto done;
-					}
-					else if (!chunk_memcat(&tmp, "\r\n", 2))
-						goto full;
-					h1m->state = H1_MSG_DATA;
-				}
+				ret = h1_make_eoh(h1s, h1m, htx, count);
 				break;
 
 			case H1_MSG_DATA:
+				ret = h1_make_data(h1s, h1m, buf, count);
+				if (ret > 0)
+					htx = htx_from_buf(buf);
+				break;
+
 			case H1_MSG_TUNNEL:
-				if (type == HTX_BLK_EOT || type == HTX_BLK_TLR) {
-					if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP))
-						goto trailers;
-
-					/* If the message is not chunked, never
-					 * add the last chunk. */
-					if ((h1m->flags & H1_MF_CHNK) && !chunk_memcat(&tmp, "0\r\n", 3))
-						goto full;
-					TRACE_PROTO("sending message trailers", H1_EV_TX_DATA|H1_EV_TX_TLRS, h1c->conn, h1s, chn_htx);
-					goto trailers;
-				}
-				else if (type != HTX_BLK_DATA)
-					goto error;
-
-				TRACE_PROTO("sending message data", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx, (size_t[]){sz});
-
-				/* It is the last block of this message. After this one,
-				 * only tunneled data may be forwarded. */
-				if (h1m->state == H1_MSG_DATA && htx_is_unique_blk(chn_htx, blk) && (chn_htx->flags & HTX_FL_EOM)) {
-					TRACE_DEVEL("last message block", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s);
-					last_data = 1;
-				}
-
-				if (vlen > count) {
-					/* Get the maximum amount of data we can xferred */
-					vlen = count;
-					last_data = 0;
-				}
-
-				if (h1m->state == H1_MSG_DATA) {
-					if (h1m->flags & H1_MF_CLEN) {
-						if (vlen > h1m->curr_len) {
-							TRACE_ERROR("too much payload, more than announced",
-								    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
-							goto error;
-						}
-					}
-					if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
-						TRACE_PROTO("Skip data for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx);
-						goto skip_data;
-					}
-				}
-
-				chklen = 0;
-				if (h1m->flags & H1_MF_CHNK) {
-					chklen = b_room(&tmp);
-					chklen = ((chklen < 16) ? 1 : (chklen < 256) ? 2 :
-						  (chklen < 4096) ? 3 : (chklen < 65536) ? 4 :
-						  (chklen < 1048576) ? 5 : 8);
-					chklen += 4; /* 2 x CRLF */
-
-					/* If it is the end of the chunked message (without EOT), reserve the
-					 * last chunk size */
-					if (last_data)
-						chklen += 5;
-				}
-
-				if (vlen + chklen > b_room(&tmp)) {
-					/* too large for the buffer */
-					if (chklen >= b_room(&tmp))
-						goto full;
-					vlen = b_room(&tmp) - chklen;
-					last_data = 0;
-				}
-				v = htx_get_blk_value(chn_htx, blk);
-				v.len = vlen;
-				if (!h1_format_htx_data(v, &tmp, !!(h1m->flags & H1_MF_CHNK)))
-					goto full;
-
-				/* Space already reserved, so it must succeed */
-				if ((h1m->flags & H1_MF_CHNK) && last_data && !chunk_memcat(&tmp, "0\r\n\r\n", 5))
-					goto error;
-
-				if (h1m->state == H1_MSG_DATA)
-					TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request payload data xferred" : "H1 response payload data xferred"),
-						    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){v.len});
-				else
-					TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request tunneled data xferred" : "H1 response tunneled data xferred"),
-						    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){v.len});
-
-			  skip_data:
-				if (h1m->state == H1_MSG_DATA && (h1m->flags & H1_MF_CLEN)) {
-					h1m->curr_len -= vlen;
-					if (!h1m->curr_len)
-						last_data = 1;
-				}
-				if (last_data)
-					goto done;
+				ret = h1_make_tunnel(h1s, h1m, buf, count);
+				if (ret > 0)
+					htx = htx_from_buf(buf);
 				break;
 
 			case H1_MSG_TRAILERS:
-				if (type != HTX_BLK_TLR && type != HTX_BLK_EOT)
-					goto error;
-			  trailers:
-				h1m->state = H1_MSG_TRAILERS;
-
-				if (!(h1m->flags & H1_MF_CHNK))
-					goto done;
-
-				if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
-					TRACE_PROTO("Skip trailers for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx);
-					if (type == HTX_BLK_EOT)
-						goto done;
-					break;
-				}
-
-				if (type == HTX_BLK_EOT) {
-					if (!chunk_memcat(&tmp, "\r\n", 2))
-						goto full;
-					TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request trailers xferred" : "H1 response trailers xferred"),
-						    H1_EV_TX_DATA|H1_EV_TX_TLRS, h1c->conn, h1s);
-					goto done;
-				}
-				else { // HTX_BLK_TLR
-					n = htx_get_blk_name(chn_htx, blk);
-					v = htx_get_blk_value(chn_htx, blk);
-
-					/* Try to adjust the case of the header name */
-					if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
-						h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
-					if (!h1_format_htx_hdr(n, v, &tmp))
-						goto full;
-				}
+				ret = h1_make_trailers(h1s, h1m, htx, count);
 				break;
 
 			case H1_MSG_DONE:
-				/* If the message is not chunked, ignore
-				 * trailers. It may happen with H2 messages. */
-				if ((type == HTX_BLK_TLR || type == HTX_BLK_EOT) && !(h1m->flags & H1_MF_CHNK))
-					break;
-
 				TRACE_STATE("unexpected data xferred in done state", H1_EV_TX_DATA|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
-				goto error; /* For now return an error */
-
-			  done:
-				h1m->state = H1_MSG_DONE;
-				if (!(h1m->flags & H1_MF_RESP) && h1s->meth == HTTP_METH_CONNECT) {
-					h1s->flags |= H1S_F_TX_BLK;
-					TRACE_STATE("Disable output processing", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
-				}
-				else if ((h1m->flags & H1_MF_RESP) &&
-					 ((h1s->meth == HTTP_METH_CONNECT && h1s->status >= 200 && h1s->status < 300) || h1s->status == 101)) {
-					/* a successful reply to a CONNECT or a protocol switching is sent
-					 * to the client. Switch the response to tunnel mode.
-					 */
-					h1_set_tunnel_mode(h1s);
-				}
-
-				if (h1s->flags & H1S_F_RX_BLK) {
-					h1s->flags &= ~H1S_F_RX_BLK;
-					h1_wake_stream_for_recv(h1s);
-					TRACE_STATE("Re-enable input processing", H1_EV_TX_DATA|H1_EV_H1S_BLK|H1_EV_STRM_WAKE, h1c->conn, h1s);
-				}
-
-				TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "H1 request fully xferred" : "H1 response fully xferred"),
-					   H1_EV_TX_DATA, h1c->conn, h1s);
-				break;
+				/* fall through*/
 
 			default:
-			  error:
-				/* Unexpected error during output processing */
-				chn_htx->flags |= HTX_FL_PROCESSING_ERROR;
+				ret = 0;
+				htx->flags |= HTX_FL_PROCESSING_ERROR;
 				h1s->flags |= H1S_F_PROCESSING_ERROR;
 				se_fl_set(h1s->sd, SE_FL_ERROR);
-				TRACE_ERROR("processing output error, set error on h1s",
-					    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
-				goto end;
+				TRACE_ERROR("processing error", H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+				break;
 		}
 
-	  nextblk:
-		total += vlen;
-		count -= vlen;
-		if (sz == vlen)
-			blk = htx_remove_blk(chn_htx, blk);
-		else {
-			htx_cut_data_blk(chn_htx, blk, vlen);
-			break;
+		if (!ret)
+                        break;
+		total += ret;
+		count -= ret;
+
+		if ((h1m->state & H1_MSG_DONE)) {
+			TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "H1 request fully xferred" : "H1 response fully xferred"),
+				   H1_EV_TX_DATA, h1c->conn, h1s);
+
+			if (h1s->flags & H1S_F_RX_BLK) {
+				h1s->flags &= ~H1S_F_RX_BLK;
+				h1_wake_stream_for_recv(h1s);
+				TRACE_STATE("Re-enable input processing", H1_EV_TX_DATA|H1_EV_H1S_BLK|H1_EV_STRM_WAKE, h1c->conn, h1s);
+			}
 		}
 	}
 
-  copy:
-	/* when the output buffer is empty, tmp shares the same area so that we
-	 * only have to update pointers and lengths.
-	 */
-	if (tmp.area == h1c->obuf.area + h1c->obuf.head)
-		h1c->obuf.data = tmp.data;
-	else
-		b_putblk(&h1c->obuf, tmp.area, tmp.data);
-
-	htx_to_buf(chn_htx, buf);
-  out:
+	htx_to_buf(htx, buf);
 	if (!buf_room_for_htx_data(&h1c->obuf)) {
 		TRACE_STATE("h1c obuf full", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
 		h1c->flags |= H1C_F_OUT_FULL;
 	}
+
   end:
+
 	/* Both the request and the response reached the DONE state. So set EOI
-	 * flag on the stream connector. Most of time, the flag will already be set,
+	 * flag on the conn-stream. Most of time, the flag will already be set,
 	 * except for protocol upgrades. Report an error if data remains blocked
 	 * in the output buffer.
 	 */
 	if (h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE) {
 		se_fl_set(h1s->sd, SE_FL_EOI);
-		if (!htx_is_empty(chn_htx)) {
-			chn_htx->flags |= HTX_FL_PROCESSING_ERROR;
+		if (!htx_is_empty(htx)) {
+			htx->flags |= HTX_FL_PROCESSING_ERROR;
 			h1s->flags |= H1S_F_PROCESSING_ERROR;
 			se_fl_set(h1s->sd, SE_FL_ERROR);
-			TRACE_ERROR("txn done but data waiting to be sent, set error on h1s",
-				    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+			TRACE_ERROR("txn done but data waiting to be sent, set error on h1c", H1_EV_H1C_ERR, h1c->conn, h1s);
 		}
 	}
 
-	TRACE_LEAVE(H1_EV_TX_DATA, h1c->conn, h1s, chn_htx, (size_t[]){total});
+	TRACE_LEAVE(H1_EV_TX_DATA, h1c->conn, h1s, htx, (size_t[]){total});
 	return total;
-
-  full:
-	TRACE_STATE("h1c obuf full", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
-	h1c->flags |= H1C_F_OUT_FULL;
-	goto copy;
 }
 
 /*********************************************************/
