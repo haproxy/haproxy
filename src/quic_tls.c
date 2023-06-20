@@ -12,6 +12,7 @@
 #include <haproxy/quic_conn.h>
 
 
+DECLARE_POOL(pool_head_quic_pktns,      "quic_pktns",      sizeof(struct quic_pktns));
 DECLARE_POOL(pool_head_quic_tls_secret, "quic_tls_secret", QUIC_TLS_SECRET_LEN);
 DECLARE_POOL(pool_head_quic_tls_iv,     "quic_tls_iv",     QUIC_TLS_IV_LEN);
 DECLARE_POOL(pool_head_quic_tls_key,    "quic_tls_key",    QUIC_TLS_KEY_LEN);
@@ -72,6 +73,19 @@ void quic_tls_kp_keys_hexdump(struct buffer *buf,
 	chunk_appendf(buf, "\n        iv=");
 	for (i = 0; i < kp->ivlen; i++)
 		chunk_appendf(buf, "%02x", kp->iv[i]);
+}
+
+/* Release the memory of <pktns> packet number space attached to <qc> QUIC connection. */
+void quic_pktns_release(struct quic_conn *qc, struct quic_pktns **pktns)
+{
+	if (!*pktns)
+		return;
+
+	quic_pktns_tx_pkts_release(*pktns, qc);
+	quic_free_arngs(qc, &(*pktns)->rx.arngs);
+	LIST_DEL_INIT(&(*pktns)->list);
+	pool_free(pool_head_quic_pktns, *pktns);
+	*pktns = NULL;
 }
 
 /* Dump <secret> TLS secret. */

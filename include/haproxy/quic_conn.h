@@ -52,8 +52,8 @@ extern struct pool_head *pool_head_quic_connection_id;
 
 int ssl_quic_initial_ctx(struct bind_conf *bind_conf);
 struct quic_cstream *quic_cstream_new(struct quic_conn *qc);
-struct quic_cstream *quic_cstream_new(struct quic_conn *qc);
 void quic_cstream_free(struct quic_cstream *cs);
+void quic_free_arngs(struct quic_conn *qc, struct quic_arngs *arngs);
 
 /* Return the long packet type matching with <qv> version and <type> */
 static inline int quic_pkt_type(int type, uint32_t version)

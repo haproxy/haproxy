@@ -598,7 +598,11 @@ struct quic_conn {
 	uint64_t next_cid_seq_num;
 
 	struct quic_enc_level els[QUIC_TLS_ENC_LEVEL_MAX];
-	struct quic_pktns pktns[QUIC_TLS_PKTNS_MAX];
+	struct quic_pktns *ipktns;
+	struct quic_pktns *hpktns;
+	struct quic_pktns *apktns;
+	/* List of packet number spaces attached to this connection */
+	struct list pktns_list;
 
 	struct ssl_sock_ctx *xprt_ctx;
 

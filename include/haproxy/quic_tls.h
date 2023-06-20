@@ -30,6 +30,7 @@
 #include <haproxy/quic_tls-t.h>
 #include <haproxy/trace.h>
 
+void quic_pktns_release(struct quic_conn *qc, struct quic_pktns **pktns);
 void quic_tls_keys_hexdump(struct buffer *buf,
                            const struct quic_tls_secrets *secs);
 void quic_tls_kp_keys_hexdump(struct buffer *buf,
@@ -163,6 +164,23 @@ static inline const EVP_CIPHER *tls_hp(const SSL_CIPHER *cipher)
 
 }
 
+/* These following functions map TLS implementation encryption level to ours */
+static inline struct quic_pktns **ssl_to_quic_pktns(struct quic_conn *qc,
+                                                    enum ssl_encryption_level_t level)
+{
+	switch (level) {
+	case ssl_encryption_initial:
+		return &qc->ipktns;
+	case ssl_encryption_early_data:
+		return &qc->apktns;
+	case ssl_encryption_handshake:
+		return &qc->hpktns;
+	case ssl_encryption_application:
+		return &qc->apktns;
+	default:
+		return NULL;
+	}
+}
 /* These following functions map TLS implementation encryption level to ours */
 static inline enum quic_tls_enc_level ssl_to_quic_enc_level(enum ssl_encryption_level_t level)
 {
@@ -326,8 +344,14 @@ static inline char quic_packet_type_enc_level_char(int packet_type)
 /* Initialize a QUIC packet number space.
  * Never fails.
  */
-static inline void quic_pktns_init(struct quic_pktns *pktns)
+static inline int quic_pktns_init(struct quic_conn *qc, struct quic_pktns **p)
 {
+	struct quic_pktns *pktns;
+
+	pktns = pool_alloc(pool_head_quic_pktns);
+	if (!pktns)
+		return 0;
+
 	LIST_INIT(&pktns->tx.frms);
 	pktns->tx.next_pn = -1;
 	pktns->tx.pkts = EB_ROOT_UNIQUE;
@@ -346,6 +370,13 @@ static inline void quic_pktns_init(struct quic_pktns *pktns)
 	pktns->rx.largest_time_received = 0;
 
 	pktns->flags = 0;
+	if (p == &qc->hpktns && qc->apktns)
+		LIST_INSERT(&qc->ipktns->list, &pktns->list);
+	else
+		LIST_APPEND(&qc->pktns_list, &pktns->list);
+	*p = pktns;
+
+	return 1;
 }
 
 static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns, struct quic_conn *qc)
@@ -399,7 +430,7 @@ static inline void quic_pktns_discard(struct quic_pktns *pktns,
  */
 static inline int quic_application_pktns(struct quic_pktns *pktns, struct quic_conn *qc)
 {
-	return pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT];
+	return pktns == qc->apktns;
 }
 
 /* Returns the current largest acknowledged packet number if exists, -1 if not */
@@ -420,11 +451,11 @@ static inline int64_t quic_pktns_get_largest_acked_pn(struct quic_pktns *pktns)
 static inline char quic_pktns_char(const struct quic_conn *qc,
                                    const struct quic_pktns *pktns)
 {
-	if (pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT])
+	if (pktns == qc->apktns)
 		return 'A';
-	else if (pktns == &qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE])
+	else if (pktns == qc->hpktns)
 		return 'H';
-	else if (pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL])
+	else if (pktns == qc->ipktns)
 		return 'I';
 
 	return '-';

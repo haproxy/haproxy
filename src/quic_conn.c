@@ -227,6 +227,9 @@ DECLARE_STATIC_POOL(pool_head_quic_cstream, "quic_cstream", sizeof(struct quic_c
 DECLARE_POOL(pool_head_quic_frame, "quic_frame", sizeof(struct quic_frame));
 DECLARE_STATIC_POOL(pool_head_quic_arng, "quic_arng", sizeof(struct quic_arng_node));
 
+static int quic_conn_enc_level_init(struct quic_conn *qc,
+                                    struct quic_pktns *pktns,
+                                    enum quic_tls_enc_level level);
 static struct quic_connection_id *new_quic_cid(struct eb_root *root,
                                                struct quic_conn *qc,
                                                const struct quic_cid *odcid,
@@ -813,15 +816,11 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 /* Returns 1 if the peer has validated <qc> QUIC connection address, 0 if not. */
 static inline int quic_peer_validated_addr(struct quic_conn *qc)
 {
-	struct quic_pktns *hdshk_pktns, *app_pktns;
-
 	if (!qc_is_listener(qc))
 		return 1;
 
-	hdshk_pktns = qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns;
-	app_pktns = qc->els[QUIC_TLS_ENC_LEVEL_APP].pktns;
-	if ((hdshk_pktns->flags & QUIC_FL_PKTNS_PKT_RECEIVED) ||
-	    (app_pktns->flags & QUIC_FL_PKTNS_PKT_RECEIVED) ||
+	if ((qc->hpktns && (qc->hpktns->flags & QUIC_FL_PKTNS_PKT_RECEIVED)) ||
+	    (qc->apktns && (qc->apktns->flags & QUIC_FL_PKTNS_PKT_RECEIVED)) ||
 	    qc->state >= QUIC_HS_ST_COMPLETE)
 		return 1;
 
@@ -1052,7 +1051,9 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
                                    const uint8_t *write_secret, size_t secret_len)
 {
 	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
-	struct quic_tls_ctx *tls_ctx = &qc->els[ssl_to_quic_enc_level(level)].tls_ctx;
+	enum quic_tls_enc_level tel = ssl_to_quic_enc_level(level);
+	struct quic_enc_level *qel = &qc->els[tel];
+	struct quic_tls_ctx *tls_ctx = &qel->tls_ctx;
 	const SSL_CIPHER *cipher = SSL_get_current_cipher(ssl);
 	struct quic_tls_secrets *rx = NULL, *tx = NULL;
 	const struct quic_version *ver =
@@ -1061,6 +1062,17 @@ int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
 
 	TRACE_ENTER(QUIC_EV_CONN_RWSEC, qc);
 	BUG_ON(secret_len > QUIC_TLS_SECRET_LEN);
+
+	if (!qel->pktns) {
+		struct quic_pktns **pktns = ssl_to_quic_pktns(qc, level);
+
+		if (pktns == NULL ||
+		    !quic_pktns_init(qc, pktns) ||
+		    !quic_conn_enc_level_init(qc, *pktns, tel)) {
+			TRACE_ERROR("Could not initialized the packet number space", QUIC_EV_CONN_ADDDATA, qc);
+			goto leave;
+		}
+	}
 
 	if (qc->flags & QUIC_FL_CONN_TO_KILL) {
 		TRACE_PROTO("connection to be killed", QUIC_EV_CONN_ADDDATA, qc);
@@ -1379,6 +1391,17 @@ int ha_quic_add_handshake_data(SSL *ssl, enum ssl_encryption_level_t level,
 	}
 
 	qel = &qc->els[tel];
+	if (!qel->pktns) {
+		struct quic_pktns **pktns = ssl_to_quic_pktns(qc, level);
+
+		if (pktns == NULL ||
+		    !quic_pktns_init(qc, pktns) ||
+		    !quic_conn_enc_level_init(qc, *pktns, tel)) {
+			TRACE_ERROR("Could not initialized the packet number space", QUIC_EV_CONN_ADDDATA, qc);
+			goto leave;
+		}
+	}
+
 	if (!quic_crypto_data_cpy(qc, qel, data, len)) {
 		TRACE_ERROR("Could not bufferize", QUIC_EV_CONN_ADDDATA, qc);
 		goto leave;
@@ -4600,7 +4623,7 @@ int qc_treat_rx_pkts(struct quic_conn *qc, struct quic_enc_level *cur_el,
 				if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING) {
 					int arm_ack_timer =
 						qc->state >= QUIC_HS_ST_COMPLETE &&
-						qel->pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT];
+						qel->pktns == qc->apktns;
 
 					qel->pktns->flags |= QUIC_FL_PKTNS_ACK_REQUIRED;
 					qel->pktns->rx.nb_aepkts_since_last_ack++;
@@ -5323,7 +5346,7 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 			goto out;
 		}
 
-		if (pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL]) {
+		if (pktns == qc->ipktns) {
 			if (qc_may_probe_ipktns(qc)) {
 				qc->flags |= QUIC_FL_CONN_RETRANS_NEEDED;
 				pktns->flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
@@ -5332,19 +5355,19 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 			else {
 				TRACE_STATE("Cannot probe Initial packet number space", QUIC_EV_CONN_TXPKT, qc);
 			}
-			if (qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE].tx.in_flight) {
+			if (qc->hpktns->tx.in_flight) {
 				qc->flags |= QUIC_FL_CONN_RETRANS_NEEDED;
-				qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE].flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
+				qc->hpktns->flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
 				TRACE_STATE("needs to probe Handshake packet number space", QUIC_EV_CONN_TXPKT, qc);
 			}
 		}
-		else if (pktns == &qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE]) {
+		else if (pktns == qc->hpktns) {
 			TRACE_STATE("needs to probe Handshake packet number space", QUIC_EV_CONN_TXPKT, qc);
 			qc->flags |= QUIC_FL_CONN_RETRANS_NEEDED;
 			pktns->flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
-			if (qc->pktns[QUIC_TLS_PKTNS_INITIAL].tx.in_flight) {
+			if (qc->ipktns->tx.in_flight) {
 				if (qc_may_probe_ipktns(qc)) {
-					qc->pktns[QUIC_TLS_PKTNS_INITIAL].flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
+					qc->ipktns->flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
 					TRACE_STATE("needs to probe Initial packet number space", QUIC_EV_CONN_TXPKT, qc);
 				}
 				else {
@@ -5352,7 +5375,7 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 				}
 			}
 		}
-		else if (pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT]) {
+		else if (pktns == qc->apktns) {
 			pktns->tx.pto_probe = QUIC_MAX_NB_PTO_DGRAMS;
 			/* Wake up upper layer if waiting to send new data. */
 			if (!qc_notify_send(qc)) {
@@ -5517,22 +5540,15 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		qel->pktns = NULL;
 	}
 
+	/* Packet number spaces */
+	qc->ipktns = qc->hpktns = qc->apktns = NULL;
+	LIST_INIT(&qc->pktns_list);
+
 	quic_tls_ctx_reset(&qc->negotiated_ictx);
 
 	app_ctx = &qc->els[QUIC_TLS_ENC_LEVEL_APP].tls_ctx;
 	app_ctx->rx.secret = NULL;
 	app_ctx->tx.secret = NULL;
-
-	/* Packet number spaces: required to safely call quic_pktns_tx_pkts_release()
-	 * from quic_conn_release().
-	 */
-	for (i = 0; i < QUIC_TLS_PKTNS_MAX; i++) {
-		struct quic_pktns *pktns = &qc->pktns[i];
-
-		LIST_INIT(&pktns->tx.frms);
-		pktns->tx.pkts = EB_ROOT_UNIQUE;
-		pktns->rx.arngs.root = EB_ROOT_UNIQUE;
-	}
 
 	/* Required to safely call quic_conn_prx_cntrs_update() from quic_conn_release(). */
 	qc->prx_counters = NULL;
@@ -5591,17 +5607,14 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	/* Select our SCID which is the first CID with 0 as sequence number. */
 	qc->scid = conn_id->cid;
 
-	/* Packet number spaces initialization. */
-	for (i = 0; i < QUIC_TLS_PKTNS_MAX; i++)
-		quic_pktns_init(&qc->pktns[i]);
-	/* QUIC encryption level context initialization. */
-	for (i = 0; i < QUIC_TLS_ENC_LEVEL_MAX; i++) {
-		if (!quic_conn_enc_level_init(qc, i)) {
-			TRACE_ERROR("Could not initialize an encryption level", QUIC_EV_CONN_INIT, qc);
-			goto err;
-		}
-		/* Initialize the packet number space. */
-		qc->els[i].pktns = &qc->pktns[quic_tls_pktns(i)];
+	/* Initial packet number spaces initialization. */
+	if (!quic_pktns_init(qc, &qc->ipktns))
+		goto err;
+
+	/* Initial encryption level initialization */
+	if (!quic_conn_enc_level_init(qc, qc->ipktns, QUIC_TLS_ENC_LEVEL_INITIAL)) {
+		TRACE_ERROR("Could not initialize an encryption level", QUIC_EV_CONN_INIT, qc);
+		goto err;
 	}
 
 	qc->original_version = qv;
@@ -5789,10 +5802,9 @@ void quic_conn_release(struct quic_conn *qc)
 	pool_free(pool_head_quic_tls_secret, app_tls_ctx->rx.secret);
 	pool_free(pool_head_quic_tls_secret, app_tls_ctx->tx.secret);
 
-	for (i = 0; i < QUIC_TLS_PKTNS_MAX; i++) {
-		quic_pktns_tx_pkts_release(&qc->pktns[i], qc);
-		quic_free_arngs(qc, &qc->pktns[i].rx.arngs);
-	}
+	quic_pktns_release(qc, &qc->ipktns);
+	quic_pktns_release(qc, &qc->hpktns);
+	quic_pktns_release(qc, &qc->apktns);
 
 	qc_detach_th_ctx_list(qc, 0);
 
@@ -8506,7 +8518,7 @@ void qc_notify_err(struct quic_conn *qc)
  */
 int qc_notify_send(struct quic_conn *qc)
 {
-	const struct quic_pktns *pktns = &qc->pktns[QUIC_TLS_PKTNS_01RTT];
+	const struct quic_pktns *pktns = qc->apktns;
 
 	if (qc->subs && qc->subs->events & SUB_RETRY_SEND) {
 		/* RFC 9002 7.5. Probe Timeout
@@ -8830,13 +8842,13 @@ static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
 	chunk_appendf(&trash, "\n");
 
 	/* Packet number spaces information */
-	pktns = &qc->pktns[QUIC_TLS_PKTNS_INITIAL];
+	pktns = qc->ipktns;
 	chunk_appendf(&trash, "  [initl]             rx.ackrng=%-6zu tx.inflight=%-6zu",
 	              pktns->rx.arngs.sz, pktns->tx.in_flight);
-	pktns = &qc->pktns[QUIC_TLS_PKTNS_HANDSHAKE];
+	pktns = qc->hpktns;
 	chunk_appendf(&trash, "           [hndshk] rx.ackrng=%-6zu tx.inflight=%-6zu\n",
 	              pktns->rx.arngs.sz, pktns->tx.in_flight);
-	pktns = &qc->pktns[QUIC_TLS_PKTNS_01RTT];
+	pktns = qc->apktns;
 	chunk_appendf(&trash, "  [01rtt]             rx.ackrng=%-6zu tx.inflight=%-6zu\n",
 	              pktns->rx.arngs.sz, pktns->tx.in_flight);
 

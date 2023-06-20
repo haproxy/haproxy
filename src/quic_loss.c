@@ -56,19 +56,21 @@ void quic_loss_srtt_update(struct quic_loss *ql,
  */
 struct quic_pktns *quic_loss_pktns(struct quic_conn *qc)
 {
-	enum quic_tls_pktns i;
-	struct quic_pktns *pktns;
+	struct quic_pktns *pktns, *p;
 
 	TRACE_ENTER(QUIC_EV_CONN_SPTO, qc);
 
-	pktns = &qc->pktns[QUIC_TLS_PKTNS_INITIAL];
-	TRACE_PROTO("TX loss pktns", QUIC_EV_CONN_SPTO, qc, pktns);
-	for (i = QUIC_TLS_PKTNS_HANDSHAKE; i < QUIC_TLS_PKTNS_MAX; i++) {
-		TRACE_PROTO("TX loss pktns", QUIC_EV_CONN_SPTO, qc, &qc->pktns[i]);
+	BUG_ON(LIST_ISEMPTY(&qc->pktns_list));
+	pktns = p = LIST_NEXT(&qc->pktns_list, struct quic_pktns *, list);
+
+	do {
+		TRACE_PROTO("TX loss pktns", QUIC_EV_CONN_SPTO, qc, p);
 		if (!tick_isset(pktns->tx.loss_time) ||
-		    tick_is_lt(qc->pktns[i].tx.loss_time, pktns->tx.loss_time))
-			pktns = &qc->pktns[i];
-	}
+		    tick_is_lt(p->tx.loss_time, pktns->tx.loss_time)) {
+			pktns = p;
+		}
+		p = LIST_NEXT(&p->list, struct quic_pktns *, list);
+	} while (&p->list != &qc->pktns_list);
 
 	TRACE_LEAVE(QUIC_EV_CONN_SPTO, qc);
 
@@ -83,12 +85,13 @@ struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
                                   int handshake_confirmed,
                                   unsigned int *pto)
 {
-	int i;
 	unsigned int duration, lpto;
 	struct quic_loss *ql = &qc->path->loss;
 	struct quic_pktns *pktns, *p;
 
 	TRACE_ENTER(QUIC_EV_CONN_SPTO, qc);
+
+	BUG_ON(LIST_ISEMPTY(&qc->pktns_list));
 	duration =
 		(ql->srtt >> 3) +
 		(QUIC_MAX(ql->rtt_var, QUIC_TIMER_GRANULARITY) << ql->pto_count);
@@ -107,32 +110,32 @@ struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
 	 */
 
 	lpto = TICK_ETERNITY;
-	pktns = p = &qc->pktns[QUIC_TLS_PKTNS_INITIAL];
+	pktns = p = LIST_NEXT(&qc->pktns_list, struct quic_pktns *, list);
 
-	for (i = QUIC_TLS_PKTNS_INITIAL; i < QUIC_TLS_PKTNS_MAX; i++) {
+	do {
 		unsigned int tmp_pto;
 
-		if (!qc->pktns[i].tx.in_flight)
-			continue;
+		if (p->tx.in_flight) {
+			if (p == qc->apktns) {
+				if (!handshake_confirmed) {
+					TRACE_STATE("TX PTO handshake not already confirmed", QUIC_EV_CONN_SPTO, qc);
+					goto out;
+				}
 
-		if (i == QUIC_TLS_PKTNS_01RTT) {
-			if (!handshake_confirmed) {
-				TRACE_STATE("TX PTO handshake not already confirmed", QUIC_EV_CONN_SPTO, qc);
-				pktns = p;
-				goto out;
+				duration += qc->max_ack_delay << ql->pto_count;
 			}
 
-			duration += qc->max_ack_delay << ql->pto_count;
+			tmp_pto = tick_add(p->tx.time_of_last_eliciting, duration);
+			if (!tick_isset(lpto) || tick_is_lt(tmp_pto, lpto)) {
+				lpto = tmp_pto;
+				pktns = p;
+			}
+
+			TRACE_PROTO("TX PTO", QUIC_EV_CONN_SPTO, qc, p);
 		}
 
-		p = &qc->pktns[i];
-		tmp_pto = tick_add(p->tx.time_of_last_eliciting, duration);
-		if (!tick_isset(lpto) || tick_is_lt(tmp_pto, lpto)) {
-			lpto = tmp_pto;
-			pktns = p;
-		}
-		TRACE_PROTO("TX PTO", QUIC_EV_CONN_SPTO, qc, p);
-	}
+		p = LIST_NEXT(&p->list, struct quic_pktns *, list);
+	} while (&p->list != &qc->pktns_list);
 
  out:
 	if (pto)
