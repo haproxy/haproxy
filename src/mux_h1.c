@@ -1406,7 +1406,7 @@ static void h1_capture_bad_message(struct h1c *h1c, struct h1s *h1s,
  * head. The caller is responsible for ensuring there is enough room left before
  * the buffer's head for the string.
  */
-static void h1_emit_chunk_size(struct buffer *buf, size_t chksz)
+static void h1_prepend_chunk_size(struct buffer *buf, size_t chksz)
 {
 	char *beg, *end;
 
@@ -1422,7 +1422,7 @@ static void h1_emit_chunk_size(struct buffer *buf, size_t chksz)
 
 /* Emit a CRLF after the data of the buffer <buf>. The caller is responsible for
  * ensuring there is enough room left in the buffer for the string. */
-static void h1_emit_chunk_crlf(struct buffer *buf)
+static void h1_append_chunk_crlf(struct buffer *buf)
 {
 	*(b_peek(buf, b_data(buf)))     = '\r';
 	*(b_peek(buf, b_data(buf) + 1)) = '\n';
@@ -2492,8 +2492,8 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 		 * struct htx to write the chunk envelope. It should be enough.
 		 */
 		if (h1m->flags & H1_MF_CHNK) {
-			h1_emit_chunk_size(&h1c->obuf, count);
-			h1_emit_chunk_crlf(&h1c->obuf);
+			h1_prepend_chunk_size(&h1c->obuf, count);
+			h1_append_chunk_crlf(&h1c->obuf);
 			if (h1m->state == H1_MSG_DONE) {
 				/* Emit the last chunk too at the buffer's end */
 				b_putblk(&h1c->obuf, "0\r\n\r\n", 5);
