@@ -1438,6 +1438,22 @@ static __maybe_unused int h1_append_chunk_size(struct buffer *buf, size_t chksz)
 	return chunk_memcat(buf, beg, end - beg);
 }
 
+/* Emit a CRLF in front of data of the buffer <buf>. It goes backwards and
+ * starts with the byte before the buffer's head. The caller is responsible for
+ * ensuring there is enough room left before the buffer's head for the string.
+ */
+static __maybe_unused void h1_prepend_chunk_crlf(struct buffer *buf)
+{
+	char *head;
+
+	head = b_head(buf);
+	*--head = '\n';
+	*--head = '\r';
+	buf->head -= 2;
+	b_add(buf, 2);
+}
+
+
 /* Emit a CRLF after the data of the buffer <buf>. The caller is responsible for
  * ensuring there is enough room left in the buffer for the string. */
 static void h1_append_chunk_crlf(struct buffer *buf)
