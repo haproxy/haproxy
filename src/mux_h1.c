@@ -1906,13 +1906,14 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	}
 
 	/* Here h1s_sc(h1s) is always defined */
-	if (!(h1m->flags & H1_MF_CHNK) && (h1m->state == H1_MSG_DATA || (h1m->state == H1_MSG_TUNNEL))) {
+	if (h1m->state == H1_MSG_DATA || (h1m->state == H1_MSG_TUNNEL)) {
 		TRACE_STATE("notify the mux can use splicing", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
 		se_fl_set(h1s->sd, SE_FL_MAY_SPLICE);
 	}
 	else {
 		TRACE_STATE("notify the mux can't use splicing anymore", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
 		se_fl_clr(h1s->sd, SE_FL_MAY_SPLICE);
+		h1c->flags &= ~H1C_F_WANT_SPLICE;
 	}
 
 	/* Set EOI on stream connector in DONE state iff:
@@ -2492,10 +2493,26 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 	 */
 	if ((!(h1m->flags & H1_MF_RESP) || !(h1s->flags & H1S_F_BODYLESS_RESP)) &&
 	    !b_data(&h1c->obuf) &&
+	    (!(h1m->flags & H1_MF_CHNK) || ((h1m->flags & H1_MF_CHNK) && (!h1m->curr_len || count == h1m->curr_len))) &&
 	    htx_nbblks(htx) == 1 &&
 	    htx_get_blk_type(blk) == HTX_BLK_DATA &&
 	    htx_get_blk_value(htx, blk).len == count) {
 		void *old_area;
+		uint64_t extra;
+		int eom = (htx->flags & HTX_FL_EOM);
+
+		extra = htx->extra;
+		old_area = h1c->obuf.area;
+		h1c->obuf.area = buf->area;
+		h1c->obuf.head = sizeof(struct htx) + blk->addr;
+		h1c->obuf.data = count;
+
+		buf->area = old_area;
+		buf->data = buf->head = 0;
+
+		htx = (struct htx *)buf->area;
+		htx_reset(htx);
+		htx->extra = extra;
 
 		if (h1m->flags & H1_MF_CLEN) {
 			if (count > h1m->curr_len) {
@@ -2507,32 +2524,45 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			if (!h1m->curr_len)
 				last_data = 1;
 		}
-		if (last_data == 1 || (htx->flags & HTX_FL_EOM))
-			h1m->state = H1_MSG_DONE;
+		else if (h1m->flags & H1_MF_CHNK) {
+			/* The message is chunked. We need to check if we must
+			 * emit the chunk size, the CRLF marking the end of the
+			 * current chunk and eventually the CRLF marking the end
+			 * of the previous chunk (because of the kernel
+			 * splicing). If it is the end of the message, we must
+			 * also emit the last chunk.
+			 *
+			 *  We have at least the size of the struct htx to write
+			 * the chunk envelope. It should be enough.
+			 */
 
-		old_area = h1c->obuf.area;
-		h1c->obuf.area = buf->area;
-		h1c->obuf.head = sizeof(struct htx) + blk->addr;
-		h1c->obuf.data = count;
+			/* If is a new chunk, prepend the chunk size */
+			if (!h1m->curr_len) {
+				h1m->curr_len = count + htx->extra;
+				h1_prepend_chunk_size(&h1c->obuf, h1m->curr_len);
+			}
+			h1m->curr_len -= count;
 
-		buf->area = old_area;
-		buf->data = buf->head = 0;
+			/* CRLF of the previous chunk is missing. Prepend it */
+			if (h1m->state == H1_MSG_CHUNK_CRLF) {
+				h1_prepend_chunk_crlf(&h1c->obuf);
+				h1m->state = H1_MSG_DATA;
+			}
 
-		htx = (struct htx *)buf->area;
-		htx_reset(htx);
+			/* It is the end  of the chunk, append the CRLF */
+			if (!h1m->curr_len)
+				h1_append_chunk_crlf(&h1c->obuf);
 
-		/* The message is chunked. We need to emit the chunk size and
-		 * eventually the last chunk. We have at least the size of the
-		 * struct htx to write the chunk envelope. It should be enough.
-		 */
-		if (h1m->flags & H1_MF_CHNK) {
-			h1_prepend_chunk_size(&h1c->obuf, count);
-			h1_append_chunk_crlf(&h1c->obuf);
-			if (h1m->state == H1_MSG_DONE) {
+			/* It is the end of the message, add the last chunk with the extra CRLF */
+			if (eom) {
+				BUG_ON(h1m->curr_len);
 				/* Emit the last chunk too at the buffer's end */
 				b_putblk(&h1c->obuf, "0\r\n\r\n", 5);
 			}
 		}
+
+		if (last_data == 1 || eom)
+			h1m->state = H1_MSG_DONE;
 
 		ret = count;
 		TRACE_PROTO("H1 message payload data xferred (zero-copy)", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){ret});
@@ -2543,7 +2573,13 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 		b_slow_realign(&h1c->obuf, trash.area, b_data(&h1c->obuf));
 	outbuf = b_make(b_tail(&h1c->obuf), b_contig_space(&h1c->obuf), 0, 0);
 
-	while (blk) {
+	if (h1m->state == H1_MSG_CHUNK_CRLF) {
+		if (!chunk_memcat(&outbuf, "\r\n", 2))
+			goto full;
+		h1m->state = H1_MSG_DATA;
+	}
+
+	while (blk && count) {
                 uint32_t vlen, chklen;
 
 		type = htx_get_blk_type(blk);
@@ -2573,14 +2609,23 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			}
 			chklen = 0;
 			if (h1m->flags & H1_MF_CHNK) {
-				chklen = b_room(&outbuf);
-				chklen = ((chklen < 16) ? 1 : (chklen < 256) ? 2 :
-					  (chklen < 4096) ? 3 : (chklen < 65536) ? 4 :
-					  (chklen < 1048576) ? 5 : 8);
-				chklen += 4; /* 2 x CRLF */
+				/* If is a new chunk, prepend the chunk size */
+				if (!h1m->curr_len) {
+					h1m->curr_len = (htx->extra ? htx->data + htx->extra : vlen);
+					if (!h1_append_chunk_size(&outbuf, h1m->curr_len)) {
+						h1m->curr_len = 0;
+						goto full;
+					}
+				}
 
-				/* If it is the end of the chunked message (without EOT), reserve the
-				 * last chunk size */
+				if (vlen > h1m->curr_len) {
+					vlen = h1m->curr_len;
+					last_data = 0;
+				}
+
+				chklen = 0;
+				if (h1m->curr_len == vlen)
+					chklen += 2;
 				if (last_data)
 					chklen += 5;
 			}
@@ -2594,12 +2639,17 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 
 			v = htx_get_blk_value(htx, blk);
 			v.len = vlen;
-			if (!h1_format_htx_data(v, &outbuf, !!(h1m->flags & H1_MF_CHNK)))
+			if (!h1_format_htx_data(v, &outbuf, 0))
 				goto full;
 
-			/* Space already reserved, so it must succeed */
-			if ((h1m->flags & H1_MF_CHNK) && last_data && !chunk_memcat(&outbuf, "0\r\n\r\n", 5))
-				goto error;
+			if (h1m->flags & H1_MF_CHNK) {
+				h1m->curr_len -= vlen;
+				/* Space already reserved, so it must succeed */
+				if (!h1m->curr_len && !chunk_memcat(&outbuf, "\r\n", 2))
+					goto error;
+				if (last_data && !chunk_memcat(&outbuf, "0\r\n\r\n", 5))
+					goto error;
+			}
 		}
 		else if (type == HTX_BLK_EOT || type == HTX_BLK_TLR) {
 			if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
@@ -2626,7 +2676,8 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			blk = htx_remove_blk(htx, blk);
 		else {
 			htx_cut_data_blk(htx, blk, vlen);
-			break;
+			if (!b_room(&outbuf))
+				goto full;
 		}
 		if (h1m->flags & H1_MF_CLEN) {
 			h1m->curr_len -= vlen;
@@ -2799,7 +2850,7 @@ static size_t h1_make_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx
 	while (blk) {
 		type = htx_get_blk_type(blk);
 		sz = htx_get_blksz(blk);
-x
+
 		if (type == HTX_BLK_TLR) {
 			if (sz > count)
 				goto error;
@@ -2910,6 +2961,7 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 				ret = h1_make_eoh(h1s, h1m, htx, count);
 				break;
 
+			case H1_MSG_CHUNK_CRLF:
 			case H1_MSG_DATA:
 				ret = h1_make_data(h1s, h1m, buf, count);
 				if (ret > 0)
@@ -4205,7 +4257,7 @@ static int h1_rcv_pipe(struct stconn *sc, struct pipe *pipe, unsigned int count)
 
 	TRACE_ENTER(H1_EV_STRM_RECV, h1c->conn, h1s, 0, (size_t[]){count});
 
-	if ((h1m->flags & H1_MF_CHNK) || (h1m->state != H1_MSG_DATA && h1m->state != H1_MSG_TUNNEL)) {
+	if (h1m->state != H1_MSG_DATA && h1m->state != H1_MSG_TUNNEL) {
 		h1c->flags &= ~H1C_F_WANT_SPLICE;
 		TRACE_STATE("Allow xprt rcv_buf on !(msg_data|msg_tunnel)", H1_EV_STRM_RECV, h1c->conn, h1s);
 		goto end;
@@ -4222,11 +4274,11 @@ static int h1_rcv_pipe(struct stconn *sc, struct pipe *pipe, unsigned int count)
 		goto end;
 	}
 
-	if (h1m->state == H1_MSG_DATA && (h1m->flags & H1_MF_CLEN) && count > h1m->curr_len)
+	if (h1m->state == H1_MSG_DATA &&  (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN)) &&  count > h1m->curr_len)
 		count = h1m->curr_len;
 	ret = h1c->conn->xprt->rcv_pipe(h1c->conn, h1c->conn->xprt_ctx, pipe, count);
 	if (ret >= 0) {
-		if (h1m->state == H1_MSG_DATA && (h1m->flags & H1_MF_CLEN)) {
+		if (h1m->state == H1_MSG_DATA && (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN))) {
 			if (ret > h1m->curr_len) {
 				h1s->flags |= H1S_F_PARSING_ERROR;
 				se_fl_set(h1s->sd, SE_FL_ERROR);
@@ -4236,7 +4288,10 @@ static int h1_rcv_pipe(struct stconn *sc, struct pipe *pipe, unsigned int count)
 			}
 			h1m->curr_len -= ret;
 			if (!h1m->curr_len) {
-				h1m->state = H1_MSG_DONE;
+				if (h1m->flags & H1_MF_CLEN)
+					h1m->state = H1_MSG_DONE;
+				else
+					h1m->state = H1_MSG_CHUNK_CRLF;
 				h1c->flags &= ~H1C_F_WANT_SPLICE;
 
 				if (!(h1c->flags & H1C_F_IS_BACK)) {
@@ -4308,7 +4363,7 @@ static int h1_snd_pipe(struct stconn *sc, struct pipe *pipe)
 	}
 
 	ret = h1c->conn->xprt->snd_pipe(h1c->conn, h1c->conn->xprt_ctx, pipe);
-	if (h1m->state == H1_MSG_DATA && (h1m->flags & H1_MF_CLEN)) {
+	if (h1m->state == H1_MSG_DATA && (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN))) {
 		if (ret > h1m->curr_len) {
 			h1s->flags |= H1S_F_PROCESSING_ERROR;
 			se_fl_set(h1s->sd, SE_FL_ERROR);
@@ -4318,7 +4373,10 @@ static int h1_snd_pipe(struct stconn *sc, struct pipe *pipe)
 		}
 		h1m->curr_len -= ret;
 		if (!h1m->curr_len) {
-			h1m->state = H1_MSG_DONE;
+			if (h1m->flags & H1_MF_CLEN)
+				h1m->state = H1_MSG_DONE;
+			else
+				h1m->state = H1_MSG_CHUNK_CRLF;
 			TRACE_STATE("payload fully xferred", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s);
 		}
 	}
