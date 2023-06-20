@@ -1420,6 +1420,24 @@ static void h1_prepend_chunk_size(struct buffer *buf, size_t chksz)
 	b_add(buf, end - beg);
 }
 
+/* Emit the chunksize followed by a CRLF after the data of the buffer
+ * <buf>. Returns 0 on error.
+ */
+static __maybe_unused int h1_append_chunk_size(struct buffer *buf, size_t chksz)
+{
+	char     tmp[10];
+	char    *beg, *end;
+
+	beg = end = tmp+10;
+	*--beg = '\n';
+	*--beg = '\r';
+	do {
+		*--beg = hextab[chksz & 0xF];
+	} while (chksz >>= 4);
+
+	return chunk_memcat(buf, beg, end - beg);
+}
+
 /* Emit a CRLF after the data of the buffer <buf>. The caller is responsible for
  * ensuring there is enough room left in the buffer for the string. */
 static void h1_append_chunk_crlf(struct buffer *buf)
