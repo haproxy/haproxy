@@ -560,15 +560,6 @@ static inline void qc_list_qel_rx_pkts(struct quic_enc_level *qel)
 	}
 }
 
-static inline void qc_list_all_rx_pkts(struct quic_conn *qc)
-{
-	fprintf(stderr, "REMAINING QEL RX PKTS:\n");
-	qc_list_qel_rx_pkts(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
-	qc_list_qel_rx_pkts(&qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA]);
-	qc_list_qel_rx_pkts(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
-	qc_list_qel_rx_pkts(&qc->els[QUIC_TLS_ENC_LEVEL_APP]);
-}
-
 void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm);
 
 void quic_set_connection_close(struct quic_conn *qc, const struct quic_err err);
