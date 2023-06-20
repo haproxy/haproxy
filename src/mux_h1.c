@@ -1423,7 +1423,7 @@ static void h1_prepend_chunk_size(struct buffer *buf, size_t chksz)
 /* Emit the chunksize followed by a CRLF after the data of the buffer
  * <buf>. Returns 0 on error.
  */
-static __maybe_unused int h1_append_chunk_size(struct buffer *buf, size_t chksz)
+static int h1_append_chunk_size(struct buffer *buf, size_t chksz)
 {
 	char     tmp[10];
 	char    *beg, *end;
@@ -1442,7 +1442,7 @@ static __maybe_unused int h1_append_chunk_size(struct buffer *buf, size_t chksz)
  * starts with the byte before the buffer's head. The caller is responsible for
  * ensuring there is enough room left before the buffer's head for the string.
  */
-static __maybe_unused void h1_prepend_chunk_crlf(struct buffer *buf)
+static void h1_prepend_chunk_crlf(struct buffer *buf)
 {
 	char *head;
 
