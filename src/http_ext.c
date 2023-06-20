@@ -790,8 +790,8 @@ int http_handle_xff_header(struct stream *s, struct channel *req)
 		struct http_hdr_ctx ctx = { .blk = NULL };
 		struct ist hdr = ((b_xff) ? b_xff->hdr_name : f_xff->hdr_name);
 
-		if (f_xff && f_xff->mode == HTTP_XFF_IFNONE &&
-		    b_xff && b_xff->mode == HTTP_XFF_IFNONE &&
+		if ((!f_xff || f_xff->mode == HTTP_XFF_IFNONE) &&
+		    (!b_xff || b_xff->mode == HTTP_XFF_IFNONE) &&
 		    http_find_header(htx, hdr, &ctx, 0)) {
 			/* The header is set to be added only if none is present
 			 * and we found it, so don't do anything.
