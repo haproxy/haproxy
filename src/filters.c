@@ -655,6 +655,7 @@ int
 flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 {
 	struct filter *filter;
+	struct htx *htx;
 	unsigned long long *strm_off = &FLT_STRM_OFF(s, msg->chn);
 	unsigned int out = co_data(msg->chn);
 	int ret, data;
@@ -702,6 +703,9 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 	ret = data;
 	*strm_off += ret;
  end:
+	htx = htxbuf(&msg->chn->buf);
+	if (msg->flags & HTTP_MSGF_XFER_LEN)
+		htx->extra = 0;
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 	return ret;
 }
