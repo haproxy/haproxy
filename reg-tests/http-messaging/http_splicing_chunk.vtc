@@ -1,0 +1,73 @@
+# This reg-test checks splicing support for chunked message in the H1 multiplexer
+
+varnishtest "A test to validate h1 splicing support for chunked messages"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.9-dev0)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LINUX_SPLICE)'"
+feature cmd "$HAPROXY_PROGRAM $HAPROXY_ARGS -cc 'enabled(FAST-FORWARD)'"
+feature ignore_unknown_macro
+
+#REGTEST_TYPE=slow
+
+server s1 {
+    rxreq
+    expect req.http.content-length == <undef>
+    expect req.http.transfer-encoding == "chunked"
+    expect req.bodylen == 500000
+
+    txresp -status 200 -nolen \
+           -hdr "Transfer-Encoding: chunked"
+    chunkedlen 204800
+    chunkedlen 204800
+    chunkedlen 204800
+    chunkedlen 204800
+    chunkedlen 204800
+    chunkedlen 0
+} -start
+
+haproxy h1 -conf {
+    global
+        log stderr len 4096 local0 debug
+
+    defaults
+        mode http
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        option splice-request
+        option splice-response
+	log global
+	option httplog
+
+    listen li1
+        bind "fd@${li1}"
+	id 10
+        server srv1 ${s1_addr}:${s1_port}
+} -start
+
+
+client c1 -connect ${h1_li1_sock} {
+    txreq -method POST -url "/" -nolen \
+          -hdr "Transfer-Encoding: chunked"
+    chunkedlen 10000
+    chunkedlen 10000
+    chunkedlen 10000
+    chunkedlen 10000
+    chunkedlen 10000
+    chunkedlen 50000
+    chunkedlen 100000
+    chunkedlen 300000
+    chunkedlen 0
+
+    rxresp
+    expect resp.http.content-length == <undef>
+    expect resp.http.transfer-encoding == "chunked"
+    expect resp.bodylen == 1024000
+} -run
+
+haproxy h1 -cli {
+    send "show stat typed"
+    expect ~ "F.10.0.[[:digit:]]+.h1_spliced_bytes_in.1:MCP:u64:[1-9][[:digit:]]+\nF.10.0.[[:digit:]]+.h1_spliced_bytes_out.1:MCP:u64:[1-9][[:digit:]]+"
+    send "show stat typed"
+    expect ~ "B.10.0.[[:digit:]]+.h1_spliced_bytes_in.1:MCP:u64:[1-9][[:digit:]]+\nB.10.0.[[:digit:]]+.h1_spliced_bytes_out.1:MCP:u64:[1-9][[:digit:]]+"
+}
