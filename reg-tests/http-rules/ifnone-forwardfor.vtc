@@ -24,6 +24,7 @@ haproxy h1 -conf {
 	option forwardfor if-none
 	use_backend be1 if { path /req1 }
 	use_backend be2 if { path /req2 }
+	use_backend be3 if { path /req3 }
 
     frontend normal
         bind "fd@${normal}"
@@ -44,6 +45,9 @@ haproxy h1 -conf {
     backend be2
         option forwardfor if-none
         server s1 ${h1_fe2_addr}:${h1_fe2_port}
+
+    backend be3
+        server s1 ${h1_fe2_addr}:${h1_fe2_port}
 } -start
 
 client c1 -connect ${h1_none_sock} {
@@ -63,6 +67,13 @@ client c1 -connect ${h1_none_sock} {
 
     txreq -req GET -url /req2 \
         -hdr "x-src: 10.0.0.128"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ff == 1
+
+    txreq -req GET -url /req3 \
+        -hdr "x-src: 10.0.0.128" \
+        -hdr "x-forwarded-for: 127.0.0.1"
     rxresp
     expect resp.status == 200
     expect resp.http.x-ff == 1
