@@ -53,6 +53,7 @@
 #define TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS_DRAFT 0xffa5
 
 extern struct pool_head *pool_head_quic_pktns;
+extern struct pool_head *pool_head_quic_enc_level;
 extern struct pool_head *pool_head_quic_tls_secret;
 extern struct pool_head *pool_head_quic_tls_iv;
 extern struct pool_head *pool_head_quic_tls_key;
