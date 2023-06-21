@@ -3610,6 +3610,9 @@ int main(int argc, char **argv)
 							child->timestamp = date.tv_sec;
 							child->pid = ret;
 							child->version = strdup(haproxy_version);
+							/* at this step the fd is bound for the worker, set it to -1 so
+							 * it could be close in case of errors in mworker_cleanup_proc() */
+							child->ipc_fd[1] = -1;
 							break;
 						}
 					}

@@ -541,14 +541,11 @@ void mworker_cleanup_proc()
 	list_for_each_entry_safe(child, it, &proc_list, list) {
 
 		if (child->pid == -1) {
-			/* Close the socketpair master side.  We don't need to
-			 * close the worker side, because it's stored in the
-			 * GLOBAL cli listener which was supposed to be in the
-			 * worker and which will be closed in
-			 * mworker_cleanlisteners()
-			 */
+			/* Close the socketpairs. */
 			if (child->ipc_fd[0] > -1)
 				close(child->ipc_fd[0]);
+			if (child->ipc_fd[1] > -1)
+				close(child->ipc_fd[1]);
 			if (child->srv) {
 				/* only exists if we created a master CLI listener */
 				srv_drop(child->srv);
