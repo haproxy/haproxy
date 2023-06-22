@@ -4547,90 +4547,80 @@ static inline int qc_treat_rx_crypto_frms(struct quic_conn *qc,
 	return ret;
 }
 
-/* Process all the packets at <el> and <next_el> encryption level.
- * This is the caller responsibility to check that <cur_el> is different of <next_el>
- * as pointer value.
+/* Process all the packets for all the encryption levels listed in <qc> QUIC connection.
  * Return 1 if succeeded, 0 if not.
  */
-int qc_treat_rx_pkts(struct quic_conn *qc, struct quic_enc_level *cur_el,
-                     struct quic_enc_level *next_el)
+int qc_treat_rx_pkts(struct quic_conn *qc)
 {
 	int ret = 0;
 	struct eb64_node *node;
 	int64_t largest_pn = -1;
 	unsigned int largest_pn_time_received = 0;
-	struct quic_enc_level *qel = cur_el;
+	struct quic_enc_level *qel;
 
 	TRACE_ENTER(QUIC_EV_CONN_RXPKT, qc);
-	qel = cur_el;
- next_tel:
-	if (!qel)
-		goto out;
 
-	node = eb64_first(&qel->rx.pkts);
-	while (node) {
-		struct quic_rx_packet *pkt;
+	list_for_each_entry(qel, &qc->qel_list, list) {
+		node = eb64_first(&qel->rx.pkts);
+		while (node) {
+			struct quic_rx_packet *pkt;
 
-		pkt = eb64_entry(node, struct quic_rx_packet, pn_node);
-		TRACE_DATA("new packet", QUIC_EV_CONN_RXPKT,
-		            qc, pkt, NULL, qc->xprt_ctx->ssl);
-		if (!qc_pkt_decrypt(qc, qel, pkt)) {
-			/* Drop the packet */
-			TRACE_ERROR("packet decryption failed -> dropped",
-			            QUIC_EV_CONN_RXPKT, qc, pkt);
-		}
-		else {
-			if (!qc_parse_pkt_frms(qc, pkt, qel)) {
+			pkt = eb64_entry(node, struct quic_rx_packet, pn_node);
+			TRACE_DATA("new packet", QUIC_EV_CONN_RXPKT,
+			           qc, pkt, NULL, qc->xprt_ctx->ssl);
+			if (!qc_pkt_decrypt(qc, qel, pkt)) {
 				/* Drop the packet */
-				TRACE_ERROR("packet parsing failed -> dropped",
+				TRACE_ERROR("packet decryption failed -> dropped",
 				            QUIC_EV_CONN_RXPKT, qc, pkt);
-				qc->cntrs.dropped_parsing++;
 			}
 			else {
-				struct quic_arng ar = { .first = pkt->pn, .last = pkt->pn };
-
-				if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING) {
-					int arm_ack_timer =
-						qc->state >= QUIC_HS_ST_COMPLETE &&
-						qel->pktns == qc->apktns;
-
-					qel->pktns->flags |= QUIC_FL_PKTNS_ACK_REQUIRED;
-					qel->pktns->rx.nb_aepkts_since_last_ack++;
-					qc_idle_timer_rearm(qc, 1, arm_ack_timer);
+				if (!qc_parse_pkt_frms(qc, pkt, qel)) {
+					/* Drop the packet */
+					TRACE_ERROR("packet parsing failed -> dropped",
+					            QUIC_EV_CONN_RXPKT, qc, pkt);
+					qc->cntrs.dropped_parsing++;
 				}
-				if (pkt->pn > largest_pn) {
-					largest_pn = pkt->pn;
-					largest_pn_time_received = pkt->time_received;
+				else {
+					struct quic_arng ar = { .first = pkt->pn, .last = pkt->pn };
+
+					if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING) {
+						int arm_ack_timer =
+							qc->state >= QUIC_HS_ST_COMPLETE &&
+							qel->pktns == qc->apktns;
+
+						qel->pktns->flags |= QUIC_FL_PKTNS_ACK_REQUIRED;
+						qel->pktns->rx.nb_aepkts_since_last_ack++;
+						qc_idle_timer_rearm(qc, 1, arm_ack_timer);
+					}
+					if (pkt->pn > largest_pn) {
+						largest_pn = pkt->pn;
+						largest_pn_time_received = pkt->time_received;
+					}
+					/* Update the list of ranges to acknowledge. */
+					if (!quic_update_ack_ranges_list(qc, &qel->pktns->rx.arngs, &ar))
+						TRACE_ERROR("Could not update ack range list",
+						            QUIC_EV_CONN_RXPKT, qc);
 				}
-				/* Update the list of ranges to acknowledge. */
-				if (!quic_update_ack_ranges_list(qc, &qel->pktns->rx.arngs, &ar))
-					TRACE_ERROR("Could not update ack range list",
-					            QUIC_EV_CONN_RXPKT, qc);
 			}
+			node = eb64_next(node);
+			eb64_delete(&pkt->pn_node);
+			quic_rx_packet_refdec(pkt);
 		}
-		node = eb64_next(node);
-		eb64_delete(&pkt->pn_node);
-		quic_rx_packet_refdec(pkt);
-	}
 
-	if (largest_pn != -1 && largest_pn > qel->pktns->rx.largest_pn) {
-		/* Update the largest packet number. */
-		qel->pktns->rx.largest_pn = largest_pn;
-		/* Update the largest acknowledged packet timestamps */
-		qel->pktns->rx.largest_time_received = largest_pn_time_received;
-		qel->pktns->flags |= QUIC_FL_PKTNS_NEW_LARGEST_PN;
-	}
+		if (largest_pn != -1 && largest_pn > qel->pktns->rx.largest_pn) {
+			/* Update the largest packet number. */
+			qel->pktns->rx.largest_pn = largest_pn;
+			/* Update the largest acknowledged packet timestamps */
+			qel->pktns->rx.largest_time_received = largest_pn_time_received;
+			qel->pktns->flags |= QUIC_FL_PKTNS_NEW_LARGEST_PN;
+		}
 
-	if (qel->cstream && !qc_treat_rx_crypto_frms(qc, qel, qc->xprt_ctx)) {
-		// trace already emitted by function above
-		goto leave;
-	}
+		if (qel->cstream && !qc_treat_rx_crypto_frms(qc, qel, qc->xprt_ctx)) {
+			// trace already emitted by function above
+			goto leave;
+		}
 
-	if (qel == cur_el) {
-		BUG_ON(qel == next_el);
-		qel = next_el;
 		largest_pn = -1;
-		goto next_tel;
 	}
 
  out:
@@ -5026,7 +5016,7 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
 	if (!LIST_ISEMPTY(&qel->rx.pqpkts) && qc_qel_may_rm_hp(qc, qel))
 		qc_rm_hp_pkts(qc, qel);
 
-	if (!qc_treat_rx_pkts(qc, qel, NULL)) {
+	if (!qc_treat_rx_pkts(qc)) {
 		TRACE_DEVEL("qc_treat_rx_pkts() failed", QUIC_EV_CONN_IO_CB, qc);
 		goto out;
 	}
@@ -5127,7 +5117,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	if (!LIST_ISEMPTY(&qel->rx.pqpkts) && qc_qel_may_rm_hp(qc, qel))
 		qc_rm_hp_pkts(qc, qel);
 
-	if (!qc_treat_rx_pkts(qc, qel, next_qel))
+	if (!qc_treat_rx_pkts(qc))
 		goto out;
 
 	if (qc->flags & QUIC_FL_CONN_TO_KILL) {
