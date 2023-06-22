@@ -252,7 +252,6 @@ enum quic_pkt_type {
 #define QUIC_CONN_RX_BUFSZ (1UL << 16)
 
 extern struct trace_source trace_quic;
-extern struct pool_head *pool_head_quic_tx_ring;
 extern struct pool_head *pool_head_quic_rx_packet;
 extern struct pool_head *pool_head_quic_tx_packet;
 extern struct pool_head *pool_head_quic_crypto_buf;

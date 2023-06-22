@@ -211,7 +211,6 @@ INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 static BIO_METHOD *ha_quic_meth;
 
-DECLARE_POOL(pool_head_quic_tx_ring, "quic_tx_ring", QUIC_TX_RING_BUFSZ);
 DECLARE_POOL(pool_head_quic_conn_rxbuf, "quic_conn_rxbuf", QUIC_CONN_RX_BUFSZ);
 DECLARE_STATIC_POOL(pool_head_quic_conn_ctx,
                     "quic_conn_ctx", sizeof(struct ssl_sock_ctx));
@@ -221,7 +220,6 @@ DECLARE_POOL(pool_head_quic_connection_id,
 DECLARE_POOL(pool_head_quic_dgram, "quic_dgram", sizeof(struct quic_dgram));
 DECLARE_POOL(pool_head_quic_rx_packet, "quic_rx_packet", sizeof(struct quic_rx_packet));
 DECLARE_POOL(pool_head_quic_tx_packet, "quic_tx_packet", sizeof(struct quic_tx_packet));
-DECLARE_STATIC_POOL(pool_head_quic_rx_crypto_frm, "quic_rx_crypto_frm", sizeof(struct quic_rx_crypto_frm));
 DECLARE_POOL(pool_head_quic_crypto_buf, "quic_crypto_buf", sizeof(struct quic_crypto_buf));
 DECLARE_STATIC_POOL(pool_head_quic_cstream, "quic_cstream", sizeof(struct quic_cstream));
 DECLARE_POOL(pool_head_quic_frame, "quic_frame", sizeof(struct quic_frame));
@@ -6051,6 +6049,17 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 
 	tel = quic_packet_type_enc_level(pkt->type);
 	qel = qc_quic_enc_level(qc, tel);
+	if (!qel) {
+		struct quic_enc_level **qc_qel = qel_to_qel_addr(qc, tel);
+		struct quic_pktns **qc_pktns = qel_to_quic_pktns(qc, tel);
+
+		if (!qc_enc_level_alloc(qc, qc_pktns, qc_qel, quic_to_ssl_enc_level(tel))) {
+			TRACE_PROTO("Could not allocated an encryption level", QUIC_EV_CONN_ADDDATA, qc);
+			goto out;
+		}
+
+		qel = *qc_qel;
+	}
 
 	if (qc_qel_may_rm_hp(qc, qel)) {
 		struct quic_tls_ctx *tls_ctx = qc_select_tls_ctx(qc, qel, pkt);

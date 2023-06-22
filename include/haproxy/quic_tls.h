@@ -184,6 +184,24 @@ static inline struct quic_pktns **ssl_to_quic_pktns(struct quic_conn *qc,
 	}
 }
 
+/* These following functions map TLS implementation encryption level to ours */
+static inline struct quic_pktns **qel_to_quic_pktns(struct quic_conn *qc,
+                                                    enum quic_tls_enc_level level)
+{
+	switch (level) {
+	case QUIC_TLS_ENC_LEVEL_INITIAL:
+		return &qc->ipktns;
+	case QUIC_TLS_ENC_LEVEL_EARLY_DATA:
+		return &qc->apktns;
+	case QUIC_TLS_ENC_LEVEL_HANDSHAKE:
+		return &qc->hpktns;
+	case QUIC_TLS_ENC_LEVEL_APP:
+		return &qc->apktns;
+	default:
+		return NULL;
+	}
+}
+
 /* Map <level> TLS stack encryption level to our internal QUIC TLS encryption level
  * if succeded, or -1 if failed.
  */
@@ -218,6 +236,27 @@ static inline struct quic_enc_level **ssl_to_qel_addr(struct quic_conn *qc,
 	case ssl_encryption_handshake:
 		return &qc->hel;
 	case ssl_encryption_application:
+		return &qc->ael;
+	default:
+		return NULL;
+	}
+}
+
+/* Return the address of the QUIC TLS encryption level associated to <level> internal
+ * encryption level and attached to <qc> QUIC connection if succeeded, or
+ * NULL if failed.
+ */
+static inline struct quic_enc_level **qel_to_qel_addr(struct quic_conn *qc,
+                                                      enum quic_tls_enc_level level)
+{
+	switch (level) {
+	case QUIC_TLS_ENC_LEVEL_INITIAL:
+		return &qc->iel;
+	case QUIC_TLS_ENC_LEVEL_EARLY_DATA:
+		return &qc->eel;
+	case QUIC_TLS_ENC_LEVEL_HANDSHAKE:
+		return &qc->hel;
+	case QUIC_TLS_ENC_LEVEL_APP:
 		return &qc->ael;
 	default:
 		return NULL;
