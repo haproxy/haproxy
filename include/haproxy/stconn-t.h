@@ -24,8 +24,18 @@
 
 #include <haproxy/obj_type-t.h>
 #include <haproxy/connection-t.h>
+#include <haproxy/pipe-t.h>
 #include <haproxy/show_flags-t.h>
 #include <haproxy/xref-t.h>
+
+enum iobuf_flags {
+	IOBUF_FL_NONE             = 0x00000000, /* For initialization purposes */
+};
+
+struct iobuf {
+	struct pipe *pipe;     /* non-NULL only when data present */
+	unsigned int flags;
+};
 
 /* Stream Endpoint Flags.
  * Please also update the se_show_flags() function below in case of changes.
@@ -246,11 +256,13 @@ struct stconn;
 
  * <fsb> should be updated when the first send of a series is blocked and reset
  *       when a successful send is reported.
+ *
  */
 struct sedesc {
 	void *se;                  /* the stream endpoint, i.e. the mux stream or the appctx */
 	struct connection *conn;   /* the connection for connection-based streams */
 	struct stconn *sc;         /* the stream connector we're attached to, or NULL */
+	struct iobuf iobuf;        /* contains data forwarded by the other side and that must be sent by the stream endpoint */
 	unsigned int flags;        /* SE_FL_* */
 	unsigned int lra;          /* the last read activity */
 	unsigned int fsb;          /* the first send blocked */

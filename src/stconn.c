@@ -97,6 +97,9 @@ void sedesc_init(struct sedesc *sedesc)
 	sedesc->fsb = TICK_ETERNITY;
 	sedesc->xref.peer = NULL;
 	se_fl_setall(sedesc, SE_FL_NONE);
+
+	sedesc->iobuf.pipe = NULL;
+	sedesc->iobuf.flags = IOBUF_FL_NONE;
 }
 
 /* Tries to alloc an endpoint and initialize it. Returns NULL on failure. */
@@ -117,7 +120,11 @@ struct sedesc *sedesc_new()
  */
 void sedesc_free(struct sedesc *sedesc)
 {
-	pool_free(pool_head_sedesc, sedesc);
+	if (sedesc) {
+		if (sedesc->iobuf.pipe)
+			put_pipe(sedesc->iobuf.pipe);
+		pool_free(pool_head_sedesc, sedesc);
+	}
 }
 
 /* Tries to allocate a new stconn and initialize its main fields. On
@@ -622,9 +629,7 @@ static void sc_app_shut(struct stconn *sc)
 /* default chk_rcv function for scheduled tasks */
 static void sc_app_chk_rcv(struct stconn *sc)
 {
-	struct channel *ic = sc_ic(sc);
-
-	if (ic->pipe) {
+	if (sc_opposite(sc)->sedesc->iobuf.pipe) {
 		/* stop reading */
 		sc_need_room(sc, -1);
 	}
@@ -795,7 +800,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 	if (unlikely(channel_is_empty(oc)))  /* called with nothing to send ! */
 		return;
 
-	if (!oc->pipe &&                          /* spliced data wants to be forwarded ASAP */
+	if (!sc->sedesc->iobuf.pipe &&                    /* spliced data wants to be forwarded ASAP */
 	    !sc_ep_test(sc, SE_FL_WAIT_DATA))       /* not waiting for data */
 		return;
 
@@ -939,11 +944,9 @@ static void sc_app_shut_applet(struct stconn *sc)
 /* chk_rcv function for applets */
 static void sc_app_chk_rcv_applet(struct stconn *sc)
 {
-	struct channel *ic = sc_ic(sc);
-
 	BUG_ON(!sc_appctx(sc));
 
-	if (!ic->pipe) {
+	if (!sc_opposite(sc)->sedesc->iobuf.pipe) {
 		/* (re)start reading */
 		appctx_wakeup(__sc_appctx(sc));
 	}
@@ -1087,18 +1090,18 @@ static void sc_notify(struct stconn *sc)
 	 */
 	if (!channel_is_empty(ic) &&
 	    sc_ep_test(sco, SE_FL_WAIT_DATA) &&
-	    (!(sc->flags & SC_FL_SND_EXP_MORE) || c_full(ic) || ci_data(ic) == 0 || ic->pipe)) {
+	    (!(sc->flags & SC_FL_SND_EXP_MORE) || c_full(ic) || ci_data(ic) == 0 || sco->sedesc->iobuf.pipe)) {
 		int new_len, last_len;
 
 		last_len = co_data(ic);
-		if (ic->pipe)
-			last_len += ic->pipe->data;
+		if (sco->sedesc->iobuf.pipe)
+			last_len += sco->sedesc->iobuf.pipe->data;
 
 		sc_chk_snd(sco);
 
 		new_len = co_data(ic);
-		if (ic->pipe)
-			new_len += ic->pipe->data;
+		if (sco->sedesc->iobuf.pipe)
+			new_len += sco->sedesc->iobuf.pipe->data;
 
 		/* check if the consumer has freed some space either in the
 		 * buffer or in the pipe.
@@ -1263,7 +1266,7 @@ static int sc_conn_recv(struct stconn *sc)
 	 * using a buffer.
 	 */
 	if (sc_ep_test(sc, SE_FL_MAY_SPLICE) &&
-	    (ic->pipe || ic->to_forward >= MIN_SPLICE_FORWARD) &&
+	    (sc_opposite(sc)->sedesc->iobuf.pipe || ic->to_forward >= MIN_SPLICE_FORWARD) &&
 	    ic->flags & CF_KERN_SPLICING) {
 		if (c_data(ic)) {
 			/* We're embarrassed, there are already data pending in
@@ -1275,14 +1278,14 @@ static int sc_conn_recv(struct stconn *sc)
 			goto abort_splice;
 		}
 
-		if (unlikely(ic->pipe == NULL)) {
-			if (pipes_used >= global.maxpipes || !(ic->pipe = get_pipe())) {
+		if (unlikely(sc_opposite(sc)->sedesc->iobuf.pipe == NULL)) {
+			if (pipes_used >= global.maxpipes || !(sc_opposite(sc)->sedesc->iobuf.pipe = get_pipe())) {
 				ic->flags &= ~CF_KERN_SPLICING;
 				goto abort_splice;
 			}
 		}
 
-		ret = conn->mux->rcv_pipe(sc, ic->pipe, ic->to_forward);
+		ret = conn->mux->rcv_pipe(sc, sc_opposite(sc)->sedesc->iobuf.pipe, ic->to_forward);
 		if (ret < 0) {
 			/* splice not supported on this end, let's disable it */
 			ic->flags &= ~CF_KERN_SPLICING;
@@ -1312,12 +1315,13 @@ static int sc_conn_recv(struct stconn *sc)
 	}
 
  abort_splice:
-	if (ic->pipe && unlikely(!ic->pipe->data)) {
-		put_pipe(ic->pipe);
-		ic->pipe = NULL;
+	if (sc_opposite(sc)->sedesc->iobuf.pipe && unlikely(!sc_opposite(sc)->sedesc->iobuf.pipe->data)) {
+		put_pipe(sc_opposite(sc)->sedesc->iobuf.pipe);
+		sc_opposite(sc)->sedesc->iobuf.pipe = NULL;
 	}
 
-	if (ic->pipe && ic->to_forward && !(flags & CO_RFL_BUF_FLUSH) && sc_ep_test(sc, SE_FL_MAY_SPLICE)) {
+	if (sc_opposite(sc)->sedesc->iobuf.pipe && ic->to_forward &&
+	    !(flags & CO_RFL_BUF_FLUSH) && sc_ep_test(sc, SE_FL_MAY_SPLICE)) {
 		/* don't break splicing by reading, but still call rcv_buf()
 		 * to pass the flag.
 		 */
@@ -1597,17 +1601,17 @@ static int sc_conn_send(struct stconn *sc)
 	if (!conn->mux)
 		return 0;
 
-	if (oc->pipe && conn->xprt->snd_pipe && conn->mux->snd_pipe) {
-		ret = conn->mux->snd_pipe(sc, oc->pipe);
+	if (sc->sedesc->iobuf.pipe && conn->xprt->snd_pipe && conn->mux->snd_pipe) {
+		ret = conn->mux->snd_pipe(sc, sc->sedesc->iobuf.pipe);
 		if (ret > 0)
 			did_send = 1;
 
-		if (!oc->pipe->data) {
-			put_pipe(oc->pipe);
-			oc->pipe = NULL;
+		if (!sc->sedesc->iobuf.pipe->data) {
+			put_pipe(sc->sedesc->iobuf.pipe);
+			sc->sedesc->iobuf.pipe = NULL;
 		}
 
-		if (oc->pipe)
+		if (sc->sedesc->iobuf.pipe)
 			goto end;
 	}
 

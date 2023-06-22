@@ -323,7 +323,6 @@ static inline void channel_init(struct channel *chn)
 	chn->last_read = now_ms;
 	chn->xfer_small = chn->xfer_large = 0;
 	chn->total = 0;
-	chn->pipe = NULL;
 	chn->analysers = 0;
 	chn->flags = 0;
 	chn->output = 0;
@@ -404,13 +403,13 @@ static inline void channel_htx_forward_forever(struct channel *chn, struct htx *
 /*********************************************************************/
 
 /* Reports non-zero if the channel is empty, which means both its
- * buffer and pipe are empty. The construct looks strange but is
- * jump-less and much more efficient on both 32 and 64-bit than
- * the boolean test.
+ * buffer and pipe on the opposite SE are empty. The construct looks
+ * strange but is jump-less and much more efficient on both 32 and
+ * 64-bit than the boolean test.
  */
 static inline unsigned int channel_is_empty(const struct channel *c)
 {
-	return !(co_data(c) | (long)c->pipe);
+	return !(co_data(c) | (long)chn_cons(c)->sedesc->iobuf.pipe);
 }
 
 /* Returns non-zero if the channel is rewritable, which means that the buffer
