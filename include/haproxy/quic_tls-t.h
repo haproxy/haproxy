@@ -44,7 +44,7 @@
 /* AEAD iv and secrete key lengths */
 #define QUIC_TLS_IV_LEN     12 /* bytes */
 #define QUIC_TLS_KEY_LEN    32 /* bytes */
-#define QUIC_TLS_SECRET_LEN 64 /* bytes */
+#define QUIC_TLS_SECRET_LEN 48 /* bytes */
 /* The ciphersuites for AEAD QUIC-TLS have 16-bytes authentication tags */
 #define QUIC_TLS_TAG_LEN    16 /* bytes */
 
