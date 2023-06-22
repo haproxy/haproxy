@@ -240,14 +240,6 @@ struct stconn;
  * endpoint itself (mux/applet) and eventually creates a new sedesc (for
  * instance on connection retries).
  *
- * <se>     is the stream endpoint, i.e. the mux stream or the appctx
- * <conn>   is the connection for connection-based streams
- * <sc>     is the stream connector we're attached to, or NULL
- * <lra>    is the last read activity
- * <fsb>    is the first send blocked
- * <flags>  SE_FL_*
- * <xref>   cross reference with the opposite SC
- *
  * <lra> should be updated when a read activity is detected. It can be a
  *       successful receive, when a shutr is reported or when receives are
  *       unblocked.
@@ -256,13 +248,14 @@ struct stconn;
  *       when a successful send is reported.
  */
 struct sedesc {
-	void *se;
-	struct connection *conn;
-	struct stconn *sc;
-	unsigned int flags;
-	unsigned int lra;
-	unsigned int fsb;
-	struct xref xref;
+	void *se;                  /* the stream endpoint, i.e. the mux stream or the appctx */
+	struct connection *conn;   /* the connection for connection-based streams */
+	struct stconn *sc;         /* the stream connector we're attached to, or NULL */
+	unsigned int flags;        /* SE_FL_* */
+	unsigned int lra;          /* the last read activity */
+	unsigned int fsb;          /* the first send blocked */
+	/* 4 bytes hole here */
+	struct xref xref;          /* cross reference with the opposite SC */
 };
 
 /* sc_app_ops describes the application layer's operations and notification
