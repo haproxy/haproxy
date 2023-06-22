@@ -255,6 +255,7 @@ extern struct trace_source trace_quic;
 extern struct pool_head *pool_head_quic_tx_ring;
 extern struct pool_head *pool_head_quic_rx_packet;
 extern struct pool_head *pool_head_quic_tx_packet;
+extern struct pool_head *pool_head_quic_crypto_buf;
 extern struct pool_head *pool_head_quic_frame;
 extern struct pool_head *pool_head_quic_dgram;
 

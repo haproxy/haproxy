@@ -222,7 +222,7 @@ DECLARE_POOL(pool_head_quic_dgram, "quic_dgram", sizeof(struct quic_dgram));
 DECLARE_POOL(pool_head_quic_rx_packet, "quic_rx_packet", sizeof(struct quic_rx_packet));
 DECLARE_POOL(pool_head_quic_tx_packet, "quic_tx_packet", sizeof(struct quic_tx_packet));
 DECLARE_STATIC_POOL(pool_head_quic_rx_crypto_frm, "quic_rx_crypto_frm", sizeof(struct quic_rx_crypto_frm));
-DECLARE_STATIC_POOL(pool_head_quic_crypto_buf, "quic_crypto_buf", sizeof(struct quic_crypto_buf));
+DECLARE_POOL(pool_head_quic_crypto_buf, "quic_crypto_buf", sizeof(struct quic_crypto_buf));
 DECLARE_STATIC_POOL(pool_head_quic_cstream, "quic_cstream", sizeof(struct quic_cstream));
 DECLARE_POOL(pool_head_quic_frame, "quic_frame", sizeof(struct quic_frame));
 DECLARE_STATIC_POOL(pool_head_quic_arng, "quic_arng", sizeof(struct quic_arng_node));
@@ -5278,79 +5278,6 @@ struct quic_cstream *quic_cstream_new(struct quic_conn *qc)
  err:
 	pool_free(pool_head_quic_cstream, cs);
 	goto leave;
-}
-
-/* Uninitialize <qel> QUIC encryption level. Never fails. */
-static void quic_conn_enc_level_uninit(struct quic_conn *qc, struct quic_enc_level *qel)
-{
-	int i;
-
-	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
-
-	for (i = 0; i < qel->tx.crypto.nb_buf; i++) {
-		if (qel->tx.crypto.bufs[i]) {
-			pool_free(pool_head_quic_crypto_buf, qel->tx.crypto.bufs[i]);
-			qel->tx.crypto.bufs[i] = NULL;
-		}
-	}
-	ha_free(&qel->tx.crypto.bufs);
-	quic_cstream_free(qel->cstream);
-
-	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
-}
-
-/* Initialize QUIC TLS encryption level with <level<> as level for <qc> QUIC
- * connection allocating everything needed.
- *
- * Returns 1 if succeeded, 0 if not. On error the caller is responsible to use
- * quic_conn_enc_level_uninit() to cleanup partially allocated content.
- */
-static int quic_conn_enc_level_init(struct quic_conn *qc,
-                                    enum quic_tls_enc_level level)
-{
-	int ret = 0;
-	struct quic_enc_level *qel;
-
-	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
-
-	qel = &qc->els[level];
-	qel->level = quic_to_ssl_enc_level(level);
-	qel->tls_ctx.rx.aead = qel->tls_ctx.tx.aead = NULL;
-	qel->tls_ctx.rx.md   = qel->tls_ctx.tx.md = NULL;
-	qel->tls_ctx.rx.hp   = qel->tls_ctx.tx.hp = NULL;
-	qel->tls_ctx.flags = 0;
-
-	qel->rx.pkts = EB_ROOT;
-	LIST_INIT(&qel->rx.pqpkts);
-
-	/* Allocate only one buffer. */
-	/* TODO: use a pool */
-	qel->tx.crypto.bufs = malloc(sizeof *qel->tx.crypto.bufs);
-	if (!qel->tx.crypto.bufs)
-		goto leave;
-
-	qel->tx.crypto.bufs[0] = pool_alloc(pool_head_quic_crypto_buf);
-	if (!qel->tx.crypto.bufs[0])
-		goto leave;
-
-	qel->tx.crypto.bufs[0]->sz = 0;
-	qel->tx.crypto.nb_buf = 1;
-
-	qel->tx.crypto.sz = 0;
-	qel->tx.crypto.offset = 0;
-	/* No CRYPTO data for early data TLS encryption level */
-	if (level == QUIC_TLS_ENC_LEVEL_EARLY_DATA)
-		qel->cstream = NULL;
-	else {
-		qel->cstream = quic_cstream_new(qc);
-		if (!qel->cstream)
-			goto leave;
-	}
-
-	ret = 1;
- leave:
-	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
-	return ret;
 }
 
 /* Return 1 if <qc> connection may probe the Initial packet number space, 0 if not.

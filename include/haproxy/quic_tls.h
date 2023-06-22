@@ -34,6 +34,9 @@ void quic_tls_keys_hexdump(struct buffer *buf,
 void quic_tls_kp_keys_hexdump(struct buffer *buf,
                               const struct quic_tls_kp *kp);
 
+int quic_conn_enc_level_init(struct quic_conn *qc,
+                             enum quic_tls_enc_level level);
+void quic_conn_enc_level_uninit(struct quic_conn *qc, struct quic_enc_level *qel);
 void quic_tls_secret_hexdump(struct buffer *buf,
                              const unsigned char *secret, size_t secret_len);
 
