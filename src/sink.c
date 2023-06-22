@@ -1305,6 +1305,12 @@ int sink_postresolve_logsrvs(struct list *logsrvs, const char *section, const ch
 				                            logsrv->conf.file, logsrv->conf.line,
 				                            logsrv->ring_name, (unsigned long)ring_max_payload(sink->ctx.ring));
 			}
+			else if (sink && logsrv->maxlen > sink->maxlen) {
+				_e_sink_postresolve_logsrvs(ha_diag_warning, "log server", "uses a ring with a smaller maxlen than the one specified on the log directive ('%s' has maxlen = %d), logs will be truncated according to the lowest maxlen between the two.",
+				                            section, section_name,
+				                            logsrv->conf.file, logsrv->conf.line,
+				                            logsrv->ring_name, sink->maxlen);
+			}
 			logsrv->sink = sink;
 		}
 
