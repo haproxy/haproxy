@@ -1240,17 +1240,37 @@ int cfg_post_parse_ring()
 	return err_code;
 }
 
-/* resolve sink names at end of config. Returns 0 on success otherwise error
- * flags.
-*/
-int post_sink_resolve()
+/* helper macro: generate an error message for logsrvs post resolve
+ *
+ * The error function (ha_alert, ha_warning..) should be provided as <e_func>
+ * If <section> is non NULL, then it is considered that the section is not
+ * global, so section and section_name infos will be added to the final message
+ *
+ * <fmt> is treated after contextual infos, and leverages varargs to pass
+ * additional arguments to <e_func>
+ */
+#define _e_sink_postresolve_logsrvs(e_func, name, fmt, section, section_name, file, linenum, ...) \
+	{                                                                                         \
+		if (!section)                                                                     \
+			e_func("global %s declared in file '%s' at line %d "fmt".\n",             \
+			       name, file, linenum, ## __VA_ARGS__);                              \
+		else                                                                              \
+			e_func("%s declared in %s section '%s' in file '%s' at line %d "fmt".\n", \
+			       name, section, section_name, file, linenum, ## __VA_ARGS__);       \
+	}
+
+/* function: post-resolve a single logsrvs list
+ *
+ * Returns err_code which defaults to ERR_NONE and can be set to a combination
+ * of ERR_WARN, ERR_ALERT, ERR_FATAL and ERR_ABORT in case of errors.
+ */
+int sink_postresolve_logsrvs(struct list *logsrvs, const char *section, const char *section_name)
 {
 	int err_code = ERR_NONE;
 	struct logsrv *logsrv, *logb;
 	struct sink *sink;
-	struct proxy *px;
 
-	list_for_each_entry_safe(logsrv, logb, &global.logsrvs, list) {
+	list_for_each_entry_safe(logsrv, logb, logsrvs, list) {
 		if (logsrv->type == LOG_TARGET_BUFFER) {
 			sink = sink_find(logsrv->ring_name);
 			if (!sink) {
@@ -1261,92 +1281,48 @@ int post_sink_resolve()
 				if (logsrv->addr.ss_family != AF_UNSPEC) {
 					sink = sink_new_from_logsrv(logsrv);
 					if (!sink) {
-						ha_alert("global stream log server declared in file '%s' at line %d cannot be initialized'.\n",
-						         logsrv->conf.file, logsrv->conf.line);
+						_e_sink_postresolve_logsrvs(ha_alert, "stream log server", "cannot be initialized",
+						                            section, section_name, logsrv->conf.file, logsrv->conf.line);
 						err_code |= ERR_ALERT | ERR_FATAL;
 					}
 				}
 				else {
-					ha_alert("global log server declared in file '%s' at line %d uses unknown ring named '%s'.\n",
-					         logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
+					_e_sink_postresolve_logsrvs(ha_alert, "log server", "uses unknown ring named '%s'",
+					                            section, section_name,
+					                            logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
 					err_code |= ERR_ALERT | ERR_FATAL;
 				}
 			}
 			else if (sink->type != SINK_TYPE_BUFFER) {
-				ha_alert("global log server declared in file '%s' at line %d uses incompatible ring '%s'.\n",
-				         logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
+				_e_sink_postresolve_logsrvs(ha_alert, "log server", "uses incompatible ring '%s'",
+				                            section, section_name,
+				                            logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
 				err_code |= ERR_ALERT | ERR_FATAL;
 			}
 			logsrv->sink = sink;
 		}
 
 	}
+	return err_code;
+}
 
-	for (px = proxies_list; px; px = px->next) {
-		list_for_each_entry_safe(logsrv, logb, &px->logsrvs, list) {
-			if (logsrv->type == LOG_TARGET_BUFFER) {
-				sink = sink_find(logsrv->ring_name);
-				if (!sink) {
-					/* LOG_TARGET_BUFFER but !AF_UNSPEC
-					 * means we must allocate a sink
-					 * buffer to send messages to this logsrv
-					 */
-					if (logsrv->addr.ss_family != AF_UNSPEC) {
-						sink = sink_new_from_logsrv(logsrv);
-						if (!sink) {
-							ha_alert("log server declared in proxy section '%s' file '%s' at line %d cannot be initialized'.\n",
-							         px->id, logsrv->conf.file, logsrv->conf.line);
-							err_code |= ERR_ALERT | ERR_FATAL;
-						}
-					}
-					else {
-						ha_alert("log server declared in proxy section '%s' in file '%s' at line %d uses unknown ring named '%s'.\n",
-						         px->id, logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
-						err_code |= ERR_ALERT | ERR_FATAL;
-					}
-				}
-				else if (sink->type != SINK_TYPE_BUFFER) {
-					ha_alert("log server declared in proxy section '%s' in file '%s' at line %d uses incomatible ring named '%s'.\n",
-					         px->id, logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
-					err_code |= ERR_ALERT | ERR_FATAL;
-				}
-				logsrv->sink = sink;
-			}
-		}
-	}
+/* resolve sink names at end of config. Returns 0 on success otherwise error
+ * flags.
+*/
+int post_sink_resolve()
+{
+	struct proxy *px;
+	int err_code = ERR_NONE;
 
-	for (px = cfg_log_forward; px; px = px->next) {
-		list_for_each_entry_safe(logsrv, logb, &px->logsrvs, list) {
-			if (logsrv->type == LOG_TARGET_BUFFER) {
-				sink = sink_find(logsrv->ring_name);
-				if (!sink) {
-					/* LOG_TARGET_BUFFER but !AF_UNSPEC
-					 * means we must allocate a sink
-					 * buffer to send messages to this logsrv
-					 */
-					if (logsrv->addr.ss_family != AF_UNSPEC) {
-						sink = sink_new_from_logsrv(logsrv);
-						if (!sink) {
-							ha_alert("log server declared in log-forward section '%s' file '%s' at line %d cannot be initialized'.\n",
-							         px->id, logsrv->conf.file, logsrv->conf.line);
-							err_code |= ERR_ALERT | ERR_FATAL;
-						}
-					}
-					else {
-						ha_alert("log server declared in log-forward section '%s' in file '%s' at line %d uses unknown ring named '%s'.\n",
-							 px->id, logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
-						err_code |= ERR_ALERT | ERR_FATAL;
-					}
-				}
-				else if (sink->type != SINK_TYPE_BUFFER) {
-					ha_alert("log server declared in log-forward section '%s' in file '%s' at line %d uses unknown ring named '%s'.\n",
-						 px->id, logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
-					err_code |= ERR_ALERT | ERR_FATAL;
-				}
-				logsrv->sink = sink;
-			}
-		}
-	}
+	/* global log directives */
+	err_code |= sink_postresolve_logsrvs(&global.logsrvs, NULL, NULL);
+	/* proxy log directives */
+	for (px = proxies_list; px; px = px->next)
+		err_code |= sink_postresolve_logsrvs(&px->logsrvs, "proxy", px->id);
+	/* log-forward log directives */
+	for (px = cfg_log_forward; px; px = px->next)
+		err_code |= sink_postresolve_logsrvs(&px->logsrvs, "log-forward", px->id);
+
 	return err_code;
 }
 
