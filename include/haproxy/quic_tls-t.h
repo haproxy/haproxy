@@ -217,6 +217,7 @@ struct quic_tls_ctx {
 };
 
 struct quic_enc_level {
+	struct list list;
 	/* Encryption level, as defined by the TLS stack. */
 	enum ssl_encryption_level_t level;
 	/* TLS encryption context (AEAD only) */

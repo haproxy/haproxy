@@ -597,7 +597,17 @@ struct quic_conn {
 	struct eb_root cids; /* tree of quic_connection_id - used to match a received packet DCID with a connection */
 	uint64_t next_cid_seq_num;
 
-	struct quic_enc_level els[QUIC_TLS_ENC_LEVEL_MAX];
+	/* Initial encryption level */
+	struct quic_enc_level *iel;
+	/* 0-RTT encryption level */
+	struct quic_enc_level *eel;
+	/* Handshake encryption level */
+	struct quic_enc_level *hel;
+	/* 1-RTT encryption level */
+	struct quic_enc_level *ael;
+	/* List of allocated QUIC TLS encryption level */
+	struct list qel_list;
+
 	struct quic_pktns *ipktns;
 	struct quic_pktns *hpktns;
 	struct quic_pktns *apktns;

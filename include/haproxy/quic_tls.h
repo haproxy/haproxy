@@ -31,13 +31,15 @@
 #include <haproxy/trace.h>
 
 void quic_pktns_release(struct quic_conn *qc, struct quic_pktns **pktns);
+int qc_enc_level_alloc(struct quic_conn *qc, struct quic_pktns **pktns,
+                       struct quic_enc_level **qel, enum ssl_encryption_level_t level);
+void qc_enc_level_free(struct quic_conn *qc, struct quic_enc_level **qel);
+
 void quic_tls_keys_hexdump(struct buffer *buf,
                            const struct quic_tls_secrets *secs);
 void quic_tls_kp_keys_hexdump(struct buffer *buf,
                               const struct quic_tls_kp *kp);
 
-int quic_conn_enc_level_init(struct quic_conn *qc,
-                             enum quic_tls_enc_level level);
 void quic_conn_enc_level_uninit(struct quic_conn *qc, struct quic_enc_level *qel);
 void quic_tls_secret_hexdump(struct buffer *buf,
                              const unsigned char *secret, size_t secret_len);
@@ -181,7 +183,10 @@ static inline struct quic_pktns **ssl_to_quic_pktns(struct quic_conn *qc,
 		return NULL;
 	}
 }
-/* These following functions map TLS implementation encryption level to ours */
+
+/* Map <level> TLS stack encryption level to our internal QUIC TLS encryption level
+ * if succeded, or -1 if failed.
+ */
 static inline enum quic_tls_enc_level ssl_to_quic_enc_level(enum ssl_encryption_level_t level)
 {
 	switch (level) {
@@ -195,6 +200,47 @@ static inline enum quic_tls_enc_level ssl_to_quic_enc_level(enum ssl_encryption_
 		return QUIC_TLS_ENC_LEVEL_APP;
 	default:
 		return -1;
+	}
+}
+
+/* Return the address of the QUIC TLS encryption level associated to <level> TLS
+ * stack encryption level and attached to <qc> QUIC connection if succeeded, or
+ * NULL if failed.
+ */
+static inline struct quic_enc_level **ssl_to_qel_addr(struct quic_conn *qc,
+                                                      enum ssl_encryption_level_t level)
+{
+	switch (level) {
+	case ssl_encryption_initial:
+		return &qc->iel;
+	case ssl_encryption_early_data:
+		return &qc->eel;
+	case ssl_encryption_handshake:
+		return &qc->hel;
+	case ssl_encryption_application:
+		return &qc->ael;
+	default:
+		return NULL;
+	}
+}
+
+/* Return the QUIC TLS encryption level associated to <level> internal encryption
+ * level attached to <qc> QUIC connection if succeeded, or NULL if failed.
+ */
+static inline struct quic_enc_level *qc_quic_enc_level(const struct quic_conn *qc,
+                                                       enum quic_tls_enc_level level)
+{
+	switch (level) {
+	case QUIC_TLS_ENC_LEVEL_INITIAL:
+		return qc->iel;
+	case QUIC_TLS_ENC_LEVEL_EARLY_DATA:
+		return qc->eel;
+	case QUIC_TLS_ENC_LEVEL_HANDSHAKE:
+		return qc->hel;
+	case QUIC_TLS_ENC_LEVEL_APP:
+		return qc->ael;
+	default:
+		return NULL;
 	}
 }
 
@@ -309,13 +355,13 @@ static inline char quic_enc_level_char(enum quic_tls_enc_level level)
 static inline char quic_enc_level_char_from_qel(const struct quic_enc_level *qel,
                                                 const struct quic_conn *qc)
 {
-	if (qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL])
+	if (qel == qc->iel)
 		return 'I';
-	else if (qel == &qc->els[QUIC_TLS_ENC_LEVEL_EARLY_DATA])
+	else if (qel == qc->eel)
 		return 'E';
-	else if (qel == &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE])
+	else if (qel == qc->hel)
 		return 'H';
-	else if (qel == &qc->els[QUIC_TLS_ENC_LEVEL_APP])
+	else if (qel == qc->ael)
 		return 'A';
 	return '-';
 }
@@ -499,17 +545,25 @@ static inline enum quic_tls_pktns quic_tls_pktns(enum quic_tls_enc_level level)
 	}
 }
 
-/* Reset all members of <ctx> to default values. */
+/* Reset all members of <ctx> to default values, ->hp_key[] excepted */
 static inline void quic_tls_ctx_reset(struct quic_tls_ctx *ctx)
 {
 	ctx->rx.ctx = NULL;
+	ctx->rx.aead = NULL;
+	ctx->rx.md = NULL;
 	ctx->rx.hp_ctx = NULL;
+	ctx->rx.hp = NULL;
+	ctx->rx.secret = NULL;
 	ctx->rx.iv = NULL;
 	ctx->rx.key = NULL;
 	ctx->rx.pn = 0;
 
 	ctx->tx.ctx = NULL;
+	ctx->tx.aead = NULL;
+	ctx->tx.md = NULL;
 	ctx->tx.hp_ctx = NULL;
+	ctx->tx.hp = NULL;
+	ctx->tx.secret = NULL;
 	ctx->tx.iv = NULL;
 	ctx->tx.key = NULL;
 	/* Not used on the TX path. */
@@ -850,13 +904,13 @@ static inline int quic_tls_ku_init(struct quic_conn *qc)
 /* Return 1 if <qel> has RX secrets, 0 if not. */
 static inline int quic_tls_has_rx_sec(const struct quic_enc_level *qel)
 {
-	return !!qel->tls_ctx.rx.key;
+	return qel && !!qel->tls_ctx.rx.key;
 }
 
 /* Return 1 if <qel> has TX secrets, 0 if not. */
 static inline int quic_tls_has_tx_sec(const struct quic_enc_level *qel)
 {
-	return !!qel->tls_ctx.tx.key;
+	return qel && !!qel->tls_ctx.tx.key;
 }
 
 #endif /* USE_QUIC */
