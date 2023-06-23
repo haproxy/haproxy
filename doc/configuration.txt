@@ -15286,13 +15286,24 @@ npn <protocols>
   at the time of writing this. It is possible to enable both NPN and ALPN
   though it probably doesn't make any sense out of testing.
 
-ocsp-update [ off | on ]
+ocsp-update [ off | on ] (crt-list only)
   Enable automatic OCSP response update when set to 'on', disable it otherwise.
   Its value defaults to 'off'.
-  This option can only be used in a crt-list line so that is applies to only
-  one certificate at a time. If a given certificate is used in multiple
-  crt-lists with different values of the 'ocsp-update' set, an error will be
-  raised.
+  Please note that for now, this option can only be used in a crt-list line, it
+  cannot be used directly on a bind line. It lies in this "Bind options"
+  section because it is still a frontend option. This limitation was set so
+  that the option applies to only one certificate at a time.
+  If a given certificate is used in multiple crt-lists with different values of
+  the 'ocsp-update' set, an error will be raised. Here is an example
+  configuration enabling it:
+
+  haproxy.cfg:
+      frontend fe
+          bind :443 ssl crt-list haproxy.list
+
+  haproxy.list:
+      server_cert.pem [ocsp-update on] foo.bar
+
   When the option is set to 'on', we will try to get an ocsp response whenever
   an ocsp uri is found in the frontend's certificate. The only limitation of
   this mode is that the certificate's issuer will have to be known in order for
@@ -15310,9 +15321,9 @@ ocsp-update [ off | on ]
   short time after init.
   On the other hand, if a certificate has an OCSP uri specified and no OCSP
   response, setting this option to 'on' for the given certificate will ensure
-  that the OCSP response gets fetched automatically right after init.  The
-  default minimum and maximum delays (5 minutes and 1 hour respectively) can be
-  configured by the "tune.ssl.ocsp-update.maxdelay" and
+  that the OCSP response gets fetched automatically right after init.
+  The default minimum and maximum delays (5 minutes and 1 hour respectively)
+  can be configured by the "tune.ssl.ocsp-update.maxdelay" and
   "tune.ssl.ocsp-update.mindelay" global options.
 
   Whenever an OCSP response is updated by the auto update task or following a
@@ -15346,6 +15357,15 @@ ocsp-update [ off | on ]
     <134>Mar  6 11:18:55 haproxy[14872]: -:- [06/Mar/2023:11:18:52.200] \
             <OCSP-UPDATE> -/- 2/0/-1/-1/3009 503 217 - - SC-- 0/0/0/0/3 0/0 {} \
             "GET http://127.0.0.1:12345/MEMwQT HTTP/1.1"
+
+  Troubleshooting:
+  A common error that can happen with let's encrypt certificates is if the DNS
+  resolution provides an IPv6 address and your system does not have a valid
+  outgoing IPv6 route. In such a case, you can either create the appropriate
+  route or set the "httpclient.resolvers.prefer ipv4" option in the global
+  section.
+  In case of "OCSP response check failure" error, you might want to check that
+  the issuer certificate that you provided is valid.
 
 prefer-client-ciphers
   Use the client's preference when selecting the cipher suite, by default
