@@ -1299,6 +1299,12 @@ int sink_postresolve_logsrvs(struct list *logsrvs, const char *section, const ch
 				                            logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
 				err_code |= ERR_ALERT | ERR_FATAL;
 			}
+			if (sink && logsrv->maxlen > ring_max_payload(sink->ctx.ring)) {
+				_e_sink_postresolve_logsrvs(ha_diag_warning, "log server", "uses a max length which exceeds ring capacity ('%s' supports %lu bytes at most).",
+				                            section, section_name,
+				                            logsrv->conf.file, logsrv->conf.line,
+				                            logsrv->ring_name, (unsigned long)ring_max_payload(sink->ctx.ring));
+			}
 			logsrv->sink = sink;
 		}
 
