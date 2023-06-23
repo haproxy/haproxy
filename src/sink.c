@@ -810,6 +810,10 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto err;
 		}
+		/* set maxlen value to 0 for now, we rely on this in postparsing
+		 * to know if it was explicitly set using the "maxlen" parameter
+		 */
+		cfg_sink->maxlen = 0;
 
 		/* allocate new proxy to handle forwards */
 		p = calloc(1, sizeof *p);
@@ -1185,10 +1189,13 @@ int cfg_post_parse_ring()
 	struct server *srv;
 
 	if (cfg_sink && (cfg_sink->type == SINK_TYPE_BUFFER)) {
-		if (cfg_sink->maxlen > b_size(&cfg_sink->ctx.ring->buf)) {
-			ha_warning("ring '%s' event max length '%u' exceeds size, forced to size '%lu'.\n",
-			           cfg_sink->name, cfg_sink->maxlen, (unsigned long)b_size(&cfg_sink->ctx.ring->buf));
-			cfg_sink->maxlen = b_size(&cfg_sink->ctx.ring->buf);
+		if (!cfg_sink->maxlen)
+			cfg_sink->maxlen = BUFSIZE; // maxlen not set: use default value
+		else if (cfg_sink->maxlen > ring_max_payload(cfg_sink->ctx.ring)) {
+			/* maxlen set by user however it doesn't fit: set to max value */
+			ha_warning("ring '%s' event max length '%u' exceeds max payload size, forced to '%lu'.\n",
+			           cfg_sink->name, cfg_sink->maxlen, (unsigned long)ring_max_payload(cfg_sink->ctx.ring));
+			cfg_sink->maxlen = ring_max_payload(cfg_sink->ctx.ring);
 			err_code |= ERR_WARN;
 		}
 
