@@ -15332,17 +15332,20 @@ ocsp-update [ off | on ]
   HTTP log format in case of error (unreachable OCSP responder for instance).
   If such an error occurs, another log line that contains HTTP-related
   information will then be emitted alongside the "regular" OCSP one (which will
-  likely have "HTTP error" as text status).
-
-  but if a purely HTTP error happens
+  likely have "HTTP error" as text status). But if a purely HTTP error happens
   (unreachable OCSP responder for instance), an extra log line that follows the
   regular HTTP log-format will be emitted.
-  Here are two examples of such log lines, with a successful OCSP update log line first
-  and then an example of an HTTP error with the two different lines:
-    <134>Mar  6 11:16:53 haproxy[14872]: -:- [06/Mar/2023:11:16:52.808] <OCSP-UPDATE> /path_to_cert/foo.pem 1 "Update successful" 0 1
+  Here are two examples of such log lines, with a successful OCSP update log
+  line first and then an example of an HTTP error with the two different lines
+  (lines were spit and the URL was shortened for readability):
+    <134>Mar  6 11:16:53 haproxy[14872]: -:- [06/Mar/2023:11:16:52.808] \
+            <OCSP-UPDATE> /path_to_cert/foo.pem 1 "Update successful" 0 1
 
-    <134>Mar  6 11:18:55 haproxy[14872]: -:- [06/Mar/2023:11:18:54.207] <OCSP-UPDATE> /path_to_cert/bar.pem 2 "HTTP error" 1 0
-    <134>Mar  6 11:18:55 haproxy[14872]: -:- [06/Mar/2023:11:18:52.200] <OCSP-UPDATE> -/- 2/0/-1/-1/3009 503 217 - - SC-- 0/0/0/0/3 0/0 {} "GET http://127.0.0.1:12345/MEMwQTA%2FMD0wOzAJBgUrDgMCGgUABBSKg%2BAGD6%2F3Ccp%2Bm5VSKi6BY1%2FaCgQU9lKw5DXV6pI4UVCPCtvpLYXeAHoCAhAV HTTP/1.1"
+    <134>Mar  6 11:18:55 haproxy[14872]: -:- [06/Mar/2023:11:18:54.207] \
+            <OCSP-UPDATE> /path_to_cert/bar.pem 2 "HTTP error" 1 0
+    <134>Mar  6 11:18:55 haproxy[14872]: -:- [06/Mar/2023:11:18:52.200] \
+            <OCSP-UPDATE> -/- 2/0/-1/-1/3009 503 217 - - SC-- 0/0/0/0/3 0/0 {} \
+            "GET http://127.0.0.1:12345/MEMwQT HTTP/1.1"
 
 prefer-client-ciphers
   Use the client's preference when selecting the cipher suite, by default
