@@ -720,6 +720,42 @@ int slz_rfc1951_init(struct slz_stream *strm, int level)
 	return 0;
 }
 
+/* Flushes any pending data for stream <strm> into buffer <buf>, then emits an
+ * empty literal block to byte-align the output, allowing to completely flush
+ * the queue. This requires that the output buffer still has the size of the
+ * queue available (up to 4 bytes), plus one byte for (BFINAL,BTYPE), plus 4
+ * bytes for LEN+NLEN, or a total of 9 bytes in the worst case. The number of
+ * bytes emitted is returned. It is guaranteed that the queue is empty on
+ * return. This may cause some overhead by adding needless 5-byte blocks if
+ * called to often.
+ */
+int slz_rfc1951_flush(struct slz_stream *strm, unsigned char *buf)
+{
+	strm->outbuf = buf;
+
+	/* The queue is always empty on INIT, DONE, and END */
+	if (!strm->qbits)
+		return 0;
+
+	/* we may need to terminate a huffman output. Lit is always in EOB state */
+	if (strm->state != SLZ_ST_EOB) {
+		strm->state = (strm->state == SLZ_ST_LAST) ? SLZ_ST_DONE : SLZ_ST_EOB;
+		send_eob(strm);
+	}
+
+	/* send BFINAL according to state, and BTYPE=00 (lit) */
+	enqueue8(strm, (strm->state == SLZ_ST_DONE) ? 1 : 0, 3);
+	flush_bits(strm);             // emit pending bits
+	copy_32b(strm, 0xFFFF0000U);  // len=0, nlen=~0
+
+	/* Now the queue is empty, EOB was sent, BFINAL might have been sent if
+	 * we completed the last block, and a zero-byte block was sent to byte-
+	 * align the output. The last state reflects all this. Let's just
+	 * return the number of bytes added to the output buffer.
+	 */
+	return strm->outbuf - buf;
+}
+
 /* Flushes any pending for stream <strm> into buffer <buf>, then sends BTYPE=1
  * and BFINAL=1 if needed. The stream ends in SLZ_ST_DONE. It returns the number
  * of bytes emitted. The trailer consists in flushing the possibly pending bits
@@ -1053,6 +1089,27 @@ int slz_rfc1952_init(struct slz_stream *strm, int level)
 	return 0;
 }
 
+/* Flushes any pending data for stream <strm> into buffer <buf>, then emits an
+ * empty literal block to byte-align the output, allowing to completely flush
+ * the queue. Note that if the initial header was never sent, it will be sent
+ * first as well (10 extra bytes). This requires that the output buffer still
+ * has this plus the size of the queue available (up to 4 bytes), plus one byte
+ * for (BFINAL,BTYPE), plus 4 bytes for LEN+NLEN, or a total of 19 bytes in the
+ * worst case. The number of bytes emitted is returned. It is guaranteed that
+ * the queue is empty on return. This may cause some overhead by adding
+ * needless 5-byte blocks if called to often.
+ */
+int slz_rfc1952_flush(struct slz_stream *strm, unsigned char *buf)
+{
+	int sent = 0;
+
+	if (__builtin_expect(strm->state == SLZ_ST_INIT, 0))
+		sent = slz_rfc1952_send_header(strm, buf);
+
+	sent += slz_rfc1951_flush(strm, buf + sent);
+	return sent;
+}
+
 /* Flushes pending bits and sends the gzip trailer for stream <strm> into
  * buffer <buf>. When it's done, the stream state is updated to SLZ_ST_END. It
  * returns the number of bytes emitted. The trailer consists in flushing the
@@ -1306,6 +1363,27 @@ int slz_rfc1950_init(struct slz_stream *strm, int level)
 	strm->qbits  = 0;
 	strm->queue  = 0;
 	return 0;
+}
+
+/* Flushes any pending data for stream <strm> into buffer <buf>, then emits an
+ * empty literal block to byte-align the output, allowing to completely flush
+ * the queue. Note that if the initial header was never sent, it will be sent
+ * first as well (2 extra bytes). This requires that the output buffer still
+ * has this plus the size of the queue available (up to 4 bytes), plus one byte
+ * for (BFINAL,BTYPE), plus 4 bytes for LEN+NLEN, or a total of 11 bytes in the
+ * worst case. The number of bytes emitted is returned. It is guaranteed that
+ * the queue is empty on return. This may cause some overhead by adding
+ * needless 5-byte blocks if called to often.
+ */
+int slz_rfc1950_flush(struct slz_stream *strm, unsigned char *buf)
+{
+	int sent = 0;
+
+	if (__builtin_expect(strm->state == SLZ_ST_INIT, 0))
+		sent = slz_rfc1950_send_header(strm, buf);
+
+	sent += slz_rfc1951_flush(strm, buf + sent);
+	return sent;
 }
 
 /* Flushes pending bits and sends the gzip trailer for stream <strm> into
