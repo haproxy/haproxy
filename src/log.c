@@ -1685,11 +1685,17 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
  send:
 	if (logsrv->type == LOG_TARGET_BUFFER) {
 		struct ist msg;
+		size_t maxlen = logsrv->maxlen;
 
 		msg = ist2(message, size);
 		msg = isttrim(msg, logsrv->maxlen);
 
-		sent = sink_write(logsrv->sink, 0, &msg, 1, level, facility, metadata);
+		/* make room for the final '\n' which may be forcefully inserted
+		 * by tcp forwarder applet (sink_forward_io_handler)
+		 */
+		maxlen -= 1;
+
+		sent = sink_write(logsrv->sink, maxlen, &msg, 1, level, facility, metadata);
 	}
 	else if (logsrv->addr.ss_family == AF_CUST_EXISTING_FD) {
 		struct ist msg;
