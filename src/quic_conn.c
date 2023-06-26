@@ -4547,6 +4547,49 @@ static inline int qc_treat_rx_crypto_frms(struct quic_conn *qc,
 	return ret;
 }
 
+/* Check if it's possible to remove header protection for packets related to
+ * encryption level <qel>. If <qel> is NULL, assume it's false.
+ *
+ * Return true if the operation is possible else false.
+ */
+static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
+{
+	int ret = 0;
+
+	TRACE_ENTER(QUIC_EV_CONN_TRMHP, qc);
+
+	if (!qel)
+		goto cant_rm_hp;
+
+	/* check if tls secrets are available */
+	if (qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD) {
+		TRACE_PROTO("Discarded keys", QUIC_EV_CONN_TRMHP, qc);
+		goto cant_rm_hp;
+	}
+
+	if (!quic_tls_has_rx_sec(qel)) {
+		TRACE_PROTO("non available secrets", QUIC_EV_CONN_TRMHP, qc);
+		goto cant_rm_hp;
+	}
+
+	if (qel == qc->ael && qc->state < QUIC_HS_ST_COMPLETE) {
+		TRACE_PROTO("handshake not complete", QUIC_EV_CONN_TRMHP, qc);
+		goto cant_rm_hp;
+	}
+
+	/* check if the connection layer is ready before using app level */
+	if ((qel == qc->ael || qel == qc->eel) &&
+	    qc->mux_state == QC_MUX_NULL) {
+		TRACE_PROTO("connection layer not ready", QUIC_EV_CONN_TRMHP, qc);
+		goto cant_rm_hp;
+	}
+
+	ret = 1;
+ cant_rm_hp:
+	TRACE_LEAVE(QUIC_EV_CONN_TRMHP, qc);
+	return ret;
+}
+
 /* Process all the packets for all the encryption levels listed in <qc> QUIC connection.
  * Return 1 if succeeded, 0 if not.
  */
@@ -4561,6 +4604,10 @@ int qc_treat_rx_pkts(struct quic_conn *qc)
 	TRACE_ENTER(QUIC_EV_CONN_RXPKT, qc);
 
 	list_for_each_entry(qel, &qc->qel_list, list) {
+		/* Treat packets waiting for header packet protection decryption */
+		if (!LIST_ISEMPTY(&qel->rx.pqpkts) && qc_qel_may_rm_hp(qc, qel))
+			qc_rm_hp_pkts(qc, qel);
+
 		node = eb64_first(&qel->rx.pkts);
 		while (node) {
 			struct quic_rx_packet *pkt;
@@ -4627,49 +4674,6 @@ int qc_treat_rx_pkts(struct quic_conn *qc)
 	ret = 1;
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_RXPKT, qc);
-	return ret;
-}
-
-/* Check if it's possible to remove header protection for packets related to
- * encryption level <qel>. If <qel> is NULL, assume it's false.
- *
- * Return true if the operation is possible else false.
- */
-static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
-{
-	int ret = 0;
-
-	TRACE_ENTER(QUIC_EV_CONN_TRMHP, qc);
-
-	if (!qel)
-		goto cant_rm_hp;
-
-	/* check if tls secrets are available */
-	if (qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD) {
-		TRACE_PROTO("Discarded keys", QUIC_EV_CONN_TRMHP, qc);
-		goto cant_rm_hp;
-	}
-
-	if (!quic_tls_has_rx_sec(qel)) {
-		TRACE_PROTO("non available secrets", QUIC_EV_CONN_TRMHP, qc);
-		goto cant_rm_hp;
-	}
-
-	if (qel == qc->ael && qc->state < QUIC_HS_ST_COMPLETE) {
-		TRACE_PROTO("handshake not complete", QUIC_EV_CONN_TRMHP, qc);
-		goto cant_rm_hp;
-	}
-
-	/* check if the connection layer is ready before using app level */
-	if ((qel == qc->ael || qel == qc->eel) &&
-	    qc->mux_state == QC_MUX_NULL) {
-		TRACE_PROTO("connection layer not ready", QUIC_EV_CONN_TRMHP, qc);
-		goto cant_rm_hp;
-	}
-
-	ret = 1;
- cant_rm_hp:
-	TRACE_LEAVE(QUIC_EV_CONN_TRMHP, qc);
 	return ret;
 }
 
@@ -5013,9 +5017,6 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
 			goto out;
 	}
 
-	if (!LIST_ISEMPTY(&qel->rx.pqpkts) && qc_qel_may_rm_hp(qc, qel))
-		qc_rm_hp_pkts(qc, qel);
-
 	if (!qc_treat_rx_pkts(qc)) {
 		TRACE_DEVEL("qc_treat_rx_pkts() failed", QUIC_EV_CONN_IO_CB, qc);
 		goto out;
@@ -5113,10 +5114,6 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	next_qel = next_tel == QUIC_TLS_ENC_LEVEL_NONE ? NULL : qc_quic_enc_level(qc, next_tel);
 
  next_level:
-	/* Treat packets waiting for header packet protection decryption */
-	if (!LIST_ISEMPTY(&qel->rx.pqpkts) && qc_qel_may_rm_hp(qc, qel))
-		qc_rm_hp_pkts(qc, qel);
-
 	if (!qc_treat_rx_pkts(qc))
 		goto out;
 
