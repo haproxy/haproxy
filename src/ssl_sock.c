@@ -5989,7 +5989,7 @@ check_error:
 			/* The peer has closed the SSL session for writing by
 			 * sending a close_notify alert */
 			conn_ctrl_drain(conn);
-			conn->err_code = CO_ER_SSL_ABORT;
+			conn->err_code = CO_ER_SSL_EMPTY;
 			goto out_error;
 
 		}
