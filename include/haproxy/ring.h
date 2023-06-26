@@ -41,6 +41,8 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx, uint flags);
 int cli_io_handler_show_ring(struct appctx *appctx);
 void cli_io_release_show_ring(struct appctx *appctx);
 
+size_t ring_max_payload(const struct ring *ring);
+
 #endif /* _HAPROXY_RING_H */
 
 /*

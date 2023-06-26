@@ -457,6 +457,22 @@ void cli_io_release_show_ring(struct appctx *appctx)
 	ring_detach_appctx(ring, appctx, ofs);
 }
 
+/* Returns the MAXIMUM payload len that could theoretically fit into the ring
+ * based on ring buffer size.
+ *
+ * Computation logic relies on implementation details from 'ring-t.h'.
+ */
+size_t ring_max_payload(const struct ring *ring)
+{
+	size_t max;
+
+	/* initial max = bufsize - 1 (initial RC) - 1 (payload RC) */
+	max = b_size(&ring->buf) - 1 - 1;
+
+	/* substract payload VI (varint-encoded size) */
+	max -= varint_bytes(max);
+	return max;
+}
 
 /*
  * Local variables:
