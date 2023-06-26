@@ -350,6 +350,8 @@ static int rfc195x_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out
 
 	if (finish)
 		b_add(out, slz_finish(strm, b_tail(out)));
+	else
+		b_add(out, slz_flush(strm, b_tail(out)));
 
 	out_len = b_data(out) - out_len;
 
