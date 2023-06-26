@@ -1357,7 +1357,7 @@ long slz_rfc1950_encode(struct slz_stream *strm, unsigned char *out, const unsig
 	return ret;
 }
 
-/* Initializes stream <strm> for use with the zlib format (rfc1952). The
+/* Initializes stream <strm> for use with the zlib format (rfc1950). The
  * compression level passed in <level> is set. This value can only be 0 (no
  * compression) or 1 (compression) and other values will lead to unpredictable
  * behaviour. The function always returns 0.
@@ -1409,7 +1409,7 @@ int slz_rfc1950_finish(struct slz_stream *strm, unsigned char *buf)
 	strm->outbuf = buf;
 
 	if (__builtin_expect(strm->state == SLZ_ST_INIT, 0))
-		strm->outbuf += slz_rfc1952_send_header(strm, strm->outbuf);
+		strm->outbuf += slz_rfc1950_send_header(strm, strm->outbuf);
 
 	slz_rfc1951_finish(strm, strm->outbuf);
 	copy_8b(strm, (strm->crc32 >> 24) & 0xff);
