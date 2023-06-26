@@ -5984,6 +5984,14 @@ check_error:
 #endif /* BoringSSL or LibreSSL */
 			}
 			goto out_error;
+
+		} else if (ret == SSL_ERROR_ZERO_RETURN) {
+			/* The peer has closed the SSL session for writing by
+			 * sending a close_notify alert */
+			conn_ctrl_drain(conn);
+			conn->err_code = CO_ER_SSL_ABORT;
+			goto out_error;
+
 		}
 		else {
 			/* Fail on all other handshake errors */
