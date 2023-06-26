@@ -1016,17 +1016,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		other = stktable_find_by_name(args[1]);
-		if (other) {
-			ha_alert("parsing [%s:%d] : stick-table name '%s' conflicts with table declared in %s '%s' at %s:%d.\n",
-				 file, linenum, args[1],
-				 other->proxy ? proxy_cap_str(other->proxy->cap) : "peers",
-				 other->proxy ? other->id : other->peers.p->id,
-				 other->conf.file, other->conf.line);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
 		/* Build the stick-table name, concatenating the "peers" section name
 		 * followed by a '/' character and the table name argument.
 		 */
@@ -1056,6 +1045,18 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+
+		other = stktable_find_by_name(trash.area);
+		if (other) {
+			ha_alert("parsing [%s:%d] : stick-table name '%s' conflicts with table declared in %s '%s' at %s:%d.\n",
+			         file, linenum, args[1],
+			         other->proxy ? proxy_cap_str(other->proxy->cap) : "peers",
+			         other->proxy ? other->id : other->peers.p->id,
+			         other->conf.file, other->conf.line);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 
 		err_code |= parse_stick_table(file, linenum, args, t, id, id + prefix_len, curpeers);
 		if (err_code & ERR_FATAL) {
