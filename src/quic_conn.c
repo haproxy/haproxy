@@ -3692,19 +3692,6 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		/* Let's say we have to build a new dgram */
 		prv_pkt = NULL;
 		dglen += cur_pkt->len;
-		/* Client: discard the Initial encryption keys as soon as
-		 * a handshake packet could be built.
-		 */
-		if (qc->state == QUIC_HS_ST_CLIENT_INITIAL &&
-		    pkt_type == QUIC_PACKET_TYPE_HANDSHAKE) {
-			quic_tls_discard_keys(qc->iel);
-			TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PHPKTS, qc);
-			quic_pktns_discard(qc->iel->pktns, qc);
-			qc_set_timer(qc);
-			qc_el_rx_pkts_del(qc->iel);
-			qc_release_pktns_frms(qc, qc->iel->pktns);
-			qc->state = QUIC_HS_ST_CLIENT_HANDSHAKE;
-		}
 		/* If the data for the current encryption level have all been sent,
 		 * select the next level.
 		 */
