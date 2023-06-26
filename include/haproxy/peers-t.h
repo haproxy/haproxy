@@ -139,5 +139,21 @@ struct dcache {
 	size_t max_entries;
 };
 
+struct peers_keyword {
+	const char *kw;
+	int (*parse)(
+		char **args,
+		struct peers *curpeer,
+		const char *file,
+		int line,
+		char **err);
+	int flags;
+};
+
+struct peers_kw_list {
+	struct list list;
+	struct peers_keyword kw[VAR_ARRAY];
+};
+
 #endif /* _HAPROXY_PEERS_T_H */
 

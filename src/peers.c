@@ -4070,6 +4070,16 @@ static int cli_io_handler_show_peers(struct appctx *appctx)
 	return ret;
 }
 
+
+struct peers_kw_list peers_keywords = {
+	.list = LIST_HEAD_INIT(peers_keywords.list)
+};
+
+void peers_register_keywords(struct peers_kw_list *pkwl)
+{
+	LIST_APPEND(&peers_keywords.list, &pkwl->list);
+}
+
 /* config parser for global "tune.peers.max-updates-at-once" */
 static int cfg_parse_max_updt_at_once(char **args, int section_type, struct proxy *curpx,
                                       const struct proxy *defpx, const char *file, int line,

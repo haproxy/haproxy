@@ -1076,6 +1076,29 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		curpeers->disabled = 0;
 	}
 	else if (*args[0] != 0) {
+		struct peers_kw_list *pkwl;
+		int index;
+		int rc = -1;
+
+		list_for_each_entry(pkwl, &peers_keywords.list, list) {
+			for (index = 0; pkwl->kw[index].kw != NULL; index++) {
+				if (strcmp(pkwl->kw[index].kw, args[0]) == 0) {
+					rc = pkwl->kw[index].parse(args, curpeers, file, linenum, &errmsg);
+					if (rc < 0) {
+						ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+					else if (rc > 0) {
+						ha_warning("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+						err_code |= ERR_WARN;
+						goto out;
+					}
+					goto out;
+				}
+			}
+		}
+
 		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
@@ -4809,6 +4832,23 @@ void cfg_dump_registered_keywords()
 			dump_act_rules(&http_req_keywords.list,       "\thttp-request ");
 			dump_act_rules(&http_res_keywords.list,       "\thttp-response ");
 			dump_act_rules(&http_after_res_keywords.list, "\thttp-after-response ");
+		}
+		if (section == CFG_PEERS) {
+			struct peers_kw_list *pkwl;
+			const struct peers_keyword *pkwp, *pkwn;
+			for (pkwn = pkwp = NULL;; pkwp = pkwn) {
+				list_for_each_entry(pkwl, &peers_keywords.list, list) {
+					for (index = 0; pkwl->kw[index].kw != NULL; index++) {
+						if (strordered(pkwp ? pkwp->kw : NULL,
+						               pkwl->kw[index].kw,
+						               pkwn != pkwp ? pkwn->kw : NULL))
+							pkwn = &pkwl->kw[index];
+					}
+				}
+				if (pkwn == pkwp)
+					break;
+				printf("\t%s\n", pkwn->kw);
+			}
 		}
 		if (section == CFG_CRTLIST) {
 			/* displays the keyword available for the crt-lists */

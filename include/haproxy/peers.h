@@ -31,12 +31,14 @@
 #include <haproxy/stream-t.h>
 
 
+extern struct peers_kw_list peers_keywords;
 extern struct peers *cfg_peers;
 
 int peers_init_sync(struct peers *peers);
 int peers_alloc_dcache(struct peers *peers);
 int peers_register_table(struct peers *, struct stktable *table);
 void peers_setup_frontend(struct proxy *fe);
+void peers_register_keywords(struct peers_kw_list *pkwl);
 
 #if defined(USE_OPENSSL)
 static inline enum obj_type *peer_session_target(struct peer *p, struct stream *s)
