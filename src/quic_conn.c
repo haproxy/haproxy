@@ -5513,8 +5513,12 @@ static int parse_retry_token(struct quic_conn *qc,
 /* Allocate a new QUIC connection with <version> as QUIC version. <ipv4>
  * boolean is set to 1 for IPv4 connection, 0 for IPv6. <server> is set to 1
  * for QUIC servers (or haproxy listeners).
- * <dcid> is the destination connection ID, <scid> is the source connection ID,
- * <token> the token found to be used for this connection with <token_len> as
+ * <dcid> is the destination connection ID, <scid> is the source connection ID.
+ * This latter <scid> CID as the same value on the wire as the one for <conn_id>
+ * which is the first CID of this connection but a different internal representation used to build
+ * NEW_CONNECTION_ID frames. This is the responsability of the caller to insert
+ * <conn_id> in the CIDs tree for this connection (qc->cids).
+ * <token> is the token found to be used for this connection with <token_len> as
  * length. Endpoints addresses are specified via <local_addr> and <peer_addr>.
  * Returns the connection if succeeded, NULL if not.
  */
@@ -5648,9 +5652,6 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->err = quic_err_transport(QC_ERR_NO_ERROR);
 
 	conn_id->qc = qc;
-	eb64_insert(&qc->cids, &conn_id->seq_num);
-	/* Initialize the next CID sequence number to be used for this connection. */
-	qc->next_cid_seq_num = 1;
 
 	if ((global.tune.options & GTUNE_QUIC_SOCK_PER_CONN) &&
 	    is_addr(local_addr)) {
@@ -6961,7 +6962,6 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 			                 conn_id, &dgram->daddr, &pkt->saddr, 1,
 			                 !!pkt->token_len, l);
 			if (qc == NULL) {
-				eb64_delete(&conn_id->seq_num);
 				pool_free(pool_head_quic_connection_id, conn_id);
 				goto err;
 			}
@@ -6976,6 +6976,15 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				*new_tid = HA_ATOMIC_LOAD(&conn_id->tid);
 				quic_conn_release(qc);
 				qc = NULL;
+			}
+			else {
+				/* From here, <qc> is the correct connection for this <pkt> Initial
+				 * packet. <conn_id> must be inserted in the CIDs tree for this
+				 * connection.
+				 */
+				eb64_insert(&qc->cids, &conn_id->seq_num);
+				/* Initialize the next CID sequence number to be used for this connection. */
+				qc->next_cid_seq_num = 1;
 			}
 			HA_RWLOCK_WRUNLOCK(QC_CID_LOCK, &tree->lock);
 
