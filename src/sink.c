@@ -1191,7 +1191,7 @@ int cfg_post_parse_ring()
 			ha_warning("ring '%s' event max length '%u' exceeds size, forced to size '%lu'.\n",
 			           cfg_sink->name, cfg_sink->maxlen, (unsigned long)b_size(&cfg_sink->ctx.ring->buf));
 			cfg_sink->maxlen = b_size(&cfg_sink->ctx.ring->buf);
-			err_code |= ERR_ALERT;
+			err_code |= ERR_WARN;
 		}
 
 		/* prepare forward server descriptors */
