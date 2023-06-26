@@ -32,7 +32,8 @@ extern struct proxy *sink_proxies_list;
 
 struct sink *sink_find(const char *name);
 struct sink *sink_new_fd(const char *name, const char *desc, enum log_fmt, int fd);
-ssize_t __sink_write(struct sink *sink, const struct ist msg[], size_t nmsg,
+ssize_t __sink_write(struct sink *sink, size_t maxlen,
+                     const struct ist msg[], size_t nmsg,
                      int level, int facility, struct ist * metadata);
 int sink_announce_dropped(struct sink *sink, int facility);
 
@@ -44,7 +45,8 @@ int sink_announce_dropped(struct sink *sink, int facility);
  * The function returns the number of Bytes effectively sent or announced.
  * or <= 0 in other cases.
  */
-static inline ssize_t sink_write(struct sink *sink, const struct ist msg[], size_t nmsg,
+static inline ssize_t sink_write(struct sink *sink, size_t maxlen,
+                                 const struct ist msg[], size_t nmsg,
                                  int level, int facility, struct ist *metadata)
 {
 	ssize_t sent;
@@ -69,7 +71,7 @@ static inline ssize_t sink_write(struct sink *sink, const struct ist msg[], size
 	}
 
 	HA_RWLOCK_RDLOCK(LOGSRV_LOCK, &sink->ctx.lock);
-	sent = __sink_write(sink, msg, nmsg, level, facility, metadata);
+	sent = __sink_write(sink, maxlen, msg, nmsg, level, facility, metadata);
 	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &sink->ctx.lock);
 
  fail:
