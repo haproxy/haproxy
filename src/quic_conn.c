@@ -6677,7 +6677,7 @@ static int send_retry(int fd, struct sockaddr_storage *addr,
 	i += token_len;
 
 	/* token integrity tag */
-	if ((&buf[i] - buf < QUIC_TLS_TAG_LEN) ||
+	if ((sizeof(buf) - i < QUIC_TLS_TAG_LEN) ||
 	    !quic_tls_generate_retry_integrity_tag(pkt->dcid.data,
 	                                           pkt->dcid.len, buf, i, qv)) {
 		TRACE_ERROR("quic_tls_generate_retry_integrity_tag() failed", QUIC_EV_CONN_TXPKT);
