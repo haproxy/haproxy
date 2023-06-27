@@ -2675,10 +2675,10 @@ static inline int qc_pkt_with_only_acked_frms(struct quic_tx_packet *pkt)
 
 /* Prepare a fast retransmission from <qel> encryption level */
 static void qc_prep_fast_retrans(struct quic_conn *qc,
-                                 struct quic_enc_level *qel,
+                                 struct quic_pktns *pktns,
                                  struct list *frms1, struct list *frms2)
 {
-	struct eb_root *pkts = &qel->pktns->tx.pkts;
+	struct eb_root *pkts = &pktns->tx.pkts;
 	struct list *frms = frms1;
 	struct eb64_node *node;
 	struct quic_tx_packet *pkt;
@@ -3348,8 +3348,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	 */
 	if (pkt->type == QUIC_PACKET_TYPE_HANDSHAKE && qc_is_listener(qc)) {
 	    if (qc->state >= QUIC_HS_ST_SERVER_INITIAL) {
-			if (!(qc->iel->tls_ctx.flags &
-			      QUIC_FL_TLS_SECRETS_DCD)) {
+			if (qc->iel && !(qc->iel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD)) {
 				quic_tls_discard_keys(qc->iel);
 				TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PRSHPKT, qc);
 				quic_pktns_discard(qc->iel->pktns, qc);
@@ -4586,11 +4585,11 @@ int qc_treat_rx_pkts(struct quic_conn *qc)
 	struct eb64_node *node;
 	int64_t largest_pn = -1;
 	unsigned int largest_pn_time_received = 0;
-	struct quic_enc_level *qel;
+	struct quic_enc_level *qel, *qelbak;
 
 	TRACE_ENTER(QUIC_EV_CONN_RXPKT, qc);
 
-	list_for_each_entry(qel, &qc->qel_list, list) {
+	list_for_each_entry_safe(qel, qelbak, &qc->qel_list, list) {
 		/* Treat packets waiting for header packet protection decryption */
 		if (!LIST_ISEMPTY(&qel->rx.pqpkts) && qc_qel_may_rm_hp(qc, qel))
 			qc_rm_hp_pkts(qc, qel);
@@ -4652,6 +4651,12 @@ int qc_treat_rx_pkts(struct quic_conn *qc)
 		if (qel->cstream && !qc_treat_rx_crypto_frms(qc, qel, qc->xprt_ctx)) {
 			// trace already emitted by function above
 			goto leave;
+		}
+
+		/* Release the Initial encryption level and packet number space. */
+		if (qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD && qel == qc->iel) {
+			qc_enc_level_free(qc, &qc->iel);
+			quic_pktns_release(qc, &qc->ipktns);
 		}
 
 		largest_pn = -1;
@@ -4871,13 +4876,16 @@ int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
 static int qc_dgrams_retransmit(struct quic_conn *qc)
 {
 	int ret = 0;
-	struct quic_enc_level *iqel = qc->iel;
-	struct quic_enc_level *hqel = qc->hel;
-	struct quic_enc_level *aqel = qc->ael;
+	struct quic_pktns *ipktns = qc->ipktns;
+	struct quic_pktns *hpktns = qc->hpktns;
+	struct quic_pktns *apktns = qc->apktns;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
-	if (iqel->pktns->flags & QUIC_FL_PKTNS_PROBE_NEEDED) {
+	/* Note that if the Initial packet number space is not discarded,
+	 * this is also the case for the Handshake packet number space.
+	 */
+	if (ipktns && (ipktns->flags & QUIC_FL_PKTNS_PROBE_NEEDED)) {
 		int i;
 
 		for (i = 0; i < QUIC_MAX_NB_PTO_DGRAMS; i++) {
@@ -4888,19 +4896,19 @@ static int qc_dgrams_retransmit(struct quic_conn *qc)
 			TRACE_DEVEL("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &ifrms);
 			TRACE_DEVEL("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &hfrms);
 			if (!LIST_ISEMPTY(&ifrms)) {
-				iqel->pktns->tx.pto_probe = 1;
+				ipktns->tx.pto_probe = 1;
 				if (!LIST_ISEMPTY(&hfrms))
-					hqel->pktns->tx.pto_probe = 1;
+					hpktns->tx.pto_probe = 1;
 				if (!qc_send_hdshk_pkts(qc, 1, QUIC_TLS_ENC_LEVEL_INITIAL, &ifrms,
 				                        QUIC_TLS_ENC_LEVEL_HANDSHAKE, &hfrms))
 					goto leave;
 				/* Put back unsent frames in their packet number spaces */
-				LIST_SPLICE(&iqel->pktns->tx.frms, &ifrms);
-				LIST_SPLICE(&hqel->pktns->tx.frms, &hfrms);
+				LIST_SPLICE(&ipktns->tx.frms, &ifrms);
+				LIST_SPLICE(&hpktns->tx.frms, &hfrms);
 			}
 			else {
 				if (!(qc->flags & QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED)) {
-					iqel->pktns->tx.pto_probe = 1;
+					ipktns->tx.pto_probe = 1;
 					if (!qc_send_hdshk_pkts(qc, 0, QUIC_TLS_ENC_LEVEL_INITIAL, &ifrms,
 					                        QUIC_TLS_ENC_LEVEL_NONE, NULL))
 						goto leave;
@@ -4909,61 +4917,61 @@ static int qc_dgrams_retransmit(struct quic_conn *qc)
 		}
 		TRACE_STATE("no more need to probe Initial packet number space",
 					QUIC_EV_CONN_TXPKT, qc);
-		iqel->pktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
-		hqel->pktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
+		ipktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
+		hpktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
 	}
 	else {
 		int i;
 
-		if (hqel->pktns->flags & QUIC_FL_PKTNS_PROBE_NEEDED) {
-			hqel->pktns->tx.pto_probe = 0;
+		if (hpktns && (hpktns->flags & QUIC_FL_PKTNS_PROBE_NEEDED)) {
+			hpktns->tx.pto_probe = 0;
 			for (i = 0; i < QUIC_MAX_NB_PTO_DGRAMS; i++) {
 				struct list frms1 = LIST_HEAD_INIT(frms1);
 
-				qc_prep_fast_retrans(qc, hqel, &frms1, NULL);
+				qc_prep_fast_retrans(qc, hpktns, &frms1, NULL);
 				TRACE_DEVEL("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &frms1);
 				if (!LIST_ISEMPTY(&frms1)) {
-					hqel->pktns->tx.pto_probe = 1;
+					hpktns->tx.pto_probe = 1;
 					if (!qc_send_hdshk_pkts(qc, 1, QUIC_TLS_ENC_LEVEL_HANDSHAKE, &frms1,
 					                        QUIC_TLS_ENC_LEVEL_NONE, NULL))
 						goto leave;
 
 					/* Put back unsent frames into their packet number spaces */
-					LIST_SPLICE(&hqel->pktns->tx.frms, &frms1);
+					LIST_SPLICE(&hpktns->tx.frms, &frms1);
 				}
 			}
 			TRACE_STATE("no more need to probe Handshake packet number space",
 			            QUIC_EV_CONN_TXPKT, qc);
-			hqel->pktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
+			hpktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
 		}
-		else if (aqel->pktns->flags & QUIC_FL_PKTNS_PROBE_NEEDED) {
+		else if (apktns && (apktns->flags & QUIC_FL_PKTNS_PROBE_NEEDED)) {
 			struct list frms2 = LIST_HEAD_INIT(frms2);
 			struct list frms1 = LIST_HEAD_INIT(frms1);
 
-			aqel->pktns->tx.pto_probe = 0;
-			qc_prep_fast_retrans(qc, aqel, &frms1, &frms2);
+			apktns->tx.pto_probe = 0;
+			qc_prep_fast_retrans(qc, apktns, &frms1, &frms2);
 			TRACE_PROTO("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &frms1);
 			TRACE_PROTO("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &frms2);
 			if (!LIST_ISEMPTY(&frms1)) {
-				aqel->pktns->tx.pto_probe = 1;
+				apktns->tx.pto_probe = 1;
 				if (!qc_send_app_probing(qc, &frms1)) {
 					qc_free_frm_list(&frms2);
 					goto leave;
 				}
 
 				/* Put back unsent frames into their packet number spaces */
-				LIST_SPLICE(&aqel->pktns->tx.frms, &frms1);
+				LIST_SPLICE(&apktns->tx.frms, &frms1);
 			}
 			if (!LIST_ISEMPTY(&frms2)) {
-				aqel->pktns->tx.pto_probe = 1;
+				apktns->tx.pto_probe = 1;
 				if (!qc_send_app_probing(qc, &frms2))
 					goto leave;
 				/* Put back unsent frames into their packet number spaces */
-				LIST_SPLICE(&aqel->pktns->tx.frms, &frms2);
+				LIST_SPLICE(&apktns->tx.frms, &frms2);
 			}
 			TRACE_STATE("no more need to probe 01RTT packet number space",
 			            QUIC_EV_CONN_TXPKT, qc);
-			aqel->pktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
+			apktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
 		}
 	}
 
@@ -5195,6 +5203,21 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	}
 
  out:
+	/* Release the Handshake encryption level and packet number space if
+	 * the Handshake is confirmed and if there is no need to send
+	 * anymore Handshake packets.
+	 */
+	if ((qc->hel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD) &&
+	    !qc_need_sending(qc, qc->hel)) {
+		/* Ensure Initial packet encryption level and packet number space have
+		 * been released.
+		 */
+		qc_enc_level_free(qc, &qc->iel);
+		quic_pktns_release(qc, &qc->ipktns);
+		qc_enc_level_free(qc, &qc->hel);
+		quic_pktns_release(qc, &qc->hpktns);
+	}
+
 	TRACE_PROTO("ssl error", QUIC_EV_CONN_IO_CB, qc, &st, &ssl_err);
 	TRACE_LEAVE(QUIC_EV_CONN_IO_CB, qc);
 	return t;
@@ -5317,7 +5340,7 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 			TRACE_STATE("needs to probe Handshake packet number space", QUIC_EV_CONN_TXPKT, qc);
 			qc->flags |= QUIC_FL_CONN_RETRANS_NEEDED;
 			pktns->flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
-			if (qc->ipktns->tx.in_flight) {
+			if (qc->ipktns && qc->ipktns->tx.in_flight) {
 				if (qc_may_probe_ipktns(qc)) {
 					qc->ipktns->flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
 					TRACE_STATE("needs to probe Initial packet number space", QUIC_EV_CONN_TXPKT, qc);
