@@ -2980,7 +2980,7 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 
 			case H1_MSG_DONE:
 				TRACE_STATE("unexpected data xferred in done state", H1_EV_TX_DATA|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
-				/* fall through*/
+				__fallthrough;
 
 			default:
 				ret = 0;
