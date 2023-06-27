@@ -1701,7 +1701,7 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
 	}
 	else {
 		int i = 0;
-		int totlen = logsrv->maxlen;
+		int totlen = logsrv->maxlen - 1; /* save space for the final '\n' */
 
 		for (i = 0 ; i < nbelem ; i++ ) {
 			iovec[i].iov_base = msg_header[i].ptr;
