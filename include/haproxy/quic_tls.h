@@ -498,6 +498,10 @@ static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns, struct q
 static inline void quic_pktns_discard(struct quic_pktns *pktns,
                                       struct quic_conn *qc)
 {
+	if (pktns == qc->ipktns)
+		qc->flags |= QUIC_FL_CONN_IPKTNS_DCD;
+	else if (pktns == qc->hpktns)
+		qc->flags |= QUIC_FL_CONN_HPKTNS_DCD;
 	qc->path->in_flight -= pktns->tx.in_flight;
 	qc->path->prep_in_flight -= pktns->tx.in_flight;
 	qc->path->loss.pto_count = 0;
@@ -582,6 +586,21 @@ static inline enum quic_tls_pktns quic_tls_pktns(enum quic_tls_enc_level level)
 	default:
 		return -1;
 	}
+}
+
+/* Return 1 if <pktns> packet number space attached to <qc> connection has been discarded,
+ * 0 if not.
+ */
+static inline int quic_tls_pktns_is_dcd(struct quic_conn *qc, struct quic_pktns *pktns)
+{
+	if (pktns == qc->apktns)
+		return 0;
+
+	if ((pktns == qc->ipktns && (qc->flags & QUIC_FL_CONN_IPKTNS_DCD)) ||
+	    (pktns == qc->hpktns && (qc->flags & QUIC_FL_CONN_HPKTNS_DCD)))
+		return 1;
+
+	return 0;
 }
 
 /* Reset all members of <ctx> to default values, ->hp_key[] excepted */
@@ -785,14 +804,6 @@ static inline int quic_get_tls_enc_levels(enum quic_tls_enc_level *level,
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_ELEVELSEL, qc, NULL, level, next_level);
 	return ret;
-}
-
-/* Flag the keys at <qel> encryption level as discarded.
- * Note that this function is called only for Initial or Handshake encryption levels.
- */
-static inline void quic_tls_discard_keys(struct quic_enc_level *qel)
-{
-	qel->tls_ctx.flags |= QUIC_FL_TLS_SECRETS_DCD;
 }
 
 /* Derive the initial secrets with <ctx> as QUIC TLS context which is the

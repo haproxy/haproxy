@@ -185,8 +185,6 @@ struct quic_tls_kp {
 
 /* Key update phase bit */
 #define QUIC_FL_TLS_KP_BIT_SET   (1 << 0)
-/* Flag to be used when TLS secrets have been discarded. */
-#define QUIC_FL_TLS_SECRETS_DCD  (1 << 1)
 
 struct quic_tls_secrets {
 	EVP_CIPHER_CTX *ctx;

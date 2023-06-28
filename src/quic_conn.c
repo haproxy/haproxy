@@ -3343,13 +3343,13 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	 */
 	if (pkt->type == QUIC_PACKET_TYPE_HANDSHAKE && qc_is_listener(qc)) {
 	    if (qc->state >= QUIC_HS_ST_SERVER_INITIAL) {
-			if (qc->iel && !(qc->iel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD)) {
-				quic_tls_discard_keys(qc->iel);
+			if (qc->ipktns && !quic_tls_pktns_is_dcd(qc, qc->ipktns)) {
+				/* Discard the handshake packet number space. */
 				TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PRSHPKT, qc);
-				quic_pktns_discard(qc->iel->pktns, qc);
+				quic_pktns_discard(qc->ipktns, qc);
 				qc_set_timer(qc);
 				qc_el_rx_pkts_del(qc->iel);
-				qc_release_pktns_frms(qc, qc->iel->pktns);
+				qc_release_pktns_frms(qc, qc->ipktns);
 			}
 		    if (qc->state < QUIC_HS_ST_SERVER_HANDSHAKE)
 			    qc->state = QUIC_HS_ST_SERVER_HANDSHAKE;
@@ -4543,7 +4543,7 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 		goto cant_rm_hp;
 
 	/* check if tls secrets are available */
-	if (qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD) {
+	if (quic_tls_pktns_is_dcd(qc, qel->pktns)) {
 		TRACE_PROTO("Discarded keys", QUIC_EV_CONN_TRMHP, qc);
 		goto cant_rm_hp;
 	}
@@ -4649,7 +4649,7 @@ int qc_treat_rx_pkts(struct quic_conn *qc)
 		}
 
 		/* Release the Initial encryption level and packet number space. */
-		if (qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD && qel == qc->iel) {
+		if ((qc->flags & QUIC_FL_CONN_IPKTNS_DCD) && qel == qc->iel) {
 			qc_enc_level_free(qc, &qc->iel);
 			quic_pktns_release(qc, &qc->ipktns);
 		}
@@ -5129,9 +5129,8 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 
 	st = qc->state;
 	if (st >= QUIC_HS_ST_COMPLETE) {
-		if (!(qc->hel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD)) {
-			/* Discard the Handshake keys. */
-			quic_tls_discard_keys(qc->hel);
+		if (!(qc->flags & QUIC_FL_CONN_HPKTNS_DCD)) {
+			/* Discard the Handshake packet number space. */
 			TRACE_PROTO("discarding Handshake pktns", QUIC_EV_CONN_PHPKTS, qc);
 			quic_pktns_discard(qc->hel->pktns, qc);
 			qc_set_timer(qc);
@@ -5202,7 +5201,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	 * the Handshake is confirmed and if there is no need to send
 	 * anymore Handshake packets.
 	 */
-	if ((qc->hel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD) &&
+	if (quic_tls_pktns_is_dcd(qc, qc->hpktns) &&
 	    !qc_need_sending(qc, qc->hel)) {
 		/* Ensure Initial packet encryption level and packet number space have
 		 * been released.
@@ -6077,7 +6076,7 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 		TRACE_PROTO("RX hp removed", QUIC_EV_CONN_TRMHP, qc, pkt);
 	}
 	else {
-		if (qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD) {
+		if (quic_tls_pktns_is_dcd(qc, qel->pktns)) {
 			/* If the packet number space has been discarded, this packet
 			 * will be not parsed.
 			 */
