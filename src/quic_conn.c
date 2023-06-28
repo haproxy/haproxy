@@ -2936,11 +2936,6 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 	struct ncbuf *ncbuf = &qel->cstream->rx.ncbuf;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
-	if (unlikely(qel->tls_ctx.flags & QUIC_FL_TLS_SECRETS_DCD)) {
-		TRACE_PROTO("CRYPTO data discarded",
-					QUIC_EV_CONN_RXPKT, qc, pkt, &cfdebug);
-		goto done;
-	}
 
 	if (unlikely(crypto_frm->offset < cstream->rx.offset)) {
 		size_t diff;
