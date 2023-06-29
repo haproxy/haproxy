@@ -319,7 +319,7 @@ static int ssl_parse_global_curves(char **args, int section_type, struct proxy *
 
 #if defined(SSL_CTX_set1_sigalgs_list)
 /*
- * parse the "ssl-default-bind-sigalgs" keyword in a global section.
+ * parse the "ssl-default-bind-sigalgs" and "ssl-default-server-sigalgs" keyword in a global section.
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
 static int ssl_parse_global_sigalgs(char **args, int section_type, struct proxy *curpx,
@@ -328,7 +328,7 @@ static int ssl_parse_global_sigalgs(char **args, int section_type, struct proxy 
 {
 	char **target;
 
-	target = &global_ssl.listen_default_sigalgs;
+	target = (args[0][12] == 'b') ? &global_ssl.listen_default_sigalgs : &global_ssl.connect_default_sigalgs;
 
 	if (too_many_args(1, args, err, NULL))
 		return -1;
@@ -1653,6 +1653,14 @@ static int ssl_sock_init_srv(struct server *s)
 	if (!s->ssl_ctx.methods.max)
 		s->ssl_ctx.methods.max = global_ssl.connect_default_sslmethods.max;
 
+#if defined(SSL_CTX_set1_sigalgs_list)
+	if (global_ssl.connect_default_sigalgs && !s->ssl_ctx.sigalgs) {
+		s->ssl_ctx.sigalgs = strdup(global_ssl.connect_default_sigalgs);
+		if (!s->ssl_ctx.sigalgs)
+			return 1;
+	}
+#endif
+
 	return 0;
 }
 
@@ -1830,6 +1838,29 @@ static int srv_parse_send_proxy_cn(char **args, int *cur_arg, struct proxy *px, 
 	newsrv->pp_opts |= SRV_PP_V2_SSL;
 	newsrv->pp_opts |= SRV_PP_V2_SSL_CN;
 	return 0;
+}
+
+/* parse the "sigalgs" server keyword */
+static int srv_parse_sigalgs(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+#ifndef SSL_CTX_set1_sigalgs_list
+	memprintf(err, "'%s' : library does not support setting signature algorithms", args[*cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#else
+	char *arg;
+
+	arg = args[*cur_arg + 1];
+	if (!*arg) {
+		memprintf(err, "'%s' : missing signature algorithm list", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	newsrv->ssl_ctx.sigalgs = strdup(arg);
+	if (!newsrv->ssl_ctx.sigalgs) {
+		memprintf(err, "out of memory");
+		return ERR_ALERT | ERR_FATAL;
+	}
+	return 0;
+#endif
 }
 
 /* parse the "sni" server keyword */
@@ -2206,6 +2237,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "npn",                     srv_parse_npn,                1, 1, 1 }, /* Set NPN supported protocols */
 	{ "send-proxy-v2-ssl",       srv_parse_send_proxy_ssl,     0, 1, 1 }, /* send PROXY protocol header v2 with SSL info */
 	{ "send-proxy-v2-ssl-cn",    srv_parse_send_proxy_cn,      0, 1, 1 }, /* send PROXY protocol header v2 with CN */
+	{ "sigalgs",                 srv_parse_sigalgs,            1, 1, 1 }, /* signature algorithms */
 	{ "sni",                     srv_parse_sni,                1, 1, 1 }, /* send SNI extension */
 	{ "ssl",                     srv_parse_ssl,                0, 1, 1 }, /* enable SSL processing */
 	{ "ssl-min-ver",             srv_parse_tls_method_minmax,  1, 1, 1 }, /* minimum version */
@@ -2258,6 +2290,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 #endif
 #if defined(SSL_CTX_set1_sigalgs_list)
 	{ CFG_GLOBAL, "ssl-default-bind-sigalgs", ssl_parse_global_sigalgs },
+	{ CFG_GLOBAL, "ssl-default-server-sigalgs", ssl_parse_global_sigalgs },
 #endif
 #if defined(SSL_CTX_set1_client_sigalgs_list)
 	{ CFG_GLOBAL, "ssl-default-bind-client-sigalgs", ssl_parse_global_client_sigalgs },
