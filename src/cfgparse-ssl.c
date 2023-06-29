@@ -355,7 +355,7 @@ static int ssl_parse_global_client_sigalgs(char **args, int section_type, struct
 {
 	char **target;
 
-	target = &global_ssl.listen_default_client_sigalgs;
+	target = (args[0][12] == 'b') ? &global_ssl.listen_default_client_sigalgs : &global_ssl.connect_default_client_sigalgs;
 
 	if (too_many_args(1, args, err, NULL))
 		return -1;
@@ -1661,6 +1661,14 @@ static int ssl_sock_init_srv(struct server *s)
 	}
 #endif
 
+#if defined(SSL_CTX_set1_client_sigalgs_list)
+	if (global_ssl.connect_default_client_sigalgs && !s->ssl_ctx.client_sigalgs) {
+		s->ssl_ctx.client_sigalgs = strdup(global_ssl.connect_default_client_sigalgs);
+		if (!s->ssl_ctx.client_sigalgs)
+			return 1;
+	}
+#endif
+
 	return 0;
 }
 
@@ -1715,6 +1723,30 @@ static int srv_parse_ciphersuites(char **args, int *cur_arg, struct proxy *px, s
 	return 0;
 }
 #endif
+
+/* parse the "client-sigalgs" server keyword */
+static int srv_parse_client_sigalgs(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+#ifndef SSL_CTX_set1_client_sigalgs_list
+	memprintf(err, "'%s' : library does not support setting signature algorithms", args[*cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#else
+	char *arg;
+
+	arg = args[*cur_arg + 1];
+	if (!*arg) {
+		memprintf(err, "'%s' : missing signature algorithm list", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	newsrv->ssl_ctx.client_sigalgs = strdup(arg);
+	if (!newsrv->ssl_ctx.client_sigalgs) {
+		memprintf(err, "out of memory");
+		return ERR_ALERT | ERR_FATAL;
+	}
+	return 0;
+#endif
+}
+
 
 /* parse the "crl-file" server keyword */
 static int srv_parse_crl_file(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
@@ -2216,6 +2248,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	{ "ciphersuites",            srv_parse_ciphersuites,       1, 1, 1 }, /* select the cipher suite */
 #endif
+	{ "client-sigalgs",          srv_parse_client_sigalgs,     1, 1, 1 }, /* signature algorithms */
 	{ "crl-file",                srv_parse_crl_file,           1, 1, 1 }, /* set certificate revocation list file use on server cert verify */
 	{ "crt",                     srv_parse_crt,                1, 1, 1 }, /* set client certificate */
 	{ "force-sslv3",             srv_parse_tls_method_options, 0, 1, 1 }, /* force SSLv3 */
@@ -2294,6 +2327,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 #endif
 #if defined(SSL_CTX_set1_client_sigalgs_list)
 	{ CFG_GLOBAL, "ssl-default-bind-client-sigalgs", ssl_parse_global_client_sigalgs },
+	{ CFG_GLOBAL, "ssl-default-server-client-sigalgs", ssl_parse_global_client_sigalgs },
 #endif
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	{ CFG_GLOBAL, "ssl-default-bind-ciphersuites", ssl_parse_global_ciphersuites },

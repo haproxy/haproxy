@@ -285,6 +285,7 @@ struct global_ssl {
 #endif
 #if defined(SSL_CTX_set1_sigalgs_list)
 	char *listen_default_client_sigalgs;
+	char *connect_default_client_sigalgs;
 #endif
 	int listen_default_ssloptions;
 	int connect_default_ssloptions;

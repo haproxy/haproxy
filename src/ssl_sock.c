@@ -5050,7 +5050,9 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 #if defined(SSL_CTX_set1_sigalgs_list)
 	const char *conf_sigalgs = NULL;
 #endif
-
+#if defined(SSL_CTX_set1_client_sigalgs_list)
+	const char *conf_client_sigalgs = NULL;
+#endif
 
 	if (conf_ssl_methods->flags && (conf_ssl_methods->min || conf_ssl_methods->max))
 		ha_warning("no-sslv3/no-tlsv1x are ignored for this server. "
@@ -5195,6 +5197,16 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 		if (!SSL_CTX_set1_sigalgs_list(ctx, conf_sigalgs)) {
 			ha_alert("Proxy '%s': unable to set SSL Signature Algorithm list to '%s' for server '%s'.\n",
 			         curproxy->id, conf_sigalgs, srv->id);
+			cfgerr++;
+		}
+	}
+#endif
+#if defined(SSL_CTX_set1_client_sigalgs_list)
+	conf_client_sigalgs = srv->ssl_ctx.client_sigalgs;
+	if (conf_client_sigalgs) {
+		if (!SSL_CTX_set1_client_sigalgs_list(ctx, conf_client_sigalgs)) {
+			ha_alert("Proxy '%s': unable to set SSL Client Signature Algorithm list to '%s' for server '%s'.\n",
+			         curproxy->id, conf_client_sigalgs, srv->id);
 			cfgerr++;
 		}
 	}
