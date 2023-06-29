@@ -4542,12 +4542,6 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 	if (!qel)
 		goto cant_rm_hp;
 
-	/* check if tls secrets are available */
-	if (quic_tls_pktns_is_dcd(qc, qel->pktns)) {
-		TRACE_PROTO("Discarded keys", QUIC_EV_CONN_TRMHP, qc);
-		goto cant_rm_hp;
-	}
-
 	if (!quic_tls_has_rx_sec(qel)) {
 		TRACE_PROTO("non available secrets", QUIC_EV_CONN_TRMHP, qc);
 		goto cant_rm_hp;
@@ -6076,14 +6070,6 @@ static inline int qc_try_rm_hp(struct quic_conn *qc,
 		TRACE_PROTO("RX hp removed", QUIC_EV_CONN_TRMHP, qc, pkt);
 	}
 	else {
-		if (quic_tls_pktns_is_dcd(qc, qel->pktns)) {
-			/* If the packet number space has been discarded, this packet
-			 * will be not parsed.
-			 */
-			TRACE_PROTO("Discarded pktns", QUIC_EV_CONN_TRMHP, qc, pkt);
-			goto out;
-		}
-
 		TRACE_PROTO("RX hp not removed", QUIC_EV_CONN_TRMHP, qc, pkt);
 		LIST_APPEND(&qel->rx.pqpkts, &pkt->list);
 		quic_rx_packet_refinc(pkt);
@@ -7293,6 +7279,12 @@ static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		qc_set_timer(qc);
 		if (qc->timer_task && tick_isset(qc->timer) && tick_is_lt(qc->timer, now_ms))
 			task_wakeup(qc->timer_task, TASK_WOKEN_MSG);
+	}
+
+	/* Drop asap packet whose packet number space is discarded. */
+	if (quic_tls_pkt_type_pktns_dcd(qc, pkt->type)) {
+		TRACE_PROTO("Discarded packet number space", QUIC_EV_CONN_TRMHP, qc);
+		goto drop_silent;
 	}
 
 	if (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE) {

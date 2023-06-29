@@ -603,6 +603,18 @@ static inline int quic_tls_pktns_is_dcd(struct quic_conn *qc, struct quic_pktns 
 	return 0;
 }
 
+/* Return 1 the packet number space attached to <qc> connection with <type> associated
+ * packet type has been discarded, 0 if not.
+ */
+static inline int quic_tls_pkt_type_pktns_dcd(struct quic_conn *qc, unsigned char type)
+{
+	if ((type == QUIC_PACKET_TYPE_INITIAL && (qc->flags & QUIC_FL_CONN_IPKTNS_DCD)) ||
+	    (type == QUIC_PACKET_TYPE_HANDSHAKE && (qc->flags & QUIC_FL_CONN_HPKTNS_DCD)))
+		return 1;
+
+	return 0;
+}
+
 /* Reset all members of <ctx> to default values, ->hp_key[] excepted */
 static inline void quic_tls_ctx_reset(struct quic_tls_ctx *ctx)
 {
