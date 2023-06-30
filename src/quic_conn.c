@@ -6424,7 +6424,7 @@ static int quic_generate_retry_token_aad(unsigned char *aad,
 	unsigned char *p;
 
 	p = aad;
-	memcpy(p, &version, sizeof version);
+	*(uint32_t *)p = htonl(version);
 	p += sizeof version;
 	p += quic_saddr_cpy(p, addr);
 	memcpy(p, cid->data, cid->len);
