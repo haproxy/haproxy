@@ -6646,10 +6646,8 @@ static int send_retry(int fd, struct sockaddr_storage *addr,
 		(quic_pkt_type(QUIC_PACKET_TYPE_RETRY, qv->num) << QUIC_PACKET_TYPE_SHIFT) |
 		statistical_prng_range(16);
 	/* version */
-	buf[i++] = *((unsigned char *)&qv->num + 3);
-	buf[i++] = *((unsigned char *)&qv->num + 2);
-	buf[i++] = *((unsigned char *)&qv->num + 1);
-	buf[i++] = *(unsigned char *)&qv->num;
+	*(uint32_t *)&buf[i] = htonl(qv->num);
+	i += sizeof(uint32_t);
 
 	/* Use the SCID from <pkt> for Retry DCID. */
 	buf[i++] = pkt->scid.len;
