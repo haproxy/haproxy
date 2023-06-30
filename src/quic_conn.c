@@ -3696,6 +3696,9 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				next_tel = QUIC_TLS_ENC_LEVEL_APP;
 			tel = next_tel;
 			qel = qc_quic_enc_level(qc, tel);
+			/* Note that we cannot NULL as value for <qel> when for the Application
+			 * data encryption level. Furthermore this encryption is never released.
+			 */
 			if (tel == QUIC_TLS_ENC_LEVEL_APP)
 				frms = &qel->pktns->tx.frms;
 			else
@@ -5164,7 +5167,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	b_reset(buf);
 
 	ret = qc_prep_hpkts(qc, buf,
-	                    qc_quic_enc_level(qc, tel),
+	                    DISGUISE(qc_quic_enc_level(qc, tel)),
 	                    qc_quic_enc_level(qc, next_tel));
 	if (ret == -1) {
 		qc_txb_release(qc);
