@@ -6641,9 +6641,10 @@ static int send_retry(int fd, struct sockaddr_storage *addr,
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT);
 
-	/* long header + fixed bit + packet type QUIC_PACKET_TYPE_RETRY */
+	/* long header(1) | fixed bit(1) | packet type QUIC_PACKET_TYPE_RETRY(2) | unused random bits(4)*/
 	buf[i++] = (QUIC_PACKET_LONG_HEADER_BIT | QUIC_PACKET_FIXED_BIT) |
-		(quic_pkt_type(QUIC_PACKET_TYPE_RETRY, qv->num) << QUIC_PACKET_TYPE_SHIFT);
+		(quic_pkt_type(QUIC_PACKET_TYPE_RETRY, qv->num) << QUIC_PACKET_TYPE_SHIFT) |
+		statistical_prng_range(16);
 	/* version */
 	buf[i++] = *((unsigned char *)&qv->num + 3);
 	buf[i++] = *((unsigned char *)&qv->num + 2);
