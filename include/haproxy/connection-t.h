@@ -501,6 +501,15 @@ struct conn_hash_params {
 	struct sockaddr_storage *dst_addr;
 };
 
+/*
+ * TODO: Comment
+ */
+struct conn_tlv_list {
+    unsigned char key;
+    struct ist data;
+    struct list list;
+};
+
 /* This structure describes a connection with its methods and data.
  * A connection may be performed to proxy or server via a local or remote
  * socket, and can also be made to an internal applet. It can support
@@ -538,6 +547,7 @@ struct connection {
 	struct sockaddr_storage *dst; /* destination address (pool), when known, otherwise NULL */
 	struct ist proxy_authority;   /* Value of the authority TLV received via PROXYv2 */
 	struct ist proxy_unique_id;   /* Value of the unique ID TLV received via PROXYv2 */
+    struct conn_tlv_list conn_tlvs;
 
 	/* used to identify a backend connection for http-reuse,
 	 * thus only present if conn.target is of type OBJ_TYPE_SERVER
@@ -617,6 +627,9 @@ struct mux_proto_list {
 
 /* Max length of the authority TLV */
 #define PP2_AUTHORITY_MAX 255
+
+/* Max length of a generic TLV */
+#define PP2_GENERIC_MAX 127
 
 #define TLV_HEADER_SIZE      3
 

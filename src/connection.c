@@ -15,6 +15,7 @@
 #include <import/ebmbtree.h>
 
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
 #include <haproxy/fd.h>
@@ -38,6 +39,8 @@ DECLARE_POOL(pool_head_connection,     "connection",     sizeof(struct connectio
 DECLARE_POOL(pool_head_conn_hash_node, "conn_hash_node", sizeof(struct conn_hash_node));
 DECLARE_POOL(pool_head_sockaddr,       "sockaddr",       sizeof(struct sockaddr_storage));
 DECLARE_POOL(pool_head_authority,      "authority",      PP2_AUTHORITY_MAX);
+DECLARE_POOL(pool_head_pp_tlvs,        "tlvs",           PP2_GENERIC_MAX);  /* pool for tlv payload data */
+DECLARE_POOL(pool_head_pp_tlv_list,    "tlv_list",       sizeof(struct conn_tlv_list));  /* pool for tlv payload data */
 
 struct idle_conns idle_conns[MAX_THREADS] = { };
 struct xprt_ops *registered_xprt[XPRT_ENTRIES] = { NULL, };
@@ -46,8 +49,12 @@ struct xprt_ops *registered_xprt[XPRT_ENTRIES] = { NULL, };
 struct mux_proto_list mux_proto_list = {
         .list = LIST_HEAD_INIT(mux_proto_list.list)
 };
-
 struct mux_stopping_data mux_stopping_data[MAX_THREADS];
+
+
+/*struct conn_tlv_list conn_tlv_init = {*/
+    /*.list = LIST_HEAD_INIT(conn_tlv_init.list),*/
+/*};*/
 
 /* disables sending of proxy-protocol-v2's LOCAL command */
 static int pp2_never_send_local;
@@ -412,6 +419,7 @@ int conn_update_alpn(struct connection *conn, const struct ist alpn, int force)
  */
 void conn_init(struct connection *conn, void *target)
 {
+    struct conn_tlv_list *conn_tlv_init;
 	conn->obj_type = OBJ_TYPE_CONN;
 	conn->flags = CO_FL_NONE;
 	conn->mux = NULL;
@@ -433,8 +441,19 @@ void conn_init(struct connection *conn, void *target)
 	conn->dst = NULL;
 	conn->proxy_authority = IST_NULL;
 	conn->proxy_unique_id = IST_NULL;
+
+    LIST_INIT(&conn->conn_tlvs.list);
+
+    if (LIST_ISEMPTY(&conn->conn_tlvs.list)) {
+        printf("[DEBUG] List is empty %p\n", conn);
+    } else {
+        printf("[DEBUG] List is not empty %p\n", conn);
+    }
+
 	conn->hash_node = NULL;
 	conn->xprt = NULL;
+
+    printf("[DEBUG] Initialized connection %p\n", conn);
 }
 
 /* Tries to allocate a new connection and initialized its main fields. The
@@ -465,12 +484,17 @@ struct connection *conn_new(void *target)
 		conn->hash_node = hash_node;
 	}
 
+    printf("[DEBUG] Allocated connection %p\n", conn);
 	return conn;
 }
 
 /* Releases a connection previously allocated by conn_new() */
 void conn_free(struct connection *conn)
 {
+
+    printf("[DEBUG] Start freeing\n");
+    struct conn_tlv_list *conn_tlv, *conn_tlv_back = NULL;
+
 	/* If the connection is owned by the session, remove it from its list
 	 */
 	if (conn_is_back(conn) && LIST_INLIST(&conn->session_list)) {
@@ -497,6 +521,28 @@ void conn_free(struct connection *conn)
 
 	pool_free(pool_head_uniqueid, istptr(conn->proxy_unique_id));
 	conn->proxy_unique_id = IST_NULL;
+
+    if (!LIST_ISEMPTY(&conn->conn_tlvs.list)) {
+        list_for_each_entry_safe(conn_tlv, conn_tlv_back, &conn->conn_tlvs.list, list) {
+            printf("[DEBUG] k: %d, v: %s\n", conn_tlv->key, conn_tlv->data.ptr);
+            printf("[DEBUG] Final pointer %p\n", conn_tlv);
+            if (conn_tlv->key != 0 && istptr(conn_tlv->data) && istlen(conn_tlv->data) > 0) {
+                if (conn_tlv->data.len > PP2_GENERIC_MAX ) {
+                    printf("[DEBUG] freeing TLV with length %ld\n", istlen(conn_tlv->data));
+                    free(istptr(conn_tlv->data));
+                } else {
+                    printf("[DEBUG] freeing pool TLV with length %ld\n", istlen(conn_tlv->data));
+                    /*free(istptr(conn_tlv->data));*/
+                    pool_free(pool_head_pp_tlvs, istptr(conn_tlv->data));
+                }
+                LIST_DELETE(&conn_tlv->list);
+                /*free(conn_tlv);*/
+                pool_free(pool_head_pp_tlv_list, conn_tlv);
+            }
+        }
+    }
+    LIST_DEL_INIT(&conn->conn_tlvs.list);
+    printf("[DEBUG] Done freeing list\n");
 
 	/* Make sure the connection is not left in the idle connection tree */
 	if (conn->hash_node != NULL)
@@ -797,6 +843,8 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	struct session *sess = conn->owner;
 	char *line, *end;
 	struct proxy_hdr_v2 *hdr_v2;
+    struct conn_tlv_list *new_tlv = NULL;
+    struct conn_tlv_list *conn_tlv = NULL;
 	const char v2sig[] = PP2_SIGNATURE;
 	size_t total_v2_len;
 	size_t tlv_offset = 0;
@@ -1063,30 +1111,101 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			case PP2_TYPE_AUTHORITY: {
 				if (istlen(tlv) > PP2_AUTHORITY_MAX)
 					goto bad_header;
-				conn->proxy_authority = ist2(pool_alloc(pool_head_authority), 0);
-				if (!isttest(conn->proxy_authority))
+                new_tlv = pool_alloc(pool_head_pp_tlv_list);// malloc(sizeof(struct conn_tlv_list));
+                if (unlikely(!new_tlv)) {
+                    printf("[DEBUG] Failed!\n");
+                    goto fail;
+                }
+				new_tlv->data = ist2(pool_alloc(pool_head_authority), 0);
+				if (!isttest(new_tlv->data))
 					goto fail;
-				if (istcpy(&conn->proxy_authority, tlv, PP2_AUTHORITY_MAX) < 0) {
+				if (istcpy(&new_tlv->data, tlv, PP2_AUTHORITY_MAX) < 0) {
 					/* This is impossible, because we verified that the TLV value fits. */
 					my_unreachable();
 					goto fail;
 				}
+                // TODO: Check for duplicates?
+                LIST_APPEND(&conn->conn_tlvs.list, &new_tlv->list);
 				break;
 			}
 			case PP2_TYPE_UNIQUE_ID: {
 				if (istlen(tlv) > UNIQUEID_LEN)
 					goto bad_header;
-				conn->proxy_unique_id = ist2(pool_alloc(pool_head_uniqueid), 0);
-				if (!isttest(conn->proxy_unique_id))
+                 new_tlv = pool_alloc(pool_head_pp_tlv_list);// malloc(sizeof(struct conn_tlv_list));
+                if (unlikely(!new_tlv)) {
+                    printf("[DEBUG] Failed!\n");
+                    goto fail;
+                }
+				new_tlv->data = ist2(pool_alloc(pool_head_uniqueid), 0);
+				if (!isttest(new_tlv->data))
 					goto fail;
-				if (istcpy(&conn->proxy_unique_id, tlv, UNIQUEID_LEN) < 0) {
+				if (istcpy(&new_tlv->data, tlv, UNIQUEID_LEN) < 0) {
 					/* This is impossible, because we verified that the TLV value fits. */
 					my_unreachable();
 					goto fail;
 				}
+                // TODO: Check for duplicates?
+                LIST_APPEND(&conn->conn_tlvs.list, &new_tlv->list);
 				break;
 			}
-			default:
+			default: ; // C does not allow declarations after labels.
+                int found = 0;
+
+                // TODO: Connection reused before free?
+                if (!LIST_ISEMPTY(&conn->conn_tlvs.list)) {
+                    printf("[DEBUG] Not empty!\n");
+                    printf("[DEBUG] p1: %p, p2: %p!\n", conn->conn_tlvs.list.n, conn->conn_tlvs.list.p);
+
+                    list_for_each_entry(conn_tlv, &conn->conn_tlvs.list, list) {
+                        printf("[DEBUG] Run!\n");
+                        printf("[DEBUG] %d vs %d!\n", conn_tlv->key, tlv_packet->type);
+
+                        if (conn_tlv->key == tlv_packet->type) {
+                            printf("[DEBUG] Found!\n");
+                            found = 1;
+                            new_tlv = conn_tlv;
+                        }
+                    }
+                }
+
+                if (!found) {
+                    new_tlv = pool_alloc(pool_head_pp_tlv_list);// malloc(sizeof(struct conn_tlv_list));
+                    if (unlikely(!new_tlv)) {
+                        printf("[DEBUG] Failed!\n");
+                        goto fail;
+                    }
+                }
+
+                printf("[DEBUG] Initial pointer %p\n", new_tlv);
+                new_tlv->key = tlv_packet->type;
+	            new_tlv->data = IST_NULL;
+
+                printf("[DEBUG] Received TLV type: %d\n", tlv_packet->type);
+
+                if (get_tlv_length(tlv_packet) > PP2_GENERIC_MAX) {
+                    printf("[DEBUG] Using malloc\n");
+				    new_tlv->data = ist2(malloc(get_tlv_length(tlv_packet)), 0);
+                } else {
+                    printf("[DEBUG] Using pool_alloc\n");
+					/*new_tlv->data = ist2(malloc(get_tlv_length(tlv_packet)), 0);*/
+                    new_tlv->data = ist2(pool_alloc(pool_head_pp_tlvs), 0);
+                }
+
+				if (!isttest(new_tlv->data))
+					goto fail;
+
+				if (istcpy(&new_tlv->data, tlv, get_tlv_length(tlv_packet)) < 0) {
+					/* This is impossible, because we verified that the TLV value fits. */
+					my_unreachable();
+					goto fail;
+				}
+
+                printf("[DEBUG] Received TLV payload: %s\n", new_tlv->data.ptr);
+                if (!found) {
+                    printf("[DEBUG] Added payload\n");
+                    LIST_APPEND(&conn->conn_tlvs.list, &new_tlv->list);
+                }
+
 				break;
 			}
 		}
@@ -2106,7 +2225,6 @@ smp_fetch_fc_http_major(const struct arg *args, struct sample *smp, const char *
 {
 	struct connection *conn = NULL;
 	const char *mux_name = NULL;
-
 	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
                 conn = (kw[0] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->sc) : NULL;
         else
@@ -2157,54 +2275,101 @@ int smp_fetch_fc_rcvd_proxy(const struct arg *args, struct sample *smp, const ch
 	return 1;
 }
 
-/* fetch the authority TLV from a PROXY protocol header */
-int smp_fetch_fc_pp_authority(const struct arg *args, struct sample *smp, const char *kw, void *private)
-{
-	struct connection *conn;
+int smp_fetch_fc_pp_tlv(const struct arg *args, struct sample *smp, const char *kw, void *private) {
+    struct connection *conn;
+    struct conn_tlv_list *conn_tlv;
+    char *endp;
+    unsigned int idx;
 
+
+    printf("[DEBUG] Fetching tlv\n");
 	conn = objt_conn(smp->sess->origin);
 	if (!conn)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_XPRT) {
-		smp->flags |= SMP_F_MAY_CHANGE;
+    printf("[DEBUG] Got conn\n");
+    if (conn->flags & CO_FL_WAIT_XPRT) {
+        smp->flags |= SMP_F_MAY_CHANGE;
+        return 0;
+    }
+
+    printf("[DEBUG] Checked flags\n");
+
+    // 4 is length of maximum prefix (0x) plus length of maximum hex length of id (2)
+	if (args[0].type != ARGT_STR || args[0].data.str.data <= 0 || args[0].data.str.data > 4)
 		return 0;
-	}
 
-	if (!isttest(conn->proxy_authority))
-		return 0;
+    printf("[DEBUG] Converting argument\n");
 
-	smp->flags = 0;
-	smp->data.type = SMP_T_STR;
-	smp->data.u.str.area = istptr(conn->proxy_authority);
-	smp->data.u.str.data = istlen(conn->proxy_authority);
+    // Perform argument conversion like in https://github.com/haproxy/haproxy/blob/b7f8af3ca9424984e557f2c95c639dd4f57dfe61/src/tcp_act.c#L435
+    idx = strtoul(args[0].data.str.area, &endp, 0);
+    if (endp && *endp != '\0')
+        return 0;
 
-	return 1;
+    printf("[DEBUG] TLV ID is %d\n", idx);
+
+    list_for_each_entry(conn_tlv, &conn->conn_tlvs.list, list) {
+        printf("[DEBUG] Loop payload: %4s\n", conn_tlv->data.ptr);
+        if (conn_tlv->key == idx) {
+            if (conn_tlv->data.len > 0)
+                printf("[DEBUG] Received payload: %4s with length %ld\n", conn_tlv->data.ptr, conn_tlv->data.len);
+
+            smp->flags = 0;
+            smp->data.type = SMP_T_STR;
+            smp->data.u.str.area = istptr(conn_tlv->data);
+            smp->data.u.str.data = istlen(conn_tlv->data);
+
+            printf("[DEBUG] Raw data: [0x%x, 0x%x, 0x%x, 0x%x]\n", smp->data.u.str.area[0], smp->data.u.str.area[1], smp->data.u.str.area[2], smp->data.u.str.area[3]);
+
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+int set_tlv_arg(int tlv_id, struct arg *tlv_arg) {
+    struct buffer *buf;
+
+    tlv_arg->type = ARGT_STR;
+    tlv_arg->data.str.size = 5;
+
+    if (!(buf = b_alloc(&tlv_arg->data.str)))
+        return 0;
+
+    tlv_arg->data.str = *buf;
+    snprintf(tlv_arg->data.str.area, 5, "%4d", PP2_TYPE_UNIQUE_ID);
+    tlv_arg->data.str.data = strlen(tlv_arg->data.str.area);
+
+    return 1;
+}
+
+void release_tlv_arg(struct arg *tlv_arg) {
+    b_free(&tlv_arg->data.str);
+}
+
+/* fetch the authority TLV from a PROXY protocol header */
+int smp_fetch_fc_pp_authority(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+    struct arg tlv_arg;
+    int ret = 0;
+
+    set_tlv_arg(PP2_TYPE_AUTHORITY, &tlv_arg);
+    ret = smp_fetch_fc_pp_tlv(&tlv_arg, smp, kw, private);
+    release_tlv_arg(&tlv_arg);
+    return ret;
 }
 
 /* fetch the unique ID TLV from a PROXY protocol header */
 int smp_fetch_fc_pp_unique_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn;
+    struct arg tlv_arg;
+    int ret = 0;
 
-	conn = objt_conn(smp->sess->origin);
-	if (!conn)
-		return 0;
-
-	if (conn->flags & CO_FL_WAIT_XPRT) {
-		smp->flags |= SMP_F_MAY_CHANGE;
-		return 0;
-	}
-
-	if (!isttest(conn->proxy_unique_id))
-		return 0;
-
-	smp->flags = 0;
-	smp->data.type = SMP_T_STR;
-	smp->data.u.str.area = istptr(conn->proxy_unique_id);
-	smp->data.u.str.data = istlen(conn->proxy_unique_id);
-
-	return 1;
+    set_tlv_arg(PP2_TYPE_UNIQUE_ID, &tlv_arg);
+    ret = smp_fetch_fc_pp_tlv(&tlv_arg, smp, kw, private);
+    release_tlv_arg(&tlv_arg);
+    return ret;
 }
 
 /* fetch the error code of a connection */
@@ -2279,8 +2444,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "fc_err_str", smp_fetch_fc_err_str, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
 	{ "fc_http_major", smp_fetch_fc_http_major, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "fc_rcvd_proxy", smp_fetch_fc_rcvd_proxy, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
-	{ "fc_pp_authority", smp_fetch_fc_pp_authority, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
-	{ "fc_pp_unique_id", smp_fetch_fc_pp_unique_id, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
+	{ "fc_pp_authority", smp_fetch_fc_pp_tlv, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
+	{ "fc_pp_unique_id", smp_fetch_fc_pp_tlv, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
+	{ "fc_pp_tlvs", smp_fetch_fc_pp_tlv, ARG1(1,STR), NULL, SMP_T_STR, SMP_USE_L4CLI },
 	{ /* END */ },
 }};
 
