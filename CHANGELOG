@@ -1,6 +1,85 @@
 ChangeLog :
 ===========
 
+2023/07/02 : 2.9-dev1
+    - BUG/MINOR: stats: Fix Lua's `get_stats` function
+    - MINOR: stats: protect against future stats fields omissions
+    - BUG/MINOR: stream: do not use client-fin/server-fin with HTX
+    - BUG/MINOR: quic: Possible crash when SSL session init fails
+    - CONTRIB: Add vi file extensions to .gitignore
+    - BUG/MINOR: spoe: Only skip sending new frame after a receive attempt
+    - BUG/MINOR: peers: Improve detection of config errors in peers sections
+    - REG-TESTS: stickiness: Delay haproxys start to properly resolv variables
+    - DOC: quic: fix misspelled tune.quic.socket-owner
+    - DOC: config: fix jwt_verify() example using var()
+    - DOC: config: fix rfc7239 converter examples (again)
+    - BUG/MINOR: cfgparse-tcp: leak when re-declaring interface from bind line
+    - BUG/MINOR: proxy: add missing interface bind free in free_proxy
+    - BUG/MINOR: proxy/server: free default-server on deinit
+    - BUG/MEDIUM: hlua: Use front SC to detect EOI in HTTP applets' receive functions
+    - BUG/MINOR: ssl: log message non thread safe in SSL Hanshake failure
+    - BUG/MINOR: quic: Wrong encryption level flags checking
+    - BUG/MINOR: quic: Address inversion in "show quic full"
+    - BUG/MINOR: server: inherit from netns in srv_settings_cpy()
+    - BUG/MINOR: namespace: missing free in netns_sig_stop()
+    - BUG/MINOR: quic: Missing initialization (packet number space probing)
+    - BUG/MINOR: quic: Possible crash in quic_conn_prx_cntrs_update()
+    - BUG/MINOR: quic: Possible endless loop in quic_lstnr_dghdlr()
+    - MINOR: quic: Remove pool_zalloc() from qc_new_conn()
+    - MINOR: quic: Remove pool_zalloc() from qc_conn_alloc_ssl_ctx()
+    - MINOR: quic: Remove pool_zalloc() from quic_dgram_parse()
+    - BUG/MINOR: quic: Missing transport parameters initializations
+    - BUG/MEDIUM: mworker: increase maxsock with each new worker
+    - BUG/MINOR: quic: ticks comparison without ticks API use
+    - BUG/MINOR: quic: Missing TLS secret context initialization
+    - DOC: Add tune.h2.be.* and tune.h2.fe.* options to table of contents
+    - DOC: Add tune.h2.max-frame-size option to table of contents
+    - DOC: Attempt to fix dconv parsing error for tune.h2.fe.initial-window-size
+    - REGTESTS: h1_host_normalization : Add a barrier to not mix up log messages
+    - MEDIUM: mux-h1: Split h1_process_mux() to make code more readable
+    - REORG: mux-h1: Rename functions to emit chunk size/crlf in the output buffer
+    - MINOR: mux-h1: Add function to append the chunk size to the output buffer
+    - MINOR: mux-h1: Add function to prepend the chunk crlf to the output buffer
+    - MEDIUM: filters/htx: Don't rely on HTX extra field if payload is filtered
+    - MEDIIM: mux-h1: Add splicing support for chunked messages
+    - REGTESTS: Add a script to test the kernel splicing with chunked messages
+    - CLEANUP: mux-h1: Remove useless __maybe_unused statement
+    - BUG/MINOR: http_ext: fix if-none regression in forwardfor option
+    - REGTEST: add an extra testcase for ifnone-forwardfor
+    - BUG/MINOR: mworker: leak of a socketpair during startup failure
+    - BUG/MINOR: quic: Prevent deadlock with CID tree lock
+    - MEDIUM: ssl: handle the SSL_ERROR_ZERO_RETURN during the handshake
+    - BUG/MINOR: ssl: SSL_ERROR_ZERO_RETURN returns CO_ER_SSL_EMPTY
+    - BUILD: mux-h1: silence a harmless fallthrough warning
+    - BUG/MEDIUM: quic: error checking buffer large enought to receive the retry tag
+    - MINOR: ssl: allow to change the server signature algorithm on server lines
+    - MINOR: ssl: allow to change the client-sigalgs on server lines
+    - BUG/MINOR: config: fix stick table duplicate name check
+    - BUG/MINOR: quic: Missing random bits in Retry packet header
+    - BUG/MINOR: quic: Wrong Retry paquet version field endianess
+    - BUG/MINOR: quic: Wrong endianess for version field in Retry token
+    - IMPORT: slz: implement a synchronous flush() operation
+    - MINOR: compression/slz: add support for a pure flush of pending bytes
+    - MINOR: quic: Move QUIC TLS encryption level related code (quic_conn_enc_level_init())
+    - MINOR: quic: Move QUIC encryption level structure definition
+    - MINOR: quic: Implement a packet number space identification function
+    - MINOR: quic: Move packet number space related functions
+    - MEDIUM: quic: Dynamic allocations of packet number spaces
+    - CLEANUP: quic: Remove qc_list_all_rx_pkts() defined but not used
+    - MINOR: quic: Add a pool for the QUIC TLS encryption levels
+    - MEDIUM: quic: Dynamic allocations of QUIC TLS encryption levels
+    - MINOR: quic: Reduce the maximum length of TLS secrets
+    - CLEANUP: quic: Remove two useless pools a low QUIC connection level
+    - MEDIUM: quic: Handle the RX in one pass
+    - MINOR: quic: Remove call to qc_rm_hp_pkts() from I/O callback
+    - CLEANUP: quic: Remove server specific about Initial packet number space
+    - MEDIUM: quic: Release encryption levels and packet number spaces asap
+    - CLEANUP: quic: Remove a useless test about discarded pktns (qc_handle_crypto_frm())
+    - MINOR: quic: Move the packet number space status at quic_conn level
+    - MINOR: quic: Drop packet with type for discarded packet number space.
+    - BUILD: quic: Add a DISGUISE() to please some compiler to qc_prep_hpkts() 1st parameter
+    - BUILD: debug: avoid a build warning related to epoll_wait() in debug code
+
 2023/05/31 : 2.9-dev0
     - MINOR: version: mention that it's development again
 
