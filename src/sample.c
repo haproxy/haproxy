@@ -40,6 +40,7 @@
 #include <haproxy/sample.h>
 #include <haproxy/sink.h>
 #include <haproxy/stick_table.h>
+#include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/vars.h>
@@ -4738,6 +4739,192 @@ static int smp_fetch_quic_enabled(const struct arg *args, struct sample *smp, co
 #endif
 	return smp->data.u.sint;
 }
+
+/* Timing events re{q,s}.timer.  */
+static int smp_fetch_reX_timers(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct strm_logs *logs;
+	int t_request = -1;
+
+	if (!smp->strm)
+		return 0;
+
+	smp->data.type = SMP_T_SINT;
+	smp->flags = 0;
+
+	logs = &smp->strm->logs;
+
+
+	if ((llong)(logs->request_ts - logs->accept_ts) >= 0)
+		t_request = ns_to_ms(logs->request_ts - logs->accept_ts);
+
+	/* req.timer. */
+	if (kw[2] == 'q') {
+
+		switch (kw[10]) {
+
+			/* req.timer.idle (%Ti)  */
+			case 'i':
+				smp->data.u.sint = logs->t_idle;
+				break;
+
+			/* req.timer.tq (%Tq) */
+			case 't':
+				smp->data.u.sint = t_request;
+				break;
+
+			/* req.timer.hdr (%TR) */
+			case 'h':
+				smp->data.u.sint = (t_request >= 0) ? t_request - logs->t_idle - logs->t_handshake : -1;
+				break;
+
+			/* req.timer.queue (%Tw) */
+			case 'q':
+				smp->data.u.sint = (logs->t_queue >= 0) ? logs->t_queue - t_request : -1;
+				break;
+
+			default:
+				goto error;
+
+		}
+	} else {
+		/* res.timer. */
+		switch (kw[10]) {
+			/* res.timer.hdr (%Tr) */
+			case 'h':
+				smp->data.u.sint = (logs->t_data >= 0) ? logs->t_data - logs->t_connect : -1;
+			break;
+
+			/* res.timer.data (%Td) */
+			case 'd':
+				smp->data.u.sint = (logs->t_data >= 0) ? logs->t_close - logs->t_data : -1;
+			break;
+
+			default:
+				goto error;
+
+		}
+
+	}
+
+		return 1;
+error:
+
+		return 0;
+	}
+
+
+/* Timing events  txn. */
+static int smp_fetch_txn_timers(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct strm_logs *logs;
+
+	if (!smp->strm)
+		return 0;
+
+	smp->data.type = SMP_T_SINT;
+	smp->flags = 0;
+
+	logs = &smp->strm->logs;
+
+	/* txn.timer. */
+	switch (kw[10]) {
+
+		/* txn.timer.total (%Ta) */
+		case 't':
+			smp->data.u.sint = logs->t_close - (logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
+		break;
+
+
+		/* txn.timer.user (%Tu) */
+		case 'u':
+			smp->data.u.sint = logs->t_close - (logs->t_idle >= 0 ? logs->t_idle : 0);
+		break;
+
+		default:
+			goto error;
+
+	}
+
+	return 1;
+error:
+
+	return 0;
+}
+
+/* Timing events {f,bc}.timer.  */
+static int smp_fetch_conn_timers(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct strm_logs *logs;
+
+	if (!smp->strm)
+		return 0;
+
+	smp->data.type = SMP_T_SINT;
+	smp->flags = 0;
+
+	logs = &smp->strm->logs;
+
+	if (kw[0] == 'b') {
+		/* fc.timer. */
+		switch (kw[9]) {
+
+			/* bc.timer.connect (%Tc) */
+			case 'c':
+				smp->data.u.sint = (logs->t_connect >= 0) ? logs->t_connect - logs->t_queue : -1;
+				break;
+
+			default:
+				goto error;
+		}
+
+	} else {
+
+		/* fc.timer. */
+		switch (kw[9]) {
+
+			/* fc.timer.handshake (%Th) */
+			case 'h':
+				smp->data.u.sint = logs->t_handshake;
+				break;
+
+			/* fc,timer.total (%Tt) */
+			case 't':
+				smp->data.u.sint = logs->t_close;
+				break;
+
+			default:
+				goto error;
+		}
+
+	}
+
+	return 1;
+error:
+
+	return 0;
+}
+
+
+
+static struct sample_fetch_kw_list smp_logs_kws = {ILH, {
+	{ "txn.timer.total",      smp_fetch_txn_timers,   0,         NULL, SMP_T_SINT, SMP_USE_TXFIN }, /* "Ta" */
+	{ "txn.timer.user",       smp_fetch_txn_timers,   0,         NULL, SMP_T_SINT, SMP_USE_TXFIN }, /* "Tu" */
+
+	{ "bc.timer.connect",     smp_fetch_conn_timers,  0,         NULL, SMP_T_SINT, SMP_USE_L4SRV }, /* "Tc" */
+	{ "fc.timer.handshake",   smp_fetch_conn_timers,  0,         NULL, SMP_T_SINT, SMP_USE_L4CLI }, /* "Th" */
+	{ "fc.timer.total",       smp_fetch_conn_timers,  0,         NULL, SMP_T_SINT, SMP_USE_SSFIN }, /* "Tt" */
+
+	{ "req.timer.idle",       smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_HRQHV }, /* "Ti" */
+	{ "req.timer.tq",         smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_HRQHV }, /* "Tq" */
+	{ "req.timer.hdr",        smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_HRQHV }, /* "TR" */
+	{ "req.timer.queue",      smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_L4SRV }, /* "Tw" */
+	{ "res.timer.data",       smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_RSFIN }, /* "Td" */
+	{ "res.timer.hdr",        smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_HRSHV }, /* "Tr" */
+	{ /* END */ },
+}};
+
+INITCALL1(STG_REGISTER, sample_register_fetches, &smp_logs_kws);
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Note: fetches that may return multiple types should be declared using the
