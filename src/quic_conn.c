@@ -1145,16 +1145,16 @@ write:
 	}
 
 	if (level == ssl_encryption_handshake && qc_is_listener(qc)) {
-		qc->enc_params_len =
-			quic_transport_params_encode(qc->enc_params,
-			                             qc->enc_params + sizeof qc->enc_params,
-			                             &qc->rx.params, ver, 1);
-		if (!qc->enc_params_len) {
+		int tps_len;
+		unsigned char tps[QUIC_TP_MAX_ENCLEN];
+
+		tps_len = quic_transport_params_encode(tps, tps + sizeof tps, &qc->rx.params, ver, 1);
+		if (!tps_len) {
 			TRACE_ERROR("quic_transport_params_encode() failed", QUIC_EV_CONN_RWSEC);
 			goto leave;
 		}
 
-		if (!SSL_set_quic_transport_params(qc->xprt_ctx->ssl, qc->enc_params, qc->enc_params_len)) {
+		if (!SSL_set_quic_transport_params(qc->xprt_ctx->ssl, tps, tps_len)) {
 			TRACE_ERROR("SSL_set_quic_transport_params() failed", QUIC_EV_CONN_RWSEC);
 			goto leave;
 		}
@@ -6667,8 +6667,7 @@ static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
  * Return 0 if succeeded, -1 if not. If failed, sets the ->err_code member of <qc->conn> to
  * CO_ER_SSL_NO_MEM.
  */
-static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl,
-                            unsigned char *params, size_t params_len)
+static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl)
 {
 	int retry, ret = -1;
 
@@ -6735,10 +6734,8 @@ static int qc_conn_alloc_ssl_ctx(struct quic_conn *qc)
 	ctx->qc = qc;
 
 	if (qc_is_listener(qc)) {
-		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl,
-		                     qc->enc_params, qc->enc_params_len) == -1) {
+		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl) == -1)
 		        goto err;
-		}
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 		/* Enabling 0-RTT */
 		if (bc->ssl_conf.early_data)
