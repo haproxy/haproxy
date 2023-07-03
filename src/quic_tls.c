@@ -775,7 +775,7 @@ int quic_tls_derive_retry_token_secret(const EVP_MD *md,
 	                                  tmpkey_label, sizeof tmpkey_label - 1) ||
 	    !quic_hkdf_expand(md, key, keylen, tmpkey, sizeof tmpkey,
 	                      key_label, sizeof key_label - 1) ||
-	    !quic_hkdf_expand(md, iv, ivlen, secret, secretlen,
+	    !quic_hkdf_expand(md, iv, ivlen, tmpkey, sizeof tmpkey,
 	                      iv_label, sizeof iv_label - 1))
 		return 0;
 
