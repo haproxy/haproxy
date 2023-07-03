@@ -3574,6 +3574,8 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	padding = 0;
 	pos = (unsigned char *)b_head(buf);
 	first_pkt = prv_pkt = NULL;
+	end = pos; // just to let gcc know it will always be initialized
+
 	while (b_contig_space(buf) >= (int)qc->path->mtu + dg_headlen || prv_pkt) {
 		int err, probe, cc, must_ack;
 		enum quic_pkt_type pkt_type;
@@ -3696,6 +3698,11 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				next_tel = QUIC_TLS_ENC_LEVEL_APP;
 			tel = next_tel;
 			qel = qc_quic_enc_level(qc, tel);
+
+			/* This cannot happen. This is to please some compilers. */
+			if (!qel || !qel->pktns)
+				goto end_of_dgram;
+
 			/* Note that we cannot NULL as value for <qel> when for the Application
 			 * data encryption level. Furthermore this encryption is never released.
 			 */
@@ -3711,6 +3718,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			}
 		}
 
+ end_of_dgram:
 		/* If we have to build a new datagram, set the current datagram as
 		 * prepared into <cbuf>.
 		 */
