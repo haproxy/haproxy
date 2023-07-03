@@ -8808,14 +8808,22 @@ static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
 
 	/* Packet number spaces information */
 	pktns = qc->ipktns;
-	chunk_appendf(&trash, "  [initl]             rx.ackrng=%-6zu tx.inflight=%-6zu",
-	              pktns->rx.arngs.sz, pktns->tx.in_flight);
+	if (pktns) {
+		chunk_appendf(&trash, "  [initl]             rx.ackrng=%-6zu tx.inflight=%-6zu",
+		              pktns->rx.arngs.sz, pktns->tx.in_flight);
+	}
+
 	pktns = qc->hpktns;
-	chunk_appendf(&trash, "           [hndshk] rx.ackrng=%-6zu tx.inflight=%-6zu\n",
-	              pktns->rx.arngs.sz, pktns->tx.in_flight);
+	if (pktns) {
+		chunk_appendf(&trash, "           [hndshk] rx.ackrng=%-6zu tx.inflight=%-6zu\n",
+		              pktns->rx.arngs.sz, pktns->tx.in_flight);
+	}
+
 	pktns = qc->apktns;
-	chunk_appendf(&trash, "  [01rtt]             rx.ackrng=%-6zu tx.inflight=%-6zu\n",
-	              pktns->rx.arngs.sz, pktns->tx.in_flight);
+	if (pktns) {
+		chunk_appendf(&trash, "  [01rtt]             rx.ackrng=%-6zu tx.inflight=%-6zu\n",
+		              pktns->rx.arngs.sz, pktns->tx.in_flight);
+	}
 
 	chunk_appendf(&trash, "  srtt=%-4u rttvar=%-4u rttmin=%-4u ptoc=%-4u cwnd=%-6llu"
 	                      " mcwnd=%-6llu sentpkts=%-6llu lostpkts=%-6llu\n",
