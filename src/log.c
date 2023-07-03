@@ -1958,6 +1958,20 @@ void deinit_log_buffers()
 	logline_rfc5424   = NULL;
 }
 
+/* Deinitialize log forwarder proxies used for syslog messages */
+void deinit_log_forward()
+{
+	struct proxy *p, *p0;
+
+	p = cfg_log_forward;
+	/* we need to manually clean cfg_log_forward proxy list */
+	while (p) {
+		p0 = p;
+		p = p->next;
+		free_proxy(p0);
+	}
+}
+
 /* Builds a log line in <dst> based on <list_format>, and stops before reaching
  * <maxsize> characters. Returns the size of the output string in characters,
  * not counting the trailing zero which is always added if the resulting size
@@ -3972,6 +3986,8 @@ REGISTER_CONFIG_SECTION("log-forward", cfg_parse_log_forward, NULL);
 
 REGISTER_PER_THREAD_ALLOC(init_log_buffers);
 REGISTER_PER_THREAD_FREE(deinit_log_buffers);
+
+REGISTER_POST_DEINIT(deinit_log_forward);
 
 /*
  * Local variables:
