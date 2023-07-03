@@ -100,6 +100,25 @@ void quic_tls_secret_hexdump(struct buffer *buf,
 		chunk_appendf(buf, "%02x", secret[i]);
 }
 
+/* Uninitialize <qel> QUIC encryption level. Never fails. */
+void quic_conn_enc_level_uninit(struct quic_conn *qc, struct quic_enc_level *qel)
+{
+	int i;
+
+	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
+
+	for (i = 0; i < qel->tx.crypto.nb_buf; i++) {
+		if (qel->tx.crypto.bufs[i]) {
+			pool_free(pool_head_quic_crypto_buf, qel->tx.crypto.bufs[i]);
+			qel->tx.crypto.bufs[i] = NULL;
+		}
+	}
+	ha_free(&qel->tx.crypto.bufs);
+	quic_cstream_free(qel->cstream);
+
+	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
+}
+
 /* Initialize QUIC TLS encryption level with <level<> as level for <qc> QUIC
  * connection allocating everything needed.
  *
@@ -120,6 +139,9 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	if (!qel)
 		goto leave;
 
+	qel->tx.crypto.bufs = NULL;
+	qel->tx.crypto.nb_buf = 0;
+	qel->cstream = NULL;
 	qel->pktns = pktns;
 	qel->level = level;
 	quic_tls_ctx_reset(&qel->tls_ctx);
@@ -131,11 +153,12 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	/* TODO: use a pool */
 	qel->tx.crypto.bufs = malloc(sizeof *qel->tx.crypto.bufs);
 	if (!qel->tx.crypto.bufs)
-		goto leave;
+		goto err;
 
 	qel->tx.crypto.bufs[0] = pool_alloc(pool_head_quic_crypto_buf);
 	if (!qel->tx.crypto.bufs[0])
-		goto leave;
+		goto err;
+
 
 	qel->tx.crypto.bufs[0]->sz = 0;
 	qel->tx.crypto.nb_buf = 1;
@@ -148,7 +171,7 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	else {
 		qel->cstream = quic_cstream_new(qc);
 		if (!qel->cstream)
-			goto leave;
+			goto err;
 	}
 
 	LIST_APPEND(&qc->qel_list, &qel->list);
@@ -157,25 +180,11 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
 	return ret;
-}
 
-/* Uninitialize <qel> QUIC encryption level. Never fails. */
-void quic_conn_enc_level_uninit(struct quic_conn *qc, struct quic_enc_level *qel)
-{
-	int i;
-
-	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
-
-	for (i = 0; i < qel->tx.crypto.nb_buf; i++) {
-		if (qel->tx.crypto.bufs[i]) {
-			pool_free(pool_head_quic_crypto_buf, qel->tx.crypto.bufs[i]);
-			qel->tx.crypto.bufs[i] = NULL;
-		}
-	}
-	ha_free(&qel->tx.crypto.bufs);
-	quic_cstream_free(qel->cstream);
-
-	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
+ err:
+	quic_conn_enc_level_uninit(qc, qel);
+	pool_free(pool_head_quic_enc_level, qel);
+	goto leave;
 }
 
 /* Allocate a QUIC TLS encryption with <level> as TLS stack encryption to be
