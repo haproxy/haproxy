@@ -3727,7 +3727,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 
 	if (strcmp(args[0], "log-forward") == 0) {
 		if (!*args[1]) {
-			ha_alert("parsing [%s:%d] : missing name for ip-forward section.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : missing name for log-forward section.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
