@@ -3720,7 +3720,7 @@ static struct applet syslog_applet = {
  */
 int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 {
-	int err_code = 0;
+	int err_code = ERR_NONE;
 	struct proxy *px;
 	char *errmsg = NULL;
 	const char *err = NULL;
@@ -3748,6 +3748,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			ha_alert("Parsing [%s:%d]: log-forward section '%s' has the same name as another log-forward section declared at %s:%d.\n",
 				 file, linenum, args[1], px->conf.file, px->conf.line);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 
 		px = proxy_find_by_name(args[1], 0, 0);
@@ -3756,6 +3757,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			         file, linenum, args[1], proxy_type_str(px),
 			         px->id, px->conf.file, px->conf.line);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 
 		px = calloc(1, sizeof *px);
@@ -3777,7 +3779,6 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		px->accept = frontend_accept;
 		px->default_target = &syslog_applet.obj_type;
 		px->id = strdup(args[1]);
-
 	}
 	else if (strcmp(args[0], "maxconn") == 0) {  /* maxconn */
 		if (warnifnotcap(cfg_log_forward, PR_CAP_FE, file, linenum, args[0], " Maybe you want 'fullconn' instead ?"))
@@ -3832,9 +3833,9 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			else {
 				ha_alert("parsing [%s:%d] : '%s %s' : error encountered while parsing listening address %s.\n",
 				         file, linenum, args[0], args[1], args[2]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
 			}
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 			global.maxsock++;
@@ -3946,7 +3947,6 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		}
 		else if (res) {
 			memprintf(&errmsg, "unexpected character '%c' in 'timeout client'", *res);
-			return -1;
 		}
 
 		if (res) {
