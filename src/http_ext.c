@@ -997,7 +997,7 @@ int proxy_http_parse_7239(char **args, int cur_arg,
 			fwd->p_host.mode = HTTP_7239_HOST_SMP;
 			err_code |= _proxy_http_parse_7239_expr(args, &cur_arg, file, linenum,
 								&fwd->p_host.expr_s);
-			if (err_code & ERR_FATAL)
+			if (err_code & ERR_CODE)
 				goto out;
 		} else if (strcmp(args[cur_arg], "by") == 0) {
 			fwd->p_by.nn_mode = HTTP_7239_FORBY_ORIG;
@@ -1006,7 +1006,7 @@ int proxy_http_parse_7239(char **args, int cur_arg,
 			fwd->p_by.nn_mode = HTTP_7239_FORBY_SMP;
 			err_code |= _proxy_http_parse_7239_expr(args, &cur_arg, file, linenum,
 								&fwd->p_by.nn_expr_s);
-			if (err_code & ERR_FATAL)
+			if (err_code & ERR_CODE)
 				goto out;
 		} else if (strcmp(args[cur_arg], "for") == 0) {
 			fwd->p_for.nn_mode = HTTP_7239_FORBY_ORIG;
@@ -1015,7 +1015,7 @@ int proxy_http_parse_7239(char **args, int cur_arg,
 			fwd->p_for.nn_mode = HTTP_7239_FORBY_SMP;
 			err_code |= _proxy_http_parse_7239_expr(args, &cur_arg, file, linenum,
 								&fwd->p_for.nn_expr_s);
-			if (err_code & ERR_FATAL)
+			if (err_code & ERR_CODE)
 				goto out;
 		} else if (strcmp(args[cur_arg], "by_port") == 0) {
 			fwd->p_by.np_mode = HTTP_7239_FORBY_ORIG;
@@ -1024,7 +1024,7 @@ int proxy_http_parse_7239(char **args, int cur_arg,
 			fwd->p_by.np_mode = HTTP_7239_FORBY_SMP;
 			err_code |= _proxy_http_parse_7239_expr(args, &cur_arg, file, linenum,
 								&fwd->p_by.np_expr_s);
-			if (err_code & ERR_FATAL)
+			if (err_code & ERR_CODE)
 				goto out;
 		} else if (strcmp(args[cur_arg], "for_port") == 0) {
 			fwd->p_for.np_mode = HTTP_7239_FORBY_ORIG;
@@ -1033,7 +1033,7 @@ int proxy_http_parse_7239(char **args, int cur_arg,
 			fwd->p_for.np_mode = HTTP_7239_FORBY_SMP;
 			err_code |= _proxy_http_parse_7239_expr(args, &cur_arg, file, linenum,
 								&fwd->p_for.np_expr_s);
-			if (err_code & ERR_FATAL)
+			if (err_code & ERR_CODE)
 				goto out;
 		} else {
 			/* unknown suboption - catchall */
