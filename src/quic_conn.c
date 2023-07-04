@@ -3356,6 +3356,8 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				qc_set_timer(qc);
 				qc_el_rx_pkts_del(qc->iel);
 				qc_release_pktns_frms(qc, qc->ipktns);
+				/* Also release the negotiated Inital TLS context. */
+				quic_nictx_free(qc);
 			}
 		    if (qc->state < QUIC_HS_ST_SERVER_HANDSHAKE)
 			    qc->state = QUIC_HS_ST_SERVER_HANDSHAKE;
@@ -5221,6 +5223,8 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		quic_pktns_release(qc, &qc->ipktns);
 		qc_enc_level_free(qc, &qc->hel);
 		quic_pktns_release(qc, &qc->hpktns);
+		/* Also release the negotiated Inital TLS context. */
+		quic_nictx_free(qc);
 	}
 
 	TRACE_PROTO("ssl error", QUIC_EV_CONN_IO_CB, qc, &st, &ssl_err);

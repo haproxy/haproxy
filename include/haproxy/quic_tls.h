@@ -757,6 +757,16 @@ static inline int quic_tls_secrets_keys_alloc(struct quic_tls_secrets *secs)
 	return 0;
 }
 
+/* Release the memory allocated for the negotiated Initial QUIC TLS context
+ * attached to <qc> connection.
+ */
+static inline void quic_nictx_free(struct quic_conn *qc)
+{
+	quic_tls_ctx_secs_free(qc->nictx);
+	pool_free(pool_head_quic_tls_ctx, qc->nictx);
+	qc->nictx = NULL;
+}
+
 /* Initialize a TLS cryptographic context for the Initial encryption level. */
 static inline int quic_initial_tls_ctx_init(struct quic_tls_ctx *ctx)
 {
