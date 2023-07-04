@@ -79,6 +79,30 @@ server s1 {
     txresp -hdr "Cache-Control: max-age=500" \
         -hdr "Age: 100" -bodylen 140
 
+
+    # max-age=0
+    rxreq
+    expect req.url == "/maxage_zero"
+    txresp -hdr "Cache-Control: max-age=0" \
+        -bodylen 150
+
+    rxreq
+    expect req.url == "/maxage_zero"
+    txresp -hdr "Cache-Control: max-age=0" \
+        -bodylen 150
+
+    # Overridden null max-age
+    rxreq
+    expect req.url == "/overridden"
+    txresp -hdr "Cache-Control: max-age=1, s-maxage=5" \
+        -bodylen 160
+
+    rxreq
+    expect req.url == "/overridden_null_maxage"
+    txresp -hdr "Cache-Control: max-age=0, s-maxage=5" \
+        -bodylen 190
+
+
 } -start
 
 server s2 {
@@ -250,6 +274,46 @@ client c1 -connect ${h1_fe_sock} {
         rxresp
         expect resp.status == 200
         expect resp.bodylen == 140
+        expect resp.http.X-Cache-Hit == 1
+
+        # max-age=0 (control test for the overridden null max-age test below)
+        txreq -url "/maxage_zero"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 150
+        expect resp.http.X-Cache-Hit == 0
+
+        txreq -url "/maxage_zero"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 150
+        expect resp.http.X-Cache-Hit == 0
+
+        # Overridden max-age directive
+        txreq -url "/overridden"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 160
+        expect resp.http.X-Cache-Hit == 0
+
+        txreq -url "/overridden"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 160
+        expect resp.http.X-Cache-Hit == 1
+
+        txreq -url "/overridden_null_maxage"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 190
+        expect resp.http.X-Cache-Hit == 0
+
+        # The previous response should have been cached even if it had
+        # a max-age=0 since it also had a positive s-maxage
+        txreq -url "/overridden_null_maxage"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 190
         expect resp.http.X-Cache-Hit == 1
 
 

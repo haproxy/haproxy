@@ -3713,6 +3713,7 @@ void http_check_response_for_cacheability(struct stream *s, struct channel *res)
 	struct htx *htx;
 	int has_freshness_info = 0;
 	int has_validator = 0;
+	int has_null_maxage = 0;
 
 	if (txn->status < 200) {
 		/* do not try to cache interim responses! */
@@ -3737,10 +3738,16 @@ void http_check_response_for_cacheability(struct stream *s, struct channel *res)
 			txn->flags |= TX_CACHEABLE | TX_CACHE_COOK;
 			continue;
 		}
+		/* This max-age might be overridden by a s-maxage directive, do
+		 * not unset the TX_CACHEABLE yet. */
+		if (isteqi(ctx.value, ist("max-age=0"))) {
+			has_null_maxage = 1;
+			continue;
+		}
+
 		if (isteqi(ctx.value, ist("private")) ||
 		    isteqi(ctx.value, ist("no-cache")) ||
 		    isteqi(ctx.value, ist("no-store")) ||
-		    isteqi(ctx.value, ist("max-age=0")) ||
 		    isteqi(ctx.value, ist("s-maxage=0"))) {
 			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 			continue;
@@ -3751,11 +3758,21 @@ void http_check_response_for_cacheability(struct stream *s, struct channel *res)
 			continue;
 		}
 
-		if (istmatchi(ctx.value, ist("s-maxage")) ||
-		    istmatchi(ctx.value, ist("max-age"))) {
+		if (istmatchi(ctx.value, ist("s-maxage"))) {
+			has_freshness_info = 1;
+			has_null_maxage = 0;	/* The null max-age is overridden, ignore it */
+			continue;
+		}
+		if (istmatchi(ctx.value, ist("max-age"))) {
 			has_freshness_info = 1;
 			continue;
 		}
+	}
+
+	/* We had a 'max-age=0' directive but no extra s-maxage, do not cache
+	 * the response. */
+	if (has_null_maxage) {
+		txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 	}
 
 	/* If no freshness information could be found in Cache-Control values,
