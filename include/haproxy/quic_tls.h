@@ -648,6 +648,9 @@ static inline void quic_tls_ctx_reset(struct quic_tls_ctx *ctx)
  */
 static inline void quic_tls_ctx_secs_free(struct quic_tls_ctx *ctx)
 {
+	if (!ctx)
+		return;
+
 	if (ctx->rx.iv) {
 		memset(ctx->rx.iv, 0, ctx->rx.ivlen);
 		ctx->rx.ivlen = 0;

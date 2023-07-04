@@ -1582,7 +1582,7 @@ static inline struct quic_tls_ctx *qc_select_tls_ctx(struct quic_conn *qc,
                                                      struct quic_rx_packet *pkt)
 {
 	return pkt->type != QUIC_PACKET_TYPE_INITIAL ? &qel->tls_ctx :
-		pkt->version == qc->negotiated_version ? &qc->negotiated_ictx : &qel->tls_ctx;
+		pkt->version == qc->negotiated_version ? qc->nictx : &qel->tls_ctx;
 }
 
 /* Decrypt <pkt> packet using encryption level <qel> for <qc> connection.
@@ -2385,10 +2385,16 @@ static int qc_conn_finalize(struct quic_conn *qc, int server)
 	if (qc->flags & QUIC_FL_CONN_FINALIZED)
 		goto finalized;
 
-	if (qc->negotiated_version &&
-	    !qc_new_isecs(qc, &qc->negotiated_ictx, qc->negotiated_version,
-	                  qc->odcid.data, qc->odcid.len, server))
-		goto out;
+	if (qc->negotiated_version) {
+		qc->nictx = pool_alloc(pool_head_quic_tls_ctx);
+		if (!qc->nictx)
+			goto out;
+
+		quic_tls_ctx_reset(qc->nictx);
+		if (!qc_new_isecs(qc, qc->nictx, qc->negotiated_version,
+		                  qc->odcid.data, qc->odcid.len, server))
+			goto out;
+	}
 
 	/* This connection is functional (ready to send/receive) */
 	qc->flags |= QUIC_FL_CONN_FINALIZED;
@@ -3641,7 +3647,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		if (qc->negotiated_version) {
 			ver = qc->negotiated_version;
 			if (qel == qc->iel)
-				tls_ctx = &qc->negotiated_ictx;
+				tls_ctx = qc->nictx;
 			else
 				tls_ctx = &qel->tls_ctx;
 		}
@@ -5466,7 +5472,7 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	}
 
 	/* Initialize in priority qc members required for a safe dealloc. */
-
+	qc->nictx = NULL;
 	/* Prevents these CID to be dumped by TRACE() calls */
 	qc->scid.len = qc->odcid.len = qc->dcid.len = 0;
 	/* required to use MTLIST_IN_LIST */
@@ -5508,8 +5514,6 @@ static struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	/* Packet number spaces */
 	qc->ipktns = qc->hpktns = qc->apktns = NULL;
 	LIST_INIT(&qc->pktns_list);
-
-	quic_tls_ctx_reset(&qc->negotiated_ictx);
 
 	/* Required to safely call quic_conn_prx_cntrs_update() from quic_conn_release(). */
 	qc->prx_counters = NULL;
@@ -5762,7 +5766,9 @@ void quic_conn_release(struct quic_conn *qc)
 	qc_enc_level_free(qc, &qc->hel);
 	qc_enc_level_free(qc, &qc->ael);
 
-	quic_tls_ctx_secs_free(&qc->negotiated_ictx);
+	quic_tls_ctx_secs_free(qc->nictx);
+	pool_free(pool_head_quic_tls_ctx, qc->nictx);
+	qc->nictx = NULL;
 
 	quic_pktns_release(qc, &qc->ipktns);
 	quic_pktns_release(qc, &qc->hpktns);

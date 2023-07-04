@@ -581,7 +581,7 @@ struct quic_conn {
 	const struct quic_version *original_version;
 	const struct quic_version *negotiated_version;
 	/* Negotiated version Initial TLS context */
-	struct quic_tls_ctx negotiated_ictx;
+	struct quic_tls_ctx *nictx;
 	/* Connection owned socket FD. */
 	int fd;
 	/* QUIC transport parameters TLS extension */
