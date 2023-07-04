@@ -645,7 +645,6 @@ static int cfg_fcgi_apps_postparser()
 	struct fcgi_app *curapp;
 	struct proxy *px;
 	struct server *srv;
-	struct logsrv *logsrv;
 	int err_code = 0;
 
 	for (px = proxies_list; px; px = px->next) {
@@ -701,18 +700,7 @@ static int cfg_fcgi_apps_postparser()
 			curapp->maxreqs = 1;
 		}
 
-		list_for_each_entry(logsrv, &curapp->logsrvs, list) {
-			if (logsrv->type == LOG_TARGET_BUFFER) {
-				struct sink *sink = sink_find(logsrv->ring_name);
-
-				if (!sink || sink->type != SINK_TYPE_BUFFER) {
-					ha_alert("fcgi-app '%s' : log server uses unknown ring named '%s'.\n",
-						 curapp->name, logsrv->ring_name);
-					err_code |= ERR_ALERT | ERR_FATAL;
-				}
-				logsrv->sink = sink;
-			}
-		}
+		err_code |= postresolve_logsrv_list(&curapp->logsrvs, "fcgi-app", curapp->name);
 	}
 
   end:
