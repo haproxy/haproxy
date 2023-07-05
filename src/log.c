@@ -734,6 +734,43 @@ int smp_log_range_cmp(const void *a, const void *b)
 	return 0;
 }
 
+/* tries to duplicate <def> logsrv
+ *
+ * Returns the newly allocated and duplicated logsrv or NULL
+ * in case of error.
+ */
+struct logsrv *dup_logsrv(struct logsrv *def)
+{
+	struct logsrv *cpy = malloc(sizeof(*cpy));
+
+	/* copy everything that can be easily copied */
+	memcpy(cpy, def, sizeof(*cpy));
+
+	/* default values */
+	cpy->ring_name = NULL;
+	cpy->conf.file = NULL;
+	LIST_INIT(&cpy->list);
+	HA_SPIN_INIT(&cpy->lock);
+
+	/* special members */
+	if (def->ring_name) {
+		cpy->ring_name = strdup(def->ring_name);
+		if (!cpy->ring_name)
+			goto error;
+	}
+	if (def->conf.file) {
+		cpy->conf.file = strdup(def->conf.file);
+		if (!cpy->conf.file)
+			goto error;
+	}
+	cpy->ref = def;
+	return cpy;
+
+ error:
+	free_logsrv(cpy);
+	return NULL;
+}
+
 /* frees log server <logsrv> after freeing all of its allocated fields. The
  * server must not belong to a list anymore. Logsrv may be NULL, which is
  * silently ignored.
@@ -808,18 +845,20 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 					goto skip_logsrv;
 			}
 
-			node = malloc(sizeof(*node));
+			/* duplicate logsrv from global */
+			node = dup_logsrv(logsrv);
 			if (!node) {
 				memprintf(err, "out of memory error");
 				goto error;
 			}
-			memcpy(node, logsrv, sizeof(struct logsrv));
-			node->ref = logsrv;
-			LIST_INIT(&node->list);
-			LIST_APPEND(logsrvs, &node->list);
-			node->ring_name = logsrv->ring_name ? strdup(logsrv->ring_name) : NULL;
+
+			/* manually override some values */
+			ha_free(&node->conf.file);
 			node->conf.file = strdup(file);
 			node->conf.line = linenum;
+
+			/* add to list */
+			LIST_APPEND(logsrvs, &node->list);
 
 		  skip_logsrv:
 			continue;

@@ -1814,19 +1814,13 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 
 	/* copy default logsrvs to curproxy */
 	list_for_each_entry(tmplogsrv, &defproxy->logsrvs, list) {
-		struct logsrv *node = malloc(sizeof(*node));
+		struct logsrv *node = dup_logsrv(tmplogsrv);
 
 		if (!node) {
 			memprintf(errmsg, "proxy '%s': out of memory", curproxy->id);
 			return 1;
 		}
-		memcpy(node, tmplogsrv, sizeof(struct logsrv));
-		node->ref = tmplogsrv->ref;
-		LIST_INIT(&node->list);
 		LIST_APPEND(&curproxy->logsrvs, &node->list);
-		node->ring_name = tmplogsrv->ring_name ? strdup(tmplogsrv->ring_name) : NULL;
-		node->conf.file = strdup(tmplogsrv->conf.file);
-		node->conf.line = tmplogsrv->conf.line;
 	}
 
 	curproxy->conf.uniqueid_format_string = defproxy->conf.uniqueid_format_string;

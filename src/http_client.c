@@ -1369,19 +1369,14 @@ static int httpclient_postcheck_proxy(struct proxy *curproxy)
 
 	/* copy logs from "global" log list */
 	list_for_each_entry(logsrv, &global.logsrvs, list) {
-		struct logsrv *node = malloc(sizeof(*node));
+		struct logsrv *node = dup_logsrv(logsrv);
 
 		if (!node) {
 			memprintf(&errmsg, "out of memory.");
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto err;
 		}
-
-		memcpy(node, logsrv, sizeof(*node));
-		LIST_INIT(&node->list);
 		LIST_APPEND(&curproxy->logsrvs, &node->list);
-		node->ring_name = logsrv->ring_name ? strdup(logsrv->ring_name) : NULL;
-		node->conf.file = logsrv->conf.file ? strdup(logsrv->conf.file) : NULL;
 	}
 	if (curproxy->conf.logformat_string) {
 		curproxy->conf.args.ctx = ARGC_LOG;
