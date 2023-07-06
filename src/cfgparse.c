@@ -2659,6 +2659,73 @@ static int numa_filter(const struct dirent *dir)
 	return 1;
 }
 
+/* function used by qsort to compare two hwcpus and arrange them by vicinity.
+ * -1 says a<b, 1 says a>b.
+ */
+static int cmp_hw_cpus(const void *a, const void *b)
+{
+	const struct ha_cpu_topo *l = (const struct ha_cpu_topo *)a;
+	const struct ha_cpu_topo *r = (const struct ha_cpu_topo *)b;
+
+	/* first, online vs offline */
+	if (!(l->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)) && (r->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)))
+		return -1;
+
+	if (!(r->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)) && (l->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)))
+		return 1;
+
+	/* next, package ID */
+	if (l->pk_id >= 0 && l->pk_id < r->pk_id)
+		return -1;
+	if (l->pk_id > r->pk_id && r->pk_id >= 0)
+		return  1;
+
+	/* next, node ID */
+	if (l->no_id >= 0 && l->no_id < r->no_id)
+		return -1;
+	if (l->no_id > r->no_id && r->no_id >= 0)
+		return  1;
+
+	/* next, L3 */
+	if (l->l3_id >= 0 && l->l3_id < r->l3_id)
+		return -1;
+	if (l->l3_id > r->l3_id && r->l3_id >= 0)
+		return  1;
+
+	/* next, cluster */
+	if (l->cl_id >= 0 && l->cl_id < r->cl_id)
+		return -1;
+	if (l->cl_id > r->cl_id && r->cl_id >= 0)
+		return  1;
+
+	/* next, L2 */
+	if (l->l2_id >= 0 && l->l2_id < r->l2_id)
+		return -1;
+	if (l->l2_id > r->l2_id && r->l2_id >= 0)
+		return  1;
+
+	/* next, thread set */
+	if (l->ts_id >= 0 && l->ts_id < r->ts_id)
+		return -1;
+	if (l->ts_id > r->ts_id && r->ts_id >= 0)
+		return  1;
+
+	/* next, L1 */
+	if (l->l1_id >= 0 && l->l1_id < r->l1_id)
+		return -1;
+	if (l->l1_id > r->l1_id && r->l1_id >= 0)
+		return  1;
+
+	/* next, IDX, so that SMT ordering is preserved */
+	if (l->idx >= 0 && l->idx < r->idx)
+		return -1;
+	if (l->idx > r->idx && r->idx >= 0)
+		return  1;
+
+	/* exactly the same (e.g. absent) */
+	return 0;
+}
+
 /* Inspect the cpu topology of the machine on startup. If a multi-socket
  * machine is detected, try to bind on the first node with active cpu. This is
  * done to prevent an impact on the overall performance when the topology of
@@ -2677,11 +2744,172 @@ static int numa_detect_topology()
 	int node_dirlist_size = 0;
 
 	struct hap_cpuset node_cpu_set;
+	const char *parse_cpu_set_args[2];
+	struct ha_cpu_topo cpu_id = { }; /* all zeroes */
 	int maxcpus = 0;
+	int lastcpu = 0;
 	int grp, thr, cpu;
 
 	/* node_cpu_set count is used as return value */
 	ha_cpuset_zero(&node_cpu_set);
+
+	maxcpus = ha_cpuset_size();
+
+	for (cpu = 0; cpu < maxcpus; cpu++)
+		if (!(ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE))
+			lastcpu = cpu;
+
+	/* now let's only focus on online and bound CPUs to learn more about
+	 * their topology, their siblings, their cache affinity etc. We can
+	 * stop at lastcpu which matches the ID of the last known bound CPU
+	 * when it's set. We'll pre-assign and auto-increment indexes for
+	 * thread_set_id, cluster_id, l1/l2/l3 id, etc. We don't revisit entries
+	 * already filled from the list provided by another CPU.
+	 */
+	for (cpu = 0; cpu <= lastcpu; cpu++) {
+		struct hap_cpuset cpus_list;
+		int cpu2;
+
+		if (ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE)
+			continue;
+
+		/* First, let's check the cache hierarchy. On systems exposing
+		 * it, index0 generally is the L1D cache, index1 the L1I, index2
+		 * the L2 and index3 the L3.
+		 */
+
+		/* other CPUs sharing the same L1 cache (SMT) */
+		if (ha_cpu_topo[cpu].l1_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cache/index0/shared_cpu_list", cpu) >= 0) {
+			parse_cpu_set_args[0] = trash.area;
+			parse_cpu_set_args[1] = "\0";
+			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
+					if (ha_cpuset_isset(&cpus_list, cpu2))
+						ha_cpu_topo[cpu2].l1_id = cpu_id.l1_id;
+				}
+				cpu_id.l1_id++;
+			}
+		}
+
+		/* other CPUs sharing the same L2 cache (clusters of cores) */
+		if (ha_cpu_topo[cpu].l2_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cache/index2/shared_cpu_list", cpu) >= 0) {
+			parse_cpu_set_args[0] = trash.area;
+			parse_cpu_set_args[1] = "\0";
+			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
+					if (ha_cpuset_isset(&cpus_list, cpu2))
+						ha_cpu_topo[cpu2].l2_id = cpu_id.l2_id;
+				}
+				cpu_id.l2_id++;
+			}
+		}
+
+		/* other CPUs sharing the same L3 cache slices (local cores) */
+		if (ha_cpu_topo[cpu].l3_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cache/index3/shared_cpu_list", cpu) >= 0) {
+			parse_cpu_set_args[0] = trash.area;
+			parse_cpu_set_args[1] = "\0";
+			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
+					if (ha_cpuset_isset(&cpus_list, cpu2))
+						ha_cpu_topo[cpu2].l3_id = cpu_id.l3_id;
+				}
+				cpu_id.l3_id++;
+			}
+		}
+
+		/* Now let's try to get more info about how the cores are
+		 * arranged in packages, clusters, cores, threads etc. It
+		 * overlaps a bit with the cache above, but as not all systems
+		 * provide all of these, they're quite complementary in fact.
+		 */
+
+		/* threads mapped to same cores */
+		if (ha_cpu_topo[cpu].ts_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/thread_siblings_list", cpu) >= 0) {
+			parse_cpu_set_args[0] = trash.area;
+			parse_cpu_set_args[1] = "\0";
+			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
+					if (ha_cpuset_isset(&cpus_list, cpu2))
+						ha_cpu_topo[cpu2].ts_id = cpu_id.ts_id;
+				}
+				cpu_id.ts_id++;
+			}
+		}
+
+		/* clusters of cores when they exist, can be smaller and more
+		 * precise than core lists (e.g. big.little), otherwise use
+		 * core lists.
+		 */
+		if (ha_cpu_topo[cpu].cl_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/cluster_cpus_list", cpu) >= 0) {
+			parse_cpu_set_args[0] = trash.area;
+			parse_cpu_set_args[1] = "\0";
+			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
+					if (ha_cpuset_isset(&cpus_list, cpu2))
+						ha_cpu_topo[cpu2].cl_id = cpu_id.cl_id;
+				}
+				cpu_id.cl_id++;
+			}
+		} else if (ha_cpu_topo[cpu].cl_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/core_siblings_list", cpu) >= 0) {
+			parse_cpu_set_args[0] = trash.area;
+			parse_cpu_set_args[1] = "\0";
+			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
+					if (ha_cpuset_isset(&cpus_list, cpu2))
+						ha_cpu_topo[cpu2].cl_id = cpu_id.cl_id;
+				}
+				cpu_id.cl_id++;
+			}
+		}
+
+		/* package CPUs list, like nodes, are generally a hard limit
+		 * for groups, which must not span over multiple of them. On
+		 * some systems, the package_cpus_list is not always provided,
+		 * so we may fall back to the physical package id from each
+		 * CPU, whose number starts at 0. The first one is preferred
+		 * because it provides a list in a single read().
+		 */
+		if (ha_cpu_topo[cpu].pk_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/package_cpus_list", cpu) >= 0) {
+			parse_cpu_set_args[0] = trash.area;
+			parse_cpu_set_args[1] = "\0";
+			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
+					if (ha_cpuset_isset(&cpus_list, cpu2))
+						ha_cpu_topo[cpu2].pk_id = cpu_id.pk_id;
+				}
+				cpu_id.pk_id++;
+			}
+		} else if (ha_cpu_topo[cpu].pk_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/physical_package_id", cpu) >= 0) {
+			if (trash.data)
+				ha_cpu_topo[cpu].pk_id = str2uic(trash.area);
+		}
+	}
+
+	qsort(ha_cpu_topo, lastcpu+1, sizeof(*ha_cpu_topo), cmp_hw_cpus);
+
+	for (cpu = 0; cpu <= lastcpu; cpu++) {
+		printf("thr %3d -> cpu %3d  onl=%d bnd=%d pk=%02d no=%02d l3=%02d cl=%03d l2=%03d ts=%03d l1=%03d\n", cpu, ha_cpu_topo[cpu].idx,
+		       !(ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE),
+		       !(ha_cpu_topo[cpu].st & HA_CPU_F_EXCLUDED),
+		       ha_cpu_topo[cpu].pk_id,
+		       ha_cpu_topo[cpu].no_id,
+		       ha_cpu_topo[cpu].l3_id,
+		       ha_cpu_topo[cpu].cl_id,
+		       ha_cpu_topo[cpu].l2_id,
+		       ha_cpu_topo[cpu].ts_id,
+		       ha_cpu_topo[cpu].l1_id);
+	}
+
+ skip_hw_cpus:
+	/* FIXME: Now figure a criterion for not proceeding below (e.g. found pk/no/l3/l2 above maybe) */
 
 	/* let's ignore restricted affinity */
 	if (thread_cpu_mask_forced() || cpu_map_configured())
