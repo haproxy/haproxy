@@ -1089,8 +1089,8 @@ struct sink *sink_new_from_logsrv(struct logsrv *logsrv)
 	/* the servers are linked backwards
 	 * first into proxy
 	 */
-	p->srv = srv;
 	srv->next = p->srv;
+	p->srv = srv;
 
 	/* allocate sink_forward_target descriptor */
 	sft = calloc(1, sizeof(*sft));
