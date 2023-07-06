@@ -5827,6 +5827,50 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 }
 #undef EMIT_CHAR
 
+/* Use <path_fmt> and following arguments as a printf format to build up the
+ * name of a file, whose first line will be read into the trash buffer. The
+ * trailing CR and LF if any are stripped. On success, it sets trash.data to
+ * the number of resulting bytes in the trash and returns this value. Otherwise
+ * on failure it returns -1 if it could not build the path, -2 on file access
+ * access error (e.g. permissions), or -3 on file read error. The trash is
+ * always reset before proceeding. Too large lines are truncated to the size
+ * of the trash.
+ */
+ssize_t read_line_to_trash(const char *path_fmt, ...)
+{
+	va_list args;
+	FILE *file;
+	ssize_t ret;
+
+	chunk_reset(&trash);
+
+	va_start(args, path_fmt);
+	ret = vsnprintf(trash.area, trash.size, path_fmt, args);
+	va_end(args);
+
+	if (ret >= trash.size)
+		return -1;
+
+	file = fopen(trash.area, "r");
+	if (!file)
+		return -2;
+
+	ret = -3;
+	chunk_reset(&trash);
+	if (fgets(trash.area, trash.size, file)) {
+		trash.data = strlen(trash.area);
+		while (trash.data &&
+		       (trash.area[trash.data - 1] == '\r' ||
+			trash.area[trash.data - 1] == '\n'))
+			trash.data--;
+		trash.area[trash.data] = 0;
+		ret = trash.data; // success
+	}
+
+	fclose(file);
+	return ret;
+}
+
 /* This is used to sanitize an input line that's about to be used for error reporting.
  * It will adjust <line> to print approximately <width> chars around <pos>, trying to
  * preserve the beginning, with leading or trailing "..." when the line is truncated.
