@@ -1370,6 +1370,7 @@ static void sink_deinit()
 		free_proxy(sink->forward_px);
 		free(sink->name);
 		free(sink->desc);
+		free(sink->sft);
 		free(sink);
 	}
 }
