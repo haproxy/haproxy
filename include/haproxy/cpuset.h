@@ -53,6 +53,21 @@ int ha_cpuset_size(void);
  */
 int ha_cpuset_detect_bound(struct hap_cpuset *set);
 
+/* Parse cpu sets. Each CPU set is either a unique number between 0 and
+ * ha_cpuset_size() - 1 or a range with two such numbers delimited by a dash
+ * ('-'). Each CPU set can be a list of unique numbers or ranges separated by
+ * a comma. It is also possible to specify multiple cpu numbers or ranges in
+ * distinct argument in <args>. On success, it returns 0, otherwise it returns
+ * 1 with an error message in <err>.
+ */
+int parse_cpu_set(const char **args, struct hap_cpuset *cpu_set, char **err);
+
+/* Parse a linux cpu map string representing to a numeric cpu mask map
+ * The cpu map string is a list of 4-byte hex strings separated by commas, with
+ * most-significant byte first, one bit per cpu number.
+ */
+void parse_cpumap(char *cpumap_str, struct hap_cpuset *cpu_set);
+
 /* Returns true if at least one cpu-map directive was configured, otherwise
  * false.
  */

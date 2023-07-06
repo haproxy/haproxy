@@ -520,62 +520,6 @@ int parse_process_number(const char *arg, unsigned long *proc, int max, int *aut
 	return 0;
 }
 
-#ifdef USE_CPU_AFFINITY
-/* Parse cpu sets. Each CPU set is either a unique number between 0 and
- * ha_cpuset_size() - 1 or a range with two such numbers delimited by a dash
- * ('-'). Each CPU set can be a list of unique numbers or ranges separated by
- * a comma. It is also possible to specify multiple cpu numbers or ranges in
- * distinct argument in <args>. On success, it returns 0, otherwise it returns
- * 1 with an error message in <err>.
- */
-int parse_cpu_set(const char **args, struct hap_cpuset *cpu_set, char **err)
-{
-	int cur_arg = 0;
-	const char *arg;
-
-	ha_cpuset_zero(cpu_set);
-
-	arg = args[cur_arg];
-	while (*arg) {
-		const char *dash, *comma;
-		unsigned int low, high;
-
-		if (!isdigit((unsigned char)*args[cur_arg])) {
-			memprintf(err, "'%s' is not a CPU range.", arg);
-			return 1;
-		}
-
-		low = high = str2uic(arg);
-
-		comma = strchr(arg, ',');
-		dash = strchr(arg, '-');
-
-		if (dash && (!comma || dash < comma))
-			high = *(dash+1) ? str2uic(dash + 1) : ha_cpuset_size() - 1;
-
-		if (high < low) {
-			unsigned int swap = low;
-			low = high;
-			high = swap;
-		}
-
-		if (high >= ha_cpuset_size()) {
-			memprintf(err, "supports CPU numbers from 0 to %d.",
-			          ha_cpuset_size() - 1);
-			return 1;
-		}
-
-		while (low <= high)
-			ha_cpuset_set(cpu_set, low++);
-
-		/* if a comma is present, parse the rest of the arg, else
-		 * skip to the next arg */
-		arg = comma ? comma + 1 : args[++cur_arg];
-	}
-	return 0;
-}
-#endif
-
 /* Allocate and initialize the frontend of a "peers" section found in
  * file <file> at line <linenum> with <id> as ID.
  * Return 0 if succeeded, -1 if not.
@@ -2583,38 +2527,6 @@ static int numa_filter(const struct dirent *dir)
 
 	/* all tests succeeded */
 	return 1;
-}
-
-/* Parse a linux cpu map string representing to a numeric cpu mask map
- * The cpu map string is a list of 4-byte hex strings separated by commas, with
- * most-significant byte first, one bit per cpu number.
- */
-static void parse_cpumap(char *cpumap_str, struct hap_cpuset *cpu_set)
-{
-	unsigned long cpumap;
-	char *start, *endptr, *comma;
-	int i, j;
-
-	ha_cpuset_zero(cpu_set);
-
-	i = 0;
-	do {
-		/* reverse-search for a comma, parse the string after the comma
-		 * or at the beginning if no comma found
-		 */
-		comma = strrchr(cpumap_str, ',');
-		start = comma ? comma + 1 : cpumap_str;
-
-		cpumap = strtoul(start, &endptr, 16);
-		for (j = 0; cpumap; cpumap >>= 1, ++j) {
-			if (cpumap & 0x1)
-				ha_cpuset_set(cpu_set, j + i * 32);
-		}
-
-		if (comma)
-			*comma = '\0';
-		++i;
-	} while (comma);
 }
 
 /* Inspect the cpu topology of the machine on startup. If a multi-socket
