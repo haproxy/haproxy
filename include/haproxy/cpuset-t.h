@@ -51,4 +51,32 @@ struct cpu_map {
 	struct hap_cpuset thread[MAX_THREADS_PER_GROUP];  /* list of CPU masks for the 32/64 threads of this group */
 };
 
+/* CPU state flags used with CPU topology detection (ha_cpu_topo.st). We try
+ * hard to rely on known info. For example we don't claim a CPU is bound or
+ * online if we don't know, reason why instead we store offline or excluded.
+ */
+#define HA_CPU_F_EXCLUDED     0x0001  // this CPU was excluded at boot
+#define HA_CPU_F_OFFLINE      0x0002  // this CPU is known to be offline
+
+/* CPU topology descriptor. All the ID and IDX fields are initialized to -1
+ * when not known. The identifiers there are mostly assigned on the fly using
+ * increments and have no particular representation except the fact that CPUs
+ * having the same ID there share the same designated resource. The flags are
+ * preset to zero.
+ */
+struct ha_cpu_topo {
+	ushort st;    // state flags (HA_CPU_F_*)
+	short idx;    // CPU index as passed to the OS. Initially the entry index.
+	short l1_id;  // L1 cache identifier
+	short l2_id;  // L2 cache identifier
+	short l3_id;  // L3 cache slice identifier
+	short ts_id;  // thread-set identifier (generally core number)
+	short cl_id;  // cluster identifier (group of more shortimate cores)
+	short no_id;  // NUMA node identifier
+	short pk_id;  // package identifier
+	short tg_id;  // thread group ID
+	short th_cnt; // number of siblings threads
+	short capa;   // estimated CPU relative capacity; more is better
+};
+
 #endif /* _HAPROXY_CPUSET_T_H */
