@@ -1112,7 +1112,11 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 	char *warn = NULL;
 	unsigned char *p;
 #ifndef USE_OPENSSL_WOLFSSL
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+    int (*callback) (SSL *, void *);
+#else
 	void (*callback) (void);
+#endif
 #else
 	tlsextStatusCb callback;
 #endif

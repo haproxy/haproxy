@@ -1957,6 +1957,15 @@ static void init(int argc, char **argv)
         wolfSSL_Init();
         wolfSSL_Debugging_ON();
 #endif
+
+#ifdef USE_OPENSSL_AWSLC
+        const char *version_str = OpenSSL_version(OPENSSL_VERSION);
+        if (strncmp(version_str, "AWS-LC", 6) != 0) {
+            ha_alert("HAPRoxy built with AWS-LC but running with %s.\n", version_str);
+		    exit(1);
+        }
+#endif
+
 #if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL)
 	/* Initialize the error strings of OpenSSL
 	 * It only needs to be done explicitly with older versions of the SSL

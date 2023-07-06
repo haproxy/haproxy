@@ -7,6 +7,13 @@
 #include <wolfssl/options.h>
 #endif
 
+#ifdef USE_OPENSSL_AWSLC
+#include <openssl/base.h>
+#if !defined(OPENSSL_IS_AWSLC)
+#error "USE_OPENSSL_AWSLC is set but OPENSSL_IS_AWSLC is not defined, wrong header files detected"
+#endif
+#endif
+
 #include <openssl/bn.h>
 #include <openssl/crypto.h>
 #include <openssl/ssl.h>
