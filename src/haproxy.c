@@ -1533,7 +1533,6 @@ static void init_early(int argc, char **argv)
 		int g, i;
 
 		for (g = 0; g < MAX_TGROUPS; g++) {
-			ha_cpuset_zero(&cpu_map[g].proc_t1);
 			for (i = 0; i < MAX_THREADS_PER_GROUP; ++i) {
 				ha_cpuset_zero(&cpu_map[g].thread[i]);
 			}
