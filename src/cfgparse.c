@@ -521,7 +521,7 @@ int parse_process_number(const char *arg, unsigned long *proc, int max, int *aut
  * distinct argument in <args>. On success, it returns 0, otherwise it returns
  * 1 with an error message in <err>.
  */
-unsigned long parse_cpu_set(const char **args, struct hap_cpuset *cpu_set, char **err)
+int parse_cpu_set(const char **args, struct hap_cpuset *cpu_set, char **err)
 {
 	int cur_arg = 0;
 	const char *arg;
@@ -535,7 +535,7 @@ unsigned long parse_cpu_set(const char **args, struct hap_cpuset *cpu_set, char 
 
 		if (!isdigit((unsigned char)*args[cur_arg])) {
 			memprintf(err, "'%s' is not a CPU range.", arg);
-			return -1;
+			return 1;
 		}
 
 		low = high = str2uic(arg);
@@ -2645,7 +2645,7 @@ static int numa_detect_topology()
 
 	parse_cpu_set_args[0] = trash.area;
 	parse_cpu_set_args[1] = "\0";
-	if (parse_cpu_set(parse_cpu_set_args, &active_cpus, &err)) {
+	if (parse_cpu_set(parse_cpu_set_args, &active_cpus, &err) != 0) {
 		ha_notice("Cannot read online CPUs list: '%s'. Will not try to refine binding\n", err);
 		free(err);
 		goto free_scandir_entries;
