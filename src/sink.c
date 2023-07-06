@@ -771,6 +771,40 @@ void sink_rotate_file_backed_ring(const char *name)
 	}
 }
 
+
+/* helper function to completely deallocate a sink struct
+ */
+static void sink_free(struct sink *sink)
+{
+	struct sink_forward_target *sft_next;
+
+	if (!sink)
+		return;
+	if (sink->type == SINK_TYPE_BUFFER) {
+		if (sink->store) {
+			size_t size = (sink->ctx.ring->buf.size + 4095UL) & -4096UL;
+			void *area = (sink->ctx.ring->buf.area - sizeof(*sink->ctx.ring));
+
+			msync(area, size, MS_SYNC);
+			munmap(area, size);
+			ha_free(&sink->store);
+		}
+		else
+			ring_free(sink->ctx.ring);
+	}
+	LIST_DEL_INIT(&sink->sink_list); // remove from parent list
+	task_destroy(sink->forward_task);
+	free_proxy(sink->forward_px);
+	ha_free(&sink->name);
+	ha_free(&sink->desc);
+	while (sink->sft) {
+		sft_next = sink->sft->next;
+		ha_free(&sink->sft);
+		sink->sft = sft_next;
+	}
+	ha_free(&sink);
+}
+
 /*
  * Parse "ring" section and create corresponding sink buffer.
  *
@@ -1304,33 +1338,9 @@ static void sink_init()
 static void sink_deinit()
 {
 	struct sink *sink, *sb;
-	struct sink_forward_target *sft_next;
 
-	list_for_each_entry_safe(sink, sb, &sink_list, sink_list) {
-		if (sink->type == SINK_TYPE_BUFFER) {
-			if (sink->store) {
-				size_t size = (sink->ctx.ring->buf.size + 4095UL) & -4096UL;
-				void *area = (sink->ctx.ring->buf.area - sizeof(*sink->ctx.ring));
-
-				msync(area, size, MS_SYNC);
-				munmap(area, size);
-				ha_free(&sink->store);
-			}
-			else
-				ring_free(sink->ctx.ring);
-		}
-		LIST_DELETE(&sink->sink_list);
-		task_destroy(sink->forward_task);
-		free_proxy(sink->forward_px);
-		free(sink->name);
-		free(sink->desc);
-		while (sink->sft) {
-			sft_next = sink->sft->next;
-			free(sink->sft);
-			sink->sft = sft_next;
-		}
-		free(sink);
-	}
+	list_for_each_entry_safe(sink, sb, &sink_list, sink_list)
+		sink_free(sink);
 }
 
 INITCALL0(STG_REGISTER, sink_init);
