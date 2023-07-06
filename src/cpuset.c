@@ -60,6 +60,21 @@ void ha_cpuset_and(struct hap_cpuset *dst, struct hap_cpuset *src)
 #endif
 }
 
+int ha_cpuset_isset(const struct hap_cpuset *set, int cpu)
+{
+	if (cpu >= ha_cpuset_size())
+		return 0;
+
+#if defined(CPUSET_USE_CPUSET) || defined(CPUSET_USE_FREEBSD_CPUSET)
+	return CPU_ISSET(cpu, &set->cpuset);
+
+#elif defined(CPUSET_USE_ULONG)
+	return !!(set->cpuset & (0x1 << cpu));
+#else
+	return 0;
+#endif
+}
+
 int ha_cpuset_count(const struct hap_cpuset *set)
 {
 #if defined(CPUSET_USE_CPUSET) || defined(CPUSET_USE_FREEBSD_CPUSET)
