@@ -30,7 +30,9 @@ local mailqueue = core.queue()
 -- same format used in haproxy config file. It will be passed as it is to
 -- tcp::connect() without explicit port argument. See Socket.connect()
 -- manual for more information.
-function smtp_send_email(server, domain, from, to, data)
+--
+-- The function will abort after <timeout> ms
+function smtp_send_email(server, timeout, domain, from, to, data)
         local ret
         local reason
         local tcp = core.tcp()
@@ -54,6 +56,10 @@ function smtp_send_email(server, domain, from, to, data)
                         -- other informational message, wait.
                 end
         end
+
+	if timeout ~= 0 then
+		tcp:settimeout(timeout / 1000)
+	end
 
         if tcp:connect(server) == nil then
                 return false, "Can't connect to \""..server.."\""
@@ -406,6 +412,7 @@ core.register_task(function()
 			for name, mailsrv in pairs(job.mailconf.mailservers) do
 				-- finally, send email to server
 				local ret, reason = smtp_send_email(mailsrv,
+								    job.mailconf.mailservers_timeout,
 								    job.mailconf.smtp_hostname,
 								    job.mailconf.smtp_from,
 								    job.mailconf.smtp_to,

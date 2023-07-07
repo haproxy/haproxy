@@ -1198,6 +1198,12 @@ ProxyMailers class
   Each array entry is a name:desc pair where desc represents the full server
   address (including port) as described in haproxy's configuration file.
 
+.. js:attribute:: ProxyMailers.mailservers_timeout
+
+  An integer representing the maximum time in milliseconds to wait for the
+  email to be sent. See "timeout mail" directive from "mailers" section in
+  haproxy configuration file.
+
 .. js:attribute:: ProxyMailers.smtp_hostname
 
   A string containing the hostname to use for the SMTP transaction.

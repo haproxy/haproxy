@@ -2134,6 +2134,11 @@ int hlua_proxy_get_mailers(lua_State *L)
 	}
 	lua_settable(L, -3);
 
+	/* mailers timeout (from mailers section) */
+	lua_pushstring(L, "mailservers_timeout");
+	lua_pushinteger(L, px->email_alert.mailers.m->timeout.mail);
+	lua_settable(L, -3);
+
 	/* email-alert myhostname */
 	lua_pushstring(L, "smtp_hostname");
 	lua_pushstring(L, px->email_alert.myhostname);
