@@ -1223,11 +1223,16 @@ int cfg_post_parse_ring()
 				if (!ring_attach(cfg_sink->ctx.ring)) {
 					ha_alert("server '%s' sets too many watchers > 255 on ring '%s'.\n", srv->id, cfg_sink->name);
 					err_code |= ERR_ALERT | ERR_FATAL;
+					ha_free(&sft);
+					break;
 				}
 				cfg_sink->sft = sft;
 				srv = srv->next;
 			}
-			sink_init_forward(cfg_sink);
+			if (sink_init_forward(cfg_sink) == 0) {
+				ha_alert("error when trying to initialize sink buffer forwarding.\n");
+				err_code |= ERR_ALERT | ERR_FATAL;
+			}
 		}
 	}
 	cfg_sink = NULL;
