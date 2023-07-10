@@ -1356,6 +1356,7 @@ static void sink_init()
 static void sink_deinit()
 {
 	struct sink *sink, *sb;
+	struct sink_forward_target *sft_next;
 
 	list_for_each_entry_safe(sink, sb, &sink_list, sink_list) {
 		if (sink->type == SINK_TYPE_BUFFER) {
@@ -1375,7 +1376,11 @@ static void sink_deinit()
 		free_proxy(sink->forward_px);
 		free(sink->name);
 		free(sink->desc);
-		free(sink->sft);
+		while (sink->sft) {
+			sft_next = sink->sft->next;
+			free(sink->sft);
+			sink->sft = sft_next;
+		}
 		free(sink);
 	}
 }
