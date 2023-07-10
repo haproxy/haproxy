@@ -192,6 +192,7 @@ struct global global = {
 		.maxrewrite = MAXREWRITE,
 		.reserved_bufs = RESERVED_BUFS,
 		.pattern_cache = DEFAULT_PAT_LRU_SIZE,
+		.allow_non_existent_pattern_file = 0,
 		.pool_low_ratio  = 20,
 		.pool_high_ratio = 25,
 		.max_http_hdr = MAX_HTTP_HDR,

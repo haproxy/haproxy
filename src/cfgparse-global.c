@@ -38,7 +38,7 @@ static const char *common_kw_list[] = {
 	"tune.sndbuf.client", "tune.sndbuf.server", "tune.pipesize",
 	"tune.http.cookielen", "tune.http.logurilen", "tune.http.maxhdr",
 	"tune.comp.maxlevel", "tune.pattern.cache-size",
-	"tune.fast-forward", "uid", "gid",
+	"tune.pattern.allow-non-existing-file", "tune.fast-forward", "uid", "gid",
 	"external-check", "user", "group", "nbproc", "maxconn",
 	"ssl-server-verify", "maxconnrate", "maxsessrate", "maxsslrate",
 	"maxcomprate", "maxpipes", "maxzlibmem", "maxcompcpuusage", "ulimit-n",
@@ -493,6 +493,10 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+	}
+	else if (strcmp(args[0], "tune.pattern.allow-non-existing-file") == 0) {
+		ha_notice("Non-existing pattern files are allowed to be loaded (this affects Maps/ACLs).\n");
+		global.tune.allow_non_existent_pattern_file = 1;
 	}
 	else if (strcmp(args[0], "tune.disable-fast-forward") == 0) {
 		if (!experimental_directives_allowed) {

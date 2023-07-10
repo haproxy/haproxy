@@ -169,6 +169,7 @@ struct global {
 		unsigned short idle_timer; /* how long before an empty buffer is considered idle (ms) */
 		int nb_stk_ctr;       /* number of stick counters, defaults to MAX_SESS_STKCTR */
 		int default_shards; /* default shards for listeners, or -1 (by-thread) or -2 (by-group) */
+		int allow_non_existent_pattern_file; /* allow non existent pattern files to be loaded. */
 #ifdef USE_QUIC
 		unsigned int quic_backend_max_idle_timeout;
 		unsigned int quic_frontend_max_idle_timeout;

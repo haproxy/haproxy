@@ -2238,8 +2238,14 @@ int pat_ref_read_from_file_smp(struct pat_ref *ref, const char *filename, char *
 
 	file = fopen(filename, "r");
 	if (!file) {
-		memprintf(err, "failed to open pattern file <%s>", filename);
-		return 0;
+		/* Allow the loading of a non existing file */
+		if (global.tune.allow_non_existent_pattern_file) {
+			ha_notice("Pattern file <%s> was not found but loaded because 'tune.pattern.allow-non-existing-file' is enabled.\n", filename);
+			return 1;
+		}else {
+			memprintf(err, "failed to open pattern file <%s>", filename);
+			return 0;
+		}
 	}
 
 	/* now parse all patterns. The file may contain only one pattern
@@ -2320,8 +2326,14 @@ int pat_ref_read_from_file(struct pat_ref *ref, const char *filename, char **err
 
 	file = fopen(filename, "r");
 	if (!file) {
-		memprintf(err, "failed to open pattern file <%s>", filename);
-		return 0;
+		/* Allow the loading of a non existing file */
+		if (global.tune.allow_non_existent_pattern_file) {
+			ha_notice("Pattern file <%s> was not found but loaded because 'tune.pattern.allow-non-existing-file' is enabled.\n", filename);
+			return 1;
+		}else {
+			memprintf(err, "failed to open pattern file <%s>", filename);
+			return 0;
+		}
 	}
 
 	/* now parse all patterns. The file may contain only one pattern per

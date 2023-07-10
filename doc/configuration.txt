@@ -1196,6 +1196,7 @@ The following keywords are supported in the "global" section :
    - tune.maxpollevents
    - tune.maxrewrite
    - tune.memory.hot-size
+   - tune.pattern.allow-non-existing-file
    - tune.pattern.cache-size
    - tune.peers.max-updates-at-once
    - tune.pipesize
@@ -3304,6 +3305,14 @@ tune.memory.hot-size <number>
   change this value, or to proceed in small increments. In order to completely
   disable the per-thread CPU caches, using a very small value could work, but
   it is better to use "-dMno-cache" on the command-line.
+
+tune.pattern.allow-non-existing-file
+  Enables the loading of non-existent pattern files used in maps/ACLs. This can
+  be useful in cases where the maps are managed through the runtime API and/or 
+  LUA and there's no need for this file to exists in the local filesystem.
+
+  Important to note is that any changes to the map does not create the file or
+  write any information back to the filesystem, just like with existing patterns.
 
 tune.pattern.cache-size <number>
   Sets the size of the pattern lookup cache to <number> entries. This is an LRU
