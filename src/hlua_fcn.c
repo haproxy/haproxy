@@ -542,7 +542,7 @@ static int hlua_queue_size(lua_State *L)
 	struct hlua_queue *queue = hlua_check_queue(L, 1);
 
 	BUG_ON(!queue);
-	lua_pushinteger(L, queue->size);
+	lua_pushinteger(L, HA_ATOMIC_LOAD(&queue->size));
 
 	return 1;
 }
