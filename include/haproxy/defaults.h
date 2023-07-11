@@ -512,6 +512,6 @@
 #endif
 
 /* system sysfs directory */
-#define NUMA_DETECT_SYSTEM_SYSFS_PATH "/sys/devices/system"
+#define NUMA_DETECT_SYSTEM_SYSFS_PATH "./sys/devices/system"
 
 #endif /* _HAPROXY_DEFAULTS_H */
