@@ -217,6 +217,10 @@ struct quic_tls_ctx {
 
 struct quic_enc_level {
 	struct list list;
+	/* Attach point to enqueue this encryption level during retransmissions */
+	struct list retrans;
+	/* pointer to list used only during retransmissions */
+	struct list *retrans_frms;
 	/* Encryption level, as defined by the TLS stack. */
 	enum ssl_encryption_level_t level;
 	/* TLS encryption context (AEAD only) */

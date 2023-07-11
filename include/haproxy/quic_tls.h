@@ -793,6 +793,24 @@ static inline int quic_tls_level_pkt_type(enum quic_tls_enc_level level)
 	}
 }
 
+/* Return the packet type associated to <qel> encryption for <qc> QUIC connection,
+ * or -1 if not found.
+ */
+static inline enum quic_pkt_type quic_enc_level_pkt_type(struct quic_conn *qc,
+                                                         struct quic_enc_level *qel)
+{
+	if (qel == qc->iel)
+		return QUIC_PACKET_TYPE_INITIAL;
+	else if (qel == qc->hel)
+		return QUIC_PACKET_TYPE_HANDSHAKE;
+	else if (qel == qc->eel)
+		return QUIC_PACKET_TYPE_0RTT;
+	else if (qel == qc->ael)
+		return QUIC_PACKET_TYPE_SHORT;
+	else
+		return -1;
+}
+
 /* Set <*level> and <*next_level> depending on <state> QUIC handshake state. */
 static inline int quic_get_tls_enc_levels(enum quic_tls_enc_level *level,
                                           enum quic_tls_enc_level *next_level,
