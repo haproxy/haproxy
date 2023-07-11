@@ -2617,25 +2617,6 @@ static void parse_cpumap(char *cpumap_str, struct hap_cpuset *cpu_set)
 	} while (comma);
 }
 
-/* Read the first line of a file from <path> into the trash buffer.
- * Returns 0 on success, otherwise non-zero.
- */
-static int read_file_to_trash(const char *path)
-{
-	FILE *file;
-	int ret = 1;
-
-	file = fopen(path, "r");
-	if (file) {
-		if (fgets(trash.area, trash.size, file))
-			ret = 0;
-
-		fclose(file);
-	}
-
-	return ret;
-}
-
 /* Inspect the cpu topology of the machine on startup. If a multi-socket
  * machine is detected, try to bind on the first node with active cpu. This is
  * done to prevent an impact on the overall performance when the topology of
@@ -2655,7 +2636,6 @@ static int numa_detect_topology()
 
 	struct hap_cpuset active_cpus, node_cpu_set;
 	const char *parse_cpu_set_args[2];
-	char cpumap_path[PATH_MAX];
 	char *err = NULL;
 
 	/* node_cpu_set count is used as return value */
@@ -2668,7 +2648,7 @@ static int numa_detect_topology()
 		goto free_scandir_entries;
 
 	/* 2. read and parse the list of currently online cpu */
-	if (read_file_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH"/cpu/online")) {
+	if (read_line_to_trash("%s/cpu/online", NUMA_DETECT_SYSTEM_SYSFS_PATH) < 0) {
 		ha_notice("Cannot read online CPUs list, will not try to refine binding\n");
 		goto free_scandir_entries;
 	}
@@ -2686,10 +2666,7 @@ static int numa_detect_topology()
 		const char *node = node_dirlist[node_dirlist_size]->d_name;
 		ha_cpuset_zero(&node_cpu_set);
 
-		snprintf(cpumap_path, PATH_MAX, "%s/node/%s/cpumap",
-		         NUMA_DETECT_SYSTEM_SYSFS_PATH, node);
-
-		if (read_file_to_trash(cpumap_path)) {
+		if (read_line_to_trash("%s/node/%s/cpumap", NUMA_DETECT_SYSTEM_SYSFS_PATH, node) < 0) {
 			ha_notice("Cannot read CPUs list of '%s', will not select them to refine binding\n", node);
 			free(node_dirlist[node_dirlist_size]);
 			continue;
