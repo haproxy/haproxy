@@ -3441,6 +3441,11 @@ static int qc_may_build_pkt(struct quic_conn *qc, struct list *frms,
 		((qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) &&
 		 (force_ack || nb_aepkts_since_last_ack >= QUIC_MAX_RX_AEPKTS_SINCE_LAST_ACK));
 
+	TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_PHPKTS, qc, 0, 0, 0,
+	             "has_sec=%d cc=%d probe=%d must_ack=%d frms=%d prep_in_fligh=%llu cwnd=%llu",
+	             quic_tls_has_tx_sec(qel), cc, probe, *must_ack, LIST_ISEMPTY(frms),
+	             (ullong)qc->path->prep_in_flight, (ullong)qc->path->cwnd);
+
 	/* Do not build any more packet if the TX secrets are not available or
 	 * if there is nothing to send, i.e. if no CONNECTION_CLOSE or ACK are required
 	 * and if there is no more packets to send upon PTO expiration
