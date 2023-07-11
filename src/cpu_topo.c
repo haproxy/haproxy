@@ -6,11 +6,39 @@
 #include <haproxy/api.h>
 #include <haproxy/cpuset.h>
 #include <haproxy/cpu_topo.h>
+#include <haproxy/global.h>
+#include <haproxy/tools.h>
 
 /* CPU topology information, ha_cpuset_size() entries, allocated at boot */
 struct ha_cpu_topo *ha_cpu_topo = NULL;
 struct cpu_map *cpu_map;
 
+
+/* Detects CPUs that are online on the system. It may rely on FS access (e.g.
+ * /sys on Linux). Returns the number of CPUs detected or 0 if the detection
+ * failed.
+ */
+int ha_cpuset_detect_online(struct hap_cpuset *set)
+{
+#if defined(__linux__)
+
+	ha_cpuset_zero(set);
+
+	/* contains a list of CPUs in the format <low>[-<high>][,...] */
+	if (read_line_to_trash("%s/cpu/online", NUMA_DETECT_SYSTEM_SYSFS_PATH) >= 0) {
+		const char *parse_cpu_set_args[2] = { trash.area, "\0" };
+
+		if (parse_cpu_set(parse_cpu_set_args, set, NULL) != 0)
+			ha_cpuset_zero(set);
+	}
+
+#else // !__linux__
+
+	ha_cpuset_zero(set);
+
+#endif
+	return ha_cpuset_count(set);
+}
 
 /* Detects the CPUs that will be used based on the ones the process is bound to
  * at boot. The principle is the following: all CPUs from the boot cpuset will
