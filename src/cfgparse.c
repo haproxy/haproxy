@@ -2746,10 +2746,8 @@ static int numa_detect_topology()
 	struct dirent **node_dirlist = NULL;
 	int node_dirlist_size = 0;
 
-	struct hap_cpuset active_cpus, node_cpu_set;
-	const char *parse_cpu_set_args[2];
-	char *err = NULL;
-	int grp, thr;
+	struct hap_cpuset node_cpu_set;
+	int grp, thr, cpu;
 
 	/* node_cpu_set count is used as return value */
 	ha_cpuset_zero(&node_cpu_set);
@@ -2764,20 +2762,6 @@ static int numa_detect_topology()
 	if (node_dirlist_size <= 1)
 		goto free_scandir_entries;
 
-	/* 2. read and parse the list of currently online cpu */
-	if (read_line_to_trash("%s/cpu/online", NUMA_DETECT_SYSTEM_SYSFS_PATH) < 0) {
-		ha_notice("Cannot read online CPUs list, will not try to refine binding\n");
-		goto free_scandir_entries;
-	}
-
-	parse_cpu_set_args[0] = trash.area;
-	parse_cpu_set_args[1] = "\0";
-	if (parse_cpu_set(parse_cpu_set_args, &active_cpus, &err) != 0) {
-		ha_notice("Cannot read online CPUs list: '%s'. Will not try to refine binding\n", err);
-		free(err);
-		goto free_scandir_entries;
-	}
-
 	/* 3. loop through nodes dirs and find the first one with active cpus */
 	while (node_dirlist_size--) {
 		const char *node = node_dirlist[node_dirlist_size]->d_name;
@@ -2790,7 +2774,9 @@ static int numa_detect_topology()
 		}
 
 		parse_cpumap(trash.area, &node_cpu_set);
-		ha_cpuset_and(&node_cpu_set, &active_cpus);
+		for (cpu = 0; cpu < cpu_topo_maxcpus; cpu++)
+			if (ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE)
+				ha_cpuset_clr(&node_cpu_set, cpu);
 
 		/* 5. set affinity on the first found node with active cpus */
 		if (!ha_cpuset_count(&node_cpu_set)) {
