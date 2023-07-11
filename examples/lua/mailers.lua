@@ -57,7 +57,7 @@ function smtp_send_email(server, timeout, domain, from, to, data)
                 end
         end
 
-	if timeout ~= 0 then
+	if timeout ~= nil and timeout > 0 then
 		tcp:settimeout(timeout / 1000)
 	end
 
