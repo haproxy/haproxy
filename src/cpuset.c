@@ -2,12 +2,15 @@
 #include <sched.h>
 #include <ctype.h>
 
-#include <haproxy/compat.h>
+#include <haproxy/api.h>
 #include <haproxy/cpuset.h>
 #include <haproxy/intops.h>
 #include <haproxy/tools.h>
 
 struct cpu_map *cpu_map;
+
+/* CPU topology information, ha_cpuset_size() entries, allocated at boot */
+struct ha_cpu_topo *ha_cpu_topo = NULL;
 
 void ha_cpuset_zero(struct hap_cpuset *set)
 {
@@ -279,16 +282,34 @@ int cpu_map_configured(void)
  */
 static int cpuset_alloc(void)
 {
+	int maxcpus = ha_cpuset_size();
+	int cpu;
+
 	/* allocate the structures used to store CPU topology info */
 	cpu_map = (struct cpu_map*)calloc(MAX_TGROUPS, sizeof(*cpu_map));
 	if (!cpu_map)
 		return 0;
+
+	/* allocate the structures used to store CPU topology info */
+	ha_cpu_topo = (struct ha_cpu_topo*)malloc(maxcpus * sizeof(*ha_cpu_topo));
+	if (!ha_cpu_topo)
+		return 0;
+
+	/* preset all fields to -1 except the index and the state flags which
+	 * are assumed to all be bound and online unless detected otherwise.
+	 */
+	for (cpu = 0; cpu < maxcpus; cpu++) {
+		memset(&ha_cpu_topo[cpu], 0xff, sizeof(*ha_cpu_topo));
+		ha_cpu_topo[cpu].st  = 0;
+		ha_cpu_topo[cpu].idx = cpu;
+	}
 
 	return 1;
 }
 
 static void cpuset_deinit(void)
 {
+	ha_free(&ha_cpu_topo);
 	ha_free(&cpu_map);
 }
 
