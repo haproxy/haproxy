@@ -98,6 +98,15 @@ int init_trash_buffers(int first)
 	return 1;
 }
 
+/* This is called during STG_POOL to allocate trash buffers early. They will
+ * be reallocated later once their final size is known. It returns 0 if an
+ * error occurred.
+ */
+static int alloc_early_trash(void)
+{
+	return init_trash_buffers(1);
+}
+
 /*
  * Does an snprintf() at the beginning of chunk <chk>, respecting the limit of
  * at most chk->size chars. If the chk->len is over, nothing is added. Returns
@@ -289,6 +298,7 @@ int chunk_strcasecmp(const struct buffer *chk, const char *str)
 	return diff;
 }
 
+INITCALL0(STG_POOL, alloc_early_trash);
 REGISTER_PER_THREAD_ALLOC(alloc_trash_buffers_per_thread);
 REGISTER_PER_THREAD_FREE(free_trash_buffers_per_thread);
 REGISTER_POST_DEINIT(free_trash_buffers_per_thread);

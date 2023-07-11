@@ -122,10 +122,11 @@ make sure to respect this ordering when adding new ones.
   parsing and where the initialization should continue in the configuration
   check.
   It could be used for example to generate a proxy with multiple servers using
-  the configuration parser itself. At this step the trash buffers are allocated.
-  Threads are not yet started so no protection is required. The function is
-  expected to return non-zero on success, or zero on failure. A failure will make
-  the process emit a succinct error message and immediately exit.
+  the configuration parser itself. At this step the final trash buffers are
+  allocated. Threads are not yet started so no protection is required. The
+  function is expected to return non-zero on success, or zero on failure. A
+  failure will make the process emit a succinct error message and immediately
+  exit.
 
 - void hap_register_post_check(int (*fct)())
 
@@ -243,6 +244,11 @@ The STG_REGISTER level is made for run-time linking of the various modules that
 compose the executable. Keywords, protocols and various other elements that are
 local known to each compilation unit can will be appended into common lists at
 boot time. This is why this call is placed just before STG_ALLOC.
+
+Note that trash is needed in various functions. Trash is a pool and is
+allocated during STG_POOL, so it's not permitted to use it before STG_INIT,
+where it will only use the default size, and may be reallocated later with a
+different size.
 
 Example: register a very early call to init_log() with no argument, and another
          call to cli_register_kw(&cli_kws) much later:

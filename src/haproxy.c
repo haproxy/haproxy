@@ -1976,11 +1976,6 @@ static void init(int argc, char **argv)
 
 	startup_logs_init();
 
-	if (!init_trash_buffers(1)) {
-		ha_alert("failed to initialize trash buffers.\n");
-		exit(1);
-	}
-
 	if (init_acl() != 0)
 		exit(1);
 
@@ -3303,6 +3298,13 @@ int main(int argc, char **argv)
 
 	RUN_INITCALLS(STG_ALLOC);
 	RUN_INITCALLS(STG_POOL);
+
+	/* some code really needs to have the trash properly allocated */
+	if (!trash.area) {
+		ha_alert("failed to initialize trash buffers.\n");
+		exit(1);
+	}
+
 	RUN_INITCALLS(STG_INIT);
 
 	/* this is the late init where the config is parsed */
