@@ -27,10 +27,6 @@
 #ifdef USE_CPU_AFFINITY
 #  include <sched.h>
 #  if defined(__FreeBSD__) || defined(__DragonFly__)
-#    include <sys/param.h>
-#    ifdef __FreeBSD__
-#      include <sys/cpuset.h>
-#    endif
 #    include <pthread_np.h>
 #  endif
 #  ifdef __APPLE__
@@ -380,20 +376,13 @@ void ha_rwlock_init(HA_RWLOCK_T *l)
 static int thread_cpus_enabled()
 {
 	int ret = 1;
-
 #ifdef USE_CPU_AFFINITY
-#if defined(__linux__) && defined(CPU_COUNT)
-	cpu_set_t mask;
+	struct hap_cpuset set = { };
 
-	if (sched_getaffinity(0, sizeof(mask), &mask) == 0)
-		ret = CPU_COUNT(&mask);
-#elif defined(__FreeBSD__) && defined(USE_CPU_AFFINITY)
-	cpuset_t cpuset;
-	if (cpuset_getaffinity(CPU_LEVEL_CPUSET, CPU_WHICH_PID, -1,
-	    sizeof(cpuset), &cpuset) == 0)
-		ret = CPU_COUNT(&cpuset);
-#elif defined(__APPLE__)
-	ret = (int)sysconf(_SC_NPROCESSORS_ONLN);
+	ret = ha_cpuset_detect_bound(&set);
+#if defined(__APPLE__)
+	if (!ret)
+		ret = (int)sysconf(_SC_NPROCESSORS_ONLN);
 #endif
 #endif
 	ret = MAX(ret, 1);
