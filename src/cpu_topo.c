@@ -86,6 +86,17 @@ int cpu_detect_usable(void)
 		if (!ha_cpuset_isset(&boot_set, cpu))
 			ha_cpu_topo[cpu].st |= HA_CPU_F_EXCLUDED;
 
+	/* Update the list of currently offline CPUs. Normally it's a subset
+	 * of the unbound ones, but we cannot infer anything if we don't have
+	 * the info so we only update what we know.
+	 */
+	if (ha_cpuset_detect_online(&boot_set)) {
+		for (cpu = 0; cpu < maxcpus; cpu++) {
+			if (!ha_cpuset_isset(&boot_set, cpu))
+				ha_cpu_topo[cpu].st |= HA_CPU_F_OFFLINE;
+		}
+	}
+
 	return 0;
 }
 
