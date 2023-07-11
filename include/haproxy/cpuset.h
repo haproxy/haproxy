@@ -54,6 +54,12 @@ int ha_cpuset_size(void);
  */
 int ha_cpuset_detect_bound(struct hap_cpuset *set);
 
+/* Detects CPUs that are online on the system. It may rely on FS access (e.g.
+ * /sys on Linux). Returns the number of CPUs detected or 0 if the detection
+ * failed.
+ */
+int ha_cpuset_detect_online(struct hap_cpuset *set);
+
 /* Detects the CPUs that will be used based on the ones the process is bound to.
  * Returns non-zero on success, zero on failure. Note that it may not be
  * performed in the function above because some calls may rely on other items
