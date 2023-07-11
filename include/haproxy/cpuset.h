@@ -4,6 +4,7 @@
 #include <haproxy/cpuset-t.h>
 
 extern struct cpu_map *cpu_map;
+extern struct ha_cpu_topo *ha_cpu_topo;
 
 /* Unset all indexes in <set>.
  */
