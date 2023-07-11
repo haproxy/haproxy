@@ -596,6 +596,7 @@ endif
 
 ifneq ($(USE_CPU_AFFINITY:0=),)
   OPTIONS_OBJS   += src/cpuset.o
+  OPTIONS_OBJS   += src/cpu_topo.o
 endif
 
 # OpenSSL is packaged in various forms and with various dependencies.
