@@ -5389,6 +5389,7 @@ static int parse_retry_token(struct quic_conn *qc,
 	int ret = 0;
 	uint64_t odcid_len;
 	uint32_t timestamp;
+	uint32_t now_sec = (uint32_t)date.tv_sec;
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT, qc);
 
@@ -5414,7 +5415,11 @@ static int parse_retry_token(struct quic_conn *qc,
 	}
 
 	timestamp = ntohl(read_u32(token + odcid_len));
-	if (tick_is_expired(tick_add(timestamp, MS_TO_TICKS(QUIC_RETRY_DURATION_MS)), now_ms)) {
+	/* check if elapsed time is +/- QUIC_RETRY_DURATION_SEC
+	 * to tolerate token generator is not perfectly time synced
+	 */
+	if ((uint32_t)(now_sec - timestamp) > QUIC_RETRY_DURATION_SEC &&
+            (uint32_t)(timestamp - now_sec) > QUIC_RETRY_DURATION_SEC) {
 		TRACE_ERROR("token has expired", QUIC_EV_CONN_LPKT, qc);
 		goto leave;
 	}
@@ -6358,7 +6363,7 @@ static int quic_generate_retry_token(unsigned char *token, size_t len,
 	size_t seclen = strlen(global.cluster_secret);
 	EVP_CIPHER_CTX *ctx = NULL;
 	const EVP_CIPHER *aead = EVP_aes_128_gcm();
-	uint32_t timestamp = now_ms;
+	uint32_t timestamp = (uint32_t)date.tv_sec;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT);
 

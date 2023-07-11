@@ -92,7 +92,7 @@ typedef unsigned long long ull;
 /* Salt length used to derive retry token secret */
 #define QUIC_RETRY_TOKEN_SALTLEN       16 /* bytes */
 /* Retry token duration */
-#define QUIC_RETRY_DURATION_MS      10000
+#define QUIC_RETRY_DURATION_SEC       10
 /* Default Retry threshold */
 #define QUIC_DFLT_RETRY_THRESHOLD     100 /* in connection openings */
 /* Default limit of loss detection on a single frame. If exceeded, connection is closed. */
