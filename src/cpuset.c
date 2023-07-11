@@ -147,6 +147,30 @@ int ha_cpuset_size()
 #endif
 }
 
+/* Detects CPUs that are bound to the current process. Returns the number of
+ * CPUs detected or 0 if the detection failed.
+ */
+int ha_cpuset_detect_bound(struct hap_cpuset *set)
+{
+	ha_cpuset_zero(set);
+
+	/* detect bound CPUs depending on the OS's API */
+	if (0
+#if defined(__linux__)
+	    || sched_getaffinity(0, sizeof(set->cpuset), &set->cpuset) != 0
+#elif defined(__FreeBSD__)
+	    || cpuset_getaffinity(CPU_LEVEL_CPUSET, CPU_WHICH_PID, -1, sizeof(set->cpuset), &set->cpuset) != 0
+#else
+	    || 1 // unhandled platform
+#endif
+	    ) {
+		/* detection failed */
+		return 0;
+	}
+
+	return ha_cpuset_count(set);
+}
+
 /* Returns true if at least one cpu-map directive was configured, otherwise
  * false.
  */
