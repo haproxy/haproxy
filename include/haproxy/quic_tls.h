@@ -58,7 +58,7 @@ int quic_tls_derive_initial_secrets(const EVP_MD *md,
 int quic_tls_encrypt(unsigned char *buf, size_t len,
                      const unsigned char *aad, size_t aad_len,
                      EVP_CIPHER_CTX *ctx, const EVP_CIPHER *aead,
-                     const unsigned char *key, const unsigned char *iv);
+                     const unsigned char *iv);
 
 int quic_tls_decrypt2(unsigned char *out,
                       unsigned char *in, size_t ilen,

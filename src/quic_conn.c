@@ -1565,7 +1565,7 @@ static void quic_packet_encrypt(unsigned char *payload, size_t payload_len,
 	quic_aead_iv_build(iv, sizeof iv, tx_iv, tx_iv_sz, pn);
 
 	if (!quic_tls_encrypt(payload, payload_len, aad, aad_len,
-	                      tls_ctx->tx.ctx, tls_ctx->tx.aead, tls_ctx->tx.key, iv)) {
+	                      tls_ctx->tx.ctx, tls_ctx->tx.aead, iv)) {
 		TRACE_ERROR("QUIC packet encryption failed", QUIC_EV_CONN_ENCPKT, qc);
 		*fail = 1;
 		enc_debug_info_init(&edi, payload, payload_len, aad, aad_len, pn);
@@ -6402,7 +6402,7 @@ static int quic_generate_retry_token(unsigned char *token, size_t len,
 	p += sizeof timestamp;
 
 	/* Do not encrypt the QUIC_TOKEN_FMT_RETRY byte */
-	if (!quic_tls_encrypt(token + 1, p - token - 1, aad, aadlen, ctx, aead, key, iv)) {
+	if (!quic_tls_encrypt(token + 1, p - token - 1, aad, aadlen, ctx, aead, iv)) {
 		TRACE_ERROR("quic_tls_encrypt() failed", QUIC_EV_CONN_TXPKT);
 		goto err;
 	}

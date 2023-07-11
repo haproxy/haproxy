@@ -671,7 +671,7 @@ int quic_tls_tx_ctx_init(EVP_CIPHER_CTX **tx_ctx,
 int quic_tls_encrypt(unsigned char *buf, size_t len,
                      const unsigned char *aad, size_t aad_len,
                      EVP_CIPHER_CTX *ctx, const EVP_CIPHER *aead,
-                     const unsigned char *key, const unsigned char *iv)
+                     const unsigned char *iv)
 {
 	int outlen;
 	int aead_nid = EVP_CIPHER_nid(aead);
