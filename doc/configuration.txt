@@ -19289,6 +19289,9 @@ not even relate to any client information. These ones are sometimes used with
 "monitor-fail" directives to report an internal status to external watchers.
 The sample fetch methods described in this section are usable anywhere.
 
+act_conn : integer
+  Returns the total number of active concurrent connections on the process.
+
 always_false : boolean
   Always returns the boolean "false" value. It may be used with ACLs as a
   temporary replacement for another one when adjusting configurations.

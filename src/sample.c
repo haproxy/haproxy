@@ -4075,6 +4075,17 @@ static int sample_conv_jwt_payload_query(const struct arg *args, struct sample *
 /*       All supported sample fetch functions must be declared here     */
 /************************************************************************/
 
+
+/* returns the actconn */
+static int
+smp_fetch_actconn(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = actconn;
+	return 1;
+}
+
+
 /* force TRUE to be returned at the fetch level */
 static int
 smp_fetch_true(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -4500,6 +4511,7 @@ static int smp_fetch_quic_enabled(const struct arg *args, struct sample *smp, co
  * common denominator, the type that can be casted into all other ones.
  */
 static struct sample_fetch_kw_list smp_kws = {ILH, {
+	{ "act_conn",     smp_fetch_actconn, 0,          NULL, SMP_T_SINT, SMP_USE_CONST },
 	{ "always_false", smp_fetch_false, 0,            NULL, SMP_T_BOOL, SMP_USE_CONST },
 	{ "always_true",  smp_fetch_true,  0,            NULL, SMP_T_BOOL, SMP_USE_CONST },
 	{ "env",          smp_fetch_env,   ARG1(1,STR),  NULL, SMP_T_STR,  SMP_USE_CONST },
