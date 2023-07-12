@@ -2055,6 +2055,9 @@ static void step_init_2(int argc, char** argv)
 	 * to be used. Let's check which of these are usable.
 	 */
 	cpu_detect_usable();
+
+	/* Now detect how CPUs are arranged */
+	cpu_detect_topology();
 #endif
 
 	/* Note: global.nbthread will be initialized as part of this call */
