@@ -1998,6 +1998,12 @@ static void step_init_2(int argc, char** argv)
 	clock_adjust_now_offset();
 	ready_date = date;
 
+#ifdef USE_CPU_AFFINITY
+	/* we've already read the config and know what CPUs are expected
+	 * to be used. Let's check which of these are usable.
+	 */
+	cpu_detect_usable();
+#endif
 
 	/* Note: global.nbthread will be initialized as part of this call */
 	err_code |= check_config_validity();
