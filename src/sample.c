@@ -4213,6 +4213,16 @@ smp_fetch_nbproc(const struct arg *args, struct sample *smp, const char *kw, voi
 	return 1;
 }
 
+/* returns the PID of the current process */
+static int
+smp_fetch_pid(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = pid;
+	return 1;
+}
+
+
 /* returns the number of the current process (between 1 and nbproc */
 static int
 smp_fetch_proc(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -4497,6 +4507,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "date_us",      smp_fetch_date_us,  0,         NULL, SMP_T_SINT, SMP_USE_CONST },
 	{ "hostname",     smp_fetch_hostname, 0,         NULL, SMP_T_STR,  SMP_USE_CONST },
 	{ "nbproc",       smp_fetch_nbproc,0,            NULL, SMP_T_SINT, SMP_USE_CONST },
+	{ "pid",          smp_fetch_pid,   0,            NULL, SMP_T_SINT, SMP_USE_CONST },
 	{ "proc",         smp_fetch_proc,  0,            NULL, SMP_T_SINT, SMP_USE_CONST },
 	{ "quic_enabled", smp_fetch_quic_enabled, 0,     NULL, SMP_T_BOOL, SMP_USE_CONST },
 	{ "thread",       smp_fetch_thread,  0,          NULL, SMP_T_SINT, SMP_USE_CONST },

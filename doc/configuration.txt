@@ -19600,6 +19600,10 @@ prio_offset : integer
   "http-request set-priority-offset" or "tcp-request content
   set-priority-offset".
 
+pid : integer
+  Return the PID of the current process. In most cases this is the PID of the
+  worker process.
+
 proc : integer
   Always returns value 1 (historically it would return the calling process
   number).
