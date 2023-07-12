@@ -7,6 +7,32 @@
 struct ha_cpu_topo *ha_cpu_topo = NULL;
 
 
+/* Detects the CPUs that will be used based on the ones the process is bound to
+ * at boot. The principle is the following: all CPUs from the boot cpuset will
+ * be used since we don't know upfront how individual threads will be mapped to
+ * groups and CPUs.
+ *
+ * Returns non-zero on success, zero on failure. Note that it may not be
+ * performed in the function above because some calls may rely on other items
+ * being allocated (e.g. trash).
+ */
+int cpu_detect_usable(void)
+{
+	struct hap_cpuset boot_set = { };
+	int maxcpus = ha_cpuset_size();
+	int cpu;
+
+	/* update the list with the CPUs currently bound to the current process */
+	ha_cpuset_detect_bound(&boot_set);
+
+	/* remove the known-excluded CPUs */
+	for (cpu = 0; cpu < maxcpus; cpu++)
+		if (!ha_cpuset_isset(&boot_set, cpu))
+			ha_cpu_topo[cpu].st |= HA_CPU_F_EXCLUDED;
+
+	return 0;
+}
+
 /* Dump the CPU topology <topo> for up to <maxcpus> for debugging purposes.
  * Offline CPUs are skipped.
  */
