@@ -23,6 +23,10 @@ int ha_cpuset_clr(struct hap_cpuset *set, int cpu);
  */
 void ha_cpuset_and(struct hap_cpuset *dst, struct hap_cpuset *src);
 
+/* Bitwise OR equivalent operation between <src> and <dst> stored in <dst>.
+ */
+void ha_cpuset_or(struct hap_cpuset *dst, struct hap_cpuset *src);
+
 /* returns non-zero if CPU index <cpu> is set in <set>, otherwise 0. */
 int ha_cpuset_isset(const struct hap_cpuset *set, int cpu);
 
