@@ -2893,6 +2893,30 @@ static int numa_detect_topology()
 		}
 	}
 
+	/* Now locate NUMA node ID if any */
+
+	node_dirlist = NULL;
+	node_dirlist_size = scandir(NUMA_DETECT_SYSTEM_SYSFS_PATH"/node", &node_dirlist, numa_filter, alphasort);
+
+	/* 3. loop through nodes dirs and find the first one with active cpus */
+	while (node_dirlist_size-- > 0) {
+		const char *node = node_dirlist[node_dirlist_size]->d_name;
+
+		cpu_id.no_id = atoi(node + 4); // "nodeXXX"
+		if (read_line_to_trash("%s/node/%s/cpulist",
+				       NUMA_DETECT_SYSTEM_SYSFS_PATH, node) >= 0) {
+			parse_cpu_set_args[0] = trash.area;
+			parse_cpu_set_args[1] = "\0";
+			if (parse_cpu_set(parse_cpu_set_args, &node_cpu_set, NULL) == 0) {
+				for (cpu = 0; cpu < maxcpus; cpu++)
+					if (ha_cpuset_isset(&node_cpu_set, cpu))
+						ha_cpu_topo[cpu].no_id = cpu_id.no_id;
+			}
+		}
+		free(node_dirlist[node_dirlist_size]);
+	}
+	ha_free(&node_dirlist);
+
 	qsort(ha_cpu_topo, lastcpu+1, sizeof(*ha_cpu_topo), cmp_hw_cpus);
 
 	for (cpu = 0; cpu <= lastcpu; cpu++) {
