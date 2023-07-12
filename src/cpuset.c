@@ -5,7 +5,7 @@
 #include <haproxy/cpuset.h>
 #include <haproxy/intops.h>
 
-struct cpu_map cpu_map[MAX_TGROUPS];
+struct cpu_map *cpu_map;
 
 void ha_cpuset_zero(struct hap_cpuset *set)
 {
@@ -185,3 +185,24 @@ int cpu_map_configured(void)
 	}
 	return 0;
 }
+
+/* Allocates everything needed to store CPU information at boot.
+ * Returns non-zero on success, zero on failure.
+ */
+static int cpuset_alloc(void)
+{
+	/* allocate the structures used to store CPU topology info */
+	cpu_map = (struct cpu_map*)calloc(MAX_TGROUPS, sizeof(*cpu_map));
+	if (!cpu_map)
+		return 0;
+
+	return 1;
+}
+
+static void cpuset_deinit(void)
+{
+	ha_free(&cpu_map);
+}
+
+INITCALL0(STG_ALLOC, cpuset_alloc);
+REGISTER_POST_DEINIT(cpuset_deinit);

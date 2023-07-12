@@ -1530,19 +1530,6 @@ static void init_early(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	/* Some CPU affinity stuff may have to be initialized */
-#ifdef USE_CPU_AFFINITY
-	{
-		int g, i;
-
-		for (g = 0; g < MAX_TGROUPS; g++) {
-			for (i = 0; i < MAX_THREADS_PER_GROUP; ++i) {
-				ha_cpuset_zero(&cpu_map[g].thread[i]);
-			}
-		}
-	}
-#endif
-
 	/* extract the program name from argv[0], it will be used for the logs
 	 * and error messages.
 	 */
