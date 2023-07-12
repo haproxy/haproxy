@@ -54,6 +54,13 @@ int ha_cpuset_size(void);
  */
 int ha_cpuset_detect_bound(struct hap_cpuset *set);
 
+/* Detects the CPUs that will be used based on the ones the process is bound to.
+ * Returns non-zero on success, zero on failure. Note that it may not be
+ * performed in the function above because some calls may rely on other items
+ * being allocated (e.g. trash).
+ */
+int cpu_detect_usable(void);
+
 /* Parse cpu sets. Each CPU set is either a unique number between 0 and
  * ha_cpuset_size() - 1 or a range with two such numbers delimited by a dash
  * ('-'). Each CPU set can be a list of unique numbers or ranges separated by
