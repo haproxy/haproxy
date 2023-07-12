@@ -67,6 +67,9 @@ int ha_cpuset_detect_online(struct hap_cpuset *set);
  */
 int cpu_detect_usable(void);
 
+/* detect the CPU topology based on info in /sys */
+int cpu_detect_topology(void);
+
 /* Parse cpu sets. Each CPU set is either a unique number between 0 and
  * ha_cpuset_size() - 1 or a range with two such numbers delimited by a dash
  * ('-'). Each CPU set can be a list of unique numbers or ranges separated by
