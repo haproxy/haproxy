@@ -263,6 +263,191 @@ int cpu_detect_usable(void)
 	return 0;
 }
 
+/* CPU topology detection below, OS-specific */
+
+#if defined(__linux__)
+
+/* detect the CPU topology based on info in /sys */
+int cpu_detect_topology(void)
+{
+	struct hap_cpuset node_cpu_set;
+	const char *parse_cpu_set_args[2];
+	struct ha_cpu_topo cpu_id = { }; /* all zeroes */
+	int maxcpus = 0;
+	int lastcpu = 0;
+	int cpu;
+
+	maxcpus = ha_cpuset_size();
+
+	for (cpu = 0; cpu < maxcpus; cpu++)
+		if (!(ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE))
+			lastcpu = cpu;
+
+	/* now let's only focus on bound CPUs to learn more about their
+	 * topology, their siblings, their cache affinity etc. We can stop
+	 * at lastcpu which matches the ID of the last known bound CPU
+	 * when it's set. We'll pre-assign and auto-increment indexes for
+	 * thread_set_id, cluster_id, l1/l2/l3 id, etc. We don't revisit entries
+	 * already filled from the list provided by another CPU.
+	 */
+	for (cpu = 0; cpu <= lastcpu; cpu++) {
+		struct hap_cpuset cpus_list;
+		int cpu2;
+
+		if (ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE)
+			continue;
+
+		/* First, let's check the cache hierarchy. On systems exposing
+		 * it, index0 generally is the L1D cache, index1 the L1I, index2
+		 * the L2 and index3 the L3.
+		 */
+
+		/* other CPUs sharing the same L1 cache (SMT) */
+		if (ha_cpu_topo[cpu].l1_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cache/index0/shared_cpu_list", cpu) >= 0) {
+			parse_cpu_set_args[0] = trash.area;
+			parse_cpu_set_args[1] = "\0";
+			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
+					if (ha_cpuset_isset(&cpus_list, cpu2))
+						ha_cpu_topo[cpu2].l1_id = cpu_id.l1_id;
+				}
+				cpu_id.l1_id++;
+			}
+		}
+
+		/* other CPUs sharing the same L2 cache (clusters of cores) */
+		if (ha_cpu_topo[cpu].l2_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cache/index2/shared_cpu_list", cpu) >= 0) {
+			parse_cpu_set_args[0] = trash.area;
+			parse_cpu_set_args[1] = "\0";
+			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
+					if (ha_cpuset_isset(&cpus_list, cpu2))
+						ha_cpu_topo[cpu2].l2_id = cpu_id.l2_id;
+				}
+				cpu_id.l2_id++;
+			}
+		}
+
+		/* other CPUs sharing the same L3 cache slices (local cores) */
+		if (ha_cpu_topo[cpu].l3_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cache/index3/shared_cpu_list", cpu) >= 0) {
+			parse_cpu_set_args[0] = trash.area;
+			parse_cpu_set_args[1] = "\0";
+			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
+					if (ha_cpuset_isset(&cpus_list, cpu2))
+						ha_cpu_topo[cpu2].l3_id = cpu_id.l3_id;
+				}
+				cpu_id.l3_id++;
+			}
+		}
+
+		/* Now let's try to get more info about how the cores are
+		 * arranged in packages, clusters, cores, threads etc. It
+		 * overlaps a bit with the cache above, but as not all systems
+		 * provide all of these, they're quite complementary in fact.
+		 */
+
+		/* thread siblings list will allow to figure which CPU threads
+		 * share the same cores, and also to tell apart cores that
+		 * support SMT from those which do not. When mixed, generally
+		 * the ones with SMT are big cores and the ones without are the
+		 * small ones.
+		 */
+		if (ha_cpu_topo[cpu].ts_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/thread_siblings_list", cpu) >= 0) {
+			parse_cpu_set_args[0] = trash.area;
+			parse_cpu_set_args[1] = "\0";
+			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+				cpu_id.th_cnt = ha_cpuset_count(&cpus_list);
+				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
+					if (ha_cpuset_isset(&cpus_list, cpu2)) {
+						ha_cpu_topo[cpu2].ts_id  = cpu_id.ts_id;
+						ha_cpu_topo[cpu2].th_cnt = cpu_id.th_cnt;
+					}
+				}
+				cpu_id.ts_id++;
+			}
+		}
+
+		/* clusters of cores when they exist, can be smaller and more
+		 * precise than core lists (e.g. big.little), otherwise use
+		 * core lists.
+		 */
+		if (ha_cpu_topo[cpu].cl_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/cluster_cpus_list", cpu) >= 0) {
+			parse_cpu_set_args[0] = trash.area;
+			parse_cpu_set_args[1] = "\0";
+			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
+					if (ha_cpuset_isset(&cpus_list, cpu2))
+						ha_cpu_topo[cpu2].cl_id = cpu_id.cl_id;
+				}
+				cpu_id.cl_id++;
+			}
+		} else if (ha_cpu_topo[cpu].cl_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/core_siblings_list", cpu) >= 0) {
+			parse_cpu_set_args[0] = trash.area;
+			parse_cpu_set_args[1] = "\0";
+			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
+					if (ha_cpuset_isset(&cpus_list, cpu2))
+						ha_cpu_topo[cpu2].cl_id = cpu_id.cl_id;
+				}
+				cpu_id.cl_id++;
+			}
+		}
+
+		/* package CPUs list, like nodes, are generally a hard limit
+		 * for groups, which must not span over multiple of them. On
+		 * some systems, the package_cpus_list is not always provided,
+		 * so we may fall back to the physical package id from each
+		 * CPU, whose number starts at 0. The first one is preferred
+		 * because it provides a list in a single read().
+		 */
+		if (ha_cpu_topo[cpu].pk_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/package_cpus_list", cpu) >= 0) {
+			parse_cpu_set_args[0] = trash.area;
+			parse_cpu_set_args[1] = "\0";
+			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
+					if (ha_cpuset_isset(&cpus_list, cpu2))
+						ha_cpu_topo[cpu2].pk_id = cpu_id.pk_id;
+				}
+				cpu_id.pk_id++;
+			}
+		}
+
+		if (ha_cpu_topo[cpu].pk_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/physical_package_id", cpu) >= 0) {
+			if (trash.data)
+				ha_cpu_topo[cpu].pk_id = str2uic(trash.area);
+		}
+
+		/* CPU capacity is a relative notion to compare little and big
+		 * cores. Usually the values encountered in field set the big
+		 * CPU's nominal capacity to 1024 and the other ones below.
+		 */
+		if (ha_cpu_topo[cpu].capa < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cpu_capacity", cpu) >= 0) {
+			if (trash.data)
+				ha_cpu_topo[cpu].capa = str2uic(trash.area);
+		}
+	}
+	return 1;
+}
+
+#else // __linux__
+
+int cpu_detect_topology(void)
+{
+	return 1;
+}
+
+#endif // OS-specific cpu_detect_topology()
+
 /* Parse cpu sets. Each CPU set is either a unique number between 0 and
  * ha_cpuset_size() - 1 or a range with two such numbers delimited by a dash
  * ('-'). Each CPU set can be a list of unique numbers or ranges separated by
