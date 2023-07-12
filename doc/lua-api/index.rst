@@ -381,6 +381,16 @@ Core class
 
   :returns: an array of values.
 
+.. js:function:: core.get_var()
+
+  **context**: body, init, task, action, sample-fetch, converter
+
+  Returns data stored in the variable <var> converter in Lua type.
+  This is limited to "proc." scoped variables.
+
+  :param string var: The variable name in "proc." scope according with the
+  HAProxy variable syntax.
+
 .. js:function:: core.now()
 
   **context**: body, init, task, action
