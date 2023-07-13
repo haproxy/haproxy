@@ -1182,7 +1182,7 @@ void qc_frm_unref(struct quic_frame *frm, struct quic_conn *qc)
 {
 	struct quic_frame *f, *tmp;
 
-	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
+	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc, frm);
 
 	list_for_each_entry_safe(f, tmp, &frm->reflist, ref) {
 		f->origin = NULL;
@@ -1197,5 +1197,27 @@ void qc_frm_unref(struct quic_frame *frm, struct quic_conn *qc)
 		}
 	}
 
+	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
+}
+
+/* Free a <frm> quic_frame. Remove it from parent element if still attached. */
+void qc_frm_free(struct quic_conn *qc, struct quic_frame **frm)
+{
+
+	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc, *frm);
+	/* Caller must ensure that no other frame points to <frm>. Use
+	 * qc_frm_unref() to handle this properly.
+	 */
+	BUG_ON(!LIST_ISEMPTY(&((*frm)->reflist)));
+	BUG_ON(LIST_INLIST(&((*frm)->ref)));
+
+	/* TODO simplify frame deallocation. In some code paths, we must
+	 * manually call this LIST_DEL_INIT before using
+	 * quic_tx_packet_refdec() and freeing the frame.
+	 */
+	LIST_DEL_INIT(&((*frm)->list));
+
+	pool_free(pool_head_quic_frame, *frm);
+	*frm = NULL;
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
 }

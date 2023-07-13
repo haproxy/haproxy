@@ -481,7 +481,7 @@ static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns, struct q
 			qc_frm_unref(frm, qc);
 			LIST_DEL_INIT(&frm->list);
 			quic_tx_packet_refdec(frm->pkt);
-			qc_frm_free(&frm);
+			qc_frm_free(qc, &frm);
 		}
 		eb64_delete(&pkt->pn_node);
 		quic_tx_packet_refdec(pkt);

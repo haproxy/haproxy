@@ -1699,7 +1699,7 @@ void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm)
 			TRACE_DEVEL("freeing unsent frame",
 			            QUIC_EV_CONN_PRSAFRM, qc, f);
 			LIST_DEL_INIT(&f->ref);
-			qc_frm_free(&f);
+			qc_frm_free(qc, &f);
 		}
 	}
 	LIST_DEL_INIT(&frm->list);
@@ -1707,7 +1707,7 @@ void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm)
 	quic_tx_packet_refdec(frm->pkt);
 	TRACE_DEVEL("freeing frame from packet",
 	            QUIC_EV_CONN_PRSAFRM, qc, frm, &pn);
-	qc_frm_free(&frm);
+	qc_frm_free(qc, &frm);
 
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
 }
@@ -1935,7 +1935,7 @@ static inline int qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 				TRACE_DEVEL("released stream", QUIC_EV_CONN_PRSAFRM, qc, frm);
 				TRACE_DEVEL("freeing frame from packet", QUIC_EV_CONN_PRSAFRM,
 				            qc, frm, &pn);
-				qc_frm_free(&frm);
+				qc_frm_free(qc, &frm);
 				continue;
 			}
 
@@ -1944,7 +1944,7 @@ static inline int qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 			if (strm_frm->offset.key + strm_frm->len <= stream_desc->ack_offset) {
 				TRACE_DEVEL("ignored frame in already acked range",
 				            QUIC_EV_CONN_PRSAFRM, qc, frm);
-				qc_frm_free(&frm);
+				qc_frm_free(qc, &frm);
 				continue;
 			}
 			else if (strm_frm->offset.key < stream_desc->ack_offset) {
@@ -1967,7 +1967,7 @@ static inline int qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 				    qc, frm, &pn);
 			if (frm->origin)
 				LIST_DEL_INIT(&frm->ref);
-			qc_frm_free(&frm);
+			qc_frm_free(qc, &frm);
 			continue;
 		}
 
@@ -1975,7 +1975,7 @@ static inline int qc_requeue_nacked_pkt_tx_frms(struct quic_conn *qc,
 			TRACE_DEVEL("already acked frame", QUIC_EV_CONN_PRSAFRM, qc, frm);
 			TRACE_DEVEL("freeing frame from packet", QUIC_EV_CONN_PRSAFRM,
 			            qc, frm, &pn);
-			qc_frm_free(&frm);
+			qc_frm_free(qc, &frm);
 		}
 		else {
 			if (++frm->loss_count >= global.tune.quic_max_frame_loss) {
@@ -2010,7 +2010,7 @@ static inline void free_quic_tx_packet(struct quic_conn *qc,
 		goto leave;
 
 	list_for_each_entry_safe(frm, frmbak, &pkt->frms, list)
-		qc_frm_free(&frm);
+		qc_frm_free(qc, &frm);
 	pool_free(pool_head_quic_tx_packet, pkt);
 
  leave:
@@ -2126,7 +2126,7 @@ static inline void qc_release_pktns_frms(struct quic_conn *qc,
 	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
 
 	list_for_each_entry_safe(frm, frmbak, &pktns->tx.frms, list)
-		qc_frm_free(&frm);
+		qc_frm_free(qc, &frm);
 
 	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
 }
@@ -2871,7 +2871,7 @@ static int qc_h3_request_reject(struct quic_conn *qc, uint64_t id)
 	rs = qc_frm_alloc(QUIC_FT_RESET_STREAM);
 	if (!rs) {
 		TRACE_ERROR("failed to allocate quic_frame", QUIC_EV_CONN_PRSHPKT, qc);
-		qc_frm_free(&ss);
+		qc_frm_free(qc, &ss);
 		goto out;
 	}
 
@@ -3546,30 +3546,31 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct buffer *buf,
 /* Free all frames in <l> list. In addition also remove all these frames
  * from the original ones if they are the results of duplications.
  */
-static inline void qc_free_frm_list(struct list *l)
+static inline void qc_free_frm_list(struct quic_conn *qc, struct list *l)
 {
 	struct quic_frame *frm, *frmbak;
 
 	list_for_each_entry_safe(frm, frmbak, l, list) {
 		LIST_DEL_INIT(&frm->ref);
-		qc_frm_free(&frm);
+		qc_frm_free(qc, &frm);
 	}
 }
 
 /* Free <pkt> TX packet and all the packets coalesced to it. */
-static inline void qc_free_tx_coalesced_pkts(struct quic_tx_packet *p)
+static inline void qc_free_tx_coalesced_pkts(struct quic_conn *qc,
+                                             struct quic_tx_packet *p)
 {
 	struct quic_tx_packet *pkt, *nxt_pkt;
 
 	for (pkt = p; pkt; pkt = nxt_pkt) {
-		qc_free_frm_list(&pkt->frms);
+		qc_free_frm_list(qc, &pkt->frms);
 		nxt_pkt = pkt->next;
 		pool_free(pool_head_quic_tx_packet, pkt);
 	}
 }
 
 /* Purge <buf> TX buffer from its prepare packets. */
-static void qc_purge_tx_buf(struct buffer *buf)
+static void qc_purge_tx_buf(struct quic_conn *qc, struct buffer *buf)
 {
 	while (b_contig_data(buf, 0)) {
 		uint16_t dglen;
@@ -3578,7 +3579,7 @@ static void qc_purge_tx_buf(struct buffer *buf)
 
 		dglen = read_u16(b_head(buf));
 		pkt = read_ptr(b_head(buf) + sizeof dglen);
-		qc_free_tx_coalesced_pkts(pkt);
+		qc_free_tx_coalesced_pkts(qc, pkt);
 		b_del(buf, dglen + headlen);
 	}
 
@@ -3638,9 +3639,9 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 			if (ret < 0) {
 				TRACE_ERROR("sendto fatal error", QUIC_EV_CONN_SPPKTS, qc, first_pkt);
 				qc_kill_conn(qc);
-				qc_free_tx_coalesced_pkts(first_pkt);
+				qc_free_tx_coalesced_pkts(qc, first_pkt);
 				b_del(buf, dglen + headlen);
-				qc_purge_tx_buf(buf);
+				qc_purge_tx_buf(qc, buf);
 				goto leave;
 			}
 			else if (!ret) {
@@ -3983,7 +3984,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
 
 		conn_id = new_quic_cid(&qc->cids, qc, NULL, NULL);
 		if (!conn_id) {
-			qc_frm_free(&frm);
+			qc_frm_free(qc, &frm);
 			TRACE_ERROR("CID allocation error", QUIC_EV_CONN_IO_CB, qc);
 			goto err;
 		}
@@ -4008,7 +4009,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *qc)
  err:
 	/* free the frames */
 	list_for_each_entry_safe(frm, frmbak, &frm_list, list)
-		qc_frm_free(&frm);
+		qc_frm_free(qc, &frm);
 
 	/* The first CID sequence number value used to allocated CIDs by this function is 1,
 	 * 0 being the sequence number of the CID for this connection.
@@ -5004,7 +5005,7 @@ static int qc_dgrams_retransmit(struct quic_conn *qc)
 			if (!LIST_ISEMPTY(&frms1)) {
 				apktns->tx.pto_probe = 1;
 				if (!qc_send_app_probing(qc, &frms1)) {
-					qc_free_frm_list(&frms2);
+					qc_free_frm_list(qc, &frms2);
 					goto leave;
 				}
 
@@ -7575,7 +7576,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				node = eb64_lookup(&qc->streams_by_id, strm_frm->id);
 				if (!node) {
 					TRACE_DEVEL("released stream", QUIC_EV_CONN_PRSAFRM, qc, cf);
-					qc_frm_free(&cf);
+					qc_frm_free(qc, &cf);
 					continue;
 				}
 
@@ -7583,7 +7584,7 @@ static inline int qc_build_frms(struct list *outlist, struct list *inlist,
 				if (strm_frm->offset.key + strm_frm->len <= stream_desc->ack_offset) {
 					TRACE_DEVEL("ignored frame frame in already acked range",
 					            QUIC_EV_CONN_PRSAFRM, qc, cf);
-					qc_frm_free(&cf);
+					qc_frm_free(qc, &cf);
 					continue;
 				}
 				else if (strm_frm->offset.key < stream_desc->ack_offset) {

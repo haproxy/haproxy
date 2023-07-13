@@ -1820,7 +1820,7 @@ static int qcs_send_reset(struct qcs *qcs)
 	LIST_APPEND(&frms, &frm->list);
 	if (qcc_send_frames(qcs->qcc, &frms)) {
 		if (!LIST_ISEMPTY(&frms))
-			qc_frm_free(&frm);
+			qc_frm_free(qcs->qcc->conn->handle.qc, &frm);
 		TRACE_DEVEL("cannot send RESET_STREAM", QMUX_EV_QCS_SEND, qcs->qcc->conn, qcs);
 		return 1;
 	}
@@ -1871,7 +1871,7 @@ static int qcs_send_stop_sending(struct qcs *qcs)
 	LIST_APPEND(&frms, &frm->list);
 	if (qcc_send_frames(qcs->qcc, &frms)) {
 		if (!LIST_ISEMPTY(&frms))
-			qc_frm_free(&frm);
+			qc_frm_free(qcc->conn->handle.qc, &frm);
 		TRACE_DEVEL("cannot send STOP_SENDING", QMUX_EV_QCS_SEND, qcs->qcc->conn, qcs);
 		return 1;
 	}
@@ -2121,7 +2121,7 @@ static int qcc_io_send(struct qcc *qcc)
 		struct quic_frame *frm, *frm2;
 
 		list_for_each_entry_safe(frm, frm2, &frms, list)
-			qc_frm_free(&frm);
+			qc_frm_free(qcc->conn->handle.qc, &frm);
 	}
 
 	/* Re-insert on-error QCS at the end of the send-list. */
@@ -2390,7 +2390,7 @@ static void qcc_release(struct qcc *qcc)
 
 	while (!LIST_ISEMPTY(&qcc->lfctl.frms)) {
 		struct quic_frame *frm = LIST_ELEM(qcc->lfctl.frms.n, struct quic_frame *, list);
-		qc_frm_free(&frm);
+		qc_frm_free(qcc->conn->handle.qc, &frm);
 	}
 
 	if (qcc->app_ops && qcc->app_ops->release)
