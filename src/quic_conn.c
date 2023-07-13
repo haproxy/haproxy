@@ -5102,16 +5102,11 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 {
 	int ret;
 	struct quic_conn *qc = context;
-	enum quic_tls_enc_level tel, next_tel;
-	struct quic_enc_level *qel, *next_qel;
-	/* Early-data encryption level */
-	struct quic_enc_level *eqel;
 	struct buffer *buf = NULL;
-	int st, zero_rtt;
+	int st;
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
 
-	eqel = qc->eel;
 	st = qc->state;
 	TRACE_PROTO("connection state", QUIC_EV_CONN_IO_CB, qc, &st);
 
@@ -5123,27 +5118,9 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 			goto out;
 	}
 
-	zero_rtt = st < QUIC_HS_ST_COMPLETE &&
-		quic_tls_has_rx_sec(eqel) &&
-		(!LIST_ISEMPTY(&eqel->rx.pqpkts) || qc_el_rx_pkts(eqel));
-
 	if (qc_test_fd(qc))
 		qc_rcv_buf(qc);
 
-	if (st >= QUIC_HS_ST_COMPLETE &&
-	    qc_el_rx_pkts(qc->hel)) {
-		TRACE_DEVEL("remaining Handshake packets", QUIC_EV_CONN_PHPKTS, qc);
-		/* There may be remaining Handshake packets to treat and acknowledge. */
-		tel = QUIC_TLS_ENC_LEVEL_HANDSHAKE;
-		next_tel = QUIC_TLS_ENC_LEVEL_APP;
-	}
-	else if (!quic_get_tls_enc_levels(&tel, &next_tel, qc, st, zero_rtt))
-		goto out;
-
-	qel = qc_quic_enc_level(qc, tel);
-	next_qel = next_tel == QUIC_TLS_ENC_LEVEL_NONE ? NULL : qc_quic_enc_level(qc, next_tel);
-
- next_level:
 	if (!qc_treat_rx_pkts(qc))
 		goto out;
 
@@ -5156,17 +5133,6 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	    !(qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))
 		goto out;
 
-	zero_rtt = st < QUIC_HS_ST_COMPLETE &&
-		quic_tls_has_rx_sec(eqel) &&
-		(!LIST_ISEMPTY(&eqel->rx.pqpkts) || qc_el_rx_pkts(eqel));
-	if (next_qel && next_qel == eqel && zero_rtt) {
-		TRACE_DEVEL("select 0RTT as next encryption level",
-					QUIC_EV_CONN_PHPKTS, qc);
-		qel = next_qel;
-		next_qel = NULL;
-		goto next_level;
-	}
-
 	st = qc->state;
 	if (st >= QUIC_HS_ST_COMPLETE) {
 		if (!(qc->flags & QUIC_FL_CONN_HPKTNS_DCD)) {
@@ -5177,22 +5143,6 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 			qc_el_rx_pkts_del(qc->hel);
 			qc_release_pktns_frms(qc, qc->hel->pktns);
 		}
-
-		if (qc->hel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) {
-			/* There may be remaining handshake to build (acks) */
-			st = QUIC_HS_ST_SERVER_HANDSHAKE;
-		}
-	}
-
-	/* A listener does not send any O-RTT packet. O-RTT packet number space must not
-	 * be considered.
-	 */
-	if (!quic_get_tls_enc_levels(&tel, &next_tel, qc, st, 0))
-		goto out;
-
-	if (!qc_need_sending(qc, qel) &&
-	    (!next_qel || !qc_need_sending(qc, next_qel))) {
-		goto skip_send;
 	}
 
 	buf = qc_txb_alloc(qc);
@@ -5200,7 +5150,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		goto out;
 
 	if (b_data(buf) && !qc_purge_txbuf(qc, buf))
-		goto skip_send;
+		goto out;
 
 	/* Currently buf cannot be non-empty at this stage. Even if a previous
 	 * sendto() has failed it is emptied to simulate packet emission and
@@ -5222,17 +5172,6 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	}
 
 	qc_txb_release(qc);
-
- skip_send:
-	/* Check if there is something to do for the next level.
-	 */
-	if (next_qel && next_qel != qel &&
-	    quic_tls_has_rx_sec(next_qel) &&
-	    (!LIST_ISEMPTY(&next_qel->rx.pqpkts) || qc_el_rx_pkts(next_qel))) {
-		qel = next_qel;
-		next_qel = NULL;
-		goto next_level;
-	}
 
  out:
 	/* Release the Handshake encryption level and packet number space if
