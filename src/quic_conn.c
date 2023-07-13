@@ -430,12 +430,9 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 		if (mask & QUIC_EV_CONN_IO_CB) {
 			const enum quic_handshake_state *state = a2;
-			const int *err = a3;
 
 			if (state)
 				chunk_appendf(&trace_buf, " state=%s", quic_hdshk_state_str(*state));
-			if (err)
-				chunk_appendf(&trace_buf, " err=%s", ssl_error_str(*err));
 		}
 
 		if (mask & (QUIC_EV_CONN_TRMHP|QUIC_EV_CONN_ELRMHP|QUIC_EV_CONN_SPKT)) {
@@ -5103,7 +5100,7 @@ static int qc_need_sending(struct quic_conn *qc, struct quic_enc_level *qel)
 /* QUIC connection packet handler task. */
 struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 {
-	int ret, ssl_err;
+	int ret;
 	struct quic_conn *qc = context;
 	enum quic_tls_enc_level tel, next_tel;
 	struct quic_enc_level *qel, *next_qel;
@@ -5126,7 +5123,6 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 			goto out;
 	}
 
-	ssl_err = SSL_ERROR_NONE;
 	zero_rtt = st < QUIC_HS_ST_COMPLETE &&
 		quic_tls_has_rx_sec(eqel) &&
 		(!LIST_ISEMPTY(&eqel->rx.pqpkts) || qc_el_rx_pkts(eqel));
@@ -5256,7 +5252,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		quic_nictx_free(qc);
 	}
 
-	TRACE_PROTO("ssl error", QUIC_EV_CONN_IO_CB, qc, &st, &ssl_err);
+	TRACE_PROTO("ssl error", QUIC_EV_CONN_IO_CB, qc, &st);
 	TRACE_LEAVE(QUIC_EV_CONN_IO_CB, qc);
 	return t;
 }
