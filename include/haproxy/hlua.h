@@ -60,7 +60,7 @@ int hlua_ref(lua_State *L);
 void hlua_pushref(lua_State *L, int ref);
 void hlua_unref(lua_State *L, int ref);
 struct hlua *hlua_gethlua(lua_State *L);
-void hlua_yieldk(lua_State *L, int nresults, int ctx, lua_KFunction k, int timeout, unsigned int flags);
+void hlua_yieldk(lua_State *L, int nresults, lua_KContext ctx, lua_KFunction k, int timeout, unsigned int flags);
 
 #else /* USE_LUA */
 
