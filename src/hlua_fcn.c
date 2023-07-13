@@ -639,10 +639,18 @@ static int hlua_queue_pop(lua_State *L)
 static int _hlua_queue_pop_wait(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_queue *queue = hlua_check_queue(L, 1);
+	struct hlua_queue_wait *wait = lua_touserdata(L, 2);
 
 	/* new pop attempt */
-	if (!_hlua_queue_pop(L, queue))
+	if (!_hlua_queue_pop(L, queue)) {
 		hlua_yieldk(L, 0, 0, _hlua_queue_pop_wait, TICK_ETERNITY, 0); // wait retry
+		return 0; // never reached, yieldk won't return
+	}
+
+	/* remove task from waiting list */
+	MT_LIST_DELETE(&wait->entry);
+	pool_free(pool_head_hlua_queuew, wait);
+
 	return 1; // success
 }
 static int hlua_queue_pop_wait(lua_State *L)
@@ -662,6 +670,12 @@ static int hlua_queue_pop_wait(lua_State *L)
 		return 0; /* not reached */
 	}
 
+	/* try opportunistic pop (there could already be pending items) */
+	if (_hlua_queue_pop(L, queue))
+		return 1; // success
+
+	/* no pending items, waiting required */
+
 	wait = pool_alloc(pool_head_hlua_queuew);
 	if (!wait) {
 		lua_pushnil(L);
@@ -674,20 +688,23 @@ static int hlua_queue_pop_wait(lua_State *L)
 	/* add task to queue's wait list */
 	MT_LIST_TRY_APPEND(&queue->wait_tasks, &wait->entry);
 
-	/* push queue on the top of the stack */
-	lua_pushlightuserdata(L, queue);
+	/* push wait entry at index 2 on the stack (queue is already there) */
+	lua_pushlightuserdata(L, wait);
 
-	/* try to pop without waiting (there could be already pending items) */
-	if (!_hlua_queue_pop(L, queue)) {
-		/* no item immediately available, go to waiting loop */
-		hlua_yieldk(L, 0, 0, _hlua_queue_pop_wait, TICK_ETERNITY, 0);
-	}
-
-	/* remove task from waiting list */
-	MT_LIST_DELETE(&wait->entry);
-	pool_free(pool_head_hlua_queuew, wait);
-
-	return 1;
+	/* Go to waiting loop which immediately performs a new attempt to make
+	 * sure we didn't miss a push during the wait entry initialization.
+	 *
+	 * _hlua_queue_pop_wait() won't return to us if it has to yield, which
+	 * is the most likely scenario. What happens in this case is that yieldk
+	 * call never returns, and instead Lua will call the continuation
+	 * function after a successful resume, so the calling function will
+	 * no longer be us, but Lua instead. And when the continuation function
+	 * eventually returns (because it succesfully popped an item), Lua will
+	 * directly give the hand back to the Lua function that called us.
+	 *
+	 * More info here: https://www.lua.org/manual/5.4/manual.html#4.7
+	 */
+	return _hlua_queue_pop_wait(L, LUA_OK, 0);
 }
 
 static int hlua_queue_new(lua_State *L)
