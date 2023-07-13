@@ -19760,6 +19760,24 @@ An optional table may be specified with the "sc*" form, in which case the
 currently tracked key will be looked up into this alternate table instead of
 the table currently being tracked.
 
+accept_date([<unit>]) : integer
+  This is the exact date when the connection was received by HAProxy
+  (which might be very slightly different from the date observed on the
+  network if there was some queuing in the system's backlog). This is usually
+  the same date which may appear in any upstream firewall's log. When used in
+  HTTP mode, the accept_date field will be reset to the first moment the
+  connection is ready to receive a new request (end of previous response for
+  HTTP/1, immediately after previous request for HTTP/2).
+
+  Returns a value in number of seconds since epoch.
+
+  <unit> is facultative, and can be set to "s" for seconds (default behavior),
+  "ms" for  milliseconds or "us" for microseconds.
+  If unit is set, return value is an integer reflecting either seconds,
+  milliseconds or microseconds since epoch.
+  It is useful when a time resolution of less than a second is needed.
+
+
 bc_dst : ip
   This is the destination ip address of the connection on the server side,
   which is the server address HAProxy connected to. It is of type IP and works
@@ -21884,6 +21902,19 @@ hdr([<name>[,<occ>]]) : string
   In case of doubt about the fetch direction, please use the explicit ones.
   Note that contrary to the hdr() sample fetch method, the hdr_* ACL keywords
   unambiguously apply to the request headers.
+
+request_date([<unit>]) : integer
+  This is the exact date when the first byte of the HTTP request was received
+  by HAProxy (log-format tag %tr). This is computed from accept_date +
+  handshake time (%Th) + idle time (%Ti).
+
+  Returns a value in number of seconds since epoch.
+
+  <unit> is facultative, and can be set to "s" for seconds (default behavior),
+  "ms" for  milliseconds or "us" for microseconds.
+  If unit is set, return value is an integer reflecting either seconds,
+  milliseconds or microseconds since epoch.
+  It is useful when a time resolution of less than a second is needed.
 
 req.fhdr(<name>[,<occ>]) : string
   This returns the full value of the last occurrence of header <name> in an

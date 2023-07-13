@@ -497,12 +497,91 @@ smp_fetch_fc_reordering(const struct arg *args, struct sample *smp, const char *
 #endif
 #endif // TCP_INFO
 
+/* Validates the data unit argument passed to "accept_date" fetch. Argument 0 support an
+ * optional string representing the unit of the result: "s" for seconds, "ms" for
+ * milliseconds and "us" for microseconds.
+ * Returns 0 on error and non-zero if OK.
+ */
+int smp_check_accept_date_unit(struct arg *args, char **err)
+{
+	if (args[0].type == ARGT_STR) {
+		long long int unit;
+
+		if (strcmp(args[0].data.str.area, "s") == 0) {
+			unit = TIME_UNIT_S;
+		}
+		else if (strcmp(args[0].data.str.area, "ms") == 0) {
+			unit = TIME_UNIT_MS;
+		}
+		else if (strcmp(args[0].data.str.area, "us") == 0) {
+			unit = TIME_UNIT_US;
+		}
+		else {
+			memprintf(err, "expects 's', 'ms' or 'us', got '%s'",
+				  args[0].data.str.area);
+			return 0;
+		}
+
+		chunk_destroy(&args[0].data.str);
+		args[0].type = ARGT_SINT;
+		args[0].data.sint = unit;
+	}
+	else if (args[0].type != ARGT_STOP) {
+		memprintf(err, "Unexpected arg type");
+		return 0;
+	}
+
+	return 1;
+}
+
+/* retrieve the accept or request date in epoch time, converts it to milliseconds
+ * or microseconds if asked to in optional args[1] unit param */
+static int
+smp_fetch_accept_date(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct strm_logs *logs;
+	struct timeval tv;
+
+	if (!smp->strm)
+		return 0;
+
+	logs = &smp->strm->logs;
+
+	if (kw[0] == 'r') {  /* request_date */
+		tv_ms_add(&tv, &logs->accept_date, logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
+	} else {             /* accept_date */
+		tv.tv_sec = logs->accept_date.tv_sec;
+		tv.tv_usec = logs->accept_date.tv_usec;
+	}
+
+	smp->data.u.sint = tv.tv_sec;
+
+	/* report in milliseconds */
+	if (args[0].type == ARGT_SINT && args[0].data.sint == TIME_UNIT_MS) {
+		smp->data.u.sint *= 1000;
+		smp->data.u.sint += tv.tv_usec / 1000;
+	}
+	/* report in microseconds */
+	else if (args[0].type == ARGT_SINT && args[0].data.sint == TIME_UNIT_US) {
+		smp->data.u.sint *= 1000000;
+		smp->data.u.sint += tv.tv_usec;
+	}
+
+	smp->data.type = SMP_T_SINT;
+	smp->flags |= SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Note: fetches that may return multiple types should be declared using the
  * appropriate pseudo-type. If not available it must be declared as the lowest
  * common denominator, the type that can be casted into all other ones.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
+	/* timestamps */
+	{ "accept_date", smp_fetch_accept_date,  ARG1(0,STR), smp_check_accept_date_unit, SMP_T_SINT, SMP_USE_L4CLI },
+	{ "request_date", smp_fetch_accept_date,  ARG1(0,STR), smp_check_accept_date_unit, SMP_T_SINT, SMP_USE_HRQHP },
+
 	{ "bc_dst",      smp_fetch_dst,   0, NULL, SMP_T_ADDR, SMP_USE_L4SRV },
 	{ "bc_dst_port", smp_fetch_dport, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
 	{ "bc_src",      smp_fetch_src,   0, NULL, SMP_T_ADDR, SMP_USE_L4SRV },
