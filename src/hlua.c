@@ -13120,6 +13120,13 @@ lua_State *hlua_init_state(int thread_num)
 	/* Init main lua stack. */
 	L = lua_newstate(hlua_alloc, &hlua_global_allocator);
 
+	if (!L) {
+		fprintf(stderr,
+		        "Lua init: critical error: lua_newstate() returned NULL."
+		        " This may possibly be caused by a memory allocation error.\n");
+		exit(1);
+	}
+
 	/* Initialise Lua context to NULL */
 	context = lua_getextraspace(L);
 	*context = NULL;
