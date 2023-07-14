@@ -21,6 +21,14 @@ else:
     print("Usage: {} <ref_name>".format(sys.argv[0]), file=sys.stderr)
     sys.exit(1)
 
+#
+# this CI is used for both development and stable branches of HAProxy
+#
+# naming convention used, if branch name matches:
+#
+#   "haproxy-" - stable branches
+#   otherwise  - development branch (i.e. "latest" ssl variants, "latest" github images)
+#
 print("Generating matrix for branch '{}'.".format(ref_name))
 
 
@@ -83,9 +91,9 @@ matrix = []
 # Ubuntu
 
 if "haproxy-" in ref_name:
-    os = "ubuntu-22.04"
+    os = "ubuntu-22.04" # stable branch
 else:
-    os = "ubuntu-latest"
+    os = "ubuntu-latest" # development branch
 
 TARGET = "linux-glibc"
 for CC in ["gcc", "clang"]:
@@ -179,7 +187,7 @@ for CC in ["gcc", "clang"]:
         # "BORINGSSL=yes",
     ]
 
-    if "haproxy-" not in ref_name:
+    if "haproxy-" not in ref_name: # development branch
         ssl_versions = ssl_versions + [
             "OPENSSL_VERSION=latest",
             "LIBRESSL_VERSION=latest",
@@ -211,9 +219,9 @@ for CC in ["gcc", "clang"]:
 # macOS
 
 if "haproxy-" in ref_name:
-    os = "macos-12"
+    os = "macos-12"     # stable branch
 else:
-    os = "macos-latest"
+    os = "macos-latest" # development branch
 
 TARGET = "osx"
 for CC in ["clang"]:
