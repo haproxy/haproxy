@@ -2990,12 +2990,12 @@ static inline long long int arith_add(long long int a, long long int b)
 	 * +------+----------+----------+
 	 */
 	if ((a ^ b) >= 0) {
-		/* signs are different. */
+		/* signs are same. */
 		if (a < 0) {
 			if (LLONG_MIN - a > b)
 				return LLONG_MIN;
 		}
-		if (LLONG_MAX - a < b)
+		else if (LLONG_MAX - a < b)
 			return LLONG_MAX;
 	}
 	return a + b;
