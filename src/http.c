@@ -413,7 +413,7 @@ const char *http_get_reason(unsigned int status)
 	case 226: return "IM Used";
 	case 300: return "Multiple Choices";
 	case 301: return "Moved Permanently";
-	case 302: return "Moved Temporarily";
+	case 302: return "Found";
 	case 303: return "See Other";
 	case 304: return "Not Modified";
 	case 305: return "Use Proxy";
