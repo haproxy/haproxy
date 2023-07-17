@@ -468,6 +468,8 @@ static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns, struct q
 {
 	struct eb64_node *node;
 
+	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
+
 	node = eb64_first(&pktns->tx.pkts);
 	while (node) {
 		struct quic_tx_packet *pkt;
@@ -478,6 +480,8 @@ static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns, struct q
 		if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)
 			qc->path->ifae_pkts--;
 		list_for_each_entry_safe(frm, frmbak, &pkt->frms, list) {
+			TRACE_DEVEL("freeing frame from packet",
+			            QUIC_EV_CONN_PRSAFRM, qc, frm, &pkt->pn_node.key);
 			qc_frm_unref(frm, qc);
 			LIST_DEL_INIT(&frm->list);
 			quic_tx_packet_refdec(frm->pkt);
@@ -486,6 +490,8 @@ static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns, struct q
 		eb64_delete(&pkt->pn_node);
 		quic_tx_packet_refdec(pkt);
 	}
+
+	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
 }
 
 /* Discard <pktns> packet number space attached to <qc> QUIC connection.
@@ -498,6 +504,8 @@ static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns, struct q
 static inline void quic_pktns_discard(struct quic_pktns *pktns,
                                       struct quic_conn *qc)
 {
+	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
+
 	if (pktns == qc->ipktns)
 		qc->flags |= QUIC_FL_CONN_IPKTNS_DCD;
 	else if (pktns == qc->hpktns)
@@ -511,6 +519,8 @@ static inline void quic_pktns_discard(struct quic_pktns *pktns,
 	pktns->tx.pto_probe = 0;
 	pktns->tx.in_flight = 0;
 	quic_pktns_tx_pkts_release(pktns, qc);
+
+	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
 }
 
 /* Return 1 if <pktns> matches with the Application packet number space of
