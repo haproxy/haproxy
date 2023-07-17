@@ -20010,9 +20010,9 @@ fc_sacked : integer
   before 2.4, the sample fetch fails.
 
 fc_src : ip
-  This is the original destination IP address of the connection on the client
-  side. Only "tcp-request connection" rules may alter this address. See "src"
-  for details.
+  This is the original source IP address of the connection on the client side
+  Only "tcp-request connection" rules may alter this address. See "src" for
+  details.
 
 fc_src_is_local : boolean
   Returns true if the source address of incoming connection is local to the
