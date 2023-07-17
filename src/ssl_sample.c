@@ -1304,6 +1304,46 @@ smp_fetch_ssl_fc_is_resumed(const struct arg *args, struct sample *smp, const ch
 	return 1;
 }
 
+/*
+ * string, returns the EC curve used for key agreement on the
+ * front and backend connection.
+ *
+ * The function to get the curve name (SSL_get_negotiated_group) is only available
+ * in OpenSSLv3 onwards and not for previous versions.
+ */
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL)
+static int
+smp_fetch_ssl_fc_ec(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+    struct connection *conn;
+    SSL *ssl;
+    int nid;
+
+    if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+        conn = (kw[4] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->sc) : NULL;
+    else
+        conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
+                smp->strm ? sc_conn(smp->strm->scb) : NULL;
+
+    ssl = ssl_sock_get_ssl_object(conn);
+    if (!ssl)
+        return 0;
+
+    nid = SSL_get_negotiated_group(ssl);
+    if (!nid)
+            return 0;
+    smp->data.u.str.area = (char *)OBJ_nid2sn(nid);
+    if (!smp->data.u.str.area)
+        return 0;
+
+    smp->data.type = SMP_T_STR;
+    smp->flags |= SMP_F_VOL_SESS | SMP_F_CONST;
+    smp->data.u.str.data = strlen(smp->data.u.str.area);
+
+    return 1;
+}
+#endif
+
 /* string, returns the used cipher if front conn. transport layer is SSL.
  * This function is also usable on backend conn if the fetch keyword 5th
  * char is 'b'.
@@ -2174,6 +2214,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_bc_alpn",            smp_fetch_ssl_fc_alpn,        0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
 #endif
 	{ "ssl_bc_cipher",          smp_fetch_ssl_fc_cipher,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL)
+        { "ssl_bc_curve",           smp_fetch_ssl_fc_ec,          0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
+#endif
 #if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
 	{ "ssl_bc_npn",             smp_fetch_ssl_fc_npn,         0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
 #endif
@@ -2223,6 +2266,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_fc",                 smp_fetch_ssl_fc,             0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
 	{ "ssl_fc_alg_keysize",     smp_fetch_ssl_fc_alg_keysize, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_fc_cipher",          smp_fetch_ssl_fc_cipher,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL)
+        { "ssl_fc_curve",           smp_fetch_ssl_fc_ec,          0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+#endif
 	{ "ssl_fc_has_crt",         smp_fetch_ssl_fc_has_crt,     0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
 	{ "ssl_fc_has_early",       smp_fetch_ssl_fc_has_early,   0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
 	{ "ssl_fc_has_sni",         smp_fetch_ssl_fc_has_sni,     0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },

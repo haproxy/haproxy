@@ -1,0 +1,51 @@
+#REGTEST_TYPE=devel
+
+varnishtest "Test the ssl_fc_curve/ssl_bc_curve sample fetches"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(3.0.0)'"
+feature ignore_unknown_macro
+
+server s1 -repeat 3 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-buffer-size 1
+        crt-base ${testdir}
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        balance roundrobin
+        http-response add-header x-ssl-bc-curve-name %[ssl_bc_curve]
+        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/client.ecdsa.pem
+
+    listen ssl-lst
+        mode http
+        http-response add-header x-ssl-fc-curve-name %[ssl_fc_curve]
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt verify optional curves X25519:P-256:P-384
+
+       server s1 ${s1_addr}:${s1_port}
+} -start
+
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-fc-curve-name == "X25519"
+    expect resp.http.x-ssl-bc-curve-name == "X25519"
+
+} -run
+

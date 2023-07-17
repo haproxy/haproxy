@@ -20722,6 +20722,11 @@ ssl_bc_client_random : binary
   sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or BoringSSL.
   It can be used in a tcp-check or an http-check ruleset.
 
+ssl_bc_curve : string
+  Returns the name of the curve used in the key agreement when the outgoing
+  connection was made over an SSL/TLS transport layer. This requires 
+  OpenSSL >= 3.0.0.
+
 ssl_bc_err : integer
   When the outgoing connection was made over an SSL/TLS transport layer,
   returns the ID of the last error of the first error stack raised on the
@@ -21056,6 +21061,11 @@ ssl_fc_cipherlist_xxh : integer
   Returns a xxh64 of the cipher list. This hash can return only if the value
   "tune.ssl.capture-buffer-size" is set greater than 0, however the hash take
   into account all the data of the cipher list.
+
+ssl_fc_curve : string
+  Returns the name of the curve used in the key agreement when the incoming
+  connection was made over an SSL/TLS transport layer. This requires
+  OpenSSL >= 3.0.0.
 
 ssl_fc_ecformats_bin : binary
   Return the binary form of the client hello supported elliptic curve point
