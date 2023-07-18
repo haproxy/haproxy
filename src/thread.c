@@ -1538,6 +1538,103 @@ int thread_resolve_group_mask(struct thread_set *ts, int defgrp, char **err)
 	return 0;
 }
 
+/* Tries to guess the best thread group count and thread count depending on
+ * (possibly) existing values, presence or not of cpu-map, of a forced
+ * taskset, etc.
+ */
+void thread_detect_count(void)
+{
+	int thr_min, thr_max;
+	int grp_min __maybe_unused;
+	int grp_max __maybe_unused;
+	int cpus_avail __maybe_unused;
+	int cpu __maybe_unused;
+
+	thr_min = 1; thr_max = MAX_THREADS;
+	grp_min = 1; grp_max = MAX_TGROUPS;
+
+	if (global.thread_limit && global.nbthread > global.thread_limit) {
+		ha_warning("nbthread forced to a higher value (%d) than the configured thread-hard-limit (%d), enforcing the limit. "
+			   "Please fix either value to remove this warning.\n",
+			   global.nbthread, global.thread_limit);
+		global.nbthread = global.thread_limit;
+	}
+
+	/* config forces both values */
+	if (global.nbthread)
+		thr_min = thr_max = global.nbthread;
+
+	if (global.nbtgroups)
+		grp_min = grp_max = global.nbtgroups;
+
+	/* Adjust to boot settings if not forced */
+	if (thr_min <= thread_cpus_enabled_at_boot && thread_cpus_enabled_at_boot < thr_max)
+		thr_max = thread_cpus_enabled_at_boot;
+
+	if (global.thread_limit && thr_max > global.thread_limit)
+		thr_max = global.thread_limit;
+
+#if defined(USE_THREAD) && defined(USE_CPU_AFFINITY)
+	/* consider the number of online CPUs as an upper limit if set */
+	cpus_avail = 0;
+	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++)
+		if (!(ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE))
+			cpus_avail++;
+
+	if (thr_min <= cpus_avail && cpus_avail < thr_max)
+		thr_max = cpus_avail;
+
+	/* make sure values are consistent */
+	if (thr_min < grp_min && thr_max >= grp_min)
+		thr_min = grp_min;
+
+	if (thr_min <= MAX_THREADS_PER_GROUP * grp_max &&
+	    thr_max > MAX_THREADS_PER_GROUP * grp_max)
+		thr_max = MAX_THREADS_PER_GROUP * grp_max;
+
+	if (grp_min < (thr_min +  MAX_THREADS_PER_GROUP - 1) / MAX_THREADS_PER_GROUP &&
+	    grp_max >= (thr_min +  MAX_THREADS_PER_GROUP - 1) / MAX_THREADS_PER_GROUP)
+		grp_min = (thr_min +  MAX_THREADS_PER_GROUP - 1) / MAX_THREADS_PER_GROUP;
+
+	if (grp_max > thr_max && grp_min <= thr_max)
+		grp_max = thr_max;
+
+	if (grp_min < grp_max && cpu_map_configured()) {
+		/* if a cpu-map directive is set, we cannot reliably infer what
+		 * CPUs will be used anymore, so we'll use the smallest permitted
+		 * number of groups.
+		 */
+		grp_max = grp_min;
+	}
+
+	/* now, if the thr_min < thr_max this means that we're supposed to
+	 * figure the best set of CPUs to use. E.g. use a single cluster on
+	 * a complex set. Thus we can try to select the best clusters in
+	 * capacity order until we reach at least thr_min, then continue
+	 * on the same cluster _capacity_ up to thr_max.
+	 */
+#endif // USE_THREAD && USE_CPU_AFFINITY
+
+	if (!global.nbthread)
+		global.nbthread = thr_max;
+
+	if (!global.nbtgroups)
+		global.nbtgroups = 1;
+
+	if (global.nbthread > MAX_THREADS_PER_GROUP * global.nbtgroups) {
+		ha_diag_warning("nbthread too large or not set, found %d CPUs, limiting to %d threads (maximum is %d per thread group and %d groups). Please set nbthreads and/or increase thread-groups in the global section to silence this warning.\n",
+				global.nbthread, MAX_THREADS_PER_GROUP * global.nbtgroups, MAX_THREADS_PER_GROUP, MAX_TGROUPS);
+		global.nbthread = MAX_THREADS_PER_GROUP * global.nbtgroups;
+	}
+
+#if defined(USE_THREAD) && defined(USE_CPU_AFFINITY)
+	if (global.tune.debug & GDBG_CPU_AFFINITY)
+		cpu_dump_topology(ha_cpu_topo);
+#endif
+	return;
+}
+
+
 /* Parse a string representing a thread set in one of the following forms:
  *
  * - { "all" | "odd" | "even" | <abs_num> [ "-" <abs_num> ] }[,...]
