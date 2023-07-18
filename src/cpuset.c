@@ -118,3 +118,20 @@ int ha_cpuset_size()
 
 #endif
 }
+
+/* Returns true if at least one cpu-map directive was configured, otherwise
+ * false.
+ */
+int cpu_map_configured(void)
+{
+	int grp, thr;
+
+	for (grp = 0; grp < MAX_TGROUPS; grp++) {
+		if (ha_cpuset_count(&cpu_map[grp].proc))
+			return 1;
+		for (thr = 0; thr < MAX_THREADS_PER_GROUP; thr++)
+			if (ha_cpuset_count(&cpu_map[grp].thread[thr]))
+				return 1;
+	}
+	return 0;
+}

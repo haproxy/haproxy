@@ -41,4 +41,9 @@ void ha_cpuset_assign(struct hap_cpuset *dst, struct hap_cpuset *src);
  */
 int ha_cpuset_size(void);
 
+/* Returns true if at least one cpu-map directive was configured, otherwise
+ * false.
+ */
+int cpu_map_configured(void);
+
 #endif /* _HAPROXY_CPUSET_H */
