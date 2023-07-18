@@ -3328,7 +3328,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	/* Flag this packet number space as having received a packet. */
 	qel->pktns->flags |= QUIC_FL_PKTNS_PKT_RECEIVED;
 
-	if (fast_retrans) {
+	if (fast_retrans && qc->iel && qc->hel) {
 		struct quic_enc_level *iqel = qc->iel;
 		struct quic_enc_level *hqel = qc->hel;
 
