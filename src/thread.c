@@ -1429,6 +1429,105 @@ int thread_resolve_group_mask(struct thread_set *ts, int defgrp, char **err)
 	return 0;
 }
 
+/* Tries to guess the best thread group count and thread count depending on
+ * (possibly) existing values, presence or not of cpu-map, of a forced
+ * taskset, etc.
+ */
+void thread_detect_count(void)
+{
+	int maxcpus = ha_cpuset_size();
+	int cpus_avail = 0;
+	int cpu, lastcpu;
+	int thr_min, thr_max, grp_min, grp_max;
+
+	thr_min = 1; thr_max = MAX_THREADS;
+	grp_min = 1; grp_max = MAX_TGROUPS;
+
+	/* config forces both values */
+	if (global.nbthread)
+		thr_min = thr_max = global.nbthread;
+
+	if (global.nbtgroups)
+		grp_min = grp_max = global.nbtgroups;
+
+	/* Adjust to boot settings if not forced */
+	if (thr_min <= thread_cpus_enabled_at_boot && thread_cpus_enabled_at_boot < thr_max)
+		thr_max = thread_cpus_enabled_at_boot;
+
+	/* consider the number of online CPUs as an upper limit if set */
+	cpus_avail = 0;
+	for (cpu = 0; cpu < maxcpus; cpu++)
+		if (!(ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE))
+			cpus_avail++;
+
+	if (thr_min <= cpus_avail && cpus_avail < thr_max)
+		thr_max = cpus_avail;
+
+	/* make sure values are consistent */
+	if (thr_min < grp_min && thr_max >= grp_min)
+		thr_min = grp_min;
+
+	if (thr_min <= MAX_THREADS_PER_GROUP * grp_max &&
+	    thr_max > MAX_THREADS_PER_GROUP * grp_max)
+		thr_max = MAX_THREADS_PER_GROUP * grp_max;
+
+	if (grp_min < (thr_min +  MAX_THREADS_PER_GROUP - 1) / MAX_THREADS_PER_GROUP &&
+	    grp_max >= (thr_min +  MAX_THREADS_PER_GROUP - 1) / MAX_THREADS_PER_GROUP)
+		grp_min = (thr_min +  MAX_THREADS_PER_GROUP - 1) / MAX_THREADS_PER_GROUP;
+
+	if (grp_max > thr_max && grp_min <= thr_max)
+		grp_max = thr_max;
+
+	if (grp_min < grp_max && cpu_map_configured()) {
+		/* if a cpu-map directive is set, we cannot reliably infer what
+		 * CPUs will be used anymore, so we'll use the smallest permitted
+		 * number of groups.
+		 */
+		grp_max = grp_min;
+	}
+
+	printf("grp=[%d..%d] thr=[%d..%d]\n", grp_min, grp_max, thr_min, thr_max);
+
+	/* now, if the thr_min < thr_max this means that we're supposed to
+	 * figure the best set of CPUs to use. E.g. use a single cluster on
+	 * a complex set. Thus we can try to select the best clusters in
+	 * capacity order until we reach at least thr_min, then continue
+	 * on the same cluster _capacity_ up to thr_max.
+	 */
+
+ tgroups_done:
+	if (global.nbthread) {
+		printf("Note: threads already set to %d\n", global.nbthread);
+		goto threads_done;
+	}
+
+ threads_done:
+ arrange_cpus:
+ done:
+	printf("going to start with nbthread=%d nbtgroups=%d\n", global.nbthread, global.nbtgroups);
+	lastcpu = 0;
+	for (cpu = 0; cpu < maxcpus; cpu++)
+		if (!(ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE))
+			lastcpu = cpu;
+
+	for (cpu = 0; cpu <= lastcpu; cpu++) {
+		printf("thr %3d -> cpu %3d  onl=%d bnd=%d pk=%02d no=%02d l3=%02d cl=%03d l2=%03d ts=%03d l1=%03d smt=%d capa=%d\n", cpu, ha_cpu_topo[cpu].idx,
+		       !(ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE),
+		       !(ha_cpu_topo[cpu].st & HA_CPU_F_EXCLUDED),
+		       ha_cpu_topo[cpu].pk_id,
+		       ha_cpu_topo[cpu].no_id,
+		       ha_cpu_topo[cpu].l3_id,
+		       ha_cpu_topo[cpu].cl_id,
+		       ha_cpu_topo[cpu].l2_id,
+		       ha_cpu_topo[cpu].ts_id,
+		       ha_cpu_topo[cpu].l1_id,
+		       ha_cpu_topo[cpu].th_cnt,
+		       ha_cpu_topo[cpu].capa);
+	}
+	return;
+}
+
+
 /* Parse a string representing a thread set in one of the following forms:
  *
  * - { "all" | "odd" | "even" | <abs_num> [ "-" <abs_num> ] }[,...]
