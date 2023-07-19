@@ -2637,6 +2637,7 @@ static int numa_detect_topology()
 	struct hap_cpuset active_cpus, node_cpu_set;
 	const char *parse_cpu_set_args[2];
 	char *err = NULL;
+	int grp, thr;
 
 	/* node_cpu_set count is used as return value */
 	ha_cpuset_zero(&node_cpu_set);
@@ -2682,12 +2683,9 @@ static int numa_detect_topology()
 		}
 
 		ha_diag_warning("Multi-socket cpu detected, automatically binding on active CPUs of '%s' (%u active cpu(s))\n", node, ha_cpuset_count(&node_cpu_set));
-		if (sched_setaffinity(getpid(), sizeof(node_cpu_set.cpuset), &node_cpu_set.cpuset) == -1) {
-			ha_warning("Cannot set the cpu affinity for this multi-cpu machine\n");
-
-			/* clear the cpuset used as return value */
-			ha_cpuset_zero(&node_cpu_set);
-		}
+		for (grp = 0; grp < MAX_TGROUPS; grp++)
+			for (thr = 0; thr < MAX_THREADS_PER_GROUP; thr++)
+				ha_cpuset_assign(&cpu_map[grp].thread[thr], &node_cpu_set);
 
 		free(node_dirlist[node_dirlist_size]);
 		break;
@@ -2707,6 +2705,7 @@ static int numa_detect_topology()
 	struct hap_cpuset node_cpu_set;
 	int ndomains = 0, i;
 	size_t len = sizeof(ndomains);
+	int grp, thr;
 
 	if (sysctlbyname("vm.ndomains", &ndomains, &len, NULL, 0) == -1) {
 		ha_notice("Cannot assess the number of CPUs domains\n");
@@ -2736,12 +2735,9 @@ static int numa_detect_topology()
 		ha_cpuset_assign(&node_cpu_set, &dom);
 
 		ha_diag_warning("Multi-socket cpu detected, automatically binding on active CPUs of '%d' (%u active cpu(s))\n", i, ha_cpuset_count(&node_cpu_set));
-		if (cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(node_cpu_set.cpuset), &node_cpu_set.cpuset) == -1) {
-			ha_warning("Cannot set the cpu affinity for this multi-cpu machine\n");
-
-			/* clear the cpuset used as return value */
-			ha_cpuset_zero(&node_cpu_set);
-		}
+		for (grp = 0; grp < MAX_TGROUPS; grp++)
+			for (thr = 0; thr < MAX_THREADS_PER_GROUP; thr++)
+				ha_cpuset_assign(&cpu_map[grp].thread[thr], &node_cpu_set);
 		break;
 	}
  leave:
