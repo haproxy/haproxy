@@ -19878,6 +19878,10 @@ accept_date([<unit>]) : integer
   milliseconds or microseconds since epoch.
   It is useful when a time resolution of less than a second is needed.
 
+bc.timer.connect : integer
+  Total time to establish the TCP connection to the server.  This is the
+  equivalent of %Tc in the log-format. This is reported in milliseconds (ms).
+  For more information see Section 8.4 "Timing events"
 
 bc_dst : ip
   This is the destination ip address of the connection on the server side,
@@ -20001,6 +20005,18 @@ dst_port : integer
   transparent mode, when assigning dynamic ports to some clients for a whole
   application session, to stick all users to a same server, or to pass the
   destination port information to a server using an HTTP header.
+
+fc.timer.handshake : integer
+  Total time to accept tcp connection and execute handshakes for low level
+  protocols. Currently, these protocols are proxy-protocol and SSL. This is the
+  equivalent of %Th in the log-format.  This is reported in milliseconds (ms).
+  For more information see Section 8.4 "Timing events"
+
+fc.timer.total : integer
+  Total session duration time, between the moment the proxy accepted it and the
+  moment both ends were closed. This is the equivalent of %Tt in the log-format.
+  This is reported in milliseconds (ms). For more information see Section 8.4
+  "Timing events"
 
 fc_dst : ip
   This is the original destination IP address of the connection on the client
@@ -20182,6 +20198,12 @@ fe_name : string
 fe_client_timeout : integer
   Returns the configuration value in millisecond for the client timeout of the
   current frontend.
+
+res.timer.data : integer
+  this is the total transfer time of the response payload till the last byte
+  sent to the client. In HTTP it starts after the last response header (after
+  Tr). This is the equivalent of %Td in the log-format and is reported in
+  milliseconds (ms).  For more information see Section 8.4 "Timing events"
 
 sc_bytes_in_rate(<ctr>[,<table>]) : integer
 sc0_bytes_in_rate([<table>]) : integer
@@ -21530,6 +21552,12 @@ ssl_s_version : integer
   Returns the version of the certificate presented by the server when the
   outgoing connection was made over an SSL/TLS transport layer.
 
+txn.timer.user : integer
+  Total estimated time as seen from client, between the moment the proxy
+  accepted it and the moment both ends were closed, without idle time.
+  This is the equivalent of %Tu in the log-format and is reported in
+  milliseconds (ms). For more details see Section 8.4 "Timing events"
+
 7.3.5. Fetching samples from buffer contents (Layer 6)
 ------------------------------------------------------
 
@@ -22125,6 +22153,37 @@ req.hdrs_bin : binary
   int:  refer to the SPOE documentation for the encoding
   str:  <int:length><bytes>
 
+req.timer.hdr : integer
+  Total time to get the client request (HTTP mode only). It's the time elapsed
+  between the first bytes received and the moment the proxy received the empty
+  line marking the end of the HTTP headers. This is reported in milliseconds
+  (ms) and is equivalent to %TR in log-format. See section 8.4 "Timing events"
+  for more details.
+
+req.timer.idle : integer
+  This is the idle time before the HTTP request (HTTP mode only). This timer
+  counts between the end of the handshakes and the first byte of the HTTP
+  request. This is reported in milliseconds and is equivalent to %Ti in
+  log-format. See section 8.4 "Timing events" for more details.
+
+req.timer.queue : integer
+  Total time spent in the queues waiting for a connection slot.
+  This is reported in milliseconds and is equivalent to %Tw in
+  log-format. See section 8.4 "Timing events" for more details.
+
+req.timer.tq : integer
+  total time to get the client request from the accept date or since the
+  emission of the last byte of the previous response.
+  This is reported in milliseconds and is equivalent to %Tq in
+  log-format. See section 8.4 "Timing events" for more details.
+
+res.timer.hdr : integer
+  It's the time elapsed between the moment the TCP connection was established
+  to the server and the moment the server sent its complete response headers.
+  This is reported in milliseconds and is equivalent to %Tr in log-format. See
+  section 8.4 "Timing events" for more details.
+
+
 http_auth(<userlist>) : boolean
   Returns a boolean indicating whether the authentication data received from
   the client match a username & password stored in the specified userlist. This
@@ -22432,6 +22491,13 @@ status : integer
   to remove any Location header if the response is not a 3xx.
 
   It may be used in tcp-check based expect rules.
+
+txn.timer.total : integer
+  Total active time for the HTTP request, between the moment the proxy received
+  the first byte of the request header and the emission of the last byte of the
+  response body. This is the equivalent of %Ta in the log-format and is
+  reported in milliseconds (ms).  For more information see Section 8.4 "Timing
+  events"
 
 unique-id : string
   Returns the unique-id attached to the request. The directive
@@ -23640,6 +23706,9 @@ Timings events in TCP mode:
     all request to calculate the amortized value. The second and subsequent
     request will always report zero here.
 
+    This timer is named %Th as a log-format tag, and fc.timer.handshake as a
+    sample fetch.
+
   - Ti: is the idle time before the HTTP request (HTTP mode only). This timer
     counts between the end of the handshakes and the first byte of the HTTP
     request. When dealing with a second request in keep-alive mode, it starts
@@ -23650,6 +23719,9 @@ Timings events in TCP mode:
     pending until they need it. This delay will be reported as the idle time. A
     value of -1 indicates that nothing was received on the connection.
 
+    This timer is named %Ti as a log-format tag, and req.timer.idle as a
+    sample fetch.
+
   - TR: total time to get the client request (HTTP mode only). It's the time
     elapsed between the first bytes received and the moment the proxy received
     the empty line marking the end of the HTTP headers. The value "-1"
@@ -23657,6 +23729,9 @@ Timings events in TCP mode:
     the client closes prematurely or times out. This time is usually very short
     since most requests fit in a single packet. A large time may indicate a
     request typed by hand during a test.
+
+    This timer is named %TR as a log-format tag, and req.timer.hdr as a
+    sample fetch.
 
   - Tq: total time to get the client request from the accept date or since the
     emission of the last byte of the previous response (HTTP mode only). It's
@@ -23666,17 +23741,26 @@ Timings events in TCP mode:
     it in favor of TR nowadays, as the idle time adds a lot of noise to the
     reports.
 
+    This timer is named %Tq as a log-format tag, and req.timer.tq as a
+    sample fetch.
+
   - Tw: total time spent in the queues waiting for a connection slot. It
     accounts for backend queue as well as the server queues, and depends on the
     queue size, and the time needed for the server to complete previous
     requests. The value "-1" means that the request was killed before reaching
     the queue, which is generally what happens with invalid or denied requests.
 
+    This timer is named %Tw as a log-format tag, and req.timer.queue as a
+    sample fetch.
+
   - Tc: total time to establish the TCP connection to the server. It's the time
     elapsed between the moment the proxy sent the connection request, and the
     moment it was acknowledged by the server, or between the TCP SYN packet and
     the matching SYN/ACK packet in return. The value "-1" means that the
     connection never established.
+
+    This timer is named %Tc as a log-format tag, and bc.timer.connect as a
+    sample fetch.
 
   - Tr: server response time (HTTP mode only). It's the time elapsed between
     the moment the TCP connection was established to the server and the moment
@@ -23690,12 +23774,18 @@ Timings events in TCP mode:
     header (empty line) was never seen, most likely because the server timeout
     stroke before the server managed to process the request.
 
+    This timer is named %Tr as a log-format tag, and res.timer.hdr as a
+    sample fetch.
+
   - Td: this is the total transfer time of the response payload till the last
     byte sent to the client. In HTTP it starts after the last response header
     (after Tr).
 
     The data sent are not guaranteed to be received by the client, they can be
     stuck in either the kernel or the network.
+
+    This timer is named %Td as a log-format tag, and res.timer.data as a
+    sample fetch.
 
   - Ta: total active time for the HTTP request, between the moment the proxy
     received the first byte of the request header and the emission of the last
@@ -23709,6 +23799,9 @@ Timings events in TCP mode:
     Timers with "-1" values have to be excluded from this equation. Note that
     "Ta" can never be negative.
 
+    This timer is named %Ta as a log-format tag, and txn.timer.total as a
+    sample fetch.
+
   - Tt: total session duration time, between the moment the proxy accepted it
     and the moment both ends were closed. The exception is when the "logasap"
     option is specified. In this case, it only equals (Th+Ti+TR+Tw+Tc+Tr), and
@@ -23721,6 +23814,9 @@ Timings events in TCP mode:
     mode, "Ti", "Tq" and "Tr" have to be excluded too. Note that "Tt" can never
     be negative and that for HTTP, Tt is simply equal to (Th+Ti+Ta).
 
+    This timer is named %Tt as a log-format tag, and fc.timer.total as a
+    sample fetch.
+
   - Tu: total estimated time as seen from client, between the moment the proxy
     accepted it and the moment both ends were closed, without idle time.
     This is useful to roughly measure end-to-end time as a user would see it,
@@ -23729,6 +23825,9 @@ Timings events in TCP mode:
     latency is the same in both directions. The exception is when the "logasap"
     option is specified. In this case, it only equals (Th+TR+Tw+Tc+Tr), and is
     prefixed with a '+' sign.
+
+    This timer is named %Tu as a log-format tag, and txn.timer.user as a
+    sample fetch.
 
 These timers provide precious indications on trouble causes. Since the TCP
 protocol defines retransmit delays of 3, 6, 12... seconds, we know for sure
