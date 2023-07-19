@@ -1533,7 +1533,6 @@ static void init_early(int argc, char **argv)
 		int g, i;
 
 		for (g = 0; g < MAX_TGROUPS; g++) {
-			ha_cpuset_zero(&cpu_map[g].proc);
 			ha_cpuset_zero(&cpu_map[g].proc_t1);
 			for (i = 0; i < MAX_THREADS_PER_GROUP; ++i) {
 				ha_cpuset_zero(&cpu_map[g].thread[i]);
@@ -3624,14 +3623,14 @@ int main(int argc, char **argv)
 			in_parent = 1;
 		}
 
-#ifdef USE_CPU_AFFINITY
-		if (!in_parent && ha_cpuset_count(&cpu_map[0].proc)) {   /* only do this if the process has a CPU map */
+#if !defined(USE_THREAD) && defined(USE_CPU_AFFINITY)
+		if (!in_parent && ha_cpuset_count(&cpu_map[0].thread[0])) {   /* only do this if the process has a CPU map */
 
 #if defined(CPUSET_USE_CPUSET) || defined(__DragonFly__)
-			struct hap_cpuset *set = &cpu_map[0].proc;
+			struct hap_cpuset *set = &cpu_map[0].thread[0];
 			sched_setaffinity(0, sizeof(set->cpuset), &set->cpuset);
 #elif defined(__FreeBSD__)
-			struct hap_cpuset *set = &cpu_map[0].proc;
+			struct hap_cpuset *set = &cpu_map[0].thread[0];
 			ret = cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(set->cpuset), &set->cpuset);
 #endif
 		}

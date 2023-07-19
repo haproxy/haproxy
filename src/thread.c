@@ -277,9 +277,6 @@ void set_thread_cpu_affinity()
 		return;
 
 	/* Now the CPU affinity for all threads */
-	if (ha_cpuset_count(&cpu_map[tgid - 1].proc))
-		ha_cpuset_and(&cpu_map[tgid - 1].thread[ti->ltid], &cpu_map[tgid - 1].proc);
-
 	if (ha_cpuset_count(&cpu_map[tgid - 1].thread[ti->ltid])) {/* only do this if the thread has a THREAD map */
 #  if defined(__APPLE__)
 		/* Note: this API is limited to the first 32/64 CPUs */

@@ -48,7 +48,6 @@ struct hap_cpuset {
 };
 
 struct cpu_map {
-	struct hap_cpuset proc;                 /* list of CPU masks for the whole thread group */
 	struct hap_cpuset proc_t1           ;   /* list of CPU masks for the 1st thread of the group */
 	struct hap_cpuset thread[MAX_THREADS_PER_GROUP];  /* list of CPU masks for the 32/64 threads of this group */
 };

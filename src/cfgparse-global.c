@@ -1100,7 +1100,10 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 			*slash = '/';
-		}
+		} else
+			thread = ~0UL; /* missing '/' = 'all' */
+
+		/* from now on, thread cannot be NULL anymore */
 
 		if (parse_cpu_set((const char **)args+2, &cpus, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
@@ -1131,35 +1134,21 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 
 			ha_cpuset_assign(&cpus_copy, &cpus);
 
-			if (!thread) {
-				/* no thread set was specified, apply
-				 * the CPU set to the whole group.
-				 */
+			/* a thread set is specified, apply the
+			 * CPU set to these threads.
+			 */
+			for (j = n = 0; j < MAX_THREADS_PER_GROUP; j++) {
+				/* No mapping for this thread */
+				if (!(thread & (1UL << j)))
+					continue;
+
 				if (!autoinc)
-					ha_cpuset_assign(&cpu_map[g].proc, &cpus);
+					ha_cpuset_assign(&cpu_map[g].thread[j], &cpus);
 				else {
-					ha_cpuset_zero(&cpu_map[g].proc);
+					ha_cpuset_zero(&cpu_map[g].thread[j]);
 					n = ha_cpuset_ffs(&cpus_copy) - 1;
 					ha_cpuset_clr(&cpus_copy, n);
-					ha_cpuset_set(&cpu_map[g].proc, n);
-				}
-			} else {
-				/* a thread set is specified, apply the
-				 * CPU set to these threads.
-				 */
-				for (j = n = 0; j < MAX_THREADS_PER_GROUP; j++) {
-					/* No mapping for this thread */
-					if (!(thread & (1UL << j)))
-						continue;
-
-					if (!autoinc)
-						ha_cpuset_assign(&cpu_map[g].thread[j], &cpus);
-					else {
-						ha_cpuset_zero(&cpu_map[g].thread[j]);
-						n = ha_cpuset_ffs(&cpus_copy) - 1;
-						ha_cpuset_clr(&cpus_copy, n);
-						ha_cpuset_set(&cpu_map[g].thread[j], n);
-					}
+					ha_cpuset_set(&cpu_map[g].thread[j], n);
 				}
 			}
 		}
