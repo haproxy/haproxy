@@ -1435,10 +1435,13 @@ int thread_resolve_group_mask(struct thread_set *ts, int defgrp, char **err)
  */
 void thread_detect_count(void)
 {
-	int maxcpus = ha_cpuset_size();
-	int cpus_avail = 0;
-	int cpu, lastcpu;
-	int thr_min, thr_max, grp_min, grp_max;
+	int thr_min, thr_max;
+	int grp_min __maybe_unused;
+	int grp_max __maybe_unused;
+	int cpus_avail __maybe_unused;
+	int cpu __maybe_unused;
+	int lastcpu __maybe_unused;
+	int maxcpus __maybe_unused;
 
 	thr_min = 1; thr_max = MAX_THREADS;
 	grp_min = 1; grp_max = MAX_TGROUPS;
@@ -1454,7 +1457,9 @@ void thread_detect_count(void)
 	if (thr_min <= thread_cpus_enabled_at_boot && thread_cpus_enabled_at_boot < thr_max)
 		thr_max = thread_cpus_enabled_at_boot;
 
+#if defined(USE_THREAD) && defined(USE_CPU_AFFINITY)
 	/* consider the number of online CPUs as an upper limit if set */
+	maxcpus = ha_cpuset_size();
 	cpus_avail = 0;
 	for (cpu = 0; cpu < maxcpus; cpu++)
 		if (!(ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE))
@@ -1531,6 +1536,7 @@ void thread_detect_count(void)
 			}
 		}
 	}
+#endif // USE_THREAD && USE_CPU_AFFINITY
 
 	if (!global.nbthread)
 		global.nbthread = thr_max;
@@ -1544,6 +1550,7 @@ void thread_detect_count(void)
 		global.nbthread = MAX_THREADS_PER_GROUP * global.nbtgroups;
 	}
 
+#if defined(USE_THREAD) && defined(USE_CPU_AFFINITY)
  tgroups_done:
 	if (global.nbthread) {
 		printf("Note: threads already set to %d\n", global.nbthread);
@@ -1573,6 +1580,7 @@ void thread_detect_count(void)
 		       ha_cpu_topo[cpu].th_cnt,
 		       ha_cpu_topo[cpu].capa);
 	}
+#endif
 	return;
 }
 
