@@ -479,7 +479,38 @@ int cpu_detect_topology(void)
 	return 1;
 }
 
-#else // __linux__
+#elif defined(__FreeBSD__)
+
+int cpu_detect_topology(void)
+{
+	struct hap_cpuset node_cpu_set;
+	int maxcpus = ha_cpuset_size();
+	int ndomains, domain, cpu;
+	size_t len = sizeof(ndomains);
+
+	/* Try to detect NUMA nodes */
+	if (sysctlbyname("vm.ndomains", &ndomains, &len, NULL, 0) == 0) {
+		BUG_ON(ndomains > MAXMEMDOM);
+
+		/* For each domain we'll reference the domain ID in the belonging
+		 * CPUs.
+		 */
+		for (domain = 0; domain < ndomains; domain++) {
+			ha_cpuset_zero(&node_cpu_set);
+
+			if (cpuset_getaffinity(CPU_LEVEL_WHICH, CPU_WHICH_DOMAIN, domain,
+					       sizeof(node_cpu_set.cpuset), &node_cpu_set.cpuset) == -1)
+				continue;
+
+			for (cpu = 0; cpu < maxcpus; cpu++)
+				if (ha_cpuset_isset(&node_cpu_set, cpu))
+					ha_cpu_topo[cpu].no_id = domain;
+		}
+	}
+	return 1;
+}
+
+#else // !__linux__, !__FreeBSD__
 
 int cpu_detect_topology(void)
 {
