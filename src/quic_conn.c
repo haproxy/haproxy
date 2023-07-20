@@ -2781,13 +2781,16 @@ static void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 	 */
 	if (!quic_peer_validated_addr(qc) && qc_is_listener(qc)) {
 		size_t dglen = pkt->len + 4;
+		size_t may_send = 3 * qc->rx.bytes - qc->tx.prep_bytes;
 
 		dglen += pkt->next ? pkt->next->len + 4 : 0;
-		if (dglen > 3 * qc->rx.bytes - qc->tx.prep_bytes) {
+		if (dglen > may_send) {
 			qc->flags |= QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED;
 			TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_SPPKTS, qc, pkt);
 			if (pkt->next)
 				TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_SPPKTS, qc, pkt->next);
+			if (qel == iqel && may_send >= QUIC_INITIAL_PACKET_MINLEN)
+				TRACE_PROTO("will probe Initial packet number space", QUIC_EV_CONN_SPPKTS, qc);
 			goto end;
 		}
 	}
@@ -4957,12 +4960,16 @@ static int qc_dgrams_retransmit(struct quic_conn *qc)
 				LIST_SPLICE(&hpktns->tx.frms, &hfrms);
 			}
 			else {
-				if (!(qc->flags & QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED)) {
-					ipktns->tx.pto_probe = 1;
-					qc->iel->retrans_frms = &ifrms;
-					if (!qc_send_hdshk_pkts(qc, 0, qc->iel, NULL))
-						goto leave;
-				}
+				/* We are in the case where the anti-amplification limit will be
+				 * reached after having sent this datagram. There is no need to
+				 * send more than one datagram.
+				 */
+				ipktns->tx.pto_probe = 1;
+				qc->iel->retrans_frms = &ifrms;
+				if (!qc_send_hdshk_pkts(qc, 0, qc->iel, NULL))
+					goto leave;
+
+				break;
 			}
 		}
 		TRACE_STATE("no more need to probe Initial packet number space",
