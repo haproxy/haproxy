@@ -32,7 +32,30 @@ int ha_cpuset_detect_online(struct hap_cpuset *set)
 			ha_cpuset_zero(set);
 	}
 
-#else // !__linux__
+#elif defined(__FreeBSD__)
+
+	struct hap_cpuset node_cpu_set;
+	int ndomains, domain;
+	size_t len = sizeof(ndomains);
+
+	ha_cpuset_zero(set);
+
+	/* retrieve the union of NUMA nodes as online CPUs */
+	if (sysctlbyname("vm.ndomains", &ndomains, &len, NULL, 0) == 0) {
+		BUG_ON(ndomains > MAXMEMDOM);
+
+		for (domain = 0; domain < ndomains; domain++) {
+			ha_cpuset_zero(&node_cpu_set);
+
+			if (cpuset_getaffinity(CPU_LEVEL_WHICH, CPU_WHICH_DOMAIN, domain,
+					       sizeof(node_cpu_set.cpuset), &node_cpu_set.cpuset) == -1)
+				continue;
+
+			ha_cpuset_or(set, &node_cpu_set);
+		}
+	}
+
+#else // !__linux__, !__FreeBSD__
 
 	ha_cpuset_zero(set);
 
