@@ -1493,6 +1493,18 @@ void thread_detect_count(void)
 	 * on the same cluster _capacity_ up to thr_max.
 	 */
 
+	if (!global.nbthread)
+		global.nbthread = thr_max;
+
+	if (!global.nbtgroups)
+		global.nbtgroups = 1;
+
+	if (global.nbthread > MAX_THREADS_PER_GROUP * global.nbtgroups) {
+		ha_diag_warning("nbthread not set, found %d CPUs, limiting to %d threads (maximum is %d per thread group). Please set nbthreads and/or increase thread-groups in the global section to silence this warning.\n",
+				global.nbthread, MAX_THREADS_PER_GROUP * global.nbtgroups, MAX_THREADS_PER_GROUP);
+		global.nbthread = MAX_THREADS_PER_GROUP * global.nbtgroups;
+	}
+
  tgroups_done:
 	if (global.nbthread) {
 		printf("Note: threads already set to %d\n", global.nbthread);
