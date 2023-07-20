@@ -8044,7 +8044,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	/* If this packet is ack-eliciting and we are probing let's
 	 * decrement the PTO probe counter.
 	 */
-	if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING &&
+	if ((pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING) &&
 	    qel->pktns->tx.pto_probe)
 		qel->pktns->tx.pto_probe--;
 
