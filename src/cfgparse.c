@@ -2705,160 +2705,6 @@ err:
 	return err_code;
 }
 
-#if defined(USE_THREAD) && defined USE_CPU_AFFINITY
-#if defined(__linux__)
-
-/* filter directory name of the pattern node<X> */
-static int numa_filter(const struct dirent *dir)
-{
-	char *endptr;
-
-	/* dir name must start with "node" prefix */
-	if (strncmp(dir->d_name, "node", 4))
-		return 0;
-
-	/* dir name must be at least 5 characters long */
-	if (!dir->d_name[4])
-		return 0;
-
-	/* dir name must end with a numeric id */
-	if (strtol(&dir->d_name[4], &endptr, 10) < 0 || *endptr)
-		return 0;
-
-	/* all tests succeeded */
-	return 1;
-}
-
-/* Inspect the cpu topology of the machine on startup. If a multi-socket
- * machine is detected, try to bind on the first node with active cpu. This is
- * done to prevent an impact on the overall performance when the topology of
- * the machine is unknown. This function is not called if one of the conditions
- * is met :
- * - a non-null nbthread directive is active
- * - a restrictive cpu-map directive is active
- * - a restrictive affinity is already applied, for example via taskset
- *
- * Returns the count of cpus selected. If no automatic binding was required or
- * an error occurred and the topology is unknown, 0 is returned.
- */
-static int numa_detect_topology()
-{
-	struct dirent **node_dirlist = NULL;
-	int node_dirlist_size = 0;
-
-	struct hap_cpuset node_cpu_set;
-	int grp, thr, cpu;
-
-	/* node_cpu_set count is used as return value */
-	ha_cpuset_zero(&node_cpu_set);
-
-	/* let's ignore restricted affinity */
-	if (cpu_mask_forced || cpu_map_configured())
-		goto free_scandir_entries;
-
-	/* 1. count the sysfs node<X> directories */
-	node_dirlist = NULL;
-	node_dirlist_size = scandir(NUMA_DETECT_SYSTEM_SYSFS_PATH"/node", &node_dirlist, numa_filter, alphasort);
-	if (node_dirlist_size <= 1)
-		goto free_scandir_entries;
-
-	/* 3. loop through nodes dirs and find the first one with active cpus */
-	while (node_dirlist_size--) {
-		const char *node = node_dirlist[node_dirlist_size]->d_name;
-		ha_cpuset_zero(&node_cpu_set);
-
-		if (read_line_to_trash("%s/node/%s/cpumap", NUMA_DETECT_SYSTEM_SYSFS_PATH, node) < 0) {
-			ha_notice("Cannot read CPUs list of '%s', will not select them to refine binding\n", node);
-			free(node_dirlist[node_dirlist_size]);
-			continue;
-		}
-
-		parse_cpumap(trash.area, &node_cpu_set);
-		for (cpu = 0; cpu < cpu_topo_maxcpus; cpu++)
-			if (ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE)
-				ha_cpuset_clr(&node_cpu_set, cpu);
-
-		/* 5. set affinity on the first found node with active cpus */
-		if (!ha_cpuset_count(&node_cpu_set)) {
-			free(node_dirlist[node_dirlist_size]);
-			continue;
-		}
-
-		ha_diag_warning("Multi-socket cpu detected, automatically binding on active CPUs of '%s' (%u active cpu(s))\n", node, ha_cpuset_count(&node_cpu_set));
-		for (grp = 0; grp < MAX_TGROUPS; grp++)
-			for (thr = 0; thr < MAX_THREADS_PER_GROUP; thr++)
-				ha_cpuset_assign(&cpu_map[grp].thread[thr], &node_cpu_set);
-
-		free(node_dirlist[node_dirlist_size]);
-		break;
-	}
-
- free_scandir_entries:
-	while (node_dirlist_size-- > 0)
-		free(node_dirlist[node_dirlist_size]);
-	free(node_dirlist);
-
-	return ha_cpuset_count(&node_cpu_set);
-}
-
-#elif defined(__FreeBSD__)
-static int numa_detect_topology()
-{
-	struct hap_cpuset node_cpu_set;
-	int ndomains = 0, i;
-	size_t len = sizeof(ndomains);
-	int grp, thr;
-
-	ha_cpuset_zero(&node_cpu_set);
-
-	/* let's ignore restricted affinity */
-	if (cpu_mask_forced || cpu_map_configured())
-		goto leave;
-
-	if (sysctlbyname("vm.ndomains", &ndomains, &len, NULL, 0) == -1) {
-		ha_notice("Cannot assess the number of CPUs domains\n");
-		return 0;
-	}
-
-	BUG_ON(ndomains > MAXMEMDOM);
-	if (ndomains < 2)
-		goto leave;
-
-	/*
-	 * We retrieve the first active valid CPU domain
-	 * with active cpu and binding it, we returns
-	 * the number of cpu from the said domain
-	 */
-	for (i = 0; i < ndomains; i ++) {
-		struct hap_cpuset dom;
-		ha_cpuset_zero(&dom);
-		if (cpuset_getaffinity(CPU_LEVEL_WHICH, CPU_WHICH_DOMAIN, i, sizeof(dom.cpuset), &dom.cpuset) == -1)
-			continue;
-
-		if (!ha_cpuset_count(&dom))
-			continue;
-
-		ha_cpuset_assign(&node_cpu_set, &dom);
-
-		ha_diag_warning("Multi-socket cpu detected, automatically binding on active CPUs of '%d' (%u active cpu(s))\n", i, ha_cpuset_count(&node_cpu_set));
-		for (grp = 0; grp < MAX_TGROUPS; grp++)
-			for (thr = 0; thr < MAX_THREADS_PER_GROUP; thr++)
-				ha_cpuset_assign(&cpu_map[grp].thread[thr], &node_cpu_set);
-		break;
-	}
- leave:
-	return ha_cpuset_count(&node_cpu_set);
-}
-
-#else
-static int numa_detect_topology()
-{
-	return 0;
-}
-
-#endif
-#endif /* USE_THREAD && USE_CPU_AFFINITY */
-
 /*
  * Returns the error code, 0 if OK, or any combination of :
  *  - ERR_ABORT: must abort ASAP
@@ -2904,50 +2750,16 @@ int check_config_validity()
 	if (thread_cpus_enabled_at_boot > global.thread_limit)
 		thread_cpus_enabled_at_boot = global.thread_limit;
 #endif
-	if (!global.nbthread) {
-		/* nbthread not set, thus automatic. In this case, and only if
-		 * running on a single process, we enable the same number of
-		 * threads as the number of CPUs the process is bound to. This
-		 * allows to easily control the number of threads using taskset.
-		 */
-		global.nbthread = 1;
-
-#if defined(USE_THREAD)
-		{
-			int numa_cores = 0;
-#if defined(USE_CPU_AFFINITY)
-			if (global.numa_cpu_mapping)
-				numa_cores = numa_detect_topology();
-#endif
-			global.nbthread = numa_cores ? numa_cores :
-			                               thread_cpus_enabled_at_boot;
-
-			/* Note that we cannot have more than 32 or 64 threads per group */
-			if (!global.nbtgroups)
-				global.nbtgroups = 1;
-
-			if (global.nbthread > MAX_THREADS_PER_GROUP * global.nbtgroups) {
-				if (global.nbthread <= global.thread_limit)
-					ha_diag_warning("nbthread not set, found %d CPUs, limiting to %d threads (maximum is %d per thread group). "
-							"Please set nbthreads and/or increase thread-groups in the global section to silence this warning.\n",
-							global.nbthread, MAX_THREADS_PER_GROUP * global.nbtgroups, MAX_THREADS_PER_GROUP);
-				global.nbthread = MAX_THREADS_PER_GROUP * global.nbtgroups;
-			}
-
-			if (global.nbthread > global.thread_limit)
-				global.nbthread = global.thread_limit;
-		}
-#endif
-	}
-	else if (global.nbthread > global.thread_limit) {
+	if (global.nbthread > global.thread_limit) {
 		ha_warning("nbthread forced to a higher value (%d) than the configured thread-hard-limit (%d), enforcing the limit. "
 			   "Please fix either value to remove this warning.\n",
 			   global.nbthread, global.thread_limit);
 		global.nbthread = global.thread_limit;
 	}
 
-	if (!global.nbtgroups)
-		global.nbtgroups = 1;
+	/* in the worst case these were supposed to be set in thread_detect_count() */
+	BUG_ON(!global.nbthread);
+	BUG_ON(!global.nbtgroups);
 
 	if (thread_map_to_groups() < 0) {
 		err_code |= ERR_ALERT | ERR_FATAL;
