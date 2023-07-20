@@ -633,18 +633,26 @@ int resume_listener(struct listener *l, int lpx, int lli)
  */
 int relax_listener(struct listener *l, int lpx, int lli)
 {
+	struct proxy *px = l->bind_conf->frontend;
 	int ret = 1;
+
+	if (!lpx && px)
+		HA_RWLOCK_WRLOCK(PROXY_LOCK, &px->lock);
 
 	if (!lli)
 		HA_RWLOCK_WRLOCK(LISTENER_LOCK, &l->lock);
 
 	if (l->state != LI_FULL && l->state != LI_LIMITED)
 		goto end; /* listener may be suspended or even stopped */
-	ret = resume_listener(l, lpx, 1);
+	ret = resume_listener(l, 1, 1);
 
  end:
 	if (!lli)
 		HA_RWLOCK_WRUNLOCK(LISTENER_LOCK, &l->lock);
+
+	if (!lpx && px)
+		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &px->lock);
+
 	return ret;
 }
 
