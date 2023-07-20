@@ -799,7 +799,10 @@ void apply_server_state(void)
 	errno = 0;
 	f = fopen(file, "r");
 	if (!f) {
-		ha_warning("config: Can't open global server state file '%s': %s\n", file, strerror(errno));
+		if (errno == ENOENT)
+			ha_notice("config: Can't open global server state file '%s': %s\n", file, strerror(errno));
+		else
+			ha_warning("config: Can't open global server state file '%s': %s\n", file, strerror(errno));
 		goto no_globalfile;
 	}
 
@@ -871,8 +874,12 @@ void apply_server_state(void)
 		errno = 0;
 		f = fopen(file, "r");
 		if (!f) {
-			ha_warning("Proxy '%s': Can't open server state file '%s': %s.\n",
-				   curproxy->id, file, strerror(errno));
+			if (errno == ENOENT)
+				ha_notice("Proxy '%s': Can't open server state file '%s': %s.\n",
+					   curproxy->id, file, strerror(errno));
+			else
+				ha_warning("Proxy '%s': Can't open server state file '%s': %s.\n",
+					   curproxy->id, file, strerror(errno));
 			continue; /* next proxy */
 		}
 
