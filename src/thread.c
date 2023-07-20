@@ -1614,6 +1614,43 @@ void thread_detect_count(void)
 	 * on the same cluster _capacity_ up to thr_max.
 	 */
 
+	/* Let's implement here the automatic binding to the first available
+	 * NUMA node when thread count is not set, taskset is not used and
+	 * no cpu-map directive is present.
+	 */
+
+	if (global.numa_cpu_mapping && !global.nbthread && !cpu_mask_forced && !cpu_map_configured()) {
+		int first_node_id = -1;
+		int second_node_id = -1;
+		int cpu_count = 0;
+
+		/* determine first node with usable CPUs */
+		for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+			if (ha_cpu_topo[cpu].st & HA_CPU_F_EXCL_MASK)
+				continue;
+
+			if (ha_cpu_topo[cpu].no_id >= 0) {
+				if (first_node_id < 0)
+					first_node_id = ha_cpu_topo[cpu].no_id;
+				else {
+					second_node_id = ha_cpu_topo[cpu].no_id;
+					break;
+				}
+			}
+		}
+
+		if (second_node_id >= 0) {
+			/* ignore all CPUs of other nodes, and count them */
+			for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+				if (ha_cpu_topo[cpu].no_id != first_node_id)
+					ha_cpu_topo[cpu].st |= HA_CPU_F_IGNORED;
+				else if (!(ha_cpu_topo[cpu].st & HA_CPU_F_EXCL_MASK))
+					cpu_count++;
+			}
+			ha_diag_warning("Multi-socket cpu detected, automatically binding on active CPUs of '%d' (%u active cpu(s))\n", first_node_id, cpu_count);
+		}
+	}
+
 	if (!ha_cpuset_count(&cpu_map[0].thread[0])) {
 		/* thread 1 is not mapped, no policy was applied, so we have to
 		 * count the threads ourselves.
