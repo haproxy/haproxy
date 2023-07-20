@@ -1495,6 +1495,43 @@ void thread_detect_count(void)
 	 * on the same cluster _capacity_ up to thr_max.
 	 */
 
+	/* Let's implement here the automatic binding to the first available
+	 * NUMA node when thread count is not set, taskset is not used and
+	 * no cpu-map directive is present.
+	 */
+
+	if (global.numa_cpu_mapping && !global.nbthread && !thread_cpu_mask_forced() && !cpu_map_configured()) {
+		struct hap_cpuset node_cpu_set;
+		int first_node_id = -1;
+		int cpu_count = 0;
+		int grp, thr;
+
+		ha_cpuset_zero(&node_cpu_set);
+
+		for (cpu = 0; cpu < maxcpus; cpu++) {
+			if (ha_cpu_topo[cpu].no_id >= 0) {
+				first_node_id = ha_cpu_topo[cpu].no_id;
+				printf("first node = %d\n", first_node_id);
+				do {
+					if (ha_cpu_topo[cpu].no_id == first_node_id) {
+						ha_cpuset_set(&node_cpu_set, ha_cpu_topo[cpu].idx);
+						cpu_count++;
+					}
+				} while (++cpu < maxcpus);
+
+				for (grp = 0; grp < MAX_TGROUPS; grp++)
+					for (thr = 0; thr < MAX_THREADS_PER_GROUP; thr++)
+						ha_cpuset_assign(&cpu_map[grp].thread[thr], &node_cpu_set);
+
+				if (thr_min <= cpu_count && cpu_count < thr_max)
+					thr_max = cpu_count;
+
+				ha_diag_warning("Multi-socket cpu detected, automatically binding on active CPUs of '%d' (%u active cpu(s))\n", first_node_id, cpu_count);
+				break;
+			}
+		}
+	}
+
 	if (!global.nbthread)
 		global.nbthread = thr_max;
 
