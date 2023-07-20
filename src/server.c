@@ -4085,8 +4085,8 @@ static int srv_iterate_initaddr(struct server *srv)
 		case SRV_IADDR_NONE:
 			srv_set_admin_flag(srv, SRV_ADMF_RMAINT, SRV_ADM_STCHGC_NONE);
 			if (return_code) {
-				ha_warning("could not resolve address '%s', disabling server.\n",
-					   name);
+				ha_notice("could not resolve address '%s', disabling server.\n",
+					  name);
 			}
 			return return_code;
 
