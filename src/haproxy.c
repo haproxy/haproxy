@@ -1998,10 +1998,10 @@ static void step_init_2(int argc, char** argv)
 
 	/* Now detect how CPUs are arranged */
 	cpu_detect_topology();
+#endif
 
 	/* detect the optimal thread-groups and nbthreads if not set */
 	thread_detect_count();
-#endif
 
 	/* Note: global.nbthread will be initialized as part of this call */
 	err_code |= check_config_validity();
