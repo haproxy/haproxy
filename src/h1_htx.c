@@ -259,7 +259,7 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 			else if (isteqi(hdrs[hdr].n, ist("location"))) {
 				code = 302;
 				status = ist("302");
-				reason = ist("Moved Temporarily");
+				reason = ist("Found");
 			}
 		}
 		if (!code) {
