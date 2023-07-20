@@ -522,6 +522,7 @@ static void srv_state_px_update(const struct proxy *px, int vsn, struct eb_root 
 
 /*
  * read next line from file <f> and return the server state version if one found.
+ * If file is empty, then -1 is returned
  * If no version is found, then 0 is returned
  * Note that this should be the first read on <f>
  */
@@ -532,7 +533,7 @@ static int srv_state_get_version(FILE *f) {
 
 	/* first character of first line of the file must contain the version of the export */
 	if (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f) == NULL)
-		return 0;
+		return -1;
 
 	vsn = strtol(mybuf, &endptr, 10);
 	if (endptr == mybuf || *endptr != '\n') {
@@ -803,9 +804,13 @@ void apply_server_state(void)
 	}
 
 	global_vsn = srv_state_get_version(f);
-	if (global_vsn == 0) {
-		ha_warning("config: Can't get version of the global server state file '%s'.\n",
-			   file);
+	if (global_vsn < 1) {
+		if (global_vsn == -1)
+			ha_notice("config: Empty global server state file '%s'.\n",
+				   file);
+		if (global_vsn == 0)
+			ha_warning("config: Can't get version of the global server state file '%s'.\n",
+				   file);
 		goto close_globalfile;
 	}
 
@@ -873,9 +878,13 @@ void apply_server_state(void)
 
 		/* first character of first line of the file must contain the version of the export */
 		local_vsn = srv_state_get_version(f);
-		if (local_vsn == 0) {
-			ha_warning("Proxy '%s': Can't get version of the server state file '%s'.\n",
-				   curproxy->id, file);
+		if (local_vsn < 1) {
+			if (local_vsn == -1)
+				ha_notice("Proxy '%s': Empty server state file '%s'.\n",
+					   curproxy->id, file);
+			if (local_vsn == 0)
+				ha_warning("Proxy '%s': Can't get version of the server state file '%s'.\n",
+					   curproxy->id, file);
 			goto close_localfile;
 		}
 
