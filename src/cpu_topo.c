@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include <dirent.h>
 #include <sched.h>
 #include <string.h>
 #include <unistd.h>
@@ -217,6 +218,9 @@ int cpu_detect_topology(void)
 {
 	const char *parse_cpu_set_args[2];
 	struct ha_cpu_topo cpu_id = { }; /* all zeroes */
+	struct hap_cpuset node_cpu_set;
+	struct dirent *de;
+	DIR *dir;
 	int cpu;
 
 	/* now let's only focus on bound CPUs to learn more about their
@@ -373,6 +377,42 @@ int cpu_detect_topology(void)
 			if (trash.data)
 				ha_cpu_topo[cpu].capa = str2uic(trash.area);
 		}
+	}
+
+	/* Now locate NUMA node IDs if any */
+
+	dir = opendir(NUMA_DETECT_SYSTEM_SYSFS_PATH "/node");
+	if (dir) {
+		while ((de = readdir(dir))) {
+			long node_id;
+			char *endptr;
+
+			/* dir name must start with "node" prefix */
+			if (strncmp(de->d_name, "node", 4) != 0)
+				continue;
+
+			/* dir name must be at least 5 characters long */
+			if (!de->d_name[4])
+				continue;
+
+			/* dir name must end with a non-negative numeric id */
+			node_id = strtol(&de->d_name[4], &endptr, 10);
+			if (*endptr || node_id < 0)
+				continue;
+
+			/* all tests succeeded, it's in the form "node%d" */
+			if (read_line_to_trash("%s/node/%s/cpulist", NUMA_DETECT_SYSTEM_SYSFS_PATH, de->d_name) >= 0) {
+				parse_cpu_set_args[0] = trash.area;
+				parse_cpu_set_args[1] = "\0";
+				if (parse_cpu_set(parse_cpu_set_args, &node_cpu_set, NULL) == 0) {
+					for (cpu = 0; cpu < cpu_topo_maxcpus; cpu++)
+						if (ha_cpuset_isset(&node_cpu_set, cpu))
+							ha_cpu_topo[cpu].no_id = node_id;
+				}
+			}
+		}
+		/* done */
+		closedir(dir);
 	}
 	return 1;
 }
