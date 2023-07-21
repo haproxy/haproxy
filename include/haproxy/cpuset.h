@@ -70,6 +70,16 @@ int cpu_detect_usable(void);
 /* detect the CPU topology based on info in /sys */
 int cpu_detect_topology(void);
 
+/* arrange a CPU topology array optimally to consider vicinity and performance
+ * so that cutting this into thread groups can be done linearly.
+ */
+void cpu_optimize_topology(struct ha_cpu_topo *topo, int entries);
+
+/* re-order a CPU topology array by CPU index only, to undo the function above,
+ * in case other calls need to be made on top of this.
+ */
+void cpu_reorder_topology(struct ha_cpu_topo *topo, int entries);
+
 /* Parse cpu sets. Each CPU set is either a unique number between 0 and
  * ha_cpuset_size() - 1 or a range with two such numbers delimited by a dash
  * ('-'). Each CPU set can be a list of unique numbers or ranges separated by
