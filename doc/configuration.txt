@@ -18566,6 +18566,56 @@ mqtt_is_valid
       acl data_in_buffer req.len ge 4
       tcp-request content reject unless { req.payload(0,0),mqtt_is_valid }
 
+ms_ltime(<format>[,<offset>])
+  This works like "ltime" but takes an input in milliseconds. It also supports
+  the %N conversion specifier inspired by date(1).
+  Converts an integer supposed to contain a date since epoch to a string
+  representing this date in local time using a format defined by the <format>
+  string using strftime(3). The purpose is to allow any date format to be used
+  in logs. An optional <offset> in milliseconds may be applied to the input date
+  (positive or negative). See the strftime() man page for the format supported
+  by your operating system.
+
+  The %N conversion specifier allows you to output the nanoseconds part of the
+  date, precision is limited since the input is milliseconds.
+  (000000000..999000000).  %N can take a width argument between % and N. It is
+  useful to display milliseconds (%3N) or microseconds (%6N). The default and
+  maximum width is 9 (%N = %9N).
+
+  See also the utime converter for UTC as well as "ltime" and "us_ltime"
+  converters.
+
+  Example :
+
+      # Emit 3 colons, the local time, the timezone and another with ip:port
+      # e.g. 2023/07/24/11:53:02.196 +0200 127.0.0.1:41530
+      log-format %[accept_date(ms),ms_ltime("%Y/%m/%d/%H:%M:%S.%3N %z")]\ %ci:%cp
+
+ms_utime(<format>[,<offset>])
+  This works like "utime" but takes an input in milliseconds. It also supports
+  the %N conversion specifier inspired by date(1).
+  Converts an integer supposed to contain a date since epoch to a string
+  representing this date in UTC time using a format defined by the <format>
+  string using strftime(3). The purpose is to allow any date format to be used
+  in logs. An optional <offset> in milliseconds may be applied to the input date
+  (positive or negative). See the strftime() man page for the format supported
+  by your operating system.
+
+  The %N conversion specifier allows you to output the nanoseconds part of the
+  date, precision is limited since the input is milliseconds.
+  (000000000..999000000).  %N can take a width argument between % and N. It is
+  useful to display milliseconds (%3N) or microseconds (%6N). The default and
+  maximum width is 9 (%N = %9N).
+
+  See also the ltime converter for local as well as "utime" and "us_utime"
+  converters.
+
+  Example :
+
+      # Emit 3 colons, the UTC time, the timezone and another with ip:port
+      # e.g. 2023/07/24/09:53:02.196 +0000 127.0.0.1:41530
+      log-format %[accept_date(ms),ms_utime("%Y/%m/%d/%H:%M:%S.%3N %z")]\ %ci:%cp
+
 mul(<value>)
   Multiplies the input value of type signed integer by <value>, and returns
   the product as an signed integer. In case of overflow, the largest possible
@@ -19172,13 +19222,64 @@ unset-var(<var>)
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
+us_ltime(<format>[,<offset>])
+  This works like "ltime" but takes an input in microseconds. It also supports
+  the %N conversion specifier inspired by date(1).
+  Converts an integer supposed to contain a date since epoch to a string
+  representing this date in local time using a format defined by the <format>
+  string using strftime(3). The purpose is to allow any date format to be used
+  in logs. An optional <offset> in microseconds may be applied to the input
+  date (positive or negative). See the strftime() man page for the format
+  supported by your operating system.
+
+  The %N conversion specifier allows you to output the nanoseconds part of the
+  date, precision is limited since the input is microseconds.
+  (000000000..999999000). %N can take a width argument between % and N. It is
+  useful to display milliseconds (%3N) or microseconds (%6N). The default and
+  maximum width is 9 (%N = %9N).
+
+  See also the "utime" converter for UTC as well as "ltime" and "ms_ltime"
+  converters.
+
+  Example :
+
+      # Emit 3 colons, the local time, the timezone and another with ip:port
+      # e.g. 2023/07/24/09:53:02.196234 +0000 127.0.0.1:41530
+      log-format %[accept_date(us),us_ltime("%Y/%m/%d/%H:%M:%S.%6N %z")]\ %ci:%cp
+
+us_utime(<format>[,<offset>])
+  This works like "utime" but takes an input in microseconds. It also supports
+  the %N conversion specifier inspired by date(1).
+  Converts an integer supposed to contain a date since epoch to a string
+  representing this date in UTC time using a format defined by the <format>
+  string using strftime(3). The purpose is to allow any date format to be used
+  in logs. An optional <offset> in microseconds may be applied to the input
+  date (positive or negative). See the strftime() man page for the format
+  supported by your operating system.
+
+  The %N conversion specifier allows you to output the nanoseconds part of the
+  date, precision is limited since the input is microseconds.
+  (000000000..999999000). %N can take a width argument between % and N. It is
+  useful to display milliseconds (%3N) or microseconds (%6N). The default and
+  maximum width is 9 (%N = %9N).
+
+  See also the "ltime" converter for local as well as "utime" and "ms_utime"
+  converters.
+
+  Example :
+
+      # Emit 3 colons, the UTC time, the timezone and another with ip:port
+      # e.g. 2023/07/24/09:53:02.196234 +0000 127.0.0.1:41530
+      log-format %[accept_date(us),us_utime("%Y/%m/%d/%H:%M:%S.%6N %z")]\ %ci:%cp
+
 utime(<format>[,<offset>])
   Converts an integer supposed to contain a date since epoch to a string
   representing this date in UTC time using a format defined by the <format>
   string using strftime(3). The purpose is to allow any date format to be used
   in logs. An optional <offset> in seconds may be applied to the input date
   (positive or negative). See the strftime() man page for the format supported
-  by your operating system. See also the ltime converter.
+  by your operating system. See also the "ltime" converter as well as "ms_utime"
+  and "us_utime".
 
   Example :
 
