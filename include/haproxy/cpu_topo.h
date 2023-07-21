@@ -43,4 +43,14 @@ int cpu_map_configured(void);
  */
 void cpu_dump_topology(const struct ha_cpu_topo *topo);
 
+/* re-order a CPU topology array by CPU index only, to undo the function above,
+ * in case other calls need to be made on top of this.
+ */
+void cpu_reorder_by_index(struct ha_cpu_topo *topo, int entries);
+
+/* Functions used by qsort to compare hardware CPUs (not meant to be used from
+ * outside cpu_topo).
+ */
+int _cmp_cpu_index(const void *a, const void *b);
+
 #endif /* _HAPROXY_CPU_TOPO_H */
