@@ -1132,7 +1132,7 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 	/* In case of ocsp update mode set to 'on', this function might be
 	 * called with no known ocsp response. If no ocsp uri can be found in
 	 * the certificate, nothing needs to be done here. */
-	if (!data->ocsp_response) {
+	if (!data->ocsp_response && !data->ocsp_cid) {
 		if (data->ocsp_update_mode != SSL_SOCK_OCSP_UPDATE_ON || b_data(ocsp_uri) == 0) {
 			ret = 0;
 			goto out;
