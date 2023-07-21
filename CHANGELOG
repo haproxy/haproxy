@@ -1,6 +1,99 @@
 ChangeLog :
 ===========
 
+2023/07/21 : 2.9-dev2
+    - BUG/MINOR: quic: Possible leak when allocating an encryption level
+    - BUG/MINOR: quic: Missing QUIC connection path member initialization
+    - BUILD: quic: Compilation fixes for some gcc warnings with -O1
+    - DOC: ssl: Fix typo in 'ocsp-update' option
+    - DOC: ssl: Add ocsp-update troubleshooting clues and emphasize on crt-list only aspect
+    - BUG/MINOR: tcp_sample: bc_{dst,src} return IP not INT
+    - MEDIUM: acl/sample: unify sample conv parsing in a single function
+    - MINOR: sample: introduce c_pseudo() conv function
+    - MEDIUM: sample: add missing ADDR=>? compatibility matrix entries
+    - MINOR: sample: fix ipmask sample definition
+    - MEDIUM: tree-wide: fetches that may return IPV4+IPV6 now return ADDR
+    - MEDIUM: sample: introduce 'same' output type
+    - BUG/MINOR: quic: Possible crash in "show quic" dumping packet number spaces
+    - BUG/MINOR: cache: A 'max-age=0' cache-control directive can be overriden by a s-maxage
+    - BUG/MEDIUM: sink: invalid server list in sink_new_from_logsrv()
+    - BUG/MINOR: http_ext: unhandled ERR_ABORT in proxy_http_parse_7239()
+    - BUG/MINOR: sink: missing sft free in sink_deinit()
+    - BUG/MINOR: ring: size warning incorrectly reported as fatal error
+    - BUG/MINOR: ring: maxlen warning reported as alert
+    - BUG/MINOR: log: LF upsets maxlen for UDP targets
+    - MINOR: sink/api: pass explicit maxlen parameter to sink_write()
+    - BUG/MEDIUM: log: improper use of logsrv->maxlen for buffer targets
+    - BUG/MINOR: log: fix missing name error message in cfg_parse_log_forward()
+    - BUG/MINOR: log: fix multiple error paths in cfg_parse_log_forward()
+    - BUG/MINOR: log: free errmsg on error in cfg_parse_log_forward()
+    - BUG/MINOR: sink: invalid sft free in sink_deinit()
+    - BUG/MINOR: sink: fix errors handling in cfg_post_parse_ring()
+    - BUG/MINOR: server: set rid default value in new_server()
+    - MINOR: hlua_fcn/mailers: handle timeout mail from mailers section
+    - BUG/MINOR: sink/log: properly deinit srv in sink_new_from_logsrv()
+    - EXAMPLES: maintain haproxy 2.8 retrocompatibility for lua mailers script
+    - BUG/MINOR: hlua_fcn/queue: use atomic load to fetch queue size
+    - BUG/MINOR: config: Remove final '\n' in error messages
+    - BUG/MINOR: config: Lenient port configuration parsing
+    - BUG/MEDIUM: quic: token IV was not computed using a strong secret
+    - BUG/MINOR: quic: retry token remove one useless intermediate expand
+    - BUG/MEDIUM: quic: missing check of dcid for init pkt including a token
+    - BUG/MEDIUM: quic: timestamp shared in token was using internal time clock
+    - CLEANUP: quic: remove useless parameter 'key' from quic_packet_encrypt
+    - BUG/MINOR: hlua: hlua_yieldk ctx argument should support pointers
+    - BUG/MEDIUM: hlua_fcn/queue: bad pop_wait sequencing
+    - DOC: config: Fix fc_src description to state the source address is returned
+    - BUG/MINOR: sample: Fix wrong overflow detection in add/sub conveters
+    - BUG/MINOR: http: Return the right reason for 302
+    - MEDIUM: ssl: new sample fetch method to get curve name
+    - CI: add naming convention documentation
+    - CI: explicitely highlight VTest result section if there's something
+    - BUG/MINOR: quic: Unckecked encryption levels availability
+    - BUILD: quic: fix warning during compilation using gcc-6.5
+    - BUG/MINOR: hlua: add check for lua_newstate
+    - BUG/MINOR: h1-htx: Return the right reason for 302 FCGI responses
+    - MINOR: lua: Allow reading "proc." scoped vars from LUA core.
+    - MINOR: cpuset: add cpu_map_configured() to know if a cpu-map was found
+    - BUG/MINOR: config: do not detect NUMA topology when cpu-map is configured
+    - BUG/MINOR: cpuset: remove the bogus "proc" from the cpu_map struct
+    - BUG/MINOR: init: set process' affinity even in foreground
+    - CLEANUP: cpuset: remove the unused proc_t1 field in cpu_map
+    - CLEANUP: config: make parse_cpu_set() return documented values
+    - BUG/MINOR: server: Don't warn on server resolution failure with init-addr none
+    - MINOR: peers: add peers keyword registration
+    - MINOR: quic: Stop storing the TX encoded transport parameters
+    - MINOR: quic: Dynamic allocation for negotiated Initial TLS cipher context.
+    - MINOR: quic: Release asap the negotiated Initial TLS context.
+    - MINOR: quic: Add traces to qc_may_build_pkt()
+    - MEDIUM: quic: Packet building rework.
+    - CLEANUP: quic: Remove a useless TLS related variable from quic_conn_io_cb().
+    - MEDIUM: quic: Handshake I/O handler rework.
+    - MINOR: quic: Add traces for qc_frm_free()
+    - MINOR: quic: add trace about pktns packet/frames releasing
+    - BUG/MINOR: quic: Missing parentheses around PTO probe variable.
+    - MINOR: quic: Ping from Initial pktns before reaching anti-amplification limit
+    - BUG/MINOR: server-state: Ignore empty files
+    - BUG/MINOR: server-state: Avoid warning on 'file not found'
+    - BUG/MEDIUM: listener: Acquire proxy's lock in relax_listener() if necessary
+    - MINOR: quic: QUIC openssl wrapper implementation
+    - MINOR: quic: Include QUIC opensssl wrapper header from TLS stacks compatibility header
+    - MINOR: quic: Do not enable O-RTT with USE_QUIC_OPENSSL_COMPAT
+    - MINOR: quic: Set the QUIC connection as extra data before calling SSL_set_quic_method()
+    - MINOR: quic: Do not enable 0RTT with SSL_set_quic_early_data_enabled()
+    - MINOR: quic: Add a compilation option for the QUIC OpenSSL wrapper
+    - MINOR: quic: Export some KDF functions (QUIC-TLS)
+    - MINOR: quic: Make ->set_encryption_secrets() be callable two times
+    - MINOR: quic: Initialize TLS contexts for QUIC openssl wrapper
+    - MINOR: quic: Call the keylog callback for QUIC openssl wrapper from SSL_CTX_keylog()
+    - MINOR: quic: Add a quic_openssl_compat struct to quic_conn struct
+    - MINOR: quic: Useless call to SSL_CTX_set_quic_method()
+    - MINOR: quic: SSL context initialization with QUIC OpenSSL wrapper.
+    - MINOR: quic: Missing encoded transport parameters for QUIC OpenSSL wrapper
+    - MINOR: quic: Add "limited-quic" new tuning setting
+    - DOC: quic: Add "limited-quic" new tuning setting
+    - DOC: install: Document how to build a limited support for QUIC
+
 2023/07/02 : 2.9-dev1
     - BUG/MINOR: stats: Fix Lua's `get_stats` function
     - MINOR: stats: protect against future stats fields omissions
