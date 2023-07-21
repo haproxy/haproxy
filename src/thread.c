@@ -1695,8 +1695,10 @@ void thread_detect_count(void)
 	}
 
 #if defined(USE_THREAD) && defined(USE_CPU_AFFINITY)
-	if (global.tune.debug & GDBG_CPU_AFFINITY)
+	if (global.tune.debug & GDBG_CPU_AFFINITY) {
+		cpu_reorder_by_index(ha_cpu_topo, cpu_topo_maxcpus);
 		cpu_dump_topology(ha_cpu_topo);
+	}
 #endif
 	return;
 }

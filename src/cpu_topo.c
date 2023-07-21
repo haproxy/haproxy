@@ -221,6 +221,32 @@ void cpu_dump_topology(const struct ha_cpu_topo *topo)
 	}
 }
 
+/* function used by qsort to re-arrange CPUs by index only, to restore original
+ * ordering.
+ */
+int _cmp_cpu_index(const void *a, const void *b)
+{
+	const struct ha_cpu_topo *l = (const struct ha_cpu_topo *)a;
+	const struct ha_cpu_topo *r = (const struct ha_cpu_topo *)b;
+
+	/* next, IDX, so that SMT ordering is preserved */
+	if (l->idx >= 0 && l->idx < r->idx)
+		return -1;
+	if (l->idx > r->idx && r->idx >= 0)
+		return  1;
+
+	/* exactly the same (e.g. absent, should not happend) */
+	return 0;
+}
+
+/* re-order a CPU topology array by CPU index only. This is mostly used before
+ * listing CPUs regardless of their characteristics.
+ */
+void cpu_reorder_by_index(struct ha_cpu_topo *topo, int entries)
+{
+	qsort(topo, entries, sizeof(*topo), _cmp_cpu_index);
+}
+
 /* returns an optimal maxcpus for the current system. It will take into
  * account what is reported by the OS, if any, otherwise will fall back
  * to the cpuset size, which serves as an upper limit in any case.
