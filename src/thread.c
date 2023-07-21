@@ -1513,6 +1513,9 @@ void thread_detect_count(void)
 
 		ha_cpuset_zero(&node_cpu_set);
 
+		/* sort CPUs by capacity and vicinity */
+		cpu_optimize_topology(ha_cpu_topo, maxcpus);
+
 		for (cpu = 0; cpu < maxcpus; cpu++) {
 			if (ha_cpu_topo[cpu].no_id >= 0) {
 				first_node_id = ha_cpu_topo[cpu].no_id;
