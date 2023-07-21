@@ -58,7 +58,7 @@
 /* platform-specific options */
 #define GTUNE_USE_SPLICE         (1<<4)
 #define GTUNE_USE_GAI            (1<<5)
-/* unused: (1<<6) */
+#define GTUNE_LIMITED_QUIC       (1<<6)
 #define GTUNE_RESOLVE_DONTFAIL   (1<<7)
 
 #define GTUNE_SOCKET_TRANSFER	 (1<<8)

@@ -47,7 +47,7 @@ static const char *common_kw_list[] = {
 	"log-tag", "spread-checks", "max-spread-checks", "cpu-map", "setenv",
 	"presetenv", "unsetenv", "resetenv", "strict-limits", "localpeer",
 	"numa-cpu-mapping", "defaults", "listen", "frontend", "backend",
-	"peers", "resolvers", "cluster-secret", "no-quic",
+	"peers", "resolvers", "cluster-secret", "no-quic", "limited-quic",
 	NULL /* must be last */
 };
 
@@ -112,6 +112,12 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		global.tune.options &= ~GTUNE_USE_POLL;
+	}
+	else if (strcmp(args[0], "limited-quic") == 0) {
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
+
+		global.tune.options |= GTUNE_LIMITED_QUIC;
 	}
 	else if (strcmp(args[0], "no-quic") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))

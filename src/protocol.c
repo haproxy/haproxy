@@ -114,6 +114,22 @@ int protocol_supports_flag(struct protocol *proto, uint flag)
 	return 0;
 }
 
+#ifdef USE_QUIC
+/* Return 1 if QUIC protocol may be bound, 0 if no, depending on the tuning
+ * parameters.
+ */
+static inline int protocol_may_bind_quic(void)
+{
+	if (global.tune.options & GTUNE_NO_QUIC)
+		return 0;
+#ifdef USE_QUIC_OPENSSL_COMPAT
+	if (!(global.tune.options & GTUNE_LIMITED_QUIC))
+		return 0;
+#endif
+	return 1;
+}
+#endif
+
 /* binds all listeners of all registered protocols. Returns a composition
  * of ERR_NONE, ERR_RETRYABLE, ERR_FATAL.
  */
@@ -131,8 +147,8 @@ int protocol_bind_all(int verbose)
 	list_for_each_entry(proto, &protocols, list) {
 		list_for_each_entry(receiver, &proto->receivers, proto_list) {
 #ifdef USE_QUIC
-			if ((global.tune.options & GTUNE_NO_QUIC) &&
-			    (proto == &proto_quic4 || proto == &proto_quic6))
+			if ((proto == &proto_quic4 || proto == &proto_quic6) &&
+			    !protocol_may_bind_quic())
 				continue;
 #endif
 			listener = LIST_ELEM(receiver, struct listener *, rx);
