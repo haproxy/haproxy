@@ -519,6 +519,127 @@ int cpu_detect_topology(void)
 
 #endif // OS-specific cpu_detect_topology()
 
+
+/* function used by qsort to compare two hwcpus and arrange them by vicinity
+ * and capacity -1 says a<b, 1 says a>b. The goal is to arrange the closest
+ * CPUs together, and if possible to spread apart the slower ones, so that
+ * when picking a fixed number of threads, the best ones are used in priority.
+ */
+static int cmp_cpu_optimal(const void *a, const void *b)
+{
+	const struct ha_cpu_topo *l = (const struct ha_cpu_topo *)a;
+	const struct ha_cpu_topo *r = (const struct ha_cpu_topo *)b;
+
+	/* first, online vs offline */
+	if (!(l->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)) && (r->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)))
+		return -1;
+
+	if (!(r->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)) && (l->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)))
+		return 1;
+
+	/* next, CPU capacity, used by big.little arm/arm64. Higher is better.
+	 * We tolerate a +/- 5% margin however so that if some values come from
+	 * measurement we don't end up reorganizing everything.
+	 */
+	if (l->capa > 0 && (int)l->capa * 19 > (int)r->capa * 20)
+		return -1;
+	if (r->capa > 0 && (int)l->capa * 20 < (int)r->capa * 19)
+		return  1;
+
+	/* next, CPU SMT, generally useful when capacity is not known: cores
+	 * supporting SMT are usually bigger than the other ones.
+	 */
+	if (l->th_cnt > r->th_cnt)
+		return -1;
+	if (l->th_cnt < r->th_cnt)
+		return  1;
+
+	/* next, package ID */
+	if (l->pk_id >= 0 && l->pk_id < r->pk_id)
+		return -1;
+	if (l->pk_id > r->pk_id && r->pk_id >= 0)
+		return  1;
+
+	/* next, node ID */
+	if (l->no_id >= 0 && l->no_id < r->no_id)
+		return -1;
+	if (l->no_id > r->no_id && r->no_id >= 0)
+		return  1;
+
+	/* next, L3 */
+	if (l->l3_id >= 0 && l->l3_id < r->l3_id)
+		return -1;
+	if (l->l3_id > r->l3_id && r->l3_id >= 0)
+		return  1;
+
+	/* next, cluster */
+	if (l->cl_id >= 0 && l->cl_id < r->cl_id)
+		return -1;
+	if (l->cl_id > r->cl_id && r->cl_id >= 0)
+		return  1;
+
+	/* next, L2 */
+	if (l->l2_id >= 0 && l->l2_id < r->l2_id)
+		return -1;
+	if (l->l2_id > r->l2_id && r->l2_id >= 0)
+		return  1;
+
+	/* next, thread set */
+	if (l->ts_id >= 0 && l->ts_id < r->ts_id)
+		return -1;
+	if (l->ts_id > r->ts_id && r->ts_id >= 0)
+		return  1;
+
+	/* next, L1 */
+	if (l->l1_id >= 0 && l->l1_id < r->l1_id)
+		return -1;
+	if (l->l1_id > r->l1_id && r->l1_id >= 0)
+		return  1;
+
+	/* next, IDX, so that SMT ordering is preserved */
+	if (l->idx >= 0 && l->idx < r->idx)
+		return -1;
+	if (l->idx > r->idx && r->idx >= 0)
+		return  1;
+
+	/* exactly the same (e.g. absent) */
+	return 0;
+}
+
+/* function used by qsort to re-arrange CPUs by index only, to restore original
+ * ordering.
+ */
+static int cmp_cpu_index(const void *a, const void *b)
+{
+	const struct ha_cpu_topo *l = (const struct ha_cpu_topo *)a;
+	const struct ha_cpu_topo *r = (const struct ha_cpu_topo *)b;
+
+	/* next, IDX, so that SMT ordering is preserved */
+	if (l->idx >= 0 && l->idx < r->idx)
+		return -1;
+	if (l->idx > r->idx && r->idx >= 0)
+		return  1;
+
+	/* exactly the same (e.g. absent, should not happend) */
+	return 0;
+}
+
+/* arrange a CPU topology array optimally to consider vicinity and performance
+ * so that cutting this into thread groups can be done linearly.
+ */
+void cpu_optimize_topology(struct ha_cpu_topo *topo, int entries)
+{
+	qsort(ha_cpu_topo, entries, sizeof(*ha_cpu_topo), cmp_cpu_optimal);
+}
+
+/* re-order a CPU topology array by CPU index only, to undo the function above,
+ * in case other calls need to be made on top of this.
+ */
+void cpu_reorder_topology(struct ha_cpu_topo *topo, int entries)
+{
+	qsort(ha_cpu_topo, entries, sizeof(*ha_cpu_topo), cmp_cpu_index);
+}
+
 /* Parse cpu sets. Each CPU set is either a unique number between 0 and
  * ha_cpuset_size() - 1 or a range with two such numbers delimited by a dash
  * ('-'). Each CPU set can be a list of unique numbers or ranges separated by
