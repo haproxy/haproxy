@@ -591,6 +591,10 @@ struct quic_conn {
 	int state;
 	enum qc_mux_state mux_state; /* status of the connection/mux layer */
 	struct quic_err err;
+#ifdef USE_QUIC_OPENSSL_COMPAT
+	unsigned char enc_params[QUIC_TP_MAX_ENCLEN]; /* encoded QUIC transport parameters */
+	size_t enc_params_len;
+#endif
 
 	struct quic_cid odcid; /* First DCID used by client on its Initial packet. */
 	struct quic_cid dcid; /* DCID of our endpoint - not updated when a new DCID is used */

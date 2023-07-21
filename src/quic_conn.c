@@ -1035,6 +1035,44 @@ static void quic_tls_rotate_keys(struct quic_conn *qc)
 	TRACE_LEAVE(QUIC_EV_CONN_RXPKT, qc);
 }
 
+/* Set the encoded version of the transport parameter into the TLS
+ * stack depending on <ver> QUIC version and <server> boolean which must
+ * be set to 1 for a QUIC server, 0 for a client.
+ * Return 1 if succeeded, 0 if not.
+ */
+static int qc_set_quic_transport_params(struct quic_conn *qc,
+                                        const struct quic_version *ver, int server)
+{
+	int ret = 0;
+#ifdef USE_QUIC_OPENSSL_COMPAT
+	unsigned char *in = qc->enc_params;
+	size_t insz = sizeof qc->enc_params;
+	size_t *enclen = &qc->enc_params_len;
+#else
+	unsigned char tps[QUIC_TP_MAX_ENCLEN];
+	size_t tpslen;
+	unsigned char *in = tps;
+	size_t insz = sizeof tps;
+	size_t *enclen = &tpslen;
+#endif
+
+	TRACE_ENTER(QUIC_EV_CONN_RWSEC, qc);
+	*enclen = quic_transport_params_encode(in, in + insz, &qc->rx.params, ver, server);
+	if (!*enclen) {
+		TRACE_ERROR("quic_transport_params_encode() failed", QUIC_EV_CONN_RWSEC);
+		goto leave;
+	}
+
+	if (!SSL_set_quic_transport_params(qc->xprt_ctx->ssl, in, *enclen)) {
+		TRACE_ERROR("SSL_set_quic_transport_params() failed", QUIC_EV_CONN_RWSEC);
+		goto leave;
+	}
+
+	ret = 1;
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_RWSEC, qc);
+	return ret;
+}
 /* returns 0 on error, 1 on success */
 int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
                                    const uint8_t *read_secret,
@@ -1141,21 +1179,10 @@ write:
 		goto leave;
 	}
 
-	if (level == ssl_encryption_handshake && qc_is_listener(qc)) {
-		int tps_len;
-		unsigned char tps[QUIC_TP_MAX_ENCLEN];
-
-		tps_len = quic_transport_params_encode(tps, tps + sizeof tps, &qc->rx.params, ver, 1);
-		if (!tps_len) {
-			TRACE_ERROR("quic_transport_params_encode() failed", QUIC_EV_CONN_RWSEC);
-			goto leave;
-		}
-
-		if (!SSL_set_quic_transport_params(qc->xprt_ctx->ssl, tps, tps_len)) {
-			TRACE_ERROR("SSL_set_quic_transport_params() failed", QUIC_EV_CONN_RWSEC);
-			goto leave;
-		}
-	}
+	/* Set the transport parameters in the TLS stack. */
+	if (level == ssl_encryption_handshake && qc_is_listener(qc) &&
+	    !qc_set_quic_transport_params(qc, ver, 1))
+		goto leave;
 
  keyupdate_init:
 	/* Store the secret provided by the TLS stack, required for keyupdate. */
