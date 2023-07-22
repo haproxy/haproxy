@@ -3390,8 +3390,6 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				qc_set_timer(qc);
 				qc_el_rx_pkts_del(qc->iel);
 				qc_release_pktns_frms(qc, qc->ipktns);
-				/* Also release the negotiated Inital TLS context. */
-				quic_nictx_free(qc);
 			}
 		    if (qc->state < QUIC_HS_ST_SERVER_HANDSHAKE)
 			    qc->state = QUIC_HS_ST_SERVER_HANDSHAKE;
