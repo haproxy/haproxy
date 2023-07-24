@@ -122,7 +122,6 @@ struct pool_head {
 	THREAD_ALIGN(64);
 
 	struct pool_item *free_list; /* list of free shared objects */
-	unsigned int failed;	/* failed allocations */
 
 	/* these entries depend on the pointer value, they're used to reduce
 	 * the contention on fast-changing values. The alignment here is
@@ -133,6 +132,7 @@ struct pool_head {
 		unsigned int allocated;	/* how many chunks have been allocated */
 		unsigned int used;	/* how many chunks are currently in use */
 		unsigned int needed_avg;/* floating indicator between used and allocated */
+		unsigned int failed;	/* failed allocations (indexed by hash of TID) */
 	} buckets[CONFIG_HAP_POOL_BUCKETS];
 
 	struct pool_cache_head cache[MAX_THREADS] THREAD_ALIGNED(64); /* pool caches */

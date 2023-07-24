@@ -395,7 +395,7 @@ void *pool_get_from_os_noinc(struct pool_head *pool)
 			ptr = pool_alloc_area(pool->alloc_sz);
 		if (ptr)
 			return ptr;
-		_HA_ATOMIC_INC(&pool->failed);
+		_HA_ATOMIC_INC(&pool->buckets[pool_tbucket()].failed);
 	}
 	activity[tid].pool_fail++;
 	return NULL;
@@ -985,7 +985,7 @@ void dump_pools_to_trash(int by_what, int max, const char *pfx)
 		pool_info[nbpools].used_items = pool_used(entry);
 		pool_info[nbpools].cached_items = cached;
 		pool_info[nbpools].need_avg = swrate_avg(pool_needed_avg(entry), POOL_AVG_SAMPLES);
-		pool_info[nbpools].failed_items = entry->failed;
+		pool_info[nbpools].failed_items = pool_failed(entry);
 		nbpools++;
 	}
 
@@ -1040,7 +1040,7 @@ int pool_total_failures()
 	int failed = 0;
 
 	list_for_each_entry(entry, &pools, list)
-		failed += entry->failed;
+		failed += pool_failed(entry);
 	return failed;
 }
 
