@@ -136,6 +136,17 @@ void pool_check_pattern(struct pool_cache_head *pch, struct pool_cache_item *ite
 void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_head *pch);
 void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item, uint count);
 
+/* returns the total number of allocated entries for a pool across all buckets */
+static inline uint pool_allocated(const struct pool_head *pool)
+{
+	int bucket;
+	uint ret;
+
+	for (bucket = ret = 0; bucket < CONFIG_HAP_POOL_BUCKETS; bucket++)
+		ret += HA_ATOMIC_LOAD(&pool->buckets[bucket].allocated);
+	return ret;
+}
+
 /* Returns the max number of entries that may be brought back to the pool
  * before it's considered as full. Note that it is only usable for releasing
  * objects, hence the function assumes that no more than ->used entries will
@@ -153,7 +164,7 @@ static inline uint pool_releasable(const struct pool_head *pool)
 	if (unlikely(pool_debugging & (POOL_DBG_NO_CACHE|POOL_DBG_NO_GLOBAL)))
 		return 0;
 
-	alloc = HA_ATOMIC_LOAD(&pool->allocated);
+	alloc = pool_allocated(pool);
 	used = HA_ATOMIC_LOAD(&pool->used);
 	if (used < alloc)
 		used = alloc;

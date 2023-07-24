@@ -386,7 +386,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
  */
 void *pool_get_from_os_noinc(struct pool_head *pool)
 {
-	if (!pool->limit || pool->allocated < pool->limit) {
+	if (!pool->limit || pool_allocated(pool) < pool->limit) {
 		void *ptr;
 
 		if (pool_debugging & POOL_DBG_UAF)
@@ -421,13 +421,15 @@ void pool_put_to_os_nodec(struct pool_head *pool, void *ptr)
 void *pool_alloc_nocache(struct pool_head *pool)
 {
 	void *ptr = NULL;
+	uint bucket;
 
 	ptr = pool_get_from_os_noinc(pool);
 	if (!ptr)
 		return NULL;
 
+	bucket = pool_pbucket(ptr);
 	swrate_add_scaled_opportunistic(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used, POOL_AVG_SAMPLES/4);
-	_HA_ATOMIC_INC(&pool->allocated);
+	_HA_ATOMIC_INC(&pool->buckets[bucket].allocated);
 	_HA_ATOMIC_INC(&pool->used);
 
 	/* keep track of where the element was allocated from */
@@ -442,8 +444,11 @@ void *pool_alloc_nocache(struct pool_head *pool)
  */
 void pool_free_nocache(struct pool_head *pool, void *ptr)
 {
+	uint bucket = pool_pbucket(ptr);
+
 	_HA_ATOMIC_DEC(&pool->used);
-	_HA_ATOMIC_DEC(&pool->allocated);
+	_HA_ATOMIC_DEC(&pool->buckets[bucket].allocated);
+
 	swrate_add_opportunistic(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
 	pool_put_to_os_nodec(pool, ptr);
 }
@@ -710,7 +715,6 @@ void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item, ui
 void pool_flush(struct pool_head *pool)
 {
 	struct pool_item *next, *temp, *down;
-	int released = 0;
 
 	if (!pool || (pool_debugging & (POOL_DBG_NO_CACHE|POOL_DBG_NO_GLOBAL)))
 		return;
@@ -734,13 +738,14 @@ void pool_flush(struct pool_head *pool)
 		temp = next;
 		next = temp->next;
 		for (; temp; temp = down) {
+			uint bucket = pool_pbucket(temp);
+
 			down = temp->down;
-			released++;
+			_HA_ATOMIC_DEC(&pool->buckets[bucket].allocated);
+
 			pool_put_to_os_nodec(pool, temp);
 		}
 	}
-
-	HA_ATOMIC_SUB(&pool->allocated, released);
 	/* here, we should have pool->allocated == pool->used */
 }
 
@@ -759,20 +764,20 @@ void pool_gc(struct pool_head *pool_ctx)
 
 	list_for_each_entry(entry, &pools, list) {
 		struct pool_item *temp, *down;
-		int released = 0;
+		uint allocated = pool_allocated(entry);
 
 		while (entry->free_list &&
-		       (int)(entry->allocated - entry->used) > (int)entry->minavail) {
+		       (int)(allocated - entry->used) > (int)entry->minavail) {
 			temp = entry->free_list;
 			entry->free_list = temp->next;
 			for (; temp; temp = down) {
+				uint bucket = pool_pbucket(temp);
 				down = temp->down;
-				released++;
+				allocated--;
+				_HA_ATOMIC_DEC(&entry->buckets[bucket].allocated);
 				pool_put_to_os_nodec(entry, temp);
 			}
 		}
-
-		_HA_ATOMIC_SUB(&entry->allocated, released);
 	}
 
 	trim_all_pools();
@@ -949,6 +954,7 @@ void dump_pools_to_trash(int by_what, int max, const char *pfx)
 	int nbpools, i;
 	unsigned long long cached_bytes = 0;
 	uint cached = 0;
+	uint alloc_items;
 
 	allocated = used = nbpools = 0;
 
@@ -956,8 +962,9 @@ void dump_pools_to_trash(int by_what, int max, const char *pfx)
 		if (nbpools >= POOLS_MAX_DUMPED_ENTRIES)
 			break;
 
+		alloc_items = pool_allocated(entry);
 		/* do not dump unused entries when sorting by usage */
-		if (by_what == 3 && !entry->allocated)
+		if (by_what == 3 && !alloc_items)
 			continue;
 
 		/* verify the pool name if a prefix is requested */
@@ -969,8 +976,8 @@ void dump_pools_to_trash(int by_what, int max, const char *pfx)
 				cached += entry->cache[i].count;
 		}
 		pool_info[nbpools].entry = entry;
-		pool_info[nbpools].alloc_items = entry->allocated;
-		pool_info[nbpools].alloc_bytes = (ulong)entry->size * entry->allocated;
+		pool_info[nbpools].alloc_items = alloc_items;
+		pool_info[nbpools].alloc_bytes = (ulong)entry->size * alloc_items;
 		pool_info[nbpools].used_items = entry->used;
 		pool_info[nbpools].cached_items = cached;
 		pool_info[nbpools].need_avg = swrate_avg(entry->needed_avg, POOL_AVG_SAMPLES);
@@ -1040,7 +1047,7 @@ unsigned long long pool_total_allocated()
 	unsigned long long allocated = 0;
 
 	list_for_each_entry(entry, &pools, list)
-		allocated += entry->allocated * (ullong)entry->size;
+		allocated += pool_allocated(entry) * (ullong)entry->size;
 	return allocated;
 }
 
