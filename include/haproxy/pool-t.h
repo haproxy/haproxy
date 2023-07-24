@@ -121,14 +121,15 @@ struct pool_head {
 	/* heavily read-write part */
 	THREAD_ALIGN(64);
 
-	struct pool_item *free_list; /* list of free shared objects */
-
 	/* these entries depend on the pointer value, they're used to reduce
 	 * the contention on fast-changing values. The alignment here is
 	 * important since the purpose is to lower the thread contention.
+	 * The free_list and used/allocated are not related, the array is
+	 * just meant to shard elements and there are no per-free_list stats.
 	 */
 	struct {
 		THREAD_ALIGN(64);
+		struct pool_item *free_list; /* list of free shared objects */
 		unsigned int allocated;	/* how many chunks have been allocated */
 		unsigned int used;	/* how many chunks are currently in use */
 		unsigned int needed_avg;/* floating indicator between used and allocated */

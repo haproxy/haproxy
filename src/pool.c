@@ -648,32 +648,41 @@ void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_hea
 {
 	struct pool_cache_item *item;
 	struct pool_item *ret, *down;
+	uint bucket;
 	uint count;
 
 	BUG_ON(pool_debugging & POOL_DBG_NO_CACHE);
 
 	/* we'll need to reference the first element to figure the next one. We
 	 * must temporarily lock it so that nobody allocates then releases it,
-	 * or the dereference could fail.
+	 * or the dereference could fail. In order to limit the locking,
+	 * threads start from a bucket that depends on their ID.
 	 */
-	ret = _HA_ATOMIC_LOAD(&pool->free_list);
+
+	bucket = pool_tbucket();
+	ret = _HA_ATOMIC_LOAD(&pool->buckets[bucket].free_list);
 	do {
+		/* look for an apparently non-busy entry */
 		while (unlikely(ret == POOL_BUSY)) {
-			ret = (void*)pl_wait_new_long((ulong*)&pool->free_list, (ulong)ret);
+			bucket = (bucket + 1) % CONFIG_HAP_POOL_BUCKETS;
+			ret = _HA_ATOMIC_LOAD(&pool->buckets[bucket].free_list);
 		}
 		if (ret == NULL)
 			return;
-	} while (unlikely((ret = _HA_ATOMIC_XCHG(&pool->free_list, POOL_BUSY)) == POOL_BUSY));
+	} while (unlikely((ret = _HA_ATOMIC_XCHG(&pool->buckets[bucket].free_list, POOL_BUSY)) == POOL_BUSY));
 
 	if (unlikely(ret == NULL)) {
-		HA_ATOMIC_STORE(&pool->free_list, NULL);
+		HA_ATOMIC_STORE(&pool->buckets[bucket].free_list, NULL);
 		return;
 	}
 
 	/* this releases the lock */
-	HA_ATOMIC_STORE(&pool->free_list, ret->next);
+	HA_ATOMIC_STORE(&pool->buckets[bucket].free_list, ret->next);
 
-	/* now store the retrieved object(s) into the local cache */
+	/* now store the retrieved object(s) into the local cache. Note that
+	 * they don't all have the same hash and that it doesn't necessarily
+	 * match the one from the pool.
+	 */
 	count = 0;
 	for (; ret; ret = down) {
 		down = ret->down;
@@ -700,15 +709,22 @@ void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_hea
 void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item)
 {
 	struct pool_item *free_list;
+	uint bucket = pool_pbucket(item);
 
-	free_list = _HA_ATOMIC_LOAD(&pool->free_list);
+	/* we prefer to put the item into the entry that corresponds to its own
+	 * hash so that on return it remains in the right place, but that's not
+	 * mandatory.
+	 */
+	free_list = _HA_ATOMIC_LOAD(&pool->buckets[bucket].free_list);
 	do {
+		/* look for an apparently non-busy entry */
 		while (unlikely(free_list == POOL_BUSY)) {
-			free_list = (void*)pl_wait_new_long((ulong*)&pool->free_list, (ulong)free_list);
+			bucket = (bucket + 1) % CONFIG_HAP_POOL_BUCKETS;
+			free_list = _HA_ATOMIC_LOAD(&pool->buckets[bucket].free_list);
 		}
 		_HA_ATOMIC_STORE(&item->next, free_list);
 		__ha_barrier_atomic_store();
-	} while (!_HA_ATOMIC_CAS(&pool->free_list, &free_list, item));
+	} while (!_HA_ATOMIC_CAS(&pool->buckets[bucket].free_list, &free_list, item));
 	__ha_barrier_atomic_store();
 }
 
@@ -718,6 +734,7 @@ void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item)
 void pool_flush(struct pool_head *pool)
 {
 	struct pool_item *next, *temp, *down;
+	uint bucket;
 
 	if (!pool || (pool_debugging & (POOL_DBG_NO_CACHE|POOL_DBG_NO_GLOBAL)))
 		return;
@@ -725,28 +742,30 @@ void pool_flush(struct pool_head *pool)
 	/* The loop below atomically detaches the head of the free list and
 	 * replaces it with a NULL. Then the list can be released.
 	 */
-	next = pool->free_list;
-	do {
-		while (unlikely(next == POOL_BUSY)) {
-			__ha_cpu_relax();
-			next = _HA_ATOMIC_LOAD(&pool->free_list);
+	for (bucket = 0; bucket < CONFIG_HAP_POOL_BUCKETS; bucket++) {
+		next = pool->buckets[bucket].free_list;
+		do {
+			while (unlikely(next == POOL_BUSY)) {
+				__ha_cpu_relax();
+				next = _HA_ATOMIC_LOAD(&pool->buckets[bucket].free_list);
+			}
+			if (next == NULL)
+				break;
+		} while (unlikely((next = _HA_ATOMIC_XCHG(&pool->buckets[bucket].free_list, POOL_BUSY)) == POOL_BUSY));
+
+		if (next) {
+			_HA_ATOMIC_STORE(&pool->buckets[bucket].free_list, NULL);
+			__ha_barrier_atomic_store();
 		}
-		if (next == NULL)
-			return;
-	} while (unlikely((next = _HA_ATOMIC_XCHG(&pool->free_list, POOL_BUSY)) == POOL_BUSY));
-	_HA_ATOMIC_STORE(&pool->free_list, NULL);
-	__ha_barrier_atomic_store();
 
-	while (next) {
-		temp = next;
-		next = temp->next;
-		for (; temp; temp = down) {
-			uint bucket = pool_pbucket(temp);
-
-			down = temp->down;
-			_HA_ATOMIC_DEC(&pool->buckets[bucket].allocated);
-
-			pool_put_to_os_nodec(pool, temp);
+		while (next) {
+			temp = next;
+			next = temp->next;
+			for (; temp; temp = down) {
+				down = temp->down;
+				_HA_ATOMIC_DEC(&pool->buckets[pool_pbucket(temp)].allocated);
+				pool_put_to_os_nodec(pool, temp);
+			}
 		}
 	}
 	/* here, we should have pool->allocated == pool->used */
@@ -769,16 +788,22 @@ void pool_gc(struct pool_head *pool_ctx)
 		struct pool_item *temp, *down;
 		uint allocated = pool_allocated(entry);
 		uint used = pool_used(entry);
+		int bucket = 0;
 
-		while (entry->free_list &&
-		       (int)(allocated - used) > (int)entry->minavail) {
-			temp = entry->free_list;
-			entry->free_list = temp->next;
+		while ((int)(allocated - used) > (int)entry->minavail) {
+			/* ok let's find next entry to evict */
+			while (!entry->buckets[bucket].free_list && bucket < CONFIG_HAP_POOL_BUCKETS)
+				bucket++;
+
+			if (bucket == CONFIG_HAP_POOL_BUCKETS)
+				break;
+
+			temp = entry->buckets[bucket].free_list;
+			entry->buckets[bucket].free_list = temp->next;
 			for (; temp; temp = down) {
-				uint bucket = pool_pbucket(temp);
 				down = temp->down;
 				allocated--;
-				_HA_ATOMIC_DEC(&entry->buckets[bucket].allocated);
+				_HA_ATOMIC_DEC(&entry->buckets[pool_pbucket(temp)].allocated);
 				pool_put_to_os_nodec(entry, temp);
 			}
 		}
