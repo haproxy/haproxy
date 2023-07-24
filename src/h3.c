@@ -613,6 +613,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			}
 
 			h3s->flags |= H3_SF_HAVE_CLEN;
+			sl->flags |= HTX_SL_F_CLEN;
 			/* This will fail if current frame is the last one and
 			 * content-length is not null.
 			 */
