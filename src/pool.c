@@ -428,7 +428,7 @@ void *pool_alloc_nocache(struct pool_head *pool)
 		return NULL;
 
 	bucket = pool_pbucket(ptr);
-	swrate_add_scaled_opportunistic(&pool->needed_avg, POOL_AVG_SAMPLES, pool_used(pool), POOL_AVG_SAMPLES/4);
+	swrate_add_scaled_opportunistic(&pool->buckets[bucket].needed_avg, POOL_AVG_SAMPLES, pool->buckets[bucket].used, POOL_AVG_SAMPLES/4);
 	_HA_ATOMIC_INC(&pool->buckets[bucket].allocated);
 	_HA_ATOMIC_INC(&pool->buckets[bucket].used);
 
@@ -448,7 +448,7 @@ void pool_free_nocache(struct pool_head *pool, void *ptr)
 
 	_HA_ATOMIC_DEC(&pool->buckets[bucket].used);
 	_HA_ATOMIC_DEC(&pool->buckets[bucket].allocated);
-	swrate_add_opportunistic(&pool->needed_avg, POOL_AVG_SAMPLES, pool_used(pool));
+	swrate_add_opportunistic(&pool->buckets[bucket].needed_avg, POOL_AVG_SAMPLES, pool->buckets[bucket].used);
 
 	pool_put_to_os_nodec(pool, ptr);
 }
@@ -530,7 +530,7 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 			/* will never match when global pools are disabled */
 			uint bucket = pool_pbucket(item);
 			_HA_ATOMIC_DEC(&pool->buckets[bucket].used);
-			swrate_add_opportunistic(&pool->needed_avg, POOL_AVG_SAMPLES, pool_used(pool));
+			swrate_add_opportunistic(&pool->buckets[bucket].needed_avg, POOL_AVG_SAMPLES, pool->buckets[bucket].used);
 
 			pi = (struct pool_item *)item;
 			pi->next = NULL;
@@ -984,7 +984,7 @@ void dump_pools_to_trash(int by_what, int max, const char *pfx)
 		pool_info[nbpools].alloc_bytes = (ulong)entry->size * alloc_items;
 		pool_info[nbpools].used_items = pool_used(entry);
 		pool_info[nbpools].cached_items = cached;
-		pool_info[nbpools].need_avg = swrate_avg(entry->needed_avg, POOL_AVG_SAMPLES);
+		pool_info[nbpools].need_avg = swrate_avg(pool_needed_avg(entry), POOL_AVG_SAMPLES);
 		pool_info[nbpools].failed_items = entry->failed;
 		nbpools++;
 	}

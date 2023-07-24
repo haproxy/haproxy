@@ -158,6 +158,19 @@ static inline uint pool_used(const struct pool_head *pool)
 	return ret;
 }
 
+/* returns the raw total number needed entries across all buckets. It must
+ * be passed to swrate_avg() to get something usable.
+ */
+static inline uint pool_needed_avg(const struct pool_head *pool)
+{
+	int bucket;
+	uint ret;
+
+	for (bucket = ret = 0; bucket < CONFIG_HAP_POOL_BUCKETS; bucket++)
+		ret += HA_ATOMIC_LOAD(&pool->buckets[bucket].needed_avg);
+	return ret;
+}
+
 /* Returns the max number of entries that may be brought back to the pool
  * before it's considered as full. Note that it is only usable for releasing
  * objects, hence the function assumes that no more than ->used entries will
@@ -171,6 +184,7 @@ static inline uint pool_used(const struct pool_head *pool)
 static inline uint pool_releasable(const struct pool_head *pool)
 {
 	uint alloc, used;
+	uint needed_raw;
 
 	if (unlikely(pool_debugging & (POOL_DBG_NO_CACHE|POOL_DBG_NO_GLOBAL)))
 		return 0;
@@ -180,7 +194,8 @@ static inline uint pool_releasable(const struct pool_head *pool)
 	if (used < alloc)
 		used = alloc;
 
-	if (alloc < swrate_avg(pool->needed_avg + pool->needed_avg / 4, POOL_AVG_SAMPLES))
+	needed_raw = pool_needed_avg(pool);
+	if (alloc < swrate_avg(needed_raw + needed_raw / 4, POOL_AVG_SAMPLES))
 		return used; // less than needed is allocated, can release everything
 
 	if ((uint)(alloc - used) < pool->minavail)
