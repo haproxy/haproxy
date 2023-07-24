@@ -134,7 +134,7 @@ void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller);
 void pool_fill_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size);
 void pool_check_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size);
 void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_head *pch);
-void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item, uint count);
+void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item);
 
 /* returns the total number of allocated entries for a pool across all buckets */
 static inline uint pool_allocated(const struct pool_head *pool)
@@ -144,6 +144,17 @@ static inline uint pool_allocated(const struct pool_head *pool)
 
 	for (bucket = ret = 0; bucket < CONFIG_HAP_POOL_BUCKETS; bucket++)
 		ret += HA_ATOMIC_LOAD(&pool->buckets[bucket].allocated);
+	return ret;
+}
+
+/* returns the total number of used entries for a pool across all buckets */
+static inline uint pool_used(const struct pool_head *pool)
+{
+	int bucket;
+	uint ret;
+
+	for (bucket = ret = 0; bucket < CONFIG_HAP_POOL_BUCKETS; bucket++)
+		ret += HA_ATOMIC_LOAD(&pool->buckets[bucket].used);
 	return ret;
 }
 
@@ -165,7 +176,7 @@ static inline uint pool_releasable(const struct pool_head *pool)
 		return 0;
 
 	alloc = pool_allocated(pool);
-	used = HA_ATOMIC_LOAD(&pool->used);
+	used  = pool_used(pool);
 	if (used < alloc)
 		used = alloc;
 
