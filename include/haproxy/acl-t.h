@@ -144,6 +144,12 @@ struct acl_cond {
 	int line;                   /* line in the config file where the condition is declared */
 };
 
+struct acl_sample {
+	struct acl_cond cond;
+	struct acl_term_suite suite;
+	struct acl_term terms[];
+};
+
 #endif /* _HAPROXY_ACL_T_H */
 
 /*

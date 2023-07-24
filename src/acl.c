@@ -28,6 +28,7 @@
 #include <haproxy/sample.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/tools.h>
+#include <haproxy/cfgparse.h>
 
 /* List head of all known ACL keywords */
 static struct acl_kw_list acl_keywords = {
@@ -576,6 +577,35 @@ struct acl *prune_acl(struct acl *acl) {
 	return acl;
 }
 
+/* Walk the ACL tree, following nested acl() sample fetches, for no more than
+ * max_recurse evaluations. Returns -1 if a recursive loop is detected, 0 if
+ * the max_recurse was reached, otherwise the number of max_recurse left.
+ */
+static int parse_acl_recurse(struct acl *acl, struct acl_expr *expr, int max_recurse)
+{
+	struct acl_term *term;
+	struct acl_sample *sample;
+
+	if (strcmp(expr->smp->fetch->kw, "acl") != 0)
+		return max_recurse;
+
+	if (--max_recurse <= 0)
+		return 0;
+
+	sample = (struct acl_sample *)expr->smp->arg_p->data.ptr;
+	list_for_each_entry(term, &sample->suite.terms, list) {
+		if (term->acl == acl)
+			return -1;
+		list_for_each_entry(expr, &term->acl->expr, list) {
+			max_recurse = parse_acl_recurse(acl, expr, max_recurse);
+			if (max_recurse <= 0)
+				return max_recurse;
+		}
+	}
+
+	return max_recurse;
+}
+
 /* Parse an ACL with the name starting at <args>[0], and with a list of already
  * known ACLs in <acl>. If the ACL was not in the list, it will be added.
  * A pointer to that ACL is returned. If the ACL has an empty name, then it's
@@ -623,7 +653,16 @@ struct acl *parse_acl(const char **args, struct list *known_acl, char **err, str
 	else
 		cur_acl = NULL;
 
-	if (!cur_acl) {
+	if (cur_acl) {
+		int ret = parse_acl_recurse(cur_acl, acl_expr, ACL_MAX_RECURSE);
+		if (ret <= 0) {
+			if (ret < 0)
+				memprintf(err, "have a recursive loop");
+			else
+				memprintf(err, "too deep acl() tree");
+			goto out_free_acl_expr;
+		}
+	} else {
 		name = strdup(args[0]);
 		if (!name) {
 			memprintf(err, "out of memory when parsing ACL");
@@ -1254,6 +1293,61 @@ void free_acl_cond(struct acl_cond *cond)
 	free(cond);
 }
 
+
+static int smp_fetch_acl(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct acl_sample *acl_sample = (struct acl_sample *)args->data.ptr;
+	enum acl_test_res ret;
+
+	ret = acl_exec_cond(&acl_sample->cond, smp->px, smp->sess, smp->strm, smp->opt);
+	if (ret == ACL_TEST_MISS)
+		return 0;
+	smp->data.u.sint = ret == ACL_TEST_PASS;
+	smp->data.type = SMP_T_BOOL;
+	return 1;
+}
+
+int smp_fetch_acl_parse(struct arg *args, char **err_msg)
+{
+	struct acl_sample *acl_sample;
+	char *name;
+	int i;
+
+	for (i = 0; args[i].type != ARGT_STOP; i++)
+		;
+	acl_sample = calloc(1, sizeof(struct acl_sample) + sizeof(struct acl_term) * i);
+	LIST_INIT(&acl_sample->suite.terms);
+	LIST_INIT(&acl_sample->cond.suites);
+	LIST_APPEND(&acl_sample->cond.suites, &acl_sample->suite.list);
+	acl_sample->cond.val = ~0U; // the keyword is valid everywhere for now.
+
+	args->data.ptr = acl_sample;
+
+	for (i = 0; args[i].type != ARGT_STOP; i++) {
+		name = args[i].data.str.area;
+		if (name[0] == '!') {
+			acl_sample->terms[i].neg = 1;
+			name++;
+		}
+
+		if (!(acl_sample->terms[i].acl = find_acl_by_name(name, &curproxy->acl))) {
+			memprintf(err_msg, "ACL '%s' not found", name);
+			goto err;
+		}
+
+		acl_sample->cond.use |= acl_sample->terms[i].acl->use;
+		acl_sample->cond.val &= acl_sample->terms[i].acl->val;
+
+		LIST_APPEND(&acl_sample->suite.terms, &acl_sample->terms[i].list);
+	}
+
+	return 1;
+
+err:
+	free(acl_sample);
+	return 0;
+}
+
 /************************************************************************/
 /*      All supported sample and ACL keywords must be declared here.    */
 /************************************************************************/
@@ -1266,6 +1360,13 @@ static struct acl_kw_list acl_kws = {ILH, {
 }};
 
 INITCALL1(STG_REGISTER, acl_register_keywords, &acl_kws);
+
+static struct sample_fetch_kw_list smp_kws = {ILH, {
+	{ "acl", smp_fetch_acl, ARG12(1,STR,STR,STR,STR,STR,STR,STR,STR,STR,STR,STR,STR), smp_fetch_acl_parse, SMP_T_BOOL, SMP_USE_CONST },
+	{ /* END */ },
+}};
+
+INITCALL1(STG_REGISTER, sample_register_fetches, &smp_kws);
 
 /*
  * Local variables:

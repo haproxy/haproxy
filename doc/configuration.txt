@@ -19393,6 +19393,15 @@ The sample fetch methods described in this section are usable anywhere.
 act_conn : integer
   Returns the total number of active concurrent connections on the process.
 
+acl([!]<name>[,...]) : boolean
+  Returns true if the evaluation of all the named ACL(s) is true, otherwise
+  returns false. Up to 12 ACLs may be provided, each delimited by comma. Each
+  named ACL may be prefixed with a "!" to invert the result. If any evaluation
+  produces an error then the sample also returns an error.
+  Note that HAProxy does not perform any validation checks on the referenced
+  ACLs, such as whether an ACL which uses a http request sample is used in
+  response context. This behavior may be changed in the future.
+
 always_false : boolean
   Always returns the boolean "false" value. It may be used with ACLs as a
   temporary replacement for another one when adjusting configurations.

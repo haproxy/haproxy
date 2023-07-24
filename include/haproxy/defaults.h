@@ -250,6 +250,12 @@
 #define COOKIE_DELIM_DATE       '|'
 #endif
 
+// Max number of acl() sample fetch recursive evaluations, to avoid deep tree
+// loops.
+#ifndef ACL_MAX_RECURSE
+#define ACL_MAX_RECURSE 1000
+#endif
+
 #define CONN_RETRIES    3
 
 #define	CHK_CONNTIME    2000
