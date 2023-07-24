@@ -30,6 +30,8 @@
 #include <haproxy/quic_tls-t.h>
 #include <haproxy/trace.h>
 
+int quic_tls_finalize(struct quic_conn *qc, int server);
+void quic_tls_ctx_free(struct quic_tls_ctx **ctx);
 void quic_pktns_release(struct quic_conn *qc, struct quic_pktns **pktns);
 int qc_enc_level_alloc(struct quic_conn *qc, struct quic_pktns **pktns,
                        struct quic_enc_level **qel, enum ssl_encryption_level_t level);

@@ -973,3 +973,51 @@ void quic_tls_rotate_keys(struct quic_conn *qc)
 
 	TRACE_LEAVE(QUIC_EV_CONN_RXPKT, qc);
 }
+
+/* Release the memory allocated for the QUIC TLS context with <ctx> as address. */
+void quic_tls_ctx_free(struct quic_tls_ctx **ctx)
+{
+	if (!*ctx)
+		return;
+
+	quic_tls_ctx_secs_free(*ctx);
+	pool_free(pool_head_quic_tls_ctx, *ctx);
+	*ctx = NULL;
+}
+
+/* Finalize <qc> QUIC connection:
+ * - allocated and initialize the Initial QUIC TLS context for negotiated
+ *   version if needed,
+ * - derive the secrets for this context,
+ * - set them into the TLS stack,
+ *
+ * Return 1 if succeeded, 0 if not.
+ */
+int quic_tls_finalize(struct quic_conn *qc, int server)
+{
+	int ret = 0;
+
+	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
+
+	if (!qc->negotiated_version)
+		goto done;
+
+	qc->nictx = pool_alloc(pool_head_quic_tls_ctx);
+	if (!qc->nictx)
+		goto err;
+
+	quic_tls_ctx_reset(qc->nictx);
+	if (!qc_new_isecs(qc, qc->nictx, qc->negotiated_version,
+	                  qc->odcid.data, qc->odcid.len, server))
+		goto err;
+
+ done:
+	ret = 1;
+ out:
+	TRACE_LEAVE(QUIC_EV_CONN_NEW, qc);
+	return ret;
+
+ err:
+	quic_tls_ctx_free(&qc->nictx);
+	goto out;
+}
