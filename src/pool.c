@@ -632,8 +632,7 @@ void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_hea
 	ret = _HA_ATOMIC_LOAD(&pool->free_list);
 	do {
 		while (unlikely(ret == POOL_BUSY)) {
-			__ha_cpu_relax();
-			ret = _HA_ATOMIC_LOAD(&pool->free_list);
+			ret = (void*)pl_wait_new_long((ulong*)&pool->free_list, (ulong)ret);
 		}
 		if (ret == NULL)
 			return;
@@ -678,8 +677,7 @@ void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item, ui
 	free_list = _HA_ATOMIC_LOAD(&pool->free_list);
 	do {
 		while (unlikely(free_list == POOL_BUSY)) {
-			__ha_cpu_relax();
-			free_list = _HA_ATOMIC_LOAD(&pool->free_list);
+			free_list = (void*)pl_wait_new_long((ulong*)&pool->free_list, (ulong)free_list);
 		}
 		_HA_ATOMIC_STORE(&item->next, free_list);
 		__ha_barrier_atomic_store();
