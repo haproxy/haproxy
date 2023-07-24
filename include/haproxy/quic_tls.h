@@ -128,6 +128,9 @@ int quic_tls_aes_encrypt(unsigned char *out,
                          const unsigned char *in, size_t inlen,
                          EVP_CIPHER_CTX *ctx);
 
+int quic_tls_key_update(struct quic_conn *qc);
+void quic_tls_rotate_keys(struct quic_conn *qc);
+
 static inline const EVP_CIPHER *tls_aead(const SSL_CIPHER *cipher)
 {
 	switch (SSL_CIPHER_get_id(cipher)) {

@@ -10,6 +10,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/pool.h>
 #include <haproxy/quic_conn.h>
+#include <haproxy/quic_trace-t.h>
 
 
 DECLARE_POOL(pool_head_quic_enc_level,  "quic_enc_level",  sizeof(struct quic_enc_level));
@@ -828,4 +829,147 @@ int quic_tls_generate_retry_integrity_tag(unsigned char *odcid, unsigned char od
  out:
 	EVP_CIPHER_CTX_free(ctx);
 	return ret;
+}
+
+/* Derive new keys and ivs required for Key Update feature for <qc> QUIC
+ * connection.
+ * Return 1 if succeeded, 0 if not.
+ */
+int quic_tls_key_update(struct quic_conn *qc)
+{
+	struct quic_tls_ctx *tls_ctx = &qc->ael->tls_ctx;
+	struct quic_tls_secrets *rx = &tls_ctx->rx;
+	struct quic_tls_secrets *tx = &tls_ctx->tx;
+	/* Used only for the traces */
+	struct quic_kp_trace kp_trace = {
+		.rx_sec = rx->secret,
+		.rx_seclen = rx->secretlen,
+		.tx_sec = tx->secret,
+		.tx_seclen = tx->secretlen,
+	};
+	/* The next key phase secrets to be derived */
+	struct quic_tls_kp *nxt_rx = &qc->ku.nxt_rx;
+	struct quic_tls_kp *nxt_tx = &qc->ku.nxt_tx;
+	const struct quic_version *ver =
+		qc->negotiated_version ? qc->negotiated_version : qc->original_version;
+	int ret = 0;
+
+	TRACE_ENTER(QUIC_EV_CONN_KP, qc);
+
+	nxt_rx = &qc->ku.nxt_rx;
+	nxt_tx = &qc->ku.nxt_tx;
+
+	TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_SPPKTS, qc, 0, 0, 0,
+	             "nxt_rx->secretlen=%llu rx->secretlen=%llu",
+	             (ull)nxt_rx->secretlen, (ull)rx->secretlen);
+	/* Prepare new RX secrets */
+	if (!quic_tls_sec_update(rx->md, ver, nxt_rx->secret, nxt_rx->secretlen,
+	                         rx->secret, rx->secretlen)) {
+		TRACE_ERROR("New RX secret update failed", QUIC_EV_CONN_KP, qc);
+		goto leave;
+	}
+
+	if (!quic_tls_derive_keys(rx->aead, NULL, rx->md, ver,
+	                          nxt_rx->key, nxt_rx->keylen,
+	                          nxt_rx->iv, nxt_rx->ivlen, NULL, 0,
+	                          nxt_rx->secret, nxt_rx->secretlen)) {
+		TRACE_ERROR("New RX key derivation failed", QUIC_EV_CONN_KP, qc);
+		goto leave;
+	}
+
+	kp_trace.rx = nxt_rx;
+	/* Prepare new TX secrets */
+	if (!quic_tls_sec_update(tx->md, ver, nxt_tx->secret, nxt_tx->secretlen,
+	                         tx->secret, tx->secretlen)) {
+		TRACE_ERROR("New TX secret update failed", QUIC_EV_CONN_KP, qc);
+		goto leave;
+	}
+
+	if (!quic_tls_derive_keys(tx->aead, NULL, tx->md, ver,
+	                          nxt_tx->key, nxt_tx->keylen,
+	                          nxt_tx->iv, nxt_tx->ivlen, NULL, 0,
+	                          nxt_tx->secret, nxt_tx->secretlen)) {
+		TRACE_ERROR("New TX key derivation failed", QUIC_EV_CONN_KP, qc);
+		goto leave;
+	}
+
+	kp_trace.tx = nxt_tx;
+	if (nxt_rx->ctx) {
+		EVP_CIPHER_CTX_free(nxt_rx->ctx);
+		nxt_rx->ctx = NULL;
+	}
+
+	if (!quic_tls_rx_ctx_init(&nxt_rx->ctx, tls_ctx->rx.aead, nxt_rx->key)) {
+		TRACE_ERROR("could not initialize RX TLS cipher context", QUIC_EV_CONN_KP, qc);
+		goto leave;
+	}
+
+	if (nxt_tx->ctx) {
+		EVP_CIPHER_CTX_free(nxt_tx->ctx);
+		nxt_tx->ctx = NULL;
+	}
+
+	if (!quic_tls_tx_ctx_init(&nxt_tx->ctx, tls_ctx->tx.aead, nxt_tx->key)) {
+		TRACE_ERROR("could not initialize TX TLS cipher context", QUIC_EV_CONN_KP, qc);
+		goto leave;
+	}
+
+	ret = 1;
+ leave:
+	TRACE_PROTO("key update", QUIC_EV_CONN_KP, qc, &kp_trace);
+	TRACE_LEAVE(QUIC_EV_CONN_KP, qc);
+	return ret;
+}
+
+/* Rotate the Key Update information for <qc> QUIC connection.
+ * Must be used after having updated them.
+ * Always succeeds.
+ */
+void quic_tls_rotate_keys(struct quic_conn *qc)
+{
+	struct quic_tls_ctx *tls_ctx = &qc->ael->tls_ctx;
+	unsigned char *curr_secret, *curr_iv, *curr_key;
+	EVP_CIPHER_CTX *curr_ctx;
+
+	TRACE_ENTER(QUIC_EV_CONN_RXPKT, qc);
+
+	/* Rotate the RX secrets */
+	curr_ctx = tls_ctx->rx.ctx;
+	curr_secret = tls_ctx->rx.secret;
+	curr_iv = tls_ctx->rx.iv;
+	curr_key = tls_ctx->rx.key;
+
+	tls_ctx->rx.ctx     = qc->ku.nxt_rx.ctx;
+	tls_ctx->rx.secret  = qc->ku.nxt_rx.secret;
+	tls_ctx->rx.iv      = qc->ku.nxt_rx.iv;
+	tls_ctx->rx.key     = qc->ku.nxt_rx.key;
+
+	qc->ku.nxt_rx.ctx    = qc->ku.prv_rx.ctx;
+	qc->ku.nxt_rx.secret = qc->ku.prv_rx.secret;
+	qc->ku.nxt_rx.iv     = qc->ku.prv_rx.iv;
+	qc->ku.nxt_rx.key    = qc->ku.prv_rx.key;
+
+	qc->ku.prv_rx.ctx    = curr_ctx;
+	qc->ku.prv_rx.secret = curr_secret;
+	qc->ku.prv_rx.iv     = curr_iv;
+	qc->ku.prv_rx.key    = curr_key;
+	qc->ku.prv_rx.pn     = tls_ctx->rx.pn;
+
+	/* Update the TX secrets */
+	curr_ctx = tls_ctx->tx.ctx;
+	curr_secret = tls_ctx->tx.secret;
+	curr_iv = tls_ctx->tx.iv;
+	curr_key = tls_ctx->tx.key;
+
+	tls_ctx->tx.ctx    = qc->ku.nxt_tx.ctx;
+	tls_ctx->tx.secret = qc->ku.nxt_tx.secret;
+	tls_ctx->tx.iv     = qc->ku.nxt_tx.iv;
+	tls_ctx->tx.key    = qc->ku.nxt_tx.key;
+
+	qc->ku.nxt_tx.ctx    = curr_ctx;
+	qc->ku.nxt_tx.secret = curr_secret;
+	qc->ku.nxt_tx.iv     = curr_iv;
+	qc->ku.nxt_tx.key    = curr_key;
+
+	TRACE_LEAVE(QUIC_EV_CONN_RXPKT, qc);
 }
