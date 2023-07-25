@@ -23690,6 +23690,13 @@ Timings events in TCP mode:
     header (empty line) was never seen, most likely because the server timeout
     stroke before the server managed to process the request.
 
+  - Td: this is the total transfer time of the response payload till the last
+    byte sent to the client. In HTTP it starts after the last response header
+    (after Tr).
+
+    The data sent are not guaranteed to be received by the client, they can be
+    stuck in either the kernel or the network.
+
   - Ta: total active time for the HTTP request, between the moment the proxy
     received the first byte of the request header and the emission of the last
     byte of the response body. The exception is when the "logasap" option is
