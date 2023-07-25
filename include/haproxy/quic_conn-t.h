@@ -309,20 +309,6 @@ struct quic_connection_id {
 	uint tid;              /* Attached Thread ID for the connection. */
 };
 
-/* Structure to hold a range of ACKs sent in ACK frames. */
-struct quic_arng {
-	int64_t first;
-	int64_t last;
-};
-
-/* Structure to hold a range of ACKs to be store as a node in a tree of
- * ACK ranges.
- */
-struct quic_arng_node {
-	struct eb64_node first;
-	uint64_t last;
-};
-
 /* Flag the packet number space as having received a packet */
 #define QUIC_FL_PKTNS_PKT_RECEIVED  (1UL << 0)
 /* Flag the packet number space as requiring an ACK frame to be sent. */

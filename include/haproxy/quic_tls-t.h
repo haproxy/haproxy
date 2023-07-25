@@ -21,6 +21,7 @@
 
 #include <import/ebtree.h>
 
+#include <haproxy/quic_ack-t.h>
 #include <haproxy/openssl-compat.h>
 
 /* It seems TLS 1.3 ciphersuites macros differ between openssl and boringssl */
@@ -122,19 +123,6 @@ extern unsigned char initial_salt[20];
 extern const unsigned char initial_salt_draft_29[20];
 extern const unsigned char initial_salt_v1[20];
 extern const unsigned char initial_salt_v2[20];
-
-/* The maximum number of ack ranges to be built in ACK frames */
-#define QUIC_MAX_ACK_RANGES   32
-
-/* Structure to maintain a set of ACK ranges to be used to build ACK frames. */
-struct quic_arngs {
-	/* ebtree of ACK ranges organized by their first value. */
-	struct eb_root root;
-	/* The number of ACK ranges is this tree */
-	size_t sz;
-	/* The number of bytes required to encode this ACK ranges lists. */
-	size_t enc_sz;
-};
 
 /* QUIC packet number space */
 struct quic_pktns {
