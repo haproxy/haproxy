@@ -2285,10 +2285,10 @@ static struct buffer *conv_time_common(const char *format, time_t curr_date, uin
 			width = 9;
 		cpy = needle - p;
 
-		if (!tmp_format) {
-		       tmp_format = alloc_trash_chunk();
-		       tmp_format->data = 0;
-		}
+		if (!tmp_format)
+			tmp_format = alloc_trash_chunk();
+		if (!tmp_format)
+			goto error;
 
 		if (set != 9) /* if the snprintf wasn't done yet */
 			set = snprintf(ns_str, sizeof(ns_str), "%.9llu", (unsigned long long)ns);
