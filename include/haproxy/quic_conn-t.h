@@ -248,8 +248,6 @@ enum quic_pkt_type {
     (void) (&_a == &_b);  \
     _a > _b ? _a : _b; })
 
-/* Size of the internal buffer of QUIC TX ring buffers (must be a power of 2) */
-#define QUIC_TX_RING_BUFSZ  (1UL << 12)
 /* Size of the QUIC RX buffer for the connections */
 #define QUIC_CONN_RX_BUFSZ (1UL << 16)
 
@@ -405,12 +403,6 @@ struct quic_path {
 	uint64_t ifae_pkts;
 };
 
-/* QUIC ring buffer */
-struct qring {
-	struct cbuf *cbuf;
-	struct mt_list mt_list;
-};
-
 /* Status of the connection/mux layer. This defines how to handle app data.
  *
  * During a standard quic_conn lifetime it transitions like this :
@@ -439,9 +431,6 @@ struct quic_conn_cntrs {
 	long long streams_blocked_bidi;      /* total number of times STREAMS_BLOCKED_BIDI frame was received */
 	long long streams_blocked_uni;       /* total number of times STREAMS_BLOCKED_UNI frame was received */
 };
-
-/* The number of buffers for outgoing packets (must be a power of two). */
-#define QUIC_CONN_TX_BUFS_NB 8
 
 /* Flags at connection level */
 #define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED  (1U << 0)
@@ -523,15 +512,6 @@ struct quic_conn {
 	struct connection *conn;
 
 	struct {
-		/* The remaining frames to send. */
-		struct list frms_to_send;
-
-		/* The size of the previous array. */
-		size_t nb_buf;
-		/* Writer index. */
-		int wbuf;
-		/* Reader index. */
-		int rbuf;
 		/* Number of sent bytes. */
 		uint64_t bytes;
 		/* Number of bytes for prepared packets */

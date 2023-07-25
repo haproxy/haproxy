@@ -1132,9 +1132,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS_DRAFT:
 		TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS;
 	/* TX part. */
-	LIST_INIT(&qc->tx.frms_to_send);
-	qc->tx.nb_buf = QUIC_CONN_TX_BUFS_NB;
-	qc->tx.wbuf = qc->tx.rbuf = 0;
 	qc->tx.bytes = qc->tx.prep_bytes = 0;
 	memset(&qc->tx.params, 0, sizeof(qc->tx.params));
 	qc->tx.buf = BUF_NULL;
