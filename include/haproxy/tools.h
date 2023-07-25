@@ -1089,11 +1089,15 @@ static inline uint statistical_prng_range(uint range)
  * fill ratio for 12 bits, ~1296 (~756 non-colliding) at 100% fill ratio for 11
  * bits, ~648 (~378 non-colliding) at 100% fill ratio for 10 bits, ~163 (95 non
  * colliding) at 100% fill ratio for 8 bits, hence 1-1/e and 1/e respectively.
- * It must be inlined so that <bits> is always a compile-time constant.
+ * It must be inlined so that <bits> is always a compile-time constant. It
+ * supports output sizes from 0 to 32 bits.
  */
 static forceinline uint ptr_hash(const void *p, const int bits)
 {
 	unsigned long long x = (unsigned long)p;
+
+	if (!bits)
+		return 0;
 
 	x *= 0xc1da9653U;
 	if (sizeof(long) == 4)
@@ -1110,6 +1114,9 @@ static forceinline uint ptr2_hash(const void *p1, const void *p2, const int bits
 {
 	unsigned long long x = (unsigned long)p1;
 	unsigned long long y = (unsigned long)p2;
+
+	if (!bits)
+		return 0;
 
 	x *= 0xc1da9653U;
 	y *= 0x96531cadU;
