@@ -186,6 +186,10 @@ struct act_rule {
 		} gpt;
 		struct track_ctr_prm trk_ctr;
 		struct {
+			char *srvname; /* server name from config parsing. */
+			struct server *srv; /* target server to attach the connection */
+		} attach_srv; /* 'attach-srv' rule */
+		struct {
 			void *p[4];
 		} act;                         /* generic pointers to be used by custom actions */
 	} arg;                                 /* arguments used by some actions */

@@ -703,6 +703,15 @@ static inline int conn_is_reverse(const struct connection *conn)
 	return !!(conn->reverse.target);
 }
 
+/* Initialize <conn> as a reverse connection to <target>. */
+static inline void conn_set_reverse(struct connection *conn, enum obj_type *target)
+{
+	/* Ensure the correct target type is used depending on the connection side before reverse. */
+	BUG_ON(!conn_is_back(conn) && !objt_server(target));
+
+	conn->reverse.target = target;
+}
+
 #endif /* _HAPROXY_CONNECTION_H */
 
 /*
