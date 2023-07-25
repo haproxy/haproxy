@@ -44,6 +44,7 @@
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_loss.h>
+#include <haproxy/quic_rx-t.h>
 #include <haproxy/mux_quic.h>
 
 #include <openssl/rand.h>
@@ -57,6 +58,31 @@ void quic_cstream_free(struct quic_cstream *cs);
 void quic_free_arngs(struct quic_conn *qc, struct quic_arngs *arngs);
 struct quic_cstream *quic_cstream_new(struct quic_conn *qc);
 struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);
+
+struct quic_connection_id *new_quic_cid(struct eb_root *root,
+                                        struct quic_conn *qc,
+                                        const struct quic_cid *orig,
+                                        const struct sockaddr_storage *addr);
+void qc_cc_err_count_inc(struct quic_conn *qc, struct quic_frame *frm);
+int qc_h3_request_reject(struct quic_conn *qc, uint64_t id);
+int qc_build_new_connection_id_frm(struct quic_conn *qc,
+                                   struct quic_connection_id *conn_id);
+struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
+                              struct quic_cid *dcid, struct quic_cid *scid,
+                              const struct quic_cid *token_odcid,
+                              struct quic_connection_id *conn_id,
+                              struct sockaddr_storage *local_addr,
+                              struct sockaddr_storage *peer_addr,
+                              int server, int token, void *owner);
+const struct quic_version *qc_supported_version(uint32_t version);
+int quic_peer_validated_addr(struct quic_conn *qc);
+void qc_set_timer(struct quic_conn *qc);
+void qc_detach_th_ctx_list(struct quic_conn *qc, int closing);
+void qc_idle_timer_do_rearm(struct quic_conn *qc, int arm_ack);
+void qc_idle_timer_rearm(struct quic_conn *qc, int read, int arm_ack);
+void qc_check_close_on_released_mux(struct quic_conn *qc);
+int quic_stateless_reset_token_cpy(unsigned char *pos, size_t len,
+                                   const unsigned char *salt, size_t saltlen);
 
 /* Return the long packet type matching with <qv> version and <type> */
 static inline int quic_pkt_type(int type, uint32_t version)
@@ -409,38 +435,6 @@ static inline uint64_t quic_compute_ack_delay_us(unsigned int time_received,
 	return ((now_ms - time_received) * 1000) >> conn->tx.params.ack_delay_exponent;
 }
 
-/* The TX packets sent in the same datagram are linked to each others in
- * the order they are built. This function detach a packet from its successor
- * and predecessor in the same datagram.
- */
-static inline void quic_tx_packet_dgram_detach(struct quic_tx_packet *pkt)
-{
-	if (pkt->prev)
-		pkt->prev->next = pkt->next;
-	if (pkt->next)
-		pkt->next->prev = pkt->prev;
-}
-
-
-/* Increment the reference counter of <pkt> */
-static inline void quic_tx_packet_refinc(struct quic_tx_packet *pkt)
-{
-	pkt->refcnt++;
-}
-
-/* Decrement the reference counter of <pkt> */
-static inline void quic_tx_packet_refdec(struct quic_tx_packet *pkt)
-{
-	if (--pkt->refcnt == 0) {
-		BUG_ON(!LIST_ISEMPTY(&pkt->frms));
-		/* If there are others packet in the same datagram <pkt> is attached to,
-		 * detach the previous one and the next one from <pkt>.
-		 */
-		quic_tx_packet_dgram_detach(pkt);
-		pool_free(pool_head_quic_tx_packet, pkt);
-	}
-}
-
 /* Initialize <p> QUIC network path depending on <ipv4> boolean
  * which is true for an IPv4 path, if not false for an IPv6 path.
  */
@@ -580,8 +574,6 @@ int qc_send_mux(struct quic_conn *qc, struct list *frms);
 
 void qc_notify_err(struct quic_conn *qc);
 int qc_notify_send(struct quic_conn *qc);
-
-void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm);
 
 void qc_check_close_on_released_mux(struct quic_conn *qc);
 

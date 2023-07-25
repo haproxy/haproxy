@@ -16,7 +16,9 @@
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_frame.h>
+#include <haproxy/quic_rx-t.h>
 #include <haproxy/quic_tp-t.h>
+#include <haproxy/quic_tx.h>
 #include <haproxy/trace.h>
 
 #define TRACE_SOURCE    &trace_quic
@@ -1221,3 +1223,49 @@ void qc_frm_free(struct quic_conn *qc, struct quic_frame **frm)
 	*frm = NULL;
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
 }
+
+/* Release <frm> frame and mark its copies as acknowledged */
+void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm)
+{
+	uint64_t pn;
+	struct quic_frame *origin, *f, *tmp;
+
+	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
+
+	/* Identify this frame: a frame copy or one of its copies */
+	origin = frm->origin ? frm->origin : frm;
+	/* Ensure the source of the copies is flagged as acked, <frm> being
+	 * possibly a copy of <origin>
+	 */
+	origin->flags |= QUIC_FL_TX_FRAME_ACKED;
+	/* Mark all the copy of <origin> as acknowledged. We must
+	 * not release the packets (releasing the frames) at this time as
+	 * they are possibly also to be acknowledged alongside the
+	 * the current one.
+	 */
+	list_for_each_entry_safe(f, tmp, &origin->reflist, ref) {
+		if (f->pkt) {
+			f->flags |= QUIC_FL_TX_FRAME_ACKED;
+			f->origin = NULL;
+			LIST_DEL_INIT(&f->ref);
+			pn = f->pkt->pn_node.key;
+			TRACE_DEVEL("mark frame as acked from packet",
+			            QUIC_EV_CONN_PRSAFRM, qc, f, &pn);
+		}
+		else {
+			TRACE_DEVEL("freeing unsent frame",
+			            QUIC_EV_CONN_PRSAFRM, qc, f);
+			LIST_DEL_INIT(&f->ref);
+			qc_frm_free(qc, &f);
+		}
+	}
+	LIST_DEL_INIT(&frm->list);
+	pn = frm->pkt->pn_node.key;
+	quic_tx_packet_refdec(frm->pkt);
+	TRACE_DEVEL("freeing frame from packet",
+	            QUIC_EV_CONN_PRSAFRM, qc, frm, &pn);
+	qc_frm_free(qc, &frm);
+
+	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
+}
+

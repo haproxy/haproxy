@@ -41,6 +41,8 @@ int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
                  const unsigned char **pos, const unsigned char *end,
                  struct quic_conn *conn);
 
+void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm);
+
 /* Return the length of <frm> frame if succeeded, -1 if not (unknown frames
  * or which must not be transmitted again after having been lost (PING, PADDING).
  */

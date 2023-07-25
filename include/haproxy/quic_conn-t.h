@@ -254,11 +254,8 @@ enum quic_pkt_type {
 #define QUIC_CONN_RX_BUFSZ (1UL << 16)
 
 extern struct trace_source trace_quic;
-extern struct pool_head *pool_head_quic_rx_packet;
-extern struct pool_head *pool_head_quic_tx_packet;
 extern struct pool_head *pool_head_quic_crypto_buf;
 extern struct pool_head *pool_head_quic_frame;
-extern struct pool_head *pool_head_quic_dgram;
 
 struct quic_version {
 	uint32_t num;
@@ -341,52 +338,6 @@ struct quic_dgram {
 /* The QUIC packet numbers are 62-bits integers */
 #define QUIC_MAX_PACKET_NUM      ((1ULL << 62) - 1)
 
-/* Maximum number of ack-eliciting received packets since the last
- * ACK frame was sent
- */
-#define QUIC_MAX_RX_AEPKTS_SINCE_LAST_ACK       2
-#define QUIC_ACK_DELAY   (QUIC_TP_DFLT_MAX_ACK_DELAY - 5)
-/* Flag a received packet as being an ack-eliciting packet. */
-#define QUIC_FL_RX_PACKET_ACK_ELICITING (1UL << 0)
-/* Packet is the first one in the containing datagram. */
-#define QUIC_FL_RX_PACKET_DGRAM_FIRST   (1UL << 1)
-/* Spin bit set */
-#define QUIC_FL_RX_PACKET_SPIN_BIT   (1UL << 2)
-
-struct quic_rx_packet {
-	struct list list;
-	struct list qc_rx_pkt_list;
-
-	/* QUIC version used in packet. */
-	const struct quic_version *version;
-
-	unsigned char type;
-	/* Initial desctination connection ID. */
-	struct quic_cid dcid;
-	struct quic_cid scid;
-	/* Packet number offset : only valid for Initial/Handshake/0-RTT/1-RTT. */
-	size_t pn_offset;
-	/* Packet number */
-	int64_t pn;
-	/* Packet number length */
-	uint32_t pnl;
-	uint64_t token_len;
-	unsigned char *token;
-	/* Packet length */
-	uint64_t len;
-	/* Packet length before decryption */
-	uint64_t raw_len;
-	/* Additional authenticated data length */
-	size_t aad_len;
-	unsigned char *data;
-	struct eb64_node pn_node;
-	volatile unsigned int refcnt;
-	/* Source address of this packet. */
-	struct sockaddr_storage saddr;
-	unsigned int flags;
-	unsigned int time_received;
-};
-
 /* QUIC datagram handler */
 struct quic_dghdlr {
 	struct mt_list dgrams;
@@ -399,51 +350,6 @@ struct quic_rx_crypto_frm {
 	uint64_t len;
 	const unsigned char *data;
 	struct quic_rx_packet *pkt;
-};
-
-/* Flag a sent packet as being an ack-eliciting packet. */
-#define QUIC_FL_TX_PACKET_ACK_ELICITING (1UL << 0)
-/* Flag a sent packet as containing a PADDING frame. */
-#define QUIC_FL_TX_PACKET_PADDING       (1UL << 1)
-/* Flag a sent packet as being in flight. */
-#define QUIC_FL_TX_PACKET_IN_FLIGHT     (QUIC_FL_TX_PACKET_ACK_ELICITING | QUIC_FL_TX_PACKET_PADDING)
-/* Flag a sent packet as containing a CONNECTION_CLOSE frame */
-#define QUIC_FL_TX_PACKET_CC            (1UL << 2)
-/* Flag a sent packet as containing an ACK frame */
-#define QUIC_FL_TX_PACKET_ACK           (1UL << 3)
-/* Flag a sent packet as being coalesced to another one in the same datagram */
-#define QUIC_FL_TX_PACKET_COALESCED     (1UL << 4)
-/* Flag a sent packet as being probing with old data */
-#define QUIC_FL_TX_PACKET_PROBE_WITH_OLD_DATA (1UL << 5)
-
-/* Structure to store enough information about TX QUIC packets. */
-struct quic_tx_packet {
-	/* List entry point. */
-	struct list list;
-	/* Packet length */
-	size_t len;
-	/* This is not the packet length but the length of outstanding data
-	 * for in flight TX packet.
-	 */
-	size_t in_flight_len;
-	struct eb64_node pn_node;
-	/* The list of frames of this packet. */
-	struct list frms;
-	/* The time this packet was sent (ms). */
-	unsigned int time_sent;
-	/* Packet number spakce. */
-	struct quic_pktns *pktns;
-	/* Flags. */
-	unsigned int flags;
-	/* Reference counter */
-	int refcnt;
-	/* Next packet in the same datagram */
-	struct quic_tx_packet *next;
-	/* Previous packet in the same datagram */
-	struct quic_tx_packet *prev;
-	/* Largest acknowledged packet number if this packet contains an ACK frame */
-	int64_t largest_acked_pn;
-	unsigned char type;
 };
 
 #define QUIC_CRYPTO_BUF_SHIFT  10

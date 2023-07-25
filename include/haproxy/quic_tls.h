@@ -28,6 +28,7 @@
 #include <haproxy/quic_conn.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_tls-t.h>
+#include <haproxy/quic_tx.h>
 #include <haproxy/trace.h>
 
 int quic_tls_finalize(struct quic_conn *qc, int server);
@@ -538,6 +539,21 @@ static inline void quic_pktns_discard(struct quic_pktns *pktns,
 	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
 }
 
+
+/* Release all the frames attached to <pktns> packet number space */
+static inline void qc_release_pktns_frms(struct quic_conn *qc,
+                                         struct quic_pktns *pktns)
+{
+	struct quic_frame *frm, *frmbak;
+
+	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
+
+	list_for_each_entry_safe(frm, frmbak, &pktns->tx.frms, list)
+		qc_frm_free(qc, &frm);
+
+	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
+}
+
 /* Return 1 if <pktns> matches with the Application packet number space of
  * <conn> connection which is common to the 0-RTT and 1-RTT encryption levels, 0
  * if not (handshake packets).
@@ -638,6 +654,19 @@ static inline int quic_tls_pkt_type_pktns_dcd(struct quic_conn *qc, unsigned cha
 		return 1;
 
 	return 0;
+}
+
+/* Select the correct TLS cipher context to used to decipher an RX packet
+ * with <type> as type and <version> as version and attached to <qc>
+ * connection from <qel> encryption level.
+ */
+static inline struct quic_tls_ctx *qc_select_tls_ctx(struct quic_conn *qc,
+                                                     struct quic_enc_level *qel,
+                                                     unsigned char type,
+                                                     const struct quic_version *version)
+{
+	return type != QUIC_PACKET_TYPE_INITIAL ? &qel->tls_ctx :
+		version == qc->negotiated_version ? qc->nictx : &qel->tls_ctx;
 }
 
 /* Reset all members of <ctx> to default values, ->hp_key[] excepted */
