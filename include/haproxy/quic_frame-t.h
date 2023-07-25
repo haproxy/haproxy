@@ -34,6 +34,8 @@
 #include <haproxy/list.h>
 #include <haproxy/quic_stream-t.h>
 
+extern struct pool_head *pool_head_quic_frame;
+
 /* forward declarations from xprt-quic */
 struct quic_arngs;
 struct quic_enc_level;

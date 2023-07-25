@@ -23,6 +23,8 @@
 
 #define TRACE_SOURCE    &trace_quic
 
+DECLARE_POOL(pool_head_quic_frame, "quic_frame", sizeof(struct quic_frame));
+
 const char *quic_frame_type_string(enum quic_frame_type ft)
 {
 	switch (ft) {

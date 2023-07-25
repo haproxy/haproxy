@@ -34,7 +34,6 @@
 #include <haproxy/openssl-compat.h>
 #include <haproxy/mux_quic-t.h>
 #include <haproxy/quic_cc-t.h>
-#include <haproxy/quic_frame-t.h>
 #include <haproxy/quic_loss-t.h>
 #include <haproxy/quic_openssl_compat-t.h>
 #include <haproxy/quic_stats-t.h>
@@ -253,7 +252,6 @@ enum quic_pkt_type {
 
 extern struct trace_source trace_quic;
 extern struct pool_head *pool_head_quic_crypto_buf;
-extern struct pool_head *pool_head_quic_frame;
 
 struct quic_version {
 	uint32_t num;
