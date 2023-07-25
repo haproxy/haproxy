@@ -651,7 +651,7 @@ static void sc_app_chk_snd(struct stconn *sc)
 		return;
 
 	if (!sc_ep_test(sc, SE_FL_WAIT_DATA) ||  /* not waiting for data */
-	    channel_is_empty(oc))                  /* called with nothing to send ! */
+	    (channel_is_empty(oc) && !sc_ep_have_ff_data(sc)))  /* called with nothing to send ! */
 		return;
 
 	/* Otherwise there are remaining data to be sent in the buffer,
@@ -799,7 +799,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 		     (sc->flags & SC_FL_SHUT_DONE)))
 		return;
 
-	if (unlikely(channel_is_empty(oc)))  /* called with nothing to send ! */
+	if (unlikely(channel_is_empty(oc) && !sc_ep_have_ff_data(sc)))  /* called with nothing to send ! */
 		return;
 
 	if (!sc_ep_have_ff_data(sc) &&              /* data wants to be fast-forwarded ASAP */
@@ -970,7 +970,7 @@ static void sc_app_chk_snd_applet(struct stconn *sc)
 	if (!sc_ep_test(sc, SE_FL_WAIT_DATA|SE_FL_WONT_CONSUME) && !(sc->flags & SC_FL_SHUT_WANTED))
 		return;
 
-	if (!channel_is_empty(oc)) {
+	if (!channel_is_empty(oc) || sc_ep_have_ff_data(sc)) {
 		/* (re)start sending */
 		appctx_wakeup(__sc_appctx(sc));
 	}
@@ -1702,7 +1702,7 @@ static int sc_conn_send(struct stconn *sc)
 	}
 
 	/* FIXME: Must be reviewed for FF */
-	if (channel_is_empty(oc)) {
+	if (channel_is_empty(oc) && !sc_ep_have_ff_data(sc)) {
 		/* If fast-forwarding is blocked, unblock it now to check for
 		 * receive on the other side
 		 */
@@ -1760,7 +1760,8 @@ static int sc_conn_process(struct stconn *sc)
 	BUG_ON(!conn);
 
 	/* If we have data to send, try it now */
-	if (!channel_is_empty(oc) && !(sc->wait_event.events & SUB_RETRY_SEND))
+	if ((!channel_is_empty(oc) || sc_ep_have_ff_data(sc)) &&
+	    !(sc->wait_event.events & SUB_RETRY_SEND))
 		sc_conn_send(sc);
 
 	/* First step, report to the stream connector what was detected at the
@@ -1852,7 +1853,7 @@ struct task *sc_conn_io_cb(struct task *t, void *ctx, unsigned int state)
 	if (!sc_conn(sc))
 		return t;
 
-	if (!(sc->wait_event.events & SUB_RETRY_SEND) && (!channel_is_empty(sc_oc(sc)) || (sc->sedesc->iobuf.flags & IOBUF_FL_FF_BLOCKED)))
+	if (!(sc->wait_event.events & SUB_RETRY_SEND) && (!channel_is_empty(sc_oc(sc)) || sc_ep_have_ff_data(sc) || (sc->sedesc->iobuf.flags & IOBUF_FL_FF_BLOCKED)))
 		ret = sc_conn_send(sc);
 	if (!(sc->wait_event.events & SUB_RETRY_RECV))
 		ret |= sc_conn_recv(sc);

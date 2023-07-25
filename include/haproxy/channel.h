@@ -402,14 +402,13 @@ static inline void channel_htx_forward_forever(struct channel *chn, struct htx *
 /* These functions are used to compute various channel content sizes */
 /*********************************************************************/
 
-/* Reports non-zero if the channel is empty, which means both its
- * buffer and pipe on the opposite SE are empty. The construct looks
- * strange but is jump-less and much more efficient on both 32 and
- * 64-bit than the boolean test.
+/* Reports non-zero if the channel is empty, which means its buffer is
+ * empty. The construct looks strange but is jump-less and much more efficient
+ * on both 32 and 64-bit than the boolean test.
  */
 static inline unsigned int channel_is_empty(const struct channel *c)
 {
-	return (!co_data(c) && !sc_ep_have_ff_data(chn_cons(c)));
+	return !co_data(c);
 }
 
 /* Returns non-zero if the channel is rewritable, which means that the buffer
