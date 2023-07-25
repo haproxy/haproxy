@@ -836,44 +836,6 @@ static inline enum quic_pkt_type quic_enc_level_pkt_type(struct quic_conn *qc,
 		return -1;
 }
 
-/* Set <*level> and <*next_level> depending on <state> QUIC handshake state. */
-static inline int quic_get_tls_enc_levels(enum quic_tls_enc_level *level,
-                                          enum quic_tls_enc_level *next_level,
-                                          struct quic_conn *qc,
-                                          enum quic_handshake_state state, int zero_rtt)
-{
-	int ret = 0;
-
-	TRACE_ENTER(QUIC_EV_CONN_ELEVELSEL, qc, &state, level, next_level);
-	switch (state) {
-	case QUIC_HS_ST_SERVER_INITIAL:
-	case QUIC_HS_ST_CLIENT_INITIAL:
-		*level = QUIC_TLS_ENC_LEVEL_INITIAL;
-		if (zero_rtt)
-			*next_level = QUIC_TLS_ENC_LEVEL_EARLY_DATA;
-		else
-			*next_level = QUIC_TLS_ENC_LEVEL_HANDSHAKE;
-		break;
-	case QUIC_HS_ST_SERVER_HANDSHAKE:
-	case QUIC_HS_ST_CLIENT_HANDSHAKE:
-		*level = QUIC_TLS_ENC_LEVEL_HANDSHAKE;
-		*next_level = QUIC_TLS_ENC_LEVEL_APP;
-		break;
-	case QUIC_HS_ST_COMPLETE:
-	case QUIC_HS_ST_CONFIRMED:
-		*level = QUIC_TLS_ENC_LEVEL_APP;
-		*next_level = QUIC_TLS_ENC_LEVEL_NONE;
-		break;
-	default:
-		goto leave;
-	}
-
-	ret = 1;
- leave:
-	TRACE_LEAVE(QUIC_EV_CONN_ELEVELSEL, qc, NULL, level, next_level);
-	return ret;
-}
-
 /* Derive the initial secrets with <ctx> as QUIC TLS context which is the
  * cryptographic context for the first encryption level (Initial) from
  * <cid> connection ID with <cidlen> as length (in bytes) for a server or not
