@@ -4015,6 +4015,14 @@ out_uri_auth_compat:
 			if ((curproxy->mode != PR_MODE_HTTP) && (curproxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR)
 				curproxy->options &= ~PR_O_REUSE_MASK;
 
+			if ((curproxy->mode != PR_MODE_HTTP) && newsrv->flags & SRV_F_REVERSE) {
+				ha_alert("%s '%s' : server %s uses reverse addressing which can only be used with HTTP mode.\n",
+					   proxy_type_str(curproxy), curproxy->id, newsrv->id);
+				cfgerr++;
+				err_code |= ERR_FATAL | ERR_ALERT;
+				goto out;
+			}
+
 			newsrv = newsrv->next;
 		}
 

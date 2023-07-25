@@ -2765,6 +2765,22 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		else
 			newsrv->tmpl_info.prefix = strdup(args[1]);
 
+		/* special address specifier */
+		if (args[*cur_arg][0] == '@') {
+			if (strcmp(args[*cur_arg], "@reverse") == 0) {
+				newsrv->flags |= SRV_F_REVERSE;
+			}
+			else {
+				ha_alert("unknown server address specifier '%s'\n",
+				         args[*cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			(*cur_arg)++;
+			parse_flags &= ~SRV_PARSE_PARSE_ADDR;
+		}
+
 		/* several ways to check the port component :
 		 *  - IP    => port=+0, relative (IPv4 only)
 		 *  - IP:   => port=+0, relative

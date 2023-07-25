@@ -11437,6 +11437,13 @@ server <name> <address>[:[port]] [param*]
               variables. The "init-addr" setting can be used to modify the way
               IP addresses should be resolved upon startup.
 
+              Additionally, there is a special address notation defined for
+              servers which does not have any address assigned. Currently, only
+              '@reverse' is valid. This instantiates a server which can only be
+              used with reverse connect. This mode requires the proxy to be in
+              HTTP mode and the server to explicitly use HTTP/2, either through
+              'proto' or 'alpn' keywords.
+
     <port>    is an optional port specification. If set, all connections will
               be sent to this port. If unset, the same port the client
               connected to will be used. The port may also be prefixed by a "+"

@@ -141,6 +141,7 @@ enum srv_initaddr {
 #define SRV_F_NON_STICK    0x0004        /* never add connections allocated to this server to a stick table */
 #define SRV_F_USE_NS_FROM_PP 0x0008      /* use namespace associated with connection if present */
 #define SRV_F_FORCED_ID    0x0010        /* server's ID was forced in the configuration */
+#define SRV_F_REVERSE      0x0020        /* reverse connect server which requires idle connection for transfers */
 #define SRV_F_AGENTPORT    0x0040        /* this server has a agent port configured */
 #define SRV_F_AGENTADDR    0x0080        /* this server has a agent addr configured */
 #define SRV_F_COOKIESET    0x0100        /* this server has a cookie configured, so don't generate dynamic cookies */
