@@ -38,6 +38,7 @@ DECLARE_POOL(pool_head_connection,     "connection",     sizeof(struct connectio
 DECLARE_POOL(pool_head_conn_hash_node, "conn_hash_node", sizeof(struct conn_hash_node));
 DECLARE_POOL(pool_head_sockaddr,       "sockaddr",       sizeof(struct sockaddr_storage));
 DECLARE_POOL(pool_head_authority,      "authority",      PP2_AUTHORITY_MAX);
+DECLARE_POOL(pool_head_ssl_cn,      "ssl_cn",      PP2_TYPE_SSL_CN_MAX);
 
 struct idle_conns idle_conns[MAX_THREADS] = { };
 struct xprt_ops *registered_xprt[XPRT_ENTRIES] = { NULL, };
@@ -433,6 +434,7 @@ void conn_init(struct connection *conn, void *target)
 	conn->dst = NULL;
 	conn->proxy_authority = IST_NULL;
 	conn->proxy_unique_id = IST_NULL;
+    conn->proxy_ssl_cn = IST_NULL;
 	conn->hash_node = NULL;
 	conn->xprt = NULL;
 }
@@ -497,6 +499,9 @@ void conn_free(struct connection *conn)
 
 	pool_free(pool_head_uniqueid, istptr(conn->proxy_unique_id));
 	conn->proxy_unique_id = IST_NULL;
+
+    pool_free(pool_head_ssl_cn, istptr(conn->proxy_ssl_cn));
+	conn->proxy_ssl_cn = IST_NULL;
 
 	/* Make sure the connection is not left in the idle connection tree */
 	if (conn->hash_node != NULL)
@@ -1084,6 +1089,32 @@ int conn_recv_proxy(struct connection *conn, int flag)
 					my_unreachable();
 					goto fail;
 				}
+				break;
+			}
+            case PP2_TYPE_SSL: {
+                size_t total_sub_tlv_len;
+                size_t sub_tlv_offset = 0;
+                struct tlv_ssl *tlv_ssl_packet;
+                tlv_ssl_packet = (struct tlv_ssl *) tlv_packet;
+                total_sub_tlv_len = get_tlv_length(tlv_packet);
+                while ( sub_tlv_offset < total_sub_tlv_len) {
+                    struct tlv *sub_tlv = (struct tlv *) &tlv_ssl_packet->sub_tlv[sub_tlv_offset];
+                    tlv = ist2((const char *) sub_tlv->value, get_tlv_length(sub_tlv));
+                    sub_tlv_offset += istlen(tlv) + TLV_HEADER_SIZE;
+                    if (sub_tlv->type == PP2_SUBTYPE_SSL_CN) {
+                        if (istlen(tlv) > PP2_TYPE_SSL_CN_MAX)
+                            goto bad_header;
+                        conn->proxy_ssl_cn = ist2(pool_alloc(pool_head_ssl_cn), 0);
+                        if (!isttest(conn->proxy_ssl_cn))
+                            goto fail;
+                        if (istcpy(&conn->proxy_ssl_cn, tlv, PP2_TYPE_SSL_CN_MAX) < 0) {
+                            /* This is impossible, because we verified that the TLV value fits. */
+                            my_unreachable();
+                            goto fail;
+                        }
+                        break;
+                    }
+                }
 				break;
 			}
 			default:
@@ -2182,6 +2213,31 @@ int smp_fetch_fc_pp_authority(const struct arg *args, struct sample *smp, const 
 	return 1;
 }
 
+/* fetch the authority TLV from a PROXY protocol header */
+int smp_fetch_fc_pp_ssl_cn(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+
+	conn = objt_conn(smp->sess->origin);
+	if (!conn)
+		return 0;
+
+	if (conn->flags & CO_FL_WAIT_XPRT) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	if (!isttest(conn->proxy_ssl_cn))
+		return 0;
+
+	smp->flags = 0;
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str.area = istptr(conn->proxy_ssl_cn);
+	smp->data.u.str.data = istlen(conn->proxy_ssl_cn);
+
+	return 1;
+}
+
 /* fetch the unique ID TLV from a PROXY protocol header */
 int smp_fetch_fc_pp_unique_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -2267,9 +2323,9 @@ int smp_fetch_fc_err_str(const struct arg *args, struct sample *smp, const char 
 }
 
 /* Note: must not be declared <const> as its list will be overwritten.
- * Note: fetches that may return multiple types should be declared using the
- * appropriate pseudo-type. If not available it must be declared as the lowest
- * common denominator, the type that can be casted into all other ones.
+ * Note: fetches that may return multiple types must be declared as the lowest
+ * common denominator, the type that can be casted into all other ones. For
+ * instance v4/v6 must be declared v4.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "bc_err", smp_fetch_fc_err, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
@@ -2281,6 +2337,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "fc_rcvd_proxy", smp_fetch_fc_rcvd_proxy, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "fc_pp_authority", smp_fetch_fc_pp_authority, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
 	{ "fc_pp_unique_id", smp_fetch_fc_pp_unique_id, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
+    { "fc_pp_ssl_cn", smp_fetch_fc_pp_ssl_cn, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
 	{ /* END */ },
 }};
 
