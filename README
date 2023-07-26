@@ -20,3 +20,7 @@ The more detailed documentation is located into the doc/ directory :
   - doc/peers.txt for the peers protocol reference
   - doc/coding-style.txt for how to adopt HAProxy's coding style
   - doc/internals for developer-specific documentation (not all up to date)
+
+
+New Support for PP TLV SSL: fc_pp_ssl_cn
+log-format "log: %T\ %t\  src=%[src],client_cn=%[fc_pp_ssl_cn]"

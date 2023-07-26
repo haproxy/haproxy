@@ -661,19 +661,6 @@ struct tlv_ssl {
 	uint8_t sub_tlv[VAR_ARRAY];
 }__attribute__((packed));
 
-struct tlv_ssl_cn {
-	uint8_t client;
-	uint32_t verify;
-    uint8_t sub_type_1;
-    uint8_t length_hi_1;
-    uint8_t length_lo_1;
-    uint8_t sub_tlv_ssl_version[7];
-    uint8_t sub_type_2;
-    uint8_t length_hi_2;
-    uint8_t length_lo_2;
-    uint8_t sub_tlv_ssl_cn[0];
-}__attribute__((packed));
-
 /* This structure is used to manage idle connections, their locking, and the
  * list of such idle connections to be removed. It is per-thread and must be
  * accessible from foreign threads.
