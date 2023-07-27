@@ -435,6 +435,7 @@ void conn_init(struct connection *conn, void *target)
 	conn->proxy_unique_id = IST_NULL;
 	conn->hash_node = NULL;
 	conn->xprt = NULL;
+	conn->reverse.target = NULL;
 }
 
 /* Initialize members used for backend connections.
@@ -2431,6 +2432,56 @@ uint64_t conn_calculate_hash(const struct conn_hash_params *params)
 
 	hash = conn_hash_digest(buf, idx, hash_flags);
 	return hash;
+}
+
+/* Reverse a <conn> connection instance. This effectively moves the connection
+ * from frontend to backend side or vice-versa depending on its initial status.
+ *
+ * For passive reversal, 'reverse' member points to the server used as the new
+ * connection target. Once transition is completed, the connection appears as a
+ * normal backend connection.
+ *
+ * Returns 0 on success else non-zero.
+ */
+int conn_reverse(struct connection *conn)
+{
+	struct conn_hash_params hash_params;
+	int64_t hash = 0;
+	struct session *sess = conn->owner;
+
+	if (!conn_is_back(conn)) {
+		/* srv must have been set by a previous 'attach-srv' rule. */
+		struct server *srv = objt_server(conn->reverse.target);
+		BUG_ON(!srv);
+
+		if (conn_backend_init(conn))
+			return 1;
+
+		/* Initialize hash value for usage as idle conns. */
+		memset(&hash_params, 0, sizeof(hash_params));
+		hash_params.target = srv;
+
+		hash = conn_calculate_hash(&hash_params);
+		conn->hash_node->node.key = hash;
+
+		conn->target = &srv->obj_type;
+		srv_use_conn(srv, conn);
+
+		/* Free the session after detaching the connection from it. */
+		session_unown_conn(sess, conn);
+		sess->origin = NULL;
+		session_free(sess);
+		conn_set_owner(conn, NULL, NULL);
+	}
+	else {
+		ABORT_NOW();
+	}
+
+	/* Invert source and destination addresses if already set. */
+	SWAP(conn->src, conn->dst);
+
+	conn->reverse.target = NULL;
+	return 0;
 }
 
 /* Handler of the task of mux_stopping_data.

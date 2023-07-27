@@ -100,6 +100,9 @@ void conn_hash_update(char *buf, size_t *idx,
                       enum conn_hash_params_t type);
 uint64_t conn_hash_digest(char *buf, size_t bufsize,
                           enum conn_hash_params_t flags);
+
+int conn_reverse(struct connection *conn);
+
 const char *conn_err_code_str(struct connection *c);
 int xprt_add_hs(struct connection *conn);
 void register_mux_proto(struct mux_proto_list *list);

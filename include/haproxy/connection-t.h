@@ -543,6 +543,11 @@ struct connection {
 	 * thus only present if conn.target is of type OBJ_TYPE_SERVER
 	 */
 	struct conn_hash_node *hash_node;
+
+	/* Members used if connection must be reversed. */
+	struct {
+		enum obj_type *target; /* Server for passive reverse. */
+	} reverse;
 };
 
 /* node for backend connection in the idle trees for http-reuse
