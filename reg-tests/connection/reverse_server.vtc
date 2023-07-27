@@ -1,0 +1,66 @@
+varnishtest "Reverse server test"
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=2.9
+
+barrier b1 cond 2
+
+haproxy h_edge -conf {
+defaults
+	log global
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+	mode http
+
+frontend pub
+	bind "fd@${pub}"
+	use_backend be-reverse
+
+backend be-reverse
+	server dev @reverse
+
+frontend priv
+	bind "fd@${priv}" proto h2
+	tcp-request session attach-srv be-reverse/dev
+} -start
+
+# Run a client through public endpoint
+# Reverse server has no connection available thus a 503 is expected
+client c1 -connect ${h_edge_pub_sock} {
+	txreq -url "/"
+	rxresp
+	expect resp.status == 503
+} -run
+
+# Run a client through private endpoint
+# Connection will be attached to the reverse server
+client c_dev -connect ${h_edge_priv_sock} {
+	txpri
+
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	barrier b1 sync
+	stream 1 {
+		rxhdrs
+	} -run
+
+	sendhex "000004 01 05 00000001 88 5c 01 30"
+} -start
+
+# Wait for dev client to be ready to process connection
+barrier b1 sync
+
+# Run a client through public endpoint
+# Reverse server should now be able to proceed with the request
+client c2 -connect ${h_edge_pub_sock} {
+	txreq -url "/"
+	rxresp
+	expect resp.status == 200
+} -run
