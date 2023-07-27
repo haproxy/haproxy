@@ -201,7 +201,6 @@ int warnif_misplaced_tcp_conn(struct proxy *proxy, const char *file, int line, c
 
 int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 {
-	static struct proxy *curproxy = NULL;
 	static struct proxy *curr_defproxy = NULL;
 	static struct proxy *last_defproxy = NULL;
 	const char *err;
