@@ -130,15 +130,19 @@ int chunk_printf(struct buffer *chk, const char *fmt, ...)
 int chunk_appendf(struct buffer *chk, const char *fmt, ...)
 {
 	va_list argp;
+	size_t room;
 	int ret;
 
 	if (!chk->area || !chk->size)
 		return 0;
 
+	room = chk->size - chk->data;
+	if (!room)
+		return chk->data;
+
 	va_start(argp, fmt);
-	ret = vsnprintf(chk->area + chk->data, chk->size - chk->data, fmt,
-			argp);
-	if (ret >= chk->size - chk->data)
+	ret = vsnprintf(chk->area + chk->data, room, fmt, argp);
+	if (ret >= room)
 		/* do not copy anything in case of truncation */
 		chk->area[chk->data] = 0;
 	else
