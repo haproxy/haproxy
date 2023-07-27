@@ -118,7 +118,6 @@ struct acl {
 	struct list list;           /* chaining */
 	char *name;		    /* acl name */
 	struct list expr;	    /* list of acl_exprs */
-	int cache_idx;              /* ACL index in cache */
 	unsigned int use;           /* or'ed bit mask of all acl_expr's SMP_USE_* */
 	unsigned int val;           /* or'ed bit mask of all acl_expr's SMP_VAL_* */
 };
