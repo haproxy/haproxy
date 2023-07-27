@@ -437,6 +437,49 @@ void conn_init(struct connection *conn, void *target)
 	conn->xprt = NULL;
 }
 
+/* Initialize members used for backend connections.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int conn_backend_init(struct connection *conn)
+{
+	if (!sockaddr_alloc(&conn->dst, 0, 0))
+		return 1;
+
+	conn->hash_node = conn_alloc_hash_node(conn);
+	if (unlikely(!conn->hash_node))
+		return 1;
+
+	return 0;
+}
+
+/* Release connection elements reserved for backend side usage. It also takes
+ * care to detach it if linked to a session or a server instance.
+ *
+ * This function is useful when freeing a connection or reversing it to the
+ * frontend side.
+ */
+static void conn_backend_deinit(struct connection *conn)
+{
+	/* If the connection is owned by the session, remove it from its list
+	 */
+	if (conn_is_back(conn) && LIST_INLIST(&conn->session_list)) {
+		session_unown_conn(conn->owner, conn);
+	}
+	else if (!(conn->flags & CO_FL_PRIVATE)) {
+		if (obj_type(conn->target) == OBJ_TYPE_SERVER)
+			srv_release_conn(__objt_server(conn->target), conn);
+	}
+
+	/* Make sure the connection is not left in the idle connection tree */
+	if (conn->hash_node != NULL)
+		BUG_ON(conn->hash_node->node.node.leaf_p != NULL);
+
+	pool_free(pool_head_conn_hash_node, conn->hash_node);
+	conn->hash_node = NULL;
+
+}
+
 /* Tries to allocate a new connection and initialized its main fields. The
  * connection is returned on success, NULL on failure. The connection must
  * be released using pool_free() or conn_free().
@@ -444,7 +487,6 @@ void conn_init(struct connection *conn, void *target)
 struct connection *conn_new(void *target)
 {
 	struct connection *conn;
-	struct conn_hash_node *hash_node;
 
 	conn = pool_alloc(pool_head_connection);
 	if (unlikely(!conn))
@@ -456,13 +498,10 @@ struct connection *conn_new(void *target)
 		if (obj_type(target) == OBJ_TYPE_SERVER)
 			srv_use_conn(__objt_server(target), conn);
 
-		hash_node = conn_alloc_hash_node(conn);
-		if (unlikely(!hash_node)) {
-			pool_free(pool_head_connection, conn);
+		if (conn_backend_init(conn)) {
+			conn_free(conn);
 			return NULL;
 		}
-
-		conn->hash_node = hash_node;
 	}
 
 	return conn;
@@ -471,15 +510,8 @@ struct connection *conn_new(void *target)
 /* Releases a connection previously allocated by conn_new() */
 void conn_free(struct connection *conn)
 {
-	/* If the connection is owned by the session, remove it from its list
-	 */
-	if (conn_is_back(conn) && LIST_INLIST(&conn->session_list)) {
-		session_unown_conn(conn->owner, conn);
-	}
-	else if (!(conn->flags & CO_FL_PRIVATE)) {
-		if (obj_type(conn->target) == OBJ_TYPE_SERVER)
-			srv_release_conn(__objt_server(conn->target), conn);
-	}
+	if (conn_is_back(conn))
+		conn_backend_deinit(conn);
 
 	/* Remove the conn from toremove_list.
 	 *
@@ -497,13 +529,6 @@ void conn_free(struct connection *conn)
 
 	pool_free(pool_head_uniqueid, istptr(conn->proxy_unique_id));
 	conn->proxy_unique_id = IST_NULL;
-
-	/* Make sure the connection is not left in the idle connection tree */
-	if (conn->hash_node != NULL)
-		BUG_ON(conn->hash_node->node.node.leaf_p != NULL);
-
-	pool_free(pool_head_conn_hash_node, conn->hash_node);
-	conn->hash_node = NULL;
 
 	conn_force_unsubscribe(conn);
 	pool_free(pool_head_connection, conn);

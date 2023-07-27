@@ -1602,11 +1602,6 @@ skip_reuse:
 			srv_conn->src = bind_addr;
 			bind_addr = NULL;
 
-			if (!sockaddr_alloc(&srv_conn->dst, 0, 0)) {
-				conn_free(srv_conn);
-				return SF_ERR_RESOURCE;
-			}
-
 			srv_conn->hash_node->node.key = hash;
 		}
 	}
