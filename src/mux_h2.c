@@ -3215,6 +3215,62 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
 	return 1;
 }
 
+/* Reverse the connection <h2c>. Common operations are done for both active and
+ * passive reversal. Timeouts are inverted and H2_CF_IS_BACK is set or unset
+ * depending on the reversal direction.
+ *
+ * For passive reversal, connection is inserted in its targetted server idle
+ * pool. It can thus be reused immediately for future transfers on this server.
+ *
+ * Returns 1 on success else 0.
+ */
+static int h2_conn_reverse(struct h2c *h2c)
+{
+	struct connection *conn = h2c->conn;
+
+	TRACE_ENTER(H2_EV_H2C_WAKE, h2c->conn);
+
+	if (conn_reverse(conn)) {
+		TRACE_ERROR("reverse connection failed", H2_EV_H2C_WAKE, conn);
+		goto err;
+	}
+
+	TRACE_USER("reverse connection", H2_EV_H2C_WAKE, conn);
+
+	/* Check the connection new side after reversal. */
+	if (conn_is_back(conn)) {
+		struct server *srv = __objt_server(h2c->conn->target);
+		struct proxy *prx = srv->proxy;
+
+		h2c->flags |= H2_CF_IS_BACK;
+
+		h2c->shut_timeout = h2c->timeout = prx->timeout.server;
+		if (tick_isset(prx->timeout.serverfin))
+			h2c->shut_timeout = prx->timeout.serverfin;
+
+		h2c->px_counters = EXTRA_COUNTERS_GET(prx->extra_counters_be,
+		                                      &h2_stats_module);
+
+		HA_ATOMIC_OR(&h2c->wait_event.tasklet->state, TASK_F_USR1);
+		xprt_set_idle(conn, conn->xprt, conn->xprt_ctx);
+		srv_add_to_idle_list(srv, conn, 1);
+	}
+	else {
+		/* TODO */
+	}
+
+	h2c->task->expire = tick_add(now_ms, h2c->timeout);
+	task_queue(h2c->task);
+
+	TRACE_LEAVE(H2_EV_H2C_WAKE, h2c->conn);
+	return 1;
+
+ err:
+	h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
+	TRACE_DEVEL("leaving on error", H2_EV_H2C_WAKE);
+	return 0;
+}
+
 /* process Rx frames to be demultiplexed */
 static void h2_process_demux(struct h2c *h2c)
 {
@@ -3457,6 +3513,11 @@ static void h2_process_demux(struct h2c *h2c)
 			if (h2c->st0 == H2_CS_FRAME_A) {
 				TRACE_PROTO("sending H2 SETTINGS ACK frame", H2_EV_TX_FRAME|H2_EV_RX_SETTINGS, h2c->conn, h2s);
 				ret = h2c_ack_settings(h2c);
+
+				if (ret > 0 && conn_is_reverse(h2c->conn)) {
+					/* Initiate connection reversal after SETTINGS reception. */
+					ret = h2_conn_reverse(h2c);
+				}
 			}
 			break;
 

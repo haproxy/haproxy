@@ -697,6 +697,12 @@ static inline int conn_is_ssl(struct connection *conn)
 	return !!conn_get_ssl_sock_ctx(conn);
 }
 
+/* Returns true if connection must be reversed. */
+static inline int conn_is_reverse(const struct connection *conn)
+{
+	return !!(conn->reverse.target);
+}
+
 #endif /* _HAPROXY_CONNECTION_H */
 
 /*
