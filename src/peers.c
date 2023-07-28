@@ -1575,8 +1575,10 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 	/* We force new pushed to 1 to force identifier in update message */
 	new_pushed = 1;
 
-	if (!locked)
-		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
+	if (locked)
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
+
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
 
 	while (1) {
 		struct stksess *ts;
@@ -1633,8 +1635,10 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 	}
 
  out:
-	if (!locked)
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
+
+	if (locked)
+		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
 	return ret;
 }
 
