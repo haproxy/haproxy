@@ -23516,75 +23516,176 @@ Flags are :
 
 Please refer to the table below for currently defined variables :
 
-  +---+------+-----------------------------------------------+-------------+
-  | R | var  | field name (8.2.2 and 8.2.3 for description)  | type        |
-  +---+------+-----------------------------------------------+-------------+
-  |   | %o   | special variable, apply flags on all next var |             |
-  +---+------+-----------------------------------------------+-------------+
-  |   | %B   | bytes_read           (from server to client)  | numeric     |
-  | H | %CC  | captured_request_cookie                       | string      |
-  | H | %CS  | captured_response_cookie                      | string      |
-  |   | %H   | hostname                                      | string      |
-  | H | %HM  | HTTP method (ex: POST)                        | string      |
-  | H | %HP  | HTTP request URI without query string         | string      |
-  | H | %HPO | HTTP path only (without host nor query string)| string      |
-  | H | %HQ  | HTTP request URI query string (ex: ?bar=baz)  | string      |
-  | H | %HU  | HTTP request URI (ex: /foo?bar=baz)           | string      |
-  | H | %HV  | HTTP version (ex: HTTP/1.0)                   | string      |
-  |   | %ID  | unique-id                                     | string      |
-  |   | %ST  | status_code                                   | numeric     |
-  |   | %T   | gmt_date_time                                 | date        |
-  | H | %Ta  | Active time of the request (from TR to end)   | numeric     |
-  |   | %Tc  | Tc                                            | numeric     |
-  |   | %Td  | Td = Tt - (Tq + Tw + Tc + Tr)                 | numeric     |
-  |   | %Tl  | local_date_time                               | date        |
-  |   | %Th  | connection handshake time (SSL, PROXY proto)  | numeric     |
-  | H | %Ti  | idle time before the HTTP request             | numeric     |
-  | H | %Tq  | Th + Ti + TR                                  | numeric     |
-  | H | %TR  | time to receive the full request from 1st byte| numeric     |
-  | H | %Tr  | Tr (response time)                            | numeric     |
-  |   | %Ts  | timestamp                                     | numeric     |
-  |   | %Tt  | Tt                                            | numeric     |
-  |   | %Tu  | Tu                                            | numeric     |
-  |   | %Tw  | Tw                                            | numeric     |
-  |   | %U   | bytes_uploaded       (from client to server)  | numeric     |
-  |   | %ac  | actconn                                       | numeric     |
-  |   | %b   | backend_name                                  | string      |
-  |   | %bc  | beconn      (backend concurrent connections)  | numeric     |
-  |   | %bi  | backend_source_ip       (connecting address)  | IP          |
-  |   | %bp  | backend_source_port     (connecting address)  | numeric     |
-  |   | %bq  | backend_queue                                 | numeric     |
-  |   | %ci  | client_ip                 (accepted address)  | IP          |
-  |   | %cp  | client_port               (accepted address)  | numeric     |
-  |   | %f   | frontend_name                                 | string      |
-  |   | %fc  | feconn     (frontend concurrent connections)  | numeric     |
-  |   | %fi  | frontend_ip              (accepting address)  | IP          |
-  |   | %fp  | frontend_port            (accepting address)  | numeric     |
-  |   | %ft  | frontend_name_transport ('~' suffix for SSL)  | string      |
-  |   | %lc  | frontend_log_counter                          | numeric     |
-  |   | %hr  | captured_request_headers default style        | string      |
-  |   | %hrl | captured_request_headers CLF style            | string list |
-  |   | %hs  | captured_response_headers default style       | string      |
-  |   | %hsl | captured_response_headers CLF style           | string list |
-  |   | %ms  | accept date milliseconds (left-padded with 0) | numeric     |
-  |   | %pid | PID                                           | numeric     |
-  | H | %r   | http_request                                  | string      |
-  |   | %rc  | retries                                       | numeric     |
-  |   | %rt  | request_counter (HTTP req or TCP session)     | numeric     |
-  |   | %s   | server_name                                   | string      |
-  |   | %sc  | srv_conn     (server concurrent connections)  | numeric     |
-  |   | %si  | server_IP                   (target address)  | IP          |
-  |   | %sp  | server_port                 (target address)  | numeric     |
-  |   | %sq  | srv_queue                                     | numeric     |
-  | S | %sslc| ssl_ciphers (ex: AES-SHA)                     | string      |
-  | S | %sslv| ssl_version (ex: TLSv1)                       | string      |
-  |   | %t   | date_time      (with millisecond resolution)  | date        |
-  | H | %tr  | date_time of HTTP request                     | date        |
-  | H | %trg | gmt_date_time of start of HTTP request        | date        |
-  | H | %trl | local_date_time of start of HTTP request      | date        |
-  |   | %ts  | termination_state                             | string      |
-  | H | %tsc | termination_state with cookie status          | string      |
-  +---+------+-----------------------------------------------+-------------+
+  +---+------+------------------------------------------------------+---------+
+  | R | var  | field name (8.2.2 and 8.2.3 for description)         | type    |
+  |   |      | sample fetch alternative                             |         |
+  +===+======+======================================================+=========+
+  |   | %o   | special variable, apply flags on all next var        |         |
+  +---+------+------------------------------------------------------+---------+
+  |                          date formats                                     |
+  +---+------+------------------------------------------------------+---------+
+  |   | %T   | Accept date UTC + timezone                           |         |
+  |   |      | %[accept_date,utime("%d/%b/%Y:%H:%M:%S %z")]         | date    |
+  +---+------+------------------------------------------------------+---------+
+  |   | %Tl  | Accept date local + timezone                         |         |
+  |   |      | %[accept_date,ltime("%d/%b/%Y:%H:%M:%S %z")]         | date    |
+  +---+------+------------------------------------------------------+---------+
+  |   | %Ts  | Accept date as a UNIX timestamp                      | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %t   | Accept date local (with millisecond resolution)      |         |
+  |   |      | %[accept_date(ms),ms_ltime("%d/%b/%Y:%H:%M:%S.%3N")] | date    |
+  +---+------+------------------------------------------------------+---------+
+  |   | %ms  | Accept date milliseconds                             |         |
+  |   |      | %[accept_date(ms),ms_utime("%3N")                    | numeric |
+  +---+------+------------------------------------------------------+---------+
+  | H | %tr  | Request date local (with millisecond resolution)     |         |
+  |   |      | %[request_date(ms),ms_ltime("%d/%b/%Y:%H:%M:%S.%3N")]| date    |
+  +---+------+------------------------------------------------------+---------+
+  | H | %trg | Request date UTC + timezone                          |         |
+  |   |      | %[request_date,utime("%d/%b/%Y:%H:%M:%S %z")]        | date    |
+  +---+------+------------------------------------------------------+---------+
+  | H | %trl | Request date local + timezone                        |         |
+  |   |      | %[request_date,ltime("%d/%b/%Y:%H:%M:%S %z")]        | date    |
+  +---+------+------------------------------------------------------+---------+
+  |                          Timing events                                    |
+  +---+------+------------------------------------------------------+---------+
+  | H | %Ta  | Active time of the request (from TR to end)          |         |
+  |   |      | %[txn.timer.total]                                   | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %Tc  | Tc                                                   |         |
+  |   |      | %[bc.timer.connect]                                  | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %Td  | Td = Tt - (Tq + Tw + Tc + Tr)                        |         |
+  |   |      | %[res.timer.data]                                    | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %Th  | connection handshake time (SSL, PROXY proto)         |         |
+  |   |      | %[fc.timer.handshake]                                | numeric |
+  +---+------+------------------------------------------------------+---------+
+  | H | %Ti  | idle time before the HTTP request                    |         |
+  |   |      | %[req.timer.idle]                                    | numeric |
+  +---+------+------------------------------------------------------+---------+
+  | H | %Tq  | Th + Ti + TR                                         |         |
+  |   |      | %[req.timer.tq]                                      | numeric |
+  +---+------+------------------------------------------------------+---------+
+  | H | %TR  | time to receive the full request from 1st byte       |         |
+  |   |      | %[req.timer.hdr]                                     | numeric |
+  +---+------+------------------------------------------------------+---------+
+  | H | %Tr  | Tr (response time)                                   |         |
+  |   |      | %[res.timer.hdr]                                     | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %Tt  | Tt                                                   |         |
+  |   |      | %[fc.timer.total]                                    | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %Tu  | Tu                                                   |         |
+  |   |      | %[txn.timer.user]                                    | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %Tw  | Tw                                                   |         |
+  |   |      | %[req.timer.queue]                                   | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |                          Others                                           |
+  +---+------+------------------------------------------------------+---------+
+  |   | %B   | bytes_read           (from server to client)         | numeric |
+  +---+------+------------------------------------------------------+---------+
+  | H | %CC  | captured_request_cookie                              | string  |
+  +---+------+------------------------------------------------------+---------+
+  | H | %CS  | captured_response_cookie                             | string  |
+  +---+------+------------------------------------------------------+---------+
+  |   | %H   | hostname                                             | string  |
+  +---+------+------------------------------------------------------+---------+
+  | H | %HM  | HTTP method (ex: POST)                               | string  |
+  +---+------+------------------------------------------------------+---------+
+  | H | %HP  | HTTP request URI without query string                | string  |
+  +---+------+------------------------------------------------------+---------+
+  | H | %HPO | HTTP path only (without host nor query string)       | string  |
+  +---+------+------------------------------------------------------+---------+
+  | H | %HQ  | HTTP request URI query string (ex: ?bar=baz)         | string  |
+  +---+------+------------------------------------------------------+---------+
+  | H | %HU  | HTTP request URI (ex: /foo?bar=baz)                  | string  |
+  +---+------+------------------------------------------------------+---------+
+  | H | %HV  | HTTP version (ex: HTTP/1.0)                          | string  |
+  +---+------+------------------------------------------------------+---------+
+  |   | %ID  | unique-id                                            | string  |
+  +---+------+------------------------------------------------------+---------+
+  |   | %ST  | status_code                                          | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %U   | bytes_uploaded       (from client to server)         | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %ac  | actconn                                              |         |
+  |   |      | %[act_conn]                                          | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %b   | backend_name                                         | string  |
+  +---+------+------------------------------------------------------+---------+
+  |   | %bc  | beconn      (backend concurrent connections)         | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %bi  | backend_source_ip       (connecting address)         |         |
+  |   |      | %[bc_src]                                            | IP      |
+  +---+------+------------------------------------------------------+---------+
+  |   | %bp  | backend_source_port     (connecting address)         |         |
+  |   |      | %[bc_src_port]                                       | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %bq  | backend_queue                                        | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %ci  | client_ip                 (accepted address)         |         |
+  |   |      | %[src]                                               | IP      |
+  +---+------+------------------------------------------------------+---------+
+  |   | %cp  | client_port               (accepted address)         |         |
+  |   |      | %[src_port]                                          | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %f   | frontend_name                                        | string  |
+  +---+------+------------------------------------------------------+---------+
+  |   | %fc  | feconn     (frontend concurrent connections)         | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %fi  | frontend_ip              (accepting address)         |         |
+  |   |      | %[dst]                                               | IP      |
+  +---+------+------------------------------------------------------+---------+
+  |   | %fp  | frontend_port            (accepting address)         |         |
+  |   |      | %[dst_port]                                          | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %ft  | frontend_name_transport ('~' suffix for SSL)         | string  |
+  +---+------+------------------------------------------------------+---------+
+  |   | %lc  | frontend_log_counter                                 | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %hr  | captured_request_headers default style               | string  |
+  +---+------+------------------------------------------------------+---------+
+  |   | %hrl | captured_request_headers CLF style                   | string  |
+  |   |      |                                                      | list    |
+  +---+------+------------------------------------------------------+---------+
+  |   | %hs  | captured_response_headers default style              | string  |
+  +---+------+------------------------------------------------------+---------+
+  |   | %hsl | captured_response_headers CLF style                  | string  |
+  |   |      |                                                      | list    |
+  +---+------+------------------------------------------------------+---------+
+  |   | %pid | PID                                                  |         |
+  |   |      | %[pid]                                               | numeric |
+  +---+------+------------------------------------------------------+---------+
+  | H | %r   | http_request                                         | string  |
+  +---+------+------------------------------------------------------+---------+
+  |   | %rc  | retries                                              | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %rt  | request_counter (HTTP req or TCP session)            | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %s   | server_name                                          | string  |
+  +---+------+------------------------------------------------------+---------+
+  |   | %sc  | srv_conn     (server concurrent connections)         | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %si  | server_IP                   (target address)         |         |
+  |   |      | %[bc_dst]                                            | IP      |
+  +---+------+------------------------------------------------------+---------+
+  |   | %sp  | server_port                 (target address)         |         |
+  |   |      | %[bc_dst_port]                                       | numeric |
+  +---+------+------------------------------------------------------+---------+
+  |   | %sq  | srv_queue                                            | numeric |
+  +---+------+------------------------------------------------------+---------+
+  | S | %sslc| ssl_ciphers (ex: AES-SHA)                            |         |
+  |   |      | %[ssl_fc_cipher]                                     | string  |
+  +---+------+------------------------------------------------------+---------+
+  | S | %sslv| ssl_version (ex: TLSv1)                              |         |
+  |   |      | %[ssl_fc_protocol]                                   | string  |
+  +---+------+------------------------------------------------------+---------+
+  |   | %ts  | termination_state                                    | string  |
+  +---+------+------------------------------------------------------+---------+
+  | H | %tsc | termination_state with cookie status                 | string  |
+  +---+------+------------------------------------------------------+---------+
 
     R = Restrictions : H = mode http only ; S = SSL only
 
