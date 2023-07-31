@@ -409,6 +409,8 @@ int SSL_set_quic_method(SSL *ssl, const SSL_QUIC_METHOD *quic_method)
 	qc->openssl_compat.rbio = rbio;
 	qc->openssl_compat.wbio = wbio;
 	qc->openssl_compat.method = quic_method;
+	qc->openssl_compat.read_level = ssl_encryption_initial;
+	qc->openssl_compat.write_level = ssl_encryption_initial;
 	ret = 1;
 
  leave:
