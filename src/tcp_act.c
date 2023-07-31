@@ -393,6 +393,7 @@ static enum act_return tcp_action_set_tos(struct act_rule *rule, struct proxy *p
 static void release_attach_srv_action(struct act_rule *rule)
 {
 	ha_free(&rule->arg.attach_srv.srvname);
+	release_sample_expr(rule->arg.attach_srv.name);
 }
 
 /*
@@ -454,6 +455,12 @@ static int tcp_check_attach_srv(struct act_rule *rule, struct proxy *px, char **
 		return 0;
 	}
 
+	if ((rule->arg.attach_srv.name && (!srv->use_ssl || !srv->sni_expr)) ||
+	    (!rule->arg.attach_srv.name && srv->use_ssl && srv->sni_expr)) {
+		memprintf(err, "attach-srv rule: connection will never be used; either specify name argument in conjonction with defined SSL SNI on targetted server or none of these");
+		return 0;
+	}
+
 	rule->arg.attach_srv.srv = srv;
 
 	return 1;
@@ -463,12 +470,14 @@ static enum act_parse_ret tcp_parse_attach_srv(const char **args, int *cur_arg, 
                                                struct act_rule *rule, char **err)
 {
 	char *srvname;
+	struct sample_expr *expr;
 
 	rule->action      = ACT_CUSTOM;
 	rule->action_ptr  = tcp_action_attach_srv;
 	rule->release_ptr = release_attach_srv_action;
 	rule->check_ptr   = tcp_check_attach_srv;
 	rule->arg.attach_srv.srvname = NULL;
+	rule->arg.attach_srv.name = NULL;
 
 	srvname = my_strndup(args[*cur_arg], strlen(args[*cur_arg]));
 	if (!srvname)
@@ -477,10 +486,30 @@ static enum act_parse_ret tcp_parse_attach_srv(const char **args, int *cur_arg, 
 
 	++(*cur_arg);
 
+	while (args[*cur_arg] && args[*cur_arg][0] != '\0') {
+		if (strcmp(args[*cur_arg], "name") == 0) {
+			++(*cur_arg);
+
+			expr = sample_parse_expr((char **)args, cur_arg, px->conf.args.file, px->conf.args.line,
+			                         err, &px->conf.args, NULL);
+			if (!expr)
+				return ACT_RET_PRS_ERR;
+
+			rule->arg.attach_srv.name = expr;
+			rule->release_ptr = release_attach_srv_action;
+			++(*cur_arg);
+		}
+		else {
+			memprintf(err, "Unknown argument.");
+			return ACT_RET_PRS_ERR;
+		}
+	}
+
 	return ACT_RET_PRS_OK;
 
  err:
 	ha_free(&rule->arg.attach_srv.srvname);
+	release_sample_expr(rule->arg.attach_srv.name);
 	return ACT_RET_PRS_ERR;
 }
 

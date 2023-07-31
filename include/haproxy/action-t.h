@@ -188,6 +188,7 @@ struct act_rule {
 		struct {
 			char *srvname; /* server name from config parsing. */
 			struct server *srv; /* target server to attach the connection */
+			struct sample_expr *name; /* used to differentiate idle connections */
 		} attach_srv; /* 'attach-srv' rule */
 		struct {
 			void *p[4];

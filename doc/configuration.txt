@@ -13825,7 +13825,7 @@ tcp-request session <action> [{if | unless} <condition>]
   The first keyword is the rule's action. Several types of actions are
   supported:
     - accept
-    - attach-srv <srv>
+    - attach-srv <srv> [name <expr>]
     - reject
     - sc-add-gpc(<idx>,<sc-id>) { <int> | <expr> }
     - sc-inc-gpc(<idx>,<sc-id>)
@@ -13894,12 +13894,18 @@ tcp-request session accept [ { if | unless } <condition> ]
   This is used to accept the connection. No further "tcp-request session"
   rules are evaluated.
 
-tcp-request session attach-srv <srv>
+tcp-request session attach-srv <srv> [name <expr>]
 
   This is used to intercept the connection after proper HTTP/2 establishment.
   The connection is reversed to the backend side and inserted into the idle
   pool of <srv> server. This is useful for reverse server with '@reverse'
   address.
+
+  An extra parameter <expr> can be specified. Its value is interpreted as a
+  sample expression to name the connection inside the server idle pool. When
+  routing an outgoing request through this server, this name will be matched
+  against the 'sni' parameter of the server line. Otherwise, the connection
+  will have no name and will only match requests without SNI.
 
   This rule is only valid for frontend in HTTP mode. Also all listeners must
   not require a protocol different from HTTP/2.
