@@ -1101,6 +1101,10 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		str2 += 9;
 		ss.ss_family = AF_CUST_SOCKPAIR;
 	}
+	else if (strncmp(str2, "rev@", 3) == 0) {
+		str2 += 4;
+		ss.ss_family = AF_CUST_REV_SRV;
+	}
 	else if (*str2 == '/') {
 		ss.ss_family = AF_UNIX;
 	}
@@ -1187,6 +1191,9 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		if (prefix_path_len)
 			memcpy(un->sun_path, pfx, prefix_path_len);
 		memcpy(un->sun_path + prefix_path_len + abstract, str2, adr_len + 1 - abstract);
+	}
+	else if (ss.ss_family == AF_CUST_REV_SRV) {
+		/* Nothing to do here. */
 	}
 	else { /* IPv4 and IPv6 */
 		char *end = str2 + strlen(str2);
