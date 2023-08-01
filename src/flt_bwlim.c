@@ -289,6 +289,18 @@ static void bwlim_detach(struct stream *s, struct filter *filter)
 }
 
 /**************************************************************************
+ * Hooks to handle channels activity
+ *************************************************************************/
+
+/* Called when analyze ends for a given channel */
+static int bwlim_chn_end_analyze(struct stream *s, struct filter *filter, struct channel *chn)
+{
+	chn->analyse_exp = TICK_ETERNITY;
+        return 1;
+}
+
+
+/**************************************************************************
  * Hooks to filter HTTP messages
  *************************************************************************/
 static int bwlim_http_headers(struct stream *s, struct filter *filter, struct http_msg *msg)
@@ -325,6 +337,8 @@ struct flt_ops bwlim_ops = {
 	.attach             = bwlim_attach,
 	.detach             = bwlim_detach,
 
+	        /* Handle channels activity */
+        .channel_end_analyze = bwlim_chn_end_analyze,
 
 	/* Filter HTTP requests and responses */
 	.http_headers        = bwlim_http_headers,
