@@ -2565,6 +2565,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 		if (!req->analysers)
 			req->analyse_exp = TICK_ETERNITY;
+		if (!res->analysers)
+			res->analyse_exp = TICK_ETERNITY;
 
 		if ((sess->fe->options & PR_O_CONTSTATS) && (s->flags & SF_BE_ASSIGNED) &&
 		          (!tick_isset(req->analyse_exp) || tick_is_expired(req->analyse_exp, now_ms)))
