@@ -102,7 +102,7 @@ struct list postparsers = LIST_HEAD_INIT(postparsers);
 extern struct proxy *mworker_proxy;
 
 /* curproxy is only valid during parsing and will be NULL afterwards. */
-struct proxy *curproxy;
+struct proxy *curproxy = NULL;
 
 char *cursection = NULL;
 int cfg_maxpconn = 0;                   /* # of simultaneous connections per proxy (-N) */

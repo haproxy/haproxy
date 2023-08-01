@@ -71,9 +71,6 @@ const char *spoe_filter_id = "SPOE filter";
 /* Set if the handle on SIGUSR1 is registered */
 static int sighandler_registered = 0;
 
-/* proxy used during the parsing */
-struct proxy *curproxy = NULL;
-
 /* The name of the SPOE engine, used during the parsing */
 char *curengine = NULL;
 
@@ -4169,12 +4166,11 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	cfg_register_section("spoe-message", cfg_parse_spoe_message, NULL);
 
 	/* Parse SPOE filter configuration file */
+	BUG_ON(px != curproxy);
 	curengine = engine;
-	curproxy  = px;
 	curagent  = NULL;
 	curmsg    = NULL;
 	ret = readcfgfile(file);
-	curproxy = NULL;
 
 	/* unregister SPOE sections and restore previous sections */
 	cfg_unregister_sections();
