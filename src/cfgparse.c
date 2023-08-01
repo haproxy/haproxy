@@ -2705,7 +2705,6 @@ static int numa_detect_topology()
 int check_config_validity()
 {
 	int cfgerr = 0;
-	struct proxy *curproxy = NULL;
 	struct proxy *init_proxies_list = NULL;
 	struct stktable *t;
 	struct server *newsrv = NULL;

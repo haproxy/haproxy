@@ -19,6 +19,8 @@ haproxy h1 -conf {
         acl ACL4 acl(ACL2,!ACL3)
 
         http-request return status 200 hdr x-acl "ACL1=%[acl(ACL1)] ACL2=%[acl(ACL2)] ACL3=%[acl(ACL3)] ACL4=%[acl(ACL4)] TRUE=%[acl(TRUE)]"
+
+        log-format ACL1=%[acl(ACL1)]
 } -start
 
 client c1 -connect ${h1_fe1_sock} {
