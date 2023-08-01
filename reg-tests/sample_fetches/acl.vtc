@@ -1,0 +1,32 @@
+varnishtest "Test acl() sample fetch"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.9-dev2)'"
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe1}"
+
+        acl ACL1 always_true
+        acl ACL2 acl(ACL1)
+        acl ACL3 acl(!ACL2)
+        acl ACL4 acl(ACL2,!ACL3)
+
+        http-request return status 200 hdr x-acl "ACL1=%[acl(ACL1)] ACL2=%[acl(ACL2)] ACL3=%[acl(ACL3)] ACL4=%[acl(ACL4)]"
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -req GET -url /
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-acl ~ "ACL1=1"
+    expect resp.http.x-acl ~ "ACL2=1"
+    expect resp.http.x-acl ~ "ACL3=0"
+    expect resp.http.x-acl ~ "ACL4=1"
+} -run
