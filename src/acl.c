@@ -1350,7 +1350,11 @@ int smp_fetch_acl_parse(struct arg *args, char **err_msg)
 			name++;
 		}
 
-		if (!(acl_sample->terms[i].acl = find_acl_by_name(name, &curproxy->acl))) {
+
+		if (
+			!(acl_sample->terms[i].acl = find_acl_by_name(name, &curproxy->acl)) &&
+			!(acl_sample->terms[i].acl = find_acl_default(name, &curproxy->acl, err_msg, NULL, NULL, 0))
+			) {
 			memprintf(err_msg, "ACL '%s' not found", name);
 			goto err;
 		}
