@@ -152,7 +152,7 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 {
 	struct htx_sl *sl;
 	struct ist meth, uri, vsn;
-	unsigned int flags;
+	unsigned int flags = 0;
 
 	/* <h1sl> is always defined for a request */
 	meth = h1sl->rq.m;
@@ -175,9 +175,11 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		h1m->flags &= ~(H1_MF_CLEN|H1_MF_CHNK);
 		h1m->curr_len = h1m->body_len = 0;
 	}
+	else if (h1sl->rq.meth == HTTP_METH_HEAD)
+		flags |= HTX_SL_F_BODYLESS_RESP;
 
 
-	flags = h1m_htx_sl_flags(h1m);
+	flags |= h1m_htx_sl_flags(h1m);
 	if ((flags & (HTX_SL_F_CONN_UPG|HTX_SL_F_BODYLESS)) == HTX_SL_F_CONN_UPG) {
 		int i;
 
@@ -235,7 +237,7 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 {
 	struct htx_sl *sl;
 	struct ist vsn, status, reason;
-	unsigned int flags;
+	unsigned int flags = 0;
 	uint16_t code = 0;
 
 	if (h1sl) {
@@ -293,13 +295,14 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		h1m->flags &= ~(H1_MF_CLEN|H1_MF_CHNK);
 		h1m->flags |= H1_MF_XFER_LEN;
 		h1m->curr_len = h1m->body_len = 0;
+		flags |= HTX_SL_F_BODYLESS_RESP;
 	}
 	else if (h1m->flags & (H1_MF_CLEN|H1_MF_CHNK)) {
 		/* Responses with a known body length. */
 		h1m->flags |= H1_MF_XFER_LEN;
 	}
 
-	flags = h1m_htx_sl_flags(h1m);
+	flags |= h1m_htx_sl_flags(h1m);
 	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, vsn, status, reason);
 	if (!sl || !htx_add_all_headers(htx, hdrs))
 		goto error;

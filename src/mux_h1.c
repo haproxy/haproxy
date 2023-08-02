@@ -1906,7 +1906,8 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	}
 
 	/* Here h1s_sc(h1s) is always defined */
-	if (h1m->state == H1_MSG_DATA || (h1m->state == H1_MSG_TUNNEL)) {
+	if ((!(h1m->flags & H1_MF_RESP) || !(h1s->flags & H1S_F_BODYLESS_RESP)) &&
+	    (h1m->state == H1_MSG_DATA || h1m->state == H1_MSG_TUNNEL)) {
 		TRACE_STATE("notify the mux can use splicing", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
 		se_fl_set(h1s->sd, SE_FL_MAY_SPLICE);
 	}
@@ -2028,7 +2029,7 @@ static size_t h1_make_reqline(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 	h1m->flags |= H1_MF_XFER_LEN;
 	if (sl->flags & HTX_SL_F_BODYLESS)
 		h1m->flags |= H1_MF_CLEN;
-	if (h1s->meth == HTTP_METH_HEAD)
+	if ((sl->flags & HTX_SL_F_BODYLESS_RESP) || h1s->meth == HTTP_METH_HEAD)
 		h1s->flags |= H1S_F_BODYLESS_RESP;
 
 	if (h1s->flags & H1S_F_RX_BLK) {
@@ -2105,7 +2106,7 @@ static size_t h1_make_stline(struct h1s *h1s, struct h1m *h1m, struct htx *htx, 
 		h1m->flags |= H1_MF_XFER_LEN;
 	if (h1s->status < 200)
 		h1s->flags |= H1S_F_HAVE_O_CONN;
-	else if (h1s->status == 204 || h1s->status == 304)
+	else if ((sl->flags & HTX_SL_F_BODYLESS_RESP) || h1s->status == 204 || h1s->status == 304)
 		h1s->flags |= H1S_F_BODYLESS_RESP;
 
 	h1m->state = H1_MSG_HDR_NAME;

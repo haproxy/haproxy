@@ -12,7 +12,7 @@ server s1 {
         rxreq
         txresp \
           -status 200 \
-          -bodylen 20000
+          -bodylen 50000
 
         rxreq
         txresp \
@@ -21,13 +21,14 @@ server s1 {
        chunkedlen 15
        chunkedlen 1024
        chunkedlen 4048
+       chunkedlen 50000
        chunkedlen 0
 
         rxreq
         txresp \
           -status 200 \
           -body "last response"
-} -repeat 2 -start
+} -repeat 3 -start
 
 haproxy h1 -conf {
     global
@@ -60,6 +61,14 @@ haproxy h1 -conf {
     listen fe2
         bind "fd@${fe2}"
         server s1 ${h1_int_addr}:${h1_int_port} proto h2
+
+    listen fe3
+        bind "fd@${fe3}"
+        # Rewrite the method to be sure to get the response payload
+        # on the server side
+        http-request set-method GET
+        option splice-response
+        server s1 ${s1_addr}:${s1_port}
 } -start
 
 client c1 -connect ${h1_fe1_sock} {
@@ -95,6 +104,38 @@ client c1 -connect ${h1_fe1_sock} {
 } -run
 
 client c2 -connect ${h1_fe2_sock} {
+        txreq \
+            -req "HEAD" \
+            -url "/req1"
+        rxresp
+        expect resp.status == 200
+        expect resp.body == ""
+
+        txreq \
+            -req "HEAD" \
+            -url "/req2"
+        rxresp
+        expect resp.status == 200
+        expect resp.body == ""
+
+        txreq \
+            -req "HEAD" \
+            -url "/req3"
+        rxresp
+        expect resp.status == 200
+        expect resp.body == ""
+
+        # The last one have a body and validate the connection was not closed
+        # unexpectedly and no payload was received for previous requests
+        txreq \
+            -req "GET" \
+            -url "/req4"
+        rxresp
+        expect resp.status == 200
+        expect resp.body == "last response"
+} -run
+
+client c3 -connect ${h1_fe3_sock} {
         txreq \
             -req "HEAD" \
             -url "/req1"
