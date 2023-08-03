@@ -455,17 +455,6 @@ static inline void quic_path_init(struct quic_path *path, int ipv4,
 	quic_cc_init(&path->cc, algo, qc);
 }
 
-/* Return the remaining <room> available on <path> QUIC path. In fact this this
- *the remaining number of bytes available in the congestion controller window.
- */
-static inline size_t quic_path_room(struct quic_path *path)
-{
-	if (path->in_flight > path->cwnd)
-		return 0;
-
-	return path->cwnd - path->in_flight;
-}
-
 /* Return the remaining <room> available on <path> QUIC path for prepared data
  * (before being sent). Almost the same that for the QUIC path room, except that
  * here this is the data which have been prepared which are taken into an account.
