@@ -30,10 +30,16 @@
 
 enum iobuf_flags {
 	IOBUF_FL_NONE             = 0x00000000, /* For initialization purposes */
+	IOBUF_FL_NO_FF            = 0x00000001, /* Fast-forwarding is not supported */
+	IOBUF_FL_NO_SPLICING      = 0x00000002, /* Splicing is not supported or unusable for this stream */
+	IOBUF_FL_FF_BLOCKED       = 0x00000004, /* Fast-forwarding is blocked (buffer allocation/full) */
 };
 
 struct iobuf {
 	struct pipe *pipe;     /* non-NULL only when data present */
+	struct buffer *buf;
+	size_t offset;
+	size_t data;
 	unsigned int flags;
 };
 

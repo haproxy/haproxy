@@ -124,12 +124,12 @@ static inline void se_expect_data(struct sedesc *se)
 
 static inline unsigned int se_have_ff_data(struct sedesc *se)
 {
-	return ((long)se->iobuf.pipe);
+	return (se->iobuf.data | (long)se->iobuf.pipe);
 }
 
 static inline size_t se_ff_data(struct sedesc *se)
 {
-	return ((se->iobuf.pipe ? se->iobuf.pipe->data : 0));
+	return (se->iobuf.data + (se->iobuf.pipe ? se->iobuf.pipe->data : 0));
 }
 
 

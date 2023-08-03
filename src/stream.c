@@ -3307,6 +3307,14 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
 	chunk_appendf(buf, " wex=%s\n",
 		      sc_ep_snd_ex(scf) ? human_time(TICKS_TO_MS(sc_ep_snd_ex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
 
+	chunk_appendf(&trash, "%s    iobuf.flags=0x%08x .pipe=%d .buf=%u@%p+%u/%u\n", pfx,
+		      scf->sedesc->iobuf.flags,
+		      scf->sedesc->iobuf.pipe ? scf->sedesc->iobuf.pipe->data : 0,
+		      scf->sedesc->iobuf.buf ? (unsigned int)b_data(scf->sedesc->iobuf.buf): 0,
+		      scf->sedesc->iobuf.buf ? b_orig(scf->sedesc->iobuf.buf): NULL,
+		      scf->sedesc->iobuf.buf ? (unsigned int)b_head_ofs(scf->sedesc->iobuf.buf): 0,
+		      scf->sedesc->iobuf.buf ? (unsigned int)b_size(scf->sedesc->iobuf.buf): 0);
+
 	if ((conn = sc_conn(scf)) != NULL) {
 		if (conn->mux && conn->mux->show_sd) {
 			char muxpfx[100] = "";
@@ -3355,6 +3363,14 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
 		      sc_ep_rcv_ex(scb) ? human_time(TICKS_TO_MS(sc_ep_rcv_ex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
 	chunk_appendf(buf, " wex=%s\n",
 		      sc_ep_snd_ex(scb) ? human_time(TICKS_TO_MS(sc_ep_snd_ex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+
+	chunk_appendf(&trash, "%s    iobuf.flags=0x%08x .pipe=%d .buf=%u@%p+%u/%u\n", pfx,
+		      scb->sedesc->iobuf.flags,
+		      scb->sedesc->iobuf.pipe ? scb->sedesc->iobuf.pipe->data : 0,
+		      scb->sedesc->iobuf.buf ? (unsigned int)b_data(scb->sedesc->iobuf.buf): 0,
+		      scb->sedesc->iobuf.buf ? b_orig(scb->sedesc->iobuf.buf): NULL,
+		      scb->sedesc->iobuf.buf ? (unsigned int)b_head_ofs(scb->sedesc->iobuf.buf): 0,
+		      scb->sedesc->iobuf.buf ? (unsigned int)b_size(scb->sedesc->iobuf.buf): 0);
 
 	if ((conn = sc_conn(scb)) != NULL) {
 		if (conn->mux && conn->mux->show_sd) {
@@ -3408,12 +3424,11 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
 	}
 
 	chunk_appendf(buf,
-		     "%s  req=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
+		     "%s  req=%p (f=0x%06x an=0x%x tofwd=%d total=%lld)\n"
 		     "%s      an_exp=%s buf=%p data=%p o=%u p=%u i=%u size=%u\n",
 		     pfx,
 		     &strm->req,
 		     strm->req.flags, strm->req.analysers,
-		     strm->scb->sedesc->iobuf.pipe ? strm->scb->sedesc->iobuf.pipe->data : 0,
 		     strm->req.to_forward, strm->req.total,
 		     pfx,
 		     strm->req.analyse_exp ?
@@ -3441,12 +3456,11 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
 	}
 
 	chunk_appendf(buf,
-		     "%s  res=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
+		     "%s  res=%p (f=0x%06x an=0x%x tofwd=%d total=%lld)\n"
 		     "%s      an_exp=%s buf=%p data=%p o=%u p=%u i=%u size=%u\n",
 		     pfx,
 		     &strm->res,
 		     strm->res.flags, strm->res.analysers,
-		     strm->scf->sedesc->iobuf.pipe ? strm->scf->sedesc->iobuf.pipe->data : 0,
 		     strm->res.to_forward, strm->res.total,
 		     pfx,
 		     strm->res.analyse_exp ?

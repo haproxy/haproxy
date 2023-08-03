@@ -99,6 +99,8 @@ void sedesc_init(struct sedesc *sedesc)
 	se_fl_setall(sedesc, SE_FL_NONE);
 
 	sedesc->iobuf.pipe = NULL;
+	sedesc->iobuf.buf = NULL;
+	sedesc->iobuf.offset = sedesc->iobuf.data = 0;
 	sedesc->iobuf.flags = IOBUF_FL_NONE;
 }
 
