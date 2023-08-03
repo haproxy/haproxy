@@ -322,8 +322,6 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	}
 	conn->ctx = ctx;
 	se_fl_set(ctx->sd, SE_FL_RCV_MORE);
-	if (global.tune.options & GTUNE_USE_SPLICE)
-		se_fl_set(ctx->sd, SE_FL_MAY_FASTFWD);
 
 	TRACE_LEAVE(PT_EV_CONN_NEW, conn);
 	return 0;
@@ -589,54 +587,6 @@ static int mux_pt_unsubscribe(struct stconn *sc, int event_type, struct wait_eve
 	return conn->xprt->unsubscribe(conn, conn->xprt_ctx, event_type, es);
 }
 
-#if defined(USE_LINUX_SPLICE)
-/* Send and get, using splicing */
-static int mux_pt_rcv_pipe(struct stconn *sc, struct pipe *pipe, unsigned int count)
-{
-	struct connection *conn = __sc_conn(sc);
-	struct mux_pt_ctx *ctx = conn->ctx;
-	int ret;
-
-	TRACE_ENTER(PT_EV_RX_DATA, conn, sc, 0, (size_t[]){count});
-
-	ret = conn->xprt->rcv_pipe(conn, conn->xprt_ctx, pipe, count);
-	if (conn->flags & CO_FL_ERROR) {
-		if (conn_xprt_read0_pending(conn))
-			se_fl_set(ctx->sd, SE_FL_EOS);
-		se_fl_set(ctx->sd, SE_FL_ERROR);
-		TRACE_DEVEL("error on connection", PT_EV_RX_DATA|PT_EV_CONN_ERR, conn, sc);
-	}
-	else if (conn_xprt_read0_pending(conn))  {
-		se_fl_set(ctx->sd, (SE_FL_EOS|SE_FL_EOI));
-		TRACE_DEVEL("read0 on connection", PT_EV_RX_DATA, conn, sc);
-	}
-
-	TRACE_LEAVE(PT_EV_RX_DATA, conn, sc, 0, (size_t[]){ret});
-	return (ret);
-}
-
-static int mux_pt_snd_pipe(struct stconn *sc, struct pipe *pipe)
-{
-	struct connection *conn = __sc_conn(sc);
-	struct mux_pt_ctx *ctx = conn->ctx;
-	int ret;
-
-	TRACE_ENTER(PT_EV_TX_DATA, conn, sc, 0, (size_t[]){pipe->data});
-
-	ret = conn->xprt->snd_pipe(conn, conn->xprt_ctx, pipe);
-
-	if (conn->flags & CO_FL_ERROR) {
-		if (conn_xprt_read0_pending(conn))
-			se_fl_set(ctx->sd, SE_FL_EOS);
-		se_fl_set_error(ctx->sd);
-		TRACE_DEVEL("error on connection", PT_EV_TX_DATA|PT_EV_CONN_ERR, conn, sc);
-	}
-
-	TRACE_LEAVE(PT_EV_TX_DATA, conn, sc, 0, (size_t[]){ret});
-	return ret;
-}
-#endif
-
 static int mux_pt_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *output)
 {
 	int ret = 0;
@@ -660,10 +610,6 @@ const struct mux_ops mux_tcp_ops = {
 	.snd_buf = mux_pt_snd_buf,
 	.subscribe = mux_pt_subscribe,
 	.unsubscribe = mux_pt_unsubscribe,
-#if defined(USE_LINUX_SPLICE)
-	.rcv_pipe = mux_pt_rcv_pipe,
-	.snd_pipe = mux_pt_snd_pipe,
-#endif
 	.attach = mux_pt_attach,
 	.get_first_sc = mux_pt_get_first_sc,
 	.detach = mux_pt_detach,
@@ -685,10 +631,6 @@ const struct mux_ops mux_pt_ops = {
 	.snd_buf = mux_pt_snd_buf,
 	.subscribe = mux_pt_subscribe,
 	.unsubscribe = mux_pt_unsubscribe,
-#if defined(USE_LINUX_SPLICE)
-	.rcv_pipe = mux_pt_rcv_pipe,
-	.snd_pipe = mux_pt_snd_pipe,
-#endif
 	.attach = mux_pt_attach,
 	.get_first_sc = mux_pt_get_first_sc,
 	.detach = mux_pt_detach,
