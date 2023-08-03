@@ -629,7 +629,7 @@ static void sc_app_shut(struct stconn *sc)
 /* default chk_rcv function for scheduled tasks */
 static void sc_app_chk_rcv(struct stconn *sc)
 {
-	if (sc_opposite(sc)->sedesc->iobuf.pipe) {
+	if (sc_ep_have_ff_data(sc_opposite(sc))) {
 		/* stop reading */
 		sc_need_room(sc, -1);
 	}
@@ -800,7 +800,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 	if (unlikely(channel_is_empty(oc)))  /* called with nothing to send ! */
 		return;
 
-	if (!sc->sedesc->iobuf.pipe &&                    /* spliced data wants to be forwarded ASAP */
+	if (!sc_ep_have_ff_data(sc) &&              /* data wants to be fast-forwarded ASAP */
 	    !sc_ep_test(sc, SE_FL_WAIT_DATA))       /* not waiting for data */
 		return;
 
@@ -946,7 +946,7 @@ static void sc_app_chk_rcv_applet(struct stconn *sc)
 {
 	BUG_ON(!sc_appctx(sc));
 
-	if (!sc_opposite(sc)->sedesc->iobuf.pipe) {
+	if (!sc_ep_have_ff_data(sc_opposite(sc))) {
 		/* (re)start reading */
 		appctx_wakeup(__sc_appctx(sc));
 	}
@@ -1090,18 +1090,12 @@ static void sc_notify(struct stconn *sc)
 	 */
 	if (!channel_is_empty(ic) &&
 	    sc_ep_test(sco, SE_FL_WAIT_DATA) &&
-	    (!(sc->flags & SC_FL_SND_EXP_MORE) || c_full(ic) || ci_data(ic) == 0 || sco->sedesc->iobuf.pipe)) {
+	    (!(sc->flags & SC_FL_SND_EXP_MORE) || c_full(ic) || ci_data(ic) == 0 || sc_ep_have_ff_data(sco))) {
 		int new_len, last_len;
 
-		last_len = co_data(ic);
-		if (sco->sedesc->iobuf.pipe)
-			last_len += sco->sedesc->iobuf.pipe->data;
-
+		last_len = co_data(ic) + sc_ep_ff_data(sco);
 		sc_chk_snd(sco);
-
-		new_len = co_data(ic);
-		if (sco->sedesc->iobuf.pipe)
-			new_len += sco->sedesc->iobuf.pipe->data;
+		new_len = co_data(ic) + sc_ep_ff_data(sco);
 
 		/* check if the consumer has freed some space either in the
 		 * buffer or in the pipe.
@@ -1265,8 +1259,8 @@ static int sc_conn_recv(struct stconn *sc)
 	/* First, let's see if we may splice data across the channel without
 	 * using a buffer.
 	 */
-	if (sc_ep_test(sc, SE_FL_MAY_SPLICE) &&
-	    (sc_opposite(sc)->sedesc->iobuf.pipe || ic->to_forward >= MIN_SPLICE_FORWARD) &&
+	if (sc_ep_test(sc, SE_FL_MAY_FASTFWD) &&
+	    (sc_ep_have_ff_data(sc_opposite(sc)) || ic->to_forward >= MIN_SPLICE_FORWARD) &&
 	    ic->flags & CF_KERN_SPLICING) {
 		if (c_data(ic)) {
 			/* We're embarrassed, there are already data pending in
@@ -1315,13 +1309,13 @@ static int sc_conn_recv(struct stconn *sc)
 	}
 
  abort_splice:
-	if (sc_opposite(sc)->sedesc->iobuf.pipe && unlikely(!sc_opposite(sc)->sedesc->iobuf.pipe->data)) {
+	if (sc_ep_have_ff_data(sc_opposite(sc)) && unlikely(!sc_ep_ff_data(sc_opposite(sc)))) {
 		put_pipe(sc_opposite(sc)->sedesc->iobuf.pipe);
 		sc_opposite(sc)->sedesc->iobuf.pipe = NULL;
 	}
 
-	if (sc_opposite(sc)->sedesc->iobuf.pipe && ic->to_forward &&
-	    !(flags & CO_RFL_BUF_FLUSH) && sc_ep_test(sc, SE_FL_MAY_SPLICE)) {
+	if (sc_ep_have_ff_data(sc_opposite(sc)) && ic->to_forward &&
+	    !(flags & CO_RFL_BUF_FLUSH) && sc_ep_test(sc, SE_FL_MAY_FASTFWD)) {
 		/* don't break splicing by reading, but still call rcv_buf()
 		 * to pass the flag.
 		 */
@@ -1601,17 +1595,16 @@ static int sc_conn_send(struct stconn *sc)
 	if (!conn->mux)
 		return 0;
 
-	if (sc->sedesc->iobuf.pipe && conn->xprt->snd_pipe && conn->mux->snd_pipe) {
+	if (sc_ep_have_ff_data(sc) && conn->xprt->snd_pipe && conn->mux->snd_pipe) {
 		ret = conn->mux->snd_pipe(sc, sc->sedesc->iobuf.pipe);
 		if (ret > 0)
 			did_send = 1;
 
-		if (!sc->sedesc->iobuf.pipe->data) {
+		if (!sc_ep_ff_data(sc)) {
 			put_pipe(sc->sedesc->iobuf.pipe);
 			sc->sedesc->iobuf.pipe = NULL;
 		}
-
-		if (sc->sedesc->iobuf.pipe)
+		else
 			goto end;
 	}
 

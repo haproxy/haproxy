@@ -855,7 +855,7 @@ static void h1s_destroy(struct h1s *h1s)
 
 		h1_release_buf(h1c, &h1s->rxbuf);
 
-		h1c->flags &= ~(H1C_F_WANT_SPLICE|
+		h1c->flags &= ~(H1C_F_WANT_FASTFWD|
 				H1C_F_OUT_FULL|H1C_F_OUT_ALLOC|H1C_F_IN_SALLOC|
 				H1C_F_CO_MSG_MORE|H1C_F_CO_STREAMER);
 
@@ -1908,13 +1908,13 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	/* Here h1s_sc(h1s) is always defined */
 	if ((!(h1m->flags & H1_MF_RESP) || !(h1s->flags & H1S_F_BODYLESS_RESP)) &&
 	    (h1m->state == H1_MSG_DATA || h1m->state == H1_MSG_TUNNEL)) {
-		TRACE_STATE("notify the mux can use splicing", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
-		se_fl_set(h1s->sd, SE_FL_MAY_SPLICE);
+		TRACE_STATE("notify the mux can use fast-forward", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
+		se_fl_set(h1s->sd, SE_FL_MAY_FASTFWD);
 	}
 	else {
-		TRACE_STATE("notify the mux can't use splicing anymore", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
-		se_fl_clr(h1s->sd, SE_FL_MAY_SPLICE);
-		h1c->flags &= ~H1C_F_WANT_SPLICE;
+		TRACE_STATE("notify the mux can't use fast-forward anymore", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
+		se_fl_clr(h1s->sd, SE_FL_MAY_FASTFWD);
+		h1c->flags &= ~H1C_F_WANT_FASTFWD;
 	}
 
 	/* Set EOI on stream connector in DONE state iff:
@@ -2576,8 +2576,8 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			/* The message is chunked. We need to check if we must
 			 * emit the chunk size, the CRLF marking the end of the
 			 * current chunk and eventually the CRLF marking the end
-			 * of the previous chunk (because of the kernel
-			 * splicing). If it is the end of the message, we must
+			 * of the previous chunk (because of fast-forwarding).
+			 * If it is the end of the message, we must
 			 * also emit the last chunk.
 			 *
 			 *  We have at least the size of the struct htx to write
@@ -3320,8 +3320,8 @@ static int h1_recv(struct h1c *h1c)
 		return (b_data(&h1c->ibuf));
 	}
 
-	if ((h1c->flags & H1C_F_WANT_SPLICE) || !h1_recv_allowed(h1c)) {
-		TRACE_DEVEL("leaving on (want_splice|!recv_allowed)", H1_EV_H1C_RECV, h1c->conn);
+	if ((h1c->flags & H1C_F_WANT_FASTFWD) || !h1_recv_allowed(h1c)) {
+		TRACE_DEVEL("leaving on (want_fastfwde|!recv_allowed)", H1_EV_H1C_RECV, h1c->conn);
 		return 1;
 	}
 
@@ -3655,8 +3655,8 @@ static int h1_process(struct h1c * h1c)
 		}
 	}
 
-	if (h1c->state == H1_CS_RUNNING && (h1c->flags & H1C_F_WANT_SPLICE) && !h1s_data_pending(h1c->h1s)) {
-		TRACE_DEVEL("xprt rcv_buf blocked (want_splice), notify h1s for recv", H1_EV_H1C_RECV, h1c->conn);
+	if (h1c->state == H1_CS_RUNNING && (h1c->flags & H1C_F_WANT_FASTFWD) && !h1s_data_pending(h1c->h1s)) {
+		TRACE_DEVEL("xprt rcv_buf blocked (want_fastfwd), notify h1s for recv", H1_EV_H1C_RECV, h1c->conn);
 		h1_wake_stream_for_recv(h1c->h1s);
 	}
 
@@ -4182,8 +4182,8 @@ static int h1_subscribe(struct stconn *sc, int event_type, struct wait_event *es
  * The caller is responsible for defragmenting <buf> if necessary. But <flags>
  * must be tested to know the calling context. If CO_RFL_BUF_FLUSH is set, it
  * means the caller wants to flush input data (from the mux buffer and the
- * channel buffer) to be able to use kernel splicing or any kind of mux-to-mux
- * xfer. If CO_RFL_KEEP_RECV is set, the mux must always subscribe for read
+ * channel buffer) to be able to use fast-forwarding.
+ * If CO_RFL_KEEP_RECV is set, the mux must always subscribe for read
  * events before giving back. CO_RFL_BUF_WET is set if <buf> is congested with
  * data scheduled for leaving soon. CO_RFL_BUF_NOT_STUCK is set to instruct the
  * mux it may optimize the data copy to <buf> if necessary. Otherwise, it should
@@ -4209,9 +4209,9 @@ static size_t h1_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	else
 		TRACE_DEVEL("h1c ibuf not allocated", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 
-	if ((flags & CO_RFL_BUF_FLUSH) && se_fl_test(h1s->sd, SE_FL_MAY_SPLICE)) {
-		h1c->flags |= H1C_F_WANT_SPLICE;
-		TRACE_STATE("Block xprt rcv_buf to flush stream's buffer (want_splice)", H1_EV_STRM_RECV, h1c->conn, h1s);
+	if ((flags & CO_RFL_BUF_FLUSH) && se_fl_test(h1s->sd, SE_FL_MAY_FASTFWD)) {
+		h1c->flags |= H1C_F_WANT_FASTFWD;
+		TRACE_STATE("Block xprt rcv_buf to flush stream's buffer (want_fastfwd)", H1_EV_STRM_RECV, h1c->conn, h1s);
 	}
 	else {
 		if (((flags & CO_RFL_KEEP_RECV) || (h1m->state != H1_MSG_DONE)) && !(h1c->wait_event.events & SUB_RETRY_RECV))
@@ -4307,12 +4307,12 @@ static int h1_rcv_pipe(struct stconn *sc, struct pipe *pipe, unsigned int count)
 	TRACE_ENTER(H1_EV_STRM_RECV, h1c->conn, h1s, 0, (size_t[]){count});
 
 	if (h1m->state != H1_MSG_DATA && h1m->state != H1_MSG_TUNNEL) {
-		h1c->flags &= ~H1C_F_WANT_SPLICE;
+		h1c->flags &= ~H1C_F_WANT_FASTFWD;
 		TRACE_STATE("Allow xprt rcv_buf on !(msg_data|msg_tunnel)", H1_EV_STRM_RECV, h1c->conn, h1s);
 		goto end;
 	}
 
-	h1c->flags |= H1C_F_WANT_SPLICE;
+	h1c->flags |= H1C_F_WANT_FASTFWD;
 	if (h1s_data_pending(h1s)) {
 		TRACE_STATE("flush input buffer before splicing", H1_EV_STRM_RECV, h1c->conn, h1s);
 		goto end;
@@ -4341,7 +4341,7 @@ static int h1_rcv_pipe(struct stconn *sc, struct pipe *pipe, unsigned int count)
 					h1m->state = H1_MSG_DONE;
 				else
 					h1m->state = H1_MSG_CHUNK_CRLF;
-				h1c->flags &= ~H1C_F_WANT_SPLICE;
+				h1c->flags &= ~H1C_F_WANT_FASTFWD;
 
 				if (!(h1c->flags & H1C_F_IS_BACK)) {
 					/* The request was fully received. It means the H1S now
@@ -4369,22 +4369,22 @@ static int h1_rcv_pipe(struct stconn *sc, struct pipe *pipe, unsigned int count)
 		}
 		else {
 			se_fl_set(h1s->sd, SE_FL_ERROR);
-			h1c->flags = (h1c->flags & ~H1C_F_WANT_SPLICE) | H1C_F_ERROR;
+			h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_ERROR;
 			TRACE_ERROR("message aborted, set error on SC", H1_EV_STRM_RECV|H1_EV_H1S_ERR, h1c->conn, h1s);
 		}
-		h1c->flags = (h1c->flags & ~H1C_F_WANT_SPLICE) | H1C_F_EOS;
+		h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_EOS;
 		TRACE_STATE("Allow xprt rcv_buf on read0", H1_EV_STRM_RECV, h1c->conn, h1s);
 	}
   end:
 	if (h1c->conn->flags & CO_FL_ERROR) {
 		se_fl_set(h1s->sd, SE_FL_ERROR);
-		h1c->flags = (h1c->flags & ~H1C_F_WANT_SPLICE) | H1C_F_ERROR;
+		h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_ERROR;
 		TRACE_DEVEL("connection error", H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 	}
 
-	if (!(h1c->flags & H1C_F_WANT_SPLICE)) {
-		TRACE_STATE("notify the mux can't use splicing anymore", H1_EV_STRM_RECV, h1c->conn, h1s);
-		se_fl_clr(h1s->sd, SE_FL_MAY_SPLICE);
+	if (!(h1c->flags & H1C_F_WANT_FASTFWD)) {
+		TRACE_STATE("notify the mux can't use fast-forward anymore", H1_EV_STRM_RECV, h1c->conn, h1s);
+		se_fl_clr(h1s->sd, SE_FL_MAY_FASTFWD);
 		if (!(h1c->wait_event.events & SUB_RETRY_RECV)) {
 			TRACE_STATE("restart receiving data, subscribing", H1_EV_STRM_RECV, h1c->conn, h1s);
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
@@ -4435,7 +4435,7 @@ static int h1_snd_pipe(struct stconn *sc, struct pipe *pipe)
 
   end:
 	if (h1c->conn->flags & CO_FL_ERROR) {
-		h1c->flags = (h1c->flags & ~H1C_F_WANT_SPLICE) | H1C_F_ERR_PENDING;
+		h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_ERR_PENDING;
 		if (h1c->flags & H1C_F_EOS)
 			h1c->flags |= H1C_F_ERROR;
 		else if (!(h1c->wait_event.events & SUB_RETRY_RECV)) {

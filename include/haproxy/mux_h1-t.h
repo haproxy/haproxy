@@ -45,7 +45,7 @@
 #define H1C_F_SILENT_SHUT    0x00000800 /* if H1C is closed closed, silent (or dirty) shutdown must be performed */
 #define H1C_F_ABRT_PENDING   0x00001000 /* An error must be sent (previous attempt failed) and H1 connection must be closed ASAP */
 #define H1C_F_ABRTED         0x00002000 /* An error must be sent (previous attempt failed) and H1 connection must be closed ASAP */
-#define H1C_F_WANT_SPLICE    0x00004000 /* Don't read into a buffer because we want to use or we are using splicing */
+#define H1C_F_WANT_FASTFWD   0x00004000 /* Don't read into a buffer because we want to fast forward data */
 #define H1C_F_WAIT_NEXT_REQ  0x00008000 /*  waiting for the next request to start, use keep-alive timeout */
 #define H1C_F_UPG_H2C        0x00010000 /* set if an upgrade to h2 should be done */
 #define H1C_F_CO_MSG_MORE    0x00020000 /* set if CO_SFL_MSG_MORE must be set when calling xprt->snd_buf() */
@@ -69,7 +69,7 @@ static forceinline char *h1c_show_flags(char *buf, size_t len, const char *delim
 	_(H1C_F_IN_ALLOC, _(H1C_F_IN_FULL, _(H1C_F_IN_SALLOC,
 	_(H1C_F_EOS, _(H1C_F_ERR_PENDING, _(H1C_F_ERROR,
 	_(H1C_F_SILENT_SHUT, _(H1C_F_ABRT_PENDING, _(H1C_F_ABRTED,
-	_(H1C_F_WANT_SPLICE, _(H1C_F_WAIT_NEXT_REQ, _(H1C_F_UPG_H2C, _(H1C_F_CO_MSG_MORE,
+	_(H1C_F_WANT_FASTFWD, _(H1C_F_WAIT_NEXT_REQ, _(H1C_F_UPG_H2C, _(H1C_F_CO_MSG_MORE,
 	_(H1C_F_CO_STREAMER, _(H1C_F_IS_BACK)))))))))))))))));
 	/* epilogue */
 	_(~0U);

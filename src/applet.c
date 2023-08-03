@@ -383,7 +383,7 @@ int appctx_buf_available(void *arg)
 	sc_have_buff(sc);
 
 	/* was already allocated another way ? if so, don't take this one */
-	if (c_size(sc_ic(sc)) || sc_opposite(sc)->sedesc->iobuf.pipe)
+	if (c_size(sc_ic(sc)) || sc_ep_have_ff_data(sc_opposite(sc)))
 		return 0;
 
 	/* allocation possible now ? */

@@ -323,7 +323,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	conn->ctx = ctx;
 	se_fl_set(ctx->sd, SE_FL_RCV_MORE);
 	if (global.tune.options & GTUNE_USE_SPLICE)
-		se_fl_set(ctx->sd, SE_FL_MAY_SPLICE);
+		se_fl_set(ctx->sd, SE_FL_MAY_FASTFWD);
 
 	TRACE_LEAVE(PT_EV_CONN_NEW, conn);
 	return 0;

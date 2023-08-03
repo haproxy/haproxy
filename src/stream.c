@@ -320,10 +320,10 @@ int stream_buf_available(void *arg)
 {
 	struct stream *s = arg;
 
-	if (!s->req.buf.size && !s->scb->sedesc->iobuf.pipe && s->scf->flags & SC_FL_NEED_BUFF &&
+	if (!s->req.buf.size && !sc_ep_have_ff_data(s->scb) && s->scf->flags & SC_FL_NEED_BUFF &&
 	    b_alloc(&s->req.buf))
 		sc_have_buff(s->scf);
-	else if (!s->res.buf.size && !s->scf->sedesc->iobuf.pipe && s->scb->flags & SC_FL_NEED_BUFF &&
+	else if (!s->res.buf.size && !sc_ep_have_ff_data(s->scf) && s->scb->flags & SC_FL_NEED_BUFF &&
 		 b_alloc(&s->res.buf))
 		sc_have_buff(s->scb);
 	else

@@ -122,6 +122,17 @@ static inline void se_expect_data(struct sedesc *se)
 	se_fl_clr(se, SE_FL_EXP_NO_DATA);
 }
 
+static inline unsigned int se_have_ff_data(struct sedesc *se)
+{
+	return ((long)se->iobuf.pipe);
+}
+
+static inline size_t se_ff_data(struct sedesc *se)
+{
+	return ((se->iobuf.pipe ? se->iobuf.pipe->data : 0));
+}
+
+
 /* stream connector version */
 static forceinline void sc_ep_zero(struct stconn *sc)
 {
@@ -188,6 +199,16 @@ static forceinline void sc_ep_report_send_activity(struct stconn *sc)
 	sc->sedesc->fsb = TICK_ETERNITY;
 	if (!(sc->flags & SC_FL_INDEP_STR))
 		sc_ep_report_read_activity(sc);
+}
+
+static forceinline unsigned int sc_ep_have_ff_data(struct stconn *sc)
+{
+	return se_have_ff_data(sc->sedesc);
+}
+
+static forceinline size_t sc_ep_ff_data(struct stconn *sc)
+{
+	return se_ff_data(sc->sedesc);
 }
 
 static forceinline int sc_ep_rcv_ex(const struct stconn *sc)

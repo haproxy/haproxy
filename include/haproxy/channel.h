@@ -409,7 +409,7 @@ static inline void channel_htx_forward_forever(struct channel *chn, struct htx *
  */
 static inline unsigned int channel_is_empty(const struct channel *c)
 {
-	return !(co_data(c) | (long)chn_cons(c)->sedesc->iobuf.pipe);
+	return (!co_data(c) && !sc_ep_have_ff_data(chn_cons(c)));
 }
 
 /* Returns non-zero if the channel is rewritable, which means that the buffer
