@@ -1917,6 +1917,9 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		h1c->flags &= ~H1C_F_WANT_FASTFWD;
 	}
 
+	se_fl_clr(h1s->sd, SE_FL_MAY_FASTFWD);
+	h1c->flags &= ~H1C_F_WANT_FASTFWD;
+
 	/* Set EOI on stream connector in DONE state iff:
 	 *  - it is a response
 	 *  - it is a request but no a protocol upgrade nor a CONNECT
@@ -4295,165 +4298,6 @@ static size_t h1_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	return total;
 }
 
-#if defined(USE_LINUX_SPLICE)
-/* Send and get, using splicing */
-static int h1_rcv_pipe(struct stconn *sc, struct pipe *pipe, unsigned int count)
-{
-	struct h1s *h1s = __sc_mux_strm(sc);
-	struct h1c *h1c = h1s->h1c;
-	struct h1m *h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->req : &h1s->res);
-	int ret = 0;
-
-	TRACE_ENTER(H1_EV_STRM_RECV, h1c->conn, h1s, 0, (size_t[]){count});
-
-	if (h1m->state != H1_MSG_DATA && h1m->state != H1_MSG_TUNNEL) {
-		h1c->flags &= ~H1C_F_WANT_FASTFWD;
-		TRACE_STATE("Allow xprt rcv_buf on !(msg_data|msg_tunnel)", H1_EV_STRM_RECV, h1c->conn, h1s);
-		goto end;
-	}
-
-	h1c->flags |= H1C_F_WANT_FASTFWD;
-	if (h1s_data_pending(h1s)) {
-		TRACE_STATE("flush input buffer before splicing", H1_EV_STRM_RECV, h1c->conn, h1s);
-		goto end;
-	}
-
-	if (!h1_recv_allowed(h1c)) {
-		TRACE_DEVEL("leaving on !recv_allowed", H1_EV_STRM_RECV, h1c->conn, h1s);
-		goto end;
-	}
-
-	if (h1m->state == H1_MSG_DATA &&  (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN)) &&  count > h1m->curr_len)
-		count = h1m->curr_len;
-	ret = h1c->conn->xprt->rcv_pipe(h1c->conn, h1c->conn->xprt_ctx, pipe, count);
-	if (ret >= 0) {
-		if (h1m->state == H1_MSG_DATA && (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN))) {
-			if (ret > h1m->curr_len) {
-				h1s->flags |= H1S_F_PARSING_ERROR;
-				se_fl_set(h1s->sd, SE_FL_ERROR);
-				TRACE_ERROR("too much payload, more than announced",
-					    H1_EV_RX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
-				goto out;
-			}
-			h1m->curr_len -= ret;
-			if (!h1m->curr_len) {
-				if (h1m->flags & H1_MF_CLEN)
-					h1m->state = H1_MSG_DONE;
-				else
-					h1m->state = H1_MSG_CHUNK_CRLF;
-				h1c->flags &= ~H1C_F_WANT_FASTFWD;
-
-				if (!(h1c->flags & H1C_F_IS_BACK)) {
-					/* The request was fully received. It means the H1S now
-					 * expect data from the opposite side
-					 */
-					se_expect_data(h1s->sd);
-				}
-
-				TRACE_STATE("payload fully received", H1_EV_STRM_RECV, h1c->conn, h1s);
-			}
-		}
-		HA_ATOMIC_ADD(&h1c->px_counters->bytes_in, ret);
-		HA_ATOMIC_ADD(&h1c->px_counters->spliced_bytes_in, ret);
-	}
-
-  out:
-	if (conn_xprt_read0_pending(h1c->conn)) {
-		se_fl_set(h1s->sd, SE_FL_EOS);
-		TRACE_STATE("report EOS to SE", H1_EV_STRM_RECV, h1c->conn, h1s);
-		if (h1m->state >= H1_MSG_DONE || !(h1m->flags & H1_MF_XFER_LEN)) {
-			/* DONE or TUNNEL or SHUTR without XFER_LEN, set
-			 * EOI on the stream connector */
-			se_fl_set(h1s->sd, SE_FL_EOI);
-			TRACE_STATE("report EOI to SE", H1_EV_STRM_RECV, h1c->conn, h1s);
-		}
-		else {
-			se_fl_set(h1s->sd, SE_FL_ERROR);
-			h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_ERROR;
-			TRACE_ERROR("message aborted, set error on SC", H1_EV_STRM_RECV|H1_EV_H1S_ERR, h1c->conn, h1s);
-		}
-		h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_EOS;
-		TRACE_STATE("Allow xprt rcv_buf on read0", H1_EV_STRM_RECV, h1c->conn, h1s);
-	}
-  end:
-	if (h1c->conn->flags & CO_FL_ERROR) {
-		se_fl_set(h1s->sd, SE_FL_ERROR);
-		h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_ERROR;
-		TRACE_DEVEL("connection error", H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
-	}
-
-	if (!(h1c->flags & H1C_F_WANT_FASTFWD)) {
-		TRACE_STATE("notify the mux can't use fast-forward anymore", H1_EV_STRM_RECV, h1c->conn, h1s);
-		se_fl_clr(h1s->sd, SE_FL_MAY_FASTFWD);
-		if (!(h1c->wait_event.events & SUB_RETRY_RECV)) {
-			TRACE_STATE("restart receiving data, subscribing", H1_EV_STRM_RECV, h1c->conn, h1s);
-			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
-		}
-	}
-
-	TRACE_LEAVE(H1_EV_STRM_RECV, h1c->conn, h1s, 0, (size_t[]){ret});
-	return ret;
-}
-
-static int h1_snd_pipe(struct stconn *sc, struct pipe *pipe)
-{
-	struct h1s *h1s = __sc_mux_strm(sc);
-	struct h1c *h1c = h1s->h1c;
-	struct h1m *h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->res : &h1s->req);
-	int ret = 0;
-
-	TRACE_ENTER(H1_EV_STRM_SEND, h1c->conn, h1s, 0, (size_t[]){pipe->data});
-
-	if (b_data(&h1c->obuf)) {
-		if (!(h1c->wait_event.events & SUB_RETRY_SEND)) {
-			TRACE_STATE("more data to send, subscribing", H1_EV_STRM_SEND, h1c->conn, h1s);
-			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_SEND, &h1c->wait_event);
-		}
-		goto end;
-	}
-
-	ret = h1c->conn->xprt->snd_pipe(h1c->conn, h1c->conn->xprt_ctx, pipe);
-	if (h1m->state == H1_MSG_DATA && (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN))) {
-		if (ret > h1m->curr_len) {
-			h1s->flags |= H1S_F_PROCESSING_ERROR;
-			se_fl_set(h1s->sd, SE_FL_ERROR);
-			TRACE_ERROR("too much payload, more than announced",
-				    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
-			goto end;
-		}
-		h1m->curr_len -= ret;
-		if (!h1m->curr_len) {
-			if (h1m->flags & H1_MF_CLEN)
-				h1m->state = H1_MSG_DONE;
-			else
-				h1m->state = H1_MSG_CHUNK_CRLF;
-			TRACE_STATE("payload fully xferred", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s);
-		}
-	}
-	HA_ATOMIC_ADD(&h1c->px_counters->bytes_out, ret);
-	HA_ATOMIC_ADD(&h1c->px_counters->spliced_bytes_out, ret);
-
-  end:
-	if (h1c->conn->flags & CO_FL_ERROR) {
-		h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_ERR_PENDING;
-		if (h1c->flags & H1C_F_EOS)
-			h1c->flags |= H1C_F_ERROR;
-		else if (!(h1c->wait_event.events & SUB_RETRY_RECV)) {
-			/* EOS not seen, so subscribe for reads to be able to
-			 * catch the error on the reading path. It is especially
-			 * important if EOI was reached.
-			 */
-			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
-		}
-		se_fl_set_error(h1s->sd);
-		TRACE_DEVEL("connection error", H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
-	}
-
-	TRACE_LEAVE(H1_EV_STRM_SEND, h1c->conn, h1s, 0, (size_t[]){ret});
-	return ret;
-}
-#endif
-
 static int h1_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *output)
 {
 	const struct h1c *h1c = conn->ctx;
@@ -4869,10 +4713,6 @@ static const struct mux_ops mux_http_ops = {
 	.used_streams = h1_used_streams,
 	.rcv_buf     = h1_rcv_buf,
 	.snd_buf     = h1_snd_buf,
-#if defined(USE_LINUX_SPLICE)
-	.rcv_pipe    = h1_rcv_pipe,
-	.snd_pipe    = h1_snd_pipe,
-#endif
 	.subscribe   = h1_subscribe,
 	.unsubscribe = h1_unsubscribe,
 	.shutr       = h1_shutr,
@@ -4896,10 +4736,6 @@ static const struct mux_ops mux_h1_ops = {
 	.used_streams = h1_used_streams,
 	.rcv_buf     = h1_rcv_buf,
 	.snd_buf     = h1_snd_buf,
-#if defined(USE_LINUX_SPLICE)
-	.rcv_pipe    = h1_rcv_pipe,
-	.snd_pipe    = h1_snd_pipe,
-#endif
 	.subscribe   = h1_subscribe,
 	.unsubscribe = h1_unsubscribe,
 	.shutr       = h1_shutr,
