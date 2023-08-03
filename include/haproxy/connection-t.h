@@ -427,8 +427,6 @@ struct mux_ops {
 	void (*done_fastfwd)(struct stconn *sc); /* Callback to terminate fast data forwarding */
 	int (*fastfwd)(struct stconn *sc, unsigned int count, unsigned int flags); /* Callback to init fast data forwarding */
 	int (*resume_fastfwd)(struct stconn *sc, unsigned int flags); /* Callback to resume fast data forwarding */
-	int  (*rcv_pipe)(struct stconn *sc, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
-	int  (*snd_pipe)(struct stconn *sc, struct pipe *pipe); /* send-to-pipe callback */
 	void (*shutr)(struct stconn *sc, enum co_shr_mode);     /* shutr function */
 	void (*shutw)(struct stconn *sc, enum co_shw_mode);     /* shutw function */
 
