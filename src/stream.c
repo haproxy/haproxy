@@ -2269,22 +2269,6 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		}
 	}
 
-	/* check if it is wise to enable kernel splicing to forward request data */
-	if (!(req->flags & CF_KERN_SPLICING) &&
-	    !(scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
-	    req->to_forward &&
-	    (global.tune.options & GTUNE_USE_SPLICE) &&
-	    (sc_conn(scf) && __sc_conn(scf)->xprt && __sc_conn(scf)->xprt->rcv_pipe &&
-	     __sc_conn(scf)->mux && __sc_conn(scf)->mux->rcv_pipe) &&
-	    (sc_conn(scb) && __sc_conn(scb)->xprt && __sc_conn(scb)->xprt->snd_pipe &&
-	     __sc_conn(scb)->mux && __sc_conn(scb)->mux->snd_pipe) &&
-	    (pipes_used < global.maxpipes) &&
-	    (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
-	     (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
-	      (req->flags & CF_STREAMER_FAST)))) {
-		req->flags |= CF_KERN_SPLICING;
-	}
-
 	/* reflect what the L7 analysers have seen last */
 	rqf_last = req->flags;
 	scf_flags = (scf_flags & ~(SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) | (scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED));
@@ -2458,22 +2442,6 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 					scb->ioto = s->be->timeout.serverfin;
 			}
 		}
-	}
-
-	/* check if it is wise to enable kernel splicing to forward response data */
-	if (!(res->flags & CF_KERN_SPLICING) &&
-	    !(scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
-	    res->to_forward &&
-	    (global.tune.options & GTUNE_USE_SPLICE) &&
-	    (sc_conn(scf) && __sc_conn(scf)->xprt && __sc_conn(scf)->xprt->snd_pipe &&
-	     __sc_conn(scf)->mux && __sc_conn(scf)->mux->snd_pipe) &&
-	    (sc_conn(scb) && __sc_conn(scb)->xprt && __sc_conn(scb)->xprt->rcv_pipe &&
-	     __sc_conn(scb)->mux && __sc_conn(scb)->mux->rcv_pipe) &&
-	    (pipes_used < global.maxpipes) &&
-	    (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
-	     (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
-	      (res->flags & CF_STREAMER_FAST)))) {
-		res->flags |= CF_KERN_SPLICING;
 	}
 
 	/* reflect what the L7 analysers have seen last */

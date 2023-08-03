@@ -1258,64 +1258,6 @@ static int sc_conn_recv(struct stconn *sc)
 		ic->flags &= ~(CF_STREAMER | CF_STREAMER_FAST);
 	}
 
-	/* First, let's see if we may splice data across the channel without
-	 * using a buffer.
-	 */
-	if (sc_ep_test(sc, SE_FL_MAY_FASTFWD) &&
-	    (sc_ep_have_ff_data(sc_opposite(sc)) || ic->to_forward >= MIN_SPLICE_FORWARD) &&
-	    ic->flags & CF_KERN_SPLICING) {
-		if (c_data(ic)) {
-			/* We're embarrassed, there are already data pending in
-			 * the buffer and we don't want to have them at two
-			 * locations at a time. Let's indicate we need some
-			 * place and ask the consumer to hurry.
-			 */
-			flags |= CO_RFL_BUF_FLUSH;
-			goto abort_splice;
-		}
-
-		if (unlikely(sc_opposite(sc)->sedesc->iobuf.pipe == NULL)) {
-			if (pipes_used >= global.maxpipes || !(sc_opposite(sc)->sedesc->iobuf.pipe = get_pipe())) {
-				ic->flags &= ~CF_KERN_SPLICING;
-				goto abort_splice;
-			}
-		}
-
-		ret = conn->mux->rcv_pipe(sc, sc_opposite(sc)->sedesc->iobuf.pipe, ic->to_forward);
-		if (ret < 0) {
-			/* splice not supported on this end, let's disable it */
-			ic->flags &= ~CF_KERN_SPLICING;
-			goto abort_splice;
-		}
-
-		if (ret > 0) {
-			if (ic->to_forward != CHN_INFINITE_FORWARD)
-				ic->to_forward -= ret;
-			ic->total += ret;
-			cur_read += ret;
-			ic->flags |= CF_READ_EVENT;
-		}
-
-		if (sc_ep_test(sc, SE_FL_EOS | SE_FL_ERROR))
-			goto end_recv;
-
-		if (conn->flags & CO_FL_WAIT_ROOM) {
-			/* the pipe is full or we have read enough data that it
-			 * could soon be full. Let's stop before needing to poll.
-			 */
-			sc_need_room(sc, 0);
-			goto done_recv;
-		}
-
-		/* splice not possible (anymore), let's go on on standard copy */
-	}
-
- abort_splice:
-	if (sc_ep_have_ff_data(sc_opposite(sc)) && unlikely(!sc_ep_ff_data(sc_opposite(sc)))) {
-		put_pipe(sc_opposite(sc)->sedesc->iobuf.pipe);
-		sc_opposite(sc)->sedesc->iobuf.pipe = NULL;
-	}
-
 	if (sc_ep_have_ff_data(sc_opposite(sc)) && ic->to_forward &&
 	    !(flags & CO_RFL_BUF_FLUSH) && sc_ep_test(sc, SE_FL_MAY_FASTFWD)) {
 		/* don't break splicing by reading, but still call rcv_buf()
@@ -1596,19 +1538,6 @@ static int sc_conn_send(struct stconn *sc)
 	/* we must wait because the mux is not installed yet */
 	if (!conn->mux)
 		return 0;
-
-	if (sc_ep_have_ff_data(sc) && conn->xprt->snd_pipe && conn->mux->snd_pipe) {
-		ret = conn->mux->snd_pipe(sc, sc->sedesc->iobuf.pipe);
-		if (ret > 0)
-			did_send = 1;
-
-		if (!sc_ep_ff_data(sc)) {
-			put_pipe(sc->sedesc->iobuf.pipe);
-			sc->sedesc->iobuf.pipe = NULL;
-		}
-		else
-			goto end;
-	}
 
 	/* At this point, the pipe is empty, but we may still have data pending
 	 * in the normal buffer.

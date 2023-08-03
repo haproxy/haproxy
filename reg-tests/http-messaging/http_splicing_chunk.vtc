@@ -9,6 +9,7 @@ feature cmd "$HAPROXY_PROGRAM $HAPROXY_ARGS -cc 'enabled(SPLICE)'"
 feature ignore_unknown_macro
 
 #REGTEST_TYPE=slow
+#REGTEST_TYPE=broken
 
 server s1 {
     rxreq
