@@ -274,6 +274,7 @@ enum {
 	CO_RFL_READ_ONCE     = 0x0004,    /* don't loop even if the request/response is small */
 	CO_RFL_KEEP_RECV     = 0x0008,    /* Instruct the mux to still wait for read events  */
 	CO_RFL_BUF_NOT_STUCK = 0x0010,    /* Buffer is not stuck. Optims are possible during data copy */
+	CO_RFL_MAY_SPLICE    = 0x0020,    /* The producer can use the kernel splicing */
 };
 
 /* flags that can be passed to xprt->snd_buf() and mux->snd_buf() */
@@ -422,6 +423,10 @@ struct mux_ops {
 	int  (*wake)(struct connection *conn);        /* mux-layer callback to report activity, mandatory */
 	size_t (*rcv_buf)(struct stconn *sc, struct buffer *buf, size_t count, int flags); /* Called from the upper layer to get data */
 	size_t (*snd_buf)(struct stconn *sc, struct buffer *buf, size_t count, int flags); /* Called from the upper layer to send data */
+	size_t (*init_fastfwd)(struct stconn *sc, struct buffer *input, size_t count, unsigned int may_splice); /* Callback to fill the SD iobuf */
+	void (*done_fastfwd)(struct stconn *sc); /* Callback to terminate fast data forwarding */
+	int (*fastfwd)(struct stconn *sc, unsigned int count, unsigned int flags); /* Callback to init fast data forwarding */
+	int (*resume_fastfwd)(struct stconn *sc, unsigned int flags); /* Callback to resume fast data forwarding */
 	int  (*rcv_pipe)(struct stconn *sc, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
 	int  (*snd_pipe)(struct stconn *sc, struct pipe *pipe); /* send-to-pipe callback */
 	void (*shutr)(struct stconn *sc, enum co_shr_mode);     /* shutr function */
