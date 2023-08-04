@@ -457,7 +457,7 @@ static inline void sc_have_room(struct stconn *sc)
 static inline void sc_need_room(struct stconn *sc, ssize_t room_needed)
 {
 	sc->flags |= SC_FL_NEED_ROOM;
-	sc->room_needed = MIN(global.tune.bufsize - global.tune.maxrewrite - sizeof(struct htx), room_needed);
+	sc->room_needed = MIN((ssize_t)(global.tune.bufsize - global.tune.maxrewrite - sizeof(struct htx)), room_needed);
 }
 
 /* The stream endpoint indicates that it's ready to consume data from the
