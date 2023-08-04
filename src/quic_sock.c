@@ -739,6 +739,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 			TRACE_STATE("datagram for other connection on quic-conn socket, requeue it", QUIC_EV_CONN_RCV, qc);
 
 			rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), rxbuf_el);
+			ALREADY_CHECKED(rxbuf);
 			cspace = b_contig_space(&rxbuf->buf);
 
 			tmp_dgram = quic_rxbuf_purge_dgrams(rxbuf);
