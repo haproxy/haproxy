@@ -1673,6 +1673,31 @@ static size_t h3_snd_buf(struct qcs *qcs, struct htx *htx, size_t count)
 		}
 	}
 
+	/* RFC 9114 4.1. HTTP Message Framing
+	 *
+	 * A server can send a complete response prior to the client sending an
+	 * entire request if the response does not depend on any portion of the
+	 * request that has not been sent and received. When the server does not
+	 * need to receive the remainder of the request, it MAY abort reading
+	 * the request stream, send a complete response, and cleanly close the
+	 * sending part of the stream. The error code H3_NO_ERROR SHOULD be used
+	 * when requesting that the client stop sending on the request stream.
+	 * Clients MUST NOT discard complete responses as a result of having
+	 * their request terminated abruptly, though clients can always discard
+	 * responses at their discretion for other reasons. If the server sends
+	 * a partial or complete response but does not abort reading the
+	 * request, clients SHOULD continue sending the content of the request
+	 * and close the stream normally.
+	 */
+	if (unlikely((htx->flags & HTX_FL_EOM) && htx_is_empty(htx)) &&
+	             !qcs_is_close_remote(qcs)) {
+	        /* Generate a STOP_SENDING if full response transferred before
+	         * receiving the full request.
+	         */
+	        qcs->err = H3_NO_ERROR;
+	        qcc_abort_stream_read(qcs);
+	}
+
  out:
 	return total;
 }

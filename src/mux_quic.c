@@ -403,12 +403,12 @@ static void qcs_close_remote(struct qcs *qcs)
 	}
 }
 
-static int qcs_is_close_local(struct qcs *qcs)
+int qcs_is_close_local(struct qcs *qcs)
 {
 	return qcs->st == QC_SS_HLOC || qcs->st == QC_SS_CLO;
 }
 
-static int qcs_is_close_remote(struct qcs *qcs)
+int qcs_is_close_remote(struct qcs *qcs)
 {
 	return qcs->st == QC_SS_HREM || qcs->st == QC_SS_CLO;
 }

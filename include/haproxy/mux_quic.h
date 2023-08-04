@@ -15,6 +15,8 @@
 void qcc_set_error(struct qcc *qcc, int err, int app);
 struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi);
 struct stconn *qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin);
+int qcs_is_close_local(struct qcs *qcs);
+int qcs_is_close_remote(struct qcs *qcs);
 struct buffer *qcs_get_buf(struct qcs *qcs, struct buffer *bptr);
 
 int qcs_subscribe(struct qcs *qcs, int event_type, struct wait_event *es);
