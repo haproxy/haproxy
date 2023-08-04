@@ -749,6 +749,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 				struct quic_dgram *fake_dgram = pool_alloc(pool_head_quic_dgram);
 				if (!fake_dgram) {
 					/* TODO count lost datagrams */
+					MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->rxbuf_el);
 					continue;
 				}
 
