@@ -626,7 +626,7 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 		}
 
 		b_del(buf, dglen + headlen);
-		qc->tx.bytes += tmpbuf.data;
+		qc->bytes.tx += tmpbuf.data;
 		time_sent = now_ms;
 
 		for (pkt = first_pkt; pkt; pkt = next_pkt) {
@@ -2477,8 +2477,8 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 
 	/* Consume a packet number */
 	qel->pktns->tx.next_pn++;
-	qc->tx.prep_bytes += pkt->len;
-	if (qc->tx.prep_bytes >= 3 * qc->rx.bytes && !quic_peer_validated_addr(qc)) {
+	qc->bytes.prep += pkt->len;
+	if (qc->bytes.prep >= 3 * qc->bytes.rx && !quic_peer_validated_addr(qc)) {
 		qc->flags |= QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED;
 		TRACE_PROTO("anti-amplification limit reached", QUIC_EV_CONN_TXPKT, qc);
 	}

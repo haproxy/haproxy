@@ -2559,7 +2559,7 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 	 * if this datagram could be associated to a connection.
 	 */
 	if (dgram->qc)
-		dgram->qc->rx.bytes += dgram->len;
+		dgram->qc->bytes.rx += dgram->len;
 
 	/* This must never happen. */
 	BUG_ON(pos > end);

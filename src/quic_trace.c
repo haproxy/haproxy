@@ -500,9 +500,9 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				              (unsigned long)pkt->pn_node.key,
 				              quic_pktns_char(qc, pkt->pktns),
 				              (unsigned long long)pkt->in_flight_len);
-				chunk_appendf(&trace_buf, " rx.bytes=%llu tx.bytes=%llu",
-				              (unsigned long long)qc->rx.bytes,
-				              (unsigned long long)qc->tx.bytes);
+				chunk_appendf(&trace_buf, " bytes.rx=%llu bytes.tx=%llu",
+				              (unsigned long long)qc->bytes.rx,
+				              (unsigned long long)qc->bytes.tx);
 				list_for_each_entry(frm, &pkt->frms, list) {
 					chunk_appendf(&trace_buf, " frm@%p", frm);
 					chunk_frm_appendf(&trace_buf, frm);

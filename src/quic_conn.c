@@ -149,7 +149,7 @@ int quic_peer_validated_addr(struct quic_conn *qc)
 	    qc->state >= QUIC_HS_ST_COMPLETE)
 		return 1;
 
-	BUG_ON(qc->tx.prep_bytes > 3 * qc->rx.bytes);
+	BUG_ON(qc->bytes.prep > 3 * qc->bytes.rx);
 
 	return 0;
 }
@@ -1133,11 +1133,11 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS_DRAFT:
 		TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS;
 	/* TX part. */
-	qc->tx.bytes = qc->tx.prep_bytes = 0;
+	qc->bytes.tx = qc->bytes.prep = 0;
 	memset(&qc->tx.params, 0, sizeof(qc->tx.params));
 	qc->tx.buf = BUF_NULL;
 	/* RX part. */
-	qc->rx.bytes = 0;
+	qc->bytes.rx = 0;
 	memset(&qc->rx.params, 0, sizeof(qc->rx.params));
 	qc->rx.buf = b_make(qc->rx.buf.area, QUIC_CONN_RX_BUFSZ, 0, 0);
 	for (i = 0; i < QCS_MAX_TYPES; i++)

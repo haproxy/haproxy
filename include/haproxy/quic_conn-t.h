@@ -510,18 +510,20 @@ struct quic_conn {
 	struct connection *conn;
 
 	struct {
-		/* Number of sent bytes. */
-		uint64_t bytes;
 		/* Number of bytes for prepared packets */
-		uint64_t prep_bytes;
+		uint64_t prep;
+		/* Number of sent bytes. */
+		uint64_t tx;
+		/* Number of received bytes. */
+		uint64_t rx;
+	} bytes;
+	struct {
 		/* Transport parameters sent by the peer */
 		struct quic_transport_params params;
 		/* Send buffer used to write datagrams. */
 		struct buffer buf;
 	} tx;
 	struct {
-		/* Number of received bytes. */
-		uint64_t bytes;
 		/* Transport parameters the peer will receive */
 		struct quic_transport_params params;
 		/* RX buffer */

@@ -474,7 +474,7 @@ static inline size_t quic_path_prep_data(struct quic_path *path)
  */
 static inline size_t quic_may_send_bytes(struct quic_conn *qc)
 {
-	return 3 * qc->rx.bytes - qc->tx.prep_bytes;
+	return 3 * qc->bytes.rx - qc->bytes.prep;
 }
 
 /* CRYPTO data buffer handling functions. */
