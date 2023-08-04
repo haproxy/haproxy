@@ -5,6 +5,7 @@ varnishtest "A test to validate h1 splicing support for chunked messages"
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.9-dev0)'"
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(LINUX_SPLICE)'"
 feature cmd "$HAPROXY_PROGRAM $HAPROXY_ARGS -cc 'enabled(FAST-FORWARD)'"
+feature cmd "$HAPROXY_PROGRAM $HAPROXY_ARGS -cc 'enabled(SPLICE)'"
 feature ignore_unknown_macro
 
 #REGTEST_TYPE=slow
