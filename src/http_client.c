@@ -760,12 +760,11 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 						/* call the request callback */
 						hc->ops.req_payload(hc);
 
-						hc_htx = htx_from_buf(&hc->req.buf);
-						htx = htx_from_buf(&req->buf);
-
+						hc_htx = htxbuf(&hc->req.buf);
 						if (htx_is_empty(hc_htx))
 							goto out;
 
+						htx = htx_from_buf(&req->buf);
 						if (htx_is_empty(htx)) {
 							size_t data = hc_htx->data;
 
@@ -795,9 +794,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 							b_free(&hc->req.buf);
 					}
 
-					htx = htx_from_buf(&req->buf);
-					if (!htx)
-						goto out;
+					htx = htxbuf(&req->buf);
 
 					/* if the request contains the HTX_FL_EOM, we finished the request part. */
 					if (htx->flags & HTX_FL_EOM)
@@ -815,7 +812,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				if (!co_data(res))
 					goto out;
 				htx = htxbuf(&res->buf);
-				if (!htx)
+				if (htx_is_empty(htx))
 					goto out;
 				blk = htx_get_head_blk(htx);
 				if (blk && (htx_get_blk_type(blk) == HTX_BLK_RES_SL))
@@ -834,12 +831,15 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 				if (hc->ops.res_stline)
 					hc->ops.res_stline(hc);
 
+				htx_to_buf(htx, &res->buf);
+
 				/* if there is no HTX data anymore and the EOM flag is
 				 * set, leave (no body) */
 				if (htx_is_empty(htx) && htx->flags & HTX_FL_EOM)
 					appctx->st0 = HTTPCLIENT_S_RES_END;
 				else
 					appctx->st0 = HTTPCLIENT_S_RES_HDR;
+
 				break;
 
 			case HTTPCLIENT_S_RES_HDR:
@@ -854,7 +854,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 					if (!co_data(res))
 						goto out;
 					htx = htxbuf(&res->buf);
-					if (!htx)
+					if (htx_is_empty(htx))
 						goto out;
 
 					hdr_num = 0;
@@ -879,6 +879,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 						}
 						blk = htx_remove_blk(htx, blk);
 					}
+					htx_to_buf(htx, &res->buf);
 
 					if (hdr_num) {
 						/* alloc and copy the headers in the httpclient struct */
@@ -911,7 +912,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 					goto out;
 
 				htx = htxbuf(&res->buf);
-				if (!htx || htx_is_empty(htx))
+				if (htx_is_empty(htx))
 					goto out;
 
 				if (!b_alloc(&hc->res.buf))
@@ -934,8 +935,10 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 					vlen = MIN(count, blksz);
 					vlen = MIN(vlen, room);
 
-					if (vlen == 0)
+					if (vlen == 0) {
+						htx_to_buf(htx, &res->buf);
 						goto process_data;
+					}
 
 					if (type == HTX_BLK_DATA) {
 						struct ist v = htx_get_blk_value(htx, blk);
@@ -953,17 +956,23 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 							hc->ops.res_payload(hc);
 
 						/* cannot copy everything, need to process */
-						if (vlen != blksz)
+						if (vlen != blksz) {
+							htx_to_buf(htx, &res->buf);
 							goto process_data;
+						}
 					} else {
-						if (vlen != blksz)
+						if (vlen != blksz) {
+							htx_to_buf(htx, &res->buf);
 							goto process_data;
+						}
 
 						/* remove any block which is not a data block */
 						c_rew(res, blksz);
 						blk = htx_remove_blk(htx, blk);
 					}
 				}
+
+				htx_to_buf(htx, &res->buf);
 
 				/* if not finished, should be called again */
 				if (!(htx_is_empty(htx) && (htx->flags & HTX_FL_EOM)))
