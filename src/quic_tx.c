@@ -233,7 +233,7 @@ static void qc_prep_fast_retrans(struct quic_conn *qc,
 	 * packet size is the packet number. And the maximum increase is 4 bytes.
 	 */
 	if (!quic_peer_validated_addr(qc) && qc_is_listener(qc) &&
-	    pkt->len + 4 > 3 * qc->rx.bytes - qc->tx.prep_bytes) {
+	    pkt->len + 4 > quic_may_send_bytes(qc)) {
 		qc->flags |= QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED;
 		TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_SPPKTS, qc, pkt);
 		goto leave;
@@ -298,8 +298,9 @@ void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 	 */
 	if (!quic_peer_validated_addr(qc) && qc_is_listener(qc)) {
 		size_t dglen = pkt->len + 4;
-		size_t may_send = 3 * qc->rx.bytes - qc->tx.prep_bytes;
+		size_t may_send;
 
+		may_send = quic_may_send_bytes(qc);
 		dglen += pkt->next ? pkt->next->len + 4 : 0;
 		if (dglen > may_send) {
 			qc->flags |= QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED;
@@ -468,7 +469,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct buffer *buf,
 		/* Leave room for the datagram header */
 		pos += dg_headlen;
 		if (!quic_peer_validated_addr(qc) && qc_is_listener(qc)) {
-			end = pos + QUIC_MIN((uint64_t)qc->path->mtu, 3 * qc->rx.bytes - qc->tx.prep_bytes);
+			end = pos + QUIC_MIN((uint64_t)qc->path->mtu, quic_may_send_bytes(qc));
 		}
 		else {
 			end = pos + qc->path->mtu;
@@ -1043,7 +1044,7 @@ int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf, struct list *qels)
 				/* Leave room for the datagram header */
 				pos += dg_headlen;
 				if (!quic_peer_validated_addr(qc) && qc_is_listener(qc)) {
-					end = pos + QUIC_MIN((uint64_t)qc->path->mtu, 3 * qc->rx.bytes - qc->tx.prep_bytes);
+					end = pos + QUIC_MIN((uint64_t)qc->path->mtu, quic_may_send_bytes(qc));
 				}
 				else {
 					end = pos + qc->path->mtu;
@@ -1357,7 +1358,7 @@ int qc_need_sending(struct quic_conn *qc, struct quic_enc_level *qel)
 int qc_may_probe_ipktns(struct quic_conn *qc)
 {
 	return quic_peer_validated_addr(qc) ||
-	       (int)(3 * qc->rx.bytes - qc->tx.prep_bytes) >= QUIC_INITIAL_PACKET_MINLEN;
+		quic_may_send_bytes(qc) >= QUIC_INITIAL_PACKET_MINLEN;
 }
 
 /*

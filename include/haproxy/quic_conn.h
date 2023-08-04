@@ -467,6 +467,16 @@ static inline size_t quic_path_prep_data(struct quic_path *path)
 	return path->cwnd - path->prep_in_flight;
 }
 
+/* Return the number of bytes which may be sent from <qc> connection when
+ * it has not already been validated. Note that this is the responsability
+ * of the caller to check that the case with quic_peer_validated_addr().
+ * This latter BUG_ON() if 3 * qc->rx.bytes < qc->tx.prep_bytes.
+ */
+static inline size_t quic_may_send_bytes(struct quic_conn *qc)
+{
+	return 3 * qc->rx.bytes - qc->tx.prep_bytes;
+}
+
 /* CRYPTO data buffer handling functions. */
 static inline unsigned char *c_buf_getpos(struct quic_enc_level *qel, uint64_t offset)
 {

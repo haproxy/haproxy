@@ -149,6 +149,8 @@ int quic_peer_validated_addr(struct quic_conn *qc)
 	    qc->state >= QUIC_HS_ST_COMPLETE)
 		return 1;
 
+	BUG_ON(qc->tx.prep_bytes > 3 * qc->rx.bytes);
+
 	return 0;
 }
 
