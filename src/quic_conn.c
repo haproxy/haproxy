@@ -793,7 +793,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		}
 	}
 
-	buf = qc_txb_alloc(qc);
+	buf = qc_get_txb(qc);
 	if (!buf)
 		goto out;
 
@@ -1136,6 +1136,9 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->bytes.tx = qc->bytes.prep = 0;
 	memset(&qc->tx.params, 0, sizeof(qc->tx.params));
 	qc->tx.buf = BUF_NULL;
+	qc->tx.cc_buf = BUF_NULL;
+	qc->tx.cc_buf_area = NULL;
+	qc->tx.cc_dgram_len = 0;
 	/* RX part. */
 	qc->bytes.rx = 0;
 	memset(&qc->rx.params, 0, sizeof(qc->rx.params));
@@ -1320,6 +1323,7 @@ void quic_conn_release(struct quic_conn *qc)
 	quic_conn_prx_cntrs_update(qc);
 	pool_free(pool_head_quic_conn_rxbuf, qc->rx.buf.area);
 	qc->rx.buf.area = NULL;
+	pool_free(pool_head_quic_cc_buf, qc->tx.cc_buf_area);
 	pool_free(pool_head_quic_conn, qc);
 	qc = NULL;
 

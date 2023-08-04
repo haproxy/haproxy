@@ -522,6 +522,11 @@ struct quic_conn {
 		struct quic_transport_params params;
 		/* Send buffer used to write datagrams. */
 		struct buffer buf;
+		/* Send buffer used to send a "connection close" datagram . */
+		struct buffer cc_buf;
+		char *cc_buf_area;
+		/* Length of the "connection close" datagram. */
+		size_t cc_dgram_len;
 	} tx;
 	struct {
 		/* Transport parameters the peer will receive */

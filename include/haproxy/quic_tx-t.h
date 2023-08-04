@@ -1,7 +1,12 @@
 #ifndef _HAPROXY_TX_T_H
 #define _HAPROXY_TX_T_H
 
+#define QUIC_MIN_CC_PKTSIZE  128
+#define QUIC_DGRAM_HEADLEN  (sizeof(uint16_t) + sizeof(void *))
+#define QUIC_MAX_CC_BUFSIZE (2 * (QUIC_MIN_CC_PKTSIZE + QUIC_DGRAM_HEADLEN))
+
 extern struct pool_head *pool_head_quic_tx_packet;
+extern struct pool_head *pool_head_quic_cc_buf;
 
 /* Flag a sent packet as being an ack-eliciting packet. */
 #define QUIC_FL_TX_PACKET_ACK_ELICITING (1UL << 0)

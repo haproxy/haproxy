@@ -30,6 +30,7 @@
 struct buffer *qc_txb_alloc(struct quic_conn *qc);
 void qc_txb_release(struct quic_conn *qc);
 int qc_purge_txbuf(struct quic_conn *qc, struct buffer *buf);
+struct buffer *qc_get_txb(struct quic_conn *qc);
 
 int qc_need_sending(struct quic_conn *qc, struct quic_enc_level *qel);
 int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf, struct list *qels);
