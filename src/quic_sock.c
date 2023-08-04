@@ -734,14 +734,31 @@ int qc_rcv_buf(struct quic_conn *qc)
 			struct quic_receiver_buf *rxbuf;
 			struct quic_dgram *tmp_dgram;
 			unsigned char *rxbuf_tail;
+			size_t cspace;
 
 			TRACE_STATE("datagram for other connection on quic-conn socket, requeue it", QUIC_EV_CONN_RCV, qc);
 
 			rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), rxbuf_el);
+			cspace = b_contig_space(&rxbuf->buf);
 
 			tmp_dgram = quic_rxbuf_purge_dgrams(rxbuf);
 			pool_free(pool_head_quic_dgram, tmp_dgram);
 
+			/* Insert a fake datagram if space wraps to consume it. */
+			if (cspace < new_dgram->len && b_space_wraps(&rxbuf->buf)) {
+				struct quic_dgram *fake_dgram = pool_alloc(pool_head_quic_dgram);
+				if (!fake_dgram) {
+					/* TODO count lost datagrams */
+					continue;
+				}
+
+				fake_dgram->buf = NULL;
+				fake_dgram->len = cspace;
+				LIST_APPEND(&rxbuf->dgram_list, &fake_dgram->recv_list);
+				b_add(&rxbuf->buf, cspace);
+			}
+
+			/* Recheck contig space after fake datagram insert. */
 			if (b_contig_space(&rxbuf->buf) < new_dgram->len) {
 				/* TODO count lost datagrams */
 				MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->rxbuf_el);
