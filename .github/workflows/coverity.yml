@@ -16,13 +16,6 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     if: ${{ github.repository_owner == 'haproxy' }}
-    env:
-      COVERITY_SCAN_PROJECT_NAME: 'Haproxy'
-      COVERITY_SCAN_BRANCH_PATTERN: '*'
-      COVERITY_SCAN_NOTIFICATION_EMAIL: 'chipitsine@gmail.com'
-      # We cannot pass the DEBUG at once here because Coverity splits
-      # parameters at whitespaces, without taking quoting into account.
-      COVERITY_SCAN_BUILD_COMMAND: "make CC=clang TARGET=linux-glibc USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_QUIC=1 USE_SYSTEMD=1 USE_WURFL=1 WURFL_INC=addons/wurfl/dummy WURFL_LIB=addons/wurfl/dummy USE_DEVICEATLAS=1 DEVICEATLAS_SRC=addons/deviceatlas/dummy USE_51DEGREES=1 51DEGREES_SRC=addons/51degrees/dummy/pattern ADDLIB=\"-Wl,-rpath,$HOME/opt/lib/\" SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include DEBUG+=-DDEBUG_STRICT=1 DEBUG+=-DDEBUG_USE_ABORT=1"
     steps:
     - uses: actions/checkout@v3
     - name: Install apt dependencies
@@ -34,10 +27,23 @@ jobs:
     - name: Install QUICTLS
       run: |
         QUICTLS=yes scripts/build-ssl.sh
+    - name: Download Coverity build tool
+      run: |
+        wget -c -N https://scan.coverity.com/download/linux64 --post-data "token=${{ secrets.COVERITY_SCAN_TOKEN }}&project=Haproxy" -O coverity_tool.tar.gz
+        mkdir coverity_tool
+        tar xzf coverity_tool.tar.gz --strip 1 -C coverity_tool
     - name: Build WURFL
       run: make -C addons/wurfl/dummy
-    - name: Run Coverity Scan
-      env:
-        COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+    - name: Build with Coverity build tool
       run: |
-        curl -fsSL "https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh" | bash || true
+        export PATH=`pwd`/coverity_tool/bin:$PATH
+        cov-build --dir cov-int make CC=clang TARGET=linux-glibc USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_QUIC=1 USE_SYSTEMD=1 USE_WURFL=1 WURFL_INC=addons/wurfl/dummy WURFL_LIB=addons/wurfl/dummy USE_DEVICEATLAS=1 DEVICEATLAS_SRC=addons/deviceatlas/dummy USE_51DEGREES=1 51DEGREES_SRC=addons/51degrees/dummy/pattern ADDLIB=\"-Wl,-rpath,$HOME/opt/lib/\" SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include DEBUG+=-DDEBUG_STRICT=1 DEBUG+=-DDEBUG_USE_ABORT=1
+    - name: Submit build result to Coverity Scan
+      run: |
+        tar czvf cov.tar.gz cov-int
+        curl --form token=${{ secrets.COVERITY_SCAN_TOKEN }} \
+          --form email=chipitsine@gmail.com \
+          --form file=@cov.tar.gz \
+          --form version="Commit $GITHUB_SHA" \
+          --form description="Build submitted via CI" \
+          https://scan.coverity.com/builds?project=Haproxy
