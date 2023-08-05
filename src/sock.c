@@ -421,7 +421,7 @@ int sock_get_old_sockets(const char *unixsocket)
 				size_t totlen = cmsg->cmsg_len - CMSG_LEN(0);
 
 				if (totlen / sizeof(int) + got_fd > fd_nb) {
-					ha_warning("Got to many sockets !\n");
+					ha_warning("Got too many sockets !\n");
 					goto out;
 				}
 
