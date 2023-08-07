@@ -433,7 +433,7 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, int expire, int decrefcnt)
 {
 	struct eb32_node * eb;
-	int locked = 0;
+	int use_wrlock = 0;
 	int do_wakeup = 0;
 
 	if (expire != HA_ATOMIC_LOAD(&ts->expire)) {
@@ -444,16 +444,39 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 
 	/* If sync is enabled */
 	if (t->sync_task) {
-		if (local) {
-			/* If this entry is not in the tree
-			 * or not scheduled for at least one peer.
-			 */
-			if (!locked++)
-				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
+	try_lock_again:
+		/* We'll need to reliably check that the entry is in the tree.
+		 * It's only inserted/deleted using a write lock so a read lock
+		 * is sufficient to verify this. We may then need to upgrade it
+		 * to perform an update (which is rare under load), and if the
+		 * upgrade fails, we'll try again with a write lock directly.
+		 */
+		if (use_wrlock)
+			HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
+		else
+			HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &t->updt_lock);
 
+		if (local) {
+			/* Check if this entry is not in the tree or not
+			 * scheduled for at least one peer.
+			 */
 			if (!ts->upd.node.leaf_p
 			    || (int)(t->commitupdate - ts->upd.key) >= 0
 			    || (int)(ts->upd.key - t->localupdate) >= 0) {
+				/* Time to upgrade the read lock to write lock if needed */
+				if (!use_wrlock) {
+					if (HA_RWLOCK_TRYRDTOSK(STK_TABLE_LOCK, &t->updt_lock) != 0) {
+						/* failed, try again */
+						HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
+						use_wrlock = 1;
+						goto try_lock_again;
+					}
+					HA_RWLOCK_SKTOWR(STK_TABLE_LOCK, &t->updt_lock);
+					use_wrlock = 1;
+				}
+
+				/* here we're write-locked */
+
 				ts->upd.key = ++t->update;
 				t->localupdate = t->update;
 				eb32_delete(&ts->upd);
@@ -467,10 +490,22 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 		}
 		else {
 			/* If this entry is not in the tree */
-			if (!locked++)
-				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
 
 			if (!ts->upd.node.leaf_p) {
+				/* Time to upgrade the read lock to write lock if needed */
+				if (!use_wrlock) {
+					if (HA_RWLOCK_TRYRDTOSK(STK_TABLE_LOCK, &t->updt_lock) != 0) {
+						/* failed, try again */
+						HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
+						use_wrlock = 1;
+						goto try_lock_again;
+					}
+					HA_RWLOCK_SKTOWR(STK_TABLE_LOCK, &t->updt_lock);
+					use_wrlock = 1;
+				}
+
+				/* here we're write-locked */
+
 				ts->upd.key= (++t->update)+(2147483648U);
 				eb = eb32_insert(&t->updates, &ts->upd);
 				if (eb != &ts->upd) {
@@ -479,10 +514,13 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 				}
 			}
 		}
-	}
 
-	if (locked)
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
+		/* drop the lock now */
+		if (use_wrlock)
+			HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
+		else
+			HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
+	}
 
 	if (decrefcnt)
 		HA_ATOMIC_DEC(&ts->ref_cnt);
