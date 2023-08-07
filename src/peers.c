@@ -1539,11 +1539,10 @@ static inline struct stksess *peer_teach_stage2_stksess_lookup(struct shared_tab
 /*
  * Generic function to emit update messages for <st> stick-table when a lesson must
  * be taught to the peer <p>.
- * <locked> must be set to 1 if the shared table <st> is already locked when entering
- * this function, 0 if not.
  *
  * This function temporary unlock/lock <st> when it sends stick-table updates or
  * when decrementing its refcount in case of any error when it sends this updates.
+ * It must be called with the stick-table lock released.
  *
  * Return 0 if any message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
  * Returns -1 if there was not enough room left to send the message,
@@ -1554,7 +1553,7 @@ static inline struct stksess *peer_teach_stage2_stksess_lookup(struct shared_tab
  */
 static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
                                       struct stksess *(*peer_stksess_lookup)(struct shared_table *),
-                                      struct shared_table *st, int locked)
+                                      struct shared_table *st)
 {
 	int ret, new_pushed, use_timed;
 	int updates_sent = 0;
@@ -1574,9 +1573,6 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 
 	/* We force new pushed to 1 to force identifier in update message */
 	new_pushed = 1;
-
-	if (locked)
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
 
 	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
 
@@ -1636,9 +1632,6 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 
  out:
 	HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
-
-	if (locked)
-		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
 	return ret;
 }
 
@@ -1646,7 +1639,8 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
  * Function to emit update messages for <st> stick-table when a lesson must
  * be taught to the peer <p> (PEER_F_LEARN_ASSIGN flag set).
  *
- * Note that <st> shared stick-table is locked when calling this function.
+ * Note that <st> shared stick-table is locked when calling this function, and
+ * the lock is dropped then re-acquired.
  *
  * Return 0 if any message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
  * Returns -1 if there was not enough room left to send the message,
@@ -1656,12 +1650,19 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 static inline int peer_send_teach_process_msgs(struct appctx *appctx, struct peer *p,
                                                struct shared_table *st)
 {
-	return peer_send_teachmsgs(appctx, p, peer_teach_process_stksess_lookup, st, 1);
+	int ret;
+
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
+	ret = peer_send_teachmsgs(appctx, p, peer_teach_process_stksess_lookup, st);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
+
+	return ret;
 }
 
 /*
  * Function to emit update messages for <st> stick-table when a lesson must
- * be taught to the peer <p> during teach state 1 step.
+ * be taught to the peer <p> during teach state 1 step. It must be called with
+ * the stick-table lock released.
  *
  * Return 0 if any message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
  * Returns -1 if there was not enough room left to send the message,
@@ -1671,12 +1672,13 @@ static inline int peer_send_teach_process_msgs(struct appctx *appctx, struct pee
 static inline int peer_send_teach_stage1_msgs(struct appctx *appctx, struct peer *p,
                                               struct shared_table *st)
 {
-	return peer_send_teachmsgs(appctx, p, peer_teach_stage1_stksess_lookup, st, 0);
+	return peer_send_teachmsgs(appctx, p, peer_teach_stage1_stksess_lookup, st);
 }
 
 /*
  * Function to emit update messages for <st> stick-table when a lesson must
- * be taught to the peer <p> during teach state 1 step.
+ * be taught to the peer <p> during teach state 1 step. It must be called with
+ * the stick-table lock released.
  *
  * Return 0 if any message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
  * Returns -1 if there was not enough room left to send the message,
@@ -1686,7 +1688,7 @@ static inline int peer_send_teach_stage1_msgs(struct appctx *appctx, struct peer
 static inline int peer_send_teach_stage2_msgs(struct appctx *appctx, struct peer *p,
                                               struct shared_table *st)
 {
-	return peer_send_teachmsgs(appctx, p, peer_teach_stage2_stksess_lookup, st, 0);
+	return peer_send_teachmsgs(appctx, p, peer_teach_stage2_stksess_lookup, st);
 }
 
 
