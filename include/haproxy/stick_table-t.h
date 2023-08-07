@@ -208,6 +208,9 @@ struct stktable {
 	unsigned int update;      /* uses updt_lock */
 	unsigned int localupdate; /* uses updt_lock */
 	unsigned int commitupdate;/* used to identify the latest local updates pending for sync, uses updt_lock */
+
+	THREAD_ALIGN(64);
+
 	__decl_thread(HA_RWLOCK_T updt_lock); /* lock protecting the updates part */
 };
 
