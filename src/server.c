@@ -4204,22 +4204,20 @@ struct server *cli_find_server(struct appctx *appctx, char *arg)
 {
 	struct proxy *px;
 	struct server *sv;
-	char *line;
+	struct ist be_name, sv_name = ist(arg);
 
-	/* split "backend/server" and make <line> point to server */
-	for (line = arg; *line; line++)
-		if (*line == '/') {
-			*line++ = '\0';
-			break;
-		}
-
-	if (!*line || !*arg) {
-		cli_err(appctx, "Require 'backend/server'.\n");
+	be_name = istsplit(&sv_name, '/');
+	if (!istlen(sv_name)) {
+		cli_err(appctx, "Require 'backend/server'.");
 		return NULL;
 	}
 
-	if (!get_backend_server(arg, line, &px, &sv)) {
-		cli_err(appctx, px ? "No such server.\n" : "No such backend.\n");
+	if (!(px = proxy_be_by_name(ist0(be_name)))) {
+		cli_err(appctx, "No such backend.");
+		return NULL;
+	}
+	if (!(sv = server_find_by_name(px, ist0(sv_name)))) {
+		cli_err(appctx, "No such server.");
 		return NULL;
 	}
 
@@ -4459,23 +4457,18 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 
 static int cli_parse_get_weight(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct proxy *px;
+	struct proxy *be;
 	struct server *sv;
-	char *line;
+	struct ist be_name, sv_name = ist(args[2]);
 
+	be_name = istsplit(&sv_name, '/');
+	if (!istlen(sv_name))
+		return cli_err(appctx, "Require 'backend/server'.");
 
-	/* split "backend/server" and make <line> point to server */
-	for (line = args[2]; *line; line++)
-		if (*line == '/') {
-			*line++ = '\0';
-			break;
-		}
-
-	if (!*line)
-		return cli_err(appctx, "Require 'backend/server'.\n");
-
-	if (!get_backend_server(args[2], line, &px, &sv))
-		return cli_err(appctx, px ? "No such server.\n" : "No such backend.\n");
+	if (!(be = proxy_be_by_name(ist0(be_name))))
+		return cli_err(appctx, "No such backend.");
+	if (!(sv = server_find_by_name(be, ist0(sv_name))))
+		return cli_err(appctx, "No such server.");
 
 	/* return server's effective weight at the moment */
 	snprintf(trash.area, trash.size, "%d (initial %d)\n", sv->uweight,
@@ -5067,26 +5060,13 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 {
 	struct proxy *be;
 	struct server *srv;
-	char *be_name, *sv_name;
 	struct server *prev_del;
+	struct ist be_name, sv_name;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
 	++args;
-
-	sv_name = be_name = args[1];
-	/* split backend/server arg */
-	while (*sv_name && *(++sv_name)) {
-		if (*sv_name == '/') {
-			*sv_name = '\0';
-			++sv_name;
-			break;
-		}
-	}
-
-	if (!*sv_name)
-		return cli_err(appctx, "Require 'backend/server'.");
 
 	/* The proxy servers list is currently not protected by a lock so this
 	 * requires thread isolation. In addition, any place referencing the
@@ -5096,13 +5076,18 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	 */
 	thread_isolate_full();
 
-	get_backend_server(be_name, sv_name, &be, &srv);
-	if (!be) {
-		cli_err(appctx, "No such backend.");
+	sv_name = ist(args[1]);
+	be_name = istsplit(&sv_name, '/');
+	if (!istlen(sv_name)) {
+		cli_err(appctx, "Require 'backend/server'.");
 		goto out;
 	}
 
-	if (!srv) {
+	if (!(be = proxy_be_by_name(ist0(be_name)))) {
+		cli_err(appctx, "No such backend.");
+		goto out;
+	}
+	if (!(srv = server_find_by_name(be, ist0(sv_name)))) {
 		cli_err(appctx, "No such server.");
 		goto out;
 	}

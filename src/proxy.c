@@ -450,42 +450,6 @@ const char *proxy_find_best_option(const char *word, const char **extra)
 	return best_ptr;
 }
 
-/*
- * This function scans the list of backends and servers to retrieve the first
- * backend and the first server with the given names, and sets them in both
- * parameters. It returns zero if either is not found, or non-zero and sets
- * the ones it did not found to NULL. If a NULL pointer is passed for the
- * backend, only the pointer to the server will be updated.
- */
-int get_backend_server(const char *bk_name, const char *sv_name,
-		       struct proxy **bk, struct server **sv)
-{
-	struct proxy *p;
-	struct server *s;
-	int sid;
-
-	*sv = NULL;
-
-	sid = -1;
-	if (*sv_name == '#')
-		sid = atoi(sv_name + 1);
-
-	p = proxy_be_by_name(bk_name);
-	if (bk)
-		*bk = p;
-	if (!p)
-		return 0;
-
-	for (s = p->srv; s; s = s->next)
-		if ((sid >= 0 && s->puid == sid) ||
-		    (sid < 0 && strcmp(s->id, sv_name) == 0))
-			break;
-	*sv = s;
-	if (!s)
-		return 0;
-	return 1;
-}
-
 /* This function parses a "timeout" statement in a proxy section. It returns
  * -1 if there is any error, 1 for a warning, otherwise zero. If it does not
  * return zero, it will write an error or warning message into a preallocated

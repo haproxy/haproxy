@@ -74,8 +74,6 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap,
 struct proxy *parse_new_proxy(const char *name, unsigned int cap,
                               const char *file, int linenum,
                               const struct proxy *defproxy);
-int get_backend_server(const char *bk_name, const char *sv_name,
-		       struct proxy **bk, struct server **sv);
 void proxy_capture_error(struct proxy *proxy, int is_back,
 			 struct proxy *other_end, enum obj_type *target,
 			 const struct session *sess,
