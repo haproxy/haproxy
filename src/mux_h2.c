@@ -3220,6 +3220,9 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
  * passive reversal. Timeouts are inverted and H2_CF_IS_BACK is set or unset
  * depending on the reversal direction.
  *
+ * For active reversal, only minor steps are required. The connection should
+ * then be accepted by its listener before being able to use it for transfers.
+ *
  * For passive reversal, connection is inserted in its targetted server idle
  * pool. It can thus be reused immediately for future transfers on this server.
  *
@@ -3257,7 +3260,23 @@ static int h2_conn_reverse(struct h2c *h2c)
 		srv_add_to_idle_list(srv, conn, 1);
 	}
 	else {
-		/* TODO */
+		struct listener *l = __objt_listener(h2c->conn->target);
+		struct proxy *prx = l->bind_conf->frontend;
+
+		h2c->flags &= ~H2_CF_IS_BACK;
+
+		h2c->shut_timeout = h2c->timeout = prx->timeout.client;
+		if (tick_isset(prx->timeout.clientfin))
+			h2c->shut_timeout = prx->timeout.clientfin;
+
+		h2c->px_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe,
+		                                      &h2_stats_module);
+
+		proxy_inc_fe_cum_sess_ver_ctr(l, prx, 2);
+
+		BUG_ON(LIST_INLIST(&h2c->conn->stopping_list));
+		LIST_APPEND(&mux_stopping_data[tid].list,
+		            &h2c->conn->stopping_list);
 	}
 
 	h2c->task->expire = tick_add(now_ms, h2c->timeout);
