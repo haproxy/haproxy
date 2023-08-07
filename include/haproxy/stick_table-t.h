@@ -187,11 +187,6 @@ struct stktable {
 		void *p;
 	} data_arg[STKTABLE_DATA_TYPES]; /* optional argument of each data type */
 	struct proxy *proxy;      /* The proxy this stick-table is attached to, if any.*/
-	struct proxy *proxies_list; /* The list of proxies which reference this stick-table. */
-	struct {
-		const char *file;     /* The file where the stick-table is declared. */
-		int line;             /* The line in this <file> the stick-table is declared. */
-	} conf;
 
 	THREAD_ALIGN(64);
 
@@ -210,8 +205,15 @@ struct stktable {
 	unsigned int commitupdate;/* used to identify the latest local updates pending for sync, uses updt_lock */
 
 	THREAD_ALIGN(64);
-
+	/* this lock is heavily used and must be on its own cache line */
 	__decl_thread(HA_RWLOCK_T updt_lock); /* lock protecting the updates part */
+
+	/* rarely used config stuff below (should not interfere with updt_lock) */
+	struct proxy *proxies_list; /* The list of proxies which reference this stick-table. */
+	struct {
+		const char *file;     /* The file where the stick-table is declared. */
+		int line;             /* The line in this <file> the stick-table is declared. */
+	} conf;
 };
 
 extern struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES];
