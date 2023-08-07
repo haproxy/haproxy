@@ -1,5 +1,5 @@
 varnishtest "Test if-none param for the forwardfor option"
-#REQUIRE_VERSION=2.6
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.6-dev0)'"
 
 # This config tests the if-none parameter for the HTTP forwardfor option.
 

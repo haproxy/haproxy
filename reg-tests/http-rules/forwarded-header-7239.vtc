@@ -1,5 +1,5 @@
 varnishtest "Test RFC 7239 forwarded header support (forwarded option and related converters)"
-#REQUIRE_VERSION=2.8
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.8-dev0)'"
 
 # This config tests the HTTP forwarded option and RFC7239 related converters.
 
