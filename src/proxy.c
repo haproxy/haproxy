@@ -334,6 +334,7 @@ void free_proxy(struct proxy *p)
 		free(bind_conf->arg);
 		free(bind_conf->settings.interface);
 		LIST_DELETE(&bind_conf->by_fe);
+		free(bind_conf->reverse_srvname);
 		free(bind_conf);
 	}
 

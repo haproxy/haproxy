@@ -4993,6 +4993,10 @@ bind /<path> [, ...] [param*]
                     - 'quic6@' -> address is resolved as IPv6 and protocol UDP
                       is used. The performance note for QUIC over IPv4 applies
                       as well.
+                    - 'rev@' -> used for reverse HTTP. Address must be a server
+                      with the format '<backend>/<server>'. The server will be
+                      used to instantiate connections to a remote address. The
+                      listener will try to maintain 'maxconn' connections.
 
                   You may want to reference some environment variables in the
                   address parameter, see section 2.3 about environment

@@ -7,6 +7,7 @@
 int rev_bind_receiver(struct receiver *rx, char **errmsg);
 
 int rev_bind_listener(struct listener *listener, char *errmsg, int errlen);
+void rev_unbind_receiver(struct listener *l);
 
 int rev_accepting_conn(const struct receiver *rx);
 

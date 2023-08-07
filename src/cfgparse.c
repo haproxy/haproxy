@@ -173,6 +173,10 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		else
 			bind_conf->options |= BC_O_USE_XPRT_STREAM;
 
+		if (ss2->ss_family == AF_CUST_REV_SRV) {
+			bind_conf->reverse_srvname = strdup(str + strlen("rev@"));
+		}
+
 		if (!create_listeners(bind_conf, ss2, port, end, fd, proto, err)) {
 			memprintf(err, "%s for address '%s'.\n", *err, str);
 			goto fail;

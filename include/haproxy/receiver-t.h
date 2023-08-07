@@ -79,6 +79,10 @@ struct receiver {
 #ifdef USE_QUIC
 	struct mt_list rxbuf_list;       /* list of buffers to receive and dispatch QUIC datagrams. */
 #endif
+	struct {
+		struct server *srv; /* Underlying server used to initiate reverse pre-connect. */
+	} reverse_connect;
+
 	/* warning: this struct is huge, keep it at the bottom */
 	struct sockaddr_storage addr;    /* the address the socket is bound to */
 };

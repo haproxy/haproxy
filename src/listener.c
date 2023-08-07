@@ -799,6 +799,8 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 		l->rx.iocb = proto->default_iocb;
 		l->rx.fd = fd;
 
+		l->rx.reverse_connect.srv = NULL;
+
 		memcpy(&l->rx.addr, ss, sizeof(*ss));
 		if (proto->fam->set_port)
 			proto->fam->set_port(&l->rx.addr, port);
@@ -1945,6 +1947,9 @@ struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *file,
 	bind_conf->sni_w_ctx = EB_ROOT;
 #endif
 	LIST_INIT(&bind_conf->listeners);
+
+	bind_conf->reverse_srvname = NULL;
+
 	return bind_conf;
 
   err:
