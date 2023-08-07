@@ -449,6 +449,7 @@ struct quic_conn_cntrs {
 #define QUIC_FL_CONN_IO_TO_REQUEUE               (1U << 14) /* IO handler must be requeued on new thread after connection migration */
 #define QUIC_FL_CONN_IPKTNS_DCD                  (1U << 15) /* Initial packet number space discarded  */
 #define QUIC_FL_CONN_HPKTNS_DCD                  (1U << 16) /* Handshake packet number space discarded  */
+#define QUIC_FL_CONN_PEER_VALIDATED_ADDR         (1U << 17) /* Connection with peer validated address */
 #define QUIC_FL_CONN_TO_KILL                     (1U << 24) /* Unusable connection, to be killed */
 #define QUIC_FL_CONN_TX_TP_RECEIVED              (1U << 25) /* Peer transport parameters have been received (used for the transmitting part) */
 #define QUIC_FL_CONN_FINALIZED                   (1U << 26) /* QUIC connection finalized (functional, ready to send/receive) */
@@ -458,27 +459,59 @@ struct quic_conn_cntrs {
 #define QUIC_FL_CONN_DRAINING                    (1U << 30) /* draining state, entered on CONNECTION_CLOSE reception */
 #define QUIC_FL_CONN_IMMEDIATE_CLOSE             (1U << 31) /* A CONNECTION_CLOSE must be sent */
 
+#define QUIC_CONN_COMMON                               \
+    struct {                                           \
+        /* Connection owned socket FD. */              \
+        int fd;                                        \
+        unsigned int flags;                            \
+        struct quic_err err;                           \
+        /* When in closing state, number of packet before sending CC */  \
+        unsigned int nb_pkt_for_cc;                    \
+        /* When in closing state, number of packet since receiving CC */ \
+        unsigned int nb_pkt_since_cc;                  \
+        struct wait_event wait_event;                  \
+        struct wait_event *subs;                       \
+        struct sockaddr_storage local_addr;            \
+        struct sockaddr_storage peer_addr;             \
+        struct {                                       \
+            /* Number of bytes for prepared packets */ \
+            uint64_t prep;                             \
+            /* Number of sent bytes. */                \
+            uint64_t tx;                               \
+            /* Number of received bytes. */            \
+            uint64_t rx;                               \
+        } bytes;                                       \
+        /* First DCID used by client on its Initial packet. */                 \
+        struct quic_cid odcid;                                                 \
+        /* DCID of our endpoint - not updated when a new DCID is used */       \
+        struct quic_cid dcid;                                                  \
+        /* first SCID of our endpoint - not updated when a new SCID is used */ \
+        struct quic_cid scid;                                                  \
+        /* tree of quic_connection_id - used to match a received packet DCID   \
+         * with a connection                                                   \
+         */                                                                    \
+        struct eb_root *cids;                                                  \
+        struct listener *li; /* only valid for frontend connections */         \
+        /* Idle timer task */                                                  \
+        struct task *idle_timer_task;                                          \
+        unsigned int idle_expire;                                              \
+    }
+
 struct quic_conn {
+	QUIC_CONN_COMMON;
 	const struct quic_version *original_version;
 	const struct quic_version *negotiated_version;
 	/* Negotiated version Initial TLS context */
 	struct quic_tls_ctx *nictx;
-	/* Connection owned socket FD. */
-	int fd;
 	/* QUIC transport parameters TLS extension */
 	int tps_tls_ext;
 	int state;
 	enum qc_mux_state mux_state; /* status of the connection/mux layer */
-	struct quic_err err;
 #ifdef USE_QUIC_OPENSSL_COMPAT
 	unsigned char enc_params[QUIC_TP_MAX_ENCLEN]; /* encoded QUIC transport parameters */
 	size_t enc_params_len;
 #endif
 
-	struct quic_cid odcid; /* First DCID used by client on its Initial packet. */
-	struct quic_cid dcid; /* DCID of our endpoint - not updated when a new DCID is used */
-	struct quic_cid scid; /* first SCID of our endpoint - not updated when a new SCID is used */
-	struct eb_root *cids; /* tree of quic_connection_id - used to match a received packet DCID with a connection */
 	uint64_t next_cid_seq_num;
 
 	/* Initial encryption level */
@@ -503,20 +536,9 @@ struct quic_conn {
 	struct quic_openssl_compat openssl_compat;
 #endif
 
-	struct sockaddr_storage local_addr;
-	struct sockaddr_storage peer_addr;
-
 	/* Used only to reach the tasklet for the I/O handler from this quic_conn object. */
 	struct connection *conn;
 
-	struct {
-		/* Number of bytes for prepared packets */
-		uint64_t prep;
-		/* Number of sent bytes. */
-		uint64_t tx;
-		/* Number of received bytes. */
-		uint64_t rx;
-	} bytes;
 	struct {
 		/* Transport parameters sent by the peer */
 		struct quic_transport_params params;
@@ -549,29 +571,16 @@ struct quic_conn {
 	struct quic_path paths[1];
 	struct quic_path *path;
 
-	struct listener *li; /* only valid for frontend connections */
 	struct mt_list accept_list; /* chaining element used for accept, only valid for frontend connections */
 
 	struct eb_root streams_by_id; /* qc_stream_desc tree */
 	int stream_buf_count; /* total count of allocated stream buffers for this connection */
 
-	struct wait_event wait_event;
-	struct wait_event *subs;
-
 	/* MUX */
 	struct qcc *qcc;
 	struct task *timer_task;
 	unsigned int timer;
-	/* Idle timer task */
-	struct task *idle_timer_task;
-	unsigned int idle_expire;
 	unsigned int ack_expire;
-	unsigned int flags;
-
-	/* When in closing state, number of packet before sending CC */
-	unsigned int nb_pkt_for_cc;
-	/* When in closing state, number of packet since receiving CC */
-	unsigned int nb_pkt_since_cc;
 
 	const struct qcc_app_ops *app_ops;
 	/* QUIC connection level counters */
@@ -582,6 +591,14 @@ struct quic_conn {
 	struct list el_th_ctx; /* list elem in ha_thread_ctx */
 	struct list back_refs; /* list head of CLI context currently dumping this connection. */
 	unsigned int qc_epoch; /* delimiter for newer instances started after "show quic". */
+};
+
+/* QUIC connection in "connection close" state. */
+struct quic_cc_conn {
+	QUIC_CONN_COMMON;
+	char *cc_buf_area;
+	/* Length of the "connection close" datagram. */
+	size_t cc_dgram_len;
 };
 
 #endif /* USE_QUIC */

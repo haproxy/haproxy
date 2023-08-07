@@ -225,6 +225,23 @@ static inline void free_quic_conn_cids(struct quic_conn *conn)
 	}
 }
 
+/* Move all the connection IDs from <conn> QUIC connection to <cc_conn> */
+static inline void quic_conn_mv_cids_to_cc_conn(struct quic_cc_conn *cc_conn,
+                                                struct quic_conn *conn)
+{
+	struct eb64_node *node;
+
+	node = eb64_first(conn->cids);
+	while (node) {
+		struct quic_connection_id *conn_id;
+
+		conn_id = eb64_entry(node, struct quic_connection_id, seq_num);
+		conn_id->qc = (struct quic_conn *)cc_conn;
+		node = eb64_next(node);
+	}
+
+}
+
 /* Copy <src> new connection ID information to <dst> NEW_CONNECTION_ID frame.
  * Always succeeds.
  */
