@@ -1576,9 +1576,9 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 	new_pushed = 1;
 
 	if (locked)
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
-
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
+		HA_RWLOCK_WRTORD(STK_TABLE_LOCK, &st->table->lock);
+	else
+		HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &st->table->lock);
 
 	while (1) {
 		struct stksess *ts;
@@ -1600,10 +1600,10 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 		}
 
 		HA_ATOMIC_INC(&ts->ref_cnt);
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
+		HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &st->table->lock);
 
 		ret = peer_send_updatemsg(st, appctx, ts, updateid, new_pushed, use_timed);
-		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
+		HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &st->table->lock);
 		HA_ATOMIC_DEC(&ts->ref_cnt);
 		if (ret <= 0)
 			break;
@@ -1635,7 +1635,7 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 	}
 
  out:
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
+	HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &st->table->lock);
 
 	if (locked)
 		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
