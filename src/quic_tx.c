@@ -771,7 +771,7 @@ int quic_build_post_handshake_frames(struct quic_conn *qc)
 			goto err;
 		}
 
-		conn_id = new_quic_cid(&qc->cids, qc, NULL, NULL);
+		conn_id = new_quic_cid(qc->cids, qc, NULL, NULL);
 		if (!conn_id) {
 			qc_frm_free(qc, &frm);
 			TRACE_ERROR("CID allocation error", QUIC_EV_CONN_IO_CB, qc);
@@ -803,7 +803,7 @@ int quic_build_post_handshake_frames(struct quic_conn *qc)
 	/* The first CID sequence number value used to allocated CIDs by this function is 1,
 	 * 0 being the sequence number of the CID for this connection.
 	 */
-	node = eb64_lookup_ge(&qc->cids, 1);
+	node = eb64_lookup_ge(qc->cids, 1);
 	while (node) {
 		struct quic_connection_id *conn_id;
 

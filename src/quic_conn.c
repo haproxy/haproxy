@@ -129,6 +129,7 @@ const struct quic_version quic_version_VN_reserved = { .num = 0, };
 static BIO_METHOD *ha_quic_meth;
 
 DECLARE_STATIC_POOL(pool_head_quic_conn, "quic_conn", sizeof(struct quic_conn));
+DECLARE_STATIC_POOL(pool_head_quic_cids, "quic_cids", sizeof(struct eb_root));
 DECLARE_POOL(pool_head_quic_connection_id,
              "quic_connection_id", sizeof(struct quic_connection_id));
 DECLARE_POOL(pool_head_quic_crypto_buf, "quic_crypto_buf", sizeof(struct quic_crypto_buf));
@@ -1033,7 +1034,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->streams_by_id = EB_ROOT_UNIQUE;
 
 	/* Required to call free_quic_conn_cids() from quic_conn_release() */
-	qc->cids = EB_ROOT;
+	qc->cids = NULL;
 	qc_init_fd(qc);
 
 	LIST_INIT(&qc->back_refs);
@@ -1075,6 +1076,13 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		goto err;
 	}
 
+	qc->cids = pool_alloc(pool_head_quic_cids);
+	if (!qc->cids) {
+		TRACE_ERROR("Could not allocate a new CID tree", QUIC_EV_CONN_INIT, qc);
+		goto err;
+	}
+
+	*qc->cids = EB_ROOT;
 	/* QUIC Server (or listener). */
 	if (server) {
 		struct proxy *prx;
@@ -1294,6 +1302,7 @@ void quic_conn_release(struct quic_conn *qc)
 
 	/* remove the connection from receiver cids trees */
 	free_quic_conn_cids(qc);
+	pool_free(pool_head_quic_cids, qc->cids);
 
 	/* free the SSL sock context */
 	qc_free_ssl_sock_ctx(&qc->xprt_ctx);
@@ -1695,7 +1704,7 @@ int qc_set_tid_affinity(struct quic_conn *qc, uint new_tid, struct listener *new
 	 */
 	qc_detach_th_ctx_list(qc, 0);
 
-	node = eb64_first(&qc->cids);
+	node = eb64_first(qc->cids);
 	BUG_ON(!node || eb64_next(node)); /* One and only one CID must be present before affinity rebind. */
 	conn_id = eb64_entry(node, struct quic_connection_id, seq_num);
 

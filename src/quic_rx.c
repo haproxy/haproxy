@@ -874,7 +874,7 @@ static int qc_handle_retire_connection_id_frm(struct quic_conn *qc,
 	 * the Destination Connection ID field of the packet in which the frame is contained.
 	 * The peer MAY treat this as a connection error of type PROTOCOL_VIOLATION.
 	 */
-	node = eb64_lookup(&qc->cids, rcid_frm->seq_num);
+	node = eb64_lookup(qc->cids, rcid_frm->seq_num);
 	if (!node) {
 		TRACE_PROTO("CID already retired", QUIC_EV_CONN_PSTRM, qc, frm);
 		goto out;
@@ -1056,7 +1056,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			pool_free(pool_head_quic_connection_id, conn_id);
 			TRACE_PROTO("CID retired", QUIC_EV_CONN_PSTRM, qc);
 
-			conn_id = new_quic_cid(&qc->cids, qc, NULL, NULL);
+			conn_id = new_quic_cid(qc->cids, qc, NULL, NULL);
 			if (!conn_id) {
 				TRACE_ERROR("CID allocation error", QUIC_EV_CONN_IO_CB, qc);
 			}
@@ -1954,7 +1954,7 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				 * packet. <conn_id> must be inserted in the CIDs tree for this
 				 * connection.
 				 */
-				eb64_insert(&qc->cids, &conn_id->seq_num);
+				eb64_insert(qc->cids, &conn_id->seq_num);
 				/* Initialize the next CID sequence number to be used for this connection. */
 				qc->next_cid_seq_num = 1;
 			}

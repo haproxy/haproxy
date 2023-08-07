@@ -209,7 +209,7 @@ static inline void free_quic_conn_cids(struct quic_conn *conn)
 {
 	struct eb64_node *node;
 
-	node = eb64_first(&conn->cids);
+	node = eb64_first(conn->cids);
 	while (node) {
 		struct quic_connection_id *conn_id;
 

@@ -478,7 +478,7 @@ struct quic_conn {
 	struct quic_cid odcid; /* First DCID used by client on its Initial packet. */
 	struct quic_cid dcid; /* DCID of our endpoint - not updated when a new DCID is used */
 	struct quic_cid scid; /* first SCID of our endpoint - not updated when a new SCID is used */
-	struct eb_root cids; /* tree of quic_connection_id - used to match a received packet DCID with a connection */
+	struct eb_root *cids; /* tree of quic_connection_id - used to match a received packet DCID with a connection */
 	uint64_t next_cid_seq_num;
 
 	/* Initial encryption level */
