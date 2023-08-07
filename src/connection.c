@@ -2440,6 +2440,11 @@ uint64_t conn_calculate_hash(const struct conn_hash_params *params)
 /* Reverse a <conn> connection instance. This effectively moves the connection
  * from frontend to backend side or vice-versa depending on its initial status.
  *
+ * For active reversal, 'reverse' member points to the listener used as the new
+ * connection target. Once transition is completed, the connection needs to be
+ * accepted on the listener to instantiate its parent session before using
+ * streams.
+ *
  * For passive reversal, 'reverse' member points to the server used as the new
  * connection target. Once transition is completed, the connection appears as a
  * normal backend connection.
@@ -2486,7 +2491,10 @@ int conn_reverse(struct connection *conn)
 		conn_set_owner(conn, NULL, NULL);
 	}
 	else {
-		ABORT_NOW();
+		conn_backend_deinit(conn);
+
+		conn->target = conn->reverse.target;
+		conn->flags |= CO_FL_REVERSED;
 	}
 
 	/* Invert source and destination addresses if already set. */
