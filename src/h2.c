@@ -337,11 +337,18 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 		}
 
 		/* RFC7540#10.3: intermediaries forwarding to HTTP/1 must take care of
-		 * rejecting NUL, CR and LF characters.
+		 * rejecting NUL, CR and LF characters. For :path we reject all CTL
+		 * chars, spaces, and '#'.
 		 */
-		ctl = ist_find_ctl(list[idx].v);
-		if (unlikely(ctl) && http_header_has_forbidden_char(list[idx].v, ctl))
-			goto fail;
+		if (phdr == H2_PHDR_IDX_PATH && !relaxed) {
+			ctl = ist_find_range(list[idx].v, 0, '#');
+			if (unlikely(ctl) && http_path_has_forbidden_char(list[idx].v, ctl))
+				goto fail;
+		} else {
+			ctl = ist_find_ctl(list[idx].v);
+			if (unlikely(ctl) && http_header_has_forbidden_char(list[idx].v, ctl))
+				goto fail;
+		}
 
 		if (phdr > 0 && phdr < H2_PHDR_NUM_ENTRIES) {
 			/* insert a pseudo header by its index (in phdr) and value (in value) */
