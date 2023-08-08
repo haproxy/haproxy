@@ -118,13 +118,22 @@ int protocol_supports_flag(struct protocol *proto, uint flag)
 /* Return 1 if QUIC protocol may be bound, 0 if no, depending on the tuning
  * parameters.
  */
-static inline int protocol_may_bind_quic(void)
+static inline int protocol_may_bind_quic(struct listener *l)
 {
+#ifdef USE_QUIC_OPENSSL_COMPAT
+	struct proxy *px = l->bind_conf->frontend;
+
+#endif
 	if (global.tune.options & GTUNE_NO_QUIC)
 		return 0;
 #ifdef USE_QUIC_OPENSSL_COMPAT
-	if (!(global.tune.options & GTUNE_LIMITED_QUIC))
+	if (!(global.tune.options & GTUNE_LIMITED_QUIC)) {
+		ha_warning("Binding [%s:%d] for %s %s: receiving socket not bound"
+		           " (\"limited-quic\" global option is not set)\n",
+		           l->bind_conf->file, l->bind_conf->line,
+		           proxy_type_str(px), px->id);
 		return 0;
+	}
 #endif
 	return 1;
 }
@@ -146,12 +155,12 @@ int protocol_bind_all(int verbose)
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
 		list_for_each_entry(receiver, &proto->receivers, proto_list) {
+			listener = LIST_ELEM(receiver, struct listener *, rx);
 #ifdef USE_QUIC
 			if ((proto == &proto_quic4 || proto == &proto_quic6) &&
-			    !protocol_may_bind_quic())
+			    !protocol_may_bind_quic(listener))
 				continue;
 #endif
-			listener = LIST_ELEM(receiver, struct listener *, rx);
 
 			lerr = proto->fam->bind(receiver, &errmsg);
 			err |= lerr;
