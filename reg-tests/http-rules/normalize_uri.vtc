@@ -151,6 +151,11 @@ haproxy h1 -conf {
 
         default_backend be
 
+    frontend fe_fragment_block
+        bind "fd@${fe_fragment_block}"
+        http-request normalize-uri fragment-strip
+        default_backend be
+
     backend be
         server s1 ${s1_addr}:${s1_port}
 
@@ -535,4 +540,10 @@ client c10 -connect ${h1_fe_fragment_encode_sock} {
     rxresp
     expect resp.http.before == "*"
     expect resp.http.after == "*"
+} -run
+
+client c11 -connect ${h1_fe_fragment_block_sock} {
+    txreq -url "/#foo"
+    rxresp
+    expect resp.status == 400
 } -run
