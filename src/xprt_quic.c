@@ -28,8 +28,10 @@ static void quic_close(struct connection *conn, void *xprt_ctx)
 	/* Next application data can be dropped. */
 	qc->mux_state = QC_MUX_RELEASED;
 
-	/* If the quic-conn timer has already expired free the quic-conn. */
-	if (qc->flags & QUIC_FL_CONN_EXP_TIMER) {
+	/* If the quic-conn timer has already expired or if already in "connection close"
+	 * state, free the quic-conn.
+	 */
+	if (qc->flags & (QUIC_FL_CONN_EXP_TIMER|QUIC_FL_CONN_CLOSING)) {
 		quic_conn_release(qc);
 		qc = NULL;
 		goto leave;
