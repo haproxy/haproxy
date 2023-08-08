@@ -84,6 +84,7 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
 void proxy_adjust_all_maxconn(void);
 struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg);
 struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg);
+int resolve_stick_rule(struct proxy *curproxy, struct sticking_rule *mrule);
 
 /*
  * This function returns a string containing the type of the proxy in a format

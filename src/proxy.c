@@ -130,6 +130,41 @@ const struct cfg_opt cfg_opts2[] =
 	{ NULL, 0, 0, 0 }
 };
 
+/* Helper function to resolve a single sticking rule after config parsing.
+ * Returns 1 for success and 0 for failure
+ */
+int resolve_stick_rule(struct proxy *curproxy, struct sticking_rule *mrule)
+{
+	struct stktable *target;
+
+	if (mrule->table.name)
+		target = stktable_find_by_name(mrule->table.name);
+	else
+		target = curproxy->table;
+
+	if (!target) {
+		ha_alert("Proxy '%s': unable to find stick-table '%s'.\n",
+		         curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
+		return 0;
+	}
+	else if (!stktable_compatible_sample(mrule->expr, target->type)) {
+		ha_alert("Proxy '%s': type of fetch not usable with type of stick-table '%s'.\n",
+		         curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
+		return 0;
+	}
+
+	/* success */
+	ha_free(&mrule->table.name);
+	mrule->table.t = target;
+	stktable_alloc_data_type(target, STKTABLE_DT_SERVER_ID, NULL, NULL);
+	stktable_alloc_data_type(target, STKTABLE_DT_SERVER_KEY, NULL, NULL);
+	if (!in_proxies_list(target->proxies_list, curproxy)) {
+		curproxy->next_stkt_ref = target->proxies_list;
+		target->proxies_list = curproxy;
+	}
+	return 1;
+}
+
 static void free_stick_rules(struct list *rules)
 {
 	struct sticking_rule *rule, *ruleb;
