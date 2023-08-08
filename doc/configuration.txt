@@ -9152,6 +9152,8 @@ no option accept-invalid-http-request
   option also relaxes the test on the HTTP version, it allows HTTP/0.9 requests
   to pass through (no version specified), as well as different protocol names
   (e.g. RTSP), and multiple digits for both the major and the minor version.
+  Finally, this option also allows incoming URLs to contain fragment references
+  ('#' after the path).
 
   This option should never be enabled by default as it hides application bugs
   and open security breaches. It should only be deployed after a problem has
@@ -22265,7 +22267,11 @@ path : string
   information from databases and keep them in caches. Note that with outgoing
   caches, it would be wiser to use "url" instead. With ACLs, it's typically
   used to match exact file names (e.g. "/login.php"), or directory parts using
-  the derivative forms. See also the "url" and "base" fetch methods.
+  the derivative forms. See also the "url" and "base" fetch methods. Please
+  note that any fragment reference in the URI ('#' after the path) is strictly
+  forbidden by the HTTP standard and will be rejected. However, if the frontend
+  receiving the request has "option accept-invalid-http-request", then this
+  fragment part will be accepted and will also appear in the path.
 
   ACL derivatives :
     path     : exact string match
@@ -22283,7 +22289,11 @@ pathq : string
   relative URI, excluding the scheme and the authority part, if any. Indeed,
   while it is the common representation for an HTTP/1.1 request target, in
   HTTP/2, an absolute URI is often used. This sample fetch will return the same
-  result in both cases.
+  result in both cases. Please note that any fragment reference in the URI ('#'
+  after the path) is strictly forbidden by the HTTP standard and will be
+  rejected. However, if the frontend receiving the request has "option
+  accept-invalid-http-request", then this fragment part will be accepted and
+  will also appear in the path.
 
 query : string
   This extracts the request's query string, which starts after the first
@@ -22523,7 +22533,11 @@ url : string
   "path" is preferred over using "url", because clients may send a full URL as
   is normally done with proxies. The only real use is to match "*" which does
   not match in "path", and for which there is already a predefined ACL. See
-  also "path" and "base".
+  also "path" and "base". Please note that any fragment reference in the URI
+  ('#' after the path) is strictly forbidden by the HTTP standard and will be
+  rejected. However, if the frontend receiving the request has "option
+  accept-invalid-http-request", then this fragment part will be accepted and
+  will also appear in the url.
 
   ACL derivatives :
     url     : exact string match
