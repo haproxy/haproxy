@@ -551,13 +551,13 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	case H1_MSG_RQURI:
 	http_msg_rquri:
 #ifdef HA_UNALIGNED_LE
-		/* speedup: skip bytes not between 0x21 and 0x7e inclusive */
+		/* speedup: skip bytes not between 0x24 and 0x7e inclusive */
 		while (ptr <= end - sizeof(int)) {
-			int x = *(int *)ptr - 0x21212121;
+			int x = *(int *)ptr - 0x24242424;
 			if (x & 0x80808080)
 				break;
 
-			x -= 0x5e5e5e5e;
+			x -= 0x5b5b5b5b;
 			if (!(x & 0x80808080))
 				break;
 
@@ -569,8 +569,15 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			goto http_msg_ood;
 		}
 	http_msg_rquri2:
-		if (likely((unsigned char)(*ptr - 33) <= 93)) /* 33 to 126 included */
+		if (likely((unsigned char)(*ptr - 33) <= 93)) { /* 33 to 126 included */
+			if (*ptr == '#') {
+				if (h1m->err_pos < -1) /* PR_O2_REQBUG_OK not set */
+					goto invalid_char;
+				if (h1m->err_pos == -1) /* PR_O2_REQBUG_OK set: just log */
+					h1m->err_pos = ptr - start + skip;
+			}
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rquri2, http_msg_ood, state, H1_MSG_RQURI);
+		}
 
 		if (likely(HTTP_IS_SPHT(*ptr))) {
 			sl.rq.u.len = ptr - sl.rq.u.ptr;
