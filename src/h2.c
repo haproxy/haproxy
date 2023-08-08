@@ -49,23 +49,6 @@ struct h2_frame_definition h2_frame_definition[H2_FT_ENTRIES] =	{
 	 [H2_FT_CONTINUATION ] = { .dir = 3, .min_id = 1, .max_id = H2_MAX_STREAM_ID, .min_len = 0, .max_len = H2_MAX_FRAME_LEN, },
 };
 
-/* Looks into <ist> for forbidden characters for header values (0x00, 0x0A,
- * 0x0D), starting at pointer <start> which must be within <ist>. Returns
- * non-zero if such a character is found, 0 otherwise. When run on unlikely
- * header match, it's recommended to first check for the presence of control
- * chars using ist_find_ctl().
- */
-static int has_forbidden_char(const struct ist ist, const char *start)
-{
-	do {
-		if ((uint8_t)*start <= 0x0d &&
-		    (1U << (uint8_t)*start) & ((1<<13) | (1<<10) | (1<<0)))
-			return 1;
-		start++;
-	} while (start < istend(ist));
-	return 0;
-}
-
 /* Prepare the request line into <htx> from pseudo headers stored in <phdr[]>.
  * <fields> indicates what was found so far. This should be called once at the
  * detection of the first general header field or at the end of the request if
@@ -353,7 +336,7 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 		 * rejecting NUL, CR and LF characters.
 		 */
 		ctl = ist_find_ctl(list[idx].v);
-		if (unlikely(ctl) && has_forbidden_char(list[idx].v, ctl))
+		if (unlikely(ctl) && http_header_has_forbidden_char(list[idx].v, ctl))
 			goto fail;
 
 		if (phdr > 0 && phdr < H2_PHDR_NUM_ENTRIES) {
@@ -638,7 +621,7 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 		 * rejecting NUL, CR and LF characters.
 		 */
 		ctl = ist_find_ctl(list[idx].v);
-		if (unlikely(ctl) && has_forbidden_char(list[idx].v, ctl))
+		if (unlikely(ctl) && http_header_has_forbidden_char(list[idx].v, ctl))
 			goto fail;
 
 		if (phdr > 0 && phdr < H2_PHDR_NUM_ENTRIES) {
@@ -797,7 +780,7 @@ int h2_make_htx_trailers(struct http_hdr *list, struct htx *htx)
 		 * rejecting NUL, CR and LF characters.
 		 */
 		ctl = ist_find_ctl(list[idx].v);
-		if (unlikely(ctl) && has_forbidden_char(list[idx].v, ctl))
+		if (unlikely(ctl) && http_header_has_forbidden_char(list[idx].v, ctl))
 			goto fail;
 
 		if (!htx_add_trailer(htx, list[idx].n, list[idx].v))

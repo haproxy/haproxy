@@ -173,6 +173,24 @@ static inline struct http_uri_parser http_uri_parser_init(const struct ist uri)
 	return parser;
 }
 
+/* Looks into <ist> for forbidden characters for header values (0x00, 0x0A,
+ * 0x0D), starting at pointer <start> which must be within <ist>. Returns
+ * non-zero if such a character is found, 0 otherwise. When run on unlikely
+ * header match, it's recommended to first check for the presence of control
+ * chars using ist_find_ctl().
+ */
+static inline int http_header_has_forbidden_char(const struct ist ist, const char *start)
+{
+	do {
+		if ((uint8_t)*start <= 0x0d &&
+		    (1U << (uint8_t)*start) & ((1<<13) | (1<<10) | (1<<0)))
+			return 1;
+		start++;
+	} while (start < istend(ist));
+	return 0;
+}
+
+
 #endif /* _HAPROXY_HTTP_H */
 
 /*
