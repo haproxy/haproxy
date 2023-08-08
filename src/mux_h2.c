@@ -4936,7 +4936,8 @@ next_frame:
 	if (h2c->flags & H2_CF_IS_BACK)
 		outlen = h2_make_htx_response(list, htx, &msgf, body_len, upgrade_protocol);
 	else
-		outlen = h2_make_htx_request(list, htx, &msgf, body_len);
+		outlen = h2_make_htx_request(list, htx, &msgf, body_len,
+					     !!(((const struct session *)h2c->conn->owner)->fe->options2 & PR_O2_REQBUG_OK));
 
 	if (outlen < 0 || htx_free_space(htx) < global.tune.maxrewrite) {
 		/* too large headers? this is a stream error only */
