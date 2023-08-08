@@ -747,6 +747,53 @@ static inline const char *ist_find_ctl(const struct ist ist)
 	return NULL;
 }
 
+/* Returns a pointer to the first character found <ist> that belongs to the
+ * range [min:max] inclusive, or NULL if none is present. The function is
+ * optimized for strings having no such chars by processing up to sizeof(long)
+ * bytes at once on architectures supporting efficient unaligned accesses.
+ * Despite this it is not very fast (~0.43 byte/cycle) and should mostly be
+ * used on low match probability when it can save a call to a much slower
+ * function. Will not work for characters 0x80 and above. It's optimized for
+ * min and max to be known at build time.
+ */
+static inline const char *ist_find_range(const struct ist ist, unsigned char min, unsigned char max)
+{
+	const union { unsigned long v; } __attribute__((packed)) *u;
+	const char *curr = (void *)ist.ptr - sizeof(long);
+	const char *last = curr + ist.len;
+	unsigned long l1, l2;
+
+	/* easier with an exclusive boundary */
+	max++;
+
+	do {
+		curr += sizeof(long);
+		if (curr > last)
+			break;
+		u = (void *)curr;
+		/* add 0x<min><min><min><min>..<min> then subtract
+		 * 0x<max><max><max><max>..<max> to the value to generate a
+		 * carry in the lower byte if the byte contains a lower value.
+		 * If we generate a bit 7 that was not there, it means the byte
+		 * was min..max.
+		 */
+		l2  = u->v;
+		l1  = ~l2 & ((~0UL / 255) * 0x80); /* 0x808080...80 */
+		l2 += (~0UL / 255) * min;          /* 0x<min><min>..<min> */
+		l2 -= (~0UL / 255) * max;          /* 0x<max><max>..<max> */
+	} while ((l1 & l2) == 0);
+
+	last += sizeof(long);
+	if (__builtin_expect(curr < last, 0)) {
+		do {
+			if ((unsigned char)(*curr - min) < (unsigned char)(max - min))
+				return curr;
+			curr++;
+		} while (curr < last);
+	}
+	return NULL;
+}
+
 /* looks for first occurrence of character <chr> in string <ist> and returns
  * the tail of the string starting with this character, or (ist.end,0) if not
  * found.
