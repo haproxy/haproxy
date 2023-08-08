@@ -127,6 +127,7 @@ haproxy h1 -conf {
 
     frontend fe_fragment_strip
         bind "fd@${fe_fragment_strip}"
+        option accept-invalid-http-request
 
         http-request set-var(txn.before) url
         http-request normalize-uri fragment-strip
@@ -139,6 +140,7 @@ haproxy h1 -conf {
 
     frontend fe_fragment_encode
         bind "fd@${fe_fragment_encode}"
+        option accept-invalid-http-request
 
         http-request set-var(txn.before) url
         http-request normalize-uri fragment-encode
