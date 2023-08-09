@@ -8888,7 +8888,11 @@ struct task *hlua_process_task(struct task *task, void *context, unsigned int st
 
 /* Helper function to prepare the lua ctx for a given stream
  *
- * ctx will be enforced in <state_id> parent stack on initial creation
+ * ctx will be enforced in <state_id> parent stack on initial creation.
+ * If s->hlua->state_id differs from <state_id>, which may happen at
+ * runtime since existing stream hlua ctx will be reused for other
+ * "independent" (but stream-related) lua executions, hlua will be
+ * recreated with the expected state id.
  *
  * Returns 1 for success and 0 for failure
  */
@@ -8899,6 +8903,7 @@ static int hlua_stream_ctx_prepare(struct stream *s, int state_id)
 	 * permits to save performances because a systematic
 	 * Lua initialization cause 5% performances loss.
 	 */
+ ctx_renew:
 	if (!s->hlua) {
 		struct hlua *hlua;
 
@@ -8911,6 +8916,17 @@ static int hlua_stream_ctx_prepare(struct stream *s, int state_id)
 			return 0;
 		}
 		s->hlua = hlua;
+	}
+	else if (s->hlua->state_id != state_id) {
+		/* ctx already created, but not in proper state.
+		 * It should only happen after the previous execution is
+		 * finished, otherwise it's probably a bug since we don't
+		 * want to abort unfinished job..
+		 */
+		BUG_ON(HLUA_IS_RUNNING(s->hlua));
+		hlua_ctx_destroy(s->hlua);
+		s->hlua = NULL;
+		goto ctx_renew;
 	}
 	return 1;
 }
