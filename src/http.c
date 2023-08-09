@@ -731,6 +731,14 @@ int http_parse_cont_len_header(struct ist *value, unsigned long long *body_len,
 					goto fail;
 				break;
 			}
+
+			if (unlikely(!cl && n > word.ptr)) {
+				/* There was a leading zero before this digit,
+				 * let's trim it.
+				 */
+				word.ptr = n;
+			}
+
 			if (unlikely(cl > ULLONG_MAX / 10ULL))
 				goto fail; /* multiply overflow */
 			cl = cl * 10ULL;

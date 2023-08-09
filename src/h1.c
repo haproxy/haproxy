@@ -58,6 +58,14 @@ int h1_parse_cont_len_header(struct h1m *h1m, struct ist *value)
 					goto fail;
 				break;
 			}
+
+			if (unlikely(!cl && n > word.ptr)) {
+				/* There was a leading zero before this digit,
+				 * let's trim it.
+				 */
+				word.ptr = n;
+			}
+
 			if (unlikely(cl > ULLONG_MAX / 10ULL))
 				goto fail; /* multiply overflow */
 			cl = cl * 10ULL;

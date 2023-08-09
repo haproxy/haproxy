@@ -26,11 +26,11 @@ server s1 {
 	  -body "This is a body"
 
 	expect req.method == "GET"
-	expect req.http.fe-sl1-crc == 992395575
-	expect req.http.fe-sl2-crc == 1270056220
+	expect req.http.fe-sl1-crc == 1874847043
+	expect req.http.fe-sl2-crc == 1142278307
 	expect req.http.fe-hdr-crc == 1719311923
-	expect req.http.be-sl1-crc == 2604236007
-	expect req.http.be-sl2-crc == 4181358964
+	expect req.http.be-sl1-crc == 3455320059
+	expect req.http.be-sl2-crc == 2509326257
 	expect req.http.be-hdr-crc == 3634102538
 } -repeat 2 -start
 
@@ -51,6 +51,7 @@ haproxy h1 -conf {
 	http-request set-var(req.path)       path
 	http-request set-var(req.query)      query
 	http-request set-var(req.param)      url_param(qs_arg)
+	http-request set-var(req.cl)         req.fhdr(content-length)
 
 	http-request set-header     sl1      "sl1: "
 
@@ -63,8 +64,10 @@ haproxy h1 -conf {
 
 	http-request set-header     sl1      "%[req.fhdr(sl1)] method=<%[var(req.method)]>; uri=<%[var(req.uri)]>; path=<%[var(req.path)]>;"
 	http-request set-header     sl1      "%[req.fhdr(sl1)] query=<%[var(req.query)]>; param=<%[var(req.param)]>"
+	http-request set-header     sl1      "%[req.fhdr(sl1)] cl=<%[var(req.cl)]>"
 	http-request set-header     sl2      "%[req.fhdr(sl2)] method=<%[method]>; uri=<%[url]>; path=<%[path]>; "
 	http-request set-header     sl2      "%[req.fhdr(sl2)] query=<%[query]>; param=<%[url_param(qs_arg)]>"
+	http-request set-header     sl2      "%[req.fhdr(sl2)] cl=<%[req.fhdr(content-length)]>"
 	http-request set-header     hdr      "%[req.fhdr(hdr)] hdr1=<%[req.hdr(hdr1)]>; fhdr1=<%[req.fhdr(hdr1)]>;"
 	http-request set-header     hdr      "%[req.fhdr(hdr)] hdr2=<%[req.hdr(hdr2)]>; fhdr2=<%[req.fhdr(hdr2)]>;"
 	http-request set-header     hdr      "%[req.fhdr(hdr)] hdr3=<%[req.hdr(hdr3)]>; fhdr3=<%[req.fhdr(hdr3)]>;"
@@ -118,6 +121,7 @@ haproxy h1 -conf {
 	http-request set-var(req.path)       path
 	http-request set-var(req.query)      query
 	http-request set-var(req.param)      url_param(qs_arg)
+	http-request set-var(req.cl)         req.fhdr(content-length)
 
 	http-request set-header     sl1      "sl1: "
 
@@ -130,8 +134,10 @@ haproxy h1 -conf {
 
 	http-request set-header     sl1      "%[req.fhdr(sl1)] method=<%[var(req.method)]>; uri=<%[var(req.uri)]>; path=<%[var(req.path)]>;"
 	http-request set-header     sl1      "%[req.fhdr(sl1)] query=<%[var(req.query)]>; param=<%[var(req.param)]>"
+	http-request set-header     sl1      "%[req.fhdr(sl1)] cl=<%[var(req.cl)]>"
 	http-request set-header     sl2      "%[req.fhdr(sl2)] method=<%[method]>; uri=<%[url]>; path=<%[path]>; "
 	http-request set-header     sl2      "%[req.fhdr(sl2)] query=<%[query]>; param=<%[url_param(QS_arg,,i)]>"
+	http-request set-header     sl2      "%[req.fhdr(sl2)] cl=<%[req.fhdr(content-length)]>"
 	http-request set-header     hdr      "%[req.fhdr(hdr)] hdr1=<%[req.hdr(hdr1)]>; fhdr1=<%[req.fhdr(hdr1)]>;"
 	http-request set-header     hdr      "%[req.fhdr(hdr)] hdr2=<%[req.hdr(hdr2)]>; fhdr2=<%[req.fhdr(hdr2)]>;"
 	http-request set-header     hdr      "%[req.fhdr(hdr)] hdr3=<%[req.hdr(hdr3)]>; fhdr3=<%[req.fhdr(hdr3)]>;"
@@ -169,6 +175,7 @@ client c1h1 -connect ${h1_feh1_sock} {
 	txreq \
 	  -req GET \
 	  -url /path/to/file.extension?qs_arg=qs_value \
+	  -hdr "content-length: 000, 00" \
 	  -hdr "hdr1: val1" \
 	  -hdr "hdr2:  val2a" \
 	  -hdr "hdr2:    val2b" \
@@ -203,6 +210,7 @@ client c1h2 -connect ${h1_feh2_sock} {
 		  -req GET \
 		  -scheme "https" \
 		  -url /path/to/file.extension?qs_arg=qs_value \
+		  -hdr "content-length" "000, 00" \
 		  -hdr "hdr1" "val1" \
 		  -hdr "hdr2" " val2a" \
 		  -hdr "hdr2" "   val2b" \
