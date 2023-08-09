@@ -2966,6 +2966,7 @@ static enum act_return action_add_gpc(struct act_rule *rule, struct proxy *px,
 			value = (unsigned int)(rule->arg.gpc.value);
 		else {
 			switch (rule->from) {
+			case ACT_F_TCP_REQ_CON: smp_opt_dir = SMP_OPT_DIR_REQ; break;
 			case ACT_F_TCP_REQ_SES: smp_opt_dir = SMP_OPT_DIR_REQ; break;
 			case ACT_F_TCP_REQ_CNT: smp_opt_dir = SMP_OPT_DIR_REQ; break;
 			case ACT_F_TCP_RES_CNT: smp_opt_dir = SMP_OPT_DIR_RES; break;
@@ -3066,6 +3067,7 @@ static enum act_parse_ret parse_add_gpc(const char **args, int *arg, struct prox
 			return ACT_RET_PRS_ERR;
 
 		switch (rule->from) {
+		case ACT_F_TCP_REQ_CON: smp_val = SMP_VAL_FE_CON_ACC; break;
 		case ACT_F_TCP_REQ_SES: smp_val = SMP_VAL_FE_SES_ACC; break;
 		case ACT_F_TCP_REQ_CNT: smp_val = SMP_VAL_FE_REQ_CNT; break;
 		case ACT_F_TCP_RES_CNT: smp_val = SMP_VAL_BE_RES_CNT; break;
