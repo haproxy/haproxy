@@ -2956,6 +2956,8 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 
 			case H1_MSG_HDR_NAME:
 				ret = h1_make_headers(h1s, h1m, htx, count);
+				if (unlikely(h1m->state == H1_MSG_LAST_LF)) // in case of no header
+					ret += h1_make_eoh(h1s, h1m, htx, count);
 				break;
 
 			case H1_MSG_LAST_LF:
