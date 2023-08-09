@@ -2999,7 +2999,7 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 		total += ret;
 		count -= ret;
 
-		if ((h1m->state == H1_MSG_DONE)) {
+		if (h1m->state == H1_MSG_DONE) {
 			TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "H1 request fully xferred" : "H1 response fully xferred"),
 				   H1_EV_TX_DATA, h1c->conn, h1s);
 
