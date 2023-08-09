@@ -8886,6 +8886,35 @@ struct task *hlua_process_task(struct task *task, void *context, unsigned int st
 	return task;
 }
 
+/* Helper function to prepare the lua ctx for a given stream
+ *
+ * ctx will be enforced in <state_id> parent stack on initial creation
+ *
+ * Returns 1 for success and 0 for failure
+ */
+static int hlua_stream_ctx_prepare(struct stream *s, int state_id)
+{
+	/* In the execution wrappers linked with a stream, the
+	 * Lua context can be not initialized. This behavior
+	 * permits to save performances because a systematic
+	 * Lua initialization cause 5% performances loss.
+	 */
+	if (!s->hlua) {
+		struct hlua *hlua;
+
+		hlua = pool_alloc(pool_head_hlua);
+		if (!hlua)
+			return 0;
+		HLUA_INIT(hlua);
+		if (!hlua_ctx_init(hlua, state_id, s->task)) {
+			pool_free(pool_head_hlua, hlua);
+			return 0;
+		}
+		s->hlua = hlua;
+	}
+	return 1;
+}
+
 /* This function is an LUA binding that register LUA function to be
  * executed after the HAProxy configuration parsing and before the
  * HAProxy scheduler starts. This function expect only one LUA
@@ -9725,25 +9754,9 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 	if (!stream)
 		return 0;
 
-	/* In the execution wrappers linked with a stream, the
-	 * Lua context can be not initialized. This behavior
-	 * permits to save performances because a systematic
-	 * Lua initialization cause 5% performances loss.
-	 */
-	if (!stream->hlua) {
-		struct hlua *hlua;
-
-		hlua = pool_alloc(pool_head_hlua);
-		if (!hlua) {
-			SEND_ERR(stream->be, "Lua converter '%s': can't initialize Lua context.\n", fcn->name);
-			return 0;
-		}
-		HLUA_INIT(hlua);
-		stream->hlua = hlua;
-		if (!hlua_ctx_init(stream->hlua, fcn_ref_to_stack_id(fcn), stream->task)) {
-			SEND_ERR(stream->be, "Lua converter '%s': can't initialize Lua context.\n", fcn->name);
-			return 0;
-		}
+	if (!hlua_stream_ctx_prepare(stream, fcn_ref_to_stack_id(fcn))) {
+		SEND_ERR(stream->be, "Lua converter '%s': can't initialize Lua context.\n", fcn->name);
+		return 0;
 	}
 
 	/* If it is the first run, initialize the data for the call. */
@@ -9866,25 +9879,9 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	if (!stream)
 		return 0;
 
-	/* In the execution wrappers linked with a stream, the
-	 * Lua context can be not initialized. This behavior
-	 * permits to save performances because a systematic
-	 * Lua initialization cause 5% performances loss.
-	 */
-	if (!stream->hlua) {
-		struct hlua *hlua;
-
-		hlua = pool_alloc(pool_head_hlua);
-		if (!hlua) {
-			SEND_ERR(stream->be, "Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
-			return 0;
-		}
-		hlua->T = NULL;
-		stream->hlua = hlua;
-		if (!hlua_ctx_init(stream->hlua, fcn_ref_to_stack_id(fcn), stream->task)) {
-			SEND_ERR(stream->be, "Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
-			return 0;
-		}
+	if (!hlua_stream_ctx_prepare(stream, fcn_ref_to_stack_id(fcn))) {
+		SEND_ERR(stream->be, "Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
+		return 0;
 	}
 
 	/* If it is the first run, initialize the data for the call. */
@@ -10211,27 +10208,10 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		goto end;
 	}
 
-	/* In the execution wrappers linked with a stream, the
-	 * Lua context can be not initialized. This behavior
-	 * permits to save performances because a systematic
-	 * Lua initialization cause 5% performances loss.
-	 */
-	if (!s->hlua) {
-		struct hlua *hlua;
-
-		hlua = pool_alloc(pool_head_hlua);
-		if (!hlua) {
-			SEND_ERR(px, "Lua action '%s': can't initialize Lua context.\n",
-			         rule->arg.hlua_rule->fcn->name);
-			goto end;
-		}
-		HLUA_INIT(hlua);
-		s->hlua = hlua;
-		if (!hlua_ctx_init(s->hlua, fcn_ref_to_stack_id(rule->arg.hlua_rule->fcn), s->task)) {
-			SEND_ERR(px, "Lua action '%s': can't initialize Lua context.\n",
-			         rule->arg.hlua_rule->fcn->name);
-			goto end;
-		}
+	if (!hlua_stream_ctx_prepare(s, fcn_ref_to_stack_id(rule->arg.hlua_rule->fcn))) {
+		SEND_ERR(px, "Lua action '%s': can't initialize Lua context.\n",
+		         rule->arg.hlua_rule->fcn->name);
+		goto end;
 	}
 
 	/* If it is the first run, initialize the data for the call. */
@@ -11669,29 +11649,11 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 	struct hlua_flt_ctx *flt_ctx = NULL;
 	int ret = 1;
 
-	/* In the execution wrappers linked with a stream, the
-	 * Lua context can be not initialized. This behavior
-	 * permits to save performances because a systematic
-	 * Lua initialization cause 5% performances loss.
-	 */
-	if (!s->hlua) {
-		struct hlua *hlua;
-
-		hlua = pool_alloc(pool_head_hlua);
-		if (!hlua) {
-			SEND_ERR(s->be, "Lua filter '%s': can't initialize Lua context.\n",
-			         conf->reg->name);
-			ret = 0;
-			goto end;
-		}
-		HLUA_INIT(hlua);
-		s->hlua = hlua;
-		if (!hlua_ctx_init(s->hlua, reg_flt_to_stack_id(conf->reg), s->task)) {
-			SEND_ERR(s->be, "Lua filter '%s': can't initialize Lua context.\n",
-			         conf->reg->name);
-			ret = 0;
-			goto end;
-		}
+	if (!hlua_stream_ctx_prepare(s, reg_flt_to_stack_id(conf->reg))) {
+		SEND_ERR(s->be, "Lua filter '%s': can't initialize filter Lua context.\n",
+			 conf->reg->name);
+		ret = 0;
+		goto end;
 	}
 
 	flt_ctx = pool_zalloc(pool_head_hlua_flt_ctx);
