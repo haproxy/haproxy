@@ -273,3 +273,29 @@ client c3h1 -connect ${h1_feh1_sock} {
 	# arrive here.
 	expect_close
 } -run
+
+client c4h1 -connect ${h1_feh1_sock} {
+	# this request is invalid and advertises an invalid C-L ending with an
+        # empty value, which results in a stream error.
+	txreq \
+	  -req "GET" \
+	  -url "/test31.html" \
+          -hdr "content-length: 0," \
+          -hdr "connection: close"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c5h1 -connect ${h1_feh1_sock} {
+	# this request is invalid and advertises an empty C-L, which results
+	# in a stream error.
+	txreq \
+	  -req "GET" \
+	  -url "/test41.html" \
+          -hdr "content-length:" \
+          -hdr "connection: close"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run

@@ -707,13 +707,20 @@ int http_parse_cont_len_header(struct ist *value, unsigned long long *body_len,
 	struct ist word;
 	int check_prev = not_first;
 
-	word.ptr = value->ptr - 1; // -1 for next loop's pre-increment
+	word.ptr = value->ptr;
 	e = value->ptr + value->len;
 
-	while (++word.ptr < e) {
+	while (1) {
+		if (word.ptr >= e) {
+			/* empty header or empty value */
+			goto fail;
+		}
+
 		/* skip leading delimiter and blanks */
-		if (unlikely(HTTP_IS_LWS(*word.ptr)))
+		if (unlikely(HTTP_IS_LWS(*word.ptr))) {
+			word.ptr++;
 			continue;
+		}
 
 		/* digits only now */
 		for (cl = 0, n = word.ptr; n < e; n++) {
@@ -751,6 +758,13 @@ int http_parse_cont_len_header(struct ist *value, unsigned long long *body_len,
 		/* OK, store this result as the one to be indexed */
 		*body_len = cl;
 		*value = word;
+
+		/* Now either n==e and we're done, or n points to the comma,
+		 * and we skip it and continue.
+		 */
+		if (n++ == e)
+			break;
+
 		word.ptr = n;
 		check_prev = 1;
 	}

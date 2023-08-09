@@ -34,13 +34,20 @@ int h1_parse_cont_len_header(struct h1m *h1m, struct ist *value)
 	int not_first = !!(h1m->flags & H1_MF_CLEN);
 	struct ist word;
 
-	word.ptr = value->ptr - 1; // -1 for next loop's pre-increment
+	word.ptr = value->ptr;
 	e = value->ptr + value->len;
 
-	while (++word.ptr < e) {
+	while (1) {
+		if (word.ptr >= e) {
+			/* empty header or empty value */
+			goto fail;
+		}
+
 		/* skip leading delimiter and blanks */
-		if (unlikely(HTTP_IS_LWS(*word.ptr)))
+		if (unlikely(HTTP_IS_LWS(*word.ptr))) {
+			word.ptr++;
 			continue;
+		}
 
 		/* digits only now */
 		for (cl = 0, n = word.ptr; n < e; n++) {
@@ -79,6 +86,13 @@ int h1_parse_cont_len_header(struct h1m *h1m, struct ist *value)
 		h1m->flags |= H1_MF_CLEN;
 		h1m->curr_len = h1m->body_len = cl;
 		*value = word;
+
+		/* Now either n==e and we're done, or n points to the comma,
+		 * and we skip it and continue.
+		 */
+		if (n++ == e)
+			break;
+
 		word.ptr = n;
 	}
 	/* here we've reached the end with a single value or a series of

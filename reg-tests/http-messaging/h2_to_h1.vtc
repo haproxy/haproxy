@@ -9,6 +9,8 @@ barrier b1 cond 2 -cyclic
 barrier b2 cond 2 -cyclic
 barrier b3 cond 2 -cyclic
 barrier b4 cond 2 -cyclic
+barrier b5 cond 2 -cyclic
+barrier b6 cond 2 -cyclic
 
 server s1 {
 	rxreq
@@ -29,6 +31,12 @@ server s1 {
 	  -body "response 3"
 
 	barrier b4 sync
+	# the next request is never received
+
+	barrier b5 sync
+	# the next request is never received
+
+	barrier b6 sync
 	# the next request is never received
 } -repeat 2 -start
 
@@ -117,6 +125,32 @@ client c1h2 -connect ${h1_feh2_sock} {
 		  -hdr "content-length" "2" \
 		  -nostrend
 		txdata -data "this is sent and ignored"
+		rxrst
+	} -run
+
+	# fifth request is invalid and advertises an invalid C-L ending with an
+        # empty value, which results in a stream error.
+	stream 9 {
+		barrier b5 sync
+		txreq \
+		  -req "GET" \
+		  -scheme "https" \
+		  -url "/test5.html" \
+		  -hdr "content-length" "0," \
+		  -nostrend
+		rxrst
+	} -run
+
+	# sixth request is invalid and advertises an empty C-L, which results
+	# in a stream error.
+	stream 11 {
+		barrier b6 sync
+		txreq \
+		  -req "GET" \
+		  -scheme "https" \
+		  -url "/test6.html" \
+		  -hdr "content-length" "" \
+		  -nostrend
 		rxrst
 	} -run
 } -run
@@ -259,6 +293,32 @@ client c3h2 -connect ${h1_feh2_sock} {
 		  -hdr "content-length" "2" \
 		  -nostrend
 		txdata -data "this is sent and ignored"
+		rxrst
+	} -run
+
+	# fifth request is invalid and advertises invalid C-L ending with an
+        # empty value, which results in a stream error.
+	stream 9 {
+		barrier b5 sync
+		txreq \
+		  -req "POST" \
+		  -scheme "https" \
+		  -url "/test25.html" \
+		  -hdr "content-length" "0," \
+		  -nostrend
+		rxrst
+	} -run
+
+	# sixth request is invalid and advertises an empty C-L, which results
+	# in a stream error.
+	stream 11 {
+		barrier b6 sync
+		txreq \
+		  -req "POST" \
+		  -scheme "https" \
+		  -url "/test26.html" \
+		  -hdr "content-length" "" \
+		  -nostrend
 		rxrst
 	} -run
 } -run
