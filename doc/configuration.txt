@@ -6287,7 +6287,7 @@ http-after-response sc-set-gpt0(<sc-id>) { <int> | <expr> }
 
   These actions set the 32-bit unsigned General Purpose Tags according to the
   sticky counter designated by <sc-id>. Please refer to "http-request
-  sc-inc-gpt" and "http-request sc-inc-gpt0" for a complete description.
+  sc-set-gpt" and "http-request sc-set-gpt0" for a complete description.
 
 http-after-response set-log-level <level> [ { if | unless } <condition> ]
 
@@ -8329,7 +8329,7 @@ http-response sc-set-gpt0(<sc-id>) { <int> | <expr> }
 
   These actions set the 32-bit unsigned General Purpose Tags according to the
   sticky counter designated by <sc-id>. Please refer to "http-request
-  sc-inc-gpt" and "http-request sc-inc-gpt0" for a complete description.
+  sc-set-gpt" and "http-request sc-set-gpt0" for a complete description.
 
 http-response send-spoe-group <engine-name> <group-name>
                               [ { if | unless } <condition> ]
@@ -13315,7 +13315,7 @@ tcp-request connection sc-set-gpt0(<sc-id>) { <int> | <expr> }
 
   These actions set the 32-bit unsigned General Purpose Tags according to the
   sticky counter designated by <sc-id>. Please refer to "http-request
-  sc-inc-gpt" and "http-request sc-inc-gpt0" for a complete description.
+  sc-set-gpt" and "http-request sc-set-gpt0" for a complete description.
 
 tcp-request connection set-dst <expr> [ { if | unless } <condition> ]
 tcp-request connection set-dst-port <expr> [ { if | unless } <condition> ]
@@ -13612,7 +13612,7 @@ tcp-request content sc-set-gpt0(<sc-id>) { <int> | <expr> }
 
   These actions set the 32-bit unsigned General Purpose Tags according to the
   sticky counter designated by <sc-id>. Please refer to "http-request
-  sc-inc-gpt" and "http-request sc-inc-gpt0" for a complete description.
+  sc-set-gpt" and "http-request sc-set-gpt0" for a complete description.
 
 tcp-request content send-spoe-group <engine-name> <group-name>
                     [ { if | unless } <condition> ]
@@ -13914,7 +13914,7 @@ tcp-request session sc-set-gpt0(<sc-id>) { <int> | <expr> }
 
   These actions set the 32-bit unsigned General Purpose Tags according to the
   sticky counter designated by <sc-id>. Please refer to "tcp-request connection
-  sc-inc-gpt" and "tcp-request connection sc-inc-gpt0" for a complete
+  sc-set-gpt" and "tcp-request connection sc-set-gpt0" for a complete
   description.
 
 tcp-request session set-dst <expr> [ { if | unless } <condition> ]
@@ -14083,7 +14083,7 @@ tcp-resposne content sc-set-gpt0(<sc-id>) { <int> | <expr> }
 
   These actions set the 32-bit unsigned General Purpose Tags according to the
   sticky counter designated by <sc-id>. Please refer to "http-request
-  sc-inc-gpt" and "http-request sc-inc-gpt0" for a complete description.
+  sc-set-gpt" and "http-request sc-set-gpt0" for a complete description.
 
 tcp-response content send-spoe-group <engine-name> <group-name>
                      [ { if | unless } <condition> ]
