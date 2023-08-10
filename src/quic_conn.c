@@ -798,6 +798,8 @@ static struct task *quic_cc_conn_io_cb(struct task *t, void *context, unsigned i
 	if (qc_snd_buf(qc, &buf, buf.data, 0) < 0) {
 		TRACE_ERROR("sendto fatal error", QUIC_EV_CONN_IO_CB, qc);
 		quic_release_cc_conn(cc_qc);
+		cc_qc = NULL;
+		qc = NULL;
 		goto leave;
 	}
 
