@@ -970,7 +970,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		quic_nictx_free(qc);
 	}
 
-	if (qc->flags & QUIC_FL_CONN_CLOSING) {
+	if ((qc->flags & QUIC_FL_CONN_CLOSING) && qc->mux_state != QC_MUX_READY) {
 		quic_conn_release(qc);
 		qc = NULL;
 	}
