@@ -18306,7 +18306,8 @@ jwt_verify(<alg>,<key>)
 
   For now, only JWS tokens using the Compact Serialization format can be
   processed (three dot-separated base64-url encoded strings). All the
-  algorithms mentioned in section 3.1 of RFC7518 are managed.
+  algorithms mentioned in section 3.1 of RFC7518 are managed (HS, ES, RS and PS
+  with the 256, 384 or 512 key sizes, as well as the special "none" case).
 
   If the used algorithm is of the HMAC family, <key> should be the secret used
   in the HMAC signature calculation. Otherwise, <key> should be the path to the
