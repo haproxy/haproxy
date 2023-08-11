@@ -507,6 +507,7 @@ void quic_conn_sock_fd_iocb(int fd)
 	}
 
 	if (fd_recv_ready(fd)) {
+		TRACE_DEVEL("recv ready", QUIC_EV_CONN_RCV, qc);
 		tasklet_wakeup_after(NULL, qc->wait_event.tasklet);
 		fd_stop_recv(fd);
 	}
