@@ -1085,12 +1085,13 @@ static inline uint statistical_prng_range(uint range)
  * to compute statistic buckets, in that it's fast and reasonably distributed
  * thanks to mixing the bits via a multiplication by a prime number and using
  * the middle bits on 64-bit platforms or remixing the topmost with lowest ones
- * on 32-bit. It provides ~2588 unique values (~1510 non-colliding) at 100%
- * fill ratio for 12 bits, ~1296 (~756 non-colliding) at 100% fill ratio for 11
- * bits, ~648 (~378 non-colliding) at 100% fill ratio for 10 bits, ~163 (95 non
- * colliding) at 100% fill ratio for 8 bits, hence 1-1/e and 1/e respectively.
- * It must be inlined so that <bits> is always a compile-time constant. It
- * supports output sizes from 0 to 32 bits.
+ * on 32-bit. It provides ~2491 unique values (~1354 non-colliding) for 2^12
+ * valid pointers at 12 bits, ~1454 (~941 non-colliding) for 2^11 valid ptrs
+ * at 11 bits, ~707 (~434 non-colliding) for 2^10 valid ptrs at 10 bits, ~347
+ * (212 non colliding) for 2^9 valid ptrs at 9 bits, and 165/99 for 2^8 ptrs
+ * at 8 bits, hence 1-1/e and 1/e respectively. It must be inlined so that
+ * <bits> is always a compile-time constant. It supports output sizes from 0
+ * to 32 bits.
  */
 static forceinline uint ptr_hash(const void *p, const int bits)
 {
@@ -1103,7 +1104,7 @@ static forceinline uint ptr_hash(const void *p, const int bits)
 	if (sizeof(long) == 4)
 		x ^= x >> 32;
 	else
-		x >>= 33 - bits / 2;
+		x >>= 31 - (bits + 1) / 2;
 	return x & (~0U >> (-bits & 31));
 }
 
