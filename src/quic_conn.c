@@ -766,6 +766,7 @@ static void quic_release_cc_conn(struct quic_cc_conn *cc_qc)
 
 	task_destroy(cc_qc->idle_timer_task);
 	cc_qc->idle_timer_task = NULL;
+	tasklet_free(qc->wait_event.tasklet);
 	free_quic_conn_cids(qc);
 	pool_free(pool_head_quic_cids, cc_qc->cids);
 	cc_qc->cids = NULL;
@@ -806,6 +807,7 @@ static struct task *quic_cc_conn_io_cb(struct task *t, void *context, unsigned i
 		quic_release_cc_conn(cc_qc);
 		cc_qc = NULL;
 		qc = NULL;
+		t = NULL;
 		goto leave;
 	}
 
