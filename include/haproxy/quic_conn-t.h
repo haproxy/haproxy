@@ -495,6 +495,11 @@ struct quic_conn_cntrs {
         /* Idle timer task */                                                  \
         struct task *idle_timer_task;                                          \
         unsigned int idle_expire;                                              \
+        struct ssl_sock_ctx *xprt_ctx;                                         \
+        /* Used only to reach the tasklet for the I/O handler from this        \
+         * quic_conn object.                                                   \
+         */                                                                    \
+        struct connection *conn;                                               \
     }
 
 struct quic_conn {
@@ -531,13 +536,9 @@ struct quic_conn {
 	/* List of packet number spaces attached to this connection */
 	struct list pktns_list;
 
-	struct ssl_sock_ctx *xprt_ctx;
 #ifdef USE_QUIC_OPENSSL_COMPAT
 	struct quic_openssl_compat openssl_compat;
 #endif
-
-	/* Used only to reach the tasklet for the I/O handler from this quic_conn object. */
-	struct connection *conn;
 
 	struct {
 		/* Transport parameters sent by the peer */
