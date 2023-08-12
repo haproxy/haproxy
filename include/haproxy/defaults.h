@@ -45,7 +45,7 @@
 #define MAX_TGROUPS 16
 #endif
 
-#define MAX_THREADS_PER_GROUP LONGBITS
+#define MAX_THREADS_PER_GROUP __WORDSIZE
 
 /* threads enabled, max_threads defaults to long bits for 1 tgroup or 4 times
  * long bits if more tgroups are enabled.
