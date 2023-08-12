@@ -454,6 +454,23 @@
 #define CONFIG_HAP_POOL_CLUSTER_SIZE 8
 #endif
 
+/* number of bits to encode the per-pool buckets for large setups */
+#ifndef CONFIG_HAP_POOL_BUCKETS_BITS
+# if defined(USE_THREAD) && MAX_THREADS >= 512
+#  define CONFIG_HAP_POOL_BUCKETS_BITS 6
+# elif defined(USE_THREAD) && MAX_THREADS >= 128
+#  define CONFIG_HAP_POOL_BUCKETS_BITS 5
+# elif defined(USE_THREAD) && MAX_THREADS >= 16
+#  define CONFIG_HAP_POOL_BUCKETS_BITS 4
+# elif defined(USE_THREAD)
+#  define CONFIG_HAP_POOL_BUCKETS_BITS 3
+# else
+#  define CONFIG_HAP_POOL_BUCKETS_BITS 0
+# endif
+#endif
+
+#define CONFIG_HAP_POOL_BUCKETS (1UL << (CONFIG_HAP_POOL_BUCKETS_BITS))
+
 /* Number of samples used to compute the times reported in stats. A power of
  * two is highly recommended, and this value multiplied by the largest response
  * time must not overflow and unsigned int. See freq_ctr.h for more information.

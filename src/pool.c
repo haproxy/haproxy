@@ -110,6 +110,24 @@ static int disable_trim __read_mostly = 0;
 static int(*my_mallctl)(const char *, void *, size_t *, void *, size_t) = NULL;
 static int(*_malloc_trim)(size_t) = NULL;
 
+/* returns the pool hash bucket an object should use based on its pointer.
+ * Objects will needed consistent bucket assignment so that they may be
+ * allocated on one thread and released on another one. Thus only the
+ * pointer is usable.
+ */
+static inline forceinline unsigned int pool_pbucket(const void *ptr)
+{
+	return ptr_hash(ptr, CONFIG_HAP_POOL_BUCKETS_BITS);
+}
+
+/* returns the pool hash bucket to use for the current thread. This should only
+ * be used when no pointer is available (e.g. count alloc failures).
+ */
+static inline forceinline unsigned int pool_tbucket(void)
+{
+	return tid % CONFIG_HAP_POOL_BUCKETS;
+}
+
 /* ask the allocator to trim memory pools.
  * This must run under thread isolation so that competing threads trying to
  * allocate or release memory do not prevent the allocator from completing
