@@ -512,6 +512,7 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 	uint released = 0;
 	uint cluster = 0;
 	uint to_free_max;
+	uint bucket;
 
 	BUG_ON(pool_debugging & POOL_DBG_NO_CACHE);
 
@@ -526,12 +527,12 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 		LIST_DELETE(&item->by_pool);
 		LIST_DELETE(&item->by_lru);
 
+		bucket = pool_pbucket(item);
+		_HA_ATOMIC_DEC(&pool->buckets[bucket].used);
+		swrate_add_opportunistic(&pool->buckets[bucket].needed_avg, POOL_AVG_SAMPLES, pool->buckets[bucket].used);
+
 		if (to_free_max > released || cluster) {
 			/* will never match when global pools are disabled */
-			uint bucket = pool_pbucket(item);
-			_HA_ATOMIC_DEC(&pool->buckets[bucket].used);
-			swrate_add_opportunistic(&pool->buckets[bucket].needed_avg, POOL_AVG_SAMPLES, pool->buckets[bucket].used);
-
 			pi = (struct pool_item *)item;
 			pi->next = NULL;
 			pi->down = head;
@@ -543,8 +544,11 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 				cluster = 0;
 				head = NULL;
 			}
-		} else
-			pool_free_nocache(pool, item);
+		} else {
+			/* does pool_free_nocache() with a known bucket */
+			_HA_ATOMIC_DEC(&pool->buckets[bucket].allocated);
+			pool_put_to_os_nodec(pool, item);
+		}
 
 		released++;
 	}
