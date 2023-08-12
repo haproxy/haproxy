@@ -115,7 +115,7 @@ static int(*_malloc_trim)(size_t) = NULL;
  * allocated on one thread and released on another one. Thus only the
  * pointer is usable.
  */
-static inline forceinline unsigned int pool_pbucket(const void *ptr)
+static forceinline unsigned int pool_pbucket(const void *ptr)
 {
 	return ptr_hash(ptr, CONFIG_HAP_POOL_BUCKETS_BITS);
 }
@@ -123,7 +123,7 @@ static inline forceinline unsigned int pool_pbucket(const void *ptr)
 /* returns the pool hash bucket to use for the current thread. This should only
  * be used when no pointer is available (e.g. count alloc failures).
  */
-static inline forceinline unsigned int pool_tbucket(void)
+static forceinline unsigned int pool_tbucket(void)
 {
 	return tid % CONFIG_HAP_POOL_BUCKETS;
 }
