@@ -363,10 +363,10 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 }
 
 /* Tries to allocate an object for the pool <pool> using the system's allocator
- * and directly returns it. The pool's allocated counter is checked and updated,
- * but no other checks are performed.
+ * and directly returns it. The pool's allocated counter is checked but NOT
+ * updated, this is left to the caller, and but no other checks are performed.
  */
-void *pool_get_from_os(struct pool_head *pool)
+void *pool_get_from_os_noinc(struct pool_head *pool)
 {
 	if (!pool->limit || pool->allocated < pool->limit) {
 		void *ptr;
@@ -375,10 +375,8 @@ void *pool_get_from_os(struct pool_head *pool)
 			ptr = pool_alloc_area_uaf(pool->alloc_sz);
 		else
 			ptr = pool_alloc_area(pool->alloc_sz);
-		if (ptr) {
-			_HA_ATOMIC_INC(&pool->allocated);
+		if (ptr)
 			return ptr;
-		}
 		_HA_ATOMIC_INC(&pool->failed);
 	}
 	activity[tid].pool_fail++;
@@ -386,16 +384,16 @@ void *pool_get_from_os(struct pool_head *pool)
 
 }
 
-/* Releases a pool item back to the operating system and atomically updates
- * the allocation counter.
+/* Releases a pool item back to the operating system but DOES NOT update
+ * the allocation counter, it's left to the caller to do it. It may be
+ * done before or after, it doesn't matter, the function does not use it.
  */
-void pool_put_to_os(struct pool_head *pool, void *ptr)
+void pool_put_to_os_nodec(struct pool_head *pool, void *ptr)
 {
 	if (pool_debugging & POOL_DBG_UAF)
 		pool_free_area_uaf(ptr, pool->alloc_sz);
 	else
 		pool_free_area(ptr, pool->alloc_sz);
-	_HA_ATOMIC_DEC(&pool->allocated);
 }
 
 /* Tries to allocate an object for the pool <pool> using the system's allocator
@@ -406,11 +404,12 @@ void *pool_alloc_nocache(struct pool_head *pool)
 {
 	void *ptr = NULL;
 
-	ptr = pool_get_from_os(pool);
+	ptr = pool_get_from_os_noinc(pool);
 	if (!ptr)
 		return NULL;
 
 	swrate_add_scaled_opportunistic(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used, POOL_AVG_SAMPLES/4);
+	_HA_ATOMIC_INC(&pool->allocated);
 	_HA_ATOMIC_INC(&pool->used);
 
 	/* keep track of where the element was allocated from */
@@ -426,8 +425,9 @@ void *pool_alloc_nocache(struct pool_head *pool)
 void pool_free_nocache(struct pool_head *pool, void *ptr)
 {
 	_HA_ATOMIC_DEC(&pool->used);
+	_HA_ATOMIC_DEC(&pool->allocated);
 	swrate_add_opportunistic(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
-	pool_put_to_os(pool, ptr);
+	pool_put_to_os_nodec(pool, ptr);
 }
 
 
@@ -692,6 +692,7 @@ void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item, ui
 void pool_flush(struct pool_head *pool)
 {
 	struct pool_item *next, *temp, *down;
+	int released = 0;
 
 	if (!pool || (pool_debugging & (POOL_DBG_NO_CACHE|POOL_DBG_NO_GLOBAL)))
 		return;
@@ -716,9 +717,12 @@ void pool_flush(struct pool_head *pool)
 		next = temp->next;
 		for (; temp; temp = down) {
 			down = temp->down;
-			pool_put_to_os(pool, temp);
+			released++;
+			pool_put_to_os_nodec(pool, temp);
 		}
 	}
+
+	HA_ATOMIC_SUB(&pool->allocated, released);
 	/* here, we should have pool->allocated == pool->used */
 }
 
@@ -737,6 +741,7 @@ void pool_gc(struct pool_head *pool_ctx)
 
 	list_for_each_entry(entry, &pools, list) {
 		struct pool_item *temp, *down;
+		int released = 0;
 
 		while (entry->free_list &&
 		       (int)(entry->allocated - entry->used) > (int)entry->minavail) {
@@ -744,9 +749,12 @@ void pool_gc(struct pool_head *pool_ctx)
 			entry->free_list = temp->next;
 			for (; temp; temp = down) {
 				down = temp->down;
-				pool_put_to_os(entry, temp);
+				released++;
+				pool_put_to_os_nodec(entry, temp);
 			}
 		}
+
+		_HA_ATOMIC_SUB(&entry->allocated, released);
 	}
 
 	trim_all_pools();
