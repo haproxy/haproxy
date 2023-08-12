@@ -1,6 +1,113 @@
 ChangeLog :
 ===========
 
+2023/08/12 : 2.9-dev3
+    - BUG/MINOR: ssl: OCSP callback only registered for first SSL_CTX
+    - BUG/MEDIUM: h3: Properly report a C-L header was found to the HTX start-line
+    - MINOR: sample: add pid sample
+    - MINOR: sample: implement act_conn sample fetch
+    - MINOR: sample: accept_date / request_date return %Ts / %tr timestamp values
+    - MEDIUM: sample: implement us and ms variant of utime and ltime
+    - BUG/MINOR: sample: check alloc_trash_chunk() in conv_time_common()
+    - DOC: configuration: describe Td in Timing events
+    - MINOR: sample: implement the T* timer tags from the log-format as fetches
+    - DOC: configuration: add sample fetches for timing events
+    - BUG/MINOR: quic: Possible crash when acknowledging Initial v2 packets
+    - MINOR: quic: Export QUIC traces code from quic_conn.c
+    - MINOR: quic: Export QUIC CLI code from quic_conn.c
+    - MINOR: quic: Move TLS related code to quic_tls.c
+    - MINOR: quic: Add new "QUIC over SSL" C module.
+    - MINOR: quic: Add a new quic_ack.c C module for QUIC acknowledgements
+    - CLEANUP: quic: Defined but no more used function (quic_get_tls_enc_levels())
+    - MINOR: quic: Split QUIC connection code into three parts
+    - CLEANUP: quic: quic_conn struct cleanup
+    - MINOR: quic; Move the QUIC frame pool to its proper location
+    - BUG/MINOR: chunk: fix chunk_appendf() to not write a zero if buffer is full
+    - BUG/MEDIUM: h3: Be sure to handle fin bit on the last DATA frame
+    - DOC: configuration: rework the custom log format table
+    - BUG/MINOR: quic+openssl_compat: Non initialized TLS encryption levels
+    - CLEANUP: acl: remove cache_idx from acl struct
+    - REORG: cfgparse: extract curproxy as a global variable
+    - MINOR: acl: add acl() sample fetch
+    - BUILD: cfgparse: keep a single "curproxy"
+    - BUG/MEDIUM: bwlim: Reset analyse expiration date when then channel analyse ends
+    - MEDIUM: stream: Reset response analyse expiration date if there is no analyzer
+    - BUG/MINOR: htx/mux-h1: Properly handle bodyless responses when splicing is used
+    - BUG/MEDIUM: quic: consume contig space on requeue datagram
+    - BUG/MINOR: http-client: Don't forget to commit changes on HTX message
+    - CLEANUP: stconn: Move comment about sedesc fields on the field line
+    - REGTESTS: http: Create a dedicated script to test spliced bodyless responses
+    - REGTESTS: Test SPLICE feature is enabled to execute script about splicing
+    - BUG/MINOR: quic: reappend rxbuf buffer on fake dgram alloc error
+    - BUILD: quic: fix wrong potential NULL dereference
+    - MINOR: h3: abort request if not completed before full response
+    - BUG/MAJOR: http-ana: Get a fresh trash buffer for each header value replacement
+    - CLEANUP: quic: Remove quic_path_room().
+    - MINOR: quic: Amplification limit handling sanitization.
+    - MINOR: quic: Move some counters from [rt]x quic_conn anonymous struct
+    - MEDIUM: quic: Send CONNECTION_CLOSE packets from a dedicated buffer.
+    - MINOR: quic: Use a pool for the connection ID tree.
+    - MEDIUM: quic: Allow the quic_conn memory to be asap released.
+    - MINOR: quic: Release asap quic_conn memory (application level)
+    - MINOR: quic: Release asap quic_conn memory from ->close() xprt callback.
+    - MINOR: quic: Warning for OpenSSL wrapper QUIC bindings without "limited-quic"
+    - REORG: http: move has_forbidden_char() from h2.c to http.h
+    - BUG/MAJOR: h3: reject header values containing invalid chars
+    - MINOR: mux-h2/traces: also suggest invalid header upon parsing error
+    - MINOR: ist: add new function ist_find_range() to find a character range
+    - MINOR: http: add new function http_path_has_forbidden_char()
+    - MINOR: h2: pass accept-invalid-http-request down the request parser
+    - REGTESTS: http-rules: add accept-invalid-http-request for normalize-uri tests
+    - BUG/MINOR: h1: do not accept '#' as part of the URI component
+    - BUG/MINOR: h2: reject more chars from the :path pseudo header
+    - BUG/MINOR: h3: reject more chars from the :path pseudo header
+    - REGTESTS: http-rules: verify that we block '#' by default for normalize-uri
+    - DOC: clarify the handling of URL fragments in requests
+    - BUG/MAJOR: http: reject any empty content-length header value
+    - BUG/MINOR: http: skip leading zeroes in content-length values
+    - BUG/MEDIUM: mux-h1: fix incorrect state checking in h1_process_mux()
+    - BUG/MEDIUM: mux-h1: do not forget EOH even when no header is sent
+    - BUILD: mux-h1: shut a build warning on clang from previous commit
+    - DEV: makefile: add a new "range" target to iteratively build all commits
+    - CI: do not use "groupinstall" for Fedora Rawhide builds
+    - CI: get rid of travis-ci wrapper for Coverity scan
+    - BUG/MINOR: quic: mux started when releasing quic_conn
+    - BUG/MINOR: quic: Possible crash in quic_cc_conn_io_cb() traces.
+    - MINOR: quic: Add a trace for QUIC conn fd ready for receive
+    - BUG/MINOR: quic: Possible crash when issuing "show fd/sess" CLI commands
+    - BUG/MINOR: quic: Missing tasklet (quic_cc_conn_io_cb) memory release (leak)
+    - BUG/MEDIUM: quic: fix tasklet_wakeup loop on connection closing
+    - BUG/MINOR: hlua: fix invalid use of lua_pop on error paths
+    - MINOR: hlua: add hlua_stream_ctx_prepare helper function
+    - BUG/MEDIUM: hlua: streams don't support mixing lua-load with lua-load-per-thread
+    - MAJOR: threads/plock: update the embedded library again
+    - MINOR: stick-table: move the task_queue() call outside of the lock
+    - MINOR: stick-table: move the task_wakeup() call outside of the lock
+    - MEDIUM: stick-table: change the ref_cnt atomically
+    - MINOR: stick-table: better organize the struct stktable
+    - MEDIUM: peers: update ->commitupdate out of the lock using a CAS
+    - MEDIUM: peers: drop then re-acquire the wrlock in peer_send_teachmsgs()
+    - MEDIUM: peers: only read-lock peer_send_teachmsgs()
+    - MEDIUM: stick-table: use a distinct lock for the updates tree
+    - MEDIUM: stick-table: touch updates under an upgradable read lock
+    - MEDIUM: peers: drop the stick-table lock before entering peer_send_teachmsgs()
+    - MINOR: stick-table: move the update lock into its own cache line
+    - CLEANUP: stick-table: slightly reorder the stktable struct
+    - BUILD: defaults: use __WORDSIZE not LONGBITS for MAX_THREADS_PER_GROUP
+    - MINOR: tools: make ptr_hash() support 0-bit outputs
+    - MINOR: tools: improve ptr hash distribution on 64 bits
+    - OPTIM: tools: improve hash distribution using a better prime seed
+    - OPTIM: pools: use exponential back-off on shared pool allocation/release
+    - OPTIM: pools: make pool_get_from_os() / pool_put_to_os() not update ->allocated
+    - MINOR: pools: introduce the use of multiple buckets
+    - MEDIUM: pools: spread the allocated counter over a few buckets
+    - MEDIUM: pools: move the used counter over a few buckets
+    - MEDIUM: pools: move the needed_avg counter over a few buckets
+    - MINOR: pools: move the failed allocation counter over a few buckets
+    - MAJOR: pools: move the shared pool's free_list over multiple buckets
+    - MINOR: pools: make pool_evict_last_items() use pool_put_to_os_no_dec()
+    - BUILD: pools: fix build error on clang with inline vs forceinline
+
 2023/07/21 : 2.9-dev2
     - BUG/MINOR: quic: Possible leak when allocating an encryption level
     - BUG/MINOR: quic: Missing QUIC connection path member initialization
