@@ -626,10 +626,11 @@ struct mux_proto_list {
 #define PP2_CLIENT_CERT_CONN     0x02
 #define PP2_CLIENT_CERT_SESS     0x04
 
-/* Max length of the authority TLV */
-#define PP2_AUTHORITY_MAX 255
+#define PP2_CRC32C_LEN 4 /* Length of a CRC32C TLV value */
 
-#define TLV_HEADER_SIZE      3
+#define TLV_HEADER_SIZE 3
+
+#define HA_PP2_AUTHORITY_MAX 255 /* Maximum length of an authority TLV */
 
 struct proxy_hdr_v2 {
 	uint8_t sig[12];   /* hex 0D 0A 0D 0A 00 0D 0A 51 55 49 54 0A */

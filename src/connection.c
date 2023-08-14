@@ -37,7 +37,7 @@
 DECLARE_POOL(pool_head_connection,     "connection",     sizeof(struct connection));
 DECLARE_POOL(pool_head_conn_hash_node, "conn_hash_node", sizeof(struct conn_hash_node));
 DECLARE_POOL(pool_head_sockaddr,       "sockaddr",       sizeof(struct sockaddr_storage));
-DECLARE_POOL(pool_head_authority,      "authority",      PP2_AUTHORITY_MAX);
+DECLARE_POOL(pool_head_authority,      "authority",      HA_PP2_AUTHORITY_MAX);
 
 struct idle_conns idle_conns[MAX_THREADS] = { };
 struct xprt_ops *registered_xprt[XPRT_ENTRIES] = { NULL, };
@@ -1100,7 +1100,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 				uint32_t n_crc32c;
 
 				/* Verify that this TLV is exactly 4 bytes long */
-				if (istlen(tlv) != 4)
+				if (istlen(tlv) != PP2_CRC32C_LEN)
 					goto bad_header;
 
 				n_crc32c = read_n32(istptr(tlv));
@@ -1121,12 +1121,12 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			}
 #endif
 			case PP2_TYPE_AUTHORITY: {
-				if (istlen(tlv) > PP2_AUTHORITY_MAX)
+				if (istlen(tlv) > HA_PP2_AUTHORITY_MAX)
 					goto bad_header;
 				conn->proxy_authority = ist2(pool_alloc(pool_head_authority), 0);
 				if (!isttest(conn->proxy_authority))
 					goto fail;
-				if (istcpy(&conn->proxy_authority, tlv, PP2_AUTHORITY_MAX) < 0) {
+				if (istcpy(&conn->proxy_authority, tlv, HA_PP2_AUTHORITY_MAX) < 0) {
 					/* This is impossible, because we verified that the TLV value fits. */
 					my_unreachable();
 					goto fail;
