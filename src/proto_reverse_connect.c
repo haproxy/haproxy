@@ -107,11 +107,22 @@ struct task *rev_process(struct task *task, void *ctx, unsigned int state)
 	struct connection *conn = l->rx.reverse_connect.pend_conn;
 
 	if (conn) {
-		/* Spurrious receiver task wake up when pend_conn is not ready/on error. */
-		BUG_ON(!(conn->flags & CO_FL_REVERSED));
-		/* A connection is ready to be accepted. */
-		listener_accept(l);
-		l->rx.reverse_connect.task->expire = TICK_ETERNITY;
+		if (conn->flags & CO_FL_ERROR) {
+			conn_full_close(conn);
+			conn_free(conn);
+			l->rx.reverse_connect.pend_conn = NULL;
+
+			/* Retry on 1s on error. */
+			l->rx.reverse_connect.task->expire = MS_TO_TICKS(now_ms + 1000);
+		}
+		else {
+			/* Spurrious receiver task wake up when pend_conn is not ready/on error. */
+			BUG_ON(!(conn->flags & CO_FL_REVERSED));
+
+			/* A connection is ready to be accepted. */
+			listener_accept(l);
+			l->rx.reverse_connect.task->expire = TICK_ETERNITY;
+		}
 	}
 	else {
 		/* No pending reverse connection, prepare a new one. Store it in the

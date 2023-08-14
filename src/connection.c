@@ -91,8 +91,24 @@ int conn_create_mux(struct connection *conn)
 		return 0;
 fail:
 		/* let the upper layer know the connection failed */
-		if (sc)
+		if (sc) {
 			sc->app_ops->wake(sc);
+		}
+		else if (conn_reverse_in_preconnect(conn)) {
+			struct listener *l = conn_active_reverse_listener(conn);
+
+			/* If mux init failed, consider connection on error.
+			 * This is necessary to ensure connection is freed by
+			 * proto-reverse-connect receiver task.
+			 */
+			if (!conn->mux)
+				conn->flags |= CO_FL_ERROR;
+
+			/* If connection is interrupted  without CO_FL_ERROR, receiver task won't free it. */
+			BUG_ON(!(conn->flags & CO_FL_ERROR));
+
+			task_wakeup(l->rx.reverse_connect.task, TASK_WOKEN_ANY);
+		}
 		return -1;
 	} else
 		return conn_complete_session(conn);
@@ -543,6 +559,8 @@ void conn_free(struct connection *conn)
 		/* Receiver must reference a reverse connection as pending. */
 		BUG_ON(!l->rx.reverse_connect.pend_conn);
 		l->rx.reverse_connect.pend_conn = NULL;
+		l->rx.reverse_connect.task->expire = MS_TO_TICKS(now_ms + 1000);
+		task_queue(l->rx.reverse_connect.task);
 	}
 
 	conn_force_unsubscribe(conn);
