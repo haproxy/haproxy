@@ -1,0 +1,64 @@
+varnishtest "Reverse connect full test"
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=2.9
+
+server s1 {
+    rxreq
+    txresp
+} -start
+
+haproxy h_edge -conf {
+defaults
+	log global
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+	mode http
+
+frontend pub
+	bind "fd@${pub}"
+	use_backend be-reverse
+
+backend be-reverse
+	server dev @reverse
+
+frontend priv
+	bind "fd@${priv}" proto h2
+	tcp-request session attach-srv be-reverse/dev
+} -start
+
+haproxy h_dev -conf {
+defaults
+	log global
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+	mode http
+
+frontend fe
+	bind "rev@be-pre-connect/srv" maxconn 1
+	use_backend be
+
+backend be-pre-connect
+	server srv ${h_edge_priv_addr}:${h_edge_priv_port} proto h2
+
+backend be
+	server srv ${s1_addr}:${s1_port}
+}
+
+client c1 -connect ${h_edge_pub_sock} {
+	txreq -url "/"
+	rxresp
+	expect resp.status == 503
+} -run
+
+haproxy h_dev -start
+# TODO replace delay by a proper wait
+delay 3
+
+client c1 -connect ${h_edge_pub_sock} {
+	txreq -url "/"
+	rxresp
+	expect resp.status == 200
+} -run
