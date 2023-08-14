@@ -240,6 +240,8 @@ struct connection *rev_accept_conn(struct listener *l, int *status)
 	/* listener_accept() must not be called if no pending connection is not yet reversed. */
 	BUG_ON(!(conn->flags & CO_FL_REVERSED));
 	conn->flags &= ~CO_FL_REVERSED;
+	conn->mux->ctl(conn, MUX_REVERSE_CONN, NULL);
+
 	l->rx.reverse_connect.pend_conn = NULL;
 	*status = CO_AC_NONE;
 

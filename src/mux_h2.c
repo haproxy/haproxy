@@ -684,7 +684,7 @@ h2c_is_dead(const struct h2c *h2c)
 	    ((h2c->flags & H2_CF_ERROR) ||          /* errors close immediately */
 	     (h2c->flags & H2_CF_ERR_PENDING && h2c->st0 < H2_CS_FRAME_H) || /* early error during connect */
 	     (h2c->st0 >= H2_CS_ERROR && !h2c->task) || /* a timeout stroke earlier */
-	     (!(h2c->conn->owner)) || /* Nobody's left to take care of the connection, drop it now */
+	     (!(h2c->conn->owner) && !conn_is_reverse(h2c->conn)) || /* Nobody's left to take care of the connection, drop it now */
 	     (!br_data(h2c->mbuf) &&  /* mux buffer empty, also process clean events below */
 	      ((h2c->flags & H2_CF_RCVD_SHUT) ||
 	       (h2c->last_sid >= 0 && h2c->max_id >= h2c->last_sid)))))
@@ -741,7 +741,8 @@ static inline void h2c_restart_reading(const struct h2c *h2c, int consider_buffe
 /* returns true if the front connection has too many stream connectors attached */
 static inline int h2_frt_has_too_many_sc(const struct h2c *h2c)
 {
-	return h2c->nb_sc > h2c_max_concurrent_streams(h2c);
+	return h2c->nb_sc > h2c_max_concurrent_streams(h2c) ||
+	       unlikely(conn_reverse_in_preconnect(h2c->conn));
 }
 
 /* Tries to grab a buffer and to re-enable processing on mux <target>. The h2c
@@ -1573,6 +1574,9 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 
 	TRACE_ENTER(H2_EV_H2S_NEW, h2c->conn);
 
+	/* Cannot handle stream if active reversed connection is not yet accepted. */
+	BUG_ON(conn_reverse_in_preconnect(h2c->conn));
+
 	if (h2c->nb_streams >= h2c_max_concurrent_streams(h2c)) {
 		TRACE_ERROR("HEADERS frame causing MAX_CONCURRENT_STREAMS to be exceeded", H2_EV_H2S_NEW|H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn);
 		goto out;
@@ -1647,6 +1651,9 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct stconn *sc, struct
 	struct h2s *h2s = NULL;
 
 	TRACE_ENTER(H2_EV_H2S_NEW, h2c->conn);
+
+	/* Cannot handle stream if connection waiting to be reversed. */
+	BUG_ON(conn_reverse_in_preconnect(h2c->conn));
 
 	if (h2c->nb_streams >= h2c->streams_limit) {
 		TRACE_ERROR("Aborting stream since negotiated limit is too low", H2_EV_H2S_NEW, h2c->conn);
@@ -3279,6 +3286,14 @@ static int h2_conn_reverse(struct h2c *h2c)
 		            &h2c->conn->stopping_list);
 	}
 
+	/* Check if stream creation is initially forbidden. This is the case
+	 * for active preconnect until reversal is done.
+	 */
+	if (conn_reverse_in_preconnect(h2c->conn)) {
+		TRACE_DEVEL("prevent stream demux until accept is done", H2_EV_H2C_WAKE, conn);
+		h2c->flags |= H2_CF_DEM_TOOMANY;
+	}
+
 	h2c->task->expire = tick_add(now_ms, h2c->timeout);
 	task_queue(h2c->task);
 
@@ -4228,6 +4243,17 @@ static int h2_wake(struct connection *conn)
 	ret = h2_process(h2c);
 	if (ret >= 0)
 		h2_wake_some_streams(h2c, 0);
+
+	/* For active reverse connection, an explicit check is required if an
+	 * error is pending to propagate the error as demux process is blocked
+	 * until reversal. This allows to quickly close the connection and
+	 * prepare a new one.
+	 */
+	if (unlikely(conn_reverse_in_preconnect(conn)) && h2c_is_dead(h2c)) {
+		TRACE_DEVEL("leaving and killing dead connection", H2_EV_STRM_END, h2c->conn);
+		h2_release(h2c);
+	}
+
 	TRACE_LEAVE(H2_EV_H2C_WAKE);
 	return ret;
 }
@@ -4409,6 +4435,15 @@ static int h2_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 		return ret;
 	case MUX_EXIT_STATUS:
 		return MUX_ES_UNKNOWN;
+
+	case MUX_REVERSE_CONN:
+		BUG_ON(h2c->flags & H2_CF_IS_BACK);
+
+		TRACE_DEVEL("connection reverse done, restart demux", H2_EV_H2C_WAKE, h2c->conn);
+		h2c->flags &= ~H2_CF_DEM_TOOMANY;
+		tasklet_wakeup(h2c->wait_event.tasklet);
+		return 0;
+
 	default:
 		return -1;
 	}
