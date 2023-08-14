@@ -31,7 +31,7 @@
 USAGE="Usage: ${0##*/} [-q] [-H] [-m] [-u] [-r reference] [-l logexpr] [-s subject] [-b base] {branch|range} [...] [-- file*]"
 BASES=( )
 BRANCHES=( )
-REF=master
+REF=
 BASE=
 QUIET=
 LOGEXPR=
@@ -158,6 +158,34 @@ while [ -n "$1" -a -z "${1##-*}" ]; do
 	esac
 done
 
+# if no ref, either we're checking missing backports and we'll guess
+# the upstream reference branch based on which one contains most of
+# the latest commits, or we'll use master.
+if [ -z "$REF" ]; then
+	if [ -n "$MISSING" ]; then
+		# check the last 10 commits in the base branch, and see where
+		# the seem to be coming from.
+		TAG="$(git describe --tags ${BASE:-HEAD} --abbrev=0)"
+		LAST_COMMITS=( $(git rev-list --abbrev-commit --reverse "$TAG^^.." | tail -n10) )
+		REF=$(for i in "${LAST_COMMITS[@]}"; do
+			upstream=$(git log -1 --pretty --format=%B $i |
+				   sed -n 's/^commit \([^)]*\) upstream\.$/\1/p;s/^(cherry picked from commit \([^)]*\))/\1/p' |
+				   tail -n1)
+			if [ -n "$upstream" ]; then
+				# use local first then remote branch
+				( git branch --sort=refname --contains $upstream | head -n1 ;
+				  git branch -r --sort=refname --contains $upstream | head -n1) 2>&1 |
+					grep 'master\|maint' | head -n1
+			fi
+		      done | sort | uniq -c | sort -nr | awk '{ print $NF; exit;}')
+		# here we have a name, e.g. "2.6/master" in REF
+		REF="${REF:-master}"
+		err "Warning! No ref specified, using $REF."
+	else
+		REF=master
+	fi
+fi
+
 # branches may also appear as id1..id2 to limit the history instead of looking
 # back to the common base. The field is left empty if not set.
 BRANCHES=( )
@@ -182,7 +210,11 @@ done
 ARGS=( "$@" )
 
 if [ ${#BRANCHES[@]} = 0 ]; then
-	die "$USAGE"
+	if [ -n "$MISSING" ]; then
+		BRANCHES=( HEAD )
+	else
+		die "$USAGE"
+	fi
 fi
 
 for branch in "$REF" "${BRANCHES[@]}"; do
@@ -190,6 +222,37 @@ for branch in "$REF" "${BRANCHES[@]}"; do
 		die "Failed to check git branch $branch."
 	fi
 done
+
+if [ -z "$BASE" -a -n "$MISSING" ]; then
+	err "Warning! No base specified, checking latest backports from current branch since last tag."
+
+	TAG="$(git describe --tags HEAD --abbrev=0)"
+	COMMITS=( $(git rev-list --abbrev-commit --reverse "$TAG^^..") )
+	tip=""
+	for commit in "${COMMITS[@]}"; do
+		parent=$(git log -1 --pretty --format=%B $commit |
+		         sed -n 's/^commit \([^)]*\) upstream\.$/\1/p;s/^(cherry picked from commit \([^)]*\))/\1/p' |
+		         tail -n1)
+		if [ -z "$tip" ]; then
+		        tip=$parent
+		elif [ -n "$parent" ]; then
+		        base=$(git merge-base "$tip" "$parent")
+		        if [ "$base" = "$tip" ]; then
+		                # tip is older than parent, switch tip to it if it
+		                # belongs to the upstream branch
+		                if [ "$(git merge-base $parent $REF)" = "$parent" ]; then
+		                        tip=$parent
+		                fi
+		        fi
+		fi
+	done
+	BASE="$tip"
+	if [ -n "$BASE" ]; then
+	        echo "Restarting from $(git log -1 --no-decorate --oneline $BASE)"
+	else
+		echo "Could not figure the base."
+	fi
+fi
 
 if [ -z "$BASE" ]; then
 	err "Warning! No base specified, looking for common ancestor."
