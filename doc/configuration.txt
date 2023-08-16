@@ -20182,8 +20182,15 @@ fc_pp_unique_id : string
   header, if any.
 
 fc_pp_tlv(<id>) : string
-  Returns the TLV value for the given TLV ID which must be a numeric
-  value between 0 and 255.
+  Returns the TLV value for the given TLV ID. The ID must either be a numeric
+  value between 0 and 255 or one of the following supported symbolic names
+  that correspond to the TLV constant suffixes in the PPv2 spec:
+  "ALPN": PP2_TYPE_ALPN, "AUTHORITY": PP2_TYPE_AUTHORITY,
+  "CRC32": PP2_TYPE_CRC32C, "NETNS": PP2_TYPE_NETNS, "NOOP: PP2_TYPE_NOOP",
+  "SSL": PP2_TYPE_SSL, "SSL_CIPHER": PP2_SUBTYPE_SSL_CIPHER,
+  "SSL_CN": PP2_SUBTYPE_SSL_CN, "SSL_KEY_ALG": PP2_SUBTYPE_SSL_KEY_ALG,
+  "SSL_SIG_ALG": PP2_SUBTYPE_SSL_SIG_ALG,
+  "SSL_VERSION": PP2_SUBTYPE_SSL_VERSION, "UNIQUE_ID": PP2_TYPE_UNIQUE_ID.
 
   The received value must be smaller or equal to 1024 bytes. This is done to
   prevent potential DoS attacks. Values smaller or equal to 256 bytes will be

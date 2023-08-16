@@ -2261,22 +2261,50 @@ int smp_fetch_fc_rcvd_proxy(const struct arg *args, struct sample *smp, const ch
 
 /*
  * This function checks the TLV type converter configuration.
- * It expects the corresponding TLV type as a string representing the number.
- * args[0] will be turned into the numerical value of the TLV type string.
+ * It expects the corresponding TLV type as a string representing the number
+ * or a constant. args[0] will be turned into the numerical value of the
+ * TLV type string.
  */
 static int smp_check_tlv_type(struct arg *args, char **err)
 {
 	int type;
 	char *endp;
+	struct ist input = ist2(args[0].data.str.area, args[0].data.str.data);
 
-	type = strtoul(args[0].data.str.area, &endp, 0);
-	if (endp && *endp != '\0') {
-		memprintf(err, "Could not convert type '%s'", args[0].data.str.area);
-		return 0;
+	if (isteqi(input, ist("ALPN")) != 0)
+		type = PP2_TYPE_ALPN;
+	else if (isteqi(input, ist("AUTHORITY")) != 0)
+		type = PP2_TYPE_AUTHORITY;
+	else if (isteqi(input, ist("CRC32C")) != 0)
+		type = PP2_TYPE_CRC32C;
+	else if (isteqi(input, ist("NOOP")) != 0)
+		type = PP2_TYPE_NOOP;
+	else if (isteqi(input, ist("UNIQUE_ID")) != 0)
+		type = PP2_TYPE_UNIQUE_ID;
+	else if (isteqi(input, ist("SSL")) != 0)
+		type = PP2_TYPE_SSL;
+	else if (isteqi(input, ist("SSL_VERSION")) != 0)
+		type = PP2_SUBTYPE_SSL_VERSION;
+	else if (isteqi(input, ist("SSL_CN")) != 0)
+		type = PP2_SUBTYPE_SSL_CN;
+	else if (isteqi(input, ist("SSL_CIPHER")) != 0)
+		type = PP2_SUBTYPE_SSL_CIPHER;
+	else if (isteqi(input, ist("SSL_SIG_ALG")) != 0)
+		type = PP2_SUBTYPE_SSL_SIG_ALG;
+	else if (isteqi(input, ist("SSL_KEY_ALG")) != 0)
+		type = PP2_SUBTYPE_SSL_KEY_ALG;
+	else if (isteqi(input, ist("NETNS")) != 0)
+		type = PP2_TYPE_NETNS;
+	else {
+		type = strtoul(input.ptr, &endp, 0);
+		if (endp && *endp != '\0') {
+			memprintf(err, "Could not convert type '%s'", input.ptr);
+			return 0;
+		}
 	}
 
 	if (type < 0 || type > 255) {
-		memprintf(err, "Invalid TLV Type '%s'", args[0].data.str.area);
+		memprintf(err, "Invalid TLV Type '%s'", input.ptr);
 		return 0;
 	}
 
