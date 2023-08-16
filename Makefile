@@ -34,6 +34,7 @@
 #   USE_OPENSSL          : enable use of OpenSSL. Recommended, but see below.
 #   USE_OPENSSL_WOLFSSL  : enable use of wolfSSL with the OpenSSL API
 #   USE_QUIC             : enable use of QUIC with the quictls API (quictls, libressl, boringssl)
+#   USE_QUIC_OPENSSL_COMPAT : enable use of QUIC with the standard openssl API (limited features)
 #   USE_ENGINE           : enable use of OpenSSL Engine.
 #   USE_LUA              : enable Lua support.
 #   USE_ACCEPT4          : enable use of accept4() on linux. Automatic.
