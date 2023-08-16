@@ -20174,12 +20174,28 @@ fc_lost : integer
   Linux kernels before 2.4, the sample fetch fails.
 
 fc_pp_authority : string
-  Returns the authority TLV sent by the client in the PROXY protocol header,
-  if any.
+  Returns the first authority TLV sent by the client in the PROXY protocol
+  header, if any.
 
 fc_pp_unique_id : string
-  Returns the unique ID TLV sent by the client in the PROXY protocol header,
-  if any.
+  Returns the first unique ID TLV sent by the client in the PROXY protocol
+  header, if any.
+
+fc_pp_tlv(<id>) : string
+  Returns the TLV value for the given TLV ID which must be a numeric
+  value between 0 and 255.
+
+  The received value must be smaller or equal to 1024 bytes. This is done to
+  prevent potential DoS attacks. Values smaller or equal to 256 bytes will be
+  able to be memory pooled. Therefore, try to restrict the length of sent
+  values to 256 bytes for optimal performance.
+
+  Note that unlike fc_pp_authority and fc_pp_unique_id, fc_pp_tlv is able to
+  iterate over all occurances of a requested TLV in case there are duplicate
+  TLV IDs. The order of iteration matches the position in the PROXY protocol
+  header. However, relying on duplicates should mostly be avoided as TLVs are
+  typically assumed to be unique. Generally, finding duplicated TLV IDs
+  indicates an error on the sender side of the PROXY protocol header.
 
 fc_rcvd_proxy : boolean
   Returns true if the client initiated the connection with a PROXY protocol

@@ -15,6 +15,7 @@
 #include <import/ebmbtree.h>
 
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
 #include <haproxy/fd.h>
@@ -2258,11 +2259,77 @@ int smp_fetch_fc_rcvd_proxy(const struct arg *args, struct sample *smp, const ch
 	return 1;
 }
 
+/*
+ * This function checks the TLV type converter configuration.
+ * It expects the corresponding TLV type as a string representing the number.
+ * args[0] will be turned into the numerical value of the TLV type string.
+ */
+static int smp_check_tlv_type(struct arg *args, char **err)
+{
+	int type;
+	char *endp;
+
+	type = strtoul(args[0].data.str.area, &endp, 0);
+	if (endp && *endp != '\0') {
+		memprintf(err, "Could not convert type '%s'", args[0].data.str.area);
+		return 0;
+	}
+
+	if (type < 0 || type > 255) {
+		memprintf(err, "Invalid TLV Type '%s'", args[0].data.str.area);
+		return 0;
+	}
+
+	chunk_destroy(&args[0].data.str);
+	args[0].type = ARGT_SINT;
+	args[0].data.sint = type;
+
+	return 1;
+}
+
+/* fetch an arbitrary TLV from a PROXY protocol v2 header */
+int smp_fetch_fc_pp_tlv(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	int idx;
+	struct connection *conn = NULL;
+	struct conn_tlv_list *conn_tlv = NULL;
+
+	conn = objt_conn(smp->sess->origin);
+	if (!conn)
+		return 0;
+
+	if (conn->flags & CO_FL_WAIT_XPRT) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	if (args[0].type != ARGT_SINT)
+		return 0;
+
+	idx = args[0].data.sint;
+	conn_tlv = smp->ctx.p ? smp->ctx.p : LIST_ELEM(conn->tlv_list.n, struct conn_tlv_list *, list);
+	list_for_each_entry_from(conn_tlv, &conn->tlv_list, list) {
+		if (conn_tlv->type == idx) {
+			smp->flags |= SMP_F_NOT_LAST;
+			smp->data.type = SMP_T_STR;
+			smp->data.u.str.area = conn_tlv->value;
+			smp->data.u.str.data = conn_tlv->len;
+			smp->ctx.p = conn_tlv;
+
+			return 1;
+		}
+	}
+
+	smp->flags &= ~SMP_F_NOT_LAST;
+
+	return 0;
+}
+
 /* fetch the authority TLV from a PROXY protocol header */
 int smp_fetch_fc_pp_authority(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn = NULL;
-	struct conn_tlv_list *conn_tlv;
+	struct conn_tlv_list *conn_tlv = NULL;
 
 	conn = objt_conn(smp->sess->origin);
 	if (!conn)
@@ -2276,7 +2343,6 @@ int smp_fetch_fc_pp_authority(const struct arg *args, struct sample *smp, const 
 	conn_tlv = smp->ctx.p ? smp->ctx.p : LIST_ELEM(conn->tlv_list.n, struct conn_tlv_list *, list);
 	list_for_each_entry_from(conn_tlv, &conn->tlv_list, list) {
 		if (conn_tlv->type == PP2_TYPE_AUTHORITY) {
-			smp->flags |= SMP_F_NOT_LAST;
 			smp->data.type = SMP_T_STR;
 			smp->data.u.str.area = conn_tlv->value;
 			smp->data.u.str.data = conn_tlv->len;
@@ -2295,7 +2361,7 @@ int smp_fetch_fc_pp_authority(const struct arg *args, struct sample *smp, const 
 int smp_fetch_fc_pp_unique_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn = NULL;
-	struct conn_tlv_list *conn_tlv;
+	struct conn_tlv_list *conn_tlv = NULL;
 
 	conn = objt_conn(smp->sess->origin);
 	if (!conn)
@@ -2309,7 +2375,6 @@ int smp_fetch_fc_pp_unique_id(const struct arg *args, struct sample *smp, const 
 	conn_tlv = smp->ctx.p ? smp->ctx.p : LIST_ELEM(conn->tlv_list.n, struct conn_tlv_list *, list);
 	list_for_each_entry_from(conn_tlv, &conn->tlv_list, list) {
 		if (conn_tlv->type == PP2_TYPE_UNIQUE_ID) {
-			smp->flags |= SMP_F_NOT_LAST;
 			smp->data.type = SMP_T_STR;
 			smp->data.u.str.area = conn_tlv->value;
 			smp->data.u.str.data = conn_tlv->len;
@@ -2398,6 +2463,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "fc_rcvd_proxy", smp_fetch_fc_rcvd_proxy, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "fc_pp_authority", smp_fetch_fc_pp_authority, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
 	{ "fc_pp_unique_id", smp_fetch_fc_pp_unique_id, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
+	{ "fc_pp_tlv", smp_fetch_fc_pp_tlv, ARG1(1, STR), smp_check_tlv_type, SMP_T_STR, SMP_USE_L4CLI },
 	{ /* END */ },
 }};
 

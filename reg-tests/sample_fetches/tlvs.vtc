@@ -1,0 +1,57 @@
+varnishtest "Tests for fetching PROXY protocol v2 TLVs"
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend echo
+        bind "fd@${fe1}" accept-proxy
+        tcp-request content set-var(sess.aws) fc_pp_tlv(0xEA),bytes(1) if { fc_pp_tlv(0xEE),bytes(0,1),hex eq 01 }
+        tcp-request content set-var(sess.azure) fc_pp_tlv(0xEE),bytes(1) if { fc_pp_tlv(0xEA),bytes(0,1),hex eq 01 }
+
+        http-after-response set-header echo1 %[var(sess.aws)]
+        http-after-response set-header echo2 %[var(sess.azure)]
+        http-after-response set-header echo3 %[fc_pp_tlv(0xEB)]
+        http-after-response set-header echo4 %[fc_pp_tlv(0xEC),length]
+        http-request return status 200
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+    # PROXY v2 signature
+    sendhex "0d 0a 0d 0a 00 0d 0a 51 55 49 54 0a"
+    # version + PROXY
+    sendhex "21"
+    # TCP4
+    sendhex "11"
+    # length of the address (12) + length of the TLVs (14 + 10 + 9 + 131)
+    sendhex "00 B0"
+    # 127.0.0.1 42 127.0.0.1 1337
+    sendhex "7F 00 00 01 7F 00 00 01 00 2A 05 39"
+
+    # PP2_TYPE_AWS (0xEA) + length of the value + PP2_SUBTYPE_AWS_VPCE_ID (0x01) + "aws-vpc-id"
+    # See https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-target-groups.html#custom-tlv for the respective definitions.
+    sendhex "EA 00 0B 01 61 77 73 2D 76 70 63 2D 69 64"
+
+    # PP2_TYPE_AZURE (0xEE) + length of the value + PP2_SUBTYPE_AZURE_PRIVATEENDPOINT_LINKID (0x01) + "LINKID"
+    # See https://learn.microsoft.com/en-us/azure/private-link/private-link-service-overview#getting-connection-information-using-tcp-proxy-v2
+    # for the respective definitions.
+    sendhex "EE 00 07 01 4C 49 4E 4B 49 44"
+
+    # custom type (0xEB) + length of the value + "custom"
+    sendhex "EB 00 06 63 75 73 74 6F 6D"
+
+    # custom type (0xEC) + length of the value (128, does not fit in pool) + random data
+    sendhex "EC 00 80 3A D9 32 9B 11 A7 29 81 14 B2 33 F0 C2 0D 7A 53 D1 97 28 74 4B 78 8A D3 10 C4 B1 88 42 9C 63 8E 8B 8A A0 B4 B0 E7 9D 20 27 0F 1E 53 4D 33 F7 5A D0 91 3F B8 C9 E9 16 C4 61 C5 13 02 92 64 9D D4 22 5C 8E 4E 0B 2D 2D 7D 9F 5D 97 9B 25 C4 12 7D 21 75 C8 15 92 6B 64 F2 5F C0 A9 0F 9A 7D 0A 6D 68 79 F4 56 18 6F 23 45 2A 9B 36 34 3A 47 43 32 29 18 6F 23 45 2A 9B 36 34 3A 47 43 32 29 32 29"
+
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.echo1 == "aws-vpc-id"
+    expect resp.http.echo2 == "LINKID"
+    expect resp.http.echo3 == "custom"
+    expect resp.http.echo4 == 128
+} -run
