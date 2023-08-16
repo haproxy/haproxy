@@ -2340,33 +2340,13 @@ int smp_fetch_fc_pp_authority(const struct arg *args, struct sample *smp, const 
 /* fetch the unique ID TLV from a PROXY protocol header */
 int smp_fetch_fc_pp_unique_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn = NULL;
-	struct conn_tlv_list *conn_tlv = NULL;
+	struct arg tlv_arg;
+	int ret;
 
-	conn = objt_conn(smp->sess->origin);
-	if (!conn)
-		return 0;
-
-	if (conn->flags & CO_FL_WAIT_XPRT) {
-		smp->flags |= SMP_F_MAY_CHANGE;
-		return 0;
-	}
-
-	conn_tlv = smp->ctx.p ? smp->ctx.p : LIST_ELEM(conn->tlv_list.n, struct conn_tlv_list *, list);
-	list_for_each_entry_from(conn_tlv, &conn->tlv_list, list) {
-		if (conn_tlv->type == PP2_TYPE_UNIQUE_ID) {
-			smp->data.type = SMP_T_STR;
-			smp->data.u.str.area = conn_tlv->value;
-			smp->data.u.str.data = conn_tlv->len;
-			smp->ctx.p = conn_tlv;
-
-			return 1;
-		}
-	}
-
-	smp->flags &= ~SMP_F_NOT_LAST;
-
-	return 0;
+	set_tlv_arg(PP2_TYPE_UNIQUE_ID, &tlv_arg);
+	ret = smp_fetch_fc_pp_tlv(&tlv_arg, smp, kw, private);
+	smp->flags &= ~SMP_F_NOT_LAST; // return only the first unique ID
+	return ret;
 }
 
 /* fetch the error code of a connection */
