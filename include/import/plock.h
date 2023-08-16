@@ -138,7 +138,11 @@ static unsigned long pl_wait_unlock_long(const unsigned long *lock, const unsign
 		_r; /* return value */            \
 	})
 #else
+# if defined(PLOCK_INLINE_EBO)
+__attribute__((unused,always_inline,no_instrument_function)) inline
+# else
 __attribute__((unused,noinline,no_instrument_function))
+# endif
 static unsigned int pl_wait_unlock_int(const unsigned int *lock, const unsigned int mask)
 {
 	unsigned int ret;
