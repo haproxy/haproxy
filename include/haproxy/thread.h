@@ -167,6 +167,7 @@ static inline unsigned long long ha_get_pthread_id(unsigned int thr)
 
 /********************** THREADS ENABLED ************************/
 
+#define PLOCK_LORW_INLINE_WAIT
 #include <import/plock.h>
 
 void thread_harmless_till_end(void);
