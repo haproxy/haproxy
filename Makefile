@@ -13,55 +13,55 @@
 # Valid USE_* options are enumerated in the "use_opts" variable and are listed
 # below. Most of them are automatically set by the TARGET, others have to be
 # explicitly specified :
-#   USE_EPOLL            : enable epoll() on Linux 2.6. Automatic.
-#   USE_KQUEUE           : enable kqueue() on BSD. Automatic.
-#   USE_EVPORTS          : enable event ports on SunOS systems. Automatic.
-#   USE_NETFILTER        : enable netfilter on Linux. Automatic.
-#   USE_PCRE             : enable use of libpcre for regex. Recommended.
-#   USE_PCRE_JIT         : enable JIT for faster regex on libpcre >= 8.32
-#   USE_PCRE2            : enable use of libpcre2 for regex.
-#   USE_PCRE2_JIT        : enable JIT for faster regex on libpcre2
-#   USE_POLL             : enable poll(). Automatic.
-#   USE_THREAD           : enable threads support.
-#   USE_STATIC_PCRE      : enable static libpcre. Recommended.
-#   USE_STATIC_PCRE2     : enable static libpcre2.
-#   USE_TPROXY           : enable transparent proxy. Automatic.
-#   USE_LINUX_TPROXY     : enable full transparent proxy. Automatic.
-#   USE_LINUX_SPLICE     : enable kernel 2.6 splicing. Automatic.
-#   USE_LIBCRYPT         : enable encrypted passwords using -lcrypt
-#   USE_CRYPT_H          : set it if your system requires including crypt.h
-#   USE_GETADDRINFO      : use getaddrinfo() to resolve IPv6 host names.
-#   USE_OPENSSL          : enable use of OpenSSL. Recommended, but see below.
-#   USE_OPENSSL_WOLFSSL  : enable use of wolfSSL with the OpenSSL API
-#   USE_QUIC             : enable use of QUIC with the quictls API (quictls, libressl, boringssl)
+#   USE_EPOLL               : enable epoll() on Linux 2.6. Automatic.
+#   USE_KQUEUE              : enable kqueue() on BSD. Automatic.
+#   USE_EVPORTS             : enable event ports on SunOS systems. Automatic.
+#   USE_NETFILTER           : enable netfilter on Linux. Automatic.
+#   USE_PCRE                : enable use of libpcre for regex. Recommended.
+#   USE_PCRE_JIT            : enable JIT for faster regex on libpcre >= 8.32
+#   USE_PCRE2               : enable use of libpcre2 for regex.
+#   USE_PCRE2_JIT           : enable JIT for faster regex on libpcre2
+#   USE_POLL                : enable poll(). Automatic.
+#   USE_THREAD              : enable threads support.
+#   USE_STATIC_PCRE         : enable static libpcre. Recommended.
+#   USE_STATIC_PCRE2        : enable static libpcre2.
+#   USE_TPROXY              : enable transparent proxy. Automatic.
+#   USE_LINUX_TPROXY        : enable full transparent proxy. Automatic.
+#   USE_LINUX_SPLICE        : enable kernel 2.6 splicing. Automatic.
+#   USE_LIBCRYPT            : enable encrypted passwords using -lcrypt
+#   USE_CRYPT_H             : set it if your system requires including crypt.h
+#   USE_GETADDRINFO         : use getaddrinfo() to resolve IPv6 host names.
+#   USE_OPENSSL             : enable use of OpenSSL. Recommended, but see below.
+#   USE_OPENSSL_WOLFSSL     : enable use of wolfSSL with the OpenSSL API
+#   USE_QUIC                : enable use of QUIC with the quictls API (quictls, libressl, boringssl)
 #   USE_QUIC_OPENSSL_COMPAT : enable use of QUIC with the standard openssl API (limited features)
-#   USE_ENGINE           : enable use of OpenSSL Engine.
-#   USE_LUA              : enable Lua support.
-#   USE_ACCEPT4          : enable use of accept4() on linux. Automatic.
-#   USE_CLOSEFROM        : enable use of closefrom() on *bsd, solaris. Automatic.
-#   USE_PRCTL            : enable use of prctl(). Automatic.
-#   USE_PROCCTL          : enable use of procctl(). Automatic.
-#   USE_ZLIB             : enable zlib library support and disable SLZ
-#   USE_SLZ              : enable slz library instead of zlib (default=enabled)
-#   USE_CPU_AFFINITY     : enable pinning processes to CPU on Linux. Automatic.
-#   USE_TFO              : enable TCP fast open. Supported on Linux >= 3.7.
-#   USE_NS               : enable network namespace support. Supported on Linux >= 2.6.24.
-#   USE_DL               : enable it if your system requires -ldl. Automatic on Linux.
-#   USE_MATH             : enable use of -lm. Automatic.
-#   USE_RT               : enable it if your system requires -lrt. Automatic on Linux.
-#   USE_BACKTRACE        : enable backtrace(). Automatic on Linux.
-#   USE_PROMEX           : enable the Prometheus exporter
-#   USE_DEVICEATLAS      : enable DeviceAtlas api.
-#   USE_51DEGREES        : enable third party device detection library from 51Degrees
-#   USE_WURFL            : enable WURFL detection library from Scientiamobile
-#   USE_SYSTEMD          : enable sd_notify() support.
-#   USE_OBSOLETE_LINKER  : use when the linker fails to emit __start_init/__stop_init
-#   USE_THREAD_DUMP      : use the more advanced thread state dump system. Automatic.
-#   USE_OT               : enable the OpenTracing filter
-#   USE_MEMORY_PROFILING : enable the memory profiler. Linux-glibc only.
-#   USE_LIBATOMIC        : force to link with/without libatomic. Automatic.
-#   USE_PTHREAD_EMULATION: replace pthread's rwlocks with ours
-#   USE_SHM_OPEN         : use shm_open() for the startup-logs
+#   USE_ENGINE              : enable use of OpenSSL Engine.
+#   USE_LUA                 : enable Lua support.
+#   USE_ACCEPT4             : enable use of accept4() on linux. Automatic.
+#   USE_CLOSEFROM           : enable use of closefrom() on *bsd, solaris. Automatic.
+#   USE_PRCTL               : enable use of prctl(). Automatic.
+#   USE_PROCCTL             : enable use of procctl(). Automatic.
+#   USE_ZLIB                : enable zlib library support and disable SLZ
+#   USE_SLZ                 : enable slz library instead of zlib (default=enabled)
+#   USE_CPU_AFFINITY        : enable pinning processes to CPU on Linux. Automatic.
+#   USE_TFO                 : enable TCP fast open. Supported on Linux >= 3.7.
+#   USE_NS                  : enable network namespace support. Supported on Linux >= 2.6.24.
+#   USE_DL                  : enable it if your system requires -ldl. Automatic on Linux.
+#   USE_MATH                : enable use of -lm. Automatic.
+#   USE_RT                  : enable it if your system requires -lrt. Automatic on Linux.
+#   USE_BACKTRACE           : enable backtrace(). Automatic on Linux.
+#   USE_PROMEX              : enable the Prometheus exporter
+#   USE_DEVICEATLAS         : enable DeviceAtlas api.
+#   USE_51DEGREES           : enable third party device detection library from 51Degrees
+#   USE_WURFL               : enable WURFL detection library from Scientiamobile
+#   USE_SYSTEMD             : enable sd_notify() support.
+#   USE_OBSOLETE_LINKER     : use when the linker fails to emit __start_init/__stop_init
+#   USE_THREAD_DUMP         : use the more advanced thread state dump system. Automatic.
+#   USE_OT                  : enable the OpenTracing filter
+#   USE_MEMORY_PROFILING    : enable the memory profiler. Linux-glibc only.
+#   USE_LIBATOMIC           : force to link with/without libatomic. Automatic.
+#   USE_PTHREAD_EMULATION   : replace pthread's rwlocks with ours
+#   USE_SHM_OPEN            : use shm_open() for the startup-logs
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string). The list of enabled and disabled options for a
