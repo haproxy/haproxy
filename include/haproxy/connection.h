@@ -40,7 +40,8 @@
 extern struct pool_head *pool_head_connection;
 extern struct pool_head *pool_head_conn_hash_node;
 extern struct pool_head *pool_head_sockaddr;
-extern struct pool_head *pool_head_authority;
+extern struct pool_head *pool_head_pp_tlv_128;
+extern struct pool_head *pool_head_pp_tlv_256;
 extern struct pool_head *pool_head_uniqueid;
 extern struct xprt_ops *registered_xprt[XPRT_ENTRIES];
 extern struct mux_proto_list mux_proto_list;
@@ -52,6 +53,7 @@ extern struct mux_stopping_data mux_stopping_data[MAX_THREADS];
 int conn_recv_proxy(struct connection *conn, int flag);
 int conn_send_proxy(struct connection *conn, unsigned int flag);
 int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connection *remote, struct stream *strm);
+struct conn_tlv_list *conn_get_tlv(struct connection *conn, int type);
 
 int conn_append_debug_info(struct buffer *buf, const struct connection *conn, const char *pfx);
 

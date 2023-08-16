@@ -503,6 +503,19 @@ struct conn_hash_params {
 	struct sockaddr_storage *dst_addr;
 };
 
+/*
+ * This structure describes an TLV entry consisting of its type
+ * and corresponding payload. This can be used to construct a list
+ * from which arbitrary TLV payloads can be fetched.
+ * It might be possible to embed the 'tlv struct' here in the future.
+ */
+struct conn_tlv_list {
+	struct list list;
+	unsigned short len; // 65535 should be more than enough!
+	unsigned char type;
+	char value[0];
+} __attribute__((packed));
+
 /* This structure describes a connection with its methods and data.
  * A connection may be performed to proxy or server via a local or remote
  * socket, and can also be made to an internal applet. It can support
@@ -541,8 +554,7 @@ struct connection {
 	void (*destroy_cb)(struct connection *conn);  /* callback to notify of imminent death of the connection */
 	struct sockaddr_storage *src; /* source address (pool), when known, otherwise NULL */
 	struct sockaddr_storage *dst; /* destination address (pool), when known, otherwise NULL */
-	struct ist proxy_authority;   /* Value of the authority TLV received via PROXYv2 */
-	struct ist proxy_unique_id;   /* Value of the unique ID TLV received via PROXYv2 */
+	struct list tlv_list;         /* list of TLVs received via PROXYv2 */
 
 	/* used to identify a backend connection for http-reuse,
 	 * thus only present if conn.target is of type OBJ_TYPE_SERVER
@@ -630,7 +642,10 @@ struct mux_proto_list {
 
 #define TLV_HEADER_SIZE 3
 
-#define HA_PP2_AUTHORITY_MAX 255 /* Maximum length of an authority TLV */
+#define HA_PP2_AUTHORITY_MAX 255  /* Maximum length of an authority TLV */
+#define HA_PP2_TLV_VALUE_128 128  /* E.g., accomodate unique IDs (128 B) */
+#define HA_PP2_TLV_VALUE_256 256  /* E.g., accomodate authority TLVs (currently, <= 255 B) */
+#define HA_PP2_MAX_ALLOC     1024 /* Maximum TLV value for PPv2 to prevent DoS */
 
 struct proxy_hdr_v2 {
 	uint8_t sig[12];   /* hex 0D 0A 0D 0A 00 0D 0A 51 55 49 54 0A */

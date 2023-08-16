@@ -37,7 +37,8 @@
 DECLARE_POOL(pool_head_connection,     "connection",     sizeof(struct connection));
 DECLARE_POOL(pool_head_conn_hash_node, "conn_hash_node", sizeof(struct conn_hash_node));
 DECLARE_POOL(pool_head_sockaddr,       "sockaddr",       sizeof(struct sockaddr_storage));
-DECLARE_POOL(pool_head_authority,      "authority",      HA_PP2_AUTHORITY_MAX);
+DECLARE_POOL(pool_head_pp_tlv_128,     "pp_tlv_128",     sizeof(struct conn_tlv_list) + HA_PP2_TLV_VALUE_128);
+DECLARE_POOL(pool_head_pp_tlv_256,     "pp_tlv_256",     sizeof(struct conn_tlv_list) + HA_PP2_TLV_VALUE_256);
 
 struct idle_conns idle_conns[MAX_THREADS] = { };
 struct xprt_ops *registered_xprt[XPRT_ENTRIES] = { NULL, };
@@ -51,6 +52,22 @@ struct mux_stopping_data mux_stopping_data[MAX_THREADS];
 
 /* disables sending of proxy-protocol-v2's LOCAL command */
 static int pp2_never_send_local;
+
+/* find the value of a received TLV for a given type */
+struct conn_tlv_list *conn_get_tlv(struct connection *conn, int type)
+{
+	struct conn_tlv_list *tlv = NULL;
+
+	if (!conn)
+		return NULL;
+
+	list_for_each_entry(tlv, &conn->tlv_list, list) {
+		if (tlv->type == type)
+			return tlv;
+	}
+
+	return NULL;
+}
 
 /* Remove <conn> idle connection from its attached tree (idle, safe or avail).
  * If also present in the secondary server idle list, conn is removed from it.
@@ -447,11 +464,10 @@ void conn_init(struct connection *conn, void *target)
 		LIST_INIT(&conn->session_list);
 	else
 		LIST_INIT(&conn->stopping_list);
+	LIST_INIT(&conn->tlv_list);
 	conn->subs = NULL;
 	conn->src = NULL;
 	conn->dst = NULL;
-	conn->proxy_authority = IST_NULL;
-	conn->proxy_unique_id = IST_NULL;
 	conn->hash_node = NULL;
 	conn->xprt = NULL;
 	conn->reverse.target = NULL;
@@ -531,6 +547,8 @@ struct connection *conn_new(void *target)
 /* Releases a connection previously allocated by conn_new() */
 void conn_free(struct connection *conn)
 {
+	struct conn_tlv_list *tlv, *tlv_back = NULL;
+
 	if (conn_is_back(conn))
 		conn_backend_deinit(conn);
 
@@ -545,11 +563,16 @@ void conn_free(struct connection *conn)
 	sockaddr_free(&conn->src);
 	sockaddr_free(&conn->dst);
 
-	pool_free(pool_head_authority, istptr(conn->proxy_authority));
-	conn->proxy_authority = IST_NULL;
-
-	pool_free(pool_head_uniqueid, istptr(conn->proxy_unique_id));
-	conn->proxy_unique_id = IST_NULL;
+	/* Free all previously allocated TLVs */
+	list_for_each_entry_safe(tlv, tlv_back, &conn->tlv_list, list) {
+		LIST_DELETE(&tlv->list);
+		if (tlv->len > HA_PP2_TLV_VALUE_256)
+			free(tlv);
+		else if (tlv->len < HA_PP2_TLV_VALUE_128)
+			pool_free(pool_head_pp_tlv_128, tlv);
+		else
+			pool_free(pool_head_pp_tlv_256, tlv);
+	}
 
 	ha_free(&conn->reverse.name.area);
 
@@ -1080,8 +1103,10 @@ int conn_recv_proxy(struct connection *conn, int flag)
 
 		/* TLV parsing */
 		while (tlv_offset < total_v2_len) {
-			struct tlv *tlv_packet;
 			struct ist tlv;
+			struct tlv *tlv_packet = NULL;
+			struct conn_tlv_list *new_tlv = NULL;
+			size_t data_len = 0;
 
 			/* Verify that we have at least TLV_HEADER_SIZE bytes left */
 			if (tlv_offset + TLV_HEADER_SIZE > total_v2_len)
@@ -1095,6 +1120,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			if (tlv_offset > total_v2_len)
 				goto bad_header;
 
+			/* Prepare known TLV types */
 			switch (tlv_packet->type) {
 			case PP2_TYPE_CRC32C: {
 				uint32_t n_crc32c;
@@ -1121,35 +1147,48 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			}
 #endif
 			case PP2_TYPE_AUTHORITY: {
+				/* For now, keep the length restriction by HAProxy */
 				if (istlen(tlv) > HA_PP2_AUTHORITY_MAX)
 					goto bad_header;
-				conn->proxy_authority = ist2(pool_alloc(pool_head_authority), 0);
-				if (!isttest(conn->proxy_authority))
-					goto fail;
-				if (istcpy(&conn->proxy_authority, tlv, HA_PP2_AUTHORITY_MAX) < 0) {
-					/* This is impossible, because we verified that the TLV value fits. */
-					my_unreachable();
-					goto fail;
-				}
+
 				break;
 			}
 			case PP2_TYPE_UNIQUE_ID: {
 				if (istlen(tlv) > UNIQUEID_LEN)
 					goto bad_header;
-				conn->proxy_unique_id = ist2(pool_alloc(pool_head_uniqueid), 0);
-				if (!isttest(conn->proxy_unique_id))
-					goto fail;
-				if (istcpy(&conn->proxy_unique_id, tlv, UNIQUEID_LEN) < 0) {
-					/* This is impossible, because we verified that the TLV value fits. */
-					my_unreachable();
-					goto fail;
-				}
 				break;
 			}
 			default:
 				break;
 			}
+
+			/* If we did not find a known TLV type that we can optimize for, we generically allocate it */
+			data_len = get_tlv_length(tlv_packet);
+
+			/* Prevent attackers from allocating too much memory */
+			if (unlikely(data_len > HA_PP2_MAX_ALLOC))
+				goto fail;
+
+			/* Alloc memory based on data_len */
+			if (data_len > HA_PP2_TLV_VALUE_256)
+				new_tlv = malloc(get_tlv_length(tlv_packet) + sizeof(struct conn_tlv_list));
+			else if (data_len <= HA_PP2_TLV_VALUE_128)
+				new_tlv = pool_alloc(pool_head_pp_tlv_128);
+			else
+				new_tlv = pool_alloc(pool_head_pp_tlv_256);
+
+			if (unlikely(!new_tlv))
+				goto fail;
+
+			new_tlv->type = tlv_packet->type;
+
+			/* Save TLV to make it accessible via sample fetch */
+			memcpy(new_tlv->value, tlv.ptr, data_len);
+			new_tlv->len = data_len;
+
+			LIST_APPEND(&conn->tlv_list, &new_tlv->list);
 		}
+
 
 		/* Verify that the PROXYv2 header ends at a TLV boundary.
 		 * This is can not be true, because the TLV parsing already
@@ -1969,10 +2008,12 @@ static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct
 	}
 
 	if (srv->pp_opts & SRV_PP_V2_AUTHORITY) {
+		struct conn_tlv_list *tlv = conn_get_tlv(remote, PP2_TYPE_AUTHORITY);
+
 		value = NULL;
-		if (remote && isttest(remote->proxy_authority)) {
-			value = istptr(remote->proxy_authority);
-			value_len = istlen(remote->proxy_authority);
+		if (tlv) {
+			value_len = tlv->len;
+			value = tlv->value;
 		}
 #ifdef USE_OPENSSL
 		else {
@@ -2220,7 +2261,8 @@ int smp_fetch_fc_rcvd_proxy(const struct arg *args, struct sample *smp, const ch
 /* fetch the authority TLV from a PROXY protocol header */
 int smp_fetch_fc_pp_authority(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn;
+	struct connection *conn = NULL;
+	struct conn_tlv_list *conn_tlv;
 
 	conn = objt_conn(smp->sess->origin);
 	if (!conn)
@@ -2231,21 +2273,29 @@ int smp_fetch_fc_pp_authority(const struct arg *args, struct sample *smp, const 
 		return 0;
 	}
 
-	if (!isttest(conn->proxy_authority))
-		return 0;
+	conn_tlv = smp->ctx.p ? smp->ctx.p : LIST_ELEM(conn->tlv_list.n, struct conn_tlv_list *, list);
+	list_for_each_entry_from(conn_tlv, &conn->tlv_list, list) {
+		if (conn_tlv->type == PP2_TYPE_AUTHORITY) {
+			smp->flags |= SMP_F_NOT_LAST;
+			smp->data.type = SMP_T_STR;
+			smp->data.u.str.area = conn_tlv->value;
+			smp->data.u.str.data = conn_tlv->len;
+			smp->ctx.p = conn_tlv;
 
-	smp->flags = 0;
-	smp->data.type = SMP_T_STR;
-	smp->data.u.str.area = istptr(conn->proxy_authority);
-	smp->data.u.str.data = istlen(conn->proxy_authority);
+			return 1;
+		}
+	}
 
-	return 1;
+	smp->flags &= ~SMP_F_NOT_LAST;
+
+	return 0;
 }
 
 /* fetch the unique ID TLV from a PROXY protocol header */
 int smp_fetch_fc_pp_unique_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn;
+	struct connection *conn = NULL;
+	struct conn_tlv_list *conn_tlv;
 
 	conn = objt_conn(smp->sess->origin);
 	if (!conn)
@@ -2256,15 +2306,22 @@ int smp_fetch_fc_pp_unique_id(const struct arg *args, struct sample *smp, const 
 		return 0;
 	}
 
-	if (!isttest(conn->proxy_unique_id))
-		return 0;
+	conn_tlv = smp->ctx.p ? smp->ctx.p : LIST_ELEM(conn->tlv_list.n, struct conn_tlv_list *, list);
+	list_for_each_entry_from(conn_tlv, &conn->tlv_list, list) {
+		if (conn_tlv->type == PP2_TYPE_UNIQUE_ID) {
+			smp->flags |= SMP_F_NOT_LAST;
+			smp->data.type = SMP_T_STR;
+			smp->data.u.str.area = conn_tlv->value;
+			smp->data.u.str.data = conn_tlv->len;
+			smp->ctx.p = conn_tlv;
 
-	smp->flags = 0;
-	smp->data.type = SMP_T_STR;
-	smp->data.u.str.area = istptr(conn->proxy_unique_id);
-	smp->data.u.str.data = istlen(conn->proxy_unique_id);
+			return 1;
+		}
+	}
 
-	return 1;
+	smp->flags &= ~SMP_F_NOT_LAST;
+
+	return 0;
 }
 
 /* fetch the error code of a connection */
