@@ -75,12 +75,8 @@
 		_r; /* return value */            \
 	})
 #else /* not PLOCK_DISABLE_EBO */
-# if defined(PLOCK_INLINE_EBO)
 __attribute__((unused,always_inline,no_instrument_function)) inline
-# else
-__attribute__((unused,noinline,no_instrument_function))
-# endif
-static unsigned long pl_wait_unlock_long(const unsigned long *lock, const unsigned long mask)
+static unsigned long __pl_wait_unlock_long(const unsigned long *lock, const unsigned long mask)
 {
 	unsigned long ret;
 	unsigned int m = 0;
@@ -113,6 +109,16 @@ static unsigned long pl_wait_unlock_long(const unsigned long *lock, const unsign
 
 	return ret;
 }
+
+# if defined(PLOCK_INLINE_EBO)
+__attribute__((unused,always_inline,no_instrument_function)) inline
+# else
+__attribute__((unused,noinline,no_instrument_function))
+# endif
+static unsigned long pl_wait_unlock_long(const unsigned long *lock, const unsigned long mask)
+{
+	return __pl_wait_unlock_long(lock, mask);
+}
 #endif /* PLOCK_DISABLE_EBO */
 
 /* This function waits for <lock> to release all bits covered by <mask>, and
@@ -138,12 +144,8 @@ static unsigned long pl_wait_unlock_long(const unsigned long *lock, const unsign
 		_r; /* return value */            \
 	})
 #else
-# if defined(PLOCK_INLINE_EBO)
 __attribute__((unused,always_inline,no_instrument_function)) inline
-# else
-__attribute__((unused,noinline,no_instrument_function))
-# endif
-static unsigned int pl_wait_unlock_int(const unsigned int *lock, const unsigned int mask)
+static unsigned int __pl_wait_unlock_int(const unsigned int *lock, const unsigned int mask)
 {
 	unsigned int ret;
 	unsigned int m = 0;
@@ -175,6 +177,16 @@ static unsigned int pl_wait_unlock_int(const unsigned int *lock, const unsigned 
 	} while (1);
 
 	return ret;
+}
+
+# if defined(PLOCK_INLINE_EBO)
+__attribute__((unused,always_inline,no_instrument_function)) inline
+# else
+__attribute__((unused,noinline,no_instrument_function))
+# endif
+static unsigned int pl_wait_unlock_int(const unsigned int *lock, const unsigned int mask)
+{
+	return __pl_wait_unlock_int(lock, mask);
 }
 #endif /* PLOCK_DISABLE_EBO */
 
