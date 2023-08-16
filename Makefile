@@ -1234,17 +1234,17 @@ range:
 		BRANCH=$$(git branch --show-current HEAD 2>/dev/null); \
 		[ -n "$$BRANCH" ] || { echo "Fatal: \"make $@\" may only be used inside a checked out branch."; exit 1; }; \
 		[ -z "$${RANGE##*..*}" ] || RANGE="master..$${RANGE}"; \
-		COMMITS=( $$(git rev-list --abbrev-commit --reverse "$${RANGE}") ); \
-		index=1; count=$${#COMMITS[@]}; \
+		COMMITS=$$(git rev-list --abbrev-commit --reverse "$${RANGE}"); \
+		index=1; count=$$(echo $$COMMITS | wc -w); \
 		[ "$${count}" -gt 0 ] || { echo "## Fatal: no commit(s) found in range $${RANGE}."; exit 1; }; \
 		echo "Found $${count} commit(s) in range $${RANGE}." ; \
 		echo "Current branch is $$BRANCH"; \
 		echo "Starting to building now..."; \
-		for commit in $${COMMITS[@]}; do \
+		for commit in $$COMMITS; do \
 			echo "[ $$index/$$count ]   $$commit #############################"; \
 			git checkout -q $$commit || die 1; \
 			$(MAKE) all || die 1; \
-			((index++)); \
+			index=$$((index + 1)); \
 		done; \
 		echo;echo "Done! $${count} commit(s) built successfully for RANGE $${RANGE}" ; \
 		git checkout -q "$$BRANCH"; \
