@@ -1138,7 +1138,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		uint my_load = HA_ATOMIC_LOAD(&th_ctx->rq_total);
 
 		if (check->state & CHK_ST_READY) {
-			/* check was migrated */
+			/* check was migrated, active already counted */
 			activity[tid].check_adopted++;
 		}
 		else if (my_load >= 2) {
@@ -1153,6 +1153,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 				 * foreign thread. The recipient will restore the expiration.
 				 */
 				check->state |= CHK_ST_READY;
+				HA_ATOMIC_INC(&ha_thread_ctx[new_tid].active_checks);
 				task_unlink_wq(t);
 				t->expire = TICK_ETERNITY;
 				task_set_thread(t, new_tid);
@@ -1160,6 +1161,12 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 				TRACE_LEAVE(CHK_EV_TASK_WAKE, check);
 				return t;
 			}
+			/* check just woke up, count it as active */
+			_HA_ATOMIC_INC(&th_ctx->active_checks);
+		}
+		else {
+			/* check just woke up, count it as active */
+			_HA_ATOMIC_INC(&th_ctx->active_checks);
 		}
 
 		/* OK we're keeping it so this check is ours now */
@@ -1169,6 +1176,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		/* OK let's run, now we cannot roll back anymore */
 		check->state |= CHK_ST_READY;
 		activity[tid].check_started++;
+		_HA_ATOMIC_INC(&th_ctx->running_checks);
 	}
 
 	/* at this point, CHK_ST_SLEEPING = 0 and CHK_ST_READY = 1*/
@@ -1323,6 +1331,8 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 
 	check_release_buf(check, &check->bi);
 	check_release_buf(check, &check->bo);
+	_HA_ATOMIC_DEC(&th_ctx->running_checks);
+	_HA_ATOMIC_DEC(&th_ctx->active_checks);
 	check->state &= ~(CHK_ST_INPROGRESS|CHK_ST_IN_ALLOC|CHK_ST_OUT_ALLOC);
 	check->state &= ~CHK_ST_READY;
 	check->state |= CHK_ST_SLEEPING;

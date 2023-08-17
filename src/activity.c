@@ -1145,6 +1145,8 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 		case __LINE__: SHOW_VAL("check_adopted:",activity[thr].check_adopted, _tot); break;
 #endif
 		case __LINE__: SHOW_VAL("check_started:",activity[thr].check_started, _tot); break;
+		case __LINE__: SHOW_VAL("check_active:", _HA_ATOMIC_LOAD(&ha_thread_ctx[thr].active_checks), _tot); break;
+		case __LINE__: SHOW_VAL("check_running:",_HA_ATOMIC_LOAD(&ha_thread_ctx[thr].running_checks), _tot); break;
 
 #if defined(DEBUG_DEV)
 			/* keep these ones at the end */

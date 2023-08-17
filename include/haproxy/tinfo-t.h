@@ -148,7 +148,7 @@ struct thread_ctx {
 	int tasks_in_list;                  /* Number of tasks in the per-thread tasklets list */
 	uint idle_pct;                      /* idle to total ratio over last sample (percent) */
 	uint flags;                         /* thread flags, TH_FL_*, atomic! */
-	/* 32-bit hole here */
+	uint active_checks;                 /* number of active health checks on this thread, incl migrated */
 
 	uint32_t sched_wake_date;           /* current task/tasklet's wake date or 0 */
 	uint32_t sched_call_date;           /* current task/tasklet's call date (valid if sched_wake_date > 0) */
@@ -161,6 +161,8 @@ struct thread_ctx {
 	__decl_thread(HA_SPINLOCK_T rqsh_lock); /* lock protecting the shared runqueue */
 
 	struct freq_ctr out_32bps;              /* #of 32-byte blocks emitted per second */
+	uint running_checks;                    /* number of health checks currently running on this thread */
+
 	unsigned long long out_bytes;           /* total #of bytes emitted */
 	unsigned long long spliced_out_bytes;   /* total #of bytes emitted though a kernel pipe */
 	struct buffer *thread_dump_buffer;      /* NULL out of dump, valid during a dump, 0x01 once done */
