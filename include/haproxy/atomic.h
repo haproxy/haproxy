@@ -210,7 +210,7 @@
 		typeof(*(val)) __old_store;				\
 		typeof((new)) __new_store = (new);			\
 		do { __old_store = *__val_store;			\
-		} while (!__sync_bool_compare_and_swap(__val_store, __old_store, __new_store)); \
+		} while (!__sync_bool_compare_and_swap(__val_store, __old_store, __new_store) && __ha_cpu_relax()); \
 	})
 
 #define HA_ATOMIC_XCHG(val, new)					\
@@ -219,7 +219,7 @@
 		typeof(*(val)) __old_xchg;				\
 		typeof((new)) __new_xchg = (new);			\
 		do { __old_xchg = *__val_xchg;				\
-		} while (!__sync_bool_compare_and_swap(__val_xchg, __old_xchg, __new_xchg)); \
+		} while (!__sync_bool_compare_and_swap(__val_xchg, __old_xchg, __new_xchg) && __ha_cpu_relax()); \
 		__old_xchg;						\
 	})
 
@@ -270,7 +270,7 @@
 		do {							\
 			__oldv_cas = *__val_cas;			\
 			__ret_cas = __sync_bool_compare_and_swap(__val_cas, *__oldp_cas, __new_cas); \
-		} while (!__ret_cas && *__oldp_cas == __oldv_cas);	\
+		} while (!__ret_cas && *__oldp_cas == __oldv_cas && __ha_cpu_relax()); \
 		if (!__ret_cas)						\
 			*__oldp_cas = __oldv_cas;			\
 		__ret_cas;						\
@@ -286,7 +286,7 @@
 		typeof(*(val)) __new_max = (new);			\
 									\
 		while (__old_max < __new_max &&				\
-		       !HA_ATOMIC_CAS(__val, &__old_max, __new_max));	\
+		       !HA_ATOMIC_CAS(__val, &__old_max, __new_max) && __ha_cpu_relax()); \
 		*__val;							\
 	})
 
@@ -297,7 +297,7 @@
 		typeof(*(val)) __new_min = (new);			\
 									\
 		while (__old_min > __new_min &&				\
-		       !HA_ATOMIC_CAS(__val, &__old_min, __new_min));	\
+		       !HA_ATOMIC_CAS(__val, &__old_min, __new_min) && __ha_cpu_relax()); \
 		*__val;							\
 	})
 
@@ -405,7 +405,7 @@
 		typeof(*(val)) __new_max = (new);			\
 									\
 		while (__old_max < __new_max &&				\
-		       !HA_ATOMIC_CAS(__val, &__old_max, __new_max));	\
+		       !HA_ATOMIC_CAS(__val, &__old_max, __new_max) && __ha_cpu_relax()); \
 		*__val;							\
 	})
 
@@ -416,7 +416,7 @@
 		typeof(*(val)) __new_min = (new);			\
 									\
 		while (__old_min > __new_min &&				\
-		       !HA_ATOMIC_CAS(__val, &__old_min, __new_min));	\
+		       !HA_ATOMIC_CAS(__val, &__old_min, __new_min) && __ha_cpu_relax()); \
 		*__val;							\
 	})
 
