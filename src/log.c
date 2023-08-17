@@ -1738,13 +1738,16 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 }
 
 /*
- * This function sends a syslog message to <logger>.
+ * This function sends a syslog message.
+ * <logger> is the parent log entry used to deduce auto settings,
+ * <target> is the actual log target where log will be sent,
  * The argument <metadata> MUST be an array of size
  * LOG_META_FIELDS*sizeof(struct ist) containing data to build the header.
  * It overrides the last byte of the message vector with an LF character.
  * Does not return any error,
  */
-static inline void __do_send_log(struct logger *logger, int nblogger, int level, int facility, struct ist *metadata, char *message, size_t size)
+static inline void __do_send_log(struct logger *logger, struct log_target *target,
+                                 int nblogger, int level, int facility, struct ist *metadata, char *message, size_t size)
 {
 	static THREAD_LOCAL struct iovec iovec[NB_LOG_HDR_MAX_ELEMENTS+1+1] = { }; /* header elements + message + LF */
 	static THREAD_LOCAL struct msghdr msghdr = {
@@ -1766,23 +1769,23 @@ static inline void __do_send_log(struct logger *logger, int nblogger, int level,
 	while (size && (message[size-1] == '\n' || (message[size-1] == 0)))
 		size--;
 
-	if (logger->target.type == LOG_TARGET_BUFFER) {
+	if (target->type == LOG_TARGET_BUFFER) {
 		plogfd = NULL;
 		goto send;
 	}
-	else if (logger->target.addr->ss_family == AF_CUST_EXISTING_FD) {
+	else if (target->addr->ss_family == AF_CUST_EXISTING_FD) {
 		/* the socket's address is a file descriptor */
-		plogfd = (int *)&((struct sockaddr_in *)logger->target.addr)->sin_addr.s_addr;
+		plogfd = (int *)&((struct sockaddr_in *)target->addr)->sin_addr.s_addr;
 	}
-	else if (logger->target.addr->ss_family == AF_UNIX)
+	else if (target->addr->ss_family == AF_UNIX)
 		plogfd = &logfdunix;
 	else
 		plogfd = &logfdinet;
 
 	if (plogfd && unlikely(*plogfd < 0)) {
 		/* socket not successfully initialized yet */
-		if ((*plogfd = socket(logger->target.addr->ss_family, SOCK_DGRAM,
-		                      (logger->target.addr->ss_family == AF_UNIX) ? 0 : IPPROTO_UDP)) < 0) {
+		if ((*plogfd = socket(target->addr->ss_family, SOCK_DGRAM,
+		                      (target->addr->ss_family == AF_UNIX) ? 0 : IPPROTO_UDP)) < 0) {
 			static char once;
 
 			if (!once) {
@@ -1802,7 +1805,7 @@ static inline void __do_send_log(struct logger *logger, int nblogger, int level,
 
 	msg_header = build_log_header(logger->format, level, facility, metadata, &nbelem);
  send:
-	if (logger->target.type == LOG_TARGET_BUFFER) {
+	if (target->type == LOG_TARGET_BUFFER) {
 		struct ist msg;
 		size_t maxlen = logger->maxlen;
 
@@ -1813,9 +1816,9 @@ static inline void __do_send_log(struct logger *logger, int nblogger, int level,
 		 */
 		maxlen -= 1;
 
-		sent = sink_write(logger->target.sink, maxlen, &msg, 1, level, facility, metadata);
+		sent = sink_write(target->sink, maxlen, &msg, 1, level, facility, metadata);
 	}
-	else if (logger->target.addr->ss_family == AF_CUST_EXISTING_FD) {
+	else if (target->addr->ss_family == AF_CUST_EXISTING_FD) {
 		struct ist msg;
 
 		msg = ist2(message, size);
@@ -1848,8 +1851,8 @@ static inline void __do_send_log(struct logger *logger, int nblogger, int level,
 		i++;
 
 		msghdr.msg_iovlen = i;
-		msghdr.msg_name = (struct sockaddr *)logger->target.addr;
-		msghdr.msg_namelen = get_addr_len(logger->target.addr);
+		msghdr.msg_name = (struct sockaddr *)target->addr;
+		msghdr.msg_namelen = get_addr_len(target->addr);
 
 		sent = sendmsg(*plogfd, &msghdr, MSG_DONTWAIT | MSG_NOSIGNAL);
 	}
@@ -1916,7 +1919,7 @@ void process_send_log(struct list *loggers, int level, int facility,
 				 __ha_cpu_relax());
 		}
 		if (in_range)
-			__do_send_log(logger, ++nblogger,  MAX(level, logger->minlvl),
+			__do_send_log(logger, &logger->target, ++nblogger,  MAX(level, logger->minlvl),
 			              (facility == -1) ? logger->facility : facility,
 			              metadata, message, size);
 	}
