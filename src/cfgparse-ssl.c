@@ -1089,8 +1089,13 @@ static int ssl_bind_parse_allow_0rtt(char **args, int cur_arg, struct proxy *px,
 
 static int bind_parse_allow_0rtt(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
+#ifdef USE_QUIC_OPENSSL_COMPAT
+	memprintf(err, "'%s' : 0-RTT is not supported in limited QUIC compatibility mode, ignored.", args[cur_arg]);
+	return ERR_WARN;
+#else
 	conf->ssl_conf.early_data = 1;
 	return 0;
+#endif
 }
 
 /* parse the "npn" bind keyword */
