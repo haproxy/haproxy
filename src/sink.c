@@ -1240,104 +1240,59 @@ int cfg_post_parse_ring()
 	return err_code;
 }
 
-/* helper macro: generate an error message for logsrvs post resolve
+/* function: resolve a single logsrv target of BUFFER type
  *
- * The error function (ha_alert, ha_warning..) should be provided as <e_func>
- * If <section> is non NULL, then it is considered that the section is not
- * global, so section and section_name infos will be added to the final message
- *
- * <fmt> is treated after contextual infos, and leverages varargs to pass
- * additional arguments to <e_func>
- */
-#define _e_sink_postresolve_logsrvs(e_func, name, fmt, section, section_name, file, linenum, ...) \
-	{                                                                                         \
-		if (!section)                                                                     \
-			e_func("global %s declared in file '%s' at line %d "fmt".\n",             \
-			       name, file, linenum, ## __VA_ARGS__);                              \
-		else                                                                              \
-			e_func("%s declared in %s section '%s' in file '%s' at line %d "fmt".\n", \
-			       name, section, section_name, file, linenum, ## __VA_ARGS__);       \
-	}
-
-/* function: post-resolve a single logsrvs list
+ * <logsrv> is parent logsrv used for implicit settings
  *
  * Returns err_code which defaults to ERR_NONE and can be set to a combination
  * of ERR_WARN, ERR_ALERT, ERR_FATAL and ERR_ABORT in case of errors.
+ * <msg> could be set at any time (it will usually be set on error, but
+ * could also be set when no error occured to report a diag warning), thus is
+ * up to the caller to check it and to free it.
  */
-int sink_postresolve_logsrvs(struct list *logsrvs, const char *section, const char *section_name)
+int sink_resolve_logsrv_buffer(struct logsrv *target, char **msg)
 {
 	int err_code = ERR_NONE;
-	struct logsrv *logsrv, *logb;
 	struct sink *sink;
 
-	list_for_each_entry_safe(logsrv, logb, logsrvs, list) {
-		if (logsrv->type == LOG_TARGET_BUFFER) {
-			sink = sink_find(logsrv->ring_name);
+	BUG_ON(target->type != LOG_TARGET_BUFFER);
+	sink = sink_find(target->ring_name);
+	if (!sink) {
+		/* LOG_TARGET_BUFFER but !AF_UNSPEC
+		 * means we must allocate a sink
+		 * buffer to send messages to this logsrv
+		 */
+		if (target->addr.ss_family != AF_UNSPEC) {
+			sink = sink_new_from_logsrv(target);
 			if (!sink) {
-				/* LOG_TARGET_BUFFER but !AF_UNSPEC
-				 * means we must allocate a sink
-				 * buffer to send messages to this logsrv
-				 */
-				if (logsrv->addr.ss_family != AF_UNSPEC) {
-					sink = sink_new_from_logsrv(logsrv);
-					if (!sink) {
-						_e_sink_postresolve_logsrvs(ha_alert, "stream log server", "cannot be initialized",
-						                            section, section_name, logsrv->conf.file, logsrv->conf.line);
-						err_code |= ERR_ALERT | ERR_FATAL;
-					}
-				}
-				else {
-					_e_sink_postresolve_logsrvs(ha_alert, "log server", "uses unknown ring named '%s'",
-					                            section, section_name,
-					                            logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
-					err_code |= ERR_ALERT | ERR_FATAL;
-				}
-			}
-			else if (sink->type != SINK_TYPE_BUFFER) {
-				_e_sink_postresolve_logsrvs(ha_alert, "log server", "uses incompatible ring '%s'",
-				                            section, section_name,
-				                            logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
+				memprintf(msg, "cannot be initialized (failed to create implicit ring)");
 				err_code |= ERR_ALERT | ERR_FATAL;
+				goto end;
 			}
-			if (sink && logsrv->maxlen > ring_max_payload(sink->ctx.ring)) {
-				_e_sink_postresolve_logsrvs(ha_diag_warning, "log server", "uses a max length which exceeds ring capacity ('%s' supports %lu bytes at most).",
-				                            section, section_name,
-				                            logsrv->conf.file, logsrv->conf.line,
-				                            logsrv->ring_name, (unsigned long)ring_max_payload(sink->ctx.ring));
-			}
-			else if (sink && logsrv->maxlen > sink->maxlen) {
-				_e_sink_postresolve_logsrvs(ha_diag_warning, "log server", "uses a ring with a smaller maxlen than the one specified on the log directive ('%s' has maxlen = %d), logs will be truncated according to the lowest maxlen between the two.",
-				                            section, section_name,
-				                            logsrv->conf.file, logsrv->conf.line,
-				                            logsrv->ring_name, sink->maxlen);
-			}
-			logsrv->sink = sink;
 		}
-
+		else {
+			memprintf(msg, "uses unknown ring named '%s'", target->ring_name);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
 	}
+	else if (sink->type != SINK_TYPE_BUFFER) {
+		memprintf(msg, "uses incompatible ring '%s'", target->ring_name);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto end;
+	}
+	if (sink && target->maxlen > ring_max_payload(sink->ctx.ring)) {
+		memprintf(msg, "uses a max length which exceeds ring capacity ('%s' supports %lu bytes at most)",
+		          target->ring_name, (unsigned long)ring_max_payload(sink->ctx.ring));
+	}
+	else if (sink && target->maxlen > sink->maxlen) {
+		memprintf(msg, "uses a ring with a smaller maxlen than the one specified on the log directive ('%s' has maxlen = %d), logs will be truncated according to the lowest maxlen between the two",
+		          target->ring_name, sink->maxlen);
+	}
+ end:
+	target->sink = sink;
 	return err_code;
 }
-
-/* resolve sink names at end of config. Returns 0 on success otherwise error
- * flags.
-*/
-int post_sink_resolve()
-{
-	struct proxy *px;
-	int err_code = ERR_NONE;
-
-	/* global log directives */
-	err_code |= sink_postresolve_logsrvs(&global.logsrvs, NULL, NULL);
-	/* proxy log directives */
-	for (px = proxies_list; px; px = px->next)
-		err_code |= sink_postresolve_logsrvs(&px->logsrvs, "proxy", px->id);
-	/* log-forward log directives */
-	for (px = cfg_log_forward; px; px = px->next)
-		err_code |= sink_postresolve_logsrvs(&px->logsrvs, "log-forward", px->id);
-
-	return err_code;
-}
-
 
 static void sink_init()
 {
@@ -1390,7 +1345,6 @@ INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 /* config parsers for this section */
 REGISTER_CONFIG_SECTION("ring", cfg_parse_ring, cfg_post_parse_ring);
-REGISTER_POST_CHECK(post_sink_resolve);
 
 /*
  * Local variables:

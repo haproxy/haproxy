@@ -734,6 +734,26 @@ int smp_log_range_cmp(const void *a, const void *b)
 	return 0;
 }
 
+/* resolves a single logsrv entry (it is expected to be called
+ * at postparsing stage)
+ *
+ * <logsrv> is parent logsrv used for implicit settings
+ *
+ * Returns err_code which defaults to ERR_NONE and can be set to a combination
+ * of ERR_WARN, ERR_ALERT, ERR_FATAL and ERR_ABORT in case of errors.
+ * <msg> could be set at any time (it will usually be set on error, but
+ * could also be set when no error occured to report a diag warning), thus is
+ * up to the caller to check it and to free it.
+ */
+int resolve_logsrv(struct logsrv *logsrv, char **msg)
+{
+	int err_code = ERR_NONE;
+
+	if (logsrv->type == LOG_TARGET_BUFFER)
+		err_code = sink_resolve_logsrv_buffer(logsrv, msg);
+	return err_code;
+}
+
 /* tries to duplicate <def> logsrv
  *
  * Returns the newly allocated and duplicated logsrv or NULL
@@ -4019,9 +4039,67 @@ out:
 	return err_code;
 }
 
+/* function: post-resolve a single list of logsrvs
+ *
+ * Returns err_code which defaults to ERR_NONE and can be set to a combination
+ * of ERR_WARN, ERR_ALERT, ERR_FATAL and ERR_ABORT in case of errors.
+ */
+int postresolve_logsrv_list(struct list *logsrvs, const char *section, const char *section_name)
+{
+	int err_code = ERR_NONE;
+	struct logsrv *logsrv;
+
+	list_for_each_entry(logsrv, logsrvs, list) {
+		int cur_code;
+		char *msg = NULL;
+
+		cur_code = resolve_logsrv(logsrv, &msg);
+		if (msg) {
+			void (*e_func)(const char *fmt, ...) = NULL;
+
+			if (cur_code & ERR_ALERT)
+				e_func = ha_alert;
+			else if (cur_code & ERR_WARN)
+				e_func = ha_warning;
+			else
+				e_func = ha_diag_warning;
+			if (!section)
+				e_func("global log server declared in file %s at line '%d' %s.\n",
+				       logsrv->conf.file, logsrv->conf.line, msg);
+			else
+				e_func("log server declared in %s section '%s' in file '%s' at line %d %s.\n",
+				       section, section_name, logsrv->conf.file, logsrv->conf.line, msg);
+			ha_free(&msg);
+		}
+		err_code |= cur_code;
+	}
+	return err_code;
+}
+
+/* resolve default log directives at end of config. Returns 0 on success
+ * otherwise error flags.
+*/
+static int postresolve_logsrvs()
+{
+	struct proxy *px;
+	int err_code = ERR_NONE;
+
+	/* global log directives */
+	err_code |= postresolve_logsrv_list(&global.logsrvs, NULL, NULL);
+	/* proxy log directives */
+	for (px = proxies_list; px; px = px->next)
+		err_code |= postresolve_logsrv_list(&px->logsrvs, "proxy", px->id);
+	/* log-forward log directives */
+	for (px = cfg_log_forward; px; px = px->next)
+		err_code |= postresolve_logsrv_list(&px->logsrvs, "log-forward", px->id);
+
+	return err_code;
+}
+
 
 /* config parsers for this section */
 REGISTER_CONFIG_SECTION("log-forward", cfg_parse_log_forward, NULL);
+REGISTER_POST_CHECK(postresolve_logsrvs);
 
 REGISTER_PER_THREAD_ALLOC(init_log_buffers);
 REGISTER_PER_THREAD_FREE(deinit_log_buffers);
