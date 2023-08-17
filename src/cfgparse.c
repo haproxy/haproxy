@@ -4284,6 +4284,7 @@ init_proxies_list_stage2:
 		}
 
 		/* adjust this proxy's listeners */
+		bind_conf = NULL;
 		next_id = 1;
 		list_for_each_entry(listener, &curproxy->conf.listeners, by_fe) {
 			if (!listener->luid) {
@@ -4312,6 +4313,20 @@ init_proxies_list_stage2:
 						cfgerr++;
 					}
 				}
+# ifdef USE_QUIC_OPENSSL_COMPAT
+				/* store the last checked bind_conf in bind_conf */
+				if (!(global.tune.options & GTUNE_NO_QUIC) &&
+				    !(global.tune.options & GTUNE_LIMITED_QUIC) &&
+				    listener->bind_conf != bind_conf) {
+					bind_conf = listener->bind_conf;
+					ha_alert("Binding [%s:%d] for %s %s: this SSL library does not support the "
+						 "QUIC protocol. A limited compatibility layer may be enabled using "
+						 "the \"limited-quic\" global option if desired.\n",
+						 listener->bind_conf->file, listener->bind_conf->line,
+						 proxy_type_str(curproxy), curproxy->id);
+					cfgerr++;
+				}
+# endif
 
 				li_init_per_thr(listener);
 			}
