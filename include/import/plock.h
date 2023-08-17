@@ -1318,7 +1318,7 @@ static inline void pl_lorw_rdlock(unsigned long *lock)
 	 * lock to be empty of visitors.
 	 */
 	if (lk & PLOCK_LORW_WRQ_MASK)
-#if defined(PLOCK_LORW_INLINE_WAIT)
+#if defined(PLOCK_LORW_INLINE_WAIT) && !defined(PLOCK_DISABLE_EBO)
 		lk = __pl_wait_unlock_long(lock, PLOCK_LORW_WRQ_MASK);
 #else
 		lk = pl_wait_unlock_long(lock, PLOCK_LORW_WRQ_MASK);
@@ -1329,7 +1329,7 @@ static inline void pl_lorw_rdlock(unsigned long *lock)
 
 	/* wait for end of exclusive access if any */
 	if (lk & PLOCK_LORW_EXC_MASK)
-#if defined(PLOCK_LORW_INLINE_WAIT)
+#if defined(PLOCK_LORW_INLINE_WAIT) && !defined(PLOCK_DISABLE_EBO)
 		lk = __pl_wait_unlock_long(lock, PLOCK_LORW_EXC_MASK);
 #else
 		lk = pl_wait_unlock_long(lock, PLOCK_LORW_EXC_MASK);
@@ -1349,7 +1349,7 @@ static inline void pl_lorw_wrlock(unsigned long *lock)
 	 */
 	lk = pl_deref_long(lock);
 	if (__builtin_expect(lk & PLOCK_LORW_WRQ_MASK, 1))
-#if defined(PLOCK_LORW_INLINE_WAIT)
+#if defined(PLOCK_LORW_INLINE_WAIT) && !defined(PLOCK_DISABLE_EBO)
 		lk = __pl_wait_unlock_long(lock, PLOCK_LORW_WRQ_MASK);
 #else
 		lk = pl_wait_unlock_long(lock, PLOCK_LORW_WRQ_MASK);
@@ -1366,7 +1366,7 @@ static inline void pl_lorw_wrlock(unsigned long *lock)
 				/* note below, an OR is significantly cheaper than BTS or XADD */
 				if (!(lk & PLOCK_LORW_WRQ_MASK))
 					pl_or_noret(lock, PLOCK_LORW_WRQ_BASE);
-#if defined(PLOCK_LORW_INLINE_WAIT)
+#if defined(PLOCK_LORW_INLINE_WAIT) && !defined(PLOCK_DISABLE_EBO)
 				lk = __pl_wait_unlock_long(lock, PLOCK_LORW_SHR_MASK);
 #else
 				lk = pl_wait_unlock_long(lock, PLOCK_LORW_SHR_MASK);
@@ -1375,7 +1375,7 @@ static inline void pl_lorw_wrlock(unsigned long *lock)
 
 			/* And also wait for a previous writer to finish. */
 			if (lk & PLOCK_LORW_EXC_MASK)
-#if defined(PLOCK_LORW_INLINE_WAIT)
+#if defined(PLOCK_LORW_INLINE_WAIT) && !defined(PLOCK_DISABLE_EBO)
 				lk = __pl_wait_unlock_long(lock, PLOCK_LORW_EXC_MASK);
 #else
 				lk = pl_wait_unlock_long(lock, PLOCK_LORW_EXC_MASK);
