@@ -1754,7 +1754,7 @@ int init_srv_check(struct server *srv)
 		ret |= ERR_ALERT | ERR_ABORT;
 		goto out;
 	}
-	srv->check.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED;
+	srv->check.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_SLEEPING;
 	srv_take(srv);
 
 	/* Only increment maxsock for servers from the configuration. Dynamic
@@ -1817,7 +1817,7 @@ int init_srv_agent_check(struct server *srv)
 	if (!srv->agent.inter)
 		srv->agent.inter = srv->check.inter;
 
-	srv->agent.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_AGENT;
+	srv->agent.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_SLEEPING | CHK_ST_AGENT;
 	srv_take(srv);
 
 	/* Only increment maxsock for servers from the configuration. Dynamic
