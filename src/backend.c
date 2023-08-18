@@ -1326,7 +1326,7 @@ static int connect_server(struct stream *s)
 	struct connection *cli_conn = objt_conn(strm_orig(s));
 	struct connection *srv_conn = NULL;
 	struct server *srv;
-	const int reuse_mode = s->be->options & PR_O_REUSE_MASK;
+	int reuse_mode = s->be->options & PR_O_REUSE_MASK;
 	int reuse = 0;
 	int init_mux = 0;
 	int err;
@@ -1341,6 +1341,10 @@ static int connect_server(struct stream *s)
 	/* in standard configuration, srv will be valid
 	 * it can be NULL for dispatch mode or transparent backend */
 	srv = objt_server(s->target);
+
+	/* Override reuse-mode if reverse-connect is used. */
+	if (srv && srv->flags & SRV_F_REVERSE)
+		reuse_mode = PR_O_REUSE_ALWS;
 
 	err = alloc_dst_address(&s->scb->dst, srv, s);
 	if (err != SRV_STATUS_OK)
@@ -1393,7 +1397,7 @@ static int connect_server(struct stream *s)
 #endif /* USE_OPENSSL */
 
 	/* 3. destination address */
-	if (srv && (!is_addr(&srv->addr) || srv->flags & SRV_F_MAPPORTS))
+	if (srv && srv_is_transparent(srv))
 		hash_params.dst_addr = s->scb->dst;
 
 	/* 4. source address */
@@ -1587,6 +1591,12 @@ static int connect_server(struct stream *s)
 skip_reuse:
 	/* no reuse or failed to reuse the connection above, pick a new one */
 	if (!srv_conn) {
+		if (srv && (srv->flags & SRV_F_REVERSE)) {
+			DBG_TRACE_USER("cannot open a new connection for reverse server", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+			s->conn_err_type = STRM_ET_CONN_ERR;
+			return SF_ERR_INTERNAL;
+		}
+
 		srv_conn = conn_new(s->target);
 		if (srv_conn) {
 			DBG_TRACE_STATE("alloc new be connection", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
