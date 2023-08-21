@@ -4266,7 +4266,10 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 
 	/* RWLOCK: only read lock the SSL cache even when writing in it because there is
 	 * one cache per thread, it only prevents to flush it from the CLI in
-	 * another thread */
+	 * another thread. However, we also write-lock our session element while
+	 * updating it to make sure no other thread is reading it while we're copying
+	 * or releasing it.
+	 */
 
 	if (!(s->ssl_ctx.options & SRV_SSL_O_NO_REUSE)) {
 		int len;
@@ -4277,24 +4280,31 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 		len = i2d_SSL_SESSION(sess, NULL);
 		sni = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
-		if (s->ssl_ctx.reused_sess[tid].ptr && s->ssl_ctx.reused_sess[tid].allocated_size >= len) {
-			ptr = s->ssl_ctx.reused_sess[tid].ptr;
-		} else {
+
+		ptr = s->ssl_ctx.reused_sess[tid].ptr;
+
+		/* we're updating the possibly shared session right now */
+		HA_RWLOCK_WRLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.reused_sess[tid].sess_lock);
+
+		if (!ptr || s->ssl_ctx.reused_sess[tid].allocated_size < len) {
+			/* insufficient storage, reallocate */
 			len = (len + 7) & -8; /* round to the nearest 8 bytes */
-			ptr = realloc(s->ssl_ctx.reused_sess[tid].ptr, len);
+			ptr = realloc(ptr, len);
 			if (!ptr)
 				free(s->ssl_ctx.reused_sess[tid].ptr);
 			s->ssl_ctx.reused_sess[tid].ptr = ptr;
 			s->ssl_ctx.reused_sess[tid].allocated_size = len;
 		}
 
-		if (s->ssl_ctx.reused_sess[tid].ptr) {
+		if (ptr) {
 			/* store the new session into ptr and advance it; save the
 			 * resulting size. It's guaranteed to be equal to the returned
 			 * len above, and the pointer to be advanced by as much.
 			 */
 			s->ssl_ctx.reused_sess[tid].size = i2d_SSL_SESSION(sess, &ptr);
 		}
+
+		/* done updating the session */
 
 		if (s->ssl_ctx.reused_sess[tid].sni) {
 			/* if the new sni is empty or isn' t the same as the old one */
@@ -4307,10 +4317,17 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 			/* if there wasn't an old sni but there is a new one */
 			s->ssl_ctx.reused_sess[tid].sni = strdup(sni);
 		}
+		HA_RWLOCK_WRUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.reused_sess[tid].sess_lock);
 		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
 	} else {
 		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
-		ha_free(&s->ssl_ctx.reused_sess[tid].ptr);
+
+		if (s->ssl_ctx.reused_sess[tid].ptr) {
+			HA_RWLOCK_WRLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.reused_sess[tid].sess_lock);
+			ha_free(&s->ssl_ctx.reused_sess[tid].ptr);
+			HA_RWLOCK_WRUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.reused_sess[tid].sess_lock);
+		}
+
 		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
 	}
 
@@ -5721,14 +5738,19 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 
 			if (sess && !SSL_set_session(ctx->ssl, sess)) {
 				SSL_SESSION_free(sess);
+				HA_RWLOCK_WRLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
 				ha_free(&srv->ssl_ctx.reused_sess[tid].ptr);
+				HA_RWLOCK_WRTORD(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
 				if (srv->ssl_ctx.reused_sess[tid].sni)
 					SSL_set_tlsext_host_name(ctx->ssl, srv->ssl_ctx.reused_sess[tid].sni);
+				HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
 			} else if (sess) {
 				/* already assigned, not needed anymore */
 				SSL_SESSION_free(sess);
+				HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
 				if (srv->ssl_ctx.reused_sess[tid].sni)
 					SSL_set_tlsext_host_name(ctx->ssl, srv->ssl_ctx.reused_sess[tid].sni);
+				HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
 			}
 		}
 		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);

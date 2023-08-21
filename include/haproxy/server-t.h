@@ -380,10 +380,15 @@ struct server {
 	struct {
 		void *ctx;
 		struct {
+			/* ptr/size may be shared R/O with other threads under read lock
+			 * "sess_lock", however only the owning thread may change them
+			 * (under write lock).
+			 */
 			unsigned char *ptr;
 			int size;
 			int allocated_size;
 			char *sni; /* SNI used for the session */
+			__decl_thread(HA_RWLOCK_T sess_lock);
 		} * reused_sess;
 
 		struct ckch_inst *inst; /* Instance of the ckch_store in which the certificate was loaded (might be null if server has no certificate) */
