@@ -4261,6 +4261,7 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 {
 	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
 	struct server *s;
+	uint old_tid;
 
 	s = __objt_server(conn->target);
 
@@ -4306,6 +4307,16 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 
 		/* done updating the session */
 
+		/* Now we'll try to add or remove this entry as a valid one:
+		 *  - if no entry is set and we have one, let's share it
+		 *  - if our entry was set and we have no more, let's clear it
+		 */
+		old_tid = HA_ATOMIC_LOAD(&s->ssl_ctx.last_ssl_sess_tid); // 0=none, >0 = tid + 1
+		if (!s->ssl_ctx.reused_sess[tid].ptr && old_tid == tid + 1)
+			HA_ATOMIC_CAS(&s->ssl_ctx.last_ssl_sess_tid, &old_tid, 0); // no more valid
+		else if (s->ssl_ctx.reused_sess[tid].ptr && !old_tid)
+			HA_ATOMIC_CAS(&s->ssl_ctx.last_ssl_sess_tid, &old_tid, tid + 1);
+
 		if (s->ssl_ctx.reused_sess[tid].sni) {
 			/* if the new sni is empty or isn' t the same as the old one */
 			if ((!sni) || strcmp(s->ssl_ctx.reused_sess[tid].sni, sni) != 0) {
@@ -4327,6 +4338,10 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 			ha_free(&s->ssl_ctx.reused_sess[tid].ptr);
 			HA_RWLOCK_WRUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.reused_sess[tid].sess_lock);
 		}
+
+		old_tid = HA_ATOMIC_LOAD(&s->ssl_ctx.last_ssl_sess_tid); // 0=none, >0 = tid + 1
+		if (old_tid == tid + 1)
+			HA_ATOMIC_CAS(&s->ssl_ctx.last_ssl_sess_tid, &old_tid, 0); // no more valid
 
 		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
 	}

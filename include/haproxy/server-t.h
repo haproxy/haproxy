@@ -390,6 +390,7 @@ struct server {
 			char *sni; /* SNI used for the session */
 			__decl_thread(HA_RWLOCK_T sess_lock);
 		} * reused_sess;
+		uint last_ssl_sess_tid;         /* last tid+1 having updated reused_sess (0=none, >0=tid+1) */
 
 		struct ckch_inst *inst; /* Instance of the ckch_store in which the certificate was loaded (might be null if server has no certificate) */
 		__decl_thread(HA_RWLOCK_T lock); /* lock the cache and SSL_CTX during commit operations */
