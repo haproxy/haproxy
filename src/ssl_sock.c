@@ -4273,6 +4273,7 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 		unsigned char *ptr;
 		const char *sni;
 
+		/* determine the required len to store this new session */
 		len = i2d_SSL_SESSION(sess, NULL);
 		sni = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
@@ -4286,9 +4287,13 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 			s->ssl_ctx.reused_sess[tid].ptr = ptr;
 			s->ssl_ctx.reused_sess[tid].allocated_size = len;
 		}
+
 		if (s->ssl_ctx.reused_sess[tid].ptr) {
-			s->ssl_ctx.reused_sess[tid].size = i2d_SSL_SESSION(sess,
-			    &ptr);
+			/* store the new session into ptr and advance it; save the
+			 * resulting size. It's guaranteed to be equal to the returned
+			 * len above, and the pointer to be advanced by as much.
+			 */
+			s->ssl_ctx.reused_sess[tid].size = i2d_SSL_SESSION(sess, &ptr);
 		}
 
 		if (s->ssl_ctx.reused_sess[tid].sni) {
@@ -5703,12 +5708,19 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		SSL_set_connect_state(ctx->ssl);
 		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &(__objt_server(conn->target)->ssl_ctx.lock));
 		if (__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr) {
+			/* let's recreate a session from (ptr,size) and assign
+			 * it to ctx->ssl. Its refcount will be updated by the
+			 * creation and by the assignment, so after assigning
+			 * it or failing to, we must always free it to decrement
+			 * the refcount.
+			 */
 			const unsigned char *ptr = __objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr;
 			SSL_SESSION *sess = d2i_SSL_SESSION(NULL, &ptr, __objt_server(conn->target)->ssl_ctx.reused_sess[tid].size);
 			if (sess && !SSL_set_session(ctx->ssl, sess)) {
 				SSL_SESSION_free(sess);
 				ha_free(&__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr);
 			} else if (sess) {
+				/* already assigned, not needed anymore */
 				SSL_SESSION_free(sess);
 			}
 		}
