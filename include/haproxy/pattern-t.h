@@ -112,7 +112,8 @@ struct pat_ref {
 	int unique_id; /* Each pattern reference have unique id. */
 	unsigned long long revision; /* updated for each update */
 	unsigned long long entry_cnt; /* the total number of entries */
-	__decl_thread(HA_SPINLOCK_T lock); /* Lock used to protect pat ref elements */
+	THREAD_ALIGN(64);
+	__decl_thread(HA_RWLOCK_T lock); /* Lock used to protect pat ref elements */
 };
 
 /* This is a part of struct pat_ref. Each entry contains one pattern and one

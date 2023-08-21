@@ -1840,10 +1840,10 @@ static enum act_return http_action_set_map(struct act_rule *rule, struct proxy *
 	switch (rule->action) {
 	case 0: // add-acl
 		/* add entry only if it does not already exist */
-		HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
+		HA_RWLOCK_WRLOCK(PATREF_LOCK, &ref->lock);
 		if (pat_ref_find_elt(ref, key->area) == NULL)
 			pat_ref_add(ref, key->area, NULL, NULL);
-		HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
+		HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->lock);
 		break;
 
 	case 1: // set-map
@@ -1859,7 +1859,7 @@ static enum act_return http_action_set_map(struct act_rule *rule, struct proxy *
 		value->data = build_logline(s, value->area, value->size, &rule->arg.map.value);
 		value->area[value->data] = '\0';
 
-		HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
+		HA_RWLOCK_WRLOCK(PATREF_LOCK, &ref->lock);
 		elt = pat_ref_find_elt(ref, key->area);
 		if (elt) {
 			/* update entry if it exists */
@@ -1869,16 +1869,16 @@ static enum act_return http_action_set_map(struct act_rule *rule, struct proxy *
 			/* insert a new entry */
 			pat_ref_add(ref, key->area, value->area, NULL);
 		}
-		HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
+		HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->lock);
 		break;
 	}
 
 	case 2: // del-acl
 	case 3: // del-map
 		/* returned code: 1=ok, 0=ko */
-		HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
+		HA_RWLOCK_WRLOCK(PATREF_LOCK, &ref->lock);
 		pat_ref_delete(ref, key->area);
-		HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
+		HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->lock);
 		break;
 
 	default:
