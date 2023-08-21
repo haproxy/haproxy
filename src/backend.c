@@ -1163,7 +1163,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	conn = srv_lookup_conn(is_safe ? &srv->per_thr[tid].safe_conns : &srv->per_thr[tid].idle_conns, hash);
 	if (conn)
-		conn_delete_from_tree(&conn->hash_node->node);
+		conn_delete_from_tree(conn);
 
 	/* If we failed to pick a connection from the idle list, let's try again with
 	 * the safe list.
@@ -1171,7 +1171,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 	if (!conn && !is_safe && srv->curr_safe_nb > 0) {
 		conn = srv_lookup_conn(&srv->per_thr[tid].safe_conns, hash);
 		if (conn) {
-			conn_delete_from_tree(&conn->hash_node->node);
+			conn_delete_from_tree(conn);
 			is_safe = 1;
 		}
 	}
@@ -1214,7 +1214,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 		conn = srv_lookup_conn(is_safe ? &srv->per_thr[i].safe_conns : &srv->per_thr[i].idle_conns, hash);
 		while (conn) {
 			if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0) {
-				conn_delete_from_tree(&conn->hash_node->node);
+				conn_delete_from_tree(conn);
 				_HA_ATOMIC_INC(&activity[tid].fd_takeover);
 				found = 1;
 				break;
@@ -1227,7 +1227,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 			conn = srv_lookup_conn(&srv->per_thr[i].safe_conns, hash);
 			while (conn) {
 				if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0) {
-					conn_delete_from_tree(&conn->hash_node->node);
+					conn_delete_from_tree(conn);
 					_HA_ATOMIC_INC(&activity[tid].fd_takeover);
 					found = 1;
 					is_safe = 1;
@@ -1504,7 +1504,7 @@ static int connect_server(struct stream *s)
 		if (node) {
 			conn_node = ebmb_entry(node, struct conn_hash_node, node);
 			tokill_conn = conn_node->conn;
-			ebmb_delete(node);
+			conn_delete_from_tree(tokill_conn);
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
 			/* Release the idle lock before calling mux->destroy.
@@ -1535,7 +1535,7 @@ static int connect_server(struct stream *s)
 				if (node) {
 					conn_node = ebmb_entry(node, struct conn_hash_node, node);
 					tokill_conn = conn_node->conn;
-					ebmb_delete(node);
+					conn_delete_from_tree(tokill_conn);
 				}
 
 				if (!tokill_conn) {
@@ -1543,7 +1543,7 @@ static int connect_server(struct stream *s)
 					if (node) {
 						conn_node = ebmb_entry(node, struct conn_hash_node, node);
 						tokill_conn = conn_node->conn;
-						ebmb_delete(node);
+						conn_delete_from_tree(tokill_conn);
 					}
 				}
 				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
@@ -1568,7 +1568,7 @@ static int connect_server(struct stream *s)
 			if (avail <= 1) {
 				/* No more streams available, remove it from the list */
 				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-				conn_delete_from_tree(&srv_conn->hash_node->node);
+				conn_delete_from_tree(srv_conn);
 				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 			}
 

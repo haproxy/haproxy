@@ -5944,7 +5944,7 @@ void srv_release_conn(struct server *srv, struct connection *conn)
 	/* Remove the connection from any tree (safe, idle or available) */
 	if (conn->hash_node) {
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		conn_delete_from_tree(&conn->hash_node->node);
+		conn_delete_from_tree(conn);
 		conn->flags &= ~CO_FL_LIST_MASK;
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
@@ -6018,7 +6018,7 @@ int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_saf
 		_HA_ATOMIC_DEC(&srv->curr_used_conns);
 
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		conn_delete_from_tree(&conn->hash_node->node);
+		conn_delete_from_tree(conn);
 
 		if (is_safe) {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_SAFE_LIST;

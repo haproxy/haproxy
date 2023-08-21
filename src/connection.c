@@ -52,9 +52,9 @@ struct mux_stopping_data mux_stopping_data[MAX_THREADS];
 /* disables sending of proxy-protocol-v2's LOCAL command */
 static int pp2_never_send_local;
 
-void conn_delete_from_tree(struct eb64_node *node)
+void conn_delete_from_tree(struct connection *conn)
 {
-	eb64_delete(node);
+	eb64_delete(&conn->hash_node->node);
 }
 
 int conn_create_mux(struct connection *conn)
@@ -168,7 +168,7 @@ int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake)
 
 		if (conn_in_list) {
 			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-			conn_delete_from_tree(&conn->hash_node->node);
+			conn_delete_from_tree(conn);
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		}
 
