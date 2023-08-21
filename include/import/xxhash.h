@@ -4129,7 +4129,7 @@ XXH3_accumulate_512_vsx(  void* XXH_RESTRICT acc,
                     const void* XXH_RESTRICT secret)
 {
     /* presumed aligned */
-    unsigned long long* const xacc = (unsigned long long*) acc;
+    xxh_u64x2 const* const xacc = (xxh_u64x2 *) acc;
     xxh_u64x2 const* const xinput   = (xxh_u64x2 const*) input;   /* no alignment restriction */
     xxh_u64x2 const* const xsecret  = (xxh_u64x2 const*) secret;    /* no alignment restriction */
     xxh_u64x2 const v32 = { 32, 32 };
