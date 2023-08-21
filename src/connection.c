@@ -52,8 +52,14 @@ struct mux_stopping_data mux_stopping_data[MAX_THREADS];
 /* disables sending of proxy-protocol-v2's LOCAL command */
 static int pp2_never_send_local;
 
+/* Remove <conn> idle connection from its attached tree (idle, safe or avail).
+ * If also present in the secondary server idle list, conn is removed from it.
+ *
+ * Must be called with idle_conns_lock held.
+ */
 void conn_delete_from_tree(struct connection *conn)
 {
+	LIST_DEL_INIT((struct list *)&conn->toremove_list);
 	eb64_delete(&conn->hash_node->node);
 }
 

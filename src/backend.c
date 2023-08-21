@@ -1492,18 +1492,13 @@ static int connect_server(struct stream *s)
 
 	if (ha_used_fds > global.tune.pool_high_count && srv) {
 		struct connection *tokill_conn = NULL;
-		struct conn_hash_node *conn_node = NULL;
-		struct ebmb_node *node = NULL;
-
 		/* We can't reuse a connection, and e have more FDs than deemd
 		 * acceptable, attempt to kill an idling connection
 		 */
 		/* First, try from our own idle list */
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		node = ebmb_first(&srv->per_thr[tid].idle_conns);
-		if (node) {
-			conn_node = ebmb_entry(node, struct conn_hash_node, node);
-			tokill_conn = conn_node->conn;
+		if (!LIST_ISEMPTY(&srv->per_thr[tid].idle_conn_list)) {
+			tokill_conn = LIST_ELEM(&srv->per_thr[tid].idle_conn_list.n, struct connection *, idle_list);
 			conn_delete_from_tree(tokill_conn);
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
@@ -1531,20 +1526,9 @@ static int connect_server(struct stream *s)
 				if (HA_SPIN_TRYLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock) != 0)
 					continue;
 
-				node = ebmb_first(&srv->per_thr[i].idle_conns);
-				if (node) {
-					conn_node = ebmb_entry(node, struct conn_hash_node, node);
-					tokill_conn = conn_node->conn;
+				if (!LIST_ISEMPTY(&srv->per_thr[i].idle_conn_list)) {
+					tokill_conn = LIST_ELEM(&srv->per_thr[i].idle_conn_list.n, struct connection *, idle_list);
 					conn_delete_from_tree(tokill_conn);
-				}
-
-				if (!tokill_conn) {
-					node = ebmb_first(&srv->per_thr[i].safe_conns);
-					if (node) {
-						conn_node = ebmb_entry(node, struct conn_hash_node, node);
-						tokill_conn = conn_node->conn;
-						conn_delete_from_tree(tokill_conn);
-					}
 				}
 				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 
@@ -1552,7 +1536,7 @@ static int connect_server(struct stream *s)
 					/* We got one, put it into the concerned thread's to kill list, and wake it's kill task */
 
 					MT_LIST_APPEND(&idle_conns[i].toremove_conns,
-					    (struct mt_list *)&tokill_conn->toremove_list);
+					               &tokill_conn->toremove_list);
 					task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
 					break;
 				}
@@ -1566,6 +1550,9 @@ static int connect_server(struct stream *s)
 			int avail = srv_conn->mux->avail_streams(srv_conn);
 
 			if (avail <= 1) {
+				/* connection cannot be in idle list if used as an avail idle conn. */
+				BUG_ON(LIST_INLIST(&srv_conn->idle_list));
+
 				/* No more streams available, remove it from the list */
 				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 				conn_delete_from_tree(srv_conn);

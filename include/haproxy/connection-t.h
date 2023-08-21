@@ -526,7 +526,10 @@ struct connection {
 
 	/* second cache line */
 	struct wait_event *subs; /* Task to wake when awaited events are ready */
-	struct mt_list toremove_list; /* list for connection to clean up */
+	union {
+		struct list    idle_list; /* list element for idle connection in server idle list */
+		struct mt_list toremove_list; /* list element when idle connection is ready to be purged */
+	};
 	union {
 		struct list session_list;  /* used by backend conns, list of attached connections to a session */
 		struct list stopping_list; /* used by frontend conns, attach point in mux stopping list */

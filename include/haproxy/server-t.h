@@ -237,6 +237,11 @@ struct srv_per_thread {
 	struct eb_root idle_conns;              /* Shareable idle connections */
 	struct eb_root safe_conns;              /* Safe idle connections */
 	struct eb_root avail_conns;             /* Connections in use, but with still new streams available */
+
+	/* Secondary idle conn storage used in parallel to idle/safe trees.
+	 * Used to sort them by last usage and purge them in reverse order.
+	 */
+	struct list idle_conn_list;
 };
 
 /* Each server will have one occurrence of this structure per thread group */

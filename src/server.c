@@ -4800,6 +4800,8 @@ int srv_init_per_thr(struct server *srv)
 		srv->per_thr[i].safe_conns = EB_ROOT;
 		srv->per_thr[i].avail_conns = EB_ROOT;
 		MT_LIST_INIT(&srv->per_thr[i].streams);
+
+		LIST_INIT(&srv->per_thr[i].idle_conn_list);
 	}
 
 	return 0;
@@ -5867,31 +5869,28 @@ struct task *srv_cleanup_toremove_conns(struct task *task, void *context, unsign
 	return task;
 }
 
-/* Move toremove_nb connections from idle_tree to toremove_list, -1 means
- * moving them all.
+/* Move <toremove_nb> count connections from <list> storage to <toremove_list>
+ * list storage. -1 means moving all of them.
+ *
  * Returns the number of connections moved.
  *
  * Must be called with idle_conns_lock held.
  */
-static int srv_migrate_conns_to_remove(struct eb_root *idle_tree, struct mt_list *toremove_list, int toremove_nb)
+static int srv_migrate_conns_to_remove(struct list *list, struct mt_list *toremove_list, int toremove_nb)
 {
-	struct eb_node *node, *next;
-	struct conn_hash_node *hash_node;
+	struct connection *conn;
 	int i = 0;
 
-	node = eb_first(idle_tree);
-	while (node) {
-		next = eb_next(node);
+	while (!LIST_ISEMPTY(list)) {
 		if (toremove_nb != -1 && i >= toremove_nb)
 			break;
 
-		hash_node = ebmb_entry(node, struct conn_hash_node, node);
-		eb_delete(node);
-		MT_LIST_APPEND(toremove_list, &hash_node->conn->toremove_list);
+		conn = LIST_ELEM(list->n, struct connection *, toremove_list);
+		conn_delete_from_tree(conn);
+		MT_LIST_APPEND(toremove_list, &conn->toremove_list);
 		i++;
-
-		node = next;
 	}
+
 	return i;
 }
 /* cleanup connections for a given server
@@ -5910,9 +5909,7 @@ static void srv_cleanup_connections(struct server *srv)
 	for (i = tid;;) {
 		did_remove = 0;
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
-		if (srv_migrate_conns_to_remove(&srv->per_thr[i].idle_conns, &idle_conns[i].toremove_conns, -1) > 0)
-			did_remove = 1;
-		if (srv_migrate_conns_to_remove(&srv->per_thr[i].safe_conns, &idle_conns[i].toremove_conns, -1) > 0)
+		if (srv_migrate_conns_to_remove(&srv->per_thr[i].idle_conn_list, &idle_conns[i].toremove_conns, -1) > 0)
 			did_remove = 1;
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 		if (did_remove)
@@ -6000,7 +5997,12 @@ void _srv_add_idle(struct server *srv, struct connection *conn, int is_safe)
 {
 	struct eb_root *tree = is_safe ? &srv->per_thr[tid].safe_conns :
 	                                 &srv->per_thr[tid].idle_conns;
+
+	/* first insert in idle or safe tree. */
 	eb64_insert(tree, &conn->hash_node->node);
+
+	/* insert in list sorted by connection usage. */
+	LIST_APPEND(&srv->per_thr[tid].idle_conn_list, &conn->idle_list);
 }
 
 /* This adds an idle connection to the server's list if the connection is
@@ -6132,11 +6134,8 @@ struct task *srv_cleanup_idle_conns(struct task *task, void *context, unsigned i
 			           curr_idle + 1;
 
 			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
-			j = srv_migrate_conns_to_remove(&srv->per_thr[i].idle_conns, &idle_conns[i].toremove_conns, max_conn);
+			j = srv_migrate_conns_to_remove(&srv->per_thr[i].idle_conn_list, &idle_conns[i].toremove_conns, max_conn);
 			if (j > 0)
-				did_remove = 1;
-			if (max_conn - j > 0 &&
-			    srv_migrate_conns_to_remove(&srv->per_thr[i].safe_conns, &idle_conns[i].toremove_conns, max_conn - j) > 0)
 				did_remove = 1;
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 
@@ -6193,7 +6192,7 @@ static void srv_close_idle_conns(struct server *srv)
 
 				if (conn->ctrl->ctrl_close)
 					conn->ctrl->ctrl_close(conn);
-				ebmb_delete(node);
+				conn_delete_from_tree(conn);
 			}
 		}
 	}
