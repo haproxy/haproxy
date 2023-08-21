@@ -5752,6 +5752,9 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			SSL_SESSION *sess = d2i_SSL_SESSION(NULL, &ptr, srv->ssl_ctx.reused_sess[tid].size);
 
 			if (sess && !SSL_set_session(ctx->ssl, sess)) {
+				uint old_tid = HA_ATOMIC_LOAD(&srv->ssl_ctx.last_ssl_sess_tid); // 0=none, >0 = tid + 1
+				if (old_tid == tid + 1)
+					HA_ATOMIC_CAS(&srv->ssl_ctx.last_ssl_sess_tid, &old_tid, 0); // no more valid
 				SSL_SESSION_free(sess);
 				HA_RWLOCK_WRLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
 				ha_free(&srv->ssl_ctx.reused_sess[tid].ptr);
