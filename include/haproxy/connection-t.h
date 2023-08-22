@@ -546,7 +546,8 @@ struct connection {
 
 	/* Members used if connection must be reversed. */
 	struct {
-		enum obj_type *target; /* Server for passive reverse. */
+		enum obj_type *target; /* Listener for active reverse, server for passive. */
+		struct buffer name;    /* Only used for passive reverse. Used as SNI when connection added to server idle pool. */
 	} reverse;
 };
 

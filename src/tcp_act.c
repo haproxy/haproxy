@@ -44,11 +44,30 @@ static enum act_return tcp_action_attach_srv(struct act_rule *rule, struct proxy
                                              struct session *sess, struct stream *s, int flags)
 {
 	struct server *srv = rule->arg.attach_srv.srv;
+	struct sample *name_smp;
 	struct connection *conn = objt_conn(sess->origin);
 	if (!conn)
 		return ACT_RET_ABRT;
 
 	conn_set_reverse(conn, &srv->obj_type);
+
+	if (rule->arg.attach_srv.name) {
+		name_smp = sample_fetch_as_type(sess->fe, sess, s,
+		                                SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
+		                                rule->arg.attach_srv.name, SMP_T_STR);
+		/* TODO strdup du buffer du sample */
+		if (name_smp) {
+			struct buffer *buf = &name_smp->data.u.str;
+			char *area = malloc(b_data(buf));
+
+			if (!area)
+				return ACT_RET_ERR;
+
+			conn->reverse.name = b_make(area, b_data(buf), 0, 0);
+			b_ncat(&conn->reverse.name, buf, b_data(buf));
+		}
+	}
+
 	return ACT_RET_CONT;
 }
 

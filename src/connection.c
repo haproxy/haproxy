@@ -436,6 +436,7 @@ void conn_init(struct connection *conn, void *target)
 	conn->hash_node = NULL;
 	conn->xprt = NULL;
 	conn->reverse.target = NULL;
+	conn->reverse.name = BUF_NULL;
 }
 
 /* Initialize members used for backend connections.
@@ -530,6 +531,8 @@ void conn_free(struct connection *conn)
 
 	pool_free(pool_head_uniqueid, istptr(conn->proxy_unique_id));
 	conn->proxy_unique_id = IST_NULL;
+
+	ha_free(&conn->reverse.name.area);
 
 	conn_force_unsubscribe(conn);
 	pool_free(pool_head_connection, conn);
@@ -2461,6 +2464,15 @@ int conn_reverse(struct connection *conn)
 		memset(&hash_params, 0, sizeof(hash_params));
 		hash_params.target = srv;
 
+		if (b_data(&conn->reverse.name)) {
+			/* data cannot wrap else prehash usage is incorrect */
+			BUG_ON(b_data(&conn->reverse.name) != b_contig_data(&conn->reverse.name, 0));
+
+			hash_params.sni_prehash =
+			  conn_hash_prehash(b_head(&conn->reverse.name),
+			                    b_data(&conn->reverse.name));
+		}
+
 		hash = conn_calculate_hash(&hash_params);
 		conn->hash_node->node.key = hash;
 
@@ -2481,6 +2493,9 @@ int conn_reverse(struct connection *conn)
 	SWAP(conn->src, conn->dst);
 
 	conn->reverse.target = NULL;
+	ha_free(&conn->reverse.name.area);
+	conn->reverse.name = BUF_NULL;
+
 	return 0;
 }
 
