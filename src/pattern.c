@@ -1650,16 +1650,11 @@ void pat_ref_delete_by_ptr(struct pat_ref *ref, struct pat_ref_elt *elt)
  */
 int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
 {
-	struct pat_ref_elt *elt, *safe;
+	int ret = !!refelt->node.node.leaf_p;
 
-	/* delete pattern from reference */
-	list_for_each_entry_safe(elt, safe, &ref->head, list) {
-		if (elt == refelt) {
-			pat_ref_delete_by_ptr(ref, elt);
-			return 1;
-		}
-	}
-	return 0;
+	ebpt_delete(&refelt->node);
+
+	return ret;
 }
 
 /* This function removes all patterns matching <key> from the reference
@@ -1668,15 +1663,18 @@ int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
  */
 int pat_ref_delete(struct pat_ref *ref, const char *key)
 {
-	struct pat_ref_elt *elt, *safe;
+	struct ebpt_node *node;
 	int found = 0;
 
 	/* delete pattern from reference */
-	list_for_each_entry_safe(elt, safe, &ref->head, list) {
-		if (strcmp(key, elt->pattern) == 0) {
-			pat_ref_delete_by_ptr(ref, elt);
-			found = 1;
-		}
+	node = ebis_lookup(&ref->ebpt_root, key);
+	while (node) {
+		struct pat_ref_elt *elt;
+
+		elt = ebpt_entry(node, struct pat_ref_elt, node);
+		node = ebpt_next_dup(node);
+		pat_ref_delete_by_ptr(ref, elt);
+		found = 1;
 	}
 
 	return found;
@@ -1782,15 +1780,10 @@ static inline int pat_ref_set_elt(struct pat_ref *ref, struct pat_ref_elt *elt,
  */
 int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const char *value, char **err)
 {
-	struct pat_ref_elt *elt;
-
-	/* Look for pattern in the reference. */
-	list_for_each_entry(elt, &ref->head, list) {
-		if (elt == refelt) {
-			if (!pat_ref_set_elt(ref, elt, value, err))
-				return 0;
-			return 1;
-		}
+	if (refelt->node.node.leaf_p) {
+		if (!pat_ref_set_elt(ref, refelt, value, err))
+			return 0;
+		return 1;
 	}
 
 	memprintf(err, "key or pattern not found");
@@ -1955,6 +1948,8 @@ struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, con
 	elt->list_head = NULL;
 	elt->tree_head = NULL;
 	LIST_APPEND(&ref->head, &elt->list);
+	/* Even if calloc()'ed, ensure this node is not linked to a tree. */
+	elt->node.node.leaf_p = NULL;
 	elt->node.key = elt->pattern;
 	ebis_insert(&ref->ebpt_root, &elt->node);
 	return elt;
@@ -2427,6 +2422,7 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 {
 	struct pat_ref *ref;
 	struct pattern_expr *expr;
+	struct ebpt_node *node;
 	struct pat_ref_elt *elt;
 	int reuse = 0;
 
@@ -2517,7 +2513,10 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 		return 1;
 
 	/* Load reference content in the pattern expression. */
-	list_for_each_entry(elt, &ref->head, list) {
+	node = ebpt_first(&ref->ebpt_root);
+	while (node) {
+		elt = ebpt_entry(node, struct pat_ref_elt, node);
+		node = ebpt_next(node);
 		if (!pat_ref_push(elt, expr, patflags, err)) {
 			if (elt->line > 0)
 				memprintf(err, "%s at line %d of file '%s'",
