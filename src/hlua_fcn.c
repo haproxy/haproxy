@@ -859,12 +859,12 @@ static void hlua_stktable_entry(lua_State *L, struct stktable *t, struct stksess
 
 	for (dt = 0; dt < STKTABLE_DATA_TYPES; dt++) {
 
-		if (t->data_ofs[dt] == 0)
+		ptr = stktable_data_ptr(t, ts, dt);
+		if (!ptr)
 			continue;
 
 		lua_pushstring(L, stktable_data_types[dt].name);
 
-		ptr = stktable_data_ptr(t, ts, dt);
 		switch (stktable_data_types[dt].std_type) {
 		case STD_T_SINT:
 			lua_pushinteger(L, stktable_data_cast(ptr, std_t_sint));
@@ -1056,10 +1056,9 @@ int hlua_stktable_dump(lua_State *L)
 		/* multi condition/value filter */
 		skip_entry = 0;
 		for (i = 0; i < filter_count; i++) {
-			if (t->data_ofs[filter[i].type] == 0)
-				continue;
-
 			ptr = stktable_data_ptr(t, ts, filter[i].type);
+			if (!ptr)
+				continue;
 
 			switch (stktable_data_types[filter[i].type].std_type) {
 			case STD_T_SINT:
