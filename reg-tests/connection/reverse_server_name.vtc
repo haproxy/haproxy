@@ -1,0 +1,84 @@
+varnishtest "Reverse server with a name parameter test"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=2.9
+
+barrier b1 cond 2
+
+haproxy h_edge -conf {
+defaults
+	log global
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+	mode http
+
+frontend pub
+	bind "fd@${pub}"
+	use_backend be-reverse
+
+backend be-reverse
+	server dev @reverse ssl sni hdr(x-name) verify none
+
+frontend priv
+	bind "fd@${priv}" ssl crt ${testdir}/common.pem verify required ca-verify-file ${testdir}/ca-auth.crt alpn h2
+	tcp-request session attach-srv be-reverse/dev name ssl_c_s_dn(CN)
+} -start
+
+# Simple clear <-> SSL bridge between clients and h_edge haproxy
+# Used certificate has the name "client1"
+haproxy h_ssl_bridge -conf {
+defaults
+	log global
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+	mode tcp
+
+listen li
+	bind "fd@${li}"
+	server h_edge "${h_edge_priv_addr}:${h_edge_priv_port}" ssl crt ${testdir}/client1.pem verify none alpn h2
+} -start
+
+# Run a client through private endpoint
+# Connection will be attached to the reverse server
+client c_dev -connect ${h_ssl_bridge_li_sock} {
+	txpri
+
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	barrier b1 sync
+	stream 1 {
+		rxhdrs
+	} -run
+
+	sendhex "000004 01 05 00000001 88 5c 01 30"
+} -start
+
+# Wait for dev client to be ready to process connection
+barrier b1 sync
+
+# Run a client through public endpoint
+# Use a different name than the client certificate thus resulting in a 503
+client c1 -connect ${h_edge_pub_sock} {
+	txreq -url "/" \
+	      -hdr "x-name: client99"
+	rxresp
+	expect resp.status == 503
+} -run
+
+# Run a client through public endpoint
+# Use the correct name
+client c2 -connect ${h_edge_pub_sock} {
+	txreq -url "/" \
+	      -hdr "x-name: client1"
+	rxresp
+	expect resp.status == 200
+} -run
