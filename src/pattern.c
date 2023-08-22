@@ -14,6 +14,8 @@
 #include <stdio.h>
 #include <errno.h>
 
+#include <import/ebistree.h>
+#include <import/ebpttree.h>
 #include <import/ebsttree.h>
 #include <import/lru.h>
 
@@ -1624,6 +1626,7 @@ void pat_ref_delete_by_ptr(struct pat_ref *ref, struct pat_ref_elt *elt)
 		HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
 
 	LIST_DELETE(&elt->list);
+	ebpt_delete(&elt->node);
 	free(elt->sample);
 	free(elt->pattern);
 	free(elt);
@@ -1673,12 +1676,11 @@ int pat_ref_delete(struct pat_ref *ref, const char *key)
  */
 struct pat_ref_elt *pat_ref_find_elt(struct pat_ref *ref, const char *key)
 {
-	struct pat_ref_elt *elt;
+	struct ebpt_node *node;
 
-	list_for_each_entry(elt, &ref->head, list) {
-		if (strcmp(key, elt->pattern) == 0)
-			return elt;
-	}
+	node = ebis_lookup(&ref->ebpt_root, key);
+	if (node)
+		return ebpt_entry(node, struct pat_ref_elt, node);
 
 	return NULL;
 }
@@ -1759,12 +1761,12 @@ int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const cha
 /* This function modifies to <value> the sample of all patterns matching <key>
  * under <ref>.
  */
-int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **err)
+int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **err, struct pat_ref_elt *elt)
 {
-	struct pat_ref_elt *elt;
 	int found = 0;
 	char *_merr;
 	char **merr;
+	struct ebpt_node *node;
 
 	if (err) {
 		merr = &_merr;
@@ -1773,21 +1775,28 @@ int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **
 	else
 		merr = NULL;
 
-	/* Look for pattern in the reference. */
-	list_for_each_entry(elt, &ref->head, list) {
-		if (strcmp(key, elt->pattern) == 0) {
-			if (!pat_ref_set_elt(ref, elt, value, merr)) {
-				if (err && merr) {
-					if (!found) {
-						*err = *merr;
-					} else {
-						memprintf(err, "%s, %s", *err, *merr);
-						ha_free(merr);
-					}
+	if (elt) {
+		node = &elt->node;
+	}
+	else {
+		/* Look for pattern in the reference. */
+		node = ebis_lookup(&ref->ebpt_root, key);
+	}
+
+	while (node) {
+		elt = ebpt_entry(node, struct pat_ref_elt, node);
+		node = ebpt_next_dup(node);
+		if (!pat_ref_set_elt(ref, elt, value, merr)) {
+			if (err && merr) {
+				if (!found) {
+					*err = *merr;
+				} else {
+					memprintf(err, "%s, %s", *err, *merr);
+					ha_free(merr);
 				}
 			}
-			found = 1;
 		}
+		found = 1;
 	}
 
 	if (!found) {
@@ -1832,6 +1841,7 @@ struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned
 	ref->entry_cnt = 0;
 
 	LIST_INIT(&ref->head);
+	ref->ebpt_root = EB_ROOT;
 	LIST_INIT(&ref->pat);
 	HA_SPIN_INIT(&ref->lock);
 	LIST_APPEND(&pattern_reference, &ref->list);
@@ -1868,6 +1878,7 @@ struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int f
 	ref->next_gen = 0;
 	ref->unique_id = unique_id;
 	LIST_INIT(&ref->head);
+	ref->ebpt_root = EB_ROOT;
 	LIST_INIT(&ref->pat);
 	HA_SPIN_INIT(&ref->lock);
 	LIST_APPEND(&pattern_reference, &ref->list);
@@ -1905,6 +1916,8 @@ struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, con
 	elt->list_head = NULL;
 	elt->tree_head = NULL;
 	LIST_APPEND(&ref->head, &elt->list);
+	elt->node.key = elt->pattern;
+	ebis_insert(&ref->ebpt_root, &elt->node);
 	return elt;
  fail:
 	if (elt)
@@ -2075,6 +2088,7 @@ int pat_ref_purge_range(struct pat_ref *ref, uint from, uint to, int budget)
 		pat_delete_gen(ref, elt);
 
 		LIST_DELETE(&elt->list);
+		ebpt_delete(&elt->node);
 		free(elt->pattern);
 		free(elt->sample);
 		free(elt);

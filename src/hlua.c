@@ -1956,7 +1956,7 @@ static int hlua_set_map(lua_State *L)
 
 	HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
 	if (pat_ref_find_elt(ref, key) != NULL)
-		pat_ref_set(ref, key, value, NULL);
+		pat_ref_set(ref, key, value, NULL, NULL);
 	else
 		pat_ref_add(ref, key, value, NULL);
 	HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);

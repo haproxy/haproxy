@@ -1847,6 +1847,9 @@ static enum act_return http_action_set_map(struct act_rule *rule, struct proxy *
 		break;
 
 	case 1: // set-map
+	{
+		struct pat_ref_elt *elt;
+
 		/* allocate value */
 		value = alloc_trash_chunk();
 		if (!value)
@@ -1857,9 +1860,10 @@ static enum act_return http_action_set_map(struct act_rule *rule, struct proxy *
 		value->area[value->data] = '\0';
 
 		HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
-		if (pat_ref_find_elt(ref, key->area) != NULL) {
+		elt = pat_ref_find_elt(ref, key->area);
+		if (elt) {
 			/* update entry if it exists */
-			pat_ref_set(ref, key->area, value->area, NULL);
+			pat_ref_set(ref, key->area, value->area, NULL, elt);
 		}
 		else {
 			/* insert a new entry */
@@ -1867,6 +1871,7 @@ static enum act_return http_action_set_map(struct act_rule *rule, struct proxy *
 		}
 		HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
 		break;
+	}
 
 	case 2: // del-acl
 	case 3: // del-map

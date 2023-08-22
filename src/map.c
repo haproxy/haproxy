@@ -794,7 +794,7 @@ static int cli_parse_set_map(char **args, char *payload, struct appctx *appctx, 
 			 */
 			err = NULL;
 			HA_SPIN_LOCK(PATREF_LOCK, &ctx->ref->lock);
-			if (!pat_ref_set(ctx->ref, args[3], args[4], &err)) {
+			if (!pat_ref_set(ctx->ref, args[3], args[4], &err, NULL)) {
 				HA_SPIN_UNLOCK(PATREF_LOCK, &ctx->ref->lock);
 				if (err)
 					return cli_dynerr(appctx, memprintf(&err, "%s.\n", err));
