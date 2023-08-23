@@ -1192,6 +1192,7 @@ The following keywords are supported in the "global" section :
    - tune.lua.service-timeout
    - tune.lua.session-timeout
    - tune.lua.task-timeout
+   - tune.max-checks-per-thread
    - tune.maxaccept
    - tune.maxpollevents
    - tune.maxrewrite
@@ -3279,6 +3280,17 @@ tune.lua.task-timeout <timeout>
   dedicated to the tasks. By default, this timeout isn't set because a task may
   remain alive during of the lifetime of HAProxy. For example, a task used to
   check servers.
+
+tune.max-checks-per-thread <number>
+  Sets the number of active checks per thread above which a thread will
+  actively try to search a less loaded thread to run the health check. The
+  default value is zero, meaning no such limit is set. It may be needed in
+  certain environments running an extremely large number of expensive checks
+  with many threads when the load appears unequal and may make health checks
+  to randomly time out on startup, typically when using OpenSSL 3.0 which is
+  about 20 times more CPU-intensive on health checks than older ones. This will
+  have for result to try to level the health check work across all threads. The
+  vast majority of configurations do not need to touch this parameter.
 
 tune.maxaccept <number>
   Sets the maximum number of consecutive connections a process may accept in a
