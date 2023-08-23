@@ -504,7 +504,7 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct buffer *buf,
 			end = pos + QUIC_MIN_CC_PKTSIZE;
 		}
 		else if (!quic_peer_validated_addr(qc) && qc_is_listener(qc)) {
-			end = pos + QUIC_MIN((uint64_t)qc->path->mtu, quic_may_send_bytes(qc));
+			end = pos + QUIC_MIN(qc->path->mtu, quic_may_send_bytes(qc));
 		}
 		else {
 			end = pos + qc->path->mtu;
@@ -1112,7 +1112,7 @@ int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf, struct list *qels)
 					end = pos + QUIC_MIN_CC_PKTSIZE;
 				}
 				else if (!quic_peer_validated_addr(qc) && qc_is_listener(qc)) {
-					end = pos + QUIC_MIN((uint64_t)qc->path->mtu, quic_may_send_bytes(qc));
+					end = pos + QUIC_MIN(qc->path->mtu, quic_may_send_bytes(qc));
 				}
 				else {
 					end = pos + qc->path->mtu;
