@@ -165,24 +165,31 @@ int session_accept_fd(struct connection *cli_conn)
 
 	cli_conn->proxy_netns = l->rx.settings->netns;
 
-	if (conn_prepare(cli_conn, l->rx.proto, l->bind_conf->xprt) < 0)
-		goto out_free_conn;
-
-	conn_ctrl_init(cli_conn);
-
-	/* wait for a PROXY protocol header */
-	if (l->bind_conf->options & BC_O_ACC_PROXY)
-		cli_conn->flags |= CO_FL_ACCEPT_PROXY;
-
-	/* wait for a NetScaler client IP insertion protocol header */
-	if (l->bind_conf->options & BC_O_ACC_CIP)
-		cli_conn->flags |= CO_FL_ACCEPT_CIP;
-
-	/* Add the handshake pseudo-XPRT */
-	if (cli_conn->flags & (CO_FL_ACCEPT_PROXY | CO_FL_ACCEPT_CIP)) {
-		if (xprt_add_hs(cli_conn) != 0)
+	/* Active reversed connection has already been initialized before being
+	 * accepted. It must not be resetted.
+	 * TODO use a dedicated accept_fd callback for reverse protocol
+	 */
+	if (!cli_conn->xprt) {
+		if (conn_prepare(cli_conn, l->rx.proto, l->bind_conf->xprt) < 0)
 			goto out_free_conn;
+
+		conn_ctrl_init(cli_conn);
+
+		/* wait for a PROXY protocol header */
+		if (l->bind_conf->options & BC_O_ACC_PROXY)
+			cli_conn->flags |= CO_FL_ACCEPT_PROXY;
+
+		/* wait for a NetScaler client IP insertion protocol header */
+		if (l->bind_conf->options & BC_O_ACC_CIP)
+			cli_conn->flags |= CO_FL_ACCEPT_CIP;
+
+		/* Add the handshake pseudo-XPRT */
+		if (cli_conn->flags & (CO_FL_ACCEPT_PROXY | CO_FL_ACCEPT_CIP)) {
+			if (xprt_add_hs(cli_conn) != 0)
+				goto out_free_conn;
+		}
 	}
+
 	sess = session_new(p, l, &cli_conn->obj_type);
 	if (!sess)
 		goto out_free_conn;
@@ -309,9 +316,15 @@ int session_accept_fd(struct connection *cli_conn)
 		     MSG_DONTWAIT|MSG_NOSIGNAL);
 	}
 
-	conn_stop_tracking(cli_conn);
-	conn_full_close(cli_conn);
-	conn_free(cli_conn);
+	if (cli_conn->mux) {
+		/* Mux is already initialized for active reversed connection. */
+		cli_conn->mux->destroy(cli_conn->ctx);
+	}
+	else {
+		conn_stop_tracking(cli_conn);
+		conn_full_close(cli_conn);
+		conn_free(cli_conn);
+	}
 	listener_release(l);
 	return ret;
 }
@@ -483,8 +496,10 @@ int conn_complete_session(struct connection *conn)
 		goto fail;
 
 	session_count_new(sess);
-	if (conn_install_mux_fe(conn, NULL) < 0)
-		goto fail;
+	if (!conn->mux) {
+		if (conn_install_mux_fe(conn, NULL) < 0)
+			goto fail;
+	}
 
 	/* the embryonic session's task is not needed anymore */
 	task_destroy(sess->task);

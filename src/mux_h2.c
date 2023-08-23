@@ -1059,7 +1059,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	if (t)
 		task_queue(t);
 
-	if (h2c->flags & H2_CF_IS_BACK) {
+	if (h2c->flags & H2_CF_IS_BACK && likely(!conn_is_reverse(h2c->conn))) {
 		/* FIXME: this is temporary, for outgoing connections we need
 		 * to immediately allocate a stream until the code is modified
 		 * so that the caller calls ->attach(). For now the outgoing sc
@@ -1072,7 +1072,8 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 			goto fail_stream;
 	}
 
-	proxy_inc_fe_cum_sess_ver_ctr(sess->listener, prx, 2);
+	if (sess)
+		proxy_inc_fe_cum_sess_ver_ctr(sess->listener, prx, 2);
 	HA_ATOMIC_INC(&h2c->px_counters->open_conns);
 	HA_ATOMIC_INC(&h2c->px_counters->total_conns);
 

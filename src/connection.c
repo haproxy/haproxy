@@ -91,7 +91,8 @@ int conn_create_mux(struct connection *conn)
 		return 0;
 fail:
 		/* let the upper layer know the connection failed */
-		sc->app_ops->wake(sc);
+		if (sc)
+			sc->app_ops->wake(sc);
 		return -1;
 	} else
 		return conn_complete_session(conn);
