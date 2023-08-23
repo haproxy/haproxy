@@ -22063,6 +22063,13 @@ baseq : string
   instead of "base" allows one to properly identify the target resource, for
   statistics or caching use cases. See also "path", "pathq" and "base".
 
+
+bytes_in : integer
+  This returns the number of bytes uploaded from the client to the server.
+
+bytes_out integer
+   This is the number of bytes transmitted from the server to the client.
+
 capture.req.hdr(<idx>) : string
   This extracts the content of the header captured by the "capture request
   header", idx is the position of the capture keyword in the configuration.
@@ -23745,6 +23752,7 @@ Please refer to the table below for currently defined variables :
   |                          Others                                           |
   +---+------+------------------------------------------------------+---------+
   |   | %B   | bytes_read           (from server to client)         | numeric |
+  |   |      | %[bytes_out]                                         |         |
   +---+------+------------------------------------------------------+---------+
   | H | %CC  | captured_request_cookie                              | string  |
   +---+------+------------------------------------------------------+---------+
@@ -23769,6 +23777,7 @@ Please refer to the table below for currently defined variables :
   |   | %ST  | status_code                                          | numeric |
   +---+------+------------------------------------------------------+---------+
   |   | %U   | bytes_uploaded       (from client to server)         | numeric |
+  |   |      | %[bytes_in]                                          |         |
   +---+------+------------------------------------------------------+---------+
   |   | %ac  | actconn                                              |         |
   |   |      | %[act_conn]                                          | numeric |

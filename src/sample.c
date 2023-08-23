@@ -4905,9 +4905,35 @@ error:
 	return 0;
 }
 
+/* bytes_{in,out} */
+static int smp_fetch_bytes(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct strm_logs *logs;
+
+	if (!smp->strm)
+		return 0;
+
+	smp->data.type = SMP_T_SINT;
+	smp->flags = 0;
+
+	logs = &smp->strm->logs;
+	if (!logs)
+		return 0;
+
+	if (kw[6] == 'i') { /* bytes_in */
+		smp->data.u.sint = logs->bytes_in;
+	} else { /* bytes_out */
+		smp->data.u.sint = logs->bytes_out;
+	}
+
+	return 1;
+}
 
 
 static struct sample_fetch_kw_list smp_logs_kws = {ILH, {
+	{ "bytes_in",             smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "bytes_out",            smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_INTRN },
+
 	{ "txn.timer.total",      smp_fetch_txn_timers,   0,         NULL, SMP_T_SINT, SMP_USE_TXFIN }, /* "Ta" */
 	{ "txn.timer.user",       smp_fetch_txn_timers,   0,         NULL, SMP_T_SINT, SMP_USE_TXFIN }, /* "Tu" */
 
