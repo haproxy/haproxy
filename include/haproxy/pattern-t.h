@@ -138,6 +138,7 @@ struct pattern_tree {
 	void *from_ref;    // pattern_tree linked from pat_ref_elt, ends with NULL
 	struct sample_data *data;
 	struct pat_ref_elt *ref;
+	struct pattern_expr *expr;
 	struct ebmb_node node;
 };
 
@@ -183,6 +184,7 @@ struct pattern_list {
 	void *from_ref;    // pattern_tree linked from pat_ref_elt, ends with NULL
 	struct list list;
 	struct pattern pat;
+	struct pattern_expr *expr;
 };
 
 /* Description of a pattern expression.
