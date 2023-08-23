@@ -1286,6 +1286,39 @@ out_error:
 }
 
 /*
+ * Helper function to process the converter list of a given sample expression
+ * <expr> using the sample <p> (which is assumed to be properly initialized)
+ * as input.
+ *
+ * Returns 1 on success and 0 on failure.
+ */
+int sample_process_cnv(struct sample_expr *expr, struct sample *p)
+{
+	struct sample_conv_expr *conv_expr;
+
+	list_for_each_entry(conv_expr, &expr->conv_exprs, list) {
+		/* we want to ensure that p->type can be casted into
+		 * conv_expr->conv->in_type. We have 3 possibilities :
+		 *  - NULL   => not castable.
+		 *  - c_none => nothing to do (let's optimize it)
+		 *  - other  => apply cast and prepare to fail
+		 */
+		if (!sample_casts[p->data.type][conv_expr->conv->in_type])
+			return 0;
+
+		if (sample_casts[p->data.type][conv_expr->conv->in_type] != c_none &&
+		    !sample_casts[p->data.type][conv_expr->conv->in_type](p))
+			return 0;
+
+		/* OK cast succeeded */
+
+		if (!conv_expr->conv->process(conv_expr->arg_p, p, conv_expr->conv->private))
+			return 0;
+	}
+	return 1;
+}
+
+/*
  * Process a fetch + format conversion of defined by the sample expression <expr>
  * on request or response considering the <opt> parameter.
  * Returns a pointer on a typed sample structure containing the result or NULL if
@@ -1313,8 +1346,6 @@ struct sample *sample_process(struct proxy *px, struct session *sess,
                               struct stream *strm, unsigned int opt,
                               struct sample_expr *expr, struct sample *p)
 {
-	struct sample_conv_expr *conv_expr;
-
 	if (p == NULL) {
 		p = &temp_smp;
 		memset(p, 0, sizeof(*p));
@@ -1324,25 +1355,8 @@ struct sample *sample_process(struct proxy *px, struct session *sess,
 	if (!expr->fetch->process(expr->arg_p, p, expr->fetch->kw, expr->fetch->private))
 		return NULL;
 
-	list_for_each_entry(conv_expr, &expr->conv_exprs, list) {
-		/* we want to ensure that p->type can be casted into
-		 * conv_expr->conv->in_type. We have 3 possibilities :
-		 *  - NULL   => not castable.
-		 *  - c_none => nothing to do (let's optimize it)
-		 *  - other  => apply cast and prepare to fail
-		 */
-		if (!sample_casts[p->data.type][conv_expr->conv->in_type])
-			return NULL;
-
-		if (sample_casts[p->data.type][conv_expr->conv->in_type] != c_none &&
-		    !sample_casts[p->data.type][conv_expr->conv->in_type](p))
-			return NULL;
-
-		/* OK cast succeeded */
-
-		if (!conv_expr->conv->process(conv_expr->arg_p, p, conv_expr->conv->private))
-			return NULL;
-	}
+	if (!sample_process_cnv(expr, p))
+		return NULL;
 	return p;
 }
 

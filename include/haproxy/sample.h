@@ -39,6 +39,7 @@ struct sample_conv *find_sample_conv(const char *kw, int len);
 struct sample *sample_process(struct proxy *px, struct session *sess,
                               struct stream *strm, unsigned int opt,
                               struct sample_expr *expr, struct sample *p);
+int sample_process_cnv(struct sample_expr *expr, struct sample *p);
 struct sample *sample_fetch_as_type(struct proxy *px, struct session *sess,
                                    struct stream *strm, unsigned int opt,
                                    struct sample_expr *expr, int smp_type);
