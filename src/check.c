@@ -1132,13 +1132,12 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		 * than half of the current thread's load, and if so we'll
 		 * bounce the task there. It's possible because it's not yet
 		 * tied to the current thread. The other thread will not bounce
-		 * the task again because we're removing CHK_ST_SLEEPING.
+		 * the task again because we're setting CHK_ST_READY indicating
+		 * a migration.
 		 */
 		uint my_load = HA_ATOMIC_LOAD(&th_ctx->rq_total);
 
-		check->state &= ~CHK_ST_SLEEPING;
-
-		if (my_load >= 2) {
+		if (!(check->state & CHK_ST_READY) && my_load >= 2) {
 			uint new_tid  = statistical_prng_range(global.nbthread);
 			uint new_load = HA_ATOMIC_LOAD(&ha_thread_ctx[new_tid].rq_total);
 
@@ -1149,6 +1148,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 				 * BUG_ON() as we're not allowed to call task_queue() for a
 				 * foreign thread. The recipient will restore the expiration.
 				 */
+				check->state |= CHK_ST_READY;
 				task_unlink_wq(t);
 				t->expire = TICK_ETERNITY;
 				task_set_thread(t, new_tid);
@@ -1160,7 +1160,13 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 
 		/* OK we're keeping it so this check is ours now */
 		task_set_thread(t, tid);
+		check->state &= ~CHK_ST_SLEEPING;
+
+		/* OK let's run, now we cannot roll back anymore */
+		check->state |= CHK_ST_READY;
 	}
+
+	/* at this point, CHK_ST_SLEEPING = 0 and CHK_ST_READY = 1*/
 
 	if (check->server)
 		HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
@@ -1313,6 +1319,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	check_release_buf(check, &check->bi);
 	check_release_buf(check, &check->bo);
 	check->state &= ~(CHK_ST_INPROGRESS|CHK_ST_IN_ALLOC|CHK_ST_OUT_ALLOC);
+	check->state &= ~CHK_ST_READY;
 	check->state |= CHK_ST_SLEEPING;
 
  update_timer:
