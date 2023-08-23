@@ -389,7 +389,7 @@ Core class
   This is limited to "proc." scoped variables.
 
   :param string var: The variable name in "proc." scope according with the
-  HAProxy variable syntax.
+   HAProxy variable syntax.
 
 .. js:function:: core.now()
 
