@@ -19959,13 +19959,16 @@ bc_src_port : integer
 
 be_id : integer
   Returns an integer containing the current backend's id. It can be used in
-  frontends with responses to check which backend processed the request. It can
-  also be used in a tcp-check or an http-check ruleset.
+  frontends with responses to check which backend processed the request. If
+  used in a frontend and no backend was used, it returns the current
+  frontend's id. It can also be used in a tcp-check or an http-check ruleset.
 
 be_name : string
   Returns a string containing the current backend's name. It can be used in
-  frontends with responses to check which backend processed the request. It can
-  also be used in a tcp-check or an http-check ruleset.
+  frontends with responses to check which backend processed the request. If
+  used in a frontend and no backend was used, it returns the current
+  frontend's name. It can also be used in a tcp-check or an http-check
+  ruleset.
 
 bc_rtt(<unit>) : integer
   Returns the Round Trip Time (RTT) measured by the kernel for the backend
@@ -23663,7 +23666,8 @@ Please refer to the table below for currently defined variables :
   |   | %ac  | actconn                                              |         |
   |   |      | %[act_conn]                                          | numeric |
   +---+------+------------------------------------------------------+---------+
-  |   | %b   | backend_name                                         | string  |
+  |   | %b   | backend_name                                         |         |
+  |   |      | %[be_name]                                           | string  |
   +---+------+------------------------------------------------------+---------+
   |   | %bc  | beconn      (backend concurrent connections)         | numeric |
   +---+------+------------------------------------------------------+---------+
