@@ -288,13 +288,13 @@ void listener_set_state(struct listener *l, enum li_state st)
 			_HA_ATOMIC_INC(&px->li_paused);
 			break;
 		case LI_LISTEN:
-			BUG_ON(l->rx.fd == -1);
+			BUG_ON(l->rx.fd == -1 && !l->rx.reverse_connect.task);
 			_HA_ATOMIC_INC(&px->li_bound);
 			break;
 		case LI_READY:
 		case LI_FULL:
 		case LI_LIMITED:
-			BUG_ON(l->rx.fd == -1);
+			BUG_ON(l->rx.fd == -1 && !l->rx.reverse_connect.task);
 			_HA_ATOMIC_INC(&px->li_ready);
 			l->flags |= LI_F_FINALIZED;
 			break;
@@ -321,7 +321,7 @@ void enable_listener(struct listener *listener)
 		do_unbind_listener(listener);
 
 	if (listener->state == LI_LISTEN) {
-		BUG_ON(listener->rx.fd == -1);
+		BUG_ON(listener->rx.fd == -1 && !listener->rx.reverse_connect.task);
 		if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
 		    (!!master != !!(listener->rx.flags & RX_F_MWORKER))) {
 			/* we don't want to enable this listener and don't
@@ -799,7 +799,9 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 		l->rx.iocb = proto->default_iocb;
 		l->rx.fd = fd;
 
+		l->rx.reverse_connect.task = NULL;
 		l->rx.reverse_connect.srv = NULL;
+		l->rx.reverse_connect.pend_conn = NULL;
 
 		memcpy(&l->rx.addr, ss, sizeof(*ss));
 		if (proto->fam->set_port)

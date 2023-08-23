@@ -703,13 +703,28 @@ static inline int conn_is_reverse(const struct connection *conn)
 	return !!(conn->reverse.target);
 }
 
+/* Returns true if connection must be actively reversed or waiting to be accepted. */
+static inline int conn_reverse_in_preconnect(const struct connection *conn)
+{
+	return conn_is_back(conn) ? !!(conn->reverse.target) :
+	                            !!(conn->flags & CO_FL_REVERSED);
+}
+
 /* Initialize <conn> as a reverse connection to <target>. */
 static inline void conn_set_reverse(struct connection *conn, enum obj_type *target)
 {
 	/* Ensure the correct target type is used depending on the connection side before reverse. */
-	BUG_ON(!conn_is_back(conn) && !objt_server(target));
+	BUG_ON((!conn_is_back(conn) && !objt_server(target)) ||
+	       (conn_is_back(conn) && !objt_listener(target)));
 
 	conn->reverse.target = target;
+}
+
+/* Returns the listener instance for connection used for active reverse. */
+static inline struct listener *conn_active_reverse_listener(const struct connection *conn)
+{
+	return conn_is_back(conn) ? __objt_listener(conn->reverse.target) :
+	                            __objt_listener(conn->target);
 }
 
 #endif /* _HAPROXY_CONNECTION_H */

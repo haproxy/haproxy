@@ -321,6 +321,7 @@ void free_proxy(struct proxy *p)
 		free(l->name);
 		free(l->per_thr);
 		free(l->counters);
+		task_destroy(l->rx.reverse_connect.task);
 
 		EXTRA_COUNTERS_FREE(l->extra_counters);
 		free(l);

@@ -535,6 +535,16 @@ void conn_free(struct connection *conn)
 
 	ha_free(&conn->reverse.name.area);
 
+	if (conn_reverse_in_preconnect(conn)) {
+		struct listener *l = conn_active_reverse_listener(conn);
+
+		/* For the moment reverse connection are bound only on first thread. */
+		BUG_ON(tid != 0);
+		/* Receiver must reference a reverse connection as pending. */
+		BUG_ON(!l->rx.reverse_connect.pend_conn);
+		l->rx.reverse_connect.pend_conn = NULL;
+	}
+
 	conn_force_unsubscribe(conn);
 	pool_free(pool_head_connection, conn);
 }
@@ -2492,10 +2502,14 @@ int conn_reverse(struct connection *conn)
 		conn_set_owner(conn, NULL, NULL);
 	}
 	else {
+		/* Wake up receiver to proceed to connection accept. */
+		struct listener *l = __objt_listener(conn->reverse.target);
+
 		conn_backend_deinit(conn);
 
-		conn->target = conn->reverse.target;
+		conn->target = &l->obj_type;
 		conn->flags |= CO_FL_REVERSED;
+		task_wakeup(l->rx.reverse_connect.task, TASK_WOKEN_ANY);
 	}
 
 	/* Invert source and destination addresses if already set. */
