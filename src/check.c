@@ -1106,6 +1106,39 @@ struct task *srv_chk_io_cb(struct task *t, void *ctx, unsigned int state)
 	return NULL;
 }
 
+/* returns <0, 0, >0 if check thread 1 is respectively less loaded than,
+ * equally as, or more loaded than thread 2. This is made to decide on
+ * migrations so a margin is applied in either direction. For ease of
+ * remembering the direction, consider this returns load1 - load2.
+ */
+static inline int check_thread_cmp_load(int thr1, int thr2)
+{
+	uint t1_load = _HA_ATOMIC_LOAD(&ha_thread_ctx[thr1].rq_total);
+	uint t1_act  = _HA_ATOMIC_LOAD(&ha_thread_ctx[thr1].active_checks);
+	uint t2_load = _HA_ATOMIC_LOAD(&ha_thread_ctx[thr2].rq_total);
+	uint t2_act  = _HA_ATOMIC_LOAD(&ha_thread_ctx[thr2].active_checks);
+
+	/* twice as more active checks is a significant difference */
+	if (t1_act * 2 < t2_act)
+		return -1;
+
+	if (t2_act * 2 < t1_act)
+		return 1;
+
+	/* twice as more rqload with more checks is also a significant
+	 * difference.
+	 */
+	if (t1_act <= t2_act && t1_load * 2 < t2_load)
+		return -1;
+
+	if (t2_act <= t1_act && t2_load * 2 < t1_load)
+		return 1;
+
+	/* otherwise they're roughly equal */
+	return 0;
+}
+
+
 /* manages a server health-check that uses a connection. Returns
  * the time the task accepts to wait, or TIME_ETERNITY for infinity.
  *
@@ -1141,11 +1174,10 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 			/* check was migrated, active already counted */
 			activity[tid].check_adopted++;
 		}
-		else if (my_load >= 2) {
+		else if (my_load >= 3 && th_ctx->active_checks >= 3) {
 			uint new_tid  = statistical_prng_range(global.nbthread);
-			uint new_load = HA_ATOMIC_LOAD(&ha_thread_ctx[new_tid].rq_total);
 
-			if (new_load <= my_load / 2) {
+			if (check_thread_cmp_load(tid, new_tid) > 0) {
 				/* Found one. Let's migrate the task over there. We have to
 				 * remove it from the WQ first and kill its expire time
 				 * otherwise the scheduler will reinsert it and trigger a
