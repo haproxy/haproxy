@@ -7015,8 +7015,7 @@ http-request add-acl(<file-name>) <key fmt> [ { if | unless } <condition> ]
   file (even a dummy empty file). The file name of the ACL to be updated is
   passed between parentheses. It takes one argument: <key fmt>, which follows
   log-format rules, to collect content of the new entry. It performs a lookup
-  in the ACL before insertion, to avoid duplicated (or more) values. This
-  lookup is done by a linear search and can be expensive with large lists!
+  in the ACL before insertion, to avoid duplicated (or more) values.
   It is the equivalent of the "add acl" command from the stats socket, but can
   be triggered by an HTTP request.
 
@@ -7733,8 +7732,7 @@ http-request set-map(<file-name>) <key fmt> <value fmt>
   log-format rules, used to collect MAP key, and <value fmt>, which follows
   log-format rules, used to collect content for the new entry.
   It performs a lookup in the MAP before insertion, to avoid duplicated (or
-  more) values. This lookup is done by a linear search and can be expensive
-  with large lists! It is the equivalent of the "set map" command from the
+  more) values. It is the equivalent of the "set map" command from the
   stats socket, but can be triggered by an HTTP request.
 
 http-request set-mark <mark> [ { if | unless } <condition> ]
