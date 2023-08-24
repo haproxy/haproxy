@@ -3294,8 +3294,27 @@ static int h2_conn_reverse(struct h2c *h2c)
 		h2c->flags |= H2_CF_DEM_TOOMANY;
 	}
 
-	h2c->task->expire = tick_add(now_ms, h2c->timeout);
-	task_queue(h2c->task);
+	/* If only the new side has a defined timeout, task must be allocated.
+	 * On the contrary, if only old side has a timeout, it must be freed.
+	 */
+	if (!h2c->task && tick_isset(h2c->timeout)) {
+		h2c->task = task_new_here();
+		if (!h2c->task)
+			goto err;
+
+		h2c->task->process = h2_timeout_task;
+		h2c->task->context = h2c;
+	}
+	else if (!tick_isset(h2c->timeout)) {
+		task_destroy(h2c->task);
+		h2c->task = NULL;
+	}
+
+	/* Requeue task if instantiated with the new timeout value. */
+	if (h2c->task) {
+		h2c->task->expire = tick_add(now_ms, h2c->timeout);
+		task_queue(h2c->task);
+	}
 
 	TRACE_LEAVE(H2_EV_H2C_WAKE, h2c->conn);
 	return 1;
