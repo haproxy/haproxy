@@ -97,6 +97,20 @@ enum log_meta {
         LOG_META_FIELDS  /* must always be the last */
 };
 
+/* log header data */
+struct log_header {
+	enum log_fmt format;  /* how to format the header */
+	int level, facility;  /* used by several formats */
+	struct ist *metadata; /* optional metadata - per-format */
+};
+
+#define LOG_HEADER_NONE (struct log_header){                              \
+                                             .format = LOG_FORMAT_UNSPEC, \
+                                             .level = 0,                  \
+                                             .facility = 0,               \
+                                             .metadata = NULL             \
+                                           }
+
 /* log target types */
 enum log_tgt {
 	LOG_TARGET_DGRAM = 0, // datagram address (udp, unix socket)

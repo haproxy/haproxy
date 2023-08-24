@@ -1435,18 +1435,18 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 		   logline, data_len, default_rfc5424_sd_log_format, 2);
 }
 /*
- * This function builds a log header of given format using given
- * metadata, if format is set to LOF_FORMAT_UNSPEC, it tries
- * to determine format based on given metadas. It is useful
- * for log-forwarding to be able to forward any format without
- * settings.
+ * This function builds a log header according to <hdr> settings.
+ *
+ * If hdr.format is set to LOG_FORMAT_UNSPEC, it tries to determine
+ * format based on hdr.metadata. It is useful for log-forwarding to be
+ * able to forward any format without settings.
+ *
  * This function returns a struct ist array of elements of the header
  * nbelem is set to the number of available elements.
  * This function returns currently a maximum of NB_LOG_HDR_IST_ELEMENTS
  * elements.
  */
-struct ist *build_log_header(enum log_fmt format, int level, int facility,
-                             struct ist *metadata, size_t *nbelem)
+struct ist *build_log_header(struct log_header hdr, size_t *nbelem)
 {
 	static THREAD_LOCAL struct {
 		struct ist ist_vector[NB_LOG_HDR_MAX_ELEMENTS];
@@ -1459,6 +1459,10 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 	int len;
 	int fac_level = 0;
 	time_t time = date.tv_sec;
+	struct ist *metadata = hdr.metadata;
+	enum log_fmt format = hdr.format;
+	int facility = hdr.facility;
+	int level = hdr.level;
 
 	*nbelem = 0;
 
@@ -1740,18 +1744,16 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 /*
  * This function sends a syslog message.
  * <target> is the actual log target where log will be sent,
- * The argument <metadata> MUST be an array of size
- * LOG_META_FIELDS*sizeof(struct ist) containing data to build the header.
- * It overrides the last byte of the message vector with an LF character.
  *
+ * Message will be prefixed by header according to <hdr> setting.
  * Final message will be truncated <maxlen> parameter and will be
  * terminated with an LF character.
  *
  * Does not return any error
  */
-static inline void __do_send_log(struct log_target *target, enum log_fmt format,
+static inline void __do_send_log(struct log_target *target, struct log_header hdr,
                                  int nblogger, size_t maxlen,
-                                 int level, int facility, struct ist *metadata, char *message, size_t size)
+                                 char *message, size_t size)
 {
 	static THREAD_LOCAL struct iovec iovec[NB_LOG_HDR_MAX_ELEMENTS+1+1] = { }; /* header elements + message + LF */
 	static THREAD_LOCAL struct msghdr msghdr = {
@@ -1807,7 +1809,7 @@ static inline void __do_send_log(struct log_target *target, enum log_fmt format,
 		}
 	}
 
-	msg_header = build_log_header(format, level, facility, metadata, &nbelem);
+	msg_header = build_log_header(hdr, &nbelem);
  send:
 	if (target->type == LOG_TARGET_BUFFER) {
 		struct ist msg;
@@ -1820,7 +1822,7 @@ static inline void __do_send_log(struct log_target *target, enum log_fmt format,
 		 */
 		e_maxlen -= 1;
 
-		sent = sink_write(target->sink, e_maxlen, &msg, 1, level, facility, metadata);
+		sent = sink_write(target->sink, hdr, e_maxlen, &msg, 1);
 	}
 	else if (target->addr->ss_family == AF_CUST_EXISTING_FD) {
 		struct ist msg;
@@ -1922,11 +1924,15 @@ void process_send_log(struct list *loggers, int level, int facility,
 			} while (!_HA_ATOMIC_CAS(&logger->lb.curr_rg_idx, &curr_rg_idx, next_rg_idx) &&
 				 __ha_cpu_relax());
 		}
-		if (in_range)
-			__do_send_log(&logger->target, logger->format, ++nblogger, logger->maxlen,
-			              MAX(level, logger->minlvl),
-			              (facility == -1) ? logger->facility : facility,
-			              metadata, message, size);
+		if (in_range) {
+			struct log_header hdr;
+
+			hdr.level = MAX(level, logger->minlvl);
+			hdr.facility = (facility == -1) ? logger->facility : facility;
+			hdr.format = logger->format;
+			hdr.metadata = metadata;
+			__do_send_log(&logger->target, hdr, ++nblogger, logger->maxlen, message, size);
+		}
 	}
 }
 

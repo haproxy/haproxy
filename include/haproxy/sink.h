@@ -32,22 +32,24 @@ extern struct proxy *sink_proxies_list;
 
 struct sink *sink_find(const char *name);
 struct sink *sink_new_fd(const char *name, const char *desc, enum log_fmt, int fd);
-ssize_t __sink_write(struct sink *sink, size_t maxlen,
-                     const struct ist msg[], size_t nmsg,
-                     int level, int facility, struct ist * metadata);
-int sink_announce_dropped(struct sink *sink, int facility);
+ssize_t __sink_write(struct sink *sink, struct log_header hdr, size_t maxlen,
+                     const struct ist msg[], size_t nmsg);
+int sink_announce_dropped(struct sink *sink, struct log_header hdr);
 
 
-/* tries to send <nmsg> message parts (up to 8, ignored above) from message
- * array <msg> to sink <sink>. Formatting according to the sink's preference is
- * done here. Lost messages are accounted for in the sink's counter. If there
+/* tries to send <nmsg> message parts from message array <msg> to sink <sink>.
+ * Formatting according to the sink's preferences is done here.
+ *
+ * It will stop writing at <maxlen> instead of sink->maxlen if <maxlen> is
+ * positive and inferior to sink->maxlen.
+ *
+ * Lost messages are accounted for in the sink's counter. If there
  * were lost messages, an attempt is first made to indicate it.
  * The function returns the number of Bytes effectively sent or announced.
  * or <= 0 in other cases.
  */
-static inline ssize_t sink_write(struct sink *sink, size_t maxlen,
-                                 const struct ist msg[], size_t nmsg,
-                                 int level, int facility, struct ist *metadata)
+static inline ssize_t sink_write(struct sink *sink, struct log_header hdr,
+                                 size_t maxlen, const struct ist msg[], size_t nmsg)
 {
 	ssize_t sent;
 
@@ -59,7 +61,7 @@ static inline ssize_t sink_write(struct sink *sink, size_t maxlen,
 		 * position.
 		 */
 		HA_RWLOCK_WRLOCK(RING_LOCK, &sink->ctx.lock);
-		sent = sink_announce_dropped(sink, facility);
+		sent = sink_announce_dropped(sink, hdr);
 		HA_RWLOCK_WRUNLOCK(RING_LOCK, &sink->ctx.lock);
 
 		if (!sent) {
@@ -71,7 +73,7 @@ static inline ssize_t sink_write(struct sink *sink, size_t maxlen,
 	}
 
 	HA_RWLOCK_RDLOCK(RING_LOCK, &sink->ctx.lock);
-	sent = __sink_write(sink, maxlen, msg, nmsg, level, facility, metadata);
+	sent = __sink_write(sink, hdr, maxlen, msg, nmsg);
 	HA_RWLOCK_RDUNLOCK(RING_LOCK, &sink->ctx.lock);
 
  fail:

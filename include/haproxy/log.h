@@ -163,7 +163,7 @@ static inline int build_logline(struct stream *s, char *dst, size_t maxsize, str
 	return sess_build_logline(strm_sess(s), s, dst, maxsize, list_format);
 }
 
-struct ist *build_log_header(enum log_fmt format, int level, int facility, struct ist *metadata, size_t *nbelem);
+struct ist *build_log_header(struct log_header hdr, size_t *nbelem);
 
 /*
  * lookup log forward proxy by name

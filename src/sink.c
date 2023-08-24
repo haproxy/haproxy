@@ -164,18 +164,18 @@ struct sink *sink_new_buf(const char *name, const char *desc, enum log_fmt fmt, 
 	return NULL;
 }
 
-/* tries to send <nmsg> message parts (up to 8, ignored above) from message
- * array <msg> to sink <sink>. Formatting according to the sink's preference is
- * done here. Lost messages are NOT accounted for. It is preferable to call
- * sink_write() instead which will also try to emit the number of dropped
- * messages when there are any. It will stop writing at <maxlen> instead of
- * sink->maxlen if <maxlen> is positive and inferior to sink->maxlen.
+/* tries to send <nmsg> message parts from message array <msg> to sink <sink>.
+ * Formatting according to the sink's preference is done here. Lost messages
+ * are NOT accounted for. It is preferable to call sink_write() instead which
+ * will also try to emit the number of dropped messages when there are any.
+ *
+ * It will stop writing at <maxlen> instead of sink->maxlen if <maxlen> is
+ * positive and inferior to sink->maxlen.
  *
  * It returns >0 if it could write anything, <=0 otherwise.
  */
- ssize_t __sink_write(struct sink *sink, size_t maxlen,
-	             const struct ist msg[], size_t nmsg,
-	             int level, int facility, struct ist *metadata)
+ ssize_t __sink_write(struct sink *sink, struct log_header hdr,
+                      size_t maxlen, const struct ist msg[], size_t nmsg)
  {
 	struct ist *pfx = NULL;
 	size_t npfx = 0;
@@ -183,7 +183,8 @@ struct sink *sink_new_buf(const char *name, const char *desc, enum log_fmt fmt, 
 	if (sink->fmt == LOG_FORMAT_RAW)
 		goto send;
 
-	pfx = build_log_header(sink->fmt, level, facility, metadata, &npfx);
+	hdr.format = sink->fmt; /* sink format prevails over log one */
+	pfx = build_log_header(hdr, &npfx);
 
 send:
 	if (!maxlen)
@@ -197,16 +198,17 @@ send:
 	return 0;
 }
 
-/* Tries to emit a message indicating the number of dropped events. In case of
- * success, the amount of drops is reduced by as much. It's supposed to be
- * called under an exclusive lock on the sink to avoid multiple produces doing
- * the same. On success, >0 is returned, otherwise <=0 on failure.
+/* Tries to emit a message indicating the number of dropped events.
+ * The log header of the original message that we tried to emit is reused
+ * here with the only difference that we override the log level. This is
+ * possible since the announce message will be sent from the same context.
+ *
+ * In case of success, the amount of drops is reduced by as much. It's supposed
+ * to be called under an exclusive lock on the sink to avoid multiple producers
+ * doing the same. On success, >0 is returned, otherwise <=0 on failure.
  */
-int sink_announce_dropped(struct sink *sink, int facility)
+int sink_announce_dropped(struct sink *sink, struct log_header hdr)
 {
-	static THREAD_LOCAL struct ist metadata[LOG_META_FIELDS];
-	static THREAD_LOCAL pid_t curr_pid;
-	static THREAD_LOCAL char pidstr[16];
 	unsigned int dropped;
 	struct buffer msg;
 	struct ist msgvec[1];
@@ -217,24 +219,9 @@ int sink_announce_dropped(struct sink *sink, int facility)
 		chunk_printf(&msg, "%u event%s dropped", dropped, dropped > 1 ? "s" : "");
 		msgvec[0] = ist2(msg.area, msg.data);
 
-		if (!metadata[LOG_META_HOST].len) {
-			if (global.log_send_hostname)
-				metadata[LOG_META_HOST] = ist(global.log_send_hostname);
-		}
+		hdr.level = LOG_NOTICE; /* override level but keep original log header data */
 
-		if (!metadata[LOG_META_TAG].len)
-			metadata[LOG_META_TAG] = ist2(global.log_tag.area, global.log_tag.data);
-
-		if (unlikely(curr_pid != getpid()))
-			 metadata[LOG_META_PID].len = 0;
-
-		if (!metadata[LOG_META_PID].len) {
-			curr_pid = getpid();
-			ltoa_o(curr_pid, pidstr, sizeof(pidstr));
-			metadata[LOG_META_PID] = ist2(pidstr, strlen(pidstr));
-		}
-
-		if (__sink_write(sink, 0, msgvec, 1, LOG_NOTICE, facility, metadata) <= 0)
+		if (__sink_write(sink, hdr, 0, msgvec, 1) <= 0)
 			return 0;
 		/* success! */
 		HA_ATOMIC_SUB(&sink->ctx.dropped, dropped);
