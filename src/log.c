@@ -1739,15 +1739,19 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 
 /*
  * This function sends a syslog message.
- * <logger> is the parent log entry used to deduce auto settings,
  * <target> is the actual log target where log will be sent,
  * The argument <metadata> MUST be an array of size
  * LOG_META_FIELDS*sizeof(struct ist) containing data to build the header.
  * It overrides the last byte of the message vector with an LF character.
- * Does not return any error,
+ *
+ * Final message will be truncated <maxlen> parameter and will be
+ * terminated with an LF character.
+ *
+ * Does not return any error
  */
-static inline void __do_send_log(struct logger *logger, struct log_target *target,
-                                 int nblogger, int level, int facility, struct ist *metadata, char *message, size_t size)
+static inline void __do_send_log(struct log_target *target, enum log_fmt format,
+                                 int nblogger, size_t maxlen,
+                                 int level, int facility, struct ist *metadata, char *message, size_t size)
 {
 	static THREAD_LOCAL struct iovec iovec[NB_LOG_HDR_MAX_ELEMENTS+1+1] = { }; /* header elements + message + LF */
 	static THREAD_LOCAL struct msghdr msghdr = {
@@ -1803,31 +1807,31 @@ static inline void __do_send_log(struct logger *logger, struct log_target *targe
 		}
 	}
 
-	msg_header = build_log_header(logger->format, level, facility, metadata, &nbelem);
+	msg_header = build_log_header(format, level, facility, metadata, &nbelem);
  send:
 	if (target->type == LOG_TARGET_BUFFER) {
 		struct ist msg;
-		size_t maxlen = logger->maxlen;
+		size_t e_maxlen = maxlen;
 
 		msg = ist2(message, size);
 
 		/* make room for the final '\n' which may be forcefully inserted
 		 * by tcp forwarder applet (sink_forward_io_handler)
 		 */
-		maxlen -= 1;
+		e_maxlen -= 1;
 
-		sent = sink_write(target->sink, maxlen, &msg, 1, level, facility, metadata);
+		sent = sink_write(target->sink, e_maxlen, &msg, 1, level, facility, metadata);
 	}
 	else if (target->addr->ss_family == AF_CUST_EXISTING_FD) {
 		struct ist msg;
 
 		msg = ist2(message, size);
 
-		sent = fd_write_frag_line(*plogfd, logger->maxlen, msg_header, nbelem, &msg, 1, 1);
+		sent = fd_write_frag_line(*plogfd, maxlen, msg_header, nbelem, &msg, 1, 1);
 	}
 	else {
 		int i = 0;
-		int totlen = logger->maxlen - 1; /* save space for the final '\n' */
+		int totlen = maxlen - 1; /* save space for the final '\n' */
 
 		for (i = 0 ; i < nbelem ; i++ ) {
 			iovec[i].iov_base = msg_header[i].ptr;
@@ -1919,7 +1923,8 @@ void process_send_log(struct list *loggers, int level, int facility,
 				 __ha_cpu_relax());
 		}
 		if (in_range)
-			__do_send_log(logger, &logger->target, ++nblogger,  MAX(level, logger->minlvl),
+			__do_send_log(&logger->target, logger->format, ++nblogger, logger->maxlen,
+			              MAX(level, logger->minlvl),
 			              (facility == -1) ? logger->facility : facility,
 			              metadata, message, size);
 	}
