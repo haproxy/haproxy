@@ -1747,7 +1747,6 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
 		size_t maxlen = logsrv->maxlen;
 
 		msg = ist2(message, size);
-		msg = isttrim(msg, logsrv->maxlen);
 
 		/* make room for the final '\n' which may be forcefully inserted
 		 * by tcp forwarder applet (sink_forward_io_handler)
@@ -1760,7 +1759,6 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
 		struct ist msg;
 
 		msg = ist2(message, size);
-		msg = isttrim(msg, logsrv->maxlen);
 
 		sent = fd_write_frag_line(*plogfd, logsrv->maxlen, msg_header, nbelem, &msg, 1, 1);
 	}
