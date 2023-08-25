@@ -20,7 +20,7 @@ jobs:
     - uses: actions/checkout@v3
     - name: Install dependencies
       run: |
-        dnf -y git install pcre-devel zlib-devel pcre2-devel 'perl(FindBin)' perl-IPC-Cmd 'perl(File::Copy)' 'perl(File::Compare)' lua-devel socat findutils systemd-devel clang
+        dnf -y install git pcre-devel zlib-devel pcre2-devel 'perl(FindBin)' perl-IPC-Cmd 'perl(File::Copy)' 'perl(File::Compare)' lua-devel socat findutils systemd-devel clang
     - name: Install VTest
       run: scripts/build-vtest.sh
     - name: Install QuicTLS
