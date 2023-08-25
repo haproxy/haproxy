@@ -1,6 +1,67 @@
 ChangeLog :
 ===========
 
+2023/08/25 : 2.9-dev4
+    - DEV: flags/show-sess-to-flags: properly decode fd.state
+    - BUG/MINOR: stktable: allow sc-set-gpt(0) from tcp-request connection
+    - BUG/MINOR: stktable: allow sc-add-gpc from tcp-request connection
+    - DOC: typo: fix sc-set-gpt references
+    - SCRIPTS: git-show-backports: automatic ref and base detection with -m
+    - REGTESTS: Do not use REQUIRE_VERSION for HAProxy 2.5+ (3)
+    - DOC: jwt: Add explicit list of supported algorithms
+    - BUILD: Makefile: add the USE_QUIC option to make help
+    - BUILD: Makefile: add USE_QUIC_OPENSSL_COMPAT to make help
+    - BUILD: Makefile: realigned USE_* options in make help
+    - DEV: makefile: fix POSIX compatibility for "range" target
+    - IMPORT: plock: also support inlining the int code
+    - IMPORT: plock: always expose the inline version of the lock wait function
+    - IMPORT: lorw: support inlining the wait call
+    - MINOR: threads: inline the wait function for pthread_rwlock emulation
+    - MINOR: atomic: make sure to always relax after a failed CAS
+    - MINOR: pools: use EBO to wait for unlock during pool_flush()
+    - BUILD/IMPORT: fix compilation with PLOCK_DISABLE_EBO=1
+    - MINOR: quic+openssl_compat: Do not start without "limited-quic"
+    - MINOR: quic+openssl_compat: Emit an alert for "allow-0rtt" option
+    - BUG/MINOR: quic: allow-0rtt warning must only be emitted with quic bind
+    - BUG/MINOR: quic: ssl_quic_initial_ctx() uses error count not error code
+    - MINOR: pattern: do not needlessly lookup the LRU cache for empty lists
+    - IMPORT: xxhash: update xxHash to version 0.8.2
+    - MINOR: proxy: simplify parsing 'backend/server'
+    - MINOR: connection: centralize init/deinit of backend elements
+    - MEDIUM: connection: implement passive reverse
+    - MEDIUM: h2: reverse connection after SETTINGS reception
+    - MINOR: server: define reverse-connect server
+    - MINOR: backend: only allow reuse for reverse server
+    - MINOR: tcp-act: parse 'tcp-request attach-srv' session rule
+    - REGTESTS: provide a reverse-server test
+    - MINOR: tcp-act: define optional arg name for attach-srv
+    - MINOR: connection: use attach-srv name as SNI reuse parameter on reverse
+    - REGTESTS: provide a reverse-server test with name argument
+    - MINOR: proto: define dedicated protocol for active reverse connect
+    - MINOR: connection: extend conn_reverse() for active reverse
+    - MINOR: proto_reverse_connect: parse rev@ addresses for bind
+    - MINOR: connection: prepare init code paths for active reverse
+    - MEDIUM: proto_reverse_connect: bootstrap active reverse connection
+    - MINOR: proto_reverse_connect: handle early error before reversal
+    - MEDIUM: h2: implement active connection reversal
+    - MEDIUM: h2: prevent stream opening before connection reverse completed
+    - REGTESTS: write a full reverse regtest
+    - BUG/MINOR: h2: fix reverse if no timeout defined
+    - CI: fedora: fix "dnf" invocation syntax
+    - BUG/MINOR: hlua_fcn: potentially unsafe stktable_data_ptr usage
+    - DOC: lua: fix Sphinx warning from core.get_var()
+    - DOC: lua: fix core.register_action typo
+    - BUG/MINOR: ssl_sock: fix possible memory leak on OOM
+    - MEDIUM: map/acl: Improve pat_ref_set() efficiency (for "set-map", "add-acl" action perfs)
+    - MEDIUM: map/acl: Improve pat_ref_set_elt() efficiency (for "set-map", "add-acl"action perfs)
+    - MEDIUM: map/acl: Accelerate several functions using pat_ref_elt struct ->head list
+    - MEDIUM: map/acl: Replace map/acl spin lock by a read/write lock.
+    - DOC: map/acl: Remove the comments about map/acl performance issue
+    - DOC: Explanation of be_name and be_id fetches
+    - MINOR: connection: simplify removal of idle conns from their trees
+    - MINOR: server: move idle tree insert in a dedicated function
+    - MAJOR: connection: purge idle conn by last usage
+
 2023/08/12 : 2.9-dev3
     - BUG/MINOR: ssl: OCSP callback only registered for first SSL_CTX
     - BUG/MEDIUM: h3: Properly report a C-L header was found to the HTX start-line
