@@ -4123,10 +4123,7 @@ struct task *h2_io_cb(struct task *t, void *ctx, unsigned int state)
 		struct server *srv = objt_server(conn->target);
 
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		if (conn_in_list == CO_FL_SAFE_LIST)
-			eb64_insert(&srv->per_thr[tid].safe_conns, &conn->hash_node->node);
-		else
-			eb64_insert(&srv->per_thr[tid].idle_conns, &conn->hash_node->node);
+		_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
 

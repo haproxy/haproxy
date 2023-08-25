@@ -177,12 +177,8 @@ int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake)
 			goto done;
 
 		if (conn_in_list) {
-			struct eb_root *root = (conn_in_list == CO_FL_SAFE_LIST) ?
-				&srv->per_thr[tid].safe_conns :
-				&srv->per_thr[tid].idle_conns;
-
 			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-			eb64_insert(root, &conn->hash_node->node);
+			_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		}
 	}

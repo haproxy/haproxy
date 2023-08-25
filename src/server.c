@@ -5986,6 +5986,23 @@ struct connection *srv_lookup_conn_next(struct connection *conn)
 	return next_conn;
 }
 
+/* Add <conn> in <srv> idle trees. Set <is_safe> if connection is deemed safe
+ * for reuse.
+ *
+ * This function is a simple wrapper for tree insert. It should only be used
+ * for internal usage or when removing briefly the connection to avoid takeover
+ * on it before reinserting it with this function. In other context, prefer to
+ * use the full feature srv_add_to_idle_list().
+ *
+ * Must be called with idle_conns_lock.
+ */
+void _srv_add_idle(struct server *srv, struct connection *conn, int is_safe)
+{
+	struct eb_root *tree = is_safe ? &srv->per_thr[tid].safe_conns :
+	                                 &srv->per_thr[tid].idle_conns;
+	eb64_insert(tree, &conn->hash_node->node);
+}
+
 /* This adds an idle connection to the server's list if the connection is
  * reusable, not held by any owner anymore, but still has available streams.
  */
@@ -6022,11 +6039,11 @@ int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_saf
 
 		if (is_safe) {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_SAFE_LIST;
-			eb64_insert(&srv->per_thr[tid].safe_conns, &conn->hash_node->node);
+			_srv_add_idle(srv, conn, 1);
 			_HA_ATOMIC_INC(&srv->curr_safe_nb);
 		} else {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_IDLE_LIST;
-			eb64_insert(&srv->per_thr[tid].idle_conns, &conn->hash_node->node);
+			_srv_add_idle(srv, conn, 0);
 			_HA_ATOMIC_INC(&srv->curr_idle_nb);
 		}
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
