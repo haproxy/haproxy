@@ -165,9 +165,11 @@ struct sink *sink_new_buf(const char *name, const char *desc, enum log_fmt fmt, 
 }
 
 /* tries to send <nmsg> message parts from message array <msg> to sink <sink>.
- * Formatting according to the sink's preference is done here. Lost messages
- * are NOT accounted for. It is preferable to call sink_write() instead which
- * will also try to emit the number of dropped messages when there are any.
+ * Formatting according to the sink's preference is done here, unless sink->fmt
+ * is unspecified, in which case the caller formatting will be used instead.
+ * Lost messages are NOT accounted for. It is preferable to call sink_write()
+ * instead which will also try to emit the number of dropped messages when there
+ * are any.
  *
  * It will stop writing at <maxlen> instead of sink->maxlen if <maxlen> is
  * positive and inferior to sink->maxlen.
@@ -183,7 +185,8 @@ struct sink *sink_new_buf(const char *name, const char *desc, enum log_fmt fmt, 
 	if (sink->fmt == LOG_FORMAT_RAW)
 		goto send;
 
-	hdr.format = sink->fmt; /* sink format prevails over log one */
+	if (sink->fmt != LOG_FORMAT_UNSPEC)
+		hdr.format = sink->fmt; /* sink format prevails over log one */
 	pfx = build_log_header(hdr, &npfx);
 
 send:
@@ -1191,11 +1194,16 @@ struct sink *sink_new_from_logger(struct logger *logger)
 		goto error;
 	}
 
-	/* disable sink->maxlen, we already have logger->maxlen */
-	sink->maxlen = 0;
+	/* ring format normally defaults to RAW, but here we set ring format
+	 * to UNSPEC to inherit from caller format in sink_write() since we
+	 * cannot customize implicit ring settings
+	 */
+	sink->fmt = LOG_FORMAT_UNSPEC;
 
-	/* set ring format from logger format */
-	sink->fmt = logger->format;
+	/* for the same reason, we disable sink->maxlen to inherit from caller
+	 * maxlen in sink_write()
+	 */
+	sink->maxlen = 0;
 
 	/* Set default connect and server timeout for sink forward proxy */
 	sink->forward_px->timeout.connect = MS_TO_TICKS(1000);

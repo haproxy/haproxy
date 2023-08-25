@@ -38,7 +38,8 @@ int sink_announce_dropped(struct sink *sink, struct log_header hdr);
 
 
 /* tries to send <nmsg> message parts from message array <msg> to sink <sink>.
- * Formatting according to the sink's preferences is done here.
+ * Formatting according to the sink's preference is done here, unless sink->fmt
+ * is unspecified, in which case the caller formatting will be used instead.
  *
  * It will stop writing at <maxlen> instead of sink->maxlen if <maxlen> is
  * positive and inferior to sink->maxlen.
