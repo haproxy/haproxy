@@ -12,6 +12,8 @@
 
 #include <errno.h>
 
+#include <import/plock.h>
+
 #include <haproxy/activity.h>
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
