@@ -23,6 +23,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#ifndef PL_PLOCK_H
+#define PL_PLOCK_H
+
 #include "atomic-ops.h"
 #ifdef _POSIX_PRIORITY_SCHEDULING
 #include <sched.h>
@@ -1415,3 +1418,5 @@ static inline void pl_lorw_unlock(unsigned long *lock)
 	else
 		pl_lorw_rdunlock(lock);
 }
+
+#endif /* PL_PLOCK_H */
