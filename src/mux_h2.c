@@ -4257,17 +4257,18 @@ static int h2_wake(struct connection *conn)
 
 	TRACE_ENTER(H2_EV_H2C_WAKE, conn);
 	ret = h2_process(h2c);
-	if (ret >= 0)
+	if (ret >= 0) {
 		h2_wake_some_streams(h2c, 0);
 
-	/* For active reverse connection, an explicit check is required if an
-	 * error is pending to propagate the error as demux process is blocked
-	 * until reversal. This allows to quickly close the connection and
-	 * prepare a new one.
-	 */
-	if (unlikely(conn_reverse_in_preconnect(conn)) && h2c_is_dead(h2c)) {
-		TRACE_DEVEL("leaving and killing dead connection", H2_EV_STRM_END, h2c->conn);
-		h2_release(h2c);
+		/* For active reverse connection, an explicit check is required if an
+		 * error is pending to propagate the error as demux process is blocked
+		 * until reversal. This allows to quickly close the connection and
+		 * prepare a new one.
+		 */
+		if (unlikely(conn_reverse_in_preconnect(conn)) && h2c_is_dead(h2c)) {
+			TRACE_DEVEL("leaving and killing dead connection", H2_EV_STRM_END, h2c->conn);
+			h2_release(h2c);
+		}
 	}
 
 	TRACE_LEAVE(H2_EV_H2C_WAKE);
