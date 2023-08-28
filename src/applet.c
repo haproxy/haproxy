@@ -467,8 +467,11 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 
 	if (channel_is_empty(sc_oc(sc)))
 		sc_ep_report_send_activity(sc);
-	else
+	else {
 		sc_ep_report_blocked_send(sc);
+		__sc_strm(sc)->task->expire = tick_first(__sc_strm(sc)->task->expire, sc_ep_snd_ex(sc));
+		task_queue(__sc_strm(sc)->task);
+	}
 
 	/* measure the call rate and check for anomalies when too high */
 	if (((b_size(sc_ib(sc)) && sc->flags & SC_FL_NEED_BUFF) || // asks for a buffer which is present

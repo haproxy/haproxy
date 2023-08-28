@@ -1133,7 +1133,6 @@ static void sc_notify(struct stconn *sc)
 		(channel_is_empty(oc) && !oc->to_forward)))))) {
 		task_wakeup(task, TASK_WOKEN_IO);
 	}
-
 	if (ic->flags & CF_READ_EVENT)
 		sc->flags &= ~SC_FL_RCV_ONCE;
 }
@@ -1694,6 +1693,8 @@ static int sc_conn_send(struct stconn *sc)
 		/* We couldn't send all of our data, let the mux know we'd like to send more */
 		conn->mux->subscribe(sc, SUB_RETRY_SEND, &sc->wait_event);
 		sc_ep_report_blocked_send(sc);
+		s->task->expire = tick_first(s->task->expire, sc_ep_snd_ex(sc));
+		task_queue(s->task);
 	}
 
 	return did_send;
