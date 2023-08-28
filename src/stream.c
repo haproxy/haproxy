@@ -2831,16 +2831,16 @@ void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, ch
 	res = &s->res;
 
 	scf = s->scf;
-	cof = sc_conn(scf);
-	acf = sc_appctx(scf);
+	cof = (scf && scf->sedesc) ? sc_conn(scf) : NULL;
+	acf = (scf && scf->sedesc) ? sc_appctx(scf) : NULL;
 	if (cof && cof->src && addr_to_str(cof->src, pn, sizeof(pn)) >= 0)
 		src = pn;
 	else if (acf)
 		src = acf->applet->name;
 
 	scb = s->scb;
-	cob = sc_conn(scb);
-	acb = sc_appctx(scb);
+	cob = (scb && scb->sedesc) ? sc_conn(scb) : NULL;
+	acb = (scb && scb->sedesc) ? sc_appctx(scb) : NULL;
 	srv = objt_server(s->target);
 	if (srv)
 		dst = srv->id;
