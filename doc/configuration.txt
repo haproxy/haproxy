@@ -22543,7 +22543,7 @@ resp_ver : string (deprecated)
   It may be used in tcp-check based expect rules.
 
   ACL derivatives :
-    resp.ver : exact string match
+    res.ver : exact string match
 
 set-cookie([<name>]) : string (deprecated)
   This extracts the last occurrence of the cookie name <name> on a "Set-Cookie"
