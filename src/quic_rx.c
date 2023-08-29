@@ -592,7 +592,7 @@ static int qc_parse_ack_frm(struct quic_conn *qc,
 	unsigned int time_sent, pkt_flags;
 	struct list newly_acked_pkts = LIST_HEAD_INIT(newly_acked_pkts);
 	struct list lost_pkts = LIST_HEAD_INIT(lost_pkts);
-	int ret = 0;
+	int ret = 0, new_largest_acked_pn = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
 
@@ -624,6 +624,7 @@ static int qc_parse_ack_frm(struct quic_conn *qc,
 		else {
 			time_sent = eb64_entry(largest_node,
 			                       struct quic_tx_packet, pn_node)->time_sent;
+			new_largest_acked_pn = 1;
 		}
 	}
 
@@ -669,7 +670,7 @@ static int qc_parse_ack_frm(struct quic_conn *qc,
 		            qc, NULL, &largest, &smallest);
 	} while (1);
 
-	if (time_sent && (pkt_flags & QUIC_FL_TX_PACKET_ACK_ELICITING)) {
+	if (new_largest_acked_pn && (pkt_flags & QUIC_FL_TX_PACKET_ACK_ELICITING)) {
 		*rtt_sample = tick_remain(time_sent, now_ms);
 		qel->pktns->rx.largest_acked_pn = ack_frm->largest_ack;
 	}
