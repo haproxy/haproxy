@@ -12791,7 +12791,7 @@ stick store-response <pattern> [table <table>] [{if | unless} <condition>]
         stick-table type binary len 32 size 30k expire 30m
 
         acl clienthello req.ssl_hello_type 1
-        acl serverhello rep.ssl_hello_type 2
+        acl serverhello res.ssl_hello_type 2
 
         # use tcp content accepts to detects ssl client and server hello.
         tcp-request inspect-delay 5s
@@ -12808,7 +12808,7 @@ stick store-response <pattern> [table <table>] [{if | unless} <condition>]
         stick on req.payload_lv(43,1) if clienthello
 
         # Learn on response if server hello.
-        stick store-response resp.payload_lv(43,1) if serverhello
+        stick store-response res.payload_lv(43,1) if serverhello
 
         server s1 192.168.1.1:443
         server s2 192.168.1.1:443
