@@ -138,7 +138,7 @@ static void applet_trace(enum trace_level level, uint64_t mask, const struct tra
 
 	chunk_appendf(&trace_buf, " - s=(%p,0x%08x,0x%x)", s, s->flags, s->conn_err_type);
 
-	chunk_appendf(&trace_buf, " sc=(%p,%d,0x%08x,0x%x) sco=(%p,%d,0x%08x,0x%x) sc.exp(r,w)=(%d,%d) sc.exp(r,w)=(%d,%d)",
+	chunk_appendf(&trace_buf, " sc=(%p,%d,0x%08x,0x%x) sco=(%p,%d,0x%08x,0x%x) sc.exp(r,w)=(%d,%d) sco.exp(r,w)=(%d,%d)",
 		      sc, sc->state, sc->flags, sc->sedesc->flags,
 		      sco, sco->state, sco->flags, sco->sedesc->flags,
 		      tick_isset(sc_ep_rcv_ex(sc)) ? TICKS_TO_MS(sc_ep_rcv_ex(sc) - now_ms) : TICK_ETERNITY,
