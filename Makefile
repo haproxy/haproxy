@@ -28,6 +28,7 @@
 #   USE_TPROXY              : enable transparent proxy. Automatic.
 #   USE_LINUX_TPROXY        : enable full transparent proxy. Automatic.
 #   USE_LINUX_SPLICE        : enable kernel 2.6 splicing. Automatic.
+#   USE_LINUX_CAP           : enable Linux capabilities.
 #   USE_LIBCRYPT            : enable encrypted passwords using -lcrypt
 #   USE_CRYPT_H             : set it if your system requires including crypt.h
 #   USE_GETADDRINFO         : use getaddrinfo() to resolve IPv6 host names.
@@ -305,7 +306,7 @@ LDFLAGS = $(ARCH_FLAGS) -g
 # specific entries if present before them.
 use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER USE_POLL                        \
            USE_THREAD USE_PTHREAD_EMULATION USE_BACKTRACE                     \
-           USE_TPROXY USE_LINUX_TPROXY                                        \
+           USE_TPROXY USE_LINUX_TPROXY USE_LINUX_CAP                          \
            USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H USE_ENGINE               \
            USE_GETADDRINFO USE_OPENSSL USE_OPENSSL_WOLFSSL USE_SSL USE_LUA    \
            USE_ACCEPT4 USE_CLOSEFROM USE_ZLIB USE_SLZ USE_CPU_AFFINITY        \
@@ -347,7 +348,7 @@ endif
 ifeq ($(TARGET),linux-glibc)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
-    USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY                    \
+    USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY USE_LINUX_CAP      \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_NS USE_TFO     \
     USE_GETADDRINFO USE_BACKTRACE USE_SHM_OPEN)
   INSTALL = install -v
@@ -357,7 +358,7 @@ endif
 ifeq ($(TARGET),linux-glibc-legacy)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
-    USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY                    \
+    USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY USE_LINUX_CAP      \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_GETADDRINFO)
   INSTALL = install -v
 endif
@@ -366,7 +367,7 @@ endif
 ifeq ($(TARGET),linux-musl)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
-    USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY                    \
+    USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY USE_LINUX_CAP      \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_NS USE_TFO     \
     USE_GETADDRINFO USE_SHM_OPEN)
   INSTALL = install -v
@@ -811,6 +812,10 @@ endif # USE_PCRE2
 
 ifneq ($(USE_NS),)
   OPTIONS_OBJS  += src/namespace.o
+endif
+
+ifneq ($(USE_LINUX_CAP),)
+  OPTIONS_OBJS   += src/linuxcap.o
 endif
 
 ifneq ($(USE_OT),)

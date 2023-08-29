@@ -2183,6 +2183,22 @@ set-var-fmt <var-name> <fmt>
           set-var-fmt proc.current_state "primary"
           set-var-fmt proc.bootid        "%pid|%t"
 
+setcap <name>[,<name>...]
+  Sets a list of capabilities that must be preserved when starting with uid 0
+  and switching to a non-zero uid. By default all permissions are lost by the
+  uid switch, but some are often needed when trying connecting to a server from
+  a foreign address during transparent proxying, or when binding to a port
+  below 1024, e.g. when using "tune.quic.socket-owner connection", resulting in
+  setups running entirely under uid 0. Setting capabilities generally is a
+  safer alternative, as only the required capabilities will be preserved. The
+  feature is OS-specific and only enabled on Linux when USE_LINUX_CAP=1 is set
+  at build time. The list of supported capabilities also depends on the OS and
+  is enumerated by the error message displayed when an invalid capability name
+  or an empty one is passed. Multiple capabilities may be passed, delimited by
+  commas. Among those commonly used, "cap_net_raw" allows to transparently bind
+  to a foreign address, and "cap_net_bind_service" allows to bind to a
+  privileged port and may be used by QUIC.
+
 setenv <name> <value>
   Sets environment variable <name> to value <value>. If the variable exists, it
   is overwritten. The changes immediately take effect so that the next line in
@@ -3424,7 +3440,8 @@ tune.quic.socket-owner { listener | connection }
   network stack. If your platform is deemed not compatible, haproxy will
   automatically switch to "listener" mode on startup. Please note that QUIC
   listeners running on privileged ports may require to run as uid 0, or some
-  OS-specific tuning to permit the target uid to bind such ports.
+  OS-specific tuning to permit the target uid to bind such ports, such as
+  system capabilities. See also the "setcap" global directive.
 
   The "listener" value indicates that QUIC transfers will occur on the shared
   listener socket. This option can be a good compromise for small traffic as it
@@ -11645,7 +11662,8 @@ source <addr>[:<port>] [interface <name>]
   is possible at the server level using the "source" server option. Refer to
   section 5 for more information.
 
-  In order to work, "usesrc" requires root privileges.
+  In order to work, "usesrc" requires root privileges, or on supported systems,
+  the "cap_net_raw" capability. See also the "setcap" global directive.
 
   Examples :
         backend private

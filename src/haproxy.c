@@ -108,6 +108,9 @@
 #include <haproxy/global.h>
 #include <haproxy/hlua.h>
 #include <haproxy/http_rules.h>
+#if defined(USE_LINUX_CAP)
+#include <haproxy/linuxcap.h>
+#endif
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
@@ -3184,6 +3187,8 @@ static void *run_thread_poll_loop(void *data)
 /* set uid/gid depending on global settings */
 static void set_identity(const char *program_name)
 {
+	int from_uid __maybe_unused = geteuid();
+
 	if (global.gid) {
 		if (getgroups(0, NULL) > 0 && setgroups(0, NULL) == -1)
 			ha_warning("[%s.main()] Failed to drop supplementary groups. Using 'gid'/'group'"
@@ -3196,11 +3201,27 @@ static void set_identity(const char *program_name)
 		}
 	}
 
+#if defined(USE_LINUX_CAP)
+	if (prepare_caps_for_setuid(from_uid, global.uid) < 0) {
+		ha_alert("[%s.main()] Cannot switch uid to %d.\n", program_name, global.uid);
+		protocol_unbind_all();
+		exit(1);
+	}
+#endif
+
 	if (global.uid && setuid(global.uid) == -1) {
 		ha_alert("[%s.main()] Cannot set uid %d.\n", program_name, global.uid);
 		protocol_unbind_all();
 		exit(1);
 	}
+
+#if defined(USE_LINUX_CAP)
+	if (finalize_caps_after_setuid(from_uid, global.uid) < 0) {
+		ha_alert("[%s.main()] Cannot switch uid to %d.\n", program_name, global.uid);
+		protocol_unbind_all();
+		exit(1);
+	}
+#endif
 }
 
 int main(int argc, char **argv)
