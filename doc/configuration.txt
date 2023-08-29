@@ -3422,7 +3422,9 @@ tune.quic.socket-owner { listener | connection }
   and cases of transient errors during sendto() operation are handled
   efficiently. However, this relies on some advanced features from the UDP
   network stack. If your platform is deemed not compatible, haproxy will
-  automatically switch to "listener" mode on startup.
+  automatically switch to "listener" mode on startup. Please note that QUIC
+  listeners running on privileged ports may require to run as uid 0, or some
+  OS-specific tuning to permit the target uid to bind such ports.
 
   The "listener" value indicates that QUIC transfers will occur on the shared
   listener socket. This option can be a good compromise for small traffic as it
