@@ -316,14 +316,15 @@ static void qc_treat_acked_tx_frm(struct quic_conn *qc, struct quic_frame *frm)
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
 }
 
-/* Remove <largest> down to <smallest> node entries from <pkts> tree of TX packet,
- * deallocating them, and their TX frames.
- * May be NULL if <largest> node could not be found.
+/* Collect newly acknowledged TX packets from <pkts> ebtree into <newly_acked_pkts>
+ * list depending on <largest> and <smallest> packet number of a range of acknowledged
+ * packets announced in an ACK frame. <largest_node> may be provided to start
+ * looking from this packet node.
  */
-static void qc_ackrng_pkts(struct quic_conn *qc, struct eb_root *pkts,
-                           unsigned int *pkt_flags, struct list *newly_acked_pkts,
-                           struct eb64_node *largest_node,
-                           uint64_t largest, uint64_t smallest)
+static void qc_newly_acked_pkts(struct quic_conn *qc, struct eb_root *pkts,
+                                struct list *newly_acked_pkts,
+                                struct eb64_node *largest_node,
+                                uint64_t largest, uint64_t smallest)
 {
 	struct eb64_node *node;
 	struct quic_tx_packet *pkt;
@@ -339,11 +340,31 @@ static void qc_ackrng_pkts(struct quic_conn *qc, struct eb_root *pkts,
 		goto leave;
 
 	while (node && node->key <= largest_node->key) {
+		pkt = eb64_entry(node, struct quic_tx_packet, pn_node);
+		LIST_APPEND(newly_acked_pkts, &pkt->list);
+		node = eb64_next(node);
+		eb64_delete(&pkt->pn_node);
+	}
+
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
+}
+
+/* Remove <largest> down to <smallest> node entries from <pkts> tree of TX packet,
+ * deallocating them, and their TX frames.
+ * May be NULL if <largest> node could not be found.
+ */
+static void qc_ackrng_pkts(struct quic_conn *qc,
+                           unsigned int *pkt_flags, struct list *newly_acked_pkts)
+{
+	struct quic_tx_packet *pkt, *tmp;
+
+	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
+
+	list_for_each_entry_safe(pkt, tmp, newly_acked_pkts, list) {
 		struct quic_frame *frm, *frmbak;
 
-		pkt = eb64_entry(node, struct quic_tx_packet, pn_node);
 		*pkt_flags |= pkt->flags;
-		LIST_INSERT(newly_acked_pkts, &pkt->list);
 		TRACE_DEVEL("Removing packet #", QUIC_EV_CONN_PRSAFRM, qc, NULL, &pkt->pn_node.key);
 		list_for_each_entry_safe(frm, frmbak, &pkt->frms, list)
 			qc_treat_acked_tx_frm(qc, frm);
@@ -351,7 +372,6 @@ static void qc_ackrng_pkts(struct quic_conn *qc, struct eb_root *pkts,
 		 * detach the previous one and the next one from <pkt>.
 		 */
 		quic_tx_packet_dgram_detach(pkt);
-		node = eb64_next(node);
 		eb64_delete(&pkt->pn_node);
 	}
 
@@ -484,8 +504,7 @@ static void qc_treat_newly_acked_pkts(struct quic_conn *qc,
 		ev.ack.acked = pkt->in_flight_len;
 		ev.ack.time_sent = pkt->time_sent;
 		quic_cc_event(&qc->path->cc, &ev);
-		LIST_DELETE(&pkt->list);
-		eb64_delete(&pkt->pn_node);
+		LIST_DEL_INIT(&pkt->list);
 		quic_tx_packet_refdec(pkt);
 	}
 
@@ -593,9 +612,11 @@ static int qc_parse_ack_frm(struct quic_conn *qc,
 	struct list newly_acked_pkts = LIST_HEAD_INIT(newly_acked_pkts);
 	struct list lost_pkts = LIST_HEAD_INIT(lost_pkts);
 	int ret = 0, new_largest_acked_pn = 0;
+	struct quic_tx_packet *pkt, *tmp;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
 
+	pkts = &qel->pktns->tx.pkts;
 	if (ack_frm->largest_ack > qel->pktns->tx.next_pn) {
 		TRACE_DEVEL("ACK for not sent packet", QUIC_EV_CONN_PRSAFRM,
 		            qc, NULL, &ack_frm->largest_ack);
@@ -610,7 +631,6 @@ static int qc_parse_ack_frm(struct quic_conn *qc,
 
 	largest = ack_frm->largest_ack;
 	smallest = largest - ack_frm->first_ack_range;
-	pkts = &qel->pktns->tx.pkts;
 	pkt_flags = 0;
 	largest_node = NULL;
 	time_sent = 0;
@@ -633,8 +653,8 @@ static int qc_parse_ack_frm(struct quic_conn *qc,
 	do {
 		uint64_t gap, ack_range;
 
-		qc_ackrng_pkts(qc, pkts, &pkt_flags, &newly_acked_pkts,
-		               largest_node, largest, smallest);
+		qc_newly_acked_pkts(qc, pkts, &newly_acked_pkts,
+		                    largest_node, largest, smallest);
 		if (!ack_frm->ack_range_num--)
 			break;
 
@@ -670,12 +690,13 @@ static int qc_parse_ack_frm(struct quic_conn *qc,
 		            qc, NULL, &largest, &smallest);
 	} while (1);
 
-	if (new_largest_acked_pn && (pkt_flags & QUIC_FL_TX_PACKET_ACK_ELICITING)) {
-		*rtt_sample = tick_remain(time_sent, now_ms);
-		qel->pktns->rx.largest_acked_pn = ack_frm->largest_ack;
-	}
-
 	if (!LIST_ISEMPTY(&newly_acked_pkts)) {
+		qc_ackrng_pkts(qc, &pkt_flags, &newly_acked_pkts);
+		if (new_largest_acked_pn && (pkt_flags & QUIC_FL_TX_PACKET_ACK_ELICITING)) {
+			*rtt_sample = tick_remain(time_sent, now_ms);
+			qel->pktns->rx.largest_acked_pn = ack_frm->largest_ack;
+		}
+
 		if (!eb_is_empty(&qel->pktns->tx.pkts)) {
 			qc_packet_loss_lookup(qel->pktns, qc, &lost_pkts);
 			if (!qc_release_lost_pkts(qc, qel->pktns, &lost_pkts, now_ms))
@@ -694,7 +715,11 @@ static int qc_parse_ack_frm(struct quic_conn *qc,
 	return ret;
 
  err:
-	free_quic_tx_pkts(qc, &newly_acked_pkts);
+	/* Move back these packets into their tree. */
+	list_for_each_entry_safe(pkt, tmp, &newly_acked_pkts, list) {
+		LIST_DEL_INIT(&pkt->list);
+		eb64_insert(pkts, &pkt->pn_node);
+	}
 	goto leave;
 }
 
@@ -932,8 +957,8 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		case QUIC_FT_ACK:
 		{
 			unsigned int rtt_sample;
-
 			rtt_sample = UINT_MAX;
+
 			if (!qc_parse_ack_frm(qc, &frm, qel, &rtt_sample, &pos, end)) {
 				// trace already emitted by function above
 				goto leave;
