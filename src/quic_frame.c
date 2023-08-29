@@ -1232,7 +1232,7 @@ void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm)
 	uint64_t pn;
 	struct quic_frame *origin, *f, *tmp;
 
-	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
+	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc, frm);
 
 	/* Identify this frame: a frame copy or one of its copies */
 	origin = frm->origin ? frm->origin : frm;
