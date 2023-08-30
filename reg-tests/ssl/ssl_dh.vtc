@@ -18,7 +18,8 @@
 # stop using deprecated APIs.
 
 varnishtest "Test the DH related SSL options"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+# AWS-LC does not support any FFDH ciphersuites
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && !ssllib_name_startswith(AWS-LC)'"
 feature cmd "command -v openssl && command -v grep && command -v socat"
 feature ignore_unknown_macro
 
