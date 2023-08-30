@@ -5722,9 +5722,13 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			if (sess && !SSL_set_session(ctx->ssl, sess)) {
 				SSL_SESSION_free(sess);
 				ha_free(&srv->ssl_ctx.reused_sess[tid].ptr);
+				if (srv->ssl_ctx.reused_sess[tid].sni)
+					SSL_set_tlsext_host_name(ctx->ssl, srv->ssl_ctx.reused_sess[tid].sni);
 			} else if (sess) {
 				/* already assigned, not needed anymore */
 				SSL_SESSION_free(sess);
+				if (srv->ssl_ctx.reused_sess[tid].sni)
+					SSL_set_tlsext_host_name(ctx->ssl, srv->ssl_ctx.reused_sess[tid].sni);
 			}
 		}
 		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
@@ -6836,7 +6840,6 @@ void ssl_sock_set_servername(struct connection *conn, const char *hostname)
 {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
-	struct server *s;
 	char *prev_name;
 
 	if (!ctx)
@@ -6845,22 +6848,21 @@ void ssl_sock_set_servername(struct connection *conn, const char *hostname)
 	BUG_ON(!(conn->flags & CO_FL_WAIT_L6_CONN));
 	BUG_ON(!(conn->flags & CO_FL_SSL_WAIT_HS));
 
-	s = __objt_server(conn->target);
-
 	/* if the SNI changes, we must destroy the reusable context so that a
 	 * new connection will present a new SNI. compare with the SNI
-	 * previously stored in the reused_sess */
-	/* the RWLOCK is used to ensure that we are not trying to flush the
-	 * cache from the CLI */
+	 * previously stored in the reused_sess. If the session was reused,
+	 * the associated SNI (if any) has already been assigned to the SSL
+	 * during ssl_sock_init() so SSL_get_servername() will properly
+	 * retrieve the currently known hostname for the SSL.
+	 */
 
-	HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
-	prev_name = s->ssl_ctx.reused_sess[tid].sni;
+	prev_name = (char *)SSL_get_servername(ctx->ssl, TLSEXT_NAMETYPE_host_name);
 	if ((!prev_name && hostname) ||
-	    (prev_name && (!hostname || strcmp(hostname, prev_name) != 0)))
+	    !hostname ||
+	    strcmp(hostname, prev_name) != 0) {
 		SSL_set_session(ctx->ssl, NULL);
-	HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
-
-	SSL_set_tlsext_host_name(ctx->ssl, hostname);
+		SSL_set_tlsext_host_name(ctx->ssl, hostname);
+	}
 #endif
 }
 
