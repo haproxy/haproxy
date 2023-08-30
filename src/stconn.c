@@ -1692,9 +1692,11 @@ static int sc_conn_send(struct stconn *sc)
 	else {
 		/* We couldn't send all of our data, let the mux know we'd like to send more */
 		conn->mux->subscribe(sc, SUB_RETRY_SEND, &sc->wait_event);
-		sc_ep_report_blocked_send(sc);
-		s->task->expire = tick_first(s->task->expire, sc_ep_snd_ex(sc));
-		task_queue(s->task);
+		if (sc_state_in(sc->state, SC_SB_EST|SC_SB_DIS|SC_SB_CLO)) {
+			sc_ep_report_blocked_send(sc);
+			s->task->expire = tick_first(s->task->expire, sc_ep_snd_ex(sc));
+			task_queue(s->task);
+		}
 	}
 
 	return did_send;
