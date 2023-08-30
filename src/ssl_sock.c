@@ -5701,30 +5701,33 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	/* If it is in client mode initiate SSL session
 	   in connect state otherwise accept state */
 	if (objt_server(conn->target)) {
-		if (ssl_bio_and_sess_init(conn, __objt_server(conn->target)->ssl_ctx.ctx,
+		struct server *srv = __objt_server(conn->target);
+
+		if (ssl_bio_and_sess_init(conn, srv->ssl_ctx.ctx,
 		                          &ctx->ssl, &ctx->bio, ha_meth, ctx) == -1)
 			goto err;
 
 		SSL_set_connect_state(ctx->ssl);
-		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &(__objt_server(conn->target)->ssl_ctx.lock));
-		if (__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr) {
+		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
+		if (srv->ssl_ctx.reused_sess[tid].ptr) {
 			/* let's recreate a session from (ptr,size) and assign
 			 * it to ctx->ssl. Its refcount will be updated by the
 			 * creation and by the assignment, so after assigning
 			 * it or failing to, we must always free it to decrement
 			 * the refcount.
 			 */
-			const unsigned char *ptr = __objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr;
-			SSL_SESSION *sess = d2i_SSL_SESSION(NULL, &ptr, __objt_server(conn->target)->ssl_ctx.reused_sess[tid].size);
+			const unsigned char *ptr = srv->ssl_ctx.reused_sess[tid].ptr;
+			SSL_SESSION *sess = d2i_SSL_SESSION(NULL, &ptr, srv->ssl_ctx.reused_sess[tid].size);
+
 			if (sess && !SSL_set_session(ctx->ssl, sess)) {
 				SSL_SESSION_free(sess);
-				ha_free(&__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr);
+				ha_free(&srv->ssl_ctx.reused_sess[tid].ptr);
 			} else if (sess) {
 				/* already assigned, not needed anymore */
 				SSL_SESSION_free(sess);
 			}
 		}
-		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &(__objt_server(conn->target)->ssl_ctx.lock));
+		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
 
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
