@@ -35,10 +35,13 @@
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/tools.h>
+#include <haproxy/xxhash.h>
 
 #define CACHE_FLT_F_IMPLICIT_DECL  0x00000001 /* The cache filtre was implicitly declared (ie without
 					       * the filter keyword) */
 #define CACHE_FLT_INIT             0x00000002 /* Whether the cache name was freed. */
+
+static uint64_t cache_hash_seed = 0;
 
 const char *cache_store_flt_id = "cache store filter";
 
@@ -139,7 +142,7 @@ static int accept_encoding_bitmap_cmp(const void *ref, const void *new, unsigned
  * added to this array. */
 const struct vary_hashing_information vary_information[] = {
 	{ IST("accept-encoding"), VARY_ACCEPT_ENCODING, sizeof(uint32_t), &accept_encoding_normalizer, &accept_encoding_bitmap_cmp },
-	{ IST("referer"), VARY_REFERER, sizeof(int), &default_normalizer, NULL },
+	{ IST("referer"), VARY_REFERER, sizeof(uint64_t), &default_normalizer, NULL },
 };
 
 
@@ -2368,7 +2371,7 @@ static int accept_encoding_normalizer(struct htx *htx, struct ist hdr_name,
 
 /*
  * Normalizer used by default for the Referer header. It only
- * calculates a simple crc of the whole value.
+ * calculates a hash of the whole value using xxhash algorithm.
  * Only the first occurrence of the header will be taken into account in the
  * hash.
  * Returns 0 in case of success, 1 if the hash buffer should be filled with 0s
@@ -2382,8 +2385,8 @@ static int default_normalizer(struct htx *htx, struct ist hdr_name,
 
 	if (http_find_header(htx, hdr_name, &ctx, 1)) {
 		retval = 0;
-		write_u32(buf, hash_crc32(istptr(ctx.value), istlen(ctx.value)));
-		*buf_len = sizeof(int);
+		write_u64(buf, XXH3(istptr(ctx.value), istlen(ctx.value), cache_hash_seed));
+		*buf_len = sizeof(uint64_t);
 	}
 
 	return retval;
@@ -2701,6 +2704,15 @@ smp_fetch_res_cache_name(const struct arg *args, struct sample *smp,
 
 	return 0;
 }
+
+
+/* early boot initialization */
+static void cache_init()
+{
+	cache_hash_seed = ha_random64();
+}
+
+INITCALL0(STG_PREPARE, cache_init);
 
 /* Declare the filter parser for "cache" keyword */
 static struct flt_kw_list filter_kws = { "CACHE", { }, {
