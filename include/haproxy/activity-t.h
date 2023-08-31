@@ -95,6 +95,7 @@ struct activity {
 	unsigned int long_rq;      // process_runnable_tasks() left with tasks in the run queue
 	unsigned int cpust_total;  // sum of half-ms stolen per thread
 	unsigned int fd_takeover;  // number of times this thread stole another one's FD
+	unsigned int check_adopted;// number of times a check was migrated to this thread
 	ALWAYS_ALIGN(64);
 
 	struct freq_ctr cpust_1s;  // avg amount of half-ms stolen over last second
@@ -105,6 +106,7 @@ struct activity {
 	unsigned int accq_full;    // accept queue connection not pushed because full
 	unsigned int pool_fail;    // failed a pool allocation
 	unsigned int buf_wait;     // waited on a buffer allocation
+	unsigned int check_started;// number of times a check was started on this thread
 #if defined(DEBUG_DEV)
 	/* keep these ones at the end */
 	unsigned int ctr0;         // general purposee debug counter

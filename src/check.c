@@ -1137,7 +1137,11 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		 */
 		uint my_load = HA_ATOMIC_LOAD(&th_ctx->rq_total);
 
-		if (!(check->state & CHK_ST_READY) && my_load >= 2) {
+		if (check->state & CHK_ST_READY) {
+			/* check was migrated */
+			activity[tid].check_adopted++;
+		}
+		else if (my_load >= 2) {
 			uint new_tid  = statistical_prng_range(global.nbthread);
 			uint new_load = HA_ATOMIC_LOAD(&ha_thread_ctx[new_tid].rq_total);
 
@@ -1164,6 +1168,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 
 		/* OK let's run, now we cannot roll back anymore */
 		check->state |= CHK_ST_READY;
+		activity[tid].check_started++;
 	}
 
 	/* at this point, CHK_ST_SLEEPING = 0 and CHK_ST_READY = 1*/
