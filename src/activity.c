@@ -1119,6 +1119,7 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 		case __LINE__: SHOW_VAL("tasksw:",       activity[thr].tasksw, _tot); break;
 		case __LINE__: SHOW_VAL("empty_rq:",     activity[thr].empty_rq, _tot); break;
 		case __LINE__: SHOW_VAL("long_rq:",      activity[thr].long_rq, _tot); break;
+		case __LINE__: SHOW_VAL("curr_rq:",      _HA_ATOMIC_LOAD(&ha_thread_ctx[thr].rq_total), _tot); break;
 		case __LINE__: SHOW_VAL("loops:",        activity[thr].loops, _tot); break;
 		case __LINE__: SHOW_VAL("wake_tasks:",   activity[thr].wake_tasks, _tot); break;
 		case __LINE__: SHOW_VAL("wake_signal:",  activity[thr].wake_signal, _tot); break;
