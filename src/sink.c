@@ -1190,7 +1190,7 @@ int cfg_post_parse_ring()
 
 	if (cfg_sink && (cfg_sink->type == SINK_TYPE_BUFFER)) {
 		if (!cfg_sink->maxlen)
-			cfg_sink->maxlen = BUFSIZE; // maxlen not set: use default value
+			cfg_sink->maxlen = ~0; // maxlen not set: no implicit truncation
 		else if (cfg_sink->maxlen > ring_max_payload(cfg_sink->ctx.ring)) {
 			/* maxlen set by user however it doesn't fit: set to max value */
 			ha_warning("ring '%s' event max length '%u' exceeds max payload size, forced to '%lu'.\n",
