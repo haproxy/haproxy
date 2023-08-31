@@ -3283,14 +3283,17 @@ tune.lua.task-timeout <timeout>
 
 tune.max-checks-per-thread <number>
   Sets the number of active checks per thread above which a thread will
-  actively try to search a less loaded thread to run the health check. The
+  actively try to search a less loaded thread to run the health check, or
+  queue it until the number of active checks running on it diminishes. The
   default value is zero, meaning no such limit is set. It may be needed in
   certain environments running an extremely large number of expensive checks
   with many threads when the load appears unequal and may make health checks
   to randomly time out on startup, typically when using OpenSSL 3.0 which is
   about 20 times more CPU-intensive on health checks than older ones. This will
   have for result to try to level the health check work across all threads. The
-  vast majority of configurations do not need to touch this parameter.
+  vast majority of configurations do not need to touch this parameter. Please
+  note that too low values may significantly slow down the health checking if
+  checks are slow to execute.
 
 tune.maxaccept <number>
   Sets the maximum number of consecutive connections a process may accept in a
@@ -16149,7 +16152,14 @@ downinter <delay>
   are started with a small time offset between them. It is also possible to
   add some random noise in the agent and health checks interval using the
   global "spread-checks" keyword. This makes sense for instance when a lot
-  of backends use the same servers.
+  of backends use the same servers. The global "tune.max-checks-per-thread"
+  setting, if defined to a non-nul value, will limit the number of concurrent
+  checks being performed at once on any given thread. In order to achieve this,
+  haproxy will put in a queue the checks that were about to start on a thread
+  that has reached this limit, until another check finishes. This will have for
+  effect to extend the effective check interval. In such a case, reducing the
+  "inter" setting will have a very limited effect as it will not be able to
+  reduce the time spent in the queue.
 
 log-proto <logproto>
   The "log-proto" specifies the protocol used to forward event messages to

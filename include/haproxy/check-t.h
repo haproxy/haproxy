@@ -62,7 +62,7 @@ enum chk_result {
 
 /* 4 possible states for CHK_ST_SLEEPING and CHK_ST_READY:
  *   SLP  RDY   State      Description
- *    0    0    -          (reserved)
+ *    0    0    QUEUED     Check is in queue due to concurrency limit
  *    0    1    RUNNING    Check is bound to current thread and running
  *    1    0    SLEEPING   Check is sleeping, not bound to a thread
  *    1    1    MIGRATING  Check is migrating to another thread
@@ -191,6 +191,7 @@ struct check {
 	char *alpn_str;                         /* ALPN to use for checks */
 	int alpn_len;                           /* ALPN string length */
 	const struct mux_proto_list *mux_proto; /* the mux to use for all outgoing connections (specified by the "proto" keyword) */
+	struct list check_queue;                /* entry in the check queue. Not empty = in queue. */
 	int via_socks4;                         /* check the connection via socks4 proxy */
 };
 

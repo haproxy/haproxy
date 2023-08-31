@@ -1238,6 +1238,25 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		task_set_thread(t, tid);
 		check->state &= ~CHK_ST_SLEEPING;
 
+		/* if we just woke up and the thread is full of running, or
+		 * already has others waiting, we might have to wait in queue
+		 * (for health checks only). This means !SLEEPING && !READY.
+		 */
+		if (check->server &&
+		    (!LIST_ISEMPTY(&th_ctx->queued_checks) ||
+		     (global.tune.max_checks_per_thread &&
+		      _HA_ATOMIC_LOAD(&th_ctx->running_checks) >= global.tune.max_checks_per_thread))) {
+			TRACE_DEVEL("health-check queued", CHK_EV_TASK_WAKE, check);
+			t->expire = TICK_ETERNITY;
+			LIST_APPEND(&th_ctx->queued_checks, &check->check_queue);
+
+			/* reset fastinter flag (if set) so that srv_getinter()
+			 * only returns fastinter if server health is degraded
+			 */
+			check->state &= ~CHK_ST_FASTINTER;
+			goto out_leave;
+		}
+
 		/* OK let's run, now we cannot roll back anymore */
 		check->state |= CHK_ST_READY;
 		activity[tid].check_started++;
@@ -1403,6 +1422,25 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	check->state |= CHK_ST_SLEEPING;
 
  update_timer:
+	/* when going to sleep, we need to check if other checks are waiting
+	 * for a slot. If so we pick them out of the queue and wake them up.
+	 */
+	if (check->server && (check->state & CHK_ST_SLEEPING)) {
+		if (!LIST_ISEMPTY(&th_ctx->queued_checks) &&
+		    _HA_ATOMIC_LOAD(&th_ctx->running_checks) < global.tune.max_checks_per_thread) {
+			struct check *next_chk = LIST_ELEM(th_ctx->queued_checks.n, struct check *, check_queue);
+
+			/* wake up pending task */
+			LIST_DEL_INIT(&next_chk->check_queue);
+
+			activity[tid].check_started++;
+			_HA_ATOMIC_INC(&th_ctx->running_checks);
+			next_chk->state |= CHK_ST_READY;
+			/* now running */
+			task_wakeup(next_chk->task, TASK_WOKEN_RES);
+		}
+	}
+
 	if (check->server) {
 		rv = 0;
 		if (global.spread_checks > 0) {
@@ -1428,6 +1466,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	if (check->server)
 		HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 
+ out_leave:
 	TRACE_LEAVE(CHK_EV_TASK_WAKE, check);
 
 	/* Free the check if set to PURGE. After this, the check instance may be
@@ -1512,6 +1551,7 @@ const char *init_check(struct check *check, int type)
 	check->bi = BUF_NULL;
 	check->bo = BUF_NULL;
 	LIST_INIT(&check->buf_wait.list);
+	LIST_INIT(&check->check_queue);
 	return NULL;
 }
 
@@ -1950,6 +1990,16 @@ REGISTER_POST_CHECK(start_checks);
 REGISTER_SERVER_DEINIT(deinit_srv_check);
 REGISTER_SERVER_DEINIT(deinit_srv_agent_check);
 
+/* perform minimal intializations */
+static void init_checks()
+{
+	int i;
+
+	for (i = 0; i < MAX_THREADS; i++)
+		LIST_INIT(&ha_thread_ctx[i].queued_checks);
+}
+
+INITCALL0(STG_PREPARE, init_checks);
 
 /**************************************************************************/
 /************************** Check sample fetches **************************/
