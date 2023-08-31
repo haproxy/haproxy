@@ -10345,7 +10345,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	case HLUA_E_YIELD:
 	  err_yield:
 		act_ret = ACT_RET_CONT;
-		SEND_ERR(px, "Lua function '%s': aborting Lua processing on expired timeout.\n",
+		SEND_ERR(px, "Lua function '%s': yield not allowed.\n",
 		         rule->arg.hlua_rule->fcn->name);
 		goto end;
 
