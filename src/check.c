@@ -1205,7 +1205,8 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 			 * other thread.
 			 */
 			while (attempts-- > 0 &&
-			       my_load >= 3 && _HA_ATOMIC_LOAD(&th_ctx->active_checks) >= 3) {
+			       (!LIST_ISEMPTY(&th_ctx->queued_checks) || my_load >= 3) &&
+			       _HA_ATOMIC_LOAD(&th_ctx->active_checks) >= 3) {
 				uint new_tid  = statistical_prng_range(global.nbthread);
 
 				if (new_tid == tid)
