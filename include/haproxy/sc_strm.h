@@ -351,6 +351,8 @@ static inline int sc_is_send_allowed(const struct stconn *sc)
 {
 	if (sc->flags & SC_FL_SHUT_DONE)
 		return 0;
+	if (sc->flags & SC_FL_SHUT_WANTED)
+		return 1;
 
 	return !sc_ep_test(sc, SE_FL_WAIT_DATA | SE_FL_WONT_CONSUME);
 }
