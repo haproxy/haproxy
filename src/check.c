@@ -1157,6 +1157,9 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 				return t;
 			}
 		}
+
+		/* OK we're keeping it so this check is ours now */
+		task_set_thread(t, tid);
 	}
 
 	if (check->server)
@@ -1211,8 +1214,6 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 
 		check->state |= CHK_ST_INPROGRESS;
 		TRACE_STATE("init new health-check", CHK_EV_TASK_WAKE|CHK_EV_HCHK_START, check);
-
-		task_set_thread(t, tid);
 
 		check->current_step = NULL;
 
