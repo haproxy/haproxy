@@ -2260,7 +2260,7 @@ static int cli_parse_commit_cert(char **args, char *payload, struct appctx *appc
 		return 1;
 
 	if (!*args[3])
-		return cli_err(appctx, "'commit ssl cert expects a filename\n");
+		return cli_err(appctx, "'commit ssl cert' expects a filename\n");
 
 	/* The operations on the CKCH architecture are locked so we can
 	 * manipulate ckch_store and ckch_inst */
@@ -2328,7 +2328,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 		return 1;
 
 	if (!*args[3] || !payload)
-		return cli_err(appctx, "'set ssl cert expects a filename and a certificate as a payload\n");
+		return cli_err(appctx, "'set ssl cert' expects a filename and a certificate as a payload\n");
 
 	/* The operations on the CKCH architecture are locked so we can
 	 * manipulate ckch_store and ckch_inst */
@@ -2667,7 +2667,7 @@ static int cli_parse_set_cafile(char **args, char *payload, struct appctx *appct
 		add_cmd = 1;
 
 	if (!*args[3] || !payload)
-		return cli_err(appctx, "'set ssl ca-file expects a filename and CAs as a payload\n");
+		return cli_err(appctx, "'set ssl ca-file' expects a filename and CAs as a payload\n");
 
 	/* The operations on the CKCH architecture are locked so we can
 	 * manipulate ckch_store and ckch_inst */
@@ -2776,7 +2776,7 @@ static int cli_parse_commit_cafile(char **args, char *payload, struct appctx *ap
 		return 1;
 
 	if (!*args[3])
-		return cli_err(appctx, "'commit ssl ca-file expects a filename\n");
+		return cli_err(appctx, "'commit ssl ca-file' expects a filename\n");
 
 	/* The operations on the CKCH architecture are locked so we can
 	 * manipulate ckch_store and ckch_inst */
@@ -3368,7 +3368,7 @@ static int cli_parse_set_crlfile(char **args, char *payload, struct appctx *appc
 		return 1;
 
 	if (!*args[3] || !payload)
-		return cli_err(appctx, "'set ssl crl-file expects a filename and CRLs as a payload\n");
+		return cli_err(appctx, "'set ssl crl-file' expects a filename and CRLs as a payload\n");
 
 	/* The operations on the CKCH architecture are locked so we can
 	 * manipulate ckch_store and ckch_inst */
@@ -3471,7 +3471,7 @@ static int cli_parse_commit_crlfile(char **args, char *payload, struct appctx *a
 		return 1;
 
 	if (!*args[3])
-		return cli_err(appctx, "'commit ssl ca-file expects a filename\n");
+		return cli_err(appctx, "'commit ssl ca-file' expects a filename\n");
 
 	/* The operations on the CKCH architecture are locked so we can
 	 * manipulate ckch_store and ckch_inst */
