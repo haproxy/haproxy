@@ -958,8 +958,10 @@ static void sc_app_chk_snd_applet(struct stconn *sc)
 	if (unlikely(sc->state != SC_ST_EST || (sc->flags & SC_FL_SHUT_DONE)))
 		return;
 
-	/* we only wake the applet up if it was waiting for some data  and is ready to consume it */
-	if (!sc_ep_test(sc, SE_FL_WAIT_DATA) || sc_ep_test(sc, SE_FL_WONT_CONSUME))
+	/* we only wake the applet up if it was waiting for some data  and is ready to consume it
+	 * or if there is a pending shutdown
+	 */
+	if (!sc_ep_test(sc, SE_FL_WAIT_DATA|SE_FL_WONT_CONSUME) && !(sc->flags & SC_FL_SHUT_WANTED))
 		return;
 
 	if (!channel_is_empty(oc)) {
