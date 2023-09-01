@@ -1167,8 +1167,10 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		 * needs an expiration timer that was supposed to be now, but that
 		 * was erased during the bounce.
 		 */
-		if (!tick_isset(t->expire))
+		if (!tick_isset(t->expire)) {
 			t->expire = now_ms;
+			expired = 0;
+		}
 	}
 
 	if (unlikely(check->state & CHK_ST_PURGE)) {
@@ -1180,7 +1182,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		 * new state (e.g. fastinter), in which case we'll reprogram
 		 * the new timer.
 		 */
-		if (!expired) /* woke up too early */ {
+		if (!tick_is_expired(t->expire, now_ms)) { /* woke up too early */
 			if (check->server) {
 				int new_exp = tick_add(now_ms, MS_TO_TICKS(srv_getinter(check)));
 
