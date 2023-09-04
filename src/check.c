@@ -1212,6 +1212,8 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 				if (new_tid == tid)
 					continue;
 
+				ALREADY_CHECKED(new_tid);
+
 				if (check_thread_cmp_active(tid, new_tid) > 0 &&
 				    (run_checks >= global.tune.max_checks_per_thread ||
 				     check_thread_cmp_load(tid, new_tid) > 0)) {
