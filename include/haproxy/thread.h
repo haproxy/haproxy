@@ -44,6 +44,7 @@ void ha_tkill(unsigned int thr, int sig);
 void ha_tkillall(int sig);
 void ha_thread_relax(void);
 int thread_detect_binding_discrepancies(void);
+int thread_detect_more_than_cpus(void);
 int thread_map_to_groups();
 int thread_resolve_group_mask(struct thread_set *ts, int defgrp, char **err);
 int parse_thread_set(const char *arg, struct thread_set *ts, char **err);

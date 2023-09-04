@@ -2311,6 +2311,7 @@ static void init(int argc, char **argv)
 #endif
 
 	thread_detect_binding_discrepancies();
+	thread_detect_more_than_cpus();
 
 	/* Apply server states */
 	apply_server_state();

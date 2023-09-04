@@ -1171,6 +1171,62 @@ int thread_detect_binding_discrepancies(void)
 	return 0;
 }
 
+/* Returns non-zero on anomaly (more threads than CPUs), and emits a warning in
+ * this case. It checks against configured cpu-map if any, otherwise against
+ * the number of CPUs at boot if known. It's better to run it only after
+ * thread_detect_binding_discrepancies() so that mixed cases can be eliminated.
+ */
+int thread_detect_more_than_cpus(void)
+{
+#if defined(USE_CPU_AFFINITY)
+	struct hap_cpuset cpuset_map, cpuset_boot, cpuset_all;
+	uint th, tg, id;
+	int bound;
+	int tot_map, tot_all;
+
+	ha_cpuset_zero(&cpuset_boot);
+	ha_cpuset_zero(&cpuset_map);
+	ha_cpuset_zero(&cpuset_all);
+	bound = 0;
+	for (th = 0; th < global.nbthread; th++) {
+		tg = ha_thread_info[th].tgid;
+		id = ha_thread_info[th].ltid;
+		if (ha_cpuset_count(&cpu_map[tg - 1].thread[id])) {
+			ha_cpuset_or(&cpuset_map, &cpu_map[tg - 1].thread[id]);
+			bound++;
+		}
+	}
+
+	ha_cpuset_assign(&cpuset_all, &cpuset_map);
+	if (bound != global.nbthread) {
+		if (ha_cpuset_detect_bound(&cpuset_boot))
+			ha_cpuset_or(&cpuset_all, &cpuset_boot);
+	}
+
+	tot_map = ha_cpuset_count(&cpuset_map);
+	tot_all = ha_cpuset_count(&cpuset_all);
+
+	if (tot_map && bound > tot_map) {
+		ha_warning("This configuration binds %d threads to a total of %d CPUs via cpu-map "
+			   "directives. This means that some threads will compete for the same CPU, "
+			   "which will cause severe performance degradation. Please fix either the "
+			   "'cpu-map' directives or set the global 'nbthread' value accordingly.\n",
+			   bound, tot_map);
+		return 1;
+	}
+	else if (tot_all && global.nbthread > tot_all) {
+		ha_warning("This configuration enables %d threads running on a total of %d CPUs. "
+			   "This means that some threads will compete for the same CPU, which will cause "
+			   "severe performance degradation. Please either the 'cpu-map' directives to "
+			   "adjust the CPUs to use, or fix the global 'nbthread' value.\n",
+			   global.nbthread, tot_all);
+		return 1;
+	}
+#endif
+	return 0;
+}
+
+
 /* scans the configured thread mapping and establishes the final one. Returns <0
  * on failure, >=0 on success.
  */
