@@ -2310,6 +2310,8 @@ static void init(int argc, char **argv)
         }
 #endif
 
+	thread_detect_binding_discrepancies();
+
 	/* Apply server states */
 	apply_server_state();
 

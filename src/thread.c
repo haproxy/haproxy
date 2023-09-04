@@ -1132,6 +1132,45 @@ REGISTER_BUILD_OPTS("Built without multi-threading support (USE_THREAD not set).
 #endif // USE_THREAD
 
 
+/* Returns non-zero on anomaly (bound vs unbound), and emits a warning in this
+ * case.
+ */
+int thread_detect_binding_discrepancies(void)
+{
+#if defined(USE_CPU_AFFINITY)
+	uint th, tg, id;
+	uint tot_b = 0, tot_u = 0;
+	int first_b = -1;
+	int first_u = -1;
+
+	for (th = 0; th < global.nbthread; th++) {
+		tg = ha_thread_info[th].tgid;
+		id = ha_thread_info[th].ltid;
+
+		if (ha_cpuset_count(&cpu_map[tg - 1].thread[id]) == 0) {
+			tot_u++;
+			if (first_u < 0)
+				first_u = th;
+		} else {
+			tot_b++;
+			if (first_b < 0)
+				first_b = th;
+		}
+	}
+
+	if (tot_u > 0 && tot_b > 0) {
+		ha_warning("Found %u thread(s) mapped to a CPU and %u thread(s) not mapped to any CPU. "
+			   "This will result in some threads being randomly assigned to the same CPU, "
+			   "which will occasionally cause severe performance degradation. First thread "
+			   "bound is %d and first thread not bound is %d. Please either bind all threads "
+			   "or none (maybe some cpu-map directives are missing?).\n",
+			   tot_b, tot_u, first_b, first_u);
+		return 1;
+	}
+#endif
+	return 0;
+}
+
 /* scans the configured thread mapping and establishes the final one. Returns <0
  * on failure, >=0 on success.
  */
