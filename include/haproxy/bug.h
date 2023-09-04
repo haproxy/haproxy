@@ -103,7 +103,7 @@ static inline __attribute((always_inline)) void ha_crash_now(void)
 	__BUG_ON(cond, file, line, crash, pfx, sfx)
 
 #define __BUG_ON(cond, file, line, crash, pfx, sfx)                     \
-	(unlikely(cond) ? ({						\
+	(void)(unlikely(cond) ? ({					\
 		complain(NULL, "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n", crash); \
 		if (crash & 1)						\
 			ABORT_NOW();					\
@@ -121,7 +121,7 @@ static inline __attribute((always_inline)) void ha_crash_now(void)
 	__BUG_ON_ONCE(cond, file, line, crash, pfx, sfx)
 
 #define __BUG_ON_ONCE(cond, file, line, crash, pfx, sfx)                \
-	(unlikely(cond) ? ({						\
+	(void)(unlikely(cond) ? ({					\
 		static int __match_count_##line;			\
 		complain(&__match_count_##line, "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n", crash); \
 		if (crash & 1)						\
