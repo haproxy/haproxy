@@ -22407,8 +22407,14 @@ req.hdr_names([<delim>]) : string
 req.ver : string
 req_ver : string (deprecated)
   Returns the version string from the HTTP request, for example "1.1". This can
-  be useful for logs, but is mostly there for ACL. Some predefined ACL already
-  check for versions 1.0 and 1.1.
+  be useful for ACL. For logs use the "%HV" log variable. Some predefined ACL
+  already check for versions 1.0 and 1.1.
+
+  Common values are "1.0", "1.1", "2.0" or "3.0".
+
+  In the case of http/2 and http/3, the value is not extracted from the HTTP
+  version in the request line but is determined by the negociated protocol
+  version.
 
   ACL derivatives :
     req.ver : exact string match
