@@ -1094,7 +1094,7 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 			else {
 				TRACE_STATE("Cannot probe Initial packet number space", QUIC_EV_CONN_TXPKT, qc);
 			}
-			if (qc->hpktns->tx.in_flight) {
+			if (qc->hpktns && qc->hpktns->tx.in_flight) {
 				qc->flags |= QUIC_FL_CONN_RETRANS_NEEDED;
 				qc->hpktns->flags |= QUIC_FL_PKTNS_PROBE_NEEDED;
 				TRACE_STATE("needs to probe Handshake packet number space", QUIC_EV_CONN_TXPKT, qc);
