@@ -569,7 +569,7 @@ void conn_free(struct connection *conn)
 		LIST_DELETE(&tlv->list);
 		if (tlv->len > HA_PP2_TLV_VALUE_256)
 			free(tlv);
-		else if (tlv->len < HA_PP2_TLV_VALUE_128)
+		else if (tlv->len <= HA_PP2_TLV_VALUE_128)
 			pool_free(pool_head_pp_tlv_128, tlv);
 		else
 			pool_free(pool_head_pp_tlv_256, tlv);
