@@ -385,10 +385,15 @@ restart_wait:
 				else if (child->options & PROC_O_TYPE_PROG)
 					ha_alert("Current program '%s' (%d) exited with code %d (%s)\n", child->id, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 
-				if (status != 0 && status != 130 && status != 143
-				    && !(global.tune.options & GTUNE_NOEXIT_ONFAILURE)) {
-					ha_alert("exit-on-failure: killing every processes with SIGTERM\n");
-					mworker_kill(SIGTERM);
+				if (status != 0 && status != 130 && status != 143) {
+					if (child->options & PROC_O_TYPE_WORKER) {
+						ha_warning("A worker process unexpectedly died and this can only be explained by a bug in haproxy or its dependencies.\nPlease check that you are running an up to date and maintained version of haproxy and open a bug report.\n");
+						display_version();
+					}
+					if (!(global.tune.options & GTUNE_NOEXIT_ONFAILURE)) {
+						ha_alert("exit-on-failure: killing every processes with SIGTERM\n");
+						mworker_kill(SIGTERM);
+					}
 				}
 				/* 0 & SIGTERM (143) are normal, but we should report SIGINT (130) and other signals */
 				if (exitcode < 0 && status != 0 && status != 143)
