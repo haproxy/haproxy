@@ -715,11 +715,7 @@ static void sc_app_shut_conn(struct stconn *sc)
 		 * However, if SC_FL_NOLINGER is explicitly set, we know there is
 		 * no risk so we close both sides immediately.
 		 */
-
-		if (sc->flags & SC_FL_ERROR) {
-			/* quick close, the socket is already shut anyway */
-		}
-		else if (sc->flags & SC_FL_NOLINGER) {
+		if (sc->flags & SC_FL_NOLINGER) {
 			/* unclean data-layer shutdown, typically an aborted request
 			 * or a forwarded shutdown from a client to a server due to
 			 * option abortonclose. No need for the TLS layer to try to
