@@ -1,0 +1,1458 @@
+2023-07-04 - automatic grouping for NUMA
+
+
+Xeon: (W2145)
+
+willy@debian:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0,8
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0,8
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0,8
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-15
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu0/cache/index3/type:Unified
+
+
+Wtap: i7-8650U
+
+willy@wtap:~ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0,4
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0,4
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0,4
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-7
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu0/cache/index3/type:Unified
+
+
+pcw: i7-6700k
+
+willy@pcw:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0,4
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0,4
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0,4
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-7
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu0/cache/index3/type:Unified
+
+
+nfs: N5105, v5.15
+
+willy@nfs:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0-3
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-3
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu0/cache/index3/type:Unified
+
+
+eeepc: Atom N2800, 5.4 : no L3, L2 not shared.
+
+willy@eeepc:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+
+willy@eeepc:~$ grep '' /sys/devices/system/cpu/cpu2/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu2/cache/index0/shared_cpu_list:2-3
+/sys/devices/system/cpu/cpu2/cache/index1/shared_cpu_list:2-3
+/sys/devices/system/cpu/cpu2/cache/index2/shared_cpu_list:2-3
+/sys/devices/system/cpu/cpu2/cache/index0/type:Data
+/sys/devices/system/cpu/cpu2/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu2/cache/index2/type:Unified
+
+
+dev13: Ryzen 2700X
+
+haproxy@dev13:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-7
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu0/cache/index3/type:Unified
+
+haproxy@dev13:~$ grep '' /sys/devices/system/cpu/cpu8/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu8/cache/index0/shared_cpu_list:8-9
+/sys/devices/system/cpu/cpu8/cache/index1/shared_cpu_list:8-9
+/sys/devices/system/cpu/cpu8/cache/index2/shared_cpu_list:8-9
+/sys/devices/system/cpu/cpu8/cache/index3/shared_cpu_list:8-15
+/sys/devices/system/cpu/cpu8/cache/index0/type:Data
+/sys/devices/system/cpu/cpu8/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu8/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu8/cache/index3/type:Unified
+
+
+dev12: Ryzen 5800X
+
+haproxy@dev12:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0,8
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0,8
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0,8
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-15
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu0/cache/index3/type:Unified
+
+
+amd24: EPYC 74F3
+
+willy@mt:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0,24
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0,24
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0,24
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-2,24-26
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu0/cache/index3/type:Unified
+
+willy@mt:~$ grep '' /sys/devices/system/cpu/cpu8/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu8/cache/index0/shared_cpu_list:8,32
+/sys/devices/system/cpu/cpu8/cache/index1/shared_cpu_list:8,32
+/sys/devices/system/cpu/cpu8/cache/index2/shared_cpu_list:8,32
+/sys/devices/system/cpu/cpu8/cache/index3/shared_cpu_list:6-8,30-32
+/sys/devices/system/cpu/cpu8/cache/index0/type:Data
+/sys/devices/system/cpu/cpu8/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu8/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu8/cache/index3/type:Unified
+
+willy@mt:~$ grep '' /sys/devices/system/cpu/cpu0/topology/*list
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0,24
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-47
+/sys/devices/system/cpu/cpu0/topology/die_cpus_list:0-47
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-47
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0,24
+
+
+xeon24: Gold 6212U
+
+willy@mt01:~$ grep '' /sys/devices/system/cpu/cpu8/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu8/cache/index0/shared_cpu_list:8,32
+/sys/devices/system/cpu/cpu8/cache/index1/shared_cpu_list:8,32
+/sys/devices/system/cpu/cpu8/cache/index2/shared_cpu_list:8,32
+/sys/devices/system/cpu/cpu8/cache/index3/shared_cpu_list:0-47
+/sys/devices/system/cpu/cpu8/cache/index0/type:Data
+/sys/devices/system/cpu/cpu8/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu8/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu8/cache/index3/type:Unified
+
+
+SPR 8480+
+
+$ grep -a '' /sys/devices/system/node/node*/cpulist
+/sys/devices/system/node/node0/cpulist:0-55,112-167
+/sys/devices/system/node/node1/cpulist:56-111,168-223
+
+$ grep -a '' /sys/devices/system/cpu/cpu0/topology/*list
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0,112
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-55,112-167
+/sys/devices/system/cpu/cpu0/topology/die_cpus_list:0-55,112-167
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-55,112-167
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0,112
+
+$ grep -a '' /sys/devices/system/cpu/cpu0/cache/*/shared_cpu_list
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0,112
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0,112
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0,112
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-55,112-167
+
+
+UP Board - Atom X5-8350 : no L3, exactly like Armada8040
+
+willy@up1:~$ grep '' /sys/devices/system/cpu/cpu{0,1,2,3}/cache/index2/*list
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu1/cache/index2/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu2/cache/index2/shared_cpu_list:2-3
+/sys/devices/system/cpu/cpu3/cache/index2/shared_cpu_list:2-3
+
+willy@up1:~$ grep '' /sys/devices/system/cpu/cpu0/topology/*list
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-3
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+
+Atom D510 - kernel 2.6.33
+
+$ strings -fn1 sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list: 0,2
+sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list: 0,2
+sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list: 0,2
+sys/devices/system/cpu/cpu0/cache/index0/type: Data
+sys/devices/system/cpu/cpu0/cache/index1/type: Instruction
+sys/devices/system/cpu/cpu0/cache/index2/type: Unified
+
+$ strings -fn1 sys/devices/system/cpu/cpu?/topology/*list
+sys/devices/system/cpu/cpu0/topology/core_siblings_list: 0-3
+sys/devices/system/cpu/cpu0/topology/thread_siblings_list: 0,2
+sys/devices/system/cpu/cpu1/topology/core_siblings_list: 0-3
+sys/devices/system/cpu/cpu1/topology/thread_siblings_list: 1,3
+sys/devices/system/cpu/cpu2/topology/core_siblings_list: 0-3
+sys/devices/system/cpu/cpu2/topology/thread_siblings_list: 0,2
+sys/devices/system/cpu/cpu3/topology/core_siblings_list: 0-3
+sys/devices/system/cpu/cpu3/topology/thread_siblings_list: 1,3
+
+mcbin: Armada 8040 : no L3, no difference with L3 not reported
+
+root@lg7:~# grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+
+root@lg7:~# grep '' /sys/devices/system/cpu/cpu0/topology/*list
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-3
+/sys/devices/system/cpu/cpu0/topology/die_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-3
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+
+
+Ampere/monolithic: Ampere Altra 80-26 : L3 not reported
+
+willy@ampere:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+
+willy@ampere:~$ grep '' /sys/devices/system/cpu/cpu0/topology/*list
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-79
+/sys/devices/system/cpu/cpu0/topology/die_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-79
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+
+
+Ampere/Hemisphere: Ampere Altra 80-26 : L3 not reported
+
+willy@ampere:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+
+willy@ampere:~$ grep '' /sys/devices/system/cpu/cpu0/topology/*list
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-79
+/sys/devices/system/cpu/cpu0/topology/die_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-79
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+
+willy@ampere:~$ grep '' /sys/devices/system/node/node*/cpulist
+/sys/devices/system/node/node0/cpulist:0-39
+/sys/devices/system/node/node1/cpulist:40-79
+
+
+LX2A: LX2160A => L3 not reported
+
+willy@lx2a:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+
+willy@lx2a:~$ grep '' /sys/devices/system/cpu/cpu2/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu2/cache/index0/shared_cpu_list:2
+/sys/devices/system/cpu/cpu2/cache/index1/shared_cpu_list:2
+/sys/devices/system/cpu/cpu2/cache/index2/shared_cpu_list:2-3
+/sys/devices/system/cpu/cpu2/cache/index0/type:Data
+/sys/devices/system/cpu/cpu2/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu2/cache/index2/type:Unified
+
+willy@lx2a:~$ grep '' /sys/devices/system/cpu/cpu0/topology/*list
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-15
+/sys/devices/system/cpu/cpu0/topology/die_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-15
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+
+
+Rock5B: RK3588 (big-little A76+A55)
+
+rock@rock-5b:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-7
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu0/cache/index3/type:Unified
+
+rock@rock-5b:~$ grep '' /sys/devices/system/cpu/cpu{0,4,6}/topology/*list
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-3
+/sys/devices/system/cpu/cpu0/topology/die_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-3
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+/sys/devices/system/cpu/cpu4/topology/core_cpus_list:4
+/sys/devices/system/cpu/cpu4/topology/core_siblings_list:4-5
+/sys/devices/system/cpu/cpu4/topology/die_cpus_list:4
+/sys/devices/system/cpu/cpu4/topology/package_cpus_list:4-5
+/sys/devices/system/cpu/cpu4/topology/thread_siblings_list:4
+/sys/devices/system/cpu/cpu6/topology/core_cpus_list:6
+/sys/devices/system/cpu/cpu6/topology/core_siblings_list:6-7
+/sys/devices/system/cpu/cpu6/topology/die_cpus_list:6
+/sys/devices/system/cpu/cpu6/topology/package_cpus_list:6-7
+/sys/devices/system/cpu/cpu6/topology/thread_siblings_list:6
+
+$ grep '' /sys/devices/system/cpu/cpu*/cpu_capacity
+/sys/devices/system/cpu/cpu0/cpu_capacity:414
+/sys/devices/system/cpu/cpu1/cpu_capacity:414
+/sys/devices/system/cpu/cpu2/cpu_capacity:414
+/sys/devices/system/cpu/cpu3/cpu_capacity:414
+/sys/devices/system/cpu/cpu4/cpu_capacity:1024
+/sys/devices/system/cpu/cpu5/cpu_capacity:1024
+/sys/devices/system/cpu/cpu6/cpu_capacity:1024
+/sys/devices/system/cpu/cpu7/cpu_capacity:1024
+
+
+Firefly: RK3399 (2xA72 + 4xA53) kernel 6.1.28
+
+root@firefly:~# grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+grep: /sys/devices/system/cpu/cpu0/cache/index?/shared_cpu_list: No such file or directory
+grep: /sys/devices/system/cpu/cpu0/cache/index?/type: No such file or directory
+
+root@firefly:~# grep '' /sys/devices/system/cpu/cpu*/cache/index?/{shared_cpu_list,type}
+grep: /sys/devices/system/cpu/cpu*/cache/index?/shared_cpu_list: No such file or directory
+grep: /sys/devices/system/cpu/cpu*/cache/index?/type: No such file or directory
+
+root@firefly:~# dmesg|grep cacheinfo
+[    0.006290] cacheinfo: Unable to detect cache hierarchy for CPU 0
+[    0.016339] cacheinfo: Unable to detect cache hierarchy for CPU 1
+[    0.017692] cacheinfo: Unable to detect cache hierarchy for CPU 2
+[    0.019050] cacheinfo: Unable to detect cache hierarchy for CPU 3
+[    0.020478] cacheinfo: Unable to detect cache hierarchy for CPU 4
+[    0.021660] cacheinfo: Unable to detect cache hierarchy for CPU 5
+[    1.990108] cacheinfo: Unable to detect cache hierarchy for CPU 0
+
+root@firefly:~# grep '' /sys/devices/system/cpu/cpu0/topology/*
+/sys/devices/system/cpu/cpu0/topology/cluster_cpus:0f
+/sys/devices/system/cpu/cpu0/topology/cluster_cpus_list:0-3
+/sys/devices/system/cpu/cpu0/topology/cluster_id:0
+/sys/devices/system/cpu/cpu0/topology/core_cpus:01
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/core_id:0
+/sys/devices/system/cpu/cpu0/topology/core_siblings:3f
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-5
+/sys/devices/system/cpu/cpu0/topology/package_cpus:3f
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-5
+/sys/devices/system/cpu/cpu0/topology/physical_package_id:0
+/sys/devices/system/cpu/cpu0/topology/thread_siblings:01
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+
+$ grep '' /sys/devices/system/cpu/cpu*/cpu_capacity
+/sys/devices/system/cpu/cpu0/cpu_capacity:381
+/sys/devices/system/cpu/cpu1/cpu_capacity:381
+/sys/devices/system/cpu/cpu2/cpu_capacity:381
+/sys/devices/system/cpu/cpu3/cpu_capacity:381
+/sys/devices/system/cpu/cpu4/cpu_capacity:1024
+/sys/devices/system/cpu/cpu5/cpu_capacity:1024
+
+
+VIM3L: S905D3 (4*A55), kernel 5.14.10
+
+$ grep '' /sys/devices/system/cpu/cpu0/topology/*
+/sys/devices/system/cpu/cpu0/topology/core_cpus:1
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/core_id:0
+/sys/devices/system/cpu/cpu0/topology/core_siblings:f
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-3
+/sys/devices/system/cpu/cpu0/topology/die_cpus:1
+/sys/devices/system/cpu/cpu0/topology/die_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/die_id:-1
+/sys/devices/system/cpu/cpu0/topology/package_cpus:f
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-3
+/sys/devices/system/cpu/cpu0/topology/physical_package_id:0
+/sys/devices/system/cpu/cpu0/topology/thread_siblings:1
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+
+$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0-3
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+
+$ grep '' /sys/devices/system/cpu/cpu*/cpu_capacity
+/sys/devices/system/cpu/cpu0/cpu_capacity:1024
+/sys/devices/system/cpu/cpu1/cpu_capacity:1024
+/sys/devices/system/cpu/cpu2/cpu_capacity:1024
+/sys/devices/system/cpu/cpu3/cpu_capacity:1024
+
+
+Odroid-N2: S922X (4*A73 + 2*A53), kernel 4.9.254
+
+willy@n2:~$ grep '' /sys/devices/system/cpu/cpu*/cache/index?/{shared_cpu_list,type}
+grep: /sys/devices/system/cpu/cpu*/cache/index?/shared_cpu_list: No such file or directory
+grep: /sys/devices/system/cpu/cpu*/cache/index?/type: No such file or directory
+
+willy@n2:~$ sudo dmesg|grep -i 'cache hi'
+[    0.649924] Unable to detect cache hierarchy for CPU 0
+
+No capacity.
+
+Note that it reports 2 physical packages!
+
+willy@n2:~$ grep '' /sys/devices/system/cpu/cpu0/topology/*
+/sys/devices/system/cpu/cpu0/topology/core_id:0
+/sys/devices/system/cpu/cpu0/topology/core_siblings:03
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-1
+/sys/devices/system/cpu/cpu0/topology/physical_package_id:0
+/sys/devices/system/cpu/cpu0/topology/thread_siblings:01
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+
+willy@n2:~$ grep '' /sys/devices/system/cpu/cpu4/topology/*
+/sys/devices/system/cpu/cpu4/topology/core_id:2
+/sys/devices/system/cpu/cpu4/topology/core_siblings:3c
+/sys/devices/system/cpu/cpu4/topology/core_siblings_list:2-5
+/sys/devices/system/cpu/cpu4/topology/physical_package_id:1
+/sys/devices/system/cpu/cpu4/topology/thread_siblings:10
+/sys/devices/system/cpu/cpu4/topology/thread_siblings_list:4
+
+StarFive VisionFive2 - JH7110, kernel 5.15
+
+willy@starfive:~/haproxy$ ./haproxy -c -f cps3.cfg
+thr   0 -> cpu   0  onl=1 bnd=1 pk=00 no=-1 l3=-1 cl=000 l2=000 ts=000 l1=000
+thr   1 -> cpu   1  onl=1 bnd=1 pk=00 no=-1 l3=-1 cl=000 l2=000 ts=001 l1=001
+thr   2 -> cpu   2  onl=1 bnd=1 pk=00 no=-1 l3=-1 cl=000 l2=000 ts=002 l1=002
+thr   3 -> cpu   3  onl=1 bnd=1 pk=00 no=-1 l3=-1 cl=000 l2=000 ts=003 l1=003
+Configuration file is valid
+
+Graviton2 / Graviton3 ?
+
+
+On PPC64 not everything is available:
+
+  https://www.ibm.com/docs/en/linux-on-systems?topic=cpus-cpu-topology
+
+  /sys/devices/system/cpu/cpu<N>/topology/thread_siblings
+  /sys/devices/system/cpu/cpu<N>/topology/core_siblings
+  /sys/devices/system/cpu/cpu<N>/topology/book_siblings
+  /sys/devices/system/cpu/cpu<N>/topology/drawer_siblings
+
+  # lscpu -e
+  CPU NODE DRAWER BOOK SOCKET CORE L1d:L1i:L2d:L2i ONLINE CONFIGURED POLARIZATION ADDRESS
+  0   1    0      0    0      0    0:0:0:0         yes    yes        horizontal   0
+  1   1    0      0    0      0    1:1:1:1         yes    yes        horizontal   1
+  2   1    0      0    0      1    2:2:2:2         yes    yes        horizontal   2
+  3   1    0      0    0      1    3:3:3:3         yes    yes        horizontal   3
+  4   1    0      0    0      2    4:4:4:4         yes    yes        horizontal   4
+  5   1    0      0    0      2    5:5:5:5         yes    yes        horizontal   5
+  6   1    0      0    0      3    6:6:6:6         yes    yes        horizontal   6
+  7   1    0      0    0      3    7:7:7:7         yes    yes        horizontal   7
+  8   0    1      1    1      4    8:8:8:8         yes    yes        horizontal   8
+  ...
+
+Intel E5-2600v2/v3 has two L3:
+   https://www.enterpriseai.news/2014/09/08/intel-ups-performance-ante-haswell-xeon-chips/
+
+More info on these, and s390's "books" (mostly L4 in fact):
+   https://groups.google.com/g/fa.linux.kernel/c/qgAxjYq8ohI
+
+########################################
+Analysis:
+  - some server ARM CPUs (Altra, LX2) do not return any L3 info though they
+    DO have some. They stop at L2.
+
+  - other CPUs like Atom N2800 and Armada 8040 do not have L3.
+
+  => there's no apparent way to detect that the server CPUs do have an L3.
+  => or maybe we should consider that it's more likely that there is one
+     than none ? Armada works much better with groups than without. It's
+     basically the same topology as N2800.
+
+  => Do we really care then ? No L3 = same L3 for everyone. The problem is
+     that those really without L3 will make a difference on L2 while the
+     other ones not. Maybe we should consider that it does not make sense
+     to cut groups on L2 (i.e. under no circumstance we'll have one group
+     per core).
+
+  => This would mean:
+       - regardless of L3, consider LLC. If the LLC has more than one
+         core per instance, it's likely the last one (not true on LX2
+         but better use 8 groups of 2 than nothing).
+
+       - otherwise if there's a single core per instance, it's unlikely
+         to be the LLC so we can imagine the LLC is unified. Note that
+         some systems such as LX2/Armada8K (and Neoverse-N1 devices as
+         well) may have 2 cores per L2, yet this doesn't allow to infer
+         anything regarding the absence of an L3. Core2-quad has 2 cores
+         per L2 with no L3, like Armada8K. LX2 has 2 cores per L2 yet does
+         have an L3 which is not necessarily reported.
+
+       - this needs to be done per {node,package} !
+         => core_siblings and thread_siblings seem to be the only portable
+            ones to figure packages and threads
+
+At the very least, when multiple nodes are possibly present, there is a
+symlink "node0", "node1" etc in the cpu entry. It requires a lookup for each
+cpu directory though while reading /sys/devices/system/node/node*/cpulist is
+much cheaper.
+
+There's some redundancy in this. Probably better approach:
+
+1) if there is more than 1 CPU:
+  - if cache/index3 exists, use its cpulist to pre-group entries.
+  - else if topology or node exists, use (node,package,die,core_siblings) to
+    group entries
+  - else pre-create a single large group
+
+2) if there is more than 1 CPU and less than max#groups:
+  - for each group, if no cache/index3 exists and cache/index2 exists and some
+    index2 entries contain at least two CPUs of different cores or a single one
+    for a 2-core system, then use that to re-split the group.
+
+  - if in the end there are too many groups, remerge some of them (?) or stick
+    to the previous layout (?)
+
+  - if in the end there are too many CPUs in a group, cut as needed, if
+    possible with an integral result (/2, /3, ...)
+
+3) L1 cache / thread_siblings should be used to associate CPUs by cores in
+   the same groups.
+
+Maybe instead it should be done bottom->top by collecting info and merging
+groups while keeping CPU lists ordered to ease later splitting.
+
+  1) create a group per bound CPU
+  2) based on thread_siblings, detect CPUs that are on the same core, merge
+     their groups. They may not always create similarly sized groups.
+     => eg: epyc keeps 24 groups such as {0,24}, ...
+            ryzen 2700x keeps 4 groups such as {0,1}, ...
+            rk3588 keeps 3 groups {0-3},{4-5},{6-7}
+  3) based on cache index0/1, detect CPUs that are on the same L1 cache,
+     merge their groups. They may not always create similarly sized groups.
+  4) based on cache index2, detect CPUs that are on the same L2 cache, merge
+     their groups. They may not always create similarly sized groups.
+     => eg: mcbin now keeps 2 groups {0-1},{2,3}
+  5) At this point there may possibly be too many groups (still one per CPU,
+     e.g. when no cache info was found or there are many cores with their own
+     L2 like on SPR) or too large one (when all cores are indeed on the same
+     L2).
+
+     5.1) if there are as many groups as bound CPUs, merge them all together in
+          a single one => lx2, altra, mcbin
+     5.2) if there are still more than max#groups, merge them all together in a
+          single one since the splitting criterion is not relevant
+     5.3) if there is a group with too many CPUs, split it in two if integral,
+          otherwise 3, etc, trying to add the least possible number of groups.
+          If too difficult (e.g. result less than half the authorized max),
+          let's just round around N/((N+63)/64).
+     5.4) if at the end there are too many groups, warn that we can't optimize
+          the setup and are limiting ourselves to the first node or 64 CPUs.
+
+Observations:
+ - lx2 definitely works better with everything bound together than by creating
+   8 groups (~130k rps vs ~120k rps)
+   => does this mean we should assume a unified L3 if there's no L3 info, and
+      remerge everything ? Likely Altra would benefit from this as well. mcbin
+      doesn't notice any change (within noise in both directions)
+
+ - on x86 13th gen, 2 P-cores and 8 E-cores. The P-cores support HT, not the
+   E-cores. There's no cpu_capacity there, but the cluster_id is properly set.
+   => proposal: when a machine reports both single-threaded cores and SMT,
+      consider the SMT ones bigger and use them.
+
+Problems: how should auto-detection interfer with user-settings ?
+
+- Case 1: program started with a reduced taskset
+  => current: this serves to the the thread count first, and to map default
+     threads to CPUs if they are not affected by a cpu-map.
+
+  => we want to keep that behavior (i.e. use all these threads) but only
+     change how the thread-groups are arranged.
+
+  - example: start on the first 6c12t of an EPYC74F3, should automatically
+    create 2 groups for the two sockets.
+
+  => should we brute-force all thread-groups combinations to figure how the
+     threads will spread over cpu-map and which one is better ? Or should we
+     decide to ignore input mapping as soon as there's at least one cpu-map?
+     But then which one to use ? Or should we consider that cpu-map only works
+     with explicit thread-groups ?
+
+- Case 2: taskset not involved, but nbthread and cpu-map in the config. In
+  fact a pretty standard 2.4-2.8 config.
+  => maybe the presence of cpu-map and no thread-groups should be sufficient
+     to imply a single thread-group to stay compatible ? Or maybe start as
+     many thread-groups as are referenced in cpu-map ? Seems like cpu-map and
+     thread-groups work hand-in-hand regarding topology since cpu-map
+     designates hardware CPUs so the user knows better than haproxy. Thus
+     why should be try to do better ?
+
+- Case 3: taskset not involved, nbthread not involved, cpu-map not involved,
+  only thread-groups
+  => seems like an ideal approach. Take all online CPUs and try to cut them
+     into equitable thread groups ? Or rather, since nbthreads is not forced,
+     better sort the clusters and bind to the N first clusters only ? If too
+     many groups for the clusters, then try to refine them ?
+
+- Case 4: nothing specified at all (default config, target)
+  => current: uses only one thread-group with all threads (max 64).
+  => desired: bind only to performance cores and cut them in a few groups
+     based on l3, package, cluster etc.
+
+- Case 5: nbthread only in the config
+  => might match a docker use case. No group nor cpu-map configured. Figure
+     the best group usage respecting the thread count.
+
+- Case 6: some constraints are enforced in the config (e.g. threads-hard-limit,
+  one-thread-per-core, etc).
+  => like 3, 4 or 5 but with selection adjustment.
+
+- Case 7: thread-groups and generic cpu-map 1/all, 2/all... in the config
+  => user just wants to use cpu-map as a taskset alternative
+  => need to figure number of threads first, then cut them in groups like
+     today, and only then the cpu-map are found. Can we do better ? Not sure.
+     Maybe just when cpu-map is too lax (e.g. all entries reference the same
+     CPUs). Better use a special "cpumap all/all 0-19" for this, but not
+     implemented for now.
+
+Proposal:
+  - if there is any cpu-map, disable automatic CPU assignment
+  - if there is any cpu-map, disable automatic thread group detection
+  - if taskset was forced, disable automatic CPU assignment
+
+### 2023-07-17 ###
+
+=> step  1: mark CPUs enabled at boot    (cpu_detect_usable)
+// => step  2: mark CPUs referenced in cpu-map => no, no real meaning
+=> step  3: identify all CPUs topologies + NUMA (cpu_detect_topology)
+
+=> step  4: if taskset && !cpu-map, mark all non-bound CPUs as unusable (UNAVAIL ?)
+            => which is the same as saying if !cpu-map.
+=> step  5: if !cpu-map, sort usable CPUs and find the best set to use
+//=> step  6: if cpu-map, mark all non-covered CPUs are unusable => not necessarily possible if partial cpu-map
+
+=> step  7: if thread-groups && cpu-map, nothing else to do
+=> step  8: if cpu-map && !thread-groups, thread-groups=1
+=> step  9: if thread-groups && !cpu-map, use that value to cut the thread set
+=> step 10: if !cpu-map && !thread-groups, detect the optimal thread-group count
+
+=> step 11: if !cpu-map, cut the thread set into mostly fair groups and assign
+            the group numbers to CPUs; create implicit cpu-maps.
+
+Ideas:
+  - use minthr and maxthr.
+    If nbthread, minthr=maxthr=nbthread, else if taskset_forced, maxthr=taskset_thr,
+    minthr=1, else minthr=1, maxthr=cpus_enabled.
+
+  - use CPU_F_ALLOWED (or DISALLOWED?) and CPU_F_REFERENCED and CPU_F_EXCLUDED ?
+    Note: cpu-map doesn't exclude, it only includes. Taskset does exclude. Also,
+    cpu-map only includes the CPUs that will belong to the correct groups & threads.
+
+  - Usual startup: taskset presets the CPU sets and sets the thread count. Tgrp
+    defaults to 1, then threads indicated in cpu-map get their CPU assigned.
+    Other ones are not changed. If we say that cpu-map => tgrp==1 then it means
+    we can infer automatic grouping for group 1 only ?
+      => it could be said that the CPUs of all enabled groups mentioned in
+         cpu-map are considered usable, but we don't know how many of these
+         will really have threads started on.
+
+    => maybe completely ignore cpu-map instead (i.e. fall back to thread-groups 1) ?
+    => automatic detection would mean:
+         - if !cpu-map && !nbthrgrp => must automatically detect thgrp
+         - if !cpu-map => must automatically detect binding
+         - otherwise nothing
+
+Examples of problems:
+
+        thread-groups 4
+        nbthreads 128
+        cpu-map 1/all 0-63
+        cpu-map 2/all 128-191
+
+        => 32 threads per group, hence grp 1 uses 0-63 and grp 2 128-191,
+           grp 3 and grp 4 unknown, in practice on boot CPUs.
+
+        => could we demand that if one cpu-map is specified, then all groups
+           are covered ? Do we need really this after all ? i.e. let's just not
+           bind other threads and that's all (and what is written).
+
+
+Calls from haproxy.c:
+
+    cpu_detect_usable()
+    cpu_detect_topology()
+
++   thread_detect_count()
+         => compute nbtgroups
+         => compute nbthreads
+
+    thread_assign_cpus() ?
+
+    check_config_validity()
+
+
+BUGS:
+  - cpu_map[0].proc still used for the whole process in daemon mode (though not
+    in foreground mode)
+    -> whole process bound to thread group 1
+    -> binding not working in foreground
+
+  - cpu_map[x].proc ANDed with the thread's map depite thread's map apparently
+    never set
+    -> group binding ignored ?
+
+2023-09-05
+----------
+Remember to make the difference between sorting (used for grouping) and
+preference. We should avoid selecting the first CPUs as it encourages to
+use wrong grouping criteria. E.g. CPU capacity has no business being used
+for grouping, it's used for selecting. Support for HT however, does because
+it allows to pack together threads of the same core.
+
+We should also have an option to enable/disable SMT (e.g. max threads per core)
+so that we can skip siblings of cores already assigned. This can be convenient
+with network running on the other sibling.
+
+
+2024-12-26
+----------
+
+Some interesting cases about intel 14900. The CPU has 8 P-cores and 16 E-cores.
+Experiments in the lab show excellent performance by binding the network to E
+cores and haproxy to P cores. Here's how the clusters are made:
+
+$ grep -h . /sys/devices/system/cpu/cpu*/topology/package_cpus | sort |uniq -c
+     32 ffffffff
+
+  => expected
+
+$ grep -h . /sys/devices/system/cpu/cpu*/topology/die_cpus | sort |uniq -c
+     32 ffffffff
+
+  => all CPUs on the same die
+
+$ grep -h . /sys/devices/system/cpu/cpu*/topology/cluster_cpus | sort |uniq -c
+      2 00000003
+      2 0000000c
+      2 00000030
+      2 000000c0
+      2 00000300
+      2 00000c00
+      2 00003000
+      2 0000c000
+      4 000f0000
+      4 00f00000
+      4 0f000000
+      4 f0000000
+
+  => 1 "cluster" per core on each P-core (2 threads, 8 clusters total)
+  => 1 "cluster" per 4 E-cores (4 clusters total)
+  => It can be difficult to split that into groups by just using this topology.
+
+$ grep -h . /sys/devices/system/cpu/cpu*/cache/index3/shared_cpu_list | sort |uniq -c
+     32 0-31
+
+  => everyone shares a uniform L3 cache
+
+$ grep -h . /sys/devices/system/cpu/cpu*/cache/index2/shared_cpu_map | sort |uniq -c
+      2 00000003
+      2 0000000c
+      2 00000030
+      2 000000c0
+      2 00000300
+      2 00000c00
+      2 00003000
+      2 0000c000
+      4 000f0000
+      4 00f00000
+      4 0f000000
+      4 f0000000
+
+  => L2 is split like the respective "clusters" above.
+
+Semms like one would like to split them into 12 groups :-/  Maybe it still
+remains relevant to consider L3 for grouping, and core performance for
+selection (e.g. evict/prefer E-cores depending on policy).
+
+Differences between P and E cores on 14900:
+
+- acpi_cppc/*perf : pretty useful but not always there (e.g. aloha)
+- cache index0: 48 vs 32k (bigger CPU has smaller cache)
+- cache index1: 32 vs 64k (smaller CPU has bigger cache)
+- cache index2: 2 vs 4M, but dedicated per core vs shared per cluster (4 cores)
+
+=> probably that the presence of a larger "cluster" with less cache per
+   avg core is an indication of a smaller CPU set. Warning however, some
+   CPUs (e.g. S922X) have a large (4) cluster of big cores and a small (2)
+   cluster of little cores.
+
+
+diff -urN cpu0/acpi_cppc/lowest_nonlinear_perf cpu16/acpi_cppc/lowest_nonlinear_perf
+--- cpu0/acpi_cppc/lowest_nonlinear_perf        2024-12-26 18:39:27.563410317 +0100
++++ cpu16/acpi_cppc/lowest_nonlinear_perf       2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-20
++15
+diff -urN cpu0/acpi_cppc/nominal_perf cpu16/acpi_cppc/nominal_perf
+--- cpu0/acpi_cppc/nominal_perf 2024-12-26 18:39:27.563410317 +0100
++++ cpu16/acpi_cppc/nominal_perf        2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-40
++24
+diff -urN cpu0/acpi_cppc/reference_perf cpu16/acpi_cppc/reference_perf
+--- cpu0/acpi_cppc/reference_perf       2024-12-26 18:39:27.563410317 +0100
++++ cpu16/acpi_cppc/reference_perf      2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-40
++24
+diff -urN cpu0/cache/index0/size cpu16/cache/index0/size
+--- cpu0/cache/index0/size      2024-12-26 18:39:27.563410317 +0100
++++ cpu16/cache/index0/size     2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-48K
++32K
+diff -urN cpu0/cache/index1/shared_cpu_list cpu16/cache/index1/shared_cpu_list
+--- cpu0/cache/index1/shared_cpu_list   2024-12-26 18:39:27.563410317 +0100
++++ cpu16/cache/index1/shared_cpu_list  2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-0-1
++16
+diff -urN cpu0/cache/index1/shared_cpu_map cpu16/cache/index1/shared_cpu_map
+--- cpu0/cache/index1/shared_cpu_map    2024-12-26 18:39:27.563410317 +0100
++++ cpu16/cache/index1/shared_cpu_map   2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-00000003
++00010000
+diff -urN cpu0/cache/index1/size cpu16/cache/index1/size
+--- cpu0/cache/index1/size      2024-12-26 18:39:27.563410317 +0100
++++ cpu16/cache/index1/size     2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-32K
++64K
+diff -urN cpu0/cache/index2/shared_cpu_list cpu16/cache/index2/shared_cpu_list
+--- cpu0/cache/index2/shared_cpu_list   2024-12-26 18:39:27.563410317 +0100
++++ cpu16/cache/index2/shared_cpu_list  2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-0-1
++16-19
+--- cpu0/cache/index2/size      2024-12-26 18:39:27.563410317 +0100
++++ cpu16/cache/index2/size     2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-2048K
++4096K
+diff -urN cpu0/topology/cluster_cpus cpu16/topology/cluster_cpus
+--- cpu0/topology/cluster_cpus  2024-12-26 18:39:27.563410317 +0100
++++ cpu16/topology/cluster_cpus 2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-00000003
++000f0000
+diff -urN cpu0/topology/cluster_cpus_list cpu16/topology/cluster_cpus_list
+--- cpu0/topology/cluster_cpus_list     2024-12-26 18:39:27.563410317 +0100
++++ cpu16/topology/cluster_cpus_list    2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-0-1
++16-19
+
+For acpi_cppc, the values differ between machines, looks like nominal_perf
+is always usable:
+
+14900k:
+$ grep '' cpu8/acpi_cppc/*
+cpu8/acpi_cppc/feedback_ctrs:ref:85172004640 del:143944480100
+cpu8/acpi_cppc/highest_perf:255
+cpu8/acpi_cppc/lowest_freq:0
+cpu8/acpi_cppc/lowest_nonlinear_perf:20
+cpu8/acpi_cppc/lowest_perf:1
+cpu8/acpi_cppc/nominal_freq:3200
+cpu8/acpi_cppc/nominal_perf:40
+cpu8/acpi_cppc/reference_perf:40
+cpu8/acpi_cppc/wraparound_time:18446744073709551615
+
+$ grep '' cpu16/acpi_cppc/*
+cpu16/acpi_cppc/feedback_ctrs:ref:84153776128 del:112977352354
+cpu16/acpi_cppc/highest_perf:255
+cpu16/acpi_cppc/lowest_freq:0
+cpu16/acpi_cppc/lowest_nonlinear_perf:15
+cpu16/acpi_cppc/lowest_perf:1
+cpu16/acpi_cppc/nominal_freq:3200
+cpu16/acpi_cppc/nominal_perf:24
+cpu16/acpi_cppc/reference_perf:24
+cpu16/acpi_cppc/wraparound_time:18446744073709551615
+
+altra:
+$ grep '' /sys/devices/system/cpu/cpu0/acpi_cppc/*
+feedback_ctrs:ref:227098452801 del:590247062111
+highest_perf:260
+lowest_freq:1000
+lowest_nonlinear_perf:200
+lowest_perf:100
+nominal_freq:2600
+nominal_perf:260
+reference_perf:100
+
+w3-2345:
+$ grep '' /sys/devices/system/cpu/cpu0/acpi_cppc/*
+feedback_ctrs:ref:4775674480779 del:5675950973600
+highest_perf:45
+lowest_freq:0
+lowest_nonlinear_perf:8
+lowest_perf:5
+nominal_freq:0
+nominal_perf:31
+reference_perf:31
+wraparound_time:18446744073709551615
+
+Other approaches may consist in checking the CPU's max frequency via
+cpufreq, e.g on the N2:
+
+  $ grep . /sys/devices/system/cpu/cpu?/cpufreq/scaling_max_freq
+  /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq:2016000
+  /sys/devices/system/cpu/cpu1/cpufreq/scaling_max_freq:2016000
+  /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq:2400000
+  /sys/devices/system/cpu/cpu3/cpufreq/scaling_max_freq:2400000
+  /sys/devices/system/cpu/cpu4/cpufreq/scaling_max_freq:2400000
+  /sys/devices/system/cpu/cpu5/cpufreq/scaling_max_freq:2400000
+
+However on x86, the cores no longer all have the same frequency, like below on
+the W3-2345, so it cannot always be used to split them into groups, it may at
+best be used to sort them.
+
+  $ grep . /sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq
+  /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq:4500000
+  /sys/devices/system/cpu/cpu1/cpufreq/scaling_max_freq:4500000
+  /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq:4300000
+  /sys/devices/system/cpu/cpu3/cpufreq/scaling_max_freq:4400000
+  /sys/devices/system/cpu/cpu4/cpufreq/scaling_max_freq:4300000
+  /sys/devices/system/cpu/cpu5/cpufreq/scaling_max_freq:4300000
+  /sys/devices/system/cpu/cpu6/cpufreq/scaling_max_freq:4400000
+  /sys/devices/system/cpu/cpu7/cpufreq/scaling_max_freq:4300000
+  /sys/devices/system/cpu/cpu8/cpufreq/scaling_max_freq:4500000
+  /sys/devices/system/cpu/cpu9/cpufreq/scaling_max_freq:4500000
+  /sys/devices/system/cpu/cpu10/cpufreq/scaling_max_freq:4300000
+  /sys/devices/system/cpu/cpu11/cpufreq/scaling_max_freq:4400000
+  /sys/devices/system/cpu/cpu12/cpufreq/scaling_max_freq:4300000
+  /sys/devices/system/cpu/cpu13/cpufreq/scaling_max_freq:4300000
+  /sys/devices/system/cpu/cpu14/cpufreq/scaling_max_freq:4400000
+  /sys/devices/system/cpu/cpu15/cpufreq/scaling_max_freq:4300000
+
+On 14900, not cool either:
+
+  $ grep -h . /sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq|sort|uniq -c
+     16 4400000
+     12 5700000
+      4 6000000
+
+Considering that values that are within +/-10% of a cluster's min/max are still
+part of it would seem to work and would make a good rule of thumb.
+
+On x86, the model number might help, here on w3-2345:
+
+  $ grep '^model\s\s' /proc/cpuinfo |sort|uniq -c
+     16 model           : 143
+
+But not always (here: 14900K with 8xP and 16xE):
+
+  $ grep '^model\s\s' /proc/cpuinfo |sort|uniq -c
+     32 model           : 183
+
+On ARM it's rather the part number:
+
+  # a9
+  $ grep part /proc/cpuinfo
+  CPU part        : 0xc09
+  CPU part        : 0xc09
+
+  # a17
+  $ grep part /proc/cpuinfo
+  CPU part        : 0xc0d
+  CPU part        : 0xc0d
+  CPU part        : 0xc0d
+  CPU part        : 0xc0d
+
+  # a72
+  $ grep part /proc/cpuinfo
+  CPU part        : 0xd08
+  CPU part        : 0xd08
+  CPU part        : 0xd08
+  CPU part        : 0xd08
+
+  # a53+a72
+  $ grep part /proc/cpuinfo
+  CPU part        : 0xd03
+  CPU part        : 0xd03
+  CPU part        : 0xd03
+  CPU part        : 0xd03
+  CPU part        : 0xd08
+  CPU part        : 0xd08
+
+  # a53+a73
+  $ grep 'part' /proc/cpuinfo
+  CPU part        : 0xd03
+  CPU part        : 0xd03
+  CPU part        : 0xd09
+  CPU part        : 0xd09
+  CPU part        : 0xd09
+  CPU part        : 0xd09
+
+  # a55+a76
+  $ grep 'part' /proc/cpuinfo
+  CPU part        : 0xd05
+  CPU part        : 0xd05
+  CPU part        : 0xd05
+  CPU part        : 0xd05
+  CPU part        : 0xd0b
+  CPU part        : 0xd0b
+  CPU part        : 0xd0b
+  CPU part        : 0xd0b
+
+
+2024-12-27
+----------
+
+Such machines with P+E cores are becoming increasingly common. Some like the
+CIX-P1 can even provide 3 levels of performance: 4 big cores (A720-2.8G), 4
+medium cores (A720-2.4G), 4 little cores (A520-1.8G). Architectures like below
+will become the norm, and can be used under different policies:
+
+                      +-----------------------------+
+                      |             L3              |
+                      +---+----------+----------+---+
+                          |          |          |
+                      +---+---+  +---+---+  +---+---+
+                      | P | P |  | E | E |  | E | E |
+                      +---+---+  +---+---+  +---+---+
+   Policy:            | P | P |  | E | E |  | E | E |
+   -------            +---+---+  +---+---+  +---+---+
+   1 group, min:         N/A         0          0
+   1 group, max:          0         N/A        N/A
+   1 group, all:          0          0          0
+   2 groups, min:        N/A         0          1
+   2 groups, full:        0          1          1
+   3 groups:              0          1          2
+
+In dual-socket or multiple dies it can even become more complicated:
+
+   +---+---+  +---+---+  +---+---+
+   | P | P |  | E | E |  | E | E |
+   +---+---+  +---+---+  +---+---+
+   | P | P |  | E | E |  | E | E |
+   +---+---+  +---+---+  +---+---+
+       |          |          |
+   +---+----------+----------+---+
+   |            L3.0             |
+   +-----------------------------+
+
+   +-----------------------------+
+   |            L3.1             |
+   +---+----------+----------+---+
+       |          |          |
+   +---+---+  +---+---+  +---+---+
+   | P | P |  | E | E |  | E | E |
+   +---+---+  +---+---+  +---+---+
+   | P | P |  | E | E |  | E | E |
+   +---+---+  +---+---+  +---+---+
+
+Setting only a thread count would yield interesting things above:
+  1-4T: P.0
+  5-8T: P.0, P.1 (2 grp)
+ 9-16T: P.0, E.0, P.1, E.1 (3-4 grp)
+17-24T: PEE.0, PEE.1 (5-6 grp)
+
+With forced tgrp = 1:
+  - only fill node 0 first (P then PE, then PEE)
+
+With forced tgrp = 2:
+
+  def:  P.0, P.1
+  2-4T: P.0 only ?
+  6-8T: P.0, P.1
+ 9-24T: PEE.0, PEE.1
+
+With dual-socket, dual-die, it becomes:
+
+   +---+---+  +---+---+  +---+---+  '  +---+---+  +---+---+  +---+---+
+   | P | P |  | E | E |  | E | E |  '  | P | P |  | E | E |  | E | E |
+   +---+---+  +---+---+  +---+---+  '  +---+---+  +---+---+  +---+---+
+   | P | P |  | E | E |  | E | E |  '  | P | P |  | E | E |  | E | E |
+   +---+---+  +---+---+  +---+---+  '  +---+---+  +---+---+  +---+---+
+       |          |          |      '      |          |          |
+   +---+----------+----------+---+  '  +---+----------+----------+---+
+   |            L3.0.0           |  '  |            L3.1.0           |
+   +-----------------------------+  '  +-----------------------------+
+                                    '
+   +-----------------------------+  '  +-----------------------------+
+   |            L3.0.1           |  '  |            L3.1.1           |
+   +---+----------+----------+---+  '  +---+----------+----------+---+
+       |          |          |      '      |          |          |
+   +---+---+  +---+---+  +---+---+  '  +---+---+  +---+---+  +---+---+
+   | P | P |  | E | E |  | E | E |  '  | P | P |  | E | E |  | E | E |
+   +---+---+  +---+---+  +---+---+  '  +---+---+  +---+---+  +---+---+
+   | P | P |  | E | E |  | E | E |  '  | P | P |  | E | E |  | E | E |
+   +---+---+  +---+---+  +---+---+  '  +---+---+  +---+---+  +---+---+
+
+In such conditions, it could make sense to first enumerate all the available
+cores with all their characteristics, and distribute them between "buckets"
+representing the thread groups:
+
+  1. create the min number of tgrp (tgrp.min)
+  2. it's possible to automatically create more until tgrp.max
+  -> cores are sorted by performance then by proximity. They're
+     distributed in order into existing buckets, and if too distant,
+     then new groups are created. It could allow for example to use
+     all P-cores in the DSDD model above, split into 4 tgrp.
+  -> the total number of threads is then discovered at the end.
+
+
+It seems in the end that such binding policies (P, E, single/multi dies,
+single/multi sockets etc) should be made more accessible to the user. What
+we're missing in "cpu-map" is the ability to apply to the whole process in
+fact, so that it can supersede taskset. Indeed, right now, cpu-map requires
+too many details and that's why it often remains easier to deal with taskset,
+particularly when dealing with thread groups.
+
+We can revisit the situation differently. First, let's keep in mind that
+cpu-map is a restriction. It means "use no more than these", it does not
+mean "use all of these". So it totally makes sense to use it to replace
+taskset at the process level without interfering with groups detection.
+We could then have:
+
+  - "cpu-map all|process|global|? ..."  to apply to the whole process
+  - then special keywords for the CPUs designation, among:
+     - package (socket) number
+     - die number (CCD)
+     - L3 number (CCX)
+     - cluster type (big/performant, medium, little/efficient)
+     - use of SMT or not, and which ones
+  - maybe optional numbers before these to indicate (any two of them),
+    e.g. "4P" to indicate "4 performance cores".
+
+Question: how would we designate "only P cores of socket 0" ? Or
+          "only thread 0 of all P cores" ?
+
+One benefit of such a declaration method is that it can make nbthread often
+useless and automatic while still portable across a whole fleet of servers. E.g.
+if "cpu-map all S0P*T0" would designate thread 0 of all P-cores of socket 0, it
+would mean the same on all machines.
+
+Another benefit is that we can make cpu-map and automatic detection more
+exclusive:
+  - cpu-map all => equivalent of taskset, leaves auto-detection on
+  - cpu-map thr => disables auto-detection
+
+So in the end:
+  - cpu-map all restricts the CPUs the process may use
+    -> auto-detection starts from here and sorts them
+  - thread-groups offers more "buckets" to arrange distant CPUs in the
+    same process
+  - nbthread limits the number of threads we'll use
+    -> pick the most suited ones (at least thr.min, at most thr.max)
+       and distribute them optimally among the number of thread groups.
+
+One question remains: is it always possible to automatically configure
+thread-groups ? Maybe it's possible after the detection to set an optimal
+one between grp.min and grp.max ? (e.g. socket count, core types, etc).
+
+It still seems that a policy such as "optimize-for resources|perfomance"
+would still help quite a bit.
+
+-> what defines a match between a CPU core and a group:
+   - cluster identification:
+     - either cluster_cpus if present (and sometimes), or:
+     - pkg+die+ccd number
+     - same LLC instance (L3 if present, L2 if no L3 etc)
+     - CPU core model ("model" on x86, "CPU part" on arm)
+     - number of SMT per core
+   - speed if known:
+     - /sys/devices/system/cpu/cpu0/acpi_cppc/nominal_perf if available
+     - or /sys/devices/system/cpu/cpu15/cpufreq/scaling_max_freq +/- 10%
+
+PB: on intel P+E, clusters of E cores sharing the same L2+L3, but P cores are
+alone on their L3 => poor grouping.
+
+Maybe one approach could be to characterize how L3/L2 are used. E.g. on the
+14900, we have:
+  - L3 0     => all cpus there
+  - L2 0..7  => 1C2T per L2
+  - L2 8..11 => 4C4T per L2
+  => it's obvious that CPUs connected to L2 #8..11 are not the same as those
+     on L2 #0..7. We could make something with them.
+  => it does not make sense to ditch the L2 distinction due to L3 being
+     present and the same, though it doesn't make sense to use L3 either.
+     Maybe elements with a cardinality of 1 should just be ignored. E.g.
+     cores per cache == 1 => ignore L2. Probably not true per die/pkg
+     though.
+  => replace absent or irrelevant info with "?"
+
+Note that for caches we have the list of CPUs, not the list of cores, so
+we need to remap that invidivually to cores.
+
+Warning: die_id, core_id etc are per socket, not per system. Worse, on Altra,
+core_id has gigantic values (multiples of +1 and +256). However core_cpus_list
+indicates other threads and could be a solution to create our own global core
+ID. Also, cluster_id=-1 found on all cores for A8040 on kernel 6.1.
+
+Note that LLC is always the first discriminator. But within a same LLC we can
+have the issues above (e.g. 14900).
+
+Would an intermediate approach like this work ?
+-----------------------------------------------
+  1) first split by LLC (also test with L3-less A8040, N2800, x5-8350)
+  2) within LLC, check of we have different cores (model, perf, freq?)
+     and resplit
+  3) divide again so that no group has more than 64 CPUs
+
+  => it looks like from the beginning that's what we're trying to do:
+     preserve locality first, then possibly trim down the number of cores
+     if some don't bring sufficient benefit. It possibly avoids the need
+     to identify dies etc. It still doesn't completely solve the 14900
+     though.
+
+Multi-die CPUs worth checking:
+  Pentium-D (Presler, Dempsey: two 65nm dies)
+  Core2Quad Q6600/Q6700 (Kentsfield, Clowertown: two 65nm dual-core dies)
+  Core2Quad Q8xxx/Q9xxx (Yorkfield, Harpertown, Tigerton: two 45nm dual-core dies)
+  - atom 330 ("diamondville") is really a dual-die
+  - note that atom x3-z8350 ("cherry trail"), N2800 ("cedar trail") and D510
+    ("pine trail") are single-die (verified) but have two L2 caches and no L3.
+  Note that these are apparently not identified as multi-die (Q6600 has die=0).
+
+It *seems* that in order to form groups we'll first have to sort by topology,
+and only after that sort by performance so as to choose preferred CPUs.
+Otherwise we could end up trying to form inter-socket CPU groups first in
+case we're forced to mix adjacent CPUs due to too many groups.
+
+
+2025-01-07
+----------
+
+What is needed in fact is to act on two directions:
+
+  - binding restrictions: the user doesn't want the process to run on
+    second node, on efficient cores, second thread of each core, so
+    they're indicating where (not) to bind. This is a strict choice,
+    and it overrides taskset. That's the process-wide cpu-map.
+
+  - user preferences / execution profile: the user expresses their wishes
+    about how to allocate resources. This is only a binding order strategy
+    among a few existing ones that help easily decide which cores to select.
+    In this case CPUs are not enumerated. We can imagine choices as:
+
+      - full : use all permitted cores
+      - performance: use all permitted performance cores (all sockets)
+      - single-node: (like today): use all cores of a single node
+      - balanced: use a reasonable amount of perf cores (e.g. all perf
+        cores of a single socket)
+      - resources: use a single cluster of efficient cores
+      - minimal: use a single efficient core
+
+By sorting CPUs first on the performance, then applying the filtering based on
+the profile to eliminate more CPUs, then applying the limit on the desired max
+number of threads, then sorting again on the topology, it should be possible to
+draw a list of usable CPUs that can then be split in groups along the L3s.
+
+It even sounds likely that the CPU profile or allocation strategy will affect
+the first sort method. E.g:
+  - full: no sort needed though we'll use the same as perf so as to enable
+    the maximum possible high-perf threads when #threads is limited
+  - performance: probably that we should invert the topology so as to maximize
+    memory bandwidth across multiple sockets, i.e. visite node1.core0 just
+    after node0.core0 etc, and visit their threads later.
+  - bandwidth: that could be the same as "performance" one above in fact
+  - (low-)latency: better stay local first
+  - balanced: sort by perf then sockets (i.e. P0, P1, E0, E1)
+  - resources: sort on perf first.
+  - etc
+
+The strategy will also help determine the number of threads when it's not fixed
+in the configuration.
+
+Plan:
+  1) make the profile configurable and implement the sort:
+     - option name? cpu-tuning, cpu-strategy, cpu-policy, cpu-allocation,
+       cpu-selection, cpu-priority, cpu-optimize-for, cpu-prefer, cpu-favor,
+       cpu-profile
+       => cpu-selection
+
+  2) make the process-wide cpu-map configurable
+  3) extend cpu-map to make it possible to designate symbolic groups
+     (e.g. "ht0/ht1, node 0, 3*CCD, etc)
+
+Also, offering an option to the user to see how haproxy sees the CPUs and the
+bindings for various profiles would be a nice improvement helping them make
+educated decisions instead of trying blindly.
+
+2025-01-11
+----------
+
+Configuration profile: there are multiple dimensions:
+  - preferences between cores types
+  - never use a given cpu type
+  - never use a given cpu location
+
+Better use something like:
+  - ignore-XXX   -> never use XXX
+  - avoid-XXX    -> prefer not to use XXX
+  - prefer-XXX   -> prefer to use XXX
+  - restrict-XXX -> only use XXX
+
+"XXX" could be "single-threaded", "dual-threaded", "first-thread",
+"second-thread", "first-socket", "second-socket", "slowest", "fastest",
+"node-XXX" etc.
+
+We could then have:
+  - cpu-selection restrict-first-socket,ignore-slowest,...
+
+Then some of the keywords could simply be shortcuts for these.
+
+2025-01-30
+----------
+Problem: we need to set the restrictions first to eliminate undesired CPUs,
+         then sort according to the desired preferences so as to pick what
+         is considered the best CPUs. So the preference really looks like
+         a different setting.
+
+More precisely, the final stategy involves multiple criteria. For example,
+let's say that the number of threads is set to 4 and we've restricted ourselves
+to using the first thread of each CPU core. We're on an EPYC74F3, there are 3
+cores per CCX. One algorithm (resource) would create one group with 3 threads
+on the first CCX and 1 group of 1 thread on the next one, then let each of
+these threads bind to all the enabled CPU cores of their respective groups.
+Another algo (performance) would avoid sharing and would want to place one
+thread per CCX, causing the creation of 4 groups of 1 thread each. A third
+algo (balanced) would probably say that 4 threads require 2 CCX hence 2
+groups, thus there should be 2 threads per group, and it would bind 2 threads
+on all cores of the first CCX and the 2 remaining ones on the second.
+
+And if the thread count is not set, these strategies will also do their best
+to figure the optimal count. Resource would probably use 1 core max, moderate
+one CCX max, balanced one node max, performance all of them.
+
+This means that these CPU selection strategries should provide multiple
+functions:
+  - how to sort CPUs
+  - how to count how many is best within imposed rules
+
+The other actions seem to only be static. This also means that "avoid" or
+"prefer" should maybe not be used in the end, even in the sorting algo ?
+
+Or maybe these are just enums or bits in a strategy and all are considered
+at the same time everywhere. For example the thread counting could consider
+the presence of "avoid-XXX" during the operations. But how to codify XXX is
+complicated then.
+
+Maybe a scoring system could work:
+  - default: all CPUs score = 1000
+  - ignore-XXX: foreach(XXX) set score to 0
+  - restrict-XXX: foreach(YYY not XXX), set score to 0
+  - avoid-XXX: foreach(XXX) score *= 0.8
+  - prefer-XXX: foreach(XXX) score *= 1.25
+
+This supports being ignored for up to 30 different reasons before being
+permanently disabled, which is sufficient.
+
+Then sort according to score, and pick at least min_thr CPUs and continue as
+long as not max_thr or score < 1000 ("avoid"). This gives the thread count. It
+does not permit anything inter-CPU though. E.g. large vs medium vs small cores,
+or sort by locality or frequency. But maybe these ones would use a different
+strategy then and would use the score as a second sorting key (after which
+one?). Or maybe there would be 2 passes, one which avoids <1000 and another
+one which completes up to #min_thr including those <1000, in which case we
+never sort per score.
+
+We can do a bit better to respect the tgrp min/max as well: we can count what
+it implies in terms of number of tgrps (#LLC or clusters) and decide to refrain
+from adding theads which would exceed max_tgrp, but we'd possibly continue to
+add score<1000 CPUs until at least enough threads to reach min_tgrp.
+
+######## new captures ###########
+CIX-P1 / radxa Orion O6 (no topology exported):
+$ ~/haproxy/haproxy  -dc -f /dev/null
+grp=[1..12] thr=[1..12]
+first node = 0
+Note: threads already set to 12
+going to start with nbthread=12 nbtgroups=1
+[keep] thr=  0 -> cpu=  0 pk=00 no=-1 di=00 cl=000 ts=000 capa=1024
+[keep] thr=  1 -> cpu=  1 pk=00 no=-1 di=00 cl=000 ts=001 capa=278
+[keep] thr=  2 -> cpu=  2 pk=00 no=-1 di=00 cl=000 ts=002 capa=278
+[keep] thr=  3 -> cpu=  3 pk=00 no=-1 di=00 cl=000 ts=003 capa=278
+[keep] thr=  4 -> cpu=  4 pk=00 no=-1 di=00 cl=000 ts=004 capa=278
+[keep] thr=  5 -> cpu=  5 pk=00 no=-1 di=00 cl=000 ts=005 capa=905
+[keep] thr=  6 -> cpu=  6 pk=00 no=-1 di=00 cl=000 ts=006 capa=905
+[keep] thr=  7 -> cpu=  7 pk=00 no=-1 di=00 cl=000 ts=007 capa=866
+[keep] thr=  8 -> cpu=  8 pk=00 no=-1 di=00 cl=000 ts=008 capa=866
+[keep] thr=  9 -> cpu=  9 pk=00 no=-1 di=00 cl=000 ts=009 capa=984
+[keep] thr= 10 -> cpu= 10 pk=00 no=-1 di=00 cl=000 ts=010 capa=984
+[keep] thr= 11 -> cpu= 11 pk=00 no=-1 di=00 cl=000 ts=011 capa=1024
+########
+
+2025-02-25 - clarification on the configuration
+-----------------------------------------------
+
+The "two dimensions" above can in fact be summarized like this:
+
+  - exposing the ability for the user to perform the same as "taskset",
+    i.e. restrict the usage to a static subset of the CPUs. We could then
+    have "cpu-set only-node0", "0-39", "ignore-smt1", "ignore-little", etc.
+    => the user defines precise sets to be kept/evicted.
+
+  - then letting the user express what they want to do with the remaining
+    cores. This is a strategy/policy that is used to:
+      - count the optimal number of threads (when not forced), also keeping
+        in mind that it cannot be more than 32/64 * maxtgroups if set.
+      - sort CPUs by order of preference (for when threads are forced or
+        a thread-hard-limit is set).
+
+    It can, partially overlap with the first one. For example, the default
+    strategy could be to focus on a single node. If the user has limited its
+    usage to cores of both nodes, the policy could still further limit this.
+    But this time it should only be a matter of sorting and preference, i.e.
+    nbthread and cpuset are respected. If a policy prefers the node with more
+    cores first, it will sort them according to this, and its algorithm for
+    counting cores will only be used if nbthread is not set, otherwise it may
+    very well end up on two nodes to respect the user's choice.
+
+And once all of this is done, thread groups should be formed based on the
+remaining topology. Similarly, if the number of tgroups is not set, the
+algorithm must try to propose one based on the topology and the maxtgroups
+setting (i.e. find a divider of the #LLC that's lower than or equal to
+maxtgroups), otherwise the configured number of tgroups is respected. Then
+the number of LLCs will be divided by this number of tgroups, and as many
+threads as enabled CPUs of each LLC will be assigned to these respective
+groups.
+
+In the end we should have groups bound to cpu sets, and threads belonging
+to groups mapped to all accessible cpus of these groups.
+
+Note: clusters may be finer than LLCs because they could report finer
+information. We could have a big and a medium cluster share the same L3
+for example. However not all boards report their cluster number (see CIX-P1
+above). However the info about the capacity still allows to figure that and
+should probably be used for that. At this point it would seem logical to say
+that the cluster number is re-adjusted based on the claimed capacity, at
+least to avoid accidentally mixing workloads on heterogenous cores. But
+sorting by cluster number might not necessarily work if allocated randomly.
+So we might need a distinct metric that doesn't require to override the
+system's numbering, like a "set", "group", "team", "bond", "bunch", "club",
+"band", ... that would be first sorted based on LLC (and no finer), and
+second based on capacity, then on L2 etc. This way we should be able to
+respect topology when forming groups.
+
+Note: We need to consider as LLC a level which has more than one core!
+      Otherwise it's supposed to exist and be unique/shared but not reported.
+      => maybe this should be done very early when counting CPUs ?
+         We need to store the LLC level somewhere in the topo.
