@@ -1,0 +1,724 @@
+2023-07-04 - automatic grouping for NUMA
+
+
+Xeon: (W2145)
+
+willy@debian:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0,8
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0,8
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0,8
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-15
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu0/cache/index3/type:Unified
+
+
+Wtap: i7-8650U
+
+willy@wtap:~ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0,4
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0,4
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0,4
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-7
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu0/cache/index3/type:Unified
+
+
+pcw: i7-6700k
+
+willy@pcw:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0,4
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0,4
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0,4
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-7
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu0/cache/index3/type:Unified
+
+
+nfs: N5105, v5.15
+
+willy@nfs:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0-3
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-3
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu0/cache/index3/type:Unified
+
+
+eeepc: Atom N2800, 5.4 : no L3, L2 not shared.
+
+willy@eeepc:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+
+willy@eeepc:~$ grep '' /sys/devices/system/cpu/cpu2/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu2/cache/index0/shared_cpu_list:2-3
+/sys/devices/system/cpu/cpu2/cache/index1/shared_cpu_list:2-3
+/sys/devices/system/cpu/cpu2/cache/index2/shared_cpu_list:2-3
+/sys/devices/system/cpu/cpu2/cache/index0/type:Data
+/sys/devices/system/cpu/cpu2/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu2/cache/index2/type:Unified
+
+
+dev13: Ryzen 2700X
+
+haproxy@dev13:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-7
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu0/cache/index3/type:Unified
+
+haproxy@dev13:~$ grep '' /sys/devices/system/cpu/cpu8/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu8/cache/index0/shared_cpu_list:8-9
+/sys/devices/system/cpu/cpu8/cache/index1/shared_cpu_list:8-9
+/sys/devices/system/cpu/cpu8/cache/index2/shared_cpu_list:8-9
+/sys/devices/system/cpu/cpu8/cache/index3/shared_cpu_list:8-15
+/sys/devices/system/cpu/cpu8/cache/index0/type:Data
+/sys/devices/system/cpu/cpu8/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu8/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu8/cache/index3/type:Unified
+
+
+dev12: Ryzen 5800X
+
+haproxy@dev12:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0,8
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0,8
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0,8
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-15
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu0/cache/index3/type:Unified
+
+
+amd24: EPYC 74F3
+
+willy@mt:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0,24
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0,24
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0,24
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-2,24-26
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu0/cache/index3/type:Unified
+
+willy@mt:~$ grep '' /sys/devices/system/cpu/cpu8/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu8/cache/index0/shared_cpu_list:8,32
+/sys/devices/system/cpu/cpu8/cache/index1/shared_cpu_list:8,32
+/sys/devices/system/cpu/cpu8/cache/index2/shared_cpu_list:8,32
+/sys/devices/system/cpu/cpu8/cache/index3/shared_cpu_list:6-8,30-32
+/sys/devices/system/cpu/cpu8/cache/index0/type:Data
+/sys/devices/system/cpu/cpu8/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu8/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu8/cache/index3/type:Unified
+
+willy@mt:~$ grep '' /sys/devices/system/cpu/cpu0/topology/*list
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0,24
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-47
+/sys/devices/system/cpu/cpu0/topology/die_cpus_list:0-47
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-47
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0,24
+
+
+xeon24: Gold 6212U
+
+willy@mt01:~$ grep '' /sys/devices/system/cpu/cpu8/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu8/cache/index0/shared_cpu_list:8,32
+/sys/devices/system/cpu/cpu8/cache/index1/shared_cpu_list:8,32
+/sys/devices/system/cpu/cpu8/cache/index2/shared_cpu_list:8,32
+/sys/devices/system/cpu/cpu8/cache/index3/shared_cpu_list:0-47
+/sys/devices/system/cpu/cpu8/cache/index0/type:Data
+/sys/devices/system/cpu/cpu8/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu8/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu8/cache/index3/type:Unified
+
+
+SPR 8480+
+
+$ grep -a '' /sys/devices/system/node/node*/cpulist 
+/sys/devices/system/node/node0/cpulist:0-55,112-167
+/sys/devices/system/node/node1/cpulist:56-111,168-223
+
+$ grep -a '' /sys/devices/system/cpu/cpu0/topology/*list
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0,112
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-55,112-167
+/sys/devices/system/cpu/cpu0/topology/die_cpus_list:0-55,112-167
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-55,112-167
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0,112
+
+$ grep -a '' /sys/devices/system/cpu/cpu0/cache/*/shared_cpu_list
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0,112
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0,112
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0,112
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-55,112-167
+
+
+UP Board - Atom X5-8350 : no L3, exactly like Armada8040
+
+willy@up1:~$ grep '' /sys/devices/system/cpu/cpu{0,1,2,3}/cache/index2/*list
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu1/cache/index2/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu2/cache/index2/shared_cpu_list:2-3
+/sys/devices/system/cpu/cpu3/cache/index2/shared_cpu_list:2-3
+
+willy@up1:~$ grep '' /sys/devices/system/cpu/cpu0/topology/*list
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-3
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+
+Atom D510 - kernel 2.6.33
+
+$ strings -fn1 sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list: 0,2
+sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list: 0,2
+sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list: 0,2
+sys/devices/system/cpu/cpu0/cache/index0/type: Data
+sys/devices/system/cpu/cpu0/cache/index1/type: Instruction
+sys/devices/system/cpu/cpu0/cache/index2/type: Unified
+
+$ strings -fn1 sys/devices/system/cpu/cpu?/topology/*list
+sys/devices/system/cpu/cpu0/topology/core_siblings_list: 0-3
+sys/devices/system/cpu/cpu0/topology/thread_siblings_list: 0,2
+sys/devices/system/cpu/cpu1/topology/core_siblings_list: 0-3
+sys/devices/system/cpu/cpu1/topology/thread_siblings_list: 1,3
+sys/devices/system/cpu/cpu2/topology/core_siblings_list: 0-3
+sys/devices/system/cpu/cpu2/topology/thread_siblings_list: 0,2
+sys/devices/system/cpu/cpu3/topology/core_siblings_list: 0-3
+sys/devices/system/cpu/cpu3/topology/thread_siblings_list: 1,3
+
+mcbin: Armada 8040 : no L3, no difference with L3 not reported
+
+root@lg7:~# grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+
+root@lg7:~# grep '' /sys/devices/system/cpu/cpu0/topology/*list
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-3
+/sys/devices/system/cpu/cpu0/topology/die_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-3
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+
+
+Ampere/monolithic: Ampere Altra 80-26 : L3 not reported
+
+willy@ampere:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+
+willy@ampere:~$ grep '' /sys/devices/system/cpu/cpu0/topology/*list
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-79
+/sys/devices/system/cpu/cpu0/topology/die_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-79
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+
+
+Ampere/Hemisphere: Ampere Altra 80-26 : L3 not reported
+
+willy@ampere:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+
+willy@ampere:~$ grep '' /sys/devices/system/cpu/cpu0/topology/*list
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-79
+/sys/devices/system/cpu/cpu0/topology/die_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-79
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+
+willy@ampere:~$ grep '' /sys/devices/system/node/node*/cpulist 
+/sys/devices/system/node/node0/cpulist:0-39
+/sys/devices/system/node/node1/cpulist:40-79
+
+
+LX2A: LX2160A => L3 not reported
+
+willy@lx2a:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0-1
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+
+willy@lx2a:~$ grep '' /sys/devices/system/cpu/cpu2/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu2/cache/index0/shared_cpu_list:2
+/sys/devices/system/cpu/cpu2/cache/index1/shared_cpu_list:2
+/sys/devices/system/cpu/cpu2/cache/index2/shared_cpu_list:2-3
+/sys/devices/system/cpu/cpu2/cache/index0/type:Data
+/sys/devices/system/cpu/cpu2/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu2/cache/index2/type:Unified
+
+willy@lx2a:~$ grep '' /sys/devices/system/cpu/cpu0/topology/*list
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-15
+/sys/devices/system/cpu/cpu0/topology/die_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-15
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+
+
+Rock5B: RK3588 (big-little A76+A55)
+
+rock@rock-5b:~$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list:0-7
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+/sys/devices/system/cpu/cpu0/cache/index3/type:Unified
+
+rock@rock-5b:~$ grep '' /sys/devices/system/cpu/cpu{0,4,6}/topology/*list
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-3
+/sys/devices/system/cpu/cpu0/topology/die_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-3
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+/sys/devices/system/cpu/cpu4/topology/core_cpus_list:4
+/sys/devices/system/cpu/cpu4/topology/core_siblings_list:4-5
+/sys/devices/system/cpu/cpu4/topology/die_cpus_list:4
+/sys/devices/system/cpu/cpu4/topology/package_cpus_list:4-5
+/sys/devices/system/cpu/cpu4/topology/thread_siblings_list:4
+/sys/devices/system/cpu/cpu6/topology/core_cpus_list:6
+/sys/devices/system/cpu/cpu6/topology/core_siblings_list:6-7
+/sys/devices/system/cpu/cpu6/topology/die_cpus_list:6
+/sys/devices/system/cpu/cpu6/topology/package_cpus_list:6-7
+/sys/devices/system/cpu/cpu6/topology/thread_siblings_list:6
+
+$ grep '' /sys/devices/system/cpu/cpu*/cpu_capacity
+/sys/devices/system/cpu/cpu0/cpu_capacity:414
+/sys/devices/system/cpu/cpu1/cpu_capacity:414
+/sys/devices/system/cpu/cpu2/cpu_capacity:414
+/sys/devices/system/cpu/cpu3/cpu_capacity:414
+/sys/devices/system/cpu/cpu4/cpu_capacity:1024
+/sys/devices/system/cpu/cpu5/cpu_capacity:1024
+/sys/devices/system/cpu/cpu6/cpu_capacity:1024
+/sys/devices/system/cpu/cpu7/cpu_capacity:1024
+
+
+Firefly: RK3399 (2xA72 + 4xA53) kernel 6.1.28
+
+root@firefly:~# grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+grep: /sys/devices/system/cpu/cpu0/cache/index?/shared_cpu_list: No such file or directory
+grep: /sys/devices/system/cpu/cpu0/cache/index?/type: No such file or directory
+
+root@firefly:~# grep '' /sys/devices/system/cpu/cpu*/cache/index?/{shared_cpu_list,type}
+grep: /sys/devices/system/cpu/cpu*/cache/index?/shared_cpu_list: No such file or directory
+grep: /sys/devices/system/cpu/cpu*/cache/index?/type: No such file or directory
+
+root@firefly:~# dmesg|grep cacheinfo
+[    0.006290] cacheinfo: Unable to detect cache hierarchy for CPU 0
+[    0.016339] cacheinfo: Unable to detect cache hierarchy for CPU 1
+[    0.017692] cacheinfo: Unable to detect cache hierarchy for CPU 2
+[    0.019050] cacheinfo: Unable to detect cache hierarchy for CPU 3
+[    0.020478] cacheinfo: Unable to detect cache hierarchy for CPU 4
+[    0.021660] cacheinfo: Unable to detect cache hierarchy for CPU 5
+[    1.990108] cacheinfo: Unable to detect cache hierarchy for CPU 0
+
+root@firefly:~# grep '' /sys/devices/system/cpu/cpu0/topology/*
+/sys/devices/system/cpu/cpu0/topology/cluster_cpus:0f
+/sys/devices/system/cpu/cpu0/topology/cluster_cpus_list:0-3
+/sys/devices/system/cpu/cpu0/topology/cluster_id:0
+/sys/devices/system/cpu/cpu0/topology/core_cpus:01
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/core_id:0
+/sys/devices/system/cpu/cpu0/topology/core_siblings:3f
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-5
+/sys/devices/system/cpu/cpu0/topology/package_cpus:3f
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-5
+/sys/devices/system/cpu/cpu0/topology/physical_package_id:0
+/sys/devices/system/cpu/cpu0/topology/thread_siblings:01
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+
+$ grep '' /sys/devices/system/cpu/cpu*/cpu_capacity
+/sys/devices/system/cpu/cpu0/cpu_capacity:381
+/sys/devices/system/cpu/cpu1/cpu_capacity:381
+/sys/devices/system/cpu/cpu2/cpu_capacity:381
+/sys/devices/system/cpu/cpu3/cpu_capacity:381
+/sys/devices/system/cpu/cpu4/cpu_capacity:1024
+/sys/devices/system/cpu/cpu5/cpu_capacity:1024
+
+
+VIM3L: S905D3 (4*A55), kernel 5.14.10
+
+$ grep '' /sys/devices/system/cpu/cpu0/topology/*
+/sys/devices/system/cpu/cpu0/topology/core_cpus:1
+/sys/devices/system/cpu/cpu0/topology/core_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/core_id:0
+/sys/devices/system/cpu/cpu0/topology/core_siblings:f
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-3
+/sys/devices/system/cpu/cpu0/topology/die_cpus:1
+/sys/devices/system/cpu/cpu0/topology/die_cpus_list:0
+/sys/devices/system/cpu/cpu0/topology/die_id:-1
+/sys/devices/system/cpu/cpu0/topology/package_cpus:f
+/sys/devices/system/cpu/cpu0/topology/package_cpus_list:0-3
+/sys/devices/system/cpu/cpu0/topology/physical_package_id:0
+/sys/devices/system/cpu/cpu0/topology/thread_siblings:1
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+
+$ grep '' /sys/devices/system/cpu/cpu0/cache/index?/{shared_cpu_list,type}
+/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index1/shared_cpu_list:0
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_list:0-3
+/sys/devices/system/cpu/cpu0/cache/index0/type:Data
+/sys/devices/system/cpu/cpu0/cache/index1/type:Instruction
+/sys/devices/system/cpu/cpu0/cache/index2/type:Unified
+
+$ grep '' /sys/devices/system/cpu/cpu*/cpu_capacity 
+/sys/devices/system/cpu/cpu0/cpu_capacity:1024
+/sys/devices/system/cpu/cpu1/cpu_capacity:1024
+/sys/devices/system/cpu/cpu2/cpu_capacity:1024
+/sys/devices/system/cpu/cpu3/cpu_capacity:1024
+
+
+Odroid-N2: S922X (4*A73 + 2*A53), kernel 4.9.254
+
+willy@n2:~$ grep '' /sys/devices/system/cpu/cpu*/cache/index?/{shared_cpu_list,type}
+grep: /sys/devices/system/cpu/cpu*/cache/index?/shared_cpu_list: No such file or directory
+grep: /sys/devices/system/cpu/cpu*/cache/index?/type: No such file or directory
+
+willy@n2:~$ sudo dmesg|grep -i 'cache hi'
+[    0.649924] Unable to detect cache hierarchy for CPU 0
+
+No capacity.
+
+Note that it reports 2 physical packages!
+
+willy@n2:~$ grep '' /sys/devices/system/cpu/cpu0/topology/*
+/sys/devices/system/cpu/cpu0/topology/core_id:0
+/sys/devices/system/cpu/cpu0/topology/core_siblings:03
+/sys/devices/system/cpu/cpu0/topology/core_siblings_list:0-1
+/sys/devices/system/cpu/cpu0/topology/physical_package_id:0
+/sys/devices/system/cpu/cpu0/topology/thread_siblings:01
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0
+
+willy@n2:~$ grep '' /sys/devices/system/cpu/cpu4/topology/*
+/sys/devices/system/cpu/cpu4/topology/core_id:2
+/sys/devices/system/cpu/cpu4/topology/core_siblings:3c
+/sys/devices/system/cpu/cpu4/topology/core_siblings_list:2-5
+/sys/devices/system/cpu/cpu4/topology/physical_package_id:1
+/sys/devices/system/cpu/cpu4/topology/thread_siblings:10
+/sys/devices/system/cpu/cpu4/topology/thread_siblings_list:4
+
+StarFive VisionFive2 - JH7110, kernel 5.15
+
+willy@starfive:~/haproxy$ ./haproxy -c -f cps3.cfg 
+thr   0 -> cpu   0  onl=1 bnd=1 pk=00 no=-1 l3=-1 cl=000 l2=000 ts=000 l1=000
+thr   1 -> cpu   1  onl=1 bnd=1 pk=00 no=-1 l3=-1 cl=000 l2=000 ts=001 l1=001
+thr   2 -> cpu   2  onl=1 bnd=1 pk=00 no=-1 l3=-1 cl=000 l2=000 ts=002 l1=002
+thr   3 -> cpu   3  onl=1 bnd=1 pk=00 no=-1 l3=-1 cl=000 l2=000 ts=003 l1=003
+Configuration file is valid
+
+Graviton2 / Graviton3 ?
+
+
+On PPC64 not everything is available:
+
+  https://www.ibm.com/docs/en/linux-on-systems?topic=cpus-cpu-topology
+
+  /sys/devices/system/cpu/cpu<N>/topology/thread_siblings
+  /sys/devices/system/cpu/cpu<N>/topology/core_siblings
+  /sys/devices/system/cpu/cpu<N>/topology/book_siblings
+  /sys/devices/system/cpu/cpu<N>/topology/drawer_siblings
+
+  # lscpu -e
+  CPU NODE DRAWER BOOK SOCKET CORE L1d:L1i:L2d:L2i ONLINE CONFIGURED POLARIZATION ADDRESS
+  0   1    0      0    0      0    0:0:0:0         yes    yes        horizontal   0
+  1   1    0      0    0      0    1:1:1:1         yes    yes        horizontal   1
+  2   1    0      0    0      1    2:2:2:2         yes    yes        horizontal   2
+  3   1    0      0    0      1    3:3:3:3         yes    yes        horizontal   3
+  4   1    0      0    0      2    4:4:4:4         yes    yes        horizontal   4
+  5   1    0      0    0      2    5:5:5:5         yes    yes        horizontal   5
+  6   1    0      0    0      3    6:6:6:6         yes    yes        horizontal   6
+  7   1    0      0    0      3    7:7:7:7         yes    yes        horizontal   7
+  8   0    1      1    1      4    8:8:8:8         yes    yes        horizontal   8
+  ...
+
+Intel E5-2600v2/v3 has two L3:
+   https://www.enterpriseai.news/2014/09/08/intel-ups-performance-ante-haswell-xeon-chips/
+
+More info on these, and s390's "books" (mostly L4 in fact):
+   https://groups.google.com/g/fa.linux.kernel/c/qgAxjYq8ohI
+
+########################################
+Analysis:
+  - some server ARM CPUs (Altra, LX2) do not return any L3 info though they
+    DO have some. They stop at L2.
+
+  - other CPUs like Atom N2800 and Armada 8040 do not have L3.
+
+  => there's no apparent way to detect that the server CPUs do have an L3.
+  => or maybe we should consider that it's more likely that there is one
+     than none ? Armada works much better with groups than without. It's
+     basically the same topology as N2800.
+
+  => Do we really care then ? No L3 = same L3 for everyone. The problem is
+     that those really without L3 will make a difference on L2 while the
+     other ones not. Maybe we should consider that it does not make sense
+     to cut groups on L2 (i.e. under no circumstance we'll have one group
+     per core).
+
+  => This would mean:
+       - regardless of L3, consider LLC. If the LLC has more than one
+         core per instance, it's likely the last one (not true on LX2
+         but better use 8 groups of 2 than nothing).
+
+       - otherwise if there's a single core per instance, it's unlikely
+         to be the LLC so we can imagine the LLC is unified.
+
+       - this needs to be done per {node,package} !
+         => core_siblings and thread_siblings seem to be the only portable
+            ones to figure packages and threads
+
+At the very least, when multiple nodes are possibly present, there is a
+symlink "node0", "node1" etc in the cpu entry. It requires a lookup for each
+cpu directory though while reading /sys/devices/system/node/node*/cpulist is
+much cheaper.
+
+There's some redundancy in this. Probably better approach:
+
+1) if there is more than 1 CPU:
+  - if cache/index3 exists, use its cpulist to pre-group entries.
+  - else if topology or node exists, use (node,package,die,core_siblings) to
+    group entries
+  - else pre-create a single large group
+
+2) if there is more than 1 CPU and less than max#groups:
+  - for each group, if no cache/index3 exists and cache/index2 exists and some
+    index2 entries contain at least two CPUs of different cores or a single one
+    for a 2-core system, then use that to re-split the group.
+
+  - if in the end there are too many groups, remerge some of them (?) or stick
+    to the previous layout (?)
+
+  - if in the end there are too many CPUs in a group, cut as needed, if
+    possible with an integral result (/2, /3, ...)
+
+3) L1 cache / thread_siblings should be used to associate CPUs by cores in
+   the same groups.
+
+Maybe instead it should be done bottom->top by collecting info and merging
+groups while keeping CPU lists ordered to ease later splitting.
+
+  1) create a group per bound CPU
+  2) based on thread_siblings, detect CPUs that are on the same core, merge
+     their groups. They may not always create similarly sized groups.
+     => eg: epyc keeps 24 groups such as {0,24}, ...
+            ryzen 2700x keeps 4 groups such as {0,1}, ...
+            rk3588 keeps 3 groups {0-3},{4-5},{6-7}
+  3) based on cache index0/1, detect CPUs that are on the same L1 cache,
+     merge their groups. They may not always create similarly sized groups.
+  4) based on cache index2, detect CPUs that are on the same L2 cache, merge
+     their groups. They may not always create similarly sized groups.
+     => eg: mcbin now keeps 2 groups {0-1},{2,3}
+  5) At this point there may possibly be too many groups (still one per CPU,
+     e.g. when no cache info was found or there are many cores with their own
+     L2 like on SPR) or too large one (when all cores are indeed on the same
+     L2).
+
+     5.1) if there are as many groups as bound CPUs, merge them all together in
+          a single one => lx2, altra, mcbin
+     5.2) if there are still more than max#groups, merge them all together in a
+          single one since the splitting criterion is not relevant
+     5.3) if there is a group with too many CPUs, split it in two if integral,
+          otherwise 3, etc, trying to add the least possible number of groups.
+          If too difficult (e.g. result less than half the authorized max),
+          let's just round around N/((N+63)/64).
+     5.4) if at the end there are too many groups, warn that we can't optimize
+          the setup and are limiting ourselves to the first node or 64 CPUs.
+
+Observations:
+ - lx2 definitely works better with everything bound together than by creating
+   8 groups (~130k rps vs ~120k rps)
+   => does this mean we should assume a unified L3 if there's no L3 info, and
+      remerge everything ? Likely Altra would benefit from this as well. mcbin
+      doesn't notice any change (within noise in both directions)
+
+ - on x86 13th gen, 2 P-cores and 8 E-cores. The P-cores support HT, not the
+   E-cores. There's no cpu_capacity there, but the cluster_id is properly set.
+   => proposal: when a machine reports both single-threaded cores and SMT,
+      consider the SMT ones bigger and use them.
+
+Problems: how should auto-detection interfer with user-settings ?
+
+- Case 1: program started with a reduced taskset
+  => current: this serves to the the thread count first, and to map default 
+     threads to CPUs if they are not affected by a cpu-map.
+
+  => we want to keep that behavior (i.e. use all these threads) but only
+     change how the thread-groups are arranged.
+
+  - example: start on the first 6c12t of an EPYC74F3, should automatically
+    create 2 groups for the two sockets.
+
+  => should we brute-force all thread-groups combinations to figure how the
+     threads will spread over cpu-map and which one is better ? Or should we
+     decide to ignore input mapping as soon as there's at least one cpu-map?
+     But then which one to use ? Or should we consider that cpu-map only works
+     with explicit thread-groups ?
+
+- Case 2: taskset not involved, but nbthread and cpu-map in the config. In
+  fact a pretty standard 2.4-2.8 config.
+  => maybe the presence of cpu-map and no thread-groups should be sufficient
+     to imply a single thread-group to stay compatible ? Or maybe start as
+     many thread-groups as are referenced in cpu-map ? Seems like cpu-map and
+     thread-groups work hand-in-hand regarding topology since cpu-map
+     designates hardware CPUs so the user knows better than haproxy. Thus
+     why should be try to do better ?
+
+- Case 3: taskset not involved, nbthread not involved, cpu-map not involved,
+  only thread-groups
+  => seems like an ideal approach. Take all online CPUs and try to cut them
+     into equitable thread groups ? Or rather, since nbthreads is not forced,
+     better sort the clusters and bind to the N first clusters only ? If too
+     many groups for the clusters, then try to refine them ?
+
+- Case 4: nothing specified at all (default config, target)
+  => current: uses only one thread-group with all threads (max 64).
+  => desired: bind only to performance cores and cut them in a few groups
+     based on l3, package, cluster etc.
+
+- Case 5: nbthread only in the config
+  => might match a docker use case. No group nor cpu-map configured. Figure
+     the best group usage respecting the thread count.
+
+- Case 6: some constraints are enforced in the config (e.g. threads-hard-limit,
+  one-thread-per-core, etc).
+  => like 3, 4 or 5 but with selection adjustment.
+
+- Case 7: thread-groups and generic cpu-map 1/all, 2/all... in the config
+  => user just wants to use cpu-map as a taskset alternative
+  => need to figure number of threads first, then cut them in groups like
+     today, and only then the cpu-map are found. Can we do better ? Not sure.
+     Maybe just when cpu-map is too lax (e.g. all entries reference the same
+     CPUs). Better use a special "cpumap all/all 0-19" for this, but not
+     implemented for now.
+
+Proposal:
+  - if there is any cpu-map, disable automatic CPU assignment
+  - if there is any cpu-map, disable automatic thread group detection
+  - if taskset was forced, disable automatic CPU assignment
+
+### 2023-07-17 ###
+
+=> step  1: mark CPUs enabled at boot    (cpu_detect_usable)
+// => step  2: mark CPUs referenced in cpu-map => no, no real meaning
+=> step  3: identify all CPUs topologies + NUMA (cpu_detect_topology)
+
+=> step  4: if taskset && !cpu-map, mark all non-bound CPUs as unusable (UNAVAIL ?)
+            => which is the same as saying if !cpu-map.
+=> step  5: if !cpu-map, sort usable CPUs and find the best set to use
+//=> step  6: if cpu-map, mark all non-covered CPUs are unusable => not necessarily possible if partial cpu-map
+
+=> step  7: if thread-groups && cpu-map, nothing else to do
+=> step  8: if cpu-map && !thread-groups, thread-groups=1
+=> step  9: if thread-groups && !cpu-map, use that value to cut the thread set
+=> step 10: if !cpu-map && !thread-groups, detect the optimal thread-group count
+
+=> step 11: if !cpu-map, cut the thread set into mostly fair groups and assign
+            the group numbers to CPUs; create implicit cpu-maps.
+
+Ideas:
+  - use minthr and maxthr.
+    If nbthread, minthr=maxthr=nbthread, else if taskset_forced, maxthr=taskset_thr,
+    minthr=1, else minthr=1, maxthr=cpus_enabled.
+
+  - use CPU_F_ALLOWED (or DISALLOWED?) and CPU_F_REFERENCED and CPU_F_EXCLUDED ?
+    Note: cpu-map doesn't exclude, it only includes. Taskset does exclude. Also,
+    cpu-map only includes the CPUs that will belong to the correct groups & threads.
+
+  - Usual startup: taskset presets the CPU sets and sets the thread count. Tgrp
+    defaults to 1, then threads indicated in cpu-map get their CPU assigned.
+    Other ones are not changed. If we say that cpu-map => tgrp==1 then it means
+    we can infer automatic grouping for group 1 only ?
+      => it could be said that the CPUs of all enabled groups mentioned in
+         cpu-map are considered usable, but we don't know how many of these
+         will really have threads started on.
+
+    => maybe completely ignore cpu-map instead (i.e. fall back to thread-groups 1) ?
+    => automatic detection would mean:
+         - if !cpu-map && !nbthrgrp => must automatically detect thgrp
+         - if !cpu-map => must automatically detect binding
+         - otherwise nothing
+
+Examples of problems:
+
+        thread-groups 4
+        nbthreads 128
+        cpu-map 1/all 0-63
+        cpu-map 2/all 128-191
+
+        => 32 threads per group, hence grp 1 uses 0-63 and grp 2 128-191,
+           grp 3 and grp 4 unknown, in practice on boot CPUs.
+
+        => could we demand that if one cpu-map is specified, then all groups
+           are covered ? Do we need really this after all ? i.e. let's just not
+           bind other threads and that's all (and what is written).
+
+
+Calls from haproxy.c:
+
+    cpu_detect_usable()
+    cpu_detect_topology()
+
++   thread_detect_count()
+         => compute nbtgroups
+         => compute nbthreads
+
+    thread_assign_cpus() ?
+
+    check_config_validity()
+
+
+BUGS:
+  - cpu_map[0].proc still used for the whole process in daemon mode (though not
+    in foreground mode)
+    -> whole process bound to thread group 1
+    -> binding not working in foreground
+
+  - cpu_map[x].proc ANDed with the thread's map depite thread's map apparently
+    never set
+    -> group binding ignored ?
+
+2023-09-05
+----------
+Remember to make the difference between sorting (used for grouping) and
+preference. We should avoid selecting the first CPUs as it encourages to
+use wrong grouping criteria. E.g. CPU capacity has no business being used
+for grouping, it's used for selecting. Support for HT however, does because
+it allows to pack together threads of the same core.
+
+We should also have an option to enable/disable SMT (e.g. max threads per core)
+so that we can skip siblings of cores already assigned. This can be convenient
+with network running on the other sibling.
