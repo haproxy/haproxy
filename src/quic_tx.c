@@ -1333,7 +1333,8 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 				if (!LIST_ISEMPTY(&hfrms))
 					hpktns->tx.pto_probe = 1;
 				qc->iel->retrans_frms = &ifrms;
-				qc->hel->retrans_frms = &hfrms;
+				if (qc->hel)
+					qc->hel->retrans_frms = &hfrms;
 				if (!qc_send_hdshk_pkts(qc, 1, qc->iel, qc->hel))
 					goto leave;
 				/* Put back unsent frames in their packet number spaces */
