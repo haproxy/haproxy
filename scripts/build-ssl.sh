@@ -86,6 +86,31 @@ download_boringssl () {
     fi
 }
 
+download_aws_lc () {
+    if [ ! -f "download-cache/aws-lc-${AWS_LC_VERSION}.tar.gz" ]; then
+      mkdir -p download-cache
+        wget -q -O "download-cache/aws-lc-${AWS_LC_VERSION}.tar.gz" \
+          "https://github.com/aws/aws-lc/archive/refs/tags/v${AWS_LC_VERSION}.tar.gz"
+    fi
+}
+
+build_aws_lc () {
+    if [ "$(cat ${HOME}/opt/.aws_lc-version)" != "${AWS_LC_VERSION}" ]; then
+        tar zxf "download-cache/aws-lc-${AWS_LC_VERSION}.tar.gz"
+        (
+            cd "aws-lc-${AWS_LC_VERSION}/"
+           mkdir -p build
+           cd build
+           cmake -version
+           cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=1 -DDISABLE_GO=1 -DDISABLE_PERL=1 \
+             -DBUILD_TESTING=0 -DCMAKE_INSTALL_PREFIX=${HOME}/opt ..
+           make -j$(nproc)
+           make install
+        )
+        echo "${AWS_LC_VERSION}" > "${HOME}/opt/.aws_lc-version"
+    fi
+}
+
 download_quictls () {
     if [ ! -d "download-cache/quictls" ]; then
         git clone --depth=1 https://github.com/quictls/openssl download-cache/quictls
@@ -130,6 +155,11 @@ if [ ! -z ${BORINGSSL+x} ]; then
 	mkdir -p ${HOME}/opt/include
 	cp -r ../include/* ${HOME}/opt/include
 	)
+fi
+
+if [ ! -z ${AWS_LC_VERSION+x} ]; then
+	download_aws_lc
+  build_aws_lc
 fi
 
 if [ ! -z ${QUICTLS+x} ]; then
