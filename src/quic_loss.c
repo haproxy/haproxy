@@ -25,9 +25,8 @@ void quic_loss_srtt_update(struct quic_loss *ql,
 	ql->latest_rtt = rtt;
 	if (!ql->rtt_min) {
 		/* No previous measurement. */
-		ql->srtt = rtt << 3;
-		/* rttval <- rtt / 2 or 4*rttval <- 2*rtt. */
-		ql->rtt_var = rtt << 1;
+		ql->srtt = rtt;
+		ql->rtt_var = rtt / 2;
 		ql->rtt_min = rtt;
 	}
 	else {
@@ -37,13 +36,11 @@ void quic_loss_srtt_update(struct quic_loss *ql,
 		/* Specific to QUIC (RTT adjustment). */
 		if (ack_delay && rtt >= ql->rtt_min + ack_delay)
 			rtt -= ack_delay;
-		diff = (ql->srtt >> 3) - rtt;
+		diff = ql->srtt - rtt;
 		if (diff < 0)
 			diff = -diff;
-		/* 4*rttvar = 3*rttvar + |diff| */
-		ql->rtt_var += diff - (ql->rtt_var >> 2);
-		/* 8*srtt = 7*srtt + rtt */
-		ql->srtt += rtt - (ql->srtt >> 3);
+		ql->rtt_var = (3 * ql->rtt_var + diff) / 4;
+		ql->srtt = (7 * ql->srtt + rtt) / 8;
 	}
 
 	TRACE_PROTO("TX loss srtt update", QUIC_EV_CONN_RTTUPDT, qc,,, ql);
@@ -93,8 +90,8 @@ struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
 
 	BUG_ON(LIST_ISEMPTY(&qc->pktns_list));
 	duration =
-		(ql->srtt >> 3) +
-		(QUIC_MAX(ql->rtt_var, QUIC_TIMER_GRANULARITY) << ql->pto_count);
+		ql->srtt +
+		(QUIC_MAX(4 * ql->rtt_var, QUIC_TIMER_GRANULARITY) << ql->pto_count);
 
 	/* RFC 9002 6.2.2.1. Before Address Validation
 	 *
@@ -170,7 +167,7 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 		goto out;
 
 	ql = &qc->path->loss;
-	loss_delay = QUIC_MAX(ql->latest_rtt, ql->srtt >> 3);
+	loss_delay = QUIC_MAX(ql->latest_rtt, ql->srtt);
 	loss_delay = QUIC_MAX(loss_delay, MS_TO_TICKS(QUIC_TIMER_GRANULARITY)) *
 		QUIC_LOSS_TIME_THRESHOLD_MULTIPLICAND / QUIC_LOSS_TIME_THRESHOLD_DIVISOR;
 

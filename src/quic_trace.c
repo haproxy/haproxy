@@ -419,7 +419,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			if (ql)
 				chunk_appendf(&trace_buf,
 				              " srtt=%ums rttvar=%ums min_rtt=%ums",
-				              ql->srtt >> 3, ql->rtt_var >> 2, ql->rtt_min);
+				              ql->srtt, ql->rtt_var, ql->rtt_min);
 		}
 		if (mask & QUIC_EV_CONN_CC) {
 			const struct quic_cc_event *ev = a2;
