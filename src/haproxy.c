@@ -490,7 +490,7 @@ int compare_current_version(const char *version)
 	return 0;
 }
 
-static void display_version()
+void display_version()
 {
 	struct utsname utsname;
 
