@@ -35,7 +35,7 @@ void quic_loss_srtt_update(struct quic_loss *ql,
 
 		ql->rtt_min = QUIC_MIN(rtt, ql->rtt_min);
 		/* Specific to QUIC (RTT adjustment). */
-		if (ack_delay && rtt > ql->rtt_min + ack_delay)
+		if (ack_delay && rtt >= ql->rtt_min + ack_delay)
 			rtt -= ack_delay;
 		diff = (ql->srtt >> 3) - rtt;
 		if (diff < 0)
