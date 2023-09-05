@@ -56,6 +56,7 @@ static char *resolvers_prefer = NULL;
 static int resolvers_disabled = 0;
 
 static int httpclient_retries = CONN_RETRIES;
+static int httpclient_timeout_connect = MS_TO_TICKS(5000);
 
 /* --- This part of the file implement an HTTP client over the CLI ---
  * The functions will be  starting by "hc_cli" for "httpclient cli"
@@ -1221,6 +1222,7 @@ struct proxy *httpclient_create_proxy(const char *id)
 	px->maxconn = 0;
 	px->accept = NULL;
 	px->conn_retries = httpclient_retries;
+	px->timeout.connect = httpclient_timeout_connect;
 	px->timeout.client = TICK_ETERNITY;
 	/* The HTTP Client use the "option httplog" with the global log server */
 	px->conf.logformat_string = httpclient_log_format;
@@ -1548,12 +1550,55 @@ static int httpclient_parse_global_retries(char **args, int section_type, struct
 	return 0;
 }
 
+static int httpclient_parse_global_timeout_connect(char **args, int section_type, struct proxy *curpx,
+                                        const struct proxy *defpx, const char *file, int line,
+                                        char **err)
+{
+	const char *res;
+	unsigned timeout;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*(args[1]) == 0) {
+		ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n",
+			 file, line, args[0]);
+		return -1;
+	}
+
+	res = parse_time_err(args[1], &timeout, TIME_UNIT_MS);
+	if (res == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument '%s' to '%s' (maximum value is 2147483647 ms or ~24.8 days)",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (res == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument '%s' to '%s' (minimum non-null value is 1 ms)",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (res) {
+		memprintf(err, "unexpected character '%c' in '%s'", *res, args[0]);
+		return -1;
+	}
+
+	if (*args[2] != 0) {
+		memprintf(err, "'%s' : unexpected extra argument '%s' after value '%s'.", args[0], args[2], args[1]);
+		return -1;
+	}
+
+	httpclient_timeout_connect = MS_TO_TICKS(timeout);
+
+	return 0;
+}
+
 
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "httpclient.resolvers.disabled", httpclient_parse_global_resolvers_disabled },
 	{ CFG_GLOBAL, "httpclient.resolvers.id", httpclient_parse_global_resolvers },
 	{ CFG_GLOBAL, "httpclient.resolvers.prefer", httpclient_parse_global_prefer },
 	{ CFG_GLOBAL, "httpclient.retries", httpclient_parse_global_retries },
+	{ CFG_GLOBAL, "httpclient.timeout.connect", httpclient_parse_global_timeout_connect },
 #ifdef USE_OPENSSL
 	{ CFG_GLOBAL, "httpclient.ssl.verify", httpclient_parse_global_verify },
 	{ CFG_GLOBAL, "httpclient.ssl.ca-file", httpclient_parse_global_ca_file },

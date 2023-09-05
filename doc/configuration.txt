@@ -1091,6 +1091,7 @@ The following keywords are supported in the "global" section :
    - httpclient.retries
    - httpclient.ssl.ca-file
    - httpclient.ssl.verify
+   - httpclient.timeout.connect
    - insecure-fork-wanted
    - insecure-setuid-wanted
    - issuers-chain-path
@@ -1758,6 +1759,18 @@ httpclient.ssl.verify [none|required]
 
   However, when this option is explicitly enabled it will trigger a
   configuration error if it fails.
+
+httpclient.timeout.connect <timeout>
+  Set the maximum time to wait for a connection attempt by default for the
+  httpclient.
+
+  Arguments :
+    <timeout> is the timeout value specified in milliseconds by default, but
+              can be in any other unit if the number is suffixed by the unit,
+              as explained at the top of this document.
+
+  The default value is 5000ms.
+
 
 insecure-fork-wanted
   By default HAProxy tries hard to prevent any thread and process creation
