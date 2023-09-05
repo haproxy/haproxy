@@ -35,28 +35,44 @@ print("Generating matrix for branch '{}'.".format(ref_name))
 def clean_ssl(ssl):
     return ssl.replace("_VERSION", "").lower()
 
-
-@functools.lru_cache(5)
-def determine_latest_openssl(ssl):
+def get_all_github_tags(url):
     headers = {}
     if environ.get("GITHUB_TOKEN") is not None:
         headers["Authorization"] = "token {}".format(environ.get("GITHUB_TOKEN"))
-    request = urllib.request.Request(
-        "https://api.github.com/repos/openssl/openssl/tags", headers=headers
-    )
+    request = urllib.request.Request(url, headers=headers)
     try:
-      openssl_tags = urllib.request.urlopen(request)
+        tags = urllib.request.urlopen(request)
     except:
-      return "OPENSSL_VERSION=failed_to_detect"
-    tags = json.loads(openssl_tags.read().decode("utf-8"))
+        return None
+    tags = json.loads(tags.read().decode("utf-8"))
+    return [tag['name'] for tag in tags]
+
+@functools.lru_cache(5)
+def determine_latest_openssl(ssl):
+    tags = get_all_github_tags("https://api.github.com/repos/openssl/openssl/tags")
+    if not tags:
+        return "OPENSSL_VERSION=failed_to_detect"
     latest_tag = ""
     for tag in tags:
-        name = tag["name"]
-        if "openssl-" in name:
-            if name > latest_tag:
-                latest_tag = name
+        if "openssl-" in tag:
+            if tag > latest_tag:
+                latest_tag = tag
     return "OPENSSL_VERSION={}".format(latest_tag[8:])
 
+def aws_lc_version_string_to_num(version_string):
+    return tuple(map(int, version_string[1:].split('.')))
+
+def aws_lc_version_valid(version_string):
+    return re.match('^v[0-9]+(\.[0-9]+)*$', version_string)
+
+@functools.lru_cache(5)
+def determine_latest_aws_lc(ssl):
+    tags = get_all_github_tags("https://api.github.com/repos/aws/aws-lc/tags")
+    if not tags:
+        return "AWS_LC_VERSION=failed_to_detect"
+    valid_tags = list(filter(aws_lc_version_valid, tags))
+    latest_tag = max(valid_tags, key=aws_lc_version_string_to_num)
+    return "AWS_LC_VERSION={}".format(latest_tag[1:])
 
 @functools.lru_cache(5)
 def determine_latest_libressl(ssl):
