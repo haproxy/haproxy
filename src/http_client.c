@@ -55,6 +55,8 @@ static char *resolvers_id = NULL;
 static char *resolvers_prefer = NULL;
 static int resolvers_disabled = 0;
 
+static int httpclient_retries = CONN_RETRIES;
+
 /* --- This part of the file implement an HTTP client over the CLI ---
  * The functions will be  starting by "hc_cli" for "httpclient cli"
  */
@@ -1218,7 +1220,7 @@ struct proxy *httpclient_create_proxy(const char *id)
 	px->mode = PR_MODE_HTTP;
 	px->maxconn = 0;
 	px->accept = NULL;
-	px->conn_retries = CONN_RETRIES;
+	px->conn_retries = httpclient_retries;
 	px->timeout.client = TICK_ETERNITY;
 	/* The HTTP Client use the "option httplog" with the global log server */
 	px->conf.logformat_string = httpclient_log_format;
@@ -1529,10 +1531,29 @@ static int httpclient_parse_global_verify(char **args, int section_type, struct 
 }
 #endif /* ! USE_OPENSSL */
 
+static int httpclient_parse_global_retries(char **args, int section_type, struct proxy *curpx,
+                                        const struct proxy *defpx, const char *file, int line,
+                                        char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*(args[1]) == 0) {
+		ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n",
+			 file, line, args[0]);
+		return -1;
+	}
+	httpclient_retries = atol(args[1]);
+
+	return 0;
+}
+
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "httpclient.resolvers.disabled", httpclient_parse_global_resolvers_disabled },
 	{ CFG_GLOBAL, "httpclient.resolvers.id", httpclient_parse_global_resolvers },
 	{ CFG_GLOBAL, "httpclient.resolvers.prefer", httpclient_parse_global_prefer },
+	{ CFG_GLOBAL, "httpclient.retries", httpclient_parse_global_retries },
 #ifdef USE_OPENSSL
 	{ CFG_GLOBAL, "httpclient.ssl.verify", httpclient_parse_global_verify },
 	{ CFG_GLOBAL, "httpclient.ssl.ca-file", httpclient_parse_global_ca_file },
