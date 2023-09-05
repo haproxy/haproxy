@@ -122,9 +122,10 @@ int pat_parse_bin(const char *text, struct pattern *pattern, int mflags, char **
 int pat_parse_reg(const char *text, struct pattern *pattern, int mflags, char **err);
 
 /* Parse an IP address and an optional mask in the form addr[/mask].
- * The addr may either be an IPv4 address or a hostname. The mask
- * may either be a dotted mask or a number of bits. Returns 1 if OK,
- * otherwise 0.
+ * The addr may either be an IPv4 or IPv6 address, or a hostname that resolves
+ * to a valid IPv4 address. The mask can be provided as a number of bits, or
+ * even as a dotted mask (but the latter only works for IPv4 addresses).
+ * Returns 1 if OK, otherwise 0.
  */
 int pat_parse_ip(const char *text, struct pattern *pattern, int mflags, char **err);
 
@@ -164,7 +165,9 @@ struct pattern *pat_match_dir(struct sample *smp, struct pattern_expr *expr, int
  */
 struct pattern *pat_match_dom(struct sample *smp, struct pattern_expr *expr, int fill);
 
-/* Check that the IPv4 address in <test> matches the IP/mask in pattern */
+/* Check that the input IP address (IPv4 or IPv6) in <smp> matches the IP/mask
+ * in pattern
+ */
 struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int fill);
 
 /* Executes a regex. It temporarily changes the data to add a trailing zero,
