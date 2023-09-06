@@ -177,8 +177,15 @@ static inline int applet_putchk(struct appctx *appctx, struct buffer *chunk)
 	int ret;
 
 	ret = ci_putchk(sc_ic(se->sc), chunk);
-	if (ret == -1)
+	if (ret < 0) {
+		/* XXX: Handle all errors as a lack of space because callers
+		 * don't handles other cases for now. So applets must be
+		 * carefull to handles shutdown (-2) and invalid calls (-3) by
+		 * themselves.
+		 */
 		sc_need_room(se->sc, chunk->data);
+		ret = -1;
+	}
 
 	return ret;
 }
@@ -193,8 +200,15 @@ static inline int applet_putblk(struct appctx *appctx, const char *blk, int len)
 	int ret;
 
 	ret = ci_putblk(sc_ic(se->sc), blk, len);
-	if (ret == -1)
+	if (ret < -1) {
+		/* XXX: Handle all errors as a lack of space because callers
+		 * don't handles other cases for now. So applets must be
+		 * carefull to handles shutdown (-2) and invalid calls (-3) by
+		 * themselves.
+		 */
 		sc_need_room(se->sc, len);
+		ret = -1;
+	}
 
 	return ret;
 }
@@ -210,8 +224,15 @@ static inline int applet_putstr(struct appctx *appctx, const char *str)
 	int ret;
 
 	ret = ci_putstr(sc_ic(se->sc), str);
-	if (ret == -1)
+	if (ret == -1) {
+		/* XXX: Handle all errors as a lack of space because callers
+		 * don't handles other cases for now. So applets must be
+		 * carefull to handles shutdown (-2) and invalid calls (-3) by
+		 * themselves.
+		 */
 		sc_need_room(se->sc, strlen(str));
+		ret = -1;
+	}
 
 	return ret;
 }
@@ -226,8 +247,15 @@ static inline int applet_putchr(struct appctx *appctx, char chr)
 	int ret;
 
 	ret = ci_putchr(sc_ic(se->sc), chr);
-	if (ret == -1)
+	if (ret == -1) {
+		/* XXX: Handle all errors as a lack of space because callers
+		 * don't handles other cases for now. So applets must be
+		 * carefull to handles shutdown (-2) and invalid calls (-3) by
+		 * themselves.
+		 */
 		sc_need_room(se->sc, 1);
+		ret = -1;
+	}
 
 	return ret;
 }
