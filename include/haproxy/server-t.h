@@ -164,6 +164,7 @@ enum srv_initaddr {
 #define SRV_PP_V2_AUTHORITY     0x0080   /* proxy protocol version 2 with authority */
 #define SRV_PP_V2_CRC32C        0x0100   /* proxy protocol version 2 with crc32c */
 #define SRV_PP_V2_UNIQUE_ID     0x0200   /* proxy protocol version 2 with unique ID */
+#define SRV_PP_V2_SET_TLV       0x0400   /* proxy protocol version 2 with TLV, joyent */
 
 /* function which act on servers need to return various errors */
 #define SRV_STATUS_OK       0   /* everything is OK. */
@@ -444,6 +445,8 @@ struct server {
 	struct conn_src conn_src;               /* connection source settings */
 	struct sockaddr_storage addr;           /* the address to connect to, doesn't include the port */
 	struct sockaddr_storage socks4_addr;	/* the address of the SOCKS4 Proxy, including the port */
+
+	struct list tlv_list;        /* server's PPV2 TLVs, joyent */
 
 	EXTRA_COUNTERS(extra_counters);
 };

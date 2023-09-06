@@ -49,6 +49,9 @@
 #include <haproxy/xxhash.h>
 #include <haproxy/event_hdl.h>
 
+#define TLV_DELIM          ";"
+#define TLV_VALUE_DELIM    "="
+
 
 static void srv_update_status(struct server *s, int type, int cause);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
@@ -1304,6 +1307,81 @@ static int srv_parse_send_proxy_v2(char **args, int *cur_arg,
 	return srv_enable_pp_flags(newsrv, SRV_PP_V2);
 }
 
+static struct conn_tlv_list* parse_tlv_kv(char* str, char *delim)
+{
+    char *key = NULL;
+    char *val = NULL;
+    uint16_t l;
+    struct conn_tlv_list *cur_node;
+
+    key = strtok_r(str, delim, &val);
+    val = strtok_r(NULL, delim, &val);
+    l = (uint16_t)strlen(val);
+
+    cur_node = (struct conn_tlv_list*)malloc(sizeof(struct conn_tlv_list) + l + 1);
+    if (cur_node == NULL) {
+        return NULL;
+    }
+
+	LIST_INIT(&cur_node->list);
+    
+    cur_node->type = (uint8_t)strtol(key, NULL, 0);
+    strncpy((char*)cur_node->value, val, l);
+    cur_node->value[l] = '\0';
+	cur_node->len = l;
+
+	return cur_node;
+}
+
+/* parse TLVs in config file */
+/* 0xe0=this-is-tlv-value;0x30=tlv-123456; */
+static int parse_tlv(struct server *newsrv, char* value, char *delim) 
+{
+	struct conn_tlv_list *node;
+    char *ret_ptr = NULL;
+    char *next_ptr = NULL;
+	int cnt=0;
+
+    ret_ptr = strtok_r(value, delim, &next_ptr);
+
+    while(ret_ptr) {
+        node = parse_tlv_kv(ret_ptr, TLV_VALUE_DELIM);
+		if (node != NULL) {
+			LIST_APPEND(&newsrv->tlv_list, &node->list);
+			cnt ++;
+		}
+
+        ret_ptr = strtok_r(NULL, delim, &next_ptr);
+    }
+
+	return cnt;
+}
+
+/* Parse the "set-proxy-v2-tlv" server keyword, joyent */
+static int srv_parse_set_proxy_v2_tlv(char **args, int *cur_arg,
+                                   struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	char *errmsg=NULL, *value;
+
+	value = args[*cur_arg + 1];
+	if (!*value) {
+		memprintf(err, "'%s' expects <tlv>\n", args[*cur_arg]);
+		goto err;
+	}
+
+	*cur_arg += 1;
+    parse_tlv(newsrv, value, TLV_DELIM);
+
+	srv_enable_pp_flags(newsrv, SRV_PP_V2);
+	srv_enable_pp_flags(newsrv, SRV_PP_V2_SET_TLV);
+
+	return 0;
+
+ err:
+	free(errmsg);
+	return ERR_ALERT | ERR_FATAL;
+}
+
 /* Parse the "slowstart" server keyword */
 static int srv_parse_slowstart(char **args, int *cur_arg,
                                struct proxy *curproxy, struct server *newsrv, char **err)
@@ -1914,6 +1992,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "resolvers",           srv_parse_resolvers,           1,  1,  0 }, /* Configure the resolver to use for name resolution */
 	{ "send-proxy",          srv_parse_send_proxy,          0,  1,  1 }, /* Enforce use of PROXY V1 protocol */
 	{ "send-proxy-v2",       srv_parse_send_proxy_v2,       0,  1,  1 }, /* Enforce use of PROXY V2 protocol */
+	{ "set-proxy-v2-tlv",    srv_parse_set_proxy_v2_tlv,    0,  0,  1 }, /* Set TLV of PROXY V2 protocol, joyent */
 	{ "shard",               srv_parse_shard,               1,  1,  1 }, /* Server shard (only in peers protocol context) */
 	{ "slowstart",           srv_parse_slowstart,           1,  1,  1 }, /* Set the warm-up timer for a previously failed server */
 	{ "source",              srv_parse_source,             -1,  1,  1 }, /* Set the source address to be used to connect to the server */
@@ -2428,6 +2507,7 @@ struct server *new_server(struct proxy *proxy)
 	LIST_APPEND(&servers_list, &srv->global_list);
 	LIST_INIT(&srv->srv_rec_item);
 	LIST_INIT(&srv->ip_rec_item);
+	LIST_INIT(&srv->tlv_list);
 	MT_LIST_INIT(&srv->prev_deleted);
 	event_hdl_sub_list_init(&srv->e_subs);
 	srv->rid = 0; /* rid defaults to 0 */
@@ -2485,6 +2565,18 @@ void srv_free_params(struct server *srv)
 		xprt_get(XPRT_SSL)->destroy_srv(srv);
 }
 
+/* free tlvs belongs to svr, joyent */
+void srv_free_tlv_nodes(struct server *srv) 
+{
+    struct conn_tlv_list *node, *back;
+	
+	list_for_each_entry_safe(node, back, &srv->tlv_list, list) {
+		LIST_DEL_INIT(&node->list);
+		free(node);
+	}
+}
+
+
 /* Deallocate a server <srv> and its member. <srv> must be allocated. For
  * dynamic servers, its refcount is decremented first. The free operations are
  * conducted only if the refcount is nul.
@@ -2524,6 +2616,8 @@ struct server *srv_drop(struct server *srv)
 
 	LIST_DELETE(&srv->global_list);
 	event_hdl_sub_list_destroy(&srv->e_subs);
+
+	srv_free_tlv_nodes(srv);
 
 	EXTRA_COUNTERS_FREE(srv->extra_counters);
 

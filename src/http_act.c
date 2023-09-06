@@ -14,6 +14,7 @@
 
 #include <ctype.h>
 #include <string.h>
+#include <stdio.h>
 #include <time.h>
 
 #include <haproxy/acl.h>
@@ -39,6 +40,7 @@
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/uri_normalizer.h>
 #include <haproxy/version.h>
+#include <haproxy/base64.h>
 
 
 /* Release memory allocated by most of HTTP actions. Concretly, it releases
@@ -1554,6 +1556,305 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 	return ACT_RET_PRS_OK;
 }
 
+/* joyent */
+static int generate_ppv2_tlv_header(struct list *tlv_lists, char *buf, int max_len) {
+	struct conn_tlv_list *node;
+	int len = 0, tlv_val_len;
+
+// leading code: 0xff=
+// tail semicolon
+#define CODE_LEN 6
+
+	list_for_each_entry(node, tlv_lists, list) {
+		tlv_val_len = node->len;
+		if (max_len <= (len+tlv_val_len+CODE_LEN)) {
+			break;
+		}
+
+		len += snprintf(&buf[len], max_len-len, "0x%02x=", node->type);
+		len += a2base64((char*)node->value, tlv_val_len, &buf[len], max_len-len);
+		buf[len++] = ';';
+	}
+
+	return len;
+}
+
+static enum act_return http_action_set_ppv2_tlv_header(struct act_rule *rule, struct proxy *px,
+					      struct session *sess, struct stream *s, int flags)
+{
+	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn->req : &s->txn->rsp);
+	struct htx *htx = htxbuf(&msg->chn->buf);
+	enum act_return ret = ACT_RET_CONT;
+	struct server *srv = px->srv;
+	struct connection *conn = objt_conn(strm_orig(s));
+	struct http_hdr_ctx ctx;
+	struct ist n, v;
+
+	int max_len=1024, len=0;
+	char val[max_len];
+
+	val[0] = '\0';
+
+	// req only
+	if (srv == NULL || rule->from == ACT_F_HTTP_RES) {
+		return ret;
+	}
+
+	if (srv != NULL) {
+		len += generate_ppv2_tlv_header(&srv->tlv_list, &val[len], max_len - len);
+	}
+
+	if (conn != NULL) {
+		len += generate_ppv2_tlv_header(&conn->tlv_list, &val[len], max_len - len);
+	}
+
+	if (len < 1) {
+		return ret;
+	} 
+	else if (max_len < len) {
+		val[max_len-1] = '\0';
+	} 
+	else {
+		val[len] = '\0';
+	}
+
+	n = rule->arg.http.str;
+	v = ist(val);
+
+	/* remove all occurrences of the header */
+	ctx.blk = NULL;
+	while (http_find_header(htx, n, &ctx, 1))
+		http_remove_header(htx, &ctx);
+
+	/* Now add header */
+	if (!http_add_header(htx, n, v))
+		goto fail_rewrite;
+
+leave:
+	return ret;
+
+fail_rewrite:
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_rewrites);
+	if (s->flags & SF_BE_ASSIGNED)
+		_HA_ATOMIC_INC(&s->be->be_counters.failed_rewrites);
+	if (sess->listener && sess->listener->counters)
+		_HA_ATOMIC_INC(&sess->listener->counters->failed_rewrites);
+	if (objt_server(s->target))
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_rewrites);
+
+	if (!(msg->flags & HTTP_MSGF_SOFT_RW)) {
+		ret = ACT_RET_ERR;
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_PRXCOND;
+	}
+	goto leave;
+}
+
+static int generate_ppv2_header(char *buf, int buf_len, const struct sockaddr_storage *src, const struct sockaddr_storage *dst)
+{
+	int ret = 0;
+	char * protocol;
+	char src_str[MAX(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)];
+	char dst_str[MAX(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)];
+	in_port_t src_port;
+	in_port_t dst_port;
+
+	if (   !src
+	    || !dst
+	    || (src->ss_family != AF_INET && src->ss_family != AF_INET6)
+	    || (dst->ss_family != AF_INET && dst->ss_family != AF_INET6)) {
+
+		return ret;
+	}
+
+	/* IPv4 for both src and dst */
+	if (src->ss_family == AF_INET && dst->ss_family == AF_INET) {
+		protocol = "TCP4";
+		if (!inet_ntop(AF_INET, &((struct sockaddr_in *)src)->sin_addr, src_str, sizeof(src_str)))
+			return 0;
+		src_port = ((struct sockaddr_in *)src)->sin_port;
+		if (!inet_ntop(AF_INET, &((struct sockaddr_in *)dst)->sin_addr, dst_str, sizeof(dst_str)))
+			return 0;
+		dst_port = ((struct sockaddr_in *)dst)->sin_port;
+	}
+	/* IPv6 for at least one of src and dst */
+	else {
+		struct in6_addr tmp;
+
+		protocol = "TCP6";
+
+		if (src->ss_family == AF_INET) {
+			/* Convert src to IPv6 */
+			v4tov6(&tmp, &((struct sockaddr_in *)src)->sin_addr);
+			src_port = ((struct sockaddr_in *)src)->sin_port;
+		}
+		else {
+			tmp = ((struct sockaddr_in6 *)src)->sin6_addr;
+			src_port = ((struct sockaddr_in6 *)src)->sin6_port;
+		}
+
+		if (!inet_ntop(AF_INET6, &tmp, src_str, sizeof(src_str)))
+			return 0;
+
+		if (dst->ss_family == AF_INET) {
+			/* Convert dst to IPv6 */
+			v4tov6(&tmp, &((struct sockaddr_in *)dst)->sin_addr);
+			dst_port = ((struct sockaddr_in *)dst)->sin_port;
+		}
+		else {
+			tmp = ((struct sockaddr_in6 *)dst)->sin6_addr;
+			dst_port = ((struct sockaddr_in6 *)dst)->sin6_port;
+		}
+
+		if (!inet_ntop(AF_INET6, &tmp, dst_str, sizeof(dst_str)))
+			return 0;
+	}
+
+	ret = snprintf(buf, buf_len, "address-type=%s;source-address=%s:%u;destination-address=%s:%u;", 
+				   protocol, src_str, ntohs(src_port), dst_str, ntohs(dst_port));
+
+	if (ret >= buf_len)
+		return 0;
+
+	return ret;
+}
+
+static enum act_return http_action_set_ppv2_header(struct act_rule *rule, struct proxy *px,
+					      struct session *sess, struct stream *s, int flags)
+{
+	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn->req : &s->txn->rsp);
+	struct htx *htx = htxbuf(&msg->chn->buf);
+	enum act_return ret = ACT_RET_CONT;
+	struct connection *conn = objt_conn(strm_orig(s));
+	struct http_hdr_ctx ctx;
+	struct ist n, v;
+
+	const struct sockaddr_storage *src = NULL;
+	const struct sockaddr_storage *dst = NULL;
+
+	int max_len=1024, len=0;
+	char val[max_len];
+
+	val[0] = '\0';
+
+	// req only
+	if (rule->from == ACT_F_HTTP_RES) {
+		return ret;
+	}
+
+	if (s) {
+		src = sc_src(s->scf);
+		dst = sc_dst(s->scf);
+	}
+	else if (conn && conn_get_src(conn) && conn_get_dst(conn)) {
+		src = conn_src(conn);
+		dst = conn_dst(conn);
+	}
+
+	if (src && dst)
+		len = generate_ppv2_header(val, max_len, src, dst);
+	else
+		len = generate_ppv2_header(val, max_len, NULL, NULL);
+
+	if (len < 1) {
+		return ret;
+	} 
+	else if (max_len < len) {
+		val[max_len-1] = '\0';
+	} 
+	else {
+		val[len] = '\0';
+	}
+
+	n = rule->arg.http.str;
+	v = ist(val);
+
+	/* remove all occurrences of the header */
+	ctx.blk = NULL;
+	while (http_find_header(htx, n, &ctx, 1))
+		http_remove_header(htx, &ctx);
+
+	/* Now add header */
+	if (!http_add_header(htx, n, v))
+		goto fail_rewrite;
+
+leave:
+	return ret;
+
+fail_rewrite:
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_rewrites);
+	if (s->flags & SF_BE_ASSIGNED)
+		_HA_ATOMIC_INC(&s->be->be_counters.failed_rewrites);
+	if (sess->listener && sess->listener->counters)
+		_HA_ATOMIC_INC(&sess->listener->counters->failed_rewrites);
+	if (objt_server(s->target))
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_rewrites);
+
+	if (!(msg->flags & HTTP_MSGF_SOFT_RW)) {
+		ret = ACT_RET_ERR;
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_PRXCOND;
+	}
+	goto leave;
+}
+
+static enum act_parse_ret parse_http_set_ppv2_header(const char **args, int *orig_arg, struct proxy *px,
+					   struct act_rule *rule, char **err)
+{
+	int cur_arg;
+	const char *p;
+
+	/* set-proxy-v2-header */
+	if (args[*orig_arg-1][13] == 'h') {
+		rule->action = ACT_HTTP_SET_PPV2_HDR;
+		rule->action_ptr = http_action_set_ppv2_header;
+		rule->release_ptr = release_http_action;
+	}
+	/* set-proxy-v2-tlv-header */
+	else {
+		rule->action = ACT_HTTP_SET_PPV2_TLV_HDR;
+		rule->action_ptr = http_action_set_ppv2_tlv_header;
+		rule->release_ptr = release_http_action;
+	}
+
+	LIST_INIT(&rule->arg.http.fmt);
+
+	cur_arg = *orig_arg;
+	if (!*args[cur_arg]) {
+		memprintf(err, "expects exactly 1 arguments");
+		return ACT_RET_PRS_ERR;
+	}
+
+	rule->arg.http.str = ist(strdup(args[cur_arg]));
+
+	free(px->conf.lfs_file);
+	px->conf.lfs_file = strdup(px->conf.args.file);
+	px->conf.lfs_line = px->conf.args.line;
+
+	(*orig_arg) ++;
+
+	/* some characters are totally forbidden in header names and
+	 * may happen by accident when writing configs, causing strange
+	 * failures in field. Better catch these ones early, nobody will
+	 * miss them. In particular, a colon at the end (or anywhere
+	 * after the first char) or a space/cr anywhere due to misplaced
+	 * quotes are hard to spot.
+	 */
+	for (p = istptr(rule->arg.http.str); p < istend(rule->arg.http.str); p++) {
+		if (HTTP_IS_TOKEN(*p))
+			continue;
+		if (p == istptr(rule->arg.http.str) && *p == ':')
+			continue;
+		/* we only report this as-is but it will not cause an error */
+		memprintf(err, "header name '%s' contains forbidden character '%c'", istptr(rule->arg.http.str), *p);
+		break;
+	}
+
+	return ACT_RET_PRS_OK;
+}
+/* joyent */
+
+
 /* This function executes a replace-header or replace-value actions. It
  * builds a string in the trash from the specified format string. It finds
  * the action to be performed in <.action>, previously filled by function
@@ -2450,6 +2751,9 @@ static struct action_kw_list http_req_actions = {
 		{ "track-sc",         parse_http_track_sc,             KWF_MATCH_PREFIX },
 		{ "set-timeout",      parse_http_set_timeout,          0 },
 		{ "wait-for-body",    parse_http_wait_for_body,        0 },
+		{ "set-proxy-v2-header",     parse_http_set_ppv2_header, 0 }, /* joyent */
+		{ "set-proxy-v2-tlv-header", parse_http_set_ppv2_header, 0 }, /* joyent */
+
 		{ NULL, NULL }
 	}
 };

@@ -1912,6 +1912,18 @@ static int make_tlv(char *dest, int dest_len, char type, uint16_t length, const 
 	return length + sizeof(*tlv);
 }
 
+/* put tlv data into buffer, joyent */
+static int put_tlv(char *dest, int dest_len, struct conn_tlv_list *tlv)
+{
+	size_t length = TLV_HEADER_SIZE + tlv->len;
+
+	if (!dest || length > dest_len)
+		return 0;
+
+	memcpy(dest, tlv, length);
+	return length;
+}
+
 /* Note: <remote> is explicitly allowed to be NULL */
 static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote, struct stream *strm)
 {
@@ -2040,6 +2052,26 @@ static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct
 			if ((buf_len - ret) < sizeof(struct tlv))
 				return 0;
 			ret += make_tlv(&buf[ret], (buf_len - ret), PP2_TYPE_UNIQUE_ID, value_len, value);
+		}
+	}
+
+	/* copy server TLVs, joyent */
+	if (strm && (srv->pp_opts & SRV_PP_V2_SET_TLV)) {
+		struct conn_tlv_list *node;
+
+		list_for_each_entry(node, &srv->tlv_list, list) {
+			/* append TLVs from config */
+			ret += put_tlv(&buf[ret], (buf_len - ret), node);
+		}
+	}
+
+	/* copy TLVs from remote's, joyent */
+	if (strm && remote) {
+		struct conn_tlv_list *node;
+
+		list_for_each_entry(node, &remote->tlv_list, list) {
+			/* append remote TLVs */
+			ret += put_tlv(&buf[ret], (buf_len - ret), node);
 		}
 	}
 

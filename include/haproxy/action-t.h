@@ -89,6 +89,10 @@ enum act_name {
 	/* http request actions. */
 	ACT_HTTP_REQ_TARPIT,
 
+	/* http request for ppv2, joyent */
+	ACT_HTTP_SET_PPV2_HDR,
+	ACT_HTTP_SET_PPV2_TLV_HDR,
+
 	/* tcp actions */
 	ACT_TCP_EXPECT_PX,
 	ACT_TCP_EXPECT_CIP,
