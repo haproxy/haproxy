@@ -465,7 +465,10 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	if (sc_ic(sc)->flags & CF_READ_EVENT)
 		sc_ep_report_read_activity(sc);
 
-	if (channel_is_empty(sc_oc(sc)))
+	if (sc_waiting_room(sc) && (sc->flags & SC_FL_ABRT_DONE)) {
+		sc_ep_set(sc, SE_FL_EOS|SE_FL_ERROR);
+	}
+	else if (channel_is_empty(sc_oc(sc)))
 		sc_ep_report_send_activity(sc);
 	else {
 		sc_ep_report_blocked_send(sc);
