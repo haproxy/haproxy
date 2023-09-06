@@ -442,6 +442,8 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		/* always drain all the request */
 		co_skip(sc_oc(sc), sc_oc(sc)->output);
 	}
+
+	applet_expect_no_data(appctx);
 	return ret;
 }
 
