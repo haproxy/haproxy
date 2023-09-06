@@ -60,4 +60,3 @@ jobs:
             cat $folder/LOG
             echo "::endgroup::"
           done
-          shopt -s nullglob
