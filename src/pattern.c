@@ -964,138 +964,128 @@ struct pattern *pat_match_len(struct sample *smp, struct pattern_expr *expr, int
 	return NULL;
 }
 
-struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int fill)
+/* Performs ipv4 key lookup in <expr> ipv4 tree
+ * Returns NULL on failure
+ */
+static struct pattern *_pat_match_tree_ipv4(struct in_addr *key, struct pattern_expr *expr, int fill)
 {
-	struct in_addr v4; /* in network byte order */
-	struct in6_addr tmp6;
-	struct in_addr *s;
 	struct ebmb_node *node;
 	struct pattern_tree *elt;
+
+	/* Lookup an IPv4 address in the expression's pattern tree using
+	 * the longest match method.
+	 */
+	node = ebmb_lookup_longest(&expr->pattern_tree, key);
+	while (node) {
+		elt = ebmb_entry(node, struct pattern_tree, node);
+		if (elt->ref->gen_id != expr->ref->curr_gen) {
+			node = ebmb_lookup_shorter(node);
+			continue;
+		}
+		if (fill) {
+			static_pattern.data = elt->data;
+			static_pattern.ref = elt->ref;
+			static_pattern.sflags = PAT_SF_TREE;
+			static_pattern.type = SMP_T_IPV4;
+			static_pattern.val.ipv4.addr.s_addr = read_u32(elt->node.key);
+			if (!cidr2dotted(elt->node.node.pfx, &static_pattern.val.ipv4.mask))
+				return NULL;
+		}
+		return &static_pattern;
+	}
+	return NULL;
+}
+
+/* Performs ipv6 key lookup in <expr> ipv6 tree
+ * Returns NULL on failure
+ */
+static struct pattern *_pat_match_tree_ipv6(struct in6_addr *key, struct pattern_expr *expr, int fill)
+{
+	struct ebmb_node *node;
+	struct pattern_tree *elt;
+
+	/* Lookup an IPv6 address in the expression's pattern tree using
+	 * the longest match method.
+	 */
+	node = ebmb_lookup_longest(&expr->pattern_tree_2, key);
+	while (node) {
+		elt = ebmb_entry(node, struct pattern_tree, node);
+		if (elt->ref->gen_id != expr->ref->curr_gen) {
+			node = ebmb_lookup_shorter(node);
+			continue;
+		}
+		if (fill) {
+			static_pattern.data = elt->data;
+			static_pattern.ref = elt->ref;
+			static_pattern.sflags = PAT_SF_TREE;
+			static_pattern.type = SMP_T_IPV6;
+			memcpy(&static_pattern.val.ipv6.addr, elt->node.key, 16);
+			static_pattern.val.ipv6.mask = elt->node.node.pfx;
+		}
+		return &static_pattern;
+	}
+	return NULL;
+}
+
+struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int fill)
+{
+	struct in_addr v4;
+	struct in6_addr v6;
 	struct pattern_list *lst;
 	struct pattern *pattern;
 
 	/* The input sample is IPv4. Try to match in the trees. */
 	if (smp->data.type == SMP_T_IPV4) {
-		/* Lookup an IPv4 address in the expression's pattern tree using
-		 * the longest match method.
-		 */
-		s = &smp->data.u.ipv4;
-		node = ebmb_lookup_longest(&expr->pattern_tree, &s->s_addr);
-		while (node) {
-			elt = ebmb_entry(node, struct pattern_tree, node);
-			if (elt->ref->gen_id != expr->ref->curr_gen) {
-				node = ebmb_lookup_shorter(node);
-				continue;
-			}
-			if (fill) {
-				static_pattern.data = elt->data;
-				static_pattern.ref = elt->ref;
-				static_pattern.sflags = PAT_SF_TREE;
-				static_pattern.type = SMP_T_IPV4;
-				static_pattern.val.ipv4.addr.s_addr = read_u32(elt->node.key);
-				if (!cidr2dotted(elt->node.node.pfx, &static_pattern.val.ipv4.mask))
-					return NULL;
-			}
-			return &static_pattern;
-		}
-
+		pattern = _pat_match_tree_ipv4(&smp->data.u.ipv4, expr, fill);
+		if (pattern)
+			return pattern;
 		/* The IPv4 sample don't match the IPv4 tree. Convert the IPv4
 		 * sample address to IPv6 and try to lookup in the IPv6 tree.
 		 */
-		v4tov6(&tmp6, &smp->data.u.ipv4);
-		node = ebmb_lookup_longest(&expr->pattern_tree_2, &tmp6);
-		while (node) {
-			elt = ebmb_entry(node, struct pattern_tree, node);
-			if (elt->ref->gen_id != expr->ref->curr_gen) {
-				node = ebmb_lookup_shorter(node);
-				continue;
-			}
-			if (fill) {
-				static_pattern.data = elt->data;
-				static_pattern.ref = elt->ref;
-				static_pattern.sflags = PAT_SF_TREE;
-				static_pattern.type = SMP_T_IPV6;
-				memcpy(&static_pattern.val.ipv6.addr, elt->node.key, 16);
-				static_pattern.val.ipv6.mask = elt->node.node.pfx;
-			}
-			return &static_pattern;
-		}
+		v4tov6(&v6, &smp->data.u.ipv4);
+		pattern = _pat_match_tree_ipv6(&v6, expr, fill);
+		if (pattern)
+			return pattern;
+		/* eligible for list lookup using IPv4 address */
+		v4 = smp->data.u.ipv4;
+		goto list_lookup;
 	}
 
 	/* The input sample is IPv6. Try to match in the trees. */
 	if (smp->data.type == SMP_T_IPV6) {
-		/* Lookup an IPv6 address in the expression's pattern tree using
-		 * the longest match method.
+		pattern = _pat_match_tree_ipv6(&smp->data.u.ipv6, expr, fill);
+		if (pattern)
+			return pattern;
+		/* No match in the IPv6 tree. Try to convert 6 to 4 to lookup in
+		 * the IPv4 tree
 		 */
-		node = ebmb_lookup_longest(&expr->pattern_tree_2, &smp->data.u.ipv6);
-		while (node) {
-			elt = ebmb_entry(node, struct pattern_tree, node);
-			if (elt->ref->gen_id != expr->ref->curr_gen) {
-				node = ebmb_lookup_shorter(node);
-				continue;
-			}
-			if (fill) {
-				static_pattern.data = elt->data;
-				static_pattern.ref = elt->ref;
-				static_pattern.sflags = PAT_SF_TREE;
-				static_pattern.type = SMP_T_IPV6;
-				memcpy(&static_pattern.val.ipv6.addr, elt->node.key, 16);
-				static_pattern.val.ipv6.mask = elt->node.node.pfx;
-			}
-			return &static_pattern;
-		}
-
-		/* Try to convert 6 to 4 */
 		if (v6tov4(&v4, &smp->data.u.ipv6)) {
-			/* Lookup an IPv4 address in the expression's pattern tree using the longest
-			 * match method.
-			 */
-			node = ebmb_lookup_longest(&expr->pattern_tree, &v4);
-			while (node) {
-				elt = ebmb_entry(node, struct pattern_tree, node);
-				if (elt->ref->gen_id != expr->ref->curr_gen) {
-					node = ebmb_lookup_shorter(node);
-					continue;
-				}
-				if (fill) {
-					static_pattern.data = elt->data;
-					static_pattern.ref = elt->ref;
-					static_pattern.sflags = PAT_SF_TREE;
-					static_pattern.type = SMP_T_IPV4;
-					static_pattern.val.ipv4.addr.s_addr = read_u32(elt->node.key);
-					if (!cidr2dotted(elt->node.node.pfx, &static_pattern.val.ipv4.mask))
-						return NULL;
-				}
-				return &static_pattern;
-			}
+			pattern = _pat_match_tree_ipv4(&v4, expr, fill);
+			if (pattern)
+				return pattern;
+			/* eligible for list lookup using IPv4 address */
+			goto list_lookup;
 		}
 	}
 
-	/* Lookup in the list. the list contain only IPv4 patterns */
+ not_found:
+	return NULL;
+
+ list_lookup:
+	/* No match in the trees, but we still have a valid IPv4 address: lookup
+	 * in the IPv4 list (non-contiguous masks list). This is our last resort
+	 */
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
 		if (pattern->ref->gen_id != expr->ref->curr_gen)
 			continue;
 
-		/* The input sample is IPv4, use it as is. */
-		if (smp->data.type == SMP_T_IPV4) {
-			v4.s_addr = smp->data.u.ipv4.s_addr;
-		}
-		else if (smp->data.type == SMP_T_IPV6) {
-			/* v4 match on a V6 sample. Try to convert v6 form to v4 address */
-			if (!v6tov4(&v4, &smp->data.u.ipv6))
-				continue;
-		} else {
-		  /* impossible */
-		  continue;
-		}
-
 		/* Check if the input sample match the current pattern. */
 		if (((v4.s_addr ^ pattern->val.ipv4.addr.s_addr) & pattern->val.ipv4.mask.s_addr) == 0)
 			return pattern;
 	}
-	return NULL;
+	goto not_found;
 }
 
 /* finds the pattern holding <list> from list head <head> and deletes it.
