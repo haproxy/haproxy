@@ -472,8 +472,6 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 		sc_ep_report_send_activity(sc);
 	else {
 		sc_ep_report_blocked_send(sc);
-		__sc_strm(sc)->task->expire = tick_first(__sc_strm(sc)->task->expire, sc_ep_snd_ex(sc));
-		task_queue(__sc_strm(sc)->task);
 	}
 
 	/* measure the call rate and check for anomalies when too high */
