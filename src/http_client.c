@@ -1350,11 +1350,11 @@ static int httpclient_precheck()
 	return 0;
 }
 
-static int httpclient_postcheck()
+/* Initialize the logs for every proxy dedicated to the httpclient */
+static int httpclient_postcheck_proxy(struct proxy *curproxy)
 {
 	int err_code = ERR_NONE;
 	struct logsrv *logsrv;
-	struct proxy *curproxy = NULL;
 	char *errmsg = NULL;
 #ifdef USE_OPENSSL
 	struct server *srv = NULL;
@@ -1364,61 +1364,57 @@ static int httpclient_postcheck()
 	if (global.mode & MODE_MWORKER_WAIT)
 		return ERR_NONE;
 
-	/* Initialize the logs for every proxy dedicated to the httpclient */
-	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
+	if (!(curproxy->cap & PR_CAP_HTTPCLIENT))
+		return ERR_NONE; /* nothing to do */
 
-		if (!(curproxy->cap & PR_CAP_HTTPCLIENT))
-			continue;
+	/* copy logs from "global" log list */
+	list_for_each_entry(logsrv, &global.logsrvs, list) {
+		struct logsrv *node = malloc(sizeof(*node));
 
-		/* copy logs from "global" log list */
-		list_for_each_entry(logsrv, &global.logsrvs, list) {
-			struct logsrv *node = malloc(sizeof(*node));
-
-			if (!node) {
-				memprintf(&errmsg, "out of memory.");
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto err;
-			}
-
-			memcpy(node, logsrv, sizeof(*node));
-			LIST_INIT(&node->list);
-			LIST_APPEND(&curproxy->logsrvs, &node->list);
-			node->ring_name = logsrv->ring_name ? strdup(logsrv->ring_name) : NULL;
-			node->conf.file = logsrv->conf.file ? strdup(logsrv->conf.file) : NULL;
+		if (!node) {
+			memprintf(&errmsg, "out of memory.");
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
 		}
-		if (curproxy->conf.logformat_string) {
-			curproxy->conf.args.ctx = ARGC_LOG;
-			if (!parse_logformat_string(curproxy->conf.logformat_string, curproxy, &curproxy->logformat,
-						    LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
-						    SMP_VAL_FE_LOG_END, &errmsg)) {
-				memprintf(&errmsg, "failed to parse log-format : %s.", errmsg);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto err;
-			}
-			curproxy->conf.args.file = NULL;
-			curproxy->conf.args.line = 0;
+
+		memcpy(node, logsrv, sizeof(*node));
+		LIST_INIT(&node->list);
+		LIST_APPEND(&curproxy->logsrvs, &node->list);
+		node->ring_name = logsrv->ring_name ? strdup(logsrv->ring_name) : NULL;
+		node->conf.file = logsrv->conf.file ? strdup(logsrv->conf.file) : NULL;
+	}
+	if (curproxy->conf.logformat_string) {
+		curproxy->conf.args.ctx = ARGC_LOG;
+		if (!parse_logformat_string(curproxy->conf.logformat_string, curproxy, &curproxy->logformat,
+					    LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
+					    SMP_VAL_FE_LOG_END, &errmsg)) {
+			memprintf(&errmsg, "failed to parse log-format : %s.", errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
 		}
+		curproxy->conf.args.file = NULL;
+		curproxy->conf.args.line = 0;
+	}
 
 #ifdef USE_OPENSSL
-		/* initialize the SNI for the SSL servers */
+	/* initialize the SNI for the SSL servers */
 
-		for (srv = curproxy->srv; srv != NULL; srv = srv->next) {
-			if (srv->xprt == xprt_get(XPRT_SSL)) {
-				srv_ssl = srv;
-			}
+	for (srv = curproxy->srv; srv != NULL; srv = srv->next) {
+		if (srv->xprt == xprt_get(XPRT_SSL)) {
+			srv_ssl = srv;
 		}
-		if (srv_ssl && !srv_ssl->sni_expr) {
-			/* init the SNI expression */
-			/* always use the host header as SNI, without the port */
-			srv_ssl->sni_expr = strdup("req.hdr(host),field(1,:)");
-			err_code |= server_parse_sni_expr(srv_ssl, curproxy, &errmsg);
-			if (err_code & ERR_CODE) {
-				memprintf(&errmsg, "failed to configure sni: %s.", errmsg);
-				goto err;
-			}
-		}
-#endif
 	}
+	if (srv_ssl && !srv_ssl->sni_expr) {
+		/* init the SNI expression */
+		/* always use the host header as SNI, without the port */
+		srv_ssl->sni_expr = strdup("req.hdr(host),field(1,:)");
+		err_code |= server_parse_sni_expr(srv_ssl, curproxy, &errmsg);
+		if (err_code & ERR_CODE) {
+			memprintf(&errmsg, "failed to configure sni: %s.", errmsg);
+			goto err;
+		}
+	}
+#endif
 
 err:
 	if (err_code & ERR_CODE) {
@@ -1432,7 +1428,7 @@ err:
 /* initialize the proxy and servers for the HTTP client */
 
 REGISTER_PRE_CHECK(httpclient_precheck);
-REGISTER_POST_CHECK(httpclient_postcheck);
+REGISTER_POST_PROXY_CHECK(httpclient_postcheck_proxy);
 
 static int httpclient_parse_global_resolvers(char **args, int section_type, struct proxy *curpx,
                                         const struct proxy *defpx, const char *file, int line,
