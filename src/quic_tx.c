@@ -1339,7 +1339,8 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 					goto leave;
 				/* Put back unsent frames in their packet number spaces */
 				LIST_SPLICE(&ipktns->tx.frms, &ifrms);
-				LIST_SPLICE(&hpktns->tx.frms, &hfrms);
+				if (hpktns)
+					LIST_SPLICE(&hpktns->tx.frms, &hfrms);
 			}
 			else {
 				/* We are in the case where the anti-amplification limit will be
@@ -1357,7 +1358,8 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 		TRACE_STATE("no more need to probe Initial packet number space",
 					QUIC_EV_CONN_TXPKT, qc);
 		ipktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
-		hpktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
+		if (hpktns)
+			hpktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
 	}
 	else {
 		int i;
