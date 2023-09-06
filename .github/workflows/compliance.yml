@@ -19,7 +19,7 @@ jobs:
           CC: gcc
           os: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install h2spec
       id: install-h2spec
       run: |
