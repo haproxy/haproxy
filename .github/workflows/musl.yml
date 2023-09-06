@@ -40,12 +40,17 @@ jobs:
       - name: Show coredumps
         if: ${{ failure() && steps.vtest.outcome == 'failure' }}
         run: |
+          failed=false
           ls /tmp/core/
           for file in /tmp/core/core.*; do
+            failed=true
             printf "::group::"
             gdb -ex 'thread apply all bt full' ./haproxy $file
             echo "::endgroup::"
           done
+          if [ "$failed" = true ]; then
+            exit 1;
+          fi
       - name: Show results
         if: ${{ failure() }}
         run: |
