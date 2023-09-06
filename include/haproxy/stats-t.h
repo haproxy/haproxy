@@ -346,6 +346,7 @@ enum info_field {
 	INF_WARNINGS,
 	INF_MAXCONN_REACHED,
 	INF_BOOTTIME_MS,
+	INF_NICED_TASKS,
 
 	/* must always be the last one */
 	INF_TOTAL_FIELDS

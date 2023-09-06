@@ -155,6 +155,20 @@ static inline int total_allocated_tasks()
 	return ret;
 }
 
+/* returns the number of running niced tasks+tasklets on the whole process.
+ * Note that this *is* racy since a task may move from the global to a local
+ * queue for example and be counted twice. This is only for statistics
+ * reporting.
+ */
+static inline int total_niced_running_tasks()
+{
+	int tgrp, ret = 0;
+
+	for (tgrp = 0; tgrp < global.nbtgroups; tgrp++)
+		ret += _HA_ATOMIC_LOAD(&ha_tgroup_ctx[tgrp].niced_tasks);
+	return ret;
+}
+
 /* return 0 if task is in run queue, otherwise non-zero */
 static inline int task_in_rq(struct task *t)
 {

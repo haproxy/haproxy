@@ -159,6 +159,7 @@ const struct name_desc info_fields[INF_TOTAL_FIELDS] = {
 	[INF_WARNINGS]                       = { .name = "TotalWarnings",               .desc = "Total warnings issued" },
 	[INF_MAXCONN_REACHED]                = { .name = "MaxconnReached",              .desc = "Number of times an accepted connection resulted in Maxconn being reached" },
 	[INF_BOOTTIME_MS]                    = { .name = "BootTime_ms",                 .desc = "How long ago it took to parse and process the config before being ready (milliseconds)" },
+	[INF_NICED_TASKS]                    = { .name = "Niced_tasks",                 .desc = "Total number of active tasks+tasklets in the current worker process (Run_queue) that are niced" },
 };
 
 const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
@@ -3613,7 +3614,7 @@ static void stats_dump_html_info(struct stconn *sc, struct uri_auth *uri)
 	              "<b>system limits:</b> memmax = %s%s; ulimit-n = %d<br>\n"
 	              "<b>maxsock = </b> %d; <b>maxconn = </b> %d; <b>reached = </b> %llu; <b>maxpipes = </b> %d<br>\n"
 	              "current conns = %d; current pipes = %d/%d; conn rate = %d/sec; bit rate = %.3f %cbps<br>\n"
-	              "Running tasks: %d/%d; idle = %d %%<br>\n"
+	              "Running tasks: %d/%d (%d niced); idle = %d %%<br>\n"
 	              "</td><td align=\"center\" nowrap>\n"
 	              "<table class=\"lgd\"><tr>\n"
 	              "<td class=\"active_up\">&nbsp;</td><td class=\"noborder\">active UP </td>"
@@ -3653,8 +3654,7 @@ static void stats_dump_html_info(struct stconn *sc, struct uri_auth *uri)
 	              actconn, pipes_used, pipes_used+pipes_free, read_freq_ctr(&global.conn_per_sec),
 		      bps >= 1000000000UL ? (bps / 1000000000.0) : bps >= 1000000UL ? (bps / 1000000.0) : (bps / 1000.0),
 		      bps >= 1000000000UL ? 'G' : bps >= 1000000UL ? 'M' : 'k',
-	              total_run_queues(), total_allocated_tasks(), clock_report_idle()
-	              );
+	              total_run_queues(), total_allocated_tasks(), total_niced_running_tasks(), clock_report_idle());
 
 	/* scope_txt = search query, ctx->scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
 	memcpy(scope_txt, scope_ptr, ctx->scope_len);
@@ -4754,6 +4754,7 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	info[INF_WARNINGS]                       = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&tot_warnings));
 	info[INF_MAXCONN_REACHED]                = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&maxconn_reached));
 	info[INF_BOOTTIME_MS]                    = mkf_u32(FN_DURATION, boot);
+	info[INF_NICED_TASKS]                    = mkf_u32(0, total_niced_running_tasks());
 
 	return 1;
 }
