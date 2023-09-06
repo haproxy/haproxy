@@ -322,6 +322,7 @@ int sc_attach_strm(struct stconn *sc, struct stream *strm)
 {
 	sc->app = &strm->obj_type;
 	sc_ep_clr(sc, SE_FL_ORPHAN);
+	sc_ep_report_read_activity(sc);
 	if (sc_ep_test(sc, SE_FL_T_MUX)) {
 		sc->wait_event.tasklet = tasklet_new();
 		if (!sc->wait_event.tasklet)
