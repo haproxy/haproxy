@@ -1,0 +1,156 @@
+varnishtest "bytes converter Test"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.9-dev4)'"
+
+feature ignore_unknown_macro
+
+# TEST - 1
+server s1 {
+	rxreq
+	txresp -hdr "Connection: close"
+} -repeat 1 -start
+
+haproxy h1 -conf {
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe
+		bind "fd@${fe}"
+
+		#### requests
+		http-request  set-var(txn.input) req.hdr(input)
+
+		http-response set-header bytes_0      "%[var(txn.input),bytes(0)]"
+		http-response set-header bytes_1      "%[var(txn.input),bytes(1)]"
+		http-response set-header bytes_0_3    "%[var(txn.input),bytes(0,3)]"
+		http-response set-header bytes_1_3    "%[var(txn.input),bytes(1,3)]"
+		http-response set-header bytes_99     "%[var(txn.input),bytes(99)]"
+		http-response set-header bytes_5      "%[var(txn.input),bytes(5)]"
+		http-response set-header bytes_6      "%[var(txn.input),bytes(6)]"
+		http-response set-header bytes_0_6    "%[var(txn.input),bytes(0,6)]"
+		http-response set-header bytes_0_7    "%[var(txn.input),bytes(0,7)]"
+
+		http-response set-var(txn.var_start) int(0)
+		http-response set-header bytes_var0    "%[var(txn.input),bytes(txn.var_start)]"
+
+		http-response set-var(txn.var_start) int(1)
+		http-response set-var(txn.var_length) int(3)
+		http-response set-header bytes_var1_var3    "%[var(txn.input),bytes(txn.var_start,txn.var_length)]"
+
+		http-response set-var(txn.var_start) int(99)
+		http-response set-header bytes_var99  "%[var(txn.input),bytes(txn.var_start)]"
+
+		http-response set-var(txn.var_start) int(0)
+		http-response set-var(txn.var_length) int(7)
+		http-response set-header bytes_var0_var7    "%[var(txn.input),bytes(txn.var_start,txn.var_length)]"
+
+		http-response set-var(txn.var_start) int(1)
+		http-response set-var(txn.var_length) int(3)
+		http-response set-header bytes_var1_3   "%[var(txn.input),bytes(txn.var_start,3)]"
+		http-response set-header bytes_1_var3   "%[var(txn.input),bytes(1,txn.var_length)]"
+
+		http-response set-var(txn.var_start) int(-1)
+		http-response set-var(txn.var_length) int(-1)
+		http-response set-header bytes_varminus1        "%[var(txn.input),bytes(txn.var_start)]"
+		http-response set-header bytes_0_varminus1      "%[var(txn.input),bytes(0,txn.var_length)]"
+
+		http-response set-header bytes_varNA    "%[var(txn.input),bytes(txn.NA)]"
+		http-response set-header bytes_1_varNA  "%[var(txn.input),bytes(1,txn.NA)]"
+
+		default_backend be
+
+	backend be
+		server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/" \
+		-hdr "input: 012345"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.bytes_0 == "012345"
+	expect resp.http.bytes_1 == "12345"
+	expect resp.http.bytes_0_3 == "012"
+	expect resp.http.bytes_1_3 == "123"
+	expect resp.http.bytes_99 == ""
+	expect resp.http.bytes_5 == "5"
+	expect resp.http.bytes_6 == ""
+	expect resp.http.bytes_0_6 == "012345"
+
+	# since specified length is > input length, response contains the input till the end
+	expect resp.http.bytes_0_7 == "012345"
+
+	expect resp.http.bytes_var0 == "012345"
+	expect resp.http.bytes_var1_var3 == "123"
+	expect resp.http.bytes_var99 == ""
+	expect resp.http.bytes_var0_var7 == "012345"
+	expect resp.http.bytes_var1_3 == "123"
+	expect resp.http.bytes_1_var3 == "123"
+	expect resp.http.bytes_varminus1 == ""
+	expect resp.http.bytes_0_varminus1 == ""
+	expect resp.http.bytes_varNA == ""
+	expect resp.http.bytes_1_varNA == ""
+} -run
+
+# TEST - 2
+# negative starting index causes startup failure
+haproxy h2 -conf {
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe
+		bind "fd@${fe}"
+
+		http-response set-header bytes_output     "%[var(txn.input),bytes(-1)]"
+
+		default_backend be
+
+	backend be
+		server s1 ${s1_addr}:${s1_port}
+} -start -expectexit 1
+
+# TEST - 3
+# negative length causes startup failure
+haproxy h3 -conf {
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe
+		bind "fd@${fe}"
+
+		http-response set-header bytes_output     "%[var(txn.input),bytes(0,-1)]"
+
+		default_backend be
+
+	backend be
+		server s1 ${s1_addr}:${s1_port}
+} -start -expectexit 1
+
+# TEST - 4
+# 0 length causes startup failure
+haproxy h4 -conf {
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe
+		bind "fd@${fe}"
+
+		http-response set-header bytes_output     "%[var(txn.input),bytes(0,0)]"
+
+		default_backend be
+
+	backend be
+		server s1 ${s1_addr}:${s1_port}
+} -start -expectexit 1

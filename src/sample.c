@@ -2705,18 +2705,54 @@ static int sample_conv_json(const struct arg *arg_p, struct sample *smp, void *p
  * Optional second arg is the length to truncate */
 static int sample_conv_bytes(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	if (smp->data.u.str.data <= arg_p[0].data.sint) {
+	struct sample smp_arg0, smp_arg1;
+	long long start_idx, length;
+
+	// determine the start_idx and length of the output
+	smp_set_owner(&smp_arg0, smp->px, smp->sess, smp->strm, smp->opt);
+	if (!sample_conv_var2smp_sint(&arg_p[0], &smp_arg0)) {
 		smp->data.u.str.data = 0;
-		return 1;
+		return 0;
+	}
+	if (smp_arg0.data.u.sint < 0 || (smp_arg0.data.u.sint >= smp->data.u.str.data)) {
+		// empty output if the arg0 value is negative or >= the input length
+		smp->data.u.str.data = 0;
+		return 0;
+	}
+	start_idx = smp_arg0.data.u.sint;
+
+	// length comes from arg1 if present, otherwise it's the remaining length
+	if (arg_p[1].type != ARGT_STOP) {
+		smp_set_owner(&smp_arg1, smp->px, smp->sess, smp->strm, smp->opt);
+		if (!sample_conv_var2smp_sint(&arg_p[1], &smp_arg1)) {
+			smp->data.u.str.data = 0;
+			return 0;
+		}
+		if (smp_arg1.data.u.sint < 0) {
+			// empty output if the arg1 value is negative
+			smp->data.u.str.data = 0;
+			return 0;
+		}
+
+		if (smp_arg1.data.u.sint > (smp->data.u.str.data - start_idx)) {
+			// arg1 value is greater than the remaining length
+			if (smp->opt & SMP_OPT_FINAL) {
+				// truncate to remaining length
+				length = smp->data.u.str.data - start_idx;
+			} else {
+				smp->data.u.str.data = 0;
+				return 0;
+			}
+		} else {
+			length = smp_arg1.data.u.sint;
+		}
+	} else {
+		length = smp->data.u.str.data - start_idx;
 	}
 
-	if (smp->data.u.str.size)
-			smp->data.u.str.size -= arg_p[0].data.sint;
-	smp->data.u.str.data -= arg_p[0].data.sint;
-	smp->data.u.str.area += arg_p[0].data.sint;
-
-	if ((arg_p[1].type == ARGT_SINT) && (arg_p[1].data.sint < smp->data.u.str.data))
-		smp->data.u.str.data = arg_p[1].data.sint;
+	// update the output using the start_idx and length
+	smp->data.u.str.area += start_idx;
+	smp->data.u.str.data = length;
 
 	return 1;
 }
@@ -4929,6 +4965,34 @@ static int smp_fetch_bytes(const struct arg *args, struct sample *smp, const cha
 	return 1;
 }
 
+static int sample_conv_bytes_check(struct arg *args, struct sample_conv *conv,
+                          const char *file, int line, char **err)
+{
+	// arg0 is not optional, must be >= 0
+	if (!check_operator(&args[0], conv, file, line, err)) {
+		return 0;
+	}
+	if (args[0].type != ARGT_VAR) {
+		if (args[0].type != ARGT_SINT || args[0].data.sint < 0) {
+			memprintf(err, "expects a non-negative integer");
+			return 0;
+		}
+	}
+	// arg1 is optional, must be > 0
+	if (args[1].type != ARGT_STOP) {
+		if (!check_operator(&args[1], conv, file, line, err)) {
+			return 0;
+		}
+		if (args[1].type != ARGT_VAR) {
+			if (args[1].type != ARGT_SINT || args[1].data.sint <= 0) {
+				memprintf(err, "expects a positive integer");
+				return 0;
+			}
+		}
+	}
+
+	return 1;
+}
 
 static struct sample_fetch_kw_list smp_logs_kws = {ILH, {
 	{ "bytes_in",             smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_INTRN },
@@ -5025,7 +5089,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "xxh32",   sample_conv_xxh32,        ARG1(0,SINT),          NULL,                     SMP_T_BIN,  SMP_T_SINT },
 	{ "xxh64",   sample_conv_xxh64,        ARG1(0,SINT),          NULL,                     SMP_T_BIN,  SMP_T_SINT },
 	{ "json",    sample_conv_json,         ARG1(1,STR),           sample_conv_json_check,   SMP_T_STR,  SMP_T_STR  },
-	{ "bytes",   sample_conv_bytes,        ARG2(1,SINT,SINT),     NULL,                     SMP_T_BIN,  SMP_T_BIN  },
+	{ "bytes",   sample_conv_bytes,        ARG2(1,STR,STR),       sample_conv_bytes_check,  SMP_T_BIN,  SMP_T_BIN  },
 	{ "field",   sample_conv_field,        ARG3(2,SINT,STR,SINT), sample_conv_field_check,  SMP_T_STR,  SMP_T_STR  },
 	{ "word",    sample_conv_word,         ARG3(2,SINT,STR,SINT), sample_conv_field_check,  SMP_T_STR,  SMP_T_STR  },
 	{ "param",   sample_conv_param,        ARG2(1,STR,STR),       sample_conv_param_check,  SMP_T_STR,  SMP_T_STR  },
