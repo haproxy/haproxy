@@ -1168,6 +1168,7 @@ static void cli_io_handler(struct appctx *appctx)
 			applet_reset_svcctx(appctx);
 			appctx->st0 = CLI_ST_GETREQ;
 			applet_will_consume(appctx);
+			applet_expect_data(appctx);
 
 			/* reactivate the \n at the end of the response for the next command */
 			appctx->st1 &= ~APPCTX_CLI_ST1_NOLF;
