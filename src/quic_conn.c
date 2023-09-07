@@ -477,8 +477,8 @@ int quic_stateless_reset_token_cpy(unsigned char *pos, size_t len,
                                    const unsigned char *salt, size_t saltlen)
 {
 	/* Input secret */
-	const unsigned char *key = (const unsigned char *)global.cluster_secret;
-	size_t keylen = strlen(global.cluster_secret);
+	const unsigned char *key = global.cluster_secret;
+	size_t keylen = sizeof global.cluster_secret;
 	/* Info */
 	const unsigned char label[] = "stateless token";
 	size_t labellen = sizeof label - 1;
@@ -494,25 +494,14 @@ int quic_stateless_reset_token_cpy(unsigned char *pos, size_t len,
  */
 static int quic_stateless_reset_token_init(struct quic_connection_id *conn_id)
 {
-	int ret;
+	/* Output secret */
+	unsigned char *token = conn_id->stateless_reset_token;
+	size_t tokenlen = sizeof conn_id->stateless_reset_token;
+	/* Salt */
+	const unsigned char *cid = conn_id->cid.data;
+	size_t cidlen = conn_id->cid.len;
 
-	if (global.cluster_secret) {
-		/* Output secret */
-		unsigned char *token = conn_id->stateless_reset_token;
-		size_t tokenlen = sizeof conn_id->stateless_reset_token;
-		/* Salt */
-		const unsigned char *cid = conn_id->cid.data;
-		size_t cidlen = conn_id->cid.len;
-
-		ret = quic_stateless_reset_token_cpy(token, tokenlen, cid, cidlen);
-	}
-	else {
-		/* TODO: RAND_bytes() should be replaced */
-		ret = RAND_bytes(conn_id->stateless_reset_token,
-		                 sizeof conn_id->stateless_reset_token) == 1;
-	}
-
-	return ret;
+	return quic_stateless_reset_token_cpy(token, tokenlen, cid, cidlen);
 }
 
 /* Generate a CID directly derived from <orig> CID and <addr> address.

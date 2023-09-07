@@ -1925,17 +1925,16 @@ static void dump_registered_keywords(void)
 static void generate_random_cluster_secret()
 {
 	/* used as a default random cluster-secret if none defined. */
-	uint64_t rand = ha_random64();
+	uint64_t rand;
 
 	/* The caller must not overwrite an already defined secret. */
-	BUG_ON(global.cluster_secret);
+	BUG_ON(cluster_secret_isset);
 
-	global.cluster_secret = malloc(8);
-	if (!global.cluster_secret)
-		return;
-
+	rand = ha_random64();
 	memcpy(global.cluster_secret, &rand, sizeof(rand));
-	global.cluster_secret[7] = '\0';
+	rand = ha_random64();
+	memcpy(global.cluster_secret + sizeof(rand), &rand, sizeof(rand));
+	cluster_secret_isset = 1;
 }
 
 /*
@@ -2657,7 +2656,7 @@ static void init(int argc, char **argv)
 		exit(1);
 	}
 
-	if (!global.cluster_secret)
+	if (!cluster_secret_isset)
 		generate_random_cluster_secret();
 
 	/*
@@ -2850,7 +2849,6 @@ void deinit(void)
 	ha_free(&global.log_send_hostname);
 	chunk_destroy(&global.log_tag);
 	ha_free(&global.chroot);
-	ha_free(&global.cluster_secret);
 	ha_free(&global.pidfile);
 	ha_free(&global.node);
 	ha_free(&global.desc);

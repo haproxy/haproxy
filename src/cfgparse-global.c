@@ -11,6 +11,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <import/sha1.h>
+
 #include <haproxy/buf.h>
 #include <haproxy/cfgparse.h>
 #ifdef USE_CPU_AFFINITY
@@ -22,6 +24,8 @@
 #include <haproxy/peers.h>
 #include <haproxy/protocol.h>
 #include <haproxy/tools.h>
+
+int cluster_secret_isset;
 
 /* some keywords that are still being parsed using strcmp() and are not
  * registered anywhere. They are used as suggestions for mistyped words.
@@ -514,6 +518,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.options &= GTUNE_USE_FAST_FWD;
 	}
 	else if (strcmp(args[0], "cluster-secret") == 0) {
+		blk_SHA_CTX sha1_ctx;
+		unsigned char sha1_out[20];
+
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*args[1] == 0) {
@@ -521,13 +528,18 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		if (global.cluster_secret != NULL) {
+		if (cluster_secret_isset) {
 			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
 			goto out;
 		}
-		ha_free(&global.cluster_secret);
-		global.cluster_secret = strdup(args[1]);
+
+		blk_SHA1_Init(&sha1_ctx);
+		blk_SHA1_Update(&sha1_ctx, args[1], strlen(args[1]));
+		blk_SHA1_Final(sha1_out, &sha1_ctx);
+		BUG_ON(sizeof sha1_out < sizeof global.cluster_secret);
+		memcpy(global.cluster_secret, sha1_out, sizeof global.cluster_secret);
+		cluster_secret_isset = 1;
 	}
 	else if (strcmp(args[0], "uid") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))

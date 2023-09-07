@@ -85,6 +85,8 @@
 #define GTUNE_LISTENER_MQ_OPT    (1<<28)
 #define GTUNE_LISTENER_MQ_ANY    (GTUNE_LISTENER_MQ_FAIR | GTUNE_LISTENER_MQ_OPT)
 
+extern int cluster_secret_isset; /* non zero means a cluster secret was initiliazed */
+
 /* SSL server verify mode */
 enum {
 	SSL_SERVER_VERIFY_NONE = 0,
@@ -139,7 +141,7 @@ struct global {
 	char *log_send_hostname;   /* set hostname in syslog header */
 	char *server_state_base;   /* path to a directory where server state files can be found */
 	char *server_state_file;   /* path to the file where server states are loaded from */
-	char *cluster_secret;      /* Secret defined as ASCII string */
+	unsigned char cluster_secret[16]; /* 128 bits of an SHA1 digest of a secret defined as ASCII string */
 	struct {
 		int maxpollevents; /* max number of poll events at once */
 		int maxaccept;     /* max number of consecutive accept() */

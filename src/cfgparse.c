@@ -2803,7 +2803,6 @@ int check_config_validity()
 	struct cfg_postparser *postparser;
 	struct resolvers *curr_resolvers = NULL;
 	int i;
-	int diag_no_cluster_secret = 0;
 
 	bind_conf = NULL;
 	/*
@@ -4318,13 +4317,6 @@ init_proxies_list_stage2:
 
 #ifdef USE_QUIC
 			if (listener->bind_conf->xprt == xprt_get(XPRT_QUIC)) {
-				if (!global.cluster_secret) {
-					diag_no_cluster_secret = 1;
-					if (listener->bind_conf->options & BC_O_QUIC_FORCE_RETRY) {
-						ha_alert("QUIC listener with quic-force-retry requires global cluster-secret to be set.\n");
-						cfgerr++;
-					}
-				}
 # ifdef USE_QUIC_OPENSSL_COMPAT
 				/* store the last checked bind_conf in bind_conf */
 				if (!(global.tune.options & GTUNE_NO_QUIC) &&
@@ -4373,12 +4365,6 @@ init_proxies_list_stage2:
 		/* check if list is not null to avoid infinite loop */
 		if (init_proxies_list)
 			goto init_proxies_list_stage2;
-	}
-
-	if (diag_no_cluster_secret) {
-		ha_diag_warning("Generating a random cluster secret. "
-		                "You should define your own one in the configuration to ensure consistency "
-		                "after reload/restart or across your whole cluster.\n");
 	}
 
 	/*

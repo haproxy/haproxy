@@ -1610,8 +1610,8 @@ static int quic_generate_retry_token(unsigned char *token, size_t len,
 	unsigned char salt[QUIC_RETRY_TOKEN_SALTLEN];
 	unsigned char key[QUIC_TLS_KEY_LEN];
 	unsigned char iv[QUIC_TLS_IV_LEN];
-	const unsigned char *sec = (const unsigned char *)global.cluster_secret;
-	size_t seclen = strlen(global.cluster_secret);
+	const unsigned char *sec = global.cluster_secret;
+	size_t seclen = sizeof global.cluster_secret;
 	EVP_CIPHER_CTX *ctx = NULL;
 	const EVP_CIPHER *aead = EVP_aes_128_gcm();
 	uint32_t timestamp = (uint32_t)date.tv_sec;
