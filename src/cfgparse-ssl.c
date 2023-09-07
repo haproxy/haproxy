@@ -301,7 +301,7 @@ static int ssl_parse_global_curves(char **args, int section_type, struct proxy *
 				   char **err)
 {
 	char **target;
-	target = &global_ssl.listen_default_curves;
+	target = (args[0][12] == 'b') ? &global_ssl.listen_default_curves : &global_ssl.connect_default_curves;
 
 	if (too_many_args(1, args, err, NULL))
 		return -1;
@@ -1669,6 +1669,14 @@ static int ssl_sock_init_srv(struct server *s)
 	}
 #endif
 
+#if defined(SSL_CTX_set1_curves_list)
+	if (global_ssl.connect_default_curves && !s->ssl_ctx.curves) {
+		s->ssl_ctx.curves = strdup(global_ssl.connect_default_curves);
+		if (!s->ssl_ctx.curves)
+			return 1;
+	}
+#endif
+
 	return 0;
 }
 
@@ -1769,6 +1777,29 @@ static int srv_parse_crl_file(char **args, int *cur_arg, struct proxy *px, struc
 
 	if (!ssl_store_load_locations_file(newsrv->ssl_ctx.crl_file, create_if_none, CAFILE_CRL)) {
 		memprintf(err, "'%s' : unable to load %s", args[*cur_arg], newsrv->ssl_ctx.crl_file);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	return 0;
+#endif
+}
+
+/* parse the "curves" server keyword */
+static int srv_parse_curves(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+#ifndef SSL_CTX_set1_curves_list
+	memprintf(err, "'%s' : library does not support setting curves list", args[*cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#else
+	char *arg;
+
+	arg = args[*cur_arg + 1];
+	if (!*arg) {
+		memprintf(err, "'%s' : missing curves list", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	newsrv->ssl_ctx.curves = strdup(arg);
+	if (!newsrv->ssl_ctx.curves) {
+		memprintf(err, "out of memory");
 		return ERR_ALERT | ERR_FATAL;
 	}
 	return 0;
@@ -2250,6 +2281,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 #endif
 	{ "client-sigalgs",          srv_parse_client_sigalgs,     1, 1, 1 }, /* signature algorithms */
 	{ "crl-file",                srv_parse_crl_file,           1, 1, 1 }, /* set certificate revocation list file use on server cert verify */
+	{ "curves",                  srv_parse_curves,             1, 1, 1 }, /* set TLS curves list */
 	{ "crt",                     srv_parse_crt,                1, 1, 1 }, /* set client certificate */
 	{ "force-sslv3",             srv_parse_tls_method_options, 0, 1, 1 }, /* force SSLv3 */
 	{ "force-tlsv10",            srv_parse_tls_method_options, 0, 1, 1 }, /* force TLSv10 */
@@ -2320,6 +2352,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "ssl-default-server-ciphers", ssl_parse_global_ciphers },
 #if defined(SSL_CTX_set1_curves_list)
 	{ CFG_GLOBAL, "ssl-default-bind-curves", ssl_parse_global_curves },
+	{ CFG_GLOBAL, "ssl-default-server-curves", ssl_parse_global_curves },
 #endif
 #if defined(SSL_CTX_set1_sigalgs_list)
 	{ CFG_GLOBAL, "ssl-default-bind-sigalgs", ssl_parse_global_sigalgs },

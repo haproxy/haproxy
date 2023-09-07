@@ -60,10 +60,10 @@ haproxy h1 -conf {
         default_backend ssl-be
 
     backend ssl-be
-        server s1 "${tmpdir}/ssl1.sock" ssl verify none crt ${testdir}/client.ecdsa.pem force-tlsv12
+        server s1 "${tmpdir}/ssl1.sock" ssl verify none crt ${testdir}/client.ecdsa.pem force-tlsv12 curves P-256:P-384
 
     backend ssl-curves-be
-        server s1 "${tmpdir}/ssl2.sock" ssl verify none crt ${testdir}/client.ecdsa.pem force-tlsv12
+        server s1 "${tmpdir}/ssl2.sock" ssl verify none crt ${testdir}/client.ecdsa.pem force-tlsv12 curves P-384
 
     backend ssl-ecdhe-256-be
         server s1 "${tmpdir}/ssl-ecdhe-256.sock" ssl verify none crt ${testdir}/client.ecdsa.pem force-tlsv12

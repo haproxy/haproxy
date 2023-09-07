@@ -278,6 +278,7 @@ struct global_ssl {
 #endif
 #if defined(SSL_CTX_set1_curves_list)
 	char *listen_default_curves;
+	char *connect_default_curves;
 #endif
 #if defined(SSL_CTX_set1_sigalgs_list)
 	char *listen_default_sigalgs;

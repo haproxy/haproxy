@@ -1123,6 +1123,7 @@ The following keywords are supported in the "global" section :
    - ssl-default-server-ciphers
    - ssl-default-server-ciphersuites
    - ssl-default-server-client-sigalgs
+   - ssl-default-server-curves
    - ssl-default-server-options
    - ssl-default-server-sigalgs
    - ssl-dh-param-file
@@ -2335,6 +2336,13 @@ ssl-default-server-client-sigalgs <sigalgs>
   protocol as the signature algorithms aren't separately negotiated in these
   versions. It is not recommended to change this setting unless compatibility
   with a middlebox is required.
+
+ssl-default-server-curves <curves>
+  This setting is only available when support for OpenSSL was built in. It sets
+  the default string describing the list of elliptic curves algorithms ("curve
+  suite") that are negotiated during the SSL/TLS handshake with ECDHE. The format
+  of the string is a colon-delimited list of curve name.
+  Please check the "server" keyword for more information.
 
 ssl-default-server-options [<option>]...
   This setting is only available when support for OpenSSL was built in. It sets
@@ -16059,6 +16067,13 @@ crt <cert>
   If the file does not contain a private key, HAProxy will try to load the key
   at the same path suffixed by a ".key" (provided the "ssl-load-extra-files"
   option is set accordingly).
+
+curves <curves>
+  This setting is only available when support for OpenSSL was built in. It sets
+  the string describing the list of elliptic curves algorithms ("curve suite")
+  that are negotiated during the SSL/TLS handshake with ECDHE. The format of the
+  string is a colon-delimited list of curve name.
+  Example: "X25519:P-256" (without quote)
 
 disabled
   The "disabled" keyword starts the server in the "disabled" state. That means

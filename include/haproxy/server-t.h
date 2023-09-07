@@ -397,6 +397,7 @@ struct server {
 
 		char *ciphers;			/* cipher suite to use if non-null */
 		char *ciphersuites;			/* TLS 1.3 cipher suite to use if non-null */
+		char *curves;                    /* TLS curves list */
 		int options;			/* ssl options */
 		int verify;			/* verify method (set of SSL_VERIFY_* flags) */
 		struct tls_version_filter methods;	/* ssl methods */

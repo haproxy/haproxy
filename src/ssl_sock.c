@@ -5105,6 +5105,9 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 #if defined(SSL_CTX_set1_client_sigalgs_list)
 	const char *conf_client_sigalgs = NULL;
 #endif
+#if defined(SSL_CTX_set1_curves_list)
+	const char *conf_curves = NULL;
+#endif
 
 	if (conf_ssl_methods->flags && (conf_ssl_methods->min || conf_ssl_methods->max))
 		ha_warning("no-sslv3/no-tlsv1x are ignored for this server. "
@@ -5263,6 +5266,17 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 		}
 	}
 #endif
+
+#if defined(SSL_CTX_set1_curves_list)
+	conf_curves =  srv->ssl_ctx.curves;
+	if (conf_curves) {
+		if (!SSL_CTX_set1_curves_list(ctx, conf_curves)) {
+			ha_alert("Proxy '%s': unable to set SSL curves list to '%s' for server '%s'.\n",
+			         curproxy->id, conf_curves, srv->id);
+			cfgerr++;
+		}
+	}
+#endif /* defined(SSL_CTX_set1_curves_list) */
 
 	return cfgerr;
 }
