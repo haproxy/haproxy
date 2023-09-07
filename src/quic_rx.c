@@ -1964,6 +1964,11 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				goto err;
 			}
 
+			/* Compute and store into the quic_conn the hash used to compute extra CIDs */
+			if (quic_hash64_from_cid)
+				qc->hash64 = quic_hash64_from_cid(conn_id->cid.data, conn_id->cid.len,
+								  global.cluster_secret, sizeof(global.cluster_secret));
+
 			tree = &quic_cid_trees[quic_cid_tree_idx(&conn_id->cid)];
 			HA_RWLOCK_WRLOCK(QC_CID_LOCK, &tree->lock);
 			node = ebmb_insert(&tree->root, &conn_id->node, conn_id->cid.len);

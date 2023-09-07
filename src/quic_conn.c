@@ -116,6 +116,10 @@ const struct quic_version quic_versions[] = {
 	},
 };
 
+/* Function pointers, can be used to compute a hash from first generated CID and to derive new CIDs */
+uint64_t (*quic_hash64_from_cid)(const unsigned char *cid, int size, const unsigned char *secret, size_t secretlen) = NULL;
+void (*quic_newcid_from_hash64)(unsigned char *cid, int size, uint64_t hash, const unsigned char *secret, size_t secretlen) = NULL;
+
 /* The total number of supported versions */
 const size_t quic_versions_nb = sizeof quic_versions / sizeof *quic_versions;
 /* Listener only preferred version */
@@ -644,8 +648,11 @@ struct quic_connection_id *new_quic_cid(struct eb_root *root,
 	conn_id->cid.len = QUIC_HAP_CID_LEN;
 
 	if (!orig) {
-		/* TODO: RAND_bytes() should be replaced */
-		if (RAND_bytes(conn_id->cid.data, conn_id->cid.len) != 1) {
+		if (quic_newcid_from_hash64)
+			quic_newcid_from_hash64(conn_id->cid.data, conn_id->cid.len, qc->hash64,
+						global.cluster_secret, sizeof(global.cluster_secret));
+		else if (RAND_bytes(conn_id->cid.data, conn_id->cid.len) != 1) {
+			/* TODO: RAND_bytes() should be replaced */
 			TRACE_ERROR("RAND_bytes() failed", QUIC_EV_CONN_TXPKT, qc);
 			goto err;
 		}
