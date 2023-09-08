@@ -6,8 +6,13 @@ FreeBSD_task:
   install_script:
     - pkg update -f && pkg upgrade -y && pkg install -y openssl git gmake lua53 socat pcre
   script:
+    - sudo sysctl kern.corefile=/tmp/%N.%P.core
+    - sudo sysctl kern.sugid_coredump=1
     - scripts/build-vtest.sh
     - gmake CC=clang V=1 ERR=1 TARGET=freebsd USE_ZLIB=1 USE_PCRE=1 USE_OPENSSL=1 USE_LUA=1 LUA_INC=/usr/local/include/lua53 LUA_LIB=/usr/local/lib LUA_LIB_NAME=lua-5.3
     - ./haproxy -vv
     - ldd haproxy
-    - env VTEST_PROGRAM=../vtest/vtest gmake reg-tests REGTESTS_TYPES=default,bug,devel || (for folder in /tmp/*regtest*/vtc.*; do cat $folder/INFO $folder/LOG; done && exit 1)
+  test_script:
+    - env VTEST_PROGRAM=../vtest/vtest gmake reg-tests REGTESTS_TYPES=default,bug,devel
+  on_failure:
+    debug_script: (for folder in /tmp/*regtest*/vtc.*; do cat $folder/INFO $folder/LOG; done && ls /tmp/haproxy.*.core && gdb -ex 'thread apply all bt full' ./haproxy /tmp/haproxy.*.core)
