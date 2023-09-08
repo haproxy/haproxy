@@ -1724,6 +1724,14 @@ resume_execution:
 	/* out of lua processing, stop the timer */
 	hlua_timer_stop(&lua->timer);
 
+	/* reset nargs because those possibly passed to the lua_resume() call
+	 * were already consumed, and since we may call lua_resume() again
+	 * after a successful yield, we don't want to pass stale nargs hint
+	 * to the Lua API. As such, nargs should be set explicitly before each
+	 * lua_resume() (or hlua_ctx_resume()) invocation if needed.
+	 */
+	lua->nargs = 0;
+
 	switch (ret) {
 
 	case LUA_OK:
