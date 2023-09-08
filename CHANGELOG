@@ -1,6 +1,116 @@
 ChangeLog :
 ===========
 
+2023/09/08 : 2.9-dev5
+    - BUG/MEDIUM: mux-h2: fix crash when checking for reverse connection after error
+    - BUILD: import: guard plock.h against multiple inclusion
+    - BUILD: pools: import plock.h to build even without thread support
+    - BUG/MINOR: ssl/cli: can't find ".crt" files when replacing a certificate
+    - BUG/MINOR: stream: protect stream_dump() against incomplete streams
+    - DOC: config: mention uid dependency on the tune.quic.socket-owner option
+    - MEDIUM: capabilities: enable support for Linux capabilities
+    - CLEANUP/MINOR: connection: Improve consistency of PPv2 related constants
+    - MEDIUM: connection: Generic, list-based allocation and look-up of PPv2 TLVs
+    - MEDIUM: sample: Add fetch for arbitrary TLVs
+    - MINOR: sample: Refactor fc_pp_authority by wrapping the generic TLV fetch
+    - MINOR: sample: Refactor fc_pp_unique_id by wrapping the generic TLV fetch
+    - MINOR: sample: Add common TLV types as constants for fc_pp_tlv
+    - MINOR: ssl_sock: avoid iterating realloc(+1) on stored context
+    - DOC: ssl: add some comments about the non-obvious session allocation stuff
+    - CLEANUP: ssl: keep a pointer to the server in ssl_sock_init()
+    - MEDIUM: ssl_sock: always use the SSL's server name, not the one from the tid
+    - MEDIUM: server/ssl: place an rwlock in the per-thread ssl server session
+    - MINOR: server/ssl: maintain an index of the last known valid SSL session
+    - MINOR: server/ssl: clear the shared good session index on failure
+    - MEDIUM: server/ssl: pick another thread's session when we have none yet
+    - MINOR: activity: report the current run queue size
+    - BUG/MINOR: checks: do not queue/wake a bounced check
+    - MINOR: checks: start the checks in sleeping state
+    - MINOR: checks: pin the check to its thread upon wakeup
+    - MINOR: check: remember when we migrate a check
+    - MINOR: check/activity: collect some per-thread check activity stats
+    - MINOR: checks: maintain counters of active checks per thread
+    - MINOR: check: also consider the random other thread's active checks
+    - MEDIUM: checks: search more aggressively for another thread on overload
+    - MEDIUM: checks: implement a queue in order to limit concurrent checks
+    - MINOR: checks: also consider the thread's queue for rebalancing
+    - DEBUG: applet: Properly report opposite SC expiration dates in traces
+    - BUG/MEDIUM: stconn: Update stream expiration date on blocked sends
+    - BUG/MINOR: stconn: Don't report blocked sends during connection establishment
+    - BUG/MEDIUM: stconn: Wake applets on sending path if there is a pending shutdown
+    - BUG/MEDIUM: stconn: Don't block sends if there is a pending shutdown
+    - BUG/MINOR: quic: Possible skipped RTT sampling
+    - MINOR: quic: Add a trace to quic_release_frm()
+    - BUG/MAJOR: quic: Really ignore malformed ACK frames.
+    - BUG/MINOR: quic: Unchecked pointer to packet number space dereferenced
+    - BUG/MEDIUM: connection: fix pool free regression with recent ppv2 TLV patches
+    - BUG/MEDIUM: h1-htx: Ensure chunked parsing with full output buffer
+    - BUG/MINOR: stream: further protect stream_dump() against incomplete sessions
+    - DOC: configuration: update examples for req.ver
+    - MINOR: properly mark the end of the CLI command in error messages
+    - BUILD: ssl: Build with new cryptographic library AWS-LC
+    - REGTESTS: ssl: skip ssl_dh test with AWS-LC
+    - BUILD: bug: make BUG_ON() void to avoid a rare warning
+    - BUILD: checks: shut up yet another stupid gcc warning
+    - MINOR: cpuset: add ha_cpuset_isset() to check for the presence of a CPU in a set
+    - MINOR: cpuset: add ha_cpuset_or() to bitwise-OR two CPU sets
+    - MINOR: cpuset: centralize a reliable bound cpu detection
+    - MEDIUM: threads: detect incomplete CPU bindings
+    - MEDIUM: threads: detect excessive thread counts vs cpu-map
+    - BUILD: quic: Compilation issue on 32-bits systems with quic_may_send_bytes()
+    - BUG/MINOR: quic: Unchecked pointer to Handshake packet number space
+    - MINOR: global: export the display_version() symbol
+    - MEDIUM: mworker: display a more accessible message when a worker crash
+    - MINOR: httpclient: allow to configure the retries
+    - MINOR: httpclient: allow to configure the timeout.connect
+    - BUG/MINOR: quic: Wrong RTT adjusments
+    - BUG/MINOR: quic: Wrong RTT computation (srtt and rrt_var)
+    - BUG/MINOR: stconn: Don't inhibit shutdown on connection on error
+    - BUG/MEDIUM: applet: Fix API for function to push new data in channels buffer
+    - BUG/MEDIUM: stconn: Report read activity when a stream is attached to front SC
+    - BUG/MEDIUM: applet: Report an error if applet request more room on aborted SC
+    - BUG/MEDIUM: stconn/stream: Forward shutdown on write timeout
+    - NUG/MEDIUM: stconn: Always update stream's expiration date after I/O
+    - BUG/MINOR: applet: Always expect data when CLI is waiting for a new command
+    - BUG/MINOR: ring/cli: Don't expect input data when showing events
+    - BUG/MINOR: quic: Dereferenced unchecked pointer to Handshke packet number space
+    - BUG/MINOR: hlua/action: incorrect message on E_YIELD error
+    - MINOR: http_ana: position the FINAL flag for http_after_res execution
+    - CI: scripts: add support to build-ssl.sh to download and build AWS-LC
+    - CI: add support to matrix.py to determine the latest AWS-LC release
+    - CI: Update matrix.py so all code is contained in functions.
+    - CI: github: Add a weekly CI run building with AWS-LC
+    - MINOR: ring: add a function to compute max ring payload
+    - BUG/MEDIUM: ring: adjust maxlen consistency check
+    - MINOR: sink: simplify post_sink_resolve function
+    - MINOR: log/sink: detect when log maxlen exceeds sink size
+    - MINOR: sink: inform the user when logs will be implicitly truncated
+    - MEDIUM: sink: don't perform implicit truncations when maxlen is not set
+    - MINOR: log: move log-forwarders cleanup in log.c
+    - MEDIUM: httpclient/logs: rely on per-proxy post-check instead of global one
+    - MINOR: log: add dup_logsrv() helper function
+    - MEDIUM: log/sink: make logsrv postparsing more generic
+    - MEDIUM: fcgi-app: properly postresolve logsrvs
+    - MEDIUM: spoe-agent: properly postresolve log rings
+    - MINOR: sink: add helper function to deallocate sink struct
+    - MEDIUM: sink/ring: introduce high level ring creation helper function
+    - MEDIUM: sink: add sink_finalize() function
+    - CLEANUP: log: remove unnecessary trim in __do_send_log
+    - MINOR: cache: Change hash function in default normalizer used in case of "vary"
+    - MINOR: tasks/stats: report the number of niced tasks in "show info"
+    - CI: Update to actions/checkout@v4
+    - MINOR: ssl: add support for 'curves' keyword on server lines
+    - BUG/MINOR: quic: Wrong cluster secret initialization
+    - CLEANUP: quic: Remove useless free_quic_tx_pkts() function.
+    - MEDIUM: init: initialize the trash earlier
+    - MINOR: tools: add function read_line_to_trash() to read a line of a file
+    - MINOR: cfgparse: use read_line_from_trash() to read from /sys
+    - MEDIUM: cfgparse: assign NUMA affinity to cpu-maps
+    - MINOR: cpuset: dynamically allocate cpu_map
+    - REORG: cpuset: move parse_cpu_set() and parse_cpumap() to cpuset.c
+    - CI: musl: highlight section if there are coredumps
+    - CI: musl: drop shopt in workflow invocation
+
 2023/08/25 : 2.9-dev4
     - DEV: flags/show-sess-to-flags: properly decode fd.state
     - BUG/MINOR: stktable: allow sc-set-gpt(0) from tcp-request connection
