@@ -12872,9 +12872,9 @@ int hlua_post_init_state(lua_State *L)
 		hlua_unref(L, init->function_ref);
 
 #if defined(LUA_VERSION_NUM) && LUA_VERSION_NUM >= 504
-		ret = lua_resume(L, L, 0, &nres);
+		ret = lua_resume(L, NULL, 0, &nres);
 #else
-		ret = lua_resume(L, L, 0);
+		ret = lua_resume(L, NULL, 0);
 #endif
 		kind = NULL;
 		switch (ret) {
