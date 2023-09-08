@@ -79,22 +79,6 @@ static inline void free_quic_tx_packet(struct quic_conn *qc,
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 }
 
-/* Free the TX packets of <pkts> list */
-void free_quic_tx_pkts(struct quic_conn *qc, struct list *pkts)
-{
-	struct quic_tx_packet *pkt, *tmp;
-
-	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
-
-	list_for_each_entry_safe(pkt, tmp, pkts, list) {
-		LIST_DELETE(&pkt->list);
-		eb64_delete(&pkt->pn_node);
-		free_quic_tx_packet(qc, pkt);
-	}
-
-	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
-}
-
 /* Duplicate all frames from <pkt_frm_list> list into <out_frm_list> list
  * for <qc> QUIC connection.
  * This is a best effort function which never fails even if no memory could be

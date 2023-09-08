@@ -40,7 +40,6 @@ int quic_build_post_handshake_frames(struct quic_conn *qc);
 int qc_send_app_pkts(struct quic_conn *qc, struct list *frms);
 int qc_dgrams_retransmit(struct quic_conn *qc);
 int qc_notify_send(struct quic_conn *qc);
-void free_quic_tx_pkts(struct quic_conn *qc, struct list *pkts);
 void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
                                 struct list *ifrms, struct list *hfrms);
 int quic_generate_retry_token_aad(unsigned char *aad,
