@@ -835,7 +835,8 @@ static struct quic_cc_conn *qc_new_cc_conn(struct quic_conn *qc)
 	quic_conn_mv_cids_to_cc_conn(cc_qc, qc);
 
 	cc_qc->fd = qc->fd;
-	fdtab[cc_qc->fd].owner = cc_qc;
+	if (qc->fd >= 0)
+		fdtab[cc_qc->fd].owner = cc_qc;
 	cc_qc->flags = qc->flags;
 	if (quic_peer_validated_addr(qc))
 	    cc_qc->flags |= QUIC_FL_CONN_PEER_VALIDATED_ADDR;
