@@ -734,6 +734,43 @@ int smp_log_range_cmp(const void *a, const void *b)
 	return 0;
 }
 
+/* helper func */
+static inline void init_log_target(struct log_target *target)
+{
+	target->type = 0;
+	target->flags = LOG_TARGET_FL_NONE;
+	target->addr = NULL;
+	target->ring_name = NULL;
+}
+
+static void deinit_log_target(struct log_target *target)
+{
+	ha_free(&target->addr);
+	if (!(target->flags & LOG_TARGET_FL_RESOLVED))
+		ha_free(&target->ring_name);
+}
+
+/* returns 0 on failure and positive value on success */
+static int dup_log_target(struct log_target *def, struct log_target *cpy)
+{
+	BUG_ON((def->flags & LOG_TARGET_FL_RESOLVED)); /* postparsing already done, invalid use */
+	init_log_target(cpy);
+	cpy->addr = malloc(sizeof(*cpy->addr));
+	if (!cpy->addr)
+		goto error;
+	*cpy->addr = *def->addr;
+	if (def->ring_name) {
+		cpy->ring_name = strdup(def->ring_name);
+		if (!cpy->ring_name)
+			goto error;
+	}
+	cpy->type = def->type;
+	return 1;
+ error:
+	deinit_log_target(cpy);
+	return 0;
+}
+
 /* resolves a single logger entry (it is expected to be called
  * at postparsing stage)
  *
@@ -747,10 +784,14 @@ int smp_log_range_cmp(const void *a, const void *b)
  */
 int resolve_logger(struct logger *logger, char **msg)
 {
+	struct log_target *target = &logger->target;
 	int err_code = ERR_NONE;
 
-	if (logger->type == LOG_TARGET_BUFFER)
+	if (target->type == LOG_TARGET_BUFFER)
 		err_code = sink_resolve_logger_buffer(logger, msg);
+
+	target->flags |= LOG_TARGET_FL_RESOLVED;
+
 	return err_code;
 }
 
@@ -767,16 +808,12 @@ struct logger *dup_logger(struct logger *def)
 	memcpy(cpy, def, sizeof(*cpy));
 
 	/* default values */
-	cpy->ring_name = NULL;
 	cpy->conf.file = NULL;
 	LIST_INIT(&cpy->list);
 
 	/* special members */
-	if (def->ring_name) {
-		cpy->ring_name = strdup(def->ring_name);
-		if (!cpy->ring_name)
-			goto error;
-	}
+	if (dup_log_target(&def->target, &cpy->target) == 0)
+		goto error;
 	if (def->conf.file) {
 		cpy->conf.file = strdup(def->conf.file);
 		if (!cpy->conf.file)
@@ -801,8 +838,67 @@ void free_logger(struct logger *logger)
 
 	BUG_ON(LIST_INLIST(&logger->list));
 	ha_free(&logger->conf.file);
-	ha_free(&logger->ring_name);
+	deinit_log_target(&logger->target);
 	free(logger);
+}
+
+/* Parse single log target
+ * Returns 0 on failure and positive value on success
+ */
+static int parse_log_target(char *raw, struct log_target *target, char **err)
+{
+	int port1, port2, fd;
+	struct protocol *proto;
+	struct sockaddr_storage *sk;
+
+	init_log_target(target);
+
+	/* first, try to allocate log target addr */
+	target->addr = malloc(sizeof(*target->addr));
+	if (!target->addr) {
+		memprintf(err, "memory error");
+		goto error;
+	}
+
+	target->type = LOG_TARGET_DGRAM;
+	if (strncmp(raw, "ring@", 5) == 0) {
+		target->addr->ss_family = AF_UNSPEC;
+		target->type = LOG_TARGET_BUFFER;
+		target->ring_name = strdup(raw + 5);
+		goto done;
+	}
+
+	/* parse the target address */
+	sk = str2sa_range(raw, NULL, &port1, &port2, &fd, &proto,
+	                  err, NULL, NULL,
+	                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_RAW_FD | PA_O_DGRAM | PA_O_STREAM | PA_O_DEFAULT_DGRAM);
+	if (!sk)
+		goto error;
+	if (fd != -1)
+		target->type = LOG_TARGET_FD;
+	*target->addr = *sk;
+
+	if (sk->ss_family == AF_INET || sk->ss_family == AF_INET6) {
+		if (!port1)
+			set_host_port(target->addr, SYSLOG_PORT);
+	}
+
+	if (proto && proto->xprt_type == PROTO_TYPE_STREAM) {
+		static unsigned long ring_ids;
+
+		/* Implicit sink buffer will be
+		 * initialized in post_check
+		 */
+		target->type = LOG_TARGET_BUFFER;
+		/* compute unique name for the ring */
+		memprintf(&target->ring_name, "ring#%lu", ++ring_ids);
+	}
+
+ done:
+	return 1;
+ error:
+	deinit_log_target(target);
+	return 0;
 }
 
 /*
@@ -821,12 +917,8 @@ void free_logger(struct logger *logger)
 int parse_logger(char **args, struct list *loggers, int do_del, const char *file, int linenum, char **err)
 {
 	struct smp_log_range *smp_rgs = NULL;
-	struct sockaddr_storage *sk;
-	struct protocol *proto;
 	struct logger *logger = NULL;
-	int port1, port2;
 	int cur_arg;
-	int fd;
 
 	/*
 	 * "no log": delete previous herited or defined syslog
@@ -1042,42 +1134,9 @@ int parse_logger(char **args, struct list *loggers, int do_del, const char *file
 		goto error;
 	}
 
-	/* now, back to the address */
-	logger->type = LOG_TARGET_DGRAM;
-	if (strncmp(args[1], "ring@", 5) == 0) {
-		logger->addr.ss_family = AF_UNSPEC;
-		logger->type = LOG_TARGET_BUFFER;
-		logger->sink = NULL;
-		logger->ring_name = strdup(args[1] + 5);
-		goto done;
-	}
-
-	sk = str2sa_range(args[1], NULL, &port1, &port2, &fd, &proto,
-	                  err, NULL, NULL,
-	                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_RAW_FD | PA_O_DGRAM | PA_O_STREAM | PA_O_DEFAULT_DGRAM);
-	if (!sk)
+	/* now, back to the log target */
+	if (!parse_log_target(args[1], &logger->target, err))
 		goto error;
-
-	if (fd != -1)
-		logger->type = LOG_TARGET_FD;
-	logger->addr = *sk;
-
-	if (sk->ss_family == AF_INET || sk->ss_family == AF_INET6) {
-		if (!port1)
-			set_host_port(&logger->addr, SYSLOG_PORT);
-	}
-
-	if (proto && proto->xprt_type == PROTO_TYPE_STREAM) {
-		static unsigned long ring_ids;
-
-		/* Implicit sink buffer will be
-		 * initialized in post_check
-		 */
-		logger->type = LOG_TARGET_BUFFER;
-		logger->sink = NULL;
-		/* compute uniq name for the ring */
-		memprintf(&logger->ring_name, "ring#%lu", ++ring_ids);
-	}
 
  done:
 	LIST_APPEND(loggers, &logger->list);
@@ -1704,23 +1763,23 @@ static inline void __do_send_log(struct logger *logger, int nblogger, int level,
 	while (size && (message[size-1] == '\n' || (message[size-1] == 0)))
 		size--;
 
-	if (logger->type == LOG_TARGET_BUFFER) {
+	if (logger->target.type == LOG_TARGET_BUFFER) {
 		plogfd = NULL;
 		goto send;
 	}
-	else if (logger->addr.ss_family == AF_CUST_EXISTING_FD) {
+	else if (logger->target.addr->ss_family == AF_CUST_EXISTING_FD) {
 		/* the socket's address is a file descriptor */
-		plogfd = (int *)&((struct sockaddr_in *)&logger->addr)->sin_addr.s_addr;
+		plogfd = (int *)&((struct sockaddr_in *)logger->target.addr)->sin_addr.s_addr;
 	}
-	else if (logger->addr.ss_family == AF_UNIX)
+	else if (logger->target.addr->ss_family == AF_UNIX)
 		plogfd = &logfdunix;
 	else
 		plogfd = &logfdinet;
 
 	if (plogfd && unlikely(*plogfd < 0)) {
 		/* socket not successfully initialized yet */
-		if ((*plogfd = socket(logger->addr.ss_family, SOCK_DGRAM,
-							  (logger->addr.ss_family == AF_UNIX) ? 0 : IPPROTO_UDP)) < 0) {
+		if ((*plogfd = socket(logger->target.addr->ss_family, SOCK_DGRAM,
+		                      (logger->target.addr->ss_family == AF_UNIX) ? 0 : IPPROTO_UDP)) < 0) {
 			static char once;
 
 			if (!once) {
@@ -1740,7 +1799,7 @@ static inline void __do_send_log(struct logger *logger, int nblogger, int level,
 
 	msg_header = build_log_header(logger->format, level, facility, metadata, &nbelem);
  send:
-	if (logger->type == LOG_TARGET_BUFFER) {
+	if (logger->target.type == LOG_TARGET_BUFFER) {
 		struct ist msg;
 		size_t maxlen = logger->maxlen;
 
@@ -1751,9 +1810,9 @@ static inline void __do_send_log(struct logger *logger, int nblogger, int level,
 		 */
 		maxlen -= 1;
 
-		sent = sink_write(logger->sink, maxlen, &msg, 1, level, facility, metadata);
+		sent = sink_write(logger->target.sink, maxlen, &msg, 1, level, facility, metadata);
 	}
-	else if (logger->addr.ss_family == AF_CUST_EXISTING_FD) {
+	else if (logger->target.addr->ss_family == AF_CUST_EXISTING_FD) {
 		struct ist msg;
 
 		msg = ist2(message, size);
@@ -1786,8 +1845,8 @@ static inline void __do_send_log(struct logger *logger, int nblogger, int level,
 		i++;
 
 		msghdr.msg_iovlen = i;
-		msghdr.msg_name = (struct sockaddr *)&logger->addr;
-		msghdr.msg_namelen = get_addr_len(&logger->addr);
+		msghdr.msg_name = (struct sockaddr *)logger->target.addr;
+		msghdr.msg_namelen = get_addr_len(logger->target.addr);
 
 		sent = sendmsg(*plogfd, &msghdr, MSG_DONTWAIT | MSG_NOSIGNAL);
 	}

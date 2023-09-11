@@ -218,13 +218,25 @@ struct smp_info {
 	ullong curr_rg_idx;        /* 63:32 = current range; 31:0 = current index */
 };
 
+enum log_target_flags {
+	LOG_TARGET_FL_NONE     = 0x00,
+	LOG_TARGET_FL_RESOLVED = 0x01
+};
+
+struct log_target {
+	struct sockaddr_storage *addr;
+	union {
+		char *ring_name;   /* type = BUFFER - preparsing */
+		struct sink *sink; /* type = BUFFER - postparsing */
+	};
+	enum log_tgt type;
+	uint16_t flags;
+};
+
 struct logger {
 	struct list list;
-	struct sockaddr_storage addr;
+	struct log_target target;
 	struct smp_info lb;
-	struct sink *sink;
-	char *ring_name;
-	enum log_tgt type;
 	enum log_fmt format;
 	int facility;
 	int level;

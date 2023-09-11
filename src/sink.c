@@ -1184,7 +1184,7 @@ err:
  * it returns NULL.
  *
  * Note: the sink is created using the name
- *       specified into logger->ring_name
+ *       specified into logger->target.ring_name
  */
 struct sink *sink_new_from_logger(struct logger *logger)
 {
@@ -1197,7 +1197,7 @@ struct sink *sink_new_from_logger(struct logger *logger)
 	chunk_printf(&trash, "created from log directive declared into '%s' at line %d", logger->conf.file, logger->conf.line);
 
 	/* allocate a new sink buffer */
-	sink = sink_new_ringbuf(logger->ring_name, trash.area, logger->conf.file, logger->conf.line, &err_msg);
+	sink = sink_new_ringbuf(logger->target.ring_name, trash.area, logger->conf.file, logger->conf.line, &err_msg);
 	if (!sink) {
 		ha_alert("%s.\n", err_msg);
 		ha_free(&err_msg);
@@ -1222,11 +1222,11 @@ struct sink *sink_new_from_logger(struct logger *logger)
 		goto error;
 
 	/* init server */
-	srv->id = strdup(logger->ring_name);
+	srv->id = strdup(logger->target.ring_name);
 	srv->conf.file = strdup(logger->conf.file);
 	srv->conf.line = logger->conf.line;
-	srv->addr = logger->addr;
-        srv->svc_port = get_host_port(&logger->addr);
+	srv->addr = *logger->target.addr;
+        srv->svc_port = get_host_port(logger->target.addr);
 	HA_SPIN_INIT(&srv->lock);
 
 	/* process per thread init */
@@ -1242,8 +1242,8 @@ struct sink *sink_new_from_logger(struct logger *logger)
 	if (sink_finalize(sink) & ERR_CODE)
 		goto error_final;
 
-	/* reset familyt of logger to consider the ring buffer target */
-	logger->addr.ss_family = AF_UNSPEC;
+	/* reset family of logger to consider the ring buffer target */
+	logger->target.addr->ss_family = AF_UNSPEC;
 
 	return sink;
  error:
@@ -1279,20 +1279,21 @@ int cfg_post_parse_ring()
  * could also be set when no error occured to report a diag warning), thus is
  * up to the caller to check it and to free it.
  */
-int sink_resolve_logger_buffer(struct logger *target, char **msg)
+int sink_resolve_logger_buffer(struct logger *logger, char **msg)
 {
+	struct log_target *target = &logger->target;
 	int err_code = ERR_NONE;
 	struct sink *sink;
 
-	BUG_ON(target->type != LOG_TARGET_BUFFER);
+	BUG_ON(target->type != LOG_TARGET_BUFFER || (target->flags & LOG_TARGET_FL_RESOLVED));
 	sink = sink_find(target->ring_name);
 	if (!sink) {
 		/* LOG_TARGET_BUFFER but !AF_UNSPEC
 		 * means we must allocate a sink
 		 * buffer to send messages to this logger
 		 */
-		if (target->addr.ss_family != AF_UNSPEC) {
-			sink = sink_new_from_logger(target);
+		if (target->addr->ss_family != AF_UNSPEC) {
+			sink = sink_new_from_logger(logger);
 			if (!sink) {
 				memprintf(msg, "cannot be initialized (failed to create implicit ring)");
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -1310,16 +1311,18 @@ int sink_resolve_logger_buffer(struct logger *target, char **msg)
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto end;
 	}
-	if (sink && target->maxlen > ring_max_payload(sink->ctx.ring)) {
+	if (sink && logger->maxlen > ring_max_payload(sink->ctx.ring)) {
 		memprintf(msg, "uses a max length which exceeds ring capacity ('%s' supports %lu bytes at most)",
 		          target->ring_name, (unsigned long)ring_max_payload(sink->ctx.ring));
 	}
-	else if (sink && target->maxlen > sink->maxlen) {
+	else if (sink && logger->maxlen > sink->maxlen) {
 		memprintf(msg, "uses a ring with a smaller maxlen than the one specified on the log directive ('%s' has maxlen = %d), logs will be truncated according to the lowest maxlen between the two",
 		          target->ring_name, sink->maxlen);
 	}
  end:
+	ha_free(&target->ring_name); /* sink is resolved and will replace ring_name hint */
 	target->sink = sink;
+	ha_free(&target->addr); /* we no longer need this */
 	return err_code;
 }
 
