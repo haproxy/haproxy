@@ -2372,7 +2372,7 @@ static int fcgi_strm_handle_stderr(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	trash.area[ret]   = '\n';
 	trash.area[ret+1] = '\0';
 	tag.area = fconn->app->name; tag.data = strlen(fconn->app->name);
-	app_log(&fconn->app->logsrvs, &tag, LOG_ERR, "%s", trash.area);
+	app_log(&fconn->app->loggers, &tag, LOG_ERR, "%s", trash.area);
 
 	if (fconn->drl)
 		goto fail;

@@ -218,7 +218,7 @@ struct smp_info {
 	ullong curr_rg_idx;        /* 63:32 = current range; 31:0 = current index */
 };
 
-struct logsrv {
+struct logger {
 	struct list list;
 	struct sockaddr_storage addr;
 	struct smp_info lb;
@@ -230,10 +230,10 @@ struct logsrv {
 	int level;
 	int minlvl;
 	int maxlen;
-	struct logsrv *ref;
+	struct logger *ref;
 	struct {
-                char *file;                     /* file where the logsrv appears */
-                int line;                       /* line where the logsrv appears */
+                char *file;                     /* file where the logger appears */
+                int line;                       /* line where the logger appears */
         } conf;
 };
 

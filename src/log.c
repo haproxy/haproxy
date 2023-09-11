@@ -666,7 +666,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
  * ranges of indexes. Note that an index may be considered as a particular range
  * with a high limit to the low limit.
  */
-int get_logsrv_smp_range(unsigned int *low, unsigned int *high, char **arg, char **err)
+int get_logger_smp_range(unsigned int *low, unsigned int *high, char **arg, char **err)
 {
 	char *end, *p;
 
@@ -734,10 +734,10 @@ int smp_log_range_cmp(const void *a, const void *b)
 	return 0;
 }
 
-/* resolves a single logsrv entry (it is expected to be called
+/* resolves a single logger entry (it is expected to be called
  * at postparsing stage)
  *
- * <logsrv> is parent logsrv used for implicit settings
+ * <logger> is parent logger used for implicit settings
  *
  * Returns err_code which defaults to ERR_NONE and can be set to a combination
  * of ERR_WARN, ERR_ALERT, ERR_FATAL and ERR_ABORT in case of errors.
@@ -745,23 +745,23 @@ int smp_log_range_cmp(const void *a, const void *b)
  * could also be set when no error occured to report a diag warning), thus is
  * up to the caller to check it and to free it.
  */
-int resolve_logsrv(struct logsrv *logsrv, char **msg)
+int resolve_logger(struct logger *logger, char **msg)
 {
 	int err_code = ERR_NONE;
 
-	if (logsrv->type == LOG_TARGET_BUFFER)
-		err_code = sink_resolve_logsrv_buffer(logsrv, msg);
+	if (logger->type == LOG_TARGET_BUFFER)
+		err_code = sink_resolve_logger_buffer(logger, msg);
 	return err_code;
 }
 
-/* tries to duplicate <def> logsrv
+/* tries to duplicate <def> logger
  *
- * Returns the newly allocated and duplicated logsrv or NULL
+ * Returns the newly allocated and duplicated logger or NULL
  * in case of error.
  */
-struct logsrv *dup_logsrv(struct logsrv *def)
+struct logger *dup_logger(struct logger *def)
 {
-	struct logsrv *cpy = malloc(sizeof(*cpy));
+	struct logger *cpy = malloc(sizeof(*cpy));
 
 	/* copy everything that can be easily copied */
 	memcpy(cpy, def, sizeof(*cpy));
@@ -786,44 +786,44 @@ struct logsrv *dup_logsrv(struct logsrv *def)
 	return cpy;
 
  error:
-	free_logsrv(cpy);
+	free_logger(cpy);
 	return NULL;
 }
 
-/* frees log server <logsrv> after freeing all of its allocated fields. The
+/* frees <logger> after freeing all of its allocated fields. The
  * server must not belong to a list anymore. Logsrv may be NULL, which is
  * silently ignored.
  */
-void free_logsrv(struct logsrv *logsrv)
+void free_logger(struct logger *logger)
 {
-	if (!logsrv)
+	if (!logger)
 		return;
 
-	BUG_ON(LIST_INLIST(&logsrv->list));
-	ha_free(&logsrv->conf.file);
-	ha_free(&logsrv->ring_name);
-	free(logsrv);
+	BUG_ON(LIST_INLIST(&logger->list));
+	ha_free(&logger->conf.file);
+	ha_free(&logger->ring_name);
+	free(logger);
 }
 
 /*
- * Parse "log" keyword and update <logsrvs> list accordingly.
+ * Parse "log" keyword and update <loggers> list accordingly.
  *
  * When <do_del> is set, it means the "no log" line was parsed, so all log
- * servers in <logsrvs> are released.
+ * servers in <loggers> are released.
  *
  * Otherwise, we try to parse the "log" line. First of all, when the list is not
  * the global one, we look for the parameter "global". If we find it,
- * global.logsrvs is copied. Else we parse each arguments.
+ * global.loggers is copied. Else we parse each arguments.
  *
  * The function returns 1 in success case, otherwise, it returns 0 and err is
  * filled.
  */
-int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file, int linenum, char **err)
+int parse_logger(char **args, struct list *loggers, int do_del, const char *file, int linenum, char **err)
 {
 	struct smp_log_range *smp_rgs = NULL;
 	struct sockaddr_storage *sk;
 	struct protocol *proto;
-	struct logsrv *logsrv = NULL;
+	struct logger *logger = NULL;
 	int port1, port2;
 	int cur_arg;
 	int fd;
@@ -833,39 +833,39 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 	 *           servers.
 	 */
 	if (do_del) {
-		struct logsrv *back;
+		struct logger *back;
 
 		if (*(args[1]) != 0) {
 			memprintf(err, "'no log' does not expect arguments");
 			goto error;
 		}
 
-		list_for_each_entry_safe(logsrv, back, logsrvs, list) {
-			LIST_DEL_INIT(&logsrv->list);
-			free_logsrv(logsrv);
+		list_for_each_entry_safe(logger, back, loggers, list) {
+			LIST_DEL_INIT(&logger->list);
+			free_logger(logger);
 		}
 		return 1;
 	}
 
 	/*
-	 * "log global": copy global.logrsvs linked list to the end of logsrvs
-	 *               list. But first, we check (logsrvs != global.logsrvs).
+	 * "log global": copy global.loggers linked list to the end of loggers
+	 *               list. But first, we check (loggers != global.loggers).
 	 */
 	if (*(args[1]) && *(args[2]) == 0 && strcmp(args[1], "global") == 0) {
-		if (logsrvs == &global.logsrvs) {
+		if (loggers == &global.loggers) {
 			memprintf(err, "'global' is not supported for a global syslog server");
 			goto error;
 		}
-		list_for_each_entry(logsrv, &global.logsrvs, list) {
-			struct logsrv *node;
+		list_for_each_entry(logger, &global.loggers, list) {
+			struct logger *node;
 
-			list_for_each_entry(node, logsrvs, list) {
-				if (node->ref == logsrv)
-					goto skip_logsrv;
+			list_for_each_entry(node, loggers, list) {
+				if (node->ref == logger)
+					goto skip_logger;
 			}
 
-			/* duplicate logsrv from global */
-			node = dup_logsrv(logsrv);
+			/* duplicate logger from global */
+			node = dup_logger(logger);
 			if (!node) {
 				memprintf(err, "out of memory error");
 				goto error;
@@ -877,9 +877,9 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 			node->conf.line = linenum;
 
 			/* add to list */
-			LIST_APPEND(logsrvs, &node->list);
+			LIST_APPEND(loggers, &node->list);
 
-		  skip_logsrv:
+		  skip_logger:
 			continue;
 		}
 		return 1;
@@ -890,7 +890,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 	*/
 	if (*(args[1]) == 0 || *(args[2]) == 0) {
 		memprintf(err, "expects <address> and <facility> %s as arguments",
-			  ((logsrvs == &global.logsrvs) ? "" : "or global"));
+			  ((loggers == &global.loggers) ? "" : "or global"));
 		goto error;
 	}
 
@@ -900,20 +900,20 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 	else if (strcmp(args[1], "stderr") == 0)
 		args[1] = "fd@2";
 
-	logsrv = calloc(1, sizeof(*logsrv));
-	if (!logsrv) {
+	logger = calloc(1, sizeof(*logger));
+	if (!logger) {
 		memprintf(err, "out of memory");
 		goto error;
 	}
-	LIST_INIT(&logsrv->list);
-	logsrv->conf.file = strdup(file);
-	logsrv->conf.line = linenum;
+	LIST_INIT(&logger->list);
+	logger->conf.file = strdup(file);
+	logger->conf.line = linenum;
 
 	/* skip address for now, it will be parsed at the end */
 	cur_arg = 2;
 
 	/* just after the address, a length may be specified */
-	logsrv->maxlen = MAX_SYSLOG_LEN;
+	logger->maxlen = MAX_SYSLOG_LEN;
 	if (strcmp(args[cur_arg], "len") == 0) {
 		int len = atoi(args[cur_arg+1]);
 		if (len < 80 || len > 65535) {
@@ -921,16 +921,16 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 				  args[cur_arg+1]);
 			goto error;
 		}
-		logsrv->maxlen = len;
+		logger->maxlen = len;
 		cur_arg += 2;
 	}
-	if (logsrv->maxlen > global.max_syslog_len)
-		global.max_syslog_len = logsrv->maxlen;
+	if (logger->maxlen > global.max_syslog_len)
+		global.max_syslog_len = logger->maxlen;
 
 	/* after the length, a format may be specified */
 	if (strcmp(args[cur_arg], "format") == 0) {
-		logsrv->format = get_log_format(args[cur_arg+1]);
-		if (logsrv->format == LOG_FORMAT_UNSPEC) {
+		logger->format = get_log_format(args[cur_arg+1]);
+		if (logger->format == LOG_FORMAT_UNSPEC) {
 			memprintf(err, "unknown log format '%s'", args[cur_arg+1]);
 			goto error;
 		}
@@ -954,7 +954,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 		end = p + strlen(p);
 
 		while (p != end) {
-			if (!get_logsrv_smp_range(&low, &high, &p, err))
+			if (!get_logger_smp_range(&low, &high, &p, err))
 				goto error;
 
 			if (smp_rgs && smp_log_ranges_overlap(smp_rgs, smp_rgs_sz, low, high, err))
@@ -999,26 +999,26 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 		/* Let's order <smp_rgs> array. */
 		qsort(smp_rgs, smp_rgs_sz, sizeof(struct smp_log_range), smp_log_range_cmp);
 
-		logsrv->lb.smp_rgs = smp_rgs;
-		logsrv->lb.smp_rgs_sz = smp_rgs_sz;
-		logsrv->lb.smp_sz = smp_sz;
+		logger->lb.smp_rgs = smp_rgs;
+		logger->lb.smp_rgs_sz = smp_rgs_sz;
+		logger->lb.smp_sz = smp_sz;
 
 		cur_arg += 2;
 	}
 
 	/* parse the facility */
-	logsrv->facility = get_log_facility(args[cur_arg]);
-	if (logsrv->facility < 0) {
+	logger->facility = get_log_facility(args[cur_arg]);
+	if (logger->facility < 0) {
 		memprintf(err, "unknown log facility '%s'", args[cur_arg]);
 		goto error;
 	}
 	cur_arg++;
 
 	/* parse the max syslog level (default: debug) */
-	logsrv->level = 7;
+	logger->level = 7;
 	if (*(args[cur_arg])) {
-		logsrv->level = get_log_level(args[cur_arg]);
-		if (logsrv->level < 0) {
+		logger->level = get_log_level(args[cur_arg]);
+		if (logger->level < 0) {
 			memprintf(err, "unknown optional log level '%s'", args[cur_arg]);
 			goto error;
 		}
@@ -1026,10 +1026,10 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 	}
 
 	/* parse the limit syslog level (default: emerg) */
-	logsrv->minlvl = 0;
+	logger->minlvl = 0;
 	if (*(args[cur_arg])) {
-		logsrv->minlvl = get_log_level(args[cur_arg]);
-		if (logsrv->minlvl < 0) {
+		logger->minlvl = get_log_level(args[cur_arg]);
+		if (logger->minlvl < 0) {
 			memprintf(err, "unknown optional minimum log level '%s'", args[cur_arg]);
 			goto error;
 		}
@@ -1043,12 +1043,12 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 	}
 
 	/* now, back to the address */
-	logsrv->type = LOG_TARGET_DGRAM;
+	logger->type = LOG_TARGET_DGRAM;
 	if (strncmp(args[1], "ring@", 5) == 0) {
-		logsrv->addr.ss_family = AF_UNSPEC;
-		logsrv->type = LOG_TARGET_BUFFER;
-		logsrv->sink = NULL;
-		logsrv->ring_name = strdup(args[1] + 5);
+		logger->addr.ss_family = AF_UNSPEC;
+		logger->type = LOG_TARGET_BUFFER;
+		logger->sink = NULL;
+		logger->ring_name = strdup(args[1] + 5);
 		goto done;
 	}
 
@@ -1059,12 +1059,12 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 		goto error;
 
 	if (fd != -1)
-		logsrv->type = LOG_TARGET_FD;
-	logsrv->addr = *sk;
+		logger->type = LOG_TARGET_FD;
+	logger->addr = *sk;
 
 	if (sk->ss_family == AF_INET || sk->ss_family == AF_INET6) {
 		if (!port1)
-			set_host_port(&logsrv->addr, SYSLOG_PORT);
+			set_host_port(&logger->addr, SYSLOG_PORT);
 	}
 
 	if (proto && proto->xprt_type == PROTO_TYPE_STREAM) {
@@ -1073,19 +1073,19 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 		/* Implicit sink buffer will be
 		 * initialized in post_check
 		 */
-		logsrv->type = LOG_TARGET_BUFFER;
-		logsrv->sink = NULL;
+		logger->type = LOG_TARGET_BUFFER;
+		logger->sink = NULL;
 		/* compute uniq name for the ring */
-		memprintf(&logsrv->ring_name, "ring#%lu", ++ring_ids);
+		memprintf(&logger->ring_name, "ring#%lu", ++ring_ids);
 	}
 
  done:
-	LIST_APPEND(logsrvs, &logsrv->list);
+	LIST_APPEND(loggers, &logger->list);
 	return 1;
 
   error:
 	free(smp_rgs);
-	free_logsrv(logsrv);
+	free_logger(logger);
 	return 0;
 }
 
@@ -1369,7 +1369,7 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 		data_len = global.max_syslog_len;
 	va_end(argp);
 
-	__send_log((p ? &p->logsrvs : NULL), (p ? &p->log_tag : NULL), level,
+	__send_log((p ? &p->loggers : NULL), (p ? &p->log_tag : NULL), level,
 		   logline, data_len, default_rfc5424_sd_log_format, 2);
 }
 /*
@@ -1676,13 +1676,13 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 }
 
 /*
- * This function sends a syslog message to <logsrv>.
+ * This function sends a syslog message to <logger>.
  * The argument <metadata> MUST be an array of size
  * LOG_META_FIELDS*sizeof(struct ist) containing data to build the header.
  * It overrides the last byte of the message vector with an LF character.
  * Does not return any error,
  */
-static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level, int facility, struct ist *metadata, char *message, size_t size)
+static inline void __do_send_log(struct logger *logger, int nblogger, int level, int facility, struct ist *metadata, char *message, size_t size)
 {
 	static THREAD_LOCAL struct iovec iovec[NB_LOG_HDR_MAX_ELEMENTS+1+1] = { }; /* header elements + message + LF */
 	static THREAD_LOCAL struct msghdr msghdr = {
@@ -1704,23 +1704,23 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
 	while (size && (message[size-1] == '\n' || (message[size-1] == 0)))
 		size--;
 
-	if (logsrv->type == LOG_TARGET_BUFFER) {
+	if (logger->type == LOG_TARGET_BUFFER) {
 		plogfd = NULL;
 		goto send;
 	}
-	else if (logsrv->addr.ss_family == AF_CUST_EXISTING_FD) {
+	else if (logger->addr.ss_family == AF_CUST_EXISTING_FD) {
 		/* the socket's address is a file descriptor */
-		plogfd = (int *)&((struct sockaddr_in *)&logsrv->addr)->sin_addr.s_addr;
+		plogfd = (int *)&((struct sockaddr_in *)&logger->addr)->sin_addr.s_addr;
 	}
-	else if (logsrv->addr.ss_family == AF_UNIX)
+	else if (logger->addr.ss_family == AF_UNIX)
 		plogfd = &logfdunix;
 	else
 		plogfd = &logfdinet;
 
 	if (plogfd && unlikely(*plogfd < 0)) {
 		/* socket not successfully initialized yet */
-		if ((*plogfd = socket(logsrv->addr.ss_family, SOCK_DGRAM,
-							  (logsrv->addr.ss_family == AF_UNIX) ? 0 : IPPROTO_UDP)) < 0) {
+		if ((*plogfd = socket(logger->addr.ss_family, SOCK_DGRAM,
+							  (logger->addr.ss_family == AF_UNIX) ? 0 : IPPROTO_UDP)) < 0) {
 			static char once;
 
 			if (!once) {
@@ -1738,11 +1738,11 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
 		}
 	}
 
-	msg_header = build_log_header(logsrv->format, level, facility, metadata, &nbelem);
+	msg_header = build_log_header(logger->format, level, facility, metadata, &nbelem);
  send:
-	if (logsrv->type == LOG_TARGET_BUFFER) {
+	if (logger->type == LOG_TARGET_BUFFER) {
 		struct ist msg;
-		size_t maxlen = logsrv->maxlen;
+		size_t maxlen = logger->maxlen;
 
 		msg = ist2(message, size);
 
@@ -1751,18 +1751,18 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
 		 */
 		maxlen -= 1;
 
-		sent = sink_write(logsrv->sink, maxlen, &msg, 1, level, facility, metadata);
+		sent = sink_write(logger->sink, maxlen, &msg, 1, level, facility, metadata);
 	}
-	else if (logsrv->addr.ss_family == AF_CUST_EXISTING_FD) {
+	else if (logger->addr.ss_family == AF_CUST_EXISTING_FD) {
 		struct ist msg;
 
 		msg = ist2(message, size);
 
-		sent = fd_write_frag_line(*plogfd, logsrv->maxlen, msg_header, nbelem, &msg, 1, 1);
+		sent = fd_write_frag_line(*plogfd, logger->maxlen, msg_header, nbelem, &msg, 1, 1);
 	}
 	else {
 		int i = 0;
-		int totlen = logsrv->maxlen - 1; /* save space for the final '\n' */
+		int totlen = logger->maxlen - 1; /* save space for the final '\n' */
 
 		for (i = 0 ; i < nbelem ; i++ ) {
 			iovec[i].iov_base = msg_header[i].ptr;
@@ -1786,8 +1786,8 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
 		i++;
 
 		msghdr.msg_iovlen = i;
-		msghdr.msg_name = (struct sockaddr *)&logsrv->addr;
-		msghdr.msg_namelen = get_addr_len(&logsrv->addr);
+		msghdr.msg_name = (struct sockaddr *)&logger->addr;
+		msghdr.msg_namelen = get_addr_len(&logger->addr);
 
 		sent = sendmsg(*plogfd, &msghdr, MSG_DONTWAIT | MSG_NOSIGNAL);
 	}
@@ -1812,31 +1812,31 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
  * LOG_META_FIELDS*sizeof(struct ist)  containing
  * data to build the header.
  */
-void process_send_log(struct list *logsrvs, int level, int facility,
+void process_send_log(struct list *loggers, int level, int facility,
 	                struct ist *metadata, char *message, size_t size)
 {
-	struct logsrv *logsrv;
+	struct logger *logger;
 	int nblogger;
 
 	/* Send log messages to syslog server. */
 	nblogger = 0;
-	list_for_each_entry(logsrv, logsrvs, list) {
+	list_for_each_entry(logger, loggers, list) {
 		int in_range = 1;
 
 		/* we can filter the level of the messages that are sent to each logger */
-		if (level > logsrv->level)
+		if (level > logger->level)
 			continue;
 
-		if (logsrv->lb.smp_rgs) {
+		if (logger->lb.smp_rgs) {
 			struct smp_log_range *smp_rg;
 			uint next_idx, curr_rg;
 			ullong curr_rg_idx, next_rg_idx;
 
-			curr_rg_idx = _HA_ATOMIC_LOAD(&logsrv->lb.curr_rg_idx);
+			curr_rg_idx = _HA_ATOMIC_LOAD(&logger->lb.curr_rg_idx);
 			do {
 				next_idx = (curr_rg_idx & 0xFFFFFFFFU) + 1;
 				curr_rg  = curr_rg_idx >> 32;
-				smp_rg = &logsrv->lb.smp_rgs[curr_rg];
+				smp_rg = &logger->lb.smp_rgs[curr_rg];
 
 				/* check if the index we're going to take is within range  */
 				in_range = smp_rg->low <= next_idx && next_idx <= smp_rg->high;
@@ -1844,18 +1844,18 @@ void process_send_log(struct list *logsrvs, int level, int facility,
 					/* Let's consume this range. */
 					if (next_idx == smp_rg->high) {
 						/* If consumed, let's select the next range. */
-						curr_rg = (curr_rg + 1) % logsrv->lb.smp_rgs_sz;
+						curr_rg = (curr_rg + 1) % logger->lb.smp_rgs_sz;
 					}
 				}
 
-				next_idx = next_idx % logsrv->lb.smp_sz;
+				next_idx = next_idx % logger->lb.smp_sz;
 				next_rg_idx = ((ullong)curr_rg << 32) + next_idx;
-			} while (!_HA_ATOMIC_CAS(&logsrv->lb.curr_rg_idx, &curr_rg_idx, next_rg_idx) &&
+			} while (!_HA_ATOMIC_CAS(&logger->lb.curr_rg_idx, &curr_rg_idx, next_rg_idx) &&
 				 __ha_cpu_relax());
 		}
 		if (in_range)
-			__do_send_log(logsrv, ++nblogger,  MAX(level, logsrv->minlvl),
-			              (facility == -1) ? logsrv->facility : facility,
+			__do_send_log(logger, ++nblogger,  MAX(level, logger->minlvl),
+			              (facility == -1) ? logger->facility : facility,
 			              metadata, message, size);
 	}
 }
@@ -1866,19 +1866,19 @@ void process_send_log(struct list *logsrvs, int level, int facility,
  * The arguments <sd> and <sd_size> are used for the structured-data part
  * in RFC5424 formatted syslog messages.
  */
-void __send_log(struct list *logsrvs, struct buffer *tagb, int level,
+void __send_log(struct list *loggers, struct buffer *tagb, int level,
 		char *message, size_t size, char *sd, size_t sd_size)
 {
 	static THREAD_LOCAL pid_t curr_pid;
 	static THREAD_LOCAL char pidstr[16];
 	static THREAD_LOCAL struct ist metadata[LOG_META_FIELDS];
 
-	if (logsrvs == NULL) {
-		if (!LIST_ISEMPTY(&global.logsrvs)) {
-			logsrvs = &global.logsrvs;
+	if (loggers == NULL) {
+		if (!LIST_ISEMPTY(&global.loggers)) {
+			loggers = &global.loggers;
 		}
 	}
-	if (!logsrvs || LIST_ISEMPTY(logsrvs))
+	if (!loggers || LIST_ISEMPTY(loggers))
 		return;
 
 	if (!metadata[LOG_META_HOST].len) {
@@ -1907,7 +1907,7 @@ void __send_log(struct list *logsrvs, struct buffer *tagb, int level,
 	while (metadata[LOG_META_STDATA].len && metadata[LOG_META_STDATA].ptr[metadata[LOG_META_STDATA].len-1] == ' ')
 		metadata[LOG_META_STDATA].len--;
 
-	return process_send_log(logsrvs, level, -1, metadata, message, size);
+	return process_send_log(loggers, level, -1, metadata, message, size);
 }
 
 const char sess_cookie[8]     = "NIDVEOU7";	/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie, Expired cookie, Old cookie, Unused, unknown */
@@ -3174,7 +3174,7 @@ void strm_log(struct stream *s)
 	if (!err && (sess->fe->options2 & PR_O2_NOLOGNORM))
 		return;
 
-	if (LIST_ISEMPTY(&sess->fe->logsrvs))
+	if (LIST_ISEMPTY(&sess->fe->loggers))
 		return;
 
 	if (s->logs.level) { /* loglevel was overridden */
@@ -3203,7 +3203,7 @@ void strm_log(struct stream *s)
 	size = build_logline(s, logline, global.max_syslog_len, &sess->fe->logformat);
 	if (size > 0) {
 		_HA_ATOMIC_INC(&sess->fe->log_count);
-		__send_log(&sess->fe->logsrvs, &sess->fe->log_tag, level,
+		__send_log(&sess->fe->loggers, &sess->fe->log_tag, level,
 			   logline, size + 1, logline_rfc5424, sd_size);
 		s->logs.logwait = 0;
 	}
@@ -3226,7 +3226,7 @@ void sess_log(struct session *sess)
 	if (!sess)
 		return;
 
-	if (LIST_ISEMPTY(&sess->fe->logsrvs))
+	if (LIST_ISEMPTY(&sess->fe->loggers))
 		return;
 
 	level = LOG_INFO;
@@ -3245,12 +3245,12 @@ void sess_log(struct session *sess)
 		size = sess_build_logline(sess, NULL, logline, global.max_syslog_len, &sess->fe->logformat);
 	if (size > 0) {
 		_HA_ATOMIC_INC(&sess->fe->log_count);
-		__send_log(&sess->fe->logsrvs, &sess->fe->log_tag, level,
+		__send_log(&sess->fe->loggers, &sess->fe->log_tag, level,
 			   logline, size + 1, logline_rfc5424, sd_size);
 	}
 }
 
-void app_log(struct list *logsrvs, struct buffer *tag, int level, const char *format, ...)
+void app_log(struct list *loggers, struct buffer *tag, int level, const char *format, ...)
 {
 	va_list argp;
 	int  data_len;
@@ -3264,7 +3264,7 @@ void app_log(struct list *logsrvs, struct buffer *tag, int level, const char *fo
 		data_len = global.max_syslog_len;
 	va_end(argp);
 
-	__send_log(logsrvs, tag, level, logline, data_len, default_rfc5424_sd_log_format, 2);
+	__send_log(loggers, tag, level, logline, data_len, default_rfc5424_sd_log_format, 2);
 }
 /*
  * This function parse a received log message <buf>, of size <buflen>
@@ -3638,7 +3638,7 @@ void syslog_fd_handler(int fd)
 
 			parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
-			process_send_log(&l->bind_conf->frontend->logsrvs, level, facility, metadata, message, size);
+			process_send_log(&l->bind_conf->frontend->loggers, level, facility, metadata, message, size);
 
 		} while (--max_accept);
 	}
@@ -3750,7 +3750,7 @@ static void syslog_io_handler(struct appctx *appctx)
 
 		parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
-		process_send_log(&frontend->logsrvs, level, facility, metadata, message, size);
+		process_send_log(&frontend->loggers, level, facility, metadata, message, size);
 
 	}
 
@@ -3995,7 +3995,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (strcmp(args[0], "log") == 0) {
-		if (!parse_logsrv(args, &cfg_log_forward->logsrvs, (kwm == KWM_NO), file, linenum, &errmsg)) {
+		if (!parse_logger(args, &cfg_log_forward->loggers, (kwm == KWM_NO), file, linenum, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			         err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -4044,21 +4044,21 @@ out:
 	return err_code;
 }
 
-/* function: post-resolve a single list of logsrvs
+/* function: post-resolve a single list of loggers
  *
  * Returns err_code which defaults to ERR_NONE and can be set to a combination
  * of ERR_WARN, ERR_ALERT, ERR_FATAL and ERR_ABORT in case of errors.
  */
-int postresolve_logsrv_list(struct list *logsrvs, const char *section, const char *section_name)
+int postresolve_logger_list(struct list *loggers, const char *section, const char *section_name)
 {
 	int err_code = ERR_NONE;
-	struct logsrv *logsrv;
+	struct logger *logger;
 
-	list_for_each_entry(logsrv, logsrvs, list) {
+	list_for_each_entry(logger, loggers, list) {
 		int cur_code;
 		char *msg = NULL;
 
-		cur_code = resolve_logsrv(logsrv, &msg);
+		cur_code = resolve_logger(logger, &msg);
 		if (msg) {
 			void (*e_func)(const char *fmt, ...) = NULL;
 
@@ -4069,11 +4069,11 @@ int postresolve_logsrv_list(struct list *logsrvs, const char *section, const cha
 			else
 				e_func = ha_diag_warning;
 			if (!section)
-				e_func("global log server declared in file %s at line '%d' %s.\n",
-				       logsrv->conf.file, logsrv->conf.line, msg);
+				e_func("global log directive declared in file %s at line '%d' %s.\n",
+				       logger->conf.file, logger->conf.line, msg);
 			else
-				e_func("log server declared in %s section '%s' in file '%s' at line %d %s.\n",
-				       section, section_name, logsrv->conf.file, logsrv->conf.line, msg);
+				e_func("log directive declared in %s section '%s' in file '%s' at line %d %s.\n",
+				       section, section_name, logger->conf.file, logger->conf.line, msg);
 			ha_free(&msg);
 		}
 		err_code |= cur_code;
@@ -4084,19 +4084,19 @@ int postresolve_logsrv_list(struct list *logsrvs, const char *section, const cha
 /* resolve default log directives at end of config. Returns 0 on success
  * otherwise error flags.
 */
-static int postresolve_logsrvs()
+static int postresolve_loggers()
 {
 	struct proxy *px;
 	int err_code = ERR_NONE;
 
 	/* global log directives */
-	err_code |= postresolve_logsrv_list(&global.logsrvs, NULL, NULL);
+	err_code |= postresolve_logger_list(&global.loggers, NULL, NULL);
 	/* proxy log directives */
 	for (px = proxies_list; px; px = px->next)
-		err_code |= postresolve_logsrv_list(&px->logsrvs, "proxy", px->id);
+		err_code |= postresolve_logger_list(&px->loggers, "proxy", px->id);
 	/* log-forward log directives */
 	for (px = cfg_log_forward; px; px = px->next)
-		err_code |= postresolve_logsrv_list(&px->logsrvs, "log-forward", px->id);
+		err_code |= postresolve_logger_list(&px->loggers, "log-forward", px->id);
 
 	return err_code;
 }
@@ -4104,7 +4104,7 @@ static int postresolve_logsrvs()
 
 /* config parsers for this section */
 REGISTER_CONFIG_SECTION("log-forward", cfg_parse_log_forward, NULL);
-REGISTER_POST_CHECK(postresolve_logsrvs);
+REGISTER_POST_CHECK(postresolve_loggers);
 
 REGISTER_PER_THREAD_ALLOC(init_log_buffers);
 REGISTER_PER_THREAD_FREE(deinit_log_buffers);

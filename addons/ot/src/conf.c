@@ -657,7 +657,7 @@ struct flt_ot_conf_tracer *flt_ot_conf_tracer_init(const char *id, int linenum, 
 void flt_ot_conf_tracer_free(struct flt_ot_conf_tracer **ptr)
 {
 	struct acl    *acl, *aclback;
-	struct logsrv *logsrv, *logsrvback;
+	struct logger *logger, *loggerback;
 
 	FLT_OT_FUNC("%p:%p", FLT_OT_DPTR_ARGS(ptr));
 
@@ -676,10 +676,10 @@ void flt_ot_conf_tracer_free(struct flt_ot_conf_tracer **ptr)
 		FLT_OT_LIST_DEL(&(acl->list));
 		FLT_OT_FREE(acl);
 	}
-	FLT_OT_DBG(2, "- deleting proxy_log.logsrvs list %s", flt_ot_list_debug(&((*ptr)->proxy_log.logsrvs)));
-	list_for_each_entry_safe(logsrv, logsrvback, &((*ptr)->proxy_log.logsrvs), list) {
-		LIST_DELETE(&(logsrv->list));
-		FLT_OT_FREE(logsrv);
+	FLT_OT_DBG(2, "- deleting proxy_log.loggers list %s", flt_ot_list_debug(&((*ptr)->proxy_log.loggers)));
+	list_for_each_entry_safe(logger, loggerback, &((*ptr)->proxy_log.loggers), list) {
+		LIST_DELETE(&(logger->list));
+		FLT_OT_FREE(logger);
 	}
 	FLT_OT_LIST_DESTROY(ph_group, &((*ptr)->ph_groups));
 	FLT_OT_LIST_DESTROY(ph_scope, &((*ptr)->ph_scopes));

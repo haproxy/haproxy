@@ -1224,7 +1224,7 @@ struct proxy *httpclient_create_proxy(const char *id)
 	px->conn_retries = httpclient_retries;
 	px->timeout.connect = httpclient_timeout_connect;
 	px->timeout.client = TICK_ETERNITY;
-	/* The HTTP Client use the "option httplog" with the global log server */
+	/* The HTTP Client use the "option httplog" with the global loggers */
 	px->conf.logformat_string = httpclient_log_format;
 	px->http_needed = 1;
 
@@ -1354,7 +1354,7 @@ static int httpclient_precheck()
 static int httpclient_postcheck_proxy(struct proxy *curproxy)
 {
 	int err_code = ERR_NONE;
-	struct logsrv *logsrv;
+	struct logger *logger;
 	char *errmsg = NULL;
 #ifdef USE_OPENSSL
 	struct server *srv = NULL;
@@ -1368,15 +1368,15 @@ static int httpclient_postcheck_proxy(struct proxy *curproxy)
 		return ERR_NONE; /* nothing to do */
 
 	/* copy logs from "global" log list */
-	list_for_each_entry(logsrv, &global.logsrvs, list) {
-		struct logsrv *node = dup_logsrv(logsrv);
+	list_for_each_entry(logger, &global.loggers, list) {
+		struct logger *node = dup_logger(logger);
 
 		if (!node) {
 			memprintf(&errmsg, "out of memory.");
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto err;
 		}
-		LIST_APPEND(&curproxy->logsrvs, &node->list);
+		LIST_APPEND(&curproxy->loggers, &node->list);
 	}
 	if (curproxy->conf.logformat_string) {
 		curproxy->conf.args.ctx = ARGC_LOG;

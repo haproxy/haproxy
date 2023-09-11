@@ -371,7 +371,7 @@ struct proxy {
 	struct proxy *next;
 	struct proxy *next_stkt_ref;    /* Link to the list of proxies which refer to the same stick-table. */
 
-	struct list logsrvs;
+	struct list loggers;                    /* one per 'log' directive */
 	struct list logformat; 			/* log_format linked list */
 	struct list logformat_sd;		/* log_format linked list for the RFC5424 structured-data part */
 	struct list logformat_error;		/* log_format linked list used in case of connection error on the frontend */

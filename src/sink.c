@@ -1172,9 +1172,9 @@ err:
 	return err_code;
 }
 
-/* Creates a new sink buffer from a log server.
+/* Creates a new sink buffer from a logger.
  *
- * It uses the logsrvaddress to declare a forward
+ * It uses the logger's address to declare a forward
  * server for this buffer. And it initializes the
  * forwarding.
  *
@@ -1184,9 +1184,9 @@ err:
  * it returns NULL.
  *
  * Note: the sink is created using the name
- *       specified into logsrv->ring_name
+ *       specified into logger->ring_name
  */
-static struct sink *sink_new_from_logsrv(struct logsrv *logsrv)
+struct sink *sink_new_from_logger(struct logger *logger)
 {
 	struct sink *sink = NULL;
 	struct server *srv = NULL;
@@ -1194,21 +1194,21 @@ static struct sink *sink_new_from_logsrv(struct logsrv *logsrv)
 
 	/* prepare description for the sink */
 	chunk_reset(&trash);
-	chunk_printf(&trash, "created from logserver declared into '%s' at line %d", logsrv->conf.file, logsrv->conf.line);
+	chunk_printf(&trash, "created from log directive declared into '%s' at line %d", logger->conf.file, logger->conf.line);
 
 	/* allocate a new sink buffer */
-	sink = sink_new_ringbuf(logsrv->ring_name, trash.area, logsrv->conf.file, logsrv->conf.line, &err_msg);
+	sink = sink_new_ringbuf(logger->ring_name, trash.area, logger->conf.file, logger->conf.line, &err_msg);
 	if (!sink) {
 		ha_alert("%s.\n", err_msg);
 		ha_free(&err_msg);
 		goto error;
 	}
 
-	/* disable sink->maxlen, we already have logsrv->maxlen */
+	/* disable sink->maxlen, we already have logger->maxlen */
 	sink->maxlen = 0;
 
-	/* set ring format from logsrv format */
-	sink->fmt = logsrv->format;
+	/* set ring format from logger format */
+	sink->fmt = logger->format;
 
 	/* Set default connect and server timeout for sink forward proxy */
 	sink->forward_px->timeout.connect = MS_TO_TICKS(1000);
@@ -1222,11 +1222,11 @@ static struct sink *sink_new_from_logsrv(struct logsrv *logsrv)
 		goto error;
 
 	/* init server */
-	srv->id = strdup(logsrv->ring_name);
-	srv->conf.file = strdup(logsrv->conf.file);
-	srv->conf.line = logsrv->conf.line;
-	srv->addr = logsrv->addr;
-        srv->svc_port = get_host_port(&logsrv->addr);
+	srv->id = strdup(logger->ring_name);
+	srv->conf.file = strdup(logger->conf.file);
+	srv->conf.line = logger->conf.line;
+	srv->addr = logger->addr;
+        srv->svc_port = get_host_port(&logger->addr);
 	HA_SPIN_INIT(&srv->lock);
 
 	/* process per thread init */
@@ -1242,8 +1242,8 @@ static struct sink *sink_new_from_logsrv(struct logsrv *logsrv)
 	if (sink_finalize(sink) & ERR_CODE)
 		goto error_final;
 
-	/* reset familyt of logsrv to consider the ring buffer target */
-	logsrv->addr.ss_family = AF_UNSPEC;
+	/* reset familyt of logger to consider the ring buffer target */
+	logger->addr.ss_family = AF_UNSPEC;
 
 	return sink;
  error:
@@ -1271,7 +1271,7 @@ int cfg_post_parse_ring()
 	return err_code;
 }
 
-/* function: resolve a single logsrv target of BUFFER type
+/* function: resolve a single logger target of BUFFER type
  *
  * Returns err_code which defaults to ERR_NONE and can be set to a combination
  * of ERR_WARN, ERR_ALERT, ERR_FATAL and ERR_ABORT in case of errors.
@@ -1279,7 +1279,7 @@ int cfg_post_parse_ring()
  * could also be set when no error occured to report a diag warning), thus is
  * up to the caller to check it and to free it.
  */
-int sink_resolve_logsrv_buffer(struct logsrv *target, char **msg)
+int sink_resolve_logger_buffer(struct logger *target, char **msg)
 {
 	int err_code = ERR_NONE;
 	struct sink *sink;
@@ -1289,10 +1289,10 @@ int sink_resolve_logsrv_buffer(struct logsrv *target, char **msg)
 	if (!sink) {
 		/* LOG_TARGET_BUFFER but !AF_UNSPEC
 		 * means we must allocate a sink
-		 * buffer to send messages to this logsrv
+		 * buffer to send messages to this logger
 		 */
 		if (target->addr.ss_family != AF_UNSPEC) {
-			sink = sink_new_from_logsrv(target);
+			sink = sink_new_from_logger(target);
 			if (!sink) {
 				memprintf(msg, "cannot be initialized (failed to create implicit ring)");
 				err_code |= ERR_ALERT | ERR_FATAL;

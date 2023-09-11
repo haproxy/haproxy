@@ -748,7 +748,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
-		if (!parse_logsrv(args, &curpeers->peers_fe->logsrvs, (kwm == KWM_NO), file, linenum, &errmsg)) {
+		if (!parse_logger(args, &curpeers->peers_fe->loggers, (kwm == KWM_NO), file, linenum, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -2772,7 +2772,7 @@ init_proxies_list_stage1:
 		struct switching_rule *rule;
 		struct server_rule *srule;
 		struct sticking_rule *mrule;
-		struct logsrv *tmplogsrv;
+		struct logger *tmplogger;
 		unsigned int next_id;
 
 		if (!(curproxy->cap & PR_CAP_INT) && curproxy->uuid < 0) {
@@ -3404,9 +3404,9 @@ init_proxies_list_stage1:
 		}
 out_uri_auth_compat:
 
-		/* check whether we have a log server that uses RFC5424 log format */
-		list_for_each_entry(tmplogsrv, &curproxy->logsrvs, list) {
-			if (tmplogsrv->format == LOG_FORMAT_RFC5424) {
+		/* check whether we have a logger that uses RFC5424 log format */
+		list_for_each_entry(tmplogger, &curproxy->loggers, list) {
+			if (tmplogger->format == LOG_FORMAT_RFC5424) {
 				if (!curproxy->conf.logformat_sd_string) {
 					/* set the default logformat_sd_string */
 					curproxy->conf.logformat_sd_string = default_rfc5424_sd_log_format;
@@ -3789,7 +3789,7 @@ out_uri_auth_compat:
 			curproxy->to_log &= ~LW_BYTES;
 
 		if (!(curproxy->cap & PR_CAP_INT) && (curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
-		    (curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->logsrvs) &&
+		    (curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->loggers) &&
 		    (!LIST_ISEMPTY(&curproxy->logformat) || !LIST_ISEMPTY(&curproxy->logformat_sd))) {
 			ha_warning("log format ignored for %s '%s' since it has no log address.\n",
 				   proxy_type_str(curproxy), curproxy->id);

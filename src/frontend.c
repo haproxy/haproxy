@@ -54,7 +54,7 @@ int frontend_accept(struct stream *s)
 	struct proxy *fe = sess->fe;
 
 	if ((fe->mode == PR_MODE_TCP || fe->mode == PR_MODE_HTTP)
-	    && (!LIST_ISEMPTY(&fe->logsrvs))) {
+	    && (!LIST_ISEMPTY(&fe->loggers))) {
 		if (likely(!LIST_ISEMPTY(&fe->logformat))) {
 			/* we have the client ip */
 			if (s->logs.logwait & LW_CLIP)

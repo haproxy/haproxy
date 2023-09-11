@@ -137,7 +137,7 @@ struct global {
 	int localpeer_cmdline;		/* whether or not the commandline "-L" was set */
 	int fd_hard_limit;		/* hard limit on ulimit-n : 0=unset */
 	struct buffer log_tag;           /* name for syslog */
-	struct list logsrvs;
+	struct list loggers;       /* one per 'log' directive */
 	char *log_send_hostname;   /* set hostname in syslog header */
 	char *server_state_base;   /* path to a directory where server state files can be found */
 	char *server_state_file;   /* path to the file where server states are loaded from */

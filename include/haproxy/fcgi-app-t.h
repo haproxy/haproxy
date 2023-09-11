@@ -84,7 +84,7 @@ struct fcgi_app {
 	struct ist         index;         /* filename to append to URI ending by a '/' */
 	struct my_regex   *pathinfo_re;   /* Regex to use to split scriptname and path-info */
 	unsigned int       flags;         /* FCGI_APP_FL_* */
-	struct list        logsrvs;       /* log servers */
+	struct list        loggers;       /* one per 'log' directive */
 	unsigned int       maxreqs;       /* maximum number of concurrent requests */
 
 	struct list acls;                 /* list of acls declared for this application */

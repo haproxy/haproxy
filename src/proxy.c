@@ -153,7 +153,7 @@ void free_proxy(struct proxy *p)
 	struct server_rule *srule, *sruleb;
 	struct switching_rule *rule, *ruleb;
 	struct redirect_rule *rdr, *rdrb;
-	struct logsrv *log, *logb;
+	struct logger *log, *logb;
 	struct logformat_node *lf, *lfb;
 	struct proxy_deinit_fct *pxdf;
 	struct server_deinit_fct *srvdf;
@@ -237,9 +237,9 @@ void free_proxy(struct proxy *p)
 		http_free_redirect_rule(rdr);
 	}
 
-	list_for_each_entry_safe(log, logb, &p->logsrvs, list) {
+	list_for_each_entry_safe(log, logb, &p->loggers, list) {
 		LIST_DEL_INIT(&log->list);
-		free_logsrv(log);
+		free_logger(log);
 	}
 
 	list_for_each_entry_safe(lf, lfb, &p->logformat, list) {
@@ -1362,7 +1362,7 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->tcp_req.l4_rules);
 	LIST_INIT(&p->tcp_req.l5_rules);
 	MT_LIST_INIT(&p->listener_queue);
-	LIST_INIT(&p->logsrvs);
+	LIST_INIT(&p->loggers);
 	LIST_INIT(&p->logformat);
 	LIST_INIT(&p->logformat_sd);
 	LIST_INIT(&p->format_unique_id);
@@ -1452,7 +1452,7 @@ void proxy_preset_defaults(struct proxy *defproxy)
 void proxy_free_defaults(struct proxy *defproxy)
 {
 	struct acl *acl, *aclb;
-	struct logsrv *log, *logb;
+	struct logger *log, *logb;
 	struct cap_hdr *h,*h_next;
 
 	ha_free(&defproxy->id);
@@ -1515,9 +1515,9 @@ void proxy_free_defaults(struct proxy *defproxy)
 	if (defproxy->conf.logformat_sd_string != default_rfc5424_sd_log_format)
 		ha_free(&defproxy->conf.logformat_sd_string);
 
-	list_for_each_entry_safe(log, logb, &defproxy->logsrvs, list) {
+	list_for_each_entry_safe(log, logb, &defproxy->loggers, list) {
 		LIST_DEL_INIT(&log->list);
-		free_logsrv(log);
+		free_logger(log);
 	}
 
 	ha_free(&defproxy->conf.uniqueid_format_string);
@@ -1637,7 +1637,7 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, char **errmsg)
 static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defproxy,
                               char **errmsg)
 {
-	struct logsrv *tmplogsrv;
+	struct logger *tmplogger;
 	char *tmpmsg = NULL;
 
 	/* set default values from the specified default proxy */
@@ -1816,15 +1816,15 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	curproxy->mode = defproxy->mode;
 	curproxy->uri_auth = defproxy->uri_auth; /* for stats */
 
-	/* copy default logsrvs to curproxy */
-	list_for_each_entry(tmplogsrv, &defproxy->logsrvs, list) {
-		struct logsrv *node = dup_logsrv(tmplogsrv);
+	/* copy default loggers to curproxy */
+	list_for_each_entry(tmplogger, &defproxy->loggers, list) {
+		struct logger *node = dup_logger(tmplogger);
 
 		if (!node) {
 			memprintf(errmsg, "proxy '%s': out of memory", curproxy->id);
 			return 1;
 		}
-		LIST_APPEND(&curproxy->logsrvs, &node->list);
+		LIST_APPEND(&curproxy->loggers, &node->list);
 	}
 
 	curproxy->conf.uniqueid_format_string = defproxy->conf.uniqueid_format_string;

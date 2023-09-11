@@ -178,7 +178,7 @@ struct global global = {
 	.numa_cpu_mapping = 1,
 	.nbthread = 0,
 	.req_count = 0,
-	.logsrvs = LIST_HEAD_INIT(global.logsrvs),
+	.loggers = LIST_HEAD_INIT(global.loggers),
 	.maxzlibmem = DEFAULT_MAXZLIBMEM * 1024U * 1024U,
 	.comp_rate_lim = 0,
 	.ssl_server_verify = SSL_SERVER_VERIFY_REQUIRED,
@@ -2735,7 +2735,7 @@ void deinit(void)
 	struct proxy *p = proxies_list, *p0;
 	struct wordlist *wl, *wlb;
 	struct uri_auth *uap, *ua = NULL;
-	struct logsrv *log, *logb;
+	struct logger *log, *logb;
 	struct build_opts_str *bol, *bolb;
 	struct post_deinit_fct *pdf, *pdfb;
 	struct proxy_deinit_fct *pxdf, *pxdfb;
@@ -2864,9 +2864,9 @@ void deinit(void)
 	task_destroy(idle_conn_task);
 	idle_conn_task = NULL;
 
-	list_for_each_entry_safe(log, logb, &global.logsrvs, list) {
+	list_for_each_entry_safe(log, logb, &global.loggers, list) {
 		LIST_DEL_INIT(&log->list);
-		free_logsrv(log);
+		free_logger(log);
 	}
 
 	list_for_each_entry_safe(wl, wlb, &cfg_cfgfiles, list) {

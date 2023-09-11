@@ -2798,7 +2798,7 @@ stats_error_parsing:
 		}
 	}
 	else if (strcmp(args[0], "log") == 0) { /* "no log" or "log ..." */
-		if (!parse_logsrv(args, &curproxy->logsrvs, (kwm == KWM_NO), file, linenum, &errmsg)) {
+		if (!parse_logger(args, &curproxy->loggers, (kwm == KWM_NO), file, linenum, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;

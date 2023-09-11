@@ -706,7 +706,7 @@ static int cfg_fcgi_apps_postparser()
 			curapp->maxreqs = 1;
 		}
 
-		err_code |= postresolve_logsrv_list(&curapp->logsrvs, "fcgi-app", curapp->name);
+		err_code |= postresolve_logger_list(&curapp->loggers, "fcgi-app", curapp->name);
 	}
 
   end:
@@ -810,7 +810,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 		curapp->conf.file    = strdup(file);
 		curapp->conf.line    = linenum;
 		LIST_INIT(&curapp->acls);
-		LIST_INIT(&curapp->logsrvs);
+		LIST_INIT(&curapp->loggers);
 		LIST_INIT(&curapp->conf.args.list);
 		LIST_INIT(&curapp->conf.rules);
 
@@ -1051,7 +1051,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 		}
 	}
 	else if (strcmp(args[0], "log-stderr") == 0) {
-		if (!parse_logsrv(args, &curapp->logsrvs, (kwm == KWM_NO), file, linenum, &errmsg)) {
+		if (!parse_logger(args, &curapp->loggers, (kwm == KWM_NO), file, linenum, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
@@ -1073,7 +1073,7 @@ out:
 void fcgi_apps_deinit()
 {
 	struct fcgi_app *curapp, *nextapp;
-	struct logsrv *log, *logb;
+	struct logger *log, *logb;
 
 	for (curapp = fcgi_apps; curapp != NULL; curapp = nextapp) {
 		struct fcgi_rule_conf *rule, *back;
@@ -1084,7 +1084,7 @@ void fcgi_apps_deinit()
 		regex_free(curapp->pathinfo_re);
 		free(curapp->conf.file);
 
-		list_for_each_entry_safe(log, logb, &curapp->logsrvs, list) {
+		list_for_each_entry_safe(log, logb, &curapp->loggers, list) {
 			LIST_DELETE(&log->list);
 			free(log);
 		}

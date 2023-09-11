@@ -71,8 +71,8 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 void strm_log(struct stream *s);
 void sess_log(struct session *sess);
 
-/* send a applicative log with custom list of log servers */
-void app_log(struct list *logsrvs, struct buffer *tag, int level, const char *format, ...)
+/* send a applicative log with custom list of loggers */
+void app_log(struct list *loggers, struct buffer *tag, int level, const char *format, ...)
 	__attribute__ ((format(printf, 4, 5)));
 
 /*
@@ -87,13 +87,13 @@ int add_to_logformat_list(char *start, char *end, int type, struct list *list_fo
  */
 int parse_logformat_string(const char *str, struct proxy *curproxy, struct list *list_format, int options, int cap, char **err);
 
-int postresolve_logsrv_list(struct list *logsrvs, const char *section, const char *section_name);
+int postresolve_logger_list(struct list *loggers, const char *section, const char *section_name);
 
-struct logsrv *dup_logsrv(struct logsrv *def);
-void free_logsrv(struct logsrv *logsrv);
+struct logger *dup_logger(struct logger *def);
+void free_logger(struct logger *logger);
 
 /* Parse "log" keyword and update the linked list. */
-int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file, int linenum, char **err);
+int parse_logger(char **args, struct list *loggers, int do_del, const char *file, int linenum, char **err);
 
 /*
  * This function adds a header to the message and sends the syslog message
@@ -103,13 +103,13 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 	__attribute__ ((format(printf, 3, 4)));
 
 /*
- * This function sends a syslog message to both log servers of a proxy,
- * or to global log servers if the proxy is NULL.
+ * This function sends a syslog message to all loggers of a proxy,
+ * or to global loggers if the proxy is NULL.
  * It also tries not to waste too much time computing the message header.
  * It doesn't care about errors nor does it report them.
  */
 
-void __send_log(struct list *logsrvs, struct buffer *tag, int level, char *message, size_t size, char *sd, size_t sd_size);
+void __send_log(struct list *loggers, struct buffer *tag, int level, char *message, size_t size, char *sd, size_t sd_size);
 
 /*
  * returns log format for <fmt> or LOG_FORMAT_UNSPEC if not found.

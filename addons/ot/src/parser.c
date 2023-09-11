@@ -489,7 +489,7 @@ static int flt_ot_parse_cfg_tracer(const char *file, int linenum, char **args, i
 		}
 	}
 	else if (pdata->keyword == FLT_OT_PARSE_TRACER_LOG) {
-		if (parse_logsrv(args, &(flt_ot_current_tracer->proxy_log.logsrvs), kw_mod == KWM_NO, file, linenum, &err_log) == 0) {
+		if (parse_logger(args, &(flt_ot_current_tracer->proxy_log.loggers), kw_mod == KWM_NO, file, linenum, &err_log) == 0) {
 			FLT_OT_PARSE_ERR(&err, "'%s %s ...' : %s", args[0], args[1], err_log);
 			FLT_OT_FREE_CLEAR(err_log);
 

@@ -88,7 +88,7 @@ struct list curgphs;
 struct list curvars;
 
 /* list of log servers used during the parsing */
-struct list curlogsrvs;
+struct list curloggers;
 
 /* agent's proxy flags (PR_O_* and PR_O2_*) used during parsing */
 int curpxopts;
@@ -3119,7 +3119,7 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 		HA_SPIN_INIT(&conf->agent->rt[i].lock);
 	}
 
-	if (postresolve_logsrv_list(&conf->agent_fe.logsrvs, "SPOE agent", conf->agent->id) & ERR_CODE)
+	if (postresolve_logger_list(&conf->agent_fe.loggers, "SPOE agent", conf->agent->id) & ERR_CODE)
 		return 1;
 
 	ha_free(&conf->agent->b.name);
@@ -3786,7 +3786,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "log") == 0) {
 		char *errmsg = NULL;
 
-		if (!parse_logsrv(args, &curlogsrvs, (kwm == 1), file, linenum, &errmsg)) {
+		if (!parse_logger(args, &curloggers, (kwm == 1), file, linenum, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -4096,7 +4096,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	struct spoe_group           *grp, *grpback;
 	struct spoe_placeholder     *ph, *phback;
 	struct spoe_var_placeholder *vph, *vphback;
-	struct logsrv               *logsrv, *logsrvback;
+	struct logger               *logger, *loggerback;
 	char                        *file = NULL, *engine = NULL;
 	int                          ret, pos = *cur_arg + 1;
 
@@ -4105,7 +4105,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	LIST_INIT(&curmphs);
 	LIST_INIT(&curgphs);
 	LIST_INIT(&curvars);
-	LIST_INIT(&curlogsrvs);
+	LIST_INIT(&curloggers);
 	curpxopts  = 0;
 	curpxopts2 = 0;
 
@@ -4435,9 +4435,9 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	conf->agent_fe.options  |= curpxopts;
 	conf->agent_fe.options2 |= curpxopts2;
 
-	list_for_each_entry_safe(logsrv, logsrvback, &curlogsrvs, list) {
-		LIST_DELETE(&logsrv->list);
-		LIST_APPEND(&conf->agent_fe.logsrvs, &logsrv->list);
+	list_for_each_entry_safe(logger, loggerback, &curloggers, list) {
+		LIST_DELETE(&logger->list);
+		LIST_APPEND(&conf->agent_fe.loggers, &logger->list);
 	}
 
 	list_for_each_entry_safe(ph, phback, &curmphs, list) {
@@ -4501,9 +4501,9 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 		LIST_DELETE(&msg->list);
 		spoe_release_message(msg);
 	}
-	list_for_each_entry_safe(logsrv, logsrvback, &curlogsrvs, list) {
-		LIST_DELETE(&logsrv->list);
-		free(logsrv);
+	list_for_each_entry_safe(logger, loggerback, &curloggers, list) {
+		LIST_DELETE(&logger->list);
+		free(logger);
 	}
 	free(conf);
 	return -1;
