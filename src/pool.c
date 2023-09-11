@@ -481,7 +481,7 @@ void pool_fill_pattern(struct pool_cache_head *pch, struct pool_cache_item *item
  * must have been previously initialized using pool_fill_pattern(). If any
  * corruption is detected, the function provokes an immediate crash.
  */
-void pool_check_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size)
+void pool_check_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size, const void *caller)
 {
 	const ulong *ptr = (const ulong *)item;
 	uint ofs;
@@ -511,6 +511,7 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 {
 	struct pool_cache_item *item;
 	struct pool_item *pi, *head = NULL;
+	void *caller = __builtin_return_address(0);
 	uint released = 0;
 	uint cluster = 0;
 	uint to_free_max;
@@ -525,7 +526,7 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 		item = LIST_PREV(&ph->list, typeof(item), by_pool);
 		BUG_ON(&item->by_pool == &ph->list);
 		if (unlikely(pool_debugging & POOL_DBG_INTEGRITY))
-			pool_check_pattern(ph, item, pool->size);
+			pool_check_pattern(ph, item, pool->size, caller);
 		LIST_DELETE(&item->by_pool);
 		LIST_DELETE(&item->by_lru);
 
@@ -869,7 +870,7 @@ void __pool_free(struct pool_head *pool, void *ptr)
 	const void *caller = __builtin_return_address(0);
 
 	/* we'll get late corruption if we refill to the wrong pool or double-free */
-	POOL_DEBUG_CHECK_MARK(pool, ptr);
+	POOL_DEBUG_CHECK_MARK(pool, ptr, caller);
 	POOL_DEBUG_RESET_MARK(pool, ptr);
 
 #ifdef USE_MEMORY_PROFILING
