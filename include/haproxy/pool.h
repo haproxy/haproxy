@@ -76,8 +76,10 @@
 		typeof(item) __i = (item);				\
 		if (likely(!(pool_debugging & POOL_DBG_TAG)))		\
 			break;						\
-		if (*(typeof(pool)*)(((char *)__i) + __p->size) != __p)	\
+		if (*(typeof(pool)*)(((char *)__i) + __p->size) != __p)	{ \
+			pool_inspect_item("tag mismatch on free()", pool, item, caller); \
 			ABORT_NOW();					\
+		}							\
 	} while (0)
 
 /* It's possible to trace callers of pool_free() by placing their pointer
@@ -121,6 +123,7 @@ void *pool_destroy(struct pool_head *pool);
 void pool_destroy_all(void);
 void *__pool_alloc(struct pool_head *pool, unsigned int flags);
 void __pool_free(struct pool_head *pool, void *ptr);
+void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item, const void *caller);
 
 
 /****************** Thread-local cache management ******************/

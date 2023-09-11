@@ -495,8 +495,10 @@ void pool_check_pattern(struct pool_cache_head *pch, struct pool_head *pool, str
 	ofs = sizeof(*item) / sizeof(*ptr);
 	u = ptr[ofs++];
 	while (ofs < size / sizeof(*ptr)) {
-		if (unlikely(ptr[ofs] != u))
+		if (unlikely(ptr[ofs] != u)) {
+			pool_inspect_item("cache corruption detected", pool, item, caller);
 			ABORT_NOW();
+		}
 		ofs++;
 	}
 }
@@ -933,6 +935,101 @@ void pool_destroy_all()
 		entry->users = 1;
 		pool_destroy(entry);
 	}
+}
+
+/* carefully inspects an item upon fatal error and emit diagnostics */
+void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item, const void *caller)
+{
+	const struct pool_head *the_pool = NULL;
+
+	chunk_printf(&trash,
+		     "FATAL: pool inconsistency detected in thread %d: %s.\n"
+		     "  caller: %p (",
+		     tid + 1, msg, caller);
+
+	resolve_sym_name(&trash, NULL, caller);
+
+	chunk_appendf(&trash,
+		      ")\n"
+		      "  pool: %p ('%s', size %u, real %u, users %u)\n",
+		      pool, pool->name, pool->size, pool->alloc_sz, pool->users);
+
+	if (pool_debugging & POOL_DBG_TAG) {
+		const void **pool_mark;
+		struct pool_head *ph;
+		const void *tag;
+
+		pool_mark = (const void **)(((char *)item) + pool->size);
+		tag =  may_access(pool_mark) ? *pool_mark : NULL;
+		if (tag == pool) {
+			chunk_appendf(&trash, "  tag: @%p = %p (%s)\n", pool_mark, tag, pool->name);
+			the_pool = pool;
+		}
+		else {
+			chunk_appendf(&trash, "Tag does not match. Possible origin pool(s):\n");
+
+			list_for_each_entry(ph, &pools, list) {
+				pool_mark = (const void **)(((char *)item) + ph->size);
+				if (!may_access(pool_mark))
+					continue;
+				tag =  *pool_mark;
+
+				if (tag == ph) {
+					chunk_appendf(&trash, "  tag: @%p = %p (%s, size %u, real %u, users %u)\n",
+						      pool_mark, tag, ph->name, ph->size, ph->alloc_sz, ph->users);
+					if (!the_pool || the_pool->size < ph->size)
+						the_pool = ph;
+				}
+			}
+
+			if (!the_pool)
+				chunk_appendf(&trash, "  none found.\n");
+		}
+	}
+
+	if (pool_debugging & POOL_DBG_CALLER) {
+		struct buffer *trash2 = get_trash_chunk();
+		const struct pool_head *ph;
+		const void **pool_mark;
+		const void *tag, *rec_tag;
+
+		ph = the_pool ? the_pool : pool;
+		pool_mark = (const void **)(((char *)item) + ph->alloc_sz - sizeof(void*));
+		rec_tag =  may_access(pool_mark) ? *pool_mark : NULL;
+
+		if (rec_tag && resolve_sym_name(trash2, NULL, rec_tag))
+			chunk_appendf(&trash,
+				      "Recorded caller if pool '%s':\n  @%p (+%04u) = %p (%s)\n",
+				      ph->name, pool_mark, (uint)(ph->alloc_sz - sizeof(void*)),
+				      rec_tag, trash2->area);
+
+		if (!the_pool) {
+			/* the pool couldn't be formally verified */
+			chunk_appendf(&trash, "Other possible callers:\n");
+			list_for_each_entry(ph, &pools, list) {
+				if (ph == (the_pool ? the_pool : pool))
+					continue;
+				pool_mark = (const void **)(((char *)item) + ph->alloc_sz - sizeof(void*));
+				if (!may_access(pool_mark))
+					continue;
+				tag = *pool_mark;
+				if (tag == rec_tag)
+					continue;
+
+				/* see if we can resolve something */
+				chunk_printf(trash2, "@%p (+%04u) = %p (", pool_mark, (uint)(ph->alloc_sz - sizeof(void*)), tag);
+				if (resolve_sym_name(trash2, NULL, tag)) {
+					chunk_appendf(trash2, ")");
+					chunk_appendf(&trash,
+						      "  %s [as pool %s, size %u, real %u, users %u]\n",
+						      trash2->area, ph->name, ph->size, ph->alloc_sz, ph->users);
+				}
+			}
+		}
+	}
+
+	chunk_appendf(&trash, "\n");
+	DISGUISE(write(2, trash.area, trash.data));
 }
 
 /* used by qsort in "show pools" to sort by name */
