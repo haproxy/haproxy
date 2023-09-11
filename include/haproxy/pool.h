@@ -106,7 +106,7 @@ void trim_all_pools(void);
 
 void *pool_get_from_os_noinc(struct pool_head *pool);
 void pool_put_to_os_nodec(struct pool_head *pool, void *ptr);
-void *pool_alloc_nocache(struct pool_head *pool);
+void *pool_alloc_nocache(struct pool_head *pool, const void *caller);
 void pool_free_nocache(struct pool_head *pool, void *ptr);
 void dump_pools(void);
 int pool_parse_debugging(const char *str, char **err);

@@ -420,7 +420,7 @@ void pool_put_to_os_nodec(struct pool_head *pool, void *ptr)
  * and directly returns it. The pool's counters are updated but the object is
  * never cached, so this is usable with and without local or shared caches.
  */
-void *pool_alloc_nocache(struct pool_head *pool)
+void *pool_alloc_nocache(struct pool_head *pool, const void *caller)
 {
 	void *ptr = NULL;
 	uint bucket;
@@ -436,7 +436,7 @@ void *pool_alloc_nocache(struct pool_head *pool)
 
 	/* keep track of where the element was allocated from */
 	POOL_DEBUG_SET_MARK(pool, ptr);
-	POOL_DEBUG_TRACE_CALLER(pool, (struct pool_cache_item *)ptr, NULL);
+	POOL_DEBUG_TRACE_CALLER(pool, (struct pool_cache_item *)ptr, caller);
 	return ptr;
 }
 
@@ -839,7 +839,7 @@ void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 		p = pool_get_from_cache(pool, caller);
 
 	if (unlikely(!p))
-		p = pool_alloc_nocache(pool);
+		p = pool_alloc_nocache(pool, caller);
 
 	if (likely(p)) {
 #ifdef USE_MEMORY_PROFILING
