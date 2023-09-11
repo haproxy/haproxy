@@ -481,9 +481,10 @@ void pool_fill_pattern(struct pool_cache_head *pch, struct pool_cache_item *item
  * must have been previously initialized using pool_fill_pattern(). If any
  * corruption is detected, the function provokes an immediate crash.
  */
-void pool_check_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size, const void *caller)
+void pool_check_pattern(struct pool_cache_head *pch, struct pool_head *pool, struct pool_cache_item *item, const void *caller)
 {
 	const ulong *ptr = (const ulong *)item;
+	uint size = pool->size;
 	uint ofs;
 	ulong u;
 
@@ -526,7 +527,7 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 		item = LIST_PREV(&ph->list, typeof(item), by_pool);
 		BUG_ON(&item->by_pool == &ph->list);
 		if (unlikely(pool_debugging & POOL_DBG_INTEGRITY))
-			pool_check_pattern(ph, item, pool->size, caller);
+			pool_check_pattern(ph, pool, item, caller);
 		LIST_DELETE(&item->by_pool);
 		LIST_DELETE(&item->by_lru);
 

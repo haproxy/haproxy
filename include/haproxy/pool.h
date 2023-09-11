@@ -132,7 +132,7 @@ void pool_evict_from_local_cache(struct pool_head *pool, int full);
 void pool_evict_from_local_caches(void);
 void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller);
 void pool_fill_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size);
-void pool_check_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size, const void *caller);
+void pool_check_pattern(struct pool_cache_head *pch, struct pool_head *pool, struct pool_cache_item *item, const void *caller);
 void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_head *pch);
 void pool_put_to_shared_cache(struct pool_head *pool, struct pool_item *item);
 
@@ -252,7 +252,7 @@ static inline void *pool_get_from_cache(struct pool_head *pool, const void *call
 			item = LIST_PREV(&ph->list, typeof(item), by_pool);
 
 		if (pool_debugging & POOL_DBG_INTEGRITY)
-			pool_check_pattern(ph, item, pool->size, caller);
+			pool_check_pattern(ph, pool, item, caller);
 	}
 
 	BUG_ON(&item->by_pool == &ph->list);
