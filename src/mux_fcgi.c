@@ -2363,7 +2363,7 @@ static int fcgi_strm_handle_stderr(struct fcgi_conn *fconn, struct fcgi_strm *fs
 		goto fail; // incomplete record
 
 	chunk_reset(&trash);
-	ret = b_xfer(&trash, dbuf, MIN(b_room(&trash), fconn->drl));
+	ret = b_force_xfer(&trash, dbuf, MIN(b_room(&trash), fconn->drl));
 	if (!ret)
 		goto fail;
 	fconn->drl -= ret;
