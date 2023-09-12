@@ -499,6 +499,8 @@ struct quic_conn_cntrs {
         /* Used only to reach the tasklet for the I/O handler from this        \
          * quic_conn object.                                                   \
          */                                                                    \
+        /* QUIC connection level counters */                                   \
+        struct quic_conn_cntrs cntrs;                                          \
         struct connection *conn;                                               \
     }
 
@@ -584,8 +586,6 @@ struct quic_conn {
 	unsigned int ack_expire;
 
 	const struct qcc_app_ops *app_ops;
-	/* QUIC connection level counters */
-	struct quic_conn_cntrs cntrs;
 	/* Proxy counters */
 	struct quic_counters *prx_counters;
 
