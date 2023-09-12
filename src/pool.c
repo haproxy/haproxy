@@ -967,7 +967,10 @@ void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item
 			the_pool = pool;
 		}
 		else {
-			chunk_appendf(&trash, "Tag does not match. Possible origin pool(s):\n");
+			if (!may_access(pool_mark))
+				chunk_appendf(&trash, "Tag not accessible. ");
+			else
+				chunk_appendf(&trash, "Tag does not match (%p). ", tag);
 
 			list_for_each_entry(ph, &pools, list) {
 				pool_mark = (const void **)(((char *)item) + ph->size);
@@ -976,6 +979,9 @@ void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item
 				tag =  *pool_mark;
 
 				if (tag == ph) {
+					if (!the_pool)
+						chunk_appendf(&trash, "Possible origin pool(s):\n");
+
 					chunk_appendf(&trash, "  tag: @%p = %p (%s, size %u, real %u, users %u)\n",
 						      pool_mark, tag, ph->name, ph->size, ph->alloc_sz, ph->users);
 					if (!the_pool || the_pool->size < ph->size)
@@ -984,7 +990,7 @@ void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item
 			}
 
 			if (!the_pool)
-				chunk_appendf(&trash, "  none found.\n");
+				chunk_appendf(&trash, "Tag does not match any other pool.\n");
 		}
 	}
 
