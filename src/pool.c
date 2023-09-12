@@ -989,8 +989,53 @@ void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item
 				}
 			}
 
-			if (!the_pool)
-				chunk_appendf(&trash, "Tag does not match any other pool.\n");
+			if (!the_pool) {
+				const char *start, *end, *p;
+
+				pool_mark = (const void **)(((char *)item) + pool->size);
+				chunk_appendf(&trash,
+					      "Tag does not match any other pool.\n"
+					      "Contents around address %p+%lu=%p:\n",
+					      item, (ulong)((const void*)pool_mark - (const void*)item),
+					      pool_mark);
+
+				/* dump in word-sized blocks */
+				start = (const void *)(((uintptr_t)pool_mark - 32) & -sizeof(void*));
+				end   = (const void *)(((uintptr_t)pool_mark + 32 + sizeof(void*) - 1) & -sizeof(void*));
+
+				while (start < end) {
+					dump_addr_and_bytes(&trash, "  ", start, sizeof(void*));
+					chunk_strcat(&trash, " [");
+					for (p = start; p < start + sizeof(void*); p++) {
+						if (!may_access(p))
+							chunk_strcat(&trash, "*");
+						else if (isprint((unsigned char)*p))
+							chunk_appendf(&trash, "%c", *p);
+						else
+							chunk_strcat(&trash, ".");
+					}
+
+					if (may_access(start))
+						tag = *(const void **)start;
+					else
+						tag = NULL;
+
+					if (tag == pool) {
+						/* the pool can often be there so let's detect it */
+						chunk_appendf(&trash, "] [pool:%s", pool->name);
+					}
+					else if (tag) {
+						/* print pointers that resolve to a symbol */
+						size_t back_data = trash.data;
+						chunk_strcat(&trash, "] [");
+						if (!resolve_sym_name(&trash, NULL, tag))
+							trash.data = back_data;
+					}
+
+					chunk_strcat(&trash, "]\n");
+					start = p;
+				}
+			}
 		}
 	}
 
