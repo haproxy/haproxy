@@ -951,8 +951,9 @@ void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item
 
 	chunk_appendf(&trash,
 		      ")\n"
+		      "  item: %p\n"
 		      "  pool: %p ('%s', size %u, real %u, users %u)\n",
-		      pool, pool->name, pool->size, pool->alloc_sz, pool->users);
+		      item, pool, pool->name, pool->size, pool->alloc_sz, pool->users);
 
 	if (pool_debugging & POOL_DBG_TAG) {
 		const void **pool_mark;
