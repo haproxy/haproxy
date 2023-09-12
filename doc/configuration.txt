@@ -23771,6 +23771,7 @@ Please refer to the table below for currently defined variables :
   | H | %HU  | HTTP request URI (ex: /foo?bar=baz)                  | string  |
   +---+------+------------------------------------------------------+---------+
   | H | %HV  | HTTP version (ex: HTTP/1.0)                          | string  |
+  |   |      | HTTP/%[req.ver]                                      |         |
   +---+------+------------------------------------------------------+---------+
   |   | %ID  | unique-id                                            | string  |
   +---+------+------------------------------------------------------+---------+
