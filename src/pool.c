@@ -295,33 +295,29 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	unsigned int align;
 	int thr __maybe_unused;
 
-	/* We need to store a (void *) at the end of the chunks. Since we know
-	 * that the malloc() function will never return such a small size,
-	 * let's round the size up to something slightly bigger, in order to
-	 * ease merging of entries. Note that the rounding is a power of two.
-	 * This extra (void *) is not accounted for in the size computation
-	 * so that the visible parts outside are not affected.
-	 *
-	 * Note: for the LRU cache, we need to store 2 doubly-linked lists.
-	 */
-
 	extra_mark = (pool_debugging & POOL_DBG_TAG) ? POOL_EXTRA_MARK : 0;
 	extra_caller = (pool_debugging & POOL_DBG_CALLER) ? POOL_EXTRA_CALLER : 0;
 	extra = extra_mark + extra_caller;
 
-	if (!(flags & MEM_F_EXACT)) {
-		align = 4 * sizeof(void *); // 2 lists = 4 pointers min
-		size  = ((size + extra + align - 1) & -align) - extra;
-	}
-
 	if (!(pool_debugging & POOL_DBG_NO_CACHE)) {
-		/* we'll store two lists there, we need the room for this. This is
-		 * guaranteed by the test above, except if MEM_F_EXACT is set, or if
-		 * the only EXTRA part is in fact the one that's stored in the cache
-		 * in addition to the pci struct.
+		/* we'll store two lists there, we need the room for this. Let's
+		 * make sure it's always OK even when including the extra word
+		 * that is stored after the pci struct.
 		 */
 		if (size + extra - extra_caller < sizeof(struct pool_cache_item))
 			size = sizeof(struct pool_cache_item) + extra_caller - extra;
+	}
+
+	/* Now we know our size is set to the strict minimum possible. It may
+	 * be OK for elements allocated with an exact size (e.g. buffers), but
+	 * we're going to round the size up 16 bytes to merge almost identical
+	 * pools together. We only round up however when we add the debugging
+	 * tag since it's used to detect overflows. Otherwise we only round up
+	 * to the size of a word to preserve alignment.
+	 */
+	if (!(flags & MEM_F_EXACT)) {
+		align = (pool_debugging & POOL_DBG_TAG) ? sizeof(void *) : 16;
+		size  = ((size + align - 1) & -align);
 	}
 
 	/* TODO: thread: we do not lock pool list for now because all pools are
