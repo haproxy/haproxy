@@ -1055,7 +1055,7 @@ void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item
 			/* the pool couldn't be formally verified */
 			chunk_appendf(&trash, "Other possible callers:\n");
 			list_for_each_entry(ph, &pools, list) {
-				if (ph == (the_pool ? the_pool : pool))
+				if (ph == pool)
 					continue;
 				pool_mark = (const void **)(((char *)item) + ph->alloc_sz - sizeof(void*));
 				if (!may_access(pool_mark))
