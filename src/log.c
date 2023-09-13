@@ -755,10 +755,12 @@ static int dup_log_target(struct log_target *def, struct log_target *cpy)
 {
 	BUG_ON((def->flags & LOG_TARGET_FL_RESOLVED)); /* postparsing already done, invalid use */
 	init_log_target(cpy);
-	cpy->addr = malloc(sizeof(*cpy->addr));
-	if (!cpy->addr)
-		goto error;
-	*cpy->addr = *def->addr;
+	if (def->addr) {
+		cpy->addr = malloc(sizeof(*cpy->addr));
+		if (!cpy->addr)
+			goto error;
+		*cpy->addr = *def->addr;
+	}
 	if (def->ring_name) {
 		cpy->ring_name = strdup(def->ring_name);
 		if (!cpy->ring_name)
@@ -852,21 +854,22 @@ static int parse_log_target(char *raw, struct log_target *target, char **err)
 	struct sockaddr_storage *sk;
 
 	init_log_target(target);
+	// target addr is NULL at this point
 
-	/* first, try to allocate log target addr */
+	if (strncmp(raw, "ring@", 5) == 0) {
+		target->type = LOG_TARGET_BUFFER;
+		target->ring_name = strdup(raw + 5);
+		goto done;
+	}
+
+	/* try to allocate log target addr */
 	target->addr = malloc(sizeof(*target->addr));
 	if (!target->addr) {
 		memprintf(err, "memory error");
 		goto error;
 	}
 
-	target->type = LOG_TARGET_DGRAM;
-	if (strncmp(raw, "ring@", 5) == 0) {
-		target->addr->ss_family = AF_UNSPEC;
-		target->type = LOG_TARGET_BUFFER;
-		target->ring_name = strdup(raw + 5);
-		goto done;
-	}
+	target->type = LOG_TARGET_DGRAM; // default type
 
 	/* parse the target address */
 	sk = str2sa_range(raw, NULL, &port1, &port2, &fd, &proto,
@@ -886,8 +889,8 @@ static int parse_log_target(char *raw, struct log_target *target, char **err)
 	if (proto && proto->xprt_type == PROTO_TYPE_STREAM) {
 		static unsigned long ring_ids;
 
-		/* Implicit sink buffer will be
-		 * initialized in post_check
+		/* Implicit sink buffer will be initialized in post_check
+		 * (target->addr is set in this case)
 		 */
 		target->type = LOG_TARGET_BUFFER;
 		/* compute unique name for the ring */

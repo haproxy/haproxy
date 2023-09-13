@@ -1242,9 +1242,6 @@ struct sink *sink_new_from_logger(struct logger *logger)
 	if (sink_finalize(sink) & ERR_CODE)
 		goto error_final;
 
-	/* reset family of logger to consider the ring buffer target */
-	logger->target.addr->ss_family = AF_UNSPEC;
-
 	return sink;
  error:
 	srv_drop(srv);
@@ -1286,31 +1283,29 @@ int sink_resolve_logger_buffer(struct logger *logger, char **msg)
 	struct sink *sink;
 
 	BUG_ON(target->type != LOG_TARGET_BUFFER || (target->flags & LOG_TARGET_FL_RESOLVED));
-	sink = sink_find(target->ring_name);
-	if (!sink) {
-		/* LOG_TARGET_BUFFER but !AF_UNSPEC
-		 * means we must allocate a sink
-		 * buffer to send messages to this logger
-		 */
-		if (target->addr->ss_family != AF_UNSPEC) {
-			sink = sink_new_from_logger(logger);
-			if (!sink) {
-				memprintf(msg, "cannot be initialized (failed to create implicit ring)");
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto end;
-			}
+	if (target->addr) {
+		sink = sink_new_from_logger(logger);
+		if (!sink) {
+			memprintf(msg, "cannot be initialized (failed to create implicit ring)");
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto end;
 		}
-		else {
+		ha_free(&target->addr); /* we no longer need this */
+	}
+	else {
+		sink = sink_find(target->ring_name);
+		if (!sink) {
 			memprintf(msg, "uses unknown ring named '%s'", target->ring_name);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto end;
 		}
+		else if (sink->type != SINK_TYPE_BUFFER) {
+			memprintf(msg, "uses incompatible ring '%s'", target->ring_name);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
 	}
-	else if (sink->type != SINK_TYPE_BUFFER) {
-		memprintf(msg, "uses incompatible ring '%s'", target->ring_name);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto end;
-	}
+	/* consistency checks */
 	if (sink && logger->maxlen > ring_max_payload(sink->ctx.ring)) {
 		memprintf(msg, "uses a max length which exceeds ring capacity ('%s' supports %lu bytes at most)",
 		          target->ring_name, (unsigned long)ring_max_payload(sink->ctx.ring));
@@ -1322,7 +1317,6 @@ int sink_resolve_logger_buffer(struct logger *logger, char **msg)
  end:
 	ha_free(&target->ring_name); /* sink is resolved and will replace ring_name hint */
 	target->sink = sink;
-	ha_free(&target->addr); /* we no longer need this */
 	return err_code;
 }
 
