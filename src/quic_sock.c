@@ -939,15 +939,15 @@ void quic_accept_push_qc(struct quic_conn *qc)
 struct task *quic_accept_run(struct task *t, void *ctx, unsigned int i)
 {
 	struct li_per_thread *lthr;
-	struct mt_list *elt1, elt2;
+	struct mt_list back;
 	struct quic_accept_queue *queue = &quic_accept_queues[tid];
 
-	mt_list_for_each_entry_safe(lthr, &queue->listeners, quic_accept.list, elt1, elt2) {
+	MT_LIST_FOR_EACH_ENTRY_SAFE(lthr, &queue->listeners, quic_accept.list, back) {
 		listener_accept(lthr->li);
 		if (!MT_LIST_ISEMPTY(&lthr->quic_accept.conns))
 			tasklet_wakeup((struct tasklet*)t);
 		else
-			MT_LIST_DELETE_SAFE(elt1);
+			lthr = NULL; /* delete it */
 	}
 
 	return NULL;

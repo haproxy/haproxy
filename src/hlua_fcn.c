@@ -555,7 +555,7 @@ static int hlua_queue_push(lua_State *L)
 {
 	struct hlua_queue *queue = hlua_check_queue(L, 1);
 	struct hlua_queue_item *item;
-	struct mt_list *elt1, elt2;
+	struct mt_list back;
 	struct hlua_queue_wait *waiter;
 
 	if (lua_gettop(L) != 2 || lua_isnoneornil(L, 2)) {
@@ -581,7 +581,7 @@ static int hlua_queue_push(lua_State *L)
 	MT_LIST_APPEND(&queue->list, &item->list);
 
 	/* notify tasks waiting on queue:pop_wait() (if any) */
-	mt_list_for_each_entry_safe(waiter, &queue->wait_tasks, entry, elt1, elt2) {
+	MT_LIST_FOR_EACH_ENTRY_SAFE(waiter, &queue->wait_tasks, entry, back) {
 		task_wakeup(waiter->task, TASK_WOKEN_MSG);
 	}
 

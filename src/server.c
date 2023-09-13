@@ -1586,11 +1586,11 @@ static int srv_parse_weight(char **args, int *cur_arg, struct proxy *px, struct 
 void srv_shutdown_streams(struct server *srv, int why)
 {
 	struct stream *stream;
-	struct mt_list *elt1, elt2;
+	struct mt_list back;
 	int thr;
 
 	for (thr = 0; thr < global.nbthread; thr++)
-		mt_list_for_each_entry_safe(stream, &srv->per_thr[thr].streams, by_srv, elt1, elt2)
+		MT_LIST_FOR_EACH_ENTRY_SAFE(stream, &srv->per_thr[thr].streams, by_srv, back)
 			if (stream->srv_conn == srv)
 				stream_shutdown(stream, why);
 }
