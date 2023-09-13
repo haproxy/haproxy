@@ -116,6 +116,7 @@ enum log_tgt {
 	LOG_TARGET_DGRAM = 0, // datagram address (udp, unix socket)
 	LOG_TARGET_FD,        // file descriptor
 	LOG_TARGET_BUFFER,    // ring buffer
+	LOG_TARGET_BACKEND,   // backend with SYSLOG mode
 };
 
 /* lists of fields that can be logged, for logformat_node->type */
@@ -240,8 +241,11 @@ enum log_target_flags {
 struct log_target {
 	struct sockaddr_storage *addr;
 	union {
-		char *ring_name;   /* type = BUFFER - preparsing */
-		struct sink *sink; /* type = BUFFER - postparsing */
+		char *ring_name;   /* type = BUFFER  - preparsing */
+		struct sink *sink; /* type = BUFFER  - postparsing */
+		char *be_name;     /* type = BACKEND - preparsing */
+		struct proxy *be;  /* type = BACKEND - postparsing */
+		char *resolv_name; /* generic        - preparsing */
 	};
 	enum log_tgt type;
 	uint16_t flags;

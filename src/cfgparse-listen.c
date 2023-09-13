@@ -50,7 +50,7 @@ static const char *common_kw_list[] = {
 	"use-server", "force-persist", "ignore-persist", "force-persist",
 	"stick-table", "stick", "stats", "option", "default_backend",
 	"http-reuse", "monitor", "transparent", "maxconn", "backlog",
-	"fullconn", "dispatch", "balance", "hash-type",
+	"fullconn", "dispatch", "balance", "log-balance", "hash-type",
 	"hash-balance-factor", "unique-id-format", "unique-id-header",
 	"log-format", "log-format-sd", "log-tag", "log", "source", "usesrc",
 	"error-log-format",
@@ -438,6 +438,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	if ((strcmp(args[0], "server") == 0)) {
 		err_code |= parse_server(file, linenum, args,
 		                         curproxy, curr_defproxy,
+		                         (curproxy->mode == PR_MODE_SYSLOG ? SRV_PARSE_IN_LOG_BE : 0) |
 		                         SRV_PARSE_PARSE_ADDR);
 
 		if (err_code & ERR_FATAL)
@@ -446,6 +447,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "default-server") == 0) {
 		err_code |= parse_server(file, linenum, args,
 		                         curproxy, curr_defproxy,
+		                         (curproxy->mode == PR_MODE_SYSLOG ? SRV_PARSE_IN_LOG_BE : 0) |
 		                         SRV_PARSE_DEFAULT_SERVER);
 
 		if (err_code & ERR_FATAL)
@@ -454,6 +456,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "server-template") == 0) {
 		err_code |= parse_server(file, linenum, args,
 		                         curproxy, curr_defproxy,
+		                         (curproxy->mode == PR_MODE_SYSLOG ? SRV_PARSE_IN_LOG_BE : 0) |
 		                         SRV_PARSE_TEMPLATE|SRV_PARSE_PARSE_ADDR);
 
 		if (err_code & ERR_FATAL)
@@ -544,6 +547,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		if (strcmp(args[1], "http") == 0) curproxy->mode = PR_MODE_HTTP;
 		else if (strcmp(args[1], "tcp") == 0) curproxy->mode = PR_MODE_TCP;
+		else if (strcmp(args[1], "log") == 0 && (curproxy->cap & PR_CAP_BE)) curproxy->mode = PR_MODE_SYSLOG;
 		else if (strcmp(args[1], "health") == 0) {
 			ha_alert("parsing [%s:%d] : 'mode health' doesn't exist anymore. Please use 'http-request return status 200' instead.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -553,6 +557,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			ha_alert("parsing [%s:%d] : unknown proxy mode '%s'.\n", file, linenum, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
+		}
+		/* mode log shares lbprm struct with other modes, but makes a different use of it,
+		 * thus, we must ensure that defproxy settings cannot persist between incompatibles
+		 * modes at this point.
+		 */
+		if ((curr_defproxy->mode == PR_MODE_SYSLOG && curproxy->mode != PR_MODE_SYSLOG) ||
+		    (curr_defproxy->mode != PR_MODE_SYSLOG && curproxy->mode == PR_MODE_SYSLOG)) {
+			/* lbprm settings from incompatible defproxy, back to defaults */
+			memset(&curproxy->lbprm, 0, sizeof(curproxy->lbprm));
 		}
 	}
 	else if (strcmp(args[0], "id") == 0) {
@@ -2534,6 +2547,21 @@ stats_error_parsing:
 		}
 
 		if (backend_parse_balance((const char **)args + 1, &errmsg, curproxy) < 0) {
+			ha_alert("parsing [%s:%d] : %s %s\n", file, linenum, args[0], errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+	else if (strcmp(args[0], "log-balance") == 0) {  /* set log-balancing with optional algorithm */
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			err_code |= ERR_WARN;
+		if (curproxy->mode != PR_MODE_SYSLOG) {
+			ha_alert("parsing [%s:%d] : %s %s\n", file, linenum, args[0], "only available for log backends");
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (backend_parse_log_balance((const char **)args + 1, &errmsg, curproxy) < 0) {
 			ha_alert("parsing [%s:%d] : %s %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;

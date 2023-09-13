@@ -4426,6 +4426,7 @@ id                                        -          X         X         X
 ignore-persist                            -          -         X         X
 load-server-state-from-file               X          -         X         X
 log                                  (*)  X          X         X         X
+log-balance                               X          -         X         X
 log-format                                X          X         X         -
 log-format-sd                             X          X         X         -
 log-tag                                   X          X         X         X
@@ -8692,6 +8693,12 @@ no log
                  when used as a complement this can help troubleshooting by
                  having the logs instantly available.
 
+               - A log backend in the form "backend@<name>", which will send
+                 log messages to the corresponding log backend responsible for
+                 sending the message to the proper server according to the
+                 backend's lb settings. A log backend is a backend section with
+                 "mode log" set (see "mode" for more information).
+
                - An explicit stream address prefix such as "tcp@","tcp6@",
                  "tcp4@" or "uxst@" will allocate an implicit ring buffer with
                  a stream forward server targeting the given address.
@@ -8809,6 +8816,43 @@ no log
                                                 # level and send in tcp
     log "${LOCAL_SYSLOG}:514" local0 notice   # send to local server
 
+log-balance <algorithm> [ <arguments> ]
+
+  Define the load balancing algorithm to be used in a log backend.
+  ("mode log" enabled)
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <algorithm> is the algorithm used to select a server when doing load
+                balancing. This only applies when no persistence information
+                is available, or when a connection is redispatched to another
+                server. <algorithm> may be one of the following :
+
+      roundrobin  Each server is used in turns. This is the smoothest and
+                  fairest algorithm when the server's processing time remains
+                  equally distributed.
+
+    <arguments> is an optional list of arguments which may be needed by some
+                algorithms.
+
+  The load balancing algorithm of a log backend is set to roundrobin when
+  no other algorithm has been set. The algorithm may only be set once for each
+  log backend. The above algorithms support the "backup" server option and the
+  "allbackups" proxy option. However server "weight" is not supported and will
+  be ignored.
+
+  Examples :
+
+        global
+          log backend@mylog-rrb local0 # send all logs to mylog-rrb backend
+
+        backend mylog-rrb
+          mode log
+          log-balance roundrobin
+
+          server s1 udp@127.0.0.1:514 # will receive 50% of log messages
+          server s2 udp@127.0.0.1:514
 
 log-format <string>
   Specifies the log format string to use for traffic logs
@@ -8923,7 +8967,7 @@ maxconn <conns>
   See also : "server", global section's "maxconn", "fullconn"
 
 
-mode { tcp|http }
+mode { tcp|http|log }
   Set the running mode or protocol of the instance
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
@@ -8938,6 +8982,16 @@ mode { tcp|http }
               which is not RFC-compliant will be rejected. Layer 7 filtering,
               processing and switching will be possible. This is the mode which
               brings HAProxy most of its value.
+
+    log       When used in a backend section, it will turn the backend into a
+              log backend. Such backend can be used as a log destination for
+              any "log" directive by using the "backend@<name>" syntax. Log
+              messages will be distributed to the servers from the backend
+              according to the lb settings which can be configured using the
+              "log-balance" keyword (in place of the "balance" keyword for TCP
+              and HTTP backends). Log backends support UDP servers by prefixing
+              the server's address with the "udp@" prefix. Common backend and
+              server features are supported, but not TCP or HTTP related ones.
 
   When doing content switching, it is mandatory that the frontend and the
   backend are in the same mode (generally HTTP), otherwise the configuration
@@ -16082,7 +16136,7 @@ downinter <delay>
 
 log-proto <logproto>
   The "log-proto" specifies the protocol used to forward event messages to
-  a server configured in a ring section. Possible values are "legacy"
+  a server configured in a log or ring section. Possible values are "legacy"
   and "octet-count" corresponding respectively to "Non-transparent-framing"
   and "Octet counting" in rfc6587. "legacy" is the default.
 

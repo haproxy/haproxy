@@ -1901,7 +1901,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "ws",                  srv_parse_ws,                  1,  1,  1 }, /* websocket protocol */
 	{ "id",                  srv_parse_id,                  1,  0,  1 }, /* set id# of server */
 	{ "init-addr",           srv_parse_init_addr,           1,  1,  0 }, /* */
-	{ "log-proto",           srv_parse_log_proto,           1,  1,  0 }, /* Set the protocol for event messages, only relevant in a ring section */
+	{ "log-proto",           srv_parse_log_proto,           1,  1,  0 }, /* Set the protocol for event messages, only relevant in a log or ring section */
 	{ "maxconn",             srv_parse_maxconn,             1,  1,  1 }, /* Set the max number of concurrent connection */
 	{ "maxqueue",            srv_parse_maxqueue,            1,  1,  1 }, /* Set the max number of connection to put in queue */
 	{ "max-reuse",           srv_parse_max_reuse,           1,  1,  0 }, /* Set the max number of requests on a connection, -1 means unlimited */
@@ -2495,6 +2495,7 @@ void srv_free_params(struct server *srv)
 	free(srv->resolvers_id);
 	free(srv->addr_node.key);
 	free(srv->lb_nodes);
+	free(srv->log_target);
 
 	if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->destroy_srv)
 		xprt_get(XPRT_SSL)->destroy_srv(srv);
@@ -2701,6 +2702,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 	const char *err = NULL;
 	int err_code = 0;
 	char *fqdn = NULL;
+	struct protocol *proto;
 	int tmpl_range_low = 0, tmpl_range_high = 0;
 	char *errmsg = NULL;
 
@@ -2806,11 +2808,12 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		if (!(parse_flags & SRV_PARSE_PARSE_ADDR))
 			goto skip_addr;
 
-		sk = str2sa_range(args[*cur_arg], &port, &port1, &port2, NULL, NULL,
+		sk = str2sa_range(args[*cur_arg], &port, &port1, &port2, NULL, &proto,
 		                  &errmsg, NULL, &fqdn,
+		                  (parse_flags & SRV_PARSE_IN_LOG_BE ? PA_O_DGRAM : PA_O_CONNECT) |
 		                  (parse_flags & SRV_PARSE_INITIAL_RESOLVE ? PA_O_RESOLVE : 0) | PA_O_PORT_OK |
 				  (parse_flags & SRV_PARSE_IN_PEER_SECTION ? PA_O_PORT_MAND : PA_O_PORT_OFS) |
-				  PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
+				  PA_O_STREAM | PA_O_XPRT);
 		if (!sk) {
 			ha_alert("%s\n", errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -2840,6 +2843,35 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 				         newsrv->id);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
+			}
+		}
+
+		if ((parse_flags & SRV_PARSE_IN_LOG_BE) && proto) {
+			/* mode log enabled, and found proto:
+			 * pre-resolve related log target from known infos
+			 */
+			newsrv->log_target = malloc(sizeof(*newsrv->log_target));
+			if (!newsrv->log_target) {
+				ha_alert("memory error when allocating log server\n");
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			newsrv->log_target->addr = &newsrv->addr;
+			switch (proto->xprt_type) {
+				case PROTO_TYPE_DGRAM:
+					newsrv->log_target->type = LOG_TARGET_DGRAM;
+					break;
+				case PROTO_TYPE_STREAM:
+					/* for now BUFFER type only supports TCP server to it's almost
+					 * explicit. This will require ring buffer creation during log
+					 * postresolving step.
+					 */
+					newsrv->log_target->type = LOG_TARGET_BUFFER;
+					break;
+				default:
+					ha_alert("log server type not supported for log backend server.\n");
+					err_code |= ERR_ALERT | ERR_FATAL;
+					break;
 			}
 		}
 
@@ -4860,6 +4892,11 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 
 	if (!(be->lbprm.algo & BE_LB_PROP_DYN)) {
 		cli_err(appctx, "Backend must use a dynamic load balancing to support dynamic servers.");
+		return 1;
+	}
+
+	if (be->mode == PR_MODE_SYSLOG) {
+		cli_err(appctx," Dynamic servers cannot be used with log backends.");
 		return 1;
 	}
 

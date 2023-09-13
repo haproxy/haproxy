@@ -145,6 +145,11 @@ struct lbprm {
 		struct lb_fwlc fwlc;
 		struct lb_chash chash;
 		struct lb_fas fas;
+		struct {
+			struct server	**srv;  /* array containing in-use log servers */
+			struct list	avail;  /* servers available for lb are registered in this list */
+			uint32_t	lastid; /* last relative id used */
+		} log; /* used in log-balancing context (PR_MODE_SYSLOG backend) */
 	};
 	int algo;			/* load balancing algorithm and variants: BE_LB_* */
 	int tot_wact, tot_wbck;		/* total effective weights of active and backup servers */

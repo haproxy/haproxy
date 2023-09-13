@@ -3744,6 +3744,12 @@ out_uri_auth_compat:
 		 * on what LB algorithm was chosen.
 		 */
 
+		if (curproxy->mode == PR_MODE_SYSLOG) {
+			/* log load-balancing requires special init that is performed
+			 * during log-postparsing step
+			 */
+			goto skip_server_lb_init;
+		}
 		curproxy->lbprm.algo &= ~(BE_LB_LKUP | BE_LB_PROP_DYN);
 		switch (curproxy->lbprm.algo & BE_LB_KIND) {
 		case BE_LB_KIND_RR:
@@ -3783,6 +3789,7 @@ out_uri_auth_compat:
 			}
 			break;
 		}
+ skip_server_lb_init:
 		HA_RWLOCK_INIT(&curproxy->lbprm.lock);
 
 		if (curproxy->options & PR_O_LOGASAP)

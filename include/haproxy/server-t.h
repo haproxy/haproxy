@@ -274,7 +274,8 @@ struct server {
 	char *rdr_pfx;				/* the redirection prefix */
 
 	struct proxy *proxy;			/* the proxy this server belongs to */
-	const struct mux_proto_list *mux_proto;       /* the mux to use for all outgoing connections (specified by the "proto" keyword) */
+	const struct mux_proto_list *mux_proto; /* the mux to use for all outgoing connections (specified by the "proto" keyword) */
+	struct log_target *log_target;          /* when 'mode log' is enabled, target facility used to transport log messages */
 	unsigned maxconn, minconn;		/* max # of active sessions (0 = unlimited), min# for dynamic limit. */
 	struct srv_per_thread *per_thr;         /* array of per-thread stuff such as connections lists */
 	struct srv_per_tgroup *per_tgrp;        /* array of per-tgroup stuff such as idle conns */
@@ -331,7 +332,10 @@ struct server {
 	THREAD_PAD(63);
 	__decl_thread(HA_SPINLOCK_T lock);      /* may enclose the proxy's lock, must not be taken under */
 	unsigned npos, lpos;			/* next and last positions in the LB tree, protected by LB lock */
-	struct eb32_node lb_node;               /* node used for tree-based load balancing */
+	union {
+		struct eb32_node lb_node;       /* node used for tree-based load balancing */
+		struct list lb_list;            /* elem used for list-based load balancing */
+	};
 	struct server *next_full;               /* next server in the temporary full list */
 
 	/* usually atomically updated by any thread during parsing or on end of request */
@@ -374,7 +378,7 @@ struct server {
 	char *hostname;				/* server hostname */
 	struct sockaddr_storage init_addr;	/* plain IP address specified on the init-addr line */
 	unsigned int init_addr_methods;		/* initial address setting, 3-bit per method, ends at 0, enough to store 10 entries */
-	enum srv_log_proto log_proto;		/* used proto to emit messages on server lines from ring section */
+	enum srv_log_proto log_proto;		/* used proto to emit messages on server lines from log or ring section */
 
 	char *sni_expr;             /* Temporary variable to store a sample expression for SNI */
 	struct {
@@ -621,6 +625,7 @@ struct srv_kw_list {
 #define SRV_PARSE_PARSE_ADDR      0x08    /* required to parse the server address in the second argument */
 #define SRV_PARSE_DYNAMIC         0x10    /* dynamic server created at runtime with cli */
 #define SRV_PARSE_INITIAL_RESOLVE 0x20    /* resolve immediately the fqdn to an ip address */
+#define SRV_PARSE_IN_LOG_BE       0x40    /* keyword in log backend */
 
 #endif /* _HAPROXY_SERVER_T_H */
 

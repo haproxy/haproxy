@@ -2824,6 +2824,33 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 	return 0;
 }
 
+/* This function parses a "balance" statement in a log backend section
+ * describing <curproxy>. It returns -1 if there is any error, otherwise zero.
+ * If it returns -1, it will write an error message into the <err> buffer which
+ * will automatically be allocated and must be passed as NULL. The trailing '\n'
+ * will not be written. The function must be called with <args> pointing to the
+ * first word after "balance".
+ */
+int backend_parse_log_balance(const char **args, char **err, struct proxy *curproxy)
+{
+	if (!*(args[0])) {
+		/* if no option is set, use round-robin by default */
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
+		return 0;
+	}
+
+	if (strcmp(args[0], "roundrobin") == 0) {
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
+	}
+	else {
+		memprintf(err, "only supports 'roundrobin' option");
+		return -1;
+	}
+	return 0;
+}
+
 
 /************************************************************************/
 /*      All supported sample and ACL keywords must be declared here.    */

@@ -740,14 +740,14 @@ static inline void init_log_target(struct log_target *target)
 	target->type = 0;
 	target->flags = LOG_TARGET_FL_NONE;
 	target->addr = NULL;
-	target->ring_name = NULL;
+	target->resolv_name = NULL;
 }
 
 static void deinit_log_target(struct log_target *target)
 {
 	ha_free(&target->addr);
 	if (!(target->flags & LOG_TARGET_FL_RESOLVED))
-		ha_free(&target->ring_name);
+		ha_free(&target->resolv_name);
 }
 
 /* returns 0 on failure and positive value on success */
@@ -761,9 +761,9 @@ static int dup_log_target(struct log_target *def, struct log_target *cpy)
 			goto error;
 		*cpy->addr = *def->addr;
 	}
-	if (def->ring_name) {
-		cpy->ring_name = strdup(def->ring_name);
-		if (!cpy->ring_name)
+	if (def->resolv_name) {
+		cpy->resolv_name = strdup(def->resolv_name);
+		if (!cpy->resolv_name)
 			goto error;
 	}
 	cpy->type = def->type;
@@ -771,6 +771,172 @@ static int dup_log_target(struct log_target *def, struct log_target *cpy)
  error:
 	deinit_log_target(cpy);
 	return 0;
+}
+
+/* must be called under the lbprm lock */
+static void _log_backend_srv_queue(struct server *srv)
+{
+	struct proxy *p = srv->proxy;
+
+	/* queue the server in the proxy lb array to make it easily searcheable by
+	 * log-balance algorithms. Here we use the srv array as a general server
+	 * pool of in-use servers, lookup is done using a relative positional id
+	 * (array is contiguous)
+	 *
+	 * We use the avail server list to get a quick hand on available servers
+	 * (those that are UP)
+	 */
+	if (srv->flags & SRV_F_BACKUP) {
+		if (!p->srv_act)
+			p->lbprm.log.srv[p->srv_bck] = srv;
+		p->srv_bck++;
+	}
+	else {
+		if (!p->srv_act) {
+			/* we will be switching to act tree in LB logic, thus we need to
+			 * reset the lastid
+			 */
+			HA_ATOMIC_STORE(&p->lbprm.log.lastid, 0);
+		}
+		p->lbprm.log.srv[p->srv_act] = srv;
+		p->srv_act++;
+	}
+	/* append the server to the list of available servers */
+	LIST_APPEND(&p->lbprm.log.avail, &srv->lb_list);
+}
+
+static void log_backend_srv_up(struct server *srv)
+{
+	struct proxy *p = srv->proxy;
+
+	if (!srv_lb_status_changed(srv))
+		return; /* nothing to do */
+	if (srv_currently_usable(srv) || !srv_willbe_usable(srv))
+		return; /* false alarm */
+
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	_log_backend_srv_queue(srv);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+}
+
+/* must be called under lbprm lock */
+static void _log_backend_srv_recalc(struct proxy *p)
+{
+	unsigned int it = 0;
+	struct server *cur_srv;
+
+	list_for_each_entry(cur_srv, &p->lbprm.log.avail, lb_list) {
+		uint8_t backup = cur_srv->flags & SRV_F_BACKUP;
+
+		if ((!p->srv_act && backup) ||
+		    (p->srv_act && !backup))
+			p->lbprm.log.srv[it++] = cur_srv;
+	}
+}
+
+/* must be called under the lbprm lock */
+static void _log_backend_srv_dequeue(struct server *srv)
+{
+	struct proxy *p = srv->proxy;
+
+	if (srv->flags & SRV_F_BACKUP) {
+		p->srv_bck--;
+	}
+	else {
+		p->srv_act--;
+		if (!p->srv_act) {
+			/* we will be switching to bck tree in LB logic, thus we need to
+			 * reset the lastid
+			 */
+			HA_ATOMIC_STORE(&p->lbprm.log.lastid, 0);
+		}
+	}
+
+	/* remove the srv from the list of available (UP) servers */
+	LIST_DELETE(&srv->lb_list);
+
+	/* reconstruct the array of usable servers */
+	_log_backend_srv_recalc(p);
+}
+
+static void log_backend_srv_down(struct server *srv)
+{
+	struct proxy *p = srv->proxy;
+
+	if (!srv_lb_status_changed(srv))
+		return; /* nothing to do */
+	if (!srv_currently_usable(srv) || srv_willbe_usable(srv))
+		return; /* false alarm */
+
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	_log_backend_srv_dequeue(srv);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+}
+
+static int postcheck_log_backend(struct proxy *be)
+{
+	char *msg = NULL;
+	struct server *srv;
+	int err_code = ERR_NONE;
+	int target_type = -1; // -1 is unused in log_tgt enum
+
+	if (be->mode != PR_MODE_SYSLOG ||
+	    (be->flags & (PR_FL_DISABLED|PR_FL_STOPPED)))
+		return ERR_NONE; /* nothing to do */
+
+	/* First time encoutering this log backend, perform some init
+	 */
+	be->lbprm.set_server_status_up = log_backend_srv_up;
+	be->lbprm.set_server_status_down = log_backend_srv_down;
+	be->lbprm.log.lastid = 0; /* initial value */
+	LIST_INIT(&be->lbprm.log.avail);
+
+	/* alloc srv array (it will be used for active and backup server lists in turn,
+	 * so we ensure that the longest list will fit
+	 */
+	be->lbprm.log.srv = calloc(MAX(be->srv_act, be->srv_bck), sizeof(struct server *));
+
+	if (!be->lbprm.log.srv ) {
+		memprintf(&msg, "memory error when allocating server array (%d entries)",
+		          MAX(be->srv_act, be->srv_bck));
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto end;
+	}
+
+	/* reinit srv counters, lbprm queueing will recount */
+	be->srv_act = 0;
+	be->srv_bck = 0;
+
+	/* finish the initialization of proxy's servers */
+	srv = be->srv;
+	while (srv) {
+		if (target_type == -1)
+			target_type = srv->log_target->type;
+		if (target_type != srv->log_target->type) {
+			memprintf(&msg, "cannot mix server types within a log backend, '%s' srv's network type differs from previous server", srv->id);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
+		if (target_type == LOG_TARGET_BUFFER) {
+			srv->log_target->sink = sink_new_from_srv(srv, "log backend");
+			if (!srv->log_target->sink) {
+				memprintf(&msg, "error when creating sink from '%s' log server", srv->id);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto end;
+			}
+		}
+		srv->cur_eweight = 1; /* ignore weights, all servers have the same weight */
+		_log_backend_srv_queue(srv);
+		srv = srv->next;
+	}
+ end:
+	if (err_code & ERR_CODE) {
+		ha_free(&be->lbprm.log.srv); /* free log servers array */
+		ha_alert("log backend '%s': failed to initialize: %s.\n", be->id, msg);
+		ha_free(&msg);
+	}
+
+	return err_code;
 }
 
 /* resolves a single logger entry (it is expected to be called
@@ -791,7 +957,26 @@ int resolve_logger(struct logger *logger, char **msg)
 
 	if (target->type == LOG_TARGET_BUFFER)
 		err_code = sink_resolve_logger_buffer(logger, msg);
+	else if (target->type == LOG_TARGET_BACKEND) {
+		struct proxy *be;
 
+		/* special case */
+		be = proxy_find_by_name(target->be_name, PR_CAP_BE, 0);
+		if (!be) {
+			memprintf(msg, "uses unknown log backend '%s'", target->be_name);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
+		else if (be->mode != PR_MODE_SYSLOG) {
+			memprintf(msg, "uses incompatible log backend '%s'", target->be_name);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
+		ha_free(&target->be_name); /* backend is resolved and will replace name hint */
+		target->be = be;
+	}
+
+ end:
 	target->flags |= LOG_TARGET_FL_RESOLVED;
 
 	return err_code;
@@ -859,6 +1044,11 @@ static int parse_log_target(char *raw, struct log_target *target, char **err)
 	if (strncmp(raw, "ring@", 5) == 0) {
 		target->type = LOG_TARGET_BUFFER;
 		target->ring_name = strdup(raw + 5);
+		goto done;
+	}
+	else if (strncmp(raw, "backend@", 8) == 0) {
+		target->type = LOG_TARGET_BACKEND;
+		target->be_name = strdup(raw + 8);
 		goto done;
 	}
 
@@ -1876,6 +2066,69 @@ static inline void __do_send_log(struct log_target *target, struct log_header hd
 	}
 }
 
+/* does the same as __do_send_log() does for a single target, but here the log
+ * will be sent according to the log backend's lb settings. The function will
+ * leverage __do_send_log() function to actually send the log messages.
+ */
+static inline void __do_send_log_backend(struct proxy *be, struct log_header hdr,
+                                         int nblogger, size_t maxlen,
+                                         char *message, size_t size)
+{
+	struct server *srv;
+	uint32_t targetid = ~0; /* default value to check if it was explicitly assigned */
+	uint32_t nb_srv;
+
+	HA_RWLOCK_RDLOCK(LBPRM_LOCK, &be->lbprm.lock);
+
+	if (be->srv_act) {
+		nb_srv = be->srv_act;
+	}
+	else if (be->srv_bck) {
+		/* no more active servers but backup ones are, switch to backup farm */
+		nb_srv = be->srv_bck;
+		if (!(be->options & PR_O_USE_ALL_BK)) {
+			/* log balancing disabled on backup farm */
+			targetid = 0; /* use first server */
+			goto skip_lb;
+		}
+	}
+	else {
+		/* no srv available, can't log */
+		goto drop;
+	}
+
+	/* log-balancing logic: */
+
+	if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_RR) {
+		/* Atomically load and update lastid since it's not protected
+		 * by any write lock
+		 *
+		 * Wrapping is expected and could lead to unexpected ID reset in the
+		 * middle of a cycle, but given that this only happens once in every
+		 * 4 billions it is quite negligible
+		 */
+		targetid = HA_ATOMIC_FETCH_ADD(&be->lbprm.log.lastid, 1) % nb_srv;
+	}
+
+ skip_lb:
+
+	if (targetid == ~0) {
+		/* no target assigned, nothing to do */
+		goto drop;
+	}
+
+	/* find server based on targetid */
+	srv = be->lbprm.log.srv[targetid];
+	HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &be->lbprm.lock);
+
+	__do_send_log(srv->log_target, hdr, nblogger, maxlen, message, size);
+	return;
+
+ drop:
+	HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &be->lbprm.lock);
+	_HA_ATOMIC_INC(&dropped_logs);
+}
+
 /*
  * This function sends a syslog message.
  * It doesn't care about errors nor does it report them.
@@ -1931,7 +2184,15 @@ void process_send_log(struct list *loggers, int level, int facility,
 			hdr.facility = (facility == -1) ? logger->facility : facility;
 			hdr.format = logger->format;
 			hdr.metadata = metadata;
-			__do_send_log(&logger->target, hdr, ++nblogger, logger->maxlen, message, size);
+
+			nblogger += 1;
+			if (logger->target.type == LOG_TARGET_BACKEND) {
+				__do_send_log_backend(logger->target.be, hdr, nblogger, logger->maxlen, message, size);
+			}
+			else {
+				/* normal target */
+				__do_send_log(&logger->target, hdr, nblogger, logger->maxlen, message, size);
+			}
 		}
 	}
 }
@@ -4181,6 +4442,7 @@ static int postresolve_loggers()
 /* config parsers for this section */
 REGISTER_CONFIG_SECTION("log-forward", cfg_parse_log_forward, NULL);
 REGISTER_POST_CHECK(postresolve_loggers);
+REGISTER_POST_PROXY_CHECK(postcheck_log_backend);
 
 REGISTER_PER_THREAD_ALLOC(init_log_buffers);
 REGISTER_PER_THREAD_FREE(deinit_log_buffers);
