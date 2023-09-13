@@ -835,11 +835,11 @@ static struct sink *sink_new_ringbuf(const char *id, const char *description,
 		goto err;
 	}
 
+	/* link sink to proxy */
 	sink->forward_px = p;
 
-	/* link sink forward_target to proxy */
+	/* link proxy to sink */
 	p->parent = sink;
-	sink->forward_px = p;
 
 	return sink;
 
@@ -1162,7 +1162,7 @@ err:
 	return err_code;
 }
 
-/* Creates an new sink buffer from a log server.
+/* Creates a new sink buffer from a log server.
  *
  * It uses the logsrvaddress to declare a forward
  * server for this buffer. And it initializes the
@@ -1176,7 +1176,7 @@ err:
  * Note: the sink is created using the name
  *       specified into logsrv->ring_name
  */
-struct sink *sink_new_from_logsrv(struct logsrv *logsrv)
+static struct sink *sink_new_from_logsrv(struct logsrv *logsrv)
 {
 	struct sink *sink = NULL;
 	struct server *srv = NULL;
@@ -1262,8 +1262,6 @@ int cfg_post_parse_ring()
 }
 
 /* function: resolve a single logsrv target of BUFFER type
- *
- * <logsrv> is parent logsrv used for implicit settings
  *
  * Returns err_code which defaults to ERR_NONE and can be set to a combination
  * of ERR_WARN, ERR_ALERT, ERR_FATAL and ERR_ABORT in case of errors.
