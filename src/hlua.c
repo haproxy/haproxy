@@ -10984,6 +10984,8 @@ __LJMP static int hlua_register_action(lua_State *L)
 			akw = action_http_req_custom(trash->area);
 		} else if (strcmp(lua_tostring(L, -1), "http-res") == 0) {
 			akw = action_http_res_custom(trash->area);
+		} else if (strcmp(lua_tostring(L, -1), "http-after-res") == 0) {
+			akw = action_http_after_res_custom(trash->area);
 		} else {
 			akw = NULL;
 		}
@@ -11043,6 +11045,8 @@ __LJMP static int hlua_register_action(lua_State *L)
 			http_req_keywords_register(akl);
 		else if (strcmp(lua_tostring(L, -1), "http-res") == 0)
 			http_res_keywords_register(akl);
+		else if (strcmp(lua_tostring(L, -1), "http-after-res") == 0)
+			http_after_res_keywords_register(akl);
 		else {
 			release_hlua_function(fcn);
 			hlua_unref(L, ref);
@@ -11050,7 +11054,8 @@ __LJMP static int hlua_register_action(lua_State *L)
 				ha_free((char **)&(akl->kw[0].kw));
 			ha_free(&akl);
 			WILL_LJMP(luaL_error(L, "Lua action environment '%s' is unknown. "
-			                        "'tcp-req', 'tcp-res', 'http-req' or 'http-res' "
+			                        "'tcp-req', 'tcp-res', 'http-req', 'http-res' "
+			                        "or 'http-after-res' "
 			                        "are expected.", lua_tostring(L, -1)));
 		}
 
