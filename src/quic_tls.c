@@ -86,6 +86,7 @@ void quic_pktns_release(struct quic_conn *qc, struct quic_pktns **pktns)
 		return;
 
 	quic_pktns_tx_pkts_release(*pktns, qc);
+	qc_release_pktns_frms(qc, *pktns);
 	quic_free_arngs(qc, &(*pktns)->rx.arngs);
 	LIST_DEL_INIT(&(*pktns)->list);
 	pool_free(pool_head_quic_pktns, *pktns);
