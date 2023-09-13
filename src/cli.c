@@ -3244,6 +3244,9 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 	bind_conf->nice = -64;  /* we want to boost priority for local stats */
 	bind_conf->options |= BC_O_UNLIMITED | BC_O_NOSTOP;
 
+	/* Pin master CLI on the first thread of the first group only */
+	thread_set_pin_grp1(&bind_conf->thread_set, 1);
+
 	list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 		HA_ATOMIC_INC(&unstoppable_jobs);
 		/* it's a sockpair but we don't want to keep the fd in the master */
