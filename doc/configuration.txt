@@ -23767,6 +23767,7 @@ Please refer to the table below for currently defined variables :
   | H | %HPO | HTTP path only (without host nor query string)       | string  |
   +---+------+------------------------------------------------------+---------+
   | H | %HQ  | HTTP request URI query string (ex: ?bar=baz)         | string  |
+  |   |      | ?%[query]                                            |         |
   +---+------+------------------------------------------------------+---------+
   | H | %HU  | HTTP request URI (ex: /foo?bar=baz)                  | string  |
   +---+------+------------------------------------------------------+---------+
