@@ -2999,6 +2999,13 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 		goto strm_err;
 	}
 
+	if (!(h2s->flags & H2_SF_HEADERS_RCVD)) {
+		/* RFC9113#8.1: The header section must be received before the message content */
+		TRACE_ERROR("Unexpected DATA frame before the message headers", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
+		error = H2_ERR_PROTOCOL_ERROR;
+		HA_ATOMIC_INC(&h2c->px_counters->strm_proto_err);
+		goto strm_err;
+	}
 	if ((h2s->flags & H2_SF_DATA_CLEN) && (h2c->dfl - h2c->dpl) > h2s->body_len) {
 		/* RFC7540#8.1.2 */
 		TRACE_ERROR("DATA frame larger than content-length", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
