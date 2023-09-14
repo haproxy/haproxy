@@ -985,8 +985,12 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
 	if ((s->scb->flags & SC_FL_SHUT_DONE) && co_data(req)) {
 		/* request errors are most likely due to the server aborting the
-		 * transfer. */
-		goto return_srv_abort;
+		 * transfer.Bit handle server aborts only if there is no
+		 * response. Otherwise, let a change to foward the response
+		 * first.
+		 */
+		if (htx_is_empty(htxbuf(&s->res.buf)))
+			goto return_srv_abort;
 	}
 
 	http_end_request(s);
@@ -1023,8 +1027,13 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
  waiting:
 	/* waiting for the last bits to leave the buffer */
-	if (s->scb->flags & SC_FL_SHUT_DONE)
-		goto return_srv_abort;
+	if (s->scb->flags & SC_FL_SHUT_DONE) {
+		/* Handle server aborts only if there is no response. Otherwise,
+		 * let a change to foward the response first.
+		 */
+		if (htx_is_empty(htxbuf(&s->res.buf)))
+			goto return_srv_abort;
+	}
 
 	/* When TE: chunked is used, we need to get there again to parse remaining
 	 * chunks even if the client has closed, so we don't want to set CF_DONTCLOSE.
