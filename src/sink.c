@@ -314,9 +314,8 @@ void sink_setup_proxy(struct proxy *px)
 static void sink_forward_io_handler(struct appctx *appctx)
 {
 	struct stconn *sc = appctx_sc(appctx);
-	struct stream *s = __sc_strm(sc);
-	struct sink *sink = strm_fe(s)->parent;
 	struct sink_forward_target *sft = appctx->svcctx;
+	struct sink *sink = sft->sink;
 	struct ring *ring = sink->ctx.ring;
 	struct buffer *buf = &ring->buf;
 	uint64_t msg_len;
@@ -445,9 +444,8 @@ close:
 static void sink_forward_oc_io_handler(struct appctx *appctx)
 {
 	struct stconn *sc = appctx_sc(appctx);
-	struct stream *s = __sc_strm(sc);
-	struct sink *sink = strm_fe(s)->parent;
 	struct sink_forward_target *sft = appctx->svcctx;
+	struct sink *sink = sft->sink;
 	struct ring *ring = sink->ctx.ring;
 	struct buffer *buf = &ring->buf;
 	uint64_t msg_len;
@@ -567,10 +565,9 @@ close:
 
 void __sink_forward_session_deinit(struct sink_forward_target *sft)
 {
-	struct stream *s = appctx_strm(sft->appctx);
 	struct sink *sink;
 
-	sink = strm_fe(s)->parent;
+	sink = sft->sink;
 	if (!sink)
 		return;
 
@@ -837,9 +834,6 @@ static struct sink *sink_new_ringbuf(const char *id, const char *description,
 
 	/* link sink to proxy */
 	sink->forward_px = p;
-
-	/* link proxy to sink */
-	p->parent = sink;
 
 	return sink;
 
