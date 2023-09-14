@@ -830,7 +830,7 @@ static struct sink *sink_new_ringbuf(const char *id, const char *description,
 	p->conf.args.line = p->conf.line = linenum;
 
 	sink = sink_new_buf(id, description, LOG_FORMAT_RAW, BUFSIZE);
-	if (!sink || sink->type != SINK_TYPE_BUFFER) {
+	if (!sink) {
 		memprintf(err_msg, "unable to create a new sink buffer for ring '%s'", id);
 		goto err;
 	}
