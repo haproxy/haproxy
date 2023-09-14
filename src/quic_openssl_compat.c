@@ -6,11 +6,10 @@
 #error "Must define USE_OPENSSL"
 #endif
 
+#include <haproxy/openssl-compat.h>
 /* Highly inspired from nginx QUIC TLS compatibilty code */
-
 #include <openssl/kdf.h>
 
-#include <haproxy/openssl-compat.h>
 #include <haproxy/quic_conn.h>
 #include <haproxy/quic_tls.h>
 #include <haproxy/ssl_sock.h>
