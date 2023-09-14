@@ -54,7 +54,7 @@ struct sink {
 	enum log_fmt fmt;          // format expected by the sink
 	enum sink_type type;       // type of storage
 	uint32_t maxlen;           // max message length (truncated above)
-	struct proxy* forward_px;  // proxy used to forward
+	struct proxy* forward_px;  // internal proxy used to forward (only set when exclusive to sink)
 	struct sink_forward_target *sft; // sink forward targets
 	struct task *forward_task; // task to handle forward targets conns
 	struct sig_handler *forward_sighandler; /* signal handler */

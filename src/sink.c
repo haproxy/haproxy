@@ -588,7 +588,7 @@ static int sink_forward_session_init(struct appctx *appctx)
 	if (!sockaddr_alloc(&addr, &sft->srv->addr, sizeof(sft->srv->addr)))
 		goto out_error;
 
-	if (appctx_finalize_startup(appctx, sft->sink->forward_px, &BUF_NULL) == -1)
+	if (appctx_finalize_startup(appctx, sft->srv->proxy, &BUF_NULL) == -1)
 		goto out_free_addr;
 
 	s = appctx_strm(appctx);
@@ -803,7 +803,9 @@ static void sink_free(struct sink *sink)
 }
 
 /* Helper function to create new high-level ring buffer (as in ring section from
- * the config)
+ * the config): will create a new sink of buf type, and a new forward proxy,
+ * which will be stored in forward_px to know that the sink is responsible for
+ * it.
  *
  * Returns NULL on failure
  */
