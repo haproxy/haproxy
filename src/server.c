@@ -2471,6 +2471,7 @@ void srv_take(struct server *srv)
 void srv_free_params(struct server *srv)
 {
 	free(srv->cookie);
+	free(srv->rdr_pfx);
 	free(srv->hostname);
 	free(srv->hostname_dn);
 	free((char*)srv->conf.file);
