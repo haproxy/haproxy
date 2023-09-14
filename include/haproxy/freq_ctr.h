@@ -343,7 +343,7 @@ static inline unsigned int swrate_add_scaled(unsigned int *sum, unsigned int n, 
 
 	old_sum = *sum;
 	do {
-		new_sum = old_sum + v * s - div64_32((unsigned long long)(old_sum + n) * s, n);
+		new_sum = old_sum + v * s - div64_32((unsigned long long)old_sum * s + n - 1, n);
 	} while (!HA_ATOMIC_CAS(sum, &old_sum, new_sum) && __ha_cpu_relax());
 	return new_sum;
 }
@@ -378,7 +378,7 @@ static inline uint swrate_add_scaled_opportunistic(uint *sum, uint n, uint v, ui
 	uint new_sum, old_sum;
 
 	old_sum = *sum;
-	new_sum = old_sum + v * s - div64_32((unsigned long long)(old_sum + n) * s, n);
+	new_sum = old_sum + v * s - div64_32((unsigned long long)old_sum * s + n - 1, n);
 	HA_ATOMIC_CAS(sum, &old_sum, new_sum);
 	return new_sum;
 }
