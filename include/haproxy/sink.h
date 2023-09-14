@@ -84,6 +84,7 @@ static inline ssize_t sink_write(struct sink *sink, struct log_header hdr,
 	return sent;
 }
 
+struct sink *sink_new_from_srv(struct server *srv, const char *from);
 int sink_resolve_logger_buffer(struct logger *logger, char **msg);
 
 #endif /* _HAPROXY_SINK_H */

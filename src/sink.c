@@ -1247,6 +1247,59 @@ struct sink *sink_new_from_logger(struct logger *logger)
 	return NULL;
 }
 
+/* This function is pretty similar to sink_from_logger():
+ * But instead of creating a forward proxy and server from a logger struct
+ * it uses already existing srv to create the forwarding sink, so most of
+ * the initialization is bypassed.
+ *
+ * The function returns a pointer on the
+ * allocated struct sink if allocate
+ * and initialize succeed, else if it fails
+ * it returns NULL.
+ *
+ * <from> allows to specify a string that will be inserted into the sink
+ * description to describe where it was created from.
+
+ * Note: the sink is created using the name
+ *       specified into srv->id
+ */
+struct sink *sink_new_from_srv(struct server *srv, const char *from)
+{
+	struct sink *sink = NULL;
+
+	/* prepare description for the sink */
+	chunk_reset(&trash);
+	chunk_printf(&trash, "created from %s declared into '%s' at line %d", from, srv->conf.file, srv->conf.line);
+
+	/* directly create a sink of BUF type, and use UNSPEC log format to
+	 * inherit from caller fmt in sink_write()
+	 */
+	sink = sink_new_buf(srv->id, trash.area, LOG_FORMAT_UNSPEC, BUFSIZE);
+	if (!sink) {
+		ha_alert("unable to create a new sink buffer for server '%s'.\n", srv->id);
+		goto error;
+	}
+
+	/* we disable sink->maxlen to inherit from caller
+	 * maxlen in sink_write()
+	 */
+	sink->maxlen = 0;
+
+	/* add server to sink */
+	if (!sink_add_srv(sink, srv))
+		goto error;
+
+	if (sink_finalize(sink) & ERR_CODE)
+		goto error;
+
+	return sink;
+
+ error:
+	sink_free(sink);
+
+	return NULL;
+}
+
 /*
  * Post parsing "ring" section.
  *
