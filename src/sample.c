@@ -3156,7 +3156,7 @@ static int check_operator(struct arg *args, struct sample_conv *conv,
 	long long int i;
 
 	/* Try to decode a variable. */
-	if (vars_check_arg(&args[0], NULL))
+	if (vars_check_arg(&args[0], err))
 		return 1;
 
 	/* Try to convert an integer */
