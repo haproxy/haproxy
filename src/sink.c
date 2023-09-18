@@ -844,6 +844,38 @@ static struct sink *sink_new_ringbuf(const char *id, const char *description,
 	return NULL;
 }
 
+/* helper function: add a new server to an existing sink
+ *
+ * Returns 1 on success and 0 on failure
+ */
+static int sink_add_srv(struct sink *sink, struct server *srv)
+{
+	struct sink_forward_target *sft;
+
+	/* allocate new sink_forward_target descriptor */
+	sft = calloc(1, sizeof(*sft));
+	if (!sft) {
+		ha_alert("memory allocation error initializing server '%s' in ring '%s'.\n", srv->id, sink->name);
+		return 0;
+	}
+	sft->srv = srv;
+	sft->appctx = NULL;
+	sft->ofs = ~0; /* init ring offset */
+	sft->sink = sink;
+	sft->next = sink->sft;
+	HA_SPIN_INIT(&sft->lock);
+
+	/* mark server attached to the ring */
+	if (!ring_attach(sink->ctx.ring)) {
+		ha_alert("server '%s' sets too many watchers > 255 on ring '%s'.\n", srv->id, sink->name);
+		ha_free(&sft);
+		return 0;
+	}
+	sink->sft = sft;
+	srv = srv->next;
+	return 1;
+}
+
 /* Finalize sink struct to ensure configuration consistency and
  * allocate final struct members
  *
@@ -868,32 +900,13 @@ static int sink_finalize(struct sink *sink)
 
 		/* prepare forward server descriptors */
 		if (sink->forward_px) {
+			/* sink proxy is set: register all servers from the proxy */
 			srv = sink->forward_px->srv;
 			while (srv) {
-				struct sink_forward_target *sft;
-
-				/* allocate sink_forward_target descriptor */
-				sft = calloc(1, sizeof(*sft));
-				if (!sft) {
-					ha_alert("memory allocation error initializing server '%s' in ring '%s'.\n", srv->id, sink->name);
+				if (!sink_add_srv(sink, srv)) {
 					err_code |= ERR_ALERT | ERR_FATAL;
 					break;
 				}
-				sft->srv = srv;
-				sft->appctx = NULL;
-				sft->ofs = ~0; /* init ring offset */
-				sft->sink = sink;
-				sft->next = sink->sft;
-				HA_SPIN_INIT(&sft->lock);
-
-				/* mark server attached to the ring */
-				if (!ring_attach(sink->ctx.ring)) {
-					ha_alert("server '%s' sets too many watchers > 255 on ring '%s'.\n", srv->id, sink->name);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					ha_free(&sft);
-					break;
-				}
-				sink->sft = sft;
 				srv = srv->next;
 			}
 		}
