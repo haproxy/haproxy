@@ -894,10 +894,11 @@ static int sink_finalize(struct sink *sink)
 				sink->sft = sft;
 				srv = srv->next;
 			}
-			if (sink_init_forward(sink) == 0) {
-				ha_alert("error when trying to initialize sink buffer forwarding.\n");
-				err_code |= ERR_ALERT | ERR_FATAL;
-			}
+		}
+		/* init forwarding if at least one sft is registered */
+		if (sink->sft && sink_init_forward(sink) == 0) {
+			ha_alert("error when trying to initialize sink buffer forwarding.\n");
+			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
 	return err_code;
