@@ -1527,6 +1527,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		if (curproxy->mode != PR_MODE_TCP && curproxy->mode != PR_MODE_HTTP) {
+			ha_alert("parsing [%s:%d] : 'stick-table' requires TCP or HTTP mode.\n",
+				 file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		other = stktable_find_by_name(curproxy->id);
 		if (other) {
 			ha_alert("parsing [%s:%d] : stick-table name '%s' conflicts with table declared in %s '%s' at %s:%d.\n",
@@ -1575,6 +1582,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (curproxy->mode != PR_MODE_TCP && curproxy->mode != PR_MODE_HTTP) {
+			ha_alert("parsing [%s:%d] : '%s' requires TCP or HTTP mode.\n",
+				 file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
