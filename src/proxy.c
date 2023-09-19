@@ -1294,6 +1294,10 @@ struct server *findserver_unique_name(const struct proxy *px, const char *name, 
  */
 int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 {
+	if (curproxy->max_ka_queue) {
+		ha_warning("max_ka_queue will be ignored for %s '%s' (needs 'mode http').\n",
+			   proxy_type_str(curproxy), curproxy->id);
+	}
 	if (curproxy->cookie_name != NULL) {
 		ha_warning("cookie will be ignored for %s '%s' (needs 'mode http').\n",
 			   proxy_type_str(curproxy), curproxy->id);
