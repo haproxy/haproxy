@@ -2502,6 +2502,12 @@ stats_error_parsing:
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
+		if (curproxy->mode != PR_MODE_TCP && curproxy->mode != PR_MODE_HTTP) {
+			ha_alert("parsing [%s:%d] : '%s' requires TCP or HTTP mode.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		if (backend_parse_balance((const char **)args + 1, &errmsg, curproxy) < 0) {
 			ha_alert("parsing [%s:%d] : %s %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -2516,6 +2522,12 @@ stats_error_parsing:
 		 * The default hash function is sdbm for map-based and sdbm+avalanche for consistent.
 		 */
 		curproxy->lbprm.algo &= ~(BE_LB_HASH_TYPE | BE_LB_HASH_FUNC | BE_LB_HASH_MOD);
+
+		if (curproxy->mode != PR_MODE_TCP && curproxy->mode != PR_MODE_HTTP) {
+			ha_alert("parsing [%s:%d] : '%s' requires TCP or HTTP mode.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
@@ -2577,6 +2589,12 @@ stats_error_parsing:
 		}
 	}
 	else if (strcmp(args[0], "hash-balance-factor") == 0) {
+		if (curproxy->mode != PR_MODE_TCP && curproxy->mode != PR_MODE_HTTP) {
+			ha_alert("parsing [%s:%d] : '%s' requires TCP or HTTP mode.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		if (*(args[1]) == 0) {
 			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
