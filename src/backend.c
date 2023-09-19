@@ -70,7 +70,7 @@ int be_lastsession(const struct proxy *be)
 }
 
 /* helper function to invoke the correct hash method */
-static unsigned int gen_hash(const struct proxy* px, const char* key, unsigned long len)
+unsigned int gen_hash(const struct proxy* px, const char* key, unsigned long len)
 {
 	unsigned int hash;
 
@@ -2855,8 +2855,19 @@ int backend_parse_log_balance(const char **args, char **err, struct proxy *curpr
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_RND;
 	}
+	else if (strcmp(args[0], "hash") == 0) {
+		if (!*args[1]) {
+			memprintf(err, "%s requires a converter list.", args[0]);
+			return -1;
+		}
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_SMP;
+
+		ha_free(&curproxy->lbprm.arg_str);
+		curproxy->lbprm.arg_str = strdup(args[1]);
+	}
 	else {
-		memprintf(err, "only supports 'roundrobin', 'sticky', 'random', options");
+		memprintf(err, "only supports 'roundrobin', 'sticky', 'random', 'hash' options");
 		return -1;
 	}
 	return 0;

@@ -42,6 +42,7 @@
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/time.h>
+#include <haproxy/hash.h>
 #include <haproxy/tools.h>
 
 /* global recv logs counter */
@@ -906,6 +907,65 @@ static int postcheck_log_backend(struct proxy *be)
 	/* reinit srv counters, lbprm queueing will recount */
 	be->srv_act = 0;
 	be->srv_bck = 0;
+
+	/* "log-balance hash" needs to compile its expression */
+	if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_SMP) {
+		struct sample_expr *expr;
+		char *expr_str = NULL;
+		char *err_str = NULL;
+		int idx = 0;
+
+		/* only map-based hash method is supported for now */
+		if ((be->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP) {
+			memprintf(&msg, "unsupported hash method (from \"hash-type\")");
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
+
+		/* a little bit of explanation about what we're going to do here:
+		 * as the user gave us a list of converters, instead of the fetch+conv list
+		 * tuple as we're used to, we need to insert a dummy fetch at the start of
+		 * the converter list so that sample_parse_expr() is able to properly parse
+		 * the expr. We're explicitly using str() as dummy fetch, since the input
+		 * sample that will be passed to the converter list at runtime will be a
+		 * string (the log message about to be sent). Doing so allows sample_parse_expr()
+		 * to ensure that the provided converters will be compatible with string type.
+		 */
+		memprintf(&expr_str, "str(dummy),%s", be->lbprm.arg_str);
+		if (!expr_str) {
+			memprintf(&msg, "memory error during converter list argument parsing (from \"log-balance hash\")");
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
+		expr = sample_parse_expr((char*[]){expr_str, NULL}, &idx,
+		                         be->conf.file,
+		                         be->conf.line,
+		                         &err_str, NULL, NULL);
+		if (!expr) {
+			memprintf(&msg, "%s (from converter list argument in \"log-balance hash\")", err_str);
+			ha_free(&err_str);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			ha_free(&expr_str);
+			goto end;
+		}
+
+		/* We expect the log_message->conv_list expr to resolve as a binary-compatible
+		 * value because its output will be passed to gen_hash() to compute the hash.
+		 *
+		 * So we check the last converter's output type to ensure that it can be
+		 * converted into the expected type. Invalid output type will result in an
+		 * error to prevent unexpected results during runtime.
+		 */
+		if (sample_casts[smp_expr_output_type(expr)][SMP_T_BIN] == NULL) {
+			memprintf(&msg, "invalid output type at the end of converter list for \"log-balance hash\" directive");
+			err_code |= ERR_ALERT | ERR_FATAL;
+			release_sample_expr(expr);
+			ha_free(&expr_str);
+			goto end;
+		}
+		ha_free(&expr_str);
+		be->lbprm.expr = expr;
+	}
 
 	/* finish the initialization of proxy's servers */
 	srv = be->srv;
@@ -2119,6 +2179,24 @@ static inline void __do_send_log_backend(struct proxy *be, struct log_header hdr
 	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_RND) {
 		/* random mode */
 		targetid = statistical_prng() % nb_srv;
+	}
+	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_SMP) {
+		struct sample result;
+
+		/* log-balance hash */
+		memset(&result, 0, sizeof(result));
+		result.data.type = SMP_T_STR;
+		result.flags = SMP_F_CONST;
+		result.data.u.str.area = message;
+		result.data.u.str.data = size;
+		result.data.u.str.size = size + 1; /* with terminating NULL byte */
+		if (sample_process_cnv(be->lbprm.expr, &result)) {
+			/* gen_hash takes binary input, ensure that we provide such value to it */
+			if (result.data.type == SMP_T_BIN || sample_casts[result.data.type][SMP_T_BIN]) {
+				sample_casts[result.data.type][SMP_T_BIN](&result);
+				targetid = gen_hash(be, result.data.u.str.area, result.data.u.str.data) % nb_srv;
+			}
+		}
 	}
 
  skip_lb:

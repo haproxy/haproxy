@@ -8849,6 +8849,19 @@ log-balance <algorithm> [ <arguments> ]
                   pool of available servers as it may avoid the hammering
                   effect that could result from roundrobin in this situation.
 
+      hash        <arguments> should be found in the form: <cnv_list>
+                  e.g.: log-balance hash <cnv_list>
+
+                  Each log message will be passed to the converter list
+                  specified in <cnv_list> (ie: "cnv1,cnv2..."), and it will
+                  then be passed to haproxy hashing function according to
+                  "hash-type" settings. The resulting hash will be used to
+                  select the destination server among the ones declared in the
+                  log backend. The goal of this algorithm is to be able to
+                  extract a key within the final log message using string
+                  converters and then be able to stick to the same server thanks
+                  to the hash. Only "map-based" hashes are supported for now.
+
     <arguments> is an optional list of arguments which may be needed by some
                 algorithms.
 
@@ -8862,6 +8875,7 @@ log-balance <algorithm> [ <arguments> ]
 
         global
           log backend@mylog-rrb local0 # send all logs to mylog-rrb backend
+          log backend@mylog-hash local0 # send all logs to mylog-hash backend
 
         backend mylog-rrb
           mode log
@@ -8869,6 +8883,18 @@ log-balance <algorithm> [ <arguments> ]
 
           server s1 udp@127.0.0.1:514 # will receive 50% of log messages
           server s2 udp@127.0.0.1:514
+
+        backend mylog-hash
+          mode log
+
+          # extract "METHOD URL PROTO" at the end of the log message,
+          # and let haproxy hash it so that log messages generated from
+          # similar requests get sent to the same syslog server:
+          log-balance hash 'field(-2,\")'
+
+          # server list here
+          server s1 127.0.0.1:514
+          #...
 
 log-format <string>
   Specifies the log format string to use for traffic logs

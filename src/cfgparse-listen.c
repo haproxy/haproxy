@@ -2576,8 +2576,8 @@ stats_error_parsing:
 		 */
 		curproxy->lbprm.algo &= ~(BE_LB_HASH_TYPE | BE_LB_HASH_FUNC | BE_LB_HASH_MOD);
 
-		if (curproxy->mode != PR_MODE_TCP && curproxy->mode != PR_MODE_HTTP) {
-			ha_alert("parsing [%s:%d] : '%s' requires TCP or HTTP mode.\n", file, linenum, args[0]);
+		if (curproxy->mode != PR_MODE_TCP && curproxy->mode != PR_MODE_HTTP && curproxy->mode != PR_MODE_SYSLOG) {
+			ha_alert("parsing [%s:%d] : '%s' requires TCP, HTTP or LOG mode.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

@@ -3510,8 +3510,11 @@ out_uri_auth_compat:
 			curproxy->conf.args.line = 0;
 		}
 
-		/* "balance hash" needs to compile its expression */
-		if ((curproxy->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_SMP) {
+		/* "balance hash" needs to compile its expression
+		 * (log backends will handle this in proxy log postcheck)
+		 */
+		if (curproxy->mode != PR_MODE_SYSLOG &&
+		    (curproxy->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_SMP) {
 			int idx = 0;
 			const char *args[] = {
 				curproxy->lbprm.arg_str,

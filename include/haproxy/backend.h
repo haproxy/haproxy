@@ -147,6 +147,8 @@ static inline int srv_lb_status_changed(const struct server *srv)
  */
 void set_backend_down(struct proxy *be);
 
+unsigned int gen_hash(const struct proxy* px, const char* key, unsigned long len);
+
 #endif /* _HAPROXY_BACKEND_H */
 
 /*
