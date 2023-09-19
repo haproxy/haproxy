@@ -2014,6 +2014,12 @@ static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
 		goto out;
 	}
 
+	if (curpx->mode != PR_MODE_TCP && curpx->mode != PR_MODE_HTTP) {
+		memprintf(errmsg, "%s : requires TCP or HTTP mode.\n", args[0]);
+		ret = -1;
+		goto out;
+	}
+
 	if (*(args[1]) == 0 || *(args[2]) == 0) {
 		memprintf(errmsg, "%s : expects <status_code> and <url> as arguments.\n", args[0]);
 		ret = -1;
@@ -2081,6 +2087,12 @@ static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
 		goto out;
 	}
 
+	if (curpx->mode != PR_MODE_TCP && curpx->mode != PR_MODE_HTTP) {
+		memprintf(errmsg, "%s : requires TCP or HTTP mode.\n", args[0]);
+		ret = -1;
+		goto out;
+	}
+
 	if (*(args[1]) == 0 || *(args[2]) == 0) {
 		memprintf(errmsg, "%s : expects <status_code> and <file> as arguments.\n", args[0]);
 		ret = -1;
@@ -2141,6 +2153,12 @@ static int proxy_parse_errorfiles(char **args, int section, struct proxy *curpx,
 
 	if (warnifnotcap(curpx, PR_CAP_FE | PR_CAP_BE, file, line, args[0], NULL)) {
 		ret = 1;
+		goto out;
+	}
+
+	if (curpx->mode != PR_MODE_TCP && curpx->mode != PR_MODE_HTTP) {
+		memprintf(err, "%s : requires TCP or HTTP mode.\n", args[0]);
+		ret = -1;
 		goto out;
 	}
 
@@ -2205,6 +2223,11 @@ static int proxy_parse_http_error(char **args, int section, struct proxy *curpx,
 	if (warnifnotcap(curpx, PR_CAP_FE | PR_CAP_BE, file, line, args[0], NULL)) {
 		ret = 1;
 		goto out;
+	}
+
+	if (curpx->mode != PR_MODE_TCP && curpx->mode != PR_MODE_HTTP) {
+		memprintf(errmsg, "%s : requires TCP or HTTP mode.\n", args[0]);
+		goto error;
 	}
 
 	cur_arg = 1;
