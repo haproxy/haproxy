@@ -201,6 +201,11 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 			  file, line, args[0]);
 		return -1;
 	}
+	if (curpx->mode != PR_MODE_TCP && curpx->mode != PR_MODE_HTTP) {
+		memprintf(err, "parsing [%s:%d] : '%s' requires TCP or HTTP mode.",
+			  file, line, args[0]);
+		return -1;
+	}
 	if (strcmp(args[0], "filter") == 0) {
 		struct flt_kw *kw;
 		int cur_arg;
