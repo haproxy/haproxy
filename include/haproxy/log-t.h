@@ -215,10 +215,7 @@ struct smp_info {
 	struct smp_log_range *smp_rgs; /* Array of ranges for log sampling. */
 	size_t smp_rgs_sz;             /* The size of <smp_rgs> array. */
 	size_t smp_sz;             /* The total number of logs to be sampled. */
-	unsigned int curr_rg;      /* The current range to be sampled. */
-	unsigned int curr_idx;     /* A counter to store the current index of the log
-	                            * already sampled.
-	                            */
+	ullong curr_rg_idx;        /* 63:32 = current range; 31:0 = current index */
 };
 
 struct logsrv {

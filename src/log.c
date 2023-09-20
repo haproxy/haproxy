@@ -1830,11 +1830,14 @@ void process_send_log(struct list *logsrvs, int level, int facility,
 
 		if (logsrv->lb.smp_rgs) {
 			struct smp_log_range *smp_rg;
-			unsigned int next_idx;
+			uint next_idx, curr_rg;
+			ullong curr_rg_idx;
 
 			HA_SPIN_LOCK(LOGSRV_LOCK, &logsrv->lock);
-			next_idx = logsrv->lb.curr_idx + 1;
-			smp_rg = &logsrv->lb.smp_rgs[logsrv->lb.curr_rg];
+			curr_rg_idx = logsrv->lb.curr_rg_idx;
+			next_idx = (curr_rg_idx & 0xFFFFFFFFU) + 1;
+			curr_rg  = curr_rg_idx >> 32;
+			smp_rg = &logsrv->lb.smp_rgs[curr_rg];
 
 			/* check if the index we're going to take is within range  */
 			in_range = smp_rg->low <= next_idx && next_idx <= smp_rg->high;
@@ -1842,10 +1845,13 @@ void process_send_log(struct list *logsrvs, int level, int facility,
 				/* Let's consume this range. */
 				if (next_idx == smp_rg->high) {
 					/* If consumed, let's select the next range. */
-					logsrv->lb.curr_rg = (logsrv->lb.curr_rg + 1) % logsrv->lb.smp_rgs_sz;
+					curr_rg = (curr_rg + 1) % logsrv->lb.smp_rgs_sz;
 				}
 			}
-			logsrv->lb.curr_idx = next_idx % logsrv->lb.smp_sz;
+
+			next_idx = next_idx % logsrv->lb.smp_sz;
+			curr_rg_idx = ((ullong)curr_rg << 32) + next_idx;
+			logsrv->lb.curr_rg_idx = curr_rg_idx;
 			HA_SPIN_UNLOCK(LOGSRV_LOCK, &logsrv->lock);
 		}
 		if (in_range)
