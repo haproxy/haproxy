@@ -15,7 +15,7 @@
 # certificate.
 
 varnishtest "Test the 'generate-certificates' SSL option"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && !ssllib_name_startswith(wolfSSL)'"
 feature cmd "command -v openssl && command -v grep"
 feature ignore_unknown_macro
 
