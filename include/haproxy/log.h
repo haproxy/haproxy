@@ -156,17 +156,6 @@ char * get_format_pid_sep1(int format, size_t *len);
 char * get_format_pid_sep2(int format, size_t *len);
 
 /*
- * Test if <idx> index numbered from 0 is in <rg> range with low and high
- * limits of indexes numbered from 1.
- */
-static inline int in_smp_log_range(struct smp_log_range *rg, unsigned int idx)
-{
-       if (idx + 1 <= rg->high && idx + 1 >= rg->low)
-               return 1;
-       return 0;
-}
-
-/*
  * Builds a log line for the stream (must be valid).
  */
 static inline int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list_format)
