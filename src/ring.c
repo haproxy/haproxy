@@ -133,7 +133,7 @@ struct ring *ring_resize(struct ring *ring, size_t size)
 	if (!area)
 		return NULL;
 
-	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 
 	/* recheck the buffer's size, it may have changed during the malloc */
 	if (b_size(&ring->buf) < size) {
@@ -143,7 +143,7 @@ struct ring *ring_resize(struct ring *ring, size_t size)
 		ring->buf.size = size;
 	}
 
-	HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 
 	free(area);
 	return ring;
@@ -200,7 +200,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 
 	lenlen = varint_bytes(totlen);
 
-	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 	if (lenlen + totlen + 1 + 1 > b_size(buf))
 		goto done_buf;
 
@@ -254,7 +254,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 		appctx_wakeup(appctx);
 
  done_buf:
-	HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 	return sent;
 }
 
@@ -285,7 +285,7 @@ void ring_detach_appctx(struct ring *ring, struct appctx *appctx, size_t ofs)
 	if (!ring)
 		return;
 
-	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 	if (ofs != ~0) {
 		/* reader was still attached */
 		if (ofs < b_head_ofs(&ring->buf))
@@ -298,7 +298,7 @@ void ring_detach_appctx(struct ring *ring, struct appctx *appctx, size_t ofs)
 		HA_ATOMIC_DEC(b_peek(&ring->buf, ofs));
 	}
 	HA_ATOMIC_DEC(&ring->readers_count);
-	HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 }
 
 /* Tries to attach CLI handler <appctx> as a new reader on ring <ring>. This is
@@ -353,11 +353,11 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
 		return 1;
 
-	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 	LIST_DEL_INIT(&appctx->wait_entry);
-	HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 
-	HA_RWLOCK_RDLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_RDLOCK(RING_LOCK, &ring->lock);
 
 	/* explanation for the initialization below: it would be better to do
 	 * this in the parsing function but this would occasionally result in
@@ -417,7 +417,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	HA_ATOMIC_INC(b_peek(buf, ofs));
 	last_ofs = b_tail_ofs(buf);
 	ctx->ofs = b_peek_ofs(buf, ofs);
-	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_RDUNLOCK(RING_LOCK, &ring->lock);
 
 	if (ret && (ctx->flags & RING_WF_WAIT_MODE)) {
 		/* we've drained everything and are configured to wait for more
@@ -425,10 +425,10 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		 */
 		if (!sc_oc(sc)->output && !(sc->flags & SC_FL_SHUT_DONE)) {
 			/* let's be woken up once new data arrive */
-			HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
+			HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 			LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 			ofs = b_tail_ofs(&ring->buf);
-			HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
+			HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 			if (ofs != last_ofs) {
 				/* more data was added into the ring between the
 				 * unlock and the lock, and the writer might not

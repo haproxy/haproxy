@@ -58,9 +58,9 @@ static inline ssize_t sink_write(struct sink *sink, size_t maxlen,
 		 * so that the dropped event arrives exactly at the right
 		 * position.
 		 */
-		HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &sink->ctx.lock);
+		HA_RWLOCK_WRLOCK(RING_LOCK, &sink->ctx.lock);
 		sent = sink_announce_dropped(sink, facility);
-		HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &sink->ctx.lock);
+		HA_RWLOCK_WRUNLOCK(RING_LOCK, &sink->ctx.lock);
 
 		if (!sent) {
 			/* we failed, we don't try to send our log as if it
@@ -70,9 +70,9 @@ static inline ssize_t sink_write(struct sink *sink, size_t maxlen,
 		}
 	}
 
-	HA_RWLOCK_RDLOCK(LOGSRV_LOCK, &sink->ctx.lock);
+	HA_RWLOCK_RDLOCK(RING_LOCK, &sink->ctx.lock);
 	sent = __sink_write(sink, maxlen, msg, nmsg, level, facility, metadata);
-	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &sink->ctx.lock);
+	HA_RWLOCK_RDUNLOCK(RING_LOCK, &sink->ctx.lock);
 
  fail:
 	if (unlikely(sent <= 0))

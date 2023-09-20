@@ -131,7 +131,7 @@ int dump_ring(struct ring *ring, size_t ofs, int flags)
 	}
 
 	while (1) {
-		//HA_RWLOCK_RDLOCK(LOGSRV_LOCK, &ring->lock);
+		//HA_RWLOCK_RDLOCK(RING_LOCK, &ring->lock);
 
 		if (ofs >= buf.size) {
 			fprintf(stderr, "FATAL error at %d\n", __LINE__);
@@ -199,7 +199,7 @@ int dump_ring(struct ring *ring, size_t ofs, int flags)
 		}
 
 		//HA_ATOMIC_INC(b_peek(&buf, ofs));
-		//HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);
+		//HA_RWLOCK_RDUNLOCK(RING_LOCK, &ring->lock);
 
 		if (!(flags & RING_WF_WAIT_MODE))
 			break;

@@ -346,11 +346,11 @@ static void sink_forward_io_handler(struct appctx *appctx)
 		goto close;
 	}
 
-	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 	LIST_DEL_INIT(&appctx->wait_entry);
-	HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 
-	HA_RWLOCK_RDLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_RDLOCK(RING_LOCK, &ring->lock);
 
 	/* explanation for the initialization below: it would be better to do
 	 * this in the parsing function but this would occasionally result in
@@ -409,14 +409,14 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	last_ofs = b_tail_ofs(buf);
 	sft->ofs = b_peek_ofs(buf, ofs);
 
-	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_RDUNLOCK(RING_LOCK, &ring->lock);
 
 	if (ret) {
 		/* let's be woken up once new data arrive */
-		HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
+		HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 		LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 		ofs = b_tail_ofs(buf);
-		HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
+		HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 		if (ofs != last_ofs) {
 			/* more data was added into the ring between the
 			 * unlock and the lock, and the writer might not
@@ -478,11 +478,11 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 		goto close;
 	}
 
-	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 	LIST_DEL_INIT(&appctx->wait_entry);
-	HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 
-	HA_RWLOCK_RDLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_RDLOCK(RING_LOCK, &ring->lock);
 
 	/* explanation for the initialization below: it would be better to do
 	 * this in the parsing function but this would occasionally result in
@@ -544,13 +544,13 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	HA_ATOMIC_INC(b_peek(buf, ofs));
 	sft->ofs = b_peek_ofs(buf, ofs);
 
-	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_RDUNLOCK(RING_LOCK, &ring->lock);
 
 	if (ret) {
 		/* let's be woken up once new data arrive */
-		HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
+		HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 		LIST_APPEND(&ring->waiters, &appctx->wait_entry);
-		HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
+		HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 		applet_have_no_more_data(appctx);
 	}
 	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
@@ -574,9 +574,9 @@ void __sink_forward_session_deinit(struct sink_forward_target *sft)
 	if (!sink)
 		return;
 
-	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &sink->ctx.ring->lock);
+	HA_RWLOCK_WRLOCK(RING_LOCK, &sink->ctx.ring->lock);
 	LIST_DEL_INIT(&sft->appctx->wait_entry);
-	HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &sink->ctx.ring->lock);
+	HA_RWLOCK_WRUNLOCK(RING_LOCK, &sink->ctx.ring->lock);
 
 	sft->appctx = NULL;
 	task_wakeup(sink->forward_task, TASK_WOKEN_MSG);
