@@ -2936,6 +2936,9 @@ static int cli_parse_enable_dyncookie_backend(char **args, char *payload, struct
 	if (!px)
 		return 1;
 
+	if (px->mode != PR_MODE_TCP && px->mode != PR_MODE_HTTP)
+		return cli_err(appctx, "Not available.\n");
+
 	/* Note: this lock is to make sure this doesn't change while another
 	 * thread is in srv_set_dyncookie().
 	 */
@@ -2967,6 +2970,9 @@ static int cli_parse_disable_dyncookie_backend(char **args, char *payload, struc
 	px = cli_find_backend(appctx, args[3]);
 	if (!px)
 		return 1;
+
+	if (px->mode != PR_MODE_TCP && px->mode != PR_MODE_HTTP)
+		return cli_err(appctx, "Not available.\n");
 
 	/* Note: this lock is to make sure this doesn't change while another
 	 * thread is in srv_set_dyncookie().
@@ -3001,6 +3007,9 @@ static int cli_parse_set_dyncookie_key_backend(char **args, char *payload, struc
 	px = cli_find_backend(appctx, args[3]);
 	if (!px)
 		return 1;
+
+	if (px->mode != PR_MODE_TCP && px->mode != PR_MODE_HTTP)
+		return cli_err(appctx, "Not available.\n");
 
 	if (!*args[4])
 		return cli_err(appctx, "String value expected.\n");
