@@ -1829,18 +1829,18 @@ void process_send_log(struct list *logsrvs, int level, int facility,
 			continue;
 
 		if (logsrv->lb.smp_rgs) {
-			struct smp_log_range *curr_rg;
+			struct smp_log_range *smp_rg;
 			unsigned int next_idx;
 
 			HA_SPIN_LOCK(LOGSRV_LOCK, &logsrv->lock);
 			next_idx = logsrv->lb.curr_idx + 1;
-			curr_rg = &logsrv->lb.smp_rgs[logsrv->lb.curr_rg];
+			smp_rg = &logsrv->lb.smp_rgs[logsrv->lb.curr_rg];
 
 			/* check if the index we're going to take is within range  */
-			in_range = curr_rg->low <= next_idx && next_idx <= curr_rg->high;
+			in_range = smp_rg->low <= next_idx && next_idx <= smp_rg->high;
 			if (in_range) {
 				/* Let's consume this range. */
-				if (next_idx == curr_rg->high) {
+				if (next_idx == smp_rg->high) {
 					/* If consumed, let's select the next range. */
 					logsrv->lb.curr_rg = (logsrv->lb.curr_rg + 1) % logsrv->lb.smp_rgs_sz;
 				}
