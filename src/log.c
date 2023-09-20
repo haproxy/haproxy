@@ -770,7 +770,6 @@ struct logsrv *dup_logsrv(struct logsrv *def)
 	cpy->ring_name = NULL;
 	cpy->conf.file = NULL;
 	LIST_INIT(&cpy->list);
-	HA_SPIN_INIT(&cpy->lock);
 
 	/* special members */
 	if (def->ring_name) {
@@ -1006,7 +1005,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 
 		cur_arg += 2;
 	}
-	HA_SPIN_INIT(&logsrv->lock);
+
 	/* parse the facility */
 	logsrv->facility = get_log_facility(args[cur_arg]);
 	if (logsrv->facility < 0) {
@@ -1831,28 +1830,28 @@ void process_send_log(struct list *logsrvs, int level, int facility,
 		if (logsrv->lb.smp_rgs) {
 			struct smp_log_range *smp_rg;
 			uint next_idx, curr_rg;
-			ullong curr_rg_idx;
+			ullong curr_rg_idx, next_rg_idx;
 
-			HA_SPIN_LOCK(LOGSRV_LOCK, &logsrv->lock);
-			curr_rg_idx = logsrv->lb.curr_rg_idx;
-			next_idx = (curr_rg_idx & 0xFFFFFFFFU) + 1;
-			curr_rg  = curr_rg_idx >> 32;
-			smp_rg = &logsrv->lb.smp_rgs[curr_rg];
+			curr_rg_idx = _HA_ATOMIC_LOAD(&logsrv->lb.curr_rg_idx);
+			do {
+				next_idx = (curr_rg_idx & 0xFFFFFFFFU) + 1;
+				curr_rg  = curr_rg_idx >> 32;
+				smp_rg = &logsrv->lb.smp_rgs[curr_rg];
 
-			/* check if the index we're going to take is within range  */
-			in_range = smp_rg->low <= next_idx && next_idx <= smp_rg->high;
-			if (in_range) {
-				/* Let's consume this range. */
-				if (next_idx == smp_rg->high) {
-					/* If consumed, let's select the next range. */
-					curr_rg = (curr_rg + 1) % logsrv->lb.smp_rgs_sz;
+				/* check if the index we're going to take is within range  */
+				in_range = smp_rg->low <= next_idx && next_idx <= smp_rg->high;
+				if (in_range) {
+					/* Let's consume this range. */
+					if (next_idx == smp_rg->high) {
+						/* If consumed, let's select the next range. */
+						curr_rg = (curr_rg + 1) % logsrv->lb.smp_rgs_sz;
+					}
 				}
-			}
 
-			next_idx = next_idx % logsrv->lb.smp_sz;
-			curr_rg_idx = ((ullong)curr_rg << 32) + next_idx;
-			logsrv->lb.curr_rg_idx = curr_rg_idx;
-			HA_SPIN_UNLOCK(LOGSRV_LOCK, &logsrv->lock);
+				next_idx = next_idx % logsrv->lb.smp_sz;
+				next_rg_idx = ((ullong)curr_rg << 32) + next_idx;
+			} while (!_HA_ATOMIC_CAS(&logsrv->lb.curr_rg_idx, &curr_rg_idx, next_rg_idx) &&
+				 __ha_cpu_relax());
 		}
 		if (in_range)
 			__do_send_log(logsrv, ++nblogger,  MAX(level, logsrv->minlvl),

@@ -235,7 +235,6 @@ struct logsrv {
                 char *file;                     /* file where the logsrv appears */
                 int line;                       /* line where the logsrv appears */
         } conf;
-	__decl_thread(HA_SPINLOCK_T lock);
 };
 
 #endif /* _HAPROXY_LOG_T_H */
