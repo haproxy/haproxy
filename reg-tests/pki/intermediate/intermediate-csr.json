@@ -1,0 +1,14 @@
+{
+  "CN": "HAProxy Test Intermediate CA",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "FR",
+      "L": "Paris",
+      "O": "HAProxy Technologies"
+    }
+  ]
+}

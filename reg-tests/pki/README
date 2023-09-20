@@ -1,0 +1,23 @@
+How it was generated:
+
+cfssl gencert -initca root/root-csr.json \
+| cfssljson -bare root/root-ca
+
+cfssl genkey intermediate/intermediate-csr.json \
+| cfssljson -bare intermediate/intermediate-ca
+
+cfssl sign -ca root/root-ca.pem \
+  -ca-key root/root-ca-key.pem \
+  -config config.json \
+  -profile intermediate \
+  intermediate/intermediate-ca.csr \
+| cfssljson -bare intermediate/intermediate-ca
+
+
+
+ cfssl gencert \
+  -ca intermediate/intermediate-ca.pem \
+  -ca-key intermediate/intermediate-ca-key.pem \
+  -config config.json \
+  -profile host \
+  certificates/www.test1.com-csr.json| cfssljson -bare certificates/www.test1.com

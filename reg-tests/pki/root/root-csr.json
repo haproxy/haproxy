@@ -1,0 +1,17 @@
+{
+  "CN": "HAProxy Root Test Authority",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "FR",
+      "L": "Paris",
+      "O": "HAProxy Technologies"
+    }
+  ],
+  "ca": {
+    "expiry": "175200h"
+  }
+}

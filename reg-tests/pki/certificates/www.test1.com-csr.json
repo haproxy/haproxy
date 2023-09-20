@@ -1,0 +1,15 @@
+{
+  "CN": "www.test1.com",
+  "hosts": ["www.test1.com"],
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "FR",
+      "L": "Paris",
+      "O": "test1"
+    }
+  ]
+}
