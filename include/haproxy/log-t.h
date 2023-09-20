@@ -208,9 +208,6 @@ struct smp_log_range {
 	size_t sz;               /* The size of this range, or number of indexes in
 	                          * this range.
 	                          */
-	unsigned int curr_idx;   /* The current index used to sample this range of
-	                          *indexes.
-	                          */
 };
 
 /* Log sampling information. */

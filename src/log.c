@@ -970,7 +970,6 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 			smp_rgs[smp_rgs_sz].low = low;
 			smp_rgs[smp_rgs_sz].high = high;
 			smp_rgs[smp_rgs_sz].sz = high - low + 1;
-			smp_rgs[smp_rgs_sz].curr_idx = 0;
 			if (smp_rgs[smp_rgs_sz].high > smp_sz)
 				smp_sz = smp_rgs[smp_rgs_sz].high;
 			smp_rgs_sz++;
@@ -1841,8 +1840,7 @@ void process_send_log(struct list *logsrvs, int level, int facility,
 			in_range = curr_rg->low <= next_idx && next_idx <= curr_rg->high;
 			if (in_range) {
 				/* Let's consume this range. */
-				curr_rg->curr_idx = (curr_rg->curr_idx + 1) % curr_rg->sz;
-				if (!curr_rg->curr_idx) {
+				if (next_idx == curr_rg->high) {
 					/* If consumed, let's select the next range. */
 					logsrv->lb.curr_rg = (logsrv->lb.curr_rg + 1) % logsrv->lb.smp_rgs_sz;
 				}
