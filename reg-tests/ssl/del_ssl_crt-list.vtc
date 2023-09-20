@@ -59,7 +59,7 @@ haproxy h1 -conf {
 client c1 -connect ${h1_clearlst_sock} {
     txreq
     rxresp
-    expect resp.http.X-SSL-Server-SHA1 == "2195C9F0FD58470313013FC27C1B9CF9864BD1C6"
+    expect resp.http.X-SSL-Server-SHA1 == "DF3B6E847A7BF83DFAAFCFEC65EE9BC36230D3EA"
     expect resp.status == 200
 } -run
 

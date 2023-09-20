@@ -54,14 +54,14 @@ client c1 -connect ${h1_clearlst_sock} {
     txreq
     rxresp
     expect resp.status == 200
-    expect resp.http.x-ssl-der ~ 3082067930820461A0030201020201.*207B5E3D4498BB847BC4DE093F9AD1AD3661C93EE43EB
-    expect resp.http.x-ssl-sha1 == "2195C9F0FD58470313013FC27C1B9CF9864BD1C6"
-    expect resp.http.x-ssl-notafter == "180116230238Z"
-    expect resp.http.x-ssl-notbefore == "160117230238Z"
+    expect resp.http.x-ssl-der ~ 308203C7308202AFA003020102021445B6C777.*65AD7F4469DB9C8581EE260ABCB727AEF8A7C3ADA
+    expect resp.http.x-ssl-sha1 == "DF3B6E847A7BF83DFAAFCFEC65EE9BC36230D3EA"
+    expect resp.http.x-ssl-notafter == "330917162600Z"
+    expect resp.http.x-ssl-notbefore == "230920162600Z"
     expect resp.http.x-ssl-sig_alg == "RSA-SHA256"
-    expect resp.http.x-ssl-i_dn == "/C=FR/ST=Ile-de-France/L=Paris/O=ozon.io/CN=Ozon Test CA/emailAddress=support@ozon.io"
-    expect resp.http.x-ssl-s_dn  == "/C=FR/ST=Ile-de-France/L=Neuilly-sur-Seine/O=TOAD Consulting/OU=eParapher Team/CN=www.test1.com/emailAddress=arnault.michel@toad-consulting.fr"
-    expect resp.http.x-ssl-s_serial == "02"
+    expect resp.http.x-ssl-i_dn == "/C=FR/L=Paris/O=HAProxy Technologies/CN=HAProxy Test Intermediate CA"
+    expect resp.http.x-ssl-s_dn  == "/C=FR/L=Paris/O=test1/CN=www.test1.com"
+    expect resp.http.x-ssl-s_serial == "45B6C777A017159A19126340C1053521B91E123B"
     expect resp.http.x-ssl-key_alg == "rsaEncryption"
     expect resp.http.x-ssl-version == "3"
 } -run

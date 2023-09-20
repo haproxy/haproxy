@@ -56,7 +56,7 @@ haproxy h1 -conf {
 
 haproxy h1 -cli {
     send "show ssl cert ${testdir}/common.pem"
-    expect ~ ".*SHA1 FingerPrint: 2195C9F0FD58470313013FC27C1B9CF9864BD1C6"
+    expect ~ ".*SHA1 FingerPrint: DF3B6E847A7BF83DFAAFCFEC65EE9BC36230D3EA"
 }
 
 client c1 -connect ${h1_clearlst_sock} {

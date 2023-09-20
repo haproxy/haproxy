@@ -65,7 +65,7 @@ shell {
 
 haproxy h1 -cli {
     send "show ssl ca-file common.pem"
-    expect ~ ".*SHA1 FingerPrint: 9A6418E498C43EDBCF5DD3C4C6FCD1EE0D7A946D"
+    expect ~ ".*SHA1 FingerPrint: DF3B6E847A7BF83DFAAFCFEC65EE9BC36230D3EA"
 }
 
 haproxy h1 -cli {
