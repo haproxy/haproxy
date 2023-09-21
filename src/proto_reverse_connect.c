@@ -186,9 +186,13 @@ int rev_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		goto err;
 	}
 
-	/* TODO check que on utilise pas un serveur @reverse */
 	if (srv->flags & SRV_F_REVERSE) {
 		snprintf(errmsg, errlen, "Cannot use reverse server '%s/%s' as target to a reverse bind.", ist0(be_name), ist0(sv_name));
+		goto err;
+	}
+
+	if (srv_is_transparent(srv)) {
+		snprintf(errmsg, errlen, "Cannot use transparent server '%s/%s' as target to a reverse bind.", ist0(be_name), ist0(sv_name));
 		goto err;
 	}
 
