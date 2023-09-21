@@ -1577,6 +1577,20 @@ static int srv_parse_weight(char **args, int *cur_arg, struct proxy *px, struct 
 	return 0;
 }
 
+/* Returns 1 if the server has streams pointing to it, and 0 otherwise.
+ *
+ * Must be called with the server lock held.
+ */
+static int srv_has_streams(struct server *srv)
+{
+	int thr;
+
+	for (thr = 0; thr < global.nbthread; thr++)
+		if (!MT_LIST_ISEMPTY(&srv->per_thr[thr].streams))
+			return 1;
+	return 0;
+}
+
 /* Shutdown all connections of a server. The caller must pass a termination
  * code in <why>, which must be one of SF_ERR_* indicating the reason for the
  * shutdown.
@@ -5131,7 +5145,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	 * cleanup function should be implemented to be used here.
 	 */
 	if (srv->cur_sess || srv->curr_idle_conns ||
-	    !eb_is_empty(&srv->queue.head)) {
+	    !eb_is_empty(&srv->queue.head) || srv_has_streams(srv)) {
 		cli_err(appctx, "Server still has connections attached to it, cannot remove it.");
 		goto out;
 	}
