@@ -2109,6 +2109,13 @@ static inline void __do_send_log_backend(struct proxy *be, struct log_header hdr
 		 */
 		targetid = HA_ATOMIC_FETCH_ADD(&be->lbprm.log.lastid, 1) % nb_srv;
 	}
+	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_FAS) {
+		/* sticky mode: use first server in the pool, which will always stay
+		 * first during dequeuing and requeuing, unless it becomes unavailable
+		 * and will be replaced by another one
+		 */
+		targetid = 0;
+	}
 
  skip_lb:
 

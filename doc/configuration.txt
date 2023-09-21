@@ -8833,6 +8833,12 @@ log-balance <algorithm> [ <arguments> ]
                   fairest algorithm when the server's processing time remains
                   equally distributed.
 
+      sticky      The first server in the list of available servers receives all
+                  the log messages. When the server goes DOWN, the next server
+                  in the list takes its place. When a previously DOWN server
+                  goes back UP it is added at the end of the list so that the
+                  sticky server doesn't change until it becomes DOWN.
+
     <arguments> is an optional list of arguments which may be needed by some
                 algorithms.
 

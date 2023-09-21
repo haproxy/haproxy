@@ -2844,8 +2844,13 @@ int backend_parse_log_balance(const char **args, char **err, struct proxy *curpr
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
 	}
+	else if (strcmp(args[0], "sticky") == 0) {
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		/* we use ALGO_FAS as "sticky" mode in log-balance context */
+		curproxy->lbprm.algo |= BE_LB_ALGO_FAS;
+	}
 	else {
-		memprintf(err, "only supports 'roundrobin' option");
+		memprintf(err, "only supports 'roundrobin', 'sticky' options");
 		return -1;
 	}
 	return 0;
