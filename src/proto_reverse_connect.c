@@ -62,6 +62,7 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 	if (!conn->dst)
 		goto err;
 	*conn->dst = srv->addr;
+	set_host_port(conn->dst, srv->svc_port);
 
 	if (conn_prepare(conn, protocol_lookup(conn->dst->ss_family, PROTO_TYPE_STREAM, 0), srv->xprt))
 		goto err;
