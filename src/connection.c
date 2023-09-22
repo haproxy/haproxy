@@ -22,7 +22,7 @@
 #include <haproxy/frontend.h>
 #include <haproxy/hash.h>
 #include <haproxy/list.h>
-#include <haproxy/log-t.h>
+#include <haproxy/log.h>
 #include <haproxy/namespace.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/proto_reverse_connect.h>

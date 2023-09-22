@@ -27,6 +27,7 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/namespace-t.h>
+#include <haproxy/proto_reverse_connect-t.h>
 #include <haproxy/thread.h>
 
 /* Bit values for receiver->flags */
@@ -83,6 +84,7 @@ struct receiver {
 		struct task *task;  /* Task used to open connection for reverse. */
 		struct server *srv; /* Underlying server used to initiate reverse pre-connect. */
 		struct connection *pend_conn; /* Pending connection waiting to complete reversal before being accepted. */
+		enum li_preconn_state state; /* State for transition logging. */
 	} reverse_connect;
 
 	/* warning: this struct is huge, keep it at the bottom */

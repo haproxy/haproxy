@@ -6,6 +6,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
+#include <haproxy/log.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
@@ -117,6 +118,13 @@ void rev_notify_preconn_err(struct listener *l)
 	/* Remove reference to the freed connection. */
 	l->rx.reverse_connect.pend_conn = NULL;
 
+	if (l->rx.reverse_connect.state != LI_PRECONN_ST_ERR) {
+		send_log(l->bind_conf->frontend, LOG_ERR,
+		        "preconnect %s::%s: Error encountered.\n",
+		         l->bind_conf->frontend->id, l->bind_conf->reverse_srvname);
+		l->rx.reverse_connect.state = LI_PRECONN_ST_ERR;
+	}
+
 	/* Rearm a new preconnect attempt. */
 	l->rx.reverse_connect.task->expire = MS_TO_TICKS(now_ms + 1000);
 	task_queue(l->rx.reverse_connect.task);
@@ -182,6 +190,7 @@ int rev_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	task->process = rev_process;
 	task->context = listener;
 	listener->rx.reverse_connect.task = task;
+	listener->rx.reverse_connect.state = LI_PRECONN_ST_STOP;
 
 	/* Set a default maxconn to 1. This ensures listener is properly
 	 * reenable each time we fall back below it on connection error.
@@ -241,11 +250,25 @@ int rev_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 void rev_enable_listener(struct listener *l)
 {
+	if (l->rx.reverse_connect.state < LI_PRECONN_ST_INIT) {
+		send_log(l->bind_conf->frontend, LOG_INFO,
+		         "preconnect %s::%s: Initiating.\n",
+		         l->bind_conf->frontend->id, l->bind_conf->reverse_srvname);
+		l->rx.reverse_connect.state = LI_PRECONN_ST_INIT;
+	}
+
 	task_wakeup(l->rx.reverse_connect.task, TASK_WOKEN_ANY);
 }
 
 void rev_disable_listener(struct listener *l)
 {
+	if (l->rx.reverse_connect.state < LI_PRECONN_ST_FULL) {
+		send_log(l->bind_conf->frontend, LOG_INFO,
+		         "preconnect %s::%s: Reaching maxconn %d.\n",
+		         l->bind_conf->frontend->id, l->bind_conf->reverse_srvname,
+		         l->bind_conf->maxconn);
+		l->rx.reverse_connect.state = LI_PRECONN_ST_FULL;
+	}
 }
 
 struct connection *rev_accept_conn(struct listener *l, int *status)
