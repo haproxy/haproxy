@@ -164,6 +164,12 @@ int rev_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	task->context = listener;
 	listener->rx.reverse_connect.task = task;
 
+	/* Set a default maxconn to 1. This ensures listener is properly
+	 * reenable each time we fall back below it on connection error.
+	 */
+	if (!listener->bind_conf->maxconn)
+		listener->bind_conf->maxconn = 1;
+
 	name = strdup(listener->bind_conf->reverse_srvname);
 	if (!name) {
 		snprintf(errmsg, errlen, "Out of memory.");
@@ -229,8 +235,13 @@ struct connection *rev_accept_conn(struct listener *l, int *status)
 	struct connection *conn = l->rx.reverse_connect.pend_conn;
 
 	if (!conn) {
+		/* Reverse connect listener must have an explicit maxconn set
+		 * to ensure it is reenabled on connection error.
+		 */
+		BUG_ON(!l->bind_conf->maxconn);
+
 		/* Instantiate a new conn if maxconn not yet exceeded. */
-		if (l->bind_conf->maxconn && l->nbconn <= l->bind_conf->maxconn) {
+		if (l->nbconn <= l->bind_conf->maxconn) {
 			l->rx.reverse_connect.pend_conn = new_reverse_conn(l, l->rx.reverse_connect.srv);
 			if (!l->rx.reverse_connect.pend_conn) {
 				*status = CO_AC_PAUSE;
