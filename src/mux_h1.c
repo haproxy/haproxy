@@ -4284,7 +4284,7 @@ static int h1_rcv_pipe(struct stconn *sc, struct pipe *pipe, unsigned int count)
 				se_fl_set(h1s->sd, SE_FL_ERROR);
 				TRACE_ERROR("too much payload, more than announced",
 					    H1_EV_RX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
-				goto end;
+				goto out;
 			}
 			h1m->curr_len -= ret;
 			if (!h1m->curr_len) {
@@ -4308,7 +4308,7 @@ static int h1_rcv_pipe(struct stconn *sc, struct pipe *pipe, unsigned int count)
 		HA_ATOMIC_ADD(&h1c->px_counters->spliced_bytes_in, ret);
 	}
 
-  end:
+  out:
 	if (conn_xprt_read0_pending(h1c->conn)) {
 		se_fl_set(h1s->sd, SE_FL_EOS);
 		TRACE_STATE("report EOS to SE", H1_EV_STRM_RECV, h1c->conn, h1s);
@@ -4326,6 +4326,7 @@ static int h1_rcv_pipe(struct stconn *sc, struct pipe *pipe, unsigned int count)
 		h1c->flags = (h1c->flags & ~H1C_F_WANT_SPLICE) | H1C_F_EOS;
 		TRACE_STATE("Allow xprt rcv_buf on read0", H1_EV_STRM_RECV, h1c->conn, h1s);
 	}
+  end:
 	if (h1c->conn->flags & CO_FL_ERROR) {
 		se_fl_set(h1s->sd, SE_FL_ERROR);
 		h1c->flags = (h1c->flags & ~H1C_F_WANT_SPLICE) | H1C_F_ERROR;
