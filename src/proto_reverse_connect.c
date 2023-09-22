@@ -102,6 +102,26 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 	return NULL;
 }
 
+/* Report that a connection used for preconnect on listener <l> is freed before
+ * reversal is completed. This is used to cleanup any reference to the
+ * connection and rearm a new preconnect attempt.
+ */
+void rev_notify_preconn_err(struct listener *l)
+{
+	/* For the moment reverse connection are bound only on first thread. */
+	BUG_ON(tid != 0);
+
+	/* Receiver must reference a reverse connection as pending. */
+	BUG_ON(!l->rx.reverse_connect.pend_conn);
+
+	/* Remove reference to the freed connection. */
+	l->rx.reverse_connect.pend_conn = NULL;
+
+	/* Rearm a new preconnect attempt. */
+	l->rx.reverse_connect.task->expire = MS_TO_TICKS(now_ms + 1000);
+	task_queue(l->rx.reverse_connect.task);
+}
+
 struct task *rev_process(struct task *task, void *ctx, unsigned int state)
 {
 	struct listener *l = ctx;
@@ -111,10 +131,9 @@ struct task *rev_process(struct task *task, void *ctx, unsigned int state)
 		if (conn->flags & CO_FL_ERROR) {
 			conn_full_close(conn);
 			conn_free(conn);
-			l->rx.reverse_connect.pend_conn = NULL;
 
-			/* Retry on 1s on error. */
-			l->rx.reverse_connect.task->expire = MS_TO_TICKS(now_ms + 1000);
+			/* conn_free() must report preconnect failure using rev_notify_preconn_err(). */
+			BUG_ON(l->rx.reverse_connect.pend_conn);
 		}
 		else {
 			/* Spurrious receiver task wake up when pend_conn is not ready/on error. */

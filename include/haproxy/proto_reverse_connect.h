@@ -16,4 +16,6 @@ int rev_set_affinity(struct connection *conn, int new_tid);
 
 int rev_accepting_conn(const struct receiver *rx);
 
+void rev_notify_preconn_err(struct listener *l);
+
 #endif /* _HAPROXY_PROTO_REVERSE_CONNECT_H */

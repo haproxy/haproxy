@@ -25,6 +25,7 @@
 #include <haproxy/log-t.h>
 #include <haproxy/namespace.h>
 #include <haproxy/net_helper.h>
+#include <haproxy/proto_reverse_connect.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
@@ -579,14 +580,7 @@ void conn_free(struct connection *conn)
 
 	if (conn_reverse_in_preconnect(conn)) {
 		struct listener *l = conn_active_reverse_listener(conn);
-
-		/* For the moment reverse connection are bound only on first thread. */
-		BUG_ON(tid != 0);
-		/* Receiver must reference a reverse connection as pending. */
-		BUG_ON(!l->rx.reverse_connect.pend_conn);
-		l->rx.reverse_connect.pend_conn = NULL;
-		l->rx.reverse_connect.task->expire = MS_TO_TICKS(now_ms + 1000);
-		task_queue(l->rx.reverse_connect.task);
+		rev_notify_preconn_err(l);
 	}
 
 	conn_force_unsubscribe(conn);
