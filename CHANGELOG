@@ -1,6 +1,59 @@
 ChangeLog :
 ===========
 
+2023/09/22 : 2.9-dev6
+    - BUG/MINOR: quic: fdtab array underflow access
+    - DEBUG: pools: always record the caller for uncached allocs as well
+    - DEBUG: pools: pass the caller pointer to the check functions and macros
+    - DEBUG: pools: make pool_check_pattern() take a pointer to the pool
+    - DEBUG: pools: inspect pools on fatal error and dump information found
+    - BUG/MEDIUM: quic: quic_cc_conn ->cntrs counters unreachable
+    - DEBUG: pools: also print the item's pointer when crashing
+    - DEBUG: pools: also print the value of the tag when it doesn't match
+    - DEBUG: pools: print the contents surrounding the expected tag location
+    - MEDIUM: pools: refine pool size rounding
+    - BUG/MEDIUM: hlua: don't pass stale nargs argument to lua_resume()
+    - BUG/MINOR: hlua/init: coroutine may not resume itself
+    - BUG/MEDIUM: mux-fcgi: Don't swap trash and dbuf when handling STDERR records
+    - BUG/MINOR: promex: fix backend_agg_check_status
+    - BUG/MEDIUM: master/cli: Pin the master CLI on the first thread of the group 1
+    - MAJOR: import: update mt_list to support exponential back-off
+    - CLEANUP: pools: simplify the pool expression when no pool was matched in dump
+    - MINOR: samples: implement bytes_in and bytes_out samples
+    - DOC: configuration: add %[req.ver] sample to %HV
+    - BUG/MINOR: quic: Leak of frames to send.
+    - DOC: configuration: add %[query] to %HQ
+    - BUG/MINOR: freq_ctr: fix possible negative rate with the scaled API
+    - BUG/MAJOR: mux-h2: Report a protocol error for any DATA frame before headers
+    - BUILD: quic: fix build on centos 8 and USE_QUIC_OPENSSL_COMPAT
+    - Revert "MAJOR: import: update mt_list to support exponential back-off"
+    - BUG/MINOR: server: add missing free for server->rdr_pfx
+    - REGTESTS: ssl: skip OCSP test w/ WolfSSL
+    - REGTESTS: ssl: skip generate-certificates test w/ wolfSSL
+    - MINOR: logs: clarify the check of the log range
+    - MINOR: log: remove the unused curr_idx in struct smp_log_range
+    - CLEANUP: logs: rename a confusing local variable "curr_rg" to "smp_rg"
+    - MINOR: logs: use a single index to store the current range and index
+    - MEDIUM: logs: atomically check and update the log sample index
+    - CLEANUP: ring: rename the ring lock "RING_LOCK" instead of "LOGSRV_LOCK"
+    - BUG/MEDIUM: http-ana: Try to handle response before handling server abort
+    - MEDIUM: tools/ip: v4tov6() and v6tov4() rework
+    - MINOR: pattern/ip: offload ip conversion logic to helper functions
+    - MINOR: pattern: fix pat_{parse,match}_ip() function comments
+    - MINOR: pattern/ip: simplify pat_match_ip() function
+    - BUG/MEDIUM: server/cli: don't delete a dynamic server that has streams
+    - MINOR: hlua: Add support for the "http-after-res" action
+    - BUG/MINOR: proto_reverse_connect: fix preconnect with startup name resolution
+    - MINOR: proto_reverse_connect: prevent transparent server for pre-connect
+    - CI: cirrus-ci: display gdb bt if any
+    - MEDIUM: sample: Enhances converter "bytes" to take variable names as arguments
+    - MEDIUM: sample: Small fix in function check_operator for eror reporting
+    - MINOR: quic: handle external extra CIDs generator.
+    - BUG/MINOR: proto_reverse_connect: set default maxconn
+    - MINOR: proto_reverse_connect: refactor preconnect failure
+    - MINOR: proto_reverse_connect: remove unneeded wakeup
+    - MINOR: proto_reverse_connect: emit log for preconnect
+
 2023/09/08 : 2.9-dev5
     - BUG/MEDIUM: mux-h2: fix crash when checking for reverse connection after error
     - BUILD: import: guard plock.h against multiple inclusion
