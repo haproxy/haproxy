@@ -231,7 +231,6 @@ int rev_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	listener->rx.reverse_connect.srv = srv;
 	listener_set_state(listener, LI_LISTEN);
-	task_wakeup(listener->rx.reverse_connect.task, TASK_WOKEN_ANY);
 
 	return ERR_NONE;
 
