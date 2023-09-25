@@ -1836,7 +1836,7 @@ localpeer <name>
   This option will also set the HAPROXY_LOCALPEER environment variable.
   See also "-L" in the management guide and "peers" section below.
 
-log <address> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
+log <target> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
     <facility> [max level [min level]]
   Adds a global syslog server. Several global servers can be defined. They
   will receive logs for starts and exits, as well as all logs from proxies
@@ -3749,7 +3749,7 @@ enabled
   This re-enables a peers section which was previously disabled via the
   "disabled" keyword.
 
-log <address> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
+log <target> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
     <facility> [<level> [<minlevel>]]
   "peers" sections support the same "log" keyword as for the proxies to
   log information about the "peers" listener. See "log" option for proxies for
@@ -4169,7 +4169,7 @@ dgram-bind <addr> [param*]
   silently ignored as irrelevant for UDP/syslog case.
 
 log global
-log <address> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
+log <target> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
     <facility> [<level> [<minlevel>]]
   Used to configure target log servers. See more details on proxies
   documentation.
@@ -8627,7 +8627,7 @@ load-server-state-from-file { global | local | none }
 
 
 log global
-log <address> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
+log <target> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
     <facility> [<level> [<minlevel>]]
 no log
   Enable per-instance logging of events and traffic.
@@ -8642,12 +8642,12 @@ no log
   Arguments :
     global     should be used when the instance's logging parameters are the
                same as the global ones. This is the most common usage. "global"
-               replaces <address>, <facility> and <level> with those of the log
+               replaces <target>, <facility> and <level> with those of the log
                entries found in the "global" section. Only one "log global"
                statement may be used per instance, and this form takes no other
                parameter.
 
-    <address>  indicates where to send the logs. It takes the same format as
+    <target>   indicates where to send the logs. It takes the same format as
                for the "global" section's logs, and can be one of :
 
                - An IPv4 address optionally followed by a colon (':') and a UDP
@@ -24965,7 +24965,7 @@ index <script-name>
     index index.php
 
 log-stderr global
-log-stderr <address> [len <length>] [format <format>]
+log-stderr <target> [len <length>] [format <format>]
     [sample <ranges>:<sample_size>] <facility> [<level> [<minlevel>]]
   Enable logging of STDERR messages reported by the FastCGI application.
 
