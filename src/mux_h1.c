@@ -2480,7 +2480,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 	size_t ret = 0;
 	int last_data = 0;
 
-	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx, (size_t[]){count});
+	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx, (size_t[]){count});
 	blk = htx_get_head_blk(htx);
 
 	/* Perform some optimizations to reduce the number of buffer copies.  If
@@ -2693,7 +2693,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 	TRACE_PROTO("H1 message payload data xferred", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){ret});
 	b_add(&h1c->obuf, outbuf.data);
   end:
-	TRACE_LEAVE(H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx, (size_t[]){ret});
+	TRACE_LEAVE(H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx, (size_t[]){ret});
 	return ret;
   full:
 	TRACE_STATE("h1c obuf full", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
@@ -2725,7 +2725,7 @@ static size_t h1_make_tunnel(struct h1s *h1s, struct h1m *h1m, struct buffer *bu
 	uint32_t sz;
 	size_t ret = 0;
 
-	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx, (size_t[]){count});
+	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx, (size_t[]){count});
 
 	blk = htx_get_head_blk(htx);
 
@@ -2808,7 +2808,7 @@ static size_t h1_make_tunnel(struct h1s *h1s, struct h1m *h1m, struct buffer *bu
 	b_add(&h1c->obuf, outbuf.data);
 
   end:
-	TRACE_LEAVE(H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, htx, (size_t[]){ret});
+	TRACE_LEAVE(H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx, (size_t[]){ret});
 	return ret;
 
   full:
