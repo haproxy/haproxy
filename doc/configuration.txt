@@ -1840,137 +1840,7 @@ log <address> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
     <facility> [max level [min level]]
   Adds a global syslog server. Several global servers can be defined. They
   will receive logs for starts and exits, as well as all logs from proxies
-  configured with "log global".
-
-  <address> can be one of:
-
-        - An IPv4 address optionally followed by a colon and a UDP port. If
-          no port is specified, 514 is used by default (the standard syslog
-          port).
-
-        - An IPv6 address followed by a colon and optionally a UDP port. If
-          no port is specified, 514 is used by default (the standard syslog
-          port).
-
-        - A filesystem path to a datagram UNIX domain socket, keeping in mind
-          considerations for chroot (be sure the path is accessible inside
-          the chroot) and uid/gid (be sure the path is appropriately
-          writable).
-
-        - A file descriptor number in the form "fd@<number>", which may point
-          to a pipe, terminal, or socket. In this case unbuffered logs are used
-          and one writev() call per log is performed. This is a bit expensive
-          but acceptable for most workloads. Messages sent this way will not be
-          truncated but may be dropped, in which case the DroppedLogs counter
-          will be incremented. The writev() call is atomic even on pipes for
-          messages up to PIPE_BUF size, which POSIX recommends to be at least
-          512 and which is 4096 bytes on most modern operating systems. Any
-          larger message may be interleaved with messages from other processes.
-          Exceptionally for debugging purposes the file descriptor may also be
-          directed to a file, but doing so will significantly slow HAProxy down
-          as non-blocking calls will be ignored. Also there will be no way to
-          purge nor rotate this file without restarting the process. Note that
-          the configured syslog format is preserved, so the output is suitable
-          for use with a TCP syslog server. See also the "short" and "raw"
-          format below.
-
-        - "stdout" / "stderr", which are respectively aliases for "fd@1" and
-          "fd@2", see above.
-
-        - A ring buffer in the form "ring@<name>", which will correspond to an
-          in-memory ring buffer accessible over the CLI using the "show events"
-          command, which will also list existing rings and their sizes. Such
-          buffers are lost on reload or restart but when used as a complement
-          this can help troubleshooting by having the logs instantly available.
-
-        You may want to reference some environment variables in the address
-        parameter, see section 2.3 about environment variables.
-
-  <length> is an optional maximum line length. Log lines larger than this value
-           will be truncated before being sent. The reason is that syslog
-           servers act differently on log line length. All servers support the
-           default value of 1024, but some servers simply drop larger lines
-           while others do log them. If a server supports long lines, it may
-           make sense to set this value here in order to avoid truncating long
-           lines. Similarly, if a server drops long lines, it is preferable to
-           truncate them before sending them. Accepted values are 80 to 65535
-           inclusive. The default value of 1024 is generally fine for all
-           standard usages. Some specific cases of long captures or
-           JSON-formatted logs may require larger values. You may also need to
-           increase "tune.http.logurilen" if your request URIs are truncated.
-
-  <format> is the log format used when generating syslog messages. It may be
-           one of the following :
-
-    local     Analog to rfc3164 syslog message format except that hostname
-              field is stripped. This is the default.
-              Note: option "log-send-hostname" switches the default to
-              rfc3164.
-
-    rfc3164   The RFC3164 syslog message format.
-              (https://tools.ietf.org/html/rfc3164)
-
-    rfc5424   The RFC5424 syslog message format.
-              (https://tools.ietf.org/html/rfc5424)
-
-    priority  A message containing only a level plus syslog facility between
-              angle brackets such as '<63>', followed by the text. The PID,
-              date, time, process name and system name are omitted. This is
-              designed to be used with a local log server.
-
-    short     A message containing only a level between angle brackets such as
-              '<3>', followed by the text. The PID, date, time, process name
-              and system name are omitted. This is designed to be used with a
-              local log server. This format is compatible with what the systemd
-              logger consumes.
-
-    timed     A message containing only a level between angle brackets such as
-             '<3>', followed by ISO date and by the text. The PID, process
-              name and system name are omitted. This is designed to be
-              used with a local log server.
-
-    iso       A message containing only the ISO date, followed by the text.
-              The PID, process name and system name are omitted. This is
-              designed to be used with a local log server.
-
-    raw       A message containing only the text. The level, PID, date, time,
-              process name and system name are omitted. This is designed to be
-              used in containers or during development, where the severity only
-              depends on the file descriptor used (stdout/stderr).
-
-  <ranges>   A list of comma-separated ranges to identify the logs to sample.
-             This is used to balance the load of the logs to send to the log
-             server. The limits of the ranges cannot be null. They are numbered
-             from 1. The size or period (in number of logs) of the sample must be
-             set with <sample_size> parameter.
-
-  <sample_size>
-             The size of the sample in number of logs to consider when balancing
-             their logging loads. It is used to balance the load of the logs to
-             send to the syslog server. This size must be greater or equal to the
-             maximum of the high limits of the ranges.
-             (see also <ranges> parameter).
-
-  <facility> must be one of the 24 standard syslog facilities :
-
-                 kern   user   mail   daemon auth   syslog lpr    news
-                 uucp   cron   auth2  ftp    ntp    audit  alert  cron2
-                 local0 local1 local2 local3 local4 local5 local6 local7
-
-             Note that the facility is ignored for the "short" and "raw"
-             formats, but still required as a positional field. It is
-             recommended to use "daemon" in this case to make it clear that
-             it's only supposed to be used locally.
-
-  An optional level can be specified to filter outgoing messages. By default,
-  all messages are sent. If a maximum level is specified, only messages with a
-  severity at least as important as this level will be sent. An optional minimum
-  level can be specified. If it is set, logs emitted with a more severe level
-  than this one will be capped to this level. This is used to avoid sending
-  "emerg" messages on all terminals on some default syslog configurations.
-  Eight levels are known :
-
-          emerg  alert  crit   err    warning notice info  debug
+  configured with "log global". See "log" option for proxies for more details.
 
 log-send-hostname [<string>]
   Sets the hostname field in the syslog header. If optional "string" parameter
@@ -8840,6 +8710,8 @@ no log
                values are 80 to 65535 inclusive. The default value of 1024 is
                generally fine for all standard usages. Some specific cases of
                long captures or JSON-formatted logs may require larger values.
+               You may also need to increase "tune.http.logurilen" if your
+               request URIs are truncated.
 
     <ranges>   A list of comma-separated ranges to identify the logs to sample.
                This is used to balance the load of the logs to send to the log
