@@ -2589,7 +2589,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 
 			/* If is a new chunk, prepend the chunk size */
 			if (!h1m->curr_len) {
-				h1m->curr_len = count + htx->extra;
+				h1m->curr_len = count + (htx->extra != HTX_UNKOWN_PAYLOAD_LENGTH ? htx->extra : 0);
 				h1_prepend_chunk_size(&h1c->obuf, h1m->curr_len);
 			}
 			h1m->curr_len -= count;
@@ -2662,7 +2662,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			if (h1m->flags & H1_MF_CHNK) {
 				/* If is a new chunk, prepend the chunk size */
 				if (!h1m->curr_len) {
-					h1m->curr_len = (htx->extra ? htx->data + htx->extra : vlen);
+					h1m->curr_len = (htx->extra && htx->extra != HTX_UNKOWN_PAYLOAD_LENGTH ? htx->data + htx->extra : vlen);
 					if (!h1_append_chunk_size(&outbuf, h1m->curr_len)) {
 						h1m->curr_len = 0;
 						goto full;
