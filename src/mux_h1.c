@@ -2980,6 +2980,50 @@ static size_t h1_make_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx
 	goto end;
 }
 
+/* Try to send the header for a chunk of <len> bytes. It returns the number of
+ * bytes consumed or zero if nothing was done or if an error occurred..
+ */
+static __maybe_unused size_t h1_make_chunk(struct h1s *h1s, struct h1m * h1m, size_t len)
+{
+	struct h1c *h1c = h1s->h1c;
+	struct buffer outbuf;
+	size_t ret = 0;
+
+	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s);
+
+	if (!h1_get_buf(h1c, &h1c->obuf)) {
+		h1c->flags |= H1C_F_OUT_ALLOC;
+		TRACE_STATE("waiting for h1c obuf allocation", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
+		goto end;
+	}
+
+	if (b_space_wraps(&h1c->obuf))
+		b_slow_realign(&h1c->obuf, trash.area, b_data(&h1c->obuf));
+	outbuf = b_make(b_tail(&h1c->obuf), b_contig_space(&h1c->obuf), 0, 0);
+
+	if (h1m->state == H1_MSG_CHUNK_CRLF) {
+		if (!chunk_memcat(&outbuf, "\r\n", 2))
+			goto full;
+		h1m->state = H1_MSG_CHUNK_SIZE;
+	}
+	if (!h1_append_chunk_size(&outbuf, len))
+		goto full;
+
+	h1m->state = H1_MSG_DATA;
+
+	TRACE_PROTO("H1 chunk info xferred", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){ret});
+	b_add(&h1c->obuf, outbuf.data);
+	ret = outbuf.data;
+
+end:
+	TRACE_LEAVE(H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, NULL, (size_t[]){ret});
+	return ret;
+full:
+	TRACE_STATE("h1c obuf full", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
+	h1c->flags |= H1C_F_OUT_FULL;
+	goto end;
+}
+
 /*
  * Process outgoing data. It parses data and transfer them from the channel buffer into
  * h1c->obuf. It returns the number of bytes parsed and transferred if > 0, or
