@@ -18423,10 +18423,18 @@ json([<input-code>])
      {"ip":"127.0.0.1","user-agent":"Very \"Ugly\" UA 1\/2"}
 
 json_query(<json_path>,[<output_type>])
-  The json_query converter supports the JSON types string, boolean and
-  number. Floating point numbers will be returned as a string. By
+  The json_query converter supports the JSON types string, boolean, number
+  and array. Floating point numbers will be returned as a string. By
   specifying the output_type 'int' the value will be converted to an
-  Integer. If conversion is not possible the json_query converter fails.
+  Integer. Arrays will be returned as string, starting and ending with a
+  square brackets. The content is a CSV. Depending on the data type, the
+  array values might be quoted. If the array values are complex types,
+  the string contains the complete json representation of each value
+  separated by a comma. Example result for a roles query to a JWT:
+
+     ["manage-account","manage-account-links","view-profile"]
+
+  If conversion is not possible the json_query converter fails.
 
   <json_path> must be a valid JSON Path string as defined in
   https://datatracker.ietf.org/doc/draft-ietf-jsonpath-base/

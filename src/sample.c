@@ -4212,8 +4212,15 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
 
 			return 1;
 		}
+               case MJSON_TOK_ARRAY: {
+                       // We copy the complete array, including square brackets into the return buffer
+                       // result looks like: ["manage-account","manage-account-links","view-profile"]
+                       trash->data = b_putblk(trash, token, token_size);
+                       smp->data.u.str = *trash;
+                       smp->data.type = SMP_T_STR;
+                       return 1;
+               }
 		case MJSON_TOK_NULL:
-		case MJSON_TOK_ARRAY:
 		case MJSON_TOK_OBJECT:
 			/* We cannot handle these. */
 			return 0;
