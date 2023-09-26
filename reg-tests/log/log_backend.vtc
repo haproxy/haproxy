@@ -1,0 +1,185 @@
+varnishtest "Test the log backend target"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.9-dev0)'"
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+	txresp
+} -repeat 500 -start
+
+syslog Slg1 -level info {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /0 HTTP/1.1\""
+} -repeat 100 -start
+
+syslog Slg2 -level info {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /1 HTTP/1.1\""
+} -repeat 100 -start
+
+syslog Slg21 -level info {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /srv1 HTTP/1.1\""
+} -repeat 1 -start
+
+syslog Slg22 -level info {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /srv2 HTTP/1.1\""
+} -repeat 1 -start
+
+syslog Slg23 -level info {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /srv3 HTTP/1.1\""
+} -repeat 2 -start
+
+syslog Slg24 -level info {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /backup HTTP/1.1\""
+} -repeat 1 -start
+
+haproxy h1 -conf {
+	defaults
+		mode http
+		option httplog
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe1
+		bind "fd@${fe_1}"
+		log backend@mylog-tcp local0
+		log backend@mylog-udp local0
+		default_backend be
+
+	frontend fe2
+		bind "fd@${fe_2}"
+		log backend@mylog-failover local0
+		default_backend be
+
+	backend be
+		server app1 ${s1_addr}:${s1_port}
+
+        backend mylog-tcp
+                mode log
+                server s1 tcp@127.0.0.1:1514 #TCP: to log-forward
+
+        backend mylog-udp
+                mode log
+
+                # extract id (integer) from URL in the form "GET /id" and use it as hash key
+                log-balance hash 'field(-2,\"),field(2,/),field(1, )'
+                hash-type map-based none
+
+                server s1 udp@${Slg1_addr}:${Slg1_port} # syslog 1 only receives "GET /0" requests
+                server s2 udp@${Slg2_addr}:${Slg2_port} # syslog 2 only receives "GET /1" requests
+
+	log-forward syslog2udp
+		bind 127.0.0.1:1514
+		log backend@mylog-udp local0 # Back to UDP log backend
+
+        backend mylog-failover
+                mode log
+		log-balance sticky
+
+                server s1 udp@${Slg21_addr}:${Slg21_port}        # only receives "GET /srv1" request
+                server s2 udp@${Slg22_addr}:${Slg22_port}        # only receives "GET /srv2" request
+                server s3 udp@${Slg23_addr}:${Slg23_port}        # only receives "GET /srv3" request
+
+                server s4 udp@${Slg24_addr}:${Slg24_port} backup # only receives "GET /backup" request
+} -start
+
+# Test log distribution reliability
+
+# all logs should go to s1
+client c1 -connect ${h1_fe_1_sock} {
+    txreq -url "/0"
+    rxresp
+    expect resp.status == 200
+} -repeat 50 -start
+
+# all logs should go to s2
+client c2 -connect ${h1_fe_1_sock} {
+    txreq -url "/1"
+    rxresp
+    expect resp.status == 200
+} -repeat 50 -start
+
+syslog Slg1 -wait
+syslog Slg2 -wait
+
+# Test server queue/dequeue/failover mechanism
+
+# s1 should handle this
+client c21 -connect ${h1_fe_2_sock} {
+    txreq -url "/srv1"
+    rxresp
+    expect resp.status == 200
+} -run
+
+haproxy h1 -cli {
+        send "disable server mylog-failover/s1"
+        expect ~ ".*"
+}
+
+# s2 should handle this
+client c22 -connect ${h1_fe_2_sock} {
+    txreq -url "/srv2"
+    rxresp
+    expect resp.status == 200
+} -run
+
+haproxy h1 -cli {
+        send "disable server mylog-failover/s2"
+        expect ~ ".*"
+}
+
+haproxy h1 -cli {
+        send "enable server mylog-failover/s1"
+        expect ~ ".*"
+}
+
+# s3 should handle this
+client c23 -connect ${h1_fe_2_sock} {
+    txreq -url "/srv3"
+    rxresp
+    expect resp.status == 200
+} -run
+
+haproxy h1 -cli {
+        send "disable server mylog-failover/s1"
+        expect ~ ".*"
+}
+
+haproxy h1 -cli {
+        send "disable server mylog-failover/s3"
+        expect ~ ".*"
+}
+
+# backup should handle this
+client c24 -connect ${h1_fe_2_sock} {
+    txreq -url "/backup"
+    rxresp
+    expect resp.status == 200
+} -run
+
+haproxy h1 -cli {
+        send "enable server mylog-failover/s3"
+        expect ~ ".*"
+}
+
+haproxy h1 -cli {
+        send "enable server mylog-failover/s2"
+        expect ~ ".*"
+}
+
+# s3 should handle this
+client c25 -connect ${h1_fe_2_sock} {
+    txreq -url "/srv3"
+    rxresp
+    expect resp.status == 200
+} -run
+
+syslog Slg21 -wait
+syslog Slg22 -wait
+syslog Slg23 -wait
+syslog Slg24 -wait
