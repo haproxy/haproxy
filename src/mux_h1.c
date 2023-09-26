@@ -2485,7 +2485,7 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 	else {
 		if (!chunk_memcat(&outbuf, "\r\n", 2))
 			goto full;
-		h1m->state = H1_MSG_DATA;
+		h1m->state = ((h1m->flags & H1_MF_CHNK) ? H1_MSG_CHUNK_SIZE: H1_MSG_DATA);
 	}
 
 	TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request headers xferred" : "H1 response headers xferred"),
@@ -2588,21 +2588,26 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			 */
 
 			/* If is a new chunk, prepend the chunk size */
-			if (!h1m->curr_len) {
+			if (h1m->state == H1_MSG_CHUNK_CRLF || h1m->state == H1_MSG_CHUNK_SIZE) {
+				if (h1m->curr_len) {
+					TRACE_ERROR("too much payload, more than announced",
+						    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+					goto error;
+				}
 				h1m->curr_len = count + (htx->extra != HTX_UNKOWN_PAYLOAD_LENGTH ? htx->extra : 0);
 				h1_prepend_chunk_size(&h1c->obuf, h1m->curr_len);
-			}
-			h1m->curr_len -= count;
-
-			/* CRLF of the previous chunk is missing. Prepend it */
-			if (h1m->state == H1_MSG_CHUNK_CRLF) {
-				h1_prepend_chunk_crlf(&h1c->obuf);
+				if (h1m->state == H1_MSG_CHUNK_CRLF)
+					h1_prepend_chunk_crlf(&h1c->obuf);
 				h1m->state = H1_MSG_DATA;
 			}
 
+			h1m->curr_len -= count;
+
 			/* It is the end  of the chunk, append the CRLF */
-			if (!h1m->curr_len)
+			if (!h1m->curr_len) {
 				h1_append_chunk_crlf(&h1c->obuf);
+				h1m->state = H1_MSG_CHUNK_SIZE;
+			}
 
 			/* It is the end of the message, add the last chunk with the extra CRLF */
 			if (eom) {
@@ -2624,10 +2629,17 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 		b_slow_realign(&h1c->obuf, trash.area, b_data(&h1c->obuf));
 	outbuf = b_make(b_tail(&h1c->obuf), b_contig_space(&h1c->obuf), 0, 0);
 
-	if (h1m->state == H1_MSG_CHUNK_CRLF) {
+
+	/* Handle now case of CRLF at the end of a chun. */
+	if ((h1m->flags & H1_MF_CHNK) && h1m->state == H1_MSG_CHUNK_CRLF) {
+		if (h1m->curr_len) {
+			TRACE_ERROR("too much payload, more than announced",
+				    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+			goto error;
+		}
 		if (!chunk_memcat(&outbuf, "\r\n", 2))
 			goto full;
-		h1m->state = H1_MSG_DATA;
+		h1m->state = H1_MSG_CHUNK_SIZE;
 	}
 
 	while (blk && count) {
@@ -2661,12 +2673,13 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			chklen = 0;
 			if (h1m->flags & H1_MF_CHNK) {
 				/* If is a new chunk, prepend the chunk size */
-				if (!h1m->curr_len) {
+				if (h1m->state == H1_MSG_CHUNK_SIZE) {
 					h1m->curr_len = (htx->extra && htx->extra != HTX_UNKOWN_PAYLOAD_LENGTH ? htx->data + htx->extra : vlen);
 					if (!h1_append_chunk_size(&outbuf, h1m->curr_len)) {
 						h1m->curr_len = 0;
 						goto full;
 					}
+					h1m->state = H1_MSG_DATA;
 				}
 
 				if (vlen > h1m->curr_len) {
@@ -2696,8 +2709,11 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			if (h1m->flags & H1_MF_CHNK) {
 				h1m->curr_len -= vlen;
 				/* Space already reserved, so it must succeed */
-				if (!h1m->curr_len && !chunk_memcat(&outbuf, "\r\n", 2))
-					goto error;
+				if (!h1m->curr_len) {
+					if (!chunk_memcat(&outbuf, "\r\n", 2))
+						goto error;
+					h1m->state = H1_MSG_CHUNK_SIZE;
+				}
 				if (last_data && !chunk_memcat(&outbuf, "0\r\n\r\n", 5))
 					goto error;
 			}
@@ -3014,6 +3030,7 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 				ret = h1_make_eoh(h1s, h1m, htx, count);
 				break;
 
+			case H1_MSG_CHUNK_SIZE:
 			case H1_MSG_CHUNK_CRLF:
 			case H1_MSG_DATA:
 				ret = h1_make_data(h1s, h1m, buf, count);
