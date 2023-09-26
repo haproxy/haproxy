@@ -388,7 +388,7 @@ struct xprt_ops {
 	size_t (*rcv_buf)(struct connection *conn, void *xprt_ctx, struct buffer *buf, size_t count, int flags); /* recv callback */
 	size_t (*snd_buf)(struct connection *conn, void *xprt_ctx, const struct buffer *buf, size_t count, int flags); /* send callback */
 	int  (*rcv_pipe)(struct connection *conn, void *xprt_ctx, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
-	int  (*snd_pipe)(struct connection *conn, void *xprt_ctx, struct pipe *pipe); /* send-to-pipe callback */
+	int  (*snd_pipe)(struct connection *conn, void *xprt_ctx, struct pipe *pipe, unsigned int count); /* send-to-pipe callback */
 	void (*shutr)(struct connection *conn, void *xprt_ctx, int);    /* shutr function */
 	void (*shutw)(struct connection *conn, void *xprt_ctx, int);    /* shutw function */
 	void (*close)(struct connection *conn, void *xprt_ctx);         /* close the transport layer */

@@ -160,7 +160,7 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 
 /* Send as many bytes as possible from the pipe to the connection's socket.
  */
-int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe)
+int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe, unsigned int count)
 {
 	int ret, done;
 
@@ -179,9 +179,12 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
 		return 0;
 	}
 
+	if (unlikely(count > pipe->data))
+		count = pipe->data;
+
 	done = 0;
-	while (pipe->data) {
-		ret = splice(pipe->cons, NULL, conn->handle.fd, NULL, pipe->data,
+	while (count) {
+		ret = splice(pipe->cons, NULL, conn->handle.fd, NULL, count,
 			     SPLICE_F_MOVE|SPLICE_F_NONBLOCK);
 
 		if (ret <= 0) {
@@ -198,6 +201,7 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
 		}
 
 		done += ret;
+		count -= ret;
 		pipe->data -= ret;
 	}
 	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done) {
