@@ -3148,6 +3148,11 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	struct stconn *sc;
 	struct stream *s;
 
+	/* Get hlua struct, or NULL if we execute from main lua state */
+	hlua = hlua_gethlua(L);
+	if (!hlua)
+		return 0;
+
 	if (lua_gettop(L) < 2)
 		WILL_LJMP(luaL_error(L, "connect: need at least 2 arguments"));
 
@@ -3221,11 +3226,6 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 		xref_unlock(&socket->xref, peer);
 		WILL_LJMP(luaL_error(L, "connect: internal error"));
 	}
-
-	/* Get hlua struct, or NULL if we execute from main lua state */
-	hlua = hlua_gethlua(L);
-	if (!hlua)
-		return 0;
 
 	/* inform the stream that we want to be notified whenever the
 	 * connection completes.
