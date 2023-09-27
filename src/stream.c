@@ -3238,6 +3238,308 @@ struct show_sess_ctx {
 	int pos;		/* last position of the current session's buffer */
 };
 
+/* This function appends a complete dump of a stream state onto the trash
+ * buffer, possibly anonymizing using the specified anon_key. The caller is
+ * responsible for ensuring that enough room remains in the buffer to dump a
+ * complete stream at once.
+ */
+static void strm_dump_to_buffer(struct stream *strm, uint32_t anon_key)
+{
+	struct stconn *scf, *scb;
+	struct tm tm;
+	extern const char *monthname[12];
+	char pn[INET6_ADDRSTRLEN];
+	struct connection *conn;
+	struct appctx *tmpctx;
+
+	get_localtime(strm->logs.accept_date.tv_sec, &tm);
+	chunk_appendf(&trash,
+		     "%p: [%02d/%s/%04d:%02d:%02d:%02d.%06d] id=%u proto=%s",
+		     strm,
+		     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
+		     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(strm->logs.accept_date.tv_usec),
+		     strm->uniq_id,
+		     strm_li(strm) ? strm_li(strm)->rx.proto->name : "?");
+
+	conn = objt_conn(strm_orig(strm));
+	switch (conn && conn_get_src(conn) ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
+	case AF_INET:
+	case AF_INET6:
+		chunk_appendf(&trash, " source=%s:%d\n",
+		              HA_ANON_STR(anon_key, pn), get_host_port(conn->src));
+		break;
+	case AF_UNIX:
+		chunk_appendf(&trash, " source=unix:%d\n", strm_li(strm)->luid);
+		break;
+	default:
+		/* no more information to print right now */
+		chunk_appendf(&trash, "\n");
+		break;
+	}
+
+	chunk_appendf(&trash,
+		     "  flags=0x%x, conn_retries=%d, conn_exp=%s conn_et=0x%03x srv_conn=%p, pend_pos=%p waiting=%d epoch=%#x\n",
+		     strm->flags, strm->conn_retries,
+		     strm->conn_exp ?
+		             tick_is_expired(strm->conn_exp, now_ms) ? "<PAST>" :
+		                     human_time(TICKS_TO_MS(strm->conn_exp - now_ms),
+		                     TICKS_TO_MS(1000)) : "<NEVER>",
+		     strm->conn_err_type, strm->srv_conn, strm->pend_pos,
+		     LIST_INLIST(&strm->buffer_wait.list), strm->stream_epoch);
+
+	chunk_appendf(&trash,
+		     "  frontend=%s (id=%u mode=%s), listener=%s (id=%u)",
+		     HA_ANON_STR(anon_key, strm_fe(strm)->id), strm_fe(strm)->uuid, proxy_mode_str(strm_fe(strm)->mode),
+		     strm_li(strm) ? strm_li(strm)->name ? strm_li(strm)->name : "?" : "?",
+		     strm_li(strm) ? strm_li(strm)->luid : 0);
+
+	switch (conn && conn_get_dst(conn) ? addr_to_str(conn->dst, pn, sizeof(pn)) : AF_UNSPEC) {
+	case AF_INET:
+	case AF_INET6:
+		chunk_appendf(&trash, " addr=%s:%d\n",
+			     HA_ANON_STR(anon_key, pn), get_host_port(conn->dst));
+		break;
+	case AF_UNIX:
+		chunk_appendf(&trash, " addr=unix:%d\n", strm_li(strm)->luid);
+		break;
+	default:
+		/* no more information to print right now */
+		chunk_appendf(&trash, "\n");
+		break;
+	}
+
+	if (strm->be->cap & PR_CAP_BE)
+		chunk_appendf(&trash,
+			     "  backend=%s (id=%u mode=%s)",
+			     HA_ANON_STR(anon_key, strm->be->id),
+			     strm->be->uuid, proxy_mode_str(strm->be->mode));
+	else
+		chunk_appendf(&trash, "  backend=<NONE> (id=-1 mode=-)");
+
+	conn = sc_conn(strm->scb);
+	switch (conn && conn_get_src(conn) ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
+	case AF_INET:
+	case AF_INET6:
+		chunk_appendf(&trash, " addr=%s:%d\n",
+			     HA_ANON_STR(anon_key, pn), get_host_port(conn->src));
+		break;
+	case AF_UNIX:
+		chunk_appendf(&trash, " addr=unix\n");
+		break;
+	default:
+		/* no more information to print right now */
+		chunk_appendf(&trash, "\n");
+		break;
+	}
+
+	if (strm->be->cap & PR_CAP_BE)
+		chunk_appendf(&trash,
+			     "  server=%s (id=%u)",
+			     objt_server(strm->target) ? HA_ANON_STR(anon_key, __objt_server(strm->target)->id) : "<none>",
+			     objt_server(strm->target) ? __objt_server(strm->target)->puid : 0);
+	else
+		chunk_appendf(&trash, "  server=<NONE> (id=-1)");
+
+	switch (conn && conn_get_dst(conn) ? addr_to_str(conn->dst, pn, sizeof(pn)) : AF_UNSPEC) {
+	case AF_INET:
+	case AF_INET6:
+		chunk_appendf(&trash, " addr=%s:%d\n",
+			     HA_ANON_STR(anon_key, pn), get_host_port(conn->dst));
+		break;
+	case AF_UNIX:
+		chunk_appendf(&trash, " addr=unix\n");
+		break;
+	default:
+		/* no more information to print right now */
+		chunk_appendf(&trash, "\n");
+		break;
+	}
+
+	chunk_appendf(&trash,
+		     "  task=%p (state=0x%02x nice=%d calls=%u rate=%u exp=%s tid=%d(%d/%d)%s",
+		     strm->task,
+		     strm->task->state,
+		     strm->task->nice, strm->task->calls, read_freq_ctr(&strm->call_rate),
+		     strm->task->expire ?
+		             tick_is_expired(strm->task->expire, now_ms) ? "<PAST>" :
+		                     human_time(TICKS_TO_MS(strm->task->expire - now_ms),
+		                     TICKS_TO_MS(1000)) : "<NEVER>",
+	             strm->task->tid,
+	             ha_thread_info[strm->task->tid].tgid,
+	             ha_thread_info[strm->task->tid].ltid,
+		     task_in_rq(strm->task) ? ", running" : "");
+
+	chunk_appendf(&trash,
+		     " age=%s)\n",
+		     human_time(ns_to_sec(now_ns) - ns_to_sec(strm->logs.accept_ts), 1));
+
+	if (strm->txn)
+		chunk_appendf(&trash,
+		      "  txn=%p flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s req.f=0x%02x rsp.f=0x%02x\n",
+		      strm->txn, strm->txn->flags, strm->txn->meth, strm->txn->status,
+		      h1_msg_state_str(strm->txn->req.msg_state), h1_msg_state_str(strm->txn->rsp.msg_state),
+		      strm->txn->req.flags, strm->txn->rsp.flags);
+
+	scf = strm->scf;
+	chunk_appendf(&trash, "  scf=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d",
+		      scf, scf->flags, sc_state_str(scf->state),
+		      (sc_ep_test(scf, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scf, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
+		      scf->sedesc->se, sc_ep_get(scf), scf->wait_event.events);
+	chunk_appendf(&trash, " rex=%s",
+		      sc_ep_rcv_ex(scf) ? human_time(TICKS_TO_MS(sc_ep_rcv_ex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+	chunk_appendf(&trash, " wex=%s\n",
+		      sc_ep_snd_ex(scf) ? human_time(TICKS_TO_MS(sc_ep_snd_ex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+
+	if ((conn = sc_conn(scf)) != NULL) {
+		if (conn->mux && conn->mux->show_sd) {
+			chunk_appendf(&trash, "     ");
+			conn->mux->show_sd(&trash, scf->sedesc, "     ");
+			chunk_appendf(&trash, "\n");
+		}
+
+		chunk_appendf(&trash,
+		              "      co0=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
+			      conn,
+			      conn_get_ctrl_name(conn),
+			      conn_get_xprt_name(conn),
+			      conn_get_mux_name(conn),
+			      sc_get_data_name(scf),
+		              obj_type_name(conn->target),
+		              obj_base_ptr(conn->target));
+
+		chunk_appendf(&trash,
+		              "      flags=0x%08x fd=%d fd.state=%02x updt=%d fd.tmask=0x%lx\n",
+		              conn->flags,
+		              conn_fd(conn),
+		              conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].state : 0,
+		              conn_fd(conn) >= 0 ? !!(fdtab[conn->handle.fd].update_mask & ti->ltid_bit) : 0,
+			      conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
+	}
+	else if ((tmpctx = sc_appctx(scf)) != NULL) {
+		chunk_appendf(&trash,
+		              "      app0=%p st0=%d st1=%d applet=%s tid=%d nice=%d calls=%u rate=%u\n",
+			      tmpctx,
+			      tmpctx->st0,
+			      tmpctx->st1,
+		              tmpctx->applet->name,
+		              tmpctx->t->tid,
+		              tmpctx->t->nice, tmpctx->t->calls, read_freq_ctr(&tmpctx->call_rate));
+	}
+
+	scb = strm->scb;
+	chunk_appendf(&trash, "  scb=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d",
+		      scb, scb->flags, sc_state_str(scb->state),
+		      (sc_ep_test(scb, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scb, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
+		      scb->sedesc->se, sc_ep_get(scb), scb->wait_event.events);
+	chunk_appendf(&trash, " rex=%s",
+		      sc_ep_rcv_ex(scb) ? human_time(TICKS_TO_MS(sc_ep_rcv_ex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+	chunk_appendf(&trash, " wex=%s\n",
+		      sc_ep_snd_ex(scb) ? human_time(TICKS_TO_MS(sc_ep_snd_ex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+
+	if ((conn = sc_conn(scb)) != NULL) {
+		if (conn->mux && conn->mux->show_sd) {
+			chunk_appendf(&trash, "     ");
+			conn->mux->show_sd(&trash, scb->sedesc, "     ");
+			chunk_appendf(&trash, "\n");
+		}
+
+		chunk_appendf(&trash,
+		              "      co1=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
+			      conn,
+			      conn_get_ctrl_name(conn),
+			      conn_get_xprt_name(conn),
+			      conn_get_mux_name(conn),
+			      sc_get_data_name(scb),
+		              obj_type_name(conn->target),
+		              obj_base_ptr(conn->target));
+
+		chunk_appendf(&trash,
+		              "      flags=0x%08x fd=%d fd.state=%02x updt=%d fd.tmask=0x%lx\n",
+		              conn->flags,
+		              conn_fd(conn),
+		              conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].state : 0,
+		              conn_fd(conn) >= 0 ? !!(fdtab[conn->handle.fd].update_mask & ti->ltid_bit) : 0,
+			      conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
+	}
+	else if ((tmpctx = sc_appctx(scb)) != NULL) {
+		chunk_appendf(&trash,
+		              "      app1=%p st0=%d st1=%d applet=%s tid=%d nice=%d calls=%u rate=%u\n",
+			      tmpctx,
+			      tmpctx->st0,
+			      tmpctx->st1,
+		              tmpctx->applet->name,
+		              tmpctx->t->tid,
+		              tmpctx->t->nice, tmpctx->t->calls, read_freq_ctr(&tmpctx->call_rate));
+	}
+
+	chunk_appendf(&trash,
+		     "  req=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
+		     "      an_exp=%s buf=%p data=%p o=%u p=%u i=%u size=%u\n",
+		     &strm->req,
+		     strm->req.flags, strm->req.analysers,
+		     strm->req.pipe ? strm->req.pipe->data : 0,
+		     strm->req.to_forward, strm->req.total,
+		     strm->req.analyse_exp ?
+		     human_time(TICKS_TO_MS(strm->req.analyse_exp - now_ms),
+				TICKS_TO_MS(1000)) : "<NEVER>",
+		     &strm->req.buf,
+		     b_orig(&strm->req.buf), (unsigned int)co_data(&strm->req),
+		     (unsigned int)ci_head_ofs(&strm->req), (unsigned int)ci_data(&strm->req),
+		     (unsigned int)strm->req.buf.size);
+
+	if (IS_HTX_STRM(strm)) {
+		struct htx *htx = htxbuf(&strm->req.buf);
+
+		chunk_appendf(&trash,
+			      "      htx=%p flags=0x%x size=%u data=%u used=%u wrap=%s extra=%llu\n",
+			      htx, htx->flags, htx->size, htx->data, htx_nbblks(htx),
+			      (htx->tail >= htx->head) ? "NO" : "YES",
+			      (unsigned long long)htx->extra);
+	}
+	if (HAS_FILTERS(strm) && strm_flt(strm)->current[0]) {
+		struct filter *flt = strm_flt(strm)->current[0];
+
+		chunk_appendf(&trash, "      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x) \n",
+			      flt, flt->config->id, flt->flags, flt->pre_analyzers, flt->post_analyzers);
+	}
+
+	chunk_appendf(&trash,
+		     "  res=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
+		     "      an_exp=%s buf=%p data=%p o=%u p=%u i=%u size=%u\n",
+		     &strm->res,
+		     strm->res.flags, strm->res.analysers,
+		     strm->res.pipe ? strm->res.pipe->data : 0,
+		     strm->res.to_forward, strm->res.total,
+		     strm->res.analyse_exp ?
+		     human_time(TICKS_TO_MS(strm->res.analyse_exp - now_ms),
+				TICKS_TO_MS(1000)) : "<NEVER>",
+		     &strm->res.buf,
+	             b_orig(&strm->res.buf), (unsigned int)co_data(&strm->res),
+	             (unsigned int)ci_head_ofs(&strm->res), (unsigned int)ci_data(&strm->res),
+		     (unsigned int)strm->res.buf.size);
+
+	if (IS_HTX_STRM(strm)) {
+		struct htx *htx = htxbuf(&strm->res.buf);
+
+		chunk_appendf(&trash,
+			      "      htx=%p flags=0x%x size=%u data=%u used=%u wrap=%s extra=%llu\n",
+			      htx, htx->flags, htx->size, htx->data, htx_nbblks(htx),
+			      (htx->tail >= htx->head) ? "NO" : "YES",
+			      (unsigned long long)htx->extra);
+	}
+	if (HAS_FILTERS(strm) && strm_flt(strm)->current[1]) {
+		struct filter *flt = strm_flt(strm)->current[1];
+
+		chunk_appendf(&trash, "      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x) \n",
+			      flt, flt->config->id, flt->flags, flt->pre_analyzers, flt->post_analyzers);
+	}
+
+	if (strm->current_rule_list && strm->current_rule) {
+		const struct act_rule *rule = strm->current_rule;
+		chunk_appendf(&trash, "  current_rule=\"%s\" [%s:%d]\n", rule->kw->kw, rule->conf.file, rule->conf.line);
+	}
+}
+
 /* This function dumps a complete stream state onto the stream connector's
  * read buffer. The stream has to be set in strm. It returns 0 if the output
  * buffer is full and it needs to be called again, otherwise non-zero. It is
@@ -3247,13 +3549,6 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 {
 	struct appctx *appctx = __sc_appctx(sc);
 	struct show_sess_ctx *ctx = appctx->svcctx;
-	struct stconn *scf, *scb;
-	struct tm tm;
-	extern const char *monthname[12];
-	char pn[INET6_ADDRSTRLEN];
-	struct connection *conn;
-	struct appctx *tmpctx;
-	uint32_t anon_key = appctx->cli_anon_key;
 
 	chunk_reset(&trash);
 
@@ -3272,293 +3567,8 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 		__fallthrough;
 
 	case 1:
-		get_localtime(strm->logs.accept_date.tv_sec, &tm);
-		chunk_appendf(&trash,
-			     "%p: [%02d/%s/%04d:%02d:%02d:%02d.%06d] id=%u proto=%s",
-			     strm,
-			     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
-			     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(strm->logs.accept_date.tv_usec),
-			     strm->uniq_id,
-			     strm_li(strm) ? strm_li(strm)->rx.proto->name : "?");
-
-		conn = objt_conn(strm_orig(strm));
-		switch (conn && conn_get_src(conn) ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
-		case AF_INET:
-		case AF_INET6:
-			chunk_appendf(&trash, " source=%s:%d\n",
-			              HA_ANON_STR(anon_key, pn), get_host_port(conn->src));
-			break;
-		case AF_UNIX:
-			chunk_appendf(&trash, " source=unix:%d\n", strm_li(strm)->luid);
-			break;
-		default:
-			/* no more information to print right now */
-			chunk_appendf(&trash, "\n");
-			break;
-		}
-
-		chunk_appendf(&trash,
-			     "  flags=0x%x, conn_retries=%d, conn_exp=%s conn_et=0x%03x srv_conn=%p, pend_pos=%p waiting=%d epoch=%#x\n",
-			     strm->flags, strm->conn_retries,
-			     strm->conn_exp ?
-			             tick_is_expired(strm->conn_exp, now_ms) ? "<PAST>" :
-			                     human_time(TICKS_TO_MS(strm->conn_exp - now_ms),
-			                     TICKS_TO_MS(1000)) : "<NEVER>",
-			     strm->conn_err_type, strm->srv_conn, strm->pend_pos,
-			     LIST_INLIST(&strm->buffer_wait.list), strm->stream_epoch);
-
-		chunk_appendf(&trash,
-			     "  frontend=%s (id=%u mode=%s), listener=%s (id=%u)",
-			     HA_ANON_STR(anon_key, strm_fe(strm)->id), strm_fe(strm)->uuid, proxy_mode_str(strm_fe(strm)->mode),
-			     strm_li(strm) ? strm_li(strm)->name ? strm_li(strm)->name : "?" : "?",
-			     strm_li(strm) ? strm_li(strm)->luid : 0);
-
-		switch (conn && conn_get_dst(conn) ? addr_to_str(conn->dst, pn, sizeof(pn)) : AF_UNSPEC) {
-		case AF_INET:
-		case AF_INET6:
-			chunk_appendf(&trash, " addr=%s:%d\n",
-				     HA_ANON_STR(anon_key, pn), get_host_port(conn->dst));
-			break;
-		case AF_UNIX:
-			chunk_appendf(&trash, " addr=unix:%d\n", strm_li(strm)->luid);
-			break;
-		default:
-			/* no more information to print right now */
-			chunk_appendf(&trash, "\n");
-			break;
-		}
-
-		if (strm->be->cap & PR_CAP_BE)
-			chunk_appendf(&trash,
-				     "  backend=%s (id=%u mode=%s)",
-				     HA_ANON_STR(anon_key, strm->be->id),
-				     strm->be->uuid, proxy_mode_str(strm->be->mode));
-		else
-			chunk_appendf(&trash, "  backend=<NONE> (id=-1 mode=-)");
-
-		conn = sc_conn(strm->scb);
-		switch (conn && conn_get_src(conn) ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
-		case AF_INET:
-		case AF_INET6:
-			chunk_appendf(&trash, " addr=%s:%d\n",
-				     HA_ANON_STR(anon_key, pn), get_host_port(conn->src));
-			break;
-		case AF_UNIX:
-			chunk_appendf(&trash, " addr=unix\n");
-			break;
-		default:
-			/* no more information to print right now */
-			chunk_appendf(&trash, "\n");
-			break;
-		}
-
-		if (strm->be->cap & PR_CAP_BE)
-			chunk_appendf(&trash,
-				     "  server=%s (id=%u)",
-				     objt_server(strm->target) ? HA_ANON_STR(anon_key, __objt_server(strm->target)->id) : "<none>",
-				     objt_server(strm->target) ? __objt_server(strm->target)->puid : 0);
-		else
-			chunk_appendf(&trash, "  server=<NONE> (id=-1)");
-
-		switch (conn && conn_get_dst(conn) ? addr_to_str(conn->dst, pn, sizeof(pn)) : AF_UNSPEC) {
-		case AF_INET:
-		case AF_INET6:
-			chunk_appendf(&trash, " addr=%s:%d\n",
-				     HA_ANON_STR(anon_key, pn), get_host_port(conn->dst));
-			break;
-		case AF_UNIX:
-			chunk_appendf(&trash, " addr=unix\n");
-			break;
-		default:
-			/* no more information to print right now */
-			chunk_appendf(&trash, "\n");
-			break;
-		}
-
-		chunk_appendf(&trash,
-			     "  task=%p (state=0x%02x nice=%d calls=%u rate=%u exp=%s tid=%d(%d/%d)%s",
-			     strm->task,
-			     strm->task->state,
-			     strm->task->nice, strm->task->calls, read_freq_ctr(&strm->call_rate),
-			     strm->task->expire ?
-			             tick_is_expired(strm->task->expire, now_ms) ? "<PAST>" :
-			                     human_time(TICKS_TO_MS(strm->task->expire - now_ms),
-			                     TICKS_TO_MS(1000)) : "<NEVER>",
-		             strm->task->tid,
-		             ha_thread_info[strm->task->tid].tgid,
-		             ha_thread_info[strm->task->tid].ltid,
-			     task_in_rq(strm->task) ? ", running" : "");
-
-		chunk_appendf(&trash,
-			     " age=%s)\n",
-			     human_time(ns_to_sec(now_ns) - ns_to_sec(strm->logs.accept_ts), 1));
-
-		if (strm->txn)
-			chunk_appendf(&trash,
-			      "  txn=%p flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s req.f=0x%02x rsp.f=0x%02x\n",
-			      strm->txn, strm->txn->flags, strm->txn->meth, strm->txn->status,
-			      h1_msg_state_str(strm->txn->req.msg_state), h1_msg_state_str(strm->txn->rsp.msg_state),
-			      strm->txn->req.flags, strm->txn->rsp.flags);
-
-		scf = strm->scf;
-		chunk_appendf(&trash, "  scf=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d",
-			      scf, scf->flags, sc_state_str(scf->state),
-			      (sc_ep_test(scf, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scf, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
-			      scf->sedesc->se, sc_ep_get(scf), scf->wait_event.events);
-		chunk_appendf(&trash, " rex=%s",
-			      sc_ep_rcv_ex(scf) ? human_time(TICKS_TO_MS(sc_ep_rcv_ex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
-		chunk_appendf(&trash, " wex=%s\n",
-			      sc_ep_snd_ex(scf) ? human_time(TICKS_TO_MS(sc_ep_snd_ex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
-
-		if ((conn = sc_conn(scf)) != NULL) {
-			if (conn->mux && conn->mux->show_sd) {
-				chunk_appendf(&trash, "     ");
-				conn->mux->show_sd(&trash, scf->sedesc, "     ");
-				chunk_appendf(&trash, "\n");
-			}
-
-			chunk_appendf(&trash,
-			              "      co0=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
-				      conn,
-				      conn_get_ctrl_name(conn),
-				      conn_get_xprt_name(conn),
-				      conn_get_mux_name(conn),
-				      sc_get_data_name(scf),
-			              obj_type_name(conn->target),
-			              obj_base_ptr(conn->target));
-
-			chunk_appendf(&trash,
-			              "      flags=0x%08x fd=%d fd.state=%02x updt=%d fd.tmask=0x%lx\n",
-			              conn->flags,
-			              conn_fd(conn),
-			              conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].state : 0,
-			              conn_fd(conn) >= 0 ? !!(fdtab[conn->handle.fd].update_mask & ti->ltid_bit) : 0,
-				      conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
-		}
-		else if ((tmpctx = sc_appctx(scf)) != NULL) {
-			chunk_appendf(&trash,
-			              "      app0=%p st0=%d st1=%d applet=%s tid=%d nice=%d calls=%u rate=%u\n",
-				      tmpctx,
-				      tmpctx->st0,
-				      tmpctx->st1,
-			              tmpctx->applet->name,
-			              tmpctx->t->tid,
-			              tmpctx->t->nice, tmpctx->t->calls, read_freq_ctr(&tmpctx->call_rate));
-		}
-
-		scb = strm->scb;
-		chunk_appendf(&trash, "  scb=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d",
-			      scb, scb->flags, sc_state_str(scb->state),
-			      (sc_ep_test(scb, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scb, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
-			      scb->sedesc->se, sc_ep_get(scb), scb->wait_event.events);
-		chunk_appendf(&trash, " rex=%s",
-			      sc_ep_rcv_ex(scb) ? human_time(TICKS_TO_MS(sc_ep_rcv_ex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
-		chunk_appendf(&trash, " wex=%s\n",
-			      sc_ep_snd_ex(scb) ? human_time(TICKS_TO_MS(sc_ep_snd_ex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
-
-		if ((conn = sc_conn(scb)) != NULL) {
-			if (conn->mux && conn->mux->show_sd) {
-				chunk_appendf(&trash, "     ");
-				conn->mux->show_sd(&trash, scb->sedesc, "     ");
-				chunk_appendf(&trash, "\n");
-			}
-
-			chunk_appendf(&trash,
-			              "      co1=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
-				      conn,
-				      conn_get_ctrl_name(conn),
-				      conn_get_xprt_name(conn),
-				      conn_get_mux_name(conn),
-				      sc_get_data_name(scb),
-			              obj_type_name(conn->target),
-			              obj_base_ptr(conn->target));
-
-			chunk_appendf(&trash,
-			              "      flags=0x%08x fd=%d fd.state=%02x updt=%d fd.tmask=0x%lx\n",
-			              conn->flags,
-			              conn_fd(conn),
-			              conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].state : 0,
-			              conn_fd(conn) >= 0 ? !!(fdtab[conn->handle.fd].update_mask & ti->ltid_bit) : 0,
-				      conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
-		}
-		else if ((tmpctx = sc_appctx(scb)) != NULL) {
-			chunk_appendf(&trash,
-			              "      app1=%p st0=%d st1=%d applet=%s tid=%d nice=%d calls=%u rate=%u\n",
-				      tmpctx,
-				      tmpctx->st0,
-				      tmpctx->st1,
-			              tmpctx->applet->name,
-			              tmpctx->t->tid,
-			              tmpctx->t->nice, tmpctx->t->calls, read_freq_ctr(&tmpctx->call_rate));
-		}
-
-		chunk_appendf(&trash,
-			     "  req=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
-			     "      an_exp=%s buf=%p data=%p o=%u p=%u i=%u size=%u\n",
-			     &strm->req,
-			     strm->req.flags, strm->req.analysers,
-			     strm->req.pipe ? strm->req.pipe->data : 0,
-			     strm->req.to_forward, strm->req.total,
-			     strm->req.analyse_exp ?
-			     human_time(TICKS_TO_MS(strm->req.analyse_exp - now_ms),
-					TICKS_TO_MS(1000)) : "<NEVER>",
-			     &strm->req.buf,
-			     b_orig(&strm->req.buf), (unsigned int)co_data(&strm->req),
-			     (unsigned int)ci_head_ofs(&strm->req), (unsigned int)ci_data(&strm->req),
-			     (unsigned int)strm->req.buf.size);
-
-		if (IS_HTX_STRM(strm)) {
-			struct htx *htx = htxbuf(&strm->req.buf);
-
-			chunk_appendf(&trash,
-				      "      htx=%p flags=0x%x size=%u data=%u used=%u wrap=%s extra=%llu\n",
-				      htx, htx->flags, htx->size, htx->data, htx_nbblks(htx),
-				      (htx->tail >= htx->head) ? "NO" : "YES",
-				      (unsigned long long)htx->extra);
-		}
-		if (HAS_FILTERS(strm) && strm_flt(strm)->current[0]) {
-			struct filter *flt = strm_flt(strm)->current[0];
-
-			chunk_appendf(&trash, "      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x) \n",
-				      flt, flt->config->id, flt->flags, flt->pre_analyzers, flt->post_analyzers);
-		}
-
-		chunk_appendf(&trash,
-			     "  res=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
-			     "      an_exp=%s buf=%p data=%p o=%u p=%u i=%u size=%u\n",
-			     &strm->res,
-			     strm->res.flags, strm->res.analysers,
-			     strm->res.pipe ? strm->res.pipe->data : 0,
-			     strm->res.to_forward, strm->res.total,
-			     strm->res.analyse_exp ?
-			     human_time(TICKS_TO_MS(strm->res.analyse_exp - now_ms),
-					TICKS_TO_MS(1000)) : "<NEVER>",
-			     &strm->res.buf,
-		             b_orig(&strm->res.buf), (unsigned int)co_data(&strm->res),
-		             (unsigned int)ci_head_ofs(&strm->res), (unsigned int)ci_data(&strm->res),
-			     (unsigned int)strm->res.buf.size);
-
-		if (IS_HTX_STRM(strm)) {
-			struct htx *htx = htxbuf(&strm->res.buf);
-
-			chunk_appendf(&trash,
-				      "      htx=%p flags=0x%x size=%u data=%u used=%u wrap=%s extra=%llu\n",
-				      htx, htx->flags, htx->size, htx->data, htx_nbblks(htx),
-				      (htx->tail >= htx->head) ? "NO" : "YES",
-				      (unsigned long long)htx->extra);
-		}
-		if (HAS_FILTERS(strm) && strm_flt(strm)->current[1]) {
-			struct filter *flt = strm_flt(strm)->current[1];
-
-			chunk_appendf(&trash, "      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x) \n",
-				      flt, flt->config->id, flt->flags, flt->pre_analyzers, flt->post_analyzers);
-		}
-
-		if (strm->current_rule_list && strm->current_rule) {
-			const struct act_rule *rule = strm->current_rule;
-			chunk_appendf(&trash, "  current_rule=\"%s\" [%s:%d]\n", rule->kw->kw, rule->conf.file, rule->conf.line);
-		}
-
+		/* the function appends to the trash */
+		strm_dump_to_buffer(strm, appctx->cli_anon_key);
 		if (applet_putchk(appctx, &trash) == -1)
 			goto full;
 
