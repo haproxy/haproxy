@@ -2327,7 +2327,6 @@ static void hlua_socket_handler(struct appctx *appctx)
 
 static int hlua_socket_init(struct appctx *appctx)
 {
-	struct hlua_csk_ctx *ctx = appctx->svcctx;
 	struct stream *s;
 
 	if (appctx_finalize_startup(appctx, socket_proxy, &BUF_NULL) == -1)
@@ -2345,7 +2344,6 @@ static int hlua_socket_init(struct appctx *appctx)
 	s->flags |= SF_DIRECT | SF_ASSIGNED | SF_BE_ASSIGNED;
 	s->target = &socket_tcp->obj_type;
 
-	ctx->appctx = appctx;
 	return 0;
 
   error:
@@ -3337,6 +3335,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	ctx->connected = 0;
 	ctx->die = 0;
+	ctx->appctx = appctx;
 	LIST_INIT(&ctx->wake_on_write);
 	LIST_INIT(&ctx->wake_on_read);
 
