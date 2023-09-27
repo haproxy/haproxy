@@ -2567,13 +2567,13 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 
 		if (h1m->flags & H1_MF_CLEN) {
 			if (count > h1m->curr_len) {
-				TRACE_ERROR("too much payload, more than announced",
+				TRACE_ERROR("more payload than announced",
 					    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 				goto error;
 			}
 			h1m->curr_len -= count;
 			if (!h1m->curr_len)
-				last_data = 1;
+				h1m->state = H1_MSG_DONE;
 		}
 		else if (h1m->flags & H1_MF_CHNK) {
 			/* The message is chunked. We need to check if we must
@@ -2590,14 +2590,19 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			/* If is a new chunk, prepend the chunk size */
 			if (h1m->state == H1_MSG_CHUNK_CRLF || h1m->state == H1_MSG_CHUNK_SIZE) {
 				if (h1m->curr_len) {
-					TRACE_ERROR("too much payload, more than announced",
+					TRACE_ERROR("chunk bigger than announced",
 						    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 					goto error;
 				}
 				h1m->curr_len = count + (htx->extra != HTX_UNKOWN_PAYLOAD_LENGTH ? htx->extra : 0);
+
+				/* Because chunk meta-data are prepended, the chunk size of the current chunk
+				 * must be handled before the end of the previous chunk.
+				 */
 				h1_prepend_chunk_size(&h1c->obuf, h1m->curr_len);
 				if (h1m->state == H1_MSG_CHUNK_CRLF)
 					h1_prepend_chunk_crlf(&h1c->obuf);
+
 				h1m->state = H1_MSG_DATA;
 			}
 
@@ -2611,14 +2616,17 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 
 			/* It is the end of the message, add the last chunk with the extra CRLF */
 			if (eom) {
-				BUG_ON(h1m->curr_len);
+				if (h1m->curr_len) {
+					TRACE_ERROR("chunk smaller than announced",
+						    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+					goto error;
+				}
 				/* Emit the last chunk too at the buffer's end */
 				b_putblk(&h1c->obuf, "0\r\n\r\n", 5);
+				h1m->state = H1_MSG_DONE;
 			}
 		}
-
-		if (last_data == 1 || eom)
-			h1m->state = H1_MSG_DONE;
+		/* Nothing to do if XFER len is unknown */
 
 		ret = count;
 		TRACE_PROTO("H1 message payload data xferred (zero-copy)", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){ret});
