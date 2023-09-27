@@ -2528,7 +2528,6 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 	struct ist v;
 	uint32_t sz;
 	size_t ret = 0;
-	int last_data = 0;
 
 	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx, (size_t[]){count});
 	blk = htx_get_head_blk(htx);
@@ -2641,7 +2640,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 	/* Handle now case of CRLF at the end of a chun. */
 	if ((h1m->flags & H1_MF_CHNK) && h1m->state == H1_MSG_CHUNK_CRLF) {
 		if (h1m->curr_len) {
-			TRACE_ERROR("too much payload, more than announced",
+			TRACE_ERROR("chunk bigger than announced",
 				    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 			goto error;
 		}
@@ -2652,6 +2651,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 
 	while (blk && count) {
                 uint32_t vlen, chklen;
+		int last_data = 0;
 
 		type = htx_get_blk_type(blk);
 		sz = htx_get_blksz(blk);
@@ -2667,17 +2667,12 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 				TRACE_DEVEL("last message block", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s);
 				last_data = 1;
 			}
-			if (h1m->flags & H1_MF_CLEN) {
-				if (vlen > h1m->curr_len) {
-					TRACE_ERROR("too much payload, more than announced",
-						    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
-					goto error;
-				}
-			}
+
 			if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
 				TRACE_PROTO("Skip data for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx);
 				goto nextblk;
 			}
+
 			chklen = 0;
 			if (h1m->flags & H1_MF_CHNK) {
 				/* If is a new chunk, prepend the chunk size */
@@ -2701,6 +2696,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 				if (last_data)
 					chklen += 5;
 			}
+
 			if (vlen + chklen > b_room(&outbuf)) {
 				/* too large for the buffer */
 				if (chklen >= b_room(&outbuf))
@@ -2714,7 +2710,15 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			if (!h1_format_htx_data(v, &outbuf, 0))
 				goto full;
 
-			if (h1m->flags & H1_MF_CHNK) {
+			if (h1m->flags & H1_MF_CLEN) {
+				if (vlen > h1m->curr_len) {
+					TRACE_ERROR("more payload than announced",
+						    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+					goto error;
+				}
+				h1m->curr_len -= vlen;
+			}
+			else if (h1m->flags & H1_MF_CHNK) {
 				h1m->curr_len -= vlen;
 				/* Space already reserved, so it must succeed */
 				if (!h1m->curr_len) {
@@ -2722,9 +2726,18 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 						goto error;
 					h1m->state = H1_MSG_CHUNK_SIZE;
 				}
-				if (last_data && !chunk_memcat(&outbuf, "0\r\n\r\n", 5))
-					goto error;
+				if (last_data) {
+					if (h1m->curr_len) {
+						TRACE_ERROR("chunk smaller than announced",
+							    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+						goto error;
+					}
+					if (!chunk_memcat(&outbuf, "0\r\n\r\n", 5))
+						goto error;
+				}
 			}
+
+
 		}
 		else if (type == HTX_BLK_EOT || type == HTX_BLK_TLR) {
 			if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
@@ -2744,6 +2757,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			goto nextblk;
 		else
 			goto error;
+
 	nextblk:
 		ret += vlen;
 		count -= vlen;
@@ -2754,11 +2768,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			if (!b_room(&outbuf))
 				goto full;
 		}
-		if (h1m->flags & H1_MF_CLEN) {
-			h1m->curr_len -= vlen;
-			if (!h1m->curr_len)
-				last_data = 1;
-		}
+
 		if (last_data)
 			h1m->state = H1_MSG_DONE;
 	}
