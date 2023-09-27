@@ -102,10 +102,8 @@ int check_trk_action(struct act_rule *rule, struct proxy *px, char **err);
  */
 int check_capture(struct act_rule *rule, struct proxy *px, char **err);
 
-int cfg_parse_rule_set_timeout(const char **args, int idx, int *out_timeout,
-                               enum act_timeout_name *name,
-                               struct sample_expr **expr, char **err,
-                               const char *file, int line, struct arg_list *al);
+int cfg_parse_rule_set_timeout(const char **args, int idx, struct act_rule *rule,
+			       struct proxy *px, char **err);
 
 static inline void release_timeout_action(struct act_rule *rule)
 {

@@ -4,7 +4,7 @@ feature ignore_unknown_macro
 
 #REQUIRE_VERSION=2.4
 
-server srv_h1 -repeat 3 {
+server srv_h1 -repeat 5 {
     rxreq
     txresp
 } -start
@@ -20,6 +20,16 @@ syslog Slog2 -level info {
 } -start
 
 syslog Slog3 -level info {
+    recv
+    expect ~ "^.*timeout: 5000 3000.*$"
+} -start
+
+syslog Slog4 -level info {
+    recv
+    expect ~ "^.*timeout: 5000 5000.*$"
+} -start
+
+syslog Slog5 -level info {
     recv
     expect ~ "^.*timeout: 5000 3000.*$"
 } -start
@@ -46,6 +56,14 @@ haproxy hap -conf {
         http-request set-timeout server 5s
        server srv_h1 ${srv_h1_addr}:${srv_h1_port}
 
+    listen li3
+        mode http
+        bind "fd@${li3}"
+        log-format "timeout: %[fe_client_timeout] %[cur_client_timeout]"
+        log ${Slog4_addr}:${Slog4_port} len 2048 local0 debug err
+        http-request set-timeout client 5s
+       server srv_h1 ${srv_h1_addr}:${srv_h1_port}
+
     frontend fe1
         mode http
         bind "fd@${fe1}"
@@ -56,6 +74,18 @@ haproxy hap -conf {
     backend be1
        mode http
        http-request set-timeout server int(3),mul(1000)
+       server srv_h1 ${srv_h1_addr}:${srv_h1_port}
+
+    frontend fe2
+        mode http
+        bind "fd@${fe2}"
+        log-format "timeout: %[fe_client_timeout] %[cur_client_timeout]"
+        log ${Slog5_addr}:${Slog5_port} len 2048 local0 debug err
+        http-request set-timeout client int(3),mul(1000)
+        default_backend be2
+
+    backend be2
+       mode http
        server srv_h1 ${srv_h1_addr}:${srv_h1_port}
 } -start
 
@@ -77,6 +107,20 @@ client c3 -connect ${hap_fe1_sock} {
     expect resp.status == 200
 } -run
 
+client c4 -connect ${hap_li3_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c5 -connect ${hap_fe2_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
 syslog Slog1 -wait
 syslog Slog2 -wait
 syslog Slog3 -wait
+syslog Slog4 -wait
+syslog Slog5 -wait

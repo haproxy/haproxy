@@ -99,6 +99,7 @@ enum act_name {
 enum act_timeout_name {
 	ACT_TIMEOUT_SERVER,
 	ACT_TIMEOUT_TUNNEL,
+	ACT_TIMEOUT_CLIENT,
 };
 
 enum act_normalize_uri {

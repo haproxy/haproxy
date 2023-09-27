@@ -7010,7 +7010,7 @@ http-request <action> [options...] [ { if | unless } <condition> ]
     - set-query <fmt>
     - set-src <expr>
     - set-src-port <expr>
-    - set-timeout { server | tunnel } { <timeout> | <expr> }
+    - set-timeout { client | server | tunnel } { <timeout> | <expr> }
     - set-tos <tos>
     - set-uri <fmt>
     - set-var(<var-name>[,<cond>...]) <expr>
@@ -7925,10 +7925,10 @@ http-request set-src-port <expr> [ { if | unless } <condition> ]
   the address family supports a port, otherwise it forces the source address to
   IPv4 "0.0.0.0" before rewriting the port.
 
-http-request set-timeout { server | tunnel } { <timeout> | <expr> }
+http-request set-timeout { client | server | tunnel } { <timeout> | <expr> }
                                        [ { if | unless } <condition> ]
 
-  This action overrides the specified "server" or "tunnel" timeout for the
+  This action overrides the specified "client", "server" or "tunnel" timeout for the
   current stream only. The timeout can be specified in millisecond or with any
   other unit if the number is suffixed by the unit as explained at the top of
   this document. It is also possible to write an expression which must returns
@@ -7936,8 +7936,8 @@ http-request set-timeout { server | tunnel } { <timeout> | <expr> }
 
   Note that the server/tunnel timeouts are only relevant on the backend side
   and thus this rule is only available for the proxies with backend
-  capabilities. Also the timeout value must be non-null to obtain the expected
-  results.
+  capabilities. As well as client timeout is only relevant for frontend side.
+  Also the timeout value must be non-null to obtain the expected results.
 
   Example:
     http-request set-timeout tunnel 5s
@@ -20098,6 +20098,11 @@ cur_tunnel_timeout : integer
   In the default case, this will be equal to be_tunnel_timeout unless a
   "set-timeout" rule has been applied. See also "be_tunnel_timeout".
 
+cur_client_timeout : integer
+  Returns the currently applied client timeout in millisecond for the stream.
+  In the default case, this will be equal to fe_client_timeout unless a
+  "set-timeout" rule has been applied. See also "fe_client_timeout".
+
 dst : ip
   This is the destination IP address of the connection on the client side,
   which is the address the client connected to. Any tcp/http rules may alter
@@ -20353,7 +20358,7 @@ fe_name : string
 
 fe_client_timeout : integer
   Returns the configuration value in millisecond for the client timeout of the
-  current frontend.
+  current frontend. This timeout can be overwritten by a "set-timeout" rule.
 
 res.timer.data : integer
   this is the total transfer time of the response payload till the last byte
