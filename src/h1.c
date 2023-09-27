@@ -1143,6 +1143,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				/* T-E + C-L: force close and remove C-L */
 				h1m->flags |= H1_MF_CONN_CLO;
 				h1m->flags &= ~H1_MF_CLEN;
+				h1m->curr_len = h1m->body_len = 0;
 				hdr_count = http_del_hdr(hdr, ist("content-length"));
 			}
 			else if (!(h1m->flags & H1_MF_VER_11)) {
