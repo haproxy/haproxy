@@ -278,6 +278,7 @@ struct hlua_csk_ctx {
 	struct list wake_on_read;
 	struct list wake_on_write;
 	struct appctx *appctx;
+	int timeout;
 	int die;
 };
 
@@ -2327,6 +2328,7 @@ static void hlua_socket_handler(struct appctx *appctx)
 
 static int hlua_socket_init(struct appctx *appctx)
 {
+	struct hlua_csk_ctx *csk_ctx = appctx->svcctx;
 	struct stream *s;
 
 	if (appctx_finalize_startup(appctx, socket_proxy, &BUF_NULL) == -1)
@@ -2343,6 +2345,12 @@ static int hlua_socket_init(struct appctx *appctx)
 	/* Force destination server. */
 	s->flags |= SF_DIRECT | SF_ASSIGNED | SF_BE_ASSIGNED;
 	s->target = &socket_tcp->obj_type;
+
+	if (csk_ctx->timeout) {
+		s->sess->fe->timeout.connect = csk_ctx->timeout;
+		s->scf->ioto = csk_ctx->timeout;
+		s->scb->ioto = csk_ctx->timeout;
+	}
 
 	return 0;
 
@@ -3273,6 +3281,8 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 	int tmout;
 	double dtmout;
 	struct xref *peer;
+	struct hlua_csk_ctx *csk_ctx;
+	struct appctx *appctx;
 	struct stream *s;
 
 	MAY_LJMP(check_args(L, 2, "settimeout"));
@@ -3307,17 +3317,25 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 		return 0;
 	}
 
-	s = appctx_strm(container_of(peer, struct hlua_csk_ctx, xref)->appctx);
+	csk_ctx = container_of(peer, struct hlua_csk_ctx, xref);
+	csk_ctx->timeout = tmout;
+
+	appctx = csk_ctx->appctx;
+	if (!appctx_sc(appctx))
+		goto end;
+
+	s = appctx_strm(csk_ctx->appctx);
 
 	s->sess->fe->timeout.connect = tmout;
 	s->scf->ioto = tmout;
 	s->scb->ioto = tmout;
 
-	s->task->expire = tick_add_ifset(now_ms, tmout);
+	s->task->expire = (tick_is_expired(s->task->expire, now_ms) ? 0 : s->task->expire);
+	s->task->expire = tick_first(s->task->expire, tick_add_ifset(now_ms, tmout));
 	task_queue(s->task);
 
+  end:
 	xref_unlock(&socket->xref, peer);
-
 	lua_pushinteger(L, 1);
 	return 1;
 }
@@ -3360,6 +3378,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	ctx->connected = 0;
 	ctx->die = 0;
+	ctx->timeout = 0;
 	ctx->appctx = appctx;
 	LIST_INIT(&ctx->wake_on_write);
 	LIST_INIT(&ctx->wake_on_read);
