@@ -2345,7 +2345,7 @@ static int hlua_socket_init(struct appctx *appctx)
 
 	/* Force destination server. */
 	s->flags |= SF_DIRECT | SF_ASSIGNED | SF_BE_ASSIGNED;
-	s->target = &socket_tcp->obj_type;
+	s->target = &csk_ctx->srv->obj_type;
 
 	if (csk_ctx->timeout) {
 		s->sess->fe->timeout.connect = csk_ctx->timeout;
@@ -3146,7 +3146,6 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	struct sockaddr_storage *addr;
 	struct xref *peer;
 	struct stconn *sc;
-	struct stream *s;
 
 	/* Get hlua struct, or NULL if we execute from main lua state */
 	hlua = hlua_gethlua(L);
@@ -3217,10 +3216,18 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 		}
 	}
 
-	csk_ctx = container_of(peer, struct hlua_csk_ctx, xref);
 	appctx = csk_ctx->appctx;
+	if (appctx_sc(appctx)) {
+		xref_unlock(&socket->xref, peer);
+		WILL_LJMP(luaL_error(L, "connect: connect already performed\n"));
+	}
+
+	if (appctx_init(appctx) == -1) {
+		xref_unlock(&socket->xref, peer);
+		WILL_LJMP(luaL_error(L, "connect: fail to init applet."));
+	}
+
 	sc = appctx_sc(appctx);
-	s = __sc_strm(sc);
 
 	if (!sockaddr_alloc(&sc_opposite(sc)->dst, addr, sizeof(*addr))) {
 		xref_unlock(&socket->xref, peer);
@@ -3242,9 +3249,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	}
 	xref_unlock(&socket->xref, peer);
 
-	task_wakeup(s->task, TASK_WOKEN_INIT);
 	/* Return yield waiting for connection. */
-
 	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_connect_yield, TICK_ETERNITY, 0));
 
 	return 0;
@@ -3255,7 +3260,6 @@ __LJMP static int hlua_socket_connect_ssl(struct lua_State *L)
 {
 	struct hlua_socket *socket;
 	struct xref *peer;
-	struct stream *s;
 
 	MAY_LJMP(check_args(L, 3, "connect_ssl"));
 	socket  = MAY_LJMP(hlua_checksocket(L, 1));
@@ -3267,10 +3271,8 @@ __LJMP static int hlua_socket_connect_ssl(struct lua_State *L)
 		return 1;
 	}
 
-	s = appctx_strm(container_of(peer, struct hlua_csk_ctx, xref)->appctx);
 	container_of(peer, struct hlua_csk_ctx, xref)->srv = socket_ssl;
 
-	s->target = &socket_ssl->obj_type;
 	xref_unlock(&socket->xref, peer);
 	return MAY_LJMP(hlua_socket_connect(L));
 }
@@ -3389,11 +3391,6 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	ctx->appctx = appctx;
 	LIST_INIT(&ctx->wake_on_write);
 	LIST_INIT(&ctx->wake_on_read);
-
-	if (appctx_init(appctx) == -1) {
-		hlua_pusherror(L, "socket: fail to init applet.");
-		goto out_fail_appctx;
-	}
 
 	/* Initialise cross reference between stream and Lua socket object. */
 	xref_create(&socket->xref, &ctx->xref);
