@@ -3242,9 +3242,10 @@ struct show_sess_ctx {
 /* This function appends a complete dump of a stream state onto the buffer,
  * possibly anonymizing using the specified anon_key. The caller is responsible
  * for ensuring that enough room remains in the buffer to dump a complete
- * stream at once.
+ * stream at once. Each new output line will be prefixed with <pfx> if non-null,
+ * which is used to preserve indenting.
  */
-static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, uint32_t anon_key)
+static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const char *pfx, uint32_t anon_key)
 {
 	struct stconn *scf, *scb;
 	struct tm tm;
@@ -3252,6 +3253,8 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 	char pn[INET6_ADDRSTRLEN];
 	struct connection *conn;
 	struct appctx *tmpctx;
+
+	pfx = pfx ? pfx : "";
 
 	get_localtime(strm->logs.accept_date.tv_sec, &tm);
 	chunk_appendf(buf,
@@ -3279,7 +3282,7 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 	}
 
 	chunk_appendf(buf,
-		     "  flags=0x%x, conn_retries=%d, conn_exp=%s conn_et=0x%03x srv_conn=%p, pend_pos=%p waiting=%d epoch=%#x\n",
+		     "%s  flags=0x%x, conn_retries=%d, conn_exp=%s conn_et=0x%03x srv_conn=%p, pend_pos=%p waiting=%d epoch=%#x\n", pfx,
 		     strm->flags, strm->conn_retries,
 		     strm->conn_exp ?
 		             tick_is_expired(strm->conn_exp, now_ms) ? "<PAST>" :
@@ -3289,7 +3292,7 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 		     LIST_INLIST(&strm->buffer_wait.list), strm->stream_epoch);
 
 	chunk_appendf(buf,
-		     "  frontend=%s (id=%u mode=%s), listener=%s (id=%u)",
+		     "%s  frontend=%s (id=%u mode=%s), listener=%s (id=%u)", pfx,
 		     HA_ANON_STR(anon_key, strm_fe(strm)->id), strm_fe(strm)->uuid, proxy_mode_str(strm_fe(strm)->mode),
 		     strm_li(strm) ? strm_li(strm)->name ? strm_li(strm)->name : "?" : "?",
 		     strm_li(strm) ? strm_li(strm)->luid : 0);
@@ -3311,11 +3314,11 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 
 	if (strm->be->cap & PR_CAP_BE)
 		chunk_appendf(buf,
-			     "  backend=%s (id=%u mode=%s)",
+			     "%s  backend=%s (id=%u mode=%s)", pfx,
 			     HA_ANON_STR(anon_key, strm->be->id),
 			     strm->be->uuid, proxy_mode_str(strm->be->mode));
 	else
-		chunk_appendf(buf, "  backend=<NONE> (id=-1 mode=-)");
+		chunk_appendf(buf, "%s  backend=<NONE> (id=-1 mode=-)", pfx);
 
 	conn = sc_conn(strm->scb);
 	switch (conn && conn_get_src(conn) ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
@@ -3335,11 +3338,11 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 
 	if (strm->be->cap & PR_CAP_BE)
 		chunk_appendf(buf,
-			     "  server=%s (id=%u)",
+			     "%s  server=%s (id=%u)", pfx,
 			     objt_server(strm->target) ? HA_ANON_STR(anon_key, __objt_server(strm->target)->id) : "<none>",
 			     objt_server(strm->target) ? __objt_server(strm->target)->puid : 0);
 	else
-		chunk_appendf(buf, "  server=<NONE> (id=-1)");
+		chunk_appendf(buf, "%s  server=<NONE> (id=-1)", pfx);
 
 	switch (conn && conn_get_dst(conn) ? addr_to_str(conn->dst, pn, sizeof(pn)) : AF_UNSPEC) {
 	case AF_INET:
@@ -3357,7 +3360,7 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 	}
 
 	chunk_appendf(buf,
-		     "  task=%p (state=0x%02x nice=%d calls=%u rate=%u exp=%s tid=%d(%d/%d)%s",
+		      "%s  task=%p (state=0x%02x nice=%d calls=%u rate=%u exp=%s tid=%d(%d/%d)%s", pfx,
 		     strm->task,
 		     strm->task->state,
 		     strm->task->nice, strm->task->calls, read_freq_ctr(&strm->call_rate),
@@ -3376,13 +3379,13 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 
 	if (strm->txn)
 		chunk_appendf(buf,
-		      "  txn=%p flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s req.f=0x%02x rsp.f=0x%02x\n",
+		      "%s  txn=%p flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s req.f=0x%02x rsp.f=0x%02x\n", pfx,
 		      strm->txn, strm->txn->flags, strm->txn->meth, strm->txn->status,
 		      h1_msg_state_str(strm->txn->req.msg_state), h1_msg_state_str(strm->txn->rsp.msg_state),
 		      strm->txn->req.flags, strm->txn->rsp.flags);
 
 	scf = strm->scf;
-	chunk_appendf(buf, "  scf=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d",
+	chunk_appendf(buf, "%s  scf=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d", pfx,
 		      scf, scf->flags, sc_state_str(scf->state),
 		      (sc_ep_test(scf, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scf, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
 		      scf->sedesc->se, sc_ep_get(scf), scf->wait_event.events);
@@ -3393,13 +3396,16 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 
 	if ((conn = sc_conn(scf)) != NULL) {
 		if (conn->mux && conn->mux->show_sd) {
-			chunk_appendf(buf, "     ");
-			conn->mux->show_sd(buf, scf->sedesc, "     ");
+			char muxpfx[100] = "";
+
+			snprintf(muxpfx, sizeof(muxpfx), "%s      ", pfx);
+			chunk_appendf(buf, "%s     ", pfx);
+			conn->mux->show_sd(buf, scf->sedesc, muxpfx);
 			chunk_appendf(buf, "\n");
 		}
 
 		chunk_appendf(buf,
-		              "      co0=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
+		              "%s      co0=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n", pfx,
 			      conn,
 			      conn_get_ctrl_name(conn),
 			      conn_get_xprt_name(conn),
@@ -3409,7 +3415,7 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 		              obj_base_ptr(conn->target));
 
 		chunk_appendf(buf,
-		              "      flags=0x%08x fd=%d fd.state=%02x updt=%d fd.tmask=0x%lx\n",
+		              "%s      flags=0x%08x fd=%d fd.state=%02x updt=%d fd.tmask=0x%lx\n", pfx,
 		              conn->flags,
 		              conn_fd(conn),
 		              conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].state : 0,
@@ -3418,7 +3424,7 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 	}
 	else if ((tmpctx = sc_appctx(scf)) != NULL) {
 		chunk_appendf(buf,
-		              "      app0=%p st0=%d st1=%d applet=%s tid=%d nice=%d calls=%u rate=%u\n",
+		              "%s      app0=%p st0=%d st1=%d applet=%s tid=%d nice=%d calls=%u rate=%u\n", pfx,
 			      tmpctx,
 			      tmpctx->st0,
 			      tmpctx->st1,
@@ -3428,7 +3434,7 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 	}
 
 	scb = strm->scb;
-	chunk_appendf(buf, "  scb=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d",
+	chunk_appendf(buf, "%s  scb=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d", pfx,
 		      scb, scb->flags, sc_state_str(scb->state),
 		      (sc_ep_test(scb, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scb, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
 		      scb->sedesc->se, sc_ep_get(scb), scb->wait_event.events);
@@ -3439,13 +3445,16 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 
 	if ((conn = sc_conn(scb)) != NULL) {
 		if (conn->mux && conn->mux->show_sd) {
-			chunk_appendf(buf, "     ");
-			conn->mux->show_sd(buf, scb->sedesc, "     ");
+			char muxpfx[100] = "";
+
+			snprintf(muxpfx, sizeof(muxpfx), "%s      ", pfx);
+			chunk_appendf(buf, "%s     ", pfx);
+			conn->mux->show_sd(buf, scb->sedesc, muxpfx);
 			chunk_appendf(buf, "\n");
 		}
 
 		chunk_appendf(buf,
-		              "      co1=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
+		              "%s      co1=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n", pfx,
 			      conn,
 			      conn_get_ctrl_name(conn),
 			      conn_get_xprt_name(conn),
@@ -3455,7 +3464,7 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 		              obj_base_ptr(conn->target));
 
 		chunk_appendf(buf,
-		              "      flags=0x%08x fd=%d fd.state=%02x updt=%d fd.tmask=0x%lx\n",
+		              "%s      flags=0x%08x fd=%d fd.state=%02x updt=%d fd.tmask=0x%lx\n", pfx,
 		              conn->flags,
 		              conn_fd(conn),
 		              conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].state : 0,
@@ -3464,7 +3473,7 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 	}
 	else if ((tmpctx = sc_appctx(scb)) != NULL) {
 		chunk_appendf(buf,
-		              "      app1=%p st0=%d st1=%d applet=%s tid=%d nice=%d calls=%u rate=%u\n",
+		              "%s      app1=%p st0=%d st1=%d applet=%s tid=%d nice=%d calls=%u rate=%u\n", pfx,
 			      tmpctx,
 			      tmpctx->st0,
 			      tmpctx->st1,
@@ -3476,7 +3485,7 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 	if (HAS_FILTERS(strm)) {
 		const struct filter *flt;
 
-		chunk_appendf(buf, "  filters={");
+		chunk_appendf(buf, "%s  filters={", pfx);
 		list_for_each_entry(flt, &strm->strm_flt.filters, list) {
 			if (flt->list.p != &strm->strm_flt.filters)
 				chunk_appendf(buf, ", ");
@@ -3486,12 +3495,14 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 	}
 
 	chunk_appendf(buf,
-		     "  req=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
-		     "      an_exp=%s buf=%p data=%p o=%u p=%u i=%u size=%u\n",
+		     "%s  req=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
+		     "%s      an_exp=%s buf=%p data=%p o=%u p=%u i=%u size=%u\n",
+		     pfx,
 		     &strm->req,
 		     strm->req.flags, strm->req.analysers,
 		     strm->req.pipe ? strm->req.pipe->data : 0,
 		     strm->req.to_forward, strm->req.total,
+		     pfx,
 		     strm->req.analyse_exp ?
 		     human_time(TICKS_TO_MS(strm->req.analyse_exp - now_ms),
 				TICKS_TO_MS(1000)) : "<NEVER>",
@@ -3504,7 +3515,7 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 		struct htx *htx = htxbuf(&strm->req.buf);
 
 		chunk_appendf(buf,
-			      "      htx=%p flags=0x%x size=%u data=%u used=%u wrap=%s extra=%llu\n",
+			      "%s      htx=%p flags=0x%x size=%u data=%u used=%u wrap=%s extra=%llu\n", pfx,
 			      htx, htx->flags, htx->size, htx->data, htx_nbblks(htx),
 			      (htx->tail >= htx->head) ? "NO" : "YES",
 			      (unsigned long long)htx->extra);
@@ -3512,17 +3523,19 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 	if (HAS_FILTERS(strm) && strm->strm_flt.current[0]) {
 		const struct filter *flt = strm->strm_flt.current[0];
 
-		chunk_appendf(buf, "      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x) \n",
+		chunk_appendf(buf, "%s      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x) \n", pfx,
 			      flt, flt->config->id, flt->flags, flt->pre_analyzers, flt->post_analyzers);
 	}
 
 	chunk_appendf(buf,
-		     "  res=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
-		     "      an_exp=%s buf=%p data=%p o=%u p=%u i=%u size=%u\n",
+		     "%s  res=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
+		     "%s      an_exp=%s buf=%p data=%p o=%u p=%u i=%u size=%u\n",
+		     pfx,
 		     &strm->res,
 		     strm->res.flags, strm->res.analysers,
 		     strm->res.pipe ? strm->res.pipe->data : 0,
 		     strm->res.to_forward, strm->res.total,
+		     pfx,
 		     strm->res.analyse_exp ?
 		     human_time(TICKS_TO_MS(strm->res.analyse_exp - now_ms),
 				TICKS_TO_MS(1000)) : "<NEVER>",
@@ -3535,21 +3548,22 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 		struct htx *htx = htxbuf(&strm->res.buf);
 
 		chunk_appendf(buf,
-			      "      htx=%p flags=0x%x size=%u data=%u used=%u wrap=%s extra=%llu\n",
+			      "%s      htx=%p flags=0x%x size=%u data=%u used=%u wrap=%s extra=%llu\n", pfx,
 			      htx, htx->flags, htx->size, htx->data, htx_nbblks(htx),
 			      (htx->tail >= htx->head) ? "NO" : "YES",
 			      (unsigned long long)htx->extra);
 	}
+
 	if (HAS_FILTERS(strm) && strm->strm_flt.current[1]) {
 		const struct filter *flt = strm->strm_flt.current[1];
 
-		chunk_appendf(buf, "      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x) \n",
+		chunk_appendf(buf, "%s      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x) \n", pfx,
 			      flt, flt->config->id, flt->flags, flt->pre_analyzers, flt->post_analyzers);
 	}
 
 	if (strm->current_rule_list && strm->current_rule) {
 		const struct act_rule *rule = strm->current_rule;
-		chunk_appendf(buf, "  current_rule=\"%s\" [%s:%d]\n", rule->kw->kw, rule->conf.file, rule->conf.line);
+		chunk_appendf(buf, "%s  current_rule=\"%s\" [%s:%d]\n", pfx, rule->kw->kw, rule->conf.file, rule->conf.line);
 	}
 }
 
@@ -3580,7 +3594,7 @@ static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm
 		__fallthrough;
 
 	case 1:
-		strm_dump_to_buffer(&trash, strm, appctx->cli_anon_key);
+		strm_dump_to_buffer(&trash, strm, "", appctx->cli_anon_key);
 		if (applet_putchk(appctx, &trash) == -1)
 			goto full;
 
