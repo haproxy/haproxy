@@ -325,7 +325,7 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 		s = sc_strm(((struct stconn *)task->context));
 
 	if (s)
-		stream_dump(buf, s, pfx, '\n');
+		stream_dump(buf, s, pfx);
 
 #ifdef USE_LUA
 	hlua = NULL;

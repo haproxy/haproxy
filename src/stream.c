@@ -2809,7 +2809,7 @@ void stream_shutdown(struct stream *stream, int why)
  * preliminary be prepared by its caller, with each line prepended by prefix
  * <pfx>, and each line terminated by character <eol>.
  */
-void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, char eol)
+void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx)
 {
 	const struct stconn *scf, *scb;
 	const struct connection  *cof, *cob;
@@ -2819,6 +2819,7 @@ void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, ch
 	const char *dst = "unknown";
 	char pn[INET6_ADDRSTRLEN];
 	const struct channel *req, *res;
+	char eol = '\n';
 
 	if (!s) {
 		chunk_appendf(buf, "%sstrm=%p%c", pfx, s, eol);
@@ -2895,9 +2896,9 @@ void stream_dump_and_crash(enum obj_type *obj, int rate)
 	}
 
 	chunk_reset(&trash);
-	stream_dump(&trash, s, "", ' ');
+	stream_dump(&trash, s, "  ");
 
-	chunk_appendf(&trash, "filters={");
+	chunk_appendf(&trash, "  filters={");
 	if (HAS_FILTERS(s)) {
 		struct filter *filter;
 
@@ -2923,8 +2924,8 @@ void stream_dump_and_crash(enum obj_type *obj, int rate)
 
 	memprintf(&msg,
 	          "A bogus %s [%p] is spinning at %d calls per second and refuses to die, "
-	          "aborting now! Please report this error to developers "
-	          "[%s]\n",
+	          "aborting now! Please report this error to developers:\n"
+	          "%s\n",
 	          obj_type_name(obj), ptr, rate, trash.area);
 
 	ha_alert("%s", msg);
