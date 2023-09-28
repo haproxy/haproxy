@@ -3472,6 +3472,18 @@ static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, u
 		              tmpctx->t->nice, tmpctx->t->calls, read_freq_ctr(&tmpctx->call_rate));
 	}
 
+	if (HAS_FILTERS(strm)) {
+		const struct filter *flt;
+
+		chunk_appendf(buf, "  filters={");
+		list_for_each_entry(flt, &strm->strm_flt.filters, list) {
+			if (flt->list.p != &strm->strm_flt.filters)
+				chunk_appendf(buf, ", ");
+			chunk_appendf(buf, "%p=\"%s\"", flt, FLT_ID(flt));
+		}
+		chunk_appendf(buf, "}\n");
+	}
+
 	chunk_appendf(buf,
 		     "  req=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
 		     "      an_exp=%s buf=%p data=%p o=%u p=%u i=%u size=%u\n",
