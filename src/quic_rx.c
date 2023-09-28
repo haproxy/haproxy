@@ -1716,8 +1716,7 @@ static int quic_retry_token_check(struct quic_rx_packet *pkt,
 	const uint64_t tokenlen = pkt->token_len;
 	unsigned char buf[128];
 	unsigned char aad[sizeof(uint32_t) + QUIC_CID_MAXLEN +
-		          sizeof(in_port_t) + sizeof(struct in6_addr) +
-			  QUIC_CID_MAXLEN];
+	                  sizeof(in_port_t) + sizeof(struct in6_addr)];
 	size_t aadlen;
 	const unsigned char *salt;
 	unsigned char key[QUIC_TLS_KEY_LEN];
@@ -1758,7 +1757,7 @@ static int quic_retry_token_check(struct quic_rx_packet *pkt,
 		goto err;
 	}
 
-	aadlen = quic_generate_retry_token_aad(aad, qv->num, &pkt->dcid, &pkt->scid, &dgram->saddr);
+	aadlen = quic_generate_retry_token_aad(aad, qv->num, &pkt->scid, &dgram->saddr);
 	salt = token + tokenlen - QUIC_RETRY_TOKEN_SALTLEN;
 	if (!quic_tls_derive_retry_token_secret(EVP_sha256(), key, sizeof key, iv, sizeof iv,
 	                                        salt, QUIC_RETRY_TOKEN_SALTLEN, sec, seclen)) {

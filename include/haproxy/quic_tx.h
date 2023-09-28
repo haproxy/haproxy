@@ -44,7 +44,6 @@ void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
                                 struct list *ifrms, struct list *hfrms);
 int quic_generate_retry_token_aad(unsigned char *aad,
                                   uint32_t version,
-                                  const struct quic_cid *dcid,
                                   const struct quic_cid *scid,
                                   const struct sockaddr_storage *addr);
 int send_retry(int fd, struct sockaddr_storage *addr,
