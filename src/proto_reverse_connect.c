@@ -68,11 +68,6 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 	if (conn_prepare(conn, protocol_lookup(conn->dst->ss_family, PROTO_TYPE_STREAM, 0), srv->xprt))
 		goto err;
 
-	/* TODO simplification of tcp_connect_server() */
-	conn->handle.fd = sock_create_server_socket(conn);
-	if (fd_set_nonblock(conn->handle.fd) == -1)
-		goto err;
-
 	if (conn->ctrl->connect(conn, 0) != SF_ERR_NONE)
 		goto err;
 
