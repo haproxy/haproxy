@@ -324,8 +324,10 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 	else if (task->process == sc_conn_io_cb && task->context)
 		s = sc_strm(((struct stconn *)task->context));
 
-	if (s)
+	if (s) {
+		chunk_appendf(buf, "%sstream=", pfx);
 		strm_dump_to_buffer(buf, s, pfx, HA_ATOMIC_LOAD(&global.anon_key));
+	}
 
 #ifdef USE_LUA
 	hlua = NULL;
