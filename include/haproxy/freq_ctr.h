@@ -77,7 +77,7 @@ static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int in
  * instead which does not have the flapping correction, so that even frequencies
  * as low as one event/period are properly handled.
  */
-static inline uint read_freq_ctr_period(struct freq_ctr *ctr, uint period)
+static inline uint read_freq_ctr_period(const struct freq_ctr *ctr, uint period)
 {
 	ullong total = freq_ctr_total(ctr, period, -1);
 
@@ -87,7 +87,7 @@ static inline uint read_freq_ctr_period(struct freq_ctr *ctr, uint period)
 /* same as read_freq_ctr_period() above except that floats are used for the
  * output so that low rates can be more precise.
  */
-static inline double read_freq_ctr_period_flt(struct freq_ctr *ctr, uint period)
+static inline double read_freq_ctr_period_flt(const struct freq_ctr *ctr, uint period)
 {
 	ullong total = freq_ctr_total(ctr, period, -1);
 
@@ -97,7 +97,7 @@ static inline double read_freq_ctr_period_flt(struct freq_ctr *ctr, uint period)
 /* Read a 1-sec frequency counter taking history into account for missing time
  * in current period.
  */
-static inline unsigned int read_freq_ctr(struct freq_ctr *ctr)
+static inline unsigned int read_freq_ctr(const struct freq_ctr *ctr)
 {
 	return read_freq_ctr_period(ctr, MS_TO_TICKS(1000));
 }
@@ -105,7 +105,7 @@ static inline unsigned int read_freq_ctr(struct freq_ctr *ctr)
 /* same as read_freq_ctr() above except that floats are used for the
  * output so that low rates can be more precise.
  */
-static inline double read_freq_ctr_flt(struct freq_ctr *ctr)
+static inline double read_freq_ctr_flt(const struct freq_ctr *ctr)
 {
 	return read_freq_ctr_period_flt(ctr, MS_TO_TICKS(1000));
 }
@@ -114,7 +114,7 @@ static inline double read_freq_ctr_flt(struct freq_ctr *ctr)
  * while respecting <freq> events per period, and taking into account that
  * <pend> events are already known to be pending. Returns 0 if limit was reached.
  */
-static inline uint freq_ctr_remain_period(struct freq_ctr *ctr, uint period, uint freq, uint pend)
+static inline uint freq_ctr_remain_period(const struct freq_ctr *ctr, uint period, uint freq, uint pend)
 {
 	ullong total = freq_ctr_total(ctr, period, pend);
 	uint avg     = div64_32(total, period);
@@ -128,7 +128,7 @@ static inline uint freq_ctr_remain_period(struct freq_ctr *ctr, uint period, uin
  * while respecting <freq> and taking into account that <pend> events are
  * already known to be pending. Returns 0 if limit was reached.
  */
-static inline unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned int pend)
+static inline unsigned int freq_ctr_remain(const struct freq_ctr *ctr, unsigned int freq, unsigned int pend)
 {
 	return freq_ctr_remain_period(ctr, MS_TO_TICKS(1000), freq, pend);
 }
@@ -139,7 +139,7 @@ static inline unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int fr
  * time, which will be rounded down 1ms for better accuracy, with a minimum
  * of one ms.
  */
-static inline uint next_event_delay_period(struct freq_ctr *ctr, uint period, uint freq, uint pend)
+static inline uint next_event_delay_period(const struct freq_ctr *ctr, uint period, uint freq, uint pend)
 {
 	ullong total = freq_ctr_total(ctr, period, pend);
 	ullong limit = (ullong)freq * period;
@@ -164,7 +164,7 @@ static inline uint next_event_delay_period(struct freq_ctr *ctr, uint period, ui
  * the wait time, which will be rounded down 1ms for better accuracy, with a
  * minimum of one ms.
  */
-static inline unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned int pend)
+static inline unsigned int next_event_delay(const struct freq_ctr *ctr, unsigned int freq, unsigned int pend)
 {
 	return next_event_delay_period(ctr, MS_TO_TICKS(1000), freq, pend);
 }
