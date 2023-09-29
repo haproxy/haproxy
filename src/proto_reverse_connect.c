@@ -92,6 +92,15 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 
  err:
 	if (conn) {
+		conn_stop_tracking(conn);
+		conn_xprt_shutw(conn);
+		conn_xprt_close(conn);
+		conn_sock_shutw(conn, 0);
+		conn_ctrl_close(conn);
+
+		if (conn->destroy_cb)
+			conn->destroy_cb(conn);
+
 		/* Mark connection as non-reversable. This prevents conn_free()
 		 * to reschedule reverse_connect task on freeing a preconnect
 		 * connection.
@@ -137,7 +146,14 @@ struct task *rev_process(struct task *task, void *ctx, unsigned int state)
 
 	if (conn) {
 		if (conn->flags & CO_FL_ERROR) {
-			conn_full_close(conn);
+			conn_stop_tracking(conn);
+			conn_xprt_shutw(conn);
+			conn_xprt_close(conn);
+			conn_sock_shutw(conn, 0);
+			conn_ctrl_close(conn);
+
+			if (conn->destroy_cb)
+				conn->destroy_cb(conn);
 			conn_free(conn);
 
 			/* conn_free() must report preconnect failure using rev_notify_preconn_err(). */
