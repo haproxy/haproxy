@@ -7158,7 +7158,7 @@ static const struct mux_ops h2_ops = {
 	.show_fd = h2_show_fd,
 	.show_sd = h2_show_sd,
 	.takeover = h2_takeover,
-	.flags = MX_FL_HTX|MX_FL_HOL_RISK|MX_FL_NO_UPG,
+	.flags = MX_FL_HTX|MX_FL_HOL_RISK|MX_FL_NO_UPG|MX_FL_REVERSABLE,
 	.name = "H2",
 };
 

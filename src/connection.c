@@ -282,6 +282,15 @@ int conn_install_mux_fe(struct connection *conn, void *ctx)
 		if (!mux_ops)
 			return -1;
 	}
+
+	/* Ensure a valid protocol is selected if connection is targetted by a
+	 * tcp-request session attach-srv rule.
+	 */
+	if (conn->reverse.target && !(mux_ops->flags & MX_FL_REVERSABLE)) {
+		conn->err_code = CO_ER_REVERSE;
+		return -1;
+	}
+
 	return conn_install_mux(conn, mux_ops, ctx, bind_conf->frontend, conn->owner);
 }
 
