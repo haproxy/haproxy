@@ -66,7 +66,6 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 
 /* kill a stream and set the termination flags to <why> (one of SF_ERR_*) */
 void stream_shutdown(struct stream *stream, int why);
-void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx);
 void stream_dump_and_crash(enum obj_type *obj, int rate);
 void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const char *pfx, uint32_t anon_key);
 
