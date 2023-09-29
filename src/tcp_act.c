@@ -505,23 +505,20 @@ static enum act_parse_ret tcp_parse_attach_srv(const char **args, int *cur_arg, 
 
 	++(*cur_arg);
 
-	while (args[*cur_arg] && args[*cur_arg][0] != '\0') {
-		if (strcmp(args[*cur_arg], "name") == 0) {
-			++(*cur_arg);
-
-			expr = sample_parse_expr((char **)args, cur_arg, px->conf.args.file, px->conf.args.line,
-			                         err, &px->conf.args, NULL);
-			if (!expr)
-				return ACT_RET_PRS_ERR;
-
-			rule->arg.attach_srv.name = expr;
-			rule->release_ptr = release_attach_srv_action;
-			++(*cur_arg);
-		}
-		else {
-			memprintf(err, "Unknown argument.");
+	if (strcmp(args[*cur_arg], "name") == 0) {
+		if (!*args[*cur_arg + 1]) {
+			memprintf(err, "missing name value");
 			return ACT_RET_PRS_ERR;
 		}
+		++(*cur_arg);
+
+		expr = sample_parse_expr((char **)args, cur_arg, px->conf.args.file, px->conf.args.line,
+		                         err, &px->conf.args, NULL);
+		if (!expr)
+			return ACT_RET_PRS_ERR;
+
+		rule->arg.attach_srv.name = expr;
+		rule->release_ptr = release_attach_srv_action;
 	}
 
 	return ACT_RET_PRS_OK;
