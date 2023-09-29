@@ -3243,7 +3243,7 @@ struct show_sess_ctx {
  * responsible for ensuring that enough room remains in the buffer to dump a
  * complete stream at once.
  */
-static void strm_dump_to_buffer(struct stream *strm, uint32_t anon_key)
+static void strm_dump_to_buffer(const struct stream *strm, uint32_t anon_key)
 {
 	struct stconn *scf, *scb;
 	struct tm tm;
