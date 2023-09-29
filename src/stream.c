@@ -2880,7 +2880,7 @@ void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx)
  */
 void stream_dump_and_crash(enum obj_type *obj, int rate)
 {
-	const struct stream *s;
+	struct stream *s;
 	char *msg = NULL;
 	const void *ptr;
 
@@ -2896,19 +2896,8 @@ void stream_dump_and_crash(enum obj_type *obj, int rate)
 	}
 
 	chunk_reset(&trash);
-	stream_dump(&trash, s, "  ");
-
-	chunk_appendf(&trash, "  filters={");
-	if (HAS_FILTERS(s)) {
-		struct filter *filter;
-
-		list_for_each_entry(filter, &s->strm_flt.filters, list) {
-			if (filter->list.p != &s->strm_flt.filters)
-				chunk_appendf(&trash, ", ");
-			chunk_appendf(&trash, "%p=\"%s\"", filter, FLT_ID(filter));
-		}
-	}
-	chunk_appendf(&trash, "}");
+	chunk_printf(&trash, "  ");
+	strm_dump_to_buffer(&trash, s, " ", HA_ATOMIC_LOAD(&global.anon_key));
 
 	if (ptr != s) { // that's an appctx
 		const struct appctx *appctx = ptr;
@@ -3245,7 +3234,7 @@ struct show_sess_ctx {
  * stream at once. Each new output line will be prefixed with <pfx> if non-null,
  * which is used to preserve indenting.
  */
-static void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const char *pfx, uint32_t anon_key)
+void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const char *pfx, uint32_t anon_key)
 {
 	struct stconn *scf, *scb;
 	struct tm tm;
