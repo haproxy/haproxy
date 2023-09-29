@@ -3496,8 +3496,8 @@ static void strm_dump_to_buffer(struct stream *strm, uint32_t anon_key)
 			      (htx->tail >= htx->head) ? "NO" : "YES",
 			      (unsigned long long)htx->extra);
 	}
-	if (HAS_FILTERS(strm) && strm_flt(strm)->current[0]) {
-		struct filter *flt = strm_flt(strm)->current[0];
+	if (HAS_FILTERS(strm) && strm->strm_flt.current[0]) {
+		const struct filter *flt = strm->strm_flt.current[0];
 
 		chunk_appendf(&trash, "      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x) \n",
 			      flt, flt->config->id, flt->flags, flt->pre_analyzers, flt->post_analyzers);
@@ -3527,8 +3527,8 @@ static void strm_dump_to_buffer(struct stream *strm, uint32_t anon_key)
 			      (htx->tail >= htx->head) ? "NO" : "YES",
 			      (unsigned long long)htx->extra);
 	}
-	if (HAS_FILTERS(strm) && strm_flt(strm)->current[1]) {
-		struct filter *flt = strm_flt(strm)->current[1];
+	if (HAS_FILTERS(strm) && strm->strm_flt.current[1]) {
+		const struct filter *flt = strm->strm_flt.current[1];
 
 		chunk_appendf(&trash, "      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x) \n",
 			      flt, flt->config->id, flt->flags, flt->pre_analyzers, flt->post_analyzers);
