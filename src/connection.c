@@ -725,6 +725,8 @@ const char *conn_err_code_str(struct connection *c)
 	case CO_ER_SOCKS4_ABORT:   return "SOCKS4 Proxy handshake aborted by server";
 
 	case CO_ERR_SSL_FATAL:     return "SSL fatal error";
+
+	case CO_ER_REVERSE:        return "Reverse connect failure";
 	}
 	return NULL;
 }
