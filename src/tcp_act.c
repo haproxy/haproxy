@@ -427,25 +427,12 @@ static int tcp_check_attach_srv(struct act_rule *rule, struct proxy *px, char **
 {
 	struct proxy *be = NULL;
 	struct server *srv = NULL;
-	struct bind_conf *bind_conf;
 	char *name = rule->arg.attach_srv.srvname;
 	struct ist be_name, sv_name;
 
 	if (px->mode != PR_MODE_HTTP) {
 		memprintf(err, "attach-srv rule requires HTTP proxy mode");
 		return 0;
-	}
-
-	list_for_each_entry(bind_conf, &px->conf.bind, by_fe) {
-		if ((bind_conf->mux_proto && !isteqi(bind_conf->mux_proto->token, ist("h2")))
-#ifdef USE_OPENSSL
-		    || (bind_conf->ssl_conf.alpn_str && strcmp(bind_conf->ssl_conf.alpn_str, "\x02h2") != 0)
-#endif
-		) {
-			memprintf(err, "attach-srv rule: incompatible with listener on %s:%d which uses protocol other than HTTP/2",
-			          bind_conf->file, bind_conf->line);
-			return 0;
-		}
 	}
 
 	sv_name = ist(name);
@@ -461,16 +448,6 @@ static int tcp_check_attach_srv(struct act_rule *rule, struct proxy *px, char **
 	}
 	if (!(srv = server_find_by_name(be, ist0(sv_name)))) {
 		memprintf(err, "attach-srv rule: no such server '%s/%s'", ist0(be_name), ist0(sv_name));
-		return 0;
-	}
-
-	if ((srv->mux_proto && !isteqi(srv->mux_proto->token, ist("h2")))
-#ifdef USE_OPENSSL
-		    || (srv->ssl_ctx.alpn_str && strcmp(srv->ssl_ctx.alpn_str, "\x02h2") != 0)
-#endif
-	) {
-		memprintf(err, "attach-srv rule: incompatible with server '%s:%s' which uses protocol other than HTTP/2",
-		          ist0(be_name), ist0(sv_name));
 		return 0;
 	}
 
