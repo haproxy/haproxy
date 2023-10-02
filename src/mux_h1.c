@@ -2027,8 +2027,12 @@ static size_t h1_make_reqline(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 	h1_parse_req_vsn(h1m, sl);
 
 	h1m->flags |= H1_MF_XFER_LEN;
-	if (sl->flags & HTX_SL_F_BODYLESS)
+	if (sl->flags & HTX_SL_F_CHNK)
+		h1m->flags |= H1_MF_CHNK;
+	else if (sl->flags & HTX_SL_F_CLEN)
 		h1m->flags |= H1_MF_CLEN;
+	if (sl->flags & HTX_SL_F_XFER_ENC)
+		h1m->flags |= H1_MF_XFER_ENC;
 
 	if (sl->flags & HTX_SL_F_BODYLESS) {
 		h1m->flags = (h1m->flags & ~H1_MF_CHNK) | H1_MF_CLEN;
@@ -2107,8 +2111,15 @@ static size_t h1_make_stline(struct h1s *h1s, struct h1m *h1m, struct htx *htx, 
 	h1s->status = sl->info.res.status;
 	h1_parse_res_vsn(h1m, sl);
 
-	if (sl->flags & HTX_SL_F_XFER_LEN)
+	if (sl->flags & HTX_SL_F_XFER_LEN) {
 		h1m->flags |= H1_MF_XFER_LEN;
+		if (sl->flags & HTX_SL_F_CHNK)
+			h1m->flags |= H1_MF_CHNK;
+		else if (sl->flags & HTX_SL_F_CLEN)
+			h1m->flags |= H1_MF_CLEN;
+		if (sl->flags & HTX_SL_F_XFER_ENC)
+			h1m->flags |= H1_MF_XFER_ENC;
+	}
 	if (h1s->status < 200)
 		h1s->flags |= H1S_F_HAVE_O_CONN;
 	else if ((sl->flags & HTX_SL_F_BODYLESS_RESP) || h1s->status == 204 || h1s->status == 304)
@@ -2175,6 +2186,8 @@ static size_t h1_make_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			if (isteq(n, ist("transfer-encoding"))) {
 				if ((h1m->flags & H1_MF_RESP) && (h1s->status < 200 || h1s->status == 204))
 					goto nextblk;
+				if (!(h1m->flags & H1_MF_CHNK))
+					goto nextblk;
 				if (h1_parse_xfer_enc_header(h1m, v) < 0)
 					goto error;
 				h1s->flags |= H1S_F_HAVE_CHNK;
@@ -2182,9 +2195,15 @@ static size_t h1_make_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			else if (isteq(n, ist("content-length"))) {
 				if ((h1m->flags & H1_MF_RESP) && (h1s->status < 200 || h1s->status == 204))
 					goto nextblk;
+				if (!(h1m->flags & H1_MF_CLEN))
+					goto nextblk;
+				if (!(h1s->flags & H1S_F_HAVE_CLEN))
+					h1m->flags &= ~H1_MF_CLEN;
 				/* Only skip C-L header with invalid value. */
 				if (h1_parse_cont_len_header(h1m, &v) < 0)
-					goto nextblk; // FIXME: must be handled as an error
+					goto error;
+				if (h1s->flags & H1S_F_HAVE_CLEN)
+					goto nextblk;
 				h1s->flags |= H1S_F_HAVE_CLEN;
 			}
 			else if (isteq(n, ist("connection"))) {
