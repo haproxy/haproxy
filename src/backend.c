@@ -1061,16 +1061,24 @@ int assign_server_and_queue(struct stream *s)
 	}
 }
 
-/* Allocate an address for source binding on the specified server or backend.
- * The allocation is only performed if the connection is intended to be used
- * with transparent mode.
+/* Allocate an address if an explicit source address must be used for a backend
+ * connection.
  *
- * Returns SRV_STATUS_OK if no transparent mode or the address was successfully
- * allocated. Otherwise returns SRV_STATUS_INTERNAL. Does nothing if the
- * address was already allocated.
+ * Two parameters are taken into account to check if specific source address is
+ * configured. The first one is <srv> which is the server instance to connect
+ * to. It may be NULL when dispatching is used. The second one <be> is the
+ * backend instance which contains the target server or dispatch.
+ *
+ * A stream instance <s> can be used to set the stream owner of the backend
+ * connection. It is a required parameter if the source address is a dynamic
+ * parameter.
+ *
+ * Returns SRV_STATUS_OK if either no specific source address specified or its
+ * allocation is done correctly. On error returns SRV_STATUS_INTERNAL.
  */
-static int alloc_bind_address(struct sockaddr_storage **ss,
-                              struct server *srv, struct stream *s)
+int alloc_bind_address(struct sockaddr_storage **ss,
+                       struct server *srv, struct proxy *be,
+                       struct stream *s)
 {
 #if defined(CONFIG_HAP_TRANSPARENT)
 	const struct sockaddr_storage *addr;
@@ -1080,14 +1088,14 @@ static int alloc_bind_address(struct sockaddr_storage **ss,
 	size_t vlen;
 #endif
 
-	if (*ss)
-		return SRV_STATUS_OK;
+	/* Ensure the function will not overwrite an allocated address. */
+	BUG_ON(*ss);
 
 #if defined(CONFIG_HAP_TRANSPARENT)
 	if (srv && srv->conn_src.opts & CO_SRC_BIND)
 		src = &srv->conn_src;
-	else if (s->be->conn_src.opts & CO_SRC_BIND)
-		src = &s->be->conn_src;
+	else if (be->conn_src.opts & CO_SRC_BIND)
+		src = &be->conn_src;
 
 	/* no transparent mode, no need to allocate an address, returns OK */
 	if (!src)
@@ -1103,6 +1111,8 @@ static int alloc_bind_address(struct sockaddr_storage **ss,
 
 	case CO_SRC_TPROXY_CLI:
 	case CO_SRC_TPROXY_CIP:
+		BUG_ON(!s); /* Dynamic source setting requires a stream instance. */
+
 		/* FIXME: what can we do if the client connects in IPv6 or unix socket ? */
 		addr = sc_src(s->scf);
 		if (!addr)
@@ -1115,6 +1125,8 @@ static int alloc_bind_address(struct sockaddr_storage **ss,
 		break;
 
 	case CO_SRC_TPROXY_DYN:
+		BUG_ON(!s); /* Dynamic source setting requires a stream instance. */
+
 		if (!src->bind_hdr_occ || !IS_HTX_STRM(s))
 			return SRV_STATUS_INTERNAL;
 
@@ -1350,7 +1362,7 @@ static int connect_server(struct stream *s)
 	if (err != SRV_STATUS_OK)
 		return SF_ERR_INTERNAL;
 
-	err = alloc_bind_address(&bind_addr, srv, s);
+	err = alloc_bind_address(&bind_addr, srv, s->be, s);
 	if (err != SRV_STATUS_OK)
 		return SF_ERR_INTERNAL;
 
