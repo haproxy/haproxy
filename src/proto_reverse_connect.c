@@ -50,14 +50,15 @@ struct protocol proto_reverse_connect = {
 static struct connection *new_reverse_conn(struct listener *l, struct server *srv)
 {
 	struct connection *conn = conn_new(srv);
+	struct sockaddr_storage *bind_addr = NULL;
 	if (!conn)
 		goto err;
 
 	conn_set_reverse(conn, &l->obj_type);
 
-	/* These options is incompatible with a reverse connection. */
-	BUG_ON(srv->conn_src.opts & CO_SRC_BIND);
-	BUG_ON(srv->proxy->conn_src.opts & CO_SRC_BIND);
+	if (alloc_bind_address(&bind_addr, srv, srv->proxy, NULL) != SRV_STATUS_OK)
+		goto err;
+	conn->src = bind_addr;
 
 	sockaddr_alloc(&conn->dst, 0, 0);
 	if (!conn->dst)
@@ -247,6 +248,16 @@ int rev_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		snprintf(errmsg, errlen, "Cannot reverse connect with server '%s/%s' unless HTTP/2 is activated on it with either proto or alpn keyword.", name, ist0(sv_name));
 		goto err;
 	}
+
+	/* Prevent dynamic source address settings. */
+	if (((srv->conn_src.opts & CO_SRC_TPROXY_MASK) &&
+	     (srv->conn_src.opts & CO_SRC_TPROXY_MASK) != CO_SRC_TPROXY_ADDR) ||
+	    ((srv->proxy->conn_src.opts & CO_SRC_TPROXY_MASK) &&
+	     (srv->proxy->conn_src.opts & CO_SRC_TPROXY_MASK) != CO_SRC_TPROXY_ADDR)) {
+		snprintf(errmsg, errlen, "Cannot reverse connect with server '%s/%s' which uses dynamic source address setting.", name, ist0(sv_name));
+		goto err;
+	}
+
 	ha_free(&name);
 
 	listener->rx.reverse_connect.srv = srv;
