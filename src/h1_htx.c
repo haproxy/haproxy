@@ -292,7 +292,6 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	else if ((h1m->flags & H1_MF_METH_HEAD) || (code >= 100 && code < 200) ||
 		 (code == 204) || (code == 304)) {
 		/* Responses known to have no body. */
-		h1m->flags &= ~(H1_MF_CLEN|H1_MF_CHNK);
 		h1m->flags |= H1_MF_XFER_LEN;
 		h1m->curr_len = h1m->body_len = 0;
 		flags |= HTX_SL_F_BODYLESS_RESP;
