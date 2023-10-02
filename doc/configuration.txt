@@ -3892,7 +3892,7 @@ shards <shards>
   See also "shard" server parameter.
 
 table <tablename> type {ip | integer | string [len <length>] | binary [len <length>]}
-      size <size> [expire <expire>] [nopurge] [store <data_type>]*
+      size <size> [expire <expire>] [write-to <wtable>] [nopurge] [store <data_type>]*
 
   Configure a stickiness table for the current section. This line is parsed
   exactly the same way as the "stick-table" keyword in others section, except
@@ -12506,7 +12506,7 @@ stick store-request <pattern> [table <table>] [{if | unless} <condition>]
 
 stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
             size <size> [expire <expire>] [nopurge] [peers <peersect>] [srvkey <srvkey>]
-            [store <data_type>]*
+            [write-to <wtable>] [store <data_type>]*
   Configure the stickiness table for the current section
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -12569,6 +12569,23 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
                the remote peers declared in this section. All entries are also
                automatically learned from the local peer (old process) during a
                soft restart.
+
+   <wtable>    is the name of the stick table where peers updates will be
+               written to in addition to the source table. <wtable> must be of
+               the same type as the table being defined and must have the same
+               key length, and source table cannot be used as a target table
+               itself. Everytime an entry update will be received on the source
+               table through a peer, haproxy will try to refresh related
+               <wtable> entry. If the entry doesn't exist yet, it will be
+               created, else its values will be updated as well as its timer.
+               Note that only types that are not involved in arithmetic ops such
+               as server_id, server_key and gpt will be written to <wtable> to
+               prevent processed values from a remote table from intefering with
+               arithmetic operations performed on the local target table.
+               (ie: prevent shared cumulative counter from growing indefinitely)
+               One common use of this option is to be able to use sticking rules
+               (for server persistence) in a peers cluster setup, because
+               matching keys will be learned from remote tables.
 
     <expire>   defines the maximum duration of an entry in the table since it
                was last created, refreshed using 'track-sc' or matched using

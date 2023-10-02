@@ -188,6 +188,11 @@ struct stktable {
 		void *p;
 	} data_arg[STKTABLE_DATA_TYPES]; /* optional argument of each data type */
 	struct proxy *proxy;      /* The proxy this stick-table is attached to, if any.*/
+	union {
+		char *name;         /* preparsing hint */
+		struct stktable *t; /* postparsing */
+		void *ptr;          /* generic ptr to check if set or not */
+	} write_to; /* updates received on the source table will also update write_to */
 
 	THREAD_ALIGN(64);
 

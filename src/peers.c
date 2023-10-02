@@ -1708,19 +1708,24 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
                                 char **msg_cur, char *msg_end, int msg_len, int totl)
 {
 	struct shared_table *st = p->remote_table;
+	struct stktable *table;
 	struct stksess *ts, *newts;
+	struct stksess *wts = NULL; /* write_to stksess */
 	uint32_t update;
 	int expire;
 	unsigned int data_type;
 	size_t keylen;
 	void *data_ptr;
+	char *msg_save;
 
 	TRACE_ENTER(PEERS_EV_UPDTMSG, NULL, p);
 	/* Here we have data message */
 	if (!st)
 		goto ignore_msg;
 
-	expire = MS_TO_TICKS(st->table->expire);
+	table = st->table;
+
+	expire = MS_TO_TICKS(table->expire);
 
 	if (updt) {
 		if (msg_len < sizeof(update)) {
@@ -1752,11 +1757,11 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 		expire = ntohl(expire);
 	}
 
-	newts = stksess_new(st->table, NULL);
+	newts = stksess_new(table, NULL);
 	if (!newts)
 		goto ignore_msg;
 
-	if (st->table->type == SMP_T_STR) {
+	if (table->type == SMP_T_STR) {
 		unsigned int to_read, to_store;
 
 		to_read = intdecode(msg_cur, msg_end);
@@ -1765,7 +1770,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 			goto malformed_free_newts;
 		}
 
-		to_store = MIN(to_read, st->table->key_size - 1);
+		to_store = MIN(to_read, table->key_size - 1);
 		if (*msg_cur + to_store > msg_end) {
 			TRACE_PROTO("malformed message", PEERS_EV_UPDTMSG,
 			            NULL, p, *msg_cur);
@@ -1779,7 +1784,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 		newts->key.key[keylen] = 0;
 		*msg_cur += to_read;
 	}
-	else if (st->table->type == SMP_T_SINT) {
+	else if (table->type == SMP_T_SINT) {
 		unsigned int netinteger;
 
 		if (*msg_cur + sizeof(netinteger) > msg_end) {
@@ -1797,39 +1802,50 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 		*msg_cur += keylen;
 	}
 	else {
-		if (*msg_cur + st->table->key_size > msg_end) {
+		if (*msg_cur + table->key_size > msg_end) {
 			TRACE_PROTO("malformed message", PEERS_EV_UPDTMSG,
 			            NULL, p, *msg_cur);
 			TRACE_PROTO("malformed message", PEERS_EV_UPDTMSG,
-			            NULL, p, msg_end, &st->table->key_size);
+			            NULL, p, msg_end, &table->key_size);
 			goto malformed_free_newts;
 		}
 
-		keylen = st->table->key_size;
+		keylen = table->key_size;
 		memcpy(newts->key.key, *msg_cur, keylen);
 		*msg_cur += keylen;
 	}
 
-	newts->shard = stktable_get_key_shard(st->table, newts->key.key, keylen);
+	newts->shard = stktable_get_key_shard(table, newts->key.key, keylen);
 
 	/* lookup for existing entry */
-	ts = stktable_set_entry(st->table, newts);
+	ts = stktable_set_entry(table, newts);
 	if (ts != newts) {
-		stksess_free(st->table, newts);
+		stksess_free(table, newts);
 		newts = NULL;
 	}
+
+	msg_save = *msg_cur;
+
+ update_wts:
 
 	HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 	for (data_type = 0 ; data_type < STKTABLE_DATA_TYPES ; data_type++) {
 		uint64_t decoded_int;
 		unsigned int idx;
-		int ignore;
+		int ignore = 0;
 
 		if (!((1ULL << data_type) & st->remote_data))
 			continue;
 
-		ignore = stktable_data_types[data_type].is_local;
+		/* We shouldn't learn local-only values. Also, when handling the
+		 * write_to table we must ignore types that can be processed
+		 * so we don't interfere with any potential arithmetic logic
+		 * performed on them (ie: cumulative counters).
+		 */
+		if (stktable_data_types[data_type].is_local ||
+		    (table != st->table && !stktable_data_types[data_type].as_is))
+			ignore = 1;
 
 		if (stktable_data_types[data_type].is_array) {
 			/* in case of array all elements
@@ -1847,7 +1863,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 						goto malformed_unlock;
 					}
 
-					data_ptr = stktable_data_ptr_idx(st->table, ts, data_type, idx);
+					data_ptr = stktable_data_ptr_idx(table, ts, data_type, idx);
 					if (data_ptr && !ignore)
 						stktable_data_cast(data_ptr, std_t_sint) = decoded_int;
 				}
@@ -1860,7 +1876,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 						goto malformed_unlock;
 					}
 
-					data_ptr = stktable_data_ptr_idx(st->table, ts, data_type, idx);
+					data_ptr = stktable_data_ptr_idx(table, ts, data_type, idx);
 					if (data_ptr && !ignore)
 						stktable_data_cast(data_ptr, std_t_uint) = decoded_int;
 				}
@@ -1873,7 +1889,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 						goto malformed_unlock;
 					}
 
-					data_ptr = stktable_data_ptr_idx(st->table, ts, data_type, idx);
+					data_ptr = stktable_data_ptr_idx(table, ts, data_type, idx);
 					if (data_ptr && !ignore)
 						stktable_data_cast(data_ptr, std_t_ull) = decoded_int;
 				}
@@ -1907,7 +1923,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 						goto malformed_unlock;
 					}
 
-					data_ptr = stktable_data_ptr_idx(st->table, ts, data_type, idx);
+					data_ptr = stktable_data_ptr_idx(table, ts, data_type, idx);
 					if (data_ptr && !ignore)
 						stktable_data_cast(data_ptr, std_t_frqp) = data;
 				}
@@ -1927,19 +1943,19 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 
 		switch (stktable_data_types[data_type].std_type) {
 		case STD_T_SINT:
-			data_ptr = stktable_data_ptr(st->table, ts, data_type);
+			data_ptr = stktable_data_ptr(table, ts, data_type);
 			if (data_ptr && !ignore)
 				stktable_data_cast(data_ptr, std_t_sint) = decoded_int;
 			break;
 
 		case STD_T_UINT:
-			data_ptr = stktable_data_ptr(st->table, ts, data_type);
+			data_ptr = stktable_data_ptr(table, ts, data_type);
 			if (data_ptr && !ignore)
 				stktable_data_cast(data_ptr, std_t_uint) = decoded_int;
 			break;
 
 		case STD_T_ULL:
-			data_ptr = stktable_data_ptr(st->table, ts, data_type);
+			data_ptr = stktable_data_ptr(table, ts, data_type);
 			if (data_ptr && !ignore)
 				stktable_data_cast(data_ptr, std_t_ull) = decoded_int;
 			break;
@@ -1966,7 +1982,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 				goto malformed_unlock;
 			}
 
-			data_ptr = stktable_data_ptr(st->table, ts, data_type);
+			data_ptr = stktable_data_ptr(table, ts, data_type);
 			if (data_ptr && !ignore)
 				stktable_data_cast(data_ptr, std_t_frqp) = data;
 			break;
@@ -2035,7 +2051,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 				dc->rx[id - 1].de = de;
 			}
 			if (de) {
-				data_ptr = stktable_data_ptr(st->table, ts, data_type);
+				data_ptr = stktable_data_ptr(table, ts, data_type);
 				if (data_ptr && !ignore) {
 					HA_ATOMIC_INC(&de->refcount);
 					stktable_data_cast(data_ptr, std_t_dict) = de;
@@ -2045,11 +2061,38 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 		}
 		}
 	}
+
+	if (st->table->write_to.t && table != st->table->write_to.t) {
+		struct stktable_key stkey = { .key = ts->key.key, .key_len = keylen };
+
+		/* While we're still under the main ts lock, try to get related
+		 * write_to stksess with main ts key
+		 */
+		wts = stktable_get_entry(st->table->write_to.t, &stkey);
+	}
+
 	/* Force new expiration */
 	ts->expire = tick_add(now_ms, expire);
 
 	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-	stktable_touch_remote(st->table, ts, 1);
+	stktable_touch_remote(table, ts, 1);
+
+	if (wts) {
+		/* Start over the message decoding for wts as we got a valid stksess
+		 * for write_to table, so we need to refresh the entry with supported
+		 * values.
+		 *
+		 * We prefer to do the decoding a second time even though it might
+		 * cost a bit more than copying from main ts to wts, but doing so
+		 * enables us to get rid of main ts lock: we only need the wts lock
+		 * since upstream data is still available in msg_cur
+		 */
+		ts = wts;
+		table = st->table->write_to.t;
+		wts = NULL; /* so we don't get back here */
+		*msg_cur = msg_save;
+		goto update_wts;
+	}
 
  ignore_msg:
 	TRACE_LEAVE(PEERS_EV_UPDTMSG, NULL, p);

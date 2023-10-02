@@ -828,6 +828,36 @@ int stktable_init(struct stktable *t, char **err_msg)
 		if (t->pool == NULL || peers_retval)
 			goto mem_error;
 	}
+	if (t->write_to.name) {
+		struct stktable *table;
+
+		/* postresolve write_to table */
+		table = stktable_find_by_name(t->write_to.name);
+		if (!table) {
+			memprintf(err_msg, "write-to: table '%s' doesn't exist", t->write_to.name);
+			ha_free(&t->write_to.name); /* no longer need this */
+			return 0;
+		}
+		ha_free(&t->write_to.name); /* no longer need this */
+		if (table->write_to.ptr) {
+			memprintf(err_msg, "write-to: table '%s' is already used as a source table", table->id);
+			return 0;
+		}
+		if (table->type != t->type) {
+			memprintf(err_msg, "write-to: cannot mix table types ('%s' has '%s' type and '%s' has '%s' type)",
+			          table->id, stktable_types[table->type].kw,
+			          t->id, stktable_types[t->type].kw);
+			return 0;
+		}
+		if (table->key_size != t->key_size) {
+			memprintf(err_msg, "write-to: cannot mix key sizes ('%s' has '%ld' key_size and '%s' has '%ld' key_size)",
+			          table->id, (long)table->key_size,
+			          t->id, (long)t->key_size);
+			return 0;
+		}
+
+		t->write_to.t = table;
+	}
 	return 1;
 
  mem_error:
@@ -976,6 +1006,7 @@ int parse_stick_table(const char *file, int linenum, char **args,
 	t->type = (unsigned int)-1;
 	t->conf.file = file;
 	t->conf.line = linenum;
+	t->write_to.name = NULL;
 
 	while (*args[idx]) {
 		const char *err;
@@ -1162,6 +1193,22 @@ int parse_stick_table(const char *file, int linenum, char **args,
 				goto out;
 
 			}
+			idx++;
+		}
+		else if (strcmp(args[idx], "write-to") == 0) {
+			char *write_to;
+
+			idx++;
+			write_to = args[idx];
+			if (!write_to[0]) {
+				ha_alert("parsing [%s:%d] : %s : write-to requires table name.\n",
+						file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+
+			}
+			ha_free(&t->write_to.name);
+			t->write_to.name = strdup(write_to);
 			idx++;
 		}
 		else {
