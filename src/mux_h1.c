@@ -2029,6 +2029,11 @@ static size_t h1_make_reqline(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 	h1m->flags |= H1_MF_XFER_LEN;
 	if (sl->flags & HTX_SL_F_BODYLESS)
 		h1m->flags |= H1_MF_CLEN;
+
+	if (sl->flags & HTX_SL_F_BODYLESS) {
+		h1m->flags = (h1m->flags & ~H1_MF_CHNK) | H1_MF_CLEN;
+		h1s->flags |= H1S_F_HAVE_CLEN;
+	}
 	if ((sl->flags & HTX_SL_F_BODYLESS_RESP) || h1s->meth == HTTP_METH_HEAD)
 		h1s->flags |= H1S_F_BODYLESS_RESP;
 
@@ -2180,6 +2185,7 @@ static size_t h1_make_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				/* Only skip C-L header with invalid value. */
 				if (h1_parse_cont_len_header(h1m, &v) < 0)
 					goto nextblk; // FIXME: must be handled as an error
+				h1s->flags |= H1S_F_HAVE_CLEN;
 			}
 			else if (isteq(n, ist("connection"))) {
 				h1_parse_connection_header(h1m, &v);
@@ -2340,6 +2346,23 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 			goto full;
 		TRACE_STATE("add \"Transfer-Encoding: chunked\"", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 		h1s->flags |= H1S_F_HAVE_CHNK;
+	}
+
+	/* Deal with "Content-Length header */
+	if ((h1m->flags & H1_MF_CLEN) && !(h1s->flags & H1S_F_HAVE_CLEN)) {
+		char *end;
+
+		h1m->curr_len = h1m->body_len = htx->data + htx->extra - sz;
+                end = DISGUISE(ulltoa(h1m->body_len, trash.area, b_size(&trash)));
+
+		n = ist("content-length");
+		v = ist2(trash.area, end-trash.area);
+		if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
+			h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
+		if (!h1_format_htx_hdr(n, v, &outbuf))
+			goto full;
+		TRACE_STATE("add \"Content-Length: chunked\"", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
+		h1s->flags |= H1S_F_HAVE_CLEN;
 	}
 
 	/* Add the server name to a header (if requested) */
