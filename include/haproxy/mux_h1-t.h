@@ -102,6 +102,8 @@ static forceinline char *h1c_show_flags(char *buf, size_t len, const char *delim
 #define H1S_F_HAVE_SRV_NAME  0x00002000 /* Set during output process if the server name header was added to the request */
 #define H1S_F_HAVE_O_CONN    0x00004000 /* Set during output process to know connection mode was processed */
 #define H1S_F_HAVE_WS_KEY    0x00008000 /* Set during output process to know WS key was found or generated */
+#define H1S_F_HAVE_CLEN      0x00010000 /* Set during output process to know C*L header was found or generated */
+#define H1S_F_HAVE_CHNK      0x00020000 /* Set during output process to know "T-E; chunk" header was found or generated */
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
@@ -117,7 +119,8 @@ static forceinline char *h1s_show_flags(char *buf, size_t len, const char *delim
 	_(H1S_F_WANT_KAL, _(H1S_F_WANT_TUN, _(H1S_F_WANT_CLO,
 	_(H1S_F_NOT_FIRST, _(H1S_F_BODYLESS_RESP,
 	_(H1S_F_INTERNAL_ERROR, _(H1S_F_NOT_IMPL_ERROR, _(H1S_F_PARSING_ERROR, _(H1S_F_PROCESSING_ERROR,
-	_(H1S_F_HAVE_SRV_NAME, _(H1S_F_HAVE_O_CONN, _(H1S_F_HAVE_WS_KEY)))))))))))))));
+	_(H1S_F_HAVE_SRV_NAME, _(H1S_F_HAVE_O_CONN, _(H1S_F_HAVE_WS_KEY,
+	_(H1S_F_HAVE_CLEN, _(H1S_F_HAVE_CHNK)))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
