@@ -2172,6 +2172,7 @@ static size_t h1_make_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 					goto nextblk;
 				if (h1_parse_xfer_enc_header(h1m, v) < 0)
 					goto error;
+				h1s->flags |= H1S_F_HAVE_CHNK;
                         }
 			else if (isteq(n, ist("content-length"))) {
 				if ((h1m->flags & H1_MF_RESP) && (h1s->status < 200 || h1s->status == 204))
@@ -2326,7 +2327,10 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 	    (h1s->status >= 200 && !(h1s->flags & H1S_F_BODYLESS_RESP) &&
 	     !(h1s->meth == HTTP_METH_CONNECT && h1s->status >= 200 && h1s->status < 300) &&
 	     (h1m->flags & (H1_MF_VER_11|H1_MF_RESP|H1_MF_CLEN|H1_MF_CHNK|H1_MF_XFER_LEN)) ==
-	     (H1_MF_VER_11|H1_MF_RESP|H1_MF_XFER_LEN))) {
+	     (H1_MF_VER_11|H1_MF_RESP|H1_MF_XFER_LEN)))
+		h1m->flags |= H1_MF_CHNK;
+
+	if ((h1m->flags & H1_MF_CHNK) && !(h1s->flags & H1S_F_HAVE_CHNK)) {
 		/* chunking needed but header not seen */
 		n = ist("transfer-encoding");
 		v = ist("chunked");
@@ -2335,7 +2339,7 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 		if (!h1_format_htx_hdr(n, v, &outbuf))
 			goto full;
 		TRACE_STATE("add \"Transfer-Encoding: chunked\"", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
-		h1m->flags |= H1_MF_CHNK;
+		h1s->flags |= H1S_F_HAVE_CHNK;
 	}
 
 	/* Add the server name to a header (if requested) */
