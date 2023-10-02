@@ -800,7 +800,7 @@ void pool_gc(struct pool_head *pool_ctx)
 			while (!entry->buckets[bucket].free_list && bucket < CONFIG_HAP_POOL_BUCKETS)
 				bucket++;
 
-			if (bucket == CONFIG_HAP_POOL_BUCKETS)
+			if (bucket >= CONFIG_HAP_POOL_BUCKETS)
 				break;
 
 			temp = entry->buckets[bucket].free_list;
