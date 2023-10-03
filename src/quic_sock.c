@@ -46,6 +46,9 @@
 
 #define TRACE_SOURCE    &trace_quic
 
+/* Log only first EACCES bind() error runtime occurence. */
+static volatile char quic_bind_eacces_warn = 0;
+
 /* Retrieve a connection's source address. Returns -1 on failure. */
 int quic_sock_get_src(struct connection *conn, struct sockaddr *addr, socklen_t len)
 {
@@ -812,7 +815,8 @@ int qc_rcv_buf(struct quic_conn *qc)
 void qc_alloc_fd(struct quic_conn *qc, const struct sockaddr_storage *src,
                  const struct sockaddr_storage *dst)
 {
-	struct proxy *p = qc->li->bind_conf->frontend;
+	struct bind_conf *bc = qc->li->bind_conf;
+	struct proxy *p = bc->frontend;
 	int fd = -1;
 	int ret;
 
@@ -854,8 +858,20 @@ void qc_alloc_fd(struct quic_conn *qc, const struct sockaddr_storage *src,
 		goto err;
 
 	ret = bind(fd, (struct sockaddr *)src, get_addr_len(src));
-	if (ret < 0)
+	if (ret < 0) {
+		if (errno == EACCES) {
+			if (!quic_bind_eacces_warn) {
+				send_log(p, LOG_WARNING,
+					 "Permission error on QUIC socket binding for proxy %s. Consider using setcap cap_net_bind_service (Linux only) or running as root.\n",
+					 p->id);
+				quic_bind_eacces_warn = 1;
+			}
+
+			/* Fallback to listener socket for this receiver instance. */
+			HA_ATOMIC_STORE(&qc->li->rx.quic_mode, QUIC_SOCK_MODE_LSTNR);
+		}
 		goto err;
+	}
 
 	ret = connect(fd, (struct sockaddr *)dst, get_addr_len(dst));
 	if (ret < 0)

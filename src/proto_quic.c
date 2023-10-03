@@ -645,6 +645,11 @@ static int quic_bind_listener(struct listener *listener, char *errmsg, int errle
 		goto udp_return;
 	}
 
+	/* Duplicate quic_mode setting from bind_conf. Useful to overwrite it
+	 * at runtime per receiver instance.
+	 */
+	listener->rx.quic_mode = listener->bind_conf->quic_mode;
+
 	/* Set IP_PKTINFO to retrieve destination address on recv. */
 	fd = listener->rx.fd;
 	switch (addr.ss_family) {

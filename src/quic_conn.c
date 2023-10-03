@@ -1264,7 +1264,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 	conn_id->qc = qc;
 
-	if (l->bind_conf->quic_mode == QUIC_SOCK_MODE_CONN &&
+	if (HA_ATOMIC_LOAD(&l->rx.quic_mode) == QUIC_SOCK_MODE_CONN &&
 	    (global.tune.options & GTUNE_QUIC_SOCK_PER_CONN) &&
 	    is_addr(local_addr)) {
 		TRACE_USER("Allocate a socket for QUIC connection", QUIC_EV_CONN_INIT, qc);

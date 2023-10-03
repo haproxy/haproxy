@@ -28,6 +28,7 @@
 #include <haproxy/api-t.h>
 #include <haproxy/namespace-t.h>
 #include <haproxy/proto_reverse_connect-t.h>
+#include <haproxy/quic_sock-t.h>
 #include <haproxy/thread.h>
 
 /* Bit values for receiver->flags */
@@ -79,6 +80,7 @@ struct receiver {
 	struct list proto_list;          /* list in the protocol header */
 #ifdef USE_QUIC
 	struct mt_list rxbuf_list;       /* list of buffers to receive and dispatch QUIC datagrams. */
+	enum quic_sock_mode quic_mode;   /* QUIC socket allocation strategy */
 #endif
 	struct {
 		struct task *task;  /* Task used to open connection for reverse. */
