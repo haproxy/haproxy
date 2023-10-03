@@ -553,7 +553,7 @@ static unsigned int pl_wait_new_int(const unsigned int *lock, const unsigned int
 			__pl_r = pl_wait_unlock_long(__lk_r, __msk_r);                         \
 		}                                                                              \
 		/* wait for all other readers to leave */                                      \
-		if (__builtin_expect(__pl_r & (PLOCK64_RL_ANY & ~PLOCK64_RL_1), 0))            \
+		if (__builtin_expect(__pl_r & PLOCK64_RL_ANY, 0))            \
 			__pl_r = pl_wait_unlock_long(__lk_r, (PLOCK64_RL_ANY & ~PLOCK64_RL_1)) - __set_r;  \
 		pl_barrier();                                                                  \
 		0;                                                                             \
@@ -570,7 +570,7 @@ static unsigned int pl_wait_new_int(const unsigned int *lock, const unsigned int
 			__pl_r = pl_wait_unlock_int(__lk_r, __msk_r);                          \
 		}                                                                              \
 		/* wait for all other readers to leave */                                      \
-		if (__builtin_expect(__pl_r & (PLOCK32_RL_ANY & ~PLOCK32_RL_1), 0))            \
+		if (__builtin_expect(__pl_r & PLOCK32_RL_ANY, 0))            \
 			__pl_r = pl_wait_unlock_int(__lk_r, (PLOCK32_RL_ANY & ~PLOCK32_RL_1)) - __set_r;  \
 		pl_barrier();                                                                  \
 		0;                                                                             \
