@@ -157,7 +157,7 @@ static forceinline char *hmsg_show_flags(char *buf, size_t len, const char *deli
  * request/response pairs, because they depend on the responses' optional Vary
  * header. The different sizes can be found in the vary_information object (see
  * cache.c).*/
-#define HTTP_CACHE_SEC_KEY_LEN (sizeof(uint32_t)+sizeof(uint64_t))
+#define HTTP_CACHE_SEC_KEY_LEN (sizeof(uint32_t)+sizeof(uint64_t)+sizeof(uint64_t))
 
 
 /* Redirect flags */

@@ -77,6 +77,20 @@ server s1 {
                -hdr "Content-Encoding: gzip" \
                -bodylen 57
 
+       rxreq
+       expect req.url == "/origin-referer-accept-encoding"
+       txresp -hdr "Vary: origin,referer,accept-encoding" \
+              -hdr "Cache-Control: max-age=5" \
+              -hdr "Content-Encoding: gzip" \
+              -bodylen 58
+
+       rxreq
+       expect req.url == "/origin-referer-accept-encoding"
+       txresp -hdr "Vary: origin,referer,accept-encoding" \
+              -hdr "Cache-Control: max-age=5" \
+              -hdr "Content-Encoding: gzip" \
+              -bodylen 59
+
        # Multiple Accept-Encoding headers
        rxreq
        expect req.url == "/multiple_headers"
@@ -314,6 +328,43 @@ client c1 -connect ${h1_fe_sock} {
        expect resp.bodylen == 57
        expect resp.http.X-Cache-Hit == 1
 
+
+       # Mixed Vary (Accept-Encoding + Referer + Origin)
+       txreq -url "/origin-referer-accept-encoding" \
+               -hdr "Accept-Encoding: br, gzip" \
+               -hdr "Referer: referer" \
+               -hdr "Origin: origin"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 58
+       expect resp.http.X-Cache-Hit == 0
+
+       txreq -url "/origin-referer-accept-encoding" \
+               -hdr "Accept-Encoding: br, gzip" \
+               -hdr "Referer: referer" \
+               -hdr "Origin: origin"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 58
+       expect resp.http.X-Cache-Hit == 1
+
+       txreq -url "/origin-referer-accept-encoding" \
+               -hdr "Accept-Encoding: br, gzip" \
+               -hdr "Referer: referer" \
+               -hdr "Origin: other-origin"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 59
+       expect resp.http.X-Cache-Hit == 0
+
+       txreq -url "/origin-referer-accept-encoding" \
+               -hdr "Accept-Encoding: br, gzip" \
+               -hdr "Referer: referer" \
+               -hdr "Origin: other-origin"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 59
+       expect resp.http.X-Cache-Hit == 1
 
        # Multiple Accept-encoding headers
        txreq -url "/multiple_headers" \

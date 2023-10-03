@@ -17178,7 +17178,7 @@ The cache won't store and won't deliver objects in these cases:
 - If the response is not a 200
 - If the response contains a Vary header and either the process-vary option is
   disabled, or a currently unmanaged header is specified in the Vary value (only
-  accept-encoding and referer are managed for now)
+  accept-encoding, referer and origin are managed for now)
 - If the Content-Length + the headers size is greater than "max-object-size"
 - If the response is not cacheable
 - If the response does not have an explicit expiration time (s-maxage or max-age
@@ -17229,8 +17229,10 @@ process-vary <on/off>
   Enable or disable the processing of the Vary header. When disabled, a response
   containing such a header will never be cached. When enabled, we need to calculate
   a preliminary hash for a subset of request headers on all the incoming requests
-  (which might come with a cpu cost) which will be used to build a secondary key
-  for a given request (see RFC 7234#4.1). The default value is off (disabled).
+  (which might come with a cpu cost) which will be used to build a secondary
+  key for a given request (see RFC 7234#4.1). The secondary key is built out of
+  the contents of the 'accept-encoding', 'referer' and 'origin' headers for
+  now. The default value is off (disabled).
 
 max-secondary-entries <number>
   Define the maximum number of simultaneous secondary entries with the same primary
