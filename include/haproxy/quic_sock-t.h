@@ -2,6 +2,12 @@
 #define _HAPROXY_QUIC_SOCK_T_H
 #ifdef USE_QUIC
 
+/* QUIC socket allocation strategy. */
+enum quic_sock_mode {
+	QUIC_SOCK_MODE_CONN,  /* Use a dedicated socket per connection. */
+	QUIC_SOCK_MODE_LSTNR, /* Multiplex connections over listener socket. */
+};
+
 /* QUIC connection accept queue. One per thread. */
 struct quic_accept_queue {
 	struct mt_list listeners; /* QUIC listeners with at least one connection ready to be accepted on this queue */

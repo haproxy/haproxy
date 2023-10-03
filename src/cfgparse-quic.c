@@ -50,9 +50,34 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 	return 0;
 }
 
+static int bind_parse_quic_socket(char **args, int cur_arg, struct proxy *px,
+                                  struct bind_conf *conf, char **err)
+{
+	char *arg;
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing argument, use either connection or listener.", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	arg = args[cur_arg + 1];
+	if (strcmp(arg, "connection") == 0) {
+		conf->quic_mode = QUIC_SOCK_MODE_CONN;
+	}
+	else if (strcmp(arg, "listener") == 0) {
+		conf->quic_mode = QUIC_SOCK_MODE_LSTNR;
+	}
+	else {
+		memprintf(err, "'%s' : unknown argument, use either connection or listener.", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+
 static struct bind_kw_list bind_kws = { "QUIC", { }, {
 	{ "quic-force-retry", bind_parse_quic_force_retry, 0 },
 	{ "quic-cc-algo", bind_parse_quic_cc_algo, 1 },
+	{ "quic-socket", bind_parse_quic_socket, 1 },
 	{ NULL, NULL, 0 },
 }};
 

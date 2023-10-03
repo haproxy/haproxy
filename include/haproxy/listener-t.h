@@ -30,6 +30,7 @@
 #include <haproxy/api-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/quic_cc-t.h>
+#include <haproxy/quic_sock-t.h>
 #include <haproxy/quic_tp-t.h>
 #include <haproxy/receiver-t.h>
 #include <haproxy/stats-t.h>
@@ -183,6 +184,7 @@ struct bind_conf {
 #ifdef USE_QUIC
 	struct quic_transport_params quic_params; /* QUIC transport parameters. */
 	struct quic_cc_algo *quic_cc_algo; /* QUIC control congestion algorithm */
+	enum quic_sock_mode quic_mode;     /* QUIC socket allocation strategy */
 #endif
 	struct proxy *frontend;    /* the frontend all these listeners belong to, or NULL */
 	const struct mux_proto_list *mux_proto; /* the mux to use for all incoming connections (specified by the "proto" keyword) */

@@ -3470,10 +3470,10 @@ tune.quic.retry-threshold <number>
   See https://www.rfc-editor.org/rfc/rfc9000.html#section-8.1.2 for more
   information about QUIC retry.
 
-tune.quic.socket-owner { listener | connection }
-  Specifies how QUIC connections will use socket for receive/send operations.
-  Connections can share listener socket or each connection can allocate its
-  own socket.
+tune.quic.socket-owner { connection | listener }
+  Specifies globally how QUIC connections will use socket for receive/send
+  operations. Connections can share listener socket or each connection can
+  allocate its own socket.
 
   When default "connection" value is set, a dedicated socket will be allocated
   by every QUIC connections. This option is the preferred one to achieve the
@@ -3492,6 +3492,12 @@ tune.quic.socket-owner { listener | connection }
   allows to reduce FD consumption. However, performance won't be optimal due to
   a higher CPU usage if listeners are shared across a lot of threads or a
   large number of QUIC connections can be used simultaneously.
+
+  This setting is applied in conjunction with each "quic-socket" bind options.
+  If "connection" mode is used on global tuning, it will be activated for each
+  listener, unless its bind option is set to "listener". However, if "listener"
+  is used globally, it will be forced on every listener instance, regardless of
+  their individual configuration.
 
 tune.rcvbuf.client <number>
 tune.rcvbuf.server <number>
@@ -15519,6 +15525,11 @@ quic-force-retry
 
   See https://www.rfc-editor.org/rfc/rfc9000.html#section-8.1.2 for more
   information about QUIC retry.
+
+quic-socket [ connection | listener ]
+  This QUIC specific setting allows to define the socket allocation mode for
+  the specific listeners. See "tune.quic.socket-owner" for a full description
+  of its usage.
 
 shards <number> | by-thread | by-group
   In multi-threaded mode, on operating systems supporting multiple listeners on
