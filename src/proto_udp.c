@@ -148,6 +148,13 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		goto udp_return;
 	}
 
+	/* we may want to adjust the output buffer (tune.sndbuf.backend) */
+	if (global.tune.frontend_rcvbuf)
+		setsockopt(listener->rx.fd, SOL_SOCKET, SO_RCVBUF, &global.tune.frontend_rcvbuf, sizeof(global.tune.frontend_rcvbuf));
+
+	if (global.tune.frontend_sndbuf)
+		setsockopt(listener->rx.fd, SOL_SOCKET, SO_SNDBUF, &global.tune.frontend_sndbuf, sizeof(global.tune.frontend_sndbuf));
+
 	listener_set_state(listener, LI_LISTEN);
 
  udp_return:

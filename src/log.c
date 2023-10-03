@@ -2053,6 +2053,9 @@ static inline void __do_send_log(struct log_target *target, struct log_header hd
 		} else {
 			/* we don't want to receive anything on this socket */
 			setsockopt(*plogfd, SOL_SOCKET, SO_RCVBUF, &zero, sizeof(zero));
+			/* we may want to adjust the output buffer (tune.sndbuf.backend) */
+			if (global.tune.backend_sndbuf)
+				setsockopt(*plogfd, SOL_SOCKET, SO_SNDBUF, &global.tune.backend_sndbuf, sizeof(global.tune.backend_sndbuf));
 			/* does nothing under Linux, maybe needed for others */
 			shutdown(*plogfd, SHUT_RD);
 			fd_set_cloexec(*plogfd);

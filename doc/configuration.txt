@@ -1212,12 +1212,16 @@ The following keywords are supported in the "global" section :
    - tune.quic.max-frame-loss
    - tune.quic.retry-threshold
    - tune.quic.socket-owner
+   - tune.rcvbuf.backend
    - tune.rcvbuf.client
+   - tune.rcvbuf.frontend
    - tune.rcvbuf.server
    - tune.recv_enough
    - tune.runqueue-depth
    - tune.sched.low-latency
+   - tune.sndbuf.backend
    - tune.sndbuf.client
+   - tune.sndbuf.frontend
    - tune.sndbuf.server
    - tune.stick-counters
    - tune.ssl.cachesize
@@ -3377,6 +3381,22 @@ tune.quic.socket-owner { connection | listener }
   is used globally, it will be forced on every listener instance, regardless of
   their individual configuration.
 
+tune.rcvbuf.backend <number>
+tune.rcvbuf.frontend <number>
+  For the kernel socket receive buffer size on non-connected sockets to this
+  size. This can be used QUIC in listener mode and log-forward on the frontend.
+  The default system buffers might sometimes be too small for sockets receiving
+  lots of aggregated traffic, causing some losses and possibly retransmits (in
+  case of QUIC), possibly slowing down connection establishment under heavy
+  traffic. The value is expressed in bytes, applied to each socket. In listener
+  mode, sockets are shared between all connections, and the total number of
+  sockets depends on the "shards" value of the "bind" line. There's no good
+  value, a good one corresponds to an expected size per connection multiplied
+  by the expected number of connections. The kernel may trim large values. See
+  also "tune.rcvbuf.client" and "tune.rcvbuf.server" for their connected socket
+  counter parts, as well as "tune.sndbuf.backend" and "tune.sndbuf.frontend"
+  for the send setting.
+
 tune.rcvbuf.client <number>
 tune.rcvbuf.server <number>
   Forces the kernel socket receive buffer size on the client or the server side
@@ -3414,6 +3434,22 @@ tune.sched.low-latency { on | off }
   maximum latency experienced by new requests or connections in the middle of
   massive traffic, at the expense of a higher impact on this large traffic.
   For regular usage it is better to leave this off. The default value is off.
+
+tune.sndbuf.backend <number>
+tune.sndbuf.frontend <number>
+  For the kernel socket send buffer size on non-connected sockets to this size.
+  This can be used for UNIX socket and UDP logging on the backend side, and for
+  QUIC in listener mode on the frontend. The default system buffers might
+  sometimes be too small for sockets shared between many connections (or log
+  senders), causing some losses and possibly retransmits, slowing down new
+  connection establishment under high traffic. The value is expressed in bytes,
+  applied to each socket. In listener mode, sockets are shared between all
+  connections, and the total number of sockets depends on the "shards" value of
+  the "bind" line. There's no good value, a good one corresponds to an expected
+  size per connection multiplied by the expected number of connections. The
+  kernel may trim large values. See also "tune.sndbuf.client" and
+  "tune.sndbuf.server" for their connected socket counter parts, as well as
+  "tune.rcvbuf.backend" and "tune.rcvbuf.frontend" for the receive setting.
 
 tune.sndbuf.client <number>
 tune.sndbuf.server <number>

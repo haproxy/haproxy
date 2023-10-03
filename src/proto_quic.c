@@ -680,6 +680,12 @@ static int quic_bind_listener(struct listener *listener, char *errmsg, int errle
 			global.tune.options &= ~GTUNE_QUIC_SOCK_PER_CONN;
 	}
 
+	if (global.tune.frontend_rcvbuf)
+		setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.frontend_rcvbuf, sizeof(global.tune.frontend_rcvbuf));
+
+	if (global.tune.frontend_sndbuf)
+		setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &global.tune.frontend_sndbuf, sizeof(global.tune.frontend_sndbuf));
+
 	listener_set_state(listener, LI_LISTEN);
 
  udp_return:
