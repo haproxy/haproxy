@@ -28,14 +28,18 @@ local function sslkeylog(txn, filename)
 
 	-- ensure that a key is written only once by using a session variable
 	if not txn:get_var('sess.sslkeylogdone') then
-		file = io.open(filename, 'a')
-		for fieldname, fetch in pairs(fields) do
-			if fetch() then
-				file:write(string.format('%s %s %s\n', fieldname, client_random, fetch()))
+		local file, err = io.open(filename, 'a')
+		if file then
+			for fieldname, fetch in pairs(fields) do
+				if fetch() then
+					file:write(string.format('%s %s %s\n', fieldname, client_random, fetch()))
+				end
 			end
+			file:close()
+		else
+			core.Warning("Cannot open SSL log file: " .. err .. ".")
 		end
 
-		file:close()
 		txn:set_var('sess.sslkeylogdone', true)
 	end
 end
