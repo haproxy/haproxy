@@ -8839,6 +8839,12 @@ log-balance <algorithm> [ <arguments> ]
                   goes back UP it is added at the end of the list so that the
                   sticky server doesn't change until it becomes DOWN.
 
+      random      A random number will be used as the key for the server
+                  lookup. Random log balancing can be useful with large farms
+                  or when servers are frequently added or removed from the
+                  pool of available servers as it may avoid the hammering
+                  effect that could result from roundrobin in this situation.
+
     <arguments> is an optional list of arguments which may be needed by some
                 algorithms.
 

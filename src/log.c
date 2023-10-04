@@ -2116,6 +2116,10 @@ static inline void __do_send_log_backend(struct proxy *be, struct log_header hdr
 		 */
 		targetid = 0;
 	}
+	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_RND) {
+		/* random mode */
+		targetid = statistical_prng() % nb_srv;
+	}
 
  skip_lb:
 
