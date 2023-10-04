@@ -16176,6 +16176,14 @@ downinter <delay>
   "inter" setting will have a very limited effect as it will not be able to
   reduce the time spent in the queue.
 
+log-bufsize <bufsize>
+  The "log-bufsize" specifies the ring bufsize to use for the implicit ring
+  that will be associated to the log server in a log backend. When not
+  specified, this defaults to BUFSIZE. Use of a greater value will increase
+  memory usage but can help to prevent the loss of log messages with slow
+  servers since the buffer will be able to hold more pending messages.
+  This keyword may only be used in log backend sections (with "mode log")
+
 log-proto <logproto>
   The "log-proto" specifies the protocol used to forward event messages to
   a server configured in a log or ring section. Possible values are "legacy"

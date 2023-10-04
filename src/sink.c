@@ -1266,6 +1266,7 @@ struct sink *sink_new_from_logger(struct logger *logger)
 struct sink *sink_new_from_srv(struct server *srv, const char *from)
 {
 	struct sink *sink = NULL;
+	int bufsize = (srv->log_bufsize) ? srv->log_bufsize : BUFSIZE;
 
 	/* prepare description for the sink */
 	chunk_reset(&trash);
@@ -1274,7 +1275,7 @@ struct sink *sink_new_from_srv(struct server *srv, const char *from)
 	/* directly create a sink of BUF type, and use UNSPEC log format to
 	 * inherit from caller fmt in sink_write()
 	 */
-	sink = sink_new_buf(srv->id, trash.area, LOG_FORMAT_UNSPEC, BUFSIZE);
+	sink = sink_new_buf(srv->id, trash.area, LOG_FORMAT_UNSPEC, bufsize);
 	if (!sink) {
 		ha_alert("unable to create a new sink buffer for server '%s'.\n", srv->id);
 		goto error;

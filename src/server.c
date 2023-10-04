@@ -760,6 +760,27 @@ static int srv_parse_init_addr(char **args, int *cur_arg,
 	return 0;
 }
 
+/* Parse the "log-bufsize" server keyword */
+static int srv_parse_log_bufsize(char **args, int *cur_arg,
+                                 struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' expects an integer argument.",
+		          args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	newsrv->log_bufsize = atoi(args[*cur_arg + 1]);
+
+	if (newsrv->log_bufsize <= 0) {
+		memprintf(err, "%s has to be > 0.",
+		          args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+
 /* Parse the "log-proto" server keyword */
 static int srv_parse_log_proto(char **args, int *cur_arg,
                                struct proxy *curproxy, struct server *newsrv, char **err)
@@ -1901,6 +1922,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "ws",                  srv_parse_ws,                  1,  1,  1 }, /* websocket protocol */
 	{ "id",                  srv_parse_id,                  1,  0,  1 }, /* set id# of server */
 	{ "init-addr",           srv_parse_init_addr,           1,  1,  0 }, /* */
+	{ "log-bufsize",         srv_parse_log_bufsize,         1,  1,  0 }, /* Set the ring bufsize for log server (only for log backends) */
 	{ "log-proto",           srv_parse_log_proto,           1,  1,  0 }, /* Set the protocol for event messages, only relevant in a log or ring section */
 	{ "maxconn",             srv_parse_maxconn,             1,  1,  1 }, /* Set the max number of concurrent connection */
 	{ "maxqueue",            srv_parse_maxqueue,            1,  1,  1 }, /* Set the max number of connection to put in queue */
@@ -2421,6 +2443,7 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	srv->netns                    = src->netns;
 	srv->check.via_socks4         = src->check.via_socks4;
 	srv->socks4_addr              = src->socks4_addr;
+	srv->log_bufsize              = src->log_bufsize;
 }
 
 /* allocate a server and attach it to the global servers_list. Returns

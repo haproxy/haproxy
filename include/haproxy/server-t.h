@@ -306,6 +306,7 @@ struct server {
 	unsigned cumulative_weight;		/* weight of servers prior to this one in the same group, for chash balancing */
 	int maxqueue;				/* maximum number of pending connections allowed */
 	int shard;				/* shard (in peers protocol context only) */
+	int log_bufsize;			/* implicit ring bufsize (for log server only - in log backend) */
 
 	enum srv_ws_mode ws;                    /* configure the protocol selection for websocket */
 	/* 3 bytes hole here */
