@@ -34,7 +34,8 @@ jobs:
       - name: Compile HAProxy
         run: |
           make -j$(nproc) CC=gcc TARGET=linux-glibc \
-            USE_OPENSSL_AWSLC=1 SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include \
+            USE_OPENSSL_AWSLC=1 USE_QUIC=1 \
+            SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include \
             DEBUG="-DDEBUG_STRICT -DDEBUG_MEMORY_POOLS -DDEBUG_POOL_INTEGRITY" \
             ADDLIB="-Wl,-rpath,/usr/local/lib/ -Wl,-rpath,$HOME/opt/lib/"
           sudo make install
