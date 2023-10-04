@@ -26,7 +26,7 @@
 
 /* It seems TLS 1.3 ciphersuites macros differ between openssl and boringssl */
 
-#if defined(OPENSSL_IS_BORINGSSL)
+#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
 #if !defined(TLS1_3_CK_AES_128_GCM_SHA256)
 #define TLS1_3_CK_AES_128_GCM_SHA256       TLS1_CK_AES_128_GCM_SHA256
 #endif
