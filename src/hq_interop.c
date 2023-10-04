@@ -16,66 +16,52 @@ static ssize_t hq_interop_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 	struct buffer htx_buf = BUF_NULL;
 	struct ist path;
 	char *ptr = b_head(b);
-	char *end = b_wrap(b);
-	size_t size = b_size(b);
 	size_t data = b_data(b);
 
-	if (!data && fin) {
-		struct buffer *appbuf;
-		struct htx *htx;
+	/* hq-interop parser does not support buffer wrapping. */
+	BUG_ON(b_data(b) != b_contig_data(b, 0));
 
-		/* FIN is notified with an empty STREAM frame. */
-		BUG_ON(!qcs->sd); /* sd must already be attached here */
-
-		if (!(appbuf = qcs_get_buf(qcs, &qcs->rx.app_buf)))
-			return -1;
-
-		htx = htx_from_buf(appbuf);
-		if (!htx_set_eom(htx))
-			return -1;
-		htx_to_buf(htx, appbuf);
-
+	/* hq-interop parser is only done once full message is received. */
+	if (!fin)
 		return 0;
-	}
 
 	b_alloc(&htx_buf);
 	htx = htx_from_buf(&htx_buf);
 
 	/* skip method */
 	while (data && HTTP_IS_TOKEN(*ptr)) {
-		if (++ptr == end)
-			ptr -= size;
+		ptr++;
 		data--;
 	}
 
 	if (!data || !HTTP_IS_SPHT(*ptr)) {
 		fprintf(stderr, "truncated stream\n");
-		return 0;
+		return -1;
 	}
 
-	if (++ptr == end)
-		ptr -= size;
-
+	ptr++;
 	if (!--data) {
 		fprintf(stderr, "truncated stream\n");
-		return 0;
+		return -1;
+	}
+
+	if (HTTP_IS_LWS(*ptr)) {
+		fprintf(stderr, "malformed stream\n");
+		return -1;
 	}
 
 	/* extract path */
-	BUG_ON(HTTP_IS_LWS(*ptr));
 	path.ptr = ptr;
 	while (data && !HTTP_IS_LWS(*ptr)) {
-		if (++ptr == end)
-			ptr -= size;
+		ptr++;
 		data--;
 	}
 
 	if (!data) {
 		fprintf(stderr, "truncated stream\n");
-		return 0;
+		return -1;
 	}
 
-	BUG_ON(!HTTP_IS_LWS(*ptr));
 	path.len = ptr - path.ptr;
 
 	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, 0, ist("GET"), path, ist("HTTP/1.0"));
@@ -86,15 +72,13 @@ static ssize_t hq_interop_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 	sl->info.req.meth = find_http_meth("GET", 3);
 
 	htx_add_endof(htx, HTX_BLK_EOH);
+	htx->flags |= HTX_FL_EOM;
 	htx_to_buf(htx, &htx_buf);
 
 	if (!qcs_attach_sc(qcs, &htx_buf, fin))
 		return -1;
 
 	b_free(&htx_buf);
-
-	if (fin)
-		htx->flags |= HTX_FL_EOM;
 
 	return b_data(b);
 }
