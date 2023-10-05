@@ -3000,7 +3000,7 @@ static size_t h1_make_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx
 /* Try to send the header for a chunk of <len> bytes. It returns the number of
  * bytes consumed or zero if nothing was done or if an error occurred..
  */
-static __maybe_unused size_t h1_make_chunk(struct h1s *h1s, struct h1m * h1m, size_t len)
+static size_t h1_make_chunk(struct h1s *h1s, struct h1m * h1m, size_t len)
 {
 	struct h1c *h1c = h1s->h1c;
 	struct buffer outbuf;
