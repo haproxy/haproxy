@@ -3580,7 +3580,7 @@ static int h1_process(struct h1c * h1c)
 	    (h1c->state >= H1_CS_CLOSING && (h1c->flags & H1C_F_SILENT_SHUT) && !b_data(&h1c->obuf))) {
 		if (h1c->state != H1_CS_RUNNING) {
 			/* No stream connector or upgrading */
-			if (h1c->state < H1_CS_RUNNING && !(h1c->flags & (H1C_F_IS_BACK|H1C_F_ERROR))) {
+			if (h1c->state < H1_CS_RUNNING && !(h1c->flags & (H1C_F_IS_BACK|H1C_F_ABRT_PENDING))) {
 				/* shutdown for reads and no error on the frontend connection: Send an error */
 				if (h1_handle_parsing_error(h1c))
 					h1_send(h1c);
