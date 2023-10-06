@@ -25,7 +25,7 @@
 #include <haproxy/api-t.h>
 #include <haproxy/global-t.h>
 
-extern const char *build_features;
+extern char *build_features;
 extern struct global global;
 extern int  pid;                /* current process id */
 extern int  actconn;            /* # of active sessions */
@@ -60,6 +60,7 @@ void run_poll_loop(void);
 int tell_old_pids(int sig);
 int delete_oldpid(int pid);
 void hap_register_build_opts(const char *str, int must_free);
+void hap_register_feature(const char *name);
 int split_version(const char *version, unsigned int *value);
 int compare_current_version(const char *version);
 void display_version();

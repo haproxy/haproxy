@@ -159,9 +159,9 @@ DECLARE_INIT_STAGES;
 empty_t __read_mostly_align HA_SECTION("read_mostly") ALIGNED(64);
 
 #ifdef BUILD_FEATURES
-const char *build_features = BUILD_FEATURES;
+char *build_features = BUILD_FEATURES;
 #else
-const char *build_features = "";
+char *build_features = "";
 #endif
 
 /* list of config files */
@@ -331,6 +331,30 @@ void hap_register_build_opts(const char *str, int must_free)
 	b->str = str;
 	b->must_free = must_free;
 	LIST_APPEND(&build_opts_list, &b->list);
+}
+
+/* used to make a new feature appear in the build_features list at boot time.
+ * The feature must be in the format "XXX" without the leading "+" which will
+ * be automatically appended.
+ */
+void hap_register_feature(const char *name)
+{
+	static int must_free = 0;
+	int new_len = strlen(build_features) + 2 + strlen(name);
+	char *new_features;
+
+	new_features = malloc(new_len + 1);
+	if (!new_features)
+		return;
+
+	strlcpy2(new_features, build_features, new_len);
+	snprintf(new_features, new_len + 1, "%s +%s", build_features, name);
+
+	if (must_free)
+		ha_free(&build_features);
+
+	build_features = new_features;
+	must_free = 1;
 }
 
 #define VERSION_MAX_ELTS  7
@@ -545,13 +569,11 @@ static void display_build_opts()
 #ifdef BUILD_DEBUG
 	       "\n  DEBUG   = " BUILD_DEBUG
 #endif
-#ifdef BUILD_FEATURES
-	       "\n\nFeature list : " BUILD_FEATURES
-#endif
+	       "\n\nFeature list : %s"
 	       "\n\nDefault settings :"
 	       "\n  bufsize = %d, maxrewrite = %d, maxpollevents = %d"
 	       "\n\n",
-	       BUFSIZE, MAXREWRITE, MAX_POLL_EVENTS);
+	       build_features, BUFSIZE, MAXREWRITE, MAX_POLL_EVENTS);
 
 	list_for_each_entry(item, &build_opts_list, list) {
 		puts(item->str);
