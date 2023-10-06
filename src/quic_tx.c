@@ -21,8 +21,6 @@
 #include <haproxy/quic_trace.h>
 #include <haproxy/ssl_sock-t.h>
 
-#define TRACE_SOURCE &trace_quic
-
 DECLARE_POOL(pool_head_quic_tx_packet, "quic_tx_packet", sizeof(struct quic_tx_packet));
 DECLARE_POOL(pool_head_quic_cc_buf, "quic_cc_buf", QUIC_MAX_CC_BUFSIZE);
 

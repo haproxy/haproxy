@@ -7,11 +7,10 @@
 #include <haproxy/quic_conn.h>
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_tp.h>
+#include <haproxy/quic_trace.h>
 #include <haproxy/trace.h>
 
 #define QUIC_MAX_UDP_PAYLOAD_SIZE     2048
-
-#define TRACE_SOURCE       &trace_quic
 
 /* This is the values of some QUIC transport parameters when absent.
  * Should be used to initialize any transport parameters (local or remote)

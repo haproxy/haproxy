@@ -35,16 +35,13 @@
 #include <haproxy/quic_rx.h>
 #include <haproxy/quic_sock.h>
 #include <haproxy/quic_tp-t.h>
+#include <haproxy/quic_trace.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/task.h>
 #include <haproxy/trace.h>
 #include <haproxy/tools.h>
 #include <haproxy/trace.h>
-
-#define TRACE_SOURCE &trace_quic
-
-#define TRACE_SOURCE    &trace_quic
 
 /* Log only first EACCES bind() error runtime occurence. */
 static volatile char quic_bind_eacces_warn = 0;

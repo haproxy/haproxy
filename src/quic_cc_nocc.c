@@ -6,9 +6,8 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/quic_conn-t.h>
+#include <haproxy/quic_trace.h>
 #include <haproxy/trace.h>
-
-#define TRACE_SOURCE    &trace_quic
 
 unsigned int quic_cc_nocc_fixed_cwnd;
 

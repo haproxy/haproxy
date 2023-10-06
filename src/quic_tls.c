@@ -11,7 +11,6 @@
 #include <haproxy/pool.h>
 #include <haproxy/quic_ack.h>
 #include <haproxy/quic_conn.h>
-#include <haproxy/quic_trace-t.h>
 
 
 DECLARE_POOL(pool_head_quic_enc_level,  "quic_enc_level",  sizeof(struct quic_enc_level));

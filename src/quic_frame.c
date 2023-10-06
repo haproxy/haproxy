@@ -18,10 +18,9 @@
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_rx-t.h>
 #include <haproxy/quic_tp-t.h>
+#include <haproxy/quic_trace.h>
 #include <haproxy/quic_tx.h>
 #include <haproxy/trace.h>
-
-#define TRACE_SOURCE    &trace_quic
 
 DECLARE_POOL(pool_head_quic_frame, "quic_frame", sizeof(struct quic_frame));
 

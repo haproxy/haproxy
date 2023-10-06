@@ -17,8 +17,6 @@
 #error "Must define USE_OPENSSL"
 #endif
 
-#define TRACE_SOURCE &trace_quic
-
 #include <stdlib.h>
 #include <string.h>
 
@@ -29,6 +27,7 @@
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_tls-t.h>
 #include <haproxy/quic_tx.h>
+#include <haproxy/quic_trace.h>
 #include <haproxy/trace.h>
 
 int quic_tls_finalize(struct quic_conn *qc, int server);

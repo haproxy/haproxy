@@ -14,9 +14,8 @@
 #include <haproxy/connection.h>
 #include <haproxy/quic_conn.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/quic_trace.h>
 #include <haproxy/trace.h>
-
-#define TRACE_SOURCE &trace_quic
 
 static void quic_close(struct connection *conn, void *xprt_ctx)
 {

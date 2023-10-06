@@ -12,6 +12,7 @@
 
 #include <haproxy/quic_conn.h>
 #include <haproxy/quic_tls.h>
+#include <haproxy/quic_trace.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/trace.h>
 
@@ -23,8 +24,6 @@
 
 #define QUIC_TLS_KEY_LABEL "key"
 #define QUIC_TLS_IV_LABEL  "iv"
-
-#define TRACE_SOURCE &trace_quic
 
 struct quic_tls_compat_record {
 	unsigned char type;

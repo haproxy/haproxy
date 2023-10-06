@@ -6,9 +6,9 @@
 #include <haproxy/quic_ssl.h>
 #include <haproxy/quic_tls.h>
 #include <haproxy/quic_tp.h>
+#include <haproxy/quic_trace.h>
 #include <haproxy/ssl_sock.h>
-
-#define TRACE_SOURCE       &trace_quic
+#include <haproxy/trace.h>
 
 DECLARE_POOL(pool_head_quic_ssl_sock_ctx, "quic_ssl_sock_ctx", sizeof(struct ssl_sock_ctx));
 

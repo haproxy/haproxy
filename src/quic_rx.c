@@ -23,10 +23,9 @@
 #include <haproxy/quic_stream.h>
 #include <haproxy/quic_ssl.h>
 #include <haproxy/quic_tls.h>
+#include <haproxy/quic_trace.h>
 #include <haproxy/quic_tx.h>
 #include <haproxy/trace.h>
-
-#define TRACE_SOURCE &trace_quic
 
 DECLARE_POOL(pool_head_quic_conn_rxbuf, "quic_conn_rxbuf", QUIC_CONN_RX_BUFSZ);
 DECLARE_POOL(pool_head_quic_dgram, "quic_dgram", sizeof(struct quic_dgram));

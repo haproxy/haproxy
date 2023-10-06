@@ -14,7 +14,7 @@
 
 #include <haproxy/quic_conn.h>
 #include <haproxy/quic_tls.h>
-#include <haproxy/quic_trace-t.h>
+#include <haproxy/quic_trace.h>
 #include <haproxy/quic_tp.h>
 #include <haproxy/trace.h>
 
@@ -97,7 +97,6 @@ struct trace_source trace_quic = {
 	.report_events = ~0,  /* report everything by default */
 };
 
-#define TRACE_SOURCE    &trace_quic
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 /* Trace callback for QUIC.

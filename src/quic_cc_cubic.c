@@ -1,4 +1,5 @@
 #include <haproxy/quic_cc.h>
+#include <haproxy/quic_trace.h>
 #include <haproxy/ticks.h>
 #include <haproxy/trace.h>
 
@@ -7,7 +8,6 @@
  * not want to use any floating point operations to be fast!
  * (See net/ipv4/tcp_cubic.c)
  */
-#define TRACE_SOURCE    &trace_quic
 
 #define CUBIC_BETA_SCALE       1024
 #define CUBIC_BETA_SCALE_SHIFT   10

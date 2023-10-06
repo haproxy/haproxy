@@ -3,13 +3,12 @@
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_loss.h>
 #include <haproxy/quic_tls.h>
+#include <haproxy/quic_trace.h>
 
 #include <haproxy/atomic.h>
 #include <haproxy/list.h>
 #include <haproxy/ticks.h>
 #include <haproxy/trace.h>
-
-#define TRACE_SOURCE &trace_quic
 
 /* Update <ql> QUIC loss information with new <rtt> measurement and <ack_delay>
  * on ACK frame receipt which MUST be min(ack->ack_delay, max_ack_delay)
