@@ -1,6 +1,83 @@
 ChangeLog :
 ===========
 
+2023/10/06 : 2.9-dev7
+    - MINOR: support for http-request set-timeout client
+    - BUG/MINOR: mux-quic: remove full demux flag on ncbuf release
+    - CLEANUP: freq_ctr: make all freq_ctr readers take a const
+    - CLEANUP: stream: make the dump code not depend on the CLI appctx
+    - MINOR: stream: split stats_dump_full_strm_to_buffer() in two
+    - CLEANUP: stream: use const filters in the dump function
+    - CLEANUP: stream: make strm_dump_to_buffer() take a const stream
+    - MINOR: stream: make strm_dump_to_buffer() take an arbitrary buffer
+    - MINOR: stream: make strm_dump_to_buffer() show the list of filters
+    - MINOR: stream: make stream_dump() always multi-line
+    - MINOR: streams: add support for line prefixes to strm_dump_to_buffer()
+    - MEDIUM: stream: now provide full stream dumps in case of loops
+    - MINOR: debug: use the more detailed stream dump in panics
+    - CLEANUP: stream: remove the now unused stream_dump() function
+    - Revert "BUG/MEDIUM: quic: missing check of dcid for init pkt including a token"
+    - MINOR: stream: fix output alignment of stuck thread dumps
+    - BUG/MINOR: proto_reverse_connect: fix FD leak on connection error
+    - BUG/MINOR: tcp_act: fix attach-srv rule ACL parsing
+    - MINOR: connection: define error for reverse connect
+    - MINOR: connection: define mux flag for reverse support
+    - MINOR: tcp_act: remove limitation on protocol for attach-srv
+    - BUG/MINOR: proto_reverse_connect: fix FD leak upon connect
+    - BUG/MAJOR: plock: fix major bug in pl_take_w() introduced with EBO
+    - Revert "MEDIUM: sample: Small fix in function check_operator for eror reporting"
+    - DOC: sample: Add a comment in 'check_operator' to explain why 'vars_check_arg' should ignore the 'err' buffer
+    - DEV: sslkeylogger: handle file opening error
+    - MINOR: quic: define quic-socket bind setting
+    - MINOR: quic: handle perm error on bind during runtime
+    - MINOR: backend: refactor specific source address allocation
+    - MINOR: proto_reverse_connect: support source address setting
+    - BUILD: pool: Fix GCC error about potential null pointer dereference
+    - MINOR: hlua: Set context's appctx when the lua socket is created
+    - MINOR: hlua: Don't preform operations on a not connected socket
+    - MINOR: hlua: Save the lua socket's timeout in its context
+    - MINOR: hlua: Save the lua socket's server in its context
+    - MINOR: hlua: Test the hlua struct first when the lua socket is connecting
+    - BUG/MEDIUM: hlua: Initialize appctx used by a lua socket on connect only
+    - DEBUG: mux-h1: Fix event label from trace messages about payload formatting
+    - BUG/MINOR: mux-h1: Handle read0 in rcv_pipe() only when data receipt was tried
+    - BUG/MINOR: mux-h1: Ignore C-L when sending H1 messages if T-E is also set
+    - BUG/MEDIUM: h1: Ignore C-L value in the H1 parser if T-E is also set
+    - REGTESTS: filters: Don't set C-L header in the successful response to CONNECT
+    - MINOR: mux-h1: Add flags if outgoing msg contains a header about its payload
+    - MINOR: mux-h1: Rely on H1S_F_HAVE_CHNK to add T-E in outgoing messages
+    - BUG/MEDIUM: mux-h1: Add C-L header in outgoing message if it was removed
+    - BUG/MEDIUM: mux-h1; Ignore headers modifications about payload representation
+    - BUG/MINOR: h1-htx: Keep flags about C-L/T-E during HEAD response parsing
+    - MINOR: h1-htx: Declare successful tunnel establishment as bodyless
+    - BUILD: quic: allow USE_QUIC to work with AWSLC
+    - CI: github: add USE_QUIC=1 to aws-lc build
+    - BUG/MINOR: hq-interop: simplify parser requirement
+    - MEDIUM: cache: Add "Origin" header to secondary cache key
+    - MINOR: haproxy: permit to register features during boot
+    - MINOR: tcp_rules: tcp-{request,response} requires TCP or HTTP mode
+    - MINOR: stktable: "stick" requires TCP or HTTP mode
+    - MINOR: filter: "filter" requires TCP or HTTP mode
+    - MINOR: backend/balance: "balance" requires TCP or HTTP mode
+    - MINOR: flt_http_comp: "compression" requires TCP or HTTP mode
+    - MINOR: http_htx/errors: prevent the use of some keywords when not in tcp/http mode
+    - MINOR: fcgi-app: "use-fcgi-app" requires TCP or HTTP mode
+    - MINOR: cfgparse-listen: "http-send-name-header" requires TCP or HTTP mode
+    - MINOR: cfgparse-listen: "dynamic-cookie-key" requires TCP or HTTP mode
+    - MINOR: proxy: dynamic-cookie CLIs require TCP or HTTP mode
+    - MINOR: cfgparse-listen: "http-reuse" requires TCP or HTTP mode
+    - MINOR: proxy: report a warning for max_ka_queue in proxy_cfg_ensure_no_http()
+    - MINOR: cfgparse-listen: warn when use-server rules is used in wrong mode
+    - DOC: config: unify "log" directive doc
+    - MINOR: sink/log: fix some typos around postparsing logic
+    - MINOR: sink: remove useless check after sink creation
+    - MINOR: sink: don't rely on p->parent in sink appctx
+    - MINOR: sink: don't rely on forward_px to init sink forwarding
+    - MINOR: sink: refine forward_px usage
+    - MINOR: sink: function to add new sink servers
+    - BUG/MEDIUM: stconn: Fix comparison sign in sc_need_room()
+    - BUG/MEDIUM: actions: always apply a longest match on prefix lookup
+
 2023/09/22 : 2.9-dev6
     - BUG/MINOR: quic: fdtab array underflow access
     - DEBUG: pools: always record the caller for uncached allocs as well
