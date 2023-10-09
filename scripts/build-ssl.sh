@@ -125,16 +125,22 @@ download_quictls () {
 download_wolfssl () {
     if [ ! -f "download-cache/wolfssl-${WOLFSSL_VERSION}.tar.gz" ]; then
       mkdir -p download-cache
+      if [ "${WOLFSSL_VERSION%%-*}" != "git" ]; then
         wget -q -O "download-cache/wolfssl-${WOLFSSL_VERSION}.tar.gz" \
-          "https://github.com/wolfSSL/wolfssl/archive/refs/tags/v${WOLFSSL_VERSION}-stable.tar.gz"
+             "https://github.com/wolfSSL/wolfssl/archive/refs/tags/v${WOLFSSL_VERSION}-stable.tar.gz"
+      else
+        wget -q -O "download-cache/wolfssl-${WOLFSSL_VERSION}.tar.gz" \
+             "https://github.com/wolfSSL/wolfssl/archive/${WOLFSSL_VERSION##git-}.tar.gz"
+      fi
     fi
 }
 
 build_wolfssl () {
     if [ "$(cat ${HOME}/opt/.wolfssl-version)" != "${WOLFSSL_VERSION}" ]; then
-        tar zxf "download-cache/wolfssl-${WOLFSSL_VERSION}.tar.gz"
+        mkdir "wolfssl-${WOLFSSL_VERSION}/"
+        tar zxf "download-cache/wolfssl-${WOLFSSL_VERSION}.tar.gz" -C "wolfssl-${WOLFSSL_VERSION}/" --strip-components=1
         (
-           cd "wolfssl-${WOLFSSL_VERSION}-stable/"
+           cd "wolfssl-${WOLFSSL_VERSION}/"
             autoreconf -i
            ./configure --enable-haproxy --enable-quic --prefix="${HOME}/opt"
            make -j$(nproc)
