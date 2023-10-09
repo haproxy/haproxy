@@ -395,6 +395,39 @@ static int h3_check_body_size(struct qcs *qcs, int fin)
 	return ret;
 }
 
+/* Set <auth> authority header to the new value <value> for <qcs> stream. This
+ * ensures that value is conformant to the specification. If <auth> is a
+ * non-null length string, it ensures that <value> is identical to it.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int h3_set_authority(struct qcs *qcs, struct ist *auth, const struct ist value)
+{
+	/* RFC 9114 4.3.1. Request Pseudo-Header Fields
+	 *
+	 * If the :scheme pseudo-header field identifies a scheme that has a
+	 * mandatory authority component (including "http" and "https"), the
+	 * request MUST contain either an :authority pseudo-header field or a
+	 * Host header field. If these fields are present, they MUST NOT be
+	 * empty. If both fields are present, they MUST contain the same value.
+	 */
+
+	/* Check that if a previous value is set the new value is identical. */
+	if (isttest(*auth) && !isteq(*auth, value)) {
+		TRACE_ERROR("difference between :authority and host headers", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		return 1;
+	}
+
+	/* Check that value is not empty. */
+	if (!istlen(value)) {
+		TRACE_ERROR("empty :authority/host header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		return 1;
+	}
+
+	*auth = value;
+	return 0;
+}
+
 /* Parse from buffer <buf> a H3 HEADERS frame of length <len>. Data are copied
  * in a local HTX buffer and transfer to the stream connector layer. <fin> must be
  * set if this is the last data to transfer from this stream.
@@ -554,7 +587,12 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 				len = -1;
 				goto out;
 			}
-			authority = list[hdr_idx].v;
+
+			if (h3_set_authority(qcs, &authority, list[hdr_idx].v)) {
+				h3s->err = H3_MESSAGE_ERROR;
+				len = -1;
+				goto out;
+			}
 		}
 		else {
 			TRACE_ERROR("unknown pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
@@ -646,7 +684,14 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			goto out;
 		}
 
-		if (isteq(list[hdr_idx].n, ist("cookie"))) {
+		if (isteq(list[hdr_idx].n, ist("host"))) {
+			if (h3_set_authority(qcs, &authority, list[hdr_idx].v)) {
+				h3s->err = H3_MESSAGE_ERROR;
+				len = -1;
+				goto out;
+			}
+		}
+		else if (isteq(list[hdr_idx].n, ist("cookie"))) {
 			http_cookie_register(list, hdr_idx, &cookie, &last_cookie);
 			++hdr_idx;
 			continue;
@@ -715,6 +760,20 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			goto out;
 		}
 		++hdr_idx;
+	}
+
+	/* RFC 9114 4.3.1. Request Pseudo-Header Fields
+	 *
+	 * If the :scheme pseudo-header field identifies a scheme that has a
+	 * mandatory authority component (including "http" and "https"), the
+	 * request MUST contain either an :authority pseudo-header field or a
+	 * Host header field.
+	 */
+	if (!isttest(authority)) {
+		TRACE_ERROR("missing mandatory pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		h3s->err = H3_MESSAGE_ERROR;
+		len = -1;
+		goto out;
 	}
 
 	if (cookie >= 0) {
