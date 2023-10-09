@@ -90,7 +90,7 @@
 #define HAVE_SSL_CTX_get0_privatekey
 #endif
 
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000104fL
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000104fL || defined(USE_OPENSSL_WOLFSSL) || defined(USE_OPENSSL_AWSLC)
 /* CRYPTO_memcmp() is present since openssl 1.0.1d */
 #define HAVE_CRYPTO_memcmp
 #endif
