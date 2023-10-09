@@ -125,67 +125,10 @@
 #define HASSL_DH_up_ref DH_up_ref
 #endif
 
-#if (HA_OPENSSL_VERSION_NUMBER < 0x0090800fL)
-/* Functions present in OpenSSL 0.9.8, older not tested */
-static inline const unsigned char *SSL_SESSION_get_id(const SSL_SESSION *sess, unsigned int *sid_length)
-{
-	*sid_length = sess->session_id_length;
-	return sess->session_id;
-}
-
-static inline X509_NAME_ENTRY *X509_NAME_get_entry(const X509_NAME *name, int loc)
-{
-	return sk_X509_NAME_ENTRY_value(name->entries, loc);
-}
-
-static inline ASN1_OBJECT *X509_NAME_ENTRY_get_object(const X509_NAME_ENTRY *ne)
-{
-	return ne->object;
-}
-
-static inline ASN1_STRING *X509_NAME_ENTRY_get_data(const X509_NAME_ENTRY *ne)
-{
-	return ne->value;
-}
-
-static inline int ASN1_STRING_length(const ASN1_STRING *x)
-{
-	return x->length;
-}
-
-static inline int X509_NAME_entry_count(X509_NAME *name)
-{
-	return sk_X509_NAME_ENTRY_num(name->entries)
-}
-
-static inline void X509_ALGOR_get0(ASN1_OBJECT **paobj, int *pptype, const void **ppval, const X509_ALGOR *algor)
-{
-	*paobj = algor->algorithm;
-}
-
-#endif // OpenSSL < 0.9.8
-
 #if ((HA_OPENSSL_VERSION_NUMBER < 0x1000000fL) && !defined(X509_get_X509_PUBKEY))
 #define X509_get_X509_PUBKEY(x) ((x)->cert_info->key)
 #endif
 
-#if (HA_OPENSSL_VERSION_NUMBER < 0x1000000fL)
-/* Functions introduced in OpenSSL 1.0.0 */
-static inline int EVP_PKEY_base_id(const EVP_PKEY *pkey)
-{
-	return EVP_PKEY_type(pkey->type);
-}
-
-/* minimal implementation based on the fact that the only known call place
- * doesn't make use of other arguments.
- */
-static inline int X509_PUBKEY_get0_param(ASN1_OBJECT **ppkalg, const unsigned char **pk, int *ppklen, X509_ALGOR **pa, X509_PUBKEY *pub)
-{
-	*ppkalg = pub->algor->algorithm;
-	return 1;
-}
-
-#endif
 
 #if (HA_OPENSSL_VERSION_NUMBER < 0x1000100fL)
 /*
