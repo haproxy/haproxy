@@ -131,6 +131,10 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 		qcs->tx.msd = qcc->rfctl.msd_uni_l;
 	}
 
+	/* Properly set flow-control blocking if initial MSD is nul. */
+	if (!qcs->tx.msd)
+		qcs->flags |= QC_SF_BLK_SFCTL;
+
 	qcs->rx.ncbuf = NCBUF_NULL;
 	qcs->rx.app_buf = BUF_NULL;
 	qcs->rx.offset = qcs->rx.offset_max = 0;
