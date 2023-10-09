@@ -265,7 +265,6 @@ static int ssl_parse_global_ciphers(char **args, int section_type, struct proxy 
 	return 0;
 }
 
-#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 /* parse the "ssl-default-bind-ciphersuites" / "ssl-default-server-ciphersuites" keywords
  * in global section. Returns <0 on alert, >0 on warning, 0 on success.
  */
@@ -273,6 +272,7 @@ static int ssl_parse_global_ciphersuites(char **args, int section_type, struct p
                                     const struct proxy *defpx, const char *file, int line,
                                     char **err)
 {
+#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	char **target;
 
 	target = (args[0][12] == 'b') ? &global_ssl.listen_default_ciphersuites : &global_ssl.connect_default_ciphersuites;
@@ -288,8 +288,12 @@ static int ssl_parse_global_ciphersuites(char **args, int section_type, struct p
 	free(*target);
 	*target = strdup(args[1]);
 	return 0;
-}
+#else /* ! HAVE_SSL_CTX_SET_CIPHERSUITES */
+	memprintf(err, "'%s' not supported for your SSL library (%s).", args[0], OPENSSL_VERSION_TEXT);
+	return -1;
+
 #endif
+}
 
 #if defined(SSL_CTX_set1_curves_list)
 /*
@@ -746,10 +750,10 @@ static int bind_parse_ciphers(char **args, int cur_arg, struct proxy *px, struct
 	return ssl_bind_parse_ciphers(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
 
-#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 /* parse the "ciphersuites" bind keyword */
 static int ssl_bind_parse_ciphersuites(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
+#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	if (!*args[cur_arg + 1]) {
 		memprintf(err, "'%s' : missing cipher suite", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
@@ -758,12 +762,16 @@ static int ssl_bind_parse_ciphersuites(char **args, int cur_arg, struct proxy *p
 	free(conf->ciphersuites);
 	conf->ciphersuites = strdup(args[cur_arg + 1]);
 	return 0;
+#else
+	memprintf(err, "'%s' keyword not supported for this SSL library version (%s).", args[cur_arg], OPENSSL_VERSION_TEXT);
+	return ERR_ALERT | ERR_FATAL;
+#endif
 }
+
 static int bind_parse_ciphersuites(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	return ssl_bind_parse_ciphersuites(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
-#endif
 
 /* parse the "crt" bind keyword. Returns a set of ERR_* flags possibly with an error in <err>. */
 static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
@@ -1711,10 +1719,10 @@ static int srv_parse_ciphers(char **args, int *cur_arg, struct proxy *px, struct
 	return 0;
 }
 
-#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 /* parse the "ciphersuites" server keyword */
 static int srv_parse_ciphersuites(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
+#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	if (!*args[*cur_arg + 1]) {
 		memprintf(err, "'%s' : missing cipher suite", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
@@ -1729,8 +1737,12 @@ static int srv_parse_ciphersuites(char **args, int *cur_arg, struct proxy *px, s
 	}
 
 	return 0;
-}
+#else /* ! HAVE_SSL_CTX_SET_CIPHERSUITES */
+	memprintf(err, "'%s' not supported for your SSL library (%s).", args[*cur_arg], OPENSSL_VERSION_TEXT);
+	return ERR_ALERT | ERR_FATAL;
+
 #endif
+}
 
 /* parse the "client-sigalgs" server keyword */
 static int srv_parse_client_sigalgs(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
@@ -2194,9 +2206,7 @@ struct ssl_crtlist_kw ssl_crtlist_kws[] = {
 	{ "ca-file",               ssl_bind_parse_ca_file,          1 }, /* set CAfile to process ca-names and verify on client cert */
 	{ "ca-verify-file",        ssl_bind_parse_ca_verify_file,   1 }, /* set CAverify file to process verify on client cert */
 	{ "ciphers",               ssl_bind_parse_ciphers,          1 }, /* set SSL cipher suite */
-#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	{ "ciphersuites",          ssl_bind_parse_ciphersuites,     1 }, /* set TLS 1.3 cipher suite */
-#endif
 	{ "client-sigalgs",        ssl_bind_parse_client_sigalgs,     1 }, /* set SSL client signature algorithms */
 	{ "crl-file",              ssl_bind_parse_crl_file,         1 }, /* set certificate revocation list file use on client cert verify */
 	{ "curves",                ssl_bind_parse_curves,           1 }, /* set SSL curve suite */
@@ -2223,9 +2233,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "ca-sign-file",          bind_parse_ca_sign_file,       1 }, /* set CAFile used to generate and sign server certs */
 	{ "ca-sign-pass",          bind_parse_ca_sign_pass,       1 }, /* set CAKey passphrase */
 	{ "ciphers",               bind_parse_ciphers,            1 }, /* set SSL cipher suite */
-#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	{ "ciphersuites",          bind_parse_ciphersuites,       1 }, /* set TLS 1.3 cipher suite */
-#endif
 	{ "client-sigalgs",        bind_parse_client_sigalgs,     1 }, /* set SSL client signature algorithms */
 	{ "crl-file",              bind_parse_crl_file,           1 }, /* set certificate revocation list file use on client cert verify */
 	{ "crt",                   bind_parse_crt,                1 }, /* load SSL certificates from this location */
@@ -2276,9 +2284,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "check-sni",               srv_parse_check_sni,          1, 1, 1 }, /* set SNI */
 	{ "check-ssl",               srv_parse_check_ssl,          0, 1, 1 }, /* enable SSL for health checks */
 	{ "ciphers",                 srv_parse_ciphers,            1, 1, 1 }, /* select the cipher suite */
-#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	{ "ciphersuites",            srv_parse_ciphersuites,       1, 1, 1 }, /* select the cipher suite */
-#endif
 	{ "client-sigalgs",          srv_parse_client_sigalgs,     1, 1, 1 }, /* signature algorithms */
 	{ "crl-file",                srv_parse_crl_file,           1, 1, 1 }, /* set certificate revocation list file use on server cert verify */
 	{ "curves",                  srv_parse_curves,             1, 1, 1 }, /* set TLS curves list */
@@ -2362,10 +2368,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "ssl-default-bind-client-sigalgs", ssl_parse_global_client_sigalgs },
 	{ CFG_GLOBAL, "ssl-default-server-client-sigalgs", ssl_parse_global_client_sigalgs },
 #endif
-#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	{ CFG_GLOBAL, "ssl-default-bind-ciphersuites", ssl_parse_global_ciphersuites },
 	{ CFG_GLOBAL, "ssl-default-server-ciphersuites", ssl_parse_global_ciphersuites },
-#endif
 	{ CFG_GLOBAL, "ssl-load-extra-files", ssl_parse_global_extra_files },
 	{ CFG_GLOBAL, "ssl-load-extra-del-ext", ssl_parse_global_extra_noext },
 #ifndef OPENSSL_NO_OCSP
