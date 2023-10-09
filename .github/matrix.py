@@ -194,6 +194,7 @@ def main(ref_name):
             "OPENSSL_VERSION=1.0.2u",
             "OPENSSL_VERSION=1.1.1s",
             "QUICTLS=yes",
+            "WOLFSSL_VERSION=5.6.3",
             # "BORINGSSL=yes",
         ]
 
@@ -205,8 +206,10 @@ def main(ref_name):
 
         for ssl in ssl_versions:
             flags = ["USE_OPENSSL=1"]
-            if ssl == "BORINGSSL=yes" or ssl == "QUICTLS=yes" or "LIBRESSL" in ssl:
+            if ssl == "BORINGSSL=yes" or ssl == "QUICTLS=yes" or "LIBRESSL" in ssl or "WOLFSSL" in ssl:
                 flags.append("USE_QUIC=1")
+            if "WOLFSSL" in ssl:
+                flags.append("USE_OPENSSL_WOLFSSL=1")
             if ssl != "stock":
                 flags.append("SSL_LIB=${HOME}/opt/lib")
                 flags.append("SSL_INC=${HOME}/opt/include")
