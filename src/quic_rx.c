@@ -942,6 +942,20 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	pos = pkt->data + pkt->aad_len;
 	end = pkt->data + pkt->len;
 
+	/* Packet with no frame. */
+	if (pos == end) {
+		/* RFC9000 12.4. Frames and Frame Types
+		 *
+		 * The payload of a packet that contains frames MUST contain at least
+		 * one frame, and MAY contain multiple frames and multiple frame types.
+		 * An endpoint MUST treat receipt of a packet containing no frames as a
+		 * connection error of type PROTOCOL_VIOLATION. Frames always fit within
+		 * a single QUIC packet and cannot span multiple packets.
+		 */
+		quic_set_connection_close(qc, quic_err_transport(QC_ERR_PROTOCOL_VIOLATION));
+		goto leave;
+	}
+
 	while (pos < end) {
 		if (!qc_parse_frm(&frm, pkt, &pos, end, qc)) {
 			// trace already emitted by function above
