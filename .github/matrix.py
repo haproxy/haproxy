@@ -194,7 +194,7 @@ def main(ref_name):
             "OPENSSL_VERSION=1.0.2u",
             "OPENSSL_VERSION=1.1.1s",
             "QUICTLS=yes",
-            "WOLFSSL_VERSION=5.6.3",
+            "WOLFSSL_VERSION=git-d83f2fa",
             # "BORINGSSL=yes",
         ]
 
