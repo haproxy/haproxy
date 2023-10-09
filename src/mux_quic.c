@@ -1270,7 +1270,6 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 	 */
 	if (qcc_get_qcs(qcc, id, 1, 0, &qcs)) {
 		TRACE_ERROR("RESET_STREAM for send-only stream received", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
-		qcc_set_error(qcc, QC_ERR_STREAM_STATE_ERROR, 0);
 		goto err;
 	}
 
