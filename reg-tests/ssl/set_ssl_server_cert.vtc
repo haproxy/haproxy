@@ -4,8 +4,8 @@
 # It requires socat to upload the certificate
 
 varnishtest "Test the 'set ssl cert' feature of the CLI"
-#REQUIRE_VERSION=2.4
-#REQUIRE_OPTIONS=OPENSSL
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.4)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && !ssllib_name_startswith(wolfSSL)'"
 feature cmd "command -v socat"
 feature ignore_unknown_macro
 
