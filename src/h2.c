@@ -88,6 +88,7 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 	struct ist uri, meth_sl;
 	unsigned int flags = HTX_SL_F_NONE;
 	struct htx_sl *sl;
+	enum http_meth_t meth;
 	size_t i;
 
 	if ((fields & H2_PHDR_FND_METH) && isteq(phdr[H2_PHDR_IDX_METH], ist("CONNECT"))) {
@@ -264,13 +265,17 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 	flags |= HTX_SL_F_VER_11;    // V2 in fact
 	flags |= HTX_SL_F_XFER_LEN;  // xfer len always known with H2
 
+
+	meth = find_http_meth(meth_sl.ptr, meth_sl.len);
+	if (meth == HTTP_METH_HEAD) {
+		*msgf |= H2_MSGF_BODYLESS_RSP;
+		flags |= HTX_SL_F_BODYLESS_RESP;
+	}
+
 	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth_sl, uri, ist("HTTP/2.0"));
 	if (!sl)
 		goto fail;
-
-	sl->info.req.meth = find_http_meth(meth_sl.ptr, meth_sl.len);
-	if (sl->info.req.meth == HTTP_METH_HEAD)
-		*msgf |= H2_MSGF_BODYLESS_RSP;
+	sl->info.req.meth = meth;
 	return sl;
  fail:
 	return NULL;
@@ -559,6 +564,7 @@ static struct htx_sl *h2_prepare_htx_stsline(uint32_t fields, struct ist *phdr, 
 	else if (status == 204 || status == 304) {
 		*msgf &= ~H2_MSGF_BODY;
 		*msgf |= H2_MSGF_BODYLESS_RSP;
+		flags |= HTX_SL_F_BODYLESS_RESP;
 	}
 
 	/* Set HTX start-line flags */
