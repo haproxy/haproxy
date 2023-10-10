@@ -5,11 +5,11 @@
 
 USAGE=\
 "Usage: %s [-l <len> ] [-t <type>] [-f <flags>] [-i <sid>] [ -d <data> ]
-           [ -e <name> <value> ]* [ -h | --help ] > hdr.bin
+           [ -e <name> <value> ]* [ -r raw ] [ -h | --help ] > hdr.bin
         Numbers are decimal or 0xhex. Not set=0. If <data> is passed, it points
         to a file that is read and chunked into frames of <len> bytes. -e
         encodes a headers frame (by default) with all headers at once encoded
-        in literal. Use type 'p' for the preface.
+        in literal. Use type 'p' for the preface. Use -r to pass raw hex data.
 
 Supported symbolic types (case insensitive prefix match):
    DATA        (0x00)      PUSH_PROMISE   (0x05)
@@ -28,6 +28,7 @@ LEN=
 TYPE=
 FLAGS=
 ID=
+RAW=
 HDR=( )
 
 die() {
@@ -114,6 +115,7 @@ while [ -n "$1" -a -z "${1##-*}" ]; do
 		-f)        FLAGS="$2"    ; shift 2 ;;
 		-i)        ID="$2"       ; shift 2 ;;
 		-d)        DATA="$2"     ; shift 2 ;;
+		-r)        RAW="$2"      ; shift 2 ;;
                 -e)        TYPE=1; HDR[${#HDR[@]}]="$2=$3"; shift 3 ;;
 		-h|--help) usage "${0##*}"; quit;;
 		*)         usage "${0##*}"; die ;;
@@ -143,7 +145,6 @@ fi
 if [ "$TYPE" = "p" ]; then
         printf "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 elif [ -z "$DATA" ]; then
-        HEX=""
         # If we're trying to emit literal headers, let's pre-build the raw data
         # and measure their total length.
         if [ ${#HDR[@]} -gt 0 ]; then
@@ -155,16 +156,20 @@ elif [ -z "$DATA" ]; then
                         vl=${#v}
 	                nl7=$(printf "%02x" $((nl & 127)))
 	                vl7=$(printf "%02x" $((vl & 127)))
-	                HEX="${HEX}\x40\x${nl7}${n}\x${vl7}${v}"
+	                RAW="${RAW}\x40\x${nl7}${n}\x${vl7}${v}"
                 done
-                LEN=$(printf "${HEX}" | wc -c)
+        fi
+
+        # compute length if RAW set
+        if [ -n "$RAW" ]; then
+                LEN=$(printf "${RAW}" | wc -c)
         fi
 
 	mkframe "$LEN" "$TYPE" "$FLAGS" "$ID"
 
         # now emit the literal data of advertised length
-        if [ -n "$HEX" ]; then
-                printf "${HEX}"
+        if [ -n "$RAW" ]; then
+                printf "${RAW}"
         fi
 else
 	# read file $DATA in <LEN> chunks and send it in multiple frames
