@@ -4,9 +4,12 @@
 # All fields are optional. 0 assumed when absent.
 
 USAGE=\
-"Usage: %s [-l <len> ] [-t <type>] [-f <flags>] [-i <sid>] [ -d <data> ] > hdr.bin
+"Usage: %s [-l <len> ] [-t <type>] [-f <flags>] [-i <sid>] [ -d <data> ]
+           [ -e <name> <value> ]* [ -h | --help ] > hdr.bin
         Numbers are decimal or 0xhex. Not set=0. If <data> is passed, it points
-        to a file that is read and chunked into frames of <len> bytes.
+        to a file that is read and chunked into frames of <len> bytes. -e
+        encodes a headers frame (by default) with all headers at once encoded
+        in literal.
 
 Supported symbolic types (case insensitive prefix match):
    DATA        (0x00)      PUSH_PROMISE   (0x05)
@@ -25,6 +28,7 @@ LEN=
 TYPE=
 FLAGS=
 ID=
+HDR=( )
 
 die() {
 	[ "$#" -eq 0 ] || echo "$*" >&2
@@ -110,6 +114,7 @@ while [ -n "$1" -a -z "${1##-*}" ]; do
 		-f)        FLAGS="$2"    ; shift 2 ;;
 		-i)        ID="$2"       ; shift 2 ;;
 		-d)        DATA="$2"     ; shift 2 ;;
+                -e)        TYPE=1; HDR[${#HDR[@]}]="$2=$3"; shift 3 ;;
 		-h|--help) usage "${0##*}"; quit;;
 		*)         usage "${0##*}"; die ;;
 	esac
@@ -136,7 +141,29 @@ if [ -n "${ID##[0-9]*}" ]; then
 fi
 
 if [ -z "$DATA" ]; then
+        HEX=""
+        # If we're trying to emit literal headers, let's pre-build the raw data
+        # and measure their total length.
+        if [ ${#HDR[@]} -gt 0 ]; then
+                # limited to 127 bytes for name and value
+                for h in "${HDR[@]}"; do
+                        n=${h%%=*}
+                        v=${h#*=}
+                        nl=${#n}
+                        vl=${#v}
+	                nl7=$(printf "%02x" $((nl & 127)))
+	                vl7=$(printf "%02x" $((vl & 127)))
+	                HEX="${HEX}\x40\x${nl7}${n}\x${vl7}${v}"
+                done
+                LEN=$(printf "${HEX}" | wc -c)
+        fi
+
 	mkframe "$LEN" "$TYPE" "$FLAGS" "$ID"
+
+        # now emit the literal data of advertised length
+        if [ -n "$HEX" ]; then
+                printf "${HEX}"
+        fi
 else
 	# read file $DATA in <LEN> chunks and send it in multiple frames
 	# advertising their respective lengths.
