@@ -1291,7 +1291,7 @@ static int do_connect_server(struct stream *s, struct connection *conn)
 	if (unlikely(!conn || !conn->ctrl || !conn->ctrl->connect))
 		return SF_ERR_INTERNAL;
 
-	if (!channel_is_empty(&s->res))
+	if (co_data(&s->res))
 		conn_flags |= CONNECT_HAS_DATA;
 	if (s->conn_retries == s->be->conn_retries)
 		conn_flags |= CONNECT_CAN_USE_TFO;
@@ -1803,7 +1803,7 @@ skip_reuse:
 	     */
 	    ((cli_conn->flags & CO_FL_EARLY_DATA) ||
 	     ((s->be->retry_type & PR_RE_EARLY_ERROR) && !s->conn_retries)) &&
-	    !channel_is_empty(sc_oc(s->scb)) &&
+	    co_data(sc_oc(s->scb)) &&
 	    srv_conn->flags & CO_FL_SSL_WAIT_HS)
 		srv_conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
 #endif
@@ -1961,7 +1961,7 @@ static int back_may_abort_req(struct channel *req, struct stream *s)
 {
 	return ((s->scf->flags & SC_FL_ERROR) ||
 	        ((s->scb->flags & (SC_FL_SHUT_WANTED|SC_FL_SHUT_DONE)) &&  /* empty and client aborted */
-	         (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE))));
+	         (!co_data(req) || (s->be->options & PR_O_ABRT_CLOSE))));
 }
 
 /* Update back stream connector status for input states SC_ST_ASS, SC_ST_QUE,
@@ -2251,7 +2251,7 @@ void back_handle_st_con(struct stream *s)
 	/* the client might want to abort */
 	if ((s->scf->flags & SC_FL_SHUT_DONE) ||
 	    ((s->scb->flags & SC_FL_SHUT_WANTED) &&
-	     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
+	     (!co_data(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
 		sc->flags |= SC_FL_NOLINGER;
 		sc_shutdown(sc);
 		s->conn_err_type |= STRM_ET_CONN_ABRT;
@@ -2474,7 +2474,7 @@ void back_handle_st_rdy(struct stream *s)
 		/* client abort ? */
 		if ((s->scf->flags & SC_FL_SHUT_DONE) ||
 		    ((s->scb->flags & SC_FL_SHUT_WANTED) &&
-		     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
+		     (!co_data(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
 			/* give up */
 			sc->flags |= SC_FL_NOLINGER;
 			sc_shutdown(sc);

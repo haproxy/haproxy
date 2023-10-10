@@ -4566,7 +4566,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 			htx_to_buf(req_htx, &req->buf);
 		}
 	}
-	else if (!channel_is_empty(res))
+	else if (co_data(res))
 		applet_wont_consume(appctx);
 }
 

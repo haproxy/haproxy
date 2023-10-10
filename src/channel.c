@@ -206,7 +206,7 @@ int co_getdelim(const struct channel *chn, char *str, int len, const char *delim
 	max = len;
 
 	/* closed or empty + imminent close = -1; empty = 0 */
-	if (unlikely((chn_cons(chn)->flags & SC_FL_SHUT_DONE) || channel_is_empty(chn))) {
+	if (unlikely((chn_cons(chn)->flags & SC_FL_SHUT_DONE) || !co_data(chn))) {
 		if (chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))
 			ret = -1;
 		goto out;
@@ -279,7 +279,7 @@ int co_getword(const struct channel *chn, char *str, int len, char sep)
 	max = len;
 
 	/* closed or empty + imminent close = -1; empty = 0 */
-	if (unlikely((chn_cons(chn)->flags & SC_FL_SHUT_DONE) || channel_is_empty(chn))) {
+	if (unlikely((chn_cons(chn)->flags & SC_FL_SHUT_DONE) || !co_data(chn))) {
 		if (chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))
 			ret = -1;
 		goto out;
@@ -330,7 +330,7 @@ int co_getline(const struct channel *chn, char *str, int len)
 	max = len;
 
 	/* closed or empty + imminent close = -1; empty = 0 */
-	if (unlikely((chn_cons(chn)->flags & SC_FL_SHUT_DONE) || channel_is_empty(chn))) {
+	if (unlikely((chn_cons(chn)->flags & SC_FL_SHUT_DONE) || !co_data(chn))) {
 		if (chn_cons(chn)->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))
 			ret = -1;
 		goto out;

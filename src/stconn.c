@@ -529,7 +529,7 @@ static inline int sc_cond_forward_shut(struct stconn *sc)
 	if (!(sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) || !(sc->flags & SC_FL_NOHALF))
 		return 0;
 
-	if (!channel_is_empty(sc_ic(sc))) {
+	if (co_data(sc_ic(sc))) {
 		/* the shutdown cannot be forwarded now because
 		 * we should flush outgoing data first. But instruct the output
 		 * channel it should be done ASAP.
@@ -651,7 +651,7 @@ static void sc_app_chk_snd(struct stconn *sc)
 		return;
 
 	if (!sc_ep_test(sc, SE_FL_WAIT_DATA) ||  /* not waiting for data */
-	    (channel_is_empty(oc) && !sc_ep_have_ff_data(sc)))  /* called with nothing to send ! */
+	    (!co_data(oc) && !sc_ep_have_ff_data(sc)))  /* called with nothing to send ! */
 		return;
 
 	/* Otherwise there are remaining data to be sent in the buffer,
@@ -799,7 +799,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 		     (sc->flags & SC_FL_SHUT_DONE)))
 		return;
 
-	if (unlikely(channel_is_empty(oc) && !sc_ep_have_ff_data(sc)))  /* called with nothing to send ! */
+	if (unlikely(!co_data(oc) && !sc_ep_have_ff_data(sc)))  /* called with nothing to send ! */
 		return;
 
 	if (!sc_ep_have_ff_data(sc) &&              /* data wants to be fast-forwarded ASAP */
@@ -818,7 +818,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 	/* OK, so now we know that some data might have been sent, and that we may
 	 * have to poll first. We have to do that too if the buffer is not empty.
 	 */
-	if (channel_is_empty(oc)) {
+	if (!co_data(oc)) {
 		/* the connection is established but we can't write. Either the
 		 * buffer is empty, or we just refrain from sending because the
 		 * ->o limit was reached. Maybe we just wrote the last
@@ -847,7 +847,7 @@ static void sc_app_chk_snd_conn(struct stconn *sc)
 	if (likely((sc->flags & SC_FL_SHUT_DONE) ||
 		   ((oc->flags & CF_WRITE_EVENT) && sc->state < SC_ST_EST) ||
 		   ((oc->flags & CF_WAKE_WRITE) &&
-		    ((channel_is_empty(oc) && !oc->to_forward) ||
+		    ((!co_data(oc) && !oc->to_forward) ||
 		     !sc_state_in(sc->state, SC_SB_EST))))) {
 	out_wakeup:
 		if (!(sc->flags & SC_FL_DONT_WAKE))
@@ -970,7 +970,7 @@ static void sc_app_chk_snd_applet(struct stconn *sc)
 	if (!sc_ep_test(sc, SE_FL_WAIT_DATA|SE_FL_WONT_CONSUME) && !(sc->flags & SC_FL_SHUT_WANTED))
 		return;
 
-	if (!channel_is_empty(oc) || sc_ep_have_ff_data(sc)) {
+	if (co_data(oc) || sc_ep_have_ff_data(sc)) {
 		/* (re)start sending */
 		appctx_wakeup(__sc_appctx(sc));
 	}
@@ -1026,7 +1026,7 @@ void sc_update_tx(struct stconn *sc)
 		return;
 
 	/* Write not closed, update FD status and timeout for writes */
-	if (channel_is_empty(oc)) {
+	if (!co_data(oc)) {
 		/* stop writing */
 		if (!sc_ep_test(sc, SE_FL_WAIT_DATA)) {
 			if ((sc->flags & SC_FL_SHUT_WANTED) == 0)
@@ -1057,7 +1057,7 @@ static void sc_notify(struct stconn *sc)
 	struct task *task = sc_strm_task(sc);
 
 	/* process consumer side */
-	if (channel_is_empty(oc)) {
+	if (!co_data(oc)) {
 		struct connection *conn = sc_conn(sc);
 
 		if (((sc->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) == SC_FL_SHUT_WANTED) &&
@@ -1091,7 +1091,7 @@ static void sc_notify(struct stconn *sc)
 	 * parsing.
 	 */
 	if (sc_ep_have_ff_data(sc_opposite(sc)) ||
-	    (!channel_is_empty(ic) && sc_ep_test(sco, SE_FL_WAIT_DATA) &&
+	    (co_data(ic) && sc_ep_test(sco, SE_FL_WAIT_DATA) &&
 	     (!(sc->flags & SC_FL_SND_EXP_MORE) || c_full(ic) || ci_data(ic) == 0))) {
 		int new_len, last_len;
 
@@ -1132,7 +1132,7 @@ static void sc_notify(struct stconn *sc)
 		(!(oc->flags & CF_AUTO_CLOSE) &&
 		 !(sc->flags & (SC_FL_SHUT_WANTED|SC_FL_SHUT_DONE)))) &&
 	       (sco->state != SC_ST_EST ||
-		(channel_is_empty(oc) && !oc->to_forward)))))) {
+		(!co_data(oc) && !oc->to_forward)))))) {
 		task_wakeup(task, TASK_WOKEN_IO);
 	}
 	else {
@@ -1702,7 +1702,7 @@ static int sc_conn_send(struct stconn *sc)
 	}
 
 	/* FIXME: Must be reviewed for FF */
-	if (channel_is_empty(oc) && !sc_ep_have_ff_data(sc)) {
+	if (!co_data(oc) && !sc_ep_have_ff_data(sc)) {
 		/* If fast-forwarding is blocked, unblock it now to check for
 		 * receive on the other side
 		 */
@@ -1733,7 +1733,7 @@ void sc_conn_sync_send(struct stconn *sc)
 	if (sc->flags & SC_FL_SHUT_DONE)
 		return;
 
-	if (channel_is_empty(oc))
+	if (!co_data(oc))
 		return;
 
 	if (!sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
@@ -1760,7 +1760,7 @@ static int sc_conn_process(struct stconn *sc)
 	BUG_ON(!conn);
 
 	/* If we have data to send, try it now */
-	if ((!channel_is_empty(oc) || sc_ep_have_ff_data(sc)) &&
+	if ((co_data(oc) || sc_ep_have_ff_data(sc)) &&
 	    !(sc->wait_event.events & SUB_RETRY_SEND))
 		sc_conn_send(sc);
 
@@ -1853,7 +1853,7 @@ struct task *sc_conn_io_cb(struct task *t, void *ctx, unsigned int state)
 	if (!sc_conn(sc))
 		return t;
 
-	if (!(sc->wait_event.events & SUB_RETRY_SEND) && (!channel_is_empty(sc_oc(sc)) || sc_ep_have_ff_data(sc) || (sc->sedesc->iobuf.flags & IOBUF_FL_FF_BLOCKED)))
+	if (!(sc->wait_event.events & SUB_RETRY_SEND) && (co_data(sc_oc(sc)) || sc_ep_have_ff_data(sc) || (sc->sedesc->iobuf.flags & IOBUF_FL_FF_BLOCKED)))
 		ret = sc_conn_send(sc);
 	if (!(sc->wait_event.events & SUB_RETRY_RECV))
 		ret |= sc_conn_recv(sc);

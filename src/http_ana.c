@@ -4314,7 +4314,7 @@ static void http_end_request(struct stream *s)
 		/* nothing else to forward, just waiting for the output buffer
 		 * to be empty and for the shut_wanted to take effect.
 		 */
-		if (channel_is_empty(chn)) {
+		if (!co_data(chn)) {
 			txn->req.msg_state = HTTP_MSG_CLOSED;
 			goto http_msg_closed;
 		}
@@ -4417,7 +4417,7 @@ static void http_end_response(struct stream *s)
 		/* nothing else to forward, just waiting for the output buffer
 		 * to be empty and for the shut_wanted to take effect.
 		 */
-		if (channel_is_empty(chn)) {
+		if (!co_data(chn)) {
 			txn->rsp.msg_state = HTTP_MSG_CLOSED;
 			goto http_msg_closed;
 		}
