@@ -9,7 +9,7 @@ USAGE=\
         Numbers are decimal or 0xhex. Not set=0. If <data> is passed, it points
         to a file that is read and chunked into frames of <len> bytes. -e
         encodes a headers frame (by default) with all headers at once encoded
-        in literal.
+        in literal. Use type 'p' for the preface.
 
 Supported symbolic types (case insensitive prefix match):
    DATA        (0x00)      PUSH_PROMISE   (0x05)
@@ -140,7 +140,9 @@ if [ -n "${ID##[0-9]*}" ]; then
 	die
 fi
 
-if [ -z "$DATA" ]; then
+if [ "$TYPE" = "p" ]; then
+        printf "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+elif [ -z "$DATA" ]; then
         HEX=""
         # If we're trying to emit literal headers, let's pre-build the raw data
         # and measure their total length.
