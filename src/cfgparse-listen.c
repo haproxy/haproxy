@@ -2624,6 +2624,9 @@ stats_error_parsing:
 			else if (strcmp(args[2], "crc32") == 0) {
 				curproxy->lbprm.algo |= BE_LB_HFCN_CRC32;
 			}
+			else if (strcmp(args[2], "none") == 0) {
+				curproxy->lbprm.algo |= BE_LB_HFCN_NONE;
+			}
 			else {
 				ha_alert("parsing [%s:%d] : '%s' only supports 'sdbm', 'djb2', 'crc32', or 'wt6' hash functions.\n", file, linenum, args[0]);
 				err_code |= ERR_ALERT | ERR_FATAL;

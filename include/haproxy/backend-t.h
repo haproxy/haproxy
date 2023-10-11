@@ -118,11 +118,12 @@
 #define BE_LB_HASH_MOD    0x200000  /* get/clear hash modifier */
 
 /* BE_LB_HFCN_* is the hash function, to be used with BE_LB_HASH_FUNC */
-#define BE_LB_HFCN_SDBM   0x000000 /* sdbm hash */
-#define BE_LB_HFCN_DJB2   0x400000 /* djb2 hash */
-#define BE_LB_HFCN_WT6    0x800000 /* wt6 hash */
-#define BE_LB_HFCN_CRC32  0xC00000 /* crc32 hash */
-#define BE_LB_HASH_FUNC   0xC00000 /* get/clear hash function */
+#define BE_LB_HFCN_SDBM   0x000000  /* sdbm hash */
+#define BE_LB_HFCN_DJB2   0x400000  /* djb2 hash */
+#define BE_LB_HFCN_WT6    0x800000  /* wt6 hash */
+#define BE_LB_HFCN_CRC32  0xC00000  /* crc32 hash */
+#define BE_LB_HFCN_NONE   0x1000000 /* none - no hash */
+#define BE_LB_HASH_FUNC   0x1C00000 /* get/clear hash function */
 
 
 /* various constants */

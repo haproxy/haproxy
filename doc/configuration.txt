@@ -6060,6 +6060,10 @@ hash-type <method> <function> <modifier>
               a better distribution or less predictable results especially when
               used on strings.
 
+       none   don't hash the key, the key will be used as a hash, this can be
+              useful to manually hash the key using a converter for that purpose
+              and let haproxy use the result directly.
+
     <modifier> indicates an optional method applied after hashing the key :
 
        avalanche   This directive indicates that the result from the hash
