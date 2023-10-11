@@ -1184,6 +1184,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 	/* Required to call free_quic_conn_cids() from quic_conn_release() */
 	qc->cids = NULL;
+	qc->tx.cc_buf_area = NULL;
 	qc_init_fd(qc);
 
 	LIST_INIT(&qc->back_refs);
