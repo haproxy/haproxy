@@ -99,6 +99,9 @@ static unsigned int gen_hash(const struct proxy* px, const char* key, unsigned l
 		break;
 	}
 
+	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
+		hash = full_hash(hash);
+
 	return hash;
 }
 
@@ -190,6 +193,10 @@ static struct server *get_server_sh(struct proxy *px, const char *addr, int len,
 		h ^= ntohl(*(unsigned int *)(&addr[l]));
 		l += sizeof (int);
 	}
+	/* FIXME: why don't we use gen_hash() here as well?
+	 * -> we don't take into account hash function from "hash_type"
+	 * options here..
+	 */
 	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
 		h = full_hash(h);
  hash_done:
@@ -245,8 +252,6 @@ static struct server *get_server_uh(struct proxy *px, char *uri, int uri_len, co
 
 	hash = gen_hash(px, start, (end - start));
 
-	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
-		hash = full_hash(hash);
  hash_done:
 	if ((px->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_CHTREE)
 		return chash_get_server_hash(px, hash, avoid);
@@ -301,9 +306,6 @@ static struct server *get_server_ph(struct proxy *px, const char *uri, int uri_l
 					end++;
 				}
 				hash = gen_hash(px, start, (end - start));
-
-				if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
-					hash = full_hash(hash);
 
 				if ((px->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_CHTREE)
 					return chash_get_server_hash(px, hash, avoid);
@@ -381,9 +383,6 @@ static struct server *get_server_ph_post(struct stream *s, const struct server *
 					/* should we break if vlen exceeds limit? */
 				}
 				hash = gen_hash(px, start, (end - start));
-
-				if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
-					hash = full_hash(hash);
 
 				if ((px->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_CHTREE)
 					return chash_get_server_hash(px, hash, avoid);
@@ -477,8 +476,7 @@ static struct server *get_server_hh(struct stream *s, const struct server *avoid
 		start = p;
 		hash = gen_hash(px, start, (end - start));
 	}
-	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
-		hash = full_hash(hash);
+
  hash_done:
 	if ((px->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_CHTREE)
 		return chash_get_server_hash(px, hash, avoid);
@@ -522,8 +520,6 @@ static struct server *get_server_rch(struct stream *s, const struct server *avoi
 	 */
 	hash = gen_hash(px, smp.data.u.str.area, len);
 
-	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
-		hash = full_hash(hash);
  hash_done:
 	if ((px->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_CHTREE)
 		return chash_get_server_hash(px, hash, avoid);
@@ -556,8 +552,6 @@ static struct server *get_server_expr(struct stream *s, const struct server *avo
 	 */
 	hash = gen_hash(px, smp->data.u.str.area, smp->data.u.str.data);
 
-	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
-		hash = full_hash(hash);
  hash_done:
 	if ((px->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_CHTREE)
 		return chash_get_server_hash(px, hash, avoid);
