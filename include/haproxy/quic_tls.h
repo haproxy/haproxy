@@ -552,9 +552,13 @@ static inline void qc_release_pktns_frms(struct quic_conn *qc,
 
 	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
 
+	if (!pktns)
+		goto leave;
+
 	list_for_each_entry_safe(frm, frmbak, &pktns->tx.frms, list)
 		qc_frm_free(qc, &frm);
 
+ leave:
 	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
 }
 

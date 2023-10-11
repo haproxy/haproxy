@@ -47,9 +47,16 @@ void quic_tls_keys_hexdump(struct buffer *buf,
                            const struct quic_tls_secrets *secs)
 {
 	int i;
-	size_t aead_keylen = (size_t)EVP_CIPHER_key_length(secs->aead);
-	size_t aead_ivlen = (size_t)EVP_CIPHER_iv_length(secs->aead);
-	size_t hp_len = (size_t)EVP_CIPHER_key_length(secs->hp);
+	size_t aead_keylen;
+	size_t aead_ivlen;
+	size_t hp_len;
+
+	if (!secs->aead || !secs->hp)
+		return;
+
+	aead_keylen = (size_t)EVP_CIPHER_key_length(secs->aead);
+	aead_ivlen = (size_t)EVP_CIPHER_iv_length(secs->aead);
+	hp_len = (size_t)EVP_CIPHER_key_length(secs->hp);
 
 	chunk_appendf(buf, "\n          key=");
 	for (i = 0; i < aead_keylen; i++)
