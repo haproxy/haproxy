@@ -78,7 +78,7 @@ struct conn_tlv_list *conn_get_tlv(struct connection *conn, int type)
  */
 void conn_delete_from_tree(struct connection *conn)
 {
-	LIST_DEL_INIT((struct list *)&conn->toremove_list);
+	LIST_DEL_INIT(&conn->idle_list);
 	eb64_delete(&conn->hash_node->node);
 }
 
