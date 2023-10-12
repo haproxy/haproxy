@@ -2955,7 +2955,7 @@ struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int state)
 		conn = fconn->conn;
 		TRACE_POINT(FCGI_EV_FCONN_WAKE, conn);
 
-		conn_in_list = conn_get_idle_flag(conn);
+		conn_in_list = conn->flags & CO_FL_LIST_MASK;
 		if (conn_in_list)
 			conn_delete_from_tree(conn);
 
