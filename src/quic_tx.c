@@ -1378,6 +1378,7 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 			if (!LIST_ISEMPTY(&frms1)) {
 				apktns->tx.pto_probe = 1;
 				if (!qc_send_app_probing(qc, &frms1)) {
+					qc_free_frm_list(qc, &frms1);
 					qc_free_frm_list(qc, &frms2);
 					goto leave;
 				}
@@ -1387,8 +1388,10 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 			}
 			if (!LIST_ISEMPTY(&frms2)) {
 				apktns->tx.pto_probe = 1;
-				if (!qc_send_app_probing(qc, &frms2))
+				if (!qc_send_app_probing(qc, &frms2)) {
+					qc_free_frm_list(qc, &frms2);
 					goto leave;
+				}
 				/* Put back unsent frames into their packet number spaces */
 				LIST_SPLICE(&apktns->tx.frms, &frms2);
 			}
