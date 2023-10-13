@@ -413,6 +413,9 @@ static unsigned int h2_be_settings_max_concurrent_streams =   0; /* backend valu
 static unsigned int h2_fe_settings_max_concurrent_streams =   0; /* frontend value */
 static int h2_settings_max_frame_size         = 0;     /* unset */
 
+/* other non-protocol settings */
+static unsigned int h2_fe_max_total_streams =   0;      /* frontend value */
+
 /* a dummy closed endpoint */
 static const struct sedesc closed_ep = {
 	.sc        = NULL,
@@ -2787,8 +2790,24 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		session_inc_http_err_ctr(h2c->conn->owner);
 		goto conn_err;
 	}
-	else if (h2c->flags & H2_CF_DEM_TOOMANY)
+	else if (h2c->flags & H2_CF_DEM_TOOMANY) {
 		goto out; // IDLE but too many sc still present
+	}
+	else if (h2_fe_max_total_streams &&
+		 h2c->stream_cnt >= h2_fe_max_total_streams + h2c_max_concurrent_streams(h2c)) {
+		/* We've already told this client we were going to close a
+		 * while ago and apparently it didn't care, so it's time to
+		 * stop processing its requests for real.
+		 */
+		error = H2_ERR_ENHANCE_YOUR_CALM;
+		TRACE_STATE("Stream limit violated", H2_EV_STRM_SHUT, h2c->conn);
+		HA_ATOMIC_INC(&h2c->px_counters->conn_proto_err);
+		sess_log(h2c->conn->owner);
+		session_inc_http_req_ctr(h2c->conn->owner);
+		session_inc_http_err_ctr(h2c->conn->owner);
+		printf("Oops, forcefully killing the extraneous stream: last_sid=%d max_id=%d strms=%u\n", h2c->last_sid, h2c->max_id, h2c->stream_cnt);
+		goto conn_err;
+	}
 
 	error = h2c_dec_hdrs(h2c, &rxbuf, &flags, &body_len, NULL);
 
@@ -2863,16 +2882,15 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 			h2s_close(h2s);
 	}
 	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
-	return h2s;
+	goto leave;
 
  conn_err:
 	h2c_error(h2c, error);
-	goto out;
-
  out:
 	h2_release_buf(h2c, &rxbuf);
 	TRACE_DEVEL("leaving on missing data or error", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
-	return NULL;
+	h2s = NULL;
+	goto leave;
 
  send_rst:
 	/* make the demux send an RST for the current stream. We may only
@@ -2883,6 +2901,28 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	h2c->st0 = H2_CS_FRAME_E;
 
 	TRACE_DEVEL("leaving on error", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
+
+ leave:
+	if (h2_fe_max_total_streams && h2c->stream_cnt >= h2_fe_max_total_streams) {
+		/* we've had enough streams on this connection, time to renew it.
+		 * In order to gracefully do this, we'll advertise a stream limit
+		 * of the current one plus the max concurrent streams value in the
+		 * GOAWAY frame, so that we're certain that the client is aware of
+		 * the limit before creating a new stream, but knows we won't harm
+		 * the streams in flight. Remember that client stream IDs are odd
+		 * so we apply twice the concurrent streams value to the current
+		 * ID.
+		 */
+		printf("last_sid=%d max_id=%d strms=%u\n", h2c->last_sid, h2c->max_id, h2c->stream_cnt);
+
+		if (h2c->last_sid <= 0 ||
+		    h2c->last_sid > h2c->max_id + 2 * h2c_max_concurrent_streams(h2c)) {
+			/* not set yet or was too high */
+			h2c->last_sid = h2c->max_id + 2 * h2c_max_concurrent_streams(h2c);
+			h2c_send_goaway_error(h2c, NULL);
+		}
+	}
+
 	return h2s;
 }
 
@@ -7428,6 +7468,27 @@ static int h2_parse_max_concurrent_streams(char **args, int section_type, struct
 	return 0;
 }
 
+/* config parser for global "tune.h2.fe.max-total-streams" */
+static int h2_parse_max_total_streams(char **args, int section_type, struct proxy *curpx,
+				      const struct proxy *defpx, const char *file, int line,
+				      char **err)
+{
+	uint *vptr;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	/* frontend only for now */
+	vptr = &h2_fe_max_total_streams;
+
+	*vptr = atoi(args[1]);
+	if ((int)*vptr < 0) {
+		memprintf(err, "'%s' expects a positive numeric value.", args[0]);
+		return -1;
+	}
+	return 0;
+}
+
 /* config parser for global "tune.h2.max-frame-size" */
 static int h2_parse_max_frame_size(char **args, int section_type, struct proxy *curpx,
                                    const struct proxy *defpx, const char *file, int line,
@@ -7507,6 +7568,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.h2.be.max-concurrent-streams", h2_parse_max_concurrent_streams },
 	{ CFG_GLOBAL, "tune.h2.fe.initial-window-size", h2_parse_initial_window_size    },
 	{ CFG_GLOBAL, "tune.h2.fe.max-concurrent-streams", h2_parse_max_concurrent_streams },
+	{ CFG_GLOBAL, "tune.h2.fe.max-total-streams",   h2_parse_max_total_streams      },
 	{ CFG_GLOBAL, "tune.h2.header-table-size",      h2_parse_header_table_size      },
 	{ CFG_GLOBAL, "tune.h2.initial-window-size",    h2_parse_initial_window_size    },
 	{ CFG_GLOBAL, "tune.h2.max-concurrent-streams", h2_parse_max_concurrent_streams },

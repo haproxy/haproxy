@@ -1373,6 +1373,7 @@ The following keywords are supported in the "global" section :
    - tune.h2.be.max-concurrent-streams
    - tune.h2.fe.initial-window-size
    - tune.h2.fe.max-concurrent-streams
+   - tune.h2.fe.max-total-streams
    - tune.h2.header-table-size
    - tune.h2.initial-window-size
    - tune.h2.max-concurrent-streams
@@ -3208,6 +3209,41 @@ tune.h2.fe.max-concurrent-streams <number>
   latency networks but can also result in using more memory by allowing a
   client to allocate more resources at once. The default value of 100 is
   generally good and it is recommended not to change this value.
+
+tune.h2.fe.max-total-streams <number>
+  Sets the HTTP/2 maximum number of total streams processed per incoming
+  connection. Once this limit is reached, HAProxy will send a graceful GOAWAY
+  frame informing the client that it will close the connection after all
+  pending streams have been closed. In practice, clients tend to close as fast
+  as possible when receiving this, and to establish a new connection for next
+  requests. Doing this is sometimes useful and desired in situations where
+  clients stay connected for a very long time and cause some imbalance inside a
+  farm. For example, in some highly dynamic environments, it is possible that
+  new load balancers are instantiated on the fly to adapt to a load increase,
+  and that once the load goes down they should be stopped without breaking
+  established connections. By setting a limit here, the connections will have
+  a limited lifetime and will be frequently renewed, with some possibly being
+  established to other nodes, so that existing resources are quickly released.
+
+  It's important to understand that there is an implicit relation between this
+  limit and "tune.h2.fe.max-concurrent-streams" above. Indeed, HAProxy will
+  always accept to process any possibly pending streams that might be in flight
+  between the client and the frontend, so the advertised limit will always
+  automatically be raised by the value configured in max-concurrent-streams,
+  and this value will serve as a hard limit above which a violation by a non-
+  compliant client will result in the connection being closed. Thus when
+  counting the number of requests per connection from the logs, any number
+  between max-total-streams and (max-total-streams + max-concurrent-streams)
+  may be observed depending on how fast streams are created by the client.
+
+  The default value is zero, which enforces no limit beyond those implied by
+  the protocol (2^30 ~= 1.07 billion). Values around 1000 may already cause
+  frequent connection renewal without causing any perceptible latency to most
+  clients. Setting it too low may result in an increase of CPU usage due to
+  frequent TLS reconnections, in addition to increased page load time. Please
+  note that some load testing tools do not support reconnections and may report
+  errors with this setting; as such it may be needed to disable it when running
+  performance benchmarks. See also "tune.h2.fe.max-concurrent-streams".
 
 tune.h2.header-table-size <number>
   Sets the HTTP/2 dynamic header table size. It defaults to 4096 bytes and
