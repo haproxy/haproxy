@@ -3423,6 +3423,9 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
 								ps->flags &= ~PEER_F_HEARTBEAT;
 								/* Re-schedule another one later. */
 								ps->heartbeat = tick_add(now_ms, MS_TO_TICKS(PEER_HEARTBEAT_TIMEOUT));
+								/* Refresh reconnect if necessary */
+								if (tick_is_expired(ps->reconnect, now_ms))
+									ps->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
 								/* We are going to send updates, let's ensure we will
 								 * come back to send heartbeat messages or to reconnect.
 								 */
