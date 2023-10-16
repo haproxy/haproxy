@@ -4663,6 +4663,9 @@ static void h2_do_shutr(struct h2s *h2s)
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2c->conn, h2s);
 
+	if (h2s->flags & H2_SF_WANT_SHUTW)
+		goto add_to_list;
+
 	/* a connstream may require us to immediately kill the whole connection
 	 * for example because of a "tcp-request content reject" rule that is
 	 * normally used to limit abuse. In this case we schedule a goaway to
