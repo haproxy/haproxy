@@ -77,7 +77,8 @@ struct peer {
 	uint32_t coll;                /* connection collisions counter */
 	struct appctx *appctx;        /* the appctx running it */
 	struct shared_table *remote_table;
-	struct shared_table *last_local_table;
+	struct shared_table *last_local_table; /* Last table that emit update messages during a teach process */
+	struct shared_table *stop_local_table; /* last evaluated table, used as restart point for the next teach process */
 	struct shared_table *tables;
 	struct server *srv;
 	struct dcache *dcache;        /* dictionary cache */
