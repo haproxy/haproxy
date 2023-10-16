@@ -1175,6 +1175,7 @@ The following keywords are supported in the "global" section :
    - tune.bufsize
    - tune.comp.maxlevel
    - tune.disable-fast-forward
+   - tune.disable-zero-copy-forwarding
    - tune.fail-alloc
    - tune.fd.edge-triggered
    - tune.h2.be.initial-window-size
@@ -2892,11 +2893,18 @@ tune.disable-fast-forward [ EXPERIMENTAL ]
   Disables the data fast-forwarding. It is a mechanism to optimize the data
   forwarding by passing data directly from a side to the other one without
   waking the stream up. Thanks to this directive, it is possible to disable
-  this optimization. Note it also disable any kernel tcp splicing. This command
-  is not meant for regular use, it will generally only be suggested by
-  developers along complex debugging sessions. For this reason it is internally
-  marked as experimental, meaning that "expose-experimental-directives" must
-  appear on a line before this directive.
+  this optimization. Note it also disable any kernel tcp splicing but also the
+  zero-copy forwarding. This command is not meant for regular use, it will
+  generally only be suggested by developers along complex debugging
+  sessions. For this reason it is internally marked as experimental, meaning
+  that "expose-experimental-directives" must appear on a line before this
+  directive.
+
+tune.zero-copy-forwarding
+  Disables the zero-copy forwarding of data. It is a mechanism to optimize the
+  data fast-forwarding by avoiding to use the channel's buffer. Thanks to this
+  directive, it is possible to disable this optimization. Note it also disable
+  any kernel tcp splicing.
 
 tune.fail-alloc
   If compiled with DEBUG_FAIL_ALLOC or started with "-dMfail", gives the
