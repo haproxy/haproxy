@@ -2464,6 +2464,7 @@ static struct action_kw_list http_res_actions = {
 		{ "set-status",      parse_http_set_status,     0 },
 		{ "strict-mode",     parse_http_strict_mode,    0 },
 		{ "track-sc",        parse_http_track_sc,       KWF_MATCH_PREFIX },
+		{ "set-timeout",     parse_http_set_timeout,    0 },
 		{ "wait-for-body",   parse_http_wait_for_body,  0 },
 		{ NULL, NULL }
 	}

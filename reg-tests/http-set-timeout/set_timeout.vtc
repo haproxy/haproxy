@@ -4,7 +4,7 @@ feature ignore_unknown_macro
 
 #REQUIRE_VERSION=2.4
 
-server srv_h1 -repeat 5 {
+server srv_h1 -repeat 9 {
     rxreq
     txresp
 } -start
@@ -30,6 +30,26 @@ syslog Slog4 -level info {
 } -start
 
 syslog Slog5 -level info {
+    recv
+    expect ~ "^.*timeout: 5000 3000.*$"
+} -start
+
+syslog Slog6 -level info {
+    recv
+    expect ~ "^.*timeout: 5000 5000.*$"
+} -start
+
+syslog Slog7 -level info {
+    recv
+    expect ~ "^.*timeout: 5000 5000.*$"
+} -start
+
+syslog Slog8 -level info {
+    recv
+    expect ~ "^.*timeout: 5000 3000.*$"
+} -start
+
+syslog Slog9 -level info {
     recv
     expect ~ "^.*timeout: 5000 3000.*$"
 } -start
@@ -87,6 +107,46 @@ haproxy hap -conf {
     backend be2
        mode http
        server srv_h1 ${srv_h1_addr}:${srv_h1_port}
+
+    listen li4
+        mode http
+        bind "fd@${li4}"
+        log-format "timeout: %[be_server_timeout] %[cur_server_timeout]"
+        log ${Slog6_addr}:${Slog6_port} len 2048 local0 debug err
+        http-response set-timeout server 5s
+       server srv_h1 ${srv_h1_addr}:${srv_h1_port}
+
+    listen li5
+        mode http
+        bind "fd@${li5}"
+        log-format "timeout: %[fe_client_timeout] %[cur_client_timeout]"
+        log ${Slog7_addr}:${Slog7_port} len 2048 local0 debug err
+        http-response set-timeout client 5s
+       server srv_h1 ${srv_h1_addr}:${srv_h1_port}
+
+    frontend fe3
+        mode http
+        bind "fd@${fe3}"
+        log-format "timeout: %[be_server_timeout] %[cur_server_timeout]"
+        log ${Slog8_addr}:${Slog8_port} len 2048 local0 debug err
+        default_backend be1
+
+    backend be3
+       mode http
+       http-response set-timeout server int(3),mul(1000)
+       server srv_h1 ${srv_h1_addr}:${srv_h1_port}
+
+    frontend fe4
+        mode http
+        bind "fd@${fe4}"
+        log-format "timeout: %[fe_client_timeout] %[cur_client_timeout]"
+        log ${Slog9_addr}:${Slog9_port} len 2048 local0 debug err
+        http-response set-timeout client int(3),mul(1000)
+        default_backend be2
+
+    backend be4
+       mode http
+       server srv_h1 ${srv_h1_addr}:${srv_h1_port}
 } -start
 
 client c1 -connect ${hap_li1_sock} {
@@ -119,8 +179,36 @@ client c5 -connect ${hap_fe2_sock} {
     expect resp.status == 200
 } -run
 
+client c6 -connect ${hap_li4_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c7 -connect ${hap_fe3_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c8 -connect ${hap_li5_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c9 -connect ${hap_fe4_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
 syslog Slog1 -wait
 syslog Slog2 -wait
 syslog Slog3 -wait
 syslog Slog4 -wait
 syslog Slog5 -wait
+syslog Slog6 -wait
+syslog Slog7 -wait
+syslog Slog8 -wait
+syslog Slog9 -wait

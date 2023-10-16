@@ -8087,6 +8087,7 @@ http-response <action> <options...> [ { if | unless } <condition> ]
     - set-mark <mark>
     - set-nice <nice>
     - set-status <status> [reason <str>]
+    - set-timeout { client | server | tunnel } { <timeout> | <expr> }
     - set-tos <tos>
     - set-var(<var-name>[,<cond>...]) <expr>
     - set-var-fmt(<var-name>[,<cond>...]) <fmt>
@@ -8331,6 +8332,24 @@ http-response set-status <status> [reason <str>]
     http-response set-status 431
     # return "503 Slow Down", custom reason
     http-response set-status 503 reason "Slow Down".
+
+http-response set-timeout { client | server | tunnel } { <timeout> | <expr> }
+                                       [ { if | unless } <condition> ]
+
+  This action overrides the specified "client", "server" or "tunnel" timeout for the
+  current stream only. The timeout can be specified in millisecond or with any
+  other unit if the number is suffixed by the unit as explained at the top of
+  this document. It is also possible to write an expression which must returns
+  a number interpreted as a timeout in millisecond.
+
+  Note that the server/tunnel timeouts are only relevant on the backend side
+  and thus this rule is only available for the proxies with backend
+  capabilities. As well as client timeout is only relevant for frontend side.
+  Also the timeout value must be non-null to obtain the expected results.
+
+  Example:
+    http-response set-timeout tunnel 5s
+    http-response set-timeout server res.hdr(X-Refresh-Seconds),mul(1000)
 
 http-response set-tos <tos> [ { if | unless } <condition> ]
 
