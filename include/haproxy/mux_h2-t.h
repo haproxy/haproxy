@@ -42,7 +42,7 @@
 #define H2_CF_DEM_DALLOC        0x00000004  // demux blocked on lack of connection's demux buffer
 #define H2_CF_DEM_DFULL         0x00000008  // demux blocked on connection's demux buffer full
 
-/* 0x00000010  unused */
+#define H2_CF_WAIT_INLIST       0x00000010  // there is at least one stream blocked by another stream in send_list/fctl_list
 #define H2_CF_DEM_MROOM         0x00000020  // demux blocked on lack of room in mux buffer
 #define H2_CF_DEM_SALLOC        0x00000040  // demux blocked on lack of stream's request buffer
 #define H2_CF_DEM_SFULL         0x00000080  // demux blocked on stream request buffer full
