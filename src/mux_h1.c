@@ -3016,6 +3016,8 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 				ret = h1_make_data(h1s, h1m, buf, count);
 				if (ret > 0)
 					htx = htx_from_buf(buf);
+				if (unlikely(h1m->state == H1_MSG_TRAILERS)) // in case of no data
+					ret += h1_make_trailers(h1s, h1m, htx, count);
 				break;
 
 			case H1_MSG_TUNNEL:
