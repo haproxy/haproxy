@@ -3396,8 +3396,6 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	xref_create(&socket->xref, &ctx->xref);
 	return 1;
 
- out_fail_appctx:
-	appctx_free_on_early_error(appctx);
  out_fail_conf:
 	WILL_LJMP(lua_error(L));
 	return 0;
