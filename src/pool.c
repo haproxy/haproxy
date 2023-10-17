@@ -844,12 +844,20 @@ void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 	if (likely(p)) {
 #ifdef USE_MEMORY_PROFILING
 		if (unlikely(profiling & HA_PROF_MEMORY)) {
+			extern struct memprof_stats memprof_stats[MEMPROF_HASH_BUCKETS + 1];
 			struct memprof_stats *bin;
 
 			bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_P_ALLOC);
 			_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
 			_HA_ATOMIC_ADD(&bin->alloc_tot, pool->size);
 			_HA_ATOMIC_STORE(&bin->info, pool);
+			/* replace the caller with the allocated bin: this way
+			 * we'll the pool_free() call will be able to update our
+			 * entry. We only do it for non-colliding entries though,
+			 * since thse ones store the true caller location.
+			 */
+			if (bin >= &memprof_stats[0] && bin < &memprof_stats[MEMPROF_HASH_BUCKETS])
+				POOL_DEBUG_TRACE_CALLER(pool, (struct pool_cache_item *)p, bin);
 		}
 #endif
 		if (unlikely(flags & POOL_F_MUST_ZERO))
@@ -874,12 +882,22 @@ void __pool_free(struct pool_head *pool, void *ptr)
 
 #ifdef USE_MEMORY_PROFILING
 	if (unlikely(profiling & HA_PROF_MEMORY) && ptr) {
+		extern struct memprof_stats memprof_stats[MEMPROF_HASH_BUCKETS + 1];
 		struct memprof_stats *bin;
 
 		bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_P_FREE);
 		_HA_ATOMIC_ADD(&bin->free_calls, 1);
 		_HA_ATOMIC_ADD(&bin->free_tot, pool->size);
 		_HA_ATOMIC_STORE(&bin->info, pool);
+
+		/* check if the caller is an allocator, and if so, let's update
+		 * its free() count.
+		 */
+		bin = *(struct memprof_stats**)(((char *)ptr) + pool->alloc_sz - sizeof(void*));
+		if (bin >= &memprof_stats[0] && bin < &memprof_stats[MEMPROF_HASH_BUCKETS]) {
+			_HA_ATOMIC_ADD(&bin->free_calls, 1);
+			_HA_ATOMIC_ADD(&bin->free_tot, pool->size);
+		}
 	}
 #endif
 
