@@ -4390,7 +4390,7 @@ static inline struct sedesc *h1s_opposite_sd(struct h1s *h1s)
 	return sdo;
 }
 
-static size_t h1_init_ff(struct stconn *sc, struct buffer *input, size_t count, unsigned int may_splice)
+static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, unsigned int may_splice)
 {
 	struct h1s *h1s = __sc_mux_strm(sc);
 	struct h1c *h1c = h1s->h1c;
@@ -4584,7 +4584,7 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	if (h1m->state == H1_MSG_DATA && (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN)) &&  count > h1m->curr_len)
 		count = h1m->curr_len;
 
-	try = se_init_ff(sdo, &h1c->ibuf, count, !!(flags & CO_RFL_MAY_SPLICE) && !(sdo->iobuf.flags & IOBUF_FL_NO_SPLICING));
+	try = se_nego_ff(sdo, &h1c->ibuf, count, !!(flags & CO_RFL_MAY_SPLICE) && !(sdo->iobuf.flags & IOBUF_FL_NO_SPLICING));
 	if (b_room(&h1c->ibuf) && (h1c->flags & H1C_F_IN_FULL)) {
 		h1c->flags &= ~H1C_F_IN_FULL;
 		TRACE_STATE("h1c ibuf not full anymore", H1_EV_STRM_RECV|H1_EV_H1C_BLK);
@@ -5185,7 +5185,7 @@ static const struct mux_ops mux_http_ops = {
 	.used_streams = h1_used_streams,
 	.rcv_buf     = h1_rcv_buf,
 	.snd_buf     = h1_snd_buf,
-	.init_fastfwd = h1_init_ff,
+	.nego_fastfwd = h1_nego_ff,
 	.done_fastfwd = h1_done_ff,
 	.fastfwd     = h1_fastfwd,
 	.resume_fastfwd = h1_resume_fastfwd,
@@ -5212,7 +5212,7 @@ static const struct mux_ops mux_h1_ops = {
 	.used_streams = h1_used_streams,
 	.rcv_buf     = h1_rcv_buf,
 	.snd_buf     = h1_snd_buf,
-	.init_fastfwd = h1_init_ff,
+	.nego_fastfwd = h1_nego_ff,
 	.done_fastfwd = h1_done_ff,
 	.fastfwd     = h1_fastfwd,
 	.resume_fastfwd = h1_resume_fastfwd,

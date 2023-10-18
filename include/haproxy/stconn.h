@@ -132,7 +132,7 @@ static inline size_t se_ff_data(struct sedesc *se)
 	return (se->iobuf.data + (se->iobuf.pipe ? se->iobuf.pipe->data : 0));
 }
 
-static inline size_t se_init_ff(struct sedesc *se, struct buffer *input, size_t count, unsigned int may_splice)
+static inline size_t se_nego_ff(struct sedesc *se, struct buffer *input, size_t count, unsigned int may_splice)
 {
 	size_t ret = 0;
 
@@ -140,8 +140,8 @@ static inline size_t se_init_ff(struct sedesc *se, struct buffer *input, size_t 
 		const struct mux_ops *mux = se->conn->mux;
 
 		se->iobuf.flags &= ~IOBUF_FL_FF_BLOCKED;
-		if (mux->init_fastfwd && mux->done_fastfwd) {
-			ret = mux->init_fastfwd(se->sc, input, count, may_splice);
+		if (mux->nego_fastfwd && mux->done_fastfwd) {
+			ret = mux->nego_fastfwd(se->sc, input, count, may_splice);
 			if ((se->iobuf.flags & IOBUF_FL_FF_BLOCKED) && !(se->sc->wait_event.events & SUB_RETRY_SEND)) {
 				/* The SC must be subs for send to be notify when some
 				 * space is made

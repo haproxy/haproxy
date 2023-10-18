@@ -6872,7 +6872,7 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	return total;
 }
 
-static size_t h2_init_ff(struct stconn *sc, struct buffer *input, size_t count, unsigned int may_splice)
+static size_t h2_nego_ff(struct stconn *sc, struct buffer *input, size_t count, unsigned int may_splice)
 {
 	struct h2s *h2s = __sc_mux_strm(sc);
 	struct h2c *h2c = h2s->h2c;
@@ -7372,7 +7372,7 @@ static const struct mux_ops h2_ops = {
 	.wake = h2_wake,
 	.snd_buf = h2_snd_buf,
 	.rcv_buf = h2_rcv_buf,
-	.init_fastfwd = h2_init_ff,
+	.nego_fastfwd = h2_nego_ff,
 	.done_fastfwd = h2_done_ff,
 	.resume_fastfwd = h2_resume_ff,
 	.subscribe = h2_subscribe,

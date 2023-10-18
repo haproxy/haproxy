@@ -579,7 +579,7 @@ static inline struct sedesc *mux_pt_opposite_sd(struct mux_pt_ctx *ctx)
 	return sdo;
 }
 
-static size_t mux_pt_init_ff(struct stconn *sc, struct buffer *input, size_t count, unsigned int may_splice)
+static size_t mux_pt_nego_ff(struct stconn *sc, struct buffer *input, size_t count, unsigned int may_splice)
 {
 	struct connection *conn = __sc_conn(sc);
 	struct mux_pt_ctx *ctx = conn->ctx;
@@ -661,7 +661,7 @@ static int mux_pt_fastfwd(struct stconn *sc, unsigned int count, unsigned int fl
 		goto out;
 	}
 
-	try = se_init_ff(sdo, &BUF_NULL, count, conn->xprt->rcv_pipe && !!(flags & CO_RFL_MAY_SPLICE) && !(sdo->iobuf.flags & IOBUF_FL_NO_SPLICING));
+	try = se_nego_ff(sdo, &BUF_NULL, count, conn->xprt->rcv_pipe && !!(flags & CO_RFL_MAY_SPLICE) && !(sdo->iobuf.flags & IOBUF_FL_NO_SPLICING));
 	if (sdo->iobuf.flags & IOBUF_FL_NO_FF) {
 		/* Fast forwading is not supported by the consumer */
 		se_fl_clr(ctx->sd, SE_FL_MAY_FASTFWD);
@@ -800,7 +800,7 @@ const struct mux_ops mux_tcp_ops = {
 	.wake = mux_pt_wake,
 	.rcv_buf = mux_pt_rcv_buf,
 	.snd_buf = mux_pt_snd_buf,
-	.init_fastfwd = mux_pt_init_ff,
+	.nego_fastfwd = mux_pt_nego_ff,
 	.done_fastfwd = mux_pt_done_ff,
 	.fastfwd = mux_pt_fastfwd,
 	.resume_fastfwd = mux_pt_resume_fastfwd,
@@ -825,7 +825,7 @@ const struct mux_ops mux_pt_ops = {
 	.wake = mux_pt_wake,
 	.rcv_buf = mux_pt_rcv_buf,
 	.snd_buf = mux_pt_snd_buf,
-	.init_fastfwd = mux_pt_init_ff,
+	.nego_fastfwd = mux_pt_nego_ff,
 	.done_fastfwd = mux_pt_done_ff,
 	.fastfwd = mux_pt_fastfwd,
 	.resume_fastfwd = mux_pt_resume_fastfwd,
