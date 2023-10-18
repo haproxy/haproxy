@@ -4084,8 +4084,10 @@ static int h2_send(struct h2c *h2c)
 	/* We're done, no more to send */
 	if (!(conn->flags & CO_FL_WAIT_XPRT) && !br_data(h2c->mbuf)) {
 		TRACE_DEVEL("leaving with everything sent", H2_EV_H2C_SEND, h2c->conn);
-		if (!h2c->nb_sc)
+		if (h2c->flags & H2_CF_MBUF_HAS_DATA && !h2c->nb_sc) {
+			h2c->flags &= ~H2_CF_MBUF_HAS_DATA;
 			h2c->idle_start = now_ms;
+		}
 		goto end;
 	}
 
@@ -5537,6 +5539,7 @@ static size_t h2s_snd_fhdrs(struct h2s *h2s, struct htx *htx)
 
 	/* commit the H2 response */
 	b_add(mbuf, outbuf.data);
+	h2c->flags |= H2_CF_MBUF_HAS_DATA;
 
 	/* indicates the HEADERS frame was sent, except for 1xx responses. For
 	 * 1xx responses, another HEADERS frame is expected.
@@ -5957,6 +5960,7 @@ static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 
 	/* commit the H2 response */
 	b_add(mbuf, outbuf.data);
+	h2c->flags |= H2_CF_MBUF_HAS_DATA;
 	h2s->flags |= H2_SF_HEADERS_SENT;
 	h2s->st = H2_SS_OPEN;
 
@@ -6134,6 +6138,7 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 		buf->data = buf->head = 0;
 		total += fsize;
 		fsize = 0;
+		h2c->flags |= H2_CF_MBUF_HAS_DATA;
 
 		TRACE_PROTO("sent H2 DATA frame (zero-copy)", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
 		goto out;
@@ -6258,6 +6263,7 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 
 	/* commit the H2 response */
 	b_add(mbuf, fsize + 9);
+	h2c->flags |= H2_CF_MBUF_HAS_DATA;
 
  out:
 	if (es_now) {
@@ -6487,6 +6493,7 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 	/* commit the H2 response */
 	TRACE_PROTO("sent H2 trailers HEADERS frame", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_TX_EOI, h2c->conn, h2s);
 	b_add(mbuf, outbuf.data);
+	h2c->flags |= H2_CF_MBUF_HAS_DATA;
 	h2s->flags |= H2_SF_ES_SENT;
 
 	if (h2s->st == H2_SS_OPEN)
