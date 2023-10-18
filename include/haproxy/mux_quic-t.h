@@ -13,6 +13,7 @@
 #include <haproxy/htx-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/ncbuf-t.h>
+#include <haproxy/quic_fctl-t.h>
 #include <haproxy/quic_frame-t.h>
 #include <haproxy/quic_stream-t.h>
 #include <haproxy/stconn-t.h>
@@ -105,7 +106,7 @@ struct qcc {
 #define QC_SF_FIN_STREAM        0x00000002  /* FIN bit must be set for last frame of the stream */
 #define QC_SF_BLK_MROOM         0x00000004  /* app layer is blocked waiting for room in the qcs.tx.buf */
 #define QC_SF_DETACH            0x00000008  /* sc is detached but there is remaining data to send */
-#define QC_SF_BLK_SFCTL         0x00000010  /* stream blocked due to stream flow control limit */
+/* unused 0x00000010 */
 #define QC_SF_DEM_FULL          0x00000020  /* demux blocked on request channel buffer full */
 #define QC_SF_READ_ABORTED      0x00000040  /* Rx closed using STOP_SENDING*/
 #define QC_SF_TO_RESET          0x00000080  /* a RESET_STREAM must be sent */
@@ -155,10 +156,11 @@ struct qcs {
 		uint64_t msd_init; /* initial max-stream-data */
 	} rx;
 	struct {
+		struct quic_fctl fc; /* stream flow control applied on sending */
+
 		uint64_t offset; /* last offset of data ready to be sent */
 		uint64_t sent_offset; /* last offset sent by transport layer */
 		struct buffer buf; /* transmit buffer before sending via xprt */
-		uint64_t msd; /* fctl bytes limit to respect on emission */
 	} tx;
 
 	struct eb64_node by_id;

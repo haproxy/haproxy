@@ -37,6 +37,7 @@
 #include <haproxy/qpack-dec.h>
 #include <haproxy/qpack-enc.h>
 #include <haproxy/quic_enc.h>
+#include <haproxy/quic_fctl.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/tools.h>
@@ -1462,6 +1463,11 @@ static int h3_control_send(struct qcs *qcs, void *ctx)
 		b_quic_enc_int(&pos, h3_settings_max_field_section_size, 0);
 	}
 
+	if (qfctl_sblocked(&qcs->tx.fc)) {
+		TRACE_ERROR("not enough initial credit for control stream", H3_EV_TX_FRAME|H3_EV_TX_SETTINGS, qcs->qcc->conn, qcs);
+		goto err;
+	}
+
 	if (!(res = qcc_get_stream_txbuf(qcs))) {
 		TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_SETTINGS, qcs->qcc->conn, qcs);
 		goto err;
@@ -2229,7 +2235,8 @@ static int h3_send_goaway(struct h3c *h3c)
 	b_quic_enc_int(&pos, h3c->id_goaway, 0);
 
 	res = qcc_get_stream_txbuf(qcs);
-	if (!res || b_room(res) < b_data(&pos)) {
+	if (!res || b_room(res) < b_data(&pos) ||
+	    qfctl_sblocked(&qcs->tx.fc)) {
 		/* Do not try forcefully to emit GOAWAY if no space left. */
 		TRACE_ERROR("cannot send GOAWAY", H3_EV_H3C_END, h3c->qcc->conn, qcs);
 		goto err;
