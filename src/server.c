@@ -2573,6 +2573,26 @@ struct server *srv_drop(struct server *srv)
 	return next;
 }
 
+/* Detach server from proxy list. It is supported to call this
+ * even if the server is not yet in the list
+ */
+static void _srv_detach(struct server *srv)
+{
+	struct proxy *be = srv->proxy;
+
+	if (be->srv == srv) {
+		be->srv = srv->next;
+	}
+	else {
+		struct server *prev;
+
+		for (prev = be->srv; prev && prev->next != srv; prev = prev->next)
+			;
+		if (prev)
+			prev->next = srv->next;
+	}
+}
+
 /* Remove a server <srv> from a tracking list if <srv> is tracking another
  * server. No special care is taken if <srv> is tracked itself by another one :
  * this situation should be avoided by the caller.
@@ -5181,17 +5201,7 @@ out:
 			free_check(&srv->agent);
 
 		/* remove the server from the proxy linked list */
-		if (be->srv == srv) {
-			be->srv = srv->next;
-		}
-		else {
-			struct server *prev;
-			for (prev = be->srv; prev && prev->next != srv; prev = prev->next)
-				;
-			if (prev)
-				prev->next = srv->next;
-		}
-
+		_srv_detach(srv);
 	}
 
 	thread_release();
@@ -5288,23 +5298,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	 * The proxy servers list is currently not protected by a lock, so this
 	 * requires thread_isolate/release.
 	 */
-
-	/* be->srv cannot be empty since we have already found the server with
-	 * get_backend_server */
-	BUG_ON(!be->srv);
-	if (be->srv == srv) {
-		be->srv = srv->next;
-	}
-	else {
-		struct server *next;
-		for (next = be->srv; srv != next->next; next = next->next) {
-			/* srv cannot be not found since we have already found
-			 * it with get_backend_server */
-			BUG_ON(!next);
-		}
-
-		next->next = srv->next;
-	}
+	_srv_detach(srv);
 
 	/* Some deleted servers could still point to us using their 'next',
 	 * update them as needed
