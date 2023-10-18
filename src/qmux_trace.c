@@ -77,7 +77,7 @@ static void qmux_trace(enum trace_level level, uint64_t mask,
 			chunk_appendf(&trace_buf, " qc=%p", qcc->conn->handle.qc);
 
 		chunk_appendf(&trace_buf, " md=%llu/%llu/%llu",
-		              (ullong)qcc->rfctl.md, (ullong)qcc->tx.offsets, (ullong)qcc->tx.sent_offsets);
+		              (ullong)qcc->tx.fc.limit, (ullong)qcc->tx.offsets, (ullong)qcc->tx.sent_offsets);
 
 		if (qcs) {
 			chunk_appendf(&trace_buf, " qcs=%p .id=%llu .st=%s",

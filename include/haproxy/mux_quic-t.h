@@ -31,7 +31,7 @@ enum qcs_type {
 
 #define QC_CF_ERRL      0x00000001 /* fatal error detected locally, connection should be closed soon */
 #define QC_CF_ERRL_DONE 0x00000002 /* local error properly handled, connection can be released */
-#define QC_CF_BLK_MFCTL 0x00000004 /* sending blocked due to connection flow-control */
+/* unused 0x00000004 */
 #define QC_CF_CONN_FULL 0x00000008 /* no stream buffers available on connection */
 #define QC_CF_APP_SHUT  0x00000010 /* Application layer shutdown done. */
 #define QC_CF_ERR_CONN  0x00000020 /* fatal error reported by transport layer */
@@ -71,6 +71,8 @@ struct qcc {
 	} rfctl;
 
 	struct {
+		struct quic_fctl fc; /* stream flow control applied on sending */
+
 		uint64_t offsets; /* sum of all offsets prepared */
 		uint64_t sent_offsets; /* sum of all offset sent */
 	} tx;
@@ -84,6 +86,7 @@ struct qcc {
 
 	struct list send_retry_list; /* list of qcs eligible to send retry */
 	struct list send_list; /* list of qcs ready to send (STREAM, STOP_SENDING or RESET_STREAM emission) */
+	struct list fctl_list; /* list of sending qcs blocked on conn flow control */
 
 	struct wait_event wait_event;  /* To be used if we're waiting for I/Os */
 
@@ -170,6 +173,7 @@ struct qcs {
 	struct list el; /* element of qcc.send_retry_list */
 	struct list el_send; /* element of qcc.send_list */
 	struct list el_opening; /* element of qcc.opening_list */
+	struct list el_fctl; /* element of qcc.fctl_list */
 
 	struct wait_event wait_event;
 	struct wait_event *subs;
