@@ -4423,12 +4423,14 @@ static size_t h1_init_ff(struct stconn *sc, struct buffer *input, size_t count, 
 	 *       supported to mix data.
 	 */
 	if (!b_data(input) && !b_data(&h1c->obuf) && may_splice) {
-		if (h1c->conn->xprt->snd_pipe && (h1s->sd->iobuf.pipe || (pipes_used < global.maxpipes && (h1s->sd->iobuf.pipe = get_pipe())))) {
+#if defined(USE_LINUX_SPLICE)
+		if (h1s->sd->iobuf.pipe || (pipes_used < global.maxpipes && (h1s->sd->iobuf.pipe = get_pipe()))) {
 			h1s->sd->iobuf.offset = 0;
 			h1s->sd->iobuf.data = 0;
 			ret = count;
 			goto out;
 		}
+#endif
 		h1s->sd->iobuf.flags |= IOBUF_FL_NO_SPLICING;
 		TRACE_DEVEL("Unable to allocate pipe for splicing, fallback to buffer", H1_EV_STRM_SEND, h1c->conn, h1s);
 	}
@@ -4487,7 +4489,7 @@ static void h1_done_ff(struct stconn *sc)
 
 	TRACE_ENTER(H1_EV_STRM_SEND, h1c->conn, h1s);
 
-
+#if defined(USE_LINUX_SPLICE)
 	if (sd->iobuf.pipe) {
 		total = h1c->conn->xprt->snd_pipe(h1c->conn, h1c->conn->xprt_ctx, sd->iobuf.pipe, sd->iobuf.pipe->data);
 		if (total > 0)
@@ -4496,8 +4498,10 @@ static void h1_done_ff(struct stconn *sc)
 			put_pipe(sd->iobuf.pipe);
 			sd->iobuf.pipe = NULL;
 		}
+		goto out;
 	}
-	else {
+#endif
+	if (!sd->iobuf.pipe) {
 		if (b_room(&h1c->obuf) == sd->iobuf.offset)
 			h1c->flags |= H1C_F_OUT_FULL;
 
@@ -4512,6 +4516,7 @@ static void h1_done_ff(struct stconn *sc)
 		h1_send(h1c);
 	}
 
+  out:
 	if (h1m->curr_len)
 		h1m->curr_len -= total;
 
@@ -4524,7 +4529,6 @@ static void h1_done_ff(struct stconn *sc)
 
 	HA_ATOMIC_ADD(&h1c->px_counters->bytes_out, total);
 
- out:
 	// TODO: should we call h1_process() instead ?
 	if (h1c->conn->flags & CO_FL_ERROR) {
 		h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_ERR_PENDING;
@@ -4580,7 +4584,7 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	if (h1m->state == H1_MSG_DATA && (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN)) &&  count > h1m->curr_len)
 		count = h1m->curr_len;
 
-	try = se_init_ff(sdo, &h1c->ibuf, count, h1c->conn->xprt->rcv_pipe && !!(flags & CO_RFL_MAY_SPLICE) && !(sdo->iobuf.flags & IOBUF_FL_NO_SPLICING));
+	try = se_init_ff(sdo, &h1c->ibuf, count, !!(flags & CO_RFL_MAY_SPLICE) && !(sdo->iobuf.flags & IOBUF_FL_NO_SPLICING));
 	if (b_room(&h1c->ibuf) && (h1c->flags & H1C_F_IN_FULL)) {
 		h1c->flags &= ~H1C_F_IN_FULL;
 		TRACE_STATE("h1c ibuf not full anymore", H1_EV_STRM_RECV|H1_EV_H1C_BLK);
@@ -4599,6 +4603,7 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	}
 
 	total += sdo->iobuf.data;
+#if defined(USE_LINUX_SPLICE)
 	if (sdo->iobuf.pipe) {
 		/* Here, not data was xferred */
 		ret = h1c->conn->xprt->rcv_pipe(h1c->conn, h1c->conn->xprt_ctx, sdo->iobuf.pipe, try);
@@ -4618,7 +4623,8 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 		}
 		HA_ATOMIC_ADD(&h1c->px_counters->spliced_bytes_in, ret);
 	}
-	else {
+#endif
+	if (!sdo->iobuf.pipe) {
 		b_add(sdo->iobuf.buf, sdo->iobuf.offset);
 		ret = h1c->conn->xprt->rcv_buf(h1c->conn, h1c->conn->xprt_ctx, sdo->iobuf.buf, try, flags);
 		if (ret < try) {
@@ -4714,35 +4720,36 @@ static int h1_resume_fastfwd(struct stconn *sc, unsigned int flags)
 {
 	struct h1s *h1s = __sc_mux_strm(sc);
 	struct h1c *h1c = h1s->h1c;
-	struct h1m *h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->res : &h1s->req);
-	struct sedesc *sd = h1s->sd;
 	int ret = 0;
 
 	TRACE_ENTER(H1_EV_STRM_SEND, h1c->conn, h1s, 0, (size_t[]){flags});
 
-	if (sd->iobuf.pipe) {
+#if defined(USE_LINUX_SPLICE)
+	if (h1s->sd->iobuf.pipe) {
+		struct h1m *h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->res : &h1s->req);
+		struct sedesc *sd = h1s->sd;
+
 		ret = h1c->conn->xprt->snd_pipe(h1c->conn, h1c->conn->xprt_ctx, sd->iobuf.pipe, sd->iobuf.pipe->data);
 		if (ret > 0)
 			HA_ATOMIC_ADD(&h1c->px_counters->spliced_bytes_out, ret);
-
 		if (!sd->iobuf.pipe->data) {
 			put_pipe(sd->iobuf.pipe);
 			sd->iobuf.pipe = NULL;
 		}
+
+		h1m->curr_len -= ret;
+
+		if (!h1m->curr_len && (h1m->flags & H1_MF_CLEN))
+			h1m->state = H1_MSG_DONE;
+		else if (!h1m->curr_len && (h1m->flags & H1_MF_CHNK)) {
+			if (h1m->state == H1_MSG_DATA)
+				h1m->state = H1_MSG_CHUNK_CRLF;
+		}
+
+		HA_ATOMIC_ADD(&h1c->px_counters->bytes_out, ret);
 	}
+#endif
 
-	h1m->curr_len -= ret;
-
-	if (!h1m->curr_len && (h1m->flags & H1_MF_CLEN))
-		h1m->state = H1_MSG_DONE;
-	else if (!h1m->curr_len && (h1m->flags & H1_MF_CHNK)) {
-		if (h1m->state == H1_MSG_DATA)
-			h1m->state = H1_MSG_CHUNK_CRLF;
-	}
-
-	HA_ATOMIC_ADD(&h1c->px_counters->bytes_out, ret);
-
- out:
 	// TODO: should we call h1_process() instead ?
 	if (h1c->conn->flags & CO_FL_ERROR) {
 		h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_ERR_PENDING;
