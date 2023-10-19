@@ -19,7 +19,7 @@ frontend pub
 	use_backend be-reverse
 
 backend be-reverse
-	server dev @reverse ssl sni hdr(x-name) verify none
+	server dev rev@ ssl sni hdr(x-name) verify none
 
 frontend priv
 	bind "fd@${priv}" ssl crt ${testdir}/common.pem verify required ca-verify-file ${testdir}/ca-auth.crt alpn h2

@@ -36,6 +36,8 @@ struct protocol proto_reverse_connect = {
 	.accept_conn = rev_accept_conn,
 	.set_affinity = rev_set_affinity,
 
+	.connect     = rev_connect,
+
 	/* address family */
 	.fam  = &proto_fam_reverse_connect,
 
@@ -341,6 +343,12 @@ int rev_set_affinity(struct connection *conn, int new_tid)
 	 * did not test possible race conditions.
 	 */
 	return -1;
+}
+
+/* Simple callback to enable definition of passive HTTP reverse servers. */
+int rev_connect(struct connection *conn, int flags)
+{
+	return SF_ERR_NONE;
 }
 
 int rev_accepting_conn(const struct receiver *rx)

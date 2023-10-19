@@ -14,6 +14,8 @@ struct connection *rev_accept_conn(struct listener *l, int *status);
 void rev_unbind_receiver(struct listener *l);
 int rev_set_affinity(struct connection *conn, int new_tid);
 
+int rev_connect(struct connection *conn, int flags);
+
 int rev_accepting_conn(const struct receiver *rx);
 
 void rev_notify_preconn_err(struct listener *l);

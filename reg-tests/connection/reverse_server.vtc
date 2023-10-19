@@ -18,7 +18,7 @@ frontend pub
 	use_backend be-reverse
 
 backend be-reverse
-	server dev @reverse
+	server dev rev@
 
 frontend priv
 	bind "fd@${priv}" proto h2
