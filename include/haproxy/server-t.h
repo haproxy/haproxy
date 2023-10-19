@@ -275,6 +275,7 @@ struct server {
 
 	struct proxy *proxy;			/* the proxy this server belongs to */
 	const struct mux_proto_list *mux_proto; /* the mux to use for all outgoing connections (specified by the "proto" keyword) */
+	struct protocol *addr_proto;            /* server side protocol used for haproxy<->server communication */
 	struct log_target *log_target;          /* when 'mode log' is enabled, target facility used to transport log messages */
 	unsigned maxconn, minconn;		/* max # of active sessions (0 = unlimited), min# for dynamic limit. */
 	struct srv_per_thread *per_thr;         /* array of per-thread stuff such as connections lists */
@@ -626,7 +627,6 @@ struct srv_kw_list {
 #define SRV_PARSE_PARSE_ADDR      0x08    /* required to parse the server address in the second argument */
 #define SRV_PARSE_DYNAMIC         0x10    /* dynamic server created at runtime with cli */
 #define SRV_PARSE_INITIAL_RESOLVE 0x20    /* resolve immediately the fqdn to an ip address */
-#define SRV_PARSE_IN_LOG_BE       0x40    /* keyword in log backend */
 
 #endif /* _HAPROXY_SERVER_T_H */
 

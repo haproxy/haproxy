@@ -438,7 +438,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	if ((strcmp(args[0], "server") == 0)) {
 		err_code |= parse_server(file, linenum, args,
 		                         curproxy, curr_defproxy,
-		                         (curproxy->mode == PR_MODE_SYSLOG ? SRV_PARSE_IN_LOG_BE : 0) |
 		                         SRV_PARSE_PARSE_ADDR);
 
 		if (err_code & ERR_FATAL)
@@ -447,7 +446,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "default-server") == 0) {
 		err_code |= parse_server(file, linenum, args,
 		                         curproxy, curr_defproxy,
-		                         (curproxy->mode == PR_MODE_SYSLOG ? SRV_PARSE_IN_LOG_BE : 0) |
 		                         SRV_PARSE_DEFAULT_SERVER);
 
 		if (err_code & ERR_FATAL)
@@ -456,7 +454,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "server-template") == 0) {
 		err_code |= parse_server(file, linenum, args,
 		                         curproxy, curr_defproxy,
-		                         (curproxy->mode == PR_MODE_SYSLOG ? SRV_PARSE_IN_LOG_BE : 0) |
 		                         SRV_PARSE_TEMPLATE|SRV_PARSE_PARSE_ADDR);
 
 		if (err_code & ERR_FATAL)
