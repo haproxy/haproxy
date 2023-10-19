@@ -349,13 +349,13 @@ const struct trace_event *trace_find_event(const struct trace_event *ev, const c
 
 /* Parse a "trace" statement. Returns a severity as a LOG_* level and a status
  * message that may be delivered to the user, in <msg>. The message will be
- * nulled first and msg must be a valid pointer. A null status message output
+ * nulled first and msg must be an allocated pointer. A null status message output
  * indicates no error. Be careful not to use the return value as a boolean, as
  * LOG_* values are not ordered as one could imagine (LOG_EMERG is zero). The
  * function may/will use the trash buffer as the storage for the response
  * message so that the caller never needs to release anything.
  */
-static int trace_parse_statement(char **args, const char **msg)
+static int trace_parse_statement(char **args, char **msg)
 {
 	struct trace_source *src;
 	uint64_t *ev_ptr = NULL;
@@ -374,7 +374,7 @@ static int trace_parse_statement(char **args, const char **msg)
 			chunk_appendf(&trash, " [%c] %-10s : %s\n", trace_state_char(src->state), src->name.ptr, src->desc);
 
 		trash.area[trash.data] = 0;
-		*msg = trash.area;
+		*msg = strdup(trash.area);
 		return LOG_WARNING;
 	}
 
@@ -382,13 +382,13 @@ static int trace_parse_statement(char **args, const char **msg)
 		/* emergency stop of all traces */
 		list_for_each_entry(src, &trace_sources, source_link)
 			HA_ATOMIC_STORE(&src->state, TRACE_STATE_STOPPED);
-		*msg = "All traces now stopped";
+		*msg = strdup("All traces now stopped");
 		return LOG_NOTICE;
 	}
 
 	src = trace_find_source(args[1]);
 	if (!src) {
-		*msg = "No such trace source";
+		memprintf(msg, "No such trace source '%s'", args[1]);
 		return LOG_ERR;
 	}
 
@@ -403,6 +403,7 @@ static int trace_parse_statement(char **args, const char **msg)
 			"  start     : start immediately or after a specific event\n"
 			"  stop      : stop immediately or after a specific event\n"
 			"  verbosity : list/set trace output verbosity\n";
+		*msg = strdup(*msg);
 		return LOG_WARNING;
 	}
 	else if ((strcmp(args[2], "event") == 0 && (ev_ptr = &src->report_events)) ||
@@ -437,7 +438,7 @@ static int trace_parse_statement(char **args, const char **msg)
 					      src->known_events[i].name, src->known_events[i].desc);
 			}
 			trash.area[trash.data] = 0;
-			*msg = trash.area;
+			*msg = strdup(trash.area);
 			return LOG_WARNING;
 		}
 
@@ -454,7 +455,6 @@ static int trace_parse_statement(char **args, const char **msg)
 				HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 				HA_ATOMIC_STORE(&src->state, TRACE_STATE_STOPPED);
 			}
-			*msg = NULL;
 			return 0;
 		}
 
@@ -465,7 +465,7 @@ static int trace_parse_statement(char **args, const char **msg)
 		else {
 			ev = trace_find_event(src->known_events, name);
 			if (!ev) {
-				*msg = "No such trace event";
+				memprintf(msg, "No such trace event '%s'", name);
 				return LOG_ERR;
 			}
 
@@ -488,7 +488,7 @@ static int trace_parse_statement(char **args, const char **msg)
 					      sink->name, sink->desc);
 			}
 			trash.area[trash.data] = 0;
-			*msg = trash.area;
+			*msg = strdup(trash.area);
 			return LOG_WARNING;
 		}
 
@@ -497,7 +497,7 @@ static int trace_parse_statement(char **args, const char **msg)
 		else {
 			sink = sink_find(name);
 			if (!sink) {
-				*msg = "No such sink";
+				memprintf(msg, "No such trace sink '%s'", name);
 				return LOG_ERR;
 			}
 		}
@@ -522,7 +522,7 @@ static int trace_parse_statement(char **args, const char **msg)
 			chunk_appendf(&trash, "  %c developer  : also report information useful only to the developer\n",
 				      src->level == TRACE_LEVEL_DEVELOPER ? '*' : ' ');
 			trash.area[trash.data] = 0;
-			*msg = trash.area;
+			*msg = strdup(trash.area);
 			return LOG_WARNING;
 		}
 
@@ -539,7 +539,7 @@ static int trace_parse_statement(char **args, const char **msg)
 		else if (strcmp(name, "developer") == 0)
 			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_DEVELOPER);
 		else {
-			*msg = "No such trace level";
+			memprintf(msg, "No such trace level '%s'", name);
 			return LOG_ERR;
 		}
 	}
@@ -611,7 +611,7 @@ static int trace_parse_statement(char **args, const char **msg)
 				              src->lockon_args[3].name, src->lockon_args[3].desc);
 
 			trash.area[trash.data] = 0;
-			*msg = trash.area;
+			*msg = strdup(trash.area);
 			return LOG_WARNING;
 		}
 		else if ((src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_STRM)) && strcmp(name, "backend") == 0) {
@@ -675,7 +675,7 @@ static int trace_parse_statement(char **args, const char **msg)
 			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 		}
 		else {
-			*msg = "Unsupported lock-on criterion";
+			memprintf(msg, "Unsupported lock-on criterion '%s'", name);
 			return LOG_ERR;
 		}
 	}
@@ -697,7 +697,7 @@ static int trace_parse_statement(char **args, const char **msg)
 						      nd->name, nd->desc);
 			}
 			trash.area[trash.data] = 0;
-			*msg = trash.area;
+			*msg = strdup(trash.area);
 			return LOG_WARNING;
 		}
 
@@ -707,7 +707,7 @@ static int trace_parse_statement(char **args, const char **msg)
 			if (strcmp(name, "default") == 0)
 				HA_ATOMIC_STORE(&src->verbosity, 1);
 			else {
-				*msg = "No such verbosity level";
+				memprintf(msg, "No such verbosity level '%s'", name);
 				return LOG_ERR;
 			}
 		} else {
@@ -716,7 +716,7 @@ static int trace_parse_statement(char **args, const char **msg)
 					break;
 
 			if (!nd->name || !nd->desc) {
-				*msg = "No such verbosiry level";
+				memprintf(msg, "No such verbosity level '%s'", name);
 				return LOG_ERR;
 			}
 
@@ -724,7 +724,7 @@ static int trace_parse_statement(char **args, const char **msg)
 		}
 	}
 	else {
-		*msg = "Unknown trace keyword";
+		memprintf(msg, "Unknown trace keyword '%s'", args[2]);
 		return LOG_ERR;
 	}
 	return 0;
@@ -736,7 +736,7 @@ static int cfg_parse_trace(char **args, int section_type, struct proxy *curpx,
 			   const struct proxy *defpx, const char *file, int line,
 			   char **err)
 {
-	const char *msg;
+	char *msg;
 	int severity;
 
 	severity = trace_parse_statement(args, &msg);
@@ -746,9 +746,11 @@ static int cfg_parse_trace(char **args, int section_type, struct proxy *curpx,
 		else if (severity >= LOG_WARNING)
 			ha_warning("parsing [%s:%d] : '%s': %s\n", file, line, args[0], msg);
 		else {
-			ha_alert("parsing [%s:%d] : '%s': %s\n", file, line, args[0], msg);
+			/* let the caller free the message */
+			*err = msg;
 			return -1;
 		}
+		ha_free(&msg);
 	}
 	return 0;
 }
@@ -756,7 +758,7 @@ static int cfg_parse_trace(char **args, int section_type, struct proxy *curpx,
 /* parse the command, returns 1 if a message is returned, otherwise zero */
 static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	const char *msg;
+	char *msg;
 	int severity;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
@@ -764,7 +766,7 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 
 	severity = trace_parse_statement(args, &msg);
 	if (msg)
-		return cli_msg(appctx, severity, msg);
+		return cli_dynmsg(appctx, severity, msg);
 
 	/* total success */
 	return 0;
