@@ -15332,6 +15332,11 @@ namespace <name>
   a namespace different from the default one. Please refer to your operating
   system's documentation to find more details about network namespaces.
 
+nbconn <nbconn>
+  This setting is only valid for listener instances which uses reverse HTTP.
+  This will define the count of connections which will be mounted in parallel.
+  If not specified, a default value of 1 is used.
+
 nice <nice>
   Sets the 'niceness' of connections initiated from the socket. Value must be
   in the range -1024..1024 inclusive, and defaults to zero. Positive values

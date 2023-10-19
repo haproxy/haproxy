@@ -209,6 +209,7 @@ struct bind_conf {
 	char *file;                /* file where the section appears */
 	int line;                  /* line where the section appears */
 	char *reverse_srvname;     /* name of server when using "rev@" address */
+	int reverse_nbconn;        /* count of connections to initiate in parallel */
 	__decl_thread(HA_RWLOCK_T sni_lock); /* lock the SNI trees during add/del operations */
 	struct thread_set thread_set; /* entire set of the allowed threads (0=no restriction) */
 	struct rx_settings settings; /* all the settings needed for the listening socket */

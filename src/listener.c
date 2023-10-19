@@ -2241,6 +2241,33 @@ static int bind_parse_name(char **args, int cur_arg, struct proxy *px, struct bi
 	return 0;
 }
 
+/* parse the "nbconn" bind keyword */
+static int bind_parse_nbconn(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	int val;
+	const struct listener *l;
+
+	l = LIST_NEXT(&conf->listeners, struct listener *, by_bind);
+	if (l->rx.addr.ss_family != AF_CUST_REV_SRV) {
+		memprintf(err, "'%s' : only valid for reverse HTTP listeners.", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing value.", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	val = atol(args[cur_arg + 1]);
+	if (val <= 0) {
+		memprintf(err, "'%s' : invalid value %d, must be > 0.", args[cur_arg], val);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	conf->reverse_nbconn = val;
+	return 0;
+}
+
 /* parse the "nice" bind keyword */
 static int bind_parse_nice(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -2402,6 +2429,7 @@ static struct bind_kw_list bind_kws = { "ALL", { }, {
 	{ "id",           bind_parse_id,           1 }, /* set id of listening socket */
 	{ "maxconn",      bind_parse_maxconn,      1 }, /* set maxconn of listening socket */
 	{ "name",         bind_parse_name,         1 }, /* set name of listening socket */
+	{ "nbconn",       bind_parse_nbconn,       1 }, /* set number of connection on active preconnect */
 	{ "nice",         bind_parse_nice,         1 }, /* set nice of listening socket */
 	{ "process",      bind_parse_process,      1 }, /* set list of allowed process for this socket */
 	{ "proto",        bind_parse_proto,        1 }, /* set the proto to use for all incoming connections */
