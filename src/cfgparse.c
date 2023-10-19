@@ -162,6 +162,32 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		if (!ss2)
 			goto fail;
 
+		if (ss2->ss_family == AF_CUST_REV_SRV) {
+			/* Check if a previous non reverse HTTP present is
+			 * already defined. If DGRAM or STREAM is set, this
+			 * indicates that we are currently parsing the second
+			 * or more address.
+			 */
+			if (bind_conf->options & (BC_O_USE_SOCK_DGRAM|BC_O_USE_SOCK_STREAM) &&
+			    !(bind_conf->options & BC_O_REVERSE_HTTP)) {
+				memprintf(err, "Cannot mix reverse HTTP bind with others.\n");
+				goto fail;
+			}
+
+			bind_conf->reverse_srvname = strdup(str + strlen("rev@"));
+			if (!bind_conf->reverse_srvname) {
+				memprintf(err, "Cannot allocate reverse HTTP bind.\n");
+				goto fail;
+			}
+
+			bind_conf->options |= BC_O_REVERSE_HTTP;
+		}
+		else if (bind_conf->options & BC_O_REVERSE_HTTP) {
+			/* Standard address mixed with a previous reverse HTTP one. */
+			memprintf(err, "Cannot mix reverse HTTP bind with others.\n");
+			goto fail;
+		}
+
 		/* OK the address looks correct */
 		if (proto->proto_type == PROTO_TYPE_DGRAM)
 			bind_conf->options |= BC_O_USE_SOCK_DGRAM;
@@ -172,10 +198,6 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 			bind_conf->options |= BC_O_USE_XPRT_DGRAM;
 		else
 			bind_conf->options |= BC_O_USE_XPRT_STREAM;
-
-		if (ss2->ss_family == AF_CUST_REV_SRV) {
-			bind_conf->reverse_srvname = strdup(str + strlen("rev@"));
-		}
 
 		if (!create_listeners(bind_conf, ss2, port, end, fd, proto, err)) {
 			memprintf(err, "%s for address '%s'.\n", *err, str);
