@@ -2806,6 +2806,13 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		 */
 		sess_log(h2c->conn->owner);
 		h2s = (struct h2s*)h2_error_stream;
+
+		/* This stream ID is now opened anyway until we send the RST on
+		 * it, it must not be reused.
+		 */
+		if (h2c->dsi > h2c->max_id)
+			h2c->max_id = h2c->dsi;
+
 		TRACE_USER("rcvd unparsable H2 request", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, h2s, &rxbuf);
 		goto send_rst;
 	}
