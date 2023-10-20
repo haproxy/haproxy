@@ -272,6 +272,7 @@ struct bind_kw {
 	const char *kw;
 	int (*parse)(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err);
 	int skip; /* nb of args to skip */
+	int rhttp_ok; /* non-zero if kw is support for reverse HTTP bind */
 };
 
 /* same as bind_kw but for crtlist keywords */
