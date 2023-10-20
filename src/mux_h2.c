@@ -1584,6 +1584,8 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 
 	if (h2c->nb_streams >= h2c_max_concurrent_streams(h2c)) {
 		TRACE_ERROR("HEADERS frame causing MAX_CONCURRENT_STREAMS to be exceeded", H2_EV_H2S_NEW|H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn);
+		session_inc_http_req_ctr(sess);
+		session_inc_http_err_ctr(sess);
 		goto out;
 	}
 
@@ -2779,6 +2781,8 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		TRACE_ERROR("HEADERS on invalid stream ID", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn);
 		HA_ATOMIC_INC(&h2c->px_counters->conn_proto_err);
 		sess_log(h2c->conn->owner);
+		session_inc_http_req_ctr(h2c->conn->owner);
+		session_inc_http_err_ctr(h2c->conn->owner);
 		goto conn_err;
 	}
 	else if (h2c->flags & H2_CF_DEM_TOOMANY)
@@ -2790,6 +2794,8 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (h2c->st0 >= H2_CS_ERROR) {
 		TRACE_USER("Unrecoverable error decoding H2 request", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, 0, &rxbuf);
 		sess_log(h2c->conn->owner);
+		session_inc_http_req_ctr(h2c->conn->owner);
+		session_inc_http_err_ctr(h2c->conn->owner);
 		goto out;
 	}
 
@@ -2805,6 +2811,9 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		 * but the HPACK decompressor is still synchronized.
 		 */
 		sess_log(h2c->conn->owner);
+		session_inc_http_req_ctr(h2c->conn->owner);
+		session_inc_http_err_ctr(h2c->conn->owner);
+
 		h2s = (struct h2s*)h2_error_stream;
 
 		/* This stream ID is now opened anyway until we send the RST on
