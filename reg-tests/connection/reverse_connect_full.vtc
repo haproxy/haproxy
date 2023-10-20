@@ -37,7 +37,7 @@ defaults
 	mode http
 
 frontend fe
-	bind "rhttp@be-pre-connect/srv" maxconn 1
+	bind "rhttp@be-pre-connect/srv"
 	use_backend be
 
 backend be-pre-connect
