@@ -21,7 +21,7 @@ frontend pub
 	use_backend be-reverse
 
 backend be-reverse
-	server dev rev@
+	server dev rhttp@
 
 frontend priv
 	bind "fd@${priv}" proto h2
@@ -37,7 +37,7 @@ defaults
 	mode http
 
 frontend fe
-	bind "rev@be-pre-connect/srv" maxconn 1
+	bind "rhttp@be-pre-connect/srv" maxconn 1
 	use_backend be
 
 backend be-pre-connect

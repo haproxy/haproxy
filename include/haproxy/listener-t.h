@@ -208,7 +208,7 @@ struct bind_conf {
 	char *arg;                 /* argument passed to "bind" for better error reporting */
 	char *file;                /* file where the section appears */
 	int line;                  /* line where the section appears */
-	char *reverse_srvname;     /* name of server when using "rev@" address */
+	char *reverse_srvname;     /* name of server when using "rhttp@" address */
 	int reverse_nbconn;        /* count of connections to initiate in parallel */
 	__decl_thread(HA_RWLOCK_T sni_lock); /* lock the SNI trees during add/del operations */
 	struct thread_set thread_set; /* entire set of the allowed threads (0=no restriction) */

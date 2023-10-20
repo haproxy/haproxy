@@ -1101,7 +1101,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		str2 += 9;
 		ss.ss_family = AF_CUST_SOCKPAIR;
 	}
-	else if (strncmp(str2, "rev@", 3) == 0) {
+	else if (strncmp(str2, "rhttp@", 3) == 0) {
 		str2 += 4;
 		ss.ss_family = AF_CUST_REV_SRV;
 	}

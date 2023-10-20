@@ -174,7 +174,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 				goto fail;
 			}
 
-			bind_conf->reverse_srvname = strdup(str + strlen("rev@"));
+			bind_conf->reverse_srvname = strdup(str + strlen("rhttp@"));
 			if (!bind_conf->reverse_srvname) {
 				memprintf(err, "Cannot allocate reverse HTTP bind.\n");
 				goto fail;
