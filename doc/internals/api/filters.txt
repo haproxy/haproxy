@@ -47,7 +47,9 @@ SUMMARY
 First of all, to fully understand how filters work and how to create one, it is
 best to know, at least from a distance, what is a proxy (frontend/backend), a
 stream and a channel in HAProxy and how these entities are linked to each other.
-doc/internals/entities.pdf is a good overview.
+In doc/internals/api/layers.txt is a good overview of the different layers in
+HAProxy and in doc/internals/muxes.pdf is described the flow between the
+different muxes.
 
 Then, to support filters, many callbacks has been added to HAProxy at different
 places, mainly around channel analyzers. Their purpose is to allow filters to
