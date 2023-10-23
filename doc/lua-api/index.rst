@@ -267,8 +267,10 @@ Core class
   **context**: body, init, task, action, sample-fetch, converter
 
   This function sends a log. The log is sent, according with the HAProxy
-  configuration file, on the default syslog server if it is configured and on
-  the stderr if it is allowed.
+  configuration file, to the loggers relevant to the current context and
+  to stderr if it is allowed.
+
+  The exact behaviour depends on tune.lua.log.loggers and tune.lua.log.stderr.
 
   :param integer loglevel: Is the log level associated with the message. It is a
    number between 0 and 7.
@@ -2648,8 +2650,10 @@ TXN class
 .. js:function:: TXN.log(TXN, loglevel, msg)
 
   This function sends a log. The log is sent, according with the HAProxy
-  configuration file, on the default syslog server if it is configured and on
-  the stderr if it is allowed.
+  configuration file, to the loggers relevant to the current context and
+  to stderr if it is allowed.
+
+  The exact behaviour depends on tune.lua.log.loggers and tune.lua.log.stderr.
 
   :param class_txn txn: The class txn object containing the data.
   :param integer loglevel: Is the log level associated with the message. It is

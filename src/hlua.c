@@ -69,6 +69,20 @@
 #include <haproxy/check.h>
 #include <haproxy/mailers.h>
 
+/* Global LUA flags */
+
+enum hlua_log_opt {
+	/* tune.lua.log.loggers */
+	HLUA_LOG_LOGGERS_ON      = 0x00000001, /* forward logs to current loggers */
+
+	/* tune.lua.log.stderr */
+	HLUA_LOG_STDERR_ON       = 0x00000010, /* forward logs to stderr */
+	HLUA_LOG_STDERR_AUTO     = 0x00000020, /* forward logs to stderr if no loggers */
+	HLUA_LOG_STDERR_MASK     = 0x00000030,
+};
+/* default log options, made of flags in hlua_log_opt */
+static uint hlua_log_opts = HLUA_LOG_LOGGERS_ON | HLUA_LOG_STDERR_ON;
+
 /* Lua uses longjmp to perform yield or throwing errors. This
  * macro is used only for identifying the function that can
  * not return because a longjmp is executed.
@@ -1366,8 +1380,9 @@ const char *hlua_show_current_location(const char *pfx)
 	return NULL;
 }
 
-/* This function is used to send logs. It try to send on screen (stderr)
- * and on the default syslog server.
+/* This function is used to send logs. It tries to send them to:
+ * - the log target applicable in the current context, AND
+ * - stderr if not in quiet mode or explicitly disabled
  */
 static inline void hlua_sendlog(struct proxy *px, int level, const char *msg)
 {
@@ -1392,8 +1407,28 @@ static inline void hlua_sendlog(struct proxy *px, int level, const char *msg)
 	}
 	*p = '\0';
 
-	send_log(px, level, "%s\n", trash.area);
+	if (hlua_log_opts & HLUA_LOG_LOGGERS_ON)
+		send_log(px, level, "%s\n", trash.area);
+
 	if (!(global.mode & MODE_QUIET) || (global.mode & (MODE_VERBOSE | MODE_STARTING))) {
+		if (!(hlua_log_opts & HLUA_LOG_STDERR_MASK))
+			return;
+
+		/* when logging via stderr is set to 'auto', it behaves like 'off' unless one of:
+		 * - logging via loggers is disabled
+		 * - this is a non-proxy context and there is no global logger configured
+		 * - this is a proxy context and the proxy has no logger configured
+		 */
+		if ((hlua_log_opts & (HLUA_LOG_STDERR_MASK | HLUA_LOG_LOGGERS_ON)) == (HLUA_LOG_STDERR_AUTO | HLUA_LOG_LOGGERS_ON)) {
+			/* AUTO=OFF in non-proxy context only if at least one global logger is defined */
+			if ((px == NULL) && (!LIST_ISEMPTY(&global.loggers)))
+				return;
+
+			/* AUTO=OFF in proxy context only if at least one logger is configured for the proxy */
+			if ((px != NULL) && (!LIST_ISEMPTY(&px->loggers)))
+				return;
+		}
+
 		if (level == LOG_DEBUG && !(global.mode & MODE_DEBUG))
 			return;
 
@@ -12431,6 +12466,43 @@ static int hlua_parse_maxmem(char **args, int section_type, struct proxy *curpx,
 	return 0;
 }
 
+static int hlua_cfg_parse_log_loggers(char **args, int section_type, struct proxy *curpx,
+                              const struct proxy *defpx, const char *file, int line,
+                              char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		hlua_log_opts |= HLUA_LOG_LOGGERS_ON;
+	else if (strcmp(args[1], "off") == 0)
+		hlua_log_opts &= ~HLUA_LOG_LOGGERS_ON;
+	else {
+		memprintf(err, "'%s' expects either 'on' or 'off' but got '%s'.", args[0], args[1]);
+		return -1;
+	}
+	return 0;
+}
+
+static int hlua_cfg_parse_log_stderr(char **args, int section_type, struct proxy *curpx,
+                                     const struct proxy *defpx, const char *file, int line,
+                                    char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		hlua_log_opts = (hlua_log_opts & ~HLUA_LOG_STDERR_MASK) | HLUA_LOG_STDERR_ON;
+	else if (strcmp(args[1], "auto") == 0)
+		hlua_log_opts = (hlua_log_opts & ~HLUA_LOG_STDERR_MASK) | HLUA_LOG_STDERR_AUTO;
+	else if (strcmp(args[1], "off") == 0)
+		hlua_log_opts &= ~HLUA_LOG_STDERR_MASK;
+	else {
+		memprintf(err, "'%s' expects either 'on', 'auto', or 'off' but got '%s'.", args[0], args[1]);
+		return -1;
+	}
+	return 0;
+}
 
 /* This function is called by the main configuration key "lua-load". It loads and
  * execute an lua file during the parsing of the HAProxy configuration file. It is
@@ -12680,6 +12752,8 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "tune.lua.burst-timeout",   hlua_burst_timeout },
 	{ CFG_GLOBAL, "tune.lua.forced-yield",    hlua_forced_yield },
 	{ CFG_GLOBAL, "tune.lua.maxmem",          hlua_parse_maxmem },
+	{ CFG_GLOBAL, "tune.lua.log.loggers",     hlua_cfg_parse_log_loggers },
+	{ CFG_GLOBAL, "tune.lua.log.stderr",      hlua_cfg_parse_log_stderr },
 	{ 0, NULL, NULL },
 }};
 

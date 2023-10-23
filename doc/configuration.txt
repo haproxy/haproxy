@@ -1196,6 +1196,8 @@ The following keywords are supported in the "global" section :
    - tune.lua.service-timeout
    - tune.lua.session-timeout
    - tune.lua.task-timeout
+   - tune.lua.log.loggers
+   - tune.lua.log.stderr
    - tune.max-checks-per-thread
    - tune.maxaccept
    - tune.maxpollevents
@@ -3191,6 +3193,26 @@ tune.lua.task-timeout <timeout>
   dedicated to the tasks. By default, this timeout isn't set because a task may
   remain alive during of the lifetime of HAProxy. For example, a task used to
   check servers.
+
+tune.lua.log.loggers { on | off }
+  Enables ('on') or disables ('off') logging the output of LUA scripts via the
+  loggers applicable to the current proxy, if any.
+
+  Defaults to 'on'.
+
+tune.lua.log.stderr { on | auto | off }
+  Enables ('on') or disables ('off') logging the output of LUA scripts via
+  stderr.
+  When set to 'auto', logging via stderr is conditionally 'on' if any of:
+
+    - tune.lua.log.loggers is set to 'off'
+    - the script is executed in a non-proxy context with no global logger
+    - the script is executed in a proxy context with no logger attached
+
+  Please note that, when enabled, this logging is in addition to the logging
+  configured via tune.lua.log.loggers.
+
+  Defaults to 'on'.
 
 tune.max-checks-per-thread <number>
   Sets the number of active checks per thread above which a thread will

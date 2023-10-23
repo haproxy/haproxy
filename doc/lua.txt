@@ -630,6 +630,10 @@ It displays a log during the HAProxy startup:
 
    [alert] 285/083533 (14465) : Hello World !
 
+Note: By default, logs originating from a LUA script are sent to the loggers
+applicable to the current context, if any, and additionally to stderr. See
+tune.lua.log.loggers and tune.lua.log.stderr for more information.
+
 Default path and libraries
 --------------------------
 
