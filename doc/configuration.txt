@@ -3212,7 +3212,7 @@ tune.lua.log.stderr { on | auto | off }
   Please note that, when enabled, this logging is in addition to the logging
   configured via tune.lua.log.loggers.
 
-  Defaults to 'on'.
+  Defaults to 'auto'.
 
 tune.max-checks-per-thread <number>
   Sets the number of active checks per thread above which a thread will

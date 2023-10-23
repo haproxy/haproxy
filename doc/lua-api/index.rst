@@ -267,7 +267,7 @@ Core class
   **context**: body, init, task, action, sample-fetch, converter
 
   This function sends a log. The log is sent, according with the HAProxy
-  configuration file, to the loggers relevant to the current context and
+  configuration file, to the loggers relevant to the current context and/or
   to stderr if it is allowed.
 
   The exact behaviour depends on tune.lua.log.loggers and tune.lua.log.stderr.
@@ -2650,7 +2650,7 @@ TXN class
 .. js:function:: TXN.log(TXN, loglevel, msg)
 
   This function sends a log. The log is sent, according with the HAProxy
-  configuration file, to the loggers relevant to the current context and
+  configuration file, to the loggers relevant to the current context and/or
   to stderr if it is allowed.
 
   The exact behaviour depends on tune.lua.log.loggers and tune.lua.log.stderr.

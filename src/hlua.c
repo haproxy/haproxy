@@ -81,7 +81,7 @@ enum hlua_log_opt {
 	HLUA_LOG_STDERR_MASK     = 0x00000030,
 };
 /* default log options, made of flags in hlua_log_opt */
-static uint hlua_log_opts = HLUA_LOG_LOGGERS_ON | HLUA_LOG_STDERR_ON;
+static uint hlua_log_opts = HLUA_LOG_LOGGERS_ON | HLUA_LOG_STDERR_AUTO;
 
 /* Lua uses longjmp to perform yield or throwing errors. This
  * macro is used only for identifying the function that can
@@ -1381,8 +1381,8 @@ const char *hlua_show_current_location(const char *pfx)
 }
 
 /* This function is used to send logs. It tries to send them to:
- * - the log target applicable in the current context, AND
- * - stderr if not in quiet mode or explicitly disabled
+ * - the log target applicable in the current context, OR
+ * - stderr when no logger is in use for the current context
  */
 static inline void hlua_sendlog(struct proxy *px, int level, const char *msg)
 {
