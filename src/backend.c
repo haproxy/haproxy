@@ -1457,6 +1457,9 @@ static int connect_server(struct stream *s)
 		if (!eb_is_empty(&srv->per_thr[tid].avail_conns)) {
 			srv_conn = srv_lookup_conn(&srv->per_thr[tid].avail_conns, hash);
 			if (srv_conn) {
+				/* connection cannot be in idle list if used as an avail idle conn. */
+				BUG_ON(LIST_INLIST(&srv_conn->idle_list));
+
 				DBG_TRACE_STATE("reuse connection from avail", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 				reuse = 1;
 			}
@@ -1564,9 +1567,6 @@ static int connect_server(struct stream *s)
 			int avail = srv_conn->mux->avail_streams(srv_conn);
 
 			if (avail <= 1) {
-				/* connection cannot be in idle list if used as an avail idle conn. */
-				BUG_ON(LIST_INLIST(&srv_conn->idle_list));
-
 				/* No more streams available, remove it from the list */
 				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 				conn_delete_from_tree(srv_conn);
