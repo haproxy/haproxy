@@ -5949,7 +5949,7 @@ static int srv_migrate_conns_to_remove(struct list *list, struct mt_list *toremo
 		if (toremove_nb != -1 && i >= toremove_nb)
 			break;
 
-		conn = LIST_ELEM(list->n, struct connection *, toremove_list);
+		conn = LIST_ELEM(list->n, struct connection *, idle_list);
 		conn_delete_from_tree(conn);
 		MT_LIST_APPEND(toremove_list, &conn->toremove_list);
 		i++;

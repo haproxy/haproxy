@@ -1515,7 +1515,7 @@ static int connect_server(struct stream *s)
 		/* First, try from our own idle list */
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		if (!LIST_ISEMPTY(&srv->per_thr[tid].idle_conn_list)) {
-			tokill_conn = LIST_ELEM(&srv->per_thr[tid].idle_conn_list.n, struct connection *, idle_list);
+			tokill_conn = LIST_ELEM(srv->per_thr[tid].idle_conn_list.n, struct connection *, idle_list);
 			conn_delete_from_tree(tokill_conn);
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
@@ -1544,7 +1544,7 @@ static int connect_server(struct stream *s)
 					continue;
 
 				if (!LIST_ISEMPTY(&srv->per_thr[i].idle_conn_list)) {
-					tokill_conn = LIST_ELEM(&srv->per_thr[i].idle_conn_list.n, struct connection *, idle_list);
+					tokill_conn = LIST_ELEM(srv->per_thr[i].idle_conn_list.n, struct connection *, idle_list);
 					conn_delete_from_tree(tokill_conn);
 				}
 				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
