@@ -240,6 +240,10 @@ void ha_thread_dump_one(int thr, int from_signal)
 			}
 		}
 #endif
+
+		if (HA_ATOMIC_LOAD(&pool_trim_in_progress))
+			mark_tainted(TAINTED_MEM_TRIMMING_STUCK);
+
 		/* We only emit the backtrace for stuck threads in order not to
 		 * waste precious output buffer space with non-interesting data.
 		 * Please leave this as the last instruction in this function
@@ -468,6 +472,14 @@ void ha_panic()
 		DISGUISE(write(2, trash.area, trash.data));
 	}
 #endif
+	if (get_tainted() & TAINTED_MEM_TRIMMING_STUCK) {
+		chunk_printf(&trash,
+			     "### Note: one thread was found stuck under malloc_trim(), which can run for a\n"
+			     "          very long time on large memory systems. You way want to disable this\n"
+			     "          memory reclaiming feature by setting 'no-memory-trimming' in the\n"
+			     "          'global' section of your configuration to avoid this in the future.\n");
+		DISGUISE(write(2, trash.area, trash.data));
+	}
 
 	for (;;)
 		abort();

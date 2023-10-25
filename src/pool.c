@@ -38,6 +38,7 @@ THREAD_LOCAL size_t pool_cache_count = 0;                /* #cache objects   */
 
 static struct list pools __read_mostly = LIST_HEAD_INIT(pools);
 int mem_poison_byte __read_mostly = 'P';
+int pool_trim_in_progress = 0;
 uint pool_debugging __read_mostly =               /* set of POOL_DBG_* flags */
 #ifdef DEBUG_FAIL_ALLOC
 	POOL_DBG_FAIL_ALLOC |
@@ -218,6 +219,8 @@ int malloc_trim(size_t pad)
 	if (disable_trim)
 		return ret;
 
+	HA_ATOMIC_INC(&pool_trim_in_progress);
+
 	if (my_mallctl) {
 		/* here we're on jemalloc and malloc_trim() is called either
 		 * by haproxy or another dependency (the worst case that
@@ -263,6 +266,8 @@ int malloc_trim(size_t pad)
 		}
 	}
 #endif
+	HA_ATOMIC_DEC(&pool_trim_in_progress);
+
 	/* here we have ret=0 if nothing was release, or 1 if some were */
 	return ret;
 }

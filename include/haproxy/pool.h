@@ -100,6 +100,9 @@
 /* poison each newly allocated area with this byte if >= 0 */
 extern int mem_poison_byte;
 
+/* trim() in progress */
+extern int pool_trim_in_progress;
+
 /* set of POOL_DBG_* flags */
 extern uint pool_debugging;
 
