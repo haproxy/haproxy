@@ -227,6 +227,19 @@ void ha_thread_dump_one(int thr, int from_signal)
 	ha_task_dump(buf, th_ctx->current, "             ");
 
 	if (stuck && thr == tid) {
+#ifdef USE_LUA
+		if (th_ctx->current &&
+		    th_ctx->current->process == process_stream && th_ctx->current->context) {
+			const struct stream *s = (const struct stream *)th_ctx->current->context;
+			struct hlua *hlua = s ? s->hlua : NULL;
+
+			if (hlua && hlua->T) {
+				mark_tainted(TAINTED_LUA_STUCK);
+				if (hlua->state_id == 0)
+					mark_tainted(TAINTED_LUA_STUCK_SHARED);
+			}
+		}
+#endif
 		/* We only emit the backtrace for stuck threads in order not to
 		 * waste precious output buffer space with non-interesting data.
 		 * Please leave this as the last instruction in this function
@@ -436,6 +449,25 @@ void ha_panic()
 		b_force_xfer(thread_dump_buffer, &trash, b_room(thread_dump_buffer));
 		chunk_reset(&trash);
 	}
+
+#ifdef USE_LUA
+	if (get_tainted() & TAINTED_LUA_STUCK_SHARED && global.nbthread > 1) {
+		chunk_printf(&trash,
+			     "### Note: at least one thread was stuck in a Lua context loaded using the\n"
+			     "          'lua-load' directive, which is known for causing heavy contention\n"
+			     "          when used with threads. Please consider using 'lua-load-per-thread'\n"
+			     "          instead if your code is safe to run in parallel on multiple threads.\n");
+		DISGUISE(write(2, trash.area, trash.data));
+	}
+	else if (get_tainted() & TAINTED_LUA_STUCK) {
+		chunk_printf(&trash,
+			     "### Note: at least one thread was stuck in a Lua context in a way that suggests\n"
+			     "          heavy processing inside a dependency or a long loop that can't yield.\n"
+			     "          Please make sure any external code you may rely on is safe for use in\n"
+			     "          an event-driven engine.\n");
+		DISGUISE(write(2, trash.area, trash.data));
+	}
+#endif
 
 	for (;;)
 		abort();

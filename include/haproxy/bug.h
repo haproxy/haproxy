@@ -249,6 +249,8 @@ enum tainted_flags {
 	TAINTED_REDEFINITION           = 0x00000080, /* symbol redefinition detected */
 	TAINTED_REPLACED_MEM_ALLOCATOR = 0x00000100, /* memory allocator was replaced using LD_PRELOAD */
 	TAINTED_PANIC                  = 0x00000200, /* a panic dump has started */
+	TAINTED_LUA_STUCK              = 0x00000400, /* stuck in a Lua context */
+	TAINTED_LUA_STUCK_SHARED       = 0x00000800, /* stuck in a shared Lua context */
 };
 
 /* this is a bit field made of TAINTED_*, and is declared in haproxy.c */
