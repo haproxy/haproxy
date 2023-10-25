@@ -26,6 +26,7 @@
 
 int frontend_accept(struct stream *s);
 
+int increment_actconn();
 
 #endif /* _HAPROXY_FRONTEND_H */
 

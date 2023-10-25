@@ -25,6 +25,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
+#include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
@@ -1114,18 +1115,14 @@ void listener_accept(struct listener *l)
 		}
 
 		if (!(l->bind_conf->options & BC_O_UNLIMITED)) {
-			do {
-				count = actconn;
-				if (unlikely(count >= global.maxconn)) {
-					/* the process was marked full or another
-					 * thread is going to do it.
-					 */
-					next_actconn = 0;
-					expire = tick_add(now_ms, 1000); /* try again in 1 second */
-					goto limit_global;
-				}
-				next_actconn = count + 1;
-			} while (!_HA_ATOMIC_CAS(&actconn, (int *)(&count), next_actconn));
+			next_actconn = increment_actconn();
+			if (!next_actconn) {
+				/* the process was marked full or another
+				 * thread is going to do it.
+				 */
+				expire = tick_add(now_ms, 1000); /* try again in 1 second */
+				goto limit_global;
+			}
 		}
 
 		/* be careful below, the listener might be shutting down in

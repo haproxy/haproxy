@@ -165,6 +165,33 @@ int frontend_accept(struct stream *s)
 	return -1;
 }
 
+/* Increment current active connection counter. This ensures that global
+ * maxconn is not reached or exceeded. This must be done for every new frontend
+ * connection allocation.
+ *
+ * Returns the new actconn global value. If maxconn reached or exceeded, 0 is
+ * returned : the connection allocation should be cancelled.
+ */
+int increment_actconn()
+{
+	unsigned int count, next_actconn;
+
+	do {
+		count = actconn;
+		if (unlikely(count >= global.maxconn)) {
+			/* maxconn reached */
+			next_actconn = 0;
+			goto end;
+		}
+
+		/* try to increment actconn */
+		next_actconn = count + 1;
+	} while (!_HA_ATOMIC_CAS(&actconn, (int *)(&count), next_actconn) && __ha_cpu_relax());
+
+ end:
+	return next_actconn;
+}
+
 /************************************************************************/
 /*      All supported sample and ACL keywords must be declared here.    */
 /************************************************************************/
