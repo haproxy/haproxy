@@ -1435,6 +1435,12 @@ void quic_conn_release(struct quic_conn *qc)
 		qc_free_ssl_sock_ctx(&qc->xprt_ctx);
 	}
 
+	/* Decrement on quic_conn free. quic_cc_conn instances are not counted
+	 * into global counters because they are designed to run for a limited
+	 * time with a limited memory.
+	 */
+	_HA_ATOMIC_DEC(&actconn);
+
 	/* in the unlikely (but possible) case the connection was just added to
 	 * the accept_list we must delete it from there.
 	 */

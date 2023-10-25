@@ -4234,6 +4234,9 @@ init_proxies_list_stage2:
 
 #ifdef USE_QUIC
 			if (listener->bind_conf->xprt == xprt_get(XPRT_QUIC)) {
+				/* quic_conn are counted against maxconn. */
+				listener->bind_conf->options |= BC_O_XPRT_MAXCONN;
+
 # ifdef USE_QUIC_OPENSSL_COMPAT
 				/* store the last checked bind_conf in bind_conf */
 				if (!(global.tune.options & GTUNE_NO_QUIC) &&
