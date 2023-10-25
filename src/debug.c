@@ -415,6 +415,8 @@ void ha_panic()
 	struct buffer *old;
 	unsigned int thr;
 
+	mark_tainted(TAINTED_PANIC);
+
 	old = NULL;
 	if (!HA_ATOMIC_CAS(&thread_dump_buffer, &old, get_trash_chunk())) {
 		/* a panic dump is already in progress, let's not disturb it,
