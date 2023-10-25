@@ -748,12 +748,6 @@ static void quic_release_cc_conn(struct quic_cc_conn *cc_qc)
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, cc_qc);
 
-	if (qc_test_fd(qc))
-		_HA_ATOMIC_DEC(&jobs);
-
-	/* Close quic-conn socket fd. */
-	qc_release_fd(qc, 0);
-
 	task_destroy(cc_qc->idle_timer_task);
 	cc_qc->idle_timer_task = NULL;
 	tasklet_free(qc->wait_event.tasklet);
@@ -834,9 +828,6 @@ static struct quic_cc_conn *qc_new_cc_conn(struct quic_conn *qc)
 
 	quic_conn_mv_cids_to_cc_conn(cc_qc, qc);
 
-	cc_qc->fd = qc->fd;
-	if (qc->fd >= 0)
-		fdtab[cc_qc->fd].owner = cc_qc;
 	cc_qc->flags = qc->flags;
 	cc_qc->err = qc->err;
 
@@ -1492,11 +1483,6 @@ void quic_conn_release(struct quic_conn *qc)
 		cc_qc = qc_new_cc_conn(qc);
 
 	if (!cc_qc) {
-		if (qc_test_fd(qc))
-			_HA_ATOMIC_DEC(&jobs);
-
-		/* Close quic-conn socket fd. */
-		qc_release_fd(qc, 0);
 		task_destroy(qc->idle_timer_task);
 		qc->idle_timer_task = NULL;
 		tasklet_free(qc->wait_event.tasklet);
@@ -1507,6 +1493,12 @@ void quic_conn_release(struct quic_conn *qc)
 		pool_free(pool_head_quic_cc_buf, qc->tx.cc_buf_area);
 		qc->tx.cc_buf_area = NULL;
 	}
+
+	if (qc_test_fd(qc))
+		_HA_ATOMIC_DEC(&jobs);
+
+	/* Close quic-conn socket fd. */
+	qc_release_fd(qc, 0);
 
 	/* in the unlikely (but possible) case the connection was just added to
 	 * the accept_list we must delete it from there.
