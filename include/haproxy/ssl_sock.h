@@ -113,6 +113,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg);
 int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv);
 #endif
 
+int increment_sslconn();
 SSL_CTX *ssl_sock_assign_generated_cert(unsigned int key, struct bind_conf *bind_conf, SSL *ssl);
 SSL_CTX *ssl_sock_get_generated_cert(unsigned int key, struct bind_conf *bind_conf);
 int ssl_sock_set_generated_cert(SSL_CTX *ctx, unsigned int key, struct bind_conf *bind_conf);
