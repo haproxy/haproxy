@@ -43,6 +43,8 @@ static inline void qc_free_ssl_sock_ctx(struct ssl_sock_ctx **ctx)
 	SSL_free((*ctx)->ssl);
 	pool_free(pool_head_quic_ssl_sock_ctx, *ctx);
 	*ctx = NULL;
+
+	_HA_ATOMIC_DEC(&global.sslconns);
 }
 
 #endif /* _HAPROXY_QUIC_SSL_H */

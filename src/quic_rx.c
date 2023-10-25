@@ -26,6 +26,7 @@
 #include <haproxy/quic_tls.h>
 #include <haproxy/quic_trace.h>
 #include <haproxy/quic_tx.h>
+#include <haproxy/ssl_sock.h>
 #include <haproxy/trace.h>
 
 DECLARE_POOL(pool_head_quic_conn_rxbuf, "quic_conn_rxbuf", QUIC_CONN_RX_BUFSZ);
@@ -1902,7 +1903,7 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 	struct quic_conn *qc = NULL;
 	struct proxy *prx;
 	struct quic_counters *prx_counters;
-	unsigned int next_actconn = 0;
+	unsigned int next_actconn = 0, next_sslconn = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT);
 
@@ -1968,6 +1969,13 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				goto err;
 			}
 
+			next_sslconn = increment_sslconn();
+			if (!next_sslconn) {
+				TRACE_STATE("drop packet on sslconn reached",
+				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+				goto err;
+			}
+
 			/* Generate the first connection CID. This is derived from the client
 			 * ODCID and address. This allows to retrieve the connection from the
 			 * ODCID without storing it in the CID tree. This is an interesting
@@ -1988,10 +1996,10 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 
 			/* Now quic_conn is allocated. If a future error
 			 * occurred it will be freed with quic_conn_release()
-			 * which also ensure actconn is decremented.
-			 * Reset guard value to prevent a double decrement.
+			 * which also ensure actconn/sslconns is decremented.
+			 * Reset guard values to prevent a double decrement.
 			 */
-			next_actconn = 0;
+			next_sslconn = next_actconn = 0;
 
 			/* Compute and store into the quic_conn the hash used to compute extra CIDs */
 			if (quic_hash64_from_cid)
@@ -2046,6 +2054,8 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 	/* Reset active conn counter if needed. */
 	if (next_actconn)
 		_HA_ATOMIC_DEC(&actconn);
+	if (next_sslconn)
+		_HA_ATOMIC_DEC(&global.sslconns);
 
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
 	return NULL;

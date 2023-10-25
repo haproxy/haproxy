@@ -726,6 +726,9 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc)
 	/* Store the allocated context in <qc>. */
 	qc->xprt_ctx = ctx;
 
+	/* global.sslconns is already incremented on INITIAL packet parsing. */
+	_HA_ATOMIC_INC(&global.totalsslconns);
+
 	ret = 1;
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_NEW, qc);
