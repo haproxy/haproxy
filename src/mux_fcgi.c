@@ -32,6 +32,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/regex.h>
 #include <haproxy/sc_strm.h>
+#include <haproxy/server.h>
 #include <haproxy/session-t.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
@@ -3603,8 +3604,7 @@ static void fcgi_detach(struct sedesc *sd)
 			else if (!fconn->conn->hash_node->node.node.leaf_p &&
 				 fcgi_avail_streams(fconn->conn) > 0 && objt_server(fconn->conn->target) &&
 				 !LIST_INLIST(&fconn->conn->session_list)) {
-				eb64_insert(&__objt_server(fconn->conn->target)->per_thr[tid].avail_conns,
-				            &fconn->conn->hash_node->node);
+				srv_add_to_avail_list(__objt_server(fconn->conn->target), fconn->conn);
 			}
 		}
 	}

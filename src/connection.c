@@ -29,6 +29,7 @@
 #include <haproxy/proto_tcp.h>
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
+#include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stconn.h>
@@ -107,8 +108,9 @@ int conn_create_mux(struct connection *conn)
 		 * server list.
 		 */
 		if (srv && ((srv->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
-		    !(conn->flags & CO_FL_PRIVATE) && conn->mux->avail_streams(conn) > 0)
-			eb64_insert(&srv->per_thr[tid].avail_conns, &conn->hash_node->node);
+		    !(conn->flags & CO_FL_PRIVATE) && conn->mux->avail_streams(conn) > 0) {
+			srv_add_to_avail_list(srv, conn);
+		}
 		else if (conn->flags & CO_FL_PRIVATE) {
 			/* If it fail now, the same will be done in mux->detach() callback */
 			session_add_conn(sess, conn, conn->target);

@@ -27,6 +27,7 @@
 #include <haproxy/mux_h2-t.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/proxy.h>
+#include <haproxy/server.h>
 #include <haproxy/session-t.h>
 #include <haproxy/stats.h>
 #include <haproxy/stconn.h>
@@ -4651,8 +4652,7 @@ static void h2_detach(struct sedesc *sd)
 				else if (!h2c->conn->hash_node->node.node.leaf_p &&
 					 h2_avail_streams(h2c->conn) > 0 && objt_server(h2c->conn->target) &&
 					 !LIST_INLIST(&h2c->conn->session_list)) {
-					eb64_insert(&__objt_server(h2c->conn->target)->per_thr[tid].avail_conns,
-					            &h2c->conn->hash_node->node);
+					srv_add_to_avail_list(__objt_server(h2c->conn->target), h2c->conn);
 				}
 			}
 		}

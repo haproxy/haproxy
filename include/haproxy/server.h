@@ -87,6 +87,7 @@ struct connection *srv_lookup_conn_next(struct connection *conn);
 
 void _srv_add_idle(struct server *srv, struct connection *conn, int is_safe);
 int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_safe);
+void srv_add_to_avail_list(struct server *srv, struct connection *conn);
 struct task *srv_cleanup_toremove_conns(struct task *task, void *context, unsigned int state);
 
 int srv_apply_track(struct server *srv, struct proxy *curproxy);

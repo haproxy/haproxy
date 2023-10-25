@@ -1276,8 +1276,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 			session_add_conn(s->sess, conn, conn->target);
 		}
 		else {
-			eb64_insert(&srv->per_thr[tid].avail_conns,
-			            &conn->hash_node->node);
+			srv_add_to_avail_list(srv, conn);
 		}
 	}
 	return conn;
@@ -1781,7 +1780,7 @@ skip_reuse:
 			if (srv && reuse_mode == PR_O_REUSE_ALWS &&
 			    !(srv_conn->flags & CO_FL_PRIVATE) &&
 			    srv_conn->mux->avail_streams(srv_conn) > 0) {
-				eb64_insert(&srv->per_thr[tid].avail_conns, &srv_conn->hash_node->node);
+				srv_add_to_avail_list(srv, srv_conn);
 			}
 			else if (srv_conn->flags & CO_FL_PRIVATE ||
 			         (reuse_mode == PR_O_REUSE_SAFE &&

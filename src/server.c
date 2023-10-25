@@ -6136,6 +6136,16 @@ int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_saf
 	return 0;
 }
 
+/* Insert <conn> connection in <srv> server available list. This is reserved
+ * for backend connection currently in used with usable streams left.
+ */
+void srv_add_to_avail_list(struct server *srv, struct connection *conn)
+{
+	/* connection cannot be in idle list if used as an avail idle conn. */
+	BUG_ON(LIST_INLIST(&conn->idle_list));
+	eb64_insert(&srv->per_thr[tid].avail_conns, &conn->hash_node->node);
+}
+
 struct task *srv_cleanup_idle_conns(struct task *task, void *context, unsigned int state)
 {
 	struct server *srv;
