@@ -127,6 +127,7 @@ struct stktable_data_type {
 	int arg_type;     /* type of optional argument, ARG_T_* */
 	uint is_array:1;  /* this is an array of gpc/gpt */
 	uint is_local:1;  /* this is local only and never learned */
+	uint as_is:1;     /* cannot be processed / used with arithmetic operations */
 };
 
 /* stick table keyword type */
