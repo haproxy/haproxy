@@ -219,7 +219,7 @@ static inline int qcc_is_dead(const struct qcc *qcc)
 	/* Connection considered dead if either :
 	 * - remote error detected at tranport level
 	 * - error detected locally
-	 * - MUX timeout expired or unset
+	 * - MUX timeout expired
 	 */
 	if (qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL_DONE) ||
 	    !qcc->task) {
@@ -2480,6 +2480,7 @@ static struct task *qcc_timeout_task(struct task *t, void *ctx, unsigned int sta
 		goto out;
 	}
 
+	/* Mark timeout as triggered by setting task to NULL. */
 	qcc->task = NULL;
 
 	/* TODO depending on the timeout condition, different shutdown mode
@@ -2573,7 +2574,6 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 
 	qcc->proxy = prx;
 	/* haproxy timeouts */
-	qcc->task = NULL;
 	if (conn_is_back(qcc->conn)) {
 		qcc->timeout = prx->timeout.server;
 		qcc->shut_timeout = tick_isset(prx->timeout.serverfin) ?
@@ -2585,16 +2585,18 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 		                    prx->timeout.clientfin : prx->timeout.client;
 	}
 
-	if (tick_isset(qcc->timeout)) {
-		qcc->task = task_new_here();
-		if (!qcc->task) {
-			TRACE_ERROR("timeout task alloc failure", QMUX_EV_QCC_NEW);
-			goto fail_no_timeout_task;
-		}
-		qcc->task->process = qcc_timeout_task;
-		qcc->task->context = qcc;
-		qcc->task->expire = tick_add(now_ms, qcc->timeout);
+	/* Always allocate task even if timeout is unset. In MUX code, if task
+	 * is NULL, it indicates that a timeout has stroke earlier.
+	 */
+	qcc->task = task_new_here();
+	if (!qcc->task) {
+		TRACE_ERROR("timeout task alloc failure", QMUX_EV_QCC_NEW);
+		goto fail_no_timeout_task;
 	}
+	qcc->task->process = qcc_timeout_task;
+	qcc->task->context = qcc;
+	qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
+
 	qcc_reset_idle_start(qcc);
 	LIST_INIT(&qcc->opening_list);
 
@@ -2676,12 +2678,9 @@ static void qmux_strm_detach(struct sedesc *sd)
 		TRACE_STATE("killing dead connection", QMUX_EV_STRM_END, qcc->conn);
 		goto release;
 	}
-	else if (qcc->task) {
+	else {
 		TRACE_DEVEL("refreshing connection's timeout", QMUX_EV_STRM_END, qcc->conn);
 		qcc_refresh_timeout(qcc);
-	}
-	else {
-		TRACE_DEVEL("completed", QMUX_EV_STRM_END, qcc->conn);
 	}
 
 	TRACE_LEAVE(QMUX_EV_STRM_END, qcc->conn);
