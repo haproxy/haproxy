@@ -1824,6 +1824,72 @@ static int smp_fetch_cookie_val(const struct arg *args, struct sample *smp, cons
 	return ret;
 }
 
+/* Iterate over all cookies present in a message,
+ * and return the list of cookie names separated by
+ * the input argument character.
+ * If no input argument is provided,
+ * the default delimiter is ','.
+ * The returned sample is of type CSTR.
+ */
+static int smp_fetch_cookie_names(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	/* possible keywords: req.cook_names, res.cook_names */
+	struct channel *chn = ((kw[2] == 'q') ? SMP_REQ_CHN(smp) : SMP_RES_CHN(smp));
+	struct check *check = ((kw[2] == 's') ? objt_check(smp->sess->origin) : NULL);
+	struct htx *htx = smp_prefetch_htx(smp, chn, check, 1);
+	struct http_hdr_ctx ctx;
+	struct ist hdr;
+	struct buffer *temp;
+	char del = ',';
+	char *ptr, *attr_beg, *attr_end;
+	size_t len = 0;
+	int is_req = !(check || (chn && chn->flags & CF_ISRESP));
+
+	if (!htx)
+		return 0;
+
+	if (args->type == ARGT_STR)
+		del = *args[0].data.str.area;
+
+	hdr = (is_req ? ist("Cookie") : ist("Set-Cookie"));
+	temp = get_trash_chunk();
+
+	smp->flags |= SMP_F_VOL_HDR;
+	attr_end = attr_beg = NULL;
+	ctx.blk = NULL;
+	/* Scan through all headers and extract all cookie names from
+	 * 1. Cookie header(s) for request channel OR
+	 * 2. Set-Cookie header(s) for response channel
+	 */
+	while (1) {
+		/* Note: attr_beg == NULL every time we need to fetch a new header */
+		if (!attr_beg) {
+			/* For Set-Cookie, we need to fetch the entire header line (set flag to 1) */
+			if (!http_find_header(htx, hdr, &ctx, !is_req))
+				break;
+			attr_beg = ctx.value.ptr;
+			attr_end = attr_beg + ctx.value.len;
+		}
+
+		while (1) {
+			attr_beg = http_extract_next_cookie_name(attr_beg, attr_end, is_req, &ptr, &len);
+			if (!attr_beg)
+				break;
+
+			/* prepend delimiter if this is not the first cookie name found */
+			if (temp->data)
+				temp->area[temp->data++] = del;
+
+			/* At this point ptr should point to the start of the cookie name and len would be the length of the cookie name */
+			if (!chunk_memcat(temp, ptr, len))
+				return 0;
+		}
+	}
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str = *temp;
+	return 1;
+}
+
 /************************************************************************/
 /*           The code below is dedicated to sample fetches              */
 /************************************************************************/
@@ -2208,6 +2274,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "req.cook",           smp_fetch_cookie,             ARG1(0,STR),      NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "req.cook_cnt",       smp_fetch_cookie_cnt,         ARG1(0,STR),      NULL,    SMP_T_SINT, SMP_USE_HRQHV },
 	{ "req.cook_val",       smp_fetch_cookie_val,         ARG1(0,STR),      NULL,    SMP_T_SINT, SMP_USE_HRQHV },
+	{ "req.cook_names",     smp_fetch_cookie_names,       ARG1(0,STR),      NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 
 	{ "req.fhdr",           smp_fetch_fhdr,               ARG2(0,STR,SINT), val_hdr, SMP_T_STR,  SMP_USE_HRQHV },
 	{ "req.fhdr_cnt",       smp_fetch_fhdr_cnt,           ARG1(0,STR),      NULL,    SMP_T_SINT, SMP_USE_HRQHV },
@@ -2221,6 +2288,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "res.cook",           smp_fetch_cookie,             ARG1(0,STR),      NULL,    SMP_T_STR,  SMP_USE_HRSHV },
 	{ "res.cook_cnt",       smp_fetch_cookie_cnt,         ARG1(0,STR),      NULL,    SMP_T_SINT, SMP_USE_HRSHV },
 	{ "res.cook_val",       smp_fetch_cookie_val,         ARG1(0,STR),      NULL,    SMP_T_SINT, SMP_USE_HRSHV },
+	{ "res.cook_names",     smp_fetch_cookie_names,       ARG1(0,STR),      NULL,    SMP_T_STR,  SMP_USE_HRSHV },
 
 	{ "res.fhdr",           smp_fetch_fhdr,               ARG2(0,STR,SINT), val_hdr, SMP_T_STR,  SMP_USE_HRSHV },
 	{ "res.fhdr_cnt",       smp_fetch_fhdr_cnt,           ARG1(0,STR),      NULL,    SMP_T_SINT, SMP_USE_HRSHV },

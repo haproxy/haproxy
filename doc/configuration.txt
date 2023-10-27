@@ -22265,6 +22265,12 @@ cook_val([<name>]) : integer (deprecated)
   returned. If no name is specified, the first cookie value is returned. When
   used in ACLs, all matching names are iterated over until a value matches.
 
+req.cook_names([<delim>]) : string
+  This builds a string made from the concatenation of all cookie names as they
+  appear in the request (Cookie header) when the rule is evaluated. The default
+  delimiter is the comma (',') but it may be overridden as an optional argument
+  <delim>. In this case, only the first character of <delim> is considered.
+
 cookie([<name>]) : string (deprecated)
   This extracts the last occurrence of the cookie name <name> on a "Cookie"
   header line from the request, or a "Set-Cookie" header from the response, and
@@ -22630,6 +22636,15 @@ scook_val([<name>]) : integer (deprecated)
   This extracts the last occurrence of the cookie name <name> on a "Set-Cookie"
   header line from the response, and converts its value to an integer which is
   returned. If no name is specified, the first cookie value is returned.
+
+  It may be used in tcp-check based expect rules.
+
+res.cook_names([<delim>]) : string
+  This builds a string made from the concatenation of all cookie names as they
+  appear in the response (Set-Cookie headers) when the rule is evaluated. The
+  default delimiter is the comma (',') but it may be overridden as an optional
+  argument <delim>. In this case, only the first character of <delim> is
+  considered.
 
   It may be used in tcp-check based expect rules.
 

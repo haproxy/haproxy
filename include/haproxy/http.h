@@ -51,6 +51,8 @@ char *http_find_cookie_value_end(char *s, const char *e);
 char *http_extract_cookie_value(char *hdr, const char *hdr_end,
                                 char *cookie_name, size_t cookie_name_l,
                                 int list, char **value, size_t *value_l);
+char *http_extract_next_cookie_name(char *hdr_beg, char *hdr_end, int is_req,
+                                    char **ptr, size_t *len);
 int http_parse_qvalue(const char *qvalue, const char **end);
 const char *http_find_url_param_pos(const char **chunks,
                                     const char* url_param_name,

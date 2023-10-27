@@ -969,6 +969,96 @@ char *http_extract_cookie_value(char *hdr, const char *hdr_end,
 	return NULL;
 }
 
+/* Try to find the next cookie name in a cookie header given a pointer
+ * <hdr_beg> to the starting position, a pointer <hdr_end> to the ending
+ * position to search in the cookie and a boolean <is_req> of type int that
+ * indicates if the stream direction is for request or response.
+ * The lookup begins at <hdr_beg>, which is assumed to be in
+ * Cookie / Set-Cookie header, and the function returns a pointer to the next
+ * position to search from if a valid cookie k-v pair is found for Cookie
+ * request header (<is_req> is non-zero) and <hdr_end> for Set-Cookie response
+ * header (<is_req> is zero). When the next cookie name is found, <ptr> will
+ * be pointing to the start of the cookie name, and <len> will be the length
+ * of the cookie name.
+ * Otherwise if there is no valid cookie k-v pair, NULL is returned.
+ * The <hdr_end> pointer must point to the first character
+ * not part of the Cookie / Set-Cookie header.
+ */
+char *http_extract_next_cookie_name(char *hdr_beg, char *hdr_end, int is_req,
+                                    char **ptr, size_t *len)
+{
+	char *equal, *att_end, *att_beg, *val_beg;
+	char *next;
+
+	/* We search a valid cookie name between hdr_beg and hdr_end,
+	 * followed by an equal. For example for the following cookie:
+	 * Cookie:    NAME1  =  VALUE 1  ; NAME2 = VALUE2 ; NAME3 = VALUE3\r\n
+	 * We want to find NAME1, NAME2, or NAME3 depending on where we start our search
+	 * according to <hdr_beg>
+	 */
+	for (att_beg = hdr_beg; att_beg + 1 < hdr_end; att_beg = next + 1) {
+		while (att_beg < hdr_end && HTTP_IS_SPHT(*att_beg))
+			att_beg++;
+
+		/* find <att_end> : this is the first character after the last non
+		 * space before the equal. It may be equal to <hdr_end>.
+		 */
+		equal = att_end = att_beg;
+
+		while (equal < hdr_end) {
+			if (*equal == '=' || *equal == ';')
+				break;
+			if (HTTP_IS_SPHT(*equal++))
+				continue;
+			att_end = equal;
+		}
+
+		/* Here, <equal> points to '=', a delimiter or the end. <att_end>
+		 * is between <att_beg> and <equal>, both may be identical.
+		 */
+
+		/* Look for end of cookie if there is an equal sign */
+		if (equal < hdr_end && *equal == '=') {
+			/* Look for the beginning of the value */
+			val_beg = equal + 1;
+			while (val_beg < hdr_end && HTTP_IS_SPHT(*val_beg))
+				val_beg++;
+
+			/* Find the end of the value, respecting quotes */
+			next = http_find_cookie_value_end(val_beg, hdr_end);
+		} else {
+			next = equal;
+		}
+
+		/* We have nothing to do with attributes beginning with '$'. However,
+		 * they will automatically be removed if a header before them is removed,
+		 * since they're supposed to be linked together.
+		 */
+		if (*att_beg == '$')
+			continue;
+
+		/* Ignore cookies with no equal sign */
+		if (equal == next)
+			continue;
+
+		/* Now we have the cookie name between <att_beg> and <att_end>, and
+		 * <next> points to the end of cookie value
+		 */
+		*ptr = att_beg;
+		*len = att_end - att_beg;
+
+		/* Return next position for Cookie request header and <hdr_end> for
+		 * Set-Cookie response header as each Set-Cookie header is assumed to
+		 * contain only 1 cookie
+		 */
+		if (is_req)
+			return next + 1;
+		return hdr_end;
+	}
+
+	return NULL;
+}
+
 /* Parses a qvalue and returns it multiplied by 1000, from 0 to 1000. If the
  * value is larger than 1000, it is bound to 1000. The parser consumes up to
  * 1 digit, one dot and 3 digits and stops on the first invalid character.
