@@ -189,6 +189,8 @@ struct qcc_app_ops {
 	int (*attach)(struct qcs *qcs, void *conn_ctx);
 	ssize_t (*decode_qcs)(struct qcs *qcs, struct buffer *b, int fin);
 	size_t (*snd_buf)(struct qcs *qcs, struct htx *htx, size_t count);
+	size_t (*nego_ff)(struct qcs *qcs, size_t count);
+	size_t (*done_ff)(struct qcs *qcs);
 	int (*close)(struct qcs *qcs, enum qcc_app_ops_close_side side);
 	void (*detach)(struct qcs *qcs);
 	int (*finalize)(void *ctx);
