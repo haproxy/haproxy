@@ -21,6 +21,7 @@
 #include <haproxy/stconn.h>
 #include <haproxy/time.h>
 #include <haproxy/trace.h>
+#include <haproxy/xref.h>
 
 DECLARE_POOL(pool_head_qcc, "qcc", sizeof(struct qcc));
 DECLARE_POOL(pool_head_qcs, "qcs", sizeof(struct qcs));
@@ -2807,6 +2808,85 @@ static size_t qmux_strm_snd_buf(struct stconn *sc, struct buffer *buf,
 	return ret;
 }
 
+
+static size_t qmux_nego_ff(struct stconn *sc, struct buffer *input, size_t count, unsigned int may_splice)
+{
+	struct qcs *qcs = __sc_mux_strm(sc);
+	size_t ret = 0;
+
+	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
+
+	/* stream layer has been detached so no transfer must occur after. */
+	BUG_ON_HOT(qcs->flags & QC_SF_DETACH);
+
+	if (!qcs->qcc->app_ops->nego_ff || !qcs->qcc->app_ops->done_ff) {
+		/* Fast forwading is not supported by the QUIC application layer */
+		qcs->sd->iobuf.flags |= IOBUF_FL_NO_FF;
+		goto end;
+	}
+
+	/* Alawys disable splicing */
+	qcs->sd->iobuf.flags |= IOBUF_FL_NO_SPLICING;
+
+	ret = qcs->qcc->app_ops->nego_ff(qcs, count);
+	if (!ret)
+		goto end;
+
+	/* forward remaining input data */
+	if (b_data(input)) {
+		size_t xfer = ret;
+
+		if (xfer > b_data(input))
+			xfer = b_data(input);
+		b_add(qcs->sd->iobuf.buf, qcs->sd->iobuf.offset);
+		qcs->sd->iobuf.data = b_xfer(qcs->sd->iobuf.buf, input, xfer);
+		b_sub(qcs->sd->iobuf.buf, qcs->sd->iobuf.offset);
+
+		/* Cannot forward more data, wait for room */
+		if (b_data(input))
+			goto end;
+	}
+	ret -= qcs->sd->iobuf.data;
+
+ end:
+	TRACE_LEAVE(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
+	return ret;
+}
+
+static size_t qmux_done_ff(struct stconn *sc)
+{
+	struct qcs *qcs = __sc_mux_strm(sc);
+	struct qcc *qcc = qcs->qcc;
+	struct sedesc *sd = qcs->sd;
+	size_t total = 0;
+
+	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
+
+	if (sd->iobuf.flags & IOBUF_FL_EOI)
+		qcs->flags |= QC_SF_FIN_STREAM;
+
+	if (!(qcs->flags & QC_SF_FIN_STREAM) && !sd->iobuf.data)
+		goto end;
+
+	total = qcs->qcc->app_ops->done_ff(qcs);
+
+	qcc_send_stream(qcs, 0);
+	if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
+		tasklet_wakeup(qcc->wait_event.tasklet);
+
+  end:
+	if (!b_data(&qcs->tx.buf))
+		b_free(&qcs->tx.buf);
+
+	TRACE_LEAVE(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
+	return total;
+}
+
+static int qmux_resume_ff(struct stconn *sc, unsigned int flags)
+{
+	return 0;
+}
+
 /* Called from the upper layer, to subscribe <es> to events <event_type>. The
  * event subscriber <es> is not allowed to change from a previous call as long
  * as at least one event is still subscribed. The <event_type> must only be a
@@ -2927,6 +3007,9 @@ static const struct mux_ops qmux_ops = {
 	.detach      = qmux_strm_detach,
 	.rcv_buf     = qmux_strm_rcv_buf,
 	.snd_buf     = qmux_strm_snd_buf,
+	.nego_fastfwd = qmux_nego_ff,
+	.done_fastfwd = qmux_done_ff,
+	.resume_fastfwd = qmux_resume_ff,
 	.subscribe   = qmux_strm_subscribe,
 	.unsubscribe = qmux_strm_unsubscribe,
 	.wake        = qmux_wake,

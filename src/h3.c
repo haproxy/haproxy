@@ -1836,6 +1836,69 @@ static size_t h3_snd_buf(struct qcs *qcs, struct htx *htx, size_t count)
 	return total;
 }
 
+static size_t h3_nego_ff(struct qcs *qcs, size_t count)
+{
+	struct buffer *res;
+	int hsize;
+	size_t sz, ret = 0;
+
+	h3_debug_printf(stderr, "%s\n", __func__);
+
+	/* FIXME: no check on ALLOC ? */
+	res = mux_get_buf(qcs);
+
+	/* h3 DATA headers : 1-byte frame type + varint frame length */
+	hsize = 1 + QUIC_VARINT_MAX_SIZE;
+	while (1) {
+		if (b_contig_space(res) >= hsize || !b_space_wraps(res))
+			break;
+		b_slow_realign(res, trash.area, b_data(res));
+	}
+
+	/* Not enough room for headers and at least one data byte, block the
+	 * stream. It is expected that the stream connector layer will subscribe
+	 * on SEND.
+	 */
+	if (b_contig_space(res) <= hsize) {
+		qcs->flags |= QC_SF_BLK_MROOM;
+		qcs->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
+		goto end;
+	}
+
+	/* Cannot forward more than available room in output buffer */
+	sz = b_contig_space(res) - hsize;
+	if (count > sz)
+		count = sz;
+
+	qcs->sd->iobuf.buf = res;
+	qcs->sd->iobuf.offset = hsize;
+	qcs->sd->iobuf.data = 0;
+
+	ret = count;
+  end:
+	return ret;
+}
+
+static size_t h3_done_ff(struct qcs *qcs)
+{
+	size_t total = qcs->sd->iobuf.data;
+
+	h3_debug_printf(stderr, "%s\n", __func__);
+
+	if (qcs->sd->iobuf.data) {
+		b_sub(qcs->sd->iobuf.buf, qcs->sd->iobuf.data);
+		b_putchr(qcs->sd->iobuf.buf, 0x00); /* h3 frame type = DATA */
+		b_quic_enc_int(qcs->sd->iobuf.buf, qcs->sd->iobuf.data, QUIC_VARINT_MAX_SIZE); /* h3 frame length */
+		b_add(qcs->sd->iobuf.buf, qcs->sd->iobuf.data);
+	}
+
+	qcs->sd->iobuf.buf = NULL;
+	qcs->sd->iobuf.offset = 0;
+	qcs->sd->iobuf.data = 0;
+
+	return total;
+}
+
 /* Notify about a closure on <qcs> stream requested by the remote peer.
  *
  * Stream channel <side> is explained relative to our endpoint : WR for
@@ -2132,6 +2195,8 @@ const struct qcc_app_ops h3_ops = {
 	.attach      = h3_attach,
 	.decode_qcs  = h3_decode_qcs,
 	.snd_buf     = h3_snd_buf,
+	.nego_ff     = h3_nego_ff,
+	.done_ff     = h3_done_ff,
 	.close       = h3_close,
 	.detach      = h3_detach,
 	.finalize    = h3_finalize,
