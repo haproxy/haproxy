@@ -1674,8 +1674,9 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 }
 
 /* Returns the total of bytes sent. */
-static int h3_resp_data_send(struct qcs *qcs, struct htx *htx, size_t count)
+static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 {
+	struct htx *htx;
 	struct buffer outbuf;
 	struct buffer *res;
 	size_t total = 0;
@@ -1685,6 +1686,8 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx, size_t count)
 
 	TRACE_ENTER(H3_EV_TX_DATA, qcs->qcc->conn, qcs);
 
+	htx = htx_from_buf(buf);
+
  new_frame:
 	if (!count || htx_is_empty(htx))
 		goto end;
@@ -1693,16 +1696,37 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx, size_t count)
 	type = htx_get_blk_type(blk);
 	fsize = bsize = htx_get_blksz(blk);
 
+	/* h3 DATA headers : 1-byte frame type + varint frame length */
+	hsize = 1 + QUIC_VARINT_MAX_SIZE;
+
 	if (type != HTX_BLK_DATA)
 		goto end;
 
 	res = mux_get_buf(qcs);
 
+	if (unlikely(fsize == count &&
+		     !b_data(res) &&
+		     htx_nbblks(htx) == 1 && type == HTX_BLK_DATA)) {
+		void *old_area = res->area;
+
+		/* map an H2 frame to the HTX block so that we can put the
+		 * frame header there.
+		 */
+		*res = b_make(buf->area, buf->size, sizeof(struct htx) + blk->addr - hsize, fsize + hsize);
+		outbuf = b_make(b_head(res), hsize, 0, 0);
+		b_putchr(&outbuf, 0x00); /* h3 frame type = DATA */
+		b_quic_enc_int(&outbuf, fsize, QUIC_VARINT_MAX_SIZE); /* h3 frame length */
+
+		/* and exchange with our old area */
+		buf->area = old_area;
+		buf->data = buf->head = 0;
+		total += fsize;
+		fsize = 0;
+		goto end;
+	}
+
 	if (fsize > count)
 		fsize = count;
-
-	/* h3 DATA headers : 1-byte frame type + varint frame length */
-	hsize = 1 + QUIC_VARINT_MAX_SIZE;
 
 	while (1) {
 		b_reset(&outbuf);
@@ -1746,16 +1770,22 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx, size_t count)
 	return total;
 }
 
-static size_t h3_snd_buf(struct qcs *qcs, struct htx *htx, size_t count)
+static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 {
 	size_t total = 0;
 	enum htx_blk_type btype;
+	struct htx *htx;
 	struct htx_blk *blk;
 	uint32_t bsize;
 	int32_t idx;
 	int ret;
 
 	h3_debug_printf(stderr, "%s\n", __func__);
+
+	htx = htx_from_buf(buf);
+
+	if (htx->extra && htx->extra == HTX_UNKOWN_PAYLOAD_LENGTH)
+		qcs->flags |= QC_SF_UNKNOWN_PL_LENGTH;
 
 	while (count && !htx_is_empty(htx) && !(qcs->flags & QC_SF_BLK_MROOM)) {
 		idx = htx_get_head(htx);
@@ -1779,8 +1809,9 @@ static size_t h3_snd_buf(struct qcs *qcs, struct htx *htx, size_t count)
 			break;
 
 		case HTX_BLK_DATA:
-			ret = h3_resp_data_send(qcs, htx, count);
+			ret = h3_resp_data_send(qcs, buf, count);
 			if (ret > 0) {
+				htx = htx_from_buf(buf);
 				total += ret;
 				count -= ret;
 				if (ret < bsize)
@@ -1833,6 +1864,8 @@ static size_t h3_snd_buf(struct qcs *qcs, struct htx *htx, size_t count)
 	}
 
  out:
+	htx_to_buf(htx, buf);
+
 	return total;
 }
 
