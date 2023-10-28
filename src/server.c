@@ -1325,6 +1325,69 @@ static int srv_parse_send_proxy_v2(char **args, int *cur_arg,
 	return srv_enable_pp_flags(newsrv, SRV_PP_V2);
 }
 
+/* Parse the "set-proxy-v2-tlv-fmt" server keyword */
+static int srv_parse_set_proxy_v2_tlv_fmt(char **args, int *cur_arg,
+                                   struct proxy *px, struct server *newsrv, char **err)
+{
+	char *error = NULL, *cmd = NULL;
+	unsigned int  tlv_type = 0;
+	struct srv_pp_tlv_list *srv_tlv = NULL;
+
+	cmd = args[*cur_arg];
+	if (!*cmd) {
+		memprintf(err, "'%s' : could not read set-proxy-v2-tlv-fmt command", args[*cur_arg]);
+		goto fail;
+	}
+
+	cmd += strlen("set-proxy-v2-tlv-fmt");
+
+	if (*cmd == '(') {
+		cmd++; /* skip the '(' */
+		errno = 0;
+		tlv_type = strtoul(cmd, &error, 0); /* convert TLV ID */
+		if (unlikely((cmd == error) || (errno != 0))) {
+			memprintf(err, "'%s' : could not convert TLV ID", args[*cur_arg]);
+			goto fail;
+		}
+		if (errno == EINVAL) {
+			memprintf(err, "'%s' : could not find a valid number for the TLV ID", args[*cur_arg]);
+			goto fail;
+		}
+		if (*error != ')') {
+			memprintf(err, "'%s' : expects set-proxy-v2-tlv(<TLV ID>)", args[*cur_arg]);
+			goto fail;
+		}
+		if (tlv_type > 0xFF) {
+			memprintf(err, "'%s' : the maximum allowed TLV ID is %d", args[*cur_arg], 0xFF);
+			goto fail;
+		}
+	}
+
+	srv_tlv = malloc(sizeof(struct srv_pp_tlv_list));
+	if (unlikely(!srv_tlv)) {
+		memprintf(err, "'%s' : failed to parse allocate TLV entry", args[*cur_arg]);
+		goto fail;
+	}
+	srv_tlv->type = tlv_type;
+	srv_tlv->fmt_string = strdup(args[*cur_arg + 1]);
+	if (unlikely(!srv_tlv->fmt_string)) {
+		memprintf(err, "'%s' : failed to save format string for parsing", args[*cur_arg]);
+		free(srv_tlv->fmt_string);
+		goto fail;
+	}
+
+	LIST_APPEND(&newsrv->pp_tlvs, &srv_tlv->list);
+
+	(*cur_arg)++;
+
+	return 0;
+
+ fail:
+	free(srv_tlv);
+	errno = 0;
+	return ERR_ALERT | ERR_FATAL;
+}
+
 /* Parse the "slowstart" server keyword */
 static int srv_parse_slowstart(char **args, int *cur_arg,
                                struct proxy *curproxy, struct server *newsrv, char **err)
@@ -1914,51 +1977,52 @@ void srv_compute_all_admin_states(struct proxy *px)
  * Note: -1 as ->skip value means that the number of arguments are variable.
  */
 static struct srv_kw_list srv_kws = { "ALL", { }, {
-	{ "backup",              srv_parse_backup,              0,  1,  1 }, /* Flag as backup server */
-	{ "cookie",              srv_parse_cookie,              1,  1,  0 }, /* Assign a cookie to the server */
-	{ "disabled",            srv_parse_disabled,            0,  1,  1 }, /* Start the server in 'disabled' state */
-	{ "enabled",             srv_parse_enabled,             0,  1,  1 }, /* Start the server in 'enabled' state */
-	{ "error-limit",         srv_parse_error_limit,         1,  1,  1 }, /* Configure the consecutive count of check failures to consider a server on error */
-	{ "ws",                  srv_parse_ws,                  1,  1,  1 }, /* websocket protocol */
-	{ "id",                  srv_parse_id,                  1,  0,  1 }, /* set id# of server */
-	{ "init-addr",           srv_parse_init_addr,           1,  1,  0 }, /* */
-	{ "log-bufsize",         srv_parse_log_bufsize,         1,  1,  0 }, /* Set the ring bufsize for log server (only for log backends) */
-	{ "log-proto",           srv_parse_log_proto,           1,  1,  0 }, /* Set the protocol for event messages, only relevant in a log or ring section */
-	{ "maxconn",             srv_parse_maxconn,             1,  1,  1 }, /* Set the max number of concurrent connection */
-	{ "maxqueue",            srv_parse_maxqueue,            1,  1,  1 }, /* Set the max number of connection to put in queue */
-	{ "max-reuse",           srv_parse_max_reuse,           1,  1,  0 }, /* Set the max number of requests on a connection, -1 means unlimited */
-	{ "minconn",             srv_parse_minconn,             1,  1,  1 }, /* Enable a dynamic maxconn limit */
-	{ "namespace",           srv_parse_namespace,           1,  1,  0 }, /* Namespace the server socket belongs to (if supported) */
-	{ "no-backup",           srv_parse_no_backup,           0,  1,  1 }, /* Flag as non-backup server */
-	{ "no-send-proxy",       srv_parse_no_send_proxy,       0,  1,  1 }, /* Disable use of PROXY V1 protocol */
-	{ "no-send-proxy-v2",    srv_parse_no_send_proxy_v2,    0,  1,  1 }, /* Disable use of PROXY V2 protocol */
-	{ "no-tfo",              srv_parse_no_tfo,              0,  1,  1 }, /* Disable use of TCP Fast Open */
-	{ "non-stick",           srv_parse_non_stick,           0,  1,  0 }, /* Disable stick-table persistence */
-	{ "observe",             srv_parse_observe,             1,  1,  1 }, /* Enables health adjusting based on observing communication with the server */
-	{ "on-error",            srv_parse_on_error,            1,  1,  1 }, /* Configure the action on check failure */
-	{ "on-marked-down",      srv_parse_on_marked_down,      1,  1,  1 }, /* Configure the action when a server is marked down */
-	{ "on-marked-up",        srv_parse_on_marked_up,        1,  1,  1 }, /* Configure the action when a server is marked up */
-	{ "pool-low-conn",       srv_parse_pool_low_conn,       1,  1,  1 }, /* Set the min number of orphan idle connecbefore being allowed to pick from other threads */
-	{ "pool-max-conn",       srv_parse_pool_max_conn,       1,  1,  1 }, /* Set the max number of orphan idle connections, -1 means unlimited */
-	{ "pool-purge-delay",    srv_parse_pool_purge_delay,    1,  1,  1 }, /* Set the time before we destroy orphan idle connections, defaults to 1s */
-	{ "proto",               srv_parse_proto,               1,  1,  1 }, /* Set the proto to use for all outgoing connections */
-	{ "proxy-v2-options",    srv_parse_proxy_v2_options,    1,  1,  1 }, /* options for send-proxy-v2 */
-	{ "redir",               srv_parse_redir,               1,  1,  0 }, /* Enable redirection mode */
-	{ "resolve-net",         srv_parse_resolve_net,         1,  1,  0 }, /* Set the preferred network range for name resolution */
-	{ "resolve-opts",        srv_parse_resolve_opts,        1,  1,  0 }, /* Set options for name resolution */
-	{ "resolve-prefer",      srv_parse_resolve_prefer,      1,  1,  0 }, /* Set the preferred family for name resolution */
-	{ "resolvers",           srv_parse_resolvers,           1,  1,  0 }, /* Configure the resolver to use for name resolution */
-	{ "send-proxy",          srv_parse_send_proxy,          0,  1,  1 }, /* Enforce use of PROXY V1 protocol */
-	{ "send-proxy-v2",       srv_parse_send_proxy_v2,       0,  1,  1 }, /* Enforce use of PROXY V2 protocol */
-	{ "shard",               srv_parse_shard,               1,  1,  1 }, /* Server shard (only in peers protocol context) */
-	{ "slowstart",           srv_parse_slowstart,           1,  1,  1 }, /* Set the warm-up timer for a previously failed server */
-	{ "source",              srv_parse_source,             -1,  1,  1 }, /* Set the source address to be used to connect to the server */
-	{ "stick",               srv_parse_stick,               0,  1,  0 }, /* Enable stick-table persistence */
-	{ "tfo",                 srv_parse_tfo,                 0,  1,  1 }, /* enable TCP Fast Open of server */
-	{ "track",               srv_parse_track,               1,  1,  1 }, /* Set the current state of the server, tracking another one */
-	{ "socks4",              srv_parse_socks4,              1,  1,  0 }, /* Set the socks4 proxy of the server*/
-	{ "usesrc",              srv_parse_usesrc,              0,  1,  1 }, /* safe-guard against usesrc without preceding <source> keyword */
-	{ "weight",              srv_parse_weight,              1,  1,  1 }, /* Set the load-balancing weight */
+	{ "backup",               srv_parse_backup,               0,  1,  1 }, /* Flag as backup server */
+	{ "cookie",               srv_parse_cookie,               1,  1,  0 }, /* Assign a cookie to the server */
+	{ "disabled",             srv_parse_disabled,             0,  1,  1 }, /* Start the server in 'disabled' state */
+	{ "enabled",              srv_parse_enabled,              0,  1,  1 }, /* Start the server in 'enabled' state */
+	{ "error-limit",          srv_parse_error_limit,          1,  1,  1 }, /* Configure the consecutive count of check failures to consider a server on error */
+	{ "ws",                   srv_parse_ws,                   1,  1,  1 }, /* websocket protocol */
+	{ "id",                   srv_parse_id,                   1,  0,  1 }, /* set id# of server */
+	{ "init-addr",            srv_parse_init_addr,            1,  1,  0 }, /* */
+	{ "log-bufsize",          srv_parse_log_bufsize,          1,  1,  0 }, /* Set the ring bufsize for log server (only for log backends) */
+	{ "log-proto",            srv_parse_log_proto,            1,  1,  0 }, /* Set the protocol for event messages, only relevant in a log or ring section */
+	{ "maxconn",              srv_parse_maxconn,              1,  1,  1 }, /* Set the max number of concurrent connection */
+	{ "maxqueue",             srv_parse_maxqueue,             1,  1,  1 }, /* Set the max number of connection to put in queue */
+	{ "max-reuse",            srv_parse_max_reuse,            1,  1,  0 }, /* Set the max number of requests on a connection, -1 means unlimited */
+	{ "minconn",              srv_parse_minconn,              1,  1,  1 }, /* Enable a dynamic maxconn limit */
+	{ "namespace",            srv_parse_namespace,            1,  1,  0 }, /* Namespace the server socket belongs to (if supported) */
+	{ "no-backup",            srv_parse_no_backup,            0,  1,  1 }, /* Flag as non-backup server */
+	{ "no-send-proxy",        srv_parse_no_send_proxy,        0,  1,  1 }, /* Disable use of PROXY V1 protocol */
+	{ "no-send-proxy-v2",     srv_parse_no_send_proxy_v2,     0,  1,  1 }, /* Disable use of PROXY V2 protocol */
+	{ "no-tfo",               srv_parse_no_tfo,               0,  1,  1 }, /* Disable use of TCP Fast Open */
+	{ "non-stick",            srv_parse_non_stick,            0,  1,  0 }, /* Disable stick-table persistence */
+	{ "observe",              srv_parse_observe,              1,  1,  1 }, /* Enables health adjusting based on observing communication with the server */
+	{ "on-error",             srv_parse_on_error,             1,  1,  1 }, /* Configure the action on check failure */
+	{ "on-marked-down",       srv_parse_on_marked_down,       1,  1,  1 }, /* Configure the action when a server is marked down */
+	{ "on-marked-up",         srv_parse_on_marked_up,         1,  1,  1 }, /* Configure the action when a server is marked up */
+	{ "pool-low-conn",        srv_parse_pool_low_conn,        1,  1,  1 }, /* Set the min number of orphan idle connecbefore being allowed to pick from other threads */
+	{ "pool-max-conn",        srv_parse_pool_max_conn,        1,  1,  1 }, /* Set the max number of orphan idle connections, -1 means unlimited */
+	{ "pool-purge-delay",     srv_parse_pool_purge_delay,     1,  1,  1 }, /* Set the time before we destroy orphan idle connections, defaults to 1s */
+	{ "proto",                srv_parse_proto,                1,  1,  1 }, /* Set the proto to use for all outgoing connections */
+	{ "proxy-v2-options",     srv_parse_proxy_v2_options,     1,  1,  1 }, /* options for send-proxy-v2 */
+	{ "redir",                srv_parse_redir,                1,  1,  0 }, /* Enable redirection mode */
+	{ "resolve-net",          srv_parse_resolve_net,          1,  1,  0 }, /* Set the preferred network range for name resolution */
+	{ "resolve-opts",         srv_parse_resolve_opts,         1,  1,  0 }, /* Set options for name resolution */
+	{ "resolve-prefer",       srv_parse_resolve_prefer,       1,  1,  0 }, /* Set the preferred family for name resolution */
+	{ "resolvers",            srv_parse_resolvers,            1,  1,  0 }, /* Configure the resolver to use for name resolution */
+	{ "send-proxy",           srv_parse_send_proxy,           0,  1,  1 }, /* Enforce use of PROXY V1 protocol */
+	{ "send-proxy-v2",        srv_parse_send_proxy_v2,        0,  1,  1 }, /* Enforce use of PROXY V2 protocol */
+	{ "set-proxy-v2-tlv-fmt", srv_parse_set_proxy_v2_tlv_fmt, 0,  1,  1 }, /* Set TLV of PROXY V2 protocol */
+	{ "shard",                srv_parse_shard,                1,  1,  1 }, /* Server shard (only in peers protocol context) */
+	{ "slowstart",            srv_parse_slowstart,            1,  1,  1 }, /* Set the warm-up timer for a previously failed server */
+	{ "source",               srv_parse_source,              -1,  1,  1 }, /* Set the source address to be used to connect to the server */
+	{ "stick",                srv_parse_stick,                0,  1,  0 }, /* Enable stick-table persistence */
+	{ "tfo",                  srv_parse_tfo,                  0,  1,  1 }, /* enable TCP Fast Open of server */
+	{ "track",                srv_parse_track,                1,  1,  1 }, /* Set the current state of the server, tracking another one */
+	{ "socks4",               srv_parse_socks4,               1,  1,  0 }, /* Set the socks4 proxy of the server*/
+	{ "usesrc",               srv_parse_usesrc,               0,  1,  1 }, /* safe-guard against usesrc without preceding <source> keyword */
+	{ "weight",               srv_parse_weight,               1,  1,  1 }, /* Set the load-balancing weight */
 	{ NULL, NULL, 0 },
 }};
 
@@ -2331,6 +2395,8 @@ int srv_prepare_for_resolution(struct server *srv, const char *hostname)
  */
 void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl)
 {
+	struct srv_pp_tlv_list *srv_tlv = NULL, *new_srv_tlv = NULL;
+
 	/* Connection source settings copy */
 	srv_conn_src_cpy(srv, src);
 
@@ -2445,6 +2511,26 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	srv->check.via_socks4         = src->check.via_socks4;
 	srv->socks4_addr              = src->socks4_addr;
 	srv->log_bufsize              = src->log_bufsize;
+
+	LIST_INIT(&srv->pp_tlvs);
+
+	list_for_each_entry(srv_tlv, &src->pp_tlvs, list) {
+		if (srv_tlv == NULL)
+			break;
+		new_srv_tlv = malloc(sizeof(struct srv_pp_tlv_list));
+		if (unlikely(!new_srv_tlv)) {
+			free(new_srv_tlv);
+			break;
+		}
+		new_srv_tlv->fmt_string = strdup(srv_tlv->fmt_string);
+		if (unlikely(!new_srv_tlv->fmt_string)) {
+			free(new_srv_tlv);
+			free(new_srv_tlv->fmt_string);
+			break;
+		}
+		new_srv_tlv->type = srv_tlv->type;
+		LIST_APPEND(&srv->pp_tlvs, &new_srv_tlv->list);
+	}
 }
 
 /* allocate a server and attach it to the global servers_list. Returns
@@ -2466,6 +2552,7 @@ struct server *new_server(struct proxy *proxy)
 	LIST_APPEND(&servers_list, &srv->global_list);
 	LIST_INIT(&srv->srv_rec_item);
 	LIST_INIT(&srv->ip_rec_item);
+	LIST_INIT(&srv->pp_tlvs);
 	MT_LIST_INIT(&srv->prev_deleted);
 	event_hdl_sub_list_init(&srv->e_subs);
 	srv->rid = 0; /* rid defaults to 0 */
@@ -3119,7 +3206,7 @@ static int _srv_parse_sni_expr_init(char **args, int cur_arg,
 }
 
 /* Server initializations finalization.
- * Initialize health check, agent check and SNI expression if enabled.
+ * Initialize health check, agent check, SNI expression and outgoing TLVs if enabled.
  * Must not be called for a default server instance.
  *
  * This function is first intended to be used through parse_server to
@@ -3131,6 +3218,7 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 {
 	int ret;
 	char *errmsg = NULL;
+	struct srv_pp_tlv_list *srv_tlv = NULL;
 
 	if (srv->do_check && srv->trackit) {
 		ha_alert("unable to enable checks and tracking at the same time!\n");
@@ -3159,6 +3247,18 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 			px->srv_bck++;
 		else
 			px->srv_act++;
+	}
+
+	list_for_each_entry(srv_tlv, &srv->pp_tlvs, list) {
+		LIST_INIT(&srv_tlv->fmt);
+		if (srv_tlv->fmt_string && unlikely(!parse_logformat_string(srv_tlv->fmt_string,
+			srv->proxy, &srv_tlv->fmt, 0, SMP_VAL_BE_SRV_CON, &errmsg))) {
+			if (errmsg) {
+				ha_alert("%s\n", errmsg);
+				free(errmsg);
+			}
+			return ERR_ALERT | ERR_FATAL;
+		}
 	}
 
 	srv_lb_commit_status(srv);
