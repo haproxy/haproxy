@@ -1927,10 +1927,11 @@ static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct
 	int ret = 0;
 	struct proxy_hdr_v2 *hdr = (struct proxy_hdr_v2 *)buf;
 	struct sockaddr_storage null_addr = { .ss_family = 0 };
+	struct srv_pp_tlv_list *srv_tlv = NULL;
 	const struct sockaddr_storage *src = &null_addr;
 	const struct sockaddr_storage *dst = &null_addr;
-	const char *value;
-	int value_len;
+	const char *value = "";
+	int value_len = 0;
 
 	if (buf_len < PP2_HEADER_LEN)
 		return 0;
@@ -2000,6 +2001,37 @@ static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct
 		}
 	}
 
+	if (strm) {
+		struct buffer *replace = NULL;
+
+		list_for_each_entry(srv_tlv, &srv->pp_tlvs, list) {
+			replace = NULL;
+
+			/* Users will always need to provide a value, in case of forwarding, they should use fc_pp_tlv.
+			 * for generic types. Otherwise, we will send an empty TLV.
+			 */
+			if (!LIST_ISEMPTY(&srv_tlv->fmt)) {
+				replace = alloc_trash_chunk();
+				if (unlikely(!replace))
+					return 0;
+
+				replace->data = build_logline(strm, replace->area, replace->size, &srv_tlv->fmt);
+
+				if (unlikely((buf_len - ret) < sizeof(struct tlv))) {
+					free_trash_chunk(replace);
+					return 0;
+				}
+				ret += make_tlv(&buf[ret], (buf_len - ret), srv_tlv->type, replace->data, replace->area);
+				free_trash_chunk(replace);
+			}
+			else {
+				/* Create empty TLV as no value was specified */
+				ret += make_tlv(&buf[ret], (buf_len - ret), srv_tlv->type, 0, NULL);
+			}
+		}
+	}
+
+	/* Handle predefined TLVs as usual */
 	if (srv->pp_opts & SRV_PP_V2_CRC32C) {
 		uint32_t zero_crc32c = 0;
 

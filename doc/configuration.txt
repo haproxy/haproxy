@@ -16742,6 +16742,22 @@ send-proxy-v2
   of this version of the protocol. See also the "no-send-proxy-v2" option of
   this section and send-proxy" option of the "bind" keyword.
 
+set-proxy-v2-tlv-fmt(<id>) <fmt>
+  The "set-proxy-v2-tlv-fmt" parameter is used to send arbitrary PROXY protocol
+  version 2 TLVs. For the type (<id>) range of the defined TLV type please refer
+  to section 2.2.8. of the proxy protocol specification. However, the value can
+  be chosen freely as long as it does not exceed the maximum length of 65,535
+  bytes. It can also be used for forwarding TLVs by using the fetch "fc_pp_tlv"
+  to retrieve a received TLV from the frontend. It may be used as a server or
+  a default-server option. It must be used in combination with send-proxy-v2
+  such that PPv2 TLVs are actually sent out.
+
+  Example:
+  server srv1 192.168.1.1:80 send-proxy-v2 set-proxy-v2-tlv-fmt(0x20) %[fc_pp_tlv(0x20)]
+
+  In this case, we fetch the TLV with the type 0x20 as a string and set as the value
+  of a newly created TLV that also has the type 0x20.
+
 proxy-v2-options <option>[,<option>]*
   The "proxy-v2-options" parameter add options to send in PROXY protocol
   version 2 when "send-proxy-v2" is used. Options available are:
