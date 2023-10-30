@@ -2506,13 +2506,16 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 #else
 			cipher = SSL_CIPHER_find(ssl, cipher_suites);
 #endif
+			if (!cipher)
+				continue;
+
 			cipher_id = SSL_CIPHER_get_id(cipher);
 			/* skip the SCSV "fake" signaling ciphersuites because they are NID_auth_any (RFC 7507) */
 			if (cipher_id == SSL3_CK_SCSV || cipher_id == SSL3_CK_FALLBACK_SCSV)
 				continue;
 
-			if (cipher && (   SSL_CIPHER_get_auth_nid(cipher) == NID_auth_ecdsa
-			               || SSL_CIPHER_get_auth_nid(cipher) == NID_auth_any)) {
+			if (SSL_CIPHER_get_auth_nid(cipher) == NID_auth_ecdsa
+			    || SSL_CIPHER_get_auth_nid(cipher) == NID_auth_any) {
 				has_ecdsa_sig = 1;
 				break;
 			}
