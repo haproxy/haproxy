@@ -860,7 +860,9 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 					chunk_appendf(chk, " (expect string '%.*s')", (unsigned int)istlen(expect->data), istptr(expect->data));
 					break;
 				case TCPCHK_EXPECT_BINARY:
-					chunk_appendf(chk, " (expect binary '%.*s')", (unsigned int)istlen(expect->data), istptr(expect->data));
+					chunk_appendf(chk, " (expect binary '");
+					dump_binary(chk, istptr(expect->data), (int)istlen(expect->data));
+					chunk_appendf(chk, "')");
 					break;
 				case TCPCHK_EXPECT_STRING_REGEX:
 					chunk_appendf(chk, " (expect regex)");
