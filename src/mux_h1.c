@@ -4479,7 +4479,7 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 	return ret;
 }
 
-static void h1_done_ff(struct stconn *sc)
+static size_t h1_done_ff(struct stconn *sc)
 {
 	struct h1s *h1s = __sc_mux_strm(sc);
 	struct h1c *h1c = h1s->h1c;
@@ -4546,6 +4546,7 @@ static void h1_done_ff(struct stconn *sc)
 	}
 
 	TRACE_LEAVE(H1_EV_STRM_RECV, h1c->conn, h1s, 0, (size_t[]){total});
+	return total;
 }
 
 static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
