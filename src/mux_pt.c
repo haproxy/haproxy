@@ -612,7 +612,7 @@ static size_t mux_pt_nego_ff(struct stconn *sc, struct buffer *input, size_t cou
 	return ret;
 }
 
-static void mux_pt_done_ff(struct stconn *sc)
+static size_t mux_pt_done_ff(struct stconn *sc)
 {
 	struct connection *conn = __sc_conn(sc);
 	struct mux_pt_ctx *ctx = conn->ctx;
@@ -641,6 +641,7 @@ static void mux_pt_done_ff(struct stconn *sc)
 	}
 
 	TRACE_LEAVE(PT_EV_TX_DATA, conn, sc, 0, (size_t[]){total});
+	return total;
 }
 
 static int mux_pt_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)

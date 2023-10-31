@@ -7022,13 +7022,14 @@ static size_t h2_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 	return ret;
 }
 
-static void h2_done_ff(struct stconn *sc)
+static size_t h2_done_ff(struct stconn *sc)
 {
 	struct h2s *h2s = __sc_mux_strm(sc);
 	struct h2c *h2c = h2s->h2c;
 	struct sedesc *sd = h2s->sd;
 	struct buffer *mbuf;
 	char *head;
+	size_t total = 0;
 
 	TRACE_ENTER(H2_EV_H2S_SEND|H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
 
@@ -7066,10 +7067,11 @@ static void h2_done_ff(struct stconn *sc)
 	/* Perform a synchronous send but in all cases, consider
 	 * everything was already sent from the SC point of view.
 	 */
-	h2_set_frame_size(head, sd->iobuf.data);
+	total = sd->iobuf.data;
+	h2_set_frame_size(head, total);
 	b_add(mbuf, 9);
-	h2s->sws -= sd->iobuf.data;
-	h2c->mws -= sd->iobuf.data;
+	h2s->sws -= total;
+	h2c->mws -= total;
 	h2_process(h2c);
 
  end:
@@ -7078,6 +7080,7 @@ static void h2_done_ff(struct stconn *sc)
 	sd->iobuf.data = 0;
 
 	TRACE_LEAVE(H2_EV_H2S_SEND|H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
+	return total;
 }
 
 static int h2_resume_ff(struct stconn *sc, unsigned int flags)
