@@ -34,6 +34,7 @@ int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
                              enum ssl_encryption_level_t level,
                              struct ssl_sock_ctx *ctx,
                              const unsigned char *data, size_t len);
+int qc_ssl_provide_all_quic_data(struct quic_conn *qc, struct ssl_sock_ctx *ctx);
 
 static inline void qc_free_ssl_sock_ctx(struct ssl_sock_ctx **ctx)
 {

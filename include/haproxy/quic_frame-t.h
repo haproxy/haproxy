@@ -35,6 +35,7 @@
 #include <haproxy/quic_stream-t.h>
 
 extern struct pool_head *pool_head_quic_frame;
+extern struct pool_head *pool_head_qf_crypto;
 
 /* forward declarations from xprt-quic */
 struct quic_arngs;
@@ -144,6 +145,7 @@ struct qf_stop_sending {
 };
 
 struct qf_crypto {
+	struct list list;
 	uint64_t offset;
 	uint64_t len;
 	const struct quic_enc_level *qel;

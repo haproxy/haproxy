@@ -2,6 +2,7 @@
 #include <haproxy/ncbuf.h>
 #include <haproxy/proxy.h>
 #include <haproxy/quic_conn.h>
+#include <haproxy/quic_rx.h>
 #include <haproxy/quic_sock.h>
 #include <haproxy/quic_ssl.h>
 #include <haproxy/quic_tls.h>
@@ -630,6 +631,60 @@ int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_SSLDATA, qc);
+	return ret;
+}
+
+/* Provide all the stored in order CRYPTO data received from the peer to the TLS.
+ * Return 1 if succeeded, 0 if not.
+ */
+int qc_ssl_provide_all_quic_data(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
+{
+	int ret = 0;
+	struct quic_enc_level *qel;
+
+	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
+	list_for_each_entry(qel, &qc->qel_list, list) {
+		int ssl_ret;
+		struct quic_cstream *cstream = qel->cstream;
+		struct ncbuf *ncbuf;
+		struct qf_crypto *qf_crypto, *qf_back;
+
+		if (!qel->cstream) {
+			TRACE_DEVEL("no cstream", QUIC_EV_CONN_PHPKTS, qc, qel);
+			continue;
+		}
+
+		ssl_ret = 1;
+		ncbuf = &cstream->rx.ncbuf;
+		list_for_each_entry_safe(qf_crypto, qf_back, &qel->rx.crypto_frms, list) {
+
+			ssl_ret = qc_ssl_provide_quic_data(ncbuf, qel->level, ctx,
+			                                   qf_crypto->data, qf_crypto->len);
+			/* Free this frame asap */
+			LIST_DELETE(&qf_crypto->list);
+			pool_free(pool_head_qf_crypto, qf_crypto);
+
+			if (!ssl_ret) {
+				TRACE_DEVEL("null ssl_ret", QUIC_EV_CONN_PHPKTS, qc, qel);
+				break;
+			}
+
+			TRACE_DEVEL("buffered crypto data were provided to TLS stack",
+						QUIC_EV_CONN_PHPKTS, qc, qel);
+		}
+
+		if (ncb_is_empty(ncbuf)) {
+			TRACE_DEVEL("freeing crypto buf", QUIC_EV_CONN_PHPKTS, qc, qel);
+			quic_free_ncbuf(ncbuf);
+		}
+
+		if (!ssl_ret)
+			goto leave;
+	}
+
+	ret = 1;
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
 	return ret;
 }
 

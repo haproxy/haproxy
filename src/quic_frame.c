@@ -23,6 +23,7 @@
 #include <haproxy/trace.h>
 
 DECLARE_POOL(pool_head_quic_frame, "quic_frame", sizeof(struct quic_frame));
+DECLARE_POOL(pool_head_qf_crypto, "qf_crypto", sizeof(struct qf_crypto));
 
 const char *quic_frame_type_string(enum quic_frame_type ft)
 {

@@ -222,6 +222,8 @@ struct quic_enc_level {
 		struct eb_root pkts;
 		/* List of QUIC packets with protected header. */
 		struct list pqpkts;
+		/* List of crypto frames received in order. */
+		struct list crypto_frms;
 	} rx;
 
 	/* TX part */

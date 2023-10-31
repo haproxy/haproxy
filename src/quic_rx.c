@@ -829,13 +829,22 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 	}
 
 	if (crypto_frm->offset == cstream->rx.offset && ncb_is_empty(ncbuf)) {
-		if (!qc_ssl_provide_quic_data(&qel->cstream->rx.ncbuf, qel->level,
-		                              qc->xprt_ctx, crypto_frm->data, crypto_frm->len)) {
-			// trace already emitted by function above
+		struct qf_crypto *qf_crypto;
+
+		qf_crypto = pool_alloc(pool_head_qf_crypto);
+		if (!qf_crypto) {
+			TRACE_ERROR("CRYPTO frame allocation failed", QUIC_EV_CONN_PRSHPKT, qc);
 			goto leave;
 		}
 
+		qf_crypto->offset = crypto_frm->offset;
+		qf_crypto->len = crypto_frm->len;
+		qf_crypto->data = crypto_frm->data;
+		qf_crypto->qel = qel;
+		LIST_APPEND(&qel->rx.crypto_frms, &qf_crypto->list);
+
 		cstream->rx.offset += crypto_frm->len;
+		HA_ATOMIC_OR(&qc->wait_event.tasklet->state, TASK_HEAVY);
 		TRACE_DEVEL("increment crypto level offset", QUIC_EV_CONN_PHPKTS, qc, qel);
 		goto done;
 	}

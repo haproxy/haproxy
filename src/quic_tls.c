@@ -114,6 +114,7 @@ void quic_tls_secret_hexdump(struct buffer *buf,
 void quic_conn_enc_level_uninit(struct quic_conn *qc, struct quic_enc_level *qel)
 {
 	int i;
+	struct qf_crypto *qf_crypto, *qfback;
 
 	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
 
@@ -123,6 +124,12 @@ void quic_conn_enc_level_uninit(struct quic_conn *qc, struct quic_enc_level *qel
 			qel->tx.crypto.bufs[i] = NULL;
 		}
 	}
+
+	list_for_each_entry_safe(qf_crypto, qfback, &qel->rx.crypto_frms, list) {
+		LIST_DELETE(&qf_crypto->list);
+		pool_free(pool_head_qf_crypto, qf_crypto);
+	}
+
 	ha_free(&qel->tx.crypto.bufs);
 	quic_cstream_free(qel->cstream);
 
@@ -160,6 +167,7 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 
 	qel->rx.pkts = EB_ROOT;
 	LIST_INIT(&qel->rx.pqpkts);
+	LIST_INIT(&qel->rx.crypto_frms);
 
 	/* Allocate only one buffer. */
 	/* TODO: use a pool */
