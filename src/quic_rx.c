@@ -871,6 +871,9 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 		goto leave;
 	}
 
+	if (ncb_data(ncbuf, 0))
+		HA_ATOMIC_OR(&qc->wait_event.tasklet->state, TASK_HEAVY);
+
  done:
 	ret = 1;
  leave:
@@ -1262,9 +1265,8 @@ static void qc_rm_hp_pkts(struct quic_conn *qc, struct quic_enc_level *el)
  * stream for this level.
  * Return 1 if succeeded, 0 if not.
  */
-static int qc_treat_rx_crypto_frms(struct quic_conn *qc,
-                                   struct quic_enc_level *el,
-                                   struct ssl_sock_ctx *ctx)
+int qc_treat_rx_crypto_frms(struct quic_conn *qc, struct quic_enc_level *el,
+                            struct ssl_sock_ctx *ctx)
 {
 	int ret = 0;
 	struct ncbuf *ncbuf;
@@ -1411,9 +1413,13 @@ int qc_treat_rx_pkts(struct quic_conn *qc)
 			qel->pktns->flags |= QUIC_FL_PKTNS_NEW_LARGEST_PN;
 		}
 
-		if (qel->cstream && !qc_treat_rx_crypto_frms(qc, qel, qc->xprt_ctx)) {
-			// trace already emitted by function above
-			goto leave;
+		if (qel->cstream) {
+			struct ncbuf *ncbuf = &qel->cstream->rx.ncbuf;
+
+			if (!ncb_is_null(ncbuf) && ncb_data(ncbuf, 0)) {
+				/* Some in order CRYPTO data were bufferized. */
+				HA_ATOMIC_OR(&qc->wait_event.tasklet->state, TASK_HEAVY);
+			}
 		}
 
 		/* Release the Initial encryption level and packet number space. */

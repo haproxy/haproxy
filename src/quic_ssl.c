@@ -673,10 +673,8 @@ int qc_ssl_provide_all_quic_data(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 						QUIC_EV_CONN_PHPKTS, qc, qel);
 		}
 
-		if (ncb_is_empty(ncbuf)) {
-			TRACE_DEVEL("freeing crypto buf", QUIC_EV_CONN_PHPKTS, qc, qel);
-			quic_free_ncbuf(ncbuf);
-		}
+		if (!qc_treat_rx_crypto_frms(qc, qel, ctx))
+			ssl_ret = 0;
 
 		if (!ssl_ret)
 			goto leave;
