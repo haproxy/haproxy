@@ -8,7 +8,7 @@ EnvironmentFile=-/etc/default/haproxy
 EnvironmentFile=-/etc/sysconfig/haproxy
 Environment="CONFIG=/etc/haproxy/haproxy.cfg" "PIDFILE=/run/haproxy.pid" "EXTRAOPTS=-S /run/haproxy-master.sock"
 ExecStart=@SBINDIR@/haproxy -Ws -f $CONFIG -p $PIDFILE $EXTRAOPTS
-ExecReload=@SBINDIR@/haproxy -Ws -f $CONFIG -c -q $EXTRAOPTS
+ExecReload=@SBINDIR@/haproxy -Ws -f $CONFIG -c $EXTRAOPTS
 ExecReload=/bin/kill -USR2 $MAINPID
 KillMode=mixed
 Restart=always
