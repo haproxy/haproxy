@@ -995,6 +995,7 @@ int parse_stick_table(const char *file, int linenum, char **args,
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+			ha_free(&t->peers.name);
 			t->peers.name = strdup(args[idx++]);
 		}
 		else if (strcmp(args[idx], "expire") == 0) {
