@@ -4398,8 +4398,10 @@ init_proxies_list_stage2:
 	for (t = stktables_list; t; t = t->next) {
 		if (t->proxy)
 			continue;
-		if (!stktable_init(t)) {
-			ha_alert("Parsing [%s:%d]: failed to initialize '%s' stick-table.\n", t->conf.file, t->conf.line, t->id);
+		err = NULL;
+		if (!stktable_init(t, &err)) {
+			ha_alert("Parsing [%s:%d]: failed to initialize '%s' stick-table: %s.\n", t->conf.file, t->conf.line, t->id, err);
+			ha_free(&err);
 			cfgerr++;
 		}
 	}
@@ -4412,8 +4414,10 @@ init_proxies_list_stage2:
 		if ((curproxy->flags & PR_FL_DISABLED) || !curproxy->table)
 			continue;
 
-		if (!stktable_init(curproxy->table)) {
-			ha_alert("Proxy '%s': failed to initialize stick-table.\n", curproxy->id);
+		err = NULL;
+		if (!stktable_init(curproxy->table, &err)) {
+			ha_alert("Proxy '%s': failed to initialize stick-table: %s.\n", curproxy->id, err);
+			ha_free(&err);
 			cfgerr++;
 		}
 	}

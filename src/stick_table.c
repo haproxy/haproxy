@@ -794,8 +794,13 @@ out_unlock:
 	return task;
 }
 
-/* Perform minimal stick table intializations, report 0 in case of error, 1 if OK. */
-int stktable_init(struct stktable *t)
+/* Perform minimal stick table initialization. In case of error, the
+ * function will return 0 and <err_msg> will contain hints about the
+ * error and it is up to the caller to free it.
+ *
+ * Returns 1 on success
+ */
+int stktable_init(struct stktable *t, char **err_msg)
 {
 	int peers_retval = 0;
 
@@ -812,7 +817,7 @@ int stktable_init(struct stktable *t)
 		if ( t->expire ) {
 			t->exp_task = task_new_anywhere();
 			if (!t->exp_task)
-				return 0;
+				goto mem_error;
 			t->exp_task->process = process_table_expire;
 			t->exp_task->context = (void *)t;
 		}
@@ -820,9 +825,14 @@ int stktable_init(struct stktable *t)
 			peers_retval = peers_register_table(t->peers.p, t);
 		}
 
-		return (t->pool != NULL) && !peers_retval;
+		if (t->pool == NULL || peers_retval)
+			goto mem_error;
 	}
 	return 1;
+
+ mem_error:
+	memprintf(err_msg, "memory allocation error");
+	return 0;
 }
 
 /*
