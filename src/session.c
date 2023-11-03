@@ -186,11 +186,17 @@ int session_accept_fd(struct connection *cli_conn)
 		}
 	}
 
-	sess = session_new(p, l, &cli_conn->obj_type);
-	if (!sess)
-		goto out_free_conn;
+	/* Reversed conns already have an assigned session, do not recreate it. */
+	if (!(cli_conn->flags & CO_FL_REVERSED)) {
+		sess = session_new(p, l, &cli_conn->obj_type);
+		if (!sess)
+			goto out_free_conn;
 
-	conn_set_owner(cli_conn, sess, NULL);
+		conn_set_owner(cli_conn, sess, NULL);
+	}
+	else {
+		sess = cli_conn->owner;
+	}
 
 	/* now evaluate the tcp-request layer4 rules. We only need a session
 	 * and no stream for these rules.

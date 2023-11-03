@@ -36,6 +36,7 @@ extern struct pool_head *pool_head_sess_priv_conns;
 
 struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type *origin);
 void session_free(struct session *sess);
+void conn_session_free(struct connection *conn);
 int session_accept_fd(struct connection *cli_conn);
 int conn_complete_session(struct connection *conn);
 struct task *session_expire_embryonic(struct task *t, void *context, unsigned int state);

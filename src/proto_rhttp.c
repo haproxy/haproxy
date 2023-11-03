@@ -13,6 +13,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
+#include <haproxy/session.h>
 #include <haproxy/sock.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/task.h>
@@ -55,11 +56,17 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 {
 	struct connection *conn = conn_new(srv);
 	struct sockaddr_storage *bind_addr = NULL;
+	struct session *sess = NULL;
 	if (!conn)
 		goto err;
 
 	HA_ATOMIC_INC(&th_ctx->nb_rhttp_conns);
 
+	sess = session_new(l->bind_conf->frontend, l, NULL);
+	if (!sess)
+		goto err;
+
+	conn_set_owner(conn, sess, conn_session_free);
 	conn_set_reverse(conn, &l->obj_type);
 
 	if (alloc_bind_address(&bind_addr, srv, srv->proxy, NULL) != SRV_STATUS_OK)
@@ -82,7 +89,7 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 	if (srv->ssl_ctx.sni) {
 		struct sample *sni_smp = NULL;
 		/* TODO remove NULL session which can cause crash depending on the SNI sample expr used. */
-		sni_smp = sample_fetch_as_type(srv->proxy, NULL, NULL,
+		sni_smp = sample_fetch_as_type(srv->proxy, sess, NULL,
 		                               SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
 		                               srv->ssl_ctx.sni, SMP_T_STR);
 		if (smp_make_safe(sni_smp))
@@ -96,7 +103,7 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 	if (!srv->use_ssl ||
 	    (!srv->ssl_ctx.alpn_str && !srv->ssl_ctx.npn_str) ||
 	    srv->mux_proto) {
-		if (conn_install_mux_be(conn, NULL, NULL, NULL) < 0)
+		if (conn_install_mux_be(conn, NULL, sess, NULL) < 0)
 			goto err;
 	}
 
@@ -112,6 +119,7 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 		l->rx.rhttp.state = LI_PRECONN_ST_ERR;
 	}
 
+	/* No need to free session as conn.destroy_cb will take care of it. */
 	if (conn) {
 		conn_stop_tracking(conn);
 		conn_xprt_shutw(conn);
@@ -297,6 +305,7 @@ int rhttp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		snprintf(errmsg, errlen, "Out of memory.");
 		goto err;
 	}
+
 	task->process = rhttp_process;
 	task->context = listener;
 	listener->rx.rhttp.task = task;
