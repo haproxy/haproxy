@@ -261,11 +261,11 @@ all of its API and natively supports QUIC. At the time of writing, the vast
 majority of SSL features are well supported by wolfSSL though not everything is
 exposed in haproxy yet, advanced users might notice tiny differences that the
 wolfSSL and HAProxy teams are working on together to address in the wolfSSL
-code base. Features like SSL resume, crt-list and client auth might not work as
-expected. As of May 2023, wolfSSL support is considered experimental. This
-stack is not affected by OpenSSL's design issue regarding multi-processor
-systems and is viewed by the HAProxy team as the most promising mid-term
-solution for general deployments and QUIC deployments.
+code base. Features like ecdsa/rsa dual stack, crt-list and client auth might
+not work as expected. As of November 2023, wolfSSL support is considered
+experimental. This stack is not affected by OpenSSL's design issue regarding
+multi-processor systems and is viewed by the HAProxy team as the most promising
+mid-term solution for general deployments and QUIC deployments.
 
 In order to enable SSL/TLS support, simply pass "USE_OPENSSL=1" on the command
 line and the default library present on your system will be used :
@@ -281,11 +281,11 @@ SSL library files using SSL_LIB. Example :
     USE_OPENSSL=1 SSL_INC=/opt/ssl-1.1.1/include SSL_LIB=/opt/ssl-1.1.1/lib
 
 To use HAProxy with WolfSSL, WolfSSL must be built with haproxy support, at
-least WolfSSL 5.6.0 is needed, but a development version might be needed for
+least WolfSSL 5.6.4 is needed, but a development version might be needed for
 some of the features:
 
   $ cd ~/build/wolfssl
-  $ ./configure --enable-haproxy --enable-quic --prefix=/opt/wolfssl-5.6.0/
+  $ ./configure --enable-haproxy --enable-quic --prefix=/opt/wolfssl-5.6.4/
   $ make -j $(nproc)
   $ make install
 
@@ -298,7 +298,7 @@ command line, for example:
 
   $ cd ~/build/haproxy
   $ make -j $(nproc) TARGET=generic USE_OPENSSL_WOLFSSL=1 USE_QUIC=1 \
-    SSL_INC=/opt/wolfssl-5.6.0/include SSL_LIB=/opt/wolfssl-5.6.0/lib
+    SSL_INC=/opt/wolfssl-5.6.4/include SSL_LIB=/opt/wolfssl-5.6.4/lib
 
 To use HAProxy with AWS-LC you must have version v1.13.0 or newer of AWS-LC
 built and installed locally.
