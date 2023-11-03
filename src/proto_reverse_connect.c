@@ -10,8 +10,10 @@
 #include <haproxy/proto_tcp.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
+#include <haproxy/sample.h>
 #include <haproxy/server.h>
 #include <haproxy/sock.h>
+#include <haproxy/ssl_sock.h>
 #include <haproxy/task.h>
 
 #include <haproxy/proto_reverse_connect.h>
@@ -73,6 +75,18 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 
 	if (conn->ctrl->connect(conn, 0) != SF_ERR_NONE)
 		goto err;
+
+#ifdef USE_OPENSSL
+	if (srv->ssl_ctx.sni) {
+		struct sample *sni_smp = NULL;
+		/* TODO remove NULL session which can cause crash depending on the SNI sample expr used. */
+		sni_smp = sample_fetch_as_type(srv->proxy, NULL, NULL,
+		                               SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
+		                               srv->ssl_ctx.sni, SMP_T_STR);
+		if (smp_make_safe(sni_smp))
+			ssl_sock_set_servername(conn, sni_smp->data.u.str.area);
+	}
+#endif /* USE_OPENSSL */
 
 	if (conn_xprt_start(conn) < 0)
 		goto err;
