@@ -4399,7 +4399,7 @@ init_proxies_list_stage2:
 		if (t->proxy)
 			continue;
 		if (!stktable_init(t)) {
-			ha_alert("Proxy '%s': failed to initialize stick-table.\n", t->id);
+			ha_alert("Parsing [%s:%d]: failed to initialize '%s' stick-table.\n", t->conf.file, t->conf.line, t->id);
 			cfgerr++;
 		}
 	}
