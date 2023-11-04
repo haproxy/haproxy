@@ -7070,7 +7070,8 @@ static void h2_done_ff(struct stconn *sc)
 	b_add(mbuf, 9);
 	h2s->sws -= sd->iobuf.data;
 	h2c->mws -= sd->iobuf.data;
-	h2_process(h2c);
+	if (h2_send(h2s->h2c))
+		tasklet_wakeup(h2s->h2c->wait_event.tasklet);
 
  end:
 	sd->iobuf.buf = NULL;
