@@ -1,6 +1,50 @@
 ChangeLog :
 ===========
 
+2023/11/04 : 2.9-dev9
+    - DOC: internal: filters: fix reference to entities.pdf
+    - BUG/MINOR: ssl: load correctly @system-ca when ca-base is define
+    - MINOR: lua: Add flags to configure logging behaviour
+    - MINOR: lua: change tune.lua.log.stderr default from 'on' to 'auto'
+    - BUG/MINOR: backend: fix wrong BUG_ON for avail conn
+    - BUG/MAJOR: backend: fix idle conn crash under low FD
+    - MINOR: backend: refactor insertion in avail conns tree
+    - DEBUG: mux-h2/flags: fix list of h2c flags used by the flags decoder
+    - BUG/MEDIUM: server/log: "mode log" after server keyword causes crash
+    - MINOR: connection: add conn_pr_mode_to_proto_mode() helper func
+    - BUG/MEDIUM: server: "proto" not working for dynamic servers
+    - MINOR: server: add helper function to detach server from proxy list
+    - DEBUG: add a tainted flag when ha_panic() is called
+    - DEBUG: lua: add tainted flags for stuck Lua contexts
+    - DEBUG: pools: detect that malloc_trim() is in progress
+    - BUG/MINOR: quic: do not consider idle timeout on CLOSING state
+    - MINOR: frontend: implement a dedicated actconn increment function
+    - BUG/MINOR: ssl: use a thread-safe sslconns increment
+    - MEDIUM: quic: count quic_conn instance for maxconn
+    - MEDIUM: quic: count quic_conn for global sslconns
+    - BUG/MINOR: ssl: suboptimal certificate selection with TLSv1.3 and dual ECDSA/RSA
+    - REGTESTS: ssl: update the filters test for TLSv1.3 and sigalgs
+    - BUG/MINOR: mux-quic: fix early close if unset client timeout
+    - BUG/MEDIUM: ssl: segfault when cipher is NULL
+    - BUG/MINOR: tcpcheck: Report hexstring instead of binary one on check failure
+    - MEDIUM: systemd: be more verbose about the reload
+    - MINOR: sample: Add fetcher for getting all cookie names
+    - BUG/MINOR: proto_reverse_connect: support SNI on active connect
+    - MINOR: proxy/stktable: add resolve_stick_rule helper function
+    - BUG/MINOR: stktable: missing free in parse_stick_table()
+    - BUG/MINOR: cfgparse/stktable: fix error message on stktable_init() failure
+    - MINOR: stktable: stktable_init() sets err_msg on error
+    - MINOR: stktable: check if a type should be used as-is
+    - MEDIUM: stktable/peers: "write-to" local table on peer updates
+    - CI: github: update wolfSSL to 5.6.4
+    - DOC: install: update the wolfSSL required version
+    - MINOR: server: Add parser support for set-proxy-v2-tlv-fmt
+    - MINOR: connection: Send out generic, user-defined server TLVs
+    - BUG/MEDIUM: pattern: don't trim pools under lock in pat_ref_purge_range()
+    - MINOR: mux-h2: always use h2_send() in h2_done_ff(), not h2_process()
+    - OPTIM: mux-h2: call h2_send() directly from h2_snd_buf()
+    - BUG/MINOR: server: remove some incorrect free() calls on null elements
+
 2023/10/20 : 2.9-dev8
     - MINOR: ssl: add an explicit error when 'ciphersuites' are not supported
     - BUILD: ssl: enable 'ciphersuites' for WolfSSL
