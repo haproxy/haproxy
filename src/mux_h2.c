@@ -6873,7 +6873,8 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	if (total > 0) {
 		if (!(h2s->h2c->wait_event.events & SUB_RETRY_SEND)) {
 			TRACE_DEVEL("data queued, waking up h2c sender", H2_EV_H2S_SEND|H2_EV_H2C_SEND, h2s->h2c->conn, h2s);
-			tasklet_wakeup(h2s->h2c->wait_event.tasklet);
+			if (h2_send(h2s->h2c))
+				tasklet_wakeup(h2s->h2c->wait_event.tasklet);
 		}
 
 	}
