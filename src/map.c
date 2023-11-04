@@ -1027,6 +1027,8 @@ static int cli_io_handler_clear_map(struct appctx *appctx)
 		applet_have_more_data(appctx);
 		return 0;
 	}
+
+	trim_all_pools();
 	return 1;
 }
 

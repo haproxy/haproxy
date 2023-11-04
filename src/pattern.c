@@ -2090,9 +2090,6 @@ int pat_ref_purge_range(struct pat_ref *ref, uint from, uint to, int budget)
 	list_for_each_entry(expr, &ref->pat, list)
 		HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
 
-	if (done)
-		trim_all_pools();
-
 	return done;
 }
 
