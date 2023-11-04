@@ -1372,7 +1372,6 @@ static int srv_parse_set_proxy_v2_tlv_fmt(char **args, int *cur_arg,
 	srv_tlv->fmt_string = strdup(args[*cur_arg + 1]);
 	if (unlikely(!srv_tlv->fmt_string)) {
 		memprintf(err, "'%s' : failed to save format string for parsing", args[*cur_arg]);
-		free(srv_tlv->fmt_string);
 		goto fail;
 	}
 
@@ -2519,13 +2518,11 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 			break;
 		new_srv_tlv = malloc(sizeof(struct srv_pp_tlv_list));
 		if (unlikely(!new_srv_tlv)) {
-			free(new_srv_tlv);
 			break;
 		}
 		new_srv_tlv->fmt_string = strdup(srv_tlv->fmt_string);
 		if (unlikely(!new_srv_tlv->fmt_string)) {
 			free(new_srv_tlv);
-			free(new_srv_tlv->fmt_string);
 			break;
 		}
 		new_srv_tlv->type = srv_tlv->type;
