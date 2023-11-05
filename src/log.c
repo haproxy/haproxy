@@ -895,7 +895,8 @@ static int postcheck_log_backend(struct proxy *be)
 	/* alloc srv array (it will be used for active and backup server lists in turn,
 	 * so we ensure that the longest list will fit
 	 */
-	be->lbprm.log.srv = calloc(MAX(be->srv_act, be->srv_bck), sizeof(struct server *));
+	be->lbprm.log.srv = calloc(MAX(be->srv_act, be->srv_bck),
+				   sizeof(*be->lbprm.log.srv));
 
 	if (!be->lbprm.log.srv ) {
 		memprintf(&msg, "memory error when allocating server array (%d entries)",

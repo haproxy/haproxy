@@ -4270,7 +4270,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 	    (strcmp(args[cur_arg], "EHLO") == 0 || strcmp(args[cur_arg], "HELO") == 0)) {
 		/* <EHLO|HELO> + space (1) + <host> + null byte (1) */
 		size_t len = strlen(args[cur_arg]) + 1 + strlen(args[cur_arg+1]) + 1;
-		cmd = calloc(len, 1);
+		cmd = calloc(1, len);
 		if (cmd)
 			snprintf(cmd, len, "%s %s", args[cur_arg], args[cur_arg+1]);
 	}

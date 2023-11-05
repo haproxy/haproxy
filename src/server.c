@@ -1363,7 +1363,7 @@ static int srv_parse_set_proxy_v2_tlv_fmt(char **args, int *cur_arg,
 		}
 	}
 
-	srv_tlv = malloc(sizeof(struct srv_pp_tlv_list));
+	srv_tlv = malloc(sizeof(*srv_tlv));
 	if (unlikely(!srv_tlv)) {
 		memprintf(err, "'%s' : failed to parse allocate TLV entry", args[*cur_arg]);
 		goto fail;
@@ -2516,7 +2516,7 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	list_for_each_entry(srv_tlv, &src->pp_tlvs, list) {
 		if (srv_tlv == NULL)
 			break;
-		new_srv_tlv = malloc(sizeof(struct srv_pp_tlv_list));
+		new_srv_tlv = malloc(sizeof(*new_srv_tlv));
 		if (unlikely(!new_srv_tlv)) {
 			break;
 		}

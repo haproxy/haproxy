@@ -760,7 +760,7 @@ static int quic_alloc_dghdlrs(void)
 		MT_LIST_INIT(&dghdlr->dgrams);
 	}
 
-	quic_cid_trees = calloc(QUIC_CID_TREES_CNT, sizeof(struct quic_cid_tree));
+	quic_cid_trees = calloc(QUIC_CID_TREES_CNT, sizeof(*quic_cid_trees));
 	if (!quic_cid_trees) {
 		ha_alert("Failed to allocate global CIDs trees.\n");
 		return 0;
