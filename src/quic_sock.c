@@ -966,6 +966,15 @@ struct task *quic_accept_run(struct task *t, void *ctx, unsigned int i)
 	return NULL;
 }
 
+/* Returns the maximum number of QUIC connections waiting for handshake to
+ * complete in parallel on listener <l> instance. This reuses the listener
+ * backlog value.
+ */
+int quic_listener_max_handshake(const struct listener *l)
+{
+	return listener_backlog(l);
+}
+
 static int quic_alloc_accept_queues(void)
 {
 	int i;

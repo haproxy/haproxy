@@ -4659,18 +4659,25 @@ backlog <conns>
               system, it may represent the number of already acknowledged
               connections, of non-acknowledged ones, or both.
 
-  In order to protect against SYN flood attacks, one solution is to increase
-  the system's SYN backlog size. Depending on the system, sometimes it is just
-  tunable via a system parameter, sometimes it is not adjustable at all, and
-  sometimes the system relies on hints given by the application at the time of
-  the listen() syscall. By default, HAProxy passes the frontend's maxconn value
-  to the listen() syscall. On systems which can make use of this value, it can
-  sometimes be useful to be able to specify a different value, hence this
-  backlog parameter.
+  This option is both used for stream and datagram listeners.
+
+  In order to protect against SYN flood attacks on a stream-based listener, one
+  solution is to increase the system's SYN backlog size. Depending on the
+  system, sometimes it is just tunable via a system parameter, sometimes it is
+  not adjustable at all, and sometimes the system relies on hints given by the
+  application at the time of the listen() syscall. By default, HAProxy passes
+  the frontend's maxconn value to the listen() syscall. On systems which can
+  make use of this value, it can sometimes be useful to be able to specify a
+  different value, hence this backlog parameter.
 
   On Linux 2.4, the parameter is ignored by the system. On Linux 2.6, it is
   used as a hint and the system accepts up to the smallest greater power of
   two, and never more than some limits (usually 32768).
+
+  When using a QUIC listener, this option has a similar albeit not quite
+  equivalent meaning. It will set the maximum number of connections waiting for
+  handshake completion. When this limit is reached, INITIAL packets are dropped
+  to prevent creation of a new QUIC connection.
 
   See also : "maxconn" and the target operating system's tuning guide.
 

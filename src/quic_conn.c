@@ -1137,6 +1137,30 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 	return task;
 }
 
+/* Try to increment <l> handshake current counter. If listener limit is
+ * reached, incrementation is rejected and 0 is returned.
+ */
+static int quic_increment_curr_handshake(struct listener *l)
+{
+	unsigned int count, next;
+	const int max = quic_listener_max_handshake(l);
+
+	do {
+		count = l->rx.quic_curr_handshake;
+		if (count >= max) {
+			/* maxconn reached */
+			next = 0;
+			goto end;
+		}
+
+		/* try to increment quic_curr_handshake */
+		next = count + 1;
+	} while (!_HA_ATOMIC_CAS(&l->rx.quic_curr_handshake, &count, next) && __ha_cpu_relax());
+
+ end:
+	return next;
+}
+
 /* Allocate a new QUIC connection with <version> as QUIC version. <ipv4>
  * boolean is set to 1 for IPv4 connection, 0 for IPv6. <server> is set to 1
  * for QUIC servers (or haproxy listeners).
@@ -1161,7 +1185,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	struct quic_conn *qc = NULL;
 	struct listener *l = NULL;
 	struct quic_cc_algo *cc_algo = NULL;
-	unsigned int next_actconn = 0, next_sslconn = 0;
+	unsigned int next_actconn = 0, next_sslconn = 0, next_handshake = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_INIT);
 
@@ -1178,6 +1202,14 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		goto err;
 	}
 
+	if (server) {
+		next_handshake = quic_increment_curr_handshake(owner);
+		if (!next_handshake) {
+			TRACE_STATE("max handshake reached", QUIC_EV_CONN_INIT);
+			goto err;
+		}
+	}
+
 	qc = pool_alloc(pool_head_quic_conn);
 	if (!qc) {
 		TRACE_ERROR("Could not allocate a new connection", QUIC_EV_CONN_INIT);
@@ -1187,7 +1219,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	/* Now that quic_conn instance is allocated, quic_conn_release() will
 	 * ensure global accounting is decremented.
 	 */
-	next_sslconn = next_actconn = 0;
+	next_handshake = next_sslconn = next_actconn = 0;
 
 	/* Initialize in priority qc members required for a safe dealloc. */
 	qc->nictx = NULL;
@@ -1237,20 +1269,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	/* Required to safely call quic_conn_prx_cntrs_update() from quic_conn_release(). */
 	qc->prx_counters = NULL;
 
-	/* Now proceeds to allocation of qc members. */
-	qc->rx.buf.area = pool_alloc(pool_head_quic_conn_rxbuf);
-	if (!qc->rx.buf.area) {
-		TRACE_ERROR("Could not allocate a new RX buffer", QUIC_EV_CONN_INIT, qc);
-		goto err;
-	}
-
-	qc->cids = pool_alloc(pool_head_quic_cids);
-	if (!qc->cids) {
-		TRACE_ERROR("Could not allocate a new CID tree", QUIC_EV_CONN_INIT, qc);
-		goto err;
-	}
-
-	*qc->cids = EB_ROOT;
 	/* QUIC Server (or listener). */
 	if (server) {
 		struct proxy *prx;
@@ -1280,6 +1298,20 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	}
 	qc->mux_state = QC_MUX_NULL;
 	qc->err = quic_err_transport(QC_ERR_NO_ERROR);
+
+	/* Now proceeds to allocation of qc members. */
+	qc->rx.buf.area = pool_alloc(pool_head_quic_conn_rxbuf);
+	if (!qc->rx.buf.area) {
+		TRACE_ERROR("Could not allocate a new RX buffer", QUIC_EV_CONN_INIT, qc);
+		goto err;
+	}
+
+	qc->cids = pool_alloc(pool_head_quic_cids);
+	if (!qc->cids) {
+		TRACE_ERROR("Could not allocate a new CID tree", QUIC_EV_CONN_INIT, qc);
+		goto err;
+	}
+	*qc->cids = EB_ROOT;
 
 	conn_id->qc = qc;
 
@@ -1401,6 +1433,8 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		_HA_ATOMIC_DEC(&actconn);
 	if (next_sslconn)
 		_HA_ATOMIC_DEC(&global.sslconns);
+	if (next_handshake)
+		_HA_ATOMIC_DEC(&l->rx.quic_curr_handshake);
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT);
 	return NULL;
@@ -1535,6 +1569,14 @@ void quic_conn_release(struct quic_conn *qc)
 	if (unlikely(!(qc->flags & QUIC_FL_CONN_PEER_VALIDATED_ADDR))) {
 		BUG_ON(!qc->prx_counters->half_open_conn);
 		HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
+	}
+
+	/* Connection released before handshake completion. */
+	if (unlikely(qc->state < QUIC_HS_ST_COMPLETE)) {
+		if (qc_is_listener(qc)) {
+			BUG_ON(qc->li->rx.quic_curr_handshake == 0);
+			HA_ATOMIC_DEC(&qc->li->rx.quic_curr_handshake);
+		}
 	}
 
 	pool_free(pool_head_quic_conn, qc);

@@ -572,6 +572,9 @@ int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 			qc->state = QUIC_HS_ST_CONFIRMED;
 			/* The connection is ready to be accepted. */
 			quic_accept_push_qc(qc);
+
+			BUG_ON(qc->li->rx.quic_curr_handshake == 0);
+			HA_ATOMIC_DEC(&qc->li->rx.quic_curr_handshake);
 		}
 		else {
 			qc->state = QUIC_HS_ST_COMPLETE;
