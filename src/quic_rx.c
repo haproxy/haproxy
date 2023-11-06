@@ -14,7 +14,6 @@
 
 #include <haproxy/quic_rx.h>
 
-#include <haproxy/frontend.h>
 #include <haproxy/h3.h>
 #include <haproxy/list.h>
 #include <haproxy/ncbuf.h>
@@ -1903,7 +1902,7 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 	struct quic_conn *qc = NULL;
 	struct proxy *prx;
 	struct quic_counters *prx_counters;
-	unsigned int next_actconn = 0, next_sslconn = 0;
+	unsigned int next_sslconn = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT);
 
@@ -1961,14 +1960,6 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 			pkt->saddr = dgram->saddr;
 			ipv4 = dgram->saddr.ss_family == AF_INET;
 
-			next_actconn = increment_actconn();
-			if (!next_actconn) {
-				_HA_ATOMIC_INC(&maxconn_reached);
-				TRACE_STATE("drop packet on maxconn reached",
-				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
-				goto err;
-			}
-
 			next_sslconn = increment_sslconn();
 			if (!next_sslconn) {
 				TRACE_STATE("drop packet on sslconn reached",
@@ -1994,13 +1985,7 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				goto err;
 			}
 
-			/* Now quic_conn is allocated. If a future error
-			 * occurred it will be freed with quic_conn_release()
-			 * which also ensure actconn/sslconns is decremented.
-			 * Reset guard values to prevent a double decrement.
-			 */
-			next_sslconn = next_actconn = 0;
-
+			next_sslconn = 0;
 			/* Compute and store into the quic_conn the hash used to compute extra CIDs */
 			if (quic_hash64_from_cid)
 				qc->hash64 = quic_hash64_from_cid(conn_id->cid.data, conn_id->cid.len,
@@ -2051,9 +2036,6 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 	else
 		HA_ATOMIC_INC(&prx_counters->dropped_pkt);
 
-	/* Reset active conn counter if needed. */
-	if (next_actconn)
-		_HA_ATOMIC_DEC(&actconn);
 	if (next_sslconn)
 		_HA_ATOMIC_DEC(&global.sslconns);
 

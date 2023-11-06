@@ -37,6 +37,7 @@
 #include <haproxy/connection.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
+#include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/h3.h>
 #include <haproxy/hq_interop.h>
@@ -1158,17 +1159,30 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                               int server, int token, void *owner)
 {
 	int i;
-	struct quic_conn *qc;
+	struct quic_conn *qc = NULL;
 	struct listener *l = NULL;
 	struct quic_cc_algo *cc_algo = NULL;
+	unsigned int next_actconn = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_INIT);
+
+	next_actconn = increment_actconn();
+	if (!next_actconn) {
+		_HA_ATOMIC_INC(&maxconn_reached);
+		TRACE_STATE("maxconn reached", QUIC_EV_CONN_INIT);
+		goto err;
+	}
 
 	qc = pool_alloc(pool_head_quic_conn);
 	if (!qc) {
 		TRACE_ERROR("Could not allocate a new connection", QUIC_EV_CONN_INIT);
 		goto err;
 	}
+
+	/* Now that quic_conn instance is allocated, quic_conn_release() will
+	 * ensure global accounting is decremented.
+	 */
+	next_actconn = 0;
 
 	/* Initialize in priority qc members required for a safe dealloc. */
 	qc->nictx = NULL;
@@ -1361,6 +1375,14 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
  err:
 	quic_conn_release(qc);
+
+	/* Decrement global counters. Done only for errors happening before or
+	 * on pool_head_quic_conn alloc. All other cases are covered by
+	 * quic_conn_release().
+	 */
+	if (next_actconn)
+		_HA_ATOMIC_DEC(&actconn);
+
 	TRACE_LEAVE(QUIC_EV_CONN_INIT);
 	return NULL;
 }
@@ -1435,12 +1457,6 @@ void quic_conn_release(struct quic_conn *qc)
 		qc_free_ssl_sock_ctx(&qc->xprt_ctx);
 	}
 
-	/* Decrement on quic_conn free. quic_cc_conn instances are not counted
-	 * into global counters because they are designed to run for a limited
-	 * time with a limited memory.
-	 */
-	_HA_ATOMIC_DEC(&actconn);
-
 	/* in the unlikely (but possible) case the connection was just added to
 	 * the accept_list we must delete it from there.
 	 */
@@ -1497,6 +1513,12 @@ void quic_conn_release(struct quic_conn *qc)
 	qc->rx.buf.area = NULL;
 	pool_free(pool_head_quic_conn, qc);
 	qc = NULL;
+
+	/* Decrement global counters when quic_conn is deallocated.
+	 * quic_cc_conn instances are not accounted as they run for a short
+	 * time with limited ressources.
+	 */
+	_HA_ATOMIC_DEC(&actconn);
 
 	TRACE_PROTO("QUIC conn. freed", QUIC_EV_CONN_FREED, qc);
  leave:
