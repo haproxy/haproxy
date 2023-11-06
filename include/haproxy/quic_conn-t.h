@@ -440,10 +440,6 @@ struct quic_conn_cntrs {
         /* Idle timer task */                                                  \
         struct task *idle_timer_task;                                          \
         unsigned int idle_expire;                                              \
-        struct ssl_sock_ctx *xprt_ctx;                                         \
-        /* Used only to reach the tasklet for the I/O handler from this        \
-         * quic_conn object.                                                   \
-         */                                                                    \
         /* QUIC connection level counters */                                   \
         struct quic_conn_cntrs cntrs;                                          \
         struct connection *conn;                                               \
@@ -451,6 +447,10 @@ struct quic_conn_cntrs {
 
 struct quic_conn {
 	QUIC_CONN_COMMON;
+	/* Used only to reach the tasklet for the I/O handler from this
+	 * quic_conn object.
+	 */
+	struct ssl_sock_ctx *xprt_ctx;
 	const struct quic_version *original_version;
 	const struct quic_version *negotiated_version;
 	/* Negotiated version Initial TLS context */

@@ -770,7 +770,6 @@ static void quic_release_cc_conn(struct quic_cc_conn *cc_qc)
 	pool_free(pool_head_quic_cc_buf, cc_qc->cc_buf_area);
 	cc_qc->cc_buf_area = NULL;
 	/* free the SSL sock context */
-	qc_free_ssl_sock_ctx(&cc_qc->xprt_ctx);
 	pool_free(pool_head_quic_cc_conn, cc_qc);
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB);
@@ -878,8 +877,6 @@ static struct quic_cc_conn *qc_new_cc_conn(struct quic_conn *qc)
 	cc_qc->idle_timer_task->context = cc_qc;
 	cc_qc->idle_expire = qc->idle_expire;
 
-	cc_qc->xprt_ctx = qc->xprt_ctx;
-	qc->xprt_ctx = NULL;
 	cc_qc->conn = qc->conn;
 	qc->conn = NULL;
 
@@ -1472,8 +1469,6 @@ void quic_conn_release(struct quic_conn *qc)
 		qc->cids = NULL;
 		pool_free(pool_head_quic_cc_buf, qc->tx.cc_buf_area);
 		qc->tx.cc_buf_area = NULL;
-		/* free the SSL sock context */
-		qc_free_ssl_sock_ctx(&qc->xprt_ctx);
 	}
 
 	/* in the unlikely (but possible) case the connection was just added to
@@ -1496,6 +1491,8 @@ void quic_conn_release(struct quic_conn *qc)
 		qc_stream_desc_free(stream, 1);
 	}
 
+	/* free the SSL sock context */
+	qc_free_ssl_sock_ctx(&qc->xprt_ctx);
 	/* Purge Rx packet list. */
 	list_for_each_entry_safe(pkt, pktback, &qc->rx.pkt_list, qc_rx_pkt_list) {
 		LIST_DELETE(&pkt->qc_rx_pkt_list);
