@@ -1902,7 +1902,6 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 	struct quic_conn *qc = NULL;
 	struct proxy *prx;
 	struct quic_counters *prx_counters;
-	unsigned int next_sslconn = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT);
 
@@ -1960,13 +1959,6 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 			pkt->saddr = dgram->saddr;
 			ipv4 = dgram->saddr.ss_family == AF_INET;
 
-			next_sslconn = increment_sslconn();
-			if (!next_sslconn) {
-				TRACE_STATE("drop packet on sslconn reached",
-				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
-				goto err;
-			}
-
 			/* Generate the first connection CID. This is derived from the client
 			 * ODCID and address. This allows to retrieve the connection from the
 			 * ODCID without storing it in the CID tree. This is an interesting
@@ -1985,7 +1977,6 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				goto err;
 			}
 
-			next_sslconn = 0;
 			/* Compute and store into the quic_conn the hash used to compute extra CIDs */
 			if (quic_hash64_from_cid)
 				qc->hash64 = quic_hash64_from_cid(conn_id->cid.data, conn_id->cid.len,
@@ -2035,9 +2026,6 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 		qc->cntrs.dropped_pkt++;
 	else
 		HA_ATOMIC_INC(&prx_counters->dropped_pkt);
-
-	if (next_sslconn)
-		_HA_ATOMIC_DEC(&global.sslconns);
 
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
 	return NULL;

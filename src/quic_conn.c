@@ -1162,7 +1162,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	struct quic_conn *qc = NULL;
 	struct listener *l = NULL;
 	struct quic_cc_algo *cc_algo = NULL;
-	unsigned int next_actconn = 0;
+	unsigned int next_actconn = 0, next_sslconn = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_INIT);
 
@@ -1170,6 +1170,12 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	if (!next_actconn) {
 		_HA_ATOMIC_INC(&maxconn_reached);
 		TRACE_STATE("maxconn reached", QUIC_EV_CONN_INIT);
+		goto err;
+	}
+
+	next_sslconn = increment_sslconn();
+	if (!next_sslconn) {
+		TRACE_STATE("sslconn reached", QUIC_EV_CONN_INIT);
 		goto err;
 	}
 
@@ -1182,7 +1188,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	/* Now that quic_conn instance is allocated, quic_conn_release() will
 	 * ensure global accounting is decremented.
 	 */
-	next_actconn = 0;
+	next_sslconn = next_actconn = 0;
 
 	/* Initialize in priority qc members required for a safe dealloc. */
 	qc->nictx = NULL;
@@ -1382,6 +1388,8 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	 */
 	if (next_actconn)
 		_HA_ATOMIC_DEC(&actconn);
+	if (next_sslconn)
+		_HA_ATOMIC_DEC(&global.sslconns);
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT);
 	return NULL;
@@ -1519,6 +1527,7 @@ void quic_conn_release(struct quic_conn *qc)
 	 * time with limited ressources.
 	 */
 	_HA_ATOMIC_DEC(&actconn);
+	_HA_ATOMIC_DEC(&global.sslconns);
 
 	TRACE_PROTO("QUIC conn. freed", QUIC_EV_CONN_FREED, qc);
  leave:
