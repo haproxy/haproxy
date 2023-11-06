@@ -4890,8 +4890,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 	struct show_table_ctx *ctx = appctx->svcctx;
 	struct stktable *t = ctx->target;
 	struct stksess *ts;
-	uint32_t uint32_key;
-	unsigned char ip6_key[sizeof(struct in6_addr)];
+	struct sample key;
 	long long value;
 	int data_type;
 	int cur_arg;
@@ -4901,35 +4900,16 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 	if (!*args[4])
 		return cli_err(appctx, "Key value expected\n");
 
+	memset(&key, 0, sizeof(key));
+	key.data.type = SMP_T_STR;
+	key.data.u.str.area = args[4];
+	key.data.u.str.data = strlen(args[4]);
+
 	switch (t->type) {
 	case SMP_T_IPV4:
-		if (inet_pton(AF_INET, args[4], &uint32_key) <= 0)
-			return cli_err(appctx, "Invalid key\n");
-		static_table_key.key = &uint32_key;
-		break;
 	case SMP_T_IPV6:
-		if (inet_pton(AF_INET6, args[4], ip6_key) <= 0)
-			return cli_err(appctx, "Invalid key\n");
-		static_table_key.key = &ip6_key;
-		break;
 	case SMP_T_SINT:
-		{
-			char *endptr;
-			unsigned long val;
-			errno = 0;
-			val = strtoul(args[4], &endptr, 10);
-			if ((errno == ERANGE && val == ULONG_MAX) ||
-			    (errno != 0 && val == 0) || endptr == args[4] ||
-			    val > 0xffffffff)
-				return cli_err(appctx, "Invalid key\n");
-			uint32_key = (uint32_t) val;
-			static_table_key.key = &uint32_key;
-			break;
-		}
-		break;
 	case SMP_T_STR:
-		static_table_key.key = args[4];
-		static_table_key.key_len = strlen(args[4]);
 		break;
 	default:
 		switch (ctx->action) {
@@ -4943,6 +4923,12 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 			return cli_err(appctx, "Unknown action\n");
 		}
 	}
+
+	/* try to convert key according to table type
+	 * (it will fill static_table_key on success)
+	 */
+	if (!smp_to_stkey(&key, t))
+		return cli_err(appctx, "Invalid key\n");
 
 	/* check permissions */
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
