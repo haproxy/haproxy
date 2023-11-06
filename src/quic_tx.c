@@ -2185,9 +2185,9 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 {
 	unsigned char *beg, *payload;
 	size_t len, len_sz, len_frms, padding_len;
-	struct quic_frame frm = { .type = QUIC_FT_CRYPTO, };
-	struct quic_frame ack_frm = { .type = QUIC_FT_ACK, };
-	struct quic_frame cc_frm = { };
+	struct quic_frame frm;
+	struct quic_frame ack_frm;
+	struct quic_frame cc_frm;
 	size_t ack_frm_len, head_len;
 	int64_t rx_largest_acked_pn;
 	int add_ping_frm;
@@ -2245,6 +2245,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	if ((must_ack || (qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED)) && !qel->pktns->tx.pto_probe) {
 		struct quic_arngs *arngs = &qel->pktns->rx.arngs;
 		BUG_ON(eb_is_empty(&qel->pktns->rx.arngs.root));
+		ack_frm.type = QUIC_FT_ACK;
 		ack_frm.tx_ack.arngs = arngs;
 		if (qel->pktns->flags & QUIC_FL_PKTNS_NEW_LARGEST_PN) {
 			qel->pktns->tx.ack_delay =
