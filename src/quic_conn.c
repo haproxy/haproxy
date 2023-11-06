@@ -257,11 +257,6 @@ void quic_set_tls_alert(struct quic_conn *qc, int alert)
 {
 	TRACE_ENTER(QUIC_EV_CONN_SSLALERT, qc);
 
-	if (!(qc->flags & QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED)) {
-		qc->flags |= QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED;
-		TRACE_DEVEL("dec half open counter", QUIC_EV_CONN_SSLALERT, qc);
-		HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
-	}
 	quic_set_connection_close(qc, quic_err_tls(alert));
 	qc->flags |= QUIC_FL_CONN_TLS_ALERT;
 	TRACE_STATE("Alert set", QUIC_EV_CONN_SSLALERT, qc);
@@ -1387,6 +1382,9 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		            QUIC_EV_CONN_INIT, qc);
 		qc->flags |= QUIC_FL_CONN_PEER_VALIDATED_ADDR;
 	}
+	else {
+		HA_ATOMIC_INC(&qc->prx_counters->half_open_conn);
+	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
 
@@ -1532,6 +1530,13 @@ void quic_conn_release(struct quic_conn *qc)
 	quic_conn_prx_cntrs_update(qc);
 	pool_free(pool_head_quic_conn_rxbuf, qc->rx.buf.area);
 	qc->rx.buf.area = NULL;
+
+	/* Connection released before peer address validated. */
+	if (unlikely(!(qc->flags & QUIC_FL_CONN_PEER_VALIDATED_ADDR))) {
+		BUG_ON(!qc->prx_counters->half_open_conn);
+		HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
+	}
+
 	pool_free(pool_head_quic_conn, qc);
 	qc = NULL;
 
@@ -1657,8 +1662,6 @@ void qc_idle_timer_rearm(struct quic_conn *qc, int read, int arm_ack)
 struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 {
 	struct quic_conn *qc = ctx;
-	struct quic_counters *prx_counters = qc->prx_counters;
-	unsigned int qc_flags = qc->flags;
 
 	TRACE_ENTER(QUIC_EV_CONN_IDLE_TIMER, qc);
 
@@ -1705,12 +1708,6 @@ struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 	/* TODO if the quic-conn cannot be freed because of the MUX, we may at
 	 * least clean some parts of it such as the tasklet.
 	 */
-
-	if (!(qc_flags & QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED)) {
-		qc_flags |= QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED;
-		TRACE_DEVEL("dec half open counter", QUIC_EV_CONN_IDLE_TIMER, qc);
-		HA_ATOMIC_DEC(&prx_counters->half_open_conn);
-	}
 
  requeue:
 	TRACE_LEAVE(QUIC_EV_CONN_IDLE_TIMER, qc);

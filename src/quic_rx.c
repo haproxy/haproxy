@@ -1123,10 +1123,6 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			/* Increment the error counters */
 			qc_cc_err_count_inc(qc, &frm);
 			if (!(qc->flags & QUIC_FL_CONN_DRAINING)) {
-				if (!(qc->flags & QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED)) {
-					qc->flags |= QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED;
-					HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
-				}
 				TRACE_STATE("Entering draining state", QUIC_EV_CONN_PRSHPKT, qc);
 				/* RFC 9000 10.2. Immediate Close:
 				 * The closing and draining connection states exist to ensure
@@ -1385,10 +1381,13 @@ int qc_treat_rx_pkts(struct quic_conn *qc)
 					 * Handshake keys confirms that the peer successfully processed an
 					 * Initial packet.
 					 */
-					if (qel == qc->hel) {
+					if (qel == qc->hel &&
+					    !(qc->flags & QUIC_FL_CONN_PEER_VALIDATED_ADDR)) {
 						TRACE_STATE("validate peer address on handshake packet",
 						            QUIC_EV_CONN_RXPKT, qc, pkt);
 						qc->flags |= QUIC_FL_CONN_PEER_VALIDATED_ADDR;
+						BUG_ON(!qc->prx_counters->half_open_conn);
+						HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
 					}
 
 					/* Update the list of ranges to acknowledge. */
@@ -2035,8 +2034,6 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 
 			if (*new_tid != -1)
 				goto out;
-
-			HA_ATOMIC_INC(&prx_counters->half_open_conn);
 		}
 	}
 	else if (!qc) {

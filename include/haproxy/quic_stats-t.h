@@ -69,7 +69,7 @@ struct quic_counters {
 	long long retry_sent;        /* total number of Retry sent */
 	long long retry_validated;   /* total number of validated Retry tokens */
 	long long retry_error;       /* total number of Retry token errors */
-	long long half_open_conn;    /* total number of half open connections */
+	long long half_open_conn;    /* current number of connections waiting for address validation */
 	long long hdshk_fail;        /* total number of handshake failures */
 	long long stateless_reset_sent; /* total number of handshake failures */
 	/* Special events of interest */

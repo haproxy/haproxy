@@ -549,13 +549,8 @@ int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 				goto out;
 			}
 
-			/* TODO: Should close the connection asap */
-			if (!(qc->flags & QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED)) {
-				qc->flags |= QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED;
-				HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
-				HA_ATOMIC_INC(&qc->prx_counters->hdshk_fail);
-			}
 			TRACE_ERROR("SSL handshake error", QUIC_EV_CONN_IO_CB, qc, &state, &ssl_err);
+			HA_ATOMIC_INC(&qc->prx_counters->hdshk_fail);
 			qc_ssl_dump_errors(ctx->conn);
 			ERR_clear_error();
 			goto leave;
@@ -570,11 +565,6 @@ int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 			goto leave;
 		}
 
-		if (!(qc->flags & QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED)) {
-			TRACE_DEVEL("dec half open counter", QUIC_EV_CONN_IO_CB, qc, &state);
-			qc->flags |= QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED;
-			HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
-		}
 		/* I/O callback switch */
 		qc->wait_event.tasklet->process = quic_conn_app_io_cb;
 		if (qc_is_listener(ctx->qc)) {
