@@ -2518,17 +2518,6 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 	update_exp_and_leave:
 		/* Note: please ensure that if you branch here you disable SC_FL_DONT_WAKE */
-		t->expire = (tick_is_expired(t->expire, now_ms) ? 0 : t->expire);
-
-		if (likely(sc_rcv_may_expire(scf)))
-			t->expire = tick_first(t->expire, sc_ep_rcv_ex(scf));
-		if (likely(sc_snd_may_expire(scf)))
-			t->expire = tick_first(t->expire, sc_ep_snd_ex(scf));
-		if (likely(sc_rcv_may_expire(scb)))
-			t->expire = tick_first(t->expire, sc_ep_rcv_ex(scb));
-		if (likely(sc_snd_may_expire(scb)))
-			t->expire = tick_first(t->expire, sc_ep_snd_ex(scb));
-
 		if (!req->analysers)
 			req->analyse_exp = TICK_ETERNITY;
 		if (!res->analysers)
@@ -2538,10 +2527,13 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		          (!tick_isset(req->analyse_exp) || tick_is_expired(req->analyse_exp, now_ms)))
 			req->analyse_exp = tick_add(now_ms, 5000);
 
+		t->expire = (tick_is_expired(t->expire, now_ms) ? 0 : t->expire);
+		t->expire = tick_first(t->expire, sc_ep_rcv_ex(scf));
+		t->expire = tick_first(t->expire, sc_ep_snd_ex(scf));
+		t->expire = tick_first(t->expire, sc_ep_rcv_ex(scb));
+		t->expire = tick_first(t->expire, sc_ep_snd_ex(scb));
 		t->expire = tick_first(t->expire, req->analyse_exp);
-
 		t->expire = tick_first(t->expire, res->analyse_exp);
-
 		t->expire = tick_first(t->expire, s->conn_exp);
 
 		if (unlikely(tick_is_expired(t->expire, now_ms))) {

@@ -379,11 +379,25 @@ static inline int sc_snd_may_expire(const struct stconn *sc)
 	return 1;
 }
 
+static forceinline int sc_ep_rcv_ex(const struct stconn *sc)
+{
+	return ((tick_isset(sc->sedesc->lra) && sc_rcv_may_expire(sc))
+		? tick_add_ifset(sc->sedesc->lra, sc->ioto)
+		: TICK_ETERNITY);
+}
+
+static forceinline int sc_ep_snd_ex(const struct stconn *sc)
+{
+	return ((tick_isset(sc->sedesc->fsb) && sc_snd_may_expire(sc))
+		? tick_add_ifset(sc->sedesc->fsb, sc->ioto)
+		: TICK_ETERNITY);
+}
+
 static inline void sc_check_timeouts(const struct stconn *sc)
 {
-	if (likely(sc_rcv_may_expire(sc)) && unlikely(tick_is_expired(sc_ep_rcv_ex(sc), now_ms)))
+	if (unlikely(tick_is_expired(sc_ep_rcv_ex(sc), now_ms)))
 		sc_ic(sc)->flags |= CF_READ_TIMEOUT;
-	if (likely(sc_snd_may_expire(sc)) && unlikely(tick_is_expired(sc_ep_snd_ex(sc), now_ms)))
+	if (unlikely(tick_is_expired(sc_ep_snd_ex(sc), now_ms)))
 		sc_oc(sc)->flags |= CF_WRITE_TIMEOUT;
 }
 
