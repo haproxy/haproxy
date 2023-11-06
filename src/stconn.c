@@ -1146,6 +1146,8 @@ static void sc_notify(struct stconn *sc)
 		task->expire = tick_first(task->expire, oc->analyse_exp);
 		task->expire = tick_first(task->expire, __sc_strm(sc)->conn_exp);
 
+		/* WARNING: Don't forget to remove this BUG_ON before 2.9.0 */
+		BUG_ON(tick_is_expired(task->expire, now_ms));
 		task_queue(task);
 	}
 
