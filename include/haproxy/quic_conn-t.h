@@ -247,8 +247,7 @@ struct quic_connection_id {
 	uint tid;              /* Attached Thread ID for the connection. */
 };
 
-/* Flag the packet number space as having received a packet */
-#define QUIC_FL_PKTNS_PKT_RECEIVED  (1UL << 0)
+/* unused: 0x01 */
 /* Flag the packet number space as requiring an ACK frame to be sent. */
 #define QUIC_FL_PKTNS_ACK_REQUIRED  (1UL << 1)
 /* Flag the packet number space as needing probing */
@@ -394,7 +393,7 @@ struct quic_conn_cntrs {
 #define QUIC_FL_CONN_IO_TO_REQUEUE               (1U << 14) /* IO handler must be requeued on new thread after connection migration */
 #define QUIC_FL_CONN_IPKTNS_DCD                  (1U << 15) /* Initial packet number space discarded  */
 #define QUIC_FL_CONN_HPKTNS_DCD                  (1U << 16) /* Handshake packet number space discarded  */
-#define QUIC_FL_CONN_PEER_VALIDATED_ADDR         (1U << 17) /* Connection with peer validated address */
+#define QUIC_FL_CONN_PEER_VALIDATED_ADDR         (1U << 17) /* Peer address is considered as validated for this connection. */
 #define QUIC_FL_CONN_TO_KILL                     (1U << 24) /* Unusable connection, to be killed */
 #define QUIC_FL_CONN_TX_TP_RECEIVED              (1U << 25) /* Peer transport parameters have been received (used for the transmitting part) */
 #define QUIC_FL_CONN_FINALIZED                   (1U << 26) /* QUIC connection finalized (functional, ready to send/receive) */

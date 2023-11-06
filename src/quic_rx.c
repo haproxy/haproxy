@@ -1158,9 +1158,6 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		}
 	}
 
-	/* Flag this packet number space as having received a packet. */
-	qel->pktns->flags |= QUIC_FL_PKTNS_PKT_RECEIVED;
-
 	if (fast_retrans && qc->iel && qc->hel) {
 		struct quic_enc_level *iqel = qc->iel;
 		struct quic_enc_level *hqel = qc->hel;
@@ -1380,6 +1377,19 @@ int qc_treat_rx_pkts(struct quic_conn *qc)
 				}
 				else {
 					struct quic_arng ar = { .first = pkt->pn, .last = pkt->pn };
+
+					/* RFC 9000 8.1. Address Validation during Connection Establishment
+					 *
+					 * Connection establishment implicitly provides address validation for
+					 * both endpoints. In particular, receipt of a packet protected with
+					 * Handshake keys confirms that the peer successfully processed an
+					 * Initial packet.
+					 */
+					if (qel == qc->hel) {
+						TRACE_STATE("validate peer address on handshake packet",
+						            QUIC_EV_CONN_RXPKT, qc, pkt);
+						qc->flags |= QUIC_FL_CONN_PEER_VALIDATED_ADDR;
+					}
 
 					/* Update the list of ranges to acknowledge. */
 					if (quic_update_ack_ranges_list(qc, &qel->pktns->rx.arngs, &ar)) {

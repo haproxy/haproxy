@@ -151,9 +151,7 @@ int quic_peer_validated_addr(struct quic_conn *qc)
 	if (!qc_is_listener(qc))
 		return 1;
 
-	if ((qc->hpktns && (qc->hpktns->flags & QUIC_FL_PKTNS_PKT_RECEIVED)) ||
-	    (qc->apktns && (qc->apktns->flags & QUIC_FL_PKTNS_PKT_RECEIVED)) ||
-	    qc->state >= QUIC_HS_ST_COMPLETE)
+	if (qc->flags & QUIC_FL_CONN_PEER_VALIDATED_ADDR)
 		return 1;
 
 	BUG_ON(qc->bytes.prep > 3 * qc->bytes.rx);
@@ -845,8 +843,6 @@ static struct quic_cc_conn *qc_new_cc_conn(struct quic_conn *qc)
 	if (qc->fd >= 0)
 		fdtab[cc_qc->fd].owner = cc_qc;
 	cc_qc->flags = qc->flags;
-	if (quic_peer_validated_addr(qc))
-	    cc_qc->flags |= QUIC_FL_CONN_PEER_VALIDATED_ADDR;
 	cc_qc->err = qc->err;
 
 	cc_qc->nb_pkt_for_cc = qc->nb_pkt_for_cc;
@@ -1382,6 +1378,15 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 	LIST_APPEND(&th_ctx->quic_conns, &qc->el_th_ctx);
 	qc->qc_epoch = HA_ATOMIC_LOAD(&qc_epoch);
+
+	/* If connection is instantiated due to an INITIAL packet with an
+	 * already checked token, consider the peer address as validated.
+	 */
+	if (token_odcid->len) {
+		TRACE_STATE("validate peer address due to initial token",
+		            QUIC_EV_CONN_INIT, qc);
+		qc->flags |= QUIC_FL_CONN_PEER_VALIDATED_ADDR;
+	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
 
