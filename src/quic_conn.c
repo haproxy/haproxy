@@ -1573,6 +1573,10 @@ void qc_idle_timer_do_rearm(struct quic_conn *qc, int arm_ack)
 {
 	unsigned int expire;
 
+	/* It is possible the idle timer task has been already released. */
+	if (!qc->idle_timer_task)
+		return;
+
 	if (stopping && qc->flags & (QUIC_FL_CONN_CLOSING|QUIC_FL_CONN_DRAINING)) {
 		TRACE_PROTO("executing idle timer immediately on stopping", QUIC_EV_CONN_IDLE_TIMER, qc);
 		qc->ack_expire = TICK_ETERNITY;
@@ -1685,8 +1689,13 @@ struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 	if (qc->mux_state != QC_MUX_READY) {
 		quic_conn_release(qc);
 		qc = NULL;
-		t = NULL;
 	}
+	else {
+		task_destroy(t);
+		qc->idle_timer_task = NULL;
+	}
+
+	t = NULL;
 
 	/* TODO if the quic-conn cannot be freed because of the MUX, we may at
 	 * least clean some parts of it such as the tasklet.
