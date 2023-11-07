@@ -4424,7 +4424,7 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 	 */
 	if (!b_data(input) && !b_data(&h1c->obuf) && may_splice) {
 #if defined(USE_LINUX_SPLICE)
-		if (h1s->sd->iobuf.pipe || (pipes_used < global.maxpipes && (h1s->sd->iobuf.pipe = get_pipe()))) {
+		if (h1c->conn->xprt->snd_pipe && (h1s->sd->iobuf.pipe || (pipes_used < global.maxpipes && (h1s->sd->iobuf.pipe = get_pipe())))) {
 			h1s->sd->iobuf.offset = 0;
 			h1s->sd->iobuf.data = 0;
 			ret = count;
@@ -4585,7 +4585,7 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	if (h1m->state == H1_MSG_DATA && (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN)) &&  count > h1m->curr_len)
 		count = h1m->curr_len;
 
-	try = se_nego_ff(sdo, &h1c->ibuf, count, !!(flags & CO_RFL_MAY_SPLICE) && !(sdo->iobuf.flags & IOBUF_FL_NO_SPLICING));
+	try = se_nego_ff(sdo, &h1c->ibuf, count, h1c->conn->xprt->rcv_pipe && !!(flags & CO_RFL_MAY_SPLICE) && !(sdo->iobuf.flags & IOBUF_FL_NO_SPLICING));
 	if (b_room(&h1c->ibuf) && (h1c->flags & H1C_F_IN_FULL)) {
 		h1c->flags &= ~H1C_F_IN_FULL;
 		TRACE_STATE("h1c ibuf not full anymore", H1_EV_STRM_RECV|H1_EV_H1C_BLK);
