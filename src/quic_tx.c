@@ -2283,11 +2283,17 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		                   end - pos, &len_frms, pos - beg, qel, qc)) {
 			TRACE_PROTO("Not enough room", QUIC_EV_CONN_TXPKT,
 			            qc, NULL, NULL, &room);
+			if (padding) {
+				len_frms = 0;
+				goto comp_pkt_len;
+			}
+
 			if (!ack_frm_len && !qel->pktns->tx.pto_probe)
 				goto no_room;
 		}
 	}
 
+ comp_pkt_len:
 	/* Length (of the remaining data). Must not fail because, the buffer size
 	 * has been checked above. Note that we have reserved QUIC_TLS_TAG_LEN bytes
 	 * for the encryption tag. It must be taken into an account for the length
