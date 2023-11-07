@@ -173,8 +173,8 @@ static int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t 
 	BUG_ON(secret_len > QUIC_TLS_SECRET_LEN);
 
 	if (!*qel && !qc_enc_level_alloc(qc, pktns, qel, level)) {
-		TRACE_PROTO("Could not allocated an encryption level", QUIC_EV_CONN_ADDDATA, qc);
-		goto out;
+		TRACE_PROTO("Could not allocate an encryption level", QUIC_EV_CONN_ADDDATA, qc);
+		goto leave;
 	}
 
 	tls_ctx = &(*qel)->tls_ctx;
