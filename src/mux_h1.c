@@ -4720,6 +4720,11 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 
 
 	sdo->iobuf.flags &= ~IOBUF_FL_INTERIM_FF;
+	if (se_fl_test(h1s->sd, SE_FL_EOI)) {
+		sdo->iobuf.flags |= IOBUF_FL_EOI; /* TODO: it may be good to have a flag to be sure we can
+						   *       forward the EOI the to consumer side
+						   */
+	}
 	se_done_ff(sdo);
 
 	ret = total;

@@ -7041,21 +7041,8 @@ static size_t h2_done_ff(struct stconn *sc)
 		goto end;
 	head = b_peek(mbuf, b_data(mbuf) - sd->iobuf.data);
 
-	/* FIXME: Must be handled with a flag. It is just a temporary hack */
-	{
-		struct xref *peer;
-		struct sedesc *sdo;
-
-		peer = xref_get_peer_and_lock(&h2s->sd->xref);
-		if (!peer)
-			goto end;
-
-		sdo = container_of(peer, struct sedesc, xref);
-		xref_unlock(&h2s->sd->xref, peer);
-
-		if (se_fl_test(sdo, SE_FL_EOI))
-			h2s->flags &= ~H2_SF_MORE_HTX_DATA;
-	}
+	if (sd->iobuf.flags & IOBUF_FL_EOI)
+		h2s->flags &= ~H2_SF_MORE_HTX_DATA;
 
 	if (!(sd->iobuf.flags & IOBUF_FL_FF_BLOCKED) &&
 	    !(h2s->flags & H2_SF_BLK_SFCTL) &&

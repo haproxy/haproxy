@@ -37,6 +37,7 @@ enum iobuf_flags {
 	IOBUF_FL_INTERIM_FF       = 0x00000008, /* Producer side warn it will immediately retry a fast-forward.
 						 *  .done_fastfwd() on consumer side must take care of this flag
 						 */
+	IOBUF_FL_EOI              = 0x00000010, /* A EOI was encountered on producer side */
 };
 
 struct iobuf {
