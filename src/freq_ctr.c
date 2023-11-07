@@ -155,7 +155,7 @@ ullong freq_ctr_total(const struct freq_ctr *ctr, uint period, int pend)
  */
 int freq_ctr_overshoot_period(const struct freq_ctr *ctr, uint period, uint freq)
 {
-	uint curr, old_curr;
+	ullong curr, old_curr;
 	uint tick, old_tick;
 	int elapsed;
 
@@ -202,8 +202,8 @@ int freq_ctr_overshoot_period(const struct freq_ctr *ctr, uint period, uint freq
 	}
 
 	elapsed = HA_ATOMIC_LOAD(&global_now_ms) - tick;
-	if (unlikely(elapsed < 0)) {
-		/* The counter is in the future, there is no overshoot */
+	if (unlikely(elapsed < 0 || elapsed > period)) {
+		/* The counter is in the future or the elapsed time is higher than the period, there is no overshoot */
 		return 0;
 	}
 
