@@ -33,6 +33,10 @@ enum iobuf_flags {
 	IOBUF_FL_NO_FF            = 0x00000001, /* Fast-forwarding is not supported */
 	IOBUF_FL_NO_SPLICING      = 0x00000002, /* Splicing is not supported or unusable for this stream */
 	IOBUF_FL_FF_BLOCKED       = 0x00000004, /* Fast-forwarding is blocked (buffer allocation/full) */
+
+	IOBUF_FL_INTERIM_FF       = 0x00000008, /* Producer side warn it will immediately retry a fast-forward.
+						 *  .done_fastfwd() on consumer side must take care of this flag
+						 */
 };
 
 struct iobuf {

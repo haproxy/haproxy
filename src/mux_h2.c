@@ -6912,6 +6912,9 @@ static size_t h2_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 	/* If we were not just woken because we wanted to send but couldn't,
 	 * and there's somebody else that is waiting to send, do nothing,
 	 * we will subscribe later and be put at the end of the list
+	 *
+	 * WARNING: h2_done_ff() is responsible to remove H2_SF_NOTIFIED flags
+	 *          depending on iobuf flags.
 	 */
 	if (!(h2s->flags & H2_SF_NOTIFIED) &&
 	    (!LIST_ISEMPTY(&h2c->send_list) || !LIST_ISEMPTY(&h2c->fctl_list))) {
@@ -6924,7 +6927,6 @@ static size_t h2_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 		h2s->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
 		goto end;
 	}
-	h2s->flags &= ~H2_SF_NOTIFIED;
 
 	if (h2s_mws(h2s) <= 0) {
 		h2s->flags |= H2_SF_BLK_SFCTL;
@@ -7080,6 +7082,9 @@ static size_t h2_done_ff(struct stconn *sc)
 	sd->iobuf.buf = NULL;
 	sd->iobuf.offset = 0;
 	sd->iobuf.data = 0;
+
+	if (!(sd->iobuf.flags & IOBUF_FL_INTERIM_FF))
+	    h2s->flags &= ~H2_SF_NOTIFIED;
 
 	TRACE_LEAVE(H2_EV_H2S_SEND|H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
 	return total;

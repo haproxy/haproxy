@@ -4588,6 +4588,9 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 		goto out;
 	}
 
+  retry:
+	ret = 0;
+
 	if (h1m->state == H1_MSG_DATA && (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN)) &&  count > h1m->curr_len)
 		count = h1m->curr_len;
 
@@ -4603,7 +4606,7 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 		/* Fast forwading is not supported by the consumer */
 		h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_CANT_FASTFWD;
 		TRACE_DEVEL("Fast-forwarding not supported by opposite endpoint, disable it", H1_EV_STRM_RECV, h1c->conn, h1s);
-		goto end;
+		goto out;
 	}
 	if (sdo->iobuf.flags & IOBUF_FL_FF_BLOCKED) {
 		se_fl_set(h1s->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
@@ -4626,6 +4629,7 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 			goto end;
 		}
 		total += ret;
+		count -= ret;
 		if (!ret) {
 			TRACE_STATE("failed to receive data, subscribing", H1_EV_STRM_RECV, h1c->conn);
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
@@ -4642,16 +4646,30 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 		}
 		b_sub(sdo->iobuf.buf, sdo->iobuf.offset);
 		total += ret;
+		count -= ret;
 		sdo->iobuf.data += ret;
 	}
 
+	/* Till now, we forwarded less than a buffer, we can immediately retry
+	 * to fast-forward more data.  Instruct the consumer it is an interim
+	 * fast-forward. It is of course only possible if there is still data to
+	 * fast-forward (count > 0), if the previous attempt was a full success
+	 * (0 > ret == try) and if we are not splicing (iobuf.buf != NULL).
+	 */
+	if (ret > 0 && ret == try && count && sdo->iobuf.buf && total < b_size(sdo->iobuf.buf)) {
+		sdo->iobuf.flags |= IOBUF_FL_INTERIM_FF;
+		se_done_ff(sdo);
+		goto retry;
+	}
+
+ out:
 	if (h1m->state == H1_MSG_DATA && (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN))) {
 		if (total > h1m->curr_len) {
 			h1s->flags |= H1S_F_PARSING_ERROR;
 			se_fl_set(h1s->sd, SE_FL_ERROR);
 			TRACE_ERROR("too much payload, more than announced",
 				    H1_EV_STRM_RECV|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
-			goto out;
+			goto end;
 		}
 		h1m->curr_len -= total;
 		if (!h1m->curr_len) {
@@ -4677,17 +4695,6 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 		}
 	}
 
-	HA_ATOMIC_ADD(&h1c->px_counters->bytes_in, total);
-	ret = total;
-	se_done_ff(sdo);
-
-	if (sdo->iobuf.pipe) {
-		se_fl_set(h1s->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
-	}
-
-	TRACE_DEVEL("Data fast-forwarded", H1_EV_STRM_RECV, h1c->conn, h1s, 0, (size_t[]){ret});
-
- out:
 	if (conn_xprt_read0_pending(h1c->conn)) {
 		se_fl_set(h1s->sd, SE_FL_EOS);
 		TRACE_STATE("report EOS to SE", H1_EV_STRM_RECV, h1c->conn, h1s);
@@ -4711,7 +4718,19 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 		TRACE_DEVEL("connection error", H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 	}
 
+
+	sdo->iobuf.flags &= ~IOBUF_FL_INTERIM_FF;
+	se_done_ff(sdo);
+
+	ret = total;
+	HA_ATOMIC_ADD(&h1c->px_counters->bytes_in, total);
+
+	if (sdo->iobuf.pipe) {
+		se_fl_set(h1s->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
+	}
+
  end:
+
 	if (!(h1c->flags & H1C_F_WANT_FASTFWD)) {
 		TRACE_STATE("notify the mux can't use fast-forward anymore", H1_EV_STRM_RECV, h1c->conn, h1s);
 		se_fl_clr(h1s->sd, SE_FL_MAY_FASTFWD);
