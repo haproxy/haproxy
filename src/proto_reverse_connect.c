@@ -157,22 +157,32 @@ struct task *rev_process(struct task *task, void *ctx, unsigned int state)
 	struct connection *conn = l->rx.reverse_connect.pend_conn;
 
 	if (conn) {
-		if (conn->flags & CO_FL_ERROR) {
-			conn_stop_tracking(conn);
-			conn_xprt_shutw(conn);
-			conn_xprt_close(conn);
-			conn_sock_shutw(conn, 0);
-			conn_ctrl_close(conn);
+		/* Either connection is on error ot the connect timeout fired. */
+		if (conn->flags & CO_FL_ERROR || tick_is_expired(task->expire, now_ms)) {
+			/* If mux already instantiated, let it release the
+			 * connection along with its context. Else do cleanup
+			 * directly.
+			 */
+			if (conn->mux && conn->mux->destroy) {
+				conn->mux->destroy(conn->ctx);
+			}
+			else {
+				conn_stop_tracking(conn);
+				conn_xprt_shutw(conn);
+				conn_xprt_close(conn);
+				conn_sock_shutw(conn, 0);
+				conn_ctrl_close(conn);
 
-			if (conn->destroy_cb)
-				conn->destroy_cb(conn);
-			conn_free(conn);
+				if (conn->destroy_cb)
+					conn->destroy_cb(conn);
+				conn_free(conn);
+			}
 
 			/* conn_free() must report preconnect failure using rev_notify_preconn_err(). */
 			BUG_ON(l->rx.reverse_connect.pend_conn);
 		}
 		else {
-			/* Spurrious receiver task wake up when pend_conn is not ready/on error. */
+			/* Spurrious receiver task woken up despite pend_conn not ready/on error. */
 			BUG_ON(!(conn->flags & CO_FL_REVERSED));
 
 			/* A connection is ready to be accepted. */
@@ -181,16 +191,19 @@ struct task *rev_process(struct task *task, void *ctx, unsigned int state)
 		}
 	}
 	else {
+		struct server *srv = l->rx.reverse_connect.srv;
+
 		/* No pending reverse connection, prepare a new one. Store it in the
 		 * listener and return NULL. Connection will be returned later after
 		 * reversal is completed.
 		 */
-		conn = new_reverse_conn(l, l->rx.reverse_connect.srv);
+		conn = new_reverse_conn(l, srv);
 		l->rx.reverse_connect.pend_conn = conn;
 
 		/* On success task will be woken up by H2 mux after reversal. */
-		l->rx.reverse_connect.task->expire = conn ? TICK_ETERNITY :
-		                                            MS_TO_TICKS(now_ms + 1000);
+		l->rx.reverse_connect.task->expire = conn ?
+		  tick_add_ifset(now_ms, srv->proxy->timeout.connect) :
+		  MS_TO_TICKS(now_ms + 1000);
 	}
 
 	return task;
