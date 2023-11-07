@@ -573,6 +573,12 @@ static void h1_refresh_timeout(struct h1c *h1c)
 			h1c->task->expire = tick_add(now_ms, h1c->timeout);
 			TRACE_DEVEL("refreshing connection's timeout (pending outgoing data)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
 		}
+		else if (!(h1c->flags & H1C_F_IS_BACK) && (h1c->state == H1_CS_IDLE)) {
+			/* idle front connections. */
+			h1c->task->expire = (tick_isset(h1c->idle_exp) ? h1c->idle_exp : tick_add(now_ms, h1c->timeout));
+			TRACE_DEVEL("refreshing connection's timeout (idle front h1c)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
+			is_idle_conn = 1;
+		}
 		else if (!(h1c->flags & H1C_F_IS_BACK) && (h1c->state != H1_CS_RUNNING)) {
 			/* alive front connections waiting for a fully usable stream need a timeout. */
 			h1c->task->expire = tick_add(now_ms, h1c->timeout);
