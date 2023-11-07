@@ -256,12 +256,16 @@ struct stconn;
  * endpoint itself (mux/applet) and eventually creates a new sedesc (for
  * instance on connection retries).
  *
- * <lra> should be updated when a read activity is detected. It can be a
- *       successful receive, when a shutr is reported or when receives are
- *       unblocked.
+ * <lra> should be updated when a read activity at the endpoint level is
+ *       detected. It can be a successful receive or when a EOS/EOI is reported.
+ *       A read activity is also reported when receives are unblocked.
 
  * <fsb> should be updated when the first send of a series is blocked and reset
  *       when a successful send is reported.
+ *
+ *
+ * NOTE: <lra> and <fsb> must only be used via the SC api to compute read/write
+ *       expiration date.
  *
  */
 struct sedesc {
