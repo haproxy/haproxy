@@ -672,9 +672,14 @@ void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_hea
 
 	bucket = pool_tbucket();
 	ret = _HA_ATOMIC_LOAD(&pool->buckets[bucket].free_list);
+	count = 0;
 	do {
-		/* look for an apparently non-busy entry */
-		while (unlikely(ret == POOL_BUSY)) {
+		/* look for an apparently non-busy entry. If we hit a busy pool
+		 * we retry with another random bucket. And if we encounter a
+		 * NULL, we retry once with another random bucket. This is in
+		 * order to prevent object accumulation in other buckets.
+		 */
+		while (unlikely(ret == POOL_BUSY || (ret == NULL && count++ < 1))) {
 			bucket = statistical_prng() % CONFIG_HAP_POOL_BUCKETS;
 			ret = _HA_ATOMIC_LOAD(&pool->buckets[bucket].free_list);
 		}
