@@ -675,7 +675,7 @@ void pool_refill_local_from_shared(struct pool_head *pool, struct pool_cache_hea
 	do {
 		/* look for an apparently non-busy entry */
 		while (unlikely(ret == POOL_BUSY)) {
-			bucket = (bucket + 1) % CONFIG_HAP_POOL_BUCKETS;
+			bucket = statistical_prng() % CONFIG_HAP_POOL_BUCKETS;
 			ret = _HA_ATOMIC_LOAD(&pool->buckets[bucket].free_list);
 		}
 		if (ret == NULL)
