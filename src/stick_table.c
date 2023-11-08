@@ -4908,6 +4908,13 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 	switch (t->type) {
 	case SMP_T_IPV4:
 	case SMP_T_IPV6:
+		/* prefer input format over table type when parsing ip addresses,
+		 * then let smp_to_stkey() do the conversion for us when needed
+		 */
+		BUG_ON(!sample_casts[key.data.type][SMP_T_ADDR]);
+		if (!sample_casts[key.data.type][SMP_T_ADDR](&key))
+			return cli_err(appctx, "Invalid key\n");
+		break;
 	case SMP_T_SINT:
 	case SMP_T_STR:
 		break;
