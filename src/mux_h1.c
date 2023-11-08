@@ -4590,6 +4590,8 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 		h1c->flags &= ~H1C_F_IN_FULL;
 		TRACE_STATE("h1c ibuf not full anymore", H1_EV_STRM_RECV|H1_EV_H1C_BLK);
 	}
+	if (!b_data(&h1c->ibuf))
+		h1_release_buf(h1c, &h1c->ibuf);
 
 	if (sdo->iobuf.flags & IOBUF_FL_NO_FF) {
 		/* Fast forwading is not supported by the consumer */
