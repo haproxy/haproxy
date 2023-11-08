@@ -495,6 +495,9 @@ static int qc_prep_app_pkts(struct quic_conn *qc, struct buffer *buf,
 		pkt = qc_build_pkt(&pos, end, qel, &qel->tls_ctx, frms, qc, NULL, 0,
 		                   QUIC_PACKET_TYPE_SHORT, must_ack, 0, probe, cc, &err);
 		switch (err) {
+		case -3:
+			qc_purge_txbuf(qc, buf);
+			goto leave;
 		case -2:
 			// trace already emitted by function above
 			goto leave;
@@ -1127,6 +1130,9 @@ int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf, struct list *qels)
 			                       qc, ver, dglen, pkt_type,
 			                       must_ack, padding, probe, cc, &err);
 			switch (err) {
+				case -3:
+					qc_purge_tx_buf(qc, buf);
+					goto leave;
 				case -2:
 					// trace already emitted by function above
 					goto leave;
@@ -2472,8 +2478,8 @@ static inline void quic_tx_packet_init(struct quic_tx_packet *pkt, int type)
  * the end of this buffer, with <pkt_type> as packet type for <qc> QUIC connection
  * at <qel> encryption level with <frms> list of prebuilt frames.
  *
- * Return -2 if the packet could not be allocated or encrypted for any reason,
- * -1 if there was not enough room to build a packet.
+ * Return -3 if the packet could not be allocated, -2 if could not be encrypted for
+ * any reason, -1 if there was not enough room to build a packet.
  * XXX NOTE XXX
  * If you provide provide qc_build_pkt() with a big enough buffer to build a packet as big as
  * possible (to fill an MTU), the unique reason why this function may fail is the congestion
@@ -2502,7 +2508,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	pkt = pool_alloc(pool_head_quic_tx_packet);
 	if (!pkt) {
 		TRACE_DEVEL("Not enough memory for a new packet", QUIC_EV_CONN_TXPKT, qc);
-		*err = -2;
+		*err = -3;
 		goto err;
 	}
 
