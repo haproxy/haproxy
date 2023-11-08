@@ -4188,6 +4188,7 @@ init_proxies_list_stage2:
 				/* quic_conn are counted against maxconn. */
 				listener->bind_conf->options |= BC_O_XPRT_MAXCONN;
 				listener->rx.quic_curr_handshake = 0;
+				listener->rx.quic_curr_accept = 0;
 
 # ifdef USE_QUIC_OPENSSL_COMPAT
 				/* store the last checked bind_conf in bind_conf */

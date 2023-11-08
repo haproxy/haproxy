@@ -82,6 +82,7 @@ struct receiver {
 	struct mt_list rxbuf_list;       /* list of buffers to receive and dispatch QUIC datagrams. */
 	enum quic_sock_mode quic_mode;   /* QUIC socket allocation strategy */
 	unsigned int quic_curr_handshake; /* count of active QUIC handshakes */
+	unsigned int quic_curr_accept;   /* count of QUIC conns waiting for accept */
 #endif
 	struct {
 		struct task *task;  /* Task used to open connection for reverse. */

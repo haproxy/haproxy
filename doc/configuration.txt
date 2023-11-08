@@ -4659,10 +4659,11 @@ backlog <conns>
               system, it may represent the number of already acknowledged
               connections, of non-acknowledged ones, or both.
 
-  This option is both used for stream and datagram listeners.
+  This option is only meaningful for stream listeners, including QUIC ones. Its
+  behavior however is not identical with QUIC instances.
 
-  In order to protect against SYN flood attacks on a stream-based listener, one
-  solution is to increase the system's SYN backlog size. Depending on the
+  For all listeners but QUIC, in order to protect against SYN flood attacks,
+  one solution is to increase the system's SYN backlog size. Depending on the
   system, sometimes it is just tunable via a system parameter, sometimes it is
   not adjustable at all, and sometimes the system relies on hints given by the
   application at the time of the listen() syscall. By default, HAProxy passes
@@ -4674,10 +4675,14 @@ backlog <conns>
   used as a hint and the system accepts up to the smallest greater power of
   two, and never more than some limits (usually 32768).
 
-  When using a QUIC listener, this option has a similar albeit not quite
-  equivalent meaning. It will set the maximum number of connections waiting for
-  handshake completion. When this limit is reached, INITIAL packets are dropped
-  to prevent creation of a new QUIC connection.
+  For QUIC listeners, backlog sets a shared limits for both the maximum count
+  of active handshakes and connections waiting to be accepted. The handshake
+  phase relies primarily of the network latency with the remote peer, whereas
+  the second phase depends solely on haproxy load. When either one of this
+  limit is reached, haproxy starts to drop reception of INITIAL packets,
+  preventing any new connection allocation, until the connection excess starts
+  to decrease. This situation may cause browsers to silently downgrade the HTTP
+  versions and switching to TCP.
 
   See also : "maxconn" and the target operating system's tuning guide.
 

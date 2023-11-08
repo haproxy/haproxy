@@ -1966,6 +1966,13 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				goto out;
 			}
 
+			if (unlikely(HA_ATOMIC_LOAD(&l->rx.quic_curr_accept) >=
+			             quic_listener_max_accept(l))) {
+				TRACE_DATA("Drop INITIAL on max accept",
+				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+				goto out;
+			}
+
 			if (!pkt->token_len && !(l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) &&
 			    HA_ATOMIC_LOAD(&prx_counters->half_open_conn) >= global.tune.quic_retry_threshold) {
 				TRACE_PROTO("Initial without token, sending retry",

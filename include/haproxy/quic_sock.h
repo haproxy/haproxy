@@ -70,6 +70,7 @@ void qc_want_recv(struct quic_conn *qc);
 void quic_accept_push_qc(struct quic_conn *qc);
 
 int quic_listener_max_handshake(const struct listener *l);
+int quic_listener_max_accept(const struct listener *l);
 
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_QUIC_SOCK_H */

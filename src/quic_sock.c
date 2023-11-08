@@ -158,7 +158,15 @@ struct connection *quic_sock_accept_conn(struct listener *l, int *status)
 
  done:
 	*status = CO_AC_DONE;
-	return qc ? qc->conn : NULL;
+
+	if (qc) {
+		BUG_ON(l->rx.quic_curr_accept <= 0);
+		HA_ATOMIC_DEC(&l->rx.quic_curr_accept);
+		return qc->conn;
+	}
+	else {
+		return NULL;
+	}
 
  err:
 	/* in case of error reinsert the element to process it later. */
@@ -928,6 +936,7 @@ void quic_accept_push_qc(struct quic_conn *qc)
 		return;
 
 	BUG_ON(MT_LIST_INLIST(&qc->accept_list));
+	HA_ATOMIC_INC(&qc->li->rx.quic_curr_accept);
 
 	qc->flags |= QUIC_FL_CONN_ACCEPT_REGISTERED;
 	/* 1. insert the listener in the accept queue
@@ -967,12 +976,21 @@ struct task *quic_accept_run(struct task *t, void *ctx, unsigned int i)
 }
 
 /* Returns the maximum number of QUIC connections waiting for handshake to
- * complete in parallel on listener <l> instance. This reuses the listener
- * backlog value.
+ * complete in parallel on listener <l> instance. This is directly based on
+ * listener backlog value.
  */
 int quic_listener_max_handshake(const struct listener *l)
 {
-	return listener_backlog(l);
+	return listener_backlog(l) / 2;
+}
+
+/* Returns the value which is considered as the maximum number of QUIC
+ * connections waiting to be accepted for listener <l> instance. This is
+ * directly based on listener backlog value.
+ */
+int quic_listener_max_accept(const struct listener *l)
+{
+	return listener_backlog(l) / 2;
 }
 
 static int quic_alloc_accept_queues(void)

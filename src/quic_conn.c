@@ -1511,7 +1511,11 @@ void quic_conn_release(struct quic_conn *qc)
 	/* in the unlikely (but possible) case the connection was just added to
 	 * the accept_list we must delete it from there.
 	 */
-	MT_LIST_DELETE(&qc->accept_list);
+	if (MT_LIST_INLIST(&qc->accept_list)) {
+		MT_LIST_DELETE(&qc->accept_list);
+		BUG_ON(qc->li->rx.quic_curr_accept == 0);
+		HA_ATOMIC_DEC(&qc->li->rx.quic_curr_accept);
+	}
 
 	/* free remaining stream descriptors */
 	node = eb64_first(&qc->streams_by_id);
