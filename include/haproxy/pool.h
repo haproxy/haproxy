@@ -208,8 +208,8 @@ static inline uint pool_releasable(const struct pool_head *pool)
 
 	alloc = pool_allocated(pool);
 	used  = pool_used(pool);
-	if (used < alloc)
-		used = alloc;
+	if (used > alloc)
+		alloc = used;
 
 	needed_raw = pool_needed_avg(pool);
 	if (alloc < swrate_avg(needed_raw + needed_raw / 4, POOL_AVG_SAMPLES))
