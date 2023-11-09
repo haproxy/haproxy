@@ -864,7 +864,6 @@ static int sink_add_srv(struct sink *sink, struct server *srv)
 		return 0;
 	}
 	sink->sft = sft;
-	srv = srv->next;
 	return 1;
 }
 
