@@ -2375,7 +2375,8 @@ static void init(int argc, char **argv)
 
 		if (pr || px) {
 			/* At least one peer or one listener has been found */
-			qfprintf(stdout, "Configuration file is valid\n");
+			if (global.mode & MODE_VERBOSE)
+				qfprintf(stdout, "Configuration file is valid\n");
 			deinit_and_exit(0);
 		}
 		qfprintf(stdout, "Configuration file has no error but will not start (no listener) => exit(2).\n");
