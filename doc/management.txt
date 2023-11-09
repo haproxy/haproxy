@@ -420,9 +420,8 @@ list of options is :
     before entering the chroot jail, and after doing the chdir() implied by
     "-C". Each pid appears on its own line.
 
-  -q : set "quiet" mode. This disables some messages during the configuration
-    parsing and during startup. It can be used in combination with "-c" to
-    just check if a configuration file is valid or not.
+  -q : set "quiet" mode. This disables the output messages. It can be used in
+    combination with "-c" to just check if a configuration file is valid or not.
 
   -S <bind>[,bind_options...]: in master-worker mode, bind a master CLI, which
     allows the access to every processes, running or leaving ones.
