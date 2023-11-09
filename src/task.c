@@ -347,7 +347,7 @@ void wake_expired_tasks()
 		if (tick_is_expired(task->expire, now_ms)) {
 			/* expired task, wake it up */
 			__task_unlink_wq(task);
-			task_wakeup(task, TASK_WOKEN_TIMER);
+			_task_wakeup(task, TASK_WOKEN_TIMER, 0);
 		}
 		else if (task->expire != eb->key) {
 			/* task is not expired but its key doesn't match so let's
