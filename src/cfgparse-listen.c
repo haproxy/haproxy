@@ -2518,7 +2518,7 @@ stats_error_parsing:
 		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		sk = str2sa_range(args[1], NULL, &port1, &port2, NULL, NULL,
+		sk = str2sa_range(args[1], NULL, &port1, &port2, NULL, NULL, NULL,
 		                  &errmsg, NULL, NULL,
 		                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
 		if (!sk) {
@@ -2852,7 +2852,7 @@ stats_error_parsing:
 		ha_free(&curproxy->conn_src.iface_name);
 		curproxy->conn_src.iface_len = 0;
 
-		sk = str2sa_range(args[1], NULL, &port1, &port2, NULL, NULL,
+		sk = str2sa_range(args[1], NULL, &port1, &port2, NULL, NULL, NULL,
 		                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
 		if (!sk) {
 			ha_alert("parsing [%s:%d] : '%s %s' : %s\n",
@@ -2926,7 +2926,7 @@ stats_error_parsing:
 				} else {
 					struct sockaddr_storage *sk;
 
-					sk = str2sa_range(args[cur_arg + 1], NULL, &port1, &port2, NULL, NULL,
+					sk = str2sa_range(args[cur_arg + 1], NULL, &port1, &port2, NULL, NULL, NULL,
 					                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
 					if (!sk) {
 						ha_alert("parsing [%s:%d] : '%s %s' : %s\n",

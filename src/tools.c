@@ -947,13 +947,15 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
  * AF_CUST_EXISTING_FD.
  *
  * The matching protocol will be set into <proto> if non-null.
+ * The address protocol and transport types hints which are directly resolved
+ * will be set into <sa_type> if not NULL.
  *
  * Any known file descriptor is also assigned to <fd> if non-null, otherwise it
  * is forced to -1.
  */
 struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int *high, int *fd,
-                                      struct protocol **proto, char **err,
-                                      const char *pfx, char **fqdn, unsigned int opts)
+                                      struct protocol **proto, struct net_addr_type *sa_type,
+                                      char **err, const char *pfx, char **fqdn, unsigned int opts)
 {
 	static THREAD_LOCAL struct sockaddr_storage ss;
 	struct sockaddr_storage *ret = NULL;
@@ -963,8 +965,8 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	int portl, porth, porta;
 	int abstract = 0;
 	int new_fd = -1;
-	enum proto_type proto_type;
-	int ctrl_type;
+	enum proto_type proto_type = 0; // to shut gcc warning
+	int ctrl_type = 0; // to shut gcc warning
 
 	portl = porth = porta = 0;
 	if (fqdn)
@@ -1383,6 +1385,10 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		*fd = new_fd;
 	if (proto)
 		*proto = new_proto;
+	if (sa_type) {
+		sa_type->proto_type = proto_type;
+		sa_type->xprt_type = (ctrl_type == SOCK_DGRAM) ? PROTO_TYPE_DGRAM : PROTO_TYPE_STREAM;
+	}
 	free(back);
 	return ret;
 }
@@ -6018,7 +6024,7 @@ const char *hash_ipanon(uint32_t scramble, char *ipstring, int hasport)
 			sa = &ss;
 		}
 		else {
-			sa = str2sa_range(ipstring, NULL, NULL, NULL, NULL, NULL, &errmsg, NULL, NULL,
+			sa = str2sa_range(ipstring, NULL, NULL, NULL, NULL, NULL, NULL, &errmsg, NULL, NULL,
 					  PA_O_PORT_OK | PA_O_STREAM | PA_O_DGRAM | PA_O_XPRT | PA_O_CONNECT |
 					  PA_O_PORT_RANGE | PA_O_PORT_OFS | PA_O_RESOLVE);
 			if (sa == NULL) {

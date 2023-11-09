@@ -155,7 +155,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 			*next++ = 0;
 		}
 
-		ss2 = str2sa_range(str, NULL, &port, &end, &fd, &proto, err,
+		ss2 = str2sa_range(str, NULL, &port, &end, &fd, &proto, NULL, err,
 		                   (curproxy == global.cli_fe || curproxy == mworker_proxy) ? NULL : global.unix_bind.prefix,
 		                   NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
 		                          PA_O_SOCKET_FD | PA_O_STREAM | PA_O_XPRT);
@@ -241,7 +241,7 @@ int str2receiver(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 			*next++ = 0;
 		}
 
-		ss2 = str2sa_range(str, NULL, &port, &end, &fd, &proto, err,
+		ss2 = str2sa_range(str, NULL, &port, &end, &fd, &proto, NULL, err,
 		                   curproxy == global.cli_fe ? NULL : global.unix_bind.prefix,
 		                   NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
 		                          PA_O_SOCKET_FD | PA_O_DGRAM | PA_O_XPRT);
@@ -1178,7 +1178,7 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 
 		newmailer->id = strdup(args[1]);
 
-		sk = str2sa_range(args[2], NULL, &port1, &port2, NULL, &proto,
+		sk = str2sa_range(args[2], NULL, &port1, &port2, NULL, &proto, NULL,
 		                  &errmsg, NULL, NULL,
 		                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
 		if (!sk) {

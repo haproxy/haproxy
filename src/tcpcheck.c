@@ -2413,7 +2413,7 @@ struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct pr
 				goto error;
 			}
 
-			sk = str2sa_range(args[cur_arg+1], NULL, &port1, &port2, NULL, NULL,
+			sk = str2sa_range(args[cur_arg+1], NULL, &port1, &port2, NULL, NULL, NULL,
 			                  errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
 			if (!sk) {
 				memprintf(errmsg, "'%s' : %s.", args[cur_arg], *errmsg);

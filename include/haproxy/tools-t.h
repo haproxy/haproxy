@@ -157,4 +157,10 @@ struct net_addr {
 	} addr;
 };
 
+/* holds socket and xprt types for a given address */
+struct net_addr_type {
+	int proto_type; // socket layer
+	int xprt_type;  // transport layer
+};
+
 #endif /* _HAPROXY_TOOLS_T_H */
