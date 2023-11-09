@@ -4606,7 +4606,7 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 		/* Fast forwading is not supported by the consumer */
 		h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_CANT_FASTFWD;
 		TRACE_DEVEL("Fast-forwarding not supported by opposite endpoint, disable it", H1_EV_STRM_RECV, h1c->conn, h1s);
-		goto out;
+		goto end;
 	}
 	if (sdo->iobuf.flags & IOBUF_FL_FF_BLOCKED) {
 		se_fl_set(h1s->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
