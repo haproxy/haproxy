@@ -1947,11 +1947,6 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 	if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
 		BUG_ON(!pkt->version); /* This must not happen. */
 
-		if (pkt->token_len) {
-			if (!quic_retry_token_check(pkt, dgram, l, qc, &token_odcid))
-				goto err;
-		}
-
 		if (!qc) {
 			struct quic_cid_tree *tree;
 			struct ebmb_node *node;
@@ -1973,8 +1968,13 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				goto out;
 			}
 
-			if (!pkt->token_len && !(l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) &&
-			    HA_ATOMIC_LOAD(&prx_counters->half_open_conn) >= global.tune.quic_retry_threshold) {
+			if (pkt->token_len) {
+				/* Validate the token only when connection is unknown. */
+				if (!quic_retry_token_check(pkt, dgram, l, qc, &token_odcid))
+					goto err;
+			}
+			else if (!(l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) &&
+			         HA_ATOMIC_LOAD(&prx_counters->half_open_conn) >= global.tune.quic_retry_threshold) {
 				TRACE_PROTO("Initial without token, sending retry",
 				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
 				if (send_retry(l->rx.fd, &dgram->saddr, pkt, pkt->version)) {
