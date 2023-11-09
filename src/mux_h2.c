@@ -6077,6 +6077,15 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 
 	mbuf = br_tail(h2c->mbuf);
  retry:
+	if (br_count(h2c->mbuf) > h2c->nb_streams) {
+		/* more buffers than streams allocated, pointless
+		 * to continue, we'd use more RAM for no reason.
+		 */
+		h2s->flags |= H2_SF_BLK_MROOM;
+		TRACE_STATE("waiting for room in output buffer", H2_EV_TX_FRAME|H2_EV_TX_DATA|H2_EV_H2S_BLK, h2c->conn, h2s);
+		goto end;
+	}
+
 	if (!h2_get_buf(h2c, mbuf)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
