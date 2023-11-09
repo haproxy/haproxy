@@ -444,8 +444,7 @@ void ha_alert(const char *fmt, ...)
 {
 	va_list argp;
 
-	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE) ||
-	    !(global.mode & MODE_STARTING)) {
+	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
 		warn_exec_path();
 		va_start(argp, fmt);
 		print_message(1, "ALERT", fmt, argp);
@@ -463,8 +462,7 @@ void ha_warning(const char *fmt, ...)
 	warned |= WARN_ANY;
 	HA_ATOMIC_INC(&tot_warnings);
 
-	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE) ||
-	    !(global.mode & MODE_STARTING)) {
+	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
 		warn_exec_path();
 		va_start(argp, fmt);
 		print_message(1, "WARNING", fmt, argp);
@@ -515,8 +513,7 @@ void ha_notice(const char *fmt, ...)
 {
 	va_list argp;
 
-	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE) ||
-	    !(global.mode & MODE_STARTING)) {
+	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
 		va_start(argp, fmt);
 		print_message(1, "NOTICE", fmt, argp);
 		va_end(argp);
