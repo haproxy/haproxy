@@ -2401,7 +2401,7 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 
 	if (srv_tmpl) {
 		srv->addr = src->addr;
-		srv->addr_proto = src->addr_proto;
+		srv->addr_type = src->addr_type;
 		srv->svc_port = src->svc_port;
 	}
 
@@ -2830,47 +2830,39 @@ static int _srv_check_proxy_mode(struct server *srv, char postparse)
 	if (srv->conf.file)
 		set_usermsgs_ctx(srv->conf.file, srv->conf.line, NULL);
 
-	if (!srv->addr_proto) {
-		/* proto may not be set (ie: if srv_parse_init() was skipped or
-		 * SRV_PARSE_PARSE_ADDR was not set, in this case, we have nothing
-		 * to check
-		 */
+	if (!srv->proxy) {
+		/* proxy mode not known, cannot perform checks (ie: defaults section) */
 		goto out;
 	}
+
 	if (srv->proxy->mode == PR_MODE_SYSLOG) {
-		/* mode log enabled:
-		 * pre-resolve related log target from known infos
+		/* log backend server (belongs to proxy with mode log enabled):
+		 * perform some compatibility checks
 		 */
 
-		BUG_ON(srv->log_target);
-		srv->log_target = malloc(sizeof(*srv->log_target));
-		if (!srv->log_target) {
-			ha_alert("memory error when allocating log server\n");
+		/* supported address family types are:
+		 *   - ipv4
+		 *   - ipv6
+		 * (UNSPEC is supported because it means it will be resolved later)
+		 */
+		if (srv->addr.ss_family != AF_UNSPEC &&
+		    srv->addr.ss_family != AF_INET && srv->addr.ss_family != AF_INET6) {
+			ha_alert("log server address family not supported for log backend server.\n");
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		srv->log_target->addr = &srv->addr;
-		switch (srv->addr_proto->xprt_type) {
-			case PROTO_TYPE_DGRAM:
-				srv->log_target->type = LOG_TARGET_DGRAM;
-				break;
-			case PROTO_TYPE_STREAM:
-				/* for now BUFFER type only supports TCP server to it's almost
-				 * explicit. This will require ring buffer creation during log
-				 * postresolving step.
-				 */
-				srv->log_target->type = LOG_TARGET_BUFFER;
-				break;
-			default:
-				ha_alert("log server type not supported for log backend server.\n");
-				err_code |= ERR_ALERT | ERR_FATAL;
-				break;
+
+		/* only @tcp or @udp address forms (or equivalent) are supported */
+		if (!(srv->addr_type.xprt_type == PROTO_TYPE_DGRAM && srv->addr_type.proto_type == PROTO_TYPE_DGRAM) &&
+		    !(srv->addr_type.xprt_type == PROTO_TYPE_STREAM && srv->addr_type.proto_type == PROTO_TYPE_STREAM)) {
+			ha_alert("log server address type not supported for log backend server.\n");
+			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
 	else {
-		/* for now, only TCP expected as srv's proto for other uses */
-		if (srv->addr_proto->xprt_type != PROTO_TYPE_STREAM || !srv->addr_proto->connect) {
-			ha_alert("unsupported protocol for server address in '%s' backend.\n", proxy_mode_str(srv->proxy->mode));
+		/* for all other proxy modes: only TCP expected as srv's transport type for now */
+		if (srv->addr_type.xprt_type != PROTO_TYPE_STREAM) {
+			ha_alert("unsupported transport for server address in '%s' backend.\n", proxy_mode_str(srv->proxy->mode));
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
@@ -3006,7 +2998,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		if (!(parse_flags & SRV_PARSE_PARSE_ADDR))
 			goto skip_addr;
 
-		sk = str2sa_range(args[*cur_arg], &port, &port1, &port2, NULL, &newsrv->addr_proto, NULL,
+		sk = str2sa_range(args[*cur_arg], &port, &port1, &port2, NULL, NULL, &newsrv->addr_type,
 		                  &errmsg, NULL, &fqdn,
 		                  (parse_flags & SRV_PARSE_INITIAL_RESOLVE ? PA_O_RESOLVE : 0) | PA_O_PORT_OK |
 				  (parse_flags & SRV_PARSE_IN_PEER_SECTION ? PA_O_PORT_MAND : PA_O_PORT_OFS) |

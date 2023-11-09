@@ -41,6 +41,7 @@
 #include <haproxy/task-t.h>
 #include <haproxy/thread-t.h>
 #include <haproxy/event_hdl-t.h>
+#include <haproxy/tools-t.h>
 
 
 /* server states. Only SRV_ST_STOPPED indicates a down server. */
@@ -285,7 +286,7 @@ struct server {
 
 	struct proxy *proxy;			/* the proxy this server belongs to */
 	const struct mux_proto_list *mux_proto; /* the mux to use for all outgoing connections (specified by the "proto" keyword) */
-	struct protocol *addr_proto;            /* server side protocol used for haproxy<->server communication */
+	struct net_addr_type addr_type;         /* server address type (socket and transport hints) */
 	struct log_target *log_target;          /* when 'mode log' is enabled, target facility used to transport log messages */
 	unsigned maxconn, minconn;		/* max # of active sessions (0 = unlimited), min# for dynamic limit. */
 	struct srv_per_thread *per_thr;         /* array of per-thread stuff such as connections lists */

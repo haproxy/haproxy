@@ -971,8 +971,30 @@ static int postcheck_log_backend(struct proxy *be)
 	/* finish the initialization of proxy's servers */
 	srv = be->srv;
 	while (srv) {
+		BUG_ON(srv->log_target);
+		BUG_ON(srv->addr_type.proto_type != PROTO_TYPE_DGRAM &&
+		       srv->addr_type.proto_type != PROTO_TYPE_STREAM);
+
+		srv->log_target = malloc(sizeof(*srv->log_target));
+		if (!srv->log_target) {
+			memprintf(&msg, "memory error when allocating log server '%s'\n", srv->id);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
+		srv->log_target->addr = &srv->addr;
+		if (srv->addr_type.proto_type == PROTO_TYPE_DGRAM)
+			srv->log_target->type = LOG_TARGET_DGRAM;
+		else {
+			/* for now BUFFER type only supports TCP server to it's almost
+			 * explicit. This will require ring buffer creation during log
+			 * postresolving step.
+			 */
+			srv->log_target->type = LOG_TARGET_BUFFER;
+		}
+
 		if (target_type == -1)
 			target_type = srv->log_target->type;
+
 		if (target_type != srv->log_target->type) {
 			memprintf(&msg, "cannot mix server types within a log backend, '%s' srv's network type differs from previous server", srv->id);
 			err_code |= ERR_ALERT | ERR_FATAL;
