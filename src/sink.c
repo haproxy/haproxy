@@ -1223,7 +1223,7 @@ struct sink *sink_new_from_logger(struct logger *logger)
 	srv->conf.file = strdup(logger->conf.file);
 	srv->conf.line = logger->conf.line;
 	srv->addr = *logger->target.addr;
-        srv->svc_port = get_host_port(logger->target.addr);
+	srv->svc_port = get_host_port(logger->target.addr);
 	HA_SPIN_INIT(&srv->lock);
 
 	/* process per thread init */
