@@ -745,7 +745,7 @@ static inline void init_log_target(struct log_target *target)
 	target->resolv_name = NULL;
 }
 
-static void deinit_log_target(struct log_target *target)
+void deinit_log_target(struct log_target *target)
 {
 	ha_free(&target->addr);
 	if (!(target->flags & LOG_TARGET_FL_RESOLVED))
@@ -1054,15 +1054,33 @@ static int postcheck_log_backend(struct proxy *be)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto end;
 		}
-		srv->log_target->addr = &srv->addr;
-		if (srv->addr_type.proto_type == PROTO_TYPE_DGRAM)
+		init_log_target(srv->log_target);
+		if (srv->addr_type.proto_type == PROTO_TYPE_DGRAM) {
 			srv->log_target->type = LOG_TARGET_DGRAM;
+			/* Try to allocate log target addr (only used in DGRAM mode) */
+			srv->log_target->addr = calloc(1, sizeof(*srv->log_target->addr));
+			if (!srv->log_target->addr) {
+				memprintf(&msg, "memory error when allocating log server '%s'\n", srv->id);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto end;
+			}
+			/* We must initialize it with known addr:svc_port, it will then
+			 * be updated automatically by the server API for runtime changes
+			 */
+			ipcpy(&srv->addr, srv->log_target->addr);
+			set_host_port(srv->log_target->addr, srv->svc_port);
+		}
 		else {
 			/* for now BUFFER type only supports TCP server to it's almost
-			 * explicit. This will require ring buffer creation during log
-			 * postresolving step.
+			 * explicit
 			 */
 			srv->log_target->type = LOG_TARGET_BUFFER;
+			srv->log_target->sink = sink_new_from_srv(srv, "log backend");
+			if (!srv->log_target->sink) {
+				memprintf(&msg, "error when creating sink from '%s' log server", srv->id);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto end;
+			}
 		}
 
 		if (target_type == -1)
@@ -1073,14 +1091,7 @@ static int postcheck_log_backend(struct proxy *be)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto end;
 		}
-		if (target_type == LOG_TARGET_BUFFER) {
-			srv->log_target->sink = sink_new_from_srv(srv, "log backend");
-			if (!srv->log_target->sink) {
-				memprintf(&msg, "error when creating sink from '%s' log server", srv->id);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto end;
-			}
-		}
+		srv->log_target->flags |= LOG_TARGET_FL_RESOLVED;
 		srv->cur_eweight = 1; /* ignore weights, all servers have the same weight */
 		_log_backend_srv_queue(srv);
 		srv = srv->next;

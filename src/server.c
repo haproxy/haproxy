@@ -177,6 +177,11 @@ void _srv_set_inetaddr(struct server *srv, const struct sockaddr_storage *addr, 
 {
 	ipcpy(addr, &srv->addr);
 	srv->svc_port = svc_port;
+	if (srv->log_target && srv->log_target->type == LOG_TARGET_DGRAM) {
+		/* server is used as a log target, manually update log target addr for DGRAM */
+		ipcpy(addr, srv->log_target->addr);
+		set_host_port(srv->log_target->addr, svc_port);
+	}
 }
 
 /*
@@ -2819,7 +2824,10 @@ void srv_free_params(struct server *srv)
 	free(srv->resolvers_id);
 	free(srv->addr_node.key);
 	free(srv->lb_nodes);
-	free(srv->log_target);
+	if (srv->log_target) {
+		deinit_log_target(srv->log_target);
+		free(srv->log_target);
+	}
 
 	if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->destroy_srv)
 		xprt_get(XPRT_SSL)->destroy_srv(srv);

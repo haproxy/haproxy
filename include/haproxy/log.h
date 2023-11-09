@@ -91,6 +91,7 @@ int postresolve_logger_list(struct list *loggers, const char *section, const cha
 
 struct logger *dup_logger(struct logger *def);
 void free_logger(struct logger *logger);
+void deinit_log_target(struct log_target *target);
 
 /* Parse "log" keyword and update the linked list. */
 int parse_logger(char **args, struct list *loggers, int do_del, const char *file, int linenum, char **err);
