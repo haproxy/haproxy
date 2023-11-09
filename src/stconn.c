@@ -1135,19 +1135,20 @@ static void sc_notify(struct stconn *sc)
 		task_wakeup(task, TASK_WOKEN_IO);
 	}
 	else {
-		/* Update expiration date for the task and requeue it */
-		task->expire = (tick_is_expired(task->expire, now_ms) ? 0 : task->expire);
-		task->expire = tick_first(task->expire, sc_ep_rcv_ex(sc));
-		task->expire = tick_first(task->expire, sc_ep_snd_ex(sc));
-		task->expire = tick_first(task->expire, sc_ep_rcv_ex(sco));
-		task->expire = tick_first(task->expire, sc_ep_snd_ex(sco));
-		task->expire = tick_first(task->expire, ic->analyse_exp);
-		task->expire = tick_first(task->expire, oc->analyse_exp);
-		task->expire = tick_first(task->expire, __sc_strm(sc)->conn_exp);
+		/* Update expiration date for the task and requeue it if not already expired */
+		if (!tick_is_expired(task->expire, now_ms)) {
+			task->expire = tick_first(task->expire, sc_ep_rcv_ex(sc));
+			task->expire = tick_first(task->expire, sc_ep_snd_ex(sc));
+			task->expire = tick_first(task->expire, sc_ep_rcv_ex(sco));
+			task->expire = tick_first(task->expire, sc_ep_snd_ex(sco));
+			task->expire = tick_first(task->expire, ic->analyse_exp);
+			task->expire = tick_first(task->expire, oc->analyse_exp);
+			task->expire = tick_first(task->expire, __sc_strm(sc)->conn_exp);
 
-		/* WARNING: Don't forget to remove this BUG_ON before 2.9.0 */
-		BUG_ON(tick_is_expired(task->expire, now_ms));
-		task_queue(task);
+			/* WARNING: Don't forget to remove this BUG_ON before 2.9.0 */
+			BUG_ON(tick_is_expired(task->expire, now_ms));
+			task_queue(task);
+		}
 	}
 
 	if (ic->flags & CF_READ_EVENT)
