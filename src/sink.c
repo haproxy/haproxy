@@ -577,6 +577,8 @@ static int sink_forward_session_init(struct appctx *appctx)
 
 	if (!sockaddr_alloc(&addr, &sft->srv->addr, sizeof(sft->srv->addr)))
 		goto out_error;
+	/* srv port should be learned from srv->svc_port not from srv->addr */
+	set_host_port(addr, sft->srv->svc_port);
 
 	if (appctx_finalize_startup(appctx, sft->srv->proxy, &BUF_NULL) == -1)
 		goto out_free_addr;
