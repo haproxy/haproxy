@@ -209,11 +209,13 @@ static inline void _task_wakeup(struct task *t, unsigned int f, const struct ha_
 	state = _HA_ATOMIC_OR_FETCH(&t->state, f);
 	while (!(state & (TASK_RUNNING | TASK_QUEUED))) {
 		if (_HA_ATOMIC_CAS(&t->state, &state, state | TASK_QUEUED)) {
-			caller = HA_ATOMIC_XCHG(&t->caller, caller);
-			BUG_ON((ulong)caller & 1);
+			if (likely(caller)) {
+				caller = HA_ATOMIC_XCHG(&t->caller, caller);
+				BUG_ON((ulong)caller & 1);
 #ifdef DEBUG_TASK
-			HA_ATOMIC_STORE(&t->debug.prev_caller, caller);
+				HA_ATOMIC_STORE(&t->debug.prev_caller, caller);
 #endif
+			}
 			__task_wakeup(t);
 			break;
 		}
@@ -247,11 +249,13 @@ static inline void _task_drop_running(struct task *t, unsigned int f, const stru
 	}
 
 	if ((new_state & ~state) & TASK_QUEUED) {
-		caller = HA_ATOMIC_XCHG(&t->caller, caller);
-		BUG_ON((ulong)caller & 1);
+		if (likely(caller)) {
+			caller = HA_ATOMIC_XCHG(&t->caller, caller);
+			BUG_ON((ulong)caller & 1);
 #ifdef DEBUG_TASK
-		HA_ATOMIC_STORE(&t->debug.prev_caller, caller);
+			HA_ATOMIC_STORE(&t->debug.prev_caller, caller);
 #endif
+		}
 		__task_wakeup(t);
 	}
 }
@@ -370,11 +374,14 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const struct 
 	} while (!_HA_ATOMIC_CAS(&tl->state, &state, state | TASK_IN_LIST));
 
 	/* at this point we're the first ones to add this task to the list */
-	caller = HA_ATOMIC_XCHG(&tl->caller, caller);
-	BUG_ON((ulong)caller & 1);
+	if (likely(caller)) {
+		caller = HA_ATOMIC_XCHG(&tl->caller, caller);
+		BUG_ON((ulong)caller & 1);
 #ifdef DEBUG_TASK
-	HA_ATOMIC_STORE(&tl->debug.prev_caller, caller);
+		HA_ATOMIC_STORE(&tl->debug.prev_caller, caller);
 #endif
+	}
+
 	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
 		tl->wake_date = now_mono_time();
 	__tasklet_wakeup_on(tl, thr);
@@ -424,11 +431,14 @@ static inline void _task_instant_wakeup(struct task *t, unsigned int f, const st
 	BUG_ON_HOT(task_in_rq(t));
 
 	/* at this point we're the first ones to add this task to the list */
-	caller = HA_ATOMIC_XCHG(&t->caller, caller);
-	BUG_ON((ulong)caller & 1);
+	if (likely(caller)) {
+		caller = HA_ATOMIC_XCHG(&t->caller, caller);
+		BUG_ON((ulong)caller & 1);
 #ifdef DEBUG_TASK
-	HA_ATOMIC_STORE(&t->debug.prev_caller, caller);
+		HA_ATOMIC_STORE(&t->debug.prev_caller, caller);
 #endif
+	}
+
 	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
 		t->wake_date = now_mono_time();
 	__tasklet_wakeup_on((struct tasklet *)t, thr);
@@ -458,11 +468,14 @@ static inline struct list *_tasklet_wakeup_after(struct list *head, struct taskl
 	} while (!_HA_ATOMIC_CAS(&tl->state, &state, state | TASK_IN_LIST));
 
 	/* at this point we're the first one to add this task to the list */
-	caller = HA_ATOMIC_XCHG(&tl->caller, caller);
-	BUG_ON((ulong)caller & 1);
+	if (likely(caller)) {
+		caller = HA_ATOMIC_XCHG(&tl->caller, caller);
+		BUG_ON((ulong)caller & 1);
 #ifdef DEBUG_TASK
-	HA_ATOMIC_STORE(&tl->debug.prev_caller, caller);
+		HA_ATOMIC_STORE(&tl->debug.prev_caller, caller);
 #endif
+	}
+
 	if (th_ctx->flags & TH_FL_TASK_PROFILING)
 		tl->wake_date = now_mono_time();
 	return __tasklet_wakeup_after(head, tl);
