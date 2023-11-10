@@ -2063,10 +2063,7 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 	return qc;
 
  err:
-	if (qc)
-		qc->cntrs.dropped_pkt++;
-	else
-		HA_ATOMIC_INC(&prx_counters->dropped_pkt);
+	HA_ATOMIC_INC(&prx_counters->dropped_pkt);
 
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
 	return NULL;
