@@ -32,6 +32,7 @@ static struct event_hdl_sub_type_map event_hdl_sub_type_map[] = {
 	{"SERVER_STATE",        EVENT_HDL_SUB_SERVER_STATE},
 	{"SERVER_ADMIN",        EVENT_HDL_SUB_SERVER_ADMIN},
 	{"SERVER_CHECK",        EVENT_HDL_SUB_SERVER_CHECK},
+	{"SERVER_INETADDR",     EVENT_HDL_SUB_SERVER_INETADDR},
 };
 
 /* internal types (only used in this file) */

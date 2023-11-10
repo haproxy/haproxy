@@ -274,6 +274,8 @@ struct event_hdl_sub {
 #define EVENT_HDL_SUB_SERVER_ADMIN                      EVENT_HDL_SUB_TYPE(1,6)
 /* server check-related (agent or health) event */
 #define EVENT_HDL_SUB_SERVER_CHECK                      EVENT_HDL_SUB_TYPE(1,7)
+/* server inet addr (addr:svc_port tuple) change event */
+#define EVENT_HDL_SUB_SERVER_INETADDR                   EVENT_HDL_SUB_TYPE(1,8)
 
 /*	---------------------------------------        */
 

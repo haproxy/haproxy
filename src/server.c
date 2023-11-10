@@ -234,6 +234,54 @@ void _srv_event_hdl_prepare_state(struct event_hdl_cb_data_server_state *cb_data
 	}
 }
 
+/* Prepare SERVER_INETADDR event
+ *
+ * This special event will contain extra hints related to the addr change
+ *
+ */
+void _srv_event_hdl_prepare_inetaddr(struct event_hdl_cb_data_server_inetaddr *cb_data,
+                                     struct sockaddr_storage *prev_addr, unsigned int prev_port,
+                                     struct sockaddr_storage *next_addr, unsigned int next_port,
+                                     uint8_t purge_conn)
+{
+	/* only INET families are supported */
+	BUG_ON((prev_addr->ss_family != AF_UNSPEC &&
+	        prev_addr->ss_family != AF_INET && prev_addr->ss_family != AF_INET6) ||
+	       (next_addr->ss_family != AF_UNSPEC &&
+	        next_addr->ss_family != AF_INET && next_addr->ss_family != AF_INET6));
+
+	/* prev */
+	if (prev_addr->ss_family == AF_INET) {
+		cb_data->safe.prev.family = AF_INET;
+		cb_data->safe.prev.addr.v4.s_addr =
+			((struct sockaddr_in *)prev_addr)->sin_addr.s_addr;
+	}
+	else {
+		cb_data->safe.prev.family = AF_INET6;
+		memcpy(&cb_data->safe.prev.addr.v6.s6_addr,
+		       ((struct sockaddr_in6 *)prev_addr)->sin6_addr.s6_addr,
+		       sizeof(struct sockaddr_in6));
+	}
+	cb_data->safe.prev.svc_port = prev_port;
+
+	/* next */
+	if (next_addr->ss_family == AF_INET) {
+		cb_data->safe.next.family = AF_INET;
+		cb_data->safe.next.addr.v4.s_addr =
+			((struct sockaddr_in *)next_addr)->sin_addr.s_addr;
+	}
+	else {
+		cb_data->safe.next.family = AF_INET6;
+		memcpy(&cb_data->safe.next.addr.v6.s6_addr,
+		       ((struct sockaddr_in6 *)next_addr)->sin6_addr.s6_addr,
+		       sizeof(struct sockaddr_in6));
+	}
+
+	cb_data->safe.next.svc_port = next_port;
+
+	cb_data->safe.purge_conn = purge_conn;
+}
+
 /* server event publishing helper: publish in both global and
  * server dedicated subscription list.
  */
@@ -3465,6 +3513,12 @@ struct server *server_find_best_match(struct proxy *bk, char *name, int id, int 
  */
 int srv_update_addr(struct server *s, void *ip, int ip_sin_family, const char *updater)
 {
+	union {
+		struct event_hdl_cb_data_server_inetaddr addr;
+		struct event_hdl_cb_data_server common;
+	} cb_data;
+	struct sockaddr_storage new_addr;
+
 	/* save the new IP family & address if necessary */
 	switch (ip_sin_family) {
 	case AF_INET:
@@ -3523,16 +3577,25 @@ int srv_update_addr(struct server *s, void *ip, int ip_sin_family, const char *u
 	}
 
 	/* save the new IP family */
-	s->addr.ss_family = ip_sin_family;
+	new_addr.ss_family = ip_sin_family;
 	/* save the new IP address */
 	switch (ip_sin_family) {
 	case AF_INET:
-		memcpy(&((struct sockaddr_in *)&s->addr)->sin_addr.s_addr, ip, 4);
+		memcpy(&((struct sockaddr_in *)&new_addr)->sin_addr.s_addr, ip, 4);
 		break;
 	case AF_INET6:
-		memcpy(((struct sockaddr_in6 *)&s->addr)->sin6_addr.s6_addr, ip, 16);
+		memcpy(((struct sockaddr_in6 *)&new_addr)->sin6_addr.s6_addr, ip, 16);
 		break;
 	};
+
+	_srv_event_hdl_prepare(&cb_data.common, s, 0);
+	_srv_event_hdl_prepare_inetaddr(&cb_data.addr, &s->addr, s->svc_port, &new_addr, s->svc_port, 0);
+
+	/* apply the new IP address */
+	ipcpy(&new_addr, &s->addr);
+
+	_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_INETADDR, cb_data, s);
+
 	srv_set_dyncookie(s);
 	srv_set_addr_desc(s, 1);
 
@@ -3659,12 +3722,17 @@ out:
  */
 const char *srv_update_addr_port(struct server *s, const char *addr, const char *port, char *updater)
 {
+	union {
+		struct event_hdl_cb_data_server_inetaddr addr;
+		struct event_hdl_cb_data_server common;
+	} cb_data;
 	struct sockaddr_storage sa;
-	int ret, port_change_required;
+	int ret;
 	char current_addr[INET6_ADDRSTRLEN];
 	uint16_t current_port, new_port;
 	struct buffer *msg;
-	int changed = 0;
+	int ip_change = 0;
+	int port_change = 0;
 
 	msg = get_trash_chunk();
 	chunk_reset(msg);
@@ -3698,8 +3766,7 @@ const char *srv_update_addr_port(struct server *s, const char *addr, const char 
 			chunk_appendf(msg, "no need to change the addr");
 			goto port;
 		}
-		ipcpy(&sa, &s->addr);
-		changed = 1;
+		ip_change = 1;
 
 		/* update report for caller */
 		chunk_printf(msg, "IP changed from '%s' to '%s'", current_addr, addr);
@@ -3716,9 +3783,6 @@ const char *srv_update_addr_port(struct server *s, const char *addr, const char 
 		/* collecting data currently setup */
 		current_port = s->svc_port;
 
-		/* check if PORT change is required */
-		port_change_required = 0;
-
 		sign = *port;
 		errno = 0;
 		new_port = strtol(port, &endptr, 10);
@@ -3731,9 +3795,6 @@ const char *srv_update_addr_port(struct server *s, const char *addr, const char 
 		if (sign == '-' || (sign == '+')) {
 			/* check if server currently uses port map */
 			if (!(s->flags & SRV_F_MAPPORTS)) {
-				/* switch from fixed port to port map mandatorily triggers
-				 * a port change */
-				port_change_required = 1;
 				/* check is configured
 				 * we're switching from a fixed port to a SRV_F_MAPPORTS (mapped) port
 				 * prevent PORT change if check doesn't have it's dedicated port while switching
@@ -3742,22 +3803,23 @@ const char *srv_update_addr_port(struct server *s, const char *addr, const char 
 					chunk_appendf(msg, "can't change <port> to port map because it is incompatible with current health check port configuration (use 'port' statement from the 'server' directive.");
 					goto out;
 				}
+				/* switch from fixed port to port map mandatorily triggers
+				 * a port change */
+				port_change = 1;
 			}
 			/* we're already using port maps */
 			else {
-				port_change_required = current_port != new_port;
+				port_change = current_port != new_port;
 			}
 		}
 		/* fixed port */
 		else {
-			port_change_required = current_port != new_port;
+			port_change = current_port != new_port;
 		}
 
 		/* applying PORT changes if required and update response message */
-		if (port_change_required) {
-			/* apply new port */
-			s->svc_port = new_port;
-			changed = 1;
+		if (port_change) {
+			uint16_t new_port_print = new_port;
 
 			/* prepare message */
 			chunk_appendf(msg, "port changed from '");
@@ -3769,7 +3831,7 @@ const char *srv_update_addr_port(struct server *s, const char *addr, const char 
 				s->flags |= SRV_F_MAPPORTS;
 				chunk_appendf(msg, "%c", sign);
 				/* just use for result output */
-				new_port = -new_port;
+				new_port_print = -new_port_print;
 			}
 			else if (sign == '+') {
 				s->flags |= SRV_F_MAPPORTS;
@@ -3779,7 +3841,7 @@ const char *srv_update_addr_port(struct server *s, const char *addr, const char 
 				s->flags &= ~SRV_F_MAPPORTS;
 			}
 
-			chunk_appendf(msg, "%d'", new_port);
+			chunk_appendf(msg, "%d'", new_port_print);
 		}
 		else {
 			chunk_appendf(msg, "no need to change the port");
@@ -3787,7 +3849,26 @@ const char *srv_update_addr_port(struct server *s, const char *addr, const char 
 	}
 
 out:
-	if (changed) {
+	if (ip_change || port_change) {
+		_srv_event_hdl_prepare(&cb_data.common, s, 0);
+		_srv_event_hdl_prepare_inetaddr(&cb_data.addr, &s->addr, s->svc_port,
+		                                ((ip_change) ? &sa : &s->addr),
+		                                ((port_change) ? new_port : s->svc_port),
+		                                1);
+
+		if (ip_change) {
+			/* apply new ip */
+			ipcpy(&sa, &s->addr);
+		}
+
+
+		if (port_change) {
+			/* apply new port */
+			s->svc_port = new_port;
+		}
+
+		_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_INETADDR, cb_data, s);
+
 		/* force connection cleanup on the given server */
 		srv_cleanup_connections(s);
 		srv_set_dyncookie(s);

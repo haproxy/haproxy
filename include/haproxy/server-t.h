@@ -477,6 +477,7 @@ struct event_hdl_cb_data_server {
 	 *   EVENT_HDL_SUB_SERVER_STATE
 	 *   EVENT_HDL_SUB_SERVER_ADMIN
 	 *   EVENT_HDL_SUB_SERVER_CHECK
+	 *   EVENT_HDL_SUB_SERVER_INETADDR
 	 */
 	struct {
 		/* safe data can be safely used from both
@@ -594,6 +595,39 @@ struct event_hdl_cb_data_server_check {
 	struct {
 		struct check *ptr;                              /* check ptr */
 	} unsafe;
+};
+
+/* data provided to EVENT_HDL_SUB_SERVER_INETADDR handlers through
+ * event_hdl facility
+ *
+ * Note that this may be casted to regular event_hdl_cb_data_server if
+ * you don't care about inetaddr related optional info
+ */
+struct event_hdl_cb_data_server_inetaddr {
+	/* provided by:
+	 *   EVENT_HDL_SUB_SERVER_INETADDR
+	 */
+	struct event_hdl_cb_data_server server;                 /* must be at the beginning */
+	struct {
+		struct  {
+			int family; /* AF_INET or AF_INET6 */
+			union {
+				struct in_addr v4;
+				struct in6_addr v6;
+			} addr; /* may hold v4 or v6 addr */
+			unsigned int svc_port;
+		} prev;
+		struct {
+			int family; /* AF_INET or AF_INET6 */
+			union {
+				struct in_addr v4;
+				struct in6_addr v6;
+			} addr; /* may hold v4 or v6 addr */
+			unsigned int svc_port;
+		} next;
+		uint8_t purge_conn; /* set to 1 if the network change will force a connection cleanup */
+	} safe;
+	/* no unsafe data */
 };
 
 /* Storage structure to load server-state lines from a flat file into
