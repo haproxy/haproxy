@@ -16952,11 +16952,11 @@ tfo
   "empty-response" and "response-timeout" keywords for "retry-on", or HAProxy
   won't be able to retry the connection on failure. See also "no-tfo".
 
-track [<proxy>/]<server>
+track [<backend>/]<server>
   This option enables ability to set the current state of the server by tracking
   another one. It is possible to track a server which itself tracks another
   server, provided that at the end of the chain, a server has health checks
-  enabled. If <proxy> is omitted the current one is used. If disable-on-404 is
+  enabled. If <backend> is omitted the current one is used. If disable-on-404 is
   used, it has to be enabled on both proxies.
 
 tls-tickets
