@@ -2724,28 +2724,29 @@ static int sample_conv_bytes(const struct arg *arg_p, struct sample *smp, void *
 
 	// determine the start_idx and length of the output
 	smp_set_owner(&smp_arg0, smp->px, smp->sess, smp->strm, smp->opt);
-	if (!sample_conv_var2smp_sint(&arg_p[0], &smp_arg0)) {
-		smp->data.u.str.data = 0;
-		return 0;
+	if (!sample_conv_var2smp_sint(&arg_p[0], &smp_arg0) || smp_arg0.data.u.sint < 0) {
+		/* invalid or negative value */
+		goto fail;
 	}
-	if (smp_arg0.data.u.sint < 0 || (smp_arg0.data.u.sint >= smp->data.u.str.data)) {
-		// empty output if the arg0 value is negative or >= the input length
-		smp->data.u.str.data = 0;
-		return 0;
+
+	if (smp_arg0.data.u.sint >= smp->data.u.str.data) {
+		// arg0 >= the input length
+		if (smp->opt & SMP_OPT_FINAL) {
+			// empty output value on final smp
+			smp->data.u.str.data = 0;
+			goto end;
+		}
+		goto wait;
 	}
 	start_idx = smp_arg0.data.u.sint;
 
 	// length comes from arg1 if present, otherwise it's the remaining length
+	length = smp->data.u.str.data - start_idx;
 	if (arg_p[1].type != ARGT_STOP) {
 		smp_set_owner(&smp_arg1, smp->px, smp->sess, smp->strm, smp->opt);
-		if (!sample_conv_var2smp_sint(&arg_p[1], &smp_arg1)) {
-			smp->data.u.str.data = 0;
-			return 0;
-		}
-		if (smp_arg1.data.u.sint < 0) {
-			// empty output if the arg1 value is negative
-			smp->data.u.str.data = 0;
-			return 0;
+		if (!sample_conv_var2smp_sint(&arg_p[1], &smp_arg1) || smp_arg1.data.u.sint < 0) {
+			// invalid or negative value
+			goto fail;
 		}
 
 		if (smp_arg1.data.u.sint > (smp->data.u.str.data - start_idx)) {
@@ -2753,22 +2754,25 @@ static int sample_conv_bytes(const struct arg *arg_p, struct sample *smp, void *
 			if (smp->opt & SMP_OPT_FINAL) {
 				// truncate to remaining length
 				length = smp->data.u.str.data - start_idx;
-			} else {
-				smp->data.u.str.data = 0;
-				return 0;
+				goto end;
 			}
-		} else {
-			length = smp_arg1.data.u.sint;
+			goto wait;
 		}
-	} else {
-		length = smp->data.u.str.data - start_idx;
+		length = smp_arg1.data.u.sint;
 	}
 
 	// update the output using the start_idx and length
 	smp->data.u.str.area += start_idx;
 	smp->data.u.str.data = length;
 
+  end:
 	return 1;
+
+  fail:
+	smp->flags &= ~SMP_F_MAY_CHANGE;
+  wait:
+	smp->data.u.str.data = 0;
+	return 0;
 }
 
 static int sample_conv_field_check(struct arg *args, struct sample_conv *conv,
