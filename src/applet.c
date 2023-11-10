@@ -360,6 +360,9 @@ void appctx_shut(struct appctx *appctx)
 	if (appctx->applet->release)
 		appctx->applet->release(appctx);
 
+	if (LIST_INLIST(&appctx->buffer_wait.list))
+		LIST_DEL_INIT(&appctx->buffer_wait.list);
+
 	se_fl_set(appctx->sedesc, SE_FL_SHRR | SE_FL_SHWN);
 	TRACE_LEAVE(APPLET_EV_RELEASE, appctx);
 }
