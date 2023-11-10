@@ -634,24 +634,16 @@ int qc_ssl_provide_all_quic_data(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 {
 	int ret = 0;
 	struct quic_enc_level *qel;
+	struct ncbuf ncbuf = NCBUF_NULL;
 
 	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
 	list_for_each_entry(qel, &qc->qel_list, list) {
 		int ssl_ret;
-		struct quic_cstream *cstream = qel->cstream;
-		struct ncbuf *ncbuf;
 		struct qf_crypto *qf_crypto, *qf_back;
 
-		if (!qel->cstream) {
-			TRACE_DEVEL("no cstream", QUIC_EV_CONN_PHPKTS, qc, qel);
-			continue;
-		}
-
 		ssl_ret = 1;
-		ncbuf = &cstream->rx.ncbuf;
 		list_for_each_entry_safe(qf_crypto, qf_back, &qel->rx.crypto_frms, list) {
-
-			ssl_ret = qc_ssl_provide_quic_data(ncbuf, qel->level, ctx,
+			ssl_ret = qc_ssl_provide_quic_data(&ncbuf, qel->level, ctx,
 			                                   qf_crypto->data, qf_crypto->len);
 			/* Free this frame asap */
 			LIST_DELETE(&qf_crypto->list);
