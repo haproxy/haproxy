@@ -782,7 +782,7 @@ extern int v6tov4(struct in_addr *sin_addr, struct in6_addr *sin6_addr);
  *  1 (false) if the addr is not the same in both
  *  -1 (unable) if one of the addr is not AF_INET*
  */
-int ipcmp(struct sockaddr_storage *ss1, struct sockaddr_storage *ss2, int check_port);
+int ipcmp(const struct sockaddr_storage *ss1, const struct sockaddr_storage *ss2, int check_port);
 
 /* compare a struct sockaddr_storage to a struct net_addr and return :
  *  0 (true)  if <addr> is matching <net>
@@ -795,7 +795,7 @@ int ipcmp2net(const struct sockaddr_storage *addr, const struct net_addr *net);
  * the caller must clear <dest> before calling.
  * Returns a pointer to the destination
  */
-struct sockaddr_storage *ipcpy(struct sockaddr_storage *source, struct sockaddr_storage *dest);
+struct sockaddr_storage *ipcpy(const struct sockaddr_storage *source, struct sockaddr_storage *dest);
 
 char *human_time(int t, short hz_div);
 
