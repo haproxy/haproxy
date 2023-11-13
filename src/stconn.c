@@ -1327,7 +1327,10 @@ static int sc_conn_recv(struct stconn *sc)
 	}
 
 	/* Instruct the mux it must subscribed for read events */
-	flags |= ((!conn_is_back(conn) && (__sc_strm(sc)->be->options & PR_O_ABRT_CLOSE)) ? CO_RFL_KEEP_RECV : 0);
+	if (!conn_is_back(conn) &&                                 /* for frontend conns only */
+	    (sc_opposite(sc)->state != SC_ST_INI) &&               /* before backend connection setup */
+	    (__sc_strm(sc)->be->options & PR_O_ABRT_CLOSE))        /* if abortonclose option is set for the current backend */
+		flags |= CO_RFL_KEEP_RECV;
 
 	/* Important note : if we're called with POLL_IN|POLL_HUP, it means the read polling
 	 * was enabled, which implies that the recv buffer was not full. So we have a guarantee
