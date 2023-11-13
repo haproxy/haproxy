@@ -127,7 +127,7 @@ haproxy h13 -conf-BAD {} {
         bind "fd@${feh10}"
 }
 
-haproxy h14 -conf-OK {
+haproxy h14 -arg -V -conf-OK {
     defaults tcp
         tcp-response inspect-delay 5s
         tcp-response content accept
@@ -162,7 +162,7 @@ haproxy h16 -conf-BAD {} {
         server www 127.0.0.1:80
 }
 
-haproxy h17 -conf-OK {
+haproxy h17 -arg -V -conf-OK {
     defaults common
         mode http
 
