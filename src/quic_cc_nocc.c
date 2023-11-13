@@ -9,14 +9,12 @@
 #include <haproxy/quic_trace.h>
 #include <haproxy/trace.h>
 
-unsigned int quic_cc_nocc_fixed_cwnd;
-
 static int quic_cc_nocc_init(struct quic_cc *cc)
 {
 	struct quic_path *path;
 
 	path = container_of(cc, struct quic_path, cc);
-	path->cwnd = quic_cc_nocc_fixed_cwnd << 10;
+	path->cwnd = path->max_cwnd;
 	return 1;
 }
 

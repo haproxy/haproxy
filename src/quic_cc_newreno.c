@@ -87,6 +87,7 @@ static void quic_cc_nr_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
 		path->cwnd += ev->ack.acked;
+		path->cwnd = QUIC_MIN(path->max_cwnd, path->cwnd);
 		path->mcwnd = QUIC_MAX(path->cwnd, path->mcwnd);
 		/* Exit to congestion avoidance if slow start threshold is reached. */
 		if (path->cwnd > nr->ssthresh)
@@ -124,6 +125,7 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		acked = ev->ack.acked * path->mtu + nr->remain_acked;
 		nr->remain_acked = acked % path->cwnd;
 		path->cwnd += acked / path->cwnd;
+		path->cwnd = QUIC_MIN(path->max_cwnd, path->cwnd);
 		path->mcwnd = QUIC_MAX(path->cwnd, path->mcwnd);
 		break;
 	}

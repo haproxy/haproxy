@@ -39,7 +39,6 @@ extern struct quic_cc_algo *default_quic_cc_algo;
 
 /* Fake algorithm with its fixed window */
 extern struct quic_cc_algo quic_cc_algo_nocc;
-extern unsigned int quic_cc_nocc_fixed_cwnd;
 
 extern unsigned long long last_ts;
 

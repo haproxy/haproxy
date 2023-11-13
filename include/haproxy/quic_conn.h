@@ -458,7 +458,7 @@ static inline uint64_t quic_compute_ack_delay_us(unsigned int time_received,
 /* Initialize <p> QUIC network path depending on <ipv4> boolean
  * which is true for an IPv4 path, if not false for an IPv6 path.
  */
-static inline void quic_path_init(struct quic_path *path, int ipv4,
+static inline void quic_path_init(struct quic_path *path, int ipv4, unsigned long max_cwnd,
                                   struct quic_cc_algo *algo, struct quic_conn *qc)
 {
 	unsigned int max_dgram_sz;
@@ -468,6 +468,7 @@ static inline void quic_path_init(struct quic_path *path, int ipv4,
 	path->mtu = max_dgram_sz;
 	path->cwnd = QUIC_MIN(10 * max_dgram_sz, QUIC_MAX(max_dgram_sz << 1, 14720U));
 	path->mcwnd = path->cwnd;
+	path->max_cwnd = max_cwnd;
 	path->min_cwnd = max_dgram_sz << 1;
 	path->prep_in_flight = 0;
 	path->in_flight = 0;
