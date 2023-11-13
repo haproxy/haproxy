@@ -213,7 +213,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	if (!last_defproxy) {
 		/* we need a default proxy and none was created yet */
 		last_defproxy = alloc_new_proxy("", PR_CAP_DEF|PR_CAP_LISTEN, &errmsg);
-		proxy_preset_defaults(last_defproxy);
 
 		curr_defproxy = last_defproxy;
 		if (!last_defproxy) {

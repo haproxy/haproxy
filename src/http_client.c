@@ -1213,8 +1213,6 @@ struct proxy *httpclient_create_proxy(const char *id)
 		goto err;
 	}
 
-	proxy_preset_defaults(px);
-
 	px->options |= PR_O_WREQ_BODY;
 	px->retry_type |= PR_RE_CONN_FAILED | PR_RE_DISCONNECTED | PR_RE_TIMEOUT;
 	px->options2 |= PR_O2_INDEPSTR;

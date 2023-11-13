@@ -13877,7 +13877,6 @@ void hlua_init(void) {
 		fprintf(stderr, "Lua init: %s\n", errmsg);
 		exit(1);
 	}
-	proxy_preset_defaults(socket_proxy);
 
 	/* Init TCP server: unchanged parameters */
 	socket_tcp = new_server(socket_proxy);
