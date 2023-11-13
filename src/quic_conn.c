@@ -828,6 +828,8 @@ static struct quic_cc_conn *qc_new_cc_conn(struct quic_conn *qc)
 
 	quic_conn_mv_cids_to_cc_conn(cc_qc, qc);
 
+	qc_init_fd((struct quic_conn *)cc_qc);
+
 	cc_qc->flags = qc->flags;
 	cc_qc->err = qc->err;
 
