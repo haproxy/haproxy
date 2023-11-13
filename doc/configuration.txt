@@ -2906,7 +2906,7 @@ tune.disable-fast-forward [ EXPERIMENTAL ]
   that "expose-experimental-directives" must appear on a line before this
   directive.
 
-tune.zero-copy-forwarding
+tune.disable-zero-copy-forwarding
   Disables the zero-copy forwarding of data. It is a mechanism to optimize the
   data fast-forwarding by avoiding to use the channel's buffer. Thanks to this
   directive, it is possible to disable this optimization. Note it also disable
