@@ -1174,7 +1174,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 {
 	int i;
 	struct quic_conn *qc = NULL;
-	struct listener *l = NULL;
+	struct listener *l = server ? owner : NULL;
 	struct quic_cc_algo *cc_algo = NULL;
 	unsigned int next_actconn = 0, next_sslconn = 0, next_handshake = 0;
 
@@ -1194,7 +1194,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	}
 
 	if (server) {
-		next_handshake = quic_increment_curr_handshake(owner);
+		next_handshake = quic_increment_curr_handshake(l);
 		if (!next_handshake) {
 			TRACE_STATE("max handshake reached", QUIC_EV_CONN_INIT);
 			goto err;
@@ -1264,7 +1264,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	if (server) {
 		struct proxy *prx;
 
-		l = owner;
 		prx = l->bind_conf->frontend;
 		cc_algo = l->bind_conf->quic_cc_algo;
 
