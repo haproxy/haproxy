@@ -15587,11 +15587,20 @@ proto <name>
   h2" on the bind line.
 
 quic-cc-algo { cubic | newreno }
+quic-cc-algo { cubic | newreno }(max_window)
   This is a QUIC specific setting to select the congestion control algorithm
   for any connection attempts to the configured QUIC listeners. They are similar
-  to those used by TCP.
+  to those used by TCP. An optional value in bytes may be used to specify the
+  maximum window size. It must be greater than 1k and smaller than 4g.
 
   Default value: cubic
+  Default window value: tune.quic.frontend.conn-tx-buffers.limit * tune.bufsize
+
+  Example:
+      # newreno congestion control algorithm
+      quic-cc-algo newreno
+      # cubic congestion control algorithm with one megabytes as window
+      quic-cc-algo cubic(1m)
 
 quic-force-retry
   This is a QUIC specific setting which forces the use of the QUIC Retry feature
