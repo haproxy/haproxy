@@ -638,30 +638,28 @@ int qc_ssl_provide_all_quic_data(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 
 	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
 	list_for_each_entry(qel, &qc->qel_list, list) {
-		int ssl_ret;
 		struct qf_crypto *qf_crypto, *qf_back;
 
-		ssl_ret = 1;
 		list_for_each_entry_safe(qf_crypto, qf_back, &qel->rx.crypto_frms, list) {
-			ssl_ret = qc_ssl_provide_quic_data(&ncbuf, qel->level, ctx,
-			                                   qf_crypto->data, qf_crypto->len);
+			const unsigned char *crypto_data = qf_crypto->data;
+			size_t crypto_len = qf_crypto->len;
+
 			/* Free this frame asap */
 			LIST_DELETE(&qf_crypto->list);
 			pool_free(pool_head_qf_crypto, qf_crypto);
 
-			if (!ssl_ret) {
-				TRACE_DEVEL("null ssl_ret", QUIC_EV_CONN_PHPKTS, qc, qel);
-				break;
-			}
+			if (!qc_ssl_provide_quic_data(&ncbuf, qel->level, ctx,
+			                              crypto_data, crypto_len))
+				goto leave;
 
 			TRACE_DEVEL("buffered crypto data were provided to TLS stack",
 						QUIC_EV_CONN_PHPKTS, qc, qel);
 		}
 
-		if (!qc_treat_rx_crypto_frms(qc, qel, ctx))
-			ssl_ret = 0;
+		if (!qel->cstream)
+			continue;
 
-		if (!ssl_ret)
+		if (!qc_treat_rx_crypto_frms(qc, qel, ctx))
 			goto leave;
 	}
 
