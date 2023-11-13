@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <string.h>
 
 #include <haproxy/api.h>
@@ -20,34 +21,89 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
                                    struct bind_conf *conf, char **err)
 {
 	struct quic_cc_algo *cc_algo;
+	const char *newreno = "newrno";
+	const char *cubic = "cubic";
+	const char *nocc = "nocc";
+	const char *algo = NULL;
 	char *arg;
 
 	if (!*args[cur_arg + 1]) {
 		memprintf(err, "'%s' : missing control congestion algorithm", args[cur_arg]);
-		return ERR_ALERT | ERR_FATAL;
+		goto fail;
 	}
 
 	arg = args[cur_arg + 1];
-	if (strcmp(arg, "newreno") == 0)
-	    cc_algo = &quic_cc_algo_nr;
-	else if (strcmp(arg, "cubic") == 0)
-	    cc_algo = &quic_cc_algo_cubic;
-	else if (strlen(arg) >= 6 && strncmp(arg, "nocc-", 5) == 0) {
+	if (strncmp(arg, newreno, strlen(newreno)) == 0) {
+		/* newreno */
+		algo = newreno;
+		cc_algo = &quic_cc_algo_nr;
+		arg += strlen(newreno);
+	}
+	else if (strncmp(arg, cubic, strlen(cubic)) == 0) {
+		/* cubic */
+		algo = cubic;
+		cc_algo = &quic_cc_algo_cubic;
+		arg += strlen(cubic);
+	}
+	else if (strncmp(arg, nocc, strlen(nocc)) == 0) {
+		/* nocc */
 		if (!experimental_directives_allowed) {
-			ha_alert("'%s' algo is experimental, must be allowed via a global 'expose-experimental-directives'\n", arg);
-			return ERR_ALERT | ERR_FATAL;
+			ha_alert("'%s' algo is experimental, must be allowed via a global "
+			         "'expose-experimental-directives'\n", arg);
+			goto fail;
 		}
 
-	    cc_algo = &quic_cc_algo_nocc;
-	    quic_cc_nocc_fixed_cwnd = atoi(arg + 5);
+		algo = nocc;
+		cc_algo = &quic_cc_algo_nocc;
+		arg += strlen(nocc);
 	}
 	else {
-		memprintf(err, "'%s' : unknown control congestion algorithm", args[cur_arg]);
-		return ERR_ALERT | ERR_FATAL;
+		memprintf(err, "'%s' : unknown control congestion algorithm", args[cur_arg + 1]);
+		goto fail;
+	}
+
+	if (*arg++ == '(') {
+		unsigned long cwnd;
+		char *end_opt;
+
+		errno = 0;
+		cwnd = strtoul(arg, &end_opt, 0);
+		if (end_opt == arg || errno != 0) {
+			memprintf(err, "'%s' : could not parse congestion window value", args[cur_arg + 1]);
+			goto fail;
+		}
+
+		if (*end_opt == 'k') {
+			cwnd <<= 10;
+			end_opt++;
+		}
+		else if (*end_opt == 'm') {
+			cwnd <<= 20;
+			end_opt++;
+		}
+		else if (*end_opt == 'g') {
+			memprintf(err, "'%s' : should be smaller than 1g", args[cur_arg + 1]);
+			goto fail;
+		}
+
+		if (*end_opt != ')') {
+			memprintf(err, "'%s' : expects %s(<max window>)", args[cur_arg + 1], algo);
+			goto fail;
+		}
+
+		if (cwnd < 10240 || cwnd >= (4UL << 30)) {
+			memprintf(err, "'%s' : should be greater than 10k and smaller than 4g", args[cur_arg + 1]);
+			goto fail;
+		}
+
+		conf->max_cwnd = cwnd;
 	}
 
 	conf->quic_cc_algo = cc_algo;
 	return 0;
+
+ fail:
+	return ERR_ALERT | ERR_FATAL;
 }
 
 static int bind_parse_quic_socket(char **args, int cur_arg, struct proxy *px,

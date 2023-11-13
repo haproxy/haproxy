@@ -186,6 +186,7 @@ struct bind_conf {
 #ifdef USE_QUIC
 	struct quic_transport_params quic_params; /* QUIC transport parameters. */
 	struct quic_cc_algo *quic_cc_algo; /* QUIC control congestion algorithm */
+	size_t max_cwnd;                   /* QUIC maximumu congestion control window size (kB) */
 	enum quic_sock_mode quic_mode;     /* QUIC socket allocation strategy */
 #endif
 	struct proxy *frontend;    /* the frontend all these listeners belong to, or NULL */
