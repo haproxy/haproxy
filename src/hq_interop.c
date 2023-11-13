@@ -83,14 +83,6 @@ static ssize_t hq_interop_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 	return b_data(b);
 }
 
-static struct buffer *mux_get_buf(struct qcs *qcs)
-{
-	if (!b_size(&qcs->tx.buf))
-		b_alloc(&qcs->tx.buf);
-
-	return &qcs->tx.buf;
-}
-
 static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
                                  size_t count)
 {
@@ -102,7 +94,7 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 	struct buffer *res, outbuf;
 	size_t total = 0;
 
-	res = mux_get_buf(qcs);
+	res = qcc_get_stream_txbuf(qcs);
 	outbuf = b_make(b_tail(res), b_contig_space(res), 0, 0);
 
 	htx = htx_from_buf(buf);
@@ -163,7 +155,7 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 
 static size_t hq_interop_nego_ff(struct qcs *qcs, size_t count)
 {
-	struct buffer *res = mux_get_buf(qcs);
+	struct buffer *res = qcc_get_stream_txbuf(qcs);
 
 	if (!b_room(res)) {
 		qcs->flags |= QC_SF_BLK_MROOM;

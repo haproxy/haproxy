@@ -1415,17 +1415,6 @@ static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
 	return -1;
 }
 
-/* Returns buffer for data sending.
- * May be NULL if the allocation failed.
- */
-static struct buffer *mux_get_buf(struct qcs *qcs)
-{
-	if (!b_size(&qcs->tx.buf))
-		b_alloc(&qcs->tx.buf);
-
-	return &qcs->tx.buf;
-}
-
 /* Function used to emit stream data from <qcs> control uni-stream */
 static int h3_control_send(struct qcs *qcs, void *ctx)
 {
@@ -1464,7 +1453,7 @@ static int h3_control_send(struct qcs *qcs, void *ctx)
 		b_quic_enc_int(&pos, h3_settings_max_field_section_size, 0);
 	}
 
-	res = mux_get_buf(qcs);
+	res = qcc_get_stream_txbuf(qcs);
 	if (b_room(res) < b_data(&pos)) {
 		// TODO the mux should be put in blocked state, with
 		// the stream in state waiting for settings to be sent
@@ -1533,7 +1522,8 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 
 	list[hdr].n = ist("");
 
-	res = mux_get_buf(qcs);
+	if (!(res = qcc_get_stream_txbuf(qcs)))
+		goto err;
 
 	/* At least 5 bytes to store frame type + length as a varint max size */
 	if (b_room(res) < 5)
@@ -1663,7 +1653,8 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 	}
 	list[hdr].n = ist("");
 
-	res = mux_get_buf(qcs);
+	if (!(res = qcc_get_stream_txbuf(qcs)))
+		goto err;
 
 	/* At least 9 bytes to store frame type + length as a varint max size */
 	if (b_room(res) < 9) {
@@ -1769,7 +1760,9 @@ static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 	if (type != HTX_BLK_DATA)
 		goto end;
 
-	res = mux_get_buf(qcs);
+	if (!(res = qcc_get_stream_txbuf(qcs))) {
+		/* TODO */
+	}
 
 	if (unlikely(fsize == count &&
 		     !b_data(res) &&
@@ -1947,8 +1940,9 @@ static size_t h3_nego_ff(struct qcs *qcs, size_t count)
 
 	h3_debug_printf(stderr, "%s\n", __func__);
 
-	/* FIXME: no check on ALLOC ? */
-	res = mux_get_buf(qcs);
+	if (!(res = qcc_get_stream_txbuf(qcs))) {
+		/* TODO */
+	}
 
 	/* h3 DATA headers : 1-byte frame type + varint frame length */
 	hsize = 1 + QUIC_VARINT_MAX_SIZE;
@@ -2154,7 +2148,7 @@ static int h3_send_goaway(struct h3c *h3c)
 	b_quic_enc_int(&pos, frm_len, 0);
 	b_quic_enc_int(&pos, h3c->id_goaway, 0);
 
-	res = mux_get_buf(qcs);
+	res = qcc_get_stream_txbuf(qcs);
 	if (!res || b_room(res) < b_data(&pos)) {
 		/* Do not try forcefully to emit GOAWAY if no space left. */
 		TRACE_ERROR("cannot send GOAWAY", H3_EV_H3C_END, h3c->qcc->conn, qcs);

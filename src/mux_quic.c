@@ -914,6 +914,15 @@ struct buffer *qcc_get_stream_rxbuf(struct qcs *qcs)
 	return b_alloc(&qcs->rx.app_buf);
 }
 
+/* Allocate if needed and retrieve <qcs> stream buffer for data emission.
+ *
+ * Returns buffer pointer. May be NULL on allocation failure.
+ */
+struct buffer *qcc_get_stream_txbuf(struct qcs *qcs)
+{
+	return b_alloc(&qcs->tx.buf);
+}
+
 /* Prepare for the emission of RESET_STREAM on <qcs> with error code <err>. */
 void qcc_reset_stream(struct qcs *qcs, int err)
 {
