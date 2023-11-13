@@ -1327,7 +1327,7 @@ static int sc_conn_recv(struct stconn *sc)
 	}
 
 	/* Instruct the mux it must subscribed for read events */
-	if (!conn_is_back(conn) &&                                 /* for frontend conns only */
+	if (!(sc->flags & SC_FL_ISBACK) &&                         /* for frontend conns only */
 	    (sc_opposite(sc)->state != SC_ST_INI) &&               /* before backend connection setup */
 	    (__sc_strm(sc)->be->options & PR_O_ABRT_CLOSE))        /* if abortonclose option is set for the current backend */
 		flags |= CO_RFL_KEEP_RECV;
