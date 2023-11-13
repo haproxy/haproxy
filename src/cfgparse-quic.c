@@ -82,8 +82,8 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 			end_opt++;
 		}
 		else if (*end_opt == 'g') {
-			memprintf(err, "'%s' : should be smaller than 1g", args[cur_arg + 1]);
-			goto fail;
+			cwnd <<= 30;
+			end_opt++;
 		}
 
 		if (*end_opt != ')') {
@@ -91,7 +91,7 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 			goto fail;
 		}
 
-		if (cwnd < 10240 || cwnd >= (4UL << 30)) {
+		if (cwnd < 10240 || cwnd > (4UL << 30)) {
 			memprintf(err, "'%s' : should be greater than 10k and smaller than 4g", args[cur_arg + 1]);
 			goto fail;
 		}
