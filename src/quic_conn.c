@@ -1289,6 +1289,18 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->mux_state = QC_MUX_NULL;
 	qc->err = quic_err_transport(QC_ERR_NO_ERROR);
 
+	/* If connection is instantiated due to an INITIAL packet with an
+	 * already checked token, consider the peer address as validated.
+	 */
+	if (token_odcid->len) {
+		TRACE_STATE("validate peer address due to initial token",
+		            QUIC_EV_CONN_INIT, qc);
+		qc->flags |= QUIC_FL_CONN_PEER_VALIDATED_ADDR;
+	}
+	else {
+		HA_ATOMIC_INC(&qc->prx_counters->half_open_conn);
+	}
+
 	/* Now proceeds to allocation of qc members. */
 	qc->rx.buf.area = pool_alloc(pool_head_quic_conn_rxbuf);
 	if (!qc->rx.buf.area) {
@@ -1395,18 +1407,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 	LIST_APPEND(&th_ctx->quic_conns, &qc->el_th_ctx);
 	qc->qc_epoch = HA_ATOMIC_LOAD(&qc_epoch);
-
-	/* If connection is instantiated due to an INITIAL packet with an
-	 * already checked token, consider the peer address as validated.
-	 */
-	if (token_odcid->len) {
-		TRACE_STATE("validate peer address due to initial token",
-		            QUIC_EV_CONN_INIT, qc);
-		qc->flags |= QUIC_FL_CONN_PEER_VALIDATED_ADDR;
-	}
-	else {
-		HA_ATOMIC_INC(&qc->prx_counters->half_open_conn);
-	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
 
