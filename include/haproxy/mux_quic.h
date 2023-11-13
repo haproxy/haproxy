@@ -23,7 +23,6 @@ int qcs_subscribe(struct qcs *qcs, int event_type, struct wait_event *es);
 void qcs_notify_recv(struct qcs *qcs);
 void qcs_notify_send(struct qcs *qcs);
 
-void qcc_emit_cc_app(struct qcc *qcc, int err, int immediate);
 void qcc_reset_stream(struct qcs *qcs, int err);
 void qcc_send_stream(struct qcs *qcs, int urg);
 void qcc_abort_stream_read(struct qcs *qcs);
