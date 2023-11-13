@@ -166,6 +166,16 @@ int srv_getinter(const struct check *check)
 	return (check->fastinter)?(check->fastinter):(check->inter);
 }
 
+/* Update server's addr:svc_port tuple in INET context
+ *
+ * Must be called with server lock held
+ */
+void _srv_set_inetaddr(struct server *srv, const struct sockaddr_storage *addr, unsigned int svc_port)
+{
+	ipcpy(addr, &srv->addr);
+	srv->svc_port = svc_port;
+}
+
 /* fill common server event data members struct
  * must be called with server lock or under thread isolate
  */
@@ -3592,7 +3602,7 @@ int srv_update_addr(struct server *s, void *ip, int ip_sin_family, const char *u
 	_srv_event_hdl_prepare_inetaddr(&cb_data.addr, &s->addr, s->svc_port, &new_addr, s->svc_port, 0);
 
 	/* apply the new IP address */
-	ipcpy(&new_addr, &s->addr);
+	_srv_set_inetaddr(s, &new_addr, s->svc_port);
 
 	_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_INETADDR, cb_data, s);
 
@@ -3856,16 +3866,10 @@ out:
 		                                ((port_change) ? new_port : s->svc_port),
 		                                1);
 
-		if (ip_change) {
-			/* apply new ip */
-			ipcpy(&sa, &s->addr);
-		}
-
-
-		if (port_change) {
-			/* apply new port */
-			s->svc_port = new_port;
-		}
+		/* apply new ip and port */
+		_srv_set_inetaddr(s,
+		                  ((ip_change) ? &sa : &s->addr),
+		                  ((port_change) ? new_port : s->svc_port));
 
 		_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_INETADDR, cb_data, s);
 
@@ -4274,11 +4278,15 @@ struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char
  */
 int srv_set_addr_via_libc(struct server *srv, int *err_code)
 {
-	if (str2ip2(srv->hostname, &srv->addr, 1) == NULL) {
+	struct sockaddr_storage new_addr;
+
+	memset(&new_addr, 0, sizeof(new_addr));
+	if (str2ip2(srv->hostname, &new_addr, 1) == NULL) {
 		if (err_code)
 			*err_code |= ERR_WARN;
 		return 1;
 	}
+	_srv_set_inetaddr(srv, &new_addr, srv->svc_port);
 	return 0;
 }
 
@@ -4354,11 +4362,15 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int resolv_locked)
  */
 static int srv_apply_lastaddr(struct server *srv, int *err_code)
 {
-	if (!str2ip2(srv->lastaddr, &srv->addr, 0)) {
+	struct sockaddr_storage new_addr;
+
+	memset(&new_addr, 0, sizeof(new_addr));
+	if (!str2ip2(srv->lastaddr, &new_addr, 0)) {
 		if (err_code)
 			*err_code |= ERR_WARN;
 		return 1;
 	}
+	_srv_set_inetaddr(srv, &new_addr, srv->svc_port);
 	return 0;
 }
 
@@ -4420,7 +4432,7 @@ static int srv_iterate_initaddr(struct server *srv)
 			return return_code;
 
 		case SRV_IADDR_IP:
-			ipcpy(&srv->init_addr, &srv->addr);
+			_srv_set_inetaddr(srv, &srv->init_addr, srv->svc_port);
 			if (return_code) {
 				ha_warning("could not resolve address '%s', falling back to configured address.\n",
 					   name);
