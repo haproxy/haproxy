@@ -2514,8 +2514,6 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	LIST_INIT(&srv->pp_tlvs);
 
 	list_for_each_entry(srv_tlv, &src->pp_tlvs, list) {
-		if (srv_tlv == NULL)
-			break;
 		new_srv_tlv = malloc(sizeof(*new_srv_tlv));
 		if (unlikely(!new_srv_tlv)) {
 			break;

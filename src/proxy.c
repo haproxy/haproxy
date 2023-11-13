@@ -1469,6 +1469,7 @@ void proxy_preset_defaults(struct proxy *defproxy)
 	defproxy->defsrv.onerror = DEF_HANA_ONERR;
 	defproxy->defsrv.consecutive_errors_limit = DEF_HANA_ERRLIMIT;
 	defproxy->defsrv.uweight = defproxy->defsrv.iweight = 1;
+	LIST_INIT(&defproxy->defsrv.pp_tlvs);
 
 	defproxy->email_alert.level = LOG_ALERT;
 	defproxy->load_server_state_from_file = PR_SRV_STATE_FILE_UNSPEC;
