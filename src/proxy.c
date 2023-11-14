@@ -524,6 +524,10 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 		tv = &proxy->timeout.tarpit;
 		td = &defpx->timeout.tarpit;
 		cap = PR_CAP_FE | PR_CAP_BE;
+	} else if (strcmp(args[0], "handshake") == 0) {
+		tv = &proxy->timeout.handshake;
+		td = &defpx->timeout.handshake;
+		cap = PR_CAP_FE;
 	} else if (strcmp(args[0], "http-keep-alive") == 0) {
 		tv = &proxy->timeout.httpka;
 		td = &defpx->timeout.httpka;
@@ -574,7 +578,7 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 	} else {
 		memprintf(err,
 		          "'timeout' supports 'client', 'server', 'connect', 'check', "
-		          "'queue', 'http-keep-alive', 'http-request', 'tunnel', 'tarpit', "
+		          "'queue', 'handshake', 'http-keep-alive', 'http-request', 'tunnel', 'tarpit', "
 			  "'client-fin' and 'server-fin' (got '%s')",
 		          args[0]);
 		return -1;
@@ -1797,6 +1801,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 
 	if (curproxy->cap & PR_CAP_FE) {
 		curproxy->timeout.client = defproxy->timeout.client;
+		curproxy->timeout.handshake = defproxy->timeout.handshake;
 		curproxy->timeout.clientfin = defproxy->timeout.clientfin;
 		curproxy->timeout.tarpit = defproxy->timeout.tarpit;
 		curproxy->timeout.httpreq = defproxy->timeout.httpreq;
