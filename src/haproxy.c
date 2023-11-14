@@ -2200,6 +2200,7 @@ static void init(int argc, char **argv)
 	if (global.mode & (MODE_MWORKER|MODE_MWORKER_WAIT)) {
 		struct wordlist *it, *c;
 
+		master = 1;
 		/* get the info of the children in the env */
 		if (mworker_env_to_proc_list() < 0) {
 			exit(EXIT_FAILURE);
