@@ -143,7 +143,7 @@ DECLARE_STATIC_POOL(pool_head_quic_cstream, "quic_cstream", sizeof(struct quic_c
 
 struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);
 static int quic_conn_init_timer(struct quic_conn *qc);
-static int quic_conn_init_idle_timer_task(struct quic_conn *qc);
+static int quic_conn_init_idle_timer_task(struct quic_conn *qc, struct proxy *px);
 
 /* Returns 1 if the peer has validated <qc> QUIC connection address, 0 if not. */
 int quic_peer_validated_addr(struct quic_conn *qc)
@@ -1177,6 +1177,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	int i;
 	struct quic_conn *qc = NULL;
 	struct listener *l = server ? owner : NULL;
+	struct proxy *prx = l ? l->bind_conf->frontend : NULL;
 	struct quic_cc_algo *cc_algo = NULL;
 	unsigned int next_actconn = 0, next_sslconn = 0, next_handshake = 0;
 
@@ -1264,9 +1265,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 	/* QUIC Server (or listener). */
 	if (server) {
-		struct proxy *prx;
-
-		prx = l->bind_conf->frontend;
 		cc_algo = l->bind_conf->quic_cc_algo;
 
 		qc->prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe,
@@ -1399,7 +1397,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 	if (qc_alloc_ssl_sock_ctx(qc) ||
 	    !quic_conn_init_timer(qc) ||
-	    !quic_conn_init_idle_timer_task(qc))
+	    !quic_conn_init_idle_timer_task(qc, prx))
 		goto err;
 
 	if (!qc_new_isecs(qc, &qc->iel->tls_ctx, qc->original_version, dcid->data, dcid->len, 1))
@@ -1655,6 +1653,10 @@ void qc_idle_timer_do_rearm(struct quic_conn *qc, int arm_ack)
 	}
 
 	qc->idle_expire = tick_add(now_ms, MS_TO_TICKS(expire));
+	/* Note that the ACK timer is not armed during the handshake. So,
+	 * the handshake expiration date is taken into an account only
+	 * when <arm_ack> is false.
+	 */
 	if (arm_ack) {
 		/* Arm the ack timer only if not already armed. */
 		if (!tick_isset(qc->ack_expire)) {
@@ -1666,6 +1668,8 @@ void qc_idle_timer_do_rearm(struct quic_conn *qc, int arm_ack)
 	}
 	else {
 		qc->idle_timer_task->expire = tick_first(qc->ack_expire, qc->idle_expire);
+		if (qc->state < QUIC_HS_ST_COMPLETE)
+			qc->idle_timer_task->expire = tick_first(qc->hs_expire, qc->idle_expire);
 		task_queue(qc->idle_timer_task);
 		TRACE_PROTO("idle timer armed", QUIC_EV_CONN_IDLE_TIMER, qc);
 	}
@@ -1688,6 +1692,7 @@ void qc_idle_timer_rearm(struct quic_conn *qc, int read, int arm_ack)
 	}
 	qc_idle_timer_do_rearm(qc, arm_ack);
 
+ leave:
 	TRACE_LEAVE(QUIC_EV_CONN_IDLE_TIMER, qc);
 }
 
@@ -1750,12 +1755,16 @@ struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 /* Initialize the idle timeout task for <qc>.
  * Returns 1 if succeeded, 0 if not.
  */
-static int quic_conn_init_idle_timer_task(struct quic_conn *qc)
+static int quic_conn_init_idle_timer_task(struct quic_conn *qc,
+                                          struct proxy *px)
 {
 	int ret = 0;
+	int timeout;
 
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
 
+
+	timeout = px->timeout.handshake ? px->timeout.handshake : px->timeout.client;
 	qc->idle_timer_task = task_new_here();
 	if (!qc->idle_timer_task) {
 		TRACE_ERROR("Idle timer task allocation failed", QUIC_EV_CONN_NEW, qc);
@@ -1765,6 +1774,7 @@ static int quic_conn_init_idle_timer_task(struct quic_conn *qc)
 	qc->idle_timer_task->process = qc_idle_timer_task;
 	qc->idle_timer_task->context = qc;
 	qc->ack_expire = TICK_ETERNITY;
+	qc->hs_expire = tick_add_ifset(now_ms, MS_TO_TICKS(timeout));
 	qc_idle_timer_rearm(qc, 1, 0);
 	task_queue(qc->idle_timer_task);
 

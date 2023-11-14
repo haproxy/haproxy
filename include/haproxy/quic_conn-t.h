@@ -535,6 +535,8 @@ struct quic_conn {
 	struct task *timer_task;
 	unsigned int timer;
 	unsigned int ack_expire;
+	/* Handshake expiration date */
+	unsigned int hs_expire;
 
 	const struct qcc_app_ops *app_ops;
 	/* Proxy counters */
