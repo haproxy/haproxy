@@ -894,6 +894,14 @@ void sock_conn_iocb(int fd)
 	if (unlikely(conn->flags & CO_FL_ERROR)) {
 		if (conn_ctrl_ready(conn))
 			fd_stop_both(fd);
+
+		if (conn->subs) {
+			t = conn->subs->tasklet;
+			conn->subs->events = 0;
+			if (!conn->subs->events)
+				conn->subs = NULL;
+			tasklet_wakeup(t);
+		}
 	}
 }
 
