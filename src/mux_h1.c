@@ -4805,7 +4805,7 @@ static int h1_resume_fastfwd(struct stconn *sc, unsigned int flags)
 
 static int h1_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *output)
 {
-	const struct h1c *h1c = conn->ctx;
+	struct h1c *h1c = conn->ctx;
 	int ret = 0;
 
 	switch (mux_ctl) {
@@ -4822,6 +4822,10 @@ static int h1_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 			 ((h1c->errcode >= 400 && h1c->errcode <= 499) ? MUX_ES_INVALID_ERR :
 			  MUX_ES_SUCCESS))));
 		return ret;
+	case MUX_SUBS_RECV:
+		if (!(h1c->wait_event.events & SUB_RETRY_RECV))
+			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+		return 0;
 	default:
 		return -1;
 	}
