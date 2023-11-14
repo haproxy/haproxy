@@ -4,15 +4,15 @@ feature ignore_unknown_macro
 # NOTE : This test may fail if too many vtest are running in parallel because
 #        the port reserved for closed s1 server may be reused by another vtest
 
-feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.0-dev0)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.2-dev0)'"
 #REGTEST_TYPE=slow
 
 # b0 : Wait s1 was detected as DOWN to be sure it is stopped
 # b1 : Don't send /c4 before /c3 was received by s2 server
-# b2 : Don't finish c2 before c1 and c3 before c4 (from syslog POV)
+# b2 : Used to receive syslog messages in the right order
 # b3 : finish c3 before s2
 
-barrier b0 cond 2 -cyclic
+barrier b0 cond 3 -cyclic
 barrier b1 cond 2 -cyclic
 barrier b2 cond 2 -cyclic
 barrier b3 cond 2 -cyclic
@@ -33,7 +33,7 @@ server s2 {
     expect_close
 } -start
 
-syslog S -level info {
+syslog S1 -level info {
     recv alert
     expect ~ "[^:\\[ ]*\\[[0-9]*\\]: Server check/srv1 is DOWN.*"
     barrier b0 sync
@@ -49,6 +49,18 @@ syslog S -level info {
     barrier b2 sync
     recv
     expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe2 be2/srv1 [0-9]*/[0-9]*/[0-9]*/-1/[0-9]* 400 .* - - CH-- .* .* \"GET /c3 HTTP/1\\.1\""
+} -start
+
+syslog S2 -level info {
+    recv alert
+    expect ~ "[^:\\[ ]*\\[[0-9]*\\]: Server check/srv1 is DOWN.*"
+    barrier b0 sync
+
+    recv
+    expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 be1/srv1 [0-9]*/[0-9]*/-1/-1/[0-9]* -1 .* - - CC-- .* .* \"GET /c5 HTTP/1\\.1\""
+    barrier b2 sync
+    recv
+    expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe2 be2/srv1 [0-9]*/[0-9]*/-1/-1/[0-9]* 503 .* - - SC-- .* .* \"GET /c6 HTTP/1\\.1\""
 } -start
 
 haproxy h1 -conf {
@@ -69,14 +81,14 @@ haproxy h1 -conf {
 
     frontend fe1
         option httplog
-        log ${S_addr}:${S_port} local0 debug err
+        log ${S1_addr}:${S1_port} local0 debug err
         bind "fd@${fe1}"
         use_backend be1_1 if { path /c1 }
         use_backend be1_2 if { path /c2 }
 
     frontend fe2
         option httplog
-        log ${S_addr}:${S_port} local0 debug err
+        log ${S1_addr}:${S1_port} local0 debug err
         bind "fd@${fe2}"
         use_backend be2
 
@@ -93,8 +105,59 @@ haproxy h1 -conf {
 
     backend check
         server srv1 ${s1_addr}:${s1_port} check
-        log ${S_addr}:${S_port} local0 debug alert
+        log ${S1_addr}:${S1_port} local0 debug alert
 } -start
+
+
+haproxy h2 -conf {
+    global
+        # WT: limit false-positives causing "HTTP header incomplete" due to
+        # idle server connections being randomly used and randomly expiring
+        # under us.
+        tune.idle-pool.shared off
+
+    defaults
+        mode http
+        retries 1
+        timeout client  10s
+        timeout server  10s
+        timeout connect 100ms
+        timeout queue   5s
+
+    frontend fe1
+        option httplog
+        log ${S2_addr}:${S2_port} local0 debug err
+        bind "fd@${fe1}"
+        use_backend be1
+
+    backend be1
+        option abortonclose
+        server srv1 ${s1_addr}:${s1_port}
+
+    defaults
+        mode http
+        option abortonclose
+        retries 1
+        timeout client  10s
+        timeout server  10s
+        timeout connect 100ms
+        timeout queue   5s
+
+    frontend fe2
+        option httplog
+        log ${S2_addr}:${S2_port} local0 debug err
+        bind "fd@${fe2}"
+        use_backend be2
+
+    backend be2
+        no option abortonclose
+        server srv1 ${s1_addr}:${s1_port}
+
+    backend check
+        server srv1 ${s1_addr}:${s1_port} check
+        log ${S2_addr}:${S2_port} local0 debug alert
+} -start
+
 
 # Wait s1 was detected as DOWN
 barrier b0 sync
@@ -139,4 +202,25 @@ client c3 -wait
 # unlock s2
 barrier b3 sync
 
-syslog S -wait
+syslog S1 -wait
+
+
+# No server, abort during connections retries : CC--
+# abortonclose on backend only
+client  c5 -connect ${h2_fe1_sock} {
+    txreq -url /c5
+} -run
+
+# Wait c5 log entry
+barrier b2 sync
+
+# No server, wait all connection retries : SC--
+# abortonclose in defaults section but disabled by backend
+client  c6 -connect ${h2_fe2_sock} {
+    txreq -url /c6
+    rxresp
+    expect resp.status == 503
+} -run
+
+
+syslog S2 -wait
