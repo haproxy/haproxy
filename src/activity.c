@@ -51,6 +51,12 @@ struct show_activity_ctx {
 /* bit field of profiling options. Beware, may be modified at runtime! */
 unsigned int profiling __read_mostly = HA_PROF_TASKS_AOFF;
 
+/* start/stop dates of profiling */
+uint64_t prof_task_start_ns = 0;
+uint64_t prof_task_stop_ns = 0;
+uint64_t prof_mem_start_ns = 0;
+uint64_t prof_mem_stop_ns = 0;
+
 /* One struct per thread containing all collected measurements */
 struct activity activity[MAX_THREADS] __attribute__((aligned(64))) = { };
 
@@ -368,8 +374,10 @@ static int cfg_parse_prof_memory(char **args, int section_type, struct proxy *cu
 	if (too_many_args(1, args, err, NULL))
 		return -1;
 
-	if (strcmp(args[1], "on") == 0)
+	if (strcmp(args[1], "on") == 0) {
 		profiling |= HA_PROF_MEMORY;
+		HA_ATOMIC_STORE(&prof_mem_start_ns, now_ns);
+	}
 	else if (strcmp(args[1], "off") == 0)
 		profiling &= ~HA_PROF_MEMORY;
 	else {
@@ -388,10 +396,14 @@ static int cfg_parse_prof_tasks(char **args, int section_type, struct proxy *cur
 	if (too_many_args(1, args, err, NULL))
 		return -1;
 
-	if (strcmp(args[1], "on") == 0)
+	if (strcmp(args[1], "on") == 0) {
 		profiling = (profiling & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_ON;
-	else if (strcmp(args[1], "auto") == 0)
+		HA_ATOMIC_STORE(&prof_task_start_ns, now_ns);
+	}
+	else if (strcmp(args[1], "auto") == 0) {
 		profiling = (profiling & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_AOFF;
+		HA_ATOMIC_STORE(&prof_task_start_ns, now_ns);
+	}
 	else if (strcmp(args[1], "off") == 0)
 		profiling = (profiling & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_OFF;
 	else {
@@ -416,6 +428,9 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 			while (!_HA_ATOMIC_CAS(&profiling, &old, old | HA_PROF_MEMORY))
 				;
 
+			HA_ATOMIC_STORE(&prof_mem_start_ns, now_ns);
+			HA_ATOMIC_STORE(&prof_mem_stop_ns, 0);
+
 			/* also flush current profiling stats */
 			for (i = 0; i < sizeof(memprof_stats) / sizeof(memprof_stats[0]); i++) {
 				HA_ATOMIC_STORE(&memprof_stats[i].alloc_calls, 0);
@@ -430,6 +445,9 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 
 			while (!_HA_ATOMIC_CAS(&profiling, &old, old & ~HA_PROF_MEMORY))
 				;
+
+			if (HA_ATOMIC_LOAD(&prof_mem_start_ns))
+				HA_ATOMIC_STORE(&prof_mem_stop_ns, now_ns);
 		}
 		else
 			return cli_err(appctx, "Expects either 'on' or 'off'.\n");
@@ -448,6 +466,10 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 
 		while (!_HA_ATOMIC_CAS(&profiling, &old, (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_ON))
 			;
+
+		HA_ATOMIC_STORE(&prof_task_start_ns, now_ns);
+		HA_ATOMIC_STORE(&prof_task_stop_ns, 0);
+
 		/* also flush current profiling stats */
 		for (i = 0; i < SCHED_ACT_HASH_BUCKETS; i++) {
 			HA_ATOMIC_STORE(&sched_activity[i].calls, 0);
@@ -467,11 +489,17 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 			else
 				new = (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_AOFF;
 		} while (!_HA_ATOMIC_CAS(&profiling, &old, new));
+
+		HA_ATOMIC_STORE(&prof_task_start_ns, now_ns);
+		HA_ATOMIC_STORE(&prof_task_stop_ns, 0);
 	}
 	else if (strcmp(args[3], "off") == 0) {
 		unsigned int old = profiling;
 		while (!_HA_ATOMIC_CAS(&profiling, &old, (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_OFF))
 			;
+
+		if (HA_ATOMIC_LOAD(&prof_task_start_ns))
+			HA_ATOMIC_STORE(&prof_task_stop_ns, now_ns);
 	}
 	else
 		return cli_err(appctx, "Expects 'on', 'auto', or 'off'.\n");
@@ -683,8 +711,10 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		qsort(tmp_activity, SCHED_ACT_HASH_BUCKETS, sizeof(tmp_activity[0]), cmp_sched_activity_cpu);
 
 	if (!ctx->linenum)
-		chunk_appendf(&trash, "Tasks activity:\n"
-		                      "  function                      calls   cpu_tot   cpu_avg   lat_tot   lat_avg\n");
+		chunk_appendf(&trash, "Tasks activity over %.3f sec till %.3f sec ago:\n"
+		                      "  function                      calls   cpu_tot   cpu_avg   lat_tot   lat_avg\n",
+			      (prof_task_start_ns ? (prof_task_stop_ns ? prof_task_stop_ns : now_ns) - prof_task_start_ns : 0) / 1000000000.0,
+			      (prof_task_stop_ns ? now_ns - prof_task_stop_ns : 0) / 1000000000.0);
 
 	max_lines = ctx->maxcnt;
 	if (!max_lines)
@@ -752,9 +782,11 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 
 	if (!ctx->linenum)
 		chunk_appendf(&trash,
-		              "Alloc/Free statistics by call place:\n"
+		              "Alloc/Free statistics by call place over %.3f sec till %.3f sec ago:\n"
 		              "         Calls         |         Tot Bytes           |       Caller and method\n"
-		              "<- alloc -> <- free  ->|<-- alloc ---> <-- free ---->|\n");
+		              "<- alloc -> <- free  ->|<-- alloc ---> <-- free ---->|\n",
+			      (prof_mem_start_ns ? (prof_mem_stop_ns ? prof_mem_stop_ns : now_ns) - prof_mem_start_ns : 0) / 1000000000.0,
+			      (prof_mem_stop_ns ? now_ns - prof_mem_stop_ns : 0) / 1000000000.0);
 
 	max_lines = ctx->maxcnt;
 	if (!max_lines)
