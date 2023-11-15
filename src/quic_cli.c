@@ -161,9 +161,11 @@ static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
 	else
 		chunk_appendf(&trash, "mux=released                                  ");
 
-	expire = qc->idle_expire;
-	chunk_appendf(&trash, "expire=%02ds ",
-	              TICKS_TO_MS(tick_remain(now_ms, expire)) / 1000);
+	if (qc->idle_timer_task) {
+		expire = qc->idle_timer_task->expire;
+		chunk_appendf(&trash, "expire=%02ds ",
+		              TICKS_TO_MS(tick_remain(now_ms, expire)) / 1000);
+	}
 
 	chunk_appendf(&trash, "\n");
 
