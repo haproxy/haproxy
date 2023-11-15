@@ -42,38 +42,37 @@
 /* LB parameters are on the lower 8 bits. Depends on the LB kind. */
 
 /* BE_LB_HASH_* is used with BE_LB_KIND_HI */
-#define BE_LB_HASH_SRC  0x00000  /* hash source IP */
-#define BE_LB_HASH_URI  0x00001  /* hash HTTP URI */
-#define BE_LB_HASH_PRM  0x00002  /* hash HTTP URL parameter */
-#define BE_LB_HASH_HDR  0x00003  /* hash HTTP header value */
-#define BE_LB_HASH_RDP  0x00004  /* hash RDP cookie value */
-#define BE_LB_HASH_SMP  0x00005  /* hash a sample expression */
+#define BE_LB_HASH_SRC  0x00000000  /* hash source IP */
+#define BE_LB_HASH_URI  0x00000001  /* hash HTTP URI */
+#define BE_LB_HASH_PRM  0x00000002  /* hash HTTP URL parameter */
+#define BE_LB_HASH_HDR  0x00000003  /* hash HTTP header value */
+#define BE_LB_HASH_RDP  0x00000004  /* hash RDP cookie value */
+#define BE_LB_HASH_SMP  0x00000005  /* hash a sample expression */
 
 /* BE_LB_RR_* is used with BE_LB_KIND_RR */
-#define BE_LB_RR_DYN    0x00000  /* dynamic round robin (default) */
-#define BE_LB_RR_STATIC 0x00001  /* static round robin */
-#define BE_LB_RR_RANDOM 0x00002  /* random round robin */
+#define BE_LB_RR_DYN    0x00000000  /* dynamic round robin (default) */
+#define BE_LB_RR_STATIC 0x00000001  /* static round robin */
+#define BE_LB_RR_RANDOM 0x00000002  /* random round robin */
 
 /* BE_LB_CB_* is used with BE_LB_KIND_CB */
-#define BE_LB_CB_LC     0x00000  /* least-connections */
-#define BE_LB_CB_FAS    0x00001  /* first available server (opposite of leastconn) */
+#define BE_LB_CB_LC     0x00000000  /* least-connections */
+#define BE_LB_CB_FAS    0x00000001  /* first available server (opposite of leastconn) */
 
-#define BE_LB_PARM      0x000FF  /* mask to get/clear the LB param */
+#define BE_LB_PARM      0x000000FF  /* mask to get/clear the LB param */
 
 /* Required input(s) */
-#define BE_LB_NEED_NONE	0x00000  /* no input needed            */
-#define BE_LB_NEED_ADDR	0x00100  /* only source address needed */
-#define BE_LB_NEED_DATA	0x00200  /* some payload is needed     */
-#define BE_LB_NEED_HTTP	0x00400  /* an HTTP request is needed  */
-/* not used: 0x0800 */
-#define BE_LB_NEED      0x00F00  /* mask to get/clear dependencies */
+#define BE_LB_NEED_NONE 0x00000000  /* no input needed            */
+#define BE_LB_NEED_ADDR 0x00000100  /* only source address needed */
+#define BE_LB_NEED_DATA 0x00000200  /* some payload is needed     */
+#define BE_LB_NEED_HTTP 0x00000400  /* an HTTP request is needed  */
+#define BE_LB_NEED      0x0000FF00  /* mask to get/clear dependencies */
 
 /* Algorithm */
-#define BE_LB_KIND_NONE 0x00000  /* algorithm not set */
-#define BE_LB_KIND_RR   0x01000  /* round-robin */
-#define BE_LB_KIND_CB   0x02000  /* connection-based */
-#define BE_LB_KIND_HI   0x03000  /* hash of input (see hash inputs above) */
-#define BE_LB_KIND      0x07000  /* mask to get/clear LB algorithm */
+#define BE_LB_KIND_NONE 0x00000000  /* algorithm not set */
+#define BE_LB_KIND_RR   0x00010000  /* round-robin */
+#define BE_LB_KIND_CB   0x00020000  /* connection-based */
+#define BE_LB_KIND_HI   0x00030000  /* hash of input (see hash inputs above) */
+#define BE_LB_KIND      0x00070000  /* mask to get/clear LB algorithm */
 
 /* All known variants of load balancing algorithms. These can be cleared using
  * the BE_LB_ALGO mask. For a check, using BE_LB_KIND is preferred.
@@ -96,33 +95,33 @@
  * designates the LB function by itself. The dynamic algorithms will also have
  * the DYN bit set. These flags are automatically set at the end of the parsing.
  */
-#define BE_LB_LKUP_NONE   0x00000  /* not defined */
-#define BE_LB_LKUP_MAP    0x10000  /* static map based lookup */
-#define BE_LB_LKUP_RRTREE 0x20000  /* FWRR tree lookup */
-#define BE_LB_LKUP_LCTREE 0x30000  /* FWLC tree lookup */
-#define BE_LB_LKUP_CHTREE 0x40000  /* consistent hash  */
-#define BE_LB_LKUP_FSTREE 0x50000  /* FAS tree lookup */
-#define BE_LB_LKUP        0x70000  /* mask to get just the LKUP value */
+#define BE_LB_LKUP_NONE   0x00000000  /* not defined */
+#define BE_LB_LKUP_MAP    0x00100000  /* static map based lookup */
+#define BE_LB_LKUP_RRTREE 0x00200000  /* FWRR tree lookup */
+#define BE_LB_LKUP_LCTREE 0x00300000  /* FWLC tree lookup */
+#define BE_LB_LKUP_CHTREE 0x00400000  /* consistent hash  */
+#define BE_LB_LKUP_FSTREE 0x00500000  /* FAS tree lookup */
+#define BE_LB_LKUP        0x00700000  /* mask to get just the LKUP value */
 
 /* additional properties */
-#define BE_LB_PROP_DYN    0x80000 /* bit to indicate a dynamic algorithm */
+#define BE_LB_PROP_DYN    0x00800000 /* bit to indicate a dynamic algorithm */
 
 /* hash types */
-#define BE_LB_HASH_MAP    0x000000 /* map-based hash (default) */
-#define BE_LB_HASH_CONS   0x100000 /* consistent hashbit to indicate a dynamic algorithm */
-#define BE_LB_HASH_TYPE   0x100000 /* get/clear hash types */
+#define BE_LB_HASH_MAP    0x00000000 /* map-based hash (default) */
+#define BE_LB_HASH_CONS   0x01000000 /* consistent hashbit to indicate a dynamic algorithm */
+#define BE_LB_HASH_TYPE   0x01000000 /* get/clear hash types */
 
 /* additional modifier on top of the hash function (only avalanche right now) */
-#define BE_LB_HMOD_AVAL   0x200000  /* avalanche modifier */
-#define BE_LB_HASH_MOD    0x200000  /* get/clear hash modifier */
+#define BE_LB_HMOD_AVAL   0x02000000  /* avalanche modifier */
+#define BE_LB_HASH_MOD    0x02000000  /* get/clear hash modifier */
 
 /* BE_LB_HFCN_* is the hash function, to be used with BE_LB_HASH_FUNC */
-#define BE_LB_HFCN_SDBM   0x000000  /* sdbm hash */
-#define BE_LB_HFCN_DJB2   0x400000  /* djb2 hash */
-#define BE_LB_HFCN_WT6    0x800000  /* wt6 hash */
-#define BE_LB_HFCN_CRC32  0xC00000  /* crc32 hash */
-#define BE_LB_HFCN_NONE   0x1000000 /* none - no hash */
-#define BE_LB_HASH_FUNC   0x1C00000 /* get/clear hash function */
+#define BE_LB_HFCN_SDBM   0x00000000  /* sdbm hash */
+#define BE_LB_HFCN_DJB2   0x04000000  /* djb2 hash */
+#define BE_LB_HFCN_WT6    0x08000000  /* wt6 hash */
+#define BE_LB_HFCN_CRC32  0x0C000000  /* crc32 hash */
+#define BE_LB_HFCN_NONE   0x10000000 /* none - no hash */
+#define BE_LB_HASH_FUNC   0x1C000000 /* get/clear hash function */
 
 
 /* various constants */
@@ -151,7 +150,7 @@ struct lbprm {
 			uint32_t	lastid; /* last relative id used */
 		} log; /* used in log-balancing context (PR_MODE_SYSLOG backend) */
 	};
-	int algo;			/* load balancing algorithm and variants: BE_LB_* */
+	uint32_t algo;			/* load balancing algorithm and variants: BE_LB_* */
 	int tot_wact, tot_wbck;		/* total effective weights of active and backup servers */
 	int tot_weight;			/* total effective weight of servers participating to LB */
 	int tot_uweight;		/* total user weight of servers participating to LB (for reporting) */
