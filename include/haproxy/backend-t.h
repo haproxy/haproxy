@@ -48,7 +48,6 @@
 #define BE_LB_HASH_HDR  0x00003  /* hash HTTP header value */
 #define BE_LB_HASH_RDP  0x00004  /* hash RDP cookie value */
 #define BE_LB_HASH_SMP  0x00005  /* hash a sample expression */
-#define BE_LB_HASH_RND  0x00008  /* hash a random value */
 
 /* BE_LB_RR_* is used with BE_LB_KIND_RR */
 #define BE_LB_RR_DYN    0x00000  /* dynamic round robin (default) */
