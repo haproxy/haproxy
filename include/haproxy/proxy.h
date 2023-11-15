@@ -62,6 +62,7 @@ struct server *findserver(const struct proxy *px, const char *name);
 struct server *findserver_unique_id(const struct proxy *px, int puid, uint32_t rid);
 struct server *findserver_unique_name(const struct proxy *px, const char *name, uint32_t rid);
 int proxy_cfg_ensure_no_http(struct proxy *curproxy);
+int proxy_cfg_ensure_no_log(struct proxy *curproxy);
 void init_new_proxy(struct proxy *p);
 void proxy_preset_defaults(struct proxy *defproxy);
 void proxy_free_defaults(struct proxy *defproxy);

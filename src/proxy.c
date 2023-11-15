@@ -1375,6 +1375,24 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 	return 0;
 }
 
+/* This function checks that the designated proxy has no log directives
+ * enabled. It will output a warning if there are, and will fix some of them.
+ * It returns the number of fatal errors encountered. This should be called
+ * at the end of the configuration parsing if the proxy is not in log mode.
+ * The <file> argument is used to construct the error message.
+ */
+int proxy_cfg_ensure_no_log(struct proxy *curproxy)
+{
+	if (curproxy->lbprm.algo & BE_LB_NEED_LOG) {
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
+		ha_warning("Unusable balance algorithm for %s '%s' (needs 'mode log'). Falling back to round robin.\n",
+			   proxy_type_str(curproxy), curproxy->id);
+	}
+
+	return 0;
+}
+
 /* Perform the most basic initialization of a proxy :
  * memset(), list_init(*), reset_timeouts(*).
  * Any new proxy or peer should be initialized via this function.

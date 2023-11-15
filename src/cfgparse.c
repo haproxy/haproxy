@@ -2939,14 +2939,17 @@ init_proxies_list_stage1:
 		switch (curproxy->mode) {
 		case PR_MODE_TCP:
 			cfgerr += proxy_cfg_ensure_no_http(curproxy);
+			cfgerr += proxy_cfg_ensure_no_log(curproxy);
 			break;
 
 		case PR_MODE_HTTP:
+			cfgerr += proxy_cfg_ensure_no_log(curproxy);
 			curproxy->http_needed = 1;
 			break;
 
 		case PR_MODE_CLI:
 			cfgerr += proxy_cfg_ensure_no_http(curproxy);
+			cfgerr += proxy_cfg_ensure_no_log(curproxy);
 			break;
 
 		case PR_MODE_SYSLOG:
