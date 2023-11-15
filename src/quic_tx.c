@@ -2158,11 +2158,13 @@ static void qc_build_cc_frm(struct quic_conn *qc, struct quic_enc_level *qel,
 		else {
 			out->type = QUIC_FT_CONNECTION_CLOSE_APP;
 			out->connection_close.error_code = qc->err.code;
+			out->connection_close.reason_phrase_len = 0;
 		}
 	}
 	else {
 		out->type = QUIC_FT_CONNECTION_CLOSE;
 		out->connection_close.error_code = qc->err.code;
+		out->connection_close.reason_phrase_len = 0;
 	}
 	TRACE_LEAVE(QUIC_EV_CONN_BFRM, qc);
 
