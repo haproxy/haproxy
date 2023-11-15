@@ -4710,7 +4710,8 @@ balance url_param <param> [check_post]
                   requests for it to be re-integrated into the farm and start
                   receiving traffic. This is normal, though very rare. It is
                   indicated here in case you would have the chance to observe
-                  it, so that you don't worry.
+                  it, so that you don't worry. Note: weights are ignored for
+                  backends in LOG mode.
 
       static-rr   Each server is used in turns, according to their weights.
                   This algorithm is as similar to roundrobin except that it is
@@ -4719,7 +4720,7 @@ balance url_param <param> [check_post]
                   limitation on the number of servers, and when a server goes
                   up, it is always immediately reintroduced into the farm, once
                   the full map is recomputed. It also uses slightly less CPU to
-                  run (around -1%).
+                  run (around -1%). This algorithm is not usable in LOG mode.
 
       leastconn   The server with the lowest number of connections receives the
                   connection. Round-robin is performed within groups of servers
@@ -4730,7 +4731,8 @@ balance url_param <param> [check_post]
                   algorithm is dynamic, which means that server weights may be
                   adjusted on the fly for slow starts for instance. It will
                   also consider the number of queued connections in addition to
-                  the established ones in order to minimize queuing.
+                  the established ones in order to minimize queuing. This
+                  algorithm is not usable in LOG mode.
 
       first       The first server with available connection slots receives the
                   connection. The servers are chosen from the lowest numeric
@@ -4760,7 +4762,8 @@ balance url_param <param> [check_post]
                   is not available, round robin will apply. This algorithm is
                   static by default, which means that changing a server's
                   weight on the fly will have no effect, but this can be
-                  changed using "hash-type".
+                  changed using "hash-type". This algorithm is not usable for
+                  backends in LOG mode, please use "log-hash" instead.
 
       source      The source IP address is hashed and divided by the total
                   weight of the running servers to designate which server will
@@ -4775,6 +4778,7 @@ balance url_param <param> [check_post]
                   static by default, which means that changing a server's
                   weight on the fly will have no effect, but this can be
                   changed using "hash-type". See also the "hash" option above.
+                  This algorithm is not usable for backends in LOG mode.
 
       uri         This algorithm hashes either the left part of the URI (before
                   the question mark) or the whole URI (if the "whole" parameter
@@ -4882,6 +4886,13 @@ balance url_param <param> [check_post]
                   the Power of Two Random Choices and is described here :
                   http://www.eecs.harvard.edu/~michaelm/postscripts/handbook2001.pdf
 
+                  For backends in LOG mode, the number of draws is ignored and
+                  a single random is picked since there is no notion of server
+                  load. Random log balancing can be useful with large farms or
+                  when servers are frequently added or removed from the pool of
+                  available servers as it may avoid the hammering effect that
+                  could result from roundrobin in this situation.
+
       rdp-cookie
       rdp-cookie(<name>)
                   The RDP cookie <name> (or "mstshash" if omitted) will be
@@ -4903,20 +4914,39 @@ balance url_param <param> [check_post]
                   but this can be changed using "hash-type". See also the
                   "hash" option above.
 
+      log-hash    Takes a comma-delimited list of converters in argument. These
+                  converters are applied in sequence to the input log message,
+                  and the result will be cast as a string then hashed according
+                  to the configured hash-type. The resulting hash will be used
+                  to select the destination server among the ones declared in
+                  the log backend. The goal of this algorithm is to be able to
+                  extract a key within the final log message using string
+                  converters and then be able to stick to the same server thanks
+                  to the hash. Only "map-based" hashes are supported for now.
+                  This algorithm is only usable for backends in LOG mode, for
+                  others, please use "hash" instead.
+
+      log-sticky  Tries to stick to the same server as much as possible. The
+                  first server in the list of available servers receives all
+                  the log messages. When the server goes DOWN, the next server
+                  in the list takes its place. When a previously DOWN server
+                  goes back UP it is added at the end of the list so that the
+                  sticky server doesn't change until it becomes DOWN.
+
     <arguments> is an optional list of arguments which may be needed by some
-                algorithms. Right now, only "url_param" and "uri" support an
-                optional argument.
+                algorithms. Right now, only "url_param", "uri" and "log-hash"
+                support an optional argument.
 
   The load balancing algorithm of a backend is set to roundrobin when no other
   algorithm, mode nor option have been set. The algorithm may only be set once
-  for each backend.
+  for each backend. In backends in LOG mode, server "weight" is always ignored.
 
   With authentication schemes that require the same connection like NTLM, URI
   based algorithms must not be used, as they would cause subsequent requests
   to be routed to different backend servers, breaking the invalid assumptions
   NTLM relies on.
 
-  Examples :
+  TCP/HTTP Examples :
         balance roundrobin
         balance url_param userid
         balance url_param session_id check_post 64
@@ -4926,6 +4956,30 @@ balance url_param <param> [check_post]
         balance hash req.cookie(clientid)
         balance hash var(req.client_id)
         balance hash req.hdr_ip(x-forwarded-for,-1),ipmask(24)
+
+  LOG backend examples:
+        global
+          log backend@mylog-rrb local0 # send all logs to mylog-rrb backend
+          log backend@mylog-hash local0 # send all logs to mylog-hash backend
+
+        backend mylog-rrb
+          mode log
+          balance roundrobin
+
+          server s1 udp@127.0.0.1:514 # will receive 50% of log messages
+          server s2 udp@127.0.0.1:514
+
+        backend mylog-hash
+          mode log
+
+          # extract "METHOD URL PROTO" at the end of the log message,
+          # and let haproxy hash it so that log messages generated from
+          # similar requests get sent to the same syslog server:
+          balance log-hash 'field(-2,\")'
+
+          # server list here
+          server s1 127.0.0.1:514
+          #...
 
   Note: the following caveats and limitations on using the "check_post"
   extension with "url_param" must be considered :
@@ -8918,82 +8972,6 @@ no log
     log tcp@127.0.0.1:514 local0 notice notice  # same but limit output
                                                 # level and send in tcp
     log "${LOCAL_SYSLOG}:514" local0 notice   # send to local server
-
-log-balance <algorithm> [ <arguments> ]
-
-  Define the load balancing algorithm to be used in a log backend.
-  ("mode log" enabled)
-
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
-  Arguments :
-    <algorithm> is the algorithm used to select a server when doing load
-                balancing. This only applies when no persistence information
-                is available, or when a connection is redispatched to another
-                server. <algorithm> may be one of the following :
-
-      roundrobin  Each server is used in turns. This is the smoothest and
-                  fairest algorithm when the server's processing time remains
-                  equally distributed.
-
-      sticky      The first server in the list of available servers receives all
-                  the log messages. When the server goes DOWN, the next server
-                  in the list takes its place. When a previously DOWN server
-                  goes back UP it is added at the end of the list so that the
-                  sticky server doesn't change until it becomes DOWN.
-
-      random      A random number will be used as the key for the server
-                  lookup. Random log balancing can be useful with large farms
-                  or when servers are frequently added or removed from the
-                  pool of available servers as it may avoid the hammering
-                  effect that could result from roundrobin in this situation.
-
-      hash        <arguments> should be found in the form: <cnv_list>
-                  e.g.: log-balance hash <cnv_list>
-
-                  Each log message will be passed to the converter list
-                  specified in <cnv_list> (ie: "cnv1,cnv2..."), and it will
-                  then be passed to haproxy hashing function according to
-                  "hash-type" settings. The resulting hash will be used to
-                  select the destination server among the ones declared in the
-                  log backend. The goal of this algorithm is to be able to
-                  extract a key within the final log message using string
-                  converters and then be able to stick to the same server thanks
-                  to the hash. Only "map-based" hashes are supported for now.
-
-    <arguments> is an optional list of arguments which may be needed by some
-                algorithms.
-
-  The load balancing algorithm of a log backend is set to roundrobin when
-  no other algorithm has been set. The algorithm may only be set once for each
-  log backend. The above algorithms support the "backup" server option and the
-  "allbackups" proxy option. However server "weight" is not supported and will
-  be ignored.
-
-  Examples :
-
-        global
-          log backend@mylog-rrb local0 # send all logs to mylog-rrb backend
-          log backend@mylog-hash local0 # send all logs to mylog-hash backend
-
-        backend mylog-rrb
-          mode log
-          log-balance roundrobin
-
-          server s1 udp@127.0.0.1:514 # will receive 50% of log messages
-          server s2 udp@127.0.0.1:514
-
-        backend mylog-hash
-          mode log
-
-          # extract "METHOD URL PROTO" at the end of the log message,
-          # and let haproxy hash it so that log messages generated from
-          # similar requests get sent to the same syslog server:
-          log-balance hash 'field(-2,\")'
-
-          # server list here
-          server s1 127.0.0.1:514
-          #...
 
 log-format <string>
   Specifies the log format string to use for traffic logs

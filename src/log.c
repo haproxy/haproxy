@@ -910,7 +910,7 @@ static int postcheck_log_backend(struct proxy *be)
 	be->srv_bck = 0;
 
 	/* "log-balance hash" needs to compile its expression */
-	if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_SMP) {
+	if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_LH) {
 		struct sample_expr *expr;
 		char *expr_str = NULL;
 		char *err_str = NULL;
@@ -2198,7 +2198,7 @@ static inline void __do_send_log_backend(struct proxy *be, struct log_header hdr
 		 */
 		targetid = HA_ATOMIC_FETCH_ADD(&be->lbprm.log.lastid, 1) % nb_srv;
 	}
-	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_FAS) {
+	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_LS) {
 		/* sticky mode: use first server in the pool, which will always stay
 		 * first during dequeuing and requeuing, unless it becomes unavailable
 		 * and will be replaced by another one
@@ -2209,7 +2209,7 @@ static inline void __do_send_log_backend(struct proxy *be, struct log_header hdr
 		/* random mode */
 		targetid = statistical_prng() % nb_srv;
 	}
-	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_SMP) {
+	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_LH) {
 		struct sample result;
 
 		/* log-balance hash */

@@ -65,6 +65,7 @@
 #define BE_LB_NEED_ADDR 0x00000100  /* only source address needed */
 #define BE_LB_NEED_DATA 0x00000200  /* some payload is needed     */
 #define BE_LB_NEED_HTTP 0x00000400  /* an HTTP request is needed  */
+#define BE_LB_NEED_LOG  0x00000800  /* LOG backend required  */
 #define BE_LB_NEED      0x0000FF00  /* mask to get/clear dependencies */
 
 /* Algorithm */
@@ -89,6 +90,8 @@
 #define BE_LB_ALGO_HH	(BE_LB_KIND_HI | BE_LB_NEED_HTTP | BE_LB_HASH_HDR) /* hash: HTTP header value  */
 #define BE_LB_ALGO_RCH	(BE_LB_KIND_HI | BE_LB_NEED_DATA | BE_LB_HASH_RDP) /* hash: RDP cookie value   */
 #define BE_LB_ALGO_SMP	(BE_LB_KIND_HI | BE_LB_NEED_DATA | BE_LB_HASH_SMP) /* hash: sample expression  */
+#define BE_LB_ALGO_LH	(BE_LB_KIND_HI | BE_LB_NEED_LOG  | BE_LB_HASH_SMP) /* log hash: sample expression  */
+#define BE_LB_ALGO_LS	(BE_LB_KIND_CB | BE_LB_NEED_LOG  | BE_LB_CB_FAS)   /* log sticky */
 #define BE_LB_ALGO      (BE_LB_KIND    | BE_LB_NEED      | BE_LB_PARM    ) /* mask to clear algo */
 
 /* Higher bits define how a given criterion is mapped to a server. In fact it

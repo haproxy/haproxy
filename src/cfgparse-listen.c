@@ -554,15 +554,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		/* mode log shares lbprm struct with other modes, but makes a different use of it,
-		 * thus, we must ensure that defproxy settings cannot persist between incompatibles
-		 * modes at this point.
-		 */
-		if ((curr_defproxy->mode == PR_MODE_SYSLOG && curproxy->mode != PR_MODE_SYSLOG) ||
-		    (curr_defproxy->mode != PR_MODE_SYSLOG && curproxy->mode == PR_MODE_SYSLOG)) {
-			/* lbprm settings from incompatible defproxy, back to defaults */
-			memset(&curproxy->lbprm, 0, sizeof(curproxy->lbprm));
-		}
 	}
 	else if (strcmp(args[0], "id") == 0) {
 		struct eb32_node *node;
@@ -2536,28 +2527,7 @@ stats_error_parsing:
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		if (curproxy->mode != PR_MODE_TCP && curproxy->mode != PR_MODE_HTTP) {
-			ha_alert("parsing [%s:%d] : '%s' requires TCP or HTTP mode.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
 		if (backend_parse_balance((const char **)args + 1, &errmsg, curproxy) < 0) {
-			ha_alert("parsing [%s:%d] : %s %s\n", file, linenum, args[0], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
-	else if (strcmp(args[0], "log-balance") == 0) {  /* set log-balancing with optional algorithm */
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-		if (curproxy->mode != PR_MODE_SYSLOG) {
-			ha_alert("parsing [%s:%d] : %s %s\n", file, linenum, args[0], "only available for log backends");
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (backend_parse_log_balance((const char **)args + 1, &errmsg, curproxy) < 0) {
 			ha_alert("parsing [%s:%d] : %s %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -2571,12 +2541,6 @@ stats_error_parsing:
 		 * The default hash function is sdbm for map-based and sdbm+avalanche for consistent.
 		 */
 		curproxy->lbprm.algo &= ~(BE_LB_HASH_TYPE | BE_LB_HASH_FUNC | BE_LB_HASH_MOD);
-
-		if (curproxy->mode != PR_MODE_TCP && curproxy->mode != PR_MODE_HTTP && curproxy->mode != PR_MODE_SYSLOG) {
-			ha_alert("parsing [%s:%d] : '%s' requires TCP, HTTP or LOG mode.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
 
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;

@@ -67,7 +67,7 @@ haproxy h1 -conf {
                 mode log
 
                 # extract id (integer) from URL in the form "GET /id" and use it as hash key
-                log-balance hash 'field(-2,\"),field(2,/),field(1, )'
+                balance log-hash 'field(-2,\"),field(2,/),field(1, )'
                 hash-type map-based none
 
                 server s1 udp@${Slg1_addr}:${Slg1_port} # syslog 1 only receives "GET /0" requests
@@ -79,7 +79,7 @@ haproxy h1 -conf {
 
         backend mylog-failover
                 mode log
-		log-balance sticky
+		balance log-sticky
 
                 server s1 udp@${Slg21_addr}:${Slg21_port}        # only receives "GET /srv1" request
                 server s2 udp@${Slg22_addr}:${Slg22_port}        # only receives "GET /srv2" request

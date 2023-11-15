@@ -2823,55 +2823,23 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 			return -1;
 		}
 	}
-	else {
-		memprintf(err, "only supports 'roundrobin', 'static-rr', 'leastconn', 'source', 'uri', 'url_param', 'hdr(name)' and 'rdp-cookie(name)' options.");
-		return -1;
-	}
-	return 0;
-}
-
-/* This function parses a "balance" statement in a log backend section
- * describing <curproxy>. It returns -1 if there is any error, otherwise zero.
- * If it returns -1, it will write an error message into the <err> buffer which
- * will automatically be allocated and must be passed as NULL. The trailing '\n'
- * will not be written. The function must be called with <args> pointing to the
- * first word after "balance".
- */
-int backend_parse_log_balance(const char **args, char **err, struct proxy *curproxy)
-{
-	if (!*(args[0])) {
-		/* if no option is set, use round-robin by default */
-		curproxy->lbprm.algo &= ~BE_LB_ALGO;
-		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
-		return 0;
-	}
-
-	if (strcmp(args[0], "roundrobin") == 0) {
-		curproxy->lbprm.algo &= ~BE_LB_ALGO;
-		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
-	}
-	else if (strcmp(args[0], "sticky") == 0) {
-		curproxy->lbprm.algo &= ~BE_LB_ALGO;
-		/* we use ALGO_FAS as "sticky" mode in log-balance context */
-		curproxy->lbprm.algo |= BE_LB_ALGO_FAS;
-	}
-	else if (strcmp(args[0], "random") == 0) {
-		curproxy->lbprm.algo &= ~BE_LB_ALGO;
-		curproxy->lbprm.algo |= BE_LB_ALGO_RND;
-	}
-	else if (strcmp(args[0], "hash") == 0) {
+	else if (strcmp(args[0], "log-hash") == 0) {
 		if (!*args[1]) {
 			memprintf(err, "%s requires a converter list.", args[0]);
 			return -1;
 		}
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
-		curproxy->lbprm.algo |= BE_LB_ALGO_SMP;
+		curproxy->lbprm.algo |= BE_LB_ALGO_LH;
 
 		ha_free(&curproxy->lbprm.arg_str);
 		curproxy->lbprm.arg_str = strdup(args[1]);
 	}
+	else if (strcmp(args[0], "log-sticky") == 0) {
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_LS;
+	}
 	else {
-		memprintf(err, "only supports 'roundrobin', 'sticky', 'random', 'hash' options");
+		memprintf(err, "only supports 'roundrobin', 'static-rr', 'leastconn', 'source', 'uri', 'url_param', 'hash', 'hdr(name)', 'rdp-cookie(name)', 'log-hash' and 'log-sticky' options.");
 		return -1;
 	}
 	return 0;
