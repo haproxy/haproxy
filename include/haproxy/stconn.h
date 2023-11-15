@@ -182,11 +182,11 @@ static forceinline void sc_ep_report_read_activity(struct stconn *sc)
 }
 
 /* Report a send blocked. This function sets <fsb> to now_ms if it was not
- * already set
+ * already set or if something was sent (to renew <fsb>).
  */
-static forceinline void sc_ep_report_blocked_send(struct stconn *sc)
+static forceinline void sc_ep_report_blocked_send(struct stconn *sc, int did_send)
 {
-	if (!tick_isset(sc->sedesc->fsb))
+	if (did_send || !tick_isset(sc->sedesc->fsb))
 		sc->sedesc->fsb = now_ms;
 }
 
@@ -529,10 +529,12 @@ static inline void se_done_ff(struct sedesc *se)
 
 		BUG_ON(!mux->done_fastfwd);
 		sent = mux->done_fastfwd(se->sc);
-		if (sent > 0)
-			sc_ep_report_send_activity(se->sc);
-		else if (to_send > 0) /* implies sent == 0 */
-			sc_ep_report_blocked_send(se->sc);
+		if (to_send) {
+			if (sent == to_send)
+				sc_ep_report_send_activity(se->sc);
+			else
+				sc_ep_report_blocked_send(se->sc, sent != 0);
+		}
 	}
 }
 
