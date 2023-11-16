@@ -114,6 +114,7 @@ struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
 					ret->block_count = freed;
 					ret->refcount = 1;
 					ret->last_reserved = block;
+					ret->last_append = NULL;
 					enough = 1;
 					break;
 				}
