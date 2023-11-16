@@ -17,8 +17,6 @@
 #include <haproxy/list.h>
 #include <haproxy/shctx.h>
 
-int use_shared_mem = 0;
-
 /*
  * Reserve a new row if <first> is null, put it in the hotlist, set the refcount to 1
  * or append new blocks to the row with <first> as first block if non null.
@@ -271,13 +269,13 @@ int shctx_row_data_get(struct shared_context *shctx, struct shared_block *first,
  * and 0 if cache is already allocated.
  */
 int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
-               unsigned int maxobjsz, int extra, int shared)
+               unsigned int maxobjsz, int extra)
 {
 	int i;
 	struct shared_context *shctx;
 	int ret;
 	void *cur;
-	int maptype = MAP_PRIVATE;
+	int maptype = MAP_SHARED;
 
 	if (maxblocks <= 0)
 		return 0;
@@ -285,11 +283,6 @@ int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
 	/* make sure to align the records on a pointer size */
 	blocksize = (blocksize + sizeof(void *) - 1) & -sizeof(void *);
 	extra     = (extra     + sizeof(void *) - 1) & -sizeof(void *);
-
-	if (shared) {
-		maptype = MAP_SHARED;
-		use_shared_mem = 1;
-	}
 
 	shctx = (struct shared_context *)mmap(NULL, sizeof(struct shared_context) + extra + (maxblocks * (sizeof(struct shared_block) + blocksize)),
 	                                      PROT_READ | PROT_WRITE, maptype | MAP_ANON, -1, 0);

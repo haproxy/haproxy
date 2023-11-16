@@ -21,7 +21,7 @@
 
 int shctx_init(struct shared_context **orig_shctx,
                int maxblocks, int blocksize, unsigned int maxobjsz,
-               int extra, int shared);
+               int extra);
 struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
                                            struct shared_block *last, int data_len);
 void shctx_row_detach(struct shared_context *shctx, struct shared_block *first);
@@ -35,27 +35,21 @@ int shctx_row_data_get(struct shared_context *shctx, struct shared_block *first,
 
 /* Lock functions */
 
-extern int use_shared_mem;
-
 static inline void shctx_rdlock(struct shared_context *shctx)
 {
-       if (use_shared_mem)
-               HA_RWLOCK_RDLOCK(SHCTX_LOCK, &shctx->lock);
+	HA_RWLOCK_RDLOCK(SHCTX_LOCK, &shctx->lock);
 }
 static inline void shctx_rdunlock(struct shared_context *shctx)
 {
-       if (use_shared_mem)
-              HA_RWLOCK_RDUNLOCK(SHCTX_LOCK, &shctx->lock);
+	HA_RWLOCK_RDUNLOCK(SHCTX_LOCK, &shctx->lock);
 }
 static inline void shctx_wrlock(struct shared_context *shctx)
 {
-       if (use_shared_mem)
-               HA_RWLOCK_WRLOCK(SHCTX_LOCK, &shctx->lock);
+	HA_RWLOCK_WRLOCK(SHCTX_LOCK, &shctx->lock);
 }
 static inline void shctx_wrunlock(struct shared_context *shctx)
 {
-       if (use_shared_mem)
-              HA_RWLOCK_WRUNLOCK(SHCTX_LOCK, &shctx->lock);
+	HA_RWLOCK_WRUNLOCK(SHCTX_LOCK, &shctx->lock);
 }
 
 /* List Macros */

@@ -5425,7 +5425,7 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 	if (!ssl_shctx && global.tune.sslcachesize) {
 		alloc_ctx = shctx_init(&ssl_shctx, global.tune.sslcachesize,
 		                       sizeof(struct sh_ssl_sess_hdr) + SHSESS_BLOCK_MIN_SIZE, -1,
-		                       sizeof(*sh_ssl_sess_tree), (global.nbthread > 1));
+		                       sizeof(*sh_ssl_sess_tree));
 		if (alloc_ctx <= 0) {
 			if (alloc_ctx == SHCTX_E_INIT_LOCK)
 				ha_alert("Unable to initialize the lock for the shared SSL session cache. You can retry using the global statement 'tune.ssl.force-private-cache' but it could increase CPU usage due to renegotiations if nbproc > 1.\n");
