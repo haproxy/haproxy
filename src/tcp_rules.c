@@ -103,7 +103,9 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 
-	def_rules = ((s->be->defpx && (an_bit == AN_REQ_INSPECT_FE || s->be->defpx != sess->fe->defpx)) ? &s->be->defpx->tcp_req.inspect_rules : NULL);
+	def_rules = ((s->be->defpx &&
+	              (sess->fe->mode == PR_MODE_TCP || sess->fe->mode == PR_MODE_HTTP) &&
+	              (an_bit == AN_REQ_INSPECT_FE || s->be->defpx != sess->fe->defpx)) ? &s->be->defpx->tcp_req.inspect_rules : NULL);
 	rules = &s->be->tcp_req.inspect_rules;
 
 	/* We don't know whether we have enough data, so must proceed
@@ -286,7 +288,7 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 
-	def_rules = (s->be->defpx ? &s->be->defpx->tcp_rep.inspect_rules : NULL);
+	def_rules = (s->be->defpx && (s->be->mode == PR_MODE_TCP || s->be->mode == PR_MODE_HTTP) ? &s->be->defpx->tcp_rep.inspect_rules : NULL);
 	rules = &s->be->tcp_rep.inspect_rules;
 
 	/* We don't know whether we have enough data, so must proceed
@@ -484,7 +486,7 @@ int tcp_exec_l4_rules(struct session *sess)
 	if (!conn)
 		return result;
 
-	if  (sess->fe->defpx)
+	if  (sess->fe->defpx && (sess->fe->mode == PR_MODE_TCP || sess->fe->mode == PR_MODE_HTTP))
 		px = sess->fe->defpx;
 
   restart:
@@ -579,7 +581,7 @@ int tcp_exec_l5_rules(struct session *sess)
 	int result = 1;
 	enum acl_test_res ret;
 
-	if  (sess->fe->defpx)
+	if  (sess->fe->defpx && (sess->fe->mode == PR_MODE_TCP || sess->fe->mode == PR_MODE_HTTP))
 		px = sess->fe->defpx;
 
   restart:

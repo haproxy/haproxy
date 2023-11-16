@@ -41,6 +41,7 @@
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
+#include <haproxy/action.h>
 #include <haproxy/time.h>
 #include <haproxy/hash.h>
 #include <haproxy/tools.h>
@@ -874,6 +875,32 @@ static void log_backend_srv_down(struct server *srv)
 	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 }
 
+/* check that current configuration is compatible with "mode log" */
+static int _postcheck_log_backend_compat(struct proxy *be)
+{
+	int err_code = ERR_NONE;
+
+	if (!LIST_ISEMPTY(&be->tcp_req.inspect_rules) ||
+	    !LIST_ISEMPTY(&be->tcp_req.l4_rules) ||
+	    !LIST_ISEMPTY(&be->tcp_req.l5_rules)) {
+		ha_warning("Cannot use tcp-request rules with 'mode log' in %s '%s'. They will be ignored.\n",
+			   proxy_type_str(be), be->id);
+
+		err_code |= ERR_WARN;
+		free_act_rules(&be->tcp_req.inspect_rules);
+		free_act_rules(&be->tcp_req.l4_rules);
+		free_act_rules(&be->tcp_req.l5_rules);
+	}
+	if (!LIST_ISEMPTY(&be->tcp_rep.inspect_rules)) {
+		ha_warning("Cannot use tcp-response rules with 'mode log' in %s '%s'. They will be ignored.\n",
+			   proxy_type_str(be), be->id);
+
+		err_code |= ERR_WARN;
+		free_act_rules(&be->tcp_rep.inspect_rules);
+	}
+	return err_code;
+}
+
 static int postcheck_log_backend(struct proxy *be)
 {
 	char *msg = NULL;
@@ -884,6 +911,10 @@ static int postcheck_log_backend(struct proxy *be)
 	if (be->mode != PR_MODE_SYSLOG ||
 	    (be->flags & (PR_FL_DISABLED|PR_FL_STOPPED)))
 		return ERR_NONE; /* nothing to do */
+
+	err_code |= _postcheck_log_backend_compat(be);
+	if (err_code & ERR_CODE)
+		return err_code;
 
 	/* First time encoutering this log backend, perform some init
 	 */
