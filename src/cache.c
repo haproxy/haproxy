@@ -218,7 +218,14 @@ DECLARE_STATIC_POOL(pool_head_cache_st, "cache_st", sizeof(struct cache_st));
 static struct eb32_node *insert_entry(struct cache *cache, struct cache_entry *new_entry);
 static void delete_entry(struct cache_entry *del_entry);
 
-struct cache_entry *entry_exist(struct cache *cache, char *hash)
+/*
+ * Find a cache_entry in the <cache>'s tree that has the hash <hash>.
+ * If <delete_expired> is 0 then the entry is left untouched if it is found but
+ * is already expired, and NULL is returned. Otherwise, the expired entry is
+ * removed from the tree and NULL is returned.
+ * Returns a valid (not expired) cache_tree pointer.
+ */
+struct cache_entry *entry_exist(struct cache *cache, char *hash, int delete_expired)
 {
 	struct eb32_node *node;
 	struct cache_entry *entry;
@@ -235,7 +242,7 @@ struct cache_entry *entry_exist(struct cache *cache, char *hash)
 
 	if (entry->expire > date.tv_sec) {
 		return entry;
-	} else {
+	} else if (delete_expired) {
 		delete_entry(entry);
 		entry->eb.key = 0;
 	}
@@ -277,10 +284,13 @@ static int secondary_key_cmp(const char *ref_key, const char *new_key)
  * order to get the proper one out of the list, we use a secondary_key.
  * This function simply iterates over all the entries with the same primary_key
  * until it finds the right one.
+ * If <delete_expired> is 0 then the entry is left untouched if it is found but
+ * is already expired, and NULL is returned. Otherwise, the expired entry is
+ * removed from the tree and NULL is returned.
  * Returns the cache_entry in case of success, NULL otherwise.
  */
 struct cache_entry *secondary_entry_exist(struct cache *cache, struct cache_entry *entry,
-					  const char *secondary_key)
+					  const char *secondary_key, int delete_expired)
 {
 	struct eb32_node *node = &entry->eb;
 
@@ -294,7 +304,7 @@ struct cache_entry *secondary_entry_exist(struct cache *cache, struct cache_entr
 		 * when we find them. Calling delete_entry would be too costly
 		 * so we simply call eb32_delete. The secondary_entry count will
 		 * be updated when we try to insert a new entry to this list. */
-		if (entry->expire <= date.tv_sec) {
+		if (entry->expire <= date.tv_sec && delete_expired) {
 			eb32_delete(&entry->eb);
 			entry->eb.key = 0;
 		}
@@ -304,8 +314,10 @@ struct cache_entry *secondary_entry_exist(struct cache *cache, struct cache_entr
 
 	/* Expired entry */
 	if (entry && entry->expire <= date.tv_sec) {
-		eb32_delete(&entry->eb);
-		entry->eb.key = 0;
+		if (delete_expired) {
+			eb32_delete(&entry->eb);
+			entry->eb.key = 0;
+		}
 		entry = NULL;
 	}
 
@@ -1076,7 +1088,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 				 * unsafe request (such as PUT, POST or DELETE). */
 				cache_wrlock(cache);
 
-				old = entry_exist(cache, txn->cache_hash);
+				old = entry_exist(cache, txn->cache_hash, 1);
 				if (old) {
 					eb32_delete(&old->eb);
 					old->eb.key = 0;
@@ -1140,11 +1152,11 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 		goto out;
 
 	cache_wrlock(cache);
-	old = entry_exist(cache, txn->cache_hash);
+	old = entry_exist(cache, txn->cache_hash, 1);
 	if (old) {
 		if (vary_signature)
 			old = secondary_entry_exist(cconf->c.cache, old,
-						    txn->cache_secondary_hash);
+						    txn->cache_secondary_hash, 1);
 		if (old) {
 			if (!old->complete) {
 				/* An entry with the same primary key is already being
@@ -1840,7 +1852,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 
 	shctx_lock(shctx_ptr(cache));
 	cache_wrlock(cache);
-	res = entry_exist(cache, s->txn->cache_hash);
+	res = entry_exist(cache, s->txn->cache_hash, 0);
 	/* We must not use an entry that is not complete but the check will be
 	 * performed after we look for a potential secondary entry (in case of
 	 * Vary). */
@@ -1859,7 +1871,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 				shctx_lock(shctx_ptr(cache));
 				cache_wrlock(cache);
 				sec_entry = secondary_entry_exist(cache, res,
-								 s->txn->cache_secondary_hash);
+								 s->txn->cache_secondary_hash, 0);
 				if (sec_entry && sec_entry != res) {
 					/* The wrong row was added to the hot list. */
 					shctx_row_dec_hot(shctx_ptr(cache), entry_block);
