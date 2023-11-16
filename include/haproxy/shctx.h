@@ -27,7 +27,7 @@ struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
 void shctx_row_inc_hot(struct shared_context *shctx, struct shared_block *first);
 void shctx_row_dec_hot(struct shared_context *shctx, struct shared_block *first);
 int shctx_row_data_append(struct shared_context *shctx,
-                          struct shared_block *first, struct shared_block *from,
+                          struct shared_block *first,
                           unsigned char *data, int len);
 int shctx_row_data_get(struct shared_context *shctx, struct shared_block *first,
                        unsigned char *dst, int offset, int len);

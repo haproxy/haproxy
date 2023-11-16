@@ -167,8 +167,7 @@ void shctx_row_dec_hot(struct shared_context *shctx, struct shared_block *first)
  * Return the amount of appended data if ret >= 0
  * or how much more space it needs to contains the data if < 0.
  */
-int shctx_row_data_append(struct shared_context *shctx,
-                          struct shared_block *first, struct shared_block *from,
+int shctx_row_data_append(struct shared_context *shctx, struct shared_block *first,
                           unsigned char *data, int len)
 {
 	int remain, start;
@@ -178,7 +177,7 @@ int shctx_row_data_append(struct shared_context *shctx,
 	if (len > first->block_count * shctx->block_size - first->len)
 		return (first->block_count * shctx->block_size - first->len) - len;
 
-	block = from ? from : first;
+	block = first->last_append ? first->last_append : first;
 	list_for_each_entry_from(block, &shctx->hot, list) {
 		/* end of copy */
 		if (len <= 0)

@@ -682,7 +682,7 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 	}
 	shctx_unlock(shctx);
 
-	ret = shctx_row_data_append(shctx, st->first_block, st->first_block->last_append,
+	ret = shctx_row_data_append(shctx, st->first_block,
 				    (unsigned char *)b_head(&trash), b_data(&trash));
 	if (ret < 0)
 		goto no_cache;
@@ -1240,7 +1240,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	 */
 	/* does not need to be locked because it's in the "hot" list,
 	 * copy the headers */
-	if (shctx_row_data_append(shctx, first, NULL, (unsigned char *)trash.area, trash.data) < 0)
+	if (shctx_row_data_append(shctx, first, (unsigned char *)trash.area, trash.data) < 0)
 		goto out;
 
 	/* register the buffer in the filter ctx for filling it with data*/
