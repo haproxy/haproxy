@@ -2665,6 +2665,10 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 {
 	struct show_cache_ctx *ctx = appctx->svcctx;
 	struct cache* cache = ctx->cache;
+	struct buffer *buf = alloc_trash_chunk();
+
+	if (buf == NULL)
+		return 1;
 
 	list_for_each_entry_from(cache, &caches, list) {
 		struct eb32_node *node = NULL;
@@ -2677,10 +2681,10 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 
 		next_key = ctx->next_key;
 		if (!next_key) {
-			chunk_printf(&trash, "%p: %s (shctx:%p, available blocks:%d)\n", cache, cache->id, shctx_ptr(cache), shctx_ptr(cache)->nbav);
-			if (applet_putchk(appctx, &trash) == -1) {
+			chunk_printf(buf, "%p: %s (shctx:%p, available blocks:%d)\n", cache, cache->id, shctx_ptr(cache), shctx_ptr(cache)->nbav);
+			if (applet_putchk(appctx, buf) == -1) {
 				shctx_unlock(shctx);
-				return 0;
+				goto yield;
 			}
 		}
 		shctx_unlock(shctx);
@@ -2700,10 +2704,10 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 			next_key = node->key + 1;
 
 			if (entry->expire > date.tv_sec) {
-				chunk_printf(&trash, "%p hash:%u vary:0x", entry, read_u32(entry->hash));
+				chunk_printf(buf, "%p hash:%u vary:0x", entry, read_u32(entry->hash));
 				for (i = 0; i < HTTP_CACHE_SEC_KEY_LEN; ++i)
-					chunk_appendf(&trash, "%02x", (unsigned char)entry->secondary_key[i]);
-				chunk_appendf(&trash, " size:%u (%u blocks), refcount:%u, expire:%d\n",
+					chunk_appendf(buf, "%02x", (unsigned char)entry->secondary_key[i]);
+				chunk_appendf(buf, " size:%u (%u blocks), refcount:%u, expire:%d\n",
 					      block_ptr(entry)->len, block_ptr(entry)->block_count,
 					      block_ptr(entry)->refcount, entry->expire - (int)date.tv_sec);
 			}
@@ -2711,17 +2715,21 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 
 			ctx->next_key = next_key;
 
-			if (applet_putchk(appctx, &trash) == -1) {
+			if (applet_putchk(appctx, buf) == -1) {
 				cache_rdunlock(cache);
-				return 0;
+				goto yield;
 			}
 		}
 		cache_rdunlock(cache);
 
 	}
 
+	free_trash_chunk(buf);
 	return 1;
 
+yield:
+	free_trash_chunk(buf);
+	return 0;
 }
 
 
