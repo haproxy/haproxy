@@ -983,9 +983,9 @@ int http_calc_maxage(struct stream *s, struct cache *cache, int *true_maxage)
 }
 
 
-static void cache_free_blocks(struct shared_block *first, struct shared_block *block, void *data)
+static void cache_free_blocks(struct shared_block *first, void *data)
 {
-	struct cache_entry *object = (struct cache_entry *)block->data;
+	struct cache_entry *object = (struct cache_entry *)first->data;
 	struct cache *cache = (struct cache *)data;
 	struct cache_tree *cache_tree;
 

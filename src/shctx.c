@@ -81,7 +81,7 @@ struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
 
 		/* release callback */
 		if (block->len && shctx->free_block)
-			shctx->free_block(block, block, shctx->cb_data);
+			shctx->free_block(block, shctx->cb_data);
 		block->len = 0;
 
 		if (ret) {

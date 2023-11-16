@@ -50,7 +50,7 @@ struct shared_context {
 	struct list avail;  /* list for active and free blocks */
 	unsigned int nbav;  /* number of available blocks */
 	unsigned int max_obj_size;   /* maximum object size (in bytes). */
-	void (*free_block)(struct shared_block *first, struct shared_block *block, void *data);
+	void (*free_block)(struct shared_block *first, void *data);
 	void (*reserve_finish)(struct shared_context *shctx);
 	void *cb_data;
 	short int block_size;

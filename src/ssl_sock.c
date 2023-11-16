@@ -4206,13 +4206,11 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 }
 
 
-static inline void sh_ssl_sess_free_blocks(struct shared_block *first, struct shared_block *block, void *data)
+static inline void sh_ssl_sess_free_blocks(struct shared_block *first, void *data)
 {
-	if (first == block) {
-		struct sh_ssl_sess_hdr *sh_ssl_sess = (struct sh_ssl_sess_hdr *)first->data;
-		if (first->len > 0)
-			sh_ssl_sess_tree_delete(sh_ssl_sess);
-	}
+	struct sh_ssl_sess_hdr *sh_ssl_sess = (struct sh_ssl_sess_hdr *)first->data;
+	if (first->len > 0)
+		sh_ssl_sess_tree_delete(sh_ssl_sess);
 }
 
 /* return first block from sh_ssl_sess  */
