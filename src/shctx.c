@@ -110,6 +110,9 @@ struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
 
 	shctx_wrunlock(shctx);
 
+	if (shctx->reserve_finish)
+		shctx->reserve_finish(shctx);
+
 out:
 	return ret;
 }
