@@ -875,6 +875,7 @@ void stktable_deinit(struct stktable *t)
 {
 	if (!t)
 		return;
+	task_destroy(t->exp_task);
 	pool_destroy(t->pool);
 }
 
