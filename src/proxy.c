@@ -389,8 +389,7 @@ void free_proxy(struct proxy *p)
 
 	pool_destroy(p->req_cap_pool);
 	pool_destroy(p->rsp_cap_pool);
-	if (p->table)
-		pool_destroy(p->table->pool);
+	stktable_deinit(p->table);
 
 	HA_RWLOCK_DESTROY(&p->lbprm.lock);
 	HA_RWLOCK_DESTROY(&p->lock);
