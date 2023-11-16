@@ -922,6 +922,13 @@ static int _postcheck_log_backend_compat(struct proxy *be)
 		err_code |= ERR_WARN;
 		istfree(&be->server_id_hdr_name);
 	}
+	if (be->dyncookie_key) {
+		ha_warning("Cannot set \"dynamic-cookie-key\" with 'mode log' in %s '%s'. It will be ignored.\n",
+			   proxy_type_str(be), be->id);
+
+		err_code |= ERR_WARN;
+		ha_free(&be->dyncookie_key);
+	}
 	return err_code;
 }
 
