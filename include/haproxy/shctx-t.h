@@ -54,6 +54,9 @@ struct shared_context {
 	void (*reserve_finish)(struct shared_context *shctx);
 	void *cb_data;
 	short int block_size;
+	ALWAYS_ALIGN(64);  /* The following member needs to be aligned to 64 in the
+			      cache's case because the cache struct contains an explicitely
+			      aligned member (struct cache_tree). */
 	unsigned char data[VAR_ARRAY];
 };
 
