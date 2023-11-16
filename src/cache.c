@@ -770,13 +770,10 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 
   end:
 
-	shctx_wrlock(shctx);
 	fb = shctx_row_reserve_hot(shctx, st->first_block, trash.data);
 	if (!fb) {
-		shctx_wrunlock(shctx);
 		goto no_cache;
 	}
-	shctx_wrunlock(shctx);
 
 	ret = shctx_row_data_append(shctx, st->first_block,
 				    (unsigned char *)b_head(&trash), b_data(&trash));
@@ -1225,9 +1222,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	}
 	cache_wrunlock(cache);
 
-	shctx_wrlock(shctx);
 	first = shctx_row_reserve_hot(shctx, NULL, sizeof(struct cache_entry));
-	shctx_wrunlock(shctx);
 	if (!first) {
 		goto out;
 	}
@@ -1327,12 +1322,9 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 		if (set_secondary_key_encoding(htx, object->secondary_key))
 		    goto out;
 
-	shctx_wrlock(shctx);
 	if (!shctx_row_reserve_hot(shctx, first, trash.data)) {
-		shctx_wrunlock(shctx);
 		goto out;
 	}
-	shctx_wrunlock(shctx);
 
 	/* cache the headers in a http action because it allows to chose what
 	 * to cache, for example you might want to cache a response before

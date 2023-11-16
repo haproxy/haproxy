@@ -35,10 +35,6 @@ struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
 
 	BUG_ON(data_len < 0);
 
-	/* not enough usable blocks */
-	if (data_len > shctx->nbav * shctx->block_size)
-		goto out;
-
 	/* Check the object size limit. */
 	if (shctx->max_obj_size > 0) {
 		if ((first && first->len + data_len > shctx->max_obj_size) ||
@@ -66,8 +62,19 @@ struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
 		}
 	}
 
+	shctx_wrlock(shctx);
+
+	/* not enough usable blocks */
+	if (data_len > shctx->nbav * shctx->block_size) {
+		shctx_wrunlock(shctx);
+		goto out;
+	}
+
+
 	if (data_len <= 0 || LIST_ISEMPTY(&shctx->avail)) {
-		return NULL;
+		ret = NULL;
+		shctx_wrunlock(shctx);
+		goto out;
 	}
 
 	list_for_each_entry_safe(block, sblock, &shctx->avail, list) {
@@ -100,6 +107,8 @@ struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
 			break;
 		}
 	}
+
+	shctx_wrunlock(shctx);
 
 out:
 	return ret;

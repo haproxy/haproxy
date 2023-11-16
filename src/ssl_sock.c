@@ -4239,6 +4239,8 @@ static int sh_ssl_sess_store(unsigned char *s_id, unsigned char *data, int data_
 		return 0;
 	}
 
+	shctx_wrlock(ssl_shctx);
+
 	/* STORE the key in the first elem */
 	sh_ssl_sess = (struct sh_ssl_sess_hdr *)first->data;
 	memcpy(sh_ssl_sess->key_data, s_id, SSL_MAX_SSL_SESSION_ID_LENGTH);
@@ -4266,6 +4268,8 @@ static int sh_ssl_sess_store(unsigned char *s_id, unsigned char *data, int data_
 	}
 
 	shctx_row_reattach(ssl_shctx, first);
+
+	shctx_wrunlock(ssl_shctx);
 
 	return 1;
 }
@@ -4408,10 +4412,8 @@ int sh_ssl_sess_new_cb(SSL *ssl, SSL_SESSION *sess)
 	i2d_SSL_SESSION(sess, &p);
 
 
-	shctx_wrlock(ssl_shctx);
 	/* store to cache */
 	sh_ssl_sess_store(encid, encsess, data_len);
-	shctx_wrunlock(ssl_shctx);
 err:
 	/* reset original length values */
 	SSL_SESSION_set1_id(sess, encid, sid_length);
