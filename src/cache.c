@@ -185,6 +185,8 @@ struct cache_entry {
 	unsigned int expire;      /* expiration date (wall clock time) */
 	unsigned int age;         /* Origin server "Age" header value */
 
+	int refcount;
+
 	struct eb32_node eb;     /* ebtree node used to hold the cache object */
 	char hash[20];
 
@@ -218,6 +220,8 @@ DECLARE_STATIC_POOL(pool_head_cache_st, "cache_st", sizeof(struct cache_st));
 
 static struct eb32_node *insert_entry(struct cache *cache, struct cache_entry *new_entry);
 static void delete_entry(struct cache_entry *del_entry);
+static void release_entry_locked(struct cache *cache, struct cache_entry *entry);
+static void release_entry_unlocked(struct cache *cache, struct cache_entry *entry);
 
 /*
  * Find a cache_entry in the <cache>'s tree that has the hash <hash>.
@@ -225,8 +229,10 @@ static void delete_entry(struct cache_entry *del_entry);
  * is already expired, and NULL is returned. Otherwise, the expired entry is
  * removed from the tree and NULL is returned.
  * Returns a valid (not expired) cache_tree pointer.
+ * The returned entry is not retained, it should be explicitely retained only
+ * when necessary.
  */
-struct cache_entry *entry_exist(struct cache *cache, char *hash, int delete_expired)
+struct cache_entry *get_entry(struct cache *cache, char *hash, int delete_expired)
 {
 	struct eb32_node *node;
 	struct cache_entry *entry;
@@ -244,11 +250,69 @@ struct cache_entry *entry_exist(struct cache *cache, char *hash, int delete_expi
 	if (entry->expire > date.tv_sec) {
 		return entry;
 	} else if (delete_expired) {
-		delete_entry(entry);
-		entry->eb.key = 0;
+		release_entry_locked(cache, entry);
 	}
 	return NULL;
+}
 
+/*
+ * Increment a cache_entry's reference counter.
+ */
+static void retain_entry(struct cache_entry *entry)
+{
+	if (entry)
+		HA_ATOMIC_INC(&entry->refcount);
+}
+
+/*
+ * Decrement a cache_entry's reference counter and remove it from the <cache>'s
+ * tree if the reference counter becomes 0.
+ * If <needs_locking> is 0 then the cache lock was already taken by the caller,
+ * otherwise it must be taken in write mode before actually deleting the entry.
+ */
+static void release_entry(struct cache *cache, struct cache_entry *entry, int needs_locking)
+{
+	if (!entry)
+		return;
+
+	if (HA_ATOMIC_SUB_FETCH(&entry->refcount, 1) <= 0) {
+		if (needs_locking) {
+			cache_wrlock(cache);
+			/* The value might have changed between the last time we
+			 * checked it and now, we need to recheck it just in
+			 * case.
+			 */
+			if (HA_ATOMIC_LOAD(&entry->refcount) > 0) {
+				cache_wrunlock(cache);
+				return;
+			}
+		}
+		delete_entry(entry);
+		if (needs_locking) {
+			cache_wrunlock(cache);
+		}
+	}
+}
+
+/*
+ * Decrement a cache_entry's reference counter and remove it from the <cache>'s
+ * tree if the reference counter becomes 0.
+ * This function must be called under the cache lock in write mode.
+ */
+static inline void release_entry_locked(struct cache *cache, struct cache_entry *entry)
+{
+	release_entry(cache, entry, 0);
+}
+
+/*
+ * Decrement a cache_entry's reference counter and remove it from the <cache>'s
+ * tree if the reference counter becomes 0.
+ * This function must not be called under the cache lock or the shctx lock. The
+ * cache lock might be taken in write mode (if the entry gets deleted).
+ */
+static inline void release_entry_unlocked(struct cache *cache, struct cache_entry *entry)
+{
+	release_entry(cache, entry, 1);
 }
 
 
@@ -290,8 +354,8 @@ static int secondary_key_cmp(const char *ref_key, const char *new_key)
  * removed from the tree and NULL is returned.
  * Returns the cache_entry in case of success, NULL otherwise.
  */
-struct cache_entry *secondary_entry_exist(struct cache *cache, struct cache_entry *entry,
-					  const char *secondary_key, int delete_expired)
+struct cache_entry *get_secondary_entry(struct cache *cache, struct cache_entry *entry,
+                                        const char *secondary_key, int delete_expired)
 {
 	struct eb32_node *node = &entry->eb;
 
@@ -306,8 +370,7 @@ struct cache_entry *secondary_entry_exist(struct cache *cache, struct cache_entr
 		 * so we simply call eb32_delete. The secondary_entry count will
 		 * be updated when we try to insert a new entry to this list. */
 		if (entry->expire <= date.tv_sec && delete_expired) {
-			eb32_delete(&entry->eb);
-			entry->eb.key = 0;
+			release_entry_locked(cache, entry);
 		}
 
 		entry = node ? eb32_entry(node, struct cache_entry, eb) : NULL;
@@ -316,8 +379,7 @@ struct cache_entry *secondary_entry_exist(struct cache *cache, struct cache_entr
 	/* Expired entry */
 	if (entry && entry->expire <= date.tv_sec) {
 		if (delete_expired) {
-			eb32_delete(&entry->eb);
-			entry->eb.key = 0;
+			release_entry_locked(cache, entry);
 		}
 		entry = NULL;
 	}
@@ -331,7 +393,7 @@ struct cache_entry *secondary_entry_exist(struct cache *cache, struct cache_entr
  * Return the number of alive entries in the list and sets dup_tail to the
  * current last item of the list.
  */
-static unsigned int clear_expired_duplicates(struct eb32_node **dup_tail)
+static unsigned int clear_expired_duplicates(struct cache *cache, struct eb32_node **dup_tail)
 {
 	unsigned int entry_count = 0;
 	struct cache_entry *entry = NULL;
@@ -342,8 +404,7 @@ static unsigned int clear_expired_duplicates(struct eb32_node **dup_tail)
 		entry = container_of(prev, struct cache_entry, eb);
 		prev = eb32_prev_dup(prev);
 		if (entry->expire <= date.tv_sec) {
-			eb32_delete(&entry->eb);
-			entry->eb.key = 0;
+			release_entry_locked(cache, entry);
 		}
 		else {
 			if (!tail)
@@ -377,6 +438,8 @@ static struct eb32_node *insert_entry(struct cache *cache, struct cache_entry *n
 
 	struct eb32_node *node = eb32_insert(&cache->entries, &new_entry->eb);
 
+	new_entry->refcount = 1;
+
 	/* We should not have multiple entries with the same primary key unless
 	 * the entry has a non null vary signature. */
 	if (!new_entry->secondary_key_signature)
@@ -399,19 +462,17 @@ static struct eb32_node *insert_entry(struct cache *cache, struct cache_entry *n
 			if (last_clear_ts == date.tv_sec) {
 				/* Too many entries for this primary key, clear the
 				 * one that was inserted. */
-				eb32_delete(node);
-				node->key = 0;
+				release_entry_locked(cache, entry);
 				return NULL;
 			}
 
-			entry_count = clear_expired_duplicates(&prev);
+			entry_count = clear_expired_duplicates(cache, &prev);
 			if (entry_count >= cache->max_secondary_entries) {
 				/* Still too many entries for this primary key, delete
 				 * the newly inserted one. */
 				entry = container_of(prev, struct cache_entry, eb);
 				entry->last_clear_ts = date.tv_sec;
-				eb32_delete(node);
-				node->key = 0;
+				release_entry_locked(cache, entry);
 				return NULL;
 			}
 		}
@@ -632,10 +693,7 @@ static inline void disable_cache_entry(struct cache_st *st,
 
 	object = (struct cache_entry *)st->first_block->data;
 	filter->ctx = NULL; /* disable cache  */
-	cache_wrlock(cache);
-	eb32_delete(&object->eb);
-	object->eb.key = 0;
-	cache_wrunlock(cache);
+	release_entry_unlocked(cache, object);
 	shctx_wrlock(shctx);
 	shctx_row_reattach(shctx, st->first_block);
 	shctx_wrunlock(shctx);
@@ -917,10 +975,7 @@ static void cache_free_blocks(struct shared_block *first, struct shared_block *b
 	BUG_ON(!cache);
 
 	if (object->eb.key) {
-		cache_wrlock(cache);
-		delete_entry(object);
-		cache_wrunlock(cache);
-		object->eb.key = 0;
+		release_entry_unlocked(cache, object);
 	}
 }
 
@@ -1090,11 +1145,9 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 				 * unsafe request (such as PUT, POST or DELETE). */
 				cache_wrlock(cache);
 
-				old = entry_exist(cache, txn->cache_hash, 1);
-				if (old) {
-					eb32_delete(&old->eb);
-					old->eb.key = 0;
-				}
+				old = get_entry(cache, txn->cache_hash, 1);
+				if (old)
+					release_entry_locked(cache, old);
 				cache_wrunlock(cache);
 			}
 		}
@@ -1154,10 +1207,10 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 		goto out;
 
 	cache_wrlock(cache);
-	old = entry_exist(cache, txn->cache_hash, 1);
+	old = get_entry(cache, txn->cache_hash, 1);
 	if (old) {
 		if (vary_signature)
-			old = secondary_entry_exist(cconf->c.cache, old,
+			old = get_secondary_entry(cache, old,
 						    txn->cache_secondary_hash, 1);
 		if (old) {
 			if (!old->complete) {
@@ -1167,8 +1220,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 				cache_wrunlock(cache);
 				goto out;
 			}
-			delete_entry(old);
-			old->eb.key = 0;
+			release_entry_locked(cache, old);
 		}
 	}
 	cache_wrunlock(cache);
@@ -1307,10 +1359,7 @@ out:
 	if (first) {
 		first->len = 0;
 		if (object->eb.key) {
-			cache_wrlock(cache);
-			delete_entry(object);
-			cache_wrunlock(cache);
-			object->eb.key = 0;
+			release_entry_unlocked(cache, object);
 		}
 		shctx_wrlock(shctx);
 		shctx_row_reattach(shctx, first);
@@ -1856,7 +1905,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		_HA_ATOMIC_INC(&px->be_counters.p.http.cache_lookups);
 
 	cache_rdlock(cache);
-	res = entry_exist(cache, s->txn->cache_hash, 0);
+	res = get_entry(cache, s->txn->cache_hash, 0);
 	/* We must not use an entry that is not complete but the check will be
 	 * performed after we look for a potential secondary entry (in case of
 	 * Vary). */
@@ -1874,8 +1923,8 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		if (res->secondary_key_signature) {
 			if (!http_request_build_secondary_key(s, res->secondary_key_signature)) {
 				cache_rdlock(cache);
-				sec_entry = secondary_entry_exist(cache, res,
-								 s->txn->cache_secondary_hash, 0);
+				sec_entry = get_secondary_entry(cache, res,
+				                                s->txn->cache_secondary_hash, 0);
 				if (sec_entry && sec_entry != res) {
 					/* The wrong row was added to the hot list. */
 					shctx_wrlock(shctx);
