@@ -37,9 +37,26 @@ int shctx_row_data_get(struct shared_context *shctx, struct shared_block *first,
 
 extern int use_shared_mem;
 
-#define shctx_lock(shctx)   if (use_shared_mem) HA_SPIN_LOCK(SHCTX_LOCK, &shctx->lock)
-#define shctx_unlock(shctx) if (use_shared_mem) HA_SPIN_UNLOCK(SHCTX_LOCK, &shctx->lock)
-
+static inline void shctx_rdlock(struct shared_context *shctx)
+{
+       if (use_shared_mem)
+               HA_RWLOCK_RDLOCK(SHCTX_LOCK, &shctx->lock);
+}
+static inline void shctx_rdunlock(struct shared_context *shctx)
+{
+       if (use_shared_mem)
+              HA_RWLOCK_RDUNLOCK(SHCTX_LOCK, &shctx->lock);
+}
+static inline void shctx_wrlock(struct shared_context *shctx)
+{
+       if (use_shared_mem)
+               HA_RWLOCK_WRLOCK(SHCTX_LOCK, &shctx->lock);
+}
+static inline void shctx_wrunlock(struct shared_context *shctx)
+{
+       if (use_shared_mem)
+              HA_RWLOCK_WRUNLOCK(SHCTX_LOCK, &shctx->lock);
+}
 
 /* List Macros */
 

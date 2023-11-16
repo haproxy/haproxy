@@ -291,6 +291,7 @@ int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
 	shctx->nbav = 0;
 
 	LIST_INIT(&shctx->avail);
+	HA_RWLOCK_INIT(&shctx->lock);
 
 	shctx->block_size = blocksize;
 	shctx->max_obj_size = maxobjsz == (unsigned int)-1 ? 0 : maxobjsz;
