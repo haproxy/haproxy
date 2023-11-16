@@ -898,6 +898,23 @@ static int _postcheck_log_backend_compat(struct proxy *be)
 		err_code |= ERR_WARN;
 		free_act_rules(&be->tcp_rep.inspect_rules);
 	}
+	if (be->table) {
+		ha_warning("Cannot use stick table with 'mode log' in %s '%s'. It will be ignored.\n",
+			   proxy_type_str(be), be->id);
+
+		err_code |= ERR_WARN;
+		stktable_deinit(be->table);
+		ha_free(&be->table);
+	}
+	if (!LIST_ISEMPTY(&be->storersp_rules) ||
+	    !LIST_ISEMPTY(&be->sticking_rules)) {
+		ha_warning("Cannot use sticking rules with 'mode log' in %s '%s'. They will be ignored.\n",
+			   proxy_type_str(be), be->id);
+
+		err_code |= ERR_WARN;
+		free_stick_rules(&be->storersp_rules);
+		free_stick_rules(&be->sticking_rules);
+	}
 	return err_code;
 }
 

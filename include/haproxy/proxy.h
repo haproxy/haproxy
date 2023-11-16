@@ -86,6 +86,7 @@ void proxy_adjust_all_maxconn(void);
 struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg);
 struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg);
 int resolve_stick_rule(struct proxy *curproxy, struct sticking_rule *mrule);
+void free_stick_rules(struct list *rules);
 
 /*
  * This function returns a string containing the type of the proxy in a format

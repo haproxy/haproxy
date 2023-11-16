@@ -165,7 +165,7 @@ int resolve_stick_rule(struct proxy *curproxy, struct sticking_rule *mrule)
 	return 1;
 }
 
-static void free_stick_rules(struct list *rules)
+void free_stick_rules(struct list *rules)
 {
 	struct sticking_rule *rule, *ruleb;
 
