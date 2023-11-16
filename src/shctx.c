@@ -29,10 +29,9 @@ int use_shared_mem = 0;
 struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
                                            struct shared_block *first, int data_len)
 {
-	struct shared_block *last = NULL, *block, *sblock, *ret = NULL, *next;
-	int enough = 0;
-	int freed = 0;
-	int remain;
+	struct shared_block *last = NULL, *block, *sblock;
+	struct shared_block *ret = first;
+	int remain = 1;
 
 	BUG_ON(data_len < 0);
 
@@ -47,8 +46,6 @@ struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
 			goto out;
 	}
 
-	/* Note that <remain> is nul only if <first> is not nul. */
-	remain = 1;
 	if (first) {
 		/* Check that there is some block to reserve.
 		 * In this first block of code we compute the remaining room in the
@@ -69,71 +66,43 @@ struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
 		}
 	}
 
-	while (!enough && !LIST_ISEMPTY(&shctx->avail)) {
-		int count = 0;
-		int first_count = 0, first_len = 0;
-
-		next = block = LIST_NEXT(&shctx->avail, struct shared_block *, list);
-		if (ret == NULL)
-			ret = next;
-
-		first_count = next->block_count;
-		first_len = next->len;
-		/*
-		Should never been set to 0.
-		if (next->block_count == 0)
-		next->block_count = 1;
-		*/
-
-		list_for_each_entry_safe_from(block, sblock, &shctx->avail, list) {
-
-			/* release callback */
-			if (first_len && shctx->free_block)
-				shctx->free_block(next, block);
-
-			block->block_count = 1;
-			block->len = 0;
-
-			freed++;
-
-			BUG_ON(data_len < 0);
-			data_len -= shctx->block_size;
-
-			if (data_len > 0 || !enough) {
-				if (last) {
-					shctx_block_append_hot(shctx, &last->list, block);
-					last = block;
-				} else {
-					shctx_block_set_hot(shctx, block);
-				}
-				if (!remain) {
-					first->last_append = block;
-					remain = 1;
-				}
-				if (data_len <= 0) {
-					ret->block_count = freed;
-					ret->refcount = 1;
-					ret->last_reserved = block;
-					ret->last_append = NULL;
-					enough = 1;
-					break;
-				}
-			}
-			count++;
-			if (count >= first_count)
-				break;
-		}
+	if (data_len <= 0 || LIST_ISEMPTY(&shctx->avail)) {
+		return NULL;
 	}
 
-	if (first) {
-		first->block_count += ret->block_count;
-		first->last_reserved = ret->last_reserved;
-		/* Reset this block. */
-		ret->last_reserved = NULL;
-		ret->block_count = 1;
-		ret->refcount = 0;
-		/* Return the first block. */
-		ret = first;
+	/* Initialize the first block of a new row. */
+	if (!first) {
+		ret = LIST_NEXT(&shctx->avail, struct shared_block*, list);
+		ret->block_count = 0;
+		ret->last_append = NULL;
+		ret->refcount = 1;
+	}
+
+	list_for_each_entry_safe(block, sblock, &shctx->avail, list) {
+
+		/* release callback */
+		if (block->len && shctx->free_block)
+			shctx->free_block(block, block);
+		block->len = 0;
+
+		if (last) {
+			shctx_block_append_hot(shctx, &last->list, block);
+			last = block;
+			if (!remain) {
+				first->last_append = block;
+				remain = 1;
+			}
+		} else
+			shctx_block_set_hot(shctx, block);
+
+		++ret->block_count;
+
+		data_len -= shctx->block_size;
+
+		if (data_len <= 0) {
+			ret->last_reserved = block;
+			break;
+		}
 	}
 
 out:
