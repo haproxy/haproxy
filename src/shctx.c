@@ -145,21 +145,21 @@ out:
  */
 void shctx_row_inc_hot(struct shared_context *shctx, struct shared_block *first)
 {
-	struct shared_block *block, *sblock;
-	int count = 0;
-
 	if (first->refcount <= 0) {
 
-		block = first;
+		BUG_ON(!first->last_reserved);
 
-		list_for_each_entry_safe_from(block, sblock, &shctx->avail, list) {
+		/* Detach row from avail list, link first item's prev to last
+		 * item's next. This allows to use the LIST_SPLICE_END_DETACHED
+		 * macro. */
+		first->list.p->n = first->last_reserved->list.n;
+		first->last_reserved->list.n->p = first->list.p;
 
-			shctx_block_set_hot(shctx, block);
+		/* Reattach to hot list */
+		first->list.p = &first->last_reserved->list;
+		LIST_SPLICE_END_DETACHED(&shctx->hot, &first->list);
 
-			count++;
-			if (count >= first->block_count)
-				break;
-		}
+		shctx->nbav -= first->block_count;
 	}
 
 	first->refcount++;
@@ -170,25 +170,24 @@ void shctx_row_inc_hot(struct shared_context *shctx, struct shared_block *first)
  */
 void shctx_row_dec_hot(struct shared_context *shctx, struct shared_block *first)
 {
-	struct shared_block *block, *sblock;
-	int count = 0;
-
 	first->refcount--;
 
 	if (first->refcount <= 0) {
 
-		block = first;
+		BUG_ON(!first->last_reserved);
 
-		list_for_each_entry_safe_from(block, sblock, &shctx->hot, list) {
+		/* Detach row from hot list, link first item's prev to last
+		 * item's next. This allows to use the LIST_SPLICE_END_DETACHED
+		 * macro. */
+		first->list.p->n = first->last_reserved->list.n;
+		first->last_reserved->list.n->p = first->list.p;
 
-			shctx_block_set_avail(shctx, block);
+		/* Reattach to avail list */
+		first->list.p = &first->last_reserved->list;
+		LIST_SPLICE_END_DETACHED(&shctx->avail, &first->list);
 
-			count++;
-			if (count >= first->block_count)
-				break;
-		}
+		shctx->nbav += first->block_count;
 	}
-
 }
 
 
