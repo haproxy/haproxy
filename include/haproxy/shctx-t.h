@@ -48,7 +48,6 @@ struct shared_block {
 struct shared_context {
 	__decl_thread(HA_SPINLOCK_T lock);
 	struct list avail;  /* list for active and free blocks */
-	struct list hot;     /* list for locked blocks */
 	unsigned int nbav;  /* number of available blocks */
 	unsigned int max_obj_size;   /* maximum object size (in bytes). */
 	void (*free_block)(struct shared_block *first, struct shared_block *block, void *data);

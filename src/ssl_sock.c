@@ -4251,21 +4251,21 @@ static int sh_ssl_sess_store(unsigned char *s_id, unsigned char *data, int data_
 		 /* NOTE: Row couldn't be in use because we lock read & write function */
 		/* release the reserved row */
 		first->len = 0; /* the len must be liberated in order not to call the release callback on it */
-		shctx_row_dec_hot(ssl_shctx, first);
+		shctx_row_reattach(ssl_shctx, first);
 		/* replace the previous session already in the tree */
 		sh_ssl_sess = oldsh_ssl_sess;
 		/* ignore the previous session data, only use the header */
 		first = sh_ssl_sess_first_block(sh_ssl_sess);
-		shctx_row_inc_hot(ssl_shctx, first);
+		shctx_row_detach(ssl_shctx, first);
 		first->len = sizeof(struct sh_ssl_sess_hdr);
 	}
 
 	if (shctx_row_data_append(ssl_shctx, first, data, data_len) < 0) {
-		shctx_row_dec_hot(ssl_shctx, first);
+		shctx_row_reattach(ssl_shctx, first);
 		return 0;
 	}
 
-	shctx_row_dec_hot(ssl_shctx, first);
+	shctx_row_reattach(ssl_shctx, first);
 
 	return 1;
 }

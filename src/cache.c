@@ -174,6 +174,7 @@ static inline void cache_wrunlock(struct cache *cache)
  */
 struct cache_st {
 	struct shared_block *first_block;
+	struct list detached_head;
 };
 
 #define DEFAULT_MAX_SECONDARY_ENTRY 10
@@ -575,7 +576,7 @@ cache_store_strm_deinit(struct stream *s, struct filter *filter)
 	 * there too, in case of errors */
 	if (st && st->first_block) {
 		shctx_lock(shctx);
-		shctx_row_dec_hot(shctx, st->first_block);
+		shctx_row_reattach(shctx, st->first_block);
 		shctx_unlock(shctx);
 	}
 	if (st) {
@@ -636,7 +637,7 @@ static inline void disable_cache_entry(struct cache_st *st,
 	object->eb.key = 0;
 	cache_wrunlock(cache);
 	shctx_lock(shctx);
-	shctx_row_dec_hot(shctx, st->first_block);
+	shctx_row_reattach(shctx, st->first_block);
 	shctx_unlock(shctx);
 	pool_free(pool_head_cache_st, st);
 }
@@ -752,7 +753,7 @@ cache_store_http_end(struct stream *s, struct filter *filter,
 		/* The whole payload was cached, the entry can now be used. */
 		object->complete = 1;
 		/* remove from the hotlist */
-		shctx_row_dec_hot(shctx, st->first_block);
+		shctx_row_reattach(shctx, st->first_block);
 		shctx_unlock(shctx);
 
 	}
@@ -1293,6 +1294,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	/* register the buffer in the filter ctx for filling it with data*/
 	if (cache_ctx) {
 		cache_ctx->first_block = first;
+		LIST_INIT(&cache_ctx->detached_head);
 		/* store latest value and expiration time */
 		object->latest_validation = date.tv_sec;
 		object->expire = date.tv_sec + effective_maxage;
@@ -1310,7 +1312,7 @@ out:
 			object->eb.key = 0;
 		}
 		shctx_lock(shctx);
-		shctx_row_dec_hot(shctx, first);
+		shctx_row_reattach(shctx, first);
 		shctx_unlock(shctx);
 	}
 
@@ -1329,11 +1331,12 @@ static void http_cache_applet_release(struct appctx *appctx)
 	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
 	struct cache_entry *cache_ptr = ctx->entry;
 	struct cache *cache = cconf->c.cache;
+	struct shared_context *shctx = shctx_ptr(cache);
 	struct shared_block *first = block_ptr(cache_ptr);
 
-	shctx_lock(shctx_ptr(cache));
-	shctx_row_dec_hot(shctx_ptr(cache), first);
-	shctx_unlock(shctx_ptr(cache));
+	shctx_lock(shctx);
+	shctx_row_reattach(shctx, first);
+	shctx_unlock(shctx);
 }
 
 
@@ -1824,6 +1827,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 	struct cache_entry *res, *sec_entry = NULL;
 	struct cache_flt_conf *cconf = rule->arg.act.p[0];
 	struct cache *cache = cconf->c.cache;
+	struct shared_context *shctx = shctx_ptr(cache);
 	struct shared_block *entry_block;
 
 
@@ -1859,28 +1863,28 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 	if (res) {
 		struct appctx *appctx;
 		entry_block = block_ptr(res);
-		shctx_row_inc_hot(shctx_ptr(cache), entry_block);
+		shctx_row_detach(shctx, entry_block);
 		cache_rdunlock(cache);
-		shctx_unlock(shctx_ptr(cache));
+		shctx_unlock(shctx);
 
 		/* In case of Vary, we could have multiple entries with the same
 		 * primary hash. We need to calculate the secondary hash in order
 		 * to find the actual entry we want (if it exists). */
 		if (res->secondary_key_signature) {
 			if (!http_request_build_secondary_key(s, res->secondary_key_signature)) {
-				shctx_lock(shctx_ptr(cache));
+				shctx_lock(shctx);
 				cache_rdlock(cache);
 				sec_entry = secondary_entry_exist(cache, res,
 								 s->txn->cache_secondary_hash, 0);
 				if (sec_entry && sec_entry != res) {
 					/* The wrong row was added to the hot list. */
-					shctx_row_dec_hot(shctx_ptr(cache), entry_block);
+					shctx_row_reattach(shctx, entry_block);
 					entry_block = block_ptr(sec_entry);
-					shctx_row_inc_hot(shctx_ptr(cache), entry_block);
+					shctx_row_detach(shctx, entry_block);
 				}
 				res = sec_entry;
 				cache_rdunlock(cache);
-				shctx_unlock(shctx_ptr(cache));
+				shctx_unlock(shctx);
 			}
 			else
 				res = NULL;
@@ -1891,9 +1895,9 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		 * can't use the cache's entry and must forward the request to
 		 * the server. */
 		if (!res || !res->complete) {
-			shctx_lock(shctx_ptr(cache));
-			shctx_row_dec_hot(shctx_ptr(cache), entry_block);
-			shctx_unlock(shctx_ptr(cache));
+			shctx_lock(shctx);
+			shctx_row_reattach(shctx, entry_block);
+			shctx_unlock(shctx);
 			return ACT_RET_CONT;
 		}
 
@@ -1916,14 +1920,14 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			return ACT_RET_CONT;
 		} else {
 			s->target = NULL;
-			shctx_lock(shctx_ptr(cache));
-			shctx_row_dec_hot(shctx_ptr(cache), entry_block);
-			shctx_unlock(shctx_ptr(cache));
+			shctx_lock(shctx);
+			shctx_row_reattach(shctx, entry_block);
+			shctx_unlock(shctx);
 			return ACT_RET_CONT;
 		}
 	}
 	cache_rdunlock(cache);
-	shctx_unlock(shctx_ptr(cache));
+	shctx_unlock(shctx);
 
 	/* Shared context does not need to be locked while we calculate the
 	 * secondary hash. */

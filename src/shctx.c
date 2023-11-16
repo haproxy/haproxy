@@ -70,14 +70,6 @@ struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
 		return NULL;
 	}
 
-	/* Initialize the first block of a new row. */
-	if (!first) {
-		ret = LIST_NEXT(&shctx->avail, struct shared_block*, list);
-		ret->block_count = 0;
-		ret->last_append = NULL;
-		ret->refcount = 1;
-	}
-
 	list_for_each_entry_safe(block, sblock, &shctx->avail, list) {
 
 		/* release callback */
@@ -85,15 +77,19 @@ struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
 			shctx->free_block(block, block, shctx->cb_data);
 		block->len = 0;
 
-		if (last) {
-			shctx_block_append_hot(shctx, &last->list, block);
-			last = block;
+		if (ret) {
+			shctx_block_append_hot(shctx, ret, block);
 			if (!remain) {
 				first->last_append = block;
 				remain = 1;
 			}
-		} else
-			shctx_block_set_hot(shctx, block);
+		} else {
+			ret = shctx_block_detach(shctx, block);
+			ret->len = 0;
+			ret->block_count = 0;
+			ret->last_append = NULL;
+			ret->refcount = 1;
+		}
 
 		++ret->block_count;
 
@@ -112,7 +108,7 @@ out:
 /*
  * if the refcount is 0 move the row to the hot list. Increment the refcount
  */
-void shctx_row_inc_hot(struct shared_context *shctx, struct shared_block *first)
+void shctx_row_detach(struct shared_context *shctx, struct shared_block *first)
 {
 	if (first->refcount <= 0) {
 
@@ -124,9 +120,8 @@ void shctx_row_inc_hot(struct shared_context *shctx, struct shared_block *first)
 		first->list.p->n = first->last_reserved->list.n;
 		first->last_reserved->list.n->p = first->list.p;
 
-		/* Reattach to hot list */
 		first->list.p = &first->last_reserved->list;
-		LIST_SPLICE_END_DETACHED(&shctx->hot, &first->list);
+		first->last_reserved->list.n = &first->list;
 
 		shctx->nbav -= first->block_count;
 	}
@@ -137,19 +132,13 @@ void shctx_row_inc_hot(struct shared_context *shctx, struct shared_block *first)
 /*
  * decrement the refcount and move the row at the end of the avail list if it reaches 0.
  */
-void shctx_row_dec_hot(struct shared_context *shctx, struct shared_block *first)
+void shctx_row_reattach(struct shared_context *shctx, struct shared_block *first)
 {
 	first->refcount--;
 
 	if (first->refcount <= 0) {
 
 		BUG_ON(!first->last_reserved);
-
-		/* Detach row from hot list, link first item's prev to last
-		 * item's next. This allows to use the LIST_SPLICE_END_DETACHED
-		 * macro. */
-		first->list.p->n = first->last_reserved->list.n;
-		first->last_reserved->list.n->p = first->list.p;
 
 		/* Reattach to avail list */
 		first->list.p = &first->last_reserved->list;
@@ -178,7 +167,7 @@ int shctx_row_data_append(struct shared_context *shctx, struct shared_block *fir
 		return (first->block_count * shctx->block_size - first->len) - len;
 
 	block = first->last_append ? first->last_append : first;
-	list_for_each_entry_from(block, &shctx->hot, list) {
+	do {
 		/* end of copy */
 		if (len <= 0)
 			break;
@@ -207,7 +196,9 @@ int shctx_row_data_append(struct shared_context *shctx, struct shared_block *fir
 		len -= remain;
 		first->len += remain; /* update len in the head of the row */
 		first->last_append = block;
-	}
+
+		block = LIST_ELEM(block->list.n, struct shared_block*, list);
+	} while (block != first);
 
 	return len;
 }
@@ -231,7 +222,7 @@ int shctx_row_data_get(struct shared_context *shctx, struct shared_block *first,
 	block = first;
 	count = 0;
 	/* Pass through the blocks to copy them */
-	list_for_each_entry_from(block, &shctx->hot, list) {
+	do {
 		if (count >= first->block_count  || len <= 0)
 			break;
 
@@ -255,7 +246,9 @@ int shctx_row_data_get(struct shared_context *shctx, struct shared_block *first,
 		dst += size;
 		len -= size;
 		start = 0;
-	}
+
+		block = LIST_ELEM(block->list.n, struct shared_block*, list);
+	} while (block != first);
 	return len;
 }
 
@@ -298,7 +291,6 @@ int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
 	shctx->nbav = 0;
 
 	LIST_INIT(&shctx->avail);
-	LIST_INIT(&shctx->hot);
 
 	shctx->block_size = blocksize;
 	shctx->max_obj_size = maxobjsz == (unsigned int)-1 ? 0 : maxobjsz;

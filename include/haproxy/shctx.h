@@ -24,8 +24,8 @@ int shctx_init(struct shared_context **orig_shctx,
                int extra, int shared);
 struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
                                            struct shared_block *last, int data_len);
-void shctx_row_inc_hot(struct shared_context *shctx, struct shared_block *first);
-void shctx_row_dec_hot(struct shared_context *shctx, struct shared_block *first);
+void shctx_row_detach(struct shared_context *shctx, struct shared_block *first);
+void shctx_row_reattach(struct shared_context *shctx, struct shared_block *first);
 int shctx_row_data_append(struct shared_context *shctx,
                           struct shared_block *first,
                           unsigned char *data, int len);
@@ -48,28 +48,21 @@ extern int use_shared_mem;
  * so between <head> and the next element after <head>.
  */
 static inline void shctx_block_append_hot(struct shared_context *shctx,
-                                          struct list *head,
+                                          struct shared_block *first,
                                           struct shared_block *s)
 {
 	shctx->nbav--;
 	LIST_DELETE(&s->list);
-	LIST_INSERT(head, &s->list);
+	LIST_APPEND(&first->list, &s->list);
 }
 
-static inline void shctx_block_set_hot(struct shared_context *shctx,
-				    struct shared_block *s)
+static inline struct shared_block *shctx_block_detach(struct shared_context *shctx,
+						      struct shared_block *s)
 {
 	shctx->nbav--;
 	LIST_DELETE(&s->list);
-	LIST_APPEND(&shctx->hot, &s->list);
-}
-
-static inline void shctx_block_set_avail(struct shared_context *shctx,
-				      struct shared_block *s)
-{
-	shctx->nbav++;
-	LIST_DELETE(&s->list);
-	LIST_APPEND(&shctx->avail, &s->list);
+	LIST_INIT(&s->list);
+	return s;
 }
 
 #endif /* __HAPROXY_SHCTX_H */
