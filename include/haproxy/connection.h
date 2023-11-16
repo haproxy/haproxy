@@ -703,7 +703,7 @@ static inline int conn_is_reverse(const struct connection *conn)
 static inline int conn_reverse_in_preconnect(const struct connection *conn)
 {
 	return conn_is_back(conn) ? !!(conn->reverse.target) :
-	                            !!(conn->flags & CO_FL_REVERSED);
+	                            !!(conn->flags & CO_FL_ACT_REVERSING);
 }
 
 /* Initialize <conn> as a reverse connection to <target>. */

@@ -85,7 +85,8 @@ enum {
 	CO_FL_IDLE_LIST     = 0x00000002,  /* 2 = in idle_list, 3 = invalid */
 	CO_FL_LIST_MASK     = 0x00000003,  /* Is the connection in any server-managed list ? */
 
-	CO_FL_REVERSED      = 0x00000004,  /* connection has been reversed but not yet accepted */
+	CO_FL_REVERSED      = 0x00000004,  /* connection has been reversed to backend / reversed and accepted on frontend */
+	CO_FL_ACT_REVERSING = 0x00000008,  /* connection has been reversed to frontend but not yet accepted */
 	/* unused : 0x00000008 */
 
 	/* unused : 0x00000010 */

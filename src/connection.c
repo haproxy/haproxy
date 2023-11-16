@@ -2670,6 +2670,8 @@ int conn_reverse(struct connection *conn)
 		sess->origin = NULL;
 		session_free(sess);
 		conn_set_owner(conn, NULL, NULL);
+
+		conn->flags |= CO_FL_REVERSED;
 	}
 	else {
 		/* Wake up receiver to proceed to connection accept. */
@@ -2678,7 +2680,7 @@ int conn_reverse(struct connection *conn)
 		conn_backend_deinit(conn);
 
 		conn->target = &l->obj_type;
-		conn->flags |= CO_FL_REVERSED;
+		conn->flags |= CO_FL_ACT_REVERSING;
 		task_wakeup(l->rx.reverse_connect.task, TASK_WOKEN_ANY);
 	}
 

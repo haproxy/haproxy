@@ -183,7 +183,7 @@ struct task *rev_process(struct task *task, void *ctx, unsigned int state)
 		}
 		else {
 			/* Spurrious receiver task woken up despite pend_conn not ready/on error. */
-			BUG_ON(!(conn->flags & CO_FL_REVERSED));
+			BUG_ON(!(conn->flags & CO_FL_ACT_REVERSING));
 
 			/* A connection is ready to be accepted. */
 			listener_accept(l);
@@ -349,8 +349,9 @@ struct connection *rev_accept_conn(struct listener *l, int *status)
 	}
 
 	/* listener_accept() must not be called if no pending connection is not yet reversed. */
-	BUG_ON(!(conn->flags & CO_FL_REVERSED));
-	conn->flags &= ~CO_FL_REVERSED;
+	BUG_ON(!(conn->flags & CO_FL_ACT_REVERSING));
+	conn->flags &= ~CO_FL_ACT_REVERSING;
+	conn->flags |= CO_FL_REVERSED;
 	conn->mux->ctl(conn, MUX_REVERSE_CONN, NULL);
 
 	l->rx.reverse_connect.pend_conn = NULL;
