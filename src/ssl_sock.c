@@ -4206,7 +4206,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 }
 
 
-static inline void sh_ssl_sess_free_blocks(struct shared_block *first, struct shared_block *block)
+static inline void sh_ssl_sess_free_blocks(struct shared_block *first, struct shared_block *block, void *data)
 {
 	if (first == block) {
 		struct sh_ssl_sess_hdr *sh_ssl_sess = (struct sh_ssl_sess_hdr *)first->data;

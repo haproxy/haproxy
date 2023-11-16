@@ -51,7 +51,8 @@ struct shared_context {
 	struct list hot;     /* list for locked blocks */
 	unsigned int nbav;  /* number of available blocks */
 	unsigned int max_obj_size;   /* maximum object size (in bytes). */
-	void (*free_block)(struct shared_block *first, struct shared_block *block);
+	void (*free_block)(struct shared_block *first, struct shared_block *block, void *data);
+	void *cb_data;
 	short int block_size;
 	unsigned char data[VAR_ARRAY];
 };

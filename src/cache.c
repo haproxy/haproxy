@@ -58,6 +58,7 @@ struct cache {
 	unsigned int max_secondary_entries;  /* maximum number of secondary entries with the same primary hash */
 	uint8_t vary_processing_enabled;     /* boolean : manage Vary header (disabled by default) */
 	char id[33];             /* cache name */
+	__decl_thread(HA_RWLOCK_T lock);
 };
 
 /* the appctx context of a cache applet, stored in appctx->svcctx */
@@ -147,6 +148,26 @@ const struct vary_hashing_information vary_information[] = {
 	{ IST("origin"), VARY_ORIGIN, sizeof(uint64_t), &default_normalizer, NULL },
 };
 
+
+static inline void cache_rdlock(struct cache *cache)
+{
+	HA_RWLOCK_RDLOCK(CACHE_LOCK, &cache->lock);
+}
+
+static inline  void cache_rdunlock(struct cache *cache)
+{
+	HA_RWLOCK_RDUNLOCK(CACHE_LOCK, &cache->lock);
+}
+
+static inline void cache_wrlock(struct cache *cache)
+{
+	HA_RWLOCK_WRLOCK(CACHE_LOCK, &cache->lock);
+}
+
+static inline void cache_wrunlock(struct cache *cache)
+{
+	HA_RWLOCK_WRUNLOCK(CACHE_LOCK, &cache->lock);
+}
 
 /*
  * cache ctx for filters
@@ -594,13 +615,16 @@ static inline void disable_cache_entry(struct cache_st *st,
                                        struct filter *filter, struct shared_context *shctx)
 {
 	struct cache_entry *object;
+	struct cache *cache = (struct cache*)shctx->data;
 
 	object = (struct cache_entry *)st->first_block->data;
 	filter->ctx = NULL; /* disable cache  */
-	shctx_lock(shctx);
-	shctx_row_dec_hot(shctx, st->first_block);
+	cache_wrlock(cache);
 	eb32_delete(&object->eb);
 	object->eb.key = 0;
+	cache_wrunlock(cache);
+	shctx_lock(shctx);
+	shctx_row_dec_hot(shctx, st->first_block);
 	shctx_unlock(shctx);
 	pool_free(pool_head_cache_st, st);
 }
@@ -871,13 +895,19 @@ int http_calc_maxage(struct stream *s, struct cache *cache, int *true_maxage)
 }
 
 
-static void cache_free_blocks(struct shared_block *first, struct shared_block *block)
+static void cache_free_blocks(struct shared_block *first, struct shared_block *block, void *data)
 {
 	struct cache_entry *object = (struct cache_entry *)block->data;
+	struct cache *cache = (struct cache *)data;
 
-	if (first == block && object->eb.key)
+	BUG_ON(!cache);
+
+	if (object->eb.key) {
+		cache_wrlock(cache);
 		delete_entry(object);
-	object->eb.key = 0;
+		cache_wrunlock(cache);
+		object->eb.key = 0;
+	}
 }
 
 
@@ -1044,14 +1074,14 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 			default: /* Any unsafe method */
 				/* Discard any corresponding entry in case of successful
 				 * unsafe request (such as PUT, POST or DELETE). */
-				shctx_lock(shctx);
+				cache_wrlock(cache);
 
-				old = entry_exist(cconf->c.cache, txn->cache_hash);
+				old = entry_exist(cache, txn->cache_hash);
 				if (old) {
 					eb32_delete(&old->eb);
 					old->eb.key = 0;
 				}
-				shctx_unlock(shctx);
+				cache_wrunlock(cache);
 			}
 		}
 		goto out;
@@ -1109,7 +1139,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	if (!(txn->flags & TX_CACHEABLE) || !(txn->flags & TX_CACHE_COOK))
 		goto out;
 
-	shctx_lock(shctx);
+	cache_wrlock(cache);
 	old = entry_exist(cache, txn->cache_hash);
 	if (old) {
 		if (vary_signature)
@@ -1120,18 +1150,22 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 				/* An entry with the same primary key is already being
 				 * created, we should not try to store the current
 				 * response because it will waste space in the cache. */
-				shctx_unlock(shctx);
+				cache_wrunlock(cache);
 				goto out;
 			}
 			delete_entry(old);
 			old->eb.key = 0;
 		}
 	}
+	cache_wrunlock(cache);
+
+	shctx_lock(shctx);
 	first = shctx_row_reserve_hot(shctx, NULL, sizeof(struct cache_entry));
 	if (!first) {
 		shctx_unlock(shctx);
 		goto out;
 	}
+	shctx_unlock(shctx);
 	/* the received memory is not initialized, we need at least to mark
 	 * the object as not indexed yet.
 	 */
@@ -1149,13 +1183,14 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	if (vary_signature)
 		memcpy(object->secondary_key, txn->cache_secondary_hash, HTTP_CACHE_SEC_KEY_LEN);
 
+	cache_wrlock(cache);
 	/* Insert the entry in the tree even if the payload is not cached yet. */
 	if (insert_entry(cache, object) != &object->eb) {
 		object->eb.key = 0;
-		shctx_unlock(shctx);
+		cache_wrunlock(cache);
 		goto out;
 	}
-	shctx_unlock(shctx);
+	cache_wrunlock(cache);
 
 	/* reserve space for the cache_entry structure */
 	first->len = sizeof(struct cache_entry);
@@ -1255,11 +1290,14 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 out:
 	/* if does not cache */
 	if (first) {
-		shctx_lock(shctx);
 		first->len = 0;
-		if (object->eb.key)
+		if (object->eb.key) {
+			cache_wrlock(cache);
 			delete_entry(object);
-		object->eb.key = 0;
+			cache_wrunlock(cache);
+			object->eb.key = 0;
+		}
+		shctx_lock(shctx);
 		shctx_row_dec_hot(shctx, first);
 		shctx_unlock(shctx);
 	}
@@ -1801,6 +1839,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		_HA_ATOMIC_INC(&px->be_counters.p.http.cache_lookups);
 
 	shctx_lock(shctx_ptr(cache));
+	cache_wrlock(cache);
 	res = entry_exist(cache, s->txn->cache_hash);
 	/* We must not use an entry that is not complete but the check will be
 	 * performed after we look for a potential secondary entry (in case of
@@ -1809,6 +1848,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		struct appctx *appctx;
 		entry_block = block_ptr(res);
 		shctx_row_inc_hot(shctx_ptr(cache), entry_block);
+		cache_wrunlock(cache);
 		shctx_unlock(shctx_ptr(cache));
 
 		/* In case of Vary, we could have multiple entries with the same
@@ -1817,6 +1857,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		if (res->secondary_key_signature) {
 			if (!http_request_build_secondary_key(s, res->secondary_key_signature)) {
 				shctx_lock(shctx_ptr(cache));
+				cache_wrlock(cache);
 				sec_entry = secondary_entry_exist(cache, res,
 								 s->txn->cache_secondary_hash);
 				if (sec_entry && sec_entry != res) {
@@ -1826,6 +1867,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 					shctx_row_inc_hot(shctx_ptr(cache), entry_block);
 				}
 				res = sec_entry;
+				cache_wrunlock(cache);
 				shctx_unlock(shctx_ptr(cache));
 			}
 			else
@@ -1868,6 +1910,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			return ACT_RET_CONT;
 		}
 	}
+	cache_wrunlock(cache);
 	shctx_unlock(shctx_ptr(cache));
 
 	/* Shared context does not need to be locked while we calculate the
@@ -1942,6 +1985,7 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 			tmp_cache_config->maxblocks = 0;
 			tmp_cache_config->maxobjsz = 0;
 			tmp_cache_config->max_secondary_entries = DEFAULT_MAX_SECONDARY_ENTRY;
+			HA_RWLOCK_INIT(&tmp_cache_config->lock);
 		}
 	} else if (strcmp(args[0], "total-max-size") == 0) {
 		unsigned long int maxsize;
@@ -2120,6 +2164,7 @@ int post_check_cache()
 			goto out;
 		}
 		shctx->free_block = cache_free_blocks;
+		shctx->cb_data = (void*)shctx->data;
 		/* the cache structure is stored in the shctx and added to the
 		 * caches list, we can remove the entry from the caches_config
 		 * list */
@@ -2610,22 +2655,27 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 		unsigned int next_key;
 		struct cache_entry *entry;
 		unsigned int i;
+		struct shared_context *shctx = shctx_ptr(cache);
+
+		shctx_lock(shctx);
 
 		next_key = ctx->next_key;
 		if (!next_key) {
 			chunk_printf(&trash, "%p: %s (shctx:%p, available blocks:%d)\n", cache, cache->id, shctx_ptr(cache), shctx_ptr(cache)->nbav);
-			if (applet_putchk(appctx, &trash) == -1)
+			if (applet_putchk(appctx, &trash) == -1) {
+				shctx_unlock(shctx);
 				return 0;
+			}
 		}
+		shctx_unlock(shctx);
 
 		ctx->cache = cache;
 
-		while (1) {
+		cache_wrlock(cache);
 
-			shctx_lock(shctx_ptr(cache));
+		while (1) {
 			node = eb32_lookup_ge(&cache->entries, next_key);
 			if (!node) {
-				shctx_unlock(shctx_ptr(cache));
 				ctx->next_key = 0;
 				break;
 			}
@@ -2646,13 +2696,15 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 				entry->eb.key = 0;
 			}
 
+
 			ctx->next_key = next_key;
 
-			shctx_unlock(shctx_ptr(cache));
-
-			if (applet_putchk(appctx, &trash) == -1)
+			if (applet_putchk(appctx, &trash) == -1) {
+				cache_wrunlock(cache);
 				return 0;
+			}
 		}
+		cache_wrunlock(cache);
 
 	}
 
