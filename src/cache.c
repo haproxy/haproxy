@@ -242,6 +242,9 @@ static void release_entry_unlocked(struct cache_tree *cache, struct cache_entry 
  * Returns a valid (not expired) cache_tree pointer.
  * The returned entry is not retained, it should be explicitely retained only
  * when necessary.
+ *
+ * This function must be called under a cache lock, either read if
+ * delete_expired==0, write otherwise.
  */
 struct cache_entry *get_entry(struct cache_tree *cache_tree, char *hash, int delete_expired)
 {
@@ -364,6 +367,9 @@ static int secondary_key_cmp(const char *ref_key, const char *new_key)
  * is already expired, and NULL is returned. Otherwise, the expired entry is
  * removed from the tree and NULL is returned.
  * Returns the cache_entry in case of success, NULL otherwise.
+ *
+ * This function must be called under a cache lock, either read if
+ * delete_expired==0, write otherwise.
  */
 struct cache_entry *get_secondary_entry(struct cache_tree *cache, struct cache_entry *entry,
                                         const char *secondary_key, int delete_expired)
@@ -411,6 +417,8 @@ static inline struct cache_tree *get_cache_tree_from_hash(struct cache *cache, u
  * Remove all expired entries from a list of duplicates.
  * Return the number of alive entries in the list and sets dup_tail to the
  * current last item of the list.
+ *
+ * This function must be called under a cache write lock.
  */
 static unsigned int clear_expired_duplicates(struct cache_tree *cache, struct eb32_node **dup_tail)
 {
@@ -447,6 +455,8 @@ static unsigned int clear_expired_duplicates(struct cache_tree *cache, struct eb
  * simple insert. In case of secondary entries, it will at most cost an
  * insertion+max_sec_entries time checks and entry deletion.
  * Returns the newly inserted node in case of success, NULL otherwise.
+ *
+ * This function must be called under a cache write lock.
  */
 static struct eb32_node *insert_entry(struct cache *cache, struct cache_tree *tree, struct cache_entry *new_entry)
 {
@@ -508,6 +518,8 @@ static struct eb32_node *insert_entry(struct cache *cache, struct cache_tree *tr
  * This function removes an entry from the ebtree. If the entry was a duplicate
  * (in case of Vary), it updates the secondary entry counter in another
  * duplicate entry (the last entry of the dup list).
+ *
+ * This function must be called under a cache write lock.
  */
 static void delete_entry(struct cache_entry *del_entry)
 {
