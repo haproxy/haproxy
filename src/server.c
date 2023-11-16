@@ -6240,7 +6240,8 @@ int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_saf
 	      (is_safe || eb_is_empty(&srv->per_thr[tid].idle_conns))) ||
 	     (ha_used_fds < global.tune.pool_low_count &&
 	      (srv->curr_used_conns + srv->curr_idle_conns <=
-	       MAX(srv->curr_used_conns, srv->est_need_conns) + srv->low_idle_conns))) &&
+	       MAX(srv->curr_used_conns, srv->est_need_conns) + srv->low_idle_conns ||
+	       (conn->flags & CO_FL_REVERSED)))) &&
 	    !conn->mux->used_streams(conn) && conn->mux->avail_streams(conn)) {
 		int retadd;
 
