@@ -1851,7 +1851,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		_HA_ATOMIC_INC(&px->be_counters.p.http.cache_lookups);
 
 	shctx_lock(shctx_ptr(cache));
-	cache_wrlock(cache);
+	cache_rdlock(cache);
 	res = entry_exist(cache, s->txn->cache_hash, 0);
 	/* We must not use an entry that is not complete but the check will be
 	 * performed after we look for a potential secondary entry (in case of
@@ -1860,7 +1860,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		struct appctx *appctx;
 		entry_block = block_ptr(res);
 		shctx_row_inc_hot(shctx_ptr(cache), entry_block);
-		cache_wrunlock(cache);
+		cache_rdunlock(cache);
 		shctx_unlock(shctx_ptr(cache));
 
 		/* In case of Vary, we could have multiple entries with the same
@@ -1869,7 +1869,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		if (res->secondary_key_signature) {
 			if (!http_request_build_secondary_key(s, res->secondary_key_signature)) {
 				shctx_lock(shctx_ptr(cache));
-				cache_wrlock(cache);
+				cache_rdlock(cache);
 				sec_entry = secondary_entry_exist(cache, res,
 								 s->txn->cache_secondary_hash, 0);
 				if (sec_entry && sec_entry != res) {
@@ -1879,7 +1879,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 					shctx_row_inc_hot(shctx_ptr(cache), entry_block);
 				}
 				res = sec_entry;
-				cache_wrunlock(cache);
+				cache_rdunlock(cache);
 				shctx_unlock(shctx_ptr(cache));
 			}
 			else
@@ -1922,7 +1922,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			return ACT_RET_CONT;
 		}
 	}
-	cache_wrunlock(cache);
+	cache_rdunlock(cache);
 	shctx_unlock(shctx_ptr(cache));
 
 	/* Shared context does not need to be locked while we calculate the
