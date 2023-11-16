@@ -2771,6 +2771,203 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 #endif /* (!) OPENSSL_IS_BORINGSSL */
 #endif /* SSL_CTRL_SET_TLSEXT_HOSTNAME */
 
+#if 0 && defined(USE_OPENSSL_WOLFSSL)
+/* This implement the equivalent of the clientHello Callback but using the cert_cb.
+ * WolfSSL is able to extract the sigalgs and ciphers of the client byt using the API
+ * provided in https://github.com/wolfSSL/wolfssl/pull/6963
+ *
+ * Not activated for now since the PR is not merged.
+ */
+static int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
+{
+	struct bind_conf *s = arg;
+	int has_rsa_sig = 0, has_ecdsa_sig = 0;
+
+	char *wildp = NULL;
+	const char *servername;
+	struct ebmb_node *node, *n, *node_ecdsa = NULL, *node_rsa = NULL, *node_anonymous = NULL;
+	int i;
+
+	if (!s) {
+		/* must never happen */
+		ABORT_NOW();
+		return 0;
+	}
+
+	servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
+	if (!servername) {
+		/* without SNI extension, is the default_ctx (need SSL_TLSEXT_ERR_NOACK) */
+		if (!s->strict_sni) {
+			HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
+			ssl_sock_switchctx_set(ssl, s->default_ctx);
+			HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
+			goto allow_early;
+		}
+		goto abort;
+	}
+
+	/* extract sigalgs and ciphers */
+	{
+		const byte* suites = NULL;
+		word16 suiteSz = 0;
+		const byte* hashSigAlgo = NULL;
+		word16 hashSigAlgoSz = 0;
+		word16 idx = 0;
+
+		wolfSSL_get_client_suites_sigalgs(ssl, &suites, &suiteSz, &hashSigAlgo, &hashSigAlgoSz);
+		if (suites == NULL || suiteSz == 0 || hashSigAlgo == NULL || hashSigAlgoSz == 0)
+			return 0;
+
+		if (SSL_version(ssl) != TLS1_3_VERSION) {
+			for (idx = 0; idx < suiteSz; idx += 2) {
+				WOLFSSL_CIPHERSUITE_INFO info;
+				info = wolfSSL_get_ciphersuite_info(suites[idx], suites[idx+1]);
+				if (info.rsaAuth)
+					has_rsa_sig = 1;
+				else if (info.eccAuth)
+					has_ecdsa_sig = 1;
+			}
+		}
+
+		if (hashSigAlgoSz > 0) {
+			/* sigalgs extension takes precedence over ciphersuites */
+			has_ecdsa_sig = 0;
+			has_rsa_sig = 0;
+		}
+		for (idx = 0; idx < hashSigAlgoSz; idx += 2) {
+			enum wc_HashType hashAlgo;
+			enum Key_Sum sigAlgo;
+
+			wolfSSL_get_sigalg_info(hashSigAlgo[idx+0], hashSigAlgo[idx+1], &hashAlgo, &sigAlgo);
+
+			if (sigAlgo == RSAk || sigAlgo == RSAPSSk)
+				has_rsa_sig = 1;
+			else if (sigAlgo == ECDSAk)
+				has_ecdsa_sig = 1;
+		}
+	}
+
+	for (i = 0; i < trash.size; i++) {
+		if (!servername[i])
+			break;
+		trash.area[i] = tolower((unsigned char)servername[i]);
+		if (!wildp && (trash.area[i] == '.'))
+			wildp = &trash.area[i];
+	}
+	trash.area[i] = 0;
+
+
+	HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
+
+	/* Look for an ECDSA, RSA and DSA certificate, first in the single
+	 * name and if not found in the wildcard  */
+	for (i = 0; i < 2; i++) {
+		if (i == 0) 	/* lookup in full qualified names */
+			node = ebst_lookup(&s->sni_ctx, trash.area);
+		else if (i == 1 && wildp)  /* lookup in wildcards names */
+			node = ebst_lookup(&s->sni_w_ctx, wildp);
+		else
+			break;
+
+		for (n = node; n; n = ebmb_next_dup(n)) {
+
+			/* lookup a not neg filter */
+			if (!container_of(n, struct sni_ctx, name)->neg) {
+				struct sni_ctx *sni, *sni_tmp;
+				int skip = 0;
+
+				if (i == 1 && wildp) { /* wildcard */
+					/* If this is a wildcard, look for an exclusion on the same crt-list line */
+					sni = container_of(n, struct sni_ctx, name);
+					list_for_each_entry(sni_tmp, &sni->ckch_inst->sni_ctx, by_ckch_inst) {
+						if (sni_tmp->neg && (strcmp((const char *)sni_tmp->name.key, trash.area) == 0)) {
+							skip = 1;
+							break;
+						}
+					}
+					if (skip)
+						continue;
+				}
+
+				switch(container_of(n, struct sni_ctx, name)->kinfo.sig) {
+				case TLSEXT_signature_ecdsa:
+					if (!node_ecdsa)
+						node_ecdsa = n;
+					break;
+				case TLSEXT_signature_rsa:
+					if (!node_rsa)
+						node_rsa = n;
+					break;
+				default: /* TLSEXT_signature_anonymous|dsa */
+					if (!node_anonymous)
+						node_anonymous = n;
+					break;
+				}
+			}
+		}
+	}
+	/* Once the certificates are found, select them depending on what is
+	 * supported in the client and by key_signature priority order: EDSA >
+	 * RSA > DSA */
+	if (has_ecdsa_sig && node_ecdsa)
+		node = node_ecdsa;
+	else if (has_rsa_sig && node_rsa)
+		node = node_rsa;
+	else if (node_anonymous)
+		node = node_anonymous;
+	else if (node_ecdsa)
+		node = node_ecdsa;      /* no ecdsa signature case (< TLSv1.2) */
+	else
+		node = node_rsa;        /* no rsa signature case (far far away) */
+
+	if (node) {
+		/* switch ctx */
+		struct ssl_bind_conf *conf = container_of(node, struct sni_ctx, name)->conf;
+		ssl_sock_switchctx_set(ssl, container_of(node, struct sni_ctx, name)->ctx);
+		if (conf) {
+			methodVersions[conf->ssl_methods.min].ssl_set_version(ssl, SET_MIN);
+			methodVersions[conf->ssl_methods.max].ssl_set_version(ssl, SET_MAX);
+		}
+		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
+		goto allow_early;
+	}
+
+	HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
+	if (!s->strict_sni) {
+		/* no certificate match, is the default_ctx */
+		HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
+		ssl_sock_switchctx_set(ssl, s->default_ctx);
+		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
+		goto allow_early;
+	}
+
+	/* We are about to raise an handshake error so the servername extension
+	 * callback will never be called and the SNI will never be stored in the
+	 * SSL context. In order for the ssl_fc_sni sample fetch to still work
+	 * in such a case, we store the SNI ourselves as an ex_data information
+	 * in the SSL context.
+	 */
+	{
+		char *client_sni = pool_alloc(ssl_sock_client_sni_pool);
+		if (client_sni) {
+			strncpy(client_sni, trash.area, TLSEXT_MAXLEN_host_name);
+			client_sni[TLSEXT_MAXLEN_host_name] = '\0';
+			SSL_set_ex_data(ssl, ssl_client_sni_index, client_sni);
+		}
+	}
+
+	/* other cases fallback on abort, if strict-sni is set but no node was found */
+
+ abort:
+	/* abort handshake (was SSL_TLSEXT_ERR_ALERT_FATAL) */
+	return 0;
+
+allow_early:
+	return 1;
+}
+#endif
+
+
 #ifndef OPENSSL_NO_DH
 
 static inline HASSL_DH *ssl_new_dh_fromdata(BIGNUM *p, BIGNUM *g)
@@ -4197,7 +4394,10 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 #  endif /* ! SSL_OP_NO_ANTI_REPLAY */
 	SSL_CTX_set_client_hello_cb(ctx, ssl_sock_switchctx_cbk, NULL);
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
-# else /* ! OPENSSL_IS_BORINGSSL && ! HAVE_SSL_CLIENT_HELLO_CB */
+# elif 0 && defined(USE_OPENSSL_WOLFSSL)
+	SSL_CTX_set_cert_cb(ctx, ssl_sock_switchctx_wolfSSL_cbk, bind_conf);
+# else
+	/* ! OPENSSL_IS_BORINGSSL && ! HAVE_SSL_CLIENT_HELLO_CB */
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_cbk);
 # endif
 	SSL_CTX_set_tlsext_servername_arg(ctx, bind_conf);
