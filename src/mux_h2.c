@@ -3295,7 +3295,8 @@ static int h2_conn_reverse(struct h2c *h2c)
 
 		HA_ATOMIC_OR(&h2c->wait_event.tasklet->state, TASK_F_USR1);
 		xprt_set_idle(conn, conn->xprt, conn->xprt_ctx);
-		srv_add_to_idle_list(srv, conn, 1);
+		if (!srv_add_to_idle_list(srv, conn, 1))
+			goto err;
 	}
 	else {
 		struct listener *l = __objt_listener(h2c->conn->target);
