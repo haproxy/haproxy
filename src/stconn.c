@@ -1463,8 +1463,7 @@ static int sc_conn_recv(struct stconn *sc)
 				ic->flags &= ~CF_STREAMER_FAST;
 			}
 		}
-		else if (!(ic->flags & CF_STREAMER_FAST) &&
-			 (cur_read >= ic->buf.size - global.tune.maxrewrite)) {
+		else if (!(ic->flags & CF_STREAMER_FAST) && (cur_read >= channel_data_limit(ic))) {
 			/* we read a full buffer at once */
 			ic->xfer_small = 0;
 			ic->xfer_large++;
