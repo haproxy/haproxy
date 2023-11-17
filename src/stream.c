@@ -3109,6 +3109,8 @@ void list_services(FILE *out)
 }
 
 /* appctx context used by the "show sess" command */
+/* flags used for show_sess_ctx.flags */
+#define CLI_SHOWSESS_F_SUSP  0x00000001   /* show only suspicious streams */
 
 struct show_sess_ctx {
 	struct bref bref;	/* back-reference from the session being dumped */
@@ -3116,6 +3118,7 @@ struct show_sess_ctx {
 	unsigned int thr;       /* the thread number being explored (0..MAX_THREADS-1) */
 	unsigned int uid;	/* if non-null, the uniq_id of the session being dumped */
 	unsigned int min_age;   /* minimum age of streams to dump */
+	unsigned int flags;     /* CLI_SHOWSESS_* */
 	int section;		/* section of the session being dumped */
 	int pos;		/* last position of the current session's buffer */
 };
@@ -3532,6 +3535,10 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 		ctx->min_age = timeout;
 		ctx->target = (void *)-1; /* show all matching entries */
 	}
+	else if (*args[2] && strcmp(args[2], "susp") == 0) {
+		ctx->flags |= CLI_SHOWSESS_F_SUSP;
+		ctx->target = (void *)-1; /* show all matching entries */
+	}
 	else if (*args[2] && strcmp(args[2], "all") == 0)
 		ctx->target = (void *)-1;
 	else if (*args[2])
@@ -3616,6 +3623,16 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		if (ctx->min_age) {
 			uint age = ns_to_sec(now_ns) - ns_to_sec(curr_strm->logs.request_ts);
 			if (age < ctx->min_age)
+				goto next_sess;
+		}
+
+		if (ctx->flags & CLI_SHOWSESS_F_SUSP) {
+			/* only show suspicious streams. Non-suspicious ones have a valid
+			 * expiration date in the future and a valid front endpoint.
+			 */
+			if (curr_strm->task->expire &&
+			    !tick_is_expired(curr_strm->task->expire, now_ms) &&
+			    curr_strm->scf && curr_strm->scf->sedesc && curr_strm->scf->sedesc->se)
 				goto next_sess;
 		}
 
@@ -3845,7 +3862,7 @@ static int cli_parse_shutdown_sessions_server(char **args, char *payload, struct
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "show", "sess",  NULL },             "show sess [<id>|all|older <age>]        : report the list of current sessions or dump this exact session", cli_parse_show_sess, cli_io_handler_dump_sess, cli_release_show_sess },
+	{ { "show", "sess",  NULL },             "show sess [<id>|all|susp|older <age>]   : report the list of current sessions or dump this exact session", cli_parse_show_sess, cli_io_handler_dump_sess, cli_release_show_sess },
 	{ { "shutdown", "session",  NULL },      "shutdown session [id]                   : kill a specific session",                                        cli_parse_shutdown_session, NULL, NULL },
 	{ { "shutdown", "sessions",  "server" }, "shutdown sessions server <bk>/<srv>     : kill sessions on a server",                                      cli_parse_shutdown_sessions_server, NULL, NULL },
 	{{},}

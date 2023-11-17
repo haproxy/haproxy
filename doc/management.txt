@@ -3144,13 +3144,15 @@ show sess
   the last one that was created before the command was entered; those which
   die in the mean time will not appear.
 
-show sess <id> | older <age> | all
+show sess <id> | older <age> | susp | all
   Display a lot of internal information about the matching sessions. In the
   first form, only the session matching the specified session identifier will
   be shown. This identifier is the first field at the beginning of the lines in
   the dumps of "show sess" (it corresponds to the session pointer). In the
   second form, only sessions older than <age> (in seconds by default) will be
-  shown. If "all" is used instead, then all sessions will be dumped. Dumping
+  shown. Passing "susp" instead will only report entries that are considered as
+  suspicious by the developers based on criteria that may in time or vary along
+  versions. If "all" is used instead, then all sessions will be dumped. Dumping
   many sessions can produce a huge output, take a lot of time and be CPU
   intensive, so it's always better to only dump the minimum needed. Those
   information are useless to most users but may be used by haproxy developers
