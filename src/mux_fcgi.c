@@ -4142,9 +4142,19 @@ static int fcgi_takeover(struct connection *conn, int orig_tid)
 {
 	struct fcgi_conn *fcgi = conn->ctx;
 	struct task *task;
+	struct task *new_task;
+	struct tasklet *new_tasklet;
+
+	/* Pre-allocate tasks so that we don't have to roll back after the xprt
+	 * has been migrated.
+	 */
+	new_task = task_new_here();
+	new_tasklet = tasklet_new();
+	if (!new_task || !new_tasklet)
+		goto fail;
 
 	if (fd_takeover(conn->handle.fd, conn) != 0)
-		return -1;
+		goto fail;
 
 	if (conn->xprt->takeover && conn->xprt->takeover(conn, conn->xprt_ctx, orig_tid) != 0) {
 		/* We failed to takeover the xprt, even if the connection may
@@ -4154,44 +4164,49 @@ static int fcgi_takeover(struct connection *conn, int orig_tid)
 		 */
 		conn->flags |= CO_FL_ERROR;
 		tasklet_wakeup_on(fcgi->wait_event.tasklet, orig_tid);
-		return -1;
+		goto fail;
 	}
 
 	if (fcgi->wait_event.events)
 		fcgi->conn->xprt->unsubscribe(fcgi->conn, fcgi->conn->xprt_ctx,
 		    fcgi->wait_event.events, &fcgi->wait_event);
+
+	task = fcgi->task;
+	if (task) {
+		/* only assign a task if there was already one, otherwise
+		 * the preallocated new task will be released.
+		 */
+		task->context = NULL;
+		fcgi->task = NULL;
+		__ha_barrier_store();
+		task_kill(task);
+
+		fcgi->task = new_task;
+		new_task = NULL;
+		fcgi->task->process = fcgi_timeout_task;
+		fcgi->task->context = fcgi;
+	}
+
 	/* To let the tasklet know it should free itself, and do nothing else,
 	 * set its context to NULL;
 	 */
 	fcgi->wait_event.tasklet->context = NULL;
 	tasklet_wakeup_on(fcgi->wait_event.tasklet, orig_tid);
 
-	task = fcgi->task;
-	if (task) {
-		task->context = NULL;
-		fcgi->task = NULL;
-		__ha_barrier_store();
-		task_kill(task);
-
-		fcgi->task = task_new_here();
-		if (!fcgi->task) {
-			fcgi_release(fcgi);
-			return -1;
-		}
-		fcgi->task->process = fcgi_timeout_task;
-		fcgi->task->context = fcgi;
-	}
-	fcgi->wait_event.tasklet = tasklet_new();
-	if (!fcgi->wait_event.tasklet) {
-		fcgi_release(fcgi);
-		return -1;
-	}
+	fcgi->wait_event.tasklet = new_tasklet;
 	fcgi->wait_event.tasklet->process = fcgi_io_cb;
 	fcgi->wait_event.tasklet->context = fcgi;
 	fcgi->conn->xprt->subscribe(fcgi->conn, fcgi->conn->xprt_ctx,
 		                    SUB_RETRY_RECV, &fcgi->wait_event);
 
+	if (new_task)
+		__task_free(new_task);
 	return 0;
+ fail:
+	if (new_task)
+		__task_free(new_task);
+	tasklet_free(new_tasklet);
+	return -1;
 }
 
 /****************************************/
