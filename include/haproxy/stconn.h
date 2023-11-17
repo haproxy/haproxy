@@ -183,11 +183,17 @@ static forceinline void sc_ep_report_read_activity(struct stconn *sc)
 
 /* Report a send blocked. This function sets <fsb> to now_ms if it was not
  * already set or if something was sent (to renew <fsb>).
+ *
+ * if somehting was sent (<did_send> != 0), a read activity is also reported for
+ * non-independent stream.
  */
 static forceinline void sc_ep_report_blocked_send(struct stconn *sc, int did_send)
 {
-	if (did_send || !tick_isset(sc->sedesc->fsb))
+	if (did_send || !tick_isset(sc->sedesc->fsb)) {
 		sc->sedesc->fsb = now_ms;
+		if (did_send && !(sc->flags & SC_FL_INDEP_STR))
+			sc_ep_report_read_activity(sc);
+	}
 }
 
 /* Report a send activity by setting <fsb> to TICK_ETERNITY.
