@@ -789,12 +789,6 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 	else
 		comp = proxy->comp;
 
-	if (proxy->mode != PR_MODE_TCP && proxy->mode != PR_MODE_HTTP) {
-		memprintf(err, "parsing [%s:%d] : '%s' requires TCP or HTTP mode.",
-			  file, line, args[0]);
-		ret = -1;
-		goto end;
-	}
 	if (strcmp(args[1], "algo") == 0 || strcmp(args[1], "algo-res") == 0) {
 		struct comp_ctx *ctx;
 		int              cur_arg = 2;
