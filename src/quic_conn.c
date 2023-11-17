@@ -1764,7 +1764,7 @@ static int quic_conn_init_idle_timer_task(struct quic_conn *qc,
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
 
 
-	timeout = px->timeout.handshake ? px->timeout.handshake : px->timeout.client;
+	timeout = px->timeout.client_hs ? px->timeout.client_hs : px->timeout.client;
 	qc->idle_timer_task = task_new_here();
 	if (!qc->idle_timer_task) {
 		TRACE_ERROR("Idle timer task allocation failed", QUIC_EV_CONN_NEW, qc);

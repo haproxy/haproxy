@@ -524,9 +524,9 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 		tv = &proxy->timeout.tarpit;
 		td = &defpx->timeout.tarpit;
 		cap = PR_CAP_FE | PR_CAP_BE;
-	} else if (strcmp(args[0], "handshake") == 0) {
-		tv = &proxy->timeout.handshake;
-		td = &defpx->timeout.handshake;
+	} else if (strcmp(args[0], "client-hs") == 0) {
+		tv = &proxy->timeout.client_hs;
+		td = &defpx->timeout.client_hs;
 		cap = PR_CAP_FE;
 	} else if (strcmp(args[0], "http-keep-alive") == 0) {
 		tv = &proxy->timeout.httpka;
@@ -1801,7 +1801,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 
 	if (curproxy->cap & PR_CAP_FE) {
 		curproxy->timeout.client = defproxy->timeout.client;
-		curproxy->timeout.handshake = defproxy->timeout.handshake;
+		curproxy->timeout.client_hs = defproxy->timeout.client_hs;
 		curproxy->timeout.clientfin = defproxy->timeout.clientfin;
 		curproxy->timeout.tarpit = defproxy->timeout.tarpit;
 		curproxy->timeout.httpreq = defproxy->timeout.httpreq;

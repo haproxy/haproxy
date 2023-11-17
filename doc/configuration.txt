@@ -4609,8 +4609,8 @@ tcp-response inspect-delay                X (!)      -         X         X
 timeout check                             X          -         X         X
 timeout client                            X          X         X         -
 timeout client-fin                        X          X         X         -
+timeout client-hs                         X          X         X         -
 timeout connect                           X          -         X         X
-timeout handshake                         X          X         X         -
 timeout http-keep-alive                   X          X         X         X
 timeout http-request                      X          X         X         X
 timeout queue                             X          -         X         X
@@ -14431,6 +14431,20 @@ timeout client-fin <timeout>
   See also : "timeout client", "timeout server-fin", and "timeout tunnel".
 
 
+timeout client-hs <timeout>
+  Set the maximum time to wait for a client TLS handshake to complete. This is
+  usable both for TCP and QUIC connections.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments :
+    <timeout> is the timeout value specified in milliseconds by default, but
+              can be in any other unit if the number is suffixed by the unit,
+              as explained at the top of this document.
+
+  If this handshake timeout is not set, this is the client timeout which is used
+  in place.
+
+
 timeout connect <timeout>
   Set the maximum time to wait for a connection attempt to a server to succeed.
   May be used in sections :   defaults | frontend | listen | backend
@@ -14456,19 +14470,6 @@ timeout connect <timeout>
 
   See also: "timeout check", "timeout queue", "timeout server", "timeout tarpit".
 
-
-timeout handshake <timeout>
-  Set the maximum time to wait for a client TLS handshake to complete. This is
-  usable both for TCP and QUIC connections.
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |   no
-  Arguments :
-    <timeout> is the timeout value specified in milliseconds by default, but
-              can be in any other unit if the number is suffixed by the unit,
-              as explained at the top of this document.
-
-  If this handshake timeout is not set, this is the client timeout which is used
-  in place.
 
 timeout http-keep-alive <timeout>
   Set the maximum allowed time to wait for a new HTTP request to appear

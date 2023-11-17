@@ -281,7 +281,7 @@ int session_accept_fd(struct connection *cli_conn)
 	if (cli_conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS)) {
 		int timeout;
 		int clt_tmt = p->timeout.client;
-		int hs_tmt = p->timeout.handshake;
+		int hs_tmt = p->timeout.client_hs;
 
 		if (unlikely((sess->task = task_new_here()) == NULL))
 			goto out_free_sess;
