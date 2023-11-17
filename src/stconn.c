@@ -1091,7 +1091,7 @@ static void sc_notify(struct stconn *sc)
 	 */
 	if (sc_ep_have_ff_data(sc_opposite(sc)) ||
 	    (co_data(ic) && sc_ep_test(sco, SE_FL_WAIT_DATA) &&
-	     (!(sc->flags & SC_FL_SND_EXP_MORE) || c_full(ic) || ci_data(ic) == 0))) {
+	     (!(sc->flags & SC_FL_SND_EXP_MORE) || channel_full(ic, co_data(ic)) || channel_input_data(ic) == 0))) {
 		int new_len, last_len;
 
 		last_len = co_data(ic) + sc_ep_ff_data(sco);
@@ -1275,7 +1275,7 @@ static int sc_conn_recv(struct stconn *sc)
 	 */
 	if ((global.tune.options & GTUNE_USE_ZERO_COPY_FWD) &&
 	    sc_ep_test(sc, SE_FL_MAY_FASTFWD) && ic->to_forward) {
-		if (c_data(ic)) {
+		if (channel_data(ic)) {
 			/* We're embarrassed, there are already data pending in
 			 * the buffer and we don't want to have them at two
 			 * locations at a time. Let's indicate we need some
