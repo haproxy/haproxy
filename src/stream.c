@@ -3115,6 +3115,7 @@ struct show_sess_ctx {
 	void *target;		/* session we want to dump, or NULL for all */
 	unsigned int thr;       /* the thread number being explored (0..MAX_THREADS-1) */
 	unsigned int uid;	/* if non-null, the uniq_id of the session being dumped */
+	unsigned int min_age;   /* minimum age of streams to dump */
 	int section;		/* section of the session being dumped */
 	int pos;		/* last position of the current session's buffer */
 };
@@ -3510,15 +3511,31 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
-	if (*args[2] && strcmp(args[2], "all") == 0)
-		ctx->target = (void *)-1;
-	else if (*args[2])
-		ctx->target = (void *)strtoul(args[2], NULL, 0);
-	else
-		ctx->target = NULL;
+	/* now all sessions by default */
+	ctx->target = NULL;
+	ctx->min_age = 0;
 	ctx->section = 0; /* start with stream status */
 	ctx->pos = 0;
 	ctx->thr = 0;
+
+	if (*args[2] && strcmp(args[2], "older") == 0) {
+		unsigned timeout;
+		const char *res;
+
+		if (!*args[3])
+			return cli_err(appctx, "Expects a minimum age (in seconds by default).\n");
+
+		res = parse_time_err(args[3], &timeout, TIME_UNIT_S);
+		if (res != 0)
+			return cli_err(appctx, "Invalid age.\n");
+
+		ctx->min_age = timeout;
+		ctx->target = (void *)-1; /* show all matching entries */
+	}
+	else if (*args[2] && strcmp(args[2], "all") == 0)
+		ctx->target = (void *)-1;
+	else if (*args[2])
+		ctx->target = (void *)strtoul(args[2], NULL, 0);
 
 	/* The back-ref must be reset, it will be detected and set by
 	 * the dump code upon first invocation.
@@ -3594,6 +3611,12 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				break;
 			ctx->bref.ref = ha_thread_ctx[ctx->thr].streams.n;
 			continue;
+		}
+
+		if (ctx->min_age) {
+			uint age = ns_to_sec(now_ns) - ns_to_sec(curr_strm->logs.request_ts);
+			if (age < ctx->min_age)
+				goto next_sess;
 		}
 
 		if (ctx->target) {
@@ -3822,7 +3845,7 @@ static int cli_parse_shutdown_sessions_server(char **args, char *payload, struct
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "show", "sess",  NULL },             "show sess [id]                          : report the list of current sessions or dump this exact session", cli_parse_show_sess, cli_io_handler_dump_sess, cli_release_show_sess },
+	{ { "show", "sess",  NULL },             "show sess [<id>|all|older <age>]        : report the list of current sessions or dump this exact session", cli_parse_show_sess, cli_io_handler_dump_sess, cli_release_show_sess },
 	{ { "shutdown", "session",  NULL },      "shutdown session [id]                   : kill a specific session",                                        cli_parse_shutdown_session, NULL, NULL },
 	{ { "shutdown", "sessions",  "server" }, "shutdown sessions server <bk>/<srv>     : kill sessions on a server",                                      cli_parse_shutdown_sessions_server, NULL, NULL },
 	{{},}
