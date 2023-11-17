@@ -1322,13 +1322,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		if (curproxy->mode != PR_MODE_TCP && curproxy->mode != PR_MODE_HTTP) {
-			ha_alert("parsing [%s:%d] : '%s' requires TCP or HTTP mode.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d] : '%s' requires a header string.\n",
 				 file, linenum, args[0]);
