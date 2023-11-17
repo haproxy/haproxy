@@ -591,12 +591,6 @@ static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curp
 		goto end;
         }
 
-	if (curpx->mode != PR_MODE_TCP && curpx->mode != PR_MODE_HTTP) {
-		memprintf(err, "'%s' requires TCP or HTTP mode", args[0]);
-		retval = -1;
-		goto end;
-        }
-
 	if (!*(args[1])) {
 		memprintf(err, "'%s' expects <name> as argument", args[0]);
 		retval = -1;
