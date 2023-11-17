@@ -23036,6 +23036,7 @@ HTTP             req.proto_http                     match if request protocol is
 HTTP_1.0         req.ver 1.0                        match if HTTP request version is 1.0
 HTTP_1.1         req.ver 1.1                        match if HTTP request version is 1.1
 HTTP_2.0         req.ver 2.0                        match if HTTP request version is 2.0
+HTTP_3.0         req.ver 3.0                        match if HTTP request version is 3.0
 HTTP_CONTENT     req.hdr_val(content-length) gt 0   match an existing content-length in the HTTP request
 HTTP_URL_ABS     url_reg ^[^/:]*://                 match absolute URL with scheme
 HTTP_URL_SLASH   url_beg /                          match URL beginning with "/"
