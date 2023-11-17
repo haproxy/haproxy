@@ -1204,11 +1204,16 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 	/* Are we allowed to pick from another thread ? We'll still try
 	 * it if we're running low on FDs as we don't want to create
 	 * extra conns in this case, otherwise we can give up if we have
-	 * too few idle conns.
+	 * too few idle conns and the server protocol supports establishing
+	 * connections (i.e. not a reverse-http server for example).
 	 */
 	if (srv->curr_idle_conns < srv->low_idle_conns &&
-	    ha_used_fds < global.tune.pool_low_count)
-		goto done;
+	    ha_used_fds < global.tune.pool_low_count) {
+		const struct protocol *srv_proto = protocol_lookup(srv->addr.ss_family, PROTO_TYPE_STREAM, 0);
+
+		if (srv_proto && srv_proto->connect)
+			goto done;
+	}
 
 	/* Lookup all other threads for an idle connection, starting from last
 	 * unvisited thread, but always staying in the same group.
