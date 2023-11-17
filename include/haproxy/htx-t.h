@@ -164,6 +164,12 @@ static forceinline char *hsl_show_flags(char *buf, size_t len, const char *delim
 #undef _
 }
 
+/* Overhead induced by HTX on buffers during transfers. In addition to the size
+ * of the HTX structure itself, and meta data for one block, another block is
+ * accounted to favored zero-copy xfer.
+ */
+#define HTX_BUF_OVERHEAD     (sizeof(struct htx) + 2 * sizeof(struct htx_blk))
+
 /* HTX flags.
  * Please also update the htx_show_flags() function below in case of changes.
  */
