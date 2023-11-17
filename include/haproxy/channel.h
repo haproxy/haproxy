@@ -782,6 +782,43 @@ static inline int channel_recv_max(const struct channel *chn)
 	return ret;
 }
 
+/* Returns the maximum absolute amount of data that can be copied in a channel,
+ * taking the reserved space into account but also the HTX overhead for HTX
+ * streams.
+ */
+static inline size_t channel_data_limit(const struct channel *chn)
+{
+	size_t max = (global.tune.bufsize - global.tune.maxrewrite);
+
+	if (IS_HTX_STRM(chn_strm(chn)))
+		max -= HTX_BUF_OVERHEAD;
+	return max;
+}
+
+/* Returns the amount of data in a channel, taking the HTX streams into
+ * account. For raw channels, it is equivalent to c_data. For HTX channels, we
+ * rely on the HTX api.
+ */
+static inline size_t channel_data(const struct channel *chn)
+{
+	return (IS_HTX_STRM(chn_strm(chn)) ? htx_used_space(htxbuf(&chn->buf)) : c_data(chn));
+}
+
+/* Returns the amount of input data in a channel, taking he HTX streams into
+ * account. This function relies on channel_data().
+ */
+static inline size_t channel_input_data(const struct channel *chn)
+{
+	return channel_data(chn) - co_data(chn);
+}
+
+/* Returns 1 if the channel is empty, taking he HTX streams into account */
+static inline size_t channel_empty(const struct channel *chn)
+{
+	return (IS_HTX_STRM(chn) ? htx_is_empty(htxbuf(&chn->buf)) : c_empty(chn));
+}
+
+
 /* Returns the amount of bytes that can be written over the input data at once,
  * including reserved space which may be overwritten. This is used by Lua to
  * insert data in the input side just before the other data using buffer_replace().
