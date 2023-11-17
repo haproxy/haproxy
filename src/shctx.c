@@ -292,7 +292,6 @@ int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
 		goto err;
 	}
 
-	HA_SPIN_INIT(&shctx->lock);
 	shctx->nbav = 0;
 
 	LIST_INIT(&shctx->avail);
