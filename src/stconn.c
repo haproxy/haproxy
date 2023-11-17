@@ -1704,6 +1704,8 @@ static int sc_conn_send(struct stconn *sc)
 
 	/* FIXME: Must be reviewed for FF */
 	if (!co_data(oc) && !sc_ep_have_ff_data(sc)) {
+		if (did_send)
+			sc_ep_report_send_activity(sc);
 		/* If fast-forwarding is blocked, unblock it now to check for
 		 * receive on the other side
 		 */
@@ -1712,7 +1714,6 @@ static int sc_conn_send(struct stconn *sc)
 			sc_have_room(sco);
 			did_send = 1;
 		}
-		sc_ep_report_send_activity(sc);
 	}
 	else {
 		/* We couldn't send all of our data, let the mux know we'd like to send more */

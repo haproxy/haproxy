@@ -462,7 +462,6 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 		sc_oc(sc)->flags |= CF_WRITE_EVENT | CF_WROTE_DATA;
 		if (sco->room_needed < 0 || channel_recv_max(sc_oc(sc)) >= sco->room_needed)
 			sc_have_room(sco);
-		sc_ep_report_send_activity(sc);
 		did_send = 1;
 	}
 	else {
@@ -477,8 +476,10 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 		sc_ep_set(sc, SE_FL_EOS|SE_FL_ERROR);
 	}
 
-	if (!co_data(sc_oc(sc)))
-		sc_ep_report_send_activity(sc);
+	if (!co_data(sc_oc(sc))) {
+		if (did_send)
+			sc_ep_report_send_activity(sc);
+	}
 	else
 		sc_ep_report_blocked_send(sc, did_send);
 
