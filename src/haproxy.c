@@ -6,23 +6,6 @@
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
- *
- * Please refer to RFC7230 - RFC7235 information about HTTP protocol, and
- * RFC6265 for information about cookies usage. More generally, the IETF HTTP
- * Working Group's web site should be consulted for protocol related changes :
- *
- *     http://ftp.ics.uci.edu/pub/ietf/http/
- *
- * Pending bugs (may be not fixed because never reproduced) :
- *   - solaris only : sometimes, an HTTP proxy with only a dispatch address causes
- *     the proxy to terminate (no core) if the client breaks the connection during
- *     the response. Seen on 1.1.8pre4, but never reproduced. May not be related to
- *     the snprintf() bug since requests were simple (GET / HTTP/1.0), but may be
- *     related to missing setsid() (fixed in 1.1.15)
- *   - a proxy with an invalid config will prevent the startup even if disabled.
- *
- * ChangeLog has moved to the CHANGELOG file.
- *
  */
 
 #define _GNU_SOURCE
