@@ -3255,7 +3255,7 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
 
 	chunk_appendf(buf,
 		     " age=%s)\n",
-		     human_time(ns_to_sec(now_ns) - ns_to_sec(strm->logs.accept_ts), 1));
+		     human_time(ns_to_sec(now_ns) - ns_to_sec(strm->logs.request_ts), 1));
 
 	if (strm->txn)
 		chunk_appendf(buf,
@@ -3648,7 +3648,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		chunk_appendf(&trash,
 			     " ts=%02x epoch=%#x age=%s calls=%u rate=%u cpu=%llu lat=%llu",
 		             curr_strm->task->state, curr_strm->stream_epoch,
-		             human_time(ns_to_sec(now_ns) - ns_to_sec(curr_strm->logs.accept_ts), 1),
+		             human_time(ns_to_sec(now_ns) - ns_to_sec(curr_strm->logs.request_ts), 1),
 		             curr_strm->task->calls, read_freq_ctr(&curr_strm->call_rate),
 		             (unsigned long long)curr_strm->cpu_time, (unsigned long long)curr_strm->lat_time);
 
