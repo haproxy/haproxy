@@ -1105,12 +1105,6 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 		return -1;
 	}
 
-	if (curpx->mode != PR_MODE_TCP && curpx->mode != PR_MODE_HTTP) {
-		memprintf(err, "%s %s is not allowed because %s %s is not in TCP or HTTP mode",
-		          args[0], args[1], proxy_type_str(curpx), curpx->id);
-		return -1;
-	}
-
 	if (strcmp(args[1], "inspect-delay") == 0) {
 		if ((curpx == defpx && strlen(defpx->id) == 0) || !(curpx->cap & PR_CAP_BE)) {
 			memprintf(err, "%s %s is only allowed in 'backend' sections or 'defaults' section with a name",
@@ -1225,12 +1219,6 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		else
 			memprintf(err, "missing argument for '%s' in %s '%s'",
 			          args[0], proxy_type_str(curpx), curpx->id);
-		return -1;
-	}
-
-	if (curpx->mode != PR_MODE_TCP && curpx->mode != PR_MODE_HTTP) {
-		memprintf(err, "%s %s is not allowed because %s %s is not in TCP or HTTP mode",
-		          args[0], args[1], proxy_type_str(curpx), curpx->id);
 		return -1;
 	}
 
