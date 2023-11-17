@@ -28,7 +28,7 @@ struct proto_fam proto_fam_reverse_connect = {
 struct protocol proto_reverse_connect = {
 	.name = "rev",
 
-	/* connection layer */
+	/* connection layer (no outgoing connection) */
 	.listen      = rev_bind_listener,
 	.enable      = rev_enable_listener,
 	.disable     = rev_disable_listener,
@@ -37,8 +37,6 @@ struct protocol proto_reverse_connect = {
 	.resume      = default_resume_listener,
 	.accept_conn = rev_accept_conn,
 	.set_affinity = rev_set_affinity,
-
-	.connect     = rev_connect,
 
 	/* address family */
 	.fam  = &proto_fam_reverse_connect,
@@ -371,12 +369,6 @@ int rev_set_affinity(struct connection *conn, int new_tid)
 	 * did not test possible race conditions.
 	 */
 	return -1;
-}
-
-/* Simple callback to enable definition of passive HTTP reverse servers. */
-int rev_connect(struct connection *conn, int flags)
-{
-	return SF_ERR_NONE;
 }
 
 int rev_accepting_conn(const struct receiver *rx)
