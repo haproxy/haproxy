@@ -16,12 +16,14 @@
 
 varnishtest "Seamless reload issue with abns sockets"
 feature ignore_unknown_macro
+feature cmd "command -v socat"
+feature cmd "command -v grep"
 
 # abns@ sockets are not available on freebsd
 #EXCLUDE_TARGETS=freebsd,osx,generic
-#REGTEST_TYPE=broken
+#REGTEST_TYPE=devel
 
-haproxy h1 -W -conf {
+haproxy h1 -W -S -conf {
   global
     stats socket "${tmpdir}/h1/stats" level admin expose-fd listeners
 
@@ -43,7 +45,7 @@ haproxy h1 -W -conf {
 } -start
 
 shell {
-  kill -USR2 $(cat "${tmpdir}/h1/pid")
+    echo "reload" | socat -t1000 TCP:${h1_mcli_addr}:${h1_mcli_port} - | grep 'Success=1'
 }
 
 client c1 -connect ${h1_testme_sock} {
