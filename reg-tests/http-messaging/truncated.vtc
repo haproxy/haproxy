@@ -1,0 +1,101 @@
+varnishtest "HTTP response size tests: H2->H1 (HTX and legacy mode)"
+#REQUIRE_VERSION=1.9
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp \
+	  -status 200 \
+	  -nolen \
+	  -hdr "Transfer-encoding: chunked"
+	#  -bodylen 16300
+	#chunkedlen 16300
+	#delay 0.05
+	chunkedlen 815
+	#delay 0.05
+	chunkedlen 815
+	delay 0.05
+	chunkedlen 815
+	#delay 0.05
+	chunkedlen 815
+	delay 0.05
+
+	chunkedlen 815
+	#delay 0.05
+	chunkedlen 815
+	delay 0.05
+	chunkedlen 815
+	#delay 0.05
+	chunkedlen 815
+	delay 0.05
+
+	chunkedlen 815
+	#delay 0.05
+	chunkedlen 815
+	delay 0.05
+	chunkedlen 815
+	#delay 0.05
+	chunkedlen 815
+	delay 0.05
+
+	chunkedlen 815
+	#delay 0.05
+	chunkedlen 815
+	delay 0.05
+	chunkedlen 815
+	#delay 0.05
+	chunkedlen 815
+	delay 0.05
+
+	chunkedlen 815
+	#delay 0.05
+	chunkedlen 815
+	delay 0.05
+	chunkedlen 815
+	#delay 0.05
+	chunkedlen 815
+	delay 0.05
+} -repeat 2 -start
+
+haproxy h1 -conf {
+    defaults
+	#log stdout format raw daemon
+	mode http
+	option http-buffer-request
+	timeout connect 1s
+	timeout client  1s
+	timeout server  1s
+
+    listen feh1
+	bind "fd@${feh1}"
+	bind "fd@${feh2}" proto h2
+	http-response add-header a b
+	#http-response del-header content-length
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1h2 -connect ${h1_feh2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	# first request is valid
+	stream 1 {
+		txreq \
+		  -req "GET" \
+		  -scheme "https" \
+		  -url "/test1.html"
+		rxhdrs
+		#delay 0.1
+		expect resp.status == 200
+		rxdata -all
+		expect resp.bodylen == 16300
+		#expext resp.chunkedlen == 16300
+	} -run
+} -repeat 2 -run
