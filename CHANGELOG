@@ -1,6 +1,162 @@
 ChangeLog :
 ===========
 
+2023/11/18 : 2.9-dev10
+    - CLEANUP: Re-apply xalloc_size.cocci (3)
+    - BUG/MEDIUM: stconn: Report send activity during mux-to-mux fast-forward
+    - BUG/MEDIUM: stconn: Don't report rcv/snd expiration date if SC cannot epxire
+    - MINOR: stconn: Don't queue stream task in past in sc_notify()
+    - BUG/MEDIUM: Don't apply a max value on room_needed in sc_need_room()
+    - BUG/MINOR: stconn: Sanitize report for read activity
+    - CLEANUP: htx: Properly indent htx_reserve_max_data() function
+    - DOC: stconn: Improve comments about lra and fsb usage
+    - BUG/MEDIUM: quic: fix actconn on quic_conn alloc failure
+    - BUG/MEDIUM: quic: fix sslconns on quic_conn alloc failure
+    - BUG/MEDIUM: mux-h1: Be sure xprt support splicing to use it during fast-forward
+    - MINOR: proto_reverse_connect: use connect timeout
+    - BUG/MINOR: mux-h1: Release empty ibuf during data fast-forwarding
+    - BUG/MINOR: stick-table/cli: Check for invalid ipv4 key
+    - MEDIUM: stktable/cli: simplify entry key handling
+    - MINOR: stktable/cli: support v6tov4 and v4tov6 conversions
+    - BUG/MINOR: mux-h1: Properly handle http-request and http-keep-alive timeouts
+    - BUG/MEDIUM: freq-ctr: Don't report overshoot for long inactivity period
+    - BUG/MEDIUM: pool: fix releasable pool calculation when overloaded
+    - BUG/MINOR: pool: check one other random bucket on alloc conflict
+    - BUG/MEDIUM: pool: try once to allocate from another bucket if empty
+    - MEDIUM: stconn/muxes: Loop on data fast-forwarding to forward at least a buffer
+    - MINOR: stconn/mux-h2: Use a iobuf flag to report EOI to consumer side during FF
+    - MEDIUM: quic: Heavy task mode during handshake
+    - MEDIUM: quic: Heavy task mode with non contiguously bufferized CRYPTO data
+    - MINOR: quic: release the TLS context asap from quic_conn_release()
+    - MINOR: quic: Add idle timer task pointer to traces
+    - BUG/MINOR: quic: idle timer task requeued in the past
+    - CLEANUP: quic: Indentation fix in qc_do_build_pkt()
+    - MINOR: quic: Avoid zeroing frame structures
+    - BUG/MEDIUM: quic: Too short Initial packet sent (enc. level allocation failed)
+    - BUG/MEDIUM: quic: Avoid trying to send ACK frames from an empty ack ranges tree
+    - BUG/MEDIUM: quic: Possible crashes when sending too short Initial packets
+    - BUG/MEDIUM: quic: Avoid some crashes upon TX packet allocation failures
+    - BUG/MEDIUM: quic: Possible crashes during secrets allocations (heavy load)
+    - BUG/MEDIUM: stconn: Don't update stream expiration date if already expired
+    - MINOR: errors: ha_alert() and ha_warning() uses warn_exec_path()
+    - MINOR: errors: does not check MODE_STARTING for log emission
+    - MEDIUM: errors: move the MODE_QUIET test in print_message()
+    - DOC: management: -q is quiet all the time
+    - MEDIUM: mworker: -W is mandatory when using -S
+    - BUG/MEDIUM: mux-h1: Exit early if fast-forward is not supported by opposite SC
+    - MEDIUM: quic: adjust address validation
+    - MINOR: quic: reduce half open counters scope
+    - MEDIUM: quic: limit handshake per listener
+    - MEDIUM: quic: define an accept queue limit
+    - BUG/MINOR: quic: fix retry token check inconsistency
+    - MINOR: task/debug: explicitly support passing a null caller to wakeup functions
+    - MINOR: task/debug: make task_queue() and task_schedule() possible callers
+    - OPTIM: mux-h2: don't allocate more buffers per connections than streams
+    - BUG/MINOR: quic: remove dead code in error path
+    - MEDIUM: quic: respect closing state even on soft-stop
+    - MEDIUM: quic: release conn socket before using quic_cc_conn
+    - DOC: config: use the word 'backend' instead of 'proxy' in 'track' description
+    - BUG/MEDIUM: applet: Remove appctx from buffer wait list on release
+    - MINOR: tools: make str2sa_range() directly return type hints
+    - BUG/MEDIUM: server: invalid address (post)parsing checks
+    - BUG/MINOR: sink: don't learn srv port from srv addr
+    - CLEANUP: sink: bad indent in sink_new_from_logger()
+    - CLEANUP: sink: useless leftover in sink_add_srv()
+    - BUG/MINOR: quic: Useless use of non-contiguous buffer for in order CRYPTO data
+    - MINOR: server: always initialize pp_tlvs for default servers
+    - BUG/MEDIUM: proxy: always initialize the default settings after init
+    - MEDIUM: startup: 'haproxy -c' is quiet when valid
+    - BUG/MINOR: sample: Fix bytes converter if offset is bigger than sample length
+    - BUG/MINOR: log: keep the ref in dup_logger()
+    - BUG/MINOR: quic: fix crash on qc_new_conn alloc failure
+    - BUG/MINOR: quic: fix decrement of half_open counter on qc alloc failure
+    - BUG/MEDIUM: quic: fix FD for quic_cc_conn
+    - DOC: config: Fix name for tune.disable-zero-copy-forwarding global param
+    - REGTESTS: startup: -conf-OK requires -V with current VTest
+    - BUG/MEDIUM: quic: Non initialized CRYPTO data stream deferencing
+    - MINOR: quic: Add a max window parameter to congestion control algorithms
+    - MINOR: quic: Maximum congestion control window for each algo
+    - DOC: quic: Wrong syntax for "quic-cc-algo" keyword.
+    - DOC: quic: Maximum congestion control window configuration
+    - BUG/MINOR: quic: maximum window limits do not match the doc
+    - BUG/MEDIUM: connection: report connection errors even when no mux is installed
+    - BUG/MINOR: stconn: Handle abortonclose if backend connection was already set up
+    - MINOR: connection: Add a CTL flag to notify mux it should wait for reads again
+    - MEDIUM: mux-h1: Handle MUX_SUBS_RECV flag in h1_ctl() and susbscribe for reads
+    - BUG/MEDIUM: stream: Properly handle abortonclose when set on backend only
+    - MINOR: stconn: Use SC to detect frontend connections in sc_conn_recv()
+    - REGTESTS: http: Improve script testing abortonclose option
+    - MINOR: activity: report profiling duration and age in "show profiling"
+    - BUG/MEDIUM: mworker: set the master variable earlier
+    - BUG/MEDIUM: stream: Don't call mux .ctl() callback if not implemented
+    - MINOR: connection: update rhttp flags usage
+    - BUG/MINOR: mux_h2: reject passive reverse conn if error on add to idle
+    - MINOR: server: force add to idle on reverse
+    - MINOR: shctx: Set last_append to NULL when reserving block in hot list
+    - MEDIUM: shctx: Move list between hot and avail list in O(1)
+    - MEDIUM: shctx: Simplify shctx_row_reserve_hot loop
+    - MINOR: shctx: Remove explicit 'from' param from shctx_row_data_append
+    - MEDIUM: cache: Use dedicated cache tree lock alongside shctx lock
+    - MINOR: cache: Remove expired entry delete in "show cache" command
+    - MINOR: cache: Add option to avoid removing expired entries in lookup function
+    - MEDIUM: cache: Use rdlock on cache in cache_use
+    - MEDIUM: shctx: Remove 'hot' list from shared_context
+    - MINOR: cache: Use dedicated trash for "show cache" cli command
+    - MEDIUM: cache: Switch shctx spinlock to rwlock and restrict its scope
+    - MEDIUM: cache: Add refcount on cache_entry
+    - MEDIUM: shctx: Descend shctx_lock calls into the shctx_row_reserve_hot
+    - MINOR: shctx: Add new reserve_finish callback call to shctx_row_reserve_hot
+    - MAJOR: cache: Delay cache entry delete in reserve_hot function
+    - MINOR: shctx: Remove redundant arg from free_block callback
+    - MINOR: shctx: Remove 'use_shared_mem' variable
+    - DOC: cache: Specify when function expects a cache lock
+    - BUG/MEDIUM: stconn: Update fsb date on partial sends
+    - MINOR: htx: Use a macro for overhead induced by HTX
+    - MINOR: channel: Add functions to get info on buffers and deal with HTX streams
+    - BUG/MINOR: stconn: Fix streamer detection for HTX streams
+    - BUG/MINOR: stconn: Use HTX-aware channel's functions to get info on buffer
+    - BUG/MINOR: stconn/applet: Report send activity only if there was output data
+    - BUG/MINOR: stconn: Report read activity on non-indep streams for partial sends
+    - BUG/MINOR: shctx: Remove old HA_SPIN_INIT
+    - REGTESTS: try to activate again the seamless reload test with the master CLI
+    - MINOR: proxy: Add "handshake" new timeout (frontend side)
+    - MEDIUM: quic: Add support for "handshake" timeout setting.
+    - MINOR: quic: Dump the expiration date of the idle timer task
+    - BUG/MINOR: quic: Malformed CONNECTION_CLOSE frame
+    - MEDIUM: session: handshake timeout (TCP)
+    - DOC: proxy: Add "handshake" timeout documentation.
+    - MINOR: quic: Rename "handshake" timeout to "client-hs"
+    - CLEANUP: haproxy: remove old comment from 1.1 from the file header
+    - BUG/MEDIUM: mux-h2: fail earlier on malloc in takeover()
+    - BUG/MEDIUM: mux-h1: fail earlier on malloc in takeover()
+    - BUG/MEDIUM: mux-fcgi: fail earlier on malloc in takeover()
+    - MINOR: rhttp: remove the unused outgoing connect() function
+    - MINOR: backend: without ->connect(), allow to pick another thread's connection
+    - BUG/MINOR: stream/cli: report correct stream age in "show sess"
+    - MINOR: stream/cli: add an optional "older" filter for "show sess"
+    - MINOR: stream/cli: add another filter "susp" to "show sess"
+    - MINOR: stktable: add stktable_deinit function
+    - BUG/MINOR: proxy/stktable: missing frees on proxy cleanup
+    - CLEANUP: backend: removing unused LB param
+    - MEDIUM: lbprm: store algo params on 32bits
+    - MEDIUM: log/balance: merge tcp/http algo with log ones
+    - Revert "MINOR: proxy: report a warning for max_ka_queue in proxy_cfg_ensure_no_http()"
+    - Revert "MINOR: tcp_rules: tcp-{request,response} requires TCP or HTTP mode"
+    - Revert "MINOR: stktable: "stick" requires TCP or HTTP mode"
+    - Revert "MINOR: cfgparse-listen: "http-send-name-header" requires TCP or HTTP mode"
+    - Revert "MINOR: cfgparse-listen: "dynamic-cookie-key" requires TCP or HTTP mode"
+    - Revert "MINOR: cfgparse-listen: "http-reuse" requires TCP or HTTP mode"
+    - Revert "MINOR: fcgi-app: "use-fcgi-app" requires TCP or HTTP mode"
+    - Revert "MINOR: http_htx/errors: prevent the use of some keywords when not in tcp/http mode"
+    - Revert "MINOR: flt_http_comp: "compression" requires TCP or HTTP mode"
+    - Revert "MINOR: filter: "filter" requires TCP or HTTP mode"
+    - MINOR: log/backend: ensure log exclusive params are not used in other modes
+    - MINOR: log/backend: prevent tcp-{request,response} use with LOG mode
+    - MINOR: log/backend: prevent stick table and stick rules with LOG mode
+    - MINOR: log/backend: prevent "http-send-name-header" use with LOG mode
+    - MINOR: log/backend: prevent "dynamic-cookie-key" use with LOG mode
+    - REGTESTS: http: add a test to validate chunked responses delivery
+
 2023/11/04 : 2.9-dev9
     - DOC: internal: filters: fix reference to entities.pdf
     - BUG/MINOR: ssl: load correctly @system-ca when ca-base is define
