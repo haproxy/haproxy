@@ -809,7 +809,7 @@ static void _log_backend_srv_queue(struct server *srv)
 
 static void log_backend_srv_up(struct server *srv)
 {
-	struct proxy *p = srv->proxy;
+	struct proxy *p __maybe_unused = srv->proxy;
 
 	if (!srv_lb_status_changed(srv))
 		return; /* nothing to do */
@@ -863,7 +863,7 @@ static void _log_backend_srv_dequeue(struct server *srv)
 
 static void log_backend_srv_down(struct server *srv)
 {
-	struct proxy *p = srv->proxy;
+	struct proxy *p __maybe_unused = srv->proxy;
 
 	if (!srv_lb_status_changed(srv))
 		return; /* nothing to do */
