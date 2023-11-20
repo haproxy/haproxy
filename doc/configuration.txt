@@ -4655,6 +4655,9 @@ This section provides a description of each keyword and its usage.
 
 acl <aclname> <criterion> [flags] [operator] <value> ...
   Declare or complete an access list.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                 yes(!) |    yes   |   yes  |   yes
 
@@ -4672,8 +4675,12 @@ acl <aclname> <criterion> [flags] [operator] <value> ...
 
 backlog <conns>
   Give hints to the system about the approximate listen backlog desired size
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments :
     <conns>   is the number of pending connections. Depending on the operating
               system, it may represent the number of already acknowledged
@@ -4710,8 +4717,12 @@ backlog <conns>
 balance <algorithm> [ <arguments> ]
 balance url_param <param> [check_post]
   Define the load balancing algorithm to be used in a backend.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <algorithm> is the algorithm used to select a server when doing load
                 balancing. This only applies when no persistence information
@@ -5039,8 +5050,12 @@ balance url_param <param> [check_post]
 bind [<address>]:<port_range> [, ...] [param*]
 bind /<path> [, ...] [param*]
   Define one or several listening addresses and/or ports in a frontend.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   no
+
   Arguments :
     <address>     is optional and can be a host name, an IPv4 address, an IPv6
                   address, or '*'. It designates the address the frontend will
@@ -5172,8 +5187,12 @@ bind /<path> [, ...] [param*]
 
 capture cookie <name> len <length>
   Capture and log a cookie in the request and in the response.
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   no
+
   Arguments :
     <name>    is the beginning of the name of the cookie to capture. In order
               to match the exact name, simply suffix the name with an equal
@@ -5211,8 +5230,12 @@ capture cookie <name> len <length>
 
 capture request header <name> len <length>
   Capture and log the last occurrence of the specified request header.
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   no
+
   Arguments :
     <name>    is the name of the header to capture. The header names are not
               case-sensitive, but it is a common practice to write them as they
@@ -5256,8 +5279,12 @@ capture request header <name> len <length>
 
 capture response header <name> len <length>
   Capture and log the last occurrence of the specified response header.
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   no
+
   Arguments :
     <name>    is the name of the header to capture. The header names are not
               case-sensitive, but it is a common practice to write them as they
@@ -5295,8 +5322,12 @@ capture response header <name> len <length>
 clitcpka-cnt <count>
   Sets the maximum number of keepalive probes TCP should send before dropping
   the connection on the client side.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments :
     <count>   is the maximum number of keepalive probes.
 
@@ -5312,8 +5343,12 @@ clitcpka-idle <timeout>
   Sets the time the connection needs to remain idle before TCP starts sending
   keepalive probes, if enabled the sending of TCP keepalive packets on the
   client side.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments :
     <timeout> is the time the connection needs to remain idle before TCP starts
               sending keepalive probes. It is specified in seconds by default,
@@ -5330,8 +5365,12 @@ clitcpka-idle <timeout>
 
 clitcpka-intvl <timeout>
   Sets the time between individual keepalive probes on the client side.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments :
     <timeout> is the time between individual keepalive probes. It is specified
               in seconds by default, but can be in any other unit if the number
@@ -5351,8 +5390,12 @@ compression algo-req <algorithm>
 compression algo-res <algorithm>
 compression type <mime type> ...
   Enable HTTP compression.
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
     algo     is followed by the list of supported compression algorithms for
              responses (legacy keyword)
@@ -5426,6 +5469,9 @@ compression type <mime type> ...
 
 compression offload
   Makes HAProxy work as a compression offloader only.
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
 
@@ -5452,6 +5498,8 @@ compression direction <direction>
   compress only responses, or "both", when you want to compress both.
   The default value is "response".
 
+  May be used in the following contexts: http
+
   See also : "compression type", "compression algo", "compression offload"
 
 cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
@@ -5459,8 +5507,12 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               [ domain <domain> ]* [ maxidle <idle> ] [ maxlife <life> ]
               [ dynamic ] [ attr <value> ]*
   Enable cookie-based persistence in a backend.
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <name>    is the name of the cookie which will be monitored, modified or
               inserted in order to bring persistence. This cookie is sent to
@@ -5637,8 +5689,12 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
 
 declare capture [ request | response ] len <length>
   Declares a capture slot.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   no
+
   Arguments:
     <length> is the length allowed for the capture.
 
@@ -5654,8 +5710,12 @@ declare capture [ request | response ] len <length>
 
 default-server [param*]
   Change default options for a server in a backend
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments:
     <param*>  is a list of parameters for this server. The "default-server"
               keyword accepts an important number of options and has a complete
@@ -5670,8 +5730,12 @@ default-server [param*]
 
 default_backend <backend>
   Specify the backend to use when no "use_backend" rule has been matched.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments :
     <backend> is the name of the backend to use.
 
@@ -5691,8 +5755,12 @@ default_backend <backend>
 
 description <string>
   Describe a listen, frontend or backend.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
+
   Arguments : string
 
   Allows to add a sentence to describe the related object in the HAProxy HTML
@@ -5703,8 +5771,12 @@ description <string>
 
 disabled
   Disable a proxy, frontend or backend.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments : none
 
   The "disabled" keyword is used to disable an instance, mainly in order to
@@ -5720,8 +5792,12 @@ disabled
 
 dispatch <address>:<port>
   Set a default server address
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    no    |   yes  |   yes
+
   Arguments :
 
     <address> is the IPv4 address of the default server. Alternatively, a
@@ -5743,8 +5819,12 @@ dispatch <address>:<port>
 
 dynamic-cookie-key <string>
   Set the dynamic cookie secret key for a backend.
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments : The secret key to be used.
 
   When dynamic cookies are enabled (see the "dynamic" directive for cookie),
@@ -5756,8 +5836,12 @@ dynamic-cookie-key <string>
 
 enabled
   Enable a proxy, frontend or backend.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments : none
 
   The "enabled" keyword is used to explicitly enable an instance, when the
@@ -5768,8 +5852,12 @@ enabled
 
 errorfile <code> <file>
   Return a file contents instead of errors generated by HAProxy
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
     <code>    is the HTTP status code. Currently, HAProxy is capable of
               generating codes 200, 400, 401, 403, 404, 405, 407, 408, 410,
@@ -5815,8 +5903,12 @@ errorfile <code> <file>
 errorfiles <name> [<code> ...]
   Import, fully or partially, the error files defined in the <name> http-errors
   section.
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
     <name>  is the name of an existing http-errors section.
 
@@ -5844,8 +5936,12 @@ errorfiles <name> [<code> ...]
 errorloc <code> <url>
 errorloc302 <code> <url>
   Return an HTTP redirection to a URL instead of errors generated by HAProxy
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
     <code>    is the HTTP status code. Currently, HAProxy is capable of
               generating codes 200, 400, 401, 403, 404, 405, 407, 408, 410,
@@ -5876,8 +5972,12 @@ errorloc302 <code> <url>
 
 errorloc303 <code> <url>
   Return an HTTP redirection to a URL instead of errors generated by HAProxy
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
     <code>    is the HTTP status code. Currently, HAProxy is capable of
               generating codes 200, 400, 401, 403, 404, 405, 407, 408, 410,
@@ -5907,6 +6007,9 @@ errorloc303 <code> <url>
 email-alert from <emailaddr>
   Declare the from email address to be used in both the envelope and header
   of email alerts. This is the address that email alerts are sent from.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
 
@@ -5925,6 +6028,9 @@ email-alert from <emailaddr>
 email-alert level <level>
   Declare the maximum log level of messages for which email alerts will be
   sent. This acts as a filter on the sending of email alerts.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
 
@@ -5956,6 +6062,9 @@ email-alert level <level>
 
 email-alert mailers <mailersect>
   Declare the mailers to be used when sending email alerts
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
 
@@ -5973,6 +6082,9 @@ email-alert mailers <mailersect>
 email-alert myhostname <hostname>
   Declare the to hostname address to be used when communicating with
   mailers.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
 
@@ -5993,6 +6105,9 @@ email-alert myhostname <hostname>
 email-alert to <emailaddr>
   Declare both the recipient address in the envelope and to address in the
   header of email alerts. This is the address that email alerts are sent to.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
 
@@ -6009,6 +6124,9 @@ email-alert to <emailaddr>
 
 error-log-format <string>
   Specifies the log format string to use in case of connection error on the frontend side.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |    no
 
@@ -6028,6 +6146,9 @@ error-log-format <string>
 
 force-persist { if | unless } <condition>
   Declare a condition to force persistence on down servers
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections:    defaults | frontend | listen | backend
                                   no   |    no    |   yes  |   yes
 
@@ -6057,8 +6178,12 @@ force-persist { if | unless } <condition>
 
 filter <name> [param*]
   Add the filter <name> in the filter list attached to the proxy.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |   yes    |   yes  |   yes
+
   Arguments :
     <name>     is the name of the filter. Officially supported filters are
                referenced in section 9.
@@ -6089,8 +6214,12 @@ filter <name> [param*]
 
 fullconn <conns>
   Specify at what backend load the servers will reach their maxconn
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <conns>   is the number of connections on the backend which will make the
               servers use the maximal number of connections.
@@ -6125,8 +6254,12 @@ fullconn <conns>
 
 hash-balance-factor <factor>
   Specify the balancing factor for bounded-load consistent hashing
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   no   |   yes
+
   Arguments :
     <factor> is the control for the maximum number of concurrent requests to
              send to a server, expressed as a percentage of the average number
@@ -6154,8 +6287,12 @@ hash-balance-factor <factor>
 
 hash-type <method> <function> <modifier>
   Specify a method to use for mapping hashes to servers
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <method> is the method used to select a server from the hash computed by
              the <function> :
@@ -6247,6 +6384,8 @@ http-after-response <action> <options...> [ { if | unless } <condition> ]
   Access control for all Layer 7 responses (server, applet/service and internal
   ones).
 
+  May be used in the following contexts: http
+
   May be used in sections:   defaults | frontend | listen | backend
                                yes(!) |    yes   |   yes  |   yes
 
@@ -6296,6 +6435,9 @@ http-after-response <action> <options...> [ { if | unless } <condition> ]
 http-check comment <string>
   Defines a comment for the following the http-check rule, reported in logs if
   it fails.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
 
@@ -6314,6 +6456,9 @@ http-check connect [default] [port <expr>] [addr <ip>] [send-proxy]
                    [via-socks4] [ssl] [sni <sni>] [alpn <alpn>] [linger]
                    [proto <name>] [comment <msg>]
   Opens a new connection to perform an HTTP health check
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
 
@@ -6386,8 +6531,12 @@ http-check connect [default] [port <expr>] [addr <ip>] [send-proxy]
 
 http-check disable-on-404
   Enable a maintenance mode upon HTTP/404 response to health-checks
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments : none
 
   When this option is set, a server which returns an HTTP code 404 will be
@@ -6412,6 +6561,9 @@ http-check expect [min-recv <int>] [comment <msg>]
                   [on-success <fmt>] [on-error <fmt>] [status-code <expr>]
                   [!] <match> <pattern>
   Make HTTP health checks consider response contents or specific status codes
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
 
@@ -6597,8 +6749,12 @@ http-check send [meth <method>] [{ uri <uri> | uri-lf <fmt> }>] [ver <version>]
                 [comment <msg>]
   Add a possible list of headers and/or a body to the request sent during HTTP
   health checks.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     comment <msg>  defines a message to report if the rule evaluation fails.
 
@@ -6664,8 +6820,12 @@ http-check send [meth <method>] [{ uri <uri> | uri-lf <fmt> }>] [ver <version>]
 
 http-check send-state
   Enable emission of a state header with HTTP health checks
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments : none
 
   When this option is set, HAProxy will systematically send a special header
@@ -6717,6 +6877,9 @@ http-check send-state
 http-check set-var(<var-name>[,<cond>...]) <expr>
 http-check set-var-fmt(<var-name>[,<cond>...]) <fmt>
   This operation sets the content of a variable. The variable is declared inline.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
@@ -6747,6 +6910,9 @@ http-check set-var-fmt(<var-name>[,<cond>...]) <fmt>
 
 http-check unset-var(<var-name>)
   Free a reference to a variable within its scope.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
@@ -6769,8 +6935,12 @@ http-error status <code> [content-type <type>]
                file <file> | lf-file <file> | string <str> | lf-string <fmt> } ]
            [ hdr <name> <fmt> ]*
   Defines a custom error message to use instead of errors generated by HAProxy.
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
     status <code>        is the HTTP status code. It must be specified.
                          Currently, HAProxy is capable of generating codes
@@ -6850,6 +7020,8 @@ http-error status <code> [content-type <type>]
 http-request <action> [options...] [ { if | unless } <condition> ]
   Access control for Layer 7 requests
 
+  May be used in the following contexts: http
+
   May be used in sections:   defaults | frontend | listen | backend
                                yes(!) |    yes   |   yes  |   yes
 
@@ -6916,6 +7088,8 @@ http-request <action> [options...] [ { if | unless } <condition> ]
 http-response <action> <options...> [ { if | unless } <condition> ]
   Access control for Layer 7 responses
 
+  May be used in the following contexts: http
+
   May be used in sections:   defaults | frontend | listen | backend
                                yes(!) |    yes   |   yes  |   yes
 
@@ -6968,6 +7142,8 @@ http-response <action> <options...> [ { if | unless } <condition> ]
 
 http-reuse { never | safe | aggressive | always }
   Declare how idle HTTP connections may be shared between requests
+
+  May be used in the following contexts: http
 
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
@@ -7067,8 +7243,12 @@ http-reuse { never | safe | aggressive | always }
 
 http-send-name-header [<header>]
   Add the server name to a request. Use the header string given by <header>
+
+  May be used in the following contexts: http
+
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
+
   Arguments :
     <header>  The header string to use to send the server name
 
@@ -7093,8 +7273,12 @@ http-send-name-header [<header>]
 
 id <value>
   Set a persistent ID to a proxy.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   yes
+
   Arguments : none
 
   Set a persistent ID for the proxy. This ID must be unique and positive.
@@ -7104,6 +7288,9 @@ id <value>
 
 ignore-persist { if | unless } <condition>
   Declare a condition to ignore persistence
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections:    defaults | frontend | listen | backend
                                   no   |    no    |   yes  |   yes
 
@@ -7129,6 +7316,9 @@ ignore-persist { if | unless } <condition>
 
 load-server-state-from-file { global | local | none }
   Allow seamless reload of HAProxy
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:    defaults | frontend | listen | backend
                                   yes   |    no   |   yes  |   yes
 
@@ -7224,6 +7414,9 @@ log <target> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
     <facility> [<level> [<minlevel>]]
 no log
   Enable per-instance logging of events and traffic.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
 
@@ -7410,6 +7603,9 @@ no log
 
 log-format <string>
   Specifies the log format string to use for traffic logs
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |    no
 
@@ -7426,6 +7622,9 @@ log-format <string>
 
 log-format-sd <string>
   Specifies the RFC5424 structured-data log format string
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |    no
 
@@ -7447,6 +7646,9 @@ log-format-sd <string>
 
 log-tag <string>
   Specifies the log tag to use for all outgoing logs
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
 
@@ -7462,6 +7664,9 @@ log-tag <string>
 
 max-keep-alive-queue <value>
   Set the maximum server queue size for maintaining keep-alive connections
+
+  May be used in the following contexts: http
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |     no   |   yes  |   yes
 
@@ -7491,13 +7696,20 @@ max-session-srv-conns <nb>
   Set the maximum number of outgoing connections we can keep idling for a given
   client session. The default is 5 (it precisely equals MAX_SRV_LIST which is
   defined at build time).
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
 
 maxconn <conns>
   Fix the maximum number of concurrent connections on a frontend
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments :
     <conns>   is the maximum number of concurrent connections the frontend will
               accept to serve. Excess connections will be queued by the system
@@ -7559,8 +7771,12 @@ mode { tcp|http|log }
 
 monitor fail { if | unless } <condition>
   Add a condition to report a failure to a monitor HTTP request.
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   no
+
   Arguments :
     if <cond>     the monitor request will fail if the condition is satisfied,
                   and will succeed otherwise. The condition should describe a
@@ -7596,8 +7812,12 @@ monitor fail { if | unless } <condition>
 
 monitor-uri <uri>
   Intercept a URI used by external components' monitor requests
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments :
     <uri>     is the exact URI which we want to intercept to return HAProxy's
               health status instead of forwarding the request.
@@ -7638,8 +7858,12 @@ monitor-uri <uri>
 option abortonclose
 no option abortonclose
   Enable or disable early dropping of aborted requests pending in queues.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |     no   |   yes  |   yes
+
   Arguments : none
 
   In presence of very high loads, the servers will take some time to respond.
@@ -7683,8 +7907,12 @@ no option abortonclose
 option accept-invalid-http-request
 no option accept-invalid-http-request
   Enable or disable relaxing of HTTP request parsing
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments : none
 
   By default, HAProxy complies with RFC7230 in terms of message parsing. This
@@ -7727,8 +7955,12 @@ no option accept-invalid-http-request
 option accept-invalid-http-response
 no option accept-invalid-http-response
   Enable or disable relaxing of HTTP response parsing
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |     no   |   yes  |   yes
+
   Arguments : none
 
   By default, HAProxy complies with RFC7230 in terms of message parsing. This
@@ -7762,8 +7994,12 @@ no option accept-invalid-http-response
 option allbackups
 no option allbackups
   Use either all backup servers at a time or only the first one
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |     no   |   yes  |   yes
+
   Arguments : none
 
   By default, the first operational backup server gets all traffic when normal
@@ -7784,8 +8020,12 @@ no option allbackups
 option checkcache
 no option checkcache
   Analyze all server responses and block responses with cacheable cookies
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |     no   |   yes  |   yes
+
   Arguments : none
 
   Some high-level frameworks set application cookies everywhere and do not
@@ -7836,8 +8076,12 @@ no option checkcache
 option clitcpka
 no option clitcpka
   Enable or disable the sending of TCP keepalive packets on the client side
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments : none
 
   When there is a firewall or any session-aware component between a client and
@@ -7870,8 +8114,12 @@ no option clitcpka
 
 option contstats
   Enable continuous traffic statistics updates
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments : none
 
   By default, counters used for statistics calculation are incremented
@@ -7888,8 +8136,12 @@ option disable-h2-upgrade
 no option disable-h2-upgrade
   Enable or disable the implicit HTTP/2 upgrade from an HTTP/1.x client
   connection.
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments : none
 
   By default, HAProxy is able to implicitly upgrade an HTTP/1.x client
@@ -7909,8 +8161,12 @@ no option disable-h2-upgrade
 option dontlog-normal
 no option dontlog-normal
   Enable or disable logging of normal, successful connections
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments : none
 
   There are large sites dealing with several thousand connections per second
@@ -7932,8 +8188,12 @@ no option dontlog-normal
 option dontlognull
 no option dontlognull
   Enable or disable logging of null connections
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments : none
 
   In certain environments, there are components which will regularly connect to
@@ -7962,8 +8222,12 @@ option forwarded [ proto ]
                  [ for | for-expr <for_expr> ] [ for_port | for_port-expr <for_port_expr>]
 no option forwarded
   Enable insertion of the rfc 7239 forwarded header in requests sent to servers
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <host_expr>     optional argument to specify a custom sample expression
                     those result will be used as 'host' parameter value
@@ -8093,8 +8357,12 @@ no option forwarded
 
 option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
   Enable insertion of the X-Forwarded-For header to requests sent to servers
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
     <network> is an optional argument used to disable this option for sources
               matching <network>
@@ -8157,8 +8425,12 @@ option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
 option h1-case-adjust-bogus-client
 no option h1-case-adjust-bogus-client
   Enable or disable the case adjustment of HTTP/1 headers sent to bogus clients
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments : none
 
   There is no standard case for header names because, as stated in RFC7230,
@@ -8192,8 +8464,12 @@ no option h1-case-adjust-bogus-client
 option h1-case-adjust-bogus-server
 no option h1-case-adjust-bogus-server
   Enable or disable the case adjustment of HTTP/1 headers sent to bogus servers
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no   |   yes  |   yes
+
   Arguments : none
 
   There is no standard case for header names because, as stated in RFC7230,
@@ -8227,8 +8503,12 @@ no option h1-case-adjust-bogus-server
 option http-buffer-request
 no option http-buffer-request
   Enable or disable waiting for whole HTTP request body before proceeding
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments : none
 
   It is sometimes desirable to wait for the body of an HTTP request before
@@ -8249,8 +8529,12 @@ no option http-buffer-request
 option http-ignore-probes
 no option http-ignore-probes
   Enable or disable logging of null connections and request timeouts
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments : none
 
   Recently some browsers started to implement a "pre-connect" feature
@@ -8284,8 +8568,12 @@ option http-keep-alive
 no option http-keep-alive
   Enable or disable HTTP keep-alive from client to server for HTTP/1.x
   connections
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments : none
 
   By default HAProxy operates in keep-alive mode with regards to persistent
@@ -8328,8 +8616,12 @@ no option http-keep-alive
 option http-no-delay
 no option http-no-delay
   Instruct the system to favor low interactive delays over performance in HTTP
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments : none
 
   In HTTP, each payload is unidirectional and has no notion of interactivity.
@@ -8363,8 +8655,12 @@ option http-pretend-keepalive
 no option http-pretend-keepalive
   Define whether HAProxy will announce keepalive for HTTP/1.x connection to the
   server or not
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no   |   yes  |   yes
+
   Arguments : none
 
   When running with "option http-server-close" or "option httpclose", HAProxy
@@ -8404,8 +8700,12 @@ no option http-pretend-keepalive
 option http-restrict-req-hdr-names { preserve | delete | reject }
   Set HAProxy policy about HTTP request header names containing characters
   outside the "[a-zA-Z0-9-]" charset
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
       preserve  disable the filtering. It is the default mode for HTTP proxies
                 with no FastCGI application configured.
@@ -8432,8 +8732,12 @@ option http-restrict-req-hdr-names { preserve | delete | reject }
 option http-server-close
 no option http-server-close
   Enable or disable HTTP/1.x connection closing on the server side
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments : none
 
   By default HAProxy operates in keep-alive mode with regards to persistent
@@ -8473,8 +8777,12 @@ no option http-server-close
 option http-use-proxy-header
 no option http-use-proxy-header
   Make use of non-standard Proxy-Connection header instead of Connection
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments : none
 
   While RFC7230 explicitly states that HTTP/1.1 agents must use the
@@ -8505,8 +8813,12 @@ option httpchk <uri>
 option httpchk <method> <uri>
 option httpchk <method> <uri> <version>
   Enables HTTP protocol to check on the servers health
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <method>  is the optional HTTP method used with the requests. When not set,
               the "OPTIONS" method is used, as it generally requires low server
@@ -8561,8 +8873,12 @@ option httpchk <method> <uri> <version>
 option httpclose
 no option httpclose
   Enable or disable HTTP/1.x connection closing
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments : none
 
   By default HAProxy operates in keep-alive mode with regards to persistent
@@ -8593,8 +8909,12 @@ no option httpclose
 
 option httplog [ clf ]
   Enable logging of HTTP request, session state and timers
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments :
     clf       if the "clf" argument is added, then the output format will be
               the CLF format instead of HAProxy's default HTTP format. You can
@@ -8619,6 +8939,9 @@ option httplog [ clf ]
 
 option httpslog
   Enable logging of HTTPS request, session state and timers
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
 
@@ -8638,8 +8961,12 @@ option httpslog
 option independent-streams
 no option independent-streams
   Enable or disable independent timeout processing for both directions
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |  yes
+
   Arguments : none
 
   By default, when data is sent over a socket, both the write timeout and the
@@ -8670,8 +8997,12 @@ no option independent-streams
 
 option ldap-check
   Use LDAPv3 health checks for server testing
+
+  May be used in the following contexts: tcp
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments : none
 
   It is possible to test that the server correctly talks LDAPv3 instead of just
@@ -8693,6 +9024,9 @@ option ldap-check
 
 option external-check
   Use external processes for server health checks
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
 
@@ -8708,8 +9042,12 @@ option external-check
 option idle-close-on-response
 no option idle-close-on-response
   Avoid closing idle frontend connections if a soft stop is in progress
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments : none
 
   By default, idle connections will be closed during a soft stop. In some
@@ -8737,8 +9075,12 @@ no option idle-close-on-response
 option log-health-checks
 no option log-health-checks
   Enable or disable logging of health checks status updates
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |  yes
+
   Arguments : none
 
   By default, failed health check are logged if server is UP and successful
@@ -8762,8 +9104,12 @@ no option log-health-checks
 option log-separate-errors
 no option log-separate-errors
   Change log level for non-completely successful connections
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments : none
 
   Sometimes looking for errors in logs is not easy. This option makes HAProxy
@@ -8785,8 +9131,12 @@ no option log-separate-errors
 option logasap
 no option logasap
   Enable or disable early logging.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments : none
 
   By default, logs are emitted when all the log format variables and sample
@@ -8824,8 +9174,12 @@ no option logasap
 
 option mysql-check [ user <username> [ { post-41 | pre-41 } ] ]
   Use MySQL health checks for server testing
+
+  May be used in the following contexts: tcp
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <username> This is the username which will be used when connecting to MySQL
                server.
@@ -8872,8 +9226,12 @@ option mysql-check [ user <username> [ { post-41 | pre-41 } ] ]
 option nolinger
 no option nolinger
   Enable or disable immediate session resource cleaning after close
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments : none
 
   When clients or servers abort connections in a dirty way (e.g. they are
@@ -8918,8 +9276,12 @@ no option nolinger
 
 option originalto [ except <network> ] [ header <name> ]
   Enable insertion of the X-Original-To header to requests sent to servers
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
     <network> is an optional argument used to disable this option for sources
               matching <network>
@@ -8974,8 +9336,12 @@ option originalto [ except <network> ] [ header <name> ]
 option persist
 no option persist
   Enable or disable forced persistence on down servers
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments : none
 
   When an HTTP request reaches a backend with a cookie which references a dead
@@ -8997,8 +9363,12 @@ no option persist
 
 option pgsql-check user <username>
   Use PostgreSQL health checks for server testing
+
+  May be used in the following contexts: tcp
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <username> This is the username which will be used when connecting to
                PostgreSQL server.
@@ -9014,8 +9384,12 @@ option pgsql-check user <username>
 option prefer-last-server
 no option prefer-last-server
   Allow multiple load balanced requests to remain on the same server
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments : none
 
   When the load balancing algorithm in use is not deterministic, and a previous
@@ -9046,8 +9420,12 @@ option redispatch
 option redispatch <interval>
 no option redispatch
   Enable or disable session redistribution in case of connection failure
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <interval> The optional integer value that controls how often redispatches
                occur when retrying connections. Positive value P indicates a
@@ -9099,8 +9477,12 @@ no option redispatch
 
 option redis-check
   Use redis health checks for server testing
+
+  May be used in the following contexts: tcp
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments : none
 
   It is possible to test that the server correctly talks REDIS protocol instead
@@ -9117,8 +9499,12 @@ option redis-check
 option smtpchk
 option smtpchk <hello> <domain>
   Use SMTP health checks for server testing
+
+  May be used in the following contexts: tcp
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <hello>   is an optional argument. It is the "hello" command to use. It can
               be either "HELO" (for SMTP) or "EHLO" (for ESMTP). All other
@@ -9156,6 +9542,9 @@ option socket-stats
 no option socket-stats
 
   Enable or disable collecting & providing separate statistics for each socket.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
 
@@ -9165,8 +9554,12 @@ no option socket-stats
 option splice-auto
 no option splice-auto
   Enable or disable automatic kernel acceleration on sockets in both directions
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments : none
 
   When this option is enabled either on a frontend or on a backend, HAProxy
@@ -9203,8 +9596,12 @@ no option splice-auto
 option splice-request
 no option splice-request
   Enable or disable automatic kernel acceleration on sockets for requests
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments : none
 
   When this option is enabled either on a frontend or on a backend, HAProxy
@@ -9229,8 +9626,12 @@ no option splice-request
 option splice-response
 no option splice-response
   Enable or disable automatic kernel acceleration on sockets for responses
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments : none
 
   When this option is enabled either on a frontend or on a backend, HAProxy
@@ -9254,8 +9655,12 @@ no option splice-response
 
 option spop-check
   Use SPOP health checks for server testing
+
+  May be used in the following contexts: tcp
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments : none
 
   It is possible to test that the server correctly talks SPOP protocol instead
@@ -9272,8 +9677,12 @@ option spop-check
 option srvtcpka
 no option srvtcpka
   Enable or disable the sending of TCP keepalive packets on the server side
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments : none
 
   When there is a firewall or any session-aware component between a client and
@@ -9306,8 +9715,12 @@ no option srvtcpka
 
 option ssl-hello-chk
   Use SSLv3 client hello health checks for server testing
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments : none
 
   When some SSL-based protocols are relayed in TCP mode through HAProxy, it is
@@ -9331,6 +9744,9 @@ option ssl-hello-chk
 
 option tcp-check
   Perform health checks using tcp-check send/expect sequences
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
@@ -9417,8 +9833,12 @@ option tcp-check
 option tcp-smart-accept
 no option tcp-smart-accept
   Enable or disable the saving of one ACK packet during the accept sequence
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |    no
+
   Arguments : none
 
   When an HTTP connection request comes in, the system acknowledges it on
@@ -9452,8 +9872,12 @@ no option tcp-smart-accept
 option tcp-smart-connect
 no option tcp-smart-connect
   Enable or disable the saving of one ACK packet during the connect sequence
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments : none
 
   On certain systems (at least Linux), HAProxy can ask the kernel not to
@@ -9478,8 +9902,12 @@ no option tcp-smart-connect
 
 option tcpka
   Enable or disable the sending of TCP keepalive packets on both sides
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments : none
 
   When there is a firewall or any session-aware component between a client and
@@ -9514,8 +9942,12 @@ option tcpka
 
 option tcplog
   Enable advanced logging of TCP connections with session state and timers
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments : none
 
   By default, the log output format is very poor, as it only contains the
@@ -9535,8 +9967,12 @@ option tcplog
 option transparent
 no option transparent
   Enable client-side transparent proxying
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments : none
 
   This option was introduced in order to provide layer 7 persistence to layer 3
@@ -9557,6 +9993,9 @@ no option transparent
 
 external-check command <command>
   Executable to run when performing an external-check
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
 
@@ -9626,6 +10065,9 @@ external-check command <command>
 
 external-check path <path>
   The value of the PATH environment variable used when running an external-check
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
 
@@ -9644,8 +10086,12 @@ external-check path <path>
 persist rdp-cookie
 persist rdp-cookie(<name>)
   Enable RDP cookie-based persistence
+
+  May be used in the following contexts: tcp
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <name>    is the optional name of the RDP cookie to check. If omitted, the
               default cookie name "msts" will be used. There currently is no
@@ -9687,8 +10133,12 @@ persist rdp-cookie(<name>)
 
 rate-limit sessions <rate>
   Set a limit on the number of new sessions accepted per second on a frontend
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments :
     <rate>    The <rate> parameter is an integer designating the maximum number
               of new sessions per second to accept on the frontend.
@@ -9723,6 +10173,9 @@ redirect location <loc> [code <code>] <option> [{if | unless} <condition>]
 redirect prefix   <pfx> [code <code>] <option> [{if | unless} <condition>]
 redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
   Return an HTTP redirection if/unless a condition is matched
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
 
@@ -9840,8 +10293,12 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
 
 retries <value>
   Set the number of retries to perform on a server after a failure
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <value>   is the number of times a request or connection attempt should be
               retried on a server after a failure.
@@ -9867,8 +10324,12 @@ retry-on [space-delimited list of keywords]
   Specify when to attempt to automatically retry a failed request.
   This setting is only valid when "mode" is set to http and is silently ignored
   otherwise.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <keywords>  is a space-delimited list of keywords or HTTP status codes, each
                 representing a type of failure event on which an attempt to
@@ -9954,8 +10415,12 @@ retry-on [space-delimited list of keywords]
 
 server <name> <address>[:[port]] [param*]
   Declare a server in a backend
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    no    |   yes  |   yes
+
   Arguments :
     <name>    is the internal name assigned to this server. This name will
               appear in logs and alerts. If "http-send-name-header" is
@@ -10024,6 +10489,9 @@ server <name> <address>[:[port]] [param*]
 server-state-file-name [ { use-backend-name | <file> } ]
   Set the server state file to read, load and apply to servers available in
   this backend.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:    defaults | frontend | listen | backend
                                   no   |    no   |   yes  |   yes
 
@@ -10048,6 +10516,9 @@ server-state-file-name [ { use-backend-name | <file> } ]
 server-template <prefix> <num | range> <fqdn>[:<port>] [params*]
   Set a template to initialize servers with shared parameters.
   The names of these servers are built from <prefix> and <num | range> parameters.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    no    |   yes  |   yes
 
@@ -10087,8 +10558,12 @@ source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | client | clientip } ]
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | hdr_ip(<hdr>[,<occ>]) } ]
 source <addr>[:<port>] [interface <name>]
   Set the source address for outgoing connections
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <addr>    is the IPv4 address HAProxy will bind to before connecting to a
               server. This address is also used as a source for health checks.
@@ -10230,8 +10705,12 @@ source <addr>[:<port>] [interface <name>]
 srvtcpka-cnt <count>
   Sets the maximum number of keepalive probes TCP should send before dropping
   the connection on the server side.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <count>   is the maximum number of keepalive probes.
 
@@ -10247,8 +10726,12 @@ srvtcpka-idle <timeout>
   Sets the time the connection needs to remain idle before TCP starts sending
   keepalive probes, if enabled the sending of TCP keepalive packets on the
   server side.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <timeout> is the time the connection needs to remain idle before TCP starts
               sending keepalive probes. It is specified in seconds by default,
@@ -10265,8 +10748,12 @@ srvtcpka-idle <timeout>
 
 srvtcpka-intvl <timeout>
   Sets the time between individual keepalive probes on the server side.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <timeout> is the time between individual keepalive probes. It is specified
               in seconds by default, but can be in any other unit if the number
@@ -10283,6 +10770,9 @@ srvtcpka-intvl <timeout>
 
 stats admin { if | unless } <cond>
   Enable statistics admin level if/unless a condition is matched
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
 
@@ -10331,8 +10821,12 @@ stats admin { if | unless } <cond>
 
 stats auth <user>:<passwd>
   Enable statistics with authentication and grant access to an account
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
     <user>    is a user name to grant access to
 
@@ -10380,8 +10874,12 @@ stats auth <user>:<passwd>
 
 stats enable
   Enable statistics reporting with default settings
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments : none
 
   This statement enables statistics reporting with default settings defined
@@ -10418,8 +10916,12 @@ stats enable
 
 stats hide-version
   Enable statistics and hide HAProxy version reporting
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments : none
 
   By default, the stats page reports some useful status information along with
@@ -10458,6 +10960,8 @@ stats http-request { allow | deny | auth [realm <realm>] }
              [ { if | unless } <condition> ]
   Access control for statistics
 
+  May be used in the following contexts: http
+
   May be used in sections:   defaults | frontend | listen | backend
                                 no    |    no    |   yes  |   yes
 
@@ -10477,8 +10981,12 @@ stats http-request { allow | deny | auth [realm <realm>] }
 
 stats realm <realm>
   Enable statistics and set authentication realm
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
     <realm>   is the name of the HTTP Basic Authentication realm reported to
               the browser. The browser uses it to display it in the pop-up
@@ -10517,8 +11025,12 @@ stats realm <realm>
 
 stats refresh <delay>
   Enable statistics with automatic refresh
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
     <delay>   is the suggested refresh delay, specified in seconds, which will
               be returned to the browser consulting the report page. While the
@@ -10559,8 +11071,12 @@ stats refresh <delay>
 
 stats scope { <name> | "." }
   Enable statistics and limit access scope
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
     <name>    is the name of a listen, frontend or backend section to be
               reported. The special name "." (a single dot) designates the
@@ -10600,6 +11116,9 @@ stats scope { <name> | "." }
 
 stats show-desc [ <desc> ]
   Enable reporting of a description on the statistics page.
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
 
@@ -10627,8 +11146,12 @@ stats show-desc [ <desc> ]
 
 stats show-legends
   Enable reporting additional information on the statistics page
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments : none
 
   Enable reporting additional information on the statistics page :
@@ -10647,8 +11170,12 @@ stats show-legends
 
 stats show-modules
   Enable display of extra statistics module on the statistics page
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments : none
 
   New columns are added at the end of the line containing the extra statistics
@@ -10663,8 +11190,12 @@ stats show-modules
 
 stats show-node [ <name> ]
   Enable reporting of a host name on the statistics page.
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments:
     <name>    is an optional name to be reported. If unspecified, the
               node name from global section is automatically used instead.
@@ -10691,8 +11222,12 @@ stats show-node [ <name> ]
 
 stats uri <prefix>
   Enable statistics and define the URI prefix to access them
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
     <prefix>  is the prefix of any URI which will be redirected to stats. This
               prefix may contain a question mark ('?') to indicate part of a
@@ -10741,6 +11276,9 @@ stats uri <prefix>
 
 stick match <pattern> [table <table>] [{if | unless} <cond>]
   Define a request pattern matching condition to stick a user to a server
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    no    |   yes  |   yes
 
@@ -10812,6 +11350,9 @@ stick match <pattern> [table <table>] [{if | unless} <cond>]
 
 stick on <pattern> [table <table>] [{if | unless} <condition>]
   Define a request pattern to associate a user to a server
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    no    |   yes  |   yes
 
@@ -10852,6 +11393,9 @@ stick on <pattern> [table <table>] [{if | unless} <condition>]
 
 stick store-request <pattern> [table <table>] [{if | unless} <condition>]
   Define a request pattern used to create an entry in a stickiness table
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    no    |   yes  |   yes
 
@@ -10938,6 +11482,9 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
             size <size> [expire <expire>] [nopurge] [peers <peersect>] [srvkey <srvkey>]
             [write-to <wtable>] [store <data_type>]*
   Configure the stickiness table for the current section
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
 
@@ -11269,6 +11816,9 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
 
 stick store-response <pattern> [table <table>] [{if | unless} <condition>]
   Define a response pattern used to create an entry in a stickiness table
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    no    |   yes  |   yes
 
@@ -11366,6 +11916,9 @@ stick store-response <pattern> [table <table>] [{if | unless} <condition>]
 tcp-check comment <string>
   Defines a comment for the following the tcp-check rule, reported in logs if
   it fails.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
 
@@ -11384,6 +11937,9 @@ tcp-check connect [default] [port <expr>] [addr <ip>] [send-proxy] [via-socks4]
                   [ssl] [sni <sni>] [alpn <alpn>] [linger]
                   [proto <name>] [comment <msg>]
   Opens a new connection
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
@@ -11468,6 +12024,9 @@ tcp-check expect [min-recv <int>] [comment <msg>]
                  [on-success <fmt>] [on-error <fmt>] [status-code <expr>]
                  [!] <match> <pattern>
   Specify data to be collected and analyzed during a generic health check
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
@@ -11636,6 +12195,9 @@ tcp-check send <data> [comment <msg>]
 tcp-check send-lf <fmt> [comment <msg>]
   Specify a string or a log-format string to be sent as a question during a
   generic health check
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
@@ -11662,6 +12224,9 @@ tcp-check send-binary <hexstring> [comment <msg>]
 tcp-check send-binary-lf <hexfmt> [comment <msg>]
   Specify an hex digits string or an hex digits log-format string to be sent as
   a binary question during a raw tcp health check
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
@@ -11689,6 +12254,9 @@ tcp-check send-binary-lf <hexfmt> [comment <msg>]
 tcp-check set-var(<var-name>[,<cond>...]) <expr>
 tcp-check set-var-fmt(<var-name>[,<cond>...]) <fmt>
   This operation sets the content of a variable. The variable is declared inline.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
@@ -11719,6 +12287,9 @@ tcp-check set-var-fmt(<var-name>[,<cond>...]) <fmt>
 
 tcp-check unset-var(<var-name>)
   Free a reference to a variable within its scope.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
@@ -11738,8 +12309,12 @@ tcp-check unset-var(<var-name>)
 
 tcp-request connection <action> <options...> [ { if | unless } <condition> ]
   Perform an action on an incoming connection depending on a layer 4 condition
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                 yes(!) |    yes   |   yes  |   no
+
   Arguments :
     <action>    defines the action to perform if the condition applies. See
                 below.
@@ -11812,8 +12387,12 @@ tcp-request connection <action> <options...> [ { if | unless } <condition> ]
 
 tcp-request content <action> [{if | unless} <condition>]
   Perform an action on a new session depending on a layer 4-7 condition
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                 yes(!) |    yes   |   yes  |   yes
+
   Arguments :
     <action>    defines the action to perform if the condition applies. See
                 below.
@@ -11968,8 +12547,12 @@ tcp-request content <action> [{if | unless} <condition>]
 
 tcp-request inspect-delay <timeout>
   Set the maximum allowed time to wait for data during content inspection
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                 yes(!) |    yes   |   yes  |   yes
+
   Arguments :
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -12021,8 +12604,12 @@ tcp-request inspect-delay <timeout>
 
 tcp-request session <action> [{if | unless} <condition>]
   Perform an action on a validated session depending on a layer 5 condition
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                 yes(!) |    yes   |   yes  |   no
+
   Arguments :
     <action>    defines the action to perform if the condition applies. See
                 below.
@@ -12102,8 +12689,12 @@ tcp-request session <action> [{if | unless} <condition>]
 
 tcp-response content <action> [{if | unless} <condition>]
   Perform an action on a session response depending on a layer 4-7 condition
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                 yes(!) |    no    |   yes  |   yes
+
   Arguments :
     <action>    defines the action to perform if the condition applies. See
                 below.
@@ -12153,8 +12744,12 @@ tcp-response content <action> [{if | unless} <condition>]
 
 tcp-response inspect-delay <timeout>
   Set the maximum allowed time to wait for a response during content inspection
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                yes(!)  |    no    |   yes  |   yes
+
   Arguments :
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -12170,8 +12765,11 @@ timeout check <timeout>
   Set additional check timeout, but only after a connection has been already
   established.
 
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments:
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -12202,8 +12800,12 @@ timeout check <timeout>
 
 timeout client <timeout>
   Set the maximum inactivity time on the client side.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments :
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -12238,8 +12840,12 @@ timeout client <timeout>
 
 timeout client-fin <timeout>
   Set the inactivity timeout on the client side for half-closed connections.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments :
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -12266,8 +12872,12 @@ timeout client-fin <timeout>
 timeout client-hs <timeout>
   Set the maximum time to wait for a client TLS handshake to complete. This is
   usable both for TCP and QUIC connections.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
+
   Arguments :
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -12279,8 +12889,12 @@ timeout client-hs <timeout>
 
 timeout connect <timeout>
   Set the maximum time to wait for a connection attempt to a server to succeed.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -12305,8 +12919,12 @@ timeout connect <timeout>
 
 timeout http-keep-alive <timeout>
   Set the maximum allowed time to wait for a new HTTP request to appear
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -12346,8 +12964,12 @@ timeout http-keep-alive <timeout>
 
 timeout http-request <timeout>
   Set the maximum allowed time to wait for a complete HTTP request
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -12392,8 +13014,12 @@ timeout http-request <timeout>
 
 timeout queue <timeout>
   Set the maximum time to wait in the queue for a connection slot to be free
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -12415,8 +13041,12 @@ timeout queue <timeout>
 
 timeout server <timeout>
   Set the maximum inactivity time on the server side.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -12454,8 +13084,12 @@ timeout server <timeout>
 
 timeout server-fin <timeout>
   Set the inactivity timeout on the server side for half-closed connections.
+
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -12480,8 +13114,12 @@ timeout server-fin <timeout>
 
 timeout tarpit <timeout>
   Set the duration for which tarpitted connections will be maintained
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
   Arguments :
     <timeout> is the tarpit duration specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -12502,8 +13140,12 @@ timeout tarpit <timeout>
 
 timeout tunnel <timeout>
   Set the maximum inactivity time on the client and server side for tunnels.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -12551,8 +13193,12 @@ timeout tunnel <timeout>
 
 transparent (deprecated)
   Enable client-side transparent proxying
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments : none
 
   This keyword was introduced in order to provide layer 7 persistence to layer
@@ -12573,8 +13219,12 @@ transparent (deprecated)
 
 unique-id-format <string>
   Generate a unique ID for each request.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                   yes  |    yes   |   yes  |   no
+
   Arguments :
     <string>   is a log-format string.
 
@@ -12607,8 +13257,12 @@ unique-id-format <string>
 
 unique-id-header <name>
   Add a unique ID header in the HTTP request.
+
+  May be used in the following contexts: http
+
   May be used in sections :   defaults | frontend | listen | backend
                                   yes  |    yes   |   yes  |   no
+
   Arguments :
     <name>   is the name of the header.
 
@@ -12628,8 +13282,12 @@ unique-id-header <name>
 
 use_backend <backend> [{if | unless} <condition>]
   Switch to a specific backend if/unless an ACL-based condition is matched.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   no
+
   Arguments :
     <backend>   is the name of a valid backend or "listen" section, or a
                 "log-format" string resolving to a backend name.
@@ -12681,8 +13339,12 @@ use_backend <backend> [{if | unless} <condition>]
 
 use-fcgi-app <name>
   Defines the FastCGI application to use for the backend.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    no    |   yes   |   yes
+
   Arguments :
     <name>    is the name of the FastCGI application to use.
 
@@ -12691,8 +13353,12 @@ use-fcgi-app <name>
 use-server <server> if <condition>
 use-server <server> unless <condition>
   Only use a specific server if/unless an ACL-based condition is matched.
+
+  May be used in the following contexts: tcp, http
+
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    no    |   yes  |   yes
+
   Arguments :
     <server>    is the name of a valid server in the same backend section
                 or a "log-format" string resolving to a server name.
