@@ -9062,6 +9062,8 @@ max-session-srv-conns <nb>
   Set the maximum number of outgoing connections we can keep idling for a given
   client session. The default is 5 (it precisely equals MAX_SRV_LIST which is
   defined at build time).
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
 
 maxconn <conns>
   Fix the maximum number of concurrent connections on a frontend
