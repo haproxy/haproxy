@@ -340,6 +340,13 @@ int sock_unix_bind_receiver(struct receiver *rx, char **errmsg)
 	rx->fd = fd;
 	rx->flags |= RX_F_BOUND;
 
+	if (!path[0]) {
+		/* ABNS sockets do not support suspend, and they conflict with
+		 * other ones (no reuseport), so they must always be unbound.
+		 */
+		rx->flags |= RX_F_NON_SUSPENDABLE;
+	}
+
 	fd_insert(fd, rx->owner, rx->iocb, rx->bind_tgroup, rx->bind_thread);
 
 	/* for now, all regularly bound TCP listeners are exportable */

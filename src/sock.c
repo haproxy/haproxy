@@ -234,6 +234,7 @@ void sock_unbind(struct receiver *rx)
 {
 	/* There are a number of situations where we prefer to keep the FD and
 	 * not to close it (unless we're stopping, of course):
+	 *   - worker process unbinding from a worker's non-suspendable FD (ABNS) => close
 	 *   - worker process unbinding from a worker's FD with socket transfer enabled => keep
 	 *   - master process unbinding from a master's inherited FD => keep
 	 *   - master process unbinding from a master's FD => close
@@ -247,6 +248,7 @@ void sock_unbind(struct receiver *rx)
 
 	if (!stopping && !master &&
 	    !(rx->flags & RX_F_MWORKER) &&
+	    !(rx->flags & RX_F_NON_SUSPENDABLE) &&
 	    (global.tune.options & GTUNE_SOCKET_TRANSFER))
 		return;
 
