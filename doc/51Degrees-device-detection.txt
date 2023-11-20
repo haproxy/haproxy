@@ -17,7 +17,7 @@ official git repository :
     - either use the proven stable but frozen 3.2.10 version which
       supports the Trie algorithm :
 
-      git clone https://git.51Degrees.com/Device-Detection.git -b v3.2.10
+      git clone https://github.com/51Degrees/Device-Detection.git -b v3.2.10
 
     - use newer 3.2.12.12 version which continues to receive database
       updates and supports a new Hash Trie algorithm, but which is not
