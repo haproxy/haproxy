@@ -3750,22 +3750,6 @@ int main(int argc, char **argv)
 		ha_free(&global.chroot);
 		set_identity(argv[0]);
 
-		/* pass through every cli socket, and check if it's bound to
-		 * the current process and if it exposes listeners sockets.
-		 * Caution: the GTUNE_SOCKET_TRANSFER is now set after the fork.
-		 * */
-
-		if (global.cli_fe) {
-			struct bind_conf *bind_conf;
-
-			list_for_each_entry(bind_conf, &global.cli_fe->conf.bind, by_fe) {
-				if (bind_conf->level & ACCESS_FD_LISTENERS) {
-					global.tune.options |= GTUNE_SOCKET_TRANSFER;
-					break;
-				}
-			}
-		}
-
 		/*
 		 * This is only done in daemon mode because we might want the
 		 * logs on stdout in mworker mode. If we're NOT in QUIET mode,
@@ -3785,6 +3769,22 @@ int main(int argc, char **argv)
 		if (!(global.mode & MODE_MWORKER)) /* in mworker mode we don't want a new pgid for the children */
 			setsid();
 		fork_poller();
+	}
+
+	/* pass through every cli socket, and check if it's bound to
+	 * the current process and if it exposes listeners sockets.
+	 * Caution: the GTUNE_SOCKET_TRANSFER is now set after the fork.
+	 * */
+
+	if (global.cli_fe) {
+		struct bind_conf *bind_conf;
+
+		list_for_each_entry(bind_conf, &global.cli_fe->conf.bind, by_fe) {
+			if (bind_conf->level & ACCESS_FD_LISTENERS) {
+				global.tune.options |= GTUNE_SOCKET_TRANSFER;
+				break;
+			}
+		}
 	}
 
 	/* Note that here we can't be in the parent/master anymore */
