@@ -2598,6 +2598,7 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 			dgram->qc = qc;
 		}
 
+		/* Ensure thread connection migration is finalized ASAP. */
 		if (qc->flags & QUIC_FL_CONN_AFFINITY_CHANGED)
 			qc_finalize_affinity_rebind(qc);
 

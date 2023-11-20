@@ -108,15 +108,19 @@ static int quic_conn_unsubscribe(struct connection *conn, void *xprt_ctx, int ev
  */
 static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 {
-	struct quic_conn *qc = NULL;
+	struct quic_conn *qc = conn->handle.qc;
 
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
+
+	/* Ensure thread connection migration is finalized ASAP. */
+	if (qc->flags & QUIC_FL_CONN_AFFINITY_CHANGED)
+		qc_finalize_affinity_rebind(qc);
 
 	/* do not store the context if already set */
 	if (*xprt_ctx)
 		goto out;
 
-	*xprt_ctx = conn->handle.qc->xprt_ctx;
+	*xprt_ctx = qc->xprt_ctx;
 
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_NEW, qc);
@@ -132,9 +136,6 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 
 	qc = conn->handle.qc;
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
-
-	if (qc->flags & QUIC_FL_CONN_AFFINITY_CHANGED)
-		qc_finalize_affinity_rebind(qc);
 
 	/* mux-quic can now be considered ready. */
 	qc->mux_state = QC_MUX_READY;
