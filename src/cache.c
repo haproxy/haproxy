@@ -2307,6 +2307,7 @@ int post_check_cache()
 	struct shared_context *shctx;
 	int ret_shctx;
 	int err_code = ERR_NONE;
+	int i;
 
 	list_for_each_entry_safe(cache_config, back, &caches_config, list) {
 
@@ -2333,7 +2334,7 @@ int post_check_cache()
 		LIST_APPEND(&caches, &cache->list);
 		LIST_DELETE(&cache_config->list);
 		free(cache_config);
-		for (int i = 0; i < CACHE_TREE_NUM; ++i) {
+		for (i = 0; i < CACHE_TREE_NUM; ++i) {
 			cache->trees[i].entries = EB_ROOT;
 			HA_RWLOCK_INIT(&cache->trees[i].lock);
 
