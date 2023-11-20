@@ -2995,9 +2995,6 @@ void run_poll_loop()
 				/* stop muxes/quic-conns before acknowledging stopping */
 				if (!(tg_ctx->stopping_threads & ti->ltid_bit)) {
 					task_wakeup(mux_stopping_data[tid].task, TASK_WOKEN_OTHER);
-#ifdef USE_QUIC
-					quic_handle_stopping();
-#endif
 					wake = 1;
 				}
 

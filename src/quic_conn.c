@@ -2021,9 +2021,11 @@ void qc_finalize_affinity_rebind(struct quic_conn *qc)
 	BUG_ON(!(qc->flags & QUIC_FL_CONN_AFFINITY_CHANGED));
 	qc->flags &= ~QUIC_FL_CONN_AFFINITY_CHANGED;
 
-	/* A connection must not pass to closing state until affinity rebind
-	 * is completed. Else quic_handle_stopping() may miss it during process
-	 * stopping cleanup.
+	/* If quic_conn is closing it is unnecessary to migrate it as it will
+	 * be soon released. Besides, special care must be taken for CLOSING
+	 * connections (using quic_cc_conn and th_ctx.quic_conns_clo list for
+	 * instance). This should never occur as CLOSING connections are
+	 * skipped by quic_sock_accept_conn().
 	 */
 	BUG_ON(qc->flags & (QUIC_FL_CONN_CLOSING|QUIC_FL_CONN_DRAINING));
 
