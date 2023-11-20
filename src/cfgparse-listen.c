@@ -2571,12 +2571,6 @@ stats_error_parsing:
 		}
 	}
 	else if (strcmp(args[0], "hash-balance-factor") == 0) {
-		if (curproxy->mode != PR_MODE_TCP && curproxy->mode != PR_MODE_HTTP) {
-			ha_alert("parsing [%s:%d] : '%s' requires TCP or HTTP mode.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
 		if (*(args[1]) == 0) {
 			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
