@@ -818,6 +818,69 @@ static inline size_t channel_empty(const struct channel *chn)
 	return (IS_HTX_STRM(chn) ? htx_is_empty(htxbuf(&chn->buf)) : c_empty(chn));
 }
 
+/* Check channel's last_read date against the idle timeer to verify the producer
+ * is still streaming data or not
+ */
+static inline void channel_check_idletimer(struct channel *chn)
+{
+	if ((chn->flags & (CF_STREAMER | CF_STREAMER_FAST)) && !co_data(chn) &&
+	    global.tune.idle_timer &&
+	    (unsigned short)(now_ms - chn->last_read) >= global.tune.idle_timer) {
+		/* The buffer was empty and nothing was transferred for more
+		 * than one second. This was caused by a pause and not by
+		 * congestion. Reset any streaming mode to reduce latency.
+		 */
+		chn->xfer_small = 0;
+		chn->xfer_large = 0;
+		chn->flags &= ~(CF_STREAMER | CF_STREAMER_FAST);
+	}
+}
+
+/* Check amount of transferred data after a receive. If <xferred> is greater
+ * than 0, the <last_read> date is updated and STREAMER flags for the channels
+ * are verified.
+ */
+static inline void channel_check_xfer(struct channel *chn, size_t xferred)
+{
+	if (!xferred)
+		return;
+
+	if ((chn->flags & (CF_STREAMER | CF_STREAMER_FAST)) &&
+	    (xferred <= c_size(chn) / 2)) {
+		chn->xfer_large = 0;
+		chn->xfer_small++;
+		if (chn->xfer_small >= 3) {
+			/* we have read less than half of the buffer in
+			 * one pass, and this happened at least 3 times.
+			 * This is definitely not a streamer.
+			 */
+			chn->flags &= ~(CF_STREAMER | CF_STREAMER_FAST);
+		}
+		else if (chn->xfer_small >= 2) {
+			/* if the buffer has been at least half full twchne,
+			 * we receive faster than we send, so at least it
+			 * is not a "fast streamer".
+			 */
+			chn->flags &= ~CF_STREAMER_FAST;
+		}
+	}
+	else if (!(chn->flags & CF_STREAMER_FAST) && (xferred >= channel_data_limit(chn))) {
+		/* we read a full buffer at once */
+		chn->xfer_small = 0;
+		chn->xfer_large++;
+		if (chn->xfer_large >= 3) {
+			/* we call this buffer a fast streamer if it manages
+			 * to be filled in one call 3 consecutive times.
+			 */
+			chn->flags |= (CF_STREAMER | CF_STREAMER_FAST);
+		}
+	}
+	else {
+		chn->xfer_small = 0;
+		chn->xfer_large = 0;
+	}
+	chn->last_read = now_ms;
+}
 
 /* Returns the amount of bytes that can be written over the input data at once,
  * including reserved space which may be overwritten. This is used by Lua to

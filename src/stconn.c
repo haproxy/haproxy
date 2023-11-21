@@ -1251,17 +1251,7 @@ int sc_conn_recv(struct stconn *sc)
 	/* prepare to detect if the mux needs more room */
 	sc_ep_clr(sc, SE_FL_WANT_ROOM);
 
-	if ((ic->flags & (CF_STREAMER | CF_STREAMER_FAST)) && !co_data(ic) &&
-	    global.tune.idle_timer &&
-	    (unsigned short)(now_ms - ic->last_read) >= global.tune.idle_timer) {
-		/* The buffer was empty and nothing was transferred for more
-		 * than one second. This was caused by a pause and not by
-		 * congestion. Reset any streaming mode to reduce latency.
-		 */
-		ic->xfer_small = 0;
-		ic->xfer_large = 0;
-		ic->flags &= ~(CF_STREAMER | CF_STREAMER_FAST);
-	}
+	channel_check_idletimer(ic);
 
 #if defined(USE_LINUX_SPLICE)
 	/* Detect if the splicing is possible depending on the stream policy */
@@ -1447,41 +1437,7 @@ int sc_conn_recv(struct stconn *sc)
 	if (!cur_read)
 		se_have_no_more_data(sc->sedesc);
 	else {
-		if ((ic->flags & (CF_STREAMER | CF_STREAMER_FAST)) &&
-		    (cur_read <= ic->buf.size / 2)) {
-			ic->xfer_large = 0;
-			ic->xfer_small++;
-			if (ic->xfer_small >= 3) {
-				/* we have read less than half of the buffer in
-				 * one pass, and this happened at least 3 times.
-				 * This is definitely not a streamer.
-				 */
-				ic->flags &= ~(CF_STREAMER | CF_STREAMER_FAST);
-			}
-			else if (ic->xfer_small >= 2) {
-				/* if the buffer has been at least half full twice,
-				 * we receive faster than we send, so at least it
-				 * is not a "fast streamer".
-				 */
-				ic->flags &= ~CF_STREAMER_FAST;
-			}
-		}
-		else if (!(ic->flags & CF_STREAMER_FAST) && (cur_read >= channel_data_limit(ic))) {
-			/* we read a full buffer at once */
-			ic->xfer_small = 0;
-			ic->xfer_large++;
-			if (ic->xfer_large >= 3) {
-				/* we call this buffer a fast streamer if it manages
-				 * to be filled in one call 3 consecutive times.
-				 */
-				ic->flags |= (CF_STREAMER | CF_STREAMER_FAST);
-			}
-		}
-		else {
-			ic->xfer_small = 0;
-			ic->xfer_large = 0;
-		}
-		ic->last_read = now_ms;
+		channel_check_xfer(ic, cur_read);
 		sc_ep_report_read_activity(sc);
 	}
 
