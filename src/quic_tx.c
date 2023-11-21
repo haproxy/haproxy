@@ -147,7 +147,7 @@ static void qc_dup_pkt_frms(struct quic_conn *qc,
 		TRACE_DEVEL("built probing frame", QUIC_EV_CONN_PRSAFRM, qc, origin);
 		if (origin->pkt) {
 			TRACE_DEVEL("duplicated from packet", QUIC_EV_CONN_PRSAFRM,
-			            qc, NULL, &origin->pkt->pn_node.key);
+			            qc, dup_frm, &origin->pkt->pn_node.key);
 		}
 		else {
 			/* <origin> is a frame which was sent from a packet detected as lost. */
@@ -1308,6 +1308,7 @@ int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
 int qc_dgrams_retransmit(struct quic_conn *qc)
 {
 	int ret = 0;
+	int sret;
 	struct quic_pktns *ipktns = qc->ipktns;
 	struct quic_pktns *hpktns = qc->hpktns;
 	struct quic_pktns *apktns = qc->apktns;
@@ -1335,21 +1336,24 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 				qc->iel->retrans_frms = &ifrms;
 				if (qc->hel)
 					qc->hel->retrans_frms = &hfrms;
-				if (!qc_send_hdshk_pkts(qc, 1, qc->iel, qc->hel))
+				sret = qc_send_hdshk_pkts(qc, 1, qc->iel, qc->hel);
+				qc_free_frm_list(qc, &ifrms);
+				qc_free_frm_list(qc, &hfrms);
+				if (!sret)
 					goto leave;
-				/* Put back unsent frames in their packet number spaces */
-				LIST_SPLICE(&ipktns->tx.frms, &ifrms);
-				if (hpktns)
-					LIST_SPLICE(&hpktns->tx.frms, &hfrms);
 			}
 			else {
 				/* We are in the case where the anti-amplification limit will be
-				 * reached after having sent this datagram. There is no need to
-				 * send more than one datagram.
+				 * reached after having sent this datagram or some handshake frames
+				 * could not be allocated. There is no need to send more than one
+				 * datagram.
 				 */
 				ipktns->tx.pto_probe = 1;
 				qc->iel->retrans_frms = &ifrms;
-				if (!qc_send_hdshk_pkts(qc, 0, qc->iel, NULL))
+				sret = qc_send_hdshk_pkts(qc, 0, qc->iel, NULL);
+				qc_free_frm_list(qc, &ifrms);
+				qc_free_frm_list(qc, &hfrms);
+				if (!sret)
 					goto leave;
 
 				break;
@@ -1374,11 +1378,10 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 				if (!LIST_ISEMPTY(&frms1)) {
 					hpktns->tx.pto_probe = 1;
 					qc->hel->retrans_frms = &frms1;
-					if (!qc_send_hdshk_pkts(qc, 1, qc->hel, NULL))
+					sret = qc_send_hdshk_pkts(qc, 1, qc->hel, NULL);
+					qc_free_frm_list(qc, &frms1);
+					if (!sret)
 						goto leave;
-
-					/* Put back unsent frames into their packet number spaces */
-					LIST_SPLICE(&hpktns->tx.frms, &frms1);
 				}
 			}
 			TRACE_STATE("no more need to probe Handshake packet number space",
@@ -1393,25 +1396,23 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 			qc_prep_fast_retrans(qc, apktns, &frms1, &frms2);
 			TRACE_PROTO("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &frms1);
 			TRACE_PROTO("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &frms2);
+
 			if (!LIST_ISEMPTY(&frms1)) {
 				apktns->tx.pto_probe = 1;
-				if (!qc_send_app_probing(qc, &frms1)) {
-					qc_free_frm_list(qc, &frms1);
+				sret = qc_send_app_probing(qc, &frms1);
+				qc_free_frm_list(qc, &frms1);
+				if (!sret) {
 					qc_free_frm_list(qc, &frms2);
 					goto leave;
 				}
-
-				/* Put back unsent frames into their packet number spaces */
-				LIST_SPLICE(&apktns->tx.frms, &frms1);
 			}
+
 			if (!LIST_ISEMPTY(&frms2)) {
 				apktns->tx.pto_probe = 1;
-				if (!qc_send_app_probing(qc, &frms2)) {
-					qc_free_frm_list(qc, &frms2);
+				sret = qc_send_app_probing(qc, &frms2);
+				qc_free_frm_list(qc, &frms2);
+				if (!sret)
 					goto leave;
-				}
-				/* Put back unsent frames into their packet number spaces */
-				LIST_SPLICE(&apktns->tx.frms, &frms2);
 			}
 			TRACE_STATE("no more need to probe 01RTT packet number space",
 			            QUIC_EV_CONN_TXPKT, qc);
