@@ -4498,7 +4498,6 @@ id                                        -          X         X         X
 ignore-persist                            -          -         X         X
 load-server-state-from-file               X          -         X         X
 log                                  (*)  X          X         X         X
-log-balance                               X          -         X         X
 log-format                                X          X         X         -
 log-format-sd                             X          X         X         -
 log-tag                                   X          X         X         X
@@ -9114,10 +9113,9 @@ mode { tcp|http|log }
               any "log" directive by using the "backend@<name>" syntax. Log
               messages will be distributed to the servers from the backend
               according to the lb settings which can be configured using the
-              "log-balance" keyword (in place of the "balance" keyword for TCP
-              and HTTP backends). Log backends support UDP servers by prefixing
+              "balance" keyword. Log backends support UDP servers by prefixing
               the server's address with the "udp@" prefix. Common backend and
-              server features are supported, but not TCP or HTTP related ones.
+              server features are supported, but not TCP or HTTP specific ones.
 
   When doing content switching, it is mandatory that the frontend and the
   backend are in the same mode (generally HTTP), otherwise the configuration
