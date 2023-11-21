@@ -16161,6 +16161,8 @@ keywords, except "id" which is only supported by "server".
 The currently supported settings are the following ones.
 
 addr <ipv4|ipv6>
+  May be used in the following contexts: tcp, http, log
+
   Using the "addr" parameter, it becomes possible to use a different IP address
   to send health-checks or to probe the agent-check. On some servers, it may be
   desirable to dedicate an IP address to specific component able to perform
@@ -16169,6 +16171,8 @@ addr <ipv4|ipv6>
   "port" parameter.
 
 agent-check
+  May be used in the following contexts: tcp, http, log
+
   Enable an auxiliary agent check which is run independently of a regular
   health check. An agent health check is performed by making a TCP connection
   to the port set by the "agent-port" parameter and reading an ASCII string
@@ -16230,6 +16234,8 @@ agent-check
   and "no-agent-check" parameters.
 
 agent-send <string>
+  May be used in the following contexts: tcp, http, log
+
   If this option is specified, HAProxy will send the given string (verbatim)
   to the agent server upon connection. You could, for example, encode
   the backend name into this string, which would enable your agent to send
@@ -16237,6 +16243,8 @@ agent-send <string>
   you want to terminate your request with a newline.
 
 agent-inter <delay>
+  May be used in the following contexts: tcp, http, log
+
   The "agent-inter" parameter sets the interval between two agent checks
   to <delay> milliseconds. If left unspecified, the delay defaults to 2000 ms.
 
@@ -16253,6 +16261,8 @@ agent-inter <delay>
   See also the "agent-check" and "agent-port" parameters.
 
 agent-addr <addr>
+  May be used in the following contexts: tcp, http, log
+
   The "agent-addr" parameter sets address for agent check.
 
   You can offload agent-check to another target, so you can make single place
@@ -16261,16 +16271,22 @@ agent-addr <addr>
   hostname, it will be resolved.
 
 agent-port <port>
+  May be used in the following contexts: tcp, http, log
+
   The "agent-port" parameter sets the TCP port used for agent checks.
 
   See also the "agent-check" and "agent-inter" parameters.
 
 allow-0rtt
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   Allow sending early data to the server when using TLS 1.3.
   Note that early data will be sent only if the client used early data, or
   if the backend uses "retry-on" with the "0rtt-rejected" keyword.
 
 alpn <protocols>
+  May be used in the following contexts: tcp, http
+
   This enables the TLS ALPN extension and advertises the specified protocol
   list as supported on top of ALPN. The protocol list consists in a comma-
   delimited list of protocol names, for instance: "http/1.1,http/1.0" (without
@@ -16287,6 +16303,8 @@ alpn <protocols>
   See also "ws" to use an alternative ALPN for websocket streams.
 
 backup
+  May be used in the following contexts: tcp, http, log
+
   When "backup" is present on a server line, the server is only used in load
   balancing when all other non-backup servers are unavailable. Requests coming
   with a persistence cookie referencing the server will always be served
@@ -16295,6 +16313,8 @@ backup
   "allbackups" options.
 
 ca-file <cafile>
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This setting is only available when support for OpenSSL was built in. It
   designates a PEM file from which to load CA certificates used to verify
   server's certificate. It is possible to load a directory containing multiple
@@ -16306,6 +16326,8 @@ ca-file <cafile>
   overwritten by setting the SSL_CERT_DIR environment variable.
 
 check
+  May be used in the following contexts: tcp, http, log
+
   This option enables health checks on a server:
     - when not set, no health checking is performed, and the server is always
       considered available.
@@ -16363,6 +16385,8 @@ check
         server s1 192.168.0.1:443 ssl check
 
 check-send-proxy
+  May be used in the following contexts: tcp, http
+
   This option forces emission of a PROXY protocol line with outgoing health
   checks, regardless of whether the server uses send-proxy or not for the
   normal traffic. By default, the PROXY protocol is enabled for health checks
@@ -16372,11 +16396,15 @@ check-send-proxy
   protocol. See also the "send-proxy" option for more information.
 
 check-alpn <protocols>
+  May be used in the following contexts: tcp, http
+
   Defines which protocols to advertise with ALPN. The protocol list consists in
   a comma-delimited list of protocol names, for instance: "http/1.1,http/1.0"
   (without quotes). If it is not set, the server ALPN is used.
 
 check-proto <name>
+  May be used in the following contexts: tcp, http
+
   Forces the multiplexer's protocol to use for the server's health-check
   connections. It must be compatible with the health-check type (TCP or
   HTTP). It must also be usable on the backend side. The list of available
@@ -16400,11 +16428,15 @@ check-proto <name>
   If not defined, the server one will be used, if set.
 
 check-sni <sni>
+  May be used in the following contexts: tcp, http, log
+
   This option allows you to specify the SNI to be used when doing health checks
   over SSL. It is only possible to use a string to set <sni>. If you want to
   set a SNI for proxied traffic, see "sni".
 
 check-ssl
+  May be used in the following contexts: tcp, http, log
+
   This option forces encryption of all health checks over SSL, regardless of
   whether the server uses SSL or not for the normal traffic. This is generally
   used when an explicit "port" or "addr" directive is specified and SSL health
@@ -16417,11 +16449,15 @@ check-ssl
   this option.
 
 check-via-socks4
+  May be used in the following contexts: tcp, http, log
+
   This option enables outgoing health checks using upstream socks4 proxy. By
   default, the health checks won't go through socks tunnel even it was enabled
   for normal traffic.
 
 ciphers <ciphers>
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This setting is only available when support for OpenSSL was built in. This
   option sets the string describing the list of cipher algorithms that is
   negotiated during the SSL/TLS handshake with the server. The format of the
@@ -16432,6 +16468,8 @@ ciphers <ciphers>
   cipher configuration, please check the "ciphersuites" keyword.
 
 ciphersuites <ciphersuites>
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This setting is only available when support for OpenSSL was built in and
   OpenSSL 1.1.1 or later was used to build HAProxy. This option sets the string
   describing the list of cipher algorithms that is negotiated during the TLS
@@ -16441,6 +16479,8 @@ ciphersuites <ciphersuites>
   keyword.
 
 client-sigalgs <sigalgs>
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This setting is only available when support for OpenSSL was built in. It sets
   the string describing the list of signature algorithms related to client
   authentication that are negotiated . The format of the string is defined in
@@ -16448,6 +16488,8 @@ client-sigalgs <sigalgs>
   recommended to use this setting if no specific usecase was identified.
 
 cookie <value>
+  May be used in the following contexts: http
+
   The "cookie" parameter sets the cookie value assigned to the server to
   <value>. This value will be checked in incoming requests, and the first
   operational server possessing the same value will be selected. In return, in
@@ -16457,11 +16499,15 @@ cookie <value>
   backup servers. See also the "cookie" keyword in backend section.
 
 crl-file <crlfile>
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This setting is only available when support for OpenSSL was built in. It
   designates a PEM file from which to load certificate revocation list used
   to verify server's certificate.
 
 crt <cert>
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This setting is only available when support for OpenSSL was built in.
   It designates a PEM file from which to load both a certificate and the
   associated private key. This file can be built by concatenating both PEM
@@ -16473,6 +16519,8 @@ crt <cert>
   option is set accordingly).
 
 curves <curves>
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This setting is only available when support for OpenSSL was built in. It sets
   the string describing the list of elliptic curves algorithms ("curve suite")
   that are negotiated during the SSL/TLS handshake with ECDHE. The format of the
@@ -16480,6 +16528,8 @@ curves <curves>
   Example: "X25519:P-256" (without quote)
 
 disabled
+  May be used in the following contexts: tcp, http, log
+
   The "disabled" keyword starts the server in the "disabled" state. That means
   that it is marked down in maintenance mode, and no connection other than the
   ones allowed by persist mode will reach it. It is very well suited to setup
@@ -16488,6 +16538,8 @@ disabled
   See also "enabled" setting.
 
 enabled
+  May be used in the following contexts: tcp, http, log
+
   This option may be used as 'server' setting to reset any 'disabled'
   setting which would have been inherited from 'default-server' directive as
   default value.
@@ -16495,6 +16547,8 @@ enabled
   'default-server' 'disabled' setting.
 
 error-limit <count>
+  May be used in the following contexts: tcp, http, log
+
   If health observing is enabled, the "error-limit" parameter specifies the
   number of consecutive errors that triggers event selected by the "on-error"
   option. By default it is set to 10 consecutive errors.
@@ -16502,42 +16556,58 @@ error-limit <count>
   See also the "check", "error-limit" and "on-error".
 
 fall <count>
+  May be used in the following contexts: tcp, http, log
+
   The "fall" parameter states that a server will be considered as dead after
   <count> consecutive unsuccessful health checks. This value defaults to 3 if
   unspecified. See also the "check", "inter" and "rise" parameters.
 
 force-sslv3
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option enforces use of SSLv3 only when SSL is used to communicate with
   the server. SSLv3 is generally less expensive than the TLS counterparts for
   high connection rates. This option is also available on global statement
   "ssl-default-server-options". See also "ssl-min-ver" and ssl-max-ver".
 
 force-tlsv10
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option enforces use of TLSv1.0 only when SSL is used to communicate with
   the server. This option is also available on global statement
   "ssl-default-server-options". See also "ssl-min-ver" and ssl-max-ver".
 
 force-tlsv11
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option enforces use of TLSv1.1 only when SSL is used to communicate with
   the server. This option is also available on global statement
   "ssl-default-server-options". See also "ssl-min-ver" and ssl-max-ver".
 
 force-tlsv12
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option enforces use of TLSv1.2 only when SSL is used to communicate with
   the server. This option is also available on global statement
   "ssl-default-server-options". See also "ssl-min-ver" and ssl-max-ver".
 
 force-tlsv13
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option enforces use of TLSv1.3 only when SSL is used to communicate with
   the server. This option is also available on global statement
   "ssl-default-server-options". See also "ssl-min-ver" and ssl-max-ver".
 
 id <value>
+  May be used in the following contexts: tcp, http, log
+
   Set a persistent ID for the server. This ID must be positive and unique for
   the proxy. An unused ID will automatically be assigned if unset. The first
   assigned value will be 1. This ID is currently only returned in statistics.
 
 init-addr {last | libc | none | <ip>},[...]*
+  May be used in the following contexts: tcp, http, log
+
   Indicate in what order the server's address should be resolved upon startup
   if it uses an FQDN. Attempts are made to resolve the address by applying in
   turn each of the methods mentioned in the comma-delimited list. The first
@@ -16567,6 +16637,8 @@ init-addr {last | libc | none | <ip>},[...]*
 inter <delay>
 fastinter <delay>
 downinter <delay>
+  May be used in the following contexts: tcp, http, log
+
   The "inter" parameter sets the interval between two consecutive health checks
   to <delay> milliseconds. If left unspecified, the delay defaults to 2000 ms.
   It is also possible to use "fastinter" and "downinter" to optimize delays
@@ -16602,6 +16674,8 @@ downinter <delay>
   reduce the time spent in the queue.
 
 log-bufsize <bufsize>
+  May be used in the following contexts: log
+
   The "log-bufsize" specifies the ring bufsize to use for the implicit ring
   that will be associated to the log server in a log backend. When not
   specified, this defaults to BUFSIZE. Use of a greater value will increase
@@ -16610,12 +16684,16 @@ log-bufsize <bufsize>
   This keyword may only be used in log backend sections (with "mode log")
 
 log-proto <logproto>
+  May be used in the following contexts: log, ring
+
   The "log-proto" specifies the protocol used to forward event messages to
   a server configured in a log or ring section. Possible values are "legacy"
   and "octet-count" corresponding respectively to "Non-transparent-framing"
   and "Octet counting" in rfc6587. "legacy" is the default.
 
 maxconn <maxconn>
+  May be used in the following contexts: tcp, http
+
   The "maxconn" parameter specifies the maximal number of concurrent
   connections that will be sent to this server. If the number of incoming
   concurrent connections goes higher than this value, they will be queued,
@@ -16632,6 +16710,8 @@ maxconn <maxconn>
   than 50 concurrent requests.
 
 maxqueue <maxqueue>
+  May be used in the following contexts: tcp, http
+
   The "maxqueue" parameter specifies the maximal number of connections which
   will wait in the queue for this server. If this limit is reached, next
   requests will be redispatched to other servers instead of indefinitely
@@ -16645,6 +16725,8 @@ maxqueue <maxqueue>
   and "balance leastconn".
 
 max-reuse <count>
+  May be used in the following contexts: http
+
   The "max-reuse" argument indicates the HTTP connection processors that they
   should not reuse a server connection more than this number of times to send
   new requests. Permitted values are -1 (the default), which disables this
@@ -16655,6 +16737,8 @@ max-reuse <count>
   enforce. At least HTTP/2 connections to servers will respect it.
 
 minconn <minconn>
+  May be used in the following contexts: tcp, http
+
   When the "minconn" parameter is set, the maxconn limit becomes a dynamic
   limit following the backend's load. The server will always accept at least
   <minconn> connections, never more than <maxconn>, and the limit will be on
@@ -16665,12 +16749,16 @@ minconn <minconn>
   and "maxqueue" parameters, as well as the "fullconn" backend keyword.
 
 namespace <name>
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   On Linux, it is possible to specify which network namespace a socket will
   belong to. This directive makes it possible to explicitly bind a server to
   a namespace different from the default one. Please refer to your operating
   system's documentation to find more details about network namespaces.
 
 no-agent-check
+  May be used in the following contexts: tcp, http, log
+
   This option may be used as "server" setting to reset any "agent-check"
   setting which would have been inherited from "default-server" directive as
   default value.
@@ -16678,6 +16766,8 @@ no-agent-check
   "default-server" "agent-check" setting.
 
 no-backup
+  May be used in the following contexts: tcp, http, log
+
   This option may be used as "server" setting to reset any "backup"
   setting which would have been inherited from "default-server" directive as
   default value.
@@ -16685,6 +16775,8 @@ no-backup
   "default-server" "backup" setting.
 
 no-check
+  May be used in the following contexts: tcp, http, log
+
   This option may be used as "server" setting to reset any "check"
   setting which would have been inherited from "default-server" directive as
   default value.
@@ -16692,6 +16784,8 @@ no-check
   "default-server" "check" setting.
 
 no-check-ssl
+  May be used in the following contexts: tcp, http, log
+
   This option may be used as "server" setting to reset any "check-ssl"
   setting which would have been inherited from "default-server" directive as
   default value.
@@ -16699,6 +16793,8 @@ no-check-ssl
   "default-server" "check-ssl" setting.
 
 no-send-proxy
+  May be used in the following contexts: tcp, http
+
   This option may be used as "server" setting to reset any "send-proxy"
   setting which would have been inherited from "default-server" directive as
   default value.
@@ -16706,6 +16802,8 @@ no-send-proxy
   "default-server" "send-proxy" setting.
 
 no-send-proxy-v2
+  May be used in the following contexts: tcp, http
+
   This option may be used as "server" setting to reset any "send-proxy-v2"
   setting which would have been inherited from "default-server" directive as
   default value.
@@ -16713,6 +16811,8 @@ no-send-proxy-v2
   "default-server" "send-proxy-v2" setting.
 
 no-send-proxy-v2-ssl
+  May be used in the following contexts: tcp, http
+
   This option may be used as "server" setting to reset any "send-proxy-v2-ssl"
   setting which would have been inherited from "default-server" directive as
   default value.
@@ -16720,6 +16820,8 @@ no-send-proxy-v2-ssl
   "default-server" "send-proxy-v2-ssl" setting.
 
 no-send-proxy-v2-ssl-cn
+  May be used in the following contexts: tcp, http
+
   This option may be used as "server" setting to reset any "send-proxy-v2-ssl-cn"
   setting which would have been inherited from "default-server" directive as
   default value.
@@ -16727,6 +16829,8 @@ no-send-proxy-v2-ssl-cn
   "default-server" "send-proxy-v2-ssl-cn" setting.
 
 no-ssl
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option may be used as "server" setting to reset any "ssl"
   setting which would have been inherited from "default-server" directive as
   default value.
@@ -16738,12 +16842,16 @@ no-ssl
   runtime API: see `set server` commands in management doc.
 
 no-ssl-reuse
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option disables SSL session reuse when SSL is used to communicate with
   the server. It will force the server to perform a full handshake for every
   new connection. It's probably only useful for benchmarking, troubleshooting,
   and for paranoid users.
 
 no-sslv3
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option disables support for SSLv3 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option. Use "ssl-min-ver" and "ssl-max-ver" instead.
@@ -16751,6 +16859,8 @@ no-sslv3
   Supported in default-server: No
 
 no-tls-tickets
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This setting is only available when support for OpenSSL was built in. It
   disables the stateless session resumption (RFC 5077 TLS Ticket
   extension) and force to use stateful session resumption. Stateless
@@ -16762,6 +16872,8 @@ no-tls-tickets
   See also "tls-tickets".
 
 no-tlsv10
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option disables support for TLSv1.0 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
@@ -16772,6 +16884,8 @@ no-tlsv10
   Supported in default-server: No
 
 no-tlsv11
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option disables support for TLSv1.1 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
@@ -16782,6 +16896,8 @@ no-tlsv11
   Supported in default-server: No
 
 no-tlsv12
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option disables support for TLSv1.2 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
@@ -16792,6 +16908,8 @@ no-tlsv12
   Supported in default-server: No
 
 no-tlsv13
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option disables support for TLSv1.3 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
@@ -16802,6 +16920,8 @@ no-tlsv13
   Supported in default-server: No
 
 no-verifyhost
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option may be used as "server" setting to reset any "verifyhost"
   setting which would have been inherited from "default-server" directive as
   default value.
@@ -16809,6 +16929,8 @@ no-verifyhost
   "default-server" "verifyhost" setting.
 
 no-tfo
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option may be used as "server" setting to reset any "tfo"
   setting which would have been inherited from "default-server" directive as
   default value.
@@ -16816,11 +16938,15 @@ no-tfo
   "default-server" "tfo" setting.
 
 non-stick
+  May be used in the following contexts: tcp, http
+
   Never add connections allocated to this sever to a stick-table.
   This may be used in conjunction with backup to ensure that
   stick-table persistence is disabled for backup servers.
 
 npn <protocols>
+  May be used in the following contexts: tcp, http
+
   This enables the NPN TLS extension and advertises the specified protocol list
   as supported on top of NPN. The protocol list consists in a comma-delimited
   list of protocol names, for instance: "http/1.1,http/1.0" (without quotes).
@@ -16830,6 +16956,8 @@ npn <protocols>
   only available starting with OpenSSL 1.0.2.
 
 observe <mode>
+  May be used in the following contexts: tcp, http
+
   This option enables health adjusting based on observing communication with
   the server. By default this functionality is disabled and enabling it also
   requires to enable health checks. There are two supported modes: "layer4" and
@@ -16841,6 +16969,8 @@ observe <mode>
   See also the "check", "on-error" and "error-limit".
 
 on-error <mode>
+  May be used in the following contexts: tcp, http, log
+
   Select what should happen when enough consecutive errors are detected.
   Currently, four modes are available:
   - fastinter: force fastinter
@@ -16852,6 +16982,8 @@ on-error <mode>
   See also the "check", "observe" and "error-limit".
 
 on-marked-down <action>
+  May be used in the following contexts: tcp, http, log
+
   Modify what occurs when a server is marked down.
   Currently one action is available:
   - shutdown-sessions: Shutdown peer streams. When this setting is enabled,
@@ -16866,6 +16998,8 @@ on-marked-down <action>
   Actions are disabled by default
 
 on-marked-up <action>
+  May be used in the following contexts: tcp, http, log
+
   Modify what occurs when a server is marked up.
   Currently one action is available:
   - shutdown-backup-sessions: Shutdown streams on all backup servers. This is
@@ -16880,6 +17014,8 @@ on-marked-up <action>
   Actions are disabled by default
 
 pool-low-conn <max>
+  May be used in the following contexts: http
+
   Set a low threshold on the number of idling connections for a server, below
   which a thread will not try to steal a connection from another thread. This
   can be useful to improve CPU usage patterns in scenarios involving many very
@@ -16896,6 +17032,8 @@ pool-low-conn <max>
   connection reuse rate will decrease as thread count increases.
 
 pool-max-conn <max>
+  May be used in the following contexts: http
+
   Set the maximum number of idling connections for a server. -1 means unlimited
   connections, 0 means no idle connections. The default is -1. When idle
   connections are enabled, orphaned idle connections which do not belong to any
@@ -16904,11 +17042,15 @@ pool-max-conn <max>
   according to the same principles as those applying to "http-reuse".
 
 pool-purge-delay <delay>
+  May be used in the following contexts: http
+
   Sets the delay to start purging idle connections. Each <delay> interval, half
   of the idle connections are closed. 0 means we don't keep any idle connection.
   The default is 5s.
 
 port <port>
+  May be used in the following contexts: tcp, http, log
+
   Using the "port" parameter, it becomes possible to use a different port to
   send health-checks or to probe the agent-check. On some servers, it may be
   desirable to dedicate a port to a specific component able to perform complex
@@ -16917,6 +17059,8 @@ port <port>
   ignored if the "check" parameter is not set. See also the "addr" parameter.
 
 proto <name>
+  May be used in the following contexts: tcp, http
+
   Forces the multiplexer's protocol to use for the outgoing connections to this
   server. It must be compatible with the mode of the backend (TCP or HTTP). It
   must also be usable on the backend side. The list of available protocols is
@@ -16941,6 +17085,8 @@ proto <name>
   See also "ws" to use an alternative protocol for websocket streams.
 
 redir <prefix>
+  May be used in the following contexts: http
+
   The "redir" parameter enables the redirection mode for all GET and HEAD
   requests addressing this server. This means that instead of having HAProxy
   forward the request to the server, it will send an "HTTP 302" response with
@@ -16959,11 +17105,15 @@ redir <prefix>
   Example :  server srv1 192.168.1.1:80 redir http://image1.mydomain.com check
 
 rise <count>
+  May be used in the following contexts: tcp, http, log
+
   The "rise" parameter states that a server will be considered as operational
   after <count> consecutive successful health checks. This value defaults to 2
   if unspecified. See also the "check", "inter" and "fall" parameters.
 
 resolve-opts <option>,<option>,...
+  May be used in the following contexts: tcp, http, log
+
   Comma separated list of options to apply to DNS resolution linked to this
   server.
 
@@ -17003,6 +17153,8 @@ resolve-opts <option>,<option>,...
   Default value: not set
 
 resolve-prefer <family>
+  May be used in the following contexts: tcp, http, log
+
   When DNS resolution is enabled for a server and multiple IP addresses from
   different families are returned, HAProxy will prefer using an IP address
   from the family mentioned in the "resolve-prefer" parameter.
@@ -17015,6 +17167,8 @@ resolve-prefer <family>
     server s1 app1.domain.com:80 resolvers mydns resolve-prefer ipv6
 
 resolve-net <network>[,<network[,...]]
+  May be used in the following contexts: tcp, http, log
+
   This option prioritizes the choice of an ip address matching a network. This is
   useful with clouds to prefer a local ip. In some cases, a cloud high
   availability service can be announced with many ip addresses on many
@@ -17027,6 +17181,8 @@ resolve-net <network>[,<network[,...]]
     server s1 app1.domain.com:80 resolvers mydns resolve-net 10.0.0.0/8
 
 resolvers <id>
+  May be used in the following contexts: tcp, http, log
+
   Points to an existing "resolvers" section to resolve current server's
   hostname.
 
@@ -17037,6 +17193,8 @@ resolvers <id>
   See also section 5.3
 
 send-proxy
+  May be used in the following contexts: tcp, http
+
   The "send-proxy" parameter enforces use of the PROXY protocol over any
   connection established to this server. The PROXY protocol informs the other
   end about the layer 3/4 addresses of the incoming connection, so that it can
@@ -17055,6 +17213,8 @@ send-proxy
   "accept-netscaler-cip" option of the "bind" keyword.
 
 send-proxy-v2
+  May be used in the following contexts: tcp, http
+
   The "send-proxy-v2" parameter enforces use of the PROXY protocol version 2
   over any connection established to this server. The PROXY protocol informs
   the other end about the layer 3/4 addresses of the incoming connection, so
@@ -17065,6 +17225,8 @@ send-proxy-v2
   this section and send-proxy" option of the "bind" keyword.
 
 set-proxy-v2-tlv-fmt(<id>) <fmt>
+  May be used in the following contexts: tcp, http
+
   The "set-proxy-v2-tlv-fmt" parameter is used to send arbitrary PROXY protocol
   version 2 TLVs. For the type (<id>) range of the defined TLV type please refer
   to section 2.2.8. of the proxy protocol specification. However, the value can
@@ -17081,6 +17243,8 @@ set-proxy-v2-tlv-fmt(<id>) <fmt>
   of a newly created TLV that also has the type 0x20.
 
 proxy-v2-options <option>[,<option>]*
+  May be used in the following contexts: tcp, http
+
   The "proxy-v2-options" parameter add options to send in PROXY protocol
   version 2 when "send-proxy-v2" is used. Options available are:
 
@@ -17100,6 +17264,8 @@ proxy-v2-options <option>[,<option>]*
                 within a Keep-Alive connection.
 
 send-proxy-v2-ssl
+  May be used in the following contexts: tcp, http
+
   The "send-proxy-v2-ssl" parameter enforces use of the PROXY protocol version
   2 over any connection established to this server. The PROXY protocol informs
   the other end about the layer 3/4 addresses of the incoming connection, so
@@ -17111,6 +17277,8 @@ send-proxy-v2-ssl
   "send-proxy-v2" option of the "bind" keyword.
 
 send-proxy-v2-ssl-cn
+  May be used in the following contexts: tcp, http
+
   The "send-proxy-v2-ssl" parameter enforces use of the PROXY protocol version
   2 over any connection established to this server. The PROXY protocol informs
   the other end about the layer 3/4 addresses of the incoming connection, so
@@ -17123,6 +17291,8 @@ send-proxy-v2-ssl-cn
   the "send-proxy-v2" option of the "bind" keyword.
 
 shard <shard>
+  May be used in the following contexts: peers
+
   This parameter in used only in the context of stick-tables synchronisation
   with peers protocol. The "shard" parameter identifies the peers which will
   receive all the stick-table updates for keys with this shard as distribution
@@ -17141,6 +17311,8 @@ shard <shard>
        peer D 127.0.0.1:40004 shard 3
 
 sigalgs <sigalgs>
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This setting is only available when support for OpenSSL was built in. It sets
   the string describing the list of signature algorithms that are negotiated
   during the TLSv1.2 and TLSv1.3 handshake. The format of the string is defined
@@ -17149,6 +17321,8 @@ sigalgs <sigalgs>
   required.
 
 slowstart <start_time_in_ms>
+  May be used in the following contexts: tcp, http
+
   The "slowstart" parameter for a server accepts a value in milliseconds which
   indicates after how long a server which has just come back up will run at
   full speed. Just as with every other time-based parameter, it can be entered
@@ -17169,6 +17343,8 @@ slowstart <start_time_in_ms>
   seen as failed.
 
 sni <expression>
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   The "sni" parameter evaluates the sample fetch expression, converts it to a
   string and uses the result as the host name sent in the SNI TLS extension to
   the server. A typical use case is to send the SNI received from the client in
@@ -17184,6 +17360,8 @@ sni <expression>
 source <addr>[:<pl>[-<ph>]] [usesrc { <addr2>[:<port2>] | client | clientip } ]
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | hdr_ip(<hdr>[,<occ>]) } ]
 source <addr>[:<pl>[-<ph>]] [interface <name>] ...
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   The "source" parameter sets the source address which will be used when
   connecting to the server. It follows the exact same parameters and principle
   as the backend "source" keyword, except that it only applies to the server
@@ -17201,6 +17379,8 @@ source <addr>[:<pl>[-<ph>]] [interface <name>] ...
   specifying the source address without port(s).
 
 ssl
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option enables SSL ciphering on outgoing connections to the server. It
   is critical to verify server certificates using "verify" when using SSL to
   connect to servers, otherwise the communication is prone to trivial man in
@@ -17211,16 +17391,22 @@ ssl
   SSL health checks.
 
 ssl-max-ver [ SSLv3 | TLSv1.0 | TLSv1.1 | TLSv1.2 | TLSv1.3 ]
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option enforces use of <version> or lower when SSL is used to communicate
   with the server. This option is also available on global statement
   "ssl-default-server-options". See also "ssl-min-ver".
 
 ssl-min-ver [ SSLv3 | TLSv1.0 | TLSv1.1 | TLSv1.2 | TLSv1.3 ]
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option enforces use of <version> or upper when SSL is used to communicate
   with the server. This option is also available on global statement
   "ssl-default-server-options". See also "ssl-max-ver".
 
 ssl-reuse
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option may be used as "server" setting to reset any "no-ssl-reuse"
   setting which would have been inherited from "default-server" directive as
   default value.
@@ -17228,6 +17414,8 @@ ssl-reuse
   "default-server" "no-ssl-reuse" setting.
 
 stick
+  May be used in the following contexts: tcp, http
+
   This option may be used as "server" setting to reset any "non-stick"
   setting which would have been inherited from "default-server" directive as
   default value.
@@ -17235,11 +17423,15 @@ stick
   "default-server" "non-stick" setting.
 
 socks4 <addr>:<port>
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option enables upstream socks4 tunnel for outgoing connections to the
   server. Using this option won't force the health check to go via socks4 by
   default. You will have to use the keyword "check-via-socks4" to enable it.
 
 tcp-ut <delay>
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   Sets the TCP User Timeout for all outgoing connections to this server. This
   option is available on Linux since version 2.6.37. It allows HAProxy to
   configure a timeout for sockets which contain data not receiving an
@@ -17255,6 +17447,8 @@ tcp-ut <delay>
   regular TCP connections, and is ignored for other protocols.
 
 tfo
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option enables using TCP fast open when connecting to servers, on
   systems that support it (currently only the Linux kernel >= 4.11).
   See the "tfo" bind option for more information about TCP fast open.
@@ -17263,6 +17457,8 @@ tfo
   won't be able to retry the connection on failure. See also "no-tfo".
 
 track [<backend>/]<server>
+  May be used in the following contexts: tcp, http, log
+
   This option enables ability to set the current state of the server by tracking
   another one. It is possible to track a server which itself tracks another
   server, provided that at the end of the chain, a server has health checks
@@ -17270,6 +17466,8 @@ track [<backend>/]<server>
   used, it has to be enabled on both proxies.
 
 tls-tickets
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This option may be used as "server" setting to reset any "no-tls-tickets"
   setting which would have been inherited from "default-server" directive as
   default value.
@@ -17280,6 +17478,8 @@ tls-tickets
   "default-server" "no-tls-tickets" setting.
 
 verify [none|required]
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This setting is only available when support for OpenSSL was built in. If set
   to 'none', server certificate is not verified. In the other case, The
   certificate provided by the server is verified using CAs from 'ca-file' and
@@ -17295,6 +17495,8 @@ verify [none|required]
   the global section, "verify" is set to "required" by default.
 
 verifyhost <hostname>
+  May be used in the following contexts: tcp, http, log, peers, ring
+
   This setting is only available when support for OpenSSL was built in, and
   only takes effect if 'verify required' is also specified. This directive sets
   a default static hostname to check the server's certificate against when no
@@ -17306,6 +17508,8 @@ verifyhost <hostname>
   include wildcards. See also "verify", "sni" and "no-verifyhost" options.
 
 weight <weight>
+  May be used in the following contexts: tcp, http
+
   The "weight" parameter is used to adjust the server's weight relative to
   other servers. All servers will receive a load proportional to their weight
   relative to the sum of all weights, so the higher the weight, the higher the
@@ -17317,6 +17521,8 @@ weight <weight>
   room above and below for later adjustments.
 
 ws { auto | h1 | h2 }
+  May be used in the following contexts: http
+
   This option allows to configure the protocol used when relaying websocket
   streams. This is most notably useful when using an HTTP/2 backend without the
   support for H2 websockets through the RFC8441.
