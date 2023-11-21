@@ -14346,9 +14346,6 @@ timeout check <timeout>
   "defaults" sections. This is in fact one of the easiest solutions not to
   forget about it.
 
-  This directive is only available from named defaults sections, not anonymous
-  ones. Proxies inherit this value from their defaults section.
-
   See also: "timeout connect", "timeout queue", "timeout server",
             "timeout tarpit".
 
