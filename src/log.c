@@ -805,6 +805,8 @@ static void _log_backend_srv_queue(struct server *srv)
 	}
 	/* append the server to the list of available servers */
 	LIST_APPEND(&p->lbprm.log.avail, &srv->lb_list);
+
+	p->lbprm.tot_weight = (p->srv_act) ? p->srv_act : p->srv_bck;
 }
 
 static void log_backend_srv_up(struct server *srv)
@@ -859,6 +861,8 @@ static void _log_backend_srv_dequeue(struct server *srv)
 
 	/* reconstruct the array of usable servers */
 	_log_backend_srv_recalc(p);
+
+	p->lbprm.tot_weight = (p->srv_act) ? p->srv_act : p->srv_bck;
 }
 
 static void log_backend_srv_down(struct server *srv)
