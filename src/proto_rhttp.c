@@ -16,7 +16,7 @@
 #include <haproxy/ssl_sock.h>
 #include <haproxy/task.h>
 
-#include <haproxy/proto_reverse_connect.h>
+#include <haproxy/proto_rhttp.h>
 
 struct proto_fam proto_fam_reverse_connect = {
 	.name = "reverse_connect",

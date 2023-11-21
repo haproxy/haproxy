@@ -1,5 +1,5 @@
-#ifndef _HAPROXY_PROTO_REVERSE_CONNECT_H_T
-#define _HAPROXY_PROTO_REVERSE_CONNECT_H_T
+#ifndef _HAPROXY_PROTO_RHTTP_H_T
+#define _HAPROXY_PROTO_RHTTP_H_T
 
 /* State for reverse preconnect listener state machine.
  * Used to limit log reporting only on state changes.
@@ -11,4 +11,4 @@ enum li_preconn_state {
 	LI_PRECONN_ST_FULL, /* pre-connect maxconn reached */
 };
 
-#endif /* _HAPROXY_PROTO_REVERSE_CONNECT_H_T */
+#endif /* _HAPROXY_PROTO_RHTTP_H_T */

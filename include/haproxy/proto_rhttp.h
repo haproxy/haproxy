@@ -1,5 +1,5 @@
-#ifndef _HAPROXY_PROTO_REVERSE_CONNECT_H
-#define _HAPROXY_PROTO_REVERSE_CONNECT_H
+#ifndef _HAPROXY_PROTO_RHTTP_H
+#define _HAPROXY_PROTO_RHTTP_H
 
 #include <haproxy/connection-t.h>
 #include <haproxy/listener-t.h>
@@ -18,4 +18,4 @@ int rev_accepting_conn(const struct receiver *rx);
 
 void rev_notify_preconn_err(struct listener *l);
 
-#endif /* _HAPROXY_PROTO_REVERSE_CONNECT_H */
+#endif /* _HAPROXY_PROTO_RHTTP_H */

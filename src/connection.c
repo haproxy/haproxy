@@ -25,7 +25,7 @@
 #include <haproxy/log.h>
 #include <haproxy/namespace.h>
 #include <haproxy/net_helper.h>
-#include <haproxy/proto_reverse_connect.h>
+#include <haproxy/proto_rhttp.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>

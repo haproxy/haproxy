@@ -27,7 +27,7 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/namespace-t.h>
-#include <haproxy/proto_reverse_connect-t.h>
+#include <haproxy/proto_rhttp-t.h>
 #include <haproxy/quic_sock-t.h>
 #include <haproxy/thread.h>
 
