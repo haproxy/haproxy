@@ -39,7 +39,7 @@ struct connection;
  */
 #define AF_CUST_EXISTING_FD  (AF_MAX + 1)
 #define AF_CUST_SOCKPAIR     (AF_MAX + 2)
-#define AF_CUST_REV_SRV      (AF_MAX + 3)
+#define AF_CUST_RHTTP_SRV    (AF_MAX + 3)
 #define AF_CUST_MAX          (AF_MAX + 4)
 
 /*

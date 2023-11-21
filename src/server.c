@@ -3009,12 +3009,12 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		}
 
 		if (!port1 || !port2) {
-			if (sk->ss_family != AF_CUST_REV_SRV) {
+			if (sk->ss_family != AF_CUST_RHTTP_SRV) {
 				/* no port specified, +offset, -offset */
 				newsrv->flags |= SRV_F_MAPPORTS;
 			}
 			else {
-				newsrv->flags |= SRV_F_REVERSE;
+				newsrv->flags |= SRV_F_RHTTP;
 			}
 		}
 

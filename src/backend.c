@@ -1361,7 +1361,7 @@ static int connect_server(struct stream *s)
 	srv = objt_server(s->target);
 
 	/* Override reuse-mode if reverse-connect is used. */
-	if (srv && srv->flags & SRV_F_REVERSE)
+	if (srv && srv->flags & SRV_F_RHTTP)
 		reuse_mode = PR_O_REUSE_ALWS;
 
 	err = alloc_dst_address(&s->scb->dst, srv, s);
@@ -1596,7 +1596,7 @@ static int connect_server(struct stream *s)
 skip_reuse:
 	/* no reuse or failed to reuse the connection above, pick a new one */
 	if (!srv_conn) {
-		if (srv && (srv->flags & SRV_F_REVERSE)) {
+		if (srv && (srv->flags & SRV_F_RHTTP)) {
 			DBG_TRACE_USER("cannot open a new connection for reverse server", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			s->conn_err_type = STRM_ET_CONN_ERR;
 			return SF_ERR_INTERNAL;

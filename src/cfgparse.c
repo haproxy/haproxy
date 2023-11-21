@@ -162,7 +162,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		if (!ss2)
 			goto fail;
 
-		if (ss2->ss_family == AF_CUST_REV_SRV) {
+		if (ss2->ss_family == AF_CUST_RHTTP_SRV) {
 			/* Check if a previous non reverse HTTP present is
 			 * already defined. If DGRAM or STREAM is set, this
 			 * indicates that we are currently parsing the second
@@ -174,8 +174,8 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 				goto fail;
 			}
 
-			bind_conf->reverse_srvname = strdup(str + strlen("rhttp@"));
-			if (!bind_conf->reverse_srvname) {
+			bind_conf->rhttp_srvname = strdup(str + strlen("rhttp@"));
+			if (!bind_conf->rhttp_srvname) {
 				memprintf(err, "Cannot allocate reverse HTTP bind.\n");
 				goto fail;
 			}
@@ -3889,8 +3889,8 @@ out_uri_auth_compat:
 			if ((curproxy->mode != PR_MODE_HTTP) && (curproxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR)
 				curproxy->options &= ~PR_O_REUSE_MASK;
 
-			if ((curproxy->mode != PR_MODE_HTTP) && newsrv->flags & SRV_F_REVERSE) {
-				ha_alert("%s '%s' : server %s uses reverse addressing which can only be used with HTTP mode.\n",
+			if ((curproxy->mode != PR_MODE_HTTP) && newsrv->flags & SRV_F_RHTTP) {
+				ha_alert("%s '%s' : server %s uses reverse HTTP addressing which can only be used with HTTP mode.\n",
 					   proxy_type_str(curproxy), curproxy->id, newsrv->id);
 				cfgerr++;
 				err_code |= ERR_FATAL | ERR_ALERT;

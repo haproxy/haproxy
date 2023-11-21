@@ -314,7 +314,7 @@ static inline int srv_is_transparent(const struct server *srv)
 	/* A reverse server does not have any address but it is not used as a
 	 * transparent one.
 	 */
-	return (!is_addr(&srv->addr) && !(srv->flags & SRV_F_REVERSE)) ||
+	return (!is_addr(&srv->addr) && !(srv->flags & SRV_F_RHTTP)) ||
 	       (srv->flags & SRV_F_MAPPORTS);
 }
 

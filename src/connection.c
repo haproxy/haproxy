@@ -126,7 +126,7 @@ fail:
 
 			/* If mux init failed, consider connection on error.
 			 * This is necessary to ensure connection is freed by
-			 * proto-reverse-connect receiver task.
+			 * proto-rhttp receiver task.
 			 */
 			if (!conn->mux)
 				conn->flags |= CO_FL_ERROR;
@@ -134,7 +134,7 @@ fail:
 			/* If connection is interrupted  without CO_FL_ERROR, receiver task won't free it. */
 			BUG_ON(!(conn->flags & CO_FL_ERROR));
 
-			task_wakeup(l->rx.reverse_connect.task, TASK_WOKEN_ANY);
+			task_wakeup(l->rx.rhttp.task, TASK_WOKEN_ANY);
 		}
 		return -1;
 	} else
@@ -591,7 +591,7 @@ void conn_free(struct connection *conn)
 
 	if (conn_reverse_in_preconnect(conn)) {
 		struct listener *l = conn_active_reverse_listener(conn);
-		rev_notify_preconn_err(l);
+		rhttp_notify_preconn_err(l);
 	}
 
 	conn_force_unsubscribe(conn);
@@ -2681,7 +2681,7 @@ int conn_reverse(struct connection *conn)
 
 		conn->target = &l->obj_type;
 		conn->flags |= CO_FL_ACT_REVERSING;
-		task_wakeup(l->rx.reverse_connect.task, TASK_WOKEN_ANY);
+		task_wakeup(l->rx.rhttp.task, TASK_WOKEN_ANY);
 	}
 
 	/* Invert source and destination addresses if already set. */

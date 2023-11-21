@@ -289,13 +289,13 @@ void listener_set_state(struct listener *l, enum li_state st)
 			_HA_ATOMIC_INC(&px->li_paused);
 			break;
 		case LI_LISTEN:
-			BUG_ON(l->rx.fd == -1 && !l->rx.reverse_connect.task);
+			BUG_ON(l->rx.fd == -1 && !l->rx.rhttp.task);
 			_HA_ATOMIC_INC(&px->li_bound);
 			break;
 		case LI_READY:
 		case LI_FULL:
 		case LI_LIMITED:
-			BUG_ON(l->rx.fd == -1 && !l->rx.reverse_connect.task);
+			BUG_ON(l->rx.fd == -1 && !l->rx.rhttp.task);
 			_HA_ATOMIC_INC(&px->li_ready);
 			l->flags |= LI_F_FINALIZED;
 			break;
@@ -322,7 +322,7 @@ void enable_listener(struct listener *listener)
 		do_unbind_listener(listener);
 
 	if (listener->state == LI_LISTEN) {
-		BUG_ON(listener->rx.fd == -1 && !listener->rx.reverse_connect.task);
+		BUG_ON(listener->rx.fd == -1 && !listener->rx.rhttp.task);
 		if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
 		    (!!master != !!(listener->rx.flags & RX_F_MWORKER))) {
 			/* we don't want to enable this listener and don't
@@ -800,9 +800,9 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 		l->rx.iocb = proto->default_iocb;
 		l->rx.fd = fd;
 
-		l->rx.reverse_connect.task = NULL;
-		l->rx.reverse_connect.srv = NULL;
-		l->rx.reverse_connect.pend_conn = NULL;
+		l->rx.rhttp.task = NULL;
+		l->rx.rhttp.srv = NULL;
+		l->rx.rhttp.pend_conn = NULL;
 
 		memcpy(&l->rx.addr, ss, sizeof(*ss));
 		if (proto->fam->set_port)
@@ -1959,7 +1959,7 @@ struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *file,
 #endif
 	LIST_INIT(&bind_conf->listeners);
 
-	bind_conf->reverse_srvname = NULL;
+	bind_conf->rhttp_srvname = NULL;
 
 	return bind_conf;
 
@@ -2260,7 +2260,7 @@ static int bind_parse_nbconn(char **args, int cur_arg, struct proxy *px, struct 
 	const struct listener *l;
 
 	l = LIST_NEXT(&conf->listeners, struct listener *, by_bind);
-	if (l->rx.addr.ss_family != AF_CUST_REV_SRV) {
+	if (l->rx.addr.ss_family != AF_CUST_RHTTP_SRV) {
 		memprintf(err, "'%s' : only valid for reverse HTTP listeners.", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
@@ -2276,7 +2276,7 @@ static int bind_parse_nbconn(char **args, int cur_arg, struct proxy *px, struct 
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	conf->reverse_nbconn = val;
+	conf->rhttp_nbconn = val;
 	return 0;
 }
 

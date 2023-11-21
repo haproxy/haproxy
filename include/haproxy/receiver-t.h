@@ -90,7 +90,7 @@ struct receiver {
 		struct server *srv; /* Underlying server used to initiate reverse pre-connect. */
 		struct connection *pend_conn; /* Pending connection waiting to complete reversal before being accepted. */
 		enum li_preconn_state state; /* State for transition logging. */
-	} reverse_connect;
+	} rhttp;
 
 	/* warning: this struct is huge, keep it at the bottom */
 	struct sockaddr_storage addr;    /* the address the socket is bound to */

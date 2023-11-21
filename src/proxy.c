@@ -358,7 +358,7 @@ void free_proxy(struct proxy *p)
 		free(l->name);
 		free(l->per_thr);
 		free(l->counters);
-		task_destroy(l->rx.reverse_connect.task);
+		task_destroy(l->rx.rhttp.task);
 
 		EXTRA_COUNTERS_FREE(l->extra_counters);
 		free(l);
@@ -372,7 +372,7 @@ void free_proxy(struct proxy *p)
 		free(bind_conf->arg);
 		free(bind_conf->settings.interface);
 		LIST_DELETE(&bind_conf->by_fe);
-		free(bind_conf->reverse_srvname);
+		free(bind_conf->rhttp_srvname);
 		free(bind_conf);
 	}
 

@@ -18,35 +18,35 @@
 
 #include <haproxy/proto_rhttp.h>
 
-struct proto_fam proto_fam_reverse_connect = {
-	.name = "reverse_connect",
-	.sock_domain = AF_CUST_REV_SRV,
+struct proto_fam proto_fam_rhttp = {
+	.name = "rhttp",
+	.sock_domain = AF_CUST_RHTTP_SRV,
 	.sock_family = AF_INET,
-	.bind = rev_bind_receiver,
+	.bind = rhttp_bind_receiver,
 };
 
-struct protocol proto_reverse_connect = {
+struct protocol proto_rhttp = {
 	.name = "rev",
 
 	/* connection layer (no outgoing connection) */
-	.listen      = rev_bind_listener,
-	.enable      = rev_enable_listener,
-	.disable     = rev_disable_listener,
+	.listen      = rhttp_bind_listener,
+	.enable      = rhttp_enable_listener,
+	.disable     = rhttp_disable_listener,
 	.add         = default_add_listener,
-	.unbind      = rev_unbind_receiver,
+	.unbind      = rhttp_unbind_receiver,
 	.resume      = default_resume_listener,
-	.accept_conn = rev_accept_conn,
-	.set_affinity = rev_set_affinity,
+	.accept_conn = rhttp_accept_conn,
+	.set_affinity = rhttp_set_affinity,
 
 	/* address family */
-	.fam  = &proto_fam_reverse_connect,
+	.fam  = &proto_fam_rhttp,
 
 	/* socket layer */
 	.proto_type     = PROTO_TYPE_STREAM,
 	.sock_type      = SOCK_STREAM,
 	.sock_prot      = IPPROTO_TCP,
-	.rx_listening   = rev_accepting_conn,
-	.receivers      = LIST_HEAD_INIT(proto_reverse_connect.receivers),
+	.rx_listening   = rhttp_accepting_conn,
+	.receivers      = LIST_HEAD_INIT(proto_rhttp.receivers),
 };
 
 static struct connection *new_reverse_conn(struct listener *l, struct server *srv)
@@ -112,8 +112,7 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 			conn->destroy_cb(conn);
 
 		/* Mark connection as non-reversable. This prevents conn_free()
-		 * to reschedule reverse_connect task on freeing a preconnect
-		 * connection.
+		 * to reschedule rhttp task on freeing a preconnect connection.
 		 */
 		conn->reverse.target = NULL;
 		conn_free(conn);
@@ -126,33 +125,33 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
  * reversal is completed. This is used to cleanup any reference to the
  * connection and rearm a new preconnect attempt.
  */
-void rev_notify_preconn_err(struct listener *l)
+void rhttp_notify_preconn_err(struct listener *l)
 {
 	/* For the moment reverse connection are bound only on first thread. */
 	BUG_ON(tid != 0);
 
 	/* Receiver must reference a reverse connection as pending. */
-	BUG_ON(!l->rx.reverse_connect.pend_conn);
+	BUG_ON(!l->rx.rhttp.pend_conn);
 
 	/* Remove reference to the freed connection. */
-	l->rx.reverse_connect.pend_conn = NULL;
+	l->rx.rhttp.pend_conn = NULL;
 
-	if (l->rx.reverse_connect.state != LI_PRECONN_ST_ERR) {
+	if (l->rx.rhttp.state != LI_PRECONN_ST_ERR) {
 		send_log(l->bind_conf->frontend, LOG_ERR,
 		        "preconnect %s::%s: Error encountered.\n",
-		         l->bind_conf->frontend->id, l->bind_conf->reverse_srvname);
-		l->rx.reverse_connect.state = LI_PRECONN_ST_ERR;
+		         l->bind_conf->frontend->id, l->bind_conf->rhttp_srvname);
+		l->rx.rhttp.state = LI_PRECONN_ST_ERR;
 	}
 
 	/* Rearm a new preconnect attempt. */
-	l->rx.reverse_connect.task->expire = MS_TO_TICKS(now_ms + 1000);
-	task_queue(l->rx.reverse_connect.task);
+	l->rx.rhttp.task->expire = MS_TO_TICKS(now_ms + 1000);
+	task_queue(l->rx.rhttp.task);
 }
 
-struct task *rev_process(struct task *task, void *ctx, unsigned int state)
+struct task *rhttp_process(struct task *task, void *ctx, unsigned int state)
 {
 	struct listener *l = ctx;
-	struct connection *conn = l->rx.reverse_connect.pend_conn;
+	struct connection *conn = l->rx.rhttp.pend_conn;
 
 	if (conn) {
 		/* Either connection is on error ot the connect timeout fired. */
@@ -176,8 +175,8 @@ struct task *rev_process(struct task *task, void *ctx, unsigned int state)
 				conn_free(conn);
 			}
 
-			/* conn_free() must report preconnect failure using rev_notify_preconn_err(). */
-			BUG_ON(l->rx.reverse_connect.pend_conn);
+			/* conn_free() must report preconnect failure using rhttp_notify_preconn_err(). */
+			BUG_ON(l->rx.rhttp.pend_conn);
 		}
 		else {
 			/* Spurious receiver task woken up despite pend_conn not ready/on error. */
@@ -185,21 +184,21 @@ struct task *rev_process(struct task *task, void *ctx, unsigned int state)
 
 			/* A connection is ready to be accepted. */
 			listener_accept(l);
-			l->rx.reverse_connect.task->expire = TICK_ETERNITY;
+			l->rx.rhttp.task->expire = TICK_ETERNITY;
 		}
 	}
 	else {
-		struct server *srv = l->rx.reverse_connect.srv;
+		struct server *srv = l->rx.rhttp.srv;
 
 		/* No pending reverse connection, prepare a new one. Store it in the
 		 * listener and return NULL. Connection will be returned later after
 		 * reversal is completed.
 		 */
 		conn = new_reverse_conn(l, srv);
-		l->rx.reverse_connect.pend_conn = conn;
+		l->rx.rhttp.pend_conn = conn;
 
 		/* On success task will be woken up by H2 mux after reversal. */
-		l->rx.reverse_connect.task->expire = conn ?
+		l->rx.rhttp.task->expire = conn ?
 		  tick_add_ifset(now_ms, srv->proxy->timeout.connect) :
 		  MS_TO_TICKS(now_ms + 1000);
 	}
@@ -207,13 +206,13 @@ struct task *rev_process(struct task *task, void *ctx, unsigned int state)
 	return task;
 }
 
-int rev_bind_receiver(struct receiver *rx, char **errmsg)
+int rhttp_bind_receiver(struct receiver *rx, char **errmsg)
 {
 	rx->flags |= RX_F_BOUND;
 	return ERR_NONE;
 }
 
-int rev_bind_listener(struct listener *listener, char *errmsg, int errlen)
+int rhttp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 {
 	struct task *task;
 	struct proxy *be;
@@ -226,21 +225,21 @@ int rev_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		snprintf(errmsg, errlen, "Out of memory.");
 		goto err;
 	}
-	task->process = rev_process;
+	task->process = rhttp_process;
 	task->context = listener;
-	listener->rx.reverse_connect.task = task;
-	listener->rx.reverse_connect.state = LI_PRECONN_ST_STOP;
+	listener->rx.rhttp.task = task;
+	listener->rx.rhttp.state = LI_PRECONN_ST_STOP;
 
 	/* Set maxconn which is defined via the special kw nbconn for reverse
 	 * connect. Use a default value of 1 if not set. This guarantees that
 	 * listener will be automatically re-enable each time it fell back below
 	 * it due to a connection error.
 	 */
-	listener->bind_conf->maxconn = listener->bind_conf->reverse_nbconn;
+	listener->bind_conf->maxconn = listener->bind_conf->rhttp_nbconn;
 	if (!listener->bind_conf->maxconn)
 		listener->bind_conf->maxconn = 1;
 
-	name = strdup(listener->bind_conf->reverse_srvname);
+	name = strdup(listener->bind_conf->rhttp_srvname);
 	if (!name) {
 		snprintf(errmsg, errlen, "Out of memory.");
 		goto err;
@@ -262,8 +261,8 @@ int rev_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		goto err;
 	}
 
-	if (srv->flags & SRV_F_REVERSE) {
-		snprintf(errmsg, errlen, "Cannot use reverse server '%s/%s' as target to a reverse bind.", ist0(be_name), ist0(sv_name));
+	if (srv->flags & SRV_F_RHTTP) {
+		snprintf(errmsg, errlen, "Cannot use reverse HTTP server '%s/%s' as target to a reverse bind.", ist0(be_name), ist0(sv_name));
 		goto err;
 	}
 
@@ -290,7 +289,7 @@ int rev_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	ha_free(&name);
 
-	listener->rx.reverse_connect.srv = srv;
+	listener->rx.rhttp.srv = srv;
 	listener_set_state(listener, LI_LISTEN);
 
 	return ERR_NONE;
@@ -300,32 +299,32 @@ int rev_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	return ERR_ALERT | ERR_FATAL;
 }
 
-void rev_enable_listener(struct listener *l)
+void rhttp_enable_listener(struct listener *l)
 {
-	if (l->rx.reverse_connect.state < LI_PRECONN_ST_INIT) {
+	if (l->rx.rhttp.state < LI_PRECONN_ST_INIT) {
 		send_log(l->bind_conf->frontend, LOG_INFO,
 		         "preconnect %s::%s: Initiating.\n",
-		         l->bind_conf->frontend->id, l->bind_conf->reverse_srvname);
-		l->rx.reverse_connect.state = LI_PRECONN_ST_INIT;
+		         l->bind_conf->frontend->id, l->bind_conf->rhttp_srvname);
+		l->rx.rhttp.state = LI_PRECONN_ST_INIT;
 	}
 
-	task_wakeup(l->rx.reverse_connect.task, TASK_WOKEN_ANY);
+	task_wakeup(l->rx.rhttp.task, TASK_WOKEN_ANY);
 }
 
-void rev_disable_listener(struct listener *l)
+void rhttp_disable_listener(struct listener *l)
 {
-	if (l->rx.reverse_connect.state < LI_PRECONN_ST_FULL) {
+	if (l->rx.rhttp.state < LI_PRECONN_ST_FULL) {
 		send_log(l->bind_conf->frontend, LOG_INFO,
 		         "preconnect %s::%s: Running with nbconn %d reached.\n",
-		         l->bind_conf->frontend->id, l->bind_conf->reverse_srvname,
+		         l->bind_conf->frontend->id, l->bind_conf->rhttp_srvname,
 		         l->bind_conf->maxconn);
-		l->rx.reverse_connect.state = LI_PRECONN_ST_FULL;
+		l->rx.rhttp.state = LI_PRECONN_ST_FULL;
 	}
 }
 
-struct connection *rev_accept_conn(struct listener *l, int *status)
+struct connection *rhttp_accept_conn(struct listener *l, int *status)
 {
-	struct connection *conn = l->rx.reverse_connect.pend_conn;
+	struct connection *conn = l->rx.rhttp.pend_conn;
 
 	if (!conn) {
 		/* Reverse connect listener must have an explicit maxconn set
@@ -335,8 +334,8 @@ struct connection *rev_accept_conn(struct listener *l, int *status)
 
 		/* Instantiate a new conn if maxconn not yet exceeded. */
 		if (l->nbconn <= l->bind_conf->maxconn) {
-			l->rx.reverse_connect.pend_conn = new_reverse_conn(l, l->rx.reverse_connect.srv);
-			if (!l->rx.reverse_connect.pend_conn) {
+			l->rx.rhttp.pend_conn = new_reverse_conn(l, l->rx.rhttp.srv);
+			if (!l->rx.rhttp.pend_conn) {
 				*status = CO_AC_PAUSE;
 				return NULL;
 			}
@@ -352,18 +351,18 @@ struct connection *rev_accept_conn(struct listener *l, int *status)
 	conn->flags |= CO_FL_REVERSED;
 	conn->mux->ctl(conn, MUX_REVERSE_CONN, NULL);
 
-	l->rx.reverse_connect.pend_conn = NULL;
+	l->rx.rhttp.pend_conn = NULL;
 	*status = CO_AC_NONE;
 
 	return conn;
 }
 
-void rev_unbind_receiver(struct listener *l)
+void rhttp_unbind_receiver(struct listener *l)
 {
 	l->rx.flags &= ~RX_F_BOUND;
 }
 
-int rev_set_affinity(struct connection *conn, int new_tid)
+int rhttp_set_affinity(struct connection *conn, int new_tid)
 {
 	/* TODO reversal conn rebinding after is disabled for the moment as we
 	 * did not test possible race conditions.
@@ -371,9 +370,9 @@ int rev_set_affinity(struct connection *conn, int new_tid)
 	return -1;
 }
 
-int rev_accepting_conn(const struct receiver *rx)
+int rhttp_accepting_conn(const struct receiver *rx)
 {
 	return 1;
 }
 
-INITCALL1(STG_REGISTER, protocol_register, &proto_reverse_connect);
+INITCALL1(STG_REGISTER, protocol_register, &proto_rhttp);
