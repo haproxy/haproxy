@@ -101,7 +101,7 @@ void __signal_process_queue()
 	ha_sigmask(SIG_SETMASK, &old_sig, NULL);
 }
 
-/* perform minimal intializations */
+/* perform minimal initializations */
 static void signal_init()
 {
 	int sig;

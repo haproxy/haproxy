@@ -928,7 +928,7 @@ void mworker_cleantasks()
 	}
 }
 
-/* perform minimal intializations */
+/* perform minimal initializations */
 static void init_task()
 {
 	int i, q;

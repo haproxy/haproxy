@@ -180,7 +180,7 @@ static inline int applet_putchk(struct appctx *appctx, struct buffer *chunk)
 	if (ret < 0) {
 		/* XXX: Handle all errors as a lack of space because callers
 		 * don't handles other cases for now. So applets must be
-		 * carefull to handles shutdown (-2) and invalid calls (-3) by
+		 * careful to handles shutdown (-2) and invalid calls (-3) by
 		 * themselves.
 		 */
 		sc_need_room(se->sc, chunk->data);
@@ -203,7 +203,7 @@ static inline int applet_putblk(struct appctx *appctx, const char *blk, int len)
 	if (ret < -1) {
 		/* XXX: Handle all errors as a lack of space because callers
 		 * don't handles other cases for now. So applets must be
-		 * carefull to handles shutdown (-2) and invalid calls (-3) by
+		 * careful to handles shutdown (-2) and invalid calls (-3) by
 		 * themselves.
 		 */
 		sc_need_room(se->sc, len);
@@ -227,7 +227,7 @@ static inline int applet_putstr(struct appctx *appctx, const char *str)
 	if (ret == -1) {
 		/* XXX: Handle all errors as a lack of space because callers
 		 * don't handles other cases for now. So applets must be
-		 * carefull to handles shutdown (-2) and invalid calls (-3) by
+		 * careful to handles shutdown (-2) and invalid calls (-3) by
 		 * themselves.
 		 */
 		sc_need_room(se->sc, strlen(str));
@@ -250,7 +250,7 @@ static inline int applet_putchr(struct appctx *appctx, char chr)
 	if (ret == -1) {
 		/* XXX: Handle all errors as a lack of space because callers
 		 * don't handles other cases for now. So applets must be
-		 * carefull to handles shutdown (-2) and invalid calls (-3) by
+		 * careful to handles shutdown (-2) and invalid calls (-3) by
 		 * themselves.
 		 */
 		sc_need_room(se->sc, 1);

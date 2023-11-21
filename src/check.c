@@ -1995,7 +1995,7 @@ REGISTER_POST_CHECK(start_checks);
 REGISTER_SERVER_DEINIT(deinit_srv_check);
 REGISTER_SERVER_DEINIT(deinit_srv_agent_check);
 
-/* perform minimal intializations */
+/* perform minimal initializations */
 static void init_checks()
 {
 	int i;

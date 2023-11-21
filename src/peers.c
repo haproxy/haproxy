@@ -2633,7 +2633,7 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
  *   - peer->stop_local_table is the last evaluated table. It is unset when the
  *                            teaching process starts. But we use it as a
  *                            restart point when the loop is interrupted. It is
- *                            especially useful whe the number of tables exceeds
+ *                            especially useful when the number of tables exceeds
  *                            peers_max_updates_at_once value.
  *
  * When a teaching lopp is started, the peer's last_local_table is saved in a

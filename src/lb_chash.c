@@ -464,7 +464,7 @@ struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid)
 }
 
 /* This function is responsible for building the active and backup trees for
- * constistent hashing. The servers receive an array of initialized nodes
+ * consistent hashing. The servers receive an array of initialized nodes
  * with their assigned keys. It also sets p->lbprm.wdiv to the eweight to
  * uweight ratio.
  * Return 0 in case of success, -1 in case of allocation failure.

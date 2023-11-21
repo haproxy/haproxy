@@ -1029,7 +1029,7 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 			       "     <obj>   = { strm.f | strm.x | scf.s | scb.s | txn.f | req.f | res.f }\n"
 			       "     <op>    = {'' (show) | '=' (assign) | '^' (xor) | '+' (or) | '-' (andnot)}\n"
 			       "     <value> = 'now' | 64-bit dec/hex integer (0x prefix supported)\n"
-			       "     'wake' wakes the stream asssigned to 'strm' (default: current)\n"
+			       "     'wake' wakes the stream assigned to 'strm' (default: current)\n"
 			       );
 	}
 

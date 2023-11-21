@@ -340,7 +340,7 @@ void qc_txb_release(struct quic_conn *qc)
 	/* For the moment sending function is responsible to purge the buffer
 	 * entirely. It may change in the future but this requires to be able
 	 * to reuse old data.
-	 * For the momemt we do not care to leave data in the buffer for
+	 * For the moment we do not care to leave data in the buffer for
 	 * a connection which is supposed to be killed asap.
 	 */
 	BUG_ON_HOT(buf && b_data(buf));

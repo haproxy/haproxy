@@ -453,7 +453,7 @@ static int tcp_check_attach_srv(struct act_rule *rule, struct proxy *px, char **
 
 	if ((rule->arg.attach_srv.name && (!srv->use_ssl || !srv->sni_expr)) ||
 	    (!rule->arg.attach_srv.name && srv->use_ssl && srv->sni_expr)) {
-		memprintf(err, "attach-srv rule: connection will never be used; either specify name argument in conjonction with defined SSL SNI on targetted server or none of these");
+		memprintf(err, "attach-srv rule: connection will never be used; either specify name argument in conjunction with defined SSL SNI on targeted server or none of these");
 		return 0;
 	}
 

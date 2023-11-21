@@ -22,7 +22,7 @@
 
 struct pool_head *pool_head_buffer __read_mostly;
 
-/* perform minimal intializations, report 0 in case of error, 1 if OK. */
+/* perform minimal initializations, report 0 in case of error, 1 if OK. */
 int init_buffer()
 {
 	void *buffer;

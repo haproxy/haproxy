@@ -285,7 +285,7 @@ int conn_install_mux_fe(struct connection *conn, void *ctx)
 			return -1;
 	}
 
-	/* Ensure a valid protocol is selected if connection is targetted by a
+	/* Ensure a valid protocol is selected if connection is targeted by a
 	 * tcp-request session attach-srv rule.
 	 */
 	if (conn->reverse.target && !(mux_ops->flags & MX_FL_REVERSABLE)) {
@@ -808,7 +808,7 @@ int conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, st
 /* Called from the upper layer, to subscribe <es> to events <event_type>.
  * The <es> struct is not allowed to differ from the one passed during a
  * previous call to subscribe(). If the connection's ctrl layer is ready,
- * the wait_event is immediately woken up and the subcription is cancelled.
+ * the wait_event is immediately woken up and the subscription is cancelled.
  * It always returns zero.
  */
 int conn_subscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es)
@@ -1806,7 +1806,7 @@ void list_mux_proto(FILE *out)
 
 		done = 0;
 
-		/* note: the block below could be simplied using macros but for only
+		/* note: the block below could be simplified using macros but for only
 		 * 4 flags it's not worth it.
 		 */
 		if (item->mux->flags & MX_FL_HTX)

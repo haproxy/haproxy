@@ -222,7 +222,7 @@ static inline struct quic_pktns **qel_to_quic_pktns(struct quic_conn *qc,
 }
 
 /* Map <level> TLS stack encryption level to our internal QUIC TLS encryption level
- * if succeded, or -1 if failed.
+ * if succeeded, or -1 if failed.
  */
 static inline enum quic_tls_enc_level ssl_to_quic_enc_level(enum ssl_encryption_level_t level)
 {

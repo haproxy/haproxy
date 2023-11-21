@@ -4603,7 +4603,7 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 		h1_release_buf(h1c, &h1c->ibuf);
 
 	if (sdo->iobuf.flags & IOBUF_FL_NO_FF) {
-		/* Fast forwading is not supported by the consumer */
+		/* Fast forwarding is not supported by the consumer */
 		h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_CANT_FASTFWD;
 		TRACE_DEVEL("Fast-forwarding not supported by opposite endpoint, disable it", H1_EV_STRM_RECV, h1c->conn, h1s);
 		goto end;
@@ -4960,7 +4960,7 @@ static int add_hdr_case_adjust(const char *from, const char *to, char **err)
 
 	/* Be sure only the case differs between <from> and <to> */
 	if (strcasecmp(from, to) != 0) {
-		memprintf(err, "<from> and <to> must not differ execpt the case");
+		memprintf(err, "<from> and <to> must not differ except the case");
 		return -1;
 	}
 

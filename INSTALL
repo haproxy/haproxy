@@ -516,7 +516,7 @@ As last resort, haproxy may be compiled against OpenSSL as follows:
 
 Note that QUIC 0-RTT is not supported by haproxy QUIC stack when built against
 OpenSSL. In addition to this compilation requirements, the QUIC listener
-bindings must be explicitely enabled with a specifig QUIC tuning parameter.
+bindings must be explicitly enabled with a specific QUIC tuning parameter.
 (see "limited-quic" global parameter of haproxy Configuration Manual).
 
 
@@ -748,7 +748,7 @@ them all in the DEFINE variable. Example:
 
 The ADDINC variable may be used to add some extra include paths; this is
 sometimes needed when cross-compiling. Similarly the ADDLIB variable may be
-used to specifify extra paths to library files. Example :
+used to specify extra paths to library files. Example :
 
   $ make TARGET=generic ADDINC=-I/opt/cross/include ADDLIB=-L/opt/cross/lib64
 

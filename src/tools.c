@@ -3350,7 +3350,7 @@ void v4tov6(struct in6_addr *sin6_addr, struct in_addr *sin_addr)
 
 /* Try to convert IPv6 address to IPv4 address thanks to the
  * following mapping methods:
- *  - RFC4291 IPv4-Mapped IPv6 Address (prefered method)
+ *  - RFC4291 IPv4-Mapped IPv6 Address (preferred method)
  *    -> ::ffff:ip:v4
  *  - RFC4291 IPv4-Compatible IPv6 Address (deprecated, RFC3513 legacy for
  *    "IPv6 Addresses with Embedded IPv4 Addresses)

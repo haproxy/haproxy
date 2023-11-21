@@ -247,7 +247,7 @@ static inline void stream_inc_http_req_ctr(struct stream *s)
 }
 
 /* Increase the number of cumulated HTTP requests in the backend's tracked
- * counters. We don't look up the session since it cannot happen in the bakcend.
+ * counters. We don't look up the session since it cannot happen in the backend.
  */
 static inline void stream_inc_be_http_req_ctr(struct stream *s)
 {

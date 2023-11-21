@@ -652,8 +652,8 @@ struct mux_proto_list {
 #define TLV_HEADER_SIZE 3
 
 #define HA_PP2_AUTHORITY_MAX 255  /* Maximum length of an authority TLV */
-#define HA_PP2_TLV_VALUE_128 128  /* E.g., accomodate unique IDs (128 B) */
-#define HA_PP2_TLV_VALUE_256 256  /* E.g., accomodate authority TLVs (currently, <= 255 B) */
+#define HA_PP2_TLV_VALUE_128 128  /* E.g., accommodate unique IDs (128 B) */
+#define HA_PP2_TLV_VALUE_256 256  /* E.g., accommodate authority TLVs (currently, <= 255 B) */
 #define HA_PP2_MAX_ALLOC     1024 /* Maximum TLV value for PPv2 to prevent DoS */
 
 struct proxy_hdr_v2 {

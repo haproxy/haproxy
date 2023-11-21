@@ -7,7 +7,7 @@
 #endif
 
 #include <haproxy/openssl-compat.h>
-/* Highly inspired from nginx QUIC TLS compatibilty code */
+/* Highly inspired from nginx QUIC TLS compatibility code */
 #include <openssl/kdf.h>
 
 #include <haproxy/quic_conn.h>

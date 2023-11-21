@@ -463,7 +463,7 @@ static int smp_fetch_uniqueid(const struct arg *args, struct sample *smp, const 
 }
 
 /* Returns a string block containing all headers including the
- * empty line which separes headers from the body. This is useful
+ * empty line which separates headers from the body. This is useful
  * for some headers analysis.
  */
 static int smp_fetch_hdrs(const struct arg *args, struct sample *smp, const char *kw, void *private)

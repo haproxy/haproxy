@@ -583,7 +583,7 @@ static int smp_conv_clear(const struct arg *args, struct sample *smp, void *priv
 }
 
 /* This functions check an argument entry and fill it with a variable
- * type. The argumen must be a string. If the variable lookup fails,
+ * type. The argument must be a string. If the variable lookup fails,
  * the function returns 0 and fill <err>, otherwise it returns 1.
  */
 int vars_check_arg(struct arg *arg, char **err)

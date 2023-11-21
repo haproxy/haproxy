@@ -430,7 +430,7 @@ static enum act_return bwlim_set_limit(struct act_rule *rule, struct proxy *px,
 	return ACT_RET_CONT;
 }
 
-/* Check function for "set-bandwidth-limit" aciton. It returns 1 on
+/* Check function for "set-bandwidth-limit" action. It returns 1 on
  * success. Otherwise, it returns 0 and <err> is filled.
  */
 int check_bwlim_action(struct act_rule *rule, struct proxy *px, char **err)

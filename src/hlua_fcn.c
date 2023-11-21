@@ -589,7 +589,7 @@ static int hlua_queue_push(lua_State *L)
 	return 1;
 }
 
-/* internal queue pop helper, returns 1 if it successfuly popped an item
+/* internal queue pop helper, returns 1 if it successfully popped an item
  * from the queue and pushed it on lua stack.
  *
  * Else it returns 0 (nothing is pushed on the stack)
@@ -699,7 +699,7 @@ static int hlua_queue_pop_wait(lua_State *L)
 	 * call never returns, and instead Lua will call the continuation
 	 * function after a successful resume, so the calling function will
 	 * no longer be us, but Lua instead. And when the continuation function
-	 * eventually returns (because it succesfully popped an item), Lua will
+	 * eventually returns (because it successfully popped an item), Lua will
 	 * directly give the hand back to the Lua function that called us.
 	 *
 	 * More info here: https://www.lua.org/manual/5.4/manual.html#4.7

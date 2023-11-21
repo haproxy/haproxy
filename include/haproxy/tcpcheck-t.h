@@ -188,7 +188,7 @@ struct tcpcheck_expect {
 		} hdr;                       /* Matching a header pattern */
 
 
-		/* custom function to eval epxect rule */
+		/* custom function to eval expect rule */
 		enum tcpcheck_eval_ret (*custom)(struct check *, struct tcpcheck_rule *, int);
 	};
 	struct tcpcheck_rule *head;     /* first expect of a chain. */

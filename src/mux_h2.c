@@ -3261,7 +3261,7 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
  * For active reversal, only minor steps are required. The connection should
  * then be accepted by its listener before being able to use it for transfers.
  *
- * For passive reversal, connection is inserted in its targetted server idle
+ * For passive reversal, connection is inserted in its targeted server idle
  * pool. It can thus be reused immediately for future transfers on this server.
  *
  * Returns 1 on success else 0.
@@ -5006,7 +5006,7 @@ next_frame:
 			goto fail;
 		}
 
-		/* detect when we must stop aggragating frames */
+		/* detect when we must stop aggregating frames */
 		h2c->dff |= hdr.ff & H2_F_HEADERS_END_HEADERS;
 
 		/* Take as much as we can of the CONTINUATION frame's payload */
@@ -5016,7 +5016,7 @@ next_frame:
 
 		/* Move the frame's payload over the padding, hole and frame
 		 * header. At least one of hole or dpl is null (see diagrams
-		 * above). The hole moves after the new aggragated frame.
+		 * above). The hole moves after the new aggregated frame.
 		 */
 		b_move(&h2c->dbuf, b_peek_ofs(&h2c->dbuf, h2c->dfl + hole + 9), clen, -(h2c->dpl + hole + 9));
 		h2c->dfl += hdr.len - h2c->dpl;

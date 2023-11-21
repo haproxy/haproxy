@@ -664,7 +664,7 @@ static int mux_pt_fastfwd(struct stconn *sc, unsigned int count, unsigned int fl
 
 	try = se_nego_ff(sdo, &BUF_NULL, count, conn->xprt->rcv_pipe && !!(flags & CO_RFL_MAY_SPLICE) && !(sdo->iobuf.flags & IOBUF_FL_NO_SPLICING));
 	if (sdo->iobuf.flags & IOBUF_FL_NO_FF) {
-		/* Fast forwading is not supported by the consumer */
+		/* Fast forwarding is not supported by the consumer */
 		se_fl_clr(ctx->sd, SE_FL_MAY_FASTFWD);
 		TRACE_DEVEL("Fast-forwarding not supported by opposite endpoint, disable it", PT_EV_RX_DATA, conn, sc);
 		goto end;

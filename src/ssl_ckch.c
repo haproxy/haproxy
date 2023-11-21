@@ -2422,7 +2422,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 
 	data = new_ckchs->data;
 
-	/* appply the change on the duplicate */
+	/* apply the change on the duplicate */
 	if (cert_ext->load(buf->area, payload, data, &err) != 0) {
 		memprintf(&err, "%sCan't load the payload\n", err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;

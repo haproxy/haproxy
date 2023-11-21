@@ -229,7 +229,7 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
  *
  *  1: the expansion must be performed in place, there is enough space after
  *      the block's payload to handle it. This is especially true if it is a
- *      compression and not an expension.
+ *      compression and not an expansion.
  *
  *  2: the block's payload must be moved at the new block address before doing
  *     the expansion.

@@ -469,7 +469,7 @@ size_t ring_max_payload(const struct ring *ring)
 	/* initial max = bufsize - 1 (initial RC) - 1 (payload RC) */
 	max = b_size(&ring->buf) - 1 - 1;
 
-	/* substract payload VI (varint-encoded size) */
+	/* subtract payload VI (varint-encoded size) */
 	max -= varint_bytes(max);
 	return max;
 }

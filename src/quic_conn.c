@@ -817,7 +817,7 @@ static struct task *qc_cc_idle_timer_task(struct task *t, void *ctx, unsigned in
  * if succeeded, NULL if not. This function is also responsible of
  * copying enough and the least possible information from <qc> original
  * connection to the newly allocated connection so that to keep it
- * functionnal until its idle timer expires.
+ * functional until its idle timer expires.
  */
 static struct quic_cc_conn *qc_new_cc_conn(struct quic_conn *qc)
 {
@@ -974,7 +974,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		quic_pktns_release(qc, &qc->ipktns);
 		qc_enc_level_free(qc, &qc->hel);
 		quic_pktns_release(qc, &qc->hpktns);
-		/* Also release the negotiated Inital TLS context. */
+		/* Also release the negotiated Initial TLS context. */
 		quic_nictx_free(qc);
 	}
 
@@ -1161,7 +1161,7 @@ static int quic_increment_curr_handshake(struct listener *l)
  * <dcid> is the destination connection ID, <scid> is the source connection ID.
  * This latter <scid> CID as the same value on the wire as the one for <conn_id>
  * which is the first CID of this connection but a different internal representation used to build
- * NEW_CONNECTION_ID frames. This is the responsability of the caller to insert
+ * NEW_CONNECTION_ID frames. This is the responsibility of the caller to insert
  * <conn_id> in the CIDs tree for this connection (qc->cids).
  * <token> is the token found to be used for this connection with <token_len> as
  * length. Endpoints addresses are specified via <local_addr> and <peer_addr>.
@@ -1581,7 +1581,7 @@ void quic_conn_release(struct quic_conn *qc)
 
 	/* Decrement global counters when quic_conn is deallocated.
 	 * quic_cc_conn instances are not accounted as they run for a short
-	 * time with limited ressources.
+	 * time with limited resources.
 	 */
 	_HA_ATOMIC_DEC(&actconn);
 	_HA_ATOMIC_DEC(&global.sslconns);

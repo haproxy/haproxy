@@ -66,7 +66,7 @@
 
 #define TX_CON_WANT_TUN 0x00008000	/* Will be a tunnel (CONNECT or 101-Switching-Protocol) */
 
-#define TX_CACHE_HAS_SEC_KEY 0x00010000 /* secondary key building succedeed */
+#define TX_CACHE_HAS_SEC_KEY 0x00010000 /* secondary key building succeeded */
 
 #define TX_USE_PX_CONN	0x00020000	/* Use "Proxy-Connection" instead of "Connection" */
 
@@ -177,7 +177,7 @@ enum {
 	REDIRECT_TYPE_SCHEME,           /* scheme redirect (eg: switch from http to https) */
 };
 
-/* Perist types (force-persist, ignore-persist) */
+/* Persist types (force-persist, ignore-persist) */
 enum {
 	PERSIST_TYPE_NONE = 0,          /* no persistence */
 	PERSIST_TYPE_FORCE,             /* force-persist */

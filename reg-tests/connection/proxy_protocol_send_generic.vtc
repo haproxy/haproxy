@@ -29,7 +29,7 @@ haproxy h1 -conf {
         http-after-response set-header proxy_custom_tlv_b %[var(txn.custom_tlv_b)]
 
         # Note that we do not check for an invalid TLV ID as that would result in an
-        # parser error anway.
+        # parser error anyway.
 
         http-request return status 200
 } -start

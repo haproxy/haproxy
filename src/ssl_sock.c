@@ -7327,7 +7327,7 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx)
 		/* Now, we start the browsing of the references lists.
 		 * Note that the following call to LIST_ELEM return bad pointer. The only
 		 * available field of this pointer is <list>. It is used with the function
-		 * tlskeys_list_get_next() for retruning the first available entry
+		 * tlskeys_list_get_next() for returning the first available entry
 		 */
 		if (ctx->next_ref == NULL)
 			ctx->next_ref = tlskeys_list_get_next(&tlskeys_reference, &tlskeys_reference);

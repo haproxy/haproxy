@@ -1802,7 +1802,7 @@ skip_reuse:
 	    (srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) &&
 	    /* Only attempt to use early data if either the client sent
 	     * early data, so that we know it can handle a 425, or if
-	     * we are allwoed to retry requests on early data failure, and
+	     * we are allowed to retry requests on early data failure, and
 	     * it's our first try
 	     */
 	    ((cli_conn->flags & CO_FL_EARLY_DATA) ||

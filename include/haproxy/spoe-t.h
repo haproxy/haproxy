@@ -373,7 +373,7 @@ struct spoe_context {
 		ullong         response_ts; /* date the response processing starts */
 		long           t_request;   /* delay to encode and push the frame in queue (cumulative for frags) */
 		long           t_queue;     /* delay before the frame gets out the sending queue (cumulative for frags) */
-		long           t_waiting;   /* delay before the response is reveived */
+		long           t_waiting;   /* delay before the response is received */
 		long           t_response;  /* delay to process the response (from the stream pov) */
 		long           t_process;   /* processing time of the last event/group */
 		unsigned long  t_total;     /* cumulative processing time */

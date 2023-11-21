@@ -89,7 +89,7 @@ static inline uint64_t pbuf_le64toh(uint64_t v)
 }
 
 /*
- * Return a protobuf type enum from <s> string if succedeed, -1 if not.
+ * Return a protobuf type enum from <s> string if succeeded, -1 if not.
  */
 int protobuf_type(const char *s)
 {

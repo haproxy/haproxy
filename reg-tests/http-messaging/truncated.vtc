@@ -96,6 +96,6 @@ client c1h2 -connect ${h1_feh2_sock} {
 		expect resp.status == 200
 		rxdata -all
 		expect resp.bodylen == 16300
-		#expext resp.chunkedlen == 16300
+		#expect resp.chunkedlen == 16300
 	} -run
 } -repeat 2 -run

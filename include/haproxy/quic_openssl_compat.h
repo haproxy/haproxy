@@ -3,7 +3,7 @@
 
 #ifdef USE_QUIC_OPENSSL_COMPAT
 
-/* Highly inspired from nginx QUIC TLS compatibilty code */
+/* Highly inspired from nginx QUIC TLS compatibility code */
 #include <haproxy/listener-t.h>
 #include <haproxy/quic_openssl_compat-t.h>
 

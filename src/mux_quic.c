@@ -217,7 +217,7 @@ static inline int qcc_is_dead(const struct qcc *qcc)
 		return 0;
 
 	/* Connection considered dead if either :
-	 * - remote error detected at tranport level
+	 * - remote error detected at transport level
 	 * - error detected locally
 	 * - MUX timeout expired
 	 */

@@ -85,7 +85,7 @@ static const struct log_fmt_st log_formats[LOG_FORMATS] = {
 
 /*
  * This map is used with all the FD_* macros to check whether a particular bit
- * is set or not. Each bit represents an ACSII code. ha_bit_set() sets those
+ * is set or not. Each bit represents an ASCII code. ha_bit_set() sets those
  * bytes which should be escaped. When ha_bit_test() returns non-zero, it means
  * that the byte should be escaped. Be careful to always pass bytes from 0 to
  * 255 exclusively to the macros.
@@ -780,7 +780,7 @@ static void _log_backend_srv_queue(struct server *srv)
 {
 	struct proxy *p = srv->proxy;
 
-	/* queue the server in the proxy lb array to make it easily searcheable by
+	/* queue the server in the proxy lb array to make it easily searchable by
 	 * log-balance algorithms. Here we use the srv array as a general server
 	 * pool of in-use servers, lookup is done using a relative positional id
 	 * (array is contiguous)
@@ -947,7 +947,7 @@ static int postcheck_log_backend(struct proxy *be)
 	if (err_code & ERR_CODE)
 		return err_code;
 
-	/* First time encoutering this log backend, perform some init
+	/* First time encountering this log backend, perform some init
 	 */
 	be->lbprm.set_server_status_up = log_backend_srv_up;
 	be->lbprm.set_server_status_down = log_backend_srv_down;
@@ -1092,7 +1092,7 @@ static int postcheck_log_backend(struct proxy *be)
  * Returns err_code which defaults to ERR_NONE and can be set to a combination
  * of ERR_WARN, ERR_ALERT, ERR_FATAL and ERR_ABORT in case of errors.
  * <msg> could be set at any time (it will usually be set on error, but
- * could also be set when no error occured to report a diag warning), thus is
+ * could also be set when no error occurred to report a diag warning), thus is
  * up to the caller to check it and to free it.
  */
 int resolve_logger(struct logger *logger, char **msg)

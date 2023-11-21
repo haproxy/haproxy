@@ -166,7 +166,7 @@ int session_accept_fd(struct connection *cli_conn)
 	cli_conn->proxy_netns = l->rx.settings->netns;
 
 	/* Active reversed connection has already been initialized before being
-	 * accepted. It must not be resetted.
+	 * accepted. It must not be reset.
 	 * TODO use a dedicated accept_fd callback for reverse protocol
 	 */
 	if (!cli_conn->xprt) {

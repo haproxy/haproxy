@@ -34,7 +34,7 @@
 
 struct stconn;
 
-/* perform minimal intializations, report 0 in case of error, 1 if OK. */
+/* perform minimal initializations, report 0 in case of error, 1 if OK. */
 int init_channel();
 
 unsigned long long __channel_forward(struct channel *chn, unsigned long long bytes);

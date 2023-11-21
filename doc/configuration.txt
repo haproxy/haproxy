@@ -12565,13 +12565,13 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
                written to in addition to the source table. <wtable> must be of
                the same type as the table being defined and must have the same
                key length, and source table cannot be used as a target table
-               itself. Everytime an entry update will be received on the source
+               itself. Every time an entry update will be received on the source
                table through a peer, haproxy will try to refresh related
                <wtable> entry. If the entry doesn't exist yet, it will be
                created, else its values will be updated as well as its timer.
                Note that only types that are not involved in arithmetic ops such
                as server_id, server_key and gpt will be written to <wtable> to
-               prevent processed values from a remote table from intefering with
+               prevent processed values from a remote table from interfering with
                arithmetic operations performed on the local target table.
                (ie: prevent shared cumulative counter from growing indefinitely)
                One common use of this option is to be able to use sticking rules
@@ -15598,7 +15598,7 @@ quic-cc-algo { cubic | newreno }(max_window)
 quic-force-retry
   This is a QUIC specific setting which forces the use of the QUIC Retry feature
   for all the connection attempts to the configured QUIC listeners. It consists
-  in veryfying the peers are able to receive packets at the transport address
+  in verifying the peers are able to receive packets at the transport address
   they used to initiate a new connection, sending them a Retry packet which
   contains a token. This token must be sent back to the Retry packet sender,
   this latter being the only one to be able to validate the token. Note that QUIC
@@ -20405,7 +20405,7 @@ fc_pp_tlv(<id>) : string
   values to 256 bytes for optimal performance.
 
   Note that unlike fc_pp_authority and fc_pp_unique_id, fc_pp_tlv is able to
-  iterate over all occurances of a requested TLV in case there are duplicate
+  iterate over all occurrences of a requested TLV in case there are duplicate
   TLV IDs. The order of iteration matches the position in the PROXY protocol
   header. However, relying on duplicates should mostly be avoided as TLVs are
   typically assumed to be unique. Generally, finding duplicated TLV IDs
@@ -22611,7 +22611,7 @@ req_ver : string (deprecated)
   Common values are "1.0", "1.1", "2.0" or "3.0".
 
   In the case of http/2 and http/3, the value is not extracted from the HTTP
-  version in the request line but is determined by the negociated protocol
+  version in the request line but is determined by the negotiated protocol
   version.
 
   ACL derivatives :

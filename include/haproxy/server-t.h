@@ -515,7 +515,7 @@ struct event_hdl_cb_data_server_checkres {
 	} reason;
 	struct {
 		int cur;              /* dynamic (= check->health) */
-		int rise, fall;       /* config dependant */
+		int rise, fall;       /* config dependent */
 	} health;                     /* check's health, see check-t.h */
 };
 

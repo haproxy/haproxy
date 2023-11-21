@@ -9,7 +9,7 @@
 #define QUIC_OPENSSL_COMPAT_TLS_SECRET_LEN 48
 #define QUIC_OPENSSL_COMPAT_TLS_IV_LEN     12
 
-/* Highly inspired from nginx QUIC TLS compatibilty code */
+/* Highly inspired from nginx QUIC TLS compatibility code */
 
 enum ssl_encryption_level_t {
 	ssl_encryption_initial = 0,

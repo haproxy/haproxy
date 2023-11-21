@@ -489,7 +489,7 @@ static inline size_t quic_path_prep_data(struct quic_path *path)
 }
 
 /* Return the number of bytes which may be sent from <qc> connection when
- * it has not already been validated. Note that this is the responsability
+ * it has not already been validated. Note that this is the responsibility
  * of the caller to check that the case with quic_peer_validated_addr().
  * This latter BUG_ON() if 3 * qc->rx.bytes < qc->tx.prep_bytes.
  */

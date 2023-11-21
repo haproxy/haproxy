@@ -404,7 +404,7 @@ static int ha_quic_send_alert(SSL *ssl, enum ssl_encryption_level_t level, uint8
 
 /* QUIC TLS methods */
 #if defined(OPENSSL_IS_AWSLC)
-/* write/read set secret splitted */
+/* write/read set secret split */
 static SSL_QUIC_METHOD ha_quic_method = {
 	.set_read_secret        = ha_quic_set_read_secret,
 	.set_write_secret       = ha_quic_set_write_secret,

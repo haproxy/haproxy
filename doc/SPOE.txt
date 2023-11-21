@@ -93,7 +93,7 @@ spoe" line in a proxy section (frontend/backend/listen) :
       filter spoe [engine <name>] config <file>
       ...
 
-The "config" parameter is mandatory. It specififies the SPOE configuration
+The "config" parameter is mandatory. It specifies the SPOE configuration
 file. The engine name is optional. It can be set to declare the scope to use in
 the SPOE configuration. So it is possible to use the same SPOE configuration
 for several engines. If no name is provided, the SPOE configuration must not
@@ -119,7 +119,7 @@ scope in the SPOE configuration with the same name. You can have several SPOE
 scope in the same file. In each scope, you must define one and only one
 "spoe-agent" section to configure the SPOA linked to your SPOE and several
 "spoe-message" and "spoe-group" sections to describe, respectively, messages and
-group of messages sent to servers mananged by your SPOA.
+group of messages sent to servers managed by your SPOA.
 
 A SPOE scope starts with this kind of line :
 

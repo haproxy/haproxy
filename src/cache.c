@@ -240,7 +240,7 @@ static void release_entry_unlocked(struct cache_tree *cache, struct cache_entry 
  * is already expired, and NULL is returned. Otherwise, the expired entry is
  * removed from the tree and NULL is returned.
  * Returns a valid (not expired) cache_tree pointer.
- * The returned entry is not retained, it should be explicitely retained only
+ * The returned entry is not retained, it should be explicitly retained only
  * when necessary.
  *
  * This function must be called under a cache lock, either read if
@@ -1033,7 +1033,7 @@ static void cache_reserve_finish(struct shared_context *shctx)
 			 * the cache_use case which is under cache_rdlock and
 			 * the reserve_hot case which would require the
 			 * corresponding block to still be in the avail list,
-			 * which is impossible (we reverved it for a thread and
+			 * which is impossible (we reserved it for a thread and
 			 * took it out of the avail list already). The only two
 			 * references are then the default one (upon cache_entry
 			 * creation) and the one in this cleanup list.

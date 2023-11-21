@@ -620,7 +620,7 @@ void pool_evict_from_local_caches()
 /* Frees an object to the local cache, possibly pushing oldest objects to the
  * shared cache, which itself may decide to release some of them to the OS.
  * While it is unspecified what the object becomes past this point, it is
- * guaranteed to be released from the users' perpective. A caller address may
+ * guaranteed to be released from the users' perspective. A caller address may
  * be passed and stored into the area when DEBUG_POOL_TRACING is set. Must not
  * be used with pools disabled.
  */
@@ -864,7 +864,7 @@ void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 			/* replace the caller with the allocated bin: this way
 			 * we'll the pool_free() call will be able to update our
 			 * entry. We only do it for non-colliding entries though,
-			 * since thse ones store the true caller location.
+			 * since these ones store the true caller location.
 			 */
 			if (bin >= &memprof_stats[0] && bin < &memprof_stats[MEMPROF_HASH_BUCKETS])
 				POOL_DEBUG_TRACE_CALLER(pool, (struct pool_cache_item *)p, bin);

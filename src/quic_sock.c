@@ -43,7 +43,7 @@
 #include <haproxy/tools.h>
 #include <haproxy/trace.h>
 
-/* Log only first EACCES bind() error runtime occurence. */
+/* Log only first EACCES bind() error runtime occurrence. */
 static volatile char quic_bind_eacces_warn = 0;
 
 /* Retrieve a connection's source address. Returns -1 on failure. */

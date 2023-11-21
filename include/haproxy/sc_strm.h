@@ -86,7 +86,7 @@ static inline struct stconn *sc_opposite(const struct stconn *sc)
 
 
 /* sets the current and previous state of a stream connector to <state>. This is
- * mainly used to create one in the established state on incoming conncetions.
+ * mainly used to create one in the established state on incoming connections.
  */
 static inline void sc_set_state(struct stconn *sc, int state)
 {

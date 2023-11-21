@@ -128,7 +128,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_O2_LOGERRORS	0x00000040      /* log errors and retries at level LOG_ERR */
 #define PR_O2_SMARTACC 	0x00000080      /* don't immediately ACK request after accept */
 #define PR_O2_SMARTCON 	0x00000100      /* don't immediately send empty ACK after connect */
-#define PR_O2_RDPC_PRST	0x00000200      /* Actvate rdp cookie analyser */
+#define PR_O2_RDPC_PRST	0x00000200      /* Activate rdp cookie analyser */
 #define PR_O2_CLFLOG	0x00000400      /* log into clf format */
 #define PR_O2_LOGHCHKS	0x00000800	/* log health checks */
 #define PR_O2_INDEPSTR	0x00001000	/* independent streams, don't update rex on write */

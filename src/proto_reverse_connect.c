@@ -180,7 +180,7 @@ struct task *rev_process(struct task *task, void *ctx, unsigned int state)
 			BUG_ON(l->rx.reverse_connect.pend_conn);
 		}
 		else {
-			/* Spurrious receiver task woken up despite pend_conn not ready/on error. */
+			/* Spurious receiver task woken up despite pend_conn not ready/on error. */
 			BUG_ON(!(conn->flags & CO_FL_ACT_REVERSING));
 
 			/* A connection is ready to be accepted. */
@@ -233,7 +233,7 @@ int rev_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	/* Set maxconn which is defined via the special kw nbconn for reverse
 	 * connect. Use a default value of 1 if not set. This guarantees that
-	 * listener will be automatically reenable each time it fell back below
+	 * listener will be automatically re-enable each time it fell back below
 	 * it due to a connection error.
 	 */
 	listener->bind_conf->maxconn = listener->bind_conf->reverse_nbconn;
@@ -329,7 +329,7 @@ struct connection *rev_accept_conn(struct listener *l, int *status)
 
 	if (!conn) {
 		/* Reverse connect listener must have an explicit maxconn set
-		 * to ensure it is reenabled on connection error.
+		 * to ensure it is re-enabled on connection error.
 		 */
 		BUG_ON(!l->bind_conf->maxconn);
 

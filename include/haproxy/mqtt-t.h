@@ -85,7 +85,7 @@ enum {
 #define MQTT_CONNECT_FL_PASSWORD        0x40
 #define MQTT_CONNECT_FL_USERNAME        0x80
 
-/* MQTT packet properties indentifiers
+/* MQTT packet properties identifiers
  * https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html#_Toc3901029
  */
 #define MQTT_PROP_PAYLOAD_FORMAT_INDICATOR           0x01

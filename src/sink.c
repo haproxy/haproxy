@@ -663,7 +663,7 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 }
 
 /*
- * Task to handle connctions to forward servers
+ * Task to handle connections to forward servers
  */
 static struct task *process_sink_forward(struct task * task, void *context, unsigned int state)
 {
@@ -696,7 +696,7 @@ static struct task *process_sink_forward(struct task * task, void *context, unsi
 	return task;
 }
 /*
- * Init task to manage connctions to forward servers
+ * Init task to manage connections to forward servers
  *
  * returns 0 in case of error.
  */
@@ -1323,7 +1323,7 @@ int cfg_post_parse_ring()
  * Returns err_code which defaults to ERR_NONE and can be set to a combination
  * of ERR_WARN, ERR_ALERT, ERR_FATAL and ERR_ABORT in case of errors.
  * <msg> could be set at any time (it will usually be set on error, but
- * could also be set when no error occured to report a diag warning), thus is
+ * could also be set when no error occurred to report a diag warning), thus is
  * up to the caller to check it and to free it.
  */
 int sink_resolve_logger_buffer(struct logger *logger, char **msg)

@@ -85,7 +85,7 @@
 #define GTUNE_LISTENER_MQ_OPT    (1<<28)
 #define GTUNE_LISTENER_MQ_ANY    (GTUNE_LISTENER_MQ_FAIR | GTUNE_LISTENER_MQ_OPT)
 
-extern int cluster_secret_isset; /* non zero means a cluster secret was initiliazed */
+extern int cluster_secret_isset; /* non zero means a cluster secret was initialized */
 
 /* SSL server verify mode */
 enum {
