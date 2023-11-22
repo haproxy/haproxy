@@ -86,6 +86,7 @@ struct post_mortem {
 		char soc_vendor[64];    // SoC/CPU vendor from cpuinfo
 		char soc_model[64];     // SoC model when known and relevant
 		char cpu_model[64];     // CPU model when different from SoC
+		char virt_techno[16];   // when provided by cpuid
 		char cont_techno[16];   // empty, "no", "yes", "docker" or others
 	} platform;
 } post_mortem ALIGNED(256) = { };
@@ -470,6 +471,8 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 		chunk_appendf(&trash, "  soc model: %s\n", post_mortem.platform.soc_model);
 	if (*post_mortem.platform.cpu_model)
 		chunk_appendf(&trash, "  cpu model: %s\n", post_mortem.platform.cpu_model);
+	if (*post_mortem.platform.virt_techno)
+		chunk_appendf(&trash, "  virtual machine: %s\n", post_mortem.platform.virt_techno);
 	if (*post_mortem.platform.cont_techno)
 		chunk_appendf(&trash, "  container: %s\n", post_mortem.platform.cont_techno);
 	if (*post_mortem.platform.utsname.sysname)
@@ -1964,6 +1967,7 @@ static void feed_post_mortem_linux()
 		uint cpu_family = 0, model = 0, stepping = 0;                                  // x86
 		char vendor_id[64] = "", model_name[64] = "";                                  // x86
 		char machine[64] = "", system_type[64] = "", cpu_model[64] = "";               // mips
+		const char *virt = "no";
 		char *p, *e, *v, *lf;
 
 		/* let's figure what CPU we're working with */
@@ -2009,6 +2013,16 @@ static void feed_post_mortem_linux()
 				strlcpy2(vendor_id, v, sizeof(vendor_id));
 			else if (strcmp(p, "model name") == 0)
 				strlcpy2(model_name, v, sizeof(model_name));
+			else if (strcmp(p, "flags") == 0) {
+				if (strstr(v, "hypervisor")) {
+					if (strncmp(post_mortem.platform.hw_vendor, "QEMU", 4) == 0)
+						virt = "qemu";
+					else if (strncmp(post_mortem.platform.hw_vendor, "VMware", 6) == 0)
+						virt = "vmware";
+					else
+						virt = "yes";
+				}
+			}
 
 			/* MIPS */
 			else if (strcmp(p, "system type") == 0)
@@ -2075,6 +2089,9 @@ static void feed_post_mortem_linux()
 				 "%sr%up%u", *cpu_model ? " " : "", cpu_variant, cpu_rev);
 
 		strlcpy2(post_mortem.platform.cpu_model, cpu_model, sizeof(post_mortem.platform.cpu_model));
+
+		if (*virt)
+			strlcpy2(post_mortem.platform.virt_techno, virt, sizeof(post_mortem.platform.virt_techno));
 	}
 #endif // __linux__
 }
