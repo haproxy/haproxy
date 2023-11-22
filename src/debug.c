@@ -98,6 +98,13 @@ struct post_mortem {
 		gid_t boot_gid;
 		struct rlimit limit_fd;  // RLIMIT_NOFILE
 		struct rlimit limit_ram; // RLIMIT_AS or RLIMIT_DATA
+
+#if defined(USE_THREAD)
+		struct {
+			ullong pth_id;   // pthread_t cast to a ullong
+			void *stack_top; // top of the stack
+		} thread_info[MAX_THREADS];
+#endif
 	} process;
 } post_mortem ALIGNED(256) = { };
 
@@ -2144,6 +2151,28 @@ static int feed_post_mortem()
 }
 
 REGISTER_POST_CHECK(feed_post_mortem);
+
+#ifdef USE_THREAD
+/* init code is called one at a time so let's collect all per-thread info on
+ * the last starting thread. These info are not critical anyway and there's no
+ * problem if we get them slightly late.
+ */
+static int feed_post_mortem_late()
+{
+	static int per_thread_info_collected;
+
+	if (HA_ATOMIC_ADD_FETCH(&per_thread_info_collected, 1) == global.nbthread) {
+		int i;
+		for (i = 0; i < global.nbthread; i++) {
+			post_mortem.process.thread_info[i].pth_id = ha_thread_info[i].pth_id;
+			post_mortem.process.thread_info[i].stack_top = ha_thread_info[i].stack_top;
+		}
+	}
+	return 1;
+}
+
+REGISTER_PER_THREAD_INIT(feed_post_mortem_late);
+#endif
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
