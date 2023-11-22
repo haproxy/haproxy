@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <syslog.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
@@ -89,6 +90,15 @@ struct post_mortem {
 		char virt_techno[16];   // when provided by cpuid
 		char cont_techno[16];   // empty, "no", "yes", "docker" or others
 	} platform;
+
+	/* process-specific information */
+	struct {
+		pid_t pid;
+		uid_t boot_uid;
+		gid_t boot_gid;
+		struct rlimit limit_fd;  // RLIMIT_NOFILE
+		struct rlimit limit_ram; // RLIMIT_AS or RLIMIT_DATA
+	} process;
 } post_mortem ALIGNED(256) = { };
 
 /* Points to a copy of the buffer where the dump functions should write, when
@@ -485,6 +495,20 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 		chunk_appendf(&trash, "  OS architecture: %s\n", post_mortem.platform.utsname.machine);
 	if (*post_mortem.platform.utsname.nodename)
 		chunk_appendf(&trash, "  node name: %s\n", HA_ANON_CLI(post_mortem.platform.utsname.nodename));
+
+	chunk_appendf(&trash, "Process info\n");
+	chunk_appendf(&trash, "  pid: %d\n", post_mortem.process.pid);
+	chunk_appendf(&trash, "  boot uid: %d\n", post_mortem.process.boot_uid);
+	chunk_appendf(&trash, "  boot gid: %d\n", post_mortem.process.boot_gid);
+
+	if ((ulong)post_mortem.process.limit_fd.rlim_cur != RLIM_INFINITY)
+		chunk_appendf(&trash, "  fd limit (soft): %lu\n", (ulong)post_mortem.process.limit_fd.rlim_cur);
+	if ((ulong)post_mortem.process.limit_fd.rlim_max != RLIM_INFINITY)
+		chunk_appendf(&trash, "  fd limit (hard): %lu\n", (ulong)post_mortem.process.limit_fd.rlim_max);
+	if ((ulong)post_mortem.process.limit_ram.rlim_cur != RLIM_INFINITY)
+		chunk_appendf(&trash, "  ram limit (soft): %lu\n", (ulong)post_mortem.process.limit_ram.rlim_cur);
+	if ((ulong)post_mortem.process.limit_ram.rlim_max != RLIM_INFINITY)
+		chunk_appendf(&trash, "  ram limit (hard): %lu\n", (ulong)post_mortem.process.limit_ram.rlim_max);
 
 	return cli_msg(appctx, LOG_INFO, trash.area);
 }
@@ -2100,6 +2124,18 @@ static int feed_post_mortem()
 {
 	/* kernel type, version and arch */
 	uname(&post_mortem.platform.utsname);
+
+	/* some boot-time info related to the process */
+	post_mortem.process.pid = getpid();
+	post_mortem.process.boot_uid = geteuid();
+	post_mortem.process.boot_gid = getegid();
+
+	getrlimit(RLIMIT_NOFILE, &post_mortem.process.limit_fd);
+#if defined(RLIMIT_AS)
+	getrlimit(RLIMIT_AS, &post_mortem.process.limit_ram);
+#elif defined(RLIMIT_DATA)
+	getrlimit(RLIMIT_DATA, &post_mortem.process.limit_ram);
+#endif
 
 	if (strcmp(post_mortem.platform.utsname.sysname, "Linux") == 0)
 		feed_post_mortem_linux();
