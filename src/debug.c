@@ -1898,6 +1898,8 @@ REGISTER_PER_THREAD_INIT(init_debug_per_thread);
 static void feed_post_mortem_linux()
 {
 #if defined(__linux__)
+	struct stat statbuf;
+
 	/* DMI reports either HW or hypervisor, this allows to detect most VMs.
 	 * On ARM the device-tree is often more precise for the model. Since many
 	 * boards present "to be filled by OEM" or so in many fields, we dedup
@@ -1935,7 +1937,12 @@ static void feed_post_mortem_linux()
 	if (read_line_to_trash("/proc/2/status") <= 0 ||
 	    (strcmp(trash.area, "Name:\tkthreadd") != 0 &&
 	     strcmp(trash.area, "Name:\tkeventd") != 0)) {
-		strlcpy2(post_mortem.platform.cont_techno, "yes", sizeof(post_mortem.platform.cont_techno));
+		/* OK we're in a container. Docker often has /.dockerenv */
+		const char *tech = "yes";
+
+		if (stat("/.dockerenv", &statbuf) == 0)
+			tech = "docker";
+		strlcpy2(post_mortem.platform.cont_techno, tech, sizeof(post_mortem.platform.cont_techno));
 	}
 	else {
 		strlcpy2(post_mortem.platform.cont_techno, "no", sizeof(post_mortem.platform.cont_techno));
