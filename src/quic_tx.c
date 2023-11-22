@@ -545,10 +545,14 @@ static inline void qc_free_frm_list(struct quic_conn *qc, struct list *l)
 {
 	struct quic_frame *frm, *frmbak;
 
+	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
+
 	list_for_each_entry_safe(frm, frmbak, l, list) {
 		LIST_DEL_INIT(&frm->ref);
 		qc_frm_free(qc, &frm);
 	}
+
+	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 }
 
 /* Free <pkt> TX packet and all the packets coalesced to it. */
@@ -557,11 +561,15 @@ static inline void qc_free_tx_coalesced_pkts(struct quic_conn *qc,
 {
 	struct quic_tx_packet *pkt, *nxt_pkt;
 
+	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
+
 	for (pkt = p; pkt; pkt = nxt_pkt) {
 		qc_free_frm_list(qc, &pkt->frms);
 		nxt_pkt = pkt->next;
 		pool_free(pool_head_quic_tx_packet, pkt);
 	}
+
+	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 }
 
 /* Purge <buf> TX buffer from its prepare packets. */
@@ -1232,8 +1240,10 @@ int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
 		goto leave;
 	}
 
-	if (b_data(buf) && !qc_purge_txbuf(qc, buf))
+	if (b_data(buf) && !qc_purge_txbuf(qc, buf)) {
+		TRACE_ERROR("Could not purge TX buffer", QUIC_EV_CONN_TXPKT, qc);
 		goto out;
+	}
 
 	/* Currently buf cannot be non-empty at this stage. Even if a previous
 	 * sendto() has failed it is emptied to simulate packet emission and
@@ -1260,12 +1270,14 @@ int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
 	ret = qc_prep_hpkts(qc, buf, &qels);
 	if (ret == -1) {
 		qc_txb_release(qc);
+		TRACE_ERROR("Could not build some packets", QUIC_EV_CONN_TXPKT, qc);
 		goto out;
 	}
 
 	if (ret && !qc_send_ppkts(buf, qc->xprt_ctx)) {
 		if (qc->flags & QUIC_FL_CONN_TO_KILL)
 			qc_txb_release(qc);
+		TRACE_ERROR("Could not send some packets", QUIC_EV_CONN_TXPKT, qc);
 		goto out;
 	}
 
