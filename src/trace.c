@@ -369,6 +369,44 @@ static int trace_parse_level(const char *level)
 		return -1;
 }
 
+/* Returns the verbosity value or a negative error code. */
+static int trace_source_parse_verbosity(struct trace_source *src,
+                                        const char *verbosity)
+{
+	const struct name_desc *nd;
+	int ret;
+
+	if (strcmp(verbosity, "quiet") == 0) {
+		ret = 0;
+		goto end;
+	}
+
+	/* Only "quiet" is defined for all sources. Other identifiers are
+	 * specific to trace source.
+	 */
+	BUG_ON(!src);
+
+	if (!src->decoding || !src->decoding[0].name) {
+		if (strcmp(verbosity, "default") != 0)
+			return -1;
+
+		ret = 1;
+	}
+	else {
+		for (nd = src->decoding; nd->name && nd->desc; nd++)
+			if (strcmp(verbosity, nd->name) == 0)
+				break;
+
+		if (!nd->name || !nd->desc)
+			return -1;
+
+		ret = nd - src->decoding + 1;
+	}
+
+ end:
+	return ret;
+}
+
 /* Parse a "trace" statement. Returns a severity as a LOG_* level and a status
  * message that may be delivered to the user, in <msg>. The message will be
  * nulled first and msg must be an allocated pointer. A null status message output
@@ -696,6 +734,7 @@ static int trace_parse_statement(char **args, char **msg)
 	else if (strcmp(args[2], "verbosity") == 0) {
 		const char *name = args[3];
 		const struct name_desc *nd;
+		int verbosity;
 
 		if (!*name) {
 			chunk_printf(&trash, "Supported trace verbosities for source %s:\n", src->name.ptr);
@@ -715,27 +754,13 @@ static int trace_parse_statement(char **args, char **msg)
 			return LOG_WARNING;
 		}
 
-		if (strcmp(name, "quiet") == 0)
-			HA_ATOMIC_STORE(&src->verbosity, 0);
-		else if (!src->decoding || !src->decoding[0].name) {
-			if (strcmp(name, "default") == 0)
-				HA_ATOMIC_STORE(&src->verbosity, 1);
-			else {
-				memprintf(msg, "No such verbosity level '%s'", name);
-				return LOG_ERR;
-			}
-		} else {
-			for (nd = src->decoding; nd->name && nd->desc; nd++)
-				if (strcmp(name, nd->name) == 0)
-					break;
-
-			if (!nd->name || !nd->desc) {
-				memprintf(msg, "No such verbosity level '%s'", name);
-				return LOG_ERR;
-			}
-
-			HA_ATOMIC_STORE(&src->verbosity, (nd - src->decoding) + 1);
+		verbosity = trace_source_parse_verbosity(src, name);
+		if (verbosity < 0) {
+			memprintf(msg, "No such verbosity level '%s'", name);
+			return LOG_ERR;
 		}
+
+		HA_ATOMIC_STORE(&src->verbosity, verbosity);
 	}
 	else {
 		memprintf(msg, "Unknown trace keyword '%s'", args[2]);
