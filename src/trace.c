@@ -347,6 +347,28 @@ const struct trace_event *trace_find_event(const struct trace_event *ev, const c
 	return NULL;
 }
 
+/* Returns the level value or a negative error code. */
+static int trace_parse_level(const char *level)
+{
+	if (!level)
+		return -1;
+
+	if (strcmp(level, "error") == 0)
+		return TRACE_LEVEL_ERROR;
+	else if (strcmp(level, "user") == 0)
+		return TRACE_LEVEL_USER;
+	else if (strcmp(level, "proto") == 0)
+		return TRACE_LEVEL_PROTO;
+	else if (strcmp(level, "state") == 0)
+		return TRACE_LEVEL_STATE;
+	else if (strcmp(level, "data") == 0)
+		return TRACE_LEVEL_DATA;
+	else if (strcmp(level, "developer") == 0)
+		return TRACE_LEVEL_DEVELOPER;
+	else
+		return -1;
+}
+
 /* Parse a "trace" statement. Returns a severity as a LOG_* level and a status
  * message that may be delivered to the user, in <msg>. The message will be
  * nulled first and msg must be an allocated pointer. A null status message output
@@ -506,6 +528,7 @@ static int trace_parse_statement(char **args, char **msg)
 	}
 	else if (strcmp(args[2], "level") == 0) {
 		const char *name = args[3];
+		int level;
 
 		if (!*name) {
 			chunk_printf(&trash, "Supported trace levels for source %s:\n", src->name.ptr);
@@ -526,22 +549,13 @@ static int trace_parse_statement(char **args, char **msg)
 			return LOG_WARNING;
 		}
 
-		if (strcmp(name, "error") == 0)
-			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_ERROR);
-		else if (strcmp(name, "user") == 0)
-			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_USER);
-		else if (strcmp(name, "proto") == 0)
-			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_PROTO);
-		else if (strcmp(name, "state") == 0)
-			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_STATE);
-		else if (strcmp(name, "data") == 0)
-			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_DATA);
-		else if (strcmp(name, "developer") == 0)
-			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_DEVELOPER);
-		else {
+		level = trace_parse_level(name);
+		if (level < 0) {
 			memprintf(msg, "No such trace level '%s'", name);
 			return LOG_ERR;
 		}
+
+		HA_ATOMIC_STORE(&src->level, level);
 	}
 	else if (strcmp(args[2], "lock") == 0) {
 		const char *name = args[3];
