@@ -83,6 +83,7 @@ struct post_mortem {
 		char hw_model[64];      // hardware/hypervisor product/model when known
 		char brd_vendor[64];    // mainboard vendor when known
 		char brd_model[64];     // mainboard model when known
+		char cont_techno[16];   // empty, "no", "yes", "docker" or others
 	} platform;
 } post_mortem ALIGNED(256) = { };
 
@@ -460,6 +461,8 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 		chunk_appendf(&trash, "  board vendor: %s\n", post_mortem.platform.brd_vendor);
 	if (*post_mortem.platform.brd_model)
 		chunk_appendf(&trash, "  board model: %s\n", post_mortem.platform.brd_model);
+	if (*post_mortem.platform.cont_techno)
+		chunk_appendf(&trash, "  container: %s\n", post_mortem.platform.cont_techno);
 	if (*post_mortem.platform.utsname.sysname)
 		chunk_appendf(&trash, "  OS name: %s\n", post_mortem.platform.utsname.sysname);
 	if (*post_mortem.platform.utsname.release)
@@ -1927,6 +1930,16 @@ static void feed_post_mortem_linux()
 	     strcmp(trash.area, post_mortem.platform.hw_family) != 0 &&
 	     strcmp(trash.area, post_mortem.platform.hw_model) != 0))
 		strlcpy2(post_mortem.platform.brd_model, trash.area, sizeof(post_mortem.platform.brd_model));
+
+	/* Check for containers. In a container on linux we don't see keventd (2.4) kthreadd (2.6+) on pid 2 */
+	if (read_line_to_trash("/proc/2/status") <= 0 ||
+	    (strcmp(trash.area, "Name:\tkthreadd") != 0 &&
+	     strcmp(trash.area, "Name:\tkeventd") != 0)) {
+		strlcpy2(post_mortem.platform.cont_techno, "yes", sizeof(post_mortem.platform.cont_techno));
+	}
+	else {
+		strlcpy2(post_mortem.platform.cont_techno, "no", sizeof(post_mortem.platform.cont_techno));
+	}
 #endif // __linux__
 }
 
