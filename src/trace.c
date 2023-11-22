@@ -770,19 +770,110 @@ static int trace_parse_statement(char **args, char **msg)
 
 }
 
+void _trace_parse_cmd(struct trace_source *src, int level, int verbosity)
+{
+	src->sink = sink_find("stderr");
+	src->level = level >= 0 ? level : TRACE_LEVEL_ERROR;
+	src->verbosity = verbosity >= 0 ? verbosity : 1;
+	src->state = TRACE_STATE_RUNNING;
+}
+
 /* Parse a process argument specified via "-dt".
  *
  * Returns 0 on success else non-zero.
  */
-int trace_parse_cmd()
+int trace_parse_cmd(char *arg, char **errmsg)
 {
-	struct trace_source *src;
+	char *str;
 
-	list_for_each_entry(src, &trace_sources, source_link) {
-		src->sink = sink_find("stderr");
-		src->level = TRACE_LEVEL_ERROR;
-		src->verbosity = 1;
-		src->state = TRACE_STATE_RUNNING;
+	if (!arg) {
+		/* No trace specification, activate all sources on error level. */
+		struct trace_source *src = NULL;
+
+		list_for_each_entry(src, &trace_sources, source_link)
+			_trace_parse_cmd(src, -1, -1);
+		return 0;
+	}
+
+	while ((str = strtok(arg, ","))) {
+		struct trace_source *src = NULL;
+		char *field, *name;
+		char *sep;
+		int level = -1, verbosity = -1;
+
+		/* 1. name */
+		name = str;
+		sep = strchr(str, ':');
+		if (sep) {
+			str = sep + 1;
+			*sep = '\0';
+		}
+		else {
+			str = NULL;
+		}
+
+		if (strlen(name)) {
+			src = trace_find_source(name);
+			if (!src) {
+				memprintf(errmsg, "unknown trace source '%s'", name);
+				return 1;
+			}
+		}
+
+		if (!str || !strlen(str))
+			goto parse;
+
+		/* 2. level */
+		field = str;
+		sep = strchr(str, ':');
+		if (sep) {
+			str = sep + 1;
+			*sep = '\0';
+		}
+		else {
+			str = NULL;
+		}
+
+		if (strlen(field)) {
+			level = trace_parse_level(field);
+			if (level < 0) {
+				memprintf(errmsg, "no such level '%s'", field);
+				return 1;
+			}
+		}
+
+		if (!str || !strlen(str))
+			goto parse;
+
+		/* 3. verbosity */
+		field = str;
+		if (strchr(field, ':')) {
+			memprintf(errmsg, "too many double-colon separator");
+			return 1;
+		}
+
+		if (!src && strcmp(field, "quiet") != 0) {
+			memprintf(errmsg, "trace source must be specified for verbosity other than 'quiet'");
+			return 1;
+		}
+
+		verbosity = trace_source_parse_verbosity(src, field);
+		if (verbosity < 0) {
+			memprintf(errmsg, "no such verbosity '%s' for source '%s'", field, name);
+			return 1;
+		}
+
+ parse:
+		if (src) {
+			_trace_parse_cmd(src, level, verbosity);
+		}
+		else {
+			list_for_each_entry(src, &trace_sources, source_link)
+				_trace_parse_cmd(src, level, verbosity);
+		}
+
+		/* Reset arg to NULL for strtok. */
+		arg = NULL;
 	}
 
 	return 0;

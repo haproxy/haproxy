@@ -1708,7 +1708,17 @@ static void init_args(int argc, char **argv)
 				kwd_dump = flag + 2;
 			}
 			else if (*flag == 'd' && flag[1] == 't') {
-				trace_parse_cmd();
+				if (argc > 1 && argv[1][0] != '-') {
+					if (trace_parse_cmd(argv[1], &err_msg)) {
+						ha_alert("-dt: %s.\n", err_msg);
+						ha_free(&err_msg);
+						exit(EXIT_FAILURE);
+					}
+					argc--; argv++;
+				}
+				else {
+					trace_parse_cmd(NULL, NULL);
+				}
 			}
 			else if (*flag == 'd')
 				arg_mode |= MODE_DEBUG;
