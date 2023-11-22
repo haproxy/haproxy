@@ -20,6 +20,7 @@
 #include <syslog.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #ifdef USE_EPOLL
@@ -65,6 +66,20 @@
 #define THREAD_DUMP_TMASK     0x00007FFFU
 #define THREAD_DUMP_FSYNC     0x00008000U
 #define THREAD_DUMP_PMASK     0x7FFF0000U
+
+/* This is a collection of information that are centralized to help with core
+ * dump analysis. It must be used with a public variable and gather elements
+ * as much as possible without dereferences so that even when identified in a
+ * core dump it's possible to get the most out of it even if the core file is
+ * not much exploitable. It's aligned to 256 so that it's easy to spot, given
+ * that being that large it will not change its size much.
+ */
+struct post_mortem {
+	/* platform-specific information */
+	struct {
+		struct utsname utsname; // OS name+ver+arch+hostname
+	} platform;
+} post_mortem ALIGNED(256) = { };
 
 /* Points to a copy of the buffer where the dump functions should write, when
  * non-null. It's only used by debuggers for core dump analysis.
@@ -420,6 +435,29 @@ static int debug_parse_cli_show_libs(char **args, char *payload, struct appctx *
 		return 0;
 }
 #endif
+
+/* parse a "show dev" command. It returns 1 if it emits anything otherwise zero. */
+static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (*args[2])
+		return cli_err(appctx, "This command takes no argument.\n");
+
+	chunk_reset(&trash);
+
+	chunk_appendf(&trash, "Platform info\n");
+	if (*post_mortem.platform.utsname.sysname)
+		chunk_appendf(&trash, "  OS name: %s\n", post_mortem.platform.utsname.sysname);
+	if (*post_mortem.platform.utsname.release)
+		chunk_appendf(&trash, "  OS release: %s\n", post_mortem.platform.utsname.release);
+	if (*post_mortem.platform.utsname.version)
+		chunk_appendf(&trash, "  OS version: %s\n", post_mortem.platform.utsname.version);
+	if (*post_mortem.platform.utsname.machine)
+		chunk_appendf(&trash, "  OS architecture: %s\n", post_mortem.platform.utsname.machine);
+	if (*post_mortem.platform.utsname.nodename)
+		chunk_appendf(&trash, "  node name: %s\n", HA_ANON_CLI(post_mortem.platform.utsname.nodename));
+
+	return cli_msg(appctx, LOG_INFO, trash.area);
+}
 
 /* Dumps a state of all threads into the trash and on fd #2, then aborts.
  * A copy will be put into a trash chunk that's assigned to thread_dump_buffer
@@ -1838,6 +1876,16 @@ REGISTER_PER_THREAD_INIT(init_debug_per_thread);
 
 #endif /* USE_THREAD_DUMP */
 
+
+static int feed_post_mortem()
+{
+	/* kernel type, version and arch */
+	uname(&post_mortem.platform.utsname);
+	return ERR_NONE;
+}
+
+REGISTER_POST_CHECK(feed_post_mortem);
+
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "bug", NULL },      "debug dev bug                           : call BUG_ON() and crash",                 debug_parse_cli_bug,   NULL, NULL, NULL, ACCESS_EXPERT },
@@ -1867,6 +1915,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "warn",  NULL },    "debug dev warn                          : call WARN_ON() and possibly crash",       debug_parse_cli_warn,  NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "write", NULL },    "debug dev write  [size]                 : write that many bytes in return",         debug_parse_cli_write, NULL, NULL, NULL, ACCESS_EXPERT },
 
+	{{ "show", "dev", NULL, NULL },        "show dev                                : show debug info for developers",          debug_parse_cli_show_dev, NULL, NULL },
 #if defined(HA_HAVE_DUMP_LIBS)
 	{{ "show", "libs", NULL, NULL },       "show libs                               : show loaded object files and libraries", debug_parse_cli_show_libs, NULL, NULL },
 #endif
