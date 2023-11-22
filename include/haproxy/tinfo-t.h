@@ -110,6 +110,10 @@ struct thread_info {
 	uint tid, ltid;                   /* process-wide and group-wide thread ID (start at 0) */
 	ulong ltid_bit;                   /* bit masks for the tid/ltid */
 	uint tgid;                        /* ID of the thread group this thread belongs to (starts at 1; 0=unset) */
+	/* 32-bit hole here */
+
+	ullong pth_id;                    /* the pthread_t cast to a ullong */
+	void *stack_top;                  /* the top of the stack when entering the thread */
 
 	/* pad to cache line (64B) */
 	char __pad[0];                    /* unused except to check remaining room */

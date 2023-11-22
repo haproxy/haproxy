@@ -3056,6 +3056,12 @@ static void *run_thread_poll_loop(void *data)
 	ha_set_thread(data);
 	set_thread_cpu_affinity();
 	clock_set_local_source();
+
+#ifdef USE_THREAD
+	ha_thread_info[tid].pth_id = ha_get_pthread_id(tid);
+#endif
+	ha_thread_info[tid].stack_top = __builtin_frame_address(0);
+
 	/* thread is started, from now on it is not idle nor harmless */
 	thread_harmless_end();
 	thread_idle_end();
