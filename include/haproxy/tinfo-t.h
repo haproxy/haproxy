@@ -141,6 +141,7 @@ struct thread_ctx {
 	struct list quic_conns;             /* list of active quic-conns attached to this thread */
 	struct list quic_conns_clo;         /* list of closing quic-conns attached to this thread */
 	struct list queued_checks;          /* checks waiting for a connection slot */
+	unsigned int nb_rhttp_conns;        /* count of current conns used for active reverse HTTP */
 
 	ALWAYS_ALIGN(2*sizeof(void*));
 	struct list tasklets[TL_CLASSES];   /* tasklets (and/or tasks) to run, by class */

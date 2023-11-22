@@ -592,7 +592,12 @@ void conn_free(struct connection *conn)
 	if (conn_reverse_in_preconnect(conn)) {
 		struct listener *l = conn_active_reverse_listener(conn);
 		rhttp_notify_preconn_err(l);
+		HA_ATOMIC_DEC(&th_ctx->nb_rhttp_conns);
 	}
+	else if (conn->flags & CO_FL_REVERSED) {
+		HA_ATOMIC_DEC(&th_ctx->nb_rhttp_conns);
+	}
+
 
 	conn_force_unsubscribe(conn);
 	pool_free(pool_head_connection, conn);

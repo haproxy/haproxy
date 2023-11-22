@@ -56,6 +56,8 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 	if (!conn)
 		goto err;
 
+	HA_ATOMIC_INC(&th_ctx->nb_rhttp_conns);
+
 	conn_set_reverse(conn, &l->obj_type);
 
 	if (alloc_bind_address(&bind_addr, srv, srv->proxy, NULL) != SRV_STATUS_OK)
@@ -376,3 +378,14 @@ int rhttp_accepting_conn(const struct receiver *rx)
 }
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_rhttp);
+
+/* perform minimal intializations */
+static void init_rhttp()
+{
+	int i;
+
+	for (i = 0; i < MAX_THREADS; i++)
+		ha_thread_ctx[i].nb_rhttp_conns = 0;
+}
+
+INITCALL0(STG_PREPARE, init_rhttp);
