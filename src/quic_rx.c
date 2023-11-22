@@ -2587,6 +2587,7 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 					MT_LIST_APPEND(&quic_dghdlrs[new_tid].dgrams,
 					               &dgram->handler_list);
 					tasklet_wakeup(quic_dghdlrs[new_tid].task);
+					pool_free(pool_head_quic_rx_packet, pkt);
 					goto out;
 				}
 
