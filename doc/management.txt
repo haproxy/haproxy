@@ -402,6 +402,10 @@ list of options is :
     the libc fails to resolve an address, the startup sequence is not
     interrupted.
 
+  -dt : activate traces on stderr. This enables all trace sources on error
+    level. This can notably be useful to detect protocol violations from
+    clients or servers.
+
   -m <limit> : limit the total allocatable memory to <limit> megabytes across
     all processes. This may cause some connection refusals or some slowdowns
     depending on the amount of memory needed for normal operations. This is

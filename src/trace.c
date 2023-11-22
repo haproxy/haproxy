@@ -731,6 +731,24 @@ static int trace_parse_statement(char **args, char **msg)
 
 }
 
+/* Parse a process argument specified via "-dt".
+ *
+ * Returns 0 on success else non-zero.
+ */
+int trace_parse_cmd()
+{
+	struct trace_source *src;
+
+	list_for_each_entry(src, &trace_sources, source_link) {
+		src->sink = sink_find("stderr");
+		src->level = TRACE_LEVEL_ERROR;
+		src->verbosity = 1;
+		src->state = TRACE_STATE_RUNNING;
+	}
+
+	return 0;
+}
+
 /* parse a "trace" statement in the "global" section, returns 1 if a message is returned, otherwise zero */
 static int cfg_parse_trace(char **args, int section_type, struct proxy *curpx,
 			   const struct proxy *defpx, const char *file, int line,
