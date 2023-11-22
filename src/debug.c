@@ -83,6 +83,9 @@ struct post_mortem {
 		char hw_model[64];      // hardware/hypervisor product/model when known
 		char brd_vendor[64];    // mainboard vendor when known
 		char brd_model[64];     // mainboard model when known
+		char soc_vendor[64];    // SoC/CPU vendor from cpuinfo
+		char soc_model[64];     // SoC model when known and relevant
+		char cpu_model[64];     // CPU model when different from SoC
 		char cont_techno[16];   // empty, "no", "yes", "docker" or others
 	} platform;
 } post_mortem ALIGNED(256) = { };
@@ -461,6 +464,12 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 		chunk_appendf(&trash, "  board vendor: %s\n", post_mortem.platform.brd_vendor);
 	if (*post_mortem.platform.brd_model)
 		chunk_appendf(&trash, "  board model: %s\n", post_mortem.platform.brd_model);
+	if (*post_mortem.platform.soc_vendor)
+		chunk_appendf(&trash, "  soc vendor: %s\n", post_mortem.platform.soc_vendor);
+	if (*post_mortem.platform.soc_model)
+		chunk_appendf(&trash, "  soc model: %s\n", post_mortem.platform.soc_model);
+	if (*post_mortem.platform.cpu_model)
+		chunk_appendf(&trash, "  cpu model: %s\n", post_mortem.platform.cpu_model);
 	if (*post_mortem.platform.cont_techno)
 		chunk_appendf(&trash, "  container: %s\n", post_mortem.platform.cont_techno);
 	if (*post_mortem.platform.utsname.sysname)
@@ -1899,6 +1908,7 @@ static void feed_post_mortem_linux()
 {
 #if defined(__linux__)
 	struct stat statbuf;
+	FILE *file;
 
 	/* DMI reports either HW or hypervisor, this allows to detect most VMs.
 	 * On ARM the device-tree is often more precise for the model. Since many
@@ -1946,6 +1956,125 @@ static void feed_post_mortem_linux()
 	}
 	else {
 		strlcpy2(post_mortem.platform.cont_techno, "no", sizeof(post_mortem.platform.cont_techno));
+	}
+
+	file = fopen("/proc/cpuinfo", "r");
+	if (file) {
+		uint cpu_implem = 0, cpu_arch = 0, cpu_variant = 0, cpu_part = 0, cpu_rev = 0; // arm
+		uint cpu_family = 0, model = 0, stepping = 0;                                  // x86
+		char vendor_id[64] = "", model_name[64] = "";                                  // x86
+		char machine[64] = "", system_type[64] = "", cpu_model[64] = "";               // mips
+		char *p, *e, *v, *lf;
+
+		/* let's figure what CPU we're working with */
+		while ((p = fgets(trash.area, trash.size, file)) != NULL) {
+			lf = strchr(p, '\n');
+			if (lf)
+				*lf = 0;
+
+			/* stop at first line break */
+			if (!*p)
+				break;
+
+			/* skip colon and spaces and trim spaces after name */
+			v = e = strchr(p, ':');
+			if (!e)
+				continue;
+
+			do { *e-- = 0; } while (e >= p && (*e == ' ' || *e == '\t'));
+
+			/* locate value after colon */
+			do { v++; } while (*v == ' ' || *v == '\t');
+
+			/* ARM */
+			if (strcmp(p, "CPU implementer") == 0)
+				cpu_implem = strtoul(v, NULL, 0);
+			else if (strcmp(p, "CPU architecture") == 0)
+				cpu_arch = strtoul(v, NULL, 0);
+			else if (strcmp(p, "CPU variant") == 0)
+				cpu_variant = strtoul(v, NULL, 0);
+			else if (strcmp(p, "CPU part") == 0)
+				cpu_part = strtoul(v, NULL, 0);
+			else if (strcmp(p, "CPU revision") == 0)
+				cpu_rev = strtoul(v, NULL, 0);
+
+			/* x86 */
+			else if (strcmp(p, "cpu family") == 0)
+				cpu_family = strtoul(v, NULL, 0);
+			else if (strcmp(p, "model") == 0)
+				model = strtoul(v, NULL, 0);
+			else if (strcmp(p, "stepping") == 0)
+				stepping = strtoul(v, NULL, 0);
+			else if (strcmp(p, "vendor_id") == 0)
+				strlcpy2(vendor_id, v, sizeof(vendor_id));
+			else if (strcmp(p, "model name") == 0)
+				strlcpy2(model_name, v, sizeof(model_name));
+
+			/* MIPS */
+			else if (strcmp(p, "system type") == 0)
+				strlcpy2(system_type, v, sizeof(system_type));
+			else if (strcmp(p, "machine") == 0)
+				strlcpy2(machine, v, sizeof(machine));
+			else if (strcmp(p, "cpu model") == 0)
+				strlcpy2(cpu_model, v, sizeof(cpu_model));
+		}
+		fclose(file);
+
+		/* Machine may replace hw_product on MIPS */
+		if (!*post_mortem.platform.hw_model)
+			strlcpy2(post_mortem.platform.hw_model, machine, sizeof(post_mortem.platform.hw_model));
+
+		/* SoC vendor */
+		strlcpy2(post_mortem.platform.soc_vendor, vendor_id, sizeof(post_mortem.platform.soc_vendor));
+
+		/* SoC model */
+		if (*system_type) {
+			/* MIPS */
+			strlcpy2(post_mortem.platform.soc_model, system_type, sizeof(post_mortem.platform.soc_model));
+			*system_type = 0;
+		} else if (*model_name) {
+			/* x86 */
+			strlcpy2(post_mortem.platform.soc_model, model_name, sizeof(post_mortem.platform.soc_model));
+			*model_name = 0;
+		}
+
+		/* Create a CPU model name based on available IDs */
+		if (cpu_implem) // arm
+			snprintf(cpu_model + strlen(cpu_model),
+				 sizeof(cpu_model) - strlen(cpu_model),
+				 "%sImpl %#02x", *cpu_model ? " " : "", cpu_implem);
+
+		if (cpu_family) // x86
+			snprintf(cpu_model + strlen(cpu_model),
+				 sizeof(cpu_model) - strlen(cpu_model),
+				 "%sFam %u", *cpu_model ? " " : "", cpu_family);
+
+		if (model) // x86
+			snprintf(cpu_model + strlen(cpu_model),
+				 sizeof(cpu_model) - strlen(cpu_model),
+				 "%sModel %u", *cpu_model ? " " : "", model);
+
+		if (stepping) // x86
+			snprintf(cpu_model + strlen(cpu_model),
+				 sizeof(cpu_model) - strlen(cpu_model),
+				 "%sStep %u", *cpu_model ? " " : "", stepping);
+
+		if (cpu_arch) // arm
+			snprintf(cpu_model + strlen(cpu_model),
+				 sizeof(cpu_model) - strlen(cpu_model),
+				 "%sArch %u", *cpu_model ? " " : "", cpu_arch);
+
+		if (cpu_part) // arm
+			snprintf(cpu_model + strlen(cpu_model),
+				 sizeof(cpu_model) - strlen(cpu_model),
+				 "%sPart %#03x", *cpu_model ? " " : "", cpu_part);
+
+		if (cpu_variant || cpu_rev) // arm
+			snprintf(cpu_model + strlen(cpu_model),
+				 sizeof(cpu_model) - strlen(cpu_model),
+				 "%sr%up%u", *cpu_model ? " " : "", cpu_variant, cpu_rev);
+
+		strlcpy2(post_mortem.platform.cpu_model, cpu_model, sizeof(post_mortem.platform.cpu_model));
 	}
 #endif // __linux__
 }
