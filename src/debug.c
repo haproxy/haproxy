@@ -78,6 +78,11 @@ struct post_mortem {
 	/* platform-specific information */
 	struct {
 		struct utsname utsname; // OS name+ver+arch+hostname
+		char hw_vendor[64];     // hardware/hypervisor vendor when known
+		char hw_family[64];     // hardware/hypervisor product family when known
+		char hw_model[64];      // hardware/hypervisor product/model when known
+		char brd_vendor[64];    // mainboard vendor when known
+		char brd_model[64];     // mainboard model when known
 	} platform;
 } post_mortem ALIGNED(256) = { };
 
@@ -445,6 +450,16 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 	chunk_reset(&trash);
 
 	chunk_appendf(&trash, "Platform info\n");
+	if (*post_mortem.platform.hw_vendor)
+		chunk_appendf(&trash, "  machine vendor: %s\n", post_mortem.platform.hw_vendor);
+	if (*post_mortem.platform.hw_family)
+		chunk_appendf(&trash, "  machine family: %s\n", post_mortem.platform.hw_family);
+	if (*post_mortem.platform.hw_model)
+		chunk_appendf(&trash, "  machine model: %s\n", post_mortem.platform.hw_model);
+	if (*post_mortem.platform.brd_vendor)
+		chunk_appendf(&trash, "  board vendor: %s\n", post_mortem.platform.brd_vendor);
+	if (*post_mortem.platform.brd_model)
+		chunk_appendf(&trash, "  board model: %s\n", post_mortem.platform.brd_model);
 	if (*post_mortem.platform.utsname.sysname)
 		chunk_appendf(&trash, "  OS name: %s\n", post_mortem.platform.utsname.sysname);
 	if (*post_mortem.platform.utsname.release)
@@ -1877,10 +1892,52 @@ REGISTER_PER_THREAD_INIT(init_debug_per_thread);
 #endif /* USE_THREAD_DUMP */
 
 
+static void feed_post_mortem_linux()
+{
+#if defined(__linux__)
+	/* DMI reports either HW or hypervisor, this allows to detect most VMs.
+	 * On ARM the device-tree is often more precise for the model. Since many
+	 * boards present "to be filled by OEM" or so in many fields, we dedup
+	 * them as much as possible.
+	 */
+	if (read_line_to_trash("/sys/class/dmi/id/sys_vendor") > 0)
+		strlcpy2(post_mortem.platform.hw_vendor, trash.area, sizeof(post_mortem.platform.hw_vendor));
+
+	if (read_line_to_trash("/sys/class/dmi/id/product_family") > 0 &&
+	    strcmp(trash.area, post_mortem.platform.hw_vendor) != 0)
+		strlcpy2(post_mortem.platform.hw_family, trash.area, sizeof(post_mortem.platform.hw_family));
+
+	if ((read_line_to_trash("/sys/class/dmi/id/product_name") > 0 &&
+	     strcmp(trash.area, post_mortem.platform.hw_vendor) != 0 &&
+	     strcmp(trash.area, post_mortem.platform.hw_family) != 0))
+		strlcpy2(post_mortem.platform.hw_model, trash.area, sizeof(post_mortem.platform.hw_model));
+
+	if ((read_line_to_trash("/sys/class/dmi/id/board_vendor") > 0 &&
+	     strcmp(trash.area, post_mortem.platform.hw_vendor) != 0))
+		strlcpy2(post_mortem.platform.brd_vendor, trash.area, sizeof(post_mortem.platform.brd_vendor));
+
+	if ((read_line_to_trash("/sys/firmware/devicetree/base/model") > 0 &&
+	     strcmp(trash.area, post_mortem.platform.brd_vendor) != 0 &&
+	     strcmp(trash.area, post_mortem.platform.hw_vendor) != 0 &&
+	     strcmp(trash.area, post_mortem.platform.hw_family) != 0 &&
+	     strcmp(trash.area, post_mortem.platform.hw_model) != 0) ||
+	    (read_line_to_trash("/sys/class/dmi/id/board_name") > 0 &&
+	     strcmp(trash.area, post_mortem.platform.brd_vendor) != 0 &&
+	     strcmp(trash.area, post_mortem.platform.hw_vendor) != 0 &&
+	     strcmp(trash.area, post_mortem.platform.hw_family) != 0 &&
+	     strcmp(trash.area, post_mortem.platform.hw_model) != 0))
+		strlcpy2(post_mortem.platform.brd_model, trash.area, sizeof(post_mortem.platform.brd_model));
+#endif // __linux__
+}
+
 static int feed_post_mortem()
 {
 	/* kernel type, version and arch */
 	uname(&post_mortem.platform.utsname);
+
+	if (strcmp(post_mortem.platform.utsname.sysname, "Linux") == 0)
+		feed_post_mortem_linux();
+
 	return ERR_NONE;
 }
 
