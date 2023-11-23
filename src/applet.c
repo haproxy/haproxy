@@ -456,7 +456,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 
 	channel_check_idletimer(ic);
 
-	input  = channel_data(ic);
+	input  = ic->total;
 	output = co_data(oc);
 	app->applet->fct(app);
 
@@ -476,7 +476,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 			sc_have_room(sco);
 	}
 
-	input = channel_data(ic) - input;
+	input = ic->total - input;
 	if (input) {
 		channel_check_xfer(ic, input);
 		sc_ep_report_read_activity(sc);
