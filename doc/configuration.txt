@@ -5075,7 +5075,7 @@ bind /<path> [, ...] [param*]
                     - 'rhttp@' -> used for reverse HTTP. Address must be a
                       server with the format '<backend>/<server>'. The server
                       will be used to instantiate connections to a remote
-                      address. The listener will try to maintain 'maxconn'
+                      address. The listener will try to maintain "nbconn"
                       connections.
 
                   You may want to reference some environment variables in the
