@@ -1428,11 +1428,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		if (curproxy->mode != PR_MODE_TCP && curproxy->mode != PR_MODE_HTTP) {
-			err_code |= ERR_WARN;
-			ha_warning("parsing [%s:%d] : '%s' rules will be ignored for %s backend '%s' (unsupported mode).\n", file, linenum, args[0], proxy_mode_str(curproxy->mode), curproxy->id);
-		}
-
 		if (*(args[1]) == 0) {
 			ha_alert("parsing [%s:%d] : '%s' expects a server name.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
