@@ -4516,6 +4516,9 @@ static size_t h1_done_ff(struct stconn *sc)
 		sd->iobuf.offset = 0;
 		sd->iobuf.data = 0;
 
+		if (sd->iobuf.flags & IOBUF_FL_EOI)
+			h1c->flags &= ~H1C_F_CO_MSG_MORE;
+
 		/* Perform a synchronous send but in all cases, consider
 		 * everything was already sent from the SC point of view.
 		 */
