@@ -2435,11 +2435,9 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	const uint8_t *extension_data;
 	size_t extension_len;
 	int has_rsa_sig = 0, has_ecdsa_sig = 0;
-
-	char *wildp = NULL;
+	struct sni_ctx *sni_ctx;
 	const char *servername;
 	size_t servername_len;
-	struct ebmb_node *node, *n, *node_ecdsa = NULL, *node_rsa = NULL, *node_anonymous = NULL;
 	int allow_early = 0;
 	int i;
 
@@ -2610,81 +2608,18 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		}
 	}
 
-	for (i = 0; i < trash.size && i < servername_len; i++) {
+	/* we need to transform this a NULL-ended string in lowecase */
+	for (i = 0; i < trash.size && i < servername_len; i++)
 		trash.area[i] = tolower(servername[i]);
-		if (!wildp && (trash.area[i] == '.'))
-			wildp = &trash.area[i];
-	}
 	trash.area[i] = 0;
 	servername = trash.area;
 
 	HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
-
-	/* Look for an ECDSA, RSA and DSA certificate, first in the single
-	 * name and if not found in the wildcard  */
-	for (i = 0; i < 2; i++) {
-		if (i == 0) 	/* lookup in full qualified names */
-			node = ebst_lookup(&s->sni_ctx, servername);
-		else if (i == 1 && wildp)  /* lookup in wildcards names */
-			node = ebst_lookup(&s->sni_w_ctx, wildp);
-		else
-			break;
-
-		for (n = node; n; n = ebmb_next_dup(n)) {
-
-			/* lookup a not neg filter */
-			if (!container_of(n, struct sni_ctx, name)->neg) {
-				struct sni_ctx *sni, *sni_tmp;
-				int skip = 0;
-
-				if (i == 1 && wildp) { /* wildcard */
-					/* If this is a wildcard, look for an exclusion on the same crt-list line */
-					sni = container_of(n, struct sni_ctx, name);
-					list_for_each_entry(sni_tmp, &sni->ckch_inst->sni_ctx, by_ckch_inst) {
-						if (sni_tmp->neg && (strcmp((const char *)sni_tmp->name.key, servername) == 0)) {
-							skip = 1;
-							break;
-						}
-					}
-					if (skip)
-						continue;
-				}
-
-				switch(container_of(n, struct sni_ctx, name)->kinfo.sig) {
-				case TLSEXT_signature_ecdsa:
-					if (!node_ecdsa)
-						node_ecdsa = n;
-					break;
-				case TLSEXT_signature_rsa:
-					if (!node_rsa)
-						node_rsa = n;
-					break;
-				default: /* TLSEXT_signature_anonymous|dsa */
-					if (!node_anonymous)
-						node_anonymous = n;
-					break;
-				}
-			}
-		}
-	}
-	/* Once the certificates are found, select them depending on what is
-	 * supported in the client and by key_signature priority order: EDSA >
-	 * RSA > DSA */
-	if (has_ecdsa_sig && node_ecdsa)
-		node = node_ecdsa;
-	else if (has_rsa_sig && node_rsa)
-		node = node_rsa;
-	else if (node_anonymous)
-		node = node_anonymous;
-	else if (node_ecdsa)
-		node = node_ecdsa;      /* no ecdsa signature case (< TLSv1.2) */
-	else
-		node = node_rsa;        /* no rsa signature case (far far away) */
-
-	if (node) {
+	sni_ctx = ssl_sock_chose_sni_ctx(s, servername, has_rsa_sig, has_ecdsa_sig);
+	if (sni_ctx) {
 		/* switch ctx */
-		struct ssl_bind_conf *conf = container_of(node, struct sni_ctx, name)->conf;
-		ssl_sock_switchctx_set(ssl, container_of(node, struct sni_ctx, name)->ctx);
+		struct ssl_bind_conf *conf = sni_ctx->conf;
+		ssl_sock_switchctx_set(ssl, sni_ctx->ctx);
 		if (conf) {
 			methodVersions[conf->ssl_methods.min].ssl_set_version(ssl, SET_MIN);
 			methodVersions[conf->ssl_methods.max].ssl_set_version(ssl, SET_MAX);
