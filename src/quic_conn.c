@@ -2048,17 +2048,6 @@ void qc_finalize_affinity_rebind(struct quic_conn *qc)
 	TRACE_LEAVE(QUIC_EV_CONN_SET_AFFINITY, qc);
 }
 
-static void init_quic()
-{
-	int thr;
-
-	for (thr = 0; thr < MAX_THREADS; ++thr) {
-		LIST_INIT(&ha_thread_ctx[thr].quic_conns);
-		LIST_INIT(&ha_thread_ctx[thr].quic_conns_clo);
-	}
-}
-INITCALL0(STG_INIT, init_quic);
-
 /*
  * Local variables:
  *  c-indent-level: 8

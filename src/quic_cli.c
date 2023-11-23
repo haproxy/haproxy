@@ -401,3 +401,13 @@ static struct cli_kw_list cli_kws = {{ }, {
 
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
+static void cli_quic_init()
+{
+	int thr;
+
+	for (thr = 0; thr < MAX_THREADS; ++thr) {
+		LIST_INIT(&ha_thread_ctx[thr].quic_conns);
+		LIST_INIT(&ha_thread_ctx[thr].quic_conns_clo);
+	}
+}
+INITCALL0(STG_INIT, cli_quic_init);
