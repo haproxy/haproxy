@@ -498,25 +498,6 @@ static inline size_t quic_may_send_bytes(struct quic_conn *qc)
 	return 3 * qc->bytes.rx - qc->bytes.prep;
 }
 
-/* CRYPTO data buffer handling functions. */
-static inline unsigned char *c_buf_getpos(struct quic_enc_level *qel, uint64_t offset)
-{
-	int idx;
-	unsigned char *data;
-
-	idx = offset >> QUIC_CRYPTO_BUF_SHIFT;
-	data = qel->tx.crypto.bufs[idx]->data;
-	return data + (offset & QUIC_CRYPTO_BUF_MASK);
-}
-
-/* Returns 1 if the CRYPTO buffer at <qel> encryption level has been
- * consumed (sent to the peer), 0 if not.
- */
-static inline int c_buf_consumed(struct quic_enc_level *qel)
-{
-	return qel->tx.crypto.offset == qel->tx.crypto.sz;
-}
-
 /* Return 1 if <pkt> header form is long, 0 if not. */
 static inline int qc_pkt_long(const struct quic_rx_packet *pkt)
 {

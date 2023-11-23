@@ -299,9 +299,6 @@ void qc_check_close_on_released_mux(struct quic_conn *qc)
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
 }
 
-int ssl_sock_get_alpn(const struct connection *conn, void *xprt_ctx,
-                      const char **str, int *len);
-
 /* Finalize <qc> QUIC connection:
 
  * MUST be called after having received the remote transport parameters which
