@@ -2355,12 +2355,22 @@ static int bind_parse_shards(char **args, int cur_arg, struct proxy *px, struct 
 /* parse the "thread" bind keyword. This will replace any preset thread_set */
 static int bind_parse_thread(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
+	const struct listener *l;
+
 	/* note that the thread set is zeroed before first call, and we don't
 	 * want to reset it so that it remains possible to chain multiple
 	 * "thread" directives.
 	 */
 	if (parse_thread_set(args[cur_arg+1], &conf->thread_set, err) < 0)
 		return ERR_ALERT | ERR_FATAL;
+
+	l = LIST_NEXT(&conf->listeners, struct listener *, by_bind);
+	if (l->rx.addr.ss_family == AF_CUST_RHTTP_SRV &&
+	    atleast2(conf->thread_set.grps)) {
+		memprintf(err, "'%s' : reverse HTTP bind cannot span multiple thread groups.", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
 	return 0;
 }
 
@@ -2446,7 +2456,7 @@ static struct bind_kw_list bind_kws = { "ALL", { }, {
 	{ "process",      bind_parse_process,      1, 0 }, /* set list of allowed process for this socket */
 	{ "proto",        bind_parse_proto,        1, 0 }, /* set the proto to use for all incoming connections */
 	{ "shards",       bind_parse_shards,       1, 0 }, /* set number of shards */
-	{ "thread",       bind_parse_thread,       1, 0 }, /* set list of allowed threads for this socket */
+	{ "thread",       bind_parse_thread,       1, 1 }, /* set list of allowed threads for this socket */
 	{ /* END */ },
 }};
 
