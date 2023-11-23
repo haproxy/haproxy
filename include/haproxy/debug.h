@@ -32,4 +32,8 @@ void ha_dump_backtrace(struct buffer *buf, const char *prefix, int dump);
 void ha_backtrace_to_stderr(void);
 void ha_panic(void);
 
+void post_mortem_add_component(const char *name, const char *version,
+			       const char *toolchain, const char *toolchain_opts,
+			       const char *build_settings, const char *path);
+
 #endif /* _HAPROXY_DEBUG_H */

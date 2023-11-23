@@ -68,6 +68,21 @@
 #define THREAD_DUMP_FSYNC     0x00008000U
 #define THREAD_DUMP_PMASK     0x7FFF0000U
 
+/* Description of a component with name, version, path, build options etc. E.g.
+ * one of them is haproxy. Others might be some clearly identified shared libs.
+ * They're intentionally self-contained and to be placed into an array to make
+ * it easier to find them in a core. The important fields (name and version)
+ * are locally allocated, other ones are dynamic.
+ */
+struct post_mortem_component {
+	char name[32];           // symbolic short name
+	char version[32];        // exact version
+	char *toolchain;         // compiler and version (e.g. gcc-11.4.0)
+	char *toolchain_opts;    // optims, arch-specific options (e.g. CFLAGS)
+	char *build_settings;    // build options (e.g. USE_*, TARGET, etc)
+	char *path;              // path if known.
+};
+
 /* This is a collection of information that are centralized to help with core
  * dump analysis. It must be used with a public variable and gather elements
  * as much as possible without dereferences so that even when identified in a
@@ -111,6 +126,13 @@ struct post_mortem {
 	/* information about dynamic shared libraries involved */
 	char *libs;                      // dump of one addr / path per line, or NULL
 #endif
+
+	/* info about identified distinct components (executable, shared libs, etc).
+	 * These can be all listed at once in gdb using:
+	 *    p *post_mortem.components@post_mortem.nb_components
+	 */
+	uint nb_components;              // # of components below
+	struct post_mortem_component *components; // NULL or array
 } post_mortem ALIGNED(256) = { };
 
 /* Points to a copy of the buffer where the dump functions should write, when
@@ -2165,12 +2187,48 @@ REGISTER_POST_CHECK(feed_post_mortem);
 
 static void deinit_post_mortem(void)
 {
+	int comp;
+
 #if defined(HA_HAVE_DUMP_LIBS)
 	ha_free(&post_mortem.libs);
 #endif
+	for (comp = 0; comp < post_mortem.nb_components; comp++) {
+		free(post_mortem.components[comp].toolchain);
+		free(post_mortem.components[comp].toolchain_opts);
+		free(post_mortem.components[comp].build_settings);
+		free(post_mortem.components[comp].path);
+	}
+	ha_free(&post_mortem.components);
 }
 
 REGISTER_POST_DEINIT(deinit_post_mortem);
+
+/* Appends a component to the list of post_portem info. May silently fail
+ * on allocation errors but we don't care since the goal is to provide info
+ * we have in case it helps.
+ */
+void post_mortem_add_component(const char *name, const char *version,
+			       const char *toolchain, const char *toolchain_opts,
+			       const char *build_settings, const char *path)
+{
+	struct post_mortem_component *comp;
+	int nbcomp = post_mortem.nb_components;
+
+	comp = realloc(post_mortem.components, (nbcomp + 1) * sizeof(*comp));
+	if (!comp)
+		return;
+
+	memset(&comp[nbcomp], 0, sizeof(*comp));
+	strlcpy2(comp[nbcomp].name, name, sizeof(comp[nbcomp].name));
+	strlcpy2(comp[nbcomp].version, version, sizeof(comp[nbcomp].version));
+	comp[nbcomp].toolchain      = strdup(toolchain);
+	comp[nbcomp].toolchain_opts = strdup(toolchain_opts);
+	comp[nbcomp].build_settings = strdup(build_settings);
+	comp[nbcomp].path = strdup(path);
+
+	post_mortem.nb_components++;
+	post_mortem.components = comp;
+}
 
 #ifdef USE_THREAD
 /* init code is called one at a time so let's collect all per-thread info on
