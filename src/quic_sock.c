@@ -31,6 +31,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/proto_quic.h>
 #include <haproxy/proxy-t.h>
+#include <haproxy/quic_cid.h>
 #include <haproxy/quic_conn.h>
 #include <haproxy/quic_rx.h>
 #include <haproxy/quic_sock.h>

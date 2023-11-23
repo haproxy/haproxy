@@ -40,6 +40,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/proto_quic.h>
 #include <haproxy/quic_cc.h>
+#include <haproxy/quic_cid.h>
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_frame.h>
@@ -109,17 +110,6 @@ static inline int qc_is_listener(struct quic_conn *qc)
 	return qc->flags & QUIC_FL_CONN_LISTENER;
 }
 
-/* Copy <src> QUIC CID to <dst>.
- * This is the responsibility of the caller to check there is enough room in
- * <dst> to copy <src>.
- * Always succeeds.
- */
-static inline void quic_cid_cpy(struct quic_cid *dst, const struct quic_cid *src)
-{
-	memcpy(dst->data, src->data, src->len);
-	dst->len = src->len;
-}
-
 /* Copy <saddr> socket address data into <buf> buffer.
  * This is the responsibility of the caller to check the output buffer is big
  * enough to contain these socket address data.
@@ -151,57 +141,6 @@ static inline size_t quic_saddr_cpy(unsigned char *buf,
 	p += addr_len;
 
 	return p - buf;
-}
-
-/* Dump the QUIC connection ID value if present (non null length). Used only for
- * debugging purposes.
- * Always succeeds.
- */
-static inline void quic_cid_dump(struct buffer *buf,
-                                 const struct quic_cid *cid)
-{
-	int i;
-
-	chunk_appendf(buf, "(%d", cid->len);
-	if (cid->len)
-		chunk_appendf(buf, ",");
-	for (i = 0; i < cid->len; i++)
-		chunk_appendf(buf, "%02x", cid->data[i]);
-	chunk_appendf(buf, ")");
-}
-
-/* Return tree index where <cid> is stored. */
-static inline uchar _quic_cid_tree_idx(const unsigned char *cid)
-{
-	return cid[0];
-}
-
-/* Return tree index where <cid> is stored. */
-static inline uchar quic_cid_tree_idx(const struct quic_cid *cid)
-{
-	return _quic_cid_tree_idx(cid->data);
-}
-
-/* Insert <conn_id> into global CID tree as a thread-safe operation. */
-static inline void quic_cid_insert(struct quic_connection_id *conn_id)
-{
-	const uchar idx = quic_cid_tree_idx(&conn_id->cid);
-	struct quic_cid_tree *tree = &quic_cid_trees[idx];
-
-	HA_RWLOCK_WRLOCK(QC_CID_LOCK, &tree->lock);
-	ebmb_insert(&tree->root, &conn_id->node, conn_id->cid.len);
-	HA_RWLOCK_WRUNLOCK(QC_CID_LOCK, &tree->lock);
-}
-
-/* Remove <conn_id> from global CID tree as a thread-safe operation. */
-static inline void quic_cid_delete(struct quic_connection_id *conn_id)
-{
-	const uchar idx = quic_cid_tree_idx(&conn_id->cid);
-	struct quic_cid_tree __maybe_unused *tree = &quic_cid_trees[idx];
-
-	HA_RWLOCK_WRLOCK(QC_CID_LOCK, &tree->lock);
-	ebmb_delete(&conn_id->node);
-	HA_RWLOCK_WRUNLOCK(QC_CID_LOCK, &tree->lock);
 }
 
 /* Free the CIDs attached to <conn> QUIC connection. */

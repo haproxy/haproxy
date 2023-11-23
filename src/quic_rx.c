@@ -19,6 +19,7 @@
 #include <haproxy/ncbuf.h>
 #include <haproxy/proto_quic.h>
 #include <haproxy/quic_ack.h>
+#include <haproxy/quic_cid.h>
 #include <haproxy/quic_sock.h>
 #include <haproxy/quic_stream.h>
 #include <haproxy/quic_ssl.h>
@@ -1838,63 +1839,6 @@ static int quic_retry_token_check(struct quic_rx_packet *pkt,
 	if (ctx)
 		EVP_CIPHER_CTX_free(ctx);
 	goto leave;
-}
-
-/* Retrieve a quic_conn instance from the <pkt> DCID field. If the packet is an
- * INITIAL or 0RTT type, we may have to use client address <saddr> if an ODCID
- * is used.
- *
- * Returns the instance or NULL if not found.
- */
-static struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
-                                                   struct listener *l,
-                                                   struct sockaddr_storage *saddr,
-                                                   int *new_tid)
-{
-	struct quic_conn *qc = NULL;
-	struct ebmb_node *node;
-	struct quic_connection_id *conn_id;
-	struct quic_cid_tree *tree;
-	uint conn_id_tid;
-
-	TRACE_ENTER(QUIC_EV_CONN_RXPKT);
-	*new_tid = -1;
-
-	/* First look into DCID tree. */
-	tree = &quic_cid_trees[_quic_cid_tree_idx(pkt->dcid.data)];
-	HA_RWLOCK_RDLOCK(QC_CID_LOCK, &tree->lock);
-	node = ebmb_lookup(&tree->root, pkt->dcid.data, pkt->dcid.len);
-
-	/* If not found on an Initial/0-RTT packet, it could be because an
-	 * ODCID is reused by the client. Calculate the derived CID value to
-	 * retrieve it from the DCID tree.
-	 */
-	if (!node && (pkt->type == QUIC_PACKET_TYPE_INITIAL ||
-	     pkt->type == QUIC_PACKET_TYPE_0RTT)) {
-		const struct quic_cid derive_cid = quic_derive_cid(&pkt->dcid, saddr);
-
-		HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
-
-		tree = &quic_cid_trees[quic_cid_tree_idx(&derive_cid)];
-		HA_RWLOCK_RDLOCK(QC_CID_LOCK, &tree->lock);
-		node = ebmb_lookup(&tree->root, derive_cid.data, derive_cid.len);
-	}
-
-	if (!node)
-		goto end;
-
-	conn_id = ebmb_entry(node, struct quic_connection_id, node);
-	conn_id_tid = HA_ATOMIC_LOAD(&conn_id->tid);
-	if (conn_id_tid != tid) {
-		*new_tid = conn_id_tid;
-		goto end;
-	}
-	qc = conn_id->qc;
-
- end:
-	HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
-	TRACE_LEAVE(QUIC_EV_CONN_RXPKT, qc);
-	return qc;
 }
 
 /* Check that all the bytes between <pos> included and <end> address

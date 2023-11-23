@@ -33,6 +33,7 @@
 
 #include <haproxy/openssl-compat.h>
 #include <haproxy/mux_quic-t.h>
+#include <haproxy/quic_cid-t.h>
 #include <haproxy/quic_cc-t.h>
 #include <haproxy/quic_loss-t.h>
 #include <haproxy/quic_openssl_compat-t.h>
@@ -61,8 +62,6 @@ typedef unsigned long long ull;
 #define QUIC_HAP_CID_LEN               8
 
 /* Common definitions for short and long QUIC packet headers. */
-/* QUIC connection ID maximum length for version 1. */
-#define QUIC_CID_MAXLEN               20 /* bytes */
 /* QUIC original destination connection ID minial length */
 #define QUIC_ODCID_MINLEN              8 /* bytes */
 /*
@@ -218,34 +217,6 @@ struct quic_version {
 extern const struct quic_version quic_versions[];
 extern const size_t quic_versions_nb;
 extern const struct quic_version *preferred_version;
-
-/* QUIC connection id data.
- *
- * This struct is used by ebmb_node structs as last member of flexible arrays.
- * So do not change the order of the member of quic_cid struct.
- * <data> member must be the first one.
- */
-struct quic_cid {
-	unsigned char data[QUIC_CID_MAXLEN];
-	unsigned char len; /* size of QUIC CID */
-};
-
-/* QUIC connection id attached to a QUIC connection.
- *
- * This structure is used to match received packets DCIDs with the
- * corresponding QUIC connection.
- */
-struct quic_connection_id {
-	struct eb64_node seq_num;
-	uint64_t retire_prior_to;
-	unsigned char stateless_reset_token[QUIC_STATELESS_RESET_TOKEN_LEN];
-
-	struct ebmb_node node; /* node for receiver tree, cid.data as key */
-	struct quic_cid cid;   /* CID data */
-
-	struct quic_conn *qc;  /* QUIC connection using this CID */
-	uint tid;              /* Attached Thread ID for the connection. */
-};
 
 /* unused: 0x01 */
 /* Flag the packet number space as requiring an ACK frame to be sent. */

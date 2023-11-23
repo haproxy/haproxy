@@ -620,7 +620,7 @@ OPTIONS_OBJS += src/quic_conn.o src/mux_quic.o src/h3.o src/xprt_quic.o    \
                 src/h3_stats.o src/qmux_http.o src/cfgparse-quic.o         \
                 src/cbuf.o src/quic_cc.o src/quic_cc_nocc.o src/quic_ack.o \
                 src/quic_trace.o src/quic_cli.o src/quic_ssl.o             \
-                src/quic_rx.o src/quic_tx.o
+                src/quic_rx.o src/quic_tx.o src/quic_cid.o
 endif
 
 ifneq ($(USE_QUIC_OPENSSL_COMPAT),)

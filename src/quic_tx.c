@@ -16,6 +16,7 @@
 
 #include <haproxy/pool.h>
 #include <haproxy/trace.h>
+#include <haproxy/quic_cid.h>
 #include <haproxy/quic_sock.h>
 #include <haproxy/quic_tls.h>
 #include <haproxy/quic_trace.h>
