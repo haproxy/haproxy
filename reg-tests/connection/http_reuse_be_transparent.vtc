@@ -1,4 +1,5 @@
 varnishtest "Test the proper interaction between http-reuse and backend in transparent mode"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(TPROXY)'"
 
 # If backend is used with the transparent mode, the connection are considered
 # as private and should only be reused for requests of the same session.
