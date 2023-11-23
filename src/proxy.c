@@ -1517,6 +1517,7 @@ void proxy_free_defaults(struct proxy *defproxy)
 
 	ha_free(&defproxy->id);
 	ha_free(&defproxy->conf.file);
+	ha_free((char **)&defproxy->defsrv.conf.file);
 	ha_free(&defproxy->check_command);
 	ha_free(&defproxy->check_path);
 	ha_free(&defproxy->cookie_name);

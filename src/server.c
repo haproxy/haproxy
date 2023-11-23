@@ -3292,7 +3292,8 @@ int parse_server(const char *file, int linenum, char **args,
 	if (err_code & ERR_CODE)
 		goto out;
 
-	newsrv->conf.file = strdup(file);
+	if (!newsrv->conf.file) // note: do it only once for default-server
+		newsrv->conf.file = strdup(file);
 	newsrv->conf.line = linenum;
 
 	while (*args[cur_arg]) {
