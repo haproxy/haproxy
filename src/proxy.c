@@ -177,6 +177,18 @@ void free_stick_rules(struct list *rules)
 	}
 }
 
+static void free_logformat_list(struct list *lfs)
+{
+	struct logformat_node *lf, *lfb;
+
+	list_for_each_entry_safe(lf, lfb, lfs, list) {
+		LIST_DELETE(&lf->list);
+		release_sample_expr(lf->expr);
+		free(lf->arg);
+		free(lf);
+	}
+}
+
 void free_proxy(struct proxy *p)
 {
 	struct server *s;
@@ -189,7 +201,6 @@ void free_proxy(struct proxy *p)
 	struct switching_rule *rule, *ruleb;
 	struct redirect_rule *rdr, *rdrb;
 	struct logger *log, *logb;
-	struct logformat_node *lf, *lfb;
 	struct proxy_deinit_fct *pxdf;
 	struct server_deinit_fct *srvdf;
 
@@ -252,12 +263,7 @@ void free_proxy(struct proxy *p)
 	list_for_each_entry_safe(srule, sruleb, &p->server_rules, list) {
 		LIST_DELETE(&srule->list);
 		free_acl_cond(srule->cond);
-		list_for_each_entry_safe(lf, lfb, &srule->expr, list) {
-			LIST_DELETE(&lf->list);
-			release_sample_expr(lf->expr);
-			free(lf->arg);
-			free(lf);
-		}
+		free_logformat_list(&srule->expr);
 		free(srule->file);
 		free(srule);
 	}
@@ -279,33 +285,10 @@ void free_proxy(struct proxy *p)
 		free_logger(log);
 	}
 
-	list_for_each_entry_safe(lf, lfb, &p->logformat, list) {
-		LIST_DELETE(&lf->list);
-		release_sample_expr(lf->expr);
-		free(lf->arg);
-		free(lf);
-	}
-
-	list_for_each_entry_safe(lf, lfb, &p->logformat_sd, list) {
-		LIST_DELETE(&lf->list);
-		release_sample_expr(lf->expr);
-		free(lf->arg);
-		free(lf);
-	}
-
-	list_for_each_entry_safe(lf, lfb, &p->format_unique_id, list) {
-		LIST_DELETE(&lf->list);
-		release_sample_expr(lf->expr);
-		free(lf->arg);
-		free(lf);
-	}
-
-	list_for_each_entry_safe(lf, lfb, &p->logformat_error, list) {
-		LIST_DELETE(&lf->list);
-		release_sample_expr(lf->expr);
-		free(lf->arg);
-		free(lf);
-	}
+	free_logformat_list(&p->logformat);
+	free_logformat_list(&p->logformat_sd);
+	free_logformat_list(&p->format_unique_id);
+	free_logformat_list(&p->logformat_error);
 
 	free_act_rules(&p->tcp_req.inspect_rules);
 	free_act_rules(&p->tcp_rep.inspect_rules);
