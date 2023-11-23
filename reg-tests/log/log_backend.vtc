@@ -79,7 +79,7 @@ haproxy h1 -conf {
 
         backend mylog-failover
                 mode log
-		balance log-sticky
+                balance sticky
 
                 server s1 udp@${Slg21_addr}:${Slg21_port}        # only receives "GET /srv1" request
                 server s2 udp@${Slg22_addr}:${Slg22_port}        # only receives "GET /srv2" request

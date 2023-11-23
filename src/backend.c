@@ -2834,12 +2834,12 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 		ha_free(&curproxy->lbprm.arg_str);
 		curproxy->lbprm.arg_str = strdup(args[1]);
 	}
-	else if (strcmp(args[0], "log-sticky") == 0) {
+	else if (strcmp(args[0], "sticky") == 0) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_LS;
 	}
 	else {
-		memprintf(err, "only supports 'roundrobin', 'static-rr', 'leastconn', 'source', 'uri', 'url_param', 'hash', 'hdr(name)', 'rdp-cookie(name)', 'log-hash' and 'log-sticky' options.");
+		memprintf(err, "only supports 'roundrobin', 'static-rr', 'leastconn', 'source', 'uri', 'url_param', 'hash', 'hdr(name)', 'rdp-cookie(name)', 'log-hash' and 'sticky' options.");
 		return -1;
 	}
 	return 0;
