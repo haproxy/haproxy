@@ -105,7 +105,7 @@ struct proxy;
 struct global {
 	int uid;
 	int gid;
-	int external_check;
+	int external_check;             /* 0=disabled, 1=enabled, 2=enabled with env */
 	int nbthread;
 	int mode;
 	unsigned int hard_stop_after;	/* maximum time allowed to perform a soft-stop */

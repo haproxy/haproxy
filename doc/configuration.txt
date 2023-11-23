@@ -1541,14 +1541,20 @@ expose-experimental-directives
   This statement must appear before using directives tagged as experimental or
   the config file will be rejected.
 
-external-check
+external-check [preserve-env]
   Allows the use of an external agent to perform health checks. This is
   disabled by default as a security precaution, and even when enabled, checks
   may still fail unless "insecure-fork-wanted" is enabled as well. If the
   program launched makes use of a setuid executable (it should really not),
   you may also need to set "insecure-setuid-wanted" in the global section.
-  See "option external-check", and "insecure-fork-wanted", and
-  "insecure-setuid-wanted".
+  By default, the checks start with a clean environment which only contains
+  variables defined in the "external-check" command in the backend section. It
+  may sometimes be desirable to preserve the environment though, for example
+  when complex scripts retrieve their extra paths or information there. This
+  can be done by appending the "preserve-env" keyword. In this case however it
+  is strongly advised not to run a setuid nor as a privileged user, as this
+  exposes the check program to potential attacks. See "option external-check",
+  and "insecure-fork-wanted", and "insecure-setuid-wanted" for extra details.
 
 fd-hard-limit <number>
   Sets an upper bound to the maximum number of file descriptors that the

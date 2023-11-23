@@ -426,7 +426,10 @@ static int connect_proc_chk(struct task *t)
 				   (unsigned int)limit.rlim_cur, (unsigned int)limit.rlim_max);
 		}
 
-		environ = check->envp;
+		if (global.external_check < 2) {
+			/* fresh new env for each check */
+			environ = check->envp;
+		}
 
 		/* Update some environment variables and command args: curconn, server addr and server port */
 		EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_CURCONN, ultoa_r(s->cur_sess, buf, sizeof(buf)), fail);
@@ -445,6 +448,19 @@ static int connect_proc_chk(struct task *t)
 		EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_ADDR, check->argv[3], fail);
 		EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_PORT, check->argv[4], fail);
 
+		if (global.external_check >= 2) {
+			/* environment is preserved, let's merge new vars */
+			int i;
+
+			for (i = 0; check->envp[i] && *check->envp[i]; i++) {
+				char *delim = strchr(check->envp[i], '=');
+				if (!delim)
+					continue;
+				*(delim++) = 0;
+				if (setenv(check->envp[i], delim, 1) != 0)
+					goto fail;
+			}
+		}
 		haproxy_unblock_signals();
 		execvp(px->check_command, check->argv);
 		ha_alert("Failed to exec process for external health check: %s. Aborting.\n",
