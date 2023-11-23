@@ -227,10 +227,10 @@ to forcefully enable it using "USE_LIBCRYPT=1".
 -----------------
 For SSL/TLS, it is necessary to use a cryptography library. HAProxy currently
 supports the OpenSSL library, and is known to build and work with branches
-1.0.0, 1.0.1, 1.0.2, 1.1.0, 1.1.1, 3.0 and 3.1. It is recommended to use at
-least OpenSSL 1.1.1 to have support for all SSL keywords and configuration in
-HAProxy. OpenSSL follows a long-term support cycle similar to HAProxy's, and
-each of the branches above receives its own fixes, without forcing you to
+1.0.0, 1.0.1, 1.0.2, 1.1.0, 1.1.1, 3.0, 3.1 and 3.2. It is recommended to use
+at least OpenSSL 1.1.1 to have support for all SSL keywords and configuration
+in HAProxy. OpenSSL follows a long-term support cycle similar to HAProxy's,
+and each of the branches above receives its own fixes, without forcing you to
 upgrade to another branch. There is no excuse for staying vulnerable by not
 applying a fix available for your version. There is always a small risk of
 regression when jumping from one branch to another one, especially when it's
