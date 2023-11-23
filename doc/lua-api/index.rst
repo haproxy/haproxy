@@ -1140,7 +1140,7 @@ Proxy class
 
   :param class_proxy px: A :ref:`proxy_class` which indicates the manipulated
    proxy.
-  :returns: a string "tcp", "http" or "unknown"
+  :returns: a string "tcp", "http", "syslog" or "unknown"
 
 .. js:function:: Proxy.get_srv_act(px)
 
