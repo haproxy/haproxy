@@ -189,6 +189,19 @@ static void free_logformat_list(struct list *lfs)
 	}
 }
 
+void free_server_rules(struct list *srules)
+{
+	struct server_rule *srule, *sruleb;
+
+	list_for_each_entry_safe(srule, sruleb, srules, list) {
+		LIST_DELETE(&srule->list);
+		free_acl_cond(srule->cond);
+		free_logformat_list(&srule->expr);
+		free(srule->file);
+		free(srule);
+	}
+}
+
 void free_proxy(struct proxy *p)
 {
 	struct server *s;
@@ -197,7 +210,6 @@ void free_proxy(struct proxy *p)
 	struct bind_conf *bind_conf, *bind_back;
 	struct acl_cond *cond, *condb;
 	struct acl *acl, *aclb;
-	struct server_rule *srule, *sruleb;
 	struct switching_rule *rule, *ruleb;
 	struct redirect_rule *rdr, *rdrb;
 	struct logger *log, *logb;
@@ -260,13 +272,7 @@ void free_proxy(struct proxy *p)
 		free(acl);
 	}
 
-	list_for_each_entry_safe(srule, sruleb, &p->server_rules, list) {
-		LIST_DELETE(&srule->list);
-		free_acl_cond(srule->cond);
-		free_logformat_list(&srule->expr);
-		free(srule->file);
-		free(srule);
-	}
+	free_server_rules(&p->server_rules);
 
 	list_for_each_entry_safe(rule, ruleb, &p->switching_rules, list) {
 		LIST_DELETE(&rule->list);
