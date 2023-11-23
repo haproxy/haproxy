@@ -929,6 +929,13 @@ static int _postcheck_log_backend_compat(struct proxy *be)
 		err_code |= ERR_WARN;
 		ha_free(&be->dyncookie_key);
 	}
+	if (!LIST_ISEMPTY(&be->server_rules)) {
+		ha_warning("Cannot use \"use-server\" rules with 'mode log' in %s '%s'. They will be ignored.\n",
+			   proxy_type_str(be), be->id);
+
+		err_code |= ERR_WARN;
+		free_server_rules(&be->server_rules);
+	}
 	return err_code;
 }
 
