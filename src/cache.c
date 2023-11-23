@@ -73,10 +73,12 @@ struct cache_appctx {
 	struct cache_tree *cache_tree;
 	struct cache_entry *entry;       /* Entry to be sent from cache. */
 	unsigned int sent;               /* The number of bytes already sent for this cache entry. */
+	unsigned int data_sent;           /* The number of bytes of the payload already sent for this cache entry. */
 	unsigned int offset;             /* start offset of remaining data relative to beginning of the next block */
 	unsigned int rem_data;           /* Remaining bytes for the last data block (HTX only, 0 means process next block) */
 	unsigned int send_notmodified:1; /* In case of conditional request, we might want to send a "304 Not Modified" response instead of the stored data. */
 	unsigned int unused:31;
+	/* 4 bytes hole here */
 	struct shared_block *next;       /* The next block of data to be sent for this cache entry. */
 };
 
@@ -193,7 +195,7 @@ struct cache_entry {
 	unsigned int latest_validation;     /* latest validation date */
 	unsigned int expire;      /* expiration date (wall clock time) */
 	unsigned int age;         /* Origin server "Age" header value */
-
+	unsigned int body_size;         /* Size of the body */
 	int refcount;
 
 	struct eb32_node eb;     /* ebtree node used to hold the cache object */
@@ -751,6 +753,7 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 	struct htx_blk *blk;
 	struct shared_block *fb;
 	struct htx_ret htxret;
+	size_t data_len = 0;
 	unsigned int orig_len, to_forward;
 	int ret;
 
@@ -787,6 +790,7 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 				chunk_memcat(&trash, (char *)&info, sizeof(info));
 				chunk_istcat(&trash, v);
 				to_forward += v.len;
+				data_len += v.len;
 				len -= v.len;
 				break;
 
@@ -815,6 +819,7 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 		goto no_cache;
 	}
 
+	((struct cache_entry *)st->first_block->data)->body_size += data_len;
 	ret = shctx_row_data_append(shctx, st->first_block,
 				    (unsigned char *)b_head(&trash), b_data(&trash));
 	if (ret < 0)
@@ -1519,7 +1524,7 @@ static unsigned int htx_cache_dump_data_blk(struct appctx *appctx, struct htx *h
 	struct cache_appctx *ctx = appctx->svcctx;
 	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
 	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
-	unsigned int max, total, rem_data;
+	unsigned int max, total, rem_data, data_len;
 	uint32_t blksz;
 
 	max = htx_get_max_blksz(htx,
@@ -1527,6 +1532,7 @@ static unsigned int htx_cache_dump_data_blk(struct appctx *appctx, struct htx *h
 	if (!max)
 		return 0;
 
+	data_len = 0;
 	rem_data = 0;
 	if (ctx->rem_data) {
 		blksz = ctx->rem_data;
@@ -1549,6 +1555,7 @@ static unsigned int htx_cache_dump_data_blk(struct appctx *appctx, struct htx *h
 		offset += sz;
 		blksz  -= sz;
 		total  += sz;
+		data_len += sz;
 		if (sz < max)
 			break;
 		if (blksz || offset == shctx->block_size) {
@@ -1560,6 +1567,7 @@ static unsigned int htx_cache_dump_data_blk(struct appctx *appctx, struct htx *h
 	ctx->offset   = offset;
 	ctx->next     = shblk;
 	ctx->sent    += total;
+	ctx->data_sent += data_len;
 	ctx->rem_data = rem_data + blksz;
 	return total;
 }
@@ -2062,7 +2070,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			ctx->cache_tree = cache_tree;
 			ctx->entry = res;
 			ctx->next = NULL;
-			ctx->sent = 0;
+			ctx->sent = ctx->data_sent = 0;
 			ctx->send_notmodified =
                                 should_send_notmodified_response(cache, htxbuf(&s->req.buf), res);
 
