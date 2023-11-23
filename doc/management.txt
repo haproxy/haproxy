@@ -2633,6 +2633,47 @@ show cache
   6. number of transactions using the entry
   7. expiration time, can be negative if already expired
 
+show dev
+  This command is meant to centralize some information that HAProxy developers
+  might need to better understand the causes of a given problem. It generally
+  does not provide useful information for the user, but these information allow
+  developers to eliminate certain hypothesis. The format is roughly a series of
+  sections containing indented lines with one element per line, such as the OS
+  type and version, the CPU type or the boot-time FD limits for example. Some
+  fields will be omitted to avoid repetition or output pollution when they do
+  not add value (e.g. unlimited values). More fields may appear in the future,
+  and some may change. This output is not meant for being parsed by scripts, and
+  should not be considered with a high degree of reliability, it's essentially
+  aimed at saving time for those who can read it.
+
+  Technically speaking, such information are taken as-is out of an internal
+  structure that stores them together at boot time so that they can also be
+  found in a core file after a crash. As such, it may happen that developers
+  ask for an early output on a well behaving process to compare with what is
+  found in a core dump, or to compare between several reloads (e.g. some limits
+  might change). If anonymizing is enabled, any possibly sensitive value will
+  be anonymized as well (e.g. the node name).
+
+  Example of output:
+     $ socat stdio /tmp/sock1 <<< "show dev"
+     Platform info
+       machine vendor: To be filled by O.E.M
+       machine family: Altra
+       cpu model: Impl 0x41 Arch 8 Part 0xd0c r3p1
+       virtual machine: no
+       container: no
+       OS name: Linux
+       OS release: 6.2.0-36-generic
+       OS version: #37~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Mon Oct  9 18:01:07 UTC 2
+       OS architecture: aarch64
+       node name: 489aaf
+     Process info
+       pid: 1735846
+       boot uid: 509
+       boot gid: 1002
+       fd limit (soft): 1024
+       fd limit (hard): 1048576
+
 show env [<name>]
   Dump one or all environment variables known by the process. Without any
   argument, all variables are dumped. With an argument, only the specified
