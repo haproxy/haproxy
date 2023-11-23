@@ -106,6 +106,11 @@ struct post_mortem {
 		} thread_info[MAX_THREADS];
 #endif
 	} process;
+
+#if defined(HA_HAVE_DUMP_LIBS)
+	/* information about dynamic shared libraries involved */
+	char *libs;                      // dump of one addr / path per line, or NULL
+#endif
 } post_mortem ALIGNED(256) = { };
 
 /* Points to a copy of the buffer where the dump functions should write, when
@@ -2147,10 +2152,25 @@ static int feed_post_mortem()
 	if (strcmp(post_mortem.platform.utsname.sysname, "Linux") == 0)
 		feed_post_mortem_linux();
 
+#if defined(HA_HAVE_DUMP_LIBS)
+	chunk_reset(&trash);
+	if (dump_libs(&trash, 1))
+		post_mortem.libs = strdup(trash.area);
+#endif
+
 	return ERR_NONE;
 }
 
 REGISTER_POST_CHECK(feed_post_mortem);
+
+static void deinit_post_mortem(void)
+{
+#if defined(HA_HAVE_DUMP_LIBS)
+	ha_free(&post_mortem.libs);
+#endif
+}
+
+REGISTER_POST_DEINIT(deinit_post_mortem);
 
 #ifdef USE_THREAD
 /* init code is called one at a time so let's collect all per-thread info on
