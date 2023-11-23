@@ -83,6 +83,7 @@
 #ifdef USE_CPU_AFFINITY
 #include <haproxy/cpuset.h>
 #endif
+#include <haproxy/debug.h>
 #include <haproxy/dns.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/errors.h>
@@ -1946,6 +1947,7 @@ static void init(int argc, char **argv)
 	struct post_check_fct *pcf;
 	struct pre_check_fct *prcf;
 	int ideal_maxconn;
+	const char *cc, *cflags, *opts;
 
 #ifdef USE_OPENSSL
 #ifdef USE_OPENSSL_WOLFSSL
@@ -2718,6 +2720,44 @@ static void init(int argc, char **argv)
 	 */
 	if (!global.tune.pool_cache_size)
 		global.tune.pool_cache_size = CONFIG_HAP_POOL_CACHE_SIZE;
+
+	/* fill in a few info about our version and build options */
+	chunk_reset(&trash);
+
+	/* toolchain */
+	cc = chunk_newstr(&trash);
+#if defined(__clang_version__)
+	chunk_appendf(&trash, "clang-" __clang_version__);
+#elif defined(__VERSION__)
+	chunk_appendf(&trash, "gcc-" __VERSION__);
+#endif
+#if __has_feature(address_sanitizer) || defined(__SANITIZE_ADDRESS__)
+	chunk_appendf(&trash, "+asan");
+#endif
+	/* toolchain opts */
+	cflags = chunk_newstr(&trash);
+#ifdef BUILD_CC
+	chunk_appendf(&trash, "%s", BUILD_CC);
+#endif
+#ifdef BUILD_CFLAGS
+	chunk_appendf(&trash, " %s", BUILD_CFLAGS);
+#endif
+#ifdef BUILD_DEBUG
+	chunk_appendf(&trash, " %s", BUILD_DEBUG);
+#endif
+	/* settings */
+	opts = chunk_newstr(&trash);
+#ifdef BUILD_TARGET
+	chunk_appendf(&trash, "TARGET='%s'", BUILD_TARGET);
+#endif
+#ifdef BUILD_CPU
+	chunk_appendf(&trash, " CPU='%s'", BUILD_CPU);
+#endif
+#ifdef BUILD_OPTIONS
+	chunk_appendf(&trash, " %s", BUILD_OPTIONS);
+#endif
+
+	post_mortem_add_component("haproxy", haproxy_version, cc, cflags, opts, argv[0]);
 }
 
 void deinit(void)
