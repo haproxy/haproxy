@@ -1,6 +1,50 @@
 ChangeLog :
 ===========
 
+2023/11/24 : 2.9-dev11
+    - BUG/MINOR: startup: set GTUNE_SOCKET_TRANSFER correctly
+    - BUG/MINOR: sock: mark abns sockets as non-suspendable and always unbind them
+    - BUILD: cache: fix build error on older compilers
+    - BUG/MAJOR: quic: complete thread migration before tcp-rules
+    - BUG/MEDIUM: quic: Possible crash for connections to be killed
+    - MINOR: quic: remove unneeded QUIC specific stopping function
+    - MINOR: acl: define explicit HTTP_3.0
+    - DEBUG: connection/flags: update flags for reverse HTTP
+    - BUILD: log: silence a build warning when threads are disabled
+    - MINOR: quic: Add traces to debug frames handling during retransmissions
+    - BUG/MEDIUM: quic: Possible crash during retransmissions and heavy load
+    - BUG/MINOR: quic: Possible leak of TX packets under heavy load
+    - BUG/MINOR: quic: Possible RX packet memory leak under heavy load
+    - BUG/MINOR: server: do not leak default-server in defaults sections
+    - DEBUG: tinfo: store the pthread ID and the stack pointer in tinfo
+    - MINOR: debug: start to create a new struct post_mortem
+    - MINOR: debug: add OS/hardware info to the post_mortem struct
+    - MINOR: debug: report in port_mortem whether a container was detected
+    - MINOR: debug: report in post_mortem if the container techno used is docker
+    - MINOR: debug: detect CPU model and store it in post_mortem
+    - MINOR: debug: report any detected hypervisor in post_mortem
+    - MINOR: debug: collect some boot-time info related to the process
+    - MINOR: debug: copy the thread info into the post_mortem struct
+    - MINOR: debug: dump the mapping of the libs into post_mortem
+    - MINOR: debug: add the ability to enter components in the post_mortem struct
+    - MINOR: init: add info about the main program to the post_mortem struct
+    - DOC: management: document "show dev"
+    - CLEANUP: assorted typo fixes in the code and comments
+    - CI: limit codespell checks to main repo, not forks
+    - DOC: 51d: updated 51Degrees repo URL for v3.2.10
+    - DOC: install: update the list of openssl versions
+    - MINOR: ext-check: add an option to preserve environment variables
+    - BUG/MEDIUM: mux-h1: Don't set CO_SFL_MSG_MORE flag on last fast-forward send
+    - MINOR: rhttp: rename proto_reverse_connect
+    - MINOR: rhttp: large renaming to use rhttp prefix
+    - MINOR: rhttp: add count of active conns per thread
+    - MEDIUM: rhttp: support multi-thread active connect
+    - MINOR: listener: allow thread kw for rhttp bind
+    - DOC: rhttp: replace maxconn by nbconn
+    - MINOR: log/balance: rename "log-sticky" to "sticky"
+    - MEDIUM: mux-quic: Add consumer-side fast-forwarding support
+    - MAJOR: h3: Implement zero-copy support to send DATA frame
+
 2023/11/18 : 2.9-dev10
     - CLEANUP: Re-apply xalloc_size.cocci (3)
     - BUG/MEDIUM: stconn: Report send activity during mux-to-mux fast-forward
