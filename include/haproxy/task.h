@@ -229,10 +229,7 @@ static inline void _task_wakeup(struct task *t, unsigned int f, const struct ha_
  * that it's possible to unconditionally wakeup the task and drop the RUNNING
  * flag if needed.
  */
-#define task_drop_running(t, f) \
-	_task_drop_running(t, f, MK_CALLER(WAKEUP_TYPE_TASK_DROP_RUNNING, 0, 0))
-
-static inline void _task_drop_running(struct task *t, unsigned int f, const struct ha_caller *caller)
+static inline void task_drop_running(struct task *t, unsigned int f)
 {
 	unsigned int state, new_state;
 
@@ -248,16 +245,8 @@ static inline void _task_drop_running(struct task *t, unsigned int f, const stru
 		__ha_cpu_relax();
 	}
 
-	if ((new_state & ~state) & TASK_QUEUED) {
-		if (likely(caller)) {
-			caller = HA_ATOMIC_XCHG(&t->caller, caller);
-			BUG_ON((ulong)caller & 1);
-#ifdef DEBUG_TASK
-			HA_ATOMIC_STORE(&t->debug.prev_caller, caller);
-#endif
-		}
+	if ((new_state & ~state) & TASK_QUEUED)
 		__task_wakeup(t);
-	}
 }
 
 /*
@@ -755,7 +744,6 @@ static inline const char *task_wakeup_type_str(uint t)
 	case WAKEUP_TYPE_TASK_INSTANT_WAKEUP  : return "task_instant_wakeup";
 	case WAKEUP_TYPE_TASKLET_WAKEUP       : return "tasklet_wakeup";
 	case WAKEUP_TYPE_TASKLET_WAKEUP_AFTER : return "tasklet_wakeup_after";
-	case WAKEUP_TYPE_TASK_DROP_RUNNING    : return "task_drop_running";
 	case WAKEUP_TYPE_TASK_QUEUE           : return "task_queue";
 	case WAKEUP_TYPE_TASK_SCHEDULE        : return "task_schedule";
 	case WAKEUP_TYPE_APPCTX_WAKEUP        : return "appctx_wakeup";
