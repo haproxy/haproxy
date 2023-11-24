@@ -1176,6 +1176,7 @@ The following keywords are supported in the "global" section :
    - tune.comp.maxlevel
    - tune.disable-fast-forward
    - tune.disable-zero-copy-forwarding
+   - tune.events.max-events-at-once
    - tune.fail-alloc
    - tune.fd.edge-triggered
    - tune.h2.be.initial-window-size
@@ -2917,6 +2918,16 @@ tune.disable-zero-copy-forwarding
   data fast-forwarding by avoiding to use the channel's buffer. Thanks to this
   directive, it is possible to disable this optimization. Note it also disable
   any kernel tcp splicing.
+
+tune.events.max-events-at-once <number>
+  Sets the number of events that may be processed at once by an asynchronous
+  task handler (from event_hdl API). <number> should be included between 1
+  and 10000. Large number could cause thread contention as a result of the
+  task doing heavy work without interruption, and on the other hand, small
+  number could result in the task being constantly rescheduled because it
+  cannot consume enough events per run and is not able to catch up with the
+  event producer. The default value may be forced at build time, otherwise
+  defaults to 100.
 
 tune.fail-alloc
   If compiled with DEBUG_FAIL_ALLOC or started with "-dMfail", gives the

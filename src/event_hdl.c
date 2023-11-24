@@ -18,6 +18,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/signal.h>
 #include <haproxy/xxhash.h>
+#include <haproxy/cfgparse.h>
 
 /* event types changes in event_hdl-t.h file should be reflected in the
  * map below to allow string to type and type to string conversions
@@ -48,10 +49,8 @@ DECLARE_STATIC_POOL(pool_head_sub_event, "ehdl_sub_e", sizeof(struct event_hdl_a
 DECLARE_STATIC_POOL(pool_head_sub_event_data, "ehdl_sub_ed", sizeof(struct event_hdl_async_event_data));
 DECLARE_STATIC_POOL(pool_head_sub_taskctx, "ehdl_sub_tctx", sizeof(struct event_hdl_async_task_default_ctx));
 
-/* TODO: will become a config tunable
- * ie: tune.events.max-async-notif-at-once
- */
-static int event_hdl_async_max_notif_at_once = 10;
+/* global event_hdl tunables (public variable) */
+struct event_hdl_tune event_hdl_tune;
 
 /* global subscription list (implicit where NULL is used as sublist argument) */
 static event_hdl_sub_list global_event_hdl_sub_list;
@@ -81,6 +80,9 @@ static void event_hdl_init(void)
 	event_hdl_sub_list_init(&global_event_hdl_sub_list);
 	/* register the deinit function, will be called on soft-stop */
 	signal_register_fct(0, event_hdl_deinit, 0);
+
+	/* set some default values */
+	event_hdl_tune.max_events_at_once = EVENT_HDL_MAX_AT_ONCE;
 }
 
 /* general purpose hashing function when you want to compute
@@ -242,7 +244,7 @@ static struct task *event_hdl_async_task_default(struct task *task, void *ctx, u
 	 * no more events to come (handler is unregistered)
 	 * so we must free task_ctx and stop task
 	 */
-	while (max_notif_at_once_it < event_hdl_async_max_notif_at_once &&
+	while (max_notif_at_once_it < event_hdl_tune.max_events_at_once &&
 	       (event = event_hdl_async_equeue_pop(&task_ctx->e_queue)))
 	{
 		if (event_hdl_sub_type_equal(event->type, EVENT_HDL_SUB_END)) {
@@ -963,5 +965,35 @@ void event_hdl_sub_list_destroy(event_hdl_sub_list *sub_list)
 		return; /* already destroyed */
 	_event_hdl_sub_list_destroy(sub_list);
 }
+
+/* config parser for global "tune.events.max-events-at-once" */
+static int event_hdl_parse_max_events_at_once(char **args, int section_type, struct proxy *curpx,
+                                              const struct proxy *defpx, const char *file, int line,
+                                              char **err)
+{
+	int arg = -1;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*(args[1]) != 0)
+		arg = atoi(args[1]);
+
+	if (arg < 1 || arg > 10000) {
+		memprintf(err, "'%s' expects an integer argument between 1 and 10000.", args[0]);
+		return -1;
+	}
+
+	event_hdl_tune.max_events_at_once = arg;
+	return 0;
+}
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "tune.events.max-events-at-once", event_hdl_parse_max_events_at_once },
+	{ 0, NULL, NULL }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 INITCALL0(STG_INIT, event_hdl_init);

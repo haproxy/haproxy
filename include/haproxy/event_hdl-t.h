@@ -45,6 +45,11 @@ struct event_hdl_cb_data_template {
 	} unsafe;
 };
 
+/* event_hdl tunables */
+struct event_hdl_tune {
+	unsigned int max_events_at_once;
+};
+
 /* FIXME: adjust if needed! Should be large enough
  * to support every struct event_hdl_cb_data_x types
  * BUG_ON check in publish/async_mode and static assert

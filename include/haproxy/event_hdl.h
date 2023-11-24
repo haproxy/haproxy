@@ -506,4 +506,7 @@ void event_hdl_sub_list_init(event_hdl_sub_list *sub_list);
  */
 void event_hdl_sub_list_destroy(event_hdl_sub_list *sub_list);
 
+/* event_hdl tunables */
+extern struct event_hdl_tune event_hdl_tune;
+
 #endif /* _HAPROXY_EVENT_HDL_H */

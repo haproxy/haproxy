@@ -277,6 +277,13 @@
 // X-Original-To header default
 #define DEF_XORIGINALTO_HDR	"X-Original-To"
 
+/* Max number of events that may be processed at once by
+ * an event_hdl API consumer to prevent thread contention.
+ */
+#ifndef EVENT_HDL_MAX_AT_ONCE
+#define EVENT_HDL_MAX_AT_ONCE 100
+#endif
+
 /* Default connections limit.
  *
  * A system limit can be enforced at build time in order to avoid using haproxy
