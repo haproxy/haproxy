@@ -2349,7 +2349,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	int has_rsa_sig = 0, has_ecdsa_sig = 0;
 
 	char *wildp = NULL;
-	const uint8_t *servername;
+	const char *servername;
 	size_t servername_len;
 	struct ebmb_node *node, *n, *node_ecdsa = NULL, *node_rsa = NULL, *node_anonymous = NULL;
 	int allow_early = 0;
@@ -2431,7 +2431,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		if (len == 0 || len + 2 > extension_len || len > TLSEXT_MAXLEN_host_name
 		    || memchr(extension_data, 0, len) != NULL)
 			goto abort;
-		servername = extension_data;
+		servername = (char *)extension_data;
 		servername_len = len;
 	} else {
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
@@ -2528,6 +2528,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 			wildp = &trash.area[i];
 	}
 	trash.area[i] = 0;
+	servername = trash.area;
 
 	HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
 
@@ -2535,7 +2536,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	 * name and if not found in the wildcard  */
 	for (i = 0; i < 2; i++) {
 		if (i == 0) 	/* lookup in full qualified names */
-			node = ebst_lookup(&s->sni_ctx, trash.area);
+			node = ebst_lookup(&s->sni_ctx, servername);
 		else if (i == 1 && wildp)  /* lookup in wildcards names */
 			node = ebst_lookup(&s->sni_w_ctx, wildp);
 		else
@@ -2552,7 +2553,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 					/* If this is a wildcard, look for an exclusion on the same crt-list line */
 					sni = container_of(n, struct sni_ctx, name);
 					list_for_each_entry(sni_tmp, &sni->ckch_inst->sni_ctx, by_ckch_inst) {
-						if (sni_tmp->neg && (strcmp((const char *)sni_tmp->name.key, trash.area) == 0)) {
+						if (sni_tmp->neg && (strcmp((const char *)sni_tmp->name.key, servername) == 0)) {
 							skip = 1;
 							break;
 						}
@@ -2608,7 +2609,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 
 	HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
-	if (s->options & BC_O_GENERATE_CERTS && ssl_sock_generate_certificate(trash.area, s, ssl)) {
+	if (s->options & BC_O_GENERATE_CERTS && ssl_sock_generate_certificate(servername, s, ssl)) {
 		/* switch ctx done in ssl_sock_generate_certificate */
 		goto allow_early;
 	}
@@ -2630,7 +2631,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	{
 		char *client_sni = pool_alloc(ssl_sock_client_sni_pool);
 		if (client_sni) {
-			strncpy(client_sni, trash.area, TLSEXT_MAXLEN_host_name);
+			strncpy(client_sni, servername, TLSEXT_MAXLEN_host_name);
 			client_sni[TLSEXT_MAXLEN_host_name] = '\0';
 			SSL_set_ex_data(ssl, ssl_client_sni_index, client_sni);
 		}
@@ -2855,6 +2856,7 @@ static int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
 			wildp = &trash.area[i];
 	}
 	trash.area[i] = 0;
+	servername = trash.area;
 
 
 	HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
@@ -2863,7 +2865,7 @@ static int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
 	 * name and if not found in the wildcard  */
 	for (i = 0; i < 2; i++) {
 		if (i == 0) 	/* lookup in full qualified names */
-			node = ebst_lookup(&s->sni_ctx, trash.area);
+			node = ebst_lookup(&s->sni_ctx, servername);
 		else if (i == 1 && wildp)  /* lookup in wildcards names */
 			node = ebst_lookup(&s->sni_w_ctx, wildp);
 		else
@@ -2880,7 +2882,7 @@ static int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
 					/* If this is a wildcard, look for an exclusion on the same crt-list line */
 					sni = container_of(n, struct sni_ctx, name);
 					list_for_each_entry(sni_tmp, &sni->ckch_inst->sni_ctx, by_ckch_inst) {
-						if (sni_tmp->neg && (strcmp((const char *)sni_tmp->name.key, trash.area) == 0)) {
+						if (sni_tmp->neg && (strcmp((const char *)sni_tmp->name.key, servername) == 0)) {
 							skip = 1;
 							break;
 						}
@@ -2950,7 +2952,7 @@ static int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
 	{
 		char *client_sni = pool_alloc(ssl_sock_client_sni_pool);
 		if (client_sni) {
-			strncpy(client_sni, trash.area, TLSEXT_MAXLEN_host_name);
+			strncpy(client_sni, servername, TLSEXT_MAXLEN_host_name);
 			client_sni[TLSEXT_MAXLEN_host_name] = '\0';
 			SSL_set_ex_data(ssl, ssl_client_sni_index, client_sni);
 		}
