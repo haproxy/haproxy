@@ -4059,6 +4059,14 @@ experimental-mode [on|off]
 
   See also "experimental-mode" in Section 9.3 and "mcli-debug-mode" in 9.4.1.
 
+hard-reload
+  This command does the same as the "reload" command over the master CLI with
+  the expection that it does a hard-stop (-st) instead of a stop-stop (-sf) of
+  the previous process. This means the previous process does not wait to
+  achieve anything before exiting, so all connections will be closed.
+
+  See also the "reload" command.
+
 mcli-debug-mode [on|off]
   This keyword allows a special mode in the master CLI which enables every
   keywords that were meant for a worker CLI on the master CLI, allowing to debug
@@ -4128,6 +4136,7 @@ reload
   will close the connection to the CLI.
 
   Note that a reload will close all connections to the master CLI.
+  See also the "hard-reload" command.
 
 show proc
   The master CLI introduces a 'show proc' command to surpervise the

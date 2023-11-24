@@ -66,7 +66,7 @@ int compare_current_version(const char *version);
 void display_version();
 
 void mworker_accept_wrapper(int fd);
-void mworker_reload(void);
+void mworker_reload(int hardreload);
 
 /* to be used with warned and WARN_* */
 static inline int already_warned(unsigned int warning)

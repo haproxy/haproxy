@@ -686,7 +686,7 @@ int delete_oldpid(int pid)
  * When called, this function reexec haproxy with -sf followed by current
  * children PIDs and possibly old children PIDs if they didn't leave yet.
  */
-static void mworker_reexec()
+static void mworker_reexec(int hardreload)
 {
 	char **next_argv = NULL;
 	int old_argc = 0; /* previous number of argument */
@@ -749,7 +749,10 @@ static void mworker_reexec()
 		if (mworker_child_nb() > 0) {
 			struct mworker_proc *child;
 
-			next_argv[next_argc++] = "-sf";
+			if (hardreload)
+				next_argv[next_argc++] = "-st";
+			else
+				next_argv[next_argc++] = "-sf";
 
 			list_for_each_entry(child, &proc_list, list) {
 				if (!(child->options & PROC_O_LEAVING) && (child->options & PROC_O_TYPE_WORKER))
@@ -792,16 +795,16 @@ alloc_error:
 static void mworker_reexec_waitmode()
 {
 	setenv("HAPROXY_MWORKER_WAIT_ONLY", "1", 1);
-	mworker_reexec();
+	mworker_reexec(0);
 }
 
 /* reload haproxy and emit a warning */
-void mworker_reload()
+void mworker_reload(int hardreload)
 {
 	struct mworker_proc *child;
 	struct per_thread_deinit_fct *ptdf;
 
-	ha_notice("Reloading HAProxy\n");
+	ha_notice("Reloading HAProxy%s\n", hardreload?" (hard-reload)":"");
 
 	/* close the poller FD and the thread waker pipe FD */
 	list_for_each_entry(ptdf, &per_thread_deinit_list, list)
@@ -816,7 +819,7 @@ void mworker_reload()
 	if (global.tune.options & GTUNE_USE_SYSTEMD)
 		sd_notify(0, "RELOADING=1\nSTATUS=Reloading Configuration.\n");
 #endif
-	mworker_reexec();
+	mworker_reexec(hardreload);
 }
 
 static void mworker_loop()

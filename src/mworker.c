@@ -316,7 +316,7 @@ void mworker_broadcast_signal(struct sig_handler *sh)
  */
 void mworker_catch_sighup(struct sig_handler *sh)
 {
-	mworker_reload();
+	mworker_reload(0);
 }
 
 void mworker_catch_sigterm(struct sig_handler *sh)
@@ -685,9 +685,14 @@ static int cli_parse_reload(char **args, char *payload, struct appctx *appctx, v
 	struct stream *strm = NULL;
 	struct connection *conn = NULL;
 	int fd = -1;
+	int hardreload = 0;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
+
+	/* hard reload requested */
+	if (*args[0] == 'h')
+		hardreload = 1;
 
 	/* This ask for a synchronous reload, which means we will keep this FD
 	   instead of closing it. */
@@ -704,7 +709,7 @@ static int cli_parse_reload(char **args, char *payload, struct appctx *appctx, v
 	if (fd != -1 && send_fd_uxst(proc_self->ipc_fd[0], fd) == 0) {
 		fd_delete(fd); /* avoid the leak of the FD after sending it via the socketpair */
 	}
-	mworker_reload();
+	mworker_reload(hardreload);
 
 	return 1;
 }
@@ -807,7 +812,8 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "@!<pid>", NULL },         "@!<pid>                                 : send a command to the <pid> process", cli_parse_default, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "@master", NULL },         "@master                                 : send a command to the master process", cli_parse_default, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "show", "proc", NULL },    "show proc                               : show processes status", cli_parse_default, cli_io_handler_show_proc, NULL, NULL, ACCESS_MASTER_ONLY},
-	{ { "reload", NULL },          "reload                                  : reload haproxy", cli_parse_reload, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
+	{ { "reload", NULL },          "reload                                  : achieve a soft-reload (-sf) of haproxy", cli_parse_reload, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
+	{ { "hard-reload", NULL },     "hard-reload                             : achieve a hard-reload (-st) of haproxy", cli_parse_reload, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "_loadstatus", NULL },     NULL,                                                             cli_parse_default, cli_io_handler_show_loadstatus, NULL, NULL, ACCESS_MASTER_ONLY},
 	{{},}
 }};
