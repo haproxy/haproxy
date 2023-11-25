@@ -268,9 +268,9 @@ void _srv_event_hdl_prepare_inetaddr(struct event_hdl_cb_data_server_inetaddr *c
 	}
 	else {
 		cb_data->safe.prev.family = AF_INET6;
-		memcpy(&cb_data->safe.prev.addr.v6.s6_addr,
-		       ((struct sockaddr_in6 *)prev_addr)->sin6_addr.s6_addr,
-		       sizeof(struct sockaddr_in6));
+		memcpy(&cb_data->safe.prev.addr.v6,
+		       &((struct sockaddr_in6 *)prev_addr)->sin6_addr,
+		       sizeof(struct in6_addr));
 	}
 	cb_data->safe.prev.svc_port = prev_port;
 
@@ -282,9 +282,9 @@ void _srv_event_hdl_prepare_inetaddr(struct event_hdl_cb_data_server_inetaddr *c
 	}
 	else {
 		cb_data->safe.next.family = AF_INET6;
-		memcpy(&cb_data->safe.next.addr.v6.s6_addr,
-		       ((struct sockaddr_in6 *)next_addr)->sin6_addr.s6_addr,
-		       sizeof(struct sockaddr_in6));
+		memcpy(&cb_data->safe.next.addr.v6,
+		       &((struct sockaddr_in6 *)next_addr)->sin6_addr,
+		       sizeof(struct in6_addr));
 	}
 
 	cb_data->safe.next.svc_port = next_port;
