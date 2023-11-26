@@ -1597,9 +1597,8 @@ void pat_ref_delete_by_ptr(struct pat_ref *ref, struct pat_ref_elt *elt)
 		HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
 
 	LIST_DELETE(&elt->list);
-	ebpt_delete(&elt->node);
+	ebmb_delete(&elt->node);
 	free(elt->sample);
-	free(elt->pattern);
 	free(elt);
 }
 
@@ -1611,7 +1610,7 @@ int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
 {
 	int ret = !!refelt->node.node.leaf_p;
 
-	ebpt_delete(&refelt->node);
+	ebmb_delete(&refelt->node);
 
 	return ret;
 }
@@ -1622,16 +1621,16 @@ int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
  */
 int pat_ref_delete(struct pat_ref *ref, const char *key)
 {
-	struct ebpt_node *node;
+	struct ebmb_node *node;
 	int found = 0;
 
 	/* delete pattern from reference */
-	node = ebis_lookup(&ref->ebpt_root, key);
+	node = ebst_lookup(&ref->ebmb_root, key);
 	while (node) {
 		struct pat_ref_elt *elt;
 
-		elt = ebpt_entry(node, struct pat_ref_elt, node);
-		node = ebpt_next_dup(node);
+		elt = ebmb_entry(node, struct pat_ref_elt, node);
+		node = ebmb_next_dup(node);
 		pat_ref_delete_by_ptr(ref, elt);
 		found = 1;
 	}
@@ -1645,11 +1644,11 @@ int pat_ref_delete(struct pat_ref *ref, const char *key)
  */
 struct pat_ref_elt *pat_ref_find_elt(struct pat_ref *ref, const char *key)
 {
-	struct ebpt_node *node;
+	struct ebmb_node *node;
 
-	node = ebis_lookup(&ref->ebpt_root, key);
+	node = ebst_lookup(&ref->ebmb_root, key);
 	if (node)
-		return ebpt_entry(node, struct pat_ref_elt, node);
+		return ebmb_entry(node, struct pat_ref_elt, node);
 
 	return NULL;
 }
@@ -1757,7 +1756,7 @@ int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **
 	int found = 0;
 	char *_merr;
 	char **merr;
-	struct ebpt_node *node;
+	struct ebmb_node *node;
 
 	if (err) {
 		merr = &_merr;
@@ -1771,12 +1770,12 @@ int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **
 	}
 	else {
 		/* Look for pattern in the reference. */
-		node = ebis_lookup(&ref->ebpt_root, key);
+		node = ebst_lookup(&ref->ebmb_root, key);
 	}
 
 	while (node) {
-		elt = ebpt_entry(node, struct pat_ref_elt, node);
-		node = ebpt_next_dup(node);
+		elt = ebmb_entry(node, struct pat_ref_elt, node);
+		node = ebmb_next_dup(node);
 		if (!pat_ref_set_elt(ref, elt, value, merr)) {
 			if (err && merr) {
 				if (!found) {
@@ -1832,7 +1831,7 @@ struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned
 	ref->entry_cnt = 0;
 
 	LIST_INIT(&ref->head);
-	ref->ebpt_root = EB_ROOT;
+	ref->ebmb_root = EB_ROOT;
 	LIST_INIT(&ref->pat);
 	HA_RWLOCK_INIT(&ref->lock);
 	LIST_APPEND(&pattern_reference, &ref->list);
@@ -1869,7 +1868,7 @@ struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int f
 	ref->next_gen = 0;
 	ref->unique_id = unique_id;
 	LIST_INIT(&ref->head);
-	ref->ebpt_root = EB_ROOT;
+	ref->ebmb_root = EB_ROOT;
 	LIST_INIT(&ref->pat);
 	HA_RWLOCK_INIT(&ref->lock);
 	LIST_APPEND(&pattern_reference, &ref->list);
@@ -1885,17 +1884,16 @@ struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int f
 struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, const char *sample, int line)
 {
 	struct pat_ref_elt *elt;
+	int len = strlen(pattern);
 
-	elt = calloc(1, sizeof(*elt));
+	elt = calloc(1, sizeof(*elt) + len + 1);
 	if (!elt)
 		goto fail;
 
 	elt->gen_id = ref->curr_gen;
 	elt->line = line;
 
-	elt->pattern = strdup(pattern);
-	if (!elt->pattern)
-		goto fail;
+	memcpy((char*)elt->pattern, pattern, len + 1);
 
 	if (sample) {
 		elt->sample = strdup(sample);
@@ -1909,12 +1907,9 @@ struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, con
 	LIST_APPEND(&ref->head, &elt->list);
 	/* Even if calloc()'ed, ensure this node is not linked to a tree. */
 	elt->node.node.leaf_p = NULL;
-	elt->node.key = elt->pattern;
-	ebis_insert(&ref->ebpt_root, &elt->node);
+	ebst_insert(&ref->ebmb_root, &elt->node);
 	return elt;
  fail:
-	if (elt)
-		free(elt->pattern);
 	free(elt);
 	return NULL;
 }
@@ -2081,8 +2076,7 @@ int pat_ref_purge_range(struct pat_ref *ref, uint from, uint to, int budget)
 		pat_delete_gen(ref, elt);
 
 		LIST_DELETE(&elt->list);
-		ebpt_delete(&elt->node);
-		free(elt->pattern);
+		ebmb_delete(&elt->node);
 		free(elt->sample);
 		free(elt);
 	}
@@ -2378,7 +2372,7 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 {
 	struct pat_ref *ref;
 	struct pattern_expr *expr;
-	struct ebpt_node *node;
+	struct ebmb_node *node;
 	struct pat_ref_elt *elt;
 	int reuse = 0;
 
@@ -2469,10 +2463,10 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 		return 1;
 
 	/* Load reference content in the pattern expression. */
-	node = ebpt_first(&ref->ebpt_root);
+	node = ebmb_first(&ref->ebmb_root);
 	while (node) {
-		elt = ebpt_entry(node, struct pat_ref_elt, node);
-		node = ebpt_next(node);
+		elt = ebmb_entry(node, struct pat_ref_elt, node);
+		node = ebmb_next(node);
 		if (!pat_ref_push(elt, expr, patflags, err)) {
 			if (elt->line > 0)
 				memprintf(err, "%s at line %d of file '%s'",

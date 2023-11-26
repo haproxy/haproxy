@@ -104,7 +104,7 @@ struct pat_ref {
 	char *reference; /* The reference name. */
 	char *display; /* String displayed to identify the pattern origin. */
 	struct list head; /* The head of the list of struct pat_ref_elt. */
-	struct eb_root ebpt_root; /* The tree where pattern reference elements are attached. */
+	struct eb_root ebmb_root; /* The tree where pattern reference elements are attached. */
 	struct list pat; /* The head of the list of struct pattern_expr. */
 	unsigned int flags; /* flags PAT_REF_*. */
 	unsigned int curr_gen; /* current generation number (anything below can be removed) */
@@ -118,18 +118,18 @@ struct pat_ref {
 
 /* This is a part of struct pat_ref. Each entry contains one pattern and one
  * associated value as original string. All derivative forms (via exprs) are
- * accessed from list_head or tree_head.
+ * accessed from list_head or tree_head. Be careful, it's variable-sized!
  */
 struct pat_ref_elt {
 	struct list list; /* Used to chain elements. */
-	struct ebpt_node node; /* Node to attach this element to its <pat_ref> ebtree. */
 	struct list back_refs; /* list of users tracking this pat ref */
 	void *list_head; /* all &pattern_list->from_ref derived from this reference, ends with NULL */
 	void *tree_head; /* all &pattern_tree->from_ref derived from this reference, ends with NULL */
-	char *pattern;
 	char *sample;
 	unsigned int gen_id; /* generation of pat_ref this was made for */
 	int line;
+	struct ebmb_node node; /* Node to attach this element to its <pat_ref> ebtree. */
+	const char pattern[0]; // const only to make sure nobody tries to free it.
 };
 
 /* This contain each tree indexed entry. This struct permit to associate
