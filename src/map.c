@@ -546,13 +546,13 @@ static int cli_io_handler_map_lookup(struct appctx *appctx)
 
 				/* display pattern */
 				if (ctx->display_flags == PAT_REF_MAP) {
-					if (pat->ref && pat->ref->pattern)
+					if (pat->ref)
 						chunk_appendf(&trash, ", key=\"%s\"", pat->ref->pattern);
 					else
 						chunk_appendf(&trash, ", key=unknown");
 				}
 				else {
-					if (pat->ref && pat->ref->pattern)
+					if (pat->ref)
 						chunk_appendf(&trash, ", pattern=\"%s\"", pat->ref->pattern);
 					else
 						chunk_appendf(&trash, ", pattern=unknown");
