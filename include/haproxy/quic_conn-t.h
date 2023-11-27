@@ -231,37 +231,8 @@ extern const struct quic_version *preferred_version;
 /* The maximum number of dgrams which may be sent upon PTO expirations. */
 #define QUIC_MAX_NB_PTO_DGRAMS         2
 
-/* QUIC datagram */
-struct quic_dgram {
-	void *owner;
-	unsigned char *buf;
-	size_t len;
-	unsigned char *dcid;
-	size_t dcid_len;
-	struct sockaddr_storage saddr;
-	struct sockaddr_storage daddr;
-	struct quic_conn *qc;
-
-	struct list recv_list; /* elemt to quic_receiver_buf <dgram_list>. */
-	struct mt_list handler_list; /* elem to quic_dghdlr <dgrams>. */
-};
-
 /* The QUIC packet numbers are 62-bits integers */
 #define QUIC_MAX_PACKET_NUM      ((1ULL << 62) - 1)
-
-/* QUIC datagram handler */
-struct quic_dghdlr {
-	struct mt_list dgrams;
-	struct tasklet *task;
-};
-
-/* Structure to store enough information about the RX CRYPTO frames. */
-struct quic_rx_crypto_frm {
-	struct eb64_node offset_node;
-	uint64_t len;
-	const unsigned char *data;
-	struct quic_rx_packet *pkt;
-};
 
 #define QUIC_CRYPTO_BUF_SHIFT  10
 #define QUIC_CRYPTO_BUF_MASK   ((1UL << QUIC_CRYPTO_BUF_SHIFT) - 1)

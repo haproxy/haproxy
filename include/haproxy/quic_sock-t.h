@@ -23,5 +23,26 @@ struct quic_receiver_buf {
 	struct mt_list rxbuf_el; /* list element into receiver.rxbuf_list. */
 };
 
+/* QUIC datagram */
+struct quic_dgram {
+	void *owner;
+	unsigned char *buf;
+	size_t len;
+	unsigned char *dcid;
+	size_t dcid_len;
+	struct sockaddr_storage saddr;
+	struct sockaddr_storage daddr;
+	struct quic_conn *qc;
+
+	struct list recv_list; /* elemt to quic_receiver_buf <dgram_list>. */
+	struct mt_list handler_list; /* elem to quic_dghdlr <dgrams>. */
+};
+
+/* QUIC datagram handler */
+struct quic_dghdlr {
+	struct mt_list dgrams;
+	struct tasklet *task;
+};
+
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_QUIC_SOCK_T_H */
