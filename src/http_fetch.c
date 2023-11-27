@@ -445,25 +445,31 @@ static int smp_fetch_stcode(const struct arg *args, struct sample *smp, const ch
 	return 1;
 }
 
-/* It returns the server status code */
+/* It returns the server or the txn status code, depending on the keyword */
 static int smp_fetch_srv_status(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn;
+	short status;
 
 	txn = (smp->strm ? smp->strm->txn : NULL);
 	if (!txn)
 		return 0;
 
-	if (txn->server_status == -1) {
+	status = (kw[0] == 't' ? txn->status : txn->server_status);
+	if (status == -1) {
 		struct channel *chn = SMP_RES_CHN(smp);
 		struct htx *htx = smp_prefetch_htx(smp, chn, NULL, 1);
 
 		if (!htx)
 			return 0;
+
+		status = (kw[0] == 't' ? txn->status : txn->server_status);
 	}
 
+	if (kw[0] != 't')
+		smp->flags = SMP_F_VOL_1ST;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = txn->server_status;
+	smp->data.u.sint = status;
 	return 1;
 }
 
@@ -2338,6 +2344,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "shdr_val",           smp_fetch_hdr_val,            ARG2(0,STR,SINT), val_hdr, SMP_T_SINT, SMP_USE_HRSHV },
 
 	{ "status",             smp_fetch_stcode,             0,                NULL,    SMP_T_SINT, SMP_USE_HRSHP },
+	{ "txn.status",         smp_fetch_srv_status,         0,                NULL,    SMP_T_SINT, SMP_USE_HRSHP },
 	{ "unique-id",          smp_fetch_uniqueid,           0,                NULL,    SMP_T_STR,  SMP_SRC_L4SRV },
 	{ "url",                smp_fetch_url,                0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "url32",              smp_fetch_url32,              0,                NULL,    SMP_T_SINT, SMP_USE_HRQHV },

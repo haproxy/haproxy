@@ -22844,6 +22844,10 @@ status : integer
 
   It may be used in tcp-check based expect rules.
 
+txn.status : integer
+  Return an integer containing the HTTP status code of the transaction, as
+  reported in the log.
+
 txn.timer.total : integer
   Total active time for the HTTP request, between the moment the proxy received
   the first byte of the request header and the emission of the last byte of the
@@ -23967,6 +23971,7 @@ Please refer to the table below for currently defined variables :
   |   | %ID  | unique-id                                            | string  |
   +---+------+------------------------------------------------------+---------+
   |   | %ST  | status_code                                          | numeric |
+  |   |      | %[txn.status]                                        |         |
   +---+------+------------------------------------------------------+---------+
   |   | %U   | bytes_uploaded       (from client to server)         | numeric |
   |   |      | %[bytes_in]                                          |         |
