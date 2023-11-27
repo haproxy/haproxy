@@ -239,7 +239,8 @@ struct http_txn {
 	unsigned int flags;             /* transaction flags */
 	enum http_meth_t meth;          /* HTTP method */
 	/* 1 unused byte here */
-	short status;                   /* HTTP status from the server, negative if from proxy */
+	short status;                   /* HTTP status sent to the client, negative if not set */
+	short server_status;            /* HTTP status received from the server, negative if not received */
 	struct http_reply *http_reply;  /* The HTTP reply to use as reply */
 	struct buffer l7_buffer;        /* To store the data, in case we have to retry */
 	char cache_hash[20];               /* Store the cache hash  */

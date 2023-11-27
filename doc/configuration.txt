@@ -22822,6 +22822,10 @@ resp_ver : string (deprecated)
   ACL derivatives :
     resp.ver : exact string match
 
+server_status : integer
+  Return an integer containing the HTTP status code as received from the
+  server. If no response was received from the server, the sample fetch fails.
+
 set-cookie([<name>]) : string (deprecated)
   This extracts the last occurrence of the cookie name <name> on a "Set-Cookie"
   header line from the response and uses the corresponding value to match. This

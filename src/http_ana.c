@@ -1429,7 +1429,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	}
 
 	/* 1: get the status code and the version. Also set HTTP flags */
-	txn->status = sl->info.res.status;
+	txn->server_status = txn->status = sl->info.res.status;
 	if (sl->flags & HTX_SL_F_VER_11)
                 msg->flags |= HTTP_MSGF_VER_11;
 	if (sl->flags & HTX_SL_F_XFER_LEN) {
@@ -1488,7 +1488,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		htx->first = channel_htx_fwd_headers(rep, htx);
 		msg->msg_state = HTTP_MSG_RPBEFORE;
 		msg->flags = 0;
-		txn->status = 0;
+		txn->server_status = txn->status = 0;
 		s->logs.t_data = -1; /* was not a response yet */
 		s->scf->flags |= SC_FL_SND_ASAP; /* Send ASAP informational messages */
 		goto next_one;
@@ -5036,6 +5036,7 @@ struct http_txn *http_create_txn(struct stream *s)
 	txn->meth = HTTP_METH_OTHER;
 	txn->flags = ((sc && sc_ep_test(sc, SE_FL_NOT_FIRST)) ? TX_NOT_FIRST : 0);
 	txn->status = -1;
+	txn->server_status = -1;
 	txn->http_reply = NULL;
 	txn->l7_buffer = BUF_NULL;
 	write_u32(txn->cache_hash, 0);
