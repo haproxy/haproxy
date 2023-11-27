@@ -1049,6 +1049,57 @@ static inline int quic_tls_has_tx_sec(const struct quic_enc_level *qel)
 	return qel && !!qel->tls_ctx.tx.key;
 }
 
+/* Return 1 if there is RX packets for <qel> QUIC encryption level, 0 if not */
+static inline int qc_el_rx_pkts(struct quic_enc_level *qel)
+{
+	int ret;
+
+	ret = !eb_is_empty(&qel->rx.pkts);
+
+	return ret;
+}
+
+/* Delete all RX packets for <qel> QUIC encryption level */
+static inline void qc_el_rx_pkts_del(struct quic_enc_level *qel)
+{
+	struct eb64_node *node;
+
+	node = eb64_first(&qel->rx.pkts);
+	while (node) {
+		struct quic_rx_packet *pkt =
+			eb64_entry(node, struct quic_rx_packet, pn_node);
+
+		node = eb64_next(node);
+		eb64_delete(&pkt->pn_node);
+		quic_rx_packet_refdec(pkt);
+	}
+}
+
+static inline void qc_list_qel_rx_pkts(struct quic_enc_level *qel)
+{
+	struct eb64_node *node;
+
+	node = eb64_first(&qel->rx.pkts);
+	while (node) {
+		struct quic_rx_packet *pkt;
+
+		pkt = eb64_entry(node, struct quic_rx_packet, pn_node);
+		fprintf(stderr, "pkt@%p type=%d pn=%llu\n",
+		        pkt, pkt->type, (ull)pkt->pn_node.key);
+		node = eb64_next(node);
+	}
+}
+
+/* Returns a boolean if <qc> needs to emit frames for <qel> encryption level. */
+static inline int qc_need_sending(struct quic_conn *qc, struct quic_enc_level *qel)
+{
+	return (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE) ||
+	       (qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) ||
+	       qel->pktns->tx.pto_probe ||
+	       !LIST_ISEMPTY(&qel->pktns->tx.frms);
+}
+
+
 #endif /* USE_QUIC */
 #endif /* _PROTO_QUIC_TLS_H */
 

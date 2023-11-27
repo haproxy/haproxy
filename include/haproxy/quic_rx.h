@@ -36,4 +36,17 @@ int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
 int qc_treat_rx_crypto_frms(struct quic_conn *qc, struct quic_enc_level *el,
                             struct ssl_sock_ctx *ctx);
 
+/* Increment the reference counter of <pkt> */
+static inline void quic_rx_packet_refinc(struct quic_rx_packet *pkt)
+{
+	pkt->refcnt++;
+}
+
+/* Decrement the reference counter of <pkt> while remaining positive */
+static inline void quic_rx_packet_refdec(struct quic_rx_packet *pkt)
+{
+	if (pkt->refcnt)
+		pkt->refcnt--;
+}
+
 #endif /* _HAPROXY_QUIC_RX_H */

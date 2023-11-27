@@ -1429,15 +1429,6 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 	return ret;
 }
 
-/* Returns a boolean if <qc> needs to emit frames for <qel> encryption level. */
-int qc_need_sending(struct quic_conn *qc, struct quic_enc_level *qel)
-{
-	return (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE) ||
-	       (qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) ||
-	       qel->pktns->tx.pto_probe ||
-	       !LIST_ISEMPTY(&qel->pktns->tx.frms);
-}
-
 /* Return 1 if <qc> connection may probe the Initial packet number space, 0 if not.
  * This is not the case if the remote peer address is not validated and if
  * it cannot send at least QUIC_INITIAL_PACKET_MINLEN bytes.
@@ -1568,6 +1559,40 @@ int send_stateless_reset(struct listener *l, struct sockaddr_storage *dstaddr,
 	return ret;
 }
 
+/* Copy <saddr> socket address data into <buf> buffer.
+ * This is the responsibility of the caller to check the output buffer is big
+ * enough to contain these socket address data.
+ * Return the number of bytes copied.
+ */
+static inline size_t quic_saddr_cpy(unsigned char *buf,
+                                    const struct sockaddr_storage *saddr)
+{
+	void *port, *addr;
+	unsigned char *p;
+	size_t port_len, addr_len;
+
+	p = buf;
+	if (saddr->ss_family == AF_INET6) {
+		port = &((struct sockaddr_in6 *)saddr)->sin6_port;
+		addr = &((struct sockaddr_in6 *)saddr)->sin6_addr;
+		port_len = sizeof ((struct sockaddr_in6 *)saddr)->sin6_port;
+		addr_len = sizeof ((struct sockaddr_in6 *)saddr)->sin6_addr;
+	}
+	else {
+		port = &((struct sockaddr_in *)saddr)->sin_port;
+		addr = &((struct sockaddr_in *)saddr)->sin_addr;
+		port_len = sizeof ((struct sockaddr_in *)saddr)->sin_port;
+		addr_len = sizeof ((struct sockaddr_in *)saddr)->sin_addr;
+	}
+	memcpy(p, port, port_len);
+	p += port_len;
+	memcpy(p, addr, addr_len);
+	p += addr_len;
+
+	return p - buf;
+}
+
+
 /* QUIC server only function.
  * Add AAD to <add> buffer from <cid> connection ID and <addr> socket address.
  * This is the responsibility of the caller to check <aad> size is big enough
@@ -1676,6 +1701,27 @@ static int quic_generate_retry_token(unsigned char *token, size_t len,
 	goto leave;
 }
 
+/* Return the long packet type matching with <qv> version and <type> */
+static inline int quic_pkt_type(int type, uint32_t version)
+{
+	if (version != QUIC_PROTOCOL_VERSION_2)
+		return type;
+
+	switch (type) {
+	case QUIC_PACKET_TYPE_INITIAL:
+		return 1;
+	case QUIC_PACKET_TYPE_0RTT:
+		return 2;
+	case QUIC_PACKET_TYPE_HANDSHAKE:
+		return 3;
+	case QUIC_PACKET_TYPE_RETRY:
+		return 0;
+	}
+
+	return -1;
+}
+
+
 /* Generate a Retry packet and send it on <fd> socket to <addr> in response to
  * the Initial <pkt> packet.
  *
@@ -1745,6 +1791,163 @@ int send_retry(int fd, struct sockaddr_storage *addr,
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT);
 	return !ret;
+}
+
+/* Write a 32-bits integer to a buffer with <buf> as address.
+ * Make <buf> point to the data after this 32-buts value if succeeded.
+ * Note that these 32-bits integers are networkg bytes ordered.
+ * Returns 0 if failed (not enough room in the buffer), 1 if succeeded.
+ */
+static inline int quic_write_uint32(unsigned char **buf,
+                                    const unsigned char *end, uint32_t val)
+{
+	if (end - *buf < sizeof val)
+		return 0;
+
+	*(uint32_t *)*buf = htonl(val);
+	*buf += sizeof val;
+
+	return 1;
+}
+
+/* Return the maximum number of bytes we must use to completely fill a
+ * buffer with <sz> as size for a data field of bytes prefixed by its QUIC
+ * variable-length (may be 0).
+ * Also put in <*len_sz> the size of this QUIC variable-length.
+ * So after returning from this function we have : <*len_sz> + <ret> <= <sz>
+ * (<*len_sz> = { max(i), i + ret <= <sz> }) .
+ */
+static inline size_t max_available_room(size_t sz, size_t *len_sz)
+{
+	size_t sz_sz, ret;
+	size_t diff;
+
+	sz_sz = quic_int_getsize(sz);
+	if (sz <= sz_sz)
+		return 0;
+
+	ret = sz - sz_sz;
+	*len_sz = quic_int_getsize(ret);
+	/* Difference between the two sizes. Note that <sz_sz> >= <*len_sz>. */
+	diff = sz_sz - *len_sz;
+	if (unlikely(diff > 0)) {
+		/* Let's try to take into an account remaining bytes.
+		 *
+		 *                  <----------------> <sz_sz>
+		 *  <--------------><-------->  +----> <max_int>
+		 *       <ret>       <len_sz>   |
+		 *  +---------------------------+-----------....
+		 *  <--------------------------------> <sz>
+		 */
+		size_t max_int = quic_max_int(*len_sz);
+
+		if (max_int + *len_sz <= sz)
+			ret = max_int;
+		else
+			ret = sz - diff;
+	}
+
+	return ret;
+}
+
+/* This function computes the maximum data we can put into a buffer with <sz> as
+ * size prefixed with a variable-length field "Length" whose value is the
+ * remaining data length, already filled of <ilen> bytes which must be taken
+ * into an account by "Length" field, and finally followed by the data we want
+ * to put in this buffer prefixed again by a variable-length field.
+ * <sz> is the size of the buffer to fill.
+ * <ilen> the number of bytes already put after the "Length" field.
+ * <dlen> the number of bytes we want to at most put in the buffer.
+ * Also set <*dlen_sz> to the size of the data variable-length we want to put in
+ * the buffer. This is typically this function which must be used to fill as
+ * much as possible a QUIC packet made of only one CRYPTO or STREAM frames.
+ * Returns this computed size if there is enough room in the buffer, 0 if not.
+ */
+static inline size_t max_stream_data_size(size_t sz, size_t ilen, size_t dlen)
+{
+	size_t ret, len_sz, dlen_sz;
+
+	/*
+	 * The length of variable-length QUIC integers are powers of two.
+	 * Look for the first 3length" field value <len_sz> which match our need.
+	 * As we must put <ilen> bytes in our buffer, the minimum value for
+	 * <len_sz> is the number of bytes required to encode <ilen>.
+	 */
+	for (len_sz = quic_int_getsize(ilen);
+	     len_sz <= QUIC_VARINT_MAX_SIZE;
+	     len_sz <<= 1) {
+		if (sz < len_sz + ilen)
+			return 0;
+
+		ret = max_available_room(sz - len_sz - ilen, &dlen_sz);
+		if (!ret)
+			return 0;
+
+		/* Check that <*len_sz> matches <ret> value */
+		if (len_sz + ilen + dlen_sz + ret <= quic_max_int(len_sz))
+			return ret < dlen ? ret : dlen;
+	}
+
+	return 0;
+}
+
+/* Return the length in bytes of <pn> packet number depending on
+ * <largest_acked_pn> the largest ackownledged packet number.
+ */
+static inline size_t quic_packet_number_length(int64_t pn,
+                                               int64_t largest_acked_pn)
+{
+	int64_t max_nack_pkts;
+
+	/* About packet number encoding, the RFC says:
+	 * The sender MUST use a packet number size able to represent more than
+	 * twice as large a range than the difference between the largest
+	 * acknowledged packet and packet number being sent.
+	 */
+	max_nack_pkts = 2 * (pn - largest_acked_pn) + 1;
+	if (max_nack_pkts > 0xffffff)
+		return 4;
+	if (max_nack_pkts > 0xffff)
+		return 3;
+	if (max_nack_pkts > 0xff)
+		return 2;
+
+	return 1;
+}
+
+/* Encode <pn> packet number with <pn_len> as length in byte into a buffer with
+ * <buf> as current copy address and <end> as pointer to one past the end of
+ * this buffer. This is the responsibility of the caller to check there is
+ * enough room in the buffer to copy <pn_len> bytes.
+ * Never fails.
+ */
+static inline int quic_packet_number_encode(unsigned char **buf,
+                                            const unsigned char *end,
+                                            uint64_t pn, size_t pn_len)
+{
+	if (end - *buf < pn_len)
+		return 0;
+
+	/* Encode the packet number. */
+	switch (pn_len) {
+	case 1:
+		**buf = pn;
+		break;
+	case 2:
+		write_n16(*buf, pn);
+		break;
+	case 3:
+		(*buf)[0] = pn >> 16;
+		(*buf)[1] = pn >> 8;
+		(*buf)[2] = pn;
+		break;
+	case 4:
+		write_n32(*buf, pn);
+		break;
+	}
+	*buf += pn_len;
+
+	return 1;
 }
 
 /* This function builds into a buffer at <pos> position a QUIC long packet header,
@@ -2184,6 +2387,15 @@ static void qc_build_cc_frm(struct quic_conn *qc, struct quic_enc_level *qel,
 	}
 	TRACE_LEAVE(QUIC_EV_CONN_BFRM, qc);
 
+}
+
+/* Returns the <ack_delay> field value in microsecond to be set in an ACK frame
+ * depending on the time the packet with a new largest packet number was received.
+ */
+static inline uint64_t quic_compute_ack_delay_us(unsigned int time_received,
+                                                 struct quic_conn *conn)
+{
+	return ((now_ms - time_received) * 1000) >> conn->tx.params.ack_delay_exponent;
 }
 
 /* This function builds a clear packet from <pkt> information (its type)

@@ -940,6 +940,16 @@ static int qc_handle_retire_connection_id_frm(struct quic_conn *qc,
 	goto leave;
 }
 
+/* Returns the <ack_delay> field value in milliseconds from <ack_frm> ACK frame for
+ * <conn> QUIC connection. Note that the value of <ack_delay> coming from
+ * ACK frame is in microseconds.
+ */
+static inline unsigned int quic_ack_delay_ms(struct qf_ack *ack_frm,
+                                             struct quic_conn *conn)
+{
+	return (ack_frm->ack_delay << conn->tx.params.ack_delay_exponent) / 1000;
+}
+
 /* Parse all the frames of <pkt> QUIC packet for QUIC connection <qc> and <qel>
  * as encryption level.
  * Returns 1 if succeeded, 0 if failed.
@@ -1668,6 +1678,24 @@ static int qc_try_rm_hp(struct quic_conn *qc, struct quic_rx_packet *pkt,
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_TRMHP, qc);
 	return ret;
+}
+
+/* Return a 32-bits integer in <val> from QUIC packet with <buf> as address.
+ * Makes <buf> point to the data after this 32-bits value if succeeded.
+ * Note that these 32-bits integers are network bytes ordered.
+ * Returns 0 if failed (not enough data in the buffer), 1 if succeeded.
+ */
+static inline int quic_read_uint32(uint32_t *val,
+                                   const unsigned char **buf,
+                                   const unsigned char *end)
+{
+	if (end - *buf < sizeof *val)
+		return 0;
+
+	*val = ntohl(*(uint32_t *)*buf);
+	*buf += sizeof *val;
+
+	return 1;
 }
 
 /* Parse a QUIC packet header starting at <pos> position without exceeding <end>.

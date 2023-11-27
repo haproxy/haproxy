@@ -33,7 +33,6 @@ void qc_txb_release(struct quic_conn *qc);
 int qc_purge_txbuf(struct quic_conn *qc, struct buffer *buf);
 struct buffer *qc_get_txb(struct quic_conn *qc);
 
-int qc_need_sending(struct quic_conn *qc, struct quic_enc_level *qel);
 int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf, struct list *qels);
 int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx);
 int qc_may_probe_ipktns(struct quic_conn *qc);
@@ -85,5 +84,16 @@ static inline void quic_tx_packet_refdec(struct quic_tx_packet *pkt)
 		pool_free(pool_head_quic_tx_packet, pkt);
 	}
 }
+
+/* Return the number of bytes which may be sent from <qc> connection when
+ * it has not already been validated. Note that this is the responsability
+ * of the caller to check that the case with quic_peer_validated_addr().
+ * This latter BUG_ON() if 3 * qc->rx.bytes < qc->tx.prep_bytes.
+ */
+static inline size_t quic_may_send_bytes(struct quic_conn *qc)
+{
+	return 3 * qc->bytes.rx - qc->bytes.prep;
+}
+
 
 #endif /* _HAPROXY_QUIC_TX_H */
