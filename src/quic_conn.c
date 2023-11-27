@@ -130,8 +130,6 @@ const struct quic_version *preferred_version;
  */
 const struct quic_version quic_version_VN_reserved = { .num = 0, };
 
-static BIO_METHOD *ha_quic_meth;
-
 DECLARE_STATIC_POOL(pool_head_quic_conn, "quic_conn", sizeof(struct quic_conn));
 DECLARE_STATIC_POOL(pool_head_quic_cc_conn, "quic_cc_conn", sizeof(struct quic_cc_conn));
 DECLARE_STATIC_POOL(pool_head_quic_cids, "quic_cids", sizeof(struct eb_root));
@@ -1552,18 +1550,6 @@ const struct quic_version *qc_supported_version(uint32_t version)
 
 	return NULL;
 }
-
-static void __quic_conn_init(void)
-{
-	ha_quic_meth = BIO_meth_new(0x666, "ha QUIC methods");
-}
-INITCALL0(STG_REGISTER, __quic_conn_init);
-
-static void __quic_conn_deinit(void)
-{
-	BIO_meth_free(ha_quic_meth);
-}
-REGISTER_POST_DEINIT(__quic_conn_deinit);
 
 /* Check if connection ID <dcid> of length <dcid_len> belongs to <qc> local
  * CIDs. This can be used to determine if a datagram is addressed to the right
