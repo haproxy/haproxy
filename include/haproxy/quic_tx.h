@@ -25,6 +25,7 @@
 #include <haproxy/list-t.h>
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_tls-t.h>
+#include <haproxy/quic_rx-t.h>
 #include <haproxy/quic_tx-t.h>
 
 struct buffer *qc_txb_alloc(struct quic_conn *qc);
