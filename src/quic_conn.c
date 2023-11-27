@@ -480,6 +480,100 @@ int quic_stateless_reset_token_cpy(unsigned char *pos, size_t len,
 	return ret;
 }
 
+/* Build all the frames which must be sent just after the handshake have succeeded.
+ * This is essentially NEW_CONNECTION_ID frames. A QUIC server must also send
+ * a HANDSHAKE_DONE frame.
+ * Return 1 if succeeded, 0 if not.
+ */
+int quic_build_post_handshake_frames(struct quic_conn *qc)
+{
+	int ret = 0, max;
+	struct quic_enc_level *qel;
+	struct quic_frame *frm, *frmbak;
+	struct list frm_list = LIST_HEAD_INIT(frm_list);
+	struct eb64_node *node;
+
+	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
+
+	qel = qc->ael;
+	/* Only servers must send a HANDSHAKE_DONE frame. */
+	if (qc_is_listener(qc)) {
+		frm = qc_frm_alloc(QUIC_FT_HANDSHAKE_DONE);
+		if (!frm) {
+			TRACE_ERROR("frame allocation error", QUIC_EV_CONN_IO_CB, qc);
+			goto leave;
+		}
+
+		LIST_APPEND(&frm_list, &frm->list);
+	}
+
+	/* Initialize <max> connection IDs minus one: there is
+	 * already one connection ID used for the current connection. Also limit
+	 * the number of connection IDs sent to the peer to 4 (3 from this function
+	 * plus 1 for the current connection.
+	 * Note that active_connection_id_limit >= 2: this has been already checked
+	 * when receiving this parameter.
+	 */
+	max = QUIC_MIN(qc->tx.params.active_connection_id_limit - 1, (uint64_t)3);
+	while (max--) {
+		struct quic_connection_id *conn_id;
+
+		frm = qc_frm_alloc(QUIC_FT_NEW_CONNECTION_ID);
+		if (!frm) {
+			TRACE_ERROR("frame allocation error", QUIC_EV_CONN_IO_CB, qc);
+			goto err;
+		}
+
+		conn_id = new_quic_cid(qc->cids, qc, NULL, NULL);
+		if (!conn_id) {
+			qc_frm_free(qc, &frm);
+			TRACE_ERROR("CID allocation error", QUIC_EV_CONN_IO_CB, qc);
+			goto err;
+		}
+
+		/* TODO To prevent CID tree locking, all CIDs created here
+		 * could be allocated at the same time as the first one.
+		 */
+		quic_cid_insert(conn_id);
+
+		quic_connection_id_to_frm_cpy(frm, conn_id);
+		LIST_APPEND(&frm_list, &frm->list);
+	}
+
+	LIST_SPLICE(&qel->pktns->tx.frms, &frm_list);
+	qc->flags &= ~QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS;
+
+	ret = 1;
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_IO_CB, qc);
+	return ret;
+
+ err:
+	/* free the frames */
+	list_for_each_entry_safe(frm, frmbak, &frm_list, list)
+		qc_frm_free(qc, &frm);
+
+	/* The first CID sequence number value used to allocated CIDs by this function is 1,
+	 * 0 being the sequence number of the CID for this connection.
+	 */
+	node = eb64_lookup_ge(qc->cids, 1);
+	while (node) {
+		struct quic_connection_id *conn_id;
+
+		conn_id = eb64_entry(node, struct quic_connection_id, seq_num);
+		if (conn_id->seq_num.key >= max)
+			break;
+
+		node = eb64_next(node);
+		quic_cid_delete(conn_id);
+
+		eb64_delete(&conn_id->seq_num);
+		pool_free(pool_head_quic_connection_id, conn_id);
+	}
+	goto leave;
+}
+
+
 /* QUIC connection packet handler task (post handshake) */
 struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state)
 {

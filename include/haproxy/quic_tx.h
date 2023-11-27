@@ -36,7 +36,6 @@ struct buffer *qc_get_txb(struct quic_conn *qc);
 int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf, struct list *qels);
 int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx);
 int qc_may_probe_ipktns(struct quic_conn *qc);
-int quic_build_post_handshake_frames(struct quic_conn *qc);
 int qc_send_app_pkts(struct quic_conn *qc, struct list *frms);
 int qc_dgrams_retransmit(struct quic_conn *qc);
 int qc_notify_send(struct quic_conn *qc);
