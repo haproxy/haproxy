@@ -219,6 +219,21 @@ struct quic_crypto_buf {
 	size_t sz;
 };
 
+/* Crypto data stream (one by encryption level) */
+struct quic_cstream {
+	struct {
+		uint64_t offset;       /* absolute current base offset of ncbuf */
+		struct ncbuf ncbuf;    /* receive buffer - can handle out-of-order offset frames */
+	} rx;
+	struct {
+		uint64_t offset;      /* last offset of data ready to be sent */
+		uint64_t sent_offset; /* last offset sent by transport layer */
+		struct buffer buf;    /* transmit buffer before sending via xprt */
+	} tx;
+
+	struct qc_stream_desc *desc;
+};
+
 struct quic_enc_level {
 	struct list list;
 	/* Attach point to enqueue this encryption level during retransmissions */

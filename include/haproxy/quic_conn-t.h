@@ -235,21 +235,6 @@ extern const struct quic_version *preferred_version;
 /* The maximum number of bytes of CRYPTO data in flight during handshakes. */
 #define QUIC_CRYPTO_IN_FLIGHT_MAX 4096
 
-/* Crypto data stream (one by encryption level) */
-struct quic_cstream {
-	struct {
-		uint64_t offset;       /* absolute current base offset of ncbuf */
-		struct ncbuf ncbuf;    /* receive buffer - can handle out-of-order offset frames */
-	} rx;
-	struct {
-		uint64_t offset;      /* last offset of data ready to be sent */
-		uint64_t sent_offset; /* last offset sent by transport layer */
-		struct buffer buf;    /* transmit buffer before sending via xprt */
-	} tx;
-
-	struct qc_stream_desc *desc;
-};
-
 struct quic_path {
 	/* Control congestion. */
 	struct quic_cc cc;

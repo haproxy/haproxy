@@ -11,6 +11,8 @@
 #include <haproxy/pool.h>
 #include <haproxy/quic_ack.h>
 #include <haproxy/quic_conn.h>
+#include <haproxy/quic_rx.h>
+#include <haproxy/quic_stream.h>
 
 
 DECLARE_POOL(pool_head_quic_enc_level,  "quic_enc_level",  sizeof(struct quic_enc_level));
@@ -21,6 +23,7 @@ DECLARE_POOL(pool_head_quic_tls_iv,     "quic_tls_iv",     QUIC_TLS_IV_LEN);
 DECLARE_POOL(pool_head_quic_tls_key,    "quic_tls_key",    QUIC_TLS_KEY_LEN);
 
 DECLARE_POOL(pool_head_quic_crypto_buf, "quic_crypto_buf", sizeof(struct quic_crypto_buf));
+DECLARE_STATIC_POOL(pool_head_quic_cstream, "quic_cstream", sizeof(struct quic_cstream));
 
 /* Initial salt depending on QUIC version to derive client/server initial secrets.
  * This one is for draft-29 QUIC version.
@@ -110,6 +113,57 @@ void quic_tls_secret_hexdump(struct buffer *buf,
 	chunk_appendf(buf, " secret=");
 	for (i = 0; i < secret_len; i++)
 		chunk_appendf(buf, "%02x", secret[i]);
+}
+
+/* Release the memory allocated for <cs> CRYPTO stream */
+void quic_cstream_free(struct quic_cstream *cs)
+{
+	if (!cs) {
+		/* This is the case for ORTT encryption level */
+		return;
+	}
+
+	quic_free_ncbuf(&cs->rx.ncbuf);
+
+	qc_stream_desc_release(cs->desc);
+	pool_free(pool_head_quic_cstream, cs);
+}
+
+/* Allocate a new QUIC stream for <qc>.
+ * Return it if succeeded, NULL if not.
+ */
+struct quic_cstream *quic_cstream_new(struct quic_conn *qc)
+{
+	struct quic_cstream *cs, *ret_cs = NULL;
+
+	TRACE_ENTER(QUIC_EV_CONN_LPKT, qc);
+	cs = pool_alloc(pool_head_quic_cstream);
+	if (!cs) {
+		TRACE_ERROR("crypto stream allocation failed", QUIC_EV_CONN_INIT, qc);
+		goto leave;
+	}
+
+	cs->rx.offset = 0;
+	cs->rx.ncbuf = NCBUF_NULL;
+	cs->rx.offset = 0;
+
+	cs->tx.offset = 0;
+	cs->tx.sent_offset = 0;
+	cs->tx.buf = BUF_NULL;
+	cs->desc = qc_stream_desc_new((uint64_t)-1, -1, cs, qc);
+	if (!cs->desc) {
+		TRACE_ERROR("crypto stream allocation failed", QUIC_EV_CONN_INIT, qc);
+		goto err;
+	}
+
+	ret_cs = cs;
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc);
+	return ret_cs;
+
+ err:
+	pool_free(pool_head_quic_cstream, cs);
+	goto leave;
 }
 
 /* Uninitialize <qel> QUIC encryption level. Never fails. */
