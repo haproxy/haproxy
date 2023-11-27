@@ -147,12 +147,6 @@ static inline void quic_connection_id_to_frm_cpy(struct quic_frame *dst,
 	ncid_frm->stateless_reset_token = src->stateless_reset_token;
 }
 
-/* Return 1 if <pkt> header form is long, 0 if not. */
-static inline int qc_pkt_long(const struct quic_rx_packet *pkt)
-{
-	return pkt->type != QUIC_PACKET_TYPE_SHORT;
-}
-
 void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm);
 
 void quic_set_connection_close(struct quic_conn *qc, const struct quic_err err);

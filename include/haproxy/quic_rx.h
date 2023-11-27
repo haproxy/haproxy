@@ -50,4 +50,10 @@ static inline void quic_rx_packet_refdec(struct quic_rx_packet *pkt)
 		pkt->refcnt--;
 }
 
+/* Return 1 if <pkt> header form is long, 0 if not. */
+static inline int qc_pkt_long(const struct quic_rx_packet *pkt)
+{
+	return pkt->type != QUIC_PACKET_TYPE_SHORT;
+}
+
 #endif /* _HAPROXY_QUIC_RX_H */
