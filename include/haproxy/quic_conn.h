@@ -146,39 +146,6 @@ static inline void quic_connection_id_to_frm_cpy(struct quic_frame *dst,
 	ncid_frm->stateless_reset_token = src->stateless_reset_token;
 }
 
-/* Initialize <p> QUIC network path depending on <ipv4> boolean
- * which is true for an IPv4 path, if not false for an IPv6 path.
- */
-static inline void quic_path_init(struct quic_path *path, int ipv4, unsigned long max_cwnd,
-                                  struct quic_cc_algo *algo, struct quic_conn *qc)
-{
-	unsigned int max_dgram_sz;
-
-	max_dgram_sz = ipv4 ? QUIC_INITIAL_IPV4_MTU : QUIC_INITIAL_IPV6_MTU;
-	quic_loss_init(&path->loss);
-	path->mtu = max_dgram_sz;
-	path->cwnd = QUIC_MIN(10 * max_dgram_sz, QUIC_MAX(max_dgram_sz << 1, 14720U));
-	path->mcwnd = path->cwnd;
-	path->max_cwnd = max_cwnd;
-	path->min_cwnd = max_dgram_sz << 1;
-	path->prep_in_flight = 0;
-	path->in_flight = 0;
-	path->ifae_pkts = 0;
-	quic_cc_init(&path->cc, algo, qc);
-}
-
-/* Return the remaining <room> available on <path> QUIC path for prepared data
- * (before being sent). Almost the same that for the QUIC path room, except that
- * here this is the data which have been prepared which are taken into an account.
- */
-static inline size_t quic_path_prep_data(struct quic_path *path)
-{
-	if (path->prep_in_flight > path->cwnd)
-		return 0;
-
-	return path->cwnd - path->prep_in_flight;
-}
-
 /* Return 1 if <pkt> header form is long, 0 if not. */
 static inline int qc_pkt_long(const struct quic_rx_packet *pkt)
 {

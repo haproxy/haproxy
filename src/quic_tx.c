@@ -2092,7 +2092,7 @@ static int qc_build_frms(struct list *outlist, struct list *inlist,
 	 * control window.
 	 */
 	if (!qel->pktns->tx.pto_probe) {
-		size_t remain = quic_path_prep_data(qc->path);
+		size_t remain = quic_cc_path_prep_data(qc->path);
 
 		if (headlen > remain)
 			goto leave;
@@ -2443,7 +2443,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	if (!probe && !LIST_ISEMPTY(frms) && !cc) {
 		size_t path_room;
 
-		path_room = quic_path_prep_data(qc->path);
+		path_room = quic_cc_path_prep_data(qc->path);
 		if (end - beg > path_room)
 			end = beg + path_room;
 	}
@@ -2840,7 +2840,7 @@ int qc_notify_send(struct quic_conn *qc)
 		 *
 		 * Probe packets MUST NOT be blocked by the congestion controller.
 		 */
-		if ((quic_path_prep_data(qc->path) || pktns->tx.pto_probe) &&
+		if ((quic_cc_path_prep_data(qc->path) || pktns->tx.pto_probe) &&
 		    (!qc_test_fd(qc) || !fd_send_active(qc->fd))) {
 			tasklet_wakeup(qc->subs->tasklet);
 			qc->subs->events &= ~SUB_RETRY_SEND;

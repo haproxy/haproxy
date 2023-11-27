@@ -30,6 +30,7 @@
 #include <stddef.h> /* size_t */
 
 #include <haproxy/buf-t.h>
+#include <haproxy/quic_loss-t.h>
 
 #define QUIC_CC_INFINITE_SSTHESH ((uint32_t)-1)
 
@@ -84,6 +85,30 @@ struct quic_cc {
 	struct quic_conn *qc;
 	struct quic_cc_algo *algo;
 	uint32_t priv[16];
+};
+
+struct quic_cc_path {
+	/* Control congestion. */
+	struct quic_cc cc;
+	/* Packet loss detection information. */
+	struct quic_loss loss;
+
+	/* MTU. */
+	size_t mtu;
+	/* Congestion window. */
+	uint64_t cwnd;
+	/* The current maximum congestion window value reached. */
+	uint64_t mcwnd;
+	/* The maximum congestion window value which can be reached. */
+	uint64_t max_cwnd;
+	/* Minimum congestion window. */
+	uint64_t min_cwnd;
+	/* Prepared data to be sent (in bytes). */
+	uint64_t prep_in_flight;
+	/* Outstanding data (in bytes). */
+	uint64_t in_flight;
+	/* Number of in flight ack-eliciting packets. */
+	uint64_t ifae_pkts;
 };
 
 struct quic_cc_algo {

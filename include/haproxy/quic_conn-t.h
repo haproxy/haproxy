@@ -235,30 +235,6 @@ extern const struct quic_version *preferred_version;
 /* The maximum number of bytes of CRYPTO data in flight during handshakes. */
 #define QUIC_CRYPTO_IN_FLIGHT_MAX 4096
 
-struct quic_path {
-	/* Control congestion. */
-	struct quic_cc cc;
-	/* Packet loss detection information. */
-	struct quic_loss loss;
-
-	/* MTU. */
-	size_t mtu;
-	/* Congestion window. */
-	uint64_t cwnd;
-	/* The current maximum congestion window value reached. */
-	uint64_t mcwnd;
-	/* The maximum congestion window value which can be reached. */
-	uint64_t max_cwnd;
-	/* Minimum congestion window. */
-	uint64_t min_cwnd;
-	/* Prepared data to be sent (in bytes). */
-	uint64_t prep_in_flight;
-	/* Outstanding data (in bytes). */
-	uint64_t in_flight;
-	/* Number of in flight ack-eliciting packets. */
-	uint64_t ifae_pkts;
-};
-
 /* Status of the connection/mux layer. This defines how to handle app data.
  *
  * During a standard quic_conn lifetime it transitions like this :
@@ -433,8 +409,8 @@ struct quic_conn {
 	} ku;
 	unsigned int max_ack_delay;
 	unsigned int max_idle_timeout;
-	struct quic_path paths[1];
-	struct quic_path *path;
+	struct quic_cc_path paths[1];
+	struct quic_cc_path *path;
 
 	struct mt_list accept_list; /* chaining element used for accept, only valid for frontend connections */
 

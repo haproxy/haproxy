@@ -11,9 +11,9 @@
 
 static int quic_cc_nocc_init(struct quic_cc *cc)
 {
-	struct quic_path *path;
+	struct quic_cc_path *path;
 
-	path = container_of(cc, struct quic_path, cc);
+	path = container_of(cc, struct quic_cc_path, cc);
 	path->cwnd = path->max_cwnd;
 	return 1;
 }
@@ -48,9 +48,9 @@ static void quic_cc_nocc_rp_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 
 static void quic_cc_nocc_state_trace(struct buffer *buf, const struct quic_cc *cc)
 {
-	struct quic_path *path;
+	struct quic_cc_path *path;
 
-	path = container_of(cc, struct quic_path, cc);
+	path = container_of(cc, struct quic_cc_path, cc);
 	chunk_appendf(buf, " cwnd=%llu", (unsigned long long)path->cwnd);
 }
 

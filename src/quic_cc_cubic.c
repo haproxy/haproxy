@@ -97,7 +97,7 @@ static uint32_t cubic_root(uint64_t val)
 static inline void quic_cubic_update(struct quic_cc *cc, uint32_t acked)
 {
 	struct cubic *c = quic_cc_priv(cc);
-	struct quic_path *path = container_of(cc, struct quic_path, cc);
+	struct quic_cc_path *path = container_of(cc, struct quic_cc_path, cc);
 	/* Current cwnd as number of packets */
 	uint32_t t, target, inc, inc_diff;
 	uint64_t delta, diff;
@@ -183,7 +183,7 @@ static void quic_cc_cubic_slow_start(struct quic_cc *cc)
 
 static void quic_enter_recovery(struct quic_cc *cc)
 {
-	struct quic_path *path = container_of(cc, struct quic_path, cc);
+	struct quic_cc_path *path = container_of(cc, struct quic_cc_path, cc);
 	struct cubic *c = quic_cc_priv(cc);
 	/* Current cwnd as number of packets */
 
@@ -207,7 +207,7 @@ static void quic_enter_recovery(struct quic_cc *cc)
 /* Congestion slow-start callback. */
 static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 {
-	struct quic_path *path = container_of(cc, struct quic_path, cc);
+	struct quic_cc_path *path = container_of(cc, struct quic_cc_path, cc);
 	struct cubic *c = quic_cc_priv(cc);
 
 	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc);
@@ -310,10 +310,10 @@ static void quic_cc_cubic_event(struct quic_cc *cc, struct quic_cc_event *ev)
 
 static void quic_cc_cubic_state_trace(struct buffer *buf, const struct quic_cc *cc)
 {
-	struct quic_path *path;
+	struct quic_cc_path *path;
 	struct cubic *c = quic_cc_priv(cc);
 
-	path = container_of(cc, struct quic_path, cc);
+	path = container_of(cc, struct quic_cc_path, cc);
 	chunk_appendf(buf, " state=%s cwnd=%llu mcwnd=%llu ssthresh=%d rpst=%dms",
 	              quic_cc_state_str(c->state),
 	              (unsigned long long)path->cwnd,

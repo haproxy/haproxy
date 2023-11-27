@@ -1118,8 +1118,8 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->max_ack_delay = 0;
 	/* Only one path at this time (multipath not supported) */
 	qc->path = &qc->paths[0];
-	quic_path_init(qc->path, ipv4, server ? l->bind_conf->max_cwnd : 0,
-	               cc_algo ? cc_algo : default_quic_cc_algo, qc);
+	quic_cc_path_init(qc->path, ipv4, server ? l->bind_conf->max_cwnd : 0,
+	                  cc_algo ? cc_algo : default_quic_cc_algo, qc);
 
 	qc->stream_buf_count = 0;
 	memcpy(&qc->local_addr, local_addr, sizeof(qc->local_addr));
