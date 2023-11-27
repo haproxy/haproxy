@@ -1540,6 +1540,15 @@ line needs to end with the "<<\n" pattern. The next lines will be treated as
 the payload and can contain as many lines as needed. To validate a command with
 a payload, it needs to end with an empty line.
 
+The payload pattern can be customized in order to change the way the payload
+ends. In order to end a payload with something else than an empty line, a
+customized pattern can be set between '<<' and '\n'. Only 7 characters can be
+used in addiction to '<<', otherwise this won't be considered a payload.
+For example, to use a PEM file that contains empty lines and comments:
+
+  # echo -e "set ssl cert common.pem <<%EOF%\n$(cat common.pem)\n%EOF%\n" | \
+  socat /var/run/haproxy.stat -
+
 Limitations do exist: the length of the whole buffer passed to the CLI must
 not be greater than tune.bfsize and the pattern "<<" must not be glued to the
 last word of the line.
