@@ -7041,6 +7041,8 @@ static size_t h2_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 
 	ret = count - h2s->sd->iobuf.data;
  end:
+	if (h2s->sd->iobuf.flags & IOBUF_FL_FF_BLOCKED)
+		h2s->flags &= ~H2_SF_NOTIFIED;
 	TRACE_LEAVE(H2_EV_H2S_SEND|H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
 	return ret;
 }
