@@ -1592,47 +1592,6 @@ int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len)
 	return 0;
 }
 
-/* Retrieve the DCID from a QUIC datagram or packet at <pos> position,
- * <end> being at one byte past the end of this datagram.
- * Returns 1 if succeeded, 0 if not.
- */
-int quic_get_dgram_dcid(unsigned char *pos, const unsigned char *end,
-                        unsigned char **dcid, size_t *dcid_len)
-{
-	int ret = 0, long_header;
-	size_t minlen, skip;
-
-	TRACE_ENTER(QUIC_EV_CONN_RXPKT);
-
-	if (!(*pos & QUIC_PACKET_FIXED_BIT)) {
-		TRACE_PROTO("fixed bit not set", QUIC_EV_CONN_RXPKT);
-		goto err;
-	}
-
-	long_header = *pos & QUIC_PACKET_LONG_HEADER_BIT;
-	minlen = long_header ? QUIC_LONG_PACKET_MINLEN :
-		QUIC_SHORT_PACKET_MINLEN + QUIC_HAP_CID_LEN + QUIC_TLS_TAG_LEN;
-	skip = long_header ? QUIC_LONG_PACKET_DCID_OFF : QUIC_SHORT_PACKET_DCID_OFF;
-	if (end - pos < minlen)
-		goto err;
-
-	pos += skip;
-	*dcid_len = long_header ? *pos++ : QUIC_HAP_CID_LEN;
-	if (*dcid_len > QUIC_CID_MAXLEN || end - pos <= *dcid_len)
-		goto err;
-
-	*dcid = pos;
-
-	ret = 1;
- leave:
-	TRACE_LEAVE(QUIC_EV_CONN_RXPKT);
-	return ret;
-
- err:
-	TRACE_PROTO("wrong datagram", QUIC_EV_CONN_RXPKT);
-	goto leave;
-}
-
 /* Notify upper layer of a fatal error which forces to close the connection. */
 void qc_notify_err(struct quic_conn *qc)
 {
