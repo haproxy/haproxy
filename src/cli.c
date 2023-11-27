@@ -757,13 +757,22 @@ static int cli_parse_request(struct appctx *appctx)
 		if (!*p)
 			break;
 
-		if (strcmp(p, PAYLOAD_PATTERN) == 0) {
-			/* payload pattern recognized here, this is not an arg anymore,
-			 * the payload starts at the first byte that follows the zero
-			 * after the pattern.
-			 */
-			payload = p + strlen(PAYLOAD_PATTERN) + 1;
-			break;
+		/* first check if the '<<' is present, but this is not enough
+		 * because we don't know if this is the end of the string */
+		if (strncmp(p, PAYLOAD_PATTERN, strlen(PAYLOAD_PATTERN)) == 0) {
+			int pat_len = strlen(appctx->cli_payload_pat);
+
+			/* then if the customized pattern is empty, check if the next character is '\0' */
+			if (pat_len == 0 && p[strlen(PAYLOAD_PATTERN)] == '\0') {
+				payload = p + strlen(PAYLOAD_PATTERN) + 1;
+				break;
+			}
+
+			/* else if we found the customized pattern at the end of the string */
+			if (strcmp(p + strlen(PAYLOAD_PATTERN), appctx->cli_payload_pat) == 0) {
+				payload = p + strlen(PAYLOAD_PATTERN) + pat_len + 1;
+				break;
+			}
 		}
 
 		args[i] = p;
@@ -1010,29 +1019,53 @@ static void cli_io_handler(struct appctx *appctx)
 			appctx->st0 = CLI_ST_PROMPT;
 
 			if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) {
-				/* empty line */
-				if (!len) {
-					/* remove the last two \n */
-					appctx->chunk->data -= 2;
-					appctx->chunk->area[appctx->chunk->data] = 0;
-					cli_parse_request(appctx);
-					chunk_reset(appctx->chunk);
-					/* NB: cli_sock_parse_request() may have put
-					 * another CLI_ST_O_* into appctx->st0.
-					 */
+				/* look for a pattern */
+				if (len == strlen(appctx->cli_payload_pat)) {
+					/* here use 'len' because str still contains the \n */
+					if (strncmp(str, appctx->cli_payload_pat, len) == 0) {
+						/* remove the last two \n */
+						appctx->chunk->data -= strlen(appctx->cli_payload_pat) + 2;
+						appctx->chunk->area[appctx->chunk->data] = 0;
+						cli_parse_request(appctx);
+						chunk_reset(appctx->chunk);
+						/* NB: cli_sock_parse_request() may have put
+						 * another CLI_ST_O_* into appctx->st0.
+						 */
 
-					appctx->st1 &= ~APPCTX_CLI_ST1_PAYLOAD;
+						appctx->st1 &= ~APPCTX_CLI_ST1_PAYLOAD;
+					}
 				}
 			}
 			else {
+				char *last_arg;
 				/*
 				 * Look for the "payload start" pattern at the end of a line
 				 * Its location is not remembered here, this is just to switch
 				 * to a gathering mode.
+				 * The pattern must start by << followed by 0
+				 * to 7 characters, and finished by the end of
+				 * the command (\n or ;).
 				 */
-				if (strcmp(appctx->chunk->area + appctx->chunk->data - strlen(PAYLOAD_PATTERN), PAYLOAD_PATTERN) == 0) {
-					appctx->st1 |= APPCTX_CLI_ST1_PAYLOAD;
-					appctx->chunk->data++; // keep the trailing \0 after '<<'
+				/* look for the first space starting by the end of the line */
+				for (last_arg = appctx->chunk->area + appctx->chunk->data; last_arg != appctx->chunk->area; last_arg--) {
+					if (*last_arg == ' ' || *last_arg == '\t') {
+						last_arg++;
+						break;
+					}
+				}
+				if (strncmp(last_arg, PAYLOAD_PATTERN, strlen(PAYLOAD_PATTERN)) == 0) {
+					ssize_t pat_len = strlen(last_arg + strlen(PAYLOAD_PATTERN));
+
+					/* A customized pattern can't be more than 7 characters
+					 * if it's more, don't make it a payload
+					 */
+					if (pat_len < sizeof(appctx->cli_payload_pat)) {
+						appctx->st1 |= APPCTX_CLI_ST1_PAYLOAD;
+						/* copy the customized pattern, don't store the << */
+						strncpy(appctx->cli_payload_pat, last_arg + strlen(PAYLOAD_PATTERN), sizeof(appctx->cli_payload_pat)-1);
+						appctx->cli_payload_pat[sizeof(appctx->cli_payload_pat)-1] = '\0';
+						appctx->chunk->data++; // keep the trailing \0 after the pattern
+					}
 				}
 				else {
 					/* no payload, the command is complete: parse the request */
