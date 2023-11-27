@@ -2485,7 +2485,7 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 		}
 		else if (!chunk_memcat(&outbuf, "\r\n", 2))
 			goto full;
-		h1m->state = H1_MSG_DONE;
+		h1m->state = ((htx->flags & HTX_FL_EOM) ? H1_MSG_DONE : H1_MSG_TRAILERS);
 	}
 	else {
 		if (!chunk_memcat(&outbuf, "\r\n", 2))
@@ -2577,7 +2577,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			}
 			h1m->curr_len -= count;
 			if (!h1m->curr_len)
-				h1m->state = H1_MSG_DONE;
+				h1m->state = (eom ? H1_MSG_DONE : H1_MSG_TRAILERS);
 		}
 		else if (h1m->flags & H1_MF_CHNK) {
 			/* The message is chunked. We need to check if we must
@@ -4530,7 +4530,7 @@ static size_t h1_done_ff(struct stconn *sc)
 		h1m->curr_len -= total;
 
 	if (!h1m->curr_len && (h1m->flags & H1_MF_CLEN))
-		h1m->state = H1_MSG_DONE;
+		h1m->state = ((sd->iobuf.flags & IOBUF_FL_EOI) ? H1_MSG_DONE : H1_MSG_TRAILERS);
 	else if (!h1m->curr_len && (h1m->flags & H1_MF_CHNK)) {
 		if (h1m->state == H1_MSG_DATA)
 			h1m->state = H1_MSG_CHUNK_CRLF;
