@@ -204,3 +204,82 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 	TRACE_LEAVE(QUIC_EV_CONN_PKTLOSS, qc);
 }
 
+/* Handle <pkts> list of lost packets detected at <now_us> handling their TX
+ * frames. Send a packet loss event to the congestion controller if in flight
+ * packet have been lost. Also frees the packet in <pkts> list.
+ *
+ * Returns 1 on success else 0 if loss limit has been exceeded. A
+ * CONNECTION_CLOSE was prepared to close the connection ASAP.
+ */
+int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
+                         struct list *pkts, uint64_t now_us)
+{
+	struct quic_tx_packet *pkt, *tmp, *oldest_lost, *newest_lost;
+	int close = 0;
+
+	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
+
+	if (LIST_ISEMPTY(pkts))
+		goto leave;
+
+	oldest_lost = newest_lost = NULL;
+	list_for_each_entry_safe(pkt, tmp, pkts, list) {
+		struct list tmp = LIST_HEAD_INIT(tmp);
+
+		pkt->pktns->tx.in_flight -= pkt->in_flight_len;
+		qc->path->prep_in_flight -= pkt->in_flight_len;
+		qc->path->in_flight -= pkt->in_flight_len;
+		if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)
+			qc->path->ifae_pkts--;
+		/* Treat the frames of this lost packet. */
+		if (!qc_handle_frms_of_lost_pkt(qc, pkt, &pktns->tx.frms))
+			close = 1;
+		LIST_DELETE(&pkt->list);
+		if (!oldest_lost) {
+			oldest_lost = newest_lost = pkt;
+		}
+		else {
+			if (newest_lost != oldest_lost)
+				quic_tx_packet_refdec(newest_lost);
+			newest_lost = pkt;
+		}
+	}
+
+	if (!close) {
+		if (newest_lost) {
+			/* Sent a congestion event to the controller */
+			struct quic_cc_event ev = { };
+
+			ev.type = QUIC_CC_EVT_LOSS;
+			ev.loss.time_sent = newest_lost->time_sent;
+
+			quic_cc_event(&qc->path->cc, &ev);
+		}
+
+		/* If an RTT have been already sampled, <rtt_min> has been set.
+		 * We must check if we are experiencing a persistent congestion.
+		 * If this is the case, the congestion controller must re-enter
+		 * slow start state.
+		 */
+		if (qc->path->loss.rtt_min && newest_lost != oldest_lost) {
+			unsigned int period = newest_lost->time_sent - oldest_lost->time_sent;
+
+			if (quic_loss_persistent_congestion(&qc->path->loss, period,
+							    now_ms, qc->max_ack_delay))
+				qc->path->cc.algo->slow_start(&qc->path->cc);
+		}
+	}
+
+	/* <oldest_lost> cannot be NULL at this stage because we have ensured
+	 * that <pkts> list is not empty. Without this, GCC 12.2.0 reports a
+	 * possible overflow on a 0 byte region with O2 optimization.
+	 */
+	ALREADY_CHECKED(oldest_lost);
+	quic_tx_packet_refdec(oldest_lost);
+	if (newest_lost != oldest_lost)
+		quic_tx_packet_refdec(newest_lost);
+
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
+	return !close;
+}

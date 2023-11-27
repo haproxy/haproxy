@@ -31,10 +31,11 @@ int qc_treat_rx_pkts(struct quic_conn *qc);
 int qc_parse_hd_form(struct quic_rx_packet *pkt,
                      unsigned char **pos, const unsigned char *end);
 void quic_free_ncbuf(struct ncbuf *ncbuf);
-int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
-                         struct list *pkts, uint64_t now_us);
 int qc_treat_rx_crypto_frms(struct quic_conn *qc, struct quic_enc_level *el,
                             struct ssl_sock_ctx *ctx);
+int qc_handle_frms_of_lost_pkt(struct quic_conn *qc,
+                               struct quic_tx_packet *pkt,
+                               struct list *pktns_frm_list);
 
 /* Increment the reference counter of <pkt> */
 static inline void quic_rx_packet_refinc(struct quic_rx_packet *pkt)
