@@ -181,6 +181,9 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *qc,
 
 int qc_set_tid_affinity(struct quic_conn *qc, uint new_tid, struct listener *new_li);
 void qc_finalize_affinity_rebind(struct quic_conn *qc);
+int qc_handle_conn_migration(struct quic_conn *qc,
+                             const struct sockaddr_storage *peer_addr,
+                             const struct sockaddr_storage *local_addr);
 
 /* Function pointer that can be used to compute a hash from first generated CID (derived from ODCID) */
 extern uint64_t (*quic_hash64_from_cid)(const unsigned char *cid, int size, const unsigned char *secret, size_t secretlen);
