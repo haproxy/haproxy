@@ -137,7 +137,6 @@ DECLARE_STATIC_POOL(pool_head_quic_cc_conn, "quic_cc_conn", sizeof(struct quic_c
 DECLARE_STATIC_POOL(pool_head_quic_cids, "quic_cids", sizeof(struct eb_root));
 DECLARE_POOL(pool_head_quic_connection_id,
              "quic_connection_id", sizeof(struct quic_connection_id));
-DECLARE_POOL(pool_head_quic_crypto_buf, "quic_crypto_buf", sizeof(struct quic_crypto_buf));
 DECLARE_STATIC_POOL(pool_head_quic_cstream, "quic_cstream", sizeof(struct quic_cstream));
 
 struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);

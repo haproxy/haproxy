@@ -195,8 +195,6 @@ enum quic_pkt_type {
 /* Size of the QUIC RX buffer for the connections */
 #define QUIC_CONN_RX_BUFSZ (1UL << 16)
 
-extern struct pool_head *pool_head_quic_crypto_buf;
-
 struct quic_version {
 	uint32_t num;
 	const unsigned char *initial_salt;
@@ -234,22 +232,8 @@ extern const struct quic_version *preferred_version;
 /* The QUIC packet numbers are 62-bits integers */
 #define QUIC_MAX_PACKET_NUM      ((1ULL << 62) - 1)
 
-#define QUIC_CRYPTO_BUF_SHIFT  10
-#define QUIC_CRYPTO_BUF_MASK   ((1UL << QUIC_CRYPTO_BUF_SHIFT) - 1)
-/* The maximum allowed size of CRYPTO data buffer provided by the TLS stack. */
-#define QUIC_CRYPTO_BUF_SZ    (1UL << QUIC_CRYPTO_BUF_SHIFT) /* 1 KB */
-
 /* The maximum number of bytes of CRYPTO data in flight during handshakes. */
 #define QUIC_CRYPTO_IN_FLIGHT_MAX 4096
-
-/*
- * CRYPTO buffer struct.
- * Such buffers are used to send CRYPTO data.
- */
-struct quic_crypto_buf {
-	unsigned char data[QUIC_CRYPTO_BUF_SZ];
-	size_t sz;
-};
 
 /* Crypto data stream (one by encryption level) */
 struct quic_cstream {
