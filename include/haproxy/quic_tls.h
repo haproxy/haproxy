@@ -1099,6 +1099,17 @@ static inline int qc_need_sending(struct quic_conn *qc, struct quic_enc_level *q
 	       !LIST_ISEMPTY(&qel->pktns->tx.frms);
 }
 
+/* Return 1 if <qc> connection may probe the Initial packet number space, 0 if not.
+ * This is not the case if the remote peer address is not validated and if
+ * it cannot send at least QUIC_INITIAL_PACKET_MINLEN bytes.
+ */
+static inline int qc_may_probe_ipktns(struct quic_conn *qc)
+{
+	return quic_peer_validated_addr(qc) ||
+		quic_may_send_bytes(qc) >= QUIC_INITIAL_PACKET_MINLEN;
+}
+
+
 
 #endif /* USE_QUIC */
 #endif /* _PROTO_QUIC_TLS_H */

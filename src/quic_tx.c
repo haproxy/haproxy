@@ -1337,16 +1337,6 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 	return ret;
 }
 
-/* Return 1 if <qc> connection may probe the Initial packet number space, 0 if not.
- * This is not the case if the remote peer address is not validated and if
- * it cannot send at least QUIC_INITIAL_PACKET_MINLEN bytes.
- */
-int qc_may_probe_ipktns(struct quic_conn *qc)
-{
-	return quic_peer_validated_addr(qc) ||
-		quic_may_send_bytes(qc) >= QUIC_INITIAL_PACKET_MINLEN;
-}
-
 /*
  * Send a Version Negotiation packet on response to <pkt> on socket <fd> to
  * address <addr>.
