@@ -1412,19 +1412,6 @@ static inline int quic_packet_read_long_header(unsigned char **pos, const unsign
 	return ret;
 }
 
-/* Insert <pkt> RX packet in its <qel> RX packets tree */
-static void qc_pkt_insert(struct quic_conn *qc,
-                          struct quic_rx_packet *pkt, struct quic_enc_level *qel)
-{
-	TRACE_ENTER(QUIC_EV_CONN_RXPKT, qc);
-
-	pkt->pn_node.key = pkt->pn;
-	quic_rx_packet_refinc(pkt);
-	eb64_insert(&qel->rx.pkts, &pkt->pn_node);
-
-	TRACE_LEAVE(QUIC_EV_CONN_RXPKT, qc);
-}
-
 /* Try to remove the header protection of <pkt> QUIC packet with <beg> the
  * address of the packet first byte, using the keys from encryption level <el>.
  *
@@ -2128,8 +2115,12 @@ static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	}
 
 	TRACE_DATA("New packet", QUIC_EV_CONN_LPKT, qc, pkt, NULL, qv);
-	if (pkt->aad_len)
-		qc_pkt_insert(qc, pkt, qel);
+	if (pkt->aad_len) {
+		/* Insert this RX packet in its encryption level tree */
+		pkt->pn_node.key = pkt->pn;
+		quic_rx_packet_refinc(pkt);
+		eb64_insert(&qel->rx.pkts, &pkt->pn_node);
+	}
  out:
 	*tasklist_head = tasklet_wakeup_after(*tasklist_head,
 	                                      qc->wait_event.tasklet);
