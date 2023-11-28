@@ -1725,6 +1725,35 @@ int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len)
 	return 0;
 }
 
+/* Wake-up upper layer for sending if all conditions are met :
+ * - room in congestion window or probe packet to sent
+ * - socket FD ready to sent or listener socket used
+ *
+ * Returns 1 if upper layer has been woken up else 0.
+ */
+int qc_notify_send(struct quic_conn *qc)
+{
+	const struct quic_pktns *pktns = qc->apktns;
+
+	if (qc->subs && qc->subs->events & SUB_RETRY_SEND) {
+		/* RFC 9002 7.5. Probe Timeout
+		 *
+		 * Probe packets MUST NOT be blocked by the congestion controller.
+		 */
+		if ((quic_cc_path_prep_data(qc->path) || pktns->tx.pto_probe) &&
+		    (!qc_test_fd(qc) || !fd_send_active(qc->fd))) {
+			tasklet_wakeup(qc->subs->tasklet);
+			qc->subs->events &= ~SUB_RETRY_SEND;
+			if (!qc->subs->events)
+				qc->subs = NULL;
+
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 /* Notify upper layer of a fatal error which forces to close the connection. */
 void qc_notify_err(struct quic_conn *qc)
 {

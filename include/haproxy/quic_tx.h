@@ -37,7 +37,6 @@ int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf, struct list *qels);
 int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx);
 int qc_send_app_pkts(struct quic_conn *qc, struct list *frms);
 int qc_dgrams_retransmit(struct quic_conn *qc);
-int qc_notify_send(struct quic_conn *qc);
 void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
                                 struct list *ifrms, struct list *hfrms);
 int send_retry(int fd, struct sockaddr_storage *addr,
