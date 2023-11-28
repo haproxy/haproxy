@@ -183,10 +183,12 @@ comp_prepare_compress_request(struct comp_state *st, struct stream *s, struct ht
 
 	if (txn->meth == HTTP_METH_HEAD)
 		return;
-	if (s->be->comp->algo_req != NULL)
+	if (s->be->comp && s->be->comp->algo_req != NULL)
 		st->comp_algo[COMP_DIR_REQ] = s->be->comp->algo_req;
-	else if (strm_fe(s)->comp->algo_req != NULL)
+	else if (strm_fe(s)->comp && strm_fe(s)->comp->algo_req != NULL)
 		st->comp_algo[COMP_DIR_REQ] = strm_fe(s)->comp->algo_req;
+	else
+		goto fail; /* no algo selected: nothing to do */
 
 
 	/* limit compression rate */
