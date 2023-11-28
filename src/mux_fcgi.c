@@ -3102,6 +3102,22 @@ static int fcgi_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *ou
 	}
 }
 
+static int fcgi_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *output)
+{
+	int ret = 0;
+	struct fcgi_strm *fstrm = __sc_mux_strm(sc);
+
+	switch (mux_sctl) {
+	case MUX_SCTL_SID:
+		if (output)
+			*((int64_t *)output) = fstrm->id;
+		return ret;
+
+	default:
+		return -1;
+	}
+}
+
 /* Connection timeout management. The principle is that if there's no receipt
  * nor sending for a certain amount of time, the connection is closed. If the
  * MUX buffer still has lying data or is not allocatable, the connection is
@@ -4230,6 +4246,7 @@ static const struct mux_ops mux_fcgi_ops = {
 	.shutr         = fcgi_shutr,
 	.shutw         = fcgi_shutw,
 	.ctl           = fcgi_ctl,
+	.sctl           = fcgi_sctl,
 	.show_fd       = fcgi_show_fd,
 	.takeover      = fcgi_takeover,
 	.flags         = MX_FL_HTX|MX_FL_HOL_RISK|MX_FL_NO_UPG,

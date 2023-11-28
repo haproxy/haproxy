@@ -2976,6 +2976,22 @@ static void qmux_strm_shutw(struct stconn *sc, enum co_shw_mode mode)
 	TRACE_LEAVE(QMUX_EV_STRM_SHUT, qcc->conn, qcs);
 }
 
+static int qmux_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *output)
+{
+	int ret = 0;
+	struct qcs *qcs = __sc_mux_strm(sc);
+
+	switch (mux_sctl) {
+	case MUX_SCTL_SID:
+		if (output)
+			*((int64_t *)output) = qcs->id;
+		return ret;
+
+	default:
+		return -1;
+	}
+}
+
 /* for debugging with CLI's "show sess" command. May emit multiple lines, each
  * new one being prefixed with <pfx>, if <pfx> is not NULL, otherwise a single
  * line is used. Each field starts with a space so it's safe to print it after
@@ -3016,6 +3032,7 @@ static const struct mux_ops qmux_ops = {
 	.unsubscribe = qmux_strm_unsubscribe,
 	.wake        = qmux_wake,
 	.shutw       = qmux_strm_shutw,
+	.sctl        = qmux_sctl,
 	.show_sd     = qmux_strm_show_sd,
 	.flags = MX_FL_HTX|MX_FL_NO_UPG|MX_FL_FRAMED,
 	.name = "QUIC",

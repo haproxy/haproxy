@@ -795,6 +795,21 @@ static int mux_pt_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *
 	}
 }
 
+static int mux_pt_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *output)
+{
+	int ret = 0;
+
+	switch (mux_sctl) {
+	case MUX_SCTL_SID:
+		if (output)
+			*((int64_t *)output) = 0;
+		return ret;
+
+	default:
+		return -1;
+	}
+}
+
 /* The mux operations */
 const struct mux_ops mux_tcp_ops = {
 	.init = mux_pt_init,
@@ -814,6 +829,7 @@ const struct mux_ops mux_tcp_ops = {
 	.used_streams = mux_pt_used_streams,
 	.destroy = mux_pt_destroy_meth,
 	.ctl = mux_pt_ctl,
+	.sctl = mux_pt_sctl,
 	.shutr = mux_pt_shutr,
 	.shutw = mux_pt_shutw,
 	.flags = MX_FL_NONE,
@@ -839,6 +855,7 @@ const struct mux_ops mux_pt_ops = {
 	.used_streams = mux_pt_used_streams,
 	.destroy = mux_pt_destroy_meth,
 	.ctl = mux_pt_ctl,
+	.sctl = mux_pt_sctl,
 	.shutr = mux_pt_shutr,
 	.shutw = mux_pt_shutw,
 	.flags = MX_FL_NONE|MX_FL_NO_UPG,

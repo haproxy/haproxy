@@ -4526,6 +4526,22 @@ static int h2_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 	}
 }
 
+static int h2_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *output)
+{
+	int ret = 0;
+	struct h2s *h2s = __sc_mux_strm(sc);
+
+	switch (mux_sctl) {
+	case MUX_SCTL_SID:
+		if (output)
+			*((int64_t *)output) = h2s->id;
+		return ret;
+
+	default:
+		return -1;
+	}
+}
+
 /*
  * Destroy the mux and the associated connection, if it is no longer used
  */
@@ -7447,6 +7463,7 @@ static const struct mux_ops h2_ops = {
 	.shutr = h2_shutr,
 	.shutw = h2_shutw,
 	.ctl = h2_ctl,
+	.sctl = h2_sctl,
 	.show_fd = h2_show_fd,
 	.show_sd = h2_show_sd,
 	.takeover = h2_takeover,

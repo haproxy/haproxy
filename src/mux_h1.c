@@ -53,6 +53,8 @@ struct h1c {
 	int timeout;                     /* client/server timeout duration */
 	int shut_timeout;                /* client-fin/server-fin timeout duration */
 
+	unsigned int req_count;          /* The number of requests handled by this H1 connection */
+
 	struct h1_counters *px_counters; /* h1 counters attached to proxy */
 	struct buffer_wait buf_wait;     /* Wait list for buffer allocation */
 	struct wait_event wait_event;    /* To be used if we're waiting for I/Os */
@@ -872,6 +874,7 @@ static void h1s_destroy(struct h1s *h1s)
 		    h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE) {        /* req/res in DONE state */
 			h1c->state = H1_CS_IDLE;
 			h1c->flags |= H1C_F_WAIT_NEXT_REQ;
+			h1c->req_count++;
 			TRACE_STATE("set idle mode on h1c, waiting for the next request", H1_EV_H1C_ERR, h1c->conn, h1s);
 		}
 		else {
@@ -918,6 +921,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	h1c->obuf  = BUF_NULL;
 	h1c->h1s   = NULL;
 	h1c->task  = NULL;
+	h1c->req_count = 0;
 
 	LIST_INIT(&h1c->buf_wait.list);
 	h1c->wait_event.tasklet = tasklet_new();
@@ -4834,6 +4838,22 @@ static int h1_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 	}
 }
 
+static int h1_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *output)
+{
+	int ret = 0;
+	struct h1s *h1s = __sc_mux_strm(sc);
+
+	switch (mux_sctl) {
+	case MUX_SCTL_SID:
+		if (output)
+			*((int64_t *)output) = h1s->h1c->req_count;
+		return ret;
+
+	default:
+		return -1;
+	}
+}
+
 /* appends some info about connection <h1c> to buffer <msg>, or does nothing if
  * <h1c> is NULL. Returns non-zero if the connection is considered suspicious.
  * May emit multiple lines, each new one being prefixed with <pfx>, if <pfx> is
@@ -5251,6 +5271,7 @@ static const struct mux_ops mux_http_ops = {
 	.show_fd     = h1_show_fd,
 	.show_sd     = h1_show_sd,
 	.ctl         = h1_ctl,
+	.sctl        = h1_sctl,
 	.takeover    = h1_takeover,
 	.flags       = MX_FL_HTX,
 	.name        = "H1",
@@ -5278,6 +5299,7 @@ static const struct mux_ops mux_h1_ops = {
 	.show_fd     = h1_show_fd,
 	.show_sd     = h1_show_sd,
 	.ctl         = h1_ctl,
+	.sctl        = h1_sctl,
 	.takeover    = h1_takeover,
 	.flags       = MX_FL_HTX|MX_FL_NO_UPG,
 	.name        = "H1",
