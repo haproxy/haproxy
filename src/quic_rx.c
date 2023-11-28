@@ -20,6 +20,7 @@
 #include <haproxy/proto_quic.h>
 #include <haproxy/quic_ack.h>
 #include <haproxy/quic_cid.h>
+#include <haproxy/quic_retransmit.h>
 #include <haproxy/quic_retry.h>
 #include <haproxy/quic_sock.h>
 #include <haproxy/quic_stream.h>
