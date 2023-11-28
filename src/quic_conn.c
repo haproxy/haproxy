@@ -945,30 +945,6 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 	return task;
 }
 
-/* Try to increment <l> handshake current counter. If listener limit is
- * reached, incrementation is rejected and 0 is returned.
- */
-static int quic_increment_curr_handshake(struct listener *l)
-{
-	unsigned int count, next;
-	const int max = quic_listener_max_handshake(l);
-
-	do {
-		count = l->rx.quic_curr_handshake;
-		if (count >= max) {
-			/* maxconn reached */
-			next = 0;
-			goto end;
-		}
-
-		/* try to increment quic_curr_handshake */
-		next = count + 1;
-	} while (!_HA_ATOMIC_CAS(&l->rx.quic_curr_handshake, &count, next) && __ha_cpu_relax());
-
- end:
-	return next;
-}
-
 /* Allocate a new QUIC connection with <version> as QUIC version. <ipv4>
  * boolean is set to 1 for IPv4 connection, 0 for IPv6. <server> is set to 1
  * for QUIC servers (or haproxy listeners).

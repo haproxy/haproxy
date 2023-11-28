@@ -48,6 +48,16 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t count,
 int qc_rcv_buf(struct quic_conn *qc);
 void quic_conn_sock_fd_iocb(int fd);
 
+void qc_alloc_fd(struct quic_conn *qc, const struct sockaddr_storage *src,
+                 const struct sockaddr_storage *dst);
+void qc_release_fd(struct quic_conn *qc, int reinit);
+void qc_want_recv(struct quic_conn *qc);
+
+void quic_accept_push_qc(struct quic_conn *qc);
+
+int quic_listener_max_handshake(const struct listener *l);
+int quic_listener_max_accept(const struct listener *l);
+
 /* Set default value for <qc> socket as uninitialized. */
 static inline void qc_init_fd(struct quic_conn *qc)
 {
@@ -62,15 +72,29 @@ static inline char qc_test_fd(struct quic_conn *qc)
 	return qc->fd >= 0;
 }
 
-void qc_alloc_fd(struct quic_conn *qc, const struct sockaddr_storage *src,
-                 const struct sockaddr_storage *dst);
-void qc_release_fd(struct quic_conn *qc, int reinit);
-void qc_want_recv(struct quic_conn *qc);
+/* Try to increment <l> handshake current counter. If listener limit is
+ * reached, incrementation is rejected and 0 is returned.
+ */
+static inline int quic_increment_curr_handshake(struct listener *l)
+{
+	unsigned int count, next;
+	const int max = quic_listener_max_handshake(l);
 
-void quic_accept_push_qc(struct quic_conn *qc);
+	do {
+		count = l->rx.quic_curr_handshake;
+		if (count >= max) {
+			/* maxconn reached */
+			next = 0;
+			goto end;
+		}
 
-int quic_listener_max_handshake(const struct listener *l);
-int quic_listener_max_accept(const struct listener *l);
+		/* try to increment quic_curr_handshake */
+		next = count + 1;
+	} while (!_HA_ATOMIC_CAS(&l->rx.quic_curr_handshake, &count, next) && __ha_cpu_relax());
+
+ end:
+	return next;
+}
 
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_QUIC_SOCK_H */
