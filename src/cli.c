@@ -2605,13 +2605,15 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 
 	/* there is no end to this command, need more to parse ! */
 	if (!reql || *(end-1) != '\n') {
-		return -1;
+		ret = -1;
+		goto end;
 	}
 
 	if (s->pcli_flags & PCLI_F_PAYLOAD) {
 		if (reql == 1) /* last line of the payload */
 			s->pcli_flags &= ~PCLI_F_PAYLOAD;
-		return reql;
+		ret = reql;
+		goto end;
 	}
 
 	*(end-1) = '\0';
@@ -2674,7 +2676,8 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 		ret = end - trim;
 	} else if (wtrim < 0) {
 		/* parsing error */
-		return -1;
+		ret = -1;
+		goto end;
 	} else {
 		/* the whole string */
 		ret = end - str;
