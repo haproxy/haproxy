@@ -20103,6 +20103,12 @@ thread : integer
   the function, between 0 and (global.nbthread-1). This is useful for logging
   and debugging purposes.
 
+txn.id32 : integer
+  Returns the internal transaction ID. It is a 32bits integer. So, in absolute,
+  its value is not unique, transaction IDs may wrap. The wrapping period
+  depends on the request rate. In practice, it should not be an issue. For a
+  true unique ID, see "unique-id-format" directive.
+
 txn.conn_retries : integer
   Returns the the number of connection retries experienced by this session when
   trying to connect to the server. This value is subject to change while the
@@ -24049,6 +24055,7 @@ Please refer to the table below for currently defined variables :
   |   |      | %[txn.conn_retries]                                  |         |
   +---+------+------------------------------------------------------+---------+
   |   | %rt  | request_counter (HTTP req or TCP session)            | numeric |
+  |   |      | %[txn.id32]                                          |         |
   +---+------+------------------------------------------------------+---------+
   |   | %s   | server_name                                          | string  |
   +---+------+------------------------------------------------------+---------+
