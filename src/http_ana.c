@@ -328,8 +328,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
  return_int_err:
 	txn->status = 500;
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_INTERNAL;
+	s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
@@ -343,8 +342,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	/* fall through */
 
  return_prx_cond:
-	http_reply_and_close(s, txn->status, http_error_message(s));
 	http_set_term_flags(s);
+	http_reply_and_close(s, txn->status, http_error_message(s));
 
 	DBG_TRACE_DEVEL("leaving on error",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
@@ -585,8 +584,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
  return_int_err:
 	txn->status = 500;
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_INTERNAL;
+	s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	if (s->flags & SF_BE_ASSIGNED)
 		_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
@@ -602,6 +600,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	/* fall through */
 
  return_prx_err:
+	http_set_term_flags(s);
 	http_reply_and_close(s, txn->status, http_error_message(s));
 	/* fall through */
 
@@ -735,16 +734,15 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 
  return_int_err:
 	txn->status = 500;
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_INTERNAL;
+	s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	if (s->flags & SF_BE_ASSIGNED)
 		_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
 
-	http_reply_and_close(s, txn->status, http_error_message(s));
 	http_set_term_flags(s);
+	http_reply_and_close(s, txn->status, http_error_message(s));
 
 	DBG_TRACE_DEVEL("leaving on error",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
@@ -784,8 +782,8 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	 */
 	s->logs.t_queue = ns_to_ms(now_ns - s->logs.accept_ts);
 
-	http_reply_and_close(s, txn->status, (!(s->scf->flags & SC_FL_ERROR) ? http_error_message(s) : NULL));
 	http_set_term_flags(s);
+	http_reply_and_close(s, txn->status, (!(s->scf->flags & SC_FL_ERROR) ? http_error_message(s) : NULL));
 
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 0;
@@ -838,8 +836,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 
  return_int_err:
 	txn->status = 500;
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_INTERNAL;
+	s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	if (s->flags & SF_BE_ASSIGNED)
 		_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
@@ -855,6 +852,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	/* fall through */
 
  return_prx_err:
+	http_set_term_flags(s);
 	http_reply_and_close(s, txn->status, http_error_message(s));
 	/* fall through */
 
@@ -1086,8 +1084,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	goto return_prx_cond;
 
   return_int_err:
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_INTERNAL;
+	s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
 	if (sess->listener && sess->listener->counters)
@@ -1105,6 +1102,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	/* fall through */
 
   return_prx_cond:
+	http_set_term_flags(s);
 	if (txn->status > 0) {
 		/* Note: we don't send any error if some data were already sent */
 		http_reply_and_close(s, txn->status, NULL);
@@ -1112,7 +1110,6 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		txn->status = status;
 		http_reply_and_close(s, txn->status, http_error_message(s));
 	}
-	http_set_term_flags(s);
 	DBG_TRACE_DEVEL("leaving on error ",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
@@ -1155,8 +1152,7 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *sc)
 
 	s->scb->flags &= ~(SC_FL_ERROR|SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED);
 	if (sc_reset_endp(s->scb) < 0) {
-		if (!(s->flags & SF_ERR_MASK))
-			s->flags |= SF_ERR_INTERNAL;
+		s->flags |= SF_ERR_INTERNAL;
 		return -1;
 	}
 
@@ -1263,11 +1259,12 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			}
 
 			s->scb->flags |= SC_FL_NOLINGER;
-			http_reply_and_close(s, txn->status, http_error_message(s));
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_SRVCL;
 			http_set_term_flags(s);
+
+			http_reply_and_close(s, txn->status, http_error_message(s));
 			DBG_TRACE_DEVEL("leaving on error",
 					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 			return 0;
@@ -1292,11 +1289,12 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			txn->status = 504;
 			stream_inc_http_fail_ctr(s);
 			s->scb->flags |= SC_FL_NOLINGER;
-			http_reply_and_close(s, txn->status, http_error_message(s));
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_SRVTO;
 			http_set_term_flags(s);
+
+			http_reply_and_close(s, txn->status, http_error_message(s));
 			DBG_TRACE_DEVEL("leaving on error",
 					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 			return 0;
@@ -1313,11 +1311,12 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				_HA_ATOMIC_INC(&__objt_server(s->target)->counters.cli_aborts);
 
 			txn->status = 400;
-			http_reply_and_close(s, txn->status, http_error_message(s));
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_CLICL;
 			http_set_term_flags(s);
+
+			http_reply_and_close(s, txn->status, http_error_message(s));
 
 			/* process_stream() will take care of the error */
 			DBG_TRACE_DEVEL("leaving on error",
@@ -1348,11 +1347,12 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			txn->status = 502;
 			stream_inc_http_fail_ctr(s);
 			s->scb->flags |= SC_FL_NOLINGER;
-			http_reply_and_close(s, txn->status, http_error_message(s));
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_SRVCL;
 			http_set_term_flags(s);
+
+			http_reply_and_close(s, txn->status, http_error_message(s));
 			DBG_TRACE_DEVEL("leaving on error",
 					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 			return 0;
@@ -1611,8 +1611,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	if (objt_server(s->target))
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.internal_errors);
 	txn->status = 500;
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_INTERNAL;
+	s->flags |= SF_ERR_INTERNAL;
 	goto return_prx_cond;
 
   return_bad_res:
@@ -1633,8 +1632,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	/* fall through */
 
  return_prx_cond:
-	http_reply_and_close(s, txn->status, http_error_message(s));
 	http_set_term_flags(s);
+	http_reply_and_close(s, txn->status, http_error_message(s));
 
 	s->scb->flags |= SC_FL_NOLINGER;
 	DBG_TRACE_DEVEL("leaving on error",
@@ -1931,8 +1930,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 
  return_int_err:
 	txn->status = 500;
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_INTERNAL;
+	s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
 	if (sess->listener && sess->listener->counters)
@@ -1952,6 +1950,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	/* fall through */
 
  return_prx_err:
+	http_set_term_flags(s);
 	http_reply_and_close(s, txn->status, http_error_message(s));
 	/* fall through */
 
@@ -2199,8 +2198,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
 	if (objt_server(s->target))
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.internal_errors);
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_INTERNAL;
+	s->flags |= SF_ERR_INTERNAL;
 	goto return_error;
 
   return_bad_res:
@@ -2216,8 +2214,8 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 
    return_error:
 	/* don't send any error message as we're in the body */
-	http_reply_and_close(s, txn->status, NULL);
 	http_set_term_flags(s);
+	http_reply_and_close(s, txn->status, NULL);
 	stream_inc_http_fail_ctr(s);
 	DBG_TRACE_DEVEL("leaving on error",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
@@ -2446,6 +2444,11 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 
 	htx->flags |= HTX_FL_EOM;
 	htx_to_buf(htx, &res->buf);
+
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_LOCAL;
+	http_set_term_flags(s);
+
 	if (!http_forward_proxy_resp(s, 1))
 		goto fail;
 
@@ -2457,10 +2460,6 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 		if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
 			_HA_ATOMIC_INC(&s->sess->fe->fe_counters.intercepted_req);
 	}
-
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_LOCAL;
-	http_set_term_flags(s);
 
   out:
 	free_trash_chunk(chunk);
@@ -4120,6 +4119,7 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	return ret;
 
   abort:
+	http_set_term_flags(s);
 	http_reply_and_close(s, txn->status, http_error_message(s));
 	ret = HTTP_RULE_RES_ABRT;
 	goto end;
@@ -4200,6 +4200,12 @@ void http_perform_server_redirect(struct stream *s, struct stconn *sc)
 
 	htx->flags |= HTX_FL_EOM;
 	htx_to_buf(htx, &res->buf);
+
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_LOCAL;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_C;
+
 	if (!http_forward_proxy_resp(s, 1))
 		goto fail;
 
@@ -4209,10 +4215,6 @@ void http_perform_server_redirect(struct stream *s, struct stconn *sc)
 	s->conn_err_type = STRM_ET_NONE;
 	sc->state = SC_ST_CLO;
 
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_LOCAL;
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= SF_FINST_C;
 
 	/* FIXME: we should increase a counter of redirects per server and per backend. */
 	srv_inc_sess_ctr(srv);
@@ -4505,11 +4507,12 @@ int http_forward_proxy_resp(struct stream *s, int final)
 void http_server_error(struct stream *s, struct stconn *sc, int err,
 		       int finst, struct http_reply *msg)
 {
-	http_reply_and_close(s, s->txn->status, msg);
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= err;
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= finst;
+
+	http_reply_and_close(s, s->txn->status, msg);
 }
 
 void http_reply_and_close(struct stream *s, short status, struct http_reply *msg)

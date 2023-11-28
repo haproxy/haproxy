@@ -2255,6 +2255,12 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
 	struct channel *req = &s->req;
 
 	s->txn->status = rule->arg.http_reply->status;
+
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_LOCAL;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= ((rule->from == ACT_F_HTTP_REQ) ? SF_FINST_R : SF_FINST_H);
+
 	if (http_reply_message(s, rule->arg.http_reply) == -1)
 		return ACT_RET_ERR;
 
@@ -2266,11 +2272,6 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
 		if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
 			_HA_ATOMIC_INC(&s->sess->fe->fe_counters.intercepted_req);
 	}
-
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_LOCAL;
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= ((rule->from == ACT_F_HTTP_REQ) ? SF_FINST_R : SF_FINST_H);
 
 	return ACT_RET_ABRT;
 }
