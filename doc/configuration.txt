@@ -21213,7 +21213,7 @@ ssl_bc_client_random : binary
 
 ssl_bc_curve : string
   Returns the name of the curve used in the key agreement when the outgoing
-  connection was made over an SSL/TLS transport layer. This requires 
+  connection was made over an SSL/TLS transport layer. This requires
   OpenSSL >= 3.0.0.
 
 ssl_bc_err : integer
@@ -21913,6 +21913,10 @@ Warning : Following sample fetches are ignored if used from HTTP proxies. They
           all invalid usage (for instance inside a log-format string or a
           sample expression). So be careful.
 
+bs.id : integer
+  Returns the multiplexer's stream ID on the server side. It is the
+  multiplexer's responsibility to return the appropriate information.
+
 distcc_body(<token>[,<occ>]) : binary
   Parses a distcc message and returns the body associated to occurrence #<occ>
   of the token <token>. Occurrences start at 1, and when unspecified, any may
@@ -21938,6 +21942,11 @@ distcc_param(<token>[,<occ>]) : integer
       tcp-request content accept if { distcc_param(DOTI) -m found }
       # send large files to the big farm
       use_backend big_farm if { distcc_param(DOTI) gt 1000000 }
+
+fs.id : integer
+  Returns the multiplexer's stream ID on the client side. It is the
+  multiplexer's responsibility to return the appropriate information. For
+  instance, on a raw TCP, 0 is always returned because there is no stream.
 
 payload(<offset>,<length>) : binary (deprecated)
   This is an alias for "req.payload" when used in the context of a request (e.g.

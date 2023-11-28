@@ -17,6 +17,7 @@
 #include <haproxy/http_ana.h>
 #include <haproxy/pipe.h>
 #include <haproxy/pool.h>
+#include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/stconn.h>
 #include <haproxy/xref.h>
@@ -1990,3 +1991,54 @@ void sc_conn_commit_endp_upgrade(struct stconn *sc)
 	BUG_ON(!sc);
 	BUG_ON(!sc->sedesc);
 }
+
+/* return the frontend or backend mux stream ID.
+ */
+static int
+smp_fetch_sid(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+	struct stconn *sc;
+	int64_t sid = 0;
+
+	if (!smp->strm)
+		return 0;
+
+	sc = (kw[0] == 'f' ? smp->strm->scf : smp->strm->scb);
+	conn = sc_conn(sc);
+
+	/* No connection */
+	if (!conn)
+		return 0;
+
+	/* No mux install, this may change */
+	if (!conn->mux) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	/* No sctl, report sid=0 in this case */
+	if (conn->mux->sctl) {
+		if (conn->mux->sctl(sc, MUX_SCTL_SID, &sid) == -1)
+			return 0;
+	}
+
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = sid;
+
+	return 1;
+}
+
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Note: fetches that may return multiple types should be declared using the
+ * appropriate pseudo-type. If not available it must be declared as the lowest
+ * common denominator, the type that can be casted into all other ones.
+ */
+static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
+	{ "bs.id", smp_fetch_sid, 0, NULL, SMP_T_SINT, SMP_USE_L6REQ },
+	{ "fs.id", smp_fetch_sid, 0, NULL, SMP_T_STR, SMP_USE_L6RES },
+	{ /* END */ },
+}};
+
+INITCALL1(STG_REGISTER, sample_register_fetches, &sample_fetch_keywords);
