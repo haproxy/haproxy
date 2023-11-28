@@ -6967,6 +6967,16 @@ static size_t h2_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 
 	mbuf = br_tail(h2c->mbuf);
  retry:
+	if (br_count(h2c->mbuf) > h2c->nb_streams) {
+		/* more buffers than streams allocated, pointless
+		 * to continue, we'd use more RAM for no reason.
+		 */
+		h2s->flags |= H2_SF_BLK_MROOM;
+		h2s->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
+		TRACE_STATE("waiting for room in output buffer", H2_EV_TX_FRAME|H2_EV_TX_DATA|H2_EV_H2S_BLK, h2c->conn, h2s);
+		goto end;
+	}
+
 	if (!h2_get_buf(h2c, mbuf)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
