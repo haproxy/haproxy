@@ -674,38 +674,6 @@ static int qc_handle_strm_frm(struct quic_rx_packet *pkt,
 	return !ret;
 }
 
-/* Release the underlying memory use by <ncbuf> non-contiguous buffer */
-void quic_free_ncbuf(struct ncbuf *ncbuf)
-{
-	struct buffer buf;
-
-	if (ncb_is_null(ncbuf))
-		return;
-
-	buf = b_make(ncbuf->area, ncbuf->size, 0, 0);
-	b_free(&buf);
-	offer_buffers(NULL, 1);
-
-	*ncbuf = NCBUF_NULL;
-}
-
-/* Allocate the underlying required memory for <ncbuf> non-contiguous buffer */
-static struct ncbuf *quic_get_ncbuf(struct ncbuf *ncbuf)
-{
-	struct buffer buf = BUF_NULL;
-
-	if (!ncb_is_null(ncbuf))
-		return ncbuf;
-
-	b_alloc(&buf);
-	BUG_ON(b_is_null(&buf));
-
-	*ncbuf = ncb_make(buf.area, buf.size, 0);
-	ncb_init(ncbuf, 0);
-
-	return ncbuf;
-}
-
 /* Parse <frm> CRYPTO frame coming with <pkt> packet at <qel> <qc> connectionn.
  * Returns 1 if succeeded, 0 if not. Also set <*fast_retrans> to 1 if the
  * speed up handshake completion may be run after having received duplicated
