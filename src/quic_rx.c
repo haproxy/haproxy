@@ -1052,7 +1052,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		case QUIC_FT_CONNECTION_CLOSE:
 		case QUIC_FT_CONNECTION_CLOSE_APP:
 			/* Increment the error counters */
-			qc_cc_err_count_inc(qc, &frm);
+			quic_conn_closed_err_count_inc(qc, &frm);
 			if (!(qc->flags & QUIC_FL_CONN_DRAINING)) {
 				TRACE_STATE("Entering draining state", QUIC_EV_CONN_PRSHPKT, qc);
 				/* RFC 9000 10.2. Immediate Close:

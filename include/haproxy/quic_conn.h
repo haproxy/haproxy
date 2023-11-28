@@ -64,7 +64,7 @@ struct quic_connection_id *new_quic_cid(struct eb_root *root,
                                         struct quic_conn *qc,
                                         const struct quic_cid *orig,
                                         const struct sockaddr_storage *addr);
-void qc_cc_err_count_inc(struct quic_conn *qc, struct quic_frame *frm);
+void quic_conn_closed_err_count_inc(struct quic_conn *qc, struct quic_frame *frm);
 int qc_h3_request_reject(struct quic_conn *qc, uint64_t id);
 int qc_build_new_connection_id_frm(struct quic_conn *qc,
                                    struct quic_connection_id *conn_id);
@@ -116,7 +116,7 @@ static inline void free_quic_conn_cids(struct quic_conn *conn)
 }
 
 /* Move all the connection IDs from <conn> QUIC connection to <cc_conn> */
-static inline void quic_conn_mv_cids_to_cc_conn(struct quic_cc_conn *cc_conn,
+static inline void quic_conn_mv_cids_to_cc_conn(struct quic_conn_closed *cc_conn,
                                                 struct quic_conn *conn)
 {
 	struct eb64_node *node;

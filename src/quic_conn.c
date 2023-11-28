@@ -131,7 +131,7 @@ const struct quic_version *preferred_version;
 const struct quic_version quic_version_VN_reserved = { .num = 0, };
 
 DECLARE_STATIC_POOL(pool_head_quic_conn, "quic_conn", sizeof(struct quic_conn));
-DECLARE_STATIC_POOL(pool_head_quic_cc_conn, "quic_cc_conn", sizeof(struct quic_cc_conn));
+DECLARE_STATIC_POOL(pool_head_quic_conn_closed, "quic_conn_closed", sizeof(struct quic_conn_closed));
 DECLARE_STATIC_POOL(pool_head_quic_cids, "quic_cids", sizeof(struct eb_root));
 DECLARE_POOL(pool_head_quic_connection_id,
              "quic_connection_id", sizeof(struct quic_connection_id));
@@ -324,7 +324,7 @@ int qc_conn_finalize(struct quic_conn *qc, int server)
 	return ret;
 }
 
-void qc_cc_err_count_inc(struct quic_conn *qc, struct quic_frame *frm)
+void quic_conn_closed_err_count_inc(struct quic_conn *qc, struct quic_frame *frm)
 {
 	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
 
@@ -637,7 +637,7 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
 	return t;
 }
 
-static void quic_release_cc_conn(struct quic_cc_conn *cc_qc)
+static void quic_release_cc_conn(struct quic_conn_closed *cc_qc)
 {
 	struct quic_conn *qc = (struct quic_conn *)cc_qc;
 
@@ -652,15 +652,15 @@ static void quic_release_cc_conn(struct quic_cc_conn *cc_qc)
 	pool_free(pool_head_quic_cc_buf, cc_qc->cc_buf_area);
 	cc_qc->cc_buf_area = NULL;
 	/* free the SSL sock context */
-	pool_free(pool_head_quic_cc_conn, cc_qc);
+	pool_free(pool_head_quic_conn_closed, cc_qc);
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB);
 }
 
 /* QUIC connection packet handler task used when in "closing connection" state. */
-static struct task *quic_cc_conn_io_cb(struct task *t, void *context, unsigned int state)
+static struct task *quic_conn_closed_io_cb(struct task *t, void *context, unsigned int state)
 {
-	struct quic_cc_conn *cc_qc = context;
+	struct quic_conn_closed *cc_qc = context;
 	struct quic_conn *qc = (struct quic_conn *)cc_qc;
 	struct buffer buf;
 	uint16_t dglen;
@@ -698,9 +698,9 @@ static struct task *quic_cc_conn_io_cb(struct task *t, void *context, unsigned i
 }
 
 /* The task handling the idle timeout of a connection in "connection close" state */
-static struct task *qc_cc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
+static struct task *quic_conn_closed_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 {
-	struct quic_cc_conn *cc_qc = ctx;
+	struct quic_conn_closed *cc_qc = ctx;
 
 	quic_release_cc_conn(cc_qc);
 
@@ -713,11 +713,11 @@ static struct task *qc_cc_idle_timer_task(struct task *t, void *ctx, unsigned in
  * connection to the newly allocated connection so that to keep it
  * functional until its idle timer expires.
  */
-static struct quic_cc_conn *qc_new_cc_conn(struct quic_conn *qc)
+static struct quic_conn_closed *qc_new_cc_conn(struct quic_conn *qc)
 {
-	struct quic_cc_conn *cc_qc;
+	struct quic_conn_closed *cc_qc;
 
-	cc_qc = pool_alloc(pool_head_quic_cc_conn);
+	cc_qc = pool_alloc(pool_head_quic_conn_closed);
 	if (!cc_qc)
 		return NULL;
 
@@ -735,7 +735,7 @@ static struct quic_cc_conn *qc_new_cc_conn(struct quic_conn *qc)
 	cc_qc->peer_addr = qc->peer_addr;
 
 	cc_qc->wait_event.tasklet = qc->wait_event.tasklet;
-	cc_qc->wait_event.tasklet->process = quic_cc_conn_io_cb;
+	cc_qc->wait_event.tasklet->process = quic_conn_closed_io_cb;
 	cc_qc->wait_event.tasklet->context = cc_qc;
 	cc_qc->wait_event.events = 0;
 	cc_qc->subs = NULL;
@@ -752,7 +752,7 @@ static struct quic_cc_conn *qc_new_cc_conn(struct quic_conn *qc)
 	cc_qc->cids = qc->cids;
 
 	cc_qc->idle_timer_task = qc->idle_timer_task;
-	cc_qc->idle_timer_task->process = qc_cc_idle_timer_task;
+	cc_qc->idle_timer_task->process = quic_conn_closed_idle_timer_task;
 	cc_qc->idle_timer_task->context = cc_qc;
 	cc_qc->idle_expire = qc->idle_expire;
 
@@ -1379,7 +1379,7 @@ void quic_conn_release(struct quic_conn *qc)
 {
 	struct eb64_node *node;
 	struct quic_rx_packet *pkt, *pktback;
-	struct quic_cc_conn *cc_qc;
+	struct quic_conn_closed *cc_qc;
 
 	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
 
@@ -1491,7 +1491,7 @@ void quic_conn_release(struct quic_conn *qc)
 	qc = NULL;
 
 	/* Decrement global counters when quic_conn is deallocated.
-	 * quic_cc_conn instances are not accounted as they run for a short
+	 * quic_conn_closed instances are not accounted as they run for a short
 	 * time with limited resources.
 	 */
 	_HA_ATOMIC_DEC(&actconn);
@@ -1881,7 +1881,7 @@ void qc_finalize_affinity_rebind(struct quic_conn *qc)
 
 	/* If quic_conn is closing it is unnecessary to migrate it as it will
 	 * be soon released. Besides, special care must be taken for CLOSING
-	 * connections (using quic_cc_conn and th_ctx.quic_conns_clo list for
+	 * connections (using quic_conn_closed and th_ctx.quic_conns_clo list for
 	 * instance). This should never occur as CLOSING connections are
 	 * skipped by quic_sock_accept_conn().
 	 */

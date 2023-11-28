@@ -435,7 +435,7 @@ struct quic_conn {
 };
 
 /* QUIC connection in "connection close" state. */
-struct quic_cc_conn {
+struct quic_conn_closed {
 	QUIC_CONN_COMMON;
 	char *cc_buf_area;
 	/* Length of the "connection close" datagram. */
