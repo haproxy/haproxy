@@ -1,6 +1,7 @@
 #ifndef _HAPROXY_QUIC_CID_T_H
 #define _HAPROXY_QUIC_CID_T_H
 
+#include <import/ebtree-t.h>
 #include <haproxy/quic_tp-t.h>
 
 /* QUIC connection ID maximum length for version 1. */

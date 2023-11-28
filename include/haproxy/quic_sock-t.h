@@ -2,6 +2,8 @@
 #define _HAPROXY_QUIC_SOCK_T_H
 #ifdef USE_QUIC
 
+#include <haproxy/buf-t.h>
+
 /* QUIC socket allocation strategy. */
 enum quic_sock_mode {
 	QUIC_SOCK_MODE_CONN,  /* Use a dedicated socket per connection. */

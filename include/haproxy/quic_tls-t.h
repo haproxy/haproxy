@@ -21,6 +21,7 @@
 
 #include <import/ebtree.h>
 
+#include <haproxy/ncbuf-t.h>
 #include <haproxy/quic_ack-t.h>
 #include <haproxy/openssl-compat.h>
 
