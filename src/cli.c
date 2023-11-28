@@ -3229,6 +3229,9 @@ struct bind_conf *mworker_cli_proxy_new_listener(char *line)
 	bind_conf->nice = -64;  /* we want to boost priority for local stats */
 	bind_conf->options |= BC_O_UNLIMITED; /* don't make the peers subject to global limits */
 
+	/* Pin master CLI on the first thread of the first group only */
+	thread_set_pin_grp1(&bind_conf->thread_set, 1);
+
 	list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 		l->rx.flags |= RX_F_MWORKER; /* we are keeping this FD in the master */
 		global.maxsock++; /* for the listening socket */
