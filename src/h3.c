@@ -307,7 +307,6 @@ static inline size_t h3_decode_frm_header(uint64_t *ftype, uint64_t *flen,
 static int h3_is_frame_valid(struct h3c *h3c, struct qcs *qcs, uint64_t ftype)
 {
 	struct h3s *h3s = qcs->ctx;
-	const uint64_t id = qcs->id;
 
 	/* Stream type must be known to ensure frame is valid for this stream. */
 	BUG_ON(h3s->type == H3S_T_UNKNOWN);
@@ -340,8 +339,14 @@ static int h3_is_frame_valid(struct h3c *h3c, struct qcs *qcs, uint64_t ftype)
 		       !(h3c->flags & H3_CF_SETTINGS_RECV);
 
 	case H3_FT_PUSH_PROMISE:
-		return h3s->type != H3S_T_CTRL &&
-		       (id & QCS_ID_SRV_INTIATOR_BIT);
+		/* RFC 9114 7.2.5. PUSH_PROMISE
+		 * A client MUST NOT send a PUSH_PROMISE frame. A server MUST treat the
+		 * receipt of a PUSH_PROMISE frame as a connection error of type
+		 * H3_FRAME_UNEXPECTED.
+		 */
+
+		/* TODO server-side only. */
+		return 0;
 
 	default:
 		/* draft-ietf-quic-http34 9. Extensions to HTTP/3
