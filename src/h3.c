@@ -846,8 +846,8 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 {
 	struct h3s *h3s = qcs->ctx;
 	struct h3c *h3c = h3s->h3c;
-	struct buffer htx_buf = BUF_NULL;
 	struct buffer *tmp = get_trash_chunk();
+	struct buffer *appbuf = NULL;
 	struct htx *htx = NULL;
 	struct htx_sl *sl;
 	struct http_hdr list[global.tune.max_http_hdr];
@@ -868,14 +868,14 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
-	if (!qcs_get_buf(qcs, &htx_buf)) {
+	if (!(appbuf = qcs_get_buf(qcs, &qcs->rx.app_buf))) {
 		TRACE_ERROR("HTX buffer alloc failure", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 		h3c->err = H3_INTERNAL_ERROR;
 		len = -1;
 		goto out;
 	}
-	BUG_ON(!b_size(&htx_buf)); /* TODO */
-	htx = htx_from_buf(&htx_buf);
+	BUG_ON(!b_size(appbuf)); /* TODO */
+	htx = htx_from_buf(appbuf);
 
 	if (!h3s->data_len) {
 		/* Notify that no body is present. This can only happens if
@@ -972,13 +972,10 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	if (fin)
 		htx->flags |= HTX_FL_EOM;
 
-	htx_to_buf(htx, &htx_buf);
-	htx = NULL;
-
  out:
 	/* HTX may be non NULL if error before previous htx_to_buf(). */
-	if (htx)
-		htx_to_buf(htx, &htx_buf);
+	if (appbuf)
+		htx_to_buf(htx, appbuf);
 
 	TRACE_LEAVE(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 	return len;
