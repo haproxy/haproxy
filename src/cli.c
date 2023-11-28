@@ -2555,7 +2555,6 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 	int argl; /* number of args */
 	char *p;
 	char *trim = NULL;
-	char *payload = NULL;
 	int wtrim = 0; /* number of words to trim */
 	int reql = 0;
 	int ret;
@@ -2609,9 +2608,14 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 		goto end;
 	}
 
+	/* in payload mode, skip the whole parsing/exec and just look for a pattern */
 	if (s->pcli_flags & PCLI_F_PAYLOAD) {
-		if (reql == 1) /* last line of the payload */
-			s->pcli_flags &= ~PCLI_F_PAYLOAD;
+		if (reql-1 == strlen(s->pcli_payload_pat)) {
+			/* the custom pattern len can be 0 (empty line)  */
+			if (strncmp(str, s->pcli_payload_pat, strlen(s->pcli_payload_pat)) == 0) {
+				s->pcli_flags &= ~PCLI_F_PAYLOAD;
+			}
+		}
 		ret = reql;
 		goto end;
 	}
@@ -2644,6 +2648,22 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 
 	argl = i;
 
+	/* first look for '<<' at the beginning of the last argument */
+	if (strncmp(args[argl-1], PAYLOAD_PATTERN, strlen(PAYLOAD_PATTERN)) == 0) {
+		size_t pat_len = strlen(args[argl-1] + strlen(PAYLOAD_PATTERN));
+
+		/*
+		 * A customized pattern can't be more than 7 characters
+		 * if it's more, don't make it a payload
+		 */
+		if (pat_len < sizeof(s->pcli_payload_pat)) {
+			s->pcli_flags |= PCLI_F_PAYLOAD;
+			/* copy the customized pattern, don't store the << */
+			strncpy(s->pcli_payload_pat, args[argl-1] + strlen(PAYLOAD_PATTERN), sizeof(s->pcli_payload_pat)-1);
+			s->pcli_payload_pat[sizeof(s->pcli_payload_pat)-1] = '\0';
+		}
+	}
+
 	for (; i < MAX_CLI_ARGS + 1; i++)
 		args[i] = NULL;
 
@@ -2656,12 +2676,6 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 		if (*p == '\0')
 			*p = ' ';
 		p++;
-	}
-
-	payload = strstr(str, PAYLOAD_PATTERN);
-	if ((end - 1) == (payload + strlen(PAYLOAD_PATTERN))) {
-		/* if the payload pattern is at the end */
-		s->pcli_flags |= PCLI_F_PAYLOAD;
 	}
 
 	*(end-1) = '\n';

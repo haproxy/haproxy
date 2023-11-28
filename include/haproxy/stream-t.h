@@ -266,6 +266,7 @@ struct stream {
 
 	int pcli_next_pid;                      /* next target PID to use for the CLI proxy */
 	int pcli_flags;                         /* flags for CLI proxy */
+	char pcli_payload_pat[8];               /* payload pattern for the CLI proxy */
 
 	struct ist unique_id;                   /* custom unique ID */
 
