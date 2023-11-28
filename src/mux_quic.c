@@ -2843,8 +2843,10 @@ static size_t qmux_nego_ff(struct stconn *sc, struct buffer *input, size_t count
 		b_sub(qcs->sd->iobuf.buf, qcs->sd->iobuf.offset);
 
 		/* Cannot forward more data, wait for room */
-		if (b_data(input))
+		if (b_data(input)) {
+			ret = 0;
 			goto end;
+		}
 	}
 	ret -= qcs->sd->iobuf.data;
 
