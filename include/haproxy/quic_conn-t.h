@@ -88,8 +88,6 @@ typedef unsigned long long ull;
 #define QUIC_TOKEN_FMT_RETRY 0x9c
 /* Format for token sent for new connections after a Retry token was sent */
 #define  QUIC_TOKEN_FMT_NEW  0xb7
-/* Salt length used to derive retry token secret */
-#define QUIC_RETRY_TOKEN_SALTLEN       16 /* bytes */
 /* Retry token duration */
 #define QUIC_RETRY_DURATION_SEC       10
 /* Default Retry threshold */
