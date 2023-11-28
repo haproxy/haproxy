@@ -333,10 +333,10 @@ enum proto_proxy_side {
 
 /* ctl command used by mux->ctl() */
 enum mux_ctl_type {
-	MUX_STATUS, /* Expects an int as output, sets it to a combinaison of MUX_STATUS flags */
-	MUX_EXIT_STATUS, /* Expects an int as output, sets the mux exist/error/http status, if known or 0 */
-	MUX_REVERSE_CONN, /* Notify about an active reverse connection accepted. */
-	MUX_SUBS_RECV, /* Notify the mux it must wait for read events again  */
+	MUX_CTL_STATUS, /* Expects an int as output, sets it to a combinaison of MUX_CTL_STATUS flags */
+	MUX_CTL_EXIT_STATUS, /* Expects an int as output, sets the mux exist/error/http status, if known or 0 */
+	MUX_CTL_REVERSE_CONN, /* Notify about an active reverse connection accepted. */
+	MUX_CTL_SUBS_RECV, /* Notify the mux it must wait for read events again  */
 };
 
 /* response for ctl MUX_STATUS */
@@ -445,7 +445,7 @@ struct mux_ops {
 	int (*avail_streams_uni)(struct connection *conn); /* Returns the number of unidirectional streams still available for a connection */
 	int (*used_streams)(struct connection *conn);  /* Returns the number of streams in use on a connection. */
 	void (*destroy)(void *ctx); /* Let the mux know one of its users left, so it may have to disappear */
-	int (*ctl)(struct connection *conn, enum mux_ctl_type mux_ctl, void *arg); /* Provides information about the mux */
+	int (*ctl)(struct connection *conn, enum mux_ctl_type mux_ctl, void *arg); /* Provides information about the mux connection */
 	int (*takeover)(struct connection *conn, int orig_tid); /* Attempts to migrate the connection to the current thread */
 	unsigned int flags;                           /* some flags characterizing the mux's capabilities (MX_FL_*) */
 	char name[8];                                 /* mux layer name, zero-terminated */

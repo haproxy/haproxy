@@ -422,7 +422,7 @@ struct connection *rhttp_accept_conn(struct listener *l, int *status)
 	BUG_ON(!(conn->flags & CO_FL_ACT_REVERSING));
 	conn->flags &= ~CO_FL_ACT_REVERSING;
 	conn->flags |= CO_FL_REVERSED;
-	conn->mux->ctl(conn, MUX_REVERSE_CONN, NULL);
+	conn->mux->ctl(conn, MUX_CTL_REVERSE_CONN, NULL);
 
 	l->rx.rhttp.pend_conn = NULL;
 	*status = CO_AC_NONE;

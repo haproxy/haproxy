@@ -2654,7 +2654,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		logs = &tmp_strm_log;
 
 		if ((fe->mode == PR_MODE_HTTP) && fe_conn && fe_conn->mux && fe_conn->mux->ctl) {
-			enum mux_exit_status es = fe_conn->mux->ctl(fe_conn, MUX_EXIT_STATUS, &status);
+			enum mux_exit_status es = fe_conn->mux->ctl(fe_conn, MUX_CTL_EXIT_STATUS, &status);
 
 			switch (es) {
 			case MUX_ES_SUCCESS:

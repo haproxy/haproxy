@@ -4812,11 +4812,11 @@ static int h1_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 	int ret = 0;
 
 	switch (mux_ctl) {
-	case MUX_STATUS:
+	case MUX_CTL_STATUS:
 		if (!(conn->flags & CO_FL_WAIT_XPRT))
 			ret |= MUX_STATUS_READY;
 		return ret;
-	case MUX_EXIT_STATUS:
+	case MUX_CTL_EXIT_STATUS:
 		if (output)
 			*((int *)output) = h1c->errcode;
 		ret = (h1c->errcode == 408 ? MUX_ES_TOUT_ERR :
@@ -4825,7 +4825,7 @@ static int h1_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 			 ((h1c->errcode >= 400 && h1c->errcode <= 499) ? MUX_ES_INVALID_ERR :
 			  MUX_ES_SUCCESS))));
 		return ret;
-	case MUX_SUBS_RECV:
+	case MUX_CTL_SUBS_RECV:
 		if (!(h1c->wait_event.events & SUB_RETRY_RECV))
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 		return 0;

@@ -4503,17 +4503,17 @@ static int h2_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 	struct h2c *h2c = conn->ctx;
 
 	switch (mux_ctl) {
-	case MUX_STATUS:
+	case MUX_CTL_STATUS:
 		/* Only consider the mux to be ready if we're done with
 		 * the preface and settings, and we had no error.
 		 */
 		if (h2c->st0 >= H2_CS_FRAME_H && h2c->st0 < H2_CS_ERROR)
 			ret |= MUX_STATUS_READY;
 		return ret;
-	case MUX_EXIT_STATUS:
+	case MUX_CTL_EXIT_STATUS:
 		return MUX_ES_UNKNOWN;
 
-	case MUX_REVERSE_CONN:
+	case MUX_CTL_REVERSE_CONN:
 		BUG_ON(h2c->flags & H2_CF_IS_BACK);
 
 		TRACE_DEVEL("connection reverse done, restart demux", H2_EV_H2C_WAKE, h2c->conn);

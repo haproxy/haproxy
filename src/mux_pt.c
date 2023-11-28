@@ -784,11 +784,11 @@ static int mux_pt_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *
 {
 	int ret = 0;
 	switch (mux_ctl) {
-	case MUX_STATUS:
+	case MUX_CTL_STATUS:
 		if (!(conn->flags & CO_FL_WAIT_XPRT))
 			ret |= MUX_STATUS_READY;
 		return ret;
-	case MUX_EXIT_STATUS:
+	case MUX_CTL_EXIT_STATUS:
 		return MUX_ES_UNKNOWN;
 	default:
 		return -1;

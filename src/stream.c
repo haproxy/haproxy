@@ -2297,7 +2297,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 					struct connection *conn = sc_conn(scf);
 
 					if (conn && conn->mux && conn->mux->ctl)
-						conn->mux->ctl(conn, MUX_SUBS_RECV, NULL);
+						conn->mux->ctl(conn, MUX_CTL_SUBS_RECV, NULL);
 				}
 			}
 		}

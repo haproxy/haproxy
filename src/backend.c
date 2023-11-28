@@ -1312,7 +1312,7 @@ static int do_connect_server(struct stream *s, struct connection *conn)
 		 * confirmed once we can send on it.
 		 */
 		/* Is the connection really ready ? */
-		if (conn->mux->ctl(conn, MUX_STATUS, NULL) & MUX_STATUS_READY)
+		if (conn->mux->ctl(conn, MUX_CTL_STATUS, NULL) & MUX_STATUS_READY)
 			s->scb->state = SC_ST_RDY;
 		else
 			s->scb->state = SC_ST_CON;
@@ -1717,7 +1717,7 @@ skip_reuse:
 		 */
 		BUG_ON(!srv_conn->mux);
 
-		if (!(srv_conn->mux->ctl(srv_conn, MUX_STATUS, NULL) & MUX_STATUS_READY))
+		if (!(srv_conn->mux->ctl(srv_conn, MUX_CTL_STATUS, NULL) & MUX_STATUS_READY))
 			s->flags |= SF_SRV_REUSED_ANTICIPATED;
 	}
 
