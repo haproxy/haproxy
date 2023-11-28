@@ -43,6 +43,9 @@ extern char default_https_log_format[];
 
 extern char default_rfc5424_sd_log_format[];
 
+extern const char sess_term_cond[];
+extern const char sess_fin_state[];
+
 extern unsigned int dropped_logs;
 
 /* lof forward proxy list */

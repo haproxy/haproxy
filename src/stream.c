@@ -3971,6 +3971,24 @@ static int smp_fetch_last_rule_line(const struct arg *args, struct sample *smp, 
 	return 1;
 }
 
+static int smp_fetch_sess_term_state(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	struct buffer *trash = get_trash_chunk();
+
+	smp->flags = SMP_F_VOLATILE;
+	smp->data.type = SMP_T_STR;
+	if (!smp->strm)
+		return 0;
+
+	trash->area[trash->data++] = sess_term_cond[(smp->strm->flags & SF_ERR_MASK) >> SF_ERR_SHIFT];
+	trash->area[trash->data++] = sess_fin_state[(smp->strm->flags & SF_FINST_MASK) >> SF_FINST_SHIFT];
+
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_STR;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
@@ -3980,6 +3998,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "cur_tunnel_timeout", smp_fetch_cur_tunnel_timeout, 0, NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "last_rule_file",     smp_fetch_last_rule_file,     0, NULL, SMP_T_STR,  SMP_USE_INTRN, },
 	{ "last_rule_line",     smp_fetch_last_rule_line,     0, NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "txn.sess_term_state",smp_fetch_sess_term_state,    0, NULL, SMP_T_STR,  SMP_USE_INTRN, },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

@@ -20103,6 +20103,18 @@ thread : integer
   the function, between 0 and (global.nbthread-1). This is useful for logging
   and debugging purposes.
 
+txn.sess_term_state : string
+  Retruns the TCP or HTTP session termination state, as reported in the log. It
+  is a 2-characters string, The final session state followed by the event which
+  caused its to terminate. See section 8.5 about session state at disconnection
+  for the list of possible events. The current value at time the sample fetch
+  is evaluated is returned. It is subject to change. Except used with ACLs in
+  "http-after-response" rule sets or in log messages, it will always be "--".
+
+  Example:
+      # Return a 429-Too-Many-Requests if session timed out in queue
+      http-after-response set-status 429 if { txn.sess_term_state  "sQ" }
+
 uuid([<version>]) : string
   Returns a UUID following the RFC4122 standard. If the version is not
   specified, a UUID version 4 (fully random) is returned.
@@ -24050,6 +24062,7 @@ Please refer to the table below for currently defined variables :
   |   |      | %[ssl_fc_protocol]                                   | string  |
   +---+------+------------------------------------------------------+---------+
   |   | %ts  | termination_state                                    | string  |
+  |   |      | %[txn.sess_term_state]                               |         |
   +---+------+------------------------------------------------------+---------+
   | H | %tsc | termination_state with cookie status                 | string  |
   +---+------+------------------------------------------------------+---------+
