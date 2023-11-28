@@ -27,6 +27,8 @@ struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
                                             struct listener *l,
                                             struct sockaddr_storage *saddr,
                                             int *new_tid);
+int qc_build_new_connection_id_frm(struct quic_conn *qc,
+                                   struct quic_connection_id *conn_id);
 
 /* Copy <src> QUIC CID to <dst>.
  * This is the responsibility of the caller to check there is enough room in
@@ -88,6 +90,21 @@ static inline void quic_cid_delete(struct quic_connection_id *conn_id)
 	HA_RWLOCK_WRLOCK(QC_CID_LOCK, &tree->lock);
 	ebmb_delete(&conn_id->node);
 	HA_RWLOCK_WRUNLOCK(QC_CID_LOCK, &tree->lock);
+}
+
+/* Copy <src> new connection ID information to <dst> NEW_CONNECTION_ID frame.
+ * Always succeeds.
+ */
+static inline void quic_connection_id_to_frm_cpy(struct quic_frame *dst,
+                                                 struct quic_connection_id *src)
+{
+	struct qf_new_connection_id *ncid_frm = &dst->new_connection_id;
+
+	ncid_frm->seq_num = src->seq_num.key;
+	ncid_frm->retire_prior_to = src->retire_prior_to;
+	ncid_frm->cid.len = src->cid.len;
+	ncid_frm->cid.data = src->cid.data;
+	ncid_frm->stateless_reset_token = src->stateless_reset_token;
 }
 
 #endif /* USE_QUIC */

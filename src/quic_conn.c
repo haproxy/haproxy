@@ -396,35 +396,6 @@ int qc_h3_request_reject(struct quic_conn *qc, uint64_t id)
 	return ret;
 }
 
-/* Build a NEW_CONNECTION_ID frame for <conn_id> CID of <qc> connection.
- *
- * Returns 1 on success else 0.
- */
-int qc_build_new_connection_id_frm(struct quic_conn *qc,
-                                   struct quic_connection_id *conn_id)
-{
-	int ret = 0;
-	struct quic_frame *frm;
-	struct quic_enc_level *qel;
-
-	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
-
-	qel = qc->ael;
-	frm = qc_frm_alloc(QUIC_FT_NEW_CONNECTION_ID);
-	if (!frm) {
-		TRACE_ERROR("frame allocation error", QUIC_EV_CONN_IO_CB, qc);
-		goto leave;
-	}
-
-	quic_connection_id_to_frm_cpy(frm, conn_id);
-	LIST_APPEND(&qel->pktns->tx.frms, &frm->list);
-	ret = 1;
- leave:
-	TRACE_LEAVE(QUIC_EV_CONN_PRSHPKT, qc);
-	return ret;
-}
-
-
 /* Remove a <qc> quic-conn from its ha_thread_ctx list. If <closing> is true,
  * it will immediately be reinserted in the ha_thread_ctx quic_conns_clo list.
  */

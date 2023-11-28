@@ -66,8 +66,6 @@ struct quic_connection_id *new_quic_cid(struct eb_root *root,
                                         const struct sockaddr_storage *addr);
 void quic_conn_closed_err_count_inc(struct quic_conn *qc, struct quic_frame *frm);
 int qc_h3_request_reject(struct quic_conn *qc, uint64_t id);
-int qc_build_new_connection_id_frm(struct quic_conn *qc,
-                                   struct quic_connection_id *conn_id);
 struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                               struct quic_cid *dcid, struct quic_cid *scid,
                               const struct quic_cid *token_odcid,
@@ -132,23 +130,7 @@ static inline void quic_conn_mv_cids_to_cc_conn(struct quic_conn_closed *cc_conn
 
 }
 
-/* Copy <src> new connection ID information to <dst> NEW_CONNECTION_ID frame.
- * Always succeeds.
- */
-static inline void quic_connection_id_to_frm_cpy(struct quic_frame *dst,
-                                                 struct quic_connection_id *src)
-{
-	struct qf_new_connection_id *ncid_frm = &dst->new_connection_id;
-
-	ncid_frm->seq_num = src->seq_num.key;
-	ncid_frm->retire_prior_to = src->retire_prior_to;
-	ncid_frm->cid.len = src->cid.len;
-	ncid_frm->cid.data = src->cid.data;
-	ncid_frm->stateless_reset_token = src->stateless_reset_token;
-}
-
 void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm);
-
 void quic_set_connection_close(struct quic_conn *qc, const struct quic_err err);
 void quic_set_tls_alert(struct quic_conn *qc, int alert);
 int quic_set_app_ops(struct quic_conn *qc, const unsigned char *alpn, size_t alpn_len);
