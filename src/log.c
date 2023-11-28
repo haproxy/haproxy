@@ -3244,7 +3244,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_RETRIES:  // %rq
+			case LOG_FMT_RETRIES:  // %rc
 				if (s_flags & SF_REDISP)
 					LOGCHAR('+');
 				ret = ltoa_o((s  ? s->conn_retries : 0), tmplog, dst + maxsize - tmplog);
