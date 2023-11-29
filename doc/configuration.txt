@@ -4515,6 +4515,7 @@ log-format                                X          X         X         -
 log-format-sd                             X          X         X         -
 log-tag                                   X          X         X         X
 max-keep-alive-queue                      X          -         X         X
+max-session-srv-conns                     X          X         X         -
 maxconn                                   X          X         X         -
 mode                                      X          X         X         X
 monitor fail                              -          X         X         -
