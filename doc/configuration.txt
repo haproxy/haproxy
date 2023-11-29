@@ -3137,7 +3137,7 @@ tune.lua.forced-yield <number>
   lowered. If the Lua code is quite long and its result is absolutely required
   to process the data, the <number> can be increased.
 
-tune.lua.maxmem
+tune.lua.maxmem <number>
   Sets the maximum amount of RAM in megabytes per process usable by Lua. By
   default it is zero which means unlimited. It is important to set a limit to
   ensure that a bug in a script will not result in the system running out of
