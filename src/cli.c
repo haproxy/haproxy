@@ -2645,11 +2645,10 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 		*p++ = 0;
 		i++;
 	}
-
 	argl = i;
 
 	/* first look for '<<' at the beginning of the last argument */
-	if (strncmp(args[argl-1], PAYLOAD_PATTERN, strlen(PAYLOAD_PATTERN)) == 0) {
+	if (argl && strncmp(args[argl-1], PAYLOAD_PATTERN, strlen(PAYLOAD_PATTERN)) == 0) {
 		size_t pat_len = strlen(args[argl-1] + strlen(PAYLOAD_PATTERN));
 
 		/*
