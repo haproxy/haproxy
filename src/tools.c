@@ -5809,6 +5809,21 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 					}
 				}
 			}
+			else {
+				/* An unmatched environment variable was parsed.
+				 * Let's skip the trailing double-quote character
+				 * and spaces.
+				 */
+				if (likely(*var_name != '.') && *in == '"') {
+					in++;
+					while (isspace((unsigned char)*in))
+						in++;
+					if (dquote) {
+						dquote = 0;
+						quote = NULL;
+					}
+				}
+			}
 			word_expand = NULL;
 		}
 		else {
