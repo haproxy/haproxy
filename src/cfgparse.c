@@ -745,7 +745,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 					goto out;
 				}
 			}
-			newpeer->addr = l->rx.addr;
 			cur_arg++;
 		}
 
@@ -897,12 +896,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		    curpeers->peers_fe->srv->do_check || curpeers->peers_fe->srv->do_agent) {
 			ha_warning("parsing [%s:%d] : '%s %s' : init_addr, resolvers, check and agent are ignored for peers.\n", file, linenum, args[0], args[1]);
 			err_code |= ERR_WARN;
-		}
-
-		/* If the peer address has just been parsed, let's copy it to <newpeer>
-		 */
-		if (peer || !local_peer) {
-			newpeer->addr = curpeers->peers_fe->srv->addr;
 		}
 
 		HA_SPIN_INIT(&newpeer->lock);

@@ -1083,8 +1083,9 @@ static int peer_session_init(struct appctx *appctx)
 	struct stream *s;
 	struct sockaddr_storage *addr = NULL;
 
-	if (!sockaddr_alloc(&addr, &peer->addr, sizeof(peer->addr)))
+	if (!sockaddr_alloc(&addr, &peer->srv->addr, sizeof(peer->srv->addr)))
 		goto out_error;
+	set_host_port(addr, peer->srv->svc_port);
 
 	if (appctx_finalize_startup(appctx, peer->peers->peers_fe, &BUF_NULL) == -1)
 		goto out_free_addr;
@@ -3966,12 +3967,12 @@ static int peers_dump_peer(struct buffer *msg, struct appctx *appctx, struct pee
 	struct stream *peer_s;
 	struct shared_table *st;
 
-	addr_to_str(&peer->addr, pn, sizeof pn);
+	addr_to_str(&peer->srv->addr, pn, sizeof pn);
 	chunk_appendf(msg, "  %p: id=%s(%s,%s) addr=%s:%d last_status=%s",
 	              peer, peer->id,
 	              peer->local ? "local" : "remote",
 	              peer->appctx ? "active" : "inactive",
-	              pn, get_host_port(&peer->addr),
+	              pn, get_host_port(&peer->srv->addr),
 	              statuscode_str(peer->statuscode));
 
 	chunk_appendf(msg, " last_hdshk=%s\n",

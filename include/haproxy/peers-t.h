@@ -59,7 +59,6 @@ struct peer {
 		int line;                 /* line where the section appears */
 	} conf;                       /* config information */
 	time_t last_change;
-	struct sockaddr_storage addr; /* peer address */
 	unsigned int flags;           /* peer session flags */
 	unsigned int statuscode;      /* current/last session status code */
 	unsigned int reconnect;       /* next connect timer */
