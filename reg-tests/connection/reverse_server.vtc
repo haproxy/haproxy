@@ -6,6 +6,9 @@ feature ignore_unknown_macro
 barrier b1 cond 2
 
 haproxy h_edge -conf {
+global
+	expose-experimental-directives
+
 defaults
 	log global
 	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

@@ -9,6 +9,9 @@ server s1 {
 } -start
 
 haproxy h_edge -conf {
+global
+	expose-experimental-directives
+
 defaults
 	log global
 	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -29,6 +32,9 @@ frontend priv
 } -start
 
 haproxy h_dev -conf {
+global
+	expose-experimental-directives
+
 defaults
 	log global
 	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

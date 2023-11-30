@@ -468,6 +468,14 @@ static enum act_parse_ret tcp_parse_attach_srv(const char **args, int *cur_arg, 
 	char *srvname;
 	struct sample_expr *expr;
 
+	/* TODO duplicated code from check_kw_experimental() */
+	if (!experimental_directives_allowed) {
+		memprintf(err, "parsing [%s:%d] : '%s' action is experimental, must be allowed via a global 'expose-experimental-directives'",
+		          px->conf.args.file, px->conf.args.line, args[2]);
+		return ACT_RET_PRS_ERR;
+	}
+	mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
+
 	rule->action      = ACT_CUSTOM;
 	rule->action_ptr  = tcp_action_attach_srv;
 	rule->release_ptr = release_attach_srv_action;

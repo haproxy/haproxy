@@ -5085,11 +5085,14 @@ bind /<path> [, ...] [param*]
                     - 'quic6@' -> address is resolved as IPv6 and protocol UDP
                       is used. The performance note for QUIC over IPv4 applies
                       as well.
-                    - 'rhttp@' -> used for reverse HTTP. Address must be a
-                      server with the format '<backend>/<server>'. The server
-                      will be used to instantiate connections to a remote
-                      address. The listener will try to maintain "nbconn"
-                      connections.
+                    - 'rhttp@' [ EXPERIMENTAL ] -> used for reverse HTTP.
+                      Address must be a server with the format
+                      '<backend>/<server>'. The server will be used to
+                      instantiate connections to a remote address. The listener
+                      will try to maintain "nbconn" connections. This is an
+                      experimental features which requires
+                      "expose-experimental-directives" on a line before this
+                      bind.
 
                   You may want to reference some environment variables in the
                   address parameter, see section 2.3 about environment
@@ -9980,8 +9983,11 @@ server <name> <address>[:[port]] [param*]
                       one of them over the FD. The bind part will use the
                       received socket as the client FD. Should be used
                       carefully.
-                    - 'rhttp@' -> custom address family for a passive server in
-                      HTTP reverse context.
+                    - 'rhttp@' [ EXPERIMENTAL ] -> custom address family for a
+                      passive server in HTTP reverse context. This is an
+                      experimental features which requires
+                      "expose-experimental-directives" on a line before this
+                      server.
               You may want to reference some environment variables in the
               address parameter, see section 2.3 about environment
               variables. The "init-addr" setting can be used to modify the way
@@ -12904,7 +12910,7 @@ allow
   above.
 
 
-attach-srv <srv> [name <expr>]
+attach-srv <srv> [name <expr>] [ EXPERIMENTAL ]
   Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     -  |   X  |   -  |   -  |          - |  - |  -
 
@@ -12922,6 +12928,10 @@ attach-srv <srv> [name <expr>]
   This rule is only valid for frontend in HTTP mode. Also all listeners must
   not require a protocol different from HTTP/2.
 
+  Reverse HTTP is currently still in active development. Configuration
+  mechanism may change in the future. For this reason it is internally marked
+  as experimental, meaning that "expose-experimental-directives" must appear on
+  a line before this directive.
 
 auth [realm <realm>]
   Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
@@ -14750,10 +14760,15 @@ namespace <name>
   a namespace different from the default one. Please refer to your operating
   system's documentation to find more details about network namespaces.
 
-nbconn <nbconn>
+nbconn <nbconn> [ EXPERIMENTAL ]
   This setting is only valid for listener instances which uses reverse HTTP.
   This will define the count of connections which will be mounted in parallel.
   If not specified, a default value of 1 is used.
+
+  Reverse HTTP is currently still in active development. Configuration
+  mechanism may change in the future. For this reason it is internally marked
+  as expirmental, meaning that "expose-experimental-directives" must appear on
+  a line before this directive.
 
 nice <nice>
   Sets the 'niceness' of connections initiated from the socket. Value must be

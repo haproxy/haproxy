@@ -2259,6 +2259,14 @@ static int bind_parse_nbconn(char **args, int cur_arg, struct proxy *px, struct 
 	int val;
 	const struct listener *l;
 
+	/* TODO duplicated code from check_kw_experimental() */
+	if (!experimental_directives_allowed) {
+		memprintf(err, "'%s' is experimental, must be allowed via a global 'expose-experimental-directives'",
+		          args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
+
 	l = LIST_NEXT(&conf->listeners, struct listener *, by_bind);
 	if (l->rx.addr.ss_family != AF_CUST_RHTTP_SRV) {
 		memprintf(err, "'%s' : only valid for reverse HTTP listeners.", args[cur_arg]);
