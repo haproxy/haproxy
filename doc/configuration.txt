@@ -17381,7 +17381,139 @@ supported (and, or, xor, cpl) and some arithmetic operations are supported
 (add, sub, mul, div, mod, neg). Some comparators are provided (odd, even, not,
 bool) which make it possible to report a match without having to write an ACL.
 
-The currently available list of transformation keywords include :
+The following keywords are supported:
+
+   keyword                     input type       output type
+------------------------------+----------------+------------
+51d.single                     string           string
+add                            integer          integer
+add_item                       string           string
+aes_gcm_dec                    binary           binary
+and                            integer          integer
+b64dec                         string           binary
+base64                         binary           string
+be2dec                         binary           string
+be2hex                         binary           string
+bool                           integer          boolean
+bytes                          binary           binary
+capture-req                    string           string
+capture-res                    string           string
+concat                         string           string
+cpl                            integer          integer
+crc32                          binary           integer
+crc32c                         binary           integer
+cut_crlf                       string           string
+da-csv-conv                    string           string
+debug                          any              <same>
+-- keyword -------------------+- input type ---+ output type --
+digest                         binary           binary
+div                            integer          integer
+djb2                           binary           integer
+even                           integer          boolean
+field                          string           string
+fix_is_valid                   binary           boolean
+fix_tag_value                  binary           binary
+hex                            binary           string
+hex2i                          binary           integer
+hmac                           binary           binary
+host_only                      string           string
+htonl                          integer          integer
+http_date                      integer          string
+iif                            boolean          string
+in_table                       string           boolean
+ipmask                         address          address
+json                           string           string
+json_query                     string           any
+jwt_header_query               string           string
+jwt_payload_query              string           string
+-- keyword -------------------+- input type ---+ output type --
+jwt_verify                     string           integer
+language                       string           string
+length                         string           integer
+lower                          string           string
+ltime                          integer          string
+ltrim                          string           string
+map                            string           string
+map_<match>                    <match>          string
+map_<match>_<output>           <match>          <output>
+mod                            integer          integer
+mqtt_field_value               binary           binary
+mqtt_is_valid                  bianry           boolean
+ms_ltime                       integer          string
+ms_utime                       integer          string
+mul                            integer          integer
+nbsrv                          string           integer
+neg                            integer          integer
+not                            integer          boolean
+odd                            integer          boolean
+or                             integer          integer
+-- keyword -------------------+- input type ---+ output type --
+param                          string           string
+port_only                      string           integer
+protobuf                       binary           binary
+regsub                         string           string
+rfc7239_field                  string           string
+rfc7239_is_valid               string           boolean
+rfc7239_n2nn                   string           address / string
+rfc7239_n2np                   string           integer / string
+rtrim                          string           string
+sdbm                           binary           integer
+secure_memcmp                  string           boolean
+set-var                        any              <same>
+sha1                           binary           binary
+sha2                           binary           binary
+srv_queue                      string           integer
+strcmp                         string           boolean
+sub                            integer          integer
+table_bytes_in_rate            string           integer
+table_bytes_out_rate           string           integer
+table_conn_cnt                 string           integer
+-- keyword -------------------+- input type ---+ output type --
+table_conn_cur                 string           integer
+table_conn_rate                string           integer
+table_expire                   string           integer
+table_gpc                      string           integer
+table_gpc0                     string           integer
+table_gpc0_rate                string           integer
+table_gpc1                     string           integer
+table_gpc1_rate                string           integer
+table_gpc_rate                 string           integer
+table_gpt                      string           integer
+table_gpt0                     string           integer
+table_http_err_cnt             string           integer
+table_http_err_rate            string           integer
+table_http_fail_cnt            string           integer
+table_http_fail_rate           string           integer
+table_http_req_cnt             string           integer
+table_http_req_rate            string           integer
+table_idle                     string           integer
+table_kbytes_in                string           integer
+-- keyword -------------------+- input type ---+ output type --
+table_kbytes_out               string           integer
+table_server_id                string           integer
+table_sess_cnt                 string           integer
+table_sess_rate                string           integer
+table_trackers                 string           integer
+ub64dec                        string           string
+ub64enc                        string           string
+ungrpc                         binary           binary / integer
+unset-var                      any              <same>
+upper                          string           string
+url_dec                        string           string
+url_enc                        string           string
+us_ltime                       integer          string
+us_utime                       integer          string
+utime                          integer          string
+word                           string           string
+wt6                            binary           integer
+x509_v_err_str                 integer          string
+xor                            integer          integer
+-- keyword -------------------+- input type ---+ output type --
+xxh3                           binary           integer
+xxh32                          binary           integer
+xxh64                          binary           integer
+
+The detailed list of converter keywords follows:
 
 51d.single(<prop>[,<prop>*])
   Returns values for the properties requested as a string, where values are
@@ -21655,7 +21787,7 @@ baseq : string
 bytes_in : integer
   This returns the number of bytes uploaded from the client to the server.
 
-bytes_out : integer
+bytes_out integer
    This is the number of bytes transmitted from the server to the client.
 
 capture.req.hdr(<idx>) : string
