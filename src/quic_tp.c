@@ -130,27 +130,30 @@ static int quic_transport_param_dec_pref_addr(struct tp_preferred_address *addr,
 	if (end - *buf < addr_len)
 		return 0;
 
-	addr->ipv4_port = read_n16(*buf);
-	*buf += sizeof addr->ipv4_port;
-
 	memcpy(addr->ipv4_addr, *buf, sizeof addr->ipv4_addr);
 	*buf += sizeof addr->ipv4_addr;
 
-	addr->ipv6_port = read_n16(*buf);
-	*buf += sizeof addr->ipv6_port;
+	addr->ipv4_port = read_n16(*buf);
+	*buf += sizeof addr->ipv4_port;
 
 	memcpy(addr->ipv6_addr, *buf, sizeof addr->ipv6_addr);
 	*buf += sizeof addr->ipv6_addr;
 
+	addr->ipv6_port = read_n16(*buf);
+	*buf += sizeof addr->ipv6_port;
+
 	addr->cid.len = *(*buf)++;
 	if (addr->cid.len) {
-		if (end - *buf > addr->cid.len || addr->cid.len > sizeof addr->cid.data)
+		if (end - sizeof(addr->stateless_reset_token) - *buf > addr->cid.len ||
+		    addr->cid.len > sizeof(addr->cid.data)) {
 			return 0;
+		}
+
 		memcpy(addr->cid.data, *buf, addr->cid.len);
 		*buf += addr->cid.len;
 	}
 
-	if (end - *buf != sizeof addr->stateless_reset_token)
+	if (end - *buf != sizeof(addr->stateless_reset_token))
 		return 0;
 
 	memcpy(addr->stateless_reset_token, *buf, end - *buf);
