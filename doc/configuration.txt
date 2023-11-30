@@ -14045,7 +14045,7 @@ tcp-request session attach-srv <srv> [name <expr>]
 
   This is used to intercept the connection after proper HTTP/2 establishment.
   The connection is reversed to the backend side and inserted into the idle
-  pool of <srv> server. This is useful for reverse server with '@reverse'
+  pool of <srv> server. This may only be used with servers having an 'rhttp@'
   address.
 
   An extra parameter <expr> can be specified. Its value is interpreted as a
