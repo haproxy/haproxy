@@ -19179,6 +19179,69 @@ not even relate to any client information. These ones are sometimes used with
 "monitor-fail" directives to report an internal status to external watchers.
 The sample fetch methods described in this section are usable anywhere.
 
+Summary of sample fetch methods in this section and their respective types:
+
+  keyword                                          output type
+-------------------------------------------------+-------------
+act_conn                                           integer
+acl                                                boolean
+always_false                                       boolean
+always_true                                        boolean
+avg_queue                                          integer
+be_conn                                            integer
+be_conn_free                                       integer
+be_sess_rate                                       integer
+bin                                                bin
+bool                                               bool
+connslots                                          integer
+cpu_calls                                          integer
+cpu_ns_avg                                         integer
+cpu_ns_tot                                         integer
+date                                               integer
+date_us                                            integer
+env                                                string
+fe_conn                                            integer
+fe_req_rate                                        integer
+fe_sess_rate                                       integer
+hostname                                           string
+int                                                signed
+ipv4                                               ipv4
+ipv6                                               ipv6
+last_rule_file                                     string
+last_rule_line                                     integer
+lat_ns_avg                                         integer
+lat_ns_tot                                         integer
+meth                                               method
+nbsrv                                              integer
+prio_class                                         integer
+prio_offset                                        integer
+pid                                                integer
+proc                                               integer
+queue                                              integer
+quic_enabled                                       boolean
+rand                                               integer
+srv_conn                                           integer
+srv_conn_free                                      integer
+srv_is_up                                          boolean
+srv_queue                                          integer
+srv_sess_rate                                      integer
+srv_iweight                                        integer
+srv_uweight                                        integer
+srv_weight                                         integer
+stopping                                           boolean
+str                                                string
+table_avl                                          integer
+table_cnt                                          integer
+thread                                             integer
+txn.id32                                           integer
+txn.conn_retries                                   integer
+txn.sess_term_state                                string
+uuid                                               string
+var                                                undefined
+-------------------------------------------------+-------------
+
+Detailed list:
+
 act_conn : integer
   Returns the total number of active concurrent connections on the process.
 
@@ -19682,6 +19745,210 @@ counter number can be specified as the first integer argument when using the
 An optional table may be specified with the "sc*" form, in which case the
 currently tracked key will be looked up into this alternate table instead of
 the table currently being tracked.
+
+Summary of sample fetch methods in this section and their respective types:
+
+  keyword                                          output type
+-------------------------------------------------+-------------
+accept_date                                        integer
+bc.timer.connect                                   integer
+bc_dst                                             ip
+bc_dst_port                                        integer
+bc_err                                             integer
+bc_err_str                                         string
+bc_http_major                                      integer
+bc_src                                             ip
+bc_src_port                                        integer
+be_id                                              integer
+be_name                                            string
+bc_rtt                                             integer
+bc_rttvar                                          integer
+be_server_timeout                                  integer
+be_tunnel_timeout                                  integer
+cur_server_timeout                                 integer
+cur_tunnel_timeout                                 integer
+cur_client_timeout                                 integer
+dst                                                ip
+dst_conn                                           integer
+dst_is_local                                       boolean
+dst_port                                           integer
+fc.timer.handshake                                 integer
+fc.timer.total                                     integer
+fc_dst                                             ip
+fc_dst_is_local                                    boolean
+fc_dst_port                                        integer
+fc_err                                             integer
+fc_err_str                                         string
+fc_fackets                                         integer
+fc_http_major                                      integer
+fc_lost                                            integer
+fc_pp_authority                                    string
+fc_pp_unique_id                                    string
+fc_pp_tlv                                          string
+fc_rcvd_proxy                                      boolean
+fc_reordering                                      integer
+fc_retrans                                         integer
+fc_rtt                                             integer
+fc_rttvar                                          integer
+fc_sacked                                          integer
+fc_src                                             ip
+fc_src_is_local                                    boolean
+fc_src_port                                        integer
+fc_unacked                                         integer
+fe_defbe                                           string
+fe_id                                              integer
+fe_name                                            string
+fe_client_timeout                                  integer
+res.timer.data                                     integer
+sc_bytes_in_rate                                   integer
+sc0_bytes_in_rate                                  integer
+sc1_bytes_in_rate                                  integer
+sc2_bytes_in_rate                                  integer
+sc_bytes_out_rate                                  integer
+sc0_bytes_out_rate                                 integer
+sc1_bytes_out_rate                                 integer
+sc2_bytes_out_rate                                 integer
+sc_clr_gpc                                         integer
+sc_clr_gpc0                                        integer
+sc0_clr_gpc0                                       integer
+sc1_clr_gpc0                                       integer
+sc2_clr_gpc0                                       integer
+sc_clr_gpc1                                        integer
+sc0_clr_gpc1                                       integer
+sc1_clr_gpc1                                       integer
+sc2_clr_gpc1                                       integer
+sc_conn_cnt                                        integer
+sc0_conn_cnt                                       integer
+sc1_conn_cnt                                       integer
+sc2_conn_cnt                                       integer
+sc_conn_cur                                        integer
+sc0_conn_cur                                       integer
+sc1_conn_cur                                       integer
+sc2_conn_cur                                       integer
+sc_conn_rate                                       integer
+sc0_conn_rate                                      integer
+sc1_conn_rate                                      integer
+sc2_conn_rate                                      integer
+sc_get_gpc                                         integer
+sc_get_gpc0                                        integer
+sc0_get_gpc0                                       integer
+sc1_get_gpc0                                       integer
+sc2_get_gpc0                                       integer
+sc_get_gpc1                                        integer
+sc0_get_gpc1                                       integer
+sc1_get_gpc1                                       integer
+sc2_get_gpc1                                       integer
+sc_get_gpt                                         integer
+sc_get_gpt0                                        integer
+sc0_get_gpt0                                       integer
+sc1_get_gpt0                                       integer
+sc2_get_gpt0                                       integer
+sc_gpc_rate                                        integer
+sc_gpc0_rate                                       integer
+sc0_gpc0_rate                                      integer
+sc1_gpc0_rate                                      integer
+sc2_gpc0_rate                                      integer
+sc_gpc1_rate                                       integer
+sc0_gpc1_rate                                      integer
+sc1_gpc1_rate                                      integer
+sc2_gpc1_rate                                      integer
+sc_http_err_cnt                                    integer
+sc0_http_err_cnt                                   integer
+sc1_http_err_cnt                                   integer
+sc2_http_err_cnt                                   integer
+sc_http_err_rate                                   integer
+sc0_http_err_rate                                  integer
+sc1_http_err_rate                                  integer
+sc2_http_err_rate                                  integer
+sc_http_fail_cnt                                   integer
+sc0_http_fail_cnt                                  integer
+sc1_http_fail_cnt                                  integer
+sc2_http_fail_cnt                                  integer
+sc_http_fail_rate                                  integer
+sc0_http_fail_rate                                 integer
+sc1_http_fail_rate                                 integer
+sc2_http_fail_rate                                 integer
+sc_http_req_cnt                                    integer
+sc0_http_req_cnt                                   integer
+sc1_http_req_cnt                                   integer
+sc2_http_req_cnt                                   integer
+sc_http_req_rate                                   integer
+sc0_http_req_rate                                  integer
+sc1_http_req_rate                                  integer
+sc2_http_req_rate                                  integer
+sc_inc_gpc                                         integer
+sc_inc_gpc0                                        integer
+sc0_inc_gpc0                                       integer
+sc1_inc_gpc0                                       integer
+sc2_inc_gpc0                                       integer
+sc_inc_gpc1                                        integer
+sc0_inc_gpc1                                       integer
+sc1_inc_gpc1                                       integer
+sc2_inc_gpc1                                       integer
+sc_kbytes_in                                       integer
+sc0_kbytes_in                                      integer
+sc1_kbytes_in                                      integer
+sc2_kbytes_in                                      integer
+sc_kbytes_out                                      integer
+sc0_kbytes_out                                     integer
+sc1_kbytes_out                                     integer
+sc2_kbytes_out                                     integer
+sc_sess_cnt                                        integer
+sc0_sess_cnt                                       integer
+sc1_sess_cnt                                       integer
+sc2_sess_cnt                                       integer
+sc_sess_rate                                       integer
+sc0_sess_rate                                      integer
+sc1_sess_rate                                      integer
+sc2_sess_rate                                      integer
+sc_tracked                                         boolean
+sc0_tracked                                        boolean
+sc1_tracked                                        boolean
+sc2_tracked                                        boolean
+sc_trackers                                        integer
+sc0_trackers                                       integer
+sc1_trackers                                       integer
+sc2_trackers                                       integer
+so_id                                              integer
+so_name                                            string
+src                                                ip
+src_bytes_in_rate                                  integer
+src_bytes_out_rate                                 integer
+src_clr_gpc                                        integer
+src_clr_gpc0                                       integer
+src_clr_gpc1                                       integer
+src_conn_cnt                                       integer
+src_conn_cur                                       integer
+src_conn_rate                                      integer
+src_get_gpc                                        integer
+src_get_gpc0                                       integer
+src_get_gpc1                                       integer
+src_get_gpt                                        integer
+src_get_gpt0                                       integer
+src_gpc_rate                                       integer
+src_gpc0_rate                                      integer
+src_gpc1_rate                                      integer
+src_http_err_cnt                                   integer
+src_http_err_rate                                  integer
+src_http_fail_cnt                                  integer
+src_http_fail_rate                                 integer
+src_http_req_cnt                                   integer
+src_http_req_rate                                  integer
+src_inc_gpc                                        integer
+src_inc_gpc0                                       integer
+src_inc_gpc1                                       integer
+src_is_local                                       boolean
+src_kbytes_in                                      integer
+src_kbytes_out                                     integer
+src_port                                           integer
+src_sess_cnt                                       integer
+src_sess_rate                                      integer
+src_updt_conn_cnt                                  integer
+srv_id                                             integer
+srv_name                                           string
+-------------------------------------------------+-------------
+
+Detailed list:
 
 accept_date([<unit>]) : integer
   This is the exact date when the connection was received by HAProxy
@@ -20679,6 +20946,105 @@ when no content is yet made available. The fetch methods described here are
 usable as low as the "tcp-request content" rule sets unless they require some
 future information. Those generally include the results of SSL negotiations.
 
+Summary of sample fetch methods in this section and their respective types:
+
+  keyword                                          output type
+-------------------------------------------------+-------------
+51d.all                                            string
+ssl_bc                                             boolean
+ssl_bc_alg_keysize                                 integer
+ssl_bc_alpn                                        string
+ssl_bc_cipher                                      string
+ssl_bc_client_random                               binary
+ssl_bc_curve                                       string
+ssl_bc_err                                         integer
+ssl_bc_err_str                                     string
+ssl_bc_is_resumed                                  boolean
+ssl_bc_npn                                         string
+ssl_bc_protocol                                    string
+ssl_bc_unique_id                                   binary
+ssl_bc_server_random                               binary
+ssl_bc_session_id                                  binary
+ssl_bc_session_key                                 binary
+ssl_bc_use_keysize                                 integer
+ssl_c_ca_err                                       integer
+ssl_c_ca_err_depth                                 integer
+ssl_c_chain_der                                    binary
+ssl_c_der                                          binary
+ssl_c_err                                          integer
+ssl_c_i_dn                                         string
+ssl_c_key_alg                                      string
+ssl_c_notafter                                     string
+ssl_c_notbefore                                    string
+ssl_c_r_dn                                         string
+ssl_c_s_dn                                         string
+ssl_c_serial                                       binary
+ssl_c_sha1                                         binary
+ssl_c_sig_alg                                      string
+ssl_c_used                                         boolean
+ssl_c_verify                                       integer
+ssl_c_version                                      integer
+ssl_f_der                                          binary
+ssl_f_i_dn                                         string
+ssl_f_key_alg                                      string
+ssl_f_notafter                                     string
+ssl_f_notbefore                                    string
+ssl_f_s_dn                                         string
+ssl_f_serial                                       binary
+ssl_f_sha1                                         binary
+ssl_f_sig_alg                                      string
+ssl_f_version                                      integer
+ssl_fc                                             boolean
+ssl_fc_alg_keysize                                 integer
+ssl_fc_alpn                                        string
+ssl_fc_cipher                                      string
+ssl_fc_cipherlist_bin                              binary
+ssl_fc_cipherlist_hex                              string
+ssl_fc_cipherlist_str                              string
+ssl_fc_cipherlist_xxh                              integer
+ssl_fc_curve                                       string
+ssl_fc_ecformats_bin                               binary
+ssl_fc_eclist_bin                                  binary
+ssl_fc_extlist_bin                                 binary
+ssl_fc_client_random                               binary
+ssl_fc_client_early_traffic_secret                 string
+ssl_fc_client_handshake_traffic_secret             string
+ssl_fc_client_traffic_secret_0                     string
+ssl_fc_exporter_secret                             string
+ssl_fc_early_exporter_secret                       string
+ssl_fc_err                                         integer
+ssl_fc_err_str                                     string
+ssl_fc_has_crt                                     boolean
+ssl_fc_has_early                                   boolean
+ssl_fc_has_sni                                     boolean
+ssl_fc_is_resumed                                  boolean
+ssl_fc_npn                                         string
+ssl_fc_protocol                                    string
+ssl_fc_protocol_hello_id                           integer
+ssl_fc_unique_id                                   binary
+ssl_fc_server_handshake_traffic_secret             string
+ssl_fc_server_traffic_secret_0                     string
+ssl_fc_server_random                               binary
+ssl_fc_session_id                                  binary
+ssl_fc_session_key                                 binary
+ssl_fc_sni                                         string
+ssl_fc_use_keysize                                 integer
+ssl_s_der                                          binary
+ssl_s_chain_der                                    binary
+ssl_s_key_alg                                      string
+ssl_s_notafter                                     string
+ssl_s_notbefore                                    string
+ssl_s_i_dn                                         string
+ssl_s_s_dn                                         string
+ssl_s_serial                                       binary
+ssl_s_sha1                                         binary
+ssl_s_sig_alg                                      string
+ssl_s_version                                      integer
+txn.timer.user                                     integer
+-------------------------------------------------+-------------
+
+Detailed list:
+
 51d.all(<prop>[,<prop>*]) : string
   Returns values for the properties requested as a string, where values are
   separated by the delimiter specified with "51degrees-property-separator".
@@ -21432,6 +21798,45 @@ Warning : Following sample fetches are ignored if used from HTTP proxies. They
           all invalid usage (for instance inside a log-format string or a
           sample expression). So be careful.
 
+Summary of sample fetch methods in this section and their respective types:
+
+  keyword                                             output type
+----------------------------------------------------+-------------
+bs.id                                              integer
+distcc_body                                        binary
+distcc_param                                       integer
+fs.id                                              integer
+payload                                            binary
+payload_lv                                         binary
+req.len                                            integer
+req_len                                            integer
+req.payload                                        binary
+req.payload_lv                                     binary
+req.proto_http                                     boolean
+req_proto_http                                     boolean
+req.rdp_cookie                                     string
+rdp_cookie                                         string
+req.rdp_cookie_cnt                                 integer
+rdp_cookie_cnt                                     integer
+req.ssl_alpn                                       string
+req.ssl_ec_ext                                     boolean
+req.ssl_hello_type                                 integer
+req_ssl_hello_type                                 integer
+req.ssl_sni                                        string
+req_ssl_sni                                        string
+req.ssl_st_ext                                     integer
+req.ssl_ver                                        integer
+req_ssl_ver                                        integer
+res.len                                            integer
+res.payload                                        binary
+res.payload_lv                                     binary
+res.ssl_hello_type                                 integer
+rep_ssl_hello_type                                 integer
+wait_end                                           boolean
+----------------------------------------------------+-------------
+
+Detailed list:
+
 bs.id : integer
   Returns the multiplexer's stream ID on the server side. It is the
   multiplexer's responsibility to return the appropriate information.
@@ -21742,6 +22147,113 @@ Note : Regarding HTTP processing from the tcp-request content rules, everything
        to rely to "req.proto_http", "req.ver" and eventually "method" sample
        fetches. All other L7 sample fetches will fail. After an HTTP upgrade,
        they will work in the same manner than from an HTTP proxy.
+
+Summary of sample fetch methods in this section and their respective types:
+
+  keyword                                          output type
+-------------------------------------------------+-------------
+base                                               string
+base32                                             integer
+base32+src                                         binary
+baseq                                              string
+bytes_in                                           integer
+bytes_out                                          integer
+capture.req.hdr                                    string
+capture.req.method                                 string
+capture.req.uri                                    string
+capture.req.ver                                    string
+capture.res.hdr                                    string
+capture.res.ver                                    string
+req.body                                           binary
+req.body_param                                     string
+req.body_len                                       integer
+req.body_size                                      integer
+req.cook                                           string
+cook                                               string
+req.cook_cnt                                       integer
+cook_cnt                                           integer
+req.cook_val                                       integer
+cook_val                                           integer
+req.cook_names                                     string
+cookie                                             string
+hdr                                                string
+request_date                                       integer
+req.fhdr                                           string
+req.fhdr_cnt                                       integer
+req.hdr                                            string
+req.hdr_cnt                                        integer
+hdr_cnt                                            integer
+req.hdr_ip                                         ip
+hdr_ip                                             ip
+req.hdr_val                                        integer
+hdr_val                                            integer
+req.hdrs                                           string
+req.hdrs_bin                                       binary
+req.timer.hdr                                      integer
+req.timer.idle                                     integer
+req.timer.queue                                    integer
+req.timer.tq                                       integer
+res.timer.hdr                                      integer
+http_auth                                          boolean
+http_auth_bearer                                   string
+http_auth_group                                    string
+http_auth_pass                                     string
+http_auth_type                                     string
+http_auth_user                                     string
+http_first_req                                     boolean
+method                                             integer
+path                                               string
+pathq                                              string
+query                                              string
+req.hdr_names                                      string
+req.ver                                            string
+req_ver                                            string
+res.body                                           binary
+res.body_len                                       integer
+res.body_size                                      integer
+res.cache_hit                                      boolean
+res.cache_name                                     string
+res.comp                                           boolean
+res.comp_algo                                      string
+res.cook                                           string
+scook                                              string
+res.cook_cnt                                       integer
+scook_cnt                                          integer
+res.cook_val                                       integer
+scook_val                                          integer
+res.cook_names                                     string
+res.fhdr                                           string
+res.fhdr_cnt                                       integer
+res.hdr                                            string
+shdr                                               string
+res.hdr_cnt                                        integer
+shdr_cnt                                           integer
+res.hdr_ip                                         ip
+shdr_ip                                            ip
+res.hdr_names                                      string
+res.hdr_val                                        integer
+shdr_val                                           integer
+res.hdrs                                           string
+res.hdrs_bin                                       binary
+res.ver                                            string
+resp_ver                                           string
+server_status                                      integer
+set-cookie                                         string
+status                                             integer
+txn.status                                         integer
+txn.timer.total                                    integer
+unique-id                                          string
+url                                                string
+url_ip                                             ip
+url_port                                           integer
+urlp                                               string
+url_param                                          string
+urlp_val                                           integer
+url32                                              integer
+url32+src                                          binary
+-------------------------------------------------+-------------
+
+Detailed list:
 
 base : string
   This returns the concatenation of the first Host header and the path part of
@@ -22508,6 +23020,28 @@ There is no warranty the following sample fetches will never change, be renamed
 or simply removed. So be really careful if you should use one of them. To avoid
 any ambiguity, these sample fetches are placed in the dedicated scope "internal",
 for instance "internal.strm.is_htx".
+
+Summary of sample fetch methods in this section and their respective types:
+
+  keyword                                          output type
+-------------------------------------------------+-------------
+internal.htx.data                                  integer
+internal.htx.free                                  integer
+internal.htx.free_data                             integer
+internal.htx.has_eom                               boolean
+internal.htx.nbblks                                integer
+internal.htx.size                                  integer
+internal.htx.used                                  integer
+internal.htx_blk.size                              integer
+internal.htx_blk.type                              string
+internal.htx_blk.data                              binary
+internal.htx_blk.hdrname                           string
+internal.htx_blk.hdrval                            string
+internal.htx_blk.start_line                        string
+internal.strm.is_htx                               boolean
+-------------------------------------------------+-------------
+
+Detailed list:
 
 internal.htx.data : integer
   Returns the size in bytes used by data in the HTX message associated to a
