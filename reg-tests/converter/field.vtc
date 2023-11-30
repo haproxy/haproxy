@@ -32,6 +32,10 @@ client c1 -connect ${h1_fe_sock} {
 	rxresp
 	expect resp.status == 200
 	expect resp.http.found == "bar"
+	txreq -url "/foo//bar/baz"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.found == ""
 	txreq -url "/foo"
 	rxresp
 	expect resp.status == 200
