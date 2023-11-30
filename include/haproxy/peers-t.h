@@ -60,8 +60,6 @@ struct peer {
 	} conf;                       /* config information */
 	time_t last_change;
 	struct sockaddr_storage addr; /* peer address */
-	struct protocol *proto;       /* peer address protocol */
-	struct xprt_ops *xprt;        /* peer socket operations at transport layer */
 	unsigned int flags;           /* peer session flags */
 	unsigned int statuscode;      /* current/last session status code */
 	unsigned int reconnect;       /* next connect timer */

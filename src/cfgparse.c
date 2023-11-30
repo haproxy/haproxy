@@ -633,7 +633,6 @@ static struct peer *cfg_peers_add_peer(struct peers *peers,
 	p->conf.file = strdup(file);
 	p->conf.line = linenum;
 	p->last_change = ns_to_sec(now_ns);
-	p->xprt  = xprt_get(XPRT_RAW);
 	HA_SPIN_INIT(&p->lock);
 	if (id)
 		p->id = strdup(id);
@@ -747,7 +746,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				}
 			}
 			newpeer->addr = l->rx.addr;
-			newpeer->proto = l->rx.proto;
 			cur_arg++;
 		}
 
@@ -902,14 +900,11 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		/* If the peer address has just been parsed, let's copy it to <newpeer>
-		 * and initializes ->proto.
 		 */
 		if (peer || !local_peer) {
 			newpeer->addr = curpeers->peers_fe->srv->addr;
-			newpeer->proto = protocol_lookup(newpeer->addr.ss_family, PROTO_TYPE_STREAM, 0);
 		}
 
-		newpeer->xprt  = xprt_get(XPRT_RAW);
 		HA_SPIN_INIT(&newpeer->lock);
 
 		newpeer->srv = curpeers->peers_fe->srv;
