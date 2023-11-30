@@ -37,12 +37,13 @@
 # a version of OpenSSL that supports this.
 #
 # export DEPLOY_HAPROXY_HOT_UPDATE="yes"
-# export DEPLOY_HAPROXY_STATS_SOCKET="/run/haproxy/admin.sock"
+# export DEPLOY_HAPROXY_STATS_SOCKET="UNIX:/run/haproxy/admin.sock"
 #
 # OPTIONAL: Deploy the certificate over the HAProxy stats socket without
 # needing to reload HAProxy. Default is "no".
 #
-# Require the socat binary.
+# Require the socat binary. DEPLOY_HAPROXY_STATS_SOCKET variable uses the socat
+# address format.
 
 ########  Public functions #####################
 
@@ -61,7 +62,7 @@ haproxy_deploy() {
   DEPLOY_HAPROXY_ISSUER_DEFAULT="no"
   DEPLOY_HAPROXY_RELOAD_DEFAULT="true"
   DEPLOY_HAPROXY_HOT_UPDATE_DEFAULT="no"
-  DEPLOY_HAPROXY_STATS_SOCKET_DEFAULT="/run/haproxy/admin.sock"
+  DEPLOY_HAPROXY_STATS_SOCKET_DEFAULT="UNIX:/run/haproxy/admin.sock"
 
   _debug _cdomain "${_cdomain}"
   _debug _ckey "${_ckey}"
@@ -177,7 +178,7 @@ haproxy_deploy() {
   # Create a temporary PEM file
   _temppem="$(_mktemp)"
   _debug _temppem "${_temppem}"
-  cat "${_ckey}" "${_ccert}" "${_cca}" >"${_temppem}"
+  cat "${_ccert}" "${_cca}" "${_ckey}" | grep . >"${_temppem}"
   _ret="$?"
 
   # Check that we could create the temporary file
@@ -299,7 +300,7 @@ haproxy_deploy() {
     # Update certificate over HAProxy stats socket.
     if _exists socat; then
       # look for the certificate on the stats socket, to chose between updating or creating one
-      _socat_cert_cmd="echo 'show ssl cert' | socat ${_statssock} - | grep -q '^${_pem}$'"
+      _socat_cert_cmd="echo 'show ssl cert' | socat '${_statssock}' - | grep -q '^${_pem}$'"
       _debug _socat_cert_cmd "${_socat_cert_cmd}"
       eval "${_socat_cert_cmd}"
       _ret=$?
@@ -307,7 +308,7 @@ haproxy_deploy() {
         _newcert="1"
         _info "Creating new certificate '${_pem}' over HAProxy stats socket."
         # certificate wasn't found, it's a new one. We should check if the crt-list exists and creates/inserts the certificate.
-        _socat_crtlist_show_cmd="echo 'show ssl crt-list' | socat ${_statssock} - | grep -q '^${Le_Deploy_haproxy_pem_path}$'"
+        _socat_crtlist_show_cmd="echo 'show ssl crt-list' | socat '${_statssock}' - | grep -q '^${Le_Deploy_haproxy_pem_path}$'"
         _debug _socat_crtlist_show_cmd "${_socat_crtlist_show_cmd}"
         eval "${_socat_crtlist_show_cmd}"
         _ret=$?
@@ -316,7 +317,7 @@ haproxy_deploy() {
           return "${_ret}"
         fi
         # create a new certificate
-        _socat_new_cmd="echo 'new ssl cert ${_pem}' | socat ${_statssock} - | grep -q 'New empty'"
+        _socat_new_cmd="echo 'new ssl cert ${_pem}' | socat '${_statssock}' - | grep -q 'New empty'"
         _debug _socat_new_cmd "${_socat_new_cmd}"
         eval "${_socat_new_cmd}"
         _ret=$?
@@ -327,7 +328,7 @@ haproxy_deploy() {
       else
         _info "Update existing certificate '${_pem}' over HAProxy stats socket."
       fi
-      _socat_cert_set_cmd="echo -e 'set ssl cert ${_pem} <<\n$(cat ${_pem})\n' | socat 'UNIX:${_statssock}' - | grep -q 'Transaction created'"
+      _socat_cert_set_cmd="echo -e 'set ssl cert ${_pem} <<\n$(cat "${_pem}")\n' | socat '${_statssock}' - | grep -q 'Transaction created'"
       _debug _socat_cert_set_cmd "${_socat_cert_set_cmd}"
       eval "${_socat_cert_set_cmd}"
       _ret=$?
@@ -335,7 +336,7 @@ haproxy_deploy() {
         _err "Can't update '${_pem}' in haproxy"
         return "${_ret}"
       fi
-      _socat_cert_commit_cmd="echo 'commit ssl cert ${_pem}' | socat 'UNIX:${_statssock}' - | grep -q '^Success!$'"
+      _socat_cert_commit_cmd="echo 'commit ssl cert ${_pem}' | socat '${_statssock}' - | grep -q '^Success!$'"
       _debug _socat_cert_commit_cmd "${_socat_cert_commit_cmd}"
       eval "${_socat_cert_commit_cmd}"
       _ret=$?
@@ -345,7 +346,7 @@ haproxy_deploy() {
       fi
       if [ "${_newcert}" = "1" ]; then
        # if this is a new certificate, it needs to be inserted into the crt-list`
-        _socat_cert_add_cmd="echo 'add ssl crt-list ${Le_Deploy_haproxy_pem_path} ${_pem}' | socat 'UNIX:${_statssock}' - | grep -q 'Success!'"
+        _socat_cert_add_cmd="echo 'add ssl crt-list ${Le_Deploy_haproxy_pem_path} ${_pem}' | socat '${_statssock}' - | grep -q 'Success!'"
         _debug _socat_cert_add_cmd "${_socat_cert_add_cmd}"
         eval "${_socat_cert_add_cmd}"
         _ret=$?
