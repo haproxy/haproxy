@@ -12960,12 +12960,22 @@ cache-store <name>
   Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     -  |   -  |   -  |   -  |          - |  X |  -
 
+  Store an http-response within the cache. The storage of the response headers
+  is done at this step, which means you can use others http-response actions
+  to modify headers before or after the storage of the response. This action
+  is responsible for the setup of the cache storage filter.
+
   See section 6.2 about cache setup.
 
 
 cache-use <name>
   Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     -  |   -  |   -  |   -  |          X |  - |  -
+
+  Try to deliver a cached object from the cache <name>. This directive is also
+  mandatory to store the cache as it calculates the cache hash. If you want to
+  use a condition for both storage and delivering that's a good idea to put it
+  after this one.
 
   See section 6.2 about cache setup.
 
@@ -16705,7 +16715,7 @@ The cache won't store and won't deliver objects in these cases:
 -----------
 
 To setup a cache, you must define a cache section and use it in a proxy with
-the corresponding http-request and response actions.
+the corresponding http-request and http-response actions.
 
 
 6.2.1. Cache section
@@ -16749,18 +16759,16 @@ max-secondary-entries <number>
 6.2.2. Proxy section
 ---------------------
 
-http-request cache-use <name> [ { if | unless } <condition> ]
-  Try to deliver a cached object from the cache <name>. This directive is also
-  mandatory to store the cache as it calculates the cache hash. If you want to
-  use a condition for both storage and delivering that's a good idea to put it
-  after this one.
-
-http-response cache-store <name> [ { if | unless } <condition> ]
-  Store an http-response within the cache. The storage of the response headers
-  is done at this step, which means you can use others http-response actions
-  to modify headers before or after the storage of the response. This action
-  is responsible for the setup of the cache storage filter.
-
+The proxy section making use of the cache will need to involve the "cache-use"
+action in the "http-request" rule set in order to look up the requested object
+from the cache, and the "cache-store" action in the "http-response" rule set in
+order to store or update the retrieved object into the cache. Each of these
+actions may optionally involve conditions. For example, one could decide to
+skip the "cache-use" action for a certain sub-directory that is known not to
+be cacheable, or to skip the "cache-store" action for certain content-types
+that are known to be worthless. Please note that the cache indexing key is
+computed during the "cache-use" action, so if this action is skipped, no
+attempt to update the cache will be made on the response path anyway.
 
 Example:
 
