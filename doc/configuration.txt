@@ -8303,12 +8303,12 @@ http-response cache-store <name> [ { if | unless } <condition> ]
 http-response capture <sample> id <id> [ { if | unless } <condition> ]
 
   This captures sample expression <sample> from the response buffer, and
-  converts it to a string. The resulting string is stored into the next request
-  "capture" slot, so it will possibly appear next to some captured HTTP
-  headers. It will then automatically appear in the logs, and it will be
+  converts it to a string. The resulting string is stored into the next
+  response "capture" slot, so it will possibly appear next to some captured
+  HTTP headers. It will then automatically appear in the logs, and it will be
   possible to extract it using sample fetch rules to feed it into headers or
-  anything. Please check section 7.3 (Fetching samples) and
-  "capture response header" for more information.
+  anything. Please check section 7.3 (Fetching samples) and "capture response
+  header" for more information.
 
   The keyword "id" is the id of the capture slot which is used for storing the
   string. The capture slot must be defined in an associated frontend.
