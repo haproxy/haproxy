@@ -13771,7 +13771,7 @@ tcp-request content sc-set-gpt0(<sc-id>) { <int> | <expr> }
 tcp-request content send-spoe-group <engine-name> <group-name>
                     [ { if | unless } <condition> ]
 
-  Thaction is is used to trigger sending of a group of SPOE messages. Please
+  This action is is used to trigger sending of a group of SPOE messages. Please
   refer to "http-request send-spoe-group" for a complete description.
 
 tcp-request content set-bandwidth-limit <name> [limit { <expr> | <size> }]
@@ -14259,7 +14259,7 @@ tcp-resposne content sc-set-gpt0(<sc-id>) { <int> | <expr> }
 tcp-response content send-spoe-group <engine-name> <group-name>
                      [ { if | unless } <condition> ]
 
-  Thaction is is used to trigger sending of a group of SPOE messages. Please
+  This action is is used to trigger sending of a group of SPOE messages. Please
   refer to "http-request send-spoe-group" for a complete description.
 
 
