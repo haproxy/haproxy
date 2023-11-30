@@ -17400,76 +17400,6 @@ The currently available list of transformation keywords include :
       http-request set-header X-51D-DeviceTypeMobileTablet \
         %[req.fhdr(User-Agent),51d.single(DeviceType,IsMobile,IsTablet)]
 
-rfc7239_is_valid
-  Returns true if input header is RFC 7239 compliant header value and false
-  otherwise.
-
-  Example:
-    acl valid req.hdr(forwarded),rfc7239_is_valid
-    #input: "for=127.0.0.1;proto=http"
-    #  output: TRUE
-    #input: "proto=custom"
-    #  output: FALSE
-
-rfc7239_field(<field>)
-  Extracts a single field/parameter from RFC 7239 compliant header value input.
-
-  Supported fields are:
-    - proto: either 'http' or 'https'
-    - host: http compliant host
-    - for: RFC7239 node
-    - by: RFC7239 node
-
-  More info here:
-    https://www.rfc-editor.org/rfc/rfc7239.html#section-6
-
-  Example:
-    # extract host field from forwarded header and store it in req.fhost var
-    http-request set-var(req.fhost) req.hdr(forwarded),rfc7239_field(host)
-    #input: "proto=https;host=\"haproxy.org:80\""
-    #  output: "haproxy.org:80"
-
-    # extract for field from forwarded header and store it in req.ffor var
-    http-request set-var(req.ffor) req.hdr(forwarded),rfc7239_field(for)
-    #input: "proto=https;host=\"haproxy.org:80\";for=\"127.0.0.1:9999\""
-    #  output: "127.0.0.1:9999"
-
-rfc7239_n2nn
-  Converts RFC7239 node (provided by 'for' or 'by' 7239 header fields)
-  into its corresponding nodename final form:
-    - ipv4 address
-    - ipv6 address
-    - 'unknown'
-    - '_obfs' identifier
-
-  Example:
-    # extract 'for' field from forwarded header, extract nodename from
-    # resulting node identifier and store the result in req.fnn
-    http-request set-var(req.fnn) req.hdr(forwarded),rfc7239_field(for),rfc7239_n2nn
-    #input: "127.0.0.1:9999"
-    #  output: 127.0.0.1 (ipv4)
-    #input: "[ab:cd:ff:ff:ff:ff:ff:ff]:9998"
-    #  output: ab:cd:ff:ff:ff:ff:ff:ff (ipv6)
-    #input: "_name:_port"
-    #  output: "_name" (string)
-
-rfc7239_n2np
-  Converts RFC7239 node (provided by 'for' or 'by' 7239 header fields)
-  into its corresponding nodeport final form:
-    - unsigned integer
-    - '_obfs' identifier
-
-  Example:
-    # extract 'by' field from forwarded header, extract node port from
-    # resulting node identifier and store the result in req.fnp
-    http-request set-var(req.fnp) req.hdr(forwarded),rfc7239_field(by),rfc7239_n2np
-    #input: "127.0.0.1:9999"
-    #  output: 9999 (integer)
-    #input: "[ab:cd:ff:ff:ff:ff:ff:ff]:9998"
-    #  output: 9998 (integer)
-    #input: "_name:_port"
-    #  output: "_port" (string)
-
 add(<value>)
   Adds <value> to the input value of type signed integer, and returns the
   result as a signed integer. <value> can be a numeric value or a variable
@@ -17601,6 +17531,22 @@ bytes(<offset>[,<length>])
       http-response set-var(txn.var_start) int(1)
       http-response set-var(txn.var_length) int(3)
       http-response set-header bytes_var1_var3    "%[var(txn.input),bytes(txn.var_start,txn.var_length)]"  # outputs "123"
+
+capture-req(<id>)
+  Capture the string entry in the request slot <id> and returns the entry as
+  is. If the slot doesn't exist, the capture fails silently.
+
+  See also: "declare capture", "http-request capture",
+            "http-response capture", "capture.req.hdr" and
+            "capture.res.hdr" (sample fetches).
+
+capture-res(<id>)
+  Capture the string entry in the response slot <id> and returns the entry as
+  is. If the slot doesn't exist, the capture fails silently.
+
+  See also: "declare capture", "http-request capture",
+            "http-response capture", "capture.req.hdr" and
+            "capture.res.hdr" (sample fetches).
 
 concat([<start>],[<var>],[<end>])
   Concatenates up to 3 fields after the current sample which is then turned to
@@ -17796,12 +17742,6 @@ hex2i
   Converts a hex string containing two hex digits per input byte to an
   integer. If the input value cannot be converted, then zero is returned.
 
-htonl
-  Converts the input integer value to its 32-bit binary representation in the
-  network byte order. Because sample fetches own signed 64-bit integer, when
-  this converter is used, the input integer value is first casted to an
-  unsigned 32-bit integer.
-
 hmac(<algorithm>,<key>)
   Converts a binary input sample to a message authentication code with the given
   key. The result is a binary sample. The <algorithm> must be one of the
@@ -17820,6 +17760,12 @@ host_only
   This converter also sets the string in lowercase.
 
   See also: "port_only" converter which will return the port.
+
+htonl
+  Converts the input integer value to its 32-bit binary representation in the
+  network byte order. Because sample fetches own signed 64-bit integer, when
+  this converter is used, the input integer value is first casted to an
+  unsigned 32-bit integer.
 
 http_date([<offset],[<unit>])
   Converts an integer supposed to contain a date since epoch to a string
@@ -18406,21 +18352,75 @@ regsub(<regex>,<subst>[,<flags>])
      http-request redirect location %[url,'regsub("(foo|bar)([0-9]+)?","\2\1",i)']
      http-request redirect location %[url,regsub(\"(foo|bar)([0-9]+)?\",\"\2\1\",i)]
 
-capture-req(<id>)
-  Capture the string entry in the request slot <id> and returns the entry as
-  is. If the slot doesn't exist, the capture fails silently.
+rfc7239_field(<field>)
+  Extracts a single field/parameter from RFC 7239 compliant header value input.
 
-  See also: "declare capture", "http-request capture",
-            "http-response capture", "capture.req.hdr" and
-            "capture.res.hdr" (sample fetches).
+  Supported fields are:
+    - proto: either 'http' or 'https'
+    - host: http compliant host
+    - for: RFC7239 node
+    - by: RFC7239 node
 
-capture-res(<id>)
-  Capture the string entry in the response slot <id> and returns the entry as
-  is. If the slot doesn't exist, the capture fails silently.
+  More info here:
+    https://www.rfc-editor.org/rfc/rfc7239.html#section-6
 
-  See also: "declare capture", "http-request capture",
-            "http-response capture", "capture.req.hdr" and
-            "capture.res.hdr" (sample fetches).
+  Example:
+    # extract host field from forwarded header and store it in req.fhost var
+    http-request set-var(req.fhost) req.hdr(forwarded),rfc7239_field(host)
+    #input: "proto=https;host=\"haproxy.org:80\""
+    #  output: "haproxy.org:80"
+
+    # extract for field from forwarded header and store it in req.ffor var
+    http-request set-var(req.ffor) req.hdr(forwarded),rfc7239_field(for)
+    #input: "proto=https;host=\"haproxy.org:80\";for=\"127.0.0.1:9999\""
+    #  output: "127.0.0.1:9999"
+
+rfc7239_is_valid
+  Returns true if input header is RFC 7239 compliant header value and false
+  otherwise.
+
+  Example:
+    acl valid req.hdr(forwarded),rfc7239_is_valid
+    #input: "for=127.0.0.1;proto=http"
+    #  output: TRUE
+    #input: "proto=custom"
+    #  output: FALSE
+
+rfc7239_n2nn
+  Converts RFC7239 node (provided by 'for' or 'by' 7239 header fields)
+  into its corresponding nodename final form:
+    - ipv4 address
+    - ipv6 address
+    - 'unknown'
+    - '_obfs' identifier
+
+  Example:
+    # extract 'for' field from forwarded header, extract nodename from
+    # resulting node identifier and store the result in req.fnn
+    http-request set-var(req.fnn) req.hdr(forwarded),rfc7239_field(for),rfc7239_n2nn
+    #input: "127.0.0.1:9999"
+    #  output: 127.0.0.1 (ipv4)
+    #input: "[ab:cd:ff:ff:ff:ff:ff:ff]:9998"
+    #  output: ab:cd:ff:ff:ff:ff:ff:ff (ipv6)
+    #input: "_name:_port"
+    #  output: "_name" (string)
+
+rfc7239_n2np
+  Converts RFC7239 node (provided by 'for' or 'by' 7239 header fields)
+  into its corresponding nodeport final form:
+    - unsigned integer
+    - '_obfs' identifier
+
+  Example:
+    # extract 'by' field from forwarded header, extract node port from
+    # resulting node identifier and store the result in req.fnp
+    http-request set-var(req.fnp) req.hdr(forwarded),rfc7239_field(by),rfc7239_n2np
+    #input: "127.0.0.1:9999"
+    #  output: 9999 (integer)
+    #input: "[ab:cd:ff:ff:ff:ff:ff:ff]:9998"
+    #  output: 9998 (integer)
+    #input: "_name:_port"
+    #  output: "_port" (string)
 
 rtrim(<chars>)
   Skips any characters from <chars> from the end of the string representation
@@ -18593,24 +18593,6 @@ table_expire(<table>[,<default_value>])
   input sample in the designated table.
   See also the table_idle sample fetch keyword.
 
-table_gpt(<idx>,<table>)
-  Uses the string representation of the input sample to perform a lookup in
-  the specified table. If the key is not found in the table, boolean value zero
-  is returned. Otherwise the converter returns the current value of the general
-  purpose tag at the index <idx> of the array associated to the input sample
-  in the designated <table>. <idx> is an integer between 0 and 99.
-  If there is no GPT stored at this index, it also returns the boolean value 0.
-  This applies only to the 'gpt' array data_type (and not on the legacy 'gpt0'
-  data-type).
-  See also the sc_get_gpt sample fetch keyword.
-
-table_gpt0(<table>)
-  Uses the string representation of the input sample to perform a look up in
-  the specified table. If the key is not found in the table, boolean value zero
-  is returned. Otherwise the converter returns the current value of the first
-  general purpose tag associated with the input sample in the designated table.
-  See also the sc_get_gpt0 sample fetch keyword.
-
 table_gpc(<idx>,<table>)
   Uses the string representation of the input sample to perform a lookup in
   the specified table. If the key is not found in the table, integer value zero
@@ -18622,19 +18604,6 @@ table_gpc(<idx>,<table>)
   This applies only to the 'gpc' array data_type (and not to the legacy
   'gpc0' nor 'gpc1' data_types).
   See also the sc_get_gpc sample fetch keyword.
-
-table_gpc_rate(<idx>,<table>)
-  Uses the string representation of the input sample to perform a lookup in
-  the specified table. If the key is not found in the table, integer value zero
-  is returned. Otherwise the converter returns the frequency which the Global
-  Purpose Counter at index <idx> of the array (associated to the input sample
-  in the designated stick-table <table>) was incremented over the
-  configured period. <idx> is an integer between 0 and 99.
-  If there is no gpc_rate stored at this index, it also returns the boolean
-  value 0.
-  This applies only to the 'gpc_rate' array data_type (and not to the
-  legacy 'gpc0_rate' nor 'gpc1_rate' data_types).
-  See also the sc_gpc_rate sample fetch keyword.
 
 table_gpc0(<table>)
   Uses the string representation of the input sample to perform a look up in
@@ -18665,6 +18634,37 @@ table_gpc1_rate(<table>)
   counter was incremented over the configured period in the table, associated
   with the input sample in the designated table. See also the sc_get_gpc1_rate
   sample fetch keyword.
+
+table_gpc_rate(<idx>,<table>)
+  Uses the string representation of the input sample to perform a lookup in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the frequency which the Global
+  Purpose Counter at index <idx> of the array (associated to the input sample
+  in the designated stick-table <table>) was incremented over the
+  configured period. <idx> is an integer between 0 and 99.
+  If there is no gpc_rate stored at this index, it also returns the boolean
+  value 0.
+  This applies only to the 'gpc_rate' array data_type (and not to the
+  legacy 'gpc0_rate' nor 'gpc1_rate' data_types).
+  See also the sc_gpc_rate sample fetch keyword.
+
+table_gpt(<idx>,<table>)
+  Uses the string representation of the input sample to perform a lookup in
+  the specified table. If the key is not found in the table, boolean value zero
+  is returned. Otherwise the converter returns the current value of the general
+  purpose tag at the index <idx> of the array associated to the input sample
+  in the designated <table>. <idx> is an integer between 0 and 99.
+  If there is no GPT stored at this index, it also returns the boolean value 0.
+  This applies only to the 'gpt' array data_type (and not on the legacy 'gpt0'
+  data-type).
+  See also the sc_get_gpt sample fetch keyword.
+
+table_gpt0(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, boolean value zero
+  is returned. Otherwise the converter returns the current value of the first
+  general purpose tag associated with the input sample in the designated table.
+  See also the sc_get_gpt0 sample fetch keyword.
 
 table_http_err_cnt(<table>)
   Uses the string representation of the input sample to perform a look up in
@@ -18788,25 +18788,6 @@ ub64dec
 ub64enc
   This converter is the base64url variant of base64 converter.
 
-upper
-  Convert a string sample to upper case. This can only be placed after a string
-  sample fetch function or after a transformation keyword returning a string
-  type. The result is of type string.
-
-url_dec([<in_form>])
-  Takes an url-encoded string provided as input and returns the decoded version
-  as output. The input and the output are of type string. If the <in_form>
-  argument is set to a non-zero integer value, the input string is assumed to
-  be part of a form or query string and the '+' character will be turned into a
-  space (' '). Otherwise this will only happen after a question mark indicating
-  a query string ('?').
-
-url_enc([<enc_type>])
-  Takes a string provided as input and returns the encoded version as output.
-  The input and the output are of type string. By default the type of encoding
-  is meant for `query` type. There is no other type supported for now but the
-  optional argument is here for future changes.
-
 ungrpc(<field_number>,[<field_type>])
   This extracts the protocol buffers message field in raw mode of an input binary
   sample representation of a gRPC message with <field_number> as field number
@@ -18877,6 +18858,25 @@ unset-var(<var>)
     "res"  : the variable is shared only during response processing.
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+
+upper
+  Convert a string sample to upper case. This can only be placed after a string
+  sample fetch function or after a transformation keyword returning a string
+  type. The result is of type string.
+
+url_dec([<in_form>])
+  Takes an url-encoded string provided as input and returns the decoded version
+  as output. The input and the output are of type string. If the <in_form>
+  argument is set to a non-zero integer value, the input string is assumed to
+  be part of a form or query string and the '+' character will be turned into a
+  space (' '). Otherwise this will only happen after a question mark indicating
+  a query string ('?').
+
+url_enc([<enc_type>])
+  Takes a string provided as input and returns the encoded version as output.
+  The input and the output are of type string. By default the type of encoding
+  is meant for `query` type. There is no other type supported for now but the
+  optional argument is here for future changes.
 
 us_ltime(<format>[,<offset>])
   This works like "ltime" but takes an input in microseconds. It also supports
@@ -18970,6 +18970,33 @@ wt6([<avalanche>])
   32-bit hash is trivial to break. See also "crc32", "djb2", "sdbm", "crc32c",
   and the "hash-type" directive.
 
+
+x509_v_err_str
+  Convert a numerical value to its corresponding X509_V_ERR constant name. It
+  is useful in ACL in order to have a configuration which works with multiple
+  version of OpenSSL since some codes might change when changing version.
+
+  When the corresponding constant name was not found, outputs the numerical
+  value as a string.
+
+  The list of constant provided by OpenSSL can be found at
+  https://www.openssl.org/docs/manmaster/man3/X509_STORE_CTX_get_error.html#ERROR-CODES
+  Be careful to read the page for the right version of OpenSSL.
+
+  Example:
+
+    bind :443 ssl crt common.pem ca-file ca-auth.crt verify optional crt-ignore-err X509_V_ERR_CERT_REVOKED,X509_V_ERR_CERT_HAS_EXPIRED
+
+    acl cert_expired ssl_c_verify,x509_v_err_str -m str X509_V_ERR_CERT_HAS_EXPIRED
+    acl cert_revoked ssl_c_verify,x509_v_err_str -m str X509_V_ERR_CERT_REVOKED
+    acl cert_ok      ssl_c_verify,x509_v_err_str -m str X509_V_OK
+
+    http-response add-header X-SSL Ok if cert_ok
+    http-response add-header X-SSL Expired if cert_expired
+    http-response add-header X-SSL Revoked if cert_revoked
+
+    http-response add-header X-SSL-verify %[ssl_c_verify,x509_v_err_str]
+
 xor(<value>)
   Performs a bitwise "XOR" (exclusive OR) between <value> and the input value
   of type signed integer, and returns the result as an signed integer.
@@ -19010,32 +19037,6 @@ xxh64([<seed>])
   URL parameters for use as stick-table keys to collect statistics with a low
   collision rate, though care must be taken as the algorithm is not considered
   as cryptographically secure.
-
-x509_v_err_str
-  Convert a numerical value to its corresponding X509_V_ERR constant name. It
-  is useful in ACL in order to have a configuration which works with multiple
-  version of OpenSSL since some codes might change when changing version.
-
-  When the corresponding constant name was not found, outputs the numerical
-  value as a string.
-
-  The list of constant provided by OpenSSL can be found at
-  https://www.openssl.org/docs/manmaster/man3/X509_STORE_CTX_get_error.html#ERROR-CODES
-  Be careful to read the page for the right version of OpenSSL.
-
-  Example:
-
-    bind :443 ssl crt common.pem ca-file ca-auth.crt verify optional crt-ignore-err X509_V_ERR_CERT_REVOKED,X509_V_ERR_CERT_HAS_EXPIRED
-
-    acl cert_expired ssl_c_verify,x509_v_err_str -m str X509_V_ERR_CERT_HAS_EXPIRED
-    acl cert_revoked ssl_c_verify,x509_v_err_str -m str X509_V_ERR_CERT_REVOKED
-    acl cert_ok      ssl_c_verify,x509_v_err_str -m str X509_V_OK
-
-    http-response add-header X-SSL Ok if cert_ok
-    http-response add-header X-SSL Expired if cert_expired
-    http-response add-header X-SSL Revoked if cert_revoked
-
-    http-response add-header X-SSL-verify %[ssl_c_verify,x509_v_err_str]
 
 
 7.3.2. Fetching samples from internal states
