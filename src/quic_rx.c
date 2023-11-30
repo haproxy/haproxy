@@ -1624,7 +1624,7 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 	prx = l->bind_conf->frontend;
 	prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
 
-	qc = retrieve_qc_conn_from_cid(pkt, l, &dgram->saddr, new_tid);
+	qc = retrieve_qc_conn_from_cid(pkt, &dgram->saddr, new_tid);
 
 	/* If connection already created or rebinded on another thread. */
 	if (!qc && *new_tid != -1 && tid != *new_tid)

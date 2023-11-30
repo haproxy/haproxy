@@ -24,7 +24,6 @@ int quic_get_cid_tid(const unsigned char *cid, size_t cid_len,
 struct quic_cid quic_derive_cid(const struct quic_cid *orig,
                                 const struct sockaddr_storage *addr);
 struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
-                                            struct listener *l,
                                             struct sockaddr_storage *saddr,
                                             int *new_tid);
 int qc_build_new_connection_id_frm(struct quic_conn *qc,

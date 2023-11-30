@@ -208,7 +208,6 @@ int quic_get_cid_tid(const unsigned char *cid, size_t cid_len,
  * Returns the instance or NULL if not found.
  */
 struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
-                                            struct listener *l,
                                             struct sockaddr_storage *saddr,
                                             int *new_tid)
 {
