@@ -21655,7 +21655,7 @@ baseq : string
 bytes_in : integer
   This returns the number of bytes uploaded from the client to the server.
 
-bytes_out integer
+bytes_out : integer
    This is the number of bytes transmitted from the server to the client.
 
 capture.req.hdr(<idx>) : string
