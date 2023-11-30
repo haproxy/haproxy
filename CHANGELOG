@@ -1,6 +1,114 @@
 ChangeLog :
 ===========
 
+2023/11/30 : 2.9-dev12
+    - BUG/MINOR: global: Fix tune.disable-(fast-forward/zero-copy-forwarding) options
+    - DOC: config: removing "log-balance" references
+    - MINOR: server/event_hdl: add SERVER_INETADDR event
+    - MINOR: tools: use const for read only pointers in ip{cmp,cpy}
+    - MINOR: server/ip: centralize server ip updates
+    - MINOR: backend: remove invalid mode test for "hash-balance-factor"
+    - Revert "MINOR: cfgparse-listen: warn when use-server rules is used in wrong mode"
+    - MINOR: proxy: add free_logformat_list() helper function
+    - MINOR: proxy: add free_server_rules() helper function
+    - MINOR: log/backend: prevent "use-server" rules use with LOG mode
+    - MINOR: log/balance: set lbprm tot_weight on server on queue/dequeue
+    - DOC: config: specify supported sections for "max-session-srv-conns"
+    - DOC: config: fix timeout check inheritance restrictions
+    - REGTESTS: connection: disable http_reuse_be_transparent.vtc if !TPROXY
+    - DOC: lua: add sticktable class reference from Proxy.stktable
+    - DOC: lua: fix Proxy.get_mode() output
+    - DOC: lua: add "syslog" to Proxy.get_mode() output
+    - MEDIUM: ssl: implement rsa/ecdsa selection with WolfSSL
+    - MINOR: ssl: replace 'trash.area' by 'servername' in ssl_sock_switchctx_cbk()
+    - MINOR: ssl: move certificate selection in a dedicate function
+    - MEDIUM: ssl: use ssl_sock_chose_sni_ctx() in the clienthello callback
+    - MINOR: mworker/cli: implement hard-reload over the master CLI
+    - BUG/MEDIUM: mux-h1: Properly ignore trailers when a content-length is announced
+    - MINOR: task/profiling: do not record task_drop_running() as a caller
+    - OPTIM: pattern: save memory and time using ebst instead of ebis
+    - BUILD: map: fix build warning
+    - MINOR: trace: define simple -dt argument
+    - MINOR: trace: parse level in a function
+    - MINOR: trace: parse verbosity in a function
+    - MINOR: trace: support -dt optional format
+    - OPTIM: mux-h2/zero-copy: don't allocate more buffers per connections than streams
+    - BUG/MINOR: quic: fix CONNECTION_CLOSE_APP encoding
+    - BUG/MEDIUM: stconn: Don't perform zero-copy FF if opposite SC is blocked
+    - BUG/MEDIUM: mux-h2: Remove H2_SF_NOTIFIED flag for H2S blocked on fast-forward
+    - CLEANUP: quic: Remove dead definitions/declarations
+    - REORG: quic: Move some QUIC CLI code to its C file
+    - REORG: quic: Add a new module to handle QUIC connection IDs
+    - REORG: quic: QUIC connection types header cleaning
+    - BUILD: quic: Missing RX header inclusions
+    - REORG: quic: Move CRYPTO data buffer defintions to QUIC TLS module
+    - REORG: quic: Move QUIC CRYPTO stream definitions/declarations to QUIC TLS
+    - REORG: quic: Move several inlined functions from quic_conn.h
+    - REORG: quic: Move QUIC SSL BIO method related functions to quic_ssl.c
+    - REORG: quic: Move the QUIC DCID parser to quic_sock.c
+    - REORG: quic: Rename some functions used upon ACK receipt
+    - REORG: quic: Move QUIC path definitions/declarations to quic_cc module
+    - REORG: quic: Move qc_handle_conn_migration() to quic_conn.c
+    - REORG: quic: Move quic_build_post_handshake_frames() to quic_conn module
+    - REORG: quic: Move qc_may_probe_ipktns() to quic_tls.h
+    - REORG: quic: Move qc_pkt_long() to quic_rx.h
+    - REORG: quic: Rename some (quic|qc)_conn* objects to quic_conn_closed
+    - REORG: quic: Move NEW_CONNECTION_ID frame builder to quic_cid
+    - REORG: quic: Move ncbuf related function from quic_rx to quic_conn
+    - REORG: quic: Add a new module for QUIC retry
+    - BUILD: quic: Several compiler warns fixes after retry module creation
+    - REORG: quic: Move qc_notify_send() to quic_conn
+    - REORG: quic: Add a new module for retransmissions
+    - REORG: quic: Remove qc_pkt_insert() implementation
+    - REORG: quic: Move quic_increment_curr_handshake() to quic_sock
+    - BUG/MINOR: cache: Remove incomplete entries from the cache when stream is closed
+    - MEDIUM: cli: allow custom pattern for payload
+    - CLEANUP: mworker/cli: use a label to return errors
+    - MINOR: mworker/cli: implements the customized payload pattern for master CLI
+    - DOC: management: add documentation about customized payload pattern
+    - BUG/MEDIUM: server/event_hdl: memory overrun in _srv_event_hdl_prepare_inetaddr()
+    - MINOR: event_hdl: add global tunables
+    - BUG/MAJOR: server/addr: fix a race during server addr:svc_port updates
+    - MEDIUM: log/balance: support FQDN for UDP log servers
+    - BUG/MINOR: compression: possible NULL dereferences in comp_prepare_compress_request()
+    - BUG/MEDIUM: master/cli: Properly pin the master CLI on thread 1 / group 1
+    - BUG/MEDIUM: mux-quic: Stop zero-copy FF during nego if input is not empty
+    - CLEANUP: log: Fix %rc comment in sess_build_logline()
+    - BUG/MINOR: h3: fix TRAILERS encoding
+    - BUG/MINOR: h3: always reject PUSH_PROMISE
+    - MINOR: h3: use correct error code for missing SETTINGS
+    - MINOR: http-fetch: Add a sample to retrieve the server status code
+    - DOC: config: Improve 'status' sample documentation
+    - MINOR: http-fetch: Add a sample to get the transaction status code
+    - MEDIUM: http-ana: Set termination state before returning haproxy response
+    - MINOR: stream: Expose session terminate state via a new sample fetch
+    - MINOR: stream: add a sample fetch to get the number of connection retries
+    - MINOR: stream: Expose the stream's uniq_id via a new sample fetch
+    - MINOR: muxes: Rename mux_ctl_type values to use MUX_CTL_ prefix
+    - MINOR: muxes: Add a callback function to send commands to mux streams
+    - MINOR: muxes: Implement ->sctl() callback for muxes and return the stream id
+    - MINOR: Add sample fetches to get the frontend and backend stream ID
+    - BUG/MEDIUM: cli: Don't look for payload pattern on empty commands
+    - DOC: config: Add argument for tune.lua.maxmem
+    - DOC: config: fix mention of request slot in http-response capture
+    - DOC: config: fix remaining mention of @reverse for attach-srv action
+    - DOC: config: fix missing characters in set-spoe-group action
+    - DOC: config: reorganize actions into their own section
+    - BUG/MINOR: acme.sh: update the deploy script
+    - MINOR: rhttp: mark reverse HTTP as experimental
+    - CLEANUP: quic_cid: remove unused listener arg
+    - BUG/MINOR: quic_tp: fix preferred_address decoding
+    - MINOR: quic_tp: use in_addr/in6_addr for preferred_address
+    - MINOR: acme.sh: use the master CLI for hot update
+    - DOC: config: move the cache-use and cache-store actions to the proper section
+    - DOC: config: fix alphabetical ordering of converter keywords
+    - DOC: config: add missing colon to "bytes_out" sample fetch keyword
+    - DOC: config: add an index of converter keywords
+    - DOC: config: add an index of sample fetch keywords
+    - BUG/MINOR: config: Stopped parsing upon unmatched environment variables
+    - DEBUG: unstatify a few functions that are often present in backtraces
+    - BUILD: server: shut a bogus gcc warning on certain ubuntu
+
 2023/11/24 : 2.9-dev11
     - BUG/MINOR: startup: set GTUNE_SOCKET_TRANSFER correctly
     - BUG/MINOR: sock: mark abns sockets as non-suspendable and always unbind them
