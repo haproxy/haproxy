@@ -80,10 +80,7 @@ void quic_transport_params_init(struct quic_transport_params *p, int server)
 }
 
 /* Encode <addr> preferred address transport parameter in <buf> without its
- * "type+len" prefix. Note that the IP addresses must be encoded in network byte
- * order.
- * So ->ipv4_addr and ->ipv6_addr, which are buffers, must contained values
- * already encoded in network byte order.
+ * "type+len" prefix.
  * It is the responsibility of the caller to check there is enough room in <buf> to encode
  * this address.
  * Never fails.
@@ -95,14 +92,14 @@ static void quic_transport_param_enc_pref_addr_val(unsigned char **buf,
 	write_n16(*buf, addr->ipv4_port);
 	*buf += sizeof addr->ipv4_port;
 
-	memcpy(*buf, addr->ipv4_addr, sizeof addr->ipv4_addr);
-	*buf += sizeof addr->ipv4_addr;
+	memcpy(*buf, (uint8_t *)&addr->ipv4_addr.s_addr, sizeof(addr->ipv4_addr.s_addr));
+	*buf += sizeof(addr->ipv4_addr.s_addr);
 
 	write_n16(*buf, addr->ipv6_port);
 	*buf += sizeof addr->ipv6_port;
 
-	memcpy(*buf, addr->ipv6_addr, sizeof addr->ipv6_addr);
-	*buf += sizeof addr->ipv6_addr;
+	memcpy(*buf, addr->ipv6_addr.s6_addr, sizeof(addr->ipv6_addr.s6_addr));
+	*buf += sizeof(addr->ipv6_addr.s6_addr);
 
 	*(*buf)++ = addr->cid.len;
 	if (addr->cid.len) {
@@ -123,21 +120,21 @@ static int quic_transport_param_dec_pref_addr(struct tp_preferred_address *addr,
 {
 	ssize_t addr_len;
 
-	addr_len = sizeof addr->ipv4_port + sizeof addr->ipv4_addr;
-	addr_len += sizeof addr->ipv6_port + sizeof addr->ipv6_addr;
-	addr_len += sizeof addr->cid.len;
+	addr_len = sizeof(addr->ipv4_port) + sizeof(addr->ipv4_addr.s_addr);
+	addr_len += sizeof(addr->ipv6_port) + sizeof(addr->ipv6_addr.s6_addr);
+	addr_len += sizeof(addr->cid.len);
 
 	if (end - *buf < addr_len)
 		return 0;
 
-	memcpy(addr->ipv4_addr, *buf, sizeof addr->ipv4_addr);
-	*buf += sizeof addr->ipv4_addr;
+	memcpy((uint8_t *)&addr->ipv4_addr.s_addr, *buf, sizeof(addr->ipv4_addr.s_addr));
+	*buf += sizeof(addr->ipv4_addr.s_addr);
 
 	addr->ipv4_port = read_n16(*buf);
 	*buf += sizeof addr->ipv4_port;
 
-	memcpy(addr->ipv6_addr, *buf, sizeof addr->ipv6_addr);
-	*buf += sizeof addr->ipv6_addr;
+	memcpy(addr->ipv6_addr.s6_addr, *buf, sizeof(addr->ipv6_addr.s6_addr));
+	*buf += sizeof(addr->ipv6_addr.s6_addr);
 
 	addr->ipv6_port = read_n16(*buf);
 	*buf += sizeof addr->ipv6_port;
@@ -394,9 +391,6 @@ static inline size_t sizeof_quic_cid(const struct tp_cid *cid)
 }
 
 /* Encode <addr> preferred address into <buf>.
- * Note that the IP addresses must be encoded in network byte order.
- * So ->ipv4_addr and ->ipv6_addr, which are buffers, must contained
- * values already encoded in network byte order.
  * Returns 1 if succeeded, 0 if not.
  */
 static int quic_transport_param_enc_pref_addr(unsigned char **buf,
@@ -405,10 +399,10 @@ static int quic_transport_param_enc_pref_addr(unsigned char **buf,
 {
 	uint64_t addr_len = 0;
 
-	addr_len += sizeof addr->ipv4_port + sizeof addr->ipv4_addr;
-	addr_len += sizeof addr->ipv6_port + sizeof addr->ipv6_addr;
+	addr_len += sizeof(addr->ipv4_port) + sizeof(addr->ipv4_addr.s_addr);
+	addr_len += sizeof(addr->ipv6_port) + sizeof(addr->ipv6_addr.s6_addr);
 	addr_len += sizeof_quic_cid(&addr->cid);
-	addr_len += sizeof addr->stateless_reset_token;
+	addr_len += sizeof(addr->stateless_reset_token);
 
 	if (!quic_transport_param_encode_type_len(buf, end, QUIC_TP_PREFERRED_ADDRESS, addr_len))
 		return 0;

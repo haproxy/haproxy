@@ -84,8 +84,7 @@ static inline void quic_transport_params_dump(struct buffer *b,
 	chunk_appendf(b, " ms_bidi=%llu", (ull)p->initial_max_streams_bidi);
 	chunk_appendf(b, " ms_uni=%llu\n", (ull)p->initial_max_streams_uni);
 
-	if (p->disable_active_migration || p->with_stateless_reset_token ||
-	    p->with_preferred_address) {
+	if (p->disable_active_migration || p->with_stateless_reset_token) {
 		int prev = 0;
 
 		chunk_appendf(b, "    (");
@@ -101,13 +100,21 @@ static inline void quic_transport_params_dump(struct buffer *b,
 			prev = 1;
 			chunk_appendf(b, "stless_rst_tok");
 		}
-		if (p->with_preferred_address) {
-			if (prev)
-				chunk_appendf(b, ",");
-			prev = 1;
-			chunk_appendf(b, "pref_addr");
-		}
 		chunk_appendf(b, ")");
+	}
+
+	if (p->with_preferred_address) {
+		char bufaddr[INET6_ADDRSTRLEN];
+		chunk_appendf(b, "    pref_addr=");
+		inet_ntop(AF_INET, &p->preferred_address.ipv4_addr,
+		          bufaddr, sizeof(bufaddr));
+		chunk_appendf(b, "%s:%hu ", bufaddr, p->preferred_address.ipv4_port);
+
+		inet_ntop(AF_INET6, &p->preferred_address.ipv6_addr,
+		          bufaddr, sizeof(bufaddr));
+		chunk_appendf(b, "[%s]:%hu ", bufaddr, p->preferred_address.ipv6_port);
+		quic_tp_cid_dump(b, &p->preferred_address.cid);
+		chunk_appendf(b, "\n");
 	}
 
 	quic_tp_version_info_dump(b, &p->version_information, local);

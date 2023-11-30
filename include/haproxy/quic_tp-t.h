@@ -6,6 +6,7 @@
 #endif
 
 #include <inttypes.h>
+#include <sys/socket.h>
 
 #define QUIC_STATELESS_RESET_TOKEN_LEN 16
 
@@ -20,8 +21,8 @@ struct tp_cid {
 struct tp_preferred_address {
 	uint16_t ipv4_port;
 	uint16_t ipv6_port;
-	uint8_t ipv4_addr[4];
-	uint8_t ipv6_addr[16];
+	struct in_addr  ipv4_addr;
+	struct in6_addr ipv6_addr;
 	struct tp_cid cid;
 	uint8_t stateless_reset_token[QUIC_STATELESS_RESET_TOKEN_LEN];
 };
