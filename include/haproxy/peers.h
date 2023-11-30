@@ -41,14 +41,6 @@ void peers_setup_frontend(struct proxy *fe);
 void peers_register_keywords(struct peers_kw_list *pkwl);
 
 #if defined(USE_OPENSSL)
-static inline enum obj_type *peer_session_target(struct peer *p, struct stream *s)
-{
-	if (p->srv->use_ssl)
-		return &p->srv->obj_type;
-	else
-		return &s->be->obj_type;
-}
-
 static inline struct xprt_ops *peer_xprt(struct peer *p)
 {
 	return p->srv->use_ssl ? xprt_get(XPRT_SSL) : xprt_get(XPRT_RAW);
@@ -56,7 +48,7 @@ static inline struct xprt_ops *peer_xprt(struct peer *p)
 #else
 static inline enum obj_type *peer_session_target(struct peer *p, struct stream *s)
 {
-	return &s->be->obj_type;
+	return &p->srv->obj_type;
 }
 
 static inline struct xprt_ops *peer_xprt(struct peer *p)
