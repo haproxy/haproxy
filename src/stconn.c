@@ -1047,9 +1047,10 @@ void sc_update_tx(struct stconn *sc)
  * It may update SE_FL_WAIT_DATA and/or SC_FL_NEED_ROOM, that the callers are
  * encouraged to watch to take appropriate action.
  * It should not be called from within the stream itself, sc_update()
- * is designed for this.
+ * is designed for this. Please do not statify this function, it's often
+ * present in backtraces, it's useful to recognize it.
  */
-static void sc_notify(struct stconn *sc)
+void sc_notify(struct stconn *sc)
 {
 	struct channel *ic = sc_ic(sc);
 	struct channel *oc = sc_oc(sc);
@@ -1205,9 +1206,10 @@ static void sc_conn_eos(struct stconn *sc)
 /*
  * This is the callback which is called by the connection layer to receive data
  * into the buffer from the connection. It iterates over the mux layer's
- * rcv_buf function.
+ * rcv_buf function. Please do not statify this function, it's often present in
+ * backtraces, it's useful to recognize it.
  */
-static int sc_conn_recv(struct stconn *sc)
+int sc_conn_recv(struct stconn *sc)
 {
 	struct connection *conn = __sc_conn(sc);
 	struct channel *ic = sc_ic(sc);
@@ -1550,9 +1552,10 @@ int sc_conn_sync_recv(struct stconn *sc)
  * This function is called to send buffer data to a stream socket.
  * It calls the mux layer's snd_buf function. It relies on the
  * caller to commit polling changes. The caller should check conn->flags
- * for errors.
+ * for errors. Please do not statify this function, it's often present in
+ * backtraces, it's useful to recognize it.
  */
-static int sc_conn_send(struct stconn *sc)
+int sc_conn_send(struct stconn *sc)
 {
 	struct connection *conn = __sc_conn(sc);
 	struct stconn *sco = sc_opposite(sc);
@@ -1755,9 +1758,10 @@ void sc_conn_sync_send(struct stconn *sc)
  * connection flags to the stream connector, updates the stream (which may or
  * may not take this opportunity to try to forward data), then update the
  * connection's polling based on the channels and stream connector's final
- * states. The function always returns 0.
+ * states. The function always returns 0. Please do not statify this function,
+ * it's often present in backtraces, it's useful to recognize it.
  */
-static int sc_conn_process(struct stconn *sc)
+int sc_conn_process(struct stconn *sc)
 {
 	struct connection *conn = __sc_conn(sc);
 	struct channel *ic = sc_ic(sc);
@@ -1906,9 +1910,10 @@ static void sc_applet_eos(struct stconn *sc)
 /* Callback to be used by applet handlers upon completion. It updates the stream
  * (which may or may not take this opportunity to try to forward data), then
  * may re-enable the applet's based on the channels and stream connector's final
- * states.
+ * states. Please do not statify this function, it's often present in backtraces,
+ * it's useful to recognize it.
  */
-static int sc_applet_process(struct stconn *sc)
+int sc_applet_process(struct stconn *sc)
 {
 	struct channel *ic = sc_ic(sc);
 

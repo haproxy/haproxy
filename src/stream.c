@@ -890,7 +890,7 @@ int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout
  * Timeouts are cleared. Error are reported on the channel so that analysers
  * can handle them.
  */
-static void back_establish(struct stream *s)
+void back_establish(struct stream *s)
 {
 	struct connection *conn = sc_conn(s->scb);
 	struct channel *req = &s->req;
@@ -1536,7 +1536,7 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
  * Note that this does not change the stream connector's current state, though
  * it updates the previous state to the current one.
  */
-static void stream_update_both_sc(struct stream *s)
+void stream_update_both_sc(struct stream *s)
 {
 	struct stconn *scf = s->scf;
 	struct stconn *scb = s->scb;

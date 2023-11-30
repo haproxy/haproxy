@@ -1162,7 +1162,7 @@ int alloc_bind_address(struct sockaddr_storage **ss,
  * (safe or idle connections). The <is_safe> argument means what type of
  * connection the caller wants.
  */
-static struct connection *conn_backend_get(struct stream *s, struct server *srv, int is_safe, int64_t hash)
+struct connection *conn_backend_get(struct stream *s, struct server *srv, int is_safe, int64_t hash)
 {
 	struct connection *conn = NULL;
 	int i; // thread number
@@ -1339,7 +1339,7 @@ static int do_connect_server(struct stream *s, struct connection *conn)
  * Additionally, in the case of SF_ERR_RESOURCE, an emergency log will be emitted.
  * The server-facing stream connector is expected to hold a pre-allocated connection.
  */
-static int connect_server(struct stream *s)
+int connect_server(struct stream *s)
 {
 	struct connection *cli_conn = objt_conn(strm_orig(s));
 	struct connection *srv_conn = NULL;

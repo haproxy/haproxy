@@ -690,7 +690,7 @@ int httpclient_set_proxy(struct httpclient *hc, struct proxy *px)
 	return 0;
 }
 
-static void httpclient_applet_io_handler(struct appctx *appctx)
+void httpclient_applet_io_handler(struct appctx *appctx)
 {
 	struct httpclient *hc = appctx->svcctx;
 	struct stconn *sc = appctx_sc(appctx);
@@ -1005,7 +1005,7 @@ error:
 	goto out;
 }
 
-static int httpclient_applet_init(struct appctx *appctx)
+int httpclient_applet_init(struct appctx *appctx)
 {
 	struct httpclient *hc = appctx->svcctx;
 	struct stream *s;
@@ -1102,7 +1102,7 @@ static int httpclient_applet_init(struct appctx *appctx)
 	return -1;
 }
 
-static void httpclient_applet_release(struct appctx *appctx)
+void httpclient_applet_release(struct appctx *appctx)
 {
 	struct httpclient *hc = appctx->svcctx;
 
