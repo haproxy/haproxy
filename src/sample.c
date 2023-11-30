@@ -2964,7 +2964,7 @@ static int sample_conv_word(const struct arg *arg_p, struct sample *smp, void *p
 	/* Field not found */
 	if (word != arg_p[0].data.sint) {
 		smp->data.u.str.data = 0;
-		return 1;
+		return 0;
 	}
 found:
 	smp->data.u.str.data = end - start;
