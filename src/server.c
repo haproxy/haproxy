@@ -3902,7 +3902,7 @@ const char *srv_update_addr_port(struct server *s, const char *addr, const char 
 	struct sockaddr_storage sa;
 	int ret;
 	char current_addr[INET6_ADDRSTRLEN];
-	uint16_t current_port, new_port;
+	uint16_t current_port, new_port = 0;
 	struct buffer *msg;
 	int ip_change = 0;
 	int port_change = 0;
