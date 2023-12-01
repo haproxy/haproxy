@@ -341,33 +341,33 @@ Core class
   end
 ..
 
-.. js:function:: core.add_acl(filename, key)
+.. js:function:: core.add_acl(name, key)
 
   **context**: init, task, action, sample-fetch, converter
 
-  Add the ACL *key* in the ACLs list referenced by the file *filename*.
+  Add the ACL *key* in the ACLs list referenced by *name*.
 
-  :param string filename: the filename that reference the ACL entries.
+  :param string name: the name that reference the ACL entries.
   :param string key: the key which will be added.
 
-.. js:function:: core.del_acl(filename, key)
+.. js:function:: core.del_acl(name, key)
 
   **context**: init, task, action, sample-fetch, converter
 
   Delete the ACL entry referenced by the key *key* in the list of ACLs
-  referenced by *filename*.
+  referenced by *name*.
 
-  :param string filename: the filename that reference the ACL entries.
+  :param string name: the name that reference the ACL entries.
   :param string key: the key which will be deleted.
 
-.. js:function:: core.del_map(filename, key)
+.. js:function:: core.del_map(name, key)
 
   **context**: init, task, action, sample-fetch, converter
 
   Delete the map entry indexed with the specified key in the list of maps
-  referenced by his filename.
+  referenced by his name.
 
-  :param string filename: the filename that reference the map entries.
+  :param string name: the name that reference the map entries.
   :param string key: the key which will be deleted.
 
 .. js:function:: core.get_info()
@@ -821,14 +821,14 @@ Core class
 
   :param integer nice: the nice value, it must be between -1024 and 1024.
 
-.. js:function:: core.set_map(filename, key, value)
+.. js:function:: core.set_map(name, key, value)
 
   **context**: init, task, action, sample-fetch, converter
 
   Set the value *value* associated to the key *key* in the map referenced by
-  *filename*.
+  *name*.
 
-  :param string filename: the Map reference
+  :param string name: the Map reference
   :param string key: the key to set or replace
   :param string value: the associated value
 
@@ -3360,11 +3360,11 @@ Map class
   Note that :js:attr:`Map.reg` is also available for compatibility.
 
 
-.. js:function:: Map.new(file, method)
+.. js:function:: Map.new(name, method)
 
   Creates and load a map.
 
-  :param string file: Is the file containing the map.
+  :param string name: Is the name referencing the map.
   :param integer method: Is the map pattern matching method. See the attributes
    of the Map class.
   :returns: a class Map object.

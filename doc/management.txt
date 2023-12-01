@@ -1586,7 +1586,7 @@ abort ssl crl-file <crlfile>
   See also "set ssl crl-file" and "commit ssl crl-file".
 
 add acl [@<ver>] <acl> <pattern>
-  Add an entry into the acl <acl>. <acl> is the #<id> or the <file> returned by
+  Add an entry into the acl <acl>. <acl> is the #<id> or the <name> returned by
   "show acl". This command does not verify if the entry already exists. Entries
   are added to the current version of the ACL, unless a specific version is
   specified with "@<ver>". This version number must have preliminary been
@@ -1595,7 +1595,7 @@ add acl [@<ver>] <acl> <pattern>
   added with a specific version number will not match until a "commit acl"
   operation is performed on them. They may however be consulted using the
   "show acl @<ver>" command, and cleared using a "clear acl @<ver>" command.
-  This command cannot be used if the reference <acl> is a file also used with
+  This command cannot be used if the reference <acl> is a name also used with
   a map. In this case, the "add map" command must be used instead.
 
 add map [@<ver>] <map> <key> <value>
@@ -1787,15 +1787,15 @@ clear counters all
   and can only be issued on sockets configured for level "admin".
 
 clear acl [@<ver>] <acl>
-  Remove all entries from the acl <acl>. <acl> is the #<id> or the <file>
-  returned by "show acl". Note that if the reference <acl> is a file and is
+  Remove all entries from the acl <acl>. <acl> is the #<id> or the <name>
+  returned by "show acl". Note that if the reference <acl> is a name and is
   shared with a map, this map will be also cleared. By default only the current
   version of the ACL is cleared (the one being matched against). However it is
   possible to specify another version using '@' followed by this version.
 
 clear map [@<ver>] <map>
-  Remove all entries from the map <map>. <map> is the #<id> or the <file>
-  returned by "show map". Note that if the reference <map> is a file and is
+  Remove all entries from the map <map>. <map> is the #<id> or the <name>
+  returned by "show map". Note that if the reference <map> is a name and is
   shared with a acl, this acl will be also cleared. By default only the current
   version of the map is cleared (the one being matched against). However it is
   possible to specify another version using '@' followed by this version.
@@ -1850,7 +1850,7 @@ clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
 
 commit acl @<ver> <acl>
   Commit all changes made to version <ver> of ACL <acl>, and deletes all past
-  versions. <acl> is the #<id> or the <file> returned by "show acl". The
+  versions. <acl> is the #<id> or the <name> returned by "show acl". The
   version number must be between "curr_ver"+1 and "next_ver" as reported in
   "show acl". The contents to be committed to the ACL can be consulted with
   "show acl @<ver> <acl>" if desired. The specified version number has normally
@@ -1860,12 +1860,12 @@ commit acl @<ver> <acl>
   and all entries in the new version to become visible. It is also possible to
   use this command to perform an atomic removal of all visible entries of an
   ACL by calling "prepare acl" first then committing without adding any
-  entries. This command cannot be used if the reference <acl> is a file also
+  entries. This command cannot be used if the reference <acl> is a name also
   used as a map. In this case, the "commit map" command must be used instead.
 
 commit map @<ver> <map>
   Commit all changes made to version <ver> of map <map>, and deletes all past
-  versions. <map> is the #<id> or the <file> returned by "show map". The
+  versions. <map> is the #<id> or the <name> returned by "show map". The
   version number must be between "curr_ver"+1 and "next_ver" as reported in
   "show map". The contents to be committed to the map can be consulted with
   "show map @<ver> <map>" if desired. The specified version number has normally
@@ -1951,16 +1951,16 @@ debug dev <command> [args]*
 
 del acl <acl> [<key>|#<ref>]
   Delete all the acl entries from the acl <acl> corresponding to the key <key>.
-  <acl> is the #<id> or the <file> returned by "show acl". If the <ref> is used,
+  <acl> is the #<id> or the <name> returned by "show acl". If the <ref> is used,
   this command delete only the listed reference. The reference can be found with
-  listing the content of the acl. Note that if the reference <acl> is a file and
+  listing the content of the acl. Note that if the reference <acl> is a name and
   is shared with a map, the entry will be also deleted in the map.
 
 del map <map> [<key>|#<ref>]
   Delete all the map entries from the map <map> corresponding to the key <key>.
-  <map> is the #<id> or the <file> returned by "show map". If the <ref> is used,
+  <map> is the #<id> or the <name> returned by "show map". If the <ref> is used,
   this command delete only the listed reference. The reference can be found with
-  listing the content of the map. Note that if the reference <map> is a file and
+  listing the content of the map. Note that if the reference <map> is a name and
   is shared with a acl, the entry will be also deleted in the map.
 
 del ssl ca-file <cafile>
@@ -2141,7 +2141,7 @@ expert-mode [on|off]
 get map <map> <value>
 get acl <acl> <value>
   Lookup the value <value> in the map <map> or in the ACL <acl>. <map> or <acl>
-  are the #<id> or the <file> returned by "show map" or "show acl". This command
+  are the #<id> or the <name> returned by "show map" or "show acl". This command
   returns all the matching patterns associated with this map. This is useful for
   debugging maps and ACLs. The output format is composed by one line par
   matching type. Each line is composed by space-delimited series of words.
@@ -2218,7 +2218,7 @@ new ssl crl-file <crlfile>
 
 prepare acl <acl>
   Allocate a new version number in ACL <acl> for atomic replacement. <acl> is
-  the #<id> or the <file> returned by "show acl". The new version number is
+  the #<id> or the <name> returned by "show acl". The new version number is
   shown in response after "New version created:". This number will then be
   usable to prepare additions of new entries into the ACL which will then
   atomically replace the current ones once committed. It is reported as
@@ -2226,12 +2226,12 @@ prepare acl <acl>
   unused versions will automatically be removed once a more recent version is
   committed. Version numbers are unsigned 32-bit values which wrap at the end,
   so care must be taken when comparing them in an external program. This
-  command cannot be used if the reference <acl> is a file also used as a map.
+  command cannot be used if the reference <acl> is a name also used as a map.
   In this case, the "prepare map" command must be used instead.
 
 prepare map <map>
   Allocate a new version number in map <map> for atomic replacement. <map> is
-  the #<id> or the <file> returned by "show map". The new version number is
+  the #<id> or the <name> returned by "show map". The new version number is
   shown in response after "New version created:". This number will then be
   usable to prepare additions of new entries into the map which will then
   atomically replace the current ones once committed. It is reported as
@@ -2280,7 +2280,7 @@ set anon global-key <key>
 
 set map <map> [<key>|#<ref>] <value>
   Modify the value corresponding to each key <key> in a map <map>. <map> is the
-  #<id> or <file> returned by "show map". If the <ref> is used in place of
+  #<id> or <name> returned by "show map". If the <ref> is used in place of
   <key>, only the entry pointed by <ref> is changed. The new value is <value>.
 
 set maxconn frontend <frontend> <value>
@@ -2546,7 +2546,7 @@ set weight <backend>/<server> <weight>[%]
 show acl [[@<ver>] <acl>]
   Dump info about acl converters. Without argument, the list of all available
   acls is returned. If a <acl> is specified, its contents are dumped. <acl> is
-  the #<id> or <file>. By  default the current version of the ACL is shown (the
+  the #<id> or <name>. By  default the current version of the ACL is shown (the
   version currently being matched against and reported as 'curr_ver' in the ACL
   list). It is possible to instead dump other versions by prepending '@<ver>'
   before the ACL's identifier. The version works as a filter and non-existing
@@ -2929,7 +2929,7 @@ show libs
 show map [[@<ver>] <map>]
   Dump info about map converters. Without argument, the list of all available
   maps is returned. If a <map> is specified, its contents are dumped. <map> is
-  the #<id> or <file>. By  default the current version of the map is shown (the
+  the #<id> or <name>. By  default the current version of the map is shown (the
   version currently being matched against and reported as 'curr_ver' in the map
   list). It is possible to instead dump other versions by prepending '@<ver>'
   before the map's identifier. The version works as a filter and non-existing
