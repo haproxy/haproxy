@@ -511,7 +511,11 @@ static void srv_state_px_update(const struct proxy *px, int vsn, struct eb_root 
 		if (!node)
 			continue; /* next server */
 		st_line = eb64_entry(node, typeof(*st_line), node);
-		srv_state_srv_update(srv, vsn, st_line->params+4);
+		if (atoi(st_line->params[18]) == srv->svc_port &&
+			atoi(st_line->params[21]) == srv->check.port) {
+			/* only update if the ports in the config and the state still match */
+			srv_state_srv_update(srv, vsn, st_line->params+4);
+		}
 
 		/* the node may be released now */
 		eb64_delete(node);
