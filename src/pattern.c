@@ -2223,7 +2223,7 @@ struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref 
  *
  * Return non-zero in case of success, otherwise 0.
  */
-int pat_ref_read_from_file_smp(struct pat_ref *ref, const char *filename, char **err)
+int pat_ref_read_from_file_smp(struct pat_ref *ref, char **err)
 {
 	FILE *file;
 	char *c;
@@ -2234,9 +2234,9 @@ int pat_ref_read_from_file_smp(struct pat_ref *ref, const char *filename, char *
 	char *value_beg;
 	char *value_end;
 
-	file = fopen(filename, "r");
+	file = fopen(ref->reference, "r");
 	if (!file) {
-		memprintf(err, "failed to open pattern file <%s>", filename);
+		memprintf(err, "failed to open pattern file <%s>", ref->reference);
 		return 0;
 	}
 
@@ -2294,7 +2294,7 @@ int pat_ref_read_from_file_smp(struct pat_ref *ref, const char *filename, char *
 
 	if (ferror(file)) {
 		memprintf(err, "error encountered while reading  <%s> : %s",
-				filename, strerror(errno));
+				ref->reference, strerror(errno));
 		goto out_close;
 	}
 	/* success */
@@ -2308,7 +2308,7 @@ int pat_ref_read_from_file_smp(struct pat_ref *ref, const char *filename, char *
 /* Reads patterns from a file. If <err_msg> is non-NULL, an error message will
  * be returned there on errors and the caller will have to free it.
  */
-int pat_ref_read_from_file(struct pat_ref *ref, const char *filename, char **err)
+int pat_ref_read_from_file(struct pat_ref *ref, char **err)
 {
 	FILE *file;
 	char *c;
@@ -2316,9 +2316,9 @@ int pat_ref_read_from_file(struct pat_ref *ref, const char *filename, char **err
 	int ret = 0;
 	int line = 0;
 
-	file = fopen(filename, "r");
+	file = fopen(ref->reference, "r");
 	if (!file) {
-		memprintf(err, "failed to open pattern file <%s>", filename);
+		memprintf(err, "failed to open pattern file <%s>", ref->reference);
 		return 0;
 	}
 
@@ -2349,14 +2349,14 @@ int pat_ref_read_from_file(struct pat_ref *ref, const char *filename, char **err
 			continue;
 
 		if (!pat_ref_append(ref, arg, NULL, line)) {
-			memprintf(err, "out of memory when loading patterns from file <%s>", filename);
+			memprintf(err, "out of memory when loading patterns from file <%s>", ref->reference);
 			goto out_close;
 		}
 	}
 
 	if (ferror(file)) {
 		memprintf(err, "error encountered while reading  <%s> : %s",
-				filename, strerror(errno));
+				ref->reference, strerror(errno));
 		goto out_close;
 	}
 	ret = 1; /* success */
@@ -2393,11 +2393,11 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 
 		if (load_smp) {
 			ref->flags |= PAT_REF_SMP;
-			if (!pat_ref_read_from_file_smp(ref, filename, err))
+			if (!pat_ref_read_from_file_smp(ref, err))
 				return 0;
 		}
 		else {
-			if (!pat_ref_read_from_file(ref, filename, err))
+			if (!pat_ref_read_from_file(ref, err))
 				return 0;
 		}
 	}
