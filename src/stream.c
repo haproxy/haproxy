@@ -3269,14 +3269,18 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
 		      strm->txn->req.flags, strm->txn->rsp.flags);
 
 	scf = strm->scf;
-	chunk_appendf(buf, "%s  scf=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d", pfx,
-		      scf, scf->flags, sc_state_str(scf->state),
+	chunk_appendf(buf, "%s  scf=%p flags=0x%08x ioto=%s state=%s endp=%s,%p,0x%08x sub=%d", pfx,
+		      scf, scf->flags, human_time(scf->ioto, TICKS_TO_MS(1000)), sc_state_str(scf->state),
 		      (sc_ep_test(scf, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scf, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
 		      scf->sedesc->se, sc_ep_get(scf), scf->wait_event.events);
 	chunk_appendf(buf, " rex=%s",
 		      sc_ep_rcv_ex(scf) ? human_time(TICKS_TO_MS(sc_ep_rcv_ex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
-	chunk_appendf(buf, " wex=%s\n",
+	chunk_appendf(buf, " wex=%s",
 		      sc_ep_snd_ex(scf) ? human_time(TICKS_TO_MS(sc_ep_snd_ex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+	chunk_appendf(buf, " rto=%s",
+		      tick_isset(scf->sedesc->lra) ? human_time(TICKS_TO_MS(tick_add(scf->sedesc->lra, scf->ioto) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+	chunk_appendf(buf, " wto=%s\n",
+		      tick_isset(scf->sedesc->fsb) ? human_time(TICKS_TO_MS(tick_add(scf->sedesc->fsb, scf->ioto) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
 
 	chunk_appendf(&trash, "%s    iobuf.flags=0x%08x .pipe=%d .buf=%u@%p+%u/%u\n", pfx,
 		      scf->sedesc->iobuf.flags,
@@ -3326,14 +3330,18 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
 	}
 
 	scb = strm->scb;
-	chunk_appendf(buf, "%s  scb=%p flags=0x%08x state=%s endp=%s,%p,0x%08x sub=%d", pfx,
-		      scb, scb->flags, sc_state_str(scb->state),
+	chunk_appendf(buf, "%s  scb=%p flags=0x%08x ioto=%s state=%s endp=%s,%p,0x%08x sub=%d", pfx,
+		      scb, scb->flags, human_time(scb->ioto, TICKS_TO_MS(1000)), sc_state_str(scb->state),
 		      (sc_ep_test(scb, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scb, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
 		      scb->sedesc->se, sc_ep_get(scb), scb->wait_event.events);
 	chunk_appendf(buf, " rex=%s",
 		      sc_ep_rcv_ex(scb) ? human_time(TICKS_TO_MS(sc_ep_rcv_ex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
-	chunk_appendf(buf, " wex=%s\n",
+	chunk_appendf(buf, " wex=%s",
 		      sc_ep_snd_ex(scb) ? human_time(TICKS_TO_MS(sc_ep_snd_ex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+	chunk_appendf(buf, " rto=%s",
+		      tick_isset(scb->sedesc->lra) ? human_time(TICKS_TO_MS(tick_add(scb->sedesc->lra, scb->ioto) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+	chunk_appendf(buf, " wto=%s\n",
+		      tick_isset(scb->sedesc->fsb) ? human_time(TICKS_TO_MS(tick_add(scb->sedesc->fsb, scb->ioto) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
 
 	chunk_appendf(&trash, "%s    iobuf.flags=0x%08x .pipe=%d .buf=%u@%p+%u/%u\n", pfx,
 		      scb->sedesc->iobuf.flags,
