@@ -605,22 +605,19 @@ int http_prepend_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const s
 	struct htx_blk *blk = ctx->blk;
 	struct ist v;
 	uint32_t off = 0;
-	uint8_t first = 0;
+	uint8_t first;
 
 	if (!blk)
 		goto fail;
 
 	v = htx_get_blk_value(htx, blk);
 
-	if (!istlen(v)) {
-		start = v.ptr;
-		first = 1;
-	}
+	first = !istlen(v);
+	start = first ? v.ptr : istptr(ctx->value) - ctx->lws_before;
+
 	if (unlikely(!istlen(ctx->value)))
 		goto fail; /* invalid: value is empty, not supported */
 
-	if (!first)
-		start = istptr(ctx->value) - ctx->lws_before;
 	off = start - v.ptr;
 
 	blk = htx_replace_blk_value(htx, blk, ist2(start, 0), data);
