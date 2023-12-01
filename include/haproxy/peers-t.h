@@ -62,7 +62,6 @@ struct peer {
 	struct sockaddr_storage addr; /* peer address */
 	struct protocol *proto;       /* peer address protocol */
 	struct xprt_ops *xprt;        /* peer socket operations at transport layer */
-	void *sock_init_arg;          /* socket operations's opaque init argument if needed */
 	unsigned int flags;           /* peer session flags */
 	unsigned int statuscode;      /* current/last session status code */
 	unsigned int reconnect;       /* next connect timer */

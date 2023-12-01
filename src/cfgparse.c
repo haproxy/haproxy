@@ -634,7 +634,6 @@ static struct peer *cfg_peers_add_peer(struct peers *peers,
 	p->conf.line = linenum;
 	p->last_change = ns_to_sec(now_ns);
 	p->xprt  = xprt_get(XPRT_RAW);
-	p->sock_init_arg = NULL;
 	HA_SPIN_INIT(&p->lock);
 	if (id)
 		p->id = strdup(id);
@@ -911,7 +910,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		newpeer->xprt  = xprt_get(XPRT_RAW);
-		newpeer->sock_init_arg = NULL;
 		HA_SPIN_INIT(&newpeer->lock);
 
 		newpeer->srv = curpeers->peers_fe->srv;
