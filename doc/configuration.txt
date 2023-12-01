@@ -44,7 +44,8 @@ Summary
 2.4.      Conditional blocks
 2.5.      Time format
 2.6.      Size format
-2.7.      Examples
+2.7.      Name format for maps and ACLs
+2.8.      Examples
 
 3.    Global parameters
 3.1.      Process management and security
@@ -1147,7 +1148,43 @@ for every keyword. Supported units are case insensitive :
 Both time and size formats require integers, decimal notation is not allowed.
 
 
-2.7. Examples
+2.7. Name format for maps and ACLs
+-------------------------------------
+
+It is possible to use a list of pattern for maps or ACLs. A list of pattern is
+identified by its name and may be used at different places in the
+configuration. List of pattern are splitted on three categories depending on
+the name format:
+
+  * Lists of pattern based on regular files: It is the default case. The
+    filename, absolute or relative, is used as name. The file must exist
+    otherwise an error is triggered. But it may be empty. The "file@" prefix
+    may also be specificed but it is not part of the name identifying the
+    list. A filename, with or without the prefix, references the same list of
+    pattern.
+
+  * Lists of pattern based on optional files: The filename must be preceeds by
+    "opt@" prefix. The file existence is optional. If the file exists, its
+    content is loaded but no error is reported if not. The prefix is not part
+    of the name identifying the list. It means, for a given filename, Optional
+    files and regular files reference the same list of pattern.
+
+  * Lists of pattern based on virtual files: The name is just an identified. It
+    is not a reference to any file. "virt@" prefix must be used. It is part of
+    the name. Thus it cannot be mixed with other kind of lists.
+
+Virtual files are useful when patterns are fully dynamically managed with no
+patterns on startup and on reload. Optional files may be used in the same
+conditons. But patterns can be dumped in the file, via an external script based
+on the "show map" CLI command for instance. This way, it is possible to keep
+patterns on reload.
+
+Note: Even if it is unlikely, it means no regular file starting with "file@",
+      "opt@" or "virt@" can be loaded, except by adding "./" explicitly in
+      front of the filename (for instance "file@./virt@map").
+
+
+2.8. Examples
 -------------
 
     # Simple configuration for an HTTP proxy listening on port 80 on all
@@ -13905,14 +13942,14 @@ del-header <name> [ -m <meth> ]
   method is used.
 
 
-del-map(<file-name>) <key fmt>
+del-map(<map-name>) <key fmt>
   Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     -  |   -  |   -  |   -  |          X |  X |  X
 
-  This is used to delete an entry from a MAP. The MAP must be loaded from a
-  file (even a dummy empty file). The file name of the MAP to be updated is
-  passed between parentheses. It takes one argument: <key fmt>, which follows
-  log-format rules, to collect content of the entry to delete.
+  This is used to delete an entry from a MAP. <map-name> must follow the format
+  described in 2.7. about name format for maps and ACLs. The name of the MAP to
+  be updated is passed between parentheses. It takes one argument: <key fmt>,
+  which follows log-format rules, to collect content of the entry to delete.
   It takes one argument: "file name" It is the equivalent of the "del map"
   command from the stats socket, but can be triggered by an HTTP request or
   response.
@@ -14666,15 +14703,15 @@ set-log-level <level>
   can be useful to disable health checks coming from another equipment.
 
 
-set-map(<file-name>) <key fmt> <value fmt>
+set-map(<map-name>) <key fmt> <value fmt>
   Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     -  |   -  |   -  |   -  |          X |  X |  X
 
-  This is used to add a new entry into a map. The map must be loaded from a
-  file (even a dummy empty file). The file name of the map to be updated is
-  passed between parentheses. It takes 2 arguments: <key fmt>, which follows
-  log-format rules, used to collect map key, and <value fmt>, which follows
-  log-format rules, used to collect content for the new entry.
+  This is used to add a new entry into a map. <map-name> must follow the format
+  described in 2.7. about name format for maps and ACLs. The name of the MAP to
+  be updated is passed between parentheses. It takes 2 arguments: <key fmt>,
+  which follows log-format rules, used to collect map key, and <value fmt>,
+  which follows log-format rules, used to collect content for the new entry.
   It performs a lookup in the map before insertion, to avoid duplicated (or
   more) values. It is the equivalent of the "set map" command from the
   stats socket, but can be triggered by an HTTP request.
@@ -17747,25 +17784,27 @@ The ACL engine can match these types against patterns of the following types :
 The following ACL flags are currently supported :
 
    -i : ignore case during matching of all subsequent patterns.
-   -f : load patterns from a file.
+   -f : load patterns from a list.
    -m : use a specific pattern matching method
    -n : forbid the DNS resolutions
-   -M : load the file pointed by -f like a map file.
+   -M : load the file pointed by -f like a map.
    -u : force the unique id of the ACL
    -- : force end of flags. Useful when a string looks like one of the flags.
 
-The "-f" flag is followed by the name of a file from which all lines will be
-read as individual values. It is even possible to pass multiple "-f" arguments
-if the patterns are to be loaded from multiple files. Empty lines as well as
-lines beginning with a sharp ('#') will be ignored. All leading spaces and tabs
-will be stripped. If it is absolutely necessary to insert a valid pattern
-beginning with a sharp, just prefix it with a space so that it is not taken for
-a comment. Depending on the data type and match method, HAProxy may load the
-lines into a binary tree, allowing very fast lookups. This is true for IPv4 and
-exact string matching. In this case, duplicates will automatically be removed.
+The "-f" flag is followed by the name that must follow the format described in
+2.7. about name format for maps and ACLs. It is even possible to pass multiple
+"-f" arguments if the patterns are to be loaded from multiple lists. if an
+existing file is referenced, all lines will be read as individual values. Empty
+lines as well as lines beginning with a sharp ('#') will be ignored. All
+leading spaces and tabs will be stripped. If it is absolutely necessary to
+insert a valid pattern beginning with a sharp, just prefix it with a space so
+that it is not taken for a comment. Depending on the data type and match
+method, HAProxy may load the lines into a binary tree, allowing very fast
+lookups. This is true for IPv4 and exact string matching. In this case,
+duplicates will automatically be removed.
 
-The "-M" flag allows an ACL to use a map file. If this flag is set, the file is
-parsed as two column file. The first column contains the patterns used by the
+The "-M" flag allows an ACL to use a map. If this flag is set, the list is
+parsed as two column entries. The first column contains the patterns used by the
 ACL, and the second column contain the samples. The sample can be used later by
 a map. This can be useful in some rare cases where an ACL would just be used to
 check for the existence of a pattern in a map before a mapping is applied.
@@ -19000,17 +19039,18 @@ ltrim(<chars>)
   Skips any characters from <chars> from the beginning of the string
   representation of the input sample.
 
-map(<map_file>[,<default_value>])
-map_<match_type>(<map_file>[,<default_value>])
-map_<match_type>_<output_type>(<map_file>[,<default_value>])
-  Search the input value from <map_file> using the <match_type> matching method,
-  and return the associated value converted to the type <output_type>. If the
-  input value cannot be found in the <map_file>, the converter returns the
-  <default_value>. If the <default_value> is not set, the converter fails and
-  acts as if no input value could be fetched. If the <match_type> is not set, it
-  defaults to "str". Likewise, if the <output_type> is not set, it defaults to
-  "str". For convenience, the "map" keyword is an alias for "map_str" and maps a
-  string to another string.
+map(<map_name>[,<default_value>])
+map_<match_type>(<map_name>[,<default_value>])
+map_<match_type>_<output_type>(<map_name>[,<default_value>])
+  Search the input value from <map_name> using the <match_type> matching
+  method, and return the associated value converted to the type <output_type>.
+  If the input value cannot be found in the <map_name>, the converter returns
+  the <default_value>. If the <default_value> is not set, the converter fails
+  and acts as if no input value could be fetched. If the <match_type> is not
+  set, it defaults to "str". Likewise, if the <output_type> is not set, it
+  defaults to "str". For convenience, the "map" keyword is an alias for
+  "map_str" and maps a string to another string. <map_name> must follow the
+  format described in 2.7. about name format for maps and ACLs
 
   It is important to avoid overlapping between the keys : IP addresses and
   strings are stored in trees, so the first of the finest match will be used.
@@ -19046,11 +19086,11 @@ map_<match_type>_<output_type>(<map_file>[,<default_value>])
   expression and modify the output replacing back reference (like "\1") by
   the corresponding match text.
 
-  The file contains one key + value per line. Lines which start with '#' are
-  ignored, just like empty lines. Leading tabs and spaces are stripped. The key
-  is then the first "word" (series of non-space/tabs characters), and the value
-  is what follows this series of space/tab till the end of the line excluding
-  trailing spaces/tabs.
+  Files referenced by <map_name> contains one key + value per line. Lines which
+  start with '#' are ignored, just like empty lines. Leading tabs and spaces
+  are stripped. The key is then the first "word" (series of non-space/tabs
+  characters), and the value is what follows this series of space/tab till the
+  end of the line excluding trailing spaces/tabs.
 
   Example :
 
