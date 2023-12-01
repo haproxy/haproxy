@@ -1547,6 +1547,10 @@ struct pat_ref *pat_ref_lookup(const char *reference)
 {
 	struct pat_ref *ref;
 
+	/* Skip file@ prefix, it is the default case. Can be mixed with ref omitting the prefix */
+	if (strlen(reference) > 5 && strncmp(reference, "file@", 5) == 0)
+		reference += 5;
+
 	list_for_each_entry(ref, &pattern_reference, list)
 		if (ref->reference && strcmp(reference, ref->reference) == 0)
 			return ref;
@@ -1817,6 +1821,22 @@ struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned
 			return NULL;
 		}
 	}
+
+
+	if (strlen(reference) > 5 && strncmp(reference, "virt@", 5) == 0)
+		flags |= PAT_REF_ID;
+	else if (strlen(reference) > 4 && strncmp(reference, "opt@", 4) == 0) {
+		flags |= (PAT_REF_ID|PAT_REF_FILE); // Will be decided later
+		reference += 4;
+	}
+	else {
+		/* A file by default */
+		flags |= PAT_REF_FILE;
+		/* Skip file@ prefix to be mixed with ref omitting the prefix */
+		if (strlen(reference) > 5 && strncmp(reference, "file@", 5) == 0)
+			reference += 5;
+	}
+
 
 	ref->reference = strdup(reference);
 	if (!ref->reference) {
@@ -2236,9 +2256,15 @@ int pat_ref_read_from_file_smp(struct pat_ref *ref, char **err)
 
 	file = fopen(ref->reference, "r");
 	if (!file) {
+		if (ref->flags & PAT_REF_ID) {
+			/* file not found for an optional file, switch it to a virtual list of patterns */
+			ref->flags &= ~PAT_REF_FILE;
+			return 1;
+		}
 		memprintf(err, "failed to open pattern file <%s>", ref->reference);
 		return 0;
 	}
+	ref->flags |= PAT_REF_FILE;
 
 	/* now parse all patterns. The file may contain only one pattern
 	 * followed by one value per line. The start spaces, separator spaces
@@ -2318,6 +2344,11 @@ int pat_ref_read_from_file(struct pat_ref *ref, char **err)
 
 	file = fopen(ref->reference, "r");
 	if (!file) {
+		if (ref->flags & PAT_REF_ID) {
+			/* file not found for an optional file, switch it to a virtual list of patterns */
+			ref->flags &= ~PAT_REF_FILE;
+			return 1;
+		}
 		memprintf(err, "failed to open pattern file <%s>", ref->reference);
 		return 0;
 	}
@@ -2391,14 +2422,16 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 			return 0;
 		}
 
-		if (load_smp) {
-			ref->flags |= PAT_REF_SMP;
-			if (!pat_ref_read_from_file_smp(ref, err))
-				return 0;
-		}
-		else {
-			if (!pat_ref_read_from_file(ref, err))
-				return 0;
+		if (ref->flags & PAT_REF_FILE) {
+			if (load_smp) {
+				ref->flags |= PAT_REF_SMP;
+				if (!pat_ref_read_from_file_smp(ref, err))
+					return 0;
+			}
+			else {
+				if (!pat_ref_read_from_file(ref, err))
+					return 0;
+			}
 		}
 	}
 	else {

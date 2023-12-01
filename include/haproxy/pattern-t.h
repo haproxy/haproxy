@@ -92,9 +92,11 @@ enum {
 	PAT_MATCH_NUM
 };
 
-#define PAT_REF_MAP 0x1 /* Set if the reference is used by at least one map. */
-#define PAT_REF_ACL 0x2 /* Set if the reference is used by at least one acl. */
-#define PAT_REF_SMP 0x4 /* Flag used if the reference contains a sample. */
+#define PAT_REF_MAP  0x01 /* Set if the reference is used by at least one map. */
+#define PAT_REF_ACL  0x02 /* Set if the reference is used by at least one acl. */
+#define PAT_REF_SMP  0x04 /* Flag used if the reference contains a sample. */
+#define PAT_REF_FILE 0x08 /* Set if the reference was loaded from a file */
+#define PAT_REF_ID   0x10 /* Set if the reference is only an ID (not loaded from a file) */
 
 /* This struct contain a list of reference strings for dunamically
  * updatable patterns.
