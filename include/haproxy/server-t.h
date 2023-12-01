@@ -610,7 +610,7 @@ struct event_hdl_cb_data_server_inetaddr {
 	struct event_hdl_cb_data_server server;                 /* must be at the beginning */
 	struct {
 		struct  {
-			int family; /* AF_INET or AF_INET6 */
+			int family; /* AF_UNSPEC, AF_INET or AF_INET6 */
 			union {
 				struct in_addr v4;
 				struct in6_addr v6;
@@ -618,7 +618,7 @@ struct event_hdl_cb_data_server_inetaddr {
 			unsigned int svc_port;
 		} prev;
 		struct {
-			int family; /* AF_INET or AF_INET6 */
+			int family; /* AF_UNSPEC, AF_INET or AF_INET6 */
 			union {
 				struct in_addr v4;
 				struct in6_addr v6;

@@ -270,6 +270,9 @@ static struct task *server_atomic_sync(struct task *task, void *context, unsigne
 					       &data->safe.next.addr.v6,
 					       sizeof(struct in6_addr));
 					break;
+				case AF_UNSPEC:
+					/* addr reset, nothing to do */
+					break;
 				default:
 					/* should not happen */
 					break;
@@ -426,32 +429,27 @@ void _srv_event_hdl_prepare_inetaddr(struct event_hdl_cb_data_server_inetaddr *c
 	        next_addr->ss_family != AF_INET && next_addr->ss_family != AF_INET6));
 
 	/* prev */
-	if (prev_addr->ss_family == AF_INET) {
-		cb_data->safe.prev.family = AF_INET;
+	cb_data->safe.prev.family = prev_addr->ss_family;
+	memset(&cb_data->safe.prev.addr, 0, sizeof(cb_data->safe.prev.addr));
+	if (prev_addr->ss_family == AF_INET)
 		cb_data->safe.prev.addr.v4.s_addr =
 			((struct sockaddr_in *)prev_addr)->sin_addr.s_addr;
-	}
-	else {
-		cb_data->safe.prev.family = AF_INET6;
+	else if (prev_addr->ss_family == AF_INET6)
 		memcpy(&cb_data->safe.prev.addr.v6,
 		       &((struct sockaddr_in6 *)prev_addr)->sin6_addr,
 		       sizeof(struct in6_addr));
-	}
 	cb_data->safe.prev.svc_port = prev_port;
 
 	/* next */
-	if (next_addr->ss_family == AF_INET) {
-		cb_data->safe.next.family = AF_INET;
+	cb_data->safe.next.family = next_addr->ss_family;
+	memset(&cb_data->safe.next.addr, 0, sizeof(cb_data->safe.next.addr));
+	if (next_addr->ss_family == AF_INET)
 		cb_data->safe.next.addr.v4.s_addr =
 			((struct sockaddr_in *)next_addr)->sin_addr.s_addr;
-	}
-	else {
-		cb_data->safe.next.family = AF_INET6;
+	else if (next_addr->ss_family == AF_INET6)
 		memcpy(&cb_data->safe.next.addr.v6,
 		       &((struct sockaddr_in6 *)next_addr)->sin6_addr,
 		       sizeof(struct in6_addr));
-	}
-
 	cb_data->safe.next.svc_port = next_port;
 
 	cb_data->safe.purge_conn = purge_conn;
@@ -3695,7 +3693,7 @@ int srv_update_addr(struct server *s, void *ip, int ip_sin_family, const char *u
 		struct event_hdl_cb_data_server_inetaddr addr;
 		struct event_hdl_cb_data_server common;
 	} cb_data;
-	struct sockaddr_storage new_addr;
+	struct sockaddr_storage new_addr = { }; // shut up gcc warning
 
 	/* save the new IP family & address if necessary */
 	switch (ip_sin_family) {
