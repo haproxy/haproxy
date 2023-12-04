@@ -1211,6 +1211,7 @@ The following keywords are supported in the "global" section :
    - tune.pipesize
    - tune.pool-high-fd-ratio
    - tune.pool-low-fd-ratio
+   - tune.pt.zero-copy-forwarding
    - tune.quic.frontend.conn-tx-buffers.limit
    - tune.quic.frontend.max-idle-timeout
    - tune.quic.frontend.max-streams-bidi
@@ -2921,6 +2922,8 @@ tune.disable-zero-copy-forwarding
   Thanks to this directive, it is possible to disable this optimization. Note
   it also disable any kernel tcp splicing.
 
+  See also: tune.pt.zero-copy-forwarding
+
 tune.events.max-events-at-once <number>
   Sets the number of events that may be processed at once by an asynchronous
   task handler (from event_hdl API). <number> should be included between 1
@@ -3346,6 +3349,14 @@ tune.pool-low-fd-ratio <number>
   HAProxy globally against the maximum number of file descriptors HAProxy can
   use before we stop putting connection into the idle pool for reuse. The
   default is 20.
+
+tune.pt.zero-copy-forwarding { on | off }
+  Enables ('on') of disabled ('off') the zero-copy forwarding of data for the
+  pass-through multiplexer. To be used, the kernel splicing must also be
+  configured. It is enabled by default.
+
+  See also: tune.disable-zero-copy-forwarding, option splice-auto,
+            option splice-request and option splice-response
 
 tune.quic.frontend.conn-tx-buffers.limit <number>
   This settings defines the maximum number of buffers allocated for a QUIC

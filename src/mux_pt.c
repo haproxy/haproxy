@@ -12,6 +12,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
 #include <haproxy/pipe.h>
 #include <haproxy/stconn.h>
@@ -654,6 +655,11 @@ static int mux_pt_fastfwd(struct stconn *sc, unsigned int count, unsigned int fl
 
 	TRACE_ENTER(PT_EV_RX_DATA, conn, sc, 0, (size_t[]){count});
 
+	if (global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_PT) {
+		se_fl_clr(ctx->sd, SE_FL_MAY_FASTFWD);
+		goto end;
+	}
+
 	se_fl_clr(ctx->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 	conn->flags &= ~CO_FL_WAIT_ROOM;
 	sdo = mux_pt_opposite_sd(ctx);
@@ -809,6 +815,35 @@ static int mux_pt_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *out
 		return -1;
 	}
 }
+
+/* config parser for global "tune.pt.zero-copy-forwarding" */
+static int cfg_parse_pt_zero_copy_fwd(char **args, int section_type, struct proxy *curpx,
+				      const struct proxy *defpx, const char *file, int line,
+				      char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		global.tune.no_zero_copy_fwd &= ~NO_ZERO_COPY_FWD_PT;
+	else if (strcmp(args[1], "off") == 0)
+		global.tune.no_zero_copy_fwd |= NO_ZERO_COPY_FWD_PT;
+	else {
+		memprintf(err, "'%s' expects 'on' or 'off'.", args[0]);
+		return -1;
+	}
+	return 0;
+}
+
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "tune.pt.zero-copy-forwarding", cfg_parse_pt_zero_copy_fwd },
+	{ 0, NULL, NULL }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
 
 /* The mux operations */
 const struct mux_ops mux_tcp_ops = {
