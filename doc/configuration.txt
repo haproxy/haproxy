@@ -415,8 +415,13 @@ on the server. The part after the question mark is called the "query string".
 It is mostly used with GET requests sent to dynamic scripts and is very
 specific to the language, framework or application in use.
 
-HTTP/2 doesn't convey a version information with the request, so the version is
-assumed to be the same as the one of the underlying protocol (i.e. "HTTP/2").
+HTTP/3 and HTTP/3 do not convey a version information with the request, so the
+version is assumed to be the same as the one of the underlying protocol (i.e.
+"HTTP/2"). In addition, these protocols do not send a request line as one part,
+but split it into individual fields called "pseudo-headers", whose name start
+with a colon, and which are conveniently reassembled by HAProxy into an
+equivalent request line. For this reason, request lines found in logs may
+slightly differ between HTTP/1.x and HTTP/2 or HTTP/3.
 
 
 1.3.2. The request headers
@@ -429,15 +434,18 @@ Multiple identical headers may be folded into one single line, delimiting the
 values with commas, provided that their order is respected. This is commonly
 encountered in the "Cookie:" field. A header may span over multiple lines if
 the subsequent lines begin with an LWS. In the example in 1.3, lines 4 and 5
-define a total of 3 values for the "Accept:" header.
+define a total of 3 values for the "Accept:" header. Finally, all LWS at the
+beginning or at the end of a header are ignored and are not part of the value,
+as per the specification.
 
 Contrary to a common misconception, header names are not case-sensitive, and
 their values are not either if they refer to other header names (such as the
-"Connection:" header). In HTTP/2, header names are always sent in lower case,
-as can be seen when running in debug mode. Internally, all header names are
-normalized to lower case so that HTTP/1.x and HTTP/2 use the exact same
-representation, and they are sent as-is on the other side. This explains why an
-HTTP/1.x request typed with camel case is delivered in lower case.
+"Connection:" header). In HTTP/2 and HTTP/3, header names are always sent in
+lower case, as can be seen when running in debug mode. Internally, all header
+names are normalized to lower case so that HTTP/1.x and HTTP/2 or HTTP/3 use
+the exact same representation, and they are sent as-is on the other side. This
+explains why an HTTP/1.x request typed with camel case is delivered in lower
+case.
 
 The end of the headers is indicated by the first empty line. People often say
 that it's a double line feed, which is not exact, even if a double line feed
@@ -474,9 +482,9 @@ continue to post its request for instance. In the case of a status 100 response
 the requested information will be carried by the next non-100 response message
 following the informational one. This implies that multiple responses may be
 sent to a single request, and that this only works when keep-alive is enabled
-(1xx messages are HTTP/1.1 only). HAProxy handles these messages and is able to
-correctly forward and skip them, and only process the next non-100 response. As
-such, these messages are neither logged nor transformed, unless explicitly
+(1xx messages appeared in HTTP/1.1). HAProxy handles these messages and is able
+to correctly forward and skip them, and only process the next non-100 response.
+As such, these messages are neither logged nor transformed, unless explicitly
 state otherwise. Status 101 messages indicate that the protocol is changing
 over the same connection and that HAProxy must switch to tunnel mode, just as
 if a CONNECT had occurred. Then the Upgrade header would contain additional
@@ -499,11 +507,19 @@ The status code is always 3-digit. The first digit indicates a general status :
  - 4xx = error caused by the client (e.g. 401, 403, 404)
  - 5xx = error caused by the server (e.g. 500, 502, 503)
 
-Please refer to RFC7231 for the detailed meaning of all such codes. The
-"reason" field is just a hint, but is not parsed by clients. Anything can be
-found there, but it's a common practice to respect the well-established
+Status codes greater than 599 must not be emitted in communications, though
+certain agents may produce them in logs to report their internal statuses.
+Please refer to RFC9110 for the detailed meaning of all such codes. HTTP/2 and
+above do not have a version tag and use the ":status" pseudo-header to report
+the status code.
+
+The "reason" field is just a hint, but is not parsed by clients. Anything can
+be found there, but it's a common practice to respect the well-established
 messages. It can be composed of one or multiple words, such as "OK", "Found",
-or "Authentication Required".
+or "Authentication Required". It does not exist in HTTP/2 and above and is
+not emitted there. When a response from HTTP/2 or above is transmitted to an
+HTTP/1 client, HAProxy will produce such a common reason field that matches
+the status code.
 
 HAProxy may emit the following status codes by itself :
 
@@ -533,7 +549,8 @@ HAProxy may emit the following status codes by itself :
    504  when the response timeout strikes before the server responds
 
 The error 4xx and 5xx codes above may be customized (see "errorloc" in section
-4.2).
+4.2). Other status codes can be emitted on purpose by specific actions (see the
+"deny", "return" and "redirect" actions in section 4.3 for example).
 
 
 1.4.2. The response headers
