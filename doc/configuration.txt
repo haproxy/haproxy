@@ -3459,7 +3459,7 @@ tune.quic.socket-owner { connection | listener }
 
 tune.quit.zero-copy-fwd-send { on | off }
   Enables ('on') of disabled ('off') the zero-copy sends of data for the QUIC
-  multiplexer. It is enabled by default.
+  multiplexer. It is disabled by default.
 
   See also: tune.disable-zero-copy-forwarding
 
