@@ -3599,20 +3599,16 @@ struct server *server_find_by_name(struct proxy *bk, const char *name)
 	curserver = NULL;
 	if (*name == '#') {
 		curserver = server_find_by_id(bk, atoi(name + 1));
-		if (curserver)
-			return curserver;
 	}
 	else {
-		curserver = bk->srv;
+		struct ebpt_node *node;
 
-		while (curserver && (strcmp(curserver->id, name) != 0))
-			curserver = curserver->next;
-
-		if (curserver)
-			return curserver;
+		node = ebis_lookup(&bk->conf.used_server_name, name);
+		if (node)
+			curserver = container_of(node, struct server, conf.name);
 	}
 
-	return NULL;
+	return curserver;
 }
 
 struct server *server_find_best_match(struct proxy *bk, char *name, int id, int *diff)
