@@ -2819,6 +2819,11 @@ static size_t qmux_nego_ff(struct stconn *sc, struct buffer *input, size_t count
 	/* stream layer has been detached so no transfer must occur after. */
 	BUG_ON_HOT(qcs->flags & QC_SF_DETACH);
 
+	if (global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_QUIC_SND) {
+		qcs->sd->iobuf.flags |= IOBUF_FL_NO_FF;
+		goto end;
+	}
+
 	if (!qcs->qcc->app_ops->nego_ff || !qcs->qcc->app_ops->done_ff) {
 		/* Fast forwading is not supported by the QUIC application layer */
 		qcs->sd->iobuf.flags |= IOBUF_FL_NO_FF;

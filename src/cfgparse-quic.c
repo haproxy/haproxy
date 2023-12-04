@@ -248,6 +248,25 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 	return 0;
 }
 
+/* config parser for global "tune.quic.zero-copy-fwd-send" */
+static int cfg_parse_quic_zero_copy_fwd_snd(char **args, int section_type, struct proxy *curpx,
+					    const struct proxy *defpx, const char *file, int line,
+					    char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		global.tune.no_zero_copy_fwd &= ~NO_ZERO_COPY_FWD_QUIC_SND;
+	else if (strcmp(args[1], "off") == 0)
+		global.tune.no_zero_copy_fwd |= NO_ZERO_COPY_FWD_QUIC_SND;
+	else {
+		memprintf(err, "'%s' expects 'on' or 'off'.", args[0]);
+		return -1;
+	}
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.socket-owner", cfg_parse_quic_tune_socket_owner },
 	{ CFG_GLOBAL, "tune.quic.backend.max-idle-timeou", cfg_parse_quic_time },
@@ -256,6 +275,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.frontend.max-idle-timeout", cfg_parse_quic_time },
 	{ CFG_GLOBAL, "tune.quic.max-frame-loss", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.retry-threshold", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.zero-copy-fwd-send", cfg_parse_quic_zero_copy_fwd_snd },
 	{ 0, NULL, NULL }
 }};
 

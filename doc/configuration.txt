@@ -1221,6 +1221,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.max-frame-loss
    - tune.quic.retry-threshold
    - tune.quic.socket-owner
+   - tune.quic.zero-copy-fwd-send
    - tune.rcvbuf.backend
    - tune.rcvbuf.client
    - tune.rcvbuf.frontend
@@ -2927,7 +2928,7 @@ tune.disable-zero-copy-forwarding
 
   See also: tune.pt.zero-copy-forwarding,
             tune.h1.zero-copy-fwd-recv, tune.h1.zero-copy-fwd-send,
-            tune.h2.zero-copy-fwd-send
+            tune.h2.zero-copy-fwd-send, tune.quic.zero-copy-fwd-send
 
 tune.events.max-events-at-once <number>
   Sets the number of events that may be processed at once by an asynchronous
@@ -3455,6 +3456,12 @@ tune.quic.socket-owner { connection | listener }
   listener, unless its bind option is set to "listener". However, if "listener"
   is used globally, it will be forced on every listener instance, regardless of
   their individual configuration.
+
+tune.quit.zero-copy-fwd-send { on | off }
+  Enables ('on') of disabled ('off') the zero-copy sends of data for the QUIC
+  multiplexer. It is enabled by default.
+
+  See also: tune.disable-zero-copy-forwarding
 
 tune.rcvbuf.backend <number>
 tune.rcvbuf.frontend <number>
