@@ -107,11 +107,11 @@ Summary
 8.2.6.        Custom log format
 8.3.      Advanced logging options
 8.3.1.        Disabling logging of external tests
-8.3.2.        Logging before waiting for the session to terminate
+8.3.2.        Logging before waiting for the stream to terminate
 8.3.3.        Raising log level upon errors
 8.3.4.        Disabling logging of successful connections
 8.4.      Timing events
-8.5.      Session state at disconnection
+8.5.      Stream state at disconnection
 8.6.      Non-printable characters
 8.7.      Capturing HTTP cookies
 8.8.      Capturing HTTP headers
@@ -2798,9 +2798,9 @@ maxcompcpuusage <number>
 
 maxcomprate <number>
   Sets the maximum per-process input compression rate to <number> kilobytes
-  per second. For each session, if the maximum is reached, the compression
-  level will be decreased during the session. If the maximum is reached at the
-  beginning of a session, the session will not compress at all. If the maximum
+  per second. For each stream, if the maximum is reached, the compression
+  level will be decreased during the stream. If the maximum is reached at the
+  beginning of a stream, the stream will not compress at all. If the maximum
   is not reached, the compression level will be increased up to
   tune.comp.maxlevel. A value of zero means there is no limit, this is the
   default value.
@@ -2880,7 +2880,7 @@ maxsslrate <number>
 
 maxzlibmem <number>
   Sets the maximum amount of RAM in megabytes per process usable by the zlib.
-  When the maximum amount is reached, future sessions will not compress as long
+  When the maximum amount is reached, future streams will not compress as long
   as RAM is unavailable. When sets to 0, there is no limit.
   The default value is 0. The value is available in bytes on the UNIX socket
   with "show info" on the line "MaxZlibMemUsage", the memory used by zlib is
@@ -3018,8 +3018,8 @@ tune.buffers.limit <number>
   will always be greater than "tune.buffers.reserve" and should ideally always
   be about twice as large. Forcing this value can be particularly useful to
   limit the amount of memory a process may take, while retaining a sane
-  behavior. When this limit is reached, sessions which need a buffer wait for
-  another one to be released by another session. Since buffers are dynamically
+  behavior. When this limit is reached, streams which need a buffer wait for
+  another one to be released by another stream. Since buffers are dynamically
   allocated and released, the waiting time is very short and not perceptible
   provided that limits remain reasonable. In fact sometimes reducing the limit
   may even increase performance by increasing the CPU cache's efficiency. Tests
@@ -3037,7 +3037,7 @@ tune.buffers.reserve <number>
 
 tune.bufsize <number>
   Sets the buffer size to this size (in bytes). Lower values allow more
-  sessions to coexist in the same amount of RAM, and higher values allow some
+  streams to coexist in the same amount of RAM, and higher values allow some
   applications with very large cookies to work. The default value is 16384 and
   can be changed at build time. It is strongly recommended not to change this
   from the default value, as very low values will break some services such as
@@ -3054,7 +3054,7 @@ tune.bufsize <number>
 tune.comp.maxlevel <number>
   Sets the maximum compression level. The compression level affects CPU
   usage during compression. This value affects CPU usage during compression.
-  Each session using compression initializes the compression algorithm with
+  Each stream using compression initializes the compression algorithm with
   this value. The default value is 1.
 
 tune.disable-fast-forward [ EXPERIMENTAL ]
@@ -3236,7 +3236,7 @@ tune.http.maxhdr <number>
   same limit. It can be useful to push this limit further to temporarily allow
   a buggy application to work by the time it gets fixed. The accepted range is
   1..32767. Keep in mind that each new header consumes 32bits of memory for
-  each session, so don't push this limit too high.
+  each stream, so don't push this limit too high.
 
 tune.idle-pool.shared { on | off }
   Enables ('on') or disables ('off') sharing of idle connection pools between
@@ -3867,7 +3867,7 @@ tune.vars.txn-max-size <size>
   plan for the amount of space needed to store all your variables.
 
 tune.zlib.memlevel <number>
-  Sets the memLevel parameter in zlib initialization for each session. It
+  Sets the memLevel parameter in zlib initialization for each stream. It
   defines how much memory should be allocated for the internal compression
   state. A value of 1 uses minimum memory but is slow and reduces compression
   ratio, a value of 9 uses maximum memory for optimal speed. Can be a value
@@ -3875,7 +3875,7 @@ tune.zlib.memlevel <number>
 
 tune.zlib.windowsize <number>
   Sets the window size (the size of the history buffer) as a parameter of the
-  zlib initialization for each session. Larger values of this parameter result
+  zlib initialization for each stream. Larger values of this parameter result
   in better compression at the expense of memory usage. Can be a value between
   8 and 15. The default value is 15.
 
@@ -5452,7 +5452,7 @@ capture request header <name> len <length>
   braces.
 
   There is no limit to the number of captured request headers nor to their
-  length, though it is wise to keep them low to limit memory usage per session.
+  length, though it is wise to keep them low to limit memory usage per stream.
   In order to keep log format consistent for a same frontend, header captures
   can only be declared in a frontend. It is not possible to specify a capture
   in a "defaults" section.
@@ -5495,7 +5495,7 @@ capture response header <name> len <length>
   "Location" header to track redirections.
 
   There is no limit to the number of captured response headers nor to their
-  length, though it is wise to keep them low to limit memory usage per session.
+  length, though it is wise to keep them low to limit memory usage per stream.
   In order to keep log format consistent for a same frontend, header captures
   can only be declared in a frontend. It is not possible to specify a capture
   in a "defaults" section.
@@ -8057,7 +8057,7 @@ no option abortonclose
 
   In presence of very high loads, the servers will take some time to respond.
   The per-instance connection queue will inflate, and the response time will
-  increase respective to the size of the queue times the average per-session
+  increase respective to the size of the queue times the average per-stream
   response time. When clients will wait for more than a few seconds, they will
   often hit the "STOP" button on their browser, leaving a useless request in
   the queue, and slowing down other users, and the servers as well, because the
@@ -8069,18 +8069,18 @@ no option abortonclose
   that the client might only have closed its output channel while waiting for
   the response. However, this introduces risks of congestion when lots of users
   do the same, and is completely useless nowadays because probably no client at
-  all will close the session while waiting for the response. Some HTTP agents
+  all will close the stream while waiting for the response. Some HTTP agents
   support this behavior (Squid, Apache, HAProxy), and others do not (TUX, most
   hardware-based load balancers). So the probability for a closed input channel
   to represent a user hitting the "STOP" button is close to 100%, and the risk
   of being the single component to break rare but valid traffic is extremely
-  low, which adds to the temptation to be able to abort a session early while
+  low, which adds to the temptation to be able to abort a stream early while
   still not served and not pollute the servers.
 
   In HAProxy, the user can choose the desired behavior using the option
   "abortonclose". By default (without the option) the behavior is HTTP
   compliant and aborted requests will be served. But when the option is
-  specified, a session with an incoming channel closed will be aborted while
+  specified, a stream with an incoming channel closed will be aborted while
   it is still possible, either pending in the queue for a connection slot, or
   during the connection establishment if the server has not yet acknowledged
   the connection request. This considerably reduces the queue size and the load
@@ -8312,11 +8312,11 @@ option contstats
   Arguments : none
 
   By default, counters used for statistics calculation are incremented
-  only when a session finishes. It works quite well when serving small
+  only when a stream finishes. It works quite well when serving small
   objects, but with big ones (for example large images or archives) or
   with A/V streaming, a graph generated from HAProxy counters looks like
   a hedgehog. With this option enabled counters get incremented frequently
-  along the session, typically every 5 seconds, which is often enough to
+  along the stream, typically every 5 seconds, which is often enough to
   produce clean graphs. Recounting touches a hotpath directly so it is not
   not enabled by default, as it can cause a lot of wakeups for very large
   session counts and cause a small performance drop.
@@ -9097,7 +9097,7 @@ no option httpclose
 
 
 option httplog [ clf ]
-  Enable logging of HTTP request, session state and timers
+  Enable logging of HTTP request, stream state and timers
 
   May be used in the following contexts: http
 
@@ -9114,7 +9114,7 @@ option httplog [ clf ]
   By default, the log output format is very poor, as it only contains the
   source and destination addresses, and the instance name. By specifying
   "option httplog", each log line turns into a much richer format including,
-  but not limited to, the HTTP request, the connection timers, the session
+  but not limited to, the HTTP request, the connection timers, the stream
   status, the connections numbers, the captured headers and cookies, the
   frontend, backend and server name, and of course the source address and
   ports.
@@ -9127,7 +9127,7 @@ option httplog [ clf ]
   See also :  section 8 about logging.
 
 option httpslog
-  Enable logging of HTTPS request, session state and timers
+  Enable logging of HTTPS request, stream state and timers
 
   May be used in the following contexts: http
 
@@ -9137,7 +9137,7 @@ option httpslog
   By default, the log output format is very poor, as it only contains the
   source and destination addresses, and the instance name. By specifying
   "option httpslog", each log line turns into a much richer format including,
-  but not limited to, the HTTP request, the connection timers, the session
+  but not limited to, the HTTP request, the connection timers, the stream
   status, the connections numbers, the captured headers and cookies, the
   frontend, backend and server name, the SSL certificate verification and SSL
   handshake statuses, and of course the source address and ports.
@@ -9165,7 +9165,7 @@ no option independent-streams
 
   While this default behavior is desirable for almost all applications, there
   exists a situation where it is desirable to disable it, and only refresh the
-  read timeout if there are incoming data. This happens on sessions with large
+  read timeout if there are incoming data. This happens on streams with large
   timeouts and low amounts of exchanged data such as telnet session. If the
   server suddenly disappears, the output data accumulates in the system's
   socket buffers, both timeouts are correctly refreshed, and there is no way
@@ -9330,7 +9330,7 @@ no option logasap
 
   By default, logs are emitted when all the log format variables and sample
   fetches used in the definition of the log-format string return a value, or
-  when the session is terminated. This allows the built in log-format strings
+  when the stream is terminated. This allows the built in log-format strings
   to account for the transfer time, or the number of bytes in log messages.
 
   When handling long lived connections such as large file transfers or RDP,
@@ -10130,7 +10130,7 @@ option tcpka
 
 
 option tcplog
-  Enable advanced logging of TCP connections with session state and timers
+  Enable advanced logging of TCP connections with stream state and timers
 
   May be used in the following contexts: tcp, http
 
@@ -10142,7 +10142,7 @@ option tcplog
   By default, the log output format is very poor, as it only contains the
   source and destination addresses, and the instance name. By specifying
   "option tcplog", each log line turns into a much richer format including, but
-  not limited to, the connection timers, the session status, the connections
+  not limited to, the connection timers, the stream status, the connections
   numbers, the frontend, backend and server name, and of course the source
   address and ports. This option is useful for pure TCP proxies in order to
   find which of the client or server disconnects or times out. For normal HTTP
@@ -13012,8 +13012,8 @@ timeout client <timeout>
   client timeout remains equal to the server timeout in order to avoid complex
   situations to debug. It is a good practice to cover one or several TCP packet
   losses by specifying timeouts that are slightly above multiples of 3 seconds
-  (e.g. 4 or 5 seconds). If some long-lived sessions are mixed with short-lived
-  sessions (e.g. WebSocket and HTTP), it's worth considering "timeout tunnel",
+  (e.g. 4 or 5 seconds). If some long-lived streams are mixed with short-lived
+  streams (e.g. WebSocket and HTTP), it's worth considering "timeout tunnel",
   which overrides "timeout client" and "timeout server" for tunnels, as well as
   "timeout client-fin" for half-closed connections.
 
@@ -13256,8 +13256,8 @@ timeout server <timeout>
   order to avoid complex situations to debug. Whatever the expected server
   response times, it is a good practice to cover at least one or several TCP
   packet losses by specifying timeouts that are slightly above multiples of 3
-  seconds (e.g. 4 or 5 seconds minimum). If some long-lived sessions are mixed
-  with short-lived sessions (e.g. WebSocket and HTTP), it's worth considering
+  seconds (e.g. 4 or 5 seconds minimum). If some long-lived streams are mixed
+  with short-lived streams (e.g. WebSocket and HTTP), it's worth considering
   "timeout tunnel", which overrides "timeout client" and "timeout server" for
   tunnels.
 
@@ -13847,7 +13847,7 @@ capture <sample> [ len <length> | id <id> ]
   automatically appear in the logs, and it will be possible to extract it using
   sample fetch methods to feed it into headers or anything. The length should
   be limited given that this size will be allocated for each capture during the
-  whole session life. Note that the length is only usable with "http-request"
+  whole stream life. Note that the length is only usable with "http-request"
   rules. Please check section 7.3 (Fetching samples), "capture request header"
   and "capture response header" for more information.
 
@@ -16809,7 +16809,7 @@ on-error <mode>
 on-marked-down <action>
   Modify what occurs when a server is marked down.
   Currently one action is available:
-  - shutdown-sessions: Shutdown peer sessions. When this setting is enabled,
+  - shutdown-sessions: Shutdown peer streams. When this setting is enabled,
     all connections to the server are immediately terminated when the server
     goes down. It might be used if the health check detects more complex cases
     than a simple connection status, and long timeouts would cause the service
@@ -16823,13 +16823,13 @@ on-marked-down <action>
 on-marked-up <action>
   Modify what occurs when a server is marked up.
   Currently one action is available:
-  - shutdown-backup-sessions: Shutdown sessions on all backup servers. This is
+  - shutdown-backup-sessions: Shutdown streams on all backup servers. This is
     done only if the server is not in backup state and if it is not disabled
     (it must have an effective weight > 0). This can be used sometimes to force
     an active server to take all the traffic back after recovery when dealing
     with long sessions (e.g. LDAP, SQL, ...). Doing this can cause more trouble
     than it tries to solve (e.g. incomplete transactions), so use this feature
-    with extreme care. Sessions killed because a server comes up are logged
+    with extreme care. Streams killed because a server comes up are logged
     with an 'U' termination code (for "Up").
 
   Actions are disabled by default
@@ -19498,8 +19498,8 @@ sha2([<bits>])
 
 srv_queue
   Takes an input value of type string, either a server name or <backend>/<server>
-  format and returns the number of queued sessions on that server. Can be used
-  in places where we want to look up queued sessions from a dynamic name, like a
+  format and returns the number of queued streams on that server. Can be used
+  in places where we want to look up queued streams from a dynamic name, like a
   cookie value (e.g. req.cook(SRVID),srv_queue) and then make a decision to break
   persistence or direct a request elsewhere.
 
@@ -20416,12 +20416,12 @@ nbsrv([<backend>]) : integer
   "monitor fail".
 
 prio_class : integer
-  Returns the priority class of the current session for http mode or connection
+  Returns the priority class of the current stream for http mode or connection
   for tcp mode. The value will be that set by the last call to "http-request
   set-priority-class" or "tcp-request content set-priority-class".
 
 prio_offset : integer
-  Returns the priority offset of the current session for http mode or
+  Returns the priority offset of the current stream for http mode or
   connection for tcp mode. The value will be that set by the last call to
   "http-request set-priority-offset" or "tcp-request content
   set-priority-offset".
@@ -20553,21 +20553,21 @@ txn.id32 : integer
   true unique ID, see "unique-id-format" directive.
 
 txn.conn_retries : integer
-  Returns the the number of connection retries experienced by this session when
+  Returns the the number of connection retries experienced by this stream when
   trying to connect to the server. This value is subject to change while the
   connection is not fully established. For HTTP connections, the value may be
   affected by L7 retries.
 
 txn.sess_term_state : string
-  Retruns the TCP or HTTP session termination state, as reported in the log. It
-  is a 2-characters string, The final session state followed by the event which
-  caused its to terminate. See section 8.5 about session state at disconnection
+  Retruns the TCP or HTTP stream termination state, as reported in the log. It
+  is a 2-characters string, The final stream state followed by the event which
+  caused its to terminate. See section 8.5 about stream state at disconnection
   for the list of possible events. The current value at time the sample fetch
   is evaluated is returned. It is subject to change. Except used with ACLs in
   "http-after-response" rule sets or in log messages, it will always be "--".
 
   Example:
-      # Return a 429-Too-Many-Requests if session timed out in queue
+      # Return a 429-Too-Many-Requests if stream timed out in queue
       http-after-response set-status 429 if { txn.sess_term_state  "sQ" }
 
 uuid([<version>]) : string
@@ -20971,7 +20971,7 @@ fc.timer.handshake : integer
   For more information see Section 8.4 "Timing events"
 
 fc.timer.total : integer
-  Total session duration time, between the moment the proxy accepted it and the
+  Total stream duration time, between the moment the proxy accepted it and the
   moment both ends were closed. This is the equivalent of %Tt in the log-format.
   This is reported in milliseconds (ms). For more information see Section 8.4
   "Timing events"
@@ -22933,7 +22933,7 @@ res.len : integer
   response buffer. This is mostly used in ACL. It is important to understand
   that this test does not return false as long as the buffer is changing. This
   means that a check with equality to zero will almost always immediately match
-  at the beginning of the session, while a test for more data will wait for
+  at the beginning of the stream, while a test for more data will wait for
   that data to come in and return false only when HAProxy is certain that no
   more data will come in. This test was designed to be used with TCP response
   content inspection. But it may also be used in tcp-check based expect rules.
@@ -24039,7 +24039,7 @@ WAIT_END         wait_end                           wait for end of content anal
 One of HAProxy's strong points certainly lies is its precise logs. It probably
 provides the finest level of information available for such a product, which is
 very important for troubleshooting complex environments. Standard information
-provided in logs include client ports, TCP/HTTP state timers, precise session
+provided in logs include client ports, TCP/HTTP state timers, precise stream
 state at termination and precise termination cause, information about decisions
 to direct traffic to a server, and of course the ability to capture arbitrary
 headers.
@@ -24070,7 +24070,7 @@ delay.
 TCP and HTTP connections can be logged with information such as the date, time,
 source IP address, destination address, connection duration, response times,
 HTTP request, HTTP return code, number of bytes transmitted, conditions
-in which the session ended, and even exchanged cookies values. For example
+in which the stream ended, and even exchanged cookies values. For example
 track a particular user's problems. All messages may be sent to up to two
 syslog servers. Check the "log" keyword in section 4.2 for more information
 about log facilities.
@@ -24281,7 +24281,7 @@ Detailed fields description :
     ended. This indicates the session state, which side caused the end of
     session to happen, and for what reason (timeout, error, ...). The normal
     flags should be "--", indicating the session was closed by either end with
-    no data remaining in buffers. See below "Session state at disconnection"
+    no data remaining in buffers. See below "Stream state at disconnection"
     for more details.
 
   - "actconn" is the total number of concurrent connections on the process when
@@ -24358,9 +24358,9 @@ The HTTP format is the most complete and the best suited for HTTP proxies. It
 is enabled by when "option httplog" is specified in the frontend. It provides
 the same level of information as the TCP format with additional features which
 are specific to the HTTP protocol. Just like the TCP format, the log is usually
-emitted at the end of the session, unless "option logasap" is specified, which
-generally only makes sense for download sites. A session which matches the
-"monitor" rules will never logged. It is also possible not to log sessions for
+emitted at the end of the stream, unless "option logasap" is specified, which
+generally only makes sense for download sites. A stream which matches the
+"monitor" rules will never logged. It is also possible not to log streams for
 which no data were sent by the client by specifying "option dontlognull" in the
 frontend. Successful connections will not be logged if "option dontlog-normal"
 is specified in the frontend.
@@ -24516,16 +24516,16 @@ Detailed fields description :
     crossing between clients due to application bugs. For more details, please
     consult the section "Capturing HTTP headers and cookies" below.
 
-  - "termination_state" is the condition the session was in when the session
-    ended. This indicates the session state, which side caused the end of
-    session to happen, for what reason (timeout, error, ...), just like in TCP
+  - "termination_state" is the condition the stream was in when the stream
+    ended. This indicates the stream state, which side caused the end of
+    stream to happen, for what reason (timeout, error, ...), just like in TCP
     logs, and information about persistence operations on cookies in the last
     two characters. The normal flags should begin with "--", indicating the
-    session was closed by either end with no data remaining in buffers. See
-    below "Session state at disconnection" for more details.
+    stream was closed by either end with no data remaining in buffers. See
+    below "Stream state at disconnection" for more details.
 
   - "actconn" is the total number of concurrent connections on the process when
-    the session was logged. It is useful to detect when some per-process system
+    the stream was logged. It is useful to detect when some per-process system
     limits have been reached. For instance, if actconn is close to 512 or 1024
     when multiple connection errors occur, chances are high that the system
     limits the process to use a maximum of 1024 file descriptors and that all
@@ -24533,14 +24533,14 @@ Detailed fields description :
     system.
 
   - "feconn" is the total number of concurrent connections on the frontend when
-    the session was logged. It is useful to estimate the amount of resource
+    the stream was logged. It is useful to estimate the amount of resource
     required to sustain high loads, and to detect when the frontend's "maxconn"
     has been reached. Most often when this value increases by huge jumps, it is
     because there is congestion on the backend servers, but sometimes it can be
     caused by a denial of service attack.
 
   - "beconn" is the total number of concurrent connections handled by the
-    backend when the session was logged. It includes the total number of
+    backend when the stream was logged. It includes the total number of
     concurrent connections active on servers as well as the number of
     connections pending in queues. It is useful to estimate the amount of
     additional servers needed to support high loads for a given application.
@@ -24549,7 +24549,7 @@ Detailed fields description :
     denial of service attack.
 
   - "srv_conn" is the total number of concurrent connections still active on
-    the server when the session was logged. It can never exceed the server's
+    the server when the stream was logged. It can never exceed the server's
     configured "maxconn" parameter. If this value is very often close or equal
     to the server's "maxconn", it means that traffic regulation is involved a
     lot, meaning that either the server's maxconn value is too low, or that
@@ -24558,13 +24558,13 @@ Detailed fields description :
     that this server has some trouble causing the requests to take longer to be
     processed than on other servers.
 
-  - "retries" is the number of connection retries experienced by this session
+  - "retries" is the number of connection retries experienced by this stream
     when trying to connect to the server. It must normally be zero, unless a
     server is being stopped at the same moment the connection was attempted.
     Frequent retries generally indicate either a network problem between
     HAProxy and the server, or a misconfigured system backlog on the server
     preventing new connections from being queued. This field may optionally be
-    prefixed with a '+' sign, indicating that the session has experienced a
+    prefixed with a '+' sign, indicating that the stream has experienced a
     redispatch after the maximal retry count has been reached on the initial
     server. In this case, the server name appearing in the log is the one the
     connection was redispatched to, and not the first one, though both may
@@ -24576,7 +24576,7 @@ Detailed fields description :
     this one in the server queue. It is zero when the request has not gone
     through the server queue. It makes it possible to estimate the approximate
     server's response time by dividing the time spent in queue by the number of
-    requests in the queue. It is worth noting that if a session experiences a
+    requests in the queue. It is worth noting that if a stream experiences a
     redispatch and passes through two server queues, their positions will be
     cumulative. A request should not pass through both the server queue and the
     backend queue unless a redispatch occurs.
@@ -24586,7 +24586,7 @@ Detailed fields description :
     gone through the global queue. It makes it possible to estimate the average
     queue length, which easily translates into a number of missing servers when
     divided by a server's "maxconn" parameter. It is worth noting that if a
-    session experiences a redispatch, it may pass twice in the backend's queue,
+    stream experiences a redispatch, it may pass twice in the backend's queue,
     and then both positions will be cumulative. A request should not pass
     through both the server queue and the backend queue unless a redispatch
     occurs.
@@ -24626,9 +24626,9 @@ The HTTPS format is the best suited for HTTP over SSL connections. It is an
 extension of the HTTP format (see section 8.2.3) to which SSL related
 information are added. It is enabled when "option httpslog" is specified in the
 frontend. Just like the TCP and HTTP formats, the log is usually emitted at the
-end of the session, unless "option logasap" is specified. A session which
+end of the stream, unless "option logasap" is specified. A stream which
 matches the "monitor" rules will never logged. It is also possible not to log
-sessions for which no data were sent by the client by specifying "option
+streams for which no data were sent by the client by specifying "option
 dontlognull" in the frontend. Successful connections will not be logged if
 "option dontlog-normal" is specified in the frontend.
 
@@ -25038,11 +25038,11 @@ ask how to disable logging for those checks. There are three possibilities :
     only get the result of a health-check, and the request will not be logged.
 
 
-8.3.2. Logging before waiting for the session to terminate
+8.3.2. Logging before waiting for the stream to terminate
 ----------------------------------------------------------
 
 The problem with logging at end of connection is that you have no clue about
-what is happening during very long sessions, such as remote terminal sessions
+what is happening during very long streams, such as remote terminal sessions
 or large file downloads. This problem can be worked around by specifying
 "option logasap" in the frontend. HAProxy will then log as soon as possible,
 just before data transfer begins. This means that in case of TCP, it will still
@@ -25087,7 +25087,7 @@ alternative.
 
 Timers provide a great help in troubleshooting network problems. All values are
 reported in milliseconds (ms). These timers should be used in conjunction with
-the session termination flags. In TCP mode with "option tcplog" set on the
+the stream termination flags. In TCP mode with "option tcplog" set on the
 frontend, 3 control points are reported under the form "Tw/Tc/Tt", and in HTTP
 mode, 5 control points are reported under the form "TR/Tw/Tc/Tr/Ta". In
 addition, three other measures are provided, "Th", "Ti", and "Tq".
@@ -25220,7 +25220,7 @@ Timings events in TCP mode:
     This timer is named %Ta as a log-format tag, and txn.timer.total as a
     sample fetch.
 
-  - Tt: total session duration time, between the moment the proxy accepted it
+  - Tt: total stream duration time, between the moment the proxy accepted it
     and the moment both ends were closed. The exception is when the "logasap"
     option is specified. In this case, it only equals (Th+Ti+TR+Tw+Tc+Tr), and
     is prefixed with a '+' sign. From this field, we can deduce "Td", the data
@@ -25252,7 +25252,7 @@ protocol defines retransmit delays of 3, 6, 12... seconds, we know for sure
 that timers close to multiples of 3s are nearly always related to lost packets
 due to network problems (wires, negotiation, congestion). Moreover, if "Ta" or
 "Tt" is close to a timeout value specified in the configuration, it often means
-that a session has been aborted on timeout.
+that a stream has been aborted on timeout.
 
 Most common cases :
 
@@ -25295,50 +25295,50 @@ Other noticeable HTTP log cases ('xx' means any value to be ignored) :
                    except "Ta" which is shorter than reality.
 
   -1/xx/xx/xx/Ta   The client was not able to send a complete request in time
-                   or it aborted too early. Check the session termination flags
+                   or it aborted too early. Check the stream termination flags
                    then "timeout http-request" and "timeout client" settings.
 
   TR/-1/xx/xx/Ta   It was not possible to process the request, maybe because
                    servers were out of order, because the request was invalid
-                   or forbidden by ACL rules. Check the session termination
+                   or forbidden by ACL rules. Check the stream termination
                    flags.
 
   TR/Tw/-1/xx/Ta   The connection could not establish on the server. Either it
                    actively refused it or it timed out after Ta-(TR+Tw) ms.
-                   Check the session termination flags, then check the
+                   Check the stream termination flags, then check the
                    "timeout connect" setting. Note that the tarpit action might
                    return similar-looking patterns, with "Tw" equal to the time
                    the client connection was maintained open.
 
   TR/Tw/Tc/-1/Ta   The server has accepted the connection but did not return
                    a complete response in time, or it closed its connection
-                   unexpectedly after Ta-(TR+Tw+Tc) ms. Check the session
+                   unexpectedly after Ta-(TR+Tw+Tc) ms. Check the stream
                    termination flags, then check the "timeout server" setting.
 
 
-8.5. Session state at disconnection
+8.5. Stream state at disconnection
 -----------------------------------
 
-TCP and HTTP logs provide a session termination indicator in the
+TCP and HTTP logs provide a stream termination indicator in the
 "termination_state" field, just before the number of active connections. It is
 2-characters long in TCP mode, and is extended to 4 characters in HTTP mode,
 each of which has a special meaning :
 
   - On the first character, a code reporting the first event which caused the
-    session to terminate :
+    stream to terminate :
 
         C : the TCP session was unexpectedly aborted by the client.
 
         S : the TCP session was unexpectedly aborted by the server, or the
             server explicitly refused it.
 
-        P : the session was prematurely aborted by the proxy, because of a
-            connection limit enforcement, because a DENY filter was matched,
-            because of a security check which detected and blocked a dangerous
-            error in server response which might have caused information leak
-            (e.g. cacheable cookie).
+        P : the stream or session was prematurely aborted by the proxy, because
+            of a connection limit enforcement, because a DENY filter was
+            matched, because of a security check which detected and blocked a
+            dangerous error in server response which might have caused
+            information leak (e.g. cacheable cookie).
 
-        L : the session was locally processed by HAProxy and was not passed to
+        L : the stream was locally processed by HAProxy and was not passed to
             a server. This is what happens for stats and redirects.
 
         R : a resource on the proxy has been exhausted (memory, sockets, source
@@ -25353,14 +25353,14 @@ each of which has a special meaning :
             would be wise to preventively restart the process after such an
             event too, in case it would be caused by memory corruption.
 
-        D : the session was killed by HAProxy because the server was detected
+        D : the stream was killed by HAProxy because the server was detected
             as down and was configured to kill all connections when going down.
 
-        U : the session was killed by HAProxy on this backup server because an
+        U : the stream was killed by HAProxy on this backup server because an
             active server was detected as up and was configured to kill all
             backup connections when going up.
 
-        K : the session was actively killed by an admin operating on HAProxy.
+        K : the stream was actively killed by an admin operating on HAProxy.
 
         c : the client-side timeout expired while waiting for the client to
             send or receive data.
@@ -25368,10 +25368,10 @@ each of which has a special meaning :
         s : the server-side timeout expired while waiting for the server to
             send or receive data.
 
-        - : normal session completion, both the client and the server closed
+        - : normal stream completion, both the client and the server closed
             with nothing left in the buffers.
 
-  - on the second character, the TCP or HTTP session state when it was closed :
+  - on the second character, the TCP or HTTP stream state when it was closed :
 
         R : the proxy was waiting for a complete, valid REQUEST from the client
             (HTTP mode only). Nothing was sent to any server.
@@ -25388,7 +25388,7 @@ each of which has a special meaning :
         H : the proxy was waiting for complete, valid response HEADERS from the
             server (HTTP only).
 
-        D : the session was in the DATA phase.
+        D : the stream was in the DATA phase.
 
         L : the proxy was still transmitting LAST data to the client while the
             server had already finished. This one is very rare as it can only
@@ -25398,7 +25398,7 @@ each of which has a special meaning :
             during the whole "timeout tarpit" duration or until the client
             closed, both of which will be reported in the "Tw" timer.
 
-        - : normal session completion after end of data transfer.
+        - : normal stream completion after end of data transfer.
 
   - the third character tells whether the persistence cookie was provided by
     the client (only in HTTP mode) :
@@ -25461,9 +25461,9 @@ each of which has a special meaning :
         - : does not apply (no cookie set in configuration).
 
 The combination of the two first flags gives a lot of information about what
-was happening when the session terminated, and why it did terminate. It can be
-helpful to detect server saturation, network troubles, local system resource
-starvation, attacks, etc...
+was happening when the stream or session terminated, and why it did terminate.
+It can be helpful to detect server saturation, network troubles, local system
+resource starvation, attacks, etc...
 
 The most common termination flags combinations are indicated below. They are
 alphabetically sorted, with the lowercase set just after the upper case for
@@ -25482,7 +25482,7 @@ easier finding and understanding.
           caused by a browser crash, by an intermediate equipment between the
           client and HAProxy which decided to actively break the connection,
           by network routing issues between the client and HAProxy, or by a
-          keep-alive session between the server and the client terminated first
+          keep-alive stream between the server and the client terminated first
           by the client.
 
      cD   The client did not send nor acknowledge any data for as long as the
@@ -25499,7 +25499,7 @@ easier finding and understanding.
           also happen when client timeout is smaller than server timeout and
           the server takes too long to respond.
 
-     CQ   The client aborted while its session was queued, waiting for a server
+     CQ   The client aborted while its stream was queued, waiting for a server
           with enough empty slots to accept it. It might be that either all the
           servers were saturated or that the assigned server was taking too
           long a time to respond.
@@ -25530,7 +25530,7 @@ easier finding and understanding.
           zero data transfer to be totally ignored. This will definitely hide
           the errors of people experiencing connectivity issues though.
 
-     CT   The client aborted while its session was tarpitted. It is important to
+     CT   The client aborted while its stream was tarpitted. It is important to
           check if this happens on valid requests, in order to be sure that no
           wrong tarpit rules have been written. If a lot of them happen, it
           might make sense to lower the "timeout tarpit" value to something
@@ -25579,7 +25579,7 @@ easier finding and understanding.
           will suffer from these long response times. The only long term
           solution is to fix the application.
 
-     sQ   The session spent too much time in queue and has been expired. See
+     sQ   The stream spent too much time in queue and has been expired. See
           the "timeout queue" and "timeout connect" settings to find out how to
           fix this if it happens too often. If it often happens massively in
           short periods, it may indicate general problems on the affected
