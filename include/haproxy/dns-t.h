@@ -136,6 +136,7 @@ struct dns_session {
 struct dns_nameserver {
 	char *id;                       /* nameserver unique identifier */
 	void *parent;
+	unsigned int puid;              /* parent-unique numeric id */
 	struct {
 		const char *file;       /* file where the section appears */
 		int         line;       /* line where the section appears */

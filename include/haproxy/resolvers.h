@@ -34,6 +34,7 @@ extern struct list sec_resolvers;
 extern unsigned int resolv_failed_resolutions;
 
 struct resolvers *find_resolvers_by_id(const char *id);
+struct dns_nameserver *find_nameserver_by_resolvers_and_id(struct resolvers *parent, unsigned int id);
 struct resolv_srvrq *find_srvrq_by_name(const char *name, struct proxy *px);
 struct resolv_srvrq *new_resolv_srvrq(struct server *srv, char *fqdn);
 struct resolv_answer_item *find_srvrq_answer_record(const struct resolv_requester *requester);

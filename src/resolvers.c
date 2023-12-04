@@ -170,6 +170,20 @@ struct resolvers *find_resolvers_by_id(const char *id)
 	return NULL;
 }
 
+/* Returns a pointer to the nameserver matching numerical <id> within <parent>
+ * resolver section. NULL is returned if no match is found.
+ */
+struct dns_nameserver *find_nameserver_by_resolvers_and_id(struct resolvers *parent, unsigned int id)
+{
+	struct dns_nameserver *ns;
+
+	list_for_each_entry(ns, &parent->nameservers, list) {
+		if (ns->puid == id)
+			return ns;
+	}
+	return NULL;
+}
+
 /* Returns a pointer on the SRV request matching the name <name> for the proxy
  * <px>. NULL is returned if no match is found.
  */
@@ -3371,7 +3385,9 @@ static int parse_resolve_conf(char **errmsg, char **warnmsg)
 		newnameserver->parent = curr_resolvers;
 		newnameserver->process_responses = resolv_process_responses;
 		newnameserver->conf.line = resolv_linenum;
+		newnameserver->puid = curr_resolvers->nb_nameservers;
 		LIST_APPEND(&curr_resolvers->nameservers, &newnameserver->list);
+		curr_resolvers->nb_nameservers++;
 	}
 
 resolv_out:
@@ -3428,6 +3444,7 @@ static int resolvers_new(struct resolvers **resolvers, const char *id, const cha
 	r->timeout.resolve = 1000;
 	r->timeout.retry   = 1000;
 	r->resolve_retries = 3;
+	r->nb_nameservers = 0;
 	LIST_INIT(&r->nameservers);
 	LIST_INIT(&r->resolutions.curr);
 	LIST_INIT(&r->resolutions.wait);
@@ -3572,8 +3589,10 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		newnameserver->parent = curr_resolvers;
 		newnameserver->process_responses = resolv_process_responses;
 		newnameserver->conf.line = linenum;
+		newnameserver->puid = curr_resolvers->nb_nameservers;
 		/* the nameservers are linked backward first */
 		LIST_APPEND(&curr_resolvers->nameservers, &newnameserver->list);
+		curr_resolvers->nb_nameservers++;
 	}
 	else if (strcmp(args[0], "parse-resolv-conf") == 0) {
 		err_code |= parse_resolve_conf(&errmsg, &warnmsg);
