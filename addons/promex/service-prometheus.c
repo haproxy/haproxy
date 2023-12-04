@@ -220,8 +220,8 @@ const struct promex_metric promex_st_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_WREDIS]               = { .n = IST("redispatch_warnings_total"),        .type = PROMEX_MT_COUNTER,  .flags = (                                               PROMEX_FL_BACK_METRIC | PROMEX_FL_SRV_METRIC) },
 	[ST_F_STATUS]               = { .n = IST("status"),                           .type = PROMEX_MT_GAUGE,    .flags = (PROMEX_FL_FRONT_METRIC | PROMEX_FL_LI_METRIC | PROMEX_FL_BACK_METRIC | PROMEX_FL_SRV_METRIC) },
 	[ST_F_WEIGHT]               = { .n = IST("weight"),                           .type = PROMEX_MT_GAUGE,    .flags = (                                               PROMEX_FL_BACK_METRIC | PROMEX_FL_SRV_METRIC) },
-	[ST_F_ACT]                  = { .n = IST("active_servers"),                   .type = PROMEX_MT_GAUGE,    .flags = (                                               PROMEX_FL_BACK_METRIC                       ) },
-	[ST_F_BCK]                  = { .n = IST("backup_servers"),                   .type = PROMEX_MT_GAUGE,    .flags = (                                               PROMEX_FL_BACK_METRIC                       ) },
+	[ST_F_ACT]                  = { .n = IST("active_servers"),                   .type = PROMEX_MT_GAUGE,    .flags = (                                               PROMEX_FL_BACK_METRIC | PROMEX_FL_SRV_METRIC) },
+	[ST_F_BCK]                  = { .n = IST("backup_servers"),                   .type = PROMEX_MT_GAUGE,    .flags = (                                               PROMEX_FL_BACK_METRIC | PROMEX_FL_SRV_METRIC) },
 	[ST_F_CHKFAIL]              = { .n = IST("check_failures_total"),             .type = PROMEX_MT_COUNTER,  .flags = (                                                                       PROMEX_FL_SRV_METRIC) },
 	[ST_F_CHKDOWN]              = { .n = IST("check_up_down_total"),              .type = PROMEX_MT_COUNTER,  .flags = (                                               PROMEX_FL_BACK_METRIC | PROMEX_FL_SRV_METRIC) },
 	[ST_F_LASTCHG]              = { .n = IST("check_last_change_seconds"),        .type = PROMEX_MT_GAUGE,    .flags = (                                               PROMEX_FL_BACK_METRIC | PROMEX_FL_SRV_METRIC) },
@@ -320,6 +320,8 @@ const struct ist promex_st_li_metrics_names[ST_F_TOTAL_FIELDS] = {
 
 /* Specialized server metric names, to override default ones */
 const struct ist promex_st_srv_metrics_names[ST_F_TOTAL_FIELDS] = {
+	[ST_F_ACT] = IST("active"),
+	[ST_F_BCK] = IST("backup"),
 };
 
 /* Description of overridden stats fields */

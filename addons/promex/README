@@ -310,6 +310,8 @@ See prometheus export for the description of each field.
 | haproxy_server_redispatch_warnings_total           |
 | haproxy_server_status                              |
 | haproxy_server_weight                              |
+| haproxy_server_active                              |
+| haproxy_server_backup                              |
 | haproxy_server_check_failures_total                |
 | haproxy_server_check_up_down_total                 |
 | haproxy_server_check_last_change_seconds           |
