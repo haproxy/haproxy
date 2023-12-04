@@ -253,7 +253,7 @@ static struct task *server_atomic_sync(struct task *task, void *context, unsigne
 			px = proxy_find_by_id(data->server.safe.proxy_uuid, PR_CAP_BE, 0);
 			if (!px)
 				continue;
-			srv = findserver_unique_id(px, data->server.safe.puid, data->server.safe.rid);
+			srv = server_find_by_id_unique(px, data->server.safe.puid, data->server.safe.rid);
 			if (!srv)
 				continue;
 
@@ -3581,6 +3581,25 @@ struct server *server_find_by_id(struct proxy *bk, int id)
 	return curserver;
 }
 
+/*
+ * This function finds a server with matching "<puid> x <rid>" within
+ * selected backend <bk>.
+ * Using the combination of proxy-uid + revision id ensures that the function
+ * will either return the server we're expecting or NULL if it has been removed
+ * from the proxy (<id> is unique within the list, but it is not true over the
+ * process lifetime as new servers may reuse the id of a previously deleted
+ * server).
+ */
+struct server *server_find_by_id_unique(struct proxy *bk, int id, uint32_t rid)
+{
+	struct server *curserver;
+
+	curserver = server_find_by_id(bk, id);
+	if (!curserver || curserver->rid != rid)
+		return NULL;
+	return curserver;
+}
+
 /* Returns a pointer to the first server matching either name <name>, or id
  * if <name> starts with a '#'. NULL is returned if no match is found.
  * the lookup is performed in the backend <bk>
@@ -3608,6 +3627,33 @@ struct server *server_find_by_name(struct proxy *bk, const char *name)
 			curserver = container_of(node, struct server, conf.name);
 	}
 
+	return curserver;
+}
+
+/*
+ * This function finds a server with matching "<name> x <rid>" within
+ * selected backend <bk>.
+ * Using the combination of name + revision id ensures that the function
+ * will either return the server we're expecting or NULL if it has been removed
+ * from the proxy. For this we assume that <name> is unique within the list,
+ * which is the case in most setups, but in rare cases the user may have
+ * enforced duplicate server names in the initial config (ie: if he intends to
+ * use numerical IDs for indentification instead). In this particular case, the
+ * function will not work as expected so server_find_by_id_unique() should be
+ * used to match a unique server instead.
+ *
+ * Just like server_find_by_id_unique(), if a server is deleted and a new server
+ * reuses the same name, the rid check will prevent the function from returning
+ * a different server from the one we were expecting to match against at a given
+ * time.
+ */
+struct server *server_find_by_name_unique(struct proxy *bk, const char *name, uint32_t rid)
+{
+	struct server *curserver;
+
+	curserver = server_find_by_name(bk, name);
+	if (!curserver || curserver->rid != rid)
+		return NULL;
 	return curserver;
 }
 

@@ -9495,7 +9495,7 @@ __LJMP static void hlua_event_hdl_cb_push_args(struct hlua_event_sub *hlua_sub,
 		 */
 		px = proxy_find_by_id(e_server->safe.proxy_uuid, PR_CAP_BE, 0);
 		BUG_ON(!px);
-		server = findserver_unique_id(px, e_server->safe.puid, e_server->safe.rid);
+		server = server_find_by_id_unique(px, e_server->safe.puid, e_server->safe.rid);
 		if (server) {
 			lua_pushstring(hlua->T, "reference");
 			hlua_fcn_new_server(hlua->T, server);
