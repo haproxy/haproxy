@@ -4409,6 +4409,12 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 
 	TRACE_ENTER(H1_EV_STRM_SEND, h1c->conn, h1s, 0, (size_t[]){count});
 
+
+	if (global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_H1_SND) {
+		h1s->sd->iobuf.flags |= IOBUF_FL_NO_FF;
+		goto out;
+	}
+
 	/* TODO: add check on curr_len if CLEN */
 
 	if (h1m->flags & H1_MF_CHNK) {
@@ -4572,6 +4578,11 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	int ret = 0;
 
 	TRACE_ENTER(H1_EV_STRM_RECV, h1c->conn, h1s, 0, (size_t[]){count});
+
+	if (global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_H1_RCV) {
+		h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_CANT_FASTFWD;
+		goto end;
+	}
 
 	if (h1m->state != H1_MSG_DATA && h1m->state != H1_MSG_TUNNEL) {
 		h1c->flags &= ~H1C_F_WANT_FASTFWD;
@@ -5231,11 +5242,51 @@ static int cfg_parse_h1_headers_case_adjust_file(char **args, int section_type, 
         return 0;
 }
 
+/* config parser for global "tune.h1.zero-copy-fwd-recv" */
+static int cfg_parse_h1_zero_copy_fwd_rcv(char **args, int section_type, struct proxy *curpx,
+					   const struct proxy *defpx, const char *file, int line,
+					   char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		global.tune.no_zero_copy_fwd &= ~NO_ZERO_COPY_FWD_H1_RCV;
+	else if (strcmp(args[1], "off") == 0)
+		global.tune.no_zero_copy_fwd |= NO_ZERO_COPY_FWD_H1_RCV;
+	else {
+		memprintf(err, "'%s' expects 'on' or 'off'.", args[0]);
+		return -1;
+	}
+	return 0;
+}
+
+/* config parser for global "tune.h1.zero-copy-fwd-send" */
+static int cfg_parse_h1_zero_copy_fwd_snd(char **args, int section_type, struct proxy *curpx,
+					  const struct proxy *defpx, const char *file, int line,
+					  char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		global.tune.no_zero_copy_fwd &= ~NO_ZERO_COPY_FWD_H1_SND;
+	else if (strcmp(args[1], "off") == 0)
+		global.tune.no_zero_copy_fwd |= NO_ZERO_COPY_FWD_H1_SND;
+	else {
+		memprintf(err, "'%s' expects 'on' or 'off'.", args[0]);
+		return -1;
+	}
+	return 0;
+}
+
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {{ }, {
 		{ CFG_GLOBAL, "h1-accept-payload-with-any-method", cfg_parse_h1_accept_payload_with_any_method },
 		{ CFG_GLOBAL, "h1-case-adjust", cfg_parse_h1_header_case_adjust },
 		{ CFG_GLOBAL, "h1-case-adjust-file", cfg_parse_h1_headers_case_adjust_file },
+		{ CFG_GLOBAL, "tune.h1.zero-copy-fwd-recv", cfg_parse_h1_zero_copy_fwd_rcv },
+		{ CFG_GLOBAL, "tune.h1.zero-copy-fwd-send", cfg_parse_h1_zero_copy_fwd_snd },
 		{ 0, NULL, NULL },
 	}
 };

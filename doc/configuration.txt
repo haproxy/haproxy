@@ -1181,6 +1181,8 @@ The following keywords are supported in the "global" section :
    - tune.events.max-events-at-once
    - tune.fail-alloc
    - tune.fd.edge-triggered
+   - tune.h1.zero-copy-fwd-recv
+   - tune.h1.zero-copy-fwd-send
    - tune.h2.be.initial-window-size
    - tune.h2.be.max-concurrent-streams
    - tune.h2.fe.initial-window-size
@@ -2922,7 +2924,8 @@ tune.disable-zero-copy-forwarding
   Thanks to this directive, it is possible to disable this optimization. Note
   it also disable any kernel tcp splicing.
 
-  See also: tune.pt.zero-copy-forwarding
+  See also: tune.pt.zero-copy-forwarding,
+            tune.h1.zero-copy-fwd-recv, tune.h1.zero-copy-fwd-send
 
 tune.events.max-events-at-once <number>
   Sets the number of events that may be processed at once by an asynchronous
@@ -2948,6 +2951,18 @@ tune.fd.edge-triggered { on | off }  [ EXPERIMENTAL ]
   reduce the number of epoll_ctl() calls and slightly improve performance in
   certain scenarios. This is still experimental, it may result in frozen
   connections if bugs are still present, and is disabled by default.
+
+tune.h1.zero-copy-fwd-recv { on | off }
+  Enables ('on') of disabled ('off') the zero-copy receives of data for the H1
+  multiplexer. It is enabled by default.
+
+  See also: tune.disable-zero-copy-forwarding, tune.h1.zero-copy-fwd-send
+
+tune.h1.zero-copy-fwd-send { on | off }
+  Enables ('on') of disabled ('off') the zero-copy sends of data for the H1
+  multiplexer. It is enabled by default.
+
+  See also: tune.disable-zero-copy-forwarding, tune.h1.zero-copy-fwd-recv
 
 tune.h2.be.initial-window-size <number>
   Sets the HTTP/2 initial window size for outgoing connections, which is the
