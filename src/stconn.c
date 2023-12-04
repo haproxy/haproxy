@@ -1276,7 +1276,7 @@ int sc_conn_recv(struct stconn *sc)
 	/* First, let's see if we may fast-forward data from a side to the other
 	 * one without using the channel buffer.
 	 */
-	if ((global.tune.options & GTUNE_USE_ZERO_COPY_FWD) &&
+	if (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD) &&
 	    sc_ep_test(sc, SE_FL_MAY_FASTFWD) && ic->to_forward) {
 		if (channel_data(ic)) {
 			/* We're embarrassed, there are already data pending in

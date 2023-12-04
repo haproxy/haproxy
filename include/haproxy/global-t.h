@@ -66,7 +66,7 @@
 #define GTUNE_USE_SYSTEMD        (1<<10)
 
 #define GTUNE_BUSY_POLLING       (1<<11)
-#define GTUNE_USE_ZERO_COPY_FWD  (1<<12)
+/* (1<<12) unused */
 #define GTUNE_SET_DUMPABLE       (1<<13)
 #define GTUNE_USE_EVPORTS        (1<<14)
 #define GTUNE_STRICT_LIMITS      (1<<15)
@@ -84,6 +84,18 @@
 #define GTUNE_LISTENER_MQ_FAIR   (1<<27)
 #define GTUNE_LISTENER_MQ_OPT    (1<<28)
 #define GTUNE_LISTENER_MQ_ANY    (GTUNE_LISTENER_MQ_FAIR | GTUNE_LISTENER_MQ_OPT)
+
+#define NO_ZERO_COPY_FWD             0x0001 /* Globally disable zero-copy FF */
+#define NO_ZERO_COPY_FWD_PT          0x0002 /* disable zero-copy FF for PT (recv & send are disabled automatically) */
+#define NO_ZERO_COPY_FWD_H1_RCV      0x0004 /* disable zero-copy FF for H1 on received */
+#define NO_ZERO_COPY_FWD_H1_SND      0x0008 /* disable zero-copy FF for H1 on send */
+#define NO_ZERO_COPY_FWD_H2_RCV      0x0010 /* disable zero-copy FF for H2 on received */
+#define NO_ZERO_COPY_FWD_H2_SND      0x0020 /* disable zero-copy FF for H2 on send */
+#define NO_ZERO_COPY_FWD_QUIC_RCV    0x0040 /* disable zero-copy FF for QUIC on received */
+#define NO_ZERO_COPY_FWD_QUIC_SND    0x0080 /* disable zero-copy FF for QUIC on send */
+#define NO_ZERO_COPY_FWD_FCGI_RCV    0x0100 /* disable zero-copy FF for FCGI on received */
+#define NO_ZERO_COPY_FWD_FCGI_SND    0x0200 /* disable zero-copy FF for FCGI on send */
+
 
 extern int cluster_secret_isset; /* non zero means a cluster secret was initialized */
 
@@ -173,6 +185,7 @@ struct global {
 		int pool_high_count;  /* max number of opened fd before we start killing idle connections when creating new connections */
 		size_t pool_cache_size;    /* per-thread cache size per pool (defaults to CONFIG_HAP_POOL_CACHE_SIZE) */
 		unsigned short idle_timer; /* how long before an empty buffer is considered idle (ms) */
+		unsigned short no_zero_copy_fwd; /* Flags to disable zero-copy fast-forwarding (global & per-protocols) */
 		int nb_stk_ctr;       /* number of stick counters, defaults to MAX_SESS_STKCTR */
 		int default_shards; /* default shards for listeners, or -1 (by-thread) or -2 (by-group) */
 		uint max_checks_per_thread; /* if >0, no more than this concurrent checks per thread */

@@ -2916,10 +2916,10 @@ tune.disable-fast-forward [ EXPERIMENTAL ]
   directive.
 
 tune.disable-zero-copy-forwarding
-  Disables the zero-copy forwarding of data. It is a mechanism to optimize the
-  data fast-forwarding by avoiding to use the channel's buffer. Thanks to this
-  directive, it is possible to disable this optimization. Note it also disable
-  any kernel tcp splicing.
+  Globally disables the zero-copy forwarding of data. It is a mechanism to
+  optimize the data fast-forwarding by avoiding to use the channel's buffer.
+  Thanks to this directive, it is possible to disable this optimization. Note
+  it also disable any kernel tcp splicing.
 
 tune.events.max-events-at-once <number>
   Sets the number of events that may be processed at once by an asynchronous

@@ -1599,7 +1599,9 @@ static void init_args(int argc, char **argv)
 	global.tune.options |= GTUNE_STRICT_LIMITS;
 
 	global.tune.options |= GTUNE_USE_FAST_FWD; /* Use fast-forward by default */
-	global.tune.options |= GTUNE_USE_ZERO_COPY_FWD; /* Use zero-copy forwarding by default */
+
+	/* Use zero-copy forwarding by default */
+	global.tune.no_zero_copy_fwd = 0;
 
 	/* keep a copy of original arguments for the master process */
 	old_argv = copy_argv(argc, argv);
@@ -1656,7 +1658,7 @@ static void init_args(int argc, char **argv)
 			else if (*flag == 'd' && flag[1] == 'V')
 				global.ssl_server_verify = SSL_SERVER_VERIFY_NONE;
 			else if (*flag == 'd' && flag[1] == 'Z')
-				global.tune.options &= ~GTUNE_USE_ZERO_COPY_FWD;
+				global.tune.no_zero_copy_fwd |= NO_ZERO_COPY_FWD;
 			else if (*flag == 'V')
 				arg_mode |= MODE_VERBOSE;
 			else if (*flag == 'd' && flag[1] == 'C') {
