@@ -1323,6 +1323,7 @@ The following keywords are supported in the "global" section :
    - tune.buffers.limit
    - tune.buffers.reserve
    - tune.bufsize
+   - tune.cache.zero-copy-forwarding
    - tune.comp.maxlevel
    - tune.disable-fast-forward
    - tune.disable-zero-copy-forwarding
@@ -3051,6 +3052,13 @@ tune.bufsize <number>
   value set using this parameter will automatically be rounded up to the next
   multiple of 8 on 32-bit machines and 16 on 64-bit machines.
 
+tune.cache.zero-copy-forwarding { on | off }
+  Enables ('on') of disabled ('off') the zero-copy forwarding of data for the
+  cache applet, when objects are served from the cache to clients. It is
+  enabled by default.
+
+  See also: tune.disable-zero-copy-forwarding.
+
 tune.comp.maxlevel <number>
   Sets the maximum compression level. The compression level affects CPU
   usage during compression. This value affects CPU usage during compression.
@@ -3074,7 +3082,7 @@ tune.disable-zero-copy-forwarding
   Thanks to this directive, it is possible to disable this optimization. Note
   it also disable any kernel tcp splicing.
 
-  See also: tune.pt.zero-copy-forwarding,
+  See also: tune.pt.zero-copy-forwarding, tune.cache.zero-copy-forwarding,
             tune.h1.zero-copy-fwd-recv, tune.h1.zero-copy-fwd-send,
             tune.h2.zero-copy-fwd-send, tune.quic.zero-copy-fwd-send
 
