@@ -29,12 +29,13 @@ Summary
 
 1.    Quick reminder about HTTP
 1.1.      The HTTP transaction model
-1.2.      HTTP request
-1.2.1.        The request line
-1.2.2.        The request headers
-1.3.      HTTP response
-1.3.1.        The response line
-1.3.2.        The response headers
+1.2.      Terminology
+1.3.      HTTP request
+1.3.1.        The request line
+1.3.2.        The request headers
+1.4.      HTTP response
+1.4.1.        The response line
+1.4.2.        The response headers
 
 2.    Configuring HAProxy
 2.1.      Configuration file format
@@ -138,6 +139,7 @@ Summary
 11.2.     Socket type prefixes
 11.3.     Protocol prefixes
 
+
 1. Quick reminder about HTTP
 ----------------------------
 
@@ -149,35 +151,65 @@ However, it is important to understand how HTTP requests and responses are
 formed, and how HAProxy decomposes them. It will then become easier to write
 correct rules and to debug existing configurations.
 
+First, HTTP is standardized by a series of RFC that HAProxy follows as closely
+as possible:
+  - RFC 9110: HTTP Semantics (explains the meaning of protocol elements)
+  - RFC 9111: HTTP Caching (explains the rules to follow for an HTTP cache)
+  - RFC 9112: HTTP/1.1 (representation, interoperability rules, security)
+  - RFC 9113: HTTP/2   (representation, interoperability rules, security)
+  - RFC 9114: HTTP/3   (representation, interoperability rules, security)
+
+In addition to these, RFC 8999 to 9002 specify the QUIC transport layer used by
+the HTTP/3 protocol.
+
 
 1.1. The HTTP transaction model
 -------------------------------
 
 The HTTP protocol is transaction-driven. This means that each request will lead
-to one and only one response. Traditionally, a TCP connection is established
-from the client to the server, a request is sent by the client through the
-connection, the server responds, and the connection is closed. A new request
-will involve a new connection :
+to one and only one response. Originally, with version 1.0 of the protocol,
+there was a single request per connection: a TCP connection is established from
+the client to the server, a request is sent by the client over the connection,
+the server responds, and the connection is closed. A new request then involves
+a new connection :
 
   [CON1] [REQ1] ... [RESP1] [CLO1] [CON2] [REQ2] ... [RESP2] [CLO2] ...
 
-In this mode, called the "HTTP close" mode, there are as many connection
+In this mode, often called the "HTTP close" mode, there are as many connection
 establishments as there are HTTP transactions. Since the connection is closed
 by the server after the response, the client does not need to know the content
-length.
+length, it considers that the response is complete when the connection closes.
+This also means that if some responses are truncated due to network errors, the
+client could mistakenly think a response was complete, and this used to cause
+truncated images to be rendered on screen sometimes.
 
 Due to the transactional nature of the protocol, it was possible to improve it
 to avoid closing a connection between two subsequent transactions. In this mode
 however, it is mandatory that the server indicates the content length for each
 response so that the client does not wait indefinitely. For this, a special
-header is used: "Content-length". This mode is called the "keep-alive" mode :
+header is used: "Content-length". This mode is called the "keep-alive" mode,
+and arrived with HTTP/1.1 (some HTTP/1.0 agents support it), and connections
+that are reused between requests are called "persistent connections":
 
   [CON] [REQ1] ... [RESP1] [REQ2] ... [RESP2] [CLO] ...
 
-Its advantages are a reduced latency between transactions, and less processing
-power required on the server side. It is generally better than the close mode,
-but not always because the clients often limit their concurrent connections to
-a smaller value.
+Its advantages are a reduced latency between transactions, less processing
+power required on the server side, and the ability to detect a truncated
+response. It is generally faster than the close mode, but not always because
+some clients often limit their concurrent connections to a smaller value, and
+this compensates less for poor network connectivity. Also, some servers have to
+keep the connection alive for a long time waiting for a possible new request
+and may experience a high memory usage due to the high number of connections,
+and closing too fast may break some requests that arrived at the moment the
+connection was closed.
+
+In this mode, the response size needs to be known upfront so that's not always
+possible with dynamically generated or compressed contents. For this reason
+another mode was implemented, the "chunked mode", where instead of announcing
+the size of the whole size at once, the sender only advertises the size of the
+next "chunk" of response it already has in a buffer, and can terminate at any
+moment with a zero-sized chunk. In this mode, the Content-Length header is not
+used.
 
 Another improvement in the communications is the pipelining mode. It still uses
 keep-alive, but the client does not wait for the first response to send the
@@ -190,19 +222,43 @@ This can obviously have a tremendous benefit on performance because the network
 latency is eliminated between subsequent requests. Many HTTP agents do not
 correctly support pipelining since there is no way to associate a response with
 the corresponding request in HTTP. For this reason, it is mandatory for the
-server to reply in the exact same order as the requests were received.
+server to reply in the exact same order as the requests were received. In
+practice, after several attempts by various clients to deploy it, it has been
+totally abandonned for its lack of reliability on certain servers. But it is
+mandatory for servers to support it.
 
-The next improvement is the multiplexed mode, as implemented in HTTP/2 and HTTP/3.
-This time, each transaction is assigned a single stream identifier, and all
-streams are multiplexed over an existing connection. Many requests can be sent in
-parallel by the client, and responses can arrive in any order since they also
-carry the stream identifier.
+The next improvement is the multiplexed mode, as implemented in HTTP/2 and
+HTTP/3. In this mode, multiple transactions (i.e. request-response pairs) are
+transmitted in parallel over a single connection, and they all progress at
+their own speed, independent from each other. With multiplexed protocols, a new
+notion of "stream" was introduced, to represent these parallel communications
+happening over the same connection. Each stream is generally assigned a unique
+identifier for a given connection, that is used by both endpoints to know where
+to deliver the data. It is fairly common for clients to start many (up to 100,
+sometimes more) streams in parallel over a same connection, and let the server
+sort them out and respond in any order depending on what response is available.
+The main benefit of the multiplexed mode is that it significantly reduces the
+number of round trips, and speeds up page loading time over high latency
+networks. It is sometimes visibles on sites using many images, where all images
+appear to load in parallel.
 
+These protocols have also improved their efficiency by adopting some mechanisms
+to compress header fields in order to reduce the number of bytes on the wire,
+so that without the appropriate tools, they are not realistically manipulable
+by hand nor readable to the naked eye like HTTP/1 was. For this reason, various
+examples of HTTP messages continue to be represented in literature (including
+this document) using the HTTP/1 syntax even for newer versions of the protocol.
+
+HTTP/2 suffers from some design limitations, such as packet losses affecting
+all streams at once, and if a client takes too much time to retrieve an object
+(e.g. needs to store it on disk), it may slow down its retrieval and make it
+impossible during this time to access the data that is pending behind it. This
+is called "head of line blocking" or "HoL blocking" or sometimes just "HoL".
 
 HTTP/3 is implemented over QUIC, itself implemented over UDP. QUIC solves the
-head of line blocking at transport level by means of independently treated
+head of line blocking at the transport level by means of independently handled
 streams. Indeed, when experiencing loss, an impacted stream does not affect the
-other streams.
+other streams, and all of them can be accessed in parallel.
 
 By default HAProxy operates in keep-alive mode with regards to persistent
 connections: for each connection it processes each request and response, and
@@ -211,16 +267,91 @@ start of a new request. When it receives HTTP/2 connections from a client, it
 processes all the requests in parallel and leaves the connection idling,
 waiting for new requests, just as if it was a keep-alive HTTP connection.
 
-HAProxy supports 4 connection modes :
-  - keep alive    : all requests and responses are processed (default)
-  - tunnel        : only the first request and response are processed,
-                    everything else is forwarded with no analysis (deprecated).
+HAProxy essentially supports 3 connection modes :
+  - keep alive    : all requests and responses are processed, and the client
+                    facing and server facing connections are kept alive for new
+                    requests. This is the default and suits the modern web and
+                    modern protocols (HTTP/2 and HTTP/3).
+
   - server close  : the server-facing connection is closed after the response.
-  - close         : the connection is actively closed after end of response.
+
+  - close         : the connection is actively closed after end of response on
+                    both sides.
+
+In addition to this, by default, the server-facing connection is reusable by
+any request from any client, as mandated by the HTTP protocol specification, so
+any information pertaining to a specific client has to be passed along with
+each request if needed (e.g. client's source adress etc). When HTTP/2 is used
+with a server, by default HAProxy will dedicate this connection to the same
+client to avoid the risk of head of line blocking between clients.
 
 
+1.2. Terminology
+----------------
 
-1.2. HTTP request
+Inside HAProxy, the terminology has evolved a bit over the ages to follow the
+evolutions of the HTTP protocol and its usages. While originally there was no
+significant difference between a connection, a session, a stream or a
+transaction, these ones clarified over time to match closely what exists in the
+modern versions of the HTTP protocol, though some terms remain visible in the
+configuration or the command line interface for the purpose of historical
+compatibility.
+
+Here are some definitions that apply to the current version of HAProxy:
+
+  - connection: a connection is a single, bidiractional communication channel
+    between a remote agent (client or server) and haproxy, at the lowest level
+    possible. Usually it corresponds to a TCP socket established between a pair
+    of IP and ports. On the client-facing side, connections are the very first
+    entities that are instantiated when a client connects to haproxy, and rules
+    applying at the connection level are the earliest ones that apply.
+
+  - session: a session adds some context information associated with a
+    connection. This includes and information specific to the transport layer
+    (e.g. TLS keys etc), or variables. This term has long been used inside
+    HAProxy to denote end-to-end HTTP/1.0 communications between two ends, and
+    as such it remains visible in the name of certain CLI commands or
+    statistics, despite representing streams nowadays, but the help messages
+    and descriptions try to make this unambiguous. It is still valid when it
+    comes to network-level terminology (e.g. TCP sessions inside the operating
+    systems, or TCP sessions across a firewall), or for non-HTTP user-level
+    applications (e.g. a telnet session or an SSH session). It must not be
+    confused with "application sessions" that are used to store a full user
+    context in a cookie and require to be sent to the same server.
+
+  - stream: a stream exactly corresponds to an end-to-end bidirectional
+    communication at the application level, where analysis and transformations
+    may be applied. In HTTP, it contains a single request and its associated
+    response, and is instantiated by the arrival of the request and is finished
+    with the end of delivery of the response. In this context there is a 1:1
+    relation between such a stream and the stream of a multiplexed protocol. In
+    TCP communications there is a single stream per connection.
+
+  - transaction: a transaction is only a pair of a request and the associated
+    response. The term was used in conjunction with sessions before the streams
+    but nowadays there is a 1:1 relation between a transaction and a stream. It
+    is essentially visible in the variables' scope "txn" which is valid during
+    the whole transaction, hence the stream.
+
+  - request: it designates the traffic flowing from the client to the server.
+    It is mainly used for HTTP to indicate where operations are performed. This
+    term also exists for TCP operations to indicate where data are processed.
+    Requests often appear in counters as a unit of traffic or activity. They do
+    not always imply a response (e.g. due to errors), but since there is no
+    spontaneous responses without requests, requests remain a relevant metric
+    of the overall activity. In TCP there are as many requests as connections.
+
+  - response: this designates the traffic flowing from the server to the
+    client, or sometimes from HAProxy to the client, when HAProxy produces the
+    response itself (e.g. an HTTP redirect).
+
+  - service: this generally indicates some internal processing in HAProxy that
+    does not require a server, such as the stats page, the cache, or some Lua
+    code to implement a small application. A service usually reads a request,
+    performs some operations and produces a response.
+
+
+1.3. HTTP request
 -----------------
 
 First, let's consider this HTTP request :
@@ -234,7 +365,7 @@ First, let's consider this HTTP request :
      5     Accept: image/png
 
 
-1.2.1. The Request line
+1.3.1. The Request line
 -----------------------
 
 Line 1 is the "request line". It is always composed of 3 fields :
@@ -288,7 +419,7 @@ HTTP/2 doesn't convey a version information with the request, so the version is
 assumed to be the same as the one of the underlying protocol (i.e. "HTTP/2").
 
 
-1.2.2. The request headers
+1.3.2. The request headers
 --------------------------
 
 The headers start at the second line. They are composed of a name at the
@@ -297,7 +428,7 @@ an LWS is added after the colon but that's not required. Then come the values.
 Multiple identical headers may be folded into one single line, delimiting the
 values with commas, provided that their order is respected. This is commonly
 encountered in the "Cookie:" field. A header may span over multiple lines if
-the subsequent lines begin with an LWS. In the example in 1.2, lines 4 and 5
+the subsequent lines begin with an LWS. In the example in 1.3, lines 4 and 5
 define a total of 3 values for the "Accept:" header.
 
 Contrary to a common misconception, header names are not case-sensitive, and
@@ -324,7 +455,7 @@ Important note:
    correctly and not to be fooled by such complex constructs.
 
 
-1.3. HTTP response
+1.4. HTTP response
 ------------------
 
 An HTTP response looks very much like an HTTP request. Both are called HTTP
@@ -352,7 +483,7 @@ if a CONNECT had occurred. Then the Upgrade header would contain additional
 information about the type of protocol the connection is switching to.
 
 
-1.3.1. The response line
+1.4.1. The response line
 ------------------------
 
 Line 1 is the "response line". It is always composed of 3 fields :
@@ -405,11 +536,11 @@ The error 4xx and 5xx codes above may be customized (see "errorloc" in section
 4.2).
 
 
-1.3.2. The response headers
+1.4.2. The response headers
 ---------------------------
 
 Response headers work exactly like request headers, and as such, HAProxy uses
-the same parsing function for both. Please refer to paragraph 1.2.2 for more
+the same parsing function for both. Please refer to paragraph 1.3.2 for more
 details.
 
 
