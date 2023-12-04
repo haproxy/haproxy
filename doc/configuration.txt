@@ -1191,6 +1191,7 @@ The following keywords are supported in the "global" section :
    - tune.h2.initial-window-size
    - tune.h2.max-concurrent-streams
    - tune.h2.max-frame-size
+   - tune.h2.zero-copy-fwd-send
    - tune.http.cookielen
    - tune.http.logurilen
    - tune.http.maxhdr
@@ -2925,7 +2926,8 @@ tune.disable-zero-copy-forwarding
   it also disable any kernel tcp splicing.
 
   See also: tune.pt.zero-copy-forwarding,
-            tune.h1.zero-copy-fwd-recv, tune.h1.zero-copy-fwd-send
+            tune.h1.zero-copy-fwd-recv, tune.h1.zero-copy-fwd-send,
+            tune.h2.zero-copy-fwd-send
 
 tune.events.max-events-at-once <number>
   Sets the number of events that may be processed at once by an asynchronous
@@ -3051,6 +3053,12 @@ tune.h2.max-frame-size <number>
   allow to limit the maximum frame size setting when using large buffers. Too
   large frame sizes might have performance impact or cause some peers to
   misbehave. It is highly recommended not to change this value.
+
+tune.h2.zero-copy-fwd-send { on | off }
+  Enables ('on') of disabled ('off') the zero-copy sends of data for the H2
+  multiplexer. It is enabled by default.
+
+  See also: tune.disable-zero-copy-forwarding
 
 tune.http.cookielen <number>
   Sets the maximum length of captured cookies. This is the maximum value that

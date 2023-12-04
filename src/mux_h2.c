@@ -6935,6 +6935,11 @@ static size_t h2_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 
 	TRACE_ENTER(H2_EV_H2S_SEND|H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
 
+	if (global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_H2_SND) {
+		h2s->sd->iobuf.flags |= IOBUF_FL_NO_FF;
+		goto end;
+	}
+
 	/* If we were not just woken because we wanted to send but couldn't,
 	 * and there's somebody else that is waiting to send, do nothing,
 	 * we will subscribe later and be put at the end of the list
@@ -7439,6 +7444,25 @@ static int h2_parse_max_frame_size(char **args, int section_type, struct proxy *
 }
 
 
+/* config parser for global "tune.h2.zero-copy-fwd-send" */
+static int h2_parse_zero_copy_fwd_snd(char **args, int section_type, struct proxy *curpx,
+					  const struct proxy *defpx, const char *file, int line,
+					  char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		global.tune.no_zero_copy_fwd &= ~NO_ZERO_COPY_FWD_H2_SND;
+	else if (strcmp(args[1], "off") == 0)
+		global.tune.no_zero_copy_fwd |= NO_ZERO_COPY_FWD_H2_SND;
+	else {
+		memprintf(err, "'%s' expects 'on' or 'off'.", args[0]);
+		return -1;
+	}
+	return 0;
+}
+
 /****************************************/
 /* MUX initialization and instantiation */
 /***************************************/
@@ -7486,6 +7510,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.h2.initial-window-size",    h2_parse_initial_window_size    },
 	{ CFG_GLOBAL, "tune.h2.max-concurrent-streams", h2_parse_max_concurrent_streams },
 	{ CFG_GLOBAL, "tune.h2.max-frame-size",         h2_parse_max_frame_size         },
+	{ CFG_GLOBAL, "tune.h2.zero-copy-fwd-send",     h2_parse_zero_copy_fwd_snd },
 	{ 0, NULL, NULL }
 }};
 
