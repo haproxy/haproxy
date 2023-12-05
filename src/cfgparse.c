@@ -3120,6 +3120,12 @@ init_proxies_list_stage1:
 						   curproxy->id);
 					err_code |= ERR_WARN;
 				}
+				if (target->mode == PR_MODE_HTTP) {
+					/* at least one of the used backends will provoke an
+					 * HTTP upgrade
+					 */
+					curproxy->options |= PR_O_HTTP_UPG;
+				}
 			}
 		}
 
@@ -3153,6 +3159,11 @@ init_proxies_list_stage1:
 				if (node->type != LOG_FMT_TEXT || node->list.n != &rule->be.expr) {
 					rule->dynamic = 1;
 					free(pxname);
+					/* backend is not yet known so we cannot assume its type,
+					 * thus we should consider that at least one of the used
+					 * backends may provoke HTTP upgrade
+					 */
+					curproxy->options |= PR_O_HTTP_UPG;
 					continue;
 				}
 				/* Only one element in the list, a simple string: free the expression and
@@ -3187,6 +3198,12 @@ init_proxies_list_stage1:
 			} else {
 				ha_free(&rule->be.name);
 				rule->be.backend = target;
+				if (target->mode == PR_MODE_HTTP) {
+					/* at least one of the used backends will provoke an
+					 * HTTP upgrade
+					 */
+					curproxy->options |= PR_O_HTTP_UPG;
+				}
 			}
 			err_code |= warnif_tcp_http_cond(curproxy, rule->cond);
 		}

@@ -92,7 +92,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_O_IGNORE_PRB 0x00000200      /* ignore empty requests (aborts and timeouts) */
 #define PR_O_NULLNOLOG  0x00000400      /* a connect without request will not be logged */
 #define PR_O_WREQ_BODY  0x00000800      /* always wait for the HTTP request body */
-#define PR_O_HTTP_UPG   0x00001000      /* Contain a "switch-mode http" tcp-request rule */
+#define PR_O_HTTP_UPG   0x00001000      /* implicit (default/use backend) or explicit (switch-mode) http upgrade */
 /* unused: 0x00002000 */
 #define PR_O_PERSIST    0x00004000      /* server persistence stays effective even when server is down */
 #define PR_O_LOGASAP    0x00008000      /* log as soon as possible, without waiting for the stream to complete */
