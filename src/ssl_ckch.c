@@ -2147,6 +2147,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 	struct ckch_store *old_ckchs, *new_ckchs = NULL;
 	struct ckch_inst *ckchi;
 
+	usermsgs_clr("CLI");
 	/* FIXME: Don't watch the other side !*/
 	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
 		goto end;
@@ -2220,7 +2221,8 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				ctx->state = CERT_ST_SUCCESS;
 				__fallthrough;
 			case CERT_ST_SUCCESS:
-				if (applet_putstr(appctx, "\nSuccess!\n") == -1)
+				chunk_printf(&trash, "\n%sSuccess!\n", usermsgs_str());
+				if (applet_putchk(appctx, &trash) == -1)
 					goto yield;
 				ctx->state = CERT_ST_FIN;
 				__fallthrough;
@@ -2233,7 +2235,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 
 			case CERT_ST_ERROR:
 			  error:
-				chunk_printf(&trash, "\n%sFailed!\n", ctx->err);
+				chunk_printf(&trash, "\n%s%sFailed!\n", usermsgs_str(), ctx->err);
 				if (applet_putchk(appctx, &trash) == -1)
 					goto yield;
 				ctx->state = CERT_ST_FIN;
@@ -2241,10 +2243,12 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 		}
 	}
 end:
+	usermsgs_clr(NULL);
 	/* success: call the release function and don't come back */
 	return 1;
 
 yield:
+	usermsgs_clr(NULL);
 	return 0; /* should come back */
 }
 
