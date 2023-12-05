@@ -2424,6 +2424,13 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 		goto end;
 	}
 
+	/* Reset the OCSP CID */
+	if (cert_ext->type == CERT_TYPE_PEM || cert_ext->type == CERT_TYPE_KEY ||
+	    cert_ext->type == CERT_TYPE_ISSUER) {
+		OCSP_CERTID_free(new_ckchs->data->ocsp_cid);
+		new_ckchs->data->ocsp_cid = NULL;
+	}
+
 	data = new_ckchs->data;
 
 	/* apply the change on the duplicate */
