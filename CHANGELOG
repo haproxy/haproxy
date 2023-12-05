@@ -1,6 +1,33 @@
 ChangeLog :
 ===========
 
+2023/12/05 : 2.9.0
+    - DOC: config: add missing colon to "bytes_out" sample fetch keyword (2)
+    - BUG/MINOR: cfgparse-listen: fix warning being reported as an alert
+    - DOC: config: add matrix entry for "max-session-srv-conns"
+    - DOC: config: fix monitor-fail typo
+    - DOC: config: add context hint for proxy keywords
+    - DEBUG: stream: Report lra/fsb values for front end back SC in stream dump
+    - REGTESTS: sample: Test the behavior of consecutive delimiters for the field converter
+    - BUG/MINOR: sample: Make the `word` converter compatible with `-m found`
+    - DOC: Clarify the differences between field() and word()
+    - BUG/MINOR: server/event_hdl: properly handle AF_UNSPEC for INETADDR event
+    - BUILD: http_htx: silence uninitialized warning on some gcc versions
+    - MINOR: acme.sh: don't use '*' in the filename for wildcard domain
+    - MINOR: global: Use a dedicated bitfield to customize zero-copy fast-forwarding
+    - MINOR: mux-pt: Add global option to enable/disable zero-copy forwarding
+    - MINOR: mux-h1: Add global option to enable/disable zero-copy forwarding
+    - MINOR: mux-h2: Add global option to enable/disable zero-copy forwarding
+    - MINOR: mux-quic: Add global option to enable/disable zero-copy forwarding
+    - MINOR: mux-quic: Disable zero-copy forwarding for send by default
+    - DOC: config: update the reminder on the HTTP model and add some terminology
+    - DOC: config: add a few more differences between HTTP/1 and 2+
+    - DOC: config: clarify session vs stream
+    - DOC: config: fix typo abandonned -> abandoned
+    - DOC: management: fix two latest typos (optionally, exception)
+    - BUG/MEDIUM: peers: fix partial message decoding
+    - DOC: management: update stream vs session
+
 2023/11/30 : 2.9-dev12
     - BUG/MINOR: global: Fix tune.disable-(fast-forward/zero-copy-forwarding) options
     - DOC: config: removing "log-balance" references
