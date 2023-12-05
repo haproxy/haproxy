@@ -406,8 +406,8 @@ list of options is :
     enables all trace sources on error level. This can notably be useful to
     detect protocol violations from clients or servers. An optional argument
     can be used to specify a list of various trace configurations using ',' as
-    separator. Each element activates one or all trace sources. Additionnaly,
-    level and verbosity can be optionaly specified on each element using ':' as
+    separator. Each element activates one or all trace sources. Additionally,
+    level and verbosity can be optionally specified on each element using ':' as
     inner separator with trace name.
 
   -m <limit> : limit the total allocatable memory to <limit> megabytes across
@@ -4078,7 +4078,7 @@ experimental-mode [on|off]
 
 hard-reload
   This command does the same as the "reload" command over the master CLI with
-  the expection that it does a hard-stop (-st) instead of a stop-stop (-sf) of
+  the exception that it does a hard-stop (-st) instead of a stop-stop (-sf) of
   the previous process. This means the previous process does not wait to
   achieve anything before exiting, so all connections will be closed.
 
