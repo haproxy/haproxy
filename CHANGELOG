@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2023/12/05 : 3.0-dev0
+    - exact copy of 2.9.0
+
 2023/12/05 : 2.9.0
     - DOC: config: add missing colon to "bytes_out" sample fetch keyword (2)
     - BUG/MINOR: cfgparse-listen: fix warning being reported as an alert
