@@ -224,7 +224,7 @@ correctly support pipelining since there is no way to associate a response with
 the corresponding request in HTTP. For this reason, it is mandatory for the
 server to reply in the exact same order as the requests were received. In
 practice, after several attempts by various clients to deploy it, it has been
-totally abandonned for its lack of reliability on certain servers. But it is
+totally abandoned for its lack of reliability on certain servers. But it is
 mandatory for servers to support it.
 
 The next improvement is the multiplexed mode, as implemented in HTTP/2 and
