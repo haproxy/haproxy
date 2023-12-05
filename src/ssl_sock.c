@@ -1292,8 +1292,10 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 	}
 
 out:
-	if (ret && data->ocsp_cid)
+	if (ret && data->ocsp_cid) {
 		OCSP_CERTID_free(data->ocsp_cid);
+		data->ocsp_cid = NULL;
+	}
 
 	if (!ret && data->ocsp_response) {
 		ha_free(&data->ocsp_response->area);
