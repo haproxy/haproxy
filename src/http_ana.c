@@ -66,8 +66,8 @@ static enum rule_result http_req_restrict_header_names(struct stream *s, struct 
 static void http_manage_client_side_cookies(struct stream *s, struct channel *req);
 static void http_manage_server_side_cookies(struct stream *s, struct channel *res);
 
-static int http_stats_check_uri(struct stream *s, struct http_txn *txn, struct proxy *backend);
-static int http_handle_stats(struct stream *s, struct channel *req);
+static int http_stats_check_uri(struct stream *s, struct http_txn *txn, struct proxy *px);
+static int http_handle_stats(struct stream *s, struct channel *req, struct proxy *px);
 
 static int http_handle_expect_hdr(struct stream *s, struct htx *htx, struct http_msg *msg);
 static int http_reply_100_continue(struct stream *s);
@@ -445,7 +445,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		}
 
 		/* parse the whole stats request and extract the relevant information */
-		http_handle_stats(s, req);
+		http_handle_stats(s, req, px);
 		verdict = http_req_get_intercept_rule(px, NULL, &px->uri_auth->http_req_rules, s);
 		/* not all actions implemented: deny, allow, auth */
 
@@ -3813,16 +3813,16 @@ void http_check_response_for_cacheability(struct stream *s, struct channel *res)
 
 /*
  * In a GET, HEAD or POST request, check if the requested URI matches the stats uri
- * for the current backend.
+ * for the current proxy.
  *
  * It is assumed that the request is either a HEAD, GET, or POST and that the
  * uri_auth field is valid.
  *
  * Returns 1 if stats should be provided, otherwise 0.
  */
-static int http_stats_check_uri(struct stream *s, struct http_txn *txn, struct proxy *backend)
+static int http_stats_check_uri(struct stream *s, struct http_txn *txn, struct proxy *px)
 {
-	struct uri_auth *uri_auth = backend->uri_auth;
+	struct uri_auth *uri_auth = px->uri_auth;
 	struct htx *htx;
 	struct htx_sl *sl;
 	struct ist uri;
@@ -3859,13 +3859,13 @@ static int http_stats_check_uri(struct stream *s, struct http_txn *txn, struct p
  * s->target which is supposed to already point to the stats applet. The caller
  * is expected to have already assigned an appctx to the stream.
  */
-static int http_handle_stats(struct stream *s, struct channel *req)
+static int http_handle_stats(struct stream *s, struct channel *req, struct proxy *px)
 {
 	struct stats_admin_rule *stats_admin_rule;
 	struct session *sess = s->sess;
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &txn->req;
-	struct uri_auth *uri_auth = s->be->uri_auth;
+	struct uri_auth *uri_auth = px->uri_auth;
 	const char *h, *lookup, *end;
 	struct appctx *appctx = __sc_appctx(s->scb);
 	struct show_stat_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
@@ -3875,7 +3875,7 @@ static int http_handle_stats(struct stream *s, struct channel *req)
 	appctx->st1 = 0;
 	ctx->state = STAT_STATE_INIT;
 	ctx->st_code = STAT_STATUS_INIT;
-	ctx->http_px = s->be;
+	ctx->http_px = px;
 	ctx->flags |= uri_auth->flags;
 	ctx->flags |= STAT_FMT_HTML; /* assume HTML mode by default */
 	if ((msg->flags & HTTP_MSGF_VER_11) && (txn->meth != HTTP_METH_HEAD))
