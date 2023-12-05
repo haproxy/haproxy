@@ -2716,8 +2716,8 @@ show errors [<iid>|<proxy>] [request|response]
   names. The report precisely indicates what exact character violated the
   protocol. Other important information such as the exact date the error was
   detected, frontend and backend names, the server name (when known), the
-  internal session ID and the source address which has initiated the session
-  are reported too.
+  internal transaction ID and the source address which has initiated the
+  session are reported too.
 
   All characters are returned, and non-printable characters are encoded. The
   most common ones (\t = 9, \n = 10, \r = 13 and \e = 27) are encoded as one
@@ -2751,11 +2751,11 @@ show errors [<iid>|<proxy>] [request|response]
 
     In the example above, we see that the backend "http-in" which has internal
     ID 2 has blocked an invalid response from its server s2 which has internal
-    ID 1. The request was on session 54 initiated by source 127.0.0.1 and
-    received by frontend fe-eth0 whose ID is 1. The total response length was
-    213 bytes when the error was detected, and the error was at byte 23. This
-    is the slash ('/') in header name "header/bizarre", which is not a valid
-    HTTP character for a header name.
+    ID 1. The request was on transaction 54 (called "session" here) initiated
+    by source 127.0.0.1 and received by frontend fe-eth0 whose ID is 1. The
+    total response length was 213 bytes when the error was detected, and the
+    error was at byte 23. This is the slash ('/') in header name
+    "header/bizarre", which is not a valid HTTP character for a header name.
 
 show events [<sink>] [-w] [-n]
   With no option, this lists all known event sinks and their types. With an
@@ -3194,24 +3194,24 @@ show servers state [<backend>]
      srv_agent_port:              Server health agent port.
 
 show sess
-  Dump all known sessions. Avoid doing this on slow connections as this can
-  be huge. This command is restricted and can only be issued on sockets
-  configured for levels "operator" or "admin". Note that on machines with
-  quickly recycled connections, it is possible that this output reports less
-  entries than really exist because it will dump all existing sessions up to
-  the last one that was created before the command was entered; those which
-  die in the mean time will not appear.
+  Dump all known active streams (formerly called "sessions"). Avoid doing this
+  on slow connections as this can be huge. This command is restricted and can
+  only be issued on sockets configured for levels "operator" or "admin". Note
+  that on machines with quickly recycled connections, it is possible that this
+  output reports less entries than really exist because it will dump all
+  existing streams up to the last one that was created before the command was
+  entered; those which die in the mean time will not appear.
 
 show sess <id> | older <age> | susp | all
-  Display a lot of internal information about the matching sessions. In the
-  first form, only the session matching the specified session identifier will
+  Display a lot of internal information about the matching streams. In the
+  first form, only the stream matching the specified stream identifier will
   be shown. This identifier is the first field at the beginning of the lines in
-  the dumps of "show sess" (it corresponds to the session pointer). In the
-  second form, only sessions older than <age> (in seconds by default) will be
+  the dumps of "show sess" (it corresponds to the stream pointer). In the
+  second form, only streams older than <age> (in seconds by default) will be
   shown. Passing "susp" instead will only report entries that are considered as
   suspicious by the developers based on criteria that may in time or vary along
-  versions. If "all" is used instead, then all sessions will be dumped. Dumping
-  many sessions can produce a huge output, take a lot of time and be CPU
+  versions. If "all" is used instead, then all streams will be dumped. Dumping
+  many streams can produce a huge output, take a lot of time and be CPU
   intensive, so it's always better to only dump the minimum needed. Those
   information are useless to most users but may be used by haproxy developers
   to troubleshoot a complex bug. The output format is intentionally not
@@ -3808,17 +3808,17 @@ shutdown frontend <frontend>
   level "admin".
 
 shutdown session <id>
-  Immediately terminate the session matching the specified session identifier.
+  Immediately terminate the stream matching the specified stream identifier.
   This identifier is the first field at the beginning of the lines in the dumps
-  of "show sess" (it corresponds to the session pointer). This can be used to
-  terminate a long-running session without waiting for a timeout or when an
-  endless transfer is ongoing. Such terminated sessions are reported with a 'K'
+  of "show sess" (it corresponds to the stream pointer). This can be used to
+  terminate a long-running stream without waiting for a timeout or when an
+  endless transfer is ongoing. Such terminated streams are reported with a 'K'
   flag in the logs.
 
 shutdown sessions server <backend>/<server>
-  Immediately terminate all the sessions attached to the specified server. This
-  can be used to terminate long-running sessions after a server is put into
-  maintenance mode, for instance. Such terminated sessions are reported with a
+  Immediately terminate all the streams attached to the specified server. This
+  can be used to terminate long-running streams after a server is put into
+  maintenance mode, for instance. Such terminated streams are reported with a
   'K' flag in the logs.
 
 trace
