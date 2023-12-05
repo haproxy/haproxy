@@ -550,6 +550,7 @@ enum stats_domain_px_cap {
 
 /* the context of a "show stat" command in progress on the CLI or the stats applet */
 struct show_stat_ctx {
+	struct proxy *http_px;  /* parent proxy of the current applet (only relevant for HTTP applet) */
 	void *obj1;             /* context pointer used in stats dump */
 	void *obj2;             /* context pointer used in stats dump */
 	uint32_t domain;        /* set the stats to used, for now only proxy stats are supported */
