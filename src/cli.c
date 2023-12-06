@@ -1759,6 +1759,10 @@ static int set_severity_output(int *target, char *argument)
 /* parse a "set severity-output" command. */
 static int cli_parse_set_severity_output(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	/* this will ask the applet to not output a \n after the command */
+	if (strcmp(args[3], "-") == 0)
+		appctx->st1 |= APPCTX_CLI_ST1_NOLF;
+
 	if (*args[2] && set_severity_output(&appctx->cli_severity_output, args[2]))
 		return 0;
 
@@ -2453,7 +2457,6 @@ static int pcli_prefix_to_pid(const char *prefix)
  *  >= 0 : number of words to escape
  *  = -1 : error
  */
-
 int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg, int *next_pid)
 {
 	if (argl < 1)
@@ -2533,6 +2536,21 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 		if ((argl > 1) && (strcmp(args[1], "on") == 0))
 			s->pcli_flags |= ACCESS_MCLI_DEBUG;
 		return argl;
+	} else if (strcmp(args[0], "set") == 0) {
+		if ((argl > 1) && (strcmp(args[1], "severity-output") == 0)) {
+			if ((argl > 2) &&strcmp(args[2], "none") == 0) {
+				s->pcli_flags &= ~(ACCESS_MCLI_SEVERITY_NB|ACCESS_MCLI_SEVERITY_STR);
+			} else if ((argl > 2) && strcmp(args[2], "string") == 0) {
+				s->pcli_flags |= ACCESS_MCLI_SEVERITY_STR;
+			} else if ((argl > 2) && strcmp(args[2], "number") == 0) {
+				s->pcli_flags |= ACCESS_MCLI_SEVERITY_NB;
+			} else {
+				memprintf(errmsg, "one of 'none', 'number', 'string' is a required argument\n");
+				return -1;
+			}
+			/* only skip argl if we have "set severity-output" not only "set" */
+			return argl;
+		}
 	}
 
 	return 0;
@@ -2710,6 +2728,16 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 		if (s->pcli_flags & ACCESS_EXPERT) {
 			ci_insert_line2(req, 0, "expert-mode on -", strlen("expert-mode on -"));
 			ret += strlen("expert-mode on -") + 2;
+		}
+		if (s->pcli_flags & ACCESS_MCLI_SEVERITY_STR) {
+			const char *cmd = "set severity-output string -";
+			ci_insert_line2(req, 0, cmd, strlen(cmd));
+			ret += strlen(cmd) + 2;
+		}
+		if (s->pcli_flags & ACCESS_MCLI_SEVERITY_NB) {
+			const char *cmd = "set severity-output number -";
+			ci_insert_line2(req, 0, cmd, strlen(cmd));
+			ret += strlen(cmd) + 2;
 		}
 
 		if (pcli_has_level(s, ACCESS_LVL_ADMIN)) {

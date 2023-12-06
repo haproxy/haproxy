@@ -37,6 +37,8 @@
 #define ACCESS_EXPERT       0x0020  /* access to dangerous commands reserved to experts */
 #define ACCESS_EXPERIMENTAL 0x0040
 #define ACCESS_MCLI_DEBUG   0x0080 /* allow the master CLI to use any command without the flag ACCESS_MASTER */
+#define ACCESS_MCLI_SEVERITY_NB  0x0100 /* 'set severity-output number' on master CLI */
+#define ACCESS_MCLI_SEVERITY_STR 0x0200 /* 'set severity-output string' on master CLI */
 
 /* flags for appctx->st1 */
 #define APPCTX_CLI_ST1_PROMPT  (1 << 0)
