@@ -1329,10 +1329,6 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 		ha_warning("cookie will be ignored for %s '%s' (needs 'mode http').\n",
 			   proxy_type_str(curproxy), curproxy->id);
 	}
-	if (isttest(curproxy->monitor_uri)) {
-		ha_warning("monitor-uri will be ignored for %s '%s' (needs 'mode http').\n",
-			   proxy_type_str(curproxy), curproxy->id);
-	}
 	if (curproxy->lbprm.algo & BE_LB_NEED_HTTP) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_RR;

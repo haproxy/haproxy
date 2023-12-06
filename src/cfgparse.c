@@ -3815,6 +3815,12 @@ out_uri_auth_compat:
 				err_code |= ERR_WARN;
 			}
 
+			if (isttest(curproxy->monitor_uri)) {
+				ha_warning("'monitor-uri' statement ignored for %s '%s' as it requires HTTP mode.\n",
+					   proxy_type_str(curproxy), curproxy->id);
+				err_code |= ERR_WARN;
+			}
+
 			if (!LIST_ISEMPTY(&curproxy->http_req_rules)) {
 				ha_warning("'http-request' rules ignored for %s '%s' as they require HTTP mode.\n",
 					   proxy_type_str(curproxy), curproxy->id);
