@@ -173,15 +173,30 @@ int srv_getinter(const struct check *check)
  * Must be called under thread isolation to ensure consistent readings accross
  * all threads (addr:svc_port might be read without srv lock being held).
  */
-void _srv_set_inetaddr(struct server *srv, const struct sockaddr_storage *addr, unsigned int svc_port)
+static void _srv_set_inetaddr_port(struct server *srv,
+                                   const struct sockaddr_storage *addr,
+                                   unsigned int svc_port, uint8_t mapped_port)
 {
 	ipcpy(addr, &srv->addr);
 	srv->svc_port = svc_port;
+	if (mapped_port)
+		srv->flags |= SRV_F_MAPPORTS;
+	else
+		srv->flags &= ~SRV_F_MAPPORTS;
+
 	if (srv->log_target && srv->log_target->type == LOG_TARGET_DGRAM) {
 		/* server is used as a log target, manually update log target addr for DGRAM */
 		ipcpy(addr, srv->log_target->addr);
 		set_host_port(srv->log_target->addr, svc_port);
 	}
+}
+
+/* same as _srv_set_inetaddr_port() but only updates the addr part
+ */
+static void _srv_set_inetaddr(struct server *srv,
+                              const struct sockaddr_storage *addr)
+{
+	_srv_set_inetaddr_port(srv, addr, srv->svc_port, !!(srv->flags & SRV_F_MAPPORTS));
 }
 
 /*
@@ -288,7 +303,8 @@ static struct task *server_atomic_sync(struct task *task, void *context, unsigne
 				thread_isolate_full();
 
 			/* apply new addr:port combination */
-			_srv_set_inetaddr(srv, &new_addr, data->safe.next.svc_port);
+			_srv_set_inetaddr_port(srv, &new_addr,
+			                       data->safe.next.port.svc, data->safe.next.port.map);
 
 			/* propagate the changes */
 			if (data->safe.purge_conn) /* force connection cleanup on the given server? */
@@ -422,11 +438,12 @@ void _srv_event_hdl_prepare_state(struct event_hdl_cb_data_server_state *cb_data
 static void _srv_event_hdl_prepare_inetaddr(struct event_hdl_cb_data_server_inetaddr *cb_data,
                                             struct server *srv,
                                             const struct sockaddr_storage *next_addr,
-                                            unsigned int next_port,
+                                            unsigned int next_port, uint8_t next_mapports,
                                             uint8_t purge_conn)
 {
 	struct sockaddr_storage *prev_addr = &srv->addr;
 	unsigned int prev_port = srv->svc_port;
+	uint8_t prev_mapports = !!(srv->flags & SRV_F_MAPPORTS);
 
 	/* only INET families are supported */
 	BUG_ON((prev_addr->ss_family != AF_UNSPEC &&
@@ -444,7 +461,8 @@ static void _srv_event_hdl_prepare_inetaddr(struct event_hdl_cb_data_server_inet
 		memcpy(&cb_data->safe.prev.addr.v6,
 		       &((struct sockaddr_in6 *)prev_addr)->sin6_addr,
 		       sizeof(struct in6_addr));
-	cb_data->safe.prev.svc_port = prev_port;
+	cb_data->safe.prev.port.svc = prev_port;
+	cb_data->safe.prev.port.map = prev_mapports;
 
 	/* next */
 	cb_data->safe.next.family = next_addr->ss_family;
@@ -456,7 +474,8 @@ static void _srv_event_hdl_prepare_inetaddr(struct event_hdl_cb_data_server_inet
 		memcpy(&cb_data->safe.next.addr.v6,
 		       &((struct sockaddr_in6 *)next_addr)->sin6_addr,
 		       sizeof(struct in6_addr));
-	cb_data->safe.next.svc_port = next_port;
+	cb_data->safe.next.port.svc = next_port;
+	cb_data->safe.next.port.map = next_mapports;
 
 	cb_data->safe.purge_conn = purge_conn;
 }
@@ -3813,7 +3832,9 @@ int srv_update_addr(struct server *s, void *ip, int ip_sin_family, const char *u
 	};
 
 	_srv_event_hdl_prepare(&cb_data.common, s, 0);
-	_srv_event_hdl_prepare_inetaddr(&cb_data.addr, s, &new_addr, s->svc_port, 0);
+	_srv_event_hdl_prepare_inetaddr(&cb_data.addr, s,
+                                        &new_addr, s->svc_port, !!(s->flags & SRV_F_MAPPORTS),
+                                        0);
 
 	/* server_atomic_sync_task will apply the changes for us */
 	_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_INETADDR, cb_data, s);
@@ -3952,6 +3973,7 @@ const char *srv_update_addr_port(struct server *s, const char *addr, const char 
 	struct buffer *msg;
 	int ip_change = 0;
 	int port_change = 0;
+	uint8_t mapports = !!(s->flags & SRV_F_MAPPORTS);
 
 	msg = get_trash_chunk();
 	chunk_reset(msg);
@@ -4047,17 +4069,17 @@ const char *srv_update_addr_port(struct server *s, const char *addr, const char 
 			chunk_appendf(msg, "%d' to '", current_port);
 
 			if (sign == '-') {
-				s->flags |= SRV_F_MAPPORTS;
+				mapports = 1;
 				chunk_appendf(msg, "%c", sign);
 				/* just use for result output */
 				new_port_print = -new_port_print;
 			}
 			else if (sign == '+') {
-				s->flags |= SRV_F_MAPPORTS;
+				mapports = 1;
 				chunk_appendf(msg, "%c", sign);
 			}
 			else {
-				s->flags &= ~SRV_F_MAPPORTS;
+				mapports = 0;
 			}
 
 			chunk_appendf(msg, "%d'", new_port_print);
@@ -4072,7 +4094,7 @@ out:
 		_srv_event_hdl_prepare(&cb_data.common, s, 0);
 		_srv_event_hdl_prepare_inetaddr(&cb_data.addr, s,
 		                                ((ip_change) ? &sa : &s->addr),
-		                                ((port_change) ? new_port : s->svc_port),
+		                                ((port_change) ? new_port : s->svc_port), mapports,
 		                                1);
 
 		/* server_atomic_sync_task will apply the changes for us */
@@ -4489,7 +4511,7 @@ int srv_set_addr_via_libc(struct server *srv, int *err_code)
 			*err_code |= ERR_WARN;
 		return 1;
 	}
-	_srv_set_inetaddr(srv, &new_addr, srv->svc_port);
+	_srv_set_inetaddr(srv, &new_addr);
 	return 0;
 }
 
@@ -4576,7 +4598,7 @@ static int srv_apply_lastaddr(struct server *srv, int *err_code)
 			*err_code |= ERR_WARN;
 		return 1;
 	}
-	_srv_set_inetaddr(srv, &new_addr, srv->svc_port);
+	_srv_set_inetaddr(srv, &new_addr);
 	return 0;
 }
 
@@ -4638,7 +4660,7 @@ static int srv_iterate_initaddr(struct server *srv)
 			return return_code;
 
 		case SRV_IADDR_IP:
-			_srv_set_inetaddr(srv, &srv->init_addr, srv->svc_port);
+			_srv_set_inetaddr(srv, &srv->init_addr);
 			if (return_code) {
 				ha_warning("could not resolve address '%s', falling back to configured address.\n",
 					   name);

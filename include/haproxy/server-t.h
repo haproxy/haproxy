@@ -606,7 +606,10 @@ struct server_inetaddr {
 		struct in_addr v4;
 		struct in6_addr v6;
 	} addr; /* may hold v4 or v6 addr */
-	unsigned int svc_port;
+	struct {
+		unsigned int svc;
+		uint8_t map; /* is a mapped port? (boolean) */
+	} port;
 };
 
 /* data provided to EVENT_HDL_SUB_SERVER_INETADDR handlers through
