@@ -347,7 +347,7 @@ static int quic_tls_compat_create_record(struct quic_conn *qc,
 	                       nonce, rec->payload, rec->payload_len, ad, adlen))
 		goto leave;
 
-	ret = adlen + outlen;
+	ret = outlen;
 leave:
 	TRACE_LEAVE(QUIC_EV_CONN_SSL_COMPAT, qc);
 	return ret;
