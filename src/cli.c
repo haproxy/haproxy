@@ -2453,8 +2453,13 @@ static int pcli_prefix_to_pid(const char *prefix)
 	return -1;
 }
 
-/* Return::
- *  >= 0 : number of words to escape
+/*
+ * pcli_find_and_exec_kw() parses a command for the master CLI.  It looks for a
+ * prefix or a command that is handled directly by the proxy and never sent to
+ * a worker.
+ *
+ * Return:
+ *  >= 0 : number of words that were parsed and need to be skipped
  *  = -1 : error
  */
 int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg, int *next_pid)
