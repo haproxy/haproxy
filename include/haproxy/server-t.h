@@ -597,6 +597,18 @@ struct event_hdl_cb_data_server_check {
 	} unsafe;
 };
 
+/* struct to store server address and port information in INET
+ * context
+ */
+struct server_inetaddr {
+	int family; /* AF_UNSPEC, AF_INET or AF_INET6 */
+	union {
+		struct in_addr v4;
+		struct in6_addr v6;
+	} addr; /* may hold v4 or v6 addr */
+	unsigned int svc_port;
+};
+
 /* data provided to EVENT_HDL_SUB_SERVER_INETADDR handlers through
  * event_hdl facility
  *
@@ -609,22 +621,8 @@ struct event_hdl_cb_data_server_inetaddr {
 	 */
 	struct event_hdl_cb_data_server server;                 /* must be at the beginning */
 	struct {
-		struct  {
-			int family; /* AF_UNSPEC, AF_INET or AF_INET6 */
-			union {
-				struct in_addr v4;
-				struct in6_addr v6;
-			} addr; /* may hold v4 or v6 addr */
-			unsigned int svc_port;
-		} prev;
-		struct {
-			int family; /* AF_UNSPEC, AF_INET or AF_INET6 */
-			union {
-				struct in_addr v4;
-				struct in6_addr v6;
-			} addr; /* may hold v4 or v6 addr */
-			unsigned int svc_port;
-		} next;
+		struct server_inetaddr prev;
+		struct server_inetaddr next;
 		uint8_t purge_conn; /* set to 1 if the network change will force a connection cleanup */
 	} safe;
 	/* no unsafe data */
