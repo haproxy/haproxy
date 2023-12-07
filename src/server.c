@@ -412,16 +412,22 @@ void _srv_event_hdl_prepare_state(struct event_hdl_cb_data_server_state *cb_data
 	}
 }
 
-/* Prepare SERVER_INETADDR event
+/* Prepare SERVER_INETADDR event, prev data is learned from the current
+ * server settings.
  *
  * This special event will contain extra hints related to the addr change
  *
+ * Must be called with the server lock held.
  */
-void _srv_event_hdl_prepare_inetaddr(struct event_hdl_cb_data_server_inetaddr *cb_data,
-                                     struct sockaddr_storage *prev_addr, unsigned int prev_port,
-                                     struct sockaddr_storage *next_addr, unsigned int next_port,
-                                     uint8_t purge_conn)
+static void _srv_event_hdl_prepare_inetaddr(struct event_hdl_cb_data_server_inetaddr *cb_data,
+                                            struct server *srv,
+                                            const struct sockaddr_storage *next_addr,
+                                            unsigned int next_port,
+                                            uint8_t purge_conn)
 {
+	struct sockaddr_storage *prev_addr = &srv->addr;
+	unsigned int prev_port = srv->svc_port;
+
 	/* only INET families are supported */
 	BUG_ON((prev_addr->ss_family != AF_UNSPEC &&
 	        prev_addr->ss_family != AF_INET && prev_addr->ss_family != AF_INET6) ||
@@ -3807,7 +3813,7 @@ int srv_update_addr(struct server *s, void *ip, int ip_sin_family, const char *u
 	};
 
 	_srv_event_hdl_prepare(&cb_data.common, s, 0);
-	_srv_event_hdl_prepare_inetaddr(&cb_data.addr, &s->addr, s->svc_port, &new_addr, s->svc_port, 0);
+	_srv_event_hdl_prepare_inetaddr(&cb_data.addr, s, &new_addr, s->svc_port, 0);
 
 	/* server_atomic_sync_task will apply the changes for us */
 	_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_INETADDR, cb_data, s);
@@ -4064,7 +4070,7 @@ const char *srv_update_addr_port(struct server *s, const char *addr, const char 
 out:
 	if (ip_change || port_change) {
 		_srv_event_hdl_prepare(&cb_data.common, s, 0);
-		_srv_event_hdl_prepare_inetaddr(&cb_data.addr, &s->addr, s->svc_port,
+		_srv_event_hdl_prepare_inetaddr(&cb_data.addr, s,
 		                                ((ip_change) ? &sa : &s->addr),
 		                                ((port_change) ? new_port : s->svc_port),
 		                                1);
