@@ -161,6 +161,37 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 	return total;
 }
 
+static size_t hq_interop_nego_ff(struct qcs *qcs, size_t count)
+{
+	struct buffer *res = mux_get_buf(qcs);
+
+	if (!b_room(res)) {
+		qcs->flags |= QC_SF_BLK_MROOM;
+		qcs->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
+		goto end;
+	}
+
+	/* No header required for HTTP/0.9, no need to reserve an offset. */
+	qcs->sd->iobuf.buf = res;
+	qcs->sd->iobuf.offset = 0;
+	qcs->sd->iobuf.data = 0;
+
+ end:
+	return MIN(b_contig_space(res), count);
+}
+
+static size_t hq_interop_done_ff(struct qcs *qcs)
+{
+	const size_t ret = qcs->sd->iobuf.data;
+
+	/* No header required for HTTP/0.9, simply mark ff as done. */
+	qcs->sd->iobuf.buf = NULL;
+	qcs->sd->iobuf.offset = 0;
+	qcs->sd->iobuf.data = 0;
+
+	return ret;
+}
+
 static int hq_interop_attach(struct qcs *qcs, void *conn_ctx)
 {
 	qcs_wait_http_req(qcs);
@@ -170,5 +201,7 @@ static int hq_interop_attach(struct qcs *qcs, void *conn_ctx)
 const struct qcc_app_ops hq_interop_ops = {
 	.decode_qcs = hq_interop_decode_qcs,
 	.snd_buf    = hq_interop_snd_buf,
+	.nego_ff    = hq_interop_nego_ff,
+	.done_ff    = hq_interop_done_ff,
 	.attach     = hq_interop_attach,
 };
