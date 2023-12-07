@@ -185,17 +185,35 @@ enum qcc_app_ops_close_side {
 
 /* QUIC application layer operations */
 struct qcc_app_ops {
+	/* Initialize <qcc> connection app context. */
 	int (*init)(struct qcc *qcc);
+	/* Finish connection initialization if prelude required. */
+	int (*finalize)(void *ctx);
+
+	/* Initialize <qcs> stream app context or leave it to NULL if rejected. */
 	int (*attach)(struct qcs *qcs, void *conn_ctx);
-	ssize_t (*decode_qcs)(struct qcs *qcs, struct buffer *b, int fin);
-	size_t (*snd_buf)(struct qcs *qcs, struct buffer *buf, size_t count);
+
+	/* Convert received HTTP payload to HTX. */
+	ssize_t (*rcv_buf)(struct qcs *qcs, struct buffer *b, int fin);
+
+	/* Convert HTX to HTTP payload for sending. */
+	size_t (*snd_buf)(struct qcs *qcs, struct buffer *b, size_t count);
+
+	/* Negotiate and commit fast-forward data from opposite MUX. */
 	size_t (*nego_ff)(struct qcs *qcs, size_t count);
 	size_t (*done_ff)(struct qcs *qcs);
+
+	/* Notify about <qcs> stream closure. */
 	int (*close)(struct qcs *qcs, enum qcc_app_ops_close_side side);
+	/* Free <qcs> stream app context. */
 	void (*detach)(struct qcs *qcs);
-	int (*finalize)(void *ctx);
-	void (*shutdown)(void *ctx);                    /* Close a connection. */
+
+	/* Perform graceful shutdown. */
+	void (*shutdown)(void *ctx);
+	/* Free connection app context. */
 	void (*release)(void *ctx);
+
+	/* Increment app counters on CONNECTION_CLOSE_APP reception. */
 	void (*inc_err_cnt)(void *ctx, int err_code);
 };
 

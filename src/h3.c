@@ -1205,12 +1205,12 @@ static ssize_t h3_parse_settings_frm(struct h3c *h3c, const struct buffer *buf,
 	return ret;
 }
 
-/* Decode <qcs> remotely initiated bidi-stream. <fin> must be set to indicate
- * that we received the last data of the stream.
+/* Transcode HTTP/3 payload received in buffer <b> to HTX data for stream
+ * <qcs>. If <fin> is set, it indicates that no more data will arrive after.
  *
  * Returns 0 on success else non-zero.
  */
-static ssize_t h3_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
+static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 {
 	struct h3s *h3s = qcs->ctx;
 	struct h3c *h3c = h3s->h3c;
@@ -2105,25 +2105,6 @@ static void h3_detach(struct qcs *qcs)
 	TRACE_LEAVE(H3_EV_H3S_END, qcs->qcc->conn, qcs);
 }
 
-/* Initialize H3 control stream and prepare SETTINGS emission.
- *
- * Returns 0 on success else non-zero.
- */
-static int h3_finalize(void *ctx)
-{
-	struct h3c *h3c = ctx;
-	struct qcs *qcs;
-
-	qcs = qcc_init_stream_local(h3c->qcc, 0);
-	if (!qcs)
-		return 1;
-
-	h3_control_send(qcs, h3c);
-	h3c->ctrl_strm = qcs;
-
-	return 0;
-}
-
 /* Generate a GOAWAY frame for <h3c> connection on the control stream.
  *
  * Returns 0 on success else non-zero.
@@ -2199,6 +2180,25 @@ static int h3_init(struct qcc *qcc)
 	return 1;
 
  fail_no_h3:
+	return 0;
+}
+
+/* Initialize H3 control stream and prepare SETTINGS emission.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int h3_finalize(void *ctx)
+{
+	struct h3c *h3c = ctx;
+	struct qcs *qcs;
+
+	qcs = qcc_init_stream_local(h3c->qcc, 0);
+	if (!qcs)
+		return 1;
+
+	h3_control_send(qcs, h3c);
+	h3c->ctrl_strm = qcs;
+
 	return 0;
 }
 
@@ -2289,14 +2289,14 @@ static void h3_trace(enum trace_level level, uint64_t mask,
 /* HTTP/3 application layer operations */
 const struct qcc_app_ops h3_ops = {
 	.init        = h3_init,
+	.finalize    = h3_finalize,
 	.attach      = h3_attach,
-	.decode_qcs  = h3_decode_qcs,
+	.rcv_buf     = h3_rcv_buf,
 	.snd_buf     = h3_snd_buf,
 	.nego_ff     = h3_nego_ff,
 	.done_ff     = h3_done_ff,
 	.close       = h3_close,
 	.detach      = h3_detach,
-	.finalize    = h3_finalize,
 	.shutdown    = h3_shutdown,
 	.inc_err_cnt = h3_stats_inc_err_cnt,
 	.release     = h3_release,

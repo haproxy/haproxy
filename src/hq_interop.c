@@ -9,7 +9,7 @@
 #include <haproxy/mux_quic.h>
 #include <haproxy/qmux_http.h>
 
-static ssize_t hq_interop_decode_qcs(struct qcs *qcs, struct buffer *b, int fin)
+static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 {
 	struct htx *htx;
 	struct htx_sl *sl;
@@ -191,7 +191,7 @@ static int hq_interop_attach(struct qcs *qcs, void *conn_ctx)
 }
 
 const struct qcc_app_ops hq_interop_ops = {
-	.decode_qcs = hq_interop_decode_qcs,
+	.rcv_buf    = hq_interop_rcv_buf,
 	.snd_buf    = hq_interop_snd_buf,
 	.nego_ff    = hq_interop_nego_ff,
 	.done_ff    = hq_interop_done_ff,

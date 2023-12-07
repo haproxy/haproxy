@@ -874,7 +874,7 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 		fin = 1;
 
 	if (!(qcs->flags & QC_SF_READ_ABORTED)) {
-		ret = qcc->app_ops->decode_qcs(qcs, &b, fin);
+		ret = qcc->app_ops->rcv_buf(qcs, &b, fin);
 		if (ret < 0) {
 			TRACE_ERROR("decoding error", QMUX_EV_QCS_RECV, qcc->conn, qcs);
 			goto err;
