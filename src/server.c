@@ -2328,32 +2328,6 @@ const char *server_parse_weight_change_request(struct server *sv,
 }
 
 /*
- * Parses <addr_str> and configures <sv> accordingly. <from> precise
- * the source of the change in the associated message log.
- * Returns:
- *  - error string on error
- *  - NULL on success
- *
- * Must be called with the server lock held.
- */
-const char *server_parse_addr_change_request(struct server *sv,
-                                             const char *addr_str, const char *updater)
-{
-	unsigned char ip[INET6_ADDRSTRLEN];
-
-	if (inet_pton(AF_INET6, addr_str, ip)) {
-		srv_update_addr(sv, ip, AF_INET6, updater);
-		return NULL;
-	}
-	if (inet_pton(AF_INET, addr_str, ip)) {
-		srv_update_addr(sv, ip, AF_INET, updater);
-		return NULL;
-	}
-
-	return "Could not understand IP address format.\n";
-}
-
-/*
  * Must be called with the server lock held.
  */
 const char *server_parse_maxconn_change_request(struct server *sv,

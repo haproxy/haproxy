@@ -123,14 +123,6 @@ const char *server_parse_weight_change_request(struct server *sv,
 					       const char *weight_str);
 
 /*
- * Parses addr_str and configures sv accordingly. updater precise
- * the source of the change in the associated message log.
- * Returns NULL on success, error message string otherwise.
- */
-const char *server_parse_addr_change_request(struct server *sv,
-                                             const char *addr_str, const char *updater);
-
-/*
  * Parses maxconn_str and configures sv accordingly.
  * Returns NULL on success, error message string otherwise.
  */
