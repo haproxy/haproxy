@@ -1776,6 +1776,9 @@ static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 		     htx_nbblks(htx) == 1 && type == HTX_BLK_DATA)) {
 		void *old_area = res->area;
 
+		TRACE_DATA("perform zero-copy DATA transfer", H3_EV_TX_DATA,
+		           qcs->qcc->conn, qcs);
+
 		/* map an H2 frame to the HTX block so that we can put the
 		 * frame header there.
 		 */

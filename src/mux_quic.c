@@ -2870,8 +2870,10 @@ static size_t qmux_strm_done_ff(struct stconn *sc)
 
 	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
-	if (sd->iobuf.flags & IOBUF_FL_EOI)
+	if (sd->iobuf.flags & IOBUF_FL_EOI) {
+		TRACE_STATE("reached stream fin", QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 		qcs->flags |= QC_SF_FIN_STREAM;
+	}
 
 	if (!(qcs->flags & QC_SF_FIN_STREAM) && !sd->iobuf.data)
 		goto end;
