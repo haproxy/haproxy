@@ -2809,7 +2809,8 @@ static size_t qmux_strm_snd_buf(struct stconn *sc, struct buffer *buf,
 }
 
 
-static size_t qmux_nego_ff(struct stconn *sc, struct buffer *input, size_t count, unsigned int may_splice)
+static size_t qmux_strm_nego_ff(struct stconn *sc, struct buffer *input,
+                                size_t count, unsigned int may_splice)
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
 	size_t ret = 0;
@@ -2860,7 +2861,7 @@ static size_t qmux_nego_ff(struct stconn *sc, struct buffer *input, size_t count
 	return ret;
 }
 
-static size_t qmux_done_ff(struct stconn *sc)
+static size_t qmux_strm_done_ff(struct stconn *sc)
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
 	struct qcc *qcc = qcs->qcc;
@@ -2889,7 +2890,7 @@ static size_t qmux_done_ff(struct stconn *sc)
 	return total;
 }
 
-static int qmux_resume_ff(struct stconn *sc, unsigned int flags)
+static int qmux_strm_resume_ff(struct stconn *sc, unsigned int flags)
 {
 	return 0;
 }
@@ -3030,9 +3031,9 @@ static const struct mux_ops qmux_ops = {
 	.detach      = qmux_strm_detach,
 	.rcv_buf     = qmux_strm_rcv_buf,
 	.snd_buf     = qmux_strm_snd_buf,
-	.nego_fastfwd = qmux_nego_ff,
-	.done_fastfwd = qmux_done_ff,
-	.resume_fastfwd = qmux_resume_ff,
+	.nego_fastfwd = qmux_strm_nego_ff,
+	.done_fastfwd = qmux_strm_done_ff,
+	.resume_fastfwd = qmux_strm_resume_ff,
 	.subscribe   = qmux_strm_subscribe,
 	.unsubscribe = qmux_strm_unsubscribe,
 	.wake        = qmux_wake,
