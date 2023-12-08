@@ -1606,17 +1606,25 @@ void pat_ref_delete_by_ptr(struct pat_ref *ref, struct pat_ref_elt *elt)
 	free(elt);
 }
 
-/* This function removes all the patterns matching the pointer <refelt> from
+/* This function removes the pattern matching the pointer <refelt> from
  * the reference and from each expr member of this reference. This function
  * returns 1 if the entry was found and deleted, otherwise zero.
+ *
+ * <refelt> is user input: it is provided as an ID and should never be
+ * dereferenced without making sure that it is valid.
  */
 int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
 {
-	int ret = !!refelt->node.node.leaf_p;
+	struct pat_ref_elt *elt, *safe;
 
-	ebmb_delete(&refelt->node);
-
-	return ret;
+	/* delete pattern from reference */
+	list_for_each_entry_safe(elt, safe, &ref->head, list) {
+		if (elt == refelt) {
+			pat_ref_delete_by_ptr(ref, elt);
+			return 1;
+		}
+	}
+	return 0;
 }
 
 /* This function removes all patterns matching <key> from the reference
@@ -1739,13 +1747,21 @@ static inline int pat_ref_set_elt(struct pat_ref *ref, struct pat_ref_elt *elt,
 /* This function modifies the sample of pat_ref_elt <refelt> in all expressions
  * found under <ref> to become <value>, after checking that <refelt> really
  * belongs to <ref>.
+ *
+ * <refelt> is user input: it is provided as an ID and should never be
+ * dereferenced without making sure that it is valid.
  */
 int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const char *value, char **err)
 {
-	if (refelt->node.node.leaf_p) {
-		if (!pat_ref_set_elt(ref, refelt, value, err))
-			return 0;
-		return 1;
+	struct pat_ref_elt *elt;
+
+	/* Look for pattern in the reference. */
+	list_for_each_entry(elt, &ref->head, list) {
+		if (elt == refelt) {
+			if (!pat_ref_set_elt(ref, elt, value, err))
+				return 0;
+			return 1;
+		}
 	}
 
 	memprintf(err, "key or pattern not found");
