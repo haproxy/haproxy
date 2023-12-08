@@ -1737,10 +1737,17 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 	return 0;
 }
 
-/* Returns the total of bytes sent. */
-static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
+/* Convert a series of HTX data blocks from <htx> buffer of size <count> into
+ * HTTP/3 frames encoded into <qcs> Tx buffer. The caller must also specify the
+ * underlying HTX area via <buf> as this will be used if zero-copy can be
+ * performed.
+ *
+ * Returns the total bytes of encoded HTTP/3 payload. This corresponds to the
+ * total bytes of HTX block removed.
+ */
+static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
+                             struct buffer *buf, size_t count)
 {
-	struct htx *htx;
 	struct buffer outbuf;
 	struct buffer *res;
 	size_t total = 0;
@@ -1749,8 +1756,6 @@ static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 	enum htx_blk_type type;
 
 	TRACE_ENTER(H3_EV_TX_FRAME|H3_EV_TX_DATA, qcs->qcc->conn, qcs);
-
-	htx = htx_from_buf(buf);
 
  new_frame:
 	if (!count || htx_is_empty(htx))
@@ -1770,27 +1775,32 @@ static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
 		/* TODO */
 	}
 
+	/* If HTX contains only one DATA block, try to exchange it with MUX
+	 * buffer to perform zero-copy. This is only achievable if MUX buffer
+	 * is currently empty.
+	 */
 	if (unlikely(fsize == count &&
-		     !b_data(res) &&
-		     htx_nbblks(htx) == 1 && type == HTX_BLK_DATA)) {
+	             !b_data(res) &&
+	             htx_nbblks(htx) == 1 && type == HTX_BLK_DATA)) {
 		void *old_area = res->area;
 
 		TRACE_DATA("perform zero-copy DATA transfer",
 		           H3_EV_TX_FRAME|H3_EV_TX_DATA, qcs->qcc->conn, qcs);
 
-		/* map an H2 frame to the HTX block so that we can put the
-		 * frame header there.
-		 */
-		*res = b_make(buf->area, buf->size, sizeof(struct htx) + blk->addr - hsize, fsize + hsize);
-		outbuf = b_make(b_head(res), hsize, 0, 0);
-		b_putchr(&outbuf, 0x00); /* h3 frame type = DATA */
-		b_quic_enc_int(&outbuf, fsize, QUIC_VARINT_MAX_SIZE); /* h3 frame length */
+		/* remap MUX buffer to HTX area, keep an offset for H3 header. */
+		*res = b_make(buf->area, buf->size,
+		              sizeof(struct htx) + blk->addr - hsize, 0);
 
-		/* and exchange with our old area */
+		/* write H3 header frame before old HTX block. */
+		b_putchr(res, 0x00); /* h3 frame type = DATA */
+		b_quic_enc_int(res, fsize, QUIC_VARINT_MAX_SIZE); /* h3 frame length */
+		b_add(res, fsize);
+
+		/* assign old MUX area to HTX buffer. */
 		buf->area = old_area;
 		buf->data = buf->head = 0;
 		total += fsize;
-		fsize = 0;
+
 		goto end;
 	}
 
@@ -1877,9 +1887,11 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 			break;
 
 		case HTX_BLK_DATA:
-			ret = h3_resp_data_send(qcs, buf, count);
+			ret = h3_resp_data_send(qcs, htx, buf, count);
 			if (ret > 0) {
+				/* Reload HTX. This is necessary if 0-copy was performed. */
 				htx = htx_from_buf(buf);
+
 				total += ret;
 				count -= ret;
 				if (ret < bsize)
