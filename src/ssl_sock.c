@@ -2859,8 +2859,8 @@ static int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
 			has_rsa_sig = 0;
 		}
 		for (idx = 0; idx < hashSigAlgoSz; idx += 2) {
-			enum wc_HashType hashAlgo;
-			enum Key_Sum sigAlgo;
+			int hashAlgo;
+			int sigAlgo;
 
 			wolfSSL_get_sigalg_info(hashSigAlgo[idx+0], hashSigAlgo[idx+1], &hashAlgo, &sigAlgo);
 
