@@ -1847,9 +1847,6 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 
 	htx = htx_from_buf(buf);
 
-	if (htx->extra && htx->extra == HTX_UNKOWN_PAYLOAD_LENGTH)
-		qcs->flags |= QC_SF_UNKNOWN_PL_LENGTH;
-
 	while (count && !htx_is_empty(htx) && !(qcs->flags & QC_SF_BLK_MROOM)) {
 		idx = htx_get_head(htx);
 		blk = htx_get_blk(htx, idx);

@@ -78,6 +78,15 @@ size_t qcs_http_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count,
 	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
 	htx = htxbuf(buf);
+
+	/* Extra care required for HTTP/1 responses without Content-Length nor
+	 * chunked encoding. In this case, shutw callback will be use to signal
+	 * the end of the message. QC_SF_UNKNOWN_PL_LENGTH is set to prevent a
+	 * RESET_STREAM emission in this case.
+	 */
+	if (htx->extra && htx->extra == HTX_UNKOWN_PAYLOAD_LENGTH)
+		qcs->flags |= QC_SF_UNKNOWN_PL_LENGTH;
+
 	eom = (htx->flags & HTX_FL_EOM);
 	ret = qcs->qcc->app_ops->snd_buf(qcs, buf, count);
 	*fin = (eom && !b_data(buf));
