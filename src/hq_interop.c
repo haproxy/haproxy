@@ -8,6 +8,8 @@
 #include <haproxy/http.h>
 #include <haproxy/mux_quic.h>
 #include <haproxy/qmux_http.h>
+#include <haproxy/qmux_trace.h>
+#include <haproxy/trace.h>
 
 static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 {
@@ -110,6 +112,28 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 
 		switch (btype) {
 		case HTX_BLK_DATA:
+			if (unlikely(fsize == count &&
+				     !b_data(res) &&
+				     htx_nbblks(htx) == 1 && btype == HTX_BLK_DATA)) {
+				void *old_area = res->area;
+
+				TRACE_DATA("perform zero-copy DATA transfer", QMUX_EV_STRM_SEND,
+					   qcs->qcc->conn, qcs);
+
+				/* remap MUX buffer to HTX area */
+				*res = b_make(buf->area, buf->size,
+					      sizeof(struct htx) + blk->addr, fsize);
+
+				/* assign old MUX area to HTX buffer. */
+				buf->area = old_area;
+				buf->data = buf->head = 0;
+				total += fsize;
+
+				/* reload HTX with empty buffer. */
+				*htx = *htx_from_buf(buf);
+				goto end;
+			}
+
 			if (fsize > count)
 				fsize = count;
 
