@@ -4633,6 +4633,7 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	}
 
 	total += sdo->iobuf.data;
+	count -= sdo->iobuf.data;
 #if defined(USE_LINUX_SPLICE)
 	if (sdo->iobuf.pipe) {
 		/* Here, not data was xferred */
