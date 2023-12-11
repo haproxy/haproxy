@@ -511,6 +511,16 @@ static inline size_t se_nego_ff(struct sedesc *se, struct buffer *input, size_t 
 
 		se->iobuf.flags &= ~IOBUF_FL_FF_BLOCKED;
 		if (mux->nego_fastfwd && mux->done_fastfwd) {
+			/* Declare SE as blocked if EOS or an error was reported.
+			 * This may happen if fast-forward was scheduled before the I/O processing on <SC>.
+			 * Wake <SC> up in this case.
+			 */
+			if (se_fl_test(se, SE_FL_EOS|SE_FL_ERROR|SE_FL_ERR_PENDING)) {
+				se->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
+				tasklet_wakeup(se->sc->wait_event.tasklet);
+				goto end;
+			}
+
 			ret = mux->nego_fastfwd(se->sc, input, count, may_splice);
 			if ((se->iobuf.flags & IOBUF_FL_FF_BLOCKED) && !(se->sc->wait_event.events & SUB_RETRY_SEND)) {
 				/* The SC must be subs for send to be notify when some
