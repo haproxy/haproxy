@@ -4448,8 +4448,13 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 		srv_update_addr(s, firstip, firstip_sin_family, SERVER_INETADDR_UPDATER_DNS_CACHE);
 
  update_status:
-	if (!snr_set_srv_down(s, has_no_ip) && has_no_ip)
-		memset(&s->addr, 0, sizeof(s->addr));
+	if (!snr_set_srv_down(s, has_no_ip) && has_no_ip) {
+		struct server_inetaddr s_addr;
+
+		memset(&s_addr, 0, sizeof(s_addr));
+		/* unset server's addr */
+		server_set_inetaddr(s, &s_addr, SERVER_INETADDR_UPDATER_NONE, NULL);
+	}
 	return 1;
 
  invalid:
@@ -4457,8 +4462,13 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 		counters->app.resolver.invalid++;
 		goto update_status;
 	}
-	if (!snr_set_srv_down(s, has_no_ip) && has_no_ip)
-		memset(&s->addr, 0, sizeof(s->addr));
+	if (!snr_set_srv_down(s, has_no_ip) && has_no_ip) {
+		struct server_inetaddr s_addr;
+
+		memset(&s_addr, 0, sizeof(s_addr));
+		/* unset server's addr */
+		server_set_inetaddr(s, &s_addr, SERVER_INETADDR_UPDATER_NONE, NULL);
+	}
 	return 0;
 }
 
@@ -4539,7 +4549,11 @@ int snr_resolution_error_cb(struct resolv_requester *requester, int error_code)
 
 	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
 	if (!snr_set_srv_down(s, 1)) {
-		memset(&s->addr, 0, sizeof(s->addr));
+		struct server_inetaddr s_addr;
+
+		memset(&s_addr, 0, sizeof(s_addr));
+		/* unset server's addr */
+		server_set_inetaddr(s, &s_addr, SERVER_INETADDR_UPDATER_NONE, NULL);
 		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 		resolv_detach_from_resolution_answer_items(requester->resolution, requester);
 		return 0;

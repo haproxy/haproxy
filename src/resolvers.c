@@ -659,14 +659,17 @@ static void leave_resolver_code()
  */
 static void resolv_srvrq_cleanup_srv(struct server *srv)
 {
+	struct server_inetaddr srv_addr;
+
 	_resolv_unlink_resolution(srv->resolv_requester);
 	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	srvrq_set_srv_down(srv);
 	ha_free(&srv->hostname);
 	ha_free(&srv->hostname_dn);
 	srv->hostname_dn_len = 0;
-	memset(&srv->addr, 0, sizeof(srv->addr));
-	srv->svc_port = 0;
+	memset(&srv_addr, 0, sizeof(srv_addr));
+	/* unset server's addr */
+	server_set_inetaddr(srv, &srv_addr, SERVER_INETADDR_UPDATER_NONE, NULL);
 	srv->flags |= SRV_F_NO_RESOLUTION;
 
 	ebpt_delete(&srv->host_dn);
