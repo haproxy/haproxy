@@ -669,6 +669,7 @@ struct event_hdl_cb_data_server_inetaddr {
 	struct {
 		struct server_inetaddr prev;
 		struct server_inetaddr next;
+		struct server_inetaddr_updater updater;
 	} safe;
 	/* no unsafe data */
 };

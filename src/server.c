@@ -436,7 +436,8 @@ void _srv_event_hdl_prepare_state(struct event_hdl_cb_data_server_state *cb_data
  */
 static void _srv_event_hdl_prepare_inetaddr(struct event_hdl_cb_data_server_inetaddr *cb_data,
                                             struct server *srv,
-                                            const struct server_inetaddr *next_inetaddr)
+                                            const struct server_inetaddr *next_inetaddr,
+                                            struct server_inetaddr_updater updater)
 {
 	struct server_inetaddr prev_inetaddr;
 
@@ -451,6 +452,9 @@ static void _srv_event_hdl_prepare_inetaddr(struct event_hdl_cb_data_server_inet
 
 	/* next */
 	cb_data->safe.next = *next_inetaddr;
+
+	/* updater */
+	cb_data->safe.updater = updater;
 }
 
 /* server event publishing helper: publish in both global and
@@ -3945,7 +3949,8 @@ int server_set_inetaddr(struct server *s,
 	if (ip_change || port_change) {
 		_srv_event_hdl_prepare(&cb_data.common, s, 0);
 		_srv_event_hdl_prepare_inetaddr(&cb_data.addr, s,
-		                                inetaddr);
+		                                inetaddr,
+		                                updater);
 
 		/* server_atomic_sync_task will apply the changes for us */
 		_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_INETADDR, cb_data, s);
