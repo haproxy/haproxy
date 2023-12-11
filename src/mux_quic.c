@@ -423,15 +423,6 @@ int qcs_is_close_remote(struct qcs *qcs)
 	return qcs->st == QC_SS_HREM || qcs->st == QC_SS_CLO;
 }
 
-/* Allocate if needed buffer <bptr> for stream <qcs>.
- *
- * Returns the buffer instance or NULL on allocation failure.
- */
-struct buffer *qcs_get_buf(struct qcs *qcs, struct buffer *bptr)
-{
-	return b_alloc(bptr);
-}
-
 /* Allocate if needed buffer <ncbuf> for stream <qcs>.
  *
  * Returns the buffer instance or NULL on allocation failure.
@@ -912,6 +903,15 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
  err:
 	TRACE_LEAVE(QMUX_EV_QCS_RECV, qcc->conn, qcs);
 	return 1;
+}
+
+/* Allocate if needed and retrieve <qcs> stream buffer for data reception.
+ *
+ * Returns buffer pointer. May be NULL on allocation failure.
+ */
+struct buffer *qcc_get_stream_rxbuf(struct qcs *qcs)
+{
+	return b_alloc(&qcs->rx.app_buf);
 }
 
 /* Prepare for the emission of RESET_STREAM on <qcs> with error code <err>. */
@@ -1510,7 +1510,7 @@ static int qcs_xfer_data(struct qcs *qcs, struct buffer *out, struct buffer *in)
 
 	TRACE_ENTER(QMUX_EV_QCS_SEND, qcc->conn, qcs);
 
-	if (!qcs_get_buf(qcs, out)) {
+	if (!b_alloc(out)) {
 		TRACE_ERROR("buffer alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
 		goto err;
 	}

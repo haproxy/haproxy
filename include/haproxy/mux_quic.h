@@ -17,12 +17,12 @@ struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi);
 struct stconn *qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin);
 int qcs_is_close_local(struct qcs *qcs);
 int qcs_is_close_remote(struct qcs *qcs);
-struct buffer *qcs_get_buf(struct qcs *qcs, struct buffer *bptr);
 
 int qcs_subscribe(struct qcs *qcs, int event_type, struct wait_event *es);
 void qcs_notify_recv(struct qcs *qcs);
 void qcs_notify_send(struct qcs *qcs);
 
+struct buffer *qcc_get_stream_rxbuf(struct qcs *qcs);
 void qcc_reset_stream(struct qcs *qcs, int err);
 void qcc_send_stream(struct qcs *qcs, int urg);
 void qcc_abort_stream_read(struct qcs *qcs);
