@@ -626,7 +626,6 @@ struct event_hdl_cb_data_server_inetaddr {
 	struct {
 		struct server_inetaddr prev;
 		struct server_inetaddr next;
-		uint8_t purge_conn; /* set to 1 if the network change will force a connection cleanup */
 	} safe;
 	/* no unsafe data */
 };

@@ -437,8 +437,7 @@ void _srv_event_hdl_prepare_state(struct event_hdl_cb_data_server_state *cb_data
 static void _srv_event_hdl_prepare_inetaddr(struct event_hdl_cb_data_server_inetaddr *cb_data,
                                             struct server *srv,
                                             const struct sockaddr_storage *next_addr,
-                                            unsigned int next_port, uint8_t next_mapports,
-                                            uint8_t purge_conn)
+                                            unsigned int next_port, uint8_t next_mapports)
 {
 	struct sockaddr_storage *prev_addr = &srv->addr;
 	unsigned int prev_port = srv->svc_port;
@@ -475,8 +474,6 @@ static void _srv_event_hdl_prepare_inetaddr(struct event_hdl_cb_data_server_inet
 		       sizeof(struct in6_addr));
 	cb_data->safe.next.port.svc = next_port;
 	cb_data->safe.next.port.map = next_mapports;
-
-	cb_data->safe.purge_conn = purge_conn;
 }
 
 /* server event publishing helper: publish in both global and
@@ -3832,8 +3829,7 @@ int srv_update_addr(struct server *s, void *ip, int ip_sin_family, const char *u
 
 	_srv_event_hdl_prepare(&cb_data.common, s, 0);
 	_srv_event_hdl_prepare_inetaddr(&cb_data.addr, s,
-                                        &new_addr, s->svc_port, !!(s->flags & SRV_F_MAPPORTS),
-                                        0);
+                                        &new_addr, s->svc_port, !!(s->flags & SRV_F_MAPPORTS));
 
 	/* server_atomic_sync_task will apply the changes for us */
 	_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_INETADDR, cb_data, s);
@@ -4093,8 +4089,7 @@ out:
 		_srv_event_hdl_prepare(&cb_data.common, s, 0);
 		_srv_event_hdl_prepare_inetaddr(&cb_data.addr, s,
 		                                ((ip_change) ? &sa : &s->addr),
-		                                ((port_change) ? new_port : s->svc_port), mapports,
-		                                1);
+		                                ((port_change) ? new_port : s->svc_port), mapports);
 
 		/* server_atomic_sync_task will apply the changes for us */
 		_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_INETADDR, cb_data, s);
