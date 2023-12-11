@@ -847,10 +847,10 @@ srv_found:
 
 					switch (item->ar_item->type) {
 						case DNS_RTYPE_A:
-							srv_update_addr(srv, &item->ar_item->data.in4.sin_addr, AF_INET, "DNS additional record");
+							srv_update_addr(srv, &item->ar_item->data.in4.sin_addr, AF_INET, SERVER_INETADDR_UPDATER_DNS_AR);
 						break;
 						case DNS_RTYPE_AAAA:
-							srv_update_addr(srv, &item->ar_item->data.in6.sin6_addr, AF_INET6, "DNS additional record");
+							srv_update_addr(srv, &item->ar_item->data.in6.sin6_addr, AF_INET6, SERVER_INETADDR_UPDATER_DNS_AR);
 						break;
 					}
 
@@ -2811,6 +2811,7 @@ int resolv_allocate_counters(struct list *stat_modules)
 				if (strcmp(mod->name, "resolvers") == 0) {
 					ns->counters = (struct dns_counters *)ns->extra_counters->data + mod->counters_off[COUNTERS_RSLV];
 					ns->counters->id = ns->id;
+					ns->counters->ns_puid = ns->puid;
 					ns->counters->pid = resolvers->id;
 				}
 			}

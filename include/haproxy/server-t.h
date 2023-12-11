@@ -612,6 +612,49 @@ struct server_inetaddr {
 	} port;
 };
 
+/* struct to store informations about server's addr / port updater in
+ * INET context
+ */
+enum server_inetaddr_updater_by {
+	SERVER_INETADDR_UPDATER_BY_NONE = 0,
+	SERVER_INETADDR_UPDATER_BY_CLI,
+	SERVER_INETADDR_UPDATER_BY_LUA,
+	SERVER_INETADDR_UPDATER_BY_DNS_AR,
+	SERVER_INETADDR_UPDATER_BY_DNS_CACHE,
+	SERVER_INETADDR_UPDATER_BY_DNS_RESOLVER,
+	/* changes here must be reflected in SERVER_INETADDR_UPDATER_*
+	 * helper macros and in server_inetaddr_updater_by_to_str() func
+	 */
+};
+struct server_inetaddr_updater {
+	enum server_inetaddr_updater_by by; // by identifier (unique)
+	union {
+		struct {
+			unsigned int ns_id; // nameserver id responsible for the update
+		} dns_resolver;             // SERVER_INETADDR_UPDATER_DNS_RESOLVER specific infos
+	};                                  // per updater's additional ctx
+};
+#define SERVER_INETADDR_UPDATER_NONE                                           \
+ (struct server_inetaddr_updater){ .by = SERVER_INETADDR_UPDATER_BY_NONE }
+
+#define SERVER_INETADDR_UPDATER_CLI                                            \
+ (struct server_inetaddr_updater){ .by = SERVER_INETADDR_UPDATER_BY_CLI }
+
+#define SERVER_INETADDR_UPDATER_LUA                                            \
+ (struct server_inetaddr_updater){ .by = SERVER_INETADDR_UPDATER_BY_LUA }
+
+#define SERVER_INETADDR_UPDATER_DNS_AR                                         \
+ (struct server_inetaddr_updater){ .by = SERVER_INETADDR_UPDATER_BY_DNS_AR }
+
+#define SERVER_INETADDR_UPDATER_DNS_CACHE                                      \
+ (struct server_inetaddr_updater){ .by = SERVER_INETADDR_UPDATER_BY_DNS_CACHE }
+
+#define SERVER_INETADDR_UPDATER_DNS_RESOLVER(_ns_id)                           \
+ (struct server_inetaddr_updater){                                             \
+    .by = SERVER_INETADDR_UPDATER_BY_DNS_RESOLVER,                             \
+    .dns_resolver.ns_id = _ns_id,                                              \
+ }
+
 /* data provided to EVENT_HDL_SUB_SERVER_INETADDR handlers through
  * event_hdl facility
  *

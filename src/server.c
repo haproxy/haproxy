@@ -3719,6 +3719,66 @@ void server_get_inetaddr(struct server *s, struct server_inetaddr *inetaddr)
 	inetaddr->port.map = mapports;
 }
 
+/* get human readable name for server_inetaddr_updater .by struct member
+ */
+const char *server_inetaddr_updater_by_to_str(enum server_inetaddr_updater_by by)
+{
+	switch (by) {
+		case SERVER_INETADDR_UPDATER_BY_CLI:
+			return "stats socket command";
+		case SERVER_INETADDR_UPDATER_BY_LUA:
+			return "Lua script";
+		case SERVER_INETADDR_UPDATER_BY_DNS_AR:
+			return "DNS additional record";
+		case SERVER_INETADDR_UPDATER_BY_DNS_CACHE:
+			return "DNS cache";
+		case SERVER_INETADDR_UPDATER_BY_DNS_RESOLVER:
+			return "DNS resolver";
+		default:
+			/* unknown, don't mention updater */
+			break;
+	}
+	return NULL;
+}
+
+/* append inetaddr updater info to chunk <out>
+ */
+static void _srv_append_inetaddr_updater_info(struct buffer *out,
+                                              struct server *s,
+                                              struct server_inetaddr_updater updater)
+{
+	switch (updater.by) {
+		case SERVER_INETADDR_UPDATER_BY_DNS_RESOLVER:
+			/* we need to report the resolver/nameserver id which is
+			 * responsible for the update
+			 */
+			{
+				struct resolvers *r = s->resolvers;
+				struct dns_nameserver *ns;
+
+				/* we already know that the update comes from the
+				 * resolver section linked to the server, but we
+				 * need to find out which nameserver handled the dns
+				 * query
+				 */
+				BUG_ON(!r);
+				ns = find_nameserver_by_resolvers_and_id(r, updater.dns_resolver.ns_id);
+				BUG_ON(!ns);
+				chunk_appendf(out, " by '%s/%s'", r->id, ns->id);
+			}
+			break;
+		default:
+			{
+				const char *by_name;
+
+				by_name = server_inetaddr_updater_by_to_str(updater.by);
+				if (by_name)
+					chunk_appendf(out, " by '%s'", by_name);
+			}
+			break;
+	}
+}
+
 /* server_set_inetaddr() helper */
 static void _addr_to_str(int family, const void *addr, char *addr_str, size_t len)
 {
@@ -3784,7 +3844,7 @@ static int _inetaddr_addr_cmp(const struct server_inetaddr *inetaddr, const stru
  */
 int server_set_inetaddr(struct server *s,
                         const struct server_inetaddr *inetaddr,
-                        const char *updater, struct buffer *msg)
+                        struct server_inetaddr_updater updater, struct buffer *msg)
 {
 	union {
 		struct event_hdl_cb_data_server_inetaddr addr;
@@ -3893,8 +3953,8 @@ int server_set_inetaddr(struct server *s,
 		ret = 1;
 	}
 
-	if (ret && msg && updater)
-		chunk_appendf(msg, " by '%s'", updater);
+	if (ret && msg && updater.by != SERVER_INETADDR_UPDATER_BY_NONE)
+		_srv_append_inetaddr_updater_info(msg, s, updater);
 	return ret;
 }
 
@@ -3906,7 +3966,7 @@ int server_set_inetaddr(struct server *s,
  */
 int server_set_inetaddr_warn(struct server *s,
                              const struct server_inetaddr *inetaddr,
-                             const char *updater)
+                             struct server_inetaddr_updater updater)
 {
 	struct buffer *msg = get_trash_chunk();
 	int ret;
@@ -3935,7 +3995,7 @@ int server_set_inetaddr_warn(struct server *s,
  *
  * Must be called with the server lock held.
  */
-int srv_update_addr(struct server *s, void *ip, int ip_sin_family, const char *updater)
+int srv_update_addr(struct server *s, void *ip, int ip_sin_family, struct server_inetaddr_updater updater)
 {
 	struct server_inetaddr inetaddr;
 
@@ -4061,8 +4121,8 @@ out:
 /*
  * This function update a server's addr and port only for AF_INET and AF_INET6 families.
  *
- * Caller can pass its name through <updater> to get it integrated in the response message
- * returned by the function.
+ * Caller can pass its info through <updater> to get it integrated in the response
+ * message returned by the function.
  *
  * The function first does the following, in that order:
  * - checks that don't switch from/to a family other than AF_INET and AF_INET6
@@ -4071,7 +4131,8 @@ out:
  *
  * Must be called with the server lock held.
  */
-const char *srv_update_addr_port(struct server *s, const char *addr, const char *port, char *updater)
+const char *srv_update_addr_port(struct server *s, const char *addr, const char *port,
+                                 struct server_inetaddr_updater updater)
 {
 	struct sockaddr_storage sa;
 	struct server_inetaddr inetaddr;
@@ -4300,7 +4361,6 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 	void *serverip, *firstip;
 	short server_sin_family, firstip_sin_family;
 	int ret;
-	struct buffer *chk = get_trash_chunk();
 	int has_no_ip = 0;
 
 	s = objt_server(requester->owner);
@@ -4375,11 +4435,11 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 	if (counters) {
 		counters->app.resolver.update++;
 		/* save the first ip we found */
-		chunk_printf(chk, "%s/%s", counters->pid, counters->id);
+		srv_update_addr(s, firstip, firstip_sin_family,
+		                SERVER_INETADDR_UPDATER_DNS_RESOLVER(counters->ns_puid));
 	}
 	else
-		chunk_printf(chk, "DNS cache");
-	srv_update_addr(s, firstip, firstip_sin_family, (char *) chk->area);
+		srv_update_addr(s, firstip, firstip_sin_family, SERVER_INETADDR_UPDATER_DNS_CACHE);
 
  update_status:
 	if (!snr_update_srv_status(s, has_no_ip) && has_no_ip)
@@ -5005,7 +5065,7 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 			port = args[6];
 		}
 		HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
-		warning = srv_update_addr_port(sv, addr, port, "stats socket command");
+		warning = srv_update_addr_port(sv, addr, port, SERVER_INETADDR_UPDATER_CLI);
 		if (warning)
 			cli_msg(appctx, LOG_WARNING, warning);
 		srv_clr_admin_flag(sv, SRV_ADMF_RMAINT);
