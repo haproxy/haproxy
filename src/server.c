@@ -306,9 +306,8 @@ static struct task *server_atomic_sync(struct task *task, void *context, unsigne
 			_srv_set_inetaddr_port(srv, &new_addr,
 			                       data->safe.next.port.svc, data->safe.next.port.map);
 
-			/* propagate the changes */
-			if (data->safe.purge_conn) /* force connection cleanup on the given server? */
-				srv_cleanup_connections(srv);
+			/* propagate the changes, force connection cleanup */
+			srv_cleanup_connections(srv);
 			srv_set_dyncookie(srv);
 			srv_set_addr_desc(srv, 1);
 		}
