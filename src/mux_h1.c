@@ -2046,7 +2046,7 @@ static size_t h1_make_reqline(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 	if (sl->flags & HTX_SL_F_XFER_ENC)
 		h1m->flags |= H1_MF_XFER_ENC;
 
-	if (sl->flags & HTX_SL_F_BODYLESS) {
+	if (sl->flags & HTX_SL_F_BODYLESS && !(h1m->flags & H1_MF_CLEN)) {
 		h1m->flags = (h1m->flags & ~H1_MF_CHNK) | H1_MF_CLEN;
 		h1s->flags |= H1S_F_HAVE_CLEN;
 	}
