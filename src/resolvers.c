@@ -661,7 +661,7 @@ static void resolv_srvrq_cleanup_srv(struct server *srv)
 {
 	_resolv_unlink_resolution(srv->resolv_requester);
 	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
-	srvrq_update_srv_status(srv, 1);
+	srvrq_set_srv_down(srv);
 	ha_free(&srv->hostname);
 	ha_free(&srv->hostname_dn);
 	srv->hostname_dn_len = 0;
@@ -886,9 +886,6 @@ srv_found:
 					if (!srv->resolv_requester || !srv->resolv_requester->resolution)
 						resolv_link_resolution(srv, OBJ_TYPE_SERVER, 1);
 				}
-
-				/* Update the server status */
-				srvrq_update_srv_status(srv, (srv->addr.ss_family != AF_INET && srv->addr.ss_family != AF_INET6));
 
 				if (!srv->resolv_opts.ignore_weight) {
 					char weight[9];

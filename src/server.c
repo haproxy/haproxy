@@ -307,6 +307,22 @@ static struct task *server_atomic_sync(struct task *task, void *context, unsigne
 			                       data->safe.next.port.svc, data->safe.next.port.map);
 
 			/* propagate the changes, force connection cleanup */
+			if (new_addr.ss_family != AF_UNSPEC &&
+			    (srv->next_admin & SRV_ADMF_RMAINT)) {
+				/* server was previously put under DNS maintenance due
+				 * to DNS error, but addr resolves again, so we must
+				 * put it out of maintenance
+				 */
+				srv_clr_admin_flag(srv, SRV_ADMF_RMAINT);
+
+				/* thanks to valid DNS resolution? */
+				if (data->safe.updater.dns) {
+					chunk_reset(&trash);
+					chunk_printf(&trash, "Server %s/%s administratively READY thanks to valid DNS answer", srv->proxy->id, srv->id);
+					ha_warning("%s.\n", trash.area);
+					send_log(srv->proxy, LOG_NOTICE, "%s.\n", trash.area);
+				}
+			}
 			srv_cleanup_connections(srv);
 			srv_set_dyncookie(srv);
 			srv_set_addr_desc(srv, 1);
@@ -4225,23 +4241,17 @@ const char *srv_update_addr_port(struct server *s, const char *addr, const char 
 }
 
 /*
- * update server status based on result of SRV resolution
+ * put the server in maintenance because of failing SRV resolution
  * returns:
- *  0 if server status is updated
+ *  0 if server was put under maintenance
  *  1 if server status has not changed
  *
  * Must be called with the server lock held.
  */
-int srvrq_update_srv_status(struct server *s, int has_no_ip)
+int srvrq_set_srv_down(struct server *s)
 {
 	if (!s->srvrq)
 		return 1;
-
-	/* since this server has an IP, it can go back in production */
-	if (has_no_ip == 0) {
-		srv_clr_admin_flag(s, SRV_ADMF_RMAINT);
-		return 1;
-	}
 
 	if (s->next_admin & SRV_ADMF_RMAINT)
 		return 1;
@@ -4251,22 +4261,22 @@ int srvrq_update_srv_status(struct server *s, int has_no_ip)
 }
 
 /*
- * update server status based on result of name resolution
+ * put server under maintenance as a result of name resolution
  * returns:
- *  0 if server status is updated
+ *  0 if server was put under maintenance
  *  1 if server status has not changed
  *
  * Must be called with the server lock held.
  */
-int snr_update_srv_status(struct server *s, int has_no_ip)
+int snr_set_srv_down(struct server *s, int has_no_ip)
 {
 	struct resolvers  *resolvers  = s->resolvers;
 	struct resolv_resolution *resolution = (s->resolv_requester ? s->resolv_requester->resolution : NULL);
 	int exp;
 
 	/* If resolution is NULL we're dealing with SRV records Additional records */
-	if (resolution == NULL)
-		return srvrq_update_srv_status(s, has_no_ip);
+	if (resolution == NULL && has_no_ip)
+		return srvrq_set_srv_down(s);
 
 	switch (resolution->status) {
 		case RSLV_STATUS_NONE:
@@ -4275,25 +4285,16 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 			break;
 
 		case RSLV_STATUS_VALID:
-			/*
-			 * resume health checks
-			 * server will be turned back on if health check is safe
-			 */
 			if (has_no_ip) {
+				/*
+				 * valid resolution but no usable server address
+				 */
 				if (s->next_admin & SRV_ADMF_RMAINT)
 					return 1;
 				srv_set_admin_flag(s, SRV_ADMF_RMAINT, SRV_ADM_STCHGC_DNS_NOIP);
 				return 0;
 			}
 
-			if (!(s->next_admin & SRV_ADMF_RMAINT))
-				return 1;
-			srv_clr_admin_flag(s, SRV_ADMF_RMAINT);
-			chunk_printf(&trash, "Server %s/%s administratively READY thanks to valid DNS answer",
-			             s->proxy->id, s->id);
-
-			ha_warning("%s.\n", trash.area);
-			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.area);
 			return 0;
 
 		case RSLV_STATUS_NX:
@@ -4447,7 +4448,7 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 		srv_update_addr(s, firstip, firstip_sin_family, SERVER_INETADDR_UPDATER_DNS_CACHE);
 
  update_status:
-	if (!snr_update_srv_status(s, has_no_ip) && has_no_ip)
+	if (!snr_set_srv_down(s, has_no_ip) && has_no_ip)
 		memset(&s->addr, 0, sizeof(s->addr));
 	return 1;
 
@@ -4456,7 +4457,7 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 		counters->app.resolver.invalid++;
 		goto update_status;
 	}
-	if (!snr_update_srv_status(s, has_no_ip) && has_no_ip)
+	if (!snr_set_srv_down(s, has_no_ip) && has_no_ip)
 		memset(&s->addr, 0, sizeof(s->addr));
 	return 0;
 }
@@ -4537,7 +4538,7 @@ int snr_resolution_error_cb(struct resolv_requester *requester, int error_code)
 		return 0;
 
 	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
-	if (!snr_update_srv_status(s, 1)) {
+	if (!snr_set_srv_down(s, 1)) {
 		memset(&s->addr, 0, sizeof(s->addr));
 		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 		resolv_detach_from_resolution_answer_items(requester->resolution, requester);
@@ -5073,7 +5074,6 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		warning = srv_update_addr_port(sv, addr, port, SERVER_INETADDR_UPDATER_CLI);
 		if (warning)
 			cli_msg(appctx, LOG_WARNING, warning);
-		srv_clr_admin_flag(sv, SRV_ADMF_RMAINT);
 		HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	}
 	else if (strcmp(args[3], "fqdn") == 0) {

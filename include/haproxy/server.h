@@ -78,8 +78,7 @@ void srv_event_hdl_publish_check(struct server *srv, struct check *check);
 
 /* functions related to server name resolution */
 int srv_prepare_for_resolution(struct server *srv, const char *hostname);
-int srvrq_update_srv_status(struct server *s, int has_no_ip);
-int snr_update_srv_status(struct server *s, int has_no_ip);
+int srvrq_set_srv_down(struct server *s);
 int srv_set_fqdn(struct server *srv, const char *fqdn, int resolv_locked);
 const char *srv_update_fqdn(struct server *server, const char *fqdn, const char *updater, int dns_locked);
 int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *counters);
