@@ -2392,7 +2392,7 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 			h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
 		if (!h1_format_htx_hdr(n, v, &outbuf))
 			goto full;
-		TRACE_STATE("add \"Content-Length: chunked\"", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
+		TRACE_STATE("add \"Content-Length: <LEN>\"", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 		h1s->flags |= H1S_F_HAVE_CLEN;
 	}
 
