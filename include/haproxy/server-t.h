@@ -628,6 +628,7 @@ enum server_inetaddr_updater_by {
 };
 struct server_inetaddr_updater {
 	enum server_inetaddr_updater_by by; // by identifier (unique)
+	uint8_t dns;                        // is dns involved?
 	union {
 		struct {
 			unsigned int ns_id; // nameserver id responsible for the update
@@ -635,23 +636,29 @@ struct server_inetaddr_updater {
 	};                                  // per updater's additional ctx
 };
 #define SERVER_INETADDR_UPDATER_NONE                                           \
- (struct server_inetaddr_updater){ .by = SERVER_INETADDR_UPDATER_BY_NONE }
+ (struct server_inetaddr_updater){ .by = SERVER_INETADDR_UPDATER_BY_NONE,      \
+                                   .dns = 0 }
 
 #define SERVER_INETADDR_UPDATER_CLI                                            \
- (struct server_inetaddr_updater){ .by = SERVER_INETADDR_UPDATER_BY_CLI }
+ (struct server_inetaddr_updater){ .by = SERVER_INETADDR_UPDATER_BY_CLI,       \
+                                   .dns = 0 }
 
 #define SERVER_INETADDR_UPDATER_LUA                                            \
- (struct server_inetaddr_updater){ .by = SERVER_INETADDR_UPDATER_BY_LUA }
+ (struct server_inetaddr_updater){ .by = SERVER_INETADDR_UPDATER_BY_LUA,       \
+                                   .dns = 0 }
 
 #define SERVER_INETADDR_UPDATER_DNS_AR                                         \
- (struct server_inetaddr_updater){ .by = SERVER_INETADDR_UPDATER_BY_DNS_AR }
+ (struct server_inetaddr_updater){ .by = SERVER_INETADDR_UPDATER_BY_DNS_AR,    \
+                                   .dns = 1 }
 
 #define SERVER_INETADDR_UPDATER_DNS_CACHE                                      \
- (struct server_inetaddr_updater){ .by = SERVER_INETADDR_UPDATER_BY_DNS_CACHE }
+ (struct server_inetaddr_updater){ .by = SERVER_INETADDR_UPDATER_BY_DNS_CACHE, \
+                                   .dns = 1 }
 
 #define SERVER_INETADDR_UPDATER_DNS_RESOLVER(_ns_id)                           \
  (struct server_inetaddr_updater){                                             \
     .by = SERVER_INETADDR_UPDATER_BY_DNS_RESOLVER,                             \
+    .dns = 1,                                                                  \
     .dns_resolver.ns_id = _ns_id,                                              \
  }
 
