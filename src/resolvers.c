@@ -832,12 +832,16 @@ static void resolv_check_response(struct resolv_resolution *res)
 srv_found:
 			/* And update this server, if found (srv is locked here) */
 			if (srv) {
+				struct server_inetaddr srv_addr;
+				uint8_t ip_change = 0;
+
 				/* re-enable DNS resolution for this server by default */
 				srv->flags &= ~SRV_F_NO_RESOLUTION;
 				srv->srvrq_check->expire = TICK_ETERNITY;
 
-				srv->svc_port = item->port;
-				srv->flags   &= ~SRV_F_MAPPORTS;
+				server_get_inetaddr(srv, &srv_addr);
+				srv_addr.port.svc = item->port;
+				srv_addr.port.map = 0;
 
 				/* Check if an Additional Record is associated to this SRV record.
 				 * Perform some sanity checks too to ensure the record can be used.
@@ -850,10 +854,12 @@ srv_found:
 
 					switch (item->ar_item->type) {
 						case DNS_RTYPE_A:
-							srv_update_addr(srv, &item->ar_item->data.in4.sin_addr, AF_INET, SERVER_INETADDR_UPDATER_DNS_AR);
+							srv_addr.family = AF_INET;
+							srv_addr.addr.v4 = item->ar_item->data.in4.sin_addr;
 						break;
 						case DNS_RTYPE_AAAA:
-							srv_update_addr(srv, &item->ar_item->data.in6.sin6_addr, AF_INET6, SERVER_INETADDR_UPDATER_DNS_AR);
+							srv_addr.family = AF_INET6;
+							srv_addr.addr.v6 = item->ar_item->data.in6.sin6_addr;
 						break;
 					}
 
@@ -863,7 +869,14 @@ srv_found:
 					 * It is usless to perform an extra resolution
 					 */
 					_resolv_unlink_resolution(srv->resolv_requester);
+
+					ip_change = 1;
 				}
+
+				if (ip_change)
+					server_set_inetaddr_warn(srv, &srv_addr, SERVER_INETADDR_UPDATER_DNS_AR);
+				else
+					server_set_inetaddr(srv, &srv_addr, SERVER_INETADDR_UPDATER_NONE, NULL);
 
 				if (!srv->hostname_dn) {
 					const char *msg = NULL;
