@@ -996,6 +996,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		case QUIC_FT_RETIRE_CONNECTION_ID:
 		{
+			struct quic_cid_tree *tree;
 			struct quic_connection_id *conn_id = NULL;
 
 			if (!qc_handle_retire_connection_id_frm(qc, &frm, &pkt->dcid, &conn_id))
@@ -1004,7 +1005,10 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			if (!conn_id)
 				break;
 
+			tree = &quic_cid_trees[quic_cid_tree_idx(&conn_id->cid)];
+			HA_RWLOCK_WRLOCK(QC_CID_LOCK, &tree->lock);
 			ebmb_delete(&conn_id->node);
+			HA_RWLOCK_WRUNLOCK(QC_CID_LOCK, &tree->lock);
 			eb64_delete(&conn_id->seq_num);
 			pool_free(pool_head_quic_connection_id, conn_id);
 			TRACE_PROTO("CID retired", QUIC_EV_CONN_PSTRM, qc);
