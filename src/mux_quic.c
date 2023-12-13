@@ -681,6 +681,19 @@ struct stconn *qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
 		se_fl_set(qcs->sd, SE_FL_EOI);
 	}
 
+	/* A QCS can be already locally closed before stream layer
+	 * instantiation. This notably happens if STOP_SENDING was the first
+	 * frame received for this instance. In this case, an error is
+	 * immediately to the stream layer to prevent transmission.
+	 *
+	 * TODO it could be better to not instantiate at all the stream layer.
+	 * However, extra care is required to ensure QCS instance is released.
+	 */
+	if (unlikely(qcs_is_close_local(qcs) || (qcs->flags & QC_SF_TO_RESET))) {
+		TRACE_STATE("report early error", QMUX_EV_STRM_RECV, qcc->conn, qcs);
+		se_fl_set_error(qcs->sd);
+	}
+
 	return qcs->sd->sc;
 }
 
