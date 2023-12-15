@@ -1418,7 +1418,11 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	return -1;
 }
 
-/* Function used to emit stream data from <qcs> control uni-stream */
+/* Function used to emit stream data from <qcs> control uni-stream.
+ *
+ * On success return the number of sent bytes. A negative code is used on
+ * error.
+ */
 static int h3_control_send(struct qcs *qcs, void *ctx)
 {
 	int ret;
@@ -1456,7 +1460,11 @@ static int h3_control_send(struct qcs *qcs, void *ctx)
 		b_quic_enc_int(&pos, h3_settings_max_field_section_size, 0);
 	}
 
-	res = qcc_get_stream_txbuf(qcs);
+	if (!(res = qcc_get_stream_txbuf(qcs))) {
+		TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_SETTINGS, qcs->qcc->conn, qcs);
+		goto err;
+	}
+
 	if (b_room(res) < b_data(&pos)) {
 		// TODO the mux should be put in blocked state, with
 		// the stream in state waiting for settings to be sent
@@ -1472,6 +1480,10 @@ static int h3_control_send(struct qcs *qcs, void *ctx)
 
 	TRACE_LEAVE(H3_EV_TX_FRAME|H3_EV_TX_SETTINGS, qcs->qcc->conn, qcs);
 	return ret;
+
+ err:
+	TRACE_DEVEL("leaving on error", H3_EV_TX_FRAME|H3_EV_TX_SETTINGS, qcs->qcc->conn, qcs);
+	return -1;
 }
 
 static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
@@ -2226,8 +2238,10 @@ static int h3_finalize(void *ctx)
 		goto err;
 	}
 
-	h3_control_send(qcs, h3c);
 	h3c->ctrl_strm = qcs;
+
+	if (h3_control_send(qcs, h3c) < 0)
+		goto err;
 
 	TRACE_LEAVE(H3_EV_H3C_NEW, qcc->conn);
 	return 0;
