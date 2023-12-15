@@ -69,7 +69,9 @@ static const struct trace_event h3_trace_events[] = {
 	{ .mask = H3_EV_H3S_NEW,      .name = "h3s_new",     .desc = "new H3 stream" },
 #define           H3_EV_H3S_END       (1ULL <<  9)
 	{ .mask = H3_EV_H3S_END,      .name = "h3s_end",     .desc = "H3 stream terminated" },
-#define           H3_EV_H3C_END       (1ULL <<  10)
+#define           H3_EV_H3C_NEW       (1ULL << 10)
+	{ .mask = H3_EV_H3C_NEW,      .name = "h3c_new",     .desc = "new H3 connection" },
+#define           H3_EV_H3C_END       (1ULL << 11)
 	{ .mask = H3_EV_H3C_END,      .name = "h3c_end",     .desc = "H3 connection terminated" },
 	{ }
 };
@@ -2178,9 +2180,13 @@ static int h3_init(struct qcc *qcc)
 	struct h3c *h3c;
 	const struct listener *li = __objt_listener(qcc->conn->target);
 
+	TRACE_ENTER(H3_EV_H3C_NEW, qcc->conn);
+
 	h3c = pool_alloc(pool_head_h3c);
-	if (!h3c)
+	if (!h3c) {
+		TRACE_ERROR("cannot allocate h3c", H3_EV_H3C_NEW, qcc->conn);
 		goto fail_no_h3;
+	}
 
 	h3c->qcc = qcc;
 	h3c->ctrl_strm = NULL;
@@ -2194,9 +2200,11 @@ static int h3_init(struct qcc *qcc)
 		                   &h3_stats_module);
 	LIST_INIT(&h3c->buf_wait.list);
 
+	TRACE_LEAVE(H3_EV_H3C_NEW, qcc->conn);
 	return 1;
 
  fail_no_h3:
+	TRACE_DEVEL("leaving on error", H3_EV_H3C_NEW, qcc->conn);
 	return 0;
 }
 
@@ -2207,16 +2215,26 @@ static int h3_init(struct qcc *qcc)
 static int h3_finalize(void *ctx)
 {
 	struct h3c *h3c = ctx;
+	struct qcc *qcc = h3c->qcc;
 	struct qcs *qcs;
 
-	qcs = qcc_init_stream_local(h3c->qcc, 0);
-	if (!qcs)
-		return 1;
+	TRACE_ENTER(H3_EV_H3C_NEW, qcc->conn);
+
+	qcs = qcc_init_stream_local(qcc, 0);
+	if (!qcs) {
+		TRACE_ERROR("cannot init control stream", H3_EV_H3C_NEW, qcc->conn);
+		goto err;
+	}
 
 	h3_control_send(qcs, h3c);
 	h3c->ctrl_strm = qcs;
 
+	TRACE_LEAVE(H3_EV_H3C_NEW, qcc->conn);
 	return 0;
+
+ err:
+	TRACE_DEVEL("leaving on error", H3_EV_H3C_NEW, qcc->conn);
+	return 1;
 }
 
 /* Send a HTTP/3 GOAWAY followed by a CONNECTION_CLOSE_APP. */
