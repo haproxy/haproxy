@@ -18286,135 +18286,135 @@ bool) which make it possible to report a match without having to write an ACL.
 
 The following keywords are supported:
 
-   keyword                     input type       output type
-------------------------------+----------------+------------
-51d.single                     string           string
-add                            integer          integer
-add_item                       string           string
-aes_gcm_dec                    binary           binary
-and                            integer          integer
-b64dec                         string           binary
-base64                         binary           string
-be2dec                         binary           string
-be2hex                         binary           string
-bool                           integer          boolean
-bytes                          binary           binary
-capture-req                    string           string
-capture-res                    string           string
-concat                         string           string
-cpl                            integer          integer
-crc32                          binary           integer
-crc32c                         binary           integer
-cut_crlf                       string           string
-da-csv-conv                    string           string
-debug                          any              <same>
--- keyword -------------------+- input type ---+ output type --
-digest                         binary           binary
-div                            integer          integer
-djb2                           binary           integer
-even                           integer          boolean
-field                          string           string
-fix_is_valid                   binary           boolean
-fix_tag_value                  binary           binary
-hex                            binary           string
-hex2i                          binary           integer
-hmac                           binary           binary
-host_only                      string           string
-htonl                          integer          integer
-http_date                      integer          string
-iif                            boolean          string
-in_table                       string           boolean
-ipmask                         address          address
-json                           string           string
-json_query                     string           any
-jwt_header_query               string           string
-jwt_payload_query              string           string
--- keyword -------------------+- input type ---+ output type --
-jwt_verify                     string           integer
-language                       string           string
-length                         string           integer
-lower                          string           string
-ltime                          integer          string
-ltrim                          string           string
-map                            string           string
-map_<match>                    <match>          string
-map_<match>_<output>           <match>          <output>
-mod                            integer          integer
-mqtt_field_value               binary           binary
-mqtt_is_valid                  bianry           boolean
-ms_ltime                       integer          string
-ms_utime                       integer          string
-mul                            integer          integer
-nbsrv                          string           integer
-neg                            integer          integer
-not                            integer          boolean
-odd                            integer          boolean
-or                             integer          integer
--- keyword -------------------+- input type ---+ output type --
-param                          string           string
-port_only                      string           integer
-protobuf                       binary           binary
-regsub                         string           string
-rfc7239_field                  string           string
-rfc7239_is_valid               string           boolean
-rfc7239_n2nn                   string           address / string
-rfc7239_n2np                   string           integer / string
-rtrim                          string           string
-sdbm                           binary           integer
-secure_memcmp                  string           boolean
-set-var                        any              <same>
-sha1                           binary           binary
-sha2                           binary           binary
-srv_queue                      string           integer
-strcmp                         string           boolean
-sub                            integer          integer
-table_bytes_in_rate            string           integer
-table_bytes_out_rate           string           integer
-table_conn_cnt                 string           integer
--- keyword -------------------+- input type ---+ output type --
-table_conn_cur                 string           integer
-table_conn_rate                string           integer
-table_expire                   string           integer
-table_gpc                      string           integer
-table_gpc0                     string           integer
-table_gpc0_rate                string           integer
-table_gpc1                     string           integer
-table_gpc1_rate                string           integer
-table_gpc_rate                 string           integer
-table_gpt                      string           integer
-table_gpt0                     string           integer
-table_http_err_cnt             string           integer
-table_http_err_rate            string           integer
-table_http_fail_cnt            string           integer
-table_http_fail_rate           string           integer
-table_http_req_cnt             string           integer
-table_http_req_rate            string           integer
-table_idle                     string           integer
-table_kbytes_in                string           integer
--- keyword -------------------+- input type ---+ output type --
-table_kbytes_out               string           integer
-table_server_id                string           integer
-table_sess_cnt                 string           integer
-table_sess_rate                string           integer
-table_trackers                 string           integer
-ub64dec                        string           string
-ub64enc                        string           string
-ungrpc                         binary           binary / integer
-unset-var                      any              <same>
-upper                          string           string
-url_dec                        string           string
-url_enc                        string           string
-us_ltime                       integer          string
-us_utime                       integer          string
-utime                          integer          string
-word                           string           string
-wt6                            binary           integer
-x509_v_err_str                 integer          string
-xor                            integer          integer
--- keyword -------------------+- input type ---+ output type --
-xxh3                           binary           integer
-xxh32                          binary           integer
-xxh64                          binary           integer
+   keyword                                         input type   output type
+------------------------------------------------+-------------+----------------
+51d.single(prop[,prop*])                           string       string
+add(value)                                         integer      integer
+add_item(delim,[var][,suff]])                      string       string
+aes_gcm_dec(bits,nonce,key,aead_tag)               binary       binary
+and(value)                                         integer      integer
+b64dec                                             string       binary
+base64                                             binary       string
+be2dec(separator,chunk_size,[truncate])            binary       string
+be2hex([separator],[chunk_size],[truncate])        binary       string
+bool                                               integer      boolean
+bytes(offset[,length])                             binary       binary
+capture-req(id)                                    string       string
+capture-res(id)                                    string       string
+concat([start],[var],[end])                        string       string
+cpl                                                integer      integer
+crc32([avalanche])                                 binary       integer
+crc32c([avalanche])                                binary       integer
+cut_crlf                                           string       string
+da-csv-conv(prop[,prop*])                          string       string
+debug([prefix][,destination])                       any          same
+-- keyword -------------------------------------+- input type + output type -
+digest(algorithm)                                  binary       binary
+div(value)                                         integer      integer
+djb2([avalanche])                                  binary       integer
+even                                               integer      boolean
+field(index,delimiters[,count])                    string       string
+fix_is_valid                                       binary       boolean
+fix_tag_value(tag)                                 binary       binary
+hex                                                binary       string
+hex2i                                              binary       integer
+hmac(algorithm,key)                                binary       binary
+host_only                                          string       string
+htonl                                              integer      integer
+http_date([offset],[unit])                         integer      string
+iif(true,false)                                    boolean      string
+in_table(table)                                    string       boolean
+ipmask(mask4,[mask6])                              address      address
+json([input-code])                                 string       string
+json_query(json_path,[output_type])                string       _outtype_
+jwt_header_query([json_path],[output_type])        string       string
+jwt_payload_query([json_path],[output_type])       string       string
+-- keyword -------------------------------------+- input type + output type -
+jwt_verify(alg,key)                                string       integer
+language(value[,default])                          string       string
+length                                             string       integer
+lower                                              string       string
+ltime(format[,offset])                             integer      string
+ltrim(chars)                                       string       string
+map(map_name[,default_value])                      string       string
+map_match(map_name[,default_value])                _match_      string
+map_match_output(map_name[,default_value])         _match_      _output_
+mod(value)                                         integer      integer
+mqtt_field_value(pkt_type,fieldname_or_prop_ID)    binary       binary
+mqtt_is_valid                                      binary       boolean
+ms_ltime(format[,offset])                          integer      string
+ms_utime(format[,offset])                          integer      string
+mul(value)                                         integer      integer
+nbsrv                                              string       integer
+neg                                                integer      integer
+not                                                integer      boolean
+odd                                                integer      boolean
+or(value)                                          integer      integer
+-- keyword -------------------------------------+- input type + output type -
+param(name,[delim])                                string       string
+port_only                                          string       integer
+protobuf(field_number,[field_type])                binary       binary
+regsub(regex,subst[,flags])                        string       string
+rfc7239_field(field)                               string       string
+rfc7239_is_valid                                   string       boolean
+rfc7239_n2nn                                       string       address / str
+rfc7239_n2np                                       string       integer / str
+rtrim(chars)                                       string       string
+sdbm([avalanche])                                  binary       integer
+secure_memcmp(var)                                 string       boolean
+set-var(var[,cond...])                              any          same
+sha1                                               binary       binary
+sha2([bits])                                       binary       binary
+srv_queue                                          string       integer
+strcmp(var)                                        string       boolean
+sub(value)                                         integer      integer
+table_bytes_in_rate(table)                         string       integer
+table_bytes_out_rate(table)                        string       integer
+table_conn_cnt(table)                              string       integer
+-- keyword -------------------------------------+- input type + output type -
+table_conn_cur(table)                              string       integer
+table_conn_rate(table)                             string       integer
+table_expire(table[,default_value])                string       integer
+table_gpc(idx,table)                               string       integer
+table_gpc0(table)                                  string       integer
+table_gpc0_rate(table)                             string       integer
+table_gpc1(table)                                  string       integer
+table_gpc1_rate(table)                             string       integer
+table_gpc_rate(idx,table)                          string       integer
+table_gpt(idx,table)                               string       integer
+table_gpt0(table)                                  string       integer
+table_http_err_cnt(table)                          string       integer
+table_http_err_rate(table)                         string       integer
+table_http_fail_cnt(table)                         string       integer
+table_http_fail_rate(table)                        string       integer
+table_http_req_cnt(table)                          string       integer
+table_http_req_rate(table)                         string       integer
+table_idle(table[,default_value])                  string       integer
+table_kbytes_in(table)                             string       integer
+-- keyword -------------------------------------+- input type + output type -
+table_kbytes_out(table)                            string       integer
+table_server_id(table)                             string       integer
+table_sess_cnt(table)                              string       integer
+table_sess_rate(table)                             string       integer
+table_trackers(table)                              string       integer
+ub64dec                                            string       string
+ub64enc                                            string       string
+ungrpc(field_number,[field_type])                  binary       binary / int
+unset-var(var)                                      any          same
+upper                                              string       string
+url_dec([in_form])                                 string       string
+url_enc([enc_type])                                string       string
+us_ltime(format[,offset])                          integer      string
+us_utime(format[,offset])                          integer      string
+utime(format[,offset])                             integer      string
+word(index,delimiters[,count])                     string       string
+wt6([avalanche])                                   binary       integer
+x509_v_err_str                                     integer      string
+xor(value)                                         integer      integer
+-- keyword -------------------------------------+- input type + output type -
+xxh3([seed])                                       binary       integer
+xxh32([seed])                                      binary       integer
+xxh64([seed])                                      binary       integer
 
 The detailed list of converter keywords follows:
 
