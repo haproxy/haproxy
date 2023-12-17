@@ -279,6 +279,14 @@ static inline int flsnz8(unsigned char x)
 	return r+1;
 }
 
+static inline long flsnz_long(unsigned long x)
+{
+	long r;
+	__asm__("bsr %1,%0\n"
+	        : "=r" (r) : "rm" (x));
+	return r + 1;
+}
+
 #else
 // returns 1 to 32 for 1<<0 to 1<<31. Undefined for 0.
 #define flsnz(___a) ({ \
@@ -297,6 +305,7 @@ static inline int flsnz8(unsigned int x)
 	return flsnz8_generic(x);
 }
 
+#define flsnz_long(x) ((sizeof(long) > 4) ? flsnz64(x) : flsnz32(x))
 
 #endif
 
@@ -791,7 +800,7 @@ static forceinline int string_equal_bits(const unsigned char *a,
 					 int ignore)
 {
 	int beg;
-	unsigned char c;
+	unsigned long c, d;
 
 	beg = ignore >> 3;
 
@@ -799,8 +808,6 @@ static forceinline int string_equal_bits(const unsigned char *a,
 	 * or at the first zero we encounter on either side.
 	 */
 	while (1) {
-		unsigned char d;
-
 		c = a[beg];
 		d = b[beg];
 		beg++;
@@ -816,7 +823,7 @@ static forceinline int string_equal_bits(const unsigned char *a,
 	 * identical bits. Note that low bit numbers are assigned to high positions
 	 * in the byte, as we compare them as strings.
 	 */
-	return (beg << 3) - flsnz8(c);
+	return (beg << 3) - flsnz_long(c);
 }
 
 static forceinline int cmp_bits(const unsigned char *a, const unsigned char *b, unsigned int pos)
