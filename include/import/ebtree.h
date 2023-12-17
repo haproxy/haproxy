@@ -729,9 +729,9 @@ static forceinline void __eb_delete(struct eb_node *node)
  * bytes. Note that parts or all of <ignore> bits may be rechecked. It is only
  * passed here as a hint to speed up the check.
  */
-static forceinline int equal_bits(const unsigned char *a,
-				  const unsigned char *b,
-				  int ignore, int len)
+static forceinline size_t equal_bits(const unsigned char *a,
+				     const unsigned char *b,
+				     size_t ignore, size_t len)
 {
 	for (ignore >>= 3, a += ignore, b += ignore, ignore <<= 3;
 	     ignore < len; ) {
@@ -747,7 +747,7 @@ static forceinline int equal_bits(const unsigned char *a,
 			 * it as the number of identical bits. Note that low bit numbers are
 			 * assigned to high positions in the byte, as we compare them as strings.
 			 */
-			ignore -= flsnz8(c);
+			ignore -= flsnz_long(c);
 			break;
 		}
 	}
@@ -795,12 +795,12 @@ static forceinline int check_bits(const unsigned char *a,
  * permitted. Equal strings are reported as a negative number of bits, which
  * indicates the end was reached.
  */
-static forceinline int string_equal_bits(const unsigned char *a,
-					 const unsigned char *b,
-					 int ignore)
+static forceinline ssize_t string_equal_bits(const unsigned char *a,
+					     const unsigned char *b,
+					     size_t ignore)
 {
-	int beg;
 	unsigned long c, d;
+	size_t beg;
 
 	beg = ignore >> 3;
 
