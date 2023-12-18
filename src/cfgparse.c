@@ -3767,6 +3767,8 @@ out_uri_auth_compat:
 			    ((newsrv->flags & SRV_F_DEFSRV_USE_SSL) && newsrv->use_ssl != 1)) {
 				if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv)
 					cfgerr += xprt_get(XPRT_SSL)->prepare_srv(newsrv);
+				else if (xprt_get(XPRT_QUIC) && xprt_get(XPRT_QUIC)->prepare_srv)
+					cfgerr += xprt_get(XPRT_QUIC)->prepare_srv(newsrv);
 			}
 
 			if ((newsrv->flags & SRV_F_FASTOPEN) &&
