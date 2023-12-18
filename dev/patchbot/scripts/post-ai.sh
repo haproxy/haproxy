@@ -1,0 +1,372 @@
+#!/bin/bash
+
+####
+#### Todo:
+####   - change line color based on the selected radio button
+####   - support collapsing lines per color/category (show/hide for each)
+####   - add category "next" and see if the prompt can handle that (eg: d3e379b3)
+####   - produce multiple lists on output (per category) allowing to save batches
+####
+
+die() {
+	[ "$#" -eq 0 ] || echo "$*" >&2
+	exit 1
+}
+
+err() {
+	echo "$*" >&2
+}
+
+quit() {
+	[ "$#" -eq 0 ] || echo "$*"
+	exit 0
+}
+
+#### Main
+
+USAGE="Usage: ${0##*/} [ -h ] [ -b 'bkp_list' ] patch..."
+MYSELF="$0"
+GITURL="http://git.haproxy.org/?p=haproxy.git;a=commitdiff;h="
+ISSUES="https://github.com/haproxy/haproxy/issues/"
+BKP=""
+
+while [ -n "$1" -a -z "${1##-*}" ]; do
+	case "$1" in
+		-h|--help) quit "$USAGE" ;;
+		-b)        BKP="$2"; shift 2 ;;
+		*)         die  "$USAGE" ;;
+	esac
+done
+
+PATCHES=( "$@" )
+
+if [ ${#PATCHES[@]} = 0 ]; then
+        die "$USAGE"
+fi
+
+# BKP is a space-delimited list of 8-char commit IDs, we'll
+# assign them to the local bkp[] associative array.
+
+declare -A bkp
+
+for cid in $BKP; do
+    bkp[$cid]=1
+done
+
+# some colors
+BG_BKP="#e0e0e0"
+BT_N="gray";     BG_N="white"
+BT_U="#00e000";  BG_U="#e0ffe0"
+BT_W="#0060ff";  BG_W="#e0e0ff"
+BT_Y="red";      BG_Y="#ffe0e0"
+
+echo "<HTML>"
+
+cat <<- EOF
+<HEAD><style>
+input.n[type="radio"] {
+  appearance: none;
+  width: 1.25em;
+  height: 1.25em;
+  border-radius: 50%;
+  border: 3px solid $BT_N;
+  background-color: transparent;
+}
+input.n[type="radio"]:checked {
+  appearance: none;
+  width: 1.25em;
+  height: 1.25em;
+  border-radius: 50%;
+  border: 2px solid black;
+  background-color: $BT_N;
+}
+
+input.u[type="radio"] {
+  appearance: none;
+  width: 1.25em;
+  height: 1.25em;
+  border-radius: 50%;
+  border: 3px solid $BT_U;
+  background-color: transparent;
+}
+input.u[type="radio"]:checked {
+  appearance: none;
+  width: 1.25em;
+  height: 1.25em;
+  border-radius: 50%;
+  border: 2px solid black;
+  background-color: $BT_U;
+}
+
+input.w[type="radio"] {
+  appearance: none;
+  width: 1.25em;
+  height: 1.25em;
+  border-radius: 50%;
+  border: 3px solid $BT_W;
+  background-color: transparent;
+}
+input.w[type="radio"]:checked {
+  appearance: none;
+  width: 1.25em;
+  height: 1.25em;
+  border-radius: 50%;
+  border: 2px solid black;
+  background-color: $BT_W;
+}
+
+input.y[type="radio"] {
+  appearance: none;
+  width: 1.25em;
+  height: 1.25em;
+  border-radius: 50%;
+  border: 3px solid $BT_Y;
+  background-color: transparent;
+}
+input.y[type="radio"]:checked {
+  appearance: none;
+  width: 1.25em;
+  height: 1.25em;
+  border-radius: 50%;
+  border: 2px solid black;
+  background-color: $BT_Y;
+}
+</style>
+
+<script type="text/javascript"><!--
+
+// statuses are "y", "w", "u", "n"
+var statuses = [];
+var cid = [];
+
+// first line to review
+var review = 0;
+
+// show/hide table lines and update their color
+function updt_table(line) {
+  var n = document.getElementById("sh_n").checked;
+  var u = document.getElementById("sh_u").checked;
+  var w = document.getElementById("sh_w").checked;
+  var y = document.getElementById("sh_y").checked;
+  var tn = 0, tu = 0, tw = 0, ty = 0;
+  var i, el;
+
+  for (i = 1; i < statuses.length; i++) {
+    if (statuses[i] == "n") {
+      tn++;
+      if (line && i != line)
+        continue;
+      el = document.getElementById("tr_" + i);
+      el.style.backgroundColor = "$BG_N";
+      el.style.display = n && i >= review ? "" : "none";
+    }
+    else if (statuses[i] == "u") {
+      tu++;
+      if (line && i != line)
+        continue;
+      el = document.getElementById("tr_" + i);
+      el.style.backgroundColor = "$BG_U";
+      el.style.display = u && i >= review ? "" : "none";
+    }
+    else if (statuses[i] == "w") {
+      tw++;
+      if (line && i != line)
+        continue;
+      el = document.getElementById("tr_" + i);
+      el.style.backgroundColor = "$BG_W";
+      el.style.display = w && i >= review ? "" : "none";
+    }
+    else if (statuses[i] == "y") {
+      ty++;
+      if (line && i != line)
+        continue;
+      el = document.getElementById("tr_" + i);
+      el.style.backgroundColor = "$BG_Y";
+      el.style.display = y && i >= review ? "" : "none";
+    }
+    else {
+      // bug
+      if (line && i != line)
+        continue;
+      el = document.getElementById("tr_" + i);
+      el.style.backgroundColor = "red";
+      el.style.display = "";
+    }
+  }
+  document.getElementById("cnt_n").innerText = tn;
+  document.getElementById("cnt_u").innerText = tu;
+  document.getElementById("cnt_w").innerText = tw;
+  document.getElementById("cnt_y").innerText = ty;
+}
+
+function updt_output() {
+  var i, y = "", w = "", u = "", n = "";
+
+  for (i = 1; i < statuses.length; i++) {
+    if (i < review)
+       continue;
+    if (statuses[i] == "y")
+       y = y + " " + cid[i];
+    else if (statuses[i] == "w")
+       w = w + " " + cid[i];
+    else if (statuses[i] == "u")
+       u = u + " " + cid[i];
+    else if (statuses[i] == "n")
+       n = n + " " + cid[i];
+  }
+
+  // update the textarea
+  document.getElementById("output").value =
+    "cid_y=(" + y + " )\n" +
+    "cid_w=(" + w + " )\n" +
+    "cid_u=(" + u + " )\n" +
+    "cid_n=(" + n + " )\n";
+}
+
+function updt(line,value) {
+  if (value != "r") {
+    statuses[line] = value;
+  } else {
+    review = line;
+    line = 0; // redraw everything
+  }
+  updt_table(line);
+  updt_output();
+}
+
+// -->
+</script>
+</HEAD>
+EOF
+
+echo "<BODY>"
+echo -n "<big><big>Show:"
+echo -n " <span style='background-color:$BG_N'><input type='checkbox' onclick='updt_table(0);' id='sh_n' checked />N (<span id='cnt_n'>0</span>)</span> "
+echo -n " <span style='background-color:$BG_U'><input type='checkbox' onclick='updt_table(0);' id='sh_u' checked />U (<span id='cnt_u'>0</span>)</span> "
+echo -n " <span style='background-color:$BG_W'><input type='checkbox' onclick='updt_table(0);' id='sh_w' checked />W (<span id='cnt_w'>0</span>)</span> "
+echo -n " <span style='background-color:$BG_Y'><input type='checkbox' onclick='updt_table(0);' id='sh_y' checked />Y (<span id='cnt_y'>0</span>)</span> "
+echo -n "</big/></big> (N=no/drop, U=uncertain, W=wait/next, Y=yes/pick"
+if [ -n "$BKP" ]; then
+    echo -n ", <span style='background-color:$BG_BKP'>&nbsp;backported&nbsp;</span>"
+fi
+echo ")<P/>"
+
+echo "<TABLE COLS=5 BORDER=1 CELLSPACING=0 CELLPADDING=3>"
+echo "<TR><TH>All<br/><input type='radio' name='review' onclick='updt(0,\"r\");' checked title='Start review here'/></TH><TH>CID</TH><TH>Subject</TH><TH>Verdict<BR>N U W Y</BR></TH><TH>Reason</TH></TR>"
+seq_num=1; do_check=1; review=0;
+for patch in "${PATCHES[@]}"; do
+        # try to retrieve the patch's numbering (0001-9999)
+        pnum="${patch##*/}"
+        pnum="${pnum%%[^0-9]*}"
+
+        id=$(sed -ne 's/^#id: \(.*\)/\1/p' "$patch")
+        resp=$(grep -v ^llama "$patch" | sed -ne '/^Explanation:/,$p' | sed -z 's/\n[\n]*/\n/g' | sed -z 's/\([^. ]\)\n\([A-Z]\)/\1.\n\2/' | tr '\012' ' ')
+        resp="${resp#Explanation:}";
+        while [ -n "$resp" -a -z "${resp##[ .]*}" ]; do
+                resp="${resp#[ .]}"
+        done
+
+        respl=$(echo -- "$resp" | tr 'A-Z' 'a-z')
+
+        if [[ "${respl}" =~ (conclusion|verdict)[:\ ][^.]*yes ]]; then
+                verdict=yes
+        elif [[ "${respl}" =~ (conclusion|verdict)[:\ ][^.]*wait ]]; then
+                verdict=wait
+        elif [[ "${respl}" =~ (conclusion|verdict)[:\ ][^.]*no ]]; then
+                verdict=no
+        elif [[ "${respl}" =~ (conclusion|verdict)[:\ ][^.]*uncertain ]]; then
+                verdict=uncertain
+        elif [[ "${respl}" =~ (\"wait\"|\"yes\"|\"no\"|\"uncertain\")[^\"]*$ ]]; then
+                # last word under quotes in the response, sometimes happens as
+                # in 'thus I would conclude "no"'.
+                verdict=${BASH_REMATCH[1]}
+        else
+                verdict=uncertain
+        fi
+
+        verdict="${verdict//[\"\',;:. ]}"
+        verdict=$(echo -n "$verdict" | tr '[A-Z]' '[a-z]')
+
+        # There are two formats for the ID line:
+        #   - old: #id: cid subject
+        #   - new: #id: cid author date subject
+        # We can detect the 2nd one as the date starts with a series of digits
+        # followed by "-" then an upper case letter (eg: "18-Dec23").
+        set -- $id
+        cid="$1"
+        author=""
+        date=""
+        if [ -n "$3" ] && [ -z "${3##[1-9]-[A-Z]*}" -o -z "${3##[0-3][0-9]-[A-Z]*}" ]; then
+            author="$2"
+            date="$3"
+            subj="${id#$cid $author $date }"
+        else
+            subj="${id#$cid }"
+        fi
+
+        if [ -z "$cid" ]; then
+            echo "ERROR: commit ID not found in patch $pnum: $patch" >&2
+            continue
+        fi
+
+        echo "<script type='text/javascript'>cid[$seq_num]='$cid';statuses[$seq_num]='$verdict'[0];</script>"
+
+        echo -n "<TR id='tr_$seq_num' name='$cid'"
+
+        # highlight unqualified docs and bugs
+        if [ "$verdict" != "no" ]; then
+                : # no special treatment for accepted/uncertain elements
+        elif [ -z "${subj##BUG*}" ] && ! [[ "${respl}" =~ (explicitly|specifically|clearly|also|commit\ message|does)[\ ]*(state|mention|say|request) ]]; then
+                # bold for BUG marked "no" with no "explicitly states that ..."
+                echo -n " style='font-weight:bold'"
+        elif [ -z "${subj##DOC*}" ]; then # && ! [[ "${respl}" =~ (explicitly|specifically|clearly|also|commit\ message|does)[\ ]*(state|mention|say|request) ]]; then
+                # gray for DOC marked "no"
+                echo -n " style='font-weight:bold'"
+                #echo -n " bgcolor=#E0E0E0" #"$BG_U"
+        fi
+
+        echo -n ">"
+
+        # HTMLify subject and summary
+        subj="${subj//&/&amp;}"; subj="${subj//</&lt;}"; subj="${subj//>/&gt;}";
+        resp="${resp//&/&amp;}"; resp="${resp//</&lt;}"; resp="${resp//>/&gt;}";
+
+        # turn "#XXXX" to a link to an issue
+        resp=$(echo "$resp" | sed -e "s|#\([0-9]\{1,5\}\)|<a href='${ISSUES}\1'>#\1</a>|g")
+
+        # put links to commit IDs
+        resp=$(echo "$resp" | sed -e "s|\([0-9a-f]\{8,40\}\)|<a href='${GITURL}\1'>\1</a>|g")
+
+        echo -n "<TD nowrap align=center ${bkp[$cid]:+style='background-color:${BG_BKP}'}>$seq_num<BR/>"
+        echo -n "<input type='radio' name='review' onclick='updt($seq_num,\"r\");' ${do_check:+checked} title='Start review here'/></TD>"
+        echo -n "<TD nowrap ${bkp[$cid]:+style='background-color:${BG_BKP}'}><tt><a href='${GITURL}${cid}'>$cid</a></tt>${date:+<br/><small style='font-weight:normal'>$date</small>}</TD>"
+        echo -n "<TD nowrap><a href='${GITURL}${cid}'>${pnum:+$pnum }$subj</a>${author:+<br/><div align=right><small style='font-weight:normal'>$author</small></div>}</TD>"
+        echo -n "<TD nowrap align=center>"
+        echo -n "<input type='radio' onclick='updt($seq_num,\"n\");' id='bt_${seq_num}_n' class='n' name='$cid' value='n' title='Drop' $(         [ "$verdict" != no ]     || echo -n checked) />"
+        echo -n "<input type='radio' onclick='updt($seq_num,\"u\");' id='bt_${seq_num}_u' class='u' name='$cid' value='u' title='Uncertain' $(    [ "$verdict" != uncertain ] || echo -n checked) />"
+        echo -n "<input type='radio' onclick='updt($seq_num,\"w\");' id='bt_${seq_num}_w' class='w' name='$cid' value='w' title='wait in -next' $([ "$verdict" != wait ]   || echo -n checked) />"
+        echo -n "<input type='radio' onclick='updt($seq_num,\"y\");' id='bt_${seq_num}_y' class='y' name='$cid' value='y' title='Pick' $(         [ "$verdict" != yes ]    || echo -n checked) />"
+        echo -n "</TD>"
+        echo -n "<TD>$resp</TD>"
+        echo "</TR>"
+        echo
+        ((seq_num++))
+
+        # if this patch was already backported, make the review start on the next
+        if [ -n "${bkp[$cid]}" ]; then
+            review=$seq_num
+            do_check=1
+        else
+            do_check=
+        fi
+done
+
+echo "<TR><TH>New<br/><input type='radio' name='review' onclick='updt($seq_num,\"r\");' ${do_check:+checked} title='Nothing to backport'/></TH><TH>CID</TH><TH>Subject</TH><TH>Verdict<BR>N U W Y</BR></TH><TH>Reason</TH></TR>"
+
+echo "</TABLE>"
+echo "<P/>"
+echo "<H3>Output:</H3>"
+echo "<textarea cols=120 rows=10 id='output'></textarea>"
+echo "<P/>"
+echo "<script type='text/javascript'>review=$review; updt_table(0); updt_output();</script>"
+echo "</BODY></HTML>"

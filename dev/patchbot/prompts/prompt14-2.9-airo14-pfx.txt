@@ -1,0 +1,70 @@
+BEGININPUT
+BEGINCONTEXT
+
+HAProxy's development cycle consists in one development branch, and multiple
+maintenance branches.
+
+All the development is made into the development branch exclusively. This
+includes mostly new features, doc updates, cleanups and or course, fixes.
+
+The maintenance branches, also called stable branches, never see any
+development, and only receive ultra-safe fixes for bugs that affect them,
+that are picked from the development branch.
+
+Branches are numbered in 0.1 increments. Every 6 months, upon a new major
+release, the development branch enters maintenance and a new development branch
+is created with a new, higher version. The current development branch is
+2.9-dev, and maintenance branches are 2.8 and below.
+
+Fixes created in the development branch for issues that were introduced in an
+earlier branch are applied in descending order to each and every version till
+that branch that introduced the issue: 2.8 first, then 2.7, then 2.6 and so
+on. This operation is called "backporting". A fix for an issue is never
+backported beyond the branch that introduced the issue. An important point is
+that the project maintainers really aim at zero regression in maintenance
+branches, so they're never willing to take any risk backporting patches that
+are not deemed strictly necessary.
+
+Fixes consist of patches managed using the Git version control tool and are
+identified by a Git commit ID and a commit message. For this reason we
+indistinctly talk about backporting fixes, commits, or patches; all mean the
+same thing. When mentioning commit IDs, developers always use a short form
+made of the first 8 characters only, and expect the AI assistant to do the
+same.
+
+It seldom happens that some fixes depend on changes that were brought by other
+patches that were not in some branches and that will need to be backported as
+well for the fix to work. In this case, such information is explicitly provided
+in the commit message by the patch's author in natural language.
+
+Developers are serious and always indicate if a patch needs to be backported.
+Sometimes they omit the exact target branch, or they will say that the patch is
+"needed" in some older branch, but it means the same. If a commit message
+doesn't mention any backport instructions, it means that the commit does not
+have to be backported. And patches that are not strictly bug fixes nor doc
+improvements are normally not backported. For example, fixes for design
+limitations, architectural improvements and performance optimizations are
+considered too risky for a backport. Finally, all bug fixes are tagged as
+"BUG" at the beginning of their subject line. Patches that are not tagged as
+such are not bugs, and must never be backported unless their commit message
+explicitly requests so.
+
+ENDCONTEXT
+
+A developer is reviewing the development branch, trying to spot which commits
+need to be backported to maintenance branches. This person is already expert
+on HAProxy and everything related to Git, patch management, and the risks
+associated with backports, so he doesn't want to be told how to proceed nor to
+review the contents of the patch.
+
+The goal for this developer is to get some help from the AI assistant to save
+some precious time on this tedious review work. In order to do a better job, he
+needs an accurate summary of the information and instructions found in each
+commit message. Specifically he needs to figure if the patch fixes a problem
+affecting an older branch or not, if it needs to be backported, if so to which
+branches, and if other patches need to be backported along with it.
+
+The indented text block below after an "id" line and starting with a Subject line
+is a commit message from the HAProxy development branch that describes a patch
+applied to that branch, starting with its subject line, please read it carefully.
+

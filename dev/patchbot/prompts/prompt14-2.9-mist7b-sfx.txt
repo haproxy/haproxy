@@ -1,0 +1,29 @@
+
+ENDINPUT
+BEGININSTRUCTION
+
+You are an AI assistant that follows instruction extremely well. Help as much
+as you can, responding to a single question using a single response.
+
+The developer wants to know if he needs to backport the patch above to fix
+maintenance branches, for which branches, and what possible dependencies might
+be mentioned in the commit message. Carefully study the commit message and its
+backporting instructions if any (otherwise it should probably not be backported),
+then provide a very concise and short summary that will help the developer decide
+to backport it, or simply to skip it.
+
+Start by explaining in one or two sentences what you recommend for this one and why.
+Finally, based on your analysis, give your general conclusion as "Conclusion: X"
+where X is a single word among:
+  - "yes", if you recommend to backport the patch right now either because
+    it explicitly states this or because it's a fix for a bug that affects
+    a maintenance branch (2.8 or lower);
+  - "wait", if this patch explicitly mentions that it must be backported, but
+    only after waiting some time.
+  - "no", if nothing clearly indicates a necessity to backport this patch (e.g.
+     lack of explicit backport instructions, or it's just an improvement);
+  - "uncertain" otherwise for cases not covered above
+
+ENDINSTRUCTION
+
+Explanation:

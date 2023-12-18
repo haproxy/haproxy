@@ -1,0 +1,395 @@
+Patchbot: AI bot making use of Natural Language Processing to suggest backports
+=============================================================== 2023-12-18 ====
+
+
+Background
+----------
+
+Selecting patches to backport from the development branch is a tedious task, in
+part due to the abundance of patches and the fact that many bug fixes are for
+that same version and not for backporting. The more it gets delayed, the harder
+it becomes, and the harder it is to start, the less likely it gets started. The
+urban legend along which one "just" has to do that periodically doesn't work
+because certain patches need to be left hanging for a while under observation,
+others need to be merged urgently, and for some, the person in charge of the
+backport might simply need an opinion from the patch's author or the affected
+subsystem maintainer, and this cannot make the whole backport process stall.
+
+The information needed to figure if a patch needs to be backported is present
+in the commit message, with varying nuances such as "may", "may not", "should",
+"probably", "shouldn't unless", "keep under observation" etc. One particularly
+that is specific to backports is that the opinion on a patch may change over
+time, either because it was later found to be wrong or insufficient, or because
+the former analysis mistakenly suggested to backport or not to.
+
+This means that the person in charge of the backports has to read the whole
+commit message for each patch, to figure the backporting instructions, and this
+takes a while.
+
+Several attempts were made over the years to try to partially automate this
+task, including the cherry-pick mode of the "git-show-backports" utility that
+eases navigation back-and-forth between commits.
+
+Lately, a lot of progress was made in the domain of Natural Language
+Understanding (NLU) and more generally Natural Language Processing (NLP). Since
+the first attempts in early 2023 involving successive layers of the Roberta
+model, called from totally unreliable Python code, and December 2023, the
+situation evolved from promising but unusable to mostly autonomous.
+
+For those interested in history, the first attempts in early 2023 involved
+successive layers of the Roberta model, but these were relying on totally
+unreliable Python code that broke all the time and could barely be transferred
+to another machine without upgrading or downgrading the installed modules, and
+it used to use huge amounts of resources for a somewhat disappointing result:
+the verdicts were correct roughly 60-70% of the time, it was not possible to
+get hints such as "wait" nor even "uncertain".  It could just be qualified as
+promising. Another big limitation was the limit to 256 tokens, forcing the
+script to select only the last few lines of the commit message to take the
+decision. Roughly at the same time, in March 2023 Meta issued their much larger
+LLaMa model, and Georgi Gerganov released "llama.cpp", an open-source C++
+engine that loads and runs such large models without all the usual problems
+inherent to the Python ecosystem. New attempts were made with LLaMa and it was
+already much better than Roberta, but the output was difficult to parse, and it
+required to be combined with the final decision layer of Roberta. Then new
+variants of LLaMa appeared such as Alpaca, which follows instructions, but
+tends to forget them if given before the patch, then Vicuna which was pretty
+reliable but very slow at 33B size and difficult to tune, then Airoboros,
+which was the first one to give very satisfying results in a reasonable time,
+following instructions reasonably closely with a stable output, but with
+sometimes surprising analysis and contradictions. It was already about 90%
+reliable and considered as a time saver in 13B size. Other models were later
+tried as they appeared such as OpenChat-3.5, Juna, OpenInstruct, Orca-2,
+Mistral-0.1 and it variants Neural and OpenHermes-2.5. Mistral showed an
+unrivaled understanding despite being smaller and much faster than other ones,
+but was a bit freewheeling regarding instructions. Dolphin-2.1 rebased on top
+of it gave extremely satisfying results, with less variations in the output
+format, but still the script had difficulties trying to catch its conclusion
+from time to time, though it was pretty much readable for the human in charge
+of the task. And finally just before releasing, Mistral-0.2 was released and
+addressed all issues, with a human-like understanding and perfectly obeying
+instructions, providing an extremely stable output format that is easy to parse
+from simple scripts. The decisions now match the human's ones in close to 100%
+of the patches, unless the human is aware of extra context, of course.
+
+
+Architecture
+------------
+
+The current solution relies on the llama.cpp engine, which is a simple, fast,
+reliable and portable engine to load models and run inference, and the
+Mistral-0.2 LLM.
+
+A collection of patches is built from the development branch since the -dev0
+tag, and for each of them, the engine is called to evaluate the developer's
+intent based on the commit message. A detailed context explaining the haproxy
+maintenance model and what the user wants is passed, then the LLM is invited to
+provide its opinion on the need for a backport and an explanation of the reason
+for its choice. This often helps the user to find a quick summary about the
+patch. All these outputs are then converted to a long HTML page with colors and
+radio buttons, where patches are pre-selected based on this classification,
+that the user can consult and adjust, read the commits if needed, and the
+selected patches finally provide some copy-pastable commands in a text-area to
+select commit IDs to work on, typically in a form that's suitable for a simple
+"git cherry-pick -sx".
+
+The scripts are designed to be able to run on a headless machine, called from a
+crontab and with the output served from a static HTTP server.
+
+The code is currently found from Georgi Gerganov's repository:
+
+   https://github.com/ggerganov/llama.cpp
+
+Tag b1505 is known to work fine, and uses the GGUF file format.
+
+The model(s) can be found on Hugging Face user "TheBloke"'s collection of
+models:
+
+   https://huggingface.co/TheBloke
+
+Model Mistral-7B-Instruct-v0.2-GGUF quantized at Q5K_M is known to work well
+with the llama.cpp version above.
+
+
+Deployment
+----------
+
+Note: it is a good idea to start to download the model(s) in the background as
+      such files are typically 5 GB or more and can take some time to download
+      depending on the internet bandwidth.
+
+It seems reasonable to create a dedicated user to periodically run this task.
+Let's call it "patchbot". Developers should be able to easily run a shell from
+this user to perform some maintenance or testing (e.g. "sudo").
+
+All paths are specified in the example "update-3.0.sh" script, and assume a
+deployment in the user's home, so this is what is being described here. The
+proposed deployment layout is the following:
+
+  $HOME (e.g. /home/patchbot)
+    |
+    +- data
+    |  |
+    |  +-- models   # GGUF files from TheBloke's collection
+    |  |
+    |  +-- prompts  # prompt*-pfx*, prompt*-sfx*, cache
+    |  |
+    |  +-- in
+    |  |   |
+    |  |   +-- haproxy      # haproxy Git repo
+    |  |   |
+    |  |   +-- patches-3.0  # patches from development branch 3.0
+    |  |
+    |  +-- out              # report directory (HTML)
+    |
+    +- prog
+    |  |
+    |  +-- bin              # program(s)
+    |  |
+    |  +-- scripts          # processing scripts
+    |  |
+    |  +-- llama.cpp        # llama Git repository
+
+
+- Let's first create the structure:
+
+    mkdir -p ~/data/{in,models,prompts} ~/prog/{bin,scripts}
+
+- data/in/haproxy must contain a clone of the haproxy development tree that
+  will periodically be pulled from:
+
+    cd ~/data/in
+    git clone https://github.com/haproxy/haproxy
+    cd ~
+
+- The prompt files are a copy of haproxy's "dev/patchbot/prompt/" subdirectory.
+  The prompt files are per-version because they contain references to the
+  haproxy development version number. For each prompt, there is a prefix
+  ("-pfx"), that is loaded before the patch, and a suffix ("-sfx") that
+  precises the user's expectations after reading the patch. For best efficiency
+  it's useful to place most of the explanation in the prefix and the least
+  possible in the suffix, because the prefix is cacheable. Different models
+  will use different instructions formats and different explanations, so it's
+  fine to keep a collection of prompts and use only one. Different instruction
+  formats are commonly used, "llama-2", "alpaca", "vicuna", "chatml" being
+  common. When experimenting with a new model, just copy-paste the closest one
+  and tune it for best results. Since we already cloned haproxy above, we'll
+  take the files from there:
+
+    cp ~/data/in/haproxy/dev/patchbot/prompt/*txt ~/data/prompts/
+
+  Upon first run, a cache file will be produced in this directory by parsing
+  an empty file and saving the current model's context. The cache file will
+  automatically be deleted and rebuilt if it is absent or older than the prefix
+  or suffix file. The cache files are specific to a model so when experimenting
+  with other models, be sure not to reuse the same cache file, or in doubt,
+  just delete them. Rebuilding the cache file typically takes around 2 minutes
+  of processing on a 8-core machine.
+
+- The model(s) from TheBloke's Hugging Face account have to be downloaded in
+  GGUF file format, quantized at Q5K_M, and stored as-is into data/models/.
+
+- data/in/patches-3.0/ is where the "mk-patch-list.sh" script will emit the
+  patches corresponding to new commits in the development branch. Its suffix
+  must match the name of the current development branch for patches to be found
+  there. In addition, the classification of the patches will be emitted there
+  next to the input patches, with the same name as the original file with a
+  suffix indicating what model/prompt combination was used.
+
+    mkdir -p ~/data/in/patches-3.0
+
+- data/out is where the final report will be emitted. If running on a headless
+  machine, it is worth making sure that this directory is accessible from a
+  static web server. Thus either create a directory and place a symlink or
+  configuration somewhere in the web server's settings to reference this
+  location, or make it a symlink to another place already exported by the web
+  server and make sure the user has the permissions to write there.
+
+    mkdir -p ~/data/out
+
+  On Ubuntu-20.04 it was found that the package "micro-httpd" works out of the
+  box serving /var/www/html and follows symlinks. As such this is sufficient to
+  expose the reports:
+
+    sudo ln -s ~patchbot/data/out /var/www/html/patchbot
+
+- prog/bin will contain the executable(s) needed to operate, namely "main" from
+  llama.cpp:
+
+    mkdir -p ~/prog/bin
+
+- prog/llama.cpp is a clone of the "llama.cpp" GitHub repository. As of
+  december 2023, the project has improved its forward compatibility and it's
+  generally both safe and recommended to stay on the last version, hence to
+  just clone the master branch. In case of difficulties, tag b1505 was proven
+  to work well with the aforementioned model. Building is done by default for
+  the local platform, optimised for speed with native CPU.
+
+    mkdir -p ~/prog
+    cd ~/prog
+    git clone https://github.com/ggerganov/llama.cpp
+    [ only in case of problems:  cd llama.cpp && git checkout b1505 ]
+
+    make -j$(nproc) main LLAMA_FAST=1
+    cp main ~/prog/bin/
+    cd ~
+
+- prog/scripts needs the following scripts:
+  - mk-patch-list.sh from haproxy's scripts/ subdirectory
+  - submit-ai.sh, process-*.sh, post-ai.sh, update-*.sh
+
+    cp ~/data/in/haproxy/scripts/mk-patch-list.sh  ~/prog/scripts/
+    cp ~/data/in/haproxy/dev/patchbot/scripts/*.sh ~/prog/scripts/
+
+  - verify that the various paths in update-3.0.sh match your choices, or
+    adjust them:
+
+    vi ~/prog/scripts/update-3.0.sh
+
+  - the tool is memory-bound, so a machine with more memory channels and/or
+    very fast memory will usually be faster than a higher CPU count with a
+    lower memory bandwidth. In addition, the performance is not linear with
+    the number of cores and experimentation shows that efficiency drops above
+    8 threads. For this reason the script integrates a "PARALLEL_RUNS" variable
+    indicating how many instances to run in parallel, each on its own patch.
+    This allows to make better use of the CPUs and memory bandwidth. Setting
+    2 instances for 8 cores / 16 threads gives optimal results on dual memory
+    channel systems.
+
+From this point, executing this update script manually should work and produce
+the result. Count arount 0.5-2 mn per patch on a 8-core machine, so it can be
+reasonably fast during the early development stages (before -dev1) but
+unbearably long later, where it can make more sense to run it at night. It
+should not report any error and should only report the total execution time.
+
+If interrupted (Ctrl-C, logout, out of memory etc), check for incomplete .txt
+files in ~/data/in/patches*/ that can result from this interruption, and delete
+them because they will not be reproduced:
+
+    ls -lart ~/data/in/patches-3.0/*.txt
+    ls -lS ~/data/in/patches-3.0/*.txt
+
+Once the output is produced, visit ~/data/out/ using a web browser and check
+that the table loads correctly. Note that after a new release or a series of
+backports, the table may appear empty, it's just because all known patches are
+already backported and collapsed by default. Clicking on "All" at the top left
+will unhide them.
+
+Finally when satisfied, place it in a crontab, for example, run every hour:
+
+    crontab -e
+
+    # m h  dom mon dow   command
+    # run every hour at minute 02
+    2 * * * * /home/patchbot/update-3.0.sh
+
+
+Usage
+-----
+
+Using the HTML output is a bit rustic but efficient. The interface is split in
+5 columns from left to right:
+
+  - first column: patch number from 1 to N, just to ease navigation. Below the
+    number appears a radio button which allows to mark this patch as the start
+    of the review. When clicked, all prior patches disappear and are not listed
+    anymore. This can be undone by clicking on the radio button under the "All"
+    word in this column's header.
+
+
+  - second column: commit ID (abbreviated "CID" in the header). It's a 8-digit
+    shortened representation of the commit ID. It's presented as a link, which,
+    if clicked, will directly show that commit from the haproxy public
+    repository. Below the commit ID is the patch's author date in condensed
+    format "DD-MmmYY", e.g. "18-Dec23" for "18th December 2023". It was found
+    that having a date indication sometimes helps differentiate certain related
+    patches.
+
+  - third column: "Subject", this is the subject of the patch, prefixed with
+    the 4-digit number matching the file name in the directory (e.g. helps to
+    remove or reprocess one if needed). This is also a link to the same commit
+    in the haproxy's public repository. At the lower right under the subject
+    is the shortened e-mail address (only user@domain keeping only the first
+    part of the domain, e.g. "foo@haproxy"). Just like with the date, it helps
+    figuring what to expect after a recent discussion with a developer.
+
+  - fourth column: "Verdict". This column contains 4 radio buttons prefiguring
+    the choice for this patch between "N" for "No", represented in gray (this
+    patch should not be backported, let's drop it), "U" for "Uncertain" in
+    green (still unsure about it, most likely the author should be contacted),
+    "W" for "Wait" in blue (this patch should be backported but not
+    immediately, only after it has spent some time in the development branch),
+    and "Y" for "Yes" in red (this patch must be backported, let's pick it).
+    The choice is preselected by the scripts above, and since these are radio
+    buttons, the user is free to change this selection. Reloading will lose the
+    user's choices. When changing a selection, the line's background changes to
+    match a similar color tone, allowing to visually spot preselected patches.
+
+  - fifth column: reason for the choice. The scripts try to provide an
+    explanation for the choice of the preselection, and try to always end with
+    a conclusion among "yes", "no", "wait", "uncertain". The explanation
+    usually fits in 2-4 lines and is faster to read than a whole commit message
+    and very often pretty accurate. It's also been noticed that Mistral-v0.2
+    shows much less hallucinations than others (it doesn't seem to invent
+    information that was not part of its input), so seeing certain topics being
+    discussed there generally indicate that they were in the original commit
+    message. The scripts try to emphasize the sensitive parts of the commit
+    message such as risks, dependencies, referenced issues, oldest version to
+    backport to, etc. Elements that look like issues numbers and commit IDs are
+    turned to links to ease navigation.
+
+In addition, in order to improve readability, the top of the table shows 4
+buttons allowing to show/hide each category. For example, when trying to focus
+only on "uncertain" and "wait", it can make sense to hide "N" and "Y" and click
+"Y" or "N" on the displayed ones until there is none anymore.
+
+In order to reduce the risk of missing a misqualified patch, those marked "BUG"
+or "DOC" are displayed in bold even if tagged "No". It has been shown to be
+sufficient to catch the eye when scrolling and encouraging to re-visit them.
+
+More importantly, the script will try to also check which patches were already
+backported to the previous stable version. Those that were backported will have
+the first two columns colored gray, and by default, the review will start from
+the first patch after the last backported one. This explains why just after a
+backport, the table may appear empty with only the footer "New" checked.
+
+Finally, at the bottom of the table is an editable, copy-pastable text area
+that is redrawn at each click. It contains a series of 4 shell commands that
+can be copy-pasted at once and assign commit IDs to 4 variables, one per
+category. Most often only "y" will be of interest, so for example if the
+review process ends with:
+
+    cid_y=( 7dab3e82 456ba6e9 75f5977f 917f7c74 )
+
+Then copy-pasting it in a terminal already in the haproxy-2.9 directory and
+issuing:
+
+    git cherry-pick -sx ${cid_y[@]}
+
+Will result in all these patches to be backported to that version.
+
+
+Criticisms
+----------
+
+The interface is absolutely ugly but gets the job done. Proposals to revamp it
+are welcome, provided that they do not alter usability and portability (e.g.
+the ability to open the locally produced file without requiring access to an
+external server).
+
+
+Thanks
+------
+
+This utility is the proof that boringly repetitive tasks that can be offloaded
+from humans can save their time to do more productive things. This work which
+started with extremely limited tools was made possible thanks to Meta, for
+opening their models after leaking it, Georgi Gerganov and the community that
+developed around llama.cpp, for creating the first really open engine that
+builds out of the box and just works, contrary to the previous crippled Python-
+only ecosystem, Tom Jobbins (aka TheBloke) for making it so easy to discover
+new models every day by simply quantizing all of them and making them available
+from a single location, MistralAI for producing an exceptionally good model
+that surpasses all others, is the first one to feel as smart and accurate as a
+real human on such tasks, is fast, and totally free, and of course, HAProxy
+Technologies for investing some time on this and for the available hardware
+that permits a lot of experimentation.
