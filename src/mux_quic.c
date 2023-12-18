@@ -2387,17 +2387,13 @@ static int qcc_io_process(struct qcc *qcc)
 	return 0;
 }
 
-/* release function. This one should be called to free all resources allocated
- * to the mux.
- */
+/* Free all resources allocated for <qcc> connection. */
 static void qcc_release(struct qcc *qcc)
 {
 	struct connection *conn = qcc->conn;
 	struct eb64_node *node;
 
 	TRACE_ENTER(QMUX_EV_QCC_END, conn);
-
-	qcc_shutdown(qcc);
 
 	if (qcc->task) {
 		task_destroy(qcc->task);
@@ -2471,6 +2467,7 @@ struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int status)
 	return NULL;
 
  release:
+	qcc_shutdown(qcc);
 	qcc_release(qcc);
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
 	return NULL;
@@ -2513,6 +2510,7 @@ static struct task *qcc_timeout_task(struct task *t, void *ctx, unsigned int sta
 	 */
 	if (qcc_is_dead(qcc)) {
 		TRACE_STATE("releasing dead connection", QMUX_EV_QCC_WAKE, qcc->conn);
+		qcc_shutdown(qcc);
 		qcc_release(qcc);
 	}
 
@@ -2710,6 +2708,7 @@ static void qmux_strm_detach(struct sedesc *sd)
 	return;
 
  release:
+	qcc_shutdown(qcc);
 	qcc_release(qcc);
 	TRACE_LEAVE(QMUX_EV_STRM_END);
 	return;
@@ -2967,6 +2966,7 @@ static int qmux_wake(struct connection *conn)
 	return 0;
 
  release:
+	qcc_shutdown(qcc);
 	qcc_release(qcc);
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
 	return 1;
