@@ -1991,7 +1991,11 @@ int connect_server(struct stream *s)
 		/* set the correct protocol on the output stream connector */
 
 		if (srv) {
-			if (conn_prepare(srv_conn, protocol_lookup(srv_conn->dst->ss_family, PROTO_TYPE_STREAM, srv->alt_proto), srv->xprt)) {
+			enum proto_type proto_type =
+				srv->flags & SRV_F_QUIC_PROTO ? PROTO_TYPE_DGRAM : PROTO_TYPE_STREAM;
+			struct protocol *proto = protocol_lookup(srv_conn->dst->ss_family, proto_type, 0);
+
+			if (conn_prepare(srv_conn, proto, srv->xprt)) {
 				conn_free(srv_conn);
 				return SF_ERR_INTERNAL;
 			}
