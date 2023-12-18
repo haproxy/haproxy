@@ -754,6 +754,35 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 	return cfgerr;
 }
 
+/* Allocate a TLS context for a QUIC server.
+ * Return this context if succeeded, NULL if failed.
+ */
+SSL_CTX *ssl_quic_srv_new_ssl_ctx(void)
+{
+	SSL_CTX *ctx;
+	/* XXX TODO: check this: XXX */
+	long options =
+		(SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) |
+		SSL_OP_SINGLE_ECDH_USE |
+		SSL_OP_CIPHER_SERVER_PREFERENCE;
+
+	TRACE_ENTER(QUIC_EV_CONN_NEW);
+
+	ctx = SSL_CTX_new(TLS_client_method());
+	if (!ctx) {
+		TRACE_ERROR("Could not allocate a new TLS context", QUIC_EV_CONN_NEW);
+		goto leave;
+	}
+
+	SSL_CTX_set_options(ctx, options);
+	SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
+	SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
+
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_NEW);
+	return ctx;
+}
+
 /* This function gives the detail of the SSL error. It is used only
  * if the debug mode and the verbose mode are activated. It dump all
  * the SSL error until the stack was empty.
