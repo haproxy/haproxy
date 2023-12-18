@@ -478,6 +478,9 @@ struct server {
 		char *alpn_str;                 /* ALPN protocol string */
 		int alpn_len;                   /* ALPN protocol string length */
 	} ssl_ctx;
+#ifdef USE_QUIC
+	struct quic_transport_params quic_params; /* QUIC transport parameters */
+#endif
 	struct resolv_srvrq *srvrq;		/* Pointer representing the DNS SRV requeest, if any */
 	struct list srv_rec_item;		/* to attach server to a srv record item */
 	struct list ip_rec_item;		/* to attach server to a A or AAAA record item */
