@@ -3992,7 +3992,7 @@ static int h2_send(struct h2c *h2c)
 
 	if (h2c->flags & (H2_CF_ERROR|H2_CF_ERR_PENDING)) {
 		TRACE_DEVEL("leaving on error", H2_EV_H2C_SEND, h2c->conn);
-		if (h2c->flags & H2_CF_RCVD_SHUT)
+		if (h2c->flags & H2_CF_END_REACHED)
 			h2c->flags |= H2_CF_ERROR;
 		b_reset(br_tail(h2c->mbuf));
 		h2c->idle_start = now_ms;
@@ -4090,7 +4090,7 @@ static int h2_send(struct h2c *h2c)
 
 	if (conn->flags & CO_FL_ERROR) {
 		h2c->flags |= H2_CF_ERR_PENDING;
-		if (h2c->flags & H2_CF_RCVD_SHUT)
+		if (h2c->flags & H2_CF_END_REACHED)
 			h2c->flags |= H2_CF_ERROR;
 		b_reset(br_tail(h2c->mbuf));
 	}
