@@ -36,6 +36,7 @@
 #include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
 #include <haproxy/queue.h>
+#include <haproxy/quic_tp.h>
 #include <haproxy/resolvers.h>
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
@@ -3533,6 +3534,16 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		                  (parse_flags & SRV_PARSE_INITIAL_RESOLVE ? PA_O_RESOLVE : 0) | PA_O_PORT_OK |
 				  (parse_flags & SRV_PARSE_IN_PEER_SECTION ? PA_O_PORT_MAND : PA_O_PORT_OFS) |
 				  PA_O_STREAM | PA_O_DGRAM | PA_O_XPRT);
+
+#ifdef USE_QUIC
+		if (newsrv->addr_type.proto_type == PROTO_TYPE_DGRAM &&
+		    newsrv->addr_type.xprt_type == PROTO_TYPE_STREAM) {
+			newsrv->xprt = xprt_get(XPRT_QUIC);
+			newsrv->flags |= SRV_F_QUIC_PROTO;
+			quic_transport_params_init(&newsrv->quic_params, 0);
+		}
+#endif
+
 		if (!sk) {
 			ha_alert("%s\n", errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
