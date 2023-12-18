@@ -2601,8 +2601,9 @@ int ckch_inst_rebuild(struct ckch_store *ckch_store, struct ckch_inst *ckchi,
 		fcount = ckchi->crtlist_entry->fcount;
 	}
 
-	if (ckchi->is_server_instance)
-		errcode |= ckch_inst_new_load_srv_store(ckch_store->path, ckch_store, new_inst, err);
+	if (ckchi->is_server_instance) {
+		errcode |= ckch_inst_new_load_srv_store(ckch_store->path, ckch_store, new_inst, err, srv_is_quic(ckchi->server));
+	}
 	else
 		errcode |= ckch_inst_new_load_store(ckch_store->path, ckch_store, ckchi->bind_conf, ckchi->ssl_conf, sni_filter, fcount, ckchi->is_default, new_inst, err);
 
