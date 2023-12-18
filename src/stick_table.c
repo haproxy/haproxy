@@ -386,6 +386,40 @@ struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key
 }
 
 /*
+ * Looks in table <t> for a sticky session matching ptr <ptr>.
+ * Returns pointer on requested sticky session or NULL if none was found.
+ * The refcount of the found entry is increased and this function
+ * is protected using the table lock
+ */
+struct stksess *stktable_lookup_ptr(struct stktable *t, void *ptr)
+{
+	struct stksess *ts = NULL;
+	struct ebmb_node *eb;
+
+	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &t->lock);
+	/* linear search is performed, this could be optimized by adding
+	 * an eb node dedicated to ptr lookups into stksess struct to
+	 * leverage eb_lookup function instead.
+	 */
+	eb = ebmb_first(&t->keys);
+	while (eb) {
+		struct stksess *cur;
+
+		cur = ebmb_entry(eb, struct stksess, key);
+		if (cur == ptr) {
+			ts = cur;
+			break;
+		}
+		eb = ebmb_next(eb);
+	}
+	if (ts)
+		HA_ATOMIC_INC(&ts->ref_cnt);
+	HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->lock);
+
+	return ts;
+}
+
+/*
  * Looks in table <t> for a sticky session with same key as <ts>.
  * Returns pointer on requested sticky session or NULL if none was found.
  */
@@ -5080,6 +5114,32 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 	return table_process_entry(appctx, ts, args);
 }
 
+/* Processes a single table entry matching a specific ptr passed in argument.
+ * returns 0 if wants to be called again, 1 if has ended processing.
+ */
+static int table_process_entry_per_ptr(struct appctx *appctx, char **args)
+{
+	struct show_table_ctx *ctx = appctx->svcctx;
+	struct stktable *t = ctx->target;
+	long long int ptr;
+	char *error;
+	struct stksess *ts;
+
+	if (!*args[4] || args[4][0] != '0' || args[4][1] != 'x')
+		return cli_err(appctx, "Pointer expected (0xffff notation)\n");
+
+	/* Convert argument to integer value */
+	ptr = strtoll(args[4], &error, 16);
+	if (*error != '\0')
+		return cli_err(appctx, "Malformed ptr.\n");
+
+	ts = stktable_lookup_ptr(t, (void *)ptr);
+	if (!ts)
+		return cli_err(appctx, "No entry can be found matching ptr.\n");
+
+	return table_process_entry(appctx, ts, args);
+}
+
 /* Prepares the appctx fields with the data-based filters from the command line.
  * Returns 0 if the dump can proceed, 1 if has ended processing.
  */
@@ -5145,6 +5205,8 @@ static int cli_parse_table_req(char **args, char *payload, struct appctx *appctx
 
 	if (strcmp(args[3], "key") == 0)
 		return table_process_entry_per_key(appctx, args);
+	if (strcmp(args[3], "ptr") == 0)
+		return table_process_entry_per_ptr(appctx, args);
 	else if (strncmp(args[3], "data.", 5) == 0)
 		return table_prepare_data_request(appctx, args);
 	else if (*args[3])
@@ -5155,11 +5217,11 @@ static int cli_parse_table_req(char **args, char *payload, struct appctx *appctx
 err_args:
 	switch (ctx->action) {
 	case STK_CLI_ACT_SHOW:
-		return cli_err(appctx, "Optional argument only supports \"data.<store_data_type>\" <operator> <value> and key <key>\n");
+		return cli_err(appctx, "Optional argument only supports \"data.<store_data_type>\" <operator> <value> or key <key> or ptr <ptr>\n");
 	case STK_CLI_ACT_CLR:
-		return cli_err(appctx, "Required arguments: <table> \"data.<store_data_type>\" <operator> <value> or <table> key <key>\n");
+		return cli_err(appctx, "Required arguments: <table> \"data.<store_data_type>\" <operator> <value> or <table> key <key> or <table> ptr <ptr>\n");
 	case STK_CLI_ACT_SET:
-		return cli_err(appctx, "Required arguments: <table> key <key> [data.<store_data_type> <value>]*\n");
+		return cli_err(appctx, "Required arguments: <table> key <key> [data.<store_data_type> <value>]* or <table> ptr <ptr> [data.<store_data_type> <value>]*\n");
 	default:
 		return cli_err(appctx, "Unknown action\n");
 	}
