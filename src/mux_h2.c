@@ -2178,7 +2178,7 @@ static void h2s_wake_one_stream(struct h2s *h2s)
 			h2s_close(h2s);
 	}
 
-	if (h2s->h2c->st0 >= H2_CS_ERROR || (h2s->h2c->flags & (H2_CF_ERR_PENDING|H2_CF_ERROR)) ||
+	if (h2s->h2c->st0 >= H2_CS_ERROR || (h2s->h2c->flags & H2_CF_ERROR) ||
 	    (h2s->h2c->last_sid > 0 && (!h2s->id || h2s->id > h2s->h2c->last_sid))) {
 		se_fl_set_error(h2s->sd);
 
