@@ -4398,7 +4398,9 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 			return cfgerr;
 		}
 	}
-	if (srv->use_ssl == 1)
+
+	/* The QUIC server xprt has already been set. */
+	if (srv->use_ssl == 1 && !srv_is_quic(srv))
 		srv->xprt = &ssl_sock;
 
 	if (srv->ssl_ctx.client_crt) {
