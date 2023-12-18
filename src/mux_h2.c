@@ -3959,7 +3959,7 @@ static int h2_recv(struct h2c *h2c)
 		TRACE_DATA("received read0", H2_EV_H2C_RECV, h2c->conn);
 		h2c->flags |= H2_CF_RCVD_SHUT;
 	}
-	if (h2c->conn->flags & CO_FL_ERROR) {
+	if (h2c->conn->flags & CO_FL_ERROR && !b_data(&h2c->dbuf)) {
 		TRACE_DATA("connection error", H2_EV_H2C_RECV, h2c->conn);
 		h2c->flags |= H2_CF_ERROR;
 	}
