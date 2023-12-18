@@ -2552,6 +2552,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	conn->ctx = qcc;
 	qcc->nb_hreq = qcc->nb_sc = 0;
 	qcc->flags = 0;
+	qcc->err = quic_err_transport(QC_ERR_NO_ERROR);
 
 	/* Server parameters, params used for RX flow control. */
 	lparams = &conn->handle.qc->rx.params;
@@ -2635,7 +2636,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	if (qcc_install_app_ops(qcc, conn->handle.qc->app_ops)) {
 		TRACE_PROTO("Cannot install app layer", QMUX_EV_QCC_NEW|QMUX_EV_QCC_ERR, conn);
 		/* prepare a CONNECTION_CLOSE frame */
-		quic_set_connection_close(conn->handle.qc, quic_err_transport(QC_ERR_APPLICATION_ERROR));
+		qcc_set_error(qcc, QC_ERR_APPLICATION_ERROR, 0);
 		goto err;
 	}
 
@@ -2653,6 +2654,13 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	return 0;
 
  err:
+	/* Prepare CONNECTION_CLOSE, using INTERNAL_ERROR as fallback code if unset. */
+	if (!(conn->handle.qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE)) {
+		struct quic_err err = qcc && qcc->err.code ?
+		  qcc->err : quic_err_transport(QC_ERR_INTERNAL_ERROR);
+		quic_set_connection_close(conn->handle.qc, err);
+	}
+
 	if (qcc) {
 		/* In case of MUX init failure, session will ensure connection is freed. */
 		qcc->conn = NULL;
