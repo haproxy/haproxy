@@ -65,6 +65,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/quic_conn.h>
 #include <haproxy/quic_openssl_compat.h>
+#include <haproxy/quic_ssl.h>
 #include <haproxy/quic_tp.h>
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
@@ -3039,6 +3040,20 @@ error:
 	return errcode;
 }
 
+#ifdef USE_QUIC
+static inline SSL_CTX *ssl_sock_new_ssl_ctx(int is_quic)
+{
+	if (is_quic)
+		return ssl_quic_srv_new_ssl_ctx();
+	else
+		return SSL_CTX_new(SSLv23_client_method());
+}
+#else
+static inline SSL_CTX *ssl_sock_new_ssl_ctx(int is_quic)
+{
+	return SSL_CTX_new(SSLv23_client_method());
+}
+#endif
 
 /*
  * This function allocate a ckch_inst that will be used on the backend side
@@ -3050,7 +3065,7 @@ error:
  *     ERR_WARN if a warning is available into err
  */
 int ckch_inst_new_load_srv_store(const char *path, struct ckch_store *ckchs,
-				 struct ckch_inst **ckchi, char **err)
+				 struct ckch_inst **ckchi, char **err, int is_quic)
 {
 	SSL_CTX *ctx;
 	struct ckch_data *data;
@@ -3064,7 +3079,7 @@ int ckch_inst_new_load_srv_store(const char *path, struct ckch_store *ckchs,
 
 	data = ckchs->data;
 
-	ctx = SSL_CTX_new(SSLv23_client_method());
+	ctx = ssl_sock_new_ssl_ctx(is_quic);
 	if (!ctx) {
 		memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
 		          err && *err ? *err : "", path);
@@ -3135,7 +3150,8 @@ static int ssl_sock_load_srv_ckchs(const char *path, struct ckch_store *ckchs,
 	int errcode = 0;
 
 	/* we found the ckchs in the tree, we can use it directly */
-	errcode |= ckch_inst_new_load_srv_store(path, ckchs, ckch_inst, err);
+	errcode |= ckch_inst_new_load_srv_store(path, ckchs, ckch_inst, err,
+	                                        srv_is_quic(server));
 
 	if (errcode & ERR_CODE)
 		return errcode;
@@ -4427,7 +4443,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	/* The context will be uninitialized if there wasn't any "cert" option
 	 * in the server line. */
 	if (!ctx) {
-		ctx = SSL_CTX_new(SSLv23_client_method());
+		ctx = ssl_sock_new_ssl_ctx(srv_is_quic(srv));
 		if (!ctx) {
 			ha_alert("unable to allocate ssl context.\n");
 			cfgerr++;
