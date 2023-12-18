@@ -2567,9 +2567,11 @@ static int resolvers_finalize_config(void)
 			if (ns->dgram) {
 				/* Check nameserver info */
 				if ((fd = socket(ns->dgram->conn.addr.to.ss_family, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
-					ha_alert("resolvers '%s': can't create socket for nameserver '%s'.\n",
-						 resolvers->id, ns->id);
-					err_code |= (ERR_ALERT|ERR_ABORT);
+					if (!resolvers->conf.implicit) {  /* emit a warning only if it was configured manually */
+						ha_alert("resolvers '%s': can't create socket for nameserver '%s'.\n",
+							 resolvers->id, ns->id);
+						err_code |= (ERR_ALERT|ERR_ABORT);
+					}
 					continue;
 				}
 				if (connect(fd, (struct sockaddr*)&ns->dgram->conn.addr.to, get_addr_len(&ns->dgram->conn.addr.to)) == -1) {
