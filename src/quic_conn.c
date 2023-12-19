@@ -1028,7 +1028,8 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                               struct quic_connection_id *conn_id,
                               struct sockaddr_storage *local_addr,
                               struct sockaddr_storage *peer_addr,
-                              int server, int token, void *owner)
+                              int server, int token, void *owner,
+                              struct connection *conn)
 {
 	struct quic_conn *qc = NULL;
 	struct listener *l = server ? owner : NULL;
@@ -1103,7 +1104,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->idle_timer_task = NULL;
 
 	qc->xprt_ctx = NULL;
-	qc->conn = NULL;
+	qc->conn = conn;
 	qc->qcc = NULL;
 	qc->app_ops = NULL;
 	qc->path = NULL;
