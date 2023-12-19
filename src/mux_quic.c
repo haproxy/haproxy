@@ -2811,6 +2811,9 @@ static size_t qmux_strm_snd_buf(struct stconn *sc, struct buffer *buf,
 
 	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
+	/* Sending forbidden if QCS is locally closed (FIN or RESET_STREAM sent). */
+	BUG_ON(qcs_is_close_local(qcs) || (qcs->flags & QC_SF_TO_RESET));
+
 	/* stream layer has been detached so no transfer must occur after. */
 	BUG_ON_HOT(qcs->flags & QC_SF_DETACH);
 
@@ -2818,11 +2821,6 @@ static size_t qmux_strm_snd_buf(struct stconn *sc, struct buffer *buf,
 	if (qcs->qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL)) {
 		se_fl_set(qcs->sd, SE_FL_ERROR);
 		TRACE_DEVEL("connection in error", QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
-		goto end;
-	}
-
-	if (qcs_is_close_local(qcs) || (qcs->flags & QC_SF_TO_RESET)) {
-		ret = qcs_http_reset_buf(qcs, buf, count);
 		goto end;
 	}
 
@@ -2852,6 +2850,9 @@ static size_t qmux_strm_nego_ff(struct stconn *sc, struct buffer *input,
 	size_t ret = 0;
 
 	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
+
+	/* Sending forbidden if QCS is locally closed (FIN or RESET_STREAM sent). */
+	BUG_ON(qcs_is_close_local(qcs) || (qcs->flags & QC_SF_TO_RESET));
 
 	/* stream layer has been detached so no transfer must occur after. */
 	BUG_ON_HOT(qcs->flags & QC_SF_DETACH);
