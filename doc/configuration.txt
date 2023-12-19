@@ -19265,32 +19265,37 @@ map_<match_type>_<output_type>(<map_name>[,<default_value>])
   The following array contains the list of all map functions available sorted by
   input type, match type and output type.
 
-  input type | match method | output type str | output type int | output type ip
-  -----------+--------------+-----------------+-----------------+---------------
-    str      | str          | map_str         | map_str_int     | map_str_ip
-  -----------+--------------+-----------------+-----------------+---------------
-    str      | beg          | map_beg         | map_beg_int     | map_end_ip
-  -----------+--------------+-----------------+-----------------+---------------
-    str      | sub          | map_sub         | map_sub_int     | map_sub_ip
-  -----------+--------------+-----------------+-----------------+---------------
-    str      | dir          | map_dir         | map_dir_int     | map_dir_ip
-  -----------+--------------+-----------------+-----------------+---------------
-    str      | dom          | map_dom         | map_dom_int     | map_dom_ip
-  -----------+--------------+-----------------+-----------------+---------------
-    str      | end          | map_end         | map_end_int     | map_end_ip
-  -----------+--------------+-----------------+-----------------+---------------
-    str      | reg          | map_reg         | map_reg_int     | map_reg_ip
-  -----------+--------------+-----------------+-----------------+---------------
-    str      | reg          | map_regm        | map_reg_int     | map_reg_ip
-  -----------+--------------+-----------------+-----------------+---------------
-    int      | int          | map_int         | map_int_int     | map_int_ip
-  -----------+--------------+-----------------+-----------------+---------------
-    ip       | ip           | map_ip          | map_ip_int      | map_ip_ip
-  -----------+--------------+-----------------+-----------------+---------------
+  input type | match method | output type str | output type int | output type ip | output type key
+  -----------+--------------+-----------------+-----------------+----------------+----------------
+    str      | str          | map_str         | map_str_int     | map_str_ip     | map_str_key
+  -----------+--------------+-----------------+-----------------+----------------+----------------
+    str      | beg          | map_beg         | map_beg_int     | map_end_ip     | map_end_key
+  -----------+--------------+-----------------+-----------------+----------------+----------------
+    str      | sub          | map_sub         | map_sub_int     | map_sub_ip     | map_sub_key
+  -----------+--------------+-----------------+-----------------+----------------+----------------
+    str      | dir          | map_dir         | map_dir_int     | map_dir_ip     | map_dir_key
+  -----------+--------------+-----------------+-----------------+----------------+----------------
+    str      | dom          | map_dom         | map_dom_int     | map_dom_ip     | map_dom_key
+  -----------+--------------+-----------------+-----------------+----------------+----------------
+    str      | end          | map_end         | map_end_int     | map_end_ip     | map_end_key
+  -----------+--------------+-----------------+-----------------+----------------+----------------
+    str      | reg          | map_reg         | map_reg_int     | map_reg_ip     | map_reg_key
+  -----------+--------------+-----------------+-----------------+----------------+----------------
+    str      | reg          | map_regm        | map_reg_int     | map_reg_ip     | map_reg_key
+  -----------+--------------+-----------------+-----------------+----------------+----------------
+    int      | int          | map_int         | map_int_int     | map_int_ip     | map_int_key
+  -----------+--------------+-----------------+-----------------+----------------+----------------
+    ip       | ip           | map_ip          | map_ip_int      | map_ip_ip      | map_ip_key
+  -----------+--------------+-----------------+-----------------+----------------+----------------
 
   The special map called "map_regm" expect matching zone in the regular
   expression and modify the output replacing back reference (like "\1") by
   the corresponding match text.
+
+  Output type "key" means that it its the matched entry's key (as found in the
+  map file)that will be returned as a string instead of the value. Note that
+  optional <default_value> argument is not supported when "key" output type is
+  used.
 
   Files referenced by <map_name> contains one key + value per line. Lines which
   start with '#' are ignored, just like empty lines. Leading tabs and spaces

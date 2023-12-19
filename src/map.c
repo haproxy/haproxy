@@ -170,6 +170,34 @@ int sample_load_map(struct arg *arg, struct sample_conv *conv,
 	return 1;
 }
 
+/* try to match input sample against map entries, returns matched entry's key
+ * on success
+ */
+static int sample_conv_map_key(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct map_descriptor *desc;
+	struct pattern *pat;
+
+	/* get config */
+	desc = arg_p[0].data.map;
+
+	/* Execute the match function. */
+	pat = pattern_exec_match(&desc->pat, smp, 1);
+
+	/* Match case. */
+	if (pat) {
+		smp->data.type = SMP_T_STR;
+		smp->flags |= SMP_F_CONST;
+		smp->data.u.str.area = (char *)pat->ref->pattern;
+		smp->data.u.str.data = strlen(pat->ref->pattern);
+		return 1;
+	}
+	return 0;
+}
+
+/* try to match input sample against map entries, returns matched entry's value
+ * on success
+ */
 static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct map_descriptor *desc;
@@ -1225,6 +1253,16 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "map_reg_ip",  sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_STR,  SMP_T_ADDR, (void *)PAT_MATCH_REG },
 	{ "map_int_ip",  sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_SINT, SMP_T_ADDR, (void *)PAT_MATCH_INT },
 	{ "map_ip_ip",   sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_ADDR, SMP_T_ADDR, (void *)PAT_MATCH_IP  },
+
+	{ "map_str_key",  sample_conv_map_key, ARG1(1,STR), sample_load_map, SMP_T_STR,  SMP_T_STR, (void *)PAT_MATCH_STR },
+	{ "map_beg_key",  sample_conv_map_key, ARG1(1,STR), sample_load_map, SMP_T_STR,  SMP_T_STR, (void *)PAT_MATCH_BEG },
+	{ "map_sub_key",  sample_conv_map_key, ARG1(1,STR), sample_load_map, SMP_T_STR,  SMP_T_STR, (void *)PAT_MATCH_SUB },
+	{ "map_dir_key",  sample_conv_map_key, ARG1(1,STR), sample_load_map, SMP_T_STR,  SMP_T_STR, (void *)PAT_MATCH_DIR },
+	{ "map_dom_key",  sample_conv_map_key, ARG1(1,STR), sample_load_map, SMP_T_STR,  SMP_T_STR, (void *)PAT_MATCH_DOM },
+	{ "map_end_key",  sample_conv_map_key, ARG1(1,STR), sample_load_map, SMP_T_STR,  SMP_T_STR, (void *)PAT_MATCH_END },
+	{ "map_reg_key",  sample_conv_map_key, ARG1(1,STR), sample_load_map, SMP_T_STR,  SMP_T_STR, (void *)PAT_MATCH_REG },
+	{ "map_int_key",  sample_conv_map_key, ARG1(1,STR), sample_load_map, SMP_T_SINT, SMP_T_STR, (void *)PAT_MATCH_INT },
+	{ "map_ip_key",   sample_conv_map_key, ARG1(1,STR), sample_load_map, SMP_T_ADDR, SMP_T_STR, (void *)PAT_MATCH_IP  },
 
 	{ /* END */ },
 }};
