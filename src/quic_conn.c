@@ -119,6 +119,8 @@ const struct quic_version quic_versions[] = {
 	},
 };
 
+const struct quic_version *quic_version_1 = &quic_versions[1];
+
 /* Function pointers, can be used to compute a hash from first generated CID and to derive new CIDs */
 uint64_t (*quic_hash64_from_cid)(const unsigned char *cid, int size, const unsigned char *secret, size_t secretlen) = NULL;
 void (*quic_newcid_from_hash64)(unsigned char *cid, int size, uint64_t hash, const unsigned char *secret, size_t secretlen) = NULL;
@@ -1028,7 +1030,8 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                               struct quic_connection_id *conn_id,
                               struct sockaddr_storage *local_addr,
                               struct sockaddr_storage *peer_addr,
-                              int server, int token, void *owner)
+                              int server, int token, void *owner,
+                              struct connection *conn)
 {
 	struct quic_conn *qc = NULL;
 	struct listener *l = server ? owner : NULL;
@@ -1096,7 +1099,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->idle_timer_task = NULL;
 
 	qc->xprt_ctx = NULL;
-	qc->conn = NULL;
+	qc->conn = conn;
 	qc->qcc = NULL;
 	qc->app_ops = NULL;
 	qc->path = NULL;
@@ -1293,6 +1296,51 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT);
 	return NULL;
+}
+
+/* Initialize a QUIC server connection for <conn> connection.
+ * Return this connection if succeeded, NULL if failed.
+ */
+struct quic_conn *qc_new_srv_conn(struct connection *conn)
+{
+	struct server *srv;
+	int ipv4;
+	struct quic_cid scid;
+	struct quic_cid odcid;
+	struct quic_conn *qc = NULL;
+	struct quic_connection_id *conn_cid = NULL;
+
+	TRACE_ENTER(QUIC_EV_CONN_NEW);
+
+	if (RAND_bytes(scid.data, QUIC_HAP_CID_LEN) != 1)
+		goto err;
+
+	if (RAND_bytes(odcid.data, sizeof odcid.data) != 1)
+		goto err;
+
+	scid.len = QUIC_HAP_CID_LEN;
+	odcid.len = sizeof odcid.data;
+
+	srv = objt_server(conn->target);
+	ipv4 = conn->dst->ss_family == AF_INET;
+
+	conn_cid = new_quic_cid(NULL, NULL, NULL, NULL);
+	if (!conn_cid)
+		goto err;
+
+	qc = qc_new_conn(quic_version_1, ipv4, &odcid, &scid, NULL,
+	                 conn_cid, NULL, &srv->addr, 0, 0, srv, conn);
+	if (!qc)
+		goto err;
+
+	conn->handle.qc = qc;
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_NEW, qc);
+	return qc;
+
+ err:
+	pool_free(pool_head_quic_connection_id, conn_cid);
+	goto leave;
 }
 
 /* React to a connection migration initiated on <qc> by a client with the new
