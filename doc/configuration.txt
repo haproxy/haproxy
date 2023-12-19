@@ -25386,8 +25386,7 @@ each of which has a special meaning :
             dangerous error in server response which might have caused
             information leak (e.g. cacheable cookie).
 
-        L : the stream was locally processed by HAProxy and was not passed to
-            a server. This is what happens for stats and redirects.
+        L : the stream was locally processed by HAProxy.
 
         R : a resource on the proxy has been exhausted (memory, sockets, source
             ports, ...). Usually, this appears during the connection phase, and
@@ -25585,8 +25584,18 @@ easier finding and understanding.
           closer to the average reported "Tw" timer, in order not to consume
           resources for just a few attackers.
 
-     LR   The request was intercepted and locally handled by HAProxy. Generally
-          it means that this was a redirect or a stats request.
+     LC   The request was intercepted and locally handled by HAProxy. The
+          request was not sent to the server. It only happens with a redirect
+          because of a "redir" parameter on the server line.
+
+     LR   The request was intercepted and locally handled by HAProxy. The
+          request was not sent to the server. Generally it means a redirect was
+          returned, an HTTP return statement was processed or the request was
+          handled by an applet (stats, cache, Prometheus exported, lua applet...).
+
+     LH   The response was intercepted and locally handled by HAProxy. Generally
+          it means a redirect was returned or an HTTP return statement was
+          processed.
 
      SC   The server or an equipment between it and HAProxy explicitly refused
           the TCP connection (the proxy received a TCP RST or an ICMP message
