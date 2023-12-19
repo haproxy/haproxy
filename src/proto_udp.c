@@ -155,6 +155,26 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (global.tune.frontend_sndbuf)
 		setsockopt(listener->rx.fd, SOL_SOCKET, SO_SNDBUF, &global.tune.frontend_sndbuf, sizeof(global.tune.frontend_sndbuf));
 
+	if (listener->rx.flags & RX_F_PASS_PKTINFO) {
+		/* set IP_PKTINFO to retrieve destination address on recv */
+		switch (listener->rx.addr.ss_family) {
+		case AF_INET:
+#if defined(IP_PKTINFO)
+			setsockopt(listener->rx.fd, IPPROTO_IP, IP_PKTINFO, &one, sizeof(one));
+#elif defined(IP_RECVDSTADDR)
+			setsockopt(listener->rx.fd, IPPROTO_IP, IP_RECVDSTADDR, &one, sizeof(one));
+#endif /* IP_PKTINFO || IP_RECVDSTADDR */
+			break;
+		case AF_INET6:
+#ifdef IPV6_RECVPKTINFO
+			setsockopt(listener->rx.fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, &one, sizeof(one));
+#endif
+			break;
+		default:
+			break;
+		}
+	}
+
 	listener_set_state(listener, LI_LISTEN);
 
  udp_return:
