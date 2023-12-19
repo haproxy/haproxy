@@ -54,7 +54,7 @@ for cid in $BKP; do
 done
 
 # some colors
-BG_BKP="#e0e0e0"
+BG_B="#e0e0e0"
 BT_N="gray";     BG_N="white"
 BT_U="#00e000";  BG_U="#e0ffe0"
 BT_W="#0060ff";  BG_W="#e0e0ff"
@@ -137,12 +137,14 @@ input.y[type="radio"]:checked {
 
 var nb_patches = 0;
 var cid = [];
+var bkp = [];
 
 // first line to review
 var review = 0;
 
 // show/hide table lines and update their color
 function updt_table(line) {
+  var b = document.getElementById("sh_b").checked;
   var n = document.getElementById("sh_n").checked;
   var u = document.getElementById("sh_u").checked;
   var w = document.getElementById("sh_w").checked;
@@ -157,7 +159,7 @@ function updt_table(line) {
         continue;
       el = document.getElementById("tr_" + i);
       el.style.backgroundColor = "$BG_N";
-      el.style.display = n && i >= review ? "" : "none";
+      el.style.display = n && (b || !bkp[i]) && i >= review ? "" : "none";
     }
     else if (document.getElementById("bt_" + i + "_u").checked) {
       tu++;
@@ -165,7 +167,7 @@ function updt_table(line) {
         continue;
       el = document.getElementById("tr_" + i);
       el.style.backgroundColor = "$BG_U";
-      el.style.display = u && i >= review ? "" : "none";
+      el.style.display = u && (b || !bkp[i]) && i >= review ? "" : "none";
     }
     else if (document.getElementById("bt_" + i + "_w").checked) {
       tw++;
@@ -173,7 +175,7 @@ function updt_table(line) {
         continue;
       el = document.getElementById("tr_" + i);
       el.style.backgroundColor = "$BG_W";
-      el.style.display = w && i >= review ? "" : "none";
+      el.style.display = w && (b || !bkp[i]) && i >= review ? "" : "none";
     }
     else if (document.getElementById("bt_" + i + "_y").checked) {
       ty++;
@@ -181,7 +183,7 @@ function updt_table(line) {
         continue;
       el = document.getElementById("tr_" + i);
       el.style.backgroundColor = "$BG_Y";
-      el.style.display = y && i >= review ? "" : "none";
+      el.style.display = y && (b || !bkp[i]) && i >= review ? "" : "none";
     }
     else {
       // bug
@@ -199,10 +201,13 @@ function updt_table(line) {
 }
 
 function updt_output() {
+  var b = document.getElementById("sh_b").checked;
   var i, y = "", w = "", u = "", n = "";
 
   for (i = 1; i < nb_patches; i++) {
     if (i < review)
+       continue;
+    if (bkp[i])
        continue;
     if (document.getElementById("bt_" + i + "_y").checked)
        y = y + " " + cid[i];
@@ -238,14 +243,12 @@ EOF
 
 echo "<BODY>"
 echo -n "<big><big>Show:"
+echo -n " <span style='background-color:$BG_B'><input type='checkbox' onclick='updt_table(0);' id='sh_b' checked />B (${#bkp[*]})</span> "
 echo -n " <span style='background-color:$BG_N'><input type='checkbox' onclick='updt_table(0);' id='sh_n' checked />N (<span id='cnt_n'>0</span>)</span> "
 echo -n " <span style='background-color:$BG_U'><input type='checkbox' onclick='updt_table(0);' id='sh_u' checked />U (<span id='cnt_u'>0</span>)</span> "
 echo -n " <span style='background-color:$BG_W'><input type='checkbox' onclick='updt_table(0);' id='sh_w' checked />W (<span id='cnt_w'>0</span>)</span> "
 echo -n " <span style='background-color:$BG_Y'><input type='checkbox' onclick='updt_table(0);' id='sh_y' checked />Y (<span id='cnt_y'>0</span>)</span> "
-echo -n "</big/></big> (N=no/drop, U=uncertain, W=wait/next, Y=yes/pick"
-if [ -n "$BKP" ]; then
-    echo -n ", <span style='background-color:$BG_BKP'>&nbsp;backported&nbsp;</span>"
-fi
+echo -n "</big/></big> (B=show backported, N=no/drop, U=uncertain, W=wait/next, Y=yes/pick"
 echo ")<P/>"
 
 echo "<TABLE COLS=5 BORDER=1 CELLSPACING=0 CELLPADDING=3>"
@@ -306,7 +309,7 @@ for patch in "${PATCHES[@]}"; do
             continue
         fi
 
-        echo "<script type='text/javascript'>cid[$seq_num]='$cid'</script>"
+        echo "<script type='text/javascript'>cid[$seq_num]='$cid'; bkp[$seq_num]=${bkp[$cid]:+1}+0;</script>"
 
         echo -n "<TR id='tr_$seq_num' name='$cid'"
 
@@ -334,9 +337,9 @@ for patch in "${PATCHES[@]}"; do
         # put links to commit IDs
         resp=$(echo "$resp" | sed -e "s|\([0-9a-f]\{8,40\}\)|<a href='${GITURL}\1'>\1</a>|g")
 
-        echo -n "<TD nowrap align=center ${bkp[$cid]:+style='background-color:${BG_BKP}'}>$seq_num<BR/>"
+        echo -n "<TD nowrap align=center ${bkp[$cid]:+style='background-color:${BG_B}'}>$seq_num<BR/>"
         echo -n "<input type='radio' name='review' onclick='updt($seq_num,\"r\");' ${do_check:+checked} title='Start review here'/></TD>"
-        echo -n "<TD nowrap ${bkp[$cid]:+style='background-color:${BG_BKP}'}><tt><a href='${GITURL}${cid}'>$cid</a></tt>${date:+<br/><small style='font-weight:normal'>$date</small>}</TD>"
+        echo -n "<TD nowrap ${bkp[$cid]:+style='background-color:${BG_B}'}><tt><a href='${GITURL}${cid}'>$cid</a></tt>${date:+<br/><small style='font-weight:normal'>$date</small>}</TD>"
         echo -n "<TD nowrap><a href='${GITURL}${cid}'>${pnum:+$pnum }$subj</a>${author:+<br/><div align=right><small style='font-weight:normal'>$author</small></div>}</TD>"
         echo -n "<TD nowrap align=center>"
         echo -n "<input type='radio' onclick='updt($seq_num,\"n\");' id='bt_${seq_num}_n' class='n' name='$cid' value='n' title='Drop' $(         [ "$verdict" != no ]     || echo -n checked) />"
