@@ -135,8 +135,7 @@ input.y[type="radio"]:checked {
 
 <script type="text/javascript"><!--
 
-// statuses are "y", "w", "u", "n"
-var statuses = [];
+var nb_patches = 0;
 var cid = [];
 
 // first line to review
@@ -151,8 +150,8 @@ function updt_table(line) {
   var tn = 0, tu = 0, tw = 0, ty = 0;
   var i, el;
 
-  for (i = 1; i < statuses.length; i++) {
-    if (statuses[i] == "n") {
+  for (i = 1; i < nb_patches; i++) {
+    if (document.getElementById("bt_" + i + "_n").checked) {
       tn++;
       if (line && i != line)
         continue;
@@ -160,7 +159,7 @@ function updt_table(line) {
       el.style.backgroundColor = "$BG_N";
       el.style.display = n && i >= review ? "" : "none";
     }
-    else if (statuses[i] == "u") {
+    else if (document.getElementById("bt_" + i + "_u").checked) {
       tu++;
       if (line && i != line)
         continue;
@@ -168,7 +167,7 @@ function updt_table(line) {
       el.style.backgroundColor = "$BG_U";
       el.style.display = u && i >= review ? "" : "none";
     }
-    else if (statuses[i] == "w") {
+    else if (document.getElementById("bt_" + i + "_w").checked) {
       tw++;
       if (line && i != line)
         continue;
@@ -176,7 +175,7 @@ function updt_table(line) {
       el.style.backgroundColor = "$BG_W";
       el.style.display = w && i >= review ? "" : "none";
     }
-    else if (statuses[i] == "y") {
+    else if (document.getElementById("bt_" + i + "_y").checked) {
       ty++;
       if (line && i != line)
         continue;
@@ -202,16 +201,16 @@ function updt_table(line) {
 function updt_output() {
   var i, y = "", w = "", u = "", n = "";
 
-  for (i = 1; i < statuses.length; i++) {
+  for (i = 1; i < nb_patches; i++) {
     if (i < review)
        continue;
-    if (statuses[i] == "y")
+    if (document.getElementById("bt_" + i + "_y").checked)
        y = y + " " + cid[i];
-    else if (statuses[i] == "w")
+    else if (document.getElementById("bt_" + i + "_w").checked)
        w = w + " " + cid[i];
-    else if (statuses[i] == "u")
+    else if (document.getElementById("bt_" + i + "_u").checked)
        u = u + " " + cid[i];
-    else if (statuses[i] == "n")
+    else if (document.getElementById("bt_" + i + "_n").checked)
        n = n + " " + cid[i];
   }
 
@@ -224,9 +223,7 @@ function updt_output() {
 }
 
 function updt(line,value) {
-  if (value != "r") {
-    statuses[line] = value;
-  } else {
+  if (value == "r") {
     review = line;
     line = 0; // redraw everything
   }
@@ -309,7 +306,7 @@ for patch in "${PATCHES[@]}"; do
             continue
         fi
 
-        echo "<script type='text/javascript'>cid[$seq_num]='$cid';statuses[$seq_num]='$verdict'[0];</script>"
+        echo "<script type='text/javascript'>cid[$seq_num]='$cid'</script>"
 
         echo -n "<TR id='tr_$seq_num' name='$cid'"
 
@@ -368,5 +365,5 @@ echo "<P/>"
 echo "<H3>Output:</H3>"
 echo "<textarea cols=120 rows=10 id='output'></textarea>"
 echo "<P/>"
-echo "<script type='text/javascript'>review=$review; updt_table(0); updt_output();</script>"
+echo "<script type='text/javascript'>nb_patches=$seq_num; review=$review; updt_table(0); updt_output();</script>"
 echo "</BODY></HTML>"
