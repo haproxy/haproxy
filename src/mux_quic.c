@@ -957,6 +957,12 @@ void qcc_reset_stream(struct qcs *qcs, int err)
 		qcs->tx.offset = qcs->tx.sent_offset;
 	}
 
+	/* Report send error to stream-endpoint layer. */
+	if (qcs_sc(qcs)) {
+		se_fl_set_error(qcs->sd);
+		qcs_alert(qcs);
+	}
+
 	qcc_send_stream(qcs, 1);
 	tasklet_wakeup(qcc->wait_event.tasklet);
 }
@@ -1410,6 +1416,14 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 		}
 	}
 
+	/* If FIN already reached, future RESET_STREAMS will be ignored.
+	 * Manually set EOS in this case.
+	 */
+	if (qcs_sc(qcs) && se_fl_test(qcs->sd, SE_FL_EOI)) {
+		se_fl_set(qcs->sd, SE_FL_EOS);
+		qcs_alert(qcs);
+	}
+
 	/* RFC 9000 3.5. Solicited State Transitions
 	 *
 	 * An endpoint that receives a STOP_SENDING frame
@@ -1425,18 +1439,6 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 	 * code.
 	 */
 	qcc_reset_stream(qcs, err);
-
-	/* Report send error to stream-endpoint layer. */
-	if (qcs_sc(qcs)) {
-		/* If FIN already reached, future RESET_STREAMS will be ignored.
-		 * Manually set EOS in this case.
-		 */
-		if (se_fl_test(qcs->sd, SE_FL_EOI))
-			se_fl_set(qcs->sd, SE_FL_EOS);
-
-		se_fl_set_error(qcs->sd);
-		qcs_alert(qcs);
-	}
 
 	if (qcc_may_expire(qcc) && !qcc->nb_hreq)
 		qcc_refresh_timeout(qcc);
@@ -3007,9 +3009,7 @@ static void qmux_strm_shutw(struct stconn *sc, enum co_shw_mode mode)
 		}
 		else {
 			/* RESET_STREAM necessary. */
-			if (!(qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL)))
-				qcc_reset_stream(qcs, 0);
-			se_fl_set_error(qcs->sd);
+			qcc_reset_stream(qcs, 0);
 		}
 
 		tasklet_wakeup(qcc->wait_event.tasklet);
