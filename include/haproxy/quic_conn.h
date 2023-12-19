@@ -69,7 +69,8 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                               struct quic_connection_id *conn_id,
                               struct sockaddr_storage *local_addr,
                               struct sockaddr_storage *peer_addr,
-                              int server, int token, void *owner);
+                              int server, int token, void *owner,
+                              struct connection *conn);
 int quic_build_post_handshake_frames(struct quic_conn *qc);
 const struct quic_version *qc_supported_version(uint32_t version);
 int quic_peer_validated_addr(struct quic_conn *qc);

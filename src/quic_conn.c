@@ -1032,7 +1032,8 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                               struct quic_connection_id *conn_id,
                               struct sockaddr_storage *local_addr,
                               struct sockaddr_storage *peer_addr,
-                              int server, int token, void *owner)
+                              int server, int token, void *owner,
+                              struct connection *conn)
 {
 	struct quic_conn *qc = NULL;
 	struct listener *l = server ? owner : NULL;
@@ -1263,7 +1264,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->wait_event.events = 0;
 	qc->subs = NULL;
 
-	if (qc_alloc_ssl_sock_ctx(qc) ||
+	if (qc_alloc_ssl_sock_ctx(qc, conn) ||
 	    !quic_conn_init_timer(qc) ||
 	    !quic_conn_init_idle_timer_task(qc, prx))
 		goto err;
