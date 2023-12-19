@@ -1117,7 +1117,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->idle_timer_task = NULL;
 
 	qc->xprt_ctx = NULL;
-	qc->conn = NULL;
+	qc->conn = conn;
 	qc->qcc = NULL;
 	qc->app_ops = NULL;
 	qc->path = NULL;

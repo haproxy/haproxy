@@ -111,10 +111,25 @@ static int quic_conn_unsubscribe(struct connection *conn, void *xprt_ctx, int ev
  */
 static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 {
-	struct quic_conn *qc = conn->handle.qc;
+	int ret = -1;
+	struct quic_conn *qc = NULL;
 
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
 
+	if (objt_listener(conn->target)) {
+		qc = conn->handle.qc;
+	}
+	else {
+		int ipv4 = conn->dst->ss_family == AF_INET;
+		struct server *srv = objt_server(conn->target);
+		qc = qc_new_conn(quic_version_1, ipv4, NULL, NULL, NULL,
+		                 NULL, NULL, &srv->addr, 0, 0, srv, conn);
+	}
+
+	if (!qc)
+		goto out;
+
+	ret = 0;
 	/* Ensure thread connection migration is finalized ASAP. */
 	if (qc->flags & QUIC_FL_CONN_TID_REBIND)
 		qc_finalize_tid_rebind(qc);
@@ -128,7 +143,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_NEW, qc);
 
-	return 0;
+	return ret;
 }
 
 /* Start the QUIC transport layer */
@@ -178,6 +193,8 @@ static struct xprt_ops ssl_quic = {
 	.start    = qc_xprt_start,
 	.prepare_bind_conf = ssl_sock_prepare_bind_conf,
 	.destroy_bind_conf = ssl_sock_destroy_bind_conf,
+	.prepare_srv = ssl_sock_prepare_srv_ctx,
+	.destroy_srv = ssl_sock_free_srv_ctx,
 	.get_alpn = ssl_sock_get_alpn,
 	.get_ssl_sock_ctx = qc_get_ssl_sock_ctx,
 	.dump_info = qc_xprt_dump_info,
