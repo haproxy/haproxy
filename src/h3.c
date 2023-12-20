@@ -2216,6 +2216,7 @@ static int h3_init(struct qcc *qcc)
 	return 1;
 
  fail_no_h3:
+	qcc_set_error(qcc, H3_INTERNAL_ERROR, 1);
 	TRACE_DEVEL("leaving on error", H3_EV_H3C_NEW, qcc->conn);
 	return 0;
 }
@@ -2247,6 +2248,7 @@ static int h3_finalize(void *ctx)
 	return 0;
 
  err:
+	qcc_set_error(qcc, H3_INTERNAL_ERROR, 1);
 	TRACE_DEVEL("leaving on error", H3_EV_H3C_NEW, qcc->conn);
 	return 1;
 }
