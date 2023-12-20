@@ -4433,6 +4433,9 @@ int srv_set_addr_via_libc(struct server *srv, int *err_code)
 	struct sockaddr_storage new_addr;
 
 	memset(&new_addr, 0, sizeof(new_addr));
+
+	/* Use the preferred family, if configured */
+	new_addr.ss_family = srv->addr.ss_family;
 	if (str2ip2(srv->hostname, &new_addr, 1) == NULL) {
 		if (err_code)
 			*err_code |= ERR_WARN;
@@ -4517,6 +4520,9 @@ static int srv_apply_lastaddr(struct server *srv, int *err_code)
 	struct sockaddr_storage new_addr;
 
 	memset(&new_addr, 0, sizeof(new_addr));
+
+	/* Use the preferred family, if configured */
+	new_addr.ss_family = srv->addr.ss_family;
 	if (!str2ip2(srv->lastaddr, &new_addr, 0)) {
 		if (err_code)
 			*err_code |= ERR_WARN;
