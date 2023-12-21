@@ -2868,6 +2868,15 @@ static size_t qmux_strm_nego_ff(struct stconn *sc, struct buffer *input,
 		goto end;
 	}
 
+	if (qcs->qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL)) {
+		/* Disable fast-forward if connection is on error. Eventually,
+		 * error will be reported to stream-conn if snd_buf is invoked.
+		 */
+		TRACE_DEVEL("connection in error", QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
+		qcs->sd->iobuf.flags |= IOBUF_FL_NO_FF;
+		goto end;
+	}
+
 	/* Alawys disable splicing */
 	qcs->sd->iobuf.flags |= IOBUF_FL_NO_SPLICING;
 
