@@ -3650,7 +3650,7 @@ tune.quic.socket-owner { connection | listener }
   is used globally, it will be forced on every listener instance, regardless of
   their individual configuration.
 
-tune.quit.zero-copy-fwd-send { on | off }
+tune.quic.zero-copy-fwd-send { on | off }
   Enables ('on') of disabled ('off') the zero-copy sends of data for the QUIC
   multiplexer. It is disabled by default.
 
