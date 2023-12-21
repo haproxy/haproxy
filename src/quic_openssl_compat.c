@@ -353,19 +353,22 @@ leave:
 }
 
 /* Callback use to parse TLS messages for <ssl> TLS session. */
-static void quic_tls_compat_msg_callback(int write_p, int version, int content_type,
-                                         const void *buf, size_t len, SSL *ssl, void *arg)
+void quic_tls_compat_msg_callback(struct connection *conn,
+                                  int write_p, int version, int content_type,
+                                  const void *buf, size_t len, SSL *ssl)
 {
 	unsigned int alert;
 	enum ssl_encryption_level_t   level;
 	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
-	struct quic_openssl_compat *com = &qc->openssl_compat;
+	struct quic_openssl_compat *com;
 
-	TRACE_ENTER(QUIC_EV_CONN_SSL_COMPAT, qc);
-	if (!write_p)
+	if (!write_p || !qc)
 		goto leave;
 
-	level = qc->openssl_compat.write_level;
+	TRACE_ENTER(QUIC_EV_CONN_SSL_COMPAT, qc);
+
+	com = &qc->openssl_compat;
+	level = com->write_level;
 	switch (content_type) {
 	case SSL3_RT_HANDSHAKE:
 		com->method->add_handshake_data(ssl, level, buf, len);
@@ -399,7 +402,6 @@ int SSL_set_quic_method(SSL *ssl, const SSL_QUIC_METHOD *quic_method)
 		goto err;
 
 	SSL_set_bio(ssl, rbio, wbio);
-	SSL_set_msg_callback(ssl, quic_tls_compat_msg_callback);
 	/* No ealy data support */
 	SSL_set_max_early_data(ssl, 0);
 

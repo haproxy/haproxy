@@ -63,10 +63,11 @@
 #include <haproxy/pattern-t.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
+#include <haproxy/quic_conn.h>
+#include <haproxy/quic_openssl_compat.h>
+#include <haproxy/quic_tp.h>
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
-#include <haproxy/quic_conn.h>
-#include <haproxy/quic_tp.h>
 #include <haproxy/server.h>
 #include <haproxy/shctx.h>
 #include <haproxy/ssl_ckch.h>
@@ -608,6 +609,10 @@ static int ssl_sock_register_msg_callbacks(void)
 		if (!ssl_sock_register_msg_callback(ssl_init_keylog))
 			return ERR_ABORT;
 	}
+#endif
+#ifdef USE_QUIC_OPENSSL_COMPAT
+	if (!ssl_sock_register_msg_callback(quic_tls_compat_msg_callback))
+		return ERR_ABORT;
 #endif
 
 	return ERR_NONE;
