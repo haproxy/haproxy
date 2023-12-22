@@ -2012,7 +2012,8 @@ static size_t h3_nego_ff(struct qcs *qcs, size_t count)
 	h3_debug_printf(stderr, "%s\n", __func__);
 
 	if (!(res = qcc_get_stream_txbuf(qcs))) {
-		/* TODO */
+		qcs->sd->iobuf.flags |= IOBUF_FL_NO_FF;
+		goto end;
 	}
 
 	/* h3 DATA headers : 1-byte frame type + varint frame length */
