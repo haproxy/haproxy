@@ -4167,8 +4167,7 @@ const char *srv_update_addr_port(struct server *s, const char *addr, const char 
 	 * s->svc_port is only relevant under inet context
 	*/
 	if ((s->addr.ss_family != AF_INET) && (s->addr.ss_family != AF_INET6)) {
-		if (msg)
-			chunk_printf(msg, "Update for the current server address family is only supported through configuration file.");
+		chunk_printf(msg, "Update for the current server address family is only supported through configuration file.");
 		goto out;
 	}
 
