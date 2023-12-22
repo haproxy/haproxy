@@ -1601,7 +1601,7 @@ static void init_args(int argc, char **argv)
 	global.tune.options |= GTUNE_USE_FAST_FWD; /* Use fast-forward by default */
 
 	/* Use zero-copy forwarding by default */
-	global.tune.no_zero_copy_fwd = NO_ZERO_COPY_FWD_QUIC_SND;
+	global.tune.no_zero_copy_fwd = 0;
 
 	/* keep a copy of original arguments for the master process */
 	old_argv = copy_argv(argc, argv);
