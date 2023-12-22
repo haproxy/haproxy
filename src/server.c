@@ -4267,43 +4267,39 @@ int srvrq_set_srv_down(struct server *s)
  *
  * Must be called with the server lock held.
  */
-int snr_set_srv_down(struct server *s, int has_no_ip)
+int snr_set_srv_down(struct server *s)
 {
 	struct resolvers  *resolvers  = s->resolvers;
 	struct resolv_resolution *resolution = (s->resolv_requester ? s->resolv_requester->resolution : NULL);
 	int exp;
 
+	/* server already under maintenance */
+	if (s->next_admin & SRV_ADMF_RMAINT)
+		goto out;
+
 	/* If resolution is NULL we're dealing with SRV records Additional records */
-	if (resolution == NULL && has_no_ip)
+	if (resolution == NULL)
 		return srvrq_set_srv_down(s);
 
 	switch (resolution->status) {
 		case RSLV_STATUS_NONE:
 			/* status when HAProxy has just (re)started.
 			 * Nothing to do, since the task is already automatically started */
-			break;
+			goto out;
 
 		case RSLV_STATUS_VALID:
-			if (has_no_ip) {
-				/*
-				 * valid resolution but no usable server address
-				 */
-				if (s->next_admin & SRV_ADMF_RMAINT)
-					return 1;
-				srv_set_admin_flag(s, SRV_ADMF_RMAINT, SRV_ADM_STCHGC_DNS_NOIP);
-				return 0;
-			}
-
+			/*
+			 * valid resolution but no usable server address
+			 */
+			srv_set_admin_flag(s, SRV_ADMF_RMAINT, SRV_ADM_STCHGC_DNS_NOIP);
 			return 0;
 
 		case RSLV_STATUS_NX:
 			/* stop server if resolution is NX for a long enough period */
 			exp = tick_add(resolution->last_valid, resolvers->hold.nx);
 			if (!tick_is_expired(exp, now_ms))
-				break;
+				goto out; // not yet expired
 
-			if (s->next_admin & SRV_ADMF_RMAINT)
-				return 1;
 			srv_set_admin_flag(s, SRV_ADMF_RMAINT, SRV_ADM_STCHGC_DNS_NX);
 			return 0;
 
@@ -4311,10 +4307,8 @@ int snr_set_srv_down(struct server *s, int has_no_ip)
 			/* stop server if resolution is TIMEOUT for a long enough period */
 			exp = tick_add(resolution->last_valid, resolvers->hold.timeout);
 			if (!tick_is_expired(exp, now_ms))
-				break;
+				goto out; // not yet expired
 
-			if (s->next_admin & SRV_ADMF_RMAINT)
-				return 1;
 			srv_set_admin_flag(s, SRV_ADMF_RMAINT, SRV_ADM_STCHGC_DNS_TIMEOUT);
 			return 0;
 
@@ -4322,10 +4316,8 @@ int snr_set_srv_down(struct server *s, int has_no_ip)
 			/* stop server if resolution is REFUSED for a long enough period */
 			exp = tick_add(resolution->last_valid, resolvers->hold.refused);
 			if (!tick_is_expired(exp, now_ms))
-				break;
+				goto out; // not yet expired
 
-			if (s->next_admin & SRV_ADMF_RMAINT)
-				return 1;
 			srv_set_admin_flag(s, SRV_ADMF_RMAINT, SRV_ADM_STCHGC_DNS_REFUSED);
 			return 0;
 
@@ -4333,14 +4325,13 @@ int snr_set_srv_down(struct server *s, int has_no_ip)
 			/* stop server if resolution failed for a long enough period */
 			exp = tick_add(resolution->last_valid, resolvers->hold.other);
 			if (!tick_is_expired(exp, now_ms))
-				break;
+				goto out; // not yet expired
 
-			if (s->next_admin & SRV_ADMF_RMAINT)
-				return 1;
 			srv_set_admin_flag(s, SRV_ADMF_RMAINT, SRV_ADM_STCHGC_DNS_UNSPEC);
 			return 0;
 	}
 
+ out:
 	return 1;
 }
 
@@ -4441,7 +4432,7 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 		srv_update_addr(s, firstip, firstip_sin_family, SERVER_INETADDR_UPDATER_DNS_CACHE);
 
  update_status:
-	if (!snr_set_srv_down(s, has_no_ip) && has_no_ip) {
+	if (has_no_ip && !snr_set_srv_down(s)) {
 		struct server_inetaddr s_addr;
 
 		memset(&s_addr, 0, sizeof(s_addr));
@@ -4455,7 +4446,7 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 		counters->app.resolver.invalid++;
 		goto update_status;
 	}
-	if (!snr_set_srv_down(s, has_no_ip) && has_no_ip) {
+	if (has_no_ip && !snr_set_srv_down(s)) {
 		struct server_inetaddr s_addr;
 
 		memset(&s_addr, 0, sizeof(s_addr));
@@ -4541,7 +4532,7 @@ int snr_resolution_error_cb(struct resolv_requester *requester, int error_code)
 		return 0;
 
 	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
-	if (!snr_set_srv_down(s, 1)) {
+	if (!snr_set_srv_down(s)) {
 		struct server_inetaddr s_addr;
 
 		memset(&s_addr, 0, sizeof(s_addr));
