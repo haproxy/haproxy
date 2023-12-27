@@ -3877,9 +3877,9 @@ int add_tcpcheck_send_strs(struct tcpcheck_rules *rules, const char * const *str
 }
 
 /* Parses the "tcp-check" proxy keyword */
-static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
-				const struct proxy *defpx, const char *file, int line,
-				char **errmsg)
+int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
+                         const struct proxy *defpx, const char *file, int line,
+                         char **errmsg)
 {
 	struct tcpcheck_ruleset *rs = NULL;
 	struct tcpcheck_rule *chk = NULL;
