@@ -176,7 +176,7 @@ void update_backend_weight(struct proxy *px)
  * If any server is found, it will be returned. If no valid server is found,
  * NULL is returned.
  */
-static struct server *get_server_sh(struct proxy *px, const char *addr, int len, const struct server *avoid)
+struct server *get_server_sh(struct proxy *px, const char *addr, int len, const struct server *avoid)
 {
 	unsigned int h, l;
 
@@ -220,7 +220,7 @@ static struct server *get_server_sh(struct proxy *px, const char *addr, int len,
  * algorithm out of a tens because it gave him the best results.
  *
  */
-static struct server *get_server_uh(struct proxy *px, char *uri, int uri_len, const struct server *avoid)
+struct server *get_server_uh(struct proxy *px, char *uri, int uri_len, const struct server *avoid)
 {
 	unsigned int hash = 0;
 	int c;
@@ -268,7 +268,7 @@ static struct server *get_server_uh(struct proxy *px, char *uri, int uri_len, co
  * is returned. If any server is found, it will be returned. If no valid server
  * is found, NULL is returned.
  */
-static struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len, const struct server *avoid)
+struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len, const struct server *avoid)
 {
 	unsigned int hash = 0;
 	const char *start, *end;
@@ -327,7 +327,7 @@ static struct server *get_server_ph(struct proxy *px, const char *uri, int uri_l
 /*
  * this does the same as the previous server_ph, but check the body contents
  */
-static struct server *get_server_ph_post(struct stream *s, const struct server *avoid)
+struct server *get_server_ph_post(struct stream *s, const struct server *avoid)
 {
 	unsigned int hash = 0;
 	struct channel  *req  = &s->req;
@@ -412,7 +412,7 @@ static struct server *get_server_ph_post(struct stream *s, const struct server *
  * is found, NULL is returned. When lbprm.arg_opt1 is set, the hash will only
  * apply to the middle part of a domain name ("use_domain_only" option).
  */
-static struct server *get_server_hh(struct stream *s, const struct server *avoid)
+struct server *get_server_hh(struct stream *s, const struct server *avoid)
 {
 	unsigned int hash = 0;
 	struct proxy    *px   = s->be;
@@ -485,7 +485,7 @@ static struct server *get_server_hh(struct stream *s, const struct server *avoid
 }
 
 /* RDP Cookie HASH.  */
-static struct server *get_server_rch(struct stream *s, const struct server *avoid)
+struct server *get_server_rch(struct stream *s, const struct server *avoid)
 {
 	unsigned int hash = 0;
 	struct proxy    *px   = s->be;
@@ -530,7 +530,7 @@ static struct server *get_server_rch(struct stream *s, const struct server *avoi
 /* sample expression HASH. Returns NULL if the sample is not found or if there
  * are no server, relying on the caller to fall back to round robin instead.
  */
-static struct server *get_server_expr(struct stream *s, const struct server *avoid)
+struct server *get_server_expr(struct stream *s, const struct server *avoid)
 {
 	struct proxy  *px = s->be;
 	struct sample *smp;
@@ -560,7 +560,7 @@ static struct server *get_server_expr(struct stream *s, const struct server *avo
 }
 
 /* random value  */
-static struct server *get_server_rnd(struct stream *s, const struct server *avoid)
+struct server *get_server_rnd(struct stream *s, const struct server *avoid)
 {
 	unsigned int hash = 0;
 	struct proxy  *px = s->be;

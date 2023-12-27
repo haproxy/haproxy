@@ -30,6 +30,15 @@
 #include <haproxy/stream-t.h>
 #include <haproxy/time.h>
 
+struct server *get_server_sh(struct proxy *px, const char *addr, int len, const struct server *avoid);
+struct server *get_server_uh(struct proxy *px, char *uri, int uri_len, const struct server *avoid);
+struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len, const struct server *avoid);
+struct server *get_server_ph_post(struct stream *s, const struct server *avoid);
+struct server *get_server_hh(struct stream *s, const struct server *avoid);
+struct server *get_server_rch(struct stream *s, const struct server *avoid);
+struct server *get_server_expr(struct stream *s, const struct server *avoid);
+struct server *get_server_rnd(struct stream *s, const struct server *avoid);
+
 int assign_server(struct stream *s);
 int assign_server_address(struct stream *s);
 int assign_server_and_queue(struct stream *s);
