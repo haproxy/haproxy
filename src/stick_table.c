@@ -5025,7 +5025,7 @@ static int table_process_entry(struct appctx *appctx, struct stksess *ts, char *
 				return 1;
 			}
 
-			ptr = stktable_data_ptr(t, ts, data_type);
+			ptr = __stktable_data_ptr(t, ts, data_type);
 
 			switch (stktable_data_types[data_type].std_type) {
 			case STD_T_SINT:
