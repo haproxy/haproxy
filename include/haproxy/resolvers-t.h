@@ -277,7 +277,6 @@ enum {
 	RSLV_UPD_CNAME,            /* CNAME without any IP provided in the response */
 	RSLV_UPD_NAME_ERROR,       /* name in the response did not match the query */
 	RSLV_UPD_NO_IP_FOUND,      /* no IP could be found in the response */
-	RSLV_UPD_OBSOLETE_IP,      /* The server IP was obsolete, and no other IP was found */
 };
 
 struct proxy;
