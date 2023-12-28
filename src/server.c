@@ -4424,12 +4424,6 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 			has_no_ip = 1;
 			goto update_status;
 
-		case RSLV_UPD_NAME_ERROR:
-			/* update resolution status to OTHER error type */
-			resolution->status = RSLV_STATUS_OTHER;
-			has_no_ip = 1;
-			goto update_status;
-
 		default:
 			has_no_ip = 1;
 			goto invalid;

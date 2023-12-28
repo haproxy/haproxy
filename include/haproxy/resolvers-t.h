@@ -274,8 +274,6 @@ enum {
 	                            * OR provided IP found and preference is not match and an IP
 	                            * matching preference was found.
 	                            */
-	RSLV_UPD_CNAME,            /* CNAME without any IP provided in the response */
-	RSLV_UPD_NAME_ERROR,       /* name in the response did not match the query */
 	RSLV_UPD_NO_IP_FOUND,      /* no IP could be found in the response */
 };
 
