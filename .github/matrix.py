@@ -14,6 +14,7 @@ import re
 import sys
 import urllib.request
 from os import environ
+from packaging import version
 
 #
 # this CI is used for both development and stable branches of HAProxy
@@ -47,7 +48,7 @@ def determine_latest_openssl(ssl):
     latest_tag = ""
     for tag in tags:
         if "openssl-" in tag:
-            if tag > latest_tag:
+            if (not latest_tag) or (version.parse(tag[8:]) > version.parse(latest_tag[8:])):
                 latest_tag = tag
     return "OPENSSL_VERSION={}".format(latest_tag[8:])
 
