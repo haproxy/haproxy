@@ -2863,7 +2863,7 @@ static size_t qmux_strm_nego_ff(struct stconn *sc, struct buffer *input,
 	}
 
 	if (!qcs->qcc->app_ops->nego_ff || !qcs->qcc->app_ops->done_ff) {
-		/* Fast forwading is not supported by the QUIC application layer */
+		/* Fast forwarding is not supported by the QUIC application layer */
 		qcs->sd->iobuf.flags |= IOBUF_FL_NO_FF;
 		goto end;
 	}

@@ -612,7 +612,7 @@ struct server_inetaddr {
 	} port;
 };
 
-/* struct to store informations about server's addr / port updater in
+/* struct to store information about server's addr / port updater in
  * INET context
  */
 enum server_inetaddr_updater_by {

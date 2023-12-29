@@ -170,7 +170,7 @@ int srv_getinter(const struct check *check)
 
 /* Update server's addr:svc_port tuple in INET context
  *
- * Must be called under thread isolation to ensure consistent readings accross
+ * Must be called under thread isolation to ensure consistent readings across
  * all threads (addr:svc_port might be read without srv lock being held).
  */
 static void _srv_set_inetaddr_port(struct server *srv,
@@ -295,7 +295,7 @@ static struct task *server_atomic_sync(struct task *task, void *context, unsigne
 			/*
 			 * this requires thread isolation, which is safe since we're the only
 			 * task working for the current subscription and we don't hold locks
-			 * or ressources that other threads may depend on to complete a running
+			 * or resources that other threads may depend on to complete a running
 			 * cycle. Note that we do this way because we assume that this event is
 			 * rather rare.
 			 */
@@ -3630,7 +3630,7 @@ struct server *server_find_by_name(struct proxy *bk, const char *name)
  * from the proxy. For this we assume that <name> is unique within the list,
  * which is the case in most setups, but in rare cases the user may have
  * enforced duplicate server names in the initial config (ie: if he intends to
- * use numerical IDs for indentification instead). In this particular case, the
+ * use numerical IDs for identification instead). In this particular case, the
  * function will not work as expected so server_find_by_id_unique() should be
  * used to match a unique server instead.
  *

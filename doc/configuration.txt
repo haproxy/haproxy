@@ -240,7 +240,7 @@ sometimes more) streams in parallel over a same connection, and let the server
 sort them out and respond in any order depending on what response is available.
 The main benefit of the multiplexed mode is that it significantly reduces the
 number of round trips, and speeds up page loading time over high latency
-networks. It is sometimes visibles on sites using many images, where all images
+networks. It is sometimes visible on sites using many images, where all images
 appear to load in parallel.
 
 These protocols have also improved their efficiency by adopting some mechanisms
@@ -282,7 +282,7 @@ HAProxy essentially supports 3 connection modes :
 In addition to this, by default, the server-facing connection is reusable by
 any request from any client, as mandated by the HTTP protocol specification, so
 any information pertaining to a specific client has to be passed along with
-each request if needed (e.g. client's source adress etc). When HTTP/2 is used
+each request if needed (e.g. client's source address etc). When HTTP/2 is used
 with a server, by default HAProxy will dedicate this connection to the same
 client to avoid the risk of head of line blocking between clients.
 
@@ -1153,17 +1153,17 @@ Both time and size formats require integers, decimal notation is not allowed.
 
 It is possible to use a list of pattern for maps or ACLs. A list of pattern is
 identified by its name and may be used at different places in the
-configuration. List of pattern are splitted on three categories depending on
+configuration. List of pattern are split on three categories depending on
 the name format:
 
   * Lists of pattern based on regular files: It is the default case. The
     filename, absolute or relative, is used as name. The file must exist
     otherwise an error is triggered. But it may be empty. The "file@" prefix
-    may also be specificed but it is not part of the name identifying the
+    may also be specified but it is not part of the name identifying the
     list. A filename, with or without the prefix, references the same list of
     pattern.
 
-  * Lists of pattern based on optional files: The filename must be preceeds by
+  * Lists of pattern based on optional files: The filename must be preceded by
     "opt@" prefix. The file existence is optional. If the file exists, its
     content is loaded but no error is reported if not. The prefix is not part
     of the name identifying the list. It means, for a given filename, Optional
@@ -1174,8 +1174,8 @@ the name format:
     the name. Thus it cannot be mixed with other kind of lists.
 
 Virtual files are useful when patterns are fully dynamically managed with no
-patterns on startup and on reload. Optional files may be used in the same
-conditons. But patterns can be dumped in the file, via an external script based
+patterns on startup and on reload. Optional files may be used under the same
+conditions. But patterns can be dumped in the file, via an external script based
 on the "show map" CLI command for instance. This way, it is possible to keep
 patterns on reload.
 
@@ -13887,7 +13887,7 @@ capture <sample> [ len <length> | id <id> ]
 
   This captures sample expression <sample> from the request or response buffer,
   and converts it to a string of at most <len> characters. The resulting string
-  is stored into the next "capture" slot (either request or reponse), so it
+  is stored into the next "capture" slot (either request or response), so it
   will possibly appear next to some captured HTTP headers. It will then
   automatically appear in the logs, and it will be possible to extract it using
   sample fetch methods to feed it into headers or anything. The length should
@@ -15010,7 +15010,7 @@ silent-drop [ rst-ttl <ttl> ]
   the RST packet travels through the local infrastructure, deleting the
   connection in firewalls and other systems, but disappears before reaching
   the client. Future packets from the client will then be dropped already by
-  front equipments. These local RSTs protect local resources, but not the
+  front equipment. These local RSTs protect local resources, but not the
   client's. This must not be used unless the consequences of doing this are
   fully understood.
 
@@ -15104,7 +15104,7 @@ track-sc2 <key> [table <table>]
 
     <key>   is mandatory, and is a sample expression rule as described in
             section 7.3. It describes what elements of the incoming connection,
-            request or reponse will be analyzed, extracted, combined, and used
+            request or response will be analyzed, extracted, combined, and used
             to select which table entry to update the counters.
 
     <table> is an optional table to be used instead of the default one, which
@@ -16072,7 +16072,7 @@ thread [<thread-group>/]<thread-set>[,...]
   lines and their assignment to multiple groups of threads.
 
   This keyword is compatible with reverse HTTP binds. However, it is forbidden
-  to specify a thread set which spans accross several thread groups for such a
+  to specify a thread set which spans across several thread groups for such a
   listener as this may caused "nbconn" to not work as intended.
 
 tls-ticket-keys <keyfile>
@@ -20818,7 +20818,7 @@ txn.conn_retries : integer
   affected by L7 retries.
 
 txn.sess_term_state : string
-  Retruns the TCP or HTTP stream termination state, as reported in the log. It
+  Returns the TCP or HTTP stream termination state, as reported in the log. It
   is a 2-characters string, The final stream state followed by the event which
   caused its to terminate. See section 8.5 about stream state at disconnection
   for the list of possible events. The current value at time the sample fetch

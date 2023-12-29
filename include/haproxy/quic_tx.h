@@ -79,7 +79,7 @@ static inline void quic_tx_packet_refdec(struct quic_tx_packet *pkt)
 }
 
 /* Return the number of bytes which may be sent from <qc> connection when
- * it has not already been validated. Note that this is the responsability
+ * it has not already been validated. Note that this is the responsibility
  * of the caller to check that the case with quic_peer_validated_addr().
  * This latter BUG_ON() if 3 * qc->rx.bytes < qc->tx.prep_bytes.
  */

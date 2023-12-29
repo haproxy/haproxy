@@ -341,7 +341,7 @@ enum mux_ctl_type {
 
 /* sctl command used by mux->sctl() */
 enum mux_sctl_type {
-	MUX_SCTL_SID, /* Return the mux stream ID as ouput, as a signed 64bits integer */
+	MUX_SCTL_SID, /* Return the mux stream ID as output, as a signed 64bits integer */
 };
 
 /* response for ctl MUX_STATUS */

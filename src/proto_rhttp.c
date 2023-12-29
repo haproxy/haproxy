@@ -437,10 +437,10 @@ void rhttp_unbind_receiver(struct listener *l)
 
 int rhttp_set_affinity(struct connection *conn, int new_tid)
 {
-	/* Explicitely disable connection thread migration on accept. Indeed,
+	/* Explicitly disable connection thread migration on accept. Indeed,
 	 * it's unsafe to move a connection with its FD to another thread. Note
 	 * that active reverse task thread migration should be sufficient to
-	 * ensure repartition of reversed connections accross listener threads.
+	 * ensure repartition of reversed connections across listener threads.
 	 */
 	return -1;
 }
@@ -452,7 +452,7 @@ int rhttp_accepting_conn(const struct receiver *rx)
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_rhttp);
 
-/* perform minimal intializations */
+/* perform minimal initializations */
 static void init_rhttp()
 {
 	int i;

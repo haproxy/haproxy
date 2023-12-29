@@ -310,7 +310,7 @@ const struct promex_metric promex_st_metrics[ST_F_TOTAL_FIELDS] = {
 const struct ist promex_st_front_metrics_names[ST_F_TOTAL_FIELDS] = {
 };
 
-/* Specialized bakcend metric names, to override default ones */
+/* Specialized backend metric names, to override default ones */
 const struct ist promex_st_back_metrics_names[ST_F_TOTAL_FIELDS] = {
 };
 

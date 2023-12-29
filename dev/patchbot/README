@@ -256,7 +256,7 @@ proposed deployment layout is the following:
     channel systems.
 
 From this point, executing this update script manually should work and produce
-the result. Count arount 0.5-2 mn per patch on a 8-core machine, so it can be
+the result. Count around 0.5-2 mn per patch on a 8-core machine, so it can be
 reasonably fast during the early development stages (before -dev1) but
 unbearably long later, where it can make more sense to run it at night. It
 should not report any error and should only report the total execution time.

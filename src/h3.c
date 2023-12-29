@@ -1960,7 +1960,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 			break;
 		}
 
-		/* If an error occured, either buffer space or connection error
+		/* If an error occurred, either buffer space or connection error
 		 * must be set to break current loop.
 		 */
 		BUG_ON(ret < 0 && !(qcs->flags & QC_SF_BLK_MROOM) && !h3c->err);
