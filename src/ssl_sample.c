@@ -1317,7 +1317,8 @@ smp_fetch_ssl_fc_ec(const struct arg *args, struct sample *smp, const char *kw, 
 {
     struct connection *conn;
     SSL *ssl;
-    int nid;
+    int __maybe_unused nid;
+    char *curve_name;
 
     if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
         conn = (kw[4] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->sc) : NULL;
@@ -1329,10 +1330,36 @@ smp_fetch_ssl_fc_ec(const struct arg *args, struct sample *smp, const char *kw, 
     if (!ssl)
         return 0;
 
-    nid = SSL_get_negotiated_group(ssl);
-    if (!nid)
-            return 0;
-    smp->data.u.str.area = (char *)OBJ_nid2sn(nid);
+    /*
+     * SSL_get0_group_name is a function to get the curve name and is available from
+     * OpenSSL v3.2 onwards. For OpenSSL >=3.0 and <3.2, we will continue to use
+     * SSL_get_negotiated_group to get the curve name.
+     */
+    #if (HA_OPENSSL_VERSION_NUMBER >= 0x3020000fL)
+      curve_name = (char *)SSL_get0_group_name(ssl);
+      if (curve_name == NULL)
+              return 0;
+      else {
+              /**
+               * The curve name returned by SSL_get0_group_name is in lowercase whereas the curve
+               * name returned when we use `SSL_get_negotiated_group` and `OBJ_nid2sn` is the
+               * short name and is in upper case. To make the return value consistent across the
+               * different functional calls and to make it consistent while upgrading OpenSSL versions,
+               * will convert the curve name returned by SSL_get0_group_name to upper case.
+               */
+              for (int i = 0; curve_name[i]; i++)
+                  curve_name[i] = toupper(curve_name[i]);
+      }
+    #else
+      nid = SSL_get_negotiated_group(ssl);
+      if (!nid)
+             return 0;
+      curve_name = (char *)OBJ_nid2sn(nid);
+      if (curve_name == NULL)
+             return 0;
+    #endif
+
+    smp->data.u.str.area = curve_name;
     if (!smp->data.u.str.area)
         return 0;
 
