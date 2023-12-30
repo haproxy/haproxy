@@ -836,7 +836,7 @@ static forceinline int check_bits(const unsigned char *a,
  * permitted. Equal strings are reported as a negative number of bits, which
  * indicates the end was reached.
  */
-static forceinline ssize_t string_equal_bits(const unsigned char *a,
+static forceinline size_t string_equal_bits(const unsigned char *a,
 					     const unsigned char *b,
 					     size_t ignore)
 {
@@ -857,7 +857,7 @@ static forceinline ssize_t string_equal_bits(const unsigned char *a,
 		if (c)
 			break;
 		if (!d)
-			return -1;
+			return (size_t)-1;
 	}
 	/* OK now we know that a and b differ at byte <beg>, or that both are zero.
 	 * We have to find what bit is differing and report it as the number of
