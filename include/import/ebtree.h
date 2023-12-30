@@ -840,7 +840,7 @@ static forceinline ssize_t string_equal_bits(const unsigned char *a,
 					     const unsigned char *b,
 					     size_t ignore)
 {
-	unsigned long c, d;
+	unsigned char c, d;
 	size_t beg;
 
 	beg = ignore >> 3;
@@ -864,7 +864,7 @@ static forceinline ssize_t string_equal_bits(const unsigned char *a,
 	 * identical bits. Note that low bit numbers are assigned to high positions
 	 * in the byte, as we compare them as strings.
 	 */
-	return (beg << 3) - flsnz_long(c);
+	return (beg << 3) - flsnz(c);
 }
 
 static forceinline int cmp_bits(const unsigned char *a, const unsigned char *b, unsigned int pos)
