@@ -270,9 +270,9 @@ static inline unsigned int clz8(unsigned char c)
 /* DO NOT USE ON ATOM! The instruction is emulated and is several times slower
  * than doing the math by hand.
  */
-static inline int flsnz32(unsigned int x)
+static inline unsigned int flsnz32(unsigned int x)
 {
-	int r;
+	unsigned int r;
 	__asm__("bsrl %1,%0\n"
 	        : "=r" (r) : "rm" (x));
 	return r + 1;
@@ -280,7 +280,7 @@ static inline int flsnz32(unsigned int x)
 #define flsnz32(x) flsnz32(x)
 
 # if defined(__x86_64__)
-static inline int flsnz64(unsigned long long x)
+static inline unsigned int flsnz64(unsigned long long x)
 {
 	unsigned long long r;
 	__asm__("bsrq %1,%0\n"
@@ -293,14 +293,14 @@ static inline int flsnz64(unsigned long long x)
 #elif !defined(__atom__) && defined(__GNUC__) && ((__GNUC__ > 4) || ((__GNUC__ == 4) && (__GNUC_MINOR__ >= 2)))
 /* gcc >= 4.2 brings __builtin_clz() and __builtin_clzl(), usable for non-x86 */
 
-static inline int flsnz32(unsigned int x)
+static inline unsigned int flsnz32(unsigned int x)
 {
 	return 32 - __builtin_clz(x);
 }
 # define flsnz32(x) flsnz32(x)
 
 # if defined(__SIZEOF_LONG__) && (__SIZEOF_LONG__ > 4)
-static inline int flsnz64(unsigned long x)
+static inline unsigned int flsnz64(unsigned long x)
 {
 	return (__SIZEOF_LONG__ * 8) - __builtin_clzl(x);
 }
@@ -315,9 +315,9 @@ static inline int flsnz64(unsigned long x)
 # if defined(flsnz32)
 #  define flsnz8(x) flsnz32((unsigned char)x)
 # else
-static inline int flsnz8(unsigned int x)
+static inline unsigned int flsnz8(unsigned int x)
 {
-	int ret = 0;
+	unsigned int ret = 0;
 	if (x >> 4) { x >>= 4; ret += 4; }
 	return ret + ((0xFFFFAA50U >> (x << 1)) & 3) + 1;
 }
@@ -327,7 +327,7 @@ static inline int flsnz8(unsigned int x)
 
 #ifndef flsnz32
 # define flsnz32(___a) ({ \
-	register int ___x, ___bits = 0; \
+	register unsigned int ___x, ___bits = 0; \
 	___x = (___a); \
 	if (___x & 0xffff0000) { ___x &= 0xffff0000; ___bits += 16;} \
 	if (___x & 0xff00ff00) { ___x &= 0xff00ff00; ___bits +=  8;} \
@@ -339,7 +339,7 @@ static inline int flsnz8(unsigned int x)
 #endif
 
 #ifndef flsnz64
-static inline int flsnz64(unsigned long long x)
+static inline unsigned int flsnz64(unsigned long long x)
 {
 	unsigned int h;
 	unsigned int bits = 32;
