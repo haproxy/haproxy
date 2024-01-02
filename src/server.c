@@ -3008,6 +3008,9 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 		/* Linked backwards first. This will be restablished after parsing. */
 		newsrv->next = px->srv;
 		px->srv = newsrv;
+
+		newsrv->conf.name.key = newsrv->id;
+		ebis_insert(&curproxy->conf.used_server_name, &newsrv->conf.name);
 	}
 	_srv_parse_set_id_from_prefix(srv, srv->tmpl_info.prefix, srv->tmpl_info.nb_low);
 
@@ -3525,8 +3528,13 @@ int parse_server(const char *file, int linenum, char **args,
 			goto out;
 	}
 
-	if (parse_flags & SRV_PARSE_TEMPLATE)
+	if (parse_flags & SRV_PARSE_TEMPLATE) {
 		_srv_parse_tmpl_init(newsrv, curproxy);
+	}
+	else if (!(parse_flags & SRV_PARSE_DEFAULT_SERVER)) {
+		newsrv->conf.name.key = newsrv->id;
+		ebis_insert(&curproxy->conf.used_server_name, &newsrv->conf.name);
+	}
 
 	/* If the server id is fixed, insert it in the proxy used_id tree.
 	 * This is needed to detect a later duplicate id via srv_parse_id.
