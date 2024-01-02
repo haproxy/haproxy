@@ -82,6 +82,7 @@ extern unsigned int experimental_directives_allowed;
 struct cfg_keyword;
 int check_kw_experimental(struct cfg_keyword *kw, const char *file, int linenum,
                           char **errmsg);
+const char **hap_get_next_build_opt(const char **curr);
 
 /* simplified way to declare static build options in a file */
 #define REGISTER_BUILD_OPTS(str) \

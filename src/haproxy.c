@@ -318,6 +318,30 @@ void hap_register_build_opts(const char *str, int must_free)
 	LIST_APPEND(&build_opts_list, &b->list);
 }
 
+/* returns the first build option when <curr> is NULL, or the next one when
+ * <curr> is passed the last returned value. NULL when there is no more entries
+ * in the list. Otherwise the returned pointer is &opt->str so the caller can
+ * print it as *ret.
+ */
+const char **hap_get_next_build_opt(const char **curr)
+{
+	struct build_opts_str *head, *start;
+
+	head = container_of(&build_opts_list, struct build_opts_str, list);
+
+	if (curr)
+		start = container_of(curr, struct build_opts_str, str);
+	else
+		start = head;
+
+	start = container_of(start->list.n, struct build_opts_str, list);
+
+	if (start == head)
+		return NULL;
+
+	return &start->str;
+}
+
 /* used to make a new feature appear in the build_features list at boot time.
  * The feature must be in the format "XXX" without the leading "+" which will
  * be automatically appended.
@@ -533,7 +557,7 @@ void display_version()
 
 static void display_build_opts()
 {
-	struct build_opts_str *item;
+	const char **opt;
 
 	printf("Build options :"
 #ifdef BUILD_TARGET
@@ -560,9 +584,8 @@ static void display_build_opts()
 	       "\n\n",
 	       build_features, BUFSIZE, MAXREWRITE, MAX_POLL_EVENTS);
 
-	list_for_each_entry(item, &build_opts_list, list) {
-		puts(item->str);
-	}
+	for (opt = NULL; (opt = hap_get_next_build_opt(opt)); puts(*opt))
+		;
 
 	putchar('\n');
 
