@@ -23,12 +23,12 @@ frontend pub
 	bind "fd@${pub}"
 	use_backend be-reverse
 
-backend be-reverse
-	server dev rhttp@
-
 frontend priv
 	bind "fd@${priv}" proto h2
 	tcp-request session attach-srv be-reverse/dev
+
+backend be-reverse
+	server dev rhttp@
 } -start
 
 haproxy h_dev -conf {
