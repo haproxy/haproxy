@@ -493,10 +493,19 @@ static int debug_parse_cli_show_libs(char **args, char *payload, struct appctx *
 /* parse a "show dev" command. It returns 1 if it emits anything otherwise zero. */
 static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	const char **build_opt;
+
 	if (*args[2])
 		return cli_err(appctx, "This command takes no argument.\n");
 
 	chunk_reset(&trash);
+
+	chunk_appendf(&trash, "Features\n  %s\n", build_features);
+
+	chunk_appendf(&trash, "Build options\n");
+	for (build_opt = NULL; (build_opt = hap_get_next_build_opt(build_opt)); )
+		if (append_prefixed_str(&trash, *build_opt, "  ", '\n', 0) == 0)
+			chunk_strcat(&trash, "\n");
 
 	chunk_appendf(&trash, "Platform info\n");
 	if (*post_mortem.platform.hw_vendor)
