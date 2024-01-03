@@ -19328,8 +19328,8 @@ map_<match_type>_<output_type>(<map_name>[,<default_value>])
   expression and modify the output replacing back reference (like "\1") by
   the corresponding match text.
 
-  Output type "key" means that it its the matched entry's key (as found in the
-  map file)that will be returned as a string instead of the value. Note that
+  Output type "key" means that it is the matched entry's key (as found in the
+  map file) that will be returned as a string instead of the value. Note that
   optional <default_value> argument is not supported when "key" output type is
   used.
 
