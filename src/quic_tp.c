@@ -828,3 +828,21 @@ int qc_lstnr_params_init(struct quic_conn *qc,
 	return 1;
 }
 
+/* QUIC client (or haproxy server) only function.
+ * Initialize the local transport parameters <rx_params> from <srv_params>
+ * coming from configuration and source connection ID).
+ * Never fails.
+ */
+void qc_srv_params_init(struct quic_conn *qc,
+                        const struct quic_transport_params *srv_params,
+                        const unsigned char *scid, size_t scidlen)
+{
+	struct quic_transport_params *rx_params = &qc->rx.params;
+
+	/* Copy the transport parameters. */
+	*rx_params = *srv_params;
+	/* Copy the initial source connection ID. */
+	memcpy(rx_params->initial_source_connection_id.data, scid, scidlen);
+	rx_params->initial_source_connection_id.len = scidlen;
+	TRACE_PROTO("\nRX(local) transp. params.", QUIC_EV_TRANSP_PARAMS, qc, rx_params);
+}
