@@ -2419,7 +2419,6 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 {
 	struct pat_ref *ref;
 	struct pattern_expr *expr;
-	struct ebmb_node *node;
 	struct pat_ref_elt *elt;
 	int reuse = 0;
 
@@ -2511,11 +2510,11 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 	if (reuse)
 		return 1;
 
-	/* Load reference content in the pattern expression. */
-	node = ebmb_first(&ref->ebmb_root);
-	while (node) {
-		elt = ebmb_entry(node, struct pat_ref_elt, node);
-		node = ebmb_next(node);
+	/* Load reference content in the pattern expression.
+	 * We need to load elements in the same order they were seen in the
+	 * file as list-based matching types may rely on it.
+	 */
+	list_for_each_entry(elt, &ref->head, list) {
 		if (!pat_ref_push(elt, expr, patflags, err)) {
 			if (elt->line > 0)
 				memprintf(err, "%s at line %d of file '%s'",
