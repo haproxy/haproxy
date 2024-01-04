@@ -1773,7 +1773,8 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
  * performed.
  *
  * Returns the total bytes of encoded HTTP/3 payload. This corresponds to the
- * total bytes of HTX block removed.
+ * total bytes of HTX block removed. A negative error code is returned in case
+ * of a fatal error which should caused a connection closure.
  */
 static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
                              struct buffer *buf, size_t count)
@@ -1856,7 +1857,7 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
 	if (b_size(&outbuf) <= hsize) {
 		TRACE_STATE("not enough room for data frame", H3_EV_TX_FRAME|H3_EV_TX_DATA, qcs->qcc->conn, qcs);
 		qcs->flags |= QC_SF_BLK_MROOM;
-		goto err;
+		goto end;
 	}
 
 	if (b_size(&outbuf) < hsize + fsize)
@@ -1886,6 +1887,7 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
 	return total;
 
  err:
+	BUG_ON(total); /* Must return HTX removed size if at least on frame encoded. */
 	TRACE_DEVEL("leaving on error", H3_EV_TX_FRAME|H3_EV_TX_DATA, qcs->qcc->conn, qcs);
 	return -1;
 }
