@@ -21,6 +21,11 @@
 #ifndef _HAPROXY_QUIC_SSL_H
 #define _HAPROXY_QUIC_SSL_H
 
+#ifdef USE_QUIC
+#ifndef USE_OPENSSL
+#error "Must define USE_OPENSSL"
+#endif
+
 #include <haproxy/listener-t.h>
 #include <haproxy/ncbuf-t.h>
 #include <haproxy/openssl-compat.h>
@@ -46,4 +51,5 @@ static inline void qc_free_ssl_sock_ctx(struct ssl_sock_ctx **ctx)
 	*ctx = NULL;
 }
 
+#endif /* USE_QUIC */
 #endif /* _HAPROXY_QUIC_SSL_H */
