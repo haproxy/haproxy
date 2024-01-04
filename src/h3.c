@@ -1631,7 +1631,8 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
  * Caller is responsible to emit an empty QUIC STREAM frame to signal the end
  * of the stream.
  *
- * Returns the size of HTX blocks removed.
+ * Returns the size of HTX blocks removed. A negative error code is returned in
+ * case of a fatal error which should caused a connection closure.
  */
 static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 {
@@ -1680,8 +1681,19 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 		 * frame. Mux will send an empty QUIC STREAM frame with FIN.
 		 */
 		TRACE_DATA("skipping trailer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+
+		/* Truncate UNUSED / EOT HTX blocks. */
+		blk = htx_get_head_blk(htx);
+		while (blk) {
+			type = htx_get_blk_type(blk);
+			ret += htx_get_blksz(blk);
+			blk = htx_remove_blk(htx, blk);
+			if (type == HTX_BLK_EOT)
+				break;
+		}
 		goto end;
 	}
+
 	list[hdr].n = ist("");
 
 	if (!(res = qcc_get_stream_txbuf(qcs))) {
@@ -1692,8 +1704,9 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 
 	/* At least 9 bytes to store frame type + length as a varint max size */
 	if (b_room(res) < 9) {
+		TRACE_STATE("not enough room for trailers frame", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 		qcs->flags |= QC_SF_BLK_MROOM;
-		goto err;
+		goto end;
 	}
 
 	/* Force buffer realignment as size required to encode headers is unknown. */
@@ -1703,8 +1716,9 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 	headers_buf = b_make(b_peek(res, b_data(res) + 9), b_contig_space(res) - 9, 0, 0);
 
 	if (qpack_encode_field_section_line(&headers_buf)) {
+		TRACE_STATE("not enough room for trailers section line", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 		qcs->flags |= QC_SF_BLK_MROOM;
-		goto err;
+		goto end;
 	}
 
 	tail = b_tail(&headers_buf);
@@ -1724,8 +1738,9 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 		}
 
 		if (qpack_encode_header(&headers_buf, list[hdr].n, list[hdr].v)) {
+			TRACE_STATE("not enough room for all trailers", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 			qcs->flags |= QC_SF_BLK_MROOM;
-			goto err;
+			goto end;
 		}
 	}
 
@@ -1735,21 +1750,20 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 		 * frame. Mux will send an empty QUIC STREAM frame with FIN.
 		 */
 		TRACE_DATA("skipping trailer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-		goto end;
+	}
+	else {
+		/* Now that all headers are encoded, we are certain that res
+		 * buffer is big enough.
+		 */
+		TRACE_DATA("encoding TRAILERS frame", H3_EV_TX_FRAME|H3_EV_TX_HDR,
+			   qcs->qcc->conn, qcs);
+		b_putchr(res, 0x01); /* h3 HEADERS frame type */
+		if (!b_quic_enc_int(res, b_data(&headers_buf), 8))
+			ABORT_NOW();
+		b_add(res, b_data(&headers_buf));
 	}
 
-	/* Now that all headers are encoded, we are certain that res buffer is
-	 * big enough.
-	 */
-	TRACE_DATA("encoding TRAILERS frame", H3_EV_TX_FRAME|H3_EV_TX_HDR,
-	           qcs->qcc->conn, qcs);
-	b_putchr(res, 0x01); /* h3 HEADERS frame type */
-	if (!b_quic_enc_int(res, b_data(&headers_buf), 8))
-		ABORT_NOW();
-	b_add(res, b_data(&headers_buf));
-
- end:
-	ret = 0;
+	/* Encoding success, truncate HTX blocks until EOT. */
 	blk = htx_get_head_blk(htx);
 	while (blk) {
 		type = htx_get_blk_type(blk);
@@ -1759,6 +1773,7 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 			break;
 	}
 
+ end:
 	TRACE_LEAVE(H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 	return ret;
 
@@ -1962,10 +1977,8 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 			break;
 		}
 
-		/* If an error occurred, either buffer space or connection error
-		 * must be set to break current loop.
-		 */
-		BUG_ON(ret < 0 && !(qcs->flags & QC_SF_BLK_MROOM) && !h3c->err);
+		/* If an error occured, connection error must be set to break from the current loop. */
+		BUG_ON(ret < 0 && !h3c->err);
 	}
 
 	/* Interrupt sending on connection error. */
