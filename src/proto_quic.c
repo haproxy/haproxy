@@ -286,10 +286,10 @@ int quic_connect_server(struct connection *conn, int flags)
 	struct proxy *be;
 	struct conn_src *src;
 	struct sockaddr_storage *addr;
+	struct quic_conn *qc = conn->handle.qc;
 
+	BUG_ON(qc->fd != -1);
 	BUG_ON(!conn->dst);
-
-	conn->flags |= CO_FL_WAIT_L4_CONN; /* connection in progress */
 
 	switch (obj_type(conn->target)) {
 	case OBJ_TYPE_PROXY:
@@ -306,7 +306,7 @@ int quic_connect_server(struct connection *conn, int flags)
 	}
 
 	/* perform common checks on obtained socket FD, return appropriate Stream Error Flag in case of failure */
-	fd = conn->handle.fd = sock_create_server_socket(conn, be, PROTO_TYPE_DGRAM, SOCK_DGRAM, &stream_err);
+	fd = sock_create_server_socket(conn, be, PROTO_TYPE_DGRAM, SOCK_DGRAM, &stream_err);
 	if (fd == -1)
 		return stream_err;
 
@@ -413,71 +413,23 @@ int quic_connect_server(struct connection *conn, int flags)
 	}
 
 	if (global.tune.server_sndbuf)
-                setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &global.tune.server_sndbuf, sizeof(global.tune.server_sndbuf));
+		setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &global.tune.server_sndbuf, sizeof(global.tune.server_sndbuf));
 
 	if (global.tune.server_rcvbuf)
-                setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
+		setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
 
 	addr = (conn->flags & CO_FL_SOCKS4) ? &srv->socks4_addr : conn->dst;
 	if (connect(fd, (const struct sockaddr *)addr, get_addr_len(addr)) == -1) {
-		if (errno == EINPROGRESS || errno == EALREADY) {
-			/* common case, let's wait for connect status */
-			conn->flags |= CO_FL_WAIT_L4_CONN;
-		}
-		else if (errno == EISCONN) {
-			/* should normally not happen but if so, indicates that it's OK */
-			conn->flags &= ~CO_FL_WAIT_L4_CONN;
-		}
-		else if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EADDRINUSE || errno == EADDRNOTAVAIL) {
-			char *msg;
-			if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EADDRNOTAVAIL) {
-				msg = "no free ports";
-				conn->err_code = CO_ER_FREE_PORTS;
-			}
-			else {
-				msg = "local address already in use";
-				conn->err_code = CO_ER_ADDR_INUSE;
-			}
-
-			qfprintf(stderr,"Connect() failed for backend %s: %s.\n", be->id, msg);
-			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
-			fdinfo[fd].port_range = NULL;
-			close(fd);
-			send_log(be, LOG_ERR, "Connect() failed for backend %s: %s.\n", be->id, msg);
-			conn->flags |= CO_FL_ERROR;
-			return SF_ERR_RESOURCE;
-		} else if (errno == ETIMEDOUT) {
-			//qfprintf(stderr,"Connect(): ETIMEDOUT");
-			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
-			fdinfo[fd].port_range = NULL;
-			close(fd);
-			conn->err_code = CO_ER_SOCK_ERR;
-			conn->flags |= CO_FL_ERROR;
-			return SF_ERR_SRVTO;
-		} else {
-			// (errno == ECONNREFUSED || errno == ENETUNREACH || errno == EACCES || errno == EPERM)
-			//qfprintf(stderr,"Connect(): %d", errno);
-			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
-			fdinfo[fd].port_range = NULL;
-			close(fd);
-			conn->err_code = CO_ER_SOCK_ERR;
-			conn->flags |= CO_FL_ERROR;
-			return SF_ERR_SRVCL;
-		}
-	}
-	else {
-		/* connect() == 0, this is great! */
-		conn->flags &= ~CO_FL_WAIT_L4_CONN;
+		port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
+		fdinfo[fd].port_range = NULL;
+		close(fd);
+		conn->flags |= CO_FL_ERROR;
+		return SF_ERR_SRVCL;
 	}
 
-	conn_ctrl_init(conn);       /* registers the FD */
-	HA_ATOMIC_OR(&fdtab[fd].state, FD_LINGER_RISK);  /* close hard if needed */
-
-	if (conn->flags & CO_FL_WAIT_L4_CONN) {
-		fd_want_send(fd);
-		fd_cant_send(fd);
-		fd_cant_recv(fd);
-	}
+	qc->fd = fd;
+	fd_insert(fd, qc, quic_conn_sock_fd_iocb, tgid, ti->ltid_bit);
+	fd_want_recv(fd);
 
 	return SF_ERR_NONE;  /* connection is OK */
 }
