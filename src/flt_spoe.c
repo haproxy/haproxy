@@ -2018,16 +2018,35 @@ struct applet spoe_applet = {
 static struct appctx *
 spoe_create_appctx(struct spoe_config *conf)
 {
+	struct spoe_agent *agent = conf->agent;
 	struct spoe_appctx *spoe_appctx;
 	struct appctx *appctx;
+
+	/* Do not try to create a new applet if there is no server up for the
+	 * agent's backend. */
+	if (!agent->b.be->srv_act && !agent->b.be->srv_bck) {
+		SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: don't create SPOE appctx: no server up\n",
+			    (int)date.tv_sec, (int)date.tv_usec, agent->id, __FUNCTION__);
+		goto out;
+	}
+
+	/* Do not try to create a new applet if we have reached the maximum of
+	 * connection per seconds */
+	if (agent->cps_max > 0) {
+		if (!freq_ctr_remain(&agent->rt[tid].conn_per_sec, agent->cps_max, 0)) {
+			SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: don't create SPOE appctx: max CPS reached\n",
+				    (int)date.tv_sec, (int)date.tv_usec, agent->id, __FUNCTION__);
+			goto out;
+		}
+	}
 
 	spoe_appctx = pool_zalloc(pool_head_spoe_appctx);
 	if (spoe_appctx == NULL)
 		goto out_error;
 
-	spoe_appctx->agent           = conf->agent;
+	spoe_appctx->agent           = agent;
 	spoe_appctx->version         = 0;
-	spoe_appctx->max_frame_size  = conf->agent->max_frame_size;
+	spoe_appctx->max_frame_size  = agent->max_frame_size;
 	spoe_appctx->flags           = 0;
 	spoe_appctx->status_code     = SPOE_FRM_ERR_NONE;
 	spoe_appctx->buffer          = BUF_NULL;
@@ -2043,6 +2062,10 @@ spoe_create_appctx(struct spoe_config *conf)
 	if (appctx_init(appctx) == -1)
 		goto out_free_appctx;
 
+	/* Increase the per-process number of cumulated connections */
+	if (agent->cps_max > 0)
+		update_freq_ctr(&agent->rt[tid].conn_per_sec, 1);
+
 	appctx_wakeup(appctx);
 	return appctx;
 
@@ -2052,6 +2075,11 @@ spoe_create_appctx(struct spoe_config *conf)
  out_free_spoe_appctx:
 	pool_free(pool_head_spoe_appctx, spoe_appctx);
  out_error:
+	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: failed to create SPOE appctx\n",
+		    (int)date.tv_sec, (int)date.tv_usec, agent->id, __FUNCTION__);
+	send_log(&conf->agent_fe, LOG_EMERG, "SPOE: [%s] failed to create SPOE applet\n", agent->id);
+ out:
+
 	return NULL;
 }
 
@@ -2060,7 +2088,6 @@ spoe_queue_context(struct spoe_context *ctx)
 {
 	struct spoe_config *conf = FLT_CONF(ctx->filter);
 	struct spoe_agent  *agent = conf->agent;
-	struct appctx      *appctx;
 	struct spoe_appctx *spoe_appctx;
 
 	/* Check if we need to create a new SPOE applet or not. */
@@ -2073,44 +2100,7 @@ spoe_queue_context(struct spoe_context *ctx)
 		    (int)date.tv_sec, (int)date.tv_usec, agent->id, __FUNCTION__,
 		    ctx->strm);
 
-	/* Do not try to create a new applet if there is no server up for the
-	 * agent's backend. */
-	if (!agent->b.be->srv_act && !agent->b.be->srv_bck) {
-		SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
-			    " - cannot create SPOE appctx: no server up\n",
-			    (int)date.tv_sec, (int)date.tv_usec, agent->id,
-			    __FUNCTION__, ctx->strm);
-		goto end;
-	}
-
-	/* Do not try to create a new applet if we have reached the maximum of
-	 * connection per seconds */
-	if (agent->cps_max > 0) {
-		if (!freq_ctr_remain(&agent->rt[tid].conn_per_sec, agent->cps_max, 0)) {
-			SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
-				    " - cannot create SPOE appctx: max CPS reached\n",
-				    (int)date.tv_sec, (int)date.tv_usec, agent->id,
-				    __FUNCTION__, ctx->strm);
-			goto end;
-		}
-	}
-
-	appctx = spoe_create_appctx(conf);
-	if (appctx == NULL) {
-		SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
-			    " - failed to create SPOE appctx\n",
-			    (int)date.tv_sec, (int)date.tv_usec, agent->id,
-			    __FUNCTION__, ctx->strm);
-		send_log(&conf->agent_fe, LOG_EMERG,
-			 "SPOE: [%s] failed to create SPOE applet\n",
-			 agent->id);
-
-		goto end;
-	}
-
-	/* Increase the per-process number of cumulated connections */
-	if (agent->cps_max > 0)
-		update_freq_ctr(&agent->rt[tid].conn_per_sec, 1);
+	spoe_create_appctx(conf);
 
   end:
 	/* The only reason to return an error is when there is no applet */
