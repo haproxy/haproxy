@@ -518,11 +518,15 @@ static inline size_t se_nego_ff(struct sedesc *se, struct buffer *input, size_t 
 			}
 
 			ret = mux->nego_fastfwd(se->sc, input, count, may_splice);
-			if ((se->iobuf.flags & IOBUF_FL_FF_BLOCKED) && !(se->sc->wait_event.events & SUB_RETRY_SEND)) {
-				/* The SC must be subs for send to be notify when some
-				 * space is made
-				 */
-				mux->subscribe(se->sc, SUB_RETRY_SEND, &se->sc->wait_event);
+			if (se->iobuf.flags & IOBUF_FL_FF_BLOCKED) {
+				sc_ep_report_blocked_send(se->sc, 0);
+
+				if (!(se->sc->wait_event.events & SUB_RETRY_SEND)) {
+					/* The SC must be subs for send to be notify when some
+					 * space is made
+					 */
+					mux->subscribe(se->sc, SUB_RETRY_SEND, &se->sc->wait_event);
+				}
 			}
 			goto end;
 		}
