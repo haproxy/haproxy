@@ -522,15 +522,11 @@ struct appctx *sc_applet_create(struct stconn *sc, struct applet *app)
  */
 static inline int sc_cond_forward_shut(struct stconn *sc)
 {
-	/* Forward the shutdown if an write error occurred on the input channel */
-	if (sc_ic(sc)->flags & CF_WRITE_TIMEOUT)
-		return 1;
-
 	/* The close must not be forwarded */
 	if (!(sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) || !(sc->flags & SC_FL_NOHALF))
 		return 0;
 
-	if (co_data(sc_ic(sc))) {
+	if (co_data(sc_ic(sc)) && !(sc_ic(sc)->flags & CF_WRITE_TIMEOUT)) {
 		/* the shutdown cannot be forwarded now because
 		 * we should flush outgoing data first. But instruct the output
 		 * channel it should be done ASAP.
