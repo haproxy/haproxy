@@ -2805,7 +2805,6 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		sess_log(h2c->conn->owner);
 		session_inc_http_req_ctr(h2c->conn->owner);
 		session_inc_http_err_ctr(h2c->conn->owner);
-		printf("Oops, forcefully killing the extraneous stream: last_sid=%d max_id=%d strms=%u\n", h2c->last_sid, h2c->max_id, h2c->stream_cnt);
 		goto conn_err;
 	}
 
@@ -2913,8 +2912,6 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		 * so we apply twice the concurrent streams value to the current
 		 * ID.
 		 */
-		printf("last_sid=%d max_id=%d strms=%u\n", h2c->last_sid, h2c->max_id, h2c->stream_cnt);
-
 		if (h2c->last_sid <= 0 ||
 		    h2c->last_sid > h2c->max_id + 2 * h2c_max_concurrent_streams(h2c)) {
 			/* not set yet or was too high */
