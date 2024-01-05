@@ -1036,12 +1036,22 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                               struct connection *conn)
 {
 	struct quic_conn *qc = NULL;
-	struct listener *l = server ? owner : NULL;
-	struct proxy *prx = l ? l->bind_conf->frontend : NULL;
+	struct listener *l = NULL;
+	struct server *srv = NULL;
+	struct proxy *prx = NULL;
 	struct quic_cc_algo *cc_algo = NULL;
 	unsigned int next_actconn = 0, next_sslconn = 0, next_handshake = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_INIT);
+
+	if (server) {
+		l = owner;
+		prx = l->bind_conf->frontend;
+	}
+	else {
+		srv = owner;
+		prx = srv->proxy;
+	}
 
 	next_actconn = increment_actconn();
 	if (!next_actconn) {
@@ -1070,6 +1080,13 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		goto err;
 	}
 
+	qc->cids = pool_alloc(pool_head_quic_cids);
+	if (!qc->cids) {
+		TRACE_ERROR("Could not allocate a new CID tree", QUIC_EV_CONN_INIT, qc);
+		goto err;
+	}
+
+	*qc->cids = EB_ROOT;
 	/* Now that quic_conn instance is allocated, quic_conn_release() will
 	 * ensure global accounting is decremented.
 	 */
@@ -1087,7 +1104,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->streams_by_id = EB_ROOT_UNIQUE;
 
 	/* Required to call free_quic_conn_cids() from quic_conn_release() */
-	qc->cids = NULL;
 	qc->tx.cc_buf_area = NULL;
 	qc_init_fd(qc);
 
@@ -1122,16 +1138,12 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	/* Packet number spaces */
 	qc->ipktns = qc->hpktns = qc->apktns = NULL;
 	LIST_INIT(&qc->pktns_list);
-
-	/* Required to safely call quic_conn_prx_cntrs_update() from quic_conn_release(). */
-	qc->prx_counters = NULL;
+	qc->prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
 
 	/* QUIC Server (or listener). */
 	if (server) {
 		cc_algo = l->bind_conf->quic_cc_algo;
 
-		qc->prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe,
-		                                      &quic_stats_module);
 		qc->flags = QUIC_FL_CONN_LISTENER;
 		/* Mark this connection as having not received any token when 0-RTT is enabled. */
 		if (l->bind_conf->ssl_conf.early_data && !token)
@@ -1143,28 +1155,53 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		qc->dcid = *scid;
 		qc->tx.buf = BUF_NULL;
 		qc->li = l;
+		conn_id->qc = qc;
 	}
 	/* QUIC Client (outgoing connection to servers) */
 	else {
+		struct quic_connection_id *conn_cid = NULL;
+
+		qc->flags = QUIC_FL_CONN_PEER_VALIDATED_ADDR;
 		qc->state = QUIC_HS_ST_CLIENT_INITIAL;
-		if (dcid->len)
-			memcpy(qc->dcid.data, dcid->data, dcid->len);
-		qc->dcid.len = dcid->len;
+
+		memset(&qc->odcid, 0, sizeof qc->odcid);
+		qc->odcid.len = 0;
+		/* This is the original connection ID from the peer server
+		 * point of view.
+		 */
+		if (RAND_bytes(qc->dcid.data, sizeof(qc->dcid.data)) != 1)
+			goto err;
+
+		qc->dcid.len = sizeof(qc->dcid.data);
+
+		conn_cid = new_quic_cid(qc->cids, qc, NULL, NULL);
+		if (!conn_cid)
+			goto err;
+
+		_quic_cid_insert(conn_cid);
+		dcid = &qc->dcid;
+		conn_id = conn_cid;
+
+		qc->tx.buf = BUF_NULL;
 		qc->li = NULL;
+		qc->next_cid_seq_num = 1;
+		conn->handle.qc = qc;
 	}
 	qc->mux_state = QC_MUX_NULL;
 	qc->err = quic_err_transport(QC_ERR_NO_ERROR);
 
-	/* If connection is instantiated due to an INITIAL packet with an
+	/* Listener only: if connection is instantiated due to an INITIAL packet with an
 	 * already checked token, consider the peer address as validated.
 	 */
-	if (token) {
-		TRACE_STATE("validate peer address due to initial token",
-		            QUIC_EV_CONN_INIT, qc);
-		qc->flags |= QUIC_FL_CONN_PEER_VALIDATED_ADDR;
-	}
-	else {
-		HA_ATOMIC_INC(&qc->prx_counters->half_open_conn);
+	if (server) {
+		if (token_odcid->len) {
+			TRACE_STATE("validate peer address due to initial token",
+						QUIC_EV_CONN_INIT, qc);
+			qc->flags |= QUIC_FL_CONN_PEER_VALIDATED_ADDR;
+		}
+		else {
+			HA_ATOMIC_INC(&qc->prx_counters->half_open_conn);
+		}
 	}
 
 	/* Now proceeds to allocation of qc members. */
@@ -1174,16 +1211,8 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		goto err;
 	}
 
-	qc->cids = pool_alloc(pool_head_quic_cids);
-	if (!qc->cids) {
-		TRACE_ERROR("Could not allocate a new CID tree", QUIC_EV_CONN_INIT, qc);
-		goto err;
-	}
-	*qc->cids = EB_ROOT;
-
-	conn_id->qc = qc;
-
-	if (HA_ATOMIC_LOAD(&l->rx.quic_mode) == QUIC_SOCK_MODE_CONN &&
+	/* Listener only */
+	if (l && HA_ATOMIC_LOAD(&l->rx.quic_mode) == QUIC_SOCK_MODE_CONN &&
 	    (quic_tune.options & QUIC_TUNE_SOCK_PER_CONN) &&
 	    is_addr(local_addr)) {
 		TRACE_USER("Allocate a socket for QUIC connection", QUIC_EV_CONN_INIT, qc);
@@ -1233,17 +1262,25 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->max_ack_delay = 0;
 	/* Only one path at this time (multipath not supported) */
 	qc->path = &qc->paths[0];
-	quic_cc_path_init(qc->path, ipv4, server ? l->bind_conf->max_cwnd : 0,
+	quic_cc_path_init(qc->path, ipv4,
+	                  server ? l->bind_conf->max_cwnd : 0,
 	                  cc_algo ? cc_algo : default_quic_cc_algo, qc);
 
-	memcpy(&qc->local_addr, local_addr, sizeof(qc->local_addr));
+	if (local_addr)
+		memcpy(&qc->local_addr, local_addr, sizeof(qc->local_addr));
+	else
+		memset(&qc->local_addr, 0, sizeof(qc->local_addr));
 	memcpy(&qc->peer_addr, peer_addr, sizeof qc->peer_addr);
 
-	if (server && !qc_lstnr_params_init(qc, &l->bind_conf->quic_params,
-	                                    conn_id->stateless_reset_token,
-	                                    dcid->data, dcid->len,
-	                                    qc->scid.data, qc->scid.len, token_odcid))
-		goto err;
+	if (server) {
+		qc_lstnr_params_init(qc, &l->bind_conf->quic_params,
+		                     conn_id->stateless_reset_token,
+		                     qc->dcid.data, qc->dcid.len,
+		                     qc->scid.data, qc->scid.len, token_odcid);
+	}
+	else {
+		qc_srv_params_init(qc, &srv->quic_params, qc->scid.data, qc->scid.len);
+	}
 
 	/* Initialize the idle timeout of the connection at the "max_idle_timeout"
 	 * value from local transport parameters.
@@ -1269,7 +1306,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	    !quic_conn_init_idle_timer_task(qc, prx))
 		goto err;
 
-	if (!qc_new_isecs(qc, &qc->iel->tls_ctx, qc->original_version, dcid->data, dcid->len, 1))
+	if (!qc_new_isecs(qc, &qc->iel->tls_ctx, qc->original_version, dcid->data, dcid->len, server))
 		goto err;
 
 	/* Counters initialization */
@@ -1283,6 +1320,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	return qc;
 
  err:
+	pool_free(pool_head_quic_connection_id, conn_id);
 	quic_conn_release(qc);
 
 	/* Decrement global counters. Done only for errors happening before or
