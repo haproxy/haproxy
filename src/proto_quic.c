@@ -281,15 +281,15 @@ int quic_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct s
 
 int quic_connect_server(struct connection *conn, int flags)
 {
-	int fd, stream_err;
+	int fd;
 	struct server *srv;
 	struct proxy *be;
 	struct conn_src *src;
 	struct sockaddr_storage *addr;
+	struct quic_conn *qc = conn->handle.qc;
 
+	BUG_ON(qc->fd != -1);
 	BUG_ON(!conn->dst);
-
-	conn->flags |= CO_FL_WAIT_L4_CONN; /* connection in progress */
 
 	switch (obj_type(conn->target)) {
 	case OBJ_TYPE_PROXY:
@@ -305,10 +305,65 @@ int quic_connect_server(struct connection *conn, int flags)
 		return SF_ERR_INTERNAL;
 	}
 
-	/* perform common checks on obtained socket FD, return appropriate Stream Error Flag in case of failure */
-	fd = conn->handle.fd = sock_create_server_socket(conn, be, &stream_err);
-	if (fd == -1)
-		return stream_err;
+	fd = socket(conn->dst->ss_family, SOCK_DGRAM, 0);
+	if (fd == -1) {
+		qfprintf(stderr, "Cannot get a server socket.\n");
+
+		if (errno == ENFILE) {
+			conn->err_code = CO_ER_SYS_FDLIM;
+			send_log(be, LOG_EMERG,
+				 "Proxy %s reached system FD limit (maxsock=%d). Please check system tunables.\n",
+				 be->id, global.maxsock);
+		}
+		else if (errno == EMFILE) {
+			conn->err_code = CO_ER_PROC_FDLIM;
+			send_log(be, LOG_EMERG,
+				 "Proxy %s reached process FD limit (maxsock=%d). Please check 'ulimit-n' and restart.\n",
+				 be->id, global.maxsock);
+		}
+		else if (errno == ENOBUFS || errno == ENOMEM) {
+			conn->err_code = CO_ER_SYS_MEMLIM;
+			send_log(be, LOG_EMERG,
+				 "Proxy %s reached system memory limit (maxsock=%d). Please check system tunables.\n",
+				 be->id, global.maxsock);
+		}
+		else if (errno == EAFNOSUPPORT || errno == EPROTONOSUPPORT) {
+			conn->err_code = CO_ER_NOPROTO;
+		}
+		else
+			conn->err_code = CO_ER_SOCK_ERR;
+
+		/* this is a resource error */
+		conn->flags |= CO_FL_ERROR;
+		return SF_ERR_RESOURCE;
+	}
+
+	if (fd >= global.maxsock) {
+		/* do not log anything there, it's a normal condition when this option
+		 * is used to serialize connections to a server !
+		 */
+		ha_alert("socket(): not enough free sockets. Raise -n argument. Giving up.\n");
+		close(fd);
+		conn->err_code = CO_ER_CONF_FDLIM;
+		conn->flags |= CO_FL_ERROR;
+		return SF_ERR_PRXCOND; /* it is a configuration limit */
+	}
+
+	if (fd_set_nonblock(fd) == -1) {
+		qfprintf(stderr,"Cannot set client socket to non blocking mode.\n");
+		close(fd);
+		conn->err_code = CO_ER_SOCK_ERR;
+		conn->flags |= CO_FL_ERROR;
+		return SF_ERR_INTERNAL;
+	}
+
+	if (master == 1 && fd_set_cloexec(fd) == -1) {
+		ha_alert("Cannot set CLOEXEC on client socket.\n");
+		close(fd);
+		conn->err_code = CO_ER_SOCK_ERR;
+		conn->flags |= CO_FL_ERROR;
+		return SF_ERR_INTERNAL;
+	}
 
 	/* FD is ok, perform protocol specific settings */
 	/* allow specific binding :
@@ -413,71 +468,23 @@ int quic_connect_server(struct connection *conn, int flags)
 	}
 
 	if (global.tune.server_sndbuf)
-                setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &global.tune.server_sndbuf, sizeof(global.tune.server_sndbuf));
+		setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &global.tune.server_sndbuf, sizeof(global.tune.server_sndbuf));
 
 	if (global.tune.server_rcvbuf)
-                setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
+		setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
 
 	addr = (conn->flags & CO_FL_SOCKS4) ? &srv->socks4_addr : conn->dst;
 	if (connect(fd, (const struct sockaddr *)addr, get_addr_len(addr)) == -1) {
-		if (errno == EINPROGRESS || errno == EALREADY) {
-			/* common case, let's wait for connect status */
-			conn->flags |= CO_FL_WAIT_L4_CONN;
-		}
-		else if (errno == EISCONN) {
-			/* should normally not happen but if so, indicates that it's OK */
-			conn->flags &= ~CO_FL_WAIT_L4_CONN;
-		}
-		else if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EADDRINUSE || errno == EADDRNOTAVAIL) {
-			char *msg;
-			if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EADDRNOTAVAIL) {
-				msg = "no free ports";
-				conn->err_code = CO_ER_FREE_PORTS;
-			}
-			else {
-				msg = "local address already in use";
-				conn->err_code = CO_ER_ADDR_INUSE;
-			}
-
-			qfprintf(stderr,"Connect() failed for backend %s: %s.\n", be->id, msg);
-			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
-			fdinfo[fd].port_range = NULL;
-			close(fd);
-			send_log(be, LOG_ERR, "Connect() failed for backend %s: %s.\n", be->id, msg);
-			conn->flags |= CO_FL_ERROR;
-			return SF_ERR_RESOURCE;
-		} else if (errno == ETIMEDOUT) {
-			//qfprintf(stderr,"Connect(): ETIMEDOUT");
-			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
-			fdinfo[fd].port_range = NULL;
-			close(fd);
-			conn->err_code = CO_ER_SOCK_ERR;
-			conn->flags |= CO_FL_ERROR;
-			return SF_ERR_SRVTO;
-		} else {
-			// (errno == ECONNREFUSED || errno == ENETUNREACH || errno == EACCES || errno == EPERM)
-			//qfprintf(stderr,"Connect(): %d", errno);
-			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
-			fdinfo[fd].port_range = NULL;
-			close(fd);
-			conn->err_code = CO_ER_SOCK_ERR;
-			conn->flags |= CO_FL_ERROR;
-			return SF_ERR_SRVCL;
-		}
-	}
-	else {
-		/* connect() == 0, this is great! */
-		conn->flags &= ~CO_FL_WAIT_L4_CONN;
+		port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
+		fdinfo[fd].port_range = NULL;
+		close(fd);
+		conn->flags |= CO_FL_ERROR;
+		return SF_ERR_SRVCL;
 	}
 
-	conn_ctrl_init(conn);       /* registers the FD */
-	HA_ATOMIC_OR(&fdtab[fd].state, FD_LINGER_RISK);  /* close hard if needed */
-
-	if (conn->flags & CO_FL_WAIT_L4_CONN) {
-		fd_want_send(fd);
-		fd_cant_send(fd);
-		fd_cant_recv(fd);
-	}
+	qc->fd = fd;
+	fd_insert(fd, qc, quic_conn_sock_fd_iocb, tgid, ti->ltid_bit);
+	fd_want_recv(fd);
 
 	return SF_ERR_NONE;  /* connection is OK */
 }
