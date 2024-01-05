@@ -155,8 +155,13 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 	qc = conn->handle.qc;
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
 
-	/* mux-quic can now be considered ready. */
-	qc->mux_state = QC_MUX_READY;
+	if (objt_listener(conn->target)) {
+		/* mux-quic can now be considered ready. */
+		qc->mux_state = QC_MUX_READY;
+	}
+	else {
+		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
+	}
 
 	/* Schedule quic-conn to ensure post handshake frames are emitted. This
 	 * is not done for 0-RTT as xprt->start happens before handshake
