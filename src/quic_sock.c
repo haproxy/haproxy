@@ -553,6 +553,12 @@ void quic_lstnr_sock_fd_iocb(int fd)
 	MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->rxbuf_el);
 }
 
+/* Function called on read event for a connection to a server. */
+void quic_srv_sock_fd_iocb(int fd)
+{
+	/* XXX TODO XXX */
+}
+
 /* FD-owned quic-conn socket callback. */
 void quic_conn_sock_fd_iocb(int fd)
 {
