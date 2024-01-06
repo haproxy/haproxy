@@ -1,6 +1,144 @@
 ChangeLog :
 ===========
 
+2024/01/06 : 3.0-dev1
+    - MINOR: channel: Use dedicated functions to deal with STREAMER flags
+    - MEDIUM: applet: Handle channel's STREAMER flags on applets size
+    - MINOR: applets: Use channel's field to compute amount of data received
+    - MEDIUM: cache: Save body size of cached objects and track it on delivery
+    - MEDIUM: cache: Add support for endp-to-endp fast-forwarding
+    - MINOR: cache: Add global option to enable/disable zero-copy forwarding
+    - MINOR: pattern: Use reference name as filename to read patterns from a file
+    - MEDIUM: pattern: Add support for virtual and optional files for patterns
+    - DOC: config: Add section about name format for maps and ACLs
+    - DOC: management/lua: Update commands about map and acl
+    - MINOR: promex: Add support for specialized front/back/li/srv metric names
+    - MINOR: promex: Export active/backup metrics per-server
+    - BUG/MINOR: ssl: Double free of OCSP Certificate ID
+    - MINOR: ssl/cli: Add ha_(warning|alert) msgs to CLI ckch callback
+    - BUG/MINOR: ssl: Wrong OCSP CID after modifying an SSL certficate
+    - BUG/MINOR: lua: Wrong OCSP CID after modifying an SSL certficate (LUA)
+    - DOC: configuration: typo req.ssl_hello_type
+    - MINOR: hq-interop: add fastfwd support
+    - CLEANUP: mux_quic: rename ffwd function with prefix qmux_strm_
+    - MINOR: mux-quic: add traces for 0-copy/fast-forward
+    - BUG/MINOR: mworker/cli: fix set severity-output support
+    - CLEANUP: mworker/cli: add comments about pcli_find_and_exec_kw()
+    - BUG/MEDIUM: quic: Possible buffer overflow when building TLS records
+    - BUILD: ssl: update types in wolfssl cert selection callback
+    - MINOR: ssl: activate the certificate selection callback for WolfSSL
+    - CI: github: switch to wolfssl git-c4b77ad for new PR
+    - BUG/MEDIUM: map/acl: pat_ref_{set,delete}_by_id regressions
+    - BUG/MINOR: ext-check: cannot use without preserve-env
+    - CLEANUP: mux-quic: remove unused prototype
+    - MINOR: mux-quic: clean up qcs Rx buffer allocation API
+    - MINOR: mux-quic: clean up qcs Tx buffer allocation API
+    - CLEANUP: mux-quic: clean up app ops callback definitions
+    - MINOR: mux-quic: factorize QC_SF_UNKNOWN_PL_LENGTH set
+    - MINOR: h3: complete traces for sending
+    - MINOR: h3: adjust zero-copy sending related code
+    - MINOR: hq-interop: use zero-copy to transfer single HTX data block
+    - BUG/MEDIUM: quic: QUIC CID removed from tree without locking
+    - BUG/MEDIUM: stconn: Block zero-copy forwarding if EOS/ERROR on consumer side
+    - BUG/MEDIUM: mux-h1: Cound data from input buf during zero-copy forwarding
+    - BUG/MEDIUM: mux-h1: Explicitly skip request's C-L header if not set originally
+    - CLEANUP: mux-h1: Fix a trace message about C-L header addition
+    - BUG/MEDIUM: mux-h2: Report too large HEADERS frame only when rxbuf is empty
+    - BUG/MEDIUM: mux-quic: report early error on stream
+    - DOC: config: add arguments to sample fetch methods in the table
+    - DOC: config: also add arguments to the converters in the table
+    - BUG/MINOR: resolvers: default resolvers fails when network not configured
+    - SCRIPTS: mk-patch-list: produce a list of patches
+    - DEV: patchbot: add the AI-based bot to pre-select candidate patches to backport
+    - BUG/MEDIUM: mux-h2: Switch pending error to error if demux buffer is empty
+    - BUG/MEDIUM: mux-h2: Only Report H2C error on read error if demux buffer is empty
+    - BUG/MEDIUM: mux-h2: Don't report error on SE if error is only pending on H2C
+    - BUG/MEDIUM: mux-h2: Don't report error on SE for closed H2 streams
+    - DOC: config: Update documentation about local haproxy response
+    - DEV: patchbot: use checked buttons as reference instead of internal table
+    - DEV: patchbot: allow to show/hide backported patches
+    - MINOR: h3: remove quic_conn only reference
+    - BUG/MINOR: server: Use the configured address family for the initial resolution
+    - MINOR: mux-quic: remove qcc_shutdown() from qcc_release()
+    - MINOR: mux-quic: use qcc_release in case of init failure
+    - MINOR: mux-quic: adjust error code in init failure
+    - MINOR: h3: add traces for connection init stage
+    - BUG/MINOR: h3: properly handle alloc failure on finalize
+    - MINOR: h3: use INTERNAL_ERROR code for init failure
+    - BUG/MAJOR: stconn: Disable zero-copy forwarding if consumer is shut or in error
+    - MINOR: stats: store the parent proxy in stats ctx (http)
+    - BUG/MEDIUM: stats: unhandled switching rules with TCP frontend
+    - MEDIUM: proxy: set PR_O_HTTP_UPG on implicit upgrades
+    - MINOR: proxy: monitor-uri works with tcp->http upgrades
+    - OPTIM: server: eb lookup for server_find_by_name()
+    - OPTIM: server: ebtree lookups for findserver_unique_* functions
+    - MINOR: server/event_hdl: add server_inetaddr struct to facilitate event data usage
+    - MINOR: server/event_hdl: update _srv_event_hdl_prepare_inetaddr prototype
+    - BUG/MINOR: server/event_hdl: propagate map port info through inetaddr event
+    - MINOR: server: ensure connection cleanup on server addr changes
+    - CLEANUP: server/event_hdl: remove purge_conn hint in INETADDR event
+    - MEDIUM: server: merge srv_update_addr() and srv_update_addr_port() logic
+    - CLEANUP: server: remove unused server_parse_addr_change_request() function
+    - CLEANUP: resolvers: remove duplicate func prototype
+    - MINOR: resolvers: add unique numeric id to nameservers
+    - MEDIUM: server: make server_set_inetaddr() updater serializable
+    - MINOR: server/event_hdl: expose updater info through INETADDR event
+    - MINOR: server: add dns hint in server_inetaddr_updater struct
+    - MEDIUM: server/dns: clear RMAINT when addr resolves again
+    - BUG/MINOR: server/dns: use server_set_inetaddr() to unset srv addr from DNS
+    - BUG/MEDIUM: server/dns: perform svc_port updates atomically from SRV records
+    - MEDIUM: peers: use server as stream target
+    - CLEANUP: peers: remove unused sock_init_arg struct member
+    - CLEANUP: peers: remove unused "proto" and "xprt" struct members
+    - MINOR: peers: rely on srv->addr and remove peer->addr
+    - DOC: config: add context hint for server keywords
+    - MINOR: stktable: add table_process_entry helper function
+    - MINOR: stktable: use {show,set,clear} table with ptr
+    - MINOR: map: add map_*_key converters to provide the matching key
+    - DOC: fix typo for fastfwd QUIC option
+    - BUG/MINOR: mux-quic: always report error to SC on RESET_STREAM emission
+    - MEDIUM: mux-quic: add BUG_ON if sending on locally closed QCS
+    - BUG/MINOR: mux-quic: disable fast-fwd if connection on error
+    - BUG/MINOR: quic: Wrong keylog callback setting.
+    - BUG/MINOR: quic: Missing call to TLS message callbacks
+    - MINOR: h3: check connection error during sending
+    - BUG/MINOR: h3: close connection on header list too big
+    - BUG/MINOR: h3: close connection on sending alloc errors
+    - BUG/MINOR: h3: disable fast-forward on buffer alloc failure
+    - Revert "MINOR: mux-quic: Disable zero-copy forwarding for send by default"
+    - MINOR: stktable: stktable_data_ptr() cannot fail in table_process_entry()
+    - CLEANUP: assorted typo fixes in the code and comments
+    - CI: use semantic version compare for determing "latest" OpenSSL
+    - CLEANUP: server: remove ambiguous check in srv_update_addr_port()
+    - CLEANUP: resolvers: remove unused RSLV_UPD_OBSOLETE_IP flag
+    - CLEANUP: resolvers: remove some more unused RSLV_UDP flags
+    - MEDIUM: server: simplify snr_set_srv_down() to prevent confusions
+    - MINOR: backend: export get_server_*() functions
+    - MINOR: tcpcheck: export proxy_parse_tcpcheck()
+    - MEDIUM: udp: allow to retrieve the frontend destination address
+    - MINOR: global: export a way to list build options
+    - MINOR: debug: add features and build options to "show dev"
+    - BUG/MINOR: server: fix server_find_by_name() usage during parsing
+    - REGTESTS: check attach-srv out of order declaration
+    - CLEANUP: quic: Remaining useless code into server part
+    - BUILD: quic: Missing quic_ssl.h header protection
+    - BUG/MEDIUM: h3: fix incorrect snd_buf return value
+    - MINOR: h3: do not consider missing buf room as error on trailers
+    - BUG/MEDIUM: stconn: Forward shutdown on write timeout only if it is forwardable
+    - BUG/MEDIUM: stconn: Set fsb date if zero-copy forwarding is blocked during nego
+    - BUG/MEDIUM: spoe: Never create new spoe applet if there is no server up
+    - MINOR: mux-h2: support limiting the total number of H2 streams per connection
+    - CLEANUP: mux-h2: remove the printfs from previous commit on h2 streams limit.
+    - DEV: h2: add the ability to emit literals in mkhdr
+    - DEV: h2: add the preface as well in supported output types
+    - DEV: h2: support passing raw data for a frame
+    - IMPORT: ebtree: implement and use flsnz_long() to count bits
+    - IMPORT: ebtree: switch the sizes and offsets to size_t and ssize_t
+    - IMPORT: ebtree: rework the fls macros to better deal with arch-specific ones
+    - IMPORT: ebtree: make string_equal_bits turn back to unsigned char
+    - IMPORT: ebtree: use unsigned ints for flznz()
+    - IMPORT: ebtree: make string_equal_bits() return an unsigned
+
 2023/12/05 : 3.0-dev0
     - exact copy of 2.9.0
 
