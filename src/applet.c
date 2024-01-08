@@ -50,6 +50,14 @@ static const struct trace_event applet_trace_events[] = {
 	{ .mask = APPLET_EV_ERR,      .name = "app_err",      .desc = "error on appctx" },
 #define           APPLET_EV_START     (1ULL <<  5)
 	{ .mask = APPLET_EV_START,    .name = "app_start",   .desc = "start appctx" },
+#define           APPLET_EV_RECV      (1ULL <<  6)
+	{ .mask = APPLET_EV_START,    .name = "app_receive", .desc = "RX on appctx" },
+#define           APPLET_EV_SEND      (1ULL <<  7)
+	{ .mask = APPLET_EV_START,    .name = "app_send",    .desc = "TX on appctx" },
+#define           APPLET_EV_BLK       (1ULL <<  8)
+	{ .mask = APPLET_EV_START,    .name = "app_blk",     .desc = "appctx blocked" },
+#define           APPLET_EV_WAKE      (1ULL <<  9)
+	{ .mask = APPLET_EV_START,    .name = "app_wake",    .desc = "appctx woken up" },
 	{}
 };
 
@@ -384,12 +392,14 @@ int appctx_buf_available(void *arg)
 
 	if ((appctx->state & APPLET_INBLK_ALLOC) && b_alloc(&appctx->inbuf)) {
 		appctx->state &= ~APPLET_INBLK_ALLOC;
+		TRACE_STATE("unblocking appctx, inbuf allocated", APPLET_EV_RECV|APPLET_EV_BLK|APPLET_EV_WAKE, appctx);
 		task_wakeup(appctx->t, TASK_WOKEN_RES);
 		return 1;
 	}
 
 	if ((appctx->state & APPLET_OUTBLK_ALLOC) && b_alloc(&appctx->outbuf)) {
 		appctx->state &= ~APPLET_OUTBLK_ALLOC;
+		TRACE_STATE("unblocking appctx, outbuf allocated", APPLET_EV_SEND|APPLET_EV_BLK|APPLET_EV_WAKE, appctx);
 		task_wakeup(appctx->t, TASK_WOKEN_RES);
 		return 1;
 	}
