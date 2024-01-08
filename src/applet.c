@@ -232,6 +232,9 @@ struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int t
 	appctx->t->process = task_run_applet;
 	appctx->t->context = appctx;
 
+	appctx->inbuf = BUF_NULL;
+	appctx->outbuf = BUF_NULL;
+
 	LIST_INIT(&appctx->buffer_wait.list);
 	appctx->buffer_wait.target = appctx;
 	appctx->buffer_wait.wakeup_cb = appctx_buf_available;
@@ -378,6 +381,18 @@ int appctx_buf_available(void *arg)
 {
 	struct appctx *appctx = arg;
 	struct stconn *sc = appctx_sc(appctx);
+
+	if ((appctx->state & APPLET_INBLK_ALLOC) && b_alloc(&appctx->inbuf)) {
+		appctx->state &= ~APPLET_INBLK_ALLOC;
+		task_wakeup(appctx->t, TASK_WOKEN_RES);
+		return 1;
+	}
+
+	if ((appctx->state & APPLET_OUTBLK_ALLOC) && b_alloc(&appctx->outbuf)) {
+		appctx->state &= ~APPLET_OUTBLK_ALLOC;
+		task_wakeup(appctx->t, TASK_WOKEN_RES);
+		return 1;
+	}
 
 	/* allocation requested ? */
 	if (!(sc->flags & SC_FL_NEED_BUFF))

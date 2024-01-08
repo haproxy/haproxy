@@ -58,6 +58,35 @@ static inline struct appctx *appctx_new_anywhere(struct applet *applet, struct s
 	return appctx_new_on(applet, sedesc, -1);
 }
 
+
+/*
+ * Release a buffer, if any, and try to wake up entities waiting in the buffer
+ * wait queue.
+ */
+static inline void appctx_release_buf(struct appctx *appctx, struct buffer *bptr)
+{
+	if (bptr->size) {
+		b_free(bptr);
+		offer_buffers(appctx->buffer_wait.target, 1);
+	}
+}
+
+/*
+ * Allocate a buffer. If if fails, it adds the appctx in buffer wait queue.
+ */
+static inline struct buffer *appctx_get_buf(struct appctx *appctx, struct buffer *bptr)
+{
+	struct buffer *buf = NULL;
+
+	if (likely(!LIST_INLIST(&appctx->buffer_wait.list)) &&
+	    unlikely((buf = b_alloc(bptr)) == NULL)) {
+		appctx->buffer_wait.target = appctx;
+		appctx->buffer_wait.wakeup_cb = appctx_buf_available;
+		LIST_APPEND(&th_ctx->buffer_wq, &appctx->buffer_wait.list);
+	}
+	return buf;
+}
+
 /* Helper function to call .init applet callback function, if it exists. Returns 0
  * on success and -1 on error.
  */
@@ -78,6 +107,9 @@ static inline int appctx_init(struct appctx *appctx)
 /* Releases an appctx previously allocated by appctx_new(). */
 static inline void __appctx_free(struct appctx *appctx)
 {
+	appctx_release_buf(appctx, &appctx->inbuf);
+	appctx_release_buf(appctx, &appctx->outbuf);
+
 	task_destroy(appctx->t);
 	if (LIST_INLIST(&appctx->buffer_wait.list))
 		LIST_DEL_INIT(&appctx->buffer_wait.list);
