@@ -200,6 +200,8 @@ enum {
 	LF_SEPARATOR,  // a single separator
 	LF_VAR,        // variable name, after '%' or '%{..}'
 	LF_STARTVAR,   // % in text
+	LF_STONAME,    // after '%(' and before ')'
+	LF_EDONAME,    // ')' after '%('
 	LF_STARG,      // after '%{' and berore '}'
 	LF_EDARG,      // '}' after '%{'
 	LF_STEXPR,     // after '%[' or '%{..}[' and berore ']'
@@ -212,6 +214,7 @@ struct logformat_node {
 	struct list list;
 	int type;      // LOG_FMT_*
 	int options;   // LOG_OPT_*
+	char *name;    // printable name for output types that require named fields (ie: json)
 	char *arg;     // text for LOG_FMT_TEXT, arg for others
 	void *expr;    // for use with LOG_FMT_EXPR
 };
