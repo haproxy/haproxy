@@ -60,7 +60,7 @@
 #define FLT_OT_DBG_CONF_TRACER(f,a)                                                                                                     \
 	FLT_OT_DBG(3, f FLT_OT_CONF_HDR_FMT "'%s' %p '%s' %p %u %hhu %hhu 0x%02hhx %p:%s 0x%08x %s %s %s }",                            \
 	           FLT_OT_CONF_HDR_ARGS(a, id), (a)->config, (a)->cfgbuf, (a)->plugin, (a)->tracer, (a)->rate_limit, (a)->flag_harderr, \
-	           (a)->flag_disabled, (a)->logging, &((a)->proxy_log), flt_ot_list_debug(&((a)->proxy_log.logsrvs)), (a)->analyzers,   \
+	           (a)->flag_disabled, (a)->logging, &((a)->proxy_log), flt_ot_list_debug(&((a)->proxy_log.loggers)), (a)->analyzers,   \
 	           flt_ot_list_debug(&((a)->acls)), flt_ot_list_debug(&((a)->ph_groups)), flt_ot_list_debug(&((a)->ph_scopes)))
 
 #define FLT_OT_DBG_CONF(f,a)                                                  \
