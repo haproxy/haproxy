@@ -1,0 +1,4 @@
+# These entries are used for list-based match ordering tests
+first.domain.tld first
+domain.tld domain
+second.domain.tld second

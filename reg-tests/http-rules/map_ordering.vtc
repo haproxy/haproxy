@@ -1,0 +1,32 @@
+varnishtest "Test list-based matching types ordering"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+  defaults
+    mode http
+    timeout connect  "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout client   "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout server   "${HAPROXY_TEST_TIMEOUT-5s}"
+
+  frontend fe1
+    bind "fd@${fe1}"
+
+    # check list ordering using map_dom (list-based match)
+    http-request return hdr dom %[req.hdr(Host),lower,map_dom(${testdir}/map_ordering.map)] if { url_beg /dom }
+} -start
+
+# Check map ordering
+client c1 -connect ${h1_fe1_sock} {
+    # first.domain.tld is above domain.tld so it should match first
+    txreq -url "/dom" -hdr "Host: first.domain.tld"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.dom == "first"
+
+    # second.domain.tld is below domain.tld so domain.tld should match first
+    txreq -url "/dom" -hdr "Host: second.domain.tld"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.dom == "domain"
+} -run
