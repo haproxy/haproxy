@@ -821,7 +821,6 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 int qc_rcv_buf(struct quic_conn *qc)
 {
 	struct sockaddr_storage saddr = {0}, daddr = {0};
-	struct quic_transport_params *params;
 	struct quic_dgram *new_dgram = NULL;
 	struct buffer buf = BUF_NULL;
 	size_t max_sz;
@@ -835,8 +834,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 	TRACE_ENTER(QUIC_EV_CONN_RCV, qc);
 	l = qc->li;
 
-	params = &l->bind_conf->quic_params;
-	max_sz = params->max_udp_payload_size;
+	max_sz = qc_max_udp_payload_size(qc);
 
 	do {
 		if (!b_alloc(&buf, DB_MUX_RX))
