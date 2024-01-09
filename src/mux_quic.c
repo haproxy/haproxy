@@ -2054,9 +2054,6 @@ static int qcc_io_send(struct qcc *qcc)
 		}
 	}
 
-	if (qcc->flags & QC_CF_BLK_MFCTL)
-		goto out;
-
 	/* Send STREAM/STOP_SENDING/RESET_STREAM data for registered streams. */
 	list_for_each_entry_safe(qcs, qcs_tmp, &qcc->send_list, el_send) {
 		/* Check if all QCS were processed. */
@@ -2100,7 +2097,8 @@ static int qcc_io_send(struct qcc *qcc)
 			continue;
 		}
 
-		if (!(qcs->flags & QC_SF_BLK_SFCTL)) {
+		if (!(qcc->flags & QC_CF_BLK_MFCTL) &&
+		    !(qcs->flags & QC_SF_BLK_SFCTL)) {
 			if ((ret = qcs_send(qcs, &frms)) < 0) {
 				/* Temporarily remove QCS from send-list. */
 				LIST_DEL_INIT(&qcs->el_send);
