@@ -51,6 +51,13 @@ fi
 
 if [ -z "$INTERACTIVE" ]; then
         LANG=C "$MAINPROG" --log-disable --model "$MODEL" --threads "$CPU" --ctx_size 4096 --temp 0.36 --top_k 12 --top_p 1 --repeat_last_n 256 --batch_size 16384 --repeat_penalty 1.1 --n_predict 200 --multiline-input --prompt "$PROMPT" --prompt-cache "$CACHE" $CACHE_RO "$@" 2>&1 | grep -v ^llama_model_loader | grep -v ^llm_load_ > "${OUTPUT}"
+	if [ "$?" != 0 ]; then
+		# failed: this is likely because the text is too long
+		(echo "$PROMPT"; echo
+		 echo "Explanation: the commit message was way too long, couldn't analyse it."
+		 echo "Conclusion: uncertain"
+		 echo) > "${OUTPUT}"
+	fi
 else
         LANG=C "$MAINPROG" --log-disable --model "$MODEL" --threads "$CPU" --ctx_size 4096 --temp 0.36 --repeat_penalty 1.1 --n_predict 200 --multiline-input --prompt "$PROMPT" --prompt-cache "$CACHE" $CACHE_RO -n -1 -i --color --in-prefix ' ' --reverse-prompt "$INTERACTIVE:" "$@"
 fi
