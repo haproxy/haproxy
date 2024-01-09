@@ -1340,34 +1340,34 @@ smp_fetch_ssl_fc_ec(const struct arg *args, struct sample *smp, const char *kw, 
 	if (curve_name == NULL) {
 		return 0;
 	} else {
-              /**
-               * The curve name returned by SSL_get0_group_name is in lowercase whereas the curve
-               * name returned when we use `SSL_get_negotiated_group` and `OBJ_nid2sn` is the
-               * short name and is in upper case. To make the return value consistent across the
-               * different functional calls and to make it consistent while upgrading OpenSSL versions,
-               * will convert the curve name returned by SSL_get0_group_name to upper case.
-               */
-              for (int i = 0; curve_name[i]; i++)
-                  curve_name[i] = toupper(curve_name[i]);
-      }
-    #else
-      nid = SSL_get_negotiated_group(ssl);
-      if (!nid)
-             return 0;
-      curve_name = (char *)OBJ_nid2sn(nid);
-      if (curve_name == NULL)
-             return 0;
-    #endif
+		/*
+		 * The curve name returned by SSL_get0_group_name is in lowercase whereas the curve
+		 * name returned when we use `SSL_get_negotiated_group` and `OBJ_nid2sn` is the
+		 * short name and is in upper case. To make the return value consistent across the
+		 * different functional calls and to make it consistent while upgrading OpenSSL versions,
+		 * will convert the curve name returned by SSL_get0_group_name to upper case.
+		 */
+		for (int i = 0; curve_name[i]; i++)
+			curve_name[i] = toupper(curve_name[i]);
+	}
+# else
+	nid = SSL_get_negotiated_group(ssl);
+	if (!nid)
+		return 0;
+	curve_name = (char *)OBJ_nid2sn(nid);
+	if (curve_name == NULL)
+		return 0;
+# endif
 
-    smp->data.u.str.area = curve_name;
-    if (!smp->data.u.str.area)
-        return 0;
+	smp->data.u.str.area = curve_name;
+	if (!smp->data.u.str.area)
+		return 0;
 
-    smp->data.type = SMP_T_STR;
-    smp->flags |= SMP_F_VOL_SESS | SMP_F_CONST;
-    smp->data.u.str.data = strlen(smp->data.u.str.area);
+	smp->data.type = SMP_T_STR;
+	smp->flags |= SMP_F_VOL_SESS | SMP_F_CONST;
+	smp->data.u.str.data = strlen(smp->data.u.str.area);
 
-    return 1;
+	return 1;
 }
 #endif
 
