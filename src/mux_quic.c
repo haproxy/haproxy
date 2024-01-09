@@ -70,7 +70,7 @@ static void qcs_free(struct qcs *qcs)
 		qcc->app_ops->detach(qcs);
 
 	/* Release qc_stream_desc buffer from quic-conn layer. */
-	qc_stream_desc_release(qcs->stream, qcs->tx.sent_offset);
+	qc_stream_desc_release(qcs->stream, qcs->tx.fc.off_real);
 
 	/* Free Rx/Tx buffers. */
 	qcs_free_ncbuf(qcs, &qcs->rx.ncbuf);
@@ -140,7 +140,6 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 
 	qcs->tx.buf = BUF_NULL;
 	qcs->tx.offset = 0;
-	qcs->tx.sent_offset = 0;
 
 	qcs->wait_event.tasklet = NULL;
 	qcs->wait_event.events = 0;
@@ -962,12 +961,12 @@ void qcc_reset_stream(struct qcs *qcs, int err)
 	qcs->err = err;
 
 	/* Remove prepared stream data from connection flow-control calcul. */
-	if (qcs->tx.offset > qcs->tx.sent_offset) {
-		const uint64_t diff = qcs->tx.offset - qcs->tx.sent_offset;
-		BUG_ON(qcc->tx.offsets - diff < qcc->tx.sent_offsets);
+	if (qcs->tx.offset > qcs->tx.fc.off_real) {
+		const uint64_t diff = qcs->tx.offset - qcs->tx.fc.off_real;
+		BUG_ON(qcc->tx.offsets - diff < qcc->tx.fc.off_real);
 		qcc->tx.offsets -= diff;
 		/* Reset qcs offset to prevent BUG_ON() on qcs_destroy(). */
-		qcs->tx.offset = qcs->tx.sent_offset;
+		qcs->tx.offset = qcs->tx.fc.off_real;
 	}
 
 	/* Substract to conn flow control data amount prepared on stream not yet sent. */
@@ -1541,7 +1540,7 @@ static void qcs_destroy(struct qcs *qcs)
 	/* MUST not removed a stream with sending prepared data left. This is
 	 * to ensure consistency on connection flow-control calculation.
 	 */
-	BUG_ON(qcs->tx.offset < qcs->tx.sent_offset);
+	BUG_ON(qcs->tx.offset < qcs->tx.fc.off_real);
 
 	if (!(qcc->flags & QC_CF_ERRL)) {
 		if (quic_stream_is_remote(qcc, id))
@@ -1585,11 +1584,11 @@ static int qcs_xfer_data(struct qcs *qcs, struct buffer *out, struct buffer *in)
 	 *                       |xxxxxxxxxxxxxxxxx|
 	 */
 
-	BUG_ON_HOT(qcs->tx.sent_offset < qcs->stream->ack_offset);
-	BUG_ON_HOT(qcs->tx.offset < qcs->tx.sent_offset);
-	BUG_ON_HOT(qcc->tx.offsets < qcc->tx.sent_offsets);
+	BUG_ON_HOT(qcs->tx.fc.off_real < qcs->stream->ack_offset);
+	BUG_ON_HOT(qcs->tx.offset < qcs->tx.fc.off_real);
+	BUG_ON_HOT(qcc->tx.offsets < qcc->tx.fc.off_real);
 
-	left = qcs->tx.offset - qcs->tx.sent_offset;
+	left = qcs->tx.offset - qcs->tx.fc.off_real;
 	to_xfer = QUIC_MIN(b_data(in), b_room(out));
 
 	BUG_ON_HOT(qcs->tx.offset > qcs->tx.fc.limit);
@@ -1646,9 +1645,9 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 
 	/* if ack_offset < buf_offset, it points to an older buffer. */
 	base_off = MAX(qcs->stream->buf_offset, qcs->stream->ack_offset);
-	BUG_ON(qcs->tx.sent_offset < base_off);
+	BUG_ON(qcs->tx.fc.off_real < base_off);
 
-	head = qcs->tx.sent_offset - base_off;
+	head = qcs->tx.fc.off_real - base_off;
 	total = out ? b_data(out) - head : 0;
 	BUG_ON(total < 0);
 
@@ -1657,10 +1656,10 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 		TRACE_LEAVE(QMUX_EV_QCS_SEND, qcc->conn, qcs);
 		return 0;
 	}
-	BUG_ON((!total && qcs->tx.sent_offset > qcs->tx.offset) ||
-	       (total && qcs->tx.sent_offset >= qcs->tx.offset));
-	BUG_ON(qcs->tx.sent_offset + total > qcs->tx.offset);
-	BUG_ON(qcc->tx.sent_offsets + total > qcc->tx.fc.limit);
+	BUG_ON((!total && qcs->tx.fc.off_real > qcs->tx.offset) ||
+	       (total && qcs->tx.fc.off_real >= qcs->tx.offset));
+	BUG_ON(qcs->tx.fc.off_real + total > qcs->tx.offset);
+	BUG_ON(qcc->tx.fc.off_real + total > qcc->tx.fc.limit);
 
 	TRACE_PROTO("sending STREAM frame", QMUX_EV_QCS_SEND, qcc->conn, qcs);
 	frm = qc_frm_alloc(QUIC_FT_STREAM_8);
@@ -1688,9 +1687,9 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 	if (fin)
 		frm->type |= QUIC_STREAM_FRAME_TYPE_FIN_BIT;
 
-	if (qcs->tx.sent_offset) {
+	if (qcs->tx.fc.off_real) {
 		frm->type |= QUIC_STREAM_FRAME_TYPE_OFF_BIT;
-		frm->stream.offset.key = qcs->tx.sent_offset;
+		frm->stream.offset.key = qcs->tx.fc.off_real;
 	}
 
 	/* Always set length bit as we do not know if there is remaining frames
@@ -1731,7 +1730,7 @@ static int qcs_stream_fin(struct qcs *qcs)
 /* Return true if <qcs> has data to send in new STREAM frames. */
 static forceinline int qcs_need_sending(struct qcs *qcs)
 {
-	return b_data(&qcs->tx.buf) || qcs->tx.sent_offset < qcs->tx.offset ||
+	return b_data(&qcs->tx.buf) || qcs->tx.fc.off_real < qcs->tx.offset ||
 	       qcs_stream_fin(qcs);
 }
 
@@ -1746,20 +1745,20 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 
 	TRACE_ENTER(QMUX_EV_QCS_SEND, qcc->conn, qcs);
 
-	BUG_ON(offset > qcs->tx.sent_offset);
+	BUG_ON(offset > qcs->tx.fc.off_real);
 	BUG_ON(offset + data > qcs->tx.offset);
 
 	/* check if the STREAM frame has already been notified. It can happen
 	 * for retransmission.
 	 */
-	if (offset + data < qcs->tx.sent_offset) {
+	if (offset + data < qcs->tx.fc.off_real) {
 		TRACE_DEVEL("offset already notified", QMUX_EV_QCS_SEND, qcc->conn, qcs);
 		goto out;
 	}
 
 	qcs_idle_open(qcs);
 
-	diff = offset + data - qcs->tx.sent_offset;
+	diff = offset + data - qcs->tx.fc.off_real;
 	if (diff) {
 		struct quic_fctl *fc_conn = &qcc->tx.fc;
 		struct quic_fctl *fc_strm = &qcs->tx.fc;
@@ -1769,23 +1768,20 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 		BUG_ON(fc_strm->off_real + diff > fc_strm->off_soft);
 
 		/* increase offset sum on connection */
-		qcc->tx.sent_offsets += diff;
-		BUG_ON_HOT(qcc->tx.sent_offsets > fc_conn->limit);
 		if (qfctl_rinc(fc_conn, diff)) {
 			TRACE_STATE("connection flow-control reached",
 			            QMUX_EV_QCS_SEND, qcc->conn);
 		}
 
 		/* increase offset on stream */
-		qcs->tx.sent_offset += diff;
-		BUG_ON_HOT(qcs->tx.sent_offset > qcs->tx.offset);
 		if (qfctl_rinc(fc_strm, diff)) {
 			TRACE_STATE("stream flow-control reached",
 			            QMUX_EV_QCS_SEND, qcc->conn, qcs);
 		}
+		BUG_ON_HOT(qcs->tx.fc.off_real > qcs->tx.offset);
 
 		/* If qcs.stream.buf is full, release it to the lower layer. */
-		if (qcs->tx.offset == qcs->tx.sent_offset &&
+		if (qcs->tx.offset == qcs->tx.fc.off_real &&
 		    b_full(&qcs->stream->buf->buf)) {
 			qc_stream_buf_release(qcs->stream);
 		}
@@ -1796,7 +1792,7 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 		increment_send_rate(diff, 0);
 	}
 
-	if (qcs->tx.offset == qcs->tx.sent_offset && !b_data(&qcs->tx.buf)) {
+	if (qcs->tx.offset == qcs->tx.fc.off_real && !b_data(&qcs->tx.buf)) {
 		/* Remove stream from send_list if all was sent. */
 		LIST_DEL_INIT(&qcs->el_send);
 		TRACE_STATE("stream sent done", QMUX_EV_QCS_SEND, qcc->conn, qcs);
@@ -1886,7 +1882,7 @@ static int qcs_send_reset(struct qcs *qcs)
 
 	frm->reset_stream.id = qcs->id;
 	frm->reset_stream.app_error_code = qcs->err;
-	frm->reset_stream.final_size = qcs->tx.sent_offset;
+	frm->reset_stream.final_size = qcs->tx.fc.off_real;
 
 	LIST_APPEND(&frms, &frm->list);
 	if (qcc_send_frames(qcs->qcc, &frms)) {
@@ -2008,15 +2004,15 @@ static int qcs_send(struct qcs *qcs, struct list *frms)
 		qcs->tx.offset += xfer;
 		qcc->tx.offsets += xfer;
 
-		/* out buffer cannot be emptied if qcs offsets differ. */
-		BUG_ON(!b_data(out) && qcs->tx.sent_offset != qcs->tx.offset);
+		/* If out buffer is empty, QCS offsets must be equal. */
+		BUG_ON(!b_data(out) && qcs->tx.fc.off_real != qcs->tx.offset);
 	}
 
 	/* FIN is set if all incoming data were transferred. */
 	fin = qcs_stream_fin(qcs);
 
 	/* Build a new STREAM frame with <out> buffer. */
-	if (qcs->tx.sent_offset != qcs->tx.offset || fin) {
+	if (qcs->tx.fc.off_real != qcs->tx.offset || fin) {
 		/* Skip STREAM frame allocation if already subscribed for send.
 		 * Happens on sendto transient error or network congestion.
 		 */
@@ -2593,7 +2589,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	/* Server parameters, params used for RX flow control. */
 	lparams = &conn->handle.qc->rx.params;
 
-	qcc->tx.sent_offsets = qcc->tx.offsets = 0;
+	qcc->tx.offsets = 0;
 
 	qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = lparams->initial_max_streams_bidi;
 	qcc->lfctl.ms_uni = lparams->initial_max_streams_uni;

@@ -74,7 +74,6 @@ struct qcc {
 		struct quic_fctl fc; /* stream flow control applied on sending */
 
 		uint64_t offsets; /* sum of all offsets prepared */
-		uint64_t sent_offsets; /* sum of all offset sent */
 	} tx;
 
 	uint64_t largest_bidi_r; /* largest remote bidi stream ID opened. */
@@ -162,7 +161,6 @@ struct qcs {
 		struct quic_fctl fc; /* stream flow control applied on sending */
 
 		uint64_t offset; /* last offset of data ready to be sent */
-		uint64_t sent_offset; /* last offset sent by transport layer */
 		struct buffer buf; /* transmit buffer before sending via xprt */
 	} tx;
 
