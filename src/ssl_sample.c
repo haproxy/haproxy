@@ -1315,31 +1315,31 @@ smp_fetch_ssl_fc_is_resumed(const struct arg *args, struct sample *smp, const ch
 static int
 smp_fetch_ssl_fc_ec(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-    struct connection *conn;
-    SSL *ssl;
-    int __maybe_unused nid;
-    char *curve_name;
+	struct connection *conn;
+	SSL *ssl;
+	int __maybe_unused nid;
+	char *curve_name;
 
-    if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
-        conn = (kw[4] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->sc) : NULL;
-    else
-        conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
-                smp->strm ? sc_conn(smp->strm->scb) : NULL;
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+		conn = (kw[4] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->sc) : NULL;
+	else
+		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
+		       smp->strm ? sc_conn(smp->strm->scb) : NULL;
 
-    ssl = ssl_sock_get_ssl_object(conn);
-    if (!ssl)
-        return 0;
+	ssl = ssl_sock_get_ssl_object(conn);
+	if (!ssl)
+		return 0;
 
-    /*
-     * SSL_get0_group_name is a function to get the curve name and is available from
-     * OpenSSL v3.2 onwards. For OpenSSL >=3.0 and <3.2, we will continue to use
-     * SSL_get_negotiated_group to get the curve name.
-     */
-    #if (HA_OPENSSL_VERSION_NUMBER >= 0x3020000fL)
-      curve_name = (char *)SSL_get0_group_name(ssl);
-      if (curve_name == NULL)
-              return 0;
-      else {
+	/*
+	 * SSL_get0_group_name is a function to get the curve name and is available from
+	 * OpenSSL v3.2 onwards. For OpenSSL >=3.0 and <3.2, we will continue to use
+	 * SSL_get_negotiated_group to get the curve name.
+	 */
+# if (HA_OPENSSL_VERSION_NUMBER >= 0x3020000fL)
+	curve_name = (char *)SSL_get0_group_name(ssl);
+	if (curve_name == NULL) {
+		return 0;
+	} else {
               /**
                * The curve name returned by SSL_get0_group_name is in lowercase whereas the curve
                * name returned when we use `SSL_get_negotiated_group` and `OBJ_nid2sn` is the
