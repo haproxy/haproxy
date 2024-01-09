@@ -3905,11 +3905,6 @@ tune.ssl.ocsp-update.mindelay <number>
   "tune.ssl.ocsp-update.maxdelay". See option "ocsp-update" for more
   information about the auto update mechanism.
 
-  Sets the size of the cache used to store generated certificates to <number>
-  entries. This is a LRU cache. Because generating a SSL certificate
-  dynamically is expensive, they are cached. The default cache size is set to
-  1000 entries.
-
 tune.stick-counters <number>
   Sets the number of stick-counters that may be tracked at the same time by a
   connection or a request via "track-sc*" actions in "tcp-request" or
