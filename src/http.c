@@ -368,28 +368,27 @@ enum http_meth_t find_http_meth(const char *str, const int len)
  */
 int http_get_status_idx(unsigned int status)
 {
-	switch (status) {
-	case 200: return HTTP_ERR_200;
-	case 400: return HTTP_ERR_400;
-	case 401: return HTTP_ERR_401;
-	case 403: return HTTP_ERR_403;
-	case 404: return HTTP_ERR_404;
-	case 405: return HTTP_ERR_405;
-	case 407: return HTTP_ERR_407;
-	case 408: return HTTP_ERR_408;
-	case 410: return HTTP_ERR_410;
-	case 413: return HTTP_ERR_413;
-	case 421: return HTTP_ERR_421;
-	case 422: return HTTP_ERR_422;
-	case 425: return HTTP_ERR_425;
-	case 429: return HTTP_ERR_429;
-	case 500: return HTTP_ERR_500;
-	case 501: return HTTP_ERR_501;
-	case 502: return HTTP_ERR_502;
-	case 503: return HTTP_ERR_503;
-	case 504: return HTTP_ERR_504;
-	default: return HTTP_ERR_500;
-	}
+	/* This table was built using dev/phash and easily finds solutions up
+	 * to 21 different entries and produces much better code with 32
+	 * (padded with err 500 below as it's the default, though only [19] is
+	 * the real one).
+	 */
+	const uchar codes[32] = {
+		HTTP_ERR_408, HTTP_ERR_200, HTTP_ERR_504, HTTP_ERR_400,
+		HTTP_ERR_500, HTTP_ERR_500, HTTP_ERR_401, HTTP_ERR_410,
+		HTTP_ERR_500, HTTP_ERR_500, HTTP_ERR_500, HTTP_ERR_500,
+		HTTP_ERR_500, HTTP_ERR_429, HTTP_ERR_403, HTTP_ERR_500,
+		HTTP_ERR_421, HTTP_ERR_404, HTTP_ERR_413, HTTP_ERR_500,
+		HTTP_ERR_422, HTTP_ERR_405, HTTP_ERR_500, HTTP_ERR_501,
+		HTTP_ERR_500, HTTP_ERR_500, HTTP_ERR_500, HTTP_ERR_502,
+		HTTP_ERR_407, HTTP_ERR_500, HTTP_ERR_503, HTTP_ERR_425,
+	};
+	uint hash = ((status * 118) >> 5) % 32;
+	uint ret  = codes[hash];
+
+	if (http_err_codes[ret] == status)
+		return ret;
+	return HTTP_ERR_500;
 }
 
 /* This function returns a reason associated with the HTTP status.
