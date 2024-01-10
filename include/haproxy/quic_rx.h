@@ -26,7 +26,7 @@
 #include <haproxy/quic_rx-t.h>
 
 int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
-                     struct listener *li);
+                     enum obj_type *obj_type);
 int qc_treat_rx_pkts(struct quic_conn *qc);
 int qc_parse_hd_form(struct quic_rx_packet *pkt,
                      unsigned char **pos, const unsigned char *end);

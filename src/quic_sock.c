@@ -928,7 +928,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 			continue;
 		}
 
-		quic_dgram_parse(new_dgram, qc, qc->li);
+		quic_dgram_parse(new_dgram, qc, qc_owner_obj_type(qc));
 		/* A datagram must always be consumed after quic_parse_dgram(). */
 		BUG_ON(new_dgram->buf);
 	} while (ret > 0);

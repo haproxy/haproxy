@@ -164,6 +164,29 @@ static inline void quic_free_ncbuf(struct ncbuf *ncbuf)
 	*ncbuf = NCBUF_NULL;
 }
 
+/* Return the address of the connection owner object type. */
+static inline enum obj_type *qc_owner_obj_type(struct quic_conn *qc)
+{
+	return qc_is_listener(qc) ? &qc->li->obj_type :
+		&objt_server(qc->conn->target)->obj_type;
+}
+
+/* Return the address of the QUIC counters attached to the proxy of
+ * the owner of the connection whose object type address is <o> for
+ * listener and servers, or NULL for others object type.
+ */
+static inline void *qc_counters(enum obj_type *o, const struct stats_module *m)
+{
+	struct proxy *p;
+	struct listener *l = objt_listener(o);
+	struct server *s = objt_server(o);
+
+	p = l ? l->bind_conf->frontend :
+		s ? s->proxy : NULL;
+
+	return p ? EXTRA_COUNTERS_GET(p->extra_counters_fe, m) : NULL;
+}
+
 void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm);
 void quic_set_connection_close(struct quic_conn *qc, const struct quic_err err);
 void quic_set_tls_alert(struct quic_conn *qc, int alert);
