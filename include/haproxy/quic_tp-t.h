@@ -7,6 +7,7 @@
 
 #include <inttypes.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 
 #define QUIC_STATELESS_RESET_TOKEN_LEN 16
 
