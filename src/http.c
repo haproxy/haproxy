@@ -352,15 +352,15 @@ enum http_meth_t find_http_meth(const char *str, const int len)
 {
 	const struct ist m = ist2(str, len);
 
-	if      (isteq(m, ist("GET")))     return HTTP_METH_GET;
-	else if (isteq(m, ist("HEAD")))    return HTTP_METH_HEAD;
-	else if (isteq(m, ist("POST")))    return HTTP_METH_POST;
-	else if (isteq(m, ist("CONNECT"))) return HTTP_METH_CONNECT;
-	else if (isteq(m, ist("PUT")))     return HTTP_METH_PUT;
-	else if (isteq(m, ist("OPTIONS"))) return HTTP_METH_OPTIONS;
-	else if (isteq(m, ist("DELETE")))  return HTTP_METH_DELETE;
-	else if (isteq(m, ist("TRACE")))   return HTTP_METH_TRACE;
-	else                               return HTTP_METH_OTHER;
+	if      (isteq(m, http_known_methods[HTTP_METH_GET]))     return HTTP_METH_GET;
+	else if (isteq(m, http_known_methods[HTTP_METH_PUT]))     return HTTP_METH_PUT;
+	else if (isteq(m, http_known_methods[HTTP_METH_HEAD]))    return HTTP_METH_HEAD;
+	else if (isteq(m, http_known_methods[HTTP_METH_POST]))    return HTTP_METH_POST;
+	else if (isteq(m, http_known_methods[HTTP_METH_TRACE]))   return HTTP_METH_TRACE;
+	else if (isteq(m, http_known_methods[HTTP_METH_DELETE]))  return HTTP_METH_DELETE;
+	else if (isteq(m, http_known_methods[HTTP_METH_CONNECT])) return HTTP_METH_CONNECT;
+	else if (isteq(m, http_known_methods[HTTP_METH_OPTIONS])) return HTTP_METH_OPTIONS;
+	else                                                      return HTTP_METH_OTHER;
 }
 
 /* This function returns HTTP_ERR_<num> (enum) matching http status code.
