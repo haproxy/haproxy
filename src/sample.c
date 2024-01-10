@@ -61,6 +61,21 @@ const char *smp_to_type[SMP_TYPES] = {
 	[SMP_T_METH] = "meth",
 };
 
+/* Returns SMP_T_* smp matching with <type> name or SMP_TYPES if
+ * not found.
+ */
+int type_to_smp(const char *type)
+{
+	int it = 0;
+
+	while (it < SMP_TYPES) {
+		if (!strcmp(type, smp_to_type[it]))
+			break; // found
+		it += 1;
+	}
+	return it;
+}
+
 /* static sample used in sample_process() when <p> is NULL */
 static THREAD_LOCAL struct sample temp_smp;
 

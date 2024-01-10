@@ -31,6 +31,7 @@
 extern sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES];
 extern const unsigned int fetch_cap[SMP_SRC_ENTRIES];
 extern const char *smp_to_type[SMP_TYPES];
+int type_to_smp(const char *type);
 
 struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, int line, char **err, struct arg_list *al, char **endptr);
 int sample_parse_expr_cnv(char **str, int *idx, char **endptr, char **err_msg, struct arg_list *al, const char *file, int line,
