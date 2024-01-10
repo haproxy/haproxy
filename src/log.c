@@ -2787,7 +2787,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (iret == 0)
 					goto out;
 				tmplog += iret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_EXPR: // sample expression, may be request or response
@@ -2813,7 +2812,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == 0)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_CLIENTIP:  // %ci
@@ -2826,7 +2824,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_CLIENTPORT:  // %cp
@@ -2844,7 +2841,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_FRONTENDIP: // %fi
@@ -2857,7 +2853,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case  LOG_FMT_FRONTENDPORT: // %fp
@@ -2875,7 +2870,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_BACKENDIP:  // %bi
@@ -2887,7 +2881,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_BACKENDPORT:  // %bp
@@ -2899,7 +2892,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_SERVERIP: // %si
@@ -2911,7 +2903,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_SERVERPORT: // %sp
@@ -2923,7 +2914,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_DATE: // %t = accept date
@@ -2932,7 +2922,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_tr: // %tr = start of request date
@@ -2943,7 +2932,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_DATEGMT: // %T = accept date, GMT
@@ -2952,7 +2940,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_trg: // %trg = start of request date, GMT
@@ -2962,7 +2949,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_DATELOCAL: // %Tl = accept date, local
@@ -2971,7 +2957,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_trl: // %trl = start of request date, local
@@ -2981,7 +2966,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_TS: // %Ts
@@ -2989,14 +2973,12 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", (unsigned int)logs->accept_date.tv_sec);
 					if (iret < 0 || iret > dst + maxsize - tmplog)
 						goto out;
-					last_isspace = 0;
 					tmplog += iret;
 				} else {
 					ret = ltoa_o(logs->accept_date.tv_sec, tmplog, dst + maxsize - tmplog);
 					if (ret == NULL)
 						goto out;
 					tmplog = ret;
-					last_isspace = 0;
 				}
 			break;
 
@@ -3005,7 +2987,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					iret = snprintf(tmplog, dst + maxsize - tmplog, "%02X",(unsigned int)logs->accept_date.tv_usec/1000);
 					if (iret < 0 || iret > dst + maxsize - tmplog)
 						goto out;
-					last_isspace = 0;
 					tmplog += iret;
 			} else {
 				if ((dst + maxsize - tmplog) < 4)
@@ -3015,7 +2996,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 			}
 			break;
 
@@ -3025,7 +3005,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_FRONTEND_XPRT: // %ft
@@ -3042,7 +3021,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					LOGCHAR('~');
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
-				last_isspace = 0;
 				break;
 #ifdef USE_OPENSSL
 			case LOG_FMT_SSL_CIPHER: // %sslc
@@ -3055,7 +3033,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_SSL_VERSION: // %sslv
@@ -3068,7 +3045,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 #endif
 			case LOG_FMT_BACKEND: // %b
@@ -3077,7 +3053,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_SERVER: // %s
@@ -3101,7 +3076,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_Th: // %Th = handshake time
@@ -3109,7 +3083,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_Ti: // %Ti = HTTP idle time
@@ -3117,7 +3090,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_TR: // %TR = HTTP request time
@@ -3126,7 +3098,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_TQ: // %Tq = Th + Ti + TR
@@ -3134,7 +3105,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_TW: // %Tw
@@ -3143,7 +3113,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_TC: // %Tc
@@ -3152,7 +3121,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_Tr: // %Tr
@@ -3161,7 +3129,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_TD: // %Td
@@ -3174,7 +3141,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_Ta:  // %Ta = active time = Tt - Th - Ti
@@ -3185,7 +3151,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_TT:  // %Tt = total time
@@ -3195,7 +3160,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_TU:  // %Tu = total time seen by user = Tt - Ti
@@ -3206,7 +3170,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_STATUS: // %ST
@@ -3214,7 +3177,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_BYTES: // %B
@@ -3224,7 +3186,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_BYTES_UP: // %U
@@ -3232,7 +3193,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_CCLIENT: // %CC
@@ -3241,7 +3201,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_CSERVER: // %CS
@@ -3250,14 +3209,12 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_TERMSTATE: // %ts
 				LOGCHAR(sess_term_cond[(s_flags & SF_ERR_MASK) >> SF_ERR_SHIFT]);
 				LOGCHAR(sess_fin_state[(s_flags & SF_FINST_MASK) >> SF_FINST_SHIFT]);
 				*tmplog = '\0';
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_TERMSTATE_CK: // %tsc, same as TS with cookie state (for mode HTTP)
@@ -3265,7 +3222,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				LOGCHAR(sess_fin_state[(s_flags & SF_FINST_MASK) >> SF_FINST_SHIFT]);
 				LOGCHAR((txn && (be->ck_opts & PR_CK_ANY)) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-');
 				LOGCHAR((txn && (be->ck_opts & PR_CK_ANY)) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-');
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_ACTCONN: // %ac
@@ -3273,7 +3229,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_FECONN:  // %fc
@@ -3281,7 +3236,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_BECONN:  // %bc
@@ -3289,7 +3243,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_SRVCONN:  // %sc
@@ -3311,7 +3264,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_RETRIES:  // %rc
@@ -3321,7 +3273,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_SRVQUEUE: // %sq
@@ -3329,7 +3280,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_BCKQUEUE:  // %bq
@@ -3337,7 +3287,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_HDRREQUEST: // %hr
@@ -3360,7 +3309,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					LOGCHAR('}');
 					if (tmp->options & LOG_OPT_QUOTE)
 						LOGCHAR('"');
-					last_isspace = 0;
 				}
 				break;
 
@@ -3382,7 +3330,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 							LOGCHAR('-');
 						if (tmp->options & LOG_OPT_QUOTE)
 							LOGCHAR('"');
-						last_isspace = 0;
 					}
 				}
 				break;
@@ -3406,7 +3353,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 						}
 					}
 					LOGCHAR('}');
-					last_isspace = 0;
 					if (tmp->options & LOG_OPT_QUOTE)
 						LOGCHAR('"');
 				}
@@ -3430,7 +3376,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 							LOGCHAR('-');
 						if (tmp->options & LOG_OPT_QUOTE)
 							LOGCHAR('"');
-						last_isspace = 0;
 					}
 				}
 				break;
@@ -3447,7 +3392,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				tmplog = ret;
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_HTTP_PATH: // %HP
@@ -3487,7 +3431,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_HTTP_PATH_ONLY: // %HPO
@@ -3533,7 +3476,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_HTTP_QUERY: // %HQ
@@ -3567,7 +3509,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_HTTP_URI: // %HU
@@ -3607,7 +3548,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_HTTP_METHOD: // %HM
@@ -3637,7 +3577,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_HTTP_VERSION: // %HV
@@ -3682,7 +3621,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_COUNTER: // %rt
@@ -3690,14 +3628,12 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", uniq_id);
 					if (iret < 0 || iret > dst + maxsize - tmplog)
 						goto out;
-					last_isspace = 0;
 					tmplog += iret;
 				} else {
 					ret = ltoa_o(uniq_id, tmplog, dst + maxsize - tmplog);
 					if (ret == NULL)
 						goto out;
 					tmplog = ret;
-					last_isspace = 0;
 				}
 				break;
 
@@ -3706,14 +3642,12 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", fe->log_count);
 					if (iret < 0 || iret > dst + maxsize - tmplog)
 						goto out;
-					last_isspace = 0;
 					tmplog += iret;
 				} else {
 					ret = ultoa_o(fe->log_count, tmplog, dst + maxsize - tmplog);
 					if (ret == NULL)
 						goto out;
 					tmplog = ret;
-					last_isspace = 0;
 				}
 				break;
 
@@ -3723,7 +3657,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 			case LOG_FMT_PID: // %pid
@@ -3731,14 +3664,12 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", pid);
 					if (iret < 0 || iret > dst + maxsize - tmplog)
 						goto out;
-					last_isspace = 0;
 					tmplog += iret;
 				} else {
 					ret = ltoa_o(pid, tmplog, dst + maxsize - tmplog);
 					if (ret == NULL)
 						goto out;
 					tmplog = ret;
-					last_isspace = 0;
 				}
 				break;
 
@@ -3751,10 +3682,11 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
-				last_isspace = 0;
 				break;
 
 		}
+		if (tmp->type != LOG_FMT_SEPARATOR)
+			last_isspace = 0; // not a separator, hence not a space
 	}
 
 out:
