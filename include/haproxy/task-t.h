@@ -164,6 +164,24 @@ struct tasklet {
 	 */
 };
 
+/* Note: subscribing to these events is only valid after the caller has really
+ * attempted to perform the operation, and failed to proceed or complete.
+ */
+enum sub_event_type {
+	SUB_RETRY_RECV       = 0x00000001,  /* Schedule the tasklet when we can attempt to recv again */
+	SUB_RETRY_SEND       = 0x00000002,  /* Schedule the tasklet when we can attempt to send again */
+};
+
+/* Describes a set of subscriptions. Multiple events may be registered at the
+ * same time. The callee should assume everything not pending for completion is
+ * implicitly possible. It's illegal to change the tasklet if events are still
+ * registered.
+ */
+struct wait_event {
+	struct tasklet *tasklet;
+	int events;             /* set of enum sub_event_type above */
+};
+
 /*
  * The task callback (->process) is responsible for updating ->expire. It must
  * return a pointer to the task itself, except if the task has been deleted, in

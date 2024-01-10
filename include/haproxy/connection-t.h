@@ -37,6 +37,7 @@
 #include <haproxy/port_range-t.h>
 #include <haproxy/protocol-t.h>
 #include <haproxy/show_flags-t.h>
+#include <haproxy/task-t.h>
 #include <haproxy/thread-t.h>
 
 /* referenced below */
@@ -53,14 +54,6 @@ struct quic_conn;
 struct bind_conf;
 struct qcs;
 struct ssl_sock_ctx;
-
-/* Note: subscribing to these events is only valid after the caller has really
- * attempted to perform the operation, and failed to proceed or complete.
- */
-enum sub_event_type {
-	SUB_RETRY_RECV       = 0x00000001,  /* Schedule the tasklet when we can attempt to recv again */
-	SUB_RETRY_SEND       = 0x00000002,  /* Schedule the tasklet when we can attempt to send again */
-};
 
 /* For each direction, we have a CO_FL_XPRT_<DIR>_ENA flag, which
  * indicates if read or write is desired in that direction for the respective
@@ -369,16 +362,6 @@ struct socks4_request {
 	uint16_t port;		/* port number, 2 bytes (in network byte order) */
 	uint32_t ip;		/* IP address, 4 bytes (in network byte order) */
 	char user_id[8];	/* the user ID string, variable length, terminated with a null (0x00); Using "HAProxy\0" */
-};
-
-/* Describes a set of subscriptions. Multiple events may be registered at the
- * same time. The callee should assume everything not pending for completion is
- * implicitly possible. It's illegal to change the tasklet if events are still
- * registered.
- */
-struct wait_event {
-	struct tasklet *tasklet;
-	int events;             /* set of enum sub_event_type above */
 };
 
 /* A connection handle is how we differentiate two connections on the lower
