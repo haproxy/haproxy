@@ -25,7 +25,7 @@ void qcs_notify_send(struct qcs *qcs);
 struct buffer *qcc_get_stream_rxbuf(struct qcs *qcs);
 struct buffer *qcc_get_stream_txbuf(struct qcs *qcs);
 void qcc_reset_stream(struct qcs *qcs, int err);
-void qcc_send_stream(struct qcs *qcs, int urg);
+void qcc_send_stream(struct qcs *qcs, int urg, int count);
 void qcc_abort_stream_read(struct qcs *qcs);
 int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
              char fin, char *data);

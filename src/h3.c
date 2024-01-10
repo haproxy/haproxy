@@ -1476,7 +1476,7 @@ static int h3_control_send(struct qcs *qcs, void *ctx)
 	ret = b_force_xfer(res, &pos, b_data(&pos));
 	if (ret > 0) {
 		/* Register qcs for sending before other streams. */
-		qcc_send_stream(qcs, 1);
+		qcc_send_stream(qcs, 1, ret);
 		h3c->flags |= H3_CF_SETTINGS_SENT;
 	}
 
@@ -2213,6 +2213,7 @@ static int h3_send_goaway(struct h3c *h3c)
 	struct buffer pos, *res;
 	unsigned char data[3 * QUIC_VARINT_MAX_SIZE];
 	size_t frm_len = quic_int_getsize(h3c->id_goaway);
+	size_t xfer;
 
 	TRACE_ENTER(H3_EV_H3C_END, h3c->qcc->conn);
 
@@ -2234,8 +2235,8 @@ static int h3_send_goaway(struct h3c *h3c)
 		goto err;
 	}
 
-	b_force_xfer(res, &pos, b_data(&pos));
-	qcc_send_stream(qcs, 1);
+	xfer = b_force_xfer(res, &pos, b_data(&pos));
+	qcc_send_stream(qcs, 1, xfer);
 
 	h3c->flags |= H3_CF_GOAWAY_SENT;
 	TRACE_LEAVE(H3_EV_H3C_END, h3c->qcc->conn);

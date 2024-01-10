@@ -963,15 +963,16 @@ void qcc_reset_stream(struct qcs *qcs, int err)
 		qcs_alert(qcs);
 	}
 
-	qcc_send_stream(qcs, 1);
+	qcc_send_stream(qcs, 1, 0);
 	tasklet_wakeup(qcc->wait_event.tasklet);
 }
 
 /* Register <qcs> stream for emission of STREAM, STOP_SENDING or RESET_STREAM.
  * Set <urg> to 1 if stream content should be treated in priority compared to
- * other streams.
+ * other streams. For STREAM emission, <count> must contains the size of the
+ * frame payload.
  */
-void qcc_send_stream(struct qcs *qcs, int urg)
+void qcc_send_stream(struct qcs *qcs, int urg, int count)
 {
 	struct qcc *qcc = qcs->qcc;
 
@@ -1005,7 +1006,7 @@ void qcc_abort_stream_read(struct qcs *qcs)
 	TRACE_STATE("abort stream read", QMUX_EV_QCS_END, qcc->conn, qcs);
 	qcs->flags |= (QC_SF_TO_STOP_SENDING|QC_SF_READ_ABORTED);
 
-	qcc_send_stream(qcs, 1);
+	qcc_send_stream(qcs, 1, 0);
 	tasklet_wakeup(qcc->wait_event.tasklet);
 
  end:
@@ -2804,6 +2805,7 @@ static size_t qmux_strm_snd_buf(struct stconn *sc, struct buffer *buf,
                                 size_t count, int flags)
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
+	const size_t old_data = b_data(&qcs->tx.buf);
 	size_t ret = 0;
 	char fin;
 
@@ -2829,7 +2831,7 @@ static size_t qmux_strm_snd_buf(struct stconn *sc, struct buffer *buf,
 	}
 
 	if (ret || fin) {
-		qcc_send_stream(qcs, 0);
+		qcc_send_stream(qcs, 0, b_data(&qcs->tx.buf) - old_data);
 		if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
 			tasklet_wakeup(qcs->qcc->wait_event.tasklet);
 	}
@@ -2910,7 +2912,7 @@ static size_t qmux_strm_done_ff(struct stconn *sc)
 	struct qcs *qcs = __sc_mux_strm(sc);
 	struct qcc *qcc = qcs->qcc;
 	struct sedesc *sd = qcs->sd;
-	size_t total = 0;
+	size_t total = 0, data = sd->iobuf.data;
 
 	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
@@ -2922,9 +2924,10 @@ static size_t qmux_strm_done_ff(struct stconn *sc)
 	if (!(qcs->flags & QC_SF_FIN_STREAM) && !sd->iobuf.data)
 		goto end;
 
+	data += sd->iobuf.offset;
 	total = qcs->qcc->app_ops->done_ff(qcs);
 
-	qcc_send_stream(qcs, 0);
+	qcc_send_stream(qcs, 0, data);
 	if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
 		tasklet_wakeup(qcc->wait_event.tasklet);
 
@@ -3012,7 +3015,7 @@ static void qmux_strm_shutw(struct stconn *sc, enum co_shw_mode mode)
 				TRACE_STATE("set FIN STREAM",
 				            QMUX_EV_STRM_SHUT, qcc->conn, qcs);
 				qcs->flags |= QC_SF_FIN_STREAM;
-				qcc_send_stream(qcs, 0);
+				qcc_send_stream(qcs, 0, 0);
 			}
 		}
 		else {
