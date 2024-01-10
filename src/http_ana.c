@@ -1444,22 +1444,22 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	if (sl->flags & HTX_SL_F_CONN_UPG)
 		msg->flags |= HTTP_MSGF_CONN_UPG;
 
-	n = txn->status / 100;
-	if (n < 1 || n > 5)
-		n = 0;
-
 	/* when the client triggers a 4xx from the server, it's most often due
 	 * to a missing object or permission. These events should be tracked
 	 * because if they happen often, it may indicate a brute force or a
 	 * vulnerability scan.
 	 */
-	if (n == 4)
+	if (http_status_matches(http_err_status_codes, txn->status))
 		stream_inc_http_err_ctr(s);
 
-	if (n == 5 && txn->status != 501 && txn->status != 505)
+	if (http_status_matches(http_fail_status_codes, txn->status))
 		stream_inc_http_fail_ctr(s);
 
 	if (objt_server(s->target)) {
+		n = txn->status / 100;
+		if (n < 1 || n > 5)
+			n = 0;
+
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.p.http.rsp[n]);
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.p.http.cum_req);
 	}

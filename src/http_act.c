@@ -2044,13 +2044,14 @@ static enum act_return http_action_track_sc(struct act_rule *rule, struct proxy 
 	 * but here we're tracking after this ought to have been done so we have
 	 * to do it on purpose.
 	 */
-	if (rule->from == ACT_F_HTTP_RES && (unsigned)(s->txn->status - 400) < 100) {
+	if (rule->from == ACT_F_HTTP_RES &&
+	    http_status_matches(http_err_status_codes, s->txn->status)) {
 		ptr3 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_ERR_CNT);
 		ptr4 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_ERR_RATE);
 	}
 
-	if (rule->from == ACT_F_HTTP_RES && (unsigned)(s->txn->status - 500) < 100 &&
-	    s->txn->status != 501 && s->txn->status != 505) {
+	if (rule->from == ACT_F_HTTP_RES &&
+	    http_status_matches(http_fail_status_codes, s->txn->status)) {
 		ptr5 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_FAIL_CNT);
 		ptr6 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_FAIL_RATE);
 	}
