@@ -312,9 +312,9 @@ int sc_attach_mux(struct stconn *sc, void *sd, void *ctx)
  * removed. This function is called by a stream when a backend applet is
  * registered.
  */
-static void sc_attach_applet(struct stconn *sc, void *sd)
+static void sc_attach_applet(struct stconn *sc, struct appctx *appctx)
 {
-	sc->sedesc->se = sd;
+	sc->sedesc->se = appctx;
 	sc_ep_set(sc, SE_FL_T_APPLET);
 	sc_ep_clr(sc, SE_FL_DETACHED);
 	if (sc_strm(sc)) {
