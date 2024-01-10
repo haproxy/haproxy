@@ -312,7 +312,7 @@ int sc_attach_mux(struct stconn *sc, void *sd, void *ctx)
  * removed. This function is called by a stream when a backend applet is
  * registered.
  */
-static void sc_attach_applet(struct stconn *sc, struct appctx *appctx)
+static int sc_attach_applet(struct stconn *sc, struct appctx *appctx)
 {
 	sc->sedesc->se = appctx;
 	sc_ep_set(sc, SE_FL_T_APPLET);
@@ -321,6 +321,8 @@ static void sc_attach_applet(struct stconn *sc, struct appctx *appctx)
 		sc->app_ops = &sc_app_applet_ops;
 		xref_create(&sc->sedesc->xref, &sc_opposite(sc)->sedesc->xref);
 	}
+
+	return 0;
 }
 
 /* Attaches a stconn to a app layer and sets the relevant
@@ -506,7 +508,10 @@ struct appctx *sc_applet_create(struct stconn *sc, struct applet *app)
 	appctx = appctx_new_here(app, sc->sedesc);
 	if (!appctx)
 		return NULL;
-	sc_attach_applet(sc, appctx);
+	if (sc_attach_applet(sc, appctx) == -1) {
+		appctx_free_on_early_error(appctx);
+		return NULL;
+	}
 	appctx->t->nice = __sc_strm(sc)->task->nice;
 	applet_need_more_data(appctx);
 	appctx_wakeup(appctx);
