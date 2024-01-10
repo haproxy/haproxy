@@ -2346,6 +2346,9 @@ static __maybe_unused struct sni_ctx *ssl_sock_chose_sni_ctx(struct bind_conf *s
 			break;
 		}
 	}
+	/* if the servername is empty look for the default in the wildcard list */
+	if (!*servername)
+		wildp = servername;
 
 	/* Look for an ECDSA, RSA and DSA certificate, first in the single
 	 * name and if not found in the wildcard  */
@@ -2444,7 +2447,8 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	int has_rsa_sig = 0, has_ecdsa_sig = 0;
 	struct sni_ctx *sni_ctx;
 	const char *servername;
-	size_t servername_len;
+	size_t servername_len = 0;
+	int default_lookup = 0; /* did we lookup for a default yet? */
 	int allow_early = 0;
 	int i;
 
@@ -2532,14 +2536,16 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 			goto allow_early;
 		}
 #endif
-		/* without SNI extension, is the default_ctx (need SSL_TLSEXT_ERR_NOACK) */
-		if (!s->strict_sni) {
-			HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
-			ssl_sock_switchctx_set(ssl, s->default_ctx);
-			HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
-			goto allow_early;
-		}
-		goto abort;
+
+		/* no servername field is not compatible with strict-sni */
+		if (s->strict_sni)
+			goto abort;
+
+		/* without servername extension, look for the defaults which is
+		 * defined by an empty servername string */
+		servername = "";
+		servername_len = 0;
+		default_lookup = 1;
 	}
 
 	/* extract/check clientHello information */
@@ -2615,14 +2621,14 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		}
 	}
 
+sni_lookup:
 	/* we need to transform this a NULL-ended string in lowecase */
 	for (i = 0; i < trash.size && i < servername_len; i++)
 		trash.area[i] = tolower(servername[i]);
 	trash.area[i] = 0;
-	servername = trash.area;
 
 	HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
-	sni_ctx = ssl_sock_chose_sni_ctx(s, servername, has_rsa_sig, has_ecdsa_sig);
+	sni_ctx = ssl_sock_chose_sni_ctx(s, trash.area, has_rsa_sig, has_ecdsa_sig);
 	if (sni_ctx) {
 		/* switch ctx */
 		struct ssl_bind_conf *conf = sni_ctx->conf;
@@ -2639,17 +2645,20 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 
 	HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
-	if (s->options & BC_O_GENERATE_CERTS && ssl_sock_generate_certificate(servername, s, ssl)) {
+	if (s->options & BC_O_GENERATE_CERTS && ssl_sock_generate_certificate(trash.area, s, ssl)) {
 		/* switch ctx done in ssl_sock_generate_certificate */
 		goto allow_early;
 	}
 #endif
-	if (!s->strict_sni) {
-		/* no certificate match, is the default_ctx */
-		HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
-		ssl_sock_switchctx_set(ssl, s->default_ctx);
-		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
-		goto allow_early;
+
+	if (!s->strict_sni && !default_lookup) {
+		/* we didn't find a SNI, and we didn't look for a default
+		 * look again to find a matching default cert */
+		servername = "";
+		servername_len = 0;
+		default_lookup = 1;
+
+		goto sni_lookup;
 	}
 
 	/* We are about to raise an handshake error so the servername extension
@@ -2703,6 +2712,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 	const char *wildp = NULL;
 	struct ebmb_node *node, *n;
 	struct bind_conf *s = priv;
+	int default_lookup = 0; /* did we lookup for a default yet? */
 #ifdef USE_QUIC
 	const uint8_t *extension_data;
 	size_t extension_len;
@@ -2742,11 +2752,14 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 #endif
 		if (s->strict_sni)
 			return SSL_TLSEXT_ERR_ALERT_FATAL;
-		HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
-		ssl_sock_switchctx_set(ssl, s->default_ctx);
-		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
-		return SSL_TLSEXT_ERR_NOACK;
+
+		/* without servername extension, look for the defaults which is
+		 * defined by an empty servername string */
+		servername = "";
+		default_lookup = 1;
 	}
+
+sni_lookup:
 
 	for (i = 0; i < trash.size; i++) {
 		if (!servername[i])
@@ -2756,6 +2769,8 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 			wildp = &trash.area[i];
 	}
 	trash.area[i] = 0;
+	if(!*trash.area) /* handle the default which in wildcard tree */
+		wildp = trash.area;
 
 	HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
 	node = NULL;
@@ -2785,13 +2800,17 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 			return SSL_TLSEXT_ERR_OK;
 		}
 #endif
-		if (s->strict_sni) {
-			HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
-			return SSL_TLSEXT_ERR_ALERT_FATAL;
-		}
-		ssl_sock_switchctx_set(ssl, s->default_ctx);
 		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
-		return SSL_TLSEXT_ERR_OK;
+
+		if (!s->strict_sni && !default_lookup) {
+			/* we didn't find a SNI, and we didn't look for a default
+			 * look again to find a matching default cert */
+			servername = "";
+			default_lookup = 1;
+
+			goto sni_lookup;
+		}
+		return SSL_TLSEXT_ERR_ALERT_FATAL;
 	}
 
 	/* switch ctx */
@@ -2814,6 +2833,7 @@ static int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
 	struct bind_conf *s = arg;
 	int has_rsa_sig = 0, has_ecdsa_sig = 0;
 	const char *servername;
+	int default_lookup = 0;
 	struct sni_ctx *sni_ctx;
 	int i;
 
@@ -2825,14 +2845,13 @@ static int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
 
 	servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 	if (!servername) {
-		/* without SNI extension, is the default_ctx (need SSL_TLSEXT_ERR_NOACK) */
-		if (!s->strict_sni) {
-			HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
-			ssl_sock_switchctx_set(ssl, s->default_ctx);
-			HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
-			goto allow_early;
-		}
-		goto abort;
+		if (s->strict_sni)
+			goto abort;
+
+		/* without servername extension, look for the defaults which is
+		 * defined by an empty servername string */
+		servername = "";
+		default_lookup = 1;
 	}
 
 	/* extract sigalgs and ciphers */
@@ -2876,6 +2895,8 @@ static int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
 		}
 	}
 
+sni_lookup:
+
 	/* we need to transform this into a NULL-ended string in lowecase */
 	for (i = 0; i < trash.size && servername[i] != '\0'; i++)
 		trash.area[i] = tolower(servername[i]);
@@ -2897,12 +2918,13 @@ static int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
 	}
 
 	HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
-	if (!s->strict_sni) {
-		/* no certificate match, is the default_ctx */
-		HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
-		ssl_sock_switchctx_set(ssl, s->default_ctx);
-		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
-		goto allow_early;
+	if (!s->strict_sni && !default_lookup) {
+		/* we didn't find a SNI, and we didn't look for a default
+		 * look again to find a matching default cert */
+		servername = "";
+		default_lookup = 1;
+
+		goto sni_lookup;
 	}
 
 	/* We are about to raise an handshake error so the servername extension
@@ -3316,7 +3338,7 @@ static int ckch_inst_add_cert_sni(SSL_CTX *ctx, struct ckch_inst *ckch_inst,
                                  struct pkey_info kinfo, char *name, int order)
 {
 	struct sni_ctx *sc;
-	int wild = 0, neg = 0;
+	int wild = 0, neg = 0, default_crt = 0;
 
 	if (*name == '!') {
 		neg = 1;
@@ -3325,11 +3347,14 @@ static int ckch_inst_add_cert_sni(SSL_CTX *ctx, struct ckch_inst *ckch_inst,
 	if (*name == '*') {
 		wild = 1;
 		name++;
+		/* if this was only a '*' filter, this is a default cert */
+		if (!*name)
+			default_crt = 1;
 	}
 	/* !* filter is a nop */
 	if (neg && wild)
 		return order;
-	if (*name) {
+	if (*name || default_crt) {
 		int j, len;
 		len = strlen(name);
 		for (j = 0; j < len && j < trash.size; j++)
@@ -3400,14 +3425,6 @@ void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf *bind_
 			ebst_insert(&bind_conf->sni_w_ctx, &sc0->name);
 		else
 			ebst_insert(&bind_conf->sni_ctx, &sc0->name);
-	}
-
-	/* replace the default_ctx if required with the instance's ctx. */
-	if (ckch_inst->is_default) {
-		SSL_CTX_free(bind_conf->default_ctx);
-		SSL_CTX_up_ref(ckch_inst->ctx);
-		bind_conf->default_ctx = ckch_inst->ctx;
-		bind_conf->default_inst = ckch_inst;
 	}
 }
 
