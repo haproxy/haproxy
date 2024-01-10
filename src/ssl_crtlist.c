@@ -1173,7 +1173,7 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 
 			/* we don't support multi-cert bundles, only simple ones */
 			ctx->err = NULL;
-			errcode |= ckch_inst_new_load_store(store->path, store, bind_conf, entry->ssl_conf, entry->filters, entry->fcount, &new_inst, &ctx->err);
+			errcode |= ckch_inst_new_load_store(store->path, store, bind_conf, entry->ssl_conf, entry->filters, entry->fcount, 0, &new_inst, &ctx->err);
 			if (errcode & ERR_CODE) {
 				ctx->state = ADDCRT_ST_ERROR;
 				goto error;

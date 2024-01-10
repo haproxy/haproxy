@@ -2005,7 +2005,7 @@ int ckch_inst_rebuild(struct ckch_store *ckch_store, struct ckch_inst *ckchi,
 	if (ckchi->is_server_instance)
 		errcode |= ckch_inst_new_load_srv_store(ckch_store->path, ckch_store, new_inst, err);
 	else
-		errcode |= ckch_inst_new_load_store(ckch_store->path, ckch_store, ckchi->bind_conf, ckchi->ssl_conf, sni_filter, fcount, new_inst, err);
+		errcode |= ckch_inst_new_load_store(ckch_store->path, ckch_store, ckchi->bind_conf, ckchi->ssl_conf, sni_filter, fcount, ckchi->is_default, new_inst, err);
 
 	if (errcode & ERR_CODE)
 		return 1;

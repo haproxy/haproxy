@@ -3742,7 +3742,7 @@ end:
  *     ERR_WARN if a warning is available into err
  */
 int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct bind_conf *bind_conf,
-                                    struct ssl_bind_conf *ssl_conf, char **sni_filter, int fcount, struct ckch_inst **ckchi, char **err)
+                                    struct ssl_bind_conf *ssl_conf, char **sni_filter, int fcount, int is_default, struct ckch_inst **ckchi, char **err)
 {
 	SSL_CTX *ctx;
 	int i;
@@ -3863,12 +3863,16 @@ int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct 
 		goto error;
 	}
 #endif
-	if (!bind_conf->default_ctx) {
-		bind_conf->default_ctx = ctx;
-		bind_conf->default_ssl_conf = ssl_conf;
+	if (is_default) {
 		ckch_inst->is_default = 1;
-		SSL_CTX_up_ref(ctx);
-		bind_conf->default_inst = ckch_inst;
+
+		/* insert an empty SNI which will be used to lookup default certificate */
+		order = ckch_inst_add_cert_sni(ctx, ckch_inst, bind_conf, ssl_conf, kinfo, "*", order);
+		if (order < 0) {
+			memprintf(err, "%sunable to create a sni context.\n", err && *err ? *err : "");
+			errcode |= ERR_ALERT | ERR_FATAL;
+			goto error;
+		}
 	}
 
 	/* Always keep a reference to the newly constructed SSL_CTX in the
@@ -3890,9 +3894,6 @@ int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct 
 error:
 	/* free the allocated sni_ctxs */
 	if (ckch_inst) {
-		if (ckch_inst->is_default)
-			SSL_CTX_free(ctx);
-
 		ckch_inst_free(ckch_inst);
 		ckch_inst = NULL;
 	}
@@ -3965,12 +3966,14 @@ error:
 /* Returns a set of ERR_* flags possibly with an error in <err>. */
 static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
                                struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
-                               char **sni_filter, int fcount, struct ckch_inst **ckch_inst, char **err)
+                               char **sni_filter, int fcount,
+                               int is_default,
+                               struct ckch_inst **ckch_inst, char **err)
 {
 	int errcode = 0;
 
 	/* we found the ckchs in the tree, we can use it directly */
-	errcode |= ckch_inst_new_load_store(path, ckchs, bind_conf, ssl_conf, sni_filter, fcount, ckch_inst, err);
+	errcode |= ckch_inst_new_load_store(path, ckchs, bind_conf, ssl_conf, sni_filter, fcount, is_default, ckch_inst, err);
 
 	if (errcode & ERR_CODE)
 		return errcode;
@@ -4079,9 +4082,17 @@ int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_con
 	list_for_each_entry(entry, &crtlist->ord_entries, by_crtlist) {
 		struct ckch_store *store;
 		struct ckch_inst *ckch_inst = NULL;
+		int is_default = 0;
 
 		store = entry->node.key;
-		cfgerr |= ssl_sock_load_ckchs(store->path, store, bind_conf, entry->ssl_conf, entry->filters, entry->fcount, &ckch_inst, err);
+
+		/* if the SNI trees were empty the first "crt" become a default certificate,
+		 * it can be applied on multiple certificates if it's a bundle */
+		if (eb_is_empty(&bind_conf->sni_ctx) && eb_is_empty(&bind_conf->sni_w_ctx))
+			is_default = 1;
+
+
+		cfgerr |= ssl_sock_load_ckchs(store->path, store, bind_conf, entry->ssl_conf, entry->filters, entry->fcount, is_default, &ckch_inst, err);
 		if (cfgerr & ERR_CODE) {
 			memprintf(err, "error processing line %d in file '%s' : %s", entry->linenum, file, *err);
 			goto error;
@@ -4130,10 +4141,16 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 	struct ckch_store *ckchs;
 	struct ckch_inst *ckch_inst = NULL;
 	int found = 0; /* did we found a file to load ? */
+	int is_default = 0;
+
+	/* if the SNI trees were empty the first "crt" become a default certificate,
+	 * it can be applied on multiple certificates if it's a bundle */
+	if (eb_is_empty(&bind_conf->sni_ctx) && eb_is_empty(&bind_conf->sni_w_ctx))
+		is_default = 1;
 
 	if ((ckchs = ckchs_lookup(path))) {
 		/* we found the ckchs in the tree, we can use it directly */
-		 cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
+		 cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, is_default, &ckch_inst, err);
 		 found++;
 	} else if (stat(path, &buf) == 0) {
 		found++;
@@ -4141,7 +4158,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 			ckchs =  ckchs_load_cert_file(path, err);
 			if (!ckchs)
 				cfgerr |= ERR_ALERT | ERR_FATAL;
-			cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
+			cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, is_default, &ckch_inst, err);
 		} else {
 			cfgerr |= ssl_sock_load_cert_list_file(path, 1, bind_conf, bind_conf->frontend, err);
 		}
@@ -4161,7 +4178,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 					continue;
 
 				if ((ckchs = ckchs_lookup(fp))) {
-					cfgerr |= ssl_sock_load_ckchs(fp, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
+					cfgerr |= ssl_sock_load_ckchs(fp, ckchs, bind_conf, NULL, NULL, 0, is_default, &ckch_inst, err);
 					found++;
 				} else {
 					if (stat(fp, &buf) == 0) {
@@ -4169,7 +4186,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 						ckchs =  ckchs_load_cert_file(fp, err);
 						if (!ckchs)
 							cfgerr |= ERR_ALERT | ERR_FATAL;
-						cfgerr |= ssl_sock_load_ckchs(fp, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
+						cfgerr |= ssl_sock_load_ckchs(fp, ckchs, bind_conf, NULL, NULL, 0, is_default, &ckch_inst, err);
 					}
 				}
 			}
@@ -5584,14 +5601,17 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 	int alloc_ctx;
 	int err;
 
+	/* check if some certificates were loaded but no ssl keyword is used */
 	if (!(bind_conf->options & BC_O_USE_SSL)) {
-		if (bind_conf->default_ctx) {
+		if (!eb_is_empty(&bind_conf->sni_ctx) || !eb_is_empty(&bind_conf->sni_w_ctx)) {
 			ha_warning("Proxy '%s': A certificate was specified but SSL was not enabled on bind '%s' at [%s:%d] (use 'ssl').\n",
 				   px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 		}
 		return 0;
 	}
-	if (!bind_conf->default_ctx) {
+
+	/* check if we have certificates */
+	if (eb_is_empty(&bind_conf->sni_ctx) && eb_is_empty(&bind_conf->sni_w_ctx)) {
 		if (bind_conf->strict_sni && !(bind_conf->options & BC_O_GENERATE_CERTS)) {
 			ha_warning("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d], ssl connections will fail (use 'crt').\n",
 				   px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
