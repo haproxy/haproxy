@@ -2518,6 +2518,23 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 			}                                              \
 		} while(0)
 
+/* start quoting the upcoming text if quoting is enabled. The final quote
+ * will automatically be added (because quote is set to 1).
+ */
+#define LOGQUOTE_START() do {                                          \
+			if (tmp->options & LOG_OPT_QUOTE) {            \
+				LOGCHAR('"');                          \
+				quote = 1;                             \
+			}                                              \
+		} while (0)
+
+/* properly finish a quotation that was started using LOGQUOTE_START */
+#define LOGQUOTE_END() do {                                            \
+			if (quote) {                                   \
+				LOGCHAR('"');                          \
+				quote = 0;                             \
+			}                                              \
+		} while (0)
 
 /* Initializes some log data at boot */
 static void init_log()
@@ -2772,6 +2789,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		const char *src = NULL;
 		struct sample *key;
 		const struct buffer empty = { };
+		int quote = 0; /* inside quoted string */
 
 		switch (tmp->type) {
 			case LOG_FMT_SEPARATOR:
@@ -3009,8 +3027,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_FRONTEND_XPRT: // %ft
 				src = fe->id;
-				if (tmp->options & LOG_OPT_QUOTE)
-					LOGCHAR('"');
+				LOGQUOTE_START();
 				iret = strlcpy2(tmplog, src, dst + maxsize - tmplog);
 				if (iret == 0)
 					goto out;
@@ -3019,8 +3036,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				/* sess->listener may be undefined if the session's owner is a health-check */
 				if (sess->listener && sess->listener->bind_conf->xprt->get_ssl_sock_ctx)
 					LOGCHAR('~');
-				if (tmp->options & LOG_OPT_QUOTE)
-					LOGCHAR('"');
 				break;
 #ifdef USE_OPENSSL
 			case LOG_FMT_SSL_CIPHER: // %sslc
@@ -3292,8 +3307,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_HDRREQUEST: // %hr
 				/* request header */
 				if (fe->nb_req_cap && s && s->req_cap) {
-					if (tmp->options & LOG_OPT_QUOTE)
-						LOGCHAR('"');
+					LOGQUOTE_START();
 					LOGCHAR('{');
 					for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
 						if (hdr)
@@ -3307,8 +3321,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 						}
 					}
 					LOGCHAR('}');
-					if (tmp->options & LOG_OPT_QUOTE)
-						LOGCHAR('"');
 				}
 				break;
 
@@ -3318,8 +3330,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
 						if (hdr > 0)
 							LOGCHAR(' ');
-						if (tmp->options & LOG_OPT_QUOTE)
-							LOGCHAR('"');
+						LOGQUOTE_START();
 						if (s->req_cap[hdr] != NULL) {
 							ret = lf_encode_string(tmplog, dst + maxsize,
 							                       '#', hdr_encode_map, s->req_cap[hdr], tmp);
@@ -3328,8 +3339,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 							tmplog = ret;
 						} else if (!(tmp->options & LOG_OPT_QUOTE))
 							LOGCHAR('-');
-						if (tmp->options & LOG_OPT_QUOTE)
-							LOGCHAR('"');
+						/* Manually end quotation as we're emitting multiple
+						 * quoted texts at once
+						 */
+						LOGQUOTE_END();
 					}
 				}
 				break;
@@ -3338,8 +3351,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_HDRRESPONS: // %hs
 				/* response header */
 				if (fe->nb_rsp_cap && s && s->res_cap) {
-					if (tmp->options & LOG_OPT_QUOTE)
-						LOGCHAR('"');
+					LOGQUOTE_START();
 					LOGCHAR('{');
 					for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
 						if (hdr)
@@ -3353,8 +3365,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 						}
 					}
 					LOGCHAR('}');
-					if (tmp->options & LOG_OPT_QUOTE)
-						LOGCHAR('"');
 				}
 				break;
 
@@ -3364,8 +3374,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
 						if (hdr > 0)
 							LOGCHAR(' ');
-						if (tmp->options & LOG_OPT_QUOTE)
-							LOGCHAR('"');
+						LOGQUOTE_START();
 						if (s->res_cap[hdr] != NULL) {
 							ret = lf_encode_string(tmplog, dst + maxsize,
 							                       '#', hdr_encode_map, s->res_cap[hdr], tmp);
@@ -3374,31 +3383,29 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 							tmplog = ret;
 						} else if (!(tmp->options & LOG_OPT_QUOTE))
 							LOGCHAR('-');
-						if (tmp->options & LOG_OPT_QUOTE)
-							LOGCHAR('"');
+						/* Manually end quotation as we're emitting multiple
+						 * quoted texts at once
+						 */
+						LOGQUOTE_END();
 					}
 				}
 				break;
 
 			case LOG_FMT_REQ: // %r
 				/* Request */
-				if (tmp->options & LOG_OPT_QUOTE)
-					LOGCHAR('"');
+				LOGQUOTE_START();
 				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
 				ret = lf_encode_string(tmplog, dst + maxsize,
 				                       '#', url_encode_map, uri, tmp);
 				if (ret == NULL || *ret != '\0')
 					goto out;
 				tmplog = ret;
-				if (tmp->options & LOG_OPT_QUOTE)
-					LOGCHAR('"');
 				break;
 
 			case LOG_FMT_HTTP_PATH: // %HP
 				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
 
-				if (tmp->options & LOG_OPT_QUOTE)
-					LOGCHAR('"');
+				LOGQUOTE_START();
 
 				end = uri + strlen(uri);
 				// look for the first whitespace character
@@ -3428,16 +3435,13 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					goto out;
 
 				tmplog = ret;
-				if (tmp->options & LOG_OPT_QUOTE)
-					LOGCHAR('"');
 
 				break;
 
 			case LOG_FMT_HTTP_PATH_ONLY: // %HPO
 				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
 
-				if (tmp->options & LOG_OPT_QUOTE)
-					LOGCHAR('"');
+				LOGQUOTE_START();
 
 				end = uri + strlen(uri);
 
@@ -3473,14 +3477,11 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					goto out;
 
 				tmplog = ret;
-				if (tmp->options & LOG_OPT_QUOTE)
-					LOGCHAR('"');
 
 				break;
 
 			case LOG_FMT_HTTP_QUERY: // %HQ
-				if (tmp->options & LOG_OPT_QUOTE)
-					LOGCHAR('"');
+				LOGQUOTE_START();
 
 				if (!txn || !txn->uri) {
 					chunk.area = "<BADREQ>";
@@ -3506,16 +3507,13 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					goto out;
 
 				tmplog = ret;
-				if (tmp->options & LOG_OPT_QUOTE)
-					LOGCHAR('"');
 
 				break;
 
 			case LOG_FMT_HTTP_URI: // %HU
 				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
 
-				if (tmp->options & LOG_OPT_QUOTE)
-					LOGCHAR('"');
+				LOGQUOTE_START();
 
 				end = uri + strlen(uri);
 				// look for the first whitespace character
@@ -3545,15 +3543,12 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					goto out;
 
 				tmplog = ret;
-				if (tmp->options & LOG_OPT_QUOTE)
-					LOGCHAR('"');
 
 				break;
 
 			case LOG_FMT_HTTP_METHOD: // %HM
 				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
-				if (tmp->options & LOG_OPT_QUOTE)
-					LOGCHAR('"');
+				LOGQUOTE_START();
 
 				end = uri + strlen(uri);
 				// look for the first whitespace character
@@ -3574,15 +3569,12 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					goto out;
 
 				tmplog = ret;
-				if (tmp->options & LOG_OPT_QUOTE)
-					LOGCHAR('"');
 
 				break;
 
 			case LOG_FMT_HTTP_VERSION: // %HV
 				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
-				if (tmp->options & LOG_OPT_QUOTE)
-					LOGCHAR('"');
+				LOGQUOTE_START();
 
 				end = uri + strlen(uri);
 				// look for the first whitespace character
@@ -3618,8 +3610,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					goto out;
 
 				tmplog = ret;
-				if (tmp->options & LOG_OPT_QUOTE)
-					LOGCHAR('"');
 
 				break;
 
@@ -3687,6 +3677,11 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		}
 		if (tmp->type != LOG_FMT_SEPARATOR)
 			last_isspace = 0; // not a separator, hence not a space
+
+		/* if quotation was started for the current node data, we need
+		 * to finish the quote
+		 */
+		LOGQUOTE_END();
 	}
 
 out:
