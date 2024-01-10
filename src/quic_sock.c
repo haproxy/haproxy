@@ -825,14 +825,12 @@ int qc_rcv_buf(struct quic_conn *qc)
 	struct buffer buf = BUF_NULL;
 	size_t max_sz;
 	unsigned char *dgram_buf;
-	struct listener *l;
 	ssize_t ret = 0;
 
 	/* Do not call this if quic-conn FD is uninitialized. */
 	BUG_ON(qc->fd < 0);
 
 	TRACE_ENTER(QUIC_EV_CONN_RCV, qc);
-	l = qc->li;
 
 	max_sz = qc_max_udp_payload_size(qc);
 
@@ -880,7 +878,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 			continue;
 		}
 
-		if (!qc_check_dcid(qc, new_dgram->dcid, new_dgram->dcid_len)) {
+		if (qc_is_listener(qc) && !qc_check_dcid(qc, new_dgram->dcid, new_dgram->dcid_len)) {
 			/* Datagram received by error on the connection FD, dispatch it
 			 * to its associated quic-conn.
 			 *
@@ -890,6 +888,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 			struct quic_dgram *tmp_dgram;
 			unsigned char *rxbuf_tail;
 			size_t cspace;
+			struct listener *l = qc->li;
 
 			TRACE_STATE("datagram for other connection on quic-conn socket, requeue it", QUIC_EV_CONN_RCV, qc);
 
