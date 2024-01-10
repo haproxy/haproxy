@@ -27,15 +27,20 @@
 #include <import/ist.h>
 #include <haproxy/api.h>
 #include <haproxy/http-t.h>
+#include <haproxy/intops.h>
 
 extern const int http_err_codes[HTTP_ERR_SIZE];
 extern const char *http_err_msgs[HTTP_ERR_SIZE];
 extern const struct ist http_known_methods[HTTP_METH_OTHER];
 extern const uint8_t http_char_classes[256];
+extern long http_err_status_codes[512 / sizeof(long)];
+extern long http_fail_status_codes[512 / sizeof(long)];
 
 enum http_meth_t find_http_meth(const char *str, const int len);
 int http_get_status_idx(unsigned int status);
 const char *http_get_reason(unsigned int status);
+void http_status_add_range(long *array, uint low, uint high);
+void http_status_del_range(long *array, uint low, uint high);
 struct ist http_get_host_port(const struct ist host);
 int http_is_default_port(const struct ist schm, const struct ist port);
 int http_validate_scheme(const struct ist schm);
@@ -210,6 +215,18 @@ static inline int http_path_has_forbidden_char(const struct ist ist, const char 
 		start++;
 	} while (start < istend(ist));
 	return 0;
+}
+
+/* Checks status code array <array> for the presence of status code <status>.
+ * Returns non-zero if the code is present, zero otherwise. Any status code is
+ * permitted.
+ */
+static inline int http_status_matches(const long *array, uint status)
+{
+	if (status < 100 || status > 599)
+		return 0;
+
+	return ha_bit_test(status - 100, array);
 }
 
 #endif /* _HAPROXY_HTTP_H */

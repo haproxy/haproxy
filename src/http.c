@@ -344,6 +344,14 @@ const struct ist http_known_methods[HTTP_METH_OTHER] = {
 	[HTTP_METH_CONNECT] = IST("CONNECT"),
 };
 
+/* 500 bits to indicate for each status code from 100 to 599 if it participates
+ * to the error or failure class. The last 12 bits are not assigned for now.
+ * Not initialized, has to be done at boot. This is manipulated using
+ * http_status_{add,del}_range().
+ */
+long http_err_status_codes[512 / sizeof(long)] = { };
+long http_fail_status_codes[512 / sizeof(long)] = { };
+
 /*
  * returns a known method among HTTP_METH_* or HTTP_METH_OTHER for all unknown
  * ones.
@@ -475,6 +483,40 @@ const char *http_get_reason(unsigned int status)
 		default:          return "Other";
 		}
 	}
+}
+
+/* add status codes from low to high included to status codes array <array>
+ * which must be compatible with http_err_codes and http_fail_codes (i.e. 512
+ * bits each). This is not thread save and is meant for being called during
+ * boot only. Only status codes 100-599 are permitted.
+ */
+void http_status_add_range(long *array, uint low, uint high)
+{
+	low -= 100;
+	high -= 100;
+
+	BUG_ON(low > 499);
+	BUG_ON(high > 499);
+
+	while (low <= high)
+		ha_bit_set(low++, array);
+}
+
+/* remove status codes from low to high included to status codes array <array>
+ * which must be compatible with http_err_codes and http_fail_codes (i.e. 512
+ * bits each). This is not thread save and is meant for being called during
+ * boot only. Only status codes 100-599 are permitted.
+ */
+void http_status_del_range(long *array, uint low, uint high)
+{
+	low -= 100;
+	high -= 100;
+
+	BUG_ON(low > 499);
+	BUG_ON(high > 499);
+
+	while (low <= high)
+		ha_bit_clr(low++, array);
 }
 
 /* Returns the ist string corresponding to port part (without ':') in the host
@@ -1430,3 +1472,14 @@ struct ist http_trim_trailing_spht(struct ist value)
 
 	return ret;
 }
+
+/* initialize the required structures and arrays */
+static void _http_init()
+{
+	/* preset the default status codes that count as errors and failures */
+	http_status_add_range(http_err_status_codes,  400, 499);
+	http_status_add_range(http_fail_status_codes, 500, 599);
+	http_status_del_range(http_fail_status_codes, 501, 501);
+	http_status_del_range(http_fail_status_codes, 505, 505);
+}
+INITCALL0(STG_INIT, _http_init);
