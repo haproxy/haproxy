@@ -820,7 +820,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		goto out;
 
 	st = qc->state;
-	if (st >= QUIC_HS_ST_COMPLETE) {
+	if (qc_is_listener(qc) && st >= QUIC_HS_ST_COMPLETE) {
 		if (!(qc->flags & QUIC_FL_CONN_HPKTNS_DCD)) {
 			/* Discard the Handshake packet number space. */
 			TRACE_PROTO("discarding Handshake pktns", QUIC_EV_CONN_PHPKTS, qc);
