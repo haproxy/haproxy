@@ -40,6 +40,9 @@ struct task *sc_conn_io_cb(struct task *t, void *ctx, unsigned int state);
 int sc_conn_sync_recv(struct stconn *sc);
 void sc_conn_sync_send(struct stconn *sc);
 
+int sc_applet_sync_recv(struct stconn *sc);
+void sc_applet_sync_send(struct stconn *sc);
+
 
 /* returns the channel which receives data from this stream connector (input channel) */
 static inline struct channel *sc_ic(const struct stconn *sc)
