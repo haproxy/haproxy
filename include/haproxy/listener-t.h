@@ -169,9 +169,6 @@ struct bind_conf {
 	unsigned long long ca_ignerr_bitfield[IGNERR_BF_SIZE];   /* ignored verify errors in handshake if depth > 0 */
 	unsigned long long crt_ignerr_bitfield[IGNERR_BF_SIZE];  /* ignored verify errors in handshake if depth == 0 */
 	void *initial_ctx;             /* SSL context for initial negotiation */
-	void *default_ctx;             /* SSL context of first/default certificate */
-	struct ckch_inst *default_inst;
-	struct ssl_bind_conf *default_ssl_conf; /* custom SSL conf of default_ctx */
 	int strict_sni;            /* refuse negotiation if sni doesn't match a certificate */
 	int ssl_options;           /* ssl options */
 	struct eb_root sni_ctx;    /* sni_ctx tree of all known certs full-names sorted by name */

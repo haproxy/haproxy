@@ -1931,6 +1931,9 @@ cleanup:
 	return failure;
 }
 
+static __maybe_unused struct sni_ctx *ssl_sock_chose_sni_ctx(struct bind_conf *s, const char *servername,
+                                                             int have_rsa_sig, int have_ecdsa_sig);
+
 /* Create a X509 certificate with the specified servername and serial. This
  * function returns a SSL_CTX object or NULL if an error occurs. */
 static SSL_CTX *
@@ -1948,12 +1951,17 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	X509V3_CTX    ctx;
 	unsigned int  i;
 	int 	      key_type;
+	struct sni_ctx *sni_ctx;
+
+	sni_ctx = ssl_sock_chose_sni_ctx(bind_conf, "", 1, 1);
+	if (!sni_ctx)
+		goto mkcert_error;
 
 	/* Get the private key of the default certificate and use it */
 #ifdef HAVE_SSL_CTX_get0_privatekey
-	pkey = SSL_CTX_get0_privatekey(bind_conf->default_ctx);
+	pkey = SSL_CTX_get0_privatekey(sni_ctx->ctx);
 #else
-	tmp_ssl = SSL_new(bind_conf->default_ctx);
+	tmp_ssl = SSL_new(sni_ctx->ctx);
 	if (tmp_ssl)
 		pkey = SSL_get_privatekey(tmp_ssl);
 #endif
@@ -3855,14 +3863,6 @@ int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct 
 	 * the tree, so it will be discovered and cleaned in time.
 	 */
 
-#ifndef SSL_CTRL_SET_TLSEXT_HOSTNAME
-	if (bind_conf->default_ctx) {
-		memprintf(err, "%sthis version of openssl cannot load multiple SSL certificates.\n",
-		          err && *err ? *err : "");
-		errcode |= ERR_ALERT | ERR_FATAL;
-		goto error;
-	}
-#endif
 	if (is_default) {
 		ckch_inst->is_default = 1;
 
@@ -5554,16 +5554,12 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 		   to initial_ctx in ssl_initial_ctx. */
 		errcode |= ssl_sock_prep_ctx_and_inst(bind_conf, NULL, bind_conf->initial_ctx, NULL, &errmsg);
 	}
-	if (bind_conf->default_ctx) {
-		errcode |= ssl_sock_prep_ctx_and_inst(bind_conf, bind_conf->default_ssl_conf, bind_conf->default_ctx, bind_conf->default_inst, &errmsg);
-	}
 
 	node = ebmb_first(&bind_conf->sni_ctx);
 	while (node) {
 		sni = ebmb_entry(node, struct sni_ctx, name);
-		if (!sni->order && sni->ctx != bind_conf->default_ctx) {
-			/* only initialize the CTX on its first occurrence and
-			   if it is not the default_ctx */
+		if (!sni->order) {
+			/* only initialize the CTX on its first occurrence */
 			errcode |= ssl_sock_prep_ctx_and_inst(bind_conf, sni->conf, sni->ctx, sni->ckch_inst, &errmsg);
 		}
 		node = ebmb_next(node);
@@ -5572,9 +5568,8 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 	node = ebmb_first(&bind_conf->sni_w_ctx);
 	while (node) {
 		sni = ebmb_entry(node, struct sni_ctx, name);
-		if (!sni->order && sni->ctx != bind_conf->default_ctx) {
-			/* only initialize the CTX on its first occurrence and
-			   if it is not the default_ctx */
+		if (!sni->order) {
+			/* only initialize the CTX on its first occurrence */
 			errcode |= ssl_sock_prep_ctx_and_inst(bind_conf, sni->conf, sni->ctx, sni->ckch_inst, &errmsg);
 		}
 		node = ebmb_next(node);
@@ -5622,6 +5617,19 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 			return -1;
 		}
 	}
+
+	if ((bind_conf->options & BC_O_GENERATE_CERTS)) {
+		struct sni_ctx *sni_ctx;
+
+		/* if we use the generate-certificates option, look for the first default cert available */
+		sni_ctx = ssl_sock_chose_sni_ctx(bind_conf, "", 1, 1);
+		if (!sni_ctx) {
+			ha_alert("Proxy '%s': no SSL certificate specified for bind '%s' and 'generate-certificates' option at [%s:%d] (use 'crt').\n",
+				 px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			return -1;
+		}
+	}
+
 	if (!ssl_shctx && global.tune.sslcachesize) {
 		alloc_ctx = shctx_init(&ssl_shctx, global.tune.sslcachesize,
 		                       sizeof(struct sh_ssl_sess_hdr) + SHSESS_BLOCK_MIN_SIZE, -1,
@@ -5723,10 +5731,6 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 
 	SSL_CTX_free(bind_conf->initial_ctx);
 	bind_conf->initial_ctx = NULL;
-	SSL_CTX_free(bind_conf->default_ctx);
-	bind_conf->default_ctx = NULL;
-	bind_conf->default_inst = NULL;
-	bind_conf->default_ssl_conf = NULL;
 }
 
 
