@@ -2512,7 +2512,10 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 
 	/* Load reference content in the pattern expression.
 	 * We need to load elements in the same order they were seen in the
-	 * file as list-based matching types may rely on it.
+	 * file. Indeed, some list-based matching types may rely on it as the
+	 * list is positional, and for tree-based matching, even if the tree is
+	 * content-based in case of duplicated keys we only want the first key
+	 * in the file to be considered.
 	 */
 	list_for_each_entry(elt, &ref->head, list) {
 		if (!pat_ref_push(elt, expr, patflags, err)) {

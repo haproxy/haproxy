@@ -2,3 +2,5 @@
 first.domain.tld first
 domain.tld domain
 second.domain.tld second
+# This entry is used to test duplicate behavior (ie: tree-based match)
+first.domain.tld first_dup

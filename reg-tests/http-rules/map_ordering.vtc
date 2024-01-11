@@ -1,4 +1,4 @@
-varnishtest "Test list-based matching types ordering"
+varnishtest "Ensure mapfile ordering is preserved when loading the file"
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
 feature ignore_unknown_macro
 
@@ -14,9 +14,13 @@ haproxy h1 -conf {
 
     # check list ordering using map_dom (list-based match)
     http-request return hdr dom %[req.hdr(Host),lower,map_dom(${testdir}/map_ordering.map)] if { url_beg /dom }
+
+    # check tree ordering using map_str (tree-based match) and duplicated keys
+    http-request return hdr str %[req.hdr(Host),lower,map_str(${testdir}/map_ordering.map)] if { url_beg /str }
+
 } -start
 
-# Check map ordering
+# Check map ordering for list-based matching types
 client c1 -connect ${h1_fe1_sock} {
     # first.domain.tld is above domain.tld so it should match first
     txreq -url "/dom" -hdr "Host: first.domain.tld"
@@ -29,4 +33,14 @@ client c1 -connect ${h1_fe1_sock} {
     rxresp
     expect resp.status == 200
     expect resp.http.dom == "domain"
+} -run
+
+# Check map ordering for tree-based matching types (check that the matching
+# key is the first one seen in the file)
+client c2 -connect ${h1_fe1_sock} {
+    # first.domain.tld is first mapped to "first" in the mapfile
+    txreq -url "/str" -hdr "Host: first.domain.tld"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.str == "first"
 } -run
