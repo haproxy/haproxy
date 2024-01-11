@@ -27,6 +27,7 @@
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/task-t.h>
 #include <haproxy/xref-t.h>
 
 /* flags for appctx->state */
@@ -53,6 +54,9 @@ struct applet {
 	int (*init)(struct appctx *);      /* callback to init resources, may be NULL.
 					      expect 0 if ok, -1 if an error occurs. */
 	void (*fct)(struct appctx *);      /* internal I/O handler, may never be NULL */
+	size_t (*rcv_buf)(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags); /* called from the upper layer to get data */
+	size_t (*snd_buf)(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags); /* Called from the upper layet to put data */
+	/* TODO: ADD fastfwd callback functions */
 	void (*release)(struct appctx *);  /* callback to release resources, may be NULL */
 	unsigned int timeout;              /* execution timeout. */
 };
