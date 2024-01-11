@@ -48,6 +48,9 @@ int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buff
 void appctx_free_on_early_error(struct appctx *appctx);
 void appctx_free(struct appctx *appctx);
 
+size_t appctx_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags);
+size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags);
+
 static inline struct appctx *appctx_new_here(struct applet *applet, struct sedesc *sedesc)
 {
 	return appctx_new_on(applet, sedesc, tid);
