@@ -1919,6 +1919,40 @@ hard-stop-after <time>
 
   See also: grace
 
+http-err-codes [+-]<range>[,...] [...]
+  Replace, reduce or extend the list of status codes that define an error as
+  considered by the termination codes and the "http_err_cnt" counter in stick
+  tables. The default range for errors is 400 to 499, but in certain contexts
+  some users prefer to exclude specific codes, especially when tracking client
+  errors (e.g. 404 on systems with dynamically generated contents). See also
+  "http-fail-codes" and "http_err_cnt".
+
+  A range specified without '+' nor '-' redefines the existing range to the new
+  one. A range starting with '+' extends the existing range to also include the
+  specified one, which may or may not overlap with the existing one. A range
+  starting with '-' removes the specified range from the existing one. A range
+  consists in a number from 100 to 599, optionally followed by "-" followed by
+  another number greater than or equal to the first one to indicate the high
+  boundary of the range. Multiple ranges may be delimited by commas for a same
+  add/del/ replace operation.
+
+  Example:
+     http-err-codes 400,402-444,446-480,490   # sets exactly these codes
+     http-err-codes 400-499 -450 +500         # sets 400 to 500 except 450
+     http-err-codes -450-459                  # removes 450 to 459 from range
+     http-err-codes +501,505                  # adds 501 and 505 to range
+
+http-fail-codes [+-]<range>[,...] [...]
+  Replace, reduce or extend the list of status codes that define a failure as
+  considered by the termination codes and the "http_fail_cnt" counter in stick
+  tables. The default range for failures is 500 to 599 except 501 and 505 which
+  can be triggered by clients, and normally indicate a failure from the server
+  to process the request. Some users prefer to exclude certain codes in certain
+  contexts where it is known they're not relevant, such as 500 in certain SOAP
+  environments as it doesn't translate a server fault there. The syntax is
+  exactly the same as for http-err-codes above. See also "http-err-codes" and
+  "http_fail_cnt".
+
 httpclient.resolvers.disabled <on|off>
   Disable the DNS resolution of the httpclient. Prevent the creation of the
   "default" resolvers section.

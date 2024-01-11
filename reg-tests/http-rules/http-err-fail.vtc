@@ -1,0 +1,84 @@
+varnishtest "test for http-err-codes/http-fail-codes redefinitions"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.0-dev1)'"
+feature ignore_unknown_macro
+
+server s2 {
+	rxreq
+	txresp -status 220
+} -start
+
+server s3 {
+	rxreq
+	txresp -status 300
+} -start
+
+server s4 {
+	rxreq
+	txresp -status 400
+} -start
+
+server s5 {
+	rxreq
+	txresp -status 555
+} -start
+
+
+haproxy h1 -conf {
+    global
+	http-err-codes  220 +300-499 -300-399  # only 220, 400-499 remain
+	http-fail-codes -550-580 +555,599,556-566
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+	option socket-stats
+
+    frontend fe
+	bind "fd@${fe}"
+	http-request track-sc0 path
+	http-after-response add-header x-table err=%[sc0_http_err_cnt],fail=%[sc0_http_fail_cnt]
+	stick-table type string size 100 store http_err_cnt,http_fail_cnt
+	default_backend be
+
+    backend be
+	use-server s2 if { path -m beg /2 }
+	use-server s3 if { path -m beg /3 }
+	use-server s4 if { path -m beg /4 }
+	use-server s5 if { path -m beg /5 }
+
+	server s2 ${s2_addr}:${s2_port}
+	server s3 ${s3_addr}:${s3_port}
+	server s4 ${s4_addr}:${s4_port}
+	server s5 ${s5_addr}:${s5_port}
+} -start
+
+client c2 -connect ${h1_fe_sock} {
+	txreq -url "/2"
+	rxresp
+	expect resp.status == 220
+	expect resp.http.x-table ~ "err=1,fail=0"
+} -run
+
+client c3 -connect ${h1_fe_sock} {
+	txreq -url "/3"
+	rxresp
+	expect resp.status == 300
+	expect resp.http.x-table ~ "err=0,fail=0"
+} -run
+
+client c4 -connect ${h1_fe_sock} {
+	txreq -url "/4"
+	rxresp
+	expect resp.status == 400
+	expect resp.http.x-table ~ "err=1,fail=0"
+} -run
+
+client c5 -connect ${h1_fe_sock} {
+	txreq -url "/5"
+	rxresp
+	expect resp.status == 555
+	expect resp.http.x-table ~ "err=0,fail=1"
+} -run

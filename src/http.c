@@ -12,6 +12,7 @@
 
 #include <ctype.h>
 #include <haproxy/api.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/http.h>
 #include <haproxy/tools.h>
 
@@ -1483,3 +1484,100 @@ static void _http_init()
 	http_status_del_range(http_fail_status_codes, 505, 505);
 }
 INITCALL0(STG_INIT, _http_init);
+
+/*
+ * registered keywords below
+ */
+
+/* parses a global "http-err-codes" and "http-fail-codes" directive. */
+static int http_parse_http_err_fail_codes(char **args, int section_type, struct proxy *curpx,
+					  const struct proxy *defpx, const char *file, int line,
+					  char **err)
+{
+	const char *cmd = args[0];
+	const char *p, *b, *e;
+	int op, low, high;
+	long *bitfield;
+	int ret = -1;
+
+	if (strcmp(cmd, "http-err-codes") == 0)
+		bitfield = http_err_status_codes;
+	else if (strcmp(cmd, "http-fail-codes") == 0)
+		bitfield = http_fail_status_codes;
+	else
+		ABORT_NOW();
+
+	if (!*args[1]) {
+		memprintf(err, "Missing status codes range for '%s'.", cmd);
+		goto end;
+	}
+
+	/* operation: <0 = remove, 0 = replace, >0 = add. The operation is only
+	 * reset for each new arg so that we can do +200,300,400 without
+	 * changing the operation.
+	 */
+	for (; *(p = *(++args)); ) {
+		switch (*p) {
+		case '+': op =  1; p++; break;
+		case '-': op = -1; p++; break;
+		default:  op =  0; break;
+		}
+
+		if (!*p)
+			goto inval;
+
+		while (1) {
+			b = p;
+			e = p + strlen(p);
+			low = read_uint(&p, e);
+			if (b == e || p == b)
+				goto inval;
+
+			high = low;
+			if (*p == '-') {
+				p++;
+				b = p;
+				high = read_uint(&p, e);
+				if (b == e || p == b || (*p && *p != ','))
+					goto inval;
+			}
+			else if (*p && *p != ',')
+				goto inval;
+
+			if (high < low || low < 100 || high > 599) {
+				memprintf(err, "Invalid status codes range '%s' in '%s'.\n"
+					  " Codes must be between 100 and 599 and ranges in ascending order.",
+					  *args, cmd);
+				goto end;
+			}
+
+			if (!op)
+				memset(bitfield, 0, sizeof(http_err_status_codes));
+			if (op >= 0)
+				http_status_add_range(bitfield, low, high);
+			if (op < 0)
+				http_status_del_range(bitfield, low, high);
+
+			if (!*p)
+				break;
+			/* skip ',' */
+			p++;
+		}
+	}
+	ret = 0;
+ end:
+	return ret;
+ inval:
+	memprintf(err, "Invalid status codes range '%s' in '%s' at position %lu. Ranges must be in the form [+-]{low[-{high}]}[,...].",
+		  *args, cmd, (ulong)(p - *args));
+	goto end;
+
+}
+
+static struct cfg_kw_list cfg_kws = {{ },{
+	{ CFG_GLOBAL, "http-err-codes",      http_parse_http_err_fail_codes },
+	{ CFG_GLOBAL, "http-fail-codes",     http_parse_http_err_fail_codes },
+	{ /* END */ }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
