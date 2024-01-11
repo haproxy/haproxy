@@ -34,7 +34,7 @@ struct appctx;
 struct stream;
 struct check;
 
-#define IS_HTX_SC(sc)     (sc_conn(sc) && IS_HTX_CONN(__sc_conn(sc)))
+#define IS_HTX_SC(sc)     ((sc_conn(sc) && IS_HTX_CONN(__sc_conn(sc))) || (sc_appctx(sc) && IS_HTX_STRM(__sc_strm(sc))))
 
 struct sedesc *sedesc_new();
 void sedesc_free(struct sedesc *sedesc);
