@@ -1977,7 +1977,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 			break;
 		}
 
-		/* If an error occured, connection error must be set to break from the current loop. */
+		/* If an error occurred, connection error must be set to break from the current loop. */
 		BUG_ON(ret < 0 && !h3c->err);
 	}
 
