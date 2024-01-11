@@ -176,21 +176,41 @@ static void applet_trace(enum trace_level level, uint64_t mask, const struct tra
 	    (src->verbosity == STRM_VERB_ADVANCED && src->level < TRACE_LEVEL_DATA))
 		return;
 
-	/* channels' buffer info */
-	if (s->flags & SF_HTX) {
-		struct htx *ichtx = htxbuf(&ic->buf);
-		struct htx *ochtx = htxbuf(&oc->buf);
+	if (appctx->t->process == task_run_applet) {
+		/* channels' buffer info */
+		if (s->flags & SF_HTX) {
+			struct htx *ichtx = htxbuf(&ic->buf);
+			struct htx *ochtx = htxbuf(&oc->buf);
 
-		chunk_appendf(&trace_buf, " htx=(%u/%u#%u, %u/%u#%u)",
-			      ichtx->data, ichtx->size, htx_nbblks(ichtx),
-			      ochtx->data, ochtx->size, htx_nbblks(ochtx));
+			chunk_appendf(&trace_buf, " htx=(%u/%u#%u, %u/%u#%u)",
+				      ichtx->data, ichtx->size, htx_nbblks(ichtx),
+				      ochtx->data, ochtx->size, htx_nbblks(ochtx));
+		}
+		else {
+			chunk_appendf(&trace_buf, " buf=(%u@%p+%u/%u, %u@%p+%u/%u)",
+				      (unsigned int)b_data(&ic->buf), b_orig(&ic->buf),
+				      (unsigned int)b_head_ofs(&ic->buf), (unsigned int)b_size(&ic->buf),
+				      (unsigned int)b_data(&oc->buf), b_orig(&oc->buf),
+				      (unsigned int)b_head_ofs(&oc->buf), (unsigned int)b_size(&oc->buf));
+		}
 	}
 	else {
-		chunk_appendf(&trace_buf, " buf=(%u@%p+%u/%u, %u@%p+%u/%u)",
-			      (unsigned int)b_data(&ic->buf), b_orig(&ic->buf),
-			      (unsigned int)b_head_ofs(&ic->buf), (unsigned int)b_size(&ic->buf),
-			      (unsigned int)b_data(&oc->buf), b_orig(&oc->buf),
-			      (unsigned int)b_head_ofs(&oc->buf), (unsigned int)b_size(&oc->buf));
+		/* RX/TX buffer info */
+		if (s->flags & SF_HTX) {
+			struct htx *rxhtx = htxbuf(&appctx->inbuf);
+			struct htx *txhtx = htxbuf(&appctx->outbuf);
+
+			chunk_appendf(&trace_buf, " htx=(%u/%u#%u, %u/%u#%u)",
+				      rxhtx->data, rxhtx->size, htx_nbblks(rxhtx),
+				      txhtx->data, txhtx->size, htx_nbblks(txhtx));
+		}
+		else {
+			chunk_appendf(&trace_buf, " buf=(%u@%p+%u/%u, %u@%p+%u/%u)",
+				      (unsigned int)b_data(&appctx->inbuf), b_orig(&appctx->inbuf),
+				      (unsigned int)b_head_ofs(&appctx->inbuf), (unsigned int)b_size(&appctx->inbuf),
+				      (unsigned int)b_data(&appctx->outbuf), b_orig(&appctx->outbuf),
+				      (unsigned int)b_head_ofs(&appctx->outbuf), (unsigned int)b_size(&appctx->outbuf));
+		}
 	}
 }
 
