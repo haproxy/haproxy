@@ -36,6 +36,7 @@
 #include <haproxy/qmux_http.h>
 #include <haproxy/qpack-dec.h>
 #include <haproxy/qpack-enc.h>
+#include <haproxy/quic_conn.h>
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_fctl.h>
 #include <haproxy/quic_frame.h>
@@ -2513,7 +2514,6 @@ static int h3_send_goaway(struct h3c *h3c)
 static int h3_init(struct qcc *qcc)
 {
 	struct h3c *h3c;
-	const struct listener *li = __objt_listener(qcc->conn->target);
 
 	TRACE_ENTER(H3_EV_H3C_NEW, qcc->conn);
 
@@ -2530,9 +2530,7 @@ static int h3_init(struct qcc *qcc)
 	h3c->id_goaway = 0;
 
 	qcc->ctx = h3c;
-	h3c->prx_counters =
-		EXTRA_COUNTERS_GET(li->bind_conf->frontend->extra_counters_fe,
-		                   &h3_stats_module);
+	h3c->prx_counters = qc_counters(qcc->conn->target, &h3_stats_module);
 	LIST_INIT(&h3c->buf_wait.list);
 
 	TRACE_LEAVE(H3_EV_H3C_NEW, qcc->conn);
