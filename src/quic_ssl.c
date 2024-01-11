@@ -951,10 +951,31 @@ static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 #endif
 
 		/* Check the alpn could be negotiated */
-		if (!qc->app_ops) {
-			TRACE_ERROR("No negotiated ALPN", QUIC_EV_CONN_IO_CB, qc, &state);
-			quic_set_tls_alert(qc, SSL_AD_NO_APPLICATION_PROTOCOL);
-			goto leave;
+		if (qc_is_listener(qc)) {
+			if (!qc->app_ops) {
+				TRACE_ERROR("No negotiated ALPN", QUIC_EV_CONN_IO_CB, qc, &state);
+				quic_set_tls_alert(qc, SSL_AD_NO_APPLICATION_PROTOCOL);
+				goto leave;
+			}
+		}
+		else {
+			const unsigned char *alpn;
+			size_t alpn_len;
+
+			ctx->conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
+			if (!ssl_sock_get_alpn(ctx->conn, ctx, (const char **)&alpn, (int *)&alpn_len) ||
+			    !quic_set_app_ops(qc, alpn, alpn_len)) {
+				TRACE_ERROR("No negotiated ALPN", QUIC_EV_CONN_IO_CB, qc, &state);
+				quic_set_tls_alert(qc, SSL_AD_NO_APPLICATION_PROTOCOL);
+				goto leave;
+			}
+
+			if (conn_create_mux(ctx->conn, NULL) < 0) {
+				TRACE_ERROR("mux creation failed", QUIC_EV_CONN_IO_CB, qc, &state);
+				goto leave;
+			}
+
+			qc->mux_state = QC_MUX_READY;
 		}
 
 		qc->flags |= QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS;
