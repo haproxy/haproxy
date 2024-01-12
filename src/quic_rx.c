@@ -1878,13 +1878,14 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
  * if the packet is incomplete. This function will populate fields of <pkt>
  * instance, most notably its length. <dgram> is the UDP datagram which
  * contains the parsed packet. <o> is the address object type address of the
- * object which receives this received packet.
+ * object which receives this received packet. <qc> is the QUIC connection,
+ * only valid for QUIC clients.
  *
  * Returns 0 on success else non-zero. Packet length is guaranteed to be set to
  * the real packet value or to cover all data between <pos> and <end> : this is
  * useful to reject a whole datagram.
  */
-static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
+static int quic_rx_pkt_parse(struct quic_conn *qc, struct quic_rx_packet *pkt,
                              unsigned char *pos, const unsigned char *end,
                              struct quic_dgram *dgram, enum obj_type *o)
 {
@@ -2014,23 +2015,44 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 		 * datagram.
 		 */
 
-		/* RFC 9000. Initial Datagram Size
-		 *
-		 * A server MUST discard an Initial packet that is carried in a UDP datagram
-		 * with a payload that is smaller than the smallest allowed maximum datagram
-		 * size of 1200 bytes.
-		 */
-		if (pkt->type == QUIC_PACKET_TYPE_INITIAL &&
-		    dgram->len < QUIC_INITIAL_PACKET_MINLEN) {
-			TRACE_PROTO("RX too short datagram with an Initial packet", QUIC_EV_CONN_LPKT);
-			HA_ATOMIC_INC(&prx_counters->too_short_initial_dgram);
-			goto drop;
+		if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
+			if (l) {
+				/* RFC 9000. Initial Datagram Size
+				 *
+				 * A server MUST discard an Initial packet that is carried in a UDP datagram
+				 * with a payload that is smaller than the smallest allowed maximum datagram
+				 * size of 1200 bytes.
+				 */
+				if (dgram->len < QUIC_INITIAL_PACKET_MINLEN) {
+					TRACE_PROTO("RX too short datagram with an Initial packet", QUIC_EV_CONN_LPKT);
+					HA_ATOMIC_INC(&prx_counters->too_short_initial_dgram);
+					goto drop;
+				}
+			}
+			else {
+				/* TODO: This is not clear if a too short RX datagram which carries ack-eliciting
+				 * packets must be dropped by a client. If this is the case, this is not from
+				 * here, but after having parsed the datagram frames.
+				 *
+				 * RFC 9000. Initial Datagram Size
+				 *
+				 * Similarly, a server MUST expand the payload of all UDP datagrams carrying
+				 * ack-eliciting Initial packets to at least the smallest allowed maximum
+				 * datagram size of 1200 bytes.
+				 */
+				if (!(qc->flags & QUIC_FL_CONN_SCID_RECEIVED)) {
+					qc->flags |= QUIC_FL_CONN_SCID_RECEIVED;
+					memcpy(qc->dcid.data, pkt->scid.data, pkt->scid.len);
+					qc->dcid.len = pkt->scid.len;
+				}
+			}
 		}
-
-		/* O-RTT packet are not sent by servers. */
-		if (pkt->type == QUIC_PACKET_TYPE_0RTT && (!l || !l->bind_conf->ssl_conf.early_data)) {
-			TRACE_PROTO("RX 0-RTT packet not supported", QUIC_EV_CONN_LPKT);
-			goto drop;
+		else if (pkt->type == QUIC_PACKET_TYPE_0RTT) {
+			/* O-RTT packet are not sent by servers. */
+			if (!l || !l->bind_conf->ssl_conf.early_data) {
+				TRACE_PROTO("RX 0-RTT packet not supported", QUIC_EV_CONN_LPKT);
+				goto drop;
+			}
 		}
 	}
 	else {
@@ -2303,7 +2325,7 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 			pkt->flags |= QUIC_FL_RX_PACKET_DGRAM_FIRST;
 
 		quic_rx_packet_refinc(pkt);
-		if (quic_rx_pkt_parse(pkt, pos, end, dgram, o))
+		if (quic_rx_pkt_parse(from_qc, pkt, pos, end, dgram, o))
 			goto next;
 
 		/* Search quic-conn instance for first packet of the datagram.
