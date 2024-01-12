@@ -114,11 +114,9 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv);
 #endif
 
 int increment_sslconn();
-SSL_CTX *ssl_sock_assign_generated_cert(unsigned int key, struct bind_conf *bind_conf, SSL *ssl);
-SSL_CTX *ssl_sock_get_generated_cert(unsigned int key, struct bind_conf *bind_conf);
-int ssl_sock_set_generated_cert(SSL_CTX *ctx, unsigned int key, struct bind_conf *bind_conf);
-unsigned int ssl_sock_generated_cert_key(const void *data, size_t len);
 void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf *bind_conf);
+struct sni_ctx *ssl_sock_chose_sni_ctx(struct bind_conf *s, const char *servername,
+                                                             int have_rsa_sig, int have_ecdsa_sig);
 #ifdef SSL_MODE_ASYNC
 void ssl_async_fd_handler(int fd);
 void ssl_async_fd_free(int fd);
@@ -137,6 +135,12 @@ int ssl_init_provider(const char *provider_name);
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 int ssl_get_ocspresponse_detail(unsigned char *ocsp_certid, struct buffer *out);
 int ssl_ocsp_response_print(struct buffer *ocsp_response, struct buffer *out);
+#endif
+
+#if (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
+DH *ssl_get_tmp_dh_cbk(SSL *ssl, int export, int keylen);
+#else
+void ssl_sock_set_tmp_dh_from_pkey(SSL_CTX *ctx, EVP_PKEY *pkey);
 #endif
 
 /* ssl shctx macro */
