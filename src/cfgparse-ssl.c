@@ -777,6 +777,7 @@ static int bind_parse_ciphersuites(char **args, int cur_arg, struct proxy *px, s
 static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	char path[MAXPATHLEN];
+	int default_crt = *args[cur_arg] == 'd' ? 1 : 0;
 
 	if (!*args[cur_arg + 1]) {
 		memprintf(err, "'%s' : missing certificate location", args[cur_arg]);
@@ -789,10 +790,10 @@ static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bin
 			memprintf(err, "'%s' : path too long", args[cur_arg]);
 			return ERR_ALERT | ERR_FATAL;
 		}
-		return ssl_sock_load_cert(path, conf, err);
+		return ssl_sock_load_cert(path, conf, default_crt, err);
 	}
 
-	return ssl_sock_load_cert(args[cur_arg + 1], conf, err);
+	return ssl_sock_load_cert(args[cur_arg + 1], conf, default_crt, err);
 }
 
 /* parse the "crt-list" bind keyword. Returns a set of ERR_* flags possibly with an error in <err>. */
@@ -2240,6 +2241,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "crt-ignore-err",        bind_parse_ignore_err,         1 }, /* set error IDs to ignore on verify depth == 0 */
 	{ "crt-list",              bind_parse_crt_list,           1 }, /* load a list of crt from this location */
 	{ "curves",                bind_parse_curves,             1 }, /* set SSL curve suite */
+	{ "default-crt",           bind_parse_crt,                1 }, /* load SSL certificates from this location */
 	{ "ecdhe",                 bind_parse_ecdhe,              1 }, /* defines named curve for elliptic curve Diffie-Hellman */
 	{ "force-sslv3",           bind_parse_tls_method_options, 0 }, /* force SSLv3 */
 	{ "force-tlsv10",          bind_parse_tls_method_options, 0 }, /* force TLSv10 */

@@ -15474,11 +15474,12 @@ crt <cert>
   This means that when loading certificates from a directory, it is highly
   recommended to load the default one first as a file or to ensure that it will
   always be the first one in the directory. In order to chose multiple default
-  certificates (1 rsa and 1 ecdsa), there are 2 options:
+  certificates (1 rsa and 1 ecdsa), there are 3 options:
   - A multi-cert bundle can be configured as the first certificate
     (`crt foobar.pem` in the configuration where the existing files
     are `foobar.pem.ecdsa` and `foobar.pem.rsa`.
   - Or a '*' filter for each certificate in a crt-list line.
+  - The 'default-crt' keyword can be used.
 
   Note that the same cert may be loaded multiple times without side effects.
 
@@ -15584,6 +15585,23 @@ crt-list <file>
         certS.pem [curves X25519:P-256 ciphers ECDHE-ECDSA-AES256-GCM-SHA384] secure.domain.tld
         default.pem.rsa *
         default.pem.ecdsa *
+
+default-crt <cert>
+  This option does the same as the "crt" option, with the difference that this
+  certificate will be used as a default one. It is possible to add multiple
+  default certificates to have an ECDSA and an RSA one, having more is not
+  really useful.
+
+  A default certificate is used when no "strict-sni" option is used on the bind
+  line. A default certificate is provided when the servername extension was not
+  used by the client, or when the servername does not match any configured
+  certificate.
+
+  Example:
+
+     bind *:443 default-crt foobar.pem.rsa default-crt foobar.pem.ecdsa crt website.pem.rsa
+
+  See also the "crt" keyword.
 
 defer-accept
   Is an optional keyword which is supported only on certain Linux kernels. It

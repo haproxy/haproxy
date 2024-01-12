@@ -3760,19 +3760,20 @@ error:
 }
 
 /* Returns a set of ERR_* flags possibly with an error in <err>. */
-int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
+int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, int is_default, char **err)
 {
 	struct stat buf;
 	int cfgerr = 0;
 	struct ckch_store *ckchs;
 	struct ckch_inst *ckch_inst = NULL;
 	int found = 0; /* did we found a file to load ? */
-	int is_default = 0;
 
 	/* if the SNI trees were empty the first "crt" become a default certificate,
 	 * it can be applied on multiple certificates if it's a bundle */
-	if (eb_is_empty(&bind_conf->sni_ctx) && eb_is_empty(&bind_conf->sni_w_ctx))
-		is_default = 1;
+	if (is_default == 0) {
+		if (eb_is_empty(&bind_conf->sni_ctx) && eb_is_empty(&bind_conf->sni_w_ctx))
+			is_default = 1;
+	}
 
 	if ((ckchs = ckchs_lookup(path))) {
 		/* we found the ckchs in the tree, we can use it directly */
