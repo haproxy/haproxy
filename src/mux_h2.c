@@ -1558,7 +1558,6 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 
 	eb32_insert(&h2c->streams_by_id, &h2s->by_id);
 	h2c->nb_streams++;
-	h2c->stream_cnt++;
 
 	HA_ATOMIC_INC(&h2c->px_counters->open_streams);
 	HA_ATOMIC_INC(&h2c->px_counters->total_streams);
@@ -1692,6 +1691,9 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct stconn *sc, struct
 	h2s->sd = sc->sedesc;
 	h2s->sess = sess;
 	h2c->nb_sc++;
+
+	/* on the backend we can afford to only count total streams upon success */
+	h2c->stream_cnt++;
 
  out:
 	if (likely(h2s))
@@ -2812,11 +2814,11 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 
 	/* unrecoverable error ? */
 	if (h2c->st0 >= H2_CS_ERROR) {
+		/* This is mainly used for completeness, but a stream error is
+		 * currently not set by h2c_dec_hdrs().
+		 */
 		TRACE_USER("Unrecoverable error decoding H2 request", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, 0, &rxbuf);
-		sess_log(h2c->conn->owner);
-		session_inc_http_req_ctr(h2c->conn->owner);
-		session_inc_http_err_ctr(h2c->conn->owner);
-		goto out;
+		goto strm_err;
 	}
 
 	if (error <= 0) {
@@ -2830,20 +2832,8 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		/* Failed to decode this stream (e.g. too large request)
 		 * but the HPACK decompressor is still synchronized.
 		 */
-		sess_log(h2c->conn->owner);
-		session_inc_http_req_ctr(h2c->conn->owner);
-		session_inc_http_err_ctr(h2c->conn->owner);
-
-		h2s = (struct h2s*)h2_error_stream;
-
-		/* This stream ID is now opened anyway until we send the RST on
-		 * it, it must not be reused.
-		 */
-		if (h2c->dsi > h2c->max_id)
-			h2c->max_id = h2c->dsi;
-
 		TRACE_USER("rcvd unparsable H2 request", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, h2s, &rxbuf);
-		goto send_rst;
+		goto strm_err;
 	}
 
 	TRACE_USER("rcvd H2 request  ", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW, h2c->conn, 0, &rxbuf);
@@ -2853,6 +2843,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	 */
 	if (h2c->dsi > h2c->max_id)
 		h2c->max_id = h2c->dsi;
+	h2c->stream_cnt++;
 
 	/* Note: we don't emit any other logs below because if we return
 	 * positively from h2c_frt_stream_new(), the stream will report the error,
@@ -2890,6 +2881,20 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	TRACE_DEVEL("leaving on missing data or error", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
 	h2s = NULL;
 	goto leave;
+
+ strm_err:
+	sess_log(h2c->conn->owner);
+	session_inc_http_req_ctr(h2c->conn->owner);
+	session_inc_http_err_ctr(h2c->conn->owner);
+
+	h2s = (struct h2s*)h2_error_stream;
+
+	/* This stream ID is now opened anyway until we send the RST on
+	 * it, it must not be reused.
+	 */
+	if (h2c->dsi > h2c->max_id)
+		h2c->max_id = h2c->dsi;
+	h2c->stream_cnt++;
 
  send_rst:
 	/* make the demux send an RST for the current stream. We may only
