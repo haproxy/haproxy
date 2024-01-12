@@ -15473,7 +15473,12 @@ crt <cert>
   match any certificate, then the first loaded certificate will be presented.
   This means that when loading certificates from a directory, it is highly
   recommended to load the default one first as a file or to ensure that it will
-  always be the first one in the directory.
+  always be the first one in the directory. In order to chose multiple default
+  certificates (1 rsa and 1 ecdsa), there are 2 options:
+  - A multi-cert bundle can be configured as the first certificate
+    (`crt foobar.pem` in the configuration where the existing files
+    are `foobar.pem.ecdsa` and `foobar.pem.rsa`.
+  - Or a '*' filter for each certificate in a crt-list line.
 
   Note that the same cert may be loaded multiple times without side effects.
 
@@ -15560,7 +15565,10 @@ crt-list <file>
   filter is found on any crt-list. The SNI filter !* can be used after the first
   declared certificate to not include its CN and SAN in the SNI tree, so it will
   never match except if no other certificate matches. This way the first
-  declared certificate act as a fallback.
+  declared certificate act as a fallback. It is also possible to declare a '*'
+  filter, which will allow to chose this certificate as default. When multiple
+  default certificates are defined, HAProxy is able to chose the right ECDSA or
+  RSA one depending on what the client supports.
 
   When no ALPN is set, the "bind" line's default one is used. If a "bind" line
   has no "no-alpn", "alpn" nor "npn" set, a default value will be used
@@ -15574,6 +15582,8 @@ crt-list <file>
         cert2.pem [alpn h2,http/1.1]
         certW.pem                   *.domain.tld !secure.domain.tld
         certS.pem [curves X25519:P-256 ciphers ECDHE-ECDSA-AES256-GCM-SHA384] secure.domain.tld
+        default.pem.rsa *
+        default.pem.ecdsa *
 
 defer-accept
   Is an optional keyword which is supported only on certain Linux kernels. It
