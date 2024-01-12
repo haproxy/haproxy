@@ -900,6 +900,26 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		goto out;
 	}
 
+	/* RFC 9001. 4.9.1. Discarding Initial Keys
+	 *
+	 * The successful use of Handshake packets indicates that no more Initial
+	 * packets need to be exchanged, as these keys can only be produced after
+	 * receiving all CRYPTO frames from Initial packets. Thus, a client MUST
+	 * discard Initial keys when it first sends a Handshake packet...
+	 */
+
+	if (!qc_is_listener(qc) && !quic_tls_pktns_is_dcd(qc, qc->ipktns) &&
+	    qc->hpktns && qc->hpktns->tx.in_flight > 0) {
+		/* Discard the Initial packet number space. */
+		TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PRSHPKT, qc);
+		quic_pktns_discard(qc->ipktns, qc);
+		qc_set_timer(qc);
+		qc_el_rx_pkts_del(qc->iel);
+		qc_release_pktns_frms(qc, qc->ipktns);
+	}
+
+	qc_txb_release(qc);
+
  out:
 	/* Release the Handshake encryption level and packet number space if
 	 * the Handshake is confirmed and if there is no need to send
