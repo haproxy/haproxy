@@ -5,11 +5,12 @@
 
 USAGE=\
 "Usage: %s [-l <len> ] [-t <type>] [-f <flags>[,...]] [-i <sid>] [ -d <data> ]
-           [ -e <name> <value> ]* [ -r raw ] [ -h | --help ] > hdr.bin
+           [ -e <name> <value> ]* [ -r|-R raw ] [ -h | --help ] > hdr.bin
         Numbers are decimal or 0xhex. Not set=0. If <data> is passed, it points
         to a file that is read and chunked into frames of <len> bytes. -e
         encodes a headers frame (by default) with all headers at once encoded
-        in literal. Use type 'p' for the preface. Use -r to pass raw hex data.
+        in literal. Use type 'p' for the preface. Use -r to pass raw data or
+        -R to pass raw hex codes (hex digit pairs, blanks ignored).
 
 Supported symbolic types (case insensitive prefix match):
    DATA        (0x00)      PUSH_PROMISE   (0x05)
@@ -136,6 +137,7 @@ while [ -n "$1" -a -z "${1##-*}" ]; do
 		-i)        ID="$2"       ; shift 2 ;;
 		-d)        DATA="$2"     ; shift 2 ;;
 		-r)        RAW="$2"      ; shift 2 ;;
+		-R)        RAW="$(printf $(echo -n "${2// /}" | sed -e 's/\([^ ][^ ]\)/\\\\x\1/g'))" ; shift 2 ;;
                 -e)        TYPE=1; HDR[${#HDR[@]}]="$2=$3"; shift 3 ;;
 		-h|--help) usage "${0##*}"; quit;;
 		*)         usage "${0##*}"; die ;;
