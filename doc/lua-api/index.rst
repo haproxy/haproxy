@@ -2870,6 +2870,22 @@ TXN class
 
   :see: :js:func:`TXN.reply`, :js:class:`Reply`
 
+.. js:function:: TXN.set_fc_tos(txn, tos)
+
+  Is used to set the TOS or DSCP field value of packets sent to the client to
+  the value passed in "tos" on platforms which support this.
+
+  :param class_txn txn: The class txn object containing the data.
+  :param integer tos: The new TOS os DSCP.
+
+.. js:function:: TXN.set_fc_mark(txn, mark)
+
+  Is used to set the Netfilter MARK on all packets sent to the client to the
+  value passed in "mark" on platforms which support it.
+
+  :param class_txn txn: The class txn object containing the data.
+  :param integer mark: The mark value.
+
 .. js:function:: TXN.set_loglevel(txn, loglevel)
 
   Is used to change the log level of the current request. The "loglevel" must
@@ -2881,21 +2897,21 @@ TXN class
     :js:attr:`core.err`, :js:attr:`core.warning`, :js:attr:`core.notice`,
     :js:attr:`core.info`, :js:attr:`core.debug` (log level definitions)
 
-.. js:function:: TXN.set_tos(txn, tos)
-
-  Is used to set the TOS or DSCP field value of packets sent to the client to
-  the value passed in "tos" on platforms which support this.
-
-  :param class_txn txn: The class txn object containing the data.
-  :param integer tos: The new TOS os DSCP.
-
 .. js:function:: TXN.set_mark(txn, mark)
 
-  Is used to set the Netfilter MARK on all packets sent to the client to the
-  value passed in "mark" on platforms which support it.
+  Alias for :js:func:`TXN.set_fc_mark()`.
 
-  :param class_txn txn: The class txn object containing the data.
-  :param integer mark: The mark value.
+  .. warning::
+     This function is deprecated. :js:func:`TXN.set_fc_mark()` must be used
+     instead.
+
+.. js:function:: TXN.set_tos(txn, tos)
+
+  Alias for :js:func:`TXN.set_fc_tos()`.
+
+  .. warning::
+     This function is deprecated. :js:func:`TXN.set_fc_tos()` must be used
+     instead.
 
 .. js:function:: TXN.set_priority_class(txn, prio)
 

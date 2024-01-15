@@ -8192,6 +8192,32 @@ __LJMP static int hlua_txn_log_alert(lua_State *L)
 	return 0;
 }
 
+__LJMP static int hlua_txn_set_fc_mark(lua_State *L)
+{
+	struct hlua_txn *htxn;
+	int mark;
+
+	MAY_LJMP(check_args(L, 2, "set_fc_mark"));
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	mark = MAY_LJMP(luaL_checkinteger(L, 2));
+
+	conn_set_mark(objt_conn(htxn->s->sess->origin), mark);
+	return 0;
+}
+
+__LJMP static int hlua_txn_set_fc_tos(lua_State *L)
+{
+	struct hlua_txn *htxn;
+	int tos;
+
+	MAY_LJMP(check_args(L, 2, "set_fc_tos"));
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	tos = MAY_LJMP(luaL_checkinteger(L, 2));
+
+	conn_set_tos(objt_conn(htxn->s->sess->origin), tos);
+	return 0;
+}
+
 __LJMP static int hlua_txn_set_loglevel(lua_State *L)
 {
 	struct hlua_txn *htxn;
@@ -8205,32 +8231,6 @@ __LJMP static int hlua_txn_set_loglevel(lua_State *L)
 		WILL_LJMP(luaL_argerror(L, 2, "Bad log level. It must be between 0 and 7"));
 
 	htxn->s->logs.level = ll;
-	return 0;
-}
-
-__LJMP static int hlua_txn_set_tos(lua_State *L)
-{
-	struct hlua_txn *htxn;
-	int tos;
-
-	MAY_LJMP(check_args(L, 2, "set_tos"));
-	htxn = MAY_LJMP(hlua_checktxn(L, 1));
-	tos = MAY_LJMP(luaL_checkinteger(L, 2));
-
-	conn_set_tos(objt_conn(htxn->s->sess->origin), tos);
-	return 0;
-}
-
-__LJMP static int hlua_txn_set_mark(lua_State *L)
-{
-	struct hlua_txn *htxn;
-	int mark;
-
-	MAY_LJMP(check_args(L, 2, "set_mark"));
-	htxn = MAY_LJMP(hlua_checktxn(L, 1));
-	mark = MAY_LJMP(luaL_checkinteger(L, 2));
-
-	conn_set_mark(objt_conn(htxn->s->sess->origin), mark);
 	return 0;
 }
 
@@ -13776,9 +13776,11 @@ lua_State *hlua_init_state(int thread_num)
 	hlua_class_function(L, "get_var",             hlua_get_var);
 	hlua_class_function(L, "done",                hlua_txn_done);
 	hlua_class_function(L, "reply",               hlua_txn_reply_new);
+	hlua_class_function(L, "set_fc_mark",         hlua_txn_set_fc_mark);
+	hlua_class_function(L, "set_fc_tos",          hlua_txn_set_fc_tos);
 	hlua_class_function(L, "set_loglevel",        hlua_txn_set_loglevel);
-	hlua_class_function(L, "set_tos",             hlua_txn_set_tos);
-	hlua_class_function(L, "set_mark",            hlua_txn_set_mark);
+	hlua_class_function(L, "set_mark",            hlua_txn_set_fc_mark); // DEPRECATED, use set_fc_mark
+	hlua_class_function(L, "set_tos",             hlua_txn_set_fc_tos);  // DEPRECATED, use set_fc_tos
 	hlua_class_function(L, "set_priority_class",  hlua_txn_set_priority_class);
 	hlua_class_function(L, "set_priority_offset", hlua_txn_set_priority_offset);
 	hlua_class_function(L, "deflog",              hlua_txn_deflog);
