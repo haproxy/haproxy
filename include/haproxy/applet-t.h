@@ -31,7 +31,6 @@
 #include <haproxy/xref-t.h>
 
 /* flags for appctx->state */
-#define APPLET_WANT_DIE      0x01  /* applet was running and requested to die */
 
 /* Room for per-command context (mostly CLI commands but not only) */
 #define APPLET_MAX_SVCCTX 88
@@ -45,6 +44,7 @@
 #define APPCTX_FL_EOS            0x00000020
 #define APPCTX_FL_ERR_PENDING    0x00000040
 #define APPCTX_FL_ERROR          0x00000080
+#define APPCTX_FL_WANT_DIE       0x00000100  /* applet was running and requested to die */
 
 struct appctx;
 struct proxy;
@@ -71,7 +71,6 @@ struct applet {
 struct appctx {
 	enum obj_type obj_type;    /* OBJ_TYPE_APPCTX */
 	/* 3 unused bytes here */
-	unsigned short state;      /* Internal appctx state */
 	unsigned int st0;          /* CLI state for stats, session state for peers */
 	unsigned int st1;          /* prompt/payload (bitwise OR of APPCTX_CLI_ST1_*) for stats, session error for peers */
 

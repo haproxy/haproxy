@@ -138,9 +138,9 @@ static void applet_trace(enum trace_level level, uint64_t mask, const struct tra
 	if (src->verbosity == STRM_VERB_CLEAN)
 		return;
 
-	chunk_appendf(&trace_buf, " appctx=%p .t=%p .t.exp=%d .state=%d .st0=%d .st1=%d",
+	chunk_appendf(&trace_buf, " appctx=%p .t=%p .t.exp=%d .flags=0x%x .st0=%d .st1=%d",
 		      appctx, appctx->t, tick_isset(appctx->t->expire) ? TICKS_TO_MS(appctx->t->expire - now_ms) : TICK_ETERNITY,
-		      appctx->state, appctx->st0, appctx->st1);
+		      appctx->flags, appctx->st0, appctx->st1);
 
 	if (!sc || src->verbosity == STRM_VERB_MINIMAL)
 		return;
@@ -350,7 +350,7 @@ void appctx_free(struct appctx *appctx)
 		/* if it's running, or about to run, defer the freeing
 		 * until the callback is called.
 		 */
-		appctx->state |= APPLET_WANT_DIE;
+		applet_fl_set(appctx, APPCTX_FL_WANT_DIE);
 		task_wakeup(appctx->t, TASK_WOKEN_OTHER);
 		TRACE_DEVEL("Cannot release APPCTX now, wake it up", APPLET_EV_FREE, appctx);
 	}
@@ -589,7 +589,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 
 	TRACE_ENTER(APPLET_EV_PROCESS, app);
 
-	if (app->state & APPLET_WANT_DIE) {
+	if (applet_fl_test(app, APPCTX_FL_WANT_DIE)) {
 		TRACE_DEVEL("APPCTX want die, release it", APPLET_EV_FREE, app);
 		__appctx_free(app);
 		return NULL;
@@ -660,6 +660,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 		sc_ep_report_read_activity(sc);
 	}
 
+	/* TODO: May be move in appctx_rcv_buf or sc_applet_process ? */
 	if (sc_waiting_room(sc) && (sc->flags & SC_FL_ABRT_DONE)) {
 		sc_ep_set(sc, SE_FL_EOS|SE_FL_ERROR);
 	}
@@ -698,7 +699,7 @@ struct task *task_process_applet(struct task *t, void *context, unsigned int sta
 
 	TRACE_ENTER(APPLET_EV_PROCESS, app);
 
-	if (app->state & APPLET_WANT_DIE) {
+	if (applet_fl_test(app, APPCTX_FL_WANT_DIE)) {
 		TRACE_DEVEL("APPCTX want die, release it", APPLET_EV_FREE, app);
 		__appctx_free(app);
 		return NULL;
