@@ -389,8 +389,8 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 
 
 #if defined(SO_MARK) || defined(SO_USER_COOKIE) || defined(SO_RTABLE)
-static enum act_return tcp_action_set_mark(struct act_rule *rule, struct proxy *px,
-					   struct session *sess, struct stream *s, int flags)
+static enum act_return tcp_action_set_fc_mark(struct act_rule *rule, struct proxy *px,
+                                              struct session *sess, struct stream *s, int flags)
 {
 	conn_set_mark(objt_conn(sess->origin), (uintptr_t)rule->arg.act.p[0]);
 	return ACT_RET_CONT;
@@ -398,8 +398,8 @@ static enum act_return tcp_action_set_mark(struct act_rule *rule, struct proxy *
 #endif
 
 #ifdef IP_TOS
-static enum act_return tcp_action_set_tos(struct act_rule *rule, struct proxy *px,
-					  struct session *sess, struct stream *s, int flags)
+static enum act_return tcp_action_set_fc_tos(struct act_rule *rule, struct proxy *px,
+                                             struct session *sess, struct stream *s, int flags)
 {
 	conn_set_tos(objt_conn(sess->origin), (uintptr_t)rule->arg.act.p[0]);
 	return ACT_RET_CONT;
@@ -585,7 +585,7 @@ static enum act_parse_ret tcp_parse_set_mark(const char **args, int *cur_arg, st
 	(*cur_arg)++;
 
 	/* Register processing function. */
-	rule->action_ptr = tcp_action_set_mark;
+	rule->action_ptr = tcp_action_set_fc_mark;
 	rule->action = ACT_CUSTOM;
 	rule->arg.act.p[0] = (void *)(uintptr_t)mark;
 	global.last_checks |= LSTCHK_NETADM;
@@ -620,7 +620,7 @@ static enum act_parse_ret tcp_parse_set_tos(const char **args, int *cur_arg, str
 	(*cur_arg)++;
 
 	/* Register processing function. */
-	rule->action_ptr = tcp_action_set_tos;
+	rule->action_ptr = tcp_action_set_fc_tos;
 	rule->action = ACT_CUSTOM;
 	rule->arg.act.p[0] = (void *)(uintptr_t)tos;
 	return ACT_RET_PRS_OK;
@@ -672,10 +672,12 @@ static enum act_parse_ret tcp_parse_silent_drop(const char **args, int *cur_arg,
 static struct action_kw_list tcp_req_conn_actions = {ILH, {
 	{ "set-dst"     , tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
-	{ "set-mark",     tcp_parse_set_mark    },
+	{ "set-fc-mark",  tcp_parse_set_mark    },
+	{ "set-fc-tos",   tcp_parse_set_tos     },
+	{ "set-mark",     tcp_parse_set_mark    }, // DEPRECATED, see set-fc-mark
 	{ "set-src",      tcp_parse_set_src_dst },
 	{ "set-src-port", tcp_parse_set_src_dst },
-	{ "set-tos",      tcp_parse_set_tos     },
+	{ "set-tos",      tcp_parse_set_tos     }, // DEPRECATED, see set-fc-tos
 	{ "silent-drop",  tcp_parse_silent_drop },
 	{ /* END */ }
 }};
@@ -686,10 +688,12 @@ static struct action_kw_list tcp_req_sess_actions = {ILH, {
 	{ "attach-srv"  , tcp_parse_attach_srv  },
 	{ "set-dst"     , tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
-	{ "set-mark",     tcp_parse_set_mark    },
+	{ "set-fc-mark",  tcp_parse_set_mark    },
+	{ "set-fc-tos",   tcp_parse_set_tos     },
+	{ "set-mark",     tcp_parse_set_mark    }, // DEPRECATED, see set-fc-mark
 	{ "set-src",      tcp_parse_set_src_dst },
 	{ "set-src-port", tcp_parse_set_src_dst },
-	{ "set-tos",      tcp_parse_set_tos     },
+	{ "set-tos",      tcp_parse_set_tos     }, // DEPRECATED, see set-fc-tos
 	{ "silent-drop",  tcp_parse_silent_drop },
 	{ /* END */ }
 }};
@@ -699,10 +703,12 @@ INITCALL1(STG_REGISTER, tcp_req_sess_keywords_register, &tcp_req_sess_actions);
 static struct action_kw_list tcp_req_cont_actions = {ILH, {
 	{ "set-dst"     , tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
-	{ "set-mark",     tcp_parse_set_mark    },
+	{ "set-fc-mark",  tcp_parse_set_mark    },
+	{ "set-fc-tos",   tcp_parse_set_tos     },
+	{ "set-mark",     tcp_parse_set_mark    }, // DEPRECATED, see set-fc-mark
 	{ "set-src",      tcp_parse_set_src_dst },
 	{ "set-src-port", tcp_parse_set_src_dst },
-	{ "set-tos",      tcp_parse_set_tos     },
+	{ "set-tos",      tcp_parse_set_tos     }, // DEPRECATED, see set-fc-tos
 	{ "silent-drop",  tcp_parse_silent_drop },
 	{ /* END */ }
 }};
@@ -710,8 +716,10 @@ static struct action_kw_list tcp_req_cont_actions = {ILH, {
 INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &tcp_req_cont_actions);
 
 static struct action_kw_list tcp_res_cont_actions = {ILH, {
-	{ "set-mark",     tcp_parse_set_mark   },
-	{ "set-tos",      tcp_parse_set_tos     },
+	{ "set-fc-mark", tcp_parse_set_mark    },
+	{ "set-fc-tos",  tcp_parse_set_tos     },
+	{ "set-mark",    tcp_parse_set_mark    }, // DEPRECATED, see set-fc-mark
+	{ "set-tos",     tcp_parse_set_tos     }, // DEPRECATED, see set-fc-tos
 	{ "silent-drop", tcp_parse_silent_drop },
 	{ /* END */ }
 }};
@@ -721,10 +729,12 @@ INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &tcp_res_cont_actions);
 static struct action_kw_list http_req_actions = {ILH, {
 	{ "set-dst",      tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
-	{ "set-mark",     tcp_parse_set_mark    },
+	{ "set-fc-mark",  tcp_parse_set_mark    },
+	{ "set-fc-tos",   tcp_parse_set_tos     },
+	{ "set-mark",     tcp_parse_set_mark    }, // DEPRECATED, see set-fc-mark
 	{ "set-src",      tcp_parse_set_src_dst },
 	{ "set-src-port", tcp_parse_set_src_dst },
-	{ "set-tos",      tcp_parse_set_tos     },
+	{ "set-tos",      tcp_parse_set_tos     }, // DEPRECATED, see set-fc-tos
 	{ "silent-drop",  tcp_parse_silent_drop },
 	{ /* END */ }
 }};
@@ -732,8 +742,10 @@ static struct action_kw_list http_req_actions = {ILH, {
 INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_actions);
 
 static struct action_kw_list http_res_actions = {ILH, {
-	{ "set-mark",    tcp_parse_set_mark    },
-	{ "set-tos",     tcp_parse_set_tos    },
+	{ "set-fc-mark", tcp_parse_set_mark    },
+	{ "set-fc-tos",  tcp_parse_set_tos     },
+	{ "set-mark",    tcp_parse_set_mark    }, // DEPRECATED, see set-fc-mark
+	{ "set-tos",     tcp_parse_set_tos     }, // DEPRECATED, see set-fc-tos
 	{ "silent-drop", tcp_parse_silent_drop },
 	{ /* END */ }
 }};

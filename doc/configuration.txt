@@ -13793,10 +13793,12 @@ send-spoe-group                -     -     X     X            X   X   -
 set-bandwidth-limit            -     -     X     X            X   X   -
 set-dst                        X     X     X     -            X   -   -
 set-dst-port                   X     X     X     -            X   -   -
+set-fc-mark                    X     X     X     X            X   X   -
+set-fc-tos                     X     X     X     X            X   X   -
 set-header                     -     -     -     -            X   X   X
 set-log-level                  -     -     X     X            X   X   X
 set-map                        -     -     -     -            X   X   X
-set-mark                       X     X     X     X            X   X   -
+set-mark (deprecated)          X     X     X     X            X   X   -
 set-method                     -     -     -     -            X   -   -
 set-nice                       -     -     X     X            X   X   -
 set-path                       -     -     -     -            X   -   -
@@ -13809,7 +13811,7 @@ set-src                        X     X     X     -            X   -   -
 set-src-port                   X     X     X     -            X   -   -
 set-status                     -     -     -     -            -   X   X
 set-timeout                    -     -     -     -            X   X   -
-set-tos                        X     X     X     X            X   X   -
+set-tos (deprecated)           X     X     X     X            X   X   -
 set-uri                        -     -     -     -            X   -   -
 set-var                        X     X     X     X            X   X   X
 set-var-fmt                    X     X     X     X            X   X   X
@@ -14742,6 +14744,36 @@ set-dst-port <expr>
   destination address to IPv4 "0.0.0.0" before rewriting the port.
 
 
+set-fc-mark <mark>
+  Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
+                    X  |   X  |   X  |   X  |          X |  X |  -
+
+  This is used to set the Netfilter/IPFW MARK on all packets sent to the client
+  to the value passed in <mark> on platforms which support it. This value is an
+  unsigned 32 bit value which can be matched by netfilter/ipfw and by the
+  routing table or monitoring the packets through DTrace. It can be expressed
+  both in decimal or hexadecimal format (prefixed by "0x").
+  This can be useful to force certain packets to take a different route (for
+  example a cheaper network path for bulk downloads). This works on Linux
+  kernels 2.6.32 and above and requires admin privileges, as well on FreeBSD
+  and OpenBSD.
+
+
+set-fc-tos <tos>
+  Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
+                    X  |   X  |   X  |   X  |          X |  X |  -
+
+  This is used to set the TOS or DSCP field value of packets sent to the client
+  to the value passed in <tos> on platforms which support this. This value
+  represents the whole 8 bits of the IP TOS field, and can be expressed both in
+  decimal or hexadecimal format (prefixed by "0x"). Note that only the 6 higher
+  bits are used in DSCP or TOS, and the two lower bits are always 0. This can
+  be used to adjust some routing behavior on border routers based on some
+  information from the request.
+
+  See RFC 2474, 2597, 3260 and 4594 for more information.
+
+
 set-header <name> <fmt>
   Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     -  |   -  |   -  |   -  |          X |  X |  X
@@ -14790,19 +14822,8 @@ set-map(<map-name>) <key fmt> <value fmt>
   stats socket, but can be triggered by an HTTP request.
 
 
-set-mark <mark>
-  Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
-                    X  |   X  |   X  |   X  |          X |  X |  -
-
-  This is used to set the Netfilter/IPFW MARK on all packets sent to the client
-  to the value passed in <mark> on platforms which support it. This value is an
-  unsigned 32 bit value which can be matched by netfilter/ipfw and by the
-  routing table or monitoring the packets through DTrace. It can be expressed
-  both in decimal or hexadecimal format (prefixed by "0x").
-  This can be useful to force certain packets to take a different route (for
-  example a cheaper network path for bulk downloads). This works on Linux
-  kernels 2.6.32 and above and requires admin privileges, as well on FreeBSD
-  and OpenBSD.
+set-mark <mark> (deprecated)
+  This is an alias for "set-fc-mark" (which should be used instead).
 
 
 set-method <fmt>
@@ -14989,19 +15010,8 @@ set-timeout { client | server | tunnel } { <timeout> | <expr> }
     http-response set-timeout server res.hdr(X-Refresh-Seconds),mul(1000)
 
 
-set-tos <tos>
-  Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
-                    X  |   X  |   X  |   X  |          X |  X |  -
-
-  This is used to set the TOS or DSCP field value of packets sent to the client
-  to the value passed in <tos> on platforms which support this. This value
-  represents the whole 8 bits of the IP TOS field, and can be expressed both in
-  decimal or hexadecimal format (prefixed by "0x"). Note that only the 6 higher
-  bits are used in DSCP or TOS, and the two lower bits are always 0. This can
-  be used to adjust some routing behavior on border routers based on some
-  information from the request.
-
-  See RFC 2474, 2597, 3260 and 4594 for more information.
+set-tos <tos> (deprecated)
+  This is an alias for "set-fc-tos" (which should be used instead).
 
 
 set-uri <fmt>
