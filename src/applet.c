@@ -264,6 +264,7 @@ struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int t
 		appctx->t->process = task_run_applet;
 	appctx->t->context = appctx;
 
+	appctx->flags = 0;
 	appctx->inbuf = BUF_NULL;
 	appctx->outbuf = BUF_NULL;
 
@@ -414,15 +415,15 @@ int appctx_buf_available(void *arg)
 	struct appctx *appctx = arg;
 	struct stconn *sc = appctx_sc(appctx);
 
-	if ((appctx->state & APPLET_INBLK_ALLOC) && b_alloc(&appctx->inbuf)) {
-		appctx->state &= ~APPLET_INBLK_ALLOC;
+	if (applet_fl_test(appctx, APPCTX_FL_INBLK_ALLOC) && b_alloc(&appctx->inbuf)) {
+		applet_fl_clr(appctx, APPCTX_FL_INBLK_ALLOC);
 		TRACE_STATE("unblocking appctx, inbuf allocated", APPLET_EV_RECV|APPLET_EV_BLK|APPLET_EV_WAKE, appctx);
 		task_wakeup(appctx->t, TASK_WOKEN_RES);
 		return 1;
 	}
 
-	if ((appctx->state & APPLET_OUTBLK_ALLOC) && b_alloc(&appctx->outbuf)) {
-		appctx->state &= ~APPLET_OUTBLK_ALLOC;
+	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC) && b_alloc(&appctx->outbuf)) {
+		applet_fl_clr(appctx, APPCTX_FL_OUTBLK_ALLOC);
 		TRACE_STATE("unblocking appctx, outbuf allocated", APPLET_EV_SEND|APPLET_EV_BLK|APPLET_EV_WAKE, appctx);
 		task_wakeup(appctx->t, TASK_WOKEN_RES);
 		return 1;
@@ -455,14 +456,14 @@ size_t appctx_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 
 	TRACE_ENTER(APPLET_EV_RECV, appctx);
 
-	if (appctx->state & APPLET_OUTBLK_ALLOC)
+	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC))
 		goto end;
 
 	if (!count)
 		goto end;
 
 	if (!appctx_get_buf(appctx, &appctx->outbuf)) {
-		appctx->state |= APPLET_OUTBLK_ALLOC;
+		applet_fl_set(appctx, APPCTX_FL_OUTBLK_ALLOC);
 		TRACE_STATE("waiting for appctx outbuf allocation", APPLET_EV_RECV|APPLET_EV_BLK, appctx);
 		goto end;
 	}
@@ -505,7 +506,7 @@ size_t appctx_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 
   done:
 	if (ret)
-		appctx->state |= APPLET_OUTBLK_FULL;
+		applet_fl_clr(appctx, APPCTX_FL_OUTBLK_FULL);
 
 	if (b_data(&appctx->outbuf)) {
 		se_fl_set(appctx->sedesc, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
@@ -528,14 +529,14 @@ size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 
 	TRACE_ENTER(APPLET_EV_SEND, appctx);
 
-	if (appctx->state & (APPLET_INBLK_FULL|APPLET_INBLK_ALLOC))
+	if (applet_fl_test(appctx, (APPCTX_FL_INBLK_FULL|APPCTX_FL_INBLK_ALLOC)))
 		goto end;
 
 	if (!count)
 		goto end;
 
 	if (!appctx_get_buf(appctx, &appctx->inbuf)) {
-		appctx->state |= APPLET_INBLK_ALLOC;
+		applet_fl_set(appctx, APPCTX_FL_INBLK_ALLOC);
 		TRACE_STATE("waiting for appctx inbuf allocation", APPLET_EV_SEND|APPLET_EV_BLK, appctx);
 		goto end;
 	}
@@ -567,7 +568,7 @@ size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 
   done:
 	if (ret < count) {
-		appctx->state |= APPLET_INBLK_FULL;
+		applet_fl_set(appctx, APPCTX_FL_INBLK_FULL);
 		TRACE_STATE("report appctx inbuf is full", APPLET_EV_SEND|APPLET_EV_BLK, appctx);
 	}
 

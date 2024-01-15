@@ -145,6 +145,36 @@ static inline struct stream *appctx_strm(const struct appctx *appctx)
 	return __sc_strm(appctx->sedesc->sc);
 }
 
+static forceinline void applet_fl_zero(struct appctx *appctx)
+{
+	appctx->flags = 0;
+}
+
+static forceinline void applet_fl_setall(struct appctx *appctx, uint all)
+{
+	appctx->flags = all;
+}
+
+static forceinline void applet_fl_set(struct appctx *appctx, uint on)
+{
+	appctx->flags |= on;
+}
+
+static forceinline void applet_fl_clr(struct appctx *appctx, uint off)
+{
+	appctx->flags &= ~off;
+}
+
+static forceinline uint applet_fl_test(const struct appctx *appctx, uint test)
+{
+	return !!(appctx->flags & test);
+}
+
+static forceinline uint applet_fl_get(const struct appctx *appctx)
+{
+	return appctx->flags;
+}
+
 /* The applet announces it has more data to deliver to the stream's input
  * buffer.
  */
