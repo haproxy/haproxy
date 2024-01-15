@@ -41,6 +41,10 @@
 #define APPCTX_FL_INBLK_FULL     0x00000002
 #define APPCTX_FL_OUTBLK_ALLOC   0x00000004
 #define APPCTX_FL_OUTBLK_FULL    0x00000008
+#define APPCTX_FL_EOI            0x00000010
+#define APPCTX_FL_EOS            0x00000020
+#define APPCTX_FL_ERR_PENDING    0x00000040
+#define APPCTX_FL_ERROR          0x00000080
 
 struct appctx;
 struct proxy;

@@ -157,6 +157,9 @@ static forceinline void applet_fl_setall(struct appctx *appctx, uint all)
 
 static forceinline void applet_fl_set(struct appctx *appctx, uint on)
 {
+	if (((on & (APPCTX_FL_EOS|APPCTX_FL_EOI)) && appctx->flags & APPCTX_FL_ERR_PENDING) ||
+	    ((on & APPCTX_FL_ERR_PENDING) && appctx->flags & (APPCTX_FL_EOI|APPCTX_FL_EOS)))
+		on |= APPCTX_FL_ERROR;
 	appctx->flags |= on;
 }
 
@@ -173,6 +176,24 @@ static forceinline uint applet_fl_test(const struct appctx *appctx, uint test)
 static forceinline uint applet_fl_get(const struct appctx *appctx)
 {
 	return appctx->flags;
+}
+
+static inline void applet_set_eoi(struct appctx *appctx)
+{
+	applet_fl_set(appctx, APPCTX_FL_EOI);
+}
+
+static inline void applet_set_eos(struct appctx *appctx)
+{
+	applet_fl_set(appctx, APPCTX_FL_EOS);
+}
+
+static inline void applet_set_error(struct appctx *appctx)
+{
+	if (applet_fl_test(appctx, (APPCTX_FL_EOS|APPCTX_FL_EOI)))
+		applet_fl_set(appctx, APPCTX_FL_ERROR);
+	else
+		applet_fl_set(appctx, APPCTX_FL_ERR_PENDING);
 }
 
 /* The applet announces it has more data to deliver to the stream's input
