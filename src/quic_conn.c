@@ -838,6 +838,10 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		qc_set_timer(qc);
 		qc_el_rx_pkts_del(qc->hel);
 		qc_release_pktns_frms(qc, qc->hel->pktns);
+		if (!qc_is_listener(qc)) {
+			/* I/O callback switch */
+			qc->wait_event.tasklet->process = quic_conn_app_io_cb;
+		}
 	}
 
 	if (qc_is_listener(qc) && st >= QUIC_HS_ST_COMPLETE) {
@@ -1222,7 +1226,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 	/* Listener only */
 	if (l && HA_ATOMIC_LOAD(&l->rx.quic_mode) == QUIC_SOCK_MODE_CONN &&
-	    (global.tune.options & QUIC_TUNE_SOCK_PER_CONN) &&
+	    (quic_tune.options & QUIC_TUNE_SOCK_PER_CONN) &&
 	    is_addr(local_addr)) {
 		TRACE_USER("Allocate a socket for QUIC connection", QUIC_EV_CONN_INIT, qc);
 		qc_alloc_fd(qc, local_addr, peer_addr);
@@ -1271,8 +1275,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->max_ack_delay = 0;
 	/* Only one path at this time (multipath not supported) */
 	qc->path = &qc->paths[0];
-	quic_cc_path_init(qc->path, ipv4,
-	                  server ? l->bind_conf->max_cwnd : 0,
+	quic_cc_path_init(qc->path, ipv4, server ? l->bind_conf->max_cwnd : 0,
 	                  cc_algo ? cc_algo : default_quic_cc_algo, qc);
 
 	if (local_addr)
