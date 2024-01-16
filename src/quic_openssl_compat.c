@@ -61,6 +61,12 @@ int quic_tls_compat_init(struct bind_conf *bind_conf, SSL_CTX *ctx)
 	if (bind_conf->xprt != xprt_get(XPRT_QUIC))
 		return 1;
 
+	/* This callback is already registered if the TLS keylog is activated for
+	 * traffic decryption analysis.
+	 */
+	if (!global_ssl.keylog)
+		SSL_CTX_set_keylog_callback(ctx, quic_tls_compat_keylog_callback);
+
 	if (SSL_CTX_has_client_custom_ext(ctx, QUIC_OPENSSL_COMPAT_SSL_TP_EXT))
 		return 1;
 
