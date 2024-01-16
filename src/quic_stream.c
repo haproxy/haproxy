@@ -37,10 +37,7 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 	/* notify MUX about available buffers. */
 	--qc->stream_buf_count;
 	if (qc->mux_state == QC_MUX_READY) {
-		if (qc->qcc->flags & QC_CF_CONN_FULL) {
-			qc->qcc->flags &= ~QC_CF_CONN_FULL;
-			tasklet_wakeup(qc->qcc->wait_event.tasklet);
-		}
+		/* TODO notify MUX for available buffer. */
 	}
 }
 
@@ -202,11 +199,7 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 
 		qc->stream_buf_count -= free_count;
 		if (qc->mux_state == QC_MUX_READY) {
-			/* notify MUX about available buffers. */
-			if (qc->qcc->flags & QC_CF_CONN_FULL) {
-				qc->qcc->flags &= ~QC_CF_CONN_FULL;
-				tasklet_wakeup(qc->qcc->wait_event.tasklet);
-			}
+			/* TODO notify MUX for available buffer. */
 		}
 	}
 

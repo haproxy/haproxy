@@ -32,7 +32,7 @@ enum qcs_type {
 #define QC_CF_ERRL      0x00000001 /* fatal error detected locally, connection should be closed soon */
 #define QC_CF_ERRL_DONE 0x00000002 /* local error properly handled, connection can be released */
 /* unused 0x00000004 */
-#define QC_CF_CONN_FULL 0x00000008 /* no stream buffers available on connection */
+/* unused 0x00000008 */
 #define QC_CF_APP_SHUT  0x00000010 /* Application layer shutdown done. */
 #define QC_CF_ERR_CONN  0x00000020 /* fatal error reported by transport layer */
 
@@ -106,7 +106,7 @@ struct qcc {
 #define QC_SF_NONE              0x00000000
 #define QC_SF_SIZE_KNOWN        0x00000001  /* last frame received for this stream */
 #define QC_SF_FIN_STREAM        0x00000002  /* FIN bit must be set for last frame of the stream */
-#define QC_SF_BLK_MROOM         0x00000004  /* app layer is blocked waiting for room in the qcs.tx.buf */
+/* unused 0x00000004 */
 #define QC_SF_DETACH            0x00000008  /* sc is detached but there is remaining data to send */
 /* unused 0x00000010 */
 #define QC_SF_DEM_FULL          0x00000020  /* demux blocked on request channel buffer full */
@@ -161,7 +161,6 @@ struct qcs {
 		struct quic_fctl fc; /* stream flow control applied on sending */
 
 		uint64_t offset; /* last offset of data ready to be sent */
-		struct buffer buf; /* transmit buffer before sending via xprt */
 	} tx;
 
 	struct eb64_node by_id;

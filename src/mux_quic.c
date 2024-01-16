@@ -72,9 +72,8 @@ static void qcs_free(struct qcs *qcs)
 	/* Release qc_stream_desc buffer from quic-conn layer. */
 	qc_stream_desc_release(qcs->stream, qcs->tx.fc.off_real);
 
-	/* Free Rx/Tx buffers. */
+	/* Free Rx buffer. */
 	qcs_free_ncbuf(qcs, &qcs->rx.ncbuf);
-	b_free(&qcs->tx.buf);
 
 	/* Remove qcs from qcc tree. */
 	eb64_delete(&qcs->by_id);
@@ -138,7 +137,6 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	}
 	qcs->rx.msd_init = qcs->rx.msd;
 
-	qcs->tx.buf = BUF_NULL;
 	qcs->tx.offset = 0;
 
 	qcs->wait_event.tasklet = NULL;
@@ -931,7 +929,24 @@ struct buffer *qcc_get_stream_rxbuf(struct qcs *qcs)
  */
 struct buffer *qcc_get_stream_txbuf(struct qcs *qcs)
 {
-	return b_alloc(&qcs->tx.buf);
+	struct qcc *qcc = qcs->qcc;
+	int buf_avail;
+	struct buffer *out = qc_stream_buf_get(qcs->stream);
+
+	if (!out) {
+		out = qc_stream_buf_alloc(qcs->stream, qcs->tx.fc.off_real,
+		                          &buf_avail);
+		if (!out)
+			goto out;
+
+		if (!b_alloc(out)) {
+			TRACE_ERROR("buffer alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+			goto out;
+		}
+	}
+
+ out:
+	return out;
 }
 
 /* Wakes up every streams of <qcc> which are currently waiting for sending but
@@ -974,6 +989,7 @@ void qcc_reset_stream(struct qcs *qcs, int err)
 		const int soft_blocked = qfctl_sblocked(&qcc->tx.fc);
 
 		qcc->tx.fc.off_soft -= (qcs->tx.fc.off_soft - qcs->tx.fc.off_real);
+
 		if (soft_blocked && !qfctl_sblocked(&qcc->tx.fc))
 			qcc_notify_fctl(qcc);
 	}
@@ -1014,6 +1030,9 @@ void qcc_send_stream(struct qcs *qcs, int urg, int count)
 	if (count) {
 		qfctl_sinc(&qcc->tx.fc, count);
 		qfctl_sinc(&qcs->tx.fc, count);
+
+		qcs->tx.offset += count;
+		qcs->qcc->tx.offsets += count;
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCS_SEND, qcc->conn, qcs);
@@ -1552,64 +1571,6 @@ static void qcs_destroy(struct qcs *qcs)
 	TRACE_LEAVE(QMUX_EV_QCS_END, conn);
 }
 
-/* Transfer as much as possible data on <qcs> from <in> to <out>.
- *
- * Returns the total bytes of transferred data or a negative error code.
- */
-static int qcs_xfer_data(struct qcs *qcs, struct buffer *out, struct buffer *in)
-{
-	struct qcc *qcc = qcs->qcc;
-	int to_xfer;
-	int total = 0;
-
-	TRACE_ENTER(QMUX_EV_QCS_SEND, qcc->conn, qcs);
-
-	if (!b_alloc(out)) {
-		TRACE_ERROR("buffer alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
-		goto err;
-	}
-
-	/*
-	 * QCS out buffer diagram
-	 *             head           left    to_xfer
-	 *         -------------> ----------> ----->
-	 * --------------------------------------------------
-	 *       |...............|xxxxxxxxxxx|<<<<<
-	 * --------------------------------------------------
-	 *       ^ ack-off       ^ sent-off  ^ off
-	 *
-	 * STREAM frame
-	 *                       ^                 ^
-	 *                       |xxxxxxxxxxxxxxxxx|
-	 */
-
-	BUG_ON_HOT(qcs->tx.fc.off_real < qcs->stream->ack_offset);
-	BUG_ON_HOT(qcs->tx.offset < qcs->tx.fc.off_real);
-	BUG_ON_HOT(qcc->tx.offsets < qcc->tx.fc.off_real);
-
-	to_xfer = QUIC_MIN(b_data(in), b_room(out));
-
-	if (!to_xfer)
-		goto out;
-
-	total = b_force_xfer(out, in, to_xfer);
-
- out:
-	{
-		struct qcs_xfer_data_trace_arg arg = {
-			.prep = b_data(out), .xfer = total,
-		};
-		TRACE_LEAVE(QMUX_EV_QCS_SEND|QMUX_EV_QCS_XFER_DATA,
-		            qcc->conn, qcs, &arg);
-	}
-
-	return total;
-
- err:
-	TRACE_DEVEL("leaving on error", QMUX_EV_QCS_SEND, qcc->conn, qcs);
-	return -1;
-}
-
 /* Prepare a STREAM frame for <qcs> instance using <out> as payload. The frame
  * is appended in <frm_list>. Set <fin> if this is supposed to be the last
  * stream frame. If <out> is NULL an empty STREAM frame is built : this may be
@@ -1720,21 +1681,11 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 	return -1;
 }
 
-/* Check after transferring data from qcs.tx.buf if FIN must be set on the next
- * STREAM frame for <qcs>.
- *
- * Returns true if FIN must be set else false.
- */
-static int qcs_stream_fin(struct qcs *qcs)
-{
-	return qcs->flags & QC_SF_FIN_STREAM && !b_data(&qcs->tx.buf);
-}
-
 /* Return true if <qcs> has data to send in new STREAM frames. */
 static forceinline int qcs_need_sending(struct qcs *qcs)
 {
-	return b_data(&qcs->tx.buf) || qcs->tx.fc.off_real < qcs->tx.offset ||
-	       qcs_stream_fin(qcs);
+	return qcs->tx.fc.off_real < qcs->tx.offset ||
+	       qcs->flags & QC_SF_FIN_STREAM;
 }
 
 /* This function must be called by the upper layer to inform about the sending
@@ -1795,7 +1746,7 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 		increment_send_rate(diff, 0);
 	}
 
-	if (qcs->tx.offset == qcs->tx.fc.off_real && !b_data(&qcs->tx.buf)) {
+	if (qcs->tx.offset == qcs->tx.fc.off_real) {
 		/* Remove stream from send_list if all was sent. */
 		LIST_DEL_INIT(&qcs->el_send);
 		TRACE_STATE("stream sent done", QMUX_EV_QCS_SEND, qcc->conn, qcs);
@@ -1953,82 +1904,42 @@ static int qcs_send_stop_sending(struct qcs *qcs)
 	return 0;
 }
 
-/* Used internally by qcc_io_send function. Proceed to send for <qcs>. This will
- * transfer data from qcs buffer to its quic_stream counterpart. A STREAM frame
- * is then generated and inserted in <frms> list. Frame length will be
- * truncated if greater than <window_conn>. This allows to prepare several
- * frames in a loop while respecting connection flow control window.
+/* Used internally by qcc_io_send function. Proceed to send for <qcs>. A STREAM
+ * frame is generated poiting to QCS stream descriptor content and inserted in
+ * <frms> list. Frame length will be truncated if greater than <window_conn>.
+ * This allows to prepare several frames in a loop while respecting connection
+ * flow control window.
  *
  * Returns the payload length of the STREAM frame or a negative error code.
  */
 static int qcs_send(struct qcs *qcs, struct list *frms, uint64_t window_conn)
 {
 	struct qcc *qcc = qcs->qcc;
-	struct buffer *buf = &qcs->tx.buf;
 	struct buffer *out = qc_stream_buf_get(qcs->stream);
-	int xfer = 0, flen = 0, buf_avail;
-	char fin = 0;
+	int flen = 0;
+	const char fin = qcs->flags & QC_SF_FIN_STREAM;
 
 	TRACE_ENTER(QMUX_EV_QCS_SEND, qcc->conn, qcs);
 
 	/* Cannot send STREAM on remote unidirectional streams. */
 	BUG_ON(quic_stream_is_uni(qcs->id) && quic_stream_is_remote(qcc, qcs->id));
 
-	if (b_data(buf)) {
-		/* Allocate <out> buffer if not already done. */
-		if (!out) {
-			if (qcc->flags & QC_CF_CONN_FULL)
-				goto out;
+	/* This function must not be called if there is nothing to send. */
+	BUG_ON(!fin && !qcs_need_sending(qcs));
 
-			out = qc_stream_buf_alloc(qcs->stream, qcs->tx.offset,
-			                          &buf_avail);
-			if (!out) {
-				if (buf_avail) {
-					TRACE_ERROR("stream desc alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
-					goto err;
-				}
-
-				TRACE_STATE("hitting stream desc buffer limit", QMUX_EV_QCS_SEND, qcc->conn, qcs);
-				qcc->flags |= QC_CF_CONN_FULL;
-				goto out;
-			}
-		}
-
-		/* Transfer data from <buf> to <out>. */
-		xfer = qcs_xfer_data(qcs, out, buf);
-		if (xfer < 0)
-			goto err;
-
-		if (xfer > 0) {
-			qcs_notify_send(qcs);
-			qcs->flags &= ~QC_SF_BLK_MROOM;
-		}
-
-		qcs->tx.offset += xfer;
-		qcc->tx.offsets += xfer;
-
-		/* If out buffer is empty, QCS offsets must be equal. */
-		BUG_ON(!b_data(out) && qcs->tx.fc.off_real != qcs->tx.offset);
+	/* Skip STREAM frame allocation if already subscribed for send.
+	 * Happens on sendto transient error or network congestion.
+	 */
+	if (qcc->wait_event.events & SUB_RETRY_SEND) {
+		TRACE_DEVEL("already subscribed for sending",
+		            QMUX_EV_QCS_SEND, qcc->conn, qcs);
+		goto err;
 	}
-
-	/* FIN is set if all incoming data were transferred. */
-	fin = qcs_stream_fin(qcs);
 
 	/* Build a new STREAM frame with <out> buffer. */
-	if (qcs->tx.fc.off_real != qcs->tx.offset || fin) {
-		/* Skip STREAM frame allocation if already subscribed for send.
-		 * Happens on sendto transient error or network congestion.
-		 */
-		if (qcc->wait_event.events & SUB_RETRY_SEND) {
-			TRACE_DEVEL("already subscribed for sending",
-			            QMUX_EV_QCS_SEND, qcc->conn, qcs);
-			goto err;
-		}
-
-		flen = qcs_build_stream_frm(qcs, out, fin, frms, window_conn);
-		if (flen < 0)
-			goto err;
-	}
+	flen = qcs_build_stream_frm(qcs, out, fin, frms, window_conn);
+	if (flen < 0)
+		goto err;
 
  out:
 	TRACE_LEAVE(QMUX_EV_QCS_SEND, qcc->conn, qcs);
@@ -2852,7 +2763,8 @@ static size_t qmux_strm_snd_buf(struct stconn *sc, struct buffer *buf,
                                 size_t count, int flags)
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
-	const size_t old_data = b_data(&qcs->tx.buf);
+	struct buffer *out = qc_stream_buf_get(qcs->stream);
+	const size_t old_data = out ? b_data(out) : 0;
 	size_t ret = 0;
 	char fin;
 
@@ -2895,7 +2807,9 @@ static size_t qmux_strm_snd_buf(struct stconn *sc, struct buffer *buf,
 	}
 
 	if (ret || fin) {
-		qcc_send_stream(qcs, 0, b_data(&qcs->tx.buf) - old_data);
+		const size_t data = b_data(qc_stream_buf_get(qcs->stream)) - (old_data);
+		if (data || fin)
+			qcc_send_stream(qcs, 0, data);
 		if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
 			tasklet_wakeup(qcs->qcc->wait_event.tasklet);
 	}
@@ -3007,14 +2921,12 @@ static size_t qmux_strm_done_ff(struct stconn *sc)
 	data += sd->iobuf.offset;
 	total = qcs->qcc->app_ops->done_ff(qcs);
 
-	qcc_send_stream(qcs, 0, data);
+	if (data || qcs->flags & QC_SF_FIN_STREAM)
+		qcc_send_stream(qcs, 0, data);
 	if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
 		tasklet_wakeup(qcc->wait_event.tasklet);
 
   end:
-	if (!b_data(&qcs->tx.buf))
-		b_free(&qcs->tx.buf);
-
 	TRACE_LEAVE(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 	return total;
 }

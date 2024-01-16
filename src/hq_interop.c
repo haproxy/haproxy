@@ -89,19 +89,16 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
                                  size_t count)
 {
 	enum htx_blk_type btype;
-	struct htx *htx;
+	struct htx *htx = NULL;
 	struct htx_blk *blk;
 	int32_t idx;
 	uint32_t bsize, fsize;
-	struct buffer *res, outbuf;
+	struct buffer *res = NULL;
 	size_t total = 0;
-
-	res = qcc_get_stream_txbuf(qcs);
-	outbuf = b_make(b_tail(res), b_contig_space(res), 0, 0);
 
 	htx = htx_from_buf(buf);
 
-	while (count && !htx_is_empty(htx) && !(qcs->flags & QC_SF_BLK_MROOM)) {
+	while (count && !htx_is_empty(htx)) {
 		/* Not implemented : QUIC on backend side */
 		idx = htx_get_head(htx);
 		blk = htx_get_blk(htx, idx);
@@ -112,6 +109,12 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 
 		switch (btype) {
 		case HTX_BLK_DATA:
+			res = qcc_get_stream_txbuf(qcs);
+			if (!res) {
+				/* TODO */
+				ABORT_NOW();
+			}
+
 			if (unlikely(fsize == count &&
 				     !b_data(res) &&
 				     htx_nbblks(htx) == 1 && btype == HTX_BLK_DATA)) {
@@ -137,15 +140,15 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 			if (fsize > count)
 				fsize = count;
 
-			if (b_room(&outbuf) < fsize)
-				fsize = b_room(&outbuf);
+			if (b_contig_space(res) < fsize)
+				fsize = b_contig_space(res);
 
 			if (!fsize) {
-				qcs->flags |= QC_SF_BLK_MROOM;
-				goto end;
+				/* TODO */
+				ABORT_NOW();
 			}
 
-			b_putblk(&outbuf, htx_get_blk_ptr(htx, blk), fsize);
+			b_putblk(res, htx_get_blk_ptr(htx, blk), fsize);
 			total += fsize;
 			count -= fsize;
 
@@ -168,7 +171,6 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 	}
 
  end:
-	b_add(res, b_data(&outbuf));
 	htx_to_buf(htx, buf);
 
 	return total;
@@ -176,12 +178,20 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 
 static size_t hq_interop_nego_ff(struct qcs *qcs, size_t count)
 {
-	struct buffer *res = qcc_get_stream_txbuf(qcs);
+	int ret = 0;
+	struct buffer *res;
 
-	if (!b_room(res)) {
-		qcs->flags |= QC_SF_BLK_MROOM;
+	res = qcc_get_stream_txbuf(qcs);
+	if (!res) {
 		qcs->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
 		goto end;
+		/* TODO */
+		ABORT_NOW();
+	}
+
+	if (!b_room(res)) {
+		/* TODO */
+		ABORT_NOW();
 	}
 
 	/* No header required for HTTP/0.9, no need to reserve an offset. */
@@ -189,8 +199,9 @@ static size_t hq_interop_nego_ff(struct qcs *qcs, size_t count)
 	qcs->sd->iobuf.offset = 0;
 	qcs->sd->iobuf.data = 0;
 
+	ret = MIN(count, b_contig_space(res));
  end:
-	return MIN(b_contig_space(res), count);
+	return ret;
 }
 
 static size_t hq_interop_done_ff(struct qcs *qcs)

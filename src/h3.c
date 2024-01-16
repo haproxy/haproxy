@@ -1715,9 +1715,9 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 
 	/* At least 9 bytes to store frame type + length as a varint max size */
 	if (b_room(res) < 9) {
+		/* TODO */
 		TRACE_STATE("not enough room for trailers frame", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-		qcs->flags |= QC_SF_BLK_MROOM;
-		goto end;
+		ABORT_NOW();
 	}
 
 	/* Force buffer realignment as size required to encode headers is unknown. */
@@ -1727,9 +1727,9 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 	headers_buf = b_make(b_peek(res, b_data(res) + 9), b_contig_space(res) - 9, 0, 0);
 
 	if (qpack_encode_field_section_line(&headers_buf)) {
+		/* TODO */
 		TRACE_STATE("not enough room for trailers section line", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-		qcs->flags |= QC_SF_BLK_MROOM;
-		goto end;
+		ABORT_NOW();
 	}
 
 	tail = b_tail(&headers_buf);
@@ -1749,9 +1749,9 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 		}
 
 		if (qpack_encode_header(&headers_buf, list[hdr].n, list[hdr].v)) {
+			/* TODO */
 			TRACE_STATE("not enough room for all trailers", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-			qcs->flags |= QC_SF_BLK_MROOM;
-			goto end;
+			ABORT_NOW();
 		}
 	}
 
@@ -1868,22 +1868,13 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
 	if (fsize > count)
 		fsize = count;
 
-	while (1) {
-		b_reset(&outbuf);
-		outbuf = b_make(b_tail(res), b_contig_space(res), 0, 0);
-		if (b_size(&outbuf) > hsize || !b_space_wraps(res))
-			break;
-		b_slow_realign(res, trash.area, b_data(res));
-	}
+	/* TODO buffer can be realign only if no data waiting for ACK. */
+	outbuf = b_make(b_tail(res), b_contig_space(res), 0, 0);
 
-	/* Not enough room for headers and at least one data byte, block the
-	 * stream. It is expected that the stream connector layer will subscribe
-	 * on SEND.
-	 */
 	if (b_size(&outbuf) <= hsize) {
+		/* TODO */
 		TRACE_STATE("not enough room for data frame", H3_EV_TX_FRAME|H3_EV_TX_DATA, qcs->qcc->conn, qcs);
-		qcs->flags |= QC_SF_BLK_MROOM;
-		goto end;
+		ABORT_NOW();
 	}
 
 	if (b_size(&outbuf) < hsize + fsize)
@@ -1934,8 +1925,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 
 	htx = htx_from_buf(buf);
 
-	while (count && !htx_is_empty(htx) &&
-	       !(qcs->flags & QC_SF_BLK_MROOM) && !h3c->err) {
+	while (count && !htx_is_empty(htx) && !h3c->err) {
 
 		idx = htx_get_head(htx);
 		blk = htx_get_blk(htx, idx);
@@ -2045,18 +2035,14 @@ static size_t h3_nego_ff(struct qcs *qcs, size_t count)
 
 	/* h3 DATA headers : 1-byte frame type + varint frame length */
 	hsize = 1 + QUIC_VARINT_MAX_SIZE;
-	while (1) {
-		if (b_contig_space(res) >= hsize || !b_space_wraps(res))
-			break;
-		b_slow_realign(res, trash.area, b_data(res));
-	}
+	/* TODO buffer can be realign only if no data waiting for ACK. */
 
 	/* Not enough room for headers and at least one data byte, block the
 	 * stream. It is expected that the stream connector layer will subscribe
 	 * on SEND.
 	 */
 	if (b_contig_space(res) <= hsize) {
-		qcs->flags |= QC_SF_BLK_MROOM;
+		/* TODO */
 		qcs->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
 		goto end;
 	}
