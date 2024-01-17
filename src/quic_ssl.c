@@ -278,12 +278,26 @@ write:
 		goto leave;
 
  keyupdate_init:
-	/* Store the secret provided by the TLS stack, required for keyupdate. */
 	if (level == ssl_encryption_application) {
 		struct quic_tls_kp *prv_rx = &qc->ku.prv_rx;
 		struct quic_tls_kp *nxt_rx = &qc->ku.nxt_rx;
 		struct quic_tls_kp *nxt_tx = &qc->ku.nxt_tx;
 
+#ifndef USE_QUIC_OPENSSL_COMPAT
+		if (!qc_is_listener(qc)) {
+			const unsigned char *tp;
+			size_t tplen;
+
+			SSL_get_peer_quic_transport_params(ssl, &tp, &tplen);
+			if (!tplen || !quic_transport_params_store(qc, 1,tp, tp + tplen)) {
+				TRACE_ERROR("Could not parse remote transport paratemers",
+				            QUIC_EV_CONN_RWSEC, qc);
+				goto leave;
+			}
+		}
+#endif
+
+		/* Store the secret provided by the TLS stack, required for keyupdate. */
 		if (rx) {
 			if (!(rx->secret = pool_alloc(pool_head_quic_tls_secret))) {
 				TRACE_ERROR("Could not allocate RX Application secrete keys", QUIC_EV_CONN_RWSEC, qc);
