@@ -2604,6 +2604,7 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 		}
 
 		if (h2c->mws >= 0 && h2c->mws + inc < 0) {
+			TRACE_ERROR("conn WINDOW_UPDATE inc<0", H2_EV_RX_FRAME|H2_EV_RX_WU, h2c->conn);
 			error = H2_ERR_FLOW_CONTROL_ERROR;
 			goto conn_err;
 		}
