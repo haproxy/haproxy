@@ -1,0 +1,108 @@
+# This test verifies that H2 anomalies counted as glitches are properly detected
+# and fetched.
+
+varnishtest "h2 glitches"
+feature ignore_unknown_macro
+
+# haproxy frontend
+haproxy hap -conf {
+	defaults
+		mode http
+
+	listen fe1
+		bind "fd@${fe1}" proto h2
+		http-request return status 200 hdr x-glitches %[fc_glitches]
+} -start
+
+# valid request: no glitch
+client c1 -connect ${hap_fe1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -method "GET" \
+		  -scheme "http" \
+		  -url "/"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-glitches == 0
+	} -run
+
+	stream 3 {
+		txreq \
+		  -method "GET" \
+		  -scheme "http" \
+		  -url "/"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-glitches == 0
+	} -run
+} -run
+
+# invalid path: => req decoding error => glitch++
+client c2-path -connect ${hap_fe1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -method "GET" \
+		  -scheme "http" \
+		  -url "hello-world"
+		rxrst
+	} -run
+
+	stream 3 {
+		txreq \
+		  -method "GET" \
+		  -scheme "http" \
+		  -url "/"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-glitches == 1
+	} -run
+} -run
+
+# invalid scheme: blocked at HTX layer, not counted
+client c3-scheme -connect ${hap_fe1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -method "GET" \
+		  -scheme "http://localhost/?" \
+		  -url "/"
+		rxresp
+		expect resp.status == 400
+	} -run
+
+	stream 3 {
+		txreq \
+		  -method "GET" \
+		  -scheme "http" \
+		  -url "/"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-glitches == 0
+	} -run
+} -run

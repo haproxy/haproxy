@@ -20969,6 +20969,7 @@ bc_dst                                             ip
 bc_dst_port                                        integer
 bc_err                                             integer
 bc_err_str                                         string
+bc_glitches                                        integer
 bc_http_major                                      integer
 bc_src                                             ip
 bc_src_port                                        integer
@@ -20993,6 +20994,7 @@ fc_dst_port                                        integer
 fc_err                                             integer
 fc_err_str                                         string
 fc_fackets                                         integer
+fc_glitches                                        integer
 fc_http_major                                      integer
 fc_lost                                            integer
 fc_pp_authority                                    string
@@ -21206,6 +21208,20 @@ bc_err_str : string
   "fc_err_str" fetch for a full list of error codes and their
   corresponding error message.
 
+bc_glitches : integer
+  Returns the number of protocol glitches counted on the backend connection.
+  These generally cover protocol violations as well as small anomalies that
+  generally indicate a bogus or misbehaving server that may cause trouble in
+  the infrastructure (e.g. cause connections to be aborted early, inducing
+  frequent TLS renegotiations). These may also be caused by too large responses
+  that cannot fit into a single buffer, explaining HTTP 502 errors. Ideally
+  this number should remain zero, though it's generally fine if it remains very
+  low compared to the total number of requests. These values should normally
+  not be considered as alarming (especially small ones), though a sudden jump
+  may indicate an anomaly somewhere. Not all protocol multiplexers measure this
+  metric and the only way to get more details about the events is to enable
+  traces to capture all exchanges.
+
 bc_http_major : integer
   Returns the backend connection's HTTP major version encoding, which may be 1
   for HTTP/0.9 to HTTP/1.1 or 2 for HTTP/2. Note, this is based on the on-wire
@@ -21410,6 +21426,23 @@ fc_fackets : integer
   connection. If the server connection is not established, if the connection is
   not TCP or if the operating system does not support TCP_INFO, for example
   Linux kernels before 2.4, the sample fetch fails.
+
+fc_glitches : integer
+  Returns the number of protocol glitches counted on the frontend connection.
+  These generally cover protocol violations as well as small anomalies that
+  generally indicate a bogus or misbehaving client that may cause trouble in
+  the infrastructure, such as excess of errors in the logs, or many connections
+  being aborted early, inducing frequent TLS renegotiations. These may also be
+  caused by too large requests that cannot fit into a single buffer, explaining
+  HTTP 400 errors. Ideally this number should remain zero, though it may be
+  possible that some browsers playing with the protocol boundaries trigger it
+  once in a while. These values should normally not be considered as alarming
+  (especially small ones), though a sudden jump may indicate an anomaly
+  somewhere. Large values (i.e. hundreds to thousands per connection, or as
+  many as the requests) may indicate a purposely built client that is trying to
+  fingerprint or attack the protocol stack. Not all protocol multiplexers
+  measure this metric, and the only way to get more details about the events is
+  to enable traces to capture all exchanges.
 
 fc_http_major : integer
   Reports the front connection's HTTP major version encoding, which may be 1

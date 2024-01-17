@@ -2242,6 +2242,40 @@ int conn_append_debug_info(struct buffer *buf, const struct connection *conn, co
 	return buf->data - old_len;
 }
 
+/* return the number of glitches experienced on the mux connection. */
+static int
+smp_fetch_fc_glitches(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn = NULL;
+	int ret;
+
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+                conn = (kw[0] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->sc) : NULL;
+        else
+                conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
+			smp->strm ? sc_conn(smp->strm->scb) : NULL;
+
+	/* No connection or a connection with an unsupported mux */
+	if (!conn || (conn->mux && !conn->mux->ctl))
+		return 0;
+
+	/* Mux not installed yet, this may change */
+	if (!conn->mux) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	ret = conn->mux->ctl(conn, MUX_CTL_GET_GLITCHES, NULL);
+	if (ret < 0) {
+		/* not supported by the mux */
+		return 0;
+	}
+
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = ret;
+	return 1;
+}
+
 /* return the major HTTP version as 1 or 2 depending on how the request arrived
  * before being processed.
  *
@@ -2488,9 +2522,11 @@ int smp_fetch_fc_err_str(const struct arg *args, struct sample *smp, const char 
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "bc_err", smp_fetch_fc_err, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
 	{ "bc_err_str", smp_fetch_fc_err_str, 0, NULL, SMP_T_STR, SMP_USE_L4SRV },
+	{ "bc_glitches", smp_fetch_fc_glitches, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
 	{ "bc_http_major", smp_fetch_fc_http_major, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
 	{ "fc_err", smp_fetch_fc_err, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "fc_err_str", smp_fetch_fc_err_str, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
+	{ "fc_glitches", smp_fetch_fc_glitches, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "fc_http_major", smp_fetch_fc_http_major, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "fc_rcvd_proxy", smp_fetch_fc_rcvd_proxy, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "fc_pp_authority", smp_fetch_fc_pp_authority, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
