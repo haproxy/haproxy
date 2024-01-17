@@ -6,7 +6,7 @@
 #include <haproxy/buf.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/list.h>
-#include <haproxy/mux_quic-t.h>
+#include <haproxy/mux_quic.h>
 #include <haproxy/pool.h>
 #include <haproxy/quic_conn.h>
 #include <haproxy/task.h>
@@ -37,7 +37,13 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 	/* notify MUX about available buffers. */
 	--qc->stream_buf_count;
 	if (qc->mux_state == QC_MUX_READY) {
-		/* TODO notify MUX for available buffer. */
+		/* notify MUX about available buffers.
+		 *
+		 * TODO several streams may be woken up even if a single buffer
+		 * is available for now.
+		 */
+		while (qcc_notify_buf(qc->qcc))
+			;
 	}
 }
 
@@ -199,7 +205,13 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 
 		qc->stream_buf_count -= free_count;
 		if (qc->mux_state == QC_MUX_READY) {
-			/* TODO notify MUX for available buffer. */
+			/* notify MUX about available buffers.
+			 *
+			 * TODO several streams may be woken up even if a single buffer
+			 * is available for now.
+			 */
+			while (qcc_notify_buf(qc->qcc))
+				;
 		}
 	}
 

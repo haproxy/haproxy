@@ -1428,6 +1428,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
  */
 static int h3_control_send(struct qcs *qcs, void *ctx)
 {
+	int err;
 	int ret;
 	struct h3c *h3c = ctx;
 	unsigned char data[(2 + 3) * 2 * QUIC_VARINT_MAX_SIZE]; /* enough for 3 settings */
@@ -1468,7 +1469,8 @@ static int h3_control_send(struct qcs *qcs, void *ctx)
 		goto err;
 	}
 
-	if (!(res = qcc_get_stream_txbuf(qcs))) {
+	if (!(res = qcc_get_stream_txbuf(qcs, &err))) {
+		/* Consider alloc failure fatal for control stream even on conn buf limit. */
 		TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_SETTINGS, qcs->qcc->conn, qcs);
 		goto err;
 	}
@@ -1496,6 +1498,7 @@ static int h3_control_send(struct qcs *qcs, void *ctx)
 
 static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 {
+	int err;
 	struct h3s *h3s = qcs->ctx;
 	struct h3c *h3c = h3s->h3c;
 	struct buffer outbuf;
@@ -1550,10 +1553,15 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 
 	list[hdr].n = ist("");
 
-	if (!(res = qcc_get_stream_txbuf(qcs))) {
-		TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-		h3c->err = H3_INTERNAL_ERROR;
-		goto err;
+	if (!(res = qcc_get_stream_txbuf(qcs, &err))) {
+		if (err) {
+			TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+			h3c->err = H3_INTERNAL_ERROR;
+			goto err;
+		}
+
+		TRACE_STATE("conn buf limit reached", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+		goto end;
 	}
 
 	/* At least 5 bytes to store frame type + length as a varint max size */
@@ -1626,6 +1634,7 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 			break;
 	}
 
+ end:
 	TRACE_LEAVE(H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 	return ret;
 
@@ -1647,6 +1656,7 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
  */
 static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 {
+	int err;
 	struct h3s *h3s = qcs->ctx;
 	struct h3c *h3c = h3s->h3c;
 	struct buffer headers_buf = BUF_NULL;
@@ -1708,10 +1718,15 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 	list[hdr].n = ist("");
 
  start:
-	if (!(res = qcc_get_stream_txbuf(qcs))) {
-		TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-		h3c->err = H3_INTERNAL_ERROR;
-		goto err;
+	if (!(res = qcc_get_stream_txbuf(qcs, &err))) {
+		if (err) {
+			TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+			h3c->err = H3_INTERNAL_ERROR;
+			goto err;
+		}
+
+		TRACE_STATE("conn buf limit reached", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+		goto end;
 	}
 
 	/* At least 9 bytes to store frame type + length as a varint max size */
@@ -1815,6 +1830,7 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
                              struct buffer *buf, size_t count)
 {
+	int err;
 	struct h3s *h3s = qcs->ctx;
 	struct h3c *h3c = h3s->h3c;
 	struct buffer outbuf;
@@ -1840,10 +1856,16 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
 	if (type != HTX_BLK_DATA)
 		goto end;
 
-	if (!(res = qcc_get_stream_txbuf(qcs))) {
-		TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_DATA, qcs->qcc->conn, qcs);
-		h3c->err = H3_INTERNAL_ERROR;
-		goto err;
+	if (!(res = qcc_get_stream_txbuf(qcs, &err))) {
+		if (err) {
+			TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_DATA, qcs->qcc->conn, qcs);
+			h3c->err = H3_INTERNAL_ERROR;
+			goto err;
+		}
+
+		/* Connection buf limit reached, stconn will subscribe on SEND. */
+		TRACE_STATE("conn buf limit reached", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+		goto end;
 	}
 
 	/* If HTX contains only one DATA block, try to exchange it with MUX
@@ -2040,6 +2062,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 
 static size_t h3_nego_ff(struct qcs *qcs, size_t count)
 {
+	int err;
 	struct buffer *res;
 	int hsize;
 	size_t sz, ret = 0;
@@ -2047,8 +2070,13 @@ static size_t h3_nego_ff(struct qcs *qcs, size_t count)
 	TRACE_ENTER(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
  start:
-	if (!(res = qcc_get_stream_txbuf(qcs))) {
-		qcs->sd->iobuf.flags |= IOBUF_FL_NO_FF;
+	if (!(res = qcc_get_stream_txbuf(qcs, &err))) {
+		if (err) {
+			qcs->sd->iobuf.flags |= IOBUF_FL_NO_FF;
+			goto end;
+		}
+
+		qcs->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
 		goto end;
 	}
 
@@ -2224,6 +2252,7 @@ static void h3_detach(struct qcs *qcs)
  */
 static int h3_send_goaway(struct h3c *h3c)
 {
+	int err;
 	struct qcs *qcs = h3c->ctrl_strm;
 	struct buffer pos, *res;
 	unsigned char data[3 * QUIC_VARINT_MAX_SIZE];
@@ -2243,10 +2272,10 @@ static int h3_send_goaway(struct h3c *h3c)
 	b_quic_enc_int(&pos, frm_len, 0);
 	b_quic_enc_int(&pos, h3c->id_goaway, 0);
 
-	res = qcc_get_stream_txbuf(qcs);
+	res = qcc_get_stream_txbuf(qcs, &err);
 	if (!res || b_room(res) < b_data(&pos) ||
 	    qfctl_sblocked(&qcs->tx.fc) || qfctl_sblocked(&h3c->qcc->tx.fc)) {
-		/* Do not try forcefully to emit GOAWAY if no space left. */
+		/* Do not try forcefully to emit GOAWAY if no buffer available or not enough space left. */
 		TRACE_ERROR("cannot send GOAWAY", H3_EV_H3C_END, h3c->qcc->conn, qcs);
 		goto err;
 	}

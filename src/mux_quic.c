@@ -60,6 +60,7 @@ static void qcs_free(struct qcs *qcs)
 	LIST_DEL_INIT(&qcs->el_opening);
 	LIST_DEL_INIT(&qcs->el_send);
 	LIST_DEL_INIT(&qcs->el_fctl);
+	LIST_DEL_INIT(&qcs->el_buf);
 
 	/* Release stream endpoint descriptor. */
 	BUG_ON(qcs->sd && !se_fl_test(qcs->sd, SE_FL_ORPHAN));
@@ -109,6 +110,7 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	LIST_INIT(&qcs->el_opening);
 	LIST_INIT(&qcs->el_send);
 	LIST_INIT(&qcs->el_fctl);
+	LIST_INIT(&qcs->el_buf);
 	qcs->start = TICK_ETERNITY;
 
 	/* store transport layer stream descriptor in qcc tree */
@@ -494,6 +496,35 @@ void qcs_notify_send(struct qcs *qcs)
 		if (!qcs->subs->events)
 			qcs->subs = NULL;
 	}
+}
+
+/* Notify on a new stream-desc buffer available for <qcc> connection.
+ *
+ * Returns true if a stream was woken up. If false is returned, this indicates
+ * to the caller that it's currently unnecessary to notify for the rest of the
+ * available buffers.
+ */
+int qcc_notify_buf(struct qcc *qcc)
+{
+	struct qcs *qcs;
+	int ret = 0;
+
+	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
+
+	if (qcc->flags & QC_CF_CONN_FULL) {
+		TRACE_STATE("new stream desc buffer available", QMUX_EV_QCC_WAKE, qcc->conn);
+		qcc->flags &= ~QC_CF_CONN_FULL;
+	}
+
+	if (!LIST_ISEMPTY(&qcc->buf_wait_list)) {
+		qcs = LIST_ELEM(qcc->buf_wait_list.n, struct qcs *, el_buf);
+		LIST_DEL_INIT(&qcs->el_buf);
+		qcs_notify_send(qcs);
+		ret = 1;
+	}
+
+	TRACE_LEAVE(QMUX_EV_QCC_WAKE, qcc->conn);
+	return ret;
 }
 
 /* A fatal error is detected locally for <qcc> connection. It should be closed
@@ -923,22 +954,48 @@ struct buffer *qcc_get_stream_rxbuf(struct qcs *qcs)
 
 /* Allocate if needed and retrieve <qcs> stream buffer for data emission.
  *
- * Returns buffer pointer. May be NULL on allocation failure.
+ * <err> is an output argument which is useful to differentiate the failure
+ * cause when the buffer cannot be allocated. It is set to 0 if the connection
+ * buffer limit is reached. For fatal errors, its value is non-zero.
+ *
+ * Returns buffer pointer. May be NULL on allocation failure, in which case
+ * <err> will refer to the cause.
  */
-struct buffer *qcc_get_stream_txbuf(struct qcs *qcs)
+struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err)
 {
 	struct qcc *qcc = qcs->qcc;
 	int buf_avail;
 	struct buffer *out = qc_stream_buf_get(qcs->stream);
 
+	/* Stream must not try to reallocate a buffer if currently waiting for one. */
+	BUG_ON(LIST_INLIST(&qcs->el_buf));
+
+	*err = 0;
+
 	if (!out) {
+		if (qcc->flags & QC_CF_CONN_FULL) {
+			LIST_APPEND(&qcc->buf_wait_list, &qcs->el_buf);
+			goto out;
+		}
+
 		out = qc_stream_buf_alloc(qcs->stream, qcs->tx.fc.off_real,
 		                          &buf_avail);
-		if (!out)
+		if (!out) {
+			if (buf_avail) {
+				TRACE_ERROR("stream desc alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+				*err = 1;
+				goto out;
+			}
+
+			TRACE_STATE("hitting stream desc buffer limit", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+			LIST_APPEND(&qcc->buf_wait_list, &qcs->el_buf);
+			qcc->flags |= QC_CF_CONN_FULL;
 			goto out;
+		}
 
 		if (!b_alloc(out)) {
 			TRACE_ERROR("buffer alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+			*err = 1;
 			goto out;
 		}
 	}
@@ -988,7 +1045,7 @@ int qcc_release_stream_txbuf(struct qcs *qcs)
 /* Returns true if stream layer can proceed to emission via <qcs>. */
 int qcc_stream_can_send(const struct qcs *qcs)
 {
-	return !(qcs->flags & QC_SF_BLK_MROOM);
+	return !(qcs->flags & QC_SF_BLK_MROOM) && !LIST_INLIST(&qcs->el_buf);
 }
 
 /* Wakes up every streams of <qcc> which are currently waiting for sending but
@@ -1013,6 +1070,10 @@ void qcc_reset_stream(struct qcs *qcs, int err)
 
 	if ((qcs->flags & QC_SF_TO_RESET) || qcs_is_close_local(qcs))
 		return;
+
+	/* TODO if QCS waiting for buffer, it could be removed from
+	 * <qcc.buf_wait_list> if sending is closed now.
+	 */
 
 	TRACE_STATE("reset stream", QMUX_EV_QCS_END, qcc->conn, qcs);
 	qcs->flags |= QC_SF_TO_RESET;
@@ -2575,6 +2636,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 
 	LIST_INIT(&qcc->send_list);
 	LIST_INIT(&qcc->fctl_list);
+	LIST_INIT(&qcc->buf_wait_list);
 
 	qcc->wait_event.tasklet->process = qcc_io_cb;
 	qcc->wait_event.tasklet->context = qcc;
@@ -2790,6 +2852,9 @@ static size_t qmux_strm_snd_buf(struct stconn *sc, struct buffer *buf,
 
 	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
+	/* Stream must not be woken up if already waiting for conn buffer. */
+	BUG_ON(LIST_INLIST(&qcs->el_buf));
+
 	/* Sending forbidden if QCS is locally closed (FIN or RESET_STREAM sent). */
 	BUG_ON(qcs_is_close_local(qcs) || (qcs->flags & QC_SF_TO_RESET));
 
@@ -2848,6 +2913,9 @@ static size_t qmux_strm_nego_ff(struct stconn *sc, struct buffer *input,
 	size_t ret = 0;
 
 	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
+
+	/* Stream must not be woken up if already waiting for conn buffer. */
+	BUG_ON(LIST_INLIST(&qcs->el_buf));
 
 	/* Sending forbidden if QCS is locally closed (FIN or RESET_STREAM sent). */
 	BUG_ON(qcs_is_close_local(qcs) || (qcs->flags & QC_SF_TO_RESET));

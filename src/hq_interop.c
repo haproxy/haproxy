@@ -95,6 +95,7 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 	uint32_t bsize, fsize;
 	struct buffer *res = NULL;
 	size_t total = 0;
+	int err;
 
 	htx = htx_from_buf(buf);
 
@@ -109,10 +110,11 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 
 		switch (btype) {
 		case HTX_BLK_DATA:
-			res = qcc_get_stream_txbuf(qcs);
+			res = qcc_get_stream_txbuf(qcs, &err);
 			if (!res) {
-				/* TODO */
-				ABORT_NOW();
+				if (err)
+					ABORT_NOW();
+				goto end;
 			}
 
 			if (unlikely(fsize == count &&
@@ -179,16 +181,16 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 
 static size_t hq_interop_nego_ff(struct qcs *qcs, size_t count)
 {
-	int ret = 0;
+	int err, ret = 0;
 	struct buffer *res;
 
  start:
-	res = qcc_get_stream_txbuf(qcs);
+	res = qcc_get_stream_txbuf(qcs, &err);
 	if (!res) {
+		if (err)
+			ABORT_NOW();
 		qcs->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
 		goto end;
-		/* TODO */
-		ABORT_NOW();
 	}
 
 	if (!b_room(res)) {
