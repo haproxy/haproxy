@@ -337,6 +337,7 @@ enum mux_ctl_type {
 	MUX_CTL_EXIT_STATUS, /* Expects an int as output, sets the mux exist/error/http status, if known or 0 */
 	MUX_CTL_REVERSE_CONN, /* Notify about an active reverse connection accepted. */
 	MUX_CTL_SUBS_RECV, /* Notify the mux it must wait for read events again  */
+	MUX_CTL_GET_GLITCHES, /* returns number of glitches on the connection */
 };
 
 /* sctl command used by mux->sctl() */
