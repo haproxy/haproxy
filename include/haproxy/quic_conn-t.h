@@ -228,6 +228,9 @@ struct quic_version {
 extern const struct quic_version quic_versions[];
 extern const size_t quic_versions_nb;
 extern const struct quic_version *preferred_version;
+extern const struct quic_version *quic_version_draft_29;
+extern const struct quic_version *quic_version_1;
+extern const struct quic_version *quic_version_2;
 
 /* unused: 0x01 */
 /* Flag the packet number space as requiring an ACK frame to be sent. */

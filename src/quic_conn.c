@@ -119,6 +119,10 @@ const struct quic_version quic_versions[] = {
 	},
 };
 
+const struct quic_version *quic_version_draft_29 = &quic_versions[0];
+const struct quic_version *quic_version_1 = &quic_versions[1];
+const struct quic_version *quic_version_2 = &quic_versions[2];
+
 /* Function pointers, can be used to compute a hash from first generated CID and to derive new CIDs */
 uint64_t (*quic_hash64_from_cid)(const unsigned char *cid, int size, const unsigned char *secret, size_t secretlen) = NULL;
 void (*quic_newcid_from_hash64)(unsigned char *cid, int size, uint64_t hash, const unsigned char *secret, size_t secretlen) = NULL;

@@ -513,8 +513,21 @@ static int quic_transport_param_enc_version_info(unsigned char **buf,
 	memcpy(*buf, &ver, sizeof ver);
 	*buf += sizeof ver;
 	/* For servers: all supported version, chosen included */
-	for (i = 0; i < quic_versions_nb; i++) {
-		ver = htonl(quic_versions[i].num);
+	if (server) {
+		for (i = 0; i < quic_versions_nb; i++) {
+			ver = htonl(quic_versions[i].num);
+			memcpy(*buf, &ver, sizeof ver);
+			*buf += sizeof ver;
+		}
+	}
+	else {
+		ver = htonl(quic_version_1->num);
+		memcpy(*buf, &ver, sizeof ver);
+		*buf += sizeof ver;
+		ver = htonl(quic_version_2->num);
+		memcpy(*buf, &ver, sizeof ver);
+		*buf += sizeof ver;
+		ver = htonl(quic_version_draft_29->num);
 		memcpy(*buf, &ver, sizeof ver);
 		*buf += sizeof ver;
 	}
