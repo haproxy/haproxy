@@ -213,9 +213,18 @@ static int quic_transport_param_dec_version_info(struct tp_version_information *
 			return 0;
 	}
 
-	if (server)
-		/* TODO: not supported */
+	if (server) {
+		int i;
+
+		for (i = 0; i < quic_versions_nb; i++) {
+			if (tp->chosen == quic_versions[i].num) {
+				tp->negotiated_version = &quic_versions[i];
+				goto out;
+			}
+		}
+
 		return 0;
+	}
 
 	for (ver = others; ver < end; ver += 4) {
 		if (!tp->negotiated_version) {
