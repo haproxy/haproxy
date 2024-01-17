@@ -1019,6 +1019,21 @@ static uint64_t qcs_prep_bytes(const struct qcs *qcs)
 	return b_data(out) - diff;
 }
 
+/* Try to realign <out> buffer for <qcs> stream. This is done only if there is
+ * no data waiting for ACK.
+ *
+ * Returns 0 if realign was performed else non-zero.
+ */
+int qcc_realign_stream_txbuf(const struct qcs *qcs, struct buffer *out)
+{
+	if (qcs_prep_bytes(qcs) == b_data(out)) {
+		b_slow_realign(out, trash.area, b_data(out));
+		return 0;
+	}
+
+	return 1;
+}
+
 /* Release the current <qcs> Tx buffer. This is useful if space left is not
  * enough anymore. A new instance can then be allocated to continue sending.
  *

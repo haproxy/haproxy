@@ -1900,8 +1900,14 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
 	if (fsize > count)
 		fsize = count;
 
-	/* TODO buffer can be realign only if no data waiting for ACK. */
-	outbuf = b_make(b_tail(res), b_contig_space(res), 0, 0);
+	while (1) {
+		b_reset(&outbuf);
+		outbuf = b_make(b_tail(res), b_contig_space(res), 0, 0);
+		if (b_size(&outbuf) > hsize || !b_space_wraps(res))
+			break;
+		if (qcc_realign_stream_txbuf(qcs, res))
+			break;
+	}
 
 	/* Not enough room for headers and at least one data byte, try to
 	 * release the current buffer and allocate a new one. If not possible,
@@ -2082,7 +2088,12 @@ static size_t h3_nego_ff(struct qcs *qcs, size_t count)
 
 	/* h3 DATA headers : 1-byte frame type + varint frame length */
 	hsize = 1 + QUIC_VARINT_MAX_SIZE;
-	/* TODO buffer can be realign only if no data waiting for ACK. */
+	while (1) {
+		if (b_contig_space(res) >= hsize || !b_space_wraps(res))
+			break;
+		if (qcc_realign_stream_txbuf(qcs, res))
+			break;
+	}
 
 	/* Not enough room for headers and at least one data byte, block the
 	 * stream. It is expected that the stream connector layer will subscribe
