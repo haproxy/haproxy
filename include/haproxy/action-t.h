@@ -192,6 +192,10 @@ struct act_rule {
 			struct sample_expr *name; /* used to differentiate idle connections */
 		} attach_srv; /* 'attach-srv' rule */
 		struct {
+			int value;
+			struct sample_expr *expr;
+		} expr_int; /* expr or int value (when expr is NULL)*/
+		struct {
 			void *p[4];
 		} act;                         /* generic pointers to be used by custom actions */
 	} arg;                                 /* arguments used by some actions */

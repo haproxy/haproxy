@@ -71,6 +71,29 @@ static enum act_return tcp_action_attach_srv(struct act_rule *rule, struct proxy
 	return ACT_RET_CONT;
 }
 
+/* tries to extract integer value from rule's argument:
+ *  if expr is set, computes expr and sets the result into <value>
+ *  else, it's already a numerical value, use it as-is.
+ *
+ * Returns 1 on success and 0 on failure.
+ */
+static int extract_int_from_rule(struct act_rule *rule,
+                                 struct proxy *px, struct session *sess, struct stream *s,
+                                 int *value)
+{
+	struct sample *smp;
+
+	if (!rule->arg.expr_int.expr) {
+		*value = rule->arg.expr_int.value;
+		return 1;
+	}
+	smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr_int.expr, SMP_T_SINT);
+	if (!smp)
+		return 0;
+	*value = smp->data.u.sint;
+	return 1;
+}
+
 /*
  * Execute the "set-src" action. May be called from {tcp,http}request.
  * It only changes the address and tries to preserve the original port. If the
@@ -392,7 +415,10 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 static enum act_return tcp_action_set_fc_mark(struct act_rule *rule, struct proxy *px,
                                               struct session *sess, struct stream *s, int flags)
 {
-	conn_set_mark(objt_conn(sess->origin), (uintptr_t)rule->arg.act.p[0]);
+	unsigned int mark;
+
+	if (extract_int_from_rule(rule, px, sess, s, (int *)&mark))
+		conn_set_mark(objt_conn(sess->origin), mark);
 	return ACT_RET_CONT;
 }
 #endif
@@ -401,7 +427,10 @@ static enum act_return tcp_action_set_fc_mark(struct act_rule *rule, struct prox
 static enum act_return tcp_action_set_fc_tos(struct act_rule *rule, struct proxy *px,
                                              struct session *sess, struct stream *s, int flags)
 {
-	conn_set_tos(objt_conn(sess->origin), (uintptr_t)rule->arg.act.p[0]);
+	int tos;
+
+	if (extract_int_from_rule(rule, px, sess, s, &tos))
+		conn_set_tos(objt_conn(sess->origin), tos);
 	return ACT_RET_CONT;
 }
 #endif
@@ -421,6 +450,14 @@ static void release_attach_srv_action(struct act_rule *rule)
 static void release_set_src_dst_action(struct act_rule *rule)
 {
 	release_sample_expr(rule->arg.expr);
+}
+
+/*
+ * Release expr_int rule argument when action is no longer used
+ */
+static __maybe_unused void release_expr_int_action(struct act_rule *rule)
+{
+	release_sample_expr(rule->arg.expr_int.expr);
 }
 
 static int tcp_check_attach_srv(struct act_rule *rule, struct proxy *px, char **err)
@@ -565,29 +602,53 @@ static enum act_parse_ret tcp_parse_set_src_dst(const char **args, int *orig_arg
 /* Parse a "set-mark" action. It takes the MARK value as argument. It returns
  * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
  */
-static enum act_parse_ret tcp_parse_set_mark(const char **args, int *cur_arg, struct proxy *px,
-					     struct act_rule *rule, char **err)
+static enum act_parse_ret tcp_parse_set_mark(const char **args, int *orig_arg, struct proxy *px,
+                                             struct act_rule *rule, char **err)
 {
 #if defined(SO_MARK) || defined(SO_USER_COOKIE) || defined(SO_RTABLE)
+	struct sample_expr *expr;
 	char *endp;
-	unsigned int mark;
+	unsigned int where;
+	int cur_arg = *orig_arg;
 
-	if (!*args[*cur_arg]) {
-		memprintf(err, "expects exactly 1 argument (integer/hex value)");
-		return ACT_RET_PRS_ERR;
-	}
-	mark = strtoul(args[*cur_arg], &endp, 0);
-	if (endp && *endp != '\0') {
-		memprintf(err, "invalid character starting at '%s' (integer/hex value expected)", endp);
+	if (!*args[*orig_arg]) {
+		memprintf(err, "expects an argument");
 		return ACT_RET_PRS_ERR;
 	}
 
-	(*cur_arg)++;
+	/* value may be either an unsigned integer or an expression */
+	rule->arg.expr_int.expr = NULL;
+	rule->arg.expr_int.value = strtoul(args[*orig_arg], &endp, 0);
+	if (*endp == '\0') {
+		/* valid unsigned integer */
+		(*orig_arg)++;
+	}
+	else {
+		/* invalid unsigned integer, fallback to expr */
+		expr = sample_parse_expr((char **)args, orig_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args, NULL);
+		if (!expr)
+			return ACT_RET_PRS_ERR;
+
+		where = 0;
+		if (px->cap & PR_CAP_FE)
+			where |= SMP_VAL_FE_HRQ_HDR;
+		if (px->cap & PR_CAP_BE)
+			where |= SMP_VAL_BE_HRQ_HDR;
+
+		if (!(expr->fetch->val & where)) {
+			memprintf(err,
+				  "fetch method '%s' extracts information from '%s', none of which is available here",
+				  args[cur_arg-1], sample_src_names(expr->fetch->use));
+			free(expr);
+			return ACT_RET_PRS_ERR;
+		}
+		rule->arg.expr_int.expr = expr;
+	}
 
 	/* Register processing function. */
 	rule->action_ptr = tcp_action_set_fc_mark;
 	rule->action = ACT_CUSTOM;
-	rule->arg.act.p[0] = (void *)(uintptr_t)mark;
+	rule->release_ptr = release_expr_int_action;
 	global.last_checks |= LSTCHK_NETADM;
 	return ACT_RET_PRS_OK;
 #else
@@ -600,29 +661,53 @@ static enum act_parse_ret tcp_parse_set_mark(const char **args, int *cur_arg, st
 /* Parse a "set-tos" action. It takes the TOS value as argument. It returns
  * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
  */
-static enum act_parse_ret tcp_parse_set_tos(const char **args, int *cur_arg, struct proxy *px,
-					     struct act_rule *rule, char **err)
+static enum act_parse_ret tcp_parse_set_tos(const char **args, int *orig_arg, struct proxy *px,
+                                            struct act_rule *rule, char **err)
 {
 #ifdef IP_TOS
+	struct sample_expr *expr;
 	char *endp;
-	int tos;
+	unsigned int where;
+	int cur_arg = *orig_arg;
 
-	if (!*args[*cur_arg]) {
-		memprintf(err, "expects exactly 1 argument (integer/hex value)");
-		return ACT_RET_PRS_ERR;
-	}
-	tos = strtol(args[*cur_arg], &endp, 0);
-	if (endp && *endp != '\0') {
-		memprintf(err, "invalid character starting at '%s' (integer/hex value expected)", endp);
+	if (!*args[*orig_arg]) {
+		memprintf(err, "expects an argument");
 		return ACT_RET_PRS_ERR;
 	}
 
-	(*cur_arg)++;
+	/* value may be either an integer or an expression */
+	rule->arg.expr_int.expr = NULL;
+	rule->arg.expr_int.value = strtol(args[*orig_arg], &endp, 0);
+	if (*endp == '\0') {
+		/* valid integer */
+		(*orig_arg)++;
+	}
+	else {
+		/* invalid unsigned integer, fallback to expr */
+		expr = sample_parse_expr((char **)args, orig_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args, NULL);
+		if (!expr)
+			return ACT_RET_PRS_ERR;
+
+		where = 0;
+		if (px->cap & PR_CAP_FE)
+			where |= SMP_VAL_FE_HRQ_HDR;
+		if (px->cap & PR_CAP_BE)
+			where |= SMP_VAL_BE_HRQ_HDR;
+
+		if (!(expr->fetch->val & where)) {
+			memprintf(err,
+				  "fetch method '%s' extracts information from '%s', none of which is available here",
+				  args[cur_arg-1], sample_src_names(expr->fetch->use));
+			free(expr);
+			return ACT_RET_PRS_ERR;
+		}
+		rule->arg.expr_int.expr = expr;
+	}
 
 	/* Register processing function. */
 	rule->action_ptr = tcp_action_set_fc_tos;
 	rule->action = ACT_CUSTOM;
-	rule->arg.act.p[0] = (void *)(uintptr_t)tos;
+	rule->release_ptr = release_expr_int_action;
 	return ACT_RET_PRS_OK;
 #else
 	memprintf(err, "not supported on this platform (IP_TOS undefined)");

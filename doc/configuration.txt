@@ -14744,32 +14744,35 @@ set-dst-port <expr>
   destination address to IPv4 "0.0.0.0" before rewriting the port.
 
 
-set-fc-mark <mark>
+set-fc-mark { <mark> | <expr> }
   Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     X  |   X  |   X  |   X  |          X |  X |  -
 
   This is used to set the Netfilter/IPFW MARK on all packets sent to the client
-  to the value passed in <mark> on platforms which support it. This value is an
-  unsigned 32 bit value which can be matched by netfilter/ipfw and by the
-  routing table or monitoring the packets through DTrace. It can be expressed
-  both in decimal or hexadecimal format (prefixed by "0x").
-  This can be useful to force certain packets to take a different route (for
-  example a cheaper network path for bulk downloads). This works on Linux
-  kernels 2.6.32 and above and requires admin privileges, as well on FreeBSD
-  and OpenBSD.
+  to the value passed in <mark> or <expr> on platforms which support it. This
+  value is an unsigned 32 bit value which can be matched by netfilter/ipfw and
+  by the routing table or monitoring the packets through DTrace. <mark> can be
+  expressed both in decimal or hexadecimal format (prefixed by "0x").
+  Alternatively, <expr> can be used: it is a standard HAProxy expression formed
+  by a sample-fetch followed by some converters which must resolve to integer
+  type. This action can be useful to force certain packets to take a different
+  route (for example a cheaper network path for bulk downloads). This works on
+  Linux kernels 2.6.32 and above and requires admin privileges, as well on
+  FreeBSD and OpenBSD.
 
 
-set-fc-tos <tos>
+set-fc-tos { <tos | <expr> }
   Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     X  |   X  |   X  |   X  |          X |  X |  -
 
   This is used to set the TOS or DSCP field value of packets sent to the client
-  to the value passed in <tos> on platforms which support this. This value
-  represents the whole 8 bits of the IP TOS field, and can be expressed both in
-  decimal or hexadecimal format (prefixed by "0x"). Note that only the 6 higher
-  bits are used in DSCP or TOS, and the two lower bits are always 0. This can
-  be used to adjust some routing behavior on border routers based on some
-  information from the request.
+  to the value passed in <tos> or <expr> on platforms which support this. This
+  value represents the whole 8 bits of the IP TOS field. Note that only the 6
+  higher bits are used in DSCP or TOS, and the two lower bits are always 0.
+  Alternatively, <expr> can be used: it is a standard HAProxy expression formed
+  by a sample-fetch followed by some converters which must resolve to integer
+  type. This action can be used to adjust some routing behavior on border
+  routers based on some information from the request.
 
   See RFC 2474, 2597, 3260 and 4594 for more information.
 
