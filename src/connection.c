@@ -2651,6 +2651,12 @@ uint64_t conn_calculate_hash(const struct conn_hash_params *params)
 		                 &hash_flags, CONN_HASH_PARAMS_TYPE_PROXY);
 	}
 
+	if (params->mark_tos_prehash) {
+		conn_hash_update(&hash,
+		                 &params->mark_tos_prehash, sizeof(params->mark_tos_prehash),
+		                 &hash_flags, CONN_HASH_PARAMS_TYPE_MARK_TOS);
+	}
+
 	return conn_hash_digest(&hash, hash_flags);
 }
 

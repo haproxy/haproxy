@@ -421,6 +421,22 @@ static enum act_return tcp_action_set_fc_mark(struct act_rule *rule, struct prox
 		conn_set_mark(objt_conn(sess->origin), mark);
 	return ACT_RET_CONT;
 }
+static enum act_return tcp_action_set_bc_mark(struct act_rule *rule, struct proxy *px,
+                                              struct session *sess, struct stream *s, int flags)
+{
+	struct connection __maybe_unused *conn = (s && s->scb) ? sc_conn(s->scb) : NULL;
+	unsigned int mark;
+
+	BUG_ON(!s || conn);
+	if (extract_int_from_rule(rule, px, sess, s, (int *)&mark)) {
+		/* connection does not exist yet, ensure it will be applied
+		 * before connection is used by saving it within the stream
+		 */
+		s->bc_mark = mark;
+		s->flags |= SF_BC_MARK;
+	}
+	return ACT_RET_CONT;
+}
 #endif
 
 #ifdef IP_TOS
@@ -431,6 +447,22 @@ static enum act_return tcp_action_set_fc_tos(struct act_rule *rule, struct proxy
 
 	if (extract_int_from_rule(rule, px, sess, s, &tos))
 		conn_set_tos(objt_conn(sess->origin), tos);
+	return ACT_RET_CONT;
+}
+static enum act_return tcp_action_set_bc_tos(struct act_rule *rule, struct proxy *px,
+                                             struct session *sess, struct stream *s, int flags)
+{
+	struct connection __maybe_unused *conn = (s && s->scb) ? sc_conn(s->scb) : NULL;
+	int tos;
+
+	BUG_ON(!s || conn);
+	if (extract_int_from_rule(rule, px, sess, s, &tos)) {
+		/* connection does not exist yet, ensure it will be applied
+		 * before connection is used by saving it within the stream
+		 */
+		s->bc_tos = tos;
+		s->flags |= SF_BC_TOS;
+	}
 	return ACT_RET_CONT;
 }
 #endif
@@ -646,7 +678,10 @@ static enum act_parse_ret tcp_parse_set_mark(const char **args, int *orig_arg, s
 	}
 
 	/* Register processing function. */
-	rule->action_ptr = tcp_action_set_fc_mark;
+	if (!strcmp("set-bc-mark", args[cur_arg - 1]))
+		rule->action_ptr = tcp_action_set_bc_mark;
+	else
+		rule->action_ptr = tcp_action_set_fc_mark; // fc mark
 	rule->action = ACT_CUSTOM;
 	rule->release_ptr = release_expr_int_action;
 	global.last_checks |= LSTCHK_NETADM;
@@ -705,7 +740,10 @@ static enum act_parse_ret tcp_parse_set_tos(const char **args, int *orig_arg, st
 	}
 
 	/* Register processing function. */
-	rule->action_ptr = tcp_action_set_fc_tos;
+	if (!strcmp("set-bc-tos", args[cur_arg - 1]))
+		rule->action_ptr = tcp_action_set_bc_tos;
+	else
+		rule->action_ptr = tcp_action_set_fc_tos; // fc tos
 	rule->action = ACT_CUSTOM;
 	rule->release_ptr = release_expr_int_action;
 	return ACT_RET_PRS_OK;
@@ -786,6 +824,8 @@ static struct action_kw_list tcp_req_sess_actions = {ILH, {
 INITCALL1(STG_REGISTER, tcp_req_sess_keywords_register, &tcp_req_sess_actions);
 
 static struct action_kw_list tcp_req_cont_actions = {ILH, {
+	{ "set-bc-mark",  tcp_parse_set_mark    },
+	{ "set-bc-tos",   tcp_parse_set_tos     },
 	{ "set-dst"     , tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
 	{ "set-fc-mark",  tcp_parse_set_mark    },
@@ -812,6 +852,8 @@ static struct action_kw_list tcp_res_cont_actions = {ILH, {
 INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &tcp_res_cont_actions);
 
 static struct action_kw_list http_req_actions = {ILH, {
+	{ "set-bc-mark",  tcp_parse_set_mark    },
+	{ "set-bc-tos",   tcp_parse_set_tos     },
 	{ "set-dst",      tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
 	{ "set-fc-mark",  tcp_parse_set_mark    },

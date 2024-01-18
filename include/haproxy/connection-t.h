@@ -88,8 +88,10 @@ enum {
 	CO_FL_REVERSED      = 0x00000004,  /* connection has been reversed to backend / reversed and accepted on frontend */
 	CO_FL_ACT_REVERSING = 0x00000008,  /* connection has been reversed to frontend but not yet accepted */
 
-	/* unused : 0x00000010 */
-	/* unused : 0x00000020 */
+	CO_FL_OPT_MARK      = 0x00000010,  /* connection has a special sockopt mark */
+
+	CO_FL_OPT_TOS       = 0x00000020,  /* connection has a special sockopt tos */
+
 	/* unused : 0x00000040, 0x00000080 */
 
 	/* These flags indicate whether the Control and Transport layers are initialized */
@@ -172,13 +174,14 @@ static forceinline char *conn_show_flags(char *buf, size_t len, const char *deli
 	_(0);
 	/* flags */
 	_(CO_FL_SAFE_LIST, _(CO_FL_IDLE_LIST, _(CO_FL_CTRL_READY,
-	_(CO_FL_REVERSED, _(CO_FL_ACT_REVERSING, _(CO_FL_XPRT_READY,
-	_(CO_FL_WANT_DRAIN, _(CO_FL_WAIT_ROOM, _(CO_FL_EARLY_SSL_HS, _(CO_FL_EARLY_DATA,
-	_(CO_FL_SOCKS4_SEND, _(CO_FL_SOCKS4_RECV, _(CO_FL_SOCK_RD_SH, _(CO_FL_SOCK_WR_SH,
-	_(CO_FL_ERROR, _(CO_FL_FDLESS, _(CO_FL_WAIT_L4_CONN, _(CO_FL_WAIT_L6_CONN,
-	_(CO_FL_SEND_PROXY, _(CO_FL_ACCEPT_PROXY, _(CO_FL_ACCEPT_CIP, _(CO_FL_SSL_WAIT_HS,
-	_(CO_FL_PRIVATE, _(CO_FL_RCVD_PROXY, _(CO_FL_SESS_IDLE, _(CO_FL_XPRT_TRACKED
-	))))))))))))))))))))))))));
+	_(CO_FL_REVERSED, _(CO_FL_ACT_REVERSING, _(CO_FL_OPT_MARK, _(CO_FL_OPT_TOS,
+	_(CO_FL_XPRT_READY, _(CO_FL_WANT_DRAIN, _(CO_FL_WAIT_ROOM, _(CO_FL_EARLY_SSL_HS,
+	_(CO_FL_EARLY_DATA, _(CO_FL_SOCKS4_SEND, _(CO_FL_SOCKS4_RECV, _(CO_FL_SOCK_RD_SH,
+	_(CO_FL_SOCK_WR_SH, _(CO_FL_ERROR, _(CO_FL_FDLESS, _(CO_FL_WAIT_L4_CONN,
+	_(CO_FL_WAIT_L6_CONN, _(CO_FL_SEND_PROXY, _(CO_FL_ACCEPT_PROXY, _(CO_FL_ACCEPT_CIP,
+	_(CO_FL_SSL_WAIT_HS, _(CO_FL_PRIVATE, _(CO_FL_RCVD_PROXY, _(CO_FL_SESS_IDLE,
+	_(CO_FL_XPRT_TRACKED
+	))))))))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
@@ -497,8 +500,9 @@ enum conn_hash_params_t {
 	CONN_HASH_PARAMS_TYPE_SRC_ADDR = 0x8,
 	CONN_HASH_PARAMS_TYPE_SRC_PORT = 0x10,
 	CONN_HASH_PARAMS_TYPE_PROXY    = 0x20,
+	CONN_HASH_PARAMS_TYPE_MARK_TOS = 0x40,
 };
-#define CONN_HASH_PARAMS_TYPE_COUNT 6
+#define CONN_HASH_PARAMS_TYPE_COUNT 7
 
 #define CONN_HASH_PAYLOAD_LEN \
 	(((sizeof(((struct conn_hash_node *)0)->node.key)) * 8) - CONN_HASH_PARAMS_TYPE_COUNT)
@@ -513,6 +517,7 @@ enum conn_hash_params_t {
 struct conn_hash_params {
 	uint64_t sni_prehash;
 	uint64_t proxy_prehash;
+	uint64_t mark_tos_prehash;
 	void *target;
 	struct sockaddr_storage *src_addr;
 	struct sockaddr_storage *dst_addr;
@@ -581,6 +586,8 @@ struct connection {
 		enum obj_type *target; /* Listener for active reverse, server for passive. */
 		struct buffer name;    /* Only used for passive reverse. Used as SNI when connection added to server idle pool. */
 	} reverse;
+	uint32_t mark;                 /* set network mark, if CO_FL_OPT_MARK is set */
+	uint8_t tos;                   /* set ip tos, if CO_FL_OPT_TOS is set */
 };
 
 /* node for backend connection in the idle trees for http-reuse

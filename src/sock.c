@@ -197,12 +197,14 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 
 /* Create a socket to connect to the server in conn->dst (which MUST be valid),
  * using the configured namespace if needed, or the one passed by the proxy
- * protocol if required to do so. It ultimately calls socket() or socketat()
- * and returns the FD or error code.
+ * protocol if required to do so. It then calls socket() or socketat(). On
+ * success, checks if mark or tos sockopts need to be set on the file handle.
+ * Returns the FD or error code.
  */
 int sock_create_server_socket(struct connection *conn)
 {
 	const struct netns_entry *ns = NULL;
+	int sock;
 
 #ifdef USE_NS
 	if (objt_server(conn->target)) {
@@ -212,7 +214,16 @@ int sock_create_server_socket(struct connection *conn)
 			ns = __objt_server(conn->target)->netns;
 	}
 #endif
-	return my_socketat(ns, conn->dst->ss_family, SOCK_STREAM, 0);
+	sock = my_socketat(ns, conn->dst->ss_family, SOCK_STREAM, 0);
+	if (sock == -1)
+		goto end;
+	if (conn->flags & CO_FL_OPT_MARK)
+		sock_set_mark(sock, conn->mark);
+	if (conn->flags & CO_FL_OPT_TOS)
+		sock_set_tos(sock, conn->dst, conn->tos);
+
+ end:
+	return sock;
 }
 
 /* Enables receiving on receiver <rx> once already bound. */

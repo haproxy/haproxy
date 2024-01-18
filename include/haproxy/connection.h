@@ -26,6 +26,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
+#include <haproxy/sock.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/stconn-t.h>
 #include <haproxy/fd.h>
@@ -420,19 +421,7 @@ static inline void conn_set_tos(const struct connection *conn, int tos)
 	if (!conn || !conn_ctrl_ready(conn) || (conn->flags & CO_FL_FDLESS))
 		return;
 
-#ifdef IP_TOS
-	if (conn->src->ss_family == AF_INET)
-		setsockopt(conn->handle.fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
-#endif
-#ifdef IPV6_TCLASS
-	if (conn->src->ss_family == AF_INET6) {
-		if (IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6 *)conn->src)->sin6_addr))
-			/* v4-mapped addresses need IP_TOS */
-			setsockopt(conn->handle.fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
-		else
-			setsockopt(conn->handle.fd, IPPROTO_IPV6, IPV6_TCLASS, &tos, sizeof(tos));
-	}
-#endif
+	sock_set_tos(conn->handle.fd, conn->src, tos);
 }
 
 /* Sets the netfilter mark on the connection's socket. The connection is tested
@@ -443,13 +432,7 @@ static inline void conn_set_mark(const struct connection *conn, int mark)
 	if (!conn || !conn_ctrl_ready(conn) || (conn->flags & CO_FL_FDLESS))
 		return;
 
-#if defined(SO_MARK)
-	setsockopt(conn->handle.fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
-#elif defined(SO_USER_COOKIE)
-	setsockopt(conn->handle.fd, SOL_SOCKET, SO_USER_COOKIE, &mark, sizeof(mark));
-#elif defined(SO_RTABLE)
-	setsockopt(conn->handle.fd, SOL_SOCKET, SO_RTABLE, &mark, sizeof(mark));
-#endif
+	sock_set_mark(conn->handle.fd, mark);
 }
 
 /* Sets adjust the TCP quick-ack feature on the connection's socket. The

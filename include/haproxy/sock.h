@@ -51,6 +51,35 @@ int sock_check_events(struct connection *conn, int event_type);
 void sock_ignore_events(struct connection *conn, int event_type);
 int _sock_supports_reuseport(const struct proto_fam *fam, int type, int protocol);
 
+/* Sets tos sockopt on socket depending on addr target family */
+static inline void sock_set_tos(int fd, struct sockaddr_storage *addr, int tos)
+{
+#ifdef IP_TOS
+	if (addr->ss_family == AF_INET)
+		setsockopt(fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+#endif
+#ifdef IPV6_TCLASS
+	if (addr->ss_family == AF_INET6) {
+		if (IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6 *)addr)->sin6_addr))
+			/* v4-mapped addresses need IP_TOS */
+			setsockopt(fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+		else
+			setsockopt(fd, IPPROTO_IPV6, IPV6_TCLASS, &tos, sizeof(tos));
+	}
+#endif
+}
+
+/* Sets mark sockopt on socket */
+static inline void sock_set_mark(int fd, int mark)
+{
+#if defined(SO_MARK)
+	setsockopt(fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
+#elif defined(SO_USER_COOKIE)
+	setsockopt(fd, SOL_SOCKET, SO_USER_COOKIE, &mark, sizeof(mark));
+#elif defined(SO_RTABLE)
+	setsockopt(fd, SOL_SOCKET, SO_RTABLE, &mark, sizeof(mark));
+#endif
+}
 
 #endif /* _HAPROXY_SOCK_H */
 

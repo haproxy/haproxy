@@ -1430,6 +1430,36 @@ int connect_server(struct stream *s)
 		}
 	}
 
+	/* 6. Custom mark, tos? */
+	if (s->flags & (SF_BC_MARK | SF_BC_TOS)) {
+		/* mark: 32bits, tos: 8bits = 40bits
+		 * last 2 bits are there to indicate if mark and/or tos are set
+		 * total: 42bits:
+		 *
+		 * 63==== (unused) ====42    39----32 31-----------------------------0
+		 * 0000000000000000000000 11 00000111 00000000000000000000000000000011
+		 *                        ^^ ^^^^^^^^ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		 *                        ||    |                     |
+		 *                       /  \    \                     \
+		 *                      /    \    \                     \
+		 *                    tos?   mark? \             mark value (32bits)
+		 *                            tos value (8bits)
+		 * ie: in the above example:
+		 *  - mark is set, mark = 3
+		 *  - tos is set, tos = 7
+		 */
+		if (s->flags & SF_BC_MARK) {
+			hash_params.mark_tos_prehash |= s->bc_mark;
+			/* 41th bit: mark set */
+			hash_params.mark_tos_prehash |= 1ULL << 40;
+		}
+		if (s->flags & SF_BC_TOS) {
+			hash_params.mark_tos_prehash |= (uint64_t)s->bc_tos << 32;
+			/* 42th bit: tos set */
+			hash_params.mark_tos_prehash |= 1ULL << 41;
+		}
+	}
+
 	hash = conn_calculate_hash(&hash_params);
 
 	/* first, search for a matching connection in the session's idle conns */
@@ -1616,6 +1646,18 @@ skip_reuse:
 			/* assign bind_addr to srv_conn */
 			srv_conn->src = bind_addr;
 			bind_addr = NULL;
+
+			/* mark? */
+			if (s->flags & SF_BC_MARK) {
+				srv_conn->mark = s->bc_mark;
+				srv_conn->flags |= CO_FL_OPT_MARK;
+			}
+
+			/* tos? */
+			if (s->flags & SF_BC_TOS) {
+				srv_conn->tos = s->bc_tos;
+				srv_conn->flags |= CO_FL_OPT_TOS;
+			}
 
 			srv_conn->hash_node->node.key = hash;
 		}

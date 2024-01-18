@@ -7513,9 +7513,10 @@ http-reuse { never | safe | aggressive | always }
 
   When http connection sharing is enabled, a great care is taken to respect the
   connection properties and compatibility. Indeed, some properties are specific
-  and it is not possibly to reuse it blindly. Those are the SSL SNI, source
-  and destination address and proxy protocol block. A connection is reused only
-  if it shares the same set of properties with the request.
+  and it is not possible to reuse it blindly. Those are the SSL SNI, source
+  and destination address, proxy protocol block as well as tos and mark
+  sockopts. A connection is reused only if it shares the same set of properties
+  with the request.
 
   Also note that connections with certain bogus authentication schemes (relying
   on the connection) like NTLM are marked private and never shared.
@@ -13791,6 +13792,8 @@ sc-set-gpt                     X     X     X     X            X   X   X
 sc-set-gpt0                    X     X     X     X            X   X   X
 send-spoe-group                -     -     X     X            X   X   -
 set-bandwidth-limit            -     -     X     X            X   X   -
+set-bc-mark                    -     -     X     -            X   -   -
+set-bc-tos                     -     -     X     -            X   -   -
 set-dst                        X     X     X     -            X   -   -
 set-dst-port                   X     X     X     -            X   -   -
 set-fc-mark                    X     X     X     X            X   X   -
@@ -14699,6 +14702,42 @@ set-bandwidth-limit <name> [limit {<expr> | <size>}] [period {<expr> | <time>}]
     http-request set-bandwidth-limit my-limit limit 1m period 10s
 
   See section 9.7 about bandwidth limitation filter setup.
+
+
+set-bc-mark { <mark> | <expr> }
+  Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
+                    -  |   -  |   X  |   -  |          X |  - |  -
+
+  This is used to set the Netfilter/IPFW MARK on the backend connection (all
+  packets sent to the server) to the value passed in <mark> or <expr> on
+  platforms which support it. This value is an unsigned 32 bit value which can
+  be matched by netfilter/ipfw and by the routing table or monitoring the
+  packets through DTrace. <mark> can be expressed both in decimal or hexadecimal
+  format (prefixed by "0x"). Alternatively, <expr> can be used: it is a standard
+  HAProxy expression formed by a sample-fetch followed by some converters which
+  must resolve to integer type. This action can be useful to force certain
+  packets to take a different route (for example a cheaper network path for bulk
+  downloads). This works on Linux kernels 2.6.32 and above and requires admin
+  privileges, as well on FreeBSD and OpenBSD. The mark will be set for the whole
+  duration of the backend/server connection (from connect to close).
+
+
+set-bc-tos { <tos> | <expr> }
+  Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
+                    -  |   -  |   X  |   -  |          X |  - |  -
+
+  This is used to set the TOS or DSCP field value on the backend connection
+  (all packets sent to the server) to the value passed in <tos> or <expr> on
+  platforms which support this. This value represents the whole 8 bits of the
+  IP TOS field. Note that only the 6 higher bits are used in DSCP or TOS, and
+  the two lower bits are always 0. Alternatively, <expr> can be used: it is a
+  standard HAProxy expression formed by a sample-fetch followed by some
+  converters which must resolve to integer type. This action can be used to
+  adjust some routing behavior on inner routers based on some information from
+  the request. The tos will be set for the whole duration of the backend/server
+  connection (from connect to close).
+
+  See RFC 2474, 2597, 3260 and 4594 for more information.
 
 
 set-dst <expr>
