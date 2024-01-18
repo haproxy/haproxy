@@ -328,16 +328,16 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
  */
 static inline void var_clear_buffer(struct sample *smp, struct vars *vars, struct var *var, int var_type)
 {
-       if (var_type == SMP_T_STR || var_type == SMP_T_BIN) {
-               ha_free(&var->data.u.str.area);
-               var_accounting_diff(vars, smp->sess, smp->strm,
-                                   -var->data.u.str.data);
-       }
-       else if (var_type == SMP_T_METH && var->data.u.meth.meth == HTTP_METH_OTHER) {
-               ha_free(&var->data.u.meth.str.area);
-               var_accounting_diff(vars, smp->sess, smp->strm,
-                                   -var->data.u.meth.str.data);
-       }
+	if (var_type == SMP_T_STR || var_type == SMP_T_BIN) {
+		ha_free(&var->data.u.str.area);
+		var_accounting_diff(vars, smp->sess, smp->strm,
+		                    -var->data.u.str.data);
+	}
+	else if (var_type == SMP_T_METH && var->data.u.meth.meth == HTTP_METH_OTHER) {
+		ha_free(&var->data.u.meth.str.area);
+		var_accounting_diff(vars, smp->sess, smp->strm,
+		                    -var->data.u.meth.str.data);
+	}
 }
 
 /* This function tries to create a variable whose name hash is <name_hash> in
