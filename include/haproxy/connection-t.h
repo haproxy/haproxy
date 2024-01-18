@@ -87,7 +87,6 @@ enum {
 
 	CO_FL_REVERSED      = 0x00000004,  /* connection has been reversed to backend / reversed and accepted on frontend */
 	CO_FL_ACT_REVERSING = 0x00000008,  /* connection has been reversed to frontend but not yet accepted */
-	/* unused : 0x00000008 */
 
 	/* unused : 0x00000010 */
 	/* unused : 0x00000020 */
