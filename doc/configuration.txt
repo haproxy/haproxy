@@ -13783,7 +13783,7 @@ sc-set-gpt                     X     X     X     X            X   X   X
 sc-set-gpt0                    X     X     X     X            X   X   X
 send-spoe-group                -     -     X     X            X   X   -
 set-bandwidth-limit            -     -     X     X            X   X   -
-set-dst <expr>                 X     X     X     -            X   -   -
+set-dst                        X     X     X     -            X   -   -
 set-dst-port                   X     X     X     -            X   -   -
 set-header                     -     -     -     -            X   X   X
 set-log-level                  -     -     X     X            X   X   X
