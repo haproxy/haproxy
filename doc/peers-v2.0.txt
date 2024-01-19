@@ -221,6 +221,12 @@ bit
  16: bytes out rate
  17: gpc1
  18: gpc1 rate
+ 19: server key
+ 20: http fail counter
+ 21: http fail rate
+ 22: gpt array
+ 23: gpc array
+ 24: gpc rate array
 
 d) Table Switch Message
 
