@@ -144,6 +144,7 @@ struct qc_stream_rxbuf {
 struct qcs {
 	struct qcc *qcc;
 	struct sedesc *sd;
+	struct session *sess;
 	uint32_t flags;      /* QC_SF_* */
 	enum qcs_state st;   /* QC_SS_* state */
 	void *ctx;           /* app-ops context */
