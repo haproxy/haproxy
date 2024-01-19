@@ -5128,7 +5128,8 @@ static int h2c_dec_hdrs(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags, 
 	struct buffer *copy = NULL;
 	unsigned int msgf;
 	struct htx *htx = NULL;
-	int flen; // header frame len
+	int flen = 0; // header frame len
+	int fragments = 0;
 	int hole = 0;
 	int ret = 0;
 	int outlen;
@@ -5203,6 +5204,7 @@ next_frame:
 		hole     += h2c->dpl + 9;
 		h2c->dpl  = 0;
 		TRACE_STATE("waiting for next continuation frame", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_CONT|H2_EV_RX_HDR, h2c->conn);
+		fragments++;
 		goto next_frame;
 	}
 
@@ -5391,6 +5393,16 @@ next_frame:
 		htx_to_buf(htx, rxbuf);
 	free_trash_chunk(copy);
 	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn);
+
+	/* Check for abuse of CONTINUATION: more than 4 fragments and less than
+	 * 1kB per fragment is clearly unusual and suspicious enough to count
+	 * one glitch per 1kB fragment in a 16kB buffer, which means that an
+	 * abuser sending 1600 1-byte frames in a 16kB buffer would increment
+	 * its counter by 100.
+	 */
+	if (unlikely(fragments > 4) && fragments > flen / 1024 && ret != 0)
+		h2c->glitches += (fragments + 15) / 16;
+
 	return ret;
 
  fail:
