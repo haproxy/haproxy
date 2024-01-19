@@ -134,6 +134,8 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 
 	qcs->stream = NULL;
 	qcs->qcc = qcc;
+	qcs->sd = NULL;
+	qcs->sess = NULL;
 	qcs->flags = QC_SF_NONE;
 	qcs->st = QC_SS_IDLE;
 	qcs->ctx = NULL;
@@ -3406,6 +3408,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 {
 	struct qcc *qcc;
 	struct quic_transport_params *lparams, *rparams;
+	void *conn_ctx = conn->ctx;
 
 	TRACE_ENTER(QMUX_EV_QCC_NEW);
 
@@ -3534,6 +3537,22 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	/* Register conn for idle front closing. This is done once everything is allocated. */
 	if (!conn_is_back(conn))
 		LIST_APPEND(&mux_stopping_data[tid].list, &conn->stopping_list);
+	else {
+		struct qcs *qcs;
+		struct stconn *sc = conn_ctx;
+
+		qcs = qcc_init_stream_local(qcc, 1);
+		if (!qcs) {
+			TRACE_PROTO("Cannot allocate a new locally initiated streeam",
+			            QMUX_EV_QCC_NEW|QMUX_EV_QCC_ERR, conn);
+			goto err;
+		}
+
+		sc_attach_mux(sc, qcs, conn);
+		qcs->sd = sc->sedesc;
+		qcs->sess = sess;
+		qcc->nb_sc++;
+	}
 
 	/* init read cycle */
 	tasklet_wakeup(qcc->wait_event.tasklet);
