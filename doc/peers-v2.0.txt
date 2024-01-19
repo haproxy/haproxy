@@ -227,6 +227,8 @@ bit
  22: gpt array
  23: gpc array
  24: gpc rate array
+ 25: glitch counter
+ 26: glitch rate
 
 d) Table Switch Message
 

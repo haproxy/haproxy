@@ -58,7 +58,8 @@ enum {
 	STKTABLE_DT_GPT,           /* array of gpt */
 	STKTABLE_DT_GPC,           /* array of gpc */
 	STKTABLE_DT_GPC_RATE,      /* array of gpc_rate */
-
+	STKTABLE_DT_GLITCH_CNT,    /* cumulated number of front glitches */
+	STKTABLE_DT_GLITCH_RATE,   /* rate of front glitches */
 
 	STKTABLE_STATIC_DATA_TYPES,/* number of types above */
 	/* up to STKTABLE_EXTRA_DATA_TYPES types may be registered here, always

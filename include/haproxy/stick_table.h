@@ -401,4 +401,36 @@ static inline int stkctr_inc_bytes_out_ctr(struct stkctr *stkctr, unsigned long 
 	return 1;
 }
 
+/* Add <inc> to the number of cumulated front glitches in the tracked counter
+ * <stkctr>. It returns 0 if the entry pointer does not exist and nothing is
+ * performed. Otherwise it returns 1.
+ */
+static inline int stkctr_add_glitch_ctr(struct stkctr *stkctr, uint inc)
+{
+	struct stksess *ts;
+	void *ptr1, *ptr2;
+
+	ts = stkctr_entry(stkctr);
+	if (!ts)
+		return 0;
+
+	HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+
+	ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GLITCH_CNT);
+	if (ptr1)
+		stktable_data_cast(ptr1, std_t_uint) += inc;
+
+	ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GLITCH_RATE);
+	if (ptr2)
+		update_freq_ctr_period(&stktable_data_cast(ptr2, std_t_frqp),
+				       stkctr->table->data_arg[STKTABLE_DT_GLITCH_RATE].u, inc);
+
+	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+	/* If data was modified, we need to touch to re-schedule sync */
+	if (ptr1 || ptr2)
+		stktable_touch_local(stkctr->table, ts, 0);
+	return 1;
+}
+
 #endif /* _HAPROXY_STICK_TABLE_H */

@@ -20001,6 +20001,21 @@ table_expire(<table>[,<default_value>])
   input sample in the designated table.
   See also the table_idle sample fetch keyword.
 
+table_glitch_cnt(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the cumulative number of front
+  connection glitches associated with the input sample in the designated table.
+  See also the sc_glitch_cnt sample fetch keyword and fc_glitches for the value
+  measured on the current front connection.
+
+table_glitch_rate(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the average front connection
+  glitch rate associated with the input sample in the designated table. See
+  also the sc_glitch_rate sample fetch keyword.
+
 table_gpc(<idx>,<table>)
   Uses the string representation of the input sample to perform a lookup in
   the specified table. If the key is not found in the table, integer value zero
@@ -21122,6 +21137,14 @@ sc_get_gpt0(<ctr>[,<table>])                       integer
 sc0_get_gpt0([<table>])                            integer
 sc1_get_gpt0([<table>])                            integer
 sc2_get_gpt0([<table>])                            integer
+sc_glitch_cnt(<ctr>[,<table>])                     integer
+sc0_glitch_cnt([<table>])                          integer
+sc1_glitch_cnt([<table>])                          integer
+sc2_glitch_cnt([<table>])                          integer
+sc_glitch_rate(<ctr>[,<table>])                    integer
+sc0_glitch_rate([<table>])                         integer
+sc1_glitch_rate([<table>])                         integer
+sc2_glitch_rate([<table>])                         integer
 sc_gpc_rate(<idx>,<ctr>[,<table>])                 integer
 sc_gpc0_rate(<ctr>[,<table>])                      integer
 sc0_gpc0_rate([<table>])                           integer
@@ -21770,6 +21793,34 @@ sc2_get_gpt0([<table>]) : integer
   Returns the value of the first General Purpose Tag associated to the
   currently tracked counters. See also src_get_gpt0.
 
+sc_glitch_cnt(<ctr>[,<table>]) : integer
+sc0_glitch_cnt([<table>]) : integer
+sc1_glitch_cnt([<table>]) : integer
+sc2_glitch_cnt([<table>]) : integer
+  Returns the cumulative number of front connection glitches that were observed
+  on connections associated with the currently tracked counters. Usually these
+  result in requests or connections to be aborted so the returned value will
+  often correspond to past connections. There is no good nor bad value, but a
+  poor quality client may occasionally cause a few glitches per connection,
+  while a very bogus or malevolent client may quickly cause thousands of events
+  to be added on a connection. See also fc_glitches for the number affecting
+  the current connection, src_glitch_cnt to look them up per source, and
+  sc_glitch_rate for the event rate measurements.
+
+sc_glitch_rate(<ctr>[,<table>]) : integer
+sc0_glitch_rate([<table>]) : integer
+sc1_glitch_rate([<table>]) : integer
+sc2_glitch_rate([<table>]) : integer
+  Returns the average rate at which front connection glitches were observed for
+  the currently tracked counters, measured in amount of events over the period
+  configured in the table. Usually these glitches result in requests or
+  connections to be aborted so the returned value will often be related to past
+  connections. There is no good nor bad value, but a poor quality client may
+  occasionally cause a few glitches per connection, hence a low rate is
+  generally expected. However, a very bogus or malevolent client may quickly
+  cause thousands of events to be added per connection, and maintain a high
+  rate here. See also src_glitch_rate and sc_glitch_cnt.
+
 sc_gpc_rate(<idx>,<ctr>[,<table>]) : integer
   Returns the average increment rate of the General Purpose Counter at the
   index <idx> of the array associated to the tracked counter of ID <ctr> from
@@ -22083,6 +22134,29 @@ src_get_gpt0([<table>]) : integer
   incoming connection's source address in the current proxy's stick-table or in
   the designated stick-table. If the address is not found, zero is returned.
   See also sc/sc0/sc1/sc2_get_gpt0.
+
+src_glitch_cnt([<table>]) : integer
+  Returns the cumulative number of front connection glitches that were observed
+  on connections from the current connection's source address. Usually these
+  result in requests or connections to be aborted so the returned value will
+  often correspond to past connections. There is no good nor bad value, but a
+  poor quality client may occasionally cause a few glitches per connection,
+  while a very bogus or malevolent client may quickly cause thousands of events
+  to be added on a connection. See also fc_glitches for the number affecting
+  the current connection, sc_glitch_cnt to look them up in currently tracked
+  counters, and src_glitch_rate for the event rate measurements.
+
+src_glitch_rate([<table>]) : integer
+  Returns the average rate at which front connection glitches were observed for
+  on connections from the current connection's source address, measured in
+  amount of events over the period configured in the table. Usually these
+  glitches result in requests or connections to be aborted so the returned
+  value will often be related to past connections. There is no good nor bad
+  value, but a poor quality client may occasionally cause a few glitches per
+  connection, hence a low rate is generally expected. However, a very bogus or
+  malevolent client may quickly cause thousands of events to be added per
+  connection, and maintain a high rate here. See also sc_glitch_rate and
+  src_glitch_cnt.
 
 src_gpc_rate(<idx>[,<table>]) : integer
   Returns the average increment rate of the General Purpose Counter at the
