@@ -520,6 +520,18 @@ int conn_complete_session(struct connection *conn)
 	return -1;
 }
 
+/* Add <inc> to the number of cumulated glitches in the tracked counters for
+ * session <sess> which is known for being tracked, and implicitly update the
+ * rate if also tracked.
+ */
+void __session_add_glitch_ctr(struct session *sess, uint inc)
+{
+	int i;
+
+	for (i = 0; i < global.tune.nb_stk_ctr; i++)
+		stkctr_add_glitch_ctr(&sess->stkctr[i], inc);
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

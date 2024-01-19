@@ -39,6 +39,8 @@ void session_free(struct session *sess);
 int session_accept_fd(struct connection *cli_conn);
 int conn_complete_session(struct connection *conn);
 struct task *session_expire_embryonic(struct task *t, void *context, unsigned int state);
+void __session_add_glitch_ctr(struct session *sess, uint inc);
+
 
 /* Remove the refcount from the session to the tracked counters, and clear the
  * pointer to ensure this is only performed once. The caller is responsible for
@@ -123,6 +125,14 @@ static inline void session_inc_http_fail_ctr(struct session *sess)
 		stkctr_inc_http_fail_ctr(&sess->stkctr[i]);
 }
 
+/* Add <inc> to the number of cumulated glitches in the tracked counters, and
+ * implicitly update the rate if also tracked.
+ */
+static inline void session_add_glitch_ctr(struct session *sess, uint inc)
+{
+	if (sess->stkctr && inc)
+		__session_add_glitch_ctr(sess, inc);
+}
 
 /* Remove the connection from the session list, and destroy the srv_list if it's now empty */
 static inline void session_unown_conn(struct session *sess, struct connection *conn)
