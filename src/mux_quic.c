@@ -3603,6 +3603,11 @@ static void qmux_destroy(void *ctx)
 	TRACE_LEAVE(QMUX_EV_QCC_END);
 }
 
+static int qmux_strm_attach(struct connection *conn, struct sedesc *sd, struct session *sess)
+{
+	BUG_ON(1);
+}
+
 static void qmux_strm_detach(struct sedesc *sd)
 {
 	struct qcs *qcs = sd->se;
@@ -4110,6 +4115,7 @@ static int qmux_strm_show_sd(struct buffer *msg, struct sedesc *sd, const char *
 static const struct mux_ops qmux_ops = {
 	.init        = qmux_init,
 	.destroy     = qmux_destroy,
+	.attach      = qmux_strm_attach,
 	.detach      = qmux_strm_detach,
 	.rcv_buf     = qmux_strm_rcv_buf,
 	.snd_buf     = qmux_strm_snd_buf,
