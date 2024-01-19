@@ -11,7 +11,9 @@ haproxy hap -conf {
 
 	listen fe1
 		bind "fd@${fe1}" proto h2
-		http-request return status 200 hdr x-glitches %[fc_glitches]
+		tcp-request session track-sc0 src
+		http-request return status 200 hdr x-glitches %[fc_glitches] hdr x-glitch-cnt %[sc0_glitch_cnt] hdr x-glitch-rate %[sc0_glitch_rate]
+		stick-table type ip size 10 store glitch_cnt,glitch_rate(1m)
 } -start
 
 # valid request: no glitch
@@ -73,6 +75,8 @@ client c2-path -connect ${hap_fe1_sock} {
 		rxresp
 		expect resp.status == 200
 		expect resp.http.x-glitches == 1
+		expect resp.http.x-glitch-cnt == 1
+		expect resp.http.x-glitch-rate == 1
 	} -run
 } -run
 
@@ -104,5 +108,7 @@ client c3-scheme -connect ${hap_fe1_sock} {
 		rxresp
 		expect resp.status == 200
 		expect resp.http.x-glitches == 0
+		expect resp.http.x-glitch-cnt == 1
+		expect resp.http.x-glitch-rate == 1
 	} -run
 } -run

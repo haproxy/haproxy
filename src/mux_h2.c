@@ -4364,7 +4364,12 @@ static int h2_process(struct h2c *h2c)
 
 	if (!(h2c->flags & H2_CF_DEM_BLOCK_ANY) &&
 	    (b_data(&h2c->dbuf) || (h2c->flags & H2_CF_RCVD_SHUT))) {
+		int prev_glitches = h2c->glitches;
+
 		h2_process_demux(h2c);
+
+		if (h2c->glitches != prev_glitches && !(h2c->flags & H2_CF_IS_BACK))
+			session_add_glitch_ctr(h2c->conn->owner, h2c->glitches - prev_glitches);
 
 		if (h2c->st0 >= H2_CS_ERROR || (h2c->flags & H2_CF_ERROR))
 			b_reset(&h2c->dbuf);
