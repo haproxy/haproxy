@@ -5121,7 +5121,7 @@ static int table_process_entry_per_ptr(struct appctx *appctx, char **args)
 {
 	struct show_table_ctx *ctx = appctx->svcctx;
 	struct stktable *t = ctx->target;
-	long long int ptr;
+	ulong ptr;
 	char *error;
 	struct stksess *ts;
 
@@ -5129,7 +5129,7 @@ static int table_process_entry_per_ptr(struct appctx *appctx, char **args)
 		return cli_err(appctx, "Pointer expected (0xffff notation)\n");
 
 	/* Convert argument to integer value */
-	ptr = strtoll(args[4], &error, 16);
+	ptr = strtoul(args[4], &error, 16);
 	if (*error != '\0')
 		return cli_err(appctx, "Malformed ptr.\n");
 
