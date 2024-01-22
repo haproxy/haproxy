@@ -1707,6 +1707,7 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 
 	list[hdr].n = ist("");
 
+ start:
 	if (!(res = qcc_get_stream_txbuf(qcs))) {
 		TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 		h3c->err = H3_INTERNAL_ERROR;
@@ -1715,9 +1716,12 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 
 	/* At least 9 bytes to store frame type + length as a varint max size */
 	if (b_room(res) < 9) {
-		/* TODO */
 		TRACE_STATE("not enough room for trailers frame", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-		ABORT_NOW();
+		if (qcc_release_stream_txbuf(qcs))
+			goto end;
+
+		/* Buffer released, restart processing. */
+		goto start;
 	}
 
 	/* Force buffer realignment as size required to encode headers is unknown. */
@@ -1727,9 +1731,12 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 	headers_buf = b_make(b_peek(res, b_data(res) + 9), b_contig_space(res) - 9, 0, 0);
 
 	if (qpack_encode_field_section_line(&headers_buf)) {
-		/* TODO */
 		TRACE_STATE("not enough room for trailers section line", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-		ABORT_NOW();
+		if (qcc_release_stream_txbuf(qcs))
+			goto end;
+
+		/* Buffer released, restart processing. */
+		goto start;
 	}
 
 	tail = b_tail(&headers_buf);
@@ -1749,9 +1756,12 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 		}
 
 		if (qpack_encode_header(&headers_buf, list[hdr].n, list[hdr].v)) {
-			/* TODO */
 			TRACE_STATE("not enough room for all trailers", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-			ABORT_NOW();
+			if (qcc_release_stream_txbuf(qcs))
+				goto end;
+
+			/* Buffer released, restart processing. */
+			goto start;
 		}
 	}
 
@@ -1871,10 +1881,17 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
 	/* TODO buffer can be realign only if no data waiting for ACK. */
 	outbuf = b_make(b_tail(res), b_contig_space(res), 0, 0);
 
+	/* Not enough room for headers and at least one data byte, try to
+	 * release the current buffer and allocate a new one. If not possible,
+	 * stconn layer will subscribe on SEND.
+	 */
 	if (b_size(&outbuf) <= hsize) {
-		/* TODO */
 		TRACE_STATE("not enough room for data frame", H3_EV_TX_FRAME|H3_EV_TX_DATA, qcs->qcc->conn, qcs);
-		ABORT_NOW();
+		if (qcc_release_stream_txbuf(qcs))
+			goto end;
+
+		/* Buffer released, restart processing. */
+		goto new_frame;
 	}
 
 	if (b_size(&outbuf) < hsize + fsize)
@@ -1925,7 +1942,8 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 
 	htx = htx_from_buf(buf);
 
-	while (count && !htx_is_empty(htx) && !h3c->err) {
+	while (count && !htx_is_empty(htx) && qcc_stream_can_send(qcs) &&
+	       !h3c->err) {
 
 		idx = htx_get_head(htx);
 		blk = htx_get_blk(htx, idx);
@@ -2028,6 +2046,7 @@ static size_t h3_nego_ff(struct qcs *qcs, size_t count)
 
 	TRACE_ENTER(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
+ start:
 	if (!(res = qcc_get_stream_txbuf(qcs))) {
 		qcs->sd->iobuf.flags |= IOBUF_FL_NO_FF;
 		goto end;
@@ -2042,9 +2061,13 @@ static size_t h3_nego_ff(struct qcs *qcs, size_t count)
 	 * on SEND.
 	 */
 	if (b_contig_space(res) <= hsize) {
-		/* TODO */
-		qcs->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
-		goto end;
+		if (qcc_release_stream_txbuf(qcs)) {
+			qcs->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
+			goto end;
+		}
+
+		/* Buffer released, restart processing. */
+		goto start;
 	}
 
 	/* Cannot forward more than available room in output buffer */

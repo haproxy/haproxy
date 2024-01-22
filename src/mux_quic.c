@@ -962,6 +962,35 @@ static uint64_t qcs_prep_bytes(const struct qcs *qcs)
 	return b_data(out) - diff;
 }
 
+/* Release the current <qcs> Tx buffer. This is useful if space left is not
+ * enough anymore. A new instance can then be allocated to continue sending.
+ *
+ * This operation fails if there is not yet sent bytes in the buffer. In this
+ * case, stream layer should interrupt sending until further notification.
+ *
+ * Returns 0 if buffer is released and a new one can be allocated or non-zero
+ * if there is still remaining data.
+ */
+int qcc_release_stream_txbuf(struct qcs *qcs)
+{
+	const uint64_t bytes = qcs_prep_bytes(qcs);
+
+	/* Cannot release buffer if prepared data is not fully sent. */
+	if (bytes) {
+		qcs->flags |= QC_SF_BLK_MROOM;
+		return 1;
+	}
+
+	qc_stream_buf_release(qcs->stream);
+	return 0;
+}
+
+/* Returns true if stream layer can proceed to emission via <qcs>. */
+int qcc_stream_can_send(const struct qcs *qcs)
+{
+	return !(qcs->flags & QC_SF_BLK_MROOM);
+}
+
 /* Wakes up every streams of <qcc> which are currently waiting for sending but
  * are blocked on connection flow control.
  */
@@ -1726,8 +1755,11 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 			            QMUX_EV_QCS_SEND, qcc->conn, qcs);
 		}
 		/* Release buffer if everything sent and buf is full or stream is waiting for room. */
-		if (!qcs_prep_bytes(qcs) && (b_full(&qcs->stream->buf->buf))) {
+		if (!qcs_prep_bytes(qcs) &&
+		    (b_full(&qcs->stream->buf->buf) || qcs->flags & QC_SF_BLK_MROOM)) {
 			qc_stream_buf_release(qcs->stream);
+			qcs->flags &= ~QC_SF_BLK_MROOM;
+			qcs_notify_send(qcs);
 		}
 
 		/* Add measurement for send rate. This is done at the MUX layer

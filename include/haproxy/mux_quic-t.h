@@ -104,7 +104,7 @@ struct qcc {
 #define QC_SF_NONE              0x00000000
 #define QC_SF_SIZE_KNOWN        0x00000001  /* last frame received for this stream */
 #define QC_SF_FIN_STREAM        0x00000002  /* FIN bit must be set for last frame of the stream */
-/* unused 0x00000004 */
+#define QC_SF_BLK_MROOM         0x00000004  /* app layer is blocked waiting for room in the qcs.tx.buf */
 #define QC_SF_DETACH            0x00000008  /* sc is detached but there is remaining data to send */
 /* unused 0x00000010 */
 #define QC_SF_DEM_FULL          0x00000020  /* demux blocked on request channel buffer full */

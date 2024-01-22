@@ -98,7 +98,7 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 
 	htx = htx_from_buf(buf);
 
-	while (count && !htx_is_empty(htx)) {
+	while (count && !htx_is_empty(htx) && qcc_stream_can_send(qcs)) {
 		/* Not implemented : QUIC on backend side */
 		idx = htx_get_head(htx);
 		blk = htx_get_blk(htx, idx);
@@ -144,8 +144,9 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 				fsize = b_contig_space(res);
 
 			if (!fsize) {
-				/* TODO */
-				ABORT_NOW();
+				/* Release buf and restart parsing if sending still possible. */
+				qcc_release_stream_txbuf(qcs);
+				continue;
 			}
 
 			b_putblk(res, htx_get_blk_ptr(htx, blk), fsize);
@@ -181,6 +182,7 @@ static size_t hq_interop_nego_ff(struct qcs *qcs, size_t count)
 	int ret = 0;
 	struct buffer *res;
 
+ start:
 	res = qcc_get_stream_txbuf(qcs);
 	if (!res) {
 		qcs->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
@@ -190,8 +192,12 @@ static size_t hq_interop_nego_ff(struct qcs *qcs, size_t count)
 	}
 
 	if (!b_room(res)) {
-		/* TODO */
-		ABORT_NOW();
+		if (qcc_release_stream_txbuf(qcs)) {
+			qcs->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
+			goto end;
+		}
+
+		goto start;
 	}
 
 	/* No header required for HTTP/0.9, no need to reserve an offset. */
