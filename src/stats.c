@@ -409,7 +409,7 @@ int stats_emit_raw_data_field(struct buffer *out, const struct field *f)
 		out->data = flt_trim(out->area, prev_data, chunk_appendf(out, "%f", f->u.flt));
 		return out->data;
 	}
-	case FF_STR:   return csv_enc_append(field_str(f, 0), 1, out) != NULL;
+	case FF_STR:   return csv_enc_append(field_str(f, 0), 1, 2, out) != NULL;
 	default:       return chunk_appendf(out, "[INCORRECT_FIELD_TYPE_%08x]", f->type);
 	}
 }

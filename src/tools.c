@@ -2065,10 +2065,18 @@ char *escape_string(char *start, char *stop,
  * It is useful if the escaped string is used between double quotes in the
  * format.
  *
- *    printf("..., \"%s\", ...\r\n", csv_enc(str, 0, &trash));
+ *    printf("..., \"%s\", ...\r\n", csv_enc(str, 0, 0, &trash));
  *
  * If <quote> is 1, the converter puts the quotes only if any reserved character
  * is present. If <quote> is 2, the converter always puts the quotes.
+ *
+ * If <oneline> is not 0, CRs are skipped and LFs are replaced by spaces.
+ * This re-format multi-lines strings to only one line. The purpose is to
+ * allow a line by line parsing but also to keep the output compliant with
+ * the CLI witch uses LF to defines the end of the response.
+ *
+ * If <oneline> is 2, In addition to previous action, the trailing spaces are
+ * removed.
  *
  * <output> is a struct buffer used for storing the output string.
  *
@@ -2084,7 +2092,7 @@ char *escape_string(char *start, char *stop,
  * the chunk. Please use csv_enc() instead if you want to replace the output
  * chunk.
  */
-const char *csv_enc_append(const char *str, int quote, struct buffer *output)
+const char *csv_enc_append(const char *str, int quote, int oneline, struct buffer *output)
 {
 	char *end = output->area + output->size;
 	char *out = output->area + output->data;
@@ -2100,6 +2108,19 @@ const char *csv_enc_append(const char *str, int quote, struct buffer *output)
 		*ptr++ = '"';
 
 	while (*str && ptr < end - 2) { /* -2 for reserving space for <"> and \0. */
+		if (oneline) {
+			if (*str == '\n' ) {
+				/* replace LF by a space */
+				*ptr++ = ' ';
+				str++;
+				continue;
+			}
+			else if (*str == '\r' ) {
+				/* skip CR */
+				str++;
+				continue;
+			}
+		}
 		*ptr = *str;
 		if (*str == '"') {
 			ptr++;
@@ -2111,6 +2132,12 @@ const char *csv_enc_append(const char *str, int quote, struct buffer *output)
 		}
 		ptr++;
 		str++;
+	}
+
+	if (oneline == 2) {
+		/* remove trailing spaces */
+		while (ptr > out && *(ptr - 1) == ' ')
+			ptr--;
 	}
 
 	if (quote)
