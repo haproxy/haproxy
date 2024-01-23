@@ -2448,6 +2448,14 @@ sni_lookup:
 		return SSL_TLSEXT_ERR_ALERT_FATAL;
 	}
 
+#if defined(OPENSSL_IS_AWSLC)
+	/* Note that ssl_sock_switchctx_set() calls SSL_set_SSL_CTX() which propagates the
+	 * "early data enabled" setting from the SSL_CTX object to the SSL objects.
+	 * So enable early data for this SSL_CTX context if configured.
+	 */
+	if (s->ssl_conf.early_data)
+		SSL_CTX_set_early_data_enabled(container_of(node, struct sni_ctx, name)->ctx, 1);
+#endif
 	/* switch ctx */
 	ssl_sock_switchctx_set(ssl, container_of(node, struct sni_ctx, name)->ctx);
 	HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
