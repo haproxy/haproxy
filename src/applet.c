@@ -822,6 +822,9 @@ struct task *task_process_applet(struct task *t, void *context, unsigned int sta
 
 	TRACE_POINT(APPLET_EV_PROCESS, app);
 
+	if (b_data(&app->outbuf) || se_fl_test(app->sedesc, SE_FL_MAY_FASTFWD))
+		applet_have_more_data(app);
+
 	sc_applet_sync_recv(sc);
 
 	/* TODO: May be move in appctx_rcv_buf or sc_applet_process ? */
