@@ -565,7 +565,7 @@ int quic_transport_params_encode(unsigned char *buf,
 	                                  p->active_connection_id_limit))
 	    return 0;
 
-	if (!quic_transport_param_enc_version_info(&pos, end, chosen_version, server))
+	if (chosen_version && !quic_transport_param_enc_version_info(&pos, end, chosen_version, server))
 		return 0;
 
 	return pos - head;
