@@ -44,7 +44,8 @@
 #define APPCTX_FL_EOS            0x00000020
 #define APPCTX_FL_ERR_PENDING    0x00000040
 #define APPCTX_FL_ERROR          0x00000080
-#define APPCTX_FL_WANT_DIE       0x00000100  /* applet was running and requested to die */
+#define APPCTX_FL_SHUTDOWN       0x00000100  /* applet was shut down (->release() called if any). No more data exchange with SCs */
+#define APPCTX_FL_WANT_DIE       0x00000200  /* applet was running and requested to die */
 
 struct appctx;
 struct proxy;

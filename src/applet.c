@@ -395,6 +395,7 @@ void appctx_shut(struct appctx *appctx)
 	TRACE_ENTER(APPLET_EV_RELEASE, appctx);
 	if (appctx->applet->release)
 		appctx->applet->release(appctx);
+	applet_fl_set(appctx, APPCTX_FL_SHUTDOWN);
 
 	if (LIST_INLIST(&appctx->buffer_wait.list))
 		LIST_DEL_INIT(&appctx->buffer_wait.list);
