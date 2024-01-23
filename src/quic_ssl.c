@@ -558,6 +558,28 @@ int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 			goto leave;
 		}
 
+#if defined(OPENSSL_IS_AWSLC)
+		/* As a server, if early data is accepted, SSL_do_handshake will
+		 * complete as soon as the ClientHello is processed and server flight sent.
+		 * SSL_write may be used to send half-RTT data. SSL_read will consume early
+		 * data and transition to 1-RTT data as appropriate. Prior to the
+		 * transition, SSL_in_init will report the handshake is still in progress.
+		 * Callers may use it or SSL_in_early_data to defer or reject requests
+		 * as needed.
+		 * (see https://commondatastorage.googleapis.com/chromium-boringssl-docs/ssl.h.html#Early-data)
+		 */
+
+		/* If we do not returned here, the handshake is considered as completed/confirmed.
+		 * This has as bad side effect to discard the Handshake packet number space,
+		 * so without sending the Handshake level CRYPTO data.
+		 */
+		if (SSL_in_early_data(ctx->ssl)) {
+			TRACE_PROTO("SSL handshake in progrees with early data",
+			            QUIC_EV_CONN_IO_CB, qc, &state, &ssl_err);
+			goto out;
+		}
+#endif
+
 		TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_IO_CB, qc, &state);
 
 		/* Check the alpn could be negotiated */
