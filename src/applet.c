@@ -488,15 +488,10 @@ size_t appctx_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 		}
 
 		htx_xfer_blks(buf_htx, appctx_htx, count, HTX_BLK_UNUSED);
-		if (appctx_htx->flags & HTX_FL_PARSING_ERROR) {
-			buf_htx->flags |= HTX_FL_PARSING_ERROR;
-			if (htx_is_empty(buf_htx))
-				se_fl_set(appctx->sedesc, SE_FL_EOI);
-		}
-		else if (htx_is_empty(appctx_htx)) {
+		buf_htx->flags |= (appctx_htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR));
+		if (htx_is_empty(appctx_htx)) {
 			buf_htx->flags |= (appctx_htx->flags & HTX_FL_EOM);
 		}
-
 		buf_htx->extra = (appctx_htx->extra ? (appctx_htx->data + appctx_htx->extra) : 0);
 		htx_to_buf(buf_htx, buf);
 		htx_to_buf(appctx_htx, &appctx->inbuf);
@@ -515,7 +510,18 @@ size_t appctx_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 	}
 	else {
 		se_fl_clr(appctx->sedesc, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
-		// TODO: how to handle SE_FL_EOS/ERROR/EOI
+		if (applet_fl_test(appctx, APPCTX_FL_EOI)) {
+			se_fl_set(appctx->sedesc, SE_FL_EOI);
+			TRACE_STATE("report EOI to SE", APPLET_EV_RECV|APPLET_EV_BLK, appctx);
+		}
+		if (applet_fl_test(appctx, APPCTX_FL_EOS)) {
+			se_fl_set(appctx->sedesc, SE_FL_EOS);
+			TRACE_STATE("report EOS to SE", APPLET_EV_RECV|APPLET_EV_BLK, appctx);
+		}
+		if (applet_fl_test(appctx, APPCTX_FL_ERROR)) {
+			se_fl_set(appctx->sedesc, SE_FL_ERROR);
+			TRACE_STATE("report ERROR to SE", APPLET_EV_RECV|APPLET_EV_BLK, appctx);
+		}
 	}
 
   end:
@@ -530,10 +536,10 @@ size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 
 	TRACE_ENTER(APPLET_EV_SEND, appctx);
 
-	if (applet_fl_test(appctx, (APPCTX_FL_INBLK_FULL|APPCTX_FL_INBLK_ALLOC)))
+	if (applet_fl_test(appctx, (APPCTX_FL_ERROR|APPCTX_FL_ERR_PENDING)))
 		goto end;
 
-	if (!count)
+	if (applet_fl_test(appctx, (APPCTX_FL_INBLK_FULL|APPCTX_FL_INBLK_ALLOC)))
 		goto end;
 
 	if (!appctx_get_buf(appctx, &appctx->inbuf)) {
@@ -541,6 +547,9 @@ size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 		TRACE_STATE("waiting for appctx inbuf allocation", APPLET_EV_SEND|APPLET_EV_BLK, appctx);
 		goto end;
 	}
+
+	if (!count)
+		goto end;
 
 	if (IS_HTX_SC(sc)) {
 		struct htx *appctx_htx = htx_from_buf(&appctx->inbuf);
@@ -570,10 +579,16 @@ size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
   done:
 	if (ret < count) {
 		applet_fl_set(appctx, APPCTX_FL_INBLK_FULL);
+		appctx_wakeup(appctx);
 		TRACE_STATE("report appctx inbuf is full", APPLET_EV_SEND|APPLET_EV_BLK, appctx);
 	}
 
   end:
+	if (applet_fl_test(appctx, (APPCTX_FL_ERROR|APPCTX_FL_ERR_PENDING))) {
+		BUG_ON((applet_fl_get(appctx) & (APPCTX_FL_EOS|APPCTX_FL_ERROR|APPCTX_FL_ERR_PENDING)) == (APPCTX_FL_EOS|APPCTX_FL_ERR_PENDING));
+		applet_set_error(appctx);
+		TRACE_STATE("report ERR_PENDING/ERROR to SE", APPLET_EV_SEND, appctx);
+	}
 	TRACE_LEAVE(APPLET_EV_SEND, appctx);
 	return ret;
 }
