@@ -4524,8 +4524,6 @@ static void http_stats_io_handler(struct appctx *appctx)
 	if (appctx->st0 == STAT_HTTP_POST) {
 		if (stats_process_http_post(sc))
 			appctx->st0 = STAT_HTTP_LAST;
-		else if (s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))
-			appctx->st0 = STAT_HTTP_DONE;
 	}
 
 	if (appctx->st0 == STAT_HTTP_LAST) {
