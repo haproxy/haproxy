@@ -1485,8 +1485,7 @@ static unsigned int htx_cache_dump_blk(struct appctx *appctx, struct htx *htx, e
 	unsigned int max, total;
 	uint32_t blksz;
 
-	max = htx_get_max_blksz(htx,
-				channel_htx_recv_max(sc_ic(appctx_sc(appctx)), htx));
+	max = htx_free_data_space(htx);
 	if (!max)
 		return 0;
 	blksz = ((type == HTX_BLK_HDR || type == HTX_BLK_TLR)
@@ -1529,8 +1528,7 @@ static unsigned int htx_cache_dump_data_blk(struct appctx *appctx, struct htx *h
 	unsigned int max, total, rem_data, data_len;
 	uint32_t blksz;
 
-	max = htx_get_max_blksz(htx,
-				channel_htx_recv_max(sc_ic(appctx_sc(appctx)), htx));
+	max = htx_free_data_space(htx);
 	if (!max)
 		return 0;
 
@@ -1785,28 +1783,27 @@ static void http_cache_io_handler(struct appctx *appctx)
 	struct cache_appctx *ctx = appctx->svcctx;
 	struct cache_entry *cache_ptr = ctx->entry;
 	struct shared_block *first = block_ptr(cache_ptr);
-	struct stconn *sc = appctx_sc(appctx);
-	struct channel *req = sc_oc(sc);
-	struct channel *res = sc_ic(sc);
-	struct htx *req_htx, *res_htx;
+	struct htx *res_htx = NULL;
 	struct buffer *errmsg;
 	unsigned int len;
-	size_t ret, total = 0;
+	size_t ret;
 
-	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW))))
+	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL))
 		goto exit;
 
-	applet_have_more_data(appctx);
+
+	if (!appctx_get_buf(appctx, &appctx->outbuf)) {
+		appctx->flags |= APPCTX_FL_OUTBLK_ALLOC;
+		goto exit;
+	}
+
+	if (unlikely(applet_fl_test(appctx, APPCTX_FL_EOS|APPCTX_FL_ERROR|APPCTX_FL_SHUTDOWN)))
+		goto exit;
+
+	res_htx = htx_from_buf(&appctx->outbuf);
 
 	len = first->len - sizeof(*cache_ptr) - ctx->sent;
-	res_htx = htx_from_buf(&res->buf);
-	total = res_htx->data;
-
-	/* Check if the input buffer is available. */
-	if (!b_size(&res->buf)) {
-		sc_need_room(sc, 0);
-		goto out;
-	}
+	res_htx = htx_from_buf(&appctx->outbuf);
 
 	if (appctx->st0 == HTX_CACHE_INIT) {
 		ctx->next = block_ptr(cache_ptr);
@@ -1817,6 +1814,8 @@ static void http_cache_io_handler(struct appctx *appctx)
 	}
 
 	if (appctx->st0 == HTX_CACHE_HEADER) {
+		struct ist meth;
+
 		/* Headers must be dump at once. Otherwise it is an error */
 		ret = htx_cache_dump_msg(appctx, res_htx, len, HTX_BLK_EOH);
 		if (!ret || (htx_get_tail_type(res_htx) != HTX_BLK_EOH) ||
@@ -1834,7 +1833,8 @@ static void http_cache_io_handler(struct appctx *appctx)
 
 		/* Skip response body for HEAD requests or in case of "304 Not
 		 * Modified" response. */
-		if (__sc_strm(sc)->txn->meth == HTTP_METH_HEAD || ctx->send_notmodified)
+		meth = htx_sl_req_meth(http_get_stline(htxbuf(&appctx->inbuf)));
+		if (find_http_meth(istptr(meth), istlen(meth)) == HTTP_METH_HEAD || ctx->send_notmodified)
 			appctx->st0 = HTX_CACHE_EOM;
 		else {
 			len = first->len - sizeof(*cache_ptr) - ctx->sent;
@@ -1846,7 +1846,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 		if (len) {
 			ret = htx_cache_dump_msg(appctx, res_htx, len, HTX_BLK_UNUSED);
 			if (ret < len) {
-				sc_need_room(sc, channel_htx_recv_max(res, res_htx) + 1);
+				appctx->flags |= APPCTX_FL_OUTBLK_FULL;
 				goto out;
 			}
 		}
@@ -1857,41 +1857,35 @@ static void http_cache_io_handler(struct appctx *appctx)
 	if (appctx->st0 == HTX_CACHE_EOM) {
 		 /* no more data are expected. */
 		res_htx->flags |= HTX_FL_EOM;
-		se_fl_set(appctx->sedesc, SE_FL_EOI);
+		applet_set_eoi(appctx);
 		appctx->st0 = HTX_CACHE_END;
 	}
 
   end:
 	if (appctx->st0 == HTX_CACHE_END) {
-		applet_have_no_more_data(appctx);
-		se_fl_set(appctx->sedesc, SE_FL_EOS);
+		applet_set_eos(appctx);
 	}
 
   out:
-	total = res_htx->data - total;
-	if (total)
-		channel_add_input(res, total);
-	htx_to_buf(res_htx, &res->buf);
+	if (res_htx)
+		htx_to_buf(res_htx, &appctx->outbuf);
 
   exit:
 	/* eat the whole request */
-	if (co_data(req)) {
-		req_htx = htx_from_buf(&req->buf);
-		co_htx_skip(req, req_htx, co_data(req));
-		htx_to_buf(req_htx, &req->buf);
-	}
+	b_reset(&appctx->inbuf);
+	applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 	return;
 
   error:
 	/* Sent and HTTP error 500 */
-	b_reset(&res->buf);
+	b_reset(&appctx->outbuf);
 	errmsg = &http_err_chunks[HTTP_ERR_500];
-	res->buf.data = b_data(errmsg);
-	memcpy(res->buf.area, b_head(errmsg), b_data(errmsg));
-	res_htx = htx_from_buf(&res->buf);
+	appctx->outbuf.data = b_data(errmsg);
+	memcpy(appctx->outbuf.area, b_head(errmsg), b_data(errmsg));
+	res_htx = htx_from_buf(&appctx->outbuf);
 
-	total = 0;
-	se_fl_set(appctx->sedesc, SE_FL_ERROR);
+	applet_set_eos(appctx);
+	applet_set_error(appctx);
 	appctx->st0 = HTX_CACHE_END;
 	goto end;
 }
@@ -3164,6 +3158,8 @@ struct applet http_cache_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<CACHE>", /* used for logging */
 	.fct = http_cache_io_handler,
+	.rcv_buf = appctx_rcv_buf,
+	.snd_buf = appctx_snd_buf,
 	.release = http_cache_applet_release,
 };
 
