@@ -23,6 +23,7 @@
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
 #include <haproxy/trace.h>
+#include <haproxy/xref.h>
 
 unsigned int nb_applets = 0;
 
@@ -591,6 +592,75 @@ size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 		TRACE_STATE("report ERR_PENDING/ERROR to SE", APPLET_EV_SEND, appctx);
 	}
 	TRACE_LEAVE(APPLET_EV_SEND, appctx);
+	return ret;
+}
+
+int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
+{
+	struct appctx *appctx = __sc_appctx(sc);
+	struct xref *peer;
+	struct sedesc *sdo = NULL;
+	unsigned int len;
+	int ret = 0;
+
+	TRACE_ENTER(APPLET_EV_RECV, appctx);
+
+	/* TODO: outbuf must be empty. Find a better way to handle that but for now just return -1 */
+	if (b_data(&appctx->outbuf)) {
+		TRACE_STATE("Output buffer not empty, cannot fast-forward data", APPLET_EV_RECV, appctx);
+		return -1;
+	}
+
+	peer = xref_get_peer_and_lock(&appctx->sedesc->xref);
+	if (!peer) {
+		TRACE_STATE("Opposite endpoint not available yet", APPLET_EV_RECV, appctx);
+		goto end;
+	}
+	sdo = container_of(peer, struct sedesc, xref);
+	xref_unlock(&appctx->sedesc->xref, peer);
+
+	if (appctx->to_forward && count > appctx->to_forward)
+		count = appctx->to_forward;
+
+	len = se_nego_ff(sdo, &BUF_NULL, count, 0);
+	if (sdo->iobuf.flags & IOBUF_FL_NO_FF) {
+		sc_ep_clr(sc, SE_FL_MAY_FASTFWD);
+		TRACE_DEVEL("Fast-forwarding not supported by opposite endpoint, disable it", APPLET_EV_RECV, appctx);
+		goto end;
+	}
+	if (sdo->iobuf.flags & IOBUF_FL_FF_BLOCKED) {
+		sc_ep_set(sc, /* SE_FL_RCV_MORE |  */SE_FL_WANT_ROOM);
+		TRACE_STATE("waiting for more room", APPLET_EV_RECV|APPLET_EV_BLK, appctx);
+		goto end;
+	}
+
+	b_add(sdo->iobuf.buf, sdo->iobuf.offset);
+	ret = appctx->applet->fastfwd(appctx, sdo->iobuf.buf, len, 0);
+	b_sub(sdo->iobuf.buf, sdo->iobuf.offset);
+	sdo->iobuf.data += ret;
+
+	if (applet_fl_test(appctx, APPCTX_FL_EOI)) {
+		se_fl_set(appctx->sedesc, SE_FL_EOI);
+		sdo->iobuf.flags |= IOBUF_FL_EOI; /* TODO: it may be good to have a flag to be sure we can
+						   *       forward the EOI the to consumer side
+						   */
+		TRACE_STATE("report EOI to SE", APPLET_EV_RECV|APPLET_EV_BLK, appctx);
+	}
+	if (applet_fl_test(appctx, APPCTX_FL_EOS)) {
+		se_fl_set(appctx->sedesc, SE_FL_EOS);
+		TRACE_STATE("report EOS to SE", APPLET_EV_RECV|APPLET_EV_BLK, appctx);
+	}
+	if (applet_fl_test(appctx, APPCTX_FL_ERROR)) {
+		se_fl_set(appctx->sedesc, SE_FL_ERROR);
+		TRACE_STATE("report ERROR to SE", APPLET_EV_RECV|APPLET_EV_BLK, appctx);
+	}
+	/* else */
+	/* 	applet_have_more_data(appctx); */
+
+	se_done_ff(sdo);
+
+end:
+	TRACE_LEAVE(APPLET_EV_RECV, appctx);
 	return ret;
 }
 

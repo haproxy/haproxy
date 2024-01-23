@@ -51,6 +51,7 @@ void appctx_free(struct appctx *appctx);
 
 size_t appctx_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags);
 size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags);
+int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags);
 
 static inline struct appctx *appctx_new_here(struct applet *applet, struct sedesc *sedesc)
 {

@@ -1904,8 +1904,42 @@ int sc_applet_recv(struct stconn *sc)
 
 	channel_check_idletimer(ic);
 
-	/* TODO: Handle fastfwd here be implement callback function first ! */
+	/* First, let's see if we may fast-forward data from a side to the other
+	 * one without using the channel buffer.
+	 */
+	if (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD) &&
+	    sc_ep_test(sc, SE_FL_MAY_FASTFWD) && ic->to_forward) {
+		if (channel_data(ic)) {
+			/* We're embarrassed, there are already data pending in
+			 * the buffer and we don't want to have them at two
+			 * locations at a time. Let's indicate we need some
+			 * place and ask the consumer to hurry.
+			 */
+			flags |= CO_RFL_BUF_FLUSH;
+			goto abort_fastfwd;
+		}
+		ret = appctx_fastfwd(sc, ic->to_forward, flags);
+		if (ret < 0)
+			goto abort_fastfwd;
+		else if (ret > 0) {
+			if (ic->to_forward != CHN_INFINITE_FORWARD)
+				ic->to_forward -= ret;
+			ic->total += ret;
+			cur_read += ret;
+			ic->flags |= CF_READ_EVENT;
+		}
 
+		if (sc_ep_test(sc, SE_FL_EOS | SE_FL_ERROR))
+			goto end_recv;
+
+		if (sc_ep_test(sc, SE_FL_WANT_ROOM))
+			sc_need_room(sc, -1);
+
+		if (sc_ep_test(sc, SE_FL_MAY_FASTFWD) && ic->to_forward)
+			goto done_recv;
+	}
+
+ abort_fastfwd:
 	if (!sc_alloc_ibuf(sc, &appctx->buffer_wait))
 		goto end_recv;
 
@@ -2107,6 +2141,9 @@ int sc_applet_send(struct stconn *sc)
 	/* We must wait because the applet is not fully initialized */
 	if (se_fl_test(sc->sedesc, SE_FL_ORPHAN))
 		return 0;
+
+	/* TODO: Splicing is not supported, so it is not possible to have FF data stuck into the I/O buf */
+	BUG_ON(sc_ep_have_ff_data(sc));
 
 	if (co_data(oc)) {
 		ret = appctx->applet->snd_buf(sc, &oc->buf, co_data(oc), 0);
