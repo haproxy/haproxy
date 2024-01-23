@@ -63,7 +63,7 @@ struct applet {
 	void (*fct)(struct appctx *);      /* internal I/O handler, may never be NULL */
 	size_t (*rcv_buf)(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags); /* called from the upper layer to get data */
 	size_t (*snd_buf)(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags); /* Called from the upper layet to put data */
-	/* TODO: ADD fastfwd callback functions */
+	size_t (*fastfwd)(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags); /* Callback to fast-forward data */
 	void (*release)(struct appctx *);  /* callback to release resources, may be NULL */
 	unsigned int timeout;              /* execution timeout. */
 };
@@ -78,6 +78,7 @@ struct appctx {
 	unsigned int flags;        /* APPCTX_FL_* */
 	struct buffer inbuf;
 	struct buffer outbuf;
+	size_t to_forward;
 
 	struct buffer *chunk;       /* used to store unfinished commands */
 	struct applet *applet;     /* applet this context refers to */
