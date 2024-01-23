@@ -35,7 +35,6 @@
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/tools.h>
-#include <haproxy/xref.h>
 #include <haproxy/xxhash.h>
 
 #define CACHE_FLT_F_IMPLICIT_DECL  0x00000001 /* The cache filtre was implicitly declared (ie without
@@ -1702,7 +1701,7 @@ static unsigned int ff_cache_dump_data_blk(struct appctx *appctx, struct buffer 
 	return total;
 }
 
-static size_t ff_cache_dump_msg(struct appctx *appctx, struct buffer *buf, unsigned int len)
+static __maybe_unused size_t ff_cache_dump_msg(struct appctx *appctx, struct buffer *buf, unsigned int len)
 {
 	struct cache_appctx *ctx = appctx->svcctx;
 	struct cache_entry *cache_ptr = ctx->entry;
@@ -1799,74 +1798,6 @@ static void http_cache_io_handler(struct appctx *appctx)
 
 	applet_have_more_data(appctx);
 
-	if (!(global.tune.no_zero_copy_fwd & (NO_ZERO_COPY_FWD|NO_ZERO_COPY_FWD_CACHE)) &&
-	    sc_ep_test(sc, SE_FL_MAY_FASTFWD) &&
-	    res->to_forward &&
-	    ctx->data_sent != cache_ptr->body_size) {
-		struct xref *peer;
-		struct sedesc *sdo = NULL;
-
-		se_fl_clr(appctx->sedesc, SE_FL_WANT_ROOM);
-		if (channel_data(res)) {
-			sc_need_room(sc, -1);
-			goto exit;
-		}
-
-		peer = xref_get_peer_and_lock(&appctx->sedesc->xref);
-		if (!peer)
-			goto error;
-		sdo = container_of(peer, struct sedesc, xref);
-		xref_unlock(&appctx->sedesc->xref, peer);
-
-		len = cache_ptr->body_size - ctx->data_sent;
-		if (len > res->to_forward)
-			len = res->to_forward;
-
-		len = se_nego_ff(sdo, &BUF_NULL, len, 0);
-		if (sdo->iobuf.flags & IOBUF_FL_NO_FF) {
-			sc_ep_clr(sc, SE_FL_MAY_FASTFWD);
-			goto abort_fastfwd;
-		}
-		if (sdo->iobuf.flags & IOBUF_FL_FF_BLOCKED) {
-			sc_need_room(sc, -1);
-			goto exit;
-		}
-
-		total = sdo->iobuf.data;
-		b_add(sdo->iobuf.buf, sdo->iobuf.offset);
-		ret = ff_cache_dump_msg(appctx, sdo->iobuf.buf, len);
-		b_sub(sdo->iobuf.buf, sdo->iobuf.offset);
-		total += ret;
-		sdo->iobuf.data += ret;
-
-		if (ctx->sent == first->len - sizeof(*cache_ptr)) {
-			sc_ep_clr(sc, SE_FL_MAY_FASTFWD);
-			se_fl_set(appctx->sedesc, SE_FL_EOI|SE_FL_EOS);
-			BUG_ON(ctx->data_sent != cache_ptr->body_size);
-			appctx->st0 = HTX_CACHE_END;
-		}
-
-		if (se_fl_test(appctx->sedesc, SE_FL_EOI)) {
-			sdo->iobuf.flags |= IOBUF_FL_EOI; /* TODO: it may be good to have a flag to be sure we can
-							   *       forward the EOI the to consumer side
-							   */
-		}
-		/* else */
-		/* 	applet_have_more_data(appctx); */
-
-		se_done_ff(sdo);
-
-		if (total > 0) {
-			if (res->to_forward != CHN_INFINITE_FORWARD)
-				res->to_forward -= total;
-			res->total += total;
-			res->flags |= CF_READ_EVENT;
-			sc_ep_report_read_activity(sc);
-		}
-		goto exit;
-	}
-
-  abort_fastfwd:
 	len = first->len - sizeof(*cache_ptr) - ctx->sent;
 	res_htx = htx_from_buf(&res->buf);
 	total = res_htx->data;
@@ -1906,7 +1837,6 @@ static void http_cache_io_handler(struct appctx *appctx)
 		if (__sc_strm(sc)->txn->meth == HTTP_METH_HEAD || ctx->send_notmodified)
 			appctx->st0 = HTX_CACHE_EOM;
 		else {
-			se_fl_set(appctx->sedesc, SE_FL_MAY_FASTFWD);
 			len = first->len - sizeof(*cache_ptr) - ctx->sent;
 			appctx->st0 = HTX_CACHE_DATA;
 		}
