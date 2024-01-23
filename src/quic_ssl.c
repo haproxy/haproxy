@@ -713,6 +713,40 @@ static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl)
 	return ret;
 }
 
+/* Enable early data for <ssl> QUIC TLS session.
+ * Return 1 if succeeded, 0 if not.
+ */
+static int qc_set_quic_early_data_enabled(struct quic_conn *qc, SSL *ssl)
+{
+#if defined(OPENSSL_IS_AWSLC)
+	struct quic_transport_params p = {0};
+	unsigned char buf[128];
+	size_t len;
+
+	/* Apply default values to <p> transport parameters. */
+	quic_transport_params_init(&p, 1);
+	/* The stateless_reset_token transport parameter is not needed. */
+	p.with_stateless_reset_token = 0;
+	len = quic_transport_params_encode(buf, buf + sizeof buf, &p, NULL, 1);
+	if (!len) {
+		TRACE_ERROR("quic_transport_params_encode() failed", QUIC_EV_CONN_RWSEC, qc);
+		return 0;
+	}
+
+	/* XXX TODO: Should also add the application settings. XXX */
+	if (!SSL_set_quic_early_data_context(ssl, buf, len)) {
+		TRACE_ERROR("SSL_set_quic_early_data_context() failed", QUIC_EV_CONN_RWSEC, qc);
+		return 0;
+	}
+
+	SSL_set_early_data_enabled(ssl, 1);
+#else
+	SSL_set_quic_early_data_enabled(ssl, 1);
+#endif
+
+	return 1;
+}
+
 /* Allocate the ssl_sock_ctx from connection <qc>. This creates the tasklet
  * used to process <qc> received packets. The allocated context is stored in
  * <qc.xprt_ctx>.
@@ -748,11 +782,11 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc)
 	if (qc_is_listener(qc)) {
 		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl) == -1)
 		        goto err;
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(OPENSSL_IS_AWSLC)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 #ifndef USE_QUIC_OPENSSL_COMPAT
 		/* Enabling 0-RTT */
-		if (bc->ssl_conf.early_data)
-			SSL_set_quic_early_data_enabled(ctx->ssl, 1);
+		if (bc->ssl_conf.early_data && !qc_set_quic_early_data_enabled(qc, ctx->ssl))
+			goto err;
 #endif
 #endif
 
