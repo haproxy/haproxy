@@ -735,6 +735,8 @@ static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl)
 	return ret;
 }
 
+#ifndef USE_QUIC_OPENSSL_COMPAT
+
 /* Enable early data for <ssl> QUIC TLS session.
  * Return 1 if succeeded, 0 if not.
  */
@@ -768,6 +770,7 @@ static int qc_set_quic_early_data_enabled(struct quic_conn *qc, SSL *ssl)
 
 	return 1;
 }
+#endif // USE_QUIC_OPENSSL_COMPAT
 
 /* Allocate the ssl_sock_ctx from connection <qc>. This creates the tasklet
  * used to process <qc> received packets. The allocated context is stored in
