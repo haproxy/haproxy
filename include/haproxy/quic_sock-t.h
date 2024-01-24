@@ -36,8 +36,8 @@ struct quic_dgram {
 	struct sockaddr_storage daddr;
 	struct quic_conn *qc;
 
-	struct list recv_list; /* elemt to quic_receiver_buf <dgram_list>. */
-	struct mt_list handler_list; /* elem to quic_dghdlr <dgrams>. */
+	struct list recv_list; /* element pointing to quic_receiver_buf <dgram_list>. */
+	struct mt_list handler_list; /* element pointing to quic_dghdlr <dgrams>. */
 };
 
 /* QUIC datagram handler */
