@@ -600,7 +600,7 @@ int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	struct appctx *appctx = __sc_appctx(sc);
 	struct xref *peer;
 	struct sedesc *sdo = NULL;
-	unsigned int len;
+	unsigned int len, nego_flags = NEGO_FF_FL_NONE;
 	int ret = 0;
 
 	TRACE_ENTER(APPLET_EV_RECV, appctx);
@@ -622,7 +622,7 @@ int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	if (appctx->to_forward && count > appctx->to_forward)
 		count = appctx->to_forward;
 
-	len = se_nego_ff(sdo, &BUF_NULL, count, 0);
+	len = se_nego_ff(sdo, &BUF_NULL, count, nego_flags);
 	if (sdo->iobuf.flags & IOBUF_FL_NO_FF) {
 		sc_ep_clr(sc, SE_FL_MAY_FASTFWD);
 		TRACE_DEVEL("Fast-forwarding not supported by opposite endpoint, disable it", APPLET_EV_RECV, appctx);

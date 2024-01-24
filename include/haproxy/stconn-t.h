@@ -40,6 +40,12 @@ enum iobuf_flags {
 	IOBUF_FL_EOI              = 0x00000010, /* A EOI was encountered on producer side */
 };
 
+/* Flags used */
+enum nego_ff_flags {
+	NEGO_FF_FL_NONE           = 0x00000000, /* For initialization purposes */
+	NEGO_FF_FL_MAY_SPLICE     = 0x00000001, /* Consumer may choose to use kernel splicing if it supports it */
+};
+
 struct iobuf {
 	struct pipe *pipe;     /* non-NULL only when data present */
 	struct buffer *buf;

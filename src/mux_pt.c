@@ -580,7 +580,7 @@ static inline struct sedesc *mux_pt_opposite_sd(struct mux_pt_ctx *ctx)
 	return sdo;
 }
 
-static size_t mux_pt_nego_ff(struct stconn *sc, struct buffer *input, size_t count, unsigned int may_splice)
+static size_t mux_pt_nego_ff(struct stconn *sc, struct buffer *input, size_t count, unsigned int flags)
 {
 	struct connection *conn = __sc_conn(sc);
 	struct mux_pt_ctx *ctx = conn->ctx;
@@ -595,7 +595,7 @@ static size_t mux_pt_nego_ff(struct stconn *sc, struct buffer *input, size_t cou
 	 *       and then data in pipe, or the opposite. For now, it is not
 	 *       supported to mix data.
 	 */
-	if (!b_data(input) && may_splice) {
+	if (!b_data(input) && (flags & NEGO_FF_FL_MAY_SPLICE)) {
 		if (conn->xprt->snd_pipe && (ctx->sd->iobuf.pipe || (pipes_used < global.maxpipes && (ctx->sd->iobuf.pipe = get_pipe())))) {
 			ctx->sd->iobuf.offset = 0;
 			ctx->sd->iobuf.data = 0;
@@ -651,6 +651,7 @@ static int mux_pt_fastfwd(struct stconn *sc, unsigned int count, unsigned int fl
 	struct mux_pt_ctx *ctx = conn->ctx;
 	struct sedesc *sdo = NULL;
 	size_t total = 0, try = 0;
+	unsigned int nego_flags = NEGO_FF_FL_NONE;
         int ret = 0;
 
 	TRACE_ENTER(PT_EV_RX_DATA, conn, sc, 0, (size_t[]){count});
@@ -668,7 +669,10 @@ static int mux_pt_fastfwd(struct stconn *sc, unsigned int count, unsigned int fl
 		goto out;
 	}
 
-	try = se_nego_ff(sdo, &BUF_NULL, count, conn->xprt->rcv_pipe && !!(flags & CO_RFL_MAY_SPLICE) && !(sdo->iobuf.flags & IOBUF_FL_NO_SPLICING));
+	if (conn->xprt->rcv_pipe && !!(flags & CO_RFL_MAY_SPLICE) && !(sdo->iobuf.flags & IOBUF_FL_NO_SPLICING))
+		nego_flags |= NEGO_FF_FL_MAY_SPLICE;
+
+	try = se_nego_ff(sdo, &BUF_NULL, count, nego_flags);
 	if (sdo->iobuf.flags & IOBUF_FL_NO_FF) {
 		/* Fast forwarding is not supported by the consumer */
 		se_fl_clr(ctx->sd, SE_FL_MAY_FASTFWD);

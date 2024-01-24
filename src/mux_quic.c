@@ -2922,7 +2922,7 @@ static size_t qmux_strm_snd_buf(struct stconn *sc, struct buffer *buf,
 
 
 static size_t qmux_strm_nego_ff(struct stconn *sc, struct buffer *input,
-                                size_t count, unsigned int may_splice)
+                                size_t count, unsigned int flags)
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
 	size_t ret = 0;

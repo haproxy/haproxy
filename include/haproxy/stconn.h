@@ -502,7 +502,7 @@ static inline void se_need_more_data(struct sedesc *se)
 }
 
 
-static inline size_t se_nego_ff(struct sedesc *se, struct buffer *input, size_t count, unsigned int may_splice)
+static inline size_t se_nego_ff(struct sedesc *se, struct buffer *input, size_t count, unsigned int flags)
 {
 	size_t ret = 0;
 
@@ -517,7 +517,7 @@ static inline size_t se_nego_ff(struct sedesc *se, struct buffer *input, size_t 
 				goto end;
 			}
 
-			ret = mux->nego_fastfwd(se->sc, input, count, may_splice);
+			ret = mux->nego_fastfwd(se->sc, input, count, flags);
 			if (se->iobuf.flags & IOBUF_FL_FF_BLOCKED) {
 				sc_ep_report_blocked_send(se->sc, 0);
 
