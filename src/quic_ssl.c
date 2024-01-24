@@ -735,7 +735,7 @@ static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl)
 	return ret;
 }
 
-#ifndef USE_QUIC_OPENSSL_COMPAT
+#if !defined(USE_QUIC_OPENSSL_COMPAT) && !defined(USE_OPENSSL_WOLFSSL)
 
 /* Enable early data for <ssl> QUIC TLS session.
  * Return 1 if succeeded, 0 if not.
@@ -808,7 +808,7 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc)
 		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl) == -1)
 		        goto err;
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
-#ifndef USE_QUIC_OPENSSL_COMPAT
+#if !defined(USE_QUIC_OPENSSL_COMPAT) && !defined(USE_OPENSSL_WOLFSSL)
 		/* Enabling 0-RTT */
 		if (bc->ssl_conf.early_data && !qc_set_quic_early_data_enabled(qc, ctx->ssl))
 			goto err;
