@@ -530,7 +530,9 @@ static void delete_entry(struct cache_entry *del_entry)
 	struct cache_entry *entry = NULL;
 	struct eb32_node *last = NULL;
 
-	if (del_entry->secondary_key_signature) {
+	/* The entry might have been removed from the cache before. In such a
+	 * case calling eb32_next_dup would crash. */
+	if (del_entry->secondary_key_signature && del_entry->eb.key != 0) {
 		next = &del_entry->eb;
 
 		/* Look for last entry of the duplicates list. */
