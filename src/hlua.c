@@ -2026,6 +2026,7 @@ static int hlua_set_map(lua_State *L)
 	if (len < 5 || strncmp(name, "proc.", 5) != 0)
 		WILL_LJMP(luaL_error(L, "'get_var': Only 'proc.' scope allowed to be retrieved in 'core.get_var()'."));
 
+	memset(&smp, 0, sizeof(smp));
 	if (!vars_get_by_name(name, len, &smp, NULL)) {
 		lua_pushnil(L);
 		return 1;
