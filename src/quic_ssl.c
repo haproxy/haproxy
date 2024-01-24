@@ -735,7 +735,7 @@ static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl)
 	return ret;
 }
 
-#if !defined(USE_QUIC_OPENSSL_COMPAT) && !defined(USE_OPENSSL_WOLFSSL)
+#ifdef HA_OPENSSL_HAVE_0RTT_SUPPORT
 
 /* Enable early data for <ssl> QUIC TLS session.
  * Return 1 if succeeded, 0 if not.
@@ -770,7 +770,7 @@ static int qc_set_quic_early_data_enabled(struct quic_conn *qc, SSL *ssl)
 
 	return 1;
 }
-#endif // USE_QUIC_OPENSSL_COMPAT
+#endif // HA_OPENSSL_HAVE_0RTT_SUPPORT
 
 /* Allocate the ssl_sock_ctx from connection <qc>. This creates the tasklet
  * used to process <qc> received packets. The allocated context is stored in
@@ -807,12 +807,10 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc)
 	if (qc_is_listener(qc)) {
 		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl) == -1)
 		        goto err;
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
-#if !defined(USE_QUIC_OPENSSL_COMPAT) && !defined(USE_OPENSSL_WOLFSSL)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) && defined(HA_OPENSSL_HAVE_0RTT_SUPPORT)
 		/* Enabling 0-RTT */
 		if (bc->ssl_conf.early_data && !qc_set_quic_early_data_enabled(qc, ctx->ssl))
 			goto err;
-#endif
 #endif
 
 		SSL_set_accept_state(ctx->ssl);

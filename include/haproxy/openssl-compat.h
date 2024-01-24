@@ -48,6 +48,11 @@
 #include <haproxy/quic_openssl_compat.h>
 #endif
 
+/* At this time, wolfssl, libressl and the openssl QUIC compatibility do not support 0-RTT */
+#if !defined(USE_QUIC_OPENSSL_COMPAT) && !defined(LIBRESSL_VERSION_NUMBER) && !defined(USE_OPENSSL_WOLFSSL)
+#define HA_OPENSSL_HAVE_0RTT_SUPPORT
+#endif
+
 #if defined(LIBRESSL_VERSION_NUMBER)
 /* LibreSSL is a fork of OpenSSL 1.0.1g but pretends to be 2.0.0, thus
  * systematically breaking when some code is written for a specific version
