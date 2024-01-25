@@ -2776,7 +2776,7 @@ static int stats_dump_resolv_to_buffer(struct stconn *sc,
 	if (!stats_dump_one_line(stats, idx, appctx))
 		return 0;
 
-	if (!stats_putchk(appctx, NULL))
+	if (!stats_putchk(appctx, NULL, NULL))
 		goto full;
 
 	return 1;

@@ -300,7 +300,7 @@ static THREAD_LOCAL struct buffer trash_chunk = BUF_NULL;
 
 static void stats_dump_json_schema(struct buffer *out);
 
-int stats_putchk(struct appctx *appctx, struct htx *htx)
+int stats_putchk(struct appctx *appctx, struct buffer *buf, struct htx *htx)
 {
 	struct buffer *chk = &trash_chunk;
 
@@ -315,7 +315,13 @@ int stats_putchk(struct appctx *appctx, struct htx *htx)
 		}
 		chk->data = 0;
 	}
-	else  {
+	else if (buf) {
+		if (b_data(chk) > b_room(buf))
+			return 0;
+		b_putblk(buf, b_head(chk), b_data(chk));
+		chk->data = 0;
+	}
+	else {
 		if (applet_putchk(appctx, chk) == -1)
 			return 0;
 	}
@@ -3138,7 +3144,7 @@ static void stats_dump_html_px_end(struct stconn *sc, struct proxy *px)
  * both by the CLI and the HTTP entry points, and is able to dump the output
  * in HTML or CSV formats.
  */
-int stats_dump_proxy_to_buffer(struct stconn *sc, struct htx *htx,
+int stats_dump_proxy_to_buffer(struct stconn *sc, struct buffer *buf, struct htx *htx,
 			       struct proxy *px)
 {
 	struct appctx *appctx = __sc_appctx(sc);
@@ -3203,7 +3209,7 @@ more:
 	case STAT_PX_ST_TH:
 		if (ctx->flags & STAT_FMT_HTML) {
 			stats_dump_html_px_hdr(sc, px);
-			if (!stats_putchk(appctx, htx))
+			if (!stats_putchk(appctx, buf, htx))
 				goto full;
 		}
 
@@ -3213,7 +3219,7 @@ more:
 	case STAT_PX_ST_FE:
 		/* print the frontend */
 		if (stats_dump_fe_stats(sc, px)) {
-			if (!stats_putchk(appctx, htx))
+			if (!stats_putchk(appctx, buf, htx))
 				goto full;
 			ctx->flags |= STAT_STARTED;
 			if (ctx->field)
@@ -3233,6 +3239,10 @@ more:
 					appctx->flags |= APPCTX_FL_OUTBLK_FULL;
 					goto full;
 				}
+			}
+			else if (buf) {
+				if (buffer_almost_full(buf))
+					goto full;
 			}
 			else {
 				struct channel *rep = sc_ic(appctx_sc(appctx));
@@ -3257,7 +3267,7 @@ more:
 
 			/* print the frontend */
 			if (stats_dump_li_stats(sc, px, l)) {
-				if (!stats_putchk(appctx, htx))
+				if (!stats_putchk(appctx, buf, htx))
 					goto full;
 				ctx->flags |= STAT_STARTED;
 				if (ctx->field)
@@ -3306,6 +3316,10 @@ more:
 					goto full;
 				}
 			}
+			else if (buf) {
+				if (buffer_almost_full(buf))
+					goto full;
+			}
 			else {
 				struct channel *rep = sc_ic(appctx_sc(appctx));
 
@@ -3346,7 +3360,7 @@ more:
 			}
 
 			if (stats_dump_sv_stats(sc, px, sv)) {
-				if (!stats_putchk(appctx, htx))
+				if (!stats_putchk(appctx, buf, htx))
 					goto full;
 				ctx->flags |= STAT_STARTED;
 				if (ctx->field)
@@ -3361,7 +3375,7 @@ more:
 	case STAT_PX_ST_BE:
 		/* print the backend */
 		if (stats_dump_be_stats(sc, px)) {
-			if (!stats_putchk(appctx, htx))
+			if (!stats_putchk(appctx, buf, htx))
 				goto full;
 			ctx->flags |= STAT_STARTED;
 			if (ctx->field)
@@ -3375,7 +3389,7 @@ more:
 	case STAT_PX_ST_END:
 		if (ctx->flags & STAT_FMT_HTML) {
 			stats_dump_html_px_end(sc, px);
-			if (!stats_putchk(appctx, htx))
+			if (!stats_putchk(appctx, buf, htx))
 				goto full;
 		}
 
@@ -3862,7 +3876,7 @@ static void stats_dump_json_end()
 /* Uses <appctx.ctx.stats.obj1> as a pointer to the current proxy and <obj2> as
  * a pointer to the current server/listener.
  */
-static int stats_dump_proxies(struct stconn *sc,
+static int stats_dump_proxies(struct stconn *sc, struct buffer *buf,
                               struct htx *htx)
 {
 	struct appctx *appctx = __sc_appctx(sc);
@@ -3876,6 +3890,10 @@ static int stats_dump_proxies(struct stconn *sc,
 				appctx->flags |= APPCTX_FL_OUTBLK_FULL;
 				goto full;
 			}
+		}
+		else if (buf) {
+			if (buffer_almost_full(buf))
+				goto full;
 		}
 		else {
 			struct channel *rep = sc_ic(appctx_sc(appctx));
@@ -3893,7 +3911,7 @@ static int stats_dump_proxies(struct stconn *sc,
 		 */
 		if (!(px->flags & PR_FL_DISABLED) && px->uuid > 0 &&
 		    (px->cap & (PR_CAP_FE | PR_CAP_BE)) && !(px->cap & PR_CAP_INT)) {
-			if (stats_dump_proxy_to_buffer(sc, htx, px) == 0)
+			if (stats_dump_proxy_to_buffer(sc, buf, htx, px) == 0)
 				return 0;
 		}
 
@@ -3914,7 +3932,7 @@ static int stats_dump_proxies(struct stconn *sc,
  * or -1 in case of any error. This function is used by both the CLI and the
  * HTTP handlers.
  */
-static int stats_dump_stat_to_buffer(struct stconn *sc, struct htx *htx)
+static int stats_dump_stat_to_buffer(struct stconn *sc, struct buffer *buf, struct htx *htx)
 {
 	struct appctx *appctx = __sc_appctx(sc);
 	struct show_stat_ctx *ctx = appctx->svcctx;
@@ -3937,7 +3955,7 @@ static int stats_dump_stat_to_buffer(struct stconn *sc, struct htx *htx)
 		else if (!(ctx->flags & STAT_FMT_TYPED))
 			stats_dump_csv_header(ctx->domain);
 
-		if (!stats_putchk(appctx, htx))
+		if (!stats_putchk(appctx, buf, htx))
 			goto full;
 
 		if (ctx->flags & STAT_JSON_SCHM) {
@@ -3950,7 +3968,7 @@ static int stats_dump_stat_to_buffer(struct stconn *sc, struct htx *htx)
 	case STAT_STATE_INFO:
 		if (ctx->flags & STAT_FMT_HTML) {
 			stats_dump_html_info(sc);
-			if (!stats_putchk(appctx, htx))
+			if (!stats_putchk(appctx, buf, htx))
 				goto full;
 		}
 
@@ -3975,7 +3993,7 @@ static int stats_dump_stat_to_buffer(struct stconn *sc, struct htx *htx)
 		case STATS_DOMAIN_PROXY:
 		default:
 			/* dump proxies */
-			if (!stats_dump_proxies(sc, htx))
+			if (!stats_dump_proxies(sc, buf, htx))
 				return 0;
 			break;
 		}
@@ -3989,7 +4007,7 @@ static int stats_dump_stat_to_buffer(struct stconn *sc, struct htx *htx)
 				stats_dump_html_end();
 			else
 				stats_dump_json_end();
-			if (!stats_putchk(appctx, htx))
+			if (!stats_putchk(appctx, buf, htx))
 				goto full;
 		}
 
@@ -4466,6 +4484,20 @@ static int stats_send_http_redirect(struct stconn *sc, struct htx *htx)
 	return 0;
 }
 
+static size_t http_stats_fastfwd(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags)
+{
+	struct stconn *sc = appctx_sc(appctx);
+	size_t ret = 0;
+
+	ret = b_data(buf);
+	if (stats_dump_stat_to_buffer(sc, buf, NULL)) {
+		se_fl_clr(appctx->sedesc, SE_FL_MAY_FASTFWD);
+		appctx->st0 = STAT_HTTP_DONE;
+	}
+
+	ret = b_data(buf) - ret;
+	return ret;
+}
 
 /* This I/O handler runs as an applet embedded in a stream connector. It is
  * used to send HTTP stats over a TCP socket. The mechanism is very simple.
@@ -4482,6 +4514,9 @@ static void http_stats_io_handler(struct appctx *appctx)
 	ctx->domain = STATS_DOMAIN_PROXY;
 
 	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL))
+		goto out;
+
+	if (se_fl_test(appctx->sedesc, SE_FL_MAY_FASTFWD))
 		goto out;
 
 	if (!appctx_get_buf(appctx, &appctx->outbuf)) {
@@ -4503,8 +4538,11 @@ static void http_stats_io_handler(struct appctx *appctx)
 
 			if (find_http_meth(istptr(meth), istlen(meth)) == HTTP_METH_HEAD)
 				appctx->st0 = STAT_HTTP_DONE;
-			else
+			else {
+				if (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD))
+					se_fl_set(appctx->sedesc, SE_FL_MAY_FASTFWD);
 				appctx->st0 = STAT_HTTP_DUMP;
+			}
 		}
 	}
 
@@ -4514,7 +4552,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 		 * make sure to perform this call on an empty buffer
 		 */
 		trash_chunk.size = buf_room_for_htx_data(&trash_chunk);
-		if (stats_dump_stat_to_buffer(sc, res_htx))
+		if (stats_dump_stat_to_buffer(sc, NULL, res_htx))
 			appctx->st0 = STAT_HTTP_DONE;
 	}
 
@@ -4542,6 +4580,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 		}
 		res_htx->flags |= HTX_FL_EOM;
 		applet_set_eoi(appctx);
+		se_fl_clr(appctx->sedesc, SE_FL_MAY_FASTFWD);
 		appctx->st0 = STAT_HTTP_END;
 	}
 
@@ -4565,6 +4604,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 		/* eat the whole request */
 		b_reset(&appctx->inbuf);
 		applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
+		appctx->sedesc->iobuf.flags &= ~IOBUF_FL_FF_BLOCKED;
 	}
 	else if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_FULL))
 		applet_wont_consume(appctx);
@@ -5240,7 +5280,7 @@ static int cli_io_handler_dump_info(struct appctx *appctx)
 static int cli_io_handler_dump_stat(struct appctx *appctx)
 {
 	trash_chunk = b_make(trash.area, trash.size, 0, 0);
-	return stats_dump_stat_to_buffer(appctx_sc(appctx), NULL);
+	return stats_dump_stat_to_buffer(appctx_sc(appctx), NULL, NULL);
 }
 
 static int cli_io_handler_dump_json_schema(struct appctx *appctx)
@@ -5501,6 +5541,7 @@ struct applet http_stats_applet = {
 	.fct = http_stats_io_handler,
 	.rcv_buf = appctx_rcv_buf,
 	.snd_buf = appctx_snd_buf,
+	.fastfwd = http_stats_fastfwd,
 	.release = NULL,
 };
 

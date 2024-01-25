@@ -46,7 +46,7 @@ extern THREAD_LOCAL struct field info[];
 extern THREAD_LOCAL struct field *stat_l[];
 
 struct htx;
-int stats_putchk(struct appctx *appctx, struct htx *htx);
+int stats_putchk(struct appctx *appctx, struct buffer *buf, struct htx *htx);
 
 int stats_dump_one_line(const struct field *stats, size_t stats_count, struct appctx *appctx);
 
