@@ -4460,13 +4460,24 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 		goto out;
 	}
 
-	/* TODO: add check on curr_len if CLEN */
-
-	if (h1m->flags & H1_MF_CHNK) {
+	if (h1m->flags & H1_MF_CLEN) {
+		if ((flags & NEGO_FF_FL_EXACT_SIZE) && count > h1m->curr_len) {
+			TRACE_ERROR("more payload than announced", H1_EV_STRM_SEND|H1_EV_STRM_ERR, h1c->conn, h1s);
+			h1s->sd->iobuf.flags |= IOBUF_FL_NO_FF;
+			goto out;
+		}
+	}
+	else if (h1m->flags & H1_MF_CHNK) {
 		if (h1m->curr_len) {
 			BUG_ON(h1m->state != H1_MSG_DATA);
-			if (count > h1m->curr_len)
+			if (count > h1m->curr_len) {
+				if ((flags & NEGO_FF_FL_EXACT_SIZE) && count > h1m->curr_len) {
+					TRACE_ERROR("chunk bigger than announced", H1_EV_STRM_SEND|H1_EV_STRM_ERR, h1c->conn, h1s);
+					h1s->sd->iobuf.flags |= IOBUF_FL_NO_FF;
+					goto out;
+				}
 				count = h1m->curr_len;
+			}
 		}
 		else {
 			BUG_ON(h1m->state != H1_MSG_CHUNK_CRLF && h1m->state != H1_MSG_CHUNK_SIZE);
