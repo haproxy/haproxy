@@ -44,6 +44,7 @@ enum iobuf_flags {
 enum nego_ff_flags {
 	NEGO_FF_FL_NONE           = 0x00000000, /* For initialization purposes */
 	NEGO_FF_FL_MAY_SPLICE     = 0x00000001, /* Consumer may choose to use kernel splicing if it supports it */
+	NEGO_FF_FL_EXACT_SIZE     = 0x00000002, /* Size passed for the nego is the expected exact size to forwarded */
 };
 
 struct iobuf {

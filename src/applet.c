@@ -619,8 +619,10 @@ int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	sdo = container_of(peer, struct sedesc, xref);
 	xref_unlock(&appctx->sedesc->xref, peer);
 
-	if (appctx->to_forward && count > appctx->to_forward)
+	if (appctx->to_forward && count > appctx->to_forward) {
 		count = appctx->to_forward;
+		nego_flags |= NEGO_FF_FL_EXACT_SIZE;
+	}
 
 	len = se_nego_ff(sdo, &BUF_NULL, count, nego_flags);
 	if (sdo->iobuf.flags & IOBUF_FL_NO_FF) {

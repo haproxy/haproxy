@@ -4470,9 +4470,16 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 		}
 		else {
 			BUG_ON(h1m->state != H1_MSG_CHUNK_CRLF && h1m->state != H1_MSG_CHUNK_SIZE);
-			if (!h1_make_chunk(h1s, h1m, count))
+			if (flags & NEGO_FF_FL_EXACT_SIZE) {
+				if (!h1_make_chunk(h1s, h1m, count))
+					goto out;
+				h1m->curr_len = count;
+			}
+			else {
+				/* XXX: Unsupported for now but will be added soon ! */
+				h1s->sd->iobuf.flags |= IOBUF_FL_NO_FF;
 				goto out;
-			h1m->curr_len = count;
+			}
 		}
 	}
 
@@ -4655,8 +4662,10 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
   retry:
 	ret = 0;
 
-	if (h1m->state == H1_MSG_DATA && (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN)) &&  count > h1m->curr_len)
+	if (h1m->state == H1_MSG_DATA && (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN)) &&  count > h1m->curr_len) {
+		flags |= NEGO_FF_FL_EXACT_SIZE;
 		count = h1m->curr_len;
+	}
 
 	if (h1c->conn->xprt->rcv_pipe && !!(flags & CO_RFL_MAY_SPLICE) && !(sdo->iobuf.flags & IOBUF_FL_NO_SPLICING))
 		nego_flags |= NEGO_FF_FL_MAY_SPLICE;
