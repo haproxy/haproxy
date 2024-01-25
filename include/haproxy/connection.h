@@ -96,12 +96,6 @@ void sockaddr_free(struct sockaddr_storage **sap);
 /* connection hash stuff */
 uint64_t conn_calculate_hash(const struct conn_hash_params *params);
 uint64_t conn_hash_prehash(char *buf, size_t size);
-void conn_hash_update(char *buf, size_t *idx,
-                      const void *data, size_t size,
-                      enum conn_hash_params_t *flags,
-                      enum conn_hash_params_t type);
-uint64_t conn_hash_digest(char *buf, size_t bufsize,
-                          enum conn_hash_params_t flags);
 
 int conn_reverse(struct connection *conn);
 
