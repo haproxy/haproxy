@@ -37,21 +37,21 @@ da_typename(da_type_t fieldtype)
 }
 
 char *
-da_getdataversion(da_atlas_t *atlas)
+da_getdataversion(const da_atlas_t *atlas)
 {
     return "dummy library version 1.0";
 }
 
 time_t
-da_getdatacreation(da_atlas_t *atlas)
+da_getdatacreation(const da_atlas_t *atlas)
 {
     return time(NULL);
 }
 
-int
-da_getdatarevision(da_atlas_t *atlas)
+char *
+da_getdatacreationiso8601(const da_atlas_t *atlas)
 {
-    return 1;
+    return "20000123T012345.678+0900";
 }
 
 da_status_t
@@ -116,11 +116,6 @@ size_t
 da_atlas_getpropcount(const da_atlas_t *atlas)
 {
     return 1;
-}
-
-void
-da_atlas_setconfig(da_atlas_t *atlas, da_config_t *config)
-{
 }
 
 da_status_t

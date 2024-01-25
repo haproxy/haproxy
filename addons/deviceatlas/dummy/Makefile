@@ -1,7 +1,7 @@
 # makefile for dummy DeviceAtlas library
 #
 # To enable the DeviceAtlas module support, the following are needed
-# make TARGET=<target> DEVICEATLAS_SRC=addons/deviceatlas/dummy USE_PCRE=1 USE_DEVICEATLAS=1
+# make TARGET=<target> DEVICEATLAS_SRC=addons/deviceatlas/dummy USE_DEVICEATLAS=1
 
 build: libda.a
 

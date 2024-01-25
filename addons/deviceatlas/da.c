@@ -18,7 +18,7 @@
 #include <dac.h>
 
 #define ATLASTOKSZ PATH_MAX
-#define ATLASMAPNM "/hapdeviceatlas"
+#define ATLASMAPNM "/da_map_sch_data"
 
 static struct {
 	void *atlasimgptr;
@@ -26,6 +26,7 @@ static struct {
 	char *jsonpath;
 	char *cookiename;
 	size_t cookienamelen;
+	size_t cachesize;
 	int atlasfd;
 	da_atlas_t atlas;
 	da_evidence_id_t useragentid;
@@ -37,6 +38,7 @@ static struct {
 	.jsonpath = 0,
 	.cookiename = 0,
 	.cookienamelen = 0,
+	.cachesize = 0,
 	.atlasmap = NULL,
 	.atlasfd = -1,
 	.useragentid = 0,
@@ -104,6 +106,29 @@ static int da_properties_cookie(char **args, int section_type, struct proxy *cur
 	return 0;
 }
 
+static int da_cache_size(char **args, int section_type, struct proxy *curpx,
+        const struct proxy *defpx, const char *file, int line,
+        char **err)
+{
+    int cachesize;
+    if (*(args[1]) == 0) {
+        memprintf(err, "deviceatlas cache size : expects an integer argument.\n");
+        return -1;
+    }
+
+    cachesize = atol(args[1]);
+    if (cachesize < 0 || cachesize > DA_CACHE_MAX) {
+        memprintf(err, "deviceatlas cache size : expects a cache size between 0 and %d, %s given.\n", DA_CACHE_MAX, args[1]);
+    } else {
+#ifdef APINOCACHE
+        fprintf(stdout, "deviceatlas cache size : no-op, its support is disabled.\n");
+#endif
+        global_deviceatlas.cachesize = (size_t)cachesize;
+    }
+
+    return 0;
+}
+
 static size_t da_haproxy_read(void *ctx, size_t len, char *buf)
 {
 	return fread(buf, 1, len, ctx);
@@ -168,6 +193,8 @@ static int init_deviceatlas(void)
 			goto out;
 		}
 
+		global_deviceatlas.atlas.config.cache_size = global_deviceatlas.cachesize;
+
 		if (global_deviceatlas.cookiename == 0) {
 			global_deviceatlas.cookiename = strdup(DA_COOKIENAME_DEFAULT);
 			global_deviceatlas.cookienamelen = strlen(global_deviceatlas.cookiename);
@@ -222,48 +249,57 @@ static void da_haproxy_checkinst(void)
 		base = (char *)global_deviceatlas.atlasmap;
 
 		if (base[0] != 0) {
-			void *cnew;
-			size_t atlassz;
-			char atlasp[ATLASTOKSZ] = {0};
-			da_atlas_t inst;
-			da_property_decl_t extraprops[1] = {{NULL, 0}};
+            FILE *jsonp;
+            void *cnew;
+            da_status_t status;
+            size_t atlassz;
+            char atlasp[ATLASTOKSZ] = {0};
+            da_atlas_t inst;
+            da_property_decl_t extraprops[1] = {{NULL, 0}};
 #ifdef USE_THREAD
-			HA_SPIN_LOCK(OTHER_LOCK, &dadwsch_lock);
+            HA_SPIN_LOCK(OTHER_LOCK, &dadwsch_lock);
 #endif
-			strlcpy2(atlasp, base, sizeof(atlasp));
-			if (da_atlas_read_mapped(atlasp, NULL, &cnew, &atlassz) == DA_OK) {
-				if (da_atlas_open(&inst, extraprops, cnew, atlassz) == DA_OK) {
-					char jsonbuf[26];
-					time_t jsond;
+            strlcpy2(atlasp, base + sizeof(char), sizeof(atlasp));
+            jsonp = fopen(atlasp, "r");
+            if (jsonp == 0) {
+                ha_alert("deviceatlas : '%s' json file has invalid path or is not readable.\n",
+                    atlasp);
+#ifdef USE_THREAD
+                HA_SPIN_UNLOCK(OTHER_LOCK, &dadwsch_lock);
+#endif
+                return;
+            }
 
-					da_atlas_close(&global_deviceatlas.atlas);
-					free(global_deviceatlas.atlasimgptr);
-					global_deviceatlas.atlasimgptr = cnew;
-					global_deviceatlas.atlas = inst;
-					memset(base, 0, ATLASTOKSZ);
-					jsond = da_getdatacreation(&global_deviceatlas.atlas);
-					ctime_r(&jsond, jsonbuf);
-					jsonbuf[24] = 0;
-					printf("deviceatlas: new instance, data file date `%s`.\n", jsonbuf);
-				} else {
-					ha_warning("deviceatlas: instance update failed.\n");
-					memset(base, 0, ATLASTOKSZ);
-					free(cnew);
-				}
-			}
+            status = da_atlas_compile(jsonp, da_haproxy_read, da_haproxy_seek,
+                    &cnew, &atlassz);
+            fclose(jsonp);
+            if (status == DA_OK) {
+                if (da_atlas_open(&inst, extraprops, cnew, atlassz) == DA_OK) {
+                    da_atlas_close(&global_deviceatlas.atlas);
+                    free(global_deviceatlas.atlasimgptr);
+                    global_deviceatlas.atlasimgptr = cnew;
+                    global_deviceatlas.atlas = inst;
+                    base[0] = 0;
+                    ha_notice("deviceatlas : new instance, data file date `%s`.\n",
+                        da_getdatacreationiso8601(&global_deviceatlas.atlas));
+                } else {
+                    ha_alert("deviceatlas : instance update failed.\n");
+                    free(cnew);
+                }
+            }
 #ifdef USE_THREAD
-			HA_SPIN_UNLOCK(OTHER_LOCK, &dadwsch_lock);
+            HA_SPIN_UNLOCK(OTHER_LOCK, &dadwsch_lock);
 #endif
-		}
-	}
+        }
+    }
 }
 
 static int da_haproxy(const struct arg *args, struct sample *smp, da_deviceinfo_t *devinfo)
 {
-	struct buffer *tmp;
-	da_propid_t prop, *pprop;
-	da_status_t status;
-	da_type_t proptype;
+    struct buffer *tmp;
+    da_propid_t prop, *pprop;
+    da_status_t status;
+    da_type_t proptype;
 	const char *propname;
 	int i;
 
@@ -463,6 +499,7 @@ static struct cfg_kw_list dacfg_kws = {{ }, {
 		{ CFG_GLOBAL, "deviceatlas-log-level",	  da_log_level },
 		{ CFG_GLOBAL, "deviceatlas-property-separator", da_property_separator },
 		{ CFG_GLOBAL, "deviceatlas-properties-cookie", da_properties_cookie },
+		{ CFG_GLOBAL, "deviceatlas-cache-size", da_cache_size },
 		{ 0, NULL, NULL },
 }};
 
@@ -486,10 +523,10 @@ static void da_haproxy_register_build_options()
 {
 	char *ptr = NULL;
 
-#ifdef MOBI_DA_DUMMY_LIBRARY
+#ifdef DATLAS_DA_DUMMY_LIBRARY
 	memprintf(&ptr, "Built with DeviceAtlas support (dummy library only).");
 #else
-	memprintf(&ptr, "Built with DeviceAtlas support (library version %u.%u).", MOBI_DA_MAJOR, MOBI_DA_MINOR);
+	memprintf(&ptr, "Built with DeviceAtlas support (library version %u.%u).", DATLAS_DA_MAJOR, DATLAS_DA_MINOR);
 #endif
 	hap_register_build_opts(ptr, 1);
 }
