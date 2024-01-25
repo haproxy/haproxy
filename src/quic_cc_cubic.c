@@ -15,7 +15,6 @@
 #define CUBIC_BETA   717 /*    CUBIC_BETA / CUBIC_BETA_SCALE = 0.7 */
 #define CUBIC_C      410 /*       CUBIC_C / CUBIC_BETA_SCALE = 0.4 */
 
-#define CUBIC_BETA_SCALE_FACTOR_SHIFT (3 * CUBIC_BETA_SCALE_SHIFT)
 #define TIME_SCALE_FACTOR_SHIFT  10
 
 /* The maximum value which may be cubed an multiplied by CUBIC_BETA */
