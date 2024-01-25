@@ -10,6 +10,10 @@
 #include <haproxy/quic_cc-t.h>
 #include <haproxy/tools.h>
 
+#define QUIC_CC_NEWRENO_STR "newreno"
+#define QUIC_CC_CUBIC_STR   "cubic"
+#define QUIC_CC_NO_CC_STR   "nocc"
+
 static int bind_parse_quic_force_retry(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	conf->options |= BC_O_QUIC_FORCE_RETRY;
@@ -21,9 +25,6 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
                                    struct bind_conf *conf, char **err)
 {
 	struct quic_cc_algo *cc_algo;
-	const char *newreno = "newrno";
-	const char *cubic = "cubic";
-	const char *nocc = "nocc";
 	const char *algo = NULL;
 	char *arg;
 
@@ -33,19 +34,19 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 	}
 
 	arg = args[cur_arg + 1];
-	if (strncmp(arg, newreno, strlen(newreno)) == 0) {
+	if (strncmp(arg, QUIC_CC_NEWRENO_STR, strlen(QUIC_CC_NEWRENO_STR)) == 0) {
 		/* newreno */
-		algo = newreno;
+		algo = QUIC_CC_NEWRENO_STR;
 		cc_algo = &quic_cc_algo_nr;
-		arg += strlen(newreno);
+		arg += strlen(QUIC_CC_NEWRENO_STR);
 	}
-	else if (strncmp(arg, cubic, strlen(cubic)) == 0) {
+	else if (strncmp(arg, QUIC_CC_CUBIC_STR, strlen(QUIC_CC_CUBIC_STR)) == 0) {
 		/* cubic */
-		algo = cubic;
+		algo = QUIC_CC_CUBIC_STR;
 		cc_algo = &quic_cc_algo_cubic;
-		arg += strlen(cubic);
+		arg += strlen(QUIC_CC_CUBIC_STR);
 	}
-	else if (strncmp(arg, nocc, strlen(nocc)) == 0) {
+	else if (strncmp(arg, QUIC_CC_NO_CC_STR, strlen(QUIC_CC_NO_CC_STR)) == 0) {
 		/* nocc */
 		if (!experimental_directives_allowed) {
 			ha_alert("'%s' algo is experimental, must be allowed via a global "
@@ -53,9 +54,9 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 			goto fail;
 		}
 
-		algo = nocc;
+		algo = QUIC_CC_NO_CC_STR;
 		cc_algo = &quic_cc_algo_nocc;
-		arg += strlen(nocc);
+		arg += strlen(QUIC_CC_NO_CC_STR);
 	}
 	else {
 		memprintf(err, "'%s' : unknown control congestion algorithm", args[cur_arg + 1]);
