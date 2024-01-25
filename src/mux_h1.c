@@ -1445,21 +1445,33 @@ static void h1_capture_bad_message(struct h1c *h1c, struct h1s *h1s,
 			    &ctx, h1_show_error_snapshot);
 }
 
-/* Emit the chunksize followed by a CRLF in front of data of the buffer
+/* Emit the chunk size <chksz> followed by a CRLF in front of data of the buffer
  * <buf>. It goes backwards and starts with the byte before the buffer's
  * head. The caller is responsible for ensuring there is enough room left before
- * the buffer's head for the string.
+ * the buffer's head for the string. if <length> is greater than 0, it
+ * represents the expected total length of the chunk size, including the
+ * CRLF. So it will be padded with 0 to resepct this length. It is the caller
+ * responsibility to pass the right value. if <length> is set to 0 (or less that
+ * the smallest size to represent the chunk size), it is ignored.
  */
-static void h1_prepend_chunk_size(struct buffer *buf, size_t chksz)
+static void h1_prepend_chunk_size(struct buffer *buf, size_t chksz, size_t length)
 {
 	char *beg, *end;
 
 	beg = end = b_head(buf);
 	*--beg = '\n';
 	*--beg = '\r';
+	if (length)
+		length -= 2;
 	do {
 		*--beg = hextab[chksz & 0xF];
+		if (length)
+			--length;
 	} while (chksz >>= 4);
+	while (length) {
+		*--beg = '0';
+		--length;
+	}
 	buf->head -= (end - beg);
 	b_add(buf, end - beg);
 }
@@ -2640,7 +2652,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 				/* Because chunk meta-data are prepended, the chunk size of the current chunk
 				 * must be handled before the end of the previous chunk.
 				 */
-				h1_prepend_chunk_size(&h1c->obuf, h1m->curr_len);
+				h1_prepend_chunk_size(&h1c->obuf, h1m->curr_len, 0);
 				if (h1m->state == H1_MSG_CHUNK_CRLF)
 					h1_prepend_chunk_crlf(&h1c->obuf);
 
