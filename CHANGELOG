@@ -1,6 +1,78 @@
 ChangeLog :
 ===========
 
+2024/01/26 : 3.0-dev2
+    - MINOR: ot: logsrv struct becomes logger
+    - MINOR: ssl: Update ssl_fc_curve/ssl_bc_curve to use SSL_get0_group_name
+    - CLEANUP: ssl: fix indentation in smp_fetch_ssl_fc_ec()
+    - DEV: patchbot: produce a verdict for too long commit messages
+    - CLEANUP: ssl: fix indentation in smp_fetch_ssl_fc_ec() (part 2)
+    - CLEANUP: quic: Double quic_dgram_parse() prototype declaration.
+    - BUG/MINOR: map: list-based matching potential ordering regression
+    - REGTESTS: add a test to ensure map-ordering is preserved
+    - DOC: config: fix typo about map_*_key converters
+    - DOC: configuration: corrected description of keyword tune.ssl.ocsp-update.mindelay
+    - MINOR: map: mapfile ordering also matters for tree-based match types
+    - DEV: phash: add a trivial perfect hash generator for integers
+    - OPTIM: http: simplify http_get_status_idx() using a hash
+    - CLEANUP: http: avoid duplicating literals in find_http_meth()
+    - MINOR: http: add infrastructure to choose status codes for err / fail
+    - MEDIUM: http_act: check status codes against the bit fields for err/fail
+    - MEDIUM: http: add the ability to redefine http-err-codes and http-fail-codes
+    - CI: codespell: ignore some words in URLs
+    - CI: codespell: add more words to whitelist
+    - CLEANUP: fix spelling of "occured" in src/h3.c
+    - BUILD: quic: missing include for quic_tp
+    - BUG/MINOR: mux-quic: do not prevent non-STREAM sending on flow control
+    - MEDIUM: ssl: allow multiple fallback certificate to allow ECDSA/RSA selection
+    - MEDIUM: ssl: generate '*' SNI filters for default certificates
+    - MEDIUM: ssl: does not use default_ctx for 'generate-certificate' option
+    - REORG: ssl: move 'generate-certificates' code to ssl_gencert.c
+    - DOC: configuration: update configuration on how to have multiple default certs
+    - MEDIUM: ssl: implements 'default-crt' keyword for bind Lines
+    - CI: github: update wolfSSL to 5.6.6
+    - DOC: INSTALL: require at least WolfSSL 5.6.6
+    - DEV: h2: add support for multiple flags in mkhdr
+    - DEV: h2: support hex-encoded data sequences in mkhdr
+    - BUG/MINOR: mux-h2: also count streams for refused ones
+    - BUG/MEDIUM: quic: keylog callback not called (USE_OPENSSL_COMPAT)
+    - MINOR: vars: fix indentation in var_clear_buffer()
+    - DOC: configuration: fix set-dst in actions keywords matrix
+    - BUG/MEDIUM: mux-h2: refine connection vs stream error on headers
+    - MINOR: mux-h2/traces: add a missing trace on connection WU with negative inc
+    - MINOR: mux-h2: add a counter of "glitches" on a connection
+    - MINOR: connection: add a new mux_ctl to report number of connection glitches
+    - MINOR: mux-h2: implement MUX_CTL_GET_GLITCHES
+    - MINOR: connection: add sample fetches to report per-connection glitches
+    - BUILD: stick-table: fix build error on 32-bit platforms
+    - MINOR: quic: Transport parameters encoding without version_information
+    - MINOR: quic: Enable early data at SSL session level (aws-lc)
+    - MINOR: ssl_sock: Early data disabled during SSL_CTX switching (aws-lc)
+    - MINOR: quic: Correctly wait for the completion of handshakes with early data (aws-lc)
+    - BUG/MEDIUM: cli: some err/warn msg dumps add LR into CSV output on stat's CLI
+    - BUG/MINOR: jwt: fix jwt_verify crash on 32-bit archs
+    - BUILD: quic: fix build error when using the compatibility layer
+    - BUILD: quic: Fix build error when building QUIC against wolfssl.
+    - BUILD: quic: Fix build error when building QUIC against libressl.
+    - BUG/MINOR: hlua: fix uninitialized var in hlua_core_get_var()
+    - CLEANUP: hlua: fix indent, remove extra return in hlua_core_get_var()
+    - BUG/MEDIUM: cache: Fix crash when deleting secondary entry
+    - BUG/MINOR: quic: newreno QUIC congestion control algorithm no more available
+    - CLEANUP: quic: Remove unused CUBIC_BETA_SCALE_FACTOR_SHIFT macro.
+    - MINOR: quic: Stop hardcoding a scale shifting value (CUBIC_BETA_SCALE_FACTOR_SHIFT)
+    - MINOR: quic: extract qc_stream_buf free in a dedicated function
+    - BUG/MEDIUM: quic: remove unsent data from qc_stream_desc buf
+    - CLEANUP: fix spelling of "elemt"
+    - CI: extend spell check white list
+    - CI: enable spell check on git push
+    - BUILD: makefile: also define cmd_CXX to pretty-print C++ build commands
+    - BUILD/MEDIUM: deviceatlas: addon build rework.
+    - DOC: deviceatlas: update to be in line with the v3 api.
+    - BUILD/MEDIUM: deviceatlas: updating the addon part.
+    - BUILD: deviceatlas: remove unneeded depenency on libcurl / libzip
+    - BUILD: deviceatlas: fix empty "-I" left on CFLAGS
+    - Revert "CI: enable spell check on git push"
+
 2024/01/06 : 3.0-dev1
     - MINOR: channel: Use dedicated functions to deal with STREAMER flags
     - MEDIUM: applet: Handle channel's STREAMER flags on applets size
