@@ -203,8 +203,8 @@ static inline const char *h1m_state_str(enum h1m_state msg_state)
 	}
 }
 
-/* This function may be called only in HTTP_MSG_CHUNK_CRLF. It reads the CRLF or
- * a possible LF alone at the end of a chunk. The caller should adjust msg->next
+/* This function may be called only in HTTP_MSG_CHUNK_CRLF. It reads the CRLF
+ * at the end of a chunk. The caller should adjust msg->next
  * in order to include this part into the next forwarding phase.  Note that the
  * caller must ensure that head+start points to the first byte to parse.  It
  * returns the number of bytes parsed on success, so the caller can set msg_state
@@ -221,16 +221,17 @@ static inline int h1_skip_chunk_crlf(const struct buffer *buf, int start, int st
 	if (stop <= start)
 		return 0;
 
+	if (unlikely(*ptr != '\r')) // negative position to stop
+		return ptr - __b_peek(buf, stop);
+
 	/* NB: we'll check data availability at the end. It's not a
 	 * problem because whatever we match first will be checked
 	 * against the correct length.
 	 */
-	if (*ptr == '\r') {
-		bytes++;
-		ptr++;
-		if (ptr >= b_wrap(buf))
-			ptr = b_orig(buf);
-	}
+	bytes++;
+	ptr++;
+	if (ptr >= b_wrap(buf))
+		ptr = b_orig(buf);
 
 	if (bytes > stop - start)
 		return 0;

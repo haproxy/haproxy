@@ -740,9 +740,12 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 		dpos += chksz;
 		ridx += chksz;
 
-		/* Parse CRLF or LF (always present) */
-		if (likely(end[ridx] == '\r'))
-			++ridx;
+		/* Parse CRLF */
+		if (unlikely(end[ridx] != '\r')) {
+			h1m->state = H1_MSG_CHUNK_CRLF;
+			goto parsing_error;
+		}
+		++ridx;
 		if (end[ridx] != '\n') {
 			h1m->state = H1_MSG_CHUNK_CRLF;
 			goto parsing_error;
