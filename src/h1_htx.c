@@ -693,11 +693,6 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 				++ridx;
 				break;
 			}
-			else if (end[ridx] == '\n') {
-				/* Parse LF only, nothing more to do */
-				++ridx;
-				break;
-			}
 			else if (likely(end[ridx] == ';')) {
 				/* chunk extension, ends at next CRLF */
 				if (!++ridx)
@@ -710,7 +705,7 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 				continue;
 			}
 			else {
-				/* all other characters are unexpected */
+				/* all other characters are unexpected, especially LF alone */
 				goto parsing_error;
 			}
 		}

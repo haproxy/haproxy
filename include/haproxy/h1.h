@@ -303,14 +303,12 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 	 * for the end of chunk size.
 	 */
 	while (1) {
-		if (likely(HTTP_IS_CRLF(*ptr))) {
-			/* we now have a CR or an LF at ptr */
-			if (likely(*ptr == '\r')) {
-				if (++ptr >= end)
-					ptr = b_orig(buf);
-				if (--stop == 0)
-					return 0;
-			}
+		if (likely(*ptr == '\r')) {
+			/* we now have a CR, it must be followed by a LF */
+			if (++ptr >= end)
+				ptr = b_orig(buf);
+			if (--stop == 0)
+				return 0;
 
 			if (*ptr != '\n')
 				goto error;
