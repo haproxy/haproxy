@@ -1,7 +1,8 @@
 name: Spelling Check
 
 on:
-  push:
+  schedule:
+    - cron: "0 0 * * 2"
 
 permissions:
   contents: read
