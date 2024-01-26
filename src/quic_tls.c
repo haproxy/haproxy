@@ -125,7 +125,7 @@ void quic_cstream_free(struct quic_cstream *cs)
 
 	quic_free_ncbuf(&cs->rx.ncbuf);
 
-	qc_stream_desc_release(cs->desc);
+	qc_stream_desc_release(cs->desc, 0);
 	pool_free(pool_head_quic_cstream, cs);
 }
 

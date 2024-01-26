@@ -85,8 +85,13 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type type, void 
 /* Mark the stream descriptor <stream> as released. It will be freed as soon as
  * all its buffered data are acknowledged. Does nothing if <stream> is already
  * NULL.
+ *
+ * <final_size> corresponds to the last offset sent for this stream. If there
+ * is unsent data present, they will be remove first to guarantee that buffer
+ * is freed after receiving all acknowledges.
  */
-void qc_stream_desc_release(struct qc_stream_desc *stream)
+void qc_stream_desc_release(struct qc_stream_desc *stream,
+                            uint64_t final_size)
 {
 	if (!stream)
 		return;
@@ -97,13 +102,30 @@ void qc_stream_desc_release(struct qc_stream_desc *stream)
 	stream->release = 1;
 	stream->ctx = NULL;
 
+	if (stream->buf) {
+		struct qc_stream_buf *stream_buf = stream->buf;
+		struct buffer *buf = &stream_buf->buf;
+		const uint64_t tail_offset =
+		  MAX(stream->buf_offset, stream->ack_offset) + b_data(buf);
+
+		/* final_size cannot be greater than all currently stored data. */
+		BUG_ON(final_size > tail_offset);
+
+		/* Remove unsent data from current buffer. */
+		if (final_size < tail_offset) {
+			b_sub(buf, tail_offset - final_size);
+			/* Remove buffer is all ACK already received. */
+			if (!b_data(buf))
+				qc_stream_buf_free(stream, &stream_buf);
+		}
+
+		/* A released stream does not use <stream.buf>. */
+		stream->buf = NULL;
+	}
+
 	if (LIST_ISEMPTY(&stream->buf_list)) {
 		/* if no buffer left we can free the stream. */
 		qc_stream_desc_free(stream, 0);
-	}
-	else {
-		/* A released stream does not use <stream.buf>. */
-		stream->buf = NULL;
 	}
 }
 

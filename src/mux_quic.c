@@ -68,7 +68,7 @@ static void qcs_free(struct qcs *qcs)
 		qcc->app_ops->detach(qcs);
 
 	/* Release qc_stream_desc buffer from quic-conn layer. */
-	qc_stream_desc_release(qcs->stream);
+	qc_stream_desc_release(qcs->stream, qcs->tx.sent_offset);
 
 	/* Free Rx/Tx buffers. */
 	qcs_free_ncbuf(qcs, &qcs->rx.ncbuf);
