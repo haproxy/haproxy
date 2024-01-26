@@ -49,8 +49,14 @@ int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buff
 void appctx_free_on_early_error(struct appctx *appctx);
 void appctx_free(struct appctx *appctx);
 
+size_t appctx_htx_rcv_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags);
+size_t appctx_raw_rcv_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags);
 size_t appctx_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags);
+
+size_t appctx_htx_snd_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags);
+size_t appctx_raw_snd_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags);
 size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags);
+
 int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags);
 
 static inline struct appctx *appctx_new_here(struct applet *applet, struct sedesc *sedesc)

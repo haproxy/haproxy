@@ -452,6 +452,45 @@ int appctx_buf_available(void *arg)
 	return 1;
 }
 
+size_t appctx_htx_rcv_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags)
+{
+	struct htx *appctx_htx = htx_from_buf(&appctx->outbuf);
+	struct htx *buf_htx = NULL;
+	size_t ret = 0;
+
+	if (htx_is_empty(appctx_htx)) {
+		htx_to_buf(appctx_htx, &appctx->outbuf);
+		goto out;
+	}
+
+	ret = appctx_htx->data;
+	buf_htx = htx_from_buf(buf);
+	if (htx_is_empty(buf_htx) && htx_used_space(appctx_htx) <= count) {
+		htx_to_buf(buf_htx, buf);
+		htx_to_buf(appctx_htx, &appctx->outbuf);
+		b_xfer(buf, &appctx->outbuf, b_data(&appctx->outbuf));
+		goto out;
+	}
+
+	htx_xfer_blks(buf_htx, appctx_htx, count, HTX_BLK_UNUSED);
+	buf_htx->flags |= (appctx_htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR));
+	if (htx_is_empty(appctx_htx)) {
+		buf_htx->flags |= (appctx_htx->flags & HTX_FL_EOM);
+	}
+	buf_htx->extra = (appctx_htx->extra ? (appctx_htx->data + appctx_htx->extra) : 0);
+	htx_to_buf(buf_htx, buf);
+	htx_to_buf(appctx_htx, &appctx->inbuf);
+	ret -= appctx_htx->data;
+
+  out:
+	return ret;
+}
+
+size_t appctx_raw_rcv_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags)
+{
+	return b_xfer(buf, &appctx->outbuf, MAX(count, b_data(&appctx->outbuf)));
+}
+
 size_t appctx_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags)
 {
 	struct appctx *appctx = __sc_appctx(sc);
@@ -471,38 +510,7 @@ size_t appctx_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 		goto end;
 	}
 
-	if (IS_HTX_SC(sc)) {
-		struct htx *appctx_htx = htx_from_buf(&appctx->outbuf);
-		struct htx *buf_htx = NULL;
-
-		if (htx_is_empty(appctx_htx)) {
-			htx_to_buf(appctx_htx, &appctx->outbuf);
-			goto done;
-		}
-
-		ret = appctx_htx->data;
-		buf_htx = htx_from_buf(buf);
-		if (htx_is_empty(buf_htx) && htx_used_space(appctx_htx) <= count) {
-			htx_to_buf(buf_htx, buf);
-			htx_to_buf(appctx_htx, &appctx->outbuf);
-			b_xfer(buf, &appctx->outbuf, b_data(&appctx->outbuf));
-			goto done;
-		}
-
-		htx_xfer_blks(buf_htx, appctx_htx, count, HTX_BLK_UNUSED);
-		buf_htx->flags |= (appctx_htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR));
-		if (htx_is_empty(appctx_htx)) {
-			buf_htx->flags |= (appctx_htx->flags & HTX_FL_EOM);
-		}
-		buf_htx->extra = (appctx_htx->extra ? (appctx_htx->data + appctx_htx->extra) : 0);
-		htx_to_buf(buf_htx, buf);
-		htx_to_buf(appctx_htx, &appctx->inbuf);
-		ret -= appctx_htx->data;
-	}
-	else
-		ret = b_xfer(buf, &appctx->outbuf, MAX(count, b_data(&appctx->outbuf)));
-
-  done:
+	ret = appctx->applet->rcv_buf(appctx, buf, count, flags);
 	if (ret)
 		applet_fl_clr(appctx, APPCTX_FL_OUTBLK_FULL);
 
@@ -531,6 +539,39 @@ size_t appctx_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 	return ret;
 }
 
+size_t appctx_htx_snd_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags)
+{
+	struct htx *appctx_htx = htx_from_buf(&appctx->inbuf);
+	struct htx *buf_htx = htx_from_buf(buf);
+	size_t ret = 0;
+
+	ret = buf_htx->data;
+	if (htx_is_empty(appctx_htx) && buf_htx->data == count) {
+		htx_to_buf(appctx_htx, &appctx->inbuf);
+		htx_to_buf(buf_htx, buf);
+		b_xfer(&appctx->inbuf, buf, b_data(buf));
+		goto end;
+	}
+
+	htx_xfer_blks(appctx_htx, buf_htx, count, HTX_BLK_UNUSED);
+	if (htx_is_empty(buf_htx)) {
+		appctx_htx->flags |= (buf_htx->flags & HTX_FL_EOM);
+	}
+
+	appctx_htx->extra = (buf_htx->extra ? (buf_htx->data + buf_htx->extra) : 0);
+	htx_to_buf(appctx_htx, &appctx->outbuf);
+	htx_to_buf(buf_htx, buf);
+	ret -= buf_htx->data;
+
+end:
+	return ret;
+}
+
+size_t appctx_raw_snd_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsigned flags)
+{
+	return b_xfer(&appctx->inbuf, buf, MIN(b_room(&appctx->inbuf), count));
+}
+
 size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags)
 {
 	struct appctx *appctx = __sc_appctx(sc);
@@ -553,32 +594,7 @@ size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 	if (!count)
 		goto end;
 
-	if (IS_HTX_SC(sc)) {
-		struct htx *appctx_htx = htx_from_buf(&appctx->inbuf);
-		struct htx *buf_htx = htx_from_buf(buf);
-
-		ret = buf_htx->data;
-		if (htx_is_empty(appctx_htx) && buf_htx->data == count) {
-			htx_to_buf(appctx_htx, &appctx->inbuf);
-			htx_to_buf(buf_htx, buf);
-			b_xfer(&appctx->inbuf, buf, b_data(buf));
-			goto done;
-		}
-
-		htx_xfer_blks(appctx_htx, buf_htx, count, HTX_BLK_UNUSED);
-		if (htx_is_empty(buf_htx)) {
-			appctx_htx->flags |= (buf_htx->flags & HTX_FL_EOM);
-		}
-
-		appctx_htx->extra = (buf_htx->extra ? (buf_htx->data + buf_htx->extra) : 0);
-		htx_to_buf(appctx_htx, &appctx->outbuf);
-		htx_to_buf(buf_htx, buf);
-		ret -= buf_htx->data;
-	}
-	else
-		ret = b_xfer(&appctx->inbuf, buf, MIN(b_room(&appctx->inbuf), count));
-
-  done:
+	ret = appctx->applet->snd_buf(appctx, buf, count, flags);
 	if (ret < count) {
 		applet_fl_set(appctx, APPCTX_FL_INBLK_FULL);
 		appctx_wakeup(appctx);

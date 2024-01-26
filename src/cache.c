@@ -3159,8 +3159,8 @@ struct applet http_cache_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<CACHE>", /* used for logging */
 	.fct = http_cache_io_handler,
-	.rcv_buf = appctx_rcv_buf,
-	.snd_buf = appctx_snd_buf,
+	.rcv_buf = appctx_htx_rcv_buf,
+	.snd_buf = appctx_htx_snd_buf,
 	.fastfwd = http_cache_fastfwd,
 	.release = http_cache_applet_release,
 };

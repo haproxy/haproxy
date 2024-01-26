@@ -61,8 +61,8 @@ struct applet {
 	int (*init)(struct appctx *);      /* callback to init resources, may be NULL.
 					      expect 0 if ok, -1 if an error occurs. */
 	void (*fct)(struct appctx *);      /* internal I/O handler, may never be NULL */
-	size_t (*rcv_buf)(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags); /* called from the upper layer to get data */
-	size_t (*snd_buf)(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags); /* Called from the upper layet to put data */
+	size_t (*rcv_buf)(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags); /* called from the upper layer to get data */
+	size_t (*snd_buf)(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags); /* Called from the upper layet to put data */
 	size_t (*fastfwd)(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags); /* Callback to fast-forward data */
 	void (*release)(struct appctx *);  /* callback to release resources, may be NULL */
 	unsigned int timeout;              /* execution timeout. */

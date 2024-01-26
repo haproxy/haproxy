@@ -1968,7 +1968,7 @@ int sc_applet_recv(struct stconn *sc)
 	 * SE_FL_RCV_MORE on the SC if more space is needed.
 	 */
 	max = channel_recv_max(ic);
-	ret = appctx->applet->rcv_buf(sc, &ic->buf, max, flags);
+	ret = appctx_rcv_buf(sc, &ic->buf, max, flags);
 	if (sc_ep_test(sc, SE_FL_WANT_ROOM)) {
 		/* SE_FL_WANT_ROOM must not be reported if the channel's
 		 * buffer is empty.
@@ -2120,7 +2120,6 @@ int sc_applet_sync_recv(struct stconn *sc)
  */
 int sc_applet_send(struct stconn *sc)
 {
-	struct appctx *appctx = __sc_appctx(sc);
 	struct stconn *sco = sc_opposite(sc);
 	struct channel *oc = sc_oc(sc);
 	size_t ret;
@@ -2146,7 +2145,7 @@ int sc_applet_send(struct stconn *sc)
 	BUG_ON(sc_ep_have_ff_data(sc));
 
 	if (co_data(oc)) {
-		ret = appctx->applet->snd_buf(sc, &oc->buf, co_data(oc), 0);
+		ret = appctx_snd_buf(sc, &oc->buf, co_data(oc), 0);
 		if (ret > 0) {
 			did_send = 1;
 			c_rew(oc, ret);

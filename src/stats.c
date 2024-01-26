@@ -5539,8 +5539,8 @@ struct applet http_stats_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<STATS>", /* used for logging */
 	.fct = http_stats_io_handler,
-	.rcv_buf = appctx_rcv_buf,
-	.snd_buf = appctx_snd_buf,
+	.rcv_buf = appctx_htx_rcv_buf,
+	.snd_buf = appctx_htx_snd_buf,
 	.fastfwd = http_stats_fastfwd,
 	.release = NULL,
 };
