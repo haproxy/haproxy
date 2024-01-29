@@ -75,6 +75,23 @@ exported. Here are examples:
   /metrics?scope=&scope=global          # ==> global metrics will be exported
   /metrics?scope=sticktable             # ==> stick tables metrics will be exported
 
+* Dump extra counters
+
+Internally, some modules can register to frontends, backends, servers or
+listeners to export extra counters. For instance, some multiplexers do so on
+frontends or backends. To display extra counters for all regiestered modules,
+"extra-counters" parameter must be pass. It can be cumulated with "scope"
+parameters:
+
+  /metrics?extra-counters          # ==> export all extra counters in
+                                   #     addition to main ones, for all
+                                   #     scopes
+  /metrics?scope=frontend&extra-counters # ==> export extra counters for
+                                         #     frontends
+
+There are extra counters are only for frontends, backends, servers and
+listeners.
+
 * How do I prevent my prometheus instance to explode?
 
 ** Filtering on servers state
@@ -109,7 +126,8 @@ except the server_check_status, you may configure prometheus that way:
 Exported metrics
 ------------------
 
-See prometheus export for the description of each field.
+See prometheus export for the description of each field. Only main metrics are
+listed below. Metrics from extra counters are not listed.
 
 * Globals metrics
 
