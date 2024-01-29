@@ -24,11 +24,10 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 	struct buffer *buf = &(*stream_buf)->buf;
 
 	LIST_DEL_INIT(&(*stream_buf)->list);
-	if (*stream_buf == stream->buf) {
-		/* current buf must always be last entry in buflist */
-		BUG_ON(!LIST_ISEMPTY(&stream->buf_list));
+
+	/* Reset current buf ptr if deleted instance is the same one. */
+	if (*stream_buf == stream->buf)
 		stream->buf = NULL;
-	}
 
 	b_free(buf);
 	offer_buffers(NULL, 1);
