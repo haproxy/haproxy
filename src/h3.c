@@ -73,6 +73,8 @@ static const struct trace_event h3_trace_events[] = {
 	{ .mask = H3_EV_H3C_NEW,      .name = "h3c_new",     .desc = "new H3 connection" },
 #define           H3_EV_H3C_END       (1ULL << 11)
 	{ .mask = H3_EV_H3C_END,      .name = "h3c_end",     .desc = "H3 connection terminated" },
+#define           H3_EV_STRM_SEND     (1ULL << 12)
+	{ .mask = H3_EV_STRM_SEND,    .name = "strm_send",   .desc = "sending data for stream" },
 	{ }
 };
 
@@ -1919,7 +1921,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 	int32_t idx;
 	int ret = 0;
 
-	h3_debug_printf(stderr, "%s\n", __func__);
+	TRACE_ENTER(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
 	htx = htx_from_buf(buf);
 
@@ -2015,6 +2017,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
  out:
 	htx_to_buf(htx, buf);
 
+	TRACE_LEAVE(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 	return total;
 }
 
@@ -2024,7 +2027,7 @@ static size_t h3_nego_ff(struct qcs *qcs, size_t count)
 	int hsize;
 	size_t sz, ret = 0;
 
-	h3_debug_printf(stderr, "%s\n", __func__);
+	TRACE_ENTER(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
 	if (!(res = qcc_get_stream_txbuf(qcs))) {
 		qcs->sd->iobuf.flags |= IOBUF_FL_NO_FF;
@@ -2060,12 +2063,14 @@ static size_t h3_nego_ff(struct qcs *qcs, size_t count)
 
 	ret = count;
   end:
+	TRACE_LEAVE(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 	return ret;
 }
 
 static size_t h3_done_ff(struct qcs *qcs)
 {
 	size_t total = qcs->sd->iobuf.data;
+	TRACE_ENTER(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
 	h3_debug_printf(stderr, "%s\n", __func__);
 
@@ -2082,6 +2087,7 @@ static size_t h3_done_ff(struct qcs *qcs)
 	qcs->sd->iobuf.offset = 0;
 	qcs->sd->iobuf.data = 0;
 
+	TRACE_LEAVE(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 	return total;
 }
 
