@@ -115,7 +115,7 @@
 
 /* At this time, wolfssl, libressl and the openssl QUIC compatibility do not support 0-RTT */
 #if defined(HAVE_SSL_0RTT) && !defined(USE_QUIC_OPENSSL_COMPAT) && !defined(LIBRESSL_VERSION_NUMBER) && !defined(USE_OPENSSL_WOLFSSL)
-#define HA_OPENSSL_HAVE_0RTT_SUPPORT
+#define HAVE_SSL_0RTT_QUIC
 #endif
 
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL)
