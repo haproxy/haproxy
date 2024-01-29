@@ -75,6 +75,7 @@ enum {
 #define PROMEX_FL_SCOPE_LI          0x00000800
 #define PROMEX_FL_SCOPE_STICKTABLE  0x00001000
 #define PROMEX_FL_NO_MAINT_SRV      0x00002000
+#define PROMEX_FL_EXTRA_COUNTERS    0x00004000
 
 #define PROMEX_FL_SCOPE_ALL (PROMEX_FL_SCOPE_GLOBAL | PROMEX_FL_SCOPE_FRONT | \
 			     PROMEX_FL_SCOPE_LI | PROMEX_FL_SCOPE_BACK | \
@@ -86,8 +87,10 @@ struct promex_ctx {
 	struct stktable *st;       /* current table */
 	struct listener *li;       /* current listener */
 	struct server *sv;         /* current server */
+	struct stats_module *mod;   /* current module for extra counters */
 	unsigned int flags;	   /* PROMEX_FL_* */
 	unsigned field_num;        /* current field number (ST_F_* etc) */
+	unsigned mod_field_num;    /* first field number of the current module (ST_F_* etc) */
 	int obj_state;             /* current state among PROMEX_{FRONT|BACK|SRV|LI}_STATE_* */
 };
 
@@ -1300,10 +1303,12 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 			ctx->st = NULL;
 			ctx->li = NULL;
 			ctx->sv = NULL;
+			ctx->mod = NULL;
 			ctx->flags &= ~PROMEX_FL_INFO_METRIC;
 			ctx->flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_FRONT_METRIC);
 			ctx->obj_state = 0;
 			ctx->field_num = ST_F_PXNAME;
+			ctx->mod_field_num = 0;
 			appctx->st1 = PROMEX_DUMPER_FRONT;
 			__fallthrough;
 
@@ -1321,10 +1326,12 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 			ctx->st = NULL;
 			ctx->li = LIST_NEXT(&proxies_list->conf.listeners, struct listener *, by_fe);
 			ctx->sv = NULL;
+			ctx->mod = NULL;
 			ctx->flags &= ~PROMEX_FL_FRONT_METRIC;
 			ctx->flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_LI_METRIC);
 			ctx->obj_state = 0;
 			ctx->field_num = ST_F_PXNAME;
+			ctx->mod_field_num = 0;
 			appctx->st1 = PROMEX_DUMPER_LI;
 			__fallthrough;
 
@@ -1342,10 +1349,12 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 			ctx->st = NULL;
 			ctx->li = NULL;
 			ctx->sv = NULL;
+			ctx->mod = NULL;
 			ctx->flags &= ~PROMEX_FL_LI_METRIC;
 			ctx->flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_BACK_METRIC);
 			ctx->obj_state = 0;
 			ctx->field_num = ST_F_PXNAME;
+			ctx->mod_field_num = 0;
 			appctx->st1 = PROMEX_DUMPER_BACK;
 			__fallthrough;
 
@@ -1363,10 +1372,12 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 			ctx->st = NULL;
 			ctx->li = NULL;
 			ctx->sv = ctx->px ? ctx->px->srv : NULL;
+			ctx->mod = NULL;
 			ctx->flags &= ~PROMEX_FL_BACK_METRIC;
 			ctx->flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_SRV_METRIC);
 			ctx->obj_state = 0;
 			ctx->field_num = ST_F_PXNAME;
+			ctx->mod_field_num = 0;
 			appctx->st1 = PROMEX_DUMPER_SRV;
 			__fallthrough;
 
@@ -1384,9 +1395,11 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 			ctx->st = stktables_list;
 			ctx->li = NULL;
 			ctx->sv = NULL;
+			ctx->mod = NULL;
 			ctx->flags &= ~(PROMEX_FL_METRIC_HDR|PROMEX_FL_SRV_METRIC);
 			ctx->flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_STICKTABLE_METRIC);
 			ctx->field_num = STICKTABLE_SIZE;
+			ctx->mod_field_num = 0;
 			appctx->st1 = PROMEX_DUMPER_STICKTABLE;
 			__fallthrough;
 
@@ -1404,8 +1417,10 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 			ctx->st = NULL;
 			ctx->li = NULL;
 			ctx->sv = NULL;
+			ctx->mod = NULL;
 			ctx->flags &= ~(PROMEX_FL_METRIC_HDR|PROMEX_FL_STICKTABLE_METRIC);
 			ctx->field_num = 0;
+			ctx->mod_field_num = 0;
 			appctx->st1 = PROMEX_DUMPER_DONE;
 			__fallthrough;
 
@@ -1425,8 +1440,10 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 	ctx->st = NULL;
 	ctx->li = NULL;
 	ctx->sv = NULL;
+	ctx->mod = NULL;
 	ctx->flags = 0;
 	ctx->field_num = 0;
+	ctx->mod_field_num = 0;
 	appctx->st1 = PROMEX_DUMPER_DONE;
 	return -1;
 }
@@ -1522,6 +1539,9 @@ static int promex_parse_uri(struct appctx *appctx, struct stconn *sc)
 				ctx->flags |= PROMEX_FL_SCOPE_STICKTABLE;
 			else
 				goto error;
+		}
+		else if (strcmp(key, "extra-counters") == 0) {
+			ctx->flags |= PROMEX_FL_EXTRA_COUNTERS;
 		}
 		else if (strcmp(key, "no-maint") == 0)
 			ctx->flags |= PROMEX_FL_NO_MAINT_SRV;
