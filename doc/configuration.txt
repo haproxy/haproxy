@@ -15229,13 +15229,21 @@ wait-for-body time <time> [ at-least <bytes> ]
   Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     -  |   -  |   -  |   -  |          X |  X |  -
 
-  This will delay the processing of the request or response waiting for the
-  payload for at most <time> milliseconds. if "at-least" argument is specified,
-  HAProxy stops waiting for the payload when the first <bytes> bytes are
-  received. 0 means no limit, it is the default value. Regardless the
-  "at-least" argument value, HAProxy stops to wait if the whole payload is
-  received or if the request buffer is full.  This action may be used as a
-  replacement to "option http-buffer-request".
+  This will delay the processing of the request or response until one of the
+  following conditions occurs:
+  - The full request body is received, in which case processing proceeds
+    normally.
+  - <bytes> bytes have been received, when the "at-least" argument is given and
+    <bytes> is non-zero, in which case processing proceeds normally.
+  - The request buffer is full, in which case processing proceeds normally. The
+    size of this buffer is determined by the "tune.bufsize" option.
+  - The request has been waiting for more than <time> milliseconds. In this
+    case HAProxy will respond with a 408 "Request Timeout" error to the client
+    and stop processing the request. Note that if any of the other conditions
+    happens first, this timeout will not occur even if the full body has
+    not yet been recieved.
+
+  This action may be used as a replacement for "option http-buffer-request".
 
   Arguments :
 
@@ -15244,7 +15252,7 @@ wait-for-body time <time> [ at-least <bytes> ]
 
     <bytes>   is optional. It is the minimum payload size to receive to stop to
               wait. It follows the HAProxy size format and is expressed in
-              bytes.
+              bytes. A value of 0 (the default) means no limit.
 
   Example:
     http-request wait-for-body time 1s at-least 1k if METH_POST
