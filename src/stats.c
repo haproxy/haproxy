@@ -1952,7 +1952,8 @@ static int stats_dump_fe_stats(struct stconn *sc, struct proxy *px)
 		}
 
 		counters = EXTRA_COUNTERS_GET(px->extra_counters_fe, mod);
-		mod->fill_stats(counters, stats + stats_count);
+		if (!mod->fill_stats(counters, stats + stats_count, NULL))
+			continue;
 		stats_count += mod->stats_count;
 	}
 
@@ -2119,7 +2120,8 @@ static int stats_dump_li_stats(struct stconn *sc, struct proxy *px, struct liste
 		}
 
 		counters = EXTRA_COUNTERS_GET(l->extra_counters, mod);
-		mod->fill_stats(counters, stats + stats_count);
+		if (!mod->fill_stats(counters, stats + stats_count, NULL))
+			continue;
 		stats_count += mod->stats_count;
 	}
 
@@ -2637,7 +2639,8 @@ static int stats_dump_sv_stats(struct stconn *sc, struct proxy *px, struct serve
 		}
 
 		counters = EXTRA_COUNTERS_GET(sv->extra_counters, mod);
-		mod->fill_stats(counters, stats + stats_count);
+		if (!mod->fill_stats(counters, stats + stats_count, NULL))
+			continue;
 		stats_count += mod->stats_count;
 	}
 
@@ -2973,7 +2976,8 @@ static int stats_dump_be_stats(struct stconn *sc, struct proxy *px)
 		}
 
 		counters = EXTRA_COUNTERS_GET(px->extra_counters_be, mod);
-		mod->fill_stats(counters, stats + stats_count);
+		if (!mod->fill_stats(counters, stats + stats_count, NULL))
+			continue;
 		stats_count += mod->stats_count;
 	}
 
@@ -5331,6 +5335,7 @@ void stats_register_module(struct stats_module *m)
 	LIST_APPEND(&stats_module_list[domain], &m->list);
 	stat_count[domain] += m->stats_count;
 }
+
 
 static int allocate_stats_px_postcheck(void)
 {

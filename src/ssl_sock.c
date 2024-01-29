@@ -172,13 +172,37 @@ static struct ssl_counters {
 	long long failed_handshake;
 } ssl_counters;
 
-static void ssl_fill_stats(void *data, struct field *stats)
+static int ssl_fill_stats(void *data, struct field *stats, unsigned int *selected_field)
 {
 	struct ssl_counters *counters = data;
+	unsigned int current_field = (selected_field != NULL ? *selected_field : 0);
 
-	stats[SSL_ST_SESS]             = mkf_u64(FN_COUNTER, counters->sess);
-	stats[SSL_ST_REUSED_SESS]      = mkf_u64(FN_COUNTER, counters->reused_sess);
-	stats[SSL_ST_FAILED_HANDSHAKE] = mkf_u64(FN_COUNTER, counters->failed_handshake);
+	for (; current_field < SSL_ST_STATS_COUNT; current_field++) {
+		struct field metric = { 0 };
+
+		switch (current_field) {
+		case SSL_ST_SESS:
+			metric = mkf_u64(FN_COUNTER, counters->sess);
+			break;
+		case SSL_ST_REUSED_SESS:
+			metric = mkf_u64(FN_COUNTER, counters->reused_sess);
+			break;
+		case SSL_ST_FAILED_HANDSHAKE:
+			metric = mkf_u64(FN_COUNTER, counters->failed_handshake);
+			break;
+		default:
+			/* not used for frontends. If a specific metric
+			 * is requested, return an error. Otherwise continue.
+			 */
+			if (selected_field != NULL)
+				return 0;
+			continue;
+		}
+		stats[current_field] = metric;
+		if (selected_field != NULL)
+			break;
+	}
+	return 1;
 }
 
 static struct stats_module ssl_stats_module = {

@@ -511,7 +511,7 @@ struct stats_module {
 	const char *name;
 
 	/* functor used to generate the stats module using counters provided through data parameter */
-	void (*fill_stats)(void *data, struct field *);
+	int (*fill_stats)(void *data, struct field *, unsigned int *);
 
 	struct name_desc *stats; /* name/description of stats provided by the module */
 	void *counters;          /* initial values of allocated counters */

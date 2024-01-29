@@ -355,25 +355,67 @@ static struct h2_counters {
 	long long total_streams; /* total number of streams */
 } h2_counters;
 
-static void h2_fill_stats(void *data, struct field *stats)
+static int h2_fill_stats(void *data, struct field *stats, unsigned int *selected_field)
 {
 	struct h2_counters *counters = data;
+	unsigned int current_field = (selected_field != NULL ? *selected_field : 0);
 
-	stats[H2_ST_HEADERS_RCVD]    = mkf_u64(FN_COUNTER, counters->headers_rcvd);
-	stats[H2_ST_DATA_RCVD]       = mkf_u64(FN_COUNTER, counters->data_rcvd);
-	stats[H2_ST_SETTINGS_RCVD]   = mkf_u64(FN_COUNTER, counters->settings_rcvd);
-	stats[H2_ST_RST_STREAM_RCVD] = mkf_u64(FN_COUNTER, counters->rst_stream_rcvd);
-	stats[H2_ST_GOAWAY_RCVD]     = mkf_u64(FN_COUNTER, counters->goaway_rcvd);
+	for (; current_field < H2_STATS_COUNT; current_field++) {
+		struct field metric = { 0 };
 
-	stats[H2_ST_CONN_PROTO_ERR]  = mkf_u64(FN_COUNTER, counters->conn_proto_err);
-	stats[H2_ST_STRM_PROTO_ERR]  = mkf_u64(FN_COUNTER, counters->strm_proto_err);
-	stats[H2_ST_RST_STREAM_RESP] = mkf_u64(FN_COUNTER, counters->rst_stream_resp);
-	stats[H2_ST_GOAWAY_RESP]     = mkf_u64(FN_COUNTER, counters->goaway_resp);
-
-	stats[H2_ST_OPEN_CONN]    = mkf_u64(FN_GAUGE,   counters->open_conns);
-	stats[H2_ST_OPEN_STREAM]  = mkf_u64(FN_GAUGE,   counters->open_streams);
-	stats[H2_ST_TOTAL_CONN]   = mkf_u64(FN_COUNTER, counters->total_conns);
-	stats[H2_ST_TOTAL_STREAM] = mkf_u64(FN_COUNTER, counters->total_streams);
+		switch (current_field) {
+		case H2_ST_HEADERS_RCVD:
+			metric = mkf_u64(FN_COUNTER, counters->headers_rcvd);
+			break;
+		case H2_ST_DATA_RCVD:
+			metric = mkf_u64(FN_COUNTER, counters->data_rcvd);
+			break;
+		case H2_ST_SETTINGS_RCVD:
+			metric = mkf_u64(FN_COUNTER, counters->settings_rcvd);
+			break;
+		case H2_ST_RST_STREAM_RCVD:
+			metric = mkf_u64(FN_COUNTER, counters->rst_stream_rcvd);
+			break;
+		case H2_ST_GOAWAY_RCVD:
+			metric = mkf_u64(FN_COUNTER, counters->goaway_rcvd);
+			break;
+		case H2_ST_CONN_PROTO_ERR:
+			metric = mkf_u64(FN_COUNTER, counters->conn_proto_err);
+			break;
+		case H2_ST_STRM_PROTO_ERR:
+			metric = mkf_u64(FN_COUNTER, counters->strm_proto_err);
+			break;
+		case H2_ST_RST_STREAM_RESP:
+			metric = mkf_u64(FN_COUNTER, counters->rst_stream_resp);
+			break;
+		case H2_ST_GOAWAY_RESP:
+			metric = mkf_u64(FN_COUNTER, counters->goaway_resp);
+			break;
+		case H2_ST_OPEN_CONN:
+			metric = mkf_u64(FN_GAUGE,   counters->open_conns);
+			break;
+		case H2_ST_OPEN_STREAM:
+			metric = mkf_u64(FN_GAUGE,   counters->open_streams);
+			break;
+		case H2_ST_TOTAL_CONN:
+			metric = mkf_u64(FN_COUNTER, counters->total_conns);
+			break;
+		case H2_ST_TOTAL_STREAM:
+			metric = mkf_u64(FN_COUNTER, counters->total_streams);
+			break;
+		default:
+			/* not used for frontends. If a specific metric
+			 * is requested, return an error. Otherwise continue.
+			 */
+			if (selected_field != NULL)
+				return 0;
+			continue;
+		}
+		stats[current_field] = metric;
+		if (selected_field != NULL)
+			break;
+	}
+	return 1;
 }
 
 static struct stats_module h2_stats_module = {

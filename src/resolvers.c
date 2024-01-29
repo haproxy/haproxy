@@ -114,26 +114,79 @@ static struct name_desc resolv_stats[] = {
 
 static struct dns_counters dns_counters;
 
-static void resolv_fill_stats(void *d, struct field *stats)
+static int resolv_fill_stats(void *d, struct field *stats, unsigned int *selected_field)
 {
 	struct dns_counters *counters = d;
-	stats[RSLV_STAT_ID]          = mkf_str(FO_CONFIG, counters->id);
-	stats[RSLV_STAT_PID]         = mkf_str(FO_CONFIG, counters->pid);
-	stats[RSLV_STAT_SENT]        = mkf_u64(FN_GAUGE, counters->sent);
-	stats[RSLV_STAT_SND_ERROR]   = mkf_u64(FN_GAUGE, counters->snd_error);
-	stats[RSLV_STAT_VALID]       = mkf_u64(FN_GAUGE, counters->app.resolver.valid);
-	stats[RSLV_STAT_UPDATE]      = mkf_u64(FN_GAUGE, counters->app.resolver.update);
-	stats[RSLV_STAT_CNAME]       = mkf_u64(FN_GAUGE, counters->app.resolver.cname);
-	stats[RSLV_STAT_CNAME_ERROR] = mkf_u64(FN_GAUGE, counters->app.resolver.cname_error);
-	stats[RSLV_STAT_ANY_ERR]     = mkf_u64(FN_GAUGE, counters->app.resolver.any_err);
-	stats[RSLV_STAT_NX]          = mkf_u64(FN_GAUGE, counters->app.resolver.nx);
-	stats[RSLV_STAT_TIMEOUT]     = mkf_u64(FN_GAUGE, counters->app.resolver.timeout);
-	stats[RSLV_STAT_REFUSED]     = mkf_u64(FN_GAUGE, counters->app.resolver.refused);
-	stats[RSLV_STAT_OTHER]       = mkf_u64(FN_GAUGE, counters->app.resolver.other);
-	stats[RSLV_STAT_INVALID]     = mkf_u64(FN_GAUGE, counters->app.resolver.invalid);
-	stats[RSLV_STAT_TOO_BIG]     = mkf_u64(FN_GAUGE, counters->app.resolver.too_big);
-	stats[RSLV_STAT_TRUNCATED]   = mkf_u64(FN_GAUGE, counters->app.resolver.truncated);
-	stats[RSLV_STAT_OUTDATED]    = mkf_u64(FN_GAUGE, counters->app.resolver.outdated);
+	unsigned int current_field = (selected_field != NULL ? *selected_field : 0);
+
+	for (; current_field < RSLV_STAT_END; current_field++) {
+		struct field metric = { 0 };
+
+		switch (current_field) {
+		case RSLV_STAT_ID:
+			metric = mkf_str(FO_CONFIG, counters->id);
+			break;
+		case RSLV_STAT_PID:
+			metric = mkf_str(FO_CONFIG, counters->pid);
+			break;
+		case RSLV_STAT_SENT:
+			metric = mkf_u64(FN_GAUGE, counters->sent);
+			break;
+		case RSLV_STAT_SND_ERROR:
+			metric = mkf_u64(FN_GAUGE, counters->snd_error);
+			break;
+		case RSLV_STAT_VALID:
+			metric = mkf_u64(FN_GAUGE, counters->app.resolver.valid);
+			break;
+		case RSLV_STAT_UPDATE:
+			metric = mkf_u64(FN_GAUGE, counters->app.resolver.update);
+			break;
+		case RSLV_STAT_CNAME:
+			metric = mkf_u64(FN_GAUGE, counters->app.resolver.cname);
+			break;
+		case RSLV_STAT_CNAME_ERROR:
+			metric = mkf_u64(FN_GAUGE, counters->app.resolver.cname_error);
+			break;
+		case RSLV_STAT_ANY_ERR:
+			metric = mkf_u64(FN_GAUGE, counters->app.resolver.any_err);
+			break;
+		case RSLV_STAT_NX:
+			metric = mkf_u64(FN_GAUGE, counters->app.resolver.nx);
+			break;
+		case RSLV_STAT_TIMEOUT:
+			metric = mkf_u64(FN_GAUGE, counters->app.resolver.timeout);
+			break;
+		case RSLV_STAT_REFUSED:
+			metric = mkf_u64(FN_GAUGE, counters->app.resolver.refused);
+			break;
+		case RSLV_STAT_OTHER:
+			metric = mkf_u64(FN_GAUGE, counters->app.resolver.other);
+			break;
+		case RSLV_STAT_INVALID:
+			metric = mkf_u64(FN_GAUGE, counters->app.resolver.invalid);
+			break;
+		case RSLV_STAT_TOO_BIG:
+			metric = mkf_u64(FN_GAUGE, counters->app.resolver.too_big);
+			break;
+		case RSLV_STAT_TRUNCATED:
+			metric = mkf_u64(FN_GAUGE, counters->app.resolver.truncated);
+			break;
+		case RSLV_STAT_OUTDATED:
+			metric = mkf_u64(FN_GAUGE, counters->app.resolver.outdated);
+			break;
+		default:
+			/* not used for frontends. If a specific metric
+			 * is requested, return an error. Otherwise continue.
+			 */
+			if (selected_field != NULL)
+				return 0;
+			continue;
+		}
+		stats[current_field] = metric;
+		if (selected_field != NULL)
+			break;
+	}
+	return 1;
 }
 
 static struct stats_module rslv_stats_module = {
@@ -2711,7 +2764,8 @@ static int stats_dump_resolv_to_buffer(struct stconn *sc,
 	list_for_each_entry(mod, stat_modules, list) {
 		struct counters_node *counters = EXTRA_COUNTERS_GET(ns->extra_counters, mod);
 
-		mod->fill_stats(counters, stats + idx);
+		if (!mod->fill_stats(counters, stats + idx, NULL))
+			continue;
 		idx += mod->stats_count;
 	}
 

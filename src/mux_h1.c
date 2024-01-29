@@ -264,21 +264,54 @@ static struct h1_counters {
 #endif
 } h1_counters;
 
-static void h1_fill_stats(void *data, struct field *stats)
+static int h1_fill_stats(void *data, struct field *stats, unsigned int *selected_field)
 {
 	struct h1_counters *counters = data;
+	unsigned int current_field = (selected_field != NULL ? *selected_field : 0);
 
-	stats[H1_ST_OPEN_CONN]        = mkf_u64(FN_GAUGE,   counters->open_conns);
-	stats[H1_ST_OPEN_STREAM]      = mkf_u64(FN_GAUGE,   counters->open_streams);
-	stats[H1_ST_TOTAL_CONN]       = mkf_u64(FN_COUNTER, counters->total_conns);
-	stats[H1_ST_TOTAL_STREAM]     = mkf_u64(FN_COUNTER, counters->total_streams);
+	for (; current_field < H1_STATS_COUNT; current_field++) {
+		struct field metric = { 0 };
 
-	stats[H1_ST_BYTES_IN]          = mkf_u64(FN_COUNTER, counters->bytes_in);
-	stats[H1_ST_BYTES_OUT]         = mkf_u64(FN_COUNTER, counters->bytes_out);
+		switch (current_field) {
+		case H1_ST_OPEN_CONN:
+			metric = mkf_u64(FN_GAUGE,   counters->open_conns);
+			break;
+		case H1_ST_OPEN_STREAM:
+			metric = mkf_u64(FN_GAUGE,   counters->open_streams);
+			break;
+		case H1_ST_TOTAL_CONN:
+			metric = mkf_u64(FN_COUNTER, counters->total_conns);
+			break;
+		case H1_ST_TOTAL_STREAM:
+			metric = mkf_u64(FN_COUNTER, counters->total_streams);
+			break;
+		case H1_ST_BYTES_IN:
+			metric = mkf_u64(FN_COUNTER, counters->bytes_in);
+			break;
+		case H1_ST_BYTES_OUT:
+			metric = mkf_u64(FN_COUNTER, counters->bytes_out);
+			break;
 #if defined(USE_LINUX_SPLICE)
-	stats[H1_ST_SPLICED_BYTES_IN]  = mkf_u64(FN_COUNTER, counters->spliced_bytes_in);
-	stats[H1_ST_SPLICED_BYTES_OUT] = mkf_u64(FN_COUNTER, counters->spliced_bytes_out);
+		case H1_ST_SPLICED_BYTES_IN:
+			metric = mkf_u64(FN_COUNTER, counters->spliced_bytes_in);
+			break;
+		case H1_ST_SPLICED_BYTES_OUT:
+			metric = mkf_u64(FN_COUNTER, counters->spliced_bytes_out);
+			break;
 #endif
+		default:
+			/* not used for frontends. If a specific metric
+			 * is requested, return an error. Otherwise continue.
+			 */
+			if (selected_field != NULL)
+				return 0;
+			continue;
+		}
+		stats[current_field] = metric;
+		if (selected_field != NULL)
+			break;
+	}
+	return 1;
 }
 
 static struct stats_module h1_stats_module = {
