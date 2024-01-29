@@ -536,7 +536,7 @@ static int promex_dump_metric(struct appctx *appctx, struct htx *htx, struct ist
 		if (istcat(out, ist("{"), max) == -1)
 			goto full;
 
-		for (i = 0; isttest(labels[i].name); i++) {
+		for (i = 0; i < PROMEX_MAX_LABELS && isttest(labels[i].name); i++) {
 			if (!isttest(labels[i].value))
 				continue;
 
