@@ -1563,8 +1563,11 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	           qcs->qcc->conn, qcs);
 	if (qpack_encode_field_section_line(&headers_buf))
 		ABORT_NOW();
-	if (qpack_encode_int_status(&headers_buf, status))
-		ABORT_NOW();
+	if (qpack_encode_int_status(&headers_buf, status)) {
+		TRACE_ERROR("invalid status code", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+		h3c->err = H3_INTERNAL_ERROR;
+		goto err;
+	}
 
 	for (hdr = 0; hdr < sizeof(list) / sizeof(list[0]); ++hdr) {
 		if (isteq(list[hdr].n, ist("")))
