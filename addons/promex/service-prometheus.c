@@ -1311,6 +1311,82 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 		ctx->sv = (ctx->px ? ctx->px->srv : NULL);
 	}
 
+	/* Skip extra counters */
+	if (!(ctx->flags & PROMEX_FL_EXTRA_COUNTERS))
+		goto end;
+
+	if (!ctx->mod) {
+		/* no restart point, get the first module in the list */
+		ctx->mod = LIST_NEXT(&stats_module_list[STATS_DOMAIN_PROXY], typeof(ctx->mod), list);
+		ctx->mod_field_num = 0;
+	}
+
+	list_for_each_entry_from(ctx->mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
+		void *counters;
+
+		if (!(stats_px_get_cap(ctx->mod->domain_flags) & STATS_PX_CAP_SRV)) {
+			ctx->field_num += ctx->mod->stats_count;
+			ctx->mod_field_num = 0;
+			continue;
+		}
+
+		for (;ctx->mod_field_num < ctx->mod->stats_count; ctx->mod_field_num++) {
+			while (ctx->px) {
+				struct promex_label labels[PROMEX_MAX_LABELS-1] = {};
+				struct promex_metric metric;
+
+				px = ctx->px;
+
+				labels[0].name  = ist("proxy");
+				labels[0].value = ist2(px->id, strlen(px->id));
+
+				/* skip the disabled proxies, global frontend and non-networked ones */
+				if ((px->flags & PR_FL_DISABLED) || px->uuid <= 0 || !(px->cap & PR_CAP_BE))
+					goto next_px2;
+
+				while (ctx->sv) {
+					sv = ctx->sv;
+
+					labels[1].name  = ist("server");
+					labels[1].value = ist2(sv->id, strlen(sv->id));
+
+					labels[2].name  = ist("mod");
+					labels[2].value = ist2(ctx->mod->name, strlen(ctx->mod->name));
+
+					if ((ctx->flags & PROMEX_FL_NO_MAINT_SRV) && (sv->cur_admin & SRV_ADMF_MAINT))
+						goto next_sv2;
+
+
+					counters = EXTRA_COUNTERS_GET(sv->extra_counters, ctx->mod);
+					if (!ctx->mod->fill_stats(counters, stats + ctx->field_num, &ctx->mod_field_num))
+						return -1;
+
+					val = stats[ctx->field_num + ctx->mod_field_num];
+					metric.type = ((val.type == FN_GAUGE) ? PROMEX_MT_GAUGE : PROMEX_MT_COUNTER);
+
+					if (!promex_dump_metric(appctx, htx, prefix,
+								ist2(ctx->mod->stats[ctx->mod_field_num].name, strlen(ctx->mod->stats[ctx->mod_field_num].name)),
+								ist2(ctx->mod->stats[ctx->mod_field_num].desc, strlen(ctx->mod->stats[ctx->mod_field_num].desc)),
+								&metric, &val, labels, &out, max))
+						goto full;
+
+				  next_sv2:
+					ctx->sv = sv->next;
+				}
+
+			  next_px2:
+				ctx->px = px->next;
+				ctx->sv = (ctx->px ? ctx->px->srv : NULL);
+			}
+
+			ctx->flags |= PROMEX_FL_METRIC_HDR;
+			ctx->px = proxies_list;
+			ctx->sv = (ctx->px ? ctx->px->srv : NULL);
+		}
+
+		ctx->field_num += ctx->mod->stats_count;
+		ctx->mod_field_num = 0;
+	}
 
   end:
 	if (out.len) {
