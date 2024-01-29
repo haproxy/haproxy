@@ -719,6 +719,67 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 		ctx->px = proxies_list;
 	}
 
+	/* Skip extra counters */
+	if (!(ctx->flags & PROMEX_FL_EXTRA_COUNTERS))
+		goto end;
+
+	if (!ctx->mod) {
+		/* no restart point, get the first module in the list */
+		ctx->mod = LIST_NEXT(&stats_module_list[STATS_DOMAIN_PROXY], typeof(ctx->mod), list);
+		ctx->mod_field_num = 0;
+	}
+
+	list_for_each_entry_from(ctx->mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
+		void *counters;
+
+		if (!(stats_px_get_cap(ctx->mod->domain_flags) & STATS_PX_CAP_FE)) {
+			ctx->field_num += ctx->mod->stats_count;
+			ctx->mod_field_num = 0;
+			continue;
+		}
+
+		for (;ctx->mod_field_num < ctx->mod->stats_count; ctx->mod_field_num++) {
+			while (ctx->px) {
+				struct promex_label labels[PROMEX_MAX_LABELS-1] = {};
+				struct promex_metric metric;
+
+				px = ctx->px;
+
+				labels[0].name  = ist("proxy");
+				labels[0].value = ist2(px->id, strlen(px->id));
+
+				labels[1].name  = ist("mod");
+				labels[1].value = ist2(ctx->mod->name, strlen(ctx->mod->name));
+
+				/* skip the disabled proxies, global frontend and non-networked ones */
+				if ((px->flags & PR_FL_DISABLED) || px->uuid <= 0 || !(px->cap & PR_CAP_FE))
+					goto next_px2;
+
+				counters = EXTRA_COUNTERS_GET(px->extra_counters_fe, ctx->mod);
+				if (!ctx->mod->fill_stats(counters, stats + ctx->field_num, &ctx->mod_field_num))
+					return -1;
+
+				val = stats[ctx->field_num + ctx->mod_field_num];
+				metric.type = ((val.type == FN_GAUGE) ? PROMEX_MT_GAUGE : PROMEX_MT_COUNTER);
+
+				if (!promex_dump_metric(appctx, htx, prefix,
+							ist2(ctx->mod->stats[ctx->mod_field_num].name, strlen(ctx->mod->stats[ctx->mod_field_num].name)),
+							ist2(ctx->mod->stats[ctx->mod_field_num].desc, strlen(ctx->mod->stats[ctx->mod_field_num].desc)),
+							&metric, &val, labels, &out, max))
+					goto full;
+
+			next_px2:
+				ctx->px = px->next;
+			}
+
+			ctx->flags |= PROMEX_FL_METRIC_HDR;
+			ctx->px = proxies_list;
+		}
+
+		ctx->field_num += ctx->mod->stats_count;
+		ctx->mod_field_num = 0;
+	}
+
   end:
 	if (out.len) {
 		if (!htx_add_data_atonce(htx, out))
