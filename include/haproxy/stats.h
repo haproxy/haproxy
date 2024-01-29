@@ -41,6 +41,7 @@ extern const struct name_desc stat_fields[];
 extern const struct name_desc info_fields[];
 extern const char *stat_status_codes[];
 extern struct applet http_stats_applet;
+extern struct list stats_module_list[];
 extern THREAD_LOCAL struct field info[];
 extern THREAD_LOCAL struct field *stat_l[];
 
@@ -128,6 +129,16 @@ static inline struct field mkf_flt(uint32_t type, double value)
 
 #define MK_STATS_PROXY_DOMAIN(px_cap) \
 	((px_cap) << STATS_PX_CAP | STATS_DOMAIN_PROXY)
+
+static inline uint8_t stats_get_domain(uint32_t domain)
+{
+	return domain >> STATS_DOMAIN & STATS_DOMAIN_MASK;
+}
+
+static inline enum stats_domain_px_cap stats_px_get_cap(uint32_t domain)
+{
+	return domain >> STATS_PX_CAP & STATS_PX_CAP_MASK;
+}
 
 int stats_allocate_proxy_counters_internal(struct extra_counters **counters,
                                            int type, int px_cap);

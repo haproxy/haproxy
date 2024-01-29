@@ -289,7 +289,7 @@ static size_t stat_count[STATS_DOMAIN_COUNT];
 THREAD_LOCAL struct field *stat_l[STATS_DOMAIN_COUNT];
 
 /* list of all registered stats module */
-static struct list stats_module_list[STATS_DOMAIN_COUNT] = {
+struct list stats_module_list[STATS_DOMAIN_COUNT] = {
 	LIST_HEAD_INIT(stats_module_list[STATS_DOMAIN_PROXY]),
 	LIST_HEAD_INIT(stats_module_list[STATS_DOMAIN_RESOLVERS]),
 };
@@ -297,16 +297,6 @@ static struct list stats_module_list[STATS_DOMAIN_COUNT] = {
 THREAD_LOCAL void *trash_counters;
 static THREAD_LOCAL struct buffer trash_chunk = BUF_NULL;
 
-
-static inline uint8_t stats_get_domain(uint32_t domain)
-{
-	return domain >> STATS_DOMAIN & STATS_DOMAIN_MASK;
-}
-
-static inline enum stats_domain_px_cap stats_px_get_cap(uint32_t domain)
-{
-	return domain >> STATS_PX_CAP & STATS_PX_CAP_MASK;
-}
 
 static void stats_dump_json_schema(struct buffer *out);
 
