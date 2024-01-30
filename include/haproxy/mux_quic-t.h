@@ -72,8 +72,6 @@ struct qcc {
 
 	struct {
 		struct quic_fctl fc; /* stream flow control applied on sending */
-
-		uint64_t offsets; /* sum of all offsets prepared */
 	} tx;
 
 	uint64_t largest_bidi_r; /* largest remote bidi stream ID opened. */
@@ -159,8 +157,6 @@ struct qcs {
 	} rx;
 	struct {
 		struct quic_fctl fc; /* stream flow control applied on sending */
-
-		uint64_t offset; /* last offset of data ready to be sent */
 	} tx;
 
 	struct eb64_node by_id;
