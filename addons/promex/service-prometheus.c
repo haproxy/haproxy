@@ -39,6 +39,8 @@
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
 
+#include <promex/promex.h>
+
 /* Prometheus exporter applet states (appctx->st0) */
 enum {
         PROMEX_ST_INIT = 0,  /* initialized */
@@ -90,12 +92,6 @@ struct promex_ctx {
 	int obj_state;             /* current state among PROMEX_{FRONT|BACK|SRV|LI}_STATE_* */
 };
 
-/* Promtheus metric type (gauge or counter) */
-enum promex_mt_type {
-	PROMEX_MT_GAUGE   = 1,
-	PROMEX_MT_COUNTER = 2,
-};
-
 /* The max length for metrics name. It is a hard limit but it should be
  * enough.
  */
@@ -106,22 +102,6 @@ enum promex_mt_type {
  * than this size is available in the HTX.
  */
 #define PROMEX_MAX_METRIC_LENGTH 512
-
-/* The max number of labels per metric */
-#define PROMEX_MAX_LABELS 8
-
-/* Describe a prometheus metric */
-struct promex_metric {
-	const struct ist    n;      /* The metric name */
-	enum promex_mt_type type;   /* The metric type (gauge or counter) */
-	unsigned int        flags;  /* PROMEX_FL_* flags */
-};
-
-/* Describe a prometheus metric label. It is just a key/value pair */
-struct promex_label {
-	struct ist name;
-	struct ist value;
-};
 
 /* Global metrics  */
 const struct promex_metric promex_global_metrics[INF_TOTAL_FIELDS] = {
@@ -409,6 +389,14 @@ const struct ist promex_srv_st[PROMEX_SRV_STATE_COUNT] = {
 	[PROMEX_SRV_STATE_DRAIN] = IST("DRAIN"),
 	[PROMEX_SRV_STATE_NOLB]  = IST("NOLB"),
 };
+
+struct list promex_module_list = LIST_HEAD_INIT(promex_module_list);
+
+
+void promex_register_module(struct promex_module *m)
+{
+	LIST_APPEND(&promex_module_list, &m->list);
+}
 
 /* Return the server status. */
 enum promex_srv_state promex_srv_status(struct server *sv)

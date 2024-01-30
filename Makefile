@@ -663,6 +663,7 @@ endif # USE_LUA
 
 ifneq ($(USE_PROMEX),)
   OPTIONS_OBJS    += addons/promex/service-prometheus.o
+  PROMEX_CFLAGS    = -Iaddons/promex/include
 endif
 
 ifneq ($(USE_DEVICEATLAS),)
