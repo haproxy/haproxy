@@ -25297,7 +25297,7 @@ Please refer to the table below for currently defined variables :
   |   |      | %[accept_date(ms),ms_ltime("%d/%b/%Y:%H:%M:%S.%3N")] | date    |
   +---+------+------------------------------------------------------+---------+
   |   | %ms  | Accept date milliseconds                             |         |
-  |   |      | %[accept_date(ms),ms_utime("%3N")                    | numeric |
+  |   |      | %[accept_date(ms),ms_utime("%3N")]                   | numeric |
   +---+------+------------------------------------------------------+---------+
   | H | %tr  | Request date local (with millisecond resolution)     |         |
   |   |      | %[request_date(ms),ms_ltime("%d/%b/%Y:%H:%M:%S.%3N")]| date    |
