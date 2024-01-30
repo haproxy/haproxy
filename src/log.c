@@ -2536,6 +2536,14 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 			}                                              \
 		} while (0)
 
+/* Prints additional logvalue hint represented by <chr>.
+ * It is useful to express that <chr> is not part of the "raw" value and
+ * should be considered as optional metadata instead.
+ */
+#define LOGMETACHAR(chr) do {                                          \
+			LOGCHAR(chr);                                  \
+		} while (0)
+
 /* Initializes some log data at boot */
 static void init_log()
 {
@@ -3160,7 +3168,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_Ta:  // %Ta = active time = Tt - Th - Ti
 				if (!(fe->to_log & LW_BYTES))
-					LOGCHAR('+');
+					LOGMETACHAR('+');
 				ret = ltoa_o(logs->t_close - (logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0),
 					     tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
@@ -3170,7 +3178,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_TT:  // %Tt = total time
 				if (!(fe->to_log & LW_BYTES))
-					LOGCHAR('+');
+					LOGMETACHAR('+');
 				ret = ltoa_o(logs->t_close, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
@@ -3179,7 +3187,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_TU:  // %Tu = total time seen by user = Tt - Ti
 				if (!(fe->to_log & LW_BYTES))
-					LOGCHAR('+');
+					LOGMETACHAR('+');
 				ret = ltoa_o(logs->t_close - (logs->t_idle >= 0 ? logs->t_idle : 0),
 					     tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
@@ -3196,7 +3204,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_BYTES: // %B
 				if (!(fe->to_log & LW_BYTES))
-					LOGCHAR('+');
+					LOGMETACHAR('+');
 				ret = lltoa(logs->bytes_out, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
@@ -3283,7 +3291,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_RETRIES:  // %rc
 				if (s_flags & SF_REDISP)
-					LOGCHAR('+');
+					LOGMETACHAR('+');
 				ret = ltoa_o((s  ? s->conn_retries : 0), tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
