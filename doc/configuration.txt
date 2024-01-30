@@ -58,6 +58,7 @@ Summary
 3.8.      HTTP-errors
 3.9.      Rings
 3.10.     Log forwarding
+3.11.     HTTPClient tuning
 
 4.    Proxies
 4.1.      Proxy keywords matrix
@@ -1272,13 +1273,6 @@ The following keywords are supported in the "global" section :
    - h1-case-adjust-file
    - h2-workaround-bogus-websocket-clients
    - hard-stop-after
-   - httpclient.resolvers.disabled
-   - httpclient.resolvers.id
-   - httpclient.resolvers.prefer
-   - httpclient.retries
-   - httpclient.ssl.ca-file
-   - httpclient.ssl.verify
-   - httpclient.timeout.connect
    - insecure-fork-wanted
    - insecure-setuid-wanted
    - issuers-chain-path
@@ -1446,6 +1440,14 @@ The following keywords are supported in the "global" section :
    - quiet
    - zero-warning
 
+ * HTTPClient
+   - httpclient.resolvers.disabled
+   - httpclient.resolvers.id
+   - httpclient.resolvers.prefer
+   - httpclient.retries
+   - httpclient.ssl.ca-file
+   - httpclient.ssl.verify
+   - httpclient.timeout.connect
 
 3.1. Process management and security
 ------------------------------------
@@ -1952,68 +1954,6 @@ http-fail-codes [+-]<range>[,...] [...]
   environments as it doesn't translate a server fault there. The syntax is
   exactly the same as for http-err-codes above. See also "http-err-codes" and
   "http_fail_cnt".
-
-httpclient.resolvers.disabled <on|off>
-  Disable the DNS resolution of the httpclient. Prevent the creation of the
-  "default" resolvers section.
-
-  Default value is off.
-
-httpclient.resolvers.id <resolvers id>
-  This option defines the resolvers section with which the httpclient will try
-  to resolve.
-
-  Default option is the "default" resolvers ID. By default, if this option is
-  not used, it will simply disable the resolving if the section is not found.
-
-  However, when this option is explicitly enabled it will trigger a
-  configuration error if it fails to load.
-
-httpclient.resolvers.prefer <ipv4|ipv6>
-  This option allows to chose which family of IP you want when resolving,
-  which is convenient when IPv6 is not available on your network. Default
-  option is "ipv6".
-
-httpclient.retries <number>
-  This option allows to configure the number of retries attempt of the
-  httpclient when a request failed. This does the same as the "retries" keyword
-  in a backend.
-
-  Default value is 3.
-
-httpclient.ssl.ca-file <cafile>
-  This option defines the ca-file which should be used to verify the server
-  certificate. It takes the same parameters as the "ca-file" option on the
-  server line.
-
-  By default and when this option is not used, the value is
-  "@system-ca" which tries to load the CA of the system. If it fails the SSL
-  will be disabled for the httpclient.
-
-  However, when this option is explicitly enabled it will trigger a
-  configuration error if it fails.
-
-httpclient.ssl.verify [none|required]
-  Works the same way as the verify option on server lines. If specified to 'none',
-  servers certificates are not verified. Default option is "required".
-
-  By default and when this option is not used, the value is
-  "required". If it fails the SSL will be disabled for the httpclient.
-
-  However, when this option is explicitly enabled it will trigger a
-  configuration error if it fails.
-
-httpclient.timeout.connect <timeout>
-  Set the maximum time to wait for a connection attempt by default for the
-  httpclient.
-
-  Arguments :
-    <timeout> is the timeout value specified in milliseconds by default, but
-              can be in any other unit if the number is suffixed by the unit,
-              as explained at the top of this document.
-
-  The default value is 5000ms.
-
 
 insecure-fork-wanted
   By default HAProxy tries hard to prevent any thread and process creation
@@ -4596,6 +4536,74 @@ maxconn <conns>
 
 timeout client <timeout>
   Set the maximum inactivity time on the client side.
+
+3.11. HTTPClient tuning
+-----------------------
+
+HTTPClient is an internal HTTP library, it can be used by various subsystems,
+for example in LUA scripts. HTTPClient is not used in the data path, in other
+words it has nothing with HTTP traffic passing through HAProxy.
+
+httpclient.resolvers.disabled <on|off>
+  Disable the DNS resolution of the httpclient. Prevent the creation of the
+  "default" resolvers section.
+
+  Default value is off.
+
+httpclient.resolvers.id <resolvers id>
+  This option defines the resolvers section with which the httpclient will try
+  to resolve.
+
+  Default option is the "default" resolvers ID. By default, if this option is
+  not used, it will simply disable the resolving if the section is not found.
+
+  However, when this option is explicitly enabled it will trigger a
+  configuration error if it fails to load.
+
+httpclient.resolvers.prefer <ipv4|ipv6>
+  This option allows to chose which family of IP you want when resolving,
+  which is convenient when IPv6 is not available on your network. Default
+  option is "ipv6".
+
+httpclient.retries <number>
+  This option allows to configure the number of retries attempt of the
+  httpclient when a request failed. This does the same as the "retries" keyword
+  in a backend.
+
+  Default value is 3.
+
+httpclient.ssl.ca-file <cafile>
+  This option defines the ca-file which should be used to verify the server
+  certificate. It takes the same parameters as the "ca-file" option on the
+  server line.
+
+  By default and when this option is not used, the value is
+  "@system-ca" which tries to load the CA of the system. If it fails the SSL
+  will be disabled for the httpclient.
+
+  However, when this option is explicitly enabled it will trigger a
+  configuration error if it fails.
+
+httpclient.ssl.verify [none|required]
+  Works the same way as the verify option on server lines. If specified to 'none',
+  servers certificates are not verified. Default option is "required".
+
+  By default and when this option is not used, the value is
+  "required". If it fails the SSL will be disabled for the httpclient.
+
+  However, when this option is explicitly enabled it will trigger a
+  configuration error if it fails.
+
+httpclient.timeout.connect <timeout>
+  Set the maximum time to wait for a connection attempt by default for the
+  httpclient.
+
+  Arguments :
+    <timeout> is the timeout value specified in milliseconds by default, but
+              can be in any other unit if the number is suffixed by the unit,
+              as explained at the top of this document.
+
+  The default value is 5000ms.
 
 4. Proxies
 ----------
