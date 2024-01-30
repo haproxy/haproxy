@@ -28,6 +28,7 @@
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
+#include <haproxy/pool.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
@@ -59,29 +60,14 @@ enum {
 	PROMEX_DUMPER_LI,         /* dump metrics of listeners */
 	PROMEX_DUMPER_SRV,        /* dump metrics of servers */
 	PROMEX_DUMPER_STICKTABLE, /* dump metrics of stick tables */
+	PROMEX_DUMPER_MODULES,    /* dump metrics of stick tables */
 	PROMEX_DUMPER_DONE,       /* finished */
 };
 
-/* Prometheus exporter flags (ctx->flags) */
-#define PROMEX_FL_METRIC_HDR        0x00000001
-#define PROMEX_FL_INFO_METRIC       0x00000002
-#define PROMEX_FL_FRONT_METRIC      0x00000004
-#define PROMEX_FL_BACK_METRIC       0x00000008
-#define PROMEX_FL_SRV_METRIC        0x00000010
-#define PROMEX_FL_LI_METRIC         0x00000020
-#define PROMEX_FL_STICKTABLE_METRIC 0x00000040
-#define PROMEX_FL_SCOPE_GLOBAL      0x00000080
-#define PROMEX_FL_SCOPE_FRONT       0x00000100
-#define PROMEX_FL_SCOPE_BACK        0x00000200
-#define PROMEX_FL_SCOPE_SERVER      0x00000400
-#define PROMEX_FL_SCOPE_LI          0x00000800
-#define PROMEX_FL_SCOPE_STICKTABLE  0x00001000
-#define PROMEX_FL_NO_MAINT_SRV      0x00002000
-#define PROMEX_FL_EXTRA_COUNTERS    0x00004000
-
-#define PROMEX_FL_SCOPE_ALL (PROMEX_FL_SCOPE_GLOBAL | PROMEX_FL_SCOPE_FRONT | \
-			     PROMEX_FL_SCOPE_LI | PROMEX_FL_SCOPE_BACK | \
-			     PROMEX_FL_SCOPE_SERVER | PROMEX_FL_SCOPE_STICKTABLE)
+struct promex_module_ref {
+	struct promex_module *mod;
+	struct list list;
+};
 
 /* the context of the applet */
 struct promex_ctx {
@@ -90,6 +76,7 @@ struct promex_ctx {
 	unsigned field_num;        /* current field number (ST_F_* etc) */
 	unsigned mod_field_num;    /* first field number of the current module (ST_F_* etc) */
 	int obj_state;             /* current state among PROMEX_{FRONT|BACK|SRV|LI}_STATE_* */
+	struct list modules;       /* list of promex modules to export */
 };
 
 /* The max length for metrics name. It is a hard limit but it should be
@@ -397,6 +384,9 @@ void promex_register_module(struct promex_module *m)
 {
 	LIST_APPEND(&promex_module_list, &m->list);
 }
+
+/* Pools used to allocate ref on Promex modules */
+DECLARE_STATIC_POOL(pool_head_promex_mod_ref,   "promex_module_ref",  sizeof(struct promex_module_ref));
 
 /* Return the server status. */
 enum promex_srv_state promex_srv_status(struct server *sv)
@@ -1482,60 +1472,101 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 	goto end;
 }
 
-/* Dump stick table metrics (prefixed by "haproxy_sticktable_"). It returns 1 on success,
- * 0 if <htx> is full and -1 in case of any error. */
-static int promex_dump_sticktable_metrics(struct appctx *appctx, struct htx *htx)
+/* Dump metrics of module <mod>. It returns 1 on success, 0 if <out> is full and
+ * -1 on error. */
+static int promex_dump_module_metrics(struct appctx *appctx, struct promex_module *mod,
+				      struct ist *out, size_t max)
 {
-	static struct ist prefix = IST("haproxy_sticktable_");
+	struct ist prefix = { .ptr = (char[PROMEX_MAX_NAME_LEN]){ 0 }, .len = 0 };
 	struct promex_ctx *ctx = appctx->svcctx;
-	struct stktable *t = ctx->p[0];
-	struct field val;
+	int ret = 1;
+
+	istcat(&prefix, ist("haproxy_"), PROMEX_MAX_NAME_LEN);
+	istcat(&prefix, mod->name, PROMEX_MAX_NAME_LEN);
+	istcat(&prefix, ist("_"), PROMEX_MAX_NAME_LEN);
+
+	if (!ctx->p[1] && mod->start_metrics_dump) {
+		ctx->p[1] = mod->start_metrics_dump();
+		if (!ctx->p[1])
+			goto end;
+	}
+
+	for (; ctx->mod_field_num < mod->nb_metrics; ctx->mod_field_num++) {
+		struct promex_metric metric;
+		struct ist desc;
+
+		ret = mod->metric_info(ctx->mod_field_num, &metric, &desc);
+		if (!ret)
+			continue;
+		if (ret < 0)
+			goto error;
+
+		if (!ctx->p[2])
+			ctx->p[2] = mod->start_ts(ctx->p[1], ctx->mod_field_num);
+
+		while (ctx->p[2]) {
+			struct promex_label labels[PROMEX_MAX_LABELS - 1] = {};
+			struct field val;
+
+			ret = mod->fill_ts(ctx->p[1], ctx->p[2], ctx->mod_field_num, labels, &val);
+			if (!ret)
+				continue;
+			if (ret < 0)
+				goto error;
+
+			if (!promex_dump_metric(appctx, prefix, IST_NULL, desc, &metric,
+						&val, labels, out, max))
+				goto full;
+
+		next:
+			ctx->p[2] = mod->next_ts(ctx->p[1], ctx->p[2], ctx->mod_field_num);
+		}
+		ctx->flags |= PROMEX_FL_METRIC_HDR;
+	}
+	ret = 1;
+
+  end:
+	if (ctx->p[1] && mod->stop_metrics_dump)
+		mod->stop_metrics_dump(ctx->p[1]);
+	ctx->p[1] = NULL;
+	ctx->p[2] = NULL;
+	return ret;
+
+  full:
+	return 0;
+  error:
+	ret = -1;
+	goto end;
+
+}
+
+/* Dump metrics of referenced modules. It returns 1 on success, 0 if <htx> is
+ * full and -1 in case of any error. */
+static int promex_dump_ref_modules_metrics(struct appctx *appctx, struct htx *htx)
+{
+	struct promex_ctx *ctx = appctx->svcctx;
+	struct promex_module_ref *ref = ctx->p[0];
 	struct channel *chn = sc_ic(appctx_sc(appctx));
 	struct ist out = ist2(trash.area, 0);
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
 	int ret = 1;
 
-	for (; ctx->field_num < STICKTABLE_TOTAL_FIELDS; ctx->field_num++) {
-		if (!(promex_sticktable_metrics[ctx->field_num].flags & ctx->flags))
-			continue;
-
-		if (!t)
-			t = stktables_list;
-
-		while (t) {
-			struct promex_label labels[PROMEX_MAX_LABELS - 1] = {};
-
-			if (!t->size)
-				goto next_px;
-
-			labels[0].name  = ist("name");
-			labels[0].value = ist2(t->id, strlen(t->id));
-			labels[1].name  = ist("type");
-			labels[1].value = ist2(stktable_types[t->type].kw, strlen(stktable_types[t->type].kw));
-			switch (ctx->field_num) {
-				case STICKTABLE_SIZE:
-					val = mkf_u32(FN_GAUGE, t->size);
-					break;
-				case STICKTABLE_USED:
-					val = mkf_u32(FN_GAUGE, t->current);
-					break;
-				default:
-					goto next_px;
-			}
-
-			if (!promex_dump_metric(appctx, prefix, IST_NULL,
-						promex_sticktable_metric_desc[ctx->field_num],
-						&promex_sticktable_metrics[ctx->field_num],
-						&val, labels, &out, max))
-				goto full;
-
-		  next_px:
-			t = t->next;
-		}
-		ctx->flags |= PROMEX_FL_METRIC_HDR;
+	if (!ref) {
+		ref = LIST_NEXT(&ctx->modules, typeof(ref), list);
+		ctx->mod_field_num = 0;
 	}
 
-	t = NULL;
+	list_for_each_entry_from(ref, &ctx->modules, list) {
+		ret = promex_dump_module_metrics(appctx, ref->mod, &out, max);
+		if (ret <= 0) {
+			if (ret == -1)
+				return -1;
+			goto full;
+		}
+		ctx->mod_field_num = 0;
+	}
+
+	ref = NULL;
 
   end:
 	if (out.len) {
@@ -1543,8 +1574,48 @@ static int promex_dump_sticktable_metrics(struct appctx *appctx, struct htx *htx
 			return -1; /* Unexpected and unrecoverable error */
 		channel_add_input(chn, out.len);
 	}
-	/* Save pointers (0=current stick-table) of the current context */
-	ctx->p[0] = t;
+	ctx->p[0] = ref;
+	return ret;
+  full:
+	ret = 0;
+	goto end;
+}
+
+/* Dump metrics of all registered modules. It returns 1 on success, 0 if <htx> is
+ * full and -1 in case of any error. */
+static int promex_dump_all_modules_metrics(struct appctx *appctx, struct htx *htx)
+{
+	struct promex_ctx *ctx = appctx->svcctx;
+	struct promex_module *mod = ctx->p[0];
+	struct channel *chn = sc_ic(appctx_sc(appctx));
+	struct ist out = ist2(trash.area, 0);
+	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
+	int ret = 1;
+
+	if (!mod) {
+		mod = LIST_NEXT(&promex_module_list, typeof(mod), list);
+		ctx->mod_field_num = 0;
+	}
+
+	list_for_each_entry_from(mod, &promex_module_list, list) {
+		ret = promex_dump_module_metrics(appctx, mod, &out, max);
+		if (ret <= 0) {
+			if (ret == -1)
+				return -1;
+			goto full;
+		}
+		ctx->mod_field_num = 0;
+	}
+
+	mod = NULL;
+
+  end:
+	if (out.len) {
+		if (!htx_add_data_atonce(htx, out))
+			return -1; /* Unexpected and unrecoverable error */
+		channel_add_input(chn, out.len);
+	}
+	ctx->p[0] = mod;
 	return ret;
   full:
 	ret = 0;
@@ -1670,6 +1741,26 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 			}
 
 			ctx->flags &= ~(PROMEX_FL_METRIC_HDR|PROMEX_FL_STICKTABLE_METRIC);
+			ctx->flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_MODULE_METRIC);
+			ctx->field_num = 0;
+			ctx->mod_field_num = 0;
+			appctx->st1 = PROMEX_DUMPER_MODULES;
+			__fallthrough;
+
+		case PROMEX_DUMPER_MODULES:
+			if (ctx->flags & PROMEX_FL_SCOPE_MODULE) {
+				if (LIST_ISEMPTY(&ctx->modules))
+					ret = promex_dump_all_modules_metrics(appctx, htx);
+				else
+					ret = promex_dump_ref_modules_metrics(appctx, htx);
+				if (ret <= 0) {
+					if (ret == -1)
+						goto error;
+					goto full;
+				}
+			}
+
+			ctx->flags &= ~(PROMEX_FL_METRIC_HDR|PROMEX_FL_MODULE_METRIC);
 			ctx->field_num = 0;
 			ctx->mod_field_num = 0;
 			appctx->st1 = PROMEX_DUMPER_DONE;
@@ -1783,8 +1874,24 @@ static int promex_parse_uri(struct appctx *appctx, struct stconn *sc)
 				ctx->flags |= PROMEX_FL_SCOPE_LI;
 			else if (strcmp(value, "sticktable") == 0)
 				ctx->flags |= PROMEX_FL_SCOPE_STICKTABLE;
-			else
-				goto error;
+			else {
+				struct promex_module *mod;
+				struct promex_module_ref *ref;
+
+				list_for_each_entry(mod, &promex_module_list, list) {
+					if (strncmp(value, istptr(mod->name), istlen(mod->name)) == 0) {
+						ref = pool_alloc(pool_head_promex_mod_ref);
+						if (!ref)
+							goto internal_error;
+						ctx->flags |= PROMEX_FL_SCOPE_MODULE;
+						ref->mod = mod;
+						LIST_APPEND(&ctx->modules, &ref->list);
+						break;
+					}
+				}
+				if (!(ctx->flags & PROMEX_FL_SCOPE_MODULE))
+					goto error;
+			}
 		}
 		else if (strcmp(key, "extra-counters") == 0) {
 			ctx->flags |= PROMEX_FL_EXTRA_COUNTERS;
@@ -1798,6 +1905,15 @@ static int promex_parse_uri(struct appctx *appctx, struct stconn *sc)
 	return 1;
 
   error:
+	err = &http_err_chunks[HTTP_ERR_400];
+	channel_erase(res);
+	res->buf.data = b_data(err);
+	memcpy(res->buf.area, b_head(err), b_data(err));
+	res_htx = htx_from_buf(&res->buf);
+	channel_add_input(res, res_htx->data);
+	return -1;
+
+  internal_error:
 	err = &http_err_chunks[HTTP_ERR_400];
 	channel_erase(res);
 	res->buf.data = b_data(err);
@@ -1840,9 +1956,28 @@ static int promex_send_headers(struct appctx *appctx, struct stconn *sc, struct 
  */
 static int promex_appctx_init(struct appctx *appctx)
 {
+	struct promex_ctx *ctx;
+
 	applet_reserve_svcctx(appctx, sizeof(struct promex_ctx));
+	ctx = appctx->svcctx;
+	memset(ctx->p, 0, sizeof(ctx->p));
+	LIST_INIT(&ctx->modules);
 	appctx->st0 = PROMEX_ST_INIT;
 	return 0;
+}
+
+
+/* Callback function that releases a promex applet. This happens when the
+ * connection with the agent is closed. */
+static void promex_appctx_release(struct appctx *appctx)
+{
+	struct promex_ctx *ctx = appctx->svcctx;
+	struct promex_module_ref *ref, *back;
+
+	list_for_each_entry_safe(ref, back, &ctx->modules, list) {
+		LIST_DELETE(&ref->list);
+		pool_free(pool_head_promex_mod_ref, ref);
+	}
 }
 
 /* The main I/O handler for the promex applet. */
@@ -1936,6 +2071,7 @@ struct applet promex_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<PROMEX>", /* used for logging */
 	.init = promex_appctx_init,
+	.release = promex_appctx_release,
 	.fct = promex_appctx_handle_io,
 };
 
