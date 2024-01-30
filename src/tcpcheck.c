@@ -75,26 +75,13 @@ DECLARE_POOL(pool_head_tcpcheck_rule, "tcpcheck_rule", sizeof(struct tcpcheck_ru
 /**************************************************************************/
 /*************** Init/deinit tcp-check rules and ruleset ******************/
 /**************************************************************************/
-/* Releases memory allocated for a log-format string */
-static void free_tcpcheck_fmt(struct list *fmt)
-{
-	struct logformat_node *lf, *lfb;
-
-	list_for_each_entry_safe(lf, lfb, fmt, list) {
-		LIST_DELETE(&lf->list);
-		release_sample_expr(lf->expr);
-		free(lf->arg);
-		free(lf);
-	}
-}
-
 /* Releases memory allocated for an HTTP header used in a tcp-check send rule */
 void free_tcpcheck_http_hdr(struct tcpcheck_http_hdr *hdr)
 {
 	if (!hdr)
 		return;
 
-	free_tcpcheck_fmt(&hdr->value);
+	free_logformat_list(&hdr->value);
 	istfree(&hdr->name);
 	free(hdr);
 }
@@ -131,28 +118,28 @@ void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 			break;
 		case TCPCHK_SEND_STRING_LF:
 		case TCPCHK_SEND_BINARY_LF:
-			free_tcpcheck_fmt(&rule->send.fmt);
+			free_logformat_list(&rule->send.fmt);
 			break;
 		case TCPCHK_SEND_HTTP:
 			free(rule->send.http.meth.str.area);
 			if (!(rule->send.http.flags & TCPCHK_SND_HTTP_FL_URI_FMT))
 				istfree(&rule->send.http.uri);
 			else
-				free_tcpcheck_fmt(&rule->send.http.uri_fmt);
+				free_logformat_list(&rule->send.http.uri_fmt);
 			istfree(&rule->send.http.vsn);
 			free_tcpcheck_http_hdrs(&rule->send.http.hdrs);
 			if (!(rule->send.http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT))
 				istfree(&rule->send.http.body);
 			else
-				free_tcpcheck_fmt(&rule->send.http.body_fmt);
+				free_logformat_list(&rule->send.http.body_fmt);
 			break;
 		case TCPCHK_SEND_UNDEF:
 			break;
 		}
 		break;
 	case TCPCHK_ACT_EXPECT:
-		free_tcpcheck_fmt(&rule->expect.onerror_fmt);
-		free_tcpcheck_fmt(&rule->expect.onsuccess_fmt);
+		free_logformat_list(&rule->expect.onerror_fmt);
+		free_logformat_list(&rule->expect.onsuccess_fmt);
 		release_sample_expr(rule->expect.status_expr);
 		switch (rule->expect.type) {
 		case TCPCHK_EXPECT_HTTP_STATUS:
@@ -172,20 +159,20 @@ void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 		case TCPCHK_EXPECT_STRING_LF:
 		case TCPCHK_EXPECT_BINARY_LF:
 		case TCPCHK_EXPECT_HTTP_BODY_LF:
-			free_tcpcheck_fmt(&rule->expect.fmt);
+			free_logformat_list(&rule->expect.fmt);
 			break;
 		case TCPCHK_EXPECT_HTTP_HEADER:
 			if (rule->expect.flags & TCPCHK_EXPT_FL_HTTP_HNAME_REG)
 				regex_free(rule->expect.hdr.name_re);
 			else if (rule->expect.flags & TCPCHK_EXPT_FL_HTTP_HNAME_FMT)
-				free_tcpcheck_fmt(&rule->expect.hdr.name_fmt);
+				free_logformat_list(&rule->expect.hdr.name_fmt);
 			else
 				istfree(&rule->expect.hdr.name);
 
 			if (rule->expect.flags & TCPCHK_EXPT_FL_HTTP_HVAL_REG)
 				regex_free(rule->expect.hdr.value_re);
 			else if (rule->expect.flags & TCPCHK_EXPT_FL_HTTP_HVAL_FMT)
-				free_tcpcheck_fmt(&rule->expect.hdr.value_fmt);
+				free_logformat_list(&rule->expect.hdr.value_fmt);
 			else if (!(rule->expect.flags & TCPCHK_EXPT_FL_HTTP_HVAL_NONE))
 				istfree(&rule->expect.hdr.value);
 			break;
@@ -3513,7 +3500,7 @@ void tcpcheck_overwrite_send_http_rule(struct tcpcheck_rule *old, struct tcpchec
 		if (!(old->send.http.flags & TCPCHK_SND_HTTP_FL_URI_FMT))
 			istfree(&old->send.http.uri);
 		else
-			free_tcpcheck_fmt(&old->send.http.uri_fmt);
+			free_logformat_list(&old->send.http.uri_fmt);
 		old->send.http.flags &= ~TCPCHK_SND_HTTP_FL_URI_FMT;
 		old->send.http.uri = new->send.http.uri;
 		new->send.http.uri = IST_NULL;
@@ -3522,7 +3509,7 @@ void tcpcheck_overwrite_send_http_rule(struct tcpcheck_rule *old, struct tcpchec
 		if (!(old->send.http.flags & TCPCHK_SND_HTTP_FL_URI_FMT))
 			istfree(&old->send.http.uri);
 		else
-			free_tcpcheck_fmt(&old->send.http.uri_fmt);
+			free_logformat_list(&old->send.http.uri_fmt);
 		old->send.http.flags |= TCPCHK_SND_HTTP_FL_URI_FMT;
 		LIST_INIT(&old->send.http.uri_fmt);
 		list_for_each_entry_safe(lf, lfb, &new->send.http.uri_fmt, list) {
@@ -3549,7 +3536,7 @@ void tcpcheck_overwrite_send_http_rule(struct tcpcheck_rule *old, struct tcpchec
 		if (!(old->send.http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT))
 			istfree(&old->send.http.body);
 		else
-			free_tcpcheck_fmt(&old->send.http.body_fmt);
+			free_logformat_list(&old->send.http.body_fmt);
 		old->send.http.flags &= ~TCPCHK_SND_HTTP_FL_BODY_FMT;
 		old->send.http.body = new->send.http.body;
 		new->send.http.body = IST_NULL;
@@ -3558,7 +3545,7 @@ void tcpcheck_overwrite_send_http_rule(struct tcpcheck_rule *old, struct tcpchec
 		if (!(old->send.http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT))
 			istfree(&old->send.http.body);
 		else
-			free_tcpcheck_fmt(&old->send.http.body_fmt);
+			free_logformat_list(&old->send.http.body_fmt);
 		old->send.http.flags |= TCPCHK_SND_HTTP_FL_BODY_FMT;
 		LIST_INIT(&old->send.http.body_fmt);
 		list_for_each_entry_safe(lf, lfb, &new->send.http.body_fmt, list) {

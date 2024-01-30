@@ -134,16 +134,7 @@ static void fcgi_release_rule(struct fcgi_rule *rule)
 	if (!rule)
 		return;
 
-	if (!LIST_ISEMPTY(&rule->value)) {
-		struct logformat_node *lf, *lfb;
-
-		list_for_each_entry_safe(lf, lfb, &rule->value, list) {
-			LIST_DELETE(&lf->list);
-			release_sample_expr(lf->expr);
-			free(lf->arg);
-			free(lf);
-		}
-	}
+	free_logformat_list(&rule->value);
 	/* ->cond and ->name are not owned by the rule */
 	free(rule);
 }

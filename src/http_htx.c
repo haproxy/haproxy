@@ -1117,7 +1117,6 @@ error:
 
 void release_http_reply(struct http_reply *http_reply)
 {
-	struct logformat_node *lf, *lfb;
 	struct http_reply_hdr *hdr, *hdrb;
 
 	if (!http_reply)
@@ -1126,12 +1125,7 @@ void release_http_reply(struct http_reply *http_reply)
 	ha_free(&http_reply->ctype);
 	list_for_each_entry_safe(hdr, hdrb, &http_reply->hdrs, list) {
 		LIST_DELETE(&hdr->list);
-		list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
-			LIST_DELETE(&lf->list);
-			release_sample_expr(lf->expr);
-			free(lf->arg);
-			free(lf);
-		}
+		free_logformat_list(&hdr->value);
 		istfree(&hdr->name);
 		free(hdr);
 	}
@@ -1141,14 +1135,8 @@ void release_http_reply(struct http_reply *http_reply)
 	}
 	else if (http_reply->type == HTTP_REPLY_RAW)
 		chunk_destroy(&http_reply->body.obj);
-	else if (http_reply->type == HTTP_REPLY_LOGFMT) {
-		list_for_each_entry_safe(lf, lfb, &http_reply->body.fmt, list) {
-			LIST_DELETE(&lf->list);
-			release_sample_expr(lf->expr);
-			free(lf->arg);
-			free(lf);
-		}
-	}
+	else if (http_reply->type == HTTP_REPLY_LOGFMT)
+		free_logformat_list(&http_reply->body.fmt);
 	free(http_reply);
 }
 
@@ -1497,7 +1485,6 @@ int http_check_http_reply(struct http_reply *reply, struct proxy *px, char **err
 struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struct proxy *px,
 					 int default_status, char **errmsg)
 {
-	struct logformat_node *lf, *lfb;
 	struct http_reply *reply = NULL;
 	struct http_reply_hdr *hdr, *hdrb;
 	struct stat stat;
@@ -1778,12 +1765,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 				   px->conf.args.file, px->conf.args.line);
 			list_for_each_entry_safe(hdr, hdrb, &reply->hdrs, list) {
 				LIST_DELETE(&hdr->list);
-				list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
-					LIST_DELETE(&lf->list);
-					release_sample_expr(lf->expr);
-					free(lf->arg);
-					free(lf);
-				}
+				free_logformat_list(&hdr->value);
 				istfree(&hdr->name);
 				free(hdr);
 			}

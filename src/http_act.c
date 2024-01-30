@@ -46,17 +46,10 @@
  */
 static void release_http_action(struct act_rule *rule)
 {
-	struct logformat_node *lf, *lfb;
-
 	istfree(&rule->arg.http.str);
 	if (rule->arg.http.re)
 		regex_free(rule->arg.http.re);
-	list_for_each_entry_safe(lf, lfb, &rule->arg.http.fmt, list) {
-		LIST_DELETE(&lf->list);
-		release_sample_expr(lf->expr);
-		free(lf->arg);
-		free(lf);
-	}
+	free_logformat_list(&rule->arg.http.fmt);
 }
 
 /* Release memory allocated by HTTP actions relying on an http reply. Concretly,
@@ -1901,23 +1894,10 @@ static enum act_return http_action_set_map(struct act_rule *rule, struct proxy *
 /* Release memory allocated by an http map/acl action. */
 static void release_http_map(struct act_rule *rule)
 {
-	struct logformat_node *lf, *lfb;
-
 	free(rule->arg.map.ref);
-	list_for_each_entry_safe(lf, lfb, &rule->arg.map.key, list) {
-		LIST_DELETE(&lf->list);
-		release_sample_expr(lf->expr);
-		free(lf->arg);
-		free(lf);
-	}
-	if (rule->action == 1) {
-		list_for_each_entry_safe(lf, lfb, &rule->arg.map.value, list) {
-			LIST_DELETE(&lf->list);
-			release_sample_expr(lf->expr);
-			free(lf->arg);
-			free(lf);
-		}
-	}
+	free_logformat_list(&rule->arg.map.key);
+	if (rule->action == 1)
+		free_logformat_list(&rule->arg.map.value);
 }
 
 /* Parse a "add-acl", "del-acl", "set-map" or "del-map" actions. It takes one or

@@ -320,17 +320,10 @@ struct act_rule *parse_http_after_res_cond(const char **args, const char *file, 
 /* completely free redirect rule */
 void http_free_redirect_rule(struct redirect_rule *rdr)
 {
-	struct logformat_node *lf, *lfb;
-
 	free_acl_cond(rdr->cond);
 	free(rdr->rdr_str);
 	free(rdr->cookie_str);
-	list_for_each_entry_safe(lf, lfb, &rdr->rdr_fmt, list) {
-		LIST_DELETE(&lf->list);
-		release_sample_expr(lf->expr);
-		free(lf->arg);
-		free(lf);
-	}
+	free_logformat_list(&rdr->rdr_fmt);
 	free(rdr);
 }
 

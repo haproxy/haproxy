@@ -177,18 +177,6 @@ void free_stick_rules(struct list *rules)
 	}
 }
 
-static void free_logformat_list(struct list *lfs)
-{
-	struct logformat_node *lf, *lfb;
-
-	list_for_each_entry_safe(lf, lfb, lfs, list) {
-		LIST_DELETE(&lf->list);
-		release_sample_expr(lf->expr);
-		free(lf->arg);
-		free(lf);
-	}
-}
-
 void free_server_rules(struct list *srules)
 {
 	struct server_rule *srule, *sruleb;

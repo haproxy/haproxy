@@ -64,6 +64,9 @@ void syslog_fd_handler(int fd);
 int init_log_buffers(void);
 void deinit_log_buffers(void);
 
+/* Deinitialize log buffers used for syslog messages */
+void free_logformat_list(struct list *fmt);
+
 /* build a log line for the session and an optional stream */
 int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t maxsize, struct list *list_format);
 

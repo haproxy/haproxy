@@ -2575,6 +2575,22 @@ void deinit_log_forward()
 	}
 }
 
+/* Releases memory allocated for a log-format string */
+void free_logformat_list(struct list *fmt)
+{
+	struct logformat_node *lf, *lfb;
+
+	if ((fmt == NULL) || LIST_ISEMPTY(fmt))
+		return;
+
+	list_for_each_entry_safe(lf, lfb, fmt, list) {
+		LIST_DELETE(&lf->list);
+		release_sample_expr(lf->expr);
+		free(lf->arg);
+		free(lf);
+	}
+}
+
 /* Builds a log line in <dst> based on <list_format>, and stops before reaching
  * <maxsize> characters. Returns the size of the output string in characters,
  * not counting the trailing zero which is always added if the resulting size
