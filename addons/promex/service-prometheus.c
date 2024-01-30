@@ -457,7 +457,7 @@ static int promex_metric_to_str(struct buffer *out, struct field *f, size_t max)
 /* Dump the header lines for <metric>. It is its #HELP and #TYPE strings. It
  * returns 1 on success. Otherwise, if <out> length exceeds <max>, it returns 0.
  */
-static int promex_dump_metric_header(struct appctx *appctx, struct htx *htx, const struct promex_metric *metric,
+static int promex_dump_metric_header(struct appctx *appctx, const struct promex_metric *metric,
 				     const struct ist name, const struct ist d,
 				     struct ist *out, size_t max)
 {
@@ -504,7 +504,7 @@ static int promex_dump_metric_header(struct appctx *appctx, struct htx *htx, con
  * not already done, the header lines are dumped first. It returns 1 on
  * success. Otherwise if <out> length exceeds <max>, it returns 0.
  */
-static int promex_dump_metric(struct appctx *appctx, struct htx *htx, struct ist prefix,
+static int promex_dump_metric(struct appctx *appctx, struct ist prefix,
 			      const struct ist n, const  struct ist desc, const struct promex_metric *metric,
 			      struct field *val, struct promex_label *labels, struct ist *out, size_t max)
 {
@@ -520,7 +520,7 @@ static int promex_dump_metric(struct appctx *appctx, struct htx *htx, struct ist
 	istcat(&name, (isttest(n) ? n : metric->n), PROMEX_MAX_NAME_LEN);
 
 	if ((ctx->flags & PROMEX_FL_METRIC_HDR) &&
-	    !promex_dump_metric_header(appctx, htx, metric, name, desc, out, max))
+	    !promex_dump_metric_header(appctx, metric, name, desc, out, max))
 		goto full;
 
 	if (istcat(out, name, max) == -1)
@@ -599,7 +599,7 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 				val = info[ctx->field_num];
 		}
 
-		if (!promex_dump_metric(appctx, htx, prefix, IST_NULL, IST_NULL,
+		if (!promex_dump_metric(appctx, prefix, IST_NULL, IST_NULL,
 					&promex_global_metrics[ctx->field_num],
 					&val, labels, &out, max))
 			goto full;
@@ -663,7 +663,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 						labels[1].value = promex_front_st[ctx->obj_state];
 						val = mkf_u32(FO_STATUS, state == ctx->obj_state);
 
-						if (!promex_dump_metric(appctx, htx, prefix,
+						if (!promex_dump_metric(appctx, prefix,
 									promex_st_front_metrics_names[ctx->field_num],
 									promex_st_metric_desc[ctx->field_num],
 									&promex_st_metrics[ctx->field_num],
@@ -704,7 +704,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 					val = stats[ctx->field_num];
 			}
 
-			if (!promex_dump_metric(appctx, htx, prefix,
+			if (!promex_dump_metric(appctx, prefix,
 						promex_st_front_metrics_names[ctx->field_num],
 						promex_st_metric_desc[ctx->field_num],
 						&promex_st_metrics[ctx->field_num],
@@ -759,7 +759,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 				val = stats[ctx->field_num + ctx->mod_field_num];
 				metric.type = ((val.type == FN_GAUGE) ? PROMEX_MT_GAUGE : PROMEX_MT_COUNTER);
 
-				if (!promex_dump_metric(appctx, htx, prefix,
+				if (!promex_dump_metric(appctx, prefix,
 							ist2(mod->stats[ctx->mod_field_num].name, strlen(mod->stats[ctx->mod_field_num].name)),
 							ist2(mod->stats[ctx->mod_field_num].desc, strlen(mod->stats[ctx->mod_field_num].desc)),
 							&metric, &val, labels, &out, max))
@@ -849,7 +849,7 @@ static int promex_dump_listener_metrics(struct appctx *appctx, struct htx *htx)
 							val = mkf_u32(FO_STATUS, status == ctx->obj_state);
 							labels[2].name = ist("state");
 							labels[2].value = ist(li_status_st[ctx->obj_state]);
-							if (!promex_dump_metric(appctx, htx, prefix,
+							if (!promex_dump_metric(appctx, prefix,
 										promex_st_li_metrics_names[ctx->field_num],
 										promex_st_metric_desc[ctx->field_num],
 										&promex_st_metrics[ctx->field_num],
@@ -862,7 +862,7 @@ static int promex_dump_listener_metrics(struct appctx *appctx, struct htx *htx)
 						val = stats[ctx->field_num];
 				}
 
-				if (!promex_dump_metric(appctx, htx, prefix,
+				if (!promex_dump_metric(appctx, prefix,
 							promex_st_li_metrics_names[ctx->field_num],
 							promex_st_metric_desc[ctx->field_num],
 							&promex_st_metrics[ctx->field_num],
@@ -930,7 +930,7 @@ static int promex_dump_listener_metrics(struct appctx *appctx, struct htx *htx)
 					val = stats[ctx->field_num + ctx->mod_field_num];
 					metric.type = ((val.type == FN_GAUGE) ? PROMEX_MT_GAUGE : PROMEX_MT_COUNTER);
 
-					if (!promex_dump_metric(appctx, htx, prefix,
+					if (!promex_dump_metric(appctx, prefix,
 								ist2(mod->stats[ctx->mod_field_num].name, strlen(mod->stats[ctx->mod_field_num].name)),
 								ist2(mod->stats[ctx->mod_field_num].desc, strlen(mod->stats[ctx->mod_field_num].desc)),
 								&metric, &val, labels, &out, max))
@@ -1026,7 +1026,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 						val = mkf_u32(FN_GAUGE, srv_state_count[ctx->obj_state]);
 						labels[1].name = ist("state");
 						labels[1].value = promex_srv_st[ctx->obj_state];
-						if (!promex_dump_metric(appctx, htx, prefix,
+						if (!promex_dump_metric(appctx, prefix,
 									promex_st_back_metrics_names[ctx->field_num],
 									promex_st_metric_desc[ctx->field_num],
 									&promex_st_metrics[ctx->field_num],
@@ -1053,7 +1053,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 						check_state = get_check_status_info(ctx->obj_state);
 						labels[1].name = ist("state");
 						labels[1].value = ist(check_state);
-						if (!promex_dump_metric(appctx, htx, prefix,
+						if (!promex_dump_metric(appctx, prefix,
 									promex_st_back_metrics_names[ctx->field_num],
 									promex_st_metric_desc[ctx->field_num],
 									&promex_st_metrics[ctx->field_num],
@@ -1068,7 +1068,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 						labels[1].name = ist("state");
 						labels[1].value = promex_back_st[ctx->obj_state];
 						val = mkf_u32(FO_STATUS, bkd_state == ctx->obj_state);
-						if (!promex_dump_metric(appctx, htx, prefix,
+						if (!promex_dump_metric(appctx, prefix,
 									promex_st_back_metrics_names[ctx->field_num],
 									promex_st_metric_desc[ctx->field_num],
 									&promex_st_metrics[ctx->field_num],
@@ -1139,7 +1139,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 					val = stats[ctx->field_num];
 			}
 
-			if (!promex_dump_metric(appctx, htx, prefix,
+			if (!promex_dump_metric(appctx, prefix,
 						promex_st_back_metrics_names[ctx->field_num],
 						promex_st_metric_desc[ctx->field_num],
 						&promex_st_metrics[ctx->field_num],
@@ -1194,7 +1194,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 				val = stats[ctx->field_num + ctx->mod_field_num];
 				metric.type = ((val.type == FN_GAUGE) ? PROMEX_MT_GAUGE : PROMEX_MT_COUNTER);
 
-				if (!promex_dump_metric(appctx, htx, prefix,
+				if (!promex_dump_metric(appctx, prefix,
 							ist2(mod->stats[ctx->mod_field_num].name, strlen(mod->stats[ctx->mod_field_num].name)),
 							ist2(mod->stats[ctx->mod_field_num].desc, strlen(mod->stats[ctx->mod_field_num].desc)),
 							&metric, &val, labels, &out, max))
@@ -1284,7 +1284,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 							val = mkf_u32(FO_STATUS, state == ctx->obj_state);
 							labels[2].name = ist("state");
 							labels[2].value = promex_srv_st[ctx->obj_state];
-							if (!promex_dump_metric(appctx, htx, prefix,
+							if (!promex_dump_metric(appctx, prefix,
 										promex_st_srv_metrics_names[ctx->field_num],
 										promex_st_metric_desc[ctx->field_num],
 										&promex_st_metrics[ctx->field_num],
@@ -1336,7 +1336,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 							check_state = get_check_status_info(ctx->obj_state);
 							labels[2].name = ist("state");
 							labels[2].value = ist(check_state);
-							if (!promex_dump_metric(appctx, htx, prefix,
+							if (!promex_dump_metric(appctx, prefix,
 										promex_st_srv_metrics_names[ctx->field_num],
 										promex_st_metric_desc[ctx->field_num],
 										&promex_st_metrics[ctx->field_num],
@@ -1384,7 +1384,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 						val = stats[ctx->field_num];
 				}
 
-				if (!promex_dump_metric(appctx, htx, prefix,
+				if (!promex_dump_metric(appctx, prefix,
 							promex_st_srv_metrics_names[ctx->field_num],
 							promex_st_metric_desc[ctx->field_num],
 							&promex_st_metrics[ctx->field_num],
@@ -1454,7 +1454,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 					val = stats[ctx->field_num + ctx->mod_field_num];
 					metric.type = ((val.type == FN_GAUGE) ? PROMEX_MT_GAUGE : PROMEX_MT_COUNTER);
 
-					if (!promex_dump_metric(appctx, htx, prefix,
+					if (!promex_dump_metric(appctx, prefix,
 								ist2(mod->stats[ctx->mod_field_num].name, strlen(mod->stats[ctx->mod_field_num].name)),
 								ist2(mod->stats[ctx->mod_field_num].desc, strlen(mod->stats[ctx->mod_field_num].desc)),
 								&metric, &val, labels, &out, max))
@@ -1535,7 +1535,7 @@ static int promex_dump_sticktable_metrics(struct appctx *appctx, struct htx *htx
 					goto next_px;
 			}
 
-			if (!promex_dump_metric(appctx, htx, prefix, IST_NULL,
+			if (!promex_dump_metric(appctx, prefix, IST_NULL,
 						promex_sticktable_metric_desc[ctx->field_num],
 						&promex_sticktable_metrics[ctx->field_num],
 						&val, labels, &out, max))
