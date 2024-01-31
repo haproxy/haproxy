@@ -46,6 +46,18 @@
 #include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 
+#if defined(USE_PROMEX)
+#include <promex/promex.h>
+#endif
+
+/* stick table base fields */
+enum sticktable_field {
+	STICKTABLE_SIZE = 0,
+	STICKTABLE_USED,
+	/* must always be the last one */
+	STICKTABLE_TOTAL_FIELDS
+};
+
 
 /* structure used to return a table key built from a sample */
 static THREAD_LOCAL struct stktable_key static_table_key;
@@ -5736,3 +5748,73 @@ static struct cfg_kw_list cfg_kws = {{ },{
 }};
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
+
+#if defined(USE_PROMEX)
+
+static int stk_promex_metric_info(unsigned int id, struct promex_metric *metric, struct ist *desc)
+{
+	switch (id) {
+		case STICKTABLE_SIZE:
+			*metric = (struct promex_metric){ .n = ist("size"), .type = PROMEX_MT_GAUGE, .flags = PROMEX_FL_MODULE_METRIC };
+			*desc = ist("Stick table size.");
+			break;
+		case STICKTABLE_USED:
+			*metric = (struct promex_metric){ .n = ist("used"), .type = PROMEX_MT_GAUGE, .flags = PROMEX_FL_MODULE_METRIC };
+			*desc = ist("Number of entries used in this stick table.");
+			break;
+		default:
+			return -1;
+	}
+	return 1;
+}
+
+static void *stk_promex_start_ts(void *unused, unsigned int id)
+{
+	return stktables_list;
+}
+
+static void *stk_promex_next_ts(void *unsued, void *metric_ctx, unsigned int id)
+{
+	struct stktable *t = metric_ctx;
+
+	return t->next;
+}
+
+static int stk_promex_fill_ts(void *unused, void *metric_ctx, unsigned int id, struct promex_label *labels, struct field *field)
+{
+	struct stktable *t = metric_ctx;
+
+	if (!t->size)
+		return 0;
+
+	labels[0].name  = ist("name");
+	labels[0].value = ist2(t->id, strlen(t->id));
+	labels[1].name  = ist("type");
+	labels[1].value = ist2(stktable_types[t->type].kw, strlen(stktable_types[t->type].kw));
+
+	switch (id) {
+		case STICKTABLE_SIZE:
+			*field = mkf_u32(FN_GAUGE, t->size);
+			break;
+		case STICKTABLE_USED:
+			*field = mkf_u32(FN_GAUGE, t->current);
+			break;
+		default:
+			return -1;
+	}
+	return 1;
+}
+
+static struct promex_module promex_sticktable_module = {
+	.name        = IST("sticktable"),
+	.metric_info = stk_promex_metric_info,
+	.start_ts    = stk_promex_start_ts,
+	.next_ts     = stk_promex_next_ts,
+	.fill_ts     = stk_promex_fill_ts,
+	.nb_metrics  = STICKTABLE_TOTAL_FIELDS,
+};
+
+INITCALL1(STG_REGISTER, promex_register_module, &promex_sticktable_module);
+
+#endif

@@ -59,8 +59,7 @@ enum {
 	PROMEX_DUMPER_BACK,       /* dump metrics of backend proxies */
 	PROMEX_DUMPER_LI,         /* dump metrics of listeners */
 	PROMEX_DUMPER_SRV,        /* dump metrics of servers */
-	PROMEX_DUMPER_STICKTABLE, /* dump metrics of stick tables */
-	PROMEX_DUMPER_MODULES,    /* dump metrics of stick tables */
+	PROMEX_DUMPER_MODULES,    /* dump metrics of modules */
 	PROMEX_DUMPER_DONE,       /* finished */
 };
 
@@ -304,25 +303,6 @@ const struct ist promex_st_metric_desc[ST_F_TOTAL_FIELDS] = {
 	[ST_F_CT_MAX]         = IST("Maximum observed time spent waiting for a connection to complete"),
 	[ST_F_RT_MAX]         = IST("Maximum observed time spent waiting for a server response"),
 	[ST_F_TT_MAX]         = IST("Maximum observed total request+response time (request+queue+connect+response+processing)"),
-};
-
-/* stick table base fields */
-enum sticktable_field {
-	STICKTABLE_SIZE = 0,
-	STICKTABLE_USED,
-	/* must always be the last one */
-	STICKTABLE_TOTAL_FIELDS
-};
-
-const struct promex_metric promex_sticktable_metrics[STICKTABLE_TOTAL_FIELDS] = {
-	[STICKTABLE_SIZE] = { .n = IST("size"), .type = PROMEX_MT_GAUGE, .flags = PROMEX_FL_STICKTABLE_METRIC },
-	[STICKTABLE_USED] = { .n = IST("used"), .type = PROMEX_MT_GAUGE, .flags = PROMEX_FL_STICKTABLE_METRIC },
-};
-
-/* stick table base description */
-const struct ist promex_sticktable_metric_desc[STICKTABLE_TOTAL_FIELDS] = {
-	[STICKTABLE_SIZE] = IST("Stick table size."),
-	[STICKTABLE_USED] = IST("Number of entries used in this stick table."),
 };
 
 /* Specific labels for all ST_F_HRSP_* fields */
@@ -1724,23 +1704,6 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 			}
 
 			ctx->flags &= ~(PROMEX_FL_METRIC_HDR|PROMEX_FL_SRV_METRIC);
-			ctx->flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_STICKTABLE_METRIC);
-			ctx->field_num = STICKTABLE_SIZE;
-			ctx->mod_field_num = 0;
-			appctx->st1 = PROMEX_DUMPER_STICKTABLE;
-			__fallthrough;
-
-		case PROMEX_DUMPER_STICKTABLE:
-			if (ctx->flags & PROMEX_FL_SCOPE_STICKTABLE) {
-				ret = promex_dump_sticktable_metrics(appctx, htx);
-				if (ret <= 0) {
-					if (ret == -1)
-						goto error;
-					goto full;
-				}
-			}
-
-			ctx->flags &= ~(PROMEX_FL_METRIC_HDR|PROMEX_FL_STICKTABLE_METRIC);
 			ctx->flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_MODULE_METRIC);
 			ctx->field_num = 0;
 			ctx->mod_field_num = 0;
@@ -1872,8 +1835,6 @@ static int promex_parse_uri(struct appctx *appctx, struct stconn *sc)
 				ctx->flags |= PROMEX_FL_SCOPE_FRONT;
 			else if (strcmp(value, "listener") == 0)
 				ctx->flags |= PROMEX_FL_SCOPE_LI;
-			else if (strcmp(value, "sticktable") == 0)
-				ctx->flags |= PROMEX_FL_SCOPE_STICKTABLE;
 			else {
 				struct promex_module *mod;
 				struct promex_module_ref *ref;
