@@ -39,6 +39,7 @@
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
+#include <haproxy/xxhash.h>
 
 #include <promex/promex.h>
 
@@ -68,6 +69,12 @@ struct promex_module_ref {
 	struct list list;
 };
 
+/* An entry in a headers map */
+struct promex_metric_filter  {
+	int exclude;
+        struct eb32_node node;
+};
+
 /* the context of the applet */
 struct promex_ctx {
 	void *p[4];                /* generic pointers used to save context  */
@@ -76,6 +83,7 @@ struct promex_ctx {
 	unsigned mod_field_num;    /* first field number of the current module (ST_F_* etc) */
 	int obj_state;             /* current state among PROMEX_{FRONT|BACK|SRV|LI}_STATE_* */
 	struct list modules;       /* list of promex modules to export */
+	struct eb_root filters;    /* list of filters to apply on metrics name */
 };
 
 /* The max length for metrics name. It is a hard limit but it should be
@@ -365,8 +373,9 @@ void promex_register_module(struct promex_module *m)
 	LIST_APPEND(&promex_module_list, &m->list);
 }
 
-/* Pools used to allocate ref on Promex modules */
-DECLARE_STATIC_POOL(pool_head_promex_mod_ref,   "promex_module_ref",  sizeof(struct promex_module_ref));
+/* Pools used to allocate ref on Promex modules and filters */
+DECLARE_STATIC_POOL(pool_head_promex_mod_ref,    "promex_module_ref",  sizeof(struct promex_module_ref));
+DECLARE_STATIC_POOL(pool_head_promex_metric_flt, "promex_metric_filter", sizeof(struct promex_metric_filter));
 
 /* Return the server status. */
 enum promex_srv_state promex_srv_status(struct server *sv)
@@ -521,6 +530,32 @@ static int promex_dump_ts(struct appctx *appctx, struct ist prefix,
 
 }
 
+static int promex_filter_metric(struct appctx *appctx, struct ist prefix, struct ist name)
+{
+	struct promex_ctx *ctx = appctx->svcctx;
+	struct eb32_node *node;
+	struct promex_metric_filter *flt;
+	unsigned int hash;
+	XXH32_state_t state;
+
+	if (!eb_is_empty(&ctx->filters)) {
+		XXH32_reset(&state, 0);
+		XXH32_update(&state, istptr(prefix), istlen(prefix));
+		XXH32_update(&state, istptr(name), istlen(name));
+		hash = XXH32_digest(&state);
+
+		node = eb32_lookup(&ctx->filters, hash);
+		if (node) {
+			flt = container_of(node, typeof(*flt), node);
+			if (flt->exclude)
+				return 1;
+		}
+		else if (!(ctx->flags & PROMEX_FL_INC_METRIC_BY_DEFAULT))
+			return 1;
+	}
+
+	return 0;
+}
 
 /* Dump global metrics (prefixed by "haproxy_process_"). It returns 1 on success,
  * 0 if <htx> is full and -1 in case of any error. */
@@ -545,6 +580,9 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 
 		name = promex_global_metrics[ctx->field_num].n;
 		desc = ist(info_fields[ctx->field_num].desc);
+
+		if (promex_filter_metric(appctx, prefix, name))
+			continue;
 
 		switch (ctx->field_num) {
 			case INF_BUILD_INFO:
@@ -604,6 +642,9 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 			name = promex_st_metrics[ctx->field_num].n;
 		if (!isttest(desc))
 			desc = ist(stat_fields[ctx->field_num].desc);
+
+		if (promex_filter_metric(appctx, prefix, name))
+			continue;
 
 		if (!px)
 			px = proxies_list;
@@ -700,6 +741,9 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 			name = ist2(mod->stats[ctx->mod_field_num].name, strlen(mod->stats[ctx->mod_field_num].name));
 			desc = ist2(mod->stats[ctx->mod_field_num].desc, strlen(mod->stats[ctx->mod_field_num].desc));
 
+			if (promex_filter_metric(appctx, prefix, name))
+				continue;
+
 			if (!px)
 				px = proxies_list;
 
@@ -786,6 +830,9 @@ static int promex_dump_listener_metrics(struct appctx *appctx, struct htx *htx)
 		if (!isttest(desc))
 			desc = ist(stat_fields[ctx->field_num].desc);
 
+		if (promex_filter_metric(appctx, prefix, name))
+			continue;
+
 		if (!px)
 			px = proxies_list;
 
@@ -865,6 +912,9 @@ static int promex_dump_listener_metrics(struct appctx *appctx, struct htx *htx)
 		for (;ctx->mod_field_num < mod->stats_count; ctx->mod_field_num++) {
 			name = ist2(mod->stats[ctx->mod_field_num].name, strlen(mod->stats[ctx->mod_field_num].name));
 			desc = ist2(mod->stats[ctx->mod_field_num].desc, strlen(mod->stats[ctx->mod_field_num].desc));
+
+			if (promex_filter_metric(appctx, prefix, name))
+				continue;
 
 			if (!px)
 				px = proxies_list;
@@ -967,6 +1017,9 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 			name = promex_st_metrics[ctx->field_num].n;
 		if (!isttest(desc))
 			desc = ist(stat_fields[ctx->field_num].desc);
+
+		if (promex_filter_metric(appctx, prefix, name))
+			continue;
 
 		if (!px)
 			px = proxies_list;
@@ -1141,6 +1194,9 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 			name = ist2(mod->stats[ctx->mod_field_num].name, strlen(mod->stats[ctx->mod_field_num].name));
 			desc = ist2(mod->stats[ctx->mod_field_num].desc, strlen(mod->stats[ctx->mod_field_num].desc));
 
+			if (promex_filter_metric(appctx, prefix, name))
+				continue;
+
 			if (!px)
 				px = proxies_list;
 
@@ -1227,6 +1283,9 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 			name = promex_st_metrics[ctx->field_num].n;
 		if (!isttest(desc))
 			desc = ist(stat_fields[ctx->field_num].desc);
+
+		if (promex_filter_metric(appctx, prefix, name))
+			continue;
 
 		if (!px)
 			px = proxies_list;
@@ -1393,6 +1452,9 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 			name = ist2(mod->stats[ctx->mod_field_num].name, strlen(mod->stats[ctx->mod_field_num].name));
 			desc = ist2(mod->stats[ctx->mod_field_num].desc, strlen(mod->stats[ctx->mod_field_num].desc));
 
+			if (promex_filter_metric(appctx, prefix, name))
+				continue;
+
 			if (!px)
 				px = proxies_list;
 
@@ -1489,11 +1551,15 @@ static int promex_dump_module_metrics(struct appctx *appctx, struct promex_modul
 		struct promex_metric metric;
 		struct ist desc;
 
+
 		ret = mod->metric_info(ctx->mod_field_num, &metric, &desc);
 		if (!ret)
 			continue;
 		if (ret < 0)
 			goto error;
+
+		if (promex_filter_metric(appctx, prefix, metric.n))
+			continue;
 
 		if (!ctx->p[2])
 			ctx->p[2] = mod->start_ts(ctx->p[1], ctx->mod_field_num);
@@ -1775,6 +1841,7 @@ static int promex_parse_uri(struct appctx *appctx, struct stconn *sc)
 	const char *end;
 	struct buffer *err;
 	int default_scopes = PROMEX_FL_SCOPE_ALL;
+	int default_metrics_filter = PROMEX_FL_INC_METRIC_BY_DEFAULT;
 	int len;
 
 	/* Get the query-string */
@@ -1837,7 +1904,7 @@ static int promex_parse_uri(struct appctx *appctx, struct stconn *sc)
 				goto error;
 			else if (*value == 0)
 				ctx->flags &= ~PROMEX_FL_SCOPE_ALL;
-			else if (*value == '*')
+			else if (*value == '*' && *(value+1) == 0)
 				ctx->flags |= PROMEX_FL_SCOPE_ALL;
 			else if (strcmp(value, "global") == 0)
 				ctx->flags |= PROMEX_FL_SCOPE_GLOBAL;
@@ -1868,6 +1935,48 @@ static int promex_parse_uri(struct appctx *appctx, struct stconn *sc)
 					goto error;
 			}
 		}
+		else if (strcmp(key, "metrics") == 0) {
+			struct ist args;
+
+			if (!value)
+				goto error;
+
+			for (args = ist(value); istlen(args); args = istadv(istfind(args, ','), 1)) {
+				struct eb32_node *node;
+				struct promex_metric_filter *flt;
+				struct ist m = iststop(args, ',');
+				unsigned int hash;
+				int exclude = 0;
+
+				if (!istlen(m))
+					continue;
+
+				if (*istptr(m) == '-') {
+					m = istnext(m);
+					if (!istlen(m))
+						continue;
+					exclude = 1;
+				}
+				else
+					default_metrics_filter &= ~PROMEX_FL_INC_METRIC_BY_DEFAULT;
+
+
+				hash = XXH32(istptr(m), istlen(m), 0);
+				node = eb32_lookup(&ctx->filters, hash);
+				if (node) {
+					flt = container_of(node, typeof(*flt), node);
+					flt->exclude = exclude;
+					continue;
+				}
+
+				flt = pool_alloc(pool_head_promex_metric_flt);
+				if (!flt)
+					goto internal_error;
+				flt->node.key = hash;
+				flt->exclude = exclude;
+				eb32_insert(&ctx->filters, &flt->node);
+			}
+		}
 		else if (strcmp(key, "extra-counters") == 0) {
 			ctx->flags |= PROMEX_FL_EXTRA_COUNTERS;
 		}
@@ -1876,7 +1985,7 @@ static int promex_parse_uri(struct appctx *appctx, struct stconn *sc)
 	}
 
   end:
-	ctx->flags |= default_scopes;
+	ctx->flags |= (default_scopes | default_metrics_filter);
 	return 1;
 
   error:
@@ -1937,6 +2046,7 @@ static int promex_appctx_init(struct appctx *appctx)
 	ctx = appctx->svcctx;
 	memset(ctx->p, 0, sizeof(ctx->p));
 	LIST_INIT(&ctx->modules);
+	ctx->filters = EB_ROOT;
 	appctx->st0 = PROMEX_ST_INIT;
 	return 0;
 }
@@ -1948,10 +2058,21 @@ static void promex_appctx_release(struct appctx *appctx)
 {
 	struct promex_ctx *ctx = appctx->svcctx;
 	struct promex_module_ref *ref, *back;
+	struct promex_metric_filter *flt;
+        struct eb32_node *node, *next;
 
 	list_for_each_entry_safe(ref, back, &ctx->modules, list) {
 		LIST_DELETE(&ref->list);
 		pool_free(pool_head_promex_mod_ref, ref);
+	}
+
+	node = eb32_first(&ctx->filters);
+	while (node) {
+		next = eb32_next(node);
+		eb32_delete(node);
+		flt = container_of(node, typeof(*flt), node);
+		pool_free(pool_head_promex_metric_flt, flt);
+		node = next;
 	}
 }
 
