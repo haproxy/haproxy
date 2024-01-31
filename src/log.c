@@ -339,10 +339,21 @@ unsigned int dropped_logs = 0;
  */
 THREAD_LOCAL char *logline = NULL;
 
+/* Same as logline, but to build profile-specific log message
+ * (when log profiles are used)
+ */
+THREAD_LOCAL char *logline_lpf = NULL;
+
+
 /* A global syslog message buffer, common to all RFC5424 syslog messages.
  * Currently, it is used for generating the structured-data part.
  */
 THREAD_LOCAL char *logline_rfc5424 = NULL;
+
+/* Same as logline_rfc5424, but to build profile-specific log message
+ * (when log profiles are used)
+ */
+THREAD_LOCAL char *logline_rfc5424_lpf = NULL;
 
 struct logformat_node_args {
 	char *name;
@@ -3517,6 +3528,12 @@ int init_log_buffers()
 	logline_rfc5424 = my_realloc2(logline_rfc5424, global.max_syslog_len + 1);
 	if (!logline || !logline_rfc5424)
 		return 0;
+	if (!LIST_ISEMPTY(&log_profile_list)) {
+		logline_lpf = my_realloc2(logline_lpf, global.max_syslog_len + 1);
+		logline_rfc5424_lpf = my_realloc2(logline_rfc5424_lpf, global.max_syslog_len + 1);
+		if (!logline_lpf || !logline_rfc5424_lpf)
+			return 0;
+	}
 	return 1;
 }
 
@@ -3524,9 +3541,13 @@ int init_log_buffers()
 void deinit_log_buffers()
 {
 	free(logline);
+	free(logline_lpf);
 	free(logline_rfc5424);
-	logline           = NULL;
-	logline_rfc5424   = NULL;
+	free(logline_rfc5424_lpf);
+	logline             = NULL;
+	logline_lpf         = NULL;
+	logline_rfc5424     = NULL;
+	logline_rfc5424_lpf = NULL;
 }
 
 /* Deinitialize log forwarder proxies used for syslog messages */
