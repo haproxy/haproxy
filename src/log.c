@@ -2544,6 +2544,19 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 			LOGCHAR(chr);                                  \
 		} while (0)
 
+/* indicate the start of a string array */
+#define LOG_STRARRAY_START() do {                                      \
+		} while (0)
+
+/* indicate that a new element is added to the string array */
+#define LOG_STRARRAY_NEXT() do {                                       \
+			LOGCHAR(' ');                                  \
+		} while (0)
+
+/* indicate the end of a string array */
+#define LOG_STRARRAY_END() do {                                        \
+		} while (0)
+
 /* Initializes some log data at boot */
 static void init_log()
 {
@@ -3335,9 +3348,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_HDRREQUESTLIST: // %hrl
 				/* request header list */
 				if (fe->nb_req_cap && s && s->req_cap) {
+					LOG_STRARRAY_START();
 					for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
 						if (hdr > 0)
-							LOGCHAR(' ');
+							LOG_STRARRAY_NEXT();
 						LOGQUOTE_START();
 						if (s->req_cap[hdr] != NULL) {
 							ret = lf_encode_string(tmplog, dst + maxsize,
@@ -3352,6 +3366,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 						 */
 						LOGQUOTE_END();
 					}
+					LOG_STRARRAY_END();
 				}
 				break;
 
@@ -3379,9 +3394,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_HDRRESPONSLIST: // %hsl
 				/* response header list */
 				if (fe->nb_rsp_cap && s && s->res_cap) {
+					LOG_STRARRAY_START();
 					for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
 						if (hdr > 0)
-							LOGCHAR(' ');
+							LOG_STRARRAY_NEXT();
 						LOGQUOTE_START();
 						if (s->res_cap[hdr] != NULL) {
 							ret = lf_encode_string(tmplog, dst + maxsize,
@@ -3396,6 +3412,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 						 */
 						LOGQUOTE_END();
 					}
+					LOG_STRARRAY_END();
 				}
 				break;
 
