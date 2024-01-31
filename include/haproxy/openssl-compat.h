@@ -110,7 +110,7 @@
 #endif
 
 #if defined(SSL_OP_NO_ANTI_REPLAY)
-#define HAVE_SSL_0RTTT
+#define HAVE_SSL_0RTT
 #endif
 
 /* At this time, wolfssl, libressl and the openssl QUIC compatibility do not support 0-RTT */
