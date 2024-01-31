@@ -374,3 +374,24 @@ listed below. Metrics from extra counters are not listed.
 | haproxy_sticktable_size                            |
 | haproxy_sticktable_used                            |
 +----------------------------------------------------+
+
+* Resolvers metrics
+
++----------------------------------------------------+
+|    Metric name                                     |
++----------------------------------------------------+
+| haproxy_resolver_sent                              |
+| haproxy_resolver_send_error                        |
+| haproxy_resolver_valid                             |
+| haproxy_resolver_update                            |
+| haproxy_resolver_cname                             |
+| haproxy_resolver_cname_error                       |
+| haproxy_resolver_any_err                           |
+| haproxy_resolver_nx                                |
+| haproxy_resolver_timeout                           |
+| haproxy_resolver_refused                           |
+| haproxy_resolver_other                             |
+| haproxy_resolver_invalid                           |
+| haproxy_resolver_too_big                           |
+| haproxy_resolver_outdated                          |
++----------------------------------------------------+

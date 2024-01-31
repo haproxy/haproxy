@@ -50,6 +50,10 @@
 #include <haproxy/vars.h>
 #include <haproxy/xxhash.h>
 
+#if defined(USE_PROMEX)
+#include <promex/promex.h>
+#endif
+
 
 struct list sec_resolvers  = LIST_HEAD_INIT(sec_resolvers);
 struct list resolv_srvrq_list = LIST_HEAD_INIT(resolv_srvrq_list);
@@ -3898,3 +3902,70 @@ REGISTER_CONFIG_SECTION("resolvers",      cfg_parse_resolvers, cfg_post_parse_re
 REGISTER_POST_DEINIT(resolvers_deinit);
 REGISTER_CONFIG_POSTPARSER("dns runtime resolver", resolvers_finalize_config);
 REGISTER_PRE_CHECK(resolvers_create_default);
+
+#if defined(USE_PROMEX)
+
+static int rslv_promex_metric_info(unsigned int id, struct promex_metric *metric, struct ist *desc)
+{
+	if (id >= RSLV_STAT_END)
+		return -1;
+	if (id == RSLV_STAT_ID  || id == RSLV_STAT_PID)
+		return 0;
+
+	*metric = (struct promex_metric){ .n = ist(resolv_stats[id].name), .type = PROMEX_MT_GAUGE, .flags = PROMEX_FL_MODULE_METRIC };
+	*desc = ist(resolv_stats[id].desc);
+	return 1;
+}
+
+static void *rslv_promex_start_ts(void *unused, unsigned int id)
+{
+	struct resolvers *resolver = LIST_NEXT(&sec_resolvers, struct resolvers *, list);
+
+	return LIST_NEXT(&resolver->nameservers, struct dns_nameserver *, list);
+}
+
+static void *rslv_promex_next_ts(void *unsued, void *metric_ctx, unsigned int id)
+{
+	struct dns_nameserver *ns = metric_ctx;
+	struct resolvers *resolver = ns->parent;
+
+	ns = LIST_NEXT(&ns->list, struct dns_nameserver *, list);
+	if (&ns->list == &resolver->nameservers) {
+		resolver = LIST_NEXT(&resolver->list, struct resolvers *, list);
+		ns = ((&resolver->list == &sec_resolvers)
+		      ? NULL
+		      : LIST_NEXT(&resolver->nameservers, struct dns_nameserver *, list));
+	}
+	return ns;
+}
+
+static int rslv_promex_fill_ts(void *unused, void *metric_ctx, unsigned int id, struct promex_label *labels, struct field *field)
+{
+	struct dns_nameserver *ns = metric_ctx;
+	struct resolvers *resolver = ns->parent;
+	struct field stats[RSLV_STAT_END];
+	int ret;
+
+	labels[0].name  = ist("resolver");
+	labels[0].value = ist2(resolver->id, strlen(resolver->id));
+	labels[1].name  = ist("nameserver");
+	labels[1].value = ist2(ns->id, strlen(ns->id));
+
+	ret = resolv_fill_stats(ns->counters, stats, &id);
+	if (ret == 1)
+		*field = stats[id];
+	return ret;
+}
+
+static struct promex_module promex_resolver_module = {
+	.name        = IST("resolver"),
+	.metric_info = rslv_promex_metric_info,
+	.start_ts    = rslv_promex_start_ts,
+	.next_ts     = rslv_promex_next_ts,
+	.fill_ts     = rslv_promex_fill_ts,
+	.nb_metrics  = RSLV_STAT_END,
+};
+
+INITCALL1(STG_REGISTER, promex_register_module, &promex_resolver_module);
+
+#endif
