@@ -947,6 +947,17 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			goto http_msg_ood;
 		}
 	http_msg_hdr_val2:
+		if (likely(!*ptr)) {
+			/* RFC9110 clarified that NUL is explicitly forbidden in header values
+			 * (like CR and LF).
+			 */
+			if (h1m->err_pos < -1) { /* PR_O2_REQBUG_OK not set */
+				state = H1_MSG_HDR_VAL;
+				goto http_msg_invalid;
+			}
+			if (h1m->err_pos == -1) /* PR_O2_REQBUG_OK set: just log */
+				h1m->err_pos = ptr - start + skip;
+		}
 		if (likely(!HTTP_IS_CRLF(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_val2, http_msg_ood, state, H1_MSG_HDR_VAL);
 
