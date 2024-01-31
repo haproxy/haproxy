@@ -245,7 +245,7 @@ static inline void quic_cubic_update(struct quic_cc *cc, uint32_t acked)
 			 * Note that K is stored in 1024th of a second.
 			 */
 			c->K = cubic_root((c->last_w_max - path->cwnd) *
-			                  (CUBIC_ONE_SCALED - CUBIC_BETA_SCALED) / CUBIC_C_SCALED / path->mtu) << TIME_SCALE_FACTOR_SHIFT;
+			                  ((CUBIC_ONE_SCALED - CUBIC_BETA_SCALED) << TIME_SCALE_FACTOR_SHIFT) / (CUBIC_C_SCALED * path->mtu));
 			c->W_target = c->last_w_max;
 		}
 
@@ -273,7 +273,11 @@ static inline void quic_cubic_update(struct quic_cc *cc, uint32_t acked)
 	}
 
 	/* Compute W_cubic_t at t time. */
-	W_cubic_t = path->mtu * ((CUBIC_C_SCALED * t * t * t) >> (CUBIC_SCALE_FACTOR_SHIFT + 3 * TIME_SCALE_FACTOR_SHIFT));
+	W_cubic_t = CUBIC_C_SCALED * path->mtu;
+	W_cubic_t = (W_cubic_t * t) >> TIME_SCALE_FACTOR_SHIFT;
+	W_cubic_t = (W_cubic_t * t) >> TIME_SCALE_FACTOR_SHIFT;
+	W_cubic_t = (W_cubic_t * t) >> TIME_SCALE_FACTOR_SHIFT;
+	W_cubic_t >>= CUBIC_SCALE_FACTOR_SHIFT;
 	if (elapsed_time < c->K)
 		target = c->W_target - W_cubic_t;
 	else
