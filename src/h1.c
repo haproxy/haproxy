@@ -1227,57 +1227,6 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	goto try_again;
 }
 
-/* This function performs a very minimal parsing of the trailers block present
- * at offset <ofs> in <buf> for up to <max> bytes, and returns the number of
- * bytes to delete to skip the trailers. It may return 0 if it's missing some
- * input data, or < 0 in case of parse error (in which case the caller may have
- * to decide how to proceed, possibly eating everything).
- */
-int h1_measure_trailers(const struct buffer *buf, unsigned int ofs, unsigned int max)
-{
-	const char *stop = b_peek(buf, ofs + max);
-	int count = ofs;
-
-	while (1) {
-		const char *p1 = NULL, *p2 = NULL;
-		const char *start = b_peek(buf, count);
-		const char *ptr   = start;
-
-		/* scan current line and stop at LF or CRLF */
-		while (1) {
-			if (ptr == stop)
-				return 0;
-
-			if (*ptr == '\n') {
-				if (!p1)
-					p1 = ptr;
-				p2 = ptr;
-				break;
-			}
-
-			if (*ptr == '\r') {
-				if (p1)
-					return -1;
-				p1 = ptr;
-			}
-
-			ptr = b_next(buf, ptr);
-		}
-
-		/* after LF; point to beginning of next line */
-		p2 = b_next(buf, p2);
-		count += b_dist(buf, start, p2);
-
-		/* LF/CRLF at beginning of line => end of trailers at p2.
-		 * Everything was scheduled for forwarding, there's nothing left
-		 * from this message. */
-		if (p1 == start)
-			break;
-		/* OK, next line then */
-	}
-	return count - ofs;
-}
-
 /* Generate a random key for a WebSocket Handshake in respect with rfc6455
  * The key is 128-bits long encoded as a base64 string in <key_out> parameter
  * (25 bytes long).
