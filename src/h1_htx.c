@@ -900,6 +900,7 @@ int h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
 		b_slow_realign_ofs(srcbuf, trash.area, 0);
 
 	tlr_h1m.flags = (H1_MF_NO_PHDR|H1_MF_HDRS_ONLY);
+	tlr_h1m.err_pos = h1m->err_pos;
 	ret = h1_headers_to_hdr_list(b_peek(srcbuf, ofs), b_tail(srcbuf),
 				     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), &tlr_h1m, NULL);
 	if (ret <= 0) {
