@@ -1,6 +1,6 @@
 varnishtest "prometheus exporter test"
 
-#REQUIRE_VERSION=2.4
+#REQUIRE_VERSION=3.0
 #REQUIRE_SERVICES=prometheus-exporter
 
 feature ignore_unknown_macro
@@ -39,9 +39,9 @@ haproxy h1 -conf {
 } -start
 
 client c1 -connect ${h1_stats_sock} {
+	# test general metrics
 	txreq -url "/metrics"
 	rxresp
-	# test general metrics
 	expect resp.status == 200
 	expect resp.body ~ ".*haproxy_process.*"
 	expect resp.body ~ ".*haproxy_frontend.*"
@@ -49,8 +49,20 @@ client c1 -connect ${h1_stats_sock} {
 	expect resp.body ~ ".*haproxy_backend.*"
 	expect resp.body ~ ".*haproxy_server.*"
 	expect resp.body ~ ".*haproxy_sticktable.*"
+	expect resp.body ~ ".*haproxy_resolver.*"
+
+	# test well known labels presence
+	expect resp.body ~ ".*haproxy_process_build_info{version=\".*\"} 1.*"
+	expect resp.body ~ ".*haproxy_frontend_http_responses_total{proxy=\"stats\",code=\"4xx\"} 0.*"
+	expect resp.body ~ ".*haproxy_frontend_status{proxy=\"fe\",state=\"UP\"} 1.*"
+	expect resp.body ~ ".*haproxy_listener_status{proxy=\"stats\",listener=\"sock-1\",state=\"WAITING\"} 0.*"
+	expect resp.body ~ ".*haproxy_backend_status{proxy=\"be\",state=\"UP\"} 1.*"
+	expect resp.body ~ ".*haproxy_server_status{proxy=\"be\",server=\"s1\",state=\"DOWN\"} 0.*"
+	expect resp.body ~ ".*haproxy_server_check_status{proxy=\"be\",server=\"s2\",state=\"HANA\"} 0.*"
 
 	# test expected NaN values
+	txreq -url "/metrics?scope=backend&scope=server"
+	rxresp
 	expect resp.body ~ ".*haproxy_server_check_failures_total{proxy=\"be\",server=\"s1\"} NaN.*"
 	expect resp.body ~ ".*haproxy_server_check_up_down_total{proxy=\"be\",server=\"s1\"} NaN.*"
 	expect resp.body ~ ".*haproxy_server_check_failures_total{proxy=\"be\",server=\"s2\"} 0.*"
@@ -72,15 +84,6 @@ client c1 -connect ${h1_stats_sock} {
 	expect resp.body ~ ".*haproxy_server_idle_connections_limit{proxy=\"be\",server=\"s1\"} NaN.*"
 	expect resp.body ~ ".*haproxy_server_idle_connections_limit{proxy=\"be\",server=\"s2\"} 42.*"
 
-	# test well known labels presence
-	expect resp.body ~ ".*haproxy_process_build_info{version=\".*\"} 1.*"
-	expect resp.body ~ ".*haproxy_frontend_http_responses_total{proxy=\"stats\",code=\"4xx\"} 0.*"
-	expect resp.body ~ ".*haproxy_frontend_status{proxy=\"fe\",state=\"UP\"} 1.*"
-	expect resp.body ~ ".*haproxy_listener_status{proxy=\"stats\",listener=\"sock-1\",state=\"WAITING\"} 0.*"
-	expect resp.body ~ ".*haproxy_backend_status{proxy=\"be\",state=\"UP\"} 1.*"
-	expect resp.body ~ ".*haproxy_server_status{proxy=\"be\",server=\"s1\",state=\"DOWN\"} 0.*"
-	expect resp.body ~ ".*haproxy_server_check_status{proxy=\"be\",server=\"s2\",state=\"HANA\"} 0.*"
-
 	# test scope
 	txreq -url "/metrics?scope="
 	rxresp
@@ -96,6 +99,7 @@ client c1 -connect ${h1_stats_sock} {
 	expect resp.body !~ ".*haproxy_backend.*"
 	expect resp.body ~ ".*haproxy_server.*"
 	expect resp.body !~ ".*haproxy_sticktable.*"
+	expect resp.body !~ ".*haproxy_resolver.*"
 
 	txreq -url "/metrics?scope=frontend&scope=backend"
 	rxresp
@@ -106,6 +110,7 @@ client c1 -connect ${h1_stats_sock} {
 	expect resp.body ~ ".*haproxy_backend.*"
 	expect resp.body !~ ".*haproxy_server.*"
 	expect resp.body !~ ".*haproxy_sticktable.*"
+	expect resp.body !~ ".*haproxy_resolver.*"
 
 	txreq -url "/metrics?scope"
 	rxresp
