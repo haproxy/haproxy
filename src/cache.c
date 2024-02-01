@@ -73,7 +73,6 @@ struct cache_appctx {
 	struct cache_tree *cache_tree;
 	struct cache_entry *entry;       /* Entry to be sent from cache. */
 	unsigned int sent;               /* The number of bytes already sent for this cache entry. */
-	unsigned int data_sent;           /* The number of bytes of the payload already sent for this cache entry. */
 	unsigned int offset;             /* start offset of remaining data relative to beginning of the next block */
 	unsigned int rem_data;           /* Remaining bytes for the last data block (HTX only, 0 means process next block) */
 	unsigned int send_notmodified:1; /* In case of conditional request, we might want to send a "304 Not Modified" response instead of the stored data. */
@@ -1567,7 +1566,6 @@ static unsigned int htx_cache_dump_data_blk(struct appctx *appctx, struct htx *h
 	ctx->offset   = offset;
 	ctx->next     = shblk;
 	ctx->sent    += total;
-	ctx->data_sent += data_len;
 	ctx->rem_data = rem_data + blksz;
 	appctx->to_forward -= data_len;
 	return total;
@@ -1669,7 +1667,6 @@ static unsigned int ff_cache_dump_data_blk(struct appctx *appctx, struct buffer 
 	ctx->offset   = offset;
 	ctx->next     = shblk;
 	ctx->sent    += total;
-	ctx->data_sent += data_len;
 	ctx->rem_data = rem_data + blksz;
 	appctx->to_forward -= data_len;
 	return total;
@@ -1763,7 +1760,6 @@ static size_t http_cache_fastfwd(struct appctx *appctx, struct buffer *buf, size
 		if (ctx->sent == first->len - sizeof(*cache_ptr)) {
 			applet_set_eoi(appctx);
 			applet_set_eos(appctx);
-			BUG_ON(ctx->data_sent != cache_ptr->body_size);
 			appctx->st0 = HTX_CACHE_END;
 		}
 	}
@@ -1849,7 +1845,6 @@ static void http_cache_io_handler(struct appctx *appctx)
 			}
 		}
 		BUG_ON(appctx->to_forward);
-		BUG_ON(ctx->data_sent != cache_ptr->body_size);
 		appctx->st0 = HTX_CACHE_EOM;
 	}
 
@@ -2209,7 +2204,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			ctx->cache_tree = cache_tree;
 			ctx->entry = res;
 			ctx->next = NULL;
-			ctx->sent = ctx->data_sent = 0;
+			ctx->sent = 0;
 			ctx->send_notmodified =
                                 should_send_notmodified_response(cache, htxbuf(&s->req.buf), res);
 
