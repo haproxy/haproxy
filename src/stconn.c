@@ -2107,6 +2107,9 @@ int sc_applet_recv(struct stconn *sc)
  */
 int sc_applet_sync_recv(struct stconn *sc)
 {
+	if (!(__sc_appctx(sc)->flags & APPCTX_FL_INOUT_BUFS))
+		return 0;
+
 	if (!sc_state_in(sc->state, SC_SB_RDY|SC_SB_EST))
 		return 0;
 
@@ -2197,6 +2200,9 @@ void sc_applet_sync_send(struct stconn *sc)
 	struct channel *oc = sc_oc(sc);
 
 	oc->flags &= ~CF_WRITE_EVENT;
+
+	if (!(__sc_appctx(sc)->flags & APPCTX_FL_INOUT_BUFS))
+		return;
 
 	if (sc->flags & SC_FL_SHUT_DONE)
 		return;

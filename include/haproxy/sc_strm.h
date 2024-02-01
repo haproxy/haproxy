@@ -43,6 +43,9 @@ void sc_conn_sync_send(struct stconn *sc);
 int sc_applet_sync_recv(struct stconn *sc);
 void sc_applet_sync_send(struct stconn *sc);
 
+int sc_applet_sync_recv(struct stconn *sc);
+void sc_applet_sync_send(struct stconn *sc);
+
 
 /* returns the channel which receives data from this stream connector (input channel) */
 static inline struct channel *sc_ic(const struct stconn *sc)
@@ -320,6 +323,30 @@ static inline void sc_chk_snd(struct stconn *sc)
 {
 	if (likely(sc->app_ops->chk_snd))
 		sc->app_ops->chk_snd(sc);
+}
+
+
+/* Perform a synchronous receive using the right version, depending the endpoing
+ * is a connection or an applet.
+ */
+static inline int sc_sync_recv(struct stconn *sc)
+{
+	if (sc_ep_test(sc, SE_FL_T_MUX))
+		return sc_conn_sync_recv(sc);
+	else if (sc_ep_test(sc, SE_FL_T_APPLET))
+		return sc_applet_sync_recv(sc);
+	return 0;
+}
+
+/* Perform a synchronous send using the right version, depending the endpoing is
+ * a connection or an applet.
+ */
+static inline void sc_sync_send(struct stconn *sc)
+{
+	if (sc_ep_test(sc, SE_FL_T_MUX))
+		sc_conn_sync_send(sc);
+	else if (sc_ep_test(sc, SE_FL_T_APPLET))
+		sc_applet_sync_send(sc);
 }
 
 /* Combines both sc_update_rx() and sc_update_tx() at once */
