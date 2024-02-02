@@ -293,6 +293,18 @@ Please also note that wolfSSL supports many platform-specific features that may
 affect performance, and that for production uses it might be a good idea to
 check them using "./configure --help". Please refer to the lib's documentation.
 
+When running wolfSSL in chroot, either mount /dev/[u]random devices into the
+chroot:
+
+  $ mkdir -p /path/to/chrootdir/dev/
+  $ mknod -m 444 /path/to/chrootdir/dev/random c 1 8
+  $ mknod -m 444 /path/to/chrootdir/dev/urandom c 1 9
+
+Or, if your OS supports it, enable the getrandom() syscall by appending the
+following argument to the wolfSSL configure command:
+
+  EXTRA_CFLAGS=-DWOLFSSL_GETRANDOM=1
+
 Building HAProxy with wolfSSL requires to specify the API variant on the "make"
 command line, for example:
 
