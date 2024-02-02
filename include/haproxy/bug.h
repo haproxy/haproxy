@@ -87,7 +87,24 @@ static inline __attribute((always_inline)) void ha_crash_now(void)
 
 #ifdef DEBUG_USE_ABORT
 /* abort() is better recognized by code analysis tools */
-#define ABORT_NOW() do { DUMP_TRACE(); abort(); } while (0)
+
+/* abort() is generally tagged noreturn, so there's no 100% safe way to prevent
+ * the compiler from doing a tail-merge here. Tests show that stopping folding
+ * just before calling abort() does work in practice at -O2, increasing the
+ * number of abort() calls in h3.o from 18 to 26, probably because there's no
+ * more savings to be made by replacing a call with a jump. However, as -Os it
+ * drops to 5 regardless of the build option. In order to help here, instead we
+ * wrap abort() into another function, with the line number stored into a local
+ * variable on the stack and we pretend to use it, so that unwinding the stack
+ * from abort() will reveal its value even if the call was folded.
+ */
+static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
+{
+	DISGUISE(&line);
+	abort();
+}
+
+#define ABORT_NOW() do { DUMP_TRACE(); abort()_with_line(__LINE__); } while (0)
 #else
 /* More efficient than abort() because it does not mangle the
  * stack and stops at the exact location we need.
