@@ -51,6 +51,7 @@
 #define ha_crash_now() do {						\
 		/* ud2 opcode: 2 bytes, raises illegal instruction */	\
 		__asm__ volatile(".byte 0x0f,0x0b\n");			\
+		DO_NOT_FOLD();						\
 		my_unreachable();					\
 	} while (0)
 
@@ -58,6 +59,7 @@
 #define ha_crash_now() do {						\
 		/* udf#imm16: 4 bytes (), raises illegal instruction */	\
 		__asm__ volatile(".byte 0x00,0x00,0x00,0x00\n");	\
+		DO_NOT_FOLD();						\
 		my_unreachable();					\
 	} while (0)
 
@@ -77,6 +79,7 @@ static inline __attribute((always_inline)) void ha_crash_now(void)
 #if __GNUC_PREREQ__(5, 0)
 #pragma GCC diagnostic pop
 #endif
+	DO_NOT_FOLD();
 	my_unreachable();
 }
 
