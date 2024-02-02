@@ -13,7 +13,9 @@ download_openssl () {
 	wget -P download-cache/ \
 	    "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" || \
         wget -P download-cache/ \
-            "https://www.openssl.org/source/old/${OPENSSL_VERSION%[a-z]}/openssl-${OPENSSL_VERSION}.tar.gz"
+            "https://www.openssl.org/source/old/${OPENSSL_VERSION%[a-z]}/openssl-${OPENSSL_VERSION}.tar.gz" || \
+	wget -P download-cache/ \
+	    "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz"
     fi
 }
 
