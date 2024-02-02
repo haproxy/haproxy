@@ -199,6 +199,20 @@
 #endif
 #endif
 
+/* This prevents the compiler from folding multiple identical code paths into a
+ * single one, by adding a dependency on the line number in the path. This may
+ * typically happen on function tails, or purposely placed abort() before an
+ * unreachable() statement, due to the compiler performing an Identical Code
+ * Folding optimization. This macro is aimed at helping with code tracing in
+ * crash dumps and may also be used for specific optimizations. One known case
+ * is gcc-4.7 and 4.8 which aggressively fold multiple ABORT_NOW() exit points
+ * and which causes wrong line numbers to be reported by the debugger (note
+ * that even newer compilers do this when using abort()). Please keep in mind
+ * that nothing prevents the compiler from folding the code after that point,
+ * but at least it will not fold the code before.
+ */
+#define DO_NOT_FOLD() do { asm volatile("" :: "i"(__LINE__)); } while (0)
+
 /* This macro may be used to block constant propagation that lets the compiler
  * detect a possible NULL dereference on a variable resulting from an explicit
  * assignment in an impossible check. Sometimes a function is called which does
