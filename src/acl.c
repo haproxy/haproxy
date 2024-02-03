@@ -546,6 +546,25 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		 */
 		if (!pat_ref_add(ref, arg, NULL, err))
 			goto out_free_expr;
+
+		if (global.mode & MODE_DIAG) {
+			if (strcmp(arg, "&&") == 0 || strcmp(arg, "and") == 0 ||
+			    strcmp(arg, "||") == 0 ||  strcmp(arg, "or") == 0)
+				ha_diag_warning("parsing [%s:%d] : pattern '%s' looks like a failed attempt at using an operator inside a pattern list\n", file, line, arg);
+			else if (strcmp(arg, "#") == 0 || strcmp(arg, "//") == 0)
+				ha_diag_warning("parsing [%s:%d] : pattern '%s' looks like a failed attempt at commenting an end of line\n", file, line, arg);
+			else if (find_acl_kw(arg))
+				ha_diag_warning("parsing [%s:%d] : pattern '%s' suspiciously looks like a known acl keyword\n", file, line, arg);
+			else {
+				const char *begw = arg, *endw;
+
+				for (endw = begw; is_idchar(*endw); endw++)
+					;
+
+				if (endw != begw && find_sample_fetch(begw, endw - begw))
+					ha_diag_warning("parsing [%s:%d] : pattern '%s' suspiciously looks like a known sample fetch keyword\n", file, line, arg);
+			}
+		}
 		args++;
 	}
 
