@@ -472,6 +472,10 @@ void ha_warning(const char *fmt, ...)
  */
 void _ha_vdiag_warning(const char *fmt, va_list argp)
 {
+	warned |= WARN_ANY;
+	HA_ATOMIC_INC(&tot_warnings);
+
+	warn_exec_path();
 	print_message(1, "DIAG", fmt, argp);
 }
 
