@@ -1351,10 +1351,10 @@ The following keywords are supported in the "global" section :
    - spread-checks
    - ssl-engine
    - ssl-mode-async
+   - tune.applet.zero-copy-forwarding
    - tune.buffers.limit
    - tune.buffers.reserve
    - tune.bufsize
-   - tune.cache.zero-copy-forwarding
    - tune.comp.maxlevel
    - tune.disable-fast-forward
    - tune.disable-zero-copy-forwarding
@@ -3025,6 +3025,12 @@ ssl-mode-async
   read/write  operations (it is only enabled during initial and renegotiation
   handshakes).
 
+tune.applet.zero-copy-forwarding { on | off }
+  Enables ('on') of disabled ('off') the zero-copy forwarding of data for the
+  applets. It is enabled by default.
+
+  See also: tune.disable-zero-copy-forwarding.
+
 tune.buffers.limit <number>
   Sets a hard limit on the number of buffers which may be allocated per process.
   The default value is zero which means unlimited. The minimum non-zero value
@@ -3064,13 +3070,6 @@ tune.bufsize <number>
   value set using this parameter will automatically be rounded up to the next
   multiple of 8 on 32-bit machines and 16 on 64-bit machines.
 
-tune.cache.zero-copy-forwarding { on | off }
-  Enables ('on') of disabled ('off') the zero-copy forwarding of data for the
-  cache applet, when objects are served from the cache to clients. It is
-  enabled by default.
-
-  See also: tune.disable-zero-copy-forwarding.
-
 tune.comp.maxlevel <number>
   Sets the maximum compression level. The compression level affects CPU
   usage during compression. This value affects CPU usage during compression.
@@ -3094,7 +3093,7 @@ tune.disable-zero-copy-forwarding
   Thanks to this directive, it is possible to disable this optimization. Note
   it also disable any kernel tcp splicing.
 
-  See also: tune.pt.zero-copy-forwarding, tune.cache.zero-copy-forwarding,
+  See also: tune.pt.zero-copy-forwarding, tune.applet.zero-copy-forwarding,
             tune.h1.zero-copy-fwd-recv, tune.h1.zero-copy-fwd-send,
             tune.h2.zero-copy-fwd-send, tune.quic.zero-copy-fwd-send
 

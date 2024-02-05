@@ -15,6 +15,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/htx.h>
 #include <haproxy/list.h>
@@ -865,3 +866,31 @@ struct task *task_process_applet(struct task *t, void *context, unsigned int sta
 	TRACE_LEAVE(APPLET_EV_PROCESS, app);
 	return t;
 }
+
+/* config parser for global "tune.applet.zero-copy-forwarding" */
+static int cfg_parse_applet_zero_copy_fwd(char **args, int section_type, struct proxy *curpx,
+					  const struct proxy *defpx, const char *file, int line,
+					  char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		global.tune.no_zero_copy_fwd &= ~NO_ZERO_COPY_FWD_APPLET;
+	else if (strcmp(args[1], "off") == 0)
+		global.tune.no_zero_copy_fwd |= NO_ZERO_COPY_FWD_APPLET;
+	else {
+		memprintf(err, "'%s' expects 'on' or 'off'.", args[0]);
+		return -1;
+	}
+	return 0;
+}
+
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "tune.applet.zero-copy-forwarding", cfg_parse_applet_zero_copy_fwd },
+	{ 0, NULL, NULL }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);

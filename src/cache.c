@@ -1827,7 +1827,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 		if (find_http_meth(istptr(meth), istlen(meth)) == HTTP_METH_HEAD || ctx->send_notmodified)
 			appctx->st0 = HTX_CACHE_EOM;
 		else {
-			if (!(global.tune.no_zero_copy_fwd & (NO_ZERO_COPY_FWD|NO_ZERO_COPY_FWD_CACHE)))
+			if (!(global.tune.no_zero_copy_fwd & (NO_ZERO_COPY_FWD|NO_ZERO_COPY_FWD_APPLET)))
 				se_fl_set(appctx->sedesc, SE_FL_MAY_FASTFWD);
 
 			appctx->to_forward = cache_ptr->body_size;
@@ -2950,26 +2950,6 @@ parse_cache_flt(char **args, int *cur_arg, struct proxy *px,
 	return -1;
 }
 
-/* config parser for global "tune.cache.zero-copy-forwarding" */
-static int cfg_parse_cache_zero_copy_fwd(char **args, int section_type, struct proxy *curpx,
-				      const struct proxy *defpx, const char *file, int line,
-				      char **err)
-{
-	if (too_many_args(1, args, err, NULL))
-		return -1;
-
-	if (strcmp(args[1], "on") == 0)
-		global.tune.no_zero_copy_fwd &= ~NO_ZERO_COPY_FWD_CACHE;
-	else if (strcmp(args[1], "off") == 0)
-		global.tune.no_zero_copy_fwd |= NO_ZERO_COPY_FWD_CACHE;
-	else {
-		memprintf(err, "'%s' expects 'on' or 'off'.", args[0]);
-		return -1;
-	}
-	return 0;
-}
-
-
 /* It reserves a struct show_cache_ctx for the local variables */
 static int cli_parse_show_cache(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -3159,14 +3139,6 @@ struct applet http_cache_applet = {
 	.fastfwd = http_cache_fastfwd,
 	.release = http_cache_applet_release,
 };
-
-/* config keyword parsers */
-static struct cfg_kw_list cfg_kws = {ILH, {
-	{ CFG_GLOBAL, "tune.cache.zero-copy-forwarding", cfg_parse_cache_zero_copy_fwd },
-	{ 0, NULL, NULL }
-}};
-
-INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 
 /* config parsers for this section */
