@@ -84,7 +84,7 @@ struct quic_arng_node *quic_insert_new_range(struct quic_conn *qc,
 		struct eb64_node *first;
 
 		first = eb64_first(&arngs->root);
-		BUG_ON(fist == NULL);
+		BUG_ON(first == NULL);
 		eb64_delete(first);
 		pool_free(pool_head_quic_arng, first);
 		arngs->sz--;
