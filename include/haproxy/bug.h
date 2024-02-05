@@ -85,6 +85,23 @@ static inline __attribute((always_inline)) void ha_crash_now(void)
 
 #endif // end of arch-specific ha_crash_now() definitions
 
+
+/* ABORT_NOW() usually takes no argument and will cause the program to abort
+ * exactly where it is. We prefer to emit an invalid instruction to preserve
+ * all registers, but it may fall back to a regular abort depending on the
+ * platform. An optional argument can be a message string that will cause
+ * the emission of a message saying "ABORT at" followed by the file and line
+ * number then that message followed by a final line feed. This can be helpful
+ * in situations where the core cannot be retrieved for example. However it
+ * will definitely cause the loss of some registers, so should be avoided when
+ * not strictly necessary.
+ */
+#define ABORT_NOW(...)							\
+	_ABORT_NOW(__FILE__, __LINE__, __VA_ARGS__)
+
+#define _ABORT_NOW(file, line, ...)					\
+	__ABORT_NOW(file, line, __VA_ARGS__)
+
 #ifdef DEBUG_USE_ABORT
 /* abort() is better recognized by code analysis tools */
 
@@ -104,12 +121,22 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 	abort();
 }
 
-#define ABORT_NOW() do { DUMP_TRACE(); abort_with_line(__LINE__); } while (0)
+#define __ABORT_NOW(file, line, ...) do {				\
+		if (sizeof("" __VA_ARGS__) > 1)				\
+			complain(NULL, "\nABORT at " file ":" #line ": " __VA_ARGS__ "\n", 1); \
+		DUMP_TRACE();						\
+		abort_with_line(__LINE__);				\
+	} while (0)
 #else
 /* More efficient than abort() because it does not mangle the
  * stack and stops at the exact location we need.
  */
-#define ABORT_NOW() do { DUMP_TRACE(); ha_crash_now(); } while (0)
+#define __ABORT_NOW(file, line, ...) do {				\
+		if (sizeof("" __VA_ARGS__) > 1)				\
+			complain(NULL, "\nABORT at " file ":" #line ": " __VA_ARGS__ "\n", 1); \
+		DUMP_TRACE();						\
+		ha_crash_now();						\
+	} while (0)
 #endif
 
 /* This is the generic low-level macro dealing with conditional warnings and
