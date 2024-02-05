@@ -658,7 +658,7 @@ int debug_parse_cli_bug(char **args, char *payload, struct appctx *appctx, void 
 		return 1;
 
 	_HA_ATOMIC_INC(&debug_commands_issued);
-	BUG_ON(one > zero);
+	BUG_ON(one > zero, "This was triggered on purpose from the CLI 'debug dev bug' command.");
 	return 1;
 }
 
@@ -671,7 +671,7 @@ int debug_parse_cli_warn(char **args, char *payload, struct appctx *appctx, void
 		return 1;
 
 	_HA_ATOMIC_INC(&debug_commands_issued);
-	WARN_ON(one > zero);
+	WARN_ON(one > zero, "This was triggered on purpose from the CLI 'debug dev warn' command.");
 	return 1;
 }
 
@@ -684,7 +684,7 @@ int debug_parse_cli_check(char **args, char *payload, struct appctx *appctx, voi
 		return 1;
 
 	_HA_ATOMIC_INC(&debug_commands_issued);
-	CHECK_IF(one > zero);
+	CHECK_IF(one > zero, "This was triggered on purpose from the CLI 'debug dev check' command.");
 	return 1;
 }
 
