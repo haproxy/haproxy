@@ -145,13 +145,21 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
  * the case where it wouldn't die. The <crash> flag is made of:
  *  - crash & 1: crash yes/no;
  *  - crash & 2: taint as bug instead of warn
+ * The optional argument must be a single constant string that will be appended
+ * on a second line after the condition message, to give a bit more context
+ * about the problem.
  */
-#define _BUG_ON(cond, file, line, crash, pfx, sfx)			\
-	__BUG_ON(cond, file, line, crash, pfx, sfx)
+#define _BUG_ON(cond, file, line, crash, pfx, sfx, ...)                 \
+	__BUG_ON(cond, file, line, crash, pfx, sfx, __VA_ARGS__)
 
-#define __BUG_ON(cond, file, line, crash, pfx, sfx)                     \
+#define __BUG_ON(cond, file, line, crash, pfx, sfx, ...)                \
 	(void)(unlikely(cond) ? ({					\
-		complain(NULL, "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n", crash); \
+		const char *msg;					\
+		if (sizeof("" __VA_ARGS__) > 1)				\
+			msg ="\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n" __VA_ARGS__ "\n"; \
+		else							\
+			msg = "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n"; \
+		complain(NULL, msg, crash);				\
 		if (crash & 1)						\
 			ABORT_NOW();					\
 		else							\
@@ -164,13 +172,18 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
  * certain unexpected conditions in field. Later on, in cores it will be
  * possible to verify these counters.
  */
-#define _BUG_ON_ONCE(cond, file, line, crash, pfx, sfx)			\
-	__BUG_ON_ONCE(cond, file, line, crash, pfx, sfx)
+#define _BUG_ON_ONCE(cond, file, line, crash, pfx, sfx, ...)			\
+	__BUG_ON_ONCE(cond, file, line, crash, pfx, sfx, __VA_ARGS__)
 
-#define __BUG_ON_ONCE(cond, file, line, crash, pfx, sfx)                \
+#define __BUG_ON_ONCE(cond, file, line, crash, pfx, sfx, ...)                \
 	(void)(unlikely(cond) ? ({					\
 		static int __match_count_##line;			\
-		complain(&__match_count_##line, "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n", crash); \
+		const char *msg;					\
+		if (sizeof("" __VA_ARGS__) > 1)				\
+			msg ="\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n" __VA_ARGS__ "\n"; \
+		else							\
+			msg = "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n"; \
+		complain(&__match_count_##line, msg, crash);		\
 		if (crash & 1)						\
 			ABORT_NOW();					\
 		else							\
@@ -193,29 +206,29 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 #if defined(DEBUG_STRICT)
 # if defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION < 1)
 /* Lowest level: BUG_ON() warns, WARN_ON() warns, CHECK_IF() warns */
-#  define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 2, "WARNING: bug ",   " (not crashing but process is untrusted now, please report to developers)")
-#  define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: warn ",  " (please report to developers)")
-#  define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)")
+#  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, 2, "WARNING: bug ",   " (not crashing but process is untrusted now, please report to developers)", __VA_ARGS__)
+#  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: warn ",  " (please report to developers)", __VA_ARGS__)
+#  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)", __VA_ARGS__)
 # elif !defined(DEBUG_STRICT_ACTION) || (DEBUG_STRICT_ACTION == 1)
 /* default level: BUG_ON() crashes, WARN_ON() warns, CHECK_IF() warns */
-#  define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
-#  define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: warn ",  " (please report to developers)")
-#  define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)")
+#  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "", __VA_ARGS__)
+#  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: warn ",  " (please report to developers)", __VA_ARGS__)
+#  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)", __VA_ARGS__)
 # elif defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION == 2)
 /* Stricter level: BUG_ON() crashes, WARN_ON() crashes, CHECK_IF() warns */
-#  define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
-#  define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 1, "FATAL: warn ",    "")
-#  define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)")
+#  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "", __VA_ARGS__)
+#  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, 1, "FATAL: warn ",    "", __VA_ARGS__)
+#  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)", __VA_ARGS__)
 # elif defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION >= 3)
 /* Developer/CI level: BUG_ON() crashes, WARN_ON() crashes, CHECK_IF() crashes */
-#  define BUG_ON(cond)       _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
-#  define WARN_ON(cond)      _BUG_ON     (cond, __FILE__, __LINE__, 1, "FATAL: warn ",    "")
-#  define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 1, "FATAL: check ",   "")
+#  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "", __VA_ARGS__)
+#  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, 1, "FATAL: warn ",    "", __VA_ARGS__)
+#  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 1, "FATAL: check ",   "", __VA_ARGS__)
 # endif
 #else
-#  define BUG_ON(cond)       do { (void)sizeof(cond); } while (0)
-#  define WARN_ON(cond)      do { (void)sizeof(cond); } while (0)
-#  define CHECK_IF(cond)     do { (void)sizeof(cond); } while (0)
+#  define BUG_ON(cond, ...)   do { (void)sizeof(cond); } while (0)
+#  define WARN_ON(cond, ...)  do { (void)sizeof(cond); } while (0)
+#  define CHECK_IF(cond, ...) do { (void)sizeof(cond); } while (0)
 #endif
 
 /* These macros are only for hot paths and remain disabled unless DEBUG_STRICT is 2 or above.
@@ -225,20 +238,20 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 #if defined(DEBUG_STRICT) && (DEBUG_STRICT > 1)
 # if defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION < 1)
 /* Lowest level: BUG_ON() warns, CHECK_IF() warns */
-#  define BUG_ON_HOT(cond)   _BUG_ON_ONCE(cond, __FILE__, __LINE__, 2, "WARNING: bug ",   " (not crashing but process is untrusted now, please report to developers)")
-#  define CHECK_IF_HOT(cond) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)")
+#  define BUG_ON_HOT(cond, ...)   _BUG_ON_ONCE(cond, __FILE__, __LINE__, 2, "WARNING: bug ",   " (not crashing but process is untrusted now, please report to developers)", __VA_ARGS__)
+#  define CHECK_IF_HOT(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)", __VA_ARGS__)
 # elif !defined(DEBUG_STRICT_ACTION) || (DEBUG_STRICT_ACTION < 3)
 /* default level: BUG_ON() crashes, CHECK_IF() warns */
-#  define BUG_ON_HOT(cond)   _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
-#  define CHECK_IF_HOT(cond) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)")
+#  define BUG_ON_HOT(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "", __VA_ARGS__)
+#  define CHECK_IF_HOT(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)", __VA_ARGS__)
 # elif defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION >= 3)
 /* Developer/CI level: BUG_ON() crashes, CHECK_IF() crashes */
-#  define BUG_ON_HOT(cond)   _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "")
-#  define CHECK_IF_HOT(cond) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 1, "FATAL: check ",   "")
+#  define BUG_ON_HOT(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "", __VA_ARGS__)
+#  define CHECK_IF_HOT(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 1, "FATAL: check ",   "", __VA_ARGS__)
 # endif
 #else
-#  define BUG_ON_HOT(cond)   do { (void)sizeof(cond); } while (0)
-#  define CHECK_IF_HOT(cond) do { (void)sizeof(cond); } while (0)
+#  define BUG_ON_HOT(cond, ...)   do { (void)sizeof(cond) ; } while (0)
+#  define CHECK_IF_HOT(cond, ...) do { (void)sizeof(cond) ; } while (0)
 #endif
 
 
