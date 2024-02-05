@@ -186,9 +186,9 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 #  define CHECK_IF(cond)     _BUG_ON_ONCE(cond, __FILE__, __LINE__, 1, "FATAL: check ",   "")
 # endif
 #else
-#  define BUG_ON(cond)       do { } while (0)
-#  define WARN_ON(cond)      do { } while (0)
-#  define CHECK_IF(cond)     do { } while (0)
+#  define BUG_ON(cond)       do { (void)sizeof(cond); } while (0)
+#  define WARN_ON(cond)      do { (void)sizeof(cond); } while (0)
+#  define CHECK_IF(cond)     do { (void)sizeof(cond); } while (0)
 #endif
 
 /* These macros are only for hot paths and remain disabled unless DEBUG_STRICT is 2 or above.
@@ -210,8 +210,8 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 #  define CHECK_IF_HOT(cond) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 1, "FATAL: check ",   "")
 # endif
 #else
-#  define BUG_ON_HOT(cond)   do { } while (0)
-#  define CHECK_IF_HOT(cond) do { } while (0)
+#  define BUG_ON_HOT(cond)   do { (void)sizeof(cond); } while (0)
+#  define CHECK_IF_HOT(cond) do { (void)sizeof(cond); } while (0)
 #endif
 
 
