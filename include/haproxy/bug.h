@@ -104,7 +104,7 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 	abort();
 }
 
-#define ABORT_NOW() do { DUMP_TRACE(); abort()_with_line(__LINE__); } while (0)
+#define ABORT_NOW() do { DUMP_TRACE(); abort_with_line(__LINE__); } while (0)
 #else
 /* More efficient than abort() because it does not mangle the
  * stack and stops at the exact location we need.
