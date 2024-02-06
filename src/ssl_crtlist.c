@@ -1134,7 +1134,6 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 {
 	struct add_crtlist_ctx *ctx = appctx->svcctx;
 	struct bind_conf_list *bind_conf_node;
-	struct stconn *sc = appctx_sc(appctx);
 	struct crtlist *crtlist = ctx->crtlist;
 	struct crtlist_entry *entry = ctx->entry;
 	struct ckch_store *store = entry->node.key;
@@ -1145,10 +1144,6 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 	/* for each bind_conf which use the crt-list, a new ckch_inst must be
 	 * created.
 	 */
-	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
-		goto end;
-
 	switch (ctx->state) {
 	case ADDCRT_ST_INIT:
 		/* This state just print the update message */
@@ -1575,4 +1570,3 @@ static struct cli_kw_list cli_kws = {{ },{
 };
 
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
-

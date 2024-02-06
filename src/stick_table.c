@@ -5416,14 +5416,6 @@ static int cli_io_handler_table(struct appctx *appctx)
 	 *   - STATE_DONE : nothing left to dump, the buffer may contain some
 	 *     data though.
 	 */
-	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE)) {
-		/* in case of abort, remove any refcount we might have set on an entry */
-		if (ctx->state == STATE_DUMP) {
-			stksess_kill_if_expired(ctx->t, ctx->entry, 1);
-		}
-		return 1;
-	}
 
 	chunk_reset(&trash);
 

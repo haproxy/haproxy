@@ -2157,16 +2157,11 @@ void ckch_store_replace(struct ckch_store *old_ckchs, struct ckch_store *new_ckc
 static int cli_io_handler_commit_cert(struct appctx *appctx)
 {
 	struct commit_cert_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_sc(appctx);
 	int y = 0;
 	struct ckch_store *old_ckchs, *new_ckchs = NULL;
 	struct ckch_inst *ckchi;
 
 	usermsgs_clr("CLI");
-	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
-		goto end;
-
 	while (1) {
 		switch (ctx->state) {
 			case CERT_ST_INIT:
@@ -2843,16 +2838,11 @@ error:
 static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 {
 	struct commit_cacrlfile_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_sc(appctx);
 	int y = 0;
 	struct cafile_entry *old_cafile_entry = ctx->old_entry;
 	struct cafile_entry *new_cafile_entry = ctx->new_entry;
 	struct ckch_inst_link *ckchi_link;
 	char *path;
-
-	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
-		goto end;
 
 	/* The ctx was already validated by the ca-file/crl-file parsing
 	 * function. Entries can only be NULL in CACRL_ST_SUCCESS or

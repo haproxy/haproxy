@@ -363,23 +363,12 @@ static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
 static int cli_io_handler_dump_quic(struct appctx *appctx)
 {
 	struct show_quic_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_sc(appctx);
 	struct quic_conn *qc;
 
 	thread_isolate();
 
 	if (ctx->thr >= global.nbthread)
 		goto done;
-
-	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE)) {
-		/* If we're forced to shut down, we might have to remove our
-		 * reference to the last stream being dumped.
-		 */
-		if (!LIST_ISEMPTY(&ctx->bref.users))
-			LIST_DEL_INIT(&ctx->bref.users);
-		goto done;
-	}
 
 	chunk_reset(&trash);
 

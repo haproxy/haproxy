@@ -3494,9 +3494,8 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
  * buffer is full and it needs to be called again, otherwise non-zero. It is
  * designed to be called from stats_dump_strm_to_buffer() below.
  */
-static int stats_dump_full_strm_to_buffer(struct stconn *sc, struct stream *strm)
+static int stats_dump_full_strm_to_buffer(struct appctx *appctx, struct stream *strm)
 {
-	struct appctx *appctx = __sc_appctx(sc);
 	struct show_sess_ctx *ctx = appctx->svcctx;
 
 	chunk_reset(&trash);
@@ -3588,25 +3587,12 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 static int cli_io_handler_dump_sess(struct appctx *appctx)
 {
 	struct show_sess_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_sc(appctx);
 	struct connection *conn;
 
 	thread_isolate();
 
 	if (ctx->thr >= global.nbthread) {
 		/* already terminated */
-		goto done;
-	}
-
-	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE)) {
-		/* If we're forced to shut down, we might have to remove our
-		 * reference to the last stream being dumped.
-		 */
-		if (!LIST_ISEMPTY(&ctx->bref.users)) {
-			LIST_DELETE(&ctx->bref.users);
-			LIST_INIT(&ctx->bref.users);
-		}
 		goto done;
 	}
 
@@ -3666,7 +3652,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 
 			LIST_APPEND(&curr_strm->back_refs, &ctx->bref.users);
 			/* call the proper dump() function and return if we're missing space */
-			if (!stats_dump_full_strm_to_buffer(sc, curr_strm))
+			if (!stats_dump_full_strm_to_buffer(appctx, curr_strm))
 				goto full;
 
 			/* stream dump complete */

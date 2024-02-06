@@ -692,10 +692,6 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	size_t ofs;
 	int ret;
 
-	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
-		return 1;
-
 	MT_LIST_DELETE(&appctx->wait_entry);
 
 	ret = ring_dispatch_messages(ring, appctx, &ctx->ofs, &last_ofs, ctx->flags, applet_append_line);

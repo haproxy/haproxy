@@ -565,16 +565,11 @@ void mworker_cleanup_proc()
 /*  Displays workers and processes  */
 static int cli_io_handler_show_proc(struct appctx *appctx)
 {
-	struct stconn *sc = appctx_sc(appctx);
 	struct mworker_proc *child;
 	int old = 0;
 	int up = date.tv_sec - proc_self->timestamp;
 	char *uptime = NULL;
 	char *reloadtxt = NULL;
-
-	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
-		return 1;
 
 	if (up < 0) /* must never be negative because of clock drift */
 		up = 0;
@@ -719,13 +714,8 @@ static int cli_parse_reload(char **args, char *payload, struct appctx *appctx, v
 static int cli_io_handler_show_loadstatus(struct appctx *appctx)
 {
 	char *env;
-	struct stconn *sc = appctx_sc(appctx);
 
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
-		return 1;
-
-	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
 		return 1;
 
 	env = getenv("HAPROXY_LOAD_SUCCESS");

@@ -457,12 +457,7 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
  */
 static int cli_io_handler_show_threads(struct appctx *appctx)
 {
-	struct stconn *sc = appctx_sc(appctx);
 	int thr;
-
-	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
-		return 1;
 
 	if (appctx->st0)
 		thr = appctx->st1;
@@ -1638,7 +1633,6 @@ static int debug_parse_cli_fd(char **args, char *payload, struct appctx *appctx,
 static int debug_iohandler_fd(struct appctx *appctx)
 {
 	struct dev_fd_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_sc(appctx);
 	struct sockaddr_storage sa;
 	struct stat statbuf;
 	socklen_t salen, vlen;
@@ -1646,10 +1640,6 @@ static int debug_iohandler_fd(struct appctx *appctx)
 	char *addrstr;
 	int ret = 1;
 	int i, fd;
-
-	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
-		goto end;
 
 	chunk_reset(&trash);
 
@@ -1800,7 +1790,6 @@ static int debug_iohandler_fd(struct appctx *appctx)
 	}
 
 	thread_release();
- end:
 	return ret;
 }
 
@@ -1874,10 +1863,6 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 	struct mem_stats *ptr;
 	const char *pfx = ctx->match;
 	int ret = 1;
-
-	/* FIXME: Don't watch the other side !*/
-	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
-		goto end;
 
 	if (!ctx->width) {
 		/* we don't know the first column's width, let's compute it
