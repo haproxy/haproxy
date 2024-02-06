@@ -25297,6 +25297,7 @@ Please refer to the table below for currently defined variables :
   |   |      | %[accept_date,ltime("%d/%b/%Y:%H:%M:%S %z")]         | date    |
   +---+------+------------------------------------------------------+---------+
   |   | %Ts  | Accept date as a UNIX timestamp                      | numeric |
+  |   |      | %[accept_date]                                       |         |
   +---+------+------------------------------------------------------+---------+
   |   | %t   | Accept date local (with millisecond resolution)      |         |
   |   |      | %[accept_date(ms),ms_ltime("%d/%b/%Y:%H:%M:%S.%3N")] | date    |
@@ -25358,8 +25359,10 @@ Please refer to the table below for currently defined variables :
   | H | %CS  | captured_response_cookie                             | string  |
   +---+------+------------------------------------------------------+---------+
   |   | %H   | hostname                                             | string  |
+  |   |      | %[hostname]                                          |         |
   +---+------+------------------------------------------------------+---------+
   | H | %HM  | HTTP method (ex: POST)                               | string  |
+  |   |      | %[method]
   +---+------+------------------------------------------------------+---------+
   | H | %HP  | HTTP request URI without query string                | string  |
   +---+------+------------------------------------------------------+---------+
@@ -25388,6 +25391,7 @@ Please refer to the table below for currently defined variables :
   |   |      | %[be_name]                                           | string  |
   +---+------+------------------------------------------------------+---------+
   |   | %bc  | beconn      (backend concurrent connections)         | numeric |
+  |   |      | %[be_conn]                                           |         |
   +---+------+------------------------------------------------------+---------+
   |   | %bi  | backend_source_ip       (connecting address)         |         |
   |   |      | %[bc_src]                                            | IP      |
@@ -25404,8 +25408,10 @@ Please refer to the table below for currently defined variables :
   |   |      | %[src_port]                                          | numeric |
   +---+------+------------------------------------------------------+---------+
   |   | %f   | frontend_name                                        | string  |
+  |   |      | %[fe_name]                                           |         |
   +---+------+------------------------------------------------------+---------+
   |   | %fc  | feconn     (frontend concurrent connections)         | numeric |
+  |   |      | %[fe_conn]                                           |         |
   +---+------+------------------------------------------------------+---------+
   |   | %fi  | frontend_ip              (accepting address)         |         |
   |   |      | %[dst]                                               | IP      |
@@ -25439,6 +25445,7 @@ Please refer to the table below for currently defined variables :
   |   |      | %[txn.id32]                                          |         |
   +---+------+------------------------------------------------------+---------+
   |   | %s   | server_name                                          | string  |
+  |   |      | %[srv_name]                                          |         |
   +---+------+------------------------------------------------------+---------+
   |   | %sc  | srv_conn     (server concurrent connections)         | numeric |
   +---+------+------------------------------------------------------+---------+
