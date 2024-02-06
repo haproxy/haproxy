@@ -4020,7 +4020,7 @@ static int smp_fetch_id32(const struct arg *args, struct sample *smp, const char
 	return 1;
 }
 
-static int smp_fetch_redispatch(const struct arg *args, struct sample *smp, const char *km, void *private)
+static int smp_fetch_redispatched(const struct arg *args, struct sample *smp, const char *km, void *private)
 {
 	smp->flags = SMP_F_VOL_TXN;
 	smp->data.type = SMP_T_BOOL;
@@ -4044,7 +4044,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "last_rule_line",     smp_fetch_last_rule_line,     0, NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "txn.conn_retries",   smp_fetch_conn_retries,       0, NULL, SMP_T_SINT, SMP_USE_L4SRV, },
 	{ "txn.id32",           smp_fetch_id32,               0, NULL, SMP_T_SINT, SMP_USE_INTRN, },
-	{ "txn.redispatch",     smp_fetch_redispatch,         0, NULL, SMP_T_BOOL, SMP_USE_L4SRV, },
+	{ "txn.redispatched",   smp_fetch_redispatched,       0, NULL, SMP_T_BOOL, SMP_USE_L4SRV, },
 	{ "txn.sess_term_state",smp_fetch_sess_term_state,    0, NULL, SMP_T_STR,  SMP_USE_INTRN, },
 	{ NULL, NULL, 0, 0, 0 },
 }};
