@@ -260,16 +260,19 @@ struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int t
 	}
 
 	appctx->sedesc = sedesc;
-	if (applet->rcv_buf != NULL && applet->snd_buf != NULL)
-		appctx->t->process = task_process_applet;
-	else
-		appctx->t->process = task_run_applet;
-	appctx->t->context = appctx;
 
 	appctx->flags = 0;
 	appctx->inbuf = BUF_NULL;
 	appctx->outbuf = BUF_NULL;
 	appctx->to_forward = 0;
+
+	if (applet->rcv_buf != NULL && applet->snd_buf != NULL) {
+		appctx->t->process = task_process_applet;
+		appctx->flags |= APPCTX_FL_INOUT_BUFS;
+	}
+	else
+		appctx->t->process = task_run_applet;
+	appctx->t->context = appctx;
 
 	LIST_INIT(&appctx->buffer_wait.list);
 	appctx->buffer_wait.target = appctx;

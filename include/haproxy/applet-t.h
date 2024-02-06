@@ -46,6 +46,7 @@
 #define APPCTX_FL_ERROR          0x00000080
 #define APPCTX_FL_SHUTDOWN       0x00000100  /* applet was shut down (->release() called if any). No more data exchange with SCs */
 #define APPCTX_FL_WANT_DIE       0x00000200  /* applet was running and requested to die */
+#define APPCTX_FL_INOUT_BUFS     0x00000400  /* applet uses its own buffers */
 
 struct appctx;
 struct proxy;
