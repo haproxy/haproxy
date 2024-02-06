@@ -435,6 +435,121 @@ static inline size_t b_getblk_nc(const struct buffer *buf, const char **blk1, si
 	return 1;
 }
 
+/* Locates the longest part of the buffer that is composed exclusively of
+ * characters not in the <delim> set, and delimited by one of these characters,
+ * and returns the initial part and the first of such delimiters. A single
+ * escape character in <escape> may be specified so that when not 0 and found,
+ * the character that follows it is never taken as a delimiter. Note that
+ * <delim> cannot contain the zero byte, hence this function is not usable with
+ * byte zero as a delimiter.
+ *
+ * Return values :
+ *   >0 : number of bytes read. Includes the sep if present before len or end.
+ *   =0 : no sep before end found. <str> is left undefined.
+ *
+ * The buffer is left unaffected. Unused buffers are left in an undefined state.
+ */
+static inline size_t b_getdelim(const struct buffer *buf, size_t offset, size_t count,
+				char *str, size_t len, const char *delim, char escape)
+{
+	uchar delim_map[256 / 8];
+	int found, escaped;
+	uint pos, bit;
+	size_t ret, max;
+	uchar b;
+	char *p;
+
+	ret = 0;
+	p = b_peek(buf, offset);
+
+	max = len;
+	if (!count || offset+count > b_data(buf))
+		goto out;
+	if (max > count) {
+		max = count;
+		str[max-1] = 0;
+	}
+
+	/* create the byte map */
+	memset(delim_map, 0, sizeof(delim_map));
+	while ((b = *delim)) {
+		pos = b >> 3;
+		bit = b &  7;
+		delim_map[pos] |= 1 << bit;
+		delim++;
+	}
+
+	found = escaped = 0;
+	while (max) {
+		*str++ = b = *p;
+		ret++;
+		max--;
+
+		if (escape && (escaped || *p == escape)) {
+			escaped = !escaped;
+			goto skip;
+		}
+
+		pos = b >> 3;
+		bit = b &  7;
+		if (delim_map[pos] & (1 << bit)) {
+			found = 1;
+			break;
+		}
+	  skip:
+		p = b_next(buf, p);
+	}
+
+	if (ret > 0 && !found)
+		ret = 0;
+ out:
+	if (max)
+		*str = 0;
+	return ret;
+}
+
+/* Gets one text line out of aa buffer.
+ * Return values :
+ *   >0 : number of bytes read. Includes the \n if present before len or end.
+ *   =0 : no '\n' before end found. <str> is left undefined.
+ *
+ * The buffer is left unaffected. Unused buffers are left in an undefined state.
+ */
+static inline size_t b_getline(const struct buffer *buf, size_t offset, size_t count,
+			       char *str, size_t len)
+{
+	size_t ret, max;
+	char *p;
+
+	ret = 0;
+	p = b_peek(buf, offset);
+
+	max = len;
+	if (!count || offset+count > b_data(buf))
+		goto out;
+	if (max > count) {
+		max = count;
+		str[max-1] = 0;
+	}
+
+	while (max) {
+		*str++ = *p;
+		ret++;
+		max--;
+
+		if (*p == '\n')
+			break;
+		p = b_next(buf, p);
+	}
+
+	if (ret > 0 && *(str-1) != '\n')
+		ret = 0;
+ out:
+	if (max)
+		*str = 0;
+	return ret;
+}
+
 
 /*********************************************/
 /* Functions used to modify the buffer state */
