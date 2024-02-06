@@ -46,9 +46,6 @@
 /* The scaled value of 1 */
 #define CUBIC_ONE_SCALED  (1 << CUBIC_SCALE_FACTOR_SHIFT)
 
-/* The left bit shifting to apply to convert milliseconds to seconds. */
-#define TIME_SCALE_FACTOR_SHIFT      10
-
 /* The maximum time value which may be cubed and multiplied by CUBIC_C_SCALED */
 #define CUBIC_TIME_LIMIT    355535ULL  /* ms */
 
@@ -242,10 +239,10 @@ static inline void quic_cubic_update(struct quic_cc *cc, uint32_t acked)
 		else {
 			/* K value computing (in seconds):
 			 * K = cubic_root((W_max - cwnd_epoch)/C) (Figure 2)
-			 * Note that K is stored in 1024th of a second.
+			 * Note that K is stored in milliseconds.
 			 */
 			c->K = cubic_root((c->last_w_max - path->cwnd) *
-			                  ((CUBIC_ONE_SCALED - CUBIC_BETA_SCALED) << TIME_SCALE_FACTOR_SHIFT) / (CUBIC_C_SCALED * path->mtu));
+			                  (CUBIC_ONE_SCALED - CUBIC_BETA_SCALED) * 1000 / (CUBIC_C_SCALED * path->mtu));
 			c->W_target = c->last_w_max;
 		}
 
@@ -274,9 +271,9 @@ static inline void quic_cubic_update(struct quic_cc *cc, uint32_t acked)
 
 	/* Compute W_cubic_t at t time. */
 	W_cubic_t = CUBIC_C_SCALED * path->mtu;
-	W_cubic_t = (W_cubic_t * t) >> TIME_SCALE_FACTOR_SHIFT;
-	W_cubic_t = (W_cubic_t * t) >> TIME_SCALE_FACTOR_SHIFT;
-	W_cubic_t = (W_cubic_t * t) >> TIME_SCALE_FACTOR_SHIFT;
+	W_cubic_t = (W_cubic_t * t) / 1000;
+	W_cubic_t = (W_cubic_t * t) / 1000;
+	W_cubic_t = (W_cubic_t * t) / 1000;
 	W_cubic_t >>= CUBIC_SCALE_FACTOR_SHIFT;
 	if (elapsed_time < c->K)
 		target = c->W_target - W_cubic_t;
