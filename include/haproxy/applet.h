@@ -276,20 +276,32 @@ static inline void applet_expect_data(struct appctx *appctx)
  */
 static inline int applet_putchk(struct appctx *appctx, struct buffer *chunk)
 {
-	struct sedesc *se = appctx->sedesc;
 	int ret;
 
-	ret = ci_putchk(sc_ic(se->sc), chunk);
-	if (ret < 0) {
-		/* XXX: Handle all errors as a lack of space because callers
-		 * don't handles other cases for now. So applets must be
-		 * careful to handles shutdown (-2) and invalid calls (-3) by
-		 * themselves.
-		 */
-		sc_need_room(se->sc, chunk->data);
-		ret = -1;
+	if (appctx->flags & APPCTX_FL_INOUT_BUFS) {
+		if (b_data(chunk) > b_room(&appctx->outbuf)) {
+			applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
+			ret = -1;
+		}
+		else {
+			ret = b_putblk(&appctx->outbuf, b_head(chunk), b_data(chunk));
+			chunk->data -= ret;
+		}
 	}
+	else {
+		struct sedesc *se = appctx->sedesc;
 
+		ret = ci_putchk(sc_ic(se->sc), chunk);
+		if (ret < 0) {
+			/* XXX: Handle all errors as a lack of space because callers
+			 * don't handles other cases for now. So applets must be
+			 * careful to handles shutdown (-2) and invalid calls (-3) by
+			 * themselves.
+			 */
+			sc_need_room(se->sc, chunk->data);
+			ret = -1;
+		}
+	}
 	return ret;
 }
 
@@ -299,18 +311,29 @@ static inline int applet_putchk(struct appctx *appctx, struct buffer *chunk)
  */
 static inline int applet_putblk(struct appctx *appctx, const char *blk, int len)
 {
-	struct sedesc *se = appctx->sedesc;
 	int ret;
 
-	ret = ci_putblk(sc_ic(se->sc), blk, len);
-	if (ret < -1) {
-		/* XXX: Handle all errors as a lack of space because callers
-		 * don't handles other cases for now. So applets must be
-		 * careful to handles shutdown (-2) and invalid calls (-3) by
-		 * themselves.
-		 */
-		sc_need_room(se->sc, len);
-		ret = -1;
+	if (appctx->flags & APPCTX_FL_INOUT_BUFS) {
+		if (len > b_room(&appctx->outbuf)) {
+			applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
+			ret = -1;
+		}
+		else
+			ret = b_putblk(&appctx->outbuf, blk, len);
+	}
+	else {
+		struct sedesc *se = appctx->sedesc;
+
+		ret = ci_putblk(sc_ic(se->sc), blk, len);
+		if (ret < -1) {
+			/* XXX: Handle all errors as a lack of space because callers
+			 * don't handles other cases for now. So applets must be
+			 * careful to handles shutdown (-2) and invalid calls (-3) by
+			 * themselves.
+			 */
+			sc_need_room(se->sc, len);
+			ret = -1;
+		}
 	}
 
 	return ret;
@@ -323,20 +346,32 @@ static inline int applet_putblk(struct appctx *appctx, const char *blk, int len)
  */
 static inline int applet_putstr(struct appctx *appctx, const char *str)
 {
-	struct sedesc *se = appctx->sedesc;
 	int ret;
 
-	ret = ci_putstr(sc_ic(se->sc), str);
-	if (ret == -1) {
-		/* XXX: Handle all errors as a lack of space because callers
-		 * don't handles other cases for now. So applets must be
-		 * careful to handles shutdown (-2) and invalid calls (-3) by
-		 * themselves.
-		 */
-		sc_need_room(se->sc, strlen(str));
-		ret = -1;
-	}
+	if (appctx->flags & APPCTX_FL_INOUT_BUFS) {
+		int len = strlen(str);
 
+		if (len > b_room(&appctx->outbuf)) {
+			applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
+			ret = -1;
+		}
+		else
+			ret = b_putblk(&appctx->outbuf, str, len);
+	}
+	else {
+		struct sedesc *se = appctx->sedesc;
+
+		ret = ci_putstr(sc_ic(se->sc), str);
+		if (ret == -1) {
+			/* XXX: Handle all errors as a lack of space because callers
+			 * don't handles other cases for now. So applets must be
+			 * careful to handles shutdown (-2) and invalid calls (-3) by
+			 * themselves.
+			 */
+			sc_need_room(se->sc, strlen(str));
+			ret = -1;
+		}
+	}
 	return ret;
 }
 
@@ -346,20 +381,32 @@ static inline int applet_putstr(struct appctx *appctx, const char *str)
  */
 static inline int applet_putchr(struct appctx *appctx, char chr)
 {
-	struct sedesc *se = appctx->sedesc;
 	int ret;
 
-	ret = ci_putchr(sc_ic(se->sc), chr);
-	if (ret == -1) {
-		/* XXX: Handle all errors as a lack of space because callers
-		 * don't handles other cases for now. So applets must be
-		 * careful to handles shutdown (-2) and invalid calls (-3) by
-		 * themselves.
-		 */
-		sc_need_room(se->sc, 1);
-		ret = -1;
+	if (appctx->flags & APPCTX_FL_INOUT_BUFS) {
+		if (b_full(&appctx->outbuf)) {
+			applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
+			ret = -1;
+		}
+		else {
+			 b_putchr(&appctx->outbuf, chr);
+			 ret = 1;
+		}
 	}
+	else {
+		struct sedesc *se = appctx->sedesc;
 
+		ret = ci_putchr(sc_ic(se->sc), chr);
+		if (ret == -1) {
+			/* XXX: Handle all errors as a lack of space because callers
+			 * don't handles other cases for now. So applets must be
+			 * careful to handles shutdown (-2) and invalid calls (-3) by
+			 * themselves.
+			 */
+			sc_need_room(se->sc, 1);
+			ret = -1;
+		}
+	}
 	return ret;
 }
 
