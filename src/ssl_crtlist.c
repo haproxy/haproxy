@@ -1530,7 +1530,7 @@ static int cli_parse_del_crtlist(char **args, char *payload, struct appctx *appc
 			LIST_DELETE(&link_ref->list);
 			free(link_ref);
 		}
-		free(inst);
+		ckch_inst_free(inst);
 	}
 
 	crtlist_free_filters(entry->filters);
