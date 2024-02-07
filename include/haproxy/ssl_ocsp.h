@@ -30,6 +30,8 @@
 
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 
+int ssl_ocsp_build_response_key(OCSP_CERTID *ocsp_cid, unsigned char certid[OCSP_MAX_CERTID_ASN1_LENGTH], unsigned int *key_length);
+
 int ssl_sock_get_ocsp_arg_kt_index(int evp_keytype);
 int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg);
 

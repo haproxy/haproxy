@@ -184,6 +184,37 @@ __decl_thread(HA_SPINLOCK_T ocsp_tree_lock);
 
 struct eb_root ocsp_update_tree = EB_ROOT; /* updatable ocsp responses sorted by next_update in absolute time */
 
+/*
+ * Convert an OCSP_CERTID structure into a char buffer that can be used as a key
+ * in the OCSP response tree. It takes an <ocsp_cid> as parameter and builds a
+ * key of length <key_length> into the <certid> buffer. The key length cannot
+ * exceed OCSP_MAX_CERTID_ASN1_LENGTH bytes.
+ * Returns a negative value in case of error.
+ */
+int ssl_ocsp_build_response_key(OCSP_CERTID *ocsp_cid, unsigned char certid[OCSP_MAX_CERTID_ASN1_LENGTH], unsigned int *key_length)
+{
+	unsigned char *p = NULL;
+	int i;
+
+	if (!key_length)
+		return -1;
+
+	*key_length = 0;
+
+	if (!ocsp_cid)
+		return 0;
+
+	i = i2d_OCSP_CERTID(ocsp_cid, NULL);
+	if (!i || (i > OCSP_MAX_CERTID_ASN1_LENGTH))
+		return 0;
+
+	p = certid;
+	*key_length = i2d_OCSP_CERTID(ocsp_cid, &p);
+
+end:
+	return *key_length > 0;
+}
+
 /* This function starts to check if the OCSP response (in DER format) contained
  * in chunk 'ocsp_response' is valid (else exits on error).
  * If 'cid' is not NULL, it will be compared to the OCSP certificate ID

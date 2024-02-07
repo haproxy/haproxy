@@ -34,6 +34,7 @@
 #include <haproxy/sc_strm.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/ssl_ocsp.h>
 #include <haproxy/ssl_utils.h>
 #include <haproxy/stconn.h>
 #include <haproxy/tools.h>
@@ -1761,36 +1762,6 @@ end:
 	return 0;
 }
 
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
-/*
- * Build the OCSP tree entry's key for a given ckch_store.
- * Returns a negative value in case of error.
- */
-static int ckch_store_build_certid(struct ckch_store *ckch_store, unsigned char certid[OCSP_MAX_CERTID_ASN1_LENGTH], unsigned int *key_length)
-{
-	unsigned char *p = NULL;
-	int i;
-
-	if (!key_length)
-		return -1;
-
-	*key_length = 0;
-
-	if (!ckch_store->data->ocsp_cid)
-		return 0;
-
-	i = i2d_OCSP_CERTID(ckch_store->data->ocsp_cid, NULL);
-	if (!i || (i > OCSP_MAX_CERTID_ASN1_LENGTH))
-		return 0;
-
-	p = certid;
-	*key_length = i2d_OCSP_CERTID(ckch_store->data->ocsp_cid, &p);
-
-end:
-	return *key_length > 0;
-}
-#endif
-
 /*
  * Dump the OCSP certificate key (if it exists) of certificate <ckch> into
  * buffer <out>.
@@ -1803,7 +1774,7 @@ static int ckch_store_show_ocsp_certid(struct ckch_store *ckch_store, struct buf
 	unsigned int key_length = 0;
 	int i;
 
-	if (ckch_store_build_certid(ckch_store, (unsigned char*)key, &key_length) >= 0) {
+	if (ssl_ocsp_build_response_key(ckch_store->data->ocsp_cid, (unsigned char*)key, &key_length) >= 0) {
 		/* Dump the CERTID info */
 		chunk_appendf(out, "OCSP Response Key: ");
 		for (i = 0; i < key_length; ++i) {
@@ -1890,7 +1861,7 @@ static int cli_io_handler_show_cert_ocsp_detail(struct appctx *appctx)
 		unsigned char key[OCSP_MAX_CERTID_ASN1_LENGTH] = {};
 		unsigned int key_length = 0;
 
-		if (ckch_store_build_certid(ckchs, (unsigned char*)key, &key_length) < 0)
+		if (ssl_ocsp_build_response_key(ckchs->data->ocsp_cid, (unsigned char*)key, &key_length) < 0)
 			goto end_no_putchk;
 
 		if (ssl_get_ocspresponse_detail(key, out))
