@@ -533,3 +533,186 @@ haproxy h6 -cli {
     send "show ssl ocsp-updates"
     expect ~ "303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016 .*| 1 | 0 | 1 | Update successful"
 }
+
+haproxy h6 -wait
+process p6 -wait
+
+
+######################
+#                    #
+# SEVENTH TEST CASE  #
+#                    #
+######################
+
+#
+# Check that removing crt-list instances does not remove the OCSP responses
+# from the tree but that they will not be auto updated anymore if the last
+# instance is removed (via del ssl crt-list).
+#
+
+haproxy h7 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-buffer-size 1
+        stats socket "${tmpdir}/h7/stats" level admin
+        crt-base ${testdir}/ocsp_update
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend ssl-fe
+        bind "${tmpdir}/ssl-h7.sock" ssl crt-list ${testdir}/ocsp_update/multicert_both_certs.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        http-request return status 200
+
+    listen http_rebound_lst
+        mode http
+        bind "127.0.0.1:12345"
+        server s1 "127.0.0.1:12346"
+} -start
+
+# Check that the two certificates are taken into account in the auto update process
+haproxy h7 -cli {
+    send "show ssl ocsp-updates"
+    expect ~ "303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015 .*"
+
+    send "show ssl ocsp-updates"
+    expect ~ "303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016 .*"
+}
+
+# Remove the second line from the crt-list and check that the corresponding
+# ocsp response was removed from the auto update list but is still present in the
+# system
+haproxy h7 -cli {
+    send "del ssl crt-list ${testdir}/ocsp_update/multicert_both_certs.crt-list ${testdir}/ocsp_update/multicert/server_ocsp.pem.ecdsa"
+    expect ~ "Entry.*deleted in crtlist"
+
+    send "show ssl ocsp-updates"
+    expect !~ "303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016 .*"
+
+    send "show ssl ocsp-response"
+    expect ~ "Certificate ID key : 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016"
+
+    send "show ssl ocsp-response ${testdir}/ocsp_update/multicert/server_ocsp.pem.ecdsa"
+    expect ~ ".* Cert Status: good.*"
+}
+
+# Add the previously removed crt-list line with auto-update enabled and check that
+# the ocsp response appears in the auto update list
+shell {
+    printf "add ssl crt-list ${testdir}/ocsp_update/multicert_both_certs.crt-list <<\nmulticert/server_ocsp.pem.ecdsa [ocsp-update on] foo.bar\n\n" | socat "${tmpdir}/h7/stats" - | grep "Inserting certificate.*in crt-list"
+}
+
+haproxy h7 -cli {
+    send "show ssl ocsp-updates"
+    expect ~ "303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016 .*"
+}
+
+# Check that the auto update option consistency check work even when crt-list
+# lines are added through the cli
+shell {
+    printf "add ssl crt-list ${testdir}/ocsp_update/multicert_both_certs.crt-list <<\nmulticert/server_ocsp.pem.ecdsa foo.foo\n\n" | socat "${tmpdir}/h7/stats" - | grep "Incompatibilities found in OCSP update mode for certificate"
+}
+
+haproxy h7 -wait
+
+####################
+#                  #
+# EIGTH TEST CASE  #
+#                  #
+####################
+
+#
+# Check that a certificate created through the CLI and which does not have ocsp
+# update enabled can be updated via "update ssl ocsp-response" command.
+#
+
+process p8 "openssl ocsp -index ${testdir}/ocsp_update/index.txt -rsigner ${testdir}/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/ocsp_update/ocsp_update_rootca.crt -nrequest 1 -ndays 1 -port 12346 -timeout 5" -start
+
+barrier b8 cond 2 -cyclic
+
+syslog Syslog_h8 -level info {
+    recv
+    expect ~ "GET /MEMwQTA%2FMD0wOzAJBgUrDgMCGgUABBSKg%2BAGD6%2F3Ccp%2Bm5VSKi6BY1%2FaCgQU9lKw5DXV6pI4UVCPCtvpLYXeAHoCAhAV HTTP/1.1"
+
+    barrier b8 sync
+} -start
+
+
+haproxy h8 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-buffer-size 1
+        stats socket "${tmpdir}/h8/stats" level admin
+        crt-base ${testdir}/ocsp_update
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend ssl-fe
+        bind "${tmpdir}/ssl-h8.sock" ssl crt-list ${testdir}/ocsp_update/multicert_ecdsa_no_update.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        http-request return status 200
+
+    listen http_rebound_lst
+        mode http
+        option httplog
+        log ${Syslog_h8_addr}:${Syslog_h8_port} local0
+        bind "127.0.0.1:12345"
+        server s1 "127.0.0.1:12346"
+} -start
+
+# We need to "enable" the cli with a first cli call before using it only through socats
+haproxy h8 -cli {
+    send "show ssl cert"
+    expect ~ ""
+}
+
+# Create a new certificate and add it in the crt-list with ocsp auto-update enabled
+shell {
+    echo "new ssl cert ${testdir}/ocsp_update/rsa.pem" | socat "${tmpdir}/h8/stats" -
+    printf "set ssl cert ${testdir}/ocsp_update/rsa.pem <<\n$(cat ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa)\n\n" | socat "${tmpdir}/h8/stats" -
+    printf "set ssl cert ${testdir}/ocsp_update/rsa.pem.issuer <<\n$(cat ${testdir}/ocsp_update/ocsp_update_rootca.crt)\n\n" | socat "${tmpdir}/h8/stats" -
+    printf "set ssl cert ${testdir}/ocsp_update/rsa.pem.ocsp <<\n$(base64 -w 1000 ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa.ocsp)\n\n" | socat "${tmpdir}/h8/stats" -
+    echo "commit ssl cert ${testdir}/ocsp_update/rsa.pem" | socat "${tmpdir}/h8/stats" -
+
+    printf "add ssl crt-list ${testdir}/ocsp_update/multicert_ecdsa_no_update.crt-list <<\nrsa.pem [ocsp-update off] foo.bar\n\n" | socat "${tmpdir}/h8/stats" -
+}
+
+# Check that the line is in the crt-list
+haproxy h8 -cli {
+    send "show ssl crt-list ${testdir}/ocsp_update/multicert_ecdsa_no_update.crt-list"
+    expect ~ "${testdir}/ocsp_update/rsa.pem .* foo.bar"
+}
+
+# Check that the new certificate is NOT in the auto update list
+haproxy h8 -cli {
+    send "show ssl ocsp-updates"
+    expect !~ "303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015.*"
+}
+
+shell {
+    echo "update ssl ocsp-response ${testdir}/ocsp_update/rsa.pem" | socat "${tmpdir}/h8/stats" -
+}
+
+shell "sleep 1"
+
+barrier b8 sync
+
+haproxy h8 -cli {
+    send "show ssl ocsp-response ${testdir}/ocsp_update/rsa.pem"
+    expect ~ ".* Cert Status: revoked.*"
+}
+
+haproxy h8 -wait
+process p8 -wait
