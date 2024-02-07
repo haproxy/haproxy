@@ -1295,6 +1295,25 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 			if (ocsp_update_task)
 				task_wakeup(ocsp_update_task, TASK_WOKEN_MSG);
 		}
+	} else if (iocsp->uri && data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON) {
+		/* This unlikely case can happen if a series of "del ssl
+		 * crt-list" / "add ssl crt-list" commands are made on the CLI.
+		 * In such a case, the OCSP response tree entry will be created
+		 * prior to the activation of the ocsp auto update and in such a
+		 * case we must "force" insertion in the auto update tree.
+		 */
+		if (iocsp->next_update.node.leaf_p == NULL) {
+			ssl_ocsp_update_insert(iocsp);
+			/* If we are during init the update task is not
+			 * scheduled yet so a wakeup won't do anything.
+			 * Otherwise, if the OCSP was added through the CLI, we
+			 * wake the task up to manage the case of a new entry
+			 * that needs to be updated before the previous first
+			 * entry.
+			 */
+			if (ocsp_update_task)
+				task_wakeup(ocsp_update_task, TASK_WOKEN_MSG);
+		}
 	}
 
 out:
