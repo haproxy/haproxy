@@ -4915,6 +4915,30 @@ error:
 	return 0;
 }
 
+/* Server conn queueing infos - bc_{be,srv}_queue */
+static int smp_fetch_conn_queues(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct strm_logs *logs;
+
+	if (!smp->strm)
+		return 0;
+
+	smp->data.type = SMP_T_SINT;
+	smp->flags = 0;
+
+	logs = &smp->strm->logs;
+
+	if (kw[3] == 'b') {
+		/* bc_be_queue */
+		smp->data.u.sint = logs->prx_queue_pos;
+	}
+	else {
+		/* bc_srv_queue */
+		smp->data.u.sint = logs->srv_queue_pos;
+	}
+	return 1;
+}
+
 /* Timing events {f,bc}.timer.  */
 static int smp_fetch_conn_timers(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -5029,6 +5053,9 @@ static struct sample_fetch_kw_list smp_logs_kws = {ILH, {
 	{ "txn.timer.user",       smp_fetch_txn_timers,   0,         NULL, SMP_T_SINT, SMP_USE_TXFIN }, /* "Tu" */
 
 	{ "bc.timer.connect",     smp_fetch_conn_timers,  0,         NULL, SMP_T_SINT, SMP_USE_L4SRV }, /* "Tc" */
+	{ "bc_be_queue",          smp_fetch_conn_queues,  0,         NULL, SMP_T_SINT, SMP_USE_L4SRV }, /* "bq" */
+	{ "bc_srv_queue",         smp_fetch_conn_queues,  0,         NULL, SMP_T_SINT, SMP_USE_L4SRV }, /* "sq" */
+
 	{ "fc.timer.handshake",   smp_fetch_conn_timers,  0,         NULL, SMP_T_SINT, SMP_USE_L4CLI }, /* "Th" */
 	{ "fc.timer.total",       smp_fetch_conn_timers,  0,         NULL, SMP_T_SINT, SMP_USE_SSFIN }, /* "Tt" */
 

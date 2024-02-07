@@ -21025,6 +21025,7 @@ Summary of sample fetch methods in this section and their respective types:
 -------------------------------------------------+-------------
 accept_date([<unit>])                              integer
 bc.timer.connect                                   integer
+bc_be_queue                                        integer
 bc_dst                                             ip
 bc_dst_port                                        integer
 bc_err                                             integer
@@ -21033,6 +21034,7 @@ bc_glitches                                        integer
 bc_http_major                                      integer
 bc_src                                             ip
 bc_src_port                                        integer
+bc_srv_queue                                       integer
 be_id                                              integer
 be_name                                            string
 bc_rtt(<unit>)                                     integer
@@ -21251,6 +21253,10 @@ bc.timer.connect : integer
   equivalent of %Tc in the log-format. This is reported in milliseconds (ms).
   For more information see Section 8.4 "Timing events"
 
+bc_be_queue : integer
+  Number of streams de-queued while waiting for a connection slot on the
+  target backend. This is the equivalent of %bq in the log-format.
+
 bc_dst : ip
   This is the destination ip address of the connection on the server side,
   which is the server address HAProxy connected to. It is of type IP and works
@@ -21300,6 +21306,10 @@ bc_src : ip
 bc_src_port : integer
   Returns an integer value corresponding to the TCP source port of the
   connection on the server side, which is the port HAProxy connected from.
+
+bc_srv_queue : integer
+  Number of streams de-queued while waiting for a connection slot on the
+  target server. This is the equivalent of %sq in the log-format.
 
 be_id : integer
   Returns an integer containing the current backend's id. It can be used in
@@ -25400,6 +25410,7 @@ Please refer to the table below for currently defined variables :
   |   |      | %[bc_src_port]                                       | numeric |
   +---+------+------------------------------------------------------+---------+
   |   | %bq  | backend_queue                                        | numeric |
+  |   |      | %[bc_be_queue]                                       |         |
   +---+------+------------------------------------------------------+---------+
   |   | %ci  | client_ip                 (accepted address)         |         |
   |   |      | %[src]                                               | IP      |
@@ -25456,6 +25467,7 @@ Please refer to the table below for currently defined variables :
   |   |      | %[bc_dst_port]                                       | numeric |
   +---+------+------------------------------------------------------+---------+
   |   | %sq  | srv_queue                                            | numeric |
+  |   |      | %[bc_srv_queue]                                      |         |
   +---+------+------------------------------------------------------+---------+
   | S | %sslc| ssl_ciphers (ex: AES-SHA)                            |         |
   |   |      | %[ssl_fc_cipher]                                     | string  |
