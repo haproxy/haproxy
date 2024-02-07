@@ -793,6 +793,8 @@ struct ckch_data *ssl_sock_copy_cert_key_and_chain(struct ckch_data *src,
 
 	dst->ocsp_cid = OCSP_CERTID_dup(src->ocsp_cid);
 
+	dst->ocsp_update_mode = src->ocsp_update_mode;
+
 	return dst;
 
 error:
