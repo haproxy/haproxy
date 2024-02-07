@@ -21046,6 +21046,8 @@ bc_rtt(<unit>)                                     integer
 bc_rttvar(<unit>)                                  integer
 be_server_timeout                                  integer
 be_tunnel_timeout                                  integer
+bytes_in                                           integer
+bytes_out                                          integer
 cur_server_timeout                                 integer
 cur_tunnel_timeout                                 integer
 cur_client_timeout                                 integer
@@ -21343,6 +21345,12 @@ be_tunnel_timeout : integer
   Returns the configuration value in millisecond for the tunnel timeout of the
   current backend. This timeout can be overwritten by a "set-timeout" rule. See
   also the "cur_tunnel_timeout".
+
+bytes_in : integer
+  This returns the number of bytes uploaded from the client to the server.
+
+bytes_out : integer
+  This is the number of bytes transmitted from the server to the client.
 
 cur_server_timeout : integer
   Returns the currently applied server timeout in millisecond for the stream.
@@ -23476,8 +23484,6 @@ base                                               string
 base32                                             integer
 base32+src                                         binary
 baseq                                              string
-bytes_in                                           integer
-bytes_out                                          integer
 capture.req.hdr(<idx>)                             string
 capture.req.method                                 string
 capture.req.uri                                    string
@@ -23614,12 +23620,6 @@ baseq : string
   the request with the query-string, which starts at the first slash. Using this
   instead of "base" allows one to properly identify the target resource, for
   statistics or caching use cases. See also "path", "pathq" and "base".
-
-bytes_in : integer
-  This returns the number of bytes uploaded from the client to the server.
-
-bytes_out : integer
-  This is the number of bytes transmitted from the server to the client.
 
 capture.req.hdr(<idx>) : string
   This extracts the content of the header captured by the "capture request
