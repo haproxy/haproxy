@@ -721,8 +721,27 @@ void ssl_sock_free_cert_key_and_chain_contents(struct ckch_data *data)
 		X509_free(data->ocsp_issuer);
 	data->ocsp_issuer = NULL;
 
-	OCSP_CERTID_free(data->ocsp_cid);
-	data->ocsp_cid = NULL;
+
+	/* We need to properly remove the reference to the corresponding
+	 * certificate_ocsp structure if it exists (which it should).
+	 */
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
+	if (data->ocsp_cid) {
+		struct certificate_ocsp *ocsp = NULL;
+		unsigned char certid[OCSP_MAX_CERTID_ASN1_LENGTH] = {};
+		unsigned int certid_length = 0;
+
+		if (ssl_ocsp_build_response_key(data->ocsp_cid, (unsigned char*)certid, &certid_length) >= 0) {
+			HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
+			ocsp = (struct certificate_ocsp *)ebmb_lookup(&cert_ocsp_tree, certid, OCSP_MAX_CERTID_ASN1_LENGTH);
+			HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
+			ssl_sock_free_ocsp(ocsp);
+		}
+
+		OCSP_CERTID_free(data->ocsp_cid);
+		data->ocsp_cid = NULL;
+	}
+#endif
 }
 
 /*

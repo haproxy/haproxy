@@ -36,6 +36,7 @@ int ssl_sock_get_ocsp_arg_kt_index(int evp_keytype);
 int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg);
 
 void ssl_sock_free_ocsp(struct certificate_ocsp *ocsp);
+void ssl_sock_free_ocsp_instance(struct certificate_ocsp *ocsp);
 
 int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
                                 struct certificate_ocsp *ocsp,
