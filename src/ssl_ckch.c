@@ -888,14 +888,14 @@ void ckch_store_free(struct ckch_store *store)
 	if (!store)
 		return;
 
-	ssl_sock_free_cert_key_and_chain_contents(store->data);
-
-	ha_free(&store->data);
-
 	list_for_each_entry_safe(inst, inst_s, &store->ckch_inst, by_ckchs) {
 		ckch_inst_free(inst);
 	}
 	ebmb_delete(&store->node);
+
+	ssl_sock_free_cert_key_and_chain_contents(store->data);
+	ha_free(&store->data);
+
 	free(store);
 }
 
