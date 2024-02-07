@@ -111,7 +111,8 @@ haproxy h1 -cli {
 
 # Change the server certificate's OCSP response through a transaction
 shell {
-    printf "set ssl cert ${testdir}/show_ocsp_server.pem <<\n$(cat ${testdir}/show_ocsp_server.pem)\n\n" | socat  "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/show_ocsp_server.pem <<\n$(cat ${testdir}/show_ocsp_server.pem | sed  '/^$/d')\n\n" | socat  "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/show_ocsp_server.pem.issuer <<\n$(cat ${testdir}/show_ocsp_server.pem.issuer | sed  '/^$/d')\n\n" | socat  "${tmpdir}/h1/stats" -
     printf "set ssl cert ${testdir}/show_ocsp_server.pem.ocsp <<\n$(cat ${testdir}/show_ocsp_server.pem.ocsp|openssl base64)\n\n" | socat  "${tmpdir}/h1/stats" -
 }
 
