@@ -3142,7 +3142,7 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 	if (h2s->st != H2_SS_OPEN && h2s->st != H2_SS_HLOC) {
 		/* RFC7540#6.1 */
 		error = H2_ERR_STREAM_CLOSED;
-		goto strm_err;
+		goto strm_err_wu;
 	}
 
 	if (!(h2s->flags & H2_SF_HEADERS_RCVD)) {
@@ -3151,7 +3151,7 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 		TRACE_ERROR("Unexpected DATA frame before the message headers", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 		error = H2_ERR_PROTOCOL_ERROR;
 		HA_ATOMIC_INC(&h2c->px_counters->strm_proto_err);
-		goto strm_err;
+		goto strm_err_wu;
 	}
 	if ((h2s->flags & H2_SF_DATA_CLEN) && (h2c->dfl - h2c->dpl) > h2s->body_len) {
 		/* RFC7540#8.1.2 */
@@ -3159,7 +3159,7 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 		TRACE_ERROR("DATA frame larger than content-length", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 		error = H2_ERR_PROTOCOL_ERROR;
 		HA_ATOMIC_INC(&h2c->px_counters->strm_proto_err);
-		goto strm_err;
+		goto strm_err_wu;
 	}
 	if (!(h2c->flags & H2_CF_IS_BACK) &&
 	    (h2s->flags & (H2_SF_TUNNEL_ABRT|H2_SF_ES_SENT)) == (H2_SF_TUNNEL_ABRT|H2_SF_ES_SENT) &&
@@ -3172,7 +3172,7 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 		 */
 		TRACE_ERROR("Request DATA frame for aborted tunnel", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 		error = H2_ERR_CANCEL;
-		goto strm_err;
+		goto strm_err_wu;
 	}
 
 	if (!h2_frt_transfer_data(h2s))
@@ -3234,6 +3234,12 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 	return 1;
 
+ strm_err_wu:
+	/* stream error before the frame was taken into account, we're
+	 * going to kill the stream but must still update the connection's
+	 * window.
+	 */
+	h2c->rcvd_c += h2c->dfl - h2c->dpl;
  strm_err:
 	h2s_error(h2s, error);
 	h2c->st0 = H2_CS_FRAME_E;
@@ -3350,6 +3356,13 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
 			 * RST_RCVD bit, we don't want to accidentally catch valid
 			 * frames for a closed stream, i.e. RST/PRIO/WU.
 			 */
+			if (h2c->dft == H2_FT_DATA) {
+				/* even if we reject out-of-stream DATA, it must
+				 * still count against the connection's flow control.
+				 */
+				h2c->rcvd_c += h2c->dfl - h2c->dpl;
+			}
+
 			h2c_report_glitch(h2c);
 			h2s_error(h2s, H2_ERR_STREAM_CLOSED);
 			h2c->st0 = H2_CS_FRAME_E;
