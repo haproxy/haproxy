@@ -60,7 +60,7 @@ jobs:
     - name: Cache SSL libs
       if: ${{ matrix.ssl && matrix.ssl != 'stock' && matrix.ssl != 'BORINGSSL=yes' && matrix.ssl != 'QUICTLS=yes' }}
       id: cache_ssl
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: '~/opt/'
         key: ssl-${{ steps.generate-cache-key.outputs.key }}
@@ -68,7 +68,7 @@ jobs:
     - name: Cache OpenTracing
       if: ${{ contains(matrix.FLAGS, 'USE_OT=1') }}
       id: cache_ot
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: '~/opt-ot/'
         key: ot-${{ matrix.CC }}-${{ env.OT_CPP_VERSION }}-${{ contains(matrix.name, 'ASAN') }}

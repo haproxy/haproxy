@@ -24,7 +24,7 @@ jobs:
           echo "result=$result" >> $GITHUB_OUTPUT
       - name: Cache AWS-LC
         id: cache_aws_lc
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: '~/opt/'
           key: ssl-${{ steps.get_aws_lc_release.outputs.result }}-Ubuntu-latest-gcc
