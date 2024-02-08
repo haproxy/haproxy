@@ -1150,6 +1150,10 @@ static void cli_io_handler(struct appctx *appctx)
 						if (appctx->io_release) {
 							appctx->io_release(appctx);
 							appctx->io_release = NULL;
+							/* some release handlers might have
+							 * pending output to print.
+							 */
+							continue;
 						}
 					}
 				break;
