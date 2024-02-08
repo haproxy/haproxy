@@ -2322,7 +2322,7 @@ const char *server_parse_weight_change_request(struct server *sv,
 
 	w = strtol(weight_str, &end, 10);
 	if (end == weight_str)
-		return "Empty weight string empty or preceded by garbage";
+		return "Empty weight string empty or preceded by garbage\n";
 	else if (end[0] == '%' && end[1] == '\0') {
 		if (w < 0)
 			return "Relative weight must be positive.\n";
@@ -2336,7 +2336,7 @@ const char *server_parse_weight_change_request(struct server *sv,
 	else if (w < 0 || w > 256)
 		return "Absolute weight can only be between 0 and 256 inclusive.\n";
 	else if (end[0] != '\0')
-		return "Trailing garbage in weight string";
+		return "Trailing garbage in weight string\n";
 
 	if (w && w != sv->iweight && !(px->lbprm.algo & BE_LB_PROP_DYN))
 		return "Backend is using a static LB algorithm and only accepts weights '0%' and '100%'.\n";
@@ -2361,9 +2361,9 @@ const char *server_parse_maxconn_change_request(struct server *sv,
 
 	v = strtol(maxconn_str, &end, 10);
 	if (end == maxconn_str)
-		return "maxconn string empty or preceded by garbage";
+		return "maxconn string empty or preceded by garbage\n";
 	else if (end[0] != '\0')
-		return "Trailing garbage in maxconn string";
+		return "Trailing garbage in maxconn string\n";
 
 	if (sv->maxconn == sv->minconn) { // static maxconn
 		sv->maxconn = sv->minconn = v;
@@ -4898,16 +4898,16 @@ struct server *cli_find_server(struct appctx *appctx, char *arg)
 
 	be_name = istsplit(&sv_name, '/');
 	if (!istlen(sv_name)) {
-		cli_err(appctx, "Require 'backend/server'.");
+		cli_err(appctx, "Require 'backend/server'.\n");
 		return NULL;
 	}
 
 	if (!(px = proxy_be_by_name(ist0(be_name)))) {
-		cli_err(appctx, "No such backend.");
+		cli_err(appctx, "No such backend.\n");
 		return NULL;
 	}
 	if (!(sv = server_find_by_name(px, ist0(sv_name)))) {
-		cli_err(appctx, "No such server.");
+		cli_err(appctx, "No such server.\n");
 		return NULL;
 	}
 
@@ -5152,12 +5152,12 @@ static int cli_parse_get_weight(char **args, char *payload, struct appctx *appct
 
 	be_name = istsplit(&sv_name, '/');
 	if (!istlen(sv_name))
-		return cli_err(appctx, "Require 'backend/server'.");
+		return cli_err(appctx, "Require 'backend/server'.\n");
 
 	if (!(be = proxy_be_by_name(ist0(be_name))))
-		return cli_err(appctx, "No such backend.");
+		return cli_err(appctx, "No such backend.\n");
 	if (!(sv = server_find_by_name(be, ist0(sv_name))))
-		return cli_err(appctx, "No such server.");
+		return cli_err(appctx, "No such server.\n");
 
 	/* return server's effective weight at the moment */
 	snprintf(trash.area, trash.size, "%d (initial %d)\n", sv->uweight,
@@ -5510,19 +5510,19 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	}
 
 	if (!*sv_name)
-		return cli_err(appctx, "Require 'backend/server'.");
+		return cli_err(appctx, "Require 'backend/server'.\n");
 
 	be = proxy_be_by_name(be_name);
 	if (!be)
-		return cli_err(appctx, "No such backend.");
+		return cli_err(appctx, "No such backend.\n");
 
 	if (!(be->lbprm.algo & BE_LB_PROP_DYN)) {
-		cli_err(appctx, "Backend must use a dynamic load balancing to support dynamic servers.");
+		cli_err(appctx, "Backend must use a dynamic load balancing to support dynamic servers.\n");
 		return 1;
 	}
 
 	if (be->mode == PR_MODE_SYSLOG) {
-		cli_err(appctx," Dynamic servers cannot be used with log backends.");
+		cli_err(appctx," Dynamic servers cannot be used with log backends.\n");
 		return 1;
 	}
 
@@ -5707,11 +5707,11 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	 */
 	if (srv->check.state & CHK_ST_CONFIGURED) {
 		if (!start_check_task(&srv->check, 0, 1, 1))
-			ha_alert("System might be unstable, consider to execute a reload");
+			ha_alert("System might be unstable, consider to execute a reload\n");
 	}
 	if (srv->agent.state & CHK_ST_CONFIGURED) {
 		if (!start_check_task(&srv->agent, 0, 1, 1))
-			ha_alert("System might be unstable, consider to execute a reload");
+			ha_alert("System might be unstable, consider to execute a reload\n");
 	}
 
 	ha_notice("New server registered.\n");
@@ -5770,21 +5770,21 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	sv_name = ist(args[1]);
 	be_name = istsplit(&sv_name, '/');
 	if (!istlen(sv_name)) {
-		cli_err(appctx, "Require 'backend/server'.");
+		cli_err(appctx, "Require 'backend/server'.\n");
 		goto out;
 	}
 
 	if (!(be = proxy_be_by_name(ist0(be_name)))) {
-		cli_err(appctx, "No such backend.");
+		cli_err(appctx, "No such backend.\n");
 		goto out;
 	}
 	if (!(srv = server_find_by_name(be, ist0(sv_name)))) {
-		cli_err(appctx, "No such server.");
+		cli_err(appctx, "No such server.\n");
 		goto out;
 	}
 
 	if (srv->flags & SRV_F_NON_PURGEABLE) {
-		cli_err(appctx, "This server cannot be removed at runtime due to other configuration elements pointing to it.");
+		cli_err(appctx, "This server cannot be removed at runtime due to other configuration elements pointing to it.\n");
 		goto out;
 	}
 
@@ -5793,7 +5793,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	 * lbprm.set_server_status_down).
 	 */
 	if (!(srv->cur_admin & SRV_ADMF_MAINT)) {
-		cli_err(appctx, "Only servers in maintenance mode can be deleted.");
+		cli_err(appctx, "Only servers in maintenance mode can be deleted.\n");
 		goto out;
 	}
 
@@ -5804,7 +5804,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	 */
 	if (srv->cur_sess || srv->curr_idle_conns ||
 	    !eb_is_empty(&srv->queue.head) || srv_has_streams(srv)) {
-		cli_err(appctx, "Server still has connections attached to it, cannot remove it.");
+		cli_err(appctx, "Server still has connections attached to it, cannot remove it.\n");
 		goto out;
 	}
 
@@ -5874,13 +5874,11 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	ha_notice("Server deleted.\n");
 	srv_drop(srv);
 
-	cli_msg(appctx, LOG_INFO, "Server deleted.");
-
+	cli_msg(appctx, LOG_INFO, "Server deleted.\n");
 	return 0;
 
 out:
 	thread_release();
-
 	return 1;
 }
 
