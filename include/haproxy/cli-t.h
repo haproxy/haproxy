@@ -81,6 +81,27 @@ struct cli_print_ctx {
 	int severity;           /* severity of the message to be returned according to (syslog) rfc5424 */
 };
 
+/* context for the "wait" command that's used to wait for some time on a
+ * condition. We store the start date and the expiration date. The error
+ * value is set by the I/O handler to be printed by the release handler at
+ * the end.
+ */
+enum cli_wait_err {
+	CLI_WAIT_ERR_DONE,       // condition satisfied
+	CLI_WAIT_ERR_INTR,       // interrupted
+	CLI_WAIT_ERR_EXP,        // finished on wait expiration
+};
+
+enum cli_wait_cond {
+	CLI_WAIT_COND_NONE,      // no condition to wait on
+};
+
+struct cli_wait_ctx {
+	uint start, deadline;    // both are in ticks.
+	enum cli_wait_cond cond; // CLI_WAIT_COND_*
+	enum cli_wait_err error; // CLI_WAIT_ERR_*
+};
+
 struct cli_kw {
 	const char *str_kw[CLI_PREFIX_KW_NB]; /* keywords ended by NULL, limited to CLI_PREFIX_KW_NB
 				 separated keywords combination */

@@ -2010,6 +2010,105 @@ static int cli_parse_set_ratelimit(char **args, char *payload, struct appctx *ap
 	return 1;
 }
 
+/* Parse a "wait <time>" command.
+ * It uses a "cli_wait_ctx" struct for its context.
+ * Returns 0 if the server deletion has been successfully scheduled, 1 on failure.
+ */
+static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct cli_wait_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+	uint wait_ms;
+	const char *err;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[1])
+		return cli_err(appctx, "Expects a duration in milliseconds.\n");
+
+	err = parse_time_err(args[1], &wait_ms, TIME_UNIT_MS);
+	if (err || wait_ms < 1)
+		return cli_err(appctx, "Invalid duration.\n");
+
+	ctx->start = now_ms;
+	ctx->deadline = tick_add(now_ms, wait_ms);
+
+	/* proceed with the I/O handler */
+	return 0;
+}
+
+/* Execute a "wait" condition. The delay is exponentially incremented between
+ * now_ms and ctx->deadline in powers of 1.5 and with a bound set to 10% of the
+ * programmed wait time, so that in a few wakeups we can later check a condition
+ * with reasonable accuracy. Shutdowns and other errors are handled as well and
+ * terminate the operation, but not new inputs so that it remains possible to
+ * chain other commands after it. Returns 0 if not finished, 1 if finished.
+ */
+static int cli_io_handler_wait(struct appctx *appctx)
+{
+	struct cli_wait_ctx *ctx = appctx->svcctx;
+	struct stconn *sc = appctx_sc(appctx);
+	uint total, elapsed, left, wait;
+
+	/* note: upon first invocation, the timeout is not set */
+	if (tick_isset(appctx->t->expire) &&
+	    !tick_is_expired(appctx->t->expire, now_ms))
+		goto wait;
+
+	/* here we should evaluate our waiting conditions, if any */
+
+	/* and here we recalculate the new wait time or abort */
+	left  = tick_remain(now_ms, ctx->deadline);
+	if (!left) {
+		/* let the release handler know we've expired. When there is no
+		 * wait condition, it's a simple sleep so we declare we're done.
+		 */
+		if (ctx->cond == CLI_WAIT_COND_NONE)
+			ctx->error = CLI_WAIT_ERR_DONE;
+		else
+			ctx->error = CLI_WAIT_ERR_EXP;
+		return 1;
+	}
+
+	total = tick_remain(ctx->start, ctx->deadline);
+	elapsed = total - left;
+	wait = elapsed / 2 + 1;
+	if (wait > left)
+		wait = left;
+	else if (wait > total / 10)
+		wait = total / 10;
+
+	appctx->t->expire = tick_add(now_ms, wait);
+
+ wait:
+	/* Stop waiting upon close/abort/error */
+	if (unlikely((sc->flags & SC_FL_SHUT_DONE) ||
+		     se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW)))) {
+		co_skip(sc_oc(sc), sc_oc(sc)->output);
+		ctx->error = CLI_WAIT_ERR_INTR;
+		return 1;
+	}
+	return 0;
+}
+
+/* release structs allocated by "delete server" */
+static void cli_release_wait(struct appctx *appctx)
+{
+	struct cli_wait_ctx *ctx = appctx->svcctx;
+	const char *msg;
+
+	switch (ctx->error) {
+	case CLI_WAIT_ERR_EXP:      msg = "Wait delay expired.\n"; break;
+	case CLI_WAIT_ERR_INTR:     msg = "Interrupted.\n"; break;
+	default:                    msg = "Done.\n"; break;
+	}
+
+	if (ctx->error == CLI_WAIT_ERR_DONE)
+		cli_msg(appctx, LOG_INFO, msg);
+	else
+		cli_err(appctx, msg);
+}
+
 /* parse the "expose-fd" argument on the bind lines */
 static int bind_parse_expose_fd(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -3406,6 +3505,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "version", NULL },           "show version                            : show version of the current process",                     cli_parse_show_version, NULL, NULL, NULL, ACCESS_MASTER },
 	{ { "operator", NULL },                  "operator                                : lower the level of the current CLI session to operator",  cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "user", NULL },                      "user                                    : lower the level of the current CLI session to user",      cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
+	{ { "wait", NULL },                      "wait <ms>                               : wait the specified delay",                                cli_parse_wait, cli_io_handler_wait, cli_release_wait, NULL },
 	{{},}
 }};
 
