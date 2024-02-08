@@ -34,18 +34,18 @@ are a few build examples :
   - recent Linux system with all options, make and install :
     $ make clean
     $ make -j $(nproc) TARGET=linux-glibc \
-                USE_OPENSSL=1 USE_LUA=1 USE_PCRE=1 USE_SYSTEMD=1
+                USE_OPENSSL=1 USE_LUA=1 USE_PCRE2=1 USE_SYSTEMD=1
     $ sudo make install
 
   - FreeBSD and OpenBSD, build with all options :
-    $ gmake -j 4 TARGET=freebsd USE_OPENSSL=1 USE_LUA=1 USE_PCRE=1
+    $ gmake -j 4 TARGET=freebsd USE_OPENSSL=1 USE_LUA=1 USE_PCRE2=1
 
   - embedded Linux, build using a cross-compiler :
-    $ make -j $(nproc) TARGET=linux-glibc USE_OPENSSL=1 USE_PCRE=1 \
+    $ make -j $(nproc) TARGET=linux-glibc USE_OPENSSL=1 USE_PCRE2=1 \
                 CC=/opt/cross/gcc730-arm/bin/gcc ADDLIB=-latomic
 
   - Build with static PCRE on Solaris / UltraSPARC :
-    $ make TARGET=solaris CPU=ultrasparc USE_STATIC_PCRE=1
+    $ make TARGET=solaris CPU=ultrasparc USE_STATIC_PCRE2=1
 
 For more advanced build options or if a command above reports an error, please
 read the following sections.
@@ -181,9 +181,9 @@ regex engine which could be slow or even crash on certain patterns.
 
 If you plan on importing a particularly heavy configuration involving a lot of
 regex, you may benefit from using some alternative regex implementations such as
-PCRE. HAProxy natively supports PCRE and PCRE2, both in standard and JIT
-flavors (Just In Time). The following options are available depending on the
-library version provided on your system :
+PCRE. HAProxy natively supports PCRE and PCRE2 (recommended), both in standard
+and JIT flavors (Just In Time). The following options are available depending on
+the library version provided on your system :
 
   - "USE_PCRE=1"         : enable PCRE version 1, dynamic linking
   - "USE_STATIC_PCRE=1"  : enable PCRE version 1, static linking
