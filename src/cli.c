@@ -861,12 +861,13 @@ fail:
 static int cli_output_msg(struct appctx *appctx, const char *msg, int severity, int severity_output)
 {
 	struct buffer *tmp;
-
-	if (likely(severity_output == CLI_SEVERITY_NONE))
-		return applet_putstr(appctx, msg);
+	struct ist imsg;
 
 	tmp = get_trash_chunk();
 	chunk_reset(tmp);
+
+	if (likely(severity_output == CLI_SEVERITY_NONE))
+		goto send_it;
 
 	if (severity < 0 || severity > 7) {
 		ha_warning("socket command feedback with invalid severity %d", severity);
@@ -884,7 +885,17 @@ static int cli_output_msg(struct appctx *appctx, const char *msg, int severity, 
 				ha_warning("Unrecognized severity output %d", severity_output);
 		}
 	}
-	chunk_appendf(tmp, "%s", msg);
+ send_it:
+	/* the vast majority of messages have their trailing LF but a few are
+	 * still missing it, and very rare ones might even have two. For this
+	 * reason, we'll first delete the trailing LFs if present, then
+	 * systematically append one.
+	 */
+	for (imsg = ist(msg); imsg.len > 0 && imsg.ptr[imsg.len - 1] == '\n'; imsg.len--)
+		;
+
+	chunk_istcat(tmp, imsg);
+	chunk_istcat(tmp, ist("\n"));
 
 	return applet_putchk(appctx, tmp);
 }
