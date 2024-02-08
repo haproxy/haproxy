@@ -2353,11 +2353,14 @@ static int h2c_handle_settings(struct h2c *h2c)
 				h2c_report_glitch(h2c);
 				goto fail;
 			}
-			/* WT: maybe we should count a glitch here in case of a
-			 * change after H2_CS_SETTINGS1 because while it's not
+			/* Let's count a glitch here in case of a reduction
+			 * after H2_CS_SETTINGS1 because while it's not
 			 * fundamentally invalid from a protocol's perspective,
 			 * it's often suspicious.
 			 */
+			if (h2c->st0 != H2_CS_SETTINGS1 && arg < h2c->miw)
+				h2c_report_glitch(h2c);
+
 			h2c->miw = arg;
 			break;
 		case H2_SETTINGS_MAX_FRAME_SIZE:
