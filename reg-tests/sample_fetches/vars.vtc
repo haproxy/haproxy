@@ -34,7 +34,7 @@ haproxy h1 -conf {
 
 haproxy h1 -cli {
     send "get var proc.int5"
-    expect ~ "^proc.int5: type=sint value=<5>$"
+    expect ~ "^proc.int5: type=sint value=<5>"
 }
 
 client c1 -connect ${h1_fe1_sock} {
@@ -51,7 +51,7 @@ client c1 -connect ${h1_fe1_sock} {
 
 haproxy h1 -cli {
     send "get var proc.int5"
-    expect ~ "^proc.int5: type=sint value=<10>$"
+    expect ~ "^proc.int5: type=sint value=<10>"
 }
 
 client c2 -connect ${h1_fe1_sock} {
@@ -68,7 +68,7 @@ client c2 -connect ${h1_fe1_sock} {
 
 haproxy h1 -cli {
     send "get var proc.int5"
-    expect ~ "^proc.int5: type=sint value=<20>$"
+    expect ~ "^proc.int5: type=sint value=<20>"
 }
 
 haproxy h1 -cli {

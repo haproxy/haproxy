@@ -1158,7 +1158,7 @@ static int vars_parse_cli_get_var(char **args, char *payload, struct appctx *app
 
 	if (!sample_casts[smp.data.type][SMP_T_STR] ||
 	    !sample_casts[smp.data.type][SMP_T_STR](&smp)) {
-		chunk_appendf(&trash, "(undisplayable)");
+		chunk_appendf(&trash, "(undisplayable)\n");
 	} else {
 		/* Display the displayable chars*. */
 		b_putchr(&trash, '<');
@@ -1169,6 +1169,7 @@ static int vars_parse_cli_get_var(char **args, char *payload, struct appctx *app
 				b_putchr(&trash, '.');
 		}
 		b_putchr(&trash, '>');
+		b_putchr(&trash, '\n');
 		b_putchr(&trash, 0);
 	}
 	return cli_msg(appctx, LOG_INFO, trash.area);
