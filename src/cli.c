@@ -1027,6 +1027,7 @@ static void cli_io_handler(struct appctx *appctx)
 				appctx->chunk->data++;
 			}
 
+			appctx->t->expire = TICK_ETERNITY;
 			appctx->st0 = CLI_ST_PROMPT;
 
 			if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) {
@@ -1139,6 +1140,7 @@ static void cli_io_handler(struct appctx *appctx)
 					         appctx->st0 == CLI_ST_PRINT_UMSGERR) {
 						usermsgs_clr(NULL);
 					}
+					appctx->t->expire = TICK_ETERNITY;
 					appctx->st0 = CLI_ST_PROMPT;
 				}
 				break;
@@ -1146,6 +1148,7 @@ static void cli_io_handler(struct appctx *appctx)
 			case CLI_ST_CALLBACK: /* use custom pointer */
 				if (appctx->io_handler)
 					if (appctx->io_handler(appctx)) {
+						appctx->t->expire = TICK_ETERNITY;
 						appctx->st0 = CLI_ST_PROMPT;
 						if (appctx->io_release) {
 							appctx->io_release(appctx);
