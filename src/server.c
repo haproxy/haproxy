@@ -5744,6 +5744,76 @@ out:
 	return 1;
 }
 
+/* Check if the server <bename>/<svname> exists and is ready for being deleted.
+ * Both <bename> and <svname> must be valid strings. This must be called under
+ * thread isolation. If pb/ps are not null, upon success, the pointer to
+ * the backend and server respectively will be put there. If pm is not null,
+ * a pointer to an error/success message is returned there (possibly NULL if
+ * nothing to say). Returned values:
+ *  >0 if OK
+ *   0 if not yet (should wait if it can)
+ *  <0 if not possible
+ */
+int srv_check_for_deletion(const char *bename, const char *svname, struct proxy **pb, struct server **ps, const char **pm)
+{
+	struct server *srv = NULL;
+	struct proxy *be = NULL;
+	const char *msg = NULL;
+	int ret;
+
+	/* First, unrecoverable errors */
+	ret = -1;
+
+	if (!(be = proxy_be_by_name(bename))) {
+		msg = "No such backend.";
+		goto leave;
+	}
+
+	if (!(srv = server_find_by_name(be, svname))) {
+		msg = "No such server.";
+		goto leave;
+	}
+
+	if (srv->flags & SRV_F_NON_PURGEABLE) {
+		msg = "This server cannot be removed at runtime due to other configuration elements pointing to it.";
+		goto leave;
+	}
+
+	/* Only servers in maintenance can be deleted. This ensures that the
+	 * server is not present anymore in the lb structures (through
+	 * lbprm.set_server_status_down).
+	 */
+	if (!(srv->cur_admin & SRV_ADMF_MAINT)) {
+		msg = "Only servers in maintenance mode can be deleted.";
+		goto leave;
+	}
+
+	/* Second, conditions that may change over time */
+	ret = 0;
+
+	/* Ensure that there is no active/idle/pending connection on the server.
+	 *
+	 * TODO idle connections should not prevent server deletion. A proper
+	 * cleanup function should be implemented to be used here.
+	 */
+	if (srv->cur_sess || srv->curr_idle_conns ||
+	    !eb_is_empty(&srv->queue.head) || srv_has_streams(srv)) {
+		msg = "Server still has connections attached to it, cannot remove it.";
+		goto leave;
+	}
+
+	/* OK, let's go */
+	ret = 1;
+leave:
+	if (pb)
+		*pb = be;
+	if (ps)
+		*ps = srv;
+	if (pm)
+		*pm = msg;
+	return ret;
+}
+
 /* Parse a "del server" command
  * Returns 0 if the server has been successfully initialized, 1 on failure.
  */
@@ -5753,6 +5823,8 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	struct server *srv;
 	struct server *prev_del;
 	struct ist be_name, sv_name;
+	const char *msg;
+	int ret;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
@@ -5774,37 +5846,10 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 		goto out;
 	}
 
-	if (!(be = proxy_be_by_name(ist0(be_name)))) {
-		cli_err(appctx, "No such backend.\n");
-		goto out;
-	}
-	if (!(srv = server_find_by_name(be, ist0(sv_name)))) {
-		cli_err(appctx, "No such server.\n");
-		goto out;
-	}
-
-	if (srv->flags & SRV_F_NON_PURGEABLE) {
-		cli_err(appctx, "This server cannot be removed at runtime due to other configuration elements pointing to it.\n");
-		goto out;
-	}
-
-	/* Only servers in maintenance can be deleted. This ensures that the
-	 * server is not present anymore in the lb structures (through
-	 * lbprm.set_server_status_down).
-	 */
-	if (!(srv->cur_admin & SRV_ADMF_MAINT)) {
-		cli_err(appctx, "Only servers in maintenance mode can be deleted.\n");
-		goto out;
-	}
-
-	/* Ensure that there is no active/idle/pending connection on the server.
-	 *
-	 * TODO idle connections should not prevent server deletion. A proper
-	 * cleanup function should be implemented to be used here.
-	 */
-	if (srv->cur_sess || srv->curr_idle_conns ||
-	    !eb_is_empty(&srv->queue.head) || srv_has_streams(srv)) {
-		cli_err(appctx, "Server still has connections attached to it, cannot remove it.\n");
+	ret = srv_check_for_deletion(ist0(be_name), ist0(sv_name), &be, &srv, &msg);
+	if (ret <= 0) {
+		/* failure (recoverable or not) */
+		cli_err(appctx, msg);
 		goto out;
 	}
 
