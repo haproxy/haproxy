@@ -132,6 +132,14 @@ static inline void __appctx_free(struct appctx *appctx)
 	_HA_ATOMIC_DEC(&nb_applets);
 }
 
+static inline void appctx_shutw(struct appctx *appctx)
+{
+	if (se_fl_test(appctx->sedesc, SE_FL_SHW))
+		return;
+
+	se_fl_set(appctx->sedesc, SE_FL_SHWN);
+}
+
 /* wakes up an applet when conditions have changed. We're using a macro here in
  * order to retrieve the caller's place.
  */

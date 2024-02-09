@@ -395,7 +395,7 @@ void applet_reset_svcctx(struct appctx *appctx)
  */
 void appctx_shut(struct appctx *appctx)
 {
-	if (se_fl_test(appctx->sedesc, SE_FL_SHR | SE_FL_SHW))
+	if (applet_fl_test(appctx, APPCTX_FL_SHUTDOWN))
 		return;
 
 	TRACE_ENTER(APPLET_EV_RELEASE, appctx);

@@ -917,6 +917,8 @@ static void sc_app_shut_applet(struct stconn *sc)
 	switch (sc->state) {
 	case SC_ST_RDY:
 	case SC_ST_EST:
+		appctx_shutw(__sc_appctx(sc));
+
 		/* we have to shut before closing, otherwise some short messages
 		 * may never leave the system, especially when there are remaining
 		 * unread data in the socket input buffer, or when nolinger is set.
