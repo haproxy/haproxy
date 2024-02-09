@@ -2120,6 +2120,7 @@ static void cli_release_wait(struct appctx *appctx)
 	switch (ctx->error) {
 	case CLI_WAIT_ERR_EXP:      msg = "Wait delay expired.\n"; break;
 	case CLI_WAIT_ERR_INTR:     msg = "Interrupted.\n"; break;
+	case CLI_WAIT_ERR_FAIL:     msg = ctx->msg ? ctx->msg : "Failed.\n"; break;
 	default:                    msg = "Done.\n"; break;
 	}
 

@@ -90,6 +90,7 @@ enum cli_wait_err {
 	CLI_WAIT_ERR_DONE,       // condition satisfied
 	CLI_WAIT_ERR_INTR,       // interrupted
 	CLI_WAIT_ERR_EXP,        // finished on wait expiration
+	CLI_WAIT_ERR_FAIL,       // finished early (unrecoverable)
 };
 
 enum cli_wait_cond {
@@ -100,6 +101,7 @@ struct cli_wait_ctx {
 	uint start, deadline;    // both are in ticks.
 	enum cli_wait_cond cond; // CLI_WAIT_COND_*
 	enum cli_wait_err error; // CLI_WAIT_ERR_*
+	const char *msg;         // static error message for failures if not NULL
 };
 
 struct cli_kw {
