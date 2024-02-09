@@ -410,6 +410,29 @@ void appctx_shut(struct appctx *appctx)
 	TRACE_LEAVE(APPLET_EV_RELEASE, appctx);
 }
 
+/* releases unused buffers after processing. It will try to wake up as many
+ * entities as the number of buffers that it releases.
+ */
+static void appctx_release_buffers(struct appctx * appctx)
+{
+	int offer = 0;
+
+	if (b_size(&appctx->inbuf) && !b_data(&appctx->inbuf)) {
+		offer++;
+		b_free(&appctx->inbuf);
+	}
+	if (b_size(&appctx->outbuf) && !b_data(&appctx->outbuf)) {
+		offer++;
+		b_free(&appctx->outbuf);
+	}
+
+	/* if we're certain to have at least 1 buffer available, and there is
+	 * someone waiting, we can wake up a waiter and offer them.
+	 */
+	if (offer)
+		offer_buffers(appctx, offer);
+}
+
 /* Callback used to wake up an applet when a buffer is available. The applet
  * <appctx> is woken up if an input buffer was requested for the associated
  * stream connector. In this case the buffer is immediately allocated and the
@@ -866,6 +889,7 @@ struct task *task_process_applet(struct task *t, void *context, unsigned int sta
 	}
 
 	sc->app_ops->wake(sc);
+	appctx_release_buffers(app);
 	TRACE_LEAVE(APPLET_EV_PROCESS, app);
 	return t;
 }
