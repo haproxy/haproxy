@@ -2035,14 +2035,40 @@ static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, voi
 			return cli_err(appctx, "Invalid duration.\n");
 	}
 
-	if (*args[2]) {
+	if (strcmp(args[2], "srv-unused") == 0) {
+		struct ist be_name, sv_name;
+
+		if (!*args[3])
+			return cli_err(appctx, "Missing server name (<backend>/<server>).\n");
+
+		sv_name = ist(args[3]);
+		be_name = istsplit(&sv_name, '/');
+		if (!istlen(sv_name))
+			return cli_err(appctx, "Require 'backend/server'.\n");
+
+		be_name = istdup(be_name);
+		sv_name = istdup(sv_name);
+		if (!isttest(be_name) || !isttest(sv_name)) {
+			free(istptr(be_name));
+			free(istptr(sv_name));
+			return cli_err(appctx, "Out of memory trying to clone the server name.\n");
+		}
+
+		ctx->args[0] = ist0(be_name);
+		ctx->args[1] = ist0(sv_name);
+		ctx->cond = CLI_WAIT_COND_SRV_UNUSED;
+	}
+	else if (*args[2]) {
 		/* show the command's help either upon request (-h) or error */
 		err = "Usage: wait {-h|<duration>} [condition [args...]]\n"
 			"  - '-h' displays this help\n"
 			"  - <duration> is the maximum wait time, optionally suffixed by the unit among\n"
 			"    'us', 'ms', 's', 'm', 'h', and 'd'. ; the default unit is milliseconds.\n"
-			"  - <condition> indicates what to wait for. By default, no events aborts the\n"
-			"    operation, which makes it reliably pause for the specified duration.\n";
+			"  - <condition> indicates what to wait for, no longer than the specified\n"
+			"    duration. Supported conditions are:\n"
+			"    - <none> : by default, just sleep for the specified duration.\n"
+			"    - srv-unused <px>/<sv> : wait for this server to become unused.\n"
+			"";
 
 		if (strcmp(args[2], "-h") == 0)
 			return cli_msg(appctx, LOG_INFO, err);
@@ -2069,6 +2095,7 @@ static int cli_io_handler_wait(struct appctx *appctx)
 	struct cli_wait_ctx *ctx = appctx->svcctx;
 	struct stconn *sc = appctx_sc(appctx);
 	uint total, elapsed, left, wait;
+	int ret;
 
 	/* note: upon first invocation, the timeout is not set */
 	if (tick_isset(appctx->t->expire) &&
@@ -2076,6 +2103,24 @@ static int cli_io_handler_wait(struct appctx *appctx)
 		goto wait;
 
 	/* here we should evaluate our waiting conditions, if any */
+
+	if (ctx->cond == CLI_WAIT_COND_SRV_UNUSED) {
+		/* check if the server in args[0]/args[1] can be released now */
+		thread_isolate();
+		ret = srv_check_for_deletion(ctx->args[0], ctx->args[1], NULL, NULL, NULL);
+		thread_release();
+
+		if (ret < 0) {
+			/* unrecoverable failure */
+			ctx->error = CLI_WAIT_ERR_FAIL;
+			return 1;
+		} else if (ret > 0) {
+			/* immediate success */
+			ctx->error = CLI_WAIT_ERR_DONE;
+			return 1;
+		}
+		/* let's check the timer */
+	}
 
 	/* and here we recalculate the new wait time or abort */
 	left  = tick_remain(now_ms, ctx->deadline);
@@ -3530,7 +3575,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "version", NULL },           "show version                            : show version of the current process",                     cli_parse_show_version, NULL, NULL, NULL, ACCESS_MASTER },
 	{ { "operator", NULL },                  "operator                                : lower the level of the current CLI session to operator",  cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "user", NULL },                      "user                                    : lower the level of the current CLI session to user",      cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
-	{ { "wait", NULL },                      "wait {-h|<delay_ms>}                    : wait the specified delay (-h to see usage)",              cli_parse_wait, cli_io_handler_wait, cli_release_wait, NULL },
+	{ { "wait", NULL },                      "wait {-h|<delay_ms>} cond [args...]     : wait the specified delay or condition (-h to see list)",  cli_parse_wait, cli_io_handler_wait, cli_release_wait, NULL },
 	{{},}
 }};
 

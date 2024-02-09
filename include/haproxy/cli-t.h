@@ -95,6 +95,7 @@ enum cli_wait_err {
 
 enum cli_wait_cond {
 	CLI_WAIT_COND_NONE,      // no condition to wait on
+	CLI_WAIT_COND_SRV_UNUSED,// wait for server to become unused
 };
 
 struct cli_wait_ctx {
