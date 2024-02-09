@@ -981,12 +981,6 @@ static inline void ssl_ocsp_set_next_update(struct certificate_ocsp *ocsp)
  */
 int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
 {
-	/* This entry was only supposed to be updated once, it does not need to
-	 * be reinserted into the update tree.
-	 */
-	if (ocsp->update_once)
-		return 0;
-
 	/* Set next_update based on current time and the various OCSP
 	 * minimum/maximum update times.
 	 */
@@ -995,7 +989,12 @@ int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
 	ocsp->fail_count = 0;
 
 	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
-	eb64_insert(&ocsp_update_tree, &ocsp->next_update);
+	ocsp->updating = 0;
+	/* An entry with update_once set to 1 was only supposed to be updated
+	 * once, it does not need to be reinserted into the update tree.
+	 */
+	if (!ocsp->update_once)
+		eb64_insert(&ocsp_update_tree, &ocsp->next_update);
 	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 
 	return 0;
@@ -1011,12 +1010,6 @@ int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
 int ssl_ocsp_update_insert_after_error(struct certificate_ocsp *ocsp)
 {
 	int replay_delay = 0;
-
-	/* This entry was only supposed to be updated once, it does not need to
-	 * be reinserted into the update tree.
-	 */
-	if (ocsp->update_once)
-		return 0;
 
 	/*
 	 * Set next_update based on current time and the various OCSP
@@ -1040,7 +1033,12 @@ int ssl_ocsp_update_insert_after_error(struct certificate_ocsp *ocsp)
 		ocsp->next_update.key = date.tv_sec + replay_delay;
 
 	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
-	eb64_insert(&ocsp_update_tree, &ocsp->next_update);
+	ocsp->updating = 0;
+	/* An entry with update_once set to 1 was only supposed to be updated
+	 * once, it does not need to be reinserted into the update tree.
+	 */
+	if (!ocsp->update_once)
+		eb64_insert(&ocsp_update_tree, &ocsp->next_update);
 	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 
 	return 0;
@@ -1246,6 +1244,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 		 * reinserted after the response is processed. */
 		eb64_delete(&ocsp->next_update);
 
+		ocsp->updating = 1;
 		ocsp->refcount_instance++;
 		ctx->cur_ocsp = ocsp;
 		ocsp->last_update_status = OCSP_UPDT_UNKNOWN;
@@ -1427,21 +1426,24 @@ static int cli_parse_update_ocsp_response(char **args, char *payload, struct app
 		goto end;
 	}
 
-	update_once = (ocsp->next_update.node.leaf_p == NULL);
-	eb64_delete(&ocsp->next_update);
+	/* No need to try to update this response, it is already being updated. */
+	if (!ocsp->updating) {
+		update_once = (ocsp->next_update.node.leaf_p == NULL);
+		eb64_delete(&ocsp->next_update);
 
-	/* Insert the entry at the beginning of the update tree.
-	 * We don't need to increase the reference counter on the
-	 * certificate_ocsp structure because we would not have a way to
-	 * decrease it afterwards since this update operation is asynchronous.
-	 * If the corresponding entry were to be destroyed before the update can
-	 * be performed, which is pretty unlikely, it would not be such a
-	 * problem because that would mean that the OCSP response is not
-	 * actually used.
-	 */
-	ocsp->next_update.key = 0;
-	eb64_insert(&ocsp_update_tree, &ocsp->next_update);
-	ocsp->update_once = update_once;
+		/* Insert the entry at the beginning of the update tree.
+		 * We don't need to increase the reference counter on the
+		 * certificate_ocsp structure because we would not have a way to
+		 * decrease it afterwards since this update operation is asynchronous.
+		 * If the corresponding entry were to be destroyed before the update can
+		 * be performed, which is pretty unlikely, it would not be such a
+		 * problem because that would mean that the OCSP response is not
+		 * actually used.
+		 */
+		ocsp->next_update.key = 0;
+		eb64_insert(&ocsp_update_tree, &ocsp->next_update);
+		ocsp->update_once = update_once;
+	}
 
 	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 
