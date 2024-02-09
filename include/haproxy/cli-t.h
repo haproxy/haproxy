@@ -101,6 +101,7 @@ struct cli_wait_ctx {
 	uint start, deadline;    // both are in ticks.
 	enum cli_wait_cond cond; // CLI_WAIT_COND_*
 	enum cli_wait_err error; // CLI_WAIT_ERR_*
+	char *args[4];           // up to 4 args taken at parse time, all strduped
 	const char *msg;         // static error message for failures if not NULL
 };
 

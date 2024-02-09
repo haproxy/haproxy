@@ -2116,6 +2116,7 @@ static void cli_release_wait(struct appctx *appctx)
 {
 	struct cli_wait_ctx *ctx = appctx->svcctx;
 	const char *msg;
+	int i;
 
 	switch (ctx->error) {
 	case CLI_WAIT_ERR_EXP:      msg = "Wait delay expired.\n"; break;
@@ -2123,6 +2124,9 @@ static void cli_release_wait(struct appctx *appctx)
 	case CLI_WAIT_ERR_FAIL:     msg = ctx->msg ? ctx->msg : "Failed.\n"; break;
 	default:                    msg = "Done.\n"; break;
 	}
+
+	for (i = 0; i < sizeof(ctx->args) / sizeof(ctx->args[0]); i++)
+		ha_free(&ctx->args[i]);
 
 	if (ctx->error == CLI_WAIT_ERR_DONE)
 		cli_msg(appctx, LOG_INFO, msg);
