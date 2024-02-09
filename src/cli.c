@@ -2027,8 +2027,28 @@ static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, voi
 		return cli_err(appctx, "Expects a duration in milliseconds.\n");
 
 	err = parse_time_err(args[1], &wait_ms, TIME_UNIT_MS);
-	if (err || wait_ms < 1)
-		return cli_err(appctx, "Invalid duration.\n");
+	if (err || wait_ms < 1) {
+		/* in case -h is passed as the first option, continue to the next test */
+		if (strcmp(args[1], "-h") == 0)
+			args--;
+		else
+			return cli_err(appctx, "Invalid duration.\n");
+	}
+
+	if (*args[2]) {
+		/* show the command's help either upon request (-h) or error */
+		err = "Usage: wait {-h|<duration>} [condition [args...]]\n"
+			"  - '-h' displays this help\n"
+			"  - <duration> is the maximum wait time, optionally suffixed by the unit among\n"
+			"    'us', 'ms', 's', 'm', 'h', and 'd'. ; the default unit is milliseconds.\n"
+			"  - <condition> indicates what to wait for. By default, no events aborts the\n"
+			"    operation, which makes it reliably pause for the specified duration.\n";
+
+		if (strcmp(args[2], "-h") == 0)
+			return cli_msg(appctx, LOG_INFO, err);
+		else
+			return cli_err(appctx, err);
+	}
 
 	ctx->start = now_ms;
 	ctx->deadline = tick_add(now_ms, wait_ms);
@@ -3505,7 +3525,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "version", NULL },           "show version                            : show version of the current process",                     cli_parse_show_version, NULL, NULL, NULL, ACCESS_MASTER },
 	{ { "operator", NULL },                  "operator                                : lower the level of the current CLI session to operator",  cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "user", NULL },                      "user                                    : lower the level of the current CLI session to user",      cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
-	{ { "wait", NULL },                      "wait <ms>                               : wait the specified delay",                                cli_parse_wait, cli_io_handler_wait, cli_release_wait, NULL },
+	{ { "wait", NULL },                      "wait {-h|<delay_ms>}                    : wait the specified delay (-h to see usage)",              cli_parse_wait, cli_io_handler_wait, cli_release_wait, NULL },
 	{{},}
 }};
 

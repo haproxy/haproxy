@@ -3997,12 +3997,13 @@ update ssl ocsp-response <certfile>
   local tree, its contents will be displayed on the standard output. The format
   is the same as the one described in "show ssl ocsp-response".
 
-wait <delay>
+wait { -h | <delay> }
   This simply waits for the requested delay before continuing. This can be used
   to collect metrics around a specific interval. The default unit for the delay
   is milliseconds, though other units are accepted if suffixed with the usual
-  timer units (s, m, h, d). When used with the 'socat' utility, do not forget
-  to extend socat's close timeout to cover the wait time.
+  timer units (us, ms, s, m, h, d). When used with the 'socat' utility, do not
+  forget to extend socat's close timeout to cover the wait time. Passing "-h"
+  as the first or second argument provides the command's usage.
   Example:
     $ socat -t20 /path/to/socket <<< "show activity; wait 10s; show activity"
 
