@@ -760,17 +760,18 @@ void pool_flush(struct pool_head *pool)
 	 */
 	for (bucket = 0; bucket < CONFIG_HAP_POOL_BUCKETS; bucket++) {
 		next = pool->buckets[bucket].free_list;
-		do {
+		while (1) {
 			while (unlikely(next == POOL_BUSY))
 				next = (void*)pl_wait_new_long((ulong*)&pool->buckets[bucket].free_list, (ulong)next);
 
 			if (next == NULL)
 				break;
-		} while (unlikely((next = _HA_ATOMIC_XCHG(&pool->buckets[bucket].free_list, POOL_BUSY)) == POOL_BUSY));
 
-		if (next) {
-			_HA_ATOMIC_STORE(&pool->buckets[bucket].free_list, NULL);
-			__ha_barrier_atomic_store();
+			next = _HA_ATOMIC_XCHG(&pool->buckets[bucket].free_list, POOL_BUSY);
+			if (next != POOL_BUSY) {
+				HA_ATOMIC_STORE(&pool->buckets[bucket].free_list, NULL);
+				break;
+			}
 		}
 
 		while (next) {
