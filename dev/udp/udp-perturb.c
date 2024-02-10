@@ -489,7 +489,7 @@ int main(int argc, char **argv)
 	if (addr_to_ss(argv[optind+1], &srv_addr, &err) < 0)
 		die(1, "parsing server address: %s\n", err.msg);
 
-	pfd = calloc(sizeof(struct pollfd), MAXCONN + 1);
+	pfd = calloc(MAXCONN + 1, sizeof(struct pollfd));
 	if (!pfd)
 		die(1, "out of memory\n");
 

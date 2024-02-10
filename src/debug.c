@@ -1293,7 +1293,7 @@ static int debug_parse_delay_inj(char **args, char *payload, struct appctx *appc
 
 	_HA_ATOMIC_INC(&debug_commands_issued);
 
-	tctx = calloc(sizeof(*tctx), 2);
+	tctx = calloc(2, sizeof(*tctx));
 	if (!tctx)
 		goto fail;
 
@@ -1427,7 +1427,7 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 			*(uint8_t *)ptr = new;
 	}
 
-	tctx = calloc(sizeof(*tctx), count + 2);
+	tctx = calloc(count + 2, sizeof(*tctx));
 	if (!tctx)
 		goto fail;
 
