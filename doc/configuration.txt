@@ -3998,7 +3998,15 @@ user <username> [password|insecure-password <password>]
   designed to be expensive to compute to achieve resistance against brute
   force attacks. They do not simply salt/hash the clear text password once,
   but thousands of times. This can quickly become a major factor in HAProxy's
-  overall CPU consumption!
+  overall CPU consumption, and can even lead to application crashes!
+
+  To address the high CPU usage of hash functions, one approach is to reduce
+  the number of rounds of the hash function (SHA family algorithms) or decrease
+  the "cost" of the function, if the algorithm supports it.
+
+  As a side note, musl (e.g. Alpine Linux) implementations are known to be
+  slower than their glibc counterparts when calculating hashes, so you might
+  want to consider this aspect too.
 
   Example:
         userlist L1
