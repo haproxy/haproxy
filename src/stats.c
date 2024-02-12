@@ -328,6 +328,33 @@ int stats_putchk(struct appctx *appctx, struct buffer *buf, struct htx *htx)
 	return 1;
 }
 
+
+int stats_is_full(struct appctx *appctx, struct buffer *buf, struct htx *htx)
+{
+	if (htx) {
+		if (htx_almost_full(htx)) {
+			appctx->flags |= APPCTX_FL_OUTBLK_FULL;
+			goto full;
+		}
+	}
+	else if (buf) {
+		if (buffer_almost_full(buf)) {
+			goto full;
+		}
+	}
+	else {
+		struct channel *rep = sc_ic(appctx_sc(appctx));
+
+		if (buffer_almost_full(&rep->buf)) {
+			sc_need_room(appctx_sc(appctx), b_size(&rep->buf) / 2);
+			goto full;
+		}
+	}
+	return 0;
+full:
+	return 1;
+}
+
 static const char *stats_scope_ptr(struct appctx *appctx)
 {
 	struct show_stat_ctx *ctx = appctx->svcctx;
@@ -3234,24 +3261,8 @@ more:
 	case STAT_PX_ST_LI:
 		/* obj2 points to listeners list as initialized above */
 		for (; ctx->obj2 != &px->conf.listeners; ctx->obj2 = l->by_fe.n) {
-			if (htx) {
-				if (htx_almost_full(htx)) {
-					appctx->flags |= APPCTX_FL_OUTBLK_FULL;
-					goto full;
-				}
-			}
-			else if (buf) {
-				if (buffer_almost_full(buf))
-					goto full;
-			}
-			else {
-				struct channel *rep = sc_ic(appctx_sc(appctx));
-
-				if (buffer_almost_full(&rep->buf)) {
-					sc_need_room(sc, b_size(&rep->buf) / 2);
-					goto full;
-				}
-			}
+			if (stats_is_full(appctx, buf, htx))
+				goto full;
 
 			l = LIST_ELEM(ctx->obj2, struct listener *, by_fe);
 			if (!l->counters)
@@ -3310,24 +3321,8 @@ more:
 			sv = ctx->obj2;
 			srv_take(sv);
 
-			if (htx) {
-				if (htx_almost_full(htx)) {
-					appctx->flags |= APPCTX_FL_OUTBLK_FULL;
-					goto full;
-				}
-			}
-			else if (buf) {
-				if (buffer_almost_full(buf))
-					goto full;
-			}
-			else {
-				struct channel *rep = sc_ic(appctx_sc(appctx));
-
-				if (buffer_almost_full(&rep->buf)) {
-					sc_need_room(sc, b_size(&rep->buf) / 2);
-					goto full;
-				}
-			}
+			if (stats_is_full(appctx, buf, htx))
+				goto full;
 
 			if (ctx->flags & STAT_BOUND) {
 				if (!(ctx->type & (1 << STATS_TYPE_SV))) {
@@ -3885,24 +3880,8 @@ static int stats_dump_proxies(struct stconn *sc, struct buffer *buf,
 
 	/* dump proxies */
 	while (ctx->obj1) {
-		if (htx) {
-			if (htx_almost_full(htx)) {
-				appctx->flags |= APPCTX_FL_OUTBLK_FULL;
-				goto full;
-			}
-		}
-		else if (buf) {
-			if (buffer_almost_full(buf))
-				goto full;
-		}
-		else {
-			struct channel *rep = sc_ic(appctx_sc(appctx));
-
-			if (buffer_almost_full(&rep->buf)) {
-				sc_need_room(sc, b_size(&rep->buf) / 2);
-				goto full;
-			}
-		}
+		if (stats_is_full(appctx, buf, htx))
+			goto full;
 
 		px = ctx->obj1;
 		/* Skip the global frontend proxies and non-networked ones.
