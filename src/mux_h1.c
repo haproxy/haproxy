@@ -4450,7 +4450,7 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 	struct h1s *h1s = __sc_mux_strm(sc);
 	struct h1c *h1c = h1s->h1c;
 	struct h1m *h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->res : &h1s->req);
-	size_t sz, offset = 0, ret = 0;
+	size_t sz, prefix = 0, suffix = 0, ret = 0;
 
 	TRACE_ENTER(H1_EV_STRM_SEND, h1c->conn, h1s, 0, (size_t[]){count});
 
@@ -4490,14 +4490,16 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 				/* The producer does not know the chunk size, thus this will be emitted at the
 				 * end, in done_ff(). So splicing cannot be used (see TODO below).
 				 * We will reserve 12 bytes to handle at most 4Go chunk with all CRLFs !
-				 * (<8-bytes SIZE><CRLF><CHUNK-DATA><CRLF>)
+				 * (<8-bytes SIZE><CRLF><CHUNK-DATA><CRLF>, 10 bytes at the beginning and
+				 *  2 bytes reserved at the end)
 				 */
 				if (count > MAX_RANGE(unsigned int))
 					count = MAX_RANGE(unsigned int);
-				offset = 12;
+				prefix = 10;
+				suffix = 2;
 				/* Add 2 more bytes to finish the previous chunk */
 				if (h1m->state == H1_MSG_CHUNK_CRLF)
-					offset += 2;
+					prefix += 2;
 				goto no_splicing;
 			}
 		}
@@ -4533,21 +4535,20 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 	if (b_space_wraps(&h1c->obuf))
 		b_slow_realign(&h1c->obuf, trash.area, b_data(&h1c->obuf));
 
-
-	/* Cannot forward more than available room in output buffer */
-	sz = b_contig_space(&h1c->obuf) - offset;
-	if (count > sz)
-		count = sz;
-
-	if (!count) {
+	if (b_contig_space(&h1c->obuf) <= prefix + suffix) {
 		h1c->flags |= H1C_F_OUT_FULL;
 		h1s->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
 		TRACE_STATE("output buffer full", H1_EV_STRM_SEND|H1_EV_H1S_BLK, h1c->conn, h1s);
 		goto out;
 	}
 
+	/* Cannot forward more than available room in output buffer */
+	sz = b_contig_space(&h1c->obuf) - prefix - suffix;
+	if (count > sz)
+		count = sz;
+
 	h1s->sd->iobuf.buf = &h1c->obuf;
-	h1s->sd->iobuf.offset = offset;
+	h1s->sd->iobuf.offset = prefix;
 	h1s->sd->iobuf.data = 0;
 
 	/* forward remaining input data */
@@ -4597,12 +4598,16 @@ static size_t h1_done_ff(struct stconn *sc)
 			h1c->flags |= H1C_F_OUT_FULL;
 
 		if (sd->iobuf.offset) {
-			b_add(&h1c->obuf, sd->iobuf.offset);
-			b_del(&h1c->obuf, sd->iobuf.offset);
-			h1_prepend_chunk_size(&h1c->obuf, sd->iobuf.data, sd->iobuf.offset - ((h1m->state == H1_MSG_CHUNK_CRLF) ?  4 : 2));
-			h1_append_chunk_crlf(&h1c->obuf);
-			if (h1m->state == H1_MSG_CHUNK_CRLF)
-				h1_prepend_chunk_crlf(&h1c->obuf);
+			struct buffer buf = b_make(b_orig(&h1c->obuf), b_size(&h1c->obuf),
+						   b_peek_ofs(&h1c->obuf, b_data(&h1c->obuf) - sd->iobuf.data + sd->iobuf.offset),
+						   sd->iobuf.data);
+			h1_prepend_chunk_size(&buf, sd->iobuf.data, sd->iobuf.offset - ((h1m->state == H1_MSG_CHUNK_CRLF) ?  2 : 0));
+			h1_append_chunk_crlf(&buf);
+			b_add(&h1c->obuf, sd->iobuf.offset + 2);
+			if (h1m->state == H1_MSG_CHUNK_CRLF) {
+				h1_prepend_chunk_crlf(&buf);
+				b_add(&h1c->obuf, 2);
+			}
 			h1m->state = H1_MSG_CHUNK_SIZE;
 		}
 
