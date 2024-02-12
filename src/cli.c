@@ -2093,7 +2093,6 @@ static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, voi
 static int cli_io_handler_wait(struct appctx *appctx)
 {
 	struct cli_wait_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_sc(appctx);
 	uint total, elapsed, left, wait;
 	int ret;
 
@@ -2147,12 +2146,11 @@ static int cli_io_handler_wait(struct appctx *appctx)
 
  wait:
 	/* Stop waiting upon close/abort/error */
-	if (unlikely((sc->flags & SC_FL_SHUT_DONE) ||
-		     se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW)))) {
-		co_skip(sc_oc(sc), sc_oc(sc)->output);
+	if (unlikely(se_fl_test(appctx->sedesc, SE_FL_SHW))) {
 		ctx->error = CLI_WAIT_ERR_INTR;
 		return 1;
 	}
+
 	return 0;
 }
 
