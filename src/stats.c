@@ -316,8 +316,10 @@ int stats_putchk(struct appctx *appctx, struct buffer *buf, struct htx *htx)
 		chk->data = 0;
 	}
 	else if (buf) {
-		if (b_data(chk) > b_room(buf))
+		if (b_data(chk) > b_room(buf)) {
+			se_fl_set(appctx->sedesc, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 			return 0;
+		}
 		b_putblk(buf, b_head(chk), b_data(chk));
 		chk->data = 0;
 	}
@@ -339,6 +341,7 @@ int stats_is_full(struct appctx *appctx, struct buffer *buf, struct htx *htx)
 	}
 	else if (buf) {
 		if (buffer_almost_full(buf)) {
+			se_fl_set(appctx->sedesc, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 			goto full;
 		}
 	}

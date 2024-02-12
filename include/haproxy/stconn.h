@@ -537,21 +537,53 @@ static inline size_t se_nego_ff(struct sedesc *se, struct buffer *input, size_t 
 	return ret;
 }
 
-static inline void se_done_ff(struct sedesc *se)
+/* Returns the number of bytes forwarded. May be 0 if nothing is forwarded. It
+ * may also be 0 if there is nothing to forward. Note it is not dependent on
+ * data in the buffer but only on the amount of data to forward.
+ */
+static inline size_t se_done_ff(struct sedesc *se)
 {
+	size_t ret = 0;
+
 	if (se_fl_test(se, SE_FL_T_MUX)) {
 		const struct mux_ops *mux = se->conn->mux;
-		size_t sent, to_send = se_ff_data(se);
+		size_t to_send = se_ff_data(se);
 
 		BUG_ON(!mux->done_fastfwd);
-		sent = mux->done_fastfwd(se->sc);
-		if (to_send) {
-			if (sent == to_send)
+		ret = mux->done_fastfwd(se->sc);
+		if (ret) {
+			/* Something was forwarded, unblock the zero-copy forwarding.
+			 * If all data was sent, report and send activity.
+			 * Otherwise report a conditional blocked send.
+			 */
+			se->iobuf.flags &= ~IOBUF_FL_FF_BLOCKED;
+			if (ret == to_send)
 				sc_ep_report_send_activity(se->sc);
 			else
-				sc_ep_report_blocked_send(se->sc, sent != 0);
+				sc_ep_report_blocked_send(se->sc, 1);
+		}
+		else {
+			/* Nothing was forwarded. If there was something to forward,
+			 * it means the sends are blocked.
+			 * In addition, if the zero-copy forwarding is blocked because the
+			 * producer requests more room, we must subs for sends.
+			 */
+			if (to_send)
+				sc_ep_report_blocked_send(se->sc, 0);
+			if (se->iobuf.flags & IOBUF_FL_FF_BLOCKED) {
+				sc_ep_report_blocked_send(se->sc, 0);
+				
+				if (!(se->sc->wait_event.events & SUB_RETRY_SEND)) {
+					/* The SC must be subs for send to be notify when some
+					 * space is made
+					 */
+					mux->subscribe(se->sc, SUB_RETRY_SEND, &se->sc->wait_event);
+				}
+			}
 		}
 	}
+
+	return ret;
 }
 
 #endif /* _HAPROXY_STCONN_H */

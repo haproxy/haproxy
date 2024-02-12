@@ -690,6 +690,12 @@ int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	b_sub(sdo->iobuf.buf, sdo->iobuf.offset);
 	sdo->iobuf.data += ret;
 
+	if (se_fl_test(appctx->sedesc, SE_FL_WANT_ROOM)) {
+		/* The applet request more room, report the info at the iobuf level */
+		sdo->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
+		TRACE_STATE("waiting for more room", APPLET_EV_RECV|APPLET_EV_BLK, appctx);
+	}
+
 	if (applet_fl_test(appctx, APPCTX_FL_EOI)) {
 		se_fl_set(appctx->sedesc, SE_FL_EOI);
 		sdo->iobuf.flags |= IOBUF_FL_EOI; /* TODO: it may be good to have a flag to be sure we can
@@ -708,7 +714,11 @@ int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	/* else */
 	/* 	applet_have_more_data(appctx); */
 
-	se_done_ff(sdo);
+	if (se_done_ff(sdo) != 0) {
+		/* Something was forwarding, don't reclaim more room */
+		se_fl_clr(appctx->sedesc, SE_FL_WANT_ROOM);
+		TRACE_STATE("more room available", APPLET_EV_RECV|APPLET_EV_BLK, appctx);
+	}
 
 end:
 	TRACE_LEAVE(APPLET_EV_RECV, appctx);
