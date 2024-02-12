@@ -242,7 +242,9 @@ static inline void quic_cubic_update(struct quic_cc *cc, uint32_t acked)
 			 * Note that K is stored in milliseconds.
 			 */
 			c->K = cubic_root((c->last_w_max - path->cwnd) *
-			                  (CUBIC_ONE_SCALED - CUBIC_BETA_SCALED) * 1000 / (CUBIC_C_SCALED * path->mtu));
+			                  (CUBIC_ONE_SCALED - CUBIC_BETA_SCALED) / (CUBIC_C_SCALED * path->mtu));
+			/* Convert to miliseconds. */
+			c->K *= 1000;
 			c->W_target = c->last_w_max;
 		}
 
