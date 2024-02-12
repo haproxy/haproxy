@@ -365,8 +365,7 @@ static inline int sc_is_send_allowed(const struct stconn *sc)
 
 static inline int sc_rcv_may_expire(const struct stconn *sc)
 {
-	if ((sc->flags & (SC_FL_ABRT_DONE|SC_FL_EOS)) ||
-	    (sc_ic(sc)->flags & (CF_READ_TIMEOUT|CF_READ_EVENT)))
+	if ((sc->flags & (SC_FL_ABRT_DONE|SC_FL_EOS)) || (sc_ic(sc)->flags & CF_READ_TIMEOUT))
 		return 0;
 	if (sc->flags & (SC_FL_EOI|SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))
 		return 0;
@@ -377,8 +376,7 @@ static inline int sc_rcv_may_expire(const struct stconn *sc)
 
 static inline int sc_snd_may_expire(const struct stconn *sc)
 {
-	if ((sc->flags & SC_FL_SHUT_DONE) ||
-	    (sc_oc(sc)->flags & (CF_WRITE_TIMEOUT|CF_WRITE_EVENT)))
+	if ((sc->flags & SC_FL_SHUT_DONE) || (sc_oc(sc)->flags & CF_WRITE_TIMEOUT))
 		return 0;
 	if (sc_ep_test(sc, SE_FL_WONT_CONSUME))
 		return 0;
