@@ -537,6 +537,9 @@ size_t appctx_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 		goto end;
 	}
 
+	if (flags & CO_RFL_BUF_FLUSH)
+		applet_fl_set(appctx, APPCTX_FL_FASTFWD);
+
 	ret = appctx->applet->rcv_buf(appctx, buf, count, flags);
 	if (ret)
 		applet_fl_clr(appctx, APPCTX_FL_OUTBLK_FULL);
@@ -648,6 +651,8 @@ int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 
 	TRACE_ENTER(APPLET_EV_RECV, appctx);
 
+	applet_fl_set(appctx, APPCTX_FL_FASTFWD);
+
 	/* TODO: outbuf must be empty. Find a better way to handle that but for now just return -1 */
 	if (b_data(&appctx->outbuf)) {
 		TRACE_STATE("Output buffer not empty, cannot fast-forward data", APPLET_EV_RECV, appctx);
@@ -670,6 +675,7 @@ int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	len = se_nego_ff(sdo, &BUF_NULL, count, nego_flags);
 	if (sdo->iobuf.flags & IOBUF_FL_NO_FF) {
 		sc_ep_clr(sc, SE_FL_MAY_FASTFWD);
+		applet_fl_clr(appctx, APPCTX_FL_FASTFWD);
 		TRACE_DEVEL("Fast-forwarding not supported by opposite endpoint, disable it", APPLET_EV_RECV, appctx);
 		goto end;
 	}

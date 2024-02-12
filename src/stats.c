@@ -4471,6 +4471,7 @@ static size_t http_stats_fastfwd(struct appctx *appctx, struct buffer *buf, size
 	ret = b_data(buf);
 	if (stats_dump_stat_to_buffer(sc, buf, NULL)) {
 		se_fl_clr(appctx->sedesc, SE_FL_MAY_FASTFWD);
+		applet_fl_clr(appctx, APPCTX_FL_FASTFWD);
 		appctx->st0 = STAT_HTTP_DONE;
 	}
 
@@ -4495,7 +4496,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL))
 		goto out;
 
-	if (se_fl_test(appctx->sedesc, SE_FL_MAY_FASTFWD))
+	if (applet_fl_test(appctx, APPCTX_FL_FASTFWD) && se_fl_test(appctx->sedesc, SE_FL_MAY_FASTFWD))
 		goto out;
 
 	if (!appctx_get_buf(appctx, &appctx->outbuf)) {
@@ -4560,6 +4561,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 		res_htx->flags |= HTX_FL_EOM;
 		applet_set_eoi(appctx);
 		se_fl_clr(appctx->sedesc, SE_FL_MAY_FASTFWD);
+		applet_fl_clr(appctx, APPCTX_FL_FASTFWD);
 		appctx->st0 = STAT_HTTP_END;
 	}
 
