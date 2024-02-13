@@ -3616,6 +3616,12 @@ tune.quic.max-frame-loss <number>
 
   The default value is 10.
 
+tune.quic.reorder-ratio <0..100, in percent>
+  The ratio applied to the packet reordering threshold calculated. It may
+  trigger a high packet loss detection when too small.
+
+  The default value is 50.
+
 tune.quic.retry-threshold <number>
   Dynamically enables the Retry feature for all the configured QUIC listeners
   as soon as this number of half open connections is reached. A half open

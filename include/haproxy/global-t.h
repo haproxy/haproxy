@@ -195,6 +195,7 @@ struct global {
 		unsigned int quic_frontend_max_idle_timeout;
 		unsigned int quic_frontend_max_streams_bidi;
 		unsigned int quic_retry_threshold;
+		unsigned int quic_reorder_ratio;
 		unsigned int quic_streams_buf;
 		unsigned int quic_max_frame_loss;
 #endif /* USE_QUIC */

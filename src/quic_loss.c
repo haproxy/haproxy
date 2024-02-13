@@ -157,6 +157,7 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 	struct eb64_node *node;
 	struct quic_loss *ql;
 	unsigned int loss_delay;
+	uint64_t pktthresh;
 
 	TRACE_ENTER(QUIC_EV_CONN_PKTLOSS, qc);
 	TRACE_PROTO("TX loss", QUIC_EV_CONN_PKTLOSS, qc, pktns);
@@ -171,6 +172,27 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 		QUIC_LOSS_TIME_THRESHOLD_MULTIPLICAND / QUIC_LOSS_TIME_THRESHOLD_DIVISOR;
 
 	node = eb64_first(pkts);
+
+	/* RFC 9002 6.1.1. Packet Threshold
+	 * The RECOMMENDED initial value for the packet reordering threshold
+	 * (kPacketThreshold) is 3, based on best practices for TCP loss detection
+	 * [RFC5681] [RFC6675]. In order to remain similar to TCP, implementations
+	 * SHOULD NOT use a packet threshold less than 3; see [RFC5681].
+
+	 * Some networks may exhibit higher degrees of packet reordering, causing a
+	 * sender to detect spurious losses. Additionally, packet reordering could be
+	 * more common with QUIC than TCP because network elements that could observe
+	 * and reorder TCP packets cannot do that for QUIC and also because QUIC
+	 * packet numbers are encrypted.
+	 */
+
+	/* Dynamic packet reordering threshold calculation depending on the distance
+	 * (in packets) between the last transmitted packet and the oldest still in
+	 * flight before loss detection.
+	 */
+	pktthresh = pktns->tx.next_pn - 1 - eb64_entry(node, struct quic_tx_packet, pn_node)->pn_node.key;
+	/* Apply a ratio to this threshold and add it to QUIC_LOSS_PACKET_THRESHOLD. */
+	pktthresh = pktthresh * global.tune.quic_reorder_ratio / 100 + QUIC_LOSS_PACKET_THRESHOLD;
 	while (node) {
 		struct quic_tx_packet *pkt;
 		int64_t largest_acked_pn;
@@ -185,7 +207,7 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 		time_sent = pkt->time_sent;
 		loss_time_limit = tick_add(time_sent, loss_delay);
 		if (tick_is_le(loss_time_limit, now_ms) ||
-			(int64_t)largest_acked_pn >= pkt->pn_node.key + QUIC_LOSS_PACKET_THRESHOLD) {
+			(int64_t)largest_acked_pn >= pkt->pn_node.key + pktthresh) {
 			eb64_delete(&pkt->pn_node);
 			LIST_APPEND(lost_pkts, &pkt->list);
 			ql->nb_lost_pkt++;
