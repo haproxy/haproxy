@@ -55,6 +55,7 @@ struct quic_loss {
 	/* Number of NACKed sent PTO. */
 	unsigned int pto_count;
 	unsigned long nb_lost_pkt;
+	unsigned long nb_reordered_pkt;
 };
 
 #endif /* USE_QUIC */

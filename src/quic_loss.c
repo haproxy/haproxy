@@ -197,6 +197,7 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 		struct quic_tx_packet *pkt;
 		int64_t largest_acked_pn;
 		unsigned int loss_time_limit, time_sent;
+		int reordered;
 
 		pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
 		largest_acked_pn = pktns->rx.largest_acked_pn;
@@ -206,8 +207,12 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 
 		time_sent = pkt->time_sent;
 		loss_time_limit = tick_add(time_sent, loss_delay);
-		if (tick_is_le(loss_time_limit, now_ms) ||
-			(int64_t)largest_acked_pn >= pkt->pn_node.key + pktthresh) {
+
+		reordered = (int64_t)largest_acked_pn >= pkt->pn_node.key + pktthresh;
+		if (reordered)
+			ql->nb_reordered_pkt++;
+
+		if (tick_is_le(loss_time_limit, now_ms) || reordered) {
 			eb64_delete(&pkt->pn_node);
 			LIST_APPEND(lost_pkts, &pkt->list);
 			ql->nb_lost_pkt++;
