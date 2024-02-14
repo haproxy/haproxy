@@ -830,6 +830,8 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct stconn *sc, struct
 	 * especially if headers were already forwarded. But it is not
 	 * mandatory.
 	 */
+	if (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_H1_SND))
+		se_fl_set(h1s->sd, SE_FL_MAY_FASTFWD_CONS);
 	se_expect_no_data(h1s->sd);
 	h1s->sess = sess;
 
@@ -867,6 +869,8 @@ static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct stconn *sc, struct
 	h1s->sd = sc->sedesc;
 	h1s->sess = sess;
 
+	if (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_H1_SND))
+		se_fl_set(h1s->sd, SE_FL_MAY_FASTFWD_CONS);
 	h1c->state = H1_CS_RUNNING;
 
 	if (h1c->px->options2 & PR_O2_RSPBUG_OK)

@@ -1659,6 +1659,10 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	h2s->sd->se   = h2s;
 	h2s->sd->conn = h2c->conn;
 	se_fl_set(h2s->sd, SE_FL_T_MUX | SE_FL_ORPHAN | SE_FL_NOT_FIRST);
+
+	if (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_H2_SND))
+		se_fl_set(h2s->sd, SE_FL_MAY_FASTFWD_CONS);
+
 	/* The request is not finished, don't expect data from the opposite side
 	 * yet
 	 */
@@ -1749,6 +1753,8 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct stconn *sc, struct
 	h2s->sess = sess;
 	h2c->nb_sc++;
 
+	if (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_H2_SND))
+		se_fl_set(h2s->sd, SE_FL_MAY_FASTFWD_CONS);
 	/* on the backend we can afford to only count total streams upon success */
 	h2c->stream_cnt++;
 

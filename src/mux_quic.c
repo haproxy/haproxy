@@ -675,6 +675,9 @@ struct stconn *qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
 	se_fl_set(qcs->sd, SE_FL_T_MUX | SE_FL_ORPHAN | SE_FL_NOT_FIRST);
 	se_expect_no_data(qcs->sd);
 
+	if (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_QUIC_SND))
+		se_fl_set(qcs->sd, SE_FL_MAY_FASTFWD_CONS);
+
 	/* TODO duplicated from mux_h2 */
 	sess->t_idle = ns_to_ms(now_ns - sess->accept_ts) - sess->t_handshake;
 
