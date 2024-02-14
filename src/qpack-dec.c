@@ -135,6 +135,19 @@ int qpack_decode_enc(struct buffer *buf, int fin, void *ctx)
 	}
 	else if (inst & QPACK_ENC_INST_SDTC_BIT) {
 		/* Set dynamic table capacity */
+		int capacity = *b_head(buf) & 0x1f;
+
+		/* RFC 9204 4.3.1. Set Dynamic Table Capacity
+		 *
+		 * The decoder MUST treat a new dynamic table capacity
+		 * value that exceeds this limit as a connection error of type
+		 * QPACK_ENCODER_STREAM_ERROR.
+		 */
+		if (capacity) {
+			qcc_set_error(qcs->qcc, QPACK_ENCODER_STREAM_ERROR, 1);
+			return -1;
+		}
+
 	}
 
 	return 0;
