@@ -97,12 +97,12 @@ enum se_flags {
 	SE_FL_WANT_ROOM  = 0x00080000,  /* More bytes to transfer, but not enough room */
 	SE_FL_EXP_NO_DATA= 0x00100000,  /* No data expected by the endpoint */
 	SE_FL_MAY_FASTFWD_PROD = 0x00200000, /* The endpoint may produce data via zero-copy forwarding */
-	SE_FL_ENDP_MASK  = 0x002ff000,  /* Mask for flags set by the endpoint */
+	SE_FL_MAY_FASTFWD_CONS = 0x00400000, /* The endpoint may consume data via zero-copy forwarding */
+	SE_FL_ENDP_MASK  = 0x004ff000,  /* Mask for flags set by the endpoint */
 
 	/* following flags are supposed to be set by the app layer and read by
 	 * the endpoint :
 	 */
-	/* unused             0x00400000,*/
 	/* unused             0x00800000,*/
 	/* unused             0x01000000,*/
 	/* unused             0x02000000,*/
@@ -128,9 +128,9 @@ static forceinline char *se_show_flags(char *buf, size_t len, const char *delim,
 	_(SE_FL_SHRD, _(SE_FL_SHRR, _(SE_FL_SHWN, _(SE_FL_SHWS,
 	_(SE_FL_NOT_FIRST, _(SE_FL_WEBSOCKET, _(SE_FL_EOI, _(SE_FL_EOS,
 	_(SE_FL_ERROR, _(SE_FL_ERR_PENDING,  _(SE_FL_RCV_MORE,
-	_(SE_FL_WANT_ROOM, _(SE_FL_EXP_NO_DATA, _(SE_FL_MAY_FASTFWD_PROD,
+	_(SE_FL_WANT_ROOM, _(SE_FL_EXP_NO_DATA, _(SE_FL_MAY_FASTFWD_PROD, _(SE_FL_MAY_FASTFWD_CONS,
 	_(SE_FL_WAIT_FOR_HS, _(SE_FL_KILL_CONN, _(SE_FL_WAIT_DATA,
-	_(SE_FL_WONT_CONSUME, _(SE_FL_HAVE_NO_DATA, _(SE_FL_APPLET_NEED_CONN))))))))))))))))))))))));
+	_(SE_FL_WONT_CONSUME, _(SE_FL_HAVE_NO_DATA, _(SE_FL_APPLET_NEED_CONN)))))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
