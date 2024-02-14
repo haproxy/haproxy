@@ -1056,6 +1056,14 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			if (qc_is_listener(qc)) {
 				TRACE_ERROR("non accepted QUIC_FT_HANDSHAKE_DONE frame",
 				            QUIC_EV_CONN_PRSHPKT, qc);
+
+				/* RFC 9000 19.20. HANDSHAKE_DONE Frames
+				 *
+				 * A
+				 * server MUST treat receipt of a HANDSHAKE_DONE frame as a connection
+				 * error of type PROTOCOL_VIOLATION.
+				 */
+				quic_set_connection_close(qc, quic_err_transport(QC_ERR_PROTOCOL_VIOLATION));
 				goto leave;
 			}
 
