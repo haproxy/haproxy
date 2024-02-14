@@ -324,7 +324,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	}
 	conn->ctx = ctx;
 	se_fl_set(ctx->sd, SE_FL_RCV_MORE);
-	if (global.tune.options & GTUNE_USE_SPLICE)
+	if ((global.tune.options & GTUNE_USE_SPLICE) && !(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_PT))
 		se_fl_set(ctx->sd, SE_FL_MAY_FASTFWD_PROD|SE_FL_MAY_FASTFWD_CONS);
 
 	TRACE_LEAVE(PT_EV_CONN_NEW, conn);
@@ -391,6 +391,8 @@ static int mux_pt_attach(struct connection *conn, struct sedesc *sd, struct sess
 		return -1;
 	ctx->sd = sd;
 	se_fl_set(ctx->sd, SE_FL_RCV_MORE);
+	if ((global.tune.options & GTUNE_USE_SPLICE) && !(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_PT))
+		se_fl_set(ctx->sd, SE_FL_MAY_FASTFWD_PROD|SE_FL_MAY_FASTFWD_CONS);
 
 	TRACE_LEAVE(PT_EV_STRM_NEW, conn, sd->sc);
 	return 0;
@@ -655,11 +657,6 @@ static int mux_pt_fastfwd(struct stconn *sc, unsigned int count, unsigned int fl
         int ret = 0;
 
 	TRACE_ENTER(PT_EV_RX_DATA, conn, sc, 0, (size_t[]){count});
-
-	if (global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_PT) {
-		se_fl_clr(ctx->sd, SE_FL_MAY_FASTFWD);
-		goto end;
-	}
 
 	se_fl_clr(ctx->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 	conn->flags &= ~CO_FL_WAIT_ROOM;

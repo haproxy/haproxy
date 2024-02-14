@@ -7131,11 +7131,6 @@ static size_t h2_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 
 	TRACE_ENTER(H2_EV_H2S_SEND|H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
 
-	if (global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_H2_SND) {
-		h2s->sd->iobuf.flags |= IOBUF_FL_NO_FF;
-		goto end;
-	}
-
 	/* If we were not just woken because we wanted to send but couldn't,
 	 * and there's somebody else that is waiting to send, do nothing,
 	 * we will subscribe later and be put at the end of the list

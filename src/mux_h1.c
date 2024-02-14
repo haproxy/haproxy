@@ -1968,7 +1968,8 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	/* Here h1s_sc(h1s) is always defined */
 	if (!(h1c->flags & H1C_F_CANT_FASTFWD) &&
 	    (!(h1m->flags & H1_MF_RESP) || !(h1s->flags & H1S_F_BODYLESS_RESP)) &&
-	    (h1m->state == H1_MSG_DATA || h1m->state == H1_MSG_TUNNEL)) {
+	    (h1m->state == H1_MSG_DATA || h1m->state == H1_MSG_TUNNEL) &&
+	    !(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_H1_RCV)) {
 		TRACE_STATE("notify the mux can use fast-forward", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
 		se_fl_set(h1s->sd, SE_FL_MAY_FASTFWD_PROD);
 	}
@@ -4673,11 +4674,6 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	int ret = 0;
 
 	TRACE_ENTER(H1_EV_STRM_RECV, h1c->conn, h1s, 0, (size_t[]){count});
-
-	if (global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_H1_RCV) {
-		h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_CANT_FASTFWD;
-		goto end;
-	}
 
 	if (h1m->state != H1_MSG_DATA && h1m->state != H1_MSG_TUNNEL) {
 		h1c->flags &= ~H1C_F_WANT_FASTFWD;

@@ -4522,7 +4522,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 			if (find_http_meth(istptr(meth), istlen(meth)) == HTTP_METH_HEAD)
 				appctx->st0 = STAT_HTTP_DONE;
 			else {
-				if (!(global.tune.no_zero_copy_fwd & (NO_ZERO_COPY_FWD|NO_ZERO_COPY_FWD_APPLET)))
+				if (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_APPLET))
 					se_fl_set(appctx->sedesc, SE_FL_MAY_FASTFWD_PROD);
 				appctx->st0 = STAT_HTTP_DUMP;
 			}

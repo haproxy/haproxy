@@ -1829,7 +1829,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 		if (find_http_meth(istptr(meth), istlen(meth)) == HTTP_METH_HEAD || ctx->send_notmodified)
 			appctx->st0 = HTX_CACHE_EOM;
 		else {
-			if (!(global.tune.no_zero_copy_fwd & (NO_ZERO_COPY_FWD|NO_ZERO_COPY_FWD_APPLET)))
+			if (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_APPLET))
 				se_fl_set(appctx->sedesc, SE_FL_MAY_FASTFWD_PROD);
 
 			appctx->to_forward = cache_ptr->body_size;
