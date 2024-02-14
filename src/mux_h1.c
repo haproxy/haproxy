@@ -1966,11 +1966,11 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	    (!(h1m->flags & H1_MF_RESP) || !(h1s->flags & H1S_F_BODYLESS_RESP)) &&
 	    (h1m->state == H1_MSG_DATA || h1m->state == H1_MSG_TUNNEL)) {
 		TRACE_STATE("notify the mux can use fast-forward", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
-		se_fl_set(h1s->sd, SE_FL_MAY_FASTFWD);
+		se_fl_set(h1s->sd, SE_FL_MAY_FASTFWD_PROD);
 	}
 	else {
 		TRACE_STATE("notify the mux can't use fast-forward anymore", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
-		se_fl_clr(h1s->sd, SE_FL_MAY_FASTFWD);
+		se_fl_clr(h1s->sd, SE_FL_MAY_FASTFWD_PROD);
 		h1c->flags &= ~H1C_F_WANT_FASTFWD;
 	}
 
@@ -4345,7 +4345,7 @@ static size_t h1_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	else
 		TRACE_DEVEL("h1c ibuf not allocated", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 
-	if ((flags & CO_RFL_BUF_FLUSH) && se_fl_test(h1s->sd, SE_FL_MAY_FASTFWD)) {
+	if ((flags & CO_RFL_BUF_FLUSH) && se_fl_test(h1s->sd, SE_FL_MAY_FASTFWD_PROD)) {
 		h1c->flags |= H1C_F_WANT_FASTFWD;
 		TRACE_STATE("Block xprt rcv_buf to flush stream's buffer (want_fastfwd)", H1_EV_STRM_RECV, h1c->conn, h1s);
 	}
@@ -4853,7 +4853,7 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 
 	if (!(h1c->flags & H1C_F_WANT_FASTFWD)) {
 		TRACE_STATE("notify the mux can't use fast-forward anymore", H1_EV_STRM_RECV, h1c->conn, h1s);
-		se_fl_clr(h1s->sd, SE_FL_MAY_FASTFWD);
+		se_fl_clr(h1s->sd, SE_FL_MAY_FASTFWD_PROD);
 		if (!(h1c->wait_event.events & SUB_RETRY_RECV)) {
 			TRACE_STATE("restart receiving data, subscribing", H1_EV_STRM_RECV, h1c->conn, h1s);
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);

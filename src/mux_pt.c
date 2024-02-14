@@ -325,7 +325,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	conn->ctx = ctx;
 	se_fl_set(ctx->sd, SE_FL_RCV_MORE);
 	if (global.tune.options & GTUNE_USE_SPLICE)
-		se_fl_set(ctx->sd, SE_FL_MAY_FASTFWD);
+		se_fl_set(ctx->sd, SE_FL_MAY_FASTFWD_PROD);
 
 	TRACE_LEAVE(PT_EV_CONN_NEW, conn);
 	return 0;
@@ -675,7 +675,7 @@ static int mux_pt_fastfwd(struct stconn *sc, unsigned int count, unsigned int fl
 	try = se_nego_ff(sdo, &BUF_NULL, count, nego_flags);
 	if (sdo->iobuf.flags & IOBUF_FL_NO_FF) {
 		/* Fast forwarding is not supported by the consumer */
-		se_fl_clr(ctx->sd, SE_FL_MAY_FASTFWD);
+		se_fl_clr(ctx->sd, SE_FL_MAY_FASTFWD_PROD);
 		TRACE_DEVEL("Fast-forwarding not supported by opposite endpoint, disable it", PT_EV_RX_DATA, conn, sc);
 		goto end;
 	}
@@ -693,7 +693,7 @@ static int mux_pt_fastfwd(struct stconn *sc, unsigned int count, unsigned int fl
 		if (ret < 0) {
 			TRACE_ERROR("Error when trying to fast-forward data, disable it and abort",
 				    PT_EV_RX_DATA|PT_EV_STRM_ERR|PT_EV_CONN_ERR, conn, sc);
-			se_fl_clr(ctx->sd, SE_FL_MAY_FASTFWD);
+			se_fl_clr(ctx->sd, SE_FL_MAY_FASTFWD_PROD);
 			BUG_ON(sdo->iobuf.pipe->data);
 			put_pipe(sdo->iobuf.pipe);
 			sdo->iobuf.pipe = NULL;

@@ -674,7 +674,7 @@ int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 
 	len = se_nego_ff(sdo, &BUF_NULL, count, nego_flags);
 	if (sdo->iobuf.flags & IOBUF_FL_NO_FF) {
-		sc_ep_clr(sc, SE_FL_MAY_FASTFWD);
+		sc_ep_clr(sc, SE_FL_MAY_FASTFWD_PROD);
 		applet_fl_clr(appctx, APPCTX_FL_FASTFWD);
 		TRACE_DEVEL("Fast-forwarding not supported by opposite endpoint, disable it", APPLET_EV_RECV, appctx);
 		goto end;
@@ -883,7 +883,7 @@ struct task *task_process_applet(struct task *t, void *context, unsigned int sta
 
 	TRACE_POINT(APPLET_EV_PROCESS, app);
 
-	if (b_data(&app->outbuf) || se_fl_test(app->sedesc, SE_FL_MAY_FASTFWD))
+	if (b_data(&app->outbuf) || se_fl_test(app->sedesc, SE_FL_MAY_FASTFWD_PROD))
 		applet_have_more_data(app);
 
 	sc_applet_sync_recv(sc);

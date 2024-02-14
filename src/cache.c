@@ -1756,7 +1756,7 @@ static size_t http_cache_fastfwd(struct appctx *appctx, struct buffer *buf, size
 	ret = ff_cache_dump_msg(appctx, buf, count);
 
 	if (!appctx->to_forward) {
-		se_fl_clr(appctx->sedesc, SE_FL_MAY_FASTFWD);
+		se_fl_clr(appctx->sedesc, SE_FL_MAY_FASTFWD_PROD);
 		applet_fl_clr(appctx, APPCTX_FL_FASTFWD);
 		if (ctx->sent == first->len - sizeof(*cache_ptr)) {
 			applet_set_eoi(appctx);
@@ -1780,7 +1780,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL))
 		goto exit;
 
-	if (applet_fl_test(appctx, APPCTX_FL_FASTFWD) && se_fl_test(appctx->sedesc, SE_FL_MAY_FASTFWD))
+	if (applet_fl_test(appctx, APPCTX_FL_FASTFWD) && se_fl_test(appctx->sedesc, SE_FL_MAY_FASTFWD_PROD))
 		goto exit;
 
 	if (!appctx_get_buf(appctx, &appctx->outbuf)) {
@@ -1830,7 +1830,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 			appctx->st0 = HTX_CACHE_EOM;
 		else {
 			if (!(global.tune.no_zero_copy_fwd & (NO_ZERO_COPY_FWD|NO_ZERO_COPY_FWD_APPLET)))
-				se_fl_set(appctx->sedesc, SE_FL_MAY_FASTFWD);
+				se_fl_set(appctx->sedesc, SE_FL_MAY_FASTFWD_PROD);
 
 			appctx->to_forward = cache_ptr->body_size;
 			len = first->len - sizeof(*cache_ptr) - ctx->sent;
@@ -1854,7 +1854,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 		 /* no more data are expected. */
 		res_htx->flags |= HTX_FL_EOM;
 		applet_set_eoi(appctx);
-		se_fl_clr(appctx->sedesc, SE_FL_MAY_FASTFWD);
+		se_fl_clr(appctx->sedesc, SE_FL_MAY_FASTFWD_PROD);
 		applet_fl_clr(appctx, APPCTX_FL_FASTFWD);
 		appctx->st0 = HTX_CACHE_END;
 	}

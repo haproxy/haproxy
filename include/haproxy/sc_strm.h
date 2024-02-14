@@ -284,7 +284,7 @@ static inline int sc_is_recv_allowed(const struct stconn *sc)
 	if (sc_ep_test(sc, SE_FL_HAVE_NO_DATA))
 		return 0;
 
-	if (sc_ep_test(sc, SE_FL_MAY_FASTFWD) && (sc_opposite(sc)->sedesc->iobuf.flags & IOBUF_FL_FF_BLOCKED))
+	if (sc_ep_test(sc, SE_FL_MAY_FASTFWD_PROD) && (sc_opposite(sc)->sedesc->iobuf.flags & IOBUF_FL_FF_BLOCKED))
 		return 0;
 
 	return !(sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM));
