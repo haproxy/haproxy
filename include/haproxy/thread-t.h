@@ -162,4 +162,59 @@ struct ha_rwlock {
 
 #endif  /* DEBUG_THREAD */
 
+/* WARNING!!! if you update this enum, please also keep lock_label() up to date
+ * below.
+ */
+enum lock_label {
+	TASK_RQ_LOCK,
+	TASK_WQ_LOCK,
+	LISTENER_LOCK,
+	PROXY_LOCK,
+	SERVER_LOCK,
+	LBPRM_LOCK,
+	SIGNALS_LOCK,
+	STK_TABLE_LOCK,
+	STK_SESS_LOCK,
+	APPLETS_LOCK,
+	PEER_LOCK,
+	SHCTX_LOCK,
+	SSL_LOCK,
+	SSL_GEN_CERTS_LOCK,
+	PATREF_LOCK,
+	PATEXP_LOCK,
+	VARS_LOCK,
+	COMP_POOL_LOCK,
+	LUA_LOCK,
+	NOTIF_LOCK,
+	SPOE_APPLET_LOCK,
+	DNS_LOCK,
+	PID_LIST_LOCK,
+	EMAIL_ALERTS_LOCK,
+	PIPES_LOCK,
+	TLSKEYS_REF_LOCK,
+	AUTH_LOCK,
+	RING_LOCK,
+	DICT_LOCK,
+	PROTO_LOCK,
+	QUEUE_LOCK,
+	CKCH_LOCK,
+	SNI_LOCK,
+	SSL_SERVER_LOCK,
+	SFT_LOCK, /* sink forward target */
+	IDLE_CONNS_LOCK,
+	OCSP_LOCK,
+	QC_CID_LOCK,
+	CACHE_LOCK,
+	OTHER_LOCK,
+	/* WT: make sure never to use these ones outside of development,
+	 * we need them for lock profiling!
+	 */
+	DEBUG1_LOCK,
+	DEBUG2_LOCK,
+	DEBUG3_LOCK,
+	DEBUG4_LOCK,
+	DEBUG5_LOCK,
+	LOCK_LABELS
+};
+
 #endif /* _HAPROXY_THREAD_T_H */
