@@ -102,15 +102,16 @@ enum se_flags {
 	/* following flags are supposed to be set by the app layer and read by
 	 * the endpoint :
 	 */
-	SE_FL_WAIT_FOR_HS   = 0x00400000,  /* This stream is waiting for handhskae */
-	SE_FL_KILL_CONN     = 0x00800000,  /* must kill the connection when the SC closes */
-	SE_FL_WAIT_DATA     = 0x01000000,  /* stream endpoint cannot work without more data from the stream's output */
-	SE_FL_WONT_CONSUME  = 0x02000000,  /* stream endpoint will not consume more data */
-	SE_FL_HAVE_NO_DATA  = 0x04000000,  /* the endpoint has no more data to deliver to the stream */
-	/* unused             0x08000000,*/
-	/* unused             0x10000000,*/
-	/* unused             0x20000000,*/
-	SE_FL_APPLET_NEED_CONN = 0x40000000,  /* applet is waiting for the other side to (fail to) connect */
+	/* unused             0x00400000,*/
+	/* unused             0x00800000,*/
+	/* unused             0x01000000,*/
+	/* unused             0x02000000,*/
+	SE_FL_WAIT_FOR_HS   = 0x04000000,  /* This stream is waiting for handhskae */
+	SE_FL_KILL_CONN     = 0x08000000,  /* must kill the connection when the SC closes */
+	SE_FL_WAIT_DATA     = 0x10000000,  /* stream endpoint cannot work without more data from the stream's output */
+	SE_FL_WONT_CONSUME  = 0x20000000,  /* stream endpoint will not consume more data */
+	SE_FL_HAVE_NO_DATA  = 0x40000000,  /* the endpoint has no more data to deliver to the stream */
+	SE_FL_APPLET_NEED_CONN = 0x80000000,  /* applet is waiting for the other side to (fail to) connect */
 };
 
 /* This function is used to report flags in debugging tools. Please reflect
