@@ -544,6 +544,14 @@ static inline int sc_cond_forward_shut(struct stconn *sc)
 	return 1;
 }
 
+
+static inline int sc_is_fastfwd_supported(struct stconn *sc)
+{
+	return (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD) &&
+		sc_ep_test(sc, SE_FL_MAY_FASTFWD_PROD) &&
+		sc_ep_test(sc_opposite(sc), SE_FL_MAY_FASTFWD_CONS) &&
+		sc_ic(sc)->to_forward);
+}
 /*
  * This function performs a shutdown-read on a detached stream connector in a
  * connected or init state (it does nothing for other states). It either shuts
@@ -1267,8 +1275,7 @@ int sc_conn_recv(struct stconn *sc)
 	/* First, let's see if we may fast-forward data from a side to the other
 	 * one without using the channel buffer.
 	 */
-	if (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD) &&
-	    sc_ep_test(sc, SE_FL_MAY_FASTFWD_PROD) && ic->to_forward) {
+	if (sc_is_fastfwd_supported(sc)) {
 		if (channel_data(ic)) {
 			/* We're embarrassed, there are already data pending in
 			 * the buffer and we don't want to have them at two
@@ -1907,8 +1914,7 @@ int sc_applet_recv(struct stconn *sc)
 	/* First, let's see if we may fast-forward data from a side to the other
 	 * one without using the channel buffer.
 	 */
-	if (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD) &&
-	    sc_ep_test(sc, SE_FL_MAY_FASTFWD_PROD) && ic->to_forward) {
+	if (sc_is_fastfwd_supported(sc)) {
 		if (channel_data(ic)) {
 			/* We're embarrassed, there are already data pending in
 			 * the buffer and we don't want to have them at two
