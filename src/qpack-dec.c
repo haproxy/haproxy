@@ -173,6 +173,18 @@ int qpack_decode_dec(struct buffer *buf, int fin, void *ctx)
 	inst = (unsigned char)*b_head(buf) & QPACK_DEC_INST_BITMASK;
 	if (inst == QPACK_DEC_INST_ICINC) {
 		/* Insert count increment */
+
+		/* RFC 9204 4.4.3. Insert Count Increment
+		 *
+		 * An encoder that receives an Increment field equal to zero, or one
+		 * that increases the Known Received Count beyond what the encoder has
+		 * sent, MUST treat this as a connection error of type
+		 * QPACK_DECODER_STREAM_ERROR.
+		 */
+
+		/* For the moment haproxy does not emit dynamic table insertion. */
+		qcc_set_error(qcs->qcc, QPACK_DECODER_STREAM_ERROR, 1);
+		return -1;
 	}
 	else if (inst & QPACK_DEC_INST_SACK) {
 		/* Section Acknowledgment */
