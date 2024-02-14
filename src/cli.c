@@ -917,7 +917,7 @@ static void cli_io_handler(struct appctx *appctx)
 	int reql;
 	int len;
 
-	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW)))) {
+	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR)))) {
 		co_skip(sc_oc(sc), co_data(sc_oc(sc)));
 		goto out;
 	}

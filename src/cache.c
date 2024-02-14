@@ -1788,8 +1788,9 @@ static void http_cache_io_handler(struct appctx *appctx)
 		goto exit;
 	}
 
-	if (unlikely(applet_fl_test(appctx, APPCTX_FL_EOS|APPCTX_FL_ERROR|APPCTX_FL_SHUTDOWN)))
+	if (unlikely(applet_fl_test(appctx, APPCTX_FL_EOS|APPCTX_FL_ERROR))) {
 		goto exit;
+	}
 
 	res_htx = htx_from_buf(&appctx->outbuf);
 

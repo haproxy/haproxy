@@ -4509,7 +4509,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 
 	res_htx = htx_from_buf(&appctx->outbuf);
 
-	if (unlikely(applet_fl_test(appctx, APPCTX_FL_EOS|APPCTX_FL_ERROR|APPCTX_FL_SHUTDOWN))) {
+	if (unlikely(applet_fl_test(appctx, APPCTX_FL_EOS|APPCTX_FL_ERROR))) {
 		appctx->st0 = STAT_HTTP_END;
 		goto out;
 	}

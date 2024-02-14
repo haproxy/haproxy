@@ -4220,7 +4220,7 @@ static void syslog_io_handler(struct appctx *appctx)
 	char *message;
 	size_t size;
 
-	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW)))) {
+	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR)))) {
 		co_skip(sc_oc(sc), co_data(sc_oc(sc)));
 		goto out;
 	}

@@ -704,7 +704,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 	uint32_t sz;
 	int ret;
 
-	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW)))) {
+	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR)))) {
 		if (co_data(res)) {
 			htx = htx_from_buf(&res->buf);
 			co_htx_skip(res, htx, co_data(res));
