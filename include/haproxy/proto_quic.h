@@ -21,6 +21,10 @@
 #ifndef _HAPROXY_PROTO_QUIC_H
 #define _HAPROXY_PROTO_QUIC_H
 
+#include <import/ebtree.h>
+#include <haproxy/api-t.h>
+#include <haproxy/thread-t.h>
+
 extern struct protocol proto_quic4;
 extern struct protocol proto_quic6;
 

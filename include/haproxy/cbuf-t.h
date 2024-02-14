@@ -27,6 +27,7 @@
 #endif
 #endif
 
+#include <stddef.h>
 #include <haproxy/list-t.h>
 
 extern struct pool_head *pool_head_cbuf;

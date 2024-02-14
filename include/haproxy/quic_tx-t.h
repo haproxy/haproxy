@@ -5,6 +5,9 @@
 #define QUIC_DGRAM_HEADLEN  (sizeof(uint16_t) + sizeof(void *))
 #define QUIC_MAX_CC_BUFSIZE (2 * (QUIC_MIN_CC_PKTSIZE + QUIC_DGRAM_HEADLEN))
 
+#include <import/eb64tree.h>
+#include <haproxy/list-t.h>
+
 extern struct pool_head *pool_head_quic_tx_packet;
 extern struct pool_head *pool_head_quic_cc_buf;
 

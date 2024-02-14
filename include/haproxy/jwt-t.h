@@ -22,6 +22,7 @@
 #ifndef _HAPROXY_JWT_T_H
 #define _HAPROXY_JWT_T_H
 
+#include <import/ebmbtree.h>
 #include <haproxy/openssl-compat.h>
 
 #ifdef USE_OPENSSL

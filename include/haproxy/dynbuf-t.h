@@ -22,6 +22,7 @@
 #ifndef _HAPROXY_DYNBUF_T_H
 #define _HAPROXY_DYNBUF_T_H
 
+#include <haproxy/list-t.h>
 
 /* an element of the <buffer_wq> list. It represents an object that need to
  * acquire a buffer to continue its process. */

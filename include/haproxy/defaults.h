@@ -22,6 +22,8 @@
 #ifndef _HAPROXY_DEFAULTS_H
 #define _HAPROXY_DEFAULTS_H
 
+#include <haproxy/compat.h>
+
 /* MAX_THREADS defines the highest limit for the global nbthread value. It
  * defaults to the number of bits in a long integer when threads are enabled
  * but may be lowered to save resources on embedded systems.

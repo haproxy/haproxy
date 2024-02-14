@@ -22,6 +22,7 @@
 #ifndef _HAPROXY_MQTT_T_H
 #define _HAPROXY_MQTT_T_H
 
+#include <inttypes.h>
 #include <import/ist.h>
 
 /* MQTT protocol version

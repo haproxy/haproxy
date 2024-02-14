@@ -26,6 +26,8 @@
 #ifndef _HAPROXY_QPACK_TBL_T_H
 #define _HAPROXY_QPACK_TBL_T_H
 
+#include <inttypes.h>
+
 /*
  * Gcc before 3.0 needs [0] to declare a variable-size array
  */

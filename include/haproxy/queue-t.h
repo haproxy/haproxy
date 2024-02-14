@@ -24,6 +24,7 @@
 
 #include <import/ebtree-t.h>
 #include <haproxy/api-t.h>
+#include <haproxy/thread-t.h>
 
 struct proxy;
 struct server;

@@ -13,6 +13,12 @@
 #ifndef _HAPROXY_QUIC_ACK_H
 #define _HAPROXY_QUIC_ACK_H
 
+#include <inttypes.h>
+
+struct quic_conn;
+struct quic_arng;
+struct quic_arngs;
+
 void quic_free_arngs(struct quic_conn *qc, struct quic_arngs *arngs);
 int quic_update_ack_ranges_list(struct quic_conn *qc,
                                 struct quic_arngs *arngs,

@@ -21,6 +21,9 @@
 #define _HAPROXY_SSL_GENCERT_H
 #ifdef USE_OPENSSL
 
+#include <haproxy/listener-t.h>
+#include <haproxy/ssl_sock-t.h>
+
 int ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_conf, SSL *ssl);
 int ssl_sock_generate_certificate_from_conn(struct bind_conf *bind_conf, SSL *ssl);
 SSL_CTX *ssl_sock_assign_generated_cert(unsigned int key, struct bind_conf *bind_conf, SSL *ssl);

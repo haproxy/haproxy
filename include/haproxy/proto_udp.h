@@ -24,6 +24,8 @@
 #ifndef _PROTO_PROTO_UDP_H
 #define _PROTO_PROTO_UDP_H
 
+#include <haproxy/receiver-t.h>
+
 extern struct protocol proto_udp4;
 extern struct protocol proto_udp6;
 

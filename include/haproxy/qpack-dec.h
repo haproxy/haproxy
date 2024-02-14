@@ -21,6 +21,8 @@
 #ifndef _HAPROXY_QPACK_DEC_H
 #define _HAPROXY_QPACK_DEC_H
 
+#include <inttypes.h>
+
 struct buffer;
 struct http_hdr;
 

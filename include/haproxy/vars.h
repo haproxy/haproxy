@@ -25,9 +25,12 @@
 #include <haproxy/api-t.h>
 #include <haproxy/session-t.h>
 #include <haproxy/stream-t.h>
+#include <haproxy/thread.h>
 #include <haproxy/vars-t.h>
 
 extern struct vars proc_vars;
+struct sample;
+struct arg;
 
 void vars_init_head(struct vars *vars, enum vars_scope scope);
 void var_accounting_diff(struct vars *vars, struct session *sess, struct stream *strm, int size);

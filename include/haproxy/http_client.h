@@ -1,6 +1,7 @@
 #ifndef _HAPROXY_HTTPCLIENT_H
 #define _HAPROXY_HTTPCLIENT_H
 
+#include <haproxy/buf.h>
 #include <haproxy/http_client-t.h>
 
 void httpclient_destroy(struct httpclient *hc);

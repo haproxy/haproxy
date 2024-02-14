@@ -1,3 +1,5 @@
+#include <inttypes.h>
+
 /* Fixed Huffman table as per RFC1951.
  *
  *       Lit Value    Bits        Codes

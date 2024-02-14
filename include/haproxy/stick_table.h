@@ -29,6 +29,7 @@
 #include <haproxy/freq_ctr.h>
 #include <haproxy/sample-t.h>
 #include <haproxy/stick_table-t.h>
+#include <haproxy/thread.h>
 #include <haproxy/ticks.h>
 
 extern struct stktable *stktables_list;

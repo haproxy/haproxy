@@ -13,6 +13,10 @@
 #ifndef _HAPROXY_QUIC_ACK_T_H
 #define _HAPROXY_QUIC_ACK_T_H
 
+#include <inttypes.h>
+#include <stddef.h>
+#include <import/eb64tree.h>
+
 /* The maximum number of ack ranges to be built in ACK frames */
 #define QUIC_MAX_ACK_RANGES   32
 

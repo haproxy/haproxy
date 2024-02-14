@@ -28,6 +28,7 @@
 #ifndef _HAPROXY_BUG_H
 #define _HAPROXY_BUG_H
 
+#include <stddef.h>
 #include <haproxy/atomic.h>
 #include <haproxy/compiler.h>
 

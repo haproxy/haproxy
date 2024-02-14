@@ -22,6 +22,8 @@
 #ifndef _HAPROXY_TOOLS_T_H
 #define _HAPROXY_TOOLS_T_H
 
+#include <netinet/in.h>
+
 /* size used for max length of decimal representation of long long int. */
 #define NB_LLMAX_STR (sizeof("-9223372036854775807")-1)
 

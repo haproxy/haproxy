@@ -22,6 +22,8 @@
 #ifndef _HAPROXY_HAPROXY_DGRAM_T_H
 #define _HAPROXY_HAPROXY_DGRAM_T_H
 
+#include <haproxy/api-t.h>
+#include <haproxy/thread-t.h>
 #include <arpa/inet.h>
 
 /*

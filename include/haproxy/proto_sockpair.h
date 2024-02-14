@@ -21,6 +21,8 @@
 #ifndef _HAPROXY_PROTO_SOCKPAIR_H
 #define _HAPROXY_PROTO_SOCKPAIR_H
 
+#include <haproxy/receiver-t.h>
+
 extern struct proto_fam proto_fam_sockpair;
 extern struct protocol proto_sockpair;
 
