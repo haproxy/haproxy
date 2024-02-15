@@ -5383,10 +5383,12 @@ bind /<path> [, ...] [param*]
                   listen on. If unset, all IPv4 addresses of the system will be
                   listened on. The same will apply for '*' or the system's
                   special address "0.0.0.0". The IPv6 equivalent is '::'. Note
-                  that if you bind a frontend to multiple UDP addresses you have
-                  no guarantee about the address which will be used to respond.
-                  This is why "0.0.0.0" addresses and lists of comma-separated
-                  IP addresses have been forbidden to bind QUIC addresses.
+                  that for UDP, specific OS features are required when binding
+                  on multiple addresses to ensure the correct network interface
+                  and source address will be used on response. In other way,
+                  for QUIC listeners only bind on multiple addresses if running
+                  with a modern enough systems.
+
                   Optionally, an address family prefix may be used before the
                   address to force the family regardless of the address format,
                   which can be useful to specify a path to a unix socket with
