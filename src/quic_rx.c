@@ -882,6 +882,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		case QUIC_FT_PING:
 			break;
 		case QUIC_FT_ACK:
+		case QUIC_FT_ACK_ECN:
 		{
 			unsigned int rtt_sample;
 			rtt_sample = UINT_MAX;
@@ -923,6 +924,9 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		case QUIC_FT_CRYPTO:
 			if (!qc_handle_crypto_frm(qc, &frm.crypto, pkt, qel, &fast_retrans))
 				goto leave;
+			break;
+		case QUIC_FT_NEW_TOKEN:
+			/* TODO */
 			break;
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 		{
@@ -1023,6 +1027,10 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			}
 			break;
 		}
+		case QUIC_FT_PATH_CHALLENGE:
+		case QUIC_FT_PATH_RESPONSE:
+			/* TODO */
+			break;
 		case QUIC_FT_CONNECTION_CLOSE:
 		case QUIC_FT_CONNECTION_CLOSE_APP:
 			/* Increment the error counters */
@@ -1054,8 +1062,8 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			qc->state = QUIC_HS_ST_CONFIRMED;
 			break;
 		default:
-			TRACE_ERROR("unknosw frame type", QUIC_EV_CONN_PRSHPKT, qc);
-			goto leave;
+			/* Unknown frame type must be rejected by qc_parse_frm(). */
+			ABORT_NOW();
 		}
 	}
 
