@@ -1784,7 +1784,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 		goto exit;
 
 	if (!appctx_get_buf(appctx, &appctx->outbuf)) {
-		appctx->flags |= APPCTX_FL_OUTBLK_ALLOC;
+		applet_fl_set(appctx, APPCTX_FL_OUTBLK_ALLOC);
 		goto exit;
 	}
 
@@ -1842,7 +1842,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 		if (len) {
 			ret = htx_cache_dump_msg(appctx, res_htx, len, HTX_BLK_UNUSED);
 			if (ret < len) {
-				appctx->flags |= APPCTX_FL_OUTBLK_FULL;
+				applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
 				goto out;
 			}
 		}

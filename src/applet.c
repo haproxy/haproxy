@@ -269,7 +269,7 @@ struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int t
 
 	if (applet->rcv_buf != NULL && applet->snd_buf != NULL) {
 		appctx->t->process = task_process_applet;
-		appctx->flags |= APPCTX_FL_INOUT_BUFS;
+		applet_fl_set(appctx, APPCTX_FL_INOUT_BUFS);
 	}
 	else
 		appctx->t->process = task_run_applet;

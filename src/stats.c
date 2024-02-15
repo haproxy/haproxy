@@ -335,7 +335,7 @@ int stats_is_full(struct appctx *appctx, struct buffer *buf, struct htx *htx)
 {
 	if (htx) {
 		if (htx_almost_full(htx)) {
-			appctx->flags |= APPCTX_FL_OUTBLK_FULL;
+			applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
 			goto full;
 		}
 	}
@@ -4503,7 +4503,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 		goto out;
 
 	if (!appctx_get_buf(appctx, &appctx->outbuf)) {
-		appctx->flags |= APPCTX_FL_OUTBLK_ALLOC;
+		applet_fl_set(appctx, APPCTX_FL_OUTBLK_ALLOC);
 		goto out;
 	}
 
@@ -4557,7 +4557,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 		 */
 		if (htx_is_empty(res_htx)) {
 			if (!htx_add_endof(res_htx, HTX_BLK_EOT)) {
-				appctx->flags |= APPCTX_FL_OUTBLK_FULL;
+				applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
 				goto out;
 			}
 		}
