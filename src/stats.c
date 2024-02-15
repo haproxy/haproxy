@@ -346,10 +346,8 @@ int stats_is_full(struct appctx *appctx, struct buffer *buf, struct htx *htx)
 		}
 	}
 	else {
-		struct channel *rep = sc_ic(appctx_sc(appctx));
-
-		if (buffer_almost_full(&rep->buf)) {
-			sc_need_room(appctx_sc(appctx), b_size(&rep->buf) / 2);
+		if (buffer_almost_full(&appctx->outbuf))  {
+			applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
 			goto full;
 		}
 	}

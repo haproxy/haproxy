@@ -190,7 +190,6 @@ err:
 static int hc_cli_io_handler(struct appctx *appctx)
 {
 	struct hcli_svc_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_sc(appctx);
 	struct httpclient *hc = ctx->hc;
 	struct http_hdr *hdrs, *hdr;
 
@@ -217,10 +216,7 @@ static int hc_cli_io_handler(struct appctx *appctx)
 	}
 
 	if (ctx->flags & HC_F_RES_BODY) {
-		int ret;
-
-		ret = httpclient_res_xfer(hc, sc_ib(sc));
-		channel_add_input(sc_ic(sc), ret); /* forward what we put in the buffer channel */
+		httpclient_res_xfer(hc, &appctx->outbuf);
 
 		/* remove the flag if the buffer was emptied */
 		if (httpclient_data(hc))

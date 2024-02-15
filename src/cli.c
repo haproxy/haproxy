@@ -910,34 +910,36 @@ static int cli_output_msg(struct appctx *appctx, const char *msg, int severity, 
  */
 static void cli_io_handler(struct appctx *appctx)
 {
-	struct stconn *sc = appctx_sc(appctx);
-	struct channel *res = sc_ic(sc);
-	struct bind_conf *bind_conf = strm_li(__sc_strm(sc))->bind_conf;
 	int reql;
 	int len;
 	int lf = 0;
 
-	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR)))) {
-		co_skip(sc_oc(sc), co_data(sc_oc(sc)));
+	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL))
+		goto out;
+
+	if (!appctx_get_buf(appctx, &appctx->outbuf)) {
+		applet_fl_set(appctx, APPCTX_FL_OUTBLK_ALLOC);
 		goto out;
 	}
 
-	/* Check if the input buffer is available. */
-	if (!b_size(&res->buf)) {
-		sc_need_room(sc, 0);
+	if (unlikely(applet_fl_test(appctx, APPCTX_FL_EOS|APPCTX_FL_ERROR))) {
+		appctx->st0 = CLI_ST_END;
 		goto out;
 	}
 
 	while (1) {
 		if (appctx->st0 == CLI_ST_INIT) {
 			/* reset severity to default at init */
+			struct stconn *sc = appctx_sc(appctx);
+			struct bind_conf *bind_conf = strm_li(__sc_strm(sc))->bind_conf;
+
 			appctx->cli_severity_output = bind_conf->severity_output;
 			applet_reset_svcctx(appctx);
 			appctx->st0 = CLI_ST_GETREQ;
 			appctx->cli_level = bind_conf->level;
 		}
 		else if (appctx->st0 == CLI_ST_END) {
-			se_fl_set(appctx->sedesc, SE_FL_EOS);
+			applet_set_eos(appctx);
 			free_trash_chunk(appctx->chunk);
 			appctx->chunk = NULL;
 			break;
@@ -960,8 +962,8 @@ static void cli_io_handler(struct appctx *appctx)
 			/* ensure we have some output room left in the event we
 			 * would want to return some info right after parsing.
 			 */
-			if (buffer_almost_full(sc_ib(sc))) {
-				sc_need_room(sc, b_size(&res->buf) / 2);
+			if (buffer_almost_full(&appctx->outbuf)) {
+				applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
 				break;
 			}
 
@@ -972,19 +974,30 @@ static void cli_io_handler(struct appctx *appctx)
 			 */
 
 			if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)
-				reql = co_getline(sc_oc(sc), str,
-				                  appctx->chunk->size - appctx->chunk->data - 1);
+				reql = b_getline(&appctx->inbuf, 0, b_data(&appctx->inbuf), str,
+						 appctx->chunk->size - appctx->chunk->data - 1);
 			else
-				reql = co_getdelim(sc_oc(sc), str,
-				                   appctx->chunk->size - appctx->chunk->data - 1,
-				                   "\n;", '\\');
+				reql = b_getdelim(&appctx->inbuf, 0, b_data(&appctx->inbuf), str,
+						  appctx->chunk->size - appctx->chunk->data - 1,
+						  "\n;", '\\');
 
-			if (reql <= 0) { /* closed or EOL not found */
-				if (reql == 0)
-					break;
-				se_fl_set(appctx->sedesc, SE_FL_ERROR);
-				appctx->st0 = CLI_ST_END;
-				continue;
+			if (!reql) {
+				/* Line not found. Report an error if the input buffer is full, if there is not
+				 * enough space in the chunk or if a shutdown occurred.
+				 * Otherwise, wait for more data */
+				if (applet_fl_test(appctx, APPCTX_FL_INBLK_FULL) ||
+				    b_data(&appctx->inbuf) > appctx->chunk->size - appctx->chunk->data - 1) {
+					applet_set_eos(appctx);
+					applet_set_error(appctx);
+					cli_err(appctx, "The command is too big for the buffer size. Please change tune.bufsize in the configuration to use a bigger command.\n");
+					goto cli_output;
+				}
+				if (se_fl_test(appctx->sedesc, SE_FL_SHW)) {
+					applet_set_error(appctx);
+					appctx->st0 = CLI_ST_END;
+					continue;
+				}
+				break;
 			}
 
 			if (str[reql-1] == '\n')
@@ -996,12 +1009,8 @@ static void cli_io_handler(struct appctx *appctx)
 			 */
 			len = reql - 1;
 			if (str[len] != '\n' && str[len] != ';') {
-				se_fl_set(appctx->sedesc, SE_FL_ERROR);
-				if (reql == appctx->chunk->size - appctx->chunk->data - 1) {
-					cli_err(appctx, "The command is too big for the buffer size. Please change tune.bufsize in the configuration to use a bigger command.\n");
-					co_skip(sc_oc(sc), co_data(sc_oc(sc)));
-					goto cli_output;
-				}
+				applet_set_eos(appctx);
+				applet_set_error(appctx);
 				appctx->st0 = CLI_ST_END;
 				continue;
 			}
@@ -1082,8 +1091,7 @@ static void cli_io_handler(struct appctx *appctx)
 			}
 
 			/* re-adjust req buffer */
-			co_skip(sc_oc(sc), reql);
-			sc_opposite(sc)->flags |= SC_FL_RCV_ONCE; /* we plan to read small requests */
+			b_del(&appctx->inbuf, reql);
 		}
 		else {	/* output functions */
 			struct cli_print_ctx *ctx;
@@ -1205,10 +1213,10 @@ static void cli_io_handler(struct appctx *appctx)
 			 * non-interactive mode.
 			 */
 			if ((appctx->st1 & (APPCTX_CLI_ST1_PROMPT|APPCTX_CLI_ST1_PAYLOAD|APPCTX_CLI_ST1_LASTCMD)) == APPCTX_CLI_ST1_LASTCMD) {
-                               se_fl_set(appctx->sedesc, SE_FL_EOI);
-                               appctx->st0 = CLI_ST_END;
-                               continue;
-                       }
+				applet_set_eoi(appctx);
+				appctx->st0 = CLI_ST_END;
+				continue;
+			}
 
 			/* switch state back to GETREQ to read next requests */
 			applet_reset_svcctx(appctx);
@@ -1225,7 +1233,7 @@ static void cli_io_handler(struct appctx *appctx)
 			 * refills the buffer with new bytes in non-interactive
 			 * mode, avoiding to close on apparently empty commands.
 			 */
-			if (co_data(sc_oc(sc))) {
+			if (b_data(&appctx->inbuf)) {
 				appctx_wakeup(appctx);
 				goto out;
 			}
@@ -1233,6 +1241,11 @@ static void cli_io_handler(struct appctx *appctx)
 	}
 
  out:
+	if (appctx->st0 == CLI_ST_END) {
+		/* eat the whole request */
+		b_reset(&appctx->inbuf);
+		applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
+	}
 	return;
 }
 
@@ -2131,13 +2144,14 @@ static int cli_io_handler_wait(struct appctx *appctx)
 
  wait:
 	/* Stop waiting upon close/abort/error */
-	if (unlikely(se_fl_test(appctx->sedesc, SE_FL_SHW))) {
+	if (unlikely(se_fl_test(appctx->sedesc, SE_FL_SHW)) && !b_data(&appctx->inbuf)) {
 		ctx->error = CLI_WAIT_ERR_INTR;
 		return 1;
 	}
 
 	return 0;
 }
+
 
 /* release structs allocated by "delete server" */
 static void cli_release_wait(struct appctx *appctx)
@@ -3523,6 +3537,8 @@ static struct applet cli_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<CLI>", /* used for logging */
 	.fct = cli_io_handler,
+	.rcv_buf = appctx_raw_rcv_buf,
+	.snd_buf = appctx_raw_snd_buf,
 	.release = cli_release_handler,
 };
 
@@ -3531,6 +3547,8 @@ static struct applet mcli_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<MCLI>", /* used for logging */
 	.fct = cli_io_handler,
+	.rcv_buf = appctx_raw_rcv_buf,
+	.snd_buf = appctx_raw_snd_buf,
 	.release = cli_release_handler,
 };
 

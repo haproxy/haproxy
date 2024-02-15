@@ -3177,7 +3177,6 @@ static int cli_parse_show_errors(char **args, char *payload, struct appctx *appc
 static int cli_io_handler_show_errors(struct appctx *appctx)
 {
 	struct show_errors_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_sc(appctx);
 	extern const char *monthname[12];
 
 	chunk_reset(&trash);
@@ -3309,7 +3308,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 			newline = ctx->bol;
 			newptr = dump_text_line(&trash, es->buf, global.tune.bufsize, es->buf_len, &newline, ctx->ptr);
 			if (newptr == ctx->ptr) {
-				sc_need_room(sc, 0);
+				applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
 				goto cant_send_unlock;
 			}
 
