@@ -223,6 +223,13 @@ struct pid_list {
 	int exited;
 };
 
+/* srv methods of computing chash keys */
+enum srv_hash_key {
+	SRV_HASH_KEY_ID = 0,         /* derived from server puid */
+	SRV_HASH_KEY_ADDR,           /* derived from server address */
+	SRV_HASH_KEY_ADDR_PORT       /* derived from server address and port */
+};
+
 /* A tree occurrence is a descriptor of a place in a tree, with a pointer back
  * to the server itself.
  */
@@ -367,6 +374,8 @@ struct server {
 	struct tree_occ *lb_nodes;              /* lb_nodes_tot * struct tree_occ */
 	unsigned lb_nodes_tot;                  /* number of allocated lb_nodes (C-HASH) */
 	unsigned lb_nodes_now;                  /* number of lb_nodes placed in the tree (C-HASH) */
+	enum srv_hash_key hash_key;             /* method to compute node hash (C-HASH) */
+	unsigned lb_server_key;                 /* hash of the values indicated by "hash_key" (C-HASH) */
 
 	const struct netns_entry *netns;        /* contains network namespace name or NULL. Network namespace comes from configuration */
 	struct xprt_ops *xprt;                  /* transport-layer operations */

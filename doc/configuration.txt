@@ -4896,6 +4896,8 @@ error-log-format                          X          X         X         -
 force-persist                             -          -         X         X
 filter                                    -          X         X         X
 fullconn                                  X          -         X         X
+hash-balance-factor                       X          -         X         X
+hash-key                                  X          -         X         X
 hash-type                                 X          -         X         X
 http-after-response                       X (!)      X         X         X
 http-check comment                        X          -         X         X
@@ -6689,6 +6691,29 @@ hash-balance-factor <factor>
   consistent hashing mechanism.
 
   See also : "balance" and "hash-type".
+
+
+hash-key <key>
+  Specify how "hash-type consistent" node keys are computed
+
+  Arguments :
+    <key>   <key> may be one of the following :
+
+      id         The node keys will be derived from the server's numeric
+                 identifier as set from "id" or which defaults to its position
+                 in the server list.
+
+      addr       The node keys will be derived from the server's address, when
+                 available, or else fall back on "id".
+
+      addr-port  The node keys will be derived from the server's address and
+                 port, when available, or else fall back on "id".
+
+  The "addr" and "addr-port" options may be useful in scenarios where multiple
+  HAProxy processes are balancing traffic to the same set of servers. If the
+  server order of each process is different (because, for example, DNS records
+  were resolved in different orders) then this will allow each independent
+  HAProxy processes to agree on routing decisions.
 
 
 hash-type <method> <function> <modifier>

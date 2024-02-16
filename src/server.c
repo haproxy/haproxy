@@ -184,6 +184,9 @@ static void _srv_set_inetaddr_port(struct server *srv,
 	else
 		srv->flags &= ~SRV_F_MAPPORTS;
 
+	/* balancers (chash in particular) may use the addr in their routing decisions */
+	srv->proxy->lbprm.update_server_eweight(srv);
+
 	if (srv->log_target && srv->log_target->type == LOG_TARGET_DGRAM) {
 		/* server is used as a log target, manually update log target addr for DGRAM */
 		ipcpy(addr, srv->log_target->addr);
@@ -944,6 +947,32 @@ static int srv_parse_ws(char **args, int *cur_arg,
 		return ERR_ALERT | ERR_FATAL;
 	}
 
+
+	return 0;
+}
+
+/* Parse the "hash-key" server keyword */
+static int srv_parse_hash_key(char **args, int *cur_arg,
+			      struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	if (!args[*cur_arg + 1]) {
+		memprintf(err, "'%s expects 'id', 'addr', or 'addr-port' value", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (strcmp(args[*cur_arg + 1], "id") == 0) {
+		newsrv->hash_key = SRV_HASH_KEY_ID;
+	}
+	else if (strcmp(args[*cur_arg + 1], "addr") == 0) {
+		newsrv->hash_key = SRV_HASH_KEY_ADDR;
+	}
+	else if (strcmp(args[*cur_arg + 1], "addr-port") == 0) {
+		newsrv->hash_key = SRV_HASH_KEY_ADDR_PORT;
+	}
+	else {
+		memprintf(err, "'%s' has to be 'id', 'addr', or 'addr-port'", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
 
 	return 0;
 }
@@ -2221,6 +2250,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "enabled",              srv_parse_enabled,              0,  1,  0 }, /* Start the server in 'enabled' state */
 	{ "error-limit",          srv_parse_error_limit,          1,  1,  1 }, /* Configure the consecutive count of check failures to consider a server on error */
 	{ "ws",                   srv_parse_ws,                   1,  1,  1 }, /* websocket protocol */
+	{ "hash-key",             srv_parse_hash_key,             1,  1,  1 }, /* Configure how chash keys are computed */
 	{ "id",                   srv_parse_id,                   1,  0,  1 }, /* set id# of server */
 	{ "init-addr",            srv_parse_init_addr,            1,  1,  0 }, /* */
 	{ "log-bufsize",          srv_parse_log_bufsize,          1,  1,  0 }, /* Set the ring bufsize for log server (only for log backends) */
@@ -2705,6 +2735,7 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	srv->minconn                  = src->minconn;
 	srv->maxconn                  = src->maxconn;
 	srv->slowstart                = src->slowstart;
+	srv->hash_key                 = src->hash_key;
 	srv->observe                  = src->observe;
 	srv->onerror                  = src->onerror;
 	srv->onmarkeddown             = src->onmarkeddown;
