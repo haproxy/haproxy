@@ -1400,6 +1400,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.frontend.max-idle-timeout
    - tune.quic.frontend.max-streams-bidi
    - tune.quic.max-frame-loss
+   - tune.quic.reorder-ratio
    - tune.quic.retry-threshold
    - tune.quic.socket-owner
    - tune.quic.zero-copy-fwd-send
