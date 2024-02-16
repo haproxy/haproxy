@@ -2195,6 +2195,9 @@ int bind_parse_args_list(struct bind_conf *bind_conf, char **args, int cur_arg, 
 	 */
 	if ((bind_conf->options & (BC_O_USE_SOCK_DGRAM|BC_O_USE_XPRT_STREAM)) == (BC_O_USE_SOCK_DGRAM|BC_O_USE_XPRT_STREAM)) {
 #ifdef USE_QUIC
+		struct listener *l __maybe_unused;
+		int listener_count __maybe_unused = 0;
+
 		bind_conf->xprt = xprt_get(XPRT_QUIC);
 		if (!(bind_conf->options & BC_O_USE_SSL)) {
 			bind_conf->options |= BC_O_USE_SSL;
@@ -2202,6 +2205,17 @@ int bind_parse_args_list(struct bind_conf *bind_conf, char **args, int cur_arg, 
 				 file, linenum, args[0], args[1], section);
 		}
 		quic_transport_params_init(&bind_conf->quic_params, 1);
+
+#if (!defined(IP_PKTINFO) && !defined(IP_RECVDSTADDR)) || !defined(IPV6_RECVPKTINFO)
+		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
+			if (++listener_count > 1 || !is_inet_addr(&l->rx.addr)) {
+				ha_warning("parsing [%s:%d] : '%s %s' in section '%s' : UDP binding on multiple addresses without IP_PKTINFO or equivalent support may be unreliable.\n",
+				           file, linenum, args[0], args[1], section);
+				break;
+			}
+		}
+#endif /* (!IP_PKTINFO && !IP_RECVDSTADDR) || !IPV6_RECVPKTINFO */
+
 #else
 		ha_alert("parsing [%s:%d] : '%s %s' in section '%s' : QUIC protocol selected but support not compiled in (check build options).\n",
 			 file, linenum, args[0], args[1], section);
