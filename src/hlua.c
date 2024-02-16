@@ -2434,12 +2434,19 @@ __LJMP static int hlua_socket_gc(lua_State *L)
 
 	ctx = container_of(peer, struct hlua_csk_ctx, xref);
 
-	/* Set the flag which destroy the session. */
-	ctx->die = 1;
-	appctx_wakeup(ctx->appctx);
-
 	/* Remove all reference between the Lua stack and the coroutine stream. */
 	xref_disconnect(&socket->xref, peer);
+
+	if (se_fl_test(ctx->appctx->sedesc, SE_FL_ORPHAN)) {
+		/* The applet was never initialized, just release it */
+		appctx_free(ctx->appctx);
+	}
+	else {
+		/* Otherwise, notify it that is must die and wake it up */
+		ctx->die = 1;
+		appctx_wakeup(ctx->appctx);
+	}
+
 	return 0;
 }
 
@@ -3276,8 +3283,6 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	applet_have_more_data(appctx);
 	appctx_wakeup(appctx);
 
-	hlua->gc_count++;
-
 	if (!notification_new(&hlua->com, &csk_ctx->wake_on_write, hlua->task)) {
 		xref_unlock(&socket->xref, peer);
 		WILL_LJMP(luaL_error(L, "out of memory"));
@@ -3388,6 +3393,12 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	struct hlua_socket *socket;
 	struct hlua_csk_ctx *ctx;
 	struct appctx *appctx;
+	struct hlua *hlua;
+
+	/* Get hlua struct, or NULL if we execute from main lua state */
+	hlua = hlua_gethlua(L);
+	if (!hlua)
+		return 0;
 
 	/* Check stack size. */
 	if (!lua_checkstack(L, 3)) {
@@ -3426,6 +3437,8 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	ctx->appctx = appctx;
 	LIST_INIT(&ctx->wake_on_write);
 	LIST_INIT(&ctx->wake_on_read);
+
+	hlua->gc_count++;
 
 	/* Initialise cross reference between stream and Lua socket object. */
 	xref_create(&socket->xref, &ctx->xref);
