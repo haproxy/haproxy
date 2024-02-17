@@ -144,6 +144,10 @@ jobs:
       if: ${{ contains(matrix.name, 'ASAN') }}
       run: |
         ./haproxy -f .github/h2spec.config -c
+        ./haproxy -f examples/content-sw-sample.cfg -c
+        ./haproxy -f examples/option-http_proxy.cfg -c
+        ./haproxy -f examples/quick-test.cfg -c
+        ./haproxy -f examples/transparent_proxy.cfg -c
     - name: Show VTest results
       if: ${{ failure() && steps.vtest.outcome == 'failure' }}
       run: |
