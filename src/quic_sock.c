@@ -686,14 +686,16 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 	if (ret < 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK ||
 		    errno == ENOTCONN || errno == EINPROGRESS) {
+			/* transient error */
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
 				qc->cntrs.socket_full++;
 			else
 				qc->cntrs.sendto_err++;
 
-			/* transient error */
-			fd_want_send(qc->fd);
-			fd_cant_send(qc->fd);
+			if (qc_test_fd(qc)) {
+				fd_want_send(qc->fd);
+				fd_cant_send(qc->fd);
+			}
 			TRACE_PRINTF(TRACE_LEVEL_USER, QUIC_EV_CONN_SPPKTS, qc, 0, 0, 0,
 			             "UDP send failure errno=%d (%s)", errno, strerror(errno));
 			return 0;
