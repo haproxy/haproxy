@@ -1,0 +1,22 @@
+name: NetBSD
+
+on:
+  schedule:
+    - cron: "0 0 25 * *"
+
+jobs:
+  gcc:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "Build on VM"
+        uses: vmactions/netbsd-vm@v1
+        with:
+          prepare: |
+            /usr/sbin/pkg_add gmake pcre2
+          run: |
+            gmake CC=gcc TARGET=netbsd USE_OPENSSL=1 USE_LUA=1 USE_PCRE2=1 USE_PCRE2_JIT=1 USE_PROMEX=1 USE_ZLIB=1
