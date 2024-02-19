@@ -27,10 +27,10 @@
 #include <haproxy/cli.h>
 #include <haproxy/dgram.h>
 #include <haproxy/dns.h>
+#include <haproxy/dns_ring.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
 #include <haproxy/log.h>
-#include <haproxy/ring.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
@@ -108,7 +108,7 @@ int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len)
 				struct ist myist;
 
 				myist = ist2(buf, len);
-				ret = ring_write(ns->dgram->ring_req, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
+				ret = dns_ring_write(ns->dgram->ring_req, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
 				if (!ret) {
 					ns->counters->snd_error++;
 					HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
@@ -131,7 +131,7 @@ int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len)
 		struct ist myist;
 
 		myist = ist2(buf, len);
-                ret = ring_write(ns->stream->ring_req, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
+                ret = dns_ring_write(ns->stream->ring_req, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
 		if (!ret) {
 			ns->counters->snd_error++;
 			return -1;
@@ -290,7 +290,7 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 {
 	int fd;
 	struct dns_nameserver *ns;
-	struct ring *ring;
+	struct dns_ring *ring;
 	struct buffer *buf;
 	uint64_t msg_len;
 	size_t len, cnt, ofs;
@@ -407,21 +407,21 @@ int dns_dgram_init(struct dns_nameserver *ns, struct sockaddr_storage *sk)
 	ns->dgram = dgram;
 
 	dgram->ofs_req = ~0; /* init ring offset */
-	dgram->ring_req = ring_new(2*DNS_TCP_MSG_RING_MAX_SIZE);
+	dgram->ring_req = dns_ring_new(2*DNS_TCP_MSG_RING_MAX_SIZE);
 	if (!dgram->ring_req) {
 		ha_alert("memory allocation error initializing the ring for nameserver.\n");
 		goto out;
 	}
 
 	/* attach the task as reader */
-	if (!ring_attach(dgram->ring_req)) {
+	if (!dns_ring_attach(dgram->ring_req)) {
 		/* mark server attached to the ring */
 		ha_alert("nameserver sets too many watchers > 255 on ring. This is a bug and should not happen.\n");
 		goto out;
 	}
 	return 0;
 out:
-	ring_free(dgram->ring_req);
+	dns_ring_free(dgram->ring_req);
 
 	free(dgram);
 
@@ -436,7 +436,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 {
 	struct stconn *sc = appctx_sc(appctx);
 	struct dns_session *ds = appctx->svcctx;
-	struct ring *ring = &ds->ring;
+	struct dns_ring *ring = &ds->ring;
 	struct buffer *buf = &ring->buf;
 	uint64_t msg_len;
 	int available_room;
@@ -844,7 +844,7 @@ static void dns_session_release(struct appctx *appctx)
 	if (!ds)
 		return;
 
-	/* We do not call ring_appctx_detach here
+	/* We do not call dns_ring_appctx_detach here
 	 * because we want to keep readers counters
 	 * to retry a conn with a different appctx.
 	 */
@@ -1058,9 +1058,9 @@ struct dns_session *dns_session_new(struct dns_stream_server *dss)
 	if (!ds->tx_ring_area)
 		goto error;
 
-	ring_init(&ds->ring, ds->tx_ring_area, DNS_TCP_MSG_RING_MAX_SIZE);
+	dns_ring_init(&ds->ring, ds->tx_ring_area, DNS_TCP_MSG_RING_MAX_SIZE);
 	/* never fail because it is the first watcher attached to the ring */
-	DISGUISE(ring_attach(&ds->ring));
+	DISGUISE(dns_ring_attach(&ds->ring));
 
 	if ((ds->task_exp = task_new_here()) == NULL)
 		goto error;
@@ -1095,7 +1095,7 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned int 
 {
 	struct dns_nameserver *ns = (struct dns_nameserver *)context;
 	struct dns_stream_server *dss = ns->stream;
-	struct ring *ring = dss->ring_req;
+	struct dns_ring *ring = dss->ring_req;
 	struct buffer *buf = &ring->buf;
 	uint64_t msg_len;
 	size_t len, cnt, ofs;
@@ -1151,7 +1151,7 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned int 
 		if (!LIST_ISEMPTY(&dss->free_sess)) {
 			ds = LIST_NEXT(&dss->free_sess, struct dns_session *, list);
 
-			if (ring_write(&ds->ring, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1) > 0) {
+			if (dns_ring_write(&ds->ring, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1) > 0) {
 				ds->nb_queries++;
 				if (ds->nb_queries >= DNS_STREAM_MAX_PIPELINED_REQ)
 					LIST_DEL_INIT(&ds->list);
@@ -1171,8 +1171,8 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned int 
 			if (!LIST_ISEMPTY(&dss->idle_sess)) {
 				ds = LIST_NEXT(&dss->idle_sess, struct dns_session *, list);
 
-				/* ring is empty so this ring_write should never fail */
-				ring_write(&ds->ring, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
+				/* ring is empty so this dns_ring_write should never fail */
+				dns_ring_write(&ds->ring, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
 				ds->nb_queries++;
 				LIST_DEL_INIT(&ds->list);
 
@@ -1196,8 +1196,8 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned int 
 			/* allocate a new session */
 			ads = dns_session_new(dss);
 			if (ads) {
-				/* ring is empty so this ring_write should never fail */
-				ring_write(&ads->ring, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
+				/* ring is empty so this dns_ring_write should never fail */
+				dns_ring_write(&ads->ring, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
 				ads->nb_queries++;
 				LIST_INSERT(&dss->free_sess, &ads->list);
 			}
@@ -1248,7 +1248,7 @@ int dns_stream_init(struct dns_nameserver *ns, struct server *srv)
 	dss->maxconn = srv->maxconn;
 
 	dss->ofs_req = ~0; /* init ring offset */
-	dss->ring_req = ring_new(2*DNS_TCP_MSG_RING_MAX_SIZE);
+	dss->ring_req = dns_ring_new(2*DNS_TCP_MSG_RING_MAX_SIZE);
 	if (!dss->ring_req) {
 		ha_alert("memory allocation error initializing the ring for dns tcp server '%s'.\n", srv->id);
 		goto out;
@@ -1264,7 +1264,7 @@ int dns_stream_init(struct dns_nameserver *ns, struct server *srv)
 	dss->task_req->context = ns;
 
 	/* attach the task as reader */
-	if (!ring_attach(dss->ring_req)) {
+	if (!dns_ring_attach(dss->ring_req)) {
 		/* mark server attached to the ring */
 		ha_alert("server '%s': too many watchers for ring. this should never happen.\n", srv->id);
 		goto out;
@@ -1306,7 +1306,7 @@ out:
 	if (dss && dss->task_req)
 		task_destroy(dss->task_req);
 	if (dss && dss->ring_req)
-		ring_free(dss->ring_req);
+		dns_ring_free(dss->ring_req);
 
 	free(dss);
 	return -1;

@@ -28,6 +28,7 @@
 #include <haproxy/check.h>
 #include <haproxy/cli.h>
 #include <haproxy/dns.h>
+#include <haproxy/dns_ring.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
 #include <haproxy/http_rules.h>
@@ -36,7 +37,6 @@
 #include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
 #include <haproxy/resolvers.h>
-#include <haproxy/ring.h>
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/server.h>
@@ -2571,11 +2571,11 @@ static void resolvers_destroy(struct resolvers *resolvers)
 				fd_delete(ns->dgram->conn.t.sock.fd);
 				close(ns->dgram->conn.t.sock.fd);
 			}
-			ring_free(ns->dgram->ring_req);
+			dns_ring_free(ns->dgram->ring_req);
 			free(ns->dgram);
 		}
 		if (ns->stream) {
-			ring_free(ns->stream->ring_req);
+			dns_ring_free(ns->stream->ring_req);
 			task_destroy(ns->stream->task_req);
 			task_destroy(ns->stream->task_rsp);
 			free(ns->stream);
