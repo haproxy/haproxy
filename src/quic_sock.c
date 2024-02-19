@@ -566,6 +566,86 @@ void quic_conn_sock_fd_iocb(int fd)
 	TRACE_LEAVE(QUIC_EV_CONN_RCV, qc);
 }
 
+static void cmsg_set_saddr(struct msghdr *msg, struct cmsghdr **cmsg,
+                           struct sockaddr_storage *saddr)
+{
+	struct cmsghdr *c;
+#ifdef IP_PKTINFO
+	struct in_pktinfo *in;
+#endif /* IP_PKTINFO */
+#ifdef IPV6_RECVPKTINFO
+	struct in6_pktinfo *in6;
+#endif /* IPV6_RECVPKTINFO */
+	size_t sz = 0;
+
+	/* First determine size of ancillary data depending on the system support. */
+	switch (saddr->ss_family) {
+	case AF_INET:
+#if defined(IP_PKTINFO)
+		sz = sizeof(struct in_pktinfo);
+#elif defined(IP_RECVDSTADDR)
+		sz = sizeof(struct in_addr);
+#endif /* IP_PKTINFO || IP_RECVDSTADDR */
+		break;
+	case AF_INET6:
+#ifdef IPV6_RECVPKTINFO
+		sz = sizeof(struct in6_pktinfo);
+#endif /* IPV6_RECVPKTINFO */
+		break;
+	default:
+		break;
+	}
+
+	/* Size is null if system does not support send source address setting. */
+	if (!sz)
+		return;
+
+	/* Set first msg_controllen to be able to use CMSG_* macros. */
+	msg->msg_controllen += CMSG_SPACE(sz);
+
+	*cmsg = !(*cmsg) ? CMSG_FIRSTHDR(msg) : CMSG_NXTHDR(msg, *cmsg);
+	ALREADY_CHECKED(*cmsg);
+	c = *cmsg;
+	c->cmsg_len = CMSG_LEN(sz);
+
+	switch (saddr->ss_family) {
+	case AF_INET:
+		c->cmsg_level = IPPROTO_IP;
+#if defined(IP_PKTINFO)
+		c->cmsg_type = IP_PKTINFO;
+		in = (struct in_pktinfo *)CMSG_DATA(c);
+		in->ipi_ifindex = 0;
+		in->ipi_addr.s_addr = 0;
+		memcpy(&in->ipi_spec_dst,
+		       &((struct sockaddr_in *)saddr)->sin_addr,
+		       sizeof(struct in_addr));
+#elif defined(IP_RECVDSTADDR)
+		c->cmsg_type = IP_SENDSRCADDR;
+		memcpy(CMSG_DATA(c),
+		       &((struct sockaddr_in *)saddr)->sin_addr,
+		       sizeof(struct in_addr));
+#endif /* IP_PKTINFO || IP_RECVDSTADDR */
+
+		break;
+
+	case AF_INET6:
+#ifdef IPV6_RECVPKTINFO
+		c->cmsg_level = IPPROTO_IPV6;
+		c->cmsg_type = IPV6_PKTINFO;
+		in6 = (struct in6_pktinfo *)CMSG_DATA(c);
+		in6->ipi6_ifindex = 0;
+		memcpy(&in6->ipi6_addr,
+		       &((struct sockaddr_in6 *)saddr)->sin6_addr,
+		       sizeof(struct in6_addr));
+#endif /* IPV6_RECVPKTINFO */
+
+		break;
+
+	default:
+		break;
+	}
+}
+
 /* Send a datagram stored into <buf> buffer with <sz> as size.
  * The caller must ensure there is at least <sz> bytes in this buffer.
  *
@@ -594,13 +674,7 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 		else if (is_addr(&qc->local_addr)) {
 			struct msghdr msg;
 			struct iovec vec;
-			struct cmsghdr *cmsg;
-#ifdef IP_PKTINFO
-			struct in_pktinfo *in;
-#endif /* IP_PKTINFO */
-#ifdef IPV6_RECVPKTINFO
-			struct in6_pktinfo *in6;
-#endif /* IPV6_RECVPKTINFO */
+			struct cmsghdr *cmsg = NULL;
 			union {
 #ifdef IP_PKTINFO
 				char buf[CMSG_SPACE(sizeof(struct in_pktinfo))];
@@ -619,58 +693,8 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 			msg.msg_iov = &vec;
 			msg.msg_iovlen = 1;
 
-			switch (qc->local_addr.ss_family) {
-			case AF_INET:
-#if defined(IP_PKTINFO)
-				msg.msg_control = u.buf;
-				msg.msg_controllen = sizeof(u.buf);
-
-				cmsg = CMSG_FIRSTHDR(&msg);
-				in = (struct in_pktinfo *)CMSG_DATA(cmsg);
-				in->ipi_ifindex = 0;
-				in->ipi_addr.s_addr = 0;
-				memcpy(&in->ipi_spec_dst,
-				       &((struct sockaddr_in *)&qc->local_addr)->sin_addr,
-				       sizeof(struct in_addr));
-
-				cmsg->cmsg_level = IPPROTO_IP;
-				cmsg->cmsg_type = IP_PKTINFO;
-				cmsg->cmsg_len = CMSG_LEN(sizeof(struct in_pktinfo));
-#elif defined(IP_RECVDSTADDR)
-				msg.msg_control = u.bufaddr;
-				msg.msg_controllen = sizeof(u.bufaddr);
-
-				cmsg = CMSG_FIRSTHDR(&msg);
-				cmsg->cmsg_level = IPPROTO_IP;
-				cmsg->cmsg_type = IP_SENDSRCADDR;
-				cmsg->cmsg_len = CMSG_LEN(sizeof(struct in_addr));
-				memcpy(CMSG_DATA(cmsg),
-				       &((struct sockaddr_in *)&qc->local_addr)->sin_addr,
-				       sizeof(struct in_addr));
-#endif /* IP_PKTINFO || IP_RECVDSTADDR */
-				break;
-
-			case AF_INET6:
-#ifdef IPV6_RECVPKTINFO
-				msg.msg_control = u.buf6;
-				msg.msg_controllen = sizeof(u.buf6);
-
-				cmsg = CMSG_FIRSTHDR(&msg);
-				in6 = (struct in6_pktinfo *)CMSG_DATA(cmsg);
-				in6->ipi6_ifindex = 0;
-				memcpy(&in6->ipi6_addr,
-				       &((struct sockaddr_in6 *)&qc->local_addr)->sin6_addr,
-				       sizeof(struct in6_addr));
-
-				cmsg->cmsg_level = IPPROTO_IPV6;
-				cmsg->cmsg_type = IPV6_PKTINFO;
-				cmsg->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
-#endif /* IPV6_RECVPKTINFO */
-				break;
-
-			default:
-				break;
-			}
+			msg.msg_control = u.bufaddr;
+			cmsg_set_saddr(&msg, &cmsg, &qc->local_addr);
 
 			ret = sendmsg(qc->li->rx.fd, &msg,
 			              MSG_DONTWAIT|MSG_NOSIGNAL);
