@@ -670,11 +670,11 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 			ret = send(qc->fd, b_peek(buf, b_head_ofs(buf)), sz,
 			           MSG_DONTWAIT | MSG_NOSIGNAL);
 		}
-#if defined(IP_PKTINFO) || defined(IP_RECVDSTADDR) || defined(IPV6_RECVPKTINFO)
-		else if (is_addr(&qc->local_addr)) {
+		else {
 			struct msghdr msg;
 			struct iovec vec;
-			struct cmsghdr *cmsg = NULL;
+			struct cmsghdr *cmsg __maybe_unused = NULL;
+
 			union {
 #ifdef IP_PKTINFO
 				char buf[CMSG_SPACE(sizeof(struct in_pktinfo))];
@@ -684,27 +684,25 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 #endif /* IPV6_RECVPKTINFO */
 				char bufaddr[CMSG_SPACE(sizeof(struct in_addr))];
 				struct cmsghdr align;
-			} u;
+			} ancillary_data;
 
 			vec.iov_base = b_peek(buf, b_head_ofs(buf));
 			vec.iov_len = sz;
+
 			msg.msg_name = &qc->peer_addr;
 			msg.msg_namelen = get_addr_len(&qc->peer_addr);
 			msg.msg_iov = &vec;
 			msg.msg_iovlen = 1;
+			msg.msg_control = NULL;
+			msg.msg_controllen = 0;
 
-			msg.msg_control = u.bufaddr;
-			cmsg_set_saddr(&msg, &cmsg, &qc->local_addr);
+			/* Set source address for listener socket if known. */
+			if (is_addr(&qc->local_addr)) {
+				msg.msg_control = ancillary_data.bufaddr;
+				cmsg_set_saddr(&msg, &cmsg, &qc->local_addr);
+			}
 
-			ret = sendmsg(qc->li->rx.fd, &msg,
-			              MSG_DONTWAIT|MSG_NOSIGNAL);
-		}
-#endif /* IP_PKTINFO || IP_RECVDSTADDR || IPV6_RECVPKTINFO */
-		else {
-			ret = sendto(qc->li->rx.fd, b_peek(buf, b_head_ofs(buf)), sz,
-			             MSG_DONTWAIT|MSG_NOSIGNAL,
-			             (struct sockaddr *)&qc->peer_addr,
-			             get_addr_len(&qc->peer_addr));
+			ret = sendmsg(qc->li->rx.fd, &msg, MSG_DONTWAIT|MSG_NOSIGNAL);
 		}
 	} while (ret < 0 && errno == EINTR);
 
