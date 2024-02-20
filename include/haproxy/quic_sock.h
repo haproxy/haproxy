@@ -72,6 +72,14 @@ static inline char qc_test_fd(struct quic_conn *qc)
 	return qc->fd >= 0;
 }
 
+/* Returns active socket for <qc> connection. This may be its owned connection
+ * socket or the listener one as a fallback.
+ */
+static inline int qc_fd(struct quic_conn *qc)
+{
+	return qc_test_fd(qc) ? qc->fd : qc->li->rx.fd;
+}
+
 /* Try to increment <l> handshake current counter. If listener limit is
  * reached, incrementation is rejected and 0 is returned.
  */

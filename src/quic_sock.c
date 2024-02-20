@@ -661,49 +661,57 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
                int flags)
 {
 	ssize_t ret;
+	struct msghdr msg;
+	struct iovec vec;
+	struct cmsghdr *cmsg __maybe_unused = NULL;
+
+	union {
+#ifdef IP_PKTINFO
+		char buf[CMSG_SPACE(sizeof(struct in_pktinfo))];
+#endif /* IP_PKTINFO */
+#ifdef IPV6_RECVPKTINFO
+		char buf6[CMSG_SPACE(sizeof(struct in6_pktinfo))];
+#endif /* IPV6_RECVPKTINFO */
+		char bufaddr[CMSG_SPACE(sizeof(struct in_addr))];
+		struct cmsghdr align;
+	} ancillary_data;
+
+	vec.iov_base = b_peek(buf, b_head_ofs(buf));
+	vec.iov_len = sz;
+
+	/* man 2 sendmsg
+	 *
+	 * The msg_name field is used on an unconnected socket to specify the
+	 * target address for a datagram. It points to a buffer containing the
+	 * address; the msg_namelen field should  be  set to the size of the
+	 * address. For a connected socket, these fields should be specified
+	 * as NULL and 0, respectively.
+         */
+	if (!qc_test_fd(qc)) {
+		msg.msg_name = &qc->peer_addr;
+		msg.msg_namelen = get_addr_len(&qc->peer_addr);
+	}
+	else {
+		msg.msg_name = NULL;
+		msg.msg_namelen = 0;
+	}
+
+	msg.msg_iov = &vec;
+	msg.msg_iovlen = 1;
+	msg.msg_control = NULL;
+	msg.msg_controllen = 0;
 
 	if (qc_test_fd(qc) && !fd_send_ready(qc->fd))
 		return 0;
 
+	/* Set source address when using listener socket if possible. */
+	if (!qc_test_fd(qc) && is_addr(&qc->local_addr)) {
+		msg.msg_control = ancillary_data.bufaddr;
+		cmsg_set_saddr(&msg, &cmsg, &qc->local_addr);
+	}
+
 	do {
-		if (qc_test_fd(qc)) {
-			ret = send(qc->fd, b_peek(buf, b_head_ofs(buf)), sz,
-			           MSG_DONTWAIT | MSG_NOSIGNAL);
-		}
-		else {
-			struct msghdr msg;
-			struct iovec vec;
-			struct cmsghdr *cmsg __maybe_unused = NULL;
-
-			union {
-#ifdef IP_PKTINFO
-				char buf[CMSG_SPACE(sizeof(struct in_pktinfo))];
-#endif /* IP_PKTINFO */
-#ifdef IPV6_RECVPKTINFO
-				char buf6[CMSG_SPACE(sizeof(struct in6_pktinfo))];
-#endif /* IPV6_RECVPKTINFO */
-				char bufaddr[CMSG_SPACE(sizeof(struct in_addr))];
-				struct cmsghdr align;
-			} ancillary_data;
-
-			vec.iov_base = b_peek(buf, b_head_ofs(buf));
-			vec.iov_len = sz;
-
-			msg.msg_name = &qc->peer_addr;
-			msg.msg_namelen = get_addr_len(&qc->peer_addr);
-			msg.msg_iov = &vec;
-			msg.msg_iovlen = 1;
-			msg.msg_control = NULL;
-			msg.msg_controllen = 0;
-
-			/* Set source address for listener socket if known. */
-			if (is_addr(&qc->local_addr)) {
-				msg.msg_control = ancillary_data.bufaddr;
-				cmsg_set_saddr(&msg, &cmsg, &qc->local_addr);
-			}
-
-			ret = sendmsg(qc->li->rx.fd, &msg, MSG_DONTWAIT|MSG_NOSIGNAL);
-		}
+		ret = sendmsg(qc_fd(qc), &msg, MSG_DONTWAIT|MSG_NOSIGNAL);
 	} while (ret < 0 && errno == EINTR);
 
 	if (ret < 0) {
