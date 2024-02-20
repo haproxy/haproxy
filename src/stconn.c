@@ -1636,6 +1636,9 @@ int sc_conn_send(struct stconn *sc)
 			}
 		}
 
+		if ((sc->flags & SC_FL_SHUT_WANTED) && co_data(oc) == c_data(oc))
+			send_flag |= CO_SFL_LAST_DATA;
+
 		ret = conn->mux->snd_buf(sc, &oc->buf, co_data(oc), send_flag);
 		if (ret > 0) {
 			did_send = 1;
@@ -2154,7 +2157,12 @@ int sc_applet_send(struct stconn *sc)
 	BUG_ON(sc_ep_have_ff_data(sc));
 
 	if (co_data(oc)) {
-		ret = appctx_snd_buf(sc, &oc->buf, co_data(oc), 0);
+		unsigned int send_flag = 0;
+
+		if ((sc->flags & SC_FL_SHUT_WANTED) && co_data(oc) == c_data(oc))
+			send_flag |= CO_SFL_LAST_DATA;
+
+		ret = appctx_snd_buf(sc, &oc->buf, co_data(oc), send_flag);
 		if (ret > 0) {
 			did_send = 1;
 			c_rew(oc, ret);

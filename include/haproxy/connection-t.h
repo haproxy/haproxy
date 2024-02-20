@@ -278,6 +278,7 @@ enum {
 enum {
 	CO_SFL_MSG_MORE    = 0x0001,    /* More data to come afterwards */
 	CO_SFL_STREAMER    = 0x0002,    /* Producer is continuously streaming data */
+	CO_SFL_LAST_DATA   = 0x0003,    /* Sent data are the last ones, shutdown is pending */
 };
 
 /* mux->shutr() modes */
