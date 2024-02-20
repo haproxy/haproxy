@@ -201,6 +201,7 @@ enum {
 	LF_VAR,        // variable name, after '%' or '%{..}'
 	LF_STARTVAR,   // % in text
 	LF_STONAME,    // after '%(' and before ')'
+	LF_STOTYPE,    // after ':' while in STONAME
 	LF_EDONAME,    // ')' after '%('
 	LF_STARG,      // after '%{' and berore '}'
 	LF_EDARG,      // '}' after '%{'
@@ -214,6 +215,7 @@ struct logformat_node {
 	struct list list;
 	int type;      // LOG_FMT_*
 	int options;   // LOG_OPT_*
+	int typecast;  // explicit typecasting for printing purposes (SMP_T_{SAME,BOOL,STR,SINT})
 	char *name;    // printable name for output types that require named fields (ie: json)
 	char *arg;     // text for LOG_FMT_TEXT, arg for others
 	void *expr;    // for use with LOG_FMT_EXPR

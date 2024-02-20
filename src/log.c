@@ -306,7 +306,7 @@ int parse_logformat_var_args(char *args, struct logformat_node *node, char **err
  * ignored when arg_len is 0. Neither <var> nor <var_len> may be null.
  * Returns false in error case and err is filled, otherwise returns true.
  */
-int parse_logformat_var(char *arg, int arg_len, char *name, int name_len, char *var, int var_len, struct proxy *curproxy, struct list *list_format, int *defoptions, char **err)
+int parse_logformat_var(char *arg, int arg_len, char *name, int name_len, int typecast, char *var, int var_len, struct proxy *curproxy, struct list *list_format, int *defoptions, char **err)
 {
 	int j;
 	struct logformat_node *node = NULL;
@@ -321,6 +321,7 @@ int parse_logformat_var(char *arg, int arg_len, char *name, int name_len, char *
 					goto error_free;
 				}
 				node->type = logformat_keywords[j].type;
+				node->typecast = typecast;
 				if (name)
 					node->name = my_strndup(name, name_len);
 				node->options = *defoptions;
@@ -412,7 +413,7 @@ int add_to_logformat_list(char *start, char *end, int type, struct list *list_fo
  *
  * In error case, the function returns 0, otherwise it returns 1.
  */
-int add_sample_to_logformat_list(char *text, char *name, int name_len, char *arg, int arg_len, struct proxy *curpx, struct list *list_format, int options, int cap, char **err, char **endptr)
+int add_sample_to_logformat_list(char *text, char *name, int name_len, int typecast, char *arg, int arg_len, struct proxy *curpx, struct list *list_format, int options, int cap, char **err, char **endptr)
 {
 	char *cmd[2];
 	struct sample_expr *expr = NULL;
@@ -438,6 +439,7 @@ int add_sample_to_logformat_list(char *text, char *name, int name_len, char *arg
 	if (name)
 		node->name = my_strndup(name, name_len);
 	node->type = LOG_FMT_EXPR;
+	node->typecast = typecast;
 	node->expr = expr;
 	node->options = options;
 
@@ -506,9 +508,11 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 	char *arg = NULL; /* start pointer for args */
 	char *var = NULL; /* start pointer for vars */
 	char *name = NULL; /* token name (optional) */
+	char *typecast_str = NULL; /* token output type (if custom name is set) */
 	int arg_len = 0;
 	int var_len = 0;
 	int name_len = 0;
+	int typecast = SMP_T_SAME; /* relaxed by default */
 	int cformat; /* current token format */
 	int pformat; /* previous token format */
 	struct logformat_node *tmplf, *back;
@@ -544,6 +548,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 			arg = NULL; var = NULL;
 			name = NULL;
 			name_len = 0;
+			typecast = SMP_T_SAME;
 			arg_len = var_len = 0;
 			if (*str == '(') {             // custom output name
 				cformat = LF_STONAME;
@@ -554,9 +559,26 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 			break;
 
 		case LF_STONAME:                       // text immediately following '%('
-			if (*str == ')') {             // end of custom output name
+		case LF_STOTYPE:
+			if (cformat == LF_STONAME && *str == ':') { // start custom output type
+				cformat = LF_STOTYPE;
+				name_len = str -name;
+				typecast_str = str + 1;
+			}
+			else if (*str == ')') {        // end of custom output name
+				if (cformat == LF_STONAME)
+					name_len = str - name;
+				else {
+					/* custom type */
+					*str = 0; // so that typecast_str is 0 terminated
+					typecast = type_to_smp(typecast_str);
+					if (typecast != SMP_T_STR && typecast != SMP_T_SINT &&
+					    typecast != SMP_T_BOOL) {
+						memprintf(err, "unexpected output type '%.*s' at position %d line : '%s'. Supported types are: str, sint, bool", (int)(str - typecast_str), typecast_str, (int)(typecast_str - backfmt), fmt);
+						goto fail;
+					}
+				}
 				cformat = LF_EDONAME;
-				name_len = str - name;
 			} else if  (!isalnum((unsigned char)*str) && *str != '_' && *str != '-') {
 				memprintf(err, "invalid character in custom name near '%c' at position %d line : '%s'",
 				          *str, (int)(str - backfmt), fmt);
@@ -623,7 +645,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 			 * part of the expression, which MUST be the trailing
 			 * angle bracket.
 			 */
-			if (!add_sample_to_logformat_list(var, name, name_len, arg, arg_len, curproxy, list_format, options, cap, err, &str))
+			if (!add_sample_to_logformat_list(var, name, name_len, typecast, arg, arg_len, curproxy, list_format, options, cap, err, &str))
 				goto fail;
 
 			if (*str == ']') {
@@ -669,7 +691,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 		if (cformat != pformat || pformat == LF_SEPARATOR) {
 			switch (pformat) {
 			case LF_VAR:
-				if (!parse_logformat_var(arg, arg_len, name, name_len, var, var_len, curproxy, list_format, &options, err))
+				if (!parse_logformat_var(arg, arg_len, name, name_len, typecast, var, var_len, curproxy, list_format, &options, err))
 					goto fail;
 				break;
 			case LF_TEXT:
@@ -682,7 +704,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 		}
 	}
 
-	if (pformat == LF_STARTVAR || pformat == LF_STARG || pformat == LF_STEXPR || pformat == LF_STONAME || pformat == LF_EDONAME) {
+	if (pformat == LF_STARTVAR || pformat == LF_STARG || pformat == LF_STEXPR || pformat == LF_STONAME || pformat == LF_STOTYPE || pformat == LF_EDONAME) {
 		memprintf(err, "truncated line after '%s'", var ? var : arg ? arg : "%");
 		goto fail;
 	}
