@@ -987,29 +987,13 @@ static void cli_io_handler(struct appctx *appctx)
 				continue;
 			}
 
-			if (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)) {
-				/* seek for a possible unescaped semi-colon. If we find
-				 * one, we replace it with an LF and skip only this part.
-				 */
-				for (len = 0; len < reql; len++) {
-					if (str[len] == '\\') {
-						len++;
-						continue;
-					}
-					if (str[len] == ';') {
-						str[len] = '\n';
-						reql = len + 1;
-						break;
-					}
-				}
-			}
 
 			/* now it is time to check that we have a full line,
 			 * remove the trailing \n and possibly \r, then cut the
 			 * line.
 			 */
 			len = reql - 1;
-			if (str[len] != '\n') {
+			if (str[len] != '\n' && str[len] != ';') {
 				se_fl_set(appctx->sedesc, SE_FL_ERROR);
 				appctx->st0 = CLI_ST_END;
 				continue;
