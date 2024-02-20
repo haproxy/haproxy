@@ -593,14 +593,25 @@ size_t appctx_htx_snd_buf(struct appctx *appctx, struct buffer *buf, size_t coun
 	htx_to_buf(appctx_htx, &appctx->outbuf);
 	htx_to_buf(buf_htx, buf);
 	ret -= buf_htx->data;
-
 end:
+	if (ret < count) {
+		applet_fl_set(appctx, APPCTX_FL_INBLK_FULL);
+		TRACE_STATE("report appctx inbuf is full", APPLET_EV_SEND|APPLET_EV_BLK, appctx);
+	}
 	return ret;
 }
 
 size_t appctx_raw_snd_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsigned flags)
 {
-	return b_xfer(&appctx->inbuf, buf, MIN(b_room(&appctx->inbuf), count));
+	size_t ret = 0;
+
+	ret = b_xfer(&appctx->inbuf, buf, MIN(b_room(&appctx->inbuf), count));
+	if (ret < count) {
+		applet_fl_set(appctx, APPCTX_FL_INBLK_FULL);
+		TRACE_STATE("report appctx inbuf is full", APPLET_EV_SEND|APPLET_EV_BLK, appctx);
+	}
+  end:
+	return ret;
 }
 
 size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags)
@@ -616,21 +627,16 @@ size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 	if (applet_fl_test(appctx, (APPCTX_FL_INBLK_FULL|APPCTX_FL_INBLK_ALLOC)))
 		goto end;
 
+	if (!count)
+		goto end;
+
 	if (!appctx_get_buf(appctx, &appctx->inbuf)) {
 		applet_fl_set(appctx, APPCTX_FL_INBLK_ALLOC);
 		TRACE_STATE("waiting for appctx inbuf allocation", APPLET_EV_SEND|APPLET_EV_BLK, appctx);
 		goto end;
 	}
 
-	if (!count)
-		goto end;
-
 	ret = appctx->applet->snd_buf(appctx, buf, count, flags);
-	if (ret < count) {
-		applet_fl_set(appctx, APPCTX_FL_INBLK_FULL);
-		appctx_wakeup(appctx);
-		TRACE_STATE("report appctx inbuf is full", APPLET_EV_SEND|APPLET_EV_BLK, appctx);
-	}
 
   end:
 	if (applet_fl_test(appctx, (APPCTX_FL_ERROR|APPCTX_FL_ERR_PENDING))) {
