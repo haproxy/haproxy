@@ -742,9 +742,8 @@ static int cli_parse_request(struct appctx *appctx)
 	int i = 0;
 	struct cli_kw *kw;
 
-	p = appctx->chunk->area;
-	end = p + appctx->chunk->data;
-
+	p = b_head(&appctx->inbuf);
+	end = b_tail(&appctx->inbuf);
 	/*
 	 * Get pointers on words.
 	 * One extra slot is reserved to store a pointer on a null byte.
@@ -806,7 +805,7 @@ static int cli_parse_request(struct appctx *appctx)
 		i++;
 	}
 	/* fill unused slots */
-	p = appctx->chunk->area + appctx->chunk->data;
+	p = b_tail(&appctx->inbuf);
 	for (; i < MAX_CLI_ARGS + 1; i++)
 		args[i] = p;
 
@@ -900,6 +899,146 @@ static int cli_output_msg(struct appctx *appctx, const char *msg, int severity, 
 	return applet_putchk(appctx, tmp);
 }
 
+int cli_init(struct appctx *appctx)
+{
+	struct stconn *sc = appctx_sc(appctx);
+	struct bind_conf *bind_conf = strm_li(__sc_strm(sc))->bind_conf;
+
+	appctx->cli_severity_output = bind_conf->severity_output;
+	applet_reset_svcctx(appctx);
+	appctx->st0 = CLI_ST_GETREQ;
+	appctx->cli_level = bind_conf->level;
+
+	/* Wakeup the applet ASAP. */
+        applet_need_more_data(appctx);
+        return 0;
+
+}
+
+size_t cli_snd_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsigned flags)
+{
+	char *str;
+	size_t len, ret = 0;
+	int lf = 0;
+
+	if (appctx->st0 == CLI_ST_INIT)
+		cli_init(appctx);
+	else if (appctx->st0 != CLI_ST_GETREQ)
+		goto end;
+
+        if (b_space_wraps(&appctx->inbuf))
+                b_slow_realign(&appctx->inbuf, trash.area, b_data(&appctx->inbuf));
+
+	while (1) {
+		/* payload doesn't take escapes nor does it end on semi-colons,
+		 * so we use the regular getline. Normal mode however must stop
+		 * on LFs and semi-colons that are not prefixed by a backslash.
+		 * Note we reserve one byte at the end to insert a trailing nul
+		 * byte.
+		 */
+		str = b_tail(&appctx->inbuf);
+		if (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD))
+			len = b_getdelim(buf, ret, count, str, b_room(&appctx->inbuf) - 1, "\n;", '\\');
+		else
+			len = b_getline(buf, ret, count, str, b_room(&appctx->inbuf) - 1);
+
+		if (!len) {
+			if (!b_room(buf) || (count > b_room(&appctx->inbuf) - 1) || (flags & CO_SFL_LAST_DATA)) {
+				cli_err(appctx, "The command is too big for the buffer size. Please change tune.bufsize in the configuration to use a bigger command.\n");
+				applet_set_error(appctx);
+				b_reset(&appctx->inbuf);
+			}
+			break;
+		}
+
+		ret += len;
+		count -= len;
+
+		if (str[len-1] == '\n')
+			lf = 1;
+
+		/* Remove the trailing \r, if any and add a null byte at the
+		 * end. For normal mode, the trailing \n is removed, but we
+		 * conserve if for payload mode.
+		 */
+		len--;
+		if (len && str[len-1] == '\r')
+			len--;
+		if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) {
+			str[len+1] = '\0';
+			b_add(&appctx->inbuf, len+1);
+		}
+		else  {
+			str[len] = '\0';
+			b_add(&appctx->inbuf, len);
+		}
+
+		if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) {
+			/* look for a pattern */
+			if (len == strlen(appctx->cli_payload_pat)) {
+				/* here use 'len' because str still contains the \n */
+				if (strncmp(str, appctx->cli_payload_pat, len) == 0) {
+					/* remove the last two \n */
+					b_sub(&appctx->inbuf, strlen(appctx->cli_payload_pat) + 2);
+					*b_tail(&appctx->inbuf) = '\0';
+					appctx->st1 &= ~APPCTX_CLI_ST1_PAYLOAD;
+					if (!(appctx->st1 & APPCTX_CLI_ST1_PROMPT) && lf)
+						appctx->st1 |= APPCTX_CLI_ST1_LASTCMD;
+				}
+			}
+		}
+		else {
+			char *last_arg;
+
+			/*
+			 * Look for the "payload start" pattern at the end of a
+			 * line Its location is not remembered here, this is
+			 * just to switch to a gathering mode.
+			 *
+			 * The pattern must start by << followed by 0 to 7
+			 * characters, and finished by the end of the command
+			 * (\n or ;).
+			 */
+
+			/* look for the first space starting by the end of the line */
+			for (last_arg = b_tail(&appctx->inbuf); last_arg != b_head(&appctx->inbuf); last_arg--) {
+				if (*last_arg == ' ' || *last_arg == '\t') {
+					last_arg++;
+					break;
+				}
+			}
+
+			if (strncmp(last_arg, PAYLOAD_PATTERN, strlen(PAYLOAD_PATTERN)) == 0) {
+				ssize_t pat_len = strlen(last_arg + strlen(PAYLOAD_PATTERN));
+
+				/* A customized pattern can't be more than 7 characters
+				 * if it's more, don't make it a payload
+				 */
+				if (pat_len < sizeof(appctx->cli_payload_pat)) {
+					appctx->st1 |= APPCTX_CLI_ST1_PAYLOAD;
+					/* copy the customized pattern, don't store the << */
+					strncpy(appctx->cli_payload_pat, last_arg + strlen(PAYLOAD_PATTERN), sizeof(appctx->cli_payload_pat)-1);
+					appctx->cli_payload_pat[sizeof(appctx->cli_payload_pat)-1] = '\0';
+					b_add(&appctx->inbuf, 1); // keep the trailing \0 after the pattern
+				}
+			}
+			else {
+				if (!(appctx->st1 & APPCTX_CLI_ST1_PROMPT) && lf)
+					appctx->st1 |= APPCTX_CLI_ST1_LASTCMD;
+			}
+		}
+
+		if (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) || (appctx->st1 & APPCTX_CLI_ST1_PROMPT)) {
+			appctx->st0 = CLI_ST_PARSEREQ;
+			break;
+		}
+	}
+	b_del(buf, ret);
+
+  end:
+	return ret;
+}
+
 /* This I/O handler runs as an applet embedded in a stream connector. It is
  * used to processes I/O from/to the stats unix socket. The system relies on a
  * state machine handling requests and various responses. We read a request,
@@ -910,10 +1049,6 @@ static int cli_output_msg(struct appctx *appctx, const char *msg, int severity, 
  */
 static void cli_io_handler(struct appctx *appctx)
 {
-	int reql;
-	int len;
-	int lf = 0;
-
 	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL))
 		goto out;
 
@@ -930,35 +1065,26 @@ static void cli_io_handler(struct appctx *appctx)
 	while (1) {
 		if (appctx->st0 == CLI_ST_INIT) {
 			/* reset severity to default at init */
-			struct stconn *sc = appctx_sc(appctx);
-			struct bind_conf *bind_conf = strm_li(__sc_strm(sc))->bind_conf;
-
-			appctx->cli_severity_output = bind_conf->severity_output;
-			applet_reset_svcctx(appctx);
-			appctx->st0 = CLI_ST_GETREQ;
-			appctx->cli_level = bind_conf->level;
+			cli_init(appctx);
+			break;
 		}
 		else if (appctx->st0 == CLI_ST_END) {
 			applet_set_eos(appctx);
-			free_trash_chunk(appctx->chunk);
-			appctx->chunk = NULL;
 			break;
 		}
 		else if (appctx->st0 == CLI_ST_GETREQ) {
-			char *str;
-
-			/* use a trash chunk to store received data */
-			if (!appctx->chunk) {
-				appctx->chunk = alloc_trash_chunk();
-				if (!appctx->chunk) {
-					se_fl_set(appctx->sedesc, SE_FL_ERROR);
-					appctx->st0 = CLI_ST_END;
-					continue;
-				}
+			/* Now we close the output if we're not in interactive
+			 * mode and the request buffer is empty. This still
+			 * allows pipelined requests to be sent in
+			 * non-interactive mode.
+			 */
+			if (se_fl_test(appctx->sedesc, SE_FL_SHW)) {
+				appctx->st0 = CLI_ST_END;
+				continue;
 			}
-
-			str = appctx->chunk->area + appctx->chunk->data;
-
+			break;
+		}
+		else if (appctx->st0 == CLI_ST_PARSEREQ) {
 			/* ensure we have some output room left in the event we
 			 * would want to return some info right after parsing.
 			 */
@@ -967,131 +1093,13 @@ static void cli_io_handler(struct appctx *appctx)
 				break;
 			}
 
-			/* payload doesn't take escapes nor does it end on semi-colons, so
-			 * we use the regular getline. Normal mode however must stop on
-			 * LFs and semi-colons that are not prefixed by a backslash. Note
-			 * that we reserve one byte at the end to insert a trailing nul byte.
-			 */
-
-			if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)
-				reql = b_getline(&appctx->inbuf, 0, b_data(&appctx->inbuf), str,
-						 appctx->chunk->size - appctx->chunk->data - 1);
-			else
-				reql = b_getdelim(&appctx->inbuf, 0, b_data(&appctx->inbuf), str,
-						  appctx->chunk->size - appctx->chunk->data - 1,
-						  "\n;", '\\');
-
-			if (!reql) {
-				/* Line not found. Report an error if the input buffer is full, if there is not
-				 * enough space in the chunk or if a shutdown occurred.
-				 * Otherwise, wait for more data */
-				if (applet_fl_test(appctx, APPCTX_FL_INBLK_FULL) ||
-				    b_data(&appctx->inbuf) > appctx->chunk->size - appctx->chunk->data - 1) {
-					applet_set_eos(appctx);
-					applet_set_error(appctx);
-					cli_err(appctx, "The command is too big for the buffer size. Please change tune.bufsize in the configuration to use a bigger command.\n");
-					goto cli_output;
-				}
-				if (se_fl_test(appctx->sedesc, SE_FL_SHW)) {
-					applet_set_error(appctx);
-					appctx->st0 = CLI_ST_END;
-					continue;
-				}
-				break;
-			}
-
-			if (str[reql-1] == '\n')
-				lf = 1;
-
-			/* now it is time to check that we have a full line,
-			 * remove the trailing \n and possibly \r, then cut the
-			 * line.
-			 */
-			len = reql - 1;
-			if (str[len] != '\n' && str[len] != ';') {
-				applet_set_eos(appctx);
-				applet_set_error(appctx);
-				appctx->st0 = CLI_ST_END;
-				continue;
-			}
-
-			if (len && str[len-1] == '\r')
-				len--;
-
-			str[len] = '\0';
-			appctx->chunk->data += len;
-
-			if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) {
-				appctx->chunk->area[appctx->chunk->data] = '\n';
-				appctx->chunk->area[appctx->chunk->data + 1] = 0;
-				appctx->chunk->data++;
-			}
-
 			appctx->t->expire = TICK_ETERNITY;
 			appctx->st0 = CLI_ST_PROMPT;
 
-			if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) {
-				/* look for a pattern */
-				if (len == strlen(appctx->cli_payload_pat)) {
-					/* here use 'len' because str still contains the \n */
-					if (strncmp(str, appctx->cli_payload_pat, len) == 0) {
-						/* remove the last two \n */
-						appctx->chunk->data -= strlen(appctx->cli_payload_pat) + 2;
-						appctx->chunk->area[appctx->chunk->data] = 0;
-						cli_parse_request(appctx);
-						chunk_reset(appctx->chunk);
-						/* NB: cli_sock_parse_request() may have put
-						 * another CLI_ST_O_* into appctx->st0.
-						 */
-
-						appctx->st1 &= ~APPCTX_CLI_ST1_PAYLOAD;
-						if (!(appctx->st1 & APPCTX_CLI_ST1_PROMPT) && lf)
-							appctx->st1 |= APPCTX_CLI_ST1_LASTCMD;
-					}
-				}
+			if (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)) {
+				cli_parse_request(appctx);
+				b_reset(&appctx->inbuf);
 			}
-			else {
-				char *last_arg;
-				/*
-				 * Look for the "payload start" pattern at the end of a line
-				 * Its location is not remembered here, this is just to switch
-				 * to a gathering mode.
-				 * The pattern must start by << followed by 0
-				 * to 7 characters, and finished by the end of
-				 * the command (\n or ;).
-				 */
-				/* look for the first space starting by the end of the line */
-				for (last_arg = appctx->chunk->area + appctx->chunk->data; last_arg != appctx->chunk->area; last_arg--) {
-					if (*last_arg == ' ' || *last_arg == '\t') {
-						last_arg++;
-						break;
-					}
-				}
-				if (strncmp(last_arg, PAYLOAD_PATTERN, strlen(PAYLOAD_PATTERN)) == 0) {
-					ssize_t pat_len = strlen(last_arg + strlen(PAYLOAD_PATTERN));
-
-					/* A customized pattern can't be more than 7 characters
-					 * if it's more, don't make it a payload
-					 */
-					if (pat_len < sizeof(appctx->cli_payload_pat)) {
-						appctx->st1 |= APPCTX_CLI_ST1_PAYLOAD;
-						/* copy the customized pattern, don't store the << */
-						strncpy(appctx->cli_payload_pat, last_arg + strlen(PAYLOAD_PATTERN), sizeof(appctx->cli_payload_pat)-1);
-						appctx->cli_payload_pat[sizeof(appctx->cli_payload_pat)-1] = '\0';
-						appctx->chunk->data++; // keep the trailing \0 after the pattern
-					}
-				}
-				else {
-					/* no payload, the command is complete: parse the request */
-					cli_parse_request(appctx);
-					chunk_reset(appctx->chunk);
-					if (!(appctx->st1 & APPCTX_CLI_ST1_PROMPT) && lf)
-						appctx->st1 |= APPCTX_CLI_ST1_LASTCMD;
-				}
-			}
-
-			/* re-adjust req buffer */
-			b_del(&appctx->inbuf, reql);
 		}
 		else {	/* output functions */
 			struct cli_print_ctx *ctx;
@@ -1146,6 +1154,11 @@ static void cli_io_handler(struct appctx *appctx)
 					appctx->t->expire = TICK_ETERNITY;
 					appctx->st0 = CLI_ST_PROMPT;
 				}
+				if (applet_fl_test(appctx, APPCTX_FL_ERR_PENDING)) {
+					appctx->st0 = CLI_ST_END;
+					continue;
+				}
+
 				break;
 
 			case CLI_ST_CALLBACK: /* use custom pointer */
@@ -1178,7 +1191,7 @@ static void cli_io_handler(struct appctx *appctx)
 					 * when entering a payload with interactive mode, change the prompt
 					 * to emphasize that more data can still be sent
 					 */
-					if (appctx->chunk->data && appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)
+					if (b_data(&appctx->inbuf) && appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)
 						prompt = "+ ";
 					else if (appctx->st1 & APPCTX_CLI_ST1_TIMED) {
 						uint up = ns_to_sec(now_ns - start_time_ns);
@@ -1233,10 +1246,7 @@ static void cli_io_handler(struct appctx *appctx)
 			 * refills the buffer with new bytes in non-interactive
 			 * mode, avoiding to close on apparently empty commands.
 			 */
-			if (b_data(&appctx->inbuf)) {
-				appctx_wakeup(appctx);
-				goto out;
-			}
+			break;
 		}
 	}
 
@@ -1255,9 +1265,6 @@ static void cli_io_handler(struct appctx *appctx)
  */
 static void cli_release_handler(struct appctx *appctx)
 {
-	free_trash_chunk(appctx->chunk);
-	appctx->chunk = NULL;
-
 	if (appctx->io_release) {
 		appctx->io_release(appctx);
 		appctx->io_release = NULL;
@@ -3538,7 +3545,7 @@ static struct applet cli_applet = {
 	.name = "<CLI>", /* used for logging */
 	.fct = cli_io_handler,
 	.rcv_buf = appctx_raw_rcv_buf,
-	.snd_buf = appctx_raw_snd_buf,
+	.snd_buf = cli_snd_buf,
 	.release = cli_release_handler,
 };
 
@@ -3548,7 +3555,7 @@ static struct applet mcli_applet = {
 	.name = "<MCLI>", /* used for logging */
 	.fct = cli_io_handler,
 	.rcv_buf = appctx_raw_rcv_buf,
-	.snd_buf = appctx_raw_snd_buf,
+	.snd_buf = cli_snd_buf,
 	.release = cli_release_handler,
 };
 

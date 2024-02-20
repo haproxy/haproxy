@@ -56,6 +56,7 @@ enum {
 	CLI_ST_INIT = 0,   /* initial state, must leave to zero ! */
 	CLI_ST_END,        /* final state, let's close */
 	CLI_ST_GETREQ,     /* wait for a request */
+	CLI_ST_PARSEREQ,   /* pase a request */
 	CLI_ST_OUTPUT,     /* all states after this one are responses */
 	CLI_ST_PROMPT,     /* display the prompt (first output, same code) */
 	CLI_ST_PRINT,      /* display const message in cli->msg */
