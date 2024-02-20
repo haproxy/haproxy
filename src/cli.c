@@ -813,22 +813,6 @@ static int cli_parse_request(struct appctx *appctx)
 	if (!**args)
 		return 0;
 
-	if (appctx->st1 & APPCTX_CLI_ST1_SHUT_EXPECTED) {
-		/* The previous command line was finished by a \n in non-interactive mode.
-		 * It should not be followed by another command line. In non-interactive mode,
-		 * only one line should be processed. Because of a bug, it is not respected.
-		 * So emit a warning, only once in the process life, to warn users their script
-		 * must be updated.
-		 */
-		appctx->st1 &= ~APPCTX_CLI_ST1_SHUT_EXPECTED;
-		if (ONLY_ONCE()) {
-			ha_warning("Commands sent to the CLI were chained using a new line character while in non-interactive mode."
-				   " This is not reliable, not officially supported and will not be supported anymore in future versions. "
-				   "Please use ';' to delimit commands instead.");
-		}
-	}
-
-
 	kw = cli_find_kw(args);
 	if (!kw ||
 	    (kw->level & ~appctx->cli_level & ACCESS_MASTER_ONLY) ||
@@ -927,7 +911,6 @@ static int cli_output_msg(struct appctx *appctx, const char *msg, int severity, 
 static void cli_io_handler(struct appctx *appctx)
 {
 	struct stconn *sc = appctx_sc(appctx);
-	struct channel *req = sc_oc(sc);
 	struct channel *res = sc_ic(sc);
 	struct bind_conf *bind_conf = strm_li(__sc_strm(sc))->bind_conf;
 	int reql;
@@ -1049,7 +1032,7 @@ static void cli_io_handler(struct appctx *appctx)
 
 						appctx->st1 &= ~APPCTX_CLI_ST1_PAYLOAD;
 						if (!(appctx->st1 & APPCTX_CLI_ST1_PROMPT) && lf)
-							appctx->st1 |= APPCTX_CLI_ST1_SHUT_EXPECTED;
+							appctx->st1 |= APPCTX_CLI_ST1_LASTCMD;
 					}
 				}
 			}
@@ -1089,7 +1072,7 @@ static void cli_io_handler(struct appctx *appctx)
 					cli_parse_request(appctx);
 					chunk_reset(appctx->chunk);
 					if (!(appctx->st1 & APPCTX_CLI_ST1_PROMPT) && lf)
-						appctx->st1 |= APPCTX_CLI_ST1_SHUT_EXPECTED;
+						appctx->st1 |= APPCTX_CLI_ST1_LASTCMD;
 				}
 			}
 
@@ -1216,11 +1199,11 @@ static void cli_io_handler(struct appctx *appctx)
 			 * allows pipelined requests to be sent in
 			 * non-interactive mode.
 			 */
-			if (!(appctx->st1 & APPCTX_CLI_ST1_PROMPT) && !co_data(req) && (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD))) {
-				se_fl_set(appctx->sedesc, SE_FL_EOI);
-				appctx->st0 = CLI_ST_END;
-				continue;
-			}
+			if ((appctx->st1 & (APPCTX_CLI_ST1_PROMPT|APPCTX_CLI_ST1_PAYLOAD|APPCTX_CLI_ST1_LASTCMD)) == APPCTX_CLI_ST1_LASTCMD) {
+                               se_fl_set(appctx->sedesc, SE_FL_EOI);
+                               appctx->st0 = CLI_ST_END;
+                               continue;
+                       }
 
 			/* switch state back to GETREQ to read next requests */
 			applet_reset_svcctx(appctx);
