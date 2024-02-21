@@ -422,13 +422,9 @@ void session_embryonic_build_legacy_err(struct session *sess, struct buffer *out
  */
 static void session_kill_embryonic(struct session *sess, unsigned int state)
 {
-	int level = LOG_INFO;
 	struct connection *conn = __objt_conn(sess->origin);
 	struct task *task = sess->task;
 	unsigned int log = sess->fe->to_log;
-
-	if (sess->fe->options2 & PR_O2_LOGERRORS)
-		level = LOG_ERR;
 
 	if (log && (sess->fe->options & PR_O_NULLNOLOG)) {
 		/* with "option dontlognull", we don't log connections with no transfer */
@@ -449,14 +445,7 @@ static void session_kill_embryonic(struct session *sess, unsigned int state)
 				conn->err_code = CO_ER_SSL_TIMEOUT;
 		}
 
-		if(!lf_expr_isempty(&sess->fe->logformat_error)) {
-			/* Display a log line following the configured error-log-format. */
-			sess_log(sess);
-		}
-		else {
-			session_embryonic_build_legacy_err(sess, &trash);
-			send_log(sess->fe, level, "%s", trash.area);
-		}
+		sess_log_embryonic(sess);
 	}
 
 	/* kill the connection now */

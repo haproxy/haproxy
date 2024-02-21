@@ -87,7 +87,20 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
  * Will not log if the frontend has no log defined.
  */
 void strm_log(struct stream *s);
-void sess_log(struct session *sess);
+
+/* send an error log for the session, embryonic version should be used
+ * when the log is emitted for a session which is still in embryonic state
+ * (originating from a connection) and requires special handling.
+ */
+void _sess_log(struct session *sess, int embryonic);
+static inline void sess_log(struct session *sess)
+{
+	_sess_log(sess, 0);
+}
+static inline void sess_log_embryonic(struct session *sess)
+{
+	_sess_log(sess, 1);
+}
 
 /* send a applicative log with custom list of loggers */
 void app_log(struct list *loggers, struct buffer *tag, int level, const char *format, ...)

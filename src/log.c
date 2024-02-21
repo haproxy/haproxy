@@ -4947,8 +4947,12 @@ void strm_log(struct stream *s)
  * in the frontend. The caller must simply know that it should not call this
  * function to report unimportant events. It is safe to call this function with
  * sess==NULL (will not do anything).
+ *
+ * if <embryonic> is set, then legacy error log payload will be generated unless
+ * logformat_error is specified (ie: normal logformat is ignored in this case).
+ *
  */
-void sess_log(struct session *sess)
+void _sess_log(struct session *sess, int embryonic)
 {
 	int size, level;
 	int sd_size = 0;
@@ -4971,8 +4975,15 @@ void sess_log(struct session *sess)
 
 	if (!lf_expr_isempty(&sess->fe->logformat_error))
 		size = sess_build_logline(sess, NULL, logline, global.max_syslog_len, &sess->fe->logformat_error);
-	else
+	else if (!embryonic)
 		size = sess_build_logline(sess, NULL, logline, global.max_syslog_len, &sess->fe->logformat);
+	else { /* no logformat_error and embryonic==1 */
+		struct buffer buf;
+
+		buf = b_make(logline, global.max_syslog_len, 0, 0);
+		session_embryonic_build_legacy_err(sess, &buf);
+		size = buf.data;
+	}
 	if (size > 0) {
 		_HA_ATOMIC_INC(&sess->fe->log_count);
 		__send_log(&sess->fe->loggers, &sess->fe->log_tag, level,
