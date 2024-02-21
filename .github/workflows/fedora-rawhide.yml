@@ -14,6 +14,7 @@ jobs:
         cc: [ gcc, clang ]
     name: ${{ matrix.cc }}
     runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'haproxy' }}
     container:
       image: fedora:rawhide
     steps:

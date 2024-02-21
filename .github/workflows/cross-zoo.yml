@@ -90,6 +90,7 @@ jobs:
           }
         ]
     runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'haproxy' }}
     steps:
     - name: install packages
       run: |
