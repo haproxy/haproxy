@@ -4602,7 +4602,7 @@ static size_t h1_done_ff(struct stconn *sc)
 		if (b_room(&h1c->obuf) == sd->iobuf.offset)
 			h1c->flags |= H1C_F_OUT_FULL;
 
-		if (sd->iobuf.offset) {
+		if (sd->iobuf.data && sd->iobuf.offset) {
 			struct buffer buf = b_make(b_orig(&h1c->obuf), b_size(&h1c->obuf),
 						   b_peek_ofs(&h1c->obuf, b_data(&h1c->obuf) - sd->iobuf.data + sd->iobuf.offset),
 						   sd->iobuf.data);
