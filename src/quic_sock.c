@@ -700,6 +700,7 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 	msg.msg_iovlen = 1;
 	msg.msg_control = NULL;
 	msg.msg_controllen = 0;
+	msg.msg_flags = 0;
 
 	if (qc_test_fd(qc) && !fd_send_ready(qc->fd))
 		return 0;
