@@ -1,0 +1,312 @@
+2024-02-20 - Ring buffer v2
+===========================
+
+Goals:
+  - improve the multi-thread performance of rings so that traces can be written
+    from all threads in parallel without the huge bottleneck of the lock that
+    is currently necessary to protect the buffer. This is important for mmapped
+    areas that are left as a file when the process crashes.
+
+  - keep traces synchronous within a given thread, i.e. when the TRACE() call
+    returns, the trace is either written into the ring or lost due to slow
+    readers.
+
+  - try hard to limit the cache line bounces between threads due to the use of
+    a shared work area.
+
+  - make waiting threads not disturb working ones
+
+  - continue to work on all supported platforms, with a particular focus on
+    performance for modern platforms (memory ordering, DWCAS etc can be used if
+    they provide any benefit), with a fallback for inferior platforms.
+
+  - do not reorder traces within a given thread.
+
+  - do not break existing features
+
+  - do not significantly increase memory usage
+
+
+Analysis of the current situation
+=================================
+
+Currently, there is a read lock around the call to __sink_write() in order to
+make sure that an attempt to write the number of lost messages is delivered
+with highest priority and is consistent with the lost counter. This doesn't
+seem to pose any problem at this point though if it were, it could possibly
+be revisited.
+
+__sink_write() calls ring_write() which first measures the input string length
+from the multiple segments, and locks the ring:
+  - while trying to free space
+  - while copying the message, due to the buffer's API
+
+Because of this, there is a huge serialization and threads wait in queue. Tests
+involving a split of the lock and a release around the message copy have shown
+a +60% performance increase, which is still not acceptable.
+
+
+First proposed approach
+=======================
+
+The first approach would have consisted in writing messages in small parts:
+  1) write 0xFF in the tag to mean "size not filled yet"
+  2) write the message's length and write a zero tag after the message's
+     location
+  3) replace the first tag to 0xFE to indicate the size is known, but the
+     message is not filled yet.
+  4) memcpy() of the message to the area
+  5) replace the first tag to 0 to mark the entry as valid.
+
+It's worth noting that doing that without any lock will allow a second thread
+looping on the first tag to jump to the second tag after step 3. But the cost
+is high: in a 64-thread scenario where each of them wants to send one message,
+the work would look like this:
+  - 64 threads try to CAS the tag. One gets it, 63 fail. They loop on the byte
+    in question in read-only mode, waiting for the byte to change. This loop
+    constantly forces the cache line to switch from MODIFIED to SHARED in the
+    writer thread, and makes it a pain for it to write the message's length
+    just after it.
+
+  - once the first writer thread finally manages to write the length (step 2),
+    it writes 0xFE on the tag to release the waiting threads, and starts with
+    step 4. At this point, 63 threads try a CAS on the same entry, and this
+    hammering further complicates the memcpy() of step 4 for the first 63 bytes
+    of the message (well, 32 on avg since the tag is not necessarily aligned).
+    One thread wins, 62 fail. All read the size field and jump to the next tag,
+    waiting in read loops there. The second thread starts to write its size and
+    faces the same difficulty as described above, facing 62 competitors when
+    writing its size and the beginning of its message.
+
+  - when the first writer thread writes the end of its message, it gets close
+    to the final tag where the 62 waiting threads are still reading, causing
+    a slow down again with the loss of exclusivity on the cache line. This is
+    the same for the second thread etc.
+
+Thus, on average, a writing thread is hindered by N-1 threads at the beginning
+of its message area (in the first 32 bytes on avg) and by N-2 threads at the
+end of its area (in the last 32 bytes on avg). Given that messages are roughly
+218 bytes on avg for HTTP/1, this means that roughly 1/3 of the message is
+written under severe cache contention.
+
+In addition to this, the buffer's tail needs to be updated once all threads are
+ready, something that adds the need for synchronization so that the last writing
+threads (the most likely to complete fast due to less perturbations) needs to
+wait for all previous ones. This also means N atomic writes to the tail.
+
+
+New proposal
+============
+
+In order to address the contention scenarios above, let's try to factor the
+work as much as possible. The principle is that threads that want to write will
+either do it themselves or declare their intent and wait for a writing thread
+to do it for them. This aims at ensuring a maximum usage of read-only data
+between threads, and to leave the work area read-write between very few
+threads, and exclusive for multiple messages at once, avoiding the bounces.
+
+First, the buffer will have 2 indexes:
+  - head: where the valid data start
+  - tail: where new data need to be appended
+
+When a thread starts to work, it will keep a copy of $tail and push it forward
+by as many bytes as needed to write all the messages it has to. In order to
+guarantee that neither the previous nor the new $tail point to an outdated or
+overwritten location but that there is always a tag there, $tail contains a
+lock bit in its highest bit that will guarantee that only one at a time will
+update it. The goal here is to perform as few atomic ops as possible in the
+contended path so as to later amortize the costs and make sure to limit the
+number of atomic ops on the wait path to the strict minimum so that waiting
+threads do not hinder the workers:
+
+  Fast path:
+    1 load($tail) to check the topmost bit
+    1 CAS($tail,$tail|BIT63) to set the bit (atomic_fetch_or / atomic_bts also work)
+    1 store(1 byte tag=0xFF) at the beginning to mark the area busy
+    1 store($tail) to update the new value
+    1 copy of the whole message
+    1 store(1 byte tag=0) at the beginning to release the message
+
+  Contented path:
+    N load($tail) while waiting for the bit to be zero
+    M CAS($tail,$tail|BIT63) to try to set the bit on tail, competing with others
+    1 store(1 byte tag=0xFF) at the beginning to mark the area busy
+    1 store($tail) to update the new value
+    1 copy of the whole message
+    1 store(1 byte tag=0) at the beginning to release the message
+
+Queue
+-----
+
+In order to limit the contention, writers will not start to write but will wait
+in a queue, announcing their message pointers/lengths and total lengths. The
+queue is made of a (ptr, len) pair that points to one such descriptor, located
+in the waiter thread's stack, that itself points to the next pair. In fact
+messages are ordered in a LIFO fashion but that isn't important since intra-
+thread ordering is preserved (and in the worst case it will also be possible
+to write them from end to beginning).
+
+The approach is the following: a writer loasd $tail and sees it's busy, there's
+no point continuing, it will add itself to the queue, announcing (ptr, len +
+next->len) so that by just reading the first entry, one knows the total size
+of the queue. And it will wait there as long as $tail has its topmost bit set
+and the queue points to itself (meaning it's the queue's leader), so that only
+one thread in the queue watches $tail, limiting the number of cache line
+bounces. If the queue doesn't point anymore to the current thread, it means
+another thread has taken it over so there's no point continuing, this thread
+just becomes passive. If the lock bit is dropped from $tail, the watching
+thread needs to re-check that it's still the queue's leader before trying to
+grab the lock, so that only the leading thread will attempt it. Indeed, a few
+of the last leading threads might still be looping, unaware that they're no
+longer leaders. A CAS(&queue, self, self) will do it. Upon failure, the thread
+just becomes a passive thread. Upon success, the thread is a confirmed leader,
+it must then try to grab the tail lock. Only this thread and a few potential
+newcomers will compete on this one. If the leading thread wins, it brings all
+the queue with it and the newcomers will queue again. If the leading thread
+loses, it needs to loop back to the point above, watching $tail and the
+queue. In this case a newcomer might have grabbed the lock. It will notice
+the non-empty queue and will take it with it. Thus in both cases the winner
+thread does a CAS(queue, queue, NULL) to reset the queue, keeping the previous
+pointer.
+
+At this point the winner thread considers its own message size plus the
+retrieved queue's size as the total required size and advances $tail by as
+much, and will iterate over all messages to copy them in turn. The passive
+threads are released by doing XCHG(&ptr->next, ptr) for each message, that
+is normally impossible otherwise. As such, a passive thread just has to
+loop over its own value, stored in its own stack, reading from its L1 cache
+in loops without any risk of disturbing others, hence no need for EBO.
+
+During the time it took to update $tail, more messages will have been
+accumulating in the queue from various other threads, and once $tail is
+written, one thread can pick them up again.
+
+The benefit here is that the longer it takes one thread to free some space,
+the more messages add up in the queue and the larger the next batch, so that
+there are always very few contenders on the ring area and on the tail index.
+At worst, the queue pointer is hammered but it's not on the fast path, since
+wasting time here means all waiters will be queued.
+
+Also, if we keep the first tag unchanged after it's set to 0xFF, it allows to
+avoid atomic ops inside all the message. Indeed there's no reader in the area
+as long as the tag is 0xFF, so we can just write all contents at once including
+the varints and subsequent message tags without ever using atomic ops, hence
+not forcing ordered writes. So maybe in the end there is some value in writing
+the messages backwards from end to beginning, and just writing the first tag
+atomically but not the rest.
+
+The scenario would look like this:
+
+  (without queue)
+
+    - before starting to work:
+        do {
+            while (ret=(load(&tail) & BIT63))
+                ;
+        } while (!cas(&tail, &ret, ret | BIT63));
+
+    - at this point, alone on it and guaranteed not to change
+    - after new size is calculated, write it and drop the lock:
+
+        store(&tail, new_tail & ~BIT63);
+
+    - that's sufficient to unlock other waiters.
+
+  (with queue)
+
+      in_queue = 0;
+      do {
+         ret = load(&tail);
+         if (ret & BIT63) {
+             if (!in_queue) {
+                 queue_this_node();
+                 in_queue = 1;
+             }
+             while (ret & BIT63)
+                 ;
+         }
+      } while (!cas(&tail, &ret, ret | BIT63));
+
+      dequeue(in_queue) etc.
+
+  Fast path:
+    1 load($tail) to check the topmost bit
+    1 CAS($tail,$tail|BIT63) to set the bit (atomic_fetch_or / atomic_bts also work)
+    1 load of the queue to see that it's empty
+    1 store(1 byte tag=0xFF) at the beginning to mark the area busy
+    1 store($tail) to update the new value
+    1 copy of the whole message
+    1 store(1 byte tag=0) at the beginning to release the message
+
+  Contented path:
+    1 load($tail) to see the tail is changing
+    M CAS(queue,queue,self) to try to add the thread to the queue (avgmax nbthr/2)
+    N load($tail) while waiting for the lock bit to become zero
+    1 CAS(queue,self,self) to check the leader still is
+    M CAS($tail,$tail|BIT63) to try to set the bit on tail, competing with others
+    1 CAS(queue,queue,NULL) to reset the queue
+    1 store(1 byte tag=0xFF) at the beginning to mark the area busy
+    1 store($tail) to update the new value
+    1 copy of the whole message
+    P copies of individual messages
+    P stores of individual pointers to release writers
+    1 store(1 byte tag=0) at the beginning to release the message
+
+Optimal approach (later if needed?): multiple queues. Each thread has one queue
+assigned, either from a thread group, or using a modulo from the thread ID.
+Same as above then.
+
+
+Steps
+-----
+
+It looks that the queue is what allows the process to scale by amortizing a
+single lock for every N messages, but that it's not a prerequisite to start,
+without a queue threads can just wait on $tail.
+
+
+Options
+-------
+
+It is possible to avoid the extra check on CAS(queue,self,self) by forcing
+writers into the queue all the time. It would slow down the fast path but
+may improve the slow path, both of which would become the same:
+
+  Contented path:
+    1 XCHG(queue,self) to try to add the thread to the queue
+    N load($tail) while waiting for the lock bit to become zero
+    M CAS($tail,$tail|BIT63) to try to set the bit on tail, competing with others
+    1 CAS(queue,self,NULL) to reset the queue
+    1 store(1 byte tag=0xFF) at the beginning to mark the area busy
+    1 store($tail) to update the new value
+    1 copy of the whole message
+    P copies of individual messages
+    P stores of individual pointers to release writers
+    1 store(1 byte tag=0) at the beginning to release the message
+
+There seems to remain a race when resetting the queue, where a newcomer thread
+would queue itself while not being the leader. It seems it can be addressed by
+deciding that whoever gets the bit is not important, what matters is the thread
+that manages to reset the queue. This can then be done using another XCHG:
+
+    1 XCHG(queue,self) to try to add the thread to the queue
+    N load($tail) while waiting for the lock bit to become zero
+    M CAS($tail,$tail|BIT63) to try to set the bit on tail, competing with others
+    1 XCHG(queue,NULL) to reset the queue
+    1 store(1 byte tag=0xFF) at the beginning to mark the area busy
+    1 store($tail) to update the new value
+    1 copy of the whole message
+    P copies of individual messages
+    P stores of individual pointers to release writers
+    1 store(1 byte tag=0) at the beginning to release the message
+
+However this time this can cause fragmentation of multiple sub-queues that will
+need to be reassembled. So finally the CAS is better, the leader thread should
+recognize itself.
+
+It seems tricky to reliably store the next pointer in each element, and a DWCAS
+wouldn't help here either. Maybe uninitialized elements should just have a
+special value (eg 0x1) for their next pointer, meaning "not initialized yet",
+and that the thread will then replace with the previous queue pointer. A reader
+would have to wait on this value when meeting it, knowing the pointer is not
+filled yet but is coming.
