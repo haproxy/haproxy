@@ -142,7 +142,7 @@ static void applet_trace(enum trace_level level, uint64_t mask, const struct tra
 
 	chunk_appendf(&trace_buf, " appctx=%p .t=%p .t.exp=%d .flags=0x%x .st0=%d .st1=%d to_fwd=%lu",
 		      appctx, appctx->t, tick_isset(appctx->t->expire) ? TICKS_TO_MS(appctx->t->expire - now_ms) : TICK_ETERNITY,
-		      appctx->flags, appctx->st0, appctx->st1, appctx->to_forward);
+		      appctx->flags, appctx->st0, appctx->st1, (ulong)appctx->to_forward);
 
 	if (!sc || src->verbosity == STRM_VERB_MINIMAL)
 		return;
