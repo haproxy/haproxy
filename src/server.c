@@ -5796,7 +5796,7 @@ int srv_check_for_deletion(const char *bename, const char *svname, struct proxy 
 	 * TODO idle connections should not prevent server deletion. A proper
 	 * cleanup function should be implemented to be used here.
 	 */
-	if (srv->cur_sess || srv->curr_idle_conns ||
+	if (srv->curr_used_conns || srv->curr_idle_conns ||
 	    !eb_is_empty(&srv->queue.head) || srv_has_streams(srv)) {
 		msg = "Server still has connections attached to it, cannot remove it.";
 		goto leave;

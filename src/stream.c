@@ -2681,6 +2681,20 @@ void sess_change_server(struct stream *strm, struct server *newsrv)
 {
 	struct server *oldsrv = strm->srv_conn;
 
+	/* Dynamic servers may be deleted during process lifetime. This
+	 * operation is always conducted under thread isolation. Several
+	 * conditions prevent deletion, one of them is if server streams list
+	 * is not empty. sess_change_server() uses stream_add_srv_conn() to
+	 * ensure the latter condition.
+	 *
+	 * A race condition could exist for stream which referenced a server
+	 * instance (s->target) without registering itself in its server list.
+	 * This is notably the case for SF_DIRECT streams which referenced a
+	 * server earlier during process_stream(). However at this time the
+	 * code is deemed safe as process_stream() cannot be rescheduled before
+	 * invocation of sess_change_server().
+	 */
+
 	if (oldsrv == newsrv)
 		return;
 
