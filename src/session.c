@@ -338,11 +338,11 @@ int session_accept_fd(struct connection *cli_conn)
 }
 
 
-/* prepare the trash with a log prefix for session <sess>. It only works with
+/* prepare <out> buffer with a log prefix for session <sess>. It only works with
  * embryonic sessions based on a real connection. This function requires that
  * at sess->origin points to the incoming connection.
  */
-static void session_prepare_log_prefix(struct session *sess)
+static void session_prepare_log_prefix(struct session *sess, struct buffer *out)
 {
 	const struct sockaddr_storage *src;
 	struct tm tm;
@@ -353,37 +353,41 @@ static void session_prepare_log_prefix(struct session *sess)
 	src = sess_src(sess);
 	ret = (src ? addr_to_str(src, pn, sizeof(pn)) : 0);
 	if (ret <= 0)
-		chunk_printf(&trash, "unknown [");
+		chunk_printf(out, "unknown [");
 	else if (ret == AF_UNIX)
-		chunk_printf(&trash, "%s:%d [", pn, sess->listener->luid);
+		chunk_printf(out, "%s:%d [", pn, sess->listener->luid);
 	else
-		chunk_printf(&trash, "%s:%d [", pn, get_host_port(src));
+		chunk_printf(out, "%s:%d [", pn, get_host_port(src));
 
 	get_localtime(sess->accept_date.tv_sec, &tm);
-	end = date2str_log(trash.area + trash.data, &tm, &(sess->accept_date),
-		           trash.size - trash.data);
-	trash.data = end - trash.area;
+	end = date2str_log(out->area + out->data, &tm, &(sess->accept_date),
+		           out->size - out->data);
+	out->data = end - out->area;
 	if (sess->listener->name)
-		chunk_appendf(&trash, "] %s/%s", sess->fe->id, sess->listener->name);
+		chunk_appendf(out, "] %s/%s", sess->fe->id, sess->listener->name);
 	else
-		chunk_appendf(&trash, "] %s/%d", sess->fe->id, sess->listener->luid);
+		chunk_appendf(out, "] %s/%d", sess->fe->id, sess->listener->luid);
 }
 
 
-/* fill the trash buffer with the string to use for send_log during
+/* fill <out> buffer with the string to use for send_log during
  * session_kill_embryonic(). Add log prefix and error string.
+ *
+ * It expects that the session originates from a connection.
  *
  * The function is able to dump an SSL error string when CO_ER_SSL_HANDSHAKE
  * is met.
  */
-static void session_build_err_string(struct session *sess)
+void session_embryonic_build_legacy_err(struct session *sess, struct buffer *out)
 {
-	struct connection *conn = __objt_conn(sess->origin);
+	struct connection *conn = objt_conn(sess->origin);
 	const char *err_msg;
 	struct ssl_sock_ctx __maybe_unused *ssl_ctx;
 
+	BUG_ON(!conn);
+
 	err_msg	= conn_err_code_str(conn);
-	session_prepare_log_prefix(sess); /* use trash buffer */
+	session_prepare_log_prefix(sess, out);
 
 #ifdef USE_OPENSSL
 	ssl_ctx = conn_get_ssl_sock_ctx(conn);
@@ -391,19 +395,19 @@ static void session_build_err_string(struct session *sess)
 	/* when the SSL error code is present and during a SSL Handshake failure,
 	 * try to dump the error string from OpenSSL */
 	if (conn->err_code == CO_ER_SSL_HANDSHAKE && ssl_ctx && ssl_ctx->error_code != 0) {
-		chunk_appendf(&trash, ": SSL handshake failure (");
-		ERR_error_string_n(ssl_ctx->error_code, b_orig(&trash)+b_data(&trash), b_room(&trash));
-		trash.data = strlen(b_orig(&trash));
-		chunk_appendf(&trash, ")\n");
+		chunk_appendf(out, ": SSL handshake failure (");
+		ERR_error_string_n(ssl_ctx->error_code, b_orig(out)+b_data(out), b_room(out));
+		out->data = strlen(b_orig(out));
+		chunk_appendf(out, ")\n");
 	}
 
 	else
 #endif /* ! USE_OPENSSL */
 
 	if (err_msg)
-		chunk_appendf(&trash, ": %s\n", err_msg);
+		chunk_appendf(out, ": %s\n", err_msg);
 	else
-		chunk_appendf(&trash, ": unknown connection error (code=%d flags=%08x)\n",
+		chunk_appendf(out, ": unknown connection error (code=%d flags=%08x)\n",
 		              conn->err_code, conn->flags);
 
 	return;
@@ -450,7 +454,7 @@ static void session_kill_embryonic(struct session *sess, unsigned int state)
 			sess_log(sess);
 		}
 		else {
-			session_build_err_string(sess);
+			session_embryonic_build_legacy_err(sess, &trash);
 			send_log(sess->fe, level, "%s", trash.area);
 		}
 	}

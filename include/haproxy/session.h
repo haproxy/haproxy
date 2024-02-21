@@ -41,6 +41,7 @@ int session_accept_fd(struct connection *cli_conn);
 int conn_complete_session(struct connection *conn);
 struct task *session_expire_embryonic(struct task *t, void *context, unsigned int state);
 void __session_add_glitch_ctr(struct session *sess, uint inc);
+void session_embryonic_build_legacy_err(struct session *sess, struct buffer *out);
 
 
 /* Remove the refcount from the session to the tracked counters, and clear the
