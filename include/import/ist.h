@@ -939,16 +939,13 @@ static inline void istfree(struct ist *ist)
  */
 static inline struct ist istdup(const struct ist src)
 {
-	const size_t src_size = src.len;
-
-	/* Allocate at least 1 byte to allow duplicating an empty string with
-	 * malloc implementations that return NULL for a 0-size allocation.
-	 */
-	struct ist dst = istalloc(src_size ? src_size : 1);
+	/* Allocate 1 extra byte to add an extra \0 delimiter. */
+	struct ist dst = istalloc(src.len + 1);
 
 	if (isttest(dst)) {
-		istcpy(&dst, src, src_size);
+		istcpy(&dst, src, src.len);
 	}
+	dst.ptr[dst.len] = '\0';
 
 	return dst;
 }
