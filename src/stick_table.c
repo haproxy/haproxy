@@ -5940,7 +5940,7 @@ static void *stk_promex_start_ts(void *unused, unsigned int id)
 	return stktables_list;
 }
 
-static void *stk_promex_next_ts(void *unsued, void *metric_ctx, unsigned int id)
+static void *stk_promex_next_ts(void *unused, void *metric_ctx, unsigned int id)
 {
 	struct stktable *t = metric_ctx;
 

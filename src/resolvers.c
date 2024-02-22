@@ -3924,7 +3924,7 @@ static void *rslv_promex_start_ts(void *unused, unsigned int id)
 	return LIST_NEXT(&resolver->nameservers, struct dns_nameserver *, list);
 }
 
-static void *rslv_promex_next_ts(void *unsued, void *metric_ctx, unsigned int id)
+static void *rslv_promex_next_ts(void *unused, void *metric_ctx, unsigned int id)
 {
 	struct dns_nameserver *ns = metric_ctx;
 	struct resolvers *resolver = ns->parent;
