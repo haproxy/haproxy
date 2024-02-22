@@ -3156,8 +3156,7 @@ init_proxies_list_stage1:
 				 * fall back to static rule
 				 */
 				LIST_DELETE(&node->list);
-				free(node->arg);
-				free(node);
+				free_logformat_node(node);
 			}
 
 			rule->dynamic = 0;
@@ -3227,8 +3226,7 @@ init_proxies_list_stage1:
 				 * fall back to static rule
 				 */
 				LIST_DELETE(&node->list);
-				free(node->arg);
-				free(node);
+				free_logformat_node(node);
 			}
 
 			srule->dynamic = 0;

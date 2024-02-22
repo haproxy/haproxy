@@ -332,8 +332,7 @@ int parse_logformat_var(char *arg, int arg_len, char *name, int name_len, int ty
 				}
 				if (node->type == LOG_FMT_GLOBAL) {
 					*defoptions = node->options;
-					free(node->arg);
-					free(node);
+					free_logformat_node(node);
 				} else {
 					if (logformat_keywords[j].config_callback &&
 					    logformat_keywords[j].config_callback(node, curproxy) != 0) {
@@ -357,11 +356,7 @@ int parse_logformat_var(char *arg, int arg_len, char *name, int name_len, int ty
 	var[var_len] = j;
 
   error_free:
-	if (node) {
-		free(node->arg);
-		free(node->name);
-		free(node);
-	}
+	free_logformat_node(node);
 	return 0;
 }
 
@@ -480,11 +475,7 @@ int add_sample_to_logformat_list(char *text, char *name, int name_len, int typec
 	return 1;
 
   error_free:
-	release_sample_expr(expr);
-	if (node) {
-		free(node->arg);
-		free(node);
-	}
+	free_logformat_node(node);
 	return 0;
 }
 
