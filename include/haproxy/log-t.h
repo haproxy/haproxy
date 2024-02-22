@@ -122,75 +122,10 @@ enum log_tgt {
 /* lists of fields that can be logged, for logformat_node->type */
 enum {
 
-	LOG_FMT_TEXT = 0, /* raw text */
-	LOG_FMT_EXPR,     /* sample expression */
+	LOG_FMT_TEXT = 0,  /* raw text */
+	LOG_FMT_EXPR,      /* sample expression */
 	LOG_FMT_SEPARATOR, /* separator replaced by one space */
-
-	/* information fields */
-	LOG_FMT_GLOBAL,
-	LOG_FMT_CLIENTIP,
-	LOG_FMT_CLIENTPORT,
-	LOG_FMT_BACKENDIP,
-	LOG_FMT_BACKENDPORT,
-	LOG_FMT_FRONTENDIP,
-	LOG_FMT_FRONTENDPORT,
-	LOG_FMT_SERVERPORT,
-	LOG_FMT_SERVERIP,
-	LOG_FMT_COUNTER,
-	LOG_FMT_LOGCNT,
-	LOG_FMT_PID,
-	LOG_FMT_DATE,
-	LOG_FMT_DATEGMT,
-	LOG_FMT_DATELOCAL,
-	LOG_FMT_TS,
-	LOG_FMT_MS,
-	LOG_FMT_FRONTEND,
-	LOG_FMT_FRONTEND_XPRT,
-	LOG_FMT_BACKEND,
-	LOG_FMT_SERVER,
-	LOG_FMT_BYTES,
-	LOG_FMT_BYTES_UP,
-	LOG_FMT_Ta,
-	LOG_FMT_Th,
-	LOG_FMT_Ti,
-	LOG_FMT_TQ,
-	LOG_FMT_TW,
-	LOG_FMT_TC,
-	LOG_FMT_Tr,
-	LOG_FMT_tr,
-	LOG_FMT_trg,
-	LOG_FMT_trl,
-	LOG_FMT_TR,
-	LOG_FMT_TD,
-	LOG_FMT_TT,
-	LOG_FMT_TU,
-	LOG_FMT_STATUS,
-	LOG_FMT_CCLIENT,
-	LOG_FMT_CSERVER,
-	LOG_FMT_TERMSTATE,
-	LOG_FMT_TERMSTATE_CK,
-	LOG_FMT_ACTCONN,
-	LOG_FMT_FECONN,
-	LOG_FMT_BECONN,
-	LOG_FMT_SRVCONN,
-	LOG_FMT_RETRIES,
-	LOG_FMT_SRVQUEUE,
-	LOG_FMT_BCKQUEUE,
-	LOG_FMT_HDRREQUEST,
-	LOG_FMT_HDRRESPONS,
-	LOG_FMT_HDRREQUESTLIST,
-	LOG_FMT_HDRRESPONSLIST,
-	LOG_FMT_REQ,
-	LOG_FMT_HTTP_METHOD,
-	LOG_FMT_HTTP_URI,
-	LOG_FMT_HTTP_PATH,
-	LOG_FMT_HTTP_PATH_ONLY,
-	LOG_FMT_HTTP_QUERY,
-	LOG_FMT_HTTP_VERSION,
-	LOG_FMT_HOSTNAME,
-	LOG_FMT_UNIQUEID,
-	LOG_FMT_SSL_CIPHER,
-	LOG_FMT_SSL_VERSION,
+	LOG_FMT_TAG,       /* reference to logformat_tag */
 };
 
 /* enum for parse_logformat_string */
@@ -230,6 +165,7 @@ struct logformat_node {
 	char *name;    // printable name for output types that require named fields (ie: json)
 	char *arg;     // text for LOG_FMT_TEXT, arg for others
 	void *expr;    // for use with LOG_FMT_EXPR
+	const struct logformat_tag *tag; // set if ->type == LOG_FMT_TAG
 };
 
 /* Range of indexes for log sampling. */

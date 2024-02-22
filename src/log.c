@@ -121,6 +121,74 @@ const char sess_fin_state[8]  = "-RCHDLQT";	/* cliRequest, srvConnect, srvHeader
 
 int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy);
 
+/* logformat tag types (internal use) */
+enum logformat_tag_type {
+	LOG_FMT_GLOBAL,
+	LOG_FMT_CLIENTIP,
+	LOG_FMT_CLIENTPORT,
+	LOG_FMT_BACKENDIP,
+	LOG_FMT_BACKENDPORT,
+	LOG_FMT_FRONTENDIP,
+	LOG_FMT_FRONTENDPORT,
+	LOG_FMT_SERVERPORT,
+	LOG_FMT_SERVERIP,
+	LOG_FMT_COUNTER,
+	LOG_FMT_LOGCNT,
+	LOG_FMT_PID,
+	LOG_FMT_DATE,
+	LOG_FMT_DATEGMT,
+	LOG_FMT_DATELOCAL,
+	LOG_FMT_TS,
+	LOG_FMT_MS,
+	LOG_FMT_FRONTEND,
+	LOG_FMT_FRONTEND_XPRT,
+	LOG_FMT_BACKEND,
+	LOG_FMT_SERVER,
+	LOG_FMT_BYTES,
+	LOG_FMT_BYTES_UP,
+	LOG_FMT_Ta,
+	LOG_FMT_Th,
+	LOG_FMT_Ti,
+	LOG_FMT_TQ,
+	LOG_FMT_TW,
+	LOG_FMT_TC,
+	LOG_FMT_Tr,
+	LOG_FMT_tr,
+	LOG_FMT_trg,
+	LOG_FMT_trl,
+	LOG_FMT_TR,
+	LOG_FMT_TD,
+	LOG_FMT_TT,
+	LOG_FMT_TU,
+	LOG_FMT_STATUS,
+	LOG_FMT_CCLIENT,
+	LOG_FMT_CSERVER,
+	LOG_FMT_TERMSTATE,
+	LOG_FMT_TERMSTATE_CK,
+	LOG_FMT_ACTCONN,
+	LOG_FMT_FECONN,
+	LOG_FMT_BECONN,
+	LOG_FMT_SRVCONN,
+	LOG_FMT_RETRIES,
+	LOG_FMT_SRVQUEUE,
+	LOG_FMT_BCKQUEUE,
+	LOG_FMT_HDRREQUEST,
+	LOG_FMT_HDRRESPONS,
+	LOG_FMT_HDRREQUESTLIST,
+	LOG_FMT_HDRRESPONSLIST,
+	LOG_FMT_REQ,
+	LOG_FMT_HTTP_METHOD,
+	LOG_FMT_HTTP_URI,
+	LOG_FMT_HTTP_PATH,
+	LOG_FMT_HTTP_PATH_ONLY,
+	LOG_FMT_HTTP_QUERY,
+	LOG_FMT_HTTP_VERSION,
+	LOG_FMT_HOSTNAME,
+	LOG_FMT_UNIQUEID,
+	LOG_FMT_SSL_CIPHER,
+	LOG_FMT_SSL_VERSION,
+};
+
 /* log_format tag names */
 static const struct logformat_tag logformat_tags[] = {
 	{ "o", LOG_FMT_GLOBAL, PR_MODE_TCP, 0, NULL },  /* global option */
@@ -316,7 +384,8 @@ int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len, int ty
 					memprintf(err, "out of memory error");
 					goto error_free;
 				}
-				node->type = logformat_tags[j].type;
+				node->type = LOG_FMT_TAG;
+				node->tag = &logformat_tags[j];
 				node->typecast = typecast;
 				if (name)
 					node->name = my_strndup(name, name_len);
@@ -326,7 +395,7 @@ int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len, int ty
 					if (!parse_logformat_tag_args(node->arg, node, err))
 						goto error_free;
 				}
-				if (node->type == LOG_FMT_GLOBAL) {
+				if (node->tag->type == LOG_FMT_GLOBAL) {
 					*defoptions = node->options;
 					free_logformat_node(node);
 				} else {
@@ -2692,7 +2761,13 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					goto out;
 				tmplog = ret;
 				break;
+		}
 
+		if (tmp->type != LOG_FMT_TAG)
+			goto next_fmt;
+
+		/* logformat tag */
+		switch (tmp->tag->type) {
 			case LOG_FMT_CLIENTIP:  // %ci
 				addr = (s ? sc_src(s->scf) : sess_src(sess));
 				if (addr)
@@ -3540,6 +3615,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 		}
+ next_fmt:
 		if (tmp->type != LOG_FMT_SEPARATOR)
 			last_isspace = 0; // not a separator, hence not a space
 
