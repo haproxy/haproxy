@@ -210,6 +210,17 @@ enum {
 	LF_END,        // \0 found
 };
 
+/* log_format tags (ie: %tag), see logformat_tags table in log.c for
+ * available tags definitions
+ */
+struct logformat_node; // forward-declaration
+struct logformat_tag {
+	char *name;
+	int type;
+	int mode;
+	int lw; /* logwait bitsfield */
+	int (*config_callback)(struct logformat_node *node, struct proxy *curproxy);
+};
 
 struct logformat_node {
 	struct list list;

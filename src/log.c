@@ -119,19 +119,10 @@ const char sess_term_cond[16] = "-LcCsSPRIDKUIIII"; /* normal, Local, CliTo, Cli
 const char sess_fin_state[8]  = "-RCHDLQT";	/* cliRequest, srvConnect, srvHeader, Data, Last, Queue, Tarpit */
 
 
-/* log_format   */
-struct logformat_type {
-	char *name;
-	int type;
-	int mode;
-	int lw; /* logwait bitsfield */
-	int (*config_callback)(struct logformat_node *node, struct proxy *curproxy);
-};
-
 int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy);
 
 /* log_format tag names */
-static const struct logformat_type logformat_keywords[] = {
+static const struct logformat_tag logformat_tags[] = {
 	{ "o", LOG_FMT_GLOBAL, PR_MODE_TCP, 0, NULL },  /* global option */
 
 	/* please keep these lines sorted ! */
@@ -316,16 +307,16 @@ int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len, int ty
 	int j;
 	struct logformat_node *node = NULL;
 
-	for (j = 0; logformat_keywords[j].name; j++) { // search a log type
-		if (strlen(logformat_keywords[j].name) == tag_len &&
-		    strncmp(tag, logformat_keywords[j].name, tag_len) == 0) {
-			if (logformat_keywords[j].mode != PR_MODE_HTTP || curproxy->mode == PR_MODE_HTTP) {
+	for (j = 0; logformat_tags[j].name; j++) { // search a log type
+		if (strlen(logformat_tags[j].name) == tag_len &&
+		    strncmp(tag, logformat_tags[j].name, tag_len) == 0) {
+			if (logformat_tags[j].mode != PR_MODE_HTTP || curproxy->mode == PR_MODE_HTTP) {
 				node = calloc(1, sizeof(*node));
 				if (!node) {
 					memprintf(err, "out of memory error");
 					goto error_free;
 				}
-				node->type = logformat_keywords[j].type;
+				node->type = logformat_tags[j].type;
 				node->typecast = typecast;
 				if (name)
 					node->name = my_strndup(name, name_len);
@@ -339,17 +330,17 @@ int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len, int ty
 					*defoptions = node->options;
 					free_logformat_node(node);
 				} else {
-					if (logformat_keywords[j].config_callback &&
-					    logformat_keywords[j].config_callback(node, curproxy) != 0) {
+					if (logformat_tags[j].config_callback &&
+					    logformat_tags[j].config_callback(node, curproxy) != 0) {
 						goto error_free;
 					}
-					curproxy->to_log |= logformat_keywords[j].lw;
+					curproxy->to_log |= logformat_tags[j].lw;
 					LIST_APPEND(list_format, &node->list);
 				}
 				return 1;
 			} else {
 				memprintf(err, "format tag '%s' is reserved for HTTP mode",
-				          logformat_keywords[j].name);
+				          logformat_tags[j].name);
 				goto error_free;
 			}
 		}
