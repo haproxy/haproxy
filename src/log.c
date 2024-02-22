@@ -515,7 +515,6 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 	int typecast = SMP_T_SAME; /* relaxed by default */
 	int cformat; /* current token format */
 	int pformat; /* previous token format */
-	struct logformat_node *tmplf, *back;
 
 	sp = str = backfmt = strdup(fmt);
 	if (!str) {
@@ -525,12 +524,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 	curproxy->to_log |= LW_INIT;
 
 	/* flush the list first. */
-	list_for_each_entry_safe(tmplf, back, list_format, list) {
-		LIST_DELETE(&tmplf->list);
-		release_sample_expr(tmplf->expr);
-		free(tmplf->arg);
-		free(tmplf);
-	}
+	free_logformat_list(list_format);
 
 	for (cformat = LF_INIT; cformat != LF_END; str++) {
 		pformat = cformat;
