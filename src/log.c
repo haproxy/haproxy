@@ -401,8 +401,7 @@ int add_to_logformat_list(char *start, char *end, int type, struct list *list_fo
 
 /*
  * Parse the sample fetch expression <text> and add a node to <list_format> upon
- * success. At the moment, sample converters are not yet supported but fetch arguments
- * should work. The curpx->conf.args.ctx must be set by the caller. If an end pointer
+ * success. The curpx->conf.args.ctx must be set by the caller. If an end pointer
  * is passed in <endptr>, it will be updated with the pointer to the first character
  * not part of the sample expression.
  *
