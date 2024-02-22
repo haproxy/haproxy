@@ -86,7 +86,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
  * send a log for the stream when we have enough info about it.
  * Will not log if the frontend has no log defined.
  */
-void strm_log(struct stream *s);
+void strm_log(struct stream *s, int origin);
 
 /* send an error log for the session, embryonic version should be used
  * when the log is emitted for a session which is still in embryonic state

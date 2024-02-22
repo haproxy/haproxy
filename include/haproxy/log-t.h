@@ -247,6 +247,20 @@ struct logger {
         } conf;
 };
 
+/* integer used to provide some context about the log origin
+ * when sending log through logging functions
+ */
+enum log_orig {
+	LOG_ORIG_UNSPEC = 0,         /* unspecified */
+	LOG_ORIG_SESS_ERROR,         /* general error during session handling */
+	LOG_ORIG_SESS_KILL,          /* during embryonic session kill */
+	LOG_ORIG_TXN_ACCEPT,         /* during stream accept handling */
+	LOG_ORIG_TXN_REQUEST,        /* during stream request handling */
+	LOG_ORIG_TXN_CONNECT,        /* during stream connect handling */
+	LOG_ORIG_TXN_RESPONSE,       /* during stream response handling */
+	LOG_ORIG_TXN_CLOSE,          /* during stream termination */
+};
+
 #endif /* _HAPROXY_LOG_T_H */
 
 /*

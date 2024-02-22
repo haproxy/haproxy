@@ -3144,7 +3144,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		if (!lf_expr_isempty(&fe->logformat) && s->logs.logwait &&
 		    !(s->flags & SF_MONITOR) &&
 		    (!(fe->options & PR_O_NULLNOLOG) || s->req.total)) {
-			s->do_log(s);
+			s->do_log(s, LOG_ORIG_TXN_CLOSE);
 		}
 
 		/* stop tracking content-based counters */

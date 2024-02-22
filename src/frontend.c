@@ -59,7 +59,7 @@ int frontend_accept(struct stream *s)
 			/* we have the client ip */
 			if (s->logs.logwait & LW_CLIP)
 				if (!(s->logs.logwait &= ~(LW_CLIP|LW_INIT)))
-					s->do_log(s);
+					s->do_log(s, LOG_ORIG_TXN_ACCEPT);
 		}
 		else if (conn) {
 			src = sc_src(s->scf);

@@ -273,7 +273,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			txn->uri[len] = 0;
 
 			if (!(s->logs.logwait &= ~(LW_REQ|LW_INIT)))
-				s->do_log(s);
+				s->do_log(s, LOG_ORIG_TXN_REQUEST);
 		} else {
 			ha_alert("HTTP logging : out of memory.\n");
 		}
@@ -1910,7 +1910,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	if (!lf_expr_isempty(&sess->fe->logformat) && !(s->logs.logwait & LW_BYTES)) {
 		s->logs.t_close = s->logs.t_data; /* to get a valid end date */
 		s->logs.bytes_out = htx->data;
-		s->do_log(s);
+		s->do_log(s, LOG_ORIG_TXN_RESPONSE);
 		s->logs.bytes_out = 0;
 	}
 

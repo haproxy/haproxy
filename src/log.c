@@ -2751,6 +2751,13 @@ static inline void __do_send_log_backend(struct proxy *be, struct log_header hdr
 	_HA_ATOMIC_INC(&dropped_logs);
 }
 
+/* provided to low-level process_send_log() helper, may be NULL */
+struct process_send_log_ctx {
+	struct session *sess;
+	struct stream *stream;
+	enum log_orig origin;
+};
+
 /*
  * This function sends a syslog message.
  * It doesn't care about errors nor does it report them.
@@ -2758,7 +2765,8 @@ static inline void __do_send_log_backend(struct proxy *be, struct log_header hdr
  * LOG_META_FIELDS*sizeof(struct ist)  containing
  * data to build the header.
  */
-static void process_send_log(struct list *loggers, int level, int facility,
+static void process_send_log(struct process_send_log_ctx *ctx,
+                             struct list *loggers, int level, int facility,
                              struct ist *metadata, char *message, size_t size)
 {
 	struct logger *logger;
@@ -2825,7 +2833,8 @@ static void process_send_log(struct list *loggers, int level, int facility,
  * The arguments <sd> and <sd_size> are used for the structured-data part
  * in RFC5424 formatted syslog messages.
  */
-static void __send_log(struct list *loggers, struct buffer *tagb, int level,
+static void __send_log(struct process_send_log_ctx *ctx,
+                       struct list *loggers, struct buffer *tagb, int level,
                        char *message, size_t size, char *sd, size_t sd_size)
 {
 	static THREAD_LOCAL pid_t curr_pid;
@@ -2866,7 +2875,7 @@ static void __send_log(struct list *loggers, struct buffer *tagb, int level,
 	while (metadata[LOG_META_STDATA].len && metadata[LOG_META_STDATA].ptr[metadata[LOG_META_STDATA].len-1] == ' ')
 		metadata[LOG_META_STDATA].len--;
 
-	return process_send_log(loggers, level, -1, metadata, message, size);
+	return process_send_log(ctx, loggers, level, -1, metadata, message, size);
 }
 
 /*
@@ -2887,7 +2896,8 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 		data_len = global.max_syslog_len;
 	va_end(argp);
 
-	__send_log((p ? &p->loggers : NULL), (p ? &p->log_tag : NULL), level,
+	__send_log(NULL, (p ? &p->loggers : NULL),
+	           (p ? &p->log_tag : NULL), level,
 		   logline, data_len, default_rfc5424_sd_log_format, 2);
 }
 
@@ -4889,7 +4899,7 @@ out:
  * send a log for the stream when we have enough info about it.
  * Will not log if the frontend has no log defined.
  */
-void strm_log(struct stream *s)
+void strm_log(struct stream *s, int origin)
 {
 	struct session *sess = s->sess;
 	int size, err, level;
@@ -4932,8 +4942,13 @@ void strm_log(struct stream *s)
 
 	size = build_logline(s, logline, global.max_syslog_len, &sess->fe->logformat);
 	if (size > 0) {
+		struct process_send_log_ctx ctx;
+
 		_HA_ATOMIC_INC(&sess->fe->log_count);
-		__send_log(&sess->fe->loggers, &sess->fe->log_tag, level,
+		ctx.origin = origin;
+		ctx.sess = sess;
+		ctx.stream = s;
+		__send_log(&ctx, &sess->fe->loggers, &sess->fe->log_tag, level,
 			   logline, size + 1, logline_rfc5424, sd_size);
 		s->logs.logwait = 0;
 	}
@@ -4985,8 +5000,14 @@ void _sess_log(struct session *sess, int embryonic)
 		size = buf.data;
 	}
 	if (size > 0) {
+		struct process_send_log_ctx ctx;
+
 		_HA_ATOMIC_INC(&sess->fe->log_count);
-		__send_log(&sess->fe->loggers, &sess->fe->log_tag, level,
+		ctx.origin = (embryonic) ? LOG_ORIG_SESS_KILL : LOG_ORIG_SESS_ERROR;
+		ctx.sess = sess;
+		ctx.stream = NULL;
+		__send_log(&ctx, &sess->fe->loggers,
+		           &sess->fe->log_tag, level,
 			   logline, size + 1, logline_rfc5424, sd_size);
 	}
 }
@@ -5005,7 +5026,7 @@ void app_log(struct list *loggers, struct buffer *tag, int level, const char *fo
 		data_len = global.max_syslog_len;
 	va_end(argp);
 
-	__send_log(loggers, tag, level, logline, data_len, default_rfc5424_sd_log_format, 2);
+	__send_log(NULL, loggers, tag, level, logline, data_len, default_rfc5424_sd_log_format, 2);
 }
 /*
  * This function parse a received log message <buf>, of size <buflen>
@@ -5379,7 +5400,7 @@ void syslog_fd_handler(int fd)
 
 			parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
-			process_send_log(&l->bind_conf->frontend->loggers, level, facility, metadata, message, size);
+			process_send_log(NULL, &l->bind_conf->frontend->loggers, level, facility, metadata, message, size);
 
 		} while (--max_accept);
 	}
@@ -5491,7 +5512,7 @@ static void syslog_io_handler(struct appctx *appctx)
 
 		parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
-		process_send_log(&frontend->loggers, level, facility, metadata, message, size);
+		process_send_log(NULL, &frontend->loggers, level, facility, metadata, message, size);
 
 	}
 

@@ -265,7 +265,8 @@ struct stream {
 
 	struct strm_logs logs;                  /* logs for this stream */
 
-	void (*do_log)(struct stream *s);       /* the function to call in order to log (or NULL) */
+	void (*do_log)(struct stream *s,        /* the function to call in order to log (or NULL) */
+	               int origin);
 	void (*srv_error)(struct stream *s,     /* the function to call upon unrecoverable server errors (or NULL) */
 			  struct stconn *sc);
 
