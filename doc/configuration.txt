@@ -15317,7 +15317,7 @@ wait-for-body time <time> [ at-least <bytes> ]
     case HAProxy will respond with a 408 "Request Timeout" error to the client
     and stop processing the request. Note that if any of the other conditions
     happens first, this timeout will not occur even if the full body has
-    not yet been recieved.
+    not yet been received.
 
   This action may be used as a replacement for "option http-buffer-request".
 

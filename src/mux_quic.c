@@ -1107,7 +1107,7 @@ void qcc_reset_stream(struct qcs *qcs, int err)
 		/* Soft offset cannot be inferior to real one. */
 		BUG_ON(qcc->tx.fc.off_soft - diff < qcc->tx.fc.off_real);
 
-		/* Substract to conn flow control data amount prepared on stream not yet sent. */
+		/* Subtract to conn flow control data amount prepared on stream not yet sent. */
 		qcc->tx.fc.off_soft -= diff;
 		if (soft_blocked && !qfctl_sblocked(&qcc->tx.fc))
 			qcc_notify_fctl(qcc);
@@ -2010,7 +2010,7 @@ static int qcs_send_stop_sending(struct qcs *qcs)
 }
 
 /* Used internally by qcc_io_send function. Proceed to send for <qcs>. A STREAM
- * frame is generated poiting to QCS stream descriptor content and inserted in
+ * frame is generated pointing to QCS stream descriptor content and inserted in
  * <frms> list. Frame length will be truncated if greater than <window_conn>.
  * This allows to prepare several frames in a loop while respecting connection
  * flow control window.

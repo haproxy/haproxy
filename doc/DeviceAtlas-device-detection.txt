@@ -16,7 +16,7 @@ directory. Also, in the case the api cache support is not needed and/or a C++ to
 
 However, if the API had been installed beforehand, DEVICEATLAS_SRC
 can be omitted. Note that the DeviceAtlas C API version supported is from the 3.x
-releases serie (3.2.1 minimum recommended).
+releases series (3.2.1 minimum recommended).
 
 For HAProxy developers who need to verify that their changes didn't accidentally
 break the DeviceAtlas code, it is possible to build a dummy library provided in

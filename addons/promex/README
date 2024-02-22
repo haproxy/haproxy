@@ -81,9 +81,9 @@ It is possible to filter metrics dumped by the exporter. To to so, multiple
 "metrics" parameters may be passed to specify all metrics to include or exclude,
 as a comma-separated list of filter. By default, there is no filter and all
 metrics are dumped. By specifying at least one metric to be included in the
-dump, this disables the default behavior and only explicitly mentionned metrics
+dump, this disables the default behavior and only explicitly mentioned metrics
 are dumped. To include a metric, its name must be specified. To exclude it, its
-name must be preceeded by a minus character ('-'). Here are examples:
+name must be preceded by a minus character ('-'). Here are examples:
 
   # Dumped all metrics, except "haproxy_server_check_status"
   /metrics?metrics=-haproxy_server_check_status

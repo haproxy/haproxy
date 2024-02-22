@@ -84,13 +84,13 @@ struct promex_label {
  *                           is responsible to deinit the dump context.
  *
  *     * metric_info(): This one is mandatory. It returns the info about the
- *                      metric: name, type and flags and descrition.
+ *                      metric: name, type and flags and description.
  *
  *     * start_ts(): This one is mandatory, it initializes the context for a time
  *                   series for a given metric. This context is the second
  *                   restart point.
  *
- *    * next_ts(): This one is mandatory. It interates on time series for a
+ *    * next_ts(): This one is mandatory. It iterates on time series for a
  *                 given metrics. It is also responsible to handle end of a
  *                 time series and deinit the context.
  *
