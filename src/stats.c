@@ -5049,6 +5049,14 @@ static int stats_dump_json_schema_to_buffer(struct appctx *appctx)
 	return 1;
 }
 
+static void http_stats_release(struct appctx *appctx)
+{
+	struct show_stat_ctx *ctx = appctx->svcctx;
+
+	if (ctx->px_st == STAT_PX_ST_SV)
+		srv_drop(ctx->obj2);
+}
+
 static int cli_parse_clear_counters(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct proxy *px;
@@ -5265,6 +5273,14 @@ static int cli_io_handler_dump_stat(struct appctx *appctx)
 {
 	trash_chunk = b_make(trash.area, trash.size, 0, 0);
 	return stats_dump_stat_to_buffer(appctx_sc(appctx), NULL, NULL);
+}
+
+static void cli_io_handler_release_stat(struct appctx *appctx)
+{
+	struct show_stat_ctx *ctx = appctx->svcctx;
+
+	if (ctx->px_st == STAT_PX_ST_SV)
+		srv_drop(ctx->obj2);
 }
 
 static int cli_io_handler_dump_json_schema(struct appctx *appctx)
@@ -5512,7 +5528,7 @@ REGISTER_PER_THREAD_FREE(free_trash_counters);
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "clear", "counters",  NULL },      "clear counters [all]                    : clear max statistics counters (or all counters)", cli_parse_clear_counters, NULL, NULL },
 	{ { "show", "info",  NULL },           "show info [desc|json|typed|float]*      : report information about the running process",    cli_parse_show_info, cli_io_handler_dump_info, NULL },
-	{ { "show", "stat",  NULL },           "show stat [desc|json|no-maint|typed|up]*: report counters for each proxy and server",       cli_parse_show_stat, cli_io_handler_dump_stat, NULL },
+	{ { "show", "stat",  NULL },           "show stat [desc|json|no-maint|typed|up]*: report counters for each proxy and server",       cli_parse_show_stat, cli_io_handler_dump_stat, cli_io_handler_release_stat },
 	{ { "show", "schema",  "json", NULL }, "show schema json                        : report schema used for stats",                    NULL, cli_io_handler_dump_json_schema, NULL },
 	{{},}
 }};
@@ -5526,7 +5542,7 @@ struct applet http_stats_applet = {
 	.rcv_buf = appctx_htx_rcv_buf,
 	.snd_buf = appctx_htx_snd_buf,
 	.fastfwd = http_stats_fastfwd,
-	.release = NULL,
+	.release = http_stats_release,
 };
 
 /*
