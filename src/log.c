@@ -2660,6 +2660,19 @@ void deinit_log_forward()
 	}
 }
 
+/* Releases memory for a single log-format node */
+void free_logformat_node(struct logformat_node *node)
+{
+	if (!node)
+		return;
+
+	release_sample_expr(node->expr);
+	node->expr = NULL;
+	ha_free(&node->name);
+	ha_free(&node->arg);
+	ha_free(&node);
+}
+
 /* Releases memory allocated for a log-format string */
 void free_logformat_list(struct list *fmt)
 {
@@ -2670,10 +2683,7 @@ void free_logformat_list(struct list *fmt)
 
 	list_for_each_entry_safe(lf, lfb, fmt, list) {
 		LIST_DELETE(&lf->list);
-		release_sample_expr(lf->expr);
-		free(lf->name);
-		free(lf->arg);
-		free(lf);
+		free_logformat_node(lf);
 	}
 }
 
