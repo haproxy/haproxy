@@ -1518,6 +1518,12 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 			return -1; /* Unexpected and unrecoverable error */
 		channel_add_input(chn, out.len);
 	}
+
+	/* Decrement server refcount if it was saved through ctx.p[1]. */
+	srv_drop(ctx->p[1]);
+	if (sv)
+		srv_take(sv);
+
 	/* Save pointers (0=current proxy, 1=current server, 2=current stats module) of the current context */
 	ctx->p[0] = px;
 	ctx->p[1] = sv;
@@ -2060,6 +2066,11 @@ static void promex_appctx_release(struct appctx *appctx)
 	struct promex_module_ref *ref, *back;
 	struct promex_metric_filter *flt;
         struct eb32_node *node, *next;
+
+	if (appctx->st1 == PROMEX_DUMPER_SRV) {
+		struct server *srv = objt_server(ctx->p[1]);
+		srv_drop(srv);
+	}
 
 	list_for_each_entry_safe(ref, back, &ctx->modules, list) {
 		LIST_DELETE(&ref->list);
