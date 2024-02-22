@@ -2392,7 +2392,7 @@ static inline void __do_send_log_backend(struct proxy *be, struct log_header hdr
  * data to build the header.
  */
 void process_send_log(struct list *loggers, int level, int facility,
-	                struct ist *metadata, char *message, size_t size)
+                      struct ist *metadata, char *message, size_t size)
 {
 	struct logger *logger;
 	int nblogger;
