@@ -1671,12 +1671,12 @@ static void qcs_destroy(struct qcs *qcs)
 
 	TRACE_ENTER(QMUX_EV_QCS_END, conn, qcs);
 
-	/* MUST not removed a stream with sending prepared data left. This is
-	 * to ensure consistency on connection flow-control calculation.
-	 */
-	BUG_ON(qcs->tx.fc.off_soft != qcs->tx.fc.off_real);
+	if (!(qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL))) {
+		/* MUST not removed a stream with sending prepared data left. This is
+		 * to ensure consistency on connection flow-control calculation.
+		 */
+		BUG_ON(qcs->tx.fc.off_soft != qcs->tx.fc.off_real);
 
-	if (!(qcc->flags & QC_CF_ERRL)) {
 		if (quic_stream_is_remote(qcc, id))
 			qcc_release_remote_stream(qcc, id);
 	}
