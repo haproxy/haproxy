@@ -2030,7 +2030,7 @@ static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct
 			/* Users will always need to provide a value, in case of forwarding, they should use fc_pp_tlv.
 			 * for generic types. Otherwise, we will send an empty TLV.
 			 */
-			if (!LIST_ISEMPTY(&srv_tlv->fmt)) {
+			if (!lf_expr_isempty(&srv_tlv->fmt)) {
 				replace = alloc_trash_chunk();
 				if (unlikely(!replace))
 					return 0;

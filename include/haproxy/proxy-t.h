@@ -373,12 +373,12 @@ struct proxy {
 	struct proxy *next_stkt_ref;    /* Link to the list of proxies which refer to the same stick-table. */
 
 	struct list loggers;                    /* one per 'log' directive */
-	struct list logformat; 			/* log_format linked list */
-	struct list logformat_sd;		/* log_format linked list for the RFC5424 structured-data part */
-	struct list logformat_error;		/* log_format linked list used in case of connection error on the frontend */
+	struct lf_expr logformat; 	        /* log_format linked list */
+	struct lf_expr logformat_sd;	        /* log_format linked list for the RFC5424 structured-data part */
+	struct lf_expr logformat_error;	        /* log_format linked list used in case of connection error on the frontend */
 	struct buffer log_tag;                   /* override default syslog tag */
 	struct ist header_unique_id; 		/* unique-id header */
-	struct list format_unique_id;		/* unique-id format */
+	struct lf_expr format_unique_id;        /* unique-id format */
 	int to_log;				/* things to be logged (LW_*) */
 	int nb_req_cap, nb_rsp_cap;		/* # of headers to be captured */
 	struct cap_hdr *req_cap;		/* chained list of request headers to be captured */
@@ -478,7 +478,7 @@ struct switching_rule {
 	union {
 		struct proxy *backend;		/* target backend */
 		char *name;			/* target backend name during config parsing */
-		struct list expr;		/* logformat expression to use for dynamic rules */
+		struct lf_expr expr;	        /* logformat expression to use for dynamic rules */
 	} be;
 	char *file;
 	int line;
@@ -492,7 +492,7 @@ struct server_rule {
 		struct server *ptr;		/* target server */
 		char *name;			/* target server name during config parsing */
 	} srv;
-	struct list expr;		/* logformat expression to use for dynamic rules */
+	struct lf_expr expr;		/* logformat expression to use for dynamic rules */
 	char *file;
 	int line;
 };
@@ -521,7 +521,7 @@ struct redirect_rule {
 	int type;
 	int rdr_len;
 	char *rdr_str;
-	struct list rdr_fmt;
+	struct lf_expr rdr_fmt;
 	int code;
 	unsigned int flags;
 	int cookie_len;

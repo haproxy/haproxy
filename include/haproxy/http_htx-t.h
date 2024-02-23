@@ -28,6 +28,7 @@
 
 #include <haproxy/buf-t.h>
 #include <haproxy/http-t.h>
+#include <haproxy/log-t.h>
 #include <haproxy/htx-t.h>
 
 /* Context used to find/remove an HTTP header. */
@@ -41,9 +42,9 @@ struct http_hdr_ctx {
 
 /* Structure used to build the header list of an HTTP reply */
 struct http_reply_hdr {
-	struct ist  name;  /* the header name */
-	struct list value; /* the log-format string value */
-	struct list list;  /* header chained list */
+	struct ist  name;     /* the header name */
+	struct lf_expr value; /* the log-format string value */
+	struct list list;     /* header linked list */
 };
 
 #define HTTP_REPLY_EMPTY    0x00 /* the reply has no payload */
@@ -60,7 +61,7 @@ struct http_reply {
 	char *ctype;                          /* The response content-type, may be NULL */
 	struct list hdrs;                     /* A list of http_reply_hdr */
 	union {
-		struct list   fmt;            /* A log-format string (type = HTTP_REPLY_LOGFMT) */
+		struct lf_expr fmt;           /* A log-format string (type = HTTP_REPLY_LOGFMT) */
 		struct buffer obj;            /* A raw string (type = HTTP_REPLY_RAW) */
 		struct buffer *errmsg;        /* The error message to use as response (type = HTTP_REPLY_ERRMSG).
 					       * may be NULL, if so rely on the proxy error messages */

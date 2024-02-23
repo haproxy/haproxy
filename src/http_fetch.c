@@ -36,6 +36,7 @@
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/stream.h>
+#include <haproxy/log.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
 
@@ -477,7 +478,7 @@ static int smp_fetch_uniqueid(const struct arg *args, struct sample *smp, const 
 {
 	struct ist unique_id;
 
-	if (LIST_ISEMPTY(&smp->sess->fe->format_unique_id))
+	if (lf_expr_isempty(&smp->sess->fe->format_unique_id))
 		return 0;
 
 	if (!smp->strm)

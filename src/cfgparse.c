@@ -3127,7 +3127,7 @@ init_proxies_list_stage1:
 			 * parsing is cancelled and be.name is restored to be resolved.
 			 */
 			pxname = rule->be.name;
-			LIST_INIT(&rule->be.expr);
+			lf_expr_init(&rule->be.expr);
 			curproxy->conf.args.ctx = ARGC_UBK;
 			curproxy->conf.args.file = rule->file;
 			curproxy->conf.args.line = rule->line;
@@ -3139,10 +3139,10 @@ init_proxies_list_stage1:
 				cfgerr++;
 				continue;
 			}
-			node = LIST_NEXT(&rule->be.expr, struct logformat_node *, list);
+			node = LIST_NEXT(&rule->be.expr.nodes, struct logformat_node *, list);
 
-			if (!LIST_ISEMPTY(&rule->be.expr)) {
-				if (node->type != LOG_FMT_TEXT || node->list.n != &rule->be.expr) {
+			if (!lf_expr_isempty(&rule->be.expr)) {
+				if (node->type != LOG_FMT_TEXT || node->list.n != &rule->be.expr.nodes) {
 					rule->dynamic = 1;
 					free(pxname);
 					/* backend is not yet known so we cannot assume its type,
@@ -3155,8 +3155,7 @@ init_proxies_list_stage1:
 				/* Only one element in the list, a simple string: free the expression and
 				 * fall back to static rule
 				 */
-				LIST_DELETE(&node->list);
-				free_logformat_node(node);
+				lf_expr_deinit(&rule->be.expr);
 			}
 
 			rule->dynamic = 0;
@@ -3204,7 +3203,7 @@ init_proxies_list_stage1:
 			 * to a static rule, thus the parsing is cancelled and we fall back to setting srv.ptr.
 			 */
 			server_name = srule->srv.name;
-			LIST_INIT(&srule->expr);
+			lf_expr_init(&srule->expr);
 			curproxy->conf.args.ctx = ARGC_USRV;
 			err = NULL;
 			if (!parse_logformat_string(server_name, curproxy, &srule->expr, 0, SMP_VAL_FE_HRQ_HDR, &err)) {
@@ -3214,10 +3213,10 @@ init_proxies_list_stage1:
 				cfgerr++;
 				continue;
 			}
-			node = LIST_NEXT(&srule->expr, struct logformat_node *, list);
+			node = LIST_NEXT(&srule->expr.nodes, struct logformat_node *, list);
 
-			if (!LIST_ISEMPTY(&srule->expr)) {
-				if (node->type != LOG_FMT_TEXT || node->list.n != &srule->expr) {
+			if (!lf_expr_isempty(&srule->expr)) {
+				if (node->type != LOG_FMT_TEXT || node->list.n != &srule->expr.nodes) {
 					srule->dynamic = 1;
 					free(server_name);
 					continue;
@@ -3225,8 +3224,7 @@ init_proxies_list_stage1:
 				/* Only one element in the list, a simple string: free the expression and
 				 * fall back to static rule
 				 */
-				LIST_DELETE(&node->list);
-				free_logformat_node(node);
+				lf_expr_deinit(&srule->expr);
 			}
 
 			srule->dynamic = 0;
@@ -3774,7 +3772,7 @@ out_uri_auth_compat:
 
 		if (!(curproxy->cap & PR_CAP_INT) && (curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
 		    (curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->loggers) &&
-		    (!LIST_ISEMPTY(&curproxy->logformat) || !LIST_ISEMPTY(&curproxy->logformat_sd))) {
+		    (!lf_expr_isempty(&curproxy->logformat) || !lf_expr_isempty(&curproxy->logformat_sd))) {
 			ha_warning("log format ignored for %s '%s' since it has no log address.\n",
 				   proxy_type_str(curproxy), curproxy->id);
 			err_code |= ERR_WARN;

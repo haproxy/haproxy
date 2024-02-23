@@ -134,7 +134,7 @@ static void fcgi_release_rule(struct fcgi_rule *rule)
 	if (!rule)
 		return;
 
-	free_logformat_list(&rule->value);
+	lf_expr_deinit(&rule->value);
 	/* ->cond and ->name are not owned by the rule */
 	free(rule);
 }
@@ -247,7 +247,7 @@ static int fcgi_flt_check(struct proxy *px, struct flt_conf *fconf)
 		rule->type = crule->type;
 		rule->name = ist(crule->name);
 		rule->cond = crule->cond;
-		LIST_INIT(&rule->value);
+		lf_expr_init(&rule->value);
 
 		if (crule->value) {
 			if (!parse_logformat_string(crule->value, px, &rule->value, LOG_OPT_HTTP,

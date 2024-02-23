@@ -920,7 +920,7 @@ void back_establish(struct stream *s)
 	if (!IS_HTX_STRM(s)) { /* let's allow immediate data connection in this case */
 		/* if the user wants to log as soon as possible, without counting
 		 * bytes from the server, then this is the right moment. */
-		if (!LIST_ISEMPTY(&strm_fe(s)->logformat) && !(s->logs.logwait & LW_BYTES)) {
+		if (!lf_expr_isempty(&strm_fe(s)->logformat) && !(s->logs.logwait & LW_BYTES)) {
 			/* note: no pend_pos here, session is established */
 			s->logs.t_close = s->logs.t_connect; /* to get a valid end date */
 			s->do_log(s);
@@ -2597,7 +2597,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		}
 
 		/* let's do a final log if we need it */
-		if (!LIST_ISEMPTY(&sess->fe->logformat) && s->logs.logwait &&
+		if (!lf_expr_isempty(&sess->fe->logformat) && s->logs.logwait &&
 		    !(s->flags & SF_MONITOR) &&
 		    (!(sess->fe->options & PR_O_NULLNOLOG) || req->total)) {
 			/* we may need to know the position in the queue */
@@ -2847,7 +2847,7 @@ INITCALL0(STG_INIT, init_stream);
  * If an ID is already stored within the stream nothing happens existing unique ID is
  * returned.
  */
-struct ist stream_generate_unique_id(struct stream *strm, struct list *format)
+struct ist stream_generate_unique_id(struct stream *strm, struct lf_expr *format)
 {
 	if (isttest(strm->unique_id)) {
 		return strm->unique_id;

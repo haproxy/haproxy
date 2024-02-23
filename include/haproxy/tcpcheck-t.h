@@ -134,9 +134,9 @@ struct tcpcheck_connect {
 };
 
 struct tcpcheck_http_hdr {
-	struct ist  name;  /* the header name */
-	struct list value; /* the log-format string value */
-	struct list list;  /* header chained list */
+	struct ist  name;     /* the header name */
+	struct lf_expr value; /* the log-format string value */
+	struct list list;     /* header linked list */
 };
 
 struct tcpcheck_codes {
@@ -147,20 +147,20 @@ struct tcpcheck_codes {
 struct tcpcheck_send {
 	enum tcpcheck_send_type type;
 	union {
-		struct ist  data; /* an ASCII string or a binary sequence */
-		struct list fmt;  /* an ASCII or hexa log-format string */
+		struct ist  data;   /* an ASCII string or a binary sequence */
+		struct lf_expr fmt; /* an ASCII or hexa log-format string */
 		struct {
 			unsigned int flags;             /* TCPCHK_SND_HTTP_FL_* */
 			struct http_meth meth;          /* the HTTP request method */
 			union {
 				struct ist  uri;        /* the HTTP request uri is a string  */
-				struct list uri_fmt;    /* or a log-format string */
+				struct lf_expr uri_fmt; /* or a log-format string */
 			};
 			struct ist vsn;                 /* the HTTP request version string */
 			struct list hdrs;               /* the HTTP request header list */
 			union {
 				struct ist   body;      /* the HTTP request payload is a string */
-				struct list  body_fmt;  /* or a log-format string */
+				struct lf_expr body_fmt;/* or a log-format string */
 			};
 		} http;           /* Info about the HTTP request to send */
 	};
@@ -173,16 +173,16 @@ struct tcpcheck_expect {
 		struct ist data;             /* Matching a literal string / binary anywhere in the response. */
 		struct my_regex *regex;      /* Matching a regex pattern. */
 		struct tcpcheck_codes codes; /* Matching a list of codes */
-		struct list fmt;             /* Matching a log-format string / binary */
+		struct lf_expr fmt;          /* Matching a log-format string / binary */
 		struct {
 			union {
 				struct ist name;
-				struct list name_fmt;
+				struct lf_expr name_fmt;
 				struct my_regex *name_re;
 			};
 			union {
 				struct ist value;
-				struct list value_fmt;
+				struct lf_expr value_fmt;
 				struct my_regex *value_re;
 			};
 		} hdr;                       /* Matching a header pattern */
@@ -196,9 +196,9 @@ struct tcpcheck_expect {
 	enum healthcheck_status ok_status;   /* The healthcheck status to use on success (default: L7OKD) */
 	enum healthcheck_status err_status;  /* The healthcheck status to use on error (default: L7RSP) */
 	enum healthcheck_status tout_status; /* The healthcheck status to use on timeout (default: L7TOUT) */
-	struct list onerror_fmt;        /* log-format string to use as comment on error */
-	struct list onsuccess_fmt;      /* log-format string to use as comment on success (if last rule) */
-	struct sample_expr *status_expr; /* sample expr to determine the check status code */
+	struct lf_expr onerror_fmt;          /* log-format string to use as comment on error */
+	struct lf_expr onsuccess_fmt;        /* log-format string to use as comment on success (if last rule) */
+	struct sample_expr *status_expr;     /* sample expr to determine the check status code */
 };
 
 struct tcpcheck_action_kw {

@@ -3525,7 +3525,7 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 	}
 
 	list_for_each_entry(srv_tlv, &srv->pp_tlvs, list) {
-		LIST_INIT(&srv_tlv->fmt);
+		lf_expr_init(&srv_tlv->fmt);
 		if (srv_tlv->fmt_string && unlikely(!parse_logformat_string(srv_tlv->fmt_string,
 			srv->proxy, &srv_tlv->fmt, 0, SMP_VAL_BE_SRV_CON, &errmsg))) {
 			if (errmsg) {

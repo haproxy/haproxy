@@ -657,7 +657,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * A unique ID is generated even when it is not sent to ensure that the ID can make use of
 	 * fetches only available in the HTTP request processing stage.
 	 */
-	if (!LIST_ISEMPTY(&sess->fe->format_unique_id)) {
+	if (!lf_expr_isempty(&sess->fe->format_unique_id)) {
 		struct ist unique_id = stream_generate_unique_id(s, &sess->fe->format_unique_id);
 
 		if (!isttest(unique_id)) {
@@ -1900,7 +1900,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	 * bytes from the server, then this is the right moment. We have
 	 * to temporarily assign bytes_out to log what we currently have.
 	 */
-	if (!LIST_ISEMPTY(&sess->fe->logformat) && !(s->logs.logwait & LW_BYTES)) {
+	if (!lf_expr_isempty(&sess->fe->logformat) && !(s->logs.logwait & LW_BYTES)) {
 		s->logs.t_close = s->logs.t_data; /* to get a valid end date */
 		s->logs.bytes_out = htx->data;
 		s->do_log(s);

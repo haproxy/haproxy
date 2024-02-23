@@ -787,7 +787,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 	/* Process the expression. */
 	memset(&smp, 0, sizeof(smp));
 
-	if (!LIST_ISEMPTY(&rule->arg.vars.fmt)) {
+	if (!lf_expr_isempty(&rule->arg.vars.fmt)) {
 		/* a format-string is used */
 
 		fmtstr = alloc_trash_chunk();
@@ -838,7 +838,7 @@ static enum act_return action_clear(struct act_rule *rule, struct proxy *px,
 
 static void release_store_rule(struct act_rule *rule)
 {
-	free_logformat_list(&rule->arg.vars.fmt);
+	lf_expr_deinit(&rule->arg.vars.fmt);
 
 	release_sample_expr(rule->arg.vars.expr);
 }
@@ -942,7 +942,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 		condition = istsplit(&var, ',');
 	}
 
-	LIST_INIT(&rule->arg.vars.fmt);
+	lf_expr_init(&rule->arg.vars.fmt);
 	if (!vars_hash_name(var_name, var_len, &rule->arg.vars.scope, &rule->arg.vars.name_hash, err))
 		return ACT_RET_PRS_ERR;
 

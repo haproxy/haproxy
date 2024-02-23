@@ -28,6 +28,7 @@
 #include <haproxy/acl-t.h>
 #include <haproxy/api-t.h>
 #include <haproxy/arg-t.h>
+#include <haproxy/log-t.h>
 #include <haproxy/fcgi.h>
 #include <haproxy/filters-t.h>
 #include <haproxy/regex-t.h>
@@ -59,7 +60,7 @@ struct fcgi_rule_conf {
 struct fcgi_rule {
 	enum fcgi_rule_type type;
 	struct ist name;       /* name of the parameter/header */
-	struct list value;     /* log-format compatible expression, may be empty */
+	struct lf_expr value;  /* log-format compatible expression, may be empty */
 	struct acl_cond *cond; /* acl condition to set the param */
 	struct list list;
 };
@@ -67,7 +68,7 @@ struct fcgi_rule {
 /* parameter rule to set/unset a param at the end of the analyzis */
 struct fcgi_param_rule {
 	struct ist name;
-	struct list *value; /* if empty , unset the parameter */
+	struct lf_expr *value; /* if empty , unset the parameter */
 	struct ebpt_node node;
 };
 

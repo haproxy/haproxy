@@ -1125,7 +1125,7 @@ void release_http_reply(struct http_reply *http_reply)
 	ha_free(&http_reply->ctype);
 	list_for_each_entry_safe(hdr, hdrb, &http_reply->hdrs, list) {
 		LIST_DELETE(&hdr->list);
-		free_logformat_list(&hdr->value);
+		lf_expr_deinit(&hdr->value);
 		istfree(&hdr->name);
 		free(hdr);
 	}
@@ -1136,7 +1136,7 @@ void release_http_reply(struct http_reply *http_reply)
 	else if (http_reply->type == HTTP_REPLY_RAW)
 		chunk_destroy(&http_reply->body.obj);
 	else if (http_reply->type == HTTP_REPLY_LOGFMT)
-		free_logformat_list(&http_reply->body.fmt);
+		lf_expr_deinit(&http_reply->body.fmt);
 	free(http_reply);
 }
 
@@ -1669,7 +1669,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			fd = -1;
 			obj[objlen] = '\0';
 			reply->type = HTTP_REPLY_LOGFMT;
-			LIST_INIT(&reply->body.fmt);
+			lf_expr_init(&reply->body.fmt);
 			cur_arg++;
 		}
 		else if (strcmp(args[cur_arg], "lf-string") == 0) {
@@ -1686,7 +1686,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			obj = strdup(args[cur_arg]);
 			objlen = strlen(args[cur_arg]);
 			reply->type = HTTP_REPLY_LOGFMT;
-			LIST_INIT(&reply->body.fmt);
+			lf_expr_init(&reply->body.fmt);
 			cur_arg++;
 		}
 		else if (strcmp(args[cur_arg], "hdr") == 0) {
@@ -1709,7 +1709,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 				goto error;
 			}
 			LIST_APPEND(&reply->hdrs, &hdr->list);
-			LIST_INIT(&hdr->value);
+			lf_expr_init(&hdr->value);
 			hdr->name = ist(strdup(args[cur_arg]));
 			if (!isttest(hdr->name)) {
 				memprintf(errmsg, "out of memory");
@@ -1765,7 +1765,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 				   px->conf.args.file, px->conf.args.line);
 			list_for_each_entry_safe(hdr, hdrb, &reply->hdrs, list) {
 				LIST_DELETE(&hdr->list);
-				free_logformat_list(&hdr->value);
+				lf_expr_deinit(&hdr->value);
 				istfree(&hdr->name);
 				free(hdr);
 			}
@@ -1793,7 +1793,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 		}
 	}
 	else if (reply->type == HTTP_REPLY_LOGFMT) { /* log-format payload using 'lf-file' of 'lf-string' parameter */
-		LIST_INIT(&reply->body.fmt);
+		lf_expr_init(&reply->body.fmt);
 		if ((reply->status == 204 || reply->status == 304)) {
 			memprintf(errmsg, "No body expected for %d responses", reply->status);
 			goto error;

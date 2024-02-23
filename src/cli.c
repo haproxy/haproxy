@@ -3137,7 +3137,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		pendconn_free(s);
 
 		/* let's do a final log if we need it */
-		if (!LIST_ISEMPTY(&fe->logformat) && s->logs.logwait &&
+		if (!lf_expr_isempty(&fe->logformat) && s->logs.logwait &&
 		    !(s->flags & SF_MONITOR) &&
 		    (!(fe->options & PR_O_NULLNOLOG) || s->req.total)) {
 			s->do_log(s);

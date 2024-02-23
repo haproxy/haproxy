@@ -370,9 +370,10 @@ int parse_logformat_tag_args(char *args, struct logformat_node *node, char **err
  * ignored when arg_len is 0. Neither <tag> nor <tag_len> may be null.
  * Returns false in error case and err is filled, otherwise returns true.
  */
-int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len, int typecast, char *tag, int tag_len, struct proxy *curproxy, struct list *list_format, int *defoptions, char **err)
+int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len, int typecast, char *tag, int tag_len, struct proxy *curproxy, struct lf_expr *lf_expr, int *defoptions, char **err)
 {
 	int j;
+	struct list *list_format= &lf_expr->nodes;
 	struct logformat_node *node = NULL;
 
 	for (j = 0; logformat_tags[j].name; j++) { // search a log type
@@ -431,13 +432,14 @@ int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len, int ty
  *  start: start pointer
  *  end: end text pointer
  *  type: string type
- *  list_format: destination list
+ *  lf_expr: destination logformat expr (list of fmt nodes)
  *
  *  LOG_TEXT: copy chars from start to end excluding end.
  *
 */
-int add_to_logformat_list(char *start, char *end, int type, struct list *list_format, char **err)
+int add_to_logformat_list(char *start, char *end, int type, struct lf_expr *lf_expr, char **err)
 {
+	struct list *list_format = &lf_expr->nodes;
 	char *str;
 
 	if (type == LF_TEXT) { /* type text */
@@ -465,16 +467,17 @@ int add_to_logformat_list(char *start, char *end, int type, struct list *list_fo
 }
 
 /*
- * Parse the sample fetch expression <text> and add a node to <list_format> upon
+ * Parse the sample fetch expression <text> and add a node to <lf_expr> upon
  * success. The curpx->conf.args.ctx must be set by the caller. If an end pointer
  * is passed in <endptr>, it will be updated with the pointer to the first character
  * not part of the sample expression.
  *
  * In error case, the function returns 0, otherwise it returns 1.
  */
-int add_sample_to_logformat_list(char *text, char *name, int name_len, int typecast, char *arg, int arg_len, struct proxy *curpx, struct list *list_format, int options, int cap, char **err, char **endptr)
+int add_sample_to_logformat_list(char *text, char *name, int name_len, int typecast, char *arg, int arg_len, struct proxy *curpx, struct lf_expr *lf_expr, int options, int cap, char **err, char **endptr)
 {
 	char *cmd[2];
+	struct list *list_format = &lf_expr->nodes;
 	struct sample_expr *expr = NULL;
 	struct logformat_node *node = NULL;
 	int cmd_arg;
@@ -551,13 +554,13 @@ int add_sample_to_logformat_list(char *text, char *name, int name_len, int typec
  *
  *  fmt: the string to parse
  *  curproxy: the proxy affected
- *  list_format: the destination list
+ *  lf_expr: the destination logformat expression (logformat_node list)
  *  options: LOG_OPT_* to force on every node
  *  cap: all SMP_VAL_* flags supported by the consumer
  *
  * The function returns 1 in success case, otherwise, it returns 0 and err is filled.
  */
-int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list *list_format, int options, int cap, char **err)
+int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct lf_expr *lf_expr, int options, int cap, char **err)
 {
 	char *sp, *str, *backfmt; /* start pointer for text parts */
 	char *arg = NULL; /* start pointer for args */
@@ -578,8 +581,8 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 	}
 	curproxy->to_log |= LW_INIT;
 
-	/* flush the list first. */
-	free_logformat_list(list_format);
+	/* reset the old expr first (if previously defined) */
+	lf_expr_deinit(lf_expr);
 
 	for (cformat = LF_INIT; cformat != LF_END; str++) {
 		pformat = cformat;
@@ -694,7 +697,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 			 * part of the expression, which MUST be the trailing
 			 * angle bracket.
 			 */
-			if (!add_sample_to_logformat_list(tag, name, name_len, typecast, arg, arg_len, curproxy, list_format, options, cap, err, &str))
+			if (!add_sample_to_logformat_list(tag, name, name_len, typecast, arg, arg_len, curproxy, lf_expr, options, cap, err, &str))
 				goto fail;
 
 			if (*str == ']') {
@@ -740,12 +743,12 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 		if (cformat != pformat || pformat == LF_SEPARATOR) {
 			switch (pformat) {
 			case LF_TAG:
-				if (!parse_logformat_tag(arg, arg_len, name, name_len, typecast, tag, tag_len, curproxy, list_format, &options, err))
+				if (!parse_logformat_tag(arg, arg_len, name, name_len, typecast, tag, tag_len, curproxy, lf_expr, &options, err))
 					goto fail;
 				break;
 			case LF_TEXT:
 			case LF_SEPARATOR:
-				if (!add_to_logformat_list(sp, str, pformat, list_format, err))
+				if (!add_to_logformat_list(sp, str, pformat, lf_expr, err))
 					goto fail;
 				break;
 			}
@@ -2592,19 +2595,53 @@ void free_logformat_list(struct list *fmt)
 	}
 }
 
-/* Builds a log line in <dst> based on <list_format>, and stops before reaching
+/* Prepares log-format expression struct */
+void lf_expr_init(struct lf_expr *expr)
+{
+	LIST_INIT(&expr->nodes);
+}
+
+/* Releases and resets a log-format expression */
+void lf_expr_deinit(struct lf_expr *expr)
+{
+	free_logformat_list(&expr->nodes);
+	lf_expr_init(expr);
+}
+
+/* Transfer log-format expression from <src> to <dst>
+ * at the end of the operation, <src> is reset
+ */
+void lf_expr_xfer(struct lf_expr *src, struct lf_expr *dst)
+{
+	struct logformat_node *lf, *lfb;
+
+	/* first, reset any existing expr */
+	lf_expr_deinit(dst);
+
+	/* then proceed with transfer between <src> and <dst> */
+	list_for_each_entry_safe(lf, lfb, &src->nodes, list) {
+		LIST_DELETE(&lf->list);
+		LIST_APPEND(&dst->nodes, &lf->list);
+	}
+
+	/* src is now empty, perform an explicit reset */
+	lf_expr_init(src);
+}
+
+/* Builds a log line in <dst> based on <lf_expr>, and stops before reaching
  * <maxsize> characters. Returns the size of the output string in characters,
  * not counting the trailing zero which is always added if the resulting size
  * is not zero. It requires a valid session and optionally a stream. If the
  * stream is NULL, default values will be assumed for the stream part.
  */
-int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t maxsize, struct list *list_format)
+int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t maxsize, struct lf_expr *lf_expr)
 {
 	struct proxy *fe = sess->fe;
 	struct proxy *be;
 	struct http_txn *txn;
 	const struct strm_logs *logs;
 	struct connection *fe_conn, *be_conn;
+	struct list *list_format = &lf_expr->nodes;
 	unsigned int s_flags;
 	unsigned int uniq_id;
 	struct buffer chunk;
@@ -2708,7 +2745,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	tmplog = dst;
 
 	/* fill logbuffer */
-	if (LIST_ISEMPTY(list_format))
+	if (lf_expr_isempty(lf_expr))
 		return 0;
 
 	list_for_each_entry(tmp, list_format, list) {
@@ -3668,11 +3705,11 @@ void strm_log(struct stream *s)
 	}
 
 	/* if unique-id was not generated */
-	if (!isttest(s->unique_id) && !LIST_ISEMPTY(&sess->fe->format_unique_id)) {
+	if (!isttest(s->unique_id) && !lf_expr_isempty(&sess->fe->format_unique_id)) {
 		stream_generate_unique_id(s, &sess->fe->format_unique_id);
 	}
 
-	if (!LIST_ISEMPTY(&sess->fe->logformat_sd)) {
+	if (!lf_expr_isempty(&sess->fe->logformat_sd)) {
 		sd_size = build_logline(s, logline_rfc5424, global.max_syslog_len,
 		                        &sess->fe->logformat_sd);
 	}
@@ -3710,13 +3747,13 @@ void sess_log(struct session *sess)
 	if (sess->fe->options2 & PR_O2_LOGERRORS)
 		level = LOG_ERR;
 
-	if (!LIST_ISEMPTY(&sess->fe->logformat_sd)) {
+	if (!lf_expr_isempty(&sess->fe->logformat_sd)) {
 		sd_size = sess_build_logline(sess, NULL,
 		                             logline_rfc5424, global.max_syslog_len,
 		                             &sess->fe->logformat_sd);
 	}
 
-	if (!LIST_ISEMPTY(&sess->fe->logformat_error))
+	if (!lf_expr_isempty(&sess->fe->logformat_error))
 		size = sess_build_logline(sess, NULL, logline, global.max_syslog_len, &sess->fe->logformat_error);
 	else
 		size = sess_build_logline(sess, NULL, logline, global.max_syslog_len, &sess->fe->logformat);

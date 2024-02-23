@@ -168,6 +168,11 @@ struct logformat_node {
 	const struct logformat_tag *tag; // set if ->type == LOG_FMT_TAG
 };
 
+/* a full logformat expr made of one or multiple logformat nodes */
+struct lf_expr {
+	struct list nodes; /* logformat_node list */
+};
+
 /* Range of indexes for log sampling. */
 struct smp_log_range {
 	unsigned int low;        /* Low limit of the indexes of this range. */

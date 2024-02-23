@@ -41,6 +41,7 @@
 #include <haproxy/task-t.h>
 #include <haproxy/thread-t.h>
 #include <haproxy/event_hdl-t.h>
+#include <haproxy/log-t.h>
 #include <haproxy/tools-t.h>
 
 
@@ -269,7 +270,7 @@ enum __attribute__((__packed__)) srv_ws_mode {
  */
 struct srv_pp_tlv_list {
 	struct list list;
-	struct list fmt;
+	struct lf_expr fmt;
 	char *fmt_string;
 	unsigned char type;
 };

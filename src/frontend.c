@@ -55,7 +55,7 @@ int frontend_accept(struct stream *s)
 
 	if ((fe->mode == PR_MODE_TCP || fe->mode == PR_MODE_HTTP)
 	    && (!LIST_ISEMPTY(&fe->loggers))) {
-		if (likely(!LIST_ISEMPTY(&fe->logformat))) {
+		if (likely(!lf_expr_isempty(&fe->logformat))) {
 			/* we have the client ip */
 			if (s->logs.logwait & LW_CLIP)
 				if (!(s->logs.logwait &= ~(LW_CLIP|LW_INIT)))

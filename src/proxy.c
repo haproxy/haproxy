@@ -184,7 +184,7 @@ void free_server_rules(struct list *srules)
 	list_for_each_entry_safe(srule, sruleb, srules, list) {
 		LIST_DELETE(&srule->list);
 		free_acl_cond(srule->cond);
-		free_logformat_list(&srule->expr);
+		lf_expr_deinit(&srule->expr);
 		free(srule->file);
 		free(srule);
 	}
@@ -264,7 +264,7 @@ void free_proxy(struct proxy *p)
 		LIST_DELETE(&rule->list);
 		free_acl_cond(rule->cond);
 		if (rule->dynamic)
-			free_logformat_list(&rule->be.expr);
+			lf_expr_deinit(&rule->be.expr);
 		free(rule->file);
 		free(rule);
 	}
@@ -279,10 +279,10 @@ void free_proxy(struct proxy *p)
 		free_logger(log);
 	}
 
-	free_logformat_list(&p->logformat);
-	free_logformat_list(&p->logformat_sd);
-	free_logformat_list(&p->format_unique_id);
-	free_logformat_list(&p->logformat_error);
+	lf_expr_deinit(&p->logformat);
+	lf_expr_deinit(&p->logformat_sd);
+	lf_expr_deinit(&p->format_unique_id);
+	lf_expr_deinit(&p->logformat_error);
 
 	free_act_rules(&p->tcp_req.inspect_rules);
 	free_act_rules(&p->tcp_rep.inspect_rules);
@@ -1348,10 +1348,10 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->tcp_req.l5_rules);
 	MT_LIST_INIT(&p->listener_queue);
 	LIST_INIT(&p->loggers);
-	LIST_INIT(&p->logformat);
-	LIST_INIT(&p->logformat_sd);
-	LIST_INIT(&p->format_unique_id);
-	LIST_INIT(&p->logformat_error);
+	lf_expr_init(&p->logformat);
+	lf_expr_init(&p->logformat_sd);
+	lf_expr_init(&p->format_unique_id);
+	lf_expr_init(&p->logformat_error);
 	LIST_INIT(&p->conf.bind);
 	LIST_INIT(&p->conf.listeners);
 	LIST_INIT(&p->conf.errors);
