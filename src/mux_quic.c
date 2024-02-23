@@ -3,6 +3,7 @@
 #include <import/eb64tree.h>
 
 #include <haproxy/api.h>
+#include <haproxy/chunk.h>
 #include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/h3.h>
@@ -124,6 +125,9 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	}
 	else if (quic_stream_is_local(qcc, id)) {
 		qfctl_init(&qcs->tx.fc, qcc->rfctl.msd_uni_l);
+	}
+	else {
+		qcs->tx.fc.off_real = 0;
 	}
 
 	qcs->rx.ncbuf = NCBUF_NULL;
@@ -3184,6 +3188,27 @@ static const struct mux_ops qmux_ops = {
 	.flags = MX_FL_HTX|MX_FL_NO_UPG|MX_FL_FRAMED,
 	.name = "QUIC",
 };
+
+void qcc_show_quic(struct qcc *qcc)
+{
+	struct eb64_node *node;
+	chunk_appendf(&trash, "  qcc=0x%p flags=0x%x sc=%llu hreq=%llu\n",
+	              qcc, qcc->flags, (ullong)qcc->nb_sc, (ullong)qcc->nb_hreq);
+
+	node = eb64_first(&qcc->streams_by_id);
+	while (node) {
+		struct qcs *qcs = eb64_entry(node, struct qcs, by_id);
+		chunk_appendf(&trash, "    qcs=0x%p id=%llu flags=0x%x st=%s",
+		              qcs, (ullong)qcs->id, qcs->flags,
+		              qcs_st_to_str(qcs->st));
+		if (!quic_stream_is_uni(qcs->id) || !quic_stream_is_local(qcc, qcs->id))
+			chunk_appendf(&trash, " rxoff=%llu", (ullong)qcs->rx.offset);
+		if (!quic_stream_is_uni(qcs->id) || !quic_stream_is_remote(qcc, qcs->id))
+			chunk_appendf(&trash, " txoff=%llu", (ullong)qcs->tx.fc.off_real);
+		chunk_appendf(&trash, "\n");
+		node = eb64_next(node);
+	}
+}
 
 static struct mux_proto_list mux_proto_quic =
   { .token = IST("quic"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_FE, .mux = &qmux_ops };

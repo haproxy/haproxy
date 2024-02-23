@@ -3,9 +3,10 @@
 #include <haproxy/applet-t.h>
 #include <haproxy/cli.h>
 #include <haproxy/list.h>
-#include <haproxy/tools.h>
+#include <haproxy/mux_quic.h>
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_tp.h>
+#include <haproxy/tools.h>
 
 /* incremented by each "show quic". */
 unsigned int qc_epoch = 0;
@@ -21,8 +22,9 @@ enum quic_dump_format {
 #define QUIC_DUMP_FLD_SOCK  0x0002
 #define QUIC_DUMP_FLD_PKTNS 0x0004
 #define QUIC_DUMP_FLD_CC    0x0008
+#define QUIC_DUMP_FLD_MUX   0x0010
 /* Do not forget to update FLD_MASK when adding a new field. */
-#define QUIC_DUMP_FLD_MASK  0x000f
+#define QUIC_DUMP_FLD_MASK  0x001f
 
 /* appctx context used by "show quic" command */
 struct show_quic_ctx {
@@ -89,6 +91,9 @@ static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx
 			}
 			else if (isteq(field, ist("cc"))) {
 				ctx->fields |= QUIC_DUMP_FLD_CC;
+			}
+			else if (isteq(field, ist("mux"))) {
+				ctx->fields |= QUIC_DUMP_FLD_MUX;
 			}
 			else {
 				/* Current argument is comma-separated so it is
@@ -202,10 +207,8 @@ static void dump_quic_oneline(struct show_quic_ctx *ctx, struct quic_conn *qc)
 static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
 {
 	struct quic_pktns *pktns;
-	struct eb64_node *node;
-	struct qc_stream_desc *stream;
 	char bufaddr[INET6_ADDRSTRLEN], bufport[6];
-	int expire, i, addnl;
+	int expire, addnl;
 	unsigned char cid_len;
 
 	addnl = 0;
@@ -351,23 +354,8 @@ static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
 	if (addnl)
 		chunk_appendf(&trash, "\n");
 
-	/* Streams */
-	node = eb64_first(&qc->streams_by_id);
-	i = 0;
-	while (node) {
-		stream = eb64_entry(node, struct qc_stream_desc, by_id);
-		node = eb64_next(node);
-
-		chunk_appendf(&trash, "  | stream=%-8llu", (unsigned long long)stream->by_id.key);
-		chunk_appendf(&trash, " off=%-8llu ack=%-8llu",
-		              (unsigned long long)stream->buf_offset,
-		              (unsigned long long)stream->ack_offset);
-
-		if (!(++i % 3)) {
-			chunk_appendf(&trash, "\n");
-			i = 0;
-		}
-	}
+	if (ctx->fields & QUIC_DUMP_FLD_MUX && qc->mux_state == QC_MUX_READY)
+		qcc_show_quic(qc->qcc);
 
 	chunk_appendf(&trash, "\n");
 }

@@ -115,6 +115,8 @@ static inline void qcs_wait_http_req(struct qcs *qcs)
 	LIST_APPEND(&qcc->opening_list, &qcs->el_opening);
 }
 
+void qcc_show_quic(struct qcc *qcc);
+
 #endif /* USE_QUIC */
 
 #endif /* _HAPROXY_MUX_QUIC_H */
