@@ -944,8 +944,8 @@ static inline struct ist istdup(const struct ist src)
 
 	if (isttest(dst)) {
 		istcpy(&dst, src, src.len);
+		dst.ptr[dst.len] = '\0';
 	}
-	dst.ptr[dst.len] = '\0';
 
 	return dst;
 }
