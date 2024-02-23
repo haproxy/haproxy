@@ -4438,11 +4438,11 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 
  update_status:
 	if (has_no_ip && !snr_set_srv_down(s)) {
-		struct server_inetaddr s_addr;
+		struct server_inetaddr srv_addr;
 
-		memset(&s_addr, 0, sizeof(s_addr));
+		memset(&srv_addr, 0, sizeof(srv_addr));
 		/* unset server's addr */
-		server_set_inetaddr(s, &s_addr, SERVER_INETADDR_UPDATER_NONE, NULL);
+		server_set_inetaddr(s, &srv_addr, SERVER_INETADDR_UPDATER_NONE, NULL);
 	}
 	return 1;
 
@@ -4452,11 +4452,11 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 		goto update_status;
 	}
 	if (has_no_ip && !snr_set_srv_down(s)) {
-		struct server_inetaddr s_addr;
+		struct server_inetaddr srv_addr;
 
-		memset(&s_addr, 0, sizeof(s_addr));
+		memset(&srv_addr, 0, sizeof(srv_addr));
 		/* unset server's addr */
-		server_set_inetaddr(s, &s_addr, SERVER_INETADDR_UPDATER_NONE, NULL);
+		server_set_inetaddr(s, &srv_addr, SERVER_INETADDR_UPDATER_NONE, NULL);
 	}
 	return 0;
 }
@@ -4538,11 +4538,11 @@ int snr_resolution_error_cb(struct resolv_requester *requester, int error_code)
 
 	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
 	if (!snr_set_srv_down(s)) {
-		struct server_inetaddr s_addr;
+		struct server_inetaddr srv_addr;
 
-		memset(&s_addr, 0, sizeof(s_addr));
+		memset(&srv_addr, 0, sizeof(srv_addr));
 		/* unset server's addr */
-		server_set_inetaddr(s, &s_addr, SERVER_INETADDR_UPDATER_NONE, NULL);
+		server_set_inetaddr(s, &srv_addr, SERVER_INETADDR_UPDATER_NONE, NULL);
 		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 		resolv_detach_from_resolution_answer_items(requester->resolution, requester);
 		return 0;

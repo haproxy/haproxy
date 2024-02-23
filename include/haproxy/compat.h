@@ -303,6 +303,12 @@ typedef struct { } empty_t;
 #define CLOCK_MONOTONIC_COARSE CLOCK_MONOTONIC_FAST
 #endif
 
+/* On Solaris, `queue` is a reserved name, so we redefine it here for now.
+ */
+#if defined(sun)
+#define queue _queue
+#endif
+
 #endif /* _HAPROXY_COMPAT_H */
 
 /*
