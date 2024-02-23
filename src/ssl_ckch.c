@@ -111,6 +111,7 @@ struct commit_cacrlfile_ctx {
 	enum {
 		CACRL_ST_INIT = 0,
 		CACRL_ST_GEN,
+		CACRL_ST_CRLCB,
 		CACRL_ST_INSERT,
 		CACRL_ST_SUCCESS,
 		CACRL_ST_FIN,
@@ -118,6 +119,18 @@ struct commit_cacrlfile_ctx {
 	} state;
 };
 
+
+/*
+ * Callback function, which is called if defined after loading CRLs from disk
+ * when starting HAProxy (function __ssl_store_load_locations_file()), and after
+ * committing new CRLs via CLI (function cli_io_handler_commit_cafile_crlfile()).
+ *
+ * The input parameters of the function are the path for the CRL data and
+ * a structure containing information about X.509 certificates and CRLs.
+ * In case of error, returns -1 with an error message in err; or the number
+ * of revoked certificates (>= 0) otherwise.
+ */
+int (*ssl_commit_crlfile_cb)(const char *path, X509_STORE *ctx, char **err) = NULL;
 
 /********************  cert_key_and_chain functions *************************
  * These are the functions that fills a cert_key_and_chain structure. For the
@@ -1400,6 +1413,14 @@ scandir_err:
 			if (!shuterror)
 				ha_alert("ca-file: couldn't load '%s'\n", path);
 			goto err;
+		}
+
+		if (ssl_commit_crlfile_cb != NULL) {
+			if (ssl_commit_crlfile_cb(path, store, NULL) == -1) {
+				if (!shuterror)
+					ha_alert("crl-file: couldn't load '%s'\n", path);
+				goto err;
+			}
 		}
 
 		objs = X509_STORE_get0_objects(store);
@@ -2907,6 +2928,15 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 					y++;
 				}
 
+				ctx->state = CACRL_ST_CRLCB;
+				__fallthrough;
+			case CACRL_ST_CRLCB:
+				if ((ctx->cafile_type == CAFILE_CRL) && (ssl_commit_crlfile_cb != NULL)) {
+					if (ssl_commit_crlfile_cb(crlfile_transaction.path, crlfile_transaction.new_crlfile_entry->ca_store, &ctx->err) == -1) {
+						ctx->state = CACRL_ST_ERROR;
+						goto error;
+					}
+				}
 				ctx->state = CACRL_ST_INSERT;
 				__fallthrough;
 			case CACRL_ST_INSERT:

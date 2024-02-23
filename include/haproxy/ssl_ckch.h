@@ -70,6 +70,7 @@ int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_ty
 int __ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_type type, int shuterror);
 
 extern struct cert_exts cert_exts[];
+extern int (*ssl_commit_crlfile_cb)(const char *path, X509_STORE *ctx, char **err);
 
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_CRTLIST_H */
