@@ -1,6 +1,71 @@
 ChangeLog :
 ===========
 
+2024/02/23 : 3.0-dev4
+    - BUG/MEDIUM: ssl: Fix crash when calling "update ssl ocsp-response" when an update is ongoing
+    - BUG/MEDIUM: quic: Wrong K CUBIC calculation.
+    - MINOR: quic: Update K CUBIC calculation (RFC 9438)
+    - MINOR: quic: Dynamic packet reordering threshold
+    - MINOR: quic: Add a counter for reordered packets
+    - BUG/MAJOR: mux-h1: Fix zero-copy forwarding when sending chunks of unknown size
+    - MINOR: stats: Use a dedicated function to check if output is almost full
+    - BUG/MEDIUM: applet: Add a flag to state an applet is using zero-copy forwarding
+    - BUG/MEDIUM: stconn/applet: Block 0-copy forwarding if producer needs more room
+    - MINOR: applet: Remove uselelss test on SE_FL_SHR/SHW flags
+    - MEDIUM: applet: Add notion of shutdown for write for applets
+    - MINOR: cli: No longer check SC for shutdown to interrupt wait command
+    - BUG/MEDIUM: stconn: Allow expiration update when READ/WRITE event is pending
+    - BUG/MEDIUM: stconn: Don't check pending shutdown to wake an applet up
+    - CLEANUP: stconn: Move SE flags set by app layer at the end of the bitfield
+    - MINOR: stconn: Rename SE_FL_MAY_FASTFWD and reorder bitfield
+    - MINOR: stconn: Add SE flag to announce zero-copy forwarding on consumer side
+    - MINOR: muxes: Announce support for zero-copy forwarding on consumer side
+    - BUG/MAJOR: stconn: Check support for zero-copy forwarding on both sides
+    - MINOR: muxes/applet: Simplify checks on options to disable zero-copy forwarding
+    - BUG/MINOR: quic: reject unknown frame type
+    - MINOR: quic: handle all frame types on reception
+    - BUG/MINOR: quic: reject HANDSHAKE_DONE as server
+    - BUG/MINOR: qpack: reject invalid increment count decoding
+    - BUG/MINOR: qpack: reject invalid dynamic table capacity
+    - DOC/MINOR: userlists: mention solutions to high cpu with hashes
+    - DOC: quic: Missing tuning setting in "Global parameters"
+    - BUG/MEDIUM: applet: Immediately free appctx on early error
+    - BUG/MEDIUM: hlua: Be able to garbage collect uninitialized lua sockets
+    - BUG/MEDIUM: hlua: Don't loop if a lua socket does not consume received data
+    - BUG/MEDIUM: quic: fix transient send error with listener socket
+    - MINOR: log: custom name for logformat node
+    - MINOR: sample: add type_to_smp() helper function
+    - MINOR: log: explicit typecasting for logformat nodes
+    - MINOR: log: simplify last_isspace in sess_build_logline()
+    - MINOR: log: simplify quotes handling in sess_build_logline()
+    - MINOR: log: print metadata prefixes separately in sess_build_logline()
+    - MINOR: log: automate string array construction in sess_build_logline()
+    - DOC: quic: fix recommandation for bind on multiple address
+    - MINOR: quic: warn on bind on multiple addresses if no IP_PKTINFO support
+    - OPTIM: quic: improve slightly qc_snd_buf() internal
+    - MINOR: quic: move IP_PKTINFO on send on a dedicated function
+    - MINOR: quic: remove sendto() usage variant
+    - MINOR: quic: only use sendmsg() syscall variant
+    - BUILD: applet: fix build on some 32-bit archs
+    - BUG/MINOR: quic: initialize msg_flags before sendmsg
+    - BUG/MEDIUM: mux-h1: Don't emit 0-CRLF chunk in h1_done_ff() when iobuf is empty
+    - CLEANUP: proxy/log: remove unused proxy flag
+    - CLEANUP: log: fix process_send_log() indentation
+    - CLEANUP: log: use free_logformat_list() in parse_logformat_string()
+    - MINOR: log: add free_logformat_node() helper function
+    - BUG/MINOR: log: fix potential lf->name memory leak
+    - BUG/MINOR: ist: allocate nul byte on istdup
+    - BUG/MINOR: stats: drop srv refcount on early release
+    - BUG/MAJOR: promex: fix crash on deleted server
+    - BUG/MAJOR: server: fix stream crash due to deleted server
+    - BUG/MEDIUM: mux-quic: do not crash on qcs_destroy for connection error
+    - MINOR: cli: Remove useless loop on commands to find unescaped semi-colon
+    - BUG/MEDIUM: cli: Warn if pipelined commands are delimited by a \n
+    - BUG/MAJOR: cli: Restore non-interactive mode behavior with pipelined commands
+    - BUG/MINOR: quic: fix output of show quic
+    - MINOR: ssl: Call callback function after loading SSL CRL data
+    - BUG/MINOR: ist: only store NUL byte on succeeded alloc
+
 2024/02/10 : 3.0-dev3
     - DOC: configuration: clarify http-request wait-for-body
     - BUG/MAJOR: ssl_sock: Always clear retry flags in read/write functions
