@@ -1522,10 +1522,6 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 		return ACT_RET_PRS_ERR;
 	}
 
-	free(px->conf.lfs_file);
-	px->conf.lfs_file = strdup(px->conf.args.file);
-	px->conf.lfs_line = px->conf.args.line;
-
 	/* some characters are totally forbidden in header names and
 	 * may happen by accident when writing configs, causing strange
 	 * failures in field. Better catch these ones early, nobody will
@@ -1653,10 +1649,6 @@ static enum act_parse_ret parse_http_replace_header(const char **args, int *orig
 		regex_free(rule->arg.http.re);
 		return ACT_RET_PRS_ERR;
 	}
-
-	free(px->conf.lfs_file);
-	px->conf.lfs_file = strdup(px->conf.args.file);
-	px->conf.lfs_line = px->conf.args.line;
 
 	*orig_arg = cur_arg + 1;
 	return ACT_RET_PRS_OK;
@@ -1974,10 +1966,6 @@ static enum act_parse_ret parse_http_set_map(const char **args, int *orig_arg, s
 			return ACT_RET_PRS_ERR;
 		}
 	}
-
-	free(px->conf.lfs_file);
-	px->conf.lfs_file = strdup(px->conf.args.file);
-	px->conf.lfs_line = px->conf.args.line;
 
 	*orig_arg = cur_arg + 1;
 	return ACT_RET_PRS_OK;

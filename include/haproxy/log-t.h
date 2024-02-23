@@ -170,7 +170,12 @@ struct logformat_node {
 
 /* a full logformat expr made of one or multiple logformat nodes */
 struct lf_expr {
-	struct list nodes; /* logformat_node list */
+	struct list list;   /* to store lf_expr inside a list */
+	struct list nodes;  /* logformat_node list */
+	struct {
+		char *file; /* file where the lft appears */
+		int line;   /* line where the lft appears */
+	} conf; // parsing hints
 };
 
 /* Range of indexes for log sampling. */

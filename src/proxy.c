@@ -1279,12 +1279,6 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 		ha_warning("Layer 7 hash not possible for %s '%s' (needs 'mode http'). Falling back to round robin.\n",
 			   proxy_type_str(curproxy), curproxy->id);
 	}
-	if (curproxy->to_log & (LW_REQ | LW_RESP)) {
-		curproxy->to_log &= ~(LW_REQ | LW_RESP);
-		ha_warning("parsing [%s:%d] : HTTP log/header format not usable with %s '%s' (needs 'mode http').\n",
-			   curproxy->conf.lfs_file, curproxy->conf.lfs_line,
-			   proxy_type_str(curproxy), curproxy->id);
-	}
 	if (curproxy->conf.logformat_string == default_http_log_format ||
 	    curproxy->conf.logformat_string == clf_http_log_format) {
 		/* Note: we don't change the directive's file:line number */
@@ -1356,6 +1350,7 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->conf.listeners);
 	LIST_INIT(&p->conf.errors);
 	LIST_INIT(&p->conf.args.list);
+	LIST_INIT(&p->conf.lf_checks);
 	LIST_INIT(&p->filter_configs);
 	LIST_INIT(&p->tcpcheck_rules.preset_vars);
 

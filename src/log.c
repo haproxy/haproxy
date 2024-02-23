@@ -304,9 +304,11 @@ struct logformat_tag_args tag_args_list[] = {
  */
 int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy)
 {
-	curproxy->options2 |= PR_O2_SRC_ADDR;
+	if ((curproxy->flags & PR_FL_CHECKED))
+		return 0;
 
-	return 0;
+	curproxy->options2 |= PR_O2_SRC_ADDR;
+	return 1;
 }
 
 
@@ -379,40 +381,29 @@ int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len, int ty
 	for (j = 0; logformat_tags[j].name; j++) { // search a log type
 		if (strlen(logformat_tags[j].name) == tag_len &&
 		    strncmp(tag, logformat_tags[j].name, tag_len) == 0) {
-			if (logformat_tags[j].mode != PR_MODE_HTTP || curproxy->mode == PR_MODE_HTTP) {
-				node = calloc(1, sizeof(*node));
-				if (!node) {
-					memprintf(err, "out of memory error");
-					goto error_free;
-				}
-				node->type = LOG_FMT_TAG;
-				node->tag = &logformat_tags[j];
-				node->typecast = typecast;
-				if (name)
-					node->name = my_strndup(name, name_len);
-				node->options = *defoptions;
-				if (arg_len) {
-					node->arg = my_strndup(arg, arg_len);
-					if (!parse_logformat_tag_args(node->arg, node, err))
-						goto error_free;
-				}
-				if (node->tag->type == LOG_FMT_GLOBAL) {
-					*defoptions = node->options;
-					free_logformat_node(node);
-				} else {
-					if (logformat_tags[j].config_callback &&
-					    logformat_tags[j].config_callback(node, curproxy) != 0) {
-						goto error_free;
-					}
-					curproxy->to_log |= logformat_tags[j].lw;
-					LIST_APPEND(list_format, &node->list);
-				}
-				return 1;
-			} else {
-				memprintf(err, "format tag '%s' is reserved for HTTP mode",
-				          logformat_tags[j].name);
+			node = calloc(1, sizeof(*node));
+			if (!node) {
+				memprintf(err, "out of memory error");
 				goto error_free;
 			}
+			node->type = LOG_FMT_TAG;
+			node->tag = &logformat_tags[j];
+			node->typecast = typecast;
+			if (name)
+				node->name = my_strndup(name, name_len);
+			node->options = *defoptions;
+			if (arg_len) {
+				node->arg = my_strndup(arg, arg_len);
+				if (!parse_logformat_tag_args(node->arg, node, err))
+					goto error_free;
+			}
+			if (node->tag->type == LOG_FMT_GLOBAL) {
+				*defoptions = node->options;
+				free_logformat_node(node);
+			} else {
+				LIST_APPEND(list_format, &node->list);
+			}
+			return 1;
 		}
 	}
 
@@ -527,17 +518,6 @@ int add_sample_to_logformat_list(char *text, char *name, int name_len, int typec
 			   curpx->conf.args.file, curpx->conf.args.line, text);
 	}
 
-	/* check if we need to allocate an http_txn struct for HTTP parsing */
-	/* Note, we may also need to set curpx->to_log with certain fetches */
-	curpx->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
-
-	/* FIXME: temporary workaround for missing LW_XPRT and LW_REQ flags
-	 * needed with some sample fetches (eg: ssl*). We always set it for
-	 * now on, but this will leave with sample capabilities soon.
-	 */
-	curpx->to_log |= LW_XPRT;
-	if (curpx->http_needed)
-		curpx->to_log |= LW_REQ;
 	LIST_APPEND(list_format, &node->list);
 	return 1;
 
@@ -547,7 +527,10 @@ int add_sample_to_logformat_list(char *text, char *name, int name_len, int typec
 }
 
 /*
- * Parse the log_format string and fill a linked list.
+ * Parse the log_format string and fill a logformat expression. The logformat
+ * expression will be scheduled for postcheck on the proxy unless the proxy was
+ * already checked, in which case all checks will be performed right away.
+ *
  * Tag name are preceded by % and composed by characters [a-zA-Z0-9]* : %tagname
  * You can set arguments using { } : %{many arguments}tagname.
  * The curproxy->conf.args.ctx must be set by the caller.
@@ -579,10 +562,17 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct lf_ex
 		memprintf(err, "out of memory error");
 		return 0;
 	}
-	curproxy->to_log |= LW_INIT;
 
 	/* reset the old expr first (if previously defined) */
 	lf_expr_deinit(lf_expr);
+
+	/* Save some parsing infos to raise relevant error messages during
+	 * postparsing if needed.
+	 */
+	if (curproxy->conf.args.file) {
+		lf_expr->conf.file = strdup(curproxy->conf.args.file);
+		lf_expr->conf.line = curproxy->conf.args.line;
+	}
 
 	for (cformat = LF_INIT; cformat != LF_END; str++) {
 		pformat = cformat;
@@ -760,12 +750,121 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct lf_ex
 		memprintf(err, "truncated line after '%s'", tag ? tag : arg ? arg : "%");
 		goto fail;
 	}
-	free(backfmt);
+	ha_free(&backfmt);
+
+	if (!(curproxy->flags & PR_FL_CHECKED)) {
+		/* add the lf_expr to the proxy checks to delay postparsing
+		 * since config-related proxy properties are not stable yet
+		 */
+		LIST_APPEND(&curproxy->conf.lf_checks, &lf_expr->list);
+	}
+	else {
+		/* probably called during runtime or with proxy already checked,
+		 * perform the postcheck right away
+		 */
+		if (!lf_expr_postcheck(lf_expr, curproxy, err))
+			goto fail;
+	}
 
 	return 1;
  fail:
-	free(backfmt);
+	ha_free(&backfmt);
 	return 0;
+}
+
+/* Performs a postparsing check on logformat expression <expr> for a given <px>
+ * proxy. The function will behave differently depending on the proxy state
+ * (during parsing we will try to adapt proxy configuration to make it
+ * compatible with logformat expression, but once the proxy is checked, we fail
+ * as soon as we face incompatibilities)
+ *
+ * It returns 1 on success and 0 on error, <err> will be set in case of error.
+ */
+int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err)
+{
+	struct logformat_node *lf;
+
+	if (!(px->flags & PR_FL_CHECKED))
+		px->to_log |= LW_INIT;
+
+	list_for_each_entry(lf, &lf_expr->nodes, list) {
+		if (lf->type == LOG_FMT_EXPR) {
+			struct sample_expr *expr = lf->expr;
+			uint8_t http_needed = !!(expr->fetch->use & SMP_USE_HTTP_ANY);
+
+			if ((px->flags & PR_FL_CHECKED)) {
+				/* fail as soon as proxy properties are not compatible */
+				if (http_needed && !px->http_needed) {
+					memprintf(err, "sample fetch '%s' requires HTTP enabled proxy which is not available here",
+					          expr->fetch->kw);
+					goto fail;
+				}
+				continue;
+			}
+			/* check if we need to allocate an http_txn struct for HTTP parsing */
+			/* Note, we may also need to set curpx->to_log with certain fetches */
+			px->http_needed |= http_needed;
+
+			/* FIXME: temporary workaround for missing LW_XPRT and LW_REQ flags
+			 * needed with some sample fetches (eg: ssl*). We always set it for
+			 * now on, but this will leave with sample capabilities soon.
+			 */
+			px->to_log |= LW_XPRT;
+			if (px->http_needed)
+				px->to_log |= LW_REQ;
+		}
+		else if (lf->type == LOG_FMT_TAG) {
+			if (lf->tag->mode == PR_MODE_HTTP && px->mode != PR_MODE_HTTP) {
+				memprintf(err, "format tag '%s' is reserved for HTTP mode",
+				          lf->tag->name);
+				goto fail;
+			}
+			if (lf->tag->config_callback &&
+			    !lf->tag->config_callback(lf, px)) {
+				memprintf(err, "cannot configure format tag '%s' in this context",
+				          lf->tag->name);
+				goto fail;
+			}
+			if (!(px->flags & PR_FL_CHECKED))
+				px->to_log |= lf->tag->lw;
+		}
+	}
+	if ((px->to_log & (LW_REQ | LW_RESP)) &&
+	    (px->mode != PR_MODE_HTTP && !(px->options & PR_O_HTTP_UPG))) {
+		memprintf(err, "logformat expression not usable here (at least one node depends on HTTP mode)");
+		goto fail;
+	}
+
+	return 1;
+ fail:
+	return 0;
+}
+
+/* postparse logformats defined at <px> level */
+static int postcheck_logformat_proxy(struct proxy *px)
+{
+	char *err = NULL;
+	struct lf_expr *lf_expr, *back_lf;
+	int err_code = ERR_NONE;
+
+	list_for_each_entry_safe(lf_expr, back_lf, &px->conf.lf_checks, list) {
+		if (!lf_expr_postcheck(lf_expr, px, &err))
+			err_code |= ERR_FATAL | ERR_ALERT;
+		/* check performed, ensure it doesn't get checked twice */
+		LIST_DEL_INIT(&lf_expr->list);
+		if (err_code & ERR_CODE)
+			break;
+	}
+
+	if (err) {
+		memprintf(&err, "error detected while postparsing logformat expression used by %s '%s' : %s", proxy_type_str(px), px->id, err);
+		if (lf_expr->conf.file)
+			memprintf(&err, "parsing [%s:%d] : %s.\n", lf_expr->conf.file, lf_expr->conf.line, err);
+		ha_alert("%s", err);
+		ha_free(&err);
+	}
+
+	return err_code;
 }
 
 /*
@@ -2599,12 +2698,19 @@ void free_logformat_list(struct list *fmt)
 void lf_expr_init(struct lf_expr *expr)
 {
 	LIST_INIT(&expr->nodes);
+	LIST_INIT(&expr->list);
+	expr->conf.file = NULL;
+	expr->conf.line = 0;
 }
 
 /* Releases and resets a log-format expression */
 void lf_expr_deinit(struct lf_expr *expr)
 {
 	free_logformat_list(&expr->nodes);
+	free(expr->conf.file);
+	/* remove from parent list (if any) */
+	LIST_DEL_INIT(&expr->list);
+
 	lf_expr_init(expr);
 }
 
@@ -2619,10 +2725,18 @@ void lf_expr_xfer(struct lf_expr *src, struct lf_expr *dst)
 	lf_expr_deinit(dst);
 
 	/* then proceed with transfer between <src> and <dst> */
+	dst->conf.file = src->conf.file;
+	dst->conf.line = src->conf.line;
 	list_for_each_entry_safe(lf, lfb, &src->nodes, list) {
 		LIST_DELETE(&lf->list);
 		LIST_APPEND(&dst->nodes, &lf->list);
 	}
+
+	/* replace <src> with <dst> in <src>'s list by first adding
+	 * <dst> after <src>, then removing <src>...
+	 */
+	LIST_INSERT(&src->list, &dst->list);
+	LIST_DEL_INIT(&src->list);
 
 	/* src is now empty, perform an explicit reset */
 	lf_expr_init(src);
@@ -4654,6 +4768,7 @@ static int postresolve_loggers()
 REGISTER_CONFIG_SECTION("log-forward", cfg_parse_log_forward, NULL);
 REGISTER_POST_CHECK(postresolve_loggers);
 REGISTER_POST_PROXY_CHECK(postcheck_log_backend);
+REGISTER_POST_PROXY_CHECK(postcheck_logformat_proxy);
 
 REGISTER_PER_THREAD_ALLOC(init_log_buffers);
 REGISTER_PER_THREAD_FREE(deinit_log_buffers);

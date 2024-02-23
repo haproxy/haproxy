@@ -1022,11 +1022,6 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 			return ACT_RET_PRS_ERR;
 
 		(*arg)++;
-
-		/* for late error reporting */
-		free(px->conf.lfs_file);
-		px->conf.lfs_file = strdup(px->conf.args.file);
-		px->conf.lfs_line = px->conf.args.line;
 	} else {
 		/* set-var */
 		rule->arg.vars.expr = sample_parse_expr((char **)args, arg, px->conf.args.file,
@@ -1065,6 +1060,7 @@ static int vars_parse_global_set_var(char **args, int section_type, struct proxy
 	struct proxy px = {
 		.id = "CFG",
 		.conf.args = { .file = file, .line = line, },
+		.flags = PR_FL_CHECKED,
 	};
 	struct act_rule rule = {
 		.arg.vars.scope = SCOPE_PROC,
@@ -1185,6 +1181,7 @@ static int vars_parse_cli_set_var(char **args, char *payload, struct appctx *app
 	struct proxy px = {
 		.id = "CLI",
 		.conf.args = { .file = "CLI", .line = 0, },
+		.flags = PR_FL_CHECKED,
 	};
 	struct act_rule rule = {
 		.arg.vars.scope = SCOPE_PROC,

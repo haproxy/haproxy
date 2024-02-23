@@ -1718,9 +1718,6 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			if (!parse_logformat_string(args[cur_arg+1], px, &hdr->value, LOG_OPT_HTTP, cap, errmsg))
 				goto error;
 
-			free(px->conf.lfs_file);
-			px->conf.lfs_file = strdup(px->conf.args.file);
-			px->conf.lfs_line = px->conf.args.line;
 			cur_arg += 2;
 		}
 		else
@@ -1804,10 +1801,6 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 		}
 		if (!parse_logformat_string(obj, px, &reply->body.fmt, LOG_OPT_HTTP, cap, errmsg))
 			goto error;
-
-		free(px->conf.lfs_file);
-		px->conf.lfs_file = strdup(px->conf.args.file);
-		px->conf.lfs_line = px->conf.args.line;
 	}
 
 	free(obj);

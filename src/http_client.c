@@ -1335,13 +1335,34 @@ err:
  */
 static int httpclient_precheck()
 {
+	int err_code = ERR_NONE;
+	char *errmsg = NULL;
+
 	/* initialize the default httpclient_proxy which is used for the CLI and the lua */
 
 	httpclient_proxy = httpclient_create_proxy("<HTTPCLIENT>");
 	if (!httpclient_proxy)
 		return ERR_RETRYABLE;
+	if (httpclient_proxy->conf.logformat_string) {
+		httpclient_proxy->conf.args.ctx = ARGC_LOG;
+		if (!parse_logformat_string(httpclient_proxy->conf.logformat_string,
+		                            httpclient_proxy, &httpclient_proxy->logformat,
+					    LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
+					    SMP_VAL_FE_LOG_END, &errmsg)) {
+			memprintf(&errmsg, "failed to parse log-format : %s.", errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+		httpclient_proxy->conf.args.file = NULL;
+		httpclient_proxy->conf.args.line = 0;
+	}
 
-	return ERR_NONE;
+ err:
+	if (err_code & ERR_CODE) {
+		ha_alert("httpclient: failed to initialize: %s\n", errmsg);
+		free(errmsg);
+	}
+	return err_code;
 }
 
 /* Initialize the logs for every proxy dedicated to the httpclient */
@@ -1371,18 +1392,6 @@ static int httpclient_postcheck_proxy(struct proxy *curproxy)
 			goto err;
 		}
 		LIST_APPEND(&curproxy->loggers, &node->list);
-	}
-	if (curproxy->conf.logformat_string) {
-		curproxy->conf.args.ctx = ARGC_LOG;
-		if (!parse_logformat_string(curproxy->conf.logformat_string, curproxy, &curproxy->logformat,
-					    LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
-					    SMP_VAL_FE_LOG_END, &errmsg)) {
-			memprintf(&errmsg, "failed to parse log-format : %s.", errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto err;
-		}
-		curproxy->conf.args.file = NULL;
-		curproxy->conf.args.line = 0;
 	}
 
 #ifdef USE_OPENSSL

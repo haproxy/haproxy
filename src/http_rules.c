@@ -466,9 +466,6 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 			if (!parse_logformat_string(destination, curproxy, &rule->rdr_fmt, LOG_OPT_HTTP, cap, errmsg)) {
 				goto err;
 			}
-			free(curproxy->conf.lfs_file);
-			curproxy->conf.lfs_file = strdup(curproxy->conf.args.file);
-			curproxy->conf.lfs_line = curproxy->conf.args.line;
 		}
 	}
 

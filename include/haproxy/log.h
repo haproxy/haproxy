@@ -71,6 +71,7 @@ static inline int lf_expr_isempty(const struct lf_expr *expr)
 {
 	return LIST_ISEMPTY(&expr->nodes);
 }
+int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err);
 
 /* Deinitialize log buffers used for syslog messages */
 void free_logformat_list(struct list *fmt);

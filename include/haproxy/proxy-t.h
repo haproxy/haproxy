@@ -439,6 +439,7 @@ struct proxy {
 		char *error_logformat_string;
 		char *elfs_file;
 		int elfs_line;
+		struct list lf_checks;          /* list of logformats found in the proxy section that needs to be checked during postparse */
 	} conf;					/* config information */
 	struct http_ext *http_ext;	        /* http ext options */
 	struct eb_root used_server_addr;        /* list of server addresses in use */
