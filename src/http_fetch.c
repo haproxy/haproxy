@@ -314,7 +314,7 @@ struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, struct che
 		else {
 			if (txn->status == -1)
 				txn->status = sl->info.res.status;
-			if (!(htx->flags & HTX_FL_PROXY_RESP) && txn->server_status == -1)
+			if (txn->server_status == -1)
 				txn->server_status = sl->info.res.status;
 		}
 		if (sl->flags & HTX_SL_F_VER_11)

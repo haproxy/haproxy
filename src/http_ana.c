@@ -2236,7 +2236,7 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 	struct buffer *chunk;
 	struct ist status, reason, location;
 	unsigned int flags;
-	int ret = 1, close = 0; /* Try to keep the connection alive byt default */
+	int ret = 1;
 
 	chunk = alloc_trash_chunk();
 	if (!chunk) {
@@ -2409,9 +2409,6 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 			break;
 	}
 
-	if (!(txn->req.flags & HTTP_MSGF_BODYLESS) && txn->req.msg_state != HTTP_MSG_DONE)
-		close = 1;
-
 	htx = htx_from_buf(&res->buf);
 	/* Trim any possible response */
 	channel_htx_truncate(&s->res, htx);
@@ -2421,9 +2418,6 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 		goto fail;
 	sl->info.res.status = rule->code;
 	s->txn->status = rule->code;
-
-	if (close && !htx_add_header(htx, ist("Connection"), ist("close")))
-		goto fail;
 
 	if (!htx_add_header(htx, ist("Content-length"), ist("0")) ||
 	    !htx_add_header(htx, ist("Location"), location))
@@ -4191,7 +4185,6 @@ void http_perform_server_redirect(struct stream *s, struct stconn *sc)
 	s->txn->status = 302;
 
         if (!htx_add_header(htx, ist("Cache-Control"), ist("no-cache")) ||
-	    !htx_add_header(htx, ist("Connection"), ist("close")) ||
 	    !htx_add_header(htx, ist("Content-length"), ist("0")) ||
 	    !htx_add_header(htx, ist("Location"), location))
 		goto fail;
@@ -4473,7 +4466,8 @@ int http_forward_proxy_resp(struct stream *s, int final)
 	size_t data;
 
 	if (final) {
-		htx->flags |= HTX_FL_PROXY_RESP;
+		if (s->txn->server_status == -1)
+			s->txn->server_status = 0;
 
 		if (!htx_is_empty(htx) && !http_eval_after_res_rules(s))
 			return 0;
