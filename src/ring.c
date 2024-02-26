@@ -175,8 +175,9 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 {
 	struct buffer *buf = &ring->buf;
 	struct appctx *appctx;
-	size_t totlen = 0;
+	size_t msglen = 0;
 	size_t lenlen;
+	size_t needed;
 	uint64_t dellen;
 	int dellenlen;
 	ssize_t sent = 0;
@@ -191,20 +192,27 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	 * copying due to the varint encoding of the length.
 	 */
 	for (i = 0; i < npfx; i++)
-		totlen += pfx[i].len;
+		msglen += pfx[i].len;
 	for (i = 0; i < nmsg; i++)
-		totlen += msg[i].len;
+		msglen += msg[i].len;
 
-	if (totlen > maxlen)
-		totlen = maxlen;
+	if (msglen > maxlen)
+		msglen = maxlen;
 
-	lenlen = varint_bytes(totlen);
+	lenlen = varint_bytes(msglen);
+
+	/* We need:
+	 *   - lenlen bytes for the size encoding
+	 *   - msglen for the message
+	 *   - one byte for the new marker
+	 */
+	needed = lenlen + msglen + 1;
 
 	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
-	if (lenlen + totlen + 1 + 1 > b_size(buf))
+	if (needed + 1 > b_size(buf))
 		goto done_buf;
 
-	while (b_room(buf) < lenlen + totlen + 1) {
+	while (b_room(buf) < needed) {
 		/* we need to delete the oldest message (from the end),
 		 * and we have to stop if there's a reader stuck there.
 		 * Unless there's corruption in the buffer it's guaranteed
@@ -223,31 +231,32 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	}
 
 	/* OK now we do have room */
-	__b_put_varint(buf, totlen);
+	__b_put_varint(buf, msglen);
 
-	totlen = 0;
+	msglen = 0;
 	for (i = 0; i < npfx; i++) {
 		size_t len = pfx[i].len;
 
-		if (len + totlen > maxlen)
-			len = maxlen - totlen;
+		if (len + msglen > maxlen)
+			len = maxlen - msglen;
 		if (len)
 			__b_putblk(buf, pfx[i].ptr, len);
-		totlen += len;
+		msglen += len;
 	}
 
 	for (i = 0; i < nmsg; i++) {
 		size_t len = msg[i].len;
 
-		if (len + totlen > maxlen)
-			len = maxlen - totlen;
+		if (len + msglen > maxlen)
+			len = maxlen - msglen;
 		if (len)
 			__b_putblk(buf, msg[i].ptr, len);
-		totlen += len;
+		msglen += len;
 	}
 
 	*b_tail(buf) = 0; buf->data++; // new read counter
-	sent = lenlen + totlen + 1;
+	sent = lenlen + msglen + 1;
+	BUG_ON_HOT(sent != needed);
 
 	/* notify potential readers */
 	list_for_each_entry(appctx, &ring->waiters, wait_entry)
