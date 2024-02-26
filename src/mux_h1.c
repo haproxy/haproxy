@@ -926,6 +926,43 @@ static void h1s_destroy(struct h1s *h1s)
 	}
 }
 
+
+/* Check if shutdown performed of an an H1S must lead to a connection shutdown
+ * of if it can be kept alive. It returns 1 if the connection must be shut down
+ * and 0 it if can be kept alive.
+ */
+static int h1s_must_shut_conn(struct h1s *h1s)
+{
+	struct h1c *h1c = h1s->h1c;
+	int ret;
+
+	TRACE_ENTER(H1_EV_STRM_SHUT, h1c->conn, h1s);
+
+	if (se_fl_test(h1s->sd, SE_FL_KILL_CONN)) {
+		TRACE_STATE("stream wants to kill the connection", H1_EV_STRM_SHUT, h1c->conn, h1s);
+		ret = 1;
+	}
+	else if (h1c->state == H1_CS_CLOSING || (h1c->flags & (H1C_F_EOS|H1C_F_ERR_PENDING|H1C_F_ERROR))) {
+		TRACE_STATE("shutdown on connection (EOS || CLOSING || ERROR)", H1_EV_STRM_SHUT, h1c->conn, h1s);
+		ret = 1;
+	}
+	else if (h1c->state == H1_CS_UPGRADING) {
+		TRACE_STATE("keep connection alive (UPGRADING)", H1_EV_STRM_SHUT, h1c->conn, h1s);
+		ret = 0;
+	}
+	else if (((h1s->flags & H1S_F_WANT_KAL) && h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE)) {
+		TRACE_STATE("keep connection alive (want_kal)", H1_EV_STRM_SHUT, h1c->conn, h1s);
+		ret = 0;
+	}
+	else {
+		/* The default case, do the shutdown */
+		ret = 1;
+	}
+
+	TRACE_LEAVE(H1_EV_STRM_SHUT, h1c->conn, h1s);
+	return ret;
+}
+
 /*
  * Initialize the mux once it's attached. It is expected that conn->ctx points
  * to the existing stream connector (for outgoing connections or for incoming
@@ -4201,23 +4238,8 @@ static void h1_shutw(struct stconn *sc, enum co_shw_mode mode)
 
 	TRACE_ENTER(H1_EV_STRM_SHUT, h1c->conn, h1s, 0, (size_t[]){mode});
 
-	if (se_fl_test(h1s->sd, SE_FL_KILL_CONN)) {
-		TRACE_STATE("stream wants to kill the connection", H1_EV_STRM_SHUT, h1c->conn, h1s);
-		goto do_shutw;
-	}
-	if (h1c->state == H1_CS_CLOSING || (h1c->flags & (H1C_F_EOS|H1C_F_ERR_PENDING|H1C_F_ERROR))) {
-		TRACE_STATE("shutdown on connection (EOS || CLOSING || ERROR)", H1_EV_STRM_SHUT, h1c->conn, h1s);
-		goto do_shutw;
-	}
-
-	if (h1c->state == H1_CS_UPGRADING) {
-		TRACE_STATE("keep connection alive (UPGRADING)", H1_EV_STRM_SHUT, h1c->conn, h1s);
+	if (!h1s_must_shut_conn(h1s))
 		goto end;
-	}
-	if (((h1s->flags & H1S_F_WANT_KAL) && h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE)) {
-		TRACE_STATE("keep connection alive (want_kal)", H1_EV_STRM_SHUT, h1c->conn, h1s);
-		goto end;
-	}
 
   do_shutw:
 	h1_close(h1c);
