@@ -335,6 +335,8 @@ DECLARE_STATIC_POOL(pool_head_h1s, "h1s", sizeof(struct h1s));
 static int h1_recv(struct h1c *h1c);
 static int h1_send(struct h1c *h1c);
 static int h1_process(struct h1c *h1c);
+static void h1_release(struct h1c *h1c);
+
 /* h1_io_cb is exported to see it resolved in "show fd" */
 struct task *h1_io_cb(struct task *t, void *ctx, unsigned int state);
 struct task *h1_timeout_task(struct task *t, void *context, unsigned int state);
@@ -962,6 +964,116 @@ static int h1s_must_shut_conn(struct h1s *h1s)
 	TRACE_LEAVE(H1_EV_STRM_SHUT, h1c->conn, h1s);
 	return ret;
 }
+
+/* Really detach the H1S. Most of time of it called from h1_detach() when the
+ * stream is detached from the connection. But if the request message must be
+ * drained first, the detach is deferred.
+ */
+static void h1s_finish_detach(struct h1s *h1s)
+{
+	struct h1c *h1c;
+	struct session *sess;
+	int is_not_first;
+
+	TRACE_ENTER(H1_EV_STRM_END, h1s ? h1s->h1c->conn : NULL, h1s);
+
+	sess = h1s->sess;
+	h1c = h1s->h1c;
+
+	sess->accept_date = date;
+	sess->accept_ts   = now_ns;
+	sess->t_handshake = 0;
+	sess->t_idle      = -1;
+
+	is_not_first = h1s->flags & H1S_F_NOT_FIRST;
+	h1s_destroy(h1s);
+
+	if (h1c->state == H1_CS_IDLE && (h1c->flags & H1C_F_IS_BACK)) {
+		/* this connection may be killed at any moment, we want it to
+		 * die "cleanly" (i.e. only an RST).
+		 */
+		h1c->flags |= H1C_F_SILENT_SHUT;
+
+		/* If there are any excess server data in the input buffer,
+		 * release it and close the connection ASAP (some data may
+		 * remain in the output buffer). This happens if a server sends
+		 * invalid responses. So in such case, we don't want to reuse
+		 * the connection
+		 */
+		if (b_data(&h1c->ibuf)) {
+			h1_release_buf(h1c, &h1c->ibuf);
+			h1_close(h1c);
+			TRACE_DEVEL("remaining data on detach, kill connection", H1_EV_STRM_END|H1_EV_H1C_END);
+			goto release;
+		}
+
+		if (h1c->conn->flags & CO_FL_PRIVATE) {
+			/* Add the connection in the session server list, if not already done */
+			if (!session_add_conn(sess, h1c->conn, h1c->conn->target)) {
+				h1c->conn->owner = NULL;
+				h1c->conn->mux->destroy(h1c);
+				goto end;
+			}
+			/* Always idle at this step */
+			if (session_check_idle_conn(sess, h1c->conn)) {
+				/* The connection got destroyed, let's leave */
+				TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);
+				goto end;
+			}
+		}
+		else {
+			if (h1c->conn->owner == sess)
+				h1c->conn->owner = NULL;
+
+			/* mark that the tasklet may lose its context to another thread and
+			 * that the handler needs to check it under the idle conns lock.
+			 */
+			HA_ATOMIC_OR(&h1c->wait_event.tasklet->state, TASK_F_USR1);
+			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+			xprt_set_idle(h1c->conn, h1c->conn->xprt, h1c->conn->xprt_ctx);
+
+			if (!srv_add_to_idle_list(objt_server(h1c->conn->target), h1c->conn, is_not_first)) {
+				/* The server doesn't want it, let's kill the connection right away */
+				h1c->conn->mux->destroy(h1c);
+				TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);
+				goto end;
+			}
+			/* At this point, the connection has been added to the
+			 * server idle list, so another thread may already have
+			 * hijacked it, so we can't do anything with it.
+			 */
+			return;
+		}
+	}
+
+  release:
+	/* We don't want to close right now unless the connection is in error or shut down for writes */
+	if ((h1c->flags & H1C_F_ERROR) ||
+	    (h1c->state == H1_CS_CLOSED) ||
+	    (h1c->state == H1_CS_CLOSING && !b_data(&h1c->obuf)) ||
+	    !h1c->conn->owner) {
+		TRACE_DEVEL("killing dead connection", H1_EV_STRM_END, h1c->conn);
+		h1_release(h1c);
+	}
+	else {
+		if (h1c->state == H1_CS_IDLE) {
+			/* If we have a new request, process it immediately or
+			 * subscribe for reads waiting for new data
+			 */
+			if (unlikely(b_data(&h1c->ibuf))) {
+				if (h1_process(h1c) == -1)
+					goto end;
+			}
+			else
+				h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+		}
+		h1_set_idle_expiration(h1c);
+		h1_refresh_timeout(h1c);
+	}
+  end:
+	TRACE_LEAVE(H1_EV_STRM_END);
+}
+
 
 /*
  * Initialize the mux once it's attached. It is expected that conn->ctx points
@@ -4106,9 +4218,6 @@ static void h1_destroy(void *ctx)
 static void h1_detach(struct sedesc *sd)
 {
 	struct h1s *h1s = sd->se;
-	struct h1c *h1c;
-	struct session *sess;
-	int is_not_first;
 
 	TRACE_ENTER(H1_EV_STRM_END, h1s ? h1s->h1c->conn : NULL, h1s);
 
@@ -4116,100 +4225,8 @@ static void h1_detach(struct sedesc *sd)
 		TRACE_LEAVE(H1_EV_STRM_END);
 		return;
 	}
+	h1s_finish_detach(h1s);
 
-	sess = h1s->sess;
-	h1c = h1s->h1c;
-
-	sess->accept_date = date;
-	sess->accept_ts   = now_ns;
-	sess->t_handshake = 0;
-	sess->t_idle      = -1;
-
-	is_not_first = h1s->flags & H1S_F_NOT_FIRST;
-	h1s_destroy(h1s);
-
-	if (h1c->state == H1_CS_IDLE && (h1c->flags & H1C_F_IS_BACK)) {
-		/* this connection may be killed at any moment, we want it to
-		 * die "cleanly" (i.e. only an RST).
-		 */
-		h1c->flags |= H1C_F_SILENT_SHUT;
-
-		/* If there are any excess server data in the input buffer,
-		 * release it and close the connection ASAP (some data may
-		 * remain in the output buffer). This happens if a server sends
-		 * invalid responses. So in such case, we don't want to reuse
-		 * the connection
-		 */
-		if (b_data(&h1c->ibuf)) {
-			h1_release_buf(h1c, &h1c->ibuf);
-			h1_close(h1c);
-			TRACE_DEVEL("remaining data on detach, kill connection", H1_EV_STRM_END|H1_EV_H1C_END);
-			goto release;
-		}
-
-		if (h1c->conn->flags & CO_FL_PRIVATE) {
-			/* Add the connection in the session server list, if not already done */
-			if (!session_add_conn(sess, h1c->conn, h1c->conn->target)) {
-				h1c->conn->owner = NULL;
-				h1c->conn->mux->destroy(h1c);
-				goto end;
-			}
-			/* Always idle at this step */
-			if (session_check_idle_conn(sess, h1c->conn)) {
-				/* The connection got destroyed, let's leave */
-				TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);
-				goto end;
-			}
-		}
-		else {
-			if (h1c->conn->owner == sess)
-				h1c->conn->owner = NULL;
-
-			/* mark that the tasklet may lose its context to another thread and
-			 * that the handler needs to check it under the idle conns lock.
-			 */
-			HA_ATOMIC_OR(&h1c->wait_event.tasklet->state, TASK_F_USR1);
-			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
-			xprt_set_idle(h1c->conn, h1c->conn->xprt, h1c->conn->xprt_ctx);
-
-			if (!srv_add_to_idle_list(objt_server(h1c->conn->target), h1c->conn, is_not_first)) {
-				/* The server doesn't want it, let's kill the connection right away */
-				h1c->conn->mux->destroy(h1c);
-				TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);
-				goto end;
-			}
-			/* At this point, the connection has been added to the
-			 * server idle list, so another thread may already have
-			 * hijacked it, so we can't do anything with it.
-			 */
-			return;
-		}
-	}
-
-  release:
-	/* We don't want to close right now unless the connection is in error or shut down for writes */
-	if ((h1c->flags & H1C_F_ERROR) ||
-	    (h1c->state == H1_CS_CLOSED) ||
-	    (h1c->state == H1_CS_CLOSING && !b_data(&h1c->obuf)) ||
-	    !h1c->conn->owner) {
-		TRACE_DEVEL("killing dead connection", H1_EV_STRM_END, h1c->conn);
-		h1_release(h1c);
-	}
-	else {
-		if (h1c->state == H1_CS_IDLE) {
-			/* If we have a new request, process it immediately or
-			 * subscribe for reads waiting for new data
-			 */
-			if (unlikely(b_data(&h1c->ibuf))) {
-				if (h1_process(h1c) == -1)
-					goto end;
-			}
-			else
-				h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
-		}
-		h1_set_idle_expiration(h1c);
-		h1_refresh_timeout(h1c);
-	}
   end:
 	TRACE_LEAVE(H1_EV_STRM_END);
 }
