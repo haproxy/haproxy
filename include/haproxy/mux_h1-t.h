@@ -134,6 +134,7 @@ enum h1_cs {
 	H1_CS_EMBRYONIC,   /* Connection is waiting for the message headers (H1S is not NULL, not attached to a SC - Frontend connection only) */
 	H1_CS_UPGRADING,   /* TCP>H1 upgrade in-progress (H1S is not NULL and attached to a SC - Frontend connection only) */
 	H1_CS_RUNNING,     /* Connection fully established and the H1S is processing data (H1S is not NULL and attached to a SC) */
+	H1_CS_DRAINING,    /* H1C is draining the message before destroying the H1S (H1S is not NULL but no SC attached) */
 	H1_CS_CLOSING,     /* Send pending outgoing data and close the connection ASAP  (H1S may be NULL) */
 	H1_CS_CLOSED,      /* Connection must be closed now and H1C must be released (H1S is NULL) */
 	H1_CS_ENTRIES,
@@ -150,6 +151,7 @@ static inline const char *h1c_st_to_str(enum h1_cs st)
 	case H1_CS_EMBRYONIC: return "EMB";
 	case H1_CS_UPGRADING: return "UPG";
 	case H1_CS_RUNNING:   return "RUN";
+	case H1_CS_DRAINING:  return "DRN";
 	case H1_CS_CLOSING:   return "CLI";
 	case H1_CS_CLOSED:    return "CLD";
 	default:              return "???";
