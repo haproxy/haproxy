@@ -56,6 +56,8 @@
  *
  * These functions do not need to know the allocated size nor any such thing,
  * it's the caller's job to know that and to build the relevant vector pair.
+ * See the vp_{ring,data,room}_to_{ring,data,room}() functions at the end for
+ * this.
  */
 
 /* vp_isempty(): returns true if both areas are empty */
@@ -488,6 +490,92 @@ static inline size_t vp_get_varint(struct ist *v1, struct ist *v2, uint64_t *vpt
 static inline size_t vp_peek_varint_ofs(struct ist v1, struct ist v2, size_t ofs, uint64_t *vptr)
 {
 	return vp_get_varint_ofs(&v1, &v2, ofs, vptr);
+}
+
+
+/************************************************************/
+/* ring-buffer API                                          */
+/* This is used to manipulate rings made of (head,tail)     */
+/* It creates vectors for reading (data) and writing (room) */
+/************************************************************/
+
+/* build 2 vectors <v1> and <v2> corresponding to the available data in ring
+ * buffer of size <size>, starting at address <area>, with a head <head> and
+ * a tail <tail>. <v2> is non-empty only if the data wraps (i.e. tail<head).
+ */
+static inline void vp_ring_to_data(struct ist *v1, struct ist *v2, char *area, size_t size, size_t head, size_t tail)
+{
+	v1->ptr = area + head;
+	v1->len = ((head <= tail) ? tail : size) - head;
+	v2->ptr = area;
+	v2->len = (tail < head) ? tail : 0;
+}
+
+/* build 2 vectors <v1> and <v2> corresponding to the available room in ring
+ * buffer of size <size>, starting at address <area>, with a head <head> and
+ * a tail <tail>. <v2> is non-empty only if the room wraps (i.e. head>tail).
+ */
+static inline void vp_ring_to_room(struct ist *v1, struct ist *v2, char *area, size_t size, size_t head, size_t tail)
+{
+	v1->ptr = area + tail;
+	v1->len = ((tail <= head) ? head : size) - tail;
+	v2->ptr = area;
+	v2->len = (head < tail) ? head : 0;
+}
+
+/* Set a ring's <head> and <tail> according to the data area represented by the
+ * concatenation of <v1> and <v2> which must point to two adjacent areas within
+ * a ring buffer of <size> bytes starting at <area>. <v1>, if not empty, starts
+ * at the head and <v2>, if not empty, ends at the tail. If both vectors are of
+ * length zero, the ring is considered empty and both its head and tail will be
+ * reset.
+ */
+static inline void vp_data_to_ring(const struct ist v1, const struct ist v2, char *area, size_t size, size_t *head, size_t *tail)
+{
+	size_t ofs;
+
+	if (!v1.len && !v2.len) {
+		*head = *tail = 0;
+		return;
+	}
+
+	ofs = (v1.len ? v1.ptr : v2.ptr) - area;
+	if (ofs >= size)
+		ofs -= size;
+	*head = ofs;
+
+	ofs = (v2.len ? v2.ptr + v2.len : v1.ptr + v1.len) - area;
+	if (ofs >= size)
+		ofs -= size;
+	*tail = ofs;
+}
+
+/* Set a ring's <head> and <tail> according to the room area represented by the
+ * concatenation of <v1> and <v2> which must point to two adjacent areas within
+ * a ring buffer of <size> bytes starting at <area>. <v1>, if not empty, starts
+ * at the tail and <v2>, if not empty, ends at the head. If both vectors are of
+ * length zero, the ring is considered full and both its head and tail will be
+ * reset (which cannot be distinguished from empty). The caller must make sure
+ * not to fill a ring with this API.
+ */
+static inline void vp_room_to_ring(const struct ist v1, const struct ist v2, char *area, size_t size, size_t *head, size_t *tail)
+{
+	size_t ofs;
+
+	if (!v1.len && !v2.len) {
+		*head = *tail = 0;
+		return;
+	}
+
+	ofs = (v1.len ? v1.ptr : v2.ptr) - area;
+	if (ofs >= size)
+		ofs -= size;
+	*tail = ofs;
+
+	ofs = (v2.len ? v2.ptr + v2.len : v1.ptr + v1.len) - area;
+	if (ofs >= size)
+		ofs -= size;
+	*head = ofs;
 }
 
 #endif /* _HAPROXY_VECPAIR_H */
