@@ -1,2 +1,0 @@
-multicert/server_ocsp.pem.rsa [ocsp-update on ssl-min-ver TLSv1.2] *
-multicert/server_ocsp.pem.ecdsa [ocsp-update on ssl-min-ver TLSv1.2] *

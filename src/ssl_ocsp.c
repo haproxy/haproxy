@@ -392,9 +392,8 @@ void ssl_sock_free_ocsp(struct certificate_ocsp *ocsp)
 		return;
 
 	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
-	ocsp->refcount_store--;
-	if (ocsp->refcount_store <= 0) {
-		BUG_ON(ocsp->refcount_instance > 0);
+	ocsp->refcount--;
+	if (ocsp->refcount <= 0) {
 		ebmb_delete(&ocsp->key);
 		eb64_delete(&ocsp->next_update);
 		X509_free(ocsp->issuer);
@@ -408,19 +407,6 @@ void ssl_sock_free_ocsp(struct certificate_ocsp *ocsp)
 		}
 
 		free(ocsp);
-	}
-	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
-}
-
-void ssl_sock_free_ocsp_instance(struct certificate_ocsp *ocsp)
-{
-	if (!ocsp)
-		return;
-
-	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
-	ocsp->refcount_instance--;
-	if (ocsp->refcount_instance <= 0) {
-		eb64_delete(&ocsp->next_update);
 	}
 	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 }
@@ -640,13 +626,13 @@ void ssl_sock_ocsp_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int id
 		ocsp_arg = ptr;
 
 		if (ocsp_arg->is_single) {
-			ssl_sock_free_ocsp_instance(ocsp_arg->s_ocsp);
+			ssl_sock_free_ocsp(ocsp_arg->s_ocsp);
 			ocsp_arg->s_ocsp = NULL;
 		} else {
 			int i;
 
 			for (i = 0; i < SSL_SOCK_NUM_KEYTYPES; i++) {
-				ssl_sock_free_ocsp_instance(ocsp_arg->m_ocsp[i]);
+				ssl_sock_free_ocsp(ocsp_arg->m_ocsp[i]);
 				ocsp_arg->m_ocsp[i] = NULL;
 			}
 		}
@@ -981,6 +967,12 @@ static inline void ssl_ocsp_set_next_update(struct certificate_ocsp *ocsp)
  */
 int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
 {
+	/* This entry was only supposed to be updated once, it does not need to
+	 * be reinserted into the update tree.
+	 */
+	if (ocsp->update_once)
+		return 0;
+
 	/* Set next_update based on current time and the various OCSP
 	 * minimum/maximum update times.
 	 */
@@ -989,12 +981,7 @@ int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
 	ocsp->fail_count = 0;
 
 	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
-	ocsp->updating = 0;
-	/* An entry with update_once set to 1 was only supposed to be updated
-	 * once, it does not need to be reinserted into the update tree.
-	 */
-	if (!ocsp->update_once)
-		eb64_insert(&ocsp_update_tree, &ocsp->next_update);
+	eb64_insert(&ocsp_update_tree, &ocsp->next_update);
 	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 
 	return 0;
@@ -1010,6 +997,12 @@ int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
 int ssl_ocsp_update_insert_after_error(struct certificate_ocsp *ocsp)
 {
 	int replay_delay = 0;
+
+	/* This entry was only supposed to be updated once, it does not need to
+	 * be reinserted into the update tree.
+	 */
+	if (ocsp->update_once)
+		return 0;
 
 	/*
 	 * Set next_update based on current time and the various OCSP
@@ -1033,12 +1026,7 @@ int ssl_ocsp_update_insert_after_error(struct certificate_ocsp *ocsp)
 		ocsp->next_update.key = date.tv_sec + replay_delay;
 
 	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
-	ocsp->updating = 0;
-	/* An entry with update_once set to 1 was only supposed to be updated
-	 * once, it does not need to be reinserted into the update tree.
-	 */
-	if (!ocsp->update_once)
-		eb64_insert(&ocsp_update_tree, &ocsp->next_update);
+	eb64_insert(&ocsp_update_tree, &ocsp->next_update);
 	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 
 	return 0;
@@ -1201,7 +1189,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 			/* Reinsert the entry into the update list so that it can be updated later */
 			ssl_ocsp_update_insert(ocsp);
 			/* Release the reference kept on the updated ocsp response. */
-			ssl_sock_free_ocsp_instance(ctx->cur_ocsp);
+			ssl_sock_free_ocsp(ctx->cur_ocsp);
 			ctx->cur_ocsp = NULL;
 
 			HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
@@ -1244,8 +1232,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 		 * reinserted after the response is processed. */
 		eb64_delete(&ocsp->next_update);
 
-		ocsp->updating = 1;
-		ocsp->refcount_instance++;
+		++ocsp->refcount;
 		ctx->cur_ocsp = ocsp;
 		ocsp->last_update_status = OCSP_UPDT_UNKNOWN;
 
@@ -1312,7 +1299,7 @@ leave:
 		++ctx->cur_ocsp->num_failure;
 		ssl_ocsp_update_insert_after_error(ctx->cur_ocsp);
 		/* Release the reference kept on the updated ocsp response. */
-		ssl_sock_free_ocsp_instance(ctx->cur_ocsp);
+		ssl_sock_free_ocsp(ctx->cur_ocsp);
 		ctx->cur_ocsp = NULL;
 	}
 	if (hc)
@@ -1341,7 +1328,7 @@ http_error:
 	if (hc)
 		httpclient_stop_and_destroy(hc);
 	/* Release the reference kept on the updated ocsp response. */
-	ssl_sock_free_ocsp_instance(ctx->cur_ocsp);
+	ssl_sock_free_ocsp(ctx->cur_ocsp);
 	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 	/* Set next_wakeup to the new first entry of the tree */
 	eb = eb64_first(&ocsp_update_tree);
@@ -1426,24 +1413,13 @@ static int cli_parse_update_ocsp_response(char **args, char *payload, struct app
 		goto end;
 	}
 
-	/* No need to try to update this response, it is already being updated. */
-	if (!ocsp->updating) {
-		update_once = (ocsp->next_update.node.leaf_p == NULL);
-		eb64_delete(&ocsp->next_update);
+	update_once = (ocsp->next_update.node.leaf_p == NULL);
+	eb64_delete(&ocsp->next_update);
 
-		/* Insert the entry at the beginning of the update tree.
-		 * We don't need to increase the reference counter on the
-		 * certificate_ocsp structure because we would not have a way to
-		 * decrease it afterwards since this update operation is asynchronous.
-		 * If the corresponding entry were to be destroyed before the update can
-		 * be performed, which is pretty unlikely, it would not be such a
-		 * problem because that would mean that the OCSP response is not
-		 * actually used.
-		 */
-		ocsp->next_update.key = 0;
-		eb64_insert(&ocsp_update_tree, &ocsp->next_update);
-		ocsp->update_once = update_once;
-	}
+	/* Insert the entry at the beginning of the update tree. */
+	ocsp->next_update.key = 0;
+	eb64_insert(&ocsp_update_tree, &ocsp->next_update);
+	ocsp->update_once = update_once;
 
 	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 
@@ -1569,7 +1545,7 @@ static int cli_parse_show_ocspresponse(char **args, char *payload, struct appctx
 			HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 			return cli_err(appctx, "Certificate ID or path does not match any certificate.\n");
 		}
-		ocsp->refcount_instance++;
+		++ocsp->refcount;
 		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 
 		ctx->ocsp = ocsp;
@@ -1670,21 +1646,13 @@ yield:
 	free_trash_chunk(tmp);
 	BIO_free(bio);
 
-	ocsp->refcount_instance++;
+	++ocsp->refcount;
 	ctx->ocsp = ocsp;
 	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 	return 0;
 #else
 	return cli_err(appctx, "HAProxy was compiled against a version of OpenSSL that doesn't support OCSP stapling.\n");
 #endif
-}
-
-static void cli_release_show_ocspresponse(struct appctx *appctx)
-{
-	struct show_ocspresp_cli_ctx *ctx = appctx->svcctx;
-
-	if (ctx)
-		ssl_sock_free_ocsp(ctx->ocsp);
 }
 
 /* Check if the ckch_store and the entry does have the same configuration */
@@ -1947,7 +1915,7 @@ smp_fetch_ssl_ocsp_success_cnt(const struct arg *args, struct sample *smp, const
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "ocsp-response", NULL }, "set ssl ocsp-response <resp|payload>       : update a certificate's OCSP Response from a base64-encode DER",      cli_parse_set_ocspresponse, NULL },
 
-	{ { "show", "ssl", "ocsp-response", NULL },"show ssl ocsp-response [[text|base64] id]  : display the IDs of the OCSP responses used in memory, or the details of a single OCSP response (in text or base64 format)", cli_parse_show_ocspresponse, cli_io_handler_show_ocspresponse, cli_release_show_ocspresponse },
+	{ { "show", "ssl", "ocsp-response", NULL },"show ssl ocsp-response [[text|base64] id]  : display the IDs of the OCSP responses used in memory, or the details of a single OCSP response (in text or base64 format)", cli_parse_show_ocspresponse, cli_io_handler_show_ocspresponse, NULL },
 	{ { "show", "ssl", "ocsp-updates", NULL }, "show ssl ocsp-updates                      : display information about the next 'nb' ocsp responses that will be updated automatically", cli_parse_show_ocsp_updates, cli_io_handler_show_ocsp_updates, cli_release_show_ocsp_updates },
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 	{ { "update", "ssl", "ocsp-response", NULL }, "update ssl ocsp-response <certfile>     : send ocsp request and update stored ocsp response",                  cli_parse_update_ocsp_response, NULL, NULL },

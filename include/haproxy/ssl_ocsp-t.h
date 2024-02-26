@@ -47,8 +47,7 @@ struct certificate_ocsp {
 	struct ebmb_node key;
 	unsigned char key_data[OCSP_MAX_CERTID_ASN1_LENGTH];
 	unsigned int key_length;
-	int refcount_store;		/* Number of ckch_store that reference this certificate_ocsp */
-	int refcount_instance;		/* Number of ckch_inst that reference this certificate_ocsp */
+	int refcount;
 	struct buffer response;
 	long expire;
 	X509 *issuer;
@@ -61,9 +60,8 @@ struct certificate_ocsp {
 	unsigned int last_update_status;/* Status of the last OCSP update */
 	unsigned int num_success;	/* Number of successful updates */
 	unsigned int num_failure;	/* Number of failed updates */
-	unsigned int fail_count:30;	/* Number of successive failures */
+	unsigned int fail_count:31;	/* Number of successive failures */
 	unsigned int update_once:1;	/* Set if an entry should not be reinserted into te tree after update */
-	unsigned int updating:1;	/* Set if an entry is already being updated */
 	char path[VAR_ARRAY];
 };
 
