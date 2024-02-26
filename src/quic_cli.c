@@ -11,6 +11,8 @@
 unsigned int qc_epoch = 0;
 
 enum quic_dump_format {
+	QUIC_DUMP_FMT_DEFAULT, /* value used if not explicitely specified. */
+
 	QUIC_DUMP_FMT_ONELINE,
 	QUIC_DUMP_FMT_FULL,
 };
@@ -22,9 +24,22 @@ struct show_quic_ctx {
 	unsigned int thr;
 	int flags;
 	enum quic_dump_format format;
+	void *ptr;
 };
 
 #define QC_CLI_FL_SHOW_ALL 0x1 /* show closing/draining connections */
+
+/* Returns the output format for show quic. If specified explicitely use it as
+ * set. Else format depends if filtering on a single connection instance. If
+ * true, full format is preferred else oneline.
+ */
+static enum quic_dump_format cli_show_quic_format(const struct show_quic_ctx *ctx)
+{
+	if (ctx->format == QUIC_DUMP_FMT_DEFAULT)
+		return ctx->ptr ? QUIC_DUMP_FMT_FULL : QUIC_DUMP_FMT_ONELINE;
+	else
+		return ctx->format;
+}
 
 static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -37,10 +52,11 @@ static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx
 	ctx->epoch = _HA_ATOMIC_FETCH_ADD(&qc_epoch, 1);
 	ctx->thr = 0;
 	ctx->flags = 0;
-	ctx->format = QUIC_DUMP_FMT_ONELINE;
+	ctx->format = QUIC_DUMP_FMT_DEFAULT;
+	ctx->ptr = 0;
 
 	if (strcmp(args[argc], "oneline") == 0) {
-		/* format already used as default value */
+		ctx->format = QUIC_DUMP_FMT_ONELINE;
 		++argc;
 	}
 	else if (strcmp(args[argc], "full") == 0) {
@@ -48,9 +64,24 @@ static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx
 		++argc;
 	}
 
-	while (*args[argc]) {
-		if (strcmp(args[argc], "all") == 0)
+	if (*args[argc]) {
+		struct ist istarg = ist(args[argc]);
+
+		if (istmatchi(istarg, ist("0x"))) {
+			char *nptr;
+			ctx->ptr = (void *)strtol(args[argc], &nptr, 16);
+			if (*nptr) {
+				cli_err(appctx, "Invalid quic_conn pointer.\n");
+				return 1;
+			}
+		}
+		else if (istmatch(istarg, ist("all"))) {
 			ctx->flags |= QC_CLI_FL_SHOW_ALL;
+		}
+		else {
+			cli_err(appctx, "Invalid argument.\n");
+			return 1;
+		}
 
 		++argc;
 	}
@@ -309,7 +340,7 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 		ctx->bref.ref = ha_thread_ctx[ctx->thr].quic_conns.n;
 
 		/* Print legend for oneline format. */
-		if (ctx->format == QUIC_DUMP_FMT_ONELINE) {
+		if (cli_show_quic_format(ctx) == QUIC_DUMP_FMT_ONELINE) {
 			chunk_appendf(&trash, "# conn/frontend                     state   "
 				      "in_flight infl_p lost_p         "
 				      "Local Address           Foreign Address      "
@@ -322,11 +353,12 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 		int done = 0;
 
 		if (ctx->bref.ref == &ha_thread_ctx[ctx->thr].quic_conns) {
-			/* If closing connections requested through "all", move
-			 * to quic_conns_clo list after browsing quic_conns.
-			 * Else move directly to the next quic_conns thread.
+			/* If closing connections requested through "all" or a
+			 * specific connection is filtered, move to
+			 * quic_conns_clo list after browsing quic_conns. Else
+			 * move directly to the next quic_conns thread.
 			 */
-			if (ctx->flags & QC_CLI_FL_SHOW_ALL) {
+			if (ctx->flags & QC_CLI_FL_SHOW_ALL || ctx->ptr) {
 				ctx->bref.ref = ha_thread_ctx[ctx->thr].quic_conns_clo.n;
 				continue;
 			}
@@ -344,6 +376,10 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 			qc = LIST_ELEM(ctx->bref.ref, struct quic_conn *, el_th_ctx);
 			if ((int)(qc->qc_epoch - ctx->epoch) > 0)
 				done = 1;
+
+			/* Skip to next element if filter on a different connection. */
+			if (ctx->ptr && ctx->ptr != qc)
+				done = 1;
 		}
 
 		if (done) {
@@ -355,13 +391,17 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 			continue;
 		}
 
-		switch (ctx->format) {
+		switch (cli_show_quic_format(ctx)) {
 		case QUIC_DUMP_FMT_FULL:
 			dump_quic_full(ctx, qc);
 			break;
 		case QUIC_DUMP_FMT_ONELINE:
 			dump_quic_oneline(ctx, qc);
 			break;
+
+		case QUIC_DUMP_FMT_DEFAULT:
+			/* An explicit format must be returned by cli_show_quic_format(). */
+			ABORT_NOW();
 		}
 
 		if (applet_putchk(appctx, &trash) == -1) {
@@ -371,6 +411,10 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 		}
 
 		ctx->bref.ref = qc->el_th_ctx.n;
+
+		/* If filtered connection displayed, show quic can be stopped early. */
+		if (ctx->ptr)
+			goto done;
 	}
 
  done:
@@ -395,7 +439,7 @@ static void cli_release_show_quic(struct appctx *appctx)
 }
 
 static struct cli_kw_list cli_kws = {{ }, {
-	{ { "show", "quic", NULL }, "show quic [oneline|full] [all]          : display quic connections status", cli_parse_show_quic, cli_io_handler_dump_quic, cli_release_show_quic },
+	{ { "show", "quic", NULL }, "show quic [oneline|full] [<filter>]     : display quic connections status", cli_parse_show_quic, cli_io_handler_dump_quic, cli_release_show_quic },
 	{{},}
 }};
 
