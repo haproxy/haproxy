@@ -45,6 +45,7 @@
 #include <haproxy/time.h>
 #include <haproxy/hash.h>
 #include <haproxy/tools.h>
+#include <haproxy/vecpair.h>
 
 /* global recv logs counter */
 int cum_log_messages;
@@ -4346,15 +4347,14 @@ static struct applet syslog_applet = {
 };
 
 /* Atomically append an event to applet >ctx>'s output, prepending it with its
- * size in decimal followed by a space.
- * The line is read from <buf> at offset <ofs> relative to the buffer's origin,
- * for <len> bytes. It returns the number of bytes consumed from the input
- * buffer on success, -1 if it temporarily cannot (buffer full), -2 if it will
- * never be able to (too large msg). The input buffer is not modified. The
- * caller is responsible for making sure that there are at least ofs+len bytes
- * in the input buffer.
+ * size in decimal followed by a space. The line is read from vectors <v1> and
+ * <v2> at offset <ofs> relative to the area's origin, for <len> bytes. It
+ * returns the number of bytes consumed from the input vectors on success, -1
+ * if it temporarily cannot (buffer full), -2 if it will never be able to (too
+ * large msg). The input vectors are not modified. The caller is responsible for
+ * making sure that there are at least ofs+len bytes in the input buffer.
  */
-ssize_t syslog_applet_append_event(void *ctx, const struct buffer *buf, size_t ofs, size_t len)
+ssize_t syslog_applet_append_event(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len)
 {
 	struct appctx *appctx = ctx;
 	char *p;
@@ -4372,7 +4372,7 @@ ssize_t syslog_applet_append_event(void *ctx, const struct buffer *buf, size_t o
 		return -2;
 
 	/* try to transfer it or report full */
-	trash.data += b_getblk_ofs(buf, trash.area + trash.data, len, ofs);
+	trash.data += vp_peek_ofs(v1, v2, ofs, trash.area, len);
 	if (applet_putchk(appctx, &trash) == -1)
 		return -1;
 

@@ -24,6 +24,7 @@
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
 #include <haproxy/trace.h>
+#include <haproxy/vecpair.h>
 #include <haproxy/xref.h>
 
 unsigned int nb_applets = 0;
@@ -725,15 +726,15 @@ end:
 	return ret;
 }
 
-/* Atomically append a line to applet <ctx>'s output, appending a trailing 'LF'.
- * The line is read from <buf> at offset <ofs> relative to the buffer's origin,
- * for <len> bytes. It returns the number of bytes consumed from the input
- * buffer on success, -1 if it temporarily cannot (buffer full), -2 if it will
- * never be able to (too large msg). The input buffer is not modified. The
- * caller is responsible for making sure that there are at least ofs+len bytes
- * in the input buffer.
+/* Atomically append a line to applet <ctx>'s output, appending a trailing LF.
+ * The line is read from vectors <v1> and <v2> at offset <ofs> relative to the
+ * area's origin, for <len> bytes. It returns the number of bytes consumed from
+ * the input vectors on success, -1 if it temporarily cannot (buffer full), -2
+ * if it will never be able to (too large msg). The vectors are not modified.
+ * The caller is responsible for making sure that there are at least ofs+len
+ * bytes in the input vectors.
  */
-ssize_t applet_append_line(void *ctx, const struct buffer *buf, size_t ofs, size_t len)
+ssize_t applet_append_line(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len)
 {
 	struct appctx *appctx = ctx;
 
@@ -743,7 +744,7 @@ ssize_t applet_append_line(void *ctx, const struct buffer *buf, size_t ofs, size
 	}
 
 	chunk_reset(&trash);
-	b_getblk_ofs(buf, trash.area, len, ofs);
+	vp_peek_ofs(v1, v2, ofs, trash.area, len);
 	trash.data += len;
 	trash.area[trash.data++] = '\n';
 	if (applet_putchk(appctx, &trash) == -1)

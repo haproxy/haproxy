@@ -42,7 +42,7 @@ void cli_io_release_show_ring(struct appctx *appctx);
 
 size_t ring_max_payload(const struct ring *ring);
 int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t *last_ofs_ptr, uint flags,
-			   ssize_t (*msg_handler)(void *ctx, const struct buffer *buf, size_t ofs, size_t len));
+			   ssize_t (*msg_handler)(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len));
 
 /* returns the ring storage's area */
 static inline void *ring_area(const struct ring *ring)
