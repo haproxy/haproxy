@@ -57,6 +57,21 @@ static inline size_t ring_size(const struct ring *ring)
 	return b_size(&ring->buf);
 }
 
+/* duplicates ring <src> over ring <dst> for no more than <max> bytes or no
+ * more than the amount of data present in <src>. It's assumed that the
+ * destination ring is always large enough for <max>. The number of bytes
+ * copied (the min of src's size and max) is returned.
+ */
+static inline size_t ring_dup(struct ring *dst, const struct ring *src, size_t max)
+{
+	if (max > ring_data(src))
+		max = ring_data(src);
+
+	b_reset(&dst->buf);
+	b_ncat(&dst->buf, &src->buf, max);
+	return max;
+}
+
 #endif /* _HAPROXY_RING_H */
 
 /*
