@@ -1514,7 +1514,6 @@ static int cli_parse_del_crtlist(char **args, char *payload, struct appctx *appc
 
 	list_for_each_entry_safe(inst, inst_s, &entry->ckch_inst, by_crtlist_entry) {
 		struct sni_ctx *sni, *sni_s;
-		struct ckch_inst_link_ref *link_ref, *link_ref_s;
 
 		HA_RWLOCK_WRLOCK(SNI_LOCK, &inst->bind_conf->sni_lock);
 		list_for_each_entry_safe(sni, sni_s, &inst->sni_ctx, by_ckch_inst) {
@@ -1524,12 +1523,6 @@ static int cli_parse_del_crtlist(char **args, char *payload, struct appctx *appc
 			free(sni);
 		}
 		HA_RWLOCK_WRUNLOCK(SNI_LOCK, &inst->bind_conf->sni_lock);
-		LIST_DELETE(&inst->by_ckchs);
-		list_for_each_entry_safe(link_ref, link_ref_s, &inst->cafile_link_refs, list) {
-			LIST_DELETE(&link_ref->link->list);
-			LIST_DELETE(&link_ref->list);
-			free(link_ref);
-		}
 		ckch_inst_free(inst);
 	}
 
