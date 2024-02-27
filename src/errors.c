@@ -206,12 +206,12 @@ struct ring *startup_logs_dup(struct ring *src)
 	struct ring *dst = NULL;
 
 	/* must use the size of the previous buffer */
-	dst = ring_new(b_size(&src->buf));
+	dst = ring_new(ring_size(src));
 	if (!dst)
 		goto error;
 
 	b_reset(&dst->buf);
-	b_ncat(&dst->buf, &src->buf, b_data(&src->buf));
+	b_ncat(&dst->buf, &src->buf, ring_data(src));
 error:
 	return dst;
 }

@@ -738,7 +738,7 @@ static int cli_io_handler_show_loadstatus(struct appctx *appctx)
 		chunk_printf(&trash, "Success=1\n");
 	}
 #ifdef USE_SHM_OPEN
-	if (startup_logs && b_data(&startup_logs->buf) > 1)
+	if (startup_logs && ring_data(startup_logs) > 1)
 		chunk_appendf(&trash, "--\n");
 
 	if (applet_putchk(appctx, &trash) == -1)
