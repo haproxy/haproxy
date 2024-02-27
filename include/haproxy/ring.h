@@ -51,6 +51,12 @@ static inline size_t ring_data(const struct ring *ring)
 	return b_data(&ring->buf);
 }
 
+/* returns the allocated size in bytes for the ring */
+static inline size_t ring_size(const struct ring *ring)
+{
+	return b_size(&ring->buf);
+}
+
 #endif /* _HAPROXY_RING_H */
 
 /*
