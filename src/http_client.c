@@ -1343,9 +1343,9 @@ static int httpclient_precheck()
 
 	httpclient_proxy = httpclient_create_proxy("<HTTPCLIENT>");
 	if (!httpclient_proxy)
-		return 1;
+		return ERR_RETRYABLE;
 
-	return 0;
+	return ERR_NONE;
 }
 
 /* Initialize the logs for every proxy dedicated to the httpclient */

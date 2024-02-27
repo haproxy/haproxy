@@ -1357,12 +1357,12 @@ static int ssl_ocsp_update_precheck()
 	/* initialize the OCSP update dedicated httpclient */
 	httpclient_ocsp_update_px = httpclient_create_proxy("<OCSP-UPDATE>");
 	if (!httpclient_ocsp_update_px)
-		return 1;
+		return ERR_RETRYABLE;
 	httpclient_ocsp_update_px->conf.error_logformat_string = strdup(ocspupdate_log_format);
 	httpclient_ocsp_update_px->conf.logformat_string = httpclient_log_format;
 	httpclient_ocsp_update_px->options2 |= PR_O2_NOLOGNORM;
 
-	return 0;
+	return ERR_NONE;
 }
 
 /* initialize the proxy and servers for the HTTP client */

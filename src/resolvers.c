@@ -3835,14 +3835,14 @@ out:
  */
 int resolvers_create_default()
 {
-	int err_code = 0;
+	int err_code = ERR_NONE;
 
 	if (global.mode & MODE_MWORKER_WAIT) /* does not create the section if in wait mode */
-		return 0;
+		return ERR_NONE;
 
 	/* if the section already exists, do nothing */
 	if (find_resolvers_by_id("default"))
-		return 0;
+		return ERR_NONE;
 
 	curr_resolvers = NULL;
 	err_code |= resolvers_new(&curr_resolvers, "default", "<internal>", 0);
@@ -3868,7 +3868,7 @@ err:
 
 	/* we never return an error there, we only try to create this section
 	 * if that's possible */
-	return 0;
+	return ERR_NONE;
 }
 
 int cfg_post_parse_resolvers()
