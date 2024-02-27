@@ -87,6 +87,8 @@ void app_log(struct list *loggers, struct buffer *tag, int level, const char *fo
  */
 int add_to_logformat_list(char *start, char *end, int type, struct list *list_format, char **err);
 
+ssize_t syslog_applet_append_event(void *ctx, const struct buffer *buf, size_t ofs, size_t len);
+
 /*
  * Parse the log_format string and fill a linked list.
  * Variable name are preceded by % and composed by characters [a-zA-Z0-9]* : %varname
