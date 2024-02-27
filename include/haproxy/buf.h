@@ -619,7 +619,7 @@ static inline size_t b_xfer(struct buffer *dst, struct buffer *src, size_t count
  * b_room(dst).
  * Returns the number of bytes copied.
  */
-static inline size_t b_ncat(struct buffer *dst, struct buffer *src, size_t count)
+static inline size_t b_ncat(struct buffer *dst, const struct buffer *src, size_t count)
 {
 	size_t ret, block1, block2;
 
