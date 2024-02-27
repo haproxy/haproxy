@@ -358,6 +358,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	struct buffer *buf = &ring->buf;
 	uint64_t msg_len;
 	size_t len, cnt, ofs, last_ofs;
+	ssize_t copied;
 	int ret = 0;
 
 	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR)))) {
@@ -425,18 +426,14 @@ static void sink_forward_io_handler(struct appctx *appctx)
 		cnt += len;
 		BUG_ON(msg_len + ofs + cnt + 1 > b_data(buf));
 
-		if (unlikely(msg_len + 1 > b_size(&trash))) {
+		copied = applet_append_line(appctx, buf, ofs + cnt, msg_len);
+		if (copied == -2) {
 			/* too large a message to ever fit, let's skip it */
 			ofs += cnt + msg_len;
 			continue;
 		}
-
-		chunk_reset(&trash);
-		len = b_getblk(buf, trash.area, msg_len, ofs + cnt);
-		trash.data += len;
-		trash.area[trash.data++] = '\n';
-
-		if (applet_putchk(appctx, &trash) == -1) {
+		else if (copied == -1) {
+			/* output full */
 			ret = 0;
 			break;
 		}
@@ -490,7 +487,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	uint64_t msg_len;
 	size_t len, cnt, ofs, last_ofs;
 	int ret = 0;
-	char *p;
+	ssize_t copied;
 
 	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW))))
 		goto out;
@@ -556,22 +553,14 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 		cnt += len;
 		BUG_ON(msg_len + ofs + cnt + 1 > b_data(buf));
 
-		chunk_reset(&trash);
-		p = ulltoa(msg_len, trash.area, b_size(&trash));
-		if (p) {
-			trash.data = (p - trash.area) + 1;
-			*p = ' ';
-		}
-
-		if (!p || (trash.data + msg_len > b_size(&trash))) {
+		copied = syslog_applet_append_event(appctx, buf, ofs + cnt, msg_len);
+		if (copied == -2) {
 			/* too large a message to ever fit, let's skip it */
 			ofs += cnt + msg_len;
 			continue;
 		}
-
-		trash.data += b_getblk(buf, p + 1, msg_len, ofs + cnt);
-
-		if (applet_putchk(appctx, &trash) == -1) {
+		else if (copied == -1) {
+			/* output full */
 			ret = 0;
 			break;
 		}
