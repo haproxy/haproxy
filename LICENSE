@@ -1,6 +1,6 @@
 HAPROXY's license - 2006/06/15
 
-Historically, haproxy has been covered by GPL version 2. However, an issue
+Historically, haproxy has been covered by GPL version 2.0 or later. However, an issue
 appeared in GPL which will prevent external non-GPL code from being built
 using the headers provided with haproxy. My long-term goal is to build a core
 system able to load external modules to support specific application protocols.
