@@ -105,8 +105,11 @@
 
 /* this is the mmapped part */
 struct ring_storage {
-	struct buffer buf;            // storage layout
-	char area[0];                 // storage area begins immediately here
+	size_t size;         // storage size
+	size_t rsvd;         // header length (used for file-backed maps)
+	size_t tail;         // storage tail
+	size_t head;         // storage head
+	char area[0];        // storage area begins immediately here
 };
 
 /* this is the ring definition, config, waiters etc */

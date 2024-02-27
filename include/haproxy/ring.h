@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <import/ist.h>
 #include <haproxy/ring-t.h>
+#include <haproxy/vecpair.h>
 
 struct appctx;
 
@@ -47,31 +48,32 @@ int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t
 /* returns the ring storage's area */
 static inline void *ring_area(const struct ring *ring)
 {
-	return b_orig(&ring->storage->buf);
+	return ring->storage->area;
 }
 
 /* returns the number of bytes in the ring */
 static inline size_t ring_data(const struct ring *ring)
 {
-	return b_data(&ring->storage->buf);
+	return ((ring->storage->head <= ring->storage->tail) ?
+		0 : ring->storage->size) + ring->storage->tail - ring->storage->head;
 }
 
 /* returns the allocated size in bytes for the ring */
 static inline size_t ring_size(const struct ring *ring)
 {
-	return b_size(&ring->storage->buf);
+	return ring->storage->size;
 }
 
 /* returns the head offset of the ring */
 static inline size_t ring_head(const struct ring *ring)
 {
-	return b_head_ofs(&ring->storage->buf);
+	return ring->storage->head;
 }
 
 /* returns the tail offset of the ring */
 static inline size_t ring_tail(const struct ring *ring)
 {
-	return b_tail_ofs(&ring->storage->buf);
+	return ring->storage->tail;
 }
 
 /* duplicates ring <src> over ring <dst> for no more than <max> bytes or no
@@ -81,11 +83,16 @@ static inline size_t ring_tail(const struct ring *ring)
  */
 static inline size_t ring_dup(struct ring *dst, const struct ring *src, size_t max)
 {
+	struct ist v1, v2;
+
+	vp_ring_to_data(&v1, &v2, ring_area(src), ring_size(src), ring_head(src), ring_tail(src));
+
 	if (max > ring_data(src))
 		max = ring_data(src);
 
-	b_reset(&dst->storage->buf);
-	b_ncat(&dst->storage->buf, &src->storage->buf, max);
+	vp_peek_ofs(v1, v2, 0, ring_area(dst), max);
+	dst->storage->head = 0;
+	dst->storage->tail = max;
 	return max;
 }
 

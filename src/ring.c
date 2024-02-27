@@ -50,15 +50,16 @@ void ring_init(struct ring *ring, void *area, size_t size, int reset)
 	ring->readers_count = 0;
 	ring->flags = 0;
 	ring->storage = area;
-	ring->storage->buf.area = ring->storage->area;
 
 	if (reset) {
-		ring->storage->buf = b_make(ring->storage->area,
-					    size - sizeof(*ring->storage),
-					    0, 0);
+		ring->storage->size = size - sizeof(*ring->storage);
+		ring->storage->rsvd = sizeof(*ring->storage);
+		ring->storage->head = 0;
+		ring->storage->tail = 0;
 
 		/* write the initial RC byte */
-		b_putchr(&ring->storage->buf, 0);
+		*ring->storage->area = 0;
+		ring->storage->tail = 1;
 	}
 }
 
@@ -114,11 +115,12 @@ struct ring *ring_new(size_t size)
  */
 struct ring *ring_resize(struct ring *ring, size_t size)
 {
-	struct ring_storage *new;
+	struct ring_storage *old, *new;
 
 	if (size <= ring_data(ring) + sizeof(*ring->storage))
 		return ring;
 
+	old = ring->storage;
 	new = malloc(size);
 	if (!new)
 		return NULL;
@@ -128,11 +130,17 @@ struct ring *ring_resize(struct ring *ring, size_t size)
 	/* recheck the ring's size, it may have changed during the malloc */
 	if (size > ring_data(ring) + sizeof(*ring->storage)) {
 		/* copy old contents */
-		new->buf = b_make(new->area, size - sizeof(*ring->storage), 0, 0);
-		b_getblk(&ring->storage->buf, new->area, ring_data(ring), 0);
-		new->buf.data = ring_data(ring);
+		struct ist v1, v2;
+		size_t len;
+
+		vp_ring_to_data(&v1, &v2, old->area, old->size, old->head, old->tail);
+		len = vp_size(v1, v2);
+		vp_peek_ofs(v1, v2, 0, new->area, len);
+		new->size = size - sizeof(*ring->storage);
+		new->rsvd = sizeof(*ring->storage);
+		new->head = 0;
+		new->tail = len;
 		new = HA_ATOMIC_XCHG(&ring->storage, new);
-		/* new is now the old one */
 	}
 
 	thread_release();
@@ -164,7 +172,6 @@ void ring_free(struct ring *ring)
  */
 ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], size_t npfx, const struct ist msg[], size_t nmsg)
 {
-	struct buffer *buf = &ring->storage->buf;
 	size_t head_ofs, tail_ofs;
 	size_t ring_size;
 	char *ring_area;
@@ -210,15 +217,15 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	/* these ones do not change under us (only resize affects them and it
 	 * must be done under thread isolation).
 	 */
-	ring_area = b_orig(buf);
-	ring_size = b_size(buf);
+	ring_area = ring->storage->area;
+	ring_size = ring->storage->size;
 
 	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 	if (needed + 1 > ring_size)
 		goto leave;
 
-	head_ofs = b_head_ofs(buf);
-	tail_ofs = b_tail_ofs(buf);
+	head_ofs = ring_head(ring);
+	tail_ofs = ring_tail(ring);
 
 	vp_ring_to_data(&v1, &v2, ring_area, ring_size, head_ofs, tail_ofs);
 
@@ -281,8 +288,8 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 
  done_update_buf:
 	/* update the new space in the buffer */
-	buf->head = head_ofs;
-	buf->data = ((tail_ofs >= head_ofs) ? 0 : ring_size) + tail_ofs - head_ofs;
+	ring->storage->head = head_ofs;
+	ring->storage->tail = tail_ofs;
 
 	/* notify potential readers */
 	if (sent) {
@@ -373,7 +380,6 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx, uint flags)
 int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t *last_ofs_ptr, uint flags,
 			   ssize_t (*msg_handler)(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len))
 {
-	struct buffer *buf = &ring->storage->buf;
 	size_t head_ofs, tail_ofs;
 	size_t ring_size;
 	char *ring_area;
@@ -383,13 +389,13 @@ int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t
 	ssize_t copied;
 	int ret;
 
-	ring_area = b_orig(buf);
-	ring_size = b_size(buf);
+	ring_area = ring->storage->area;
+	ring_size = ring->storage->size;
 
 	HA_RWLOCK_RDLOCK(RING_LOCK, &ring->lock);
 
-	head_ofs = b_head_ofs(buf);
-	tail_ofs = b_tail_ofs(buf);
+	head_ofs = ring->storage->head;
+	tail_ofs = ring->storage->tail;
 
 	/* explanation for the initialization below: it would be better to do
 	 * this in the parsing function but this would occasionally result in

@@ -46,6 +46,15 @@ struct ring_v1 {
 	struct buffer buf;   // storage area
 };
 
+// ring v2 format (not aligned)
+struct ring_v2 {
+	size_t size;         // storage size
+	size_t rsvd;         // header length (used for file-backed maps)
+	size_t tail;         // storage tail
+	size_t head;         // storage head
+	char area[0];        // storage area begins immediately here
+};
+
 /* display the message and exit with the code */
 __attribute__((noreturn)) void die(int code, const char *format, ...)
 {
@@ -180,6 +189,32 @@ int dump_ring_v1(struct ring_v1 *ring, size_t ofs, int flags)
 	return dump_ring_as_buf(buf, ofs, flags);
 }
 
+/* This function dumps all events from the ring <ring> from offset <ofs> and
+ * with flags <flags>.
+ */
+int dump_ring_v2(struct ring_v2 *ring, size_t ofs, int flags)
+{
+	size_t size, head, tail, data;
+	struct buffer buf;
+
+	/* In ring v2 format, we have in this order:
+	 *    - size
+	 *    - hdr len (reserved bytes)
+	 *    - tail
+	 *    - head
+	 * We can rebuild an equivalent buffer from these info for the function
+	 * to dump.
+	 */
+
+	/* Now make our own buffer pointing to that area */
+	size = ring->size;
+	head = ring->head;
+	tail = ring->tail;
+	data = (head <= tail ? 0 : size) + tail - head;
+	buf = b_make((void *)ring + ring->rsvd, size, head, data);
+	return dump_ring_as_buf(buf, ofs, flags);
+}
+
 int main(int argc, char **argv)
 {
 	void *ring;
@@ -224,7 +259,11 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	return dump_ring_v1(ring, 0, 0);
+	if (((struct ring_v2 *)ring)->rsvd < 4096 && // not a pointer (v1), must be ringv2's rsvd
+	    ((struct ring_v2 *)ring)->rsvd + ((struct ring_v2 *)ring)->size == statbuf.st_size)
+		return dump_ring_v2(ring, 0, 0);
+	else
+		return dump_ring_v1(ring, 0, 0);
 }
 
 

@@ -666,10 +666,14 @@ void sink_rotate_file_backed_ring(const char *name)
 	if (ret != sizeof(storage))
 		goto rotate;
 
+	/* check that it's the expected format before touching it */
+	if (storage.rsvd != sizeof(storage))
+		return;
+
 	/* contents are present, we want to keep them => rotate. Note that
 	 * an empty ring buffer has one byte (the marker).
 	 */
-	if (storage.buf.data > 1)
+	if (storage.head != 0 || storage.tail != 1)
 		goto rotate;
 
 	/* nothing to keep, let's scratch the file and preserve the backup */
