@@ -210,8 +210,7 @@ struct ring *startup_logs_dup(struct ring *src)
 	if (!dst)
 		goto error;
 
-	b_reset(&dst->buf);
-	b_ncat(&dst->buf, &src->buf, ring_data(src));
+	ring_dup(dst, src, ring_size(src));
 error:
 	return dst;
 }
