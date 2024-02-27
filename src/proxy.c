@@ -1398,29 +1398,7 @@ void proxy_preset_defaults(struct proxy *defproxy)
 		defproxy->options2 |= PR_O2_INDEPSTR;
 	defproxy->max_out_conns = MAX_SRV_LIST;
 
-	defproxy->defsrv.check.inter = DEF_CHKINTR;
-	defproxy->defsrv.check.fastinter = 0;
-	defproxy->defsrv.check.downinter = 0;
-	defproxy->defsrv.agent.inter = DEF_CHKINTR;
-	defproxy->defsrv.agent.fastinter = 0;
-	defproxy->defsrv.agent.downinter = 0;
-	defproxy->defsrv.check.rise = DEF_RISETIME;
-	defproxy->defsrv.check.fall = DEF_FALLTIME;
-	defproxy->defsrv.agent.rise = DEF_AGENT_RISETIME;
-	defproxy->defsrv.agent.fall = DEF_AGENT_FALLTIME;
-	defproxy->defsrv.check.port = 0;
-	defproxy->defsrv.agent.port = 0;
-	defproxy->defsrv.maxqueue = 0;
-	defproxy->defsrv.minconn = 0;
-	defproxy->defsrv.maxconn = 0;
-	defproxy->defsrv.max_reuse = -1;
-	defproxy->defsrv.max_idle_conns = -1;
-	defproxy->defsrv.pool_purge_delay = 5000;
-	defproxy->defsrv.slowstart = 0;
-	defproxy->defsrv.onerror = DEF_HANA_ONERR;
-	defproxy->defsrv.consecutive_errors_limit = DEF_HANA_ERRLIMIT;
-	defproxy->defsrv.uweight = defproxy->defsrv.iweight = 1;
-	LIST_INIT(&defproxy->defsrv.pp_tlvs);
+	srv_settings_init(&defproxy->defsrv);
 
 	defproxy->email_alert.level = LOG_ALERT;
 	defproxy->load_server_state_from_file = PR_SRV_STATE_FILE_UNSPEC;
