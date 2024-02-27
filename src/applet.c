@@ -725,6 +725,32 @@ end:
 	return ret;
 }
 
+/* Atomically append a line to applet <ctx>'s output, appending a trailing 'LF'.
+ * The line is read from <buf> at offset <ofs> relative to the buffer's head,
+ * for <len> bytes. It returns the number of bytes consumed from the input
+ * buffer on success, -1 if it temporarily cannot (buffer full), -2 if it will
+ * never be able to (too large msg). The input buffer is not modified. The
+ * caller is responsible for making sure that there are at least ofs+len bytes
+ * in the input buffer.
+ */
+ssize_t applet_append_line(void *ctx, const struct buffer *buf, size_t ofs, size_t len)
+{
+	struct appctx *appctx = ctx;
+
+	if (unlikely(len + 1 > b_size(&trash))) {
+		/* too large a message to ever fit, let's skip it */
+		return -2;
+	}
+
+	chunk_reset(&trash);
+	b_getblk(buf, trash.area, len, ofs);
+	trash.data += len;
+	trash.area[trash.data++] = '\n';
+	if (applet_putchk(appctx, &trash) == -1)
+		return -1;
+	return len;
+}
+
 /* Default applet handler */
 struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 {
