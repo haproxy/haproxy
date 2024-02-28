@@ -382,18 +382,14 @@ static void sink_forward_io_handler(struct appctx *appctx)
 		goto close;
 	}
 
-	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 	MT_LIST_DELETE(&appctx->wait_entry);
-	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 
 	ret = ring_dispatch_messages(ring, appctx, &sft->ofs, &last_ofs, 0, applet_append_line);
 
 	if (ret) {
 		/* let's be woken up once new data arrive */
-		HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 		MT_LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 		ofs = ring_tail(ring);
-		HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 		if (ofs != last_ofs) {
 			/* more data was added into the ring between the
 			 * unlock and the lock, and the writer might not
@@ -451,17 +447,13 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 		goto close;
 	}
 
-	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 	MT_LIST_DELETE(&appctx->wait_entry);
-	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 
 	ret = ring_dispatch_messages(ring, appctx, &sft->ofs, &last_ofs, 0, syslog_applet_append_event);
 	if (ret) {
 		/* let's be woken up once new data arrive */
-		HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 		MT_LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 		ofs = ring_tail(ring);
-		HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 		if (ofs != last_ofs) {
 			/* more data was added into the ring between the
 			 * unlock and the lock, and the writer might not
@@ -491,9 +483,7 @@ void __sink_forward_session_deinit(struct sink_forward_target *sft)
 	if (!sink)
 		return;
 
-	HA_RWLOCK_WRLOCK(RING_LOCK, &sink->ctx.ring->lock);
 	MT_LIST_DELETE(&sft->appctx->wait_entry);
-	HA_RWLOCK_WRUNLOCK(RING_LOCK, &sink->ctx.ring->lock);
 
 	sft->appctx = NULL;
 	task_wakeup(sink->forward_task, TASK_WOKEN_MSG);

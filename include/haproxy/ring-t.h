@@ -122,7 +122,6 @@ struct ring_storage {
 struct ring {
 	struct ring_storage *storage; // the mapped part
 	struct mt_list waiters;       // list of waiters, for now, CLI "show event"
-	__decl_thread(HA_RWLOCK_T lock);
 	int readers_count;
 	uint flags;          // RING_FL_*
 };

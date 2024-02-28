@@ -45,7 +45,6 @@ struct show_ring_ctx {
  */
 void ring_init(struct ring *ring, void *area, size_t size, int reset)
 {
-	HA_RWLOCK_INIT(&ring->lock);
 	MT_LIST_INIT(&ring->waiters);
 	ring->readers_count = 0;
 	ring->flags = 0;
@@ -342,10 +341,8 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 		struct mt_list *elt1, elt2;
 		struct appctx *appctx;
 
-		HA_RWLOCK_RDLOCK(RING_LOCK, &ring->lock);
 		mt_list_for_each_entry_safe(appctx, &ring->waiters, wait_entry, elt1, elt2)
 			appctx_wakeup(appctx);
-		HA_RWLOCK_RDUNLOCK(RING_LOCK, &ring->lock);
 	}
 
  leave:
@@ -379,7 +376,6 @@ void ring_detach_appctx(struct ring *ring, struct appctx *appctx, size_t ofs)
 	if (!ring)
 		return;
 
-	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 	HA_ATOMIC_DEC(&ring->readers_count);
 
 	if (ofs != ~0) {
@@ -396,7 +392,6 @@ void ring_detach_appctx(struct ring *ring, struct appctx *appctx, size_t ofs)
 		} while ((readers > RING_MAX_READERS ||
 			  !_HA_ATOMIC_CAS(area + ofs, &readers, readers - 1)) && __ha_cpu_relax());
 	}
-	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 }
 
 /* Tries to attach CLI handler <appctx> as a new reader on ring <ring>. This is
@@ -583,9 +578,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	if (unlikely(sc_opposite(sc)->flags & SC_FL_SHUT_DONE))
 		return 1;
 
-	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 	MT_LIST_DELETE(&appctx->wait_entry);
-	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 
 	ret = ring_dispatch_messages(ring, appctx, &ctx->ofs, &last_ofs, ctx->flags, applet_append_line);
 
@@ -595,10 +588,8 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		 */
 		if (!sc_oc(sc)->output && !(sc->flags & SC_FL_SHUT_DONE)) {
 			/* let's be woken up once new data arrive */
-			HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 			MT_LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 			ofs = ring_tail(ring);
-			HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 			if (ofs != last_ofs) {
 				/* more data was added into the ring between the
 				 * unlock and the lock, and the writer might not
