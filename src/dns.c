@@ -471,7 +471,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 	}
 
 	HA_RWLOCK_WRLOCK(DNS_LOCK, &ring->lock);
-	LIST_DEL_INIT(&appctx->wait_entry);
+	MT_LIST_DELETE(&appctx->wait_entry);
 	HA_RWLOCK_WRUNLOCK(DNS_LOCK, &ring->lock);
 
 	HA_RWLOCK_RDLOCK(DNS_LOCK, &ring->lock);
@@ -633,8 +633,8 @@ static void dns_session_io_handler(struct appctx *appctx)
 	if (ret) {
 		/* let's be woken up once new request to write arrived */
 		HA_RWLOCK_WRLOCK(DNS_LOCK, &ring->lock);
-		BUG_ON(LIST_INLIST(&appctx->wait_entry));
-		LIST_APPEND(&ring->waiters, &appctx->wait_entry);
+		BUG_ON(MT_LIST_INLIST(&appctx->wait_entry));
+		MT_LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 		HA_RWLOCK_WRUNLOCK(DNS_LOCK, &ring->lock);
 		applet_have_no_more_data(appctx);
 	}
@@ -797,7 +797,7 @@ void dns_session_free(struct dns_session *ds)
 	BUG_ON(!LIST_ISEMPTY(&ds->list));
 	BUG_ON(!LIST_ISEMPTY(&ds->waiter));
 	BUG_ON(!LIST_ISEMPTY(&ds->queries));
-	BUG_ON(!LIST_ISEMPTY(&ds->ring.waiters));
+	BUG_ON(!MT_LIST_ISEMPTY(&ds->ring.waiters));
 	BUG_ON(!eb_is_empty(&ds->query_ids));
 	pool_free(dns_session_pool, ds);
 }
@@ -849,7 +849,7 @@ static void dns_session_release(struct appctx *appctx)
 	 * to retry a conn with a different appctx.
 	 */
 	HA_RWLOCK_WRLOCK(DNS_LOCK, &ds->ring.lock);
-	LIST_DEL_INIT(&appctx->wait_entry);
+	MT_LIST_DELETE(&appctx->wait_entry);
 	HA_RWLOCK_WRUNLOCK(DNS_LOCK, &ds->ring.lock);
 
 	dss = ds->dss;

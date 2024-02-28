@@ -34,7 +34,7 @@
 void dns_ring_init(struct dns_ring *ring, void *area, size_t size)
 {
 	HA_RWLOCK_INIT(&ring->lock);
-	LIST_INIT(&ring->waiters);
+	MT_LIST_INIT(&ring->waiters);
 	ring->readers_count = 0;
 	ring->buf = b_make(area, size, 0, 0);
 	/* write the initial RC byte */
@@ -94,6 +94,7 @@ ssize_t dns_ring_write(struct dns_ring *ring, size_t maxlen, const struct ist pf
 	size_t lenlen;
 	uint64_t dellen;
 	int dellenlen;
+	struct mt_list *elt1, elt2;
 	ssize_t sent = 0;
 	int i;
 
@@ -165,7 +166,7 @@ ssize_t dns_ring_write(struct dns_ring *ring, size_t maxlen, const struct ist pf
 	sent = lenlen + totlen + 1;
 
 	/* notify potential readers */
-	list_for_each_entry(appctx, &ring->waiters, wait_entry)
+	mt_list_for_each_entry_safe(appctx, &ring->waiters, wait_entry, elt1, elt2)
 		appctx_wakeup(appctx);
 
  done_buf:
@@ -209,7 +210,7 @@ void dns_ring_detach_appctx(struct dns_ring *ring, struct appctx *appctx, size_t
 			ofs -= b_head_ofs(&ring->buf);
 
 		BUG_ON(ofs >= b_size(&ring->buf));
-		LIST_DEL_INIT(&appctx->wait_entry);
+		MT_LIST_DELETE(&appctx->wait_entry);
 		HA_ATOMIC_DEC(b_peek(&ring->buf, ofs));
 	}
 	HA_ATOMIC_DEC(&ring->readers_count);

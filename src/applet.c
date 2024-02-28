@@ -239,7 +239,7 @@ struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int t
 		goto fail_appctx;
 	}
 
-	LIST_INIT(&appctx->wait_entry);
+	MT_LIST_INIT(&appctx->wait_entry);
 	appctx->obj_type = OBJ_TYPE_APPCTX;
 	appctx->applet = applet;
 	appctx->sess = NULL;

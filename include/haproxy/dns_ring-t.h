@@ -95,7 +95,7 @@
 
 struct dns_ring {
 	struct buffer buf;   // storage area
-	struct list waiters; // list of waiters, for now, CLI "show event"
+	struct mt_list waiters; // list of waiters, for now, CLI "show event"
 	__decl_thread(HA_RWLOCK_T lock);
 	int readers_count;
 };

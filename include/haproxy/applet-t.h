@@ -97,7 +97,7 @@ struct appctx {
 	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */
 	struct task *t;                  /* task associated to the applet */
 	struct freq_ctr call_rate;       /* appctx call rate */
-	struct list wait_entry;          /* entry in a list of waiters for an event (e.g. ring events) */
+	struct mt_list wait_entry;       /* entry in a list of waiters for an event (e.g. ring events) */
 
 	/* The pointer seen by application code is appctx->svcctx. In 2.7 the
 	 * anonymous union and the "ctx" struct disappeared, and the struct

@@ -46,7 +46,7 @@ struct show_ring_ctx {
 void ring_init(struct ring *ring, void *area, size_t size, int reset)
 {
 	HA_RWLOCK_INIT(&ring->lock);
-	LIST_INIT(&ring->waiters);
+	MT_LIST_INIT(&ring->waiters);
 	ring->readers_count = 0;
 	ring->flags = 0;
 	ring->storage = area;
@@ -176,7 +176,6 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	size_t ring_size;
 	char *ring_area;
 	struct ist v1, v2;
-	struct appctx *appctx;
 	size_t msglen = 0;
 	size_t lenlen;
 	size_t needed;
@@ -340,8 +339,11 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 
 	/* notify potential readers */
 	if (sent && HA_ATOMIC_LOAD(&ring->readers_count)) {
+		struct mt_list *elt1, elt2;
+		struct appctx *appctx;
+
 		HA_RWLOCK_RDLOCK(RING_LOCK, &ring->lock);
-		list_for_each_entry(appctx, &ring->waiters, wait_entry)
+		mt_list_for_each_entry_safe(appctx, &ring->waiters, wait_entry, elt1, elt2)
 			appctx_wakeup(appctx);
 		HA_RWLOCK_RDUNLOCK(RING_LOCK, &ring->lock);
 	}
@@ -378,13 +380,15 @@ void ring_detach_appctx(struct ring *ring, struct appctx *appctx, size_t ofs)
 		return;
 
 	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
+	HA_ATOMIC_DEC(&ring->readers_count);
+
 	if (ofs != ~0) {
 		/* reader was still attached */
 		uint8_t *area = (uint8_t *)ring_area(ring);
 		uint8_t readers;
 
 		BUG_ON(ofs >= ring_size(ring));
-		LIST_DEL_INIT(&appctx->wait_entry);
+		MT_LIST_DELETE(&appctx->wait_entry);
 
 		/* dec readers count */
 		do {
@@ -392,7 +396,6 @@ void ring_detach_appctx(struct ring *ring, struct appctx *appctx, size_t ofs)
 		} while ((readers > RING_MAX_READERS ||
 			  !_HA_ATOMIC_CAS(area + ofs, &readers, readers - 1)) && __ha_cpu_relax());
 	}
-	HA_ATOMIC_DEC(&ring->readers_count);
 	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 }
 
@@ -564,7 +567,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		return 1;
 
 	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
-	LIST_DEL_INIT(&appctx->wait_entry);
+	MT_LIST_DELETE(&appctx->wait_entry);
 	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 
 	ret = ring_dispatch_messages(ring, appctx, &ctx->ofs, &last_ofs, ctx->flags, applet_append_line);
@@ -576,7 +579,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		if (!sc_oc(sc)->output && !(sc->flags & SC_FL_SHUT_DONE)) {
 			/* let's be woken up once new data arrive */
 			HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
-			LIST_APPEND(&ring->waiters, &appctx->wait_entry);
+			MT_LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 			ofs = ring_tail(ring);
 			HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 			if (ofs != last_ofs) {
