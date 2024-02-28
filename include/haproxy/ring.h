@@ -54,8 +54,10 @@ static inline void *ring_area(const struct ring *ring)
 /* returns the number of bytes in the ring */
 static inline size_t ring_data(const struct ring *ring)
 {
-	return ((ring->storage->head <= ring->storage->tail) ?
-		0 : ring->storage->size) + ring->storage->tail - ring->storage->head;
+	size_t tail = HA_ATOMIC_LOAD(&ring->storage->tail) & ~RING_TAIL_LOCK;
+
+	return ((ring->storage->head <= tail) ?
+		0 : ring->storage->size) + tail - ring->storage->head;
 }
 
 /* returns the allocated size in bytes for the ring */
@@ -70,10 +72,10 @@ static inline size_t ring_head(const struct ring *ring)
 	return ring->storage->head;
 }
 
-/* returns the tail offset of the ring */
+/* returns the ring's tail offset without the lock bit */
 static inline size_t ring_tail(const struct ring *ring)
 {
-	return ring->storage->tail;
+	return HA_ATOMIC_LOAD(&ring->storage->tail) & ~RING_TAIL_LOCK;
 }
 
 /* duplicates ring <src> over ring <dst> for no more than <max> bytes or no

@@ -218,7 +218,7 @@ int dump_ring_v2(struct ring_v2 *ring, size_t ofs, int flags)
 	/* Now make our own buffer pointing to that area */
 	size = ring->size;
 	head = ring->head;
-	tail = ring->tail;
+	tail = ring->tail & ~RING_TAIL_LOCK;
 	data = (head <= tail ? 0 : size) + tail - head;
 	buf = b_make((void *)ring + ring->rsvd, size, head, data);
 	return dump_ring_as_buf(buf, ofs, flags);

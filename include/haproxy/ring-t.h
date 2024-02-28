@@ -103,6 +103,9 @@
 #define RING_WRITING_SIZE  255  /* the next message's size is being written */
 #define RING_MAX_READERS   254  /* highest supported value for RC */
 
+/* mask used to lock the tail */
+#define RING_TAIL_LOCK     (1ULL << ((sizeof(size_t) * 8) - 1))
+
 /* this is the mmapped part */
 struct ring_storage {
 	size_t size;         // storage size

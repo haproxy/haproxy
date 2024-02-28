@@ -905,6 +905,12 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 			goto err;
 		}
 
+		if (size > RING_TAIL_LOCK) {
+			ha_alert("parsing [%s:%d] : too large size '%llu' for new sink buffer, the limit on this platform is %llu bytes.\n", file, linenum, (ullong)size, (ullong)RING_TAIL_LOCK);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+
 		if (cfg_sink->store) {
 			ha_alert("parsing [%s:%d] : cannot resize an already mapped file, please specify 'size' before 'backing-file'.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;

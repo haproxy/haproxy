@@ -222,12 +222,32 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	ring_area = ring->storage->area;
 	ring_size = ring->storage->size;
 
-	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 	if (needed + 1 > ring_size)
 		goto leave;
 
-	head_ofs = ring_head(ring);
-	tail_ofs = ring_tail(ring);
+	/* try to get exclusivity on the ring's tail. For this we set the
+	 * tail's highest bit, and the one that gets it wins. Many tests were
+	 * run on this and the approach below is optimal for armv8.1 atomics,
+	 * second-to-optimal with both x86_64 and second-to-optimal on armv8.0.
+	 * x86_64 would benefit slightly more from an xchg() which would
+	 * require the readers to loop during changes, and armv8.0 is slightly
+	 * better there as well (+5%). The CAS is bad for both (requires a
+	 * preload), though it might degrade better on large x86 compared to
+	 * a busy loop that the compiler would implement for the FETCH_OR.
+	 * Alternately we could kill 12 upper bits on a 64-bit tail ofs and
+	 * use XADD. Not tested, and would require to undo or watch for the
+	 * change (use it as a ticket).
+	 */
+	while (1) {
+		tail_ofs = HA_ATOMIC_FETCH_OR(&ring->storage->tail, RING_TAIL_LOCK);
+		if (!(tail_ofs & RING_TAIL_LOCK))
+			break;
+		pl_wait_unlock_long(&ring->storage->tail, RING_TAIL_LOCK);
+	}
+
+	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
+
+	head_ofs = ring->storage->head;
 
 	/* this is the byte before tail, it contains the users count */
 	lock_ptr = (uint8_t*)ring_area + (tail_ofs > 0 ? tail_ofs - 1 : ring_size - 1);
@@ -305,7 +325,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 
 	/* update the new space in the buffer */
 	ring->storage->head = head_ofs;
-	ring->storage->tail = tail_ofs;
+	HA_ATOMIC_STORE(&ring->storage->tail, tail_ofs);
 
 	/* notify potential readers */
 	if (sent) {
@@ -313,8 +333,8 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 			appctx_wakeup(appctx);
 	}
 
- leave:
 	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
+ leave:
 	return sent;
 }
 
@@ -417,8 +437,8 @@ int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t
 
 	HA_RWLOCK_RDLOCK(RING_LOCK, &ring->lock);
 
-	head_ofs = ring->storage->head;
-	tail_ofs = ring->storage->tail;
+	head_ofs = ring_head(ring);
+	tail_ofs = ring_tail(ring);
 
 	/* explanation for the initialization below: it would be better to do
 	 * this in the parsing function but this would occasionally result in
