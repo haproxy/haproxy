@@ -245,9 +245,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 		pl_wait_unlock_long(&ring->storage->tail, RING_TAIL_LOCK);
 	}
 
-	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
-
-	head_ofs = ring->storage->head;
+	head_ofs = HA_ATOMIC_LOAD(&ring->storage->head);
 
 	/* this is the byte before tail, it contains the users count */
 	lock_ptr = (uint8_t*)ring_area + (tail_ofs > 0 ? tail_ofs - 1 : ring_size - 1);
@@ -329,11 +327,12 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 
 	/* notify potential readers */
 	if (sent) {
+		HA_RWLOCK_RDLOCK(RING_LOCK, &ring->lock);
 		list_for_each_entry(appctx, &ring->waiters, wait_entry)
 			appctx_wakeup(appctx);
+		HA_RWLOCK_RDUNLOCK(RING_LOCK, &ring->lock);
 	}
 
-	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
  leave:
 	return sent;
 }
@@ -435,10 +434,8 @@ int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t
 	ring_area = (uint8_t *)ring->storage->area;
 	ring_size = ring->storage->size;
 
-	HA_RWLOCK_RDLOCK(RING_LOCK, &ring->lock);
-
-	head_ofs = ring_head(ring);
 	tail_ofs = ring_tail(ring);
+	head_ofs = HA_ATOMIC_LOAD(&ring->storage->head);
 
 	/* explanation for the initialization below: it would be better to do
 	 * this in the parsing function but this would occasionally result in
@@ -528,7 +525,6 @@ int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t
 	if (last_ofs_ptr)
 		*last_ofs_ptr = tail_ofs;
 	*ofs_ptr = head_ofs;
-	HA_RWLOCK_RDUNLOCK(RING_LOCK, &ring->lock);
 	return ret;
 }
 
