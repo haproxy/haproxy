@@ -3435,12 +3435,12 @@ out_uri_auth_compat:
 			                            LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
 			                            SMP_VAL_FE_LOG_END, &err)) {
 				ha_alert("Parsing [%s:%d]: failed to parse log-format-sd : %s.\n",
-					 curproxy->conf.lfs_file, curproxy->conf.lfs_line, err);
+					 curproxy->conf.lfsd_file, curproxy->conf.lfsd_line, err);
 				free(err);
 				cfgerr++;
 			} else if (!add_to_logformat_list(NULL, NULL, LF_SEPARATOR, &curproxy->logformat_sd, &err)) {
 				ha_alert("Parsing [%s:%d]: failed to parse log-format-sd : %s.\n",
-					 curproxy->conf.lfs_file, curproxy->conf.lfs_line, err);
+					 curproxy->conf.lfsd_file, curproxy->conf.lfsd_line, err);
 				free(err);
 				cfgerr++;
 			}
