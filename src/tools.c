@@ -17,9 +17,14 @@
 #endif
 
 #if defined(__FreeBSD__)
+#include <sys/param.h>
+#if __FreeBSD_version < 1300058
 #include <elf.h>
 #include <dlfcn.h>
 extern void *__elf_aux_vector;
+#else
+#include <sys/auxv.h>
+#endif
 #endif
 
 #if defined(__NetBSD__)
@@ -5018,6 +5023,7 @@ const char *get_exec_path()
 	if (execfn && execfn != ENOENT)
 		ret = (const char *)execfn;
 #elif defined(__FreeBSD__)
+#if __FreeBSD_version < 1300058
 	Elf_Auxinfo *auxv;
 	for (auxv = __elf_aux_vector; auxv->a_type != AT_NULL; ++auxv) {
 		if (auxv->a_type == AT_EXECPATH) {
@@ -5025,6 +5031,14 @@ const char *get_exec_path()
 			break;
 		}
 	}
+#else
+	static char execpath[MAXPATHLEN];
+
+	if (execpath[0] == '\0')
+		elf_aux_info(AT_EXECPATH, execpath, MAXPATHLEN);
+	if (execpath[0] != '\0')
+		ret = execpath;
+#endif
 #elif defined(__NetBSD__)
 	AuxInfo *auxv;
 	for (auxv = _dlauxinfo(); auxv->a_type != AT_NULL; ++auxv) {
