@@ -4487,8 +4487,10 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 		else {
 			BUG_ON(h1m->state != H1_MSG_CHUNK_CRLF && h1m->state != H1_MSG_CHUNK_SIZE);
 			if (flags & NEGO_FF_FL_EXACT_SIZE) {
-				if (!h1_make_chunk(h1s, h1m, count))
+				if (!h1_make_chunk(h1s, h1m, count)) {
+					h1s->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
 					goto out;
+				}
 				h1m->curr_len = count;
 			}
 			else {
@@ -4531,6 +4533,7 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
   no_splicing:
 	if (!h1_get_buf(h1c, &h1c->obuf)) {
 		h1c->flags |= H1C_F_OUT_ALLOC;
+		h1s->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
 		TRACE_STATE("waiting for opposite h1c obuf allocation", H1_EV_STRM_SEND|H1_EV_H1S_BLK, h1c->conn, h1s);
 		goto out;
 	}
