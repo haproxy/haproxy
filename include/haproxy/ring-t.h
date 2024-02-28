@@ -107,8 +107,11 @@
 struct ring_storage {
 	size_t size;         // storage size
 	size_t rsvd;         // header length (used for file-backed maps)
+	THREAD_PAD(64 - 2 * sizeof(size_t));
 	size_t tail;         // storage tail
+	THREAD_PAD(64 - sizeof(size_t));
 	size_t head;         // storage head
+	THREAD_PAD(64 - sizeof(size_t));
 	char area[0];        // storage area begins immediately here
 };
 
