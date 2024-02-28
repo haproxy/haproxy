@@ -122,7 +122,7 @@ struct ring *ring_resize(struct ring *ring, size_t size)
 	if (!new)
 		return NULL;
 
-	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
+	thread_isolate();
 
 	/* recheck the buffer's size, it may have changed during the malloc */
 
@@ -135,7 +135,7 @@ struct ring *ring_resize(struct ring *ring, size_t size)
 		/* new is now the old one */
 	}
 
-	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
+	thread_release();
 
 	/* free the unused one */
 	free(new);
