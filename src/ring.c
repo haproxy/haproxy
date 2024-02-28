@@ -339,7 +339,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	HA_ATOMIC_STORE(lock_ptr, readers);
 
 	/* notify potential readers */
-	if (sent) {
+	if (sent && HA_ATOMIC_LOAD(&ring->readers_count)) {
 		HA_RWLOCK_RDLOCK(RING_LOCK, &ring->lock);
 		list_for_each_entry(appctx, &ring->waiters, wait_entry)
 			appctx_wakeup(appctx);
