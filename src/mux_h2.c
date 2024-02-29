@@ -6224,10 +6224,9 @@ static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 }
 
 /* Try to send a DATA frame matching HTTP response present in HTX structure
- * present in <buf>, for stream <h2s>. Returns the number of bytes sent. The
- * caller must check the stream's status to detect any error which might have
- * happened subsequently to a successful send. Returns the number of data bytes
- * consumed, or zero if nothing done.
+ * present in <buf>, for stream <h2s>. The caller must check the stream's status
+ * to detect any error which might have happened subsequently to a successful
+ * send. Returns the number of data bytes consumed, or zero if nothing done.
  */
 static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 {
