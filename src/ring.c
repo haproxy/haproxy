@@ -538,17 +538,19 @@ int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t
 
 	vp_data_to_ring(v1, v2, (char *)ring_area, ring_size, &head_ofs, &tail_ofs);
 
-	/* inc readers count on new place */
-	do {
-		readers = _HA_ATOMIC_LOAD(ring_area + head_ofs);
-	} while ((readers > RING_MAX_READERS ||
-		  !_HA_ATOMIC_CAS(ring_area + head_ofs, &readers, readers + 1)) && __ha_cpu_relax());
+	if (head_ofs != prev_ofs) {
+		/* inc readers count on new place */
+		do {
+			readers = _HA_ATOMIC_LOAD(ring_area + head_ofs);
+		} while ((readers > RING_MAX_READERS ||
+			  !_HA_ATOMIC_CAS(ring_area + head_ofs, &readers, readers + 1)) && __ha_cpu_relax());
 
-	/* dec readers count on old place */
-	do {
-		readers = _HA_ATOMIC_LOAD(ring_area + prev_ofs);
-	} while ((readers > RING_MAX_READERS ||
-		  !_HA_ATOMIC_CAS(ring_area + prev_ofs, &readers, readers - 1)) && __ha_cpu_relax());
+		/* dec readers count on old place */
+		do {
+			readers = _HA_ATOMIC_LOAD(ring_area + prev_ofs);
+		} while ((readers > RING_MAX_READERS ||
+			  !_HA_ATOMIC_CAS(ring_area + prev_ofs, &readers, readers - 1)) && __ha_cpu_relax());
+	}
 
 	if (last_ofs_ptr)
 		*last_ofs_ptr = tail_ofs;
