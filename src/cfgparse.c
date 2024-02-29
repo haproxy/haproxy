@@ -3969,13 +3969,21 @@ out_uri_auth_compat:
 			int mode = conn_pr_mode_to_proto_mode(curproxy->mode);
 			const struct mux_proto_list *mux_ent;
 
-			if (!bind_conf->mux_proto) {
-				/* No protocol was specified. If we're using QUIC at the transport
-				 * layer, we'll instantiate it as a mux as well. If QUIC is not
-				 * compiled in, this will remain NULL.
-				 */
-				if (bind_conf->xprt && bind_conf->xprt == xprt_get(XPRT_QUIC))
+			if (bind_conf->xprt && bind_conf->xprt == xprt_get(XPRT_QUIC)) {
+				if (!bind_conf->mux_proto) {
+					/* No protocol was specified. If we're using QUIC at the transport
+					 * layer, we'll instantiate it as a mux as well. If QUIC is not
+					 * compiled in, this will remain NULL.
+					 */
 					bind_conf->mux_proto = get_mux_proto(ist("quic"));
+				}
+				if (bind_conf->options & BC_O_ACC_PROXY) {
+					ha_alert("Binding [%s:%d] for %s %s: QUIC protocol does not support PROXY protocol yet."
+						 " 'accept-proxy' option cannot be used with a QUIC listener.\n",
+						 bind_conf->file, bind_conf->line,
+						 proxy_type_str(curproxy), curproxy->id);
+					cfgerr++;
+				}
 			}
 
 			if (!bind_conf->mux_proto)
