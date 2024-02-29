@@ -159,6 +159,13 @@ Core class
    The "core" class is static, it is not possible to create a new object of this
    type.
 
+.. js:attribute:: core.silent
+
+  :returns: integer
+
+  This attribute is an integer, it contains the value -1. It is a special value
+  used to disable logging.
+
 .. js:attribute:: core.emerg
 
   :returns: integer
@@ -2889,12 +2896,12 @@ TXN class
 .. js:function:: TXN.set_loglevel(txn, loglevel)
 
   Is used to change the log level of the current request. The "loglevel" must
-  be an integer between 0 and 7.
+  be an integer between 0 and 7 or the special value -1 to disable logging.
 
   :param class_txn txn: The class txn object containing the data.
   :param integer loglevel: The required log level. This variable can be one of
-  :see: :js:attr:`core.emerg`, :js:attr:`core.alert`, :js:attr:`core.crit`,
-    :js:attr:`core.err`, :js:attr:`core.warning`, :js:attr:`core.notice`,
+  :see: :js:attr:`core.silent`, :js:attr:`core.emerg`, :js:attr:`core.alert`,
+    :js:attr:`core.crit`, :js:attr:`core.err`, :js:attr:`core.warning`, :js:attr:`core.notice`,
     :js:attr:`core.info`, :js:attr:`core.debug` (log level definitions)
 
 .. js:function:: TXN.set_mark(txn, mark)

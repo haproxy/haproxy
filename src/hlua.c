@@ -8243,10 +8243,12 @@ __LJMP static int hlua_txn_set_loglevel(lua_State *L)
 	htxn = MAY_LJMP(hlua_checktxn(L, 1));
 	ll = MAY_LJMP(luaL_checkinteger(L, 2));
 
-	if (ll < 0 || ll > 7)
-		WILL_LJMP(luaL_argerror(L, 2, "Bad log level. It must be between 0 and 7"));
+	if (ll < -1 || ll > NB_LOG_LEVELS)
+		WILL_LJMP(luaL_argerror(L, 2, "Bad log level. It must be one of the following value:"
+					" core.silent(-1), core.emerg(0), core.alert(1), core.crit(2), core.error(3),"
+					" core.warning(4), core.notice(5), core.info(6) or core.debug(7)"));
 
-	htxn->s->logs.level = ll + 1;
+	htxn->s->logs.level = (ll == -1) ? ll : ll + 1;
 	return 0;
 }
 
@@ -13345,6 +13347,7 @@ lua_State *hlua_init_state(int thread_num)
 	hlua_class_const_int(L, "thread", thread_num);
 
 	/* Push the loglevel constants. */
+		hlua_class_const_int(L, "silent", -1);
 	for (i = 0; i < NB_LOG_LEVELS; i++)
 		hlua_class_const_int(L, log_levels[i], i);
 
