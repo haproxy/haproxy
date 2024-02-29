@@ -168,14 +168,23 @@ struct logformat_node {
 	const struct logformat_tag *tag; // set if ->type == LOG_FMT_TAG
 };
 
+enum lf_expr_flags {
+	LF_FL_NONE     = 0x00,
+	LF_FL_COMPILED = 0x01
+};
+
 /* a full logformat expr made of one or multiple logformat nodes */
 struct lf_expr {
-	struct list list;   /* to store lf_expr inside a list */
-	struct list nodes;  /* logformat_node list */
+	struct list list;          /* to store lf_expr inside a list */
+	union {
+		struct list nodes; /* logformat_node list */
+		char *str;         /* original string prior to parsing (NULL once compiled) */
+	};
 	struct {
-		char *file; /* file where the lft appears */
-		int line;   /* line where the lft appears */
+		char *file;        /* file where the lft appears */
+		int line;          /* line where the lft appears */
 	} conf; // parsing hints
+	uint8_t flags;             /* LF_FL_* flags */
 };
 
 /* Range of indexes for log sampling. */

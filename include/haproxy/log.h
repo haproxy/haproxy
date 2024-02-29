@@ -65,12 +65,14 @@ int init_log_buffers(void);
 void deinit_log_buffers(void);
 
 void lf_expr_init(struct lf_expr *expr);
+int lf_expr_dup(const struct lf_expr *orig, struct lf_expr *dest);
 void lf_expr_xfer(struct lf_expr *src, struct lf_expr *dst);
 void lf_expr_deinit(struct lf_expr *expr);
 static inline int lf_expr_isempty(const struct lf_expr *expr)
 {
-	return LIST_ISEMPTY(&expr->nodes);
+	return !(expr->flags & LF_FL_COMPILED) || LIST_ISEMPTY(&expr->nodes);
 }
+int lf_expr_compile(struct lf_expr *lf_expr, struct arg_list *al, int options, int cap, char **err);
 int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err);
 
 /* Deinitialize log buffers used for syslog messages */

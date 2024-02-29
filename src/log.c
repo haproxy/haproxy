@@ -372,7 +372,9 @@ int parse_logformat_tag_args(char *args, struct logformat_node *node, char **err
  * ignored when arg_len is 0. Neither <tag> nor <tag_len> may be null.
  * Returns false in error case and err is filled, otherwise returns true.
  */
-int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len, int typecast, char *tag, int tag_len, struct proxy *curproxy, struct lf_expr *lf_expr, int *defoptions, char **err)
+static int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len, int typecast,
+                               char *tag, int tag_len, struct lf_expr *lf_expr,
+                               int *defoptions, char **err)
 {
 	int j;
 	struct list *list_format= &lf_expr->nodes;
@@ -465,7 +467,9 @@ int add_to_logformat_list(char *start, char *end, int type, struct lf_expr *lf_e
  *
  * In error case, the function returns 0, otherwise it returns 1.
  */
-int add_sample_to_logformat_list(char *text, char *name, int name_len, int typecast, char *arg, int arg_len, struct proxy *curpx, struct lf_expr *lf_expr, int options, int cap, char **err, char **endptr)
+static int add_sample_to_logformat_list(char *text, char *name, int name_len, int typecast,
+                                        char *arg, int arg_len, struct lf_expr *lf_expr,
+                                        struct arg_list *al, int options, int cap, char **err, char **endptr)
 {
 	char *cmd[2];
 	struct list *list_format = &lf_expr->nodes;
@@ -477,8 +481,8 @@ int add_sample_to_logformat_list(char *text, char *name, int name_len, int typec
 	cmd[1] = "";
 	cmd_arg = 0;
 
-	expr = sample_parse_expr(cmd, &cmd_arg, curpx->conf.args.file, curpx->conf.args.line, err,
-				 &curpx->conf.args, endptr);
+	expr = sample_parse_expr(cmd, &cmd_arg, lf_expr->conf.file, lf_expr->conf.line, err,
+				 al, endptr);
 	if (!expr) {
 		memprintf(err, "failed to parse sample expression <%s> : %s", text, *err);
 		goto error_free;
@@ -515,7 +519,7 @@ int add_sample_to_logformat_list(char *text, char *name, int name_len, int typec
 
 	if ((options & LOG_OPT_HTTP) && (expr->fetch->use & (SMP_USE_L6REQ|SMP_USE_L6RES))) {
 		ha_warning("parsing [%s:%d] : L6 sample fetch <%s> ignored in HTTP log-format string.\n",
-			   curpx->conf.args.file, curpx->conf.args.line, text);
+			   lf_expr->conf.file, lf_expr->conf.line, text);
 	}
 
 	LIST_APPEND(list_format, &node->list);
@@ -527,24 +531,25 @@ int add_sample_to_logformat_list(char *text, char *name, int name_len, int typec
 }
 
 /*
- * Parse the log_format string and fill a logformat expression. The logformat
- * expression will be scheduled for postcheck on the proxy unless the proxy was
- * already checked, in which case all checks will be performed right away.
+ * Compile logformat expression (from string to list of logformat nodes)
  *
  * Tag name are preceded by % and composed by characters [a-zA-Z0-9]* : %tagname
  * You can set arguments using { } : %{many arguments}tagname.
- * The curproxy->conf.args.ctx must be set by the caller.
  *
- *  fmt: the string to parse
- *  curproxy: the proxy affected
  *  lf_expr: the destination logformat expression (logformat_node list)
+ *           which is supposed to be configured (str and conf set) but
+ *           shouldn't be compiled (shoudn't contain any nodes)
+ *  al: arg list where sample expr should store arg dependency (if the logformat
+ *      expression involves sample expressions), may be NULL
  *  options: LOG_OPT_* to force on every node
  *  cap: all SMP_VAL_* flags supported by the consumer
  *
  * The function returns 1 in success case, otherwise, it returns 0 and err is filled.
  */
-int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct lf_expr *lf_expr, int options, int cap, char **err)
+int lf_expr_compile(struct lf_expr *lf_expr,
+                    struct arg_list *al, int options, int cap, char **err)
 {
+	char *fmt = lf_expr->str; /* will be freed */
 	char *sp, *str, *backfmt; /* start pointer for text parts */
 	char *arg = NULL; /* start pointer for args */
 	char *tag = NULL; /* start pointer for tags */
@@ -557,22 +562,25 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct lf_ex
 	int cformat; /* current token format */
 	int pformat; /* previous token format */
 
+	BUG_ON((lf_expr->flags & LF_FL_COMPILED));
+
+	if (!fmt)
+		return 1; // nothing to do
+
 	sp = str = backfmt = strdup(fmt);
 	if (!str) {
 		memprintf(err, "out of memory error");
 		return 0;
 	}
 
-	/* reset the old expr first (if previously defined) */
-	lf_expr_deinit(lf_expr);
-
-	/* Save some parsing infos to raise relevant error messages during
-	 * postparsing if needed.
+	/* Prepare lf_expr nodes, past this lf_expr doesn't know about ->str
+	 * anymore as ->str and ->nodes are part of the same union. ->str has
+	 * been saved as local 'fmt' string pointer, so we must free it before
+	 * returning.
 	 */
-	if (curproxy->conf.args.file) {
-		lf_expr->conf.file = strdup(curproxy->conf.args.file);
-		lf_expr->conf.line = curproxy->conf.args.line;
-	}
+	LIST_INIT(&lf_expr->nodes);
+	/* we must set the compiled flag now for proper deinit in case of failure */
+	lf_expr->flags |= LF_FL_COMPILED;
 
 	for (cformat = LF_INIT; cformat != LF_END; str++) {
 		pformat = cformat;
@@ -687,7 +695,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct lf_ex
 			 * part of the expression, which MUST be the trailing
 			 * angle bracket.
 			 */
-			if (!add_sample_to_logformat_list(tag, name, name_len, typecast, arg, arg_len, curproxy, lf_expr, options, cap, err, &str))
+			if (!add_sample_to_logformat_list(tag, name, name_len, typecast, arg, arg_len, lf_expr, al, options, cap, err, &str))
 				goto fail;
 
 			if (*str == ']') {
@@ -733,7 +741,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct lf_ex
 		if (cformat != pformat || pformat == LF_SEPARATOR) {
 			switch (pformat) {
 			case LF_TAG:
-				if (!parse_logformat_tag(arg, arg_len, name, name_len, typecast, tag, tag_len, curproxy, lf_expr, &options, err))
+				if (!parse_logformat_tag(arg, arg_len, name, name_len, typecast, tag, tag_len, lf_expr, &options, err))
 					goto fail;
 				break;
 			case LF_TEXT:
@@ -750,7 +758,56 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct lf_ex
 		memprintf(err, "truncated line after '%s'", tag ? tag : arg ? arg : "%");
 		goto fail;
 	}
+	ha_free(&fmt);
 	ha_free(&backfmt);
+
+	return 1;
+ fail:
+	ha_free(&fmt);
+	ha_free(&backfmt);
+	return 0;
+}
+
+/* lf_expr_compile() helper: uses <curproxy> to deduce settings and
+ * simplify function usage, mostly for legacy purpose
+ *
+ * curproxy->conf.args.ctx must be set by the caller.
+ *
+ * The logformat expression will be scheduled for postcheck on the proxy unless
+ * the proxy was already checked, in which case all checks will be performed right
+ * away.
+ *
+ * Returns 1 on success and 0 on failure. On failure: <lf_expr> will be cleaned
+ * up and <err> will be set.
+ */
+int parse_logformat_string(const char *fmt, struct proxy *curproxy,
+                           struct lf_expr *lf_expr,
+                           int options, int cap, char **err)
+{
+	int ret;
+
+
+	/* reinit lf_expr (if previously set) */
+	lf_expr_deinit(lf_expr);
+
+	lf_expr->str = strdup(fmt);
+	if (!lf_expr->str) {
+		memprintf(err, "out of memory error");
+		goto fail;
+	}
+
+	/* Save some parsing infos to raise relevant error messages during
+	 * postparsing if needed
+	 */
+	if (curproxy->conf.args.file) {
+		lf_expr->conf.file = strdup(curproxy->conf.args.file);
+		lf_expr->conf.line = curproxy->conf.args.line;
+	}
+
+	ret = lf_expr_compile(lf_expr, &curproxy->conf.args, options, cap, err);
+
+	if (!ret)
+		goto fail;
 
 	if (!(curproxy->flags & PR_FL_CHECKED)) {
 		/* add the lf_expr to the proxy checks to delay postparsing
@@ -765,10 +822,10 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct lf_ex
 		if (!lf_expr_postcheck(lf_expr, curproxy, err))
 			goto fail;
 	}
-
 	return 1;
+
  fail:
-	ha_free(&backfmt);
+	lf_expr_deinit(lf_expr);
 	return 0;
 }
 
@@ -848,6 +905,7 @@ static int postcheck_logformat_proxy(struct proxy *px)
 	int err_code = ERR_NONE;
 
 	list_for_each_entry_safe(lf_expr, back_lf, &px->conf.lf_checks, list) {
+		BUG_ON(!(lf_expr->flags & LF_FL_COMPILED));
 		if (!lf_expr_postcheck(lf_expr, px, &err))
 			err_code |= ERR_FATAL | ERR_ALERT;
 		/* check performed, ensure it doesn't get checked twice */
@@ -2697,8 +2755,9 @@ void free_logformat_list(struct list *fmt)
 /* Prepares log-format expression struct */
 void lf_expr_init(struct lf_expr *expr)
 {
-	LIST_INIT(&expr->nodes);
 	LIST_INIT(&expr->list);
+	expr->flags = LF_FL_NONE;
+	expr->str = NULL;
 	expr->conf.file = NULL;
 	expr->conf.line = 0;
 }
@@ -2706,7 +2765,10 @@ void lf_expr_init(struct lf_expr *expr)
 /* Releases and resets a log-format expression */
 void lf_expr_deinit(struct lf_expr *expr)
 {
-	free_logformat_list(&expr->nodes);
+	if ((expr->flags & LF_FL_COMPILED))
+		free_logformat_list(&expr->nodes);
+	else
+		free(expr->str);
 	free(expr->conf.file);
 	/* remove from parent list (if any) */
 	LIST_DEL_INIT(&expr->list);
@@ -2714,7 +2776,7 @@ void lf_expr_deinit(struct lf_expr *expr)
 	lf_expr_init(expr);
 }
 
-/* Transfer log-format expression from <src> to <dst>
+/* Transfer a compiled log-format expression from <src> to <dst>
  * at the end of the operation, <src> is reset
  */
 void lf_expr_xfer(struct lf_expr *src, struct lf_expr *dst)
@@ -2724,9 +2786,15 @@ void lf_expr_xfer(struct lf_expr *src, struct lf_expr *dst)
 	/* first, reset any existing expr */
 	lf_expr_deinit(dst);
 
+	BUG_ON(!(src->flags & LF_FL_COMPILED));
+
 	/* then proceed with transfer between <src> and <dst> */
 	dst->conf.file = src->conf.file;
 	dst->conf.line = src->conf.line;
+
+	dst->flags |= LF_FL_COMPILED;
+	LIST_INIT(&dst->nodes);
+
 	list_for_each_entry_safe(lf, lfb, &src->nodes, list) {
 		LIST_DELETE(&lf->list);
 		LIST_APPEND(&dst->nodes, &lf->list);
@@ -2740,6 +2808,33 @@ void lf_expr_xfer(struct lf_expr *src, struct lf_expr *dst)
 
 	/* src is now empty, perform an explicit reset */
 	lf_expr_init(src);
+}
+
+/* tries to duplicate an uncompiled logformat expression from <orig> to <dest>
+ *
+ * Returns 1 on success and 0 on failure.
+ */
+int lf_expr_dup(const struct lf_expr *orig, struct lf_expr *dest)
+{
+	BUG_ON((orig->flags & LF_FL_COMPILED));
+	lf_expr_deinit(dest);
+	if (orig->str) {
+		dest->str = strdup(orig->str);
+		if (!dest->str)
+			goto error;
+	}
+	if (orig->conf.file) {
+		dest->conf.file = strdup(orig->conf.file);
+		if (!dest->conf.file)
+			goto error;
+	}
+	dest->conf.line = orig->conf.line;
+
+	return 1;
+
+ error:
+	lf_expr_deinit(dest);
+	return 0;
 }
 
 /* Builds a log line in <dst> based on <lf_expr>, and stops before reaching
