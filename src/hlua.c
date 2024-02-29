@@ -8246,7 +8246,7 @@ __LJMP static int hlua_txn_set_loglevel(lua_State *L)
 	if (ll < 0 || ll > 7)
 		WILL_LJMP(luaL_argerror(L, 2, "Bad log level. It must be between 0 and 7"));
 
-	htxn->s->logs.level = ll;
+	htxn->s->logs.level = ll + 1;
 	return 0;
 }
 
