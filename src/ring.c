@@ -513,6 +513,12 @@ int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t
 			break;
 		}
 
+		readers = _HA_ATOMIC_LOAD(_vp_addr(v1, v2, 0));
+		if (readers > RING_MAX_READERS) {
+			/* we just met a writer which hasn't finished */
+			break;
+		}
+
 		cnt = 1;
 		len = vp_peek_varint_ofs(v1, v2, cnt, &msg_len);
 		if (!len)
