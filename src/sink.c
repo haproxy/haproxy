@@ -212,16 +212,33 @@ send:
  */
 int sink_announce_dropped(struct sink *sink, struct log_header hdr)
 {
-	unsigned int dropped;
-	struct buffer msg;
+	static THREAD_LOCAL char msg_dropped1[] = "1 event dropped";
+	static THREAD_LOCAL char msg_dropped2[] = "0000000000 events dropped";
+	uint dropped, last_dropped;
 	struct ist msgvec[1];
-	char logbuf[64];
+	uint retries = 10;
 
-	while (unlikely((dropped = sink->ctx.dropped) > 0)) {
-		chunk_init(&msg, logbuf, sizeof(logbuf));
-		chunk_printf(&msg, "%u event%s dropped", dropped, dropped > 1 ? "s" : "");
-		msgvec[0] = ist2(msg.area, msg.data);
+	last_dropped = 0;
+	while (1) {
+		while (unlikely((dropped = HA_ATOMIC_LOAD(&sink->ctx.dropped)) > last_dropped) && retries-- > 0) {
+			/* try to aggregate multiple messages if other threads arrive while
+			 * we're producing the dropped message.
+			 */
+			uint msglen = sizeof(msg_dropped1);
+			const char *msg = msg_dropped1;
 
+			last_dropped = dropped;
+			if (dropped > 1) {
+				msg = ultoa_r(dropped, msg_dropped2, 11);
+				msg_dropped2[10] = ' ';
+				msglen = msg_dropped2 + sizeof(msg_dropped2) - msg;
+			}
+			msgvec[0] = ist2(msg, msglen);
+		}
+		if (!dropped)
+			break;
+
+		last_dropped = 0;
 		hdr.level = LOG_NOTICE; /* override level but keep original log header data */
 
 		if (__sink_write(sink, hdr, 0, msgvec, 1) <= 0)
