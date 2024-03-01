@@ -60,9 +60,8 @@ struct sink {
 	struct sig_handler *forward_sighandler; /* signal handler */
 	struct {
 		struct ring *ring;    // used by ring buffer and STRM sender
-		unsigned int dropped; // dropped events since last one.
+		unsigned int dropped; // 2*dropped events since last one + 1 for purge in progress.
 		int fd;               // fd num for FD type sink
-		__decl_thread(HA_RWLOCK_T lock); // shared/excl for dropped
 	} ctx;
 };
 

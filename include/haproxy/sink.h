@@ -52,18 +52,10 @@ int sink_announce_dropped(struct sink *sink, struct log_header hdr);
 static inline ssize_t sink_write(struct sink *sink, struct log_header hdr,
                                  size_t maxlen, const struct ist msg[], size_t nmsg)
 {
-	ssize_t sent;
+	ssize_t sent = 0;
 
-	if (unlikely(sink->ctx.dropped > 0)) {
-		/* We need to take an exclusive lock so that other producers
-		 * don't do the same thing at the same time and above all we
-		 * want to be sure others have finished sending their messages
-		 * so that the dropped event arrives exactly at the right
-		 * position.
-		 */
-		HA_RWLOCK_WRLOCK(RING_LOCK, &sink->ctx.lock);
+	if (unlikely(HA_ATOMIC_LOAD(&sink->ctx.dropped) > 0)) {
 		sent = sink_announce_dropped(sink, hdr);
-		HA_RWLOCK_WRUNLOCK(RING_LOCK, &sink->ctx.lock);
 
 		if (!sent) {
 			/* we failed, we don't try to send our log as if it
@@ -73,13 +65,11 @@ static inline ssize_t sink_write(struct sink *sink, struct log_header hdr,
 		}
 	}
 
-	HA_RWLOCK_RDLOCK(RING_LOCK, &sink->ctx.lock);
 	sent = __sink_write(sink, hdr, maxlen, msg, nmsg);
-	HA_RWLOCK_RDUNLOCK(RING_LOCK, &sink->ctx.lock);
 
  fail:
 	if (unlikely(sent <= 0))
-		HA_ATOMIC_INC(&sink->ctx.dropped);
+		HA_ATOMIC_ADD(&sink->ctx.dropped, 2);
 
 	return sent;
 }
