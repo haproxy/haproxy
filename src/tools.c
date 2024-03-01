@@ -6333,7 +6333,7 @@ void *dlopen(const char *filename, int flags)
 static int init_tools_per_thread()
 {
 	/* Let's make each thread start from a different position */
-	statistical_prng_state += tid * MAX_THREADS;
+	statistical_prng_state += ha_random32();
 	if (!statistical_prng_state)
 		statistical_prng_state++;
 	return 1;
