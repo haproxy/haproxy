@@ -1821,12 +1821,15 @@ resume_execution:
 			break;
 		}
 		msg = lua_tostring(lua->T, -1);
-		lua_settop(lua->T, 0); /* Empty the stack. */
 		trace = hlua_traceback(lua->T, ", ");
 		if (msg)
 			lua_pushfstring(lua->T, "[state-id %d] runtime error: %s from %s", lua->state_id, msg, trace);
 		else
 			lua_pushfstring(lua->T, "[state-id %d] unknown runtime error from %s", lua->state_id, trace);
+
+		/* Move the error msg at the top and then empty the stack except last msg */
+		lua_insert(lua->T, -lua_gettop(lua->T));
+		lua_settop(lua->T, 1);
 		ret = HLUA_E_ERRMSG;
 		break;
 
@@ -1843,11 +1846,14 @@ resume_execution:
 			break;
 		}
 		msg = lua_tostring(lua->T, -1);
-		lua_settop(lua->T, 0); /* Empty the stack. */
 		if (msg)
 			lua_pushfstring(lua->T, "[state-id %d] message handler error: %s", lua->state_id, msg);
 		else
 			lua_pushfstring(lua->T, "[state-id %d] message handler error", lua->state_id);
+
+		/* Move the error msg at the top and then empty the stack except last msg */
+		lua_insert(lua->T, -lua_gettop(lua->T));
+		lua_settop(lua->T, 1);
 		ret = HLUA_E_ERRMSG;
 		break;
 
@@ -13039,12 +13045,13 @@ int hlua_post_init_state(lua_State *L)
 			if (!kind)
 				kind = "runtime error";
 			msg = lua_tostring(L, -1);
-			lua_settop(L, 0); /* Empty the stack. */
 			trace = hlua_traceback(L, ", ");
 			if (msg)
 				ha_alert("Lua init: %s: '%s' from %s\n", kind, msg, trace);
 			else
 				ha_alert("Lua init: unknown %s from %s\n", kind, trace);
+
+			lua_settop(L, 0); /* Empty the stack. */
 			return_status = 0;
 			break;
 
