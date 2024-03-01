@@ -3529,7 +3529,7 @@ __LJMP static struct channel *hlua_checkchannel(lua_State *L, int ud)
 /* Pushes the channel onto the top of the stack. If the stask does not have a
  * free slots, the function fails and returns 0;
  */
-static int hlua_channel_new(lua_State *L, struct channel *channel)
+__LJMP static int hlua_channel_new(lua_State *L, struct channel *channel)
 {
 	/* Check stack size. */
 	if (!lua_checkstack(L, 3))
@@ -4547,7 +4547,7 @@ __LJMP static struct hlua_smp *hlua_checkfetches(lua_State *L, int ud)
 /* This function creates and push in the stack a fetch object according
  * with a current TXN.
  */
-static int hlua_fetches_new(lua_State *L, struct hlua_txn *txn, unsigned int flags)
+__LJMP static int hlua_fetches_new(lua_State *L, struct hlua_txn *txn, unsigned int flags)
 {
 	struct hlua_smp *hsmp;
 
@@ -4669,7 +4669,7 @@ __LJMP static struct hlua_smp *hlua_checkconverters(lua_State *L, int ud)
 /* This function creates and push in the stack a Converters object
  * according with a current TXN.
  */
-static int hlua_converters_new(lua_State *L, struct hlua_txn *txn, unsigned int flags)
+__LJMP static int hlua_converters_new(lua_State *L, struct hlua_txn *txn, unsigned int flags)
 {
 	struct hlua_smp *hsmp;
 
@@ -6050,7 +6050,7 @@ __LJMP static struct hlua_txn *hlua_checkhttp(lua_State *L, int ud)
 /* This function creates and push in the stack a HTTP object
  * according with a current TXN.
  */
-static int hlua_http_new(lua_State *L, struct hlua_txn *txn)
+__LJMP static int hlua_http_new(lua_State *L, struct hlua_txn *txn)
 {
 	struct hlua_txn *htxn;
 
@@ -8086,7 +8086,7 @@ __LJMP static int hlua_get_priv(lua_State *L)
  * return 0 if the stack does not contains free slots,
  * otherwise it returns 1.
  */
-static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p, int dir, int flags)
+__LJMP static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p, int dir, int flags)
 {
 	struct hlua_txn *htxn;
 
@@ -8572,7 +8572,7 @@ __LJMP static int hlua_txn_done(lua_State *L)
 /* Pushes the TXN reply onto the top of the stack. If the stask does not have a
  * free slots, the function fails and returns 0;
  */
-static int hlua_txn_reply_new(lua_State *L)
+__LJMP static int hlua_txn_reply_new(lua_State *L)
 {
 	struct hlua_txn *htxn;
 	const char *reason, *body = NULL;
