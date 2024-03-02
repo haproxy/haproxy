@@ -123,7 +123,9 @@ struct ring {
 	struct ring_storage *storage; // the mapped part
 	struct mt_list waiters;       // list of waiters, for now, CLI "show event"
 	int readers_count;
-	uint flags;          // RING_FL_*
+	uint flags;             // RING_FL_*
+	uint pending;           // new writes that have not yet been subject to a wakeup
+	uint waking;            // indicates a thread is currently waking up readers
 };
 
 #endif /* _HAPROXY_RING_T_H */
