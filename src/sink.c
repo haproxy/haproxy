@@ -650,7 +650,7 @@ int sink_init_forward(struct sink *sink)
  */
 void sink_rotate_file_backed_ring(const char *name)
 {
-	struct ring ring;
+	struct ring_storage storage;
 	char *oldback;
 	int ret;
 	int fd;
@@ -660,16 +660,16 @@ void sink_rotate_file_backed_ring(const char *name)
 		return;
 
 	/* check for contents validity */
-	ret = read(fd, &ring, sizeof(ring));
+	ret = read(fd, &storage, sizeof(storage));
 	close(fd);
 
-	if (ret != sizeof(ring))
+	if (ret != sizeof(storage))
 		goto rotate;
 
 	/* contents are present, we want to keep them => rotate. Note that
 	 * an empty ring buffer has one byte (the marker).
 	 */
-	if (ring.buf.data > 1)
+	if (storage.buf.data > 1)
 		goto rotate;
 
 	/* nothing to keep, let's scratch the file and preserve the backup */
@@ -978,7 +978,7 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 
 		/* never fails */
 		ring_free(cfg_sink->ctx.ring);
-		cfg_sink->ctx.ring = ring_make_from_area(area, size);
+		cfg_sink->ctx.ring = ring_make_from_area(area, size, 1);
 	}
 	else if (strcmp(args[0],"server") == 0) {
 		if (!cfg_sink || (cfg_sink->type != SINK_TYPE_BUFFER)) {

@@ -35,60 +35,52 @@ struct show_ring_ctx {
 	uint flags;        /* set of RING_WF_* */
 };
 
-/* Initialize a pre-allocated ring with the buffer area
- * of size */
-void ring_init(struct ring *ring, void *area, size_t size)
+/* Initialize a pre-allocated ring with the buffer area of size <size>.
+ * Makes the storage point to the indicated area and adjusts the declared
+ * ring size according to the position of the area in the storage. If <reset>
+ * is non-zero, the storage area is reset, otherwise it's left intact (except
+ * for the area origin pointer which is updated so that the area can come from
+ * an mmap()).
+ */
+void ring_init(struct ring *ring, void *area, size_t size, int reset)
 {
 	HA_RWLOCK_INIT(&ring->lock);
 	LIST_INIT(&ring->waiters);
 	ring->readers_count = 0;
-	ring->buf = b_make(area, size, 0, 0);
 	ring->flags = 0;
+	ring->storage = area;
+	ring->storage->buf.area = ring->storage->area;
 
-	/* write the initial RC byte */
-	b_putchr(&ring->buf, 0);
+	if (reset) {
+		ring->storage->buf = b_make(ring->storage->area,
+					    size - sizeof(*ring->storage),
+					    0, 0);
+
+		/* write the initial RC byte */
+		b_putchr(&ring->storage->buf, 0);
+	}
 }
 
-/* Creates and returns a ring buffer of size <size> bytes. Returns NULL on
- * allocation failure.
- */
-struct ring *ring_new(size_t size)
-{
-	struct ring *ring = NULL;
-	void *area = NULL;
-
-	if (size < 2)
-		goto fail;
-
-	ring = malloc(sizeof(*ring));
-	if (!ring)
-		goto fail;
-
-	area = malloc(size);
-	if (!area)
-		goto fail;
-
-	ring_init(ring, area, size);
-	return ring;
- fail:
-	free(area);
-	free(ring);
-	return NULL;
-}
-
-/* Creates a unified ring + storage area at address <area> for <size> bytes.
+/* Creates a ring and its storage area at address <area> for <size> bytes.
  * If <area> is null, then it's allocated of the requested size. The ring
- * struct is part of the area so the usable area is slightly reduced. However
- * the ring storage is immediately adjacent to the struct. ring_free() will
- * ignore such rings, so the caller is responsible for releasing them.
+ * storage struct is part of the area so the usable area is slightly reduced.
+ * However the storage is immediately adjacent to the struct so that the ring
+ * remains consistent on-disk. ring_free() will ignore such ring stoages and
+ * will only release the ring part, so the caller is responsible for releasing
+ * them. If <reset> is non-zero, the storage area is reset, otherwise it's left
+ * intact.
  */
-struct ring *ring_make_from_area(void *area, size_t size)
+struct ring *ring_make_from_area(void *area, size_t size, int reset)
 {
 	struct ring *ring = NULL;
 	uint flags = 0;
 
-	if (size < sizeof(*ring))
+	if (size < sizeof(*ring->storage) + 2)
 		return NULL;
+
+	ring = malloc(sizeof(*ring));
+	if (!ring)
+		goto fail;
 
 	if (!area)
 		area = malloc(size);
@@ -96,33 +88,22 @@ struct ring *ring_make_from_area(void *area, size_t size)
 		flags |= RING_FL_MAPPED;
 
 	if (!area)
-		return NULL;
+		goto fail;
 
-	ring = area;
-	area += sizeof(*ring);
-	ring_init(ring, area, size - sizeof(*ring));
+	ring_init(ring, area, size, reset);
 	ring->flags |= flags;
 	return ring;
+ fail:
+	free(ring);
+	return NULL;
 }
 
-/* Cast an unified ring + storage area to a ring from <area>, without
- * reinitializing the data buffer.
- *
- * Reinitialize the waiters and the lock.
+/* Creates and returns a ring buffer of size <size> bytes. Returns NULL on
+ * allocation failure.
  */
-struct ring *ring_cast_from_area(void *area)
+struct ring *ring_new(size_t size)
 {
-	struct ring *ring = NULL;
-
-	ring = area;
-	ring->buf.area = area + sizeof(*ring);
-
-	HA_RWLOCK_INIT(&ring->lock);
-	LIST_INIT(&ring->waiters);
-	ring->readers_count = 0;
-	ring->flags = RING_FL_MAPPED;
-
-	return ring;
+	return ring_make_from_area(NULL, size, 1);
 }
 
 /* Resizes existing ring <ring> to <size> which must be larger, without losing
@@ -132,28 +113,32 @@ struct ring *ring_cast_from_area(void *area)
  */
 struct ring *ring_resize(struct ring *ring, size_t size)
 {
-	void *area;
+	struct ring_storage *new;
 
-	if (ring_size(ring) >= size)
+	if (size <= ring_size(ring) + sizeof(*ring->storage))
 		return ring;
 
-	area = malloc(size);
-	if (!area)
+	new = malloc(size);
+	if (!new)
 		return NULL;
 
 	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 
 	/* recheck the buffer's size, it may have changed during the malloc */
-	if (ring_size(ring) < size) {
+
+	if (size > ring_size(ring) + sizeof(*ring->storage)) {
 		/* copy old contents */
-		b_getblk(&ring->buf, area, ring_data(ring), 0);
-		area = HA_ATOMIC_XCHG(&ring->buf.area, area);
-		ring->buf.size = size;
+		new->buf = b_make(new->area, size - sizeof(*ring->storage), 0, 0);
+		b_getblk(&ring->storage->buf, new->area, ring_data(ring), 0);
+		new->buf.data = ring_data(ring);
+		new = HA_ATOMIC_XCHG(&ring->storage, new);
+		/* new is now the old one */
 	}
 
 	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 
-	free(area);
+	/* free the unused one */
+	free(new);
 	return ring;
 }
 
@@ -164,10 +149,8 @@ void ring_free(struct ring *ring)
 		return;
 
 	/* make sure it was not allocated by ring_make_from_area */
-	if (ring->flags & RING_FL_MAPPED)
-		return;
-
-	free(ring_area(ring));
+	if (!(ring->flags & RING_FL_MAPPED))
+		free(ring->storage);
 	free(ring);
 }
 
@@ -181,7 +164,7 @@ void ring_free(struct ring *ring)
  */
 ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], size_t npfx, const struct ist msg[], size_t nmsg)
 {
-	struct buffer *buf = &ring->buf;
+	struct buffer *buf = &ring->storage->buf;
 	struct appctx *appctx;
 	size_t msglen = 0;
 	size_t lenlen;
@@ -312,7 +295,7 @@ void ring_detach_appctx(struct ring *ring, struct appctx *appctx, size_t ofs)
 
 		BUG_ON(ofs >= ring_size(ring));
 		LIST_DEL_INIT(&appctx->wait_entry);
-		HA_ATOMIC_DEC(b_peek(&ring->buf, ofs));
+		HA_ATOMIC_DEC(b_peek(&ring->storage->buf, ofs));
 	}
 	HA_ATOMIC_DEC(&ring->readers_count);
 	HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
@@ -356,7 +339,7 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx, uint flags)
 int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t *last_ofs_ptr, uint flags,
 			   ssize_t (*msg_handler)(void *ctx, const struct buffer *buf, size_t ofs, size_t len))
 {
-	struct buffer *buf = &ring->buf;
+	struct buffer *buf = &ring->storage->buf;
 	uint64_t msg_len;
 	ssize_t copied;
 	size_t len, cnt;

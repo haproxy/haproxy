@@ -29,9 +29,8 @@
 struct appctx;
 
 struct ring *ring_new(size_t size);
-struct ring *ring_make_from_area(void *area, size_t size);
-struct ring *ring_cast_from_area(void *area);
-void ring_init(struct ring *ring, void* area, size_t size);
+struct ring *ring_make_from_area(void *area, size_t size, int reset);
+void ring_init(struct ring *ring, void *area, size_t size, int reset);
 struct ring *ring_resize(struct ring *ring, size_t size);
 void ring_free(struct ring *ring);
 ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], size_t npfx, const struct ist msg[], size_t nmsg);
@@ -48,31 +47,31 @@ int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t
 /* returns the ring storage's area */
 static inline void *ring_area(const struct ring *ring)
 {
-	return b_orig(&ring->buf);
+	return b_orig(&ring->storage->buf);
 }
 
 /* returns the number of bytes in the ring */
 static inline size_t ring_data(const struct ring *ring)
 {
-	return b_data(&ring->buf);
+	return b_data(&ring->storage->buf);
 }
 
 /* returns the allocated size in bytes for the ring */
 static inline size_t ring_size(const struct ring *ring)
 {
-	return b_size(&ring->buf);
+	return b_size(&ring->storage->buf);
 }
 
 /* returns the head offset of the ring */
 static inline size_t ring_head(const struct ring *ring)
 {
-	return b_head_ofs(&ring->buf);
+	return b_head_ofs(&ring->storage->buf);
 }
 
 /* returns the tail offset of the ring */
 static inline size_t ring_tail(const struct ring *ring)
 {
-	return b_tail_ofs(&ring->buf);
+	return b_tail_ofs(&ring->storage->buf);
 }
 
 /* duplicates ring <src> over ring <dst> for no more than <max> bytes or no
@@ -85,8 +84,8 @@ static inline size_t ring_dup(struct ring *dst, const struct ring *src, size_t m
 	if (max > ring_data(src))
 		max = ring_data(src);
 
-	b_reset(&dst->buf);
-	b_ncat(&dst->buf, &src->buf, max);
+	b_reset(&dst->storage->buf);
+	b_ncat(&dst->storage->buf, &src->storage->buf, max);
 	return max;
 }
 

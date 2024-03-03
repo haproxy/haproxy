@@ -103,9 +103,16 @@
 #define RING_WRITING_SIZE  255  /* the next message's size is being written */
 #define RING_MAX_READERS   254  /* highest supported value for RC */
 
+/* this is the mmapped part */
+struct ring_storage {
+	struct buffer buf;            // storage layout
+	char area[0];                 // storage area begins immediately here
+};
+
+/* this is the ring definition, config, waiters etc */
 struct ring {
-	struct buffer buf;   // storage area
-	struct list waiters; // list of waiters, for now, CLI "show event"
+	struct ring_storage *storage; // the mapped part
+	struct list waiters;          // list of waiters, for now, CLI "show event"
 	__decl_thread(HA_RWLOCK_T lock);
 	int readers_count;
 	uint flags;          // RING_FL_*

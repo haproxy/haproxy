@@ -90,11 +90,7 @@ static struct ring *startup_logs_from_fd(int fd, int new)
 	if (area == MAP_FAILED || area == NULL)
 		goto error;
 
-	if (new)
-		r = ring_make_from_area(area, STARTUP_LOG_SIZE);
-	else
-		r = ring_cast_from_area(area);
-
+        r = ring_make_from_area(area, STARTUP_LOG_SIZE, new);
 	if (r == NULL)
 		goto error;
 
