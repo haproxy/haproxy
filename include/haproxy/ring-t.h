@@ -96,6 +96,9 @@
 #define RING_WF_WAIT_MODE  0x00000001   /* wait for new contents */
 #define RING_WF_SEEK_NEW   0x00000002   /* seek to new contents  */
 
+/* ring flags */
+#define RING_FL_MAPPED     0x00000001 /* mmapped area, must not free() */
+
 /* keep values below in decimal, they may be dumped in error messages */
 #define RING_WRITING_SIZE  255  /* the next message's size is being written */
 #define RING_MAX_READERS   254  /* highest supported value for RC */
@@ -105,6 +108,7 @@ struct ring {
 	struct list waiters; // list of waiters, for now, CLI "show event"
 	__decl_thread(HA_RWLOCK_T lock);
 	int readers_count;
+	uint flags;          // RING_FL_*
 };
 
 #endif /* _HAPROXY_RING_T_H */

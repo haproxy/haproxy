@@ -43,6 +43,8 @@ void ring_init(struct ring *ring, void *area, size_t size)
 	LIST_INIT(&ring->waiters);
 	ring->readers_count = 0;
 	ring->buf = b_make(area, size, 0, 0);
+	ring->flags = 0;
+
 	/* write the initial RC byte */
 	b_putchr(&ring->buf, 0);
 }
@@ -83,18 +85,23 @@ struct ring *ring_new(size_t size)
 struct ring *ring_make_from_area(void *area, size_t size)
 {
 	struct ring *ring = NULL;
+	uint flags = 0;
 
 	if (size < sizeof(*ring))
 		return NULL;
 
 	if (!area)
 		area = malloc(size);
+	else
+		flags |= RING_FL_MAPPED;
+
 	if (!area)
 		return NULL;
 
 	ring = area;
 	area += sizeof(*ring);
 	ring_init(ring, area, size - sizeof(*ring));
+	ring->flags |= flags;
 	return ring;
 }
 
@@ -113,6 +120,7 @@ struct ring *ring_cast_from_area(void *area)
 	HA_RWLOCK_INIT(&ring->lock);
 	LIST_INIT(&ring->waiters);
 	ring->readers_count = 0;
+	ring->flags = RING_FL_MAPPED;
 
 	return ring;
 }
@@ -156,7 +164,7 @@ void ring_free(struct ring *ring)
 		return;
 
 	/* make sure it was not allocated by ring_make_from_area */
-	if (ring->buf.area == (void *)ring + sizeof(*ring))
+	if (ring->flags & RING_FL_MAPPED)
 		return;
 
 	free(ring_area(ring));
