@@ -11956,8 +11956,11 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 	}
 
   end:
-	if (s->hlua)
+	if (s->hlua) {
+		hlua_lock(s->hlua);
 		lua_settop(s->hlua->T, 0);
+		hlua_unlock(s->hlua);
+	}
 	if (ret <= 0) {
 		if (flt_ctx) {
 			hlua_ctx_destroy(flt_ctx->hlua[0]);
