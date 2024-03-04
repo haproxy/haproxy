@@ -12000,7 +12000,7 @@ static int hlua_filter_callback(struct stream *s, struct filter *filter, const c
 		goto end;
 
 	if (!HLUA_IS_RUNNING(flt_hlua)) {
-		int extra_idx = lua_gettop(flt_hlua->T);
+		int extra_idx;
 
 		/* The following Lua calls can fail. */
 		if (!SET_SAFE_LJMP(flt_hlua)) {
@@ -12013,6 +12013,8 @@ static int hlua_filter_callback(struct stream *s, struct filter *filter, const c
 			SEND_ERR(s->be, "Lua filter '%s': %s.\n", conf->reg->name, error);
 			goto end;
 		}
+
+		extra_idx = lua_gettop(flt_hlua->T);
 
 		/* Check stack size. */
 		if (!lua_checkstack(flt_hlua->T, 3)) {
