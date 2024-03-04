@@ -11848,16 +11848,18 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 		ret = 0;
 		goto end;
 	}
-	flt_ctx->hlua[0] = pool_alloc(pool_head_hlua);
-	flt_ctx->hlua[1] = pool_alloc(pool_head_hlua);
+
+	if ((flt_ctx->hlua[0] = pool_alloc(pool_head_hlua)))
+		HLUA_INIT(flt_ctx->hlua[0]);
+	if ((flt_ctx->hlua[1] = pool_alloc(pool_head_hlua)))
+		HLUA_INIT(flt_ctx->hlua[1]);
 	if (!flt_ctx->hlua[0] || !flt_ctx->hlua[1]) {
 		SEND_ERR(s->be, "Lua filter '%s': can't initialize filter Lua context.\n",
 			 conf->reg->name);
 		ret = 0;
 		goto end;
 	}
-	HLUA_INIT(flt_ctx->hlua[0]);
-	HLUA_INIT(flt_ctx->hlua[1]);
+
 	if (!hlua_ctx_init(flt_ctx->hlua[0], reg_flt_to_stack_id(conf->reg), s->task) ||
 	    !hlua_ctx_init(flt_ctx->hlua[1], reg_flt_to_stack_id(conf->reg), s->task)) {
 		SEND_ERR(s->be, "Lua filter '%s': can't initialize filter Lua context.\n",
