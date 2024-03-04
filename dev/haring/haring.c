@@ -35,12 +35,19 @@
 
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
-#include <haproxy/ring.h>
+#include <haproxy/ring-t.h>
+#include <haproxy/thread.h>
 
 int force = 0; // force access to a different layout
 int lfremap = 0; // remap LF in traces
 int repair = 0; // repair file
 
+struct ring_v1 {
+	struct buffer buf;   // storage area
+	struct list waiters; // list of waiters, for now, CLI "show event"
+	__decl_thread(HA_RWLOCK_T lock);
+	int readers_count;
+};
 
 /* display the message and exit with the code */
 __attribute__((noreturn)) void die(int code, const char *format, ...)
@@ -78,7 +85,7 @@ __attribute__((noreturn)) void usage(int code, const char *arg0)
  * called again, otherwise non-zero. It is meant to be used with
  * cli_release_show_ring() to clean up.
  */
-int dump_ring(struct ring *ring, size_t ofs, int flags)
+int dump_ring(struct ring_v1 *ring, size_t ofs, int flags)
 {
 	struct buffer buf;
 	uint64_t msg_len = 0;
@@ -212,7 +219,7 @@ int dump_ring(struct ring *ring, size_t ofs, int flags)
 
 int main(int argc, char **argv)
 {
-	struct ring *ring;
+	void *ring;
 	struct stat statbuf;
 	const char *arg0;
 	int fd;
