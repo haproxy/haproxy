@@ -982,6 +982,7 @@ int hlua_stktable_dump(lua_State *L)
 	int i;
 	int skip_entry;
 	void *ptr;
+	int shard = 0; // FIXME: this should be stored in the context and iterate to scan the table
 
 	t = hlua_check_stktable(L, 1);
 	type = lua_type(L, 2);
@@ -1042,16 +1043,17 @@ int hlua_stktable_dump(lua_State *L)
 
 	lua_newtable(L);
 
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
-	eb = ebmb_first(&t->keys);
+ next_shard:
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+	eb = ebmb_first(&t->shards[shard].keys);
 	for (n = eb; n; n = ebmb_next(n)) {
 		ts = ebmb_entry(n, struct stksess, key);
 		if (!ts) {
-			HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
-			return 1;
+			HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+			goto done;
 		}
 		HA_ATOMIC_INC(&ts->ref_cnt);
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 
 		/* multi condition/value filter */
 		skip_entry = 0;
@@ -1090,7 +1092,7 @@ int hlua_stktable_dump(lua_State *L)
 		}
 
 		if (skip_entry) {
-			HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
+			HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 			HA_ATOMIC_DEC(&ts->ref_cnt);
 			continue;
 		}
@@ -1114,10 +1116,14 @@ int hlua_stktable_dump(lua_State *L)
 		lua_newtable(L);
 		hlua_stktable_entry(L, t, ts);
 		lua_settable(L, -3);
-		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
+		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 		HA_ATOMIC_DEC(&ts->ref_cnt);
 	}
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+ done:
+	shard++;
+	if (shard < CONFIG_HAP_TBL_BUCKETS)
+		goto next_shard;
 
 	return 1;
 }

@@ -31,6 +31,7 @@
 #include <haproxy/stick_table-t.h>
 #include <haproxy/thread.h>
 #include <haproxy/ticks.h>
+#include <haproxy/xxhash.h>
 
 extern struct stktable *stktables_list;
 extern struct pool_head *pool_head_stk_ctr;
@@ -192,6 +193,15 @@ static inline void *stktable_data_ptr_idx(struct stktable *t, struct stksess *ts
 	return __stktable_data_ptr(t, ts, type) + idx*stktable_type_size(stktable_data_types[type].std_type);
 }
 
+/* return a shard number for key <key> of len <len> present in table <t>, for
+ * use with the tree indexing. The value will be from 0 to
+ * CONFIG_HAP_TBL_BUCKETS-1.
+ */
+static inline uint stktable_calc_shard_num(const struct stktable *t, const void *key, size_t len)
+{
+	return XXH32(key, len, t->hash_seed) % CONFIG_HAP_TBL_BUCKETS;
+}
+
 /* kill an entry if it's expired and its ref_cnt is zero */
 static inline int __stksess_kill_if_expired(struct stktable *t, struct stksess *ts)
 {
@@ -203,14 +213,23 @@ static inline int __stksess_kill_if_expired(struct stktable *t, struct stksess *
 
 static inline void stksess_kill_if_expired(struct stktable *t, struct stksess *ts, int decrefcnt)
 {
+	uint shard;
+	size_t len;
 
 	if (decrefcnt && HA_ATOMIC_SUB_FETCH(&ts->ref_cnt, 1) != 0)
 		return;
 
 	if (t->expire != TICK_ETERNITY && tick_is_expired(ts->expire, now_ms)) {
-		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
+		if (t->type == SMP_T_STR)
+			len = strlen((const char *)ts->key.key);
+		else
+			len = t->key_size;
+
+		shard = stktable_calc_shard_num(t, ts->key.key, len);
+
+		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 		__stksess_kill_if_expired(t, ts);
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 	}
 }
 

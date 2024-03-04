@@ -480,6 +480,10 @@
 
 #define CONFIG_HAP_POOL_BUCKETS (1UL << (CONFIG_HAP_POOL_BUCKETS_BITS))
 
+#ifndef CONFIG_HAP_TBL_BUCKETS
+# define CONFIG_HAP_TBL_BUCKETS CONFIG_HAP_POOL_BUCKETS
+#endif
+
 /* Number of samples used to compute the times reported in stats. A power of
  * two is highly recommended, and this value multiplied by the largest response
  * time must not overflow and unsigned int. See freq_ctr.h for more information.
