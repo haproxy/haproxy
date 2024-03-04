@@ -9658,14 +9658,14 @@ static struct task *hlua_event_runner(struct task *task, void *context, unsigned
 				error = hlua_tostring_safe(hlua_sub->hlua->T, -1);
 			else
 				error = "critical error";
-			ha_alert("Lua event_hdl: %s.\n", error);
+			SEND_ERR(NULL, "Lua event_hdl: %s.\n", error);
 			hlua_unlock(hlua_sub->hlua);
 			goto skip_event;
 		}
 
 		/* Check stack available size. */
 		if (!lua_checkstack(hlua_sub->hlua->T, 5)) {
-			ha_alert("Lua event_hdl: full stack.\n");
+			SEND_ERR(NULL, "Lua event_hdl: full stack.\n");
 			RESET_SAFE_LJMP(hlua_sub->hlua);
 			goto skip_event;
 		}
