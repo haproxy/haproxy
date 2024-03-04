@@ -1818,7 +1818,14 @@ int qc_set_tid_affinity(struct quic_conn *qc, uint new_tid, struct listener *new
 	qc_detach_th_ctx_list(qc, 0);
 
 	node = eb64_first(qc->cids);
-	BUG_ON(!node || eb64_next(node)); /* One and only one CID must be present before affinity rebind. */
+	/* One and only one CID must be present before affinity rebind.
+	 *
+	 * This could be triggered fairly easily if tasklet is scheduled just
+	 * before thread migration for post-handshake state to generate new
+	 * CIDs. In this case, QUIC_FL_CONN_IO_TO_REQUEUE should be used
+	 * instead of tasklet_wakeup().
+	 */
+	BUG_ON(!node || eb64_next(node));
 	conn_id = eb64_entry(node, struct quic_connection_id, seq_num);
 
 	/* At this point no connection was accounted for yet on this

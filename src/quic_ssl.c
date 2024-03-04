@@ -593,8 +593,17 @@ int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 		if (qc_is_listener(ctx->qc)) {
 			qc->flags |= QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS;
 			qc->state = QUIC_HS_ST_CONFIRMED;
-			/* The connection is ready to be accepted. */
-			quic_accept_push_qc(qc);
+
+			if (!(qc->flags & QUIC_FL_CONN_ACCEPT_REGISTERED)) {
+				quic_accept_push_qc(qc);
+			}
+			else {
+				/* Connection already accepted if 0-RTT used.
+				 * In this case, schedule quic-conn to ensure
+				 * post-handshake frames are emitted.
+				 */
+				tasklet_wakeup(qc->wait_event.tasklet);
+			}
 
 			BUG_ON(qc->li->rx.quic_curr_handshake == 0);
 			HA_ATOMIC_DEC(&qc->li->rx.quic_curr_handshake);
