@@ -76,75 +76,21 @@ __attribute__((noreturn)) void usage(int code, const char *arg0)
 	    "", arg0);
 }
 
-/* This function dumps all events from the ring whose pointer is in <p0> into
- * the appctx's output buffer, and takes from <o0> the seek offset into the
- * buffer's history (0 for oldest known event). It looks at <i0> for boolean
- * options: bit0 means it must wait for new data or any key to be pressed. Bit1
- * means it must seek directly to the end to wait for new contents. It returns
- * 0 if the output buffer or events are missing is full and it needs to be
- * called again, otherwise non-zero. It is meant to be used with
- * cli_release_show_ring() to clean up.
+/* dump a ring represented in a pre-initialized buffer, starting from offset
+ * <ofs> and with flags <flags>
  */
-int dump_ring(struct ring_v1 *ring, size_t ofs, int flags)
+int dump_ring_as_buf(struct buffer buf, size_t ofs, int flags)
 {
-	struct buffer buf;
 	uint64_t msg_len = 0;
 	size_t len, cnt;
 	const char *blk1 = NULL, *blk2 = NULL, *p;
 	size_t len1 = 0, len2 = 0, bl;
 
-	/* Explanation: the storage area in the writing process starts after
-	 * the end of the structure. Since the whole area is mmapped(), we know
-	 * it starts at 0 mod 4096, hence the buf->area pointer's 12 LSB point
-	 * to the relative offset of the storage area. As there will always be
-	 * users using the wrong version of the tool with a dump, we need to
-	 * run a few checks first. After that we'll create our own buffer
-	 * descriptor matching that area.
-	 */
-	if ((((long)ring->buf.area) & 4095) != sizeof(*ring)) {
-		if (!force) {
-			fprintf(stderr, "FATAL: header in file is %ld bytes long vs %ld expected!\n",
-				(((long)ring->buf.area) & 4095),
-				(long)sizeof(*ring));
-			exit(1);
-		}
-		else {
-			fprintf(stderr, "WARNING: header in file is %ld bytes long vs %ld expected!\n",
-				(((long)ring->buf.area) & 4095),
-				(long)sizeof(*ring));
-		}
-		/* maybe we could emit a warning at least ? */
-	}
-
-	/* Now make our own buffer pointing to that area */
-	buf = b_make(((void *)ring + (((long)ring->buf.area) & 4095)),
-		     ring->buf.size, ring->buf.head, ring->buf.data);
-
-	/* explanation for the initialization below: it would be better to do
-	 * this in the parsing function but this would occasionally result in
-	 * dropped events because we'd take a reference on the oldest message
-	 * and keep it while being scheduled. Thus instead let's take it the
-	 * first time we enter here so that we have a chance to pass many
-	 * existing messages before grabbing a reference to a location. This
-	 * value cannot be produced after initialization.
-	 */
-	if (unlikely(ofs == ~0)) {
-		ofs = 0;
-
-		/* going to the end means looking at tail-1 */
-		ofs = (flags & RING_WF_SEEK_NEW) ? buf.data - 1 : 0;
-
-		//HA_ATOMIC_INC(b_peek(&buf, ofs));
-	}
-
 	while (1) {
-		//HA_RWLOCK_RDLOCK(RING_LOCK, &ring->lock);
-
 		if (ofs >= buf.size) {
 			fprintf(stderr, "FATAL error at %d\n", __LINE__);
 			return 1;
 		}
-		//HA_ATOMIC_DEC(b_peek(&buf, ofs));
 
 		/* in this loop, ofs always points to the counter byte that precedes
 		 * the message so that we can take our reference there if we have to
@@ -205,9 +151,6 @@ int dump_ring(struct ring_v1 *ring, size_t ofs, int flags)
 			ofs += cnt + msg_len;
 		}
 
-		//HA_ATOMIC_INC(b_peek(&buf, ofs));
-		//HA_RWLOCK_RDUNLOCK(RING_LOCK, &ring->lock);
-
 		if (!(flags & RING_WF_WAIT_MODE))
 			break;
 
@@ -215,6 +158,49 @@ int dump_ring(struct ring_v1 *ring, size_t ofs, int flags)
 		usleep(10000);
 	}
 	return 0;
+}
+
+/* This function dumps all events from the ring whose pointer is in <p0> into
+ * the appctx's output buffer, and takes from <o0> the seek offset into the
+ * buffer's history (0 for oldest known event). It looks at <i0> for boolean
+ * options: bit0 means it must wait for new data or any key to be pressed. Bit1
+ * means it must seek directly to the end to wait for new contents. It returns
+ * 0 if the output buffer or events are missing is full and it needs to be
+ * called again, otherwise non-zero. It is meant to be used with
+ * cli_release_show_ring() to clean up.
+ */
+int dump_ring_v1(struct ring_v1 *ring, size_t ofs, int flags)
+{
+	struct buffer buf;
+
+	/* Explanation: the storage area in the writing process starts after
+	 * the end of the structure. Since the whole area is mmapped(), we know
+	 * it starts at 0 mod 4096, hence the buf->area pointer's 12 LSB point
+	 * to the relative offset of the storage area. As there will always be
+	 * users using the wrong version of the tool with a dump, we need to
+	 * run a few checks first. After that we'll create our own buffer
+	 * descriptor matching that area.
+	 */
+	if ((((long)ring->buf.area) & 4095) != sizeof(*ring)) {
+		if (!force) {
+			fprintf(stderr, "FATAL: header in file is %ld bytes long vs %ld expected!\n",
+				(((long)ring->buf.area) & 4095),
+				(long)sizeof(*ring));
+			exit(1);
+		}
+		else {
+			fprintf(stderr, "WARNING: header in file is %ld bytes long vs %ld expected!\n",
+				(((long)ring->buf.area) & 4095),
+				(long)sizeof(*ring));
+		}
+		/* maybe we could emit a warning at least ? */
+	}
+
+	/* Now make our own buffer pointing to that area */
+	buf = b_make(((void *)ring + (((long)ring->buf.area) & 4095)),
+		     ring->buf.size, ring->buf.head, ring->buf.data);
+
+	return dump_ring_as_buf(buf, ofs, flags);
 }
 
 int main(int argc, char **argv)
@@ -261,7 +247,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	return dump_ring(ring, ~0, 0);
+	return dump_ring_v1(ring, 0, 0);
 }
 
 
