@@ -44,9 +44,6 @@ int repair = 0; // repair file
 
 struct ring_v1 {
 	struct buffer buf;   // storage area
-	struct list waiters; // list of waiters, for now, CLI "show event"
-	__decl_thread(HA_RWLOCK_T lock);
-	int readers_count;
 };
 
 /* display the message and exit with the code */
@@ -160,14 +157,8 @@ int dump_ring_as_buf(struct buffer buf, size_t ofs, int flags)
 	return 0;
 }
 
-/* This function dumps all events from the ring whose pointer is in <p0> into
- * the appctx's output buffer, and takes from <o0> the seek offset into the
- * buffer's history (0 for oldest known event). It looks at <i0> for boolean
- * options: bit0 means it must wait for new data or any key to be pressed. Bit1
- * means it must seek directly to the end to wait for new contents. It returns
- * 0 if the output buffer or events are missing is full and it needs to be
- * called again, otherwise non-zero. It is meant to be used with
- * cli_release_show_ring() to clean up.
+/* This function dumps all events from the ring <ring> from offset <ofs> and
+ * with flags <flags>.
  */
 int dump_ring_v1(struct ring_v1 *ring, size_t ofs, int flags)
 {
@@ -181,20 +172,6 @@ int dump_ring_v1(struct ring_v1 *ring, size_t ofs, int flags)
 	 * run a few checks first. After that we'll create our own buffer
 	 * descriptor matching that area.
 	 */
-	if ((((long)ring->buf.area) & 4095) != sizeof(*ring)) {
-		if (!force) {
-			fprintf(stderr, "FATAL: header in file is %ld bytes long vs %ld expected!\n",
-				(((long)ring->buf.area) & 4095),
-				(long)sizeof(*ring));
-			exit(1);
-		}
-		else {
-			fprintf(stderr, "WARNING: header in file is %ld bytes long vs %ld expected!\n",
-				(((long)ring->buf.area) & 4095),
-				(long)sizeof(*ring));
-		}
-		/* maybe we could emit a warning at least ? */
-	}
 
 	/* Now make our own buffer pointing to that area */
 	buf = b_make(((void *)ring + (((long)ring->buf.area) & 4095)),
