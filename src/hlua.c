@@ -9733,10 +9733,8 @@ static struct event_hdl_sub *hlua_event_subscribe(event_hdl_sub_list *list, stru
 	hlua_sub->task = NULL;
 	hlua_sub->hlua = NULL;
 	hlua_sub->paused = 0;
-	if ((task = task_new_here()) == NULL) {
-		ha_alert("out of memory while allocating hlua event task");
+	if ((task = task_new_here()) == NULL)
 		goto mem_error;
-	}
 	task->process = hlua_event_runner;
 	task->context = hlua_sub;
 	event_hdl_async_equeue_init(&hlua_sub->equeue);
