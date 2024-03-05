@@ -127,7 +127,7 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 		qfctl_init(&qcs->tx.fc, qcc->rfctl.msd_uni_l);
 	}
 	else {
-		qcs->tx.fc.off_real = 0;
+		qfctl_init(&qcs->tx.fc, 0);
 	}
 
 	qcs->rx.ncbuf = NCBUF_NULL;
@@ -2115,7 +2115,7 @@ static int qcc_io_send(struct qcc *qcc)
 
 		/* Stream must not be present in send_list if it has nothing to send. */
 		BUG_ON(!(qcs->flags & (QC_SF_FIN_STREAM|QC_SF_TO_STOP_SENDING|QC_SF_TO_RESET)) &&
-		       !qcs_prep_bytes(qcs));
+		       (!qcs->stream || !qcs_prep_bytes(qcs)));
 
 		/* Each STOP_SENDING/RESET_STREAM frame is sent individually to
 		 * guarantee its emission.
@@ -2130,7 +2130,7 @@ static int qcc_io_send(struct qcc *qcc)
 			 * to send.
 			 */
 			if (!(qcs->flags & (QC_SF_FIN_STREAM|QC_SF_TO_RESET)) &&
-			    !qcs_prep_bytes(qcs)) {
+			    (!qcs->stream || !qcs_prep_bytes(qcs))) {
 				LIST_DEL_INIT(&qcs->el_send);
 				continue;
 			}
