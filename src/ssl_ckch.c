@@ -3966,7 +3966,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "del", "ssl", "ca-file", NULL },    "del ssl ca-file <cafile>                : delete an unused CA file",                                              cli_parse_del_cafile, NULL, NULL },
 	{ { "show", "ssl", "ca-file", NULL },   "show ssl ca-file [<cafile>[:<index>]]   : display the SSL CA files used in memory, or the details of a <cafile>, or a single certificate of index <index> of a CA file <cafile>", cli_parse_show_cafile, cli_io_handler_show_cafile, cli_release_show_cafile },
 
-	{ { "new", "ssl", "crl-file", NULL },   "new ssl crlfile <crlfile>               : create a new CRL file to be used in a crt-list",                        cli_parse_new_crlfile, NULL, NULL },
+	{ { "new", "ssl", "crl-file", NULL },   "new ssl crl-file <crlfile>               : create a new CRL file to be used in a crt-list",                        cli_parse_new_crlfile, NULL, NULL },
 	{ { "set", "ssl", "crl-file", NULL },   "set ssl crl-file <crlfile> <payload>    : replace a CRL file",                                                    cli_parse_set_crlfile, NULL, NULL },
 	{ { "commit", "ssl", "crl-file", NULL },"commit ssl crl-file <crlfile>           : commit a CRL file",                                                     cli_parse_commit_crlfile, cli_io_handler_commit_cafile_crlfile, cli_release_commit_crlfile },
 	{ { "abort", "ssl", "crl-file", NULL }, "abort ssl crl-file <crlfile>            : abort a transaction for a CRL file",                                    cli_parse_abort_crlfile, NULL, NULL },
