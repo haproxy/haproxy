@@ -84,6 +84,7 @@
 #define GTUNE_LISTENER_MQ_FAIR   (1<<27)
 #define GTUNE_LISTENER_MQ_OPT    (1<<28)
 #define GTUNE_LISTENER_MQ_ANY    (GTUNE_LISTENER_MQ_FAIR | GTUNE_LISTENER_MQ_OPT)
+#define GTUNE_QUIC_CC_HYSTART    (1<<29)
 
 #define NO_ZERO_COPY_FWD             0x0001 /* Globally disable zero-copy FF */
 #define NO_ZERO_COPY_FWD_PT          0x0002 /* disable zero-copy FF for PT (recv & send are disabled automatically) */

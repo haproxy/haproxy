@@ -427,6 +427,7 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 		time_sent = now_ms;
 
 		for (pkt = first_pkt; pkt; pkt = next_pkt) {
+			struct quic_cc *cc = &qc->path->cc;
 			/* RFC 9000 14.1 Initial datagram size
 			 * a server MUST expand the payload of all UDP datagrams carrying ack-eliciting
 			 * Initial packets to at least the smallest allowed maximum datagram size of
@@ -466,6 +467,8 @@ int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 			}
 			qc->path->in_flight += pkt->in_flight_len;
 			pkt->pktns->tx.in_flight += pkt->in_flight_len;
+			if ((global.tune.options & GTUNE_QUIC_CC_HYSTART) && pkt->pktns == qc->apktns)
+				cc->algo->hystart_start_round(cc, pkt->pn_node.key);
 			if (pkt->in_flight_len)
 				qc_set_timer(qc);
 			TRACE_PROTO("TX pkt", QUIC_EV_CONN_SPPKTS, qc, pkt);

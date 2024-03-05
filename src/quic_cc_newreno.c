@@ -196,6 +196,10 @@ static void quic_cc_nr_state_trace(struct buffer *buf, const struct quic_cc *cc)
 	              (unsigned long long)path->loss.nb_lost_pkt);
 }
 
+static void quic_cc_nr_hystart_start_round(struct quic_cc *cc, uint64_t pn)
+{
+}
+
 static void (*quic_cc_nr_state_cbs[])(struct quic_cc *cc,
                                       struct quic_cc_event *ev) = {
 	[QUIC_CC_ST_SS] = quic_cc_nr_ss_cb,
@@ -215,6 +219,7 @@ struct quic_cc_algo quic_cc_algo_nr = {
 	.init        = quic_cc_nr_init,
 	.event       = quic_cc_nr_event,
 	.slow_start  = quic_cc_nr_slow_start,
+	.hystart_start_round = quic_cc_nr_hystart_start_round,
 	.state_trace = quic_cc_nr_state_trace,
 };
 

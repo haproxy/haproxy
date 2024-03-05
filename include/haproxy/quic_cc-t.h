@@ -46,6 +46,8 @@ extern unsigned long long last_ts;
 enum quic_cc_algo_state_type {
 	/* Slow start. */
 	QUIC_CC_ST_SS,
+	/* Conservative slow start (HyStart++ only) */
+	QUIC_CC_ST_CS,
 	/* Congestion avoidance. */
 	QUIC_CC_ST_CA,
 	/* Recovery period. */
@@ -66,6 +68,7 @@ struct quic_cc_event {
 	union {
 		struct ack {
 			uint64_t acked;
+			uint64_t pn;
 			unsigned int time_sent;
 		} ack;
 		struct loss {
@@ -84,7 +87,7 @@ struct quic_cc {
 	/* <conn> is there only for debugging purpose. */
 	struct quic_conn *qc;
 	struct quic_cc_algo *algo;
-	uint32_t priv[16];
+	uint32_t priv[18];
 };
 
 struct quic_cc_path {
@@ -117,6 +120,7 @@ struct quic_cc_algo {
 	void (*event)(struct quic_cc *cc, struct quic_cc_event *ev);
 	void (*slow_start)(struct quic_cc *cc);
 	void (*state_trace)(struct buffer *buf, const struct quic_cc *cc);
+	void (*hystart_start_round)(struct quic_cc *cc, uint64_t pn);
 };
 
 #endif /* USE_QUIC */

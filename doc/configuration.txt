@@ -1400,6 +1400,7 @@ The following keywords are supported in the "global" section :
    - tune.pool-high-fd-ratio
    - tune.pool-low-fd-ratio
    - tune.pt.zero-copy-forwarding
+   - tune.quic.cc-hystart
    - tune.quic.frontend.conn-tx-buffers.limit
    - tune.quic.frontend.max-idle-timeout
    - tune.quic.frontend.max-streams-bidi
@@ -3649,6 +3650,11 @@ tune.pt.zero-copy-forwarding { on | off }
 
   See also: tune.disable-zero-copy-forwarding, option splice-auto,
             option splice-request and option splice-response
+
+tune.quic.cc-hystart { on | off }
+  Enables ('on') or disabled ('off') the HyStart++ (RFC 9406) algorithm for
+  QUIC connections used as a replacement for the slow start phase of congestion
+  control algorithms which may cause high packet loss. It is disabled by default.
 
 tune.quic.frontend.conn-tx-buffers.limit <number>
   This settings defines the maximum number of buffers allocated for a QUIC
