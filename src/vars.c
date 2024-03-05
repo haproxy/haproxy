@@ -363,7 +363,7 @@ static inline void var_clear_buffer(struct sample *smp, struct vars *vars, struc
  *
  * It returns 0 on failure, non-zero on success.
  */
-static int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp, uint flags)
+int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp, uint flags)
 {
 	struct vars *vars;
 	struct var *var;
@@ -515,7 +515,7 @@ static int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp
  * session and stream found in <smp>. Note that stream may be null for
  * SCOPE_SESS. Returns 0 if the scope was not found otherwise 1.
  */
-static int var_unset(uint64_t name_hash, enum vars_scope scope, struct sample *smp)
+int var_unset(uint64_t name_hash, enum vars_scope scope, struct sample *smp)
 {
 	struct vars *vars;
 	struct var  *var;

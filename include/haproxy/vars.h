@@ -37,6 +37,8 @@ void var_accounting_diff(struct vars *vars, struct session *sess, struct stream 
 unsigned int var_clear(struct var *var, int force);
 void vars_prune(struct vars *vars, struct session *sess, struct stream *strm);
 void vars_prune_per_sess(struct vars *vars);
+int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp, uint flags);
+int var_unset(uint64_t name_hash, enum vars_scope scope, struct sample *smp);
 int vars_get_by_name(const char *name, size_t len, struct sample *smp, const struct buffer *def);
 int vars_set_by_name_ifexist(const char *name, size_t len, struct sample *smp);
 int vars_set_by_name(const char *name, size_t len, struct sample *smp);
