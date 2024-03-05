@@ -3382,9 +3382,9 @@ out_uri_auth_compat:
 		/* check whether we have a logger that uses RFC5424 log format */
 		list_for_each_entry(tmplogger, &curproxy->loggers, list) {
 			if (tmplogger->format == LOG_FORMAT_RFC5424) {
-				if (!curproxy->conf.logformat_sd_string) {
+				if (!curproxy->logformat_sd.str) {
 					/* set the default logformat_sd_string */
-					curproxy->conf.logformat_sd_string = default_rfc5424_sd_log_format;
+					curproxy->logformat_sd.str = default_rfc5424_sd_log_format;
 				}
 				break;
 			}
@@ -3392,31 +3392,21 @@ out_uri_auth_compat:
 
 		/* compile the log format */
 		if (!(curproxy->cap & PR_CAP_FE)) {
-			if (curproxy->conf.logformat_string != default_http_log_format &&
-			    curproxy->conf.logformat_string != default_tcp_log_format &&
-			    curproxy->conf.logformat_string != clf_http_log_format)
-				free(curproxy->conf.logformat_string);
-			curproxy->conf.logformat_string = NULL;
-			ha_free(&curproxy->conf.lfs_file);
-			curproxy->conf.lfs_line = 0;
-
-			if (curproxy->conf.logformat_sd_string != default_rfc5424_sd_log_format)
-				free(curproxy->conf.logformat_sd_string);
-			curproxy->conf.logformat_sd_string = NULL;
-			ha_free(&curproxy->conf.lfsd_file);
-			curproxy->conf.lfsd_line = 0;
+			lf_expr_deinit(&curproxy->logformat);
+			lf_expr_deinit(&curproxy->logformat_sd);
 		}
 
-		if (curproxy->conf.logformat_string) {
+		if (curproxy->logformat.str) {
 			curproxy->conf.args.ctx = ARGC_LOG;
-			curproxy->conf.args.file = curproxy->conf.lfs_file;
-			curproxy->conf.args.line = curproxy->conf.lfs_line;
+			curproxy->conf.args.file = curproxy->logformat.conf.file;
+			curproxy->conf.args.line = curproxy->logformat.conf.line;
 			err = NULL;
-			if (!parse_logformat_string(curproxy->conf.logformat_string, curproxy, &curproxy->logformat,
+			if (!lf_expr_compile(&curproxy->logformat, &curproxy->conf.args,
 			                            LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
-			                            SMP_VAL_FE_LOG_END, &err)) {
+			                            SMP_VAL_FE_LOG_END, &err) ||
+			    !lf_expr_postcheck(&curproxy->logformat, curproxy, &err)) {
 				ha_alert("Parsing [%s:%d]: failed to parse log-format : %s.\n",
-					 curproxy->conf.lfs_file, curproxy->conf.lfs_line, err);
+					 curproxy->logformat.conf.file, curproxy->logformat.conf.line, err);
 				free(err);
 				cfgerr++;
 			}
@@ -3424,21 +3414,18 @@ out_uri_auth_compat:
 			curproxy->conf.args.line = 0;
 		}
 
-		if (curproxy->conf.logformat_sd_string) {
+		if (curproxy->logformat_sd.str) {
 			curproxy->conf.args.ctx = ARGC_LOGSD;
-			curproxy->conf.args.file = curproxy->conf.lfsd_file;
-			curproxy->conf.args.line = curproxy->conf.lfsd_line;
+			curproxy->conf.args.file = curproxy->logformat_sd.conf.file;
+			curproxy->conf.args.line = curproxy->logformat_sd.conf.line;
 			err = NULL;
-			if (!parse_logformat_string(curproxy->conf.logformat_sd_string, curproxy, &curproxy->logformat_sd,
+			if (!lf_expr_compile(&curproxy->logformat_sd, &curproxy->conf.args,
 			                            LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
-			                            SMP_VAL_FE_LOG_END, &err)) {
+			                            SMP_VAL_FE_LOG_END, &err) ||
+			    !add_to_logformat_list(NULL, NULL, LF_SEPARATOR, &curproxy->logformat_sd, &err) ||
+			    !lf_expr_postcheck(&curproxy->logformat_sd, curproxy, &err)) {
 				ha_alert("Parsing [%s:%d]: failed to parse log-format-sd : %s.\n",
-					 curproxy->conf.lfsd_file, curproxy->conf.lfsd_line, err);
-				free(err);
-				cfgerr++;
-			} else if (!add_to_logformat_list(NULL, NULL, LF_SEPARATOR, &curproxy->logformat_sd, &err)) {
-				ha_alert("Parsing [%s:%d]: failed to parse log-format-sd : %s.\n",
-					 curproxy->conf.lfsd_file, curproxy->conf.lfsd_line, err);
+					 curproxy->logformat_sd.conf.file, curproxy->logformat_sd.conf.line, err);
 				free(err);
 				cfgerr++;
 			}
@@ -3446,21 +3433,22 @@ out_uri_auth_compat:
 			curproxy->conf.args.line = 0;
 		}
 
-		if (curproxy->conf.uniqueid_format_string) {
+		if (curproxy->format_unique_id.str) {
 			int where = 0;
 
 			curproxy->conf.args.ctx = ARGC_UIF;
-			curproxy->conf.args.file = curproxy->conf.uif_file;
-			curproxy->conf.args.line = curproxy->conf.uif_line;
+			curproxy->conf.args.file = curproxy->format_unique_id.conf.file;
+			curproxy->conf.args.line = curproxy->format_unique_id.conf.line;
 			err = NULL;
 			if (curproxy->cap & PR_CAP_FE)
 				where |= SMP_VAL_FE_HRQ_HDR;
 			if (curproxy->cap & PR_CAP_BE)
 				where |= SMP_VAL_BE_HRQ_HDR;
-			if (!parse_logformat_string(curproxy->conf.uniqueid_format_string, curproxy, &curproxy->format_unique_id,
-			                            LOG_OPT_HTTP|LOG_OPT_MERGE_SPACES, where, &err)) {
+			if (!lf_expr_compile(&curproxy->format_unique_id, &curproxy->conf.args,
+			                            LOG_OPT_HTTP|LOG_OPT_MERGE_SPACES, where, &err) ||
+			    !lf_expr_postcheck(&curproxy->format_unique_id, curproxy, &err)) {
 				ha_alert("Parsing [%s:%d]: failed to parse unique-id : %s.\n",
-					 curproxy->conf.uif_file, curproxy->conf.uif_line, err);
+					 curproxy->format_unique_id.conf.file, curproxy->format_unique_id.conf.line, err);
 				free(err);
 				cfgerr++;
 			}
@@ -3468,16 +3456,17 @@ out_uri_auth_compat:
 			curproxy->conf.args.line = 0;
 		}
 
-		if (curproxy->conf.error_logformat_string) {
+		if (curproxy->logformat_error.str) {
 			curproxy->conf.args.ctx = ARGC_LOG;
-			curproxy->conf.args.file = curproxy->conf.elfs_file;
-			curproxy->conf.args.line = curproxy->conf.elfs_line;
+			curproxy->conf.args.file = curproxy->logformat_error.conf.file;
+			curproxy->conf.args.line = curproxy->logformat_error.conf.line;
 			err = NULL;
-			if (!parse_logformat_string(curproxy->conf.error_logformat_string, curproxy, &curproxy->logformat_error,
+			if (!lf_expr_compile(&curproxy->logformat_error, &curproxy->conf.args,
 			                            LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
-			                            SMP_VAL_FE_LOG_END, &err)) {
+			                            SMP_VAL_FE_LOG_END, &err) ||
+			    !lf_expr_postcheck(&curproxy->logformat_error, curproxy, &err)) {
 				ha_alert("Parsing [%s:%d]: failed to parse error-log-format : %s.\n",
-					 curproxy->conf.elfs_file, curproxy->conf.elfs_line, err);
+					 curproxy->logformat_error.conf.file, curproxy->logformat_error.conf.line, err);
 				free(err);
 				cfgerr++;
 			}

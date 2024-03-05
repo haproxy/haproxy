@@ -223,26 +223,9 @@ void free_proxy(struct proxy *p)
 #if defined(CONFIG_HAP_TRANSPARENT)
 	free(p->conn_src.bind_hdr_name);
 #endif
-	if (p->conf.logformat_string != default_http_log_format &&
-	    p->conf.logformat_string != default_tcp_log_format &&
-	    p->conf.logformat_string != clf_http_log_format &&
-	    p->conf.logformat_string != default_https_log_format &&
-	    p->conf.logformat_string != httpclient_log_format)
-		free(p->conf.logformat_string);
-
-	free(p->conf.lfs_file);
-	free(p->conf.uniqueid_format_string);
 	istfree(&p->header_unique_id);
-	free(p->conf.uif_file);
 	if ((p->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_MAP)
 		free(p->lbprm.map.srv);
-
-	if (p->conf.logformat_sd_string != default_rfc5424_sd_log_format)
-		free(p->conf.logformat_sd_string);
-	free(p->conf.lfsd_file);
-
-	free(p->conf.error_logformat_string);
-	free(p->conf.elfs_file);
 
 	list_for_each_entry_safe(cond, condb, &p->mon_fail_cond, list) {
 		LIST_DELETE(&cond->list);
@@ -1279,19 +1262,19 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 		ha_warning("Layer 7 hash not possible for %s '%s' (needs 'mode http'). Falling back to round robin.\n",
 			   proxy_type_str(curproxy), curproxy->id);
 	}
-	if (curproxy->conf.logformat_string == default_http_log_format ||
-	    curproxy->conf.logformat_string == clf_http_log_format) {
+	if (curproxy->logformat.str == default_http_log_format ||
+	    curproxy->logformat.str == clf_http_log_format) {
 		/* Note: we don't change the directive's file:line number */
-		curproxy->conf.logformat_string = default_tcp_log_format;
+		curproxy->logformat.str = default_tcp_log_format;
 		ha_warning("parsing [%s:%d] : 'option httplog' not usable with %s '%s' (needs 'mode http'). Falling back to 'option tcplog'.\n",
-			   curproxy->conf.lfs_file, curproxy->conf.lfs_line,
+			   curproxy->logformat.conf.file, curproxy->logformat.conf.line,
 			   proxy_type_str(curproxy), curproxy->id);
 	}
-	else if (curproxy->conf.logformat_string == default_https_log_format) {
+	else if (curproxy->logformat.str == default_https_log_format) {
 		/* Note: we don't change the directive's file:line number */
-		curproxy->conf.logformat_string = default_tcp_log_format;
+		curproxy->logformat.str = default_tcp_log_format;
 		ha_warning("parsing [%s:%d] : 'option httpslog' not usable with %s '%s' (needs 'mode http'). Falling back to 'option tcplog'.\n",
-			   curproxy->conf.lfs_file, curproxy->conf.lfs_line,
+			   curproxy->logformat.conf.file, curproxy->logformat.conf.line,
 			   proxy_type_str(curproxy), curproxy->id);
 	}
 
@@ -1342,10 +1325,6 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->tcp_req.l5_rules);
 	MT_LIST_INIT(&p->listener_queue);
 	LIST_INIT(&p->loggers);
-	lf_expr_init(&p->logformat);
-	lf_expr_init(&p->logformat_sd);
-	lf_expr_init(&p->format_unique_id);
-	lf_expr_init(&p->logformat_error);
 	LIST_INIT(&p->conf.bind);
 	LIST_INIT(&p->conf.listeners);
 	LIST_INIT(&p->conf.errors);
@@ -1394,6 +1373,11 @@ void proxy_preset_defaults(struct proxy *defproxy)
 	defproxy->max_out_conns = MAX_SRV_LIST;
 
 	srv_settings_init(&defproxy->defsrv);
+
+	lf_expr_init(&defproxy->logformat);
+	lf_expr_init(&defproxy->logformat_sd);
+	lf_expr_init(&defproxy->format_unique_id);
+	lf_expr_init(&defproxy->logformat_error);
 
 	defproxy->email_alert.level = LOG_ALERT;
 	defproxy->load_server_state_from_file = PR_SRV_STATE_FILE_UNSPEC;
@@ -1465,27 +1449,16 @@ void proxy_free_defaults(struct proxy *defproxy)
 		h = h_next;
 	}
 
-	if (defproxy->conf.logformat_string != default_http_log_format &&
-	    defproxy->conf.logformat_string != default_tcp_log_format &&
-	    defproxy->conf.logformat_string != clf_http_log_format &&
-	    defproxy->conf.logformat_string != default_https_log_format) {
-		ha_free(&defproxy->conf.logformat_string);
-	}
-
-	if (defproxy->conf.logformat_sd_string != default_rfc5424_sd_log_format)
-		ha_free(&defproxy->conf.logformat_sd_string);
+	lf_expr_deinit(&defproxy->logformat);
+	lf_expr_deinit(&defproxy->logformat_sd);
+	lf_expr_deinit(&defproxy->logformat_error);
+	lf_expr_deinit(&defproxy->format_unique_id);
 
 	list_for_each_entry_safe(log, logb, &defproxy->loggers, list) {
 		LIST_DEL_INIT(&log->list);
 		free_logger(log);
 	}
 
-	ha_free(&defproxy->conf.uniqueid_format_string);
-	ha_free(&defproxy->conf.error_logformat_string);
-	ha_free(&defproxy->conf.lfs_file);
-	ha_free(&defproxy->conf.lfsd_file);
-	ha_free(&defproxy->conf.uif_file);
-	ha_free(&defproxy->conf.elfs_file);
 	chunk_destroy(&defproxy->log_tag);
 
 	free_email_alert(defproxy);
@@ -1726,39 +1699,9 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		if (defproxy->defbe.name)
 			curproxy->defbe.name = strdup(defproxy->defbe.name);
 
-		/* get either a pointer to the logformat string or a copy of it */
-		curproxy->conf.logformat_string = defproxy->conf.logformat_string;
-		if (curproxy->conf.logformat_string &&
-		    curproxy->conf.logformat_string != default_http_log_format &&
-		    curproxy->conf.logformat_string != default_tcp_log_format &&
-		    curproxy->conf.logformat_string != clf_http_log_format &&
-		    curproxy->conf.logformat_string != default_https_log_format)
-			curproxy->conf.logformat_string = strdup(curproxy->conf.logformat_string);
-
-		if (defproxy->conf.lfs_file) {
-			curproxy->conf.lfs_file = strdup(defproxy->conf.lfs_file);
-			curproxy->conf.lfs_line = defproxy->conf.lfs_line;
-		}
-
-		/* get either a pointer to the logformat string for RFC5424 structured-data or a copy of it */
-		curproxy->conf.logformat_sd_string = defproxy->conf.logformat_sd_string;
-		if (curproxy->conf.logformat_sd_string &&
-		    curproxy->conf.logformat_sd_string != default_rfc5424_sd_log_format)
-			curproxy->conf.logformat_sd_string = strdup(curproxy->conf.logformat_sd_string);
-
-		if (defproxy->conf.lfsd_file) {
-			curproxy->conf.lfsd_file = strdup(defproxy->conf.lfsd_file);
-			curproxy->conf.lfsd_line = defproxy->conf.lfsd_line;
-		}
-
-		curproxy->conf.error_logformat_string = defproxy->conf.error_logformat_string;
-		if (curproxy->conf.error_logformat_string)
-			curproxy->conf.error_logformat_string = strdup(curproxy->conf.error_logformat_string);
-
-		if (defproxy->conf.elfs_file) {
-			curproxy->conf.elfs_file = strdup(defproxy->conf.elfs_file);
-			curproxy->conf.elfs_line = defproxy->conf.elfs_line;
-		}
+		lf_expr_dup(&defproxy->logformat, &curproxy->logformat);
+		lf_expr_dup(&defproxy->logformat_sd, &curproxy->logformat_sd);
+		lf_expr_dup(&defproxy->logformat_error, &curproxy->logformat_error);
 	}
 
 	if (curproxy->cap & PR_CAP_BE) {
@@ -1788,16 +1731,9 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		LIST_APPEND(&curproxy->loggers, &node->list);
 	}
 
-	curproxy->conf.uniqueid_format_string = defproxy->conf.uniqueid_format_string;
-	if (curproxy->conf.uniqueid_format_string)
-		curproxy->conf.uniqueid_format_string = strdup(curproxy->conf.uniqueid_format_string);
+	lf_expr_dup(&defproxy->format_unique_id, &curproxy->format_unique_id);
 
 	chunk_dup(&curproxy->log_tag, &defproxy->log_tag);
-
-	if (defproxy->conf.uif_file) {
-		curproxy->conf.uif_file = strdup(defproxy->conf.uif_file);
-		curproxy->conf.uif_line = defproxy->conf.uif_line;
-	}
 
 	/* copy default header unique id */
 	if (isttest(defproxy->header_unique_id)) {

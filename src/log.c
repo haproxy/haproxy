@@ -272,6 +272,36 @@ char *log_format = NULL;
  */
 char default_rfc5424_sd_log_format[] = "- ";
 
+/* returns true if the input logformat string is one of the default ones declared
+ * above
+ */
+static inline int logformat_str_isdefault(const char *str)
+{
+	return str == httpclient_log_format ||
+	       str == default_http_log_format ||
+	       str == default_https_log_format ||
+	       str == clf_http_log_format ||
+	       str == default_tcp_log_format ||
+	       str == default_rfc5424_sd_log_format;
+}
+
+/* free logformat str if it is not a default (static) one */
+static inline void logformat_str_free(char **str)
+{
+	if (!logformat_str_isdefault(*str))
+		ha_free(str);
+}
+
+/* duplicate and return logformat str if it is not a default (static)
+ * one, else return the original one
+ */
+static inline char *logformat_str_dup(char *str)
+{
+	if (logformat_str_isdefault(str))
+		return str;
+	return strdup(str);
+}
+
 /* total number of dropped logs */
 unsigned int dropped_logs = 0;
 
@@ -549,7 +579,7 @@ static int add_sample_to_logformat_list(char *text, char *name, int name_len, in
 int lf_expr_compile(struct lf_expr *lf_expr,
                     struct arg_list *al, int options, int cap, char **err)
 {
-	char *fmt = lf_expr->str; /* will be freed */
+	char *fmt = lf_expr->str; /* will be freed unless default */
 	char *sp, *str, *backfmt; /* start pointer for text parts */
 	char *arg = NULL; /* start pointer for args */
 	char *tag = NULL; /* start pointer for tags */
@@ -758,12 +788,12 @@ int lf_expr_compile(struct lf_expr *lf_expr,
 		memprintf(err, "truncated line after '%s'", tag ? tag : arg ? arg : "%");
 		goto fail;
 	}
-	ha_free(&fmt);
+	logformat_str_free(&fmt);
 	ha_free(&backfmt);
 
 	return 1;
  fail:
-	ha_free(&fmt);
+	logformat_str_free(&fmt);
 	ha_free(&backfmt);
 	return 0;
 }
@@ -2768,7 +2798,7 @@ void lf_expr_deinit(struct lf_expr *expr)
 	if ((expr->flags & LF_FL_COMPILED))
 		free_logformat_list(&expr->nodes);
 	else
-		free(expr->str);
+		logformat_str_free(&expr->str);
 	free(expr->conf.file);
 	/* remove from parent list (if any) */
 	LIST_DEL_INIT(&expr->list);
@@ -2819,7 +2849,7 @@ int lf_expr_dup(const struct lf_expr *orig, struct lf_expr *dest)
 	BUG_ON((orig->flags & LF_FL_COMPILED));
 	lf_expr_deinit(dest);
 	if (orig->str) {
-		dest->str = strdup(orig->str);
+		dest->str = logformat_str_dup(orig->str);
 		if (!dest->str)
 			goto error;
 	}

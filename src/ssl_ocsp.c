@@ -1405,7 +1405,7 @@ static int ssl_ocsp_update_precheck()
 	httpclient_ocsp_update_px = httpclient_create_proxy("<OCSP-UPDATE>");
 	if (!httpclient_ocsp_update_px)
 		return ERR_RETRYABLE;
-	httpclient_ocsp_update_px->conf.logformat_string = httpclient_log_format;
+	httpclient_ocsp_update_px->logformat.str = httpclient_log_format;
 	httpclient_ocsp_update_px->options2 |= PR_O2_NOLOGNORM;
 
 	return ERR_NONE;

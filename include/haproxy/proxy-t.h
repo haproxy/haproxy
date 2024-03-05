@@ -427,18 +427,6 @@ struct proxy {
 		struct arg_list args;           /* sample arg list that need to be resolved */
 		unsigned int refcount;          /* refcount on this proxy (only used for default proxy for now) */
 		struct ebpt_node by_name;       /* proxies are stored sorted by name here */
-		char *logformat_string;		/* log format string */
-		char *lfs_file;                 /* file name where the logformat string appears (strdup) */
-		int   lfs_line;                 /* file name where the logformat string appears */
-		int   uif_line;                 /* file name where the unique-id-format string appears */
-		char *uif_file;                 /* file name where the unique-id-format string appears (strdup) */
-		char *uniqueid_format_string;	/* unique-id format string */
-		char *logformat_sd_string;	/* log format string for the RFC5424 structured-data part */
-		char *lfsd_file;		/* file name where the structured-data logformat string for RFC5424 appears (strdup) */
-		int  lfsd_line;			/* file name where the structured-data logformat string for RFC5424 appears */
-		char *error_logformat_string;
-		char *elfs_file;
-		int elfs_line;
 		struct list lf_checks;          /* list of logformats found in the proxy section that needs to be checked during postparse */
 	} conf;					/* config information */
 	struct http_ext *http_ext;	        /* http ext options */
