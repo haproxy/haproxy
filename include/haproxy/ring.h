@@ -45,6 +45,12 @@ size_t ring_max_payload(const struct ring *ring);
 int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t *last_ofs_ptr, uint flags,
 			   ssize_t (*msg_handler)(void *ctx, const struct buffer *buf, size_t ofs, size_t len));
 
+/* returns the ring storage's area */
+static inline void *ring_area(const struct ring *ring)
+{
+	return b_orig(&ring->buf);
+}
+
 /* returns the number of bytes in the ring */
 static inline size_t ring_data(const struct ring *ring)
 {
@@ -55,6 +61,18 @@ static inline size_t ring_data(const struct ring *ring)
 static inline size_t ring_size(const struct ring *ring)
 {
 	return b_size(&ring->buf);
+}
+
+/* returns the head offset of the ring */
+static inline size_t ring_head(const struct ring *ring)
+{
+	return b_head_ofs(&ring->buf);
+}
+
+/* returns the tail offset of the ring */
+static inline size_t ring_tail(const struct ring *ring)
+{
+	return b_tail_ofs(&ring->buf);
 }
 
 /* duplicates ring <src> over ring <dst> for no more than <max> bytes or no
