@@ -392,7 +392,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 		/* let's be woken up once new data arrive */
 		HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 		LIST_APPEND(&ring->waiters, &appctx->wait_entry);
-		ofs = b_tail_ofs(&ring->buf);
+		ofs = ring_tail(ring);
 		HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 		if (ofs != last_ofs) {
 			/* more data was added into the ring between the
@@ -460,7 +460,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 		/* let's be woken up once new data arrive */
 		HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 		LIST_APPEND(&ring->waiters, &appctx->wait_entry);
-		ofs = b_tail_ofs(&ring->buf);
+		ofs = ring_tail(ring);
 		HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 		if (ofs != last_ofs) {
 			/* more data was added into the ring between the
@@ -701,8 +701,8 @@ static void sink_free(struct sink *sink)
 		return;
 	if (sink->type == SINK_TYPE_BUFFER) {
 		if (sink->store) {
-			size_t size = (sink->ctx.ring->buf.size + 4095UL) & -4096UL;
-			void *area = (sink->ctx.ring->buf.area - sizeof(*sink->ctx.ring));
+			size_t size = (ring_size(sink->ctx.ring) + 4095UL) & -4096UL;
+			void *area = (ring_area(sink->ctx.ring) - sizeof(*sink->ctx.ring));
 
 			msync(area, size, MS_SYNC);
 			munmap(area, size);
@@ -907,16 +907,16 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 			goto err;
 		}
 
-		if (size < cfg_sink->ctx.ring->buf.size) {
+		if (size < ring_size(cfg_sink->ctx.ring)) {
 			ha_warning("parsing [%s:%d] : ignoring new size '%llu' that is smaller than current size '%llu' for ring '%s'.\n",
-				   file, linenum, (ullong)size, (ullong)cfg_sink->ctx.ring->buf.size, cfg_sink->name);
+				   file, linenum, (ullong)size, (ullong)ring_size(cfg_sink->ctx.ring), cfg_sink->name);
 			err_code |= ERR_WARN;
 			goto err;
 		}
 
 		if (!ring_resize(cfg_sink->ctx.ring, size)) {
 			ha_alert("parsing [%s:%d] : fail to set sink buffer size '%llu' for ring '%s'.\n", file, linenum,
-				 (ullong)cfg_sink->ctx.ring->buf.size, cfg_sink->name);
+				 (ullong)ring_size(cfg_sink->ctx.ring), cfg_sink->name);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto err;
 		}
@@ -956,7 +956,7 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 			goto err;
 		}
 
-		size = (cfg_sink->ctx.ring->buf.size + 4095UL) & -4096UL;
+		size = (ring_size(cfg_sink->ctx.ring) + 4095UL) & -4096UL;
 		if (ftruncate(fd, size) != 0) {
 			close(fd);
 			ha_alert("parsing [%s:%d] : could not adjust size of backing-file for ring '%s': %s.\n", file, linenum, cfg_sink->name, strerror(errno));

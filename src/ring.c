@@ -126,7 +126,7 @@ struct ring *ring_resize(struct ring *ring, size_t size)
 {
 	void *area;
 
-	if (b_size(&ring->buf) >= size)
+	if (ring_size(ring) >= size)
 		return ring;
 
 	area = malloc(size);
@@ -136,9 +136,9 @@ struct ring *ring_resize(struct ring *ring, size_t size)
 	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 
 	/* recheck the buffer's size, it may have changed during the malloc */
-	if (b_size(&ring->buf) < size) {
+	if (ring_size(ring) < size) {
 		/* copy old contents */
-		b_getblk(&ring->buf, area, ring->buf.data, 0);
+		b_getblk(&ring->buf, area, ring_data(ring), 0);
 		area = HA_ATOMIC_XCHG(&ring->buf.area, area);
 		ring->buf.size = size;
 	}
@@ -159,7 +159,7 @@ void ring_free(struct ring *ring)
 	if (ring->buf.area == (void *)ring + sizeof(*ring))
 		return;
 
-	free(ring->buf.area);
+	free(ring_area(ring));
 	free(ring);
 }
 
@@ -297,12 +297,12 @@ void ring_detach_appctx(struct ring *ring, struct appctx *appctx, size_t ofs)
 	HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 	if (ofs != ~0) {
 		/* reader was still attached */
-		if (ofs < b_head_ofs(&ring->buf))
-			ofs += b_size(&ring->buf) - b_head_ofs(&ring->buf);
+		if (ofs < ring_head(ring))
+			ofs += ring_size(ring) - ring_head(ring);
 		else
-			ofs -= b_head_ofs(&ring->buf);
+			ofs -= ring_head(ring);
 
-		BUG_ON(ofs >= b_size(&ring->buf));
+		BUG_ON(ofs >= ring_size(ring));
 		LIST_DEL_INIT(&appctx->wait_entry);
 		HA_ATOMIC_DEC(b_peek(&ring->buf, ofs));
 	}
@@ -455,7 +455,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 			/* let's be woken up once new data arrive */
 			HA_RWLOCK_WRLOCK(RING_LOCK, &ring->lock);
 			LIST_APPEND(&ring->waiters, &appctx->wait_entry);
-			ofs = b_tail_ofs(&ring->buf);
+			ofs = ring_tail(ring);
 			HA_RWLOCK_WRUNLOCK(RING_LOCK, &ring->lock);
 			if (ofs != last_ofs) {
 				/* more data was added into the ring between the
@@ -495,7 +495,7 @@ size_t ring_max_payload(const struct ring *ring)
 	size_t max;
 
 	/* initial max = bufsize - 1 (initial RC) - 1 (payload RC) */
-	max = b_size(&ring->buf) - 1 - 1;
+	max = ring_size(ring) - 1 - 1;
 
 	/* subtract payload VI (varint-encoded size) */
 	max -= varint_bytes(max);
