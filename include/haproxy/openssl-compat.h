@@ -381,6 +381,10 @@ static inline unsigned long ERR_peek_error_func(const char **func)
 #define EVP_CTRL_AEAD_SET_TAG   EVP_CTRL_GCM_SET_TAG
 #endif
 
+#if !defined(EVP_CTRL_AEAD_GET_TAG)
+#define EVP_CTRL_AEAD_GET_TAG EVP_CTRL_GCM_GET_TAG
+#endif
+
 /* Supported hash function for TLS tickets */
 #ifdef OPENSSL_NO_SHA256
 #define TLS_TICKET_HASH_FUNCT EVP_sha1
