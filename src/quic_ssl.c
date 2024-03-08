@@ -666,34 +666,13 @@ int qc_ssl_provide_all_quic_data(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 {
 	int ret = 0;
 	struct quic_enc_level *qel;
-	struct ncbuf ncbuf = NCBUF_NULL;
 
 	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
 	list_for_each_entry(qel, &qc->qel_list, list) {
-		struct qf_crypto *qf_crypto, *qf_back;
 		struct quic_cstream *cstream = qel->cstream;
-
-		list_for_each_entry_safe(qf_crypto, qf_back, &qel->rx.crypto_frms, list) {
-			const unsigned char *crypto_data = qf_crypto->data;
-			size_t crypto_len = qf_crypto->len;
-
-			/* Free this frame asap */
-			LIST_DELETE(&qf_crypto->list);
-			pool_free(pool_head_qf_crypto, qf_crypto);
-
-			if (!qc_ssl_provide_quic_data(&ncbuf, qel->level, ctx,
-			                              crypto_data, crypto_len))
-				goto leave;
-
-			TRACE_DEVEL("buffered crypto data were provided to TLS stack",
-						QUIC_EV_CONN_PHPKTS, qc, qel);
-		}
 
 		if (!cstream)
 			continue;
-
-		b_free(&cstream->rx.buf);
-		cstream->rx.buf = BUF_NULL;
 
 		if (!qc_treat_rx_crypto_frms(qc, qel, ctx))
 			goto leave;

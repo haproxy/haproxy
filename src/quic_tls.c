@@ -124,7 +124,6 @@ void quic_cstream_free(struct quic_cstream *cs)
 	}
 
 	quic_free_ncbuf(&cs->rx.ncbuf);
-	b_free(&cs->rx.buf);
 
 	qc_stream_desc_release(cs->desc, 0);
 	pool_free(pool_head_quic_cstream, cs);
@@ -146,7 +145,6 @@ struct quic_cstream *quic_cstream_new(struct quic_conn *qc)
 
 	cs->rx.offset = 0;
 	cs->rx.ncbuf = NCBUF_NULL;
-	cs->rx.buf = BUF_NULL;
 	cs->rx.offset = 0;
 
 	cs->tx.offset = 0;
@@ -172,7 +170,6 @@ struct quic_cstream *quic_cstream_new(struct quic_conn *qc)
 void quic_conn_enc_level_uninit(struct quic_conn *qc, struct quic_enc_level *qel)
 {
 	int i;
-	struct qf_crypto *qf_crypto, *qfback;
 
 	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
 
@@ -181,11 +178,6 @@ void quic_conn_enc_level_uninit(struct quic_conn *qc, struct quic_enc_level *qel
 			pool_free(pool_head_quic_crypto_buf, qel->tx.crypto.bufs[i]);
 			qel->tx.crypto.bufs[i] = NULL;
 		}
-	}
-
-	list_for_each_entry_safe(qf_crypto, qfback, &qel->rx.crypto_frms, list) {
-		LIST_DELETE(&qf_crypto->list);
-		pool_free(pool_head_qf_crypto, qf_crypto);
 	}
 
 	ha_free(&qel->tx.crypto.bufs);
@@ -225,7 +217,6 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 
 	qel->rx.pkts = EB_ROOT;
 	LIST_INIT(&qel->rx.pqpkts);
-	LIST_INIT(&qel->rx.crypto_frms);
 
 	/* Allocate only one buffer. */
 	/* TODO: use a pool */

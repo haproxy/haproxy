@@ -226,7 +226,6 @@ struct quic_cstream {
 	struct {
 		uint64_t offset;       /* absolute current base offset of ncbuf */
 		struct ncbuf ncbuf;    /* receive buffer - can handle out-of-order offset frames */
-		struct buffer buf;     /* receive buffer - handle only in-order data */
 	} rx;
 	struct {
 		uint64_t offset;      /* last offset of data ready to be sent */
@@ -256,8 +255,6 @@ struct quic_enc_level {
 		struct eb_root pkts;
 		/* List of QUIC packets with protected header. */
 		struct list pqpkts;
-		/* List of crypto frames received in order. */
-		struct list crypto_frms;
 	} rx;
 
 	/* TX part */
