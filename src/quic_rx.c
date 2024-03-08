@@ -740,8 +740,11 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 		goto leave;
 	}
 
-	if (ncb_data(ncbuf, 0))
+	/* Reschedule with TASK_HEAVY if CRYPTO data ready for decoding. */
+	if (ncb_data(ncbuf, 0)) {
 		HA_ATOMIC_OR(&qc->wait_event.tasklet->state, TASK_HEAVY);
+		tasklet_wakeup(qc->wait_event.tasklet);
+	}
 
  done:
 	ret = 1;
@@ -1323,15 +1326,6 @@ int qc_treat_rx_pkts(struct quic_conn *qc)
 			/* Update the largest acknowledged packet timestamps */
 			qel->pktns->rx.largest_time_received = largest_pn_time_received;
 			qel->pktns->flags |= QUIC_FL_PKTNS_NEW_LARGEST_PN;
-		}
-
-		if (qel->cstream) {
-			struct ncbuf *ncbuf = &qel->cstream->rx.ncbuf;
-
-			if (!ncb_is_null(ncbuf) && ncb_data(ncbuf, 0)) {
-				/* Some in order CRYPTO data were bufferized. */
-				HA_ATOMIC_OR(&qc->wait_event.tasklet->state, TASK_HEAVY);
-			}
 		}
 
 		/* Release the Initial encryption level and packet number space. */
