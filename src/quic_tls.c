@@ -124,6 +124,7 @@ void quic_cstream_free(struct quic_cstream *cs)
 	}
 
 	quic_free_ncbuf(&cs->rx.ncbuf);
+	b_free(&cs->rx.buf);
 
 	qc_stream_desc_release(cs->desc, 0);
 	pool_free(pool_head_quic_cstream, cs);
@@ -145,6 +146,7 @@ struct quic_cstream *quic_cstream_new(struct quic_conn *qc)
 
 	cs->rx.offset = 0;
 	cs->rx.ncbuf = NCBUF_NULL;
+	cs->rx.buf = BUF_NULL;
 	cs->rx.offset = 0;
 
 	cs->tx.offset = 0;

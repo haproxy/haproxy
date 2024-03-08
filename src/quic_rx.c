@@ -720,7 +720,13 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 	}
 
 	if (crypto_frm->offset == cstream->rx.offset && ncb_is_empty(ncbuf)) {
+		struct buffer *buf = &qel->cstream->rx.buf;
 		struct qf_crypto *qf_crypto;
+
+		if (!b_alloc(buf)) {
+			TRACE_ERROR("in-order buffer allocation failed", QUIC_EV_CONN_PRSHPKT, qc);
+			goto leave;
+		}
 
 		qf_crypto = pool_alloc(pool_head_qf_crypto);
 		if (!qf_crypto) {
@@ -730,7 +736,8 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 
 		qf_crypto->offset = crypto_frm->offset;
 		qf_crypto->len = crypto_frm->len;
-		qf_crypto->data = crypto_frm->data;
+		qf_crypto->data = (unsigned char *)b_tail(buf);
+		b_putblk(buf, (char *)crypto_frm->data, crypto_frm->len);
 		qf_crypto->qel = qel;
 		LIST_APPEND(&qel->rx.crypto_frms, &qf_crypto->list);
 

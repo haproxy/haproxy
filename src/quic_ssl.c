@@ -671,6 +671,7 @@ int qc_ssl_provide_all_quic_data(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
 	list_for_each_entry(qel, &qc->qel_list, list) {
 		struct qf_crypto *qf_crypto, *qf_back;
+		struct quic_cstream *cstream = qel->cstream;
 
 		list_for_each_entry_safe(qf_crypto, qf_back, &qel->rx.crypto_frms, list) {
 			const unsigned char *crypto_data = qf_crypto->data;
@@ -688,8 +689,11 @@ int qc_ssl_provide_all_quic_data(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 						QUIC_EV_CONN_PHPKTS, qc, qel);
 		}
 
-		if (!qel->cstream)
+		if (!cstream)
 			continue;
+
+		b_free(&cstream->rx.buf);
+		cstream->rx.buf = BUF_NULL;
 
 		if (!qc_treat_rx_crypto_frms(qc, qel, ctx))
 			goto leave;
