@@ -30,8 +30,6 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 int qc_treat_rx_pkts(struct quic_conn *qc);
 int qc_parse_hd_form(struct quic_rx_packet *pkt,
                      unsigned char **pos, const unsigned char *end);
-int qc_treat_rx_crypto_frms(struct quic_conn *qc, struct quic_enc_level *el,
-                            struct ssl_sock_ctx *ctx);
 int qc_handle_frms_of_lost_pkt(struct quic_conn *qc,
                                struct quic_tx_packet *pkt,
                                struct list *pktns_frm_list);

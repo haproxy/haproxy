@@ -2,7 +2,6 @@
 #include <haproxy/ncbuf.h>
 #include <haproxy/proxy.h>
 #include <haproxy/quic_conn.h>
-#include <haproxy/quic_rx.h>
 #include <haproxy/quic_sock.h>
 #include <haproxy/quic_ssl.h>
 #include <haproxy/quic_tls.h>
@@ -501,10 +500,10 @@ static forceinline void qc_ssl_dump_errors(struct connection *conn)
  * Remaining parameter are there for debugging purposes.
  * Return 1 if succeeded, 0 if not.
  */
-int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
-                             enum ssl_encryption_level_t level,
-                             struct ssl_sock_ctx *ctx,
-                             const unsigned char *data, size_t len)
+static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
+                                    enum ssl_encryption_level_t level,
+                                    struct ssl_sock_ctx *ctx,
+                                    const unsigned char *data, size_t len)
 {
 #ifdef DEBUG_STRICT
 	enum ncb_ret ncb_ret;
@@ -666,6 +665,8 @@ int qc_ssl_provide_all_quic_data(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 {
 	int ret = 0;
 	struct quic_enc_level *qel;
+	struct ncbuf *ncbuf;
+	ncb_sz_t data;
 
 	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
 	list_for_each_entry(qel, &qc->qel_list, list) {
@@ -674,8 +675,27 @@ int qc_ssl_provide_all_quic_data(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 		if (!cstream)
 			continue;
 
-		if (!qc_treat_rx_crypto_frms(qc, qel, ctx))
-			goto leave;
+		ncbuf = &cstream->rx.ncbuf;
+		if (ncb_is_null(ncbuf))
+			continue;
+
+		/* TODO not working if buffer is wrapping */
+		while ((data = ncb_data(ncbuf, 0))) {
+			const unsigned char *cdata = (const unsigned char *)ncb_head(ncbuf);
+
+			if (!qc_ssl_provide_quic_data(&qel->cstream->rx.ncbuf, qel->level,
+			                              ctx, cdata, data))
+				goto leave;
+
+			cstream->rx.offset += data;
+			TRACE_DEVEL("buffered crypto data were provided to TLS stack",
+			            QUIC_EV_CONN_PHPKTS, qc, qel);
+		}
+
+		if (!ncb_is_null(ncbuf) && ncb_is_empty(ncbuf)) {
+			TRACE_DEVEL("freeing crypto buf", QUIC_EV_CONN_PHPKTS, qc, qel);
+			quic_free_ncbuf(ncbuf);
+		}
 	}
 
 	ret = 1;
