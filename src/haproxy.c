@@ -2338,6 +2338,7 @@ static void init(int argc, char **argv)
 		}
 		list_for_each_entry(ppcf, &post_proxy_check_list, list)
 			err_code |= ppcf->fct(px);
+		px->flags |= PR_FL_CHECKED;
 	}
 	if (err_code & (ERR_ABORT|ERR_FATAL)) {
 		ha_alert("Fatal errors found in configuration.\n");

@@ -214,6 +214,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_FL_EXPLICIT_REF       0x08  /* The default proxy is explicitly referenced by another proxy */
 #define PR_FL_IMPLICIT_REF       0x10  /* The default proxy is implicitly referenced by another proxy */
 #define PR_FL_PAUSED             0x20  /* The proxy was paused at run time (reversible) */
+#define PR_FL_CHECKED            0x40  /* The proxy configuration was fully checked (including postparsing checks) */
 
 struct stream;
 
