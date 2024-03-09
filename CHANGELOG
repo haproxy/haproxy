@@ -1,6 +1,66 @@
 ChangeLog :
 ===========
 
+2024/03/09 : 3.0-dev5
+    - BUG/MEDIUM: applet: Fix HTX .rcv_buf callback function to release outbuf buffer
+    - BUG/MAJOR: ssl/ocsp: crash with ocsp when old process exit or using ocsp CLI
+    - BUG/MEDIUM: server: fix dynamic servers initial settings
+    - BUG/MINOR: ssl/cli: duplicate cleaning code in cli_parse_del_crtlist
+    - LICENSE: event_hdl: fix GPL license version
+    - LICENSE: http_ext: fix GPL license version
+    - BUG/MEDIUM: mux-h1: Fix again 0-copy forwarding of chunks with an unknown size
+    - BUG/MINOR: mux-h1: Properly report when mux is blocked during a nego
+    - MINOR: mux-h1: Move checks performed before a shutdown in a dedicated function
+    - MINOR: mux-h1: Move all stuff to detach a stream in an internal function
+    - MAJOR: mux-h1: Drain requests on client side before shut a stream down
+    - MEDIUM: htx/http-ana: No longer close connection on early HAProxy response
+    - MINOR: quic: filter show quic by address
+    - MINOR: quic: specify show quic output fields
+    - MINOR: quic: add MUX output for show quic
+    - CLEANUP: mux-h2: Fix h2s_make_data() comment about the return value
+    - DOC: configuration: clarify ciphersuites usage
+    - BUG/MINOR: config/quic: Alert about PROXY protocol use on a QUIC listener
+    - BUG/MINOR: hlua: Fix log level to the right value when set via TXN:set_loglevel
+    - MINOR: hlua: Be able to disable logging from lua
+    - BUG/MINOR: tools: seed the statistical PRNG slightly better
+    - BUG/MINOR: hlua: fix unsafe lua_tostring() usage with empty stack
+    - BUG/MINOR: hlua: don't use lua_tostring() from unprotected contexts
+    - BUG/MINOR: hlua: fix possible crash in hlua_filter_new() under load
+    - BUG/MINOR: hlua: improper lock usage in hlua_filter_callback()
+    - BUG/MINOR: hlua: improper lock usage in hlua_filter_new()
+    - BUG/MEDIUM: hlua: improper lock usage with SET_SAFE_LJMP()
+    - BUG/MAJOR: hlua: improper lock usage with hlua_ctx_resume()
+    - BUG/MINOR: hlua: don't call ha_alert() in hlua_event_subscribe()
+    - MINOR: hlua: use SEND_ERR to report errors in hlua_event_runner()
+    - CLEANUP: hlua: txn class functions may LJMP
+    - BUG/MINOR: sink: fix a race condition in the TCP log forwarding code
+    - BUILD: thread: move lock label definitions to thread-t.h
+    - BUILD: tree-wide: fix a few missing includes in a few files
+    - BUILD: buf: make b_ncat() take a const for the source
+    - CLEANUP: assorted typo fixes in the code and comments
+    - CLEANUP: fix typo in naming for variable "unused"
+    - CI: run more smoke tests on config syntax to check memory related issues
+    - CI: enable monthly build only test on netbsd-9.3
+    - CI: skip scheduled builds on forks
+    - BUG/MINOR: ssl/cli: typo in new ssl crl-file CLI description
+    - BUG/MEDIUM: quic: fix connection freeze on post handshake
+    - BUG/MINOR: mux-quic: fix crash on aborting uni remote stream
+    - CLEANUP: log: fix obsolete comment for add_sample_to_logformat_list()
+    - CLEANUP: tree-wide: use proper ERR_* return values for PRE_CHECK fcts
+    - BUG/MINOR: cfgparse: report proper location for log-format-sd errors
+    - MINOR: vars: export var_set and var_unset functions
+    - MINOR: Add aes_gcm_enc converter
+    - BUG/MEDIUM: quic: fix handshake freeze under high traffic
+    - MINOR: quic: always use ncbuf for rx CRYPTO
+    - BUILD: ssl: define EVP_CTRL_AEAD_GET_TAG for older versions
+    - DOC: design: write first notes about ring-v2
+    - OPTIM: sink: try to merge "dropped" messages faster
+    - OPTIM: sink: drop the sink lock used to count drops
+    - DEV: haring: make haring not depend on the struct ring itself
+    - DEV: haring: split the code between ring and buffer
+    - DEV: haring: automatically use the advertised ring header size
+    - BUILD: solaris: fix compilation errors
+
 2024/02/23 : 3.0-dev4
     - BUG/MEDIUM: ssl: Fix crash when calling "update ssl ocsp-response" when an update is ongoing
     - BUG/MEDIUM: quic: Wrong K CUBIC calculation.
