@@ -106,6 +106,25 @@
 /* mask used to lock the tail */
 #define RING_TAIL_LOCK     (1ULL << ((sizeof(size_t) * 8) - 1))
 
+/* A cell describing a waiting thread.
+ * ->next is initialized to 0x1 before the pointer is set, so that any
+ * leader thread can see that the pointer is not set yet. This allows
+ * to enqueue all waiting threads very quickly using XCHG() on the head
+ * without having to rely on a flaky CAS, while threads finish their setup
+ * in parallel. The pointer will turn to NULL again once the thread is
+ * released.
+ */
+struct ring_wait_cell {
+	size_t to_send_self;         // size needed to serialize this msg
+	size_t needed_tot;           // size needed to serialize pending msgs
+	size_t maxlen;               // msg truncated to this size
+	const struct ist *pfx;       // prefixes
+	size_t npfx;                 // #prefixes
+	const struct ist *msg;       // message parts
+	size_t nmsg;                 // #message parts
+	struct ring_wait_cell *next; // next waiting thread
+};
+
 /* this is the mmapped part */
 struct ring_storage {
 	size_t size;         // storage size
@@ -126,6 +145,13 @@ struct ring {
 	uint flags;             // RING_FL_*
 	uint pending;           // new writes that have not yet been subject to a wakeup
 	uint waking;            // indicates a thread is currently waking up readers
+
+	/* keep the queue in a separate cache line below */
+	THREAD_PAD(64 - 3*sizeof(void*) - 4*sizeof(int));
+	struct ring_wait_cell *queue; // wait queue
+
+	/* and leave a spacer after it to avoid false sharing */
+	THREAD_PAD(64 - sizeof(void*));
 };
 
 #endif /* _HAPROXY_RING_T_H */

@@ -51,6 +51,7 @@ void ring_init(struct ring *ring, void *area, size_t size, int reset)
 	ring->storage = area;
 	ring->pending = 0;
 	ring->waking = 0;
+	ring->queue = NULL;
 
 	if (reset) {
 		ring->storage->size = size - sizeof(*ring->storage);
