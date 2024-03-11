@@ -393,7 +393,6 @@ static int sample_conv_aes_gcm(const struct arg *arg_p, struct sample *smp, void
 
 		aead_tag.data.u.str.data = ret;
 		aead_tag.data.type = SMP_T_STR;
-		aead_tag.flags &= ~SMP_F_CONST;
 
 		if (!var_set(arg_p[3].data.var.name_hash, arg_p[3].data.var.scope, &aead_tag,
 		             (arg_p[3].data.var.scope == SCOPE_PROC) ? VF_COND_IFEXISTS : 0)) {
