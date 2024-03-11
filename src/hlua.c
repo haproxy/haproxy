@@ -1803,12 +1803,16 @@ resume_execution:
 	/* start the timer as we're about to start lua processing */
 	hlua_timer_start(&lua->timer);
 
+	HLUA_SET_BUSY(lua);
+
 	/* Call the function. */
 #if defined(LUA_VERSION_NUM) && LUA_VERSION_NUM >= 504
 	ret = lua_resume(lua->T, hlua_states[lua->state_id], lua->nargs, &nres);
 #else
 	ret = lua_resume(lua->T, hlua_states[lua->state_id], lua->nargs);
 #endif
+
+	HLUA_CLR_BUSY(lua);
 
 	/* out of lua processing, stop the timer */
 	hlua_timer_stop(&lua->timer);
