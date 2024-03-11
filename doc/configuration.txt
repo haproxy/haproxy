@@ -2298,13 +2298,31 @@ ssl-default-bind-ciphers <ciphers>
 ssl-default-bind-ciphersuites <ciphersuites>
   This setting is only available when support for OpenSSL was built in and
   OpenSSL 1.1.1 or later was used to build HAProxy. It sets the default string
-  describing the list of cipher algorithms in "cipher suite" format that are
-  negotiated during the TLS handshake for all "bind" lines which do not
-  explicitly define theirs. The format of the string is defined in "man 1
-  ciphers" from OpenSSL man pages under the section "ciphersuites". For cipher
-  configuration for TLSv1.2 and earlier using the "OpenSSL" ciphers format,
-  please check the "ssl-default-bind-ciphers" keyword. Please check the "bind"
-  keyword for more information.
+  describing the list of cipher algorithms ("cipher suite") that are negotiated
+  during the TLSv1.3 handshake for all "bind" lines which do not explicitly define
+  theirs. The format of the string is defined in
+  "man 1 ciphers" from OpenSSL man pages under the section "ciphersuites". For
+  cipher configuration for TLSv1.2 and earlier, please check the
+  "ssl-default-bind-ciphers" keyword. This setting might accept TLSv1.2
+  ciphersuites however this is an undocumented behavior and not recommended as
+  it could be inconsistent or buggy.
+  The default TLSv1.3 ciphersuites of OpenSSL are:
+  "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256"
+
+  TLSv1.3 only supports 5 ciphersuites:
+
+  - TLS_AES_128_GCM_SHA256
+  - TLS_AES_256_GCM_SHA384
+  - TLS_CHACHA20_POLY1305_SHA256
+  - TLS_AES_128_CCM_SHA256
+  - TLS_AES_128_CCM_8_SHA256
+
+  Please check the "bind" keyword for more information.
+
+  Example:
+      global
+          ssl-default-bind-ciphers ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-RSA-AES128-GCM-SHA256
+          ssl-default-bind-ciphersuites TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256
 
 ssl-default-bind-client-sigalgs <sigalgs>
   This setting is only available when support for OpenSSL was built in. It sets
@@ -2368,14 +2386,14 @@ ssl-default-server-ciphers <ciphers>
 
 ssl-default-server-ciphersuites <ciphersuites>
   This setting is only available when support for OpenSSL was built in and
-  OpenSSL 1.1.1 or later was used to build HAProxy. It sets the default string
-  describing the list of cipher algorithms in "cipher suite" format that are
-  negotiated during the TLS handshake with the server, for all "server" lines
-  which do not explicitly define theirs. The format of the string is defined in
+  OpenSSL 1.1.1 or later was used to build HAProxy. It sets the default
+  string describing the list of cipher algorithms that are negotiated during
+  the TLSv1.3 handshake with the server, for all "server" lines which do not
+  explicitly define theirs. The format of the string is defined in
   "man 1 ciphers" from OpenSSL man pages under the section "ciphersuites". For
-  cipher configuration for TLSv1.2 and earlier using the "OpenSSL" cipher
-  format, please check the "ssl-default-server-ciphers" keyword. Please check the
-  "server" keyword for more information.
+  cipher configuration for TLSv1.2 and earlier, please check the
+  "ssl-default-server-ciphers" keyword. Please check the "server" keyword for
+  more information.
 
 ssl-default-server-client-sigalgs <sigalgs>
   This setting is only available when support for OpenSSL was built in. It sets
@@ -15533,11 +15551,26 @@ ciphers <ciphers>
 ciphersuites <ciphersuites>
   This setting is only available when support for OpenSSL was built in and
   OpenSSL 1.1.1 or later was used to build HAProxy. It sets the string describing
-  the list of cipher algorithms in "cipher suite" format that are negotiated
-  during the TLS handshake. The format of the string is defined in "man 1
-  ciphers" from OpenSSL man pages under the "ciphersuites" section. For cipher
-  configuration for TLSv1.2 and earlier using the "OpenSSL" ciphers format,
-  please check the "ciphers" keyword.
+  the list of cipher algorithms ("cipher suite") that are negotiated during the
+  TLSv1.3 handshake. The format of the string is defined in "man 1 ciphers" from
+  OpenSSL man pages under the "ciphersuites" section. For cipher configuration
+  for TLSv1.2 and earlier, please check the "ciphers" keyword.
+  This setting might accept TLSv1.2 ciphersuites however this is an
+  undocumented behavior and not recommended as it could be inconsistent or buggy.
+  The default TLSv1.3 ciphersuites of OpenSSL are:
+  "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256"
+
+  TLSv1.3 only supports 5 ciphersuites:
+
+  - TLS_AES_128_GCM_SHA256
+  - TLS_AES_256_GCM_SHA384
+  - TLS_CHACHA20_POLY1305_SHA256
+  - TLS_AES_128_CCM_SHA256
+  - TLS_AES_128_CCM_8_SHA256
+
+  Example:
+          ciphers ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-RSA-AES128-GCM-SHA256
+          ciphersuites TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256
 
 client-sigalgs <sigalgs>
   This setting is only available when support for OpenSSL was built in. It sets
@@ -16676,11 +16709,11 @@ ciphersuites <ciphersuites>
 
   This setting is only available when support for OpenSSL was built in and
   OpenSSL 1.1.1 or later was used to build HAProxy. This option sets the string
-  describing the list of cipher algorithms in "cipher suite" format that is
-  negotiated during the TLS handshake with the server. The format of the string
-  is defined in "man 1 ciphers" from OpenSSL man pages under the "ciphersuites"
-  section. For cipher configuration for TLSv1.2 and earlier using the "OpenSSL"
-  cipher format, please check the "ciphers" keyword.
+  describing the list of cipher algorithms that is negotiated during the TLS
+  1.3 handshake with the server. The format of the string is defined in
+  "man 1 ciphers" from OpenSSL man pages under the "ciphersuites" section.
+  For cipher configuration for TLSv1.2 and earlier, please check the "ciphers"
+  keyword.
 
 client-sigalgs <sigalgs>
   May be used in the following contexts: tcp, http, log, peers, ring
