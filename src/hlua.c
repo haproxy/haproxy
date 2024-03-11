@@ -12037,7 +12037,9 @@ static void hlua_filter_delete(struct stream *s, struct filter *filter)
 {
 	struct hlua_flt_ctx *flt_ctx = filter->ctx;
 
+	hlua_lock(s->hlua);
 	hlua_unref(s->hlua->T, flt_ctx->ref);
+	hlua_unlock(s->hlua);
 	hlua_ctx_destroy(flt_ctx->hlua[0]);
 	hlua_ctx_destroy(flt_ctx->hlua[1]);
 	pool_free(pool_head_hlua_flt_ctx, flt_ctx);
