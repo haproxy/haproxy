@@ -13320,7 +13320,7 @@ int hlua_post_init()
 		if ((reg_flt->flt_ref[0] == -1) == (ret < 0)) {
 			ha_alert("Lua filter '%s' is referenced both ins shared Lua context (through lua-load) "
 			         "and per-thread Lua context (through lua-load-per-thread). these two context "
-			         "exclusive.\n", fcn->name);
+			         "exclusive.\n", reg_flt->name);
 			errors++;
 		}
 	}
