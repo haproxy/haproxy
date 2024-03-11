@@ -11989,7 +11989,9 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 		filter->ctx = flt_ctx;
 		break;
 	case HLUA_E_ERRMSG:
+		hlua_lock(s->hlua);
 		SEND_ERR(s->be, "Lua filter '%s' : %s.\n", conf->reg->name, hlua_tostring_safe(s->hlua->T, -1));
+		hlua_unlock(s->hlua);
 		ret = -1;
 		goto end;
 	case HLUA_E_ETMOUT:
