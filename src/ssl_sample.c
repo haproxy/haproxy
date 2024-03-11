@@ -280,7 +280,7 @@ static int sample_conv_aes_gcm(const struct arg *arg_p, struct sample *smp, void
 {
 	struct sample nonce, key, aead_tag;
 	struct buffer *smp_trash = NULL, *smp_trash_alloc = NULL;
-	EVP_CIPHER_CTX *ctx;
+	EVP_CIPHER_CTX *ctx = NULL;
 	int size, ret, dec;
 
 	smp_trash_alloc = alloc_trash_chunk();
@@ -407,11 +407,13 @@ static int sample_conv_aes_gcm(const struct arg *arg_p, struct sample *smp, void
 	smp_dup(smp);
 	free_trash_chunk(smp_trash_alloc);
 	free_trash_chunk(smp_trash);
+	EVP_CIPHER_CTX_free(ctx);
 	return 1;
 
 err:
 	free_trash_chunk(smp_trash_alloc);
 	free_trash_chunk(smp_trash);
+	EVP_CIPHER_CTX_free(ctx);
 	return 0;
 }
 #endif
