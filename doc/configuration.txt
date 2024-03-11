@@ -1363,8 +1363,10 @@ The following keywords are supported in the "global" section :
    - tune.fd.edge-triggered
    - tune.h1.zero-copy-fwd-recv
    - tune.h1.zero-copy-fwd-send
+   - tune.h2.be.glitches-threshold
    - tune.h2.be.initial-window-size
    - tune.h2.be.max-concurrent-streams
+   - tune.h2.fe.glitches-threshold
    - tune.h2.fe.initial-window-size
    - tune.h2.fe.max-concurrent-streams
    - tune.h2.fe.max-total-streams
@@ -3135,6 +3137,18 @@ tune.h1.zero-copy-fwd-send { on | off }
 
   See also: tune.disable-zero-copy-forwarding, tune.h1.zero-copy-fwd-recv
 
+tune.h2.be.glitches-threshold <number>
+  Sets the threshold for the number of glitches on a backend connection, where
+  that connection will automatically be killed. This allows to automatically
+  kill misbehaving connections without having to write explicit rules for them.
+  The default value is zero, indicating that no threshold is set so that no
+  event will cause a connection to be closed. Beware that some H2 servers may
+  occasionally cause a few glitches over long lasting connection, so any non-
+  zero value here should probably be in the hundreds or thousands to be
+  effective without affecting slightly bogus servers.
+
+  See also: tune.h2.fe.glitches-threshold, bc_glitches
+
 tune.h2.be.initial-window-size <number>
   Sets the HTTP/2 initial window size for outgoing connections, which is the
   number of bytes the server can respond before waiting for an acknowledgment
@@ -3159,6 +3173,18 @@ tune.h2.be.max-concurrent-streams <number>
   clients sharing a connection (keep tune.h2.be.initial-window-size low in this
   case). It is highly recommended not to increase this value; some might find
   it optimal to run at low values (1..5 typically).
+
+tune.h2.fe.glitches-threshold <number>
+  Sets the threshold for the number of glitches on a frontend connection, where
+  that connection will automatically be killed. This allows to automatically
+  kill misbehaving connections without having to write explicit rules for them.
+  The default value is zero, indicating that no threshold is set so that no
+  event will cause a connection to be closed. Beware that some H2 clientss may
+  occasionally cause a few glitches over long lasting connection, so any non-
+  zero value here should probably be in the hundreds or thousands to be
+  effective without affecting slightly bogus clients.
+
+  See also: tune.h2.be.glitches-threshold, fc_glitches
 
 tune.h2.fe.initial-window-size <number>
   Sets the HTTP/2 initial window size for incoming connections, which is the

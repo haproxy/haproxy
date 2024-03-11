@@ -452,6 +452,8 @@ static int h2_settings_header_table_size      =  4096; /* initial value */
 static int h2_settings_initial_window_size    = 65536; /* default initial value */
 static int h2_be_settings_initial_window_size =     0; /* backend's default initial value */
 static int h2_fe_settings_initial_window_size =     0; /* frontend's default initial value */
+static int h2_be_glitches_threshold           =     0; /* backend's max glitches: unlimited */
+static int h2_fe_glitches_threshold           =     0; /* frontend's max glitches: unlimited */
 static unsigned int h2_settings_max_concurrent_streams    = 100; /* default value */
 static unsigned int h2_be_settings_max_concurrent_streams =   0; /* backend value */
 static unsigned int h2_fe_settings_max_concurrent_streams =   0; /* frontend value */
@@ -644,15 +646,6 @@ static inline int h2c_max_concurrent_streams(const struct h2c *h2c)
 
 	ret = ret ? ret : h2_settings_max_concurrent_streams;
 	return ret;
-}
-
-/* report one or more glitches on the connection. That is any unexpected event
- * that may occasionally happen but if repeated a bit too much, might indicate
- * a misbehaving or completely bogus peer.
- */
-static inline void h2c_report_glitch(struct h2c *h2c, int increment)
-{
-	h2c->glitches += increment;
 }
 
 /* update h2c timeout if needed */
@@ -1351,6 +1344,25 @@ static void __maybe_unused h2s_alert(struct h2s *h2s)
 	}
 
 	TRACE_LEAVE(H2_EV_H2S_WAKE, h2s->h2c->conn, h2s);
+}
+
+/* report one or more glitches on the connection. That is any unexpected event
+ * that may occasionally happen but if repeated a bit too much, might indicate
+ * a misbehaving or completely bogus peer. It normally returns zero, unless the
+ * glitch limit was reached, in which case an error is also reported on the
+ * connection.
+ */
+static inline int h2c_report_glitch(struct h2c *h2c, int increment)
+{
+	int thres = (h2c->flags & H2_CF_IS_BACK) ?
+		h2_be_glitches_threshold : h2_fe_glitches_threshold;
+
+	h2c->glitches += increment;
+	if (thres && h2c->glitches >= thres) {
+		h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
+		return 1;
+	}
+	return 0;
 }
 
 /* writes the 24-bit frame size <len> at address <frame> */
@@ -2365,7 +2377,11 @@ static int h2c_handle_settings(struct h2c *h2c)
 			 * it's often suspicious.
 			 */
 			if (h2c->st0 != H2_CS_SETTINGS1 && arg < h2c->miw)
-				h2c_report_glitch(h2c, 1);
+				if (h2c_report_glitch(h2c, 1)) {
+					error = H2_ERR_ENHANCE_YOUR_CALM;
+					TRACE_STATE("glitch limit reached on SETTINGS frame", H2_EV_RX_FRAME|H2_EV_RX_SETTINGS|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
+					goto fail;
+				}
 
 			h2c->miw = arg;
 			break;
@@ -5414,8 +5430,12 @@ next_frame:
 	 * abuser sending 1600 1-byte frames in a 16kB buffer would increment
 	 * its counter by 100.
 	 */
-	if (unlikely(fragments > 4) && fragments > flen / 1024 && ret != 0)
-		h2c_report_glitch(h2c, (fragments + 15) / 16);
+	if (unlikely(fragments > 4) && fragments > flen / 1024 && ret != 0) {
+		if (h2c_report_glitch(h2c, (fragments + 15) / 16)) {
+			TRACE_STATE("glitch limit reached on CONTINUATION frame", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
+			ret = -1;
+		}
+	}
 
 	return ret;
 
@@ -7555,6 +7575,27 @@ static int h2_takeover(struct connection *conn, int orig_tid)
 /* functions below are dedicated to the config parsers */
 /*******************************************************/
 
+/* config parser for global "tune.h2.{fe,be}.glitches-threshold" */
+static int h2_parse_glitches_threshold(char **args, int section_type, struct proxy *curpx,
+				       const struct proxy *defpx, const char *file, int line,
+				       char **err)
+{
+	int *vptr;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	/* backend/frontend */
+	vptr = (args[0][8] == 'b') ? &h2_be_glitches_threshold : &h2_fe_glitches_threshold;
+
+	*vptr = atoi(args[1]);
+	if (*vptr < 0) {
+		memprintf(err, "'%s' expects a positive numeric value.", args[0]);
+		return -1;
+	}
+	return 0;
+}
+
 /* config parser for global "tune.h2.header-table-size" */
 static int h2_parse_header_table_size(char **args, int section_type, struct proxy *curpx,
                                       const struct proxy *defpx, const char *file, int line,
@@ -7713,8 +7754,10 @@ INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_h2);
 
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "tune.h2.be.glitches-threshold",  h2_parse_glitches_threshold     },
 	{ CFG_GLOBAL, "tune.h2.be.initial-window-size", h2_parse_initial_window_size    },
 	{ CFG_GLOBAL, "tune.h2.be.max-concurrent-streams", h2_parse_max_concurrent_streams },
+	{ CFG_GLOBAL, "tune.h2.fe.glitches-threshold",  h2_parse_glitches_threshold     },
 	{ CFG_GLOBAL, "tune.h2.fe.initial-window-size", h2_parse_initial_window_size    },
 	{ CFG_GLOBAL, "tune.h2.fe.max-concurrent-streams", h2_parse_max_concurrent_streams },
 	{ CFG_GLOBAL, "tune.h2.fe.max-total-streams",   h2_parse_max_total_streams      },
