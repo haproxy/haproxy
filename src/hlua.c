@@ -1678,6 +1678,57 @@ static int hlua_ctx_renew(struct hlua *lua, int keep_msg)
 	return 1;
 }
 
+/* Helper function to get the lua ctx for a given stream */
+static inline struct hlua *hlua_stream_ctx_get(struct stream *s)
+{
+	return s->hlua;
+}
+
+/* Helper function to prepare the lua ctx for a given stream
+ *
+ * ctx will be enforced in <state_id> parent stack on initial creation.
+ * If s->hlua->state_id differs from <state_id>, which may happen at
+ * runtime since existing stream hlua ctx will be reused for other
+ * "independent" (but stream-related) lua executions, hlua will be
+ * recreated with the expected state id.
+ *
+ * Returns hlua ctx on success and NULL on failure
+ */
+static struct hlua *hlua_stream_ctx_prepare(struct stream *s, int state_id)
+{
+	/* In the execution wrappers linked with a stream, the
+	 * Lua context can be not initialized. This behavior
+	 * permits to save performances because a systematic
+	 * Lua initialization cause 5% performances loss.
+	 */
+ ctx_renew:
+	if (!s->hlua) {
+		struct hlua *hlua;
+
+		hlua = pool_alloc(pool_head_hlua);
+		if (!hlua)
+			return NULL;
+		HLUA_INIT(hlua);
+		if (!hlua_ctx_init(hlua, state_id, s->task)) {
+			pool_free(pool_head_hlua, hlua);
+			return NULL;
+		}
+		s->hlua = hlua;
+	}
+	else if (s->hlua->state_id != state_id) {
+		/* ctx already created, but not in proper state.
+		 * It should only happen after the previous execution is
+		 * finished, otherwise it's probably a bug since we don't
+		 * want to abort unfinished job..
+		 */
+		BUG_ON(HLUA_IS_RUNNING(s->hlua));
+		hlua_ctx_destroy(s->hlua);
+		s->hlua = NULL;
+		goto ctx_renew;
+	}
+	return s->hlua;
+}
+
 void hlua_hook(lua_State *L, lua_Debug *ar)
 {
 	struct hlua *hlua;
@@ -4946,12 +4997,11 @@ __LJMP static int hlua_applet_tcp_set_priv(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	struct stream *s = luactx->htxn.s;
-	struct hlua *hlua;
+	struct hlua *hlua = hlua_stream_ctx_get(s);
 
 	/* Note that this hlua struct is from the session and not from the applet. */
-	if (!s->hlua)
+	if (!hlua)
 		return 0;
-	hlua = s->hlua;
 
 	MAY_LJMP(check_args(L, 2, "set_priv"));
 
@@ -4969,14 +5019,13 @@ __LJMP static int hlua_applet_tcp_get_priv(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	struct stream *s = luactx->htxn.s;
-	struct hlua *hlua;
+	struct hlua *hlua = hlua_stream_ctx_get(s);
 
 	/* Note that this hlua struct is from the session and not from the applet. */
-	if (!s->hlua) {
+	if (!hlua) {
 		lua_pushnil(L);
 		return 1;
 	}
-	hlua = s->hlua;
 
 	/* Push configuration index in the stack. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, hlua->Mref);
@@ -5437,12 +5486,11 @@ __LJMP static int hlua_applet_http_set_priv(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	struct stream *s = luactx->htxn.s;
-	struct hlua *hlua;
+	struct hlua *hlua = hlua_stream_ctx_get(s);
 
 	/* Note that this hlua struct is from the session and not from the applet. */
-	if (!s->hlua)
+	if (!hlua)
 		return 0;
-	hlua = s->hlua;
 
 	MAY_LJMP(check_args(L, 2, "set_priv"));
 
@@ -5460,14 +5508,13 @@ __LJMP static int hlua_applet_http_get_priv(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	struct stream *s = luactx->htxn.s;
-	struct hlua *hlua;
+	struct hlua *hlua = hlua_stream_ctx_get(s);
 
 	/* Note that this hlua struct is from the session and not from the applet. */
-	if (!s->hlua) {
+	if (!hlua) {
 		lua_pushnil(L);
 		return 1;
 	}
-	hlua = s->hlua;
 
 	/* Push configuration index in the stack. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, hlua->Mref);
@@ -9056,51 +9103,6 @@ struct task *hlua_process_task(struct task *task, void *context, unsigned int st
 	return task;
 }
 
-/* Helper function to prepare the lua ctx for a given stream
- *
- * ctx will be enforced in <state_id> parent stack on initial creation.
- * If s->hlua->state_id differs from <state_id>, which may happen at
- * runtime since existing stream hlua ctx will be reused for other
- * "independent" (but stream-related) lua executions, hlua will be
- * recreated with the expected state id.
- *
- * Returns 1 for success and 0 for failure
- */
-static int hlua_stream_ctx_prepare(struct stream *s, int state_id)
-{
-	/* In the execution wrappers linked with a stream, the
-	 * Lua context can be not initialized. This behavior
-	 * permits to save performances because a systematic
-	 * Lua initialization cause 5% performances loss.
-	 */
- ctx_renew:
-	if (!s->hlua) {
-		struct hlua *hlua;
-
-		hlua = pool_alloc(pool_head_hlua);
-		if (!hlua)
-			return 0;
-		HLUA_INIT(hlua);
-		if (!hlua_ctx_init(hlua, state_id, s->task)) {
-			pool_free(pool_head_hlua, hlua);
-			return 0;
-		}
-		s->hlua = hlua;
-	}
-	else if (s->hlua->state_id != state_id) {
-		/* ctx already created, but not in proper state.
-		 * It should only happen after the previous execution is
-		 * finished, otherwise it's probably a bug since we don't
-		 * want to abort unfinished job..
-		 */
-		BUG_ON(HLUA_IS_RUNNING(s->hlua));
-		hlua_ctx_destroy(s->hlua);
-		s->hlua = NULL;
-		goto ctx_renew;
-	}
-	return 1;
-}
-
 /* This function is an LUA binding that register LUA function to be
  * executed after the HAProxy configuration parsing and before the
  * HAProxy scheduler starts. This function expect only one LUA
@@ -9937,89 +9939,90 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 {
 	struct hlua_function *fcn = private;
 	struct stream *stream = smp->strm;
+	struct hlua *hlua = NULL;
 	const char *error;
 
 	if (!stream)
 		return 0;
 
-	if (!hlua_stream_ctx_prepare(stream, fcn_ref_to_stack_id(fcn))) {
+	if (!(hlua = hlua_stream_ctx_prepare(stream, fcn_ref_to_stack_id(fcn)))) {
 		SEND_ERR(stream->be, "Lua converter '%s': can't initialize Lua context.\n", fcn->name);
 		return 0;
 	}
 
 	/* If it is the first run, initialize the data for the call. */
-	if (!HLUA_IS_RUNNING(stream->hlua)) {
+	if (!HLUA_IS_RUNNING(hlua)) {
 
 		/* The following Lua calls can fail. */
-		if (!SET_SAFE_LJMP(stream->hlua)) {
-			hlua_lock(stream->hlua);
-			if (lua_type(stream->hlua->T, -1) == LUA_TSTRING)
-				error = hlua_tostring_safe(stream->hlua->T, -1);
+		if (!SET_SAFE_LJMP(hlua)) {
+			hlua_lock(hlua);
+			if (lua_type(hlua->T, -1) == LUA_TSTRING)
+				error = hlua_tostring_safe(hlua->T, -1);
 			else
 				error = "critical error";
 			SEND_ERR(stream->be, "Lua converter '%s': %s.\n", fcn->name, error);
-			hlua_unlock(stream->hlua);
+			hlua_unlock(hlua);
 			return 0;
 		}
 
 		/* Check stack available size. */
-		if (!lua_checkstack(stream->hlua->T, 1)) {
+		if (!lua_checkstack(hlua->T, 1)) {
 			SEND_ERR(stream->be, "Lua converter '%s': full stack.\n", fcn->name);
-			RESET_SAFE_LJMP(stream->hlua);
+			RESET_SAFE_LJMP(hlua);
 			return 0;
 		}
 
 		/* Restore the function in the stack. */
-		hlua_pushref(stream->hlua->T, fcn->function_ref[stream->hlua->state_id]);
+		hlua_pushref(hlua->T, fcn->function_ref[hlua->state_id]);
 
 		/* convert input sample and pust-it in the stack. */
-		if (!lua_checkstack(stream->hlua->T, 1)) {
+		if (!lua_checkstack(hlua->T, 1)) {
 			SEND_ERR(stream->be, "Lua converter '%s': full stack.\n", fcn->name);
-			RESET_SAFE_LJMP(stream->hlua);
+			RESET_SAFE_LJMP(hlua);
 			return 0;
 		}
-		MAY_LJMP(hlua_smp2lua(stream->hlua->T, smp));
-		stream->hlua->nargs = 1;
+		MAY_LJMP(hlua_smp2lua(hlua->T, smp));
+		hlua->nargs = 1;
 
 		/* push keywords in the stack. */
 		if (arg_p) {
 			for (; arg_p->type != ARGT_STOP; arg_p++) {
-				if (!lua_checkstack(stream->hlua->T, 1)) {
+				if (!lua_checkstack(hlua->T, 1)) {
 					SEND_ERR(stream->be, "Lua converter '%s': full stack.\n", fcn->name);
-					RESET_SAFE_LJMP(stream->hlua);
+					RESET_SAFE_LJMP(hlua);
 					return 0;
 				}
-				MAY_LJMP(hlua_arg2lua(stream->hlua->T, arg_p));
-				stream->hlua->nargs++;
+				MAY_LJMP(hlua_arg2lua(hlua->T, arg_p));
+				hlua->nargs++;
 			}
 		}
 
 		/* We must initialize the execution timeouts. */
-		hlua_timer_init(&stream->hlua->timer, hlua_timeout_session);
+		hlua_timer_init(&hlua->timer, hlua_timeout_session);
 
 		/* At this point the execution is safe. */
-		RESET_SAFE_LJMP(stream->hlua);
+		RESET_SAFE_LJMP(hlua);
 	}
 
 	/* Execute the function. */
-	switch (hlua_ctx_resume(stream->hlua, 0)) {
+	switch (hlua_ctx_resume(hlua, 0)) {
 	/* finished. */
 	case HLUA_E_OK:
-		hlua_lock(stream->hlua);
+		hlua_lock(hlua);
 		/* If the stack is empty, the function fails. */
-		if (lua_gettop(stream->hlua->T) <= 0) {
-			hlua_unlock(stream->hlua);
+		if (lua_gettop(hlua->T) <= 0) {
+			hlua_unlock(hlua);
 			return 0;
 		}
 
 		/* Convert the returned value in sample. */
-		hlua_lua2smp(stream->hlua->T, -1, smp);
+		hlua_lua2smp(hlua->T, -1, smp);
 		/* dup the smp before popping the related lua value and
 		 * returning it to haproxy
 		 */
 		smp_dup(smp);
-		lua_pop(stream->hlua->T, 1);
-		hlua_unlock(stream->hlua);
+		lua_pop(hlua->T, 1);
+		hlua_unlock(hlua);
 		return 1;
 
 	/* yield. */
@@ -10030,11 +10033,11 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
 		/* Display log. */
-		hlua_lock(stream->hlua);
+		hlua_lock(hlua);
 		SEND_ERR(stream->be, "Lua converter '%s': %s.\n",
-		         fcn->name, hlua_tostring_safe(stream->hlua->T, -1));
-		lua_pop(stream->hlua->T, 1);
-		hlua_unlock(stream->hlua);
+		         fcn->name, hlua_tostring_safe(hlua->T, -1));
+		lua_pop(hlua->T, 1);
+		hlua_unlock(hlua);
 		return 0;
 
 	case HLUA_E_ETMOUT:
@@ -10069,88 +10072,89 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 {
 	struct hlua_function *fcn = private;
 	struct stream *stream = smp->strm;
+	struct hlua *hlua = NULL;
 	const char *error;
 	unsigned int hflags = HLUA_TXN_NOTERM | HLUA_TXN_SMP_CTX;
 
 	if (!stream)
 		return 0;
 
-	if (!hlua_stream_ctx_prepare(stream, fcn_ref_to_stack_id(fcn))) {
+	if (!(hlua = hlua_stream_ctx_prepare(stream, fcn_ref_to_stack_id(fcn)))) {
 		SEND_ERR(stream->be, "Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
 		return 0;
 	}
 
 	/* If it is the first run, initialize the data for the call. */
-	if (!HLUA_IS_RUNNING(stream->hlua)) {
+	if (!HLUA_IS_RUNNING(hlua)) {
 
 		/* The following Lua calls can fail. */
-		if (!SET_SAFE_LJMP(stream->hlua)) {
-			hlua_lock(stream->hlua);
-			if (lua_type(stream->hlua->T, -1) == LUA_TSTRING)
-				error = hlua_tostring_safe(stream->hlua->T, -1);
+		if (!SET_SAFE_LJMP(hlua)) {
+			hlua_lock(hlua);
+			if (lua_type(hlua->T, -1) == LUA_TSTRING)
+				error = hlua_tostring_safe(hlua->T, -1);
 			else
 				error = "critical error";
 			SEND_ERR(smp->px, "Lua sample-fetch '%s': %s.\n", fcn->name, error);
-			hlua_unlock(stream->hlua);
+			hlua_unlock(hlua);
 			return 0;
 		}
 
 		/* Check stack available size. */
-		if (!lua_checkstack(stream->hlua->T, 2)) {
+		if (!lua_checkstack(hlua->T, 2)) {
 			SEND_ERR(smp->px, "Lua sample-fetch '%s': full stack.\n", fcn->name);
-			RESET_SAFE_LJMP(stream->hlua);
+			RESET_SAFE_LJMP(hlua);
 			return 0;
 		}
 
 		/* Restore the function in the stack. */
-		hlua_pushref(stream->hlua->T, fcn->function_ref[stream->hlua->state_id]);
+		hlua_pushref(hlua->T, fcn->function_ref[hlua->state_id]);
 
 		/* push arguments in the stack. */
-		if (!hlua_txn_new(stream->hlua->T, stream, smp->px, smp->opt & SMP_OPT_DIR, hflags)) {
+		if (!hlua_txn_new(hlua->T, stream, smp->px, smp->opt & SMP_OPT_DIR, hflags)) {
 			SEND_ERR(smp->px, "Lua sample-fetch '%s': full stack.\n", fcn->name);
-			RESET_SAFE_LJMP(stream->hlua);
+			RESET_SAFE_LJMP(hlua);
 			return 0;
 		}
-		stream->hlua->nargs = 1;
+		hlua->nargs = 1;
 
 		/* push keywords in the stack. */
 		for (; arg_p && arg_p->type != ARGT_STOP; arg_p++) {
 			/* Check stack available size. */
-			if (!lua_checkstack(stream->hlua->T, 1)) {
+			if (!lua_checkstack(hlua->T, 1)) {
 				SEND_ERR(smp->px, "Lua sample-fetch '%s': full stack.\n", fcn->name);
-				RESET_SAFE_LJMP(stream->hlua);
+				RESET_SAFE_LJMP(hlua);
 				return 0;
 			}
-			MAY_LJMP(hlua_arg2lua(stream->hlua->T, arg_p));
-			stream->hlua->nargs++;
+			MAY_LJMP(hlua_arg2lua(hlua->T, arg_p));
+			hlua->nargs++;
 		}
 
 		/* We must initialize the execution timeouts. */
-		hlua_timer_init(&stream->hlua->timer, hlua_timeout_session);
+		hlua_timer_init(&hlua->timer, hlua_timeout_session);
 
 		/* At this point the execution is safe. */
-		RESET_SAFE_LJMP(stream->hlua);
+		RESET_SAFE_LJMP(hlua);
 	}
 
 	/* Execute the function. */
-	switch (hlua_ctx_resume(stream->hlua, 0)) {
+	switch (hlua_ctx_resume(hlua, 0)) {
 	/* finished. */
 	case HLUA_E_OK:
-		hlua_lock(stream->hlua);
+		hlua_lock(hlua);
 		/* If the stack is empty, the function fails. */
-		if (lua_gettop(stream->hlua->T) <= 0) {
-			hlua_unlock(stream->hlua);
+		if (lua_gettop(hlua->T) <= 0) {
+			hlua_unlock(hlua);
 			return 0;
 		}
 
 		/* Convert the returned value in sample. */
-		hlua_lua2smp(stream->hlua->T, -1, smp);
+		hlua_lua2smp(hlua->T, -1, smp);
 		/* dup the smp before popping the related lua value and
 		 * returning it to haproxy
 		 */
 		smp_dup(smp);
-		lua_pop(stream->hlua->T, 1);
-		hlua_unlock(stream->hlua);
+		lua_pop(hlua->T, 1);
+		hlua_unlock(hlua);
 
 		/* Set the end of execution flag. */
 		smp->flags &= ~SMP_F_MAY_CHANGE;
@@ -10164,11 +10168,11 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
 		/* Display log. */
-		hlua_lock(stream->hlua);
+		hlua_lock(hlua);
 		SEND_ERR(smp->px, "Lua sample-fetch '%s': %s.\n",
-		         fcn->name, hlua_tostring_safe(stream->hlua->T, -1));
-		lua_pop(stream->hlua->T, 1);
-		hlua_unlock(stream->hlua);
+		         fcn->name, hlua_tostring_safe(hlua->T, -1));
+		lua_pop(hlua->T, 1);
+		hlua_unlock(hlua);
 		return 0;
 
 	case HLUA_E_ETMOUT:
@@ -10401,6 +10405,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	unsigned int hflags = HLUA_TXN_ACT_CTX;
 	int dir, act_ret = ACT_RET_CONT;
 	const char *error;
+	struct hlua *hlua = NULL;
 
 	switch (rule->from) {
 	case ACT_F_TCP_REQ_CNT: dir = SMP_OPT_DIR_REQ; break;
@@ -10412,76 +10417,76 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		goto end;
 	}
 
-	if (!hlua_stream_ctx_prepare(s, fcn_ref_to_stack_id(rule->arg.hlua_rule->fcn))) {
+	if (!(hlua = hlua_stream_ctx_prepare(s, fcn_ref_to_stack_id(rule->arg.hlua_rule->fcn)))) {
 		SEND_ERR(px, "Lua action '%s': can't initialize Lua context.\n",
 		         rule->arg.hlua_rule->fcn->name);
 		goto end;
 	}
 
 	/* If it is the first run, initialize the data for the call. */
-	if (!HLUA_IS_RUNNING(s->hlua)) {
+	if (!HLUA_IS_RUNNING(hlua)) {
 
 		/* The following Lua calls can fail. */
-		if (!SET_SAFE_LJMP(s->hlua)) {
-			hlua_lock(s->hlua);
-			if (lua_type(s->hlua->T, -1) == LUA_TSTRING)
-				error = hlua_tostring_safe(s->hlua->T, -1);
+		if (!SET_SAFE_LJMP(hlua)) {
+			hlua_lock(hlua);
+			if (lua_type(hlua->T, -1) == LUA_TSTRING)
+				error = hlua_tostring_safe(hlua->T, -1);
 			else
 				error = "critical error";
 			SEND_ERR(px, "Lua function '%s': %s.\n",
 			         rule->arg.hlua_rule->fcn->name, error);
-			hlua_unlock(s->hlua);
+			hlua_unlock(hlua);
 			goto end;
 		}
 
 		/* Check stack available size. */
-		if (!lua_checkstack(s->hlua->T, 1)) {
+		if (!lua_checkstack(hlua->T, 1)) {
 			SEND_ERR(px, "Lua function '%s': full stack.\n",
 			         rule->arg.hlua_rule->fcn->name);
-			RESET_SAFE_LJMP(s->hlua);
+			RESET_SAFE_LJMP(hlua);
 			goto end;
 		}
 
 		/* Restore the function in the stack. */
-		hlua_pushref(s->hlua->T, rule->arg.hlua_rule->fcn->function_ref[s->hlua->state_id]);
+		hlua_pushref(hlua->T, rule->arg.hlua_rule->fcn->function_ref[hlua->state_id]);
 
 		/* Create and and push object stream in the stack. */
-		if (!hlua_txn_new(s->hlua->T, s, px, dir, hflags)) {
+		if (!hlua_txn_new(hlua->T, s, px, dir, hflags)) {
 			SEND_ERR(px, "Lua function '%s': full stack.\n",
 			         rule->arg.hlua_rule->fcn->name);
-			RESET_SAFE_LJMP(s->hlua);
+			RESET_SAFE_LJMP(hlua);
 			goto end;
 		}
-		s->hlua->nargs = 1;
+		hlua->nargs = 1;
 
 		/* push keywords in the stack. */
 		for (arg = rule->arg.hlua_rule->args; arg && *arg; arg++) {
-			if (!lua_checkstack(s->hlua->T, 1)) {
+			if (!lua_checkstack(hlua->T, 1)) {
 				SEND_ERR(px, "Lua function '%s': full stack.\n",
 				         rule->arg.hlua_rule->fcn->name);
-				RESET_SAFE_LJMP(s->hlua);
+				RESET_SAFE_LJMP(hlua);
 				goto end;
 			}
-			lua_pushstring(s->hlua->T, *arg);
-			s->hlua->nargs++;
+			lua_pushstring(hlua->T, *arg);
+			hlua->nargs++;
 		}
 
 		/* Now the execution is safe. */
-		RESET_SAFE_LJMP(s->hlua);
+		RESET_SAFE_LJMP(hlua);
 
 		/* We must initialize the execution timeouts. */
-		hlua_timer_init(&s->hlua->timer, hlua_timeout_session);
+		hlua_timer_init(&hlua->timer, hlua_timeout_session);
 	}
 
 	/* Execute the function. */
-	switch (hlua_ctx_resume(s->hlua, !(flags & ACT_OPT_FINAL))) {
+	switch (hlua_ctx_resume(hlua, !(flags & ACT_OPT_FINAL))) {
 	/* finished. */
 	case HLUA_E_OK:
 		/* Catch the return value */
-		hlua_lock(s->hlua);
-		if (lua_gettop(s->hlua->T) > 0)
-			act_ret = lua_tointeger(s->hlua->T, -1);
-		hlua_unlock(s->hlua);
+		hlua_lock(hlua);
+		if (lua_gettop(hlua->T) > 0)
+			act_ret = lua_tointeger(hlua->T, -1);
+		hlua_unlock(hlua);
 
 		/* Set timeout in the required channel. */
 		if (act_ret == ACT_RET_YIELD) {
@@ -10490,10 +10495,10 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 
 			if (dir == SMP_OPT_DIR_REQ)
 				s->req.analyse_exp = tick_first((tick_is_expired(s->req.analyse_exp, now_ms) ? 0 : s->req.analyse_exp),
-								s->hlua->wake_time);
+								hlua->wake_time);
 			else
 				s->res.analyse_exp = tick_first((tick_is_expired(s->res.analyse_exp, now_ms) ? 0 : s->res.analyse_exp),
-								s->hlua->wake_time);
+								hlua->wake_time);
 		}
 		goto end;
 
@@ -10502,18 +10507,18 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		/* Set timeout in the required channel. */
 		if (dir == SMP_OPT_DIR_REQ)
 			s->req.analyse_exp = tick_first((tick_is_expired(s->req.analyse_exp, now_ms) ? 0 : s->req.analyse_exp),
-							s->hlua->wake_time);
+							hlua->wake_time);
 		else
 			s->res.analyse_exp = tick_first((tick_is_expired(s->res.analyse_exp, now_ms) ? 0 : s->res.analyse_exp),
-							s->hlua->wake_time);
+							hlua->wake_time);
 
 		/* Some actions can be wake up when a "write" event
 		 * is detected on a response channel. This is useful
 		 * only for actions targeted on the requests.
 		 */
-		if (HLUA_IS_WAKERESWR(s->hlua))
+		if (HLUA_IS_WAKERESWR(hlua))
 			s->res.flags |= CF_WAKE_WRITE;
-		if (HLUA_IS_WAKEREQWR(s->hlua))
+		if (HLUA_IS_WAKEREQWR(hlua))
 			s->req.flags |= CF_WAKE_WRITE;
 		act_ret = ACT_RET_YIELD;
 		goto end;
@@ -10521,11 +10526,11 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
 		/* Display log. */
-		hlua_lock(s->hlua);
+		hlua_lock(hlua);
 		SEND_ERR(px, "Lua function '%s': %s.\n",
-		         rule->arg.hlua_rule->fcn->name, hlua_tostring_safe(s->hlua->T, -1));
-		lua_pop(s->hlua->T, 1);
-		hlua_unlock(s->hlua);
+		         rule->arg.hlua_rule->fcn->name, hlua_tostring_safe(hlua->T, -1));
+		lua_pop(hlua->T, 1);
+		hlua_unlock(hlua);
 		goto end;
 
 	case HLUA_E_ETMOUT:
@@ -10553,8 +10558,8 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	}
 
  end:
-	if (act_ret != ACT_RET_YIELD && s->hlua)
-		s->hlua->wake_time = TICK_ETERNITY;
+	if (act_ret != ACT_RET_YIELD && hlua)
+		hlua->wake_time = TICK_ETERNITY;
 	return act_ret;
 }
 
@@ -11874,9 +11879,10 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 {
 	struct hlua_flt_config *conf = FLT_CONF(filter);
 	struct hlua_flt_ctx *flt_ctx = NULL;
+	struct hlua *hlua = NULL;
 	int ret = 1;
 
-	if (!hlua_stream_ctx_prepare(s, reg_flt_to_stack_id(conf->reg))) {
+	if (!(hlua = hlua_stream_ctx_prepare(s, reg_flt_to_stack_id(conf->reg)))) {
 		SEND_ERR(s->be, "Lua filter '%s': can't initialize filter Lua context.\n",
 			 conf->reg->name);
 		ret = 0;
@@ -11910,92 +11916,92 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 		goto end;
 	}
 
-	if (!HLUA_IS_RUNNING(s->hlua)) {
+	if (!HLUA_IS_RUNNING(hlua)) {
 		/* The following Lua calls can fail. */
-		if (!SET_SAFE_LJMP(s->hlua)) {
+		if (!SET_SAFE_LJMP(hlua)) {
 			const char *error;
 
-			hlua_lock(s->hlua);
-			if (lua_type(s->hlua->T, -1) == LUA_TSTRING)
-				error = hlua_tostring_safe(s->hlua->T, -1);
+			hlua_lock(hlua);
+			if (lua_type(hlua->T, -1) == LUA_TSTRING)
+				error = hlua_tostring_safe(hlua->T, -1);
 			else
 				error = "critical error";
 			SEND_ERR(s->be, "Lua filter '%s': %s.\n", conf->reg->name, error);
-			hlua_unlock(s->hlua);
+			hlua_unlock(hlua);
 			ret = 0;
 			goto end;
 		}
 
 		/* Check stack size. */
-		if (!lua_checkstack(s->hlua->T, 1)) {
+		if (!lua_checkstack(hlua->T, 1)) {
 			SEND_ERR(s->be, "Lua filter '%s': full stack.\n", conf->reg->name);
-			RESET_SAFE_LJMP(s->hlua);
+			RESET_SAFE_LJMP(hlua);
 			ret = 0;
 			goto end;
 		}
 
-		hlua_pushref(s->hlua->T, conf->ref[s->hlua->state_id]);
-		if (lua_getfield(s->hlua->T, -1, "new") != LUA_TFUNCTION) {
+		hlua_pushref(hlua->T, conf->ref[hlua->state_id]);
+		if (lua_getfield(hlua->T, -1, "new") != LUA_TFUNCTION) {
 			SEND_ERR(s->be, "Lua filter '%s': 'new' field is not a function.\n",
 				 conf->reg->name);
-			RESET_SAFE_LJMP(s->hlua);
+			RESET_SAFE_LJMP(hlua);
 			ret = 0;
 			goto end;
 		}
-		lua_insert(s->hlua->T, -2);
+		lua_insert(hlua->T, -2);
 
 		/* Push the copy on the stack */
-		s->hlua->nargs = 1;
+		hlua->nargs = 1;
 
 		/* We must initialize the execution timeouts. */
-		hlua_timer_init(&s->hlua->timer, hlua_timeout_session);
+		hlua_timer_init(&hlua->timer, hlua_timeout_session);
 
 		/* At this point the execution is safe. */
-		RESET_SAFE_LJMP(s->hlua);
+		RESET_SAFE_LJMP(hlua);
 	}
 
-	switch (hlua_ctx_resume(s->hlua, 0)) {
+	switch (hlua_ctx_resume(hlua, 0)) {
 	case HLUA_E_OK:
 		/* The following Lua calls can fail. */
-		if (!SET_SAFE_LJMP(s->hlua)) {
+		if (!SET_SAFE_LJMP(hlua)) {
 			const char *error;
 
-			hlua_lock(s->hlua);
-			if (lua_type(s->hlua->T, -1) == LUA_TSTRING)
-				error = hlua_tostring_safe(s->hlua->T, -1);
+			hlua_lock(hlua);
+			if (lua_type(hlua->T, -1) == LUA_TSTRING)
+				error = hlua_tostring_safe(hlua->T, -1);
 			else
 				error = "critical error";
 			SEND_ERR(s->be, "Lua filter '%s': %s.\n", conf->reg->name, error);
-			hlua_unlock(s->hlua);
+			hlua_unlock(hlua);
 			ret = 0;
 			goto end;
 		}
 
 		/* Nothing returned or not a table, ignore the filter for current stream */
-		if (!lua_gettop(s->hlua->T) || !lua_istable(s->hlua->T, 1)) {
+		if (!lua_gettop(hlua->T) || !lua_istable(hlua->T, 1)) {
 			ret = 0;
-			RESET_SAFE_LJMP(s->hlua);
+			RESET_SAFE_LJMP(hlua);
 			goto end;
 		}
 
 		/* Attached the filter pointer to the ctx */
-		lua_pushstring(s->hlua->T, "__filter");
-		lua_pushlightuserdata(s->hlua->T, filter);
-		lua_settable(s->hlua->T, -3);
+		lua_pushstring(hlua->T, "__filter");
+		lua_pushlightuserdata(hlua->T, filter);
+		lua_settable(hlua->T, -3);
 
 		/* Save a ref on the filter ctx */
-		lua_pushvalue(s->hlua->T, 1);
-		flt_ctx->ref = hlua_ref(s->hlua->T);
+		lua_pushvalue(hlua->T, 1);
+		flt_ctx->ref = hlua_ref(hlua->T);
 
 		/* At this point the execution is safe. */
-		RESET_SAFE_LJMP(s->hlua);
+		RESET_SAFE_LJMP(hlua);
 
 		filter->ctx = flt_ctx;
 		break;
 	case HLUA_E_ERRMSG:
-		hlua_lock(s->hlua);
-		SEND_ERR(s->be, "Lua filter '%s' : %s.\n", conf->reg->name, hlua_tostring_safe(s->hlua->T, -1));
-		hlua_unlock(s->hlua);
+		hlua_lock(hlua);
+		SEND_ERR(s->be, "Lua filter '%s' : %s.\n", conf->reg->name, hlua_tostring_safe(hlua->T, -1));
+		hlua_unlock(hlua);
 		ret = -1;
 		goto end;
 	case HLUA_E_ETMOUT:
@@ -12022,10 +12028,10 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 	}
 
   end:
-	if (s->hlua) {
-		hlua_lock(s->hlua);
-		lua_settop(s->hlua->T, 0);
-		hlua_unlock(s->hlua);
+	if (hlua) {
+		hlua_lock(hlua);
+		lua_settop(hlua->T, 0);
+		hlua_unlock(hlua);
 	}
 	if (ret <= 0) {
 		if (flt_ctx) {
@@ -12040,10 +12046,11 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 static void hlua_filter_delete(struct stream *s, struct filter *filter)
 {
 	struct hlua_flt_ctx *flt_ctx = filter->ctx;
+	struct hlua *hlua = hlua_stream_ctx_get(s);
 
-	hlua_lock(s->hlua);
-	hlua_unref(s->hlua->T, flt_ctx->ref);
-	hlua_unlock(s->hlua);
+	hlua_lock(hlua);
+	hlua_unref(hlua->T, flt_ctx->ref);
+	hlua_unlock(hlua);
 	hlua_ctx_destroy(flt_ctx->hlua[0]);
 	hlua_ctx_destroy(flt_ctx->hlua[1]);
 	pool_free(pool_head_hlua_flt_ctx, flt_ctx);
