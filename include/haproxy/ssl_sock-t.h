@@ -303,6 +303,7 @@ struct global_ssl {
 	int keylog; /* activate keylog  */
 	int extra_files; /* which files not defined in the configuration file are we looking for */
 	int extra_files_noext; /* whether we remove the extension when looking up a extra file */
+	int security_level;    /* configure the openssl security level */
 
 #ifndef OPENSSL_NO_OCSP
 	struct {

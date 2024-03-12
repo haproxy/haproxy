@@ -441,6 +441,8 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 	ctx = SSL_CTX_new(TLS_server_method());
 	bind_conf->initial_ctx = ctx;
 
+	if (global_ssl.security_level > -1)
+		SSL_CTX_set_security_level(ctx, global_ssl.security_level);
 	SSL_CTX_set_options(ctx, options);
 	SSL_CTX_set_mode(ctx, SSL_MODE_RELEASE_BUFFERS);
 	SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);

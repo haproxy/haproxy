@@ -1311,6 +1311,7 @@ The following keywords are supported in the "global" section :
    - ssl-propquery
    - ssl-provider
    - ssl-provider-path
+   - ssl-security-level
    - ssl-server-verify
    - ssl-skip-self-issued-ca
    - stats
@@ -2587,6 +2588,17 @@ ssl-load-extra-files <none|all|bundle|sctl|ocsp|issuer|key>*
 
   See also: "crt", section 5.1 about bind options and section 5.2 about server
   options.
+
+ssl-security-level <number>
+  This directive allows to chose the OpenSSL security level as described in
+  https://www.openssl.org/docs/man1.1.1/man3/SSL_CTX_set_security_level.html
+  The security level will be applied to every SSL contextes in HAProxy.
+  Only a value between 0 and 5 is supported.
+
+  The default value depends on your OpenSSL version, distribution and how was
+  compiled the library.
+
+  This directive requires at least OpenSSL 1.1.1.
 
 ssl-server-verify [none|required]
   The default behavior for SSL verify on servers side. If specified to 'none',

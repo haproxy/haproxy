@@ -136,6 +136,7 @@ struct global_ssl global_ssl = {
 #ifdef HAVE_SSL_KEYLOG
 	.keylog = 0,
 #endif
+	.security_level = -1,
 #ifndef OPENSSL_NO_OCSP
 	.ocsp_update.delay_max = SSL_OCSP_UPDATE_DELAY_MAX,
 	.ocsp_update.delay_min = SSL_OCSP_UPDATE_DELAY_MIN,
@@ -3458,6 +3459,9 @@ int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct 
 		goto error;
 	}
 
+	if (global_ssl.security_level > -1)
+		SSL_CTX_set_security_level(ctx, global_ssl.security_level);
+
 	errcode |= ssl_sock_put_ckch_into_ctx(path, data, ctx, err);
 	if (errcode & ERR_CODE)
 		goto error;
@@ -3611,6 +3615,9 @@ int ckch_inst_new_load_srv_store(const char *path, struct ckch_store *ckchs,
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto error;
 	}
+
+	if (global_ssl.security_level > -1)
+		SSL_CTX_set_security_level(ctx, global_ssl.security_level);
 
 	errcode |= ssl_sock_put_srv_ckch_into_ctx(path, data, ctx, err);
 	if (errcode & ERR_CODE)
@@ -3958,6 +3965,9 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 
 	ctx = SSL_CTX_new(SSLv23_server_method());
 	bind_conf->initial_ctx = ctx;
+
+	if (global_ssl.security_level > -1)
+		SSL_CTX_set_security_level(ctx, global_ssl.security_level);
 
 	if (conf_ssl_methods->flags && (conf_ssl_methods->min || conf_ssl_methods->max))
 		ha_warning("Proxy '%s': no-sslv3/no-tlsv1x are ignored for bind '%s' at [%s:%d]. "
@@ -4955,6 +4965,8 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 			cfgerr++;
 			return cfgerr;
 		}
+		if (global_ssl.security_level > -1)
+			SSL_CTX_set_security_level(ctx, global_ssl.security_level);
 
 		srv->ssl_ctx.ctx = ctx;
 	}
