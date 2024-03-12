@@ -2819,6 +2819,8 @@ struct server *new_server(struct proxy *proxy)
 	srv->agent.proxy = proxy;
 	srv->xprt  = srv->check.xprt = srv->agent.xprt = xprt_get(XPRT_RAW);
 
+	MT_LIST_INIT(&srv->sess_conns);
+
 	srv->extra_counters = NULL;
 #ifdef USE_OPENSSL
 	HA_RWLOCK_INIT(&srv->ssl_ctx.lock);
@@ -5832,6 +5834,7 @@ int srv_check_for_deletion(const char *bename, const char *svname, struct proxy 
 	 * cleanup function should be implemented to be used here.
 	 */
 	if (srv->curr_used_conns || srv->curr_idle_conns ||
+	    !MT_LIST_ISEMPTY(&srv->sess_conns) ||
 	    !eb_is_empty(&srv->queue.head) || srv_has_streams(srv)) {
 		msg = "Server still has connections attached to it, cannot remove it.";
 		goto leave;

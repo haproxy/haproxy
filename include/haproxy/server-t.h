@@ -338,6 +338,7 @@ struct server {
 	unsigned int est_need_conns;            /* Estimate on the number of needed connections (max of curr and previous max_used) */
 
 	struct queue queue;			/* pending connections */
+	struct mt_list sess_conns;		/* list of private conns managed by a session on this server */
 
 	/* Element below are usd by LB algorithms and must be doable in
 	 * parallel to other threads reusing connections above.

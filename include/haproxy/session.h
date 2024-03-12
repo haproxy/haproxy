@@ -161,6 +161,7 @@ static inline void session_unown_conn(struct session *sess, struct connection *c
 		if (pconns->target == conn->target) {
 			if (LIST_ISEMPTY(&pconns->conn_list)) {
 				LIST_DELETE(&pconns->sess_el);
+				MT_LIST_DELETE(&pconns->srv_el);
 				pool_free(pool_head_sess_priv_conns, pconns);
 			}
 			break;
@@ -176,6 +177,7 @@ static inline void session_unown_conn(struct session *sess, struct connection *c
 static inline int session_add_conn(struct session *sess, struct connection *conn, void *target)
 {
 	struct sess_priv_conns *pconns = NULL;
+	struct server *srv = objt_server(conn->target);
 	int found = 0;
 
 	BUG_ON(objt_listener(conn->target));
@@ -198,6 +200,10 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 		pconns->target = target;
 		LIST_INIT(&pconns->conn_list);
 		LIST_APPEND(&sess->priv_conns, &pconns->sess_el);
+
+		MT_LIST_INIT(&pconns->srv_el);
+		if (srv)
+			MT_LIST_APPEND(&srv->sess_conns, &pconns->srv_el);
 	}
 	LIST_APPEND(&pconns->conn_list, &conn->sess_el);
 	return 1;

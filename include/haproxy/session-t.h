@@ -62,11 +62,16 @@ struct session {
 	struct sockaddr_storage *dst; /* destination address (pool), when known, otherwise NULL */
 };
 
-/* List of private conns managed by a session, indexed by server */
+/*
+ * List of private conns managed by a session, indexed by server
+ * Stored both into the session and server instances
+ */
 struct sess_priv_conns {
 	void *target;                   /* Server or dispatch used for indexing */
 	struct list conn_list;          /* Head of the connections list */
+
 	struct list sess_el;            /* Element of session.priv_conns */
+	struct mt_list srv_el;          /* Element of server.sess_conns */
 };
 
 #endif /* _HAPROXY_SESSION_T_H */
