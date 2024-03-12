@@ -3017,6 +3017,12 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 	int i;
 	struct server *newsrv;
 
+	/* Set the first server's ID. */
+	_srv_parse_set_id_from_prefix(srv, srv->tmpl_info.prefix, srv->tmpl_info.nb_low);
+	srv->conf.name.key = srv->id;
+	ebis_insert(&curproxy->conf.used_server_name, &srv->conf.name);
+
+	/* then create other servers from this one */
 	for (i = srv->tmpl_info.nb_low + 1; i <= srv->tmpl_info.nb_high; i++) {
 		newsrv = new_server(px);
 		if (!newsrv)
