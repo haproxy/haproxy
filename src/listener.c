@@ -1602,6 +1602,22 @@ void listener_release(struct listener *l)
 	if (fe && !MT_LIST_ISEMPTY(&fe->listener_queue) &&
 	    (!fe->fe_sps_lim || freq_ctr_remain(&fe->fe_sess_per_sec, fe->fe_sps_lim, 0) > 0))
 		dequeue_proxy_listeners(fe);
+	else {
+		unsigned int wait;
+		int expire = TICK_ETERNITY;
+
+		if (fe->fe_sps_lim &&
+		    (wait = next_event_delay(&fe->fe_sess_per_sec,fe->fe_sps_lim, 0))) {
+			/* we're blocking because a limit was reached on the number of
+			 * requests/s on the frontend. We want to re-check ASAP, which
+			 * means in 1 ms before estimated expiration date, because the
+			 * timer will have settled down.
+			 */
+			expire = tick_first(fe->task->expire, tick_add(now_ms, wait));
+			if (fe->task && tick_isset(expire))
+				task_schedule(fe->task, expire);
+		}
+	}
 }
 
 /* Initializes the listener queues. Returns 0 on success, otherwise ERR_* flags */
