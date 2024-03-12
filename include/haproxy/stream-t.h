@@ -284,7 +284,7 @@ struct stream {
 	int last_rule_line;                     /* last evaluated final rule's line (def: 0) */
 
 	unsigned int stream_epoch;              /* copy of stream_epoch when the stream was created */
-	struct hlua *hlua;                      /* lua runtime context */
+	struct hlua *hlua[2];                   /* lua runtime context (0: global, 1: per-thread) */
 
 	/* Context */
 	struct {

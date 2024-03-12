@@ -330,7 +330,8 @@ struct hlua_flt_config {
 };
 
 struct hlua_flt_ctx {
-	int ref;                 /* ref to the filter lua object */
+	struct hlua *_hlua;      /* main hlua context */
+	int ref;                 /* ref to the filter lua object (in main hlua context) */
 	struct hlua *hlua[2];    /* lua runtime context (0: request, 1: response) */
 	unsigned int cur_off[2]; /* current offset (0: request, 1: response) */
 	unsigned int cur_len[2]; /* current forwardable length (0: request, 1: response) */
@@ -1678,19 +1679,19 @@ static int hlua_ctx_renew(struct hlua *lua, int keep_msg)
 	return 1;
 }
 
-/* Helper function to get the lua ctx for a given stream */
-static inline struct hlua *hlua_stream_ctx_get(struct stream *s)
+/* Helper function to get the lua ctx for a given stream and state_id */
+static inline struct hlua *hlua_stream_ctx_get(struct stream *s, int state_id)
 {
-	return s->hlua;
+	/* state_id == 0 -> global runtime ctx
+	 * state_id != 0 -> per-thread runtime ctx
+	 */
+	return s->hlua[!!state_id];
 }
 
-/* Helper function to prepare the lua ctx for a given stream
+/* Helper function to prepare the lua ctx for a given stream and state id
  *
- * ctx will be enforced in <state_id> parent stack on initial creation.
- * If s->hlua->state_id differs from <state_id>, which may happen at
- * runtime since existing stream hlua ctx will be reused for other
- * "independent" (but stream-related) lua executions, hlua will be
- * recreated with the expected state id.
+ * It uses the global or per-thread ctx depending on the expected
+ * <state_id>.
  *
  * Returns hlua ctx on success and NULL on failure
  */
@@ -1701,8 +1702,7 @@ static struct hlua *hlua_stream_ctx_prepare(struct stream *s, int state_id)
 	 * permits to save performances because a systematic
 	 * Lua initialization cause 5% performances loss.
 	 */
- ctx_renew:
-	if (!s->hlua) {
+	if (!s->hlua[!!state_id]) {
 		struct hlua *hlua;
 
 		hlua = pool_alloc(pool_head_hlua);
@@ -1713,20 +1713,9 @@ static struct hlua *hlua_stream_ctx_prepare(struct stream *s, int state_id)
 			pool_free(pool_head_hlua, hlua);
 			return NULL;
 		}
-		s->hlua = hlua;
+		s->hlua[!!state_id] = hlua;
 	}
-	else if (s->hlua->state_id != state_id) {
-		/* ctx already created, but not in proper state.
-		 * It should only happen after the previous execution is
-		 * finished, otherwise it's probably a bug since we don't
-		 * want to abort unfinished job..
-		 */
-		BUG_ON(HLUA_IS_RUNNING(s->hlua));
-		hlua_ctx_destroy(s->hlua);
-		s->hlua = NULL;
-		goto ctx_renew;
-	}
-	return s->hlua;
+	return s->hlua[!!state_id];
 }
 
 void hlua_hook(lua_State *L, lua_Debug *ar)
@@ -4996,8 +4985,9 @@ __LJMP static int hlua_applet_tcp_get_var(lua_State *L)
 __LJMP static int hlua_applet_tcp_set_priv(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	struct hlua_cli_ctx *cli_ctx = luactx->appctx->svcctx;
 	struct stream *s = luactx->htxn.s;
-	struct hlua *hlua = hlua_stream_ctx_get(s);
+	struct hlua *hlua = hlua_stream_ctx_get(s, cli_ctx->hlua->state_id);
 
 	/* Note that this hlua struct is from the session and not from the applet. */
 	if (!hlua)
@@ -5018,8 +5008,9 @@ __LJMP static int hlua_applet_tcp_set_priv(lua_State *L)
 __LJMP static int hlua_applet_tcp_get_priv(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	struct hlua_cli_ctx *cli_ctx = luactx->appctx->svcctx;
 	struct stream *s = luactx->htxn.s;
-	struct hlua *hlua = hlua_stream_ctx_get(s);
+	struct hlua *hlua = hlua_stream_ctx_get(s, cli_ctx->hlua->state_id);
 
 	/* Note that this hlua struct is from the session and not from the applet. */
 	if (!hlua) {
@@ -5485,8 +5476,9 @@ __LJMP static int hlua_applet_http_get_var(lua_State *L)
 __LJMP static int hlua_applet_http_set_priv(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct hlua_http_ctx *http_ctx = luactx->appctx->svcctx;
 	struct stream *s = luactx->htxn.s;
-	struct hlua *hlua = hlua_stream_ctx_get(s);
+	struct hlua *hlua = hlua_stream_ctx_get(s, http_ctx->hlua->state_id);
 
 	/* Note that this hlua struct is from the session and not from the applet. */
 	if (!hlua)
@@ -5507,8 +5499,9 @@ __LJMP static int hlua_applet_http_set_priv(lua_State *L)
 __LJMP static int hlua_applet_http_get_priv(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct hlua_http_ctx *http_ctx = luactx->appctx->svcctx;
 	struct stream *s = luactx->htxn.s;
-	struct hlua *hlua = hlua_stream_ctx_get(s);
+	struct hlua *hlua = hlua_stream_ctx_get(s, http_ctx->hlua->state_id);
 
 	/* Note that this hlua struct is from the session and not from the applet. */
 	if (!hlua) {
@@ -11996,6 +11989,9 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 		/* At this point the execution is safe. */
 		RESET_SAFE_LJMP(hlua);
 
+		/* save main hlua ctx (from the stream) */
+		flt_ctx->_hlua = hlua;
+
 		filter->ctx = flt_ctx;
 		break;
 	case HLUA_E_ERRMSG:
@@ -12046,7 +12042,7 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 static void hlua_filter_delete(struct stream *s, struct filter *filter)
 {
 	struct hlua_flt_ctx *flt_ctx = filter->ctx;
-	struct hlua *hlua = hlua_stream_ctx_get(s);
+	struct hlua *hlua = hlua_stream_ctx_get(s, flt_ctx->_hlua->state_id);
 
 	hlua_lock(hlua);
 	hlua_unref(hlua->T, flt_ctx->ref);

@@ -537,7 +537,7 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	s->res.analyse_exp = TICK_ETERNITY;
 
 	s->txn = NULL;
-	s->hlua = NULL;
+	s->hlua[0] = s->hlua[1] = NULL;
 
 	s->resolv_ctx.requester = NULL;
 	s->resolv_ctx.hostname_dn = NULL;
@@ -649,8 +649,10 @@ void stream_free(struct stream *s)
 	flt_stream_stop(s);
 	flt_stream_release(s, 0);
 
-	hlua_ctx_destroy(s->hlua);
-	s->hlua = NULL;
+	hlua_ctx_destroy(s->hlua[0]);
+	hlua_ctx_destroy(s->hlua[1]);
+	s->hlua[0] = s->hlua[1] = NULL;
+
 	if (s->txn)
 		http_destroy_txn(s);
 

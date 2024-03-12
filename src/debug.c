@@ -300,9 +300,15 @@ void ha_thread_dump_one(int thr, int from_signal)
 		if (th_ctx->current &&
 		    th_ctx->current->process == process_stream && th_ctx->current->context) {
 			const struct stream *s = (const struct stream *)th_ctx->current->context;
-			struct hlua *hlua = s ? s->hlua : NULL;
+			struct hlua *hlua = NULL;
 
-			if (hlua && HLUA_IS_BUSY(hlua)) {
+			if (s) {
+				if (s->hlua[0] && HLUA_IS_BUSY(s->hlua[0]))
+					hlua = s->hlua[0];
+				else if (s->hlua[1] && HLUA_IS_BUSY(s->hlua[1]))
+					hlua = s->hlua[1];
+			}
+			if (hlua) {
 				mark_tainted(TAINTED_LUA_STUCK);
 				if (hlua->state_id == 0)
 					mark_tainted(TAINTED_LUA_STUCK_SHARED);
@@ -417,8 +423,9 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 
 #ifdef USE_LUA
 	hlua = NULL;
-	if (s && s->hlua && HLUA_IS_BUSY(s->hlua)) {
-		hlua = s->hlua;
+	if (s && ((s->hlua[0] && HLUA_IS_BUSY(s->hlua[0])) ||
+	    (s->hlua[1] && HLUA_IS_BUSY(s->hlua[1])))) {
+		hlua = (s->hlua[0] && HLUA_IS_BUSY(s->hlua[0])) ? s->hlua[0] : s->hlua[1];
 		chunk_appendf(buf, "%sCurrent executing Lua from a stream analyser -- ", pfx);
 	}
 	else if (task->process == hlua_process_task && (hlua = task->context)) {
