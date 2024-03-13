@@ -230,6 +230,11 @@ list of options is :
     getaddrinfo() exist on various systems and cause anomalies that are
     difficult to troubleshoot.
 
+  -dI : enable the insecure fork. This is the equivalent of the
+    "insecure-fork-wanted" in the global section. It can be useful when running
+    all the reg-tests with ASAN which need to fork addr2line to resolve the
+    addresses.
+
   -dK<class[,class]*> : dumps the list of registered keywords in each class.
     The list of classes is available with "-dKhelp". All classes may be dumped
     using "-dKall", otherwise a selection of those shown in the help can be

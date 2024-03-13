@@ -659,6 +659,7 @@ static void usage(char *name)
 		"        -dW fails if any warning is emitted\n"
 		"        -dD diagnostic mode : warn about suspicious configuration statements\n"
 		"        -dF disable fast-forward\n"
+		"        -dI enable insecure fork\n"
 		"        -dZ disable zero-copy forwarding\n"
 		"        -sf/-st [pid ]* finishes/terminates old pids.\n"
 		"        -x <unix_socket> get listening sockets from a unix socket\n"
@@ -1679,6 +1680,8 @@ static void init_args(int argc, char **argv)
 #endif
 			else if (*flag == 'd' && flag[1] == 'F')
 				global.tune.options &= ~GTUNE_USE_FAST_FWD;
+			else if (*flag == 'd' && flag[1] == 'I')
+				global.tune.options |= GTUNE_INSECURE_FORK;
 			else if (*flag == 'd' && flag[1] == 'V')
 				global.ssl_server_verify = SSL_SERVER_VERIFY_NONE;
 			else if (*flag == 'd' && flag[1] == 'Z')

@@ -1975,7 +1975,8 @@ insecure-fork-wanted
   highly recommended that this option is never used and that any workload
   requiring such a fork be reconsidered and moved to a safer solution (such as
   agents instead of external checks). This option supports the "no" prefix to
-  disable it.
+  disable it. This can also be activated with "-dI" on the haproxy command
+  line.
 
 insecure-setuid-wanted
   HAProxy doesn't need to call executables at run time (except when using
