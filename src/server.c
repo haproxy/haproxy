@@ -5828,12 +5828,8 @@ int srv_check_for_deletion(const char *bename, const char *svname, struct proxy 
 	/* Second, conditions that may change over time */
 	ret = 0;
 
-	/* Ensure that there is no active/idle/pending connection on the server.
-	 *
-	 * TODO idle connections should not prevent server deletion. A proper
-	 * cleanup function should be implemented to be used here.
-	 */
-	if (srv->curr_used_conns || srv->curr_idle_conns ||
+	/* Ensure that there is no active/pending connection on the server. */
+	if (srv->curr_used_conns ||
 	    !MT_LIST_ISEMPTY(&srv->sess_conns) ||
 	    !eb_is_empty(&srv->queue.head) || srv_has_streams(srv)) {
 		msg = "Server still has connections attached to it, cannot remove it.";
@@ -5862,7 +5858,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	struct server *prev_del;
 	struct ist be_name, sv_name;
 	const char *msg;
-	int ret;
+	int ret, i;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
@@ -5890,6 +5886,29 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 		cli_err(appctx, msg);
 		goto out;
 	}
+
+	/* Close idle connections attached to this server. */
+	for (i = tid;;) {
+		struct list *list = &srv->per_thr[i].idle_conn_list;
+		struct connection *conn;
+
+		while (!LIST_ISEMPTY(list)) {
+			conn = LIST_ELEM(list->n, struct connection *, idle_list);
+			if (i != tid) {
+				if (conn->mux && conn->mux->takeover)
+					conn->mux->takeover(conn, i, 1);
+				else if (conn->xprt && conn->xprt->takeover)
+					conn->xprt->takeover(conn, conn->ctx, i, 1);
+			}
+			conn_release(conn);
+		}
+
+		if ((i = ((i + 1 == global.nbthread) ? 0 : i + 1)) == tid)
+			break;
+	}
+
+	/* All idle connections should be removed now. */
+	BUG_ON(srv->curr_idle_conns);
 
 	/* removing cannot fail anymore when we reach this:
 	 * publishing EVENT_HDL_SUB_SERVER_DEL
