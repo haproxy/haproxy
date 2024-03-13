@@ -263,6 +263,8 @@ void free_proxy(struct proxy *p)
 	list_for_each_entry_safe(rule, ruleb, &p->switching_rules, list) {
 		LIST_DELETE(&rule->list);
 		free_acl_cond(rule->cond);
+		if (rule->dynamic)
+			free_logformat_list(&rule->be.expr);
 		free(rule->file);
 		free(rule);
 	}
