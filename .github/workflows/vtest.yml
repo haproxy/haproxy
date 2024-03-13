@@ -139,15 +139,15 @@ jobs:
         # This is required for macOS which does not actually allow to increase
         # the '-n' soft limit to the hard limit, thus failing to run.
         ulimit -n 65536
-        make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
+        make reg-tests HAPROXY_ARGS="-dI" VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
     - name: Config syntax check memleak smoke testing
       if: ${{ contains(matrix.name, 'ASAN') }}
       run: |
-        ./haproxy -f .github/h2spec.config -c
-        ./haproxy -f examples/content-sw-sample.cfg -c
-        ./haproxy -f examples/option-http_proxy.cfg -c
-        ./haproxy -f examples/quick-test.cfg -c
-        ./haproxy -f examples/transparent_proxy.cfg -c
+        ./haproxy -dI -f .github/h2spec.config -c
+        ./haproxy -dI -f examples/content-sw-sample.cfg -c
+        ./haproxy -dI -f examples/option-http_proxy.cfg -c
+        ./haproxy -dI -f examples/quick-test.cfg -c
+        ./haproxy -dI -f examples/transparent_proxy.cfg -c
     - name: Show VTest results
       if: ${{ failure() && steps.vtest.outcome == 'failure' }}
       run: |
