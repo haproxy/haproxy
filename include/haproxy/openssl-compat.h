@@ -319,11 +319,6 @@ static inline int ECDSA_SIG_set0(ECDSA_SIG *sig, BIGNUM *r, BIGNUM *s)
 
 #endif
 
-
-#if (HA_OPENSSL_VERSION_NUMBER < 0x10101000L)
-#endif
-
-
 #if (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
 #if defined(SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB)
 #define SSL_CTX_set_tlsext_ticket_key_evp_cb SSL_CTX_set_tlsext_ticket_key_cb
