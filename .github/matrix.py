@@ -117,6 +117,7 @@ def main(ref_name):
                 "TARGET": TARGET,
                 "CC": CC,
                 "FLAGS": [
+                    'DEBUG_CFLAGS="-DDEBUG_LIST"',
                     "USE_ZLIB=1",
                     "USE_OT=1",
                     "OT_INC=${HOME}/opt-ot/include",
