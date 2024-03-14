@@ -129,7 +129,7 @@ int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *
 
 	if (!sess && strm)
 		sess = strm->sess;
-	else if (!sess && conn && LIST_INLIST(&conn->session_list))
+	else if (!sess && conn && LIST_INLIST(&conn->sess_el))
 		sess = conn->owner;
 	else if (!sess && check)
 		sess = check->sess;

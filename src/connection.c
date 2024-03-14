@@ -474,7 +474,7 @@ void conn_init(struct connection *conn, void *target)
 	conn->proxy_netns = NULL;
 	MT_LIST_INIT(&conn->toremove_list);
 	if (conn_is_back(conn))
-		LIST_INIT(&conn->session_list);
+		LIST_INIT(&conn->sess_el);
 	else
 		LIST_INIT(&conn->stopping_list);
 	LIST_INIT(&conn->tlv_list);
@@ -513,7 +513,7 @@ static void conn_backend_deinit(struct connection *conn)
 {
 	/* If the connection is owned by the session, remove it from its list
 	 */
-	if (conn_is_back(conn) && LIST_INLIST(&conn->session_list)) {
+	if (conn_is_back(conn) && LIST_INLIST(&conn->sess_el)) {
 		session_unown_conn(conn->owner, conn);
 	}
 	else if (!(conn->flags & CO_FL_PRIVATE)) {

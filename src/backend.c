@@ -653,9 +653,9 @@ int assign_server(struct stream *s)
 	if ((s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI &&
 	    ((s->sess->flags & SESS_FL_PREFER_LAST) ||
 	     (s->be->options & PR_O_PREF_LAST))) {
-		struct sess_srv_list *srv_list;
-		list_for_each_entry(srv_list, &s->sess->srv_list, srv_list) {
-			struct server *tmpsrv = objt_server(srv_list->target);
+		struct sess_priv_conns *pconns;
+		list_for_each_entry(pconns, &s->sess->priv_conns, sess_el) {
+			struct server *tmpsrv = objt_server(pconns->target);
 
 			if (tmpsrv && tmpsrv->proxy == s->be &&
 			    ((s->sess->flags & SESS_FL_PREFER_LAST) ||
@@ -663,7 +663,7 @@ int assign_server(struct stream *s)
 			      server_has_room(tmpsrv) || (
 			      tmpsrv->queue.length + 1 < s->be->max_ka_queue))) &&
 			    srv_currently_usable(tmpsrv)) {
-				list_for_each_entry(conn, &srv_list->conn_list, session_list) {
+				list_for_each_entry(conn, &pconns->conn_list, sess_el) {
 					if (!(conn->flags & CO_FL_WAIT_XPRT)) {
 						srv = tmpsrv;
 						s->target = &srv->obj_type;

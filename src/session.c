@@ -27,8 +27,8 @@
 
 
 DECLARE_POOL(pool_head_session, "session", sizeof(struct session));
-DECLARE_POOL(pool_head_sess_srv_list, "session server list",
-		sizeof(struct sess_srv_list));
+DECLARE_POOL(pool_head_sess_priv_conns, "session priv conns list",
+             sizeof(struct sess_priv_conns));
 
 int conn_complete_session(struct connection *conn);
 
@@ -61,7 +61,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		sess->t_idle = -1;
 		_HA_ATOMIC_INC(&totalconn);
 		_HA_ATOMIC_INC(&jobs);
-		LIST_INIT(&sess->srv_list);
+		LIST_INIT(&sess->priv_conns);
 		sess->idle_conns = 0;
 		sess->flags = SESS_FL_NONE;
 		sess->src = NULL;
@@ -76,7 +76,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 void session_free(struct session *sess)
 {
 	struct connection *conn, *conn_back;
-	struct sess_srv_list *srv_list, *srv_list_back;
+	struct sess_priv_conns *pconns, *pconns_back;
 
 	if (sess->listener)
 		listener_release(sess->listener);
@@ -86,9 +86,9 @@ void session_free(struct session *sess)
 	conn = objt_conn(sess->origin);
 	if (conn != NULL && conn->mux)
 		conn->mux->destroy(conn->ctx);
-	list_for_each_entry_safe(srv_list, srv_list_back, &sess->srv_list, srv_list) {
-		list_for_each_entry_safe(conn, conn_back, &srv_list->conn_list, session_list) {
-			LIST_DEL_INIT(&conn->session_list);
+	list_for_each_entry_safe(pconns, pconns_back, &sess->priv_conns, sess_el) {
+		list_for_each_entry_safe(conn, conn_back, &pconns->conn_list, sess_el) {
+			LIST_DEL_INIT(&conn->sess_el);
 			if (conn->mux) {
 				conn->owner = NULL;
 				conn->flags &= ~CO_FL_SESS_IDLE;
@@ -102,7 +102,7 @@ void session_free(struct session *sess)
 				conn_free(conn);
 			}
 		}
-		pool_free(pool_head_sess_srv_list, srv_list);
+		pool_free(pool_head_sess_priv_conns, pconns);
 	}
 	sockaddr_free(&sess->src);
 	sockaddr_free(&sess->dst);

@@ -32,7 +32,7 @@
 #include <haproxy/stick_table.h>
 
 extern struct pool_head *pool_head_session;
-extern struct pool_head *pool_head_sess_srv_list;
+extern struct pool_head *pool_head_sess_priv_conns;
 
 struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type *origin);
 void session_free(struct session *sess);
@@ -134,10 +134,12 @@ static inline void session_add_glitch_ctr(struct session *sess, uint inc)
 		__session_add_glitch_ctr(sess, inc);
 }
 
-/* Remove the connection from the session list, and destroy the srv_list if it's now empty */
+/* Remove the connection from the session list, and destroy sess_priv_conns
+ * element if it's now empty.
+ */
 static inline void session_unown_conn(struct session *sess, struct connection *conn)
 {
-	struct sess_srv_list *srv_list = NULL;
+	struct sess_priv_conns *pconns = NULL;
 
 	BUG_ON(objt_listener(conn->target));
 
@@ -148,56 +150,56 @@ static inline void session_unown_conn(struct session *sess, struct connection *c
 	 * conn->owner that points to a dead session, but in this case the
 	 * element is not linked.
 	 */
-	if (!LIST_INLIST(&conn->session_list))
+	if (!LIST_INLIST(&conn->sess_el))
 		return;
 
 	if (conn->flags & CO_FL_SESS_IDLE)
 		sess->idle_conns--;
-	LIST_DEL_INIT(&conn->session_list);
+	LIST_DEL_INIT(&conn->sess_el);
 	conn->owner = NULL;
-	list_for_each_entry(srv_list, &sess->srv_list, srv_list) {
-		if (srv_list->target == conn->target) {
-			if (LIST_ISEMPTY(&srv_list->conn_list)) {
-				LIST_DELETE(&srv_list->srv_list);
-				pool_free(pool_head_sess_srv_list, srv_list);
+	list_for_each_entry(pconns, &sess->priv_conns, sess_el) {
+		if (pconns->target == conn->target) {
+			if (LIST_ISEMPTY(&pconns->conn_list)) {
+				LIST_DELETE(&pconns->sess_el);
+				pool_free(pool_head_sess_priv_conns, pconns);
 			}
 			break;
 		}
 	}
 }
 
-/* Add the connection <conn> to the server list of the session <sess>. This
- * function is called only if the connection is private. Nothing is performed if
- * the connection is already in the session sever list or if the session does
- * not own the connection.
+/* Add the connection <conn> to the private conns list of session <sess>. This
+ * function is called only if the connection is private. Nothing is performed
+ * if the connection is already in the session list or if the session does not
+ * owned the connection.
  */
 static inline int session_add_conn(struct session *sess, struct connection *conn, void *target)
 {
-	struct sess_srv_list *srv_list = NULL;
+	struct sess_priv_conns *pconns = NULL;
 	int found = 0;
 
 	BUG_ON(objt_listener(conn->target));
 
 	/* Already attach to the session or not the connection owner */
-	if (!LIST_ISEMPTY(&conn->session_list) || (conn->owner && conn->owner != sess))
+	if (!LIST_ISEMPTY(&conn->sess_el) || (conn->owner && conn->owner != sess))
 		return 1;
 
-	list_for_each_entry(srv_list, &sess->srv_list, srv_list) {
-		if (srv_list->target == target) {
+	list_for_each_entry(pconns, &sess->priv_conns, sess_el) {
+		if (pconns->target == target) {
 			found = 1;
 			break;
 		}
 	}
 	if (!found) {
 		/* The session has no connection for the server, create a new entry */
-		srv_list = pool_alloc(pool_head_sess_srv_list);
-		if (!srv_list)
+		pconns = pool_alloc(pool_head_sess_priv_conns);
+		if (!pconns)
 			return 0;
-		srv_list->target = target;
-		LIST_INIT(&srv_list->conn_list);
-		LIST_APPEND(&sess->srv_list, &srv_list->srv_list);
+		pconns->target = target;
+		LIST_INIT(&pconns->conn_list);
+		LIST_APPEND(&sess->priv_conns, &pconns->sess_el);
 	}
-	LIST_APPEND(&srv_list->conn_list, &conn->session_list);
+	LIST_APPEND(&pconns->conn_list, &conn->sess_el);
 	return 1;
 }
 
@@ -230,11 +232,11 @@ static inline int session_check_idle_conn(struct session *sess, struct connectio
 static inline struct connection *session_get_conn(struct session *sess, void *target, int64_t hash)
 {
 	struct connection *srv_conn = NULL;
-	struct sess_srv_list *srv_list;
+	struct sess_priv_conns *pconns;
 
-	list_for_each_entry(srv_list, &sess->srv_list, srv_list) {
-		if (srv_list->target == target) {
-			list_for_each_entry(srv_conn, &srv_list->conn_list, session_list) {
+	list_for_each_entry(pconns, &sess->priv_conns, sess_el) {
+		if (pconns->target == target) {
+			list_for_each_entry(srv_conn, &pconns->conn_list, sess_el) {
 				if ((srv_conn->hash_node && srv_conn->hash_node->node.key == hash) &&
 				    srv_conn->mux &&
 				    (srv_conn->mux->avail_streams(srv_conn) > 0) &&
