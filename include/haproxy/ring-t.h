@@ -148,10 +148,10 @@ struct ring {
 
 	/* keep the queue in a separate cache line below */
 	THREAD_PAD(64 - 3*sizeof(void*) - 4*sizeof(int));
-	struct ring_wait_cell *queue; // wait queue
-
-	/* and leave a spacer after it to avoid false sharing */
-	THREAD_PAD(64 - sizeof(void*));
+	struct {
+		struct ring_wait_cell *ptr;
+		THREAD_PAD(64 - sizeof(void*));
+	} queue[RING_WAIT_QUEUES + 1]; // wait queue + 1 spacer
 };
 
 #endif /* _HAPROXY_RING_T_H */

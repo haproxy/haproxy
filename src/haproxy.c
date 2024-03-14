@@ -3150,6 +3150,18 @@ static void *run_thread_poll_loop(void *data)
 #endif
 	ha_thread_info[tid].stack_top = __builtin_frame_address(0);
 
+	/* Assign the ring queue. Contrary to an intuitive thought, this does
+	 * not benefit from locality and it's counter-productive to group
+	 * threads from a same group or range number in the same queue. In some
+	 * sense it arranges us because it means we can use a modulo and ensure
+	 * that even small numbers of threads are well spread.
+	 */
+	ha_thread_info[tid].ring_queue =
+		(tid % MIN(global.nbthread,
+			   (global.tune.ring_queues ?
+			    global.tune.ring_queues :
+			    RING_DFLT_QUEUES))) % RING_WAIT_QUEUES;
+
 	/* thread is started, from now on it is not idle nor harmless */
 	thread_harmless_end();
 	thread_idle_end();

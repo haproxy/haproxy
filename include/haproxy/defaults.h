@@ -532,4 +532,24 @@
 # endif
 #endif
 
+/* number of ring wait queues depending on the number
+ * of threads.
+ */
+#ifndef RING_WAIT_QUEUES
+# if defined(USE_THREAD) && MAX_THREADS >= 32
+#  define RING_WAIT_QUEUES   16
+# elif defined(USE_THREAD)
+#  define RING_WAIT_QUEUES ((MAX_THREADS + 1) / 2)
+# else
+#  define RING_WAIT_QUEUES 1
+# endif
+#endif
+
+/* it has been found that 6 queues was optimal on various archs at various
+ * thread counts, so let's use that by default.
+ */
+#ifndef RING_DFLT_QUEUES
+# define RING_DFLT_QUEUES   6
+#endif
+
 #endif /* _HAPROXY_DEFAULTS_H */

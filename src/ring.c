@@ -22,6 +22,7 @@
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
 #include <haproxy/buf.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/ring.h>
 #include <haproxy/sc_strm.h>
@@ -51,7 +52,7 @@ void ring_init(struct ring *ring, void *area, size_t size, int reset)
 	ring->storage = area;
 	ring->pending = 0;
 	ring->waking = 0;
-	ring->queue = NULL;
+	memset(&ring->queue, 0, sizeof(ring->queue));
 
 	if (reset) {
 		ring->storage->size = size - sizeof(*ring->storage);
@@ -645,6 +646,34 @@ size_t ring_max_payload(const struct ring *ring)
 	max -= varint_bytes(max);
 	return max;
 }
+
+/* config parser for global "tune.ring.queues", accepts a number from 0 to RING_WAIT_QUEUES */
+static int cfg_parse_tune_ring_queues(char **args, int section_type, struct proxy *curpx,
+                                       const struct proxy *defpx, const char *file, int line,
+                                       char **err)
+{
+	int queues;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	queues = atoi(args[1]);
+	if (queues < 0 || queues > RING_WAIT_QUEUES) {
+		memprintf(err, "'%s' expects a number between 0 and %d but got '%s'.", args[0], RING_WAIT_QUEUES, args[1]);
+		return -1;
+	}
+
+	global.tune.ring_queues = queues;
+	return 0;
+}
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "tune.ring.queues", cfg_parse_tune_ring_queues },
+	{ 0, NULL, NULL }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /*
  * Local variables:

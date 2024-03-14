@@ -190,6 +190,7 @@ struct global {
 		int nb_stk_ctr;       /* number of stick counters, defaults to MAX_SESS_STKCTR */
 		int default_shards; /* default shards for listeners, or -1 (by-thread) or -2 (by-group) */
 		uint max_checks_per_thread; /* if >0, no more than this concurrent checks per thread */
+		uint ring_queues;   /* if >0, #ring queues, otherwise equals #thread groups */
 #ifdef USE_QUIC
 		unsigned int quic_backend_max_idle_timeout;
 		unsigned int quic_frontend_max_idle_timeout;

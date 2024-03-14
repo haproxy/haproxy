@@ -1413,6 +1413,7 @@ The following keywords are supported in the "global" section :
    - tune.rcvbuf.frontend
    - tune.rcvbuf.server
    - tune.recv_enough
+   - tune.ring.queues
    - tune.runqueue-depth
    - tune.sched.low-latency
    - tune.sndbuf.backend
@@ -3768,6 +3769,15 @@ tune.recv_enough <number>
   bytes, which defaults to 10136 (7 segments of 1448 each). This default value
   may be changed by this setting to better deal with workloads involving lots
   of short messages such as telnet or SSH sessions.
+
+tune.ring.queues <number>
+  Sets the number of write queues in front of ring buffers. This can have an
+  effect on the CPU usage of traces during debugging sessions, and both too
+  low or too large a value can have an important effect. The good value was
+  determined experimentally by developers and there should be no reason to
+  try to change it unless instructed to do so in order to try to address
+  specific issues. Such a setting should not be left in the configuration
+  across version upgrades because its optimal value may evolve over time.
 
 tune.runqueue-depth <number>
   Sets the maximum amount of task that can be processed at once when running
