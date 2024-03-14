@@ -4105,6 +4105,9 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	curpxopts  = 0;
 	curpxopts2 = 0;
 
+
+	ha_warning("Proxy %s: SPOE filter is deprecated and will be removed in future version.\n", px->id);
+
 	conf = calloc(1, sizeof(*conf));
 	if (conf == NULL) {
 		memprintf(err, "%s: out of memory", args[*cur_arg]);
