@@ -1606,7 +1606,7 @@ void listener_release(struct listener *l)
 		unsigned int wait;
 		int expire = TICK_ETERNITY;
 
-		if (fe->fe_sps_lim &&
+		if (fe->task && fe->fe_sps_lim &&
 		    (wait = next_event_delay(&fe->fe_sess_per_sec,fe->fe_sps_lim, 0))) {
 			/* we're blocking because a limit was reached on the number of
 			 * requests/s on the frontend. We want to re-check ASAP, which
@@ -1614,7 +1614,7 @@ void listener_release(struct listener *l)
 			 * timer will have settled down.
 			 */
 			expire = tick_first(fe->task->expire, tick_add(now_ms, wait));
-			if (fe->task && tick_isset(expire))
+			if (tick_isset(expire))
 				task_schedule(fe->task, expire);
 		}
 	}
