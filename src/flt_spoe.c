@@ -2001,7 +2001,9 @@ spoe_handle_appctx(struct appctx *appctx)
 			return;
 	}
   out:
-	if (SPOE_APPCTX(appctx)->task->expire != TICK_ETERNITY)
+	if (stopping && appctx->st0 == SPOE_APPCTX_ST_IDLE)
+		task_wakeup(SPOE_APPCTX(appctx)->task, TASK_WOKEN_MSG);
+	else if (SPOE_APPCTX(appctx)->task->expire != TICK_ETERNITY)
 		task_queue(SPOE_APPCTX(appctx)->task);
 }
 
