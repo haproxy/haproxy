@@ -72,6 +72,8 @@ struct sess_priv_conns {
 
 	struct list sess_el;            /* Element of session.priv_conns */
 	struct mt_list srv_el;          /* Element of server.sess_conns */
+
+	int tid;
 };
 
 #endif /* _HAPROXY_SESSION_T_H */

@@ -5830,7 +5830,6 @@ int srv_check_for_deletion(const char *bename, const char *svname, struct proxy 
 
 	/* Ensure that there is no active/pending connection on the server. */
 	if (srv->curr_used_conns ||
-	    !MT_LIST_ISEMPTY(&srv->sess_conns) ||
 	    !eb_is_empty(&srv->queue.head) || srv_has_streams(srv)) {
 		msg = "Server still has connections attached to it, cannot remove it.";
 		goto leave;
@@ -5857,6 +5856,8 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	struct server *srv;
 	struct server *prev_del;
 	struct ist be_name, sv_name;
+	struct mt_list *elt1, elt2;
+	struct sess_priv_conns *sess_conns = NULL;
 	const char *msg;
 	int ret, i;
 
@@ -5909,6 +5910,31 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 
 	/* All idle connections should be removed now. */
 	BUG_ON(srv->curr_idle_conns);
+
+	/* Close idle private connections attached to this server. */
+	mt_list_for_each_entry_safe(sess_conns, &srv->sess_conns, srv_el, elt1, elt2) {
+		struct connection *conn, *conn_back;
+		list_for_each_entry_safe(conn, conn_back, &sess_conns->conn_list, sess_el) {
+
+			/* Only idle connections should be present if srv_check_for_deletion() is true. */
+			BUG_ON(!(conn->flags & CO_FL_SESS_IDLE));
+
+			LIST_DEL_INIT(&conn->sess_el);
+			conn->owner = NULL;
+			conn->flags &= ~CO_FL_SESS_IDLE;
+			if (sess_conns->tid != tid) {
+				if (conn->mux && conn->mux->takeover)
+					conn->mux->takeover(conn, sess_conns->tid, 1);
+				else if (conn->xprt && conn->xprt->takeover)
+					conn->xprt->takeover(conn, conn->ctx, sess_conns->tid, 1);
+			}
+			conn_release(conn);
+		}
+
+		LIST_DELETE(&sess_conns->sess_el);
+		MT_LIST_DELETE_SAFE(elt1);
+		pool_free(pool_head_sess_priv_conns, sess_conns);
+	}
 
 	/* removing cannot fail anymore when we reach this:
 	 * publishing EVENT_HDL_SUB_SERVER_DEL

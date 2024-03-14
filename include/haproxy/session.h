@@ -204,6 +204,8 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 		MT_LIST_INIT(&pconns->srv_el);
 		if (srv)
 			MT_LIST_APPEND(&srv->sess_conns, &pconns->srv_el);
+
+		pconns->tid = tid;
 	}
 	LIST_APPEND(&pconns->conn_list, &conn->sess_el);
 
