@@ -115,7 +115,7 @@ struct ring *ring_resize(struct ring *ring, size_t size)
 {
 	struct ring_storage *new;
 
-	if (size <= ring_size(ring) + sizeof(*ring->storage))
+	if (size <= ring_data(ring) + sizeof(*ring->storage))
 		return ring;
 
 	new = malloc(size);
@@ -124,9 +124,8 @@ struct ring *ring_resize(struct ring *ring, size_t size)
 
 	thread_isolate();
 
-	/* recheck the buffer's size, it may have changed during the malloc */
-
-	if (size > ring_size(ring) + sizeof(*ring->storage)) {
+	/* recheck the ring's size, it may have changed during the malloc */
+	if (size > ring_data(ring) + sizeof(*ring->storage)) {
 		/* copy old contents */
 		new->buf = b_make(new->area, size - sizeof(*ring->storage), 0, 0);
 		b_getblk(&ring->storage->buf, new->area, ring_data(ring), 0);

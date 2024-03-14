@@ -907,9 +907,9 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 			goto err;
 		}
 
-		if (size < ring_size(cfg_sink->ctx.ring)) {
-			ha_warning("parsing [%s:%d] : ignoring new size '%llu' that is smaller than current size '%llu' for ring '%s'.\n",
-				   file, linenum, (ullong)size, (ullong)ring_size(cfg_sink->ctx.ring), cfg_sink->name);
+		if (size < ring_data(cfg_sink->ctx.ring)) {
+			ha_warning("parsing [%s:%d] : ignoring new size '%llu' that is smaller than contents '%llu' for ring '%s'.\n",
+				   file, linenum, (ullong)size, (ullong)ring_data(cfg_sink->ctx.ring), cfg_sink->name);
 			err_code |= ERR_WARN;
 			goto err;
 		}
