@@ -267,6 +267,7 @@ unsigned int warned = 0;
 unsigned int tainted = 0;
 
 unsigned int experimental_directives_allowed = 0;
+unsigned int deprecated_directives_allowed = 0;
 
 int check_kw_experimental(struct cfg_keyword *kw, const char *file, int linenum,
                           char **errmsg)

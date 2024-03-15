@@ -78,6 +78,7 @@ static inline int already_warned(unsigned int warning)
 }
 
 extern unsigned int experimental_directives_allowed;
+extern unsigned int deprecated_directives_allowed;
 
 struct cfg_keyword;
 int check_kw_experimental(struct cfg_keyword *kw, const char *file, int linenum,

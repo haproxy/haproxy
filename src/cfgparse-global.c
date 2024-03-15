@@ -75,6 +75,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		alertif_too_many_args(0, file, linenum, args, &err_code);
 		goto out;
 	}
+	else if (strcmp(args[0], "expose-deprecated-directives") == 0) {
+		deprecated_directives_allowed = 1;
+	}
 	else if (strcmp(args[0], "expose-experimental-directives") == 0) {
 		experimental_directives_allowed = 1;
 	}

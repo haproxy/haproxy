@@ -1262,6 +1262,7 @@ The following keywords are supported in the "global" section :
    - deviceatlas-log-level
    - deviceatlas-properties-cookie
    - deviceatlas-separator
+   - expose-deprecated-directives
    - expose-experimental-directives
    - external-check
    - fd-hard-limit
@@ -1737,6 +1738,12 @@ deviceatlas-properties-cookie <name>
 deviceatlas-separator <char>
   Sets the character separator for the API properties results. This directive
   is optional and set to | by default if not set.
+
+expose-deprecated-directives
+  This statement must appear before using some directives tagged as deprecated
+  to silent warnings and make sure the config file will not be rejected. Not
+  all deprecated directives are concerned, only those without any alternative
+  solution.
 
 expose-experimental-directives
   This statement must appear before using directives tagged as experimental or
