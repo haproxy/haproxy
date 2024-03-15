@@ -4106,7 +4106,9 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	curpxopts2 = 0;
 
 
-	ha_warning("Proxy %s: SPOE filter is deprecated and will be removed in future version.\n", px->id);
+	if (!deprecated_directives_allowed)
+		ha_warning("Proxy %s: SPOE filter is deprecated and will be removed in future version. "
+			   "Use 'expose-deprecated-directives' in global section to silent this warning\n", px->id);
 
 	conf = calloc(1, sizeof(*conf));
 	if (conf == NULL) {

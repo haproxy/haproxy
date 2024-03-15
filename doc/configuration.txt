@@ -26625,7 +26625,8 @@ the Stream Processing Offload Protocol (SPOP).
 For all information about the SPOE configuration and the SPOP specification, see
 "doc/SPOE.txt".
 
-WARNING: The SPOE filter is now deprecated.
+WARNING: The SPOE filter is now deprecated. Use 'expose-deprecated-directives'
+         to silent warnings if you must use it.
 
 9.4. Cache
 ----------
