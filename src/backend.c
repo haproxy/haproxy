@@ -1232,7 +1232,7 @@ struct connection *conn_backend_get(struct stream *s, struct server *srv, int is
 			continue;
 		conn = srv_lookup_conn(is_safe ? &srv->per_thr[i].safe_conns : &srv->per_thr[i].idle_conns, hash);
 		while (conn) {
-			if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0) {
+			if (conn->mux->takeover && conn->mux->takeover(conn, i, 0) == 0) {
 				conn_delete_from_tree(conn);
 				_HA_ATOMIC_INC(&activity[tid].fd_takeover);
 				found = 1;
@@ -1245,7 +1245,7 @@ struct connection *conn_backend_get(struct stream *s, struct server *srv, int is
 		if (!found && !is_safe && srv->curr_safe_nb > 0) {
 			conn = srv_lookup_conn(&srv->per_thr[i].safe_conns, hash);
 			while (conn) {
-				if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0) {
+				if (conn->mux->takeover && conn->mux->takeover(conn, i, 0) == 0) {
 					conn_delete_from_tree(conn);
 					_HA_ATOMIC_INC(&activity[tid].fd_takeover);
 					found = 1;

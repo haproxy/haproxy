@@ -7500,25 +7500,27 @@ static int h2_show_sd(struct buffer *msg, struct sedesc *sd, const char *pfx)
  * Return 0 if successful, non-zero otherwise.
  * Expected to be called with the old thread lock held.
  */
-static int h2_takeover(struct connection *conn, int orig_tid)
+static int h2_takeover(struct connection *conn, int orig_tid, int release)
 {
 	struct h2c *h2c = conn->ctx;
 	struct task *task;
-	struct task *new_task;
-	struct tasklet *new_tasklet;
+	struct task *new_task = NULL;
+	struct tasklet *new_tasklet = NULL;
 
 	/* Pre-allocate tasks so that we don't have to roll back after the xprt
 	 * has been migrated.
 	 */
-	new_task = task_new_here();
-	new_tasklet = tasklet_new();
-	if (!new_task || !new_tasklet)
-		goto fail;
+	if (!release) {
+		new_task = task_new_here();
+		new_tasklet = tasklet_new();
+		if (!new_task || !new_tasklet)
+			goto fail;
+	}
 
 	if (fd_takeover(conn->handle.fd, conn) != 0)
 		goto fail;
 
-	if (conn->xprt->takeover && conn->xprt->takeover(conn, conn->xprt_ctx, orig_tid) != 0) {
+	if (conn->xprt->takeover && conn->xprt->takeover(conn, conn->xprt_ctx, orig_tid, release) != 0) {
 		/* We failed to takeover the xprt, even if the connection may
 		 * still be valid, flag it as error'd, as we have already
 		 * taken over the fd, and wake the tasklet, so that it will
@@ -7545,8 +7547,10 @@ static int h2_takeover(struct connection *conn, int orig_tid)
 
 		h2c->task = new_task;
 		new_task = NULL;
-		h2c->task->process = h2_timeout_task;
-		h2c->task->context = h2c;
+		if (!release) {
+			h2c->task->process = h2_timeout_task;
+			h2c->task->context = h2c;
+		}
 	}
 
 	/* To let the tasklet know it should free itself, and do nothing else,
@@ -7556,10 +7560,12 @@ static int h2_takeover(struct connection *conn, int orig_tid)
 	tasklet_wakeup_on(h2c->wait_event.tasklet, orig_tid);
 
 	h2c->wait_event.tasklet = new_tasklet;
-	h2c->wait_event.tasklet->process = h2_io_cb;
-	h2c->wait_event.tasklet->context = h2c;
-	h2c->conn->xprt->subscribe(h2c->conn, h2c->conn->xprt_ctx,
-		                   SUB_RETRY_RECV, &h2c->wait_event);
+	if (!release) {
+		h2c->wait_event.tasklet->process = h2_io_cb;
+		h2c->wait_event.tasklet->context = h2c;
+		h2c->conn->xprt->subscribe(h2c->conn, h2c->conn->xprt_ctx,
+		                           SUB_RETRY_RECV, &h2c->wait_event);
+	}
 
 	if (new_task)
 		__task_free(new_task);

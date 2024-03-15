@@ -393,7 +393,7 @@ struct xprt_ops {
 	int  (*prepare_srv)(struct server *srv);    /* prepare a server context */
 	void (*destroy_srv)(struct server *srv);    /* destroy a server context */
 	int  (*get_alpn)(const struct connection *conn, void *xprt_ctx, const char **str, int *len); /* get application layer name */
-	int (*takeover)(struct connection *conn, void *xprt_ctx, int orig_tid); /* Let the xprt know the fd have been taken over */
+	int (*takeover)(struct connection *conn, void *xprt_ctx, int orig_tid, int release); /* Let the xprt know the fd have been taken over */
 	void (*set_idle)(struct connection *conn, void *xprt_ctx); /* notify the xprt that the connection becomes idle. implies set_used. */
 	void (*set_used)(struct connection *conn, void *xprt_ctx); /* notify the xprt that the connection leaves idle. implies set_idle. */
 	char name[8];                               /* transport layer name, zero-terminated */
@@ -438,7 +438,12 @@ struct mux_ops {
 	int (*used_streams)(struct connection *conn);  /* Returns the number of streams in use on a connection. */
 	void (*destroy)(void *ctx); /* Let the mux know one of its users left, so it may have to disappear */
 	int (*ctl)(struct connection *conn, enum mux_ctl_type mux_ctl, void *arg); /* Provides information about the mux connection */
-	int (*takeover)(struct connection *conn, int orig_tid); /* Attempts to migrate the connection to the current thread */
+
+	/* Attempts to migrate <conn> from <orig_tid> to the current thread. If
+	 * <release> is true, it will be destroyed immediately after by caller.
+	 */
+	int (*takeover)(struct connection *conn, int orig_tid, int release);
+
 	unsigned int flags;                           /* some flags characterizing the mux's capabilities (MX_FL_*) */
 	char name[8];                                 /* mux layer name, zero-terminated */
 };

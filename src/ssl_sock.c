@@ -6151,19 +6151,26 @@ static int ssl_unsubscribe(struct connection *conn, void *xprt_ctx, int event_ty
  * It should be called with the takeover lock for the old thread held.
  * Returns 0 on success, and -1 on failure
  */
-static int ssl_takeover(struct connection *conn, void *xprt_ctx, int orig_tid)
+static int ssl_takeover(struct connection *conn, void *xprt_ctx, int orig_tid, int release)
 {
 	struct ssl_sock_ctx *ctx = xprt_ctx;
-	struct tasklet *tl = tasklet_new();
+	struct tasklet *tl = NULL;
 
-	if (!tl)
-		return -1;
+	if (!release) {
+		tl = tasklet_new();
+		if (!tl)
+			return -1;
+	}
 
 	ctx->wait_event.tasklet->context = NULL;
 	tasklet_wakeup_on(ctx->wait_event.tasklet, orig_tid);
+
 	ctx->wait_event.tasklet = tl;
-	ctx->wait_event.tasklet->process = ssl_sock_io_cb;
-	ctx->wait_event.tasklet->context = ctx;
+	if (!release) {
+		ctx->wait_event.tasklet->process = ssl_sock_io_cb;
+		ctx->wait_event.tasklet->context = ctx;
+	}
+
 	return 0;
 }
 

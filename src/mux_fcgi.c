@@ -4154,25 +4154,27 @@ static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
  * Return 0 if successful, non-zero otherwise.
  * Expected to be called with the old thread lock held.
  */
-static int fcgi_takeover(struct connection *conn, int orig_tid)
+static int fcgi_takeover(struct connection *conn, int orig_tid, int release)
 {
 	struct fcgi_conn *fcgi = conn->ctx;
 	struct task *task;
-	struct task *new_task;
-	struct tasklet *new_tasklet;
+	struct task *new_task = NULL;
+	struct tasklet *new_tasklet = NULL;
 
 	/* Pre-allocate tasks so that we don't have to roll back after the xprt
 	 * has been migrated.
 	 */
-	new_task = task_new_here();
-	new_tasklet = tasklet_new();
-	if (!new_task || !new_tasklet)
-		goto fail;
+	if (!release) {
+		new_task = task_new_here();
+		new_tasklet = tasklet_new();
+		if (!new_task || !new_tasklet)
+			goto fail;
+	}
 
 	if (fd_takeover(conn->handle.fd, conn) != 0)
 		goto fail;
 
-	if (conn->xprt->takeover && conn->xprt->takeover(conn, conn->xprt_ctx, orig_tid) != 0) {
+	if (conn->xprt->takeover && conn->xprt->takeover(conn, conn->xprt_ctx, orig_tid, release) != 0) {
 		/* We failed to takeover the xprt, even if the connection may
 		 * still be valid, flag it as error'd, as we have already
 		 * taken over the fd, and wake the tasklet, so that it will
@@ -4199,8 +4201,10 @@ static int fcgi_takeover(struct connection *conn, int orig_tid)
 
 		fcgi->task = new_task;
 		new_task = NULL;
-		fcgi->task->process = fcgi_timeout_task;
-		fcgi->task->context = fcgi;
+		if (!release) {
+			fcgi->task->process = fcgi_timeout_task;
+			fcgi->task->context = fcgi;
+		}
 	}
 
 	/* To let the tasklet know it should free itself, and do nothing else,
@@ -4210,10 +4214,12 @@ static int fcgi_takeover(struct connection *conn, int orig_tid)
 	tasklet_wakeup_on(fcgi->wait_event.tasklet, orig_tid);
 
 	fcgi->wait_event.tasklet = new_tasklet;
-	fcgi->wait_event.tasklet->process = fcgi_io_cb;
-	fcgi->wait_event.tasklet->context = fcgi;
-	fcgi->conn->xprt->subscribe(fcgi->conn, fcgi->conn->xprt_ctx,
-		                    SUB_RETRY_RECV, &fcgi->wait_event);
+	if (!release) {
+		fcgi->wait_event.tasklet->process = fcgi_io_cb;
+		fcgi->wait_event.tasklet->context = fcgi;
+		fcgi->conn->xprt->subscribe(fcgi->conn, fcgi->conn->xprt_ctx,
+		                            SUB_RETRY_RECV, &fcgi->wait_event);
+	}
 
 	if (new_task)
 		__task_free(new_task);
