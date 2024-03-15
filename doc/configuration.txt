@@ -2273,20 +2273,29 @@ set-var-fmt <var-name> <fmt>
           set-var-fmt proc.bootid        "%pid|%t"
 
 setcap <name>[,<name>...]
-  Sets a list of capabilities that must be preserved when starting with uid 0
-  and switching to a non-zero uid. By default all permissions are lost by the
-  uid switch, but some are often needed when trying connecting to a server from
-  a foreign address during transparent proxying, or when binding to a port
-  below 1024, e.g. when using "tune.quic.socket-owner connection", resulting in
-  setups running entirely under uid 0. Setting capabilities generally is a
-  safer alternative, as only the required capabilities will be preserved. The
-  feature is OS-specific and only enabled on Linux when USE_LINUX_CAP=1 is set
-  at build time. The list of supported capabilities also depends on the OS and
-  is enumerated by the error message displayed when an invalid capability name
-  or an empty one is passed. Multiple capabilities may be passed, delimited by
-  commas. Among those commonly used, "cap_net_raw" allows to transparently bind
-  to a foreign address, and "cap_net_bind_service" allows to bind to a
-  privileged port and may be used by QUIC.
+  Sets a list of capabilities that must be preserved when starting and running
+  either as a non-root user (uid > 0), or when starting with uid 0 (root)
+  and switching then to a non-root. By default all permissions are
+  lost by the uid switch, but some are often needed when trying to connect to
+  a server from a foreign address during transparent proxying, or when binding
+  to a port below 1024, e.g. when using "tune.quic.socket-owner connection",
+  resulting in setups running entirely under uid 0. Setting capabilities
+  generally is a safer alternative, as only the required capabilities will be
+  preserved. The feature is OS-specific and only enabled on Linux when
+  USE_LINUX_CAP=1 is set at build time. The list of supported capabilities also
+  depends on the OS and is enumerated by the error message displayed when an
+  invalid capability name or an empty one is passed. Multiple capabilities may
+  be passed, delimited by commas. Among those commonly used, "cap_net_raw"
+  allows to transparently bind to a foreign address, and "cap_net_bind_service"
+  allows to bind to a privileged port and may be used by QUIC. If the process
+  is started and run under the same non-root user, needed capabilities should
+  be set on haproxy binary file with setcap along with this keyword. For more
+  details about setting capabilities on haproxy binary, please see chapter
+  13.1 Linux capabilities support in the Management guide.
+
+  Example:
+      global
+          setcap cap_net_bind_service,cap_net_admin
 
 setenv <name> <value>
   Sets environment variable <name> to value <value>. If the variable exists, it

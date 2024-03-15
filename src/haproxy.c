@@ -3496,6 +3496,14 @@ int main(int argc, char **argv)
 #endif
 	}
 
+#if defined(USE_LINUX_CAP)
+	/* If CAP_NET_BIND_SERVICE is in binary file permitted set and process
+	 * is started and run under the same non-root user, this allows
+	 * binding to priviledged ports.
+	 */
+	prepare_caps_from_permitted_set(geteuid(), global.uid, argv[0]);
+#endif
+
 	/* Try to get the listeners FD from the previous process using
 	 * _getsocks on the stat socket, it must never been done in wait mode
 	 * and check mode

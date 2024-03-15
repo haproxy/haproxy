@@ -45,6 +45,12 @@ static const struct {
 };
 
 /* provided by sys/capability.h on some distros */
+static inline int capget(cap_user_header_t hdrp, const cap_user_data_t datap)
+{
+	return syscall(SYS_capget, hdrp, datap);
+}
+
+/* provided by sys/capability.h on some distros */
 static inline int capset(cap_user_header_t hdrp, const cap_user_data_t datap)
 {
 	return syscall(SYS_capset, hdrp, datap);
@@ -52,6 +58,78 @@ static inline int capset(cap_user_header_t hdrp, const cap_user_data_t datap)
 
 /* defaults to zero, i.e. we don't keep any cap after setuid() */
 static uint32_t caplist;
+
+/* try to check if CAP_NET_ADMIN or CAP_NET_RAW are in the process effective
+ * set in the case when euid is non-root. If there is a match,
+ * LSTCHK_NETADM is unset from global.last_checks to avoid warning due to
+ * global.last_checks verifications later in the init process.
+ * If there is no CAP_NET_ADMIN, nor CAP_NET_RAW in the effective set, try to
+ * check process permitted set. In this case we promote from permitted set to
+ * effective only the capabilities, that were marked by user via 'capset'
+ * keyword in the global section (caplist). If there is match with
+ * caplist and CAP_NET_ADMIN or/and CAP_NET_RAW in this caplist, LSTCHK_NETADM
+ * will be unset by the same reason.
+ * We do this only if the current euid is non-root and there is no global.uid.
+ * Otherwise the process will continue either to run under root, or it will do
+ * a transition to unpriviledged user later in prepare_caps_for_setuid(),
+ * which specially manages its capabilities in that case.
+ * Always returns 0. Diagnostic warnings will be emitted only, if
+ * LSTCHK_NETADM is presented in LSTCHK_NETADM and some failures are
+ * encountered.
+ */
+int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *program_name)
+{
+	struct __user_cap_data_struct start_cap_data = { };
+	struct __user_cap_header_struct cap_hdr = {
+		.pid = 0, /* current process */
+		.version = _LINUX_CAPABILITY_VERSION_1,
+	};
+
+	/* started as root */
+	if (!from_uid)
+		return 0;
+
+	/* will change ruid and euid later in set_identity() */
+	if (to_uid)
+		return 0;
+
+	/* first, let's check if CAP_NET_ADMIN or CAP_NET_RAW is already in
+	 * the process effective set. This may happen, when administrator sets
+	 * these capabilities and the file effective bit on haproxy binary via
+	 * setcap, see capabilities man page for details.
+	 */
+	if (capget(&cap_hdr, &start_cap_data) == -1) {
+		if (global.last_checks & LSTCHK_NETADM)
+			ha_diag_warning("Failed to get process capabilities using capget(): %s. "
+					"Can't use capabilities that might be set on %s binary "
+					"by administrator.\n", strerror(errno), program_name);
+		return 0;
+	}
+
+	if (start_cap_data.effective & ((1 << CAP_NET_ADMIN)|(1 << CAP_NET_RAW))) {
+		global.last_checks &= ~LSTCHK_NETADM;
+		return 0;
+	}
+
+	/* second, try to check process permitted set, in this case caplist is
+	 * necessary. Allows to put cap_net_bind_service in process effective
+	 * set, if it is in the caplist and also presented in the binary
+	 * permitted set.
+	 */
+	if (caplist && start_cap_data.permitted & caplist) {
+		start_cap_data.effective |= start_cap_data.permitted & caplist;
+		if (capset(&cap_hdr, &start_cap_data) == 0) {
+			if (caplist & ((1 << CAP_NET_ADMIN)|(1 << CAP_NET_RAW)))
+				global.last_checks &= ~LSTCHK_NETADM;
+		} else if (global.last_checks & LSTCHK_NETADM) {
+			ha_diag_warning("Failed to put capabilities from caplist in %s "
+					"process effective capabilities set using capset(): %s\n",
+					program_name, strerror(errno));
+		}
+	}
+
+	return 0;
+}
 
 /* try to apply capabilities before switching UID from <from_uid> to <to_uid>.
  * In practice we need to do this in 4 steps:
