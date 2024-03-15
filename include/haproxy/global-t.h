@@ -46,7 +46,7 @@
 #define	MODE_DUMP_NB_L  0x10000 /* dump line numbers when the configuration file is dump */
 
 /* list of last checks to perform, depending on config options */
-#define LSTCHK_CAP_BIND	0x00000001	/* check that we can bind to any port */
+/* unused: 0x00000001	*/
 #define LSTCHK_NETADM	0x00000002	/* check that we have CAP_NET_ADMIN */
 
 /* Global tuning options */
