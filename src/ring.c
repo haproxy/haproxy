@@ -266,8 +266,6 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	 * comes in and becomes the leader in turn.
 	 */
 
-	next_cell = &cell;
-
 	/* Wait for another thread to take the lead or for the tail to
 	 * be available again. It's critical to be read-only in this
 	 * loop so as not to lose time synchronizing cache lines. Also,
@@ -276,7 +274,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	 */
 
 	while (1) {
-		if ((next_cell = HA_ATOMIC_LOAD(ring_queue_ptr)) != &cell)
+		if ((curr_cell = HA_ATOMIC_LOAD(ring_queue_ptr)) != &cell)
 			goto wait_for_flush;
 		__ha_cpu_relax_for_read();
 
@@ -296,7 +294,6 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 			 * which we'll confirm by trying to reset the queue. If we're
 			 * still the leader, we're done.
 			 */
-			curr_cell = &cell;
 			if (HA_ATOMIC_CAS(ring_queue_ptr, &curr_cell, NULL))
 				break; // Won!
 
