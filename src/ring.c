@@ -272,21 +272,23 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 		 * we must detect a new leader ASAP so that the fewest possible
 		 * threads check the tail.
 		 */
-		while ((tail_ofs = HA_ATOMIC_LOAD(tail_ptr)) & RING_TAIL_LOCK) {
-			next_cell = HA_ATOMIC_LOAD(ring_queue_ptr);
-			if (next_cell != &cell)
-				goto wait_for_flush; // another thread arrived, we should go to wait now
-			__ha_cpu_relax_for_read();
-		}
 
 		/* the tail is available again and we're still the leader, try
 		 * again.
 		 */
-		if (HA_ATOMIC_LOAD(ring_queue_ptr) != &cell)
-			goto wait_for_flush; // another thread arrived, we should go to wait now
+		while (1) {
+			next_cell = HA_ATOMIC_LOAD(ring_queue_ptr);
+			if (next_cell != &cell)
+				goto wait_for_flush; // FIXME: another thread arrived, we should go to wait now
+			__ha_cpu_relax_for_read();
 
+			tail_ofs = HA_ATOMIC_FETCH_OR(tail_ptr, RING_TAIL_LOCK);
+			if (!(tail_ofs & RING_TAIL_LOCK))
+				break;
+
+			__ha_cpu_relax_for_read();
+		}
 		/* OK the queue is locked, let's attempt to get the tail lock */
-		tail_ofs = HA_ATOMIC_FETCH_OR(tail_ptr, RING_TAIL_LOCK);
 
 		/* did we get it ? */
 		if (!(tail_ofs & RING_TAIL_LOCK)) {
