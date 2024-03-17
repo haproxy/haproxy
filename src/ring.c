@@ -274,34 +274,36 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	 * we must detect a new leader ASAP so that the fewest possible
 	 * threads check the tail.
 	 */
-	while (1) {
-		next_cell = HA_ATOMIC_LOAD(ring_queue_ptr);
-		if (next_cell != &cell)
-			goto wait_for_flush; // another thread arrived, we should go to wait now
 
+	while (1) {
+		if ((next_cell = HA_ATOMIC_LOAD(ring_queue_ptr)) != &cell)
+			goto wait_for_flush;
 		__ha_cpu_relax_for_read();
 
 #if defined(__x86_64__)
 		/* x86 prefers a read first */
-		if (!(HA_ATOMIC_LOAD(tail_ptr) & RING_TAIL_LOCK))
+		if ((tail_ofs = HA_ATOMIC_LOAD(tail_ptr)) & RING_TAIL_LOCK)
+			continue;
 #endif
-		{
-			/* OK the queue is locked, let's attempt to get the tail lock */
-			tail_ofs = HA_ATOMIC_FETCH_OR(tail_ptr, RING_TAIL_LOCK);
-			if (!(tail_ofs & RING_TAIL_LOCK)) {
-				/* We got it! Are we still legitimate to get it ?
-				 * We'll know by trying to reset the head and
-				 * replace it with ourselves.
-				 */
-				curr_cell = &cell;
-				if (!HA_ATOMIC_CAS(ring_queue_ptr, &curr_cell, NULL)) {
-					/* oops, no, let's give it back to another thread and wait */
-					HA_ATOMIC_STORE(tail_ptr, tail_ofs);
-					goto wait_for_flush; // another thread arrived, we should go to wait now
-				}
-				/* Won! */
-				break;
-			}
+		/* OK the queue is locked, let's attempt to get the tail lock */
+		tail_ofs = HA_ATOMIC_FETCH_OR(tail_ptr, RING_TAIL_LOCK);
+
+		/* did we get it ? */
+		if (!(tail_ofs & RING_TAIL_LOCK)) {
+			/* Here we own the tail. We can go on if we're still the leader,
+			 * which we'll confirm by trying to reset the queue. If we're
+			 * still the leader, we're done.
+			 */
+			curr_cell = &cell;
+			if (HA_ATOMIC_CAS(ring_queue_ptr, &curr_cell, NULL))
+				break; // Won!
+
+			/* oops, no, let's give it back to another thread and wait.
+			 * This does not happen often enough to warrant more complex
+			 * approaches (tried already).
+			 */
+			HA_ATOMIC_STORE(tail_ptr, tail_ofs);
+			goto wait_for_flush;
 		}
 		__ha_cpu_relax_for_read();
 	}
@@ -440,6 +442,8 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	return sent;
 
  wait_for_flush:
+	/* if we arrive here, it means we found another leader */
+
 	/* The leader will write our own pointer in the cell's next to
 	 * mark it as released. Let's wait for this.
 	 */
