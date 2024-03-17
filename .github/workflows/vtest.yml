@@ -57,6 +57,17 @@ jobs:
       run: |
         echo "key=$(echo ${{ matrix.name }} | sha256sum | awk '{print $1}')" >> $GITHUB_OUTPUT
 
+
+#
+# temporary hack
+# should be revisited after https://github.com/actions/runner-images/issues/9491 is resolved
+#
+
+    - name: Setup enthropy
+      if: ${{ startsWith(matrix.os, 'ubuntu-') }}
+      run: |
+        sudo sysctl vm.mmap_rnd_bits=28
+
     - name: Cache SSL libs
       if: ${{ matrix.ssl && matrix.ssl != 'stock' && matrix.ssl != 'BORINGSSL=yes' && matrix.ssl != 'QUICTLS=yes' }}
       id: cache_ssl
