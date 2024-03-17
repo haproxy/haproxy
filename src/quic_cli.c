@@ -12,7 +12,7 @@
 unsigned int qc_epoch = 0;
 
 enum quic_dump_format {
-	QUIC_DUMP_FMT_DEFAULT, /* value used if not explicitely specified. */
+	QUIC_DUMP_FMT_DEFAULT, /* value used if not explicitly specified. */
 
 	QUIC_DUMP_FMT_ONELINE,
 	QUIC_DUMP_FMT_CUST,
@@ -39,7 +39,7 @@ struct show_quic_ctx {
 
 #define QC_CLI_FL_SHOW_ALL 0x1 /* show closing/draining connections */
 
-/* Returns the output format for show quic. If specified explicitely use it as
+/* Returns the output format for show quic. If specified explicitly use it as
  * set. Else format depends if filtering on a single connection instance. If
  * true, full format is preferred else oneline.
  */
