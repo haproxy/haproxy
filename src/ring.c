@@ -280,10 +280,12 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 			goto wait_for_flush;
 		__ha_cpu_relax_for_read();
 
-#if defined(__x86_64__)
-		/* x86 prefers a read first */
-		if ((tail_ofs = HA_ATOMIC_LOAD(tail_ptr)) & RING_TAIL_LOCK)
+#if !defined(__ARM_FEATURE_ATOMICS)
+		/* ARMv8.1-a has a true atomic OR and doesn't need the preliminary read */
+		if ((tail_ofs = HA_ATOMIC_LOAD(tail_ptr)) & RING_TAIL_LOCK) {
+			__ha_cpu_relax_for_read();
 			continue;
+		}
 #endif
 		/* OK the queue is locked, let's attempt to get the tail lock */
 		tail_ofs = HA_ATOMIC_FETCH_OR(tail_ptr, RING_TAIL_LOCK);
