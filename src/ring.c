@@ -281,11 +281,15 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 			if (next_cell != &cell)
 				goto wait_for_flush; // FIXME: another thread arrived, we should go to wait now
 			__ha_cpu_relax_for_read();
-
-			tail_ofs = HA_ATOMIC_FETCH_OR(tail_ptr, RING_TAIL_LOCK);
-			if (!(tail_ofs & RING_TAIL_LOCK))
-				break;
-
+#if defined(__x86_64__)
+			/* x86 prefers a read first */
+			if (!(HA_ATOMIC_LOAD(tail_ptr) & RING_TAIL_LOCK))
+#endif
+			{
+				tail_ofs = HA_ATOMIC_FETCH_OR(tail_ptr, RING_TAIL_LOCK);
+				if (!(tail_ofs & RING_TAIL_LOCK))
+					break;
+			}
 			__ha_cpu_relax_for_read();
 		}
 		/* OK the queue is locked, let's attempt to get the tail lock */
