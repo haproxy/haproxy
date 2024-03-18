@@ -23,6 +23,7 @@
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/errors.h>
+#include <haproxy/global.h>
 #include <haproxy/tools.h>
 
 /* supported names, zero-terminated */
@@ -59,9 +60,10 @@ static uint32_t caplist;
  *   - switch euid to non-zero
  *   - set the effective and permitted caps again
  *   - then the caller can safely call setuid()
+ * On success LSTCHK_NETADM is unset from global.last_checks, if CAP_NET_ADMIN
+ * or CAP_NET_RAW was found in the caplist from config.
  * We don't do this if the current euid is not zero or if the target uid
- * is zero. Returns >=0 on success, negative on failure. Alerts or warnings
- * may be emitted.
+ * is zero. Returns 0 on success, negative on failure. Alerts may be emitted.
  */
 int prepare_caps_for_setuid(int from_uid, int to_uid)
 {
@@ -101,6 +103,10 @@ int prepare_caps_for_setuid(int from_uid, int to_uid)
 		ha_alert("Failed to set the final capabilities using capset(): %s\n", strerror(errno));
 		return -1;
 	}
+
+	if (caplist & ((1 << CAP_NET_ADMIN)|(1 << CAP_NET_RAW)))
+		global.last_checks &= ~LSTCHK_NETADM;
+
 	/* all's good */
 	return 0;
 }
