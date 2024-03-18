@@ -114,7 +114,11 @@ static inline int http_7239_extract_ipv4(struct ist *input, struct in_addr *ip)
 {
 	char ip4[INET_ADDRSTRLEN];
 	unsigned char buf[sizeof(struct in_addr)];
+	void *dst = buf;
 	int it = 0;
+
+	if (ip)
+		dst = ip;
 
 	/* extract ipv4 addr */
 	while (it < istlen(*input) && it < (sizeof(ip4) - 1)) {
@@ -125,11 +129,9 @@ static inline int http_7239_extract_ipv4(struct ist *input, struct in_addr *ip)
 		it += 1;
 	}
 	ip4[it] = 0;
-	if (inet_pton(AF_INET, ip4, buf) != 1)
+	if (inet_pton(AF_INET, ip4, dst) != 1)
 		return 0; /* invalid ip4 addr */
 	/* ok */
-	if (ip)
-		memcpy(ip, buf, sizeof(buf));
 	*input = istadv(*input, it);
 	return 1;
 }
@@ -146,7 +148,11 @@ static inline int http_7239_extract_ipv6(struct ist *input, struct in6_addr *ip)
 {
 	char ip6[INET6_ADDRSTRLEN];
 	unsigned char buf[sizeof(struct in6_addr)];
+	void *dst = buf;
 	int it = 0;
+
+	if (ip)
+		dst = ip;
 
 	*input = istnext(*input); /* skip '[' leading char */
 	/* extract ipv6 addr */
@@ -162,11 +168,9 @@ static inline int http_7239_extract_ipv6(struct ist *input, struct in6_addr *ip)
 	if ((istlen(*input)-it) < 1 || istptr(*input)[it] != ']')
 		return 0; /* missing ending "]" char */
 	it += 1;
-	if (inet_pton(AF_INET6, ip6, buf) != 1)
+	if (inet_pton(AF_INET6, ip6, dst) != 1)
 		return 0; /* invalid ip6 addr */
 	/* ok */
-	if (ip)
-		memcpy(ip, buf, sizeof(buf));
 	*input = istadv(*input, it);
 	return 1;
 }

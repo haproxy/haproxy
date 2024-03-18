@@ -151,6 +151,12 @@ client c1 -connect ${h1_fe1_sock} {
     expect resp.status == 200
     expect resp.http.nodename == "::1"
     expect resp.http.nodeport == "_id"
+
+    txreq -req GET -url /req4 \
+        -hdr "forwarded: for=127.9.0.1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.nodename == "127.9.0.1"
 } -run
 
 client c2 -connect ${h2_fe1h2_sock} {
