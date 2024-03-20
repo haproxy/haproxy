@@ -1557,11 +1557,17 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		txn->flags |= TX_CON_WANT_TUN;
 	}
 
-	/* check for NTML authentication headers in 401 (WWW-Authenticate) and
-	 * 407 (Proxy-Authenticate) responses and set the connection to private
+	/* Check for NTML authentication headers in 401 (WWW-Authenticate) and
+	 * 407 (Proxy-Authenticate) responses and set the connection to
+	 * private.
+	 *
+	 * Note that this is not performed when using a true multiplexer unless
+	 * connection is already attached to the session as nothing prevents it
+	 * from being shared already by several sessions here.
 	 */
 	srv_conn = sc_conn(s->scb);
-	if (srv_conn) {
+	if (srv_conn &&
+	    (LIST_INLIST(&srv_conn->sess_el) || strcmp(srv_conn->mux->name, "H1") == 0)) {
 		struct ist hdr;
 		struct http_hdr_ctx ctx;
 
