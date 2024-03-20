@@ -112,7 +112,7 @@ haproxy h1 -wait
 
 process p1 "openssl ocsp -index ${testdir}/ocsp_update/index.txt -rsigner ${testdir}/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/ocsp_update/ocsp_update_rootca.crt -nrequest 2 -ndays 1 -port 12346 -timeout 5" -start
 
-barrier b1 cond 2 -cyclic
+barrier b1 cond 3 -cyclic
 
 syslog Syslog_http -level info {
     recv
@@ -124,12 +124,23 @@ syslog Syslog_http -level info {
     barrier b1 sync
 } -start
 
+syslog Syslog_ocsp -level notice {
+    recv
+    expect ~ "<OCSP-UPDATE> .*/ocsp_update/multicert_no_ocsp/server_ocsp_rsa.pem 1 \"Update successful\" 0 1"
+
+    recv
+    expect ~ "<OCSP-UPDATE> .*/ocsp_update/multicert_no_ocsp/server_ocsp_ecdsa.pem 1 \"Update successful\" 0 1"
+
+    barrier b1 sync
+} -start
+
 haproxy h2 -conf {
     global
         tune.ssl.default-dh-param 2048
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h2/stats" level admin
         crt-base ${testdir}/ocsp_update
+        log ${Syslog_ocsp_addr}:${Syslog_ocsp_port} local0 notice notice
 
     defaults
         mode http
@@ -150,7 +161,7 @@ haproxy h2 -conf {
     listen http_rebound_lst
         mode http
         option httplog
-        log ${Syslog_http_addr}:${Syslog_http_port} local0
+        log ${Syslog_http_addr}:${Syslog_http_port} local0 info info
         bind "127.0.0.1:12345"
         server s1 "127.0.0.1:12346"
 } -start
@@ -471,11 +482,18 @@ process p5 -wait
 #
 process p6 "openssl ocsp -index ${testdir}/ocsp_update/index.txt -rsigner ${testdir}/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/ocsp_update/ocsp_update_rootca.crt -nrequest 1 -ndays 1 -port 12346 -timeout 5" -start
 
-barrier b6 cond 2 -cyclic
+barrier b6 cond 3 -cyclic
 
 syslog Syslog_http6 -level info {
     recv
     expect ~ "GET /MEMwQTA%2FMD0wOzAJBgUrDgMCGgUABBSKg%2BAGD6%2F3Ccp%2Bm5VSKi6BY1%2FaCgQU9lKw5DXV6pI4UVCPCtvpLYXeAHoCAhAV HTTP/1.1"
+
+    barrier b6 sync
+} -start
+
+syslog Syslog_ocsp6 -level notice {
+    recv
+    expect ~ "<OCSP-UPDATE> .*/ocsp_update/multicert/server_ocsp.pem.rsa 1 \"Update successful\" 0 1"
 
     barrier b6 sync
 } -start
@@ -486,6 +504,7 @@ haproxy h6 -conf {
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h6/stats" level admin
         crt-base ${testdir}
+        log ${Syslog_ocsp6_addr}:${Syslog_ocsp6_port} local0 notice notice
 
     defaults
         mode http
@@ -503,7 +522,7 @@ haproxy h6 -conf {
     listen http_rebound_lst
         mode http
         option httplog
-        log ${Syslog_http6_addr}:${Syslog_http6_port} local0
+        log ${Syslog_http6_addr}:${Syslog_http6_port} local0 info info
         bind "127.0.0.1:12345"
         server s1 "127.0.0.1:12346"
 } -start
