@@ -206,6 +206,12 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 			MT_LIST_APPEND(&srv->sess_conns, &pconns->srv_el);
 	}
 	LIST_APPEND(&pconns->conn_list, &conn->sess_el);
+
+	/* Ensure owner is set for connection. It could have been resetted
+	 * prior on after a session_add_conn() failure.
+	 */
+	conn->owner = sess;
+
 	return 1;
 }
 
