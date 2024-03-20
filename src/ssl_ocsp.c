@@ -878,7 +878,6 @@ static struct proxy *httpclient_ocsp_update_px;
 static struct ssl_ocsp_task_ctx {
 	struct certificate_ocsp *cur_ocsp;
 	struct httpclient *hc;
-	struct appctx *appctx;
 	int flags;
 	int update_status;
 } ssl_ocsp_task_ctx;
@@ -1111,18 +1110,41 @@ void ocsp_update_response_end_cb(struct httpclient *hc)
 
 
 /*
- * Send a log line that will use the dedicated proxy's error_logformat string.
- * It uses the sess_log function instead of app_log for instance in order to
- * benefit from the "generic" items that can be added to a log format line such
- * as the date and frontend name that can be found at the beginning of the
- * ocspupdate_log_format line.
+ * Send a log line that will mimic this previously used logformat :
+ * char ocspupdate_log_format[] = "%ci:%cp [%tr] %ft %[ssl_ocsp_certname] \
+ * %[ssl_ocsp_status] %{+Q}[ssl_ocsp_status_str] %[ssl_ocsp_fail_cnt] \
+ * %[ssl_ocsp_success_cnt]";
+ * We can't use the regular sess_log function because we don't have any control
+ * over the stream and session used by the httpclient which might not exist
+ * anymore by the time we call this function.
  */
 static void ssl_ocsp_send_log()
 {
-	if (!ssl_ocsp_task_ctx.appctx)
+	int status_str_len = 0;
+	char *status_str = NULL;
+	struct certificate_ocsp *ocsp = ssl_ocsp_task_ctx.cur_ocsp;
+	struct tm tm;
+	char timebuf[25];
+
+	if (!httpclient_ocsp_update_px)
 		return;
 
-	sess_log(ssl_ocsp_task_ctx.appctx->sess);
+	if (ocsp && ssl_ocsp_task_ctx.update_status < OCSP_UPDT_ERR_LAST) {
+		status_str_len = istlen(ocsp_update_errors[ssl_ocsp_task_ctx.update_status]);
+		status_str = istptr(ocsp_update_errors[ssl_ocsp_task_ctx.update_status]);
+	}
+
+	get_localtime(date.tv_sec, &tm);
+	date2str_log(timebuf, &tm, &date, 25);
+
+	send_log(httpclient_ocsp_update_px, LOG_INFO, "-:- [%s] %s %s %u \"%.*s\" %u %u",
+	         timebuf,
+	         httpclient_ocsp_update_px->id,
+	         ocsp->path,
+	         ssl_ocsp_task_ctx.update_status,
+	         status_str_len, status_str,
+	         ocsp ? ocsp->num_failure : 0,
+	         ocsp ? ocsp->num_success : 0);
 }
 
 /*
@@ -1316,7 +1338,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 		hc->ops.res_payload = ocsp_update_response_body_cb;
 		hc->ops.res_end = ocsp_update_response_end_cb;
 
-		if (!(ctx->appctx = httpclient_start(hc))) {
+		if (!httpclient_start(hc)) {
 			goto leave;
 		}
 
@@ -1380,7 +1402,6 @@ http_error:
 	return task;
 }
 
-char ocspupdate_log_format[] = "%ci:%cp [%tr] %ft %[ssl_ocsp_certname] %[ssl_ocsp_status] %{+Q}[ssl_ocsp_status_str] %[ssl_ocsp_fail_cnt] %[ssl_ocsp_success_cnt]";
 
 /*
  * Initialize the proxy for the OCSP update HTTP client with 2 servers, one for
@@ -1392,7 +1413,6 @@ static int ssl_ocsp_update_precheck()
 	httpclient_ocsp_update_px = httpclient_create_proxy("<OCSP-UPDATE>");
 	if (!httpclient_ocsp_update_px)
 		return ERR_RETRYABLE;
-	httpclient_ocsp_update_px->conf.error_logformat_string = strdup(ocspupdate_log_format);
 	httpclient_ocsp_update_px->conf.logformat_string = httpclient_log_format;
 	httpclient_ocsp_update_px->options2 |= PR_O2_NOLOGNORM;
 
