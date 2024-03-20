@@ -89,6 +89,7 @@ void conn_delete_from_tree(struct connection *conn);
 void conn_init(struct connection *conn, void *target);
 struct connection *conn_new(void *target);
 void conn_free(struct connection *conn);
+void conn_release(struct connection *conn);
 struct conn_hash_node *conn_alloc_hash_node(struct connection *conn);
 struct sockaddr_storage *sockaddr_alloc(struct sockaddr_storage **sap, const struct sockaddr_storage *orig, socklen_t len);
 void sockaddr_free(struct sockaddr_storage **sap);

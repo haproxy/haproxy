@@ -89,18 +89,9 @@ void session_free(struct session *sess)
 	list_for_each_entry_safe(pconns, pconns_back, &sess->priv_conns, sess_el) {
 		list_for_each_entry_safe(conn, conn_back, &pconns->conn_list, sess_el) {
 			LIST_DEL_INIT(&conn->sess_el);
-			if (conn->mux) {
-				conn->owner = NULL;
-				conn->flags &= ~CO_FL_SESS_IDLE;
-				conn->mux->destroy(conn->ctx);
-			} else {
-				/* We have a connection, but not yet an associated mux.
-				 * So destroy it now.
-				 */
-				conn_stop_tracking(conn);
-				conn_full_close(conn);
-				conn_free(conn);
-			}
+			conn->owner = NULL;
+			conn->flags &= ~CO_FL_SESS_IDLE;
+			conn_release(conn);
 		}
 		MT_LIST_DELETE(&pconns->srv_el);
 		pool_free(pool_head_sess_priv_conns, pconns);
@@ -323,15 +314,8 @@ int session_accept_fd(struct connection *cli_conn)
 		     MSG_DONTWAIT|MSG_NOSIGNAL);
 	}
 
-	if (cli_conn->mux) {
-		/* Mux is already initialized for active reversed connection. */
-		cli_conn->mux->destroy(cli_conn->ctx);
-	}
-	else {
-		conn_stop_tracking(cli_conn);
-		conn_full_close(cli_conn);
-		conn_free(cli_conn);
-	}
+	/* Mux is already initialized for active reversed connection. */
+	conn_release(cli_conn);
 	listener_release(l);
 	return ret;
 }

@@ -603,6 +603,21 @@ void conn_free(struct connection *conn)
 	pool_free(pool_head_connection, conn);
 }
 
+/* Close all <conn> internal layers accordingly prior to freeing it. */
+void conn_release(struct connection *conn)
+{
+	if (conn->mux) {
+		conn->mux->destroy(conn->ctx);
+	}
+	else {
+		conn_stop_tracking(conn);
+		conn_full_close(conn);
+		if (conn->destroy_cb)
+			conn->destroy_cb(conn);
+		conn_free(conn);
+	}
+}
+
 struct conn_hash_node *conn_alloc_hash_node(struct connection *conn)
 {
 	struct conn_hash_node *hash_node = NULL;
