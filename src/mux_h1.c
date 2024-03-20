@@ -1019,6 +1019,11 @@ static void h1s_finish_detach(struct h1s *h1s)
 				goto end;
 			}
 			/* Always idle at this step */
+
+			/* mark that the tasklet may lose its context to another thread and
+			 * that the handler needs to check it under the idle conns lock.
+			 */
+			HA_ATOMIC_OR(&h1c->wait_event.tasklet->state, TASK_F_USR1);
 			if (session_check_idle_conn(sess, h1c->conn)) {
 				/* The connection got destroyed, let's leave */
 				TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);

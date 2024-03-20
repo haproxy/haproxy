@@ -4819,6 +4819,10 @@ static void h2_detach(struct sedesc *sd)
 					}
 				}
 				if (eb_is_empty(&h2c->streams_by_id)) {
+					/* mark that the tasklet may lose its context to another thread and
+					 * that the handler needs to check it under the idle conns lock.
+					 */
+					HA_ATOMIC_OR(&h2c->wait_event.tasklet->state, TASK_F_USR1);
 					if (session_check_idle_conn(h2c->conn->owner, h2c->conn) != 0) {
 						/* At this point either the connection is destroyed, or it's been added to the server idle list, just stop */
 						TRACE_DEVEL("leaving without reusable idle connection", H2_EV_STRM_END);

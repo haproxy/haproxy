@@ -3581,6 +3581,10 @@ static void fcgi_detach(struct sedesc *sd)
 				}
 			}
 			if (eb_is_empty(&fconn->streams_by_id)) {
+				/* mark that the tasklet may lose its context to another thread and
+				 * that the handler needs to check it under the idle conns lock.
+				 */
+				HA_ATOMIC_OR(&fconn->wait_event.tasklet->state, TASK_F_USR1);
 				if (session_check_idle_conn(fconn->conn->owner, fconn->conn) != 0) {
 					/* The connection is destroyed, let's leave */
 					TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
