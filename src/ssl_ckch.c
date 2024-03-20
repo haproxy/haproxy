@@ -23,6 +23,11 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <openssl/opensslv.h>
+#if OPENSSL_VERSION_NUMBER >= 0x030000000UL
+#include <openssl/store.h>
+#endif
+
 #include <import/ebpttree.h>
 #include <import/ebsttree.h>
 
@@ -508,6 +513,60 @@ end:
 }
 
 /*
+ *  Helper function to read a private key from a BIO or string
+ *
+ *  The string is used by pkcs11-provider PEM formatted files
+ *
+ *  Return non-NULL EVP_PKEY *pkey on success, NULL on failure
+ */
+static EVP_PKEY *load_private_key(BIO *in, const char *key_id)
+{
+#if OPENSSL_VERSION_NUMBER < 0x030000000UL
+	return PEM_read_bio_PrivateKey(in, NULL, NULL, NULL);
+#else
+	int type = 0;
+	EVP_PKEY *pkey = NULL;
+	OSSL_STORE_CTX *ctx = NULL;
+
+	if ((pkey = PEM_read_bio_PrivateKey(in, NULL, NULL, NULL)))
+		return pkey;
+
+	/* try loading the private key from the path  */
+	ctx = OSSL_STORE_open_ex(key_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+	if(!ctx) {
+		goto error;
+	}
+
+	OSSL_STORE_expect(ctx, OSSL_STORE_INFO_PKEY);
+
+	while(!(OSSL_STORE_eof(ctx))) {
+		OSSL_STORE_INFO *info = OSSL_STORE_load(ctx);
+		if(info == NULL)
+			continue;
+
+		type = OSSL_STORE_INFO_get_type(info);
+
+		switch(type) {
+		case OSSL_STORE_INFO_PKEY:
+			pkey = OSSL_STORE_INFO_get1_PKEY(info);
+			ha_notice("loaded private key from %s\n", key_id);
+			break;
+		default:
+			continue;
+			break;
+		}
+		OSSL_STORE_INFO_free(info);
+		if(pkey)
+			break;
+	}
+
+	OSSL_STORE_close(ctx);
+error:
+	return pkey;
+#endif
+}
+
+/*
  *  Try to load a private key file from a <path> or a buffer <buf>
  *
  *  If it failed you should not attempt to use the ckch but free it.
@@ -539,7 +598,7 @@ int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct ckch_data *d
 	}
 
 	/* Read Private Key */
-	key = PEM_read_bio_PrivateKey(in, NULL, NULL, NULL);
+	key = load_private_key(in, path);
 	if (key == NULL) {
 		memprintf(err, "%sunable to load private key from file '%s'.\n",
 		          err && *err ? *err : "", path);
@@ -604,7 +663,7 @@ int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct ckch_data *d
 	}
 
 	/* Read Private Key */
-	key = PEM_read_bio_PrivateKey(in, NULL, NULL, NULL);
+	key = load_private_key(in, path);
 	/* no need to check for errors here, because the private key could be loaded later */
 
 #ifndef OPENSSL_NO_DH
@@ -3976,4 +4035,3 @@ static struct cli_kw_list cli_kws = {{ },{
 }};
 
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
-
