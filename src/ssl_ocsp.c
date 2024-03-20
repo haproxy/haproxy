@@ -1890,93 +1890,6 @@ static void cli_release_show_ocsp_updates(struct appctx *appctx)
 }
 
 
-static int
-smp_fetch_ssl_ocsp_certid(const struct arg *args, struct sample *smp, const char *kw, void *private)
-{
-	struct buffer *data = get_trash_chunk();
-	struct certificate_ocsp *ocsp = ssl_ocsp_task_ctx.cur_ocsp;
-
-	if (!ocsp)
-		return 0;
-
-	dump_binary(data, (char *)ocsp->key_data, ocsp->key_length);
-
-	smp->data.type = SMP_T_STR;
-	smp->data.u.str = *data;
-	return 1;
-}
-
-static int
-smp_fetch_ssl_ocsp_certname(const struct arg *args, struct sample *smp, const char *kw, void *private)
-{
-	struct certificate_ocsp *ocsp = ssl_ocsp_task_ctx.cur_ocsp;
-
-	if (!ocsp)
-		return 0;
-
-	smp->data.type = SMP_T_STR;
-	smp->data.u.str.area = ocsp->path;
-	smp->data.u.str.data = strlen(ocsp->path);
-	return 1;
-}
-
-static int
-smp_fetch_ssl_ocsp_status(const struct arg *args, struct sample *smp, const char *kw, void *private)
-{
-	struct certificate_ocsp *ocsp = ssl_ocsp_task_ctx.cur_ocsp;
-
-	if (!ocsp)
-		return 0;
-
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = ssl_ocsp_task_ctx.update_status;
-	return 1;
-}
-
-static int
-smp_fetch_ssl_ocsp_status_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
-{
-	struct certificate_ocsp *ocsp = ssl_ocsp_task_ctx.cur_ocsp;
-
-	if (!ocsp)
-		return 0;
-
-	if (ssl_ocsp_task_ctx.update_status >= OCSP_UPDT_ERR_LAST)
-		return 0;
-
-	smp->data.type = SMP_T_STR;
-	smp->data.u.str = ist2buf(ocsp_update_errors[ssl_ocsp_task_ctx.update_status]);
-
-	return 1;
-}
-
-static int
-smp_fetch_ssl_ocsp_fail_cnt(const struct arg *args, struct sample *smp, const char *kw, void *private)
-{
-	struct certificate_ocsp *ocsp = ssl_ocsp_task_ctx.cur_ocsp;
-
-	if (!ocsp)
-		return 0;
-
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = ocsp->num_failure;
-	return 1;
-}
-
-static int
-smp_fetch_ssl_ocsp_success_cnt(const struct arg *args, struct sample *smp, const char *kw, void *private)
-{
-	struct certificate_ocsp *ocsp = ssl_ocsp_task_ctx.cur_ocsp;
-
-	if (!ocsp)
-		return 0;
-
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = ocsp->num_success;
-	return 1;
-}
-
-
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "ocsp-response", NULL }, "set ssl ocsp-response <resp|payload>       : update a certificate's OCSP Response from a base64-encode DER",      cli_parse_set_ocspresponse, NULL },
 
@@ -1989,26 +1902,6 @@ static struct cli_kw_list cli_kws = {{ },{
 }};
 
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
-
-
-/* Note: must not be declared <const> as its list will be overwritten.
- * Please take care of keeping this list alphabetically sorted.
- *
- * Those fetches only have a valid value during an OCSP update process so they
- * can only be used in a log format of a log line built by the update process
- * task itself.
- */
-static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
-	{ "ssl_ocsp_certid",                 smp_fetch_ssl_ocsp_certid,             0,                   NULL,    SMP_T_STR, SMP_USE_L5SRV },
-	{ "ssl_ocsp_certname",               smp_fetch_ssl_ocsp_certname,           0,                   NULL,    SMP_T_STR, SMP_USE_L5SRV },
-	{ "ssl_ocsp_status",                 smp_fetch_ssl_ocsp_status,             0,                   NULL,    SMP_T_SINT, SMP_USE_L5SRV },
-	{ "ssl_ocsp_status_str",             smp_fetch_ssl_ocsp_status_str,         0,                   NULL,    SMP_T_STR, SMP_USE_L5SRV },
-	{ "ssl_ocsp_fail_cnt",               smp_fetch_ssl_ocsp_fail_cnt,           0,                   NULL,    SMP_T_SINT, SMP_USE_L5SRV },
-	{ "ssl_ocsp_success_cnt",            smp_fetch_ssl_ocsp_success_cnt,        0,                   NULL,    SMP_T_SINT, SMP_USE_L5SRV },
-	{ NULL, NULL, 0, 0, 0 },
-}};
-
-INITCALL1(STG_REGISTER, sample_register_fetches, &sample_fetch_keywords);
 
 
 /*
