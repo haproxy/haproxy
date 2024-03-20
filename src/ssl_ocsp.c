@@ -1110,10 +1110,8 @@ void ocsp_update_response_end_cb(struct httpclient *hc)
 
 
 /*
- * Send a log line that will mimic this previously used logformat :
- * char ocspupdate_log_format[] = "%ci:%cp [%tr] %ft %[ssl_ocsp_certname] \
- * %[ssl_ocsp_status] %{+Q}[ssl_ocsp_status_str] %[ssl_ocsp_fail_cnt] \
- * %[ssl_ocsp_success_cnt]";
+ * Send a log line that will contain only OCSP update related information:
+ * "<proxy_name> <ssl_ocsp_certname> <ocsp_status> \"<ocsp_status_str>\" <ocsp_fail_cnt> <ocsp_success_cnt>"
  * We can't use the regular sess_log function because we don't have any control
  * over the stream and session used by the httpclient which might not exist
  * anymore by the time we call this function.
@@ -1123,8 +1121,6 @@ static void ssl_ocsp_send_log()
 	int status_str_len = 0;
 	char *status_str = NULL;
 	struct certificate_ocsp *ocsp = ssl_ocsp_task_ctx.cur_ocsp;
-	struct tm tm;
-	char timebuf[25];
 
 	if (!httpclient_ocsp_update_px)
 		return;
@@ -1134,11 +1130,7 @@ static void ssl_ocsp_send_log()
 		status_str = istptr(ocsp_update_errors[ssl_ocsp_task_ctx.update_status]);
 	}
 
-	get_localtime(date.tv_sec, &tm);
-	date2str_log(timebuf, &tm, &date, 25);
-
-	send_log(httpclient_ocsp_update_px, LOG_INFO, "-:- [%s] %s %s %u \"%.*s\" %u %u",
-	         timebuf,
+	send_log(httpclient_ocsp_update_px, LOG_INFO, "%s %s %u \"%.*s\" %u %u",
 	         httpclient_ocsp_update_px->id,
 	         ocsp->path,
 	         ssl_ocsp_task_ctx.update_status,
