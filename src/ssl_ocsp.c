@@ -1130,7 +1130,7 @@ static void ssl_ocsp_send_log()
 		status_str = istptr(ocsp_update_errors[ssl_ocsp_task_ctx.update_status]);
 	}
 
-	send_log(httpclient_ocsp_update_px, LOG_INFO, "%s %s %u \"%.*s\" %u %u",
+	send_log(httpclient_ocsp_update_px, LOG_NOTICE, "%s %s %u \"%.*s\" %u %u",
 	         httpclient_ocsp_update_px->id,
 	         ocsp->path,
 	         ssl_ocsp_task_ctx.update_status,

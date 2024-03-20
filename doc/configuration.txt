@@ -16095,12 +16095,12 @@ ocsp-update [ off | on ] (crt-list only)
   Here are two examples of such log lines, with a successful OCSP update log
   line first and then an example of an HTTP error with the two different lines
   (lines were spit and the URL was shortened for readability):
-    <134>Mar  6 11:16:53 haproxy[14872]: <OCSP-UPDATE> /path_to_cert/foo.pem 1 \
+    <133>Mar  6 11:16:53 haproxy[14872]: <OCSP-UPDATE> /path_to_cert/foo.pem 1 \
             "Update successful" 0 1
 
-    <134>Mar  6 11:18:55 haproxy[14872]: <OCSP-UPDATE> /path_to_cert/bar.pem 2 \
+    <133>Mar  6 11:18:55 haproxy[14872]: <OCSP-UPDATE> /path_to_cert/bar.pem 2 \
             "HTTP error" 1 0
-    <134>Mar  6 11:18:55 haproxy[14872]: -:- [06/Mar/2023:11:18:52.200] \
+    <133>Mar  6 11:18:55 haproxy[14872]: -:- [06/Mar/2023:11:18:52.200] \
             <OCSP-UPDATE> -/- 2/0/-1/-1/3009 503 217 - - SC-- 0/0/0/0/3 0/0 {} \
             "GET http://127.0.0.1:12345/MEMwQT HTTP/1.1"
 
