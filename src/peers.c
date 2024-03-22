@@ -3347,6 +3347,7 @@ static void __process_peer_learn_status(struct peers *peers, struct peer *peer)
 			peer->flags |= PEER_F_LEARN_NOTUP2DATE;
 			for (ps = peers->remote; ps; ps = ps->next) {
 				if (ps->srv->shard && ps != peer) {
+					HA_SPIN_LOCK(PEER_LOCK, &ps->lock);
 					if (ps->srv->shard == peer->srv->shard) {
 						/* flag all peers from same shard
 						 * notup2date to disable request
@@ -3361,6 +3362,7 @@ static void __process_peer_learn_status(struct peers *peers, struct peer *peer)
 						 */
 						commit_a_finish = 0;
 					}
+					HA_SPIN_UNLOCK(PEER_LOCK, &ps->lock);
 				}
 			}
 
@@ -3447,10 +3449,6 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 	struct peer *ps;
 	struct shared_table *st;
 
-	/* Acquire lock for all peers of the section */
-	for (ps = peers->remote; ps; ps = ps->next)
-		HA_SPIN_LOCK(PEER_LOCK, &ps->lock);
-
 	/* resync timeout set to TICK_ETERNITY means we just start
 	 * a new process and timer was not initialized.
 	 * We must arm this timer to switch to a request to a remote
@@ -3478,6 +3476,8 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 
 	/* For each session */
 	for (ps = peers->remote; ps; ps = ps->next) {
+		HA_SPIN_LOCK(PEER_LOCK, &ps->lock);
+
 		__process_peer_learn_status(peers, ps);
 		__process_peer_state(peers, ps);
 
@@ -3581,6 +3581,8 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 				/* else do nothing */
 			} /* SUCCESSCODE */
 		} /* !ps->peer->local */
+
+		HA_SPIN_UNLOCK(PEER_LOCK, &ps->lock);
 	} /* for */
 
 	/* Resync from remotes expired: consider resync is finished */
@@ -3602,10 +3604,6 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 		if (!tick_is_expired(peers->resync_timeout, now_ms))
 			task->expire = tick_first(task->expire, peers->resync_timeout);
 	}
-
-	/* Release lock for all peers of the section */
-	for (ps = peers->remote; ps; ps = ps->next)
-		HA_SPIN_UNLOCK(PEER_LOCK, &ps->lock);
 }
 
 static void __process_stopping_peer_sync(struct task *task, struct peers *peers, unsigned int state)
@@ -3613,12 +3611,11 @@ static void __process_stopping_peer_sync(struct task *task, struct peers *peers,
 	struct peer *ps;
 	struct shared_table *st;
 
-	/* Acquire lock for all peers of the section */
-	for (ps = peers->remote; ps; ps = ps->next)
-		HA_SPIN_LOCK(PEER_LOCK, &ps->lock);
 
 	/* For each peer */
 	for (ps = peers->remote; ps; ps = ps->next) {
+		HA_SPIN_LOCK(PEER_LOCK, &ps->lock);
+
 		__process_peer_learn_status(peers, ps);
 		__process_peer_state(peers, ps);
 
@@ -3632,6 +3629,8 @@ static void __process_stopping_peer_sync(struct task *task, struct peers *peers,
 				peer_session_forceshutdown(ps);
 			}
 		}
+
+		HA_SPIN_UNLOCK(PEER_LOCK, &ps->lock);
 	}
 
 	/* We've just received the signal */
@@ -3648,6 +3647,7 @@ static void __process_stopping_peer_sync(struct task *task, struct peers *peers,
 	}
 
 	ps = peers->local;
+	HA_SPIN_LOCK(PEER_LOCK, &ps->lock);
 	if (ps->flags & PEER_F_TEACH_COMPLETE) {
 		if (peers->flags & PEERS_F_DONOTSTOP) {
 			/* resync of new process was complete, current process can die now */
@@ -3711,11 +3711,7 @@ static void __process_stopping_peer_sync(struct task *task, struct peers *peers,
 			}
 		}
 	}
-
-	/* Release lock for all peers of the section */
-	for (ps = peers->remote; ps; ps = ps->next)
-		HA_SPIN_UNLOCK(PEER_LOCK, &ps->lock);
-
+	HA_SPIN_UNLOCK(PEER_LOCK, &ps->lock);
 }
 
 /*
