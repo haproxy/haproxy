@@ -100,6 +100,7 @@
 #define PEER_F_ST_CONNECTED         0x00000200 /* Used to set a peer in connected state.  */
 #define PEER_F_ST_RENEWED           0x00000400 /* Used to set a peer in accepted state and old connection was replaced.  */
 #define PEER_F_ST_RELEASED          0x00000800 /* Used to set a peer in released state.  */
+#define PEER_F_RESYNC_REQUESTED     0x00001000 /* A resnyc was explicitly requested */
 #define PEER_F_ALIVE                0x20000000 /* Used to flag a peer a alive. */
 #define PEER_F_HEARTBEAT            0x40000000 /* Heartbeat message to send. */
 #define PEER_F_DWNGRD               0x80000000 /* When this flag is enabled, we must downgrade the supported version announced during peer sessions. */
@@ -2506,8 +2507,7 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 			peer->flags &= PEER_TEACH_RESET;
 
 			/* flag to start to teach lesson */
-			peer->flags |= PEER_F_TEACH_PROCESS;
-			peers->flags |= PEERS_F_RESYNC_REQUESTED;
+			peer->flags |= (PEER_F_TEACH_PROCESS|PEER_F_RESYNC_REQUESTED);
 		}
 		else if (msg_head[1] == PEER_MSG_CTRL_RESYNCFINISHED) {
 			TRACE_PROTO("received control message", PEERS_EV_CTRLMSG,
@@ -3417,6 +3417,8 @@ static void __process_peer_learn_status(struct peers *peers, struct peer *peer)
 
 static void __process_peer_state(struct peers *peers, struct peer *peer)
 {
+	if (peer->flags & PEER_F_RESYNC_REQUESTED)
+		peers->flags |= PEERS_F_RESYNC_REQUESTED;
 }
 
 static void __process_running_peer_sync(struct task *task, struct peers *peers, unsigned int state)
