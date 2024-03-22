@@ -173,6 +173,7 @@ void ring_free(struct ring *ring)
  */
 ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], size_t npfx, const struct ist msg[], size_t nmsg)
 {
+	size_t *tail_ptr = &ring->storage->tail;
 	size_t head_ofs, tail_ofs, new_tail_ofs;
 	size_t ring_size;
 	char *ring_area;
@@ -239,10 +240,10 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	 * change (use it as a ticket).
 	 */
 	while (1) {
-		tail_ofs = HA_ATOMIC_FETCH_OR(&ring->storage->tail, RING_TAIL_LOCK);
+		tail_ofs = HA_ATOMIC_FETCH_OR(tail_ptr, RING_TAIL_LOCK);
 		if (!(tail_ofs & RING_TAIL_LOCK))
 			break;
-		pl_wait_unlock_long(&ring->storage->tail, RING_TAIL_LOCK);
+		pl_wait_unlock_long(tail_ptr, RING_TAIL_LOCK);
 	}
 
 	head_ofs = HA_ATOMIC_LOAD(&ring->storage->head);
@@ -291,7 +292,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	}
 
 	/* and release other writers */
-	HA_ATOMIC_STORE(&ring->storage->tail, new_tail_ofs);
+	HA_ATOMIC_STORE(tail_ptr, new_tail_ofs);
 
 	if (vp_size(v1, v2) > ring_size - needed - 1 - 1) {
 		/* we had to stop due to readers blocking the head,
