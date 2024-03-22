@@ -3411,6 +3411,14 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	return NULL;
 }
 
+static void __process_peer_learn_status(struct peers *peers, struct peer *peer)
+{
+}
+
+static void __process_peer_state(struct peers *peers, struct peer *peer)
+{
+}
+
 static void __process_running_peer_sync(struct task *task, struct peers *peers, unsigned int state)
 {
 	struct peer *ps;
@@ -3447,6 +3455,9 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 
 	/* For each session */
 	for (ps = peers->remote; ps; ps = ps->next) {
+		__process_peer_learn_status(peers, ps);
+		__process_peer_state(peers, ps);
+
 		/* For each remote peers */
 		if (!ps->local) {
 			if (!ps->appctx) {
@@ -3585,6 +3596,9 @@ static void __process_stopping_peer_sync(struct task *task, struct peers *peers,
 
 	/* For each peer */
 	for (ps = peers->remote; ps; ps = ps->next) {
+		__process_peer_learn_status(peers, ps);
+		__process_peer_state(peers, ps);
+
 		if ((state & TASK_WOKEN_SIGNAL) && !(peers->flags & PEERS_F_DONOTSTOP)) {
 			/* we're killing a connection, we must apply a random delay before
 			 * retrying otherwise the other end will do the same and we can loop
