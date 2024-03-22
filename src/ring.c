@@ -411,7 +411,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 		/* now release */
 		for (curr_cell = &cell; curr_cell; curr_cell = next_cell) {
 			next_cell = HA_ATOMIC_LOAD(&curr_cell->next);
-			HA_ATOMIC_STORE(&curr_cell->next, curr_cell);
+			_HA_ATOMIC_STORE(&curr_cell->next, curr_cell);
 		}
 
 		/* unlock the message area */
@@ -421,7 +421,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 		for (curr_cell = &cell; curr_cell; curr_cell = next_cell) {
 			next_cell = HA_ATOMIC_LOAD(&curr_cell->next);
 			HA_ATOMIC_STORE(&curr_cell->to_send_self, 0);
-			HA_ATOMIC_STORE(&curr_cell->next, curr_cell);
+			_HA_ATOMIC_STORE(&curr_cell->next, curr_cell);
 		}
 	}
 
