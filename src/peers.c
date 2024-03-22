@@ -3583,27 +3583,26 @@ static void __process_stopping_peer_sync(struct task *task, struct peers *peers,
 	for (ps = peers->remote; ps; ps = ps->next)
 		HA_SPIN_LOCK(PEER_LOCK, &ps->lock);
 
+	/* For each peer */
+	for (ps = peers->remote; ps; ps = ps->next) {
+		if ((state & TASK_WOKEN_SIGNAL) && !(peers->flags & PEERS_F_DONOTSTOP)) {
+			/* we're killing a connection, we must apply a random delay before
+			 * retrying otherwise the other end will do the same and we can loop
+			 * for a while.
+			 */
+			ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
+			if (ps->appctx) {
+				peer_session_forceshutdown(ps);
+			}
+		}
+	}
+
+	/* We've just received the signal */
 	if (state & TASK_WOKEN_SIGNAL) {
-		/* We've just received the signal */
 		if (!(peers->flags & PEERS_F_DONOTSTOP)) {
 			/* add DO NOT STOP flag if not present */
 			_HA_ATOMIC_INC(&jobs);
 			peers->flags |= PEERS_F_DONOTSTOP;
-
-			/* disconnect all connected peers to process a local sync
-			 * this must be done only the first time we are switching
-			 * in stopping state
-			 */
-			for (ps = peers->remote; ps; ps = ps->next) {
-				/* we're killing a connection, we must apply a random delay before
-				 * retrying otherwise the other end will do the same and we can loop
-				 * for a while.
-				 */
-				ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
-				if (ps->appctx) {
-					peer_session_forceshutdown(ps);
-				}
-			}
 
 			/* Set resync timeout for the local peer and request a immediate reconnect */
 			peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
