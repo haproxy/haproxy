@@ -1696,7 +1696,6 @@ add server <backend>/<server> [args]*
   - crt
   - disabled
   - downinter
-  - enabled
   - error-limit
   - fall
   - fastinter
