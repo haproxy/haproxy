@@ -563,6 +563,95 @@ process p6 -wait
 #                    #
 ######################
 
+# Check that the global "tune.ocsp-update.mode" option works and that it
+# applies to certificates added via the CLI as well.
+#
+process p7 "openssl ocsp -index ${testdir}/ocsp_update/index.txt -rsigner ${testdir}/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/ocsp_update/ocsp_update_rootca.crt -nrequest 2 -ndays 1 -port 12346 -timeout 5" -start
+
+barrier b7 cond 2 -cyclic
+
+syslog Syslog_http7 -level info {
+    recv
+    expect ~ "GET /MEMwQTA%2FMD0wOzAJBgUrDgMCGgUABBSKg%2BAGD6%2F3Ccp%2Bm5VSKi6BY1%2FaCgQU9lKw5DXV6pI4UVCPCtvpLYXeAHoCAhAW HTTP/1.1"
+
+    barrier b7 sync
+
+    recv
+    expect ~ "GET /MEMwQTA%2FMD0wOzAJBgUrDgMCGgUABBSKg%2BAGD6%2F3Ccp%2Bm5VSKi6BY1%2FaCgQU9lKw5DXV6pI4UVCPCtvpLYXeAHoCAhAV HTTP/1.1"
+
+    barrier b7 sync
+} -start
+
+haproxy h7 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-buffer-size 1
+        stats socket "${tmpdir}/h7/stats" level admin
+        crt-base ${testdir}
+        tune.ssl.ocsp-update.mode on
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend ssl-fe
+        bind "${tmpdir}/ssl_h7.sock" ssl crt ${testdir}/ocsp_update/multicert_no_ocsp/server_ocsp_ecdsa.pem ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl_h7_2.sock" ssl crt-list ${testdir}/simple.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        http-request return status 200
+
+    listen http_rebound_lst
+        mode http
+        option httplog
+        log ${Syslog_http7_addr}:${Syslog_http7_port} local0
+        bind "127.0.0.1:12345"
+        server s1 "127.0.0.1:12346"
+} -start
+
+barrier b7 sync
+
+shell "sleep 1"
+
+# Create a new certificate that has an OCSP uri and add it to the
+# existing CLI with the 'ocsp-update on' command.
+shell {
+    echo "new ssl cert ${testdir}/server_ocsp_rsa.pem" | socat "${tmpdir}/h7/stats" -
+    printf "set ssl cert ${testdir}/server_ocsp_rsa.pem <<\n$(cat ${testdir}/ocsp_update/multicert_no_ocsp/server_ocsp_rsa.pem)\n\n" | socat "${tmpdir}/h7/stats" -
+    echo "commit ssl cert ${testdir}/server_ocsp_rsa.pem" | socat "${tmpdir}/h7/stats" -
+
+    # We should have ocsp-update enabled via the global option
+    printf "add ssl crt-list ${testdir}/simple.crt-list <<\n${testdir}/server_ocsp_rsa.pem foo.com\n\n" | socat "${tmpdir}/h7/stats" -
+}
+
+barrier b7 sync
+
+shell "sleep 1"
+
+haproxy h7 -cli {
+    send "show ssl ocsp-updates"
+    expect ~ "303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016 | ${testdir}/ocsp_update/multicert_no_ocsp/server_ocsp_ecdsa.pem .*| 1 | 0 | 1 | Update successful"
+
+    send "show ssl ocsp-updates"
+    expect ~ "303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015 | ${testdir}/server_ocsp_rsa.pem .*| 1 | 0 | 1 | Update successful"
+}
+
+haproxy h7 -wait
+process p7 -wait
+
+haproxy h6 -wait
+process p6 -wait
+
+
+######################
+#                    #
+# SEVENTH TEST CASE  #
+#                    #
+######################
+
 #
 # Check that removing crt-list instances does not remove the OCSP responses
 # from the tree but that they will not be auto updated anymore if the last
