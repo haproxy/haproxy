@@ -140,6 +140,7 @@ struct global_ssl global_ssl = {
 #ifndef OPENSSL_NO_OCSP
 	.ocsp_update.delay_max = SSL_OCSP_UPDATE_DELAY_MAX,
 	.ocsp_update.delay_min = SSL_OCSP_UPDATE_DELAY_MIN,
+	.ocsp_update.mode = SSL_SOCK_OCSP_UPDATE_DFLT,
 #endif
 };
 
@@ -1125,24 +1126,28 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 	char *err = NULL;
 	size_t path_len;
 	int inc_refcount_store = 0;
+	int enable_auto_update = (data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON ||
+				  (data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_DFLT &&
+				   global_ssl.ocsp_update.mode == SSL_SOCK_OCSP_UPDATE_ON));
 
 	x = data->cert;
 	if (!x)
 		goto out;
 
 	ssl_ocsp_get_uri_from_cert(x, ocsp_uri, &err);
-	/* We should have an "OCSP URI" field in order for auto update to work. */
-	if (data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON && b_data(ocsp_uri) == 0)
-		goto out;
-
-	/* In case of ocsp update mode set to 'on', this function might be
-	 * called with no known ocsp response. If no ocsp uri can be found in
-	 * the certificate, nothing needs to be done here. */
 	if (!data->ocsp_response && !data->ocsp_cid) {
-		if (data->ocsp_update_mode != SSL_SOCK_OCSP_UPDATE_ON || b_data(ocsp_uri) == 0) {
+		/* In case of ocsp update mode set to 'on', this function might
+		 * be called with no known ocsp response. If no ocsp uri can be
+		 * found in the certificate, nothing needs to be done here. */
+		if (!enable_auto_update || b_data(ocsp_uri) == 0) {
 			ret = 0;
 			goto out;
 		}
+	} else {
+		/* If we have an OCSP response provided and the ocsp auto update
+		 * enabled, we must raise an error if no OCSP URI was found. */
+		if (data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON && b_data(ocsp_uri) == 0)
+			goto out;
 	}
 
 	issuer = data->ocsp_issuer;
@@ -1284,7 +1289,7 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 		 */
 		memcpy(iocsp->path, path, path_len + 1);
 
-		if (data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON) {
+		if (enable_auto_update) {
 			ssl_ocsp_update_insert(iocsp);
 			/* If we are during init the update task is not
 			 * scheduled yet so a wakeup won't do anything.
@@ -1296,7 +1301,7 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 			if (ocsp_update_task)
 				task_wakeup(ocsp_update_task, TASK_WOKEN_MSG);
 		}
-	} else if (iocsp->uri && data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON) {
+	} else if (iocsp->uri && enable_auto_update) {
 		/* This unlikely case can happen if a series of "del ssl
 		 * crt-list" / "add ssl crt-list" commands are made on the CLI.
 		 * In such a case, the OCSP response tree entry will be created
@@ -3843,12 +3848,11 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, int is_default, 
 		/* we found the ckchs in the tree, we can use it directly */
 		 cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, is_default, &ckch_inst, err);
 
-		 /* This certificate has an 'ocsp-update' already set in a
-		  * previous crt-list so we must raise an error. */
-		 if (ckchs->data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON) {
-			 memprintf(err, "%sIncompatibilities found in OCSP update mode for certificate %s\n", err && *err ? *err: "", path);
-			 cfgerr |= ERR_ALERT | ERR_FATAL;
-		 }
+		 /* The ckch_store might have been created through a crt-list
+		  * line so we must check that the ocsp-update modes are still
+		  * compatible between the global mode and the explicit one from
+		  * the crt-list. */
+		 cfgerr |= ocsp_update_check_cfg_consistency(ckchs, NULL, path, err);
 
 		 found++;
 	} else if (stat(path, &buf) == 0) {

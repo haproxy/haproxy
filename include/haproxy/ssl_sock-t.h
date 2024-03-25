@@ -309,6 +309,7 @@ struct global_ssl {
 	struct {
 		unsigned int delay_max;
 		unsigned int delay_min;
+		int mode; /* default mode used for ocsp auto-update (off, on) */
 	} ocsp_update;
 #endif
 };

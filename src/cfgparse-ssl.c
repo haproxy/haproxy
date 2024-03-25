@@ -2222,6 +2222,35 @@ static int ssl_parse_global_ocsp_mindelay(char **args, int section_type, struct 
 	return 0;
 }
 
+static int ssl_parse_global_ocsp_update_mode(char **args, int section_type, struct proxy *curpx,
+                                             const struct proxy *defpx, const char *file, int line,
+                                             char **err)
+{
+	int ret = 0;
+
+	if (!*args[1]) {
+		memprintf(err, "'%s' : expecting <on|off>", args[0]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (strcmp(args[1], "on") == 0)
+		global_ssl.ocsp_update.mode = SSL_SOCK_OCSP_UPDATE_ON;
+	else if (strcmp(args[1], "off") == 0)
+		global_ssl.ocsp_update.mode = SSL_SOCK_OCSP_UPDATE_OFF;
+	else {
+		memprintf(err, "'%s' : expecting <on|off>", args[0]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (global_ssl.ocsp_update.mode != SSL_SOCK_OCSP_UPDATE_OFF) {
+		/* We might need to create the main ocsp update task */
+		ret = ssl_create_ocsp_update_task(err);
+	}
+
+	return ret;
+}
+
+
 
 
 /* Note: must not be declared <const> as its list will be overwritten.
@@ -2411,6 +2440,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 #ifndef OPENSSL_NO_OCSP
 	{ CFG_GLOBAL, "tune.ssl.ocsp-update.maxdelay", ssl_parse_global_ocsp_maxdelay },
 	{ CFG_GLOBAL, "tune.ssl.ocsp-update.mindelay", ssl_parse_global_ocsp_mindelay },
+	{ CFG_GLOBAL, "tune.ssl.ocsp-update.mode", ssl_parse_global_ocsp_update_mode },
 #endif
 	{ 0, NULL, NULL },
 }};

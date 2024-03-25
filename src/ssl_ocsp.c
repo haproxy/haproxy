@@ -1720,19 +1720,36 @@ static void cli_release_show_ocspresponse(struct appctx *appctx)
 		ssl_sock_free_ocsp_instance(ctx->ocsp);
 }
 
-/* Check if the ckch_store and the entry does have the same configuration */
+/* Check if the ckch_store and the entry do have the same configuration. Also
+ * ensure that those options are compatible with the global ocsp-update mode. */
 int ocsp_update_check_cfg_consistency(struct ckch_store *store, struct crtlist_entry *entry, char *crt_path, char **err)
 {
 	int err_code = ERR_NONE;
+	int incompat_found = 0;
 
-	if (store->data->ocsp_update_mode != SSL_SOCK_OCSP_UPDATE_DFLT || entry->ssl_conf) {
-		if ((!entry->ssl_conf && store->data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON)
-		    || (entry->ssl_conf && entry->ssl_conf->ocsp_update != SSL_SOCK_OCSP_UPDATE_OFF &&
-		        store->data->ocsp_update_mode != entry->ssl_conf->ocsp_update)) {
-			memprintf(err, "%sIncompatibilities found in OCSP update mode for certificate %s\n", err && *err ? *err : "", crt_path);
-			err_code |= ERR_ALERT | ERR_FATAL;
-		}
+	switch(store->data->ocsp_update_mode) {
+	case SSL_SOCK_OCSP_UPDATE_DFLT:
+		if (entry && entry->ssl_conf && entry->ssl_conf->ocsp_update == SSL_SOCK_OCSP_UPDATE_ON &&
+		    global_ssl.ocsp_update.mode != SSL_SOCK_OCSP_UPDATE_ON)
+			incompat_found = 1;
+		break;
+	case SSL_SOCK_OCSP_UPDATE_OFF:
+		if ((entry && entry->ssl_conf && entry->ssl_conf->ocsp_update == SSL_SOCK_OCSP_UPDATE_ON) ||
+		    ((!entry || !entry->ssl_conf) && global_ssl.ocsp_update.mode == SSL_SOCK_OCSP_UPDATE_ON))
+			incompat_found = 1;
+		break;
+	case SSL_SOCK_OCSP_UPDATE_ON:
+		if ((entry && entry->ssl_conf && entry->ssl_conf->ocsp_update != SSL_SOCK_OCSP_UPDATE_ON) ||
+		    ((!entry || !entry->ssl_conf) && global_ssl.ocsp_update.mode != SSL_SOCK_OCSP_UPDATE_ON))
+			incompat_found = 1;
+		break;
 	}
+
+	if (incompat_found) {
+		memprintf(err, "%sIncompatibilities found in OCSP update mode for certificate %s\n", err && *err ? *err : "", crt_path);
+		err_code |= ERR_ALERT | ERR_FATAL;
+	}
+
 	return err_code;
 }
 

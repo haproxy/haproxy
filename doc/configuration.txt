@@ -3959,6 +3959,15 @@ tune.ssl.ocsp-update.mindelay <number>
   "tune.ssl.ocsp-update.maxdelay". See option "ocsp-update" for more
   information about the auto update mechanism.
 
+tune.ssl.ocsp-update.mode [ on | off ]
+  Sets the default ocsp-update mode for all certificates used in the
+  configuration. This global option can be superseded by the crt-list
+  "ocsp-update" option but an error will be raised if a given certificate has
+  two distinct configurations simultaneously. This option is set to "off" by
+  default.
+  See option "ocsp-update" for more information about the auto update
+  mechanism.
+
 tune.stick-counters <number>
   Sets the number of stick-counters that may be tracked at the same time by a
   connection or a request via "track-sc*" actions in "tcp-request" or
@@ -16047,11 +16056,15 @@ ocsp-update [ off | on ] (crt-list only)
   Its value defaults to 'off'.
   Please note that for now, this option can only be used in a crt-list line, it
   cannot be used directly on a bind line. It lies in this "Bind options"
-  section because it is still a frontend option. This limitation was set so
-  that the option applies to only one certificate at a time.
+  section because it is still a frontend option. For now, the only way to
+  enable OCSP auto update on a bind line certificate is via the global option
+  "tune.ocsp-update.mode".
   If a given certificate is used in multiple crt-lists with different values of
-  the 'ocsp-update' set, an error will be raised. Here is an example
-  configuration enabling it:
+  the 'ocsp-update' set, an error will be raised. Likewise, if a certificate
+  inherits from the global option on a bind line and has an incompatible
+  explicit 'ocsp-update' option set in a crt-list, the same error will be
+  raised.
+  Here is an example configuration enabling it:
 
   haproxy.cfg:
       frontend fe
@@ -16069,12 +16082,12 @@ ocsp-update [ off | on ] (crt-list only)
   hour limit. A minimum update interval of 5 minutes will still exist in order
   to avoid updating too often responses that have a really short expire time or
   even no 'Next Update' at all. Because of this hard limit, please note that
-  when auto update is set to 'on' or 'auto', any OCSP response loaded during
-  init will not be updated until at least 5 minutes, even if its expire time
-  ends before now+5m. This should not be too much of a hassle since an OCSP
-  response must be valid when it gets loaded during init (its expire time must
-  be in the future) so it is unlikely that this response expires in such a
-  short time after init.
+  when auto update is set to 'on', any OCSP response loaded during init will
+  not be updated until at least 5 minutes, even if its expire time ends before
+  now+5m. This should not be too much of a hassle since an OCSP response must
+  be valid when it gets loaded during init (its expire time must be in the
+  future) so it is unlikely that this response expires in such a short time
+  after init.
   On the other hand, if a certificate has an OCSP uri specified and no OCSP
   response, setting this option to 'on' for the given certificate will ensure
   that the OCSP response gets fetched automatically right after init.

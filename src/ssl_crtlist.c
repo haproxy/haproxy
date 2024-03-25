@@ -600,6 +600,8 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 				entry->crtlist = newlist;
 				if (entry->ssl_conf)
 					ckchs->data->ocsp_update_mode = entry->ssl_conf->ocsp_update;
+				if (ckchs->data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_DFLT)
+					ckchs->data->ocsp_update_mode = global_ssl.ocsp_update.mode;
 				ebpt_insert(&newlist->entries, &entry->node);
 				LIST_APPEND(&newlist->ord_entries, &entry->by_crtlist);
 				LIST_APPEND(&ckchs->crtlist_entry, &entry->by_ckch_store);
@@ -655,6 +657,8 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 
 					if (entry->ssl_conf)
 						ckchs->data->ocsp_update_mode = entry->ssl_conf->ocsp_update;
+					if (ckchs->data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_DFLT)
+						ckchs->data->ocsp_update_mode = global_ssl.ocsp_update.mode;
 					ebpt_insert(&newlist->entries, &entry_dup->node);
 					LIST_APPEND(&newlist->ord_entries, &entry_dup->by_crtlist);
 					LIST_APPEND(&ckchs->crtlist_entry, &entry_dup->by_ckch_store);
@@ -685,6 +689,8 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 
 			if (entry->ssl_conf)
 				ckchs->data->ocsp_update_mode = entry->ssl_conf->ocsp_update;
+			if (ckchs->data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_DFLT)
+				ckchs->data->ocsp_update_mode = global_ssl.ocsp_update.mode;
 			ebpt_insert(&newlist->entries, &entry->node);
 			LIST_APPEND(&newlist->ord_entries, &entry->by_crtlist);
 			LIST_APPEND(&ckchs->crtlist_entry, &entry->by_ckch_store);
@@ -1364,6 +1370,8 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 
 	if (entry->ssl_conf)
 		store->data->ocsp_update_mode = entry->ssl_conf->ocsp_update;
+	if (store->data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_DFLT)
+		store->data->ocsp_update_mode = global_ssl.ocsp_update.mode;
 
 	/* check if it's possible to insert this new crtlist_entry */
 	entry->node.key = store;
