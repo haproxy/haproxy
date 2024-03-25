@@ -3842,6 +3842,14 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, int is_default, 
 	if ((ckchs = ckchs_lookup(path))) {
 		/* we found the ckchs in the tree, we can use it directly */
 		 cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, is_default, &ckch_inst, err);
+
+		 /* This certificate has an 'ocsp-update' already set in a
+		  * previous crt-list so we must raise an error. */
+		 if (ckchs->data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON) {
+			 memprintf(err, "%sIncompatibilities found in OCSP update mode for certificate %s\n", err && *err ? *err: "", path);
+			 cfgerr |= ERR_ALERT | ERR_FATAL;
+		 }
+
 		 found++;
 	} else if (stat(path, &buf) == 0) {
 		found++;
