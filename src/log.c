@@ -404,7 +404,7 @@ int parse_logformat_tag_args(char *args, struct logformat_node *node, char **err
  */
 static int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len, int typecast,
                                char *tag, int tag_len, struct lf_expr *lf_expr,
-                               int *defoptions, char **err)
+                               char **err)
 {
 	int j;
 	struct list *list_format= &lf_expr->nodes.list;
@@ -423,14 +423,14 @@ static int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len,
 			node->typecast = typecast;
 			if (name)
 				node->name = my_strndup(name, name_len);
-			node->options = *defoptions;
+			node->options = lf_expr->nodes.options;
 			if (arg_len) {
 				node->arg = my_strndup(arg, arg_len);
 				if (!parse_logformat_tag_args(node->arg, node, err))
 					goto error_free;
 			}
 			if (node->tag->type == LOG_FMT_GLOBAL) {
-				*defoptions = node->options;
+				lf_expr->nodes.options = node->options;
 				free_logformat_node(node);
 			} else {
 				LIST_APPEND(list_format, &node->list);
@@ -499,7 +499,7 @@ int add_to_logformat_list(char *start, char *end, int type, struct lf_expr *lf_e
  */
 static int add_sample_to_logformat_list(char *text, char *name, int name_len, int typecast,
                                         char *arg, int arg_len, struct lf_expr *lf_expr,
-                                        struct arg_list *al, int options, int cap, char **err, char **endptr)
+                                        struct arg_list *al, int cap, char **err, char **endptr)
 {
 	char *cmd[2];
 	struct list *list_format = &lf_expr->nodes.list;
@@ -528,7 +528,7 @@ static int add_sample_to_logformat_list(char *text, char *name, int name_len, in
 	node->type = LOG_FMT_EXPR;
 	node->typecast = typecast;
 	node->expr = expr;
-	node->options = options;
+	node->options = lf_expr->nodes.options;
 
 	if (arg_len) {
 		node->arg = my_strndup(arg, arg_len);
@@ -547,7 +547,7 @@ static int add_sample_to_logformat_list(char *text, char *name, int name_len, in
 		goto error_free;
 	}
 
-	if ((options & LOG_OPT_HTTP) && (expr->fetch->use & (SMP_USE_L6REQ|SMP_USE_L6RES))) {
+	if ((lf_expr->nodes.options & LOG_OPT_HTTP) && (expr->fetch->use & (SMP_USE_L6REQ|SMP_USE_L6RES))) {
 		ha_warning("parsing [%s:%d] : L6 sample fetch <%s> ignored in HTTP log-format string.\n",
 			   lf_expr->conf.file, lf_expr->conf.line, text);
 	}
@@ -609,6 +609,7 @@ int lf_expr_compile(struct lf_expr *lf_expr,
 	 * returning.
 	 */
 	LIST_INIT(&lf_expr->nodes.list);
+	lf_expr->nodes.options = options;
 	/* we must set the compiled flag now for proper deinit in case of failure */
 	lf_expr->flags |= LF_FL_COMPILED;
 
@@ -725,7 +726,7 @@ int lf_expr_compile(struct lf_expr *lf_expr,
 			 * part of the expression, which MUST be the trailing
 			 * angle bracket.
 			 */
-			if (!add_sample_to_logformat_list(tag, name, name_len, typecast, arg, arg_len, lf_expr, al, options, cap, err, &str))
+			if (!add_sample_to_logformat_list(tag, name, name_len, typecast, arg, arg_len, lf_expr, al, cap, err, &str))
 				goto fail;
 
 			if (*str == ']') {
@@ -771,7 +772,7 @@ int lf_expr_compile(struct lf_expr *lf_expr,
 		if (cformat != pformat || pformat == LF_SEPARATOR) {
 			switch (pformat) {
 			case LF_TAG:
-				if (!parse_logformat_tag(arg, arg_len, name, name_len, typecast, tag, tag_len, lf_expr, &options, err))
+				if (!parse_logformat_tag(arg, arg_len, name, name_len, typecast, tag, tag_len, lf_expr, err))
 					goto fail;
 				break;
 			case LF_TEXT:
