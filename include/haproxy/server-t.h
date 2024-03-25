@@ -630,7 +630,7 @@ struct server_inetaddr_updater {
 		struct {
 			unsigned int ns_id; // nameserver id responsible for the update
 		} dns_resolver;             // SERVER_INETADDR_UPDATER_DNS_RESOLVER specific infos
-	};                                  // per updater's additional ctx
+	} u;                                // per updater's additional ctx
 };
 #define SERVER_INETADDR_UPDATER_NONE                                           \
  (struct server_inetaddr_updater){ .by = SERVER_INETADDR_UPDATER_BY_NONE,      \
@@ -656,7 +656,7 @@ struct server_inetaddr_updater {
  (struct server_inetaddr_updater){                                             \
     .by = SERVER_INETADDR_UPDATER_BY_DNS_RESOLVER,                             \
     .dns = 1,                                                                  \
-    .dns_resolver.ns_id = _ns_id,                                              \
+    .u.dns_resolver.ns_id = _ns_id,                                            \
  }
 
 /* data provided to EVENT_HDL_SUB_SERVER_INETADDR handlers through

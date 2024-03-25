@@ -3824,7 +3824,7 @@ static void _srv_append_inetaddr_updater_info(struct buffer *out,
 				 * query
 				 */
 				BUG_ON(!r);
-				ns = find_nameserver_by_resolvers_and_id(r, updater.dns_resolver.ns_id);
+				ns = find_nameserver_by_resolvers_and_id(r, updater.u.dns_resolver.ns_id);
 				BUG_ON(!ns);
 				chunk_appendf(out, " by '%s/%s'", r->id, ns->id);
 			}
