@@ -1405,7 +1405,9 @@ smp_fetch_ssl_fc_ec(const struct arg *args, struct sample *smp, const char *kw, 
 		 * different functional calls and to make it consistent while upgrading OpenSSL versions,
 		 * will convert the curve name returned by SSL_get0_group_name to upper case.
 		 */
-		for (int i = 0; curve_name[i]; i++)
+		int i;
+
+		for (i = 0; curve_name[i]; i++)
 			curve_name[i] = toupper(curve_name[i]);
 	}
 # else
