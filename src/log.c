@@ -407,7 +407,7 @@ static int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len,
                                int *defoptions, char **err)
 {
 	int j;
-	struct list *list_format= &lf_expr->nodes;
+	struct list *list_format= &lf_expr->nodes.list;
 	struct logformat_node *node = NULL;
 
 	for (j = 0; logformat_tags[j].name; j++) { // search a log type
@@ -462,7 +462,7 @@ static int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len,
 */
 int add_to_logformat_list(char *start, char *end, int type, struct lf_expr *lf_expr, char **err)
 {
-	struct list *list_format = &lf_expr->nodes;
+	struct list *list_format = &lf_expr->nodes.list;
 	char *str;
 
 	if (type == LF_TEXT) { /* type text */
@@ -502,7 +502,7 @@ static int add_sample_to_logformat_list(char *text, char *name, int name_len, in
                                         struct arg_list *al, int options, int cap, char **err, char **endptr)
 {
 	char *cmd[2];
-	struct list *list_format = &lf_expr->nodes;
+	struct list *list_format = &lf_expr->nodes.list;
 	struct sample_expr *expr = NULL;
 	struct logformat_node *node = NULL;
 	int cmd_arg;
@@ -608,7 +608,7 @@ int lf_expr_compile(struct lf_expr *lf_expr,
 	 * been saved as local 'fmt' string pointer, so we must free it before
 	 * returning.
 	 */
-	LIST_INIT(&lf_expr->nodes);
+	LIST_INIT(&lf_expr->nodes.list);
 	/* we must set the compiled flag now for proper deinit in case of failure */
 	lf_expr->flags |= LF_FL_COMPILED;
 
@@ -874,7 +874,7 @@ int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err)
 	if (!(px->flags & PR_FL_CHECKED))
 		px->to_log |= LW_INIT;
 
-	list_for_each_entry(lf, &lf_expr->nodes, list) {
+	list_for_each_entry(lf, &lf_expr->nodes.list, list) {
 		if (lf->type == LOG_FMT_EXPR) {
 			struct sample_expr *expr = lf->expr;
 			uint8_t http_needed = !!(expr->fetch->use & SMP_USE_HTTP_ANY);
@@ -2801,7 +2801,7 @@ void lf_expr_init(struct lf_expr *expr)
 void lf_expr_deinit(struct lf_expr *expr)
 {
 	if ((expr->flags & LF_FL_COMPILED))
-		free_logformat_list(&expr->nodes);
+		free_logformat_list(&expr->nodes.list);
 	else
 		logformat_str_free(&expr->str);
 	free(expr->conf.file);
@@ -2828,11 +2828,11 @@ void lf_expr_xfer(struct lf_expr *src, struct lf_expr *dst)
 	dst->conf.line = src->conf.line;
 
 	dst->flags |= LF_FL_COMPILED;
-	LIST_INIT(&dst->nodes);
+	LIST_INIT(&dst->nodes.list);
 
-	list_for_each_entry_safe(lf, lfb, &src->nodes, list) {
+	list_for_each_entry_safe(lf, lfb, &src->nodes.list, list) {
 		LIST_DELETE(&lf->list);
-		LIST_APPEND(&dst->nodes, &lf->list);
+		LIST_APPEND(&dst->nodes.list, &lf->list);
 	}
 
 	/* replace <src> with <dst> in <src>'s list by first adding
@@ -2885,7 +2885,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	struct http_txn *txn;
 	const struct strm_logs *logs;
 	struct connection *fe_conn, *be_conn;
-	struct list *list_format = &lf_expr->nodes;
+	struct list *list_format = &lf_expr->nodes.list;
 	unsigned int s_flags;
 	unsigned int uniq_id;
 	struct buffer chunk;

@@ -175,14 +175,16 @@ enum lf_expr_flags {
 
 /* a full logformat expr made of one or multiple logformat nodes */
 struct lf_expr {
-	struct list list;          /* to store lf_expr inside a list */
+	struct list list;                 /* to store lf_expr inside a list */
 	union {
-		struct list nodes; /* logformat_node list */
-		char *str;         /* original string prior to parsing (NULL once compiled) */
+		struct {
+			struct list list; /* logformat_node list */
+		} nodes;
+		char *str;                /* original string prior to parsing (NULL once compiled) */
 	};
 	struct {
-		char *file;        /* file where the lft appears */
-		int line;          /* line where the lft appears */
+		char *file;               /* file where the lft appears */
+		int line;                 /* line where the lft appears */
 	} conf; // parsing hints
 	uint8_t flags;             /* LF_FL_* flags */
 };

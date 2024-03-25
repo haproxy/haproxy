@@ -70,7 +70,7 @@ void lf_expr_xfer(struct lf_expr *src, struct lf_expr *dst);
 void lf_expr_deinit(struct lf_expr *expr);
 static inline int lf_expr_isempty(const struct lf_expr *expr)
 {
-	return !(expr->flags & LF_FL_COMPILED) || LIST_ISEMPTY(&expr->nodes);
+	return !(expr->flags & LF_FL_COMPILED) || LIST_ISEMPTY(&expr->nodes.list);
 }
 int lf_expr_compile(struct lf_expr *lf_expr, struct arg_list *al, int options, int cap, char **err);
 int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err);

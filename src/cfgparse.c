@@ -3164,10 +3164,10 @@ init_proxies_list_stage1:
 				cfgerr++;
 				continue;
 			}
-			node = LIST_NEXT(&rule->be.expr.nodes, struct logformat_node *, list);
+			node = LIST_NEXT(&rule->be.expr.nodes.list, struct logformat_node *, list);
 
 			if (!lf_expr_isempty(&rule->be.expr)) {
-				if (node->type != LOG_FMT_TEXT || node->list.n != &rule->be.expr.nodes) {
+				if (node->type != LOG_FMT_TEXT || node->list.n != &rule->be.expr.nodes.list) {
 					rule->dynamic = 1;
 					free(pxname);
 					/* backend is not yet known so we cannot assume its type,
@@ -3238,10 +3238,10 @@ init_proxies_list_stage1:
 				cfgerr++;
 				continue;
 			}
-			node = LIST_NEXT(&srule->expr.nodes, struct logformat_node *, list);
+			node = LIST_NEXT(&srule->expr.nodes.list, struct logformat_node *, list);
 
 			if (!lf_expr_isempty(&srule->expr)) {
-				if (node->type != LOG_FMT_TEXT || node->list.n != &srule->expr.nodes) {
+				if (node->type != LOG_FMT_TEXT || node->list.n != &srule->expr.nodes.list) {
 					srule->dynamic = 1;
 					free(server_name);
 					continue;
