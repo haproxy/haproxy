@@ -3205,35 +3205,42 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_TS: // %Ts
+			{
+				unsigned long value = logs->accept_date.tv_sec;
+
 				if (tmp->options & LOG_OPT_HEXA) {
-					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", (unsigned int)logs->accept_date.tv_sec);
+					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", (unsigned int)value);
 					if (iret < 0 || iret >= dst + maxsize - tmplog)
 						goto out;
 					tmplog += iret;
 				} else {
-					ret = ltoa_o(logs->accept_date.tv_sec, tmplog, dst + maxsize - tmplog);
+					ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
 					if (ret == NULL)
 						goto out;
 					tmplog = ret;
 				}
-			break;
+				break;
+			}
 
 			case LOG_FMT_MS: // %ms
-			if (tmp->options & LOG_OPT_HEXA) {
-					iret = snprintf(tmplog, dst + maxsize - tmplog, "%02X",(unsigned int)logs->accept_date.tv_usec/1000);
+			{
+				unsigned int value = (unsigned int)logs->accept_date.tv_usec/1000;
+
+				if (tmp->options & LOG_OPT_HEXA) {
+					iret = snprintf(tmplog, dst + maxsize - tmplog, "%02X", value);
 					if (iret < 0 || iret >= dst + maxsize - tmplog)
 						goto out;
 					tmplog += iret;
-			} else {
-				if ((dst + maxsize - tmplog) < 4)
-					goto out;
-				ret = utoa_pad((unsigned int)logs->accept_date.tv_usec/1000,
-				               tmplog, 4);
-				if (ret == NULL)
-					goto out;
-				tmplog = ret;
+				} else {
+					if ((dst + maxsize - tmplog) < 4)
+						goto out;
+					ret = utoa_pad(value, tmplog, 4);
+					if (ret == NULL)
+						goto out;
+					tmplog = ret;
+				}
+				break;
 			}
-			break;
 
 			case LOG_FMT_FRONTEND: // %f
 				src = fe->id;
@@ -3326,12 +3333,15 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_TR: // %TR = HTTP request time
-				ret = ltoa_o((t_request >= 0) ? t_request - logs->t_idle - logs->t_handshake : -1,
-				             tmplog, dst + maxsize - tmplog);
+			{
+				long value = (t_request >= 0) ? t_request - logs->t_idle - logs->t_handshake : -1;
+
+				ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_TQ: // %Tq = Th + Ti + TR
 				ret = ltoa_o(t_request, tmplog, dst + maxsize - tmplog);
@@ -3341,50 +3351,67 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_TW: // %Tw
-				ret = ltoa_o((logs->t_queue >= 0) ? logs->t_queue - t_request : -1,
-						tmplog, dst + maxsize - tmplog);
+			{
+				long value = (logs->t_queue >= 0) ? logs->t_queue - t_request : -1;
+
+				ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_TC: // %Tc
-				ret = ltoa_o((logs->t_connect >= 0) ? logs->t_connect - logs->t_queue : -1,
-						tmplog, dst + maxsize - tmplog);
+			{
+				long value = (logs->t_connect >= 0) ? logs->t_connect - logs->t_queue : -1;
+
+				ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_Tr: // %Tr
-				ret = ltoa_o((logs->t_data >= 0) ? logs->t_data - logs->t_connect : -1,
-						tmplog, dst + maxsize - tmplog);
+			{
+				long value = (logs->t_data >= 0) ? logs->t_data - logs->t_connect : -1;
+
+				ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_TD: // %Td
+			{
+				long value;
+
 				if (be->mode == PR_MODE_HTTP)
-					ret = ltoa_o((logs->t_data >= 0) ? logs->t_close - logs->t_data : -1,
-					             tmplog, dst + maxsize - tmplog);
+					value = (logs->t_data >= 0) ? logs->t_close - logs->t_data : -1;
 				else
-					ret = ltoa_o((logs->t_connect >= 0) ? logs->t_close - logs->t_connect : -1,
-					             tmplog, dst + maxsize - tmplog);
+					value = (logs->t_connect >= 0) ? logs->t_close - logs->t_connect : -1;
+
+				ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
+
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_Ta:  // %Ta = active time = Tt - Th - Ti
+			{
+				long value = logs->t_close - (logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
+
 				if (!(fe->to_log & LW_BYTES))
 					LOGMETACHAR('+');
-				ret = ltoa_o(logs->t_close - (logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0),
-					     tmplog, dst + maxsize - tmplog);
+				ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_TT:  // %Tt = total time
 				if (!(fe->to_log & LW_BYTES))
@@ -3396,14 +3423,17 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_TU:  // %Tu = total time seen by user = Tt - Ti
+			{
+				long value = logs->t_close - (logs->t_idle >= 0 ? logs->t_idle : 0);
+
 				if (!(fe->to_log & LW_BYTES))
 					LOGMETACHAR('+');
-				ret = ltoa_o(logs->t_close - (logs->t_idle >= 0 ? logs->t_idle : 0),
-					     tmplog, dst + maxsize - tmplog);
+				ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_STATUS: // %ST
 				ret = ltoa_o(status, tmplog, dst + maxsize - tmplog);
@@ -3479,34 +3509,43 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_SRVCONN:  // %sc
+			{
+				unsigned long value;
+
 				switch (obj_type(s ? s->target : sess->origin)) {
 				case OBJ_TYPE_SERVER:
-					ret = ultoa_o(__objt_server(s->target)->cur_sess,
-						      tmplog, dst + maxsize - tmplog);
+					value = __objt_server(s->target)->cur_sess;
 					break;
 				case OBJ_TYPE_CHECK:
-					ret = ultoa_o(__objt_check(sess->origin)->server
-						      ? __objt_check(sess->origin)->server->cur_sess
-						      : 0, tmplog, dst + maxsize - tmplog);
+					value = (__objt_check(sess->origin)->server
+					         ? __objt_check(sess->origin)->server->cur_sess
+					         : 0);
 					break;
 				default:
-					ret = ultoa_o(0, tmplog, dst + maxsize - tmplog);
+					value = 0;
 					break;
 				}
 
+				ret = ultoa_o(value, tmplog, dst + maxsize - tmplog);
+
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_RETRIES:  // %rc
+			{
+				long int value = (s ? s->conn_retries : 0);
+
 				if (s_flags & SF_REDISP)
 					LOGMETACHAR('+');
-				ret = ltoa_o((s  ? s->conn_retries : 0), tmplog, dst + maxsize - tmplog);
+				ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_SRVQUEUE: // %sq
 				ret = ltoa_o(logs->srv_queue_pos, tmplog, dst + maxsize - tmplog);
