@@ -2,6 +2,7 @@
 
 #include <import/ebistree.h>
 #include <haproxy/obj_type.h>
+#include <haproxy/proxy.h>
 #include <haproxy/tools.h>
 
 /* GUID global tree */
@@ -40,6 +41,10 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 	}
 
 	switch (obj_type(objt)) {
+	case OBJ_TYPE_PROXY:
+		guid = &__objt_proxy(objt)->guid;
+		break;
+
 	default:
 		/* No guid support for this objtype. */
 		ABORT_NOW();
@@ -103,7 +108,14 @@ struct guid_node *guid_lookup(const char *uid)
  */
 char *guid_name(const struct guid_node *guid)
 {
+	char *msg = NULL;
+	struct proxy *px;
+
 	switch (obj_type(guid->obj_type)) {
+	case OBJ_TYPE_PROXY:
+		px = __objt_proxy(guid->obj_type);
+		return memprintf(&msg, "%s %s", proxy_cap_str(px->cap), px->id);
+
 	default:
 		break;
 	}

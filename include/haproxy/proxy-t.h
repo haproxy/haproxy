@@ -35,6 +35,7 @@
 #include <haproxy/compression-t.h>
 #include <haproxy/counters-t.h>
 #include <haproxy/freq_ctr-t.h>
+#include <haproxy/guid-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/queue-t.h>
 #include <haproxy/server-t.h>
@@ -456,6 +457,8 @@ struct proxy {
 						 * name is used
 						 */
 	struct list filter_configs;		/* list of the filters that are declared on this proxy */
+
+	struct guid_node guid;			/* GUID global tree node */
 
 	EXTRA_COUNTERS(extra_counters_fe);
 	EXTRA_COUNTERS(extra_counters_be);

@@ -4902,6 +4902,7 @@ error-log-format                          X          X         X         -
 force-persist                             -          -         X         X
 filter                                    -          X         X         X
 fullconn                                  X          -         X         X
+guid                                      -          X         X         X
 hash-balance-factor                       X          -         X         X
 hash-key                                  X          -         X         X
 hash-type                                 X          -         X         X
@@ -6664,6 +6665,14 @@ fullconn <conns>
         server     srv2   dyn2:80 minconn 100 maxconn 1000
 
   See also : "maxconn", "server"
+
+
+guid <string>
+  Specify a case-sensitive global unique ID for this proxy. This must be unique
+  accross all haproxy configuration on every object types. Format is left
+  unspecified to allow the user to select its naming policy. The only
+  restriction is its length which cannot be greater than 127 characters. All
+  alphanumerical values and '.', ':', '-' and '_' characters are valid.
 
 
 hash-balance-factor <factor>
