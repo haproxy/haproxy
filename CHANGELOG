@@ -1,6 +1,122 @@
 ChangeLog :
 ===========
 
+2024/03/26 : 3.0-dev6
+    - MINOR: mux-h2: always use h2c_report_glitch()
+    - MEDIUM: mux-h2: allow to set the glitches threshold to kill a connection
+    - MINOR: quic: simplify rescheduling for handshake
+    - MINOR: quic: remove qc_treat_rx_crypto_frms()
+    - DOC: configuration: clarify ciphersuites usage (V2)
+    - MINOR: tools: use public interface for FreeBSD get_exec_path()
+    - BUG/MINOR: ssl: fix possible ctx memory leak in sample_conv_aes_gcm()
+    - BUG/MINOR: ssl: do not set the aead_tag flags in sample_conv_aes_gcm()
+    - BUG/MINOR: server: fix first server template not being indexed
+    - MEDIUM: ssl: initialize the SSL stack explicitely
+    - MEDIUM: ssl: allow to change the OpenSSL security level from global section
+    - CLEANUP: ssl: remove useless #ifdef in openssl-compat.h
+    - CI: github: add -DDEBUG_LIST to the default builds
+    - BUG/MINOR: hlua: segfault when loading the same filter from different contexts
+    - BUG/MINOR: hlua: missing lock in hlua_filter_new()
+    - BUG/MINOR: hlua: fix missing lock in hlua_filter_delete()
+    - DEBUG: lua: precisely identify if stream is stuck inside lua or not
+    - MINOR: hlua: use accessors for stream hlua ctx
+    - BUG/MEDIUM: hlua: streams don't support mixing lua-load with lua-load-per-thread (2nd try)
+    - MINOR: debug: enable insecure fork on the command line
+    - CI: github: add -dI to haproxy arguments
+    - BUG/MINOR: listener: Wake proxy's mngmt task up if necessary on session release
+    - BUG/MINOR: listener: Don't schedule frontend without task in listener_release()
+    - MINOR: session: rename private conns elements
+    - BUG/MAJOR: server: do not delete srv referenced by session
+    - BUG/MEDIUM: spoe: Don't rely on stream's expiration to detect processing timeout
+    - BUG/MINOR: spoe: Be sure to be able to quickly close IDLE applets on soft-stop
+    - MAJOR: spoe: Deprecate the SPOE filter
+    - MINOR: cfgparse: Add a global option to expose deprecated directives
+    - MINOR: spoe: Add SPOE filters in the exposed deprecated directives
+    - CLEANUP: assorted typo fixes in the code and comments
+    - CI: temporarily adjust kernel entropy to work with ASAN/clang
+    - BUG/MEDIUM: spoe: Return an invalid frame on recv if size is too small
+    - BUG/MINOR: session: ensure conn owner is set after insert into session
+    - BUG/MEDIUM: http_ana: ignore NTLM for reuse aggressive/always and no H1
+    - BUG/MAJOR: connection: fix server used_conns with H2 + reuse safe
+    - BUG/MAJOR: ocsp: Separate refcount per instance and per store
+    - REGTESTS: ssl: Add OCSP related tests
+    - BUG/MEDIUM: ssl: Fix crash when calling "update ssl ocsp-response" when an update is ongoing
+    - BUG/MEDIUM: ssl: Fix crash in ocsp-update log function
+    - MEDIUM: ssl: Change output of ocsp-update log
+    - MINOR: ssl: Change level of ocsp-update logs
+    - CLEANUP: ssl: Remove undocumented ocsp fetches
+    - REGTESTS: ssl: Add checks on ocsp-update log format
+    - MINOR: connection: implement conn_release()
+    - MINOR: connection: extend takeover with release option
+    - MEDIUM: server: close idle conn on server deletion
+    - MEDIUM: mux: prepare for takeover on private connections
+    - MEDIUM: server: close private idle connection before server deletion
+    - BUG/MINOR: mux-quic: close all QCS before freeing QCC tasklet
+    - BUG/MEDIUM: mux-fcgi: Properly handle EOM flag on end-of-trailers HTX block
+    - BUILD: server: fix build regression on old compilers (<= gcc-4.4)
+    - OPTIM: http_ext: avoid useless copy in http_7239_extract_{ipv4,ipv6}
+    - MINOR: debug: add "debug dev trace" to flood with traces
+    - MINOR: atomic: add a read-specific variant of __ha_cpu_relax()
+    - MINOR: applet: add new function applet_append_line()
+    - MINOR: log/applet: add new function syslog_applet_append_event()
+    - MEDIUM: ring/sink: use applet_append_line()/syslog_applet_append_event() for readers
+    - REORG: dns/ring: split the ring between the generic one and the DNS one
+    - MEDIUM: ring: move the ring reader code to ring_dispatch_messages()
+    - MEDIUM: sink: move the generic ring forwarder code use ring_dispatch_messages()
+    - MEDIUM: log/sink: make the log forwarder code use ring_dispatch_messages()
+    - MINOR: buf: add b_add_ofs() to add a count to an absolute position
+    - MINOR: buf: add b_rel_ofs() to turn an absolute offset into a relative one
+    - MINOR: buf: add b_putblk_ofs() to copy a block at a specific position
+    - MINOR: buf: add b_getblk_ofs() that works relative to area and not head
+    - MINOR: ring: make the ring reader use only absolute offsets
+    - MINOR: ring: reserve one special value for the readers count
+    - MINOR: vecpair: add new vector pair based data manipulation mechanisms
+    - MINOR: vecpair: add necessary functions to use vecpairss from/to ring APIs
+    - MINOR: ring: rename totlen vs msglen in ring_write()
+    - MINOR: ring: add ring_data() to report the amount of data in a ring
+    - MINOR: ring: add ring_size() to return the ring's size
+    - MINOR: ring: add ring_dup() to copy a ring into another one
+    - MINOR: ring: also add ring_area(), ring_head(), ring_tail()
+    - MINOR: ring: make callers use ring_data() and ring_size(), not ring->buf
+    - MINOR: errors: use ring_dup() to duplicate the startup_logs
+    - MINOR: ring: use ring_size(), ring_area(), ring_head() and ring_tail()
+    - MINOR: ring: add a flag to indicate a mapped file
+    - MAJOR: ring: insert an intermediary ring_storage level
+    - MINOR: ring: resize only under thread isolation
+    - MINOR: ring: allow to reduce a ring size
+    - MEDIUM: ring: replace the buffer API in ring_write() with the vec<->ring API
+    - MEDIUM: ring: change the ring reader to use the new vector-based API now
+    - MEDIUM: ring: remove the struct buffer from the ring
+    - MEDIUM: ring: align the head and tail fields in the ring_storage structure
+    - MINOR: ring: make the reader check the readers count before inc/dec
+    - MEDIUM: ring: lock the tail's readers counters before proceeding with the changes
+    - MEDIUM: ring: protect the reader's positions against writers
+    - MEDIUM: ring: use the topmost bit of the tail as a lock
+    - MEDIUM: move the ring's lock to only protect the readers list
+    - MEDIUM: ring: unlock the ring's tail earlier
+    - MINOR: ring: don't take the readers lock if there are no readers
+    - MEDIUM: ring/applet: turn the wait_entry list to an mt_list instead
+    - MEDIUM: ring: protect the initialization of the initial reader offset
+    - MINOR: ring: make sure ring_dispatch waits when facing a changing message
+    - MAJOR: ring: drop the now unneeded lock
+    - OPTIM: ring: don't even try to update offset when failed to read
+    - OPTIM: ring: have only one thread at a time wake up all readers
+    - MINOR: ring: keep a few frequently used pointers in the local stack
+    - MINOR: ring: add the definition of a ring waiting cell
+    - MINOR: ring: make the number of queues configurable
+    - MAJOR: ring: implement a waiting queue in front of the ring
+    - MEDIUM: ring: significant boost in the loop by checking the ring queue ptr first
+    - MEDIUM: ring: improve speed in the queue waiting loop on x86_64
+    - MINOR: ring: simplify the write loop a little bit
+    - CLEANUP: ring: further simplify the write loop
+    - MINOR: ring: it's not x86 but all non-ARMv8.1 which needs the read before OR
+    - MINOR: ring: avoid writes to cells during copy
+    - OPTIM: ring: use relaxed stores to release the threads
+    - CLEANUP: ring: use only curr_cell and not next_cell in the main write loop
+    - BUILD: ssl: fix build error on older compilers with openssl-3.2
+    - BUG/MINOR: server: 'source' interface ignored from 'default-server' directive
+    - BUG/MAJOR: ring: free the ring storage not the ring itself when using maps
+
 2024/03/09 : 3.0-dev5
     - BUG/MEDIUM: applet: Fix HTX .rcv_buf callback function to release outbuf buffer
     - BUG/MAJOR: ssl/ocsp: crash with ocsp when old process exit or using ocsp CLI
