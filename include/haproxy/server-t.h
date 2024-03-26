@@ -32,6 +32,7 @@
 #include <haproxy/connection-t.h>
 #include <haproxy/counters-t.h>
 #include <haproxy/freq_ctr-t.h>
+#include <haproxy/guid-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/queue-t.h>
@@ -465,6 +466,8 @@ struct server {
 	} tmpl_info;
 
 	event_hdl_sub_list e_subs;		/* event_hdl: server's subscribers list (atomically updated) */
+
+	struct guid_node guid;			/* GUID global tree node */
 
 	/* warning, these structs are huge, keep them at the bottom */
 	struct conn_src conn_src;               /* connection source settings */

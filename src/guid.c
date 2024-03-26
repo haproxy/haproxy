@@ -3,6 +3,7 @@
 #include <import/ebistree.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/proxy.h>
+#include <haproxy/server-t.h>
 #include <haproxy/tools.h>
 
 /* GUID global tree */
@@ -43,6 +44,10 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 	switch (obj_type(objt)) {
 	case OBJ_TYPE_PROXY:
 		guid = &__objt_proxy(objt)->guid;
+		break;
+
+	case OBJ_TYPE_SERVER:
+		guid = &__objt_server(objt)->guid;
 		break;
 
 	default:
@@ -110,11 +115,16 @@ char *guid_name(const struct guid_node *guid)
 {
 	char *msg = NULL;
 	struct proxy *px;
+	struct server *srv;
 
 	switch (obj_type(guid->obj_type)) {
 	case OBJ_TYPE_PROXY:
 		px = __objt_proxy(guid->obj_type);
 		return memprintf(&msg, "%s %s", proxy_cap_str(px->cap), px->id);
+
+	case OBJ_TYPE_SERVER:
+		srv = __objt_server(guid->obj_type);
+		return memprintf(&msg, "server %s/%s", srv->proxy->id, srv->id);
 
 	default:
 		break;

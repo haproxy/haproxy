@@ -16922,6 +16922,11 @@ force-tlsv13
   the server. This option is also available on global statement
   "ssl-default-server-options". See also "ssl-min-ver" and ssl-max-ver".
 
+guid <string>
+  Specify a case-sensitive global unique ID for this server. This must be
+  unique accross all haproxy configuration on every object types. See "guid"
+  proxy keyword description for more information on its format.
+
 id <value>
   May be used in the following contexts: tcp, http, log
 
