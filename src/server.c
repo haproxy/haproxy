@@ -2474,8 +2474,10 @@ static void srv_conn_src_cpy(struct server *srv, const struct server *src)
 	srv->conn_src.bind_hdr_occ = src->conn_src.bind_hdr_occ;
 	srv->conn_src.tproxy_addr  = src->conn_src.tproxy_addr;
 #endif
-	if (src->conn_src.iface_name != NULL)
+	if (src->conn_src.iface_name != NULL) {
 		srv->conn_src.iface_name = strdup(src->conn_src.iface_name);
+		srv->conn_src.iface_len = src->conn_src.iface_len;
+	}
 }
 
 /*
