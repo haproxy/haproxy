@@ -696,14 +696,13 @@ static void sink_free(struct sink *sink)
 	if (sink->type == SINK_TYPE_BUFFER) {
 		if (sink->store) {
 			size_t size = (ring_size(sink->ctx.ring) + 4095UL) & -4096UL;
-			void *area = (ring_area(sink->ctx.ring) - sizeof(*sink->ctx.ring));
+			void *area = ring_area(sink->ctx.ring);
 
 			msync(area, size, MS_SYNC);
 			munmap(area, size);
 			ha_free(&sink->store);
 		}
-		else
-			ring_free(sink->ctx.ring);
+		ring_free(sink->ctx.ring);
 	}
 	LIST_DEL_INIT(&sink->sink_list); // remove from parent list
 	task_destroy(sink->forward_task);

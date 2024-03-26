@@ -190,10 +190,9 @@ void startup_logs_free(struct ring *r)
 {
 #ifdef USE_SHM_OPEN
 	if (r == shm_startup_logs)
-		munmap(r, STARTUP_LOG_SIZE);
-	else
+		munmap(ring_area(r), STARTUP_LOG_SIZE);
 #endif /* ! USE_SHM_OPEN */
-		ring_free(r);
+	ring_free(r);
 }
 
 /* duplicate a startup logs which was previously allocated in a shm */
