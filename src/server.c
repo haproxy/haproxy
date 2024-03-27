@@ -5732,6 +5732,11 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	 */
 	srv->rid = (srv_id_reuse_cnt) ? (srv_id_reuse_cnt / 2) : 0;
 
+	/* generate new server's dynamic cookie if enabled on backend */
+	if (be->ck_opts & PR_CK_DYNAMIC) {
+		srv_set_dyncookie(srv);
+	}
+
 	/* adding server cannot fail when we reach this:
 	 * publishing EVENT_HDL_SUB_SERVER_ADD
 	 */
