@@ -1927,6 +1927,38 @@ char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, const struc
 	return ret;
 }
 
+enum lf_int_hdl {
+	LF_INT_LTOA = 0,
+	LF_INT_LLTOA,
+	LF_INT_ULTOA,
+	LF_INT_UTOA_PAD_4,
+};
+
+/*
+ * Logformat expr wrapper to write an integer, uses <dft_hdl> to know
+ * how to encode the value by default
+ */
+static inline char *lf_int(char *dst, size_t size, int64_t value,
+                           const struct logformat_node *node,
+                           enum lf_int_hdl dft_hdl)
+{
+	switch (dft_hdl) {
+		case LF_INT_LTOA:
+			return ltoa_o(value, dst, size);
+		case LF_INT_LLTOA:
+			return lltoa(value, dst, size);
+		case LF_INT_ULTOA:
+			return ultoa_o(value, dst, size);
+		case LF_INT_UTOA_PAD_4:
+		{
+			if (size < 4)
+				return NULL;
+			return utoa_pad(value, dst, 4);
+		}
+	}
+	return NULL;
+}
+
 /*
  * Write a port to the log
  * +X option write in hexadecimal notation, most significant byte on the left
@@ -1943,7 +1975,8 @@ char *lf_port(char *dst, const struct sockaddr *sockaddr, size_t size, const str
 			return NULL;
 		ret += iret;
 	} else {
-		ret = ltoa_o(get_host_port((struct sockaddr_storage *)sockaddr), dst, size);
+		ret = lf_int(dst, size, get_host_port((struct sockaddr_storage *)sockaddr),
+		             node, LF_INT_LTOA);
 		if (ret == NULL)
 			return NULL;
 	}
@@ -3067,7 +3100,8 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (addr) {
 					/* sess->listener is always defined when the session's owner is an inbound connections */
 					if (addr->ss_family == AF_UNIX)
-						ret = ltoa_o(sess->listener->luid, tmplog, dst + maxsize - tmplog);
+						ret = lf_int(tmplog, dst + maxsize - tmplog,
+						             sess->listener->luid, tmp, LF_INT_LTOA);
 					else
 						ret = lf_port(tmplog, (struct sockaddr *)addr, dst + maxsize - tmplog, tmp);
 				}
@@ -3096,7 +3130,8 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (addr) {
 					/* sess->listener is always defined when the session's owner is an inbound connections */
 					if (addr->ss_family == AF_UNIX)
-						ret = ltoa_o(sess->listener->luid, tmplog, dst + maxsize - tmplog);
+						ret = lf_int(tmplog, dst + maxsize - tmplog,
+						             sess->listener->luid, tmp, LF_INT_LTOA);
 					else
 						ret = lf_port(tmplog, (struct sockaddr *)addr, dst + maxsize - tmplog, tmp);
 				}
@@ -3214,7 +3249,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 						goto out;
 					tmplog += iret;
 				} else {
-					ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
+					ret = lf_int(tmplog, dst + maxsize - tmplog, value, tmp, LF_INT_LTOA);
 					if (ret == NULL)
 						goto out;
 					tmplog = ret;
@@ -3232,9 +3267,8 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 						goto out;
 					tmplog += iret;
 				} else {
-					if ((dst + maxsize - tmplog) < 4)
-						goto out;
-					ret = utoa_pad(value, tmplog, 4);
+					ret = lf_int(tmplog, dst + maxsize - tmplog, value,
+					             tmp, LF_INT_UTOA_PAD_4);
 					if (ret == NULL)
 						goto out;
 					tmplog = ret;
@@ -3319,14 +3353,14 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_Th: // %Th = handshake time
-				ret = ltoa_o(logs->t_handshake, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, logs->t_handshake, tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
 
 			case LOG_FMT_Ti: // %Ti = HTTP idle time
-				ret = ltoa_o(logs->t_idle, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, logs->t_idle, tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3336,7 +3370,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			{
 				long value = (t_request >= 0) ? t_request - logs->t_idle - logs->t_handshake : -1;
 
-				ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, value, tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3344,7 +3378,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			}
 
 			case LOG_FMT_TQ: // %Tq = Th + Ti + TR
-				ret = ltoa_o(t_request, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, t_request, tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3354,7 +3388,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			{
 				long value = (logs->t_queue >= 0) ? logs->t_queue - t_request : -1;
 
-				ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, value, tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3365,7 +3399,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			{
 				long value = (logs->t_connect >= 0) ? logs->t_connect - logs->t_queue : -1;
 
-				ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, value, tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3376,7 +3410,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			{
 				long value = (logs->t_data >= 0) ? logs->t_data - logs->t_connect : -1;
 
-				ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, value, tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3392,7 +3426,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				else
 					value = (logs->t_connect >= 0) ? logs->t_close - logs->t_connect : -1;
 
-				ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, value, tmp, LF_INT_LTOA);
 
 				if (ret == NULL)
 					goto out;
@@ -3406,7 +3440,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 				if (!(fe->to_log & LW_BYTES))
 					LOGMETACHAR('+');
-				ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, value, tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3416,7 +3450,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_TT:  // %Tt = total time
 				if (!(fe->to_log & LW_BYTES))
 					LOGMETACHAR('+');
-				ret = ltoa_o(logs->t_close, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, logs->t_close, tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3428,7 +3462,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 				if (!(fe->to_log & LW_BYTES))
 					LOGMETACHAR('+');
-				ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, value, tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3436,7 +3470,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			}
 
 			case LOG_FMT_STATUS: // %ST
-				ret = ltoa_o(status, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, status, tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3445,14 +3479,14 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_BYTES: // %B
 				if (!(fe->to_log & LW_BYTES))
 					LOGMETACHAR('+');
-				ret = lltoa(logs->bytes_out, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, logs->bytes_out, tmp, LF_INT_LLTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
 
 			case LOG_FMT_BYTES_UP: // %U
-				ret = lltoa(logs->bytes_in, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, logs->bytes_in, tmp, LF_INT_LLTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3488,21 +3522,21 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_ACTCONN: // %ac
-				ret = ltoa_o(actconn, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, actconn, tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
 
 			case LOG_FMT_FECONN:  // %fc
-				ret = ltoa_o(fe->feconn, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, fe->feconn, tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
 
 			case LOG_FMT_BECONN:  // %bc
-				ret = ltoa_o(be->beconn, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, be->beconn, tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3526,7 +3560,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					break;
 				}
 
-				ret = ultoa_o(value, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, value, tmp, LF_INT_ULTOA);
 
 				if (ret == NULL)
 					goto out;
@@ -3540,7 +3574,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 				if (s_flags & SF_REDISP)
 					LOGMETACHAR('+');
-				ret = ltoa_o(value, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, value, tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3548,14 +3582,16 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			}
 
 			case LOG_FMT_SRVQUEUE: // %sq
-				ret = ltoa_o(logs->srv_queue_pos, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, logs->srv_queue_pos,
+				             tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
 
 			case LOG_FMT_BCKQUEUE:  // %bq
-				ret = ltoa_o(logs->prx_queue_pos, tmplog, dst + maxsize - tmplog);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, logs->prx_queue_pos,
+				             tmp, LF_INT_LTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3881,7 +3917,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 						goto out;
 					tmplog += iret;
 				} else {
-					ret = ltoa_o(uniq_id, tmplog, dst + maxsize - tmplog);
+					ret = lf_int(tmplog, dst + maxsize - tmplog, uniq_id, tmp, LF_INT_LTOA);
 					if (ret == NULL)
 						goto out;
 					tmplog = ret;
@@ -3895,7 +3931,8 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 						goto out;
 					tmplog += iret;
 				} else {
-					ret = ultoa_o(fe->log_count, tmplog, dst + maxsize - tmplog);
+					ret = lf_int(tmplog, dst + maxsize - tmplog, fe->log_count,
+					             tmp, LF_INT_ULTOA);
 					if (ret == NULL)
 						goto out;
 					tmplog = ret;
@@ -3917,7 +3954,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 						goto out;
 					tmplog += iret;
 				} else {
-					ret = ltoa_o(pid, tmplog, dst + maxsize - tmplog);
+					ret = lf_int(tmplog, dst + maxsize - tmplog, pid, tmp, LF_INT_LTOA);
 					if (ret == NULL)
 						goto out;
 					tmplog = ret;
