@@ -26,6 +26,18 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 	struct guid_node *dup;
 	struct ebpt_node *node;
 	char *dup_name = NULL;
+	const char *c;
+
+	if (strlen(uid) > GUID_MAX_LEN) {
+		memprintf(errmsg, "UID too big");
+		goto err;
+	}
+
+	c = invalid_char(uid);
+	if (c) {
+		memprintf(errmsg, "invalid character '%c'", c[0]);
+		goto err;
+	}
 
 	switch (obj_type(objt)) {
 	default:
@@ -52,6 +64,7 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 	return 0;
 
  err:
+	ALREADY_CHECKED(guid);
 	ha_free(&guid->node.key);
 	ha_free(&dup_name);
 	return 1;
