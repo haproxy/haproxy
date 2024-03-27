@@ -3335,16 +3335,18 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				unsigned long value = logs->accept_date.tv_sec;
 
 				if (tmp->options & LOG_OPT_HEXA) {
-					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", (unsigned int)value);
+					char hex[9]; // enough to hold 32bit hex representation + NULL byte
+
+					iret = snprintf(hex, sizeof(hex), "%04X", (unsigned int)value);
 					if (iret < 0 || iret >= dst + maxsize - tmplog)
 						goto out;
-					tmplog += iret;
+					ret = lf_rawtext(tmplog, hex, dst + maxsize - tmplog, tmp);
 				} else {
 					ret = lf_int(tmplog, dst + maxsize - tmplog, value, tmp, LF_INT_LTOA);
-					if (ret == NULL)
-						goto out;
-					tmplog = ret;
 				}
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
 				break;
 			}
 
@@ -3353,17 +3355,19 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				unsigned int value = (unsigned int)logs->accept_date.tv_usec/1000;
 
 				if (tmp->options & LOG_OPT_HEXA) {
-					iret = snprintf(tmplog, dst + maxsize - tmplog, "%02X", value);
+					char hex[9]; // enough to hold 32bit hex representation + NULL byte
+
+					iret = snprintf(hex, sizeof(hex), "%02X", value);
 					if (iret < 0 || iret >= dst + maxsize - tmplog)
 						goto out;
-					tmplog += iret;
+					ret = lf_rawtext(tmplog, hex, dst + maxsize - tmplog, tmp);
 				} else {
 					ret = lf_int(tmplog, dst + maxsize - tmplog, value,
 					             tmp, LF_INT_UTOA_PAD_4);
-					if (ret == NULL)
-						goto out;
-					tmplog = ret;
 				}
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
 				break;
 			}
 
@@ -3378,10 +3382,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_FRONTEND_XPRT: // %ft
 				src = fe->id;
 				LOGQUOTE_START();
-				iret = strlcpy2(tmplog, src, dst + maxsize - tmplog);
-				if (iret == 0)
+				ret = lf_rawtext(tmplog, src, dst + maxsize - tmplog, tmp);
+				if (ret == NULL)
 					goto out;
-				tmplog += iret;
+				tmplog = ret;
 
 				/* sess->listener may be undefined if the session's owner is a health-check */
 				if (sess->listener && sess->listener->bind_conf->xprt->get_ssl_sock_ctx)
@@ -4003,31 +4007,35 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_COUNTER: // %rt
 				if (tmp->options & LOG_OPT_HEXA) {
-					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", uniq_id);
+					char hex[9]; // enough to hold 32bit hex representation + NULL byte
+
+					iret = snprintf(hex, sizeof(hex), "%04X", uniq_id);
 					if (iret < 0 || iret >= dst + maxsize - tmplog)
 						goto out;
-					tmplog += iret;
+					ret = lf_rawtext(tmplog, hex, dst + maxsize - tmplog, tmp);
 				} else {
 					ret = lf_int(tmplog, dst + maxsize - tmplog, uniq_id, tmp, LF_INT_LTOA);
-					if (ret == NULL)
-						goto out;
-					tmplog = ret;
 				}
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
 				break;
 
 			case LOG_FMT_LOGCNT: // %lc
 				if (tmp->options & LOG_OPT_HEXA) {
-					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", fe->log_count);
+					char hex[9]; // enough to hold 32bit hex representation + NULL byte
+
+					iret = snprintf(hex, sizeof(hex), "%04X", fe->log_count);
 					if (iret < 0 || iret >= dst + maxsize - tmplog)
 						goto out;
-					tmplog += iret;
+					ret = lf_rawtext(tmplog, hex, dst + maxsize - tmplog, tmp);
 				} else {
 					ret = lf_int(tmplog, dst + maxsize - tmplog, fe->log_count,
 					             tmp, LF_INT_ULTOA);
-					if (ret == NULL)
-						goto out;
-					tmplog = ret;
 				}
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
 				break;
 
 			case LOG_FMT_HOSTNAME: // %H
@@ -4040,16 +4048,18 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_PID: // %pid
 				if (tmp->options & LOG_OPT_HEXA) {
-					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", pid);
+					char hex[9]; // enough to hold 32bit hex representation + NULL byte
+
+					iret = snprintf(hex, sizeof(hex), "%04X", pid);
 					if (iret < 0 || iret >= dst + maxsize - tmplog)
 						goto out;
-					tmplog += iret;
+					ret = lf_rawtext(tmplog, hex, dst + maxsize - tmplog, tmp);
 				} else {
 					ret = lf_int(tmplog, dst + maxsize - tmplog, pid, tmp, LF_INT_LTOA);
-					if (ret == NULL)
-						goto out;
-					tmplog = ret;
 				}
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
 				break;
 
 			case LOG_FMT_UNIQUEID: // %ID
