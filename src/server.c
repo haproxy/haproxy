@@ -2216,7 +2216,7 @@ void srv_compute_all_admin_states(struct proxy *px)
  */
 static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "backup",               srv_parse_backup,               0,  1,  1 }, /* Flag as backup server */
-	{ "cookie",               srv_parse_cookie,               1,  1,  0 }, /* Assign a cookie to the server */
+	{ "cookie",               srv_parse_cookie,               1,  1,  1 }, /* Assign a cookie to the server */
 	{ "disabled",             srv_parse_disabled,             0,  1,  1 }, /* Start the server in 'disabled' state */
 	{ "enabled",              srv_parse_enabled,              0,  1,  0 }, /* Start the server in 'enabled' state */
 	{ "error-limit",          srv_parse_error_limit,          1,  1,  1 }, /* Configure the consecutive count of check failures to consider a server on error */
@@ -5757,6 +5757,9 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		if (!start_check_task(&srv->agent, 0, 1, 1))
 			ha_alert("System might be unstable, consider to execute a reload\n");
 	}
+
+	if (srv->cklen && be->mode != PR_MODE_HTTP)
+		ha_warning("Ignoring cookie as HTTP mode is disabled.\n");
 
 	ha_notice("New server registered.\n");
 	cli_umsg(appctx, LOG_INFO);
