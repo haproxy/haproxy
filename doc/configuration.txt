@@ -5184,6 +5184,7 @@ balance url_param <param> [check_post]
                   them off when unused, and regularly checks backend queue to
                   turn new servers on when the queue inflates. Alternatively,
                   using "http-check send-state" may inform servers on the load.
+                  This algorithm is not usable in LOG mode.
 
       hash        Takes a regular sample expression in argument. The expression
                   is evaluated for each request and hashed according to the
