@@ -921,6 +921,7 @@ static void log_backend_srv_down(struct server *srv)
 static int _postcheck_log_backend_compat(struct proxy *be)
 {
 	int err_code = ERR_NONE;
+	int balance_algo = (be->lbprm.algo & BE_LB_ALGO);
 
 	if (!LIST_ISEMPTY(&be->tcp_req.inspect_rules) ||
 	    !LIST_ISEMPTY(&be->tcp_req.l4_rules) ||
@@ -977,6 +978,13 @@ static int _postcheck_log_backend_compat(struct proxy *be)
 
 		err_code |= ERR_WARN;
 		free_server_rules(&be->server_rules);
+	}
+	if (balance_algo != BE_LB_ALGO_RR &&
+	    balance_algo != BE_LB_ALGO_RND &&
+	    balance_algo != BE_LB_ALGO_LS &&
+	    balance_algo != BE_LB_ALGO_LH) {
+		ha_alert("in %s '%s': \"balance\" only supports 'roundrobin', 'random', 'sticky' and 'log-hash'.\n", proxy_type_str(be), be->id);
+		err_code |= ERR_ALERT | ERR_FATAL;
 	}
 	return err_code;
 }
