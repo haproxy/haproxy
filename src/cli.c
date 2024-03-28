@@ -997,6 +997,11 @@ static void cli_io_handler(struct appctx *appctx)
 			len = reql - 1;
 			if (str[len] != '\n' && str[len] != ';') {
 				se_fl_set(appctx->sedesc, SE_FL_ERROR);
+				if (reql == appctx->chunk->size - appctx->chunk->data - 1) {
+					cli_err(appctx, "The command is too big for the buffer size. Please change tune.bufsize in the configuration to use a bigger command.\n");
+					co_skip(sc_oc(sc), co_data(sc_oc(sc)));
+					goto cli_output;
+				}
 				appctx->st0 = CLI_ST_END;
 				continue;
 			}
@@ -1084,7 +1089,7 @@ static void cli_io_handler(struct appctx *appctx)
 			struct cli_print_ctx *ctx;
 			const char *msg;
 			int sev;
-
+		cli_output:
 			switch (appctx->st0) {
 			case CLI_ST_PROMPT:
 				break;
