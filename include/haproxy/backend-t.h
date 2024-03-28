@@ -153,11 +153,6 @@ struct lbprm {
 		struct lb_chash chash;
 		struct lb_fas fas;
 		struct lb_ss ss;
-		struct {
-			struct server	**srv;  /* array containing in-use log servers */
-			struct list	avail;  /* servers available for lb are registered in this list */
-			uint32_t	lastid; /* last relative id used */
-		} log; /* used in log-balancing context (PR_MODE_SYSLOG backend) */
 	};
 	uint32_t algo;			/* load balancing algorithm and variants: BE_LB_* */
 	int tot_wact, tot_wbck;		/* total effective weights of active and backup servers */
@@ -167,7 +162,7 @@ struct lbprm {
 	int wmult;			/* ratio between user weight and effective weight */
 	int wdiv;			/* ratio between effective weight and user weight */
 	int hash_balance_factor;	/* load balancing factor * 100, 0 if disabled */
-	struct sample_expr *expr;       /* sample expression for "balance hash" */
+	struct sample_expr *expr;       /* sample expression for "balance (log-)hash" */
 	char *arg_str;			/* name of the URL parameter/header/cookie used for hashing */
 	int   arg_len;			/* strlen(arg_str), computed only once */
 	int   arg_opt1;			/* extra option 1 for the LB algo (algo-specific) */

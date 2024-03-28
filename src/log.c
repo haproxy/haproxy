@@ -33,6 +33,10 @@
 #include <haproxy/http.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/listener.h>
+#include <haproxy/lb_chash.h>
+#include <haproxy/lb_fwrr.h>
+#include <haproxy/lb_map.h>
+#include <haproxy/lb_ss.h>
 #include <haproxy/log.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
@@ -813,110 +817,6 @@ static int dup_log_target(struct log_target *def, struct log_target *cpy)
 	return 0;
 }
 
-/* must be called under the lbprm lock */
-static void _log_backend_srv_queue(struct server *srv)
-{
-	struct proxy *p = srv->proxy;
-
-	/* queue the server in the proxy lb array to make it easily searchable by
-	 * log-balance algorithms. Here we use the srv array as a general server
-	 * pool of in-use servers, lookup is done using a relative positional id
-	 * (array is contiguous)
-	 *
-	 * We use the avail server list to get a quick hand on available servers
-	 * (those that are UP)
-	 */
-	if (srv->flags & SRV_F_BACKUP) {
-		if (!p->srv_act)
-			p->lbprm.log.srv[p->srv_bck] = srv;
-		p->srv_bck++;
-	}
-	else {
-		if (!p->srv_act) {
-			/* we will be switching to act tree in LB logic, thus we need to
-			 * reset the lastid
-			 */
-			HA_ATOMIC_STORE(&p->lbprm.log.lastid, 0);
-		}
-		p->lbprm.log.srv[p->srv_act] = srv;
-		p->srv_act++;
-	}
-	/* append the server to the list of available servers */
-	LIST_APPEND(&p->lbprm.log.avail, &srv->lb_list);
-
-	p->lbprm.tot_weight = (p->srv_act) ? p->srv_act : p->srv_bck;
-}
-
-static void log_backend_srv_up(struct server *srv)
-{
-	struct proxy *p __maybe_unused = srv->proxy;
-
-	if (!srv_lb_status_changed(srv))
-		return; /* nothing to do */
-	if (srv_currently_usable(srv) || !srv_willbe_usable(srv))
-		return; /* false alarm */
-
-	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
-	_log_backend_srv_queue(srv);
-	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
-}
-
-/* must be called under lbprm lock */
-static void _log_backend_srv_recalc(struct proxy *p)
-{
-	unsigned int it = 0;
-	struct server *cur_srv;
-
-	list_for_each_entry(cur_srv, &p->lbprm.log.avail, lb_list) {
-		uint8_t backup = cur_srv->flags & SRV_F_BACKUP;
-
-		if ((!p->srv_act && backup) ||
-		    (p->srv_act && !backup))
-			p->lbprm.log.srv[it++] = cur_srv;
-	}
-}
-
-/* must be called under the lbprm lock */
-static void _log_backend_srv_dequeue(struct server *srv)
-{
-	struct proxy *p = srv->proxy;
-
-	if (srv->flags & SRV_F_BACKUP) {
-		p->srv_bck--;
-	}
-	else {
-		p->srv_act--;
-		if (!p->srv_act) {
-			/* we will be switching to bck tree in LB logic, thus we need to
-			 * reset the lastid
-			 */
-			HA_ATOMIC_STORE(&p->lbprm.log.lastid, 0);
-		}
-	}
-
-	/* remove the srv from the list of available (UP) servers */
-	LIST_DELETE(&srv->lb_list);
-
-	/* reconstruct the array of usable servers */
-	_log_backend_srv_recalc(p);
-
-	p->lbprm.tot_weight = (p->srv_act) ? p->srv_act : p->srv_bck;
-}
-
-static void log_backend_srv_down(struct server *srv)
-{
-	struct proxy *p __maybe_unused = srv->proxy;
-
-	if (!srv_lb_status_changed(srv))
-		return; /* nothing to do */
-	if (!srv_currently_usable(srv) || srv_willbe_usable(srv))
-		return; /* false alarm */
-
-	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
-	_log_backend_srv_dequeue(srv);
-	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
-}
-
 /* check that current configuration is compatible with "mode log" */
 static int _postcheck_log_backend_compat(struct proxy *be)
 {
@@ -983,6 +883,9 @@ static int _postcheck_log_backend_compat(struct proxy *be)
 	    balance_algo != BE_LB_ALGO_RND &&
 	    balance_algo != BE_LB_ALGO_SS &&
 	    balance_algo != BE_LB_ALGO_LH) {
+		/* cannot correct the error since lbprm init was already performed
+		 * in cfgparse.c, so fail loudly
+		 */
 		ha_alert("in %s '%s': \"balance\" only supports 'roundrobin', 'random', 'sticky' and 'log-hash'.\n", proxy_type_str(be), be->id);
 		err_code |= ERR_ALERT | ERR_FATAL;
 	}
@@ -1003,30 +906,6 @@ static int postcheck_log_backend(struct proxy *be)
 	err_code |= _postcheck_log_backend_compat(be);
 	if (err_code & ERR_CODE)
 		return err_code;
-
-	/* First time encountering this log backend, perform some init
-	 */
-	be->lbprm.set_server_status_up = log_backend_srv_up;
-	be->lbprm.set_server_status_down = log_backend_srv_down;
-	be->lbprm.log.lastid = 0; /* initial value */
-	LIST_INIT(&be->lbprm.log.avail);
-
-	/* alloc srv array (it will be used for active and backup server lists in turn,
-	 * so we ensure that the longest list will fit
-	 */
-	be->lbprm.log.srv = calloc(MAX(be->srv_act, be->srv_bck),
-				   sizeof(*be->lbprm.log.srv));
-
-	if (!be->lbprm.log.srv ) {
-		memprintf(&msg, "memory error when allocating server array (%d entries)",
-		          MAX(be->srv_act, be->srv_bck));
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto end;
-	}
-
-	/* reinit srv counters, lbprm queueing will recount */
-	be->srv_act = 0;
-	be->srv_bck = 0;
 
 	/* "log-balance hash" needs to compile its expression */
 	if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_LH) {
@@ -1138,13 +1017,10 @@ static int postcheck_log_backend(struct proxy *be)
 			goto end;
 		}
 		srv->log_target->flags |= LOG_TARGET_FL_RESOLVED;
-		srv->cur_eweight = 1; /* ignore weights, all servers have the same weight */
-		_log_backend_srv_queue(srv);
 		srv = srv->next;
 	}
  end:
 	if (err_code & ERR_CODE) {
-		ha_free(&be->lbprm.log.srv); /* free log servers array */
 		ha_alert("log backend '%s': failed to initialize: %s.\n", be->id, msg);
 		ha_free(&msg);
 	}
@@ -2293,51 +2169,25 @@ static inline void __do_send_log_backend(struct proxy *be, struct log_header hdr
                                          int nblogger, size_t maxlen,
                                          char *message, size_t size)
 {
-	struct server *srv;
-	uint32_t targetid = ~0; /* default value to check if it was explicitly assigned */
-	uint32_t nb_srv;
-
-	HA_RWLOCK_RDLOCK(LBPRM_LOCK, &be->lbprm.lock);
-
-	if (be->srv_act) {
-		nb_srv = be->srv_act;
-	}
-	else if (be->srv_bck) {
-		/* no more active servers but backup ones are, switch to backup farm */
-		nb_srv = be->srv_bck;
-		if (!(be->options & PR_O_USE_ALL_BK)) {
-			/* log balancing disabled on backup farm */
-			targetid = 0; /* use first server */
-			goto skip_lb;
-		}
-	}
-	else {
-		/* no srv available, can't log */
-		goto drop;
-	}
+	struct server *srv = NULL;
 
 	/* log-balancing logic: */
 
 	if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_RR) {
-		/* Atomically load and update lastid since it's not protected
-		 * by any write lock
-		 *
-		 * Wrapping is expected and could lead to unexpected ID reset in the
-		 * middle of a cycle, but given that this only happens once in every
-		 * 4 billions it is quite negligible
-		 */
-		targetid = HA_ATOMIC_FETCH_ADD(&be->lbprm.log.lastid, 1) % nb_srv;
+		srv = fwrr_get_next_server(be, NULL);
 	}
 	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_SS) {
 		/* sticky mode: use first server in the pool, which will always stay
 		 * first during dequeuing and requeuing, unless it becomes unavailable
 		 * and will be replaced by another one
 		 */
-		targetid = 0;
+		srv = ss_get_server(be);
 	}
 	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_RND) {
-		/* random mode */
-		targetid = statistical_prng() % nb_srv;
+		unsigned int hash;
+
+		hash = statistical_prng(); /* random */
+		srv = chash_get_server_hash(be, hash, NULL);
 	}
 	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_LH) {
 		struct sample result;
@@ -2352,28 +2202,24 @@ static inline void __do_send_log_backend(struct proxy *be, struct log_header hdr
 		if (sample_process_cnv(be->lbprm.expr, &result)) {
 			/* gen_hash takes binary input, ensure that we provide such value to it */
 			if (result.data.type == SMP_T_BIN || sample_casts[result.data.type][SMP_T_BIN]) {
+				unsigned int hash;
+
 				sample_casts[result.data.type][SMP_T_BIN](&result);
-				targetid = gen_hash(be, result.data.u.str.area, result.data.u.str.data) % nb_srv;
+				hash = gen_hash(be, result.data.u.str.area, result.data.u.str.data);
+				srv = map_get_server_hash(be, hash);
 			}
 		}
 	}
 
- skip_lb:
-
-	if (targetid == ~0) {
-		/* no target assigned, nothing to do */
+	if (!srv) {
+		/* no srv available, can't log */
 		goto drop;
 	}
-
-	/* find server based on targetid */
-	srv = be->lbprm.log.srv[targetid];
-	HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &be->lbprm.lock);
 
 	__do_send_log(srv->log_target, hdr, nblogger, maxlen, message, size);
 	return;
 
  drop:
-	HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &be->lbprm.lock);
 	_HA_ATOMIC_INC(&dropped_logs);
 }
 

@@ -236,8 +236,6 @@ void free_proxy(struct proxy *p)
 	free(p->conf.uif_file);
 	if ((p->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_MAP)
 		free(p->lbprm.map.srv);
-	if (p->mode == PR_MODE_SYSLOG)
-		free(p->lbprm.log.srv);
 
 	if (p->conf.logformat_sd_string != default_rfc5424_sd_log_format)
 		free(p->conf.logformat_sd_string);
