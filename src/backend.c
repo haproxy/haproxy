@@ -2567,7 +2567,7 @@ void back_handle_st_rdy(struct stream *s)
 void set_backend_down(struct proxy *be)
 {
 	be->last_change = ns_to_sec(now_ns);
-	_HA_ATOMIC_INC(&be->down_trans);
+	_HA_ATOMIC_INC(&be->be_counters.down_trans);
 
 	if (!(global.mode & MODE_STARTING)) {
 		ha_alert("%s '%s' has no server available!\n", proxy_type_str(be), be->id);

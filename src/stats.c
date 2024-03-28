@@ -1710,7 +1710,7 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 				metric = mkf_u32(0, px->srv_bck);
 				break;
 			case ST_F_CHKDOWN:
-				metric = mkf_u64(FN_COUNTER, px->down_trans);
+				metric = mkf_u64(FN_COUNTER, px->be_counters.down_trans);
 				break;
 			case ST_F_LASTCHG:
 				metric = mkf_u32(FN_AGE, ns_to_sec(now_ns) - px->last_change);
