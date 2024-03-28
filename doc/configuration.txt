@@ -5366,8 +5366,7 @@ balance url_param <param> [check_post]
                   the log messages. When the server goes DOWN, the next server
                   in the list takes its place. When a previously DOWN server
                   goes back UP it is added at the end of the list so that the
-                  sticky server doesn't change until it becomes DOWN. This
-                  algorithm is only usable for backends in LOG mode.
+                  sticky server doesn't change until it becomes DOWN.
 
     <arguments> is an optional list of arguments which may be needed by some
                 algorithms. Right now, only "url_param", "uri" and "log-hash"

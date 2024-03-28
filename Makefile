@@ -939,7 +939,7 @@ OBJS += src/mux_h2.o src/mux_fcgi.o src/mux_h1.o src/tcpcheck.o               \
         src/ebmbtree.o src/cfgcond.o src/action.o src/xprt_handshake.o        \
         src/protocol.o src/proto_uxst.o src/proto_udp.o src/lb_map.o          \
         src/fix.o src/ev_select.o src/arg.o src/sock_inet.o src/event_hdl.o   \
-        src/mworker-prog.o src/hpack-dec.o src/cfgparse-tcp.o                 \
+        src/mworker-prog.o src/hpack-dec.o src/cfgparse-tcp.o src/lb_ss.o     \
         src/sock_unix.o src/shctx.o src/proto_uxdg.o src/fcgi.o               \
         src/eb64tree.o src/clock.o src/chunk.o src/cfgdiag.o src/signal.o     \
         src/regex.o src/lru.o src/eb32tree.o src/eb32sctree.o                 \

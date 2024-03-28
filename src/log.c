@@ -981,7 +981,7 @@ static int _postcheck_log_backend_compat(struct proxy *be)
 	}
 	if (balance_algo != BE_LB_ALGO_RR &&
 	    balance_algo != BE_LB_ALGO_RND &&
-	    balance_algo != BE_LB_ALGO_LS &&
+	    balance_algo != BE_LB_ALGO_SS &&
 	    balance_algo != BE_LB_ALGO_LH) {
 		ha_alert("in %s '%s': \"balance\" only supports 'roundrobin', 'random', 'sticky' and 'log-hash'.\n", proxy_type_str(be), be->id);
 		err_code |= ERR_ALERT | ERR_FATAL;
@@ -2328,7 +2328,7 @@ static inline void __do_send_log_backend(struct proxy *be, struct log_header hdr
 		 */
 		targetid = HA_ATOMIC_FETCH_ADD(&be->lbprm.log.lastid, 1) % nb_srv;
 	}
-	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_LS) {
+	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_SS) {
 		/* sticky mode: use first server in the pool, which will always stay
 		 * first during dequeuing and requeuing, unless it becomes unavailable
 		 * and will be replaced by another one

@@ -39,6 +39,7 @@
 #include <haproxy/lb_fwlc.h>
 #include <haproxy/lb_fwrr.h>
 #include <haproxy/lb_map.h>
+#include <haproxy/lb_ss.h>
 #include <haproxy/log.h>
 #include <haproxy/namespace.h>
 #include <haproxy/obj_type.h>
@@ -813,6 +814,14 @@ int assign_server(struct stream *s)
 			break;
 
 		default:
+			if ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_SA) {
+				/* some special algos that cannot be grouped together */
+
+				if ((s->be->lbprm.algo & BE_LB_PARM) == BE_LB_SA_SS)
+					srv = ss_get_server(s->be);
+
+				break;
+			}
 			/* unknown balancing algorithm */
 			err = SRV_STATUS_INTERNAL;
 			goto out;
@@ -2878,7 +2887,7 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 	}
 	else if (strcmp(args[0], "sticky") == 0) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
-		curproxy->lbprm.algo |= BE_LB_ALGO_LS;
+		curproxy->lbprm.algo |= BE_LB_ALGO_SS;
 	}
 	else {
 		memprintf(err, "only supports 'roundrobin', 'static-rr', 'leastconn', 'source', 'uri', 'url_param', 'hash', 'hdr(name)', 'rdp-cookie(name)', 'log-hash' and 'sticky' options.");

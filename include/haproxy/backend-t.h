@@ -28,6 +28,7 @@
 #include <haproxy/lb_fwlc-t.h>
 #include <haproxy/lb_fwrr-t.h>
 #include <haproxy/lb_map-t.h>
+#include <haproxy/lb_ss-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/thread-t.h>
 
@@ -58,6 +59,9 @@
 #define BE_LB_CB_LC     0x00000000  /* least-connections */
 #define BE_LB_CB_FAS    0x00000001  /* first available server (opposite of leastconn) */
 
+/* BE_LB_SA_* is used with BE_LB_KIND_SA */
+#define BE_LB_SA_SS     0x00000000  /* stick to server as long as it is available */
+
 #define BE_LB_PARM      0x000000FF  /* mask to get/clear the LB param */
 
 /* Required input(s) */
@@ -73,6 +77,7 @@
 #define BE_LB_KIND_RR   0x00010000  /* round-robin */
 #define BE_LB_KIND_CB   0x00020000  /* connection-based */
 #define BE_LB_KIND_HI   0x00030000  /* hash of input (see hash inputs above) */
+#define BE_LB_KIND_SA   0x00040000  /* standalone (specific algorithms, cannot be grouped) */
 #define BE_LB_KIND      0x00070000  /* mask to get/clear LB algorithm */
 
 /* All known variants of load balancing algorithms. These can be cleared using
@@ -83,6 +88,7 @@
 #define BE_LB_ALGO_RND  (BE_LB_KIND_RR | BE_LB_NEED_NONE | BE_LB_RR_RANDOM) /* random value */
 #define BE_LB_ALGO_LC   (BE_LB_KIND_CB | BE_LB_NEED_NONE | BE_LB_CB_LC)    /* least connections */
 #define BE_LB_ALGO_FAS  (BE_LB_KIND_CB | BE_LB_NEED_NONE | BE_LB_CB_FAS)   /* first available server */
+#define BE_LB_ALGO_SS   (BE_LB_KIND_SA | BE_LB_NEED_NONE | BE_LB_SA_SS)    /* sticky */
 #define BE_LB_ALGO_SRR  (BE_LB_KIND_RR | BE_LB_NEED_NONE | BE_LB_RR_STATIC) /* static round robin */
 #define BE_LB_ALGO_SH	(BE_LB_KIND_HI | BE_LB_NEED_ADDR | BE_LB_HASH_SRC) /* hash: source IP */
 #define BE_LB_ALGO_UH	(BE_LB_KIND_HI | BE_LB_NEED_HTTP | BE_LB_HASH_URI) /* hash: HTTP URI  */
@@ -91,7 +97,6 @@
 #define BE_LB_ALGO_RCH	(BE_LB_KIND_HI | BE_LB_NEED_DATA | BE_LB_HASH_RDP) /* hash: RDP cookie value   */
 #define BE_LB_ALGO_SMP	(BE_LB_KIND_HI | BE_LB_NEED_DATA | BE_LB_HASH_SMP) /* hash: sample expression  */
 #define BE_LB_ALGO_LH	(BE_LB_KIND_HI | BE_LB_NEED_LOG  | BE_LB_HASH_SMP) /* log hash: sample expression  */
-#define BE_LB_ALGO_LS	(BE_LB_KIND_CB | BE_LB_NEED_LOG  | BE_LB_CB_FAS)   /* log sticky */
 #define BE_LB_ALGO      (BE_LB_KIND    | BE_LB_NEED      | BE_LB_PARM    ) /* mask to clear algo */
 
 /* Higher bits define how a given criterion is mapped to a server. In fact it
@@ -147,6 +152,7 @@ struct lbprm {
 		struct lb_fwlc fwlc;
 		struct lb_chash chash;
 		struct lb_fas fas;
+		struct lb_ss ss;
 		struct {
 			struct server	**srv;  /* array containing in-use log servers */
 			struct list	avail;  /* servers available for lb are registered in this list */

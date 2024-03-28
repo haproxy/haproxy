@@ -64,6 +64,7 @@
 #include <haproxy/lb_fwlc.h>
 #include <haproxy/lb_fwrr.h>
 #include <haproxy/lb_map.h>
+#include <haproxy/lb_ss.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/sink.h>
@@ -3764,6 +3765,12 @@ out_uri_auth_compat:
 			} else {
 				curproxy->lbprm.algo |= BE_LB_LKUP_MAP;
 				init_server_map(curproxy);
+			}
+			break;
+		case BE_LB_KIND_SA:
+			if ((curproxy->lbprm.algo & BE_LB_PARM) == BE_LB_SA_SS) {
+				curproxy->lbprm.algo |= BE_LB_PROP_DYN;
+				init_server_ss(curproxy);
 			}
 			break;
 		}
