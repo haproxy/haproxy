@@ -32,6 +32,7 @@ Summary
 9.3.      Unix Socket commands
 9.4.      Master CLI
 9.4.1.    Master CLI commands
+9.5.      Stats-file
 10.   Tricks for easier configuration management
 11.   Well-known traps to avoid
 12.   Debugging and performance issues
@@ -2066,6 +2067,10 @@ disable server <backend>/<server>
 
   This command is restricted and can only be issued on sockets configured for
   level "admin".
+
+dump stats-file
+  Generate a stats-file which can be used to preload haproxy counters values on
+  startup. See "Stats-file" section for more detail.
 
 enable agent <backend>/<server>
   Resume auxiliary agent check that was temporarily stopped.
@@ -4234,6 +4239,29 @@ show startup-logs
   reload.
 
   Those messages are also dumped with the "reload" command.
+
+
+9.5. Stats-file
+--------------
+
+A so-called stats-file can be used to preload internal haproxy counters on
+process startup with non-null values. Its main purpose is to preserve
+statistics for worker processes accross reloads. Only an excerpt of all the
+exposed haproxy statistics is present in a stats-file as it only makes sense to
+preload metric-type values.
+
+For the moment, only proxy counters are supported in stats-file. This allows to
+preload values for frontends, backends, servers and listeners. However only
+objects instances with a non-empty GUID are stored in a stats-file. This
+guarantees that value will be preloaded for object with matching type and GUID,
+even if other parameters differ.
+
+The CLI command "dump stats-file" purpose is to generate a stats-file. Format
+of the stats-file is internally defined and freely subject to future changes
+and extension. It is designed to be compatible at least accross adjacent
+haproxy stable branch releases, but may require optional extra configuration
+when loading a stats-file to a process running on an older version.
+
 
 10. Tricks for easier configuration management
 ----------------------------------------------

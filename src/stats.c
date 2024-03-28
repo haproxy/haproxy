@@ -57,6 +57,7 @@
 #include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/stats.h>
+#include <haproxy/stats-file.h>
 #include <haproxy/stats-html.h>
 #include <haproxy/stats-json.h>
 #include <haproxy/stconn.h>
@@ -631,6 +632,8 @@ int stats_dump_one_line(const struct field *line, size_t stats_count,
 		ret = stats_dump_fields_typed(chk, line, stats_count, ctx);
 	else if (ctx->flags & STAT_F_FMT_JSON)
 		ret = stats_dump_fields_json(chk, line, stats_count, ctx);
+	else if (ctx->flags & STAT_F_FMT_FILE)
+		ret = stats_dump_fields_file(chk, line, stats_count, ctx);
 	else
 		ret = stats_dump_fields_csv(chk, line, stats_count, ctx);
 
@@ -909,6 +912,9 @@ static int stats_dump_fe_line(struct stconn *sc, struct proxy *px)
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 		void *counters;
 
+		if (ctx->flags & STAT_F_FMT_FILE)
+			continue;
+
 		if (!(stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_FE)) {
 			stats_count += mod->stats_count;
 			continue;
@@ -1054,6 +1060,9 @@ static int stats_dump_li_line(struct stconn *sc, struct proxy *px, struct listen
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 		void *counters;
+
+		if (ctx->flags & STAT_F_FMT_FILE)
+			continue;
 
 		if (!(stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_LI)) {
 			stats_count += mod->stats_count;
@@ -1498,6 +1507,9 @@ static int stats_dump_sv_line(struct stconn *sc, struct proxy *px, struct server
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 		void *counters;
 
+		if (ctx->flags & STAT_F_FMT_FILE)
+			continue;
+
 		if (stats_get_domain(mod->domain_flags) != STATS_DOMAIN_PROXY)
 			continue;
 
@@ -1746,6 +1758,9 @@ static int stats_dump_be_line(struct stconn *sc, struct proxy *px)
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 		struct extra_counters *counters;
+
+		if (ctx->flags & STAT_F_FMT_FILE)
+			continue;
 
 		if (stats_get_domain(mod->domain_flags) != STATS_DOMAIN_PROXY)
 			continue;
@@ -2070,6 +2085,8 @@ int stats_dump_stat_to_buffer(struct stconn *sc, struct buffer *buf, struct htx 
 			stats_dump_json_schema(chk);
 		else if (ctx->flags & STAT_F_FMT_JSON)
 			stats_dump_json_header(chk);
+		else if (ctx->flags & STAT_F_FMT_FILE)
+			stats_dump_file_header(ctx->type, chk);
 		else if (!(ctx->flags & STAT_F_FMT_TYPED))
 			stats_dump_csv_header(ctx->domain, chk);
 
@@ -2611,6 +2628,56 @@ static int cli_io_handler_dump_json_schema(struct appctx *appctx)
 	return stats_dump_json_schema_to_buffer(appctx);
 }
 
+static int cli_parse_dump_stat_file(char **args, char *payload,
+                                    struct appctx *appctx, void *private)
+{
+	struct show_stat_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
+	ctx->chunk = b_make(trash.area, trash.size, 0, 0);
+	ctx->domain = STATS_DOMAIN_PROXY;
+	ctx->flags |= STAT_F_FMT_FILE;
+
+	return 0;
+}
+
+/* Returns 1 on completion else 0. */
+static int cli_io_handler_dump_stat_file(struct appctx *appctx)
+{
+	struct show_stat_ctx *ctx = appctx->svcctx;
+	int ret;
+
+	/* Frontend and backend sides are ouputted separatedly on stats-file.
+	 * As such, use STAT_F_BOUND to restrict proxies looping over frontend
+	 * side first before first stats_dump_stat_to_buffer(). A second
+	 * iteration is conducted for backend side after.
+	 */
+	ctx->flags |= STAT_F_BOUND;
+
+	if (!(ctx->type & (1 << STATS_TYPE_BE))) {
+		/* Restrict to frontend side. */
+		ctx->type = (1 << STATS_TYPE_FE) | (1 << STATS_TYPE_SO);
+		ctx->iid = ctx->sid = -1;
+
+		ret = stats_dump_stat_to_buffer(appctx_sc(appctx), NULL, NULL);
+		if (!ret)
+			return 0;
+
+		chunk_strcat(&ctx->chunk, "\n");
+		if (!stats_putchk(appctx, NULL, NULL))
+			return 0;
+
+		/* Switch to backend side. */
+		ctx->state = STAT_STATE_INIT;
+		ctx->type = (1 << STATS_TYPE_BE) | (1 << STATS_TYPE_SV);
+	}
+
+	return stats_dump_stat_to_buffer(appctx_sc(appctx), NULL, NULL);
+}
+
+static void cli_io_handler_release_dump_stat_file(struct appctx *appctx)
+{
+}
+
 int stats_allocate_proxy_counters_internal(struct extra_counters **counters,
                                            int type, int px_cap)
 {
@@ -2854,6 +2921,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "info",  NULL },           "show info [desc|json|typed|float]*      : report information about the running process",    cli_parse_show_info, cli_io_handler_dump_info, NULL },
 	{ { "show", "stat",  NULL },           "show stat [desc|json|no-maint|typed|up]*: report counters for each proxy and server",       cli_parse_show_stat, cli_io_handler_dump_stat, cli_io_handler_release_stat },
 	{ { "show", "schema",  "json", NULL }, "show schema json                        : report schema used for stats",                    NULL, cli_io_handler_dump_json_schema, NULL },
+	{ { "dump", "stats-file", NULL },      "dump stats-file                         : dump stats for restore",                          cli_parse_dump_stat_file, cli_io_handler_dump_stat_file, cli_io_handler_release_dump_stat_file },
 	{{},}
 }};
 
