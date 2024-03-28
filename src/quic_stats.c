@@ -2,7 +2,7 @@
 #include <haproxy/quic_stats-t.h>
 #include <haproxy/stats.h>
 
-static struct name_desc quic_stats[] = {
+static struct stat_col quic_stats[] = {
 	[QUIC_ST_RXBUF_FULL]          = { .name = "quic_rxbuf_full",
 	                                  .desc = "Total number of cancelled reception due to full receiver buffer" },
 	[QUIC_ST_DROPPED_PACKET]      = { .name = "quic_dropped_pkt",

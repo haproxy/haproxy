@@ -35,7 +35,7 @@ enum {
 	H3_STATS_COUNT /* must be the last */
 };
 
-static struct name_desc h3_stats[] = {
+static struct stat_col h3_stats[] = {
 	/* h3 frame type counters */
 	[H3_ST_DATA]         = { .name = "h3_data",
 	                         .desc = "Total number of DATA frames received" },

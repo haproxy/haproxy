@@ -38,7 +38,7 @@ struct stconn;
 /* These two structs contains all column names and descriptions according to
  * the the number of entries in "enum stat_idx_px" and "enum stat_idx_info"
  */
-extern const struct name_desc stat_cols_px[];
+extern const struct stat_col stat_cols_px[];
 extern const struct name_desc stat_cols_info[];
 extern const char *stat_status_codes[];
 extern struct applet http_stats_applet;

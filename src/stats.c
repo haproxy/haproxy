@@ -68,6 +68,35 @@
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/version.h>
 
+/* Define a new metric for both frontend and backend sides. */
+#define ME_NEW_PX(name_f, nature, format, offset_f, cap_f, desc_f)            \
+  { .name = (name_f), .desc = (desc_f), .type = (nature)|(format),            \
+    .metric.offset[0] = offsetof(struct fe_counters, offset_f),               \
+    .metric.offset[1] = offsetof(struct be_counters, offset_f),               \
+    .cap = (cap_f),                                                           \
+  }
+
+/* Define a new metric for frontend side only. */
+#define ME_NEW_FE(name_f, nature, format, offset_f, cap_f, desc_f)            \
+  { .name = (name_f), .desc = (desc_f), .type = (nature)|(format),            \
+    .metric.offset[0] = offsetof(struct fe_counters, offset_f),               \
+    .cap = (cap_f),                                                           \
+  }
+
+/* Define a new metric for backend side only. */
+#define ME_NEW_BE(name_f, nature, format, offset_f, cap_f, desc_f)            \
+  { .name = (name_f), .desc = (desc_f), .type = (nature)|(format),            \
+    .metric.offset[1] = offsetof(struct be_counters, offset_f),               \
+    .cap = (cap_f),                                                           \
+  }
+
+/* Convert stat_col <col> to old-style <name> as name_desc. */
+static void stcol2ndesc(struct name_desc *name, const struct stat_col *col)
+{
+        name->name = col->name;
+        name->desc = col->desc;
+}
+
 
 /* status codes available for the stats admin page (strictly 4 chars length) */
 const char *stat_status_codes[STAT_STATUS_SIZE] = {
@@ -167,7 +196,7 @@ const struct name_desc stat_cols_info[ST_I_INF_MAX] = {
 /* one line of info */
 THREAD_LOCAL struct field stat_line_info[ST_I_INF_MAX];
 
-const struct name_desc stat_cols_px[ST_I_PX_MAX] = {
+const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_PXNAME]                        = { .name = "pxname",                      .desc = "Proxy name" },
 	[ST_I_PX_SVNAME]                        = { .name = "svname",                      .desc = "Server name" },
 	[ST_I_PX_QCUR]                          = { .name = "qcur",                        .desc = "Number of current queued connections" },
@@ -2823,7 +2852,7 @@ void stats_register_module(struct stats_module *m)
 static int allocate_stats_px_postcheck(void)
 {
 	struct stats_module *mod;
-	size_t i = ST_I_PX_MAX;
+	size_t i = ST_I_PX_MAX, offset;
 	int err_code = 0;
 	struct proxy *px;
 
@@ -2836,14 +2865,15 @@ static int allocate_stats_px_postcheck(void)
 		return err_code;
 	}
 
-	memcpy(stat_cols[STATS_DOMAIN_PROXY], stat_cols_px,
-	       ST_I_PX_MAX * sizeof(struct name_desc));
+	for (i = 0; i < ST_I_PX_MAX; ++i)
+		stcol2ndesc(&stat_cols[STATS_DOMAIN_PROXY][i], &stat_cols_px[i]);
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
-		memcpy(stat_cols[STATS_DOMAIN_PROXY] + i,
-		       mod->stats,
-		       mod->stats_count * sizeof(struct name_desc));
-		i += mod->stats_count;
+		for (offset = i, i = 0; i < mod->stats_count; ++i) {
+			stcol2ndesc(&stat_cols[STATS_DOMAIN_PROXY][offset + i],
+			            &mod->stats[i]);
+		}
+		i += offset;
 	}
 
 	for (px = proxies_list; px; px = px->next) {
@@ -2864,7 +2894,7 @@ REGISTER_CONFIG_POSTPARSER("allocate-stats-px", allocate_stats_px_postcheck);
 static int allocate_stats_rslv_postcheck(void)
 {
 	struct stats_module *mod;
-	size_t i = 0;
+	size_t i = 0, offset;
 	int err_code = 0;
 
 	stat_cols[STATS_DOMAIN_RESOLVERS] = malloc(stat_cols_len[STATS_DOMAIN_RESOLVERS] * sizeof(struct name_desc));
@@ -2875,10 +2905,11 @@ static int allocate_stats_rslv_postcheck(void)
 	}
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_RESOLVERS], list) {
-		memcpy(stat_cols[STATS_DOMAIN_RESOLVERS] + i,
-		       mod->stats,
-		       mod->stats_count * sizeof(struct name_desc));
-		i += mod->stats_count;
+		for (offset = i, i = 0; i < mod->stats_count; ++i) {
+			stcol2ndesc(&stat_cols[STATS_DOMAIN_RESOLVERS][offset + i],
+			            &mod->stats[i]);
+		}
+		i += offset;
 	}
 
 	if (!resolv_allocate_counters(&stats_module_list[STATS_DOMAIN_RESOLVERS])) {

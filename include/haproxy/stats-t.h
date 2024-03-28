@@ -337,6 +337,20 @@ enum stat_idx_info {
 	ST_I_INF_MAX
 };
 
+/* Represent an exposed statistic. */
+struct stat_col {
+	const char *name; /* short name, used notably in CSV headers */
+	const char *desc; /* user-friendly description */
+
+	uint32_t type;    /* combination of field_nature and field_format */
+	uint8_t cap;      /* mask of stats_domain_px_cap to restrain metrics to an object types subset */
+
+	/* used only for generic metrics */
+	struct {
+		int offset[2];    /* offset in counters */
+	} metric;
+};
+
 
 /* Stats columns for CSV output. For any column added here, please add the text
  * representation in the metrics_px array. Please only append at the end,
@@ -494,7 +508,7 @@ struct stats_module {
 	/* functor used to generate the stats module using counters provided through data parameter */
 	int (*fill_stats)(void *data, struct field *, unsigned int *);
 
-	struct name_desc *stats; /* name/description of stats provided by the module */
+	struct stat_col *stats;  /* statistics provided by the module */
 	void *counters;          /* initial values of allocated counters */
 	size_t counters_off[COUNTERS_OFF_END]; /* list of offsets of allocated counters in various objects */
 	size_t stats_count;      /* count of stats provided */

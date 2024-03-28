@@ -159,7 +159,7 @@ enum {
 	SSL_ST_STATS_COUNT /* must be the last member of the enum */
 };
 
-static struct name_desc ssl_stats[] = {
+static struct stat_col ssl_stats[] = {
 	[SSL_ST_SESS]             = { .name = "ssl_sess",
 	                              .desc = "Total number of ssl sessions established" },
 	[SSL_ST_REUSED_SESS]      = { .name = "ssl_reused_sess",

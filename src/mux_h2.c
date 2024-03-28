@@ -306,7 +306,7 @@ enum {
 	H2_STATS_COUNT /* must be the last member of the enum */
 };
 
-static struct name_desc h2_stats[] = {
+static struct stat_col h2_stats[] = {
 	[H2_ST_HEADERS_RCVD]    = { .name = "h2_headers_rcvd",
 	                            .desc = "Total number of received HEADERS frames" },
 	[H2_ST_DATA_RCVD]       = { .name = "h2_data_rcvd",

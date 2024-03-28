@@ -227,7 +227,7 @@ enum {
 };
 
 
-static struct name_desc h1_stats[] = {
+static struct stat_col h1_stats[] = {
 	[H1_ST_OPEN_CONN]            = { .name = "h1_open_connections",
 	                                 .desc = "Count of currently open connections" },
 	[H1_ST_OPEN_STREAM]          = { .name = "h1_open_streams",

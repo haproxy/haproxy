@@ -96,7 +96,7 @@ enum {
 	RSLV_STAT_END,
 };
 
-static struct name_desc resolv_stats[] = {
+static struct stat_col resolv_stats[] = {
 	[RSLV_STAT_ID]          = { .name = "id",          .desc = "ID" },
 	[RSLV_STAT_PID]         = { .name = "pid",         .desc = "Parent ID" },
 	[RSLV_STAT_SENT]        = { .name = "sent",        .desc = "Sent" },
