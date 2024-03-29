@@ -5947,9 +5947,9 @@ static int stk_promex_fill_ts(void *unused, void *metric_ctx, unsigned int id, s
 		return 0;
 
 	labels[0].name  = ist("name");
-	labels[0].value = ist2(t->id, strlen(t->id));
+	labels[0].value = ist(t->id);
 	labels[1].name  = ist("type");
-	labels[1].value = ist2(stktable_types[t->type].kw, strlen(stktable_types[t->type].kw));
+	labels[1].value = ist(stktable_types[t->type].kw);
 
 	switch (id) {
 		case STICKTABLE_SIZE:

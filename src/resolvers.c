@@ -3947,9 +3947,9 @@ static int rslv_promex_fill_ts(void *unused, void *metric_ctx, unsigned int id, 
 	int ret;
 
 	labels[0].name  = ist("resolver");
-	labels[0].value = ist2(resolver->id, strlen(resolver->id));
+	labels[0].value = ist(resolver->id);
 	labels[1].name  = ist("nameserver");
-	labels[1].value = ist2(ns->id, strlen(ns->id));
+	labels[1].value = ist(ns->id);
 
 	ret = resolv_fill_stats(ns->counters, stats, &id);
 	if (ret == 1)
