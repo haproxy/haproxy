@@ -1,5 +1,4 @@
 varnishtest "HTTP response size tests: H2->H1 (HTX and legacy mode)"
-#REQUIRE_VERSION=1.9
 
 feature ignore_unknown_macro
 
