@@ -1859,7 +1859,6 @@ static int debug_parse_cli_memstats(char **args, char *payload, struct appctx *a
 static int debug_iohandler_memstats(struct appctx *appctx)
 {
 	struct dev_mem_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_sc(appctx);
 	struct mem_stats *ptr;
 	const char *pfx = ctx->match;
 	int ret = 1;
