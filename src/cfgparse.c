@@ -2866,8 +2866,7 @@ init_proxies_list_stage1:
 #ifdef USE_OPENSSL
 			/* no-alpn ? If so, it's the right moment to remove it */
 			if (bind_conf->ssl_conf.alpn_str && !bind_conf->ssl_conf.alpn_len) {
-				free(bind_conf->ssl_conf.alpn_str);
-				bind_conf->ssl_conf.alpn_str = NULL;
+				ha_free(&bind_conf->ssl_conf.alpn_str);
 			}
 #ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 			else if (!bind_conf->ssl_conf.alpn_str && !bind_conf->ssl_conf.npn_str &&
