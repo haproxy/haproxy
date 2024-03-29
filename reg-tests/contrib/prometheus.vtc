@@ -1,6 +1,6 @@
 varnishtest "prometheus exporter test"
 
-#REQUIRE_VERSION=3.0
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.0-dev0)'"
 #REQUIRE_SERVICES=prometheus-exporter
 
 feature ignore_unknown_macro

@@ -1,7 +1,7 @@
 varnishtest "Reverse server test"
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=2.9
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.9-dev0)'"
 
 barrier b1 cond 2
 
