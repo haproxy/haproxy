@@ -69,7 +69,7 @@ int type_to_smp(const char *type)
 	int it = 0;
 
 	while (it < SMP_TYPES) {
-		if (!strcmp(type, smp_to_type[it]))
+		if (strcmp(type, smp_to_type[it]) == 0)
 			break; // found
 		it += 1;
 	}

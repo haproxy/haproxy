@@ -1329,14 +1329,14 @@ static int hlua_server_index(struct lua_State *L)
 {
 	const char *key = lua_tostring(L, 2);
 
-	if (!strcmp(key, "name")) {
+	if (strcmp(key, "name") == 0) {
 		if (ONLY_ONCE())
 			ha_warning("hlua: use of server 'name' attribute is deprecated and will eventually be removed, please use get_name() function instead: %s\n", hlua_traceback(L, ", "));
 		lua_pushvalue(L, 1);
 		hlua_server_get_name(L);
 		return 1;
 	}
-	if (!strcmp(key, "puid")) {
+	if (strcmp(key, "puid") == 0) {
 		if (ONLY_ONCE())
 			ha_warning("hlua: use of server 'puid' attribute is deprecated and will eventually be removed, please use get_puid() function instead: %s\n", hlua_traceback(L, ", "));
 		lua_pushvalue(L, 1);
@@ -1980,14 +1980,14 @@ static int hlua_proxy_index(struct lua_State *L)
 {
 	const char *key = lua_tostring(L, 2);
 
-	if (!strcmp(key, "name")) {
+	if (strcmp(key, "name") == 0) {
 		if (ONLY_ONCE())
 			ha_warning("hlua: use of proxy 'name' attribute is deprecated and will eventually be removed, please use get_name() function instead: %s\n", hlua_traceback(L, ", "));
 		lua_pushvalue(L, 1);
 		hlua_proxy_get_name(L);
 		return 1;
 	}
-	if (!strcmp(key, "uuid")) {
+	if (strcmp(key, "uuid") == 0) {
 		if (ONLY_ONCE())
 			ha_warning("hlua: use of proxy 'uuid' attribute is deprecated and will eventually be removed, please use get_uuid() function instead: %s\n", hlua_traceback(L, ", "));
 		lua_pushvalue(L, 1);

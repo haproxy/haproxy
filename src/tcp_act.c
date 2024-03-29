@@ -678,7 +678,7 @@ static enum act_parse_ret tcp_parse_set_mark(const char **args, int *orig_arg, s
 	}
 
 	/* Register processing function. */
-	if (!strcmp("set-bc-mark", args[cur_arg - 1]))
+	if (strcmp("set-bc-mark", args[cur_arg - 1]) == 0)
 		rule->action_ptr = tcp_action_set_bc_mark;
 	else
 		rule->action_ptr = tcp_action_set_fc_mark; // fc mark
@@ -740,7 +740,7 @@ static enum act_parse_ret tcp_parse_set_tos(const char **args, int *orig_arg, st
 	}
 
 	/* Register processing function. */
-	if (!strcmp("set-bc-tos", args[cur_arg - 1]))
+	if (strcmp("set-bc-tos", args[cur_arg - 1]) == 0)
 		rule->action_ptr = tcp_action_set_bc_tos;
 	else
 		rule->action_ptr = tcp_action_set_fc_tos; // fc tos

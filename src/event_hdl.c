@@ -138,7 +138,7 @@ struct event_hdl_sub_type event_hdl_string_to_sub_type(const char *name)
 	int it;
 
 	for (it = 0; it < (int)(sizeof(event_hdl_sub_type_map) / sizeof(event_hdl_sub_type_map[0])); it++) {
-		if (!strcmp(name, event_hdl_sub_type_map[it].name))
+		if (strcmp(name, event_hdl_sub_type_map[it].name) == 0)
 			return event_hdl_sub_type_map[it].type;
 	}
 	return EVENT_HDL_SUB_NONE;
