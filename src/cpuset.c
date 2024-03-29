@@ -280,7 +280,7 @@ int cpu_map_configured(void)
 static int cpuset_alloc(void)
 {
 	/* allocate the structures used to store CPU topology info */
-	cpu_map = (struct cpu_map*)calloc(MAX_TGROUPS, sizeof(*cpu_map));
+	cpu_map = calloc(MAX_TGROUPS, sizeof(*cpu_map));
 	if (!cpu_map)
 		return 0;
 
