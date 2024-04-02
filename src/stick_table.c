@@ -215,6 +215,7 @@ static struct stksess *__stksess_init(struct stktable *t, struct stksess * ts)
 	memset((void *)ts - t->data_size, 0, t->data_size);
 	ts->ref_cnt = 0;
 	ts->shard = 0;
+	ts->seen = 0;
 	ts->key.node.leaf_p = NULL;
 	ts->exp.node.leaf_p = NULL;
 	ts->upd.node.leaf_p = NULL;
@@ -523,6 +524,7 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 
 				/* here we're write-locked */
 
+				ts->seen = 0;
 				ts->upd.key = ++t->update;
 				t->localupdate = t->update;
 				eb32_delete(&ts->upd);
@@ -552,6 +554,7 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 
 				/* here we're write-locked */
 
+				ts->seen = 0;
 				ts->upd.key= (++t->update)+(2147483648U);
 				eb = eb32_insert(&t->updates, &ts->upd);
 				if (eb != &ts->upd) {

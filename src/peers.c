@@ -1478,6 +1478,7 @@ static inline int peer_send_error_protomsg(struct appctx *appctx)
 static inline struct stksess *peer_teach_process_stksess_lookup(struct shared_table *st)
 {
 	struct eb32_node *eb;
+	struct stksess *ret;
 
 	eb = eb32_lookup_ge(&st->table->updates, st->last_pushed+1);
 	if (!eb) {
@@ -1497,7 +1498,10 @@ static inline struct stksess *peer_teach_process_stksess_lookup(struct shared_ta
 		return NULL;
 	}
 
-	return eb32_entry(eb, struct stksess, upd);
+	ret = eb32_entry(eb, struct stksess, upd);
+	if (!_HA_ATOMIC_LOAD(&ret->seen))
+		_HA_ATOMIC_STORE(&ret->seen, 1);
+	return ret;
 }
 
 /*
@@ -1507,6 +1511,7 @@ static inline struct stksess *peer_teach_process_stksess_lookup(struct shared_ta
 static inline struct stksess *peer_teach_stage1_stksess_lookup(struct shared_table *st)
 {
 	struct eb32_node *eb;
+	struct stksess *ret;
 
 	eb = eb32_lookup_ge(&st->table->updates, st->last_pushed+1);
 	if (!eb) {
@@ -1517,7 +1522,10 @@ static inline struct stksess *peer_teach_stage1_stksess_lookup(struct shared_tab
 		return NULL;
 	}
 
-	return eb32_entry(eb, struct stksess, upd);
+	ret = eb32_entry(eb, struct stksess, upd);
+	if (!_HA_ATOMIC_LOAD(&ret->seen))
+		_HA_ATOMIC_STORE(&ret->seen, 1);
+	return ret;
 }
 
 /*
@@ -1527,6 +1535,7 @@ static inline struct stksess *peer_teach_stage1_stksess_lookup(struct shared_tab
 static inline struct stksess *peer_teach_stage2_stksess_lookup(struct shared_table *st)
 {
 	struct eb32_node *eb;
+	struct stksess *ret;
 
 	eb = eb32_lookup_ge(&st->table->updates, st->last_pushed+1);
 	if (!eb || eb->key > st->teaching_origin) {
@@ -1534,7 +1543,10 @@ static inline struct stksess *peer_teach_stage2_stksess_lookup(struct shared_tab
 		return NULL;
 	}
 
-	return eb32_entry(eb, struct stksess, upd);
+	ret = eb32_entry(eb, struct stksess, upd);
+	if (!_HA_ATOMIC_LOAD(&ret->seen))
+		_HA_ATOMIC_STORE(&ret->seen, 1);
+	return ret;
 }
 
 /*
