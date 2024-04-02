@@ -2050,8 +2050,10 @@ stats_error_parsing:
 			case KWM_STD:
 				curproxy->options |= PR_O_REDISP;
 				curproxy->redispatch_after = -1;
-				if(*args[2]) {
+				if (*args[2]) {
 					curproxy->redispatch_after = atol(args[2]);
+					if (!curproxy->redispatch_after)
+						curproxy->options &= ~PR_O_REDISP;
 				}
 				break;
 			case KWM_NO:
