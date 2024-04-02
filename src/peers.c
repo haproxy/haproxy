@@ -1651,13 +1651,7 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 static inline int peer_send_teach_process_msgs(struct appctx *appctx, struct peer *p,
                                                struct shared_table *st)
 {
-	int ret;
-
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
-	ret = peer_send_teachmsgs(appctx, p, peer_teach_process_stksess_lookup, st);
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
-
-	return ret;
+	return peer_send_teachmsgs(appctx, p, peer_teach_process_stksess_lookup, st);
 }
 
 /*
@@ -2689,18 +2683,19 @@ static inline int peer_send_msgs(struct appctx *appctx,
 			}
 
 			if (!(peer->flags & PEER_F_TEACH_PROCESS)) {
-				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
-				if (!(peer->flags & PEER_F_LEARN_ASSIGN) &&
-					(st->last_pushed != st->table->localupdate)) {
+				int must_send;
 
+				HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
+				must_send = !(peer->flags & PEER_F_LEARN_ASSIGN) && (st->last_pushed != st->table->localupdate);
+				HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
+
+				if (must_send) {
 					repl = peer_send_teach_process_msgs(appctx, peer, st);
 					if (repl <= 0) {
-						HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
 						peer->stop_local_table = peer->last_local_table;
 						return repl;
 					}
 				}
-				HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
 			}
 			else if (!(peer->flags & PEER_F_TEACH_FINISHED)) {
 				if (!(st->flags & SHTABLE_F_TEACH_STAGE1)) {
