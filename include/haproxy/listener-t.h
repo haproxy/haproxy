@@ -28,6 +28,7 @@
 #include <import/ebtree-t.h>
 
 #include <haproxy/api-t.h>
+#include <haproxy/guid-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/quic_cc-t.h>
 #include <haproxy/quic_sock-t.h>
@@ -207,6 +208,8 @@ struct bind_conf {
 	char *arg;                 /* argument passed to "bind" for better error reporting */
 	char *file;                /* file where the section appears */
 	int line;                  /* line where the section appears */
+	char *guid_prefix;         /* prefix for listeners GUID */
+	size_t guid_idx;           /* next index for listeners GUID generation */
 	char *rhttp_srvname;       /* name of server when using "rhttp@" address */
 	int rhttp_nbconn;          /* count of connections to initiate in parallel */
 	__decl_thread(HA_RWLOCK_T sni_lock); /* lock the SNI trees during add/del operations */
@@ -251,6 +254,8 @@ struct listener {
 	struct {
 		struct eb32_node id;	/* place in the tree of used IDs */
 	} conf;				/* config information */
+
+	struct guid_node guid;		/* GUID global tree node */
 
 	struct li_per_thread *per_thr;  /* per-thread fields (one per thread in the group) */
 

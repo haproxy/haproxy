@@ -15908,6 +15908,12 @@ group <group>
   "gid" setting except that the group name is used instead of its gid. This
   setting is ignored by non UNIX sockets.
 
+guid-prefix <string>
+  Generate case-sensitive global unique IDs for each listening sockets
+  allocated on this bind line. Prefix will be concatenated to listeners
+  position index on the current bind line, with character '-' as separator. See
+  "guid" proxy keyword description for more information on its format.
+
 id <id>
   Fixes the socket ID. By default, socket IDs are automatically assigned, but
   sometimes it is more convenient to fix them to ease monitoring. This value

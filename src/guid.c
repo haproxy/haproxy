@@ -1,6 +1,7 @@
 #include <haproxy/guid.h>
 
 #include <import/ebistree.h>
+#include <haproxy/listener-t.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/proxy.h>
 #include <haproxy/server-t.h>
@@ -44,6 +45,10 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 	switch (obj_type(objt)) {
 	case OBJ_TYPE_PROXY:
 		guid = &__objt_proxy(objt)->guid;
+		break;
+
+	case OBJ_TYPE_LISTENER:
+		guid = &__objt_listener(objt)->guid;
 		break;
 
 	case OBJ_TYPE_SERVER:
@@ -115,12 +120,19 @@ char *guid_name(const struct guid_node *guid)
 {
 	char *msg = NULL;
 	struct proxy *px;
+	struct listener *l;
 	struct server *srv;
 
 	switch (obj_type(guid->obj_type)) {
 	case OBJ_TYPE_PROXY:
 		px = __objt_proxy(guid->obj_type);
 		return memprintf(&msg, "%s %s", proxy_cap_str(px->cap), px->id);
+
+	case OBJ_TYPE_LISTENER:
+		l = __objt_listener(guid->obj_type);
+		return memprintf(&msg, "listener %s (%s:%d)",
+		                 l->bind_conf->frontend->id,
+		                 l->bind_conf->file, l->bind_conf->line);
 
 	case OBJ_TYPE_SERVER:
 		srv = __objt_server(guid->obj_type);

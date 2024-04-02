@@ -2920,6 +2920,12 @@ init_proxies_list_stage1:
 				if (err_code & ERR_FATAL)
 					goto out;
 			}
+
+			if (bind_generate_guid(bind_conf)) {
+				cfgerr++;
+				err_code |= ERR_FATAL | ERR_ALERT;
+				goto out;
+			}
 		}
 
 		switch (curproxy->mode) {

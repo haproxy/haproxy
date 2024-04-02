@@ -192,6 +192,13 @@ int default_resume_listener(struct listener *l);
  */
 int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code);
 
+/* Generate and insert unique GUID for each listeners of <bind_conf> instance
+ * if GUID prefix is defined.
+ *
+ * Returns 0 on success else non-zero.
+ */
+int bind_generate_guid(struct bind_conf *bind_conf);
+
 /*
  * Registers the bind keyword list <kwl> as a list of valid keywords for next
  * parsing sessions.

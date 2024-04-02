@@ -316,6 +316,7 @@ void free_proxy(struct proxy *p)
 	srv_free_params(&p->defsrv);
 
 	list_for_each_entry_safe(l, l_next, &p->conf.listeners, by_fe) {
+		guid_remove(&l->guid);
 		LIST_DELETE(&l->by_fe);
 		LIST_DELETE(&l->by_bind);
 		free(l->name);
@@ -335,6 +336,7 @@ void free_proxy(struct proxy *p)
 		free(bind_conf->arg);
 		free(bind_conf->settings.interface);
 		LIST_DELETE(&bind_conf->by_fe);
+		free(bind_conf->guid_prefix);
 		free(bind_conf->rhttp_srvname);
 		free(bind_conf);
 	}
