@@ -1653,9 +1653,9 @@ static inline int peer_send_teach_process_msgs(struct appctx *appctx, struct pee
 {
 	int ret;
 
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
 	ret = peer_send_teachmsgs(appctx, p, peer_teach_process_stksess_lookup, st);
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
 
 	return ret;
 }
@@ -2689,18 +2689,18 @@ static inline int peer_send_msgs(struct appctx *appctx,
 			}
 
 			if (!(peer->flags & PEER_F_TEACH_PROCESS)) {
-				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
+				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
 				if (!(peer->flags & PEER_F_LEARN_ASSIGN) &&
 					(st->last_pushed != st->table->localupdate)) {
 
 					repl = peer_send_teach_process_msgs(appctx, peer, st);
 					if (repl <= 0) {
-						HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
+						HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
 						peer->stop_local_table = peer->last_local_table;
 						return repl;
 					}
 				}
-				HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
+				HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
 			}
 			else if (!(peer->flags & PEER_F_TEACH_FINISHED)) {
 				if (!(st->flags & SHTABLE_F_TEACH_STAGE1)) {
@@ -2895,7 +2895,7 @@ static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
 		uint commitid, updateid;
 
 		st->last_get = st->last_acked = 0;
-		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
+		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
 		/* if st->update appears to be in future it means
 		 * that the last acked value is very old and we
 		 * remain unconnected a too long time to use this
@@ -2919,7 +2919,7 @@ static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
 			__ha_cpu_relax();
 		}
 
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
 	}
 
 	/* reset teaching and learning flags to 0 */
@@ -2960,7 +2960,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 		uint updateid, commitid;
 
 		st->last_get = st->last_acked = 0;
-		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->lock);
+		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
 		/* if st->update appears to be in future it means
 		 * that the last acked value is very old and we
 		 * remain unconnected a too long time to use this
@@ -2984,7 +2984,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 			__ha_cpu_relax();
 		}
 
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->lock);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
 	}
 
 	/* Init confirm counter */
