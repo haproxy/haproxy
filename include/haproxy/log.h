@@ -91,8 +91,8 @@ ssize_t syslog_applet_append_event(void *ctx, struct ist v1, struct ist v2, size
 
 /*
  * Parse the log_format string and fill a linked list.
- * Variable name are preceded by % and composed by characters [a-zA-Z0-9]* : %varname
- * You can set arguments using { } : %{many arguments}varname
+ * Tag name are preceded by % and composed by characters [a-zA-Z0-9]* : %tagname
+ * You can set arguments using { } : %{many arguments}tagname
  */
 int parse_logformat_string(const char *str, struct proxy *curproxy, struct list *list_format, int options, int cap, char **err);
 

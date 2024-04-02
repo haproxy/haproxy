@@ -130,7 +130,7 @@ struct logformat_type {
 
 int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy);
 
-/* log_format variable names */
+/* log_format tag names */
 static const struct logformat_type logformat_keywords[] = {
 	{ "o", LOG_FMT_GLOBAL, PR_MODE_TCP, 0, NULL },  /* global option */
 
@@ -226,12 +226,12 @@ THREAD_LOCAL char *logline = NULL;
  */
 THREAD_LOCAL char *logline_rfc5424 = NULL;
 
-struct logformat_var_args {
+struct logformat_tag_args {
 	char *name;
 	int mask;
 };
 
-struct logformat_var_args var_args_list[] = {
+struct logformat_tag_args tag_args_list[] = {
 // global
 	{ "M", LOG_OPT_MANDATORY },
 	{ "Q", LOG_OPT_QUOTE },
@@ -252,10 +252,10 @@ int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy)
 
 
 /*
- * Parse args in a logformat_var. Returns 0 in error
+ * Parse args in a logformat_tag. Returns 0 in error
  * case, otherwise, it returns 1.
  */
-int parse_logformat_var_args(char *args, struct logformat_node *node, char **err)
+int parse_logformat_tag_args(char *args, struct logformat_node *node, char **err)
 {
 	int i = 0;
 	int end = 0;
@@ -263,7 +263,7 @@ int parse_logformat_var_args(char *args, struct logformat_node *node, char **err
 	char *sp = NULL; // start pointer
 
 	if (args == NULL) {
-		memprintf(err, "internal error: parse_logformat_var_args() expects non null 'args'");
+		memprintf(err, "internal error: parse_logformat_tag_args() expects non null 'args'");
 		return 0;
 	}
 
@@ -284,13 +284,13 @@ int parse_logformat_var_args(char *args, struct logformat_node *node, char **err
 
 		if (*args == '\0' || *args == ',') {
 			*args = '\0';
-			for (i = 0; sp && var_args_list[i].name; i++) {
-				if (strcmp(sp, var_args_list[i].name) == 0) {
+			for (i = 0; sp && tag_args_list[i].name; i++) {
+				if (strcmp(sp, tag_args_list[i].name) == 0) {
 					if (flags == 1) {
-						node->options |= var_args_list[i].mask;
+						node->options |= tag_args_list[i].mask;
 						break;
 					} else if (flags == 2) {
-						node->options &= ~var_args_list[i].mask;
+						node->options &= ~tag_args_list[i].mask;
 						break;
 					}
 				}
@@ -305,20 +305,20 @@ int parse_logformat_var_args(char *args, struct logformat_node *node, char **err
 }
 
 /*
- * Parse a variable '%varname' or '%{args}varname' in log-format. The caller
+ * Parse a tag '%tagname' or '%{args}tagname' in log-format. The caller
  * must pass the args part in the <arg> pointer with its length in <arg_len>,
- * and varname with its length in <var> and <var_len> respectively. <arg> is
- * ignored when arg_len is 0. Neither <var> nor <var_len> may be null.
+ * and tagname with its length in <tag> and <tag_len> respectively. <arg> is
+ * ignored when arg_len is 0. Neither <tag> nor <tag_len> may be null.
  * Returns false in error case and err is filled, otherwise returns true.
  */
-int parse_logformat_var(char *arg, int arg_len, char *name, int name_len, int typecast, char *var, int var_len, struct proxy *curproxy, struct list *list_format, int *defoptions, char **err)
+int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len, int typecast, char *tag, int tag_len, struct proxy *curproxy, struct list *list_format, int *defoptions, char **err)
 {
 	int j;
 	struct logformat_node *node = NULL;
 
 	for (j = 0; logformat_keywords[j].name; j++) { // search a log type
-		if (strlen(logformat_keywords[j].name) == var_len &&
-		    strncmp(var, logformat_keywords[j].name, var_len) == 0) {
+		if (strlen(logformat_keywords[j].name) == tag_len &&
+		    strncmp(tag, logformat_keywords[j].name, tag_len) == 0) {
 			if (logformat_keywords[j].mode != PR_MODE_HTTP || curproxy->mode == PR_MODE_HTTP) {
 				node = calloc(1, sizeof(*node));
 				if (!node) {
@@ -332,7 +332,7 @@ int parse_logformat_var(char *arg, int arg_len, char *name, int name_len, int ty
 				node->options = *defoptions;
 				if (arg_len) {
 					node->arg = my_strndup(arg, arg_len);
-					if (!parse_logformat_var_args(node->arg, node, err))
+					if (!parse_logformat_tag_args(node->arg, node, err))
 						goto error_free;
 				}
 				if (node->type == LOG_FMT_GLOBAL) {
@@ -348,17 +348,17 @@ int parse_logformat_var(char *arg, int arg_len, char *name, int name_len, int ty
 				}
 				return 1;
 			} else {
-				memprintf(err, "format variable '%s' is reserved for HTTP mode",
+				memprintf(err, "format tag '%s' is reserved for HTTP mode",
 				          logformat_keywords[j].name);
 				goto error_free;
 			}
 		}
 	}
 
-	j = var[var_len];
-	var[var_len] = 0;
-	memprintf(err, "no such format variable '%s'. If you wanted to emit the '%%' character verbatim, you need to use '%%%%'", var);
-	var[var_len] = j;
+	j = tag[tag_len];
+	tag[tag_len] = 0;
+	memprintf(err, "no such format tag '%s'. If you wanted to emit the '%%' character verbatim, you need to use '%%%%'", tag);
+	tag[tag_len] = j;
 
   error_free:
 	free_logformat_node(node);
@@ -444,7 +444,7 @@ int add_sample_to_logformat_list(char *text, char *name, int name_len, int typec
 
 	if (arg_len) {
 		node->arg = my_strndup(arg, arg_len);
-		if (!parse_logformat_var_args(node->arg, node, err))
+		if (!parse_logformat_tag_args(node->arg, node, err))
 			goto error_free;
 	}
 	if (expr->fetch->val & cap & SMP_VAL_REQUEST)
@@ -485,8 +485,8 @@ int add_sample_to_logformat_list(char *text, char *name, int name_len, int typec
 
 /*
  * Parse the log_format string and fill a linked list.
- * Variable name are preceded by % and composed by characters [a-zA-Z0-9]* : %varname
- * You can set arguments using { } : %{many arguments}varname.
+ * Tag name are preceded by % and composed by characters [a-zA-Z0-9]* : %tagname
+ * You can set arguments using { } : %{many arguments}tagname.
  * The curproxy->conf.args.ctx must be set by the caller.
  *
  *  fmt: the string to parse
@@ -501,11 +501,11 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 {
 	char *sp, *str, *backfmt; /* start pointer for text parts */
 	char *arg = NULL; /* start pointer for args */
-	char *var = NULL; /* start pointer for vars */
+	char *tag = NULL; /* start pointer for tags */
 	char *name = NULL; /* token name (optional) */
 	char *typecast_str = NULL; /* token output type (if custom name is set) */
 	int arg_len = 0;
-	int var_len = 0;
+	int tag_len = 0;
 	int name_len = 0;
 	int typecast = SMP_T_SAME; /* relaxed by default */
 	int cformat; /* current token format */
@@ -533,18 +533,18 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 		 * We use the common LF_INIT state to dispatch to the different final states.
 		 */
 		switch (pformat) {
-		case LF_STARTVAR:                      // text immediately following a '%'
-			arg = NULL; var = NULL;
+		case LF_STARTTAG:                      // text immediately following a '%'
+			arg = NULL; tag = NULL;
 			name = NULL;
 			name_len = 0;
 			typecast = SMP_T_SAME;
-			arg_len = var_len = 0;
+			arg_len = tag_len = 0;
 			if (*str == '(') {             // custom output name
 				cformat = LF_STONAME;
 				name = str + 1;
 			}
 			else
-				goto startvar;
+				goto starttag;
 			break;
 
 		case LF_STONAME:                       // text immediately following '%('
@@ -577,18 +577,18 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 			break;
 
 		case LF_EDONAME:                       // text immediately following %(name)
- startvar:
+ starttag:
 			if (*str == '{') {             // optional argument
 				cformat = LF_STARG;
 				arg = str + 1;
 			}
 			else if (*str == '[') {
 				cformat = LF_STEXPR;
-				var = str + 1;         // store expr in variable name
+				tag = str + 1;         // store expr in tag name
 			}
-			else if (isalpha((unsigned char)*str)) { // variable name
-				cformat = LF_VAR;
-				var = str;
+			else if (isalpha((unsigned char)*str)) { // tag name
+				cformat = LF_TAG;
+				tag = str;
 			}
 			else if (*str == '%')
 				cformat = LF_TEXT;     // convert this character to a literal (useful for '%')
@@ -597,7 +597,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 				cformat = LF_TEXT;
 				pformat = LF_TEXT; /* finally we include the previous char as well */
 				sp = str - 1; /* send both the '%' and the current char */
-				memprintf(err, "unexpected variable name near '%c' at position %d line : '%s'. Maybe you want to write a single '%%', use the syntax '%%%%'",
+				memprintf(err, "unexpected tag name near '%c' at position %d line : '%s'. Maybe you want to write a single '%%', use the syntax '%%%%'",
 				          *str, (int)(str - backfmt), fmt);
 				goto fail;
 
@@ -617,15 +617,15 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 		case LF_EDARG:                         // text immediately following '%{arg}'
 			if (*str == '[') {
 				cformat = LF_STEXPR;
-				var = str + 1;         // store expr in variable name
+				tag = str + 1;         // store expr in tag name
 				break;
 			}
-			else if (isalnum((unsigned char)*str)) { // variable name
-				cformat = LF_VAR;
-				var = str;
+			else if (isalnum((unsigned char)*str)) { // tag name
+				cformat = LF_TAG;
+				tag = str;
 				break;
 			}
-			memprintf(err, "parse argument modifier without variable name near '%%{%s}'", arg);
+			memprintf(err, "parse argument modifier without tag name near '%%{%s}'", arg);
 			goto fail;
 
 		case LF_STEXPR:                        // text immediately following '%['
@@ -634,7 +634,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 			 * part of the expression, which MUST be the trailing
 			 * angle bracket.
 			 */
-			if (!add_sample_to_logformat_list(var, name, name_len, typecast, arg, arg_len, curproxy, list_format, options, cap, err, &str))
+			if (!add_sample_to_logformat_list(tag, name, name_len, typecast, arg, arg_len, curproxy, list_format, options, cap, err, &str))
 				goto fail;
 
 			if (*str == ']') {
@@ -646,26 +646,26 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 				char c = *str;
 				*str = 0;
 				if (isprint((unsigned char)c))
-					memprintf(err, "expected ']' after '%s', but found '%c'", var, c);
+					memprintf(err, "expected ']' after '%s', but found '%c'", tag, c);
 				else
-					memprintf(err, "missing ']' after '%s'", var);
+					memprintf(err, "missing ']' after '%s'", tag);
 				goto fail;
 			}
 			break;
 
-		case LF_VAR:                           // text part of a variable name
-			var_len = str - var;
+		case LF_TAG:                           // text part of a tag name
+			tag_len = str - tag;
 			if (!isalnum((unsigned char)*str))
-				cformat = LF_INIT;     // not variable name anymore
+				cformat = LF_INIT;     // not tag name anymore
 			break;
 
 		default:                               // LF_INIT, LF_TEXT, LF_SEPARATOR, LF_END, LF_EDEXPR
 			cformat = LF_INIT;
 		}
 
-		if (cformat == LF_INIT) { /* resynchronize state to text/sep/startvar */
+		if (cformat == LF_INIT) { /* resynchronize state to text/sep/starttag */
 			switch (*str) {
-			case '%': cformat = LF_STARTVAR;  break;
+			case '%': cformat = LF_STARTTAG;  break;
 			case  0 : cformat = LF_END;       break;
 			case ' ':
 				if (options & LOG_OPT_MERGE_SPACES) {
@@ -679,8 +679,8 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 
 		if (cformat != pformat || pformat == LF_SEPARATOR) {
 			switch (pformat) {
-			case LF_VAR:
-				if (!parse_logformat_var(arg, arg_len, name, name_len, typecast, var, var_len, curproxy, list_format, &options, err))
+			case LF_TAG:
+				if (!parse_logformat_tag(arg, arg_len, name, name_len, typecast, tag, tag_len, curproxy, list_format, &options, err))
 					goto fail;
 				break;
 			case LF_TEXT:
@@ -693,8 +693,8 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 		}
 	}
 
-	if (pformat == LF_STARTVAR || pformat == LF_STARG || pformat == LF_STEXPR || pformat == LF_STONAME || pformat == LF_STOTYPE || pformat == LF_EDONAME) {
-		memprintf(err, "truncated line after '%s'", var ? var : arg ? arg : "%");
+	if (pformat == LF_STARTTAG || pformat == LF_STARG || pformat == LF_STEXPR || pformat == LF_STONAME || pformat == LF_STOTYPE || pformat == LF_EDONAME) {
+		memprintf(err, "truncated line after '%s'", tag ? tag : arg ? arg : "%");
 		goto fail;
 	}
 	free(backfmt);

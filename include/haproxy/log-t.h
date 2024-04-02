@@ -198,8 +198,8 @@ enum {
 	LF_INIT = 0,   // before first character
 	LF_TEXT,       // normal text
 	LF_SEPARATOR,  // a single separator
-	LF_VAR,        // variable name, after '%' or '%{..}'
-	LF_STARTVAR,   // % in text
+	LF_TAG,        // tag name, after '%' or '%{..}'
+	LF_STARTTAG,   // % in text
 	LF_STONAME,    // after '%(' and before ')'
 	LF_STOTYPE,    // after ':' while in STONAME
 	LF_EDONAME,    // ')' after '%('
