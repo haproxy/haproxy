@@ -16311,9 +16311,9 @@ ssl-min-ver [ SSLv3 | TLSv1.0 | TLSv1.1 | TLSv1.2 | TLSv1.3 ]
 
 strict-sni
   This setting is only available when support for OpenSSL was built in. The
-  SSL/TLS negotiation is allow only if the client provided an SNI which match
+  SSL/TLS negotiation is allowed only if the client provided an SNI that matches
   a certificate. The default certificate is not used. This option also allows
-  to start without any certificate on a bind line, so an empty directory could
+  starting without any certificate on a bind line, so an empty directory could
   be used and filled later from the stats socket.
   See the "crt" option for more information. See "add ssl crt-list" command in
   the management guide.
