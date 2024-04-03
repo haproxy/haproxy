@@ -432,7 +432,7 @@ static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	case QUIC_CC_EVT_ACK:
 		if (global.tune.options & GTUNE_QUIC_CC_HYSTART) {
 			struct quic_hystart *h = &c->hystart;
-			unsigned int acked = QUIC_MIN(ev->ack.acked, HYSTART_LIMIT * path->mtu);
+			unsigned int acked = QUIC_MIN(ev->ack.acked, (uint64_t)HYSTART_LIMIT * path->mtu);
 
 			if (path->cwnd >= QUIC_CC_INFINITE_SSTHESH - acked)
 				goto out;
@@ -508,7 +508,7 @@ static void quic_cc_cubic_cs_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		struct cubic *c = quic_cc_priv(cc);
 		struct quic_hystart *h = &c->hystart;
 		unsigned int acked =
-			QUIC_MIN(ev->ack.acked, HYSTART_LIMIT * path->mtu) / HYSTART_CSS_GROWTH_DIVISOR;
+			QUIC_MIN(ev->ack.acked, (uint64_t)HYSTART_LIMIT * path->mtu) / HYSTART_CSS_GROWTH_DIVISOR;
 
 		if (path->cwnd >= QUIC_CC_INFINITE_SSTHESH - acked)
 			goto out;
