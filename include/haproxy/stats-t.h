@@ -543,6 +543,16 @@ enum stats_domain_px_cap {
 	STATS_PX_CAP_MASK = 0xff
 };
 
+/* Shorcut names for enum stats_domain_px_cap only for declaration convenience */
+#define STATS_PX_CAP_LFBS (STATS_PX_CAP_MASK)
+#define STATS_PX_CAP_LFB_ (STATS_PX_CAP_FE|STATS_PX_CAP_BE|STATS_PX_CAP_LI)
+#define STATS_PX_CAP_LF__ (STATS_PX_CAP_FE|STATS_PX_CAP_LI)
+#define STATS_PX_CAP__FBS (STATS_PX_CAP_FE|STATS_PX_CAP_BE|STATS_PX_CAP_SRV)
+#define STATS_PX_CAP__FB_ (STATS_PX_CAP_FE|STATS_PX_CAP_BE)
+#define STATS_PX_CAP__F__ (STATS_PX_CAP_FE)
+#define STATS_PX_CAP___BS (STATS_PX_CAP_BE|STATS_PX_CAP_SRV)
+#define STATS_PX_CAP____S (STATS_PX_CAP_SRV)
+
 /* the context of a "show stat" command in progress on the CLI or the stats applet */
 struct show_stat_ctx {
 	struct proxy *http_px;  /* parent proxy of the current applet (only relevant for HTTP applet) */
