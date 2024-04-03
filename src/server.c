@@ -184,8 +184,10 @@ static void _srv_set_inetaddr_port(struct server *srv,
 	else
 		srv->flags &= ~SRV_F_MAPPORTS;
 
-	/* balancers (chash in particular) may use the addr in their routing decisions */
-	srv->proxy->lbprm.update_server_eweight(srv);
+	if (srv->proxy->lbprm.update_server_eweight) {
+		/* some balancers (chash in particular) may use the addr in their routing decisions */
+		srv->proxy->lbprm.update_server_eweight(srv);
+	}
 
 	if (srv->log_target && srv->log_target->type == LOG_TARGET_DGRAM) {
 		/* server is used as a log target, manually update log target addr for DGRAM */
