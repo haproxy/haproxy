@@ -516,7 +516,7 @@ size_t appctx_htx_rcv_buf(struct appctx *appctx, struct buffer *buf, size_t coun
 
 size_t appctx_raw_rcv_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags)
 {
-	return b_xfer(buf, &appctx->outbuf, MAX(count, b_data(&appctx->outbuf)));
+	return b_xfer(buf, &appctx->outbuf, MIN(count, b_data(&appctx->outbuf)));
 }
 
 size_t appctx_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags)
