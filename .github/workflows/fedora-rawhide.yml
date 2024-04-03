@@ -11,8 +11,13 @@ jobs:
   build_and_test:
     strategy:
       matrix:
-        cc: [ gcc, clang ]
-    name: ${{ matrix.cc }}
+        platform: [
+          { name: x64, cc: gcc,   QUICTLS_EXTRA_ARGS: "", ADDLIB_ATOMIC: "", DEBUG_CFLAGS: "", LDFLAGS: "" },
+          { name: x64, cc: clang, QUICTLS_EXTRA_ARGS: "", ADDLIB_ATOMIC: "", DEBUG_CFLAGS: "", LDFLAGS: "" },
+          { name: x86, cc: gcc,   QUICTLS_EXTRA_ARGS: "-m32 linux-generic32", ADDLIB_ATOMIC: "-latomic", DEBUG_CFLAGS: "-m32", LDFLAGS: "-m32" },
+          { name: x86, cc: clang, QUICTLS_EXTRA_ARGS: "-m32 linux-generic32", ADDLIB_ATOMIC: "-latomic", DEBUG_CFLAGS: "-m32", LDFLAGS: "-m32" }
+        ]
+    name: ${{ matrix.platform.cc }}.${{ matrix.platform.name }}
     runs-on: ubuntu-latest
     if: ${{ github.repository_owner == 'haproxy' }}
     container:
@@ -21,20 +26,21 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install dependencies
       run: |
-        dnf -y install git pcre-devel zlib-devel pcre2-devel 'perl(FindBin)' perl-IPC-Cmd 'perl(File::Copy)' 'perl(File::Compare)' lua-devel socat findutils systemd-devel clang
+        dnf -y install diffutils git pcre-devel zlib-devel pcre2-devel 'perl(FindBin)' perl-IPC-Cmd 'perl(File::Copy)' 'perl(File::Compare)' lua-devel socat findutils systemd-devel clang
+        dnf -y install 'perl(FindBin)' 'perl(File::Compare)' perl-IPC-Cmd 'perl(File::Copy)' glibc-devel.i686 lua-devel.i686 lua-devel.x86_64 systemd-devel.i686 zlib-ng-compat-devel.i686 pcre-devel.i686 libatomic.i686
     - name: Install VTest
       run: scripts/build-vtest.sh
     - name: Install QuicTLS
-      run: QUICTLS=yes scripts/build-ssl.sh
+      run: QUICTLS=yes QUICTLS_EXTRA_ARGS="${{ matrix.platform.QUICTLS_EXTRA_ARGS }}" scripts/build-ssl.sh
     - name: Build contrib tools
       run: |
         make admin/halog/halog
         make dev/flags/flags
         make dev/poll/poll
         make dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
-    - name: Compile HAProxy with ${{ matrix.cc }}
+    - name: Compile HAProxy with ${{ matrix.platform.cc }}
       run: |
-        make -j3 CC=${{ matrix.cc }} V=1 ERR=1 TARGET=linux-glibc USE_OPENSSL=1 USE_QUIC=1 USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_SYSTEMD=1 ADDLIB="-Wl,-rpath,${HOME}/opt/lib" SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include
+        make -j3 CC=${{ matrix.platform.cc }} V=1 ERR=1 TARGET=linux-glibc USE_OPENSSL=1 USE_QUIC=1 USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_SYSTEMD=1 ADDLIB="${{ matrix.platform.ADDLIB_ATOMIC }} -Wl,-rpath,${HOME}/opt/lib" SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include DEBUG_CFLAGS="${{ matrix.platform.DEBUG_CFLAGS }}" LDFLAGS="${{ matrix.platform.LDFLAGS }}"
         make install
     - name: Show HAProxy version
       id: show-version
