@@ -60,7 +60,7 @@
 #include <assert.h>
 #endif
 #if defined(USE_SYSTEMD)
-#include <systemd/sd-daemon.h>
+#include <haproxy/systemd.h>
 #endif
 
 #include <import/sha1.h>
