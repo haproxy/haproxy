@@ -1958,26 +1958,41 @@ char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, const struc
 		unsigned char *addr = NULL;
 		switch (sockaddr->sa_family) {
 		case AF_INET:
+		{
+			char ip4_hex[9]; // 8 bytes + \0
+
 			addr = (unsigned char *)&((struct sockaddr_in *)sockaddr)->sin_addr.s_addr;
-			iret = snprintf(dst, size, "%02X%02X%02X%02X", addr[0], addr[1], addr[2], addr[3]);
+			iret = snprintf(ip4_hex, sizeof(ip4_hex), "%02X%02X%02X%02X",
+			                addr[0], addr[1], addr[2], addr[3]);
+			if (iret < 0 || iret >= size)
+				return NULL;
+			ret = lf_rawtext(dst, ip4_hex, size, node);
+
 			break;
+		}
 		case AF_INET6:
+		{
+			char ip6_hex[33]; // 32 bytes + \0
+
 			addr = (unsigned char *)&((struct sockaddr_in6 *)sockaddr)->sin6_addr.s6_addr;
-			iret = snprintf(dst, size, "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
-			                addr[0], addr[1], addr[2], addr[3], addr[4], addr[5], addr[6], addr[7],
-			                addr[8], addr[9], addr[10], addr[11], addr[12], addr[13], addr[14], addr[15]);
+			iret = snprintf(ip6_hex, sizeof(ip6_hex),
+			                "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
+			                addr[0], addr[1], addr[2], addr[3],
+			                addr[4], addr[5], addr[6], addr[7],
+			                addr[8], addr[9], addr[10], addr[11],
+			                addr[12], addr[13], addr[14], addr[15]);
+			if (iret < 0 || iret >= size)
+				return NULL;
+			ret = lf_rawtext(dst, ip6_hex, size, node);
+
 			break;
+		}
 		default:
 			return NULL;
 		}
-		if (iret < 0 || iret >= size)
-			return NULL;
-		ret += iret;
 	} else {
 		addr_to_str((struct sockaddr_storage *)sockaddr, pn, sizeof(pn));
 		ret = lf_text(dst, pn, size, node);
-		if (ret == NULL)
-			return NULL;
 	}
 	return ret;
 }
@@ -2024,16 +2039,16 @@ char *lf_port(char *dst, const struct sockaddr *sockaddr, size_t size, const str
 	int iret;
 
 	if (node->options & LOG_OPT_HEXA) {
+		char port_hex[5]; // 4 bytes + \0
 		const unsigned char *port = (const unsigned char *)&((struct sockaddr_in *)sockaddr)->sin_port;
-		iret = snprintf(dst, size, "%02X%02X", port[0], port[1]);
+
+		iret = snprintf(port_hex, sizeof(port_hex), "%02X%02X", port[0], port[1]);
 		if (iret < 0 || iret >= size)
 			return NULL;
-		ret += iret;
+		ret = lf_rawtext(dst, port_hex, size, node);
 	} else {
 		ret = lf_int(dst, size, get_host_port((struct sockaddr_storage *)sockaddr),
 		             node, LF_INT_LTOA);
-		if (ret == NULL)
-			return NULL;
 	}
 	return ret;
 }
