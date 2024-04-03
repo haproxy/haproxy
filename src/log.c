@@ -3243,56 +3243,92 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_DATE: // %t = accept date
+			{
+				char date_str[25]; // "26/Apr/2024:09:39:58.774"
+
 				get_localtime(logs->accept_date.tv_sec, &tm);
-				ret = date2str_log(tmplog, &tm, &logs->accept_date, dst + maxsize - tmplog);
+				if (!date2str_log(date_str, &tm, &logs->accept_date, sizeof(date_str)))
+					goto out;
+				ret = lf_rawtext(tmplog, date_str, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_tr: // %tr = start of request date
+			{
+				char date_str[25]; // "26/Apr/2024:09:39:58.774"
+
 				/* Note that the timers are valid if we get here */
 				tv_ms_add(&tv, &logs->accept_date, logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
 				get_localtime(tv.tv_sec, &tm);
-				ret = date2str_log(tmplog, &tm, &tv, dst + maxsize - tmplog);
+				if (!date2str_log(date_str, &tm, &tv, sizeof(date_str)))
+					goto out;
+				ret = lf_rawtext(tmplog, date_str, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_DATEGMT: // %T = accept date, GMT
+			{
+				char gmt_str[27]; // "26/Apr/2024:07:41:11 +0000"
+
 				get_gmtime(logs->accept_date.tv_sec, &tm);
-				ret = gmt2str_log(tmplog, &tm, dst + maxsize - tmplog);
+				if (!gmt2str_log(gmt_str, &tm, sizeof(gmt_str)))
+					goto out;
+				ret = lf_rawtext(tmplog, gmt_str, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_trg: // %trg = start of request date, GMT
+			{
+				char gmt_str[27]; // "26/Apr/2024:07:41:11 +0000"
+
 				tv_ms_add(&tv, &logs->accept_date, logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
 				get_gmtime(tv.tv_sec, &tm);
-				ret = gmt2str_log(tmplog, &tm, dst + maxsize - tmplog);
+				if (!gmt2str_log(gmt_str, &tm, sizeof(gmt_str)))
+					goto out;
+				ret = lf_rawtext(tmplog, gmt_str, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_DATELOCAL: // %Tl = accept date, local
+			{
+				char localdate_str[27]; // "26/Apr/2024:09:42:32 +0200"
+
 				get_localtime(logs->accept_date.tv_sec, &tm);
-				ret = localdate2str_log(tmplog, logs->accept_date.tv_sec, &tm, dst + maxsize - tmplog);
+				if (!localdate2str_log(localdate_str, logs->accept_date.tv_sec, &tm, sizeof(localdate_str)))
+					goto out;
+				ret = lf_rawtext(tmplog, localdate_str, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_trl: // %trl = start of request date, local
+			{
+				char localdate_str[27]; // "26/Apr/2024:09:42:32 +0200"
+
 				tv_ms_add(&tv, &logs->accept_date, logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
 				get_localtime(tv.tv_sec, &tm);
-				ret = localdate2str_log(tmplog, tv.tv_sec, &tm, dst + maxsize - tmplog);
+				if (!localdate2str_log(localdate_str, tv.tv_sec, &tm, sizeof(localdate_str)))
+					goto out;
+				ret = lf_rawtext(tmplog, localdate_str, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_TS: // %Ts
 			{
