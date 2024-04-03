@@ -734,7 +734,7 @@ ifneq ($(USE_WURFL),)
 endif
 
 ifneq ($(USE_SYSTEMD),)
-  SYSTEMD_LDFLAGS = -lsystemd
+  OPTIONS_OBJS    += src/systemd.o
 endif
 
 ifneq ($(USE_PCRE)$(USE_STATIC_PCRE)$(USE_PCRE_JIT),)
