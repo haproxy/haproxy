@@ -844,8 +844,17 @@ void mworker_reload(int hardreload)
 	}
 
 #if defined(USE_SYSTEMD)
-	if (global.tune.options & GTUNE_USE_SYSTEMD)
-		sd_notify(0, "RELOADING=1\nSTATUS=Reloading Configuration.\n");
+	if (global.tune.options & GTUNE_USE_SYSTEMD) {
+		struct timespec ts;
+
+		(void)clock_gettime(CLOCK_MONOTONIC, &ts);
+
+		sd_notifyf(0,
+		           "RELOADING=1\n"
+		               "STATUS=Reloading Configuration.\n"
+		               "MONOTONIC_USEC=%" PRIu64 "\n",
+		           (ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000ULL));
+	}
 #endif
 	mworker_reexec(hardreload);
 }
