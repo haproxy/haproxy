@@ -219,26 +219,26 @@ static int bwlim_check(struct proxy *px, struct flt_conf *fconf)
 		target = px->table;
 
 	if (!target) {
-		ha_alert("Proxy %s : unable to find table '%s' referenced by bwlim filter '%s'",
+		ha_alert("Proxy %s : unable to find table '%s' referenced by bwlim filter '%s'\n",
 			 px->id, conf->table.n ? conf->table.n : px->id, conf->name);
 		return 1;
 	}
 
 	if ((conf->flags & BWLIM_FL_IN) && !target->data_ofs[STKTABLE_DT_BYTES_IN_RATE]) {
 		ha_alert("Proxy %s : stick-table '%s' uses a data type incompatible with bwlim filter '%s'."
-			 " It must be 'bytes_in_rate'",
+			 " It must be 'bytes_in_rate'\n",
 			 px->id, conf->table.n ? conf->table.n : px->id, conf->name);
 		return 1;
 	}
 	else if ((conf->flags & BWLIM_FL_OUT) && !target->data_ofs[STKTABLE_DT_BYTES_OUT_RATE]) {
 		ha_alert("Proxy %s : stick-table '%s' uses a data type incompatible with bwlim filter '%s'."
-			 " It must be 'bytes_out_rate'",
+			 " It must be 'bytes_out_rate'\n",
 			 px->id, conf->table.n ? conf->table.n : px->id, conf->name);
 		return 1;
 	}
 
 	if (!stktable_compatible_sample(conf->expr,  target->type)) {
-		ha_alert("Proxy %s : stick-table '%s' uses a key type incompatible with bwlim filter '%s'",
+		ha_alert("Proxy %s : stick-table '%s' uses a key type incompatible with bwlim filter '%s'\n",
 			 px->id, conf->table.n ? conf->table.n : px->id, conf->name);
 		return 1;
 	}
