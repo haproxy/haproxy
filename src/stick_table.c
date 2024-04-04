@@ -699,15 +699,15 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 	uint shard;
 	size_t len;
 
+	if (!key)
+		return NULL;
+
 	if (table->type == SMP_T_STR)
 		len = key->key_len + 1 < table->key_size ? key->key_len : table->key_size - 1;
 	else
 		len = table->key_size;
 
 	shard = stktable_calc_shard_num(table, key->key, len);
-
-	if (!key)
-		return NULL;
 
 	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &table->shards[shard].sh_lock);
 	ts = __stktable_lookup_key(table, key, shard);
