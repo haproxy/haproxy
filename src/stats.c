@@ -907,7 +907,7 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 				metric = mkf_u32(FO_CONFIG|FN_LIMIT, l->bind_conf->maxconn);
 				break;
 			case ST_F_STOT:
-				metric = mkf_u64(FN_COUNTER, l->counters->cum_conn);
+				metric = mkf_u64(FN_COUNTER, l->counters->cum_sess);
 				break;
 			case ST_F_BIN:
 				metric = mkf_u64(FN_COUNTER, l->counters->bytes_in);
@@ -944,6 +944,9 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 				break;
 			case ST_F_TYPE:
 				metric = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SO);
+				break;
+			case ST_F_CONN_TOT:
+				metric = mkf_u64(FN_COUNTER, l->counters->cum_conn);
 				break;
 			case ST_F_WREW:
 				metric = mkf_u64(FN_COUNTER, l->counters->failed_rewrites);
