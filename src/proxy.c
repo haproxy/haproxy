@@ -1889,11 +1889,11 @@ void proxy_cond_disable(struct proxy *p)
 	 */
 	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP || p->mode == PR_MODE_SYSLOG) && !(p->cap & PR_CAP_INT))
 		ha_warning("Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
-			   p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
+			   p->id, p->fe_counters.cum_conn, p->be_counters.cum_sess);
 
 	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP) && !(p->cap & PR_CAP_INT))
 		send_log(p, LOG_WARNING, "Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
-			 p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
+			 p->id, p->fe_counters.cum_conn, p->be_counters.cum_sess);
 
 	if (p->table && p->table->size && p->table->sync_task)
 		task_wakeup(p->table->sync_task, TASK_WOKEN_MSG);

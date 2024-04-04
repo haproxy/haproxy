@@ -1645,7 +1645,7 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 				metric = mkf_u32(FO_CONFIG|FN_LIMIT, px->fullconn);
 				break;
 			case ST_F_STOT:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.cum_conn);
+				metric = mkf_u64(FN_COUNTER, px->be_counters.cum_sess);
 				break;
 			case ST_F_BIN:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.bytes_in);

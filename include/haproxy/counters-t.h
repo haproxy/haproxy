@@ -68,7 +68,6 @@ struct fe_counters {
 /* counters used by servers and backends */
 struct be_counters {
 	unsigned int conn_max;                  /* max # of active sessions */
-	long long    cum_conn;                  /* cumulated number of received connections */
 	long long    cum_sess;                  /* cumulated number of accepted connections */
 	long long  cum_lbconn;                  /* cumulated number of sessions processed by load balancing (BE only) */
 	unsigned long last_sess;                /* last session time */

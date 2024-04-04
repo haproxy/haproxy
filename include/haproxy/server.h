@@ -176,7 +176,7 @@ void srv_set_dyncookie(struct server *s);
 int srv_check_reuse_ws(struct server *srv);
 const struct mux_ops *srv_get_ws_proto(struct server *srv);
 
-/* increase the number of cumulated connections on the designated server */
+/* increase the number of cumulated streams on the designated server */
 static inline void srv_inc_sess_ctr(struct server *s)
 {
 	_HA_ATOMIC_INC(&s->counters.cum_sess);

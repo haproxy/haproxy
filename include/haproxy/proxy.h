@@ -163,10 +163,10 @@ static inline void proxy_inc_fe_cum_sess_ver_ctr(struct listener *l, struct prox
 		_HA_ATOMIC_INC(&l->counters->cum_sess_ver[http_ver - 1]);
 }
 
-/* increase the number of cumulated connections on the designated backend */
+/* increase the number of cumulated streams on the designated backend */
 static inline void proxy_inc_be_ctr(struct proxy *be)
 {
-	_HA_ATOMIC_INC(&be->be_counters.cum_conn);
+	_HA_ATOMIC_INC(&be->be_counters.cum_sess);
 	HA_ATOMIC_UPDATE_MAX(&be->be_counters.sps_max,
 			     update_freq_ctr(&be->be_sess_per_sec, 1));
 }
