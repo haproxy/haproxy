@@ -202,104 +202,6 @@ static int qc_may_build_pkt(struct quic_conn *qc, struct list *frms,
 	return 1;
 }
 
-/* Prepare as much as possible QUIC packets for sending from prebuilt frames
- * <frms>. Each packet is stored in a distinct datagram written to <buf>.
- *
- * Each datagram is prepended by a two fields header : the datagram length and
- * the address of the packet contained in the datagram.
- *
- * Returns the number of bytes prepared in packets if succeeded (may be 0), or
- * -1 if something wrong happened.
- */
-static int qc_prep_app_pkts(struct quic_conn *qc, struct buffer *buf,
-                            struct list *frms)
-{
-	int ret = -1, cc;
-	struct quic_enc_level *qel;
-	unsigned char *end, *pos;
-	struct quic_tx_packet *pkt;
-	size_t total;
-
-	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
-
-	qel = qc->ael;
-	total = 0;
-	pos = (unsigned char *)b_tail(buf);
-	cc =  qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE;
-	/* Each datagram is prepended with its length followed by the address
-	 * of the first packet in the datagram (QUIC_DGRAM_HEADLEN).
-	 */
-	while ((!cc && b_contig_space(buf) >= (int)qc->path->mtu + QUIC_DGRAM_HEADLEN) ||
-	        (cc && b_contig_space(buf) >= QUIC_MIN_CC_PKTSIZE + QUIC_DGRAM_HEADLEN)) {
-		int err, probe, must_ack;
-
-		TRACE_PROTO("TX prep app pkts", QUIC_EV_CONN_PHPKTS, qc, qel, frms);
-		probe = 0;
-		/* We do not probe if an immediate close was asked */
-		if (!cc)
-			probe = qel->pktns->tx.pto_probe;
-
-		if (!qc_may_build_pkt(qc, frms, qel, cc, probe, &must_ack))
-			break;
-
-		/* Leave room for the datagram header */
-		pos += QUIC_DGRAM_HEADLEN;
-		if (cc) {
-			end = pos + QUIC_MIN_CC_PKTSIZE;
-		}
-		else if (!quic_peer_validated_addr(qc) && qc_is_listener(qc)) {
-			end = pos + QUIC_MIN(qc->path->mtu, quic_may_send_bytes(qc));
-		}
-		else {
-			end = pos + qc->path->mtu;
-		}
-
-		pkt = qc_build_pkt(&pos, end, qel, &qel->tls_ctx, frms, qc, NULL, 0,
-		                   QUIC_PACKET_TYPE_SHORT, must_ack, 0, probe, cc, &err);
-		switch (err) {
-		case -3:
-			qc_purge_txbuf(qc, buf);
-			goto leave;
-		case -2:
-			// trace already emitted by function above
-			goto leave;
-		case -1:
-			/* As we provide qc_build_pkt() with an enough big buffer to fulfill an
-			 * MTU, we are here because of the congestion control window. There is
-			 * no need to try to reuse this buffer.
-			 */
-			TRACE_PROTO("could not prepare anymore packet", QUIC_EV_CONN_PHPKTS, qc, qel);
-			goto out;
-		default:
-			break;
-		}
-
-		/* This is to please to GCC. We cannot have (err >= 0 && !pkt) */
-		BUG_ON(!pkt);
-
-		if (qc->flags & QUIC_FL_CONN_RETRANS_OLD_DATA)
-			pkt->flags |= QUIC_FL_TX_PACKET_PROBE_WITH_OLD_DATA;
-
-		total += pkt->len;
-
-		/* Write datagram header. */
-		qc_txb_store(buf, pkt->len, pkt);
-		/* Build only one datagram when an immediate close is required. */
-		if (cc)
-			break;
-	}
-
- out:
-	if (total && cc) {
-		BUG_ON(buf != &qc->tx.cc_buf);
-		qc->tx.cc_dgram_len = total;
-	}
-	ret = total;
- leave:
-	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
-	return ret;
-}
-
 /* Free all frames in <l> list. In addition also remove all these frames
  * from the original ones if they are the results of duplications.
  */
@@ -513,94 +415,14 @@ int qc_purge_txbuf(struct quic_conn *qc, struct buffer *buf)
 	return 1;
 }
 
-/* Try to send application frames from list <frms> on connection <qc>.
- *
- * Use qc_send_app_probing wrapper when probing with old data.
- *
- * Returns 1 on success. Some data might not have been sent due to congestion,
- * in this case they are left in <frms> input list. The caller may subscribe on
- * quic-conn to retry later.
- *
- * Returns 0 on critical error.
- * TODO review and classify more distinctly transient from definitive errors to
- * allow callers to properly handle it.
- */
-int qc_send_app_pkts(struct quic_conn *qc, struct list *frms)
-{
-	int status = 0, ret;
-	struct buffer *buf;
-
-	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
-
-	buf = qc_get_txb(qc);
-	if (!buf) {
-		TRACE_ERROR("could not get a buffer", QUIC_EV_CONN_TXPKT, qc);
-		goto err;
-	}
-
-	if (b_data(buf) && !qc_purge_txbuf(qc, buf))
-		goto err;
-
-	/* Prepare and send packets until we could not further prepare packets. */
-	do {
-		/* Currently buf cannot be non-empty at this stage. Even if a
-		 * previous sendto() has failed it is emptied to simulate
-		 * packet emission and rely on QUIC lost detection to try to
-		 * emit it.
-		 */
-		BUG_ON_HOT(b_data(buf));
-		b_reset(buf);
-
-		ret = qc_prep_app_pkts(qc, buf, frms);
-
-		if (b_data(buf) && !qc_send_ppkts(buf, qc->xprt_ctx)) {
-			if (qc->flags & QUIC_FL_CONN_TO_KILL)
-				qc_txb_release(qc);
-			goto err;
-		}
-	} while (ret > 0);
-
-	qc_txb_release(qc);
-	if (ret < 0)
-		goto err;
-
-	status = 1;
-	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
-	return status;
-
- err:
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_TXPKT, qc);
-	return 0;
-}
-
-/* Try to send application frames from list <frms> on connection <qc>. Use this
- * function when probing is required.
- *
- * Returns the result from qc_send_app_pkts function.
- */
-static forceinline int qc_send_app_probing(struct quic_conn *qc,
-                                           struct list *frms)
-{
-	int ret;
-
-	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
-
-	TRACE_PROTO("preparing old data (probing)", QUIC_EV_CONN_FRMLIST, qc, frms);
-	qc->flags |= QUIC_FL_CONN_RETRANS_OLD_DATA;
-	ret = qc_send_app_pkts(qc, frms);
-	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
-
-	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
-	return ret;
-}
-
 /* Try to send application frames from list <frms> on connection <qc>. This
  * function is provided for MUX upper layer usage only.
  *
- * Returns the result from qc_send_app_pkts function.
+ * Returns the result from qc_send() function.
  */
 int qc_send_mux(struct quic_conn *qc, struct list *frms)
 {
+	struct list send_list = LIST_HEAD_INIT(send_list);
 	int ret;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
@@ -616,12 +438,14 @@ int qc_send_mux(struct quic_conn *qc, struct list *frms)
 	if ((qc->flags & QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS) &&
 	    qc->state >= QUIC_HS_ST_COMPLETE) {
 		quic_build_post_handshake_frames(qc);
-		qc_send_app_pkts(qc, &qc->ael->pktns->tx.frms);
+		qel_register_send(&send_list, qc->ael, &qc->ael->pktns->tx.frms);
+		qc_send(qc, 0, &send_list);
 	}
 
 	TRACE_STATE("preparing data (from MUX)", QUIC_EV_CONN_TXPKT, qc);
 	qc->flags |= QUIC_FL_CONN_TX_MUX_CONTEXT;
-	ret = qc_send_app_pkts(qc, frms);
+	qel_register_send(&send_list, qc->ael, frms);
+	ret = qc_send(qc, 0, &send_list);
 	qc->flags &= ~QUIC_FL_CONN_TX_MUX_CONTEXT;
 
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
@@ -659,7 +483,7 @@ static inline void qc_select_tls_ver(struct quic_conn *qc,
  * Returns the number of bytes prepared in datragrams/packets if succeeded
  * (may be 0), or -1 if something wrong happened.
  */
-static int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf,
+static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
                          struct list *qels)
 {
 	int ret, cc, padding;
@@ -854,21 +678,22 @@ static int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf,
 	return ret;
 }
 
-/* Sends handshake packets from up to two encryption levels <tel> and <next_te>
- * with <tel_frms> and <next_tel_frms> as frame list respectively for <qc>
- * QUIC connection. <old_data> is used as boolean to send data already sent but
- * not already acknowledged (in flight).
- * Returns 1 if succeeded, 0 if not.
+/* Encode frames and send them as packets for <qc> connection. Input frames are
+ * specified via quic_enc_level <send_list> through their send_frms member. Set
+ * <old_data> when reemitted duplicated data.
+ *
+* Returns 1 on success else 0. Note that <send_list> will always be resetted
+* after qc_send() exit.
  */
-int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
-                       struct list *send_list)
+int qc_send(struct quic_conn *qc, int old_data, struct list *send_list)
 {
 	struct quic_enc_level *qel, *tmp_qel;
 	int ret, status = 0;
-	struct buffer *buf = qc_get_txb(qc);
+	struct buffer *buf;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
+	buf = qc_get_txb(qc);
 	if (!buf) {
 		TRACE_ERROR("buffer allocation failed", QUIC_EV_CONN_TXPKT, qc);
 		goto out;
@@ -879,33 +704,32 @@ int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
 		goto out;
 	}
 
-	/* Currently buf cannot be non-empty at this stage. Even if a previous
-	 * sendto() has failed it is emptied to simulate packet emission and
-	 * rely on QUIC lost detection to try to emit it.
-	 */
-	BUG_ON_HOT(b_data(buf));
-	b_reset(buf);
-
 	if (old_data) {
 		TRACE_STATE("old data for probing asked", QUIC_EV_CONN_TXPKT, qc);
 		qc->flags |= QUIC_FL_CONN_RETRANS_OLD_DATA;
 	}
 
-	ret = qc_prep_hpkts(qc, buf, send_list);
-	if (ret == -1) {
-		qc_txb_release(qc);
-		TRACE_ERROR("Could not build some packets", QUIC_EV_CONN_TXPKT, qc);
-		goto out;
-	}
+	/* Prepare and send packets until we could not further prepare packets. */
+	do {
+		/* Buffer must always be empty before qc_prep_pkts() usage.
+		 * qc_send_ppkts() ensures it is cleared on success.
+		 */
+		BUG_ON_HOT(b_data(buf));
+		b_reset(buf);
 
-	if (ret && !qc_send_ppkts(buf, qc->xprt_ctx)) {
-		if (qc->flags & QUIC_FL_CONN_TO_KILL)
-			qc_txb_release(qc);
-		TRACE_ERROR("Could not send some packets", QUIC_EV_CONN_TXPKT, qc);
-		goto out;
-	}
+		ret = qc_prep_pkts(qc, buf, send_list);
+
+		if (b_data(buf) && !qc_send_ppkts(buf, qc->xprt_ctx)) {
+			if (qc->flags & QUIC_FL_CONN_TO_KILL)
+				qc_txb_release(qc);
+			goto out;
+		}
+	} while (ret > 0);
 
 	qc_txb_release(qc);
+	if (ret < 0)
+		goto out;
+
 	status = 1;
 
  out:
@@ -973,7 +797,7 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 				if (qc->hel)
 					qel_register_send(&send_list, qc->hel, &hfrms);
 
-				sret = qc_send_hdshk_pkts(qc, 1, &send_list);
+				sret = qc_send(qc, 1, &send_list);
 				qc_free_frm_list(qc, &ifrms);
 				qc_free_frm_list(qc, &hfrms);
 				if (!sret)
@@ -986,7 +810,7 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 				 */
 				ipktns->tx.pto_probe = 1;
 				qel_register_send(&send_list, qc->iel, &ifrms);
-				sret = qc_send_hdshk_pkts(qc, 0, &send_list);
+				sret = qc_send(qc, 0, &send_list);
 				qc_free_frm_list(qc, &ifrms);
 				qc_free_frm_list(qc, &hfrms);
 				if (!sret)
@@ -1015,7 +839,7 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 				if (!LIST_ISEMPTY(&frms1)) {
 					hpktns->tx.pto_probe = 1;
 					qel_register_send(&send_list, qc->hel, &frms1);
-					sret = qc_send_hdshk_pkts(qc, 1, &send_list);
+					sret = qc_send(qc, 1, &send_list);
 					qc_free_frm_list(qc, &frms1);
 					if (!sret)
 						goto leave;
@@ -1026,6 +850,7 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 			hpktns->flags &= ~QUIC_FL_PKTNS_PROBE_NEEDED;
 		}
 		else if (apktns && (apktns->flags & QUIC_FL_PKTNS_PROBE_NEEDED)) {
+			struct list send_list = LIST_HEAD_INIT(send_list);
 			struct list frms2 = LIST_HEAD_INIT(frms2);
 			struct list frms1 = LIST_HEAD_INIT(frms1);
 
@@ -1036,7 +861,8 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 
 			if (!LIST_ISEMPTY(&frms1)) {
 				apktns->tx.pto_probe = 1;
-				sret = qc_send_app_probing(qc, &frms1);
+				qel_register_send(&send_list, qc->ael, &frms1);
+				sret = qc_send(qc, 1, &send_list);
 				qc_free_frm_list(qc, &frms1);
 				if (!sret) {
 					qc_free_frm_list(qc, &frms2);
@@ -1046,7 +872,8 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 
 			if (!LIST_ISEMPTY(&frms2)) {
 				apktns->tx.pto_probe = 1;
-				sret = qc_send_app_probing(qc, &frms2);
+				qel_register_send(&send_list, qc->ael, &frms2);
+				sret = qc_send(qc, 1, &send_list);
 				qc_free_frm_list(qc, &frms2);
 				if (!sret)
 					goto leave;

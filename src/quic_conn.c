@@ -544,10 +544,10 @@ int quic_build_post_handshake_frames(struct quic_conn *qc)
 	goto leave;
 }
 
-
 /* QUIC connection packet handler task (post handshake) */
 struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state)
 {
+	struct list send_list = LIST_HEAD_INIT(send_list);
 	struct quic_conn *qc = context;
 	struct quic_enc_level *qel;
 
@@ -593,8 +593,9 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
 	}
 
 	/* XXX TODO: how to limit the list frames to send */
-	if (!qc_send_app_pkts(qc, &qel->pktns->tx.frms)) {
-		TRACE_DEVEL("qc_send_app_pkts() failed", QUIC_EV_CONN_IO_CB, qc);
+	qel_register_send(&send_list, qel, &qel->pktns->tx.frms);
+	if (!qc_send(qc, 0, &send_list)) {
+		TRACE_DEVEL("qc_send() failed", QUIC_EV_CONN_IO_CB, qc);
 		goto out;
 	}
 
@@ -796,8 +797,8 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	list_for_each_entry(qel, &qc->qel_list, list)
 		qel_register_send(&send_list, qel, &qel->pktns->tx.frms);
 
-	if (!qc_send_hdshk_pkts(qc, 0, &send_list)) {
-		TRACE_DEVEL("qc_send_hdshk_pkts() failed", QUIC_EV_CONN_IO_CB, qc);
+	if (!qc_send(qc, 0, &send_list)) {
+		TRACE_DEVEL("qc_send() failed", QUIC_EV_CONN_IO_CB, qc);
 		goto out;
 	}
 
