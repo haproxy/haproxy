@@ -744,6 +744,8 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	int ret;
 	struct quic_conn *qc = context;
 	struct buffer *buf = NULL;
+	struct list send_list = LIST_HEAD_INIT(send_list);
+	struct quic_enc_level *qel, *tmp_qel;
 	int st;
 	struct tasklet *tl = (struct tasklet *)t;
 
@@ -792,6 +794,13 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		}
 	}
 
+	/* Insert each QEL into sending list. */
+	list_for_each_entry(qel, &qc->qel_list, list) {
+		BUG_ON(LIST_INLIST(&qel->el_send));
+		LIST_APPEND(&send_list, &qel->el_send);
+		qel->send_frms = &qel->pktns->tx.frms;
+	}
+
 	buf = qc_get_txb(qc);
 	if (!buf)
 		goto out;
@@ -806,7 +815,14 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	BUG_ON_HOT(b_data(buf));
 	b_reset(buf);
 
-	ret = qc_prep_hpkts(qc, buf, NULL);
+	ret = qc_prep_hpkts(qc, buf, &send_list);
+
+	/* Always reset QEL sending list. */
+	list_for_each_entry_safe(qel, tmp_qel, &send_list, el_send) {
+		LIST_DEL_INIT(&qel->el_send);
+		qel->send_frms = NULL;
+	}
+
 	if (ret == -1) {
 		qc_txb_release(qc);
 		goto out;

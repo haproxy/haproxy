@@ -206,8 +206,9 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	if (!qel)
 		goto leave;
 
-	LIST_INIT(&qel->retrans);
-	qel->retrans_frms = NULL;
+	LIST_INIT(&qel->el_send);
+	qel->send_frms = NULL;
+
 	qel->tx.crypto.bufs = NULL;
 	qel->tx.crypto.nb_buf = 0;
 	qel->cstream = NULL;

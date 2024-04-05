@@ -628,44 +628,13 @@ int qc_send_mux(struct quic_conn *qc, struct list *frms)
 	return ret;
 }
 
-/* Return the encryption level following the one which contains <el> list head
- * depending on <retrans> TX mode (retranmission or not).
+/* Select <*tls_ctx> and <*ver> for the encryption level <qel> of <qc> QUIC
+ * connection, depending on its state, especially the negotiated version.
  */
-static inline struct quic_enc_level *qc_list_next_qel(struct list *el, int retrans)
-{
-	return !retrans ? LIST_NEXT(el, struct quic_enc_level *, list) :
-                      LIST_NEXT(el, struct quic_enc_level *, retrans);
-}
-
-/* Return the encryption level following <qel> depending on <retrans> TX mode
- * (retranmission or not).
- */
-static inline struct quic_enc_level *qc_next_qel(struct quic_enc_level *qel, int retrans)
-{
-	struct list *el = !retrans ? &qel->list : &qel->retrans;
-
-	return qc_list_next_qel(el, retrans);
-}
-
-/* Return 1 if <qel> is at the head of its list, 0 if not. */
-static inline int qc_qel_is_head(struct quic_enc_level *qel, struct list *l,
-                                 int retrans)
-{
-	return !retrans ? &qel->list == l : &qel->retrans == l;
-}
-
-/* Select <*tls_ctx>, <*frms> and <*ver> for the encryption level <qel> of <qc> QUIC
- * connection, depending on its state, especially the negotiated version and if
- * retransmissions are required. If this the case <qels> is the list of encryption
- * levels to used, or NULL if no retransmissions are required.
- * Never fails.
- */
-static inline void qc_select_tls_frms_ver(struct quic_conn *qc,
-                                          struct quic_enc_level *qel,
-                                          struct quic_tls_ctx **tls_ctx,
-                                          struct list **frms,
-                                          const struct quic_version **ver,
-                                          struct list *qels)
+static inline void qc_select_tls_ver(struct quic_conn *qc,
+                                     struct quic_enc_level *qel,
+                                     struct quic_tls_ctx **tls_ctx,
+                                     const struct quic_version **ver)
 {
 	if (qc->negotiated_version) {
 		*ver = qc->negotiated_version;
@@ -678,18 +647,11 @@ static inline void qc_select_tls_frms_ver(struct quic_conn *qc,
 		*ver = qc->original_version;
 		*tls_ctx = &qel->tls_ctx;
 	}
-
-	if (!qels)
-		*frms = &qel->pktns->tx.frms;
-	else
-		*frms = qel->retrans_frms;
 }
 
 /* Prepare as much as possible QUIC datagrams/packets for sending from <qels>
  * list of encryption levels. Several packets can be coalesced into a single
- * datagram. The result is written into <buf>. Note that if <qels> is NULL,
- * the encryption levels which will be used are those currently allocated
- * and attached to the connection.
+ * datagram. The result is written into <buf>.
  *
  * Each datagram is prepended by a two fields header : the datagram length and
  * the address of first packet in the datagram.
@@ -699,12 +661,11 @@ static inline void qc_select_tls_frms_ver(struct quic_conn *qc,
  */
 int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf, struct list *qels)
 {
-	int ret, cc, retrans, padding;
+	int ret, cc, padding;
 	struct quic_tx_packet *first_pkt, *prv_pkt;
 	unsigned char *end, *pos;
 	uint16_t dglen;
 	size_t total;
-	struct list *qel_list;
 	struct quic_enc_level *qel;
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
@@ -715,32 +676,34 @@ int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf, struct list *qels)
 
 	ret = -1;
 	cc =  qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE;
-	retrans = !!qels;
 	padding = 0;
 	first_pkt = prv_pkt = NULL;
 	end = pos = (unsigned char *)b_head(buf);
 	dglen = 0;
 	total = 0;
 
-	qel_list = qels ? qels : &qc->qel_list;
-	qel = qc_list_next_qel(qel_list, retrans);
-	while (!qc_qel_is_head(qel, qel_list, retrans)) {
+	list_for_each_entry(qel, qels, el_send) {
 		struct quic_tls_ctx *tls_ctx;
 		const struct quic_version *ver;
-		struct list *frms, *next_frms;
+		struct list *frms = qel->send_frms, *next_frms;
 		struct quic_enc_level *next_qel;
 
 		if (qel == qc->eel) {
 			/* Next encryption level */
-			qel = qc_next_qel(qel, retrans);
 			continue;
 		}
 
-		qc_select_tls_frms_ver(qc, qel, &tls_ctx, &frms, &ver, qels);
+		qc_select_tls_ver(qc, qel, &tls_ctx, &ver);
 
-		next_qel = qc_next_qel(qel, retrans);
-		next_frms = qc_qel_is_head(next_qel, qel_list, retrans) ? NULL :
-			!qels ? &next_qel->pktns->tx.frms : next_qel->retrans_frms;
+		/* Retrieve next QEL. Set it to NULL if on qels last element. */
+		if (qel->el_send.n != qels) {
+			next_qel = LIST_ELEM(qel->el_send.n, struct quic_enc_level *, el_send);
+			next_frms = next_qel->send_frms;
+		}
+		else {
+			next_qel  = NULL;
+			next_frms = NULL;
+		}
 
 		/* Build as much as datagrams at <qel> encryption level.
 		 * Each datagram is prepended with its length followed by the address
@@ -759,7 +722,7 @@ int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf, struct list *qels)
 				probe = qel->pktns->tx.pto_probe;
 
 			if (!qc_may_build_pkt(qc, frms, qel, cc, probe, &must_ack)) {
-				if (prv_pkt && qc_qel_is_head(next_qel, qel_list, retrans)) {
+				if (prv_pkt && !next_qel) {
 					qc_txb_store(buf, dglen, first_pkt);
 					/* Build only one datagram when an immediate close is required. */
 					if (cc)
@@ -855,8 +818,7 @@ int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf, struct list *qels)
 			 * the same datagram, except if <qel> is the Application data
 			 * encryption level which cannot be selected to do that.
 			 */
-			if (LIST_ISEMPTY(frms) && qel != qc->ael &&
-			    !qc_qel_is_head(next_qel, qel_list, retrans)) {
+			if (LIST_ISEMPTY(frms) && qel != qc->ael && next_qel) {
 				if (qel == qc->iel &&
 				    (!qc_is_listener(qc) ||
 				     cur_pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING))
@@ -876,9 +838,6 @@ int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf, struct list *qels)
 				prv_pkt = NULL;
 			}
 		}
-
-		/* Next encryption level */
-		qel = next_qel;
 	}
 
  out:
@@ -903,9 +862,10 @@ int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf, struct list *qels)
 int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
                        struct quic_enc_level *qel1, struct quic_enc_level *qel2)
 {
+	struct quic_enc_level *qel, *tmp_qel;
 	int ret, status = 0;
 	struct buffer *buf = qc_get_txb(qc);
-	struct list qels = LIST_HEAD_INIT(qels);
+	struct list send_list = LIST_HEAD_INIT(send_list);
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
@@ -931,17 +891,22 @@ int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
 		qc->flags |= QUIC_FL_CONN_RETRANS_OLD_DATA;
 	}
 
+	/* At least one QEL must be set or sending is unnecessary. */
+	BUG_ON(!qel1 && !qel2);
+
 	if (qel1) {
-		BUG_ON(LIST_INLIST(&qel1->retrans));
-		LIST_APPEND(&qels, &qel1->retrans);
+		/* Ensure QEL is not already registered for sending. */
+		BUG_ON(LIST_INLIST(&qel1->el_send));
+		LIST_APPEND(&send_list, &qel1->el_send);
 	}
 
 	if (qel2) {
-		BUG_ON(LIST_INLIST(&qel2->retrans));
-		LIST_APPEND(&qels, &qel2->retrans);
+		/* Ensure QEL is not already registered for sending. */
+		BUG_ON(LIST_INLIST(&qel2->el_send));
+		LIST_APPEND(&send_list, &qel2->el_send);
 	}
 
-	ret = qc_prep_hpkts(qc, buf, &qels);
+	ret = qc_prep_hpkts(qc, buf, &send_list);
 	if (ret == -1) {
 		qc_txb_release(qc);
 		TRACE_ERROR("Could not build some packets", QUIC_EV_CONN_TXPKT, qc);
@@ -959,19 +924,15 @@ int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
 	status = 1;
 
  out:
-	if (qel1) {
-		LIST_DEL_INIT(&qel1->retrans);
-		qel1->retrans_frms = NULL;
-	}
-
-	if (qel2) {
-		LIST_DEL_INIT(&qel2->retrans);
-		qel2->retrans_frms = NULL;
-	}
-
 	if (old_data) {
 		TRACE_STATE("no more need old data for probing", QUIC_EV_CONN_TXPKT, qc);
 		qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
+	}
+
+	/* Always reset QEL sending list. */
+	list_for_each_entry_safe(qel, tmp_qel, &send_list, el_send) {
+		LIST_DEL_INIT(&qel->el_send);
+		qel->send_frms = NULL;
 	}
 
 	TRACE_DEVEL((status ? "leaving" : "leaving in error"), QUIC_EV_CONN_TXPKT, qc);
@@ -1009,9 +970,9 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 				ipktns->tx.pto_probe = 1;
 				if (!LIST_ISEMPTY(&hfrms))
 					hpktns->tx.pto_probe = 1;
-				qc->iel->retrans_frms = &ifrms;
+				qc->iel->send_frms = &ifrms;
 				if (qc->hel)
-					qc->hel->retrans_frms = &hfrms;
+					qc->hel->send_frms = &hfrms;
 				sret = qc_send_hdshk_pkts(qc, 1, qc->iel, qc->hel);
 				qc_free_frm_list(qc, &ifrms);
 				qc_free_frm_list(qc, &hfrms);
@@ -1025,7 +986,7 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 				 * datagram.
 				 */
 				ipktns->tx.pto_probe = 1;
-				qc->iel->retrans_frms = &ifrms;
+				qc->iel->send_frms = &ifrms;
 				sret = qc_send_hdshk_pkts(qc, 0, qc->iel, NULL);
 				qc_free_frm_list(qc, &ifrms);
 				qc_free_frm_list(qc, &hfrms);
@@ -1053,7 +1014,7 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 				TRACE_DEVEL("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &frms1);
 				if (!LIST_ISEMPTY(&frms1)) {
 					hpktns->tx.pto_probe = 1;
-					qc->hel->retrans_frms = &frms1;
+					qc->hel->send_frms = &frms1;
 					sret = qc_send_hdshk_pkts(qc, 1, qc->hel, NULL);
 					qc_free_frm_list(qc, &frms1);
 					if (!sret)

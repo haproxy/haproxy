@@ -238,10 +238,12 @@ struct quic_cstream {
 
 struct quic_enc_level {
 	struct list list;
-	/* Attach point to enqueue this encryption level during retransmissions */
-	struct list retrans;
-	/* pointer to list used only during retransmissions */
-	struct list *retrans_frms;
+
+	/* Attach point to register encryption level before sending. */
+	struct list el_send;
+	/* Pointer to the frames used by sending functions */
+	struct list *send_frms;
+
 	/* Encryption level, as defined by the TLS stack. */
 	enum ssl_encryption_level_t level;
 	/* TLS encryption context (AEAD only) */
