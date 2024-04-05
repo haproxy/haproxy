@@ -1323,7 +1323,7 @@ static inline int quic_write_uint32(unsigned char **buf,
 	if (end - *buf < sizeof val)
 		return 0;
 
-	*(uint32_t *)*buf = htonl(val);
+	write_u32(*buf, htonl(val));
 	*buf += sizeof val;
 
 	return 1;
