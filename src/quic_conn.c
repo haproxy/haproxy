@@ -795,11 +795,8 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	}
 
 	/* Insert each QEL into sending list. */
-	list_for_each_entry(qel, &qc->qel_list, list) {
-		BUG_ON(LIST_INLIST(&qel->el_send));
-		LIST_APPEND(&send_list, &qel->el_send);
-		qel->send_frms = &qel->pktns->tx.frms;
-	}
+	list_for_each_entry(qel, &qc->qel_list, list)
+		qel_register_send(&send_list, qel, &qel->pktns->tx.frms);
 
 	buf = qc_get_txb(qc);
 	if (!buf)

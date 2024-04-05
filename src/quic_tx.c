@@ -860,12 +860,11 @@ int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf, struct list *qels)
  * Returns 1 if succeeded, 0 if not.
  */
 int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
-                       struct quic_enc_level *qel1, struct quic_enc_level *qel2)
+                       struct list *send_list)
 {
 	struct quic_enc_level *qel, *tmp_qel;
 	int ret, status = 0;
 	struct buffer *buf = qc_get_txb(qc);
-	struct list send_list = LIST_HEAD_INIT(send_list);
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
@@ -891,22 +890,7 @@ int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
 		qc->flags |= QUIC_FL_CONN_RETRANS_OLD_DATA;
 	}
 
-	/* At least one QEL must be set or sending is unnecessary. */
-	BUG_ON(!qel1 && !qel2);
-
-	if (qel1) {
-		/* Ensure QEL is not already registered for sending. */
-		BUG_ON(LIST_INLIST(&qel1->el_send));
-		LIST_APPEND(&send_list, &qel1->el_send);
-	}
-
-	if (qel2) {
-		/* Ensure QEL is not already registered for sending. */
-		BUG_ON(LIST_INLIST(&qel2->el_send));
-		LIST_APPEND(&send_list, &qel2->el_send);
-	}
-
-	ret = qc_prep_hpkts(qc, buf, &send_list);
+	ret = qc_prep_hpkts(qc, buf, send_list);
 	if (ret == -1) {
 		qc_txb_release(qc);
 		TRACE_ERROR("Could not build some packets", QUIC_EV_CONN_TXPKT, qc);
@@ -930,13 +914,26 @@ int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
 	}
 
 	/* Always reset QEL sending list. */
-	list_for_each_entry_safe(qel, tmp_qel, &send_list, el_send) {
+	list_for_each_entry_safe(qel, tmp_qel, send_list, el_send) {
 		LIST_DEL_INIT(&qel->el_send);
 		qel->send_frms = NULL;
 	}
 
 	TRACE_DEVEL((status ? "leaving" : "leaving in error"), QUIC_EV_CONN_TXPKT, qc);
 	return status;
+}
+
+/* Insert <qel> into <send_list> in preparation for sending. Set its send
+ * frames list pointer to <frms>.
+ */
+void qel_register_send(struct list *send_list, struct quic_enc_level *qel,
+                       struct list *frms)
+{
+	/* Ensure QEL is not already registered for sending. */
+	BUG_ON(LIST_INLIST(&qel->el_send));
+
+	LIST_APPEND(send_list, &qel->el_send);
+	qel->send_frms = frms;
 }
 
 /* Retransmit up to two datagrams depending on packet number space.
@@ -959,9 +956,9 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 		int i;
 
 		for (i = 0; i < QUIC_MAX_NB_PTO_DGRAMS; i++) {
+			struct list send_list = LIST_HEAD_INIT(send_list);
 			struct list ifrms = LIST_HEAD_INIT(ifrms);
 			struct list hfrms = LIST_HEAD_INIT(hfrms);
-			struct list qels = LIST_HEAD_INIT(qels);
 
 			qc_prep_hdshk_fast_retrans(qc, &ifrms, &hfrms);
 			TRACE_DEVEL("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &ifrms);
@@ -970,24 +967,25 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 				ipktns->tx.pto_probe = 1;
 				if (!LIST_ISEMPTY(&hfrms))
 					hpktns->tx.pto_probe = 1;
-				qc->iel->send_frms = &ifrms;
+
+				qel_register_send(&send_list, qc->iel, &ifrms);
 				if (qc->hel)
-					qc->hel->send_frms = &hfrms;
-				sret = qc_send_hdshk_pkts(qc, 1, qc->iel, qc->hel);
+					qel_register_send(&send_list, qc->hel, &hfrms);
+
+				sret = qc_send_hdshk_pkts(qc, 1, &send_list);
 				qc_free_frm_list(qc, &ifrms);
 				qc_free_frm_list(qc, &hfrms);
 				if (!sret)
 					goto leave;
 			}
 			else {
-				/* We are in the case where the anti-amplification limit will be
-				 * reached after having sent this datagram or some handshake frames
-				 * could not be allocated. There is no need to send more than one
-				 * datagram.
+				/* No frame to send due to amplification limit
+				 * or allocation failure. A PING frame will be
+				 * emitted for probing.
 				 */
 				ipktns->tx.pto_probe = 1;
-				qc->iel->send_frms = &ifrms;
-				sret = qc_send_hdshk_pkts(qc, 0, qc->iel, NULL);
+				qel_register_send(&send_list, qc->iel, &ifrms);
+				sret = qc_send_hdshk_pkts(qc, 0, &send_list);
 				qc_free_frm_list(qc, &ifrms);
 				qc_free_frm_list(qc, &hfrms);
 				if (!sret)
@@ -1008,14 +1006,15 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 		if (hpktns && (hpktns->flags & QUIC_FL_PKTNS_PROBE_NEEDED)) {
 			hpktns->tx.pto_probe = 0;
 			for (i = 0; i < QUIC_MAX_NB_PTO_DGRAMS; i++) {
+				struct list send_list = LIST_HEAD_INIT(send_list);
 				struct list frms1 = LIST_HEAD_INIT(frms1);
 
 				qc_prep_fast_retrans(qc, hpktns, &frms1, NULL);
 				TRACE_DEVEL("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &frms1);
 				if (!LIST_ISEMPTY(&frms1)) {
 					hpktns->tx.pto_probe = 1;
-					qc->hel->send_frms = &frms1;
-					sret = qc_send_hdshk_pkts(qc, 1, qc->hel, NULL);
+					qel_register_send(&send_list, qc->hel, &frms1);
+					sret = qc_send_hdshk_pkts(qc, 1, &send_list);
 					qc_free_frm_list(qc, &frms1);
 					if (!sret)
 						goto leave;
