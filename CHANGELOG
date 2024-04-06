@@ -1,6 +1,81 @@
 ChangeLog :
 ===========
 
+2024/04/06 : 3.0-dev7
+    - BUG/MINOR: ssl: Wrong ocsp-update "incompatibility" error message
+    - BUG/MINOR: ssl: Detect more 'ocsp-update' incompatibilities
+    - MEDIUM: ssl: Add 'tune.ssl.ocsp-update.mode' global option
+    - REGTESTS: ssl: Add OCSP update compatibility tests
+    - REGTESTS: ssl: Add functional test for global ocsp-update option
+    - BUG/MINOR: server: reject enabled for dynamic server
+    - BUG/MINOR: server: fix persistence cookie for dynamic servers
+    - MINOR: server: allow cookie for dynamic servers
+    - REGTESTS: Fix script about OCSP update compatibility tests
+    - BUG/MINOR: cli: Report an error to user if command or payload is too big
+    - MINOR: sc_strm: Add generic version to perform sync receives and sends
+    - MEDIUM: stream: Use generic version to perform sync receives and sends
+    - MEDIUM: buf: Add b_getline() and b_getdelim() functions
+    - MEDIUM: applet: Handle applets with their own buffers in put functions
+    - MEDIUM: cli/applet: Stop to test opposite SC in I/O handler of CLI commands
+    - MINOR: applet: Always use applet API to set appctx flags
+    - BUG/MEDIUM: applet: State appctx have more data if its EOI/EOS/ERROR flag is set
+    - MAJOR: cli: Update the CLI applet to handle its own buffers
+    - MINOR: applet: Let's applets .snd_buf function deal with full input buffers
+    - MINOR: stconn: Add a connection flag to notify sending data are the last ones
+    - MAJOR: cli: Use a custom .snd_buf function to only copy the current command
+    - DOC: config: balance 'first' not usable in LOG mode
+    - BUG/MINOR: log/balance: detect if user tries to use unsupported algo
+    - MINOR: lbprm: implement true "sticky" balance algo
+    - MEDIUM: log/balance: leverage lbprm api for log load-balancing
+    - BUG/BUILD: debug: fix unused variable error
+    - MEDIUM: lb-chash: Deterministic node hashes based on server address
+    - BUG/MEDIUM: stick-tables: fix a small remaining race in expiration task
+    - REGTESTS: Do not use REQUIRE_VERSION for HAProxy 2.5+ (4)
+    - REGTESTS: Remove REQUIRE_VERSION=1.9 from all tests (2)
+    - CLEANUP: Reapply ist.cocci (3)
+    - CLEANUP: Reapply strcmp.cocci (2)
+    - CLEANUP: Reapply xalloc_cast.cocci
+    - CLEANUP: Reapply ha_free.cocci
+    - CI: vtest: show coredumps if any
+    - REGTESTS: ssl: disable ssl/ocsp_auto_update.vtc
+    - BUG/MINOR: backend: properly handle redispatch 0
+    - MINOR: quic: HyStart++ implementation (RFC 9406)
+    - BUG/MEDIUM: stconn: Don't forward shutdown to SE if iobuf is not empty
+    - BUG/MEDIUM: stick-table: use the update lock when reading tables from peers
+    - BUG/MAJOR: applet: fix a MIN vs MAX usage in appctx_raw_rcv_buf()
+    - OPTIM: peers: avoid the locking dance around peer_send_teach_process_msgs()
+    - BUILD: quic: 32 bits compilation issue (QUIC_MIN() usage)
+    - BUG/MEDIUM: server/lbprm: fix crash in _srv_set_inetaddr_port()
+    - MEDIUM: mworker: get rid of libsystemd
+    - BUILD: systemd: fix build error on non-systemd systems with USE_SYSTEMD=1
+    - BUG/MINOR: bwlim/config: fix missing '\n' after error messages
+    - MINOR: stick-tables: mark the seen stksess with a flag "seen"
+    - OPTIM: stick-tables: check the stksess without taking the read lock
+    - MAJOR: stktable: split the keys across multiple shards to reduce contention
+    - CI: extend Fedora Rawhide, add m32 mode
+    - BUG/MINOR: stick-tables: Missing stick-table key nullity check
+    - BUILD: systemd: enable USE_SYSTEMD by default with TARGET=linux-glibc
+    - MINOR: systemd: Include MONOTONIC_USEC field in RELOADING=1 message
+    - BUG/MINOR: proxy: fix logformat expression leak in use_backend rules
+    - MEDIUM: log: rename logformat var to logformat tag
+    - MINOR: log: expose logformat_tag struct
+    - MEDIUM: log: carry tag context in logformat node
+    - MEDIUM: tree-wide: add logformat expressions wrapper
+    - MINOR: proxy: add PR_FL_CHECKED flag
+    - MAJOR: log: implement proper postparsing for logformat expressions
+    - MEDIUM: log: add compiling logic to logformat expressions
+    - MEDIUM: proxy/log: leverage lf_expr API for logformat preparsing
+    - MINOR: guid: introduce global UID module
+    - MINOR: guid: restrict guid format
+    - MINOR: proxy: implement GUID support
+    - MINOR: server: implement GUID support
+    - MINOR: listener: implement GUID support
+    - DOC: configuration: grammar fixes for strict-sni
+    - BUG/MINOR: init: relax LSTCHK_NETADM checks for non root
+    - MEDIUM: capabilities: check process capabilities sets
+    - CLEANUP: global: remove LSTCHK_CAP_BIND
+    - BUG/MEDIUM: quic: don't blindly rely on unaligned accesses
+
 2024/03/26 : 3.0-dev6
     - MINOR: mux-h2: always use h2c_report_glitch()
     - MEDIUM: mux-h2: allow to set the glitches threshold to kill a connection
