@@ -258,7 +258,7 @@ static long get_value(struct lru64_head *lru, long a)
 	/* do the painful work here */
 	a = sum(a);
 	if (item)
-		lru64_commit(item, (void *)a, lru, 1, 0);
+		lru64_commit(item, (void *)a, lru, 0, 0);
 	return a;
 }
 
