@@ -259,6 +259,7 @@ enum {
 	CO_SRC_TPROXY_CIP  = 0x0002,    /* bind to the client's IP address when connecting */
 	CO_SRC_TPROXY_CLI  = 0x0003,    /* bind to the client's IP+port when connecting */
 	CO_SRC_TPROXY_DYN  = 0x0004,    /* bind to a dynamically computed non-local address */
+	CO_SRC_TPROXY_DIP  = 0x0005,    /* bind to the destination IP address when connecting */ 
 	CO_SRC_TPROXY_MASK = 0x0007,    /* bind to a non-local address when connecting */
 
 	CO_SRC_BIND        = 0x0008,    /* bind to a specific source address when connecting */

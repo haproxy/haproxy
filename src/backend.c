@@ -1134,7 +1134,19 @@ int alloc_bind_address(struct sockaddr_storage **ss,
 
 		**ss = *addr;
 		break;
+	case CO_SRC_TPROXY_DIP:
+		BUG_ON(!s); /* Dynamic source setting requires a stream instance. */
 
+		/* FIXME: what can we do if the client connects in IPv6 or unix socket ? */
+		addr = sc_dst(s->scf);
+		if (!addr)
+			return SRV_STATUS_INTERNAL;
+
+		if (!sockaddr_alloc(ss, NULL, 0))
+			return SRV_STATUS_INTERNAL;
+
+		**ss = *addr;
+		break;
 	case CO_SRC_TPROXY_DYN:
 		BUG_ON(!s); /* Dynamic source setting requires a stream instance. */
 

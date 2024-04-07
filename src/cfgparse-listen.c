@@ -2771,6 +2771,9 @@ stats_error_parsing:
 				} else if (strcmp(args[cur_arg + 1], "clientip") == 0) {
 					curproxy->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
 					curproxy->conn_src.opts |= CO_SRC_TPROXY_CIP;
+				}  else if (strcmp(args[cur_arg + 1], "dstip") == 0) {
+					curproxy->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
+					curproxy->conn_src.opts |= CO_SRC_TPROXY_CIP;
 				} else if (!strncmp(args[cur_arg + 1], "hdr_ip(", 7)) {
 					char *name, *end;
 

@@ -1753,7 +1753,7 @@ static int srv_parse_source(char **args, int *cur_arg,
 		if (strcmp(args[*cur_arg], "usesrc") == 0) {  /* address to use outside */
 #if defined(CONFIG_HAP_TRANSPARENT)
 			if (!*args[*cur_arg + 1]) {
-				ha_alert("'usesrc' expects <addr>[:<port>], 'client', 'clientip', "
+				ha_alert("'usesrc' expects <addr>[:<port>], 'client', 'clientip', 'dstip',"
 					 "or 'hdr_ip(name,#)' as argument.\n");
 				goto err;
 			}
@@ -1764,6 +1764,10 @@ static int srv_parse_source(char **args, int *cur_arg,
 			else if (strcmp(args[*cur_arg + 1], "clientip") == 0) {
 				newsrv->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
 				newsrv->conn_src.opts |= CO_SRC_TPROXY_CIP;
+			}
+			else if (strcmp(args[*cur_arg + 1], "dstip") == 0) {
+				newsrv->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
+				newsrv->conn_src.opts |= CO_SRC_TPROXY_DIP;
 			}
 			else if (!strncmp(args[*cur_arg + 1], "hdr_ip(", 7)) {
 				char *name, *end;

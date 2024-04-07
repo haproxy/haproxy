@@ -384,6 +384,7 @@ int quic_connect_server(struct connection *conn, int flags)
 			case CO_SRC_TPROXY_ADDR:
 				flags = 3;
 				break;
+			case CO_SRC_TPROXY_DIP:
 			case CO_SRC_TPROXY_CIP:
 			case CO_SRC_TPROXY_DYN:
 				conn_set_private(conn);

@@ -400,6 +400,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 				flags = 3;
 				break;
 			case CO_SRC_TPROXY_CIP:
+			case CO_SRC_TPROXY_DIP:
 			case CO_SRC_TPROXY_DYN:
 				flags = 1;
 				break;
