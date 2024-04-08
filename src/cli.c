@@ -943,8 +943,13 @@ size_t cli_snd_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsi
 			len = b_getline(buf, ret, count, str, b_room(&appctx->inbuf) - 1);
 
 		if (!len) {
-			if (!b_room(buf) || (count > b_room(&appctx->inbuf) - 1) || (flags & CO_SFL_LAST_DATA)) {
+			if (!b_room(buf) || (count > b_room(&appctx->inbuf) - 1)) {
 				cli_err(appctx, "The command is too big for the buffer size. Please change tune.bufsize in the configuration to use a bigger command.\n");
+				applet_set_error(appctx);
+				b_reset(&appctx->inbuf);
+			}
+			else if (flags & CO_SFL_LAST_DATA) {
+				applet_set_eos(appctx);
 				applet_set_error(appctx);
 				b_reset(&appctx->inbuf);
 			}
