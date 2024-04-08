@@ -911,7 +911,7 @@ int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
 
 	if (!buf) {
 		TRACE_ERROR("buffer allocation failed", QUIC_EV_CONN_TXPKT, qc);
-		goto leave;
+		goto out;
 	}
 
 	if (b_data(buf) && !qc_purge_txbuf(qc, buf)) {
@@ -969,10 +969,12 @@ int qc_send_hdshk_pkts(struct quic_conn *qc, int old_data,
 		qel2->retrans_frms = NULL;
 	}
 
-	TRACE_STATE("no more need old data for probing", QUIC_EV_CONN_TXPKT, qc);
-	qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
- leave:
-	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
+	if (old_data) {
+		TRACE_STATE("no more need old data for probing", QUIC_EV_CONN_TXPKT, qc);
+		qc->flags &= ~QUIC_FL_CONN_RETRANS_OLD_DATA;
+	}
+
+	TRACE_DEVEL((status ? "leaving" : "leaving in error"), QUIC_EV_CONN_TXPKT, qc);
 	return status;
 }
 
