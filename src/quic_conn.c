@@ -741,11 +741,9 @@ static struct quic_conn_closed *qc_new_cc_conn(struct quic_conn *qc)
 /* QUIC connection packet handler task. */
 struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 {
-	int ret;
 	struct quic_conn *qc = context;
-	struct buffer *buf = NULL;
 	struct list send_list = LIST_HEAD_INIT(send_list);
-	struct quic_enc_level *qel, *tmp_qel;
+	struct quic_enc_level *qel;
 	int st;
 	struct tasklet *tl = (struct tasklet *)t;
 
@@ -798,40 +796,10 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	list_for_each_entry(qel, &qc->qel_list, list)
 		qel_register_send(&send_list, qel, &qel->pktns->tx.frms);
 
-	buf = qc_get_txb(qc);
-	if (!buf)
-		goto out;
-
-	if (b_data(buf) && !qc_purge_txbuf(qc, buf))
-		goto out;
-
-	/* Currently buf cannot be non-empty at this stage. Even if a previous
-	 * sendto() has failed it is emptied to simulate packet emission and
-	 * rely on QUIC lost detection to try to emit it.
-	 */
-	BUG_ON_HOT(b_data(buf));
-	b_reset(buf);
-
-	ret = qc_prep_hpkts(qc, buf, &send_list);
-
-	/* Always reset QEL sending list. */
-	list_for_each_entry_safe(qel, tmp_qel, &send_list, el_send) {
-		LIST_DEL_INIT(&qel->el_send);
-		qel->send_frms = NULL;
-	}
-
-	if (ret == -1) {
-		qc_txb_release(qc);
+	if (!qc_send_hdshk_pkts(qc, 0, &send_list)) {
+		TRACE_DEVEL("qc_send_hdshk_pkts() failed", QUIC_EV_CONN_IO_CB, qc);
 		goto out;
 	}
-
-	if (ret && !qc_send_ppkts(buf, qc->xprt_ctx)) {
-		if (qc->flags & QUIC_FL_CONN_TO_KILL)
-			qc_txb_release(qc);
-		goto out;
-	}
-
-	qc_txb_release(qc);
 
  out:
 	/* Release the Handshake encryption level and packet number space if

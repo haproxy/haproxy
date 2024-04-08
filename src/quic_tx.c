@@ -362,7 +362,7 @@ static void qc_purge_tx_buf(struct quic_conn *qc, struct buffer *buf)
  *   Remaining data are purged from the buffer and will eventually be detected
  *   as lost which gives the opportunity to retry sending.
  */
-int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
+static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 {
 	int ret = 0;
 	struct quic_conn *qc;
@@ -659,7 +659,8 @@ static inline void qc_select_tls_ver(struct quic_conn *qc,
  * Returns the number of bytes prepared in datragrams/packets if succeeded
  * (may be 0), or -1 if something wrong happened.
  */
-int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf, struct list *qels)
+static int qc_prep_hpkts(struct quic_conn *qc, struct buffer *buf,
+                         struct list *qels)
 {
 	int ret, cc, padding;
 	struct quic_tx_packet *first_pkt, *prv_pkt;
