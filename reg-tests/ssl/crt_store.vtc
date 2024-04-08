@@ -1,0 +1,31 @@
+#REGTEST_TYPE=devel
+varnishtest "Test the crt-store section"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.0-dev7)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature ignore_unknown_macro
+
+#
+# Basic check for the crt-store, ensure that loading works and that we can't
+# load a crt which was used before
+#
+
+
+haproxy h1 -arg -V -conf-OK {
+    crt-store
+       load crt "${testdir}/common.crt" key "${testdir}/common.key"
+
+    listen ssl-lst
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.crt strict-sni
+
+}
+
+haproxy h2 -arg -V -conf-BAD {} {
+
+    listen ssl-lst
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem strict-sni
+
+    crt-store
+       load crt "${testdir}/common.pem" key "${testdir}/common.key"
+
+}
+
