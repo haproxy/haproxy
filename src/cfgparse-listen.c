@@ -2759,7 +2759,7 @@ stats_error_parsing:
 			if (strcmp(args[cur_arg], "usesrc") == 0) {  /* address to use outside */
 #if defined(CONFIG_HAP_TRANSPARENT)
 				if (!*args[cur_arg + 1]) {
-					ha_alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], 'client', or 'clientip' as argument.\n",
+					ha_alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], 'client', 'clientip' or 'dst' as argument.\n",
 						 file, linenum, "usesrc");
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;

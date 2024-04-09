@@ -11014,7 +11014,7 @@ server-template <prefix> <num | range> <fqdn>[:<port>] [params*]
 
 
 
-source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | client | clientip } ]
+source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | client | clientip | dstip } ]
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | hdr_ip(<hdr>[,<occ>]) } ]
 source <addr>[:<port>] [interface <name>]
   Set the source address for outgoing connections
