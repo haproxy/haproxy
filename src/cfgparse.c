@@ -4178,6 +4178,11 @@ init_proxies_list_stage2:
 				/* listener ID not set, use automatic numbering with first
 				 * spare entry starting with next_luid.
 				 */
+				if (listener->by_fe.p != &curproxy->conf.listeners) {
+					struct listener *prev_li = LIST_PREV(&listener->by_fe, typeof(prev_li), by_fe);
+					if (prev_li->luid)
+						next_id = prev_li->luid + 1;
+				}
 				next_id = get_next_id(&curproxy->conf.used_listener_id, next_id);
 				listener->conf.id.key = listener->luid = next_id;
 				eb32_insert(&curproxy->conf.used_listener_id, &listener->conf.id);

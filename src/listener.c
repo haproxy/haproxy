@@ -916,6 +916,7 @@ struct listener *clone_listener(struct listener *src)
 		goto oom1;
 	memcpy(l, src, sizeof(*l));
 
+	l->luid = 0; // don't dup the listener's ID!
 	if (l->name) {
 		l->name = strdup(l->name);
 		if (!l->name)
@@ -1810,6 +1811,12 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 						*err_code |= ERR_FATAL | ERR_ALERT;
 						return cfgerr;
 					}
+					/* assign the ID to the first one only */
+					new_li->luid = new_li->conf.id.key = tmp_li->luid;
+					tmp_li->luid = 0;
+					eb32_delete(&tmp_li->conf.id);
+					if (tmp_li->luid)
+						eb32_insert(&fe->conf.used_listener_id, &new_li->conf.id);
 					new_li = tmp_li;
 				}
 			}
@@ -1828,6 +1835,12 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 				*err_code |= ERR_FATAL | ERR_ALERT;
 				return cfgerr;
 			}
+			/* assign the ID to the first one only */
+			new_li->luid = new_li->conf.id.key = li->luid;
+			li->luid = 0;
+			eb32_delete(&li->conf.id);
+			if (li->luid)
+				eb32_insert(&fe->conf.used_listener_id, &new_li->conf.id);
 		}
 	}
 
