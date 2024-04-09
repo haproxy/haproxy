@@ -818,6 +818,13 @@ int sock_conn_check(struct connection *conn)
 	return 0;
 
  wait:
+	/* we may arrive here due to connect() misleadingly reporting EALREADY
+	 * in some corner cases while the system disagrees and reports an error
+	 * on the FD.
+	 */
+	if (fdtab[fd].state & FD_POLL_ERR)
+		goto out_error;
+
 	fd_cant_send(fd);
 	fd_want_send(fd);
 	return 0;
