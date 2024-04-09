@@ -1853,7 +1853,7 @@ char *lf_text_len(char *dst, const char *src, size_t len, size_t size, const str
 			char *ret;
 
 			ret = escape_string(dst, dst + size, '\\', rfc5424_escape_map, src, src + len);
-			if (ret == NULL || *ret != '\0')
+			if (ret == NULL)
 				return NULL;
 			len = ret - dst;
 		}
@@ -3532,7 +3532,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 						if (s->req_cap[hdr] != NULL) {
 							ret = lf_encode_string(tmplog, dst + maxsize,
 							                       '#', hdr_encode_map, s->req_cap[hdr], tmp);
-							if (ret == NULL || *ret != '\0')
+							if (ret == NULL)
 								goto out;
 							tmplog = ret;
 						}
@@ -3552,7 +3552,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 						if (s->req_cap[hdr] != NULL) {
 							ret = lf_encode_string(tmplog, dst + maxsize,
 							                       '#', hdr_encode_map, s->req_cap[hdr], tmp);
-							if (ret == NULL || *ret != '\0')
+							if (ret == NULL)
 								goto out;
 							tmplog = ret;
 						} else if (!(tmp->options & LOG_OPT_QUOTE))
@@ -3578,7 +3578,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 						if (s->res_cap[hdr] != NULL) {
 							ret = lf_encode_string(tmplog, dst + maxsize,
 							                       '#', hdr_encode_map, s->res_cap[hdr], tmp);
-							if (ret == NULL || *ret != '\0')
+							if (ret == NULL)
 								goto out;
 							tmplog = ret;
 						}
@@ -3598,7 +3598,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 						if (s->res_cap[hdr] != NULL) {
 							ret = lf_encode_string(tmplog, dst + maxsize,
 							                       '#', hdr_encode_map, s->res_cap[hdr], tmp);
-							if (ret == NULL || *ret != '\0')
+							if (ret == NULL)
 								goto out;
 							tmplog = ret;
 						} else if (!(tmp->options & LOG_OPT_QUOTE))
@@ -3618,7 +3618,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
 				ret = lf_encode_string(tmplog, dst + maxsize,
 				                       '#', url_encode_map, uri, tmp);
-				if (ret == NULL || *ret != '\0')
+				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
@@ -3652,7 +3652,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				}
 
 				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);
-				if (ret == NULL || *ret != '\0')
+				if (ret == NULL)
 					goto out;
 
 				tmplog = ret;
@@ -3694,7 +3694,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				}
 
 				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);
-				if (ret == NULL || *ret != '\0')
+				if (ret == NULL)
 					goto out;
 
 				tmplog = ret;
@@ -3724,7 +3724,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				}
 
 				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);
-				if (ret == NULL || *ret != '\0')
+				if (ret == NULL)
 					goto out;
 
 				tmplog = ret;
@@ -3760,7 +3760,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				}
 
 				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);
-				if (ret == NULL || *ret != '\0')
+				if (ret == NULL)
 					goto out;
 
 				tmplog = ret;
@@ -3786,7 +3786,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				}
 
 				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);
-				if (ret == NULL || *ret != '\0')
+				if (ret == NULL)
 					goto out;
 
 				tmplog = ret;
@@ -3827,7 +3827,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				}
 
 				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);
-				if (ret == NULL || *ret != '\0')
+				if (ret == NULL)
 					goto out;
 
 				tmplog = ret;
