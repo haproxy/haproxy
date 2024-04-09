@@ -3038,7 +3038,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 							  key ? key->data.u.str.data : 0,
 							  dst + maxsize - tmplog,
 							  tmp);
-				if (ret == 0)
+				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
