@@ -1841,13 +1841,12 @@ char *lf_text_len(char *dst, const char *src, size_t len, size_t size, const str
 
 	if (src && len) {
 		/* escape_string and strlcpy2 will both try to add terminating NULL-byte
-		 * to dst, so we need to make sure that extra byte will fit into dst
-		 * before calling them
+		 * to dst
 		 */
 		if (node->options & LOG_OPT_ESC) {
 			char *ret;
 
-			ret = escape_string(dst, (dst + size - 1), '\\', rfc5424_escape_map, src, src + len);
+			ret = escape_string(dst, dst + size, '\\', rfc5424_escape_map, src, src + len);
 			if (ret == NULL || *ret != '\0')
 				return NULL;
 			len = ret - dst;
