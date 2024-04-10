@@ -657,11 +657,6 @@ section 4 about dependencies for more information on how to build with OpenSSL.
 HAProxy can compress HTTP responses to save bandwidth. Please see section 4
 about dependencies to see the available libraries and associated options.
 
-By default, the DEBUG_CFLAGS variable is set to '-g' to enable debug symbols.
-It is not wise to disable it on uncommon systems, because it's often the only
-way to get a usable core when you need one. Otherwise, you can set DEBUG to
-'-s' to strip the binary.
-
 If the ERR variable is set to any non-empty value other than "0", then -Werror
 will be added to the compiler so that any build warning will trigger an error.
 This is the recommended way to build when developing, and it is expected that
@@ -775,7 +770,7 @@ also run on 5.2 or earlier, you need to build with DEFINE="-D_MSGQSUPPORT",
 otherwise __fd_select() will be used while not being present in the libc, but
 this is easily addressed using the "aix52" target. If you get build errors
 because of strange symbols or section mismatches, simply remove -g from
-DEBUG_CFLAGS.
+ARCH_FLAGS.
 
 Building on AIX 7.2 works fine using the "aix72-gcc" TARGET. It adds two
 special CFLAGS to prevent the loading of AIX's xmem.h and var.h. This is done

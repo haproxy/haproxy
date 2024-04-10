@@ -184,9 +184,16 @@ LD = $(CC)
 # other CFLAGS options if needed.
 OPT_CFLAGS = -O2
 
-#### Debug flags (typically "-g").
-# Those flags only feed CFLAGS so it is not mandatory to use this form.
-DEBUG_CFLAGS = -g
+#### No longer used
+DEBUG_CFLAGS =
+ifneq ($(DEBUG_CFLAGS),)
+$(warning Warning: DEBUG_CFLAGS was forced to "$(DEBUG_CFLAGS)" but is no     \
+  longer used and will be ignored. If you have ported this build setting from \
+  and older version, it is likely that you just want to pass these options    \
+  to the CFLAGS variable. If you are passing some debugging-related options   \
+  such as -g/-ggdb3/-pg etc, they can now be passed in ARCH_FLAGS at once for \
+  both the compilation and linking stages.)
+endif
 
 #### Add -Werror when set to non-empty
 ERR =
@@ -453,7 +460,6 @@ ifeq ($(TARGET),aix51)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_LIBCRYPT USE_OBSOLETE_LINKER)
   TARGET_CFLAGS   = -Dss_family=__ss_family -Dip6_hdr=ip6hdr -DSTEVENS_API -D_LINUX_SOURCE_COMPAT -Dunsetenv=my_unsetenv
-  DEBUG_CFLAGS    =
 endif
 
 # AIX 5.2
@@ -461,7 +467,6 @@ ifeq ($(TARGET),aix52)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_LIBCRYPT USE_OBSOLETE_LINKER)
   TARGET_CFLAGS   = -D_MSGQSUPPORT
-  DEBUG_CFLAGS    =
 endif
 
 # AIX 7.2 and above
@@ -490,7 +495,7 @@ $(set_target_defaults)
 # linking with it by default as it's not always available nor deployed
 # (especially on archs which do not need it).
 ifneq ($(USE_THREAD:0=),)
-  ifneq ($(shell $(CC) $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(WARN_CFLAGS) $(NOWARN_CFLAGS) $(ERROR_CFLAGS) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
+  ifneq ($(shell $(CC) $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(STD_CFLAGS) $(WARN_CFLAGS) $(NOWARN_CFLAGS) $(ERROR_CFLAGS) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
     USE_LIBATOMIC   = implicit
   endif
 endif
@@ -859,10 +864,10 @@ endif
 $(collect_opts_flags)
 
 #### Global compile options
-VERBOSE_CFLAGS = $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(TARGET_CFLAGS) $(CFLAGS) $(DEFINE)
+VERBOSE_CFLAGS = $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(STD_CFLAGS) $(TARGET_CFLAGS) $(CFLAGS) $(DEFINE)
 COPTS  = -Iinclude
 
-COPTS += $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(WARN_CFLAGS) $(NOWARN_CFLAGS) $(ERROR_CFLAGS) $(TARGET_CFLAGS) $(DEFINE) $(SILENT_DEFINE)
+COPTS += $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(STD_CFLAGS) $(WARN_CFLAGS) $(NOWARN_CFLAGS) $(ERROR_CFLAGS) $(TARGET_CFLAGS) $(DEFINE) $(SILENT_DEFINE)
 COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(CFLAGS) $(ADDINC)
 
 ifneq ($(VERSION)$(SUBVERS)$(EXTRAVERSION),)
@@ -1170,7 +1175,6 @@ opts:
 	@echo -n 'OPT_CFLAGS="$(strip $(OPT_CFLAGS))" '
 	@echo -n 'ARCH_FLAGS="$(strip $(ARCH_FLAGS))" '
 	@echo -n 'CPU_CFLAGS="$(strip $(CPU_CFLAGS))" '
-	@echo -n 'DEBUG_CFLAGS="$(strip $(DEBUG_CFLAGS))" '
 	@echo -n 'STD_CFLAGS="$(strip $(STD_CFLAGS))" '
 	@echo -n 'WARN_CFLAGS="$(strip $(WARN_CFLAGS))" '
 	@echo -n 'NOWARN_CFLAGS="$(strip $(NOWARN_CFLAGS))" '
