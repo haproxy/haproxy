@@ -561,4 +561,8 @@
 # define DEBUG_STRICT 1
 #endif
 
+#if !defined(DEBUG_MEMORY_POOLS)
+# define DEBUG_MEMORY_POOLS 1
+#endif
+
 #endif /* _HAPROXY_DEFAULTS_H */

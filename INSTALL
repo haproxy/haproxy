@@ -691,7 +691,7 @@ these options should not be changed. Among the usable ones are:
     overflows, which may have security implications. The cost is extremely low
     (less than 1% increase in memory footprint). This is equivalent to adding
     "-dMtag" on the command line. This option is enabled in the default build
-    options.
+    options and may be disabled with -DDEBUG_MEMORY_POOLS=0.
 
   - -DDEBUG_DONT_SHARE_POOLS: this will keep separate pools for same-sized
     objects of different types. Using this increases the memory usage a little
@@ -711,12 +711,13 @@ these options should not be changed. Among the usable ones are:
     are encouraged to use it, in combination with -DDEBUG_DONT_SHARE_POOLS and
     -DDEBUG_MEMORY_POOLS, as this could catch dangerous regressions.
 
-As such, for regular production, "-DDEBUG_STRICT -DDEBUG_MEMORY_POOLS" is
-recommended. For security sensitive environments, it is recommended to use
-"-DDEBUG_STRICT -DDEBUG_STRICT_ACTION=2 -DDEBUG_MEMORY_POOLS \
--DDEBUG_DONT_SHARE_POOLS". For deployments dedicated to testing new versions or
-when trying to nail a bug down, use "-DDEBUG_STRICT=2 -DDEBUG_STRICT_ACTION=2 \
--DDEBUG_MEMORY_POOLS -DDEBUG_DONT_SHARE_POOLS -DDEBUG_POOL_INTEGRITY".
+As such, "-DDEBUG_STRICT -DDEBUG_MEMORY_POOLS" is implicit and recommended for
+production. For security sensitive environments, it is recommended to use
+"-DDEBUG_STRICT_ACTION=2 -DDEBUG_DONT_SHARE_POOLS". When testing new versions
+or trying to nail a bug down, use "-DDEBUG_STRICT=2 -DDEBUG_STRICT_ACTION=2 \
+-DDEBUG_DONT_SHARE_POOLS -DDEBUG_POOL_INTEGRITY". Finally in order to minimize
+memory usage by disabling these integrity features, it is also possible to use
+"-DDEBUG_STRICT=0 -DDEBUG_MEMORY_POOLS=0".
 
 The DEP variable is automatically set to the list of include files and also
 designates a file that contains the last build options used. It is used during
@@ -757,7 +758,7 @@ example :
 If you need to pass some defines to the preprocessor or compiler, you may pass
 them all in the DEFINE variable. Example:
 
-  $ make TARGET=generic DEFINE="-DDEBUG_DONT_SHARE_POOLS -DDEBUG_MEMORY_POOLS"
+  $ make TARGET=generic DEFINE="-DDEBUG_DONT_SHARE_POOLS"
 
 The ADDINC variable may be used to add some extra include paths; this is
 sometimes needed when cross-compiling. Similarly the ADDLIB variable may be

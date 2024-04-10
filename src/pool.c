@@ -40,31 +40,30 @@ static struct list pools __read_mostly = LIST_HEAD_INIT(pools);
 int mem_poison_byte __read_mostly = 'P';
 int pool_trim_in_progress = 0;
 uint pool_debugging __read_mostly =               /* set of POOL_DBG_* flags */
-#ifdef DEBUG_FAIL_ALLOC
+#if defined(DEBUG_FAIL_ALLOC) && (DEBUG_FAIL_ALLOC > 0)
 	POOL_DBG_FAIL_ALLOC |
 #endif
-#ifdef DEBUG_DONT_SHARE_POOLS
+#if defined(DEBUG_DONT_SHARE_POOLS) && (DEBUG_DONT_SHARE_POOLS > 0)
 	POOL_DBG_DONT_MERGE |
 #endif
-#ifdef DEBUG_POOL_INTEGRITY
+#if defined(DEBUG_POOL_INTEGRITY) && (DEBUG_POOL_INTEGRITY > 0)
 	POOL_DBG_COLD_FIRST |
-#endif
-#ifdef DEBUG_POOL_INTEGRITY
 	POOL_DBG_INTEGRITY  |
 #endif
-#ifdef CONFIG_HAP_NO_GLOBAL_POOLS
+#if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 	POOL_DBG_NO_GLOBAL  |
 #endif
-#if defined(DEBUG_NO_POOLS) || defined(DEBUG_UAF)
+#if defined(DEBUG_NO_POOLS) && (DEBUG_NO_POOLS > 0)
 	POOL_DBG_NO_CACHE   |
 #endif
-#if defined(DEBUG_POOL_TRACING)
+#if defined(DEBUG_POOL_TRACING) && (DEBUG_POOL_TRACING > 0)
 	POOL_DBG_CALLER     |
 #endif
-#if defined(DEBUG_MEMORY_POOLS)
+#if defined(DEBUG_MEMORY_POOLS) && (DEBUG_MEMORY_POOLS > 0)
 	POOL_DBG_TAG        |
 #endif
-#if defined(DEBUG_UAF)
+#if defined(DEBUG_UAF) && (DEBUG_UAF > 0)
+	POOL_DBG_NO_CACHE   |
 	POOL_DBG_UAF        |
 #endif
 	0;
