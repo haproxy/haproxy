@@ -491,7 +491,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	unsigned char *end, *pos;
 	uint16_t dglen;
 	size_t total;
-	struct quic_enc_level *qel;
+	struct quic_enc_level *qel, *tmp_qel;
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
 	/* Currently qc_prep_pkts() does not handle buffer wrapping so the
@@ -507,7 +507,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	dglen = 0;
 	total = 0;
 
-	list_for_each_entry(qel, qels, el_send) {
+	list_for_each_entry_safe(qel, tmp_qel, qels, el_send) {
 		struct quic_tls_ctx *tls_ctx;
 		const struct quic_version *ver;
 		struct list *frms = qel->send_frms, *next_frms;
@@ -547,6 +547,10 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				probe = qel->pktns->tx.pto_probe;
 
 			if (!qc_may_build_pkt(qc, frms, qel, cc, probe, &must_ack)) {
+				/* Remove qel from send_list if nothing to send. */
+				LIST_DEL_INIT(&qel->el_send);
+				qel->send_frms = NULL;
+
 				if (prv_pkt && !next_qel) {
 					qc_txb_store(buf, dglen, first_pkt);
 					/* Build only one datagram when an immediate close is required. */
@@ -650,7 +654,6 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 					padding = 1;
 
 				prv_pkt = cur_pkt;
-				break;
 			}
 			else {
 				qc_txb_store(buf, dglen, first_pkt);
@@ -724,7 +727,7 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list)
 				qc_txb_release(qc);
 			goto out;
 		}
-	} while (ret > 0);
+	} while (ret > 0 && !LIST_ISEMPTY(send_list));
 
 	qc_txb_release(qc);
 	if (ret < 0)
