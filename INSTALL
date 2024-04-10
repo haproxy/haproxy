@@ -622,6 +622,15 @@ and building with the address sanitizer (ASAN) simply requires:
 
     $ make TARGET=linux-glibc ARCH_FLAGS="-fsanitize=address -g"
 
+If a particular target requires specific link-time flags, these can be passed
+via the LDFLAGS variable. This variable is passed to the linker immediately
+after ARCH_FLAGS. One of the common use cases is to add some run time search
+paths for a dynamic library that's not part of the default system search path:
+
+    $ make -j $(nproc) TARGET=generic USE_OPENSSL_AWSLC=1 USE_QUIC=1 \
+      SSL_INC=/opt/aws-lc/include SSL_LIB=/opt/aws-lc/lib \
+      LDFLAGS="-Wl,-rpath,/opt/aws-lc/lib"
+
 Recent systems can resolve IPv6 host names using getaddrinfo(). This primitive
 is not present in all libcs and does not work in all of them either. Support in
 glibc was broken before 2.3. Some embedded libs may not properly work either,

@@ -290,11 +290,12 @@ ARCH_FLAGS        = -g
 # Just set CFLAGS to the desired ones on the "make" command line.
 CFLAGS =
 
-#### Common LDFLAGS
-# These LDFLAGS are used as the first "ld" options, regardless of any library
-# path or any other option. They may be changed to add any linker-specific
-# option at the beginning of the ld command line.
-LDFLAGS = $(ARCH_FLAGS) -g
+#### Extra LDFLAGS
+# These LDFLAGS are used as the first "ld" options just after ARCH_FLAGS,
+# regardless of any library path or any other option. They may be used to add
+# any linker-specific option at the beginning of the ld command line. It may be
+# convenient to set a run time search path (-rpath), see INSTALL for more info.
+LDFLAGS =
 
 #### list of all "USE_*" options. These ones must be updated if new options are
 # added, so that the relevant options are properly added to the CFLAGS and to
@@ -1000,7 +1001,7 @@ else
 endif # non-empty target
 
 haproxy: $(OPTIONS_OBJS) $(OBJS)
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 objsize: haproxy
 	$(Q)objdump -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
@@ -1009,31 +1010,31 @@ objsize: haproxy
 	$(cmd_CC) $(COPTS) -c -o $@ $<
 
 admin/halog/halog: admin/halog/halog.o admin/halog/fgets2.o src/ebtree.o src/eb32tree.o src/eb64tree.o src/ebmbtree.o src/ebsttree.o src/ebistree.o src/ebimtree.o
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 admin/dyncookie/dyncookie: admin/dyncookie/dyncookie.o
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 dev/flags/flags: dev/flags/flags.o
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 dev/haring/haring: dev/haring/haring.o
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 dev/hpack/%: dev/hpack/%.o
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 dev/poll/poll:
 	$(cmd_MAKE) -C dev/poll poll CC='$(CC)' OPTIMIZE='$(COPTS)' V='$(V)'
 
 dev/qpack/decode: dev/qpack/decode.o
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 dev/tcploop/tcploop:
 	$(cmd_MAKE) -C dev/tcploop tcploop CC='$(CC)' OPTIMIZE='$(COPTS)' V='$(V)'
 
 dev/udp/udp-perturb: dev/udp/udp-perturb.o
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 # rebuild it every time
 .PHONY: src/version.c dev/poll/poll dev/tcploop/tcploop
