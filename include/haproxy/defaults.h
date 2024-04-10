@@ -556,4 +556,9 @@
 # define RING_DFLT_QUEUES   6
 #endif
 
+/* Let's make DEBUG_STRICT default to 1 to get rid of it in the makefile */
+#ifndef DEBUG_STRICT
+# define DEBUG_STRICT 1
+#endif
+
 #endif /* _HAPROXY_DEFAULTS_H */

@@ -658,8 +658,8 @@ these options should not be changed. Among the usable ones are:
     conditions are not met, and whose violation will result in a misbehaving
     process due to memory corruption or other significant trouble, possibly
     caused by an attempt to exploit a bug in the program or a library it relies
-    on. The option knows 3 values: 0 (disable all such assertions, the default
-    when the option is not set), 1 (enable all inexpensive assertions), and
+    on. The option knows 3 values: 0 (disable all such assertions, not
+    recommended), 1 (enable all inexpensive assertions, the default), and
     2 (enable all assertions even in fast paths). Setting the option with no
     value corresponds to 1, which is the recommended value for production.
 
