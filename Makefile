@@ -1,7 +1,7 @@
 # This GNU Makefile supports different OS and CPU combinations.
 #
 # You should use it this way :
-#   [g]make TARGET=os [ARCH=arch] [CPU=cpu] USE_xxx=1 ...
+#   [g]make TARGET=os [ARCH=arch] [CFLAGS=...] USE_xxx=1 ...
 #
 # When in doubt, invoke help, possibly with a known target :
 #   [g]make help
@@ -152,12 +152,16 @@ DOCDIR = $(PREFIX)/doc/haproxy
 #    custom
 TARGET =
 
-#### TARGET CPU
-# Use CPU=<cpu_name> to optimize for a particular CPU, among the following
-# list :
-#    generic, native, i586, i686, ultrasparc, power8, power9, custom,
-#    a53, a72, armv81, armv8-auto
-CPU = generic
+#### No longer used
+CPU =
+ifneq ($(CPU),)
+ifneq ($(CPU),generic)
+$(warning Warning: the "CPU" variable was forced to "$(CPU)" but is no longer \
+  used and will be ignored. For native builds, modern compilers generally     \
+  prefer that the string "-march=native" is passed in CPU_CFLAGS or CFLAGS.   \
+  For other CPU-specific options, please read suggestions in the INSTALL file.)
+endif
+endif
 
 #### Architecture, used when not building for native architecture
 # Use ARCH=<arch_name> to force build for a specific architecture. Known
@@ -260,22 +264,12 @@ SILENT_DEFINE =
 EXTRA =
 
 #### CPU dependent optimizations
-# Some CFLAGS are set by default depending on the target CPU. Those flags only
-# feed CPU_CFLAGS, which in turn feed CFLAGS, so it is not mandatory to use
-# them. You should not have to change these options. Better use CPU_CFLAGS or
-# even CFLAGS instead.
-CPU_CFLAGS.generic    =
-CPU_CFLAGS.native     = -march=native
-CPU_CFLAGS.i586       = -march=i586
-CPU_CFLAGS.i686       = -march=i686
-CPU_CFLAGS.ultrasparc = -mcpu=v9 -mtune=ultrasparc
-CPU_CFLAGS.power8     = -mcpu=power8 -mtune=power8
-CPU_CFLAGS.power9     = -mcpu=power9 -mtune=power9
-CPU_CFLAGS.a53        = -mcpu=cortex-a53
-CPU_CFLAGS.a72        = -mcpu=cortex-a72
-CPU_CFLAGS.armv81     = -march=armv8.1-a
-CPU_CFLAGS.armv8-auto = -march=armv8-a+crc -moutline-atomics
-CPU_CFLAGS            = $(CPU_CFLAGS.$(CPU))
+# This may optionally be used to pass CPU-specific optimizations such as
+# -march=native, -mcpu=something, -m64 etc independently of CFLAGS if it is
+# considered more convenient. Historically, the optimization level was also
+# passed there. This is still supported but not recommended though; OPT_CFLAGS
+# is better suited. The default is empty.
+CPU_CFLAGS        =
 
 #### ARCH dependent flags, may be overridden by CPU flags
 ARCH_FLAGS.32     = -m32
@@ -1049,7 +1043,6 @@ src/haproxy.o:	src/haproxy.c $(DEP)
 	$(cmd_CC) $(COPTS) \
 	      -DBUILD_TARGET='"$(strip $(TARGET))"' \
 	      -DBUILD_ARCH='"$(strip $(ARCH))"' \
-	      -DBUILD_CPU='"$(strip $(CPU))"' \
 	      -DBUILD_CC='"$(strip $(CC))"' \
 	      -DBUILD_CFLAGS='"$(strip $(VERBOSE_CFLAGS))"' \
 	      -DBUILD_OPTIONS='"$(strip $(BUILD_OPTIONS))"' \
@@ -1152,7 +1145,6 @@ opts:
 	@echo -n 'Using: '
 	@echo -n 'TARGET="$(strip $(TARGET))" '
 	@echo -n 'ARCH="$(strip $(ARCH))" '
-	@echo -n 'CPU="$(strip $(CPU))" '
 	@echo -n 'CC="$(strip $(CC))" '
 	@echo -n 'OPT_CFLAGS="$(strip $(OPT_CFLAGS))" '
 	@echo -n 'ARCH_FLAGS="$(strip $(ARCH_FLAGS))" '

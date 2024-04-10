@@ -45,7 +45,7 @@ are a few build examples :
                 CC=/opt/cross/gcc730-arm/bin/gcc ADDLIB=-latomic
 
   - Build with static PCRE on Solaris / UltraSPARC :
-    $ make TARGET=solaris CPU=ultrasparc USE_STATIC_PCRE2=1
+    $ make TARGET=solaris CPU_CFLAGS="-mcpu=v9" USE_STATIC_PCRE2=1
 
 For more advanced build options or if a command above reports an error, please
 read the following sections.
@@ -558,27 +558,6 @@ and assign it to the TARGET variable :
   - generic             for any other OS or version.
   - custom              to manually adjust every setting
 
-You may also choose your CPU to benefit from some optimizations. This is
-particularly important on UltraSparc machines. For this, you can assign
-one of the following choices to the CPU variable :
-
-  - i686 for intel PentiumPro, Pentium 2 and above, AMD Athlon (32 bits)
-  - i586 for intel Pentium, AMD K6, VIA C3.
-  - ultrasparc : Sun UltraSparc I/II/III/IV processor
-  - power8 : IBM POWER8 processor
-  - power9 : IBM POWER9 processor
-  - armv81 : modern ARM cores (Cortex A55/A75/A76/A78/X1, Neoverse, Graviton2)
-  - a72    : ARM Cortex-A72 or A73 (e.g. RPi4, Odroid N2, AWS Graviton)
-  - a53    : ARM Cortex-A53 or any of its successors in 64-bit mode (e.g. RPi3)
-  - armv8-auto : support both older and newer armv8 cores with a minor penalty,
-                 thanks to gcc 10's outline atomics (default with gcc 10.2).
-  - native : use the build machine's specific processor optimizations. Use with
-    extreme care, and never in virtualized environments (known to break).
-  - generic : any other processor or no CPU-specific optimization. (default)
-
-Alternatively, you may just set the CPU_CFLAGS value to the optimal GCC options
-for your platform.
-
 A generic CFLAGS variable may be set to append any option to pass to the C
 compiler. These flags are passed last so the variable may be used to override
 other options such as warnings, optimization levels, include paths etc.
@@ -586,6 +565,29 @@ other options such as warnings, optimization levels, include paths etc.
 A default optimization level of -O2 is set by variable OPT_CFLAGS which may be
 overridden if desired. It's used early in the list of CFLAGS so that any other
 set of CFLAGS providing a different value may easily override it.
+
+Some platforms may benefit from some CPU-specific options that will enable
+certain instruction sets, word size or endianness for example. One of them is
+the common "-march=native" that indicates to modern compilers that they need to
+optimize for the machine the compiler is running on. Such options may be either
+passed in the CPU_CFLAGS or in the CFLAGS variable, either will work though
+one may be more convenient for certain methods of packaging and the other one
+for other methods. Among the many possible options, the following ones are
+known for having successfully been used:
+
+  - "-march=native" for a native build
+  - "-march=armv8-a+crc" for older ARM Cortex A53/A72/A73 (such as RPi 3B/4B)
+  - "-march=armv8.1-a" for modern ARM Cortex A55/A76, Graviton2+, RPi 5
+  - "-march=armv8-a+crc -moutline-atomics" to support older ARM with better
+      support of modern cores with gcc-10+
+  - "-mavx", "-mavx2", "-mavx512", to enable certain x86 SIMD instruction sets
+  - "-march=i586" to support almost all 32-bit x86 systems
+  - "-march=i686" to support only the latest 32-bit x86 systems
+  - "-march=i386" to support even the oldest 32-bit x86 systems
+  - "-mlittle-endian -march=armv5te" for some little-endian ARMv5 systems
+  - "-mcpu=v9 -mtune=ultrasparc -m64" for a 64-bit Solaris SPARC build
+  - "-march=1004kc -mtune=1004kc" for some multi-core 32-bit MIPS 1004Kc
+  - "-march=24kc -mtune=24kc" for some single-core 32-bit MIPS 24Kc
 
 If you are building for a different system than the one you're building on,
 this is called "cross-compiling". HAProxy supports cross-compilation pretty
