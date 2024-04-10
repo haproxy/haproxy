@@ -356,7 +356,7 @@ struct crtlist *crtlist_new(const char *filename, int unique)
  *  <crt_path> is a ptr in <line>
  *  Return an error code
  */
-int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry, const char *file, int linenum, int from_cli, char **err)
+int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry, struct ckch_conf *cc, const char *file, int linenum, int from_cli, char **err)
 {
 	int cfgerr = 0;
 	int arg, newarg, cur_arg, i, ssl_b = 0, ssl_e = 0;
@@ -443,6 +443,7 @@ int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry,
 	cur_arg = ssl_b ? ssl_b : 1;
 	while (cur_arg < ssl_e) {
 		newarg = 0;
+		/* look for ssl_conf keywords */
 		for (i = 0; ssl_crtlist_kws[i].kw != NULL; i++) {
 			if (strcmp(ssl_crtlist_kws[i].kw, args[cur_arg]) == 0) {
 				if (!ssl_conf)
@@ -462,9 +463,20 @@ int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry,
 					goto error;
 				}
 				cur_arg += 1 + ssl_crtlist_kws[i].skip;
-				break;
+				goto out;
 			}
 		}
+		if (cc) {
+			/* look for ckch_conf keywords */
+			cfgerr |= ckch_conf_parse(args, cur_arg, cc, &newarg, file, linenum, err);
+			if (cfgerr & ERR_FATAL)
+				goto error;
+
+			cc->used = 1;
+			if (newarg) /* skip 2 words if the keyword was found */
+				cur_arg += 2;
+		}
+out:
 		if (!cfgerr && !newarg) {
 			memprintf(err, "parsing [%s:%d]: unknown ssl keyword %s",
 				  file, linenum, args[cur_arg]);
@@ -523,6 +535,7 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 		char *crt_path;
 		char path[MAXPATHLEN+1];
 		struct ckch_store *ckchs;
+		struct ckch_conf cc = {};
 		int found = 0;
 
 		if (missing_lf != -1) {
@@ -564,7 +577,7 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 			goto error;
 		}
 
-		cfgerr |= crtlist_parse_line(thisline, &crt_path, entry, file, linenum, 0, err);
+		cfgerr |= crtlist_parse_line(thisline, &crt_path, entry, &cc, file, linenum, 0, err);
 		if (cfgerr & ERR_CODE)
 			goto error;
 
@@ -591,12 +604,19 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 		if (ckchs == NULL) {
 			if (stat(crt_path, &buf) == 0) {
 				found++;
-
-				ckchs = ckch_store_new_load_files_path(crt_path, err);
+				if (cc.used) {
+					free(cc.crt);
+					cc.crt = strdup(crt_path);
+					ckchs = ckch_store_new_load_files_conf(crt_path, &cc, err);
+				} else {
+					ckchs = ckch_store_new_load_files_path(crt_path, err);
+				}
 				if (ckchs == NULL) {
 					cfgerr |= ERR_ALERT | ERR_FATAL;
 					goto error;
 				}
+
+				ckchs->conf = cc;
 
 				entry->node.key = ckchs;
 				entry->crtlist = newlist;
@@ -618,6 +638,7 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 				char fp[MAXPATHLEN+1] = {0};
 				int n = 0;
 				struct crtlist_entry *entry_dup = entry; /* use the previous created entry */
+
 				for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
 					struct stat buf;
 					int ret;
@@ -629,6 +650,12 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 					ckchs = ckchs_lookup(fp);
 					if (!ckchs) {
 						if (stat(fp, &buf) == 0) {
+
+							if (cc.used) {
+								memprintf(err, "%sCan't load '%s'. Using crt-store keyword is not compatible with multi certificates bundle.\n",
+								          err && *err ? *err : "", crt_path);
+								cfgerr |= ERR_ALERT | ERR_FATAL;
+							}
 							ckchs = ckch_store_new_load_files_path(fp, err);
 							if (!ckchs) {
 								cfgerr |= ERR_ALERT | ERR_FATAL;
@@ -718,6 +745,8 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 	return cfgerr;
 error:
 	crtlist_entry_free(entry);
+
+	/* FIXME: free cc */
 
 	fclose(f);
 	crtlist_free(newlist);
@@ -1307,7 +1336,8 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 			goto error;
 		}
 		/* cert_path is filled here */
-		cfgerr |= crtlist_parse_line(payload, &cert_path, entry, "CLI", 1, 1, &err);
+		cfgerr |= crtlist_parse_line(payload, &cert_path, entry, NULL, "CLI", 1, 1, &err);
+		/* FIXME: handle the ckch_conf */
 		if (cfgerr & ERR_CODE)
 			goto error;
 	} else {

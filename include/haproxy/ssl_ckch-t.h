@@ -60,6 +60,7 @@ struct ckch_data {
 
 /* configuration for the ckch_store */
 struct ckch_conf {
+	int used;
 	char *crt;
 	char *key;
 	char *ocsp;

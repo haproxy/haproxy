@@ -4127,7 +4127,60 @@ static int crtstore_parse_path_base(char **args, int section_type, struct proxy 
 		free(current_keybase);
 		current_keybase = strdup(args[1]);
 	}
+out:
+	return err_code;
+}
 
+
+/* parse ckch_conf keywords for crt-list */
+int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, const char *file, int linenum, char **err)
+{
+	int i;
+	int err_code = 0;
+
+	for (i = 0; ckch_conf_kws[i].name != NULL; i++) {
+		if (strcmp(ckch_conf_kws[i].name, args[cur_arg]) == 0) {
+			void *target;
+			*found = 1;
+			target = (char **)((intptr_t)f + (ptrdiff_t)ckch_conf_kws[i].offset);
+
+			if (ckch_conf_kws[i].type == PARSE_TYPE_STR) {
+				char **t = target;
+
+				*t = strdup(args[cur_arg + 1]);
+				if (!*t) {
+					ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_ABORT;
+					goto out;
+				}
+			} else if (ckch_conf_kws[i].type == PARSE_TYPE_INT) {
+				int *t = target;
+				char *stop;
+
+				*t = strtol(args[cur_arg + 1], &stop, 10);
+				if (*stop != '\0') {
+					memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', an integer is expected.\n",
+					          file, linenum, args[cur_arg], args[cur_arg + 1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+			} else if (ckch_conf_kws[i].type == PARSE_TYPE_ONOFF) {
+				int *t = target;
+
+				if (strcmp(args[cur_arg + 1], "on") == 0) {
+					*t = 1;
+				} else if (strcmp(args[cur_arg + 1], "off") == 0) {
+					*t = 0;
+				} else {
+					memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', 'on' or 'off' is expected.\n",
+					          file, linenum, args[cur_arg], args[cur_arg + 1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+			}
+			break;
+		}
+	}
 out:
 	return err_code;
 }
@@ -4137,7 +4190,6 @@ static char current_crtstore_name[PATH_MAX] = {};
 static int crtstore_parse_load(char **args, int section_type, struct proxy *curpx, const struct proxy *defpx,
                         const char *file, int linenum, char **err)
 {
-	int i;
 	int err_code = 0;
 	int cur_arg = 0;
 	struct ckch_conf f = {};
@@ -4151,65 +4203,31 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 	while (*(args[cur_arg])) {
 		int found = 0;
 
-		for (i = 0; ckch_conf_kws[i].name != NULL; i++) {
-			if (strcmp(ckch_conf_kws[i].name, args[cur_arg]) == 0) {
-				void *target;
-				found = 1;
-				target = (char **)((intptr_t)&f + (ptrdiff_t)ckch_conf_kws[i].offset);
+		if (strcmp("alias", args[cur_arg]) == 0) {
+			int rv;
 
-				if (strcmp("alias", args[cur_arg]) == 0) {
-					int rv;
-
-					if (*args[cur_arg + 1] == '/') {
-						memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', '/' is forbidden as the first character.\n",
-						          file, linenum, args[cur_arg], args[cur_arg + 1]);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-
-					rv = snprintf(alias_name, sizeof(alias_name), "@%s/%s", current_crtstore_name, args[cur_arg + 1]);
-					if (rv >= sizeof(alias_name)) {
-						memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', too long, max len is %zd.\n",
-						          file, linenum, args[cur_arg], args[cur_arg + 1], sizeof(alias_name));
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-					final_name = alias_name;
-				} else if (ckch_conf_kws[i].type == PARSE_TYPE_STR) {
-					char **t = target;
-
-					*t = strdup(args[cur_arg + 1]);
-					if (!*t)
-						goto alloc_error;
-				} else if (ckch_conf_kws[i].type == PARSE_TYPE_INT) {
-					int *t = target;
-					char *stop;
-
-					*t = strtol(args[cur_arg + 1], &stop, 10);
-					if (*stop != '\0') {
-						memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', an integer is expected.\n",
-						          file, linenum, args[cur_arg], args[cur_arg + 1]);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-				} else if (ckch_conf_kws[i].type == PARSE_TYPE_ONOFF) {
-					int *t = target;
-
-					if (strcmp(args[cur_arg + 1], "on") == 0) {
-						*t = 1;
-					} else if (strcmp(args[cur_arg + 1], "off") == 0) {
-						*t = 0;
-					} else {
-						memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', 'on' or 'off' is expected.\n",
-						          file, linenum, args[cur_arg], args[cur_arg + 1]);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-				}
-				break;
+			if (*args[cur_arg + 1] == '/') {
+				memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', '/' is forbidden as the first character.\n",
+					  file, linenum, args[cur_arg], args[cur_arg + 1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
 			}
 
+			rv = snprintf(alias_name, sizeof(alias_name), "@%s/%s", current_crtstore_name, args[cur_arg + 1]);
+			if (rv >= sizeof(alias_name)) {
+				memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', too long, max len is %zd.\n",
+					  file, linenum, args[cur_arg], args[cur_arg + 1], sizeof(alias_name));
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			final_name = alias_name;
+			found = 1;
+		} else {
+			err_code |= ckch_conf_parse(args, cur_arg, &f, &found, file, linenum, err);
+			if (err_code & ERR_FATAL)
+			goto out;
 		}
+
 		if (!found) {
 			memprintf(err,"parsing [%s:%d] : '%s %s' in section 'crt-store': unknown keyword '%s'.",
 			         file, linenum, args[0], args[cur_arg],args[cur_arg]);

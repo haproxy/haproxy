@@ -38,7 +38,7 @@ void crtlist_free(struct crtlist *crtlist);
 struct crtlist *crtlist_new(const char *filename, int unique);
 
 /* file loading */
-int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry, const char *file, int linenum, int from_cli, char **err);
+int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry, struct ckch_conf *conf, const char *file, int linenum, int from_cli, char **err);
 int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *curproxy, struct crtlist **crtlist, char **err);
 int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct crtlist **crtlist, char **err);
 
