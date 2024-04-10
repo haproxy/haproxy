@@ -1,7 +1,7 @@
 # This GNU Makefile supports different OS and CPU combinations.
 #
 # You should use it this way :
-#   [g]make TARGET=os [ARCH=arch] [CFLAGS=...] USE_xxx=1 ...
+#   [g]make TARGET=os [CFLAGS=...] USE_xxx=1 ...
 #
 # When in doubt, invoke help, possibly with a known target :
 #   [g]make help
@@ -75,10 +75,10 @@
 # Variables useful for packagers :
 #   CC is set to "cc" by default and is used for compilation only.
 #   LD is set to "cc" by default and is used for linking only.
-#   ARCH may be useful to force build of 32-bit binary on 64-bit systems
 #   OPT_CFLAGS sets the default optimization level (-O2).
 #   CFLAGS may be used to append any flags for the C compiler.
 #   LDFLAGS is automatically set to -g and may be overridden.
+#   ARCH_FLAGS for flags common to both CC and LD. Defaults to -g.
 #   DEP may be cleared to ignore changes to include files during development
 #   DEBUG may be used to set some internal debugging options.
 #   ERR may be set to non-empty to pass -Werror to the compiler
@@ -163,12 +163,14 @@ $(warning Warning: the "CPU" variable was forced to "$(CPU)" but is no longer \
 endif
 endif
 
-#### Architecture, used when not building for native architecture
-# Use ARCH=<arch_name> to force build for a specific architecture. Known
-# architectures will lead to "-m32" or "-m64" being added to CFLAGS and
-# LDFLAGS. This can be required to build 32-bit binaries on 64-bit targets.
-# Currently, only 32, 64, x86_64, i386, i486, i586 and i686 are understood.
+#### No longer used
 ARCH =
+ifneq ($(ARCH),)
+$(warning Warning: the "ARCH" variable was forced to "$(ARCH)" but is no \
+  longer used and will be ignored. Please check the INSTALL file for other \
+  options, but usually in order to pass arch-specific options, ARCH_FLAGS, \
+  CFLAGS or LDFLAGS are preferred.)
+endif
 
 #### Toolchain options.
 CC = cc
@@ -271,15 +273,15 @@ EXTRA =
 # is better suited. The default is empty.
 CPU_CFLAGS        =
 
-#### ARCH dependent flags, may be overridden by CPU flags
-ARCH_FLAGS.32     = -m32
-ARCH_FLAGS.64     = -m64
-ARCH_FLAGS.i386   = -m32 -march=i386
-ARCH_FLAGS.i486   = -m32 -march=i486
-ARCH_FLAGS.i586   = -m32 -march=i586
-ARCH_FLAGS.i686   = -m32 -march=i686
-ARCH_FLAGS.x86_64 = -m64 -march=x86-64
-ARCH_FLAGS        = $(ARCH_FLAGS.$(ARCH))
+#### Architecture dependent flags.
+# These flags are passed both to the compiler and to the linker. A number of
+# settings may need to be passed to both tools, among which some arch-specific
+# options such as -m32 or -m64, some debugging options (-g), some profiling
+# options (-pg), some options affecting how the linkage is done (-flto), as
+# well as some code analysers such as -fsanitize=address. All of these make
+# sense here and will be consistently propagated to both stages. By default
+# only the debugging is enabled (-g).
+ARCH_FLAGS        = -g
 
 #### Extra CFLAGS
 # These CFLAGS are empty by default and are appended at the end of all the
@@ -1042,7 +1044,6 @@ src/calltrace.o: src/calltrace.c $(DEP)
 src/haproxy.o:	src/haproxy.c $(DEP)
 	$(cmd_CC) $(COPTS) \
 	      -DBUILD_TARGET='"$(strip $(TARGET))"' \
-	      -DBUILD_ARCH='"$(strip $(ARCH))"' \
 	      -DBUILD_CC='"$(strip $(CC))"' \
 	      -DBUILD_CFLAGS='"$(strip $(VERBOSE_CFLAGS))"' \
 	      -DBUILD_OPTIONS='"$(strip $(BUILD_OPTIONS))"' \

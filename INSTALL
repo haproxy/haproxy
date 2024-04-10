@@ -605,19 +605,22 @@ flags are passed to the compiler nor what compiler is involved. Simply append
 details again. It is recommended to use this option when cross-compiling to
 verify that the paths are correct and that /usr/include is never involved.
 
-You may want to build specific target binaries which do not match your native
-compiler's target. This is particularly true on 64-bit systems when you want
-to build a 32-bit binary. Use the ARCH variable for this purpose. Right now
-it only knows about a few x86 variants (i386,i486,i586,i686,x86_64), two
-generic ones (32,64) and sets -m32/-m64 as well as -march=<arch> accordingly.
-This variable is only used to set ARCH_FLAGS to preset values, so if you know
-the arch-specific flags that your system needs, you may prefer to set
-ARCH_FLAGS instead. Note that these flags are passed both to the compiler and
-to the linker. For example, in order to build a 32-bit binary on an x86_64
-Linux system with SSL support without support for compression but when OpenSSL
+Some options require to be consistent between the compilation stage and the
+linking stage. This is the case for options which enable debugging (e.g. "-g"),
+profiling ("-pg"), link-time optimization ("-flto"), endianness ("-EB", "-EL"),
+bit width ("-m32", "-m64"), or code analyzers ("-fsanitize=address"). These
+options can be passed via the ARCH_FLAGS variable, which will be used at both
+stages during the build process, thus avoiding the risk of inconsistencies. By
+default, ARCH_FLAGS only contains "-g" to enable the generation of debug
+symbols. For example, in order to build a 32-bit binary on an x86_64 Linux
+system with SSL support without support for compression but when OpenSSL
 requires ZLIB anyway :
 
-    $ make TARGET=linux-glibc ARCH=i386 USE_OPENSSL=1 ADDLIB=-lz
+    $ make TARGET=linux-glibc ARCH_FLAGS="-m32 -g" USE_OPENSSL=1 ADDLIB=-lz
+
+and building with the address sanitizer (ASAN) simply requires:
+
+    $ make TARGET=linux-glibc ARCH_FLAGS="-fsanitize=address -g"
 
 Recent systems can resolve IPv6 host names using getaddrinfo(). This primitive
 is not present in all libcs and does not work in all of them either. Support in
