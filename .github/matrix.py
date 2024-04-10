@@ -152,7 +152,7 @@ def main(ref_name):
                     "USE_OBSOLETE_LINKER=1",
                     'DEBUG_CFLAGS="-g -fsanitize=address"',
                     'LDFLAGS="-fsanitize=address"',
-                    'CPU_CFLAGS.generic="-O1"', 
+                    'OPT_CFLAGS="-O1"',
                     "USE_ZLIB=1",
                     "USE_OT=1",
                     "OT_INC=${HOME}/opt-ot/include",

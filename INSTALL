@@ -583,6 +583,10 @@ A generic CFLAGS variable may be set to append any option to pass to the C
 compiler. These flags are passed last so the variable may be used to override
 other options such as warnings, optimization levels, include paths etc.
 
+A default optimization level of -O2 is set by variable OPT_CFLAGS which may be
+overridden if desired. It's used early in the list of CFLAGS so that any other
+set of CFLAGS providing a different value may easily override it.
+
 If you are building for a different system than the one you're building on,
 this is called "cross-compiling". HAProxy supports cross-compilation pretty
 well and tries to ease it by letting you adjust paths to all libraries (please

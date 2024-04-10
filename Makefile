@@ -76,6 +76,7 @@
 #   CC is set to "cc" by default and is used for compilation only.
 #   LD is set to "cc" by default and is used for linking only.
 #   ARCH may be useful to force build of 32-bit binary on 64-bit systems
+#   OPT_CFLAGS sets the default optimization level (-O2).
 #   CFLAGS may be used to append any flags for the C compiler.
 #   LDFLAGS is automatically set to -g and may be overridden.
 #   DEP may be cleared to ignore changes to include files during development
@@ -169,6 +170,11 @@ ARCH =
 CC = cc
 LD = $(CC)
 
+#### Default optimizations
+# Those are integrated early in the list of CFLAGS, and may be overridden by
+# other CFLAGS options if needed.
+OPT_CFLAGS = -O2
+
 #### Debug flags (typically "-g").
 # Those flags only feed CFLAGS so it is not mandatory to use this form.
 DEBUG_CFLAGS = -g
@@ -258,17 +264,17 @@ EXTRA =
 # feed CPU_CFLAGS, which in turn feed CFLAGS, so it is not mandatory to use
 # them. You should not have to change these options. Better use CPU_CFLAGS or
 # even CFLAGS instead.
-CPU_CFLAGS.generic    = -O2
-CPU_CFLAGS.native     = -O2 -march=native
-CPU_CFLAGS.i586       = -O2 -march=i586
-CPU_CFLAGS.i686       = -O2 -march=i686
-CPU_CFLAGS.ultrasparc = -O6 -mcpu=v9 -mtune=ultrasparc
-CPU_CFLAGS.power8     = -O2 -mcpu=power8 -mtune=power8
-CPU_CFLAGS.power9     = -O2 -mcpu=power9 -mtune=power9
-CPU_CFLAGS.a53        = -O2 -mcpu=cortex-a53
-CPU_CFLAGS.a72        = -O2 -mcpu=cortex-a72
-CPU_CFLAGS.armv81     = -O2 -march=armv8.1-a
-CPU_CFLAGS.armv8-auto = -O2 -march=armv8-a+crc -moutline-atomics
+CPU_CFLAGS.generic    =
+CPU_CFLAGS.native     = -march=native
+CPU_CFLAGS.i586       = -march=i586
+CPU_CFLAGS.i686       = -march=i686
+CPU_CFLAGS.ultrasparc = -mcpu=v9 -mtune=ultrasparc
+CPU_CFLAGS.power8     = -mcpu=power8 -mtune=power8
+CPU_CFLAGS.power9     = -mcpu=power9 -mtune=power9
+CPU_CFLAGS.a53        = -mcpu=cortex-a53
+CPU_CFLAGS.a72        = -mcpu=cortex-a72
+CPU_CFLAGS.armv81     = -march=armv8.1-a
+CPU_CFLAGS.armv8-auto = -march=armv8-a+crc -moutline-atomics
 CPU_CFLAGS            = $(CPU_CFLAGS.$(CPU))
 
 #### ARCH dependent flags, may be overridden by CPU flags
@@ -468,7 +474,7 @@ $(set_target_defaults)
 # linking with it by default as it's not always available nor deployed
 # (especially on archs which do not need it).
 ifneq ($(USE_THREAD:0=),)
-  ifneq ($(shell $(CC) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
+  ifneq ($(shell $(CC) $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
     USE_LIBATOMIC   = implicit
   endif
 endif
@@ -837,10 +843,10 @@ endif
 $(collect_opts_flags)
 
 #### Global compile options
-VERBOSE_CFLAGS = $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(CFLAGS) $(DEFINE)
+VERBOSE_CFLAGS = $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(CFLAGS) $(DEFINE)
 COPTS  = -Iinclude
 
-COPTS += $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(DEFINE) $(SILENT_DEFINE)
+COPTS += $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(DEFINE) $(SILENT_DEFINE)
 COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(CFLAGS) $(ADDINC)
 
 ifneq ($(VERSION)$(SUBVERS)$(EXTRAVERSION),)
@@ -1148,6 +1154,7 @@ opts:
 	@echo -n 'ARCH="$(strip $(ARCH))" '
 	@echo -n 'CPU="$(strip $(CPU))" '
 	@echo -n 'CC="$(strip $(CC))" '
+	@echo -n 'OPT_CFLAGS="$(strip $(OPT_CFLAGS))" '
 	@echo -n 'ARCH_FLAGS="$(strip $(ARCH_FLAGS))" '
 	@echo -n 'CPU_CFLAGS="$(strip $(CPU_CFLAGS))" '
 	@echo -n 'DEBUG_CFLAGS="$(strip $(DEBUG_CFLAGS))" '
