@@ -79,7 +79,6 @@
 #   CFLAGS may be used to append any flags for the C compiler.
 #   LDFLAGS is automatically set to -g and may be overridden.
 #   DEP may be cleared to ignore changes to include files during development
-#   SMALL_OPTS may be used to specify some options to shrink memory usage.
 #   DEBUG may be used to set some internal debugging options.
 #   ERR may be set to non-empty to pass -Werror to the compiler
 #   ADDINC may be used to complete the include path in the form -Ipath.
@@ -207,16 +206,13 @@ ifneq ($(ERR),)
   SPEC_CFLAGS += -Werror
 endif
 
-#### Memory usage tuning
-# If small memory footprint is required, you can reduce the buffer size. There
-# are 2 buffers per concurrent session, so 16 kB buffers will eat 32 MB memory
-# with 1000 concurrent sessions. Putting it slightly lower than a page size
-# will prevent the additional parameters to go beyond a page. 8030 bytes is
-# exactly 5.5 TCP segments of 1460 bytes and is generally good. Useful tuning
-# macros include :
-#    SYSTEM_MAXCONN, BUFSIZE, MAXREWRITE, REQURI_LEN, CAPTURE_LEN.
-# Example: SMALL_OPTS = -DBUFSIZE=8030 -DMAXREWRITE=1030 -DSYSTEM_MAXCONN=1024
+#### No longer used
 SMALL_OPTS =
+ifneq ($(SMALL_OPTS),)
+$(warning Warning: SMALL_OPTS was forced to "$(SMALL_OPTS)" but is no longer \
+  used and will be ignored. Please check if this setting are still relevant, \
+  and move it either to DEFINE or to CFLAGS instead.)
+endif
 
 #### Debug settings
 # You can enable debugging on specific code parts by setting DEBUG=-DDEBUG_xxx.
@@ -841,10 +837,10 @@ endif
 $(collect_opts_flags)
 
 #### Global compile options
-VERBOSE_CFLAGS = $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(CFLAGS) $(DEFINE)
+VERBOSE_CFLAGS = $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(CFLAGS) $(DEFINE)
 COPTS  = -Iinclude
 
-COPTS += $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE) $(SILENT_DEFINE)
+COPTS += $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(DEFINE) $(SILENT_DEFINE)
 COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(CFLAGS) $(ADDINC)
 
 ifneq ($(VERSION)$(SUBVERS)$(EXTRAVERSION),)

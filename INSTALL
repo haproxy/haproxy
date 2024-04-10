@@ -577,10 +577,7 @@ one of the following choices to the CPU variable :
   - generic : any other processor or no CPU-specific optimization. (default)
 
 Alternatively, you may just set the CPU_CFLAGS value to the optimal GCC options
-for your platform. A second variable named SMALL_OPTS also supports passing a
-number of defines and compiler options usually for small systems. For better
-clarity it's recommended to pass the options which result in a smaller binary
-(like memory limits or -Os) into this variable.
+for your platform.
 
 A generic CFLAGS variable may be set to append any option to pass to the C
 compiler. These flags are passed last so the variable may be used to override
