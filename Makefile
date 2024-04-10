@@ -192,17 +192,22 @@ ERR =
 REG_TEST_FILES =
 REG_TEST_SCRIPT=./scripts/run-regtests.sh
 
-#### Compiler-specific flags that may be used to disable some negative over-
-# optimization or to silence some warnings.
-# We rely on signed integer wraparound on overflow, however clang think it
-# can do whatever it wants since it's an undefined behavior, so use -fwrapv
-# to be sure we get the intended behavior.
+#### Standard C definition
+# Compiler-specific flags that may be used to set the standard behavior we
+# rely on and to disable some negative over-optimization. More specifically,
+# we rely on signed integer wraparound on overflow, however recently clang and
+# gcc decided to change their code generation regarding this and abuse the
+# undefined behavior to silently produce invalid code. For this reason we have
+# to use -fwrapv or -fno-strict-overflow to guarantee the intended behavior.
+# It is preferable not to change this option in order to avoid breakage.
+STD_CFLAGS  := $(call cc-opt-alt,-fwrapv,-fno-strict-overflow)
+
+#### Compiler-specific flags to enable/disable certain classes of warnings.
 WARN_CFLAGS := -Wtype-limits -Wshift-negative-value -Wshift-overflow=2 \
                -Wduplicated-cond -Wnull-dereference
 SPEC_CFLAGS := -Wall -Wextra -Wundef -Wdeclaration-after-statement -Wfatal-errors
 SPEC_CFLAGS += $(call cc-all-fast,$(WARN_CFLAGS))
 
-SPEC_CFLAGS += $(call cc-opt-alt,-fwrapv,-fno-strict-overflow)
 SPEC_CFLAGS += $(cc-wnouwo)
 SPEC_CFLAGS += $(call cc-nowarn,address-of-packed-member)
 SPEC_CFLAGS += $(call cc-nowarn,unused-label)
@@ -471,7 +476,7 @@ $(set_target_defaults)
 # linking with it by default as it's not always available nor deployed
 # (especially on archs which do not need it).
 ifneq ($(USE_THREAD:0=),)
-  ifneq ($(shell $(CC) $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
+  ifneq ($(shell $(CC) $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(SPEC_CFLAGS) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
     USE_LIBATOMIC   = implicit
   endif
 endif
@@ -840,10 +845,10 @@ endif
 $(collect_opts_flags)
 
 #### Global compile options
-VERBOSE_CFLAGS = $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(CFLAGS) $(DEFINE)
+VERBOSE_CFLAGS = $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(CFLAGS) $(DEFINE)
 COPTS  = -Iinclude
 
-COPTS += $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(DEFINE) $(SILENT_DEFINE)
+COPTS += $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(DEFINE) $(SILENT_DEFINE)
 COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(CFLAGS) $(ADDINC)
 
 ifneq ($(VERSION)$(SUBVERS)$(EXTRAVERSION),)
@@ -1152,6 +1157,7 @@ opts:
 	@echo -n 'ARCH_FLAGS="$(strip $(ARCH_FLAGS))" '
 	@echo -n 'CPU_CFLAGS="$(strip $(CPU_CFLAGS))" '
 	@echo -n 'DEBUG_CFLAGS="$(strip $(DEBUG_CFLAGS))" '
+	@echo -n 'STD_CFLAGS="$(strip $(STD_CFLAGS))" '
 	@echo -n 'CFLAGS="$(strip $(CFLAGS))" '
 	@#echo "$(strip $(BUILD_OPTIONS))"
 	@$(foreach opt,$(enabled_opts),\
