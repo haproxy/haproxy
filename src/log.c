@@ -1831,21 +1831,14 @@ static char *lf_encode_chunk(char *start, char *stop,
 }
 
 /*
- * Write a string in the log string
- * Take cares of quote and escape options
+ * Write a raw string in the log string
+ * Take care of escape option
  *
  * Return the address of the \0 character, or NULL on error
  */
-char *lf_text_len(char *dst, const char *src, size_t len, size_t size, const struct logformat_node *node)
+static inline char *_lf_text_len(char *dst, const char *src,
+                                 size_t len, size_t size, const struct logformat_node *node)
 {
-	if (size < 2)
-		return NULL;
-
-	if (node->options & LOG_OPT_QUOTE) {
-		*(dst++) = '"';
-		size--;
-	}
-
 	if (src && len) {
 		/* escape_string and strlcpy2 will both try to add terminating NULL-byte
 		 * to dst
@@ -1862,31 +1855,93 @@ char *lf_text_len(char *dst, const char *src, size_t len, size_t size, const str
 			if (++len > size)
 				len = size;
 			len = strlcpy2(dst, src, len);
+			if (len == 0)
+				return NULL;
 		}
-
-		size -= len;
 		dst += len;
-	}
-	else if ((node->options & (LOG_OPT_QUOTE|LOG_OPT_MANDATORY)) == LOG_OPT_MANDATORY) {
-		if (size < 2)
-			return NULL;
-		*(dst++) = '-';
-		size -= 1;
+		size -= len;
 	}
 
-	if (node->options & LOG_OPT_QUOTE) {
-		if (size < 2)
+	if (size < 1)
+		return NULL;
+	*dst = '\0';
+
+	return dst;
+}
+
+/*
+ * Quote a string, then leverage _lf_text_len() to write it
+ */
+static inline char *_lf_quotetext_len(char *dst, const char *src,
+                                      size_t len, size_t size, const struct logformat_node *node)
+{
+	if (size < 2)
+		return NULL;
+
+	*(dst++) = '"';
+	size--;
+
+	if (src && len) {
+		char *ret;
+
+		ret = _lf_text_len(dst, src, len, size, node);
+		if (ret == NULL)
 			return NULL;
-		*(dst++) = '"';
+		size -= (ret - dst);
+		dst += (ret - dst);
 	}
+
+	if (size < 2)
+		return NULL;
+	*(dst++) = '"';
 
 	*dst = '\0';
 	return dst;
 }
 
+/*
+ * Write a string in the log string
+ * Take care of quote, mandatory and escape options
+ *
+ * Return the address of the \0 character, or NULL on error
+ */
+char *lf_text_len(char *dst, const char *src, size_t len, size_t size, const struct logformat_node *node)
+{
+	if ((node->options & LOG_OPT_QUOTE))
+		return _lf_quotetext_len(dst, src, len, size, node);
+	else if (src && len)
+		return _lf_text_len(dst, src, len, size, node);
+
+	if (size < 2)
+		return NULL;
+
+	if ((node->options & LOG_OPT_MANDATORY))
+		return _lf_text_len(dst, "-", 1, size, node);
+
+	*dst = '\0';
+
+	return dst;
+}
+
+/*
+ * Same as lf_text_len() except that it ignores mandatory and quoting options.
+ * Quoting is only performed when strictly required by the encoding method.
+ */
+char *lf_rawtext_len(char *dst, const char *src, size_t len, size_t size, const struct logformat_node *node)
+{
+	return _lf_text_len(dst, src, len, size, node);
+}
+
+/* lf_text_len() helper when <src> is null-byte terminated */
 static inline char *lf_text(char *dst, const char *src, size_t size, const struct logformat_node *node)
 {
 	return lf_text_len(dst, src, size, size, node);
+}
+
+/* lf_rawtext_len() helper when <src> is null-byte terminated */
+static inline char *lf_rawtext(char *dst, const char *src, size_t size, const struct logformat_node *node)
+{
+	return lf_rawtext_len(dst, src, size, size, node);
 }
 
 /*
