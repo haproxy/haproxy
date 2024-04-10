@@ -157,13 +157,13 @@ int protocol_bind_all(int verbose)
 				struct proxy *px = listener->bind_conf->frontend;
 
 				if (lerr & ERR_ALERT)
-					ha_alert("Binding [%s:%d] for %s %s: %s\n",
+					ha_alert("Binding [%s:%d] for %s %s: protocol %s: %s.\n",
 					         listener->bind_conf->file, listener->bind_conf->line,
-						 proxy_type_str(px), px->id, errmsg);
+						 proxy_type_str(px), px->id, proto->name, errmsg);
 				else if (lerr & ERR_WARN)
-					ha_warning("Binding [%s:%d] for %s %s: %s\n",
+					ha_warning("Binding [%s:%d] for %s %s: protocol %s: %s.\n",
 					           listener->bind_conf->file, listener->bind_conf->line,
-						   proxy_type_str(px), px->id, errmsg);
+						   proxy_type_str(px), px->id, proto->name, errmsg);
 			}
 			if (lerr != ERR_NONE)
 				ha_free(&errmsg);
@@ -183,13 +183,13 @@ int protocol_bind_all(int verbose)
 				struct proxy *px = listener->bind_conf->frontend;
 
 				if (lerr & ERR_ALERT)
-					ha_alert("Starting [%s:%d] for %s %s: %s\n",
+					ha_alert("Starting [%s:%d] for %s %s: protocol %s: %s.\n",
 					         listener->bind_conf->file, listener->bind_conf->line,
-						 proxy_type_str(px), px->id, msg);
+						 proxy_type_str(px), px->id, proto->name, msg);
 				else if (lerr & ERR_WARN)
-					ha_warning("Starting [%s:%d] for %s %s: %s\n",
+					ha_warning("Starting [%s:%d] for %s %s: protocol %s: %s.\n",
 					           listener->bind_conf->file, listener->bind_conf->line,
-						   proxy_type_str(px), px->id, msg);
+						   proxy_type_str(px), px->id, proto->name, msg);
 			}
 			if (lerr & ERR_ABORT)
 				break;

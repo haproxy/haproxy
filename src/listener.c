@@ -444,9 +444,9 @@ int default_resume_listener(struct listener *l)
 		err = l->rx.proto->fam->bind(&l->rx, &errmsg);
 		if (err != ERR_NONE) {
 			if (err & ERR_WARN)
-				ha_warning("Resuming listener: %s\n", errmsg);
+				ha_warning("Resuming listener: protocol %s: %s.\n", l->rx.proto->name, errmsg);
 			else if (err & ERR_ALERT)
-				ha_alert("Resuming listener: %s\n", errmsg);
+				ha_alert("Resuming listener: protocol %s: %s.\n", l->rx.proto->name, errmsg);
 			ha_free(&errmsg);
 			if (err & (ERR_FATAL | ERR_ABORT)) {
 				ret = 0;
@@ -461,9 +461,9 @@ int default_resume_listener(struct listener *l)
 		BUG_ON(!l->rx.proto->listen);
 		err = l->rx.proto->listen(l, msg, sizeof(msg));
 		if (err & ERR_ALERT)
-			ha_alert("Resuming listener: %s\n", msg);
+			ha_alert("Resuming listener: protocol %s: %s.\n", l->rx.proto->name, msg);
 		else if (err & ERR_WARN)
-			ha_warning("Resuming listener: %s\n", msg);
+			ha_warning("Resuming listener: protocol %s: %s.\n", l->rx.proto->name, msg);
 
 		if (err & (ERR_FATAL | ERR_ABORT)) {
 			ret = 0;
@@ -1717,8 +1717,8 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 			else {
 				if (fe != global.cli_fe)
 					ha_diag_warning("[%s:%d]: Disabling per-thread sharding for listener in"
-					                " %s '%s' because SO_REUSEPORT is disabled\n",
-					                bind_conf->file, bind_conf->line, proxy_type_str(fe), fe->id);
+					                " %s '%s' because SO_REUSEPORT is disabled for %s protocol.\n",
+					                bind_conf->file, bind_conf->line, proxy_type_str(fe), fe->id, li->rx.proto->name);
 				shards = 1;
 			}
 		}
@@ -1731,8 +1731,8 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 
 		/* We also need to check if an explicit shards count was set and cannot be honored */
 		if (shards > 1 && !protocol_supports_flag(li->rx.proto, PROTO_F_REUSEPORT_SUPPORTED)) {
-			ha_warning("[%s:%d]: Disabling sharding for listener in %s '%s' because SO_REUSEPORT is disabled\n",
-			           bind_conf->file, bind_conf->line, proxy_type_str(fe), fe->id);
+			ha_warning("[%s:%d]: Disabling sharding for listener in %s '%s' because SO_REUSEPORT is disabled for %s protocol.\n",
+			           bind_conf->file, bind_conf->line, proxy_type_str(fe), fe->id, li->rx.proto->name);
 			shards = 1;
 		}
 
