@@ -582,6 +582,10 @@ number of defines and compiler options usually for small systems. For better
 clarity it's recommended to pass the options which result in a smaller binary
 (like memory limits or -Os) into this variable.
 
+A generic CFLAGS variable may be set to append any option to pass to the C
+compiler. These flags are passed last so the variable may be used to override
+other options such as warnings, optimization levels, include paths etc.
+
 If you are building for a different system than the one you're building on,
 this is called "cross-compiling". HAProxy supports cross-compilation pretty
 well and tries to ease it by letting you adjust paths to all libraries (please

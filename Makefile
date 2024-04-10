@@ -76,6 +76,7 @@
 #   CC is set to "cc" by default and is used for compilation only.
 #   LD is set to "cc" by default and is used for linking only.
 #   ARCH may be useful to force build of 32-bit binary on 64-bit systems
+#   CFLAGS may be used to append any flags for the C compiler.
 #   LDFLAGS is automatically set to -g and may be overridden.
 #   DEP may be cleared to ignore changes to include files during development
 #   SMALL_OPTS may be used to specify some options to shrink memory usage.
@@ -284,6 +285,13 @@ ARCH_FLAGS.i686   = -m32 -march=i686
 ARCH_FLAGS.x86_64 = -m64 -march=x86-64
 ARCH_FLAGS        = $(ARCH_FLAGS.$(ARCH))
 
+#### Extra CFLAGS
+# These CFLAGS are empty by default and are appended at the end of all the
+# flags passed to the compiler, so that it is possible to use them to force
+# some optimization levels, architecture types and/or disable certain warnings.
+# Just set CFLAGS to the desired ones on the "make" command line.
+CFLAGS =
+
 #### Common LDFLAGS
 # These LDFLAGS are used as the first "ld" options, regardless of any library
 # path or any other option. They may be changed to add any linker-specific
@@ -464,7 +472,7 @@ $(set_target_defaults)
 # linking with it by default as it's not always available nor deployed
 # (especially on archs which do not need it).
 ifneq ($(USE_THREAD:0=),)
-  ifneq ($(shell $(CC) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
+  ifneq ($(shell $(CC) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
     USE_LIBATOMIC   = implicit
   endif
 endif
@@ -833,11 +841,11 @@ endif
 $(collect_opts_flags)
 
 #### Global compile options
-VERBOSE_CFLAGS = $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE)
+VERBOSE_CFLAGS = $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(CFLAGS) $(DEFINE)
 COPTS  = -Iinclude
 
 COPTS += $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE) $(SILENT_DEFINE)
-COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(ADDINC)
+COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(CFLAGS) $(ADDINC)
 
 ifneq ($(VERSION)$(SUBVERS)$(EXTRAVERSION),)
   COPTS += -DCONFIG_HAPROXY_VERSION=\"$(VERSION)$(SUBVERS)$(EXTRAVERSION)\"
@@ -1147,6 +1155,7 @@ opts:
 	@echo -n 'ARCH_FLAGS="$(strip $(ARCH_FLAGS))" '
 	@echo -n 'CPU_CFLAGS="$(strip $(CPU_CFLAGS))" '
 	@echo -n 'DEBUG_CFLAGS="$(strip $(DEBUG_CFLAGS))" '
+	@echo -n 'CFLAGS="$(strip $(CFLAGS))" '
 	@#echo "$(strip $(BUILD_OPTIONS))"
 	@$(foreach opt,$(enabled_opts),\
 		$(if $(subst command line,,$(origin USE_$(opt))),,\
