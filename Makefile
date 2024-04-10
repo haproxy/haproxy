@@ -76,7 +76,6 @@
 #   CC is set to "cc" by default and is used for compilation only.
 #   LD is set to "cc" by default and is used for linking only.
 #   ARCH may be useful to force build of 32-bit binary on 64-bit systems
-#   CFLAGS is automatically set for the specified CPU and may be overridden.
 #   LDFLAGS is automatically set to -g and may be overridden.
 #   DEP may be cleared to ignore changes to include files during development
 #   SMALL_OPTS may be used to specify some options to shrink memory usage.
@@ -285,12 +284,6 @@ ARCH_FLAGS.i686   = -m32 -march=i686
 ARCH_FLAGS.x86_64 = -m64 -march=x86-64
 ARCH_FLAGS        = $(ARCH_FLAGS.$(ARCH))
 
-#### Common CFLAGS
-# These CFLAGS contain general optimization options, CPU-specific optimizations
-# and debug flags. They may be overridden by some distributions which prefer to
-# set all of them at once instead of playing with the CPU and DEBUG variables.
-CFLAGS = $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS)
-
 #### Common LDFLAGS
 # These LDFLAGS are used as the first "ld" options, regardless of any library
 # path or any other option. They may be changed to add any linker-specific
@@ -471,7 +464,7 @@ $(set_target_defaults)
 # linking with it by default as it's not always available nor deployed
 # (especially on archs which do not need it).
 ifneq ($(USE_THREAD:0=),)
-  ifneq ($(shell $(CC) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
+  ifneq ($(shell $(CC) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
     USE_LIBATOMIC   = implicit
   endif
 endif
@@ -840,10 +833,10 @@ endif
 $(collect_opts_flags)
 
 #### Global compile options
-VERBOSE_CFLAGS = $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE)
+VERBOSE_CFLAGS = $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE)
 COPTS  = -Iinclude
 
-COPTS += $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE) $(SILENT_DEFINE)
+COPTS += $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE) $(SILENT_DEFINE)
 COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(ADDINC)
 
 ifneq ($(VERSION)$(SUBVERS)$(EXTRAVERSION),)
