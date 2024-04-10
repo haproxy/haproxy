@@ -761,6 +761,18 @@ void qel_register_send(struct list *send_list, struct quic_enc_level *qel,
 	qel->send_frms = frms;
 }
 
+/* Returns true if <qel> should be registered for sending. This is the case if
+ * frames are prepared, probing is set, <qc> ACK timer has fired or a
+ * CONNECTION_CLOSE is required.
+ */
+int qel_need_sending(struct quic_enc_level *qel, struct quic_conn *qc)
+{
+	return !LIST_ISEMPTY(&qel->pktns->tx.frms) ||
+	       qel->pktns->tx.pto_probe ||
+	       (qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) ||
+	       (qc->flags & (QUIC_FL_CONN_ACK_TIMER_FIRED|QUIC_FL_CONN_IMMEDIATE_CLOSE));
+}
+
 /* Retransmit up to two datagrams depending on packet number space.
  * Return 0 when failed, 0 if not.
  */

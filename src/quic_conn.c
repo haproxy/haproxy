@@ -592,6 +592,9 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
 		goto out;
 	}
 
+	if (!qel_need_sending(qel, qc))
+		goto out;
+
 	/* XXX TODO: how to limit the list frames to send */
 	qel_register_send(&send_list, qel, &qel->pktns->tx.frms);
 	if (!qc_send(qc, 0, &send_list)) {
@@ -793,9 +796,15 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		}
 	}
 
-	/* Insert each QEL into sending list. */
-	list_for_each_entry(qel, &qc->qel_list, list)
-		qel_register_send(&send_list, qel, &qel->pktns->tx.frms);
+	/* Insert each QEL into sending list if needed. */
+	list_for_each_entry(qel, &qc->qel_list, list) {
+		if (qel_need_sending(qel, qc))
+			qel_register_send(&send_list, qel, &qel->pktns->tx.frms);
+	}
+
+	/* Skip sending if no QEL with frames to sent. */
+	if (LIST_ISEMPTY(&send_list))
+		goto out;
 
 	if (!qc_send(qc, 0, &send_list)) {
 		TRACE_DEVEL("qc_send() failed", QUIC_EV_CONN_IO_CB, qc);

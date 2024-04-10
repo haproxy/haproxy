@@ -35,6 +35,7 @@ struct buffer *qc_get_txb(struct quic_conn *qc);
 
 void qel_register_send(struct list *send_list, struct quic_enc_level *qel,
                        struct list *frms);
+int qel_need_sending(struct quic_enc_level *qel, struct quic_conn *qc);
 int qc_send(struct quic_conn *qc, int old_data, struct list *send_list);
 
 int qc_dgrams_retransmit(struct quic_conn *qc);
