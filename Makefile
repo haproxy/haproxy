@@ -82,6 +82,7 @@
 #   DEP may be cleared to ignore changes to include files during development
 #   DEBUG may be used to set some internal debugging options.
 #   ERR may be set to non-empty to pass -Werror to the compiler
+#   FAILFAST may be set to non-empty to pass -Wfatal-errors to the compiler
 #   ADDINC may be used to complete the include path in the form -Ipath.
 #   ADDLIB may be used to complete the library list in the form -Lpath -llib.
 #   DEFINE may be used to specify any additional define, which will be reported
@@ -205,7 +206,7 @@ STD_CFLAGS  := $(call cc-opt-alt,-fwrapv,-fno-strict-overflow)
 #### Compiler-specific flags to enable/disable certain classes of warnings.
 WARN_CFLAGS := -Wtype-limits -Wshift-negative-value -Wshift-overflow=2 \
                -Wduplicated-cond -Wnull-dereference
-SPEC_CFLAGS := -Wall -Wextra -Wundef -Wdeclaration-after-statement -Wfatal-errors
+SPEC_CFLAGS := -Wall -Wextra -Wundef -Wdeclaration-after-statement
 SPEC_CFLAGS += $(call cc-all-fast,$(WARN_CFLAGS))
 
 SPEC_CFLAGS += $(cc-wnouwo)
@@ -221,6 +222,10 @@ SPEC_CFLAGS += $(call cc-nowarn,atomic-alignment)
 
 ifneq ($(ERR:0=),)
   SPEC_CFLAGS += -Werror
+endif
+
+ifneq ($(FAILFAST:0=),)
+  SPEC_CFLAGS += -Wfatal-errors
 endif
 
 #### No longer used

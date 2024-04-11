@@ -665,7 +665,10 @@ way to get a usable core when you need one. Otherwise, you can set DEBUG to
 If the ERR variable is set to any non-empty value other than "0", then -Werror
 will be added to the compiler so that any build warning will trigger an error.
 This is the recommended way to build when developing, and it is expected that
-contributed patches were tested with ERR=1.
+contributed patches were tested with ERR=1. Similarly, for developers, another
+variable, FAILFAST enables -Wfatal-errors when set to non-empty except 0, and
+makes the compiler stop at the first error instead of scrolling pages. It's
+essentially a matter of taste.
 
 The DEBUG variable is used to extend the CFLAGS and is preset to a list of
 build-time options that are known for providing significant reliability
