@@ -1019,6 +1019,35 @@ end:
 	return NULL;
 }
 
+/*
+ * This function allocate a ckch_store and populate it with certificates using
+ * the ckch_conf structure.
+ */
+struct ckch_store *ckch_store_new_load_files_conf(char *name, struct ckch_conf *conf, char **err)
+{
+	struct ckch_store *ckchs;
+	int cfgerr = ERR_NONE;
+
+	ckchs = ckch_store_new(name);
+	if (!ckchs) {
+		memprintf(err, "%sunable to allocate memory.\n", err && *err ? *err : "");
+		goto end;
+	}
+
+	cfgerr = ckch_store_load_files(conf, ckchs, err);
+	if (cfgerr & ERR_FATAL)
+		goto end;
+
+	/* insert into the ckchs tree */
+	memcpy(ckchs->path, name, strlen(name) + 1);
+	ebst_insert(&ckchs_tree, &ckchs->node);
+	return ckchs;
+
+end:
+	ckch_store_free(ckchs);
+
+	return NULL;
+}
 
 /********************  ckch_inst functions ******************************/
 

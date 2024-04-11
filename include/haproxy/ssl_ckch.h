@@ -38,6 +38,7 @@ int ssl_sock_load_issuer_file_into_ckch(const char *path, char *buf, struct ckch
 
 /* ckch_store functions */
 struct ckch_store *ckch_store_new_load_files_path(char *path, char **err);
+struct ckch_store *ckch_store_new_load_files_conf(char *name, struct ckch_conf *conf, char **err);
 struct ckch_store *ckchs_lookup(char *path);
 struct ckch_store *ckchs_dup(const struct ckch_store *src);
 struct ckch_store *ckch_store_new(const char *filename);
