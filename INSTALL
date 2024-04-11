@@ -676,7 +676,14 @@ the WARN_CFLAGS variable. The variable contains a list of pre-established
 warnings and a list of some that are dynamically detected on the compiler.
 If the build environment or toolchain doesn't even support some of the basic
 ones, it is then possible to just redefine them by passing the main ones in
-WARN_CFLAGS (e.g. at the very least -W -Wall).
+WARN_CFLAGS (e.g. at the very least -W -Wall). Similarly, it may sometimes
+be desirable not to disable certain warnings when porting to new platforms
+or during code audits, or simply because the toolchain doesn't support some
+of the most basic -Wno options. In this case, the list of automatic -Wno
+variables is specified by variable NOWARN_CFLAGS, which is passed after
+WARN_CFLAGS (i.e. it can undo some of the WARN_CFLAGS settings). Be careful
+with it, as clearing this list can yield many warnings depending on the
+compiler and options.
 
 The DEBUG variable is used to extend the CFLAGS and is preset to a list of
 build-time options that are known for providing significant reliability

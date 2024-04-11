@@ -84,6 +84,7 @@
 #   ERR may be set to non-empty to pass -Werror to the compiler
 #   FAILFAST may be set to non-empty to pass -Wfatal-errors to the compiler
 #   WARN_CFLAGS overrides the default set of enabled warning options
+#   NOWARN_CFLAGS overrides the default set of disabled warning options
 #   ADDINC may be used to complete the include path in the form -Ipath.
 #   ADDLIB may be used to complete the library list in the form -Lpath -llib.
 #   DEFINE may be used to specify any additional define, which will be reported
@@ -212,16 +213,16 @@ WARN_CFLAGS := -Wall -Wextra -Wundef -Wdeclaration-after-statement            \
                  -Wduplicated-cond -Wnull-dereference)
 
 #### Compiler-specific flags to enable certain classes of warnings.
-SPEC_CFLAGS := $(cc-wnouwo)
-SPEC_CFLAGS += $(call cc-nowarn,address-of-packed-member)
-SPEC_CFLAGS += $(call cc-nowarn,unused-label)
-SPEC_CFLAGS += $(call cc-nowarn,sign-compare)
-SPEC_CFLAGS += $(call cc-nowarn,unused-parameter)
-SPEC_CFLAGS += $(call cc-nowarn,clobbered)
-SPEC_CFLAGS += $(call cc-nowarn,missing-field-initializers)
-SPEC_CFLAGS += $(call cc-nowarn,cast-function-type)
-SPEC_CFLAGS += $(call cc-nowarn,string-plus-int)
-SPEC_CFLAGS += $(call cc-nowarn,atomic-alignment)
+NOWARN_CFLAGS := $(cc-wnouwo)
+NOWARN_CFLAGS += $(call cc-nowarn,address-of-packed-member)
+NOWARN_CFLAGS += $(call cc-nowarn,unused-label)
+NOWARN_CFLAGS += $(call cc-nowarn,sign-compare)
+NOWARN_CFLAGS += $(call cc-nowarn,unused-parameter)
+NOWARN_CFLAGS += $(call cc-nowarn,clobbered)
+NOWARN_CFLAGS += $(call cc-nowarn,missing-field-initializers)
+NOWARN_CFLAGS += $(call cc-nowarn,cast-function-type)
+NOWARN_CFLAGS += $(call cc-nowarn,string-plus-int)
+NOWARN_CFLAGS += $(call cc-nowarn,atomic-alignment)
 
 #### CFLAGS defining error handling
 # ERROR_CFLAGS are just accumulators for these variables, they're not meant
@@ -489,7 +490,7 @@ $(set_target_defaults)
 # linking with it by default as it's not always available nor deployed
 # (especially on archs which do not need it).
 ifneq ($(USE_THREAD:0=),)
-  ifneq ($(shell $(CC) $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(WARN_CFLAGS) $(SPEC_CFLAGS) $(ERROR_CFLAGS) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
+  ifneq ($(shell $(CC) $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(WARN_CFLAGS) $(NOWARN_CFLAGS) $(ERROR_CFLAGS) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
     USE_LIBATOMIC   = implicit
   endif
 endif
@@ -858,10 +859,10 @@ endif
 $(collect_opts_flags)
 
 #### Global compile options
-VERBOSE_CFLAGS = $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(WARN_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(CFLAGS) $(DEFINE)
+VERBOSE_CFLAGS = $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(WARN_CFLAGS) $(NOWARN_CFLAGS) $(TARGET_CFLAGS) $(CFLAGS) $(DEFINE)
 COPTS  = -Iinclude
 
-COPTS += $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(WARN_CFLAGS) $(SPEC_CFLAGS) $(ERROR_CFLAGS) $(TARGET_CFLAGS) $(DEFINE) $(SILENT_DEFINE)
+COPTS += $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(WARN_CFLAGS) $(NOWARN_CFLAGS) $(ERROR_CFLAGS) $(TARGET_CFLAGS) $(DEFINE) $(SILENT_DEFINE)
 COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(CFLAGS) $(ADDINC)
 
 ifneq ($(VERSION)$(SUBVERS)$(EXTRAVERSION),)
@@ -1172,6 +1173,7 @@ opts:
 	@echo -n 'DEBUG_CFLAGS="$(strip $(DEBUG_CFLAGS))" '
 	@echo -n 'STD_CFLAGS="$(strip $(STD_CFLAGS))" '
 	@echo -n 'WARN_CFLAGS="$(strip $(WARN_CFLAGS))" '
+	@echo -n 'NOWARN_CFLAGS="$(strip $(NOWARN_CFLAGS))" '
 	@echo -n 'ERROR_CFLAGS="$(strip $(ERROR_CFLAGS))" '
 	@echo -n 'CFLAGS="$(strip $(CFLAGS))" '
 	@#echo "$(strip $(BUILD_OPTIONS))"
