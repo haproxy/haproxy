@@ -232,8 +232,8 @@ DECLARE_STATIC_POOL(pool_head_cache_st, "cache_st", sizeof(struct cache_st));
 
 static struct eb32_node *insert_entry(struct cache *cache, struct cache_tree *tree, struct cache_entry *new_entry);
 static void delete_entry(struct cache_entry *del_entry);
-static void release_entry_locked(struct cache_tree *cache, struct cache_entry *entry);
-static void release_entry_unlocked(struct cache_tree *cache, struct cache_entry *entry);
+static inline void release_entry_locked(struct cache_tree *cache, struct cache_entry *entry);
+static inline void release_entry_unlocked(struct cache_tree *cache, struct cache_entry *entry);
 
 /*
  * Find a cache_entry in the <cache>'s tree that has the hash <hash>.
