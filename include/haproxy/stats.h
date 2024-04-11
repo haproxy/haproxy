@@ -72,6 +72,16 @@ int stats_emit_field_tags(struct buffer *out, const struct field *f,
 			  char delim);
 
 
+static inline enum field_format stcol_format(const struct stat_col *col)
+{
+	return col->type & FF_MASK;
+}
+
+static inline enum field_nature stcol_nature(const struct stat_col *col)
+{
+	return col->type & FN_MASK;
+}
+
 static inline enum field_format field_format(const struct field *f, int e)
 {
 	return f[e].type & FF_MASK;

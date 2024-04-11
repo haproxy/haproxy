@@ -90,6 +90,12 @@
     .cap = (cap_f),                                                           \
   }
 
+/* Returns true if <col> is fully defined, false if only used as name-desc. */
+static int stcol_is_generic(const struct stat_col *col)
+{
+	return !!(col->cap);
+}
+
 /* Convert stat_col <col> to old-style <name> as name_desc. */
 static void stcol2ndesc(struct name_desc *name, const struct stat_col *col)
 {
@@ -631,6 +637,50 @@ int stats_dump_one_line(const struct field *line, size_t stats_count,
 	return ret;
 }
 
+/* Generate if possible a metric value from <col>. <cap> must be set to one of
+ * STATS_PX_CAP_* values to check if the metric is available for this object
+ * type. Metric value will be extracted from <counters>.
+ *
+ * Returns a field value or an empty one if cap not compatible.
+ */
+static struct field me_generate_field(const struct stat_col *col,
+                                      const void *counters, uint8_t cap)
+{
+	struct field value;
+	void *counter = NULL;
+
+	switch (cap) {
+	case STATS_PX_CAP_FE:
+	case STATS_PX_CAP_LI:
+		counter = (char *)counters + col->metric.offset[0];
+		break;
+
+	case STATS_PX_CAP_BE:
+	case STATS_PX_CAP_SRV:
+		counter = (char *)counters + col->metric.offset[1];
+		break;
+
+	default:
+		/* invalid cap requested */
+		ABORT_NOW();
+	}
+
+	/* Check if metric is defined for this side. */
+	if (!(col->cap & cap))
+		return (struct field){ .type = FF_EMPTY };
+
+	switch (stcol_format(col)) {
+	case FF_U64:
+		value = mkf_u64(stcol_nature(col), *(uint64_t *)counter);
+		break;
+	default:
+		/* only FF_U64 counters currently use generic metric calculation */
+		ABORT_NOW();
+	}
+
+	return value;
+}
+
 /* Fill <line> with the frontend statistics. <line> is preallocated array of
  * length <len>. If <index> is != NULL, only fill this one. The length
  * of the array must be at least ST_I_PX_MAX. If this length is less than
@@ -646,9 +696,14 @@ int stats_fill_fe_line(struct proxy *px, struct field *line, int len,
 		return 0;
 
 	for (; i < ST_I_PX_MAX; i++) {
+		const struct stat_col *col = &stat_cols_px[i];
 		struct field field = { 0 };
 
-		switch (i) {
+		if (stcol_is_generic(col)) {
+			field = me_generate_field(col, &px->fe_counters, STATS_PX_CAP_FE);
+		}
+		else {
+			switch (i) {
 			case ST_I_PX_PXNAME:
 				field = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 				break;
@@ -846,6 +901,7 @@ int stats_fill_fe_line(struct proxy *px, struct field *line, int len,
 				if (index)
 					return 0;
 				continue;
+			}
 		}
 		line[i] = field;
 		if (index)
@@ -904,7 +960,7 @@ static int stats_dump_fe_line(struct stconn *sc, struct proxy *px)
 int stats_fill_li_line(struct proxy *px, struct listener *l, int flags,
                        struct field *line, int len, enum stat_idx_px *selected_field)
 {
-	enum stat_idx_px current_field = (selected_field != NULL ? *selected_field : 0);
+	enum stat_idx_px i = (selected_field != NULL ? *selected_field : 0);
 	struct buffer *out = get_trash_chunk();
 
 	if (len < ST_I_PX_MAX)
@@ -915,10 +971,15 @@ int stats_fill_li_line(struct proxy *px, struct listener *l, int flags,
 
 	chunk_reset(out);
 
-	for (; current_field < ST_I_PX_MAX; current_field++) {
+	for (; i < ST_I_PX_MAX; i++) {
+		const struct stat_col *col = &stat_cols_px[i];
 		struct field field = { 0 };
 
-		switch (current_field) {
+		if (stcol_is_generic(col)) {
+			field = me_generate_field(col, l->counters, STATS_PX_CAP_LI);
+		}
+		else {
+			switch (i) {
 			case ST_I_PX_PXNAME:
 				field = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 				break;
@@ -1022,8 +1083,9 @@ int stats_fill_li_line(struct proxy *px, struct listener *l, int flags,
 				if (selected_field != NULL)
 					return 0;
 				continue;
+			}
 		}
-		line[current_field] = field;
+		line[i] = field;
 		if (selected_field != NULL)
 			break;
 	}
@@ -1191,9 +1253,14 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 	}
 
 	for (; i < ST_I_PX_MAX; i++) {
+		const struct stat_col *col = &stat_cols_px[i];
 		struct field field = { 0 };
 
-		switch (i) {
+		if (stcol_is_generic(col)) {
+			field = me_generate_field(col, &sv->counters, STATS_PX_CAP_SRV);
+		}
+		else {
+			switch (i) {
 			case ST_I_PX_PXNAME:
 				field = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 				break;
@@ -1538,6 +1605,7 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 				if (index)
 					return 0;
 				continue;
+			}
 		}
 		line[i] = field;
 		if (index)
@@ -1651,9 +1719,14 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 	}
 
 	for (; i < ST_I_PX_MAX; i++) {
+		const struct stat_col *col = &stat_cols_px[i];
 		struct field field = { 0 };
 
-		switch (i) {
+		if (stcol_is_generic(col)) {
+			field = me_generate_field(col, &px->be_counters, STATS_PX_CAP_BE);
+		}
+		else {
+			switch (i) {
 			case ST_I_PX_PXNAME:
 				field = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 				break;
@@ -1870,6 +1943,7 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 				if (index)
 					return 0;
 				continue;
+			}
 		}
 		line[i] = field;
 		if (index)
