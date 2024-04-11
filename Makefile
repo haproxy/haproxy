@@ -220,12 +220,17 @@ SPEC_CFLAGS += $(call cc-nowarn,cast-function-type)
 SPEC_CFLAGS += $(call cc-nowarn,string-plus-int)
 SPEC_CFLAGS += $(call cc-nowarn,atomic-alignment)
 
+#### CFLAGS defining error handling
+# ERROR_CFLAGS are just accumulators for these variables, they're not meant
+# to be exposed nor manipulated outside of this. They're not reported in
+# VERBOSE_CFLAGS and don't cause a rebuild when changed.
+ERROR_CFLAGS :=
 ifneq ($(ERR:0=),)
-  SPEC_CFLAGS += -Werror
+  ERROR_CFLAGS += -Werror
 endif
 
 ifneq ($(FAILFAST:0=),)
-  SPEC_CFLAGS += -Wfatal-errors
+  ERROR_CFLAGS += -Wfatal-errors
 endif
 
 #### No longer used
@@ -481,7 +486,7 @@ $(set_target_defaults)
 # linking with it by default as it's not always available nor deployed
 # (especially on archs which do not need it).
 ifneq ($(USE_THREAD:0=),)
-  ifneq ($(shell $(CC) $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(SPEC_CFLAGS) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
+  ifneq ($(shell $(CC) $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(SPEC_CFLAGS) $(ERROR_CFLAGS) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
     USE_LIBATOMIC   = implicit
   endif
 endif
@@ -853,7 +858,7 @@ $(collect_opts_flags)
 VERBOSE_CFLAGS = $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(CFLAGS) $(DEFINE)
 COPTS  = -Iinclude
 
-COPTS += $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(SPEC_CFLAGS) $(TARGET_CFLAGS) $(DEFINE) $(SILENT_DEFINE)
+COPTS += $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(STD_CFLAGS) $(SPEC_CFLAGS) $(ERROR_CFLAGS) $(TARGET_CFLAGS) $(DEFINE) $(SILENT_DEFINE)
 COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(CFLAGS) $(ADDINC)
 
 ifneq ($(VERSION)$(SUBVERS)$(EXTRAVERSION),)
@@ -1163,6 +1168,7 @@ opts:
 	@echo -n 'CPU_CFLAGS="$(strip $(CPU_CFLAGS))" '
 	@echo -n 'DEBUG_CFLAGS="$(strip $(DEBUG_CFLAGS))" '
 	@echo -n 'STD_CFLAGS="$(strip $(STD_CFLAGS))" '
+	@echo -n 'ERROR_CFLAGS="$(strip $(ERROR_CFLAGS))" '
 	@echo -n 'CFLAGS="$(strip $(CFLAGS))" '
 	@#echo "$(strip $(BUILD_OPTIONS))"
 	@$(foreach opt,$(enabled_opts),\
