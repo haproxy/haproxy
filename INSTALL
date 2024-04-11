@@ -73,10 +73,10 @@ can use a relatively similar one and adjust specific variables by hand.
 Most configuration variables are in fact booleans. Some options are detected and
 enabled by default if available on the target platform. This is the case for all
 those named "USE_<feature>". These booleans are enabled by "USE_<feature>=1"
-and are disabled by "USE_<feature>=" (with no value). An exhaustive list of the
-supported USE_* features is located at the top of the main Makefile. The last
-occurrence of such an option on the command line overrides any previous one.
-Example :
+and are disabled by "USE_<feature>=" (with no value) or "USE_<feature>=0". An
+exhaustive list of the supported USE_* features is located at the top of the
+main Makefile. The last occurrence of such an option on the command line
+overrides any previous one. Example :
 
   $ make TARGET=generic USE_THREAD=
 
@@ -749,9 +749,10 @@ multithreading via USE_THREAD.
 You can easily define your own target with the GNU Makefile. Unknown targets
 are processed with no default option except USE_POLL=default. So you can very
 well use that property to define your own set of options. USE_POLL and USE_SLZ
-can even be disabled by setting them to an empty string. For example :
+can even be disabled by setting them to an empty string or a zero. For
+example :
 
-  $ gmake TARGET=tiny USE_POLL="" USE_SLZ="" TARGET_CFLAGS=-fomit-frame-pointer
+  $ gmake TARGET=tiny USE_POLL="" USE_SLZ=0 TARGET_CFLAGS=-fomit-frame-pointer
 
 If you need to pass some defines to the preprocessor or compiler, you may pass
 them all in the DEFINE variable. Example:

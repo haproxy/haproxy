@@ -333,7 +333,7 @@ USE_POLL   = default
 
 # SLZ is always supported unless explicitly disabled by passing USE_SLZ=""
 # or disabled by enabling ZLIB using USE_ZLIB=1
-ifeq ($(USE_ZLIB),)
+ifeq ($(USE_ZLIB:0=),)
   USE_SLZ    = default
 endif
 
@@ -470,7 +470,7 @@ $(set_target_defaults)
 # any occurrence of 1 indicates libatomic is necessary. It's better to avoid
 # linking with it by default as it's not always available nor deployed
 # (especially on archs which do not need it).
-ifneq ($(USE_THREAD),)
+ifneq ($(USE_THREAD:0=),)
   ifneq ($(shell $(CC) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
     USE_LIBATOMIC   = implicit
   endif
@@ -522,7 +522,7 @@ BUILD_OPTIONS  := $(call build_options)
 # possibly be unused though)
 OPTIONS_CFLAGS += $(call opts_as_defines)
 
-ifneq ($(USE_LIBCRYPT),)
+ifneq ($(USE_LIBCRYPT:0=),)
   ifneq ($(TARGET),openbsd)
     ifneq ($(TARGET),osx)
       LIBCRYPT_LDFLAGS = -lcrypt
@@ -530,45 +530,45 @@ ifneq ($(USE_LIBCRYPT),)
   endif
 endif
 
-ifneq ($(USE_ZLIB),)
+ifneq ($(USE_ZLIB:0=),)
   # Use ZLIB_INC and ZLIB_LIB to force path to zlib.h and libz.{a,so} if needed.
   ZLIB_CFLAGS      = $(if $(ZLIB_INC),-I$(ZLIB_INC))
   ZLIB_LDFLAGS     = $(if $(ZLIB_LIB),-L$(ZLIB_LIB)) -lz
 endif
 
-ifneq ($(USE_SLZ),)
+ifneq ($(USE_SLZ:0=),)
   OPTIONS_OBJS   += src/slz.o
 endif
 
-ifneq ($(USE_POLL),)
+ifneq ($(USE_POLL:0=),)
   OPTIONS_OBJS   += src/ev_poll.o
 endif
 
-ifneq ($(USE_EPOLL),)
+ifneq ($(USE_EPOLL:0=),)
   OPTIONS_OBJS   += src/ev_epoll.o
 endif
 
-ifneq ($(USE_KQUEUE),)
+ifneq ($(USE_KQUEUE:0=),)
   OPTIONS_OBJS   += src/ev_kqueue.o
 endif
 
-ifneq ($(USE_EVPORTS),)
+ifneq ($(USE_EVPORTS:0=),)
   OPTIONS_OBJS   += src/ev_evports.o
 endif
 
-ifneq ($(USE_RT),)
+ifneq ($(USE_RT:0=),)
   RT_LDFLAGS = -lrt
 endif
 
-ifneq ($(USE_THREAD),)
+ifneq ($(USE_THREAD:0=),)
   THREAD_LDFLAGS = -pthread
 endif
 
-ifneq ($(USE_BACKTRACE),)
+ifneq ($(USE_BACKTRACE:0=),)
   BACKTRACE_LDFLAGS = -Wl,$(if $(EXPORT_SYMBOL),$(EXPORT_SYMBOL),--export-dynamic)
 endif
 
-ifneq ($(USE_CPU_AFFINITY),)
+ifneq ($(USE_CPU_AFFINITY:0=),)
   OPTIONS_OBJS   += src/cpuset.o
 endif
 
@@ -580,32 +580,32 @@ endif
 
 # This is for the WolfSSL variant of the OpenSSL API. Setting it implies
 # OPENSSL so it's not necessary to set the latter.
-ifneq ($(USE_OPENSSL_WOLFSSL),)
+ifneq ($(USE_OPENSSL_WOLFSSL:0=),)
   SSL_CFLAGS      := $(if $(SSL_INC),-I$(SSL_INC)/wolfssl -I$(SSL_INC))
   SSL_LDFLAGS     := $(if $(SSL_LIB),-L$(SSL_LIB)) -lwolfssl
   # always automatically set USE_OPENSSL
-  USE_OPENSSL     := $(if $(USE_OPENSSL),$(USE_OPENSSL),implicit)
+  USE_OPENSSL     := $(if $(USE_OPENSSL:0=),$(USE_OPENSSL:0=),implicit)
 endif
 
 # This is for the AWS-LC variant of the OpenSSL API. Setting it implies
 # OPENSSL so it's not necessary to set the latter.
-ifneq ($(USE_OPENSSL_AWSLC),)
+ifneq ($(USE_OPENSSL_AWSLC:0=),)
   # always automatically set USE_OPENSSL
-  USE_OPENSSL     := $(if $(USE_OPENSSL),$(USE_OPENSSL),implicit)
+  USE_OPENSSL     := $(if $(USE_OPENSSL:0=),$(USE_OPENSSL:0=),implicit)
 endif
 
 # This is for any variant of the OpenSSL API. By default it uses OpenSSL.
-ifneq ($(USE_OPENSSL),)
+ifneq ($(USE_OPENSSL:0=),)
   # only preset these for the regular openssl
-  ifeq ($(USE_OPENSSL_WOLFSSL),)
+  ifeq ($(USE_OPENSSL_WOLFSSL:0=),)
     SSL_CFLAGS    := $(if $(SSL_INC),-I$(SSL_INC))
     SSL_LDFLAGS   := $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
   endif
-  USE_SSL         := $(if $(USE_SSL),$(USE_SSL),implicit)
+  USE_SSL         := $(if $(USE_SSL:0=),$(USE_SSL:0=),implicit)
   OPTIONS_OBJS += src/ssl_sock.o src/ssl_ckch.o src/ssl_sample.o src/ssl_crtlist.o src/cfgparse-ssl.o src/ssl_utils.o src/jwt.o src/ssl_ocsp.o src/ssl_gencert.o
 endif
 
-ifneq ($(USE_ENGINE),)
+ifneq ($(USE_ENGINE:0=),)
   # OpenSSL 3.0 emits loud deprecation warnings by default when building with
   # engine support, and this option is made to silence them. Better use it
   # only when absolutely necessary, until there's a viable alternative to the
@@ -613,7 +613,7 @@ ifneq ($(USE_ENGINE),)
   ENGINE_CFLAGS   = -DOPENSSL_SUPPRESS_DEPRECATED
 endif
 
-ifneq ($(USE_QUIC),)
+ifneq ($(USE_QUIC:0=),)
 OPTIONS_OBJS += src/quic_conn.o src/mux_quic.o src/h3.o src/xprt_quic.o    \
                 src/quic_frame.o src/quic_tls.o src/quic_tp.o              \
                 src/quic_stats.o src/quic_sock.o src/proto_quic.o          \
@@ -627,11 +627,11 @@ OPTIONS_OBJS += src/quic_conn.o src/mux_quic.o src/h3.o src/xprt_quic.o    \
                 src/quic_retransmit.o src/quic_fctl.o
 endif
 
-ifneq ($(USE_QUIC_OPENSSL_COMPAT),)
+ifneq ($(USE_QUIC_OPENSSL_COMPAT:0=),)
 OPTIONS_OBJS += src/quic_openssl_compat.o
 endif
 
-ifneq ($(USE_LUA),)
+ifneq ($(USE_LUA:0=),)
   check_lua_inc = $(shell if [ -d $(2)$(1) ]; then echo $(2)$(1); fi;)
   LUA_INC      := $(firstword $(foreach lib,lua5.4 lua54 lua5.3 lua53 lua,$(call check_lua_inc,$(lib),"/usr/include/")))
 
@@ -664,12 +664,12 @@ ifneq ($(USE_LUA),)
   OPTIONS_OBJS    += src/hlua.o src/hlua_fcn.o
 endif # USE_LUA
 
-ifneq ($(USE_PROMEX),)
+ifneq ($(USE_PROMEX:0=),)
   OPTIONS_OBJS    += addons/promex/service-prometheus.o
   PROMEX_CFLAGS    = -Iaddons/promex/include
 endif
 
-ifneq ($(USE_DEVICEATLAS),)
+ifneq ($(USE_DEVICEATLAS:0=),)
   # Use DEVICEATLAS_SRC and possibly DEVICEATLAS_INC and DEVICEATLAS_LIB to force path
   # to DeviceAtlas headers and libraries if needed. In this context, DEVICEATLAS_NOCACHE
   # can be used to disable the cache support if needed (this also removes the necessity of having
@@ -689,12 +689,12 @@ endif
 51DEGREES_LIB = $(51DEGREES_SRC)
 51DEGREES_VER = 3
 
-ifneq ($(USE_51DEGREES),)
+ifneq ($(USE_51DEGREES:0=),)
   ifeq ($(51DEGREES_VER),4)  # v4 here
     _51DEGREES_SRC      = $(shell find $(51DEGREES_LIB) -maxdepth 2 -name '*.c')
     OPTIONS_OBJS       += $(_51DEGREES_SRC:%.c=%.o)
     51DEGREES_CFLAGS   += -DUSE_51DEGREES_V4
-    ifeq ($(USE_THREAD),)
+    ifeq ($(USE_THREAD:0=),)
       51DEGREES_CFLAGS += -DFIFTYONEDEGREES_NO_THREADING -DFIFTYONE_DEGREES_NO_THREADING
     endif
     USE_LIBATOMIC       = implicit
@@ -703,7 +703,7 @@ ifneq ($(USE_51DEGREES),)
   ifeq ($(51DEGREES_VER),3)  # v3 here
     OPTIONS_OBJS       += $(51DEGREES_LIB)/../cityhash/city.o
     OPTIONS_OBJS       += $(51DEGREES_LIB)/51Degrees.o
-    ifeq ($(USE_THREAD),)
+    ifeq ($(USE_THREAD:0=),)
       51DEGREES_CFLAGS += -DFIFTYONEDEGREES_NO_THREADING
     else
       OPTIONS_OBJS     += $(51DEGREES_LIB)/../threading.o
@@ -720,7 +720,7 @@ ifneq ($(USE_51DEGREES),)
   USE_MATH             = implicit
 endif # USE_51DEGREES
 
-ifneq ($(USE_WURFL),)
+ifneq ($(USE_WURFL:0=),)
   # Use WURFL_SRC and possibly WURFL_INC and WURFL_LIB to force path
   # to WURFL headers and libraries if needed.
   WURFL_INC = $(WURFL_SRC)
@@ -736,12 +736,12 @@ ifneq ($(USE_WURFL),)
   WURFL_LDFLAGS    = $(if $(WURFL_LIB),-L$(WURFL_LIB)) -lwurfl
 endif
 
-ifneq ($(USE_SYSTEMD),)
+ifneq ($(USE_SYSTEMD:0=),)
   OPTIONS_OBJS    += src/systemd.o
 endif
 
-ifneq ($(USE_PCRE)$(USE_STATIC_PCRE)$(USE_PCRE_JIT),)
-  ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
+ifneq ($(USE_PCRE:0=)$(USE_STATIC_PCRE:0=)$(USE_PCRE_JIT:0=),)
+  ifneq ($(USE_PCRE2:0=)$(USE_STATIC_PCRE2:0=)$(USE_PCRE2_JIT:0=),)
     $(error cannot compile both PCRE and PCRE2 support)
   endif
   # PCREDIR is used to automatically construct the PCRE_INC and PCRE_LIB paths,
@@ -752,7 +752,7 @@ ifneq ($(USE_PCRE)$(USE_STATIC_PCRE)$(USE_PCRE_JIT),)
   # locations.
 
   # in case only USE_STATIC_PCRE/USE_PCRE_JIT were set
-  USE_PCRE    := $(if $(USE_PCRE),$(USE_PCRE),implicit)
+  USE_PCRE    := $(if $(USE_PCRE:0=),$(USE_PCRE:0=),implicit)
   PCRE_CONFIG := pcre-config
   PCREDIR     := $(shell $(PCRE_CONFIG) --prefix 2>/dev/null || echo /usr/local)
   ifneq ($(PCREDIR),)
@@ -761,16 +761,16 @@ ifneq ($(USE_PCRE)$(USE_STATIC_PCRE)$(USE_PCRE_JIT),)
   endif
 
   PCRE_CFLAGS := $(if $(PCRE_INC),-I$(PCRE_INC))
-  ifeq ($(USE_STATIC_PCRE),)
+  ifeq ($(USE_STATIC_PCRE:0=),)
     PCRE_LDFLAGS := $(if $(PCRE_LIB),-L$(PCRE_LIB)) -lpcreposix -lpcre
   else
     PCRE_LDFLAGS := $(if $(PCRE_LIB),-L$(PCRE_LIB)) -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
   endif
 endif # USE_PCRE
 
-ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
+ifneq ($(USE_PCRE2:0=)$(USE_STATIC_PCRE2:0=)$(USE_PCRE2_JIT:0=),)
   # in case only USE_STATIC_PCRE2/USE_PCRE2_JIT were set
-  USE_PCRE2    := $(if $(USE_PCRE2),$(USE_PCRE2),implicit)
+  USE_PCRE2    := $(if $(USE_PCRE2:0=),$(USE_PCRE2:0=),implicit)
   PCRE2_CONFIG := pcre2-config
   PCRE2DIR     := $(shell $(PCRE2_CONFIG) --prefix 2>/dev/null || echo /usr/local)
   ifneq ($(PCRE2DIR),)
@@ -800,7 +800,7 @@ ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
       endif
     endif
 
-    ifneq ($(USE_STATIC_PCRE2),)
+    ifneq ($(USE_STATIC_PCRE2:0=),)
       PCRE2_LDFLAGS := $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -Wl,-Bstatic -L$(PCRE2_LIB) $(PCRE2_LDFLAGS) -Wl,-Bdynamic
     else
       PCRE2_LDFLAGS := $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -L$(PCRE2_LIB) $(PCRE2_LDFLAGS)
@@ -808,28 +808,28 @@ ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
   endif # PCRE2DIR
 endif # USE_PCRE2
 
-ifneq ($(USE_NS),)
+ifneq ($(USE_NS:0=),)
   OPTIONS_OBJS  += src/namespace.o
 endif
 
-ifneq ($(USE_LINUX_CAP),)
+ifneq ($(USE_LINUX_CAP:0=),)
   OPTIONS_OBJS   += src/linuxcap.o
 endif
 
-ifneq ($(USE_OT),)
+ifneq ($(USE_OT:0=),)
   include addons/ot/Makefile
 endif
 
 # better keep this one close to the end, as several libs above may need it
-ifneq ($(USE_DL),)
+ifneq ($(USE_DL:0=),)
   DL_LDFLAGS = -ldl
 endif
 
-ifneq ($(USE_MATH),)
+ifneq ($(USE_MATH:0=),)
   MATH_LDFLAGS = -lm
 endif
 
-ifneq ($(USE_LIBATOMIC),)
+ifneq ($(USE_LIBATOMIC:0=),)
   LIBATOMIC_LDFLAGS = -latomic
 endif
 
@@ -1157,7 +1157,7 @@ opts:
 	@#echo "$(strip $(BUILD_OPTIONS))"
 	@$(foreach opt,$(enabled_opts),\
 		$(if $(subst command line,,$(origin USE_$(opt))),,\
-			echo -n 'USE_$(opt)=$(USE_$(opt)) ';) \
+			echo -n 'USE_$(opt)=$(USE_$(opt:0=)) ';) \
 		$(if $(subst command line,,$(origin $(opt)_CFLAGS)),\
 			$(if $($(opt)_CFLAGS),echo -n '$(opt)_CFLAGS="$($(opt)_CFLAGS)" ';),\
 			echo -n '$(opt)_CFLAGS="$($(opt)_CFLAGS)" ';) \

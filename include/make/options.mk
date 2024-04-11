@@ -23,14 +23,15 @@ build_options   = $(foreach opt,$(use_opts),$(call ignore_implicit,$(opt)))
 # Make a list of all known features with +/- prepended depending on their
 # activation status. Must be a macro so that dynamically enabled ones are
 # evaluated with their current status.
-build_features  = $(foreach opt,$(patsubst USE_%,%,$(sort $(use_opts))),$(if $(USE_$(opt)),+$(opt),-$(opt)))
+build_features  = $(foreach opt,$(patsubst USE_%,%,$(sort $(use_opts))),$(if $(USE_$(opt):0=),+$(opt),-$(opt)))
 
-# This returns a list of -DUSE_* for all known USE_* that are set
-opts_as_defines = $(foreach opt,$(use_opts),$(if $($(opt)),-D$(opt),))
+# This returns a list of -DUSE_* for all known USE_* that are set to anything
+# neither empty nor '0'.
+opts_as_defines = $(foreach opt,$(use_opts),$(if $($(opt):0=),-D$(opt),))
 
 # Lists all enabled or disabled options without the "USE_" prefix
-enabled_opts    = $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),$(opt),))
-disabled_opts   = $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),,$(opt)))
+enabled_opts    = $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt):0=),$(opt),))
+disabled_opts   = $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt):0=),,$(opt)))
 
 # preset all XXX_{INC,LIB,CFLAGS,LDFLAGS,SRC} variables to empty for $1=XXX
 reset_opt_vars = $(foreach name,INC LIB CFLAGS LDFLAGS SRC,$(eval $(1)_$(name)=))
