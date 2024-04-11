@@ -670,6 +670,14 @@ variable, FAILFAST enables -Wfatal-errors when set to non-empty except 0, and
 makes the compiler stop at the first error instead of scrolling pages. It's
 essentially a matter of taste.
 
+Packagers who want to achieve the cleanest warning-free builds may be
+interested in knowing that all enabled warnings are normally placed into
+the WARN_CFLAGS variable. The variable contains a list of pre-established
+warnings and a list of some that are dynamically detected on the compiler.
+If the build environment or toolchain doesn't even support some of the basic
+ones, it is then possible to just redefine them by passing the main ones in
+WARN_CFLAGS (e.g. at the very least -W -Wall).
+
 The DEBUG variable is used to extend the CFLAGS and is preset to a list of
 build-time options that are known for providing significant reliability
 improvements and a barely perceptible performance cost. Unless instructed to do
