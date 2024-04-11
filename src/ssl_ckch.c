@@ -995,7 +995,7 @@ struct ckch_store *ckchs_lookup(char *path)
 /*
  * This function allocate a ckch_store and populate it with certificates from files.
  */
-struct ckch_store *ckchs_load_cert_file(char *path, char **err)
+struct ckch_store *new_ckch_store_load_files_path(char *path, char **err)
 {
 	struct ckch_store *ckchs;
 
