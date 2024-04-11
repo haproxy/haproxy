@@ -322,6 +322,9 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER USE_POLL                        \
 # preset all variables for all supported build options among use_opts
 $(reset_opts_vars)
 
+# Check that any USE_* variable that was forced actually exist.
+$(warn_unknown_options)
+
 #### Target system options
 
 # poll() is always supported, unless explicitly disabled by passing USE_POLL=""
