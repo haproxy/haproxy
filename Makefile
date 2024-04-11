@@ -1168,31 +1168,30 @@ update-version:
 # settings are also listed if they're explicitly set on the command line, or if
 # they are not empty. Implicit "USE_*" are not listed.
 opts:
-	@echo -n 'Using: '
-	@echo -n 'TARGET="$(strip $(TARGET))" '
-	@echo -n 'ARCH="$(strip $(ARCH))" '
-	@echo -n 'CC="$(strip $(CC))" '
-	@echo -n 'OPT_CFLAGS="$(strip $(OPT_CFLAGS))" '
-	@echo -n 'ARCH_FLAGS="$(strip $(ARCH_FLAGS))" '
-	@echo -n 'CPU_CFLAGS="$(strip $(CPU_CFLAGS))" '
-	@echo -n 'STD_CFLAGS="$(strip $(STD_CFLAGS))" '
-	@echo -n 'WARN_CFLAGS="$(strip $(WARN_CFLAGS))" '
-	@echo -n 'NOWARN_CFLAGS="$(strip $(NOWARN_CFLAGS))" '
-	@echo -n 'ERROR_CFLAGS="$(strip $(ERROR_CFLAGS))" '
-	@echo -n 'CFLAGS="$(strip $(CFLAGS))" '
-	@#echo "$(strip $(BUILD_OPTIONS))"
+	@echo 'Using the following variables (copy-pastable as make arguments):'
+	@echo '  TARGET="$(strip $(TARGET))" '\\
+	@echo '  ARCH="$(strip $(ARCH))" '\\
+	@echo '  CC="$(strip $(CC))" '\\
+	@echo '  OPT_CFLAGS="$(strip $(OPT_CFLAGS))" '\\
+	@echo '  ARCH_FLAGS="$(strip $(ARCH_FLAGS))" '\\
+	@echo '  CPU_CFLAGS="$(strip $(CPU_CFLAGS))" '\\
+	@echo '  STD_CFLAGS="$(strip $(STD_CFLAGS))" '\\
+	@echo '  WARN_CFLAGS="$(strip $(WARN_CFLAGS))" '\\
+	@echo '  NOWARN_CFLAGS="$(strip $(NOWARN_CFLAGS))" '\\
+	@echo '  ERROR_CFLAGS="$(strip $(ERROR_CFLAGS))" '\\
+	@echo '  CFLAGS="$(strip $(CFLAGS))" '\\
 	@$(foreach opt,$(enabled_opts),\
 		$(if $(subst command line,,$(origin USE_$(opt))),,\
-			echo -n 'USE_$(opt)=$(USE_$(opt:0=)) ';) \
+			echo '  USE_$(opt)=$(USE_$(opt:0=)) '\\;) \
 		$(if $(subst command line,,$(origin $(opt)_CFLAGS)),\
-			$(if $($(opt)_CFLAGS),echo -n '$(opt)_CFLAGS="$($(opt)_CFLAGS)" ';),\
-			echo -n '$(opt)_CFLAGS="$($(opt)_CFLAGS)" ';) \
+			$(if $($(opt)_CFLAGS),echo '  $(opt)_CFLAGS="$($(opt)_CFLAGS)" '\\;),\
+			echo '  $(opt)_CFLAGS="$($(opt)_CFLAGS)" '\\;) \
 		$(if $(subst command line,,$(origin $(opt)_LDFLAGS)),\
-			$(if $($(opt)_LDFLAGS),echo -n '$(opt)_LDFLAGS="$($(opt)_LDFLAGS)" ';),\
-			echo -n '$(opt)_LDFLAGS="$($(opt)_LDFLAGS)" ';))
+			$(if $($(opt)_LDFLAGS),echo '  $(opt)_LDFLAGS="$($(opt)_LDFLAGS)" '\\;),\
+			echo '  $(opt)_LDFLAGS="$($(opt)_LDFLAGS)" '\\;))
+	@echo '  LDFLAGS="$(strip $(LDFLAGS))"'
 	@echo
 	@echo 'COPTS="$(strip $(COPTS))"'
-	@echo 'LDFLAGS="$(strip $(LDFLAGS))"'
 	@echo 'LDOPTS="$(strip $(LDOPTS))"'
 	@echo 'OPTIONS_OBJS="$(strip $(OPTIONS_OBJS))"'
 	@echo 'OBJS="$(strip $(OBJS))"'
