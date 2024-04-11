@@ -219,7 +219,7 @@ SPEC_CFLAGS += $(call cc-nowarn,cast-function-type)
 SPEC_CFLAGS += $(call cc-nowarn,string-plus-int)
 SPEC_CFLAGS += $(call cc-nowarn,atomic-alignment)
 
-ifneq ($(ERR),)
+ifneq ($(ERR:0=),)
   SPEC_CFLAGS += -Werror
 endif
 

@@ -662,10 +662,10 @@ It is not wise to disable it on uncommon systems, because it's often the only
 way to get a usable core when you need one. Otherwise, you can set DEBUG to
 '-s' to strip the binary.
 
-If the ERR variable is set to any non-empty value, then -Werror will be added
-to the compiler so that any build warning will trigger an error. This is the
-recommended way to build when developing, and it is expected that contributed
-patches were tested with ERR=1.
+If the ERR variable is set to any non-empty value other than "0", then -Werror
+will be added to the compiler so that any build warning will trigger an error.
+This is the recommended way to build when developing, and it is expected that
+contributed patches were tested with ERR=1.
 
 The DEBUG variable is used to extend the CFLAGS and is preset to a list of
 build-time options that are known for providing significant reliability
