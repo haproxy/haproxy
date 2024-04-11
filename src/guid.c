@@ -30,18 +30,9 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 	struct ebpt_node *node;
 	char *key = NULL;
 	char *dup_name = NULL;
-	const char *c;
 
-	if (strlen(uid) > GUID_MAX_LEN) {
-		memprintf(errmsg, "UID too big");
+	if (!guid_is_valid_fmt(uid, errmsg))
 		goto err;
-	}
-
-	c = invalid_char(uid);
-	if (c) {
-		memprintf(errmsg, "invalid character '%c'", c[0]);
-		goto err;
-	}
 
 	switch (obj_type(objt)) {
 	case OBJ_TYPE_PROXY:
@@ -109,6 +100,29 @@ struct guid_node *guid_lookup(const char *uid)
 		guid = ebpt_entry(node, struct guid_node, node);
 
 	return guid;
+}
+
+/* Returns a boolean checking if <uid> respects GUID format. If <errmsg> is not
+ * NULL, it will be allocated with an error description in case of invalid
+ * format.
+ */
+int guid_is_valid_fmt(const char *uid, char **errmsg)
+{
+	const size_t len = strlen(uid);
+	const char *c;
+
+	if (!len || len > GUID_MAX_LEN) {
+		memprintf(errmsg, "invalid length");
+		return 0;
+	}
+
+	c = invalid_char(uid);
+	if (c) {
+		memprintf(errmsg, "invalid character '%c'", c[0]);
+		return 0;
+	}
+
+	return 1;
 }
 
 /* Generate a user-friendly description for the instance attached via <guid>
