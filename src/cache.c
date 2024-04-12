@@ -1808,6 +1808,10 @@ static void http_cache_io_handler(struct appctx *appctx)
 	if (appctx->st0 == HTX_CACHE_HEADER) {
 		struct ist meth;
 
+		if (unlikely(applet_fl_test(appctx, APPCTX_FL_INBLK_ALLOC))) {
+			goto exit;
+		}
+
 		/* Headers must be dump at once. Otherwise it is an error */
 		ret = htx_cache_dump_msg(appctx, res_htx, len, HTX_BLK_EOH);
 		if (!ret || (htx_get_tail_type(res_htx) != HTX_BLK_EOH) ||
