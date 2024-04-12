@@ -50,7 +50,7 @@ familiar with troubleshooting utilities such as strace and tcpdump.
 2. Quick reminder about HAProxy's architecture
 ----------------------------------------------
 
-HAProxy is a multi-threaded, event-driven, non-blocking daemon. This means is
+HAProxy is a multi-threaded, event-driven, non-blocking daemon. This means it
 uses event multiplexing to schedule all of its activities instead of relying on
 the system to schedule between multiple activities. Most of the time it runs as
 a single process, so the output of "ps aux" on a system will report only one
@@ -129,7 +129,7 @@ followed by one of more letters, and possibly followed by one or multiple extra
 arguments. Without any option, HAProxy displays the help page with a reminder
 about supported options. Available options may vary slightly based on the
 operating system. A fair number of these options overlap with an equivalent one
-if the "global" section. In this case, the command line always has precedence
+in the "global" section. In this case, the command line always has precedence
 over the configuration file, so that the command line can be used to quickly
 enforce some settings without touching the configuration files. The current
 list of options is :
@@ -456,7 +456,7 @@ list of options is :
   -st <pid>* : send the "terminate" signal (SIGTERM) to older processes after
     boot completion to terminate them immediately without finishing what they
     were doing. <pid> is a list of pids to signal (one per argument). The list
-    is ends on any option starting with a "-". It is not a problem if the list
+    ends on any option starting with a "-". It is not a problem if the list
     of pids is empty, so that it can be built on the fly based on the result of
     a command like "pidof" or "pgrep".
 
@@ -1559,7 +1559,7 @@ Limitations do exist: the length of the whole buffer passed to the CLI must
 not be greater than tune.bfsize and the pattern "<<" must not be glued to the
 last word of the line.
 
-When entering a paylod while in interactive mode, the prompt will change from
+When entering a payload while in interactive mode, the prompt will change from
 "> " to "+ ".
 
 It is important to understand that when multiple haproxy processes are started
@@ -1908,7 +1908,7 @@ commit ssl cert <filename>
   Commit a temporary SSL certificate update transaction.
 
   In the case of an existing certificate (in a "Used" state in "show ssl
-  cert"), generate every SSL contextes and SNIs it need, insert them, and
+  cert"), generate every SSL contexts and SNIs it needs, insert them, and
   remove the previous ones. Replace in memory the previous SSL certificates
   everywhere the <filename> was used in the configuration. Upon failure it
   doesn't remove or insert anything. Once the temporary transaction is
@@ -1997,7 +1997,7 @@ del server <backend>/<server>
   Remove a server attached to the backend <backend>. All servers are eligible,
   except servers which are referenced by other configuration elements. The
   server must be put in maintenance mode prior to its deletion.  The operation
-  is cancelled if the serveur still has active or idle connection or its
+  is cancelled if the server still has active or idle connection or its
   connection queue is not empty.
 
 disable agent <backend>/<server>
@@ -4166,7 +4166,7 @@ reload
   return a reload status, once the reload was performed. Be careful with the
   timeout if a tool is used to parse it, it is only returned once the
   configuration is parsed and the new worker is forked. The "socat" command uses
-  a timeout of 0.5s by default so it will quits before showing the message if
+  a timeout of 0.5s by default so it will quit before showing the message if
   the reload is too long. "ncat" does not have a timeout by default.
   When compiled with USE_SHM_OPEN=1, the reload command is also able to dump
   the startup-logs of the master.
@@ -4252,7 +4252,7 @@ using regular expressions involving the dollar symbol).
 
 Environment variables also make it convenient to write configurations which are
 expected to work on various sites where only the address changes. It can also
-permit to remove passwords from some configs. Example below where the the file
+permit to remove passwords from some configs. Example below where the file
 "site1.env" file is sourced by the init script upon startup :
 
   $ cat site1.env
@@ -4578,7 +4578,7 @@ in its process effective set (capset syscall), while running as a non-root
 user.
 
 This was done to avoid all potential use cases when haproxy starts and runs as
-root: transparent proxy mode, binding to priviledged ports.
+root: transparent proxy mode, binding to privileged ports.
 
 'setcap' keyword supports following network capabilities:
 - cap_net_admin
@@ -4623,7 +4623,7 @@ Seccomp, etc), process emits diagnostic warnings (start with -dD).
 Due to support of many different platforms with different system settings,
 it's impossible for the parser to deduce from the configuration file, if
 binding to privileged ports will be done. So, in the case of insufficient
-priviledges (run as non-root) process will terminate only with an alert
+privileges (run as non-root) process will terminate only with an alert
 message like below. It's up to a user to recheck its configuration and
 capabilities set for haproxy binary.
 
