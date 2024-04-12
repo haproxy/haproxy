@@ -878,15 +878,27 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 				continue;
 			}
 
-			/* session expired, trash it */
-			ebmb_delete(&ts->key);
+			/* if the entry is in the update list, we must be extremely careful
+			 * because peers can see it at any moment and start to use it. Peers
+			 * will take the table's updt_lock for reading when doing that, and
+			 * with that lock held, will grab a ref_cnt before releasing the
+			 * lock. So we must take this lock as well and check the ref_cnt.
+			 */
 			if (ts->upd.node.leaf_p) {
 				if (!updt_locked) {
 					updt_locked = 1;
 					HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
 				}
-				eb32_delete(&ts->upd);
+				/* now we're locked, new peers can't grab it anymore,
+				 * existing ones already have the ref_cnt.
+				 */
+				if (HA_ATOMIC_LOAD(&ts->ref_cnt))
+					continue;
 			}
+
+			/* session expired, trash it */
+			ebmb_delete(&ts->key);
+			eb32_delete(&ts->upd);
 			__stksess_free(t, ts);
 		}
 
