@@ -336,6 +336,9 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 
+		if (max_search <= 0)
+			break;
+
 		shard = (shard + 1) % CONFIG_HAP_TBL_BUCKETS;
 		if (!shard)
 			break;
