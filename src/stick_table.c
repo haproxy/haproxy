@@ -903,7 +903,7 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 	 * were to update with TICK_ETERNITY.
 	 */
 	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
-	task->expire = tick_first(task->expire, task_exp);
+	task->expire = task_exp;
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return task;
