@@ -334,6 +334,7 @@ static const struct trace_event peers_trace_events[] = {
 	{ .mask = PEERS_EV_SESSREL,    .name = "sessrl",       .desc = "peer session releasing" },
 #define PEERS_EV_PROTOERR        (1 << 6)
 	{ .mask = PEERS_EV_PROTOERR,   .name = "protoerr",     .desc = "protocol error" },
+	{ }
 };
 
 static const struct name_desc peers_trace_lockon_args[4] = {
