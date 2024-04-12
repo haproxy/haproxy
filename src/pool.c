@@ -1016,9 +1016,16 @@ void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item
 			if (!the_pool) {
 				const char *start, *end, *p;
 
-				pool_mark = (const void **)(((char *)item) + pool->size);
 				chunk_appendf(&trash,
-					      "Tag does not match any other pool.\n"
+					      "Tag does not match any other pool.\n");
+
+				pool_mark = (const void **)(((char *)item) + pool->size);
+				if (resolve_sym_name(&trash, "Resolving the tag as a pool_free() location: ", *pool_mark))
+					chunk_appendf(&trash, "\n");
+				else
+					chunk_appendf(&trash, " (no match).\n");
+
+				chunk_appendf(&trash,
 					      "Contents around address %p+%lu=%p:\n",
 					      item, (ulong)((const void*)pool_mark - (const void*)item),
 					      pool_mark);
