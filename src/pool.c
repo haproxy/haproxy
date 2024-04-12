@@ -496,7 +496,7 @@ void pool_check_pattern(struct pool_cache_head *pch, struct pool_head *pool, str
 	u = ptr[ofs++];
 	while (ofs < size / sizeof(*ptr)) {
 		if (unlikely(ptr[ofs] != u)) {
-			pool_inspect_item("cache corruption detected", pool, item, caller);
+			pool_inspect_item("cache corruption detected", pool, item, caller, ofs * sizeof(*ptr));
 			ABORT_NOW();
 		}
 		ofs++;
@@ -961,8 +961,12 @@ void pool_destroy_all()
 	}
 }
 
-/* carefully inspects an item upon fatal error and emit diagnostics */
-void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item, const void *caller)
+/* carefully inspects an item upon fatal error and emit diagnostics.
+ * If ofs < 0, no hint is provided regarding the content location. However if
+ * ofs >= 0, then we also try to inspect around that place where corruption
+ * was detected.
+ */
+void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item, const void *caller, ssize_t ofs)
 {
 	const struct pool_head *the_pool = NULL;
 
@@ -978,6 +982,11 @@ void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item
 		      "  item: %p\n"
 		      "  pool: %p ('%s', size %u, real %u, users %u)\n",
 		      item, pool, pool->name, pool->size, pool->alloc_sz, pool->users);
+
+	if (ofs >= 0) {
+		chunk_printf(&trash, "Contents around first corrupted address relative to pool item:.\n");
+		dump_area_with_syms(&trash, item, item + ofs, NULL, NULL, NULL);
+	}
 
 	if (pool_debugging & POOL_DBG_TAG) {
 		const void **pool_mark;

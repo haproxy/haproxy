@@ -77,7 +77,7 @@
 		if (likely(!(pool_debugging & POOL_DBG_TAG)))		\
 			break;						\
 		if (*(typeof(pool)*)(((char *)__i) + __p->size) != __p)	{ \
-			pool_inspect_item("tag mismatch on free()", pool, item, caller); \
+			pool_inspect_item("tag mismatch on free()", __p, __i, caller, -1); \
 			ABORT_NOW();					\
 		}							\
 	} while (0)
@@ -126,7 +126,7 @@ void *pool_destroy(struct pool_head *pool);
 void pool_destroy_all(void);
 void *__pool_alloc(struct pool_head *pool, unsigned int flags);
 void __pool_free(struct pool_head *pool, void *ptr);
-void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item, const void *caller);
+void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item, const void *caller, ssize_t ofs);
 
 
 /****************** Thread-local cache management ******************/
