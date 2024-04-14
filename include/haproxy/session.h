@@ -209,7 +209,7 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 	}
 	LIST_APPEND(&pconns->conn_list, &conn->sess_el);
 
-	/* Ensure owner is set for connection. It could have been resetted
+	/* Ensure owner is set for connection. It could have been reset
 	 * prior on after a session_add_conn() failure.
 	 */
 	conn->owner = sess;

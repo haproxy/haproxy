@@ -70,7 +70,7 @@ void ring_init(struct ring *ring, void *area, size_t size, int reset)
  * If <area> is null, then it's allocated of the requested size. The ring
  * storage struct is part of the area so the usable area is slightly reduced.
  * However the storage is immediately adjacent to the struct so that the ring
- * remains consistent on-disk. ring_free() will ignore such ring stoages and
+ * remains consistent on-disk. ring_free() will ignore such ring storages and
  * will only release the ring part, so the caller is responsible for releasing
  * them. If <reset> is non-zero, the storage area is reset, otherwise it's left
  * intact.

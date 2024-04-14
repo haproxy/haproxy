@@ -568,7 +568,7 @@ static int add_sample_to_logformat_list(char *text, char *name, int name_len, in
  *
  *  lf_expr: the destination logformat expression (logformat_node list)
  *           which is supposed to be configured (str and conf set) but
- *           shouldn't be compiled (shoudn't contain any nodes)
+ *           shouldn't be compiled (shouldn't contain any nodes)
  *  al: arg list where sample expr should store arg dependency (if the logformat
  *      expression involves sample expressions), may be NULL
  *  options: LOG_OPT_* to force on every node

@@ -71,7 +71,7 @@ static uint32_t caplist;
  * will be unset by the same reason.
  * We do this only if the current euid is non-root and there is no global.uid.
  * Otherwise the process will continue either to run under root, or it will do
- * a transition to unpriviledged user later in prepare_caps_for_setuid(),
+ * a transition to unprivileged user later in prepare_caps_for_setuid(),
  * which specially manages its capabilities in that case.
  * Always returns 0. Diagnostic warnings will be emitted only, if
  * LSTCHK_NETADM is presented in LSTCHK_NETADM and some failures are

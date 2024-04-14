@@ -6739,7 +6739,7 @@ fullconn <conns>
 
 guid <string>
   Specify a case-sensitive global unique ID for this proxy. This must be unique
-  accross all haproxy configuration on every object types. Format is left
+  across all haproxy configuration on every object types. Format is left
   unspecified to allow the user to select its naming policy. The only
   restriction is its length which cannot be greater than 127 characters. All
   alphanumerical values and '.', ':', '-' and '_' characters are valid.
@@ -17000,7 +17000,7 @@ force-tlsv13
 
 guid <string>
   Specify a case-sensitive global unique ID for this server. This must be
-  unique accross all haproxy configuration on every object types. See "guid"
+  unique across all haproxy configuration on every object types. See "guid"
   proxy keyword description for more information on its format.
 
 id <value>

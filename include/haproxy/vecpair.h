@@ -436,7 +436,7 @@ static inline size_t vp_get_varint_ofs(struct ist *v1, struct ist *v2, size_t of
 
 	vp_skip(v1, v2, ofs);
 
-	/* let's see where we start from. The wraping area only concerns the
+	/* let's see where we start from. The wrapping area only concerns the
 	 * end of the first area, even if it's empty it does not overlap with
 	 * the second one so we don't care about v1 being set or not.
 	 */
