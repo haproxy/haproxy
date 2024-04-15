@@ -399,6 +399,11 @@ void stop_listener(struct listener *l, int lpx, int lpr, int lli)
  */
 void default_add_listener(struct protocol *proto, struct listener *listener)
 {
+	if(global.tune.options & GTUNE_MPTCP)
+		/* check MPTCP option */
+#ifdef linux
+		proto->sock_prot = IPPROTO_MPTCP;
+#endif
 	if (listener->state != LI_INIT)
 		return;
 	listener_set_state(listener, LI_ASSIGNED);
