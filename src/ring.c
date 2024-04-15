@@ -104,7 +104,7 @@ struct ring *ring_make_from_area(void *area, size_t size, int reset)
 }
 
 /* Creates and returns a ring buffer of size <size> bytes. Returns NULL on
- * allocation failure.
+ * allocation failure. The size is the area size, not the usable size.
  */
 struct ring *ring_new(size_t size)
 {
@@ -114,7 +114,8 @@ struct ring *ring_new(size_t size)
 /* Resizes existing ring <ring> to <size> which must be larger, without losing
  * its contents. The new size must be at least as large as the previous one or
  * no change will be performed. The pointer to the ring is returned on success,
- * or NULL on allocation failure. This will lock the ring for writes.
+ * or NULL on allocation failure. This will lock the ring for writes. The size
+ * is the allocated area size, and includes the ring_storage header.
  */
 struct ring *ring_resize(struct ring *ring, size_t size)
 {
