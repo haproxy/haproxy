@@ -4207,12 +4207,6 @@ out:
 		err_code |= ERR_ABORT;
 	free(errmsg);
 	return err_code;
-
-alloc_error:
-	ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
-	err_code |= ERR_ALERT | ERR_ABORT;
-	goto out;
-
 }
 
 REGISTER_CONFIG_SECTION("crt-store", cfg_parse_crtstore, NULL);
