@@ -179,6 +179,7 @@ struct ckch_conf_kws {
 	size_t offset;
 	enum parse_type_t type;
 	int (*func)(const char *path, char *buf, struct ckch_data *d, char **err);
+	char **base; /* ptr to the base path */
 };
 
 extern struct ckch_conf_kws ckch_conf_kws[];

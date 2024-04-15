@@ -3997,12 +3997,12 @@ static struct cli_kw_list cli_kws = {{ },{
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 struct ckch_conf_kws ckch_conf_kws[] = {
-	{ "crt",    offsetof(struct ckch_conf, crt),    PARSE_TYPE_STR, ssl_sock_load_pem_into_ckch             },
-	{ "key",    offsetof(struct ckch_conf, key),    PARSE_TYPE_STR, ssl_sock_load_key_into_ckch             },
-	{ "ocsp",   offsetof(struct ckch_conf, ocsp),   PARSE_TYPE_STR, ssl_sock_load_ocsp_response_from_file   },
-	{ "issuer", offsetof(struct ckch_conf, issuer), PARSE_TYPE_STR, ssl_sock_load_issuer_file_into_ckch     },
-	{ "sctl",   offsetof(struct ckch_conf, sctl),   PARSE_TYPE_STR, ssl_sock_load_sctl_from_file            },
-	{ NULL,     0,                                  PARSE_TYPE_STR, NULL                                    }
+	{ "crt",    offsetof(struct ckch_conf, crt),    PARSE_TYPE_STR, ssl_sock_load_pem_into_ckch,           &global_ssl.crt_base },
+	{ "key",    offsetof(struct ckch_conf, key),    PARSE_TYPE_STR, ssl_sock_load_key_into_ckch,           &global_ssl.crt_base },
+	{ "ocsp",   offsetof(struct ckch_conf, ocsp),   PARSE_TYPE_STR, ssl_sock_load_ocsp_response_from_file, &global_ssl.crt_base },
+	{ "issuer", offsetof(struct ckch_conf, issuer), PARSE_TYPE_STR, ssl_sock_load_issuer_file_into_ckch,   &global_ssl.crt_base },
+	{ "sctl",   offsetof(struct ckch_conf, sctl),   PARSE_TYPE_STR, ssl_sock_load_sctl_from_file,          &global_ssl.crt_base },
+	{ NULL,     0,                                  PARSE_TYPE_STR, NULL,                                  NULL                 }
 };
 
 /* crt-store does not try to find files, but use the stored filename */
@@ -4020,14 +4020,32 @@ int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, char **err)
 	}
 
 	for (i = 0; ckch_conf_kws[i].name; i++) {
-		if (*(char **)((intptr_t)f + (ptrdiff_t)ckch_conf_kws[i].offset)) {
-			if (!ckch_conf_kws[i].func)
+		char *src = *(char **)((intptr_t)f + (ptrdiff_t)ckch_conf_kws[i].offset);
+		char **base = ckch_conf_kws[i].base;
+		if (src) {
+			char *path;
+			char path_base[PATH_MAX];
+
+			if (!ckch_conf_kws[i].func || ckch_conf_kws[i].type != PARSE_TYPE_STR)
 				continue;
-			rc = ckch_conf_kws[i].func(*(char **)((intptr_t)f + (ptrdiff_t)ckch_conf_kws[i].offset), NULL, d, err);
+
+			path = src;
+
+			if (base && *base) {
+				if (*src != '/') {
+					int rv = snprintf(path_base, sizeof(path_base), "%s/%s", *base, src);
+					if (rv >= sizeof(path_base)) {
+						memprintf(err, "'%s/%s' : path too long", *base, src);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+					path = path_base;
+				}
+			}
+			rc = ckch_conf_kws[i].func(path, NULL, d, err);
 			if (rc) {
 				err_code |= ERR_ALERT | ERR_FATAL;
-				memprintf(err, "%s '%s' cannot be read or parsed.",
-				          err && *err ? *err : "", *(char **)((intptr_t)f + (ptrdiff_t)ckch_conf_kws[i].offset));
+				memprintf(err, "%s '%s' cannot be read or parsed.", err && *err ? *err : "", path);
 				goto out;
 			}
 		}
@@ -4049,6 +4067,8 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 	int cur_arg = 0;
 	struct ckch_conf f = {};
 	struct ckch_store *c = NULL;
+	char store_path[PATH_MAX];
+	char *store_name;
 
 	cur_arg++; /* skip "load" */
 
@@ -4073,7 +4093,7 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 
 					*t = strtol(args[cur_arg + 1], &stop, 10);
 					if (*stop != '\0') {
-						memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', an integer is expected.\n", 
+						memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', an integer is expected.\n",
 						          file, linenum, args[cur_arg], args[cur_arg + 1]);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
@@ -4112,8 +4132,21 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 		goto out;
 	}
 
+	store_name = f.crt;
+
+	/* complete the name in the ckch_tree with 'crt-base' */
+	if (global_ssl.crt_base && *f.crt != '/') {
+		int rv = snprintf(store_path, sizeof(store_path), "%s/%s", global_ssl.crt_base, f.crt);
+		if (rv >= sizeof(store_path)) {
+			memprintf(err, "'%s/%s' : path too long", global_ssl.crt_base, f.crt);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		store_name = store_path;
+	}
+
 	/* process and insert the ckch_store */
-	c = ckch_store_new(f.crt);
+	c = ckch_store_new(store_name);
 	if (!c)
 		goto alloc_error;
 
