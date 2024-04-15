@@ -102,6 +102,8 @@ static inline size_t ring_dup(struct ring *dst, const struct ring *src, size_t m
 	if (max > ring_data(src))
 		max = ring_data(src);
 
+	BUG_ON(max > ring_size(dst));
+
 	vp_peek_ofs(v1, v2, 0, ring_area(dst), max);
 	dst->storage->head = 0;
 	dst->storage->tail = max;
