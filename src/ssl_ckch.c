@@ -3998,7 +3998,7 @@ INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 struct ckch_conf_kws ckch_conf_kws[] = {
 	{ "crt",    offsetof(struct ckch_conf, crt),    PARSE_TYPE_STR, ssl_sock_load_pem_into_ckch,           &global_ssl.crt_base },
-	{ "key",    offsetof(struct ckch_conf, key),    PARSE_TYPE_STR, ssl_sock_load_key_into_ckch,           &global_ssl.crt_base },
+	{ "key",    offsetof(struct ckch_conf, key),    PARSE_TYPE_STR, ssl_sock_load_key_into_ckch,           &global_ssl.key_base },
 	{ "ocsp",   offsetof(struct ckch_conf, ocsp),   PARSE_TYPE_STR, ssl_sock_load_ocsp_response_from_file, &global_ssl.crt_base },
 	{ "issuer", offsetof(struct ckch_conf, issuer), PARSE_TYPE_STR, ssl_sock_load_issuer_file_into_ckch,   &global_ssl.crt_base },
 	{ "sctl",   offsetof(struct ckch_conf, sctl),   PARSE_TYPE_STR, ssl_sock_load_sctl_from_file,          &global_ssl.crt_base },

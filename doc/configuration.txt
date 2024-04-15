@@ -1278,6 +1278,7 @@ The following keywords are supported in the "global" section :
    - insecure-fork-wanted
    - insecure-setuid-wanted
    - issuers-chain-path
+   - key-base
    - localpeer
    - log
    - log-send-hostname
@@ -2016,6 +2017,11 @@ issuers-chain-path <dir>
   chain if a file with IntermediateCA2+IntermediateCA1 is present in
   "issuers-chain-path" directory. All other certificates with the same issuer
   will share the chain in memory.
+
+key-base <dir>
+  Assigns a default directory to fetch SSL private keys from when a relative
+  path is used with "key" directives. Absolute locations specified prevail and
+  ignore "key-base". This option only works with a crt-store load line.
 
 limited-quic
   This setting must be used to explicitly enable the QUIC listener bindings when
