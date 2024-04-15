@@ -201,7 +201,7 @@ struct ring *startup_logs_dup(struct ring *src)
 	struct ring *dst = NULL;
 
 	/* must use the size of the previous buffer */
-	dst = ring_new(ring_size(src));
+	dst = ring_new(ring_allocated_size(src));
 	if (!dst)
 		goto error;
 
