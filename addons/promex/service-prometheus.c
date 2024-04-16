@@ -659,7 +659,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 			if ((px->flags & PR_FL_DISABLED) || px->uuid <= 0 || !(px->cap & PR_CAP_FE))
 				goto next_px;
 
-			if (!stats_fill_fe_line(px, stats, ST_I_PX_MAX, &(ctx->field_num)))
+			if (!stats_fill_fe_line(px, 0, stats, ST_I_PX_MAX, &(ctx->field_num)))
 				return -1;
 
 			switch (ctx->field_num) {

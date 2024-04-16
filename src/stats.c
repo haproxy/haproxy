@@ -693,26 +693,34 @@ static int stcol_hide(enum stat_idx_px idx, enum obj_type *objt)
 
 /* Generate if possible a metric value from <col>. <cap> must be set to one of
  * STATS_PX_CAP_* values to check if the metric is available for this object
- * type. Metric value will be extracted from <counters>.
+ * type. <stat_file> must be set when dumping stats-file. Metric value will be
+ * extracted from <counters>.
  *
- * Returns a field value or an empty one if cap not compatible.
+ * Returns a field metric.
  */
 static struct field me_generate_field(const struct stat_col *col,
                                       enum stat_idx_px idx, enum obj_type *objt,
-                                      const void *counters, uint8_t cap)
+                                      const void *counters, uint8_t cap,
+                                      int stat_file)
 {
 	struct field value;
 	void *counter = NULL;
+	int wrong_side = 0;
+
+	/* Only generic stat column must be used as input. */
+	BUG_ON(!stcol_is_generic(col));
 
 	switch (cap) {
 	case STATS_PX_CAP_FE:
 	case STATS_PX_CAP_LI:
 		counter = (char *)counters + col->metric.offset[0];
+		wrong_side = !(col->cap & (STATS_PX_CAP_FE|STATS_PX_CAP_LI));
 		break;
 
 	case STATS_PX_CAP_BE:
 	case STATS_PX_CAP_SRV:
 		counter = (char *)counters + col->metric.offset[1];
+		wrong_side = !(col->cap & (STATS_PX_CAP_BE|STATS_PX_CAP_SRV));
 		break;
 
 	default:
@@ -720,13 +728,18 @@ static struct field me_generate_field(const struct stat_col *col,
 		ABORT_NOW();
 	}
 
-	/* Check if metric is defined for this side. */
-	if (!(col->cap & cap))
-		return (struct field){ .type = FF_EMPTY };
-
-	/* Check if metric should be hidden in output. */
-	if (stcol_hide(idx, objt))
-		return (struct field){ .type = FF_EMPTY };
+	if (stat_file) {
+		/* stats-file emits separately frontend and backend stats.
+		 * Skip metric if not defined for any object on the cap side.
+		 */
+		if (wrong_side)
+			return (struct field){ .type = FF_EMPTY };
+	}
+	else {
+		/* Ensure metric is defined for the current cap. */
+		if (!(col->cap & cap) || stcol_hide(idx, objt))
+			return (struct field){ .type = FF_EMPTY };
+	}
 
 	switch (stcol_format(col)) {
 	case FF_U64:
@@ -746,7 +759,7 @@ static struct field me_generate_field(const struct stat_col *col,
  * this value, or if the selected field is not implemented for frontends, the
  * function returns 0, otherwise, it returns 1.
  */
-int stats_fill_fe_line(struct proxy *px, struct field *line, int len,
+int stats_fill_fe_line(struct proxy *px, int flags, struct field *line, int len,
                        enum stat_idx_px *index)
 {
 	enum stat_idx_px i = index ? *index : 0;
@@ -760,9 +773,10 @@ int stats_fill_fe_line(struct proxy *px, struct field *line, int len,
 
 		if (stcol_is_generic(col)) {
 			field = me_generate_field(col, i, &px->obj_type,
-			                          &px->fe_counters, STATS_PX_CAP_FE);
+			                          &px->fe_counters, STATS_PX_CAP_FE,
+			                          flags & STAT_F_FMT_FILE);
 		}
-		else {
+		else if (!(flags & STAT_F_FMT_FILE)) {
 			switch (i) {
 			case ST_I_PX_PXNAME:
 				field = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
@@ -889,7 +903,7 @@ static int stats_dump_fe_line(struct stconn *sc, struct proxy *px)
 
 	memset(line, 0, sizeof(struct field) * stat_cols_len[STATS_DOMAIN_PROXY]);
 
-	if (!stats_fill_fe_line(px, line, ST_I_PX_MAX, NULL))
+	if (!stats_fill_fe_line(px, ctx->flags, line, ST_I_PX_MAX, NULL))
 		return 0;
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
@@ -935,9 +949,10 @@ int stats_fill_li_line(struct proxy *px, struct listener *l, int flags,
 
 		if (stcol_is_generic(col)) {
 			field = me_generate_field(col, i, &l->obj_type,
-			                          l->counters, STATS_PX_CAP_LI);
+			                          l->counters, STATS_PX_CAP_LI,
+			                          flags & STAT_F_FMT_FILE);
 		}
-		else {
+		else if (!(flags & STAT_F_FMT_FILE)) {
 			switch (i) {
 			case ST_I_PX_PXNAME:
 				field = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
@@ -1184,9 +1199,10 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 
 		if (stcol_is_generic(col)) {
 			field = me_generate_field(col, i, &sv->obj_type,
-			                          &sv->counters, STATS_PX_CAP_SRV);
+			                          &sv->counters, STATS_PX_CAP_SRV,
+			                          flags & STAT_F_FMT_FILE);
 		}
-		else {
+		else if (!(flags & STAT_F_FMT_FILE)) {
 			switch (i) {
 			case ST_I_PX_PXNAME:
 				field = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
@@ -1570,9 +1586,10 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 
 		if (stcol_is_generic(col)) {
 			field = me_generate_field(col, i, &px->obj_type,
-			                          &px->be_counters, STATS_PX_CAP_BE);
+			                          &px->be_counters, STATS_PX_CAP_BE,
+			                          flags & STAT_F_FMT_FILE);
 		}
-		else {
+		else if (!(flags & STAT_F_FMT_FILE)) {
 			switch (i) {
 			case ST_I_PX_PXNAME:
 				field = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);

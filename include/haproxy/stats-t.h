@@ -29,7 +29,7 @@
 #define STAT_F_FMT_HTML   0x00000001    /* dump the stats in HTML format */
 #define STAT_F_FMT_TYPED  0x00000002    /* use the typed output format */
 #define STAT_F_FMT_JSON   0x00000004    /* dump the stats in JSON format */
-#define STAT_F_HIDE_DOWN  0x00000008    /* hide 'down' servers in the stats page */
+#define STAT_F_FMT_FILE   0x00000008    /* dump stats-file */
 #define STAT_F_NO_REFRESH 0x00000010    /* do not automatically refresh the stats page */
 #define STAT_F_ADMIN      0x00000020    /* indicate a stats admin level */
 #define STAT_F_CHUNKED    0x00000040    /* use chunked encoding (HTTP/1.1) */
@@ -44,11 +44,12 @@
 #define STAT_F_HIDE_MAINT 0x00004000    /* hide maint/disabled servers */
 #define STAT_F_CONVDONE   0x00008000    /* conf: rules conversion done */
 #define STAT_F_USE_FLOAT  0x00010000    /* use floats where possible in the outputs */
+#define STAT_F_HIDE_DOWN  0x00020000	/* hide 'down' servers in the stats page */
 
 #define STAT_F_BOUND      0x00800000    /* bound statistics to selected proxies/types/services */
 #define STAT_F_STARTED    0x01000000    /* some output has occurred */
 
-#define STAT_F_FMT_MASK   0x00000007
+#define STAT_F_FMT_MASK   0x0000000f
 
 #define STATS_TYPE_FE  0
 #define STATS_TYPE_BE  1

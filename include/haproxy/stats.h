@@ -55,7 +55,7 @@ const char *stats_scope_ptr(struct appctx *appctx);
 int stats_dump_one_line(const struct field *line, size_t stats_count, struct appctx *appctx);
 
 int stats_fill_info(struct field *info, int len, uint flags);
-int stats_fill_fe_line(struct proxy *px, struct field *line, int len,
+int stats_fill_fe_line(struct proxy *px, int flags, struct field *line, int len,
                        enum stat_idx_px *index);
 int stats_fill_li_line(struct proxy *px, struct listener *l, int flags,
                        struct field *line, int len, enum stat_idx_px *index);
