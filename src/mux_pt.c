@@ -475,7 +475,7 @@ static void mux_pt_shutr(struct stconn *sc, enum co_shr_mode mode)
 		    (mode == CO_SHR_DRAIN));
 	else if (mode == CO_SHR_DRAIN)
 		conn_ctrl_drain(conn);
-	if (se_fl_test(ctx->sd, SE_FL_SHW))
+	if (conn->flags & CO_FL_SOCK_WR_SH)
 		conn_full_close(conn);
 
 	TRACE_LEAVE(PT_EV_STRM_SHUT, conn, sc);
@@ -484,14 +484,13 @@ static void mux_pt_shutr(struct stconn *sc, enum co_shr_mode mode)
 static void mux_pt_shutw(struct stconn *sc, enum co_shw_mode mode)
 {
 	struct connection *conn = __sc_conn(sc);
-	struct mux_pt_ctx *ctx = conn->ctx;
 
 	TRACE_ENTER(PT_EV_STRM_SHUT, conn, sc);
 
 	if (conn_xprt_ready(conn) && conn->xprt->shutw)
 		conn->xprt->shutw(conn, conn->xprt_ctx,
 		    (mode == CO_SHW_NORMAL));
-	if (!se_fl_test(ctx->sd, SE_FL_SHR))
+	if (!(conn->flags & CO_FL_SOCK_RD_SH))
 		conn_sock_shutw(conn, (mode == CO_SHW_NORMAL));
 	else
 		conn_full_close(conn);
