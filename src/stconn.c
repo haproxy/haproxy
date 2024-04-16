@@ -405,7 +405,7 @@ static void sc_detach_endp(struct stconn **scp)
 		sc_ep_set(sc, SE_FL_ORPHAN);
 		sc->sedesc->sc = NULL;
 		sc->sedesc = NULL;
-		appctx_shut(appctx);
+		appctx_shut(appctx, SE_SHR_RESET|SE_SHW_NORMAL);
 		appctx_free(appctx);
 	}
 
@@ -884,7 +884,7 @@ static void sc_app_abort_applet(struct stconn *sc)
 		return;
 
 	if (sc->flags & SC_FL_SHUT_DONE) {
-		appctx_shut(__sc_appctx(sc));
+		appctx_shut(__sc_appctx(sc), SE_SHR_RESET|SE_SHW_NORMAL);
 		sc->state = SC_ST_DIS;
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
@@ -929,11 +929,11 @@ static void sc_app_shut_applet(struct stconn *sc)
 		 */
 		if (!(sc->flags & (SC_FL_ERROR|SC_FL_NOLINGER|SC_FL_EOS|SC_FL_ABRT_DONE)) &&
 		    !(ic->flags & CF_DONT_READ)) {
-			appctx_shutw(__sc_appctx(sc));
+			appctx_shut(__sc_appctx(sc), SE_SHW_NORMAL);
 			return;
 		}
 
-		appctx_shut(__sc_appctx(sc));
+		appctx_shut(__sc_appctx(sc), SE_SHR_RESET|SE_SHW_NORMAL);
 		sc->state = SC_ST_DIS;
 		break;
 
@@ -942,7 +942,7 @@ static void sc_app_shut_applet(struct stconn *sc)
 	case SC_ST_QUE:
 	case SC_ST_TAR:
 		/* Note that none of these states may happen with applets */
-		appctx_shut(__sc_appctx(sc));
+		appctx_shut(__sc_appctx(sc), SE_SHR_RESET|SE_SHW_NORMAL);
 		sc->state = SC_ST_DIS;
 		break;
 	default:
@@ -1866,7 +1866,7 @@ static void sc_applet_eos(struct stconn *sc)
 		return;
 
 	if (sc->flags & SC_FL_SHUT_DONE) {
-		appctx_shut(__sc_appctx(sc));
+		appctx_shut(__sc_appctx(sc), SE_SHR_RESET|SE_SHW_NORMAL);
 		sc->state = SC_ST_DIS;
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;

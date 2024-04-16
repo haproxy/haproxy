@@ -42,7 +42,7 @@ struct task *task_process_applet(struct task *t, void *context, unsigned int sta
 int appctx_buf_available(void *arg);
 void *applet_reserve_svcctx(struct appctx *appctx, size_t size);
 void applet_reset_svcctx(struct appctx *appctx);
-void appctx_shut(struct appctx *appctx);
+void appctx_shut(struct appctx *appctx, enum se_shut_mode mode);
 
 struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int thr);
 int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buffer *input);
@@ -131,14 +131,6 @@ static inline void __appctx_free(struct appctx *appctx)
 	sedesc_free(appctx->sedesc);
 	pool_free(pool_head_appctx, appctx);
 	_HA_ATOMIC_DEC(&nb_applets);
-}
-
-static inline void appctx_shutw(struct appctx *appctx)
-{
-	if (se_fl_test(appctx->sedesc, SE_FL_SHW))
-		return;
-
-	se_fl_set(appctx->sedesc, SE_FL_SHWN);
 }
 
 /* wakes up an applet when conditions have changed. We're using a macro here in

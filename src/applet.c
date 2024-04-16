@@ -391,23 +391,30 @@ void applet_reset_svcctx(struct appctx *appctx)
 	appctx->svcctx = NULL;
 }
 
-/* call the applet's release() function if any, and marks the sedesc as shut.
- * Needs to be called upon close().
+/* call the applet's release() function if any, and marks the sedesc as shut
+ * once both read and write side are shut.  Needs to be called upon close().
  */
-void appctx_shut(struct appctx *appctx)
+void appctx_shut(struct appctx *appctx, enum se_shut_mode mode)
 {
 	if (applet_fl_test(appctx, APPCTX_FL_SHUTDOWN))
 		return;
 
 	TRACE_ENTER(APPLET_EV_RELEASE, appctx);
-	if (appctx->applet->release)
-		appctx->applet->release(appctx);
-	applet_fl_set(appctx, APPCTX_FL_SHUTDOWN);
+	if ((mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) && !se_fl_test(appctx->sedesc, SE_FL_SHW))
+		se_fl_set(appctx->sedesc, SE_FL_SHWN);
 
-	if (LIST_INLIST(&appctx->buffer_wait.list))
-		LIST_DEL_INIT(&appctx->buffer_wait.list);
+	if ((mode & (SE_SHR_RESET|SE_SHR_DRAIN)) && !se_fl_test(appctx->sedesc, SE_FL_SHR))
+		se_fl_set(appctx->sedesc, SE_FL_SHRR);
 
-	se_fl_set(appctx->sedesc, SE_FL_SHRR | SE_FL_SHWN);
+	if (se_fl_test(appctx->sedesc, SE_FL_SHR) && se_fl_test(appctx->sedesc, SE_FL_SHW)) {
+		if (appctx->applet->release)
+			appctx->applet->release(appctx);
+		applet_fl_set(appctx, APPCTX_FL_SHUTDOWN);
+
+		if (LIST_INLIST(&appctx->buffer_wait.list))
+			LIST_DEL_INIT(&appctx->buffer_wait.list);
+	}
+
 	TRACE_LEAVE(APPLET_EV_RELEASE, appctx);
 }
 
