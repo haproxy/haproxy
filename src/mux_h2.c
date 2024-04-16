@@ -5080,18 +5080,18 @@ struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state)
 }
 
 /* shutr() called by the stream connector (mux_ops.shutr) */
-static void h2_shutr(struct stconn *sc, enum co_shr_mode mode)
+static void h2_shutr(struct stconn *sc, enum se_shut_mode mode)
 {
 	struct h2s *h2s = __sc_mux_strm(sc);
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
-	if (mode)
+	if (mode & SE_SHR_RESET)
 		h2_do_shutr(h2s);
 	TRACE_LEAVE(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
 }
 
 /* shutw() called by the stream connector (mux_ops.shutw) */
-static void h2_shutw(struct stconn *sc, enum co_shw_mode mode)
+static void h2_shutw(struct stconn *sc, enum se_shut_mode mode)
 {
 	struct h2s *h2s = __sc_mux_strm(sc);
 

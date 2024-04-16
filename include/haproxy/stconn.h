@@ -319,7 +319,7 @@ static inline const char *sc_get_data_name(const struct stconn *sc)
 }
 
 /* shut read */
-static inline void sc_conn_shutr(struct stconn *sc, enum co_shr_mode mode)
+static inline void sc_conn_shutr(struct stconn *sc, enum se_shut_mode mode)
 {
 	const struct mux_ops *mux;
 
@@ -332,11 +332,11 @@ static inline void sc_conn_shutr(struct stconn *sc, enum co_shr_mode mode)
 	mux = sc_mux_ops(sc);
 	if (mux && mux->shutr)
 		mux->shutr(sc, mode);
-	sc_ep_set(sc, (mode == CO_SHR_DRAIN) ? SE_FL_SHRD : SE_FL_SHRR);
+	sc_ep_set(sc, (mode & SE_SHR_DRAIN) ? SE_FL_SHRD : SE_FL_SHRR);
 }
 
 /* shut write */
-static inline void sc_conn_shutw(struct stconn *sc, enum co_shw_mode mode)
+static inline void sc_conn_shutw(struct stconn *sc, enum se_shut_mode mode)
 {
 	const struct mux_ops *mux;
 
@@ -349,21 +349,21 @@ static inline void sc_conn_shutw(struct stconn *sc, enum co_shw_mode mode)
 	mux = sc_mux_ops(sc);
 	if (mux && mux->shutw)
 		mux->shutw(sc, mode);
-	sc_ep_set(sc, (mode == CO_SHW_NORMAL) ? SE_FL_SHWN : SE_FL_SHWS);
+	sc_ep_set(sc, (mode & SE_SHW_NORMAL) ? SE_FL_SHWN : SE_FL_SHWS);
 }
 
 /* completely close a stream connector (but do not detach it) */
 static inline void sc_conn_shut(struct stconn *sc)
 {
-	sc_conn_shutw(sc, CO_SHW_SILENT);
-	sc_conn_shutr(sc, CO_SHR_RESET);
+	sc_conn_shutw(sc, SE_SHW_SILENT);
+	sc_conn_shutr(sc, SE_SHR_RESET);
 }
 
 /* completely close a stream connector after draining possibly pending data (but do not detach it) */
 static inline void sc_conn_drain_and_shut(struct stconn *sc)
 {
-	sc_conn_shutw(sc, CO_SHW_SILENT);
-	sc_conn_shutr(sc, CO_SHR_DRAIN);
+	sc_conn_shutw(sc, SE_SHW_SILENT);
+	sc_conn_shutr(sc, SE_SHR_DRAIN);
 }
 
 /* Returns non-zero if the stream connector's Rx path is blocked because of

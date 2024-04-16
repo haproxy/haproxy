@@ -26,6 +26,7 @@
 #include <haproxy/connection-t.h>
 #include <haproxy/pipe-t.h>
 #include <haproxy/show_flags-t.h>
+#include <haproxy/task-t.h>
 #include <haproxy/xref-t.h>
 
 enum iobuf_flags {
@@ -112,6 +113,14 @@ enum se_flags {
 	SE_FL_WONT_CONSUME  = 0x20000000,  /* stream endpoint will not consume more data */
 	SE_FL_HAVE_NO_DATA  = 0x40000000,  /* the endpoint has no more data to deliver to the stream */
 	SE_FL_APPLET_NEED_CONN = 0x80000000,  /* applet is waiting for the other side to (fail to) connect */
+};
+
+/* Shutdown modes */
+enum se_shut_mode {
+	SE_SHR_DRAIN  = 0x00000001, /* read shutdown, drain any extra stuff */
+	SE_SHR_RESET  = 0x00000002, /* read shutdown, reset any extra stuff */
+	SE_SHW_NORMAL = 0x00000004, /* regular write shutdown */
+	SE_SHW_SILENT = 0x00000008, /* imminent close, don't notify peer */
 };
 
 /* This function is used to report flags in debugging tools. Please reflect

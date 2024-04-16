@@ -37,6 +37,7 @@
 #include <haproxy/port_range-t.h>
 #include <haproxy/protocol-t.h>
 #include <haproxy/show_flags-t.h>
+#include <haproxy/stconn-t.h>
 #include <haproxy/task-t.h>
 #include <haproxy/thread-t.h>
 
@@ -281,18 +282,6 @@ enum {
 	CO_SFL_LAST_DATA   = 0x0003,    /* Sent data are the last ones, shutdown is pending */
 };
 
-/* mux->shutr() modes */
-enum co_shr_mode {
-	CO_SHR_DRAIN        = 0,           /* read shutdown, drain any extra stuff */
-	CO_SHR_RESET        = 1,           /* read shutdown, reset any extra stuff */
-};
-
-/* mux->shutw() modes */
-enum co_shw_mode {
-	CO_SHW_NORMAL       = 0,           /* regular write shutdown */
-	CO_SHW_SILENT       = 1,           /* imminent close, don't notify peer */
-};
-
 /* known transport layers (for ease of lookup) */
 enum {
 	XPRT_RAW = 0,
@@ -422,8 +411,8 @@ struct mux_ops {
 	size_t (*done_fastfwd)(struct stconn *sc); /* Callback to terminate fast data forwarding */
 	int (*fastfwd)(struct stconn *sc, unsigned int count, unsigned int flags); /* Callback to init fast data forwarding */
 	int (*resume_fastfwd)(struct stconn *sc, unsigned int flags); /* Callback to resume fast data forwarding */
-	void (*shutr)(struct stconn *sc, enum co_shr_mode);     /* shutr function */
-	void (*shutw)(struct stconn *sc, enum co_shw_mode);     /* shutw function */
+	void (*shutr)(struct stconn *sc, enum se_shut_mode);     /* shutr function */
+	void (*shutw)(struct stconn *sc, enum se_shut_mode);     /* shutw function */
 
 	int (*attach)(struct connection *conn, struct sedesc *, struct session *sess); /* attach a stconn to an outgoing connection */
 	struct stconn *(*get_first_sc)(const struct connection *); /* retrieves any valid stconn from this connection */

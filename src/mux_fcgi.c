@@ -3792,18 +3792,17 @@ struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned int state)
 }
 
 /* shutr() called by the stream connector (mux_ops.shutr) */
-static void fcgi_shutr(struct stconn *sc, enum co_shr_mode mode)
+static void fcgi_shutr(struct stconn *sc, enum se_shut_mode mode)
 {
 	struct fcgi_strm *fstrm = __sc_mux_strm(sc);
 
 	TRACE_POINT(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
-	if (!mode)
-		return;
-	fcgi_do_shutr(fstrm);
+	if (mode & SE_SHR_RESET)
+		fcgi_do_shutr(fstrm);
 }
 
 /* shutw() called by the stream connector (mux_ops.shutw) */
-static void fcgi_shutw(struct stconn *sc, enum co_shw_mode mode)
+static void fcgi_shutw(struct stconn *sc, enum se_shut_mode mode)
 {
 	struct fcgi_strm *fstrm = __sc_mux_strm(sc);
 

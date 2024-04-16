@@ -4292,7 +4292,7 @@ static void h1_detach(struct sedesc *sd)
 }
 
 
-static void h1_shutr(struct stconn *sc, enum co_shr_mode mode)
+static void h1_shutr(struct stconn *sc, enum se_shut_mode mode)
 {
 	struct h1s *h1s = __sc_mux_strm(sc);
 	struct h1c *h1c;
@@ -4304,7 +4304,7 @@ static void h1_shutr(struct stconn *sc, enum co_shr_mode mode)
 	TRACE_POINT(H1_EV_STRM_SHUT, h1c->conn, h1s, 0, (size_t[]){mode});
 }
 
-static void h1_shutw(struct stconn *sc, enum co_shw_mode mode)
+static void h1_shutw(struct stconn *sc, enum se_shut_mode mode)
 {
 	struct h1s *h1s = __sc_mux_strm(sc);
 	struct h1c *h1c;
@@ -4320,7 +4320,7 @@ static void h1_shutw(struct stconn *sc, enum co_shw_mode mode)
 
   do_shutw:
 	h1_close(h1c);
-	if (mode != CO_SHW_NORMAL)
+	if (mode & SE_SHW_NORMAL)
 		h1c->flags |= H1C_F_SILENT_SHUT;
 
 	if (!b_data(&h1c->obuf))

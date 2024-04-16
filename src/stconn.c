@@ -743,7 +743,7 @@ static void sc_app_shut_conn(struct stconn *sc)
 			 * option abortonclose. No need for the TLS layer to try to
 			 * emit a shutdown message.
 			 */
-			sc_conn_shutw(sc, CO_SHW_SILENT);
+			sc_conn_shutw(sc, SE_SHW_SILENT);
 		}
 		else {
 			/* clean data-layer shutdown. This only happens on the
@@ -752,7 +752,7 @@ static void sc_app_shut_conn(struct stconn *sc)
 			 * while option abortonclose is set. We want the TLS
 			 * layer to try to signal it to the peer before we close.
 			 */
-			sc_conn_shutw(sc, CO_SHW_NORMAL);
+			sc_conn_shutw(sc, SE_SHW_NORMAL);
 
 			if (!(sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) && !(ic->flags & CF_DONT_READ))
 				return;
@@ -1194,7 +1194,7 @@ static void sc_conn_eos(struct stconn *sc)
 	if (sc_cond_forward_shut(sc)) {
 		/* we want to immediately forward this close to the write side */
 		/* force flag on ssl to keep stream in cache */
-		sc_conn_shutw(sc, CO_SHW_SILENT);
+		sc_conn_shutw(sc, SE_SHW_SILENT);
 		goto do_close;
 	}
 
