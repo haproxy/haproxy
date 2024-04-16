@@ -618,20 +618,23 @@ static void sc_app_shut(struct stconn *sc)
 		    !(ic->flags & CF_DONT_READ))
 			return;
 
-		__fallthrough;
+		sc->state = SC_ST_DIS;
+		break;
 	case SC_ST_CON:
 	case SC_ST_CER:
 	case SC_ST_QUE:
 	case SC_ST_TAR:
 		/* Note that none of these states may happen with applets */
 		sc->state = SC_ST_DIS;
-		__fallthrough;
+		break;
 	default:
-		sc->flags &= ~SC_FL_NOLINGER;
-		sc->flags |= SC_FL_ABRT_DONE;
-		if (sc->flags & SC_FL_ISBACK)
-			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
+		break;
 	}
+
+	sc->flags &= ~SC_FL_NOLINGER;
+	sc->flags |= SC_FL_ABRT_DONE;
+	if (sc->flags & SC_FL_ISBACK)
+		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 
 	/* note that if the task exists, it must unregister itself once it runs */
 	if (!(sc->flags & SC_FL_DONT_WAKE))
@@ -731,51 +734,43 @@ static void sc_app_shut_conn(struct stconn *sc)
 	switch (sc->state) {
 	case SC_ST_RDY:
 	case SC_ST_EST:
+
 		/* we have to shut before closing, otherwise some short messages
 		 * may never leave the system, especially when there are remaining
 		 * unread data in the socket input buffer, or when nolinger is set.
 		 * However, if SC_FL_NOLINGER is explicitly set, we know there is
 		 * no risk so we close both sides immediately.
 		 */
-		if (sc->flags & SC_FL_NOLINGER) {
-			/* unclean data-layer shutdown, typically an aborted request
-			 * or a forwarded shutdown from a client to a server due to
-			 * option abortonclose. No need for the TLS layer to try to
-			 * emit a shutdown message.
-			 */
-			sc_conn_shutw(sc, SE_SHW_SILENT);
-		}
-		else {
-			/* clean data-layer shutdown. This only happens on the
-			 * frontend side, or on the backend side when forwarding
-			 * a client close in TCP mode or in HTTP TUNNEL mode
-			 * while option abortonclose is set. We want the TLS
-			 * layer to try to signal it to the peer before we close.
-			 */
+		if (!(sc->flags & (SC_FL_NOLINGER|SC_FL_EOS|SC_FL_ABRT_DONE)) && !(ic->flags & CF_DONT_READ)) {
 			sc_conn_shutw(sc, SE_SHW_NORMAL);
-
-			if (!(sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) && !(ic->flags & CF_DONT_READ))
-				return;
+			return;
 		}
 
-		__fallthrough;
+		sc_conn_shutw(sc, (sc->flags & SC_FL_NOLINGER) ? SE_SHW_SILENT : SE_SHW_NORMAL);
+		sc_conn_shut(sc);
+		sc->state = SC_ST_DIS;
+		break;
+
 	case SC_ST_CON:
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as abort
 		 */
 		sc_conn_shut(sc);
-		__fallthrough;
+		sc->state = SC_ST_DIS;
+		break;
 	case SC_ST_CER:
 	case SC_ST_QUE:
 	case SC_ST_TAR:
 		sc->state = SC_ST_DIS;
-		__fallthrough;
+		break;
 	default:
-		sc->flags &= ~SC_FL_NOLINGER;
-		sc->flags |= SC_FL_ABRT_DONE;
-		if (sc->flags & SC_FL_ISBACK)
-			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
+		break;
 	}
+
+	sc->flags &= ~SC_FL_NOLINGER;
+	sc->flags |= SC_FL_ABRT_DONE;
+	if (sc->flags & SC_FL_ISBACK)
+		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 }
 
 /* This function is used for inter-stream connector calls. It is called by the
@@ -926,7 +921,6 @@ static void sc_app_shut_applet(struct stconn *sc)
 	switch (sc->state) {
 	case SC_ST_RDY:
 	case SC_ST_EST:
-		appctx_shutw(__sc_appctx(sc));
 
 		/* we have to shut before closing, otherwise some short messages
 		 * may never leave the system, especially when there are remaining
@@ -935,10 +929,15 @@ static void sc_app_shut_applet(struct stconn *sc)
 		 * no risk so we close both sides immediately.
 		 */
 		if (!(sc->flags & (SC_FL_ERROR|SC_FL_NOLINGER|SC_FL_EOS|SC_FL_ABRT_DONE)) &&
-		    !(ic->flags & CF_DONT_READ))
+		    !(ic->flags & CF_DONT_READ)) {
+			appctx_shutw(__sc_appctx(sc));
 			return;
+		}
 
-		__fallthrough;
+		appctx_shut(__sc_appctx(sc));
+		sc->state = SC_ST_DIS;
+		break;
+
 	case SC_ST_CON:
 	case SC_ST_CER:
 	case SC_ST_QUE:
@@ -946,13 +945,15 @@ static void sc_app_shut_applet(struct stconn *sc)
 		/* Note that none of these states may happen with applets */
 		appctx_shut(__sc_appctx(sc));
 		sc->state = SC_ST_DIS;
-		__fallthrough;
+		break;
 	default:
-		sc->flags &= ~SC_FL_NOLINGER;
-		sc->flags |= SC_FL_ABRT_DONE;
-		if (sc->flags & SC_FL_ISBACK)
-			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
+		break;
 	}
+
+	sc->flags &= ~SC_FL_NOLINGER;
+	sc->flags |= SC_FL_ABRT_DONE;
+	if (sc->flags & SC_FL_ISBACK)
+		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 }
 
 /* chk_rcv function for applets */
@@ -1194,7 +1195,6 @@ static void sc_conn_eos(struct stconn *sc)
 	if (sc_cond_forward_shut(sc)) {
 		/* we want to immediately forward this close to the write side */
 		/* force flag on ssl to keep stream in cache */
-		sc_conn_shutw(sc, SE_SHW_SILENT);
 		goto do_close;
 	}
 
