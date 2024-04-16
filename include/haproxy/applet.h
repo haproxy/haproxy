@@ -42,7 +42,7 @@ struct task *task_process_applet(struct task *t, void *context, unsigned int sta
 int appctx_buf_available(void *arg);
 void *applet_reserve_svcctx(struct appctx *appctx, size_t size);
 void applet_reset_svcctx(struct appctx *appctx);
-void appctx_shut(struct appctx *appctx, enum se_shut_mode mode);
+void appctx_shut(struct appctx *appctx);
 
 struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int thr);
 int appctx_finalize_startup(struct appctx *appctx, struct proxy *px, struct buffer *input);

@@ -131,6 +131,40 @@ void sedesc_free(struct sedesc *sedesc)
 	}
 }
 
+/* Performs a shutdown on the endpoint. This function deals with connection and
+ * applet endpoints. It is responsible to set SE flags corresponding to the
+ * given shut modes and to call right shutdown functions of the endpoint. It is
+ * called from the .abort and .shut app_ops callback functions at the SC level.
+ */
+void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode)
+{
+	if (se_fl_test(sedesc, SE_FL_T_MUX)) {
+		const struct mux_ops *mux = (sedesc->conn ? sedesc->conn->mux : NULL);
+
+		if ((mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) && !se_fl_test(sedesc, SE_FL_SHW)) {
+			if (mux && mux->shutw)
+				mux->shutw(sedesc->sc, mode);
+			se_fl_set(sedesc, (mode & SE_SHW_NORMAL) ? SE_FL_SHWN : SE_FL_SHWS);
+		}
+
+		if ((mode & (SE_SHR_RESET|SE_SHR_DRAIN)) && !se_fl_test(sedesc, SE_FL_SHR)) {
+			if (mux && mux->shutr)
+				mux->shutr(sedesc->sc, mode);
+			se_fl_set(sedesc, (mode & SE_SHR_DRAIN) ? SE_FL_SHRD : SE_FL_SHRR);
+		}
+	}
+	else if (se_fl_test(sedesc, SE_FL_T_APPLET)) {
+		if ((mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) && !se_fl_test(sedesc, SE_FL_SHW))
+			se_fl_set(sedesc, SE_FL_SHWN);
+
+		if ((mode & (SE_SHR_RESET|SE_SHR_DRAIN)) && !se_fl_test(sedesc, SE_FL_SHR))
+			se_fl_set(sedesc, SE_FL_SHRR);
+
+		if (se_fl_test(sedesc, SE_FL_SHR) && se_fl_test(sedesc, SE_FL_SHW))
+			appctx_shut(sedesc->se);
+	}
+}
+
 /* Tries to allocate a new stconn and initialize its main fields. On
  * failure, nothing is allocated and NULL is returned. It is an internal
  * function. The caller must, at least, set the SE_FL_ORPHAN or SE_FL_DETACHED
@@ -405,7 +439,7 @@ static void sc_detach_endp(struct stconn **scp)
 		sc_ep_set(sc, SE_FL_ORPHAN);
 		sc->sedesc->sc = NULL;
 		sc->sedesc = NULL;
-		appctx_shut(appctx, SE_SHR_RESET|SE_SHW_NORMAL);
+		se_shutdown(appctx->sedesc, SE_SHR_RESET|SE_SHW_NORMAL);
 		appctx_free(appctx);
 	}
 
@@ -700,7 +734,7 @@ static void sc_app_abort_conn(struct stconn *sc)
 		return;
 
 	if (sc->flags & SC_FL_SHUT_DONE) {
-		sc_conn_shut(sc, SE_SHR_RESET|SE_SHW_SILENT);
+		se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_SILENT);
 		sc->state = SC_ST_DIS;
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
@@ -742,11 +776,11 @@ static void sc_app_shut_conn(struct stconn *sc)
 		 * no risk so we close both sides immediately.
 		 */
 		if (!(sc->flags & (SC_FL_NOLINGER|SC_FL_EOS|SC_FL_ABRT_DONE)) && !(ic->flags & CF_DONT_READ)) {
-			sc_conn_shut(sc, SE_SHW_NORMAL);
+			se_shutdown(sc->sedesc, SE_SHW_NORMAL);
 			return;
 		}
 
-		sc_conn_shut(sc, SE_SHR_RESET|((sc->flags & SC_FL_NOLINGER) ? SE_SHW_SILENT : SE_SHW_NORMAL));
+		se_shutdown(sc->sedesc, SE_SHR_RESET|((sc->flags & SC_FL_NOLINGER) ? SE_SHW_SILENT : SE_SHW_NORMAL));
 		sc->state = SC_ST_DIS;
 		break;
 
@@ -754,7 +788,7 @@ static void sc_app_shut_conn(struct stconn *sc)
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as abort
 		 */
-		sc_conn_shut(sc, SE_SHR_RESET|SE_SHW_SILENT);
+		se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_SILENT);
 		sc->state = SC_ST_DIS;
 		break;
 	case SC_ST_CER:
@@ -884,7 +918,7 @@ static void sc_app_abort_applet(struct stconn *sc)
 		return;
 
 	if (sc->flags & SC_FL_SHUT_DONE) {
-		appctx_shut(__sc_appctx(sc), SE_SHR_RESET|SE_SHW_NORMAL);
+		se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_NORMAL);
 		sc->state = SC_ST_DIS;
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
@@ -929,11 +963,11 @@ static void sc_app_shut_applet(struct stconn *sc)
 		 */
 		if (!(sc->flags & (SC_FL_ERROR|SC_FL_NOLINGER|SC_FL_EOS|SC_FL_ABRT_DONE)) &&
 		    !(ic->flags & CF_DONT_READ)) {
-			appctx_shut(__sc_appctx(sc), SE_SHW_NORMAL);
+			se_shutdown(sc->sedesc, SE_SHW_NORMAL);
 			return;
 		}
 
-		appctx_shut(__sc_appctx(sc), SE_SHR_RESET|SE_SHW_NORMAL);
+		se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_NORMAL);
 		sc->state = SC_ST_DIS;
 		break;
 
@@ -942,7 +976,7 @@ static void sc_app_shut_applet(struct stconn *sc)
 	case SC_ST_QUE:
 	case SC_ST_TAR:
 		/* Note that none of these states may happen with applets */
-		appctx_shut(__sc_appctx(sc), SE_SHR_RESET|SE_SHW_NORMAL);
+		se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_NORMAL);
 		sc->state = SC_ST_DIS;
 		break;
 	default:
@@ -1202,7 +1236,7 @@ static void sc_conn_eos(struct stconn *sc)
 
  do_close:
 	/* OK we completely close the socket here just as if we went through sc_shut[rw]() */
-	sc_conn_shut(sc, SE_SHR_RESET|SE_SHW_SILENT);
+	se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_SILENT);
 
 	sc->flags &= ~SC_FL_SHUT_WANTED;
 	sc->flags |= SC_FL_SHUT_DONE;
@@ -1866,7 +1900,7 @@ static void sc_applet_eos(struct stconn *sc)
 		return;
 
 	if (sc->flags & SC_FL_SHUT_DONE) {
-		appctx_shut(__sc_appctx(sc), SE_SHR_RESET|SE_SHW_NORMAL);
+		se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_NORMAL);
 		sc->state = SC_ST_DIS;
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;

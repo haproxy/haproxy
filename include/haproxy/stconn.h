@@ -39,6 +39,8 @@ struct check;
 struct sedesc *sedesc_new();
 void sedesc_free(struct sedesc *sedesc);
 
+void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode);
+
 struct stconn *sc_new_from_endp(struct sedesc *sedesc, struct session *sess, struct buffer *input);
 struct stconn *sc_new_from_strm(struct stream *strm, unsigned int flags);
 struct stconn *sc_new_from_check(struct check *check, unsigned int flags);
@@ -316,27 +318,6 @@ static inline const char *sc_get_data_name(const struct stconn *sc)
 	if (!sc->app_ops)
 		return "NONE";
 	return sc->app_ops->name;
-}
-
-static inline void sc_conn_shut(struct stconn *sc, enum se_shut_mode mode)
-{
-	const struct mux_ops *mux;
-
-	BUG_ON(!sc_conn(sc));
-
-	mux = sc_mux_ops(sc);
-
-	if ((mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) && !sc_ep_test(sc, SE_FL_SHW)) {
-		if (mux && mux->shutw)
-			mux->shutw(sc, mode);
-		sc_ep_set(sc, (mode & SE_SHW_NORMAL) ? SE_FL_SHWN : SE_FL_SHWS);
-	}
-
-	if ((mode & (SE_SHR_RESET|SE_SHR_DRAIN)) && !sc_ep_test(sc, SE_FL_SHR)) {
-		if (mux && mux->shutr)
-			mux->shutr(sc, mode);
-		sc_ep_set(sc, (mode & SE_SHR_DRAIN) ? SE_FL_SHRD : SE_FL_SHRR);
-	}
 }
 
 /* Returns non-zero if the stream connector's Rx path is blocked because of
