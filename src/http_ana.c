@@ -35,6 +35,7 @@
 #include <haproxy/sc_strm.h>
 #include <haproxy/server-t.h>
 #include <haproxy/stats.h>
+#include <haproxy/stats-html.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/trace.h>

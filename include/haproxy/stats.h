@@ -33,6 +33,7 @@ struct buffer;
 struct proxy;
 struct appctx;
 struct htx;
+struct stconn;
 
 /* These two structs contains all field names and descriptions according to
  * the the number of entries in "enum stat_field" and "enum info_field"
@@ -48,6 +49,8 @@ extern THREAD_LOCAL struct field *stat_l[];
 struct htx;
 int stats_putchk(struct appctx *appctx, struct buffer *buf, struct htx *htx);
 
+const char *stats_scope_ptr(struct appctx *appctx);
+
 int stats_dump_one_line(const struct field *stats, size_t stats_count, struct appctx *appctx);
 
 int stats_fill_info(struct field *info, int len, uint flags);
@@ -59,6 +62,8 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
                         struct field *stats, int len, enum stat_field *selected_field);
 int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int len,
 			enum stat_field *selected_field);
+
+int stats_dump_stat_to_buffer(struct stconn *sc, struct buffer *buf, struct htx *htx);
 
 int stats_emit_raw_data_field(struct buffer *out, const struct field *f);
 int stats_emit_typed_data_field(struct buffer *out, const struct field *f);

@@ -58,17 +58,6 @@
 #define STATS_DOMAIN  (0)               /* used for bitshifting, type of statistics: proxy or dns */
 #define STATS_PX_CAP  (8)               /* used for bitshifting, differentiate obj1 type for proxy statistics */
 
-/* HTTP stats : applet.st0 */
-enum {
-	STAT_HTTP_INIT = 0,  /* Initial state */
-	STAT_HTTP_HEAD,      /* send headers before dump */
-	STAT_HTTP_DUMP,      /* dumping stats */
-	STAT_HTTP_POST,      /* waiting post data */
-	STAT_HTTP_LAST,      /* sending last chunk of response */
-	STAT_HTTP_DONE,      /* dump is finished */
-	STAT_HTTP_END,       /* finished */
-};
-
 /* status codes available for the stats admin page */
 enum {
 	STAT_STATUS_INIT = 0,
@@ -82,11 +71,6 @@ enum {
 	STAT_STATUS_IVAL,       /* invalid requests (chunked or invalid post) */
 	STAT_STATUS_SIZE
 };
-
-/* HTML form to limit output scope */
-#define STAT_SCOPE_TXT_MAXLEN 20      /* max len for scope substring */
-#define STAT_SCOPE_INPUT_NAME "scope" /* pattern form scope name <input> in html form */
-#define STAT_SCOPE_PATTERN    "?" STAT_SCOPE_INPUT_NAME "="
 
 /* Actions available for the stats admin forms */
 enum {
