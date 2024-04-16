@@ -45,6 +45,7 @@ extern struct applet http_stats_applet;
 extern struct list stats_module_list[];
 extern THREAD_LOCAL struct field info[];
 extern THREAD_LOCAL struct field *stat_l[];
+extern struct name_desc *stat_f[STATS_DOMAIN_COUNT];
 
 struct htx;
 int stats_putchk(struct appctx *appctx, struct buffer *buf, struct htx *htx);
