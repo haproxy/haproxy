@@ -2093,16 +2093,23 @@ static int ssl_parse_default_server_options(char **args, int section_type, struc
 	return 0;
 }
 
-/* parse the "ca-base" / "crt-base" keywords in global section.
+/* parse the "ca-base" / "crt-base" / "key-base" keywords in global section.
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
-static int ssl_parse_global_ca_crt_base(char **args, int section_type, struct proxy *curpx,
+static int ssl_parse_global_path_base(char **args, int section_type, struct proxy *curpx,
                                         const struct proxy *defpx, const char *file, int line,
                                         char **err)
 {
 	char **target;
 
-	target = (args[0][1] == 'a') ? &global_ssl.ca_base : &global_ssl.crt_base;
+	if (args[0][1] == 'a')
+		target = &global_ssl.ca_base;
+	else if (args[0][1] == 'r')
+		target = &global_ssl.crt_base;
+	else if (args[0][1] == 'e')
+		target = &global_ssl.key_base;
+	else
+		return -1;
 
 	if (too_many_args(1, args, err, NULL))
 		return -1;
@@ -2387,8 +2394,9 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 INITCALL1(STG_REGISTER, srv_register_keywords, &srv_kws);
 
 static struct cfg_kw_list cfg_kws = {ILH, {
-	{ CFG_GLOBAL, "ca-base",  ssl_parse_global_ca_crt_base },
-	{ CFG_GLOBAL, "crt-base", ssl_parse_global_ca_crt_base },
+	{ CFG_GLOBAL, "ca-base",  ssl_parse_global_path_base },
+	{ CFG_GLOBAL, "crt-base", ssl_parse_global_path_base },
+	{ CFG_GLOBAL, "key-base", ssl_parse_global_path_base },
 	{ CFG_GLOBAL, "issuers-chain-path", ssl_load_global_issuers_from_path },
 	{ CFG_GLOBAL, "maxsslconn", ssl_parse_global_int },
 	{ CFG_GLOBAL, "ssl-default-bind-options", ssl_parse_default_bind_options },

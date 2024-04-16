@@ -4494,7 +4494,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 	/* only proxy stats are available via http */
 	ctx->domain = STATS_DOMAIN_PROXY;
 
-	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL))
+	if (applet_fl_test(appctx, APPCTX_FL_INBLK_ALLOC|APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL))
 		goto out;
 
 	if (applet_fl_test(appctx, APPCTX_FL_FASTFWD) && se_fl_test(appctx->sedesc, SE_FL_MAY_FASTFWD_PROD))

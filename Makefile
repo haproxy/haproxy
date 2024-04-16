@@ -1,7 +1,7 @@
 # This GNU Makefile supports different OS and CPU combinations.
 #
 # You should use it this way :
-#   [g]make TARGET=os [ARCH=arch] [CPU=cpu] USE_xxx=1 ...
+#   [g]make TARGET=os [CFLAGS=...] USE_xxx=1 ...
 #
 # When in doubt, invoke help, possibly with a known target :
 #   [g]make help
@@ -75,13 +75,16 @@
 # Variables useful for packagers :
 #   CC is set to "cc" by default and is used for compilation only.
 #   LD is set to "cc" by default and is used for linking only.
-#   ARCH may be useful to force build of 32-bit binary on 64-bit systems
-#   CFLAGS is automatically set for the specified CPU and may be overridden.
+#   OPT_CFLAGS sets the default optimization level (-O2).
+#   CFLAGS may be used to append any flags for the C compiler.
 #   LDFLAGS is automatically set to -g and may be overridden.
+#   ARCH_FLAGS for flags common to both CC and LD. Defaults to -g.
 #   DEP may be cleared to ignore changes to include files during development
-#   SMALL_OPTS may be used to specify some options to shrink memory usage.
 #   DEBUG may be used to set some internal debugging options.
 #   ERR may be set to non-empty to pass -Werror to the compiler
+#   FAILFAST may be set to non-empty to pass -Wfatal-errors to the compiler
+#   WARN_CFLAGS overrides the default set of enabled warning options
+#   NOWARN_CFLAGS overrides the default set of disabled warning options
 #   ADDINC may be used to complete the include path in the form -Ipath.
 #   ADDLIB may be used to complete the library list in the form -Lpath -llib.
 #   DEFINE may be used to specify any additional define, which will be reported
@@ -152,27 +155,45 @@ DOCDIR = $(PREFIX)/doc/haproxy
 #    custom
 TARGET =
 
-#### TARGET CPU
-# Use CPU=<cpu_name> to optimize for a particular CPU, among the following
-# list :
-#    generic, native, i586, i686, ultrasparc, power8, power9, custom,
-#    a53, a72, armv81, armv8-auto
-CPU = generic
+#### No longer used
+CPU =
+ifneq ($(CPU),)
+ifneq ($(CPU),generic)
+$(warning Warning: the "CPU" variable was forced to "$(CPU)" but is no longer \
+  used and will be ignored. For native builds, modern compilers generally     \
+  prefer that the string "-march=native" is passed in CPU_CFLAGS or CFLAGS.   \
+  For other CPU-specific options, please read suggestions in the INSTALL file.)
+endif
+endif
 
-#### Architecture, used when not building for native architecture
-# Use ARCH=<arch_name> to force build for a specific architecture. Known
-# architectures will lead to "-m32" or "-m64" being added to CFLAGS and
-# LDFLAGS. This can be required to build 32-bit binaries on 64-bit targets.
-# Currently, only 32, 64, x86_64, i386, i486, i586 and i686 are understood.
+#### No longer used
 ARCH =
+ifneq ($(ARCH),)
+$(warning Warning: the "ARCH" variable was forced to "$(ARCH)" but is no \
+  longer used and will be ignored. Please check the INSTALL file for other \
+  options, but usually in order to pass arch-specific options, ARCH_FLAGS, \
+  CFLAGS or LDFLAGS are preferred.)
+endif
 
 #### Toolchain options.
 CC = cc
 LD = $(CC)
 
-#### Debug flags (typically "-g").
-# Those flags only feed CFLAGS so it is not mandatory to use this form.
-DEBUG_CFLAGS = -g
+#### Default optimizations
+# Those are integrated early in the list of CFLAGS, and may be overridden by
+# other CFLAGS options if needed.
+OPT_CFLAGS = -O2
+
+#### No longer used
+DEBUG_CFLAGS =
+ifneq ($(DEBUG_CFLAGS),)
+$(warning Warning: DEBUG_CFLAGS was forced to "$(DEBUG_CFLAGS)" but is no     \
+  longer used and will be ignored. If you have ported this build setting from \
+  and older version, it is likely that you just want to pass these options    \
+  to the CFLAGS variable. If you are passing some debugging-related options   \
+  such as -g/-ggdb3/-pg etc, they can now be passed in ARCH_FLAGS at once for \
+  both the compilation and linking stages.)
+endif
 
 #### Add -Werror when set to non-empty
 ERR =
@@ -181,42 +202,55 @@ ERR =
 REG_TEST_FILES =
 REG_TEST_SCRIPT=./scripts/run-regtests.sh
 
-#### Compiler-specific flags that may be used to disable some negative over-
-# optimization or to silence some warnings.
-# We rely on signed integer wraparound on overflow, however clang think it
-# can do whatever it wants since it's an undefined behavior, so use -fwrapv
-# to be sure we get the intended behavior.
-WARN_CFLAGS := -Wtype-limits -Wshift-negative-value -Wshift-overflow=2 \
-               -Wduplicated-cond -Wnull-dereference
-SPEC_CFLAGS := -Wall -Wextra -Wundef -Wdeclaration-after-statement -Wfatal-errors
-SPEC_CFLAGS += $(call cc-all-fast,$(WARN_CFLAGS))
+#### Standard C definition
+# Compiler-specific flags that may be used to set the standard behavior we
+# rely on and to disable some negative over-optimization. More specifically,
+# we rely on signed integer wraparound on overflow, however recently clang and
+# gcc decided to change their code generation regarding this and abuse the
+# undefined behavior to silently produce invalid code. For this reason we have
+# to use -fwrapv or -fno-strict-overflow to guarantee the intended behavior.
+# It is preferable not to change this option in order to avoid breakage.
+STD_CFLAGS  := $(call cc-opt-alt,-fwrapv,-fno-strict-overflow)
 
-SPEC_CFLAGS += $(call cc-opt-alt,-fwrapv,-fno-strict-overflow)
-SPEC_CFLAGS += $(cc-wnouwo)
-SPEC_CFLAGS += $(call cc-nowarn,address-of-packed-member)
-SPEC_CFLAGS += $(call cc-nowarn,unused-label)
-SPEC_CFLAGS += $(call cc-nowarn,sign-compare)
-SPEC_CFLAGS += $(call cc-nowarn,unused-parameter)
-SPEC_CFLAGS += $(call cc-nowarn,clobbered)
-SPEC_CFLAGS += $(call cc-nowarn,missing-field-initializers)
-SPEC_CFLAGS += $(call cc-nowarn,cast-function-type)
-SPEC_CFLAGS += $(call cc-nowarn,string-plus-int)
-SPEC_CFLAGS += $(call cc-nowarn,atomic-alignment)
+#### Compiler-specific flags to enable certain classes of warnings.
+# Some are hard-coded, others are enabled only if supported.
+WARN_CFLAGS := -Wall -Wextra -Wundef -Wdeclaration-after-statement            \
+               $(call cc-all-fast,                                            \
+                 -Wtype-limits -Wshift-negative-value -Wshift-overflow=2      \
+                 -Wduplicated-cond -Wnull-dereference)
 
-ifneq ($(ERR),)
-  SPEC_CFLAGS += -Werror
+#### Compiler-specific flags to enable certain classes of warnings.
+NOWARN_CFLAGS := $(cc-wnouwo)
+NOWARN_CFLAGS += $(call cc-nowarn,address-of-packed-member)
+NOWARN_CFLAGS += $(call cc-nowarn,unused-label)
+NOWARN_CFLAGS += $(call cc-nowarn,sign-compare)
+NOWARN_CFLAGS += $(call cc-nowarn,unused-parameter)
+NOWARN_CFLAGS += $(call cc-nowarn,clobbered)
+NOWARN_CFLAGS += $(call cc-nowarn,missing-field-initializers)
+NOWARN_CFLAGS += $(call cc-nowarn,cast-function-type)
+NOWARN_CFLAGS += $(call cc-nowarn,string-plus-int)
+NOWARN_CFLAGS += $(call cc-nowarn,atomic-alignment)
+
+#### CFLAGS defining error handling
+# ERROR_CFLAGS are just accumulators for these variables, they're not meant
+# to be exposed nor manipulated outside of this. They're not reported in
+# VERBOSE_CFLAGS and don't cause a rebuild when changed.
+ERROR_CFLAGS :=
+ifneq ($(ERR:0=),)
+  ERROR_CFLAGS += -Werror
 endif
 
-#### Memory usage tuning
-# If small memory footprint is required, you can reduce the buffer size. There
-# are 2 buffers per concurrent session, so 16 kB buffers will eat 32 MB memory
-# with 1000 concurrent sessions. Putting it slightly lower than a page size
-# will prevent the additional parameters to go beyond a page. 8030 bytes is
-# exactly 5.5 TCP segments of 1460 bytes and is generally good. Useful tuning
-# macros include :
-#    SYSTEM_MAXCONN, BUFSIZE, MAXREWRITE, REQURI_LEN, CAPTURE_LEN.
-# Example: SMALL_OPTS = -DBUFSIZE=8030 -DMAXREWRITE=1030 -DSYSTEM_MAXCONN=1024
+ifneq ($(FAILFAST:0=),)
+  ERROR_CFLAGS += -Wfatal-errors
+endif
+
+#### No longer used
 SMALL_OPTS =
+ifneq ($(SMALL_OPTS),)
+$(warning Warning: SMALL_OPTS was forced to "$(SMALL_OPTS)" but is no longer \
+  used and will be ignored. Please check if this setting are still relevant, \
+  and move it either to DEFINE or to CFLAGS instead.)
+endif
 
 #### Debug settings
 # You can enable debugging on specific code parts by setting DEBUG=-DDEBUG_xxx.
@@ -228,7 +262,7 @@ SMALL_OPTS =
 # DEBUG_NO_POOLS, DEBUG_FAIL_ALLOC, DEBUG_STRICT_ACTION=[0-3], DEBUG_HPACK,
 # DEBUG_AUTH, DEBUG_SPOE, DEBUG_UAF, DEBUG_THREAD, DEBUG_STRICT, DEBUG_DEV,
 # DEBUG_TASK, DEBUG_MEMORY_POOLS, DEBUG_POOL_TRACING, DEBUG_QPACK, DEBUG_LIST.
-DEBUG = -DDEBUG_STRICT -DDEBUG_MEMORY_POOLS
+DEBUG =
 
 #### Trace options
 # Use TRACE=1 to trace function calls to file "trace.out" or to stderr if not
@@ -258,44 +292,36 @@ SILENT_DEFINE =
 EXTRA =
 
 #### CPU dependent optimizations
-# Some CFLAGS are set by default depending on the target CPU. Those flags only
-# feed CPU_CFLAGS, which in turn feed CFLAGS, so it is not mandatory to use
-# them. You should not have to change these options. Better use CPU_CFLAGS or
-# even CFLAGS instead.
-CPU_CFLAGS.generic    = -O2
-CPU_CFLAGS.native     = -O2 -march=native
-CPU_CFLAGS.i586       = -O2 -march=i586
-CPU_CFLAGS.i686       = -O2 -march=i686
-CPU_CFLAGS.ultrasparc = -O6 -mcpu=v9 -mtune=ultrasparc
-CPU_CFLAGS.power8     = -O2 -mcpu=power8 -mtune=power8
-CPU_CFLAGS.power9     = -O2 -mcpu=power9 -mtune=power9
-CPU_CFLAGS.a53        = -O2 -mcpu=cortex-a53
-CPU_CFLAGS.a72        = -O2 -mcpu=cortex-a72
-CPU_CFLAGS.armv81     = -O2 -march=armv8.1-a
-CPU_CFLAGS.armv8-auto = -O2 -march=armv8-a+crc -moutline-atomics
-CPU_CFLAGS            = $(CPU_CFLAGS.$(CPU))
+# This may optionally be used to pass CPU-specific optimizations such as
+# -march=native, -mcpu=something, -m64 etc independently of CFLAGS if it is
+# considered more convenient. Historically, the optimization level was also
+# passed there. This is still supported but not recommended though; OPT_CFLAGS
+# is better suited. The default is empty.
+CPU_CFLAGS        =
 
-#### ARCH dependent flags, may be overridden by CPU flags
-ARCH_FLAGS.32     = -m32
-ARCH_FLAGS.64     = -m64
-ARCH_FLAGS.i386   = -m32 -march=i386
-ARCH_FLAGS.i486   = -m32 -march=i486
-ARCH_FLAGS.i586   = -m32 -march=i586
-ARCH_FLAGS.i686   = -m32 -march=i686
-ARCH_FLAGS.x86_64 = -m64 -march=x86-64
-ARCH_FLAGS        = $(ARCH_FLAGS.$(ARCH))
+#### Architecture dependent flags.
+# These flags are passed both to the compiler and to the linker. A number of
+# settings may need to be passed to both tools, among which some arch-specific
+# options such as -m32 or -m64, some debugging options (-g), some profiling
+# options (-pg), some options affecting how the linkage is done (-flto), as
+# well as some code analysers such as -fsanitize=address. All of these make
+# sense here and will be consistently propagated to both stages. By default
+# only the debugging is enabled (-g).
+ARCH_FLAGS        = -g
 
-#### Common CFLAGS
-# These CFLAGS contain general optimization options, CPU-specific optimizations
-# and debug flags. They may be overridden by some distributions which prefer to
-# set all of them at once instead of playing with the CPU and DEBUG variables.
-CFLAGS = $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS)
+#### Extra CFLAGS
+# These CFLAGS are empty by default and are appended at the end of all the
+# flags passed to the compiler, so that it is possible to use them to force
+# some optimization levels, architecture types and/or disable certain warnings.
+# Just set CFLAGS to the desired ones on the "make" command line.
+CFLAGS =
 
-#### Common LDFLAGS
-# These LDFLAGS are used as the first "ld" options, regardless of any library
-# path or any other option. They may be changed to add any linker-specific
-# option at the beginning of the ld command line.
-LDFLAGS = $(ARCH_FLAGS) -g
+#### Extra LDFLAGS
+# These LDFLAGS are used as the first "ld" options just after ARCH_FLAGS,
+# regardless of any library path or any other option. They may be used to add
+# any linker-specific option at the beginning of the ld command line. It may be
+# convenient to set a run time search path (-rpath), see INSTALL for more info.
+LDFLAGS =
 
 #### list of all "USE_*" options. These ones must be updated if new options are
 # added, so that the relevant options are properly added to the CFLAGS and to
@@ -322,6 +348,9 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER USE_POLL                        \
 # preset all variables for all supported build options among use_opts
 $(reset_opts_vars)
 
+# Check that any USE_* variable that was forced actually exist.
+$(warn_unknown_options)
+
 #### Target system options
 
 # poll() is always supported, unless explicitly disabled by passing USE_POLL=""
@@ -330,7 +359,7 @@ USE_POLL   = default
 
 # SLZ is always supported unless explicitly disabled by passing USE_SLZ=""
 # or disabled by enabling ZLIB using USE_ZLIB=1
-ifeq ($(USE_ZLIB),)
+ifeq ($(USE_ZLIB:0=),)
   USE_SLZ    = default
 endif
 
@@ -431,7 +460,6 @@ ifeq ($(TARGET),aix51)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_LIBCRYPT USE_OBSOLETE_LINKER)
   TARGET_CFLAGS   = -Dss_family=__ss_family -Dip6_hdr=ip6hdr -DSTEVENS_API -D_LINUX_SOURCE_COMPAT -Dunsetenv=my_unsetenv
-  DEBUG_CFLAGS    =
 endif
 
 # AIX 5.2
@@ -439,7 +467,6 @@ ifeq ($(TARGET),aix52)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_LIBCRYPT USE_OBSOLETE_LINKER)
   TARGET_CFLAGS   = -D_MSGQSUPPORT
-  DEBUG_CFLAGS    =
 endif
 
 # AIX 7.2 and above
@@ -467,8 +494,8 @@ $(set_target_defaults)
 # any occurrence of 1 indicates libatomic is necessary. It's better to avoid
 # linking with it by default as it's not always available nor deployed
 # (especially on archs which do not need it).
-ifneq ($(USE_THREAD),)
-  ifneq ($(shell $(CC) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
+ifneq ($(USE_THREAD:0=),)
+  ifneq ($(shell $(CC) $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(STD_CFLAGS) $(WARN_CFLAGS) $(NOWARN_CFLAGS) $(ERROR_CFLAGS) $(CFLAGS) -dM -E -xc - </dev/null 2>/dev/null | grep -c 'LOCK_FREE.*1'),0)
     USE_LIBATOMIC   = implicit
   endif
 endif
@@ -519,7 +546,7 @@ BUILD_OPTIONS  := $(call build_options)
 # possibly be unused though)
 OPTIONS_CFLAGS += $(call opts_as_defines)
 
-ifneq ($(USE_LIBCRYPT),)
+ifneq ($(USE_LIBCRYPT:0=),)
   ifneq ($(TARGET),openbsd)
     ifneq ($(TARGET),osx)
       LIBCRYPT_LDFLAGS = -lcrypt
@@ -527,45 +554,45 @@ ifneq ($(USE_LIBCRYPT),)
   endif
 endif
 
-ifneq ($(USE_ZLIB),)
+ifneq ($(USE_ZLIB:0=),)
   # Use ZLIB_INC and ZLIB_LIB to force path to zlib.h and libz.{a,so} if needed.
   ZLIB_CFLAGS      = $(if $(ZLIB_INC),-I$(ZLIB_INC))
   ZLIB_LDFLAGS     = $(if $(ZLIB_LIB),-L$(ZLIB_LIB)) -lz
 endif
 
-ifneq ($(USE_SLZ),)
+ifneq ($(USE_SLZ:0=),)
   OPTIONS_OBJS   += src/slz.o
 endif
 
-ifneq ($(USE_POLL),)
+ifneq ($(USE_POLL:0=),)
   OPTIONS_OBJS   += src/ev_poll.o
 endif
 
-ifneq ($(USE_EPOLL),)
+ifneq ($(USE_EPOLL:0=),)
   OPTIONS_OBJS   += src/ev_epoll.o
 endif
 
-ifneq ($(USE_KQUEUE),)
+ifneq ($(USE_KQUEUE:0=),)
   OPTIONS_OBJS   += src/ev_kqueue.o
 endif
 
-ifneq ($(USE_EVPORTS),)
+ifneq ($(USE_EVPORTS:0=),)
   OPTIONS_OBJS   += src/ev_evports.o
 endif
 
-ifneq ($(USE_RT),)
+ifneq ($(USE_RT:0=),)
   RT_LDFLAGS = -lrt
 endif
 
-ifneq ($(USE_THREAD),)
+ifneq ($(USE_THREAD:0=),)
   THREAD_LDFLAGS = -pthread
 endif
 
-ifneq ($(USE_BACKTRACE),)
+ifneq ($(USE_BACKTRACE:0=),)
   BACKTRACE_LDFLAGS = -Wl,$(if $(EXPORT_SYMBOL),$(EXPORT_SYMBOL),--export-dynamic)
 endif
 
-ifneq ($(USE_CPU_AFFINITY),)
+ifneq ($(USE_CPU_AFFINITY:0=),)
   OPTIONS_OBJS   += src/cpuset.o
 endif
 
@@ -577,32 +604,32 @@ endif
 
 # This is for the WolfSSL variant of the OpenSSL API. Setting it implies
 # OPENSSL so it's not necessary to set the latter.
-ifneq ($(USE_OPENSSL_WOLFSSL),)
+ifneq ($(USE_OPENSSL_WOLFSSL:0=),)
   SSL_CFLAGS      := $(if $(SSL_INC),-I$(SSL_INC)/wolfssl -I$(SSL_INC))
   SSL_LDFLAGS     := $(if $(SSL_LIB),-L$(SSL_LIB)) -lwolfssl
   # always automatically set USE_OPENSSL
-  USE_OPENSSL     := $(if $(USE_OPENSSL),$(USE_OPENSSL),implicit)
+  USE_OPENSSL     := $(if $(USE_OPENSSL:0=),$(USE_OPENSSL:0=),implicit)
 endif
 
 # This is for the AWS-LC variant of the OpenSSL API. Setting it implies
 # OPENSSL so it's not necessary to set the latter.
-ifneq ($(USE_OPENSSL_AWSLC),)
+ifneq ($(USE_OPENSSL_AWSLC:0=),)
   # always automatically set USE_OPENSSL
-  USE_OPENSSL     := $(if $(USE_OPENSSL),$(USE_OPENSSL),implicit)
+  USE_OPENSSL     := $(if $(USE_OPENSSL:0=),$(USE_OPENSSL:0=),implicit)
 endif
 
 # This is for any variant of the OpenSSL API. By default it uses OpenSSL.
-ifneq ($(USE_OPENSSL),)
+ifneq ($(USE_OPENSSL:0=),)
   # only preset these for the regular openssl
-  ifeq ($(USE_OPENSSL_WOLFSSL),)
+  ifeq ($(USE_OPENSSL_WOLFSSL:0=),)
     SSL_CFLAGS    := $(if $(SSL_INC),-I$(SSL_INC))
     SSL_LDFLAGS   := $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
   endif
-  USE_SSL         := $(if $(USE_SSL),$(USE_SSL),implicit)
+  USE_SSL         := $(if $(USE_SSL:0=),$(USE_SSL:0=),implicit)
   OPTIONS_OBJS += src/ssl_sock.o src/ssl_ckch.o src/ssl_sample.o src/ssl_crtlist.o src/cfgparse-ssl.o src/ssl_utils.o src/jwt.o src/ssl_ocsp.o src/ssl_gencert.o
 endif
 
-ifneq ($(USE_ENGINE),)
+ifneq ($(USE_ENGINE:0=),)
   # OpenSSL 3.0 emits loud deprecation warnings by default when building with
   # engine support, and this option is made to silence them. Better use it
   # only when absolutely necessary, until there's a viable alternative to the
@@ -610,7 +637,7 @@ ifneq ($(USE_ENGINE),)
   ENGINE_CFLAGS   = -DOPENSSL_SUPPRESS_DEPRECATED
 endif
 
-ifneq ($(USE_QUIC),)
+ifneq ($(USE_QUIC:0=),)
 OPTIONS_OBJS += src/quic_conn.o src/mux_quic.o src/h3.o src/xprt_quic.o    \
                 src/quic_frame.o src/quic_tls.o src/quic_tp.o              \
                 src/quic_stats.o src/quic_sock.o src/proto_quic.o          \
@@ -624,11 +651,11 @@ OPTIONS_OBJS += src/quic_conn.o src/mux_quic.o src/h3.o src/xprt_quic.o    \
                 src/quic_retransmit.o src/quic_fctl.o
 endif
 
-ifneq ($(USE_QUIC_OPENSSL_COMPAT),)
+ifneq ($(USE_QUIC_OPENSSL_COMPAT:0=),)
 OPTIONS_OBJS += src/quic_openssl_compat.o
 endif
 
-ifneq ($(USE_LUA),)
+ifneq ($(USE_LUA:0=),)
   check_lua_inc = $(shell if [ -d $(2)$(1) ]; then echo $(2)$(1); fi;)
   LUA_INC      := $(firstword $(foreach lib,lua5.4 lua54 lua5.3 lua53 lua,$(call check_lua_inc,$(lib),"/usr/include/")))
 
@@ -661,12 +688,12 @@ ifneq ($(USE_LUA),)
   OPTIONS_OBJS    += src/hlua.o src/hlua_fcn.o
 endif # USE_LUA
 
-ifneq ($(USE_PROMEX),)
+ifneq ($(USE_PROMEX:0=),)
   OPTIONS_OBJS    += addons/promex/service-prometheus.o
   PROMEX_CFLAGS    = -Iaddons/promex/include
 endif
 
-ifneq ($(USE_DEVICEATLAS),)
+ifneq ($(USE_DEVICEATLAS:0=),)
   # Use DEVICEATLAS_SRC and possibly DEVICEATLAS_INC and DEVICEATLAS_LIB to force path
   # to DeviceAtlas headers and libraries if needed. In this context, DEVICEATLAS_NOCACHE
   # can be used to disable the cache support if needed (this also removes the necessity of having
@@ -686,12 +713,12 @@ endif
 51DEGREES_LIB = $(51DEGREES_SRC)
 51DEGREES_VER = 3
 
-ifneq ($(USE_51DEGREES),)
+ifneq ($(USE_51DEGREES:0=),)
   ifeq ($(51DEGREES_VER),4)  # v4 here
     _51DEGREES_SRC      = $(shell find $(51DEGREES_LIB) -maxdepth 2 -name '*.c')
     OPTIONS_OBJS       += $(_51DEGREES_SRC:%.c=%.o)
     51DEGREES_CFLAGS   += -DUSE_51DEGREES_V4
-    ifeq ($(USE_THREAD),)
+    ifeq ($(USE_THREAD:0=),)
       51DEGREES_CFLAGS += -DFIFTYONEDEGREES_NO_THREADING -DFIFTYONE_DEGREES_NO_THREADING
     endif
     USE_LIBATOMIC       = implicit
@@ -700,7 +727,7 @@ ifneq ($(USE_51DEGREES),)
   ifeq ($(51DEGREES_VER),3)  # v3 here
     OPTIONS_OBJS       += $(51DEGREES_LIB)/../cityhash/city.o
     OPTIONS_OBJS       += $(51DEGREES_LIB)/51Degrees.o
-    ifeq ($(USE_THREAD),)
+    ifeq ($(USE_THREAD:0=),)
       51DEGREES_CFLAGS += -DFIFTYONEDEGREES_NO_THREADING
     else
       OPTIONS_OBJS     += $(51DEGREES_LIB)/../threading.o
@@ -717,7 +744,7 @@ ifneq ($(USE_51DEGREES),)
   USE_MATH             = implicit
 endif # USE_51DEGREES
 
-ifneq ($(USE_WURFL),)
+ifneq ($(USE_WURFL:0=),)
   # Use WURFL_SRC and possibly WURFL_INC and WURFL_LIB to force path
   # to WURFL headers and libraries if needed.
   WURFL_INC = $(WURFL_SRC)
@@ -733,12 +760,12 @@ ifneq ($(USE_WURFL),)
   WURFL_LDFLAGS    = $(if $(WURFL_LIB),-L$(WURFL_LIB)) -lwurfl
 endif
 
-ifneq ($(USE_SYSTEMD),)
+ifneq ($(USE_SYSTEMD:0=),)
   OPTIONS_OBJS    += src/systemd.o
 endif
 
-ifneq ($(USE_PCRE)$(USE_STATIC_PCRE)$(USE_PCRE_JIT),)
-  ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
+ifneq ($(USE_PCRE:0=)$(USE_STATIC_PCRE:0=)$(USE_PCRE_JIT:0=),)
+  ifneq ($(USE_PCRE2:0=)$(USE_STATIC_PCRE2:0=)$(USE_PCRE2_JIT:0=),)
     $(error cannot compile both PCRE and PCRE2 support)
   endif
   # PCREDIR is used to automatically construct the PCRE_INC and PCRE_LIB paths,
@@ -749,7 +776,7 @@ ifneq ($(USE_PCRE)$(USE_STATIC_PCRE)$(USE_PCRE_JIT),)
   # locations.
 
   # in case only USE_STATIC_PCRE/USE_PCRE_JIT were set
-  USE_PCRE    := $(if $(USE_PCRE),$(USE_PCRE),implicit)
+  USE_PCRE    := $(if $(USE_PCRE:0=),$(USE_PCRE:0=),implicit)
   PCRE_CONFIG := pcre-config
   PCREDIR     := $(shell $(PCRE_CONFIG) --prefix 2>/dev/null || echo /usr/local)
   ifneq ($(PCREDIR),)
@@ -758,16 +785,16 @@ ifneq ($(USE_PCRE)$(USE_STATIC_PCRE)$(USE_PCRE_JIT),)
   endif
 
   PCRE_CFLAGS := $(if $(PCRE_INC),-I$(PCRE_INC))
-  ifeq ($(USE_STATIC_PCRE),)
+  ifeq ($(USE_STATIC_PCRE:0=),)
     PCRE_LDFLAGS := $(if $(PCRE_LIB),-L$(PCRE_LIB)) -lpcreposix -lpcre
   else
     PCRE_LDFLAGS := $(if $(PCRE_LIB),-L$(PCRE_LIB)) -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
   endif
 endif # USE_PCRE
 
-ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
+ifneq ($(USE_PCRE2:0=)$(USE_STATIC_PCRE2:0=)$(USE_PCRE2_JIT:0=),)
   # in case only USE_STATIC_PCRE2/USE_PCRE2_JIT were set
-  USE_PCRE2    := $(if $(USE_PCRE2),$(USE_PCRE2),implicit)
+  USE_PCRE2    := $(if $(USE_PCRE2:0=),$(USE_PCRE2:0=),implicit)
   PCRE2_CONFIG := pcre2-config
   PCRE2DIR     := $(shell $(PCRE2_CONFIG) --prefix 2>/dev/null || echo /usr/local)
   ifneq ($(PCRE2DIR),)
@@ -797,7 +824,7 @@ ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
       endif
     endif
 
-    ifneq ($(USE_STATIC_PCRE2),)
+    ifneq ($(USE_STATIC_PCRE2:0=),)
       PCRE2_LDFLAGS := $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -Wl,-Bstatic -L$(PCRE2_LIB) $(PCRE2_LDFLAGS) -Wl,-Bdynamic
     else
       PCRE2_LDFLAGS := $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -L$(PCRE2_LIB) $(PCRE2_LDFLAGS)
@@ -805,28 +832,28 @@ ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
   endif # PCRE2DIR
 endif # USE_PCRE2
 
-ifneq ($(USE_NS),)
+ifneq ($(USE_NS:0=),)
   OPTIONS_OBJS  += src/namespace.o
 endif
 
-ifneq ($(USE_LINUX_CAP),)
+ifneq ($(USE_LINUX_CAP:0=),)
   OPTIONS_OBJS   += src/linuxcap.o
 endif
 
-ifneq ($(USE_OT),)
+ifneq ($(USE_OT:0=),)
   include addons/ot/Makefile
 endif
 
 # better keep this one close to the end, as several libs above may need it
-ifneq ($(USE_DL),)
+ifneq ($(USE_DL:0=),)
   DL_LDFLAGS = -ldl
 endif
 
-ifneq ($(USE_MATH),)
+ifneq ($(USE_MATH:0=),)
   MATH_LDFLAGS = -lm
 endif
 
-ifneq ($(USE_LIBATOMIC),)
+ifneq ($(USE_LIBATOMIC:0=),)
   LIBATOMIC_LDFLAGS = -latomic
 endif
 
@@ -837,11 +864,11 @@ endif
 $(collect_opts_flags)
 
 #### Global compile options
-VERBOSE_CFLAGS = $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE)
+VERBOSE_CFLAGS = $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(STD_CFLAGS) $(TARGET_CFLAGS) $(CFLAGS) $(DEFINE)
 COPTS  = -Iinclude
 
-COPTS += $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE) $(SILENT_DEFINE)
-COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(ADDINC)
+COPTS += $(OPT_CFLAGS) $(ARCH_FLAGS) $(CPU_CFLAGS) $(STD_CFLAGS) $(WARN_CFLAGS) $(NOWARN_CFLAGS) $(ERROR_CFLAGS) $(TARGET_CFLAGS) $(DEFINE) $(SILENT_DEFINE)
+COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(CFLAGS) $(ADDINC)
 
 ifneq ($(VERSION)$(SUBVERS)$(EXTRAVERSION),)
   COPTS += -DCONFIG_HAPROXY_VERSION=\"$(VERSION)$(SUBVERS)$(EXTRAVERSION)\"
@@ -988,7 +1015,7 @@ IGNORE_OPTS=help install install-man install-doc install-bin \
 
 ifneq ($(TARGET),)
 ifeq ($(filter $(firstword $(MAKECMDGOALS)),$(IGNORE_OPTS)),)
-build_opts = $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(VERBOSE_CFLAGS) $(DEBUG)\' > .build_opts.new; if cmp -s .build_opts .build_opts.new; then rm -f .build_opts.new; else mv -f .build_opts.new .build_opts; fi)
+build_opts = $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(VERBOSE_CFLAGS) $(WARN_CFLAGS) $(NOWARN_CFLAGS) $(DEBUG)\' > .build_opts.new; if cmp -s .build_opts .build_opts.new; then rm -f .build_opts.new; else mv -f .build_opts.new .build_opts; fi)
 .build_opts: $(build_opts)
 else
 .build_opts:
@@ -998,7 +1025,7 @@ else
 endif # non-empty target
 
 haproxy: $(OPTIONS_OBJS) $(OBJS)
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 objsize: haproxy
 	$(Q)objdump -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
@@ -1007,31 +1034,31 @@ objsize: haproxy
 	$(cmd_CC) $(COPTS) -c -o $@ $<
 
 admin/halog/halog: admin/halog/halog.o admin/halog/fgets2.o src/ebtree.o src/eb32tree.o src/eb64tree.o src/ebmbtree.o src/ebsttree.o src/ebistree.o src/ebimtree.o
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 admin/dyncookie/dyncookie: admin/dyncookie/dyncookie.o
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 dev/flags/flags: dev/flags/flags.o
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 dev/haring/haring: dev/haring/haring.o
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 dev/hpack/%: dev/hpack/%.o
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 dev/poll/poll:
 	$(cmd_MAKE) -C dev/poll poll CC='$(CC)' OPTIMIZE='$(COPTS)' V='$(V)'
 
 dev/qpack/decode: dev/qpack/decode.o
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 dev/tcploop/tcploop:
 	$(cmd_MAKE) -C dev/tcploop tcploop CC='$(CC)' OPTIMIZE='$(COPTS)' V='$(V)'
 
 dev/udp/udp-perturb: dev/udp/udp-perturb.o
-	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 # rebuild it every time
 .PHONY: src/version.c dev/poll/poll dev/tcploop/tcploop
@@ -1042,8 +1069,6 @@ src/calltrace.o: src/calltrace.c $(DEP)
 src/haproxy.o:	src/haproxy.c $(DEP)
 	$(cmd_CC) $(COPTS) \
 	      -DBUILD_TARGET='"$(strip $(TARGET))"' \
-	      -DBUILD_ARCH='"$(strip $(ARCH))"' \
-	      -DBUILD_CPU='"$(strip $(CPU))"' \
 	      -DBUILD_CC='"$(strip $(CC))"' \
 	      -DBUILD_CFLAGS='"$(strip $(VERBOSE_CFLAGS))"' \
 	      -DBUILD_OPTIONS='"$(strip $(BUILD_OPTIONS))"' \
@@ -1143,27 +1168,30 @@ update-version:
 # settings are also listed if they're explicitly set on the command line, or if
 # they are not empty. Implicit "USE_*" are not listed.
 opts:
-	@echo -n 'Using: '
-	@echo -n 'TARGET="$(strip $(TARGET))" '
-	@echo -n 'ARCH="$(strip $(ARCH))" '
-	@echo -n 'CPU="$(strip $(CPU))" '
-	@echo -n 'CC="$(strip $(CC))" '
-	@echo -n 'ARCH_FLAGS="$(strip $(ARCH_FLAGS))" '
-	@echo -n 'CPU_CFLAGS="$(strip $(CPU_CFLAGS))" '
-	@echo -n 'DEBUG_CFLAGS="$(strip $(DEBUG_CFLAGS))" '
-	@#echo "$(strip $(BUILD_OPTIONS))"
+	@echo 'Using the following variables (copy-pastable as make arguments):'
+	@echo '  TARGET="$(strip $(TARGET))" '\\
+	@echo '  ARCH="$(strip $(ARCH))" '\\
+	@echo '  CC="$(strip $(CC))" '\\
+	@echo '  OPT_CFLAGS="$(strip $(OPT_CFLAGS))" '\\
+	@echo '  ARCH_FLAGS="$(strip $(ARCH_FLAGS))" '\\
+	@echo '  CPU_CFLAGS="$(strip $(CPU_CFLAGS))" '\\
+	@echo '  STD_CFLAGS="$(strip $(STD_CFLAGS))" '\\
+	@echo '  WARN_CFLAGS="$(strip $(WARN_CFLAGS))" '\\
+	@echo '  NOWARN_CFLAGS="$(strip $(NOWARN_CFLAGS))" '\\
+	@echo '  ERROR_CFLAGS="$(strip $(ERROR_CFLAGS))" '\\
+	@echo '  CFLAGS="$(strip $(CFLAGS))" '\\
 	@$(foreach opt,$(enabled_opts),\
 		$(if $(subst command line,,$(origin USE_$(opt))),,\
-			echo -n 'USE_$(opt)=$(USE_$(opt)) ';) \
+			echo '  USE_$(opt)=$(USE_$(opt:0=)) '\\;) \
 		$(if $(subst command line,,$(origin $(opt)_CFLAGS)),\
-			$(if $($(opt)_CFLAGS),echo -n '$(opt)_CFLAGS="$($(opt)_CFLAGS)" ';),\
-			echo -n '$(opt)_CFLAGS="$($(opt)_CFLAGS)" ';) \
+			$(if $($(opt)_CFLAGS),echo '  $(opt)_CFLAGS="$($(opt)_CFLAGS)" '\\;),\
+			echo '  $(opt)_CFLAGS="$($(opt)_CFLAGS)" '\\;) \
 		$(if $(subst command line,,$(origin $(opt)_LDFLAGS)),\
-			$(if $($(opt)_LDFLAGS),echo -n '$(opt)_LDFLAGS="$($(opt)_LDFLAGS)" ';),\
-			echo -n '$(opt)_LDFLAGS="$($(opt)_LDFLAGS)" ';))
+			$(if $($(opt)_LDFLAGS),echo '  $(opt)_LDFLAGS="$($(opt)_LDFLAGS)" '\\;),\
+			echo '  $(opt)_LDFLAGS="$($(opt)_LDFLAGS)" '\\;))
+	@echo '  LDFLAGS="$(strip $(LDFLAGS))"'
 	@echo
 	@echo 'COPTS="$(strip $(COPTS))"'
-	@echo 'LDFLAGS="$(strip $(LDFLAGS))"'
 	@echo 'LDOPTS="$(strip $(LDOPTS))"'
 	@echo 'OPTIONS_OBJS="$(strip $(OPTIONS_OBJS))"'
 	@echo 'OBJS="$(strip $(OBJS))"'

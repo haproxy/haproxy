@@ -60,10 +60,20 @@ static inline size_t ring_data(const struct ring *ring)
 		0 : ring->storage->size) + tail - ring->storage->head;
 }
 
-/* returns the allocated size in bytes for the ring */
+/* returns the usable size in bytes for the ring. It is smaller than
+ * the allocate size by the size of the ring_storage header.
+ */
 static inline size_t ring_size(const struct ring *ring)
 {
 	return ring->storage->size;
+}
+
+/* returns the allocated size in bytes for the ring. It covers the whole
+ * area made of both the ring_storage and the usable area.
+ */
+static inline size_t ring_allocated_size(const struct ring *ring)
+{
+	return ring->storage->size + ring->storage->rsvd;
 }
 
 /* returns the head offset of the ring */
@@ -91,6 +101,8 @@ static inline size_t ring_dup(struct ring *dst, const struct ring *src, size_t m
 
 	if (max > ring_data(src))
 		max = ring_data(src);
+
+	BUG_ON(max > ring_size(dst));
 
 	vp_peek_ofs(v1, v2, 0, ring_area(dst), max);
 	dst->storage->head = 0;

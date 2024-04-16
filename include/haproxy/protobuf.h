@@ -365,13 +365,13 @@ int protobuf_smp_store_64bit(struct sample *smp, int type,
 	case PBUF_T_64BIT_FIXED64:
 	case PBUF_T_64BIT_SFIXED64:
 		smp->data.type = SMP_T_SINT;
-		smp->data.u.sint = pbuf_le64toh(*(uint64_t *)pos);
+		smp->data.u.sint = pbuf_le64toh(read_u64(pos));
 		smp->flags = SMP_F_VOL_TEST;
 		break;
 
 	case PBUF_T_64BIT_DOUBLE:
 		smp->data.type = SMP_T_SINT;
-		smp->data.u.sint = pbuf_le64toh(*(double *)pos);
+		smp->data.u.sint = pbuf_le64toh(read_dbl(pos));
 		smp->flags = SMP_F_VOL_TEST;
 		break;
 
@@ -455,19 +455,19 @@ int protobuf_smp_store_32bit(struct sample *smp, int type,
 
 	case PBUF_T_32BIT_FIXED32:
 		smp->data.type = SMP_T_SINT;
-		smp->data.u.sint = pbuf_le32toh(*(uint32_t *)pos);
+		smp->data.u.sint = pbuf_le32toh(read_u32(pos));
 		smp->flags = SMP_F_VOL_TEST;
 		break;
 
 	case PBUF_T_32BIT_SFIXED32:
 		smp->data.type = SMP_T_SINT;
-		smp->data.u.sint = (int32_t)pbuf_le32toh(*(uint32_t *)pos);
+		smp->data.u.sint = (int32_t)pbuf_le32toh(read_u32(pos));
 		smp->flags = SMP_F_VOL_TEST;
 		break;
 
 	case PBUF_T_32BIT_FLOAT:
 		smp->data.type = SMP_T_SINT;
-		smp->data.u.sint = pbuf_le32toh(*(float *)pos);
+		smp->data.u.sint = pbuf_le32toh(read_flt(pos));
 		smp->flags = SMP_F_VOL_TEST;
 		break;
 

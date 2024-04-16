@@ -204,7 +204,7 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
  */
 
 /* The macros below are for general use */
-#if defined(DEBUG_STRICT)
+#if defined(DEBUG_STRICT) && (DEBUG_STRICT > 0)
 # if defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION < 1)
 /* Lowest level: BUG_ON() warns, WARN_ON() warns, CHECK_IF() warns */
 #  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, 2, "WARNING: bug ",   " (not crashing but process is untrusted now, please report to developers)", __VA_ARGS__)

@@ -264,6 +264,7 @@ struct ssl_sock_ctx {
 
 struct global_ssl {
 	char *crt_base;             /* base directory path for certificates */
+	char *key_base;             /* base directory path for private keys */
 	char *ca_base;              /* base directory path for CAs and CRLs */
 	char *issuers_chain_path;   /* from "issuers-chain-path" */
 	int  skip_self_issued_ca;

@@ -199,10 +199,11 @@
 
 #define HA_ATOMIC_LOAD(val)						      \
         ({								      \
-		typeof(*(val)) ret =					      \
-		    ({ __sync_synchronize(); *(volatile typeof(val))val; });  \
+		typeof((val)) __val_load = (val);			      \
+		typeof(*(val)) __ret_val =				      \
+			({ __sync_synchronize(); *(volatile typeof(__val_load))__val_load; }); \
 		__sync_synchronize();					      \
-		ret;							      \
+		__ret_val;						      \
 	})
 
 #define HA_ATOMIC_STORE(val, new)					\

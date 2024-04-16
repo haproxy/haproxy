@@ -91,6 +91,34 @@ static inline void write_ptr(void *p, const void *ptr)
 		return write_u64(p, (uintptr_t)ptr);
 }
 
+/* Read a float in native host order */
+static inline float read_flt(const void *p)
+{
+	const union {  float flt; } __attribute__((packed))*u = p;
+	return u->flt;
+}
+
+/* Write a float in native host order */
+static inline void write_flt(void *p, const float flt)
+{
+	union {  float flt; } __attribute__((packed))*u = p;
+	u->flt = flt;
+}
+
+/* Read a double in native host order */
+static inline double read_dbl(const void *p)
+{
+	const union {  double dbl; } __attribute__((packed))*u = p;
+	return u->dbl;
+}
+
+/* Write a double in native host order */
+static inline void write_dbl(void *p, const double dbl)
+{
+	union {  double dbl; } __attribute__((packed))*u = p;
+	u->dbl = dbl;
+}
+
 /* Read a possibly wrapping number of bytes <bytes> into destination <dst>. The
  * first segment is composed of <s1> bytes at p1. The remaining byte(s), if any,
  * are read from <p2>. <s1> may be zero and may also be larger than <bytes>. The

@@ -59,6 +59,7 @@ Summary
 3.9.      Rings
 3.10.     Log forwarding
 3.11.     HTTPClient tuning
+3.12.     Certificate Storage
 
 4.    Proxies
 4.1.      Proxy keywords matrix
@@ -1277,6 +1278,7 @@ The following keywords are supported in the "global" section :
    - insecure-fork-wanted
    - insecure-setuid-wanted
    - issuers-chain-path
+   - key-base
    - localpeer
    - log
    - log-send-hostname
@@ -2015,6 +2017,11 @@ issuers-chain-path <dir>
   chain if a file with IntermediateCA2+IntermediateCA1 is present in
   "issuers-chain-path" directory. All other certificates with the same issuer
   will share the chain in memory.
+
+key-base <dir>
+  Assigns a default directory to fetch SSL private keys from when a relative
+  path is used with "key" directives. Absolute locations specified prevail and
+  ignore "key-base". This option only works with a crt-store load line.
 
 limited-quic
   This setting must be used to explicitly enable the QUIC listener bindings when
@@ -4716,6 +4723,60 @@ httpclient.timeout.connect <timeout>
               as explained at the top of this document.
 
   The default value is 5000ms.
+
+
+3.12. Certificate Storage
+-------------------------
+
+HAProxy uses an internal storage mecanism to load and store certificates used
+in the configuration. This storage can be configured by using a "crt-store"
+section. It allows to configure certificate definitions and which files should
+be loaded in it. A certificate definition must be written before it is used
+elsewhere in the configuration.
+
+Files in the certificate storage can also be updated dynamically with the CLI.
+See "set ssl cert" in the section 9.3 of the management guide.
+
+Currently only the "load" keyword is supported in the "crt-store" section:
+
+load [crt <filename>] [param*]
+  Load SSL files in the certificate storage.
+
+  Arguments:
+
+    crt <filename>     This argument is mandatory, it loads a PEM which must
+                       contain the public certificate but could also contain
+                       the intermediate certificates and the private key.
+                       If no private key is provided in this file, a key can be
+                       provided with the "key" keyword.
+
+    key <filename>     This argument is optional. Load a private key in PEM
+                       format. If a private key was already defined in "crt",
+                       it will overwrite it.
+
+    ocsp <filename>    This argument is optional, it loads an OCSP response in
+                       DER format. It can be updated with the CLI.
+
+    issuer <filename>  This argument is optional. Load the OCSP issuer in PEM
+                       format. In order to identify which certificate an OCSP
+                       Response applies to, the issuer's certificate is necessary.
+                       If the issuer's certificate is not found in the "crt" file,
+                       it could be loaded from a file with this argument.
+
+    sctl <filename>    This argument is optional. Support for Certificate
+                       Transparency (RFC6962) TLS extension is enabled. The file
+                       must contain a valid Signed Certificate Timestamp List,
+                       as described in RFC. File is parsed to check basic syntax,
+                       but no signatures are verified.
+
+Example:
+
+    crt-store
+        load crt "site1.crt" key "site1.key" ocsp "site1.ocsp"
+        load crt "site2.crt" key "site2.key"
+
+    frontend in
+        bind *:443 ssl crt "site1.crt" crt "site2.crt"
 
 4. Proxies
 ----------

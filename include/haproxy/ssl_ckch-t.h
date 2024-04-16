@@ -58,6 +58,15 @@ struct ckch_data {
 	int ocsp_update_mode;
 };
 
+/* configuration for the ckch_store */
+struct ckch_conf {
+	char *crt;
+	char *key;
+	char *ocsp;
+	char *issuer;
+	char *sctl;
+};
+
 /*
  * this is used to store 1 to SSL_SOCK_NUM_KEYTYPES cert_key_and_chain and
  * metadata.
@@ -71,6 +80,7 @@ struct ckch_store {
 	struct ckch_data *data;
 	struct list ckch_inst; /* list of ckch_inst which uses this ckch_node */
 	struct list crtlist_entry; /* list of entries which use this store */
+	struct ckch_conf conf;
 	struct ebmb_node node;
 	char path[VAR_ARRAY];
 };
@@ -156,6 +166,23 @@ struct cert_exts {
 	int (*load)(const char *path, char *payload, struct ckch_data *data, char **err);
 	/* add a parsing callback */
 };
+
+/* argument types */
+enum parse_type_t {
+	PARSE_TYPE_INT = 0,
+	PARSE_TYPE_STR,         /* string which is strdup() */
+	PARSE_TYPE_ONOFF,       /* "on" or "off" keyword */
+};
+
+struct ckch_conf_kws {
+	const char *name;
+	size_t offset;
+	enum parse_type_t type;
+	int (*func)(const char *path, char *buf, struct ckch_data *d, char **err);
+	char **base; /* ptr to the base path */
+};
+
+extern struct ckch_conf_kws ckch_conf_kws[];
 
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_CKCH_T_H */

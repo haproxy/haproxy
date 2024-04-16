@@ -40,31 +40,30 @@ static struct list pools __read_mostly = LIST_HEAD_INIT(pools);
 int mem_poison_byte __read_mostly = 'P';
 int pool_trim_in_progress = 0;
 uint pool_debugging __read_mostly =               /* set of POOL_DBG_* flags */
-#ifdef DEBUG_FAIL_ALLOC
+#if defined(DEBUG_FAIL_ALLOC) && (DEBUG_FAIL_ALLOC > 0)
 	POOL_DBG_FAIL_ALLOC |
 #endif
-#ifdef DEBUG_DONT_SHARE_POOLS
+#if defined(DEBUG_DONT_SHARE_POOLS) && (DEBUG_DONT_SHARE_POOLS > 0)
 	POOL_DBG_DONT_MERGE |
 #endif
-#ifdef DEBUG_POOL_INTEGRITY
+#if defined(DEBUG_POOL_INTEGRITY) && (DEBUG_POOL_INTEGRITY > 0)
 	POOL_DBG_COLD_FIRST |
-#endif
-#ifdef DEBUG_POOL_INTEGRITY
 	POOL_DBG_INTEGRITY  |
 #endif
-#ifdef CONFIG_HAP_NO_GLOBAL_POOLS
+#if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 	POOL_DBG_NO_GLOBAL  |
 #endif
-#if defined(DEBUG_NO_POOLS) || defined(DEBUG_UAF)
+#if defined(DEBUG_NO_POOLS) && (DEBUG_NO_POOLS > 0)
 	POOL_DBG_NO_CACHE   |
 #endif
-#if defined(DEBUG_POOL_TRACING)
+#if defined(DEBUG_POOL_TRACING) && (DEBUG_POOL_TRACING > 0)
 	POOL_DBG_CALLER     |
 #endif
-#if defined(DEBUG_MEMORY_POOLS)
+#if defined(DEBUG_MEMORY_POOLS) && (DEBUG_MEMORY_POOLS > 0)
 	POOL_DBG_TAG        |
 #endif
-#if defined(DEBUG_UAF)
+#if defined(DEBUG_UAF) && (DEBUG_UAF > 0)
+	POOL_DBG_NO_CACHE   |
 	POOL_DBG_UAF        |
 #endif
 	0;
@@ -497,7 +496,7 @@ void pool_check_pattern(struct pool_cache_head *pch, struct pool_head *pool, str
 	u = ptr[ofs++];
 	while (ofs < size / sizeof(*ptr)) {
 		if (unlikely(ptr[ofs] != u)) {
-			pool_inspect_item("cache corruption detected", pool, item, caller);
+			pool_inspect_item("cache corruption detected", pool, item, caller, ofs * sizeof(*ptr));
 			ABORT_NOW();
 		}
 		ofs++;
@@ -962,8 +961,12 @@ void pool_destroy_all()
 	}
 }
 
-/* carefully inspects an item upon fatal error and emit diagnostics */
-void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item, const void *caller)
+/* carefully inspects an item upon fatal error and emit diagnostics.
+ * If ofs < 0, no hint is provided regarding the content location. However if
+ * ofs >= 0, then we also try to inspect around that place where corruption
+ * was detected.
+ */
+void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item, const void *caller, ssize_t ofs)
 {
 	const struct pool_head *the_pool = NULL;
 
@@ -979,6 +982,11 @@ void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item
 		      "  item: %p\n"
 		      "  pool: %p ('%s', size %u, real %u, users %u)\n",
 		      item, pool, pool->name, pool->size, pool->alloc_sz, pool->users);
+
+	if (ofs >= 0) {
+		chunk_printf(&trash, "Contents around first corrupted address relative to pool item:.\n");
+		dump_area_with_syms(&trash, item, item + ofs, NULL, NULL, NULL);
+	}
 
 	if (pool_debugging & POOL_DBG_TAG) {
 		const void **pool_mark;
@@ -1015,51 +1023,16 @@ void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item
 			}
 
 			if (!the_pool) {
-				const char *start, *end, *p;
+				chunk_appendf(&trash,
+					      "Tag does not match any other pool.\n");
 
 				pool_mark = (const void **)(((char *)item) + pool->size);
-				chunk_appendf(&trash,
-					      "Tag does not match any other pool.\n"
-					      "Contents around address %p+%lu=%p:\n",
-					      item, (ulong)((const void*)pool_mark - (const void*)item),
-					      pool_mark);
+				if (resolve_sym_name(&trash, "Resolving the tag as a pool_free() location: ", *pool_mark))
+					chunk_appendf(&trash, "\n");
+				else
+					chunk_appendf(&trash, " (no match).\n");
 
-				/* dump in word-sized blocks */
-				start = (const void *)(((uintptr_t)pool_mark - 32) & -sizeof(void*));
-				end   = (const void *)(((uintptr_t)pool_mark + 32 + sizeof(void*) - 1) & -sizeof(void*));
-
-				while (start < end) {
-					dump_addr_and_bytes(&trash, "  ", start, sizeof(void*));
-					chunk_strcat(&trash, " [");
-					for (p = start; p < start + sizeof(void*); p++) {
-						if (!may_access(p))
-							chunk_strcat(&trash, "*");
-						else if (isprint((unsigned char)*p))
-							chunk_appendf(&trash, "%c", *p);
-						else
-							chunk_strcat(&trash, ".");
-					}
-
-					if (may_access(start))
-						tag = *(const void **)start;
-					else
-						tag = NULL;
-
-					if (tag == pool) {
-						/* the pool can often be there so let's detect it */
-						chunk_appendf(&trash, "] [pool:%s", pool->name);
-					}
-					else if (tag) {
-						/* print pointers that resolve to a symbol */
-						size_t back_data = trash.data;
-						chunk_strcat(&trash, "] [");
-						if (!resolve_sym_name(&trash, NULL, tag))
-							trash.data = back_data;
-					}
-
-					chunk_strcat(&trash, "]\n");
-					start = p;
-				}
+				dump_area_with_syms(&trash, item, pool_mark, pool, "pool", pool->name);
 			}
 		}
 	}

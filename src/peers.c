@@ -90,16 +90,25 @@
 /* Remote peer teaching state */
 /******************************/
 #define PEER_F_TEACH_PROCESS        0x00000001 /* Teach a lesson to current peer */
-#define PEER_F_TEACH_FINISHED       0x00000008 /* Teach conclude, (wait for confirm) */
-#define PEER_F_TEACH_COMPLETE       0x00000010 /* All that we know already taught to current peer, used only for a local peer */
-#define PEER_F_LEARN_ASSIGN         0x00000100 /* Current peer was assigned for a lesson */
-#define PEER_F_LEARN_NOTUP2DATE     0x00000200 /* Learn from peer finished but peer is not up to date */
+#define PEER_F_TEACH_FINISHED       0x00000002 /* Teach conclude, (wait for confirm) */
+#define PEER_F_TEACH_COMPLETE       0x00000004 /* All that we know already taught to current peer, used only for a local peer */
+#define PEER_F_LEARN_ASSIGN         0x00000010 /* Current peer was assigned for a lesson */
+#define PEER_F_LEARN_PROCESS        0x00000020 /* Learn from peer was started */
+#define PEER_F_LEARN_FINISHED       0x00000040 /* Learn from peer fully finished */
+#define PEER_F_LEARN_NOTUP2DATE     0x00000080 /* Learn from peer finished but peer is not up to date */
+#define PEER_F_ST_ACCEPTED          0x00000100 /* Used to set a peer in accepted state.  */
+#define PEER_F_ST_CONNECTED         0x00000200 /* Used to set a peer in connected state.  */
+#define PEER_F_ST_RENEWED           0x00000400 /* Used to set a peer in accepted state and old connection was replaced.  */
+#define PEER_F_ST_RELEASED          0x00000800 /* Used to set a peer in released state.  */
+#define PEER_F_RESYNC_REQUESTED     0x00001000 /* A resnyc was explicitly requested */
 #define PEER_F_ALIVE                0x20000000 /* Used to flag a peer a alive. */
 #define PEER_F_HEARTBEAT            0x40000000 /* Heartbeat message to send. */
 #define PEER_F_DWNGRD               0x80000000 /* When this flag is enabled, we must downgrade the supported version announced during peer sessions. */
 
 #define PEER_TEACH_RESET            ~(PEER_F_TEACH_PROCESS|PEER_F_TEACH_FINISHED) /* PEER_F_TEACH_COMPLETE should never be reset */
-#define PEER_LEARN_RESET            ~(PEER_F_LEARN_ASSIGN|PEER_F_LEARN_NOTUP2DATE)
+#define PEER_LEARN_RESET            ~(PEER_F_LEARN_ASSIGN|PEER_F_LEARN_PROCESS|PEER_F_LEARN_FINISHED|PEER_F_LEARN_NOTUP2DATE)
+#define PEER_STATE_RESET            ~(PEER_F_ST_ACCEPTED|PEER_F_ST_CONNECTED|PEER_F_ST_RENEWED|PEER_F_ST_RELEASED)
+
 
 #define PEER_RESYNC_TIMEOUT         5000 /* 5 seconds */
 #define PEER_RECONNECT_TIMEOUT      5000 /* 5 seconds */
@@ -334,6 +343,7 @@ static const struct trace_event peers_trace_events[] = {
 	{ .mask = PEERS_EV_SESSREL,    .name = "sessrl",       .desc = "peer session releasing" },
 #define PEERS_EV_PROTOERR        (1 << 6)
 	{ .mask = PEERS_EV_PROTOERR,   .name = "protoerr",     .desc = "protocol error" },
+	{ }
 };
 
 static const struct name_desc peers_trace_lockon_args[4] = {
@@ -1059,21 +1069,11 @@ void __peer_session_deinit(struct peer *peer)
 	/* Re-init current table pointers to force announcement on re-connect */
 	peer->remote_table = peer->last_local_table = peer->stop_local_table = NULL;
 	peer->appctx = NULL;
-	if (peer->flags & PEER_F_LEARN_ASSIGN) {
-		/* unassign current peer for learning */
-		peer->flags &= ~(PEER_F_LEARN_ASSIGN);
-		peers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
 
-		if (peer->local)
-			 peers->flags |= PEERS_F_RESYNC_LOCALABORT;
-		else
-			 peers->flags |= PEERS_F_RESYNC_REMOTEABORT;
-		/* reschedule a resync */
-		peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(5000));
-	}
-	/* reset teaching and learning flags to 0 */
-	peer->flags &= PEER_TEACH_RESET;
-	peer->flags &= PEER_LEARN_RESET;
+	/* Mark peer as released */
+	peer->flags &= PEER_STATE_RESET;
+	peer->flags |= PEER_F_ST_RELEASED;
+
 	task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
 }
 
@@ -2497,70 +2497,24 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 			peer->flags &= PEER_TEACH_RESET;
 
 			/* flag to start to teach lesson */
-			peer->flags |= PEER_F_TEACH_PROCESS;
-			peers->flags |= PEERS_F_RESYNC_REQUESTED;
+			peer->flags |= (PEER_F_TEACH_PROCESS|PEER_F_RESYNC_REQUESTED);
 		}
 		else if (msg_head[1] == PEER_MSG_CTRL_RESYNCFINISHED) {
 			TRACE_PROTO("received control message", PEERS_EV_CTRLMSG,
 			            NULL, &msg_head[1], peers->local->id, peer->id);
-			if (peer->flags & PEER_F_LEARN_ASSIGN) {
-				int commit_a_finish = 1;
-
-				peer->flags &= ~PEER_F_LEARN_ASSIGN;
-				peers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
-				if (peer->srv->shard) {
-					struct peer *ps;
-
-					peers->flags |= PEERS_F_RESYNC_REMOTEPARTIAL;
-					peer->flags |= PEER_F_LEARN_NOTUP2DATE;
-					for (ps = peers->remote; ps; ps = ps->next) {
-						if (ps->srv->shard == peer->srv->shard) {
-							/* flag all peers from same shard
-							 * notup2date to disable request
-							 * of a resync frm them
-							 */
-							ps->flags |= PEER_F_LEARN_NOTUP2DATE;
-						}
-						else if (ps->srv->shard && !(ps->flags & PEER_F_LEARN_NOTUP2DATE)) {
-							/* it remains some other shards not requested
-							 * we don't commit a resync finish to request
-							 * the other shards
-							 */
-							commit_a_finish = 0;
-						}
-					}
-
-					if (!commit_a_finish) {
-						/* it remains some shard to request, we schedule a new request
-						 */
-						peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
-						task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
-					}
-				}
-
-				if (commit_a_finish) {
-					peers->flags |= (PEERS_F_RESYNC_LOCAL|PEERS_F_RESYNC_REMOTE);
-					if (peer->local)
-						peers->flags |= PEERS_F_RESYNC_LOCALFINISHED;
-					else
-						peers->flags |= PEERS_F_RESYNC_REMOTEFINISHED;
-				}
+			if (peer->flags & PEER_F_LEARN_PROCESS) {
+				peer->flags &= ~PEER_F_LEARN_PROCESS;
+				peer->flags |= PEER_F_LEARN_FINISHED;
+				task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
 			}
 			peer->confirm++;
 		}
 		else if (msg_head[1] == PEER_MSG_CTRL_RESYNCPARTIAL) {
 			TRACE_PROTO("received control message", PEERS_EV_CTRLMSG,
 			            NULL, &msg_head[1], peers->local->id, peer->id);
-			if (peer->flags & PEER_F_LEARN_ASSIGN) {
-				peer->flags &= ~PEER_F_LEARN_ASSIGN;
-				peers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
-
-				if (peer->local)
-					peers->flags |= PEERS_F_RESYNC_LOCALPARTIAL;
-				else
-					peers->flags |= PEERS_F_RESYNC_REMOTEPARTIAL;
-				peer->flags |= PEER_F_LEARN_NOTUP2DATE;
-				peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
+			if (peer->flags & PEER_F_LEARN_PROCESS) {
+				peer->flags &= ~PEER_F_LEARN_PROCESS;
+				peer->flags |= (PEER_F_LEARN_FINISHED|PEER_F_LEARN_NOTUP2DATE);
 				task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
 			}
 			peer->confirm++;
@@ -2658,15 +2612,12 @@ static inline int peer_send_msgs(struct appctx *appctx,
 	int repl;
 
 	/* Need to request a resync */
-	if ((peer->flags & PEER_F_LEARN_ASSIGN) &&
-		(peers->flags & PEERS_F_RESYNC_ASSIGN) &&
-		!(peers->flags & PEERS_F_RESYNC_PROCESS)) {
-
+	if ((peer->flags & (PEER_F_LEARN_ASSIGN|PEER_F_LEARN_PROCESS|PEER_F_LEARN_FINISHED)) == PEER_F_LEARN_ASSIGN) {
 		repl = peer_send_resync_reqmsg(appctx, peer, peers);
 		if (repl <= 0)
 			return repl;
 
-		peers->flags |= PEERS_F_RESYNC_PROCESS;
+		peer->flags |= PEER_F_LEARN_PROCESS;
 	}
 
 	/* Nothing to read, now we start to write */
@@ -2897,6 +2848,9 @@ static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
 	/* Init confirm counter */
 	peer->confirm = 0;
 
+	peer->flags &= PEER_STATE_RESET;
+	peer->flags |= PEER_F_ST_ACCEPTED;
+
 	/* Init cursors */
 	for (st = peer->tables; st ; st = st->next) {
 		uint commitid, updateid;
@@ -2927,30 +2881,6 @@ static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
 		}
 
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
-	}
-
-	/* reset teaching and learning flags to 0 */
-	peer->flags &= PEER_TEACH_RESET;
-	peer->flags &= PEER_LEARN_RESET;
-
-	/* if current peer is local */
-	if (peer->local) {
-		/* if current host need resyncfrom local and no process assigned  */
-		if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMLOCAL &&
-		    !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
-			/* assign local peer for a lesson, consider lesson already requested */
-			peer->flags |= PEER_F_LEARN_ASSIGN;
-			peers->flags |= (PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
-			peers->flags |= PEERS_F_RESYNC_LOCALASSIGN;
-		}
-
-	}
-	else if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
-	         !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
-		/* assign peer for a lesson  */
-		peer->flags |= PEER_F_LEARN_ASSIGN;
-		peers->flags |= PEERS_F_RESYNC_ASSIGN;
-		peers->flags |= PEERS_F_RESYNC_REMOTEASSIGN;
 	}
 }
 
@@ -2994,28 +2924,14 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
 	}
 
+	/* Awake main task */
+	task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
+
 	/* Init confirm counter */
 	peer->confirm = 0;
 
-	/* reset teaching and learning flags to 0 */
-	peer->flags &= PEER_TEACH_RESET;
-	peer->flags &= PEER_LEARN_RESET;
-
-	/* If current peer is local */
-	if (peer->local) {
-		/* flag to start to teach lesson */
-		peer->flags |= PEER_F_TEACH_PROCESS;
-	}
-	else if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
-	         !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
-		/* If peer is remote and resync from remote is needed,
-		and no peer currently assigned */
-
-		/* assign peer for a lesson */
-		peer->flags |= PEER_F_LEARN_ASSIGN;
-		peers->flags |= PEERS_F_RESYNC_ASSIGN;
-		peers->flags |= PEERS_F_RESYNC_REMOTEASSIGN;
-	}
+	peer->flags &= PEER_STATE_RESET;
+	peer->flags |= PEER_F_ST_CONNECTED;
 }
 
 /*
@@ -3099,6 +3015,11 @@ switchstate:
 					 */
 					curpeer->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
 					peer_session_forceshutdown(curpeer);
+
+					/* old peer connection was replaced by a new one. */
+					curpeer->flags &= PEER_STATE_RESET;
+					curpeer->flags |= PEER_F_ST_RENEWED;
+
 					curpeer->heartbeat = TICK_ETERNITY;
 					curpeer->coll++;
 				}
@@ -3402,6 +3323,397 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	return NULL;
 }
 
+static void __process_peer_learn_status(struct peers *peers, struct peer *peer)
+{
+	struct peer *ps;
+
+	if (peer->flags & PEER_F_LEARN_PROCESS)
+		peers->flags |= PEERS_F_RESYNC_PROCESS;
+
+	if (!(peer->flags & PEER_F_LEARN_FINISHED))
+		return;
+
+	if (peer->flags & PEER_F_LEARN_NOTUP2DATE) {
+		/* Partial resync */
+		peers->flags |= (peer->local ? PEERS_F_RESYNC_LOCALPARTIAL : PEERS_F_RESYNC_REMOTEPARTIAL);
+		peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
+	}
+	else {
+		/* Full resync */
+		int commit_a_finish = 1;
+
+		if (peer->srv->shard) {
+			peers->flags |= PEERS_F_RESYNC_REMOTEPARTIAL;
+			peer->flags |= PEER_F_LEARN_NOTUP2DATE;
+			for (ps = peers->remote; ps; ps = ps->next) {
+				if (ps->srv->shard && ps != peer) {
+					HA_SPIN_LOCK(PEER_LOCK, &ps->lock);
+					if (ps->srv->shard == peer->srv->shard) {
+						/* flag all peers from same shard
+						 * notup2date to disable request
+						 * of a resync frm them
+						 */
+						ps->flags |= PEER_F_LEARN_NOTUP2DATE;
+					}
+					else if (!(ps->flags & PEER_F_LEARN_NOTUP2DATE)) {
+						/* it remains some other shards not requested
+						 * we don't commit a resync finish to request
+						 * the other shards
+						 */
+						commit_a_finish = 0;
+					}
+					HA_SPIN_UNLOCK(PEER_LOCK, &ps->lock);
+				}
+			}
+
+			if (!commit_a_finish) {
+				/* it remains some shard to request, we schedule a new request */
+				peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
+			}
+		}
+
+		if (commit_a_finish) {
+			peers->flags |= (PEERS_F_RESYNC_LOCAL|PEERS_F_RESYNC_REMOTE);
+			peers->flags |= (peer->local ? PEERS_F_RESYNC_LOCALFINISHED : PEERS_F_RESYNC_REMOTEFINISHED);
+		}
+	}
+	peer->flags &= ~(PEER_F_LEARN_ASSIGN|PEER_F_LEARN_PROCESS|PEER_F_LEARN_FINISHED);
+	peers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
+}
+
+static void __process_peer_state(struct peers *peers, struct peer *peer)
+{
+	if (peer->flags & PEER_F_RESYNC_REQUESTED)
+		peers->flags |= PEERS_F_RESYNC_REQUESTED;
+
+	/* Check peer state. Order is important */
+	if (peer->flags & (PEER_F_ST_RELEASED|PEER_F_ST_RENEWED)) {
+		if (peer->flags & PEER_F_LEARN_ASSIGN) {
+			/* unassign current peer for learning */
+			peers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
+			peers->flags |= (peer->local ? PEERS_F_RESYNC_LOCALABORT : PEERS_F_RESYNC_REMOTEABORT);
+			/* reschedule a resync */
+			peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(5000));
+		}
+		peer->flags &= PEER_TEACH_RESET;
+		peer->flags &= PEER_LEARN_RESET;
+	}
+	if (peer->flags & (PEER_F_ST_ACCEPTED|PEER_F_ST_RENEWED)) {
+		peer->flags &= PEER_TEACH_RESET;
+		peer->flags &= PEER_LEARN_RESET;
+
+		/* if current peer is local */
+		if (peer->local) {
+			/* if current host need resyncfrom local and no process assigned  */
+			if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMLOCAL &&
+			    !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
+				/* assign local peer for a lesson, consider lesson already requested */
+				peer->flags |= (PEER_F_LEARN_ASSIGN|PEERS_F_RESYNC_PROCESS);
+				peers->flags |= (PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
+				peers->flags |= PEERS_F_RESYNC_LOCALASSIGN;
+			}
+		}
+		else if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
+			 !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
+			/* assign peer for a lesson  */
+			peer->flags |= PEER_F_LEARN_ASSIGN;
+			peers->flags |= PEERS_F_RESYNC_ASSIGN;
+			peers->flags |= PEERS_F_RESYNC_REMOTEASSIGN;
+		}
+	}
+	if (peer->flags & PEER_F_ST_CONNECTED) {
+		peer->flags &= PEER_TEACH_RESET;
+		peer->flags &= PEER_LEARN_RESET;
+
+		/* If current peer is local */
+		if (peer->local) {
+			/* flag to start to teach lesson */
+			peer->flags |= PEER_F_TEACH_PROCESS;
+		}
+		else if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
+			 !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
+			/* If peer is remote and resync from remote is needed,
+			   and no peer currently assigned */
+
+			/* assign peer for a lesson */
+			peer->flags |= PEER_F_LEARN_ASSIGN;
+			peers->flags |= PEERS_F_RESYNC_ASSIGN;
+			peers->flags |= PEERS_F_RESYNC_REMOTEASSIGN;
+		}
+	}
+	peer->flags &= PEER_STATE_RESET;
+}
+
+static void __process_running_peer_sync(struct task *task, struct peers *peers, unsigned int state)
+{
+	struct peer *ps;
+	struct shared_table *st;
+
+	/* resync timeout set to TICK_ETERNITY means we just start
+	 * a new process and timer was not initialized.
+	 * We must arm this timer to switch to a request to a remote
+	 * node if incoming connection from old local process never
+	 * comes.
+	 */
+	if (peers->resync_timeout == TICK_ETERNITY)
+		peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
+
+	if (((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMLOCAL) &&
+	    (!nb_oldpids || tick_is_expired(peers->resync_timeout, now_ms)) &&
+	    !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
+		/* Resync from local peer needed
+		   no peer was assigned for the lesson
+		   and no old local peer found
+		   or resync timeout expire */
+
+		/* flag no more resync from local, to try resync from remotes */
+		peers->flags |= PEERS_F_RESYNC_LOCAL;
+		peers->flags |= PEERS_F_RESYNC_LOCALTIMEOUT;
+
+		/* reschedule a resync */
+		peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
+	}
+
+	/* For each session */
+	for (ps = peers->remote; ps; ps = ps->next) {
+		HA_SPIN_LOCK(PEER_LOCK, &ps->lock);
+
+		__process_peer_learn_status(peers, ps);
+		__process_peer_state(peers, ps);
+
+		/* For each remote peers */
+		if (!ps->local) {
+			if (!ps->appctx) {
+				/* no active peer connection */
+				if (ps->statuscode == 0 ||
+				    ((ps->statuscode == PEER_SESS_SC_CONNECTCODE ||
+				      ps->statuscode == PEER_SESS_SC_SUCCESSCODE ||
+				      ps->statuscode == PEER_SESS_SC_CONNECTEDCODE) &&
+				     tick_is_expired(ps->reconnect, now_ms))) {
+					/* connection never tried
+					 * or previous peer connection established with success
+					 * or previous peer connection failed while connecting
+					 * and reconnection timer is expired */
+
+					/* retry a connect */
+					ps->appctx = peer_session_create(peers, ps);
+				}
+				else if (!tick_is_expired(ps->reconnect, now_ms)) {
+					/* If previous session failed during connection
+					 * but reconnection timer is not expired */
+
+					/* reschedule task for reconnect */
+					task->expire = tick_first(task->expire, ps->reconnect);
+				}
+				/* else do nothing */
+			} /* !ps->appctx */
+			else if (ps->statuscode == PEER_SESS_SC_SUCCESSCODE) {
+				/* current peer connection is active and established */
+				if (((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE) &&
+				    !(peers->flags & PEERS_F_RESYNC_ASSIGN) &&
+				    !(ps->flags & PEER_F_LEARN_NOTUP2DATE)) {
+					/* Resync from a remote is needed
+					 * and no peer was assigned for lesson
+					 * and current peer may be up2date */
+
+					/* assign peer for the lesson */
+					ps->flags |= PEER_F_LEARN_ASSIGN;
+					peers->flags |= PEERS_F_RESYNC_ASSIGN;
+					peers->flags |= PEERS_F_RESYNC_REMOTEASSIGN;
+
+					/* wake up peer handler to handle a request of resync */
+					appctx_wakeup(ps->appctx);
+				}
+				else {
+					int update_to_push = 0;
+
+					/* Awake session if there is data to push */
+					for (st = ps->tables; st ; st = st->next) {
+						if (st->last_pushed != st->table->localupdate) {
+							/* wake up the peer handler to push local updates */
+							update_to_push = 1;
+							/* There is no need to send a heartbeat message
+							 * when some updates must be pushed. The remote
+							 * peer will consider <ps> peer as alive when it will
+							 * receive these updates.
+							 */
+							ps->flags &= ~PEER_F_HEARTBEAT;
+							/* Re-schedule another one later. */
+							ps->heartbeat = tick_add(now_ms, MS_TO_TICKS(PEER_HEARTBEAT_TIMEOUT));
+							/* Refresh reconnect if necessary */
+							if (tick_is_expired(ps->reconnect, now_ms))
+								ps->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
+							/* We are going to send updates, let's ensure we will
+							 * come back to send heartbeat messages or to reconnect.
+							 */
+							task->expire = tick_first(ps->reconnect, ps->heartbeat);
+							appctx_wakeup(ps->appctx);
+							break;
+						}
+					}
+					/* When there are updates to send we do not reconnect
+					 * and do not send heartbeat message either.
+					 */
+					if (!update_to_push) {
+						if (tick_is_expired(ps->reconnect, now_ms)) {
+							if (ps->flags & PEER_F_ALIVE) {
+								/* This peer was alive during a 'reconnect' period.
+								 * Flag it as not alive again for the next period.
+								 */
+								ps->flags &= ~PEER_F_ALIVE;
+								ps->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
+							}
+							else  {
+								ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
+								ps->heartbeat = TICK_ETERNITY;
+								peer_session_forceshutdown(ps);
+								ps->no_hbt++;
+							}
+						}
+						else if (tick_is_expired(ps->heartbeat, now_ms)) {
+							ps->heartbeat = tick_add(now_ms, MS_TO_TICKS(PEER_HEARTBEAT_TIMEOUT));
+							ps->flags |= PEER_F_HEARTBEAT;
+							appctx_wakeup(ps->appctx);
+						}
+						task->expire = tick_first(ps->reconnect, ps->heartbeat);
+					}
+				}
+				/* else do nothing */
+			} /* SUCCESSCODE */
+		} /* !ps->peer->local */
+
+		HA_SPIN_UNLOCK(PEER_LOCK, &ps->lock);
+	} /* for */
+
+	/* Resync from remotes expired: consider resync is finished */
+	if (((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE) &&
+	    !(peers->flags & PEERS_F_RESYNC_ASSIGN) &&
+	    tick_is_expired(peers->resync_timeout, now_ms)) {
+		/* Resync from remote peer needed
+		 * no peer was assigned for the lesson
+		 * and resync timeout expire */
+
+		/* flag no more resync from remote, consider resync is finished */
+		peers->flags |= PEERS_F_RESYNC_REMOTE;
+		peers->flags |= PEERS_F_RESYNC_REMOTETIMEOUT;
+	}
+
+	if ((peers->flags & PEERS_RESYNC_STATEMASK) != PEERS_RESYNC_FINISHED) {
+		/* Resync not finished*/
+		/* reschedule task to resync timeout if not expired, to ended resync if needed */
+		if (!tick_is_expired(peers->resync_timeout, now_ms))
+			task->expire = tick_first(task->expire, peers->resync_timeout);
+	}
+}
+
+static void __process_stopping_peer_sync(struct task *task, struct peers *peers, unsigned int state)
+{
+	struct peer *ps;
+	struct shared_table *st;
+
+
+	/* For each peer */
+	for (ps = peers->remote; ps; ps = ps->next) {
+		HA_SPIN_LOCK(PEER_LOCK, &ps->lock);
+
+		__process_peer_learn_status(peers, ps);
+		__process_peer_state(peers, ps);
+
+		if ((state & TASK_WOKEN_SIGNAL) && !(peers->flags & PEERS_F_DONOTSTOP)) {
+			/* we're killing a connection, we must apply a random delay before
+			 * retrying otherwise the other end will do the same and we can loop
+			 * for a while.
+			 */
+			ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
+			if (ps->appctx) {
+				peer_session_forceshutdown(ps);
+			}
+		}
+
+		HA_SPIN_UNLOCK(PEER_LOCK, &ps->lock);
+	}
+
+	/* We've just received the signal */
+	if (state & TASK_WOKEN_SIGNAL) {
+		if (!(peers->flags & PEERS_F_DONOTSTOP)) {
+			/* add DO NOT STOP flag if not present */
+			_HA_ATOMIC_INC(&jobs);
+			peers->flags |= PEERS_F_DONOTSTOP;
+
+			/* Set resync timeout for the local peer and request a immediate reconnect */
+			peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
+			peers->local->reconnect = now_ms;
+		}
+	}
+
+	ps = peers->local;
+	HA_SPIN_LOCK(PEER_LOCK, &ps->lock);
+	if (ps->flags & PEER_F_TEACH_COMPLETE) {
+		if (peers->flags & PEERS_F_DONOTSTOP) {
+			/* resync of new process was complete, current process can die now */
+			_HA_ATOMIC_DEC(&jobs);
+			peers->flags &= ~PEERS_F_DONOTSTOP;
+			for (st = ps->tables; st ; st = st->next)
+				HA_ATOMIC_DEC(&st->table->refcnt);
+		}
+	}
+	else if (!ps->appctx) {
+		/* Re-arm resync timeout if necessary */
+		if (!tick_isset(peers->resync_timeout))
+			peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
+
+		/* If there's no active peer connection */
+		if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FINISHED &&
+		    !tick_is_expired(peers->resync_timeout, now_ms) &&
+		    (ps->statuscode == 0 ||
+		     ps->statuscode == PEER_SESS_SC_SUCCESSCODE ||
+		     ps->statuscode == PEER_SESS_SC_CONNECTEDCODE ||
+		     ps->statuscode == PEER_SESS_SC_TRYAGAIN)) {
+			/* The resync is finished for the local peer and
+			 *   the resync timeout is not expired and
+			 *   connection never tried
+			 *   or previous peer connection was successfully established
+			 *   or previous tcp connect succeeded but init state incomplete
+			 *   or during previous connect, peer replies a try again statuscode */
+
+			if (!tick_is_expired(ps->reconnect, now_ms)) {
+				/* reconnection timer is not expired. reschedule task for reconnect */
+				task->expire = tick_first(task->expire, ps->reconnect);
+			}
+			else  {
+				/* connect to the local peer if we must push a local sync */
+				if (peers->flags & PEERS_F_DONOTSTOP) {
+					peer_session_create(peers, ps);
+				}
+			}
+		}
+		else {
+			/* Other error cases */
+			if (peers->flags & PEERS_F_DONOTSTOP) {
+				/* unable to resync new process, current process can die now */
+				_HA_ATOMIC_DEC(&jobs);
+				peers->flags &= ~PEERS_F_DONOTSTOP;
+				for (st = ps->tables; st ; st = st->next)
+					HA_ATOMIC_DEC(&st->table->refcnt);
+			}
+		}
+	}
+	else if (ps->statuscode == PEER_SESS_SC_SUCCESSCODE ) {
+		/* Reset resync timeout during a resync */
+		peers->resync_timeout = TICK_ETERNITY;
+
+		/* current peer connection is active and established
+		 * wake up all peer handlers to push remaining local updates */
+		for (st = ps->tables; st ; st = st->next) {
+			if (st->last_pushed != st->table->localupdate) {
+				appctx_wakeup(ps->appctx);
+				break;
+			}
+		}
+	}
+	HA_SPIN_UNLOCK(PEER_LOCK, &ps->lock);
+}
+
 /*
  * Task processing function to manage re-connect, peer session
  * tasks wakeup on local update and heartbeat. Let's keep it exported so that it
@@ -3410,266 +3722,18 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 struct task *process_peer_sync(struct task * task, void *context, unsigned int state)
 {
 	struct peers *peers = context;
-	struct peer *ps;
-	struct shared_table *st;
 
 	task->expire = TICK_ETERNITY;
 
-	/* Acquire lock for all peers of the section */
-	for (ps = peers->remote; ps; ps = ps->next)
-		HA_SPIN_LOCK(PEER_LOCK, &ps->lock);
-
 	if (!stopping) {
 		/* Normal case (not soft stop)*/
+		__process_running_peer_sync(task, peers, state);
 
-		/* resync timeout set to TICK_ETERNITY means we just start
-		 * a new process and timer was not initialized.
-		 * We must arm this timer to switch to a request to a remote
-		 * node if incoming connection from old local process never
-		 * comes.
-		 */
-		if (peers->resync_timeout == TICK_ETERNITY)
-			peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
-
-		if (((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMLOCAL) &&
-		     (!nb_oldpids || tick_is_expired(peers->resync_timeout, now_ms)) &&
-		     !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
-			/* Resync from local peer needed
-			   no peer was assigned for the lesson
-			   and no old local peer found
-			       or resync timeout expire */
-
-			/* flag no more resync from local, to try resync from remotes */
-			peers->flags |= PEERS_F_RESYNC_LOCAL;
-			peers->flags |= PEERS_F_RESYNC_LOCALTIMEOUT;
-
-			/* reschedule a resync */
-			peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
-		}
-
-		/* For each session */
-		for (ps = peers->remote; ps; ps = ps->next) {
-			/* For each remote peers */
-			if (!ps->local) {
-				if (!ps->appctx) {
-					/* no active peer connection */
-					if (ps->statuscode == 0 ||
-					    ((ps->statuscode == PEER_SESS_SC_CONNECTCODE ||
-					      ps->statuscode == PEER_SESS_SC_SUCCESSCODE ||
-					      ps->statuscode == PEER_SESS_SC_CONNECTEDCODE) &&
-					     tick_is_expired(ps->reconnect, now_ms))) {
-						/* connection never tried
-						 * or previous peer connection established with success
-						 * or previous peer connection failed while connecting
-						 * and reconnection timer is expired */
-
-						/* retry a connect */
-						ps->appctx = peer_session_create(peers, ps);
-					}
-					else if (!tick_is_expired(ps->reconnect, now_ms)) {
-						/* If previous session failed during connection
-						 * but reconnection timer is not expired */
-
-						/* reschedule task for reconnect */
-						task->expire = tick_first(task->expire, ps->reconnect);
-					}
-					/* else do nothing */
-				} /* !ps->appctx */
-				else if (ps->statuscode == PEER_SESS_SC_SUCCESSCODE) {
-					/* current peer connection is active and established */
-					if (((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE) &&
-					    !(peers->flags & PEERS_F_RESYNC_ASSIGN) &&
-					    !(ps->flags & PEER_F_LEARN_NOTUP2DATE)) {
-						/* Resync from a remote is needed
-						 * and no peer was assigned for lesson
-						 * and current peer may be up2date */
-
-						/* assign peer for the lesson */
-						ps->flags |= PEER_F_LEARN_ASSIGN;
-						peers->flags |= PEERS_F_RESYNC_ASSIGN;
-						peers->flags |= PEERS_F_RESYNC_REMOTEASSIGN;
-
-						/* wake up peer handler to handle a request of resync */
-						appctx_wakeup(ps->appctx);
-					}
-					else {
-						int update_to_push = 0;
-
-						/* Awake session if there is data to push */
-						for (st = ps->tables; st ; st = st->next) {
-							if (st->last_pushed != st->table->localupdate) {
-								/* wake up the peer handler to push local updates */
-								update_to_push = 1;
-								/* There is no need to send a heartbeat message
-								 * when some updates must be pushed. The remote
-								 * peer will consider <ps> peer as alive when it will
-								 * receive these updates.
-								 */
-								ps->flags &= ~PEER_F_HEARTBEAT;
-								/* Re-schedule another one later. */
-								ps->heartbeat = tick_add(now_ms, MS_TO_TICKS(PEER_HEARTBEAT_TIMEOUT));
-								/* Refresh reconnect if necessary */
-								if (tick_is_expired(ps->reconnect, now_ms))
-									ps->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
-								/* We are going to send updates, let's ensure we will
-								 * come back to send heartbeat messages or to reconnect.
-								 */
-								task->expire = tick_first(ps->reconnect, ps->heartbeat);
-								appctx_wakeup(ps->appctx);
-								break;
-							}
-						}
-						/* When there are updates to send we do not reconnect
-						 * and do not send heartbeat message either.
-						 */
-						if (!update_to_push) {
-							if (tick_is_expired(ps->reconnect, now_ms)) {
-								if (ps->flags & PEER_F_ALIVE) {
-									/* This peer was alive during a 'reconnect' period.
-									 * Flag it as not alive again for the next period.
-									 */
-									ps->flags &= ~PEER_F_ALIVE;
-									ps->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
-								}
-								else  {
-									ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
-									ps->heartbeat = TICK_ETERNITY;
-									peer_session_forceshutdown(ps);
-									ps->no_hbt++;
-								}
-							}
-							else if (tick_is_expired(ps->heartbeat, now_ms)) {
-								ps->heartbeat = tick_add(now_ms, MS_TO_TICKS(PEER_HEARTBEAT_TIMEOUT));
-								ps->flags |= PEER_F_HEARTBEAT;
-								appctx_wakeup(ps->appctx);
-							}
-							task->expire = tick_first(ps->reconnect, ps->heartbeat);
-						}
-					}
-					/* else do nothing */
-				} /* SUCCESSCODE */
-			} /* !ps->peer->local */
-		} /* for */
-
-		/* Resync from remotes expired: consider resync is finished */
-		if (((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE) &&
-		    !(peers->flags & PEERS_F_RESYNC_ASSIGN) &&
-		    tick_is_expired(peers->resync_timeout, now_ms)) {
-			/* Resync from remote peer needed
-			 * no peer was assigned for the lesson
-			 * and resync timeout expire */
-
-			/* flag no more resync from remote, consider resync is finished */
-			peers->flags |= PEERS_F_RESYNC_REMOTE;
-			peers->flags |= PEERS_F_RESYNC_REMOTETIMEOUT;
-		}
-
-		if ((peers->flags & PEERS_RESYNC_STATEMASK) != PEERS_RESYNC_FINISHED) {
-			/* Resync not finished*/
-			/* reschedule task to resync timeout if not expired, to ended resync if needed */
-			if (!tick_is_expired(peers->resync_timeout, now_ms))
-				task->expire = tick_first(task->expire, peers->resync_timeout);
-		}
-	} /* !stopping */
+	}
 	else {
 		/* soft stop case */
-		if (state & TASK_WOKEN_SIGNAL) {
-			/* We've just received the signal */
-			if (!(peers->flags & PEERS_F_DONOTSTOP)) {
-				/* add DO NOT STOP flag if not present */
-				_HA_ATOMIC_INC(&jobs);
-				peers->flags |= PEERS_F_DONOTSTOP;
-
-				/* disconnect all connected peers to process a local sync
-				 * this must be done only the first time we are switching
-				 * in stopping state
-				 */
-				for (ps = peers->remote; ps; ps = ps->next) {
-					/* we're killing a connection, we must apply a random delay before
-					 * retrying otherwise the other end will do the same and we can loop
-					 * for a while.
-					 */
-					ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
-					if (ps->appctx) {
-						peer_session_forceshutdown(ps);
-					}
-				}
-
-				/* Set resync timeout for the local peer and request a immediate reconnect */
-				peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
-				peers->local->reconnect = now_ms;
-			}
-		}
-
-		ps = peers->local;
-		if (ps->flags & PEER_F_TEACH_COMPLETE) {
-			if (peers->flags & PEERS_F_DONOTSTOP) {
-				/* resync of new process was complete, current process can die now */
-				_HA_ATOMIC_DEC(&jobs);
-				peers->flags &= ~PEERS_F_DONOTSTOP;
-				for (st = ps->tables; st ; st = st->next)
-					HA_ATOMIC_DEC(&st->table->refcnt);
-			}
-		}
-		else if (!ps->appctx) {
-			/* Re-arm resync timeout if necessary */
-			if (!tick_isset(peers->resync_timeout))
-				peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
-
-			/* If there's no active peer connection */
-			if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FINISHED &&
-			    !tick_is_expired(peers->resync_timeout, now_ms) &&
-			    (ps->statuscode == 0 ||
-			     ps->statuscode == PEER_SESS_SC_SUCCESSCODE ||
-			     ps->statuscode == PEER_SESS_SC_CONNECTEDCODE ||
-			     ps->statuscode == PEER_SESS_SC_TRYAGAIN)) {
-				/* The resync is finished for the local peer and
-				 *   the resync timeout is not expired and
-				 *   connection never tried
-				 *   or previous peer connection was successfully established
-				 *   or previous tcp connect succeeded but init state incomplete
-				 *   or during previous connect, peer replies a try again statuscode */
-
-				if (!tick_is_expired(ps->reconnect, now_ms)) {
-					/* reconnection timer is not expired. reschedule task for reconnect */
-					task->expire = tick_first(task->expire, ps->reconnect);
-				}
-				else  {
-					/* connect to the local peer if we must push a local sync */
-					if (peers->flags & PEERS_F_DONOTSTOP) {
-						peer_session_create(peers, ps);
-					}
-				}
-			}
-			else {
-				/* Other error cases */
-				if (peers->flags & PEERS_F_DONOTSTOP) {
-					/* unable to resync new process, current process can die now */
-					_HA_ATOMIC_DEC(&jobs);
-					peers->flags &= ~PEERS_F_DONOTSTOP;
-					for (st = ps->tables; st ; st = st->next)
-						HA_ATOMIC_DEC(&st->table->refcnt);
-				}
-			}
-		}
-		else if (ps->statuscode == PEER_SESS_SC_SUCCESSCODE ) {
-			/* Reset resync timeout during a resync */
-			peers->resync_timeout = TICK_ETERNITY;
-
-			/* current peer connection is active and established
-			 * wake up all peer handlers to push remaining local updates */
-			for (st = ps->tables; st ; st = st->next) {
-				if (st->last_pushed != st->table->localupdate) {
-					appctx_wakeup(ps->appctx);
-					break;
-				}
-			}
-		}
+		__process_stopping_peer_sync(task, peers, state);
 	} /* stopping */
-
-	/* Release lock for all peers of the section */
-	for (ps = peers->remote; ps; ps = ps->next)
-		HA_SPIN_UNLOCK(PEER_LOCK, &ps->lock);
 
 	/* Wakeup for re-connect */
 	return task;

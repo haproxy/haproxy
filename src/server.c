@@ -2335,15 +2335,17 @@ void server_recalc_eweight(struct server *sv, int must_update)
 	unsigned w;
 
 	if (ns_to_sec(now_ns) < sv->last_change || ns_to_sec(now_ns) >= sv->last_change + sv->slowstart) {
-		/* go to full throttle if the slowstart interval is reached */
-		if (sv->next_state == SRV_ST_STARTING)
+		/* go to full throttle if the slowstart interval is reached unless server is currently down */
+		if ((sv->cur_state != SRV_ST_STOPPED) && (sv->next_state == SRV_ST_STARTING))
 			sv->next_state = SRV_ST_RUNNING;
 	}
 
 	/* We must take care of not pushing the server to full throttle during slow starts.
 	 * It must also start immediately, at least at the minimal step when leaving maintenance.
 	 */
-	if ((sv->next_state == SRV_ST_STARTING) && (px->lbprm.algo & BE_LB_PROP_DYN))
+	if ((sv->cur_state == SRV_ST_STOPPED) && (sv->next_state == SRV_ST_STARTING) && (px->lbprm.algo & BE_LB_PROP_DYN))
+		w = 1;
+	else if ((sv->next_state == SRV_ST_STARTING) && (px->lbprm.algo & BE_LB_PROP_DYN))
 		w = (px->lbprm.wdiv * (ns_to_sec(now_ns) - sv->last_change) + sv->slowstart) / sv->slowstart;
 	else
 		w = px->lbprm.wdiv;

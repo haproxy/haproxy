@@ -28,6 +28,7 @@
 
 #include <haproxy/applet.h>
 #include <haproxy/base64.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/errors.h>
@@ -911,6 +912,13 @@ void ckch_store_free(struct ckch_store *store)
 	ssl_sock_free_cert_key_and_chain_contents(store->data);
 	ha_free(&store->data);
 
+	/* free the ckch_conf content */
+	free(store->conf.crt);
+	free(store->conf.key);
+	free(store->conf.ocsp);
+	free(store->conf.issuer);
+	free(store->conf.sctl);
+
 	free(store);
 }
 
@@ -987,7 +995,7 @@ struct ckch_store *ckchs_lookup(char *path)
 /*
  * This function allocate a ckch_store and populate it with certificates from files.
  */
-struct ckch_store *ckchs_load_cert_file(char *path, char **err)
+struct ckch_store *new_ckch_store_load_files_path(char *path, char **err)
 {
 	struct ckch_store *ckchs;
 
@@ -3988,3 +3996,256 @@ static struct cli_kw_list cli_kws = {{ },{
 
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
+struct ckch_conf_kws ckch_conf_kws[] = {
+	{ "crt",    offsetof(struct ckch_conf, crt),    PARSE_TYPE_STR, ssl_sock_load_pem_into_ckch,           &global_ssl.crt_base },
+	{ "key",    offsetof(struct ckch_conf, key),    PARSE_TYPE_STR, ssl_sock_load_key_into_ckch,           &global_ssl.key_base },
+	{ "ocsp",   offsetof(struct ckch_conf, ocsp),   PARSE_TYPE_STR, ssl_sock_load_ocsp_response_from_file, &global_ssl.crt_base },
+	{ "issuer", offsetof(struct ckch_conf, issuer), PARSE_TYPE_STR, ssl_sock_load_issuer_file_into_ckch,   &global_ssl.crt_base },
+	{ "sctl",   offsetof(struct ckch_conf, sctl),   PARSE_TYPE_STR, ssl_sock_load_sctl_from_file,          &global_ssl.crt_base },
+	{ NULL,     0,                                  PARSE_TYPE_STR, NULL,                                  NULL                 }
+};
+
+/* crt-store does not try to find files, but use the stored filename */
+int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, char **err)
+{
+	int i;
+	int err_code = 0;
+	int rc = 0;
+	struct ckch_data *d = c->data;
+
+	/* crt */
+	if (!f->crt) {
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	for (i = 0; ckch_conf_kws[i].name; i++) {
+		char *src = *(char **)((intptr_t)f + (ptrdiff_t)ckch_conf_kws[i].offset);
+		char **base = ckch_conf_kws[i].base;
+		if (src) {
+			char *path;
+			char path_base[PATH_MAX];
+
+			if (!ckch_conf_kws[i].func || ckch_conf_kws[i].type != PARSE_TYPE_STR)
+				continue;
+
+			path = src;
+
+			if (base && *base) {
+				if (*src != '/') {
+					int rv = snprintf(path_base, sizeof(path_base), "%s/%s", *base, src);
+					if (rv >= sizeof(path_base)) {
+						memprintf(err, "'%s/%s' : path too long", *base, src);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+					path = path_base;
+				}
+			}
+			rc = ckch_conf_kws[i].func(path, NULL, d, err);
+			if (rc) {
+				err_code |= ERR_ALERT | ERR_FATAL;
+				memprintf(err, "%s '%s' cannot be read or parsed.", err && *err ? *err : "", path);
+				goto out;
+			}
+		}
+	}
+
+out:
+	if (err_code & ERR_FATAL)
+		ssl_sock_free_cert_key_and_chain_contents(d);
+	ERR_clear_error();
+
+	return err_code;
+}
+
+static int crtstore_parse_load(char **args, int section_type, struct proxy *curpx, const struct proxy *defpx,
+                        const char *file, int linenum, char **err)
+{
+	int i;
+	int err_code = 0;
+	int cur_arg = 0;
+	struct ckch_conf f = {};
+	struct ckch_store *c = NULL;
+	char store_path[PATH_MAX];
+	char *store_name;
+
+	cur_arg++; /* skip "load" */
+
+	while (*(args[cur_arg])) {
+		int found = 0;
+
+		for (i = 0; ckch_conf_kws[i].name != NULL; i++) {
+			if (strcmp(ckch_conf_kws[i].name, args[cur_arg]) == 0) {
+				void *target;
+				found = 1;
+				target = (char **)((intptr_t)&f + (ptrdiff_t)ckch_conf_kws[i].offset);
+
+				if (ckch_conf_kws[i].type == PARSE_TYPE_STR) {
+					char **t = target;
+
+					*t = strdup(args[cur_arg + 1]);
+					if (!*t)
+						goto alloc_error;
+				} else if (ckch_conf_kws[i].type == PARSE_TYPE_INT) {
+					int *t = target;
+					char *stop;
+
+					*t = strtol(args[cur_arg + 1], &stop, 10);
+					if (*stop != '\0') {
+						memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', an integer is expected.\n",
+						          file, linenum, args[cur_arg], args[cur_arg + 1]);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+				} else if (ckch_conf_kws[i].type == PARSE_TYPE_ONOFF) {
+					int *t = target;
+
+					if (strcmp(args[cur_arg + 1], "on") == 0) {
+						*t = 1;
+					} else if (strcmp(args[cur_arg + 1], "off") == 0) {
+						*t = 0;
+					} else {
+						memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', 'on' or 'off' is expected.\n",
+						          file, linenum, args[cur_arg], args[cur_arg + 1]);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+				}
+				break;
+			}
+
+		}
+		if (!found) {
+			memprintf(err,"parsing [%s:%d] : '%s %s' in section 'crt-store': unknown keyword '%s'.",
+			         file, linenum, args[0], args[cur_arg],args[cur_arg]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		cur_arg += 2;
+	}
+
+	if (!f.crt) {
+		memprintf(err,"parsing [%s:%d] : '%s' in section 'crt-store': mandatory 'crt' parameter not found.",
+		         file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	store_name = f.crt;
+
+	/* complete the name in the ckch_tree with 'crt-base' */
+	if (global_ssl.crt_base && *f.crt != '/') {
+		int rv = snprintf(store_path, sizeof(store_path), "%s/%s", global_ssl.crt_base, f.crt);
+		if (rv >= sizeof(store_path)) {
+			memprintf(err, "'%s/%s' : path too long", global_ssl.crt_base, f.crt);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		store_name = store_path;
+	}
+
+	/* process and insert the ckch_store */
+	c = ckch_store_new(store_name);
+	if (!c)
+		goto alloc_error;
+
+	err_code |= ckch_store_load_files(&f, c, err);
+	if (err_code & ERR_FATAL)
+		goto out;
+
+	c->conf = f;
+
+	if (ebst_insert(&ckchs_tree, &c->node) != &c->node) {
+		memprintf(err,"parsing [%s:%d] : '%s' in section 'crt-store': store '%s' was already defined.",
+		         file, linenum, args[0], c->path);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+out:
+	/* free ckch_conf content */
+	if (err_code & ERR_FATAL)
+		ckch_store_free(c);
+	return err_code;
+
+alloc_error:
+	ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+	err_code |= ERR_ALERT | ERR_ABORT;
+	goto out;
+}
+
+/*
+ * Parse "crt-store" section and create corresponding ckch_stores.
+ *
+ * The function returns 0 in success case, otherwise, it returns error
+ * flags.
+ */
+static int cfg_parse_crtstore(const char *file, int linenum, char **args, int kwm)
+{
+	struct cfg_kw_list *kwl;
+	const char *best;
+	int index;
+	int rc = 0;
+	int err_code = 0;
+	char *errmsg = NULL;
+
+	if (strcmp(args[0], "crt-store") == 0) { /* new crt-store section */
+		if (*args[1]) {
+			ha_alert("parsing [%s:%d] : 'crt-store' section does not support an argument.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+			goto out;
+		}
+		goto out;
+	}
+
+	list_for_each_entry(kwl, &cfg_keywords.list, list) {
+		for (index = 0; kwl->kw[index].kw != NULL; index++) {
+			if (kwl->kw[index].section != CFG_CRTSTORE)
+				continue;
+			if (strcmp(kwl->kw[index].kw, args[0]) == 0) {
+				if (check_kw_experimental(&kwl->kw[index], file, linenum, &errmsg)) {
+					ha_alert("%s\n", errmsg);
+					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+					goto out;
+				}
+
+				/* prepare error message just in case */
+				rc = kwl->kw[index].parse(args, CFG_CRTSTORE, NULL, NULL, file, linenum, &errmsg);
+				if (rc & ERR_ALERT) {
+					ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+					err_code |= rc;
+					goto out;
+				}
+				else if (rc & ERR_WARN) {
+					ha_warning("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+					err_code |= rc;
+					goto out;
+				}
+				goto out;
+			}
+		}
+	}
+
+	best = cfg_find_best_match(args[0], &cfg_keywords.list, CFG_CRTSTORE, NULL);
+	if (best)
+		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section; did you mean '%s' maybe ?\n", file, linenum, args[0], cursection, best);
+	else
+		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+
+out:
+	if (err_code & ERR_FATAL)
+		err_code |= ERR_ABORT;
+	free(errmsg);
+	return err_code;
+}
+
+REGISTER_CONFIG_SECTION("crt-store", cfg_parse_crtstore, NULL);
+
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_CRTSTORE, "load", crtstore_parse_load },
+	{ 0, NULL, NULL },
+}};
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);

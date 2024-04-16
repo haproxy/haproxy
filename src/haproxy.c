@@ -565,9 +565,6 @@ static void display_build_opts()
 #ifdef BUILD_TARGET
 	       "\n  TARGET  = " BUILD_TARGET
 #endif
-#ifdef BUILD_CPU
-	       "\n  CPU     = " BUILD_CPU
-#endif
 #ifdef BUILD_CC
 	       "\n  CC      = " BUILD_CC
 #endif
@@ -2808,9 +2805,6 @@ static void init(int argc, char **argv)
 #ifdef BUILD_TARGET
 	chunk_appendf(&trash, "TARGET='%s'", BUILD_TARGET);
 #endif
-#ifdef BUILD_CPU
-	chunk_appendf(&trash, " CPU='%s'", BUILD_CPU);
-#endif
 #ifdef BUILD_OPTIONS
 	chunk_appendf(&trash, " %s", BUILD_OPTIONS);
 #endif
@@ -3366,9 +3360,6 @@ int main(int argc, char **argv)
 			"\nBuild options :"
 #ifdef BUILD_TARGET
 		        "\n  TARGET  = " BUILD_TARGET
-#endif
-#ifdef BUILD_CPU
-		        "\n  CPU     = " BUILD_CPU
 #endif
 #ifdef BUILD_CC
 		        "\n  CC      = " BUILD_CC

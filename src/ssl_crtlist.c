@@ -438,12 +438,6 @@ int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry,
 			cfgerr |= ERR_WARN;
 		}
 
-		ssl_conf = calloc(1, sizeof *ssl_conf);
-		if (!ssl_conf) {
-			memprintf(err, "not enough memory!");
-			cfgerr |= ERR_ALERT | ERR_FATAL;
-			goto error;
-		}
 	}
 
 	cur_arg = ssl_b ? ssl_b : 1;
@@ -451,6 +445,14 @@ int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry,
 		newarg = 0;
 		for (i = 0; ssl_crtlist_kws[i].kw != NULL; i++) {
 			if (strcmp(ssl_crtlist_kws[i].kw, args[cur_arg]) == 0) {
+				if (!ssl_conf)
+					ssl_conf = calloc(1, sizeof *ssl_conf);
+				if (!ssl_conf) {
+					memprintf(err, "not enough memory!");
+					cfgerr |= ERR_ALERT | ERR_FATAL;
+					goto error;
+				}
+
 				newarg = 1;
 				cfgerr |= ssl_crtlist_kws[i].parse(args, cur_arg, NULL, ssl_conf, from_cli, err);
 				if (cur_arg + 1 + ssl_crtlist_kws[i].skip > ssl_e) {
@@ -590,7 +592,7 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 			if (stat(crt_path, &buf) == 0) {
 				found++;
 
-				ckchs = ckchs_load_cert_file(crt_path, err);
+				ckchs = new_ckch_store_load_files_path(crt_path, err);
 				if (ckchs == NULL) {
 					cfgerr |= ERR_ALERT | ERR_FATAL;
 					goto error;
@@ -627,7 +629,7 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 					ckchs = ckchs_lookup(fp);
 					if (!ckchs) {
 						if (stat(fp, &buf) == 0) {
-							ckchs = ckchs_load_cert_file(fp, err);
+							ckchs = new_ckch_store_load_files_path(fp, err);
 							if (!ckchs) {
 								cfgerr |= ERR_ALERT | ERR_FATAL;
 								goto error;
@@ -780,7 +782,7 @@ int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct crtlis
 
 			ckchs = ckchs_lookup(fp);
 			if (ckchs == NULL)
-				ckchs = ckchs_load_cert_file(fp, err);
+				ckchs = new_ckch_store_load_files_path(fp, err);
 			if (ckchs == NULL) {
 				free(de);
 				free(entry);

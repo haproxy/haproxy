@@ -4909,6 +4909,58 @@ void dump_addr_and_bytes(struct buffer *buf, const char *pfx, const void *addr, 
 	}
 }
 
+/* Dumps the 64 bytes around <addr> at the end of <output> with symbols
+ * decoding. An optional special pointer may be recognized (special), in
+ * which case its type (spec_type) and name (spec_name) will be reported.
+ * This is convenient for pool names but could be used for list heads or
+ * anything in that vein.
+*/
+void dump_area_with_syms(struct buffer *output, const void *base, const void *addr,
+                         const void *special, const char *spec_type, const char *spec_name)
+{
+	const char *start, *end, *p;
+	const void *tag;
+
+	chunk_appendf(output, "Contents around address %p+%lu=%p:\n", base, (ulong)(addr - base), addr);
+
+	/* dump in word-sized blocks */
+	start = (const void *)(((uintptr_t)addr - 32) & -sizeof(void*));
+	end   = (const void *)(((uintptr_t)addr + 32 + sizeof(void*) - 1) & -sizeof(void*));
+
+	while (start < end) {
+		dump_addr_and_bytes(output, "  ", start, sizeof(void*));
+		chunk_strcat(output, " [");
+		for (p = start; p < start + sizeof(void*); p++) {
+			if (!may_access(p))
+				chunk_strcat(output, "*");
+			else if (isprint((unsigned char)*p))
+				chunk_appendf(output, "%c", *p);
+			else
+				chunk_strcat(output, ".");
+		}
+
+		if (may_access(start))
+			tag = *(const void **)start;
+		else
+			tag = NULL;
+
+		if (special && tag == special) {
+			/* the pool can often be there so let's detect it */
+			chunk_appendf(output, "] [%s:%s", spec_type, spec_name);
+		}
+		else if (tag) {
+			/* print pointers that resolve to a symbol */
+			size_t back_data = output->data;
+			chunk_strcat(output, "] [");
+			if (!resolve_sym_name(output, NULL, tag))
+				output->data = back_data;
+		}
+
+		chunk_strcat(output, "]\n");
+		start = p;
+	}
+}
+
 /* print a line of text buffer (limited to 70 bytes) to <out>. The format is :
  * <2 spaces> <offset=5 digits> <space or plus> <space> <70 chars max> <\n>
  * which is 60 chars per line. Non-printable chars \t, \n, \r and \e are

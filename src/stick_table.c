@@ -336,6 +336,9 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 
+		if (max_search <= 0)
+			break;
+
 		shard = (shard + 1) % CONFIG_HAP_TBL_BUCKETS;
 		if (!shard)
 			break;
@@ -875,15 +878,27 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 				continue;
 			}
 
-			/* session expired, trash it */
-			ebmb_delete(&ts->key);
+			/* if the entry is in the update list, we must be extremely careful
+			 * because peers can see it at any moment and start to use it. Peers
+			 * will take the table's updt_lock for reading when doing that, and
+			 * with that lock held, will grab a ref_cnt before releasing the
+			 * lock. So we must take this lock as well and check the ref_cnt.
+			 */
 			if (ts->upd.node.leaf_p) {
 				if (!updt_locked) {
 					updt_locked = 1;
 					HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
 				}
-				eb32_delete(&ts->upd);
+				/* now we're locked, new peers can't grab it anymore,
+				 * existing ones already have the ref_cnt.
+				 */
+				if (HA_ATOMIC_LOAD(&ts->ref_cnt))
+					continue;
 			}
+
+			/* session expired, trash it */
+			ebmb_delete(&ts->key);
+			eb32_delete(&ts->upd);
 			__stksess_free(t, ts);
 		}
 
@@ -903,7 +918,7 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 	 * were to update with TICK_ETERNITY.
 	 */
 	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
-	task->expire = tick_first(task->expire, task_exp);
+	task->expire = task_exp;
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return task;
