@@ -2716,21 +2716,33 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 			}                                              \
 		} while(0)
 
-/* start quoting the upcoming text if quoting is enabled. The final quote
- * will automatically be added (because quote is set to 1).
+/* indicate that a new variable-length text is starting, sets in_text
+ * variable to indicate that a var text was started and deals with
+ * encoding and options to know if some special treatment is needed.
  */
-#define LOGQUOTE_START() do {                                          \
+#define LOG_VARTEXT_START() do {                                       \
+			in_text = 1;                                   \
+			/* put the text within quotes if quoting is    \
+			 * enabled                                     \
+			 */                                            \
 			if (tmp->options & LOG_OPT_QUOTE) {            \
 				LOGCHAR('"');                          \
-				quote = 1;                             \
 			}                                              \
 		} while (0)
 
-/* properly finish a quotation that was started using LOGQUOTE_START */
-#define LOGQUOTE_END() do {                                            \
-			if (quote) {                                   \
+/* properly finish a variable text that was started using LOG_VARTEXT_START
+ * checks the in_text variable to know if a text was started or not, and
+ * deals with encoding and options to know if some special treatment is
+ * needed.
+ */
+#define LOG_VARTEXT_END() do {                                         \
+			if (!in_text)                                  \
+				break;                                 \
+			in_text = 0;                                   \
+			/* add the ending quote if quoting is enabled  \
+			 */                                            \
+			if (tmp->options & LOG_OPT_QUOTE) {            \
 				LOGCHAR('"');                          \
-				quote = 0;                             \
 			}                                              \
 		} while (0)
 
@@ -3104,7 +3116,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		const char *src = NULL;
 		struct sample *key;
 		const struct buffer empty = { };
-		int quote = 0; /* inside quoted string */
+		int in_text = 0; /* inside variable-length text */
 
 		switch (tmp->type) {
 			case LOG_FMT_SEPARATOR:
@@ -3396,7 +3408,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_FRONTEND_XPRT: // %ft
 				src = fe->id;
-				LOGQUOTE_START();
+				LOG_VARTEXT_START();
 				ret = lf_rawtext(tmplog, src, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
@@ -3725,7 +3737,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_HDRREQUEST: // %hr
 				/* request header */
 				if (fe->nb_req_cap && s && s->req_cap) {
-					LOGQUOTE_START();
+					LOG_VARTEXT_START();
 					LOGCHAR('{');
 					for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
 						if (hdr)
@@ -3749,7 +3761,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
 						if (hdr > 0)
 							LOG_STRARRAY_NEXT();
-						LOGQUOTE_START();
+						LOG_VARTEXT_START();
 						if (s->req_cap[hdr] != NULL) {
 							ret = lf_encode_string(tmplog, dst + maxsize,
 							                       '#', hdr_encode_map, s->req_cap[hdr], tmp);
@@ -3758,10 +3770,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 							tmplog = ret;
 						} else if (!(tmp->options & LOG_OPT_QUOTE))
 							LOGCHAR('-');
-						/* Manually end quotation as we're emitting multiple
-						 * quoted texts at once
+						/* Manually end variable text as we're emitting multiple
+						 * texts at once
 						 */
-						LOGQUOTE_END();
+						LOG_VARTEXT_END();
 					}
 					LOG_STRARRAY_END();
 				}
@@ -3771,7 +3783,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_HDRRESPONS: // %hs
 				/* response header */
 				if (fe->nb_rsp_cap && s && s->res_cap) {
-					LOGQUOTE_START();
+					LOG_VARTEXT_START();
 					LOGCHAR('{');
 					for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
 						if (hdr)
@@ -3795,7 +3807,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
 						if (hdr > 0)
 							LOG_STRARRAY_NEXT();
-						LOGQUOTE_START();
+						LOG_VARTEXT_START();
 						if (s->res_cap[hdr] != NULL) {
 							ret = lf_encode_string(tmplog, dst + maxsize,
 							                       '#', hdr_encode_map, s->res_cap[hdr], tmp);
@@ -3804,10 +3816,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 							tmplog = ret;
 						} else if (!(tmp->options & LOG_OPT_QUOTE))
 							LOGCHAR('-');
-						/* Manually end quotation as we're emitting multiple
-						 * quoted texts at once
+						/* Manually end variable text as we're emitting multiple
+						 * texts at once
 						 */
-						LOGQUOTE_END();
+						LOG_VARTEXT_END();
 					}
 					LOG_STRARRAY_END();
 				}
@@ -3815,7 +3827,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_REQ: // %r
 				/* Request */
-				LOGQUOTE_START();
+				LOG_VARTEXT_START();
 				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
 				ret = lf_encode_string(tmplog, dst + maxsize,
 				                       '#', url_encode_map, uri, tmp);
@@ -3827,7 +3839,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_HTTP_PATH: // %HP
 				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
 
-				LOGQUOTE_START();
+				LOG_VARTEXT_START();
 
 				end = uri + strlen(uri);
 				// look for the first whitespace character
@@ -3863,7 +3875,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_HTTP_PATH_ONLY: // %HPO
 				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
 
-				LOGQUOTE_START();
+				LOG_VARTEXT_START();
 
 				end = uri + strlen(uri);
 
@@ -3903,7 +3915,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_HTTP_QUERY: // %HQ
-				LOGQUOTE_START();
+				LOG_VARTEXT_START();
 
 				if (!txn || !txn->uri) {
 					chunk.area = "<BADREQ>";
@@ -3935,7 +3947,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_HTTP_URI: // %HU
 				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
 
-				LOGQUOTE_START();
+				LOG_VARTEXT_START();
 
 				end = uri + strlen(uri);
 				// look for the first whitespace character
@@ -3970,7 +3982,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_HTTP_METHOD: // %HM
 				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
-				LOGQUOTE_START();
+				LOG_VARTEXT_START();
 
 				end = uri + strlen(uri);
 				// look for the first whitespace character
@@ -3996,7 +4008,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_HTTP_VERSION: // %HV
 				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
-				LOGQUOTE_START();
+				LOG_VARTEXT_START();
 
 				end = uri + strlen(uri);
 				// look for the first whitespace character
@@ -4108,10 +4120,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		if (tmp->type != LOG_FMT_SEPARATOR)
 			last_isspace = 0; // not a separator, hence not a space
 
-		/* if quotation was started for the current node data, we need
-		 * to finish the quote
+		/* if variable text was started for the current node data, we need
+		 * to end it
 		 */
-		LOGQUOTE_END();
+		LOG_VARTEXT_END();
 	}
 
 out:
