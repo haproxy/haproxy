@@ -318,52 +318,25 @@ static inline const char *sc_get_data_name(const struct stconn *sc)
 	return sc->app_ops->name;
 }
 
-/* shut read */
-static inline void sc_conn_shutr(struct stconn *sc, enum se_shut_mode mode)
+static inline void sc_conn_shut(struct stconn *sc, enum se_shut_mode mode)
 {
 	const struct mux_ops *mux;
 
 	BUG_ON(!sc_conn(sc));
 
-	if (sc_ep_test(sc, SE_FL_SHR))
-		return;
-
-	/* clean data-layer shutdown */
 	mux = sc_mux_ops(sc);
-	if (mux && mux->shutr)
-		mux->shutr(sc, mode);
-	sc_ep_set(sc, (mode & SE_SHR_DRAIN) ? SE_FL_SHRD : SE_FL_SHRR);
-}
 
-/* shut write */
-static inline void sc_conn_shutw(struct stconn *sc, enum se_shut_mode mode)
-{
-	const struct mux_ops *mux;
+	if ((mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) && !sc_ep_test(sc, SE_FL_SHW)) {
+		if (mux && mux->shutw)
+			mux->shutw(sc, mode);
+		sc_ep_set(sc, (mode & SE_SHW_NORMAL) ? SE_FL_SHWN : SE_FL_SHWS);
+	}
 
-	BUG_ON(!sc_conn(sc));
-
-	if (sc_ep_test(sc, SE_FL_SHW))
-		return;
-
-	/* clean data-layer shutdown */
-	mux = sc_mux_ops(sc);
-	if (mux && mux->shutw)
-		mux->shutw(sc, mode);
-	sc_ep_set(sc, (mode & SE_SHW_NORMAL) ? SE_FL_SHWN : SE_FL_SHWS);
-}
-
-/* completely close a stream connector (but do not detach it) */
-static inline void sc_conn_shut(struct stconn *sc)
-{
-	sc_conn_shutw(sc, SE_SHW_SILENT);
-	sc_conn_shutr(sc, SE_SHR_RESET);
-}
-
-/* completely close a stream connector after draining possibly pending data (but do not detach it) */
-static inline void sc_conn_drain_and_shut(struct stconn *sc)
-{
-	sc_conn_shutw(sc, SE_SHW_SILENT);
-	sc_conn_shutr(sc, SE_SHR_DRAIN);
+	if ((mode & (SE_SHR_RESET|SE_SHR_DRAIN)) && !sc_ep_test(sc, SE_FL_SHR)) {
+		if (mux && mux->shutr)
+			mux->shutr(sc, mode);
+		sc_ep_set(sc, (mode & SE_SHR_DRAIN) ? SE_FL_SHRD : SE_FL_SHRR);
+	}
 }
 
 /* Returns non-zero if the stream connector's Rx path is blocked because of
@@ -572,7 +545,7 @@ static inline size_t se_done_ff(struct sedesc *se)
 				sc_ep_report_blocked_send(se->sc, 0);
 			if (se->iobuf.flags & IOBUF_FL_FF_BLOCKED) {
 				sc_ep_report_blocked_send(se->sc, 0);
-				
+
 				if (!(se->sc->wait_event.events & SUB_RETRY_SEND)) {
 					/* The SC must be subs for send to be notify when some
 					 * space is made

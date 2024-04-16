@@ -700,7 +700,7 @@ static void sc_app_abort_conn(struct stconn *sc)
 		return;
 
 	if (sc->flags & SC_FL_SHUT_DONE) {
-		sc_conn_shut(sc);
+		sc_conn_shut(sc, SE_SHR_RESET|SE_SHW_SILENT);
 		sc->state = SC_ST_DIS;
 		if (sc->flags & SC_FL_ISBACK)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
@@ -742,12 +742,11 @@ static void sc_app_shut_conn(struct stconn *sc)
 		 * no risk so we close both sides immediately.
 		 */
 		if (!(sc->flags & (SC_FL_NOLINGER|SC_FL_EOS|SC_FL_ABRT_DONE)) && !(ic->flags & CF_DONT_READ)) {
-			sc_conn_shutw(sc, SE_SHW_NORMAL);
+			sc_conn_shut(sc, SE_SHW_NORMAL);
 			return;
 		}
 
-		sc_conn_shutw(sc, (sc->flags & SC_FL_NOLINGER) ? SE_SHW_SILENT : SE_SHW_NORMAL);
-		sc_conn_shut(sc);
+		sc_conn_shut(sc, SE_SHR_RESET|((sc->flags & SC_FL_NOLINGER) ? SE_SHW_SILENT : SE_SHW_NORMAL));
 		sc->state = SC_ST_DIS;
 		break;
 
@@ -755,7 +754,7 @@ static void sc_app_shut_conn(struct stconn *sc)
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as abort
 		 */
-		sc_conn_shut(sc);
+		sc_conn_shut(sc, SE_SHR_RESET|SE_SHW_SILENT);
 		sc->state = SC_ST_DIS;
 		break;
 	case SC_ST_CER:
@@ -1203,7 +1202,7 @@ static void sc_conn_eos(struct stconn *sc)
 
  do_close:
 	/* OK we completely close the socket here just as if we went through sc_shut[rw]() */
-	sc_conn_shut(sc);
+	sc_conn_shut(sc, SE_SHR_RESET|SE_SHW_SILENT);
 
 	sc->flags &= ~SC_FL_SHUT_WANTED;
 	sc->flags |= SC_FL_SHUT_DONE;
