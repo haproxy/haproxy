@@ -915,7 +915,7 @@ static inline int ci_space_for_replace(const struct channel *chn)
  */
 static inline int channel_alloc_buffer(struct channel *chn, struct buffer_wait *wait)
 {
-	if (b_alloc(&chn->buf) != NULL)
+	if (b_alloc(&chn->buf, DB_CHANNEL) != NULL)
 		return 1;
 
 	if (!LIST_INLIST(&wait->list))

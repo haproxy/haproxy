@@ -432,7 +432,7 @@ static struct ncbuf *qcs_get_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
 	struct buffer buf = BUF_NULL;
 
 	if (ncb_is_null(ncbuf)) {
-		if (!b_alloc(&buf))
+		if (!b_alloc(&buf, DB_MUX_RX))
 			return NULL;
 
 		*ncbuf = ncb_make(buf.area, buf.size, 0);
@@ -956,7 +956,7 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
  */
 struct buffer *qcc_get_stream_rxbuf(struct qcs *qcs)
 {
-	return b_alloc(&qcs->rx.app_buf);
+	return b_alloc(&qcs->rx.app_buf, DB_MUX_RX);
 }
 
 /* Allocate if needed and retrieve <qcs> stream buffer for data emission.
@@ -1000,7 +1000,7 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err)
 			goto out;
 		}
 
-		if (!b_alloc(out)) {
+		if (!b_alloc(out, DB_MUX_TX)) {
 			TRACE_ERROR("buffer alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
 			*err = 1;
 			goto out;

@@ -300,7 +300,7 @@ static int rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data, int 
 		 * data and need a buffer now. We reuse the same buffer, as it's
 		 * not used out of the scope of a series of add_data()*, end().
 		 */
-		if (b_alloc(&tmpbuf) == NULL)
+		if (b_alloc(&tmpbuf, DB_PERMANENT) == NULL)
 			return -1; /* no memory */
 		b_reset(&tmpbuf);
 		memcpy(b_tail(&tmpbuf), comp_ctx->direct_ptr, comp_ctx->direct_len);

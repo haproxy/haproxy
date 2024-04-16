@@ -548,11 +548,15 @@ buffer_almost_full  | const buffer *buf| returns true if the buffer is not null
                     |                  | are used. A waiting buffer will match.
 --------------------+------------------+---------------------------------------
 b_alloc             | buffer *buf      | ensures that <buf> is allocated or
-                    | ret: buffer *    | allocates a buffer and assigns it to
-                    |                  | *buf. If no memory is available, (1)
-                    |                  | is assigned instead with a zero size.
+                    | enum dynbuf_crit | allocates a buffer and assigns it to
+                    |     criticality  | *buf. If no memory is available, (1)
+                    | ret: buffer *    | is assigned instead with a zero size.
                     |                  | The allocated buffer is returned, or
-                    |                  | NULL in case no memory is available
+                    |                  | NULL in case no memory is available.
+                    |                  | The criticality indicates the how the
+                    |                  | buffer might be used and how likely it
+                    |                  | is that the allocated memory will be
+                    |                  | quickly released.
 --------------------+------------------+---------------------------------------
 __b_free            | buffer *buf      | releases <buf> which must be allocated
                     | ret: void        | and marks it empty

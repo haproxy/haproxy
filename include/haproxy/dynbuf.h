@@ -63,10 +63,11 @@ static inline int buffer_almost_full(const struct buffer *buf)
  * performance. Due to the difficult buffer_wait management, they are not
  * subject to forced allocation failures either.
  */
-#define b_alloc(_buf) \
+#define b_alloc(_buf, _crit)			\
 ({						\
 	char *_area;				\
 	struct buffer *_retbuf = _buf;		\
+	enum dynbuf_crit _criticality __maybe_unused = _crit;	\
 						\
 	if (!_retbuf->size) {			\
 		*_retbuf = BUF_WANTED;					\

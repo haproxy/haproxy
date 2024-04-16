@@ -5717,7 +5717,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 
 #ifdef SSL_READ_EARLY_DATA_SUCCESS
 		if (bc->ssl_conf.early_data) {
-			b_alloc(&ctx->early_buf);
+			b_alloc(&ctx->early_buf, DB_MUX_RX);
 			SSL_set_max_early_data(ctx->ssl,
 			    /* Only allow early data if we managed to allocate
 			     * a buffer.

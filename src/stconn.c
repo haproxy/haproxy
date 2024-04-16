@@ -1675,7 +1675,7 @@ int sc_conn_send(struct stconn *sc)
 			if (s->txn->req.msg_state != HTTP_MSG_DONE)
 				s->txn->flags &= ~TX_L7_RETRY;
 			else {
-				if (b_alloc(&s->txn->l7_buffer) == NULL)
+				if (b_alloc(&s->txn->l7_buffer, DB_UNLIKELY) == NULL)
 					s->txn->flags &= ~TX_L7_RETRY;
 				else {
 					memcpy(b_orig(&s->txn->l7_buffer),

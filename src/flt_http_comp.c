@@ -73,9 +73,9 @@ comp_flt_init(struct proxy *px, struct flt_conf *fconf)
 static int
 comp_flt_init_per_thread(struct proxy *px, struct flt_conf *fconf)
 {
-	if (b_alloc(&tmpbuf) == NULL)
+	if (b_alloc(&tmpbuf, DB_PERMANENT) == NULL)
 		return -1;
-	if (b_alloc(&zbuf) == NULL)
+	if (b_alloc(&zbuf, DB_PERMANENT) == NULL)
 		return -1;
 	return 0;
 }

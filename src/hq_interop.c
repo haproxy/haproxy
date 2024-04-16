@@ -27,7 +27,7 @@ static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	if (!fin)
 		return 0;
 
-	b_alloc(&htx_buf);
+	b_alloc(&htx_buf, DB_MUX_RX);
 	htx = htx_from_buf(&htx_buf);
 
 	/* skip method */

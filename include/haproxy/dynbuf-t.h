@@ -24,6 +24,41 @@
 
 #include <haproxy/list-t.h>
 
+/* Describe the levels of criticality of each allocation based on the expected
+ * use case. We distinguish multiple use cases, from the least important to the
+ * most important one:
+ *   - allocate a buffer to grow a non-empty ring: this should be avoided when
+ *     resources are becoming scarce.
+ *   - allocate a buffer for very unlikely situations (e.g. L7 retries, early
+ *     data). These may acceptably fail on low resources.
+ *   - buffer used to receive data in the mux at the connection level. Please
+ *     note that this level might later be resplit into two levels, one for
+ *     initial data such as a new request, which may be rejected and postponed,
+ *     and one for data continuation, which may be needed to complete a request
+ *     or receive some control data allowing another buffer to be flushed.
+ *   - buffer used to produce data at the endpoint for internal consumption,
+ *     typically mux streams and applets. These buffers will be allocated until
+ *     a channel picks them. Not processing them might sometimes lead to a mux
+ *     being clogged and blocking other streams from progressing.
+ *   - channel buffer: this one may be allocated to perform a synchronous recv,
+ *     or just preparing for the possibility of an instant response. The
+ *     response channel always allocates a buffer when entering process_stream,
+ *     which is immediately released if unused when leaving.
+ *   - buffer used by the mux sending side, often allocated by the mux's
+ *     snd_buf() handler to encode the outgoing channel's data.
+ *   - buffer permanently allocated at boot (e.g. temporary compression
+ *     buffers). If these fail, we can't boot.
+ */
+enum dynbuf_crit {
+	DB_GROW_RING = 0, // used to grow an existing buffer ring
+	DB_UNLIKELY,      // unlikely to be needed (e.g. L7 retries)
+	DB_MUX_RX,        // buffer used to store incoming data from the system
+	DB_SE_RX,         // buffer used to store incoming data for the channel
+	DB_CHANNEL,       // buffer used by the channel for synchronous reads
+	DB_MUX_TX,        // buffer used to store outgoing mux data
+	DB_PERMANENT,     // buffers permanently allocated.
+};
+
 /* an element of the <buffer_wq> list. It represents an object that need to
  * acquire a buffer to continue its process. */
 struct buffer_wait {

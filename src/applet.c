@@ -446,14 +446,14 @@ int appctx_buf_available(void *arg)
 	struct appctx *appctx = arg;
 	struct stconn *sc = appctx_sc(appctx);
 
-	if (applet_fl_test(appctx, APPCTX_FL_INBLK_ALLOC) && b_alloc(&appctx->inbuf)) {
+	if (applet_fl_test(appctx, APPCTX_FL_INBLK_ALLOC) && b_alloc(&appctx->inbuf, DB_CHANNEL)) {
 		applet_fl_clr(appctx, APPCTX_FL_INBLK_ALLOC);
 		TRACE_STATE("unblocking appctx, inbuf allocated", APPLET_EV_RECV|APPLET_EV_BLK|APPLET_EV_WAKE, appctx);
 		task_wakeup(appctx->t, TASK_WOKEN_RES);
 		return 1;
 	}
 
-	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC) && b_alloc(&appctx->outbuf)) {
+	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC) && b_alloc(&appctx->outbuf, DB_CHANNEL)) {
 		applet_fl_clr(appctx, APPCTX_FL_OUTBLK_ALLOC);
 		TRACE_STATE("unblocking appctx, outbuf allocated", APPLET_EV_SEND|APPLET_EV_BLK|APPLET_EV_WAKE, appctx);
 		task_wakeup(appctx->t, TASK_WOKEN_RES);
@@ -471,7 +471,7 @@ int appctx_buf_available(void *arg)
 		return 0;
 
 	/* allocation possible now ? */
-	if (!b_alloc(&sc_ic(sc)->buf)) {
+	if (!b_alloc(&sc_ic(sc)->buf, DB_CHANNEL)) {
 		sc_need_buff(sc);
 		return 0;
 	}

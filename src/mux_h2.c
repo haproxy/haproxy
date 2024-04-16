@@ -812,13 +812,13 @@ static int h2_buf_available(void *target)
 	struct h2c *h2c = target;
 	struct h2s *h2s;
 
-	if ((h2c->flags & H2_CF_DEM_DALLOC) && b_alloc(&h2c->dbuf)) {
+	if ((h2c->flags & H2_CF_DEM_DALLOC) && b_alloc(&h2c->dbuf, DB_MUX_RX)) {
 		h2c->flags &= ~H2_CF_DEM_DALLOC;
 		h2c_restart_reading(h2c, 1);
 		return 1;
 	}
 
-	if ((h2c->flags & H2_CF_MUX_MALLOC) && b_alloc(br_tail(h2c->mbuf))) {
+	if ((h2c->flags & H2_CF_MUX_MALLOC) && b_alloc(br_tail(h2c->mbuf), DB_MUX_TX)) {
 		h2c->flags &= ~H2_CF_MUX_MALLOC;
 
 		if (h2c->flags & H2_CF_DEM_MROOM) {
@@ -830,7 +830,7 @@ static int h2_buf_available(void *target)
 
 	if ((h2c->flags & H2_CF_DEM_SALLOC) &&
 	    (h2s = h2c_st_by_id(h2c, h2c->dsi)) && h2s_sc(h2s) &&
-	    b_alloc(&h2s->rxbuf)) {
+	    b_alloc(&h2s->rxbuf, DB_SE_RX)) {
 		h2c->flags &= ~H2_CF_DEM_SALLOC;
 		h2c_restart_reading(h2c, 1);
 		return 1;
@@ -844,7 +844,7 @@ static inline struct buffer *h2_get_buf(struct h2c *h2c, struct buffer *bptr)
 	struct buffer *buf = NULL;
 
 	if (likely(!LIST_INLIST(&h2c->buf_wait.list)) &&
-	    unlikely((buf = b_alloc(bptr)) == NULL)) {
+	    unlikely((buf = b_alloc(bptr, DB_MUX_RX)) == NULL)) {
 		h2c->buf_wait.target = h2c;
 		h2c->buf_wait.wakeup_cb = h2_buf_available;
 		LIST_APPEND(&th_ctx->buffer_wq, &h2c->buf_wait.list);

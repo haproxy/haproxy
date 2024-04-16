@@ -88,7 +88,7 @@ static inline void free_quic_tx_packet(struct quic_conn *qc,
 struct buffer *qc_txb_alloc(struct quic_conn *qc)
 {
 	struct buffer *buf = &qc->tx.buf;
-	if (!b_alloc(buf))
+	if (!b_alloc(buf, DB_MUX_TX))
 		return NULL;
 
 	return buf;

@@ -321,10 +321,10 @@ int stream_buf_available(void *arg)
 	struct stream *s = arg;
 
 	if (!s->req.buf.size && !sc_ep_have_ff_data(s->scb) && s->scf->flags & SC_FL_NEED_BUFF &&
-	    b_alloc(&s->req.buf))
+	    b_alloc(&s->req.buf, DB_CHANNEL))
 		sc_have_buff(s->scf);
 	else if (!s->res.buf.size && !sc_ep_have_ff_data(s->scf) && s->scb->flags & SC_FL_NEED_BUFF &&
-		 b_alloc(&s->res.buf))
+		 b_alloc(&s->res.buf, DB_CHANNEL))
 		sc_have_buff(s->scb);
 	else
 		return 0;
@@ -752,7 +752,7 @@ void stream_free(struct stream *s)
  */
 static int stream_alloc_work_buffer(struct stream *s)
 {
-	if (b_alloc(&s->res.buf))
+	if (b_alloc(&s->res.buf, DB_CHANNEL))
 		return 1;
 	return 0;
 }

@@ -1505,13 +1505,13 @@ int check_buf_available(void *target)
 
 	BUG_ON(!check->sc);
 
-	if ((check->state & CHK_ST_IN_ALLOC) && b_alloc(&check->bi)) {
+	if ((check->state & CHK_ST_IN_ALLOC) && b_alloc(&check->bi, DB_CHANNEL)) {
 		TRACE_STATE("unblocking check, input buffer allocated", CHK_EV_TCPCHK_EXP|CHK_EV_RX_BLK, check);
 		check->state &= ~CHK_ST_IN_ALLOC;
 		tasklet_wakeup(check->sc->wait_event.tasklet);
 		return 1;
 	}
-	if ((check->state & CHK_ST_OUT_ALLOC) && b_alloc(&check->bo)) {
+	if ((check->state & CHK_ST_OUT_ALLOC) && b_alloc(&check->bo, DB_CHANNEL)) {
 		TRACE_STATE("unblocking check, output buffer allocated", CHK_EV_TCPCHK_SND|CHK_EV_TX_BLK, check);
 		check->state &= ~CHK_ST_OUT_ALLOC;
 		tasklet_wakeup(check->sc->wait_event.tasklet);
@@ -1529,7 +1529,7 @@ struct buffer *check_get_buf(struct check *check, struct buffer *bptr)
 	struct buffer *buf = NULL;
 
 	if (likely(!LIST_INLIST(&check->buf_wait.list)) &&
-	    unlikely((buf = b_alloc(bptr)) == NULL)) {
+	    unlikely((buf = b_alloc(bptr, DB_CHANNEL)) == NULL)) {
 		check->buf_wait.target = check;
 		check->buf_wait.wakeup_cb = check_buf_available;
 		LIST_APPEND(&th_ctx->buffer_wq, &check->buf_wait.list);

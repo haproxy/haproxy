@@ -138,7 +138,7 @@ static inline struct ncbuf *quic_get_ncbuf(struct ncbuf *ncbuf)
 	if (!ncb_is_null(ncbuf))
 		return ncbuf;
 
-	b_alloc(&buf);
+	b_alloc(&buf, DB_MUX_RX);
 	BUG_ON(b_is_null(&buf));
 
 	*ncbuf = ncb_make(buf.area, buf.size, 0);

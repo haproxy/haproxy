@@ -772,7 +772,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 	max_sz = params->max_udp_payload_size;
 
 	do {
-		if (!b_alloc(&buf))
+		if (!b_alloc(&buf, DB_MUX_RX))
 			break; /* TODO subscribe for memory again available. */
 
 		b_reset(&buf);
