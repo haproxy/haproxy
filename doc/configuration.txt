@@ -1341,6 +1341,7 @@ The following keywords are supported in the "global" section :
    - maxsslconn
    - maxsslrate
    - maxzlibmem
+   - mptcp
    - no-memory-trimming
    - noepoll
    - noevports
@@ -2957,6 +2958,10 @@ maxzlibmem <number>
   The default value is 0. The value is available in bytes on the UNIX socket
   with "show info" on the line "MaxZlibMemUsage", the memory used by zlib is
   "ZlibMemUsage" in bytes.
+
+mptcp
+  Enables the use of the Multipath TCP (MPTCP) protocol. This option is only
+  available when support for MPTCP was built in.
 
 no-memory-trimming
   Disables memory trimming ("malloc_trim") at a few moments where attempts are
