@@ -90,17 +90,20 @@
 /* Remote peer teaching state */
 /******************************/
 #define PEER_F_TEACH_PROCESS        0x00000001 /* Teach a lesson to current peer */
-#define PEER_F_TEACH_FINISHED       0x00000002 /* Teach conclude, (wait for confirm) */
-#define PEER_F_TEACH_COMPLETE       0x00000004 /* All that we know already taught to current peer, used only for a local peer */
-#define PEER_F_LEARN_ASSIGN         0x00000010 /* Current peer was assigned for a lesson */
-#define PEER_F_LEARN_PROCESS        0x00000020 /* Learn from peer was started */
-#define PEER_F_LEARN_FINISHED       0x00000040 /* Learn from peer fully finished */
-#define PEER_F_LEARN_NOTUP2DATE     0x00000080 /* Learn from peer finished but peer is not up to date */
-#define PEER_F_ST_ACCEPTED          0x00000100 /* Used to set a peer in accepted state.  */
-#define PEER_F_ST_CONNECTED         0x00000200 /* Used to set a peer in connected state.  */
-#define PEER_F_ST_RENEWED           0x00000400 /* Used to set a peer in accepted state and old connection was replaced.  */
-#define PEER_F_ST_RELEASED          0x00000800 /* Used to set a peer in released state.  */
-#define PEER_F_RESYNC_REQUESTED     0x00001000 /* A resnyc was explicitly requested */
+/* unused : 0x00000002..0x00000004 */
+#define PEER_F_TEACH_FINISHED       0x00000008 /* Teach conclude, (wait for confirm) */
+#define PEER_F_TEACH_COMPLETE       0x00000010 /* All that we know already taught to current peer, used only for a local peer */
+/* unused : 0x00000020..0x00000080 */
+#define PEER_F_LEARN_ASSIGN         0x00000100 /* Current peer was assigned for a lesson */
+#define PEER_F_LEARN_NOTUP2DATE     0x00000200 /* Learn from peer finished but peer is not up to date */
+#define PEER_F_LEARN_PROCESS        0x00000400 /* Learn from peer was started */
+#define PEER_F_LEARN_FINISHED       0x00000800 /* Learn from peer fully finished */
+#define PEER_F_ST_ACCEPTED          0x00001000 /* Used to set a peer in accepted state.  */
+#define PEER_F_ST_CONNECTED         0x00002000 /* Used to set a peer in connected state.  */
+#define PEER_F_ST_RENEWED           0x00004000 /* Used to set a peer in accepted state and old connection was replaced.  */
+#define PEER_F_ST_RELEASED          0x00008000 /* Used to set a peer in released state.  */
+#define PEER_F_RESYNC_REQUESTED     0x00010000 /* A resnyc was explicitly requested */
+/* unused : 0x00020000..0x10000000 */
 #define PEER_F_ALIVE                0x20000000 /* Used to flag a peer a alive. */
 #define PEER_F_HEARTBEAT            0x40000000 /* Heartbeat message to send. */
 #define PEER_F_DWNGRD               0x80000000 /* When this flag is enabled, we must downgrade the supported version announced during peer sessions. */
