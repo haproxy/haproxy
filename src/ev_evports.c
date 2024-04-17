@@ -194,6 +194,12 @@ static void _do_poll(struct poller *p, int exp, int wake)
 				   evports_evlist_max,
 				   &nevlist, /* updated to the number of events retrieved */
 				   &timeout_ts);
+
+		/* Be careful, nevlist here is always updated by the syscall
+		 * even on status == -1, so it must always be respected
+		 * otherwise events are lost. Awkward API BTW, I wonder how
+		 * they thought ENOSYS ought to be handled... -WT
+		 */
 		if (status != 0) {
 			int e = errno;
 			switch (e) {
@@ -206,7 +212,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 				/* nevlist >= 0 */
 				break;
 			default:
-				nevlist = 0;
+				/* signal or anything else */
 				interrupted = 1;
 				break;
 			}
