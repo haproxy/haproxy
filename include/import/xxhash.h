@@ -3387,7 +3387,7 @@ XXH_PUBLIC_API XXH64_hash_t XXH64_hashFromCanonical(XXH_NOESCAPE const XXH64_can
 
 /* ===   Compiler specifics   === */
 
-#if ((defined(sun) || defined(__sun)) && __cplusplus) /* Solaris includes __STDC_VERSION__ with C++. Tested with GCC 5.5 */
+#if ((defined(sun) || defined(__sun)) && defined(__cplusplus) && __cplusplus) /* Solaris includes __STDC_VERSION__ with C++. Tested with GCC 5.5 */
 #  define XXH_RESTRICT   /* disable */
 #elif defined (__STDC_VERSION__) && __STDC_VERSION__ >= 199901L   /* >= C99 */
 #  define XXH_RESTRICT   restrict
