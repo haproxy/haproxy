@@ -4086,7 +4086,7 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 				if (strcmp("alias", args[cur_arg]) == 0) {
 					int rv;
 
-					if (*args[cur_arg] == '/') {
+					if (*args[cur_arg + 1] == '/') {
 						memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', '/' is forbidden as the first character.\n",
 						          file, linenum, args[cur_arg], args[cur_arg + 1]);
 						err_code |= ERR_ALERT | ERR_FATAL;
