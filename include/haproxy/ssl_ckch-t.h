@@ -169,14 +169,15 @@ struct cert_exts {
 
 /* argument types */
 enum parse_type_t {
-	PARSE_TYPE_INT = 0,
+	PARSE_TYPE_NONE = 0,
+	PARSE_TYPE_INT,
 	PARSE_TYPE_STR,         /* string which is strdup() */
 	PARSE_TYPE_ONOFF,       /* "on" or "off" keyword */
 };
 
 struct ckch_conf_kws {
 	const char *name;
-	size_t offset;
+	ssize_t offset;
 	enum parse_type_t type;
 	int (*func)(const char *path, char *buf, struct ckch_data *d, char **err);
 	char **base; /* ptr to the base path */

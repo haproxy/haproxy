@@ -3997,13 +3997,13 @@ static struct cli_kw_list cli_kws = {{ },{
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 struct ckch_conf_kws ckch_conf_kws[] = {
-	{ "alias",                               -1,                 0, NULL,                                  NULL },
+	{ "alias",                               -1,                 PARSE_TYPE_NONE, NULL,                                  NULL },
 	{ "crt",    offsetof(struct ckch_conf, crt),    PARSE_TYPE_STR, ssl_sock_load_pem_into_ckch,           &global_ssl.crt_base },
 	{ "key",    offsetof(struct ckch_conf, key),    PARSE_TYPE_STR, ssl_sock_load_key_into_ckch,           &global_ssl.key_base },
 	{ "ocsp",   offsetof(struct ckch_conf, ocsp),   PARSE_TYPE_STR, ssl_sock_load_ocsp_response_from_file, &global_ssl.crt_base },
 	{ "issuer", offsetof(struct ckch_conf, issuer), PARSE_TYPE_STR, ssl_sock_load_issuer_file_into_ckch,   &global_ssl.crt_base },
 	{ "sctl",   offsetof(struct ckch_conf, sctl),   PARSE_TYPE_STR, ssl_sock_load_sctl_from_file,          &global_ssl.crt_base },
-	{ NULL,     0,                                  PARSE_TYPE_STR, NULL,                                  NULL                 }
+	{ NULL,     -1,                                  PARSE_TYPE_STR, NULL,                                  NULL                 }
 };
 
 /* crt-store does not try to find files, but use the stored filename */
@@ -4021,8 +4021,13 @@ int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, char **err)
 	}
 
 	for (i = 0; ckch_conf_kws[i].name; i++) {
-		char *src = *(char **)((intptr_t)f + (ptrdiff_t)ckch_conf_kws[i].offset);
+		char *src = NULL;
 		char **base = ckch_conf_kws[i].base;
+
+		if (ckch_conf_kws[i].offset < 0)
+			continue;
+
+		src = *(char **)((intptr_t)f + (ptrdiff_t)ckch_conf_kws[i].offset);
 		if (src) {
 			char *path;
 			char path_base[PATH_MAX];
