@@ -4744,6 +4744,11 @@ load [crt <filename>] [param*]
 
   Arguments:
 
+    alias <string>     Optional argument. Allow to name the certificate with an
+                       alias, so it can be referenced with it in the
+                       configuration. An alias must be prefixed with '@/' when
+                       called elsewhere in the configuration.
+
     crt <filename>     This argument is mandatory, it loads a PEM which must
                        contain the public certificate but could also contain
                        the intermediate certificates and the private key.
@@ -4772,11 +4777,11 @@ load [crt <filename>] [param*]
 Example:
 
     crt-store
-        load crt "site1.crt" key "site1.key" ocsp "site1.ocsp"
+        load crt "site1.crt" key "site1.key" ocsp "site1.ocsp" alias "site1"
         load crt "site2.crt" key "site2.key"
 
     frontend in
-        bind *:443 ssl crt "site1.crt" crt "site2.crt"
+        bind *:443 ssl crt "@/site1" crt "site2.crt"
 
 4. Proxies
 ----------

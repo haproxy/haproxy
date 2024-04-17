@@ -575,7 +575,7 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 			continue;
 		}
 
-		if (*crt_path != '/' && global_ssl.crt_base) {
+		if (*crt_path != '@' && *crt_path != '/' && global_ssl.crt_base) {
 			if ((strlen(global_ssl.crt_base) + 1 + strlen(crt_path)) > sizeof(path) ||
 			    snprintf(path, sizeof(path), "%s/%s",  global_ssl.crt_base, crt_path) > sizeof(path)) {
 				memprintf(err, "parsing [%s:%d]: '%s' : path too long",
@@ -1338,7 +1338,7 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 		*slash = '/';
 	}
 
-	if (*cert_path != '/' && global_ssl.crt_base) {
+	if (*cert_path != '@' && *cert_path != '/' && global_ssl.crt_base) {
 		if ((strlen(global_ssl.crt_base) + 1 + strlen(cert_path)) > sizeof(path) ||
 		    snprintf(path, sizeof(path), "%s/%s",  global_ssl.crt_base, cert_path) > sizeof(path)) {
 			memprintf(&err, "'%s' : path too long", cert_path);

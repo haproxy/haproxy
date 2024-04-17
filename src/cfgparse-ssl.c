@@ -784,7 +784,7 @@ static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bin
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if ((*args[cur_arg + 1] != '/' ) && global_ssl.crt_base) {
+	if ((*args[cur_arg + 1] != '@') && (*args[cur_arg + 1] != '/' ) && global_ssl.crt_base) {
 		if ((strlen(global_ssl.crt_base) + 1 + strlen(args[cur_arg + 1]) + 1) > sizeof(path) ||
 		    snprintf(path, sizeof(path), "%s/%s",  global_ssl.crt_base, args[cur_arg + 1]) > sizeof(path)) {
 			memprintf(err, "'%s' : path too long", args[cur_arg]);
@@ -1828,7 +1828,7 @@ static int srv_parse_crt(char **args, int *cur_arg, struct proxy *px, struct ser
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if ((*args[*cur_arg + 1] != '/') && global_ssl.crt_base)
+	if ((*args[*cur_arg + 1] != '@') && (*args[*cur_arg + 1] != '/') && global_ssl.crt_base)
 		memprintf(&newsrv->ssl_ctx.client_crt, "%s/%s", global_ssl.crt_base, args[*cur_arg + 1]);
 	else
 		memprintf(&newsrv->ssl_ctx.client_crt, "%s", args[*cur_arg + 1]);

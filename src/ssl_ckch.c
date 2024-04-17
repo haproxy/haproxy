@@ -3997,6 +3997,7 @@ static struct cli_kw_list cli_kws = {{ },{
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 struct ckch_conf_kws ckch_conf_kws[] = {
+	{ "alias",                               -1,                 0, NULL,                                  NULL },
 	{ "crt",    offsetof(struct ckch_conf, crt),    PARSE_TYPE_STR, ssl_sock_load_pem_into_ckch,           &global_ssl.crt_base },
 	{ "key",    offsetof(struct ckch_conf, key),    PARSE_TYPE_STR, ssl_sock_load_key_into_ckch,           &global_ssl.key_base },
 	{ "ocsp",   offsetof(struct ckch_conf, ocsp),   PARSE_TYPE_STR, ssl_sock_load_ocsp_response_from_file, &global_ssl.crt_base },
@@ -4067,8 +4068,9 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 	int cur_arg = 0;
 	struct ckch_conf f = {};
 	struct ckch_store *c = NULL;
-	char store_path[PATH_MAX];
-	char *store_name;
+	char store_path[PATH_MAX]; /* complete path with crt_base */
+	char alias_name[PATH_MAX]; /* complete alias name with the store prefix '@/' */
+	char *final_name = NULL; /* name used as a key in the ckch_store */
 
 	cur_arg++; /* skip "load" */
 
@@ -4081,7 +4083,25 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 				found = 1;
 				target = (char **)((intptr_t)&f + (ptrdiff_t)ckch_conf_kws[i].offset);
 
-				if (ckch_conf_kws[i].type == PARSE_TYPE_STR) {
+				if (strcmp("alias", args[cur_arg]) == 0) {
+					int rv;
+
+					if (*args[cur_arg] == '/') {
+						memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', '/' is forbidden as the first character.\n",
+						          file, linenum, args[cur_arg], args[cur_arg + 1]);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+
+					rv = snprintf(alias_name, sizeof(alias_name), "@%s/%s", "", args[cur_arg + 1]);
+					if (rv >= sizeof(alias_name)) {
+						memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', too long, max len is %ld.\n",
+						          file, linenum, args[cur_arg], args[cur_arg + 1], sizeof(alias_name));
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+					final_name = alias_name;
+				} else if (ckch_conf_kws[i].type == PARSE_TYPE_STR) {
 					char **t = target;
 
 					*t = strdup(args[cur_arg + 1]);
@@ -4132,21 +4152,23 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 		goto out;
 	}
 
-	store_name = f.crt;
+	if (!final_name) {
+		final_name = f.crt;
 
-	/* complete the name in the ckch_tree with 'crt-base' */
-	if (global_ssl.crt_base && *f.crt != '/') {
-		int rv = snprintf(store_path, sizeof(store_path), "%s/%s", global_ssl.crt_base, f.crt);
-		if (rv >= sizeof(store_path)) {
-			memprintf(err, "'%s/%s' : path too long", global_ssl.crt_base, f.crt);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
+		/* complete the name in the ckch_tree with 'crt-base' */
+		if (global_ssl.crt_base && *f.crt != '/') {
+			int rv = snprintf(store_path, sizeof(store_path), "%s/%s", global_ssl.crt_base, f.crt);
+			if (rv >= sizeof(store_path)) {
+				memprintf(err, "'%s/%s' : path too long", global_ssl.crt_base, f.crt);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			final_name = store_path;
 		}
-		store_name = store_path;
 	}
 
 	/* process and insert the ckch_store */
-	c = ckch_store_new(store_name);
+	c = ckch_store_new(final_name);
 	if (!c)
 		goto alloc_error;
 
