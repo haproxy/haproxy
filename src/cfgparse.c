@@ -658,6 +658,7 @@ static struct peer *cfg_peers_add_peer(struct peers *peers,
 int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 {
 	static struct peers *curpeers = NULL;
+	static struct sockaddr_storage *bind_addr = NULL;
 	static int nb_shards = 0;
 	struct peer *newpeer = NULL;
 	const char *err;
@@ -728,12 +729,20 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			 * Newly allocated listener is at the end of the list
 			 */
 			l = LIST_ELEM(bind_conf->listeners.p, typeof(l), by_bind);
+			bind_addr = &l->rx.addr;
 
 			global.maxsock++; /* for the listening socket */
 
 			bind_line = 1;
 			if (cfg_peers->local) {
+				/* Local peer already defined using "server" line has no
+				 * address yet, we should update its server's addr:port
+				 * settings
+				 */
 				newpeer = cfg_peers->local;
+				BUG_ON(!newpeer->srv);
+				newpeer->srv->addr = *bind_addr;
+				newpeer->srv->svc_port = get_host_port(bind_addr);
 			}
 			else {
 				/* This peer is local.
@@ -776,6 +785,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "peers") == 0) { /* new peers section */
 		/* Initialize these static variables when entering a new "peers" section*/
 		bind_line = peer_line = 0;
+		bind_addr = NULL;
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d] : missing name for peers section.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
@@ -884,6 +894,15 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				free(p);
 			}
 			goto out;
+		}
+
+		if (!parse_addr && bind_addr) {
+			/* local peer declared using "server": has name but no
+			 * address: we use the known "bind" line addr settings
+			 * as implicit server's addr and port.
+			 */
+			curpeers->peers_fe->srv->addr = *bind_addr;
+			curpeers->peers_fe->srv->svc_port = get_host_port(bind_addr);
 		}
 
 		if (nb_shards && curpeers->peers_fe->srv->shard > nb_shards) {
