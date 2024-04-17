@@ -637,6 +637,38 @@ int stats_dump_one_line(const struct field *line, size_t stats_count,
 	return ret;
 }
 
+/* Returns true if column at <idx> should be hidden.
+ * This may depends on various <objt> internal status.
+ */
+static int stcol_hide(enum stat_idx_px idx, enum obj_type *objt)
+{
+	struct proxy *px __maybe_unused;
+	struct server *srv = NULL;
+	struct listener *li = NULL;
+
+	switch (obj_type(objt)) {
+	case OBJ_TYPE_PROXY:
+		px = __objt_proxy(objt);
+		break;
+	case OBJ_TYPE_SERVER:
+		srv = __objt_server(objt);
+		px = srv->proxy;
+		break;
+	case OBJ_TYPE_LISTENER:
+		li = __objt_listener(objt);
+		px = li->bind_conf->frontend;
+		break;
+	default:
+		ABORT_NOW();
+		return 0;
+	}
+
+	switch (idx) {
+	default:
+		return 0;
+	}
+}
+
 /* Generate if possible a metric value from <col>. <cap> must be set to one of
  * STATS_PX_CAP_* values to check if the metric is available for this object
  * type. Metric value will be extracted from <counters>.
@@ -644,6 +676,7 @@ int stats_dump_one_line(const struct field *line, size_t stats_count,
  * Returns a field value or an empty one if cap not compatible.
  */
 static struct field me_generate_field(const struct stat_col *col,
+                                      enum stat_idx_px idx, enum obj_type *objt,
                                       const void *counters, uint8_t cap)
 {
 	struct field value;
@@ -667,6 +700,10 @@ static struct field me_generate_field(const struct stat_col *col,
 
 	/* Check if metric is defined for this side. */
 	if (!(col->cap & cap))
+		return (struct field){ .type = FF_EMPTY };
+
+	/* Check if metric should be hidden in output. */
+	if (stcol_hide(idx, objt))
 		return (struct field){ .type = FF_EMPTY };
 
 	switch (stcol_format(col)) {
@@ -700,7 +737,8 @@ int stats_fill_fe_line(struct proxy *px, struct field *line, int len,
 		struct field field = { 0 };
 
 		if (stcol_is_generic(col)) {
-			field = me_generate_field(col, &px->fe_counters, STATS_PX_CAP_FE);
+			field = me_generate_field(col, i, &px->obj_type,
+			                          &px->fe_counters, STATS_PX_CAP_FE);
 		}
 		else {
 			switch (i) {
@@ -976,7 +1014,8 @@ int stats_fill_li_line(struct proxy *px, struct listener *l, int flags,
 		struct field field = { 0 };
 
 		if (stcol_is_generic(col)) {
-			field = me_generate_field(col, l->counters, STATS_PX_CAP_LI);
+			field = me_generate_field(col, i, &l->obj_type,
+			                          l->counters, STATS_PX_CAP_LI);
 		}
 		else {
 			switch (i) {
@@ -1257,7 +1296,8 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 		struct field field = { 0 };
 
 		if (stcol_is_generic(col)) {
-			field = me_generate_field(col, &sv->counters, STATS_PX_CAP_SRV);
+			field = me_generate_field(col, i, &sv->obj_type,
+			                          &sv->counters, STATS_PX_CAP_SRV);
 		}
 		else {
 			switch (i) {
@@ -1723,7 +1763,8 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 		struct field field = { 0 };
 
 		if (stcol_is_generic(col)) {
-			field = me_generate_field(col, &px->be_counters, STATS_PX_CAP_BE);
+			field = me_generate_field(col, i, &px->obj_type,
+			                          &px->be_counters, STATS_PX_CAP_BE);
 		}
 		else {
 			switch (i) {
