@@ -4040,7 +4040,7 @@ static int peers_dump_peer(struct buffer *msg, struct appctx *appctx, struct pee
 	              peer, peer->id,
 	              peer->local ? "local" : "remote",
 	              peer->appctx ? "active" : "inactive",
-	              pn, get_host_port(&peer->srv->addr),
+	              pn, peer->srv->svc_port,
 	              statuscode_str(peer->statuscode));
 
 	chunk_appendf(msg, " last_hdshk=%s\n",
