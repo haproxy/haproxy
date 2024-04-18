@@ -36,8 +36,7 @@ static const char *common_kw_list[] = {
 	"insecure-fork-wanted", "insecure-setuid-wanted", "nosplice",
 	"nogetaddrinfo", "noreuseport", "quiet", "zero-warning",
 	"tune.runqueue-depth", "tune.maxpollevents", "tune.maxaccept",
-	"tune.recv_enough", "tune.buffers.limit",
-	"tune.buffers.reserve", "tune.bufsize", "tune.maxrewrite",
+	"tune.recv_enough", "tune.bufsize", "tune.maxrewrite",
 	"tune.idletimer", "tune.rcvbuf.client", "tune.rcvbuf.server",
 	"tune.sndbuf.client", "tune.sndbuf.server", "tune.pipesize",
 	"tune.http.cookielen", "tune.http.logurilen", "tune.http.maxhdr",
@@ -266,36 +265,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		global.tune.recv_enough = atol(args[1]);
-	}
-	else if (strcmp(args[0], "tune.buffers.limit") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.buf_limit = atol(args[1]);
-		if (global.tune.buf_limit) {
-			if (global.tune.buf_limit < 3)
-				global.tune.buf_limit = 3;
-			if (global.tune.buf_limit <= global.tune.reserved_bufs)
-				global.tune.buf_limit = global.tune.reserved_bufs + 1;
-		}
-	}
-	else if (strcmp(args[0], "tune.buffers.reserve") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.reserved_bufs = atol(args[1]);
-		if (global.tune.reserved_bufs < 2)
-			global.tune.reserved_bufs = 2;
-		if (global.tune.buf_limit && global.tune.buf_limit <= global.tune.reserved_bufs)
-			global.tune.buf_limit = global.tune.reserved_bufs + 1;
 	}
 	else if (strcmp(args[0], "tune.bufsize") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))

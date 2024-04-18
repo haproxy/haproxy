@@ -15,10 +15,12 @@
 #include <string.h>
 
 #include <haproxy/api.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/pool.h>
+#include <haproxy/tools.h>
 
 struct pool_head *pool_head_buffer __read_mostly;
 
@@ -120,6 +122,67 @@ void __offer_buffers(void *from, unsigned int count)
 		count--;
 	}
 }
+
+/* config parser for global "tune.buffers.limit", accepts a number >= 0 */
+static int cfg_parse_tune_buffers_limit(char **args, int section_type, struct proxy *curpx,
+                                        const struct proxy *defpx, const char *file, int line,
+                                        char **err)
+{
+	int limit;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	limit = atoi(args[1]);
+	if (limit < 0) {
+		memprintf(err, "'%s' expects a non-negative number but got '%s'.", args[0], args[1]);
+		return -1;
+	}
+
+	global.tune.buf_limit = limit;
+	if (global.tune.buf_limit) {
+		if (global.tune.buf_limit < 3)
+			global.tune.buf_limit = 3;
+		if (global.tune.buf_limit <= global.tune.reserved_bufs)
+			global.tune.buf_limit = global.tune.reserved_bufs + 1;
+	}
+
+	return 0;
+}
+
+/* config parser for global "tune.buffers.reserve", accepts a number >= 0 */
+static int cfg_parse_tune_buffers_reserve(char **args, int section_type, struct proxy *curpx,
+                                          const struct proxy *defpx, const char *file, int line,
+                                          char **err)
+{
+	int reserve;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	reserve = atoi(args[1]);
+	if (reserve < 0) {
+		memprintf(err, "'%s' expects a non-negative number but got '%s'.", args[0], args[1]);
+		return -1;
+	}
+
+	global.tune.reserved_bufs = reserve;
+	if (global.tune.reserved_bufs < 2)
+		global.tune.reserved_bufs = 2;
+	if (global.tune.buf_limit && global.tune.buf_limit <= global.tune.reserved_bufs)
+		global.tune.buf_limit = global.tune.reserved_bufs + 1;
+
+	return 0;
+}
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "tune.buffers.limit", cfg_parse_tune_buffers_limit },
+	{ CFG_GLOBAL, "tune.buffers.reserve", cfg_parse_tune_buffers_reserve },
+	{ 0, NULL, NULL }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /*
  * Local variables:
