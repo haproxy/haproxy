@@ -325,7 +325,7 @@ static inline int applet_putblk(struct appctx *appctx, const char *blk, int len)
 		struct sedesc *se = appctx->sedesc;
 
 		ret = ci_putblk(sc_ic(se->sc), blk, len);
-		if (ret < -1) {
+		if (ret < 0) {
 			/* XXX: Handle all errors as a lack of space because callers
 			 * don't handles other cases for now. So applets must be
 			 * careful to handles shutdown (-2) and invalid calls (-3) by
@@ -362,7 +362,7 @@ static inline int applet_putstr(struct appctx *appctx, const char *str)
 		struct sedesc *se = appctx->sedesc;
 
 		ret = ci_putstr(sc_ic(se->sc), str);
-		if (ret == -1) {
+		if (ret < 0) {
 			/* XXX: Handle all errors as a lack of space because callers
 			 * don't handles other cases for now. So applets must be
 			 * careful to handles shutdown (-2) and invalid calls (-3) by
@@ -397,7 +397,7 @@ static inline int applet_putchr(struct appctx *appctx, char chr)
 		struct sedesc *se = appctx->sedesc;
 
 		ret = ci_putchr(sc_ic(se->sc), chr);
-		if (ret == -1) {
+		if (ret < 0) {
 			/* XXX: Handle all errors as a lack of space because callers
 			 * don't handles other cases for now. So applets must be
 			 * careful to handles shutdown (-2) and invalid calls (-3) by
