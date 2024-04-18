@@ -23,6 +23,7 @@
 #define _HAPROXY_STATS_T_H
 
 #include <haproxy/api-t.h>
+#include <haproxy/buf-t.h>
 
 /* Flags for applet.ctx.stats.flags */
 #define STAT_FMT_HTML   0x00000001      /* dump the stats in HTML format */
@@ -561,6 +562,7 @@ struct show_stat_ctx {
 	unsigned int flags;	/* STAT_* from stats-t.h */
 	int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
 	int st_code;		/* the status code returned by an action */
+	struct buffer chunk;    /* temporary buffer which holds a single-line output */
 	enum stat_state state;  /* phase of output production */
 };
 
