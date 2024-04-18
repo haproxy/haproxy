@@ -3996,14 +3996,18 @@ static struct cli_kw_list cli_kws = {{ },{
 
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
+static char *current_crtbase = NULL;
+static char *current_keybase = NULL;
+static int crtstore_load = 0; /* did we already load in this crt-store */
+
 struct ckch_conf_kws ckch_conf_kws[] = {
 	{ "alias",                               -1,                 PARSE_TYPE_NONE, NULL,                                  NULL },
-	{ "crt",    offsetof(struct ckch_conf, crt),    PARSE_TYPE_STR, ssl_sock_load_pem_into_ckch,           &global_ssl.crt_base },
-	{ "key",    offsetof(struct ckch_conf, key),    PARSE_TYPE_STR, ssl_sock_load_key_into_ckch,           &global_ssl.key_base },
-	{ "ocsp",   offsetof(struct ckch_conf, ocsp),   PARSE_TYPE_STR, ssl_sock_load_ocsp_response_from_file, &global_ssl.crt_base },
-	{ "issuer", offsetof(struct ckch_conf, issuer), PARSE_TYPE_STR, ssl_sock_load_issuer_file_into_ckch,   &global_ssl.crt_base },
-	{ "sctl",   offsetof(struct ckch_conf, sctl),   PARSE_TYPE_STR, ssl_sock_load_sctl_from_file,          &global_ssl.crt_base },
-	{ NULL,     -1,                                  PARSE_TYPE_STR, NULL,                                  NULL                 }
+	{ "crt",    offsetof(struct ckch_conf, crt),    PARSE_TYPE_STR, ssl_sock_load_pem_into_ckch,           &current_crtbase },
+	{ "key",    offsetof(struct ckch_conf, key),    PARSE_TYPE_STR, ssl_sock_load_key_into_ckch,           &current_keybase },
+	{ "ocsp",   offsetof(struct ckch_conf, ocsp),   PARSE_TYPE_STR, ssl_sock_load_ocsp_response_from_file, &current_crtbase },
+	{ "issuer", offsetof(struct ckch_conf, issuer), PARSE_TYPE_STR, ssl_sock_load_issuer_file_into_ckch,   &current_crtbase },
+	{ "sctl",   offsetof(struct ckch_conf, sctl),   PARSE_TYPE_STR, ssl_sock_load_sctl_from_file,          &current_crtbase },
+	{ NULL,     -1,                                  PARSE_TYPE_STR, NULL,                                  NULL            }
 };
 
 /* crt-store does not try to find files, but use the stored filename */
@@ -4062,6 +4066,40 @@ out:
 		ssl_sock_free_cert_key_and_chain_contents(d);
 	ERR_clear_error();
 
+	return err_code;
+}
+
+/* Parse a local crt-base or key-base for a crt-store */
+static int crtstore_parse_path_base(char **args, int section_type, struct proxy *curpx, const struct proxy *defpx,
+                        const char *file, int linenum, char **err)
+{
+	int err_code = ERR_NONE;
+
+	if (!*args[1]) {
+		memprintf(err, "parsing [%s:%d] : '%s' requires a <path> argument.",
+		          file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	if (crtstore_load) {
+		memprintf(err, "parsing [%s:%d] : '%s' can't be used after a load line, use it at the beginning of the section.",
+		          file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	if (args[0][1] == 'r') {
+		/* crt-base */
+		free(current_crtbase);
+		current_crtbase = strdup(args[1]);
+	} else if (args[0][1] == 'e') {
+		/* key-base */
+		free(current_keybase);
+		current_keybase = strdup(args[1]);
+	}
+
+out:
 	return err_code;
 }
 
@@ -4159,6 +4197,8 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 		goto out;
 	}
 
+	crtstore_load = 1;
+
 	if (!final_name) {
 		final_name = f.crt;
 
@@ -4255,6 +4295,15 @@ static int cfg_parse_crtstore(const char *file, int linenum, char **args, int kw
 			err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
 			goto out;
 		}
+		/* copy the crt_base and key_base */
+		ha_free(&current_crtbase);
+		if (global_ssl.crt_base)
+			current_crtbase = strdup(global_ssl.crt_base);
+		ha_free(&current_keybase);
+		if (global_ssl.key_base)
+			current_keybase = strdup(global_ssl.key_base);
+		crtstore_load = 0;
+
 		goto out;
 	}
 
@@ -4304,12 +4353,17 @@ out:
 static int cfg_post_parse_crtstore()
 {
 	current_crtstore_name[0] = '\0';
+	ha_free(&current_crtbase);
+	ha_free(&current_keybase);
+
 	return ERR_NONE;
 }
 
 REGISTER_CONFIG_SECTION("crt-store", cfg_parse_crtstore, cfg_post_parse_crtstore);
 
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_CRTSTORE, "crt-base", crtstore_parse_path_base },
+	{ CFG_CRTSTORE, "key-base", crtstore_parse_path_base },
 	{ CFG_CRTSTORE, "load", crtstore_parse_load },
 	{ 0, NULL, NULL },
 }};

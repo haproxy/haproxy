@@ -4741,7 +4741,23 @@ every certificate of this store must be referenced using "@<name>/<crt>" or
 Files in the certificate storage can also be updated dynamically with the CLI.
 See "set ssl cert" in the section 9.3 of the management guide.
 
-Currently only the "load" keyword is supported in the "crt-store" section:
+
+The following keywords are supported in the "crt-store" section :
+  - crt-base
+  - key-base
+  - load
+
+crt-base <dir>
+  Assigns a default directory to fetch SSL certificates from when a relative
+  path is used with "crt" directives. Absolute locations specified prevail and
+  ignore "crt-base". When used in a crt-store, the crt-base of the global
+  section is ignored.
+
+key-base <dir>
+  Assigns a default directory to fetch SSL private keys from when a relative
+  path is used with "key" directives. Absolute locations specified prevail and
+  ignore "key-base". When used in a crt-store, the key-base of the global
+  section is ignored.
 
 load [crt <filename>] [param*]
   Load SSL files in the certificate storage.
@@ -4788,6 +4804,8 @@ Example:
         bind *:443 ssl crt "@/site1" crt "site2.crt"
 
     crt-store web
+        crt-base /etc/ssl/certs/
+        key-base /etc/ssl/private/
         load crt "site3.crt" alias "site3"
         load crt "site4.crt" key "site4.key"
 
