@@ -3095,10 +3095,13 @@ static int qmux_wake(struct connection *conn)
 	return 1;
 }
 
-static void qmux_strm_shutw(struct stconn *sc, enum se_shut_mode mode)
+static void qmux_strm_shut(struct stconn *sc, enum se_shut_mode mode)
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
 	struct qcc *qcc = qcs->qcc;
+
+	if (!(mode & (SE_SHW_SILENT|SE_SHW_NORMAL)))
+		return;
 
 	TRACE_ENTER(QMUX_EV_STRM_SHUT, qcc->conn, qcs);
 
@@ -3182,7 +3185,7 @@ static const struct mux_ops qmux_ops = {
 	.subscribe   = qmux_strm_subscribe,
 	.unsubscribe = qmux_strm_unsubscribe,
 	.wake        = qmux_wake,
-	.shutw       = qmux_strm_shutw,
+	.shut       = qmux_strm_shut,
 	.sctl        = qmux_sctl,
 	.show_sd     = qmux_strm_show_sd,
 	.flags = MX_FL_HTX|MX_FL_NO_UPG|MX_FL_FRAMED,

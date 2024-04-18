@@ -411,8 +411,7 @@ struct mux_ops {
 	size_t (*done_fastfwd)(struct stconn *sc); /* Callback to terminate fast data forwarding */
 	int (*fastfwd)(struct stconn *sc, unsigned int count, unsigned int flags); /* Callback to init fast data forwarding */
 	int (*resume_fastfwd)(struct stconn *sc, unsigned int flags); /* Callback to resume fast data forwarding */
-	void (*shutr)(struct stconn *sc, enum se_shut_mode);     /* shutr function */
-	void (*shutw)(struct stconn *sc, enum se_shut_mode);     /* shutw function */
+	void (*shut)(struct stconn *sc, enum se_shut_mode);     /* shutdown function */
 
 	int (*attach)(struct connection *conn, struct sedesc *, struct session *sess); /* attach a stconn to an outgoing connection */
 	struct stconn *(*get_first_sc)(const struct connection *); /* retrieves any valid stconn from this connection */

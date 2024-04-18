@@ -462,38 +462,30 @@ static int mux_pt_avail_streams(struct connection *conn)
 	return 1 - mux_pt_used_streams(conn);
 }
 
-static void mux_pt_shutr(struct stconn *sc, enum se_shut_mode mode)
+static void mux_pt_shut(struct stconn *sc, enum se_shut_mode mode)
 {
 	struct connection *conn = __sc_conn(sc);
 	struct mux_pt_ctx *ctx = conn->ctx;
 
 	TRACE_ENTER(PT_EV_STRM_SHUT, conn, sc);
+	if (mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) {
+		if (conn_xprt_ready(conn) && conn->xprt->shutw)
+			conn->xprt->shutw(conn, conn->xprt_ctx, (mode & SE_SHW_NORMAL));
+		if (conn->flags & CO_FL_SOCK_RD_SH)
+			conn_full_close(conn);
+		else
+			conn_sock_shutw(conn, (mode & SE_SHW_NORMAL));
+	}
 
-	se_fl_clr(ctx->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
-	if (conn_xprt_ready(conn) && conn->xprt->shutr)
-		conn->xprt->shutr(conn, conn->xprt_ctx,
-		    (mode & SE_SHR_DRAIN));
-	else if (mode & SE_SHR_DRAIN)
-		conn_ctrl_drain(conn);
-	if (conn->flags & CO_FL_SOCK_WR_SH)
-		conn_full_close(conn);
-
-	TRACE_LEAVE(PT_EV_STRM_SHUT, conn, sc);
-}
-
-static void mux_pt_shutw(struct stconn *sc, enum se_shut_mode mode)
-{
-	struct connection *conn = __sc_conn(sc);
-
-	TRACE_ENTER(PT_EV_STRM_SHUT, conn, sc);
-
-	if (conn_xprt_ready(conn) && conn->xprt->shutw)
-		conn->xprt->shutw(conn, conn->xprt_ctx,
-		    (mode & SE_SHW_NORMAL));
-	if (!(conn->flags & CO_FL_SOCK_RD_SH))
-		conn_sock_shutw(conn, (mode & SE_SHW_NORMAL));
-	else
-		conn_full_close(conn);
+	if (mode & (SE_SHR_RESET|SE_SHR_DRAIN)) {
+		se_fl_clr(ctx->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
+		if (conn_xprt_ready(conn) && conn->xprt->shutr)
+			conn->xprt->shutr(conn, conn->xprt_ctx, (mode & SE_SHR_DRAIN));
+		else if (mode & SE_SHR_DRAIN)
+			conn_ctrl_drain(conn);
+		if (conn->flags & CO_FL_SOCK_WR_SH)
+			conn_full_close(conn);
+	}
 
 	TRACE_LEAVE(PT_EV_STRM_SHUT, conn, sc);
 }
@@ -865,8 +857,7 @@ const struct mux_ops mux_tcp_ops = {
 	.destroy = mux_pt_destroy_meth,
 	.ctl = mux_pt_ctl,
 	.sctl = mux_pt_sctl,
-	.shutr = mux_pt_shutr,
-	.shutw = mux_pt_shutw,
+	.shut = mux_pt_shut,
 	.flags = MX_FL_NONE,
 	.name = "PASS",
 };
@@ -891,8 +882,7 @@ const struct mux_ops mux_pt_ops = {
 	.destroy = mux_pt_destroy_meth,
 	.ctl = mux_pt_ctl,
 	.sctl = mux_pt_sctl,
-	.shutr = mux_pt_shutr,
-	.shutw = mux_pt_shutw,
+	.shut = mux_pt_shut,
 	.flags = MX_FL_NONE|MX_FL_NO_UPG,
 	.name = "PASS",
 };

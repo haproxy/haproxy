@@ -5079,24 +5079,15 @@ struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state)
 	return t;
 }
 
-/* shutr() called by the stream connector (mux_ops.shutr) */
-static void h2_shutr(struct stconn *sc, enum se_shut_mode mode)
+static void h2_shut(struct stconn *sc, enum se_shut_mode mode)
 {
 	struct h2s *h2s = __sc_mux_strm(sc);
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
+	if (mode & (SE_SHW_SILENT|SE_SHW_NORMAL))
+		h2_do_shutw(h2s);
 	if (mode & SE_SHR_RESET)
 		h2_do_shutr(h2s);
-	TRACE_LEAVE(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
-}
-
-/* shutw() called by the stream connector (mux_ops.shutw) */
-static void h2_shutw(struct stconn *sc, enum se_shut_mode mode)
-{
-	struct h2s *h2s = __sc_mux_strm(sc);
-
-	TRACE_ENTER(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
-	h2_do_shutw(h2s);
 	TRACE_LEAVE(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
 }
 
@@ -7746,8 +7737,7 @@ static const struct mux_ops h2_ops = {
 	.destroy = h2_destroy,
 	.avail_streams = h2_avail_streams,
 	.used_streams = h2_used_streams,
-	.shutr = h2_shutr,
-	.shutw = h2_shutw,
+	.shut = h2_shut,
 	.ctl = h2_ctl,
 	.sctl = h2_sctl,
 	.show_fd = h2_show_fd,

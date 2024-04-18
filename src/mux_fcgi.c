@@ -3791,23 +3791,16 @@ struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned int state)
 	return NULL;
 }
 
-/* shutr() called by the stream connector (mux_ops.shutr) */
-static void fcgi_shutr(struct stconn *sc, enum se_shut_mode mode)
+static void fcgi_shut(struct stconn *sc, enum se_shut_mode mode)
 {
 	struct fcgi_strm *fstrm = __sc_mux_strm(sc);
 
-	TRACE_POINT(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
+	TRACE_ENTER(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
+	if (mode & (SE_SHW_SILENT|SE_SHW_NORMAL))
+		fcgi_do_shutw(fstrm);
 	if (mode & SE_SHR_RESET)
 		fcgi_do_shutr(fstrm);
-}
-
-/* shutw() called by the stream connector (mux_ops.shutw) */
-static void fcgi_shutw(struct stconn *sc, enum se_shut_mode mode)
-{
-	struct fcgi_strm *fstrm = __sc_mux_strm(sc);
-
-	TRACE_POINT(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
-	fcgi_do_shutw(fstrm);
+	TRACE_LEAVE(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
 }
 
 /* Called from the upper layer, to subscribe <es> to events <event_type>. The
@@ -4261,8 +4254,7 @@ static const struct mux_ops mux_fcgi_ops = {
 	.snd_buf       = fcgi_snd_buf,
 	.subscribe     = fcgi_subscribe,
 	.unsubscribe   = fcgi_unsubscribe,
-	.shutr         = fcgi_shutr,
-	.shutw         = fcgi_shutw,
+	.shut          = fcgi_shut,
 	.ctl           = fcgi_ctl,
 	.sctl           = fcgi_sctl,
 	.show_fd       = fcgi_show_fd,

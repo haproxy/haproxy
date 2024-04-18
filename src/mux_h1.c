@@ -4291,25 +4291,12 @@ static void h1_detach(struct sedesc *sd)
 	TRACE_LEAVE(H1_EV_STRM_END);
 }
 
-
-static void h1_shutr(struct stconn *sc, enum se_shut_mode mode)
+static void h1_shut(struct stconn *sc, enum se_shut_mode mode)
 {
 	struct h1s *h1s = __sc_mux_strm(sc);
 	struct h1c *h1c;
 
-	if (!h1s)
-		return;
-	h1c = h1s->h1c;
-
-	TRACE_POINT(H1_EV_STRM_SHUT, h1c->conn, h1s, 0, (size_t[]){mode});
-}
-
-static void h1_shutw(struct stconn *sc, enum se_shut_mode mode)
-{
-	struct h1s *h1s = __sc_mux_strm(sc);
-	struct h1c *h1c;
-
-	if (!h1s)
+	if (!h1s || !(mode & (SE_SHW_SILENT|SE_SHW_NORMAL)))
 		return;
 	h1c = h1s->h1c;
 
@@ -5517,8 +5504,7 @@ static const struct mux_ops mux_http_ops = {
 	.resume_fastfwd = h1_resume_fastfwd,
 	.subscribe   = h1_subscribe,
 	.unsubscribe = h1_unsubscribe,
-	.shutr       = h1_shutr,
-	.shutw       = h1_shutw,
+	.shut        = h1_shut,
 	.show_fd     = h1_show_fd,
 	.show_sd     = h1_show_sd,
 	.ctl         = h1_ctl,
@@ -5545,8 +5531,7 @@ static const struct mux_ops mux_h1_ops = {
 	.resume_fastfwd = h1_resume_fastfwd,
 	.subscribe   = h1_subscribe,
 	.unsubscribe = h1_unsubscribe,
-	.shutr       = h1_shutr,
-	.shutw       = h1_shutw,
+	.shut        = h1_shut,
 	.show_fd     = h1_show_fd,
 	.show_sd     = h1_show_sd,
 	.ctl         = h1_ctl,
