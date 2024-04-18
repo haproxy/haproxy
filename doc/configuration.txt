@@ -4734,6 +4734,10 @@ section. It allows to configure certificate definitions and which files should
 be loaded in it. A certificate definition must be written before it is used
 elsewhere in the configuration.
 
+The "crt-store" takes an optional name in argument. If a name is specified,
+every certificate of this store must be referenced using "@<name>/<crt>" or
+"@<name>/<alias>".
+
 Files in the certificate storage can also be updated dynamically with the CLI.
 See "set ssl cert" in the section 9.3 of the management guide.
 
@@ -4780,8 +4784,15 @@ Example:
         load crt "site1.crt" key "site1.key" ocsp "site1.ocsp" alias "site1"
         load crt "site2.crt" key "site2.key"
 
-    frontend in
+    frontend in2
         bind *:443 ssl crt "@/site1" crt "site2.crt"
+
+    crt-store web
+        load crt "site3.crt" alias "site3"
+        load crt "site4.crt" key "site4.key"
+
+    frontend in2
+        bind *:443 ssl crt "@web/site1" crt "site2.crt"  crt "@web/site3" crt "@web/site4.crt"
 
 4. Proxies
 ----------

@@ -4065,6 +4065,8 @@ out:
 	return err_code;
 }
 
+static char current_crtstore_name[PATH_MAX] = {};
+
 static int crtstore_parse_load(char **args, int section_type, struct proxy *curpx, const struct proxy *defpx,
                         const char *file, int linenum, char **err)
 {
@@ -4098,7 +4100,7 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 						goto out;
 					}
 
-					rv = snprintf(alias_name, sizeof(alias_name), "@%s/%s", "", args[cur_arg + 1]);
+					rv = snprintf(alias_name, sizeof(alias_name), "@%s/%s", current_crtstore_name, args[cur_arg + 1]);
 					if (rv >= sizeof(alias_name)) {
 						memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', too long, max len is %ld.\n",
 						          file, linenum, args[cur_arg], args[cur_arg + 1], sizeof(alias_name));
@@ -4160,9 +4162,28 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 	if (!final_name) {
 		final_name = f.crt;
 
-		/* complete the name in the ckch_tree with 'crt-base' */
-		if (global_ssl.crt_base && *f.crt != '/') {
-			int rv = snprintf(store_path, sizeof(store_path), "%s/%s", global_ssl.crt_base, f.crt);
+		/* if no alias was used:
+		 * - when a crt-store exists, use @store/crt
+		 * - or use the absolute file (crt_base + crt)
+		 * - or the relative file when no crt_base exists
+		 */
+		if (current_crtstore_name[0] != '\0') {
+			int rv;
+
+			/* add the crt-store name, avoid a double / if the crt starts by it */
+			rv = snprintf(alias_name, sizeof(alias_name), "@%s%s%s", current_crtstore_name, f.crt[0] != '/' ? "/" : "", f.crt);
+			if (rv >= sizeof(alias_name)) {
+				memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', too long, max len is %ld.\n",
+				          file, linenum, args[cur_arg], args[cur_arg + 1], sizeof(alias_name));
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			final_name = alias_name;
+		} else if (global_ssl.crt_base && *f.crt != '/') {
+			int rv;
+			/* When no crt_store name, complete the name in the ckch_tree with 'crt-base' */
+
+			rv = snprintf(store_path, sizeof(store_path), "%s/%s", global_ssl.crt_base, f.crt);
 			if (rv >= sizeof(store_path)) {
 				memprintf(err, "'%s/%s' : path too long", global_ssl.crt_base, f.crt);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -4171,7 +4192,6 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 			final_name = store_path;
 		}
 	}
-
 	/* process and insert the ckch_store */
 	c = ckch_store_new(final_name);
 	if (!c)
@@ -4218,8 +4238,20 @@ static int cfg_parse_crtstore(const char *file, int linenum, char **args, int kw
 	char *errmsg = NULL;
 
 	if (strcmp(args[0], "crt-store") == 0) { /* new crt-store section */
-		if (*args[1]) {
-			ha_alert("parsing [%s:%d] : 'crt-store' section does not support an argument.\n", file, linenum);
+		if (!*args[1]) {
+			current_crtstore_name[0] = '\0';
+		} else {
+			rc = snprintf(current_crtstore_name, sizeof(current_crtstore_name), "%s", args[1]);
+			if (rc >= sizeof(current_crtstore_name)) {
+				ha_alert("parsing [%s:%d] : 'crt-store' <name> argument is too long.\n", file, linenum);
+				current_crtstore_name[0] = '\0';
+				err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+				goto out;
+			}
+		}
+
+		if (*args[2]) {
+			ha_alert("parsing [%s:%d] : 'crt-store' section only supports a <name> argument.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
 			goto out;
 		}
@@ -4269,7 +4301,13 @@ out:
 	return err_code;
 }
 
-REGISTER_CONFIG_SECTION("crt-store", cfg_parse_crtstore, NULL);
+static int cfg_post_parse_crtstore()
+{
+	current_crtstore_name[0] = '\0';
+	return ERR_NONE;
+}
+
+REGISTER_CONFIG_SECTION("crt-store", cfg_parse_crtstore, cfg_post_parse_crtstore);
 
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_CRTSTORE, "load", crtstore_parse_load },
