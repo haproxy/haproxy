@@ -113,7 +113,7 @@ struct post_mortem {
 		uid_t boot_uid;
 		gid_t boot_gid;
 		struct rlimit limit_fd;  // RLIMIT_NOFILE
-		struct rlimit limit_ram; // RLIMIT_AS or RLIMIT_DATA
+		struct rlimit limit_ram; // RLIMIT_DATA
 
 #if defined(USE_THREAD)
 		struct {
@@ -2273,11 +2273,7 @@ static int feed_post_mortem()
 	post_mortem.process.boot_gid = getegid();
 
 	getrlimit(RLIMIT_NOFILE, &post_mortem.process.limit_fd);
-#if defined(RLIMIT_AS)
-	getrlimit(RLIMIT_AS, &post_mortem.process.limit_ram);
-#elif defined(RLIMIT_DATA)
 	getrlimit(RLIMIT_DATA, &post_mortem.process.limit_ram);
-#endif
 
 	if (strcmp(post_mortem.platform.utsname.sysname, "Linux") == 0)
 		feed_post_mortem_linux();

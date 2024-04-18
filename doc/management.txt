@@ -416,13 +416,15 @@ list of options is :
     level and verbosity can be optionally specified on each element using ':' as
     inner separator with trace name.
 
-  -m <limit> : limit the total allocatable memory to <limit> megabytes across
-    all processes. This may cause some connection refusals or some slowdowns
-    depending on the amount of memory needed for normal operations. This is
-    mostly used to force the processes to work in a constrained resource usage
-    scenario. It is important to note that the memory is not shared between
-    processes, so in a multi-process scenario, this value is first divided by
-    global.nbproc before forking.
+  -m <limit> : limit allocatable memory, which is used to keep process's data,
+    to <limit> megabytes. This may cause some connection refusals or some
+    slowdowns depending on the amount of memory needed for normal operations.
+    This is mostly used to force haproxy process to work in a constrained
+    resource consumption scenario. It is important to note that the memory is
+    not shared between haproxy processes and a child process created via fork()
+    system call inherits its parent's resource limits. So, in a master-worker
+    mode this memory limit is separately applied to the master and its forked
+    worker process.
 
   -n <limit> : limits the per-process connection limit to <limit>. This is
     equivalent to the global section's keyword "maxconn". It has precedence

@@ -3462,18 +3462,6 @@ int main(int argc, char **argv)
 	if (global.rlimit_memmax) {
 		limit.rlim_cur = limit.rlim_max =
 			global.rlimit_memmax * 1048576ULL;
-#ifdef RLIMIT_AS
-		if (setrlimit(RLIMIT_AS, &limit) == -1) {
-			if (global.tune.options & GTUNE_STRICT_LIMITS) {
-				ha_alert("[%s.main()] Cannot fix MEM limit to %d megs.\n",
-					 argv[0], global.rlimit_memmax);
-				exit(1);
-			}
-			else
-				ha_warning("[%s.main()] Cannot fix MEM limit to %d megs.\n",
-					   argv[0], global.rlimit_memmax);
-		}
-#else
 		if (setrlimit(RLIMIT_DATA, &limit) == -1) {
 			if (global.tune.options & GTUNE_STRICT_LIMITS) {
 				ha_alert("[%s.main()] Cannot fix MEM limit to %d megs.\n",
@@ -3484,7 +3472,6 @@ int main(int argc, char **argv)
 				ha_warning("[%s.main()] Cannot fix MEM limit to %d megs.\n",
 					   argv[0], global.rlimit_memmax);
 		}
-#endif
 	}
 
 #if defined(USE_LINUX_CAP)
