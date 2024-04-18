@@ -1637,10 +1637,7 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 
 		updates_sent++;
 		if (updates_sent >= peers_max_updates_at_once) {
-			/* pretend we're full so that we get back ASAP */
-			struct stconn *sc = appctx_sc(appctx);
-
-			sc_need_room(sc, 0);
+			applet_have_more_data(appctx);
 			ret = -1;
 			break;
 		}
@@ -2695,10 +2692,7 @@ static inline int peer_send_msgs(struct appctx *appctx,
 
 			updates++;
 			if (updates >= peers_max_updates_at_once) {
-				/* pretend we're full so that we get back ASAP */
-				struct stconn *sc = appctx_sc(appctx);
-
-				sc_need_room(sc, 0);
+				applet_have_more_data(appctx);
 				return -1;
 			}
 
