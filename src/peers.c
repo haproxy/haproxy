@@ -100,7 +100,7 @@
 #define PEER_F_LEARN_FINISHED       0x00000800 /* Learn from peer fully finished */
 #define PEER_F_ST_ACCEPTED          0x00001000 /* Used to set a peer in accepted state.  */
 #define PEER_F_ST_CONNECTED         0x00002000 /* Used to set a peer in connected state.  */
-#define PEER_F_ST_RENEWED           0x00004000 /* Used to set a peer in accepted state and old connection was replaced.  */
+/* unused : 0x00004000  */
 #define PEER_F_ST_RELEASED          0x00008000 /* Used to set a peer in released state.  */
 #define PEER_F_RESYNC_REQUESTED     0x00010000 /* A resnyc was explicitly requested */
 /* unused : 0x00020000..0x10000000 */
@@ -110,7 +110,7 @@
 
 #define PEER_TEACH_RESET            ~(PEER_F_TEACH_PROCESS|PEER_F_TEACH_FINISHED) /* PEER_F_TEACH_COMPLETE should never be reset */
 #define PEER_LEARN_RESET            ~(PEER_F_LEARN_ASSIGN|PEER_F_LEARN_PROCESS|PEER_F_LEARN_FINISHED|PEER_F_LEARN_NOTUP2DATE)
-#define PEER_STATE_RESET            ~(PEER_F_ST_ACCEPTED|PEER_F_ST_CONNECTED|PEER_F_ST_RENEWED|PEER_F_ST_RELEASED)
+#define PEER_STATE_RESET            ~(PEER_F_ST_ACCEPTED|PEER_F_ST_CONNECTED|PEER_F_ST_RELEASED)
 
 
 #define PEER_RESYNC_TIMEOUT         5000 /* 5 seconds */
@@ -3013,10 +3013,6 @@ switchstate:
 					curpeer->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
 					peer_session_forceshutdown(curpeer);
 
-					/* old peer connection was replaced by a new one. */
-					curpeer->flags &= PEER_STATE_RESET;
-					curpeer->flags |= PEER_F_ST_RENEWED;
-
 					curpeer->heartbeat = TICK_ETERNITY;
 					curpeer->coll++;
 				}
@@ -3141,6 +3137,9 @@ switchstate:
 						goto switchstate;
 					}
 				}
+
+				if (curpeer->flags & (PEER_F_ST_RELEASED|PEER_F_ST_ACCEPTED|PEER_F_ST_CONNECTED))
+					goto out;
 
 				reql = peer_recv_msg(appctx, (char *)msg_head, sizeof msg_head, &msg_len, &totl);
 				if (reql <= 0) {
@@ -3384,7 +3383,7 @@ static void __process_peer_state(struct peers *peers, struct peer *peer)
 		peers->flags |= PEERS_F_RESYNC_REQUESTED;
 
 	/* Check peer state. Order is important */
-	if (peer->flags & (PEER_F_ST_RELEASED|PEER_F_ST_RENEWED)) {
+	if (peer->flags & (PEER_F_ST_RELEASED|PEER_F_ST_CONNECTED|PEER_F_ST_ACCEPTED)) {
 		if (peer->flags & PEER_F_LEARN_ASSIGN) {
 			/* unassign current peer for learning */
 			peers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
@@ -3395,7 +3394,7 @@ static void __process_peer_state(struct peers *peers, struct peer *peer)
 		peer->flags &= PEER_TEACH_RESET;
 		peer->flags &= PEER_LEARN_RESET;
 	}
-	if (peer->flags & (PEER_F_ST_ACCEPTED|PEER_F_ST_RENEWED)) {
+	if (peer->flags & PEER_F_ST_ACCEPTED) {
 		peer->flags &= PEER_TEACH_RESET;
 		peer->flags &= PEER_LEARN_RESET;
 
@@ -3438,6 +3437,9 @@ static void __process_peer_state(struct peers *peers, struct peer *peer)
 			peers->flags |= PEERS_F_RESYNC_REMOTEASSIGN;
 		}
 	}
+
+	if (peer->flags & (PEER_F_ST_ACCEPTED|PEER_F_ST_CONNECTED))
+		appctx_wakeup(peer->appctx);
 	peer->flags &= PEER_STATE_RESET;
 }
 
