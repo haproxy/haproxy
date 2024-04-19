@@ -4781,10 +4781,15 @@ static int smp_check_uuid(struct arg *args, char **err)
 	if (!args[0].type) {
 		args[0].type = ARGT_SINT;
 		args[0].data.sint = 4;
-	}
-	else if (args[0].data.sint != 4) {
-		memprintf(err, "Unsupported UUID version: '%lld'", args[0].data.sint);
-		return 0;
+	} else {
+		switch (args[0].data.sint) {
+		case 4:
+		case 7:
+			break;
+		default:
+			memprintf(err, "Unsupported UUID version: '%lld'", args[0].data.sint);
+			return 0;
+		}
 	}
 
 	return 1;
@@ -4793,16 +4798,29 @@ static int smp_check_uuid(struct arg *args, char **err)
 // Generate a RFC4122 UUID (default is v4 = fully random)
 static int smp_fetch_uuid(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	if (args[0].data.sint == 4 || !args[0].type) {
-		ha_generate_uuid_v4(&trash);
-		smp->data.type = SMP_T_STR;
-		smp->flags = SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;
-		smp->data.u.str = trash;
-		return 1;
+	long long int type = -1;
+
+	if (!args[0].type) {
+		type = 4;
+	} else {
+		type = args[0].data.sint;
 	}
 
-	// more implementations of other uuid formats possible here
-	return 0;
+	switch (type) {
+	case 4:
+		ha_generate_uuid_v4(&trash);
+		break;
+	case 7:
+		ha_generate_uuid_v7(&trash);
+		break;
+	default:
+		return 0;
+	}
+
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;
+	smp->data.u.str = trash;
+	return 1;
 }
 
 /* Check if QUIC support was compiled and was not disabled by "no-quic" global option */

@@ -21306,7 +21306,8 @@ txn.sess_term_state : string
 uuid([<version>]) : string
   Returns a UUID following the RFC4122 standard. If the version is not
   specified, a UUID version 4 (fully random) is returned.
-  Currently, only version 4 is supported.
+
+  Versions 4 and 7 are supported.
 
 var(<var-name>[,<default>]) : undefined
   Returns a variable with the stored type. If the variable is not set, the
