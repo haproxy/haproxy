@@ -5147,6 +5147,13 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 #ifdef SSL_CTRL_SET_MSG_CALLBACK
 	SSL_CTX_set_msg_callback(ctx, ssl_sock_msgcbk);
 #endif
+
+#ifdef HAVE_SSL_KEYLOG
+	/* only activate the keylog callback if it was required to prevent performance loss */
+	if (global_ssl.keylog > 0)
+		SSL_CTX_set_keylog_callback(ctx, SSL_CTX_keylog);
+#endif
+
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	if (srv->ssl_ctx.ciphersuites &&
 		!SSL_CTX_set_ciphersuites(ctx, srv->ssl_ctx.ciphersuites)) {

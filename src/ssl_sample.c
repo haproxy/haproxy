@@ -2319,6 +2319,15 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_bc_server_random",   smp_fetch_ssl_fc_random,      0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 	{ "ssl_bc_session_key",     smp_fetch_ssl_fc_session_key, 0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 #endif
+#ifdef HAVE_SSL_KEYLOG
+	{ "ssl_bc_client_early_traffic_secret",     smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_bc_client_handshake_traffic_secret", smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_bc_server_handshake_traffic_secret", smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_bc_client_traffic_secret_0",         smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_bc_server_traffic_secret_0",         smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_bc_exporter_secret",                 smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_bc_early_exporter_secret",           smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+#endif
 	{ "ssl_bc_err",             smp_fetch_ssl_fc_err,         0,                   NULL,    SMP_T_SINT, SMP_USE_L5SRV },
 	{ "ssl_bc_err_str",         smp_fetch_ssl_fc_err_str,     0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
 	{ "ssl_c_ca_err",           smp_fetch_ssl_c_ca_err,       0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
