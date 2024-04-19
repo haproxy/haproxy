@@ -1056,7 +1056,7 @@ static inline void *my_realloc2(void *ptr, size_t size)
 int parse_dotted_uints(const char *s, unsigned int **nums, size_t *sz);
 
 /* PRNG */
-void ha_generate_uuid(struct buffer *output);
+void ha_generate_uuid_v4(struct buffer *output);
 void ha_random_seed(const unsigned char *seed, size_t len);
 void ha_random_jump96(uint32_t dist);
 uint64_t ha_random64(void);

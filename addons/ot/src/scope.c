@@ -113,7 +113,7 @@ struct flt_ot_runtime_context *flt_ot_runtime_context_init(struct stream *s, str
 	LIST_INIT(&(retptr->contexts));
 
 	uuid = b_make(retptr->uuid, sizeof(retptr->uuid), 0, 0);
-	ha_generate_uuid(&uuid);
+	ha_generate_uuid_v4(&uuid);
 
 #ifdef USE_OT_VARS
 	/*

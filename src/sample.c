@@ -4794,7 +4794,7 @@ static int smp_check_uuid(struct arg *args, char **err)
 static int smp_fetch_uuid(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	if (args[0].data.sint == 4 || !args[0].type) {
-		ha_generate_uuid(&trash);
+		ha_generate_uuid_v4(&trash);
 		smp->data.type = SMP_T_STR;
 		smp->flags = SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;
 		smp->data.u.str = trash;

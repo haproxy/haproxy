@@ -249,7 +249,7 @@ static const char *spoe_appctx_state_str[SPOE_APPCTX_ST_END+1] = {
 static char *
 generate_pseudo_uuid()
 {
-	ha_generate_uuid(&trash);
+	ha_generate_uuid_v4(&trash);
 	return my_strndup(trash.area, trash.data);
 }
 
