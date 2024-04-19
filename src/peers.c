@@ -3405,7 +3405,7 @@ static void __process_peer_state(struct peers *peers, struct peer *peer)
 			if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMLOCAL &&
 			    !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
 				/* assign local peer for a lesson, consider lesson already requested */
-				peer->flags |= (PEER_F_LEARN_ASSIGN|PEERS_F_RESYNC_PROCESS);
+				peer->flags |= PEER_F_LEARN_ASSIGN;
 				peers->flags |= (PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
 				peers->flags |= PEERS_F_RESYNC_LOCALASSIGN;
 			}
