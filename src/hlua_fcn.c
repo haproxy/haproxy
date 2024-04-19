@@ -53,7 +53,7 @@ static int class_stktable_ref;
 static int class_proxy_list_ref;
 static int class_server_list_ref;
 
-#define STATS_LEN (MAX((int)ST_F_TOTAL_FIELDS, (int)INF_TOTAL_FIELDS))
+#define STATS_LEN (MAX((int)ST_I_PX_MAX, (int)INF_TOTAL_FIELDS))
 
 static THREAD_LOCAL struct field stats[STATS_LEN];
 
@@ -1159,11 +1159,11 @@ int hlua_listener_get_stats(lua_State *L)
 	}
 
 	stats_fill_li_stats(li->bind_conf->frontend, li, STAT_SHLGNDS, stats,
-			    STATS_LEN, NULL);
+	                    STATS_LEN, NULL);
 
 	lua_newtable(L);
-	for (i=0; i<ST_F_TOTAL_FIELDS; i++) {
-		lua_pushstring(L, stat_fields[i].name);
+	for (i=0; i<ST_I_PX_MAX; i++) {
+		lua_pushstring(L, metrics_px[i].name);
 		hlua_fcn_pushfield(L, &stats[i]);
 		lua_settable(L, -3);
 	}
@@ -1208,8 +1208,8 @@ int hlua_server_get_stats(lua_State *L)
 			    STATS_LEN, NULL);
 
 	lua_newtable(L);
-	for (i=0; i<ST_F_TOTAL_FIELDS; i++) {
-		lua_pushstring(L, stat_fields[i].name);
+	for (i=0; i<ST_I_PX_MAX; i++) {
+		lua_pushstring(L, metrics_px[i].name);
 		hlua_fcn_pushfield(L, &stats[i]);
 		lua_settable(L, -3);
 	}
@@ -2056,8 +2056,8 @@ int hlua_proxy_get_stats(lua_State *L)
 	else
 		stats_fill_fe_stats(px, stats, STATS_LEN, NULL);
 	lua_newtable(L);
-	for (i=0; i<ST_F_TOTAL_FIELDS; i++) {
-		lua_pushstring(L, stat_fields[i].name);
+	for (i=0; i<ST_I_PX_MAX; i++) {
+		lua_pushstring(L, metrics_px[i].name);
 		hlua_fcn_pushfield(L, &stats[i]);
 		lua_settable(L, -3);
 	}

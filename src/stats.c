@@ -164,131 +164,131 @@ const struct name_desc info_fields[INF_TOTAL_FIELDS] = {
 	[INF_NICED_TASKS]                    = { .name = "Niced_tasks",                 .desc = "Total number of active tasks+tasklets in the current worker process (Run_queue) that are niced" },
 };
 
-const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
-	[ST_F_PXNAME]                        = { .name = "pxname",                      .desc = "Proxy name" },
-	[ST_F_SVNAME]                        = { .name = "svname",                      .desc = "Server name" },
-	[ST_F_QCUR]                          = { .name = "qcur",                        .desc = "Number of current queued connections" },
-	[ST_F_QMAX]                          = { .name = "qmax",                        .desc = "Highest value of queued connections encountered since process started" },
-	[ST_F_SCUR]                          = { .name = "scur",                        .desc = "Number of current sessions on the frontend, backend or server" },
-	[ST_F_SMAX]                          = { .name = "smax",                        .desc = "Highest value of current sessions encountered since process started" },
-	[ST_F_SLIM]                          = { .name = "slim",                        .desc = "Frontend/listener/server's maxconn, backend's fullconn" },
-	[ST_F_STOT]                          = { .name = "stot",                        .desc = "Total number of sessions since process started" },
-	[ST_F_BIN]                           = { .name = "bin",                         .desc = "Total number of request bytes since process started" },
-	[ST_F_BOUT]                          = { .name = "bout",                        .desc = "Total number of response bytes since process started" },
-	[ST_F_DREQ]                          = { .name = "dreq",                        .desc = "Total number of denied requests since process started" },
-	[ST_F_DRESP]                         = { .name = "dresp",                       .desc = "Total number of denied responses since process started" },
-	[ST_F_EREQ]                          = { .name = "ereq",                        .desc = "Total number of invalid requests since process started" },
-	[ST_F_ECON]                          = { .name = "econ",                        .desc = "Total number of failed connections to server since the worker process started" },
-	[ST_F_ERESP]                         = { .name = "eresp",                       .desc = "Total number of invalid responses since the worker process started" },
-	[ST_F_WRETR]                         = { .name = "wretr",                       .desc = "Total number of server connection retries since the worker process started" },
-	[ST_F_WREDIS]                        = { .name = "wredis",                      .desc = "Total number of server redispatches due to connection failures since the worker process started" },
-	[ST_F_STATUS]                        = { .name = "status",                      .desc = "Frontend/listen status: OPEN/WAITING/FULL/STOP; backend: UP/DOWN; server: last check status" },
-	[ST_F_WEIGHT]                        = { .name = "weight",                      .desc = "Server's effective weight, or sum of active servers' effective weights for a backend" },
-	[ST_F_ACT]                           = { .name = "act",                         .desc = "Total number of active UP servers with a non-zero weight" },
-	[ST_F_BCK]                           = { .name = "bck",                         .desc = "Total number of backup UP servers with a non-zero weight" },
-	[ST_F_CHKFAIL]                       = { .name = "chkfail",                     .desc = "Total number of failed individual health checks per server/backend, since the worker process started" },
-	[ST_F_CHKDOWN]                       = { .name = "chkdown",                     .desc = "Total number of failed checks causing UP to DOWN server transitions, per server/backend, since the worker process started" },
-	[ST_F_LASTCHG]                       = { .name = "lastchg",                     .desc = "How long ago the last server state changed, in seconds" },
-	[ST_F_DOWNTIME]                      = { .name = "downtime",                    .desc = "Total time spent in DOWN state, for server or backend" },
-	[ST_F_QLIMIT]                        = { .name = "qlimit",                      .desc = "Limit on the number of connections in queue, for servers only (maxqueue argument)" },
-	[ST_F_PID]                           = { .name = "pid",                         .desc = "Relative worker process number (1)" },
-	[ST_F_IID]                           = { .name = "iid",                         .desc = "Frontend or Backend numeric identifier ('id' setting)" },
-	[ST_F_SID]                           = { .name = "sid",                         .desc = "Server numeric identifier ('id' setting)" },
-	[ST_F_THROTTLE]                      = { .name = "throttle",                    .desc = "Throttling ratio applied to a server's maxconn and weight during the slowstart period (0 to 100%)" },
-	[ST_F_LBTOT]                         = { .name = "lbtot",                       .desc = "Total number of requests routed by load balancing since the worker process started (ignores queue pop and stickiness)" },
-	[ST_F_TRACKED]                       = { .name = "tracked",                     .desc = "Name of the other server this server tracks for its state" },
-	[ST_F_TYPE]                          = { .name = "type",                        .desc = "Type of the object (Listener, Frontend, Backend, Server)" },
-	[ST_F_RATE]                          = { .name = "rate",                        .desc = "Total number of sessions processed by this object over the last second (sessions for listeners/frontends, requests for backends/servers)" },
-	[ST_F_RATE_LIM]                      = { .name = "rate_lim",                    .desc = "Limit on the number of sessions accepted in a second (frontend only, 'rate-limit sessions' setting)" },
-	[ST_F_RATE_MAX]                      = { .name = "rate_max",                    .desc = "Highest value of sessions per second observed since the worker process started" },
-	[ST_F_CHECK_STATUS]                  = { .name = "check_status",                .desc = "Status report of the server's latest health check, prefixed with '*' if a check is currently in progress" },
-	[ST_F_CHECK_CODE]                    = { .name = "check_code",                  .desc = "HTTP/SMTP/LDAP status code reported by the latest server health check" },
-	[ST_F_CHECK_DURATION]                = { .name = "check_duration",              .desc = "Total duration of the latest server health check, in milliseconds" },
-	[ST_F_HRSP_1XX]                      = { .name = "hrsp_1xx",                    .desc = "Total number of HTTP responses with status 100-199 returned by this object since the worker process started" },
-	[ST_F_HRSP_2XX]                      = { .name = "hrsp_2xx",                    .desc = "Total number of HTTP responses with status 200-299 returned by this object since the worker process started" },
-	[ST_F_HRSP_3XX]                      = { .name = "hrsp_3xx",                    .desc = "Total number of HTTP responses with status 300-399 returned by this object since the worker process started" },
-	[ST_F_HRSP_4XX]                      = { .name = "hrsp_4xx",                    .desc = "Total number of HTTP responses with status 400-499 returned by this object since the worker process started" },
-	[ST_F_HRSP_5XX]                      = { .name = "hrsp_5xx",                    .desc = "Total number of HTTP responses with status 500-599 returned by this object since the worker process started" },
-	[ST_F_HRSP_OTHER]                    = { .name = "hrsp_other",                  .desc = "Total number of HTTP responses with status <100, >599 returned by this object since the worker process started (error -1 included)" },
-	[ST_F_HANAFAIL]                      = { .name = "hanafail",                    .desc = "Total number of failed checks caused by an 'on-error' directive after an 'observe' condition matched" },
-	[ST_F_REQ_RATE]                      = { .name = "req_rate",                    .desc = "Number of HTTP requests processed over the last second on this object" },
-	[ST_F_REQ_RATE_MAX]                  = { .name = "req_rate_max",                .desc = "Highest value of http requests observed since the worker process started" },
-	[ST_F_REQ_TOT]                       = { .name = "req_tot",                     .desc = "Total number of HTTP requests processed by this object since the worker process started" },
-	[ST_F_CLI_ABRT]                      = { .name = "cli_abrt",                    .desc = "Total number of requests or connections aborted by the client since the worker process started" },
-	[ST_F_SRV_ABRT]                      = { .name = "srv_abrt",                    .desc = "Total number of requests or connections aborted by the server since the worker process started" },
-	[ST_F_COMP_IN]                       = { .name = "comp_in",                     .desc = "Total number of bytes submitted to the HTTP compressor for this object since the worker process started" },
-	[ST_F_COMP_OUT]                      = { .name = "comp_out",                    .desc = "Total number of bytes emitted by the HTTP compressor for this object since the worker process started" },
-	[ST_F_COMP_BYP]                      = { .name = "comp_byp",                    .desc = "Total number of bytes that bypassed HTTP compression for this object since the worker process started (CPU/memory/bandwidth limitation)" },
-	[ST_F_COMP_RSP]                      = { .name = "comp_rsp",                    .desc = "Total number of HTTP responses that were compressed for this object since the worker process started" },
-	[ST_F_LASTSESS]                      = { .name = "lastsess",                    .desc = "How long ago some traffic was seen on this object on this worker process, in seconds" },
-	[ST_F_LAST_CHK]                      = { .name = "last_chk",                    .desc = "Short description of the latest health check report for this server (see also check_desc)" },
-	[ST_F_LAST_AGT]                      = { .name = "last_agt",                    .desc = "Short description of the latest agent check report for this server (see also agent_desc)" },
-	[ST_F_QTIME]                         = { .name = "qtime",                       .desc = "Time spent in the queue, in milliseconds, averaged over the 1024 last requests (backend/server)" },
-	[ST_F_CTIME]                         = { .name = "ctime",                       .desc = "Time spent waiting for a connection to complete, in milliseconds, averaged over the 1024 last requests (backend/server)" },
-	[ST_F_RTIME]                         = { .name = "rtime",                       .desc = "Time spent waiting for a server response, in milliseconds, averaged over the 1024 last requests (backend/server)" },
-	[ST_F_TTIME]                         = { .name = "ttime",                       .desc = "Total request+response time (request+queue+connect+response+processing), in milliseconds, averaged over the 1024 last requests (backend/server)" },
-	[ST_F_AGENT_STATUS]                  = { .name = "agent_status",                .desc = "Status report of the server's latest agent check, prefixed with '*' if a check is currently in progress" },
-	[ST_F_AGENT_CODE]                    = { .name = "agent_code",                  .desc = "Status code reported by the latest server agent check" },
-	[ST_F_AGENT_DURATION]                = { .name = "agent_duration",              .desc = "Total duration of the latest server agent check, in milliseconds" },
-	[ST_F_CHECK_DESC]                    = { .name = "check_desc",                  .desc = "Textual description of the latest health check report for this server" },
-	[ST_F_AGENT_DESC]                    = { .name = "agent_desc",                  .desc = "Textual description of the latest agent check report for this server" },
-	[ST_F_CHECK_RISE]                    = { .name = "check_rise",                  .desc = "Number of successful health checks before declaring a server UP (server 'rise' setting)" },
-	[ST_F_CHECK_FALL]                    = { .name = "check_fall",                  .desc = "Number of failed health checks before declaring a server DOWN (server 'fall' setting)" },
-	[ST_F_CHECK_HEALTH]                  = { .name = "check_health",                .desc = "Current server health check level (0..fall-1=DOWN, fall..rise-1=UP)" },
-	[ST_F_AGENT_RISE]                    = { .name = "agent_rise",                  .desc = "Number of successful agent checks before declaring a server UP (server 'rise' setting)" },
-	[ST_F_AGENT_FALL]                    = { .name = "agent_fall",                  .desc = "Number of failed agent checks before declaring a server DOWN (server 'fall' setting)" },
-	[ST_F_AGENT_HEALTH]                  = { .name = "agent_health",                .desc = "Current server agent check level (0..fall-1=DOWN, fall..rise-1=UP)" },
-	[ST_F_ADDR]                          = { .name = "addr",                        .desc = "Server's address:port, shown only if show-legends is set, or at levels oper/admin for the CLI" },
-	[ST_F_COOKIE]                        = { .name = "cookie",                      .desc = "Backend's cookie name or Server's cookie value, shown only if show-legends is set, or at levels oper/admin for the CLI" },
-	[ST_F_MODE]                          = { .name = "mode",                        .desc = "'mode' setting (tcp/http/health/cli)" },
-	[ST_F_ALGO]                          = { .name = "algo",                        .desc = "Backend's load balancing algorithm, shown only if show-legends is set, or at levels oper/admin for the CLI" },
-	[ST_F_CONN_RATE]                     = { .name = "conn_rate",                   .desc = "Number of new connections accepted over the last second on the frontend for this worker process" },
-	[ST_F_CONN_RATE_MAX]                 = { .name = "conn_rate_max",               .desc = "Highest value of connections per second observed since the worker process started" },
-	[ST_F_CONN_TOT]                      = { .name = "conn_tot",                    .desc = "Total number of new connections accepted on this frontend since the worker process started" },
-	[ST_F_INTERCEPTED]                   = { .name = "intercepted",                 .desc = "Total number of HTTP requests intercepted on the frontend (redirects/stats/services) since the worker process started" },
-	[ST_F_DCON]                          = { .name = "dcon",                        .desc = "Total number of incoming connections blocked on a listener/frontend by a tcp-request connection rule since the worker process started" },
-	[ST_F_DSES]                          = { .name = "dses",                        .desc = "Total number of incoming sessions blocked on a listener/frontend by a tcp-request connection rule since the worker process started" },
-	[ST_F_WREW]                          = { .name = "wrew",                        .desc = "Total number of failed HTTP header rewrites since the worker process started" },
-	[ST_F_CONNECT]                       = { .name = "connect",                     .desc = "Total number of outgoing connection attempts on this backend/server since the worker process started" },
-	[ST_F_REUSE]                         = { .name = "reuse",                       .desc = "Total number of reused connection on this backend/server since the worker process started" },
-	[ST_F_CACHE_LOOKUPS]                 = { .name = "cache_lookups",               .desc = "Total number of HTTP requests looked up in the cache on this frontend/backend since the worker process started" },
-	[ST_F_CACHE_HITS]                    = { .name = "cache_hits",                  .desc = "Total number of HTTP requests not found in the cache on this frontend/backend since the worker process started" },
-	[ST_F_SRV_ICUR]                      = { .name = "srv_icur",                    .desc = "Current number of idle connections available for reuse on this server" },
-	[ST_F_SRV_ILIM]                      = { .name = "src_ilim",                    .desc = "Limit on the number of available idle connections on this server (server 'pool_max_conn' directive)" },
-	[ST_F_QT_MAX]                        = { .name = "qtime_max",                   .desc = "Maximum observed time spent in the queue, in milliseconds (backend/server)" },
-	[ST_F_CT_MAX]                        = { .name = "ctime_max",                   .desc = "Maximum observed time spent waiting for a connection to complete, in milliseconds (backend/server)" },
-	[ST_F_RT_MAX]                        = { .name = "rtime_max",                   .desc = "Maximum observed time spent waiting for a server response, in milliseconds (backend/server)" },
-	[ST_F_TT_MAX]                        = { .name = "ttime_max",                   .desc = "Maximum observed total request+response time (request+queue+connect+response+processing), in milliseconds (backend/server)" },
-	[ST_F_EINT]                          = { .name = "eint",                        .desc = "Total number of internal errors since process started"},
-	[ST_F_IDLE_CONN_CUR]                 = { .name = "idle_conn_cur",               .desc = "Current number of unsafe idle connections"},
-	[ST_F_SAFE_CONN_CUR]                 = { .name = "safe_conn_cur",               .desc = "Current number of safe idle connections"},
-	[ST_F_USED_CONN_CUR]                 = { .name = "used_conn_cur",               .desc = "Current number of connections in use"},
-	[ST_F_NEED_CONN_EST]                 = { .name = "need_conn_est",               .desc = "Estimated needed number of connections"},
-	[ST_F_UWEIGHT]                       = { .name = "uweight",                     .desc = "Server's user weight, or sum of active servers' user weights for a backend" },
-	[ST_F_AGG_SRV_CHECK_STATUS]          = { .name = "agg_server_check_status",     .desc = "[DEPRECATED] Backend's aggregated gauge of servers' status" },
-	[ST_F_AGG_SRV_STATUS ]               = { .name = "agg_server_status",           .desc = "Backend's aggregated gauge of servers' status" },
-	[ST_F_AGG_CHECK_STATUS]              = { .name = "agg_check_status",            .desc = "Backend's aggregated gauge of servers' state check status" },
-	[ST_F_SRID]                          = { .name = "srid",                        .desc = "Server id revision, to prevent server id reuse mixups" },
-	[ST_F_SESS_OTHER]                    = { .name = "sess_other",                  .desc = "Total number of sessions other than HTTP since process started" },
-	[ST_F_H1SESS]                        = { .name = "h1sess",                      .desc = "Total number of HTTP/1 sessions since process started" },
-	[ST_F_H2SESS]                        = { .name = "h2sess",                      .desc = "Total number of HTTP/2 sessions since process started" },
-	[ST_F_H3SESS]                        = { .name = "h3sess",                      .desc = "Total number of HTTP/3 sessions since process started" },
-	[ST_F_REQ_OTHER]                     = { .name = "req_other",                   .desc = "Total number of sessions other than HTTP processed by this object since the worker process started" },
-	[ST_F_H1REQ]                         = { .name = "h1req",                       .desc = "Total number of HTTP/1 sessions processed by this object since the worker process started" },
-	[ST_F_H2REQ]                         = { .name = "h2req",                       .desc = "Total number of hTTP/2 sessions processed by this object since the worker process started" },
-	[ST_F_H3REQ]                         = { .name = "h3req",                       .desc = "Total number of HTTP/3 sessions processed by this object since the worker process started" },
-	[ST_F_PROTO]                         = { .name = "proto",                       .desc = "Protocol" },
-};
-
 /* one line of info */
 THREAD_LOCAL struct field info[INF_TOTAL_FIELDS];
+
+const struct name_desc metrics_px[ST_I_PX_MAX] = {
+	[ST_I_PX_PXNAME]                        = { .name = "pxname",                      .desc = "Proxy name" },
+	[ST_I_PX_SVNAME]                        = { .name = "svname",                      .desc = "Server name" },
+	[ST_I_PX_QCUR]                          = { .name = "qcur",                        .desc = "Number of current queued connections" },
+	[ST_I_PX_QMAX]                          = { .name = "qmax",                        .desc = "Highest value of queued connections encountered since process started" },
+	[ST_I_PX_SCUR]                          = { .name = "scur",                        .desc = "Number of current sessions on the frontend, backend or server" },
+	[ST_I_PX_SMAX]                          = { .name = "smax",                        .desc = "Highest value of current sessions encountered since process started" },
+	[ST_I_PX_SLIM]                          = { .name = "slim",                        .desc = "Frontend/listener/server's maxconn, backend's fullconn" },
+	[ST_I_PX_STOT]                          = { .name = "stot",                        .desc = "Total number of sessions since process started" },
+	[ST_I_PX_BIN]                           = { .name = "bin",                         .desc = "Total number of request bytes since process started" },
+	[ST_I_PX_BOUT]                          = { .name = "bout",                        .desc = "Total number of response bytes since process started" },
+	[ST_I_PX_DREQ]                          = { .name = "dreq",                        .desc = "Total number of denied requests since process started" },
+	[ST_I_PX_DRESP]                         = { .name = "dresp",                       .desc = "Total number of denied responses since process started" },
+	[ST_I_PX_EREQ]                          = { .name = "ereq",                        .desc = "Total number of invalid requests since process started" },
+	[ST_I_PX_ECON]                          = { .name = "econ",                        .desc = "Total number of failed connections to server since the worker process started" },
+	[ST_I_PX_ERESP]                         = { .name = "eresp",                       .desc = "Total number of invalid responses since the worker process started" },
+	[ST_I_PX_WRETR]                         = { .name = "wretr",                       .desc = "Total number of server connection retries since the worker process started" },
+	[ST_I_PX_WREDIS]                        = { .name = "wredis",                      .desc = "Total number of server redispatches due to connection failures since the worker process started" },
+	[ST_I_PX_STATUS]                        = { .name = "status",                      .desc = "Frontend/listen status: OPEN/WAITING/FULL/STOP; backend: UP/DOWN; server: last check status" },
+	[ST_I_PX_WEIGHT]                        = { .name = "weight",                      .desc = "Server's effective weight, or sum of active servers' effective weights for a backend" },
+	[ST_I_PX_ACT]                           = { .name = "act",                         .desc = "Total number of active UP servers with a non-zero weight" },
+	[ST_I_PX_BCK]                           = { .name = "bck",                         .desc = "Total number of backup UP servers with a non-zero weight" },
+	[ST_I_PX_CHKFAIL]                       = { .name = "chkfail",                     .desc = "Total number of failed individual health checks per server/backend, since the worker process started" },
+	[ST_I_PX_CHKDOWN]                       = { .name = "chkdown",                     .desc = "Total number of failed checks causing UP to DOWN server transitions, per server/backend, since the worker process started" },
+	[ST_I_PX_LASTCHG]                       = { .name = "lastchg",                     .desc = "How long ago the last server state changed, in seconds" },
+	[ST_I_PX_DOWNTIME]                      = { .name = "downtime",                    .desc = "Total time spent in DOWN state, for server or backend" },
+	[ST_I_PX_QLIMIT]                        = { .name = "qlimit",                      .desc = "Limit on the number of connections in queue, for servers only (maxqueue argument)" },
+	[ST_I_PX_PID]                           = { .name = "pid",                         .desc = "Relative worker process number (1)" },
+	[ST_I_PX_IID]                           = { .name = "iid",                         .desc = "Frontend or Backend numeric identifier ('id' setting)" },
+	[ST_I_PX_SID]                           = { .name = "sid",                         .desc = "Server numeric identifier ('id' setting)" },
+	[ST_I_PX_THROTTLE]                      = { .name = "throttle",                    .desc = "Throttling ratio applied to a server's maxconn and weight during the slowstart period (0 to 100%)" },
+	[ST_I_PX_LBTOT]                         = { .name = "lbtot",                       .desc = "Total number of requests routed by load balancing since the worker process started (ignores queue pop and stickiness)" },
+	[ST_I_PX_TRACKED]                       = { .name = "tracked",                     .desc = "Name of the other server this server tracks for its state" },
+	[ST_I_PX_TYPE]                          = { .name = "type",                        .desc = "Type of the object (Listener, Frontend, Backend, Server)" },
+	[ST_I_PX_RATE]                          = { .name = "rate",                        .desc = "Total number of sessions processed by this object over the last second (sessions for listeners/frontends, requests for backends/servers)" },
+	[ST_I_PX_RATE_LIM]                      = { .name = "rate_lim",                    .desc = "Limit on the number of sessions accepted in a second (frontend only, 'rate-limit sessions' setting)" },
+	[ST_I_PX_RATE_MAX]                      = { .name = "rate_max",                    .desc = "Highest value of sessions per second observed since the worker process started" },
+	[ST_I_PX_CHECK_STATUS]                  = { .name = "check_status",                .desc = "Status report of the server's latest health check, prefixed with '*' if a check is currently in progress" },
+	[ST_I_PX_CHECK_CODE]                    = { .name = "check_code",                  .desc = "HTTP/SMTP/LDAP status code reported by the latest server health check" },
+	[ST_I_PX_CHECK_DURATION]                = { .name = "check_duration",              .desc = "Total duration of the latest server health check, in milliseconds" },
+	[ST_I_PX_HRSP_1XX]                      = { .name = "hrsp_1xx",                    .desc = "Total number of HTTP responses with status 100-199 returned by this object since the worker process started" },
+	[ST_I_PX_HRSP_2XX]                      = { .name = "hrsp_2xx",                    .desc = "Total number of HTTP responses with status 200-299 returned by this object since the worker process started" },
+	[ST_I_PX_HRSP_3XX]                      = { .name = "hrsp_3xx",                    .desc = "Total number of HTTP responses with status 300-399 returned by this object since the worker process started" },
+	[ST_I_PX_HRSP_4XX]                      = { .name = "hrsp_4xx",                    .desc = "Total number of HTTP responses with status 400-499 returned by this object since the worker process started" },
+	[ST_I_PX_HRSP_5XX]                      = { .name = "hrsp_5xx",                    .desc = "Total number of HTTP responses with status 500-599 returned by this object since the worker process started" },
+	[ST_I_PX_HRSP_OTHER]                    = { .name = "hrsp_other",                  .desc = "Total number of HTTP responses with status <100, >599 returned by this object since the worker process started (error -1 included)" },
+	[ST_I_PX_HANAFAIL]                      = { .name = "hanafail",                    .desc = "Total number of failed checks caused by an 'on-error' directive after an 'observe' condition matched" },
+	[ST_I_PX_REQ_RATE]                      = { .name = "req_rate",                    .desc = "Number of HTTP requests processed over the last second on this object" },
+	[ST_I_PX_REQ_RATE_MAX]                  = { .name = "req_rate_max",                .desc = "Highest value of http requests observed since the worker process started" },
+	[ST_I_PX_REQ_TOT]                       = { .name = "req_tot",                     .desc = "Total number of HTTP requests processed by this object since the worker process started" },
+	[ST_I_PX_CLI_ABRT]                      = { .name = "cli_abrt",                    .desc = "Total number of requests or connections aborted by the client since the worker process started" },
+	[ST_I_PX_SRV_ABRT]                      = { .name = "srv_abrt",                    .desc = "Total number of requests or connections aborted by the server since the worker process started" },
+	[ST_I_PX_COMP_IN]                       = { .name = "comp_in",                     .desc = "Total number of bytes submitted to the HTTP compressor for this object since the worker process started" },
+	[ST_I_PX_COMP_OUT]                      = { .name = "comp_out",                    .desc = "Total number of bytes emitted by the HTTP compressor for this object since the worker process started" },
+	[ST_I_PX_COMP_BYP]                      = { .name = "comp_byp",                    .desc = "Total number of bytes that bypassed HTTP compression for this object since the worker process started (CPU/memory/bandwidth limitation)" },
+	[ST_I_PX_COMP_RSP]                      = { .name = "comp_rsp",                    .desc = "Total number of HTTP responses that were compressed for this object since the worker process started" },
+	[ST_I_PX_LASTSESS]                      = { .name = "lastsess",                    .desc = "How long ago some traffic was seen on this object on this worker process, in seconds" },
+	[ST_I_PX_LAST_CHK]                      = { .name = "last_chk",                    .desc = "Short description of the latest health check report for this server (see also check_desc)" },
+	[ST_I_PX_LAST_AGT]                      = { .name = "last_agt",                    .desc = "Short description of the latest agent check report for this server (see also agent_desc)" },
+	[ST_I_PX_QTIME]                         = { .name = "qtime",                       .desc = "Time spent in the queue, in milliseconds, averaged over the 1024 last requests (backend/server)" },
+	[ST_I_PX_CTIME]                         = { .name = "ctime",                       .desc = "Time spent waiting for a connection to complete, in milliseconds, averaged over the 1024 last requests (backend/server)" },
+	[ST_I_PX_RTIME]                         = { .name = "rtime",                       .desc = "Time spent waiting for a server response, in milliseconds, averaged over the 1024 last requests (backend/server)" },
+	[ST_I_PX_TTIME]                         = { .name = "ttime",                       .desc = "Total request+response time (request+queue+connect+response+processing), in milliseconds, averaged over the 1024 last requests (backend/server)" },
+	[ST_I_PX_AGENT_STATUS]                  = { .name = "agent_status",                .desc = "Status report of the server's latest agent check, prefixed with '*' if a check is currently in progress" },
+	[ST_I_PX_AGENT_CODE]                    = { .name = "agent_code",                  .desc = "Status code reported by the latest server agent check" },
+	[ST_I_PX_AGENT_DURATION]                = { .name = "agent_duration",              .desc = "Total duration of the latest server agent check, in milliseconds" },
+	[ST_I_PX_CHECK_DESC]                    = { .name = "check_desc",                  .desc = "Textual description of the latest health check report for this server" },
+	[ST_I_PX_AGENT_DESC]                    = { .name = "agent_desc",                  .desc = "Textual description of the latest agent check report for this server" },
+	[ST_I_PX_CHECK_RISE]                    = { .name = "check_rise",                  .desc = "Number of successful health checks before declaring a server UP (server 'rise' setting)" },
+	[ST_I_PX_CHECK_FALL]                    = { .name = "check_fall",                  .desc = "Number of failed health checks before declaring a server DOWN (server 'fall' setting)" },
+	[ST_I_PX_CHECK_HEALTH]                  = { .name = "check_health",                .desc = "Current server health check level (0..fall-1=DOWN, fall..rise-1=UP)" },
+	[ST_I_PX_AGENT_RISE]                    = { .name = "agent_rise",                  .desc = "Number of successful agent checks before declaring a server UP (server 'rise' setting)" },
+	[ST_I_PX_AGENT_FALL]                    = { .name = "agent_fall",                  .desc = "Number of failed agent checks before declaring a server DOWN (server 'fall' setting)" },
+	[ST_I_PX_AGENT_HEALTH]                  = { .name = "agent_health",                .desc = "Current server agent check level (0..fall-1=DOWN, fall..rise-1=UP)" },
+	[ST_I_PX_ADDR]                          = { .name = "addr",                        .desc = "Server's address:port, shown only if show-legends is set, or at levels oper/admin for the CLI" },
+	[ST_I_PX_COOKIE]                        = { .name = "cookie",                      .desc = "Backend's cookie name or Server's cookie value, shown only if show-legends is set, or at levels oper/admin for the CLI" },
+	[ST_I_PX_MODE]                          = { .name = "mode",                        .desc = "'mode' setting (tcp/http/health/cli)" },
+	[ST_I_PX_ALGO]                          = { .name = "algo",                        .desc = "Backend's load balancing algorithm, shown only if show-legends is set, or at levels oper/admin for the CLI" },
+	[ST_I_PX_CONN_RATE]                     = { .name = "conn_rate",                   .desc = "Number of new connections accepted over the last second on the frontend for this worker process" },
+	[ST_I_PX_CONN_RATE_MAX]                 = { .name = "conn_rate_max",               .desc = "Highest value of connections per second observed since the worker process started" },
+	[ST_I_PX_CONN_TOT]                      = { .name = "conn_tot",                    .desc = "Total number of new connections accepted on this frontend since the worker process started" },
+	[ST_I_PX_INTERCEPTED]                   = { .name = "intercepted",                 .desc = "Total number of HTTP requests intercepted on the frontend (redirects/stats/services) since the worker process started" },
+	[ST_I_PX_DCON]                          = { .name = "dcon",                        .desc = "Total number of incoming connections blocked on a listener/frontend by a tcp-request connection rule since the worker process started" },
+	[ST_I_PX_DSES]                          = { .name = "dses",                        .desc = "Total number of incoming sessions blocked on a listener/frontend by a tcp-request connection rule since the worker process started" },
+	[ST_I_PX_WREW]                          = { .name = "wrew",                        .desc = "Total number of failed HTTP header rewrites since the worker process started" },
+	[ST_I_PX_CONNECT]                       = { .name = "connect",                     .desc = "Total number of outgoing connection attempts on this backend/server since the worker process started" },
+	[ST_I_PX_REUSE]                         = { .name = "reuse",                       .desc = "Total number of reused connection on this backend/server since the worker process started" },
+	[ST_I_PX_CACHE_LOOKUPS]                 = { .name = "cache_lookups",               .desc = "Total number of HTTP requests looked up in the cache on this frontend/backend since the worker process started" },
+	[ST_I_PX_CACHE_HITS]                    = { .name = "cache_hits",                  .desc = "Total number of HTTP requests not found in the cache on this frontend/backend since the worker process started" },
+	[ST_I_PX_SRV_ICUR]                      = { .name = "srv_icur",                    .desc = "Current number of idle connections available for reuse on this server" },
+	[ST_I_PX_SRV_ILIM]                      = { .name = "src_ilim",                    .desc = "Limit on the number of available idle connections on this server (server 'pool_max_conn' directive)" },
+	[ST_I_PX_QT_MAX]                        = { .name = "qtime_max",                   .desc = "Maximum observed time spent in the queue, in milliseconds (backend/server)" },
+	[ST_I_PX_CT_MAX]                        = { .name = "ctime_max",                   .desc = "Maximum observed time spent waiting for a connection to complete, in milliseconds (backend/server)" },
+	[ST_I_PX_RT_MAX]                        = { .name = "rtime_max",                   .desc = "Maximum observed time spent waiting for a server response, in milliseconds (backend/server)" },
+	[ST_I_PX_TT_MAX]                        = { .name = "ttime_max",                   .desc = "Maximum observed total request+response time (request+queue+connect+response+processing), in milliseconds (backend/server)" },
+	[ST_I_PX_EINT]                          = { .name = "eint",                        .desc = "Total number of internal errors since process started"},
+	[ST_I_PX_IDLE_CONN_CUR]                 = { .name = "idle_conn_cur",               .desc = "Current number of unsafe idle connections"},
+	[ST_I_PX_SAFE_CONN_CUR]                 = { .name = "safe_conn_cur",               .desc = "Current number of safe idle connections"},
+	[ST_I_PX_USED_CONN_CUR]                 = { .name = "used_conn_cur",               .desc = "Current number of connections in use"},
+	[ST_I_PX_NEED_CONN_EST]                 = { .name = "need_conn_est",               .desc = "Estimated needed number of connections"},
+	[ST_I_PX_UWEIGHT]                       = { .name = "uweight",                     .desc = "Server's user weight, or sum of active servers' user weights for a backend" },
+	[ST_I_PX_AGG_SRV_CHECK_STATUS]          = { .name = "agg_server_check_status",     .desc = "[DEPRECATED] Backend's aggregated gauge of servers' status" },
+	[ST_I_PX_AGG_SRV_STATUS ]               = { .name = "agg_server_status",           .desc = "Backend's aggregated gauge of servers' status" },
+	[ST_I_PX_AGG_CHECK_STATUS]              = { .name = "agg_check_status",            .desc = "Backend's aggregated gauge of servers' state check status" },
+	[ST_I_PX_SRID]                          = { .name = "srid",                        .desc = "Server id revision, to prevent server id reuse mixups" },
+	[ST_I_PX_SESS_OTHER]                    = { .name = "sess_other",                  .desc = "Total number of sessions other than HTTP since process started" },
+	[ST_I_PX_H1SESS]                        = { .name = "h1sess",                      .desc = "Total number of HTTP/1 sessions since process started" },
+	[ST_I_PX_H2SESS]                        = { .name = "h2sess",                      .desc = "Total number of HTTP/2 sessions since process started" },
+	[ST_I_PX_H3SESS]                        = { .name = "h3sess",                      .desc = "Total number of HTTP/3 sessions since process started" },
+	[ST_I_PX_REQ_OTHER]                     = { .name = "req_other",                   .desc = "Total number of sessions other than HTTP processed by this object since the worker process started" },
+	[ST_I_PX_H1REQ]                         = { .name = "h1req",                       .desc = "Total number of HTTP/1 sessions processed by this object since the worker process started" },
+	[ST_I_PX_H2REQ]                         = { .name = "h2req",                       .desc = "Total number of hTTP/2 sessions processed by this object since the worker process started" },
+	[ST_I_PX_H3REQ]                         = { .name = "h3req",                       .desc = "Total number of HTTP/3 sessions processed by this object since the worker process started" },
+	[ST_I_PX_PROTO]                         = { .name = "proto",                       .desc = "Protocol" },
+};
+
+/* one line for stats */
+THREAD_LOCAL struct field *stat_l[STATS_DOMAIN_COUNT];
 
 /* description of statistics (static and dynamic) */
 struct name_desc *stat_f[STATS_DOMAIN_COUNT];
 static size_t stat_count[STATS_DOMAIN_COUNT];
-
-/* one line for stats */
-THREAD_LOCAL struct field *stat_l[STATS_DOMAIN_COUNT];
 
 /* list of all registered stats module */
 struct list stats_module_list[STATS_DOMAIN_COUNT] = {
@@ -406,7 +406,7 @@ static void stats_dump_csv_header(enum stats_domain domain, struct buffer *out)
 
 			/* print special delimiter on proxy stats to mark end of
 			   static fields */
-			if (domain == STATS_DOMAIN_PROXY && field + 1 == ST_F_TOTAL_FIELDS)
+			if (domain == STATS_DOMAIN_PROXY && field + 1 == ST_I_PX_MAX)
 				chunk_appendf(out, "-,");
 		}
 	}
@@ -517,7 +517,7 @@ static int stats_dump_fields_csv(struct buffer *out,
 
 		/* print special delimiter on proxy stats to mark end of
 		   static fields */
-		if (domain == STATS_DOMAIN_PROXY && field + 1 == ST_F_TOTAL_FIELDS) {
+		if (domain == STATS_DOMAIN_PROXY && field + 1 == ST_I_PX_MAX) {
 			if (!chunk_strcat(out, "-,"))
 				return 0;
 		}
@@ -544,15 +544,15 @@ static int stats_dump_fields_typed(struct buffer *out,
 		switch (domain) {
 		case STATS_DOMAIN_PROXY:
 			chunk_appendf(out, "%c.%u.%u.%d.%s.%u:",
-			              stats[ST_F_TYPE].u.u32 == STATS_TYPE_FE ? 'F' :
-			              stats[ST_F_TYPE].u.u32 == STATS_TYPE_BE ? 'B' :
-			              stats[ST_F_TYPE].u.u32 == STATS_TYPE_SO ? 'L' :
-			              stats[ST_F_TYPE].u.u32 == STATS_TYPE_SV ? 'S' :
+			              stats[ST_I_PX_TYPE].u.u32 == STATS_TYPE_FE ? 'F' :
+			              stats[ST_I_PX_TYPE].u.u32 == STATS_TYPE_BE ? 'B' :
+			              stats[ST_I_PX_TYPE].u.u32 == STATS_TYPE_SO ? 'L' :
+			              stats[ST_I_PX_TYPE].u.u32 == STATS_TYPE_SV ? 'S' :
 			              '?',
-			              stats[ST_F_IID].u.u32, stats[ST_F_SID].u.u32,
+			              stats[ST_I_PX_IID].u.u32, stats[ST_I_PX_SID].u.u32,
 			              field,
 			              stat_f[domain][field].name,
-			              stats[ST_F_PID].u.u32);
+			              stats[ST_I_PX_PID].u.u32);
 			break;
 
 		case STATS_DOMAIN_RESOLVERS:
@@ -602,7 +602,7 @@ int stats_dump_one_line(const struct field *stats, size_t stats_count,
 
 /* Fill <stats> with the frontend statistics. <stats> is preallocated array of
  * length <len>. If <selected_field> is != NULL, only fill this one. The length
- * of the array must be at least ST_F_TOTAL_FIELDS. If this length is less than
+ * of the array must be at least ST_I_PX_MAX. If this length is less than
  * this value, or if the selected field is not implemented for frontends, the
  * function returns 0, otherwise, it returns 1.
  */
@@ -611,56 +611,56 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 {
 	enum stat_field current_field = (selected_field != NULL ? *selected_field : 0);
 
-	if (len < ST_F_TOTAL_FIELDS)
+	if (len < ST_I_PX_MAX)
 		return 0;
 
-	for (; current_field < ST_F_TOTAL_FIELDS; current_field++) {
+	for (; current_field < ST_I_PX_MAX; current_field++) {
 		struct field metric = { 0 };
 
 		switch (current_field) {
-			case ST_F_PXNAME:
+			case ST_I_PX_PXNAME:
 				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 				break;
-			case ST_F_SVNAME:
+			case ST_I_PX_SVNAME:
 				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "FRONTEND");
 				break;
-			case ST_F_MODE:
+			case ST_I_PX_MODE:
 				metric = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 				break;
-			case ST_F_SCUR:
+			case ST_I_PX_SCUR:
 				metric = mkf_u32(0, px->feconn);
 				break;
-			case ST_F_SMAX:
+			case ST_I_PX_SMAX:
 				metric = mkf_u32(FN_MAX, px->fe_counters.conn_max);
 				break;
-			case ST_F_SLIM:
+			case ST_I_PX_SLIM:
 				metric = mkf_u32(FO_CONFIG|FN_LIMIT, px->maxconn);
 				break;
-			case ST_F_STOT:
+			case ST_I_PX_STOT:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess);
 				break;
-			case ST_F_BIN:
+			case ST_I_PX_BIN:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.bytes_in);
 				break;
-			case ST_F_BOUT:
+			case ST_I_PX_BOUT:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.bytes_out);
 				break;
-			case ST_F_DREQ:
+			case ST_I_PX_DREQ:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.denied_req);
 				break;
-			case ST_F_DRESP:
+			case ST_I_PX_DRESP:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.denied_resp);
 				break;
-			case ST_F_EREQ:
+			case ST_I_PX_EREQ:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.failed_req);
 				break;
-			case ST_F_DCON:
+			case ST_I_PX_DCON:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.denied_conn);
 				break;
-			case ST_F_DSES:
+			case ST_I_PX_DSES:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.denied_sess);
 				break;
-			case ST_F_STATUS: {
+			case ST_I_PX_STATUS: {
 				const char *state;
 
 				if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
@@ -672,76 +672,76 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 				metric = mkf_str(FO_STATUS, state);
 				break;
 			}
-			case ST_F_PID:
+			case ST_I_PX_PID:
 				metric = mkf_u32(FO_KEY, 1);
 				break;
-			case ST_F_IID:
+			case ST_I_PX_IID:
 				metric = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
 				break;
-			case ST_F_SID:
+			case ST_I_PX_SID:
 				metric = mkf_u32(FO_KEY|FS_SERVICE, 0);
 				break;
-			case ST_F_TYPE:
+			case ST_I_PX_TYPE:
 				metric = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_FE);
 				break;
-			case ST_F_RATE:
+			case ST_I_PX_RATE:
 				metric = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_sess_per_sec));
 				break;
-			case ST_F_RATE_LIM:
+			case ST_I_PX_RATE_LIM:
 				metric = mkf_u32(FO_CONFIG|FN_LIMIT, px->fe_sps_lim);
 				break;
-			case ST_F_RATE_MAX:
+			case ST_I_PX_RATE_MAX:
 				metric = mkf_u32(FN_MAX, px->fe_counters.sps_max);
 				break;
-			case ST_F_WREW:
+			case ST_I_PX_WREW:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.failed_rewrites);
 				break;
-			case ST_F_EINT:
+			case ST_I_PX_EINT:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.internal_errors);
 				break;
-			case ST_F_HRSP_1XX:
+			case ST_I_PX_HRSP_1XX:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[1]);
 				break;
-			case ST_F_HRSP_2XX:
+			case ST_I_PX_HRSP_2XX:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[2]);
 				break;
-			case ST_F_HRSP_3XX:
+			case ST_I_PX_HRSP_3XX:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[3]);
 				break;
-			case ST_F_HRSP_4XX:
+			case ST_I_PX_HRSP_4XX:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[4]);
 				break;
-			case ST_F_HRSP_5XX:
+			case ST_I_PX_HRSP_5XX:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[5]);
 				break;
-			case ST_F_HRSP_OTHER:
+			case ST_I_PX_HRSP_OTHER:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[0]);
 				break;
-			case ST_F_INTERCEPTED:
+			case ST_I_PX_INTERCEPTED:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->fe_counters.intercepted_req);
 				break;
-			case ST_F_CACHE_LOOKUPS:
+			case ST_I_PX_CACHE_LOOKUPS:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cache_lookups);
 				break;
-			case ST_F_CACHE_HITS:
+			case ST_I_PX_CACHE_HITS:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cache_hits);
 				break;
-			case ST_F_REQ_RATE:
+			case ST_I_PX_REQ_RATE:
 				metric = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_req_per_sec));
 				break;
-			case ST_F_REQ_RATE_MAX:
+			case ST_I_PX_REQ_RATE_MAX:
 				metric = mkf_u32(FN_MAX, px->fe_counters.p.http.rps_max);
 				break;
-			case ST_F_REQ_TOT: {
+			case ST_I_PX_REQ_TOT: {
 				int i;
 				uint64_t total_req;
 				size_t nb_reqs =
@@ -753,28 +753,28 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 				metric = mkf_u64(FN_COUNTER, total_req);
 				break;
 			}
-			case ST_F_COMP_IN:
+			case ST_I_PX_COMP_IN:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.comp_in[COMP_DIR_RES]);
 				break;
-			case ST_F_COMP_OUT:
+			case ST_I_PX_COMP_OUT:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.comp_out[COMP_DIR_RES]);
 				break;
-			case ST_F_COMP_BYP:
+			case ST_I_PX_COMP_BYP:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.comp_byp[COMP_DIR_RES]);
 				break;
-			case ST_F_COMP_RSP:
+			case ST_I_PX_COMP_RSP:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.comp_rsp);
 				break;
-			case ST_F_CONN_RATE:
+			case ST_I_PX_CONN_RATE:
 				metric = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_conn_per_sec));
 				break;
-			case ST_F_CONN_RATE_MAX:
+			case ST_I_PX_CONN_RATE_MAX:
 				metric = mkf_u32(FN_MAX, px->fe_counters.cps_max);
 				break;
-			case ST_F_CONN_TOT:
+			case ST_I_PX_CONN_TOT:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_conn);
 				break;
-			case ST_F_SESS_OTHER: {
+			case ST_I_PX_SESS_OTHER: {
 				int i;
 				uint64_t total_sess;
 				size_t nb_sess =
@@ -787,25 +787,25 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 				metric = mkf_u64(FN_COUNTER, total_sess);
 				break;
 			}
-			case ST_F_H1SESS:
+			case ST_I_PX_H1SESS:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess_ver[0]);
 				break;
-			case ST_F_H2SESS:
+			case ST_I_PX_H2SESS:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess_ver[1]);
 				break;
-			case ST_F_H3SESS:
+			case ST_I_PX_H3SESS:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess_ver[2]);
 				break;
-			case ST_F_REQ_OTHER:
+			case ST_I_PX_REQ_OTHER:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req[0]);
 				break;
-			case ST_F_H1REQ:
+			case ST_I_PX_H1REQ:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req[1]);
 				break;
-			case ST_F_H2REQ:
+			case ST_I_PX_H2REQ:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req[2]);
 				break;
-			case ST_F_H3REQ:
+			case ST_I_PX_H3REQ:
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req[3]);
 				break;
 			default:
@@ -834,7 +834,7 @@ static int stats_dump_fe_stats(struct stconn *sc, struct proxy *px)
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
-	size_t stats_count = ST_F_TOTAL_FIELDS;
+	size_t stats_count = ST_I_PX_MAX;
 
 	if (!(px->cap & PR_CAP_FE))
 		return 0;
@@ -844,7 +844,7 @@ static int stats_dump_fe_stats(struct stconn *sc, struct proxy *px)
 
 	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
 
-	if (!stats_fill_fe_stats(px, stats, ST_F_TOTAL_FIELDS, NULL))
+	if (!stats_fill_fe_stats(px, stats, ST_I_PX_MAX, NULL))
 		return 0;
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
@@ -865,7 +865,7 @@ static int stats_dump_fe_stats(struct stconn *sc, struct proxy *px)
 }
 
 /* Fill <stats> with the listener statistics. <stats> is preallocated array of
- * length <len>. The length of the array must be at least ST_F_TOTAL_FIELDS. If
+ * length <len>. The length of the array must be at least ST_I_PX_MAX. If
  * this length is less then this value, the function returns 0, otherwise, it
  * returns 1.  If selected_field is != NULL, only fill this one. <flags> can
  * take the value STAT_SHLGNDS.
@@ -876,7 +876,7 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 	enum stat_field current_field = (selected_field != NULL ? *selected_field : 0);
 	struct buffer *out = get_trash_chunk();
 
-	if (len < ST_F_TOTAL_FIELDS)
+	if (len < ST_I_PX_MAX)
 		return 0;
 
 	if (!l->counters)
@@ -884,77 +884,77 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 
 	chunk_reset(out);
 
-	for (; current_field < ST_F_TOTAL_FIELDS; current_field++) {
+	for (; current_field < ST_I_PX_MAX; current_field++) {
 		struct field metric = { 0 };
 
 		switch (current_field) {
-			case ST_F_PXNAME:
+			case ST_I_PX_PXNAME:
 				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 				break;
-			case ST_F_SVNAME:
+			case ST_I_PX_SVNAME:
 				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, l->name);
 				break;
-			case ST_F_MODE:
+			case ST_I_PX_MODE:
 				metric = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 				break;
-			case ST_F_SCUR:
+			case ST_I_PX_SCUR:
 				metric = mkf_u32(0, l->nbconn);
 				break;
-			case ST_F_SMAX:
+			case ST_I_PX_SMAX:
 				metric = mkf_u32(FN_MAX, l->counters->conn_max);
 				break;
-			case ST_F_SLIM:
+			case ST_I_PX_SLIM:
 				metric = mkf_u32(FO_CONFIG|FN_LIMIT, l->bind_conf->maxconn);
 				break;
-			case ST_F_STOT:
+			case ST_I_PX_STOT:
 				metric = mkf_u64(FN_COUNTER, l->counters->cum_sess);
 				break;
-			case ST_F_BIN:
+			case ST_I_PX_BIN:
 				metric = mkf_u64(FN_COUNTER, l->counters->bytes_in);
 				break;
-			case ST_F_BOUT:
+			case ST_I_PX_BOUT:
 				metric = mkf_u64(FN_COUNTER, l->counters->bytes_out);
 				break;
-			case ST_F_DREQ:
+			case ST_I_PX_DREQ:
 				metric = mkf_u64(FN_COUNTER, l->counters->denied_req);
 				break;
-			case ST_F_DRESP:
+			case ST_I_PX_DRESP:
 				metric = mkf_u64(FN_COUNTER, l->counters->denied_resp);
 				break;
-			case ST_F_EREQ:
+			case ST_I_PX_EREQ:
 				metric = mkf_u64(FN_COUNTER, l->counters->failed_req);
 				break;
-			case ST_F_DCON:
+			case ST_I_PX_DCON:
 				metric = mkf_u64(FN_COUNTER, l->counters->denied_conn);
 				break;
-			case ST_F_DSES:
+			case ST_I_PX_DSES:
 				metric = mkf_u64(FN_COUNTER, l->counters->denied_sess);
 				break;
-			case ST_F_STATUS:
+			case ST_I_PX_STATUS:
 				metric = mkf_str(FO_STATUS, li_status_st[get_li_status(l)]);
 				break;
-			case ST_F_PID:
+			case ST_I_PX_PID:
 				metric = mkf_u32(FO_KEY, 1);
 				break;
-			case ST_F_IID:
+			case ST_I_PX_IID:
 				metric = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
 				break;
-			case ST_F_SID:
+			case ST_I_PX_SID:
 				metric = mkf_u32(FO_KEY|FS_SERVICE, l->luid);
 				break;
-			case ST_F_TYPE:
+			case ST_I_PX_TYPE:
 				metric = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SO);
 				break;
-			case ST_F_CONN_TOT:
+			case ST_I_PX_CONN_TOT:
 				metric = mkf_u64(FN_COUNTER, l->counters->cum_conn);
 				break;
-			case ST_F_WREW:
+			case ST_I_PX_WREW:
 				metric = mkf_u64(FN_COUNTER, l->counters->failed_rewrites);
 				break;
-			case ST_F_EINT:
+			case ST_I_PX_EINT:
 				metric = mkf_u64(FN_COUNTER, l->counters->internal_errors);
 				break;
-			case ST_F_ADDR:
+			case ST_I_PX_ADDR:
 				if (flags & STAT_SHLGNDS) {
 					char str[INET6_ADDRSTRLEN];
 					int port;
@@ -981,7 +981,7 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 					}
 				}
 				break;
-			case ST_F_PROTO:
+			case ST_I_PX_PROTO:
 				metric = mkf_str(FO_STATUS, l->rx.proto->name);
 				break;
 			default:
@@ -1010,12 +1010,12 @@ static int stats_dump_li_stats(struct stconn *sc, struct proxy *px, struct liste
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
-	size_t stats_count = ST_F_TOTAL_FIELDS;
+	size_t stats_count = ST_I_PX_MAX;
 
 	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
 
 	if (!stats_fill_li_stats(px, l, ctx->flags, stats,
-				 ST_F_TOTAL_FIELDS, NULL))
+				 ST_I_PX_MAX, NULL))
 		return 0;
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
@@ -1114,7 +1114,7 @@ static void stats_fill_sv_stats_computestate(struct server *sv, struct server *r
 
 /* Fill <stats> with the backend statistics. <stats> is preallocated array of
  * length <len>. If <selected_field> is != NULL, only fill this one. The length
- * of the array must be at least ST_F_TOTAL_FIELDS. If this length is less than
+ * of the array must be at least ST_I_PX_MAX. If this length is less than
  * this value, or if the selected field is not implemented for servers, the
  * function returns 0, otherwise, it returns 1. <flags> can take the value
  * STAT_SHLGNDS.
@@ -1133,15 +1133,15 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 	long long srv_samples_counter;
 	unsigned int srv_samples_window = TIME_STATS_SAMPLES;
 
-	if (len < ST_F_TOTAL_FIELDS)
+	if (len < ST_I_PX_MAX)
 		return 0;
 
 	chunk_reset(out);
 
 	/* compute state for later use */
-	if (selected_field == NULL || *selected_field == ST_F_STATUS ||
-	    *selected_field == ST_F_CHECK_RISE || *selected_field == ST_F_CHECK_FALL ||
-	    *selected_field == ST_F_CHECK_HEALTH || *selected_field == ST_F_HANAFAIL) {
+	if (selected_field == NULL || *selected_field == ST_I_PX_STATUS ||
+	    *selected_field == ST_I_PX_CHECK_RISE || *selected_field == ST_I_PX_CHECK_FALL ||
+	    *selected_field == ST_I_PX_CHECK_HEALTH || *selected_field == ST_I_PX_HANAFAIL) {
 		/* we have "via" which is the tracked server as described in the configuration,
 		 * and "ref" which is the checked server and the end of the chain.
 		 */
@@ -1151,99 +1151,99 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 	}
 
 	/* compue time values for later use */
-	if (selected_field == NULL || *selected_field == ST_F_QTIME ||
-	    *selected_field == ST_F_CTIME || *selected_field == ST_F_RTIME ||
-	    *selected_field == ST_F_TTIME) {
+	if (selected_field == NULL || *selected_field == ST_I_PX_QTIME ||
+	    *selected_field == ST_I_PX_CTIME || *selected_field == ST_I_PX_RTIME ||
+	    *selected_field == ST_I_PX_TTIME) {
 		srv_samples_counter = (px->mode == PR_MODE_HTTP) ? sv->counters.p.http.cum_req : sv->counters.cum_lbconn;
 		if (srv_samples_counter < TIME_STATS_SAMPLES && srv_samples_counter > 0)
 			srv_samples_window = srv_samples_counter;
 	}
 
-	for (; current_field < ST_F_TOTAL_FIELDS; current_field++) {
+	for (; current_field < ST_I_PX_MAX; current_field++) {
 		struct field metric = { 0 };
 
 		switch (current_field) {
-			case ST_F_PXNAME:
+			case ST_I_PX_PXNAME:
 				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 				break;
-			case ST_F_SVNAME:
+			case ST_I_PX_SVNAME:
 				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, sv->id);
 				break;
-			case ST_F_MODE:
+			case ST_I_PX_MODE:
 				metric = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 				break;
-			case ST_F_QCUR:
+			case ST_I_PX_QCUR:
 				metric = mkf_u32(0, sv->queue.length);
 				break;
-			case ST_F_QMAX:
+			case ST_I_PX_QMAX:
 				metric = mkf_u32(FN_MAX, sv->counters.nbpend_max);
 				break;
-			case ST_F_SCUR:
+			case ST_I_PX_SCUR:
 				metric = mkf_u32(0, sv->cur_sess);
 				break;
-			case ST_F_SMAX:
+			case ST_I_PX_SMAX:
 				metric = mkf_u32(FN_MAX, sv->counters.cur_sess_max);
 				break;
-			case ST_F_SLIM:
+			case ST_I_PX_SLIM:
 				if (sv->maxconn)
 					metric = mkf_u32(FO_CONFIG|FN_LIMIT, sv->maxconn);
 				break;
-			case ST_F_SRV_ICUR:
+			case ST_I_PX_SRV_ICUR:
 				metric = mkf_u32(0, sv->curr_idle_conns);
 				break;
-			case ST_F_SRV_ILIM:
+			case ST_I_PX_SRV_ILIM:
 				if (sv->max_idle_conns != -1)
 					metric = mkf_u32(FO_CONFIG|FN_LIMIT, sv->max_idle_conns);
 				break;
-			case ST_F_STOT:
+			case ST_I_PX_STOT:
 				metric = mkf_u64(FN_COUNTER, sv->counters.cum_sess);
 				break;
-			case ST_F_BIN:
+			case ST_I_PX_BIN:
 				metric = mkf_u64(FN_COUNTER, sv->counters.bytes_in);
 				break;
-			case ST_F_BOUT:
+			case ST_I_PX_BOUT:
 				metric = mkf_u64(FN_COUNTER, sv->counters.bytes_out);
 				break;
-			case ST_F_DRESP:
+			case ST_I_PX_DRESP:
 				metric = mkf_u64(FN_COUNTER, sv->counters.denied_resp);
 				break;
-			case ST_F_ECON:
+			case ST_I_PX_ECON:
 				metric = mkf_u64(FN_COUNTER, sv->counters.failed_conns);
 				break;
-			case ST_F_ERESP:
+			case ST_I_PX_ERESP:
 				metric = mkf_u64(FN_COUNTER, sv->counters.failed_resp);
 				break;
-			case ST_F_WRETR:
+			case ST_I_PX_WRETR:
 				metric = mkf_u64(FN_COUNTER, sv->counters.retries);
 				break;
-			case ST_F_WREDIS:
+			case ST_I_PX_WREDIS:
 				metric = mkf_u64(FN_COUNTER, sv->counters.redispatches);
 				break;
-			case ST_F_WREW:
+			case ST_I_PX_WREW:
 				metric = mkf_u64(FN_COUNTER, sv->counters.failed_rewrites);
 				break;
-			case ST_F_EINT:
+			case ST_I_PX_EINT:
 				metric = mkf_u64(FN_COUNTER, sv->counters.internal_errors);
 				break;
-			case ST_F_CONNECT:
+			case ST_I_PX_CONNECT:
 				metric = mkf_u64(FN_COUNTER, sv->counters.connect);
 				break;
-			case ST_F_REUSE:
+			case ST_I_PX_REUSE:
 				metric = mkf_u64(FN_COUNTER, sv->counters.reuse);
 				break;
-			case ST_F_IDLE_CONN_CUR:
+			case ST_I_PX_IDLE_CONN_CUR:
 				metric = mkf_u32(0, sv->curr_idle_nb);
 				break;
-			case ST_F_SAFE_CONN_CUR:
+			case ST_I_PX_SAFE_CONN_CUR:
 				metric = mkf_u32(0, sv->curr_safe_nb);
 				break;
-			case ST_F_USED_CONN_CUR:
+			case ST_I_PX_USED_CONN_CUR:
 				metric = mkf_u32(0, sv->curr_used_conns);
 				break;
-			case ST_F_NEED_CONN_EST:
+			case ST_I_PX_NEED_CONN_EST:
 				metric = mkf_u32(0, sv->est_need_conns);
 				break;
-			case ST_F_STATUS:
+			case ST_I_PX_STATUS:
 				fld_status = chunk_newstr(out);
 				if (sv->cur_admin & SRV_ADMF_RMAINT)
 					chunk_appendf(out, "MAINT (resolution)");
@@ -1259,73 +1259,73 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 
 				metric = mkf_str(FO_STATUS, fld_status);
 				break;
-			case ST_F_LASTCHG:
+			case ST_I_PX_LASTCHG:
 				metric = mkf_u32(FN_AGE, ns_to_sec(now_ns) - sv->last_change);
 				break;
-			case ST_F_WEIGHT:
+			case ST_I_PX_WEIGHT:
 				metric = mkf_u32(FN_AVG, (sv->cur_eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
 				break;
-			case ST_F_UWEIGHT:
+			case ST_I_PX_UWEIGHT:
 				metric = mkf_u32(FN_AVG, sv->uweight);
 				break;
-			case ST_F_ACT:
+			case ST_I_PX_ACT:
 				metric = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 0 : 1);
 				break;
-			case ST_F_BCK:
+			case ST_I_PX_BCK:
 				metric = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 1 : 0);
 				break;
-			case ST_F_CHKFAIL:
+			case ST_I_PX_CHKFAIL:
 				if (sv->check.state & CHK_ST_ENABLED)
 					metric = mkf_u64(FN_COUNTER, sv->counters.failed_checks);
 				break;
-			case ST_F_CHKDOWN:
+			case ST_I_PX_CHKDOWN:
 				if (sv->check.state & CHK_ST_ENABLED)
 					metric = mkf_u64(FN_COUNTER, sv->counters.down_trans);
 				break;
-			case ST_F_DOWNTIME:
+			case ST_I_PX_DOWNTIME:
 				if (sv->check.state & CHK_ST_ENABLED)
 					metric = mkf_u32(FN_COUNTER, srv_downtime(sv));
 				break;
-			case ST_F_QLIMIT:
+			case ST_I_PX_QLIMIT:
 				if (sv->maxqueue)
 					metric = mkf_u32(FO_CONFIG|FS_SERVICE, sv->maxqueue);
 				break;
-			case ST_F_PID:
+			case ST_I_PX_PID:
 				metric = mkf_u32(FO_KEY, 1);
 				break;
-			case ST_F_IID:
+			case ST_I_PX_IID:
 				metric = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
 				break;
-			case ST_F_SID:
+			case ST_I_PX_SID:
 				metric = mkf_u32(FO_KEY|FS_SERVICE, sv->puid);
 				break;
-			case ST_F_SRID:
+			case ST_I_PX_SRID:
 				metric = mkf_u32(FN_COUNTER, sv->rid);
 				break;
-			case ST_F_THROTTLE:
+			case ST_I_PX_THROTTLE:
 				if (sv->cur_state == SRV_ST_STARTING && !server_is_draining(sv))
 					metric = mkf_u32(FN_AVG, server_throttle_rate(sv));
 				break;
-			case ST_F_LBTOT:
+			case ST_I_PX_LBTOT:
 				metric = mkf_u64(FN_COUNTER, sv->counters.cum_lbconn);
 				break;
-			case ST_F_TRACKED:
+			case ST_I_PX_TRACKED:
 				if (sv->track) {
 					char *fld_track = chunk_newstr(out);
 					chunk_appendf(out, "%s/%s", sv->track->proxy->id, sv->track->id);
 					metric = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, fld_track);
 				}
 				break;
-			case ST_F_TYPE:
+			case ST_I_PX_TYPE:
 				metric = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SV);
 				break;
-			case ST_F_RATE:
+			case ST_I_PX_RATE:
 				metric = mkf_u32(FN_RATE, read_freq_ctr(&sv->sess_per_sec));
 				break;
-			case ST_F_RATE_MAX:
+			case ST_I_PX_RATE_MAX:
 				metric = mkf_u32(FN_MAX, sv->counters.sps_max);
 				break;
-			case ST_F_CHECK_STATUS:
+			case ST_I_PX_CHECK_STATUS:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
 					const char *fld_chksts;
 
@@ -1337,37 +1337,37 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 					metric = mkf_str(FN_OUTPUT, fld_chksts);
 				}
 				break;
-			case ST_F_CHECK_CODE:
+			case ST_I_PX_CHECK_CODE:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED &&
 					sv->check.status >= HCHK_STATUS_L57DATA)
 					metric = mkf_u32(FN_OUTPUT, sv->check.code);
 				break;
-			case ST_F_CHECK_DURATION:
+			case ST_I_PX_CHECK_DURATION:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED &&
 					sv->check.status >= HCHK_STATUS_CHECKED)
 					metric = mkf_u64(FN_DURATION, MAX(sv->check.duration, 0));
 				break;
-			case ST_F_CHECK_DESC:
+			case ST_I_PX_CHECK_DESC:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
 					metric = mkf_str(FN_OUTPUT, get_check_status_description(sv->check.status));
 				break;
-			case ST_F_LAST_CHK:
+			case ST_I_PX_LAST_CHK:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
 					metric = mkf_str(FN_OUTPUT, sv->check.desc);
 				break;
-			case ST_F_CHECK_RISE:
+			case ST_I_PX_CHECK_RISE:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
 					metric = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.rise);
 				break;
-			case ST_F_CHECK_FALL:
+			case ST_I_PX_CHECK_FALL:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
 					metric = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.fall);
 				break;
-			case ST_F_CHECK_HEALTH:
+			case ST_I_PX_CHECK_HEALTH:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
 					metric = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.health);
 				break;
-			case ST_F_AGENT_STATUS:
+			case ST_I_PX_AGENT_STATUS:
 				if  ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
 					const char *fld_chksts;
 
@@ -1379,101 +1379,101 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 					metric = mkf_str(FN_OUTPUT, fld_chksts);
 				}
 				break;
-			case ST_F_AGENT_CODE:
+			case ST_I_PX_AGENT_CODE:
 				if  ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED &&
 				     (sv->agent.status >= HCHK_STATUS_L57DATA))
 					metric = mkf_u32(FN_OUTPUT, sv->agent.code);
 				break;
-			case ST_F_AGENT_DURATION:
+			case ST_I_PX_AGENT_DURATION:
 				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
 					metric = mkf_u64(FN_DURATION, sv->agent.duration);
 				break;
-			case ST_F_AGENT_DESC:
+			case ST_I_PX_AGENT_DESC:
 				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
 					metric = mkf_str(FN_OUTPUT, get_check_status_description(sv->agent.status));
 				break;
-			case ST_F_LAST_AGT:
+			case ST_I_PX_LAST_AGT:
 				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
 					metric = mkf_str(FN_OUTPUT, sv->agent.desc);
 				break;
-			case ST_F_AGENT_RISE:
+			case ST_I_PX_AGENT_RISE:
 				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
 					metric = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.rise);
 				break;
-			case ST_F_AGENT_FALL:
+			case ST_I_PX_AGENT_FALL:
 				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
 					metric = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.fall);
 				break;
-			case ST_F_AGENT_HEALTH:
+			case ST_I_PX_AGENT_HEALTH:
 				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
 					metric = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.health);
 				break;
-			case ST_F_REQ_TOT:
+			case ST_I_PX_REQ_TOT:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.cum_req);
 				break;
-			case ST_F_HRSP_1XX:
+			case ST_I_PX_HRSP_1XX:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[1]);
 				break;
-			case ST_F_HRSP_2XX:
+			case ST_I_PX_HRSP_2XX:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[2]);
 				break;
-			case ST_F_HRSP_3XX:
+			case ST_I_PX_HRSP_3XX:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[3]);
 				break;
-			case ST_F_HRSP_4XX:
+			case ST_I_PX_HRSP_4XX:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[4]);
 				break;
-			case ST_F_HRSP_5XX:
+			case ST_I_PX_HRSP_5XX:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[5]);
 				break;
-			case ST_F_HRSP_OTHER:
+			case ST_I_PX_HRSP_OTHER:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[0]);
 				break;
-			case ST_F_HANAFAIL:
+			case ST_I_PX_HANAFAIL:
 				if (ref->observe)
 					metric = mkf_u64(FN_COUNTER, sv->counters.failed_hana);
 				break;
-			case ST_F_CLI_ABRT:
+			case ST_I_PX_CLI_ABRT:
 				metric = mkf_u64(FN_COUNTER, sv->counters.cli_aborts);
 				break;
-			case ST_F_SRV_ABRT:
+			case ST_I_PX_SRV_ABRT:
 				metric = mkf_u64(FN_COUNTER, sv->counters.srv_aborts);
 				break;
-			case ST_F_LASTSESS:
+			case ST_I_PX_LASTSESS:
 				metric = mkf_s32(FN_AGE, srv_lastsession(sv));
 				break;
-			case ST_F_QTIME:
+			case ST_I_PX_QTIME:
 				metric = mkf_u32(FN_AVG, swrate_avg(sv->counters.q_time, srv_samples_window));
 				break;
-			case ST_F_CTIME:
+			case ST_I_PX_CTIME:
 				metric = mkf_u32(FN_AVG, swrate_avg(sv->counters.c_time, srv_samples_window));
 				break;
-			case ST_F_RTIME:
+			case ST_I_PX_RTIME:
 				metric = mkf_u32(FN_AVG, swrate_avg(sv->counters.d_time, srv_samples_window));
 				break;
-			case ST_F_TTIME:
+			case ST_I_PX_TTIME:
 				metric = mkf_u32(FN_AVG, swrate_avg(sv->counters.t_time, srv_samples_window));
 				break;
-			case ST_F_QT_MAX:
+			case ST_I_PX_QT_MAX:
 				metric = mkf_u32(FN_MAX, sv->counters.qtime_max);
 				break;
-			case ST_F_CT_MAX:
+			case ST_I_PX_CT_MAX:
 				metric = mkf_u32(FN_MAX, sv->counters.ctime_max);
 				break;
-			case ST_F_RT_MAX:
+			case ST_I_PX_RT_MAX:
 				metric = mkf_u32(FN_MAX, sv->counters.dtime_max);
 				break;
-			case ST_F_TT_MAX:
+			case ST_I_PX_TT_MAX:
 				metric = mkf_u32(FN_MAX, sv->counters.ttime_max);
 				break;
-			case ST_F_ADDR:
+			case ST_I_PX_ADDR:
 				if (flags & STAT_SHLGNDS) {
 					switch (addr_to_str(&sv->addr, str, sizeof(str))) {
 						case AF_INET:
@@ -1496,7 +1496,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 					}
 				}
 				break;
-			case ST_F_COOKIE:
+			case ST_I_PX_COOKIE:
 				if (flags & STAT_SHLGNDS && sv->cookie)
 					metric = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, sv->cookie);
 				break;
@@ -1526,12 +1526,12 @@ static int stats_dump_sv_stats(struct stconn *sc, struct proxy *px, struct serve
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct stats_module *mod;
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
-	size_t stats_count = ST_F_TOTAL_FIELDS;
+	size_t stats_count = ST_I_PX_MAX;
 
 	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
 
 	if (!stats_fill_sv_stats(px, sv, ctx->flags, stats,
-				 ST_F_TOTAL_FIELDS, NULL))
+				 ST_I_PX_MAX, NULL))
 		return 0;
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
@@ -1585,7 +1585,7 @@ static void stats_fill_be_stats_computesrv(struct proxy *px, int *nbup, int *nbs
 
 /* Fill <stats> with the backend statistics. <stats> is preallocated array of
  * length <len>. If <selected_field> is != NULL, only fill this one. The length
- * of the array must be at least ST_F_TOTAL_FIELDS. If this length is less than
+ * of the array must be at least ST_I_PX_MAX. If this length is less than
  * this value, or if the selected field is not implemented for backends, the
  * function returns 0, otherwise, it returns 1. <flags> can take the value
  * STAT_SHLGNDS.
@@ -1600,236 +1600,236 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 	int nbup, nbsrv, totuw;
 	char *fld;
 
-	if (len < ST_F_TOTAL_FIELDS)
+	if (len < ST_I_PX_MAX)
 		return 0;
 
 	nbup = nbsrv = totuw = 0;
 	/* some srv values compute for later if we either select all fields or
 	 * need them for one of the mentioned ones */
-	if (selected_field == NULL || *selected_field == ST_F_STATUS ||
-	    *selected_field == ST_F_UWEIGHT)
+	if (selected_field == NULL || *selected_field == ST_I_PX_STATUS ||
+	    *selected_field == ST_I_PX_UWEIGHT)
 		stats_fill_be_stats_computesrv(px, &nbup, &nbsrv, &totuw);
 
 	/* same here but specific to time fields */
-	if (selected_field == NULL || *selected_field == ST_F_QTIME ||
-	    *selected_field == ST_F_CTIME || *selected_field == ST_F_RTIME ||
-	    *selected_field == ST_F_TTIME) {
+	if (selected_field == NULL || *selected_field == ST_I_PX_QTIME ||
+	    *selected_field == ST_I_PX_CTIME || *selected_field == ST_I_PX_RTIME ||
+	    *selected_field == ST_I_PX_TTIME) {
 		be_samples_counter = (px->mode == PR_MODE_HTTP) ? px->be_counters.p.http.cum_req : px->be_counters.cum_lbconn;
 		if (be_samples_counter < TIME_STATS_SAMPLES && be_samples_counter > 0)
 			be_samples_window = be_samples_counter;
 	}
 
-	for (; current_field < ST_F_TOTAL_FIELDS; current_field++) {
+	for (; current_field < ST_I_PX_MAX; current_field++) {
 		struct field metric = { 0 };
 
 		switch (current_field) {
-			case ST_F_PXNAME:
+			case ST_I_PX_PXNAME:
 				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 				break;
-			case ST_F_SVNAME:
+			case ST_I_PX_SVNAME:
 				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "BACKEND");
 				break;
-			case ST_F_MODE:
+			case ST_I_PX_MODE:
 				metric = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 				break;
-			case ST_F_QCUR:
+			case ST_I_PX_QCUR:
 				metric = mkf_u32(0, px->queue.length);
 				break;
-			case ST_F_QMAX:
+			case ST_I_PX_QMAX:
 				metric = mkf_u32(FN_MAX, px->be_counters.nbpend_max);
 				break;
-			case ST_F_SCUR:
+			case ST_I_PX_SCUR:
 				metric = mkf_u32(0, px->beconn);
 				break;
-			case ST_F_SMAX:
+			case ST_I_PX_SMAX:
 				metric = mkf_u32(FN_MAX, px->be_counters.conn_max);
 				break;
-			case ST_F_SLIM:
+			case ST_I_PX_SLIM:
 				metric = mkf_u32(FO_CONFIG|FN_LIMIT, px->fullconn);
 				break;
-			case ST_F_STOT:
+			case ST_I_PX_STOT:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.cum_sess);
 				break;
-			case ST_F_BIN:
+			case ST_I_PX_BIN:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.bytes_in);
 				break;
-			case ST_F_BOUT:
+			case ST_I_PX_BOUT:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.bytes_out);
 				break;
-			case ST_F_DREQ:
+			case ST_I_PX_DREQ:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.denied_req);
 				break;
-			case ST_F_DRESP:
+			case ST_I_PX_DRESP:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.denied_resp);
 				break;
-			case ST_F_ECON:
+			case ST_I_PX_ECON:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.failed_conns);
 				break;
-			case ST_F_ERESP:
+			case ST_I_PX_ERESP:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.failed_resp);
 				break;
-			case ST_F_WRETR:
+			case ST_I_PX_WRETR:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.retries);
 				break;
-			case ST_F_WREDIS:
+			case ST_I_PX_WREDIS:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.redispatches);
 				break;
-			case ST_F_WREW:
+			case ST_I_PX_WREW:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.failed_rewrites);
 				break;
-			case ST_F_EINT:
+			case ST_I_PX_EINT:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.internal_errors);
 				break;
-			case ST_F_CONNECT:
+			case ST_I_PX_CONNECT:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.connect);
 				break;
-			case ST_F_REUSE:
+			case ST_I_PX_REUSE:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.reuse);
 				break;
-			case ST_F_STATUS:
+			case ST_I_PX_STATUS:
 				fld = chunk_newstr(out);
 				chunk_appendf(out, "%s", (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN");
 				if (flags & (STAT_HIDE_MAINT|STAT_HIDE_DOWN))
 					chunk_appendf(out, " (%d/%d)", nbup, nbsrv);
 				metric = mkf_str(FO_STATUS, fld);
 				break;
-			case ST_F_AGG_SRV_CHECK_STATUS:   // DEPRECATED
-			case ST_F_AGG_SRV_STATUS:
+			case ST_I_PX_AGG_SRV_CHECK_STATUS:   // DEPRECATED
+			case ST_I_PX_AGG_SRV_STATUS:
 				metric = mkf_u32(FN_GAUGE, 0);
 				break;
-			case ST_F_AGG_CHECK_STATUS:
+			case ST_I_PX_AGG_CHECK_STATUS:
 				metric = mkf_u32(FN_GAUGE, 0);
 				break;
-			case ST_F_WEIGHT:
+			case ST_I_PX_WEIGHT:
 				metric = mkf_u32(FN_AVG, (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
 				break;
-			case ST_F_UWEIGHT:
+			case ST_I_PX_UWEIGHT:
 				metric = mkf_u32(FN_AVG, totuw);
 				break;
-			case ST_F_ACT:
+			case ST_I_PX_ACT:
 				metric = mkf_u32(0, px->srv_act);
 				break;
-			case ST_F_BCK:
+			case ST_I_PX_BCK:
 				metric = mkf_u32(0, px->srv_bck);
 				break;
-			case ST_F_CHKDOWN:
+			case ST_I_PX_CHKDOWN:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.down_trans);
 				break;
-			case ST_F_LASTCHG:
+			case ST_I_PX_LASTCHG:
 				metric = mkf_u32(FN_AGE, ns_to_sec(now_ns) - px->last_change);
 				break;
-			case ST_F_DOWNTIME:
+			case ST_I_PX_DOWNTIME:
 				if (px->srv)
 					metric = mkf_u32(FN_COUNTER, be_downtime(px));
 				break;
-			case ST_F_PID:
+			case ST_I_PX_PID:
 				metric = mkf_u32(FO_KEY, 1);
 				break;
-			case ST_F_IID:
+			case ST_I_PX_IID:
 				metric = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
 				break;
-			case ST_F_SID:
+			case ST_I_PX_SID:
 				metric = mkf_u32(FO_KEY|FS_SERVICE, 0);
 				break;
-			case ST_F_LBTOT:
+			case ST_I_PX_LBTOT:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.cum_lbconn);
 				break;
-			case ST_F_TYPE:
+			case ST_I_PX_TYPE:
 				metric = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_BE);
 				break;
-			case ST_F_RATE:
+			case ST_I_PX_RATE:
 				metric = mkf_u32(0, read_freq_ctr(&px->be_sess_per_sec));
 				break;
-			case ST_F_RATE_MAX:
+			case ST_I_PX_RATE_MAX:
 				metric = mkf_u32(0, px->be_counters.sps_max);
 				break;
-			case ST_F_COOKIE:
+			case ST_I_PX_COOKIE:
 				if (flags & STAT_SHLGNDS && px->cookie_name)
 					metric = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, px->cookie_name);
 				break;
-			case ST_F_ALGO:
+			case ST_I_PX_ALGO:
 				if (flags & STAT_SHLGNDS)
 					metric = mkf_str(FO_CONFIG|FS_SERVICE, backend_lb_algo_str(px->lbprm.algo & BE_LB_ALGO));
 				break;
-			case ST_F_REQ_TOT:
+			case ST_I_PX_REQ_TOT:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.cum_req);
 				break;
-			case ST_F_HRSP_1XX:
+			case ST_I_PX_HRSP_1XX:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[1]);
 				break;
-			case ST_F_HRSP_2XX:
+			case ST_I_PX_HRSP_2XX:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[2]);
 				break;
-			case ST_F_HRSP_3XX:
+			case ST_I_PX_HRSP_3XX:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[3]);
 				break;
-			case ST_F_HRSP_4XX:
+			case ST_I_PX_HRSP_4XX:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[4]);
 				break;
-			case ST_F_HRSP_5XX:
+			case ST_I_PX_HRSP_5XX:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[5]);
 				break;
-			case ST_F_HRSP_OTHER:
+			case ST_I_PX_HRSP_OTHER:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[0]);
 				break;
-			case ST_F_CACHE_LOOKUPS:
+			case ST_I_PX_CACHE_LOOKUPS:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.cache_lookups);
 				break;
-			case ST_F_CACHE_HITS:
+			case ST_I_PX_CACHE_HITS:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.cache_hits);
 				break;
-			case ST_F_CLI_ABRT:
+			case ST_I_PX_CLI_ABRT:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.cli_aborts);
 				break;
-			case ST_F_SRV_ABRT:
+			case ST_I_PX_SRV_ABRT:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.srv_aborts);
 				break;
-			case ST_F_COMP_IN:
+			case ST_I_PX_COMP_IN:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.comp_in[COMP_DIR_RES]);
 				break;
-			case ST_F_COMP_OUT:
+			case ST_I_PX_COMP_OUT:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.comp_out[COMP_DIR_RES]);
 				break;
-			case ST_F_COMP_BYP:
+			case ST_I_PX_COMP_BYP:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.comp_byp[COMP_DIR_RES]);
 				break;
-			case ST_F_COMP_RSP:
+			case ST_I_PX_COMP_RSP:
 				metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.comp_rsp);
 				break;
-			case ST_F_LASTSESS:
+			case ST_I_PX_LASTSESS:
 				metric = mkf_s32(FN_AGE, be_lastsession(px));
 				break;
-			case ST_F_QTIME:
+			case ST_I_PX_QTIME:
 				metric = mkf_u32(FN_AVG, swrate_avg(px->be_counters.q_time, be_samples_window));
 				break;
-			case ST_F_CTIME:
+			case ST_I_PX_CTIME:
 				metric = mkf_u32(FN_AVG, swrate_avg(px->be_counters.c_time, be_samples_window));
 				break;
-			case ST_F_RTIME:
+			case ST_I_PX_RTIME:
 				metric = mkf_u32(FN_AVG, swrate_avg(px->be_counters.d_time, be_samples_window));
 				break;
-			case ST_F_TTIME:
+			case ST_I_PX_TTIME:
 				metric = mkf_u32(FN_AVG, swrate_avg(px->be_counters.t_time, be_samples_window));
 				break;
-			case ST_F_QT_MAX:
+			case ST_I_PX_QT_MAX:
 				metric = mkf_u32(FN_MAX, px->be_counters.qtime_max);
 				break;
-			case ST_F_CT_MAX:
+			case ST_I_PX_CT_MAX:
 				metric = mkf_u32(FN_MAX, px->be_counters.ctime_max);
 				break;
-			case ST_F_RT_MAX:
+			case ST_I_PX_RT_MAX:
 				metric = mkf_u32(FN_MAX, px->be_counters.dtime_max);
 				break;
-			case ST_F_TT_MAX:
+			case ST_I_PX_TT_MAX:
 				metric = mkf_u32(FN_MAX, px->be_counters.ttime_max);
 				break;
 			default:
@@ -1857,7 +1857,7 @@ static int stats_dump_be_stats(struct stconn *sc, struct proxy *px)
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
-	size_t stats_count = ST_F_TOTAL_FIELDS;
+	size_t stats_count = ST_I_PX_MAX;
 
 	if (!(px->cap & PR_CAP_BE))
 		return 0;
@@ -1867,7 +1867,7 @@ static int stats_dump_be_stats(struct stconn *sc, struct proxy *px)
 
 	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
 
-	if (!stats_fill_be_stats(px, ctx->flags, stats, ST_F_TOTAL_FIELDS, NULL))
+	if (!stats_fill_be_stats(px, ctx->flags, stats, ST_I_PX_MAX, NULL))
 		return 0;
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
@@ -2819,11 +2819,11 @@ void stats_register_module(struct stats_module *m)
 static int allocate_stats_px_postcheck(void)
 {
 	struct stats_module *mod;
-	size_t i = ST_F_TOTAL_FIELDS;
+	size_t i = ST_I_PX_MAX;
 	int err_code = 0;
 	struct proxy *px;
 
-	stat_count[STATS_DOMAIN_PROXY] += ST_F_TOTAL_FIELDS;
+	stat_count[STATS_DOMAIN_PROXY] += ST_I_PX_MAX;
 
 	stat_f[STATS_DOMAIN_PROXY] = malloc(stat_count[STATS_DOMAIN_PROXY] * sizeof(struct name_desc));
 	if (!stat_f[STATS_DOMAIN_PROXY]) {
@@ -2832,8 +2832,8 @@ static int allocate_stats_px_postcheck(void)
 		return err_code;
 	}
 
-	memcpy(stat_f[STATS_DOMAIN_PROXY], stat_fields,
-	       ST_F_TOTAL_FIELDS * sizeof(struct name_desc));
+	memcpy(stat_f[STATS_DOMAIN_PROXY], metrics_px,
+	       ST_I_PX_MAX * sizeof(struct name_desc));
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 		memcpy(stat_f[STATS_DOMAIN_PROXY] + i,

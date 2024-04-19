@@ -38,7 +38,7 @@ struct stconn;
 /* These two structs contains all field names and descriptions according to
  * the the number of entries in "enum stat_field" and "enum info_field"
  */
-extern const struct name_desc stat_fields[];
+extern const struct name_desc metrics_px[];
 extern const struct name_desc info_fields[];
 extern const char *stat_status_codes[];
 extern struct applet http_stats_applet;

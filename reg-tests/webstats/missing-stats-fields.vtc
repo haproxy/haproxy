@@ -1,6 +1,6 @@
 varnishtest "Verifies the absence of (null) in 'show stats' header"
 
-# This can happen if a new ST_F_xxx enum is added without updating
+# This can happen if a new ST_I_PX_xxx enum is added without updating
 # stats_fields[].
 
 feature ignore_unknown_macro

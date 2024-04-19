@@ -191,10 +191,10 @@ int stats_dump_fields_json(struct buffer *out,
 			stats_print_proxy_field_json(out, &stats[field],
 			                             stat_f[domain][field].name,
 			                             field,
-			                             stats[ST_F_TYPE].u.u32,
-			                             stats[ST_F_IID].u.u32,
-			                             stats[ST_F_SID].u.u32,
-			                             stats[ST_F_PID].u.u32);
+			                             stats[ST_I_PX_TYPE].u.u32,
+			                             stats[ST_I_PX_IID].u.u32,
+			                             stats[ST_I_PX_SID].u.u32,
+			                             stats[ST_I_PX_PID].u.u32);
 		} else if (domain == STATS_DOMAIN_RESOLVERS) {
 			stats_print_rslv_field_json(out, &stats[field],
 			                            stat_f[domain][field].name,
