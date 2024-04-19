@@ -231,9 +231,9 @@ def main(ref_name):
     # macOS
 
     if "haproxy-" in ref_name:
-        os = "macos-12"     # stable branch
+        os = "macos-13"     # stable branch
     else:
-        os = "macos-latest" # development branch
+        os = "macos-14"     # development branch
 
     TARGET = "osx"
     for CC in ["clang"]:
