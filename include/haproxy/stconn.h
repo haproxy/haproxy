@@ -255,7 +255,7 @@ static inline void *__sc_mux_strm(const struct stconn *sc)
 {
 	return __sc_endp(sc);
 }
-static inline struct appctx *sc_mux_strm(const struct stconn *sc)
+static inline void *sc_mux_strm(const struct stconn *sc)
 {
 	if (sc_ep_test(sc, SE_FL_T_MUX))
 		return __sc_mux_strm(sc);
