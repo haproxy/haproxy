@@ -981,8 +981,8 @@ void my_closefrom(int start)
 				break;
 		} while (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR || errno == ENOMEM);
 
-		if (ret)
-			ret = fd - start;
+		/* always check the whole range */
+		ret = fd - start;
 
 		for (idx = 0; idx < ret; idx++) {
 			if (poll_events[idx].revents & POLLNVAL)
