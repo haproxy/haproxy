@@ -1,6 +1,123 @@
 ChangeLog :
 ===========
 
+2024/04/19 : 3.0-dev8
+    - BUG/MINOR: cli: Don't warn about a too big command for incomplete commands
+    - BUG/MINOR: listener: always assign distinct IDs to shards
+    - BUG/MINOR: log: fix lf_text_len() truncate inconsistency
+    - BUG/MINOR: tools/log: invalid encode_{chunk,string} usage
+    - BUG/MINOR: log: invalid snprintf() usage in sess_build_logline()
+    - CLEANUP: log: lf_text_len() returns a pointer not an integer
+    - MINOR: quic: simplify qc_send_hdshk_pkts() return
+    - MINOR: quic: uniformize sending methods for handshake
+    - MINOR: quic: improve sending API on retransmit
+    - MINOR: quic: use qc_send_hdshk_pkts() in handshake IO cb
+    - MEDIUM: quic: remove duplicate hdshk/app send functions
+    - OPTIM: quic: do not call qc_send() if nothing to emit
+    - OPTIM: quic: do not call qc_prep_pkts() if everything sent
+    - BUG/MEDIUM: http-ana: Deliver 502 on keep-alive for fressh server connection
+    - BUG/MINOR: http-ana: Fix TX_L7_RETRY and TX_D_L7_RETRY values
+    - BUILD: makefile: warn about unknown USE_* variables
+    - BUILD: makefile: support USE_xxx=0 as well
+    - BUG/MINOR: guid: fix crash on invalid guid name
+    - BUILD: atomic: fix peers build regression on gcc < 4.7 after recent changes
+    - BUG/MINOR: debug: make sure DEBUG_STRICT=0 does work as documented
+    - BUILD: cache: fix non-inline vs inline declaration mismatch to silence a warning
+    - BUILD: debug: make DEBUG_STRICT=1 the default
+    - BUILD: pools: make DEBUG_MEMORY_POOLS=1 the default option
+    - CI: update the build options to get rid of unneeded DEBUG options
+    - BUILD: makefile: get rid of the config CFLAGS variable
+    - BUILD: makefile: allow to use CFLAGS to append build options
+    - BUILD: makefile: drop the SMALL_OPTS settings
+    - BUILD: makefile: move -O2 from CPU_CFLAGS to OPT_CFLAGS
+    - BUILD: makefile: get rid of the CPU variable
+    - BUILD: makefile: drop the ARCH variable and better document ARCH_FLAGS
+    - BUILD: makefile: extract ARCH_FLAGS out of LDFLAGS
+    - BUILD: makefile: move the fwrapv option to STD_CFLAGS
+    - BUILD: makefile: make the ERR variable also support 0
+    - BUILD: makefile: add FAILFAST to select the -Wfatal-errors behavior
+    - BUILD: makefile: extract -Werror/-Wfatal-errors from automatic CFLAGS
+    - BUILD: makefile: split WARN_CFLAGS from SPEC_CFLAGS
+    - BUILD: makefile: rename SPEC_CFLAGS to NOWARN_CFLAGS
+    - BUILD: makefile: do not pass warnings to VERBOSE_CFLAGS
+    - BUILD: makefile: also drop DEBUG_CFLAGS
+    - CLEANUP: makefile: make the output of the "opts" target more readable
+    - DOC: install: clarify the build process by splitting it into subsections
+    - BUG/MINOR: server: fix slowstart behavior
+    - BUG/MEDIUM: cache/stats: Handle inbuf allocation failure in the I/O handler
+    - MINOR: ssl: add the section parser for 'crt-store'
+    - DOC: configuration: Add 3.12 Certificate Storage
+    - REGTESTS: ssl: test simple case of crt-store
+    - MINOR: ssl: rename ckchs_load_cert_file to new_ckch_store_load_files_path
+    - MINOR: ssl/crtlist: alloc ssl_conf only when a valid keyword is found
+    - BUG/MEDIUM: stick-tables: fix the task's next expiration date
+    - CLEANUP: stick-tables: always respect the to_batch limit when trashing
+    - BUG/MEDIUM: peers/trace: fix crash when listing event types
+    - BUG/MAJOR: stick-tables: fix race with peers in entry expiration
+    - DEBUG: pool: improve decoding of corrupted pools
+    - REORG: pool: move the area dump with symbol resolution to tools.c
+    - DEBUG: pools: report the data around the offending area in case of mismatch
+    - MINOR: listener/protocol: add proto name in alerts
+    - MINOR: proto_quic: add proto name in alert
+    - BUG/MINOR: lru: fix the standalone test case for invalid revision
+    - DOC: management: fix typos
+    - CI: revert kernel addr randomization introduced in 3a0fc864
+    - MINOR: ring: clarify the usage of ring_size() and add ring_allocated_size()
+    - BUG/MAJOR: ring: use the correct size to reallocate startup_logs
+    - MINOR: ring: always check that the old ring fits in the new one in ring_dup()
+    - CLEANUP: ssl: remove dead code in cfg_parse_crtstore()
+    - MINOR: ssl: supports crt-base in crt-store
+    - MINOR: ssl: 'key-base' allows to load a 'key' from a specific path
+    - MINOR: net_helper: Add support for floats/doubles.
+    - BUG/MEDIUM: grpc: Fix several unaligned 32/64 bits accesses
+    - MINOR: peers: Split resync process function to separate running/stopping states
+    - MINOR: peers: Add 2 peer flags about the peer learn status
+    - MINOR: peers: Add flags to report the peer state to the resync task
+    - MINOR: peers: sligthly adapt part processing the stopping signal
+    - MINOR: peers: Add functions to commit peer changes from the resync task
+    - BUG/MINOR: peers: Report a resync was explicitly requested from a thread-safe manner
+    - BUG/MAJOR: peers: Update peers section state from a thread-safe manner
+    - MEDIUM: peers: Only lock one peer at a time in the sync process function
+    - MINOR: peer: Restore previous peer flags value to ease debugging
+    - BUG/MEDIUM: stconn: Don't forward channel data if input data must be filtered
+    - BUILD: cache: fix a build warning with gcc < 7
+    - BUILD: xxhash: silence a build warning on Solaris + gcc-5.5
+    - CI: reduce ASAN log redirection umbrella size
+    - CLEANUP: assorted typo fixes in the code and comments
+    - BUG/MEDIUM: evports: do not clear returned events list on signal
+    - MEDIUM: evports: permit to report multiple events at once
+    - MEDIUM: ssl: support aliases in crt-store
+    - BUG/MINOR: ssl: check on forbidden character on wrong value
+    - BUG/MINOR: ssl: fix crt-store load parsing
+    - BUG/MEDIUM: applet: Fix applet API to put input data in a buffer
+    - BUG/MEDIUM: spoe: Always retry when an applet fails to send a frame
+    - BUG/MEDIUM: peers: Fix exit condition when max-updates-at-once is reached
+    - BUILD: linuxcap: Properly declare prepare_caps_from_permitted_set()
+    - BUG/MEDIUM: peers: fix localpeer regression with 'bind+server' config style
+    - MINOR: peers: stop relying on srv->addr to find peer port
+    - MEDIUM: ssl: support a named crt-store section
+    - MINOR: stats: remove implicit static trash_chunk usage
+    - REORG: stats: extract HTML related functions
+    - REORG: stats: extract JSON related functions
+    - MEDIUM: ssl: crt-base and key-base local keywords for crt-store
+    - MINOR: stats: Get the right prototype for stats_dump_html_end().
+    - MAJOR: ssl: use the msg callback mecanism for backend connections
+    - MINOR: ssl: implement keylog fetches for backend connections
+    - BUG/MINOR: stconn: Fix sc_mux_strm() return value
+    - MINOR: mux-pt: Test conn flags instead of sedesc ones to perform a full close
+    - MINOR: stconn/connection: Move shut modes at the SE descriptor level
+    - MINOR: stconn: Rewrite shutdown functions to simplify the switch statements
+    - MEDIUM: stconn: Use only one SC function to shut connection endpoints
+    - MEDIUM: stconn: Explicitly pass shut modes to shut applet endpoints
+    - MEDIUM: stconn: Use one function to shut connection and applet endpoints
+    - MEDIUM: muxes: Use one callback function to shut a mux stream
+    - BUG/MINOR: sock: handle a weird condition with connect()
+    - BUG/MINOR: fd: my_closefrom() on Linux could skip contiguous series of sockets
+    - BUG/MEDIUM: peers: Don't set PEERS_F_RESYNC_PROCESS flag on a peer
+    - BUG/MEDIUM: peers: Fix state transitions of a peer
+    - MINOR: init: use RLIMIT_DATA instead of RLIMIT_AS
+    - CI: modernize macos matrix
+
 2024/04/06 : 3.0-dev7
     - BUG/MINOR: ssl: Wrong ocsp-update "incompatibility" error message
     - BUG/MINOR: ssl: Detect more 'ocsp-update' incompatibilities
