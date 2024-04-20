@@ -4140,7 +4140,7 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 
 					rv = snprintf(alias_name, sizeof(alias_name), "@%s/%s", current_crtstore_name, args[cur_arg + 1]);
 					if (rv >= sizeof(alias_name)) {
-						memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', too long, max len is %ld.\n",
+						memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', too long, max len is %zd.\n",
 						          file, linenum, args[cur_arg], args[cur_arg + 1], sizeof(alias_name));
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
@@ -4213,7 +4213,7 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 			/* add the crt-store name, avoid a double / if the crt starts by it */
 			rv = snprintf(alias_name, sizeof(alias_name), "@%s%s%s", current_crtstore_name, f.crt[0] != '/' ? "/" : "", f.crt);
 			if (rv >= sizeof(alias_name)) {
-				memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', too long, max len is %ld.\n",
+				memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', too long, max len is %zd.\n",
 				          file, linenum, args[cur_arg], args[cur_arg + 1], sizeof(alias_name));
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
