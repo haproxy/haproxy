@@ -2471,7 +2471,7 @@ int post_check_cache()
 	list_for_each_entry_safe(cache_config, back, &caches_config, list) {
 
 		ret_shctx = shctx_init(&shctx, cache_config->maxblocks, CACHE_BLOCKSIZE,
-		                       cache_config->maxobjsz, sizeof(struct cache));
+		                       cache_config->maxobjsz, sizeof(struct cache), cache_config->id);
 
 		if (ret_shctx <= 0) {
 			if (ret_shctx == SHCTX_E_INIT_LOCK)

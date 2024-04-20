@@ -21,7 +21,7 @@
 
 int shctx_init(struct shared_context **orig_shctx,
                int maxblocks, int blocksize, unsigned int maxobjsz,
-               int extra);
+               int extra, __maybe_unused const char *name);
 struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
                                            struct shared_block *last, int data_len);
 void shctx_row_detach(struct shared_context *shctx, struct shared_block *first);
