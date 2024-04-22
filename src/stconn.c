@@ -2094,9 +2094,7 @@ int sc_applet_recv(struct stconn *sc)
 	}
 
  done_recv:
-	if (!cur_read)
-		se_have_no_more_data(sc->sedesc);
-	else {
+	if (cur_read) {
 		channel_check_xfer(ic, cur_read);
 		sc_ep_report_read_activity(sc);
 	}
@@ -2125,12 +2123,7 @@ int sc_applet_recv(struct stconn *sc)
 		sc->flags |= SC_FL_ERROR;
 		ret = 1;
 	}
-	else if (!cur_read &&
-		 !(sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM)) &&
-		 !(sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))) {
-		se_have_no_more_data(sc->sedesc);
-	}
-	else {
+	else if (cur_read || (sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM))) {
 		se_have_more_data(sc->sedesc);
 		ret = 1;
 	}
