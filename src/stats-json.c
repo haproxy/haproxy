@@ -254,7 +254,7 @@ int stats_dump_json_info_fields(struct buffer *out,
 	if (!started && !chunk_strcat(out, "["))
 		return 0;
 
-	for (; ctx->field < INF_TOTAL_FIELDS; ctx->field++) {
+	for (; ctx->field < ST_I_INF_MAX; ctx->field++) {
 		int old_len;
 		int field = ctx->field;
 
@@ -269,8 +269,8 @@ int stats_dump_json_info_fields(struct buffer *out,
 		chunk_appendf(out,
 			      "{\"field\":{\"pos\":%d,\"name\":\"%s\"},"
 			      "\"processNum\":%u,",
-			      field, info_fields[field].name,
-			      info[INF_PROCESS_NUM].u.u32);
+			      field, metrics_info[field].name,
+			      info[ST_I_INF_PROCESS_NUM].u.u32);
 		if (old_len == out->data)
 			goto err;
 

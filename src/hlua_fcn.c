@@ -53,7 +53,7 @@ static int class_stktable_ref;
 static int class_proxy_list_ref;
 static int class_server_list_ref;
 
-#define STATS_LEN (MAX((int)ST_I_PX_MAX, (int)INF_TOTAL_FIELDS))
+#define STATS_LEN (MAX((int)ST_I_PX_MAX, (int)ST_I_INF_MAX))
 
 static THREAD_LOCAL struct field stats[STATS_LEN];
 
@@ -377,8 +377,8 @@ static int hlua_get_info(lua_State *L)
 	stats_fill_info(stats, STATS_LEN, 0);
 
 	lua_newtable(L);
-	for (i=0; i<INF_TOTAL_FIELDS; i++) {
-		lua_pushstring(L, info_fields[i].name);
+	for (i=0; i<ST_I_INF_MAX; i++) {
+		lua_pushstring(L, metrics_info[i].name);
 		hlua_fcn_pushfield(L, &stats[i]);
 		lua_settable(L, -3);
 	}

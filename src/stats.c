@@ -81,91 +81,91 @@ const char *stat_status_codes[STAT_STATUS_SIZE] = {
 	[STAT_STATUS_IVAL] = "IVAL",
 };
 
-/* These are the field names for each INF_* field position. Please pay attention
+/* These are the field names for each ST_I_INF_* field position. Please pay attention
  * to always use the exact same name except that the strings for new names must
  * be lower case or CamelCase while the enum entries must be upper case.
  */
-const struct name_desc info_fields[INF_TOTAL_FIELDS] = {
-	[INF_NAME]                           = { .name = "Name",                        .desc = "Product name" },
-	[INF_VERSION]                        = { .name = "Version",                     .desc = "Product version" },
-	[INF_RELEASE_DATE]                   = { .name = "Release_date",                .desc = "Date of latest source code update" },
-	[INF_NBTHREAD]                       = { .name = "Nbthread",                    .desc = "Number of started threads (global.nbthread)" },
-	[INF_NBPROC]                         = { .name = "Nbproc",                      .desc = "Number of started worker processes (historical, always 1)" },
-	[INF_PROCESS_NUM]                    = { .name = "Process_num",                 .desc = "Relative worker process number (1)" },
-	[INF_PID]                            = { .name = "Pid",                         .desc = "This worker process identifier for the system" },
-	[INF_UPTIME]                         = { .name = "Uptime",                      .desc = "How long ago this worker process was started (days+hours+minutes+seconds)" },
-	[INF_UPTIME_SEC]                     = { .name = "Uptime_sec",                  .desc = "How long ago this worker process was started (seconds)" },
-	[INF_START_TIME_SEC]                 = { .name = "Start_time_sec",              .desc = "Start time in seconds" },
-	[INF_MEMMAX_MB]                      = { .name = "Memmax_MB",                   .desc = "Worker process's hard limit on memory usage in MB (-m on command line)" },
-	[INF_MEMMAX_BYTES]                   = { .name = "Memmax_bytes",                .desc = "Worker process's hard limit on memory usage in byes (-m on command line)" },
-	[INF_POOL_ALLOC_MB]                  = { .name = "PoolAlloc_MB",                .desc = "Amount of memory allocated in pools (in MB)" },
-	[INF_POOL_ALLOC_BYTES]               = { .name = "PoolAlloc_bytes",             .desc = "Amount of memory allocated in pools (in bytes)" },
-	[INF_POOL_USED_MB]                   = { .name = "PoolUsed_MB",                 .desc = "Amount of pool memory currently used (in MB)" },
-	[INF_POOL_USED_BYTES]                = { .name = "PoolUsed_bytes",              .desc = "Amount of pool memory currently used (in bytes)" },
-	[INF_POOL_FAILED]                    = { .name = "PoolFailed",                  .desc = "Number of failed pool allocations since this worker was started" },
-	[INF_ULIMIT_N]                       = { .name = "Ulimit-n",                    .desc = "Hard limit on the number of per-process file descriptors" },
-	[INF_MAXSOCK]                        = { .name = "Maxsock",                     .desc = "Hard limit on the number of per-process sockets" },
-	[INF_MAXCONN]                        = { .name = "Maxconn",                     .desc = "Hard limit on the number of per-process connections (configured or imposed by Ulimit-n)" },
-	[INF_HARD_MAXCONN]                   = { .name = "Hard_maxconn",                .desc = "Hard limit on the number of per-process connections (imposed by Memmax_MB or Ulimit-n)" },
-	[INF_CURR_CONN]                      = { .name = "CurrConns",                   .desc = "Current number of connections on this worker process" },
-	[INF_CUM_CONN]                       = { .name = "CumConns",                    .desc = "Total number of connections on this worker process since started" },
-	[INF_CUM_REQ]                        = { .name = "CumReq",                      .desc = "Total number of requests on this worker process since started" },
-	[INF_MAX_SSL_CONNS]                  = { .name = "MaxSslConns",                 .desc = "Hard limit on the number of per-process SSL endpoints (front+back), 0=unlimited" },
-	[INF_CURR_SSL_CONNS]                 = { .name = "CurrSslConns",                .desc = "Current number of SSL endpoints on this worker process (front+back)" },
-	[INF_CUM_SSL_CONNS]                  = { .name = "CumSslConns",                 .desc = "Total number of SSL endpoints on this worker process since started (front+back)" },
-	[INF_MAXPIPES]                       = { .name = "Maxpipes",                    .desc = "Hard limit on the number of pipes for splicing, 0=unlimited" },
-	[INF_PIPES_USED]                     = { .name = "PipesUsed",                   .desc = "Current number of pipes in use in this worker process" },
-	[INF_PIPES_FREE]                     = { .name = "PipesFree",                   .desc = "Current number of allocated and available pipes in this worker process" },
-	[INF_CONN_RATE]                      = { .name = "ConnRate",                    .desc = "Number of front connections created on this worker process over the last second" },
-	[INF_CONN_RATE_LIMIT]                = { .name = "ConnRateLimit",               .desc = "Hard limit for ConnRate (global.maxconnrate)" },
-	[INF_MAX_CONN_RATE]                  = { .name = "MaxConnRate",                 .desc = "Highest ConnRate reached on this worker process since started (in connections per second)" },
-	[INF_SESS_RATE]                      = { .name = "SessRate",                    .desc = "Number of sessions created on this worker process over the last second" },
-	[INF_SESS_RATE_LIMIT]                = { .name = "SessRateLimit",               .desc = "Hard limit for SessRate (global.maxsessrate)" },
-	[INF_MAX_SESS_RATE]                  = { .name = "MaxSessRate",                 .desc = "Highest SessRate reached on this worker process since started (in sessions per second)" },
-	[INF_SSL_RATE]                       = { .name = "SslRate",                     .desc = "Number of SSL connections created on this worker process over the last second" },
-	[INF_SSL_RATE_LIMIT]                 = { .name = "SslRateLimit",                .desc = "Hard limit for SslRate (global.maxsslrate)" },
-	[INF_MAX_SSL_RATE]                   = { .name = "MaxSslRate",                  .desc = "Highest SslRate reached on this worker process since started (in connections per second)" },
-	[INF_SSL_FRONTEND_KEY_RATE]          = { .name = "SslFrontendKeyRate",          .desc = "Number of SSL keys created on frontends in this worker process over the last second" },
-	[INF_SSL_FRONTEND_MAX_KEY_RATE]      = { .name = "SslFrontendMaxKeyRate",       .desc = "Highest SslFrontendKeyRate reached on this worker process since started (in SSL keys per second)" },
-	[INF_SSL_FRONTEND_SESSION_REUSE_PCT] = { .name = "SslFrontendSessionReuse_pct", .desc = "Percent of frontend SSL connections which did not require a new key" },
-	[INF_SSL_BACKEND_KEY_RATE]           = { .name = "SslBackendKeyRate",           .desc = "Number of SSL keys created on backends in this worker process over the last second" },
-	[INF_SSL_BACKEND_MAX_KEY_RATE]       = { .name = "SslBackendMaxKeyRate",        .desc = "Highest SslBackendKeyRate reached on this worker process since started (in SSL keys per second)" },
-	[INF_SSL_CACHE_LOOKUPS]              = { .name = "SslCacheLookups",             .desc = "Total number of SSL session ID lookups in the SSL session cache on this worker since started" },
-	[INF_SSL_CACHE_MISSES]               = { .name = "SslCacheMisses",              .desc = "Total number of SSL session ID lookups that didn't find a session in the SSL session cache on this worker since started" },
-	[INF_COMPRESS_BPS_IN]                = { .name = "CompressBpsIn",               .desc = "Number of bytes submitted to the HTTP compressor in this worker process over the last second" },
-	[INF_COMPRESS_BPS_OUT]               = { .name = "CompressBpsOut",              .desc = "Number of bytes emitted by the HTTP compressor in this worker process over the last second" },
-	[INF_COMPRESS_BPS_RATE_LIM]          = { .name = "CompressBpsRateLim",          .desc = "Limit of CompressBpsOut beyond which HTTP compression is automatically disabled" },
-	[INF_ZLIB_MEM_USAGE]                 = { .name = "ZlibMemUsage",                .desc = "Amount of memory currently used by HTTP compression on the current worker process (in bytes)" },
-	[INF_MAX_ZLIB_MEM_USAGE]             = { .name = "MaxZlibMemUsage",             .desc = "Limit on the amount of memory used by HTTP compression above which it is automatically disabled (in bytes, see global.maxzlibmem)" },
-	[INF_TASKS]                          = { .name = "Tasks",                       .desc = "Total number of tasks in the current worker process (active + sleeping)" },
-	[INF_RUN_QUEUE]                      = { .name = "Run_queue",                   .desc = "Total number of active tasks+tasklets in the current worker process" },
-	[INF_IDLE_PCT]                       = { .name = "Idle_pct",                    .desc = "Percentage of last second spent waiting in the current worker thread" },
-	[INF_NODE]                           = { .name = "node",                        .desc = "Node name (global.node)" },
-	[INF_DESCRIPTION]                    = { .name = "description",                 .desc = "Node description (global.description)" },
-	[INF_STOPPING]                       = { .name = "Stopping",                    .desc = "1 if the worker process is currently stopping, otherwise zero" },
-	[INF_JOBS]                           = { .name = "Jobs",                        .desc = "Current number of active jobs on the current worker process (frontend connections, master connections, listeners)" },
-	[INF_UNSTOPPABLE_JOBS]               = { .name = "Unstoppable Jobs",            .desc = "Current number of unstoppable jobs on the current worker process (master connections)" },
-	[INF_LISTENERS]                      = { .name = "Listeners",                   .desc = "Current number of active listeners on the current worker process" },
-	[INF_ACTIVE_PEERS]                   = { .name = "ActivePeers",                 .desc = "Current number of verified active peers connections on the current worker process" },
-	[INF_CONNECTED_PEERS]                = { .name = "ConnectedPeers",              .desc = "Current number of peers having passed the connection step on the current worker process" },
-	[INF_DROPPED_LOGS]                   = { .name = "DroppedLogs",                 .desc = "Total number of dropped logs for current worker process since started" },
-	[INF_BUSY_POLLING]                   = { .name = "BusyPolling",                 .desc = "1 if busy-polling is currently in use on the worker process, otherwise zero (config.busy-polling)" },
-	[INF_FAILED_RESOLUTIONS]             = { .name = "FailedResolutions",           .desc = "Total number of failed DNS resolutions in current worker process since started" },
-	[INF_TOTAL_BYTES_OUT]                = { .name = "TotalBytesOut",               .desc = "Total number of bytes emitted by current worker process since started" },
-	[INF_TOTAL_SPLICED_BYTES_OUT]        = { .name = "TotalSplicedBytesOut",        .desc = "Total number of bytes emitted by current worker process through a kernel pipe since started" },
-	[INF_BYTES_OUT_RATE]                 = { .name = "BytesOutRate",                .desc = "Number of bytes emitted by current worker process over the last second" },
-	[INF_DEBUG_COMMANDS_ISSUED]          = { .name = "DebugCommandsIssued",         .desc = "Number of debug commands issued on this process (anything > 0 is unsafe)" },
-	[INF_CUM_LOG_MSGS]                   = { .name = "CumRecvLogs",                 .desc = "Total number of log messages received by log-forwarding listeners on this worker process since started" },
-	[INF_BUILD_INFO]                     = { .name = "Build info",                  .desc = "Build info" },
-	[INF_TAINTED]                        = { .name = "Tainted",                     .desc = "Experimental features used" },
-	[INF_WARNINGS]                       = { .name = "TotalWarnings",               .desc = "Total warnings issued" },
-	[INF_MAXCONN_REACHED]                = { .name = "MaxconnReached",              .desc = "Number of times an accepted connection resulted in Maxconn being reached" },
-	[INF_BOOTTIME_MS]                    = { .name = "BootTime_ms",                 .desc = "How long ago it took to parse and process the config before being ready (milliseconds)" },
-	[INF_NICED_TASKS]                    = { .name = "Niced_tasks",                 .desc = "Total number of active tasks+tasklets in the current worker process (Run_queue) that are niced" },
+const struct name_desc metrics_info[ST_I_INF_MAX] = {
+	[ST_I_INF_NAME]                           = { .name = "Name",                        .desc = "Product name" },
+	[ST_I_INF_VERSION]                        = { .name = "Version",                     .desc = "Product version" },
+	[ST_I_INF_RELEASE_DATE]                   = { .name = "Release_date",                .desc = "Date of latest source code update" },
+	[ST_I_INF_NBTHREAD]                       = { .name = "Nbthread",                    .desc = "Number of started threads (global.nbthread)" },
+	[ST_I_INF_NBPROC]                         = { .name = "Nbproc",                      .desc = "Number of started worker processes (historical, always 1)" },
+	[ST_I_INF_PROCESS_NUM]                    = { .name = "Process_num",                 .desc = "Relative worker process number (1)" },
+	[ST_I_INF_PID]                            = { .name = "Pid",                         .desc = "This worker process identifier for the system" },
+	[ST_I_INF_UPTIME]                         = { .name = "Uptime",                      .desc = "How long ago this worker process was started (days+hours+minutes+seconds)" },
+	[ST_I_INF_UPTIME_SEC]                     = { .name = "Uptime_sec",                  .desc = "How long ago this worker process was started (seconds)" },
+	[ST_I_INF_START_TIME_SEC]                 = { .name = "Start_time_sec",              .desc = "Start time in seconds" },
+	[ST_I_INF_MEMMAX_MB]                      = { .name = "Memmax_MB",                   .desc = "Worker process's hard limit on memory usage in MB (-m on command line)" },
+	[ST_I_INF_MEMMAX_BYTES]                   = { .name = "Memmax_bytes",                .desc = "Worker process's hard limit on memory usage in byes (-m on command line)" },
+	[ST_I_INF_POOL_ALLOC_MB]                  = { .name = "PoolAlloc_MB",                .desc = "Amount of memory allocated in pools (in MB)" },
+	[ST_I_INF_POOL_ALLOC_BYTES]               = { .name = "PoolAlloc_bytes",             .desc = "Amount of memory allocated in pools (in bytes)" },
+	[ST_I_INF_POOL_USED_MB]                   = { .name = "PoolUsed_MB",                 .desc = "Amount of pool memory currently used (in MB)" },
+	[ST_I_INF_POOL_USED_BYTES]                = { .name = "PoolUsed_bytes",              .desc = "Amount of pool memory currently used (in bytes)" },
+	[ST_I_INF_POOL_FAILED]                    = { .name = "PoolFailed",                  .desc = "Number of failed pool allocations since this worker was started" },
+	[ST_I_INF_ULIMIT_N]                       = { .name = "Ulimit-n",                    .desc = "Hard limit on the number of per-process file descriptors" },
+	[ST_I_INF_MAXSOCK]                        = { .name = "Maxsock",                     .desc = "Hard limit on the number of per-process sockets" },
+	[ST_I_INF_MAXCONN]                        = { .name = "Maxconn",                     .desc = "Hard limit on the number of per-process connections (configured or imposed by Ulimit-n)" },
+	[ST_I_INF_HARD_MAXCONN]                   = { .name = "Hard_maxconn",                .desc = "Hard limit on the number of per-process connections (imposed by Memmax_MB or Ulimit-n)" },
+	[ST_I_INF_CURR_CONN]                      = { .name = "CurrConns",                   .desc = "Current number of connections on this worker process" },
+	[ST_I_INF_CUM_CONN]                       = { .name = "CumConns",                    .desc = "Total number of connections on this worker process since started" },
+	[ST_I_INF_CUM_REQ]                        = { .name = "CumReq",                      .desc = "Total number of requests on this worker process since started" },
+	[ST_I_INF_MAX_SSL_CONNS]                  = { .name = "MaxSslConns",                 .desc = "Hard limit on the number of per-process SSL endpoints (front+back), 0=unlimited" },
+	[ST_I_INF_CURR_SSL_CONNS]                 = { .name = "CurrSslConns",                .desc = "Current number of SSL endpoints on this worker process (front+back)" },
+	[ST_I_INF_CUM_SSL_CONNS]                  = { .name = "CumSslConns",                 .desc = "Total number of SSL endpoints on this worker process since started (front+back)" },
+	[ST_I_INF_MAXPIPES]                       = { .name = "Maxpipes",                    .desc = "Hard limit on the number of pipes for splicing, 0=unlimited" },
+	[ST_I_INF_PIPES_USED]                     = { .name = "PipesUsed",                   .desc = "Current number of pipes in use in this worker process" },
+	[ST_I_INF_PIPES_FREE]                     = { .name = "PipesFree",                   .desc = "Current number of allocated and available pipes in this worker process" },
+	[ST_I_INF_CONN_RATE]                      = { .name = "ConnRate",                    .desc = "Number of front connections created on this worker process over the last second" },
+	[ST_I_INF_CONN_RATE_LIMIT]                = { .name = "ConnRateLimit",               .desc = "Hard limit for ConnRate (global.maxconnrate)" },
+	[ST_I_INF_MAX_CONN_RATE]                  = { .name = "MaxConnRate",                 .desc = "Highest ConnRate reached on this worker process since started (in connections per second)" },
+	[ST_I_INF_SESS_RATE]                      = { .name = "SessRate",                    .desc = "Number of sessions created on this worker process over the last second" },
+	[ST_I_INF_SESS_RATE_LIMIT]                = { .name = "SessRateLimit",               .desc = "Hard limit for SessRate (global.maxsessrate)" },
+	[ST_I_INF_MAX_SESS_RATE]                  = { .name = "MaxSessRate",                 .desc = "Highest SessRate reached on this worker process since started (in sessions per second)" },
+	[ST_I_INF_SSL_RATE]                       = { .name = "SslRate",                     .desc = "Number of SSL connections created on this worker process over the last second" },
+	[ST_I_INF_SSL_RATE_LIMIT]                 = { .name = "SslRateLimit",                .desc = "Hard limit for SslRate (global.maxsslrate)" },
+	[ST_I_INF_MAX_SSL_RATE]                   = { .name = "MaxSslRate",                  .desc = "Highest SslRate reached on this worker process since started (in connections per second)" },
+	[ST_I_INF_SSL_FRONTEND_KEY_RATE]          = { .name = "SslFrontendKeyRate",          .desc = "Number of SSL keys created on frontends in this worker process over the last second" },
+	[ST_I_INF_SSL_FRONTEND_MAX_KEY_RATE]      = { .name = "SslFrontendMaxKeyRate",       .desc = "Highest SslFrontendKeyRate reached on this worker process since started (in SSL keys per second)" },
+	[ST_I_INF_SSL_FRONTEND_SESSION_REUSE_PCT] = { .name = "SslFrontendSessionReuse_pct", .desc = "Percent of frontend SSL connections which did not require a new key" },
+	[ST_I_INF_SSL_BACKEND_KEY_RATE]           = { .name = "SslBackendKeyRate",           .desc = "Number of SSL keys created on backends in this worker process over the last second" },
+	[ST_I_INF_SSL_BACKEND_MAX_KEY_RATE]       = { .name = "SslBackendMaxKeyRate",        .desc = "Highest SslBackendKeyRate reached on this worker process since started (in SSL keys per second)" },
+	[ST_I_INF_SSL_CACHE_LOOKUPS]              = { .name = "SslCacheLookups",             .desc = "Total number of SSL session ID lookups in the SSL session cache on this worker since started" },
+	[ST_I_INF_SSL_CACHE_MISSES]               = { .name = "SslCacheMisses",              .desc = "Total number of SSL session ID lookups that didn't find a session in the SSL session cache on this worker since started" },
+	[ST_I_INF_COMPRESS_BPS_IN]                = { .name = "CompressBpsIn",               .desc = "Number of bytes submitted to the HTTP compressor in this worker process over the last second" },
+	[ST_I_INF_COMPRESS_BPS_OUT]               = { .name = "CompressBpsOut",              .desc = "Number of bytes emitted by the HTTP compressor in this worker process over the last second" },
+	[ST_I_INF_COMPRESS_BPS_RATE_LIM]          = { .name = "CompressBpsRateLim",          .desc = "Limit of CompressBpsOut beyond which HTTP compression is automatically disabled" },
+	[ST_I_INF_ZLIB_MEM_USAGE]                 = { .name = "ZlibMemUsage",                .desc = "Amount of memory currently used by HTTP compression on the current worker process (in bytes)" },
+	[ST_I_INF_MAX_ZLIB_MEM_USAGE]             = { .name = "MaxZlibMemUsage",             .desc = "Limit on the amount of memory used by HTTP compression above which it is automatically disabled (in bytes, see global.maxzlibmem)" },
+	[ST_I_INF_TASKS]                          = { .name = "Tasks",                       .desc = "Total number of tasks in the current worker process (active + sleeping)" },
+	[ST_I_INF_RUN_QUEUE]                      = { .name = "Run_queue",                   .desc = "Total number of active tasks+tasklets in the current worker process" },
+	[ST_I_INF_IDLE_PCT]                       = { .name = "Idle_pct",                    .desc = "Percentage of last second spent waiting in the current worker thread" },
+	[ST_I_INF_NODE]                           = { .name = "node",                        .desc = "Node name (global.node)" },
+	[ST_I_INF_DESCRIPTION]                    = { .name = "description",                 .desc = "Node description (global.description)" },
+	[ST_I_INF_STOPPING]                       = { .name = "Stopping",                    .desc = "1 if the worker process is currently stopping, otherwise zero" },
+	[ST_I_INF_JOBS]                           = { .name = "Jobs",                        .desc = "Current number of active jobs on the current worker process (frontend connections, master connections, listeners)" },
+	[ST_I_INF_UNSTOPPABLE_JOBS]               = { .name = "Unstoppable Jobs",            .desc = "Current number of unstoppable jobs on the current worker process (master connections)" },
+	[ST_I_INF_LISTENERS]                      = { .name = "Listeners",                   .desc = "Current number of active listeners on the current worker process" },
+	[ST_I_INF_ACTIVE_PEERS]                   = { .name = "ActivePeers",                 .desc = "Current number of verified active peers connections on the current worker process" },
+	[ST_I_INF_CONNECTED_PEERS]                = { .name = "ConnectedPeers",              .desc = "Current number of peers having passed the connection step on the current worker process" },
+	[ST_I_INF_DROPPED_LOGS]                   = { .name = "DroppedLogs",                 .desc = "Total number of dropped logs for current worker process since started" },
+	[ST_I_INF_BUSY_POLLING]                   = { .name = "BusyPolling",                 .desc = "1 if busy-polling is currently in use on the worker process, otherwise zero (config.busy-polling)" },
+	[ST_I_INF_FAILED_RESOLUTIONS]             = { .name = "FailedResolutions",           .desc = "Total number of failed DNS resolutions in current worker process since started" },
+	[ST_I_INF_TOTAL_BYTES_OUT]                = { .name = "TotalBytesOut",               .desc = "Total number of bytes emitted by current worker process since started" },
+	[ST_I_INF_TOTAL_SPLICED_BYTES_OUT]        = { .name = "TotalSplicedBytesOut",        .desc = "Total number of bytes emitted by current worker process through a kernel pipe since started" },
+	[ST_I_INF_BYTES_OUT_RATE]                 = { .name = "BytesOutRate",                .desc = "Number of bytes emitted by current worker process over the last second" },
+	[ST_I_INF_DEBUG_COMMANDS_ISSUED]          = { .name = "DebugCommandsIssued",         .desc = "Number of debug commands issued on this process (anything > 0 is unsafe)" },
+	[ST_I_INF_CUM_LOG_MSGS]                   = { .name = "CumRecvLogs",                 .desc = "Total number of log messages received by log-forwarding listeners on this worker process since started" },
+	[ST_I_INF_BUILD_INFO]                     = { .name = "Build info",                  .desc = "Build info" },
+	[ST_I_INF_TAINTED]                        = { .name = "Tainted",                     .desc = "Experimental features used" },
+	[ST_I_INF_WARNINGS]                       = { .name = "TotalWarnings",               .desc = "Total warnings issued" },
+	[ST_I_INF_MAXCONN_REACHED]                = { .name = "MaxconnReached",              .desc = "Number of times an accepted connection resulted in Maxconn being reached" },
+	[ST_I_INF_BOOTTIME_MS]                    = { .name = "BootTime_ms",                 .desc = "How long ago it took to parse and process the config before being ready (milliseconds)" },
+	[ST_I_INF_NICED_TASKS]                    = { .name = "Niced_tasks",                 .desc = "Total number of active tasks+tasklets in the current worker process (Run_queue) that are niced" },
 };
 
 /* one line of info */
-THREAD_LOCAL struct field info[INF_TOTAL_FIELDS];
+THREAD_LOCAL struct field stat_line_info[ST_I_INF_MAX];
 
 const struct name_desc metrics_px[ST_I_PX_MAX] = {
 	[ST_I_PX_PXNAME]                        = { .name = "pxname",                      .desc = "Proxy name" },
@@ -2282,15 +2282,15 @@ static int stats_dump_info_fields(struct buffer *out,
 	int flags = ctx->flags;
 	int field;
 
-	for (field = 0; field < INF_TOTAL_FIELDS; field++) {
+	for (field = 0; field < ST_I_INF_MAX; field++) {
 		if (!field_format(info, field))
 			continue;
 
-		if (!chunk_appendf(out, "%s: ", info_fields[field].name))
+		if (!chunk_appendf(out, "%s: ", metrics_info[field].name))
 			return 0;
 		if (!stats_emit_raw_data_field(out, &info[field]))
 			return 0;
-		if ((flags & STAT_SHOW_FDESC) && !chunk_appendf(out, ":\"%s\"", info_fields[field].desc))
+		if ((flags & STAT_SHOW_FDESC) && !chunk_appendf(out, ":\"%s\"", metrics_info[field].desc))
 			return 0;
 		if (!chunk_strcat(out, "\n"))
 			return 0;
@@ -2306,17 +2306,17 @@ static int stats_dump_typed_info_fields(struct buffer *out,
 	int flags = ctx->flags;
 	int field;
 
-	for (field = 0; field < INF_TOTAL_FIELDS; field++) {
+	for (field = 0; field < ST_I_INF_MAX; field++) {
 		if (!field_format(info, field))
 			continue;
 
-		if (!chunk_appendf(out, "%d.%s.%u:", field, info_fields[field].name, info[INF_PROCESS_NUM].u.u32))
+		if (!chunk_appendf(out, "%d.%s.%u:", field, metrics_info[field].name, info[ST_I_INF_PROCESS_NUM].u.u32))
 			return 0;
 		if (!stats_emit_field_tags(out, &info[field], ':'))
 			return 0;
 		if (!stats_emit_typed_data_field(out, &info[field]))
 			return 0;
-		if ((flags & STAT_SHOW_FDESC) && !chunk_appendf(out, ":\"%s\"", info_fields[field].desc))
+		if ((flags & STAT_SHOW_FDESC) && !chunk_appendf(out, ":\"%s\"", metrics_info[field].desc))
 			return 0;
 		if (!chunk_strcat(out, "\n"))
 			return 0;
@@ -2325,7 +2325,7 @@ static int stats_dump_typed_info_fields(struct buffer *out,
 }
 
 /* Fill <info> with HAProxy global info. <info> is preallocated array of length
- * <len>. The length of the array must be INF_TOTAL_FIELDS. If this length is
+ * <len>. The length of the array must be ST_I_INF_MAX. If this length is
  * less then this value, the function returns 0, otherwise, it returns 1. Some
  * fields' presence or precision may depend on some of the STAT_* flags present
  * in <flags>.
@@ -2363,102 +2363,102 @@ int stats_fill_info(struct field *info, int len, uint flags)
 
 	boot = tv_ms_remain(&start_date, &ready_date);
 
-	if (len < INF_TOTAL_FIELDS)
+	if (len < ST_I_INF_MAX)
 		return 0;
 
 	chunk_reset(out);
 	memset(info, 0, sizeof(*info) * len);
 
-	info[INF_NAME]                           = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, PRODUCT_NAME);
-	info[INF_VERSION]                        = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_version);
-	info[INF_BUILD_INFO]                     = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_version);
-	info[INF_RELEASE_DATE]                   = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_date);
+	info[ST_I_INF_NAME]                           = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, PRODUCT_NAME);
+	info[ST_I_INF_VERSION]                        = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_version);
+	info[ST_I_INF_BUILD_INFO]                     = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_version);
+	info[ST_I_INF_RELEASE_DATE]                   = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_date);
 
-	info[INF_NBTHREAD]                       = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbthread);
-	info[INF_NBPROC]                         = mkf_u32(FO_CONFIG|FS_SERVICE, 1);
-	info[INF_PROCESS_NUM]                    = mkf_u32(FO_KEY, 1);
-	info[INF_PID]                            = mkf_u32(FO_STATUS, pid);
+	info[ST_I_INF_NBTHREAD]                       = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbthread);
+	info[ST_I_INF_NBPROC]                         = mkf_u32(FO_CONFIG|FS_SERVICE, 1);
+	info[ST_I_INF_PROCESS_NUM]                    = mkf_u32(FO_KEY, 1);
+	info[ST_I_INF_PID]                            = mkf_u32(FO_STATUS, pid);
 
-	info[INF_UPTIME]                         = mkf_str(FN_DURATION, chunk_newstr(out));
+	info[ST_I_INF_UPTIME]                         = mkf_str(FN_DURATION, chunk_newstr(out));
 	chunk_appendf(out, "%ud %uh%02um%02us", up_sec / 86400, (up_sec % 86400) / 3600, (up_sec % 3600) / 60, (up_sec % 60));
 
-	info[INF_UPTIME_SEC]                     = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_DURATION, up_sec + up_usec / 1000000.0) : mkf_u32(FN_DURATION, up_sec);
-	info[INF_START_TIME_SEC]                 = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_DURATION, start_date.tv_sec + start_date.tv_usec / 1000000.0) : mkf_u32(FN_DURATION, start_date.tv_sec);
-	info[INF_MEMMAX_MB]                      = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax);
-	info[INF_MEMMAX_BYTES]                   = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax * 1048576L);
-	info[INF_POOL_ALLOC_MB]                  = mkf_u32(0, (unsigned)(pool_total_allocated() / 1048576L));
-	info[INF_POOL_ALLOC_BYTES]               = mkf_u64(0, pool_total_allocated());
-	info[INF_POOL_USED_MB]                   = mkf_u32(0, (unsigned)(pool_total_used() / 1048576L));
-	info[INF_POOL_USED_BYTES]                = mkf_u64(0, pool_total_used());
-	info[INF_POOL_FAILED]                    = mkf_u32(FN_COUNTER, pool_total_failures());
-	info[INF_ULIMIT_N]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_nofile);
-	info[INF_MAXSOCK]                        = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxsock);
-	info[INF_MAXCONN]                        = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxconn);
-	info[INF_HARD_MAXCONN]                   = mkf_u32(FO_CONFIG|FN_LIMIT, global.hardmaxconn);
-	info[INF_CURR_CONN]                      = mkf_u32(0, actconn);
-	info[INF_CUM_CONN]                       = mkf_u32(FN_COUNTER, totalconn);
-	info[INF_CUM_REQ]                        = mkf_u32(FN_COUNTER, global.req_count);
+	info[ST_I_INF_UPTIME_SEC]                     = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_DURATION, up_sec + up_usec / 1000000.0) : mkf_u32(FN_DURATION, up_sec);
+	info[ST_I_INF_START_TIME_SEC]                 = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_DURATION, start_date.tv_sec + start_date.tv_usec / 1000000.0) : mkf_u32(FN_DURATION, start_date.tv_sec);
+	info[ST_I_INF_MEMMAX_MB]                      = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax);
+	info[ST_I_INF_MEMMAX_BYTES]                   = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax * 1048576L);
+	info[ST_I_INF_POOL_ALLOC_MB]                  = mkf_u32(0, (unsigned)(pool_total_allocated() / 1048576L));
+	info[ST_I_INF_POOL_ALLOC_BYTES]               = mkf_u64(0, pool_total_allocated());
+	info[ST_I_INF_POOL_USED_MB]                   = mkf_u32(0, (unsigned)(pool_total_used() / 1048576L));
+	info[ST_I_INF_POOL_USED_BYTES]                = mkf_u64(0, pool_total_used());
+	info[ST_I_INF_POOL_FAILED]                    = mkf_u32(FN_COUNTER, pool_total_failures());
+	info[ST_I_INF_ULIMIT_N]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_nofile);
+	info[ST_I_INF_MAXSOCK]                        = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxsock);
+	info[ST_I_INF_MAXCONN]                        = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxconn);
+	info[ST_I_INF_HARD_MAXCONN]                   = mkf_u32(FO_CONFIG|FN_LIMIT, global.hardmaxconn);
+	info[ST_I_INF_CURR_CONN]                      = mkf_u32(0, actconn);
+	info[ST_I_INF_CUM_CONN]                       = mkf_u32(FN_COUNTER, totalconn);
+	info[ST_I_INF_CUM_REQ]                        = mkf_u32(FN_COUNTER, global.req_count);
 #ifdef USE_OPENSSL
-	info[INF_MAX_SSL_CONNS]                  = mkf_u32(FN_MAX, global.maxsslconn);
-	info[INF_CURR_SSL_CONNS]                 = mkf_u32(0, global.sslconns);
-	info[INF_CUM_SSL_CONNS]                  = mkf_u32(FN_COUNTER, global.totalsslconns);
+	info[ST_I_INF_MAX_SSL_CONNS]                  = mkf_u32(FN_MAX, global.maxsslconn);
+	info[ST_I_INF_CURR_SSL_CONNS]                 = mkf_u32(0, global.sslconns);
+	info[ST_I_INF_CUM_SSL_CONNS]                  = mkf_u32(FN_COUNTER, global.totalsslconns);
 #endif
-	info[INF_MAXPIPES]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxpipes);
-	info[INF_PIPES_USED]                     = mkf_u32(0, pipes_used);
-	info[INF_PIPES_FREE]                     = mkf_u32(0, pipes_free);
-	info[INF_CONN_RATE]                      = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.conn_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.conn_per_sec));
-	info[INF_CONN_RATE_LIMIT]                = mkf_u32(FO_CONFIG|FN_LIMIT, global.cps_lim);
-	info[INF_MAX_CONN_RATE]                  = mkf_u32(FN_MAX, global.cps_max);
-	info[INF_SESS_RATE]                      = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.sess_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.sess_per_sec));
-	info[INF_SESS_RATE_LIMIT]                = mkf_u32(FO_CONFIG|FN_LIMIT, global.sps_lim);
-	info[INF_MAX_SESS_RATE]                  = mkf_u32(FN_RATE, global.sps_max);
+	info[ST_I_INF_MAXPIPES]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxpipes);
+	info[ST_I_INF_PIPES_USED]                     = mkf_u32(0, pipes_used);
+	info[ST_I_INF_PIPES_FREE]                     = mkf_u32(0, pipes_free);
+	info[ST_I_INF_CONN_RATE]                      = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.conn_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.conn_per_sec));
+	info[ST_I_INF_CONN_RATE_LIMIT]                = mkf_u32(FO_CONFIG|FN_LIMIT, global.cps_lim);
+	info[ST_I_INF_MAX_CONN_RATE]                  = mkf_u32(FN_MAX, global.cps_max);
+	info[ST_I_INF_SESS_RATE]                      = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.sess_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.sess_per_sec));
+	info[ST_I_INF_SESS_RATE_LIMIT]                = mkf_u32(FO_CONFIG|FN_LIMIT, global.sps_lim);
+	info[ST_I_INF_MAX_SESS_RATE]                  = mkf_u32(FN_RATE, global.sps_max);
 
 #ifdef USE_OPENSSL
-	info[INF_SSL_RATE]                       = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_sess_rate) : mkf_u32(FN_RATE, ssl_sess_rate);
-	info[INF_SSL_RATE_LIMIT]                 = mkf_u32(FO_CONFIG|FN_LIMIT, global.ssl_lim);
-	info[INF_MAX_SSL_RATE]                   = mkf_u32(FN_MAX, global.ssl_max);
-	info[INF_SSL_FRONTEND_KEY_RATE]          = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_key_rate) : mkf_u32(0, ssl_key_rate);
-	info[INF_SSL_FRONTEND_MAX_KEY_RATE]      = mkf_u32(FN_MAX, global.ssl_fe_keys_max);
-	info[INF_SSL_FRONTEND_SESSION_REUSE_PCT] = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_reuse) : mkf_u32(0, ssl_reuse);
-	info[INF_SSL_BACKEND_KEY_RATE]           = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.ssl_be_keys_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.ssl_be_keys_per_sec));
-	info[INF_SSL_BACKEND_MAX_KEY_RATE]       = mkf_u32(FN_MAX, global.ssl_be_keys_max);
-	info[INF_SSL_CACHE_LOOKUPS]              = mkf_u32(FN_COUNTER, global.shctx_lookups);
-	info[INF_SSL_CACHE_MISSES]               = mkf_u32(FN_COUNTER, global.shctx_misses);
+	info[ST_I_INF_SSL_RATE]                       = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_sess_rate) : mkf_u32(FN_RATE, ssl_sess_rate);
+	info[ST_I_INF_SSL_RATE_LIMIT]                 = mkf_u32(FO_CONFIG|FN_LIMIT, global.ssl_lim);
+	info[ST_I_INF_MAX_SSL_RATE]                   = mkf_u32(FN_MAX, global.ssl_max);
+	info[ST_I_INF_SSL_FRONTEND_KEY_RATE]          = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_key_rate) : mkf_u32(0, ssl_key_rate);
+	info[ST_I_INF_SSL_FRONTEND_MAX_KEY_RATE]      = mkf_u32(FN_MAX, global.ssl_fe_keys_max);
+	info[ST_I_INF_SSL_FRONTEND_SESSION_REUSE_PCT] = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_reuse) : mkf_u32(0, ssl_reuse);
+	info[ST_I_INF_SSL_BACKEND_KEY_RATE]           = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.ssl_be_keys_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.ssl_be_keys_per_sec));
+	info[ST_I_INF_SSL_BACKEND_MAX_KEY_RATE]       = mkf_u32(FN_MAX, global.ssl_be_keys_max);
+	info[ST_I_INF_SSL_CACHE_LOOKUPS]              = mkf_u32(FN_COUNTER, global.shctx_lookups);
+	info[ST_I_INF_SSL_CACHE_MISSES]               = mkf_u32(FN_COUNTER, global.shctx_misses);
 #endif
-	info[INF_COMPRESS_BPS_IN]                = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.comp_bps_in)) : mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_in));
-	info[INF_COMPRESS_BPS_OUT]               = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.comp_bps_out)) : mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_out));
-	info[INF_COMPRESS_BPS_RATE_LIM]          = mkf_u32(FO_CONFIG|FN_LIMIT, global.comp_rate_lim);
+	info[ST_I_INF_COMPRESS_BPS_IN]                = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.comp_bps_in)) : mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_in));
+	info[ST_I_INF_COMPRESS_BPS_OUT]               = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.comp_bps_out)) : mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_out));
+	info[ST_I_INF_COMPRESS_BPS_RATE_LIM]          = mkf_u32(FO_CONFIG|FN_LIMIT, global.comp_rate_lim);
 #ifdef USE_ZLIB
-	info[INF_ZLIB_MEM_USAGE]                 = mkf_u32(0, zlib_used_memory);
-	info[INF_MAX_ZLIB_MEM_USAGE]             = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxzlibmem);
+	info[ST_I_INF_ZLIB_MEM_USAGE]                 = mkf_u32(0, zlib_used_memory);
+	info[ST_I_INF_MAX_ZLIB_MEM_USAGE]             = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxzlibmem);
 #endif
-	info[INF_TASKS]                          = mkf_u32(0, total_allocated_tasks());
-	info[INF_RUN_QUEUE]                      = mkf_u32(0, total_run_queues());
-	info[INF_IDLE_PCT]                       = mkf_u32(FN_AVG, clock_report_idle());
-	info[INF_NODE]                           = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.node);
+	info[ST_I_INF_TASKS]                          = mkf_u32(0, total_allocated_tasks());
+	info[ST_I_INF_RUN_QUEUE]                      = mkf_u32(0, total_run_queues());
+	info[ST_I_INF_IDLE_PCT]                       = mkf_u32(FN_AVG, clock_report_idle());
+	info[ST_I_INF_NODE]                           = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.node);
 	if (global.desc)
-		info[INF_DESCRIPTION]            = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.desc);
-	info[INF_STOPPING]                       = mkf_u32(0, stopping);
-	info[INF_JOBS]                           = mkf_u32(0, jobs);
-	info[INF_UNSTOPPABLE_JOBS]               = mkf_u32(0, unstoppable_jobs);
-	info[INF_LISTENERS]                      = mkf_u32(0, listeners);
-	info[INF_ACTIVE_PEERS]                   = mkf_u32(0, active_peers);
-	info[INF_CONNECTED_PEERS]                = mkf_u32(0, connected_peers);
-	info[INF_DROPPED_LOGS]                   = mkf_u32(0, dropped_logs);
-	info[INF_BUSY_POLLING]                   = mkf_u32(0, !!(global.tune.options & GTUNE_BUSY_POLLING));
-	info[INF_FAILED_RESOLUTIONS]             = mkf_u32(0, resolv_failed_resolutions);
-	info[INF_TOTAL_BYTES_OUT]                = mkf_u64(0, glob_out_bytes);
-	info[INF_TOTAL_SPLICED_BYTES_OUT]        = mkf_u64(0, glob_spl_bytes);
-	info[INF_BYTES_OUT_RATE]                 = mkf_u64(FN_RATE, glob_out_b32);
-	info[INF_DEBUG_COMMANDS_ISSUED]          = mkf_u32(0, debug_commands_issued);
-	info[INF_CUM_LOG_MSGS]                   = mkf_u32(FN_COUNTER, cum_log_messages);
+		info[ST_I_INF_DESCRIPTION]            = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.desc);
+	info[ST_I_INF_STOPPING]                       = mkf_u32(0, stopping);
+	info[ST_I_INF_JOBS]                           = mkf_u32(0, jobs);
+	info[ST_I_INF_UNSTOPPABLE_JOBS]               = mkf_u32(0, unstoppable_jobs);
+	info[ST_I_INF_LISTENERS]                      = mkf_u32(0, listeners);
+	info[ST_I_INF_ACTIVE_PEERS]                   = mkf_u32(0, active_peers);
+	info[ST_I_INF_CONNECTED_PEERS]                = mkf_u32(0, connected_peers);
+	info[ST_I_INF_DROPPED_LOGS]                   = mkf_u32(0, dropped_logs);
+	info[ST_I_INF_BUSY_POLLING]                   = mkf_u32(0, !!(global.tune.options & GTUNE_BUSY_POLLING));
+	info[ST_I_INF_FAILED_RESOLUTIONS]             = mkf_u32(0, resolv_failed_resolutions);
+	info[ST_I_INF_TOTAL_BYTES_OUT]                = mkf_u64(0, glob_out_bytes);
+	info[ST_I_INF_TOTAL_SPLICED_BYTES_OUT]        = mkf_u64(0, glob_spl_bytes);
+	info[ST_I_INF_BYTES_OUT_RATE]                 = mkf_u64(FN_RATE, glob_out_b32);
+	info[ST_I_INF_DEBUG_COMMANDS_ISSUED]          = mkf_u32(0, debug_commands_issued);
+	info[ST_I_INF_CUM_LOG_MSGS]                   = mkf_u32(FN_COUNTER, cum_log_messages);
 
-	info[INF_TAINTED]                        = mkf_str(FO_STATUS, chunk_newstr(out));
+	info[ST_I_INF_TAINTED]                        = mkf_str(FO_STATUS, chunk_newstr(out));
 	chunk_appendf(out, "%#x", get_tainted());
-	info[INF_WARNINGS]                       = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&tot_warnings));
-	info[INF_MAXCONN_REACHED]                = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&maxconn_reached));
-	info[INF_BOOTTIME_MS]                    = mkf_u32(FN_DURATION, boot);
-	info[INF_NICED_TASKS]                    = mkf_u32(0, total_niced_running_tasks());
+	info[ST_I_INF_WARNINGS]                       = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&tot_warnings));
+	info[ST_I_INF_MAXCONN_REACHED]                = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&maxconn_reached));
+	info[ST_I_INF_BOOTTIME_MS]                    = mkf_u32(FN_DURATION, boot);
+	info[ST_I_INF_NICED_TASKS]                    = mkf_u32(0, total_niced_running_tasks());
 
 	return 1;
 }
@@ -2475,7 +2475,7 @@ static int stats_dump_info_to_buffer(struct stconn *sc)
 	int ret;
 	int current_field;
 
-	if (!stats_fill_info(info, INF_TOTAL_FIELDS, ctx->flags))
+	if (!stats_fill_info(stat_line_info, ST_I_INF_MAX, ctx->flags))
 		return 0;
 
 	chunk_reset(chk);
@@ -2483,11 +2483,11 @@ more:
 	current_field = ctx->field;
 
 	if (ctx->flags & STAT_FMT_TYPED)
-		ret = stats_dump_typed_info_fields(chk, info, ctx);
+		ret = stats_dump_typed_info_fields(chk, stat_line_info, ctx);
 	else if (ctx->flags & STAT_FMT_JSON)
-		ret = stats_dump_json_info_fields(chk, info, ctx);
+		ret = stats_dump_json_info_fields(chk, stat_line_info, ctx);
 	else
-		ret = stats_dump_info_fields(chk, info, ctx);
+		ret = stats_dump_info_fields(chk, stat_line_info, ctx);
 
 	if (applet_putchk(appctx, chk) == -1) {
 		/* restore previous field */

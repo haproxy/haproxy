@@ -39,11 +39,11 @@ struct stconn;
  * the the number of entries in "enum stat_field" and "enum info_field"
  */
 extern const struct name_desc metrics_px[];
-extern const struct name_desc info_fields[];
+extern const struct name_desc metrics_info[];
 extern const char *stat_status_codes[];
 extern struct applet http_stats_applet;
 extern struct list stats_module_list[];
-extern THREAD_LOCAL struct field info[];
+extern THREAD_LOCAL struct field stat_line_info[];
 extern THREAD_LOCAL struct field *stat_lines[];
 extern struct name_desc *metrics[STATS_DOMAIN_COUNT];
 
