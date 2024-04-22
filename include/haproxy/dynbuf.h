@@ -117,8 +117,19 @@ void __offer_buffers(void *from, unsigned int count);
 
 static inline void offer_buffers(void *from, unsigned int count)
 {
-	if (!LIST_ISEMPTY(&th_ctx->buffer_wq))
+	int q;
+
+	if (likely(!th_ctx->bufq_map))
+		return;
+
+	for (q = 0; q < DYNBUF_NBQ; q++) {
+		if (!(th_ctx->bufq_map & (1 << q)))
+			continue;
+
+		BUG_ON_HOT(LIST_ISEMPTY(&th_ctx->buffer_wq[q]));
 		__offer_buffers(from, count);
+		break;
+	}
 }
 
 /* Queues a buffer request for the current thread via <bw>, and returns
@@ -130,6 +141,8 @@ static inline void offer_buffers(void *from, unsigned int count)
  */
 static inline int b_requeue(enum dynbuf_crit crit, struct buffer_wait *bw)
 {
+	int q = DB_CRIT_TO_QUEUE(crit);
+
 	if (LIST_INLIST(&bw->list))
 		return 1;
 
@@ -137,7 +150,8 @@ static inline int b_requeue(enum dynbuf_crit crit, struct buffer_wait *bw)
 	if (crit < DB_MUX_RX)
 		return 0;
 
-	LIST_APPEND(&th_ctx->buffer_wq, &bw->list);
+	th_ctx->bufq_map |= 1 << q;
+	LIST_APPEND(&th_ctx->buffer_wq[q], &bw->list);
 	return 1;
 }
 

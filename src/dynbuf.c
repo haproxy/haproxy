@@ -30,13 +30,24 @@ int init_buffer()
 	void *buffer;
 	int thr;
 	int done;
+	int i;
 
 	pool_head_buffer = create_pool("buffer", global.tune.bufsize, MEM_F_SHARED|MEM_F_EXACT);
 	if (!pool_head_buffer)
 		return 0;
 
-	for (thr = 0; thr < MAX_THREADS; thr++)
-		LIST_INIT(&ha_thread_ctx[thr].buffer_wq);
+	/* make sure any change to the queues assignment isn't overlooked */
+	BUG_ON(DB_PERMANENT - DB_UNLIKELY - 1 != DYNBUF_NBQ);
+	BUG_ON(DB_MUX_RX_Q  < DB_SE_RX_Q   || DB_MUX_RX_Q  >= DYNBUF_NBQ);
+	BUG_ON(DB_SE_RX_Q   < DB_CHANNEL_Q || DB_SE_RX_Q   >= DYNBUF_NBQ);
+	BUG_ON(DB_CHANNEL_Q < DB_MUX_TX_Q  || DB_CHANNEL_Q >= DYNBUF_NBQ);
+	BUG_ON(DB_MUX_TX_Q >= DYNBUF_NBQ);
+
+	for (thr = 0; thr < MAX_THREADS; thr++) {
+		for (i = 0; i < DYNBUF_NBQ; i++)
+			LIST_INIT(&ha_thread_ctx[thr].buffer_wq[i]);
+		ha_thread_ctx[thr].bufq_map = 0;
+	}
 
 
 	/* The reserved buffer is what we leave behind us. Thus we always need
@@ -104,6 +115,7 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 void __offer_buffers(void *from, unsigned int count)
 {
 	struct buffer_wait *wait, *wait_back;
+	int q;
 
 	/* For now, we consider that all objects need 1 buffer, so we can stop
 	 * waking up them once we have enough of them to eat all the available
@@ -111,15 +123,23 @@ void __offer_buffers(void *from, unsigned int count)
 	 * other tasks, but that's a rough estimate. Similarly, for each cached
 	 * event we'll need 1 buffer.
 	 */
-	list_for_each_entry_safe(wait, wait_back, &th_ctx->buffer_wq, list) {
-		if (!count)
-			break;
-
-		if (wait->target == from || !wait->wakeup_cb(wait->target))
+	for (q = 0; q < DYNBUF_NBQ; q++) {
+		if (!(th_ctx->bufq_map & (1 << q)))
 			continue;
+		BUG_ON_HOT(LIST_ISEMPTY(&th_ctx->buffer_wq[q]));
 
-		LIST_DEL_INIT(&wait->list);
-		count--;
+		list_for_each_entry_safe(wait, wait_back, &th_ctx->buffer_wq[q], list) {
+			if (!count)
+				break;
+
+			if (wait->target == from || !wait->wakeup_cb(wait->target))
+				continue;
+
+			LIST_DEL_INIT(&wait->list);
+			count--;
+		}
+		if (LIST_ISEMPTY(&th_ctx->buffer_wq[q]))
+			th_ctx->bufq_map &= ~(1 << q);
 	}
 }
 

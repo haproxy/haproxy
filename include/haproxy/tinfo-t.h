@@ -65,6 +65,8 @@ enum {
 #define TH_FL_STARTED           0x00000010  /* set once the thread starts */
 #define TH_FL_IN_LOOP           0x00000020  /* set only inside the polling loop */
 
+/* we have 4 buffer-wait queues, in highest to lowest emergency order */
+#define DYNBUF_NBQ              4
 
 /* Thread group information. This defines a base and a count of global thread
  * IDs which belong to it, and which can be looked up into thread_info/ctx. It
@@ -133,14 +135,15 @@ struct thread_ctx {
 	int current_queue;                  /* points to current tasklet list being run, -1 if none */
 	unsigned int nb_tasks;              /* number of tasks allocated on this thread */
 	uint8_t tl_class_mask;              /* bit mask of non-empty tasklets classes */
+	uint8_t bufq_map;                   /* one bit per non-empty buffer_wq */
 
-	// 7 bytes hole here
+	// 6 bytes hole here
 	struct list pool_lru_head;          /* oldest objects in thread-local pool caches */
-	struct list buffer_wq;              /* buffer waiters */
 	struct list streams;                /* list of streams attached to this thread */
 	struct list quic_conns;             /* list of active quic-conns attached to this thread */
 	struct list quic_conns_clo;         /* list of closing quic-conns attached to this thread */
 	struct list queued_checks;          /* checks waiting for a connection slot */
+	struct list buffer_wq[DYNBUF_NBQ];  /* buffer waiters, 4 criticality-based queues */
 	unsigned int nb_rhttp_conns;        /* count of current conns used for active reverse HTTP */
 
 	ALWAYS_ALIGN(2*sizeof(void*));

@@ -48,6 +48,9 @@
  *     snd_buf() handler to encode the outgoing channel's data.
  *   - buffer permanently allocated at boot (e.g. temporary compression
  *     buffers). If these fail, we can't boot.
+ *
+ * Please DO NOT CHANGE THESE LEVELS without first getting a full understanding
+ * of how all this works and touching the DB_CRIT_TO_QUEUE() macro below!
  */
 enum dynbuf_crit {
 	DB_GROW_RING = 0, // used to grow an existing buffer ring
@@ -60,6 +63,29 @@ enum dynbuf_crit {
 	/* The one below may never fail */
 	DB_PERMANENT,     // buffers permanently allocated.
 };
+
+/* We'll deal with 4 queues, with indexes numbered from 0 to 3 based on the
+ * criticality of the allocation. All criticality levels are mapped to a 2-bit
+ * queue index. While some levels never use the queue (the first two), some of
+ * the others will share a same queue, and all levels will define a ratio of
+ * allocated emergency buffers below which we refrain from trying to allocate.
+ * In practice, for now the thresholds will just be the queue number times 33%
+ * so that queue 0 is allowed to deplete emergency buffers and queue 3 not at
+ * all. This gives us: queue idx=3 for DB_MUX_RX and below, 2 for DB_SE_RX,
+ * 1 for DB_CHANNEL, 0 for DB_MUX_TX and above. This must match the DYNBUF_NBQ
+ * in tinfo-t.h.
+ */
+
+#define DB_CRIT_TO_QUEUE(crit) ((0x000001BF >> ((crit) * 2)) & 3)
+
+#define DB_GROW_RING_Q      DB_CRIT_TO_QUEUE(DB_GROW_RING)
+#define DB_UNLIKELY_Q       DB_CRIT_TO_QUEUE(DB_UNLIKELY)
+#define DB_MUX_RX_Q         DB_CRIT_TO_QUEUE(DB_MUX_RX)
+#define DB_SE_RX_Q          DB_CRIT_TO_QUEUE(DB_SE_RX)
+#define DB_CHANNEL_Q        DB_CRIT_TO_QUEUE(DB_CHANNEL)
+#define DB_MUX_TX_Q         DB_CRIT_TO_QUEUE(DB_MUX_TX)
+#define DB_PERMANENT_Q      DB_CRIT_TO_QUEUE(DB_PERMANENT)
+
 
 /* an element of the <buffer_wq> list. It represents an object that need to
  * acquire a buffer to continue its process. */
