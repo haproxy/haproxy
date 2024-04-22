@@ -39,7 +39,7 @@
 #define STAT_SHNODE     0x00000200      /* conf: show node name */
 #define STAT_SHDESC     0x00000400      /* conf: show description */
 #define STAT_SHLGNDS    0x00000800      /* conf: show legends */
-#define STAT_SHOW_FDESC 0x00001000      /* show the field descriptions when possible */
+#define STAT_SHOW_FDESC 0x00001000      /* show the column descriptions when possible */
 #define STAT_SHMODULES  0x00002000      /* conf: show modules */
 #define STAT_HIDE_MAINT 0x00004000	/* hide maint/disabled servers */
 #define STAT_CONVDONE   0x00008000	/* conf: rules conversion done */
@@ -250,12 +250,12 @@ enum field_scope {
 	FS_MASK     = 0xFF000000,
 };
 
-/* Show info fields for CLI output. For any field added here, please add the
+/* Show info columns for CLI output. For any column added here, please add the
  * text representation in the metrics_info array. Please only append at the end,
  * before the ST_I_INF_MAX entry, and never insert anything in the middle
  * nor at the beginning.
  */
-enum info_field {
+enum stat_idx_info {
 	ST_I_INF_NAME,
 	ST_I_INF_VERSION,
 	ST_I_INF_RELEASE_DATE,
@@ -338,14 +338,14 @@ enum info_field {
 };
 
 
-/* Stats fields for CSV output. For any field added here, please add the text
+/* Stats columns for CSV output. For any column added here, please add the text
  * representation in the metrics_px array. Please only append at the end,
  * before the ST_I_PX_MAX entry, and never insert anything in the middle
  * nor at the beginning.When adding an entry here, one must always add a
  * corresponding one in metrics_px[] otherwise Lua's get_stats() will break,
  * and "show stats" will show a null.
  */
-enum stat_field {
+enum stat_idx_px {
 	ST_I_PX_PXNAME,
 	ST_I_PX_SVNAME,
 	ST_I_PX_QCUR,
@@ -464,10 +464,6 @@ enum stat_field {
 	ST_I_PX_MAX
 };
 
-/* Please consider updating stats_dump_fields_*(),
- * stats_dump_.*_info_fields() and stats_*_schema()
- * when modifying struct field or related enums.
- */
 struct field {
 	uint32_t type;
 	union {

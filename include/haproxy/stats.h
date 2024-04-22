@@ -35,8 +35,8 @@ struct appctx;
 struct htx;
 struct stconn;
 
-/* These two structs contains all field names and descriptions according to
- * the the number of entries in "enum stat_field" and "enum info_field"
+/* These two structs contains all column names and descriptions according to
+ * the the number of entries in "enum stat_idx_px" and "enum stat_idx_info"
  */
 extern const struct name_desc metrics_px[];
 extern const struct name_desc metrics_info[];
@@ -52,17 +52,17 @@ int stats_putchk(struct appctx *appctx, struct buffer *buf, struct htx *htx);
 
 const char *stats_scope_ptr(struct appctx *appctx);
 
-int stats_dump_one_line(const struct field *stats, size_t stats_count, struct appctx *appctx);
+int stats_dump_one_line(const struct field *line, size_t stats_count, struct appctx *appctx);
 
 int stats_fill_info(struct field *info, int len, uint flags);
-int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
-			enum stat_field *selected_field);
-int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
-                        struct field *stats, int len, enum stat_field *selected_field);
-int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
-                        struct field *stats, int len, enum stat_field *selected_field);
-int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int len,
-			enum stat_field *selected_field);
+int stats_fill_fe_line(struct proxy *px, struct field *line, int len,
+                       enum stat_idx_px *index);
+int stats_fill_li_line(struct proxy *px, struct listener *l, int flags,
+                       struct field *line, int len, enum stat_idx_px *index);
+int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
+                       struct field *line, int len, enum stat_idx_px *index);
+int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
+                       enum stat_idx_px *index);
 
 int stats_dump_stat_to_buffer(struct stconn *sc, struct buffer *buf, struct htx *htx);
 

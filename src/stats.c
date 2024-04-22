@@ -81,7 +81,7 @@ const char *stat_status_codes[STAT_STATUS_SIZE] = {
 	[STAT_STATUS_IVAL] = "IVAL",
 };
 
-/* These are the field names for each ST_I_INF_* field position. Please pay attention
+/* These are the names for each ST_I_INF_* field position. Please pay attention
  * to always use the exact same name except that the strings for new names must
  * be lower case or CamelCase while the enum entries must be upper case.
  */
@@ -381,10 +381,10 @@ const char *stats_scope_ptr(struct appctx *appctx)
  *        -> stats_dump_html_info()       // emits the equivalent of "show info" at the top
  *        -> stats_dump_proxy_to_buffer() // same as above, valid for CSV and HTML
  *           -> stats_dump_html_px_hdr()
- *           -> stats_dump_fe_stats()
- *           -> stats_dump_li_stats()
- *           -> stats_dump_sv_stats()
- *           -> stats_dump_be_stats()
+ *           -> stats_dump_fe_line()
+ *           -> stats_dump_li_line()
+ *           -> stats_dump_sv_line()
+ *           -> stats_dump_be_line()
  *           -> stats_dump_html_px_end()
  *        -> stats_dump_html_end()       // emits HTML trailer
  *        -> stats_dump_json_end()       // emits JSON trailer
@@ -399,16 +399,16 @@ const char *stats_scope_ptr(struct appctx *appctx)
  */
 static void stats_dump_csv_header(enum stats_domain domain, struct buffer *out)
 {
-	int field;
+	int i;
 
 	chunk_appendf(out, "# ");
 	if (metrics[domain]) {
-		for (field = 0; field < metrics_len[domain]; ++field) {
-			chunk_appendf(out, "%s,", metrics[domain][field].name);
+		for (i = 0; i < metrics_len[domain]; ++i) {
+			chunk_appendf(out, "%s,", metrics[domain][i].name);
 
 			/* print special delimiter on proxy stats to mark end of
 			   static fields */
-			if (domain == STATS_DOMAIN_PROXY && field + 1 == ST_I_PX_MAX)
+			if (domain == STATS_DOMAIN_PROXY && i + 1 == ST_I_PX_MAX)
 				chunk_appendf(out, "-,");
 		}
 	}
@@ -503,23 +503,23 @@ int stats_emit_field_tags(struct buffer *out, const struct field *f,
 	return chunk_appendf(out, "%c%c%c%c", origin, nature, scope, delim);
 }
 
-/* Dump all fields from <stats> into <out> using CSV format */
+/* Dump all fields from <line> into <out> using CSV format */
 static int stats_dump_fields_csv(struct buffer *out,
-                                 const struct field *stats, size_t stats_count,
+                                 const struct field *line, size_t stats_count,
                                  struct show_stat_ctx *ctx)
 {
 	int domain = ctx->domain;
-	int field;
+	int i;
 
-	for (field = 0; field < stats_count; ++field) {
-		if (!stats_emit_raw_data_field(out, &stats[field]))
+	for (i = 0; i < stats_count; ++i) {
+		if (!stats_emit_raw_data_field(out, &line[i]))
 			return 0;
 		if (!chunk_strcat(out, ","))
 			return 0;
 
 		/* print special delimiter on proxy stats to mark end of
 		   static fields */
-		if (domain == STATS_DOMAIN_PROXY && field + 1 == ST_I_PX_MAX) {
+		if (domain == STATS_DOMAIN_PROXY && i + 1 == ST_I_PX_MAX) {
 			if (!chunk_strcat(out, "-,"))
 				return 0;
 		}
@@ -529,50 +529,50 @@ static int stats_dump_fields_csv(struct buffer *out,
 	return 1;
 }
 
-/* Dump all fields from <stats> into <out> using a typed "field:desc:type:value" format */
+/* Dump all fields from <line> into <out> using a typed "field:desc:type:value" format */
 static int stats_dump_fields_typed(struct buffer *out,
-                                   const struct field *stats,
+                                   const struct field *line,
                                    size_t stats_count,
                                    struct show_stat_ctx * ctx)
 {
 	int flags = ctx->flags;
 	int domain = ctx->domain;
-	int field;
+	int i;
 
-	for (field = 0; field < stats_count; ++field) {
-		if (!stats[field].type)
+	for (i = 0; i < stats_count; ++i) {
+		if (!line[i].type)
 			continue;
 
 		switch (domain) {
 		case STATS_DOMAIN_PROXY:
 			chunk_appendf(out, "%c.%u.%u.%d.%s.%u:",
-			              stats[ST_I_PX_TYPE].u.u32 == STATS_TYPE_FE ? 'F' :
-			              stats[ST_I_PX_TYPE].u.u32 == STATS_TYPE_BE ? 'B' :
-			              stats[ST_I_PX_TYPE].u.u32 == STATS_TYPE_SO ? 'L' :
-			              stats[ST_I_PX_TYPE].u.u32 == STATS_TYPE_SV ? 'S' :
+			              line[ST_I_PX_TYPE].u.u32 == STATS_TYPE_FE ? 'F' :
+			              line[ST_I_PX_TYPE].u.u32 == STATS_TYPE_BE ? 'B' :
+			              line[ST_I_PX_TYPE].u.u32 == STATS_TYPE_SO ? 'L' :
+			              line[ST_I_PX_TYPE].u.u32 == STATS_TYPE_SV ? 'S' :
 			              '?',
-			              stats[ST_I_PX_IID].u.u32, stats[ST_I_PX_SID].u.u32,
-			              field,
-			              metrics[domain][field].name,
-			              stats[ST_I_PX_PID].u.u32);
+			              line[ST_I_PX_IID].u.u32, line[ST_I_PX_SID].u.u32,
+			              i,
+			              metrics[domain][i].name,
+			              line[ST_I_PX_PID].u.u32);
 			break;
 
 		case STATS_DOMAIN_RESOLVERS:
-			chunk_appendf(out, "N.%d.%s:", field,
-			              metrics[domain][field].name);
+			chunk_appendf(out, "N.%d.%s:", i,
+			              metrics[domain][i].name);
 			break;
 
 		default:
 			break;
 		}
 
-		if (!stats_emit_field_tags(out, &stats[field], ':'))
+		if (!stats_emit_field_tags(out, &line[i], ':'))
 			return 0;
-		if (!stats_emit_typed_data_field(out, &stats[field]))
+		if (!stats_emit_typed_data_field(out, &line[i]))
 			return 0;
 
 		if (flags & STAT_SHOW_FDESC &&
-		    !chunk_appendf(out, ":\"%s\"", metrics[domain][field].desc)) {
+		    !chunk_appendf(out, ":\"%s\"", metrics[domain][i].desc)) {
 			return 0;
 		}
 
@@ -583,7 +583,7 @@ static int stats_dump_fields_typed(struct buffer *out,
 }
 
 
-int stats_dump_one_line(const struct field *stats, size_t stats_count,
+int stats_dump_one_line(const struct field *line, size_t stats_count,
                         struct appctx *appctx)
 {
 	struct show_stat_ctx *ctx = appctx->svcctx;
@@ -591,76 +591,76 @@ int stats_dump_one_line(const struct field *stats, size_t stats_count,
 	int ret;
 
 	if (ctx->flags & STAT_FMT_HTML)
-		ret = stats_dump_fields_html(chk, stats, ctx);
+		ret = stats_dump_fields_html(chk, line, ctx);
 	else if (ctx->flags & STAT_FMT_TYPED)
-		ret = stats_dump_fields_typed(chk, stats, stats_count, ctx);
+		ret = stats_dump_fields_typed(chk, line, stats_count, ctx);
 	else if (ctx->flags & STAT_FMT_JSON)
-		ret = stats_dump_fields_json(chk, stats, stats_count, ctx);
+		ret = stats_dump_fields_json(chk, line, stats_count, ctx);
 	else
-		ret = stats_dump_fields_csv(chk, stats, stats_count, ctx);
+		ret = stats_dump_fields_csv(chk, line, stats_count, ctx);
 
 	return ret;
 }
 
-/* Fill <stats> with the frontend statistics. <stats> is preallocated array of
- * length <len>. If <selected_field> is != NULL, only fill this one. The length
+/* Fill <line> with the frontend statistics. <line> is preallocated array of
+ * length <len>. If <index> is != NULL, only fill this one. The length
  * of the array must be at least ST_I_PX_MAX. If this length is less than
  * this value, or if the selected field is not implemented for frontends, the
  * function returns 0, otherwise, it returns 1.
  */
-int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
-			enum stat_field *selected_field)
+int stats_fill_fe_line(struct proxy *px, struct field *line, int len,
+                       enum stat_idx_px *index)
 {
-	enum stat_field current_field = (selected_field != NULL ? *selected_field : 0);
+	enum stat_idx_px i = index ? *index : 0;
 
 	if (len < ST_I_PX_MAX)
 		return 0;
 
-	for (; current_field < ST_I_PX_MAX; current_field++) {
-		struct field metric = { 0 };
+	for (; i < ST_I_PX_MAX; i++) {
+		struct field field = { 0 };
 
-		switch (current_field) {
+		switch (i) {
 			case ST_I_PX_PXNAME:
-				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
+				field = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 				break;
 			case ST_I_PX_SVNAME:
-				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "FRONTEND");
+				field = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "FRONTEND");
 				break;
 			case ST_I_PX_MODE:
-				metric = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
+				field = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 				break;
 			case ST_I_PX_SCUR:
-				metric = mkf_u32(0, px->feconn);
+				field = mkf_u32(0, px->feconn);
 				break;
 			case ST_I_PX_SMAX:
-				metric = mkf_u32(FN_MAX, px->fe_counters.conn_max);
+				field = mkf_u32(FN_MAX, px->fe_counters.conn_max);
 				break;
 			case ST_I_PX_SLIM:
-				metric = mkf_u32(FO_CONFIG|FN_LIMIT, px->maxconn);
+				field = mkf_u32(FO_CONFIG|FN_LIMIT, px->maxconn);
 				break;
 			case ST_I_PX_STOT:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess);
 				break;
 			case ST_I_PX_BIN:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.bytes_in);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.bytes_in);
 				break;
 			case ST_I_PX_BOUT:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.bytes_out);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.bytes_out);
 				break;
 			case ST_I_PX_DREQ:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.denied_req);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.denied_req);
 				break;
 			case ST_I_PX_DRESP:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.denied_resp);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.denied_resp);
 				break;
 			case ST_I_PX_EREQ:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.failed_req);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.failed_req);
 				break;
 			case ST_I_PX_DCON:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.denied_conn);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.denied_conn);
 				break;
 			case ST_I_PX_DSES:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.denied_sess);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.denied_sess);
 				break;
 			case ST_I_PX_STATUS: {
 				const char *state;
@@ -671,77 +671,77 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 					state = "PAUSED";
 				else
 					state = "OPEN";
-				metric = mkf_str(FO_STATUS, state);
+				field = mkf_str(FO_STATUS, state);
 				break;
 			}
 			case ST_I_PX_PID:
-				metric = mkf_u32(FO_KEY, 1);
+				field = mkf_u32(FO_KEY, 1);
 				break;
 			case ST_I_PX_IID:
-				metric = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
+				field = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
 				break;
 			case ST_I_PX_SID:
-				metric = mkf_u32(FO_KEY|FS_SERVICE, 0);
+				field = mkf_u32(FO_KEY|FS_SERVICE, 0);
 				break;
 			case ST_I_PX_TYPE:
-				metric = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_FE);
+				field = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_FE);
 				break;
 			case ST_I_PX_RATE:
-				metric = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_sess_per_sec));
+				field = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_sess_per_sec));
 				break;
 			case ST_I_PX_RATE_LIM:
-				metric = mkf_u32(FO_CONFIG|FN_LIMIT, px->fe_sps_lim);
+				field = mkf_u32(FO_CONFIG|FN_LIMIT, px->fe_sps_lim);
 				break;
 			case ST_I_PX_RATE_MAX:
-				metric = mkf_u32(FN_MAX, px->fe_counters.sps_max);
+				field = mkf_u32(FN_MAX, px->fe_counters.sps_max);
 				break;
 			case ST_I_PX_WREW:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.failed_rewrites);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.failed_rewrites);
 				break;
 			case ST_I_PX_EINT:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.internal_errors);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.internal_errors);
 				break;
 			case ST_I_PX_HRSP_1XX:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[1]);
+					field = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[1]);
 				break;
 			case ST_I_PX_HRSP_2XX:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[2]);
+					field = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[2]);
 				break;
 			case ST_I_PX_HRSP_3XX:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[3]);
+					field = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[3]);
 				break;
 			case ST_I_PX_HRSP_4XX:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[4]);
+					field = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[4]);
 				break;
 			case ST_I_PX_HRSP_5XX:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[5]);
+					field = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[5]);
 				break;
 			case ST_I_PX_HRSP_OTHER:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[0]);
+					field = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[0]);
 				break;
 			case ST_I_PX_INTERCEPTED:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.intercepted_req);
+					field = mkf_u64(FN_COUNTER, px->fe_counters.intercepted_req);
 				break;
 			case ST_I_PX_CACHE_LOOKUPS:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cache_lookups);
+					field = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cache_lookups);
 				break;
 			case ST_I_PX_CACHE_HITS:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cache_hits);
+					field = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cache_hits);
 				break;
 			case ST_I_PX_REQ_RATE:
-				metric = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_req_per_sec));
+				field = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_req_per_sec));
 				break;
 			case ST_I_PX_REQ_RATE_MAX:
-				metric = mkf_u32(FN_MAX, px->fe_counters.p.http.rps_max);
+				field = mkf_u32(FN_MAX, px->fe_counters.p.http.rps_max);
 				break;
 			case ST_I_PX_REQ_TOT: {
 				int i;
@@ -752,29 +752,29 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 				total_req = 0;
 				for (i = 0; i < nb_reqs; i++)
 					total_req += px->fe_counters.p.http.cum_req[i];
-				metric = mkf_u64(FN_COUNTER, total_req);
+				field = mkf_u64(FN_COUNTER, total_req);
 				break;
 			}
 			case ST_I_PX_COMP_IN:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.comp_in[COMP_DIR_RES]);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.comp_in[COMP_DIR_RES]);
 				break;
 			case ST_I_PX_COMP_OUT:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.comp_out[COMP_DIR_RES]);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.comp_out[COMP_DIR_RES]);
 				break;
 			case ST_I_PX_COMP_BYP:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.comp_byp[COMP_DIR_RES]);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.comp_byp[COMP_DIR_RES]);
 				break;
 			case ST_I_PX_COMP_RSP:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.comp_rsp);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.p.http.comp_rsp);
 				break;
 			case ST_I_PX_CONN_RATE:
-				metric = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_conn_per_sec));
+				field = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_conn_per_sec));
 				break;
 			case ST_I_PX_CONN_RATE_MAX:
-				metric = mkf_u32(FN_MAX, px->fe_counters.cps_max);
+				field = mkf_u32(FN_MAX, px->fe_counters.cps_max);
 				break;
 			case ST_I_PX_CONN_TOT:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_conn);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.cum_conn);
 				break;
 			case ST_I_PX_SESS_OTHER: {
 				int i;
@@ -786,40 +786,40 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 				for (i = 0; i < nb_sess; i++)
 					total_sess -= px->fe_counters.cum_sess_ver[i];
 				total_sess = (int64_t)total_sess < 0 ? 0 : total_sess;
-				metric = mkf_u64(FN_COUNTER, total_sess);
+				field = mkf_u64(FN_COUNTER, total_sess);
 				break;
 			}
 			case ST_I_PX_H1SESS:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess_ver[0]);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess_ver[0]);
 				break;
 			case ST_I_PX_H2SESS:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess_ver[1]);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess_ver[1]);
 				break;
 			case ST_I_PX_H3SESS:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess_ver[2]);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess_ver[2]);
 				break;
 			case ST_I_PX_REQ_OTHER:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req[0]);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req[0]);
 				break;
 			case ST_I_PX_H1REQ:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req[1]);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req[1]);
 				break;
 			case ST_I_PX_H2REQ:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req[2]);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req[2]);
 				break;
 			case ST_I_PX_H3REQ:
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req[3]);
+				field = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req[3]);
 				break;
 			default:
-				/* not used for frontends. If a specific metric
+				/* not used for frontends. If a specific field
 				 * is requested, return an error. Otherwise continue.
 				 */
-				if (selected_field != NULL)
+				if (index)
 					return 0;
 				continue;
 		}
-		stats[current_field] = metric;
-		if (selected_field != NULL)
+		line[i] = field;
+		if (index)
 			break;
 	}
 	return 1;
@@ -830,11 +830,11 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
  * clearing chunk ctx buffer if needed. Returns non-zero if it emits anything,
  * zero otherwise.
  */
-static int stats_dump_fe_stats(struct stconn *sc, struct proxy *px)
+static int stats_dump_fe_line(struct stconn *sc, struct proxy *px)
 {
 	struct appctx *appctx = __sc_appctx(sc);
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	struct field *stats = stat_lines[STATS_DOMAIN_PROXY];
+	struct field *line = stat_lines[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
 	size_t stats_count = ST_I_PX_MAX;
 
@@ -844,9 +844,9 @@ static int stats_dump_fe_stats(struct stconn *sc, struct proxy *px)
 	if ((ctx->flags & STAT_BOUND) && !(ctx->type & (1 << STATS_TYPE_FE)))
 		return 0;
 
-	memset(stats, 0, sizeof(struct field) * metrics_len[STATS_DOMAIN_PROXY]);
+	memset(line, 0, sizeof(struct field) * metrics_len[STATS_DOMAIN_PROXY]);
 
-	if (!stats_fill_fe_stats(px, stats, ST_I_PX_MAX, NULL))
+	if (!stats_fill_fe_line(px, line, ST_I_PX_MAX, NULL))
 		return 0;
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
@@ -858,24 +858,24 @@ static int stats_dump_fe_stats(struct stconn *sc, struct proxy *px)
 		}
 
 		counters = EXTRA_COUNTERS_GET(px->extra_counters_fe, mod);
-		if (!mod->fill_stats(counters, stats + stats_count, NULL))
+		if (!mod->fill_stats(counters, line + stats_count, NULL))
 			continue;
 		stats_count += mod->stats_count;
 	}
 
-	return stats_dump_one_line(stats, stats_count, appctx);
+	return stats_dump_one_line(line, stats_count, appctx);
 }
 
-/* Fill <stats> with the listener statistics. <stats> is preallocated array of
+/* Fill <line> with the listener statistics. <line> is preallocated array of
  * length <len>. The length of the array must be at least ST_I_PX_MAX. If
  * this length is less then this value, the function returns 0, otherwise, it
  * returns 1.  If selected_field is != NULL, only fill this one. <flags> can
  * take the value STAT_SHLGNDS.
  */
-int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
-                        struct field *stats, int len, enum stat_field *selected_field)
+int stats_fill_li_line(struct proxy *px, struct listener *l, int flags,
+                       struct field *line, int len, enum stat_idx_px *selected_field)
 {
-	enum stat_field current_field = (selected_field != NULL ? *selected_field : 0);
+	enum stat_idx_px current_field = (selected_field != NULL ? *selected_field : 0);
 	struct buffer *out = get_trash_chunk();
 
 	if (len < ST_I_PX_MAX)
@@ -887,74 +887,74 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 	chunk_reset(out);
 
 	for (; current_field < ST_I_PX_MAX; current_field++) {
-		struct field metric = { 0 };
+		struct field field = { 0 };
 
 		switch (current_field) {
 			case ST_I_PX_PXNAME:
-				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
+				field = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 				break;
 			case ST_I_PX_SVNAME:
-				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, l->name);
+				field = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, l->name);
 				break;
 			case ST_I_PX_MODE:
-				metric = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
+				field = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 				break;
 			case ST_I_PX_SCUR:
-				metric = mkf_u32(0, l->nbconn);
+				field = mkf_u32(0, l->nbconn);
 				break;
 			case ST_I_PX_SMAX:
-				metric = mkf_u32(FN_MAX, l->counters->conn_max);
+				field = mkf_u32(FN_MAX, l->counters->conn_max);
 				break;
 			case ST_I_PX_SLIM:
-				metric = mkf_u32(FO_CONFIG|FN_LIMIT, l->bind_conf->maxconn);
+				field = mkf_u32(FO_CONFIG|FN_LIMIT, l->bind_conf->maxconn);
 				break;
 			case ST_I_PX_STOT:
-				metric = mkf_u64(FN_COUNTER, l->counters->cum_sess);
+				field = mkf_u64(FN_COUNTER, l->counters->cum_sess);
 				break;
 			case ST_I_PX_BIN:
-				metric = mkf_u64(FN_COUNTER, l->counters->bytes_in);
+				field = mkf_u64(FN_COUNTER, l->counters->bytes_in);
 				break;
 			case ST_I_PX_BOUT:
-				metric = mkf_u64(FN_COUNTER, l->counters->bytes_out);
+				field = mkf_u64(FN_COUNTER, l->counters->bytes_out);
 				break;
 			case ST_I_PX_DREQ:
-				metric = mkf_u64(FN_COUNTER, l->counters->denied_req);
+				field = mkf_u64(FN_COUNTER, l->counters->denied_req);
 				break;
 			case ST_I_PX_DRESP:
-				metric = mkf_u64(FN_COUNTER, l->counters->denied_resp);
+				field = mkf_u64(FN_COUNTER, l->counters->denied_resp);
 				break;
 			case ST_I_PX_EREQ:
-				metric = mkf_u64(FN_COUNTER, l->counters->failed_req);
+				field = mkf_u64(FN_COUNTER, l->counters->failed_req);
 				break;
 			case ST_I_PX_DCON:
-				metric = mkf_u64(FN_COUNTER, l->counters->denied_conn);
+				field = mkf_u64(FN_COUNTER, l->counters->denied_conn);
 				break;
 			case ST_I_PX_DSES:
-				metric = mkf_u64(FN_COUNTER, l->counters->denied_sess);
+				field = mkf_u64(FN_COUNTER, l->counters->denied_sess);
 				break;
 			case ST_I_PX_STATUS:
-				metric = mkf_str(FO_STATUS, li_status_st[get_li_status(l)]);
+				field = mkf_str(FO_STATUS, li_status_st[get_li_status(l)]);
 				break;
 			case ST_I_PX_PID:
-				metric = mkf_u32(FO_KEY, 1);
+				field = mkf_u32(FO_KEY, 1);
 				break;
 			case ST_I_PX_IID:
-				metric = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
+				field = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
 				break;
 			case ST_I_PX_SID:
-				metric = mkf_u32(FO_KEY|FS_SERVICE, l->luid);
+				field = mkf_u32(FO_KEY|FS_SERVICE, l->luid);
 				break;
 			case ST_I_PX_TYPE:
-				metric = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SO);
+				field = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SO);
 				break;
 			case ST_I_PX_CONN_TOT:
-				metric = mkf_u64(FN_COUNTER, l->counters->cum_conn);
+				field = mkf_u64(FN_COUNTER, l->counters->cum_conn);
 				break;
 			case ST_I_PX_WREW:
-				metric = mkf_u64(FN_COUNTER, l->counters->failed_rewrites);
+				field = mkf_u64(FN_COUNTER, l->counters->failed_rewrites);
 				break;
 			case ST_I_PX_EINT:
-				metric = mkf_u64(FN_COUNTER, l->counters->internal_errors);
+				field = mkf_u64(FN_COUNTER, l->counters->internal_errors);
 				break;
 			case ST_I_PX_ADDR:
 				if (flags & STAT_SHLGNDS) {
@@ -964,18 +964,18 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 					port = get_host_port(&l->rx.addr);
 					switch (addr_to_str(&l->rx.addr, str, sizeof(str))) {
 					case AF_INET:
-						metric = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+						field = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
 						chunk_appendf(out, "%s:%d", str, port);
 						break;
 					case AF_INET6:
-						metric = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+						field = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
 						chunk_appendf(out, "[%s]:%d", str, port);
 						break;
 					case AF_UNIX:
-						metric = mkf_str(FO_CONFIG|FS_SERVICE, "unix");
+						field = mkf_str(FO_CONFIG|FS_SERVICE, "unix");
 						break;
 					case -1:
-						metric = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+						field = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
 						chunk_strcat(out, strerror(errno));
 						break;
 					default: /* address family not supported */
@@ -984,17 +984,17 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 				}
 				break;
 			case ST_I_PX_PROTO:
-				metric = mkf_str(FO_STATUS, l->rx.proto->name);
+				field = mkf_str(FO_STATUS, l->rx.proto->name);
 				break;
 			default:
-				/* not used for listen. If a specific metric
+				/* not used for listen. If a specific field
 				 * is requested, return an error. Otherwise continue.
 				 */
 				if (selected_field != NULL)
 					return 0;
 				continue;
 		}
-		stats[current_field] = metric;
+		line[current_field] = field;
 		if (selected_field != NULL)
 			break;
 	}
@@ -1006,18 +1006,18 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
  * chunk ctx buffer if needed. Returns non-zero if it emits anything, zero
  * otherwise.
  */
-static int stats_dump_li_stats(struct stconn *sc, struct proxy *px, struct listener *l)
+static int stats_dump_li_line(struct stconn *sc, struct proxy *px, struct listener *l)
 {
 	struct appctx *appctx = __sc_appctx(sc);
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	struct field *stats = stat_lines[STATS_DOMAIN_PROXY];
+	struct field *line = stat_lines[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
 	size_t stats_count = ST_I_PX_MAX;
 
-	memset(stats, 0, sizeof(struct field) * metrics_len[STATS_DOMAIN_PROXY]);
+	memset(line, 0, sizeof(struct field) * metrics_len[STATS_DOMAIN_PROXY]);
 
-	if (!stats_fill_li_stats(px, l, ctx->flags, stats,
-				 ST_I_PX_MAX, NULL))
+	if (!stats_fill_li_line(px, l, ctx->flags, line,
+	                        ST_I_PX_MAX, NULL))
 		return 0;
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
@@ -1029,12 +1029,12 @@ static int stats_dump_li_stats(struct stconn *sc, struct proxy *px, struct liste
 		}
 
 		counters = EXTRA_COUNTERS_GET(l->extra_counters, mod);
-		if (!mod->fill_stats(counters, stats + stats_count, NULL))
+		if (!mod->fill_stats(counters, line + stats_count, NULL))
 			continue;
 		stats_count += mod->stats_count;
 	}
 
-	return stats_dump_one_line(stats, stats_count, appctx);
+	return stats_dump_one_line(line, stats_count, appctx);
 }
 
 enum srv_stats_state {
@@ -1069,8 +1069,8 @@ static const char *srv_hlt_st[SRV_STATS_STATE_COUNT] = {
 
 /* Compute server state helper
  */
-static void stats_fill_sv_stats_computestate(struct server *sv, struct server *ref,
-					     enum srv_stats_state *state)
+static void stats_fill_sv_computestate(struct server *sv, struct server *ref,
+                                       enum srv_stats_state *state)
 {
 	if (sv->cur_state == SRV_ST_RUNNING || sv->cur_state == SRV_ST_STARTING) {
 		if ((ref->check.state & CHK_ST_ENABLED) &&
@@ -1114,18 +1114,18 @@ static void stats_fill_sv_stats_computestate(struct server *sv, struct server *r
 	}
 }
 
-/* Fill <stats> with the backend statistics. <stats> is preallocated array of
+/* Fill <line> with the backend statistics. <line> is preallocated array of
  * length <len>. If <selected_field> is != NULL, only fill this one. The length
  * of the array must be at least ST_I_PX_MAX. If this length is less than
  * this value, or if the selected field is not implemented for servers, the
  * function returns 0, otherwise, it returns 1. <flags> can take the value
  * STAT_SHLGNDS.
  */
-int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
-                        struct field *stats, int len,
-			enum stat_field *selected_field)
+int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
+                       struct field *line, int len,
+                       enum stat_idx_px *index)
 {
-	enum stat_field current_field = (selected_field != NULL ? *selected_field : 0);
+	enum stat_idx_px i = index ? *index : 0;
 	struct server *via = sv->track ? sv->track : sv;
 	struct server *ref = via;
 	enum srv_stats_state state = 0;
@@ -1141,109 +1141,109 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 	chunk_reset(out);
 
 	/* compute state for later use */
-	if (selected_field == NULL || *selected_field == ST_I_PX_STATUS ||
-	    *selected_field == ST_I_PX_CHECK_RISE || *selected_field == ST_I_PX_CHECK_FALL ||
-	    *selected_field == ST_I_PX_CHECK_HEALTH || *selected_field == ST_I_PX_HANAFAIL) {
+	if (!index || *index == ST_I_PX_STATUS ||
+	    *index == ST_I_PX_CHECK_RISE || *index == ST_I_PX_CHECK_FALL ||
+	    *index == ST_I_PX_CHECK_HEALTH || *index == ST_I_PX_HANAFAIL) {
 		/* we have "via" which is the tracked server as described in the configuration,
 		 * and "ref" which is the checked server and the end of the chain.
 		 */
 		while (ref->track)
 			ref = ref->track;
-		stats_fill_sv_stats_computestate(sv, ref, &state);
+		stats_fill_sv_computestate(sv, ref, &state);
 	}
 
 	/* compue time values for later use */
-	if (selected_field == NULL || *selected_field == ST_I_PX_QTIME ||
-	    *selected_field == ST_I_PX_CTIME || *selected_field == ST_I_PX_RTIME ||
-	    *selected_field == ST_I_PX_TTIME) {
+	if (index == NULL || *index == ST_I_PX_QTIME ||
+	    *index == ST_I_PX_CTIME || *index == ST_I_PX_RTIME ||
+	    *index == ST_I_PX_TTIME) {
 		srv_samples_counter = (px->mode == PR_MODE_HTTP) ? sv->counters.p.http.cum_req : sv->counters.cum_lbconn;
 		if (srv_samples_counter < TIME_STATS_SAMPLES && srv_samples_counter > 0)
 			srv_samples_window = srv_samples_counter;
 	}
 
-	for (; current_field < ST_I_PX_MAX; current_field++) {
-		struct field metric = { 0 };
+	for (; i < ST_I_PX_MAX; i++) {
+		struct field field = { 0 };
 
-		switch (current_field) {
+		switch (i) {
 			case ST_I_PX_PXNAME:
-				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
+				field = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 				break;
 			case ST_I_PX_SVNAME:
-				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, sv->id);
+				field = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, sv->id);
 				break;
 			case ST_I_PX_MODE:
-				metric = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
+				field = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 				break;
 			case ST_I_PX_QCUR:
-				metric = mkf_u32(0, sv->queue.length);
+				field = mkf_u32(0, sv->queue.length);
 				break;
 			case ST_I_PX_QMAX:
-				metric = mkf_u32(FN_MAX, sv->counters.nbpend_max);
+				field = mkf_u32(FN_MAX, sv->counters.nbpend_max);
 				break;
 			case ST_I_PX_SCUR:
-				metric = mkf_u32(0, sv->cur_sess);
+				field = mkf_u32(0, sv->cur_sess);
 				break;
 			case ST_I_PX_SMAX:
-				metric = mkf_u32(FN_MAX, sv->counters.cur_sess_max);
+				field = mkf_u32(FN_MAX, sv->counters.cur_sess_max);
 				break;
 			case ST_I_PX_SLIM:
 				if (sv->maxconn)
-					metric = mkf_u32(FO_CONFIG|FN_LIMIT, sv->maxconn);
+					field = mkf_u32(FO_CONFIG|FN_LIMIT, sv->maxconn);
 				break;
 			case ST_I_PX_SRV_ICUR:
-				metric = mkf_u32(0, sv->curr_idle_conns);
+				field = mkf_u32(0, sv->curr_idle_conns);
 				break;
 			case ST_I_PX_SRV_ILIM:
 				if (sv->max_idle_conns != -1)
-					metric = mkf_u32(FO_CONFIG|FN_LIMIT, sv->max_idle_conns);
+					field = mkf_u32(FO_CONFIG|FN_LIMIT, sv->max_idle_conns);
 				break;
 			case ST_I_PX_STOT:
-				metric = mkf_u64(FN_COUNTER, sv->counters.cum_sess);
+				field = mkf_u64(FN_COUNTER, sv->counters.cum_sess);
 				break;
 			case ST_I_PX_BIN:
-				metric = mkf_u64(FN_COUNTER, sv->counters.bytes_in);
+				field = mkf_u64(FN_COUNTER, sv->counters.bytes_in);
 				break;
 			case ST_I_PX_BOUT:
-				metric = mkf_u64(FN_COUNTER, sv->counters.bytes_out);
+				field = mkf_u64(FN_COUNTER, sv->counters.bytes_out);
 				break;
 			case ST_I_PX_DRESP:
-				metric = mkf_u64(FN_COUNTER, sv->counters.denied_resp);
+				field = mkf_u64(FN_COUNTER, sv->counters.denied_resp);
 				break;
 			case ST_I_PX_ECON:
-				metric = mkf_u64(FN_COUNTER, sv->counters.failed_conns);
+				field = mkf_u64(FN_COUNTER, sv->counters.failed_conns);
 				break;
 			case ST_I_PX_ERESP:
-				metric = mkf_u64(FN_COUNTER, sv->counters.failed_resp);
+				field = mkf_u64(FN_COUNTER, sv->counters.failed_resp);
 				break;
 			case ST_I_PX_WRETR:
-				metric = mkf_u64(FN_COUNTER, sv->counters.retries);
+				field = mkf_u64(FN_COUNTER, sv->counters.retries);
 				break;
 			case ST_I_PX_WREDIS:
-				metric = mkf_u64(FN_COUNTER, sv->counters.redispatches);
+				field = mkf_u64(FN_COUNTER, sv->counters.redispatches);
 				break;
 			case ST_I_PX_WREW:
-				metric = mkf_u64(FN_COUNTER, sv->counters.failed_rewrites);
+				field = mkf_u64(FN_COUNTER, sv->counters.failed_rewrites);
 				break;
 			case ST_I_PX_EINT:
-				metric = mkf_u64(FN_COUNTER, sv->counters.internal_errors);
+				field = mkf_u64(FN_COUNTER, sv->counters.internal_errors);
 				break;
 			case ST_I_PX_CONNECT:
-				metric = mkf_u64(FN_COUNTER, sv->counters.connect);
+				field = mkf_u64(FN_COUNTER, sv->counters.connect);
 				break;
 			case ST_I_PX_REUSE:
-				metric = mkf_u64(FN_COUNTER, sv->counters.reuse);
+				field = mkf_u64(FN_COUNTER, sv->counters.reuse);
 				break;
 			case ST_I_PX_IDLE_CONN_CUR:
-				metric = mkf_u32(0, sv->curr_idle_nb);
+				field = mkf_u32(0, sv->curr_idle_nb);
 				break;
 			case ST_I_PX_SAFE_CONN_CUR:
-				metric = mkf_u32(0, sv->curr_safe_nb);
+				field = mkf_u32(0, sv->curr_safe_nb);
 				break;
 			case ST_I_PX_USED_CONN_CUR:
-				metric = mkf_u32(0, sv->curr_used_conns);
+				field = mkf_u32(0, sv->curr_used_conns);
 				break;
 			case ST_I_PX_NEED_CONN_EST:
-				metric = mkf_u32(0, sv->est_need_conns);
+				field = mkf_u32(0, sv->est_need_conns);
 				break;
 			case ST_I_PX_STATUS:
 				fld_status = chunk_newstr(out);
@@ -1259,73 +1259,73 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 						      (ref->cur_state != SRV_ST_STOPPED) ? (ref->check.health - ref->check.rise + 1) : (ref->check.health),
 						      (ref->cur_state != SRV_ST_STOPPED) ? (ref->check.fall) : (ref->check.rise));
 
-				metric = mkf_str(FO_STATUS, fld_status);
+				field = mkf_str(FO_STATUS, fld_status);
 				break;
 			case ST_I_PX_LASTCHG:
-				metric = mkf_u32(FN_AGE, ns_to_sec(now_ns) - sv->last_change);
+				field = mkf_u32(FN_AGE, ns_to_sec(now_ns) - sv->last_change);
 				break;
 			case ST_I_PX_WEIGHT:
-				metric = mkf_u32(FN_AVG, (sv->cur_eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
+				field = mkf_u32(FN_AVG, (sv->cur_eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
 				break;
 			case ST_I_PX_UWEIGHT:
-				metric = mkf_u32(FN_AVG, sv->uweight);
+				field = mkf_u32(FN_AVG, sv->uweight);
 				break;
 			case ST_I_PX_ACT:
-				metric = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 0 : 1);
+				field = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 0 : 1);
 				break;
 			case ST_I_PX_BCK:
-				metric = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 1 : 0);
+				field = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 1 : 0);
 				break;
 			case ST_I_PX_CHKFAIL:
 				if (sv->check.state & CHK_ST_ENABLED)
-					metric = mkf_u64(FN_COUNTER, sv->counters.failed_checks);
+					field = mkf_u64(FN_COUNTER, sv->counters.failed_checks);
 				break;
 			case ST_I_PX_CHKDOWN:
 				if (sv->check.state & CHK_ST_ENABLED)
-					metric = mkf_u64(FN_COUNTER, sv->counters.down_trans);
+					field = mkf_u64(FN_COUNTER, sv->counters.down_trans);
 				break;
 			case ST_I_PX_DOWNTIME:
 				if (sv->check.state & CHK_ST_ENABLED)
-					metric = mkf_u32(FN_COUNTER, srv_downtime(sv));
+					field = mkf_u32(FN_COUNTER, srv_downtime(sv));
 				break;
 			case ST_I_PX_QLIMIT:
 				if (sv->maxqueue)
-					metric = mkf_u32(FO_CONFIG|FS_SERVICE, sv->maxqueue);
+					field = mkf_u32(FO_CONFIG|FS_SERVICE, sv->maxqueue);
 				break;
 			case ST_I_PX_PID:
-				metric = mkf_u32(FO_KEY, 1);
+				field = mkf_u32(FO_KEY, 1);
 				break;
 			case ST_I_PX_IID:
-				metric = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
+				field = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
 				break;
 			case ST_I_PX_SID:
-				metric = mkf_u32(FO_KEY|FS_SERVICE, sv->puid);
+				field = mkf_u32(FO_KEY|FS_SERVICE, sv->puid);
 				break;
 			case ST_I_PX_SRID:
-				metric = mkf_u32(FN_COUNTER, sv->rid);
+				field = mkf_u32(FN_COUNTER, sv->rid);
 				break;
 			case ST_I_PX_THROTTLE:
 				if (sv->cur_state == SRV_ST_STARTING && !server_is_draining(sv))
-					metric = mkf_u32(FN_AVG, server_throttle_rate(sv));
+					field = mkf_u32(FN_AVG, server_throttle_rate(sv));
 				break;
 			case ST_I_PX_LBTOT:
-				metric = mkf_u64(FN_COUNTER, sv->counters.cum_lbconn);
+				field = mkf_u64(FN_COUNTER, sv->counters.cum_lbconn);
 				break;
 			case ST_I_PX_TRACKED:
 				if (sv->track) {
 					char *fld_track = chunk_newstr(out);
 					chunk_appendf(out, "%s/%s", sv->track->proxy->id, sv->track->id);
-					metric = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, fld_track);
+					field = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, fld_track);
 				}
 				break;
 			case ST_I_PX_TYPE:
-				metric = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SV);
+				field = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SV);
 				break;
 			case ST_I_PX_RATE:
-				metric = mkf_u32(FN_RATE, read_freq_ctr(&sv->sess_per_sec));
+				field = mkf_u32(FN_RATE, read_freq_ctr(&sv->sess_per_sec));
 				break;
 			case ST_I_PX_RATE_MAX:
-				metric = mkf_u32(FN_MAX, sv->counters.sps_max);
+				field = mkf_u32(FN_MAX, sv->counters.sps_max);
 				break;
 			case ST_I_PX_CHECK_STATUS:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
@@ -1336,38 +1336,38 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 					chunk_strcat(out, get_check_status_info(sv->check.status));
 					if (!(sv->check.state & CHK_ST_INPROGRESS))
 						fld_chksts += 2; // skip "* "
-					metric = mkf_str(FN_OUTPUT, fld_chksts);
+					field = mkf_str(FN_OUTPUT, fld_chksts);
 				}
 				break;
 			case ST_I_PX_CHECK_CODE:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED &&
 					sv->check.status >= HCHK_STATUS_L57DATA)
-					metric = mkf_u32(FN_OUTPUT, sv->check.code);
+					field = mkf_u32(FN_OUTPUT, sv->check.code);
 				break;
 			case ST_I_PX_CHECK_DURATION:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED &&
 					sv->check.status >= HCHK_STATUS_CHECKED)
-					metric = mkf_u64(FN_DURATION, MAX(sv->check.duration, 0));
+					field = mkf_u64(FN_DURATION, MAX(sv->check.duration, 0));
 				break;
 			case ST_I_PX_CHECK_DESC:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
-					metric = mkf_str(FN_OUTPUT, get_check_status_description(sv->check.status));
+					field = mkf_str(FN_OUTPUT, get_check_status_description(sv->check.status));
 				break;
 			case ST_I_PX_LAST_CHK:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
-					metric = mkf_str(FN_OUTPUT, sv->check.desc);
+					field = mkf_str(FN_OUTPUT, sv->check.desc);
 				break;
 			case ST_I_PX_CHECK_RISE:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
-					metric = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.rise);
+					field = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.rise);
 				break;
 			case ST_I_PX_CHECK_FALL:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
-					metric = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.fall);
+					field = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.fall);
 				break;
 			case ST_I_PX_CHECK_HEALTH:
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
-					metric = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.health);
+					field = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.health);
 				break;
 			case ST_I_PX_AGENT_STATUS:
 				if  ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
@@ -1378,119 +1378,119 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 					chunk_strcat(out, get_check_status_info(sv->agent.status));
 					if (!(sv->agent.state & CHK_ST_INPROGRESS))
 						fld_chksts += 2; // skip "* "
-					metric = mkf_str(FN_OUTPUT, fld_chksts);
+					field = mkf_str(FN_OUTPUT, fld_chksts);
 				}
 				break;
 			case ST_I_PX_AGENT_CODE:
 				if  ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED &&
 				     (sv->agent.status >= HCHK_STATUS_L57DATA))
-					metric = mkf_u32(FN_OUTPUT, sv->agent.code);
+					field = mkf_u32(FN_OUTPUT, sv->agent.code);
 				break;
 			case ST_I_PX_AGENT_DURATION:
 				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
-					metric = mkf_u64(FN_DURATION, sv->agent.duration);
+					field = mkf_u64(FN_DURATION, sv->agent.duration);
 				break;
 			case ST_I_PX_AGENT_DESC:
 				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
-					metric = mkf_str(FN_OUTPUT, get_check_status_description(sv->agent.status));
+					field = mkf_str(FN_OUTPUT, get_check_status_description(sv->agent.status));
 				break;
 			case ST_I_PX_LAST_AGT:
 				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
-					metric = mkf_str(FN_OUTPUT, sv->agent.desc);
+					field = mkf_str(FN_OUTPUT, sv->agent.desc);
 				break;
 			case ST_I_PX_AGENT_RISE:
 				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
-					metric = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.rise);
+					field = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.rise);
 				break;
 			case ST_I_PX_AGENT_FALL:
 				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
-					metric = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.fall);
+					field = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.fall);
 				break;
 			case ST_I_PX_AGENT_HEALTH:
 				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
-					metric = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.health);
+					field = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.health);
 				break;
 			case ST_I_PX_REQ_TOT:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.cum_req);
+					field = mkf_u64(FN_COUNTER, sv->counters.p.http.cum_req);
 				break;
 			case ST_I_PX_HRSP_1XX:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[1]);
+					field = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[1]);
 				break;
 			case ST_I_PX_HRSP_2XX:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[2]);
+					field = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[2]);
 				break;
 			case ST_I_PX_HRSP_3XX:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[3]);
+					field = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[3]);
 				break;
 			case ST_I_PX_HRSP_4XX:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[4]);
+					field = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[4]);
 				break;
 			case ST_I_PX_HRSP_5XX:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[5]);
+					field = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[5]);
 				break;
 			case ST_I_PX_HRSP_OTHER:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[0]);
+					field = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[0]);
 				break;
 			case ST_I_PX_HANAFAIL:
 				if (ref->observe)
-					metric = mkf_u64(FN_COUNTER, sv->counters.failed_hana);
+					field = mkf_u64(FN_COUNTER, sv->counters.failed_hana);
 				break;
 			case ST_I_PX_CLI_ABRT:
-				metric = mkf_u64(FN_COUNTER, sv->counters.cli_aborts);
+				field = mkf_u64(FN_COUNTER, sv->counters.cli_aborts);
 				break;
 			case ST_I_PX_SRV_ABRT:
-				metric = mkf_u64(FN_COUNTER, sv->counters.srv_aborts);
+				field = mkf_u64(FN_COUNTER, sv->counters.srv_aborts);
 				break;
 			case ST_I_PX_LASTSESS:
-				metric = mkf_s32(FN_AGE, srv_lastsession(sv));
+				field = mkf_s32(FN_AGE, srv_lastsession(sv));
 				break;
 			case ST_I_PX_QTIME:
-				metric = mkf_u32(FN_AVG, swrate_avg(sv->counters.q_time, srv_samples_window));
+				field = mkf_u32(FN_AVG, swrate_avg(sv->counters.q_time, srv_samples_window));
 				break;
 			case ST_I_PX_CTIME:
-				metric = mkf_u32(FN_AVG, swrate_avg(sv->counters.c_time, srv_samples_window));
+				field = mkf_u32(FN_AVG, swrate_avg(sv->counters.c_time, srv_samples_window));
 				break;
 			case ST_I_PX_RTIME:
-				metric = mkf_u32(FN_AVG, swrate_avg(sv->counters.d_time, srv_samples_window));
+				field = mkf_u32(FN_AVG, swrate_avg(sv->counters.d_time, srv_samples_window));
 				break;
 			case ST_I_PX_TTIME:
-				metric = mkf_u32(FN_AVG, swrate_avg(sv->counters.t_time, srv_samples_window));
+				field = mkf_u32(FN_AVG, swrate_avg(sv->counters.t_time, srv_samples_window));
 				break;
 			case ST_I_PX_QT_MAX:
-				metric = mkf_u32(FN_MAX, sv->counters.qtime_max);
+				field = mkf_u32(FN_MAX, sv->counters.qtime_max);
 				break;
 			case ST_I_PX_CT_MAX:
-				metric = mkf_u32(FN_MAX, sv->counters.ctime_max);
+				field = mkf_u32(FN_MAX, sv->counters.ctime_max);
 				break;
 			case ST_I_PX_RT_MAX:
-				metric = mkf_u32(FN_MAX, sv->counters.dtime_max);
+				field = mkf_u32(FN_MAX, sv->counters.dtime_max);
 				break;
 			case ST_I_PX_TT_MAX:
-				metric = mkf_u32(FN_MAX, sv->counters.ttime_max);
+				field = mkf_u32(FN_MAX, sv->counters.ttime_max);
 				break;
 			case ST_I_PX_ADDR:
 				if (flags & STAT_SHLGNDS) {
 					switch (addr_to_str(&sv->addr, str, sizeof(str))) {
 						case AF_INET:
-							metric = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+							field = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
 							chunk_appendf(out, "%s:%d", str, sv->svc_port);
 							break;
 						case AF_INET6:
-							metric = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+							field = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
 							chunk_appendf(out, "[%s]:%d", str, sv->svc_port);
 							break;
 						case AF_UNIX:
-							metric = mkf_str(FO_CONFIG|FS_SERVICE, "unix");
+							field = mkf_str(FO_CONFIG|FS_SERVICE, "unix");
 							break;
 						case -1:
-							metric = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+							field = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
 							chunk_strcat(out, strerror(errno));
 							break;
 						default: /* address family not supported */
@@ -1500,18 +1500,18 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 				break;
 			case ST_I_PX_COOKIE:
 				if (flags & STAT_SHLGNDS && sv->cookie)
-					metric = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, sv->cookie);
+					field = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, sv->cookie);
 				break;
 			default:
-				/* not used for servers. If a specific metric
+				/* not used for servers. If a specific field
 				 * is requested, return an error. Otherwise continue.
 				 */
-				if (selected_field != NULL)
+				if (index)
 					return 0;
 				continue;
 		}
-		stats[current_field] = metric;
-		if (selected_field != NULL)
+		line[i] = field;
+		if (index)
 			break;
 	}
 	return 1;
@@ -1522,18 +1522,18 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
  * responsible for clearing the chunk ctx buffer if needed. Returns non-zero if
  * it emits anything, zero otherwise.
  */
-static int stats_dump_sv_stats(struct stconn *sc, struct proxy *px, struct server *sv)
+static int stats_dump_sv_line(struct stconn *sc, struct proxy *px, struct server *sv)
 {
 	struct appctx *appctx = __sc_appctx(sc);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct stats_module *mod;
-	struct field *stats = stat_lines[STATS_DOMAIN_PROXY];
+	struct field *line = stat_lines[STATS_DOMAIN_PROXY];
 	size_t stats_count = ST_I_PX_MAX;
 
-	memset(stats, 0, sizeof(struct field) * metrics_len[STATS_DOMAIN_PROXY]);
+	memset(line, 0, sizeof(struct field) * metrics_len[STATS_DOMAIN_PROXY]);
 
-	if (!stats_fill_sv_stats(px, sv, ctx->flags, stats,
-				 ST_I_PX_MAX, NULL))
+	if (!stats_fill_sv_line(px, sv, ctx->flags, line,
+	                        ST_I_PX_MAX, NULL))
 		return 0;
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
@@ -1548,17 +1548,17 @@ static int stats_dump_sv_stats(struct stconn *sc, struct proxy *px, struct serve
 		}
 
 		counters = EXTRA_COUNTERS_GET(sv->extra_counters, mod);
-		if (!mod->fill_stats(counters, stats + stats_count, NULL))
+		if (!mod->fill_stats(counters, line + stats_count, NULL))
 			continue;
 		stats_count += mod->stats_count;
 	}
 
-	return stats_dump_one_line(stats, stats_count, appctx);
+	return stats_dump_one_line(line, stats_count, appctx);
 }
 
 /* Helper to compute srv values for a given backend
  */
-static void stats_fill_be_stats_computesrv(struct proxy *px, int *nbup, int *nbsrv, int *totuw)
+static void stats_fill_be_computesrv(struct proxy *px, int *nbup, int *nbsrv, int *totuw)
 {
 	int nbup_tmp, nbsrv_tmp, totuw_tmp;
 	const struct server *srv;
@@ -1585,17 +1585,17 @@ static void stats_fill_be_stats_computesrv(struct proxy *px, int *nbup, int *nbs
 	*totuw = totuw_tmp;
 }
 
-/* Fill <stats> with the backend statistics. <stats> is preallocated array of
- * length <len>. If <selected_field> is != NULL, only fill this one. The length
+/* Fill <line> with the backend statistics. <line> is preallocated array of
+ * length <len>. If <index> is != NULL, only fill this one. The length
  * of the array must be at least ST_I_PX_MAX. If this length is less than
  * this value, or if the selected field is not implemented for backends, the
  * function returns 0, otherwise, it returns 1. <flags> can take the value
  * STAT_SHLGNDS.
  */
-int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int len,
-			enum stat_field *selected_field)
+int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
+                       enum stat_idx_px *index)
 {
-	enum stat_field current_field = (selected_field != NULL ? *selected_field : 0);
+	enum stat_idx_px i = index ? *index : 0;
 	long long be_samples_counter;
 	unsigned int be_samples_window = TIME_STATS_SAMPLES;
 	struct buffer *out = get_trash_chunk();
@@ -1608,242 +1608,242 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 	nbup = nbsrv = totuw = 0;
 	/* some srv values compute for later if we either select all fields or
 	 * need them for one of the mentioned ones */
-	if (selected_field == NULL || *selected_field == ST_I_PX_STATUS ||
-	    *selected_field == ST_I_PX_UWEIGHT)
-		stats_fill_be_stats_computesrv(px, &nbup, &nbsrv, &totuw);
+	if (!index || *index == ST_I_PX_STATUS ||
+	    *index == ST_I_PX_UWEIGHT)
+		stats_fill_be_computesrv(px, &nbup, &nbsrv, &totuw);
 
 	/* same here but specific to time fields */
-	if (selected_field == NULL || *selected_field == ST_I_PX_QTIME ||
-	    *selected_field == ST_I_PX_CTIME || *selected_field == ST_I_PX_RTIME ||
-	    *selected_field == ST_I_PX_TTIME) {
+	if (!index || *index == ST_I_PX_QTIME ||
+	    *index == ST_I_PX_CTIME || *index == ST_I_PX_RTIME ||
+	    *index == ST_I_PX_TTIME) {
 		be_samples_counter = (px->mode == PR_MODE_HTTP) ? px->be_counters.p.http.cum_req : px->be_counters.cum_lbconn;
 		if (be_samples_counter < TIME_STATS_SAMPLES && be_samples_counter > 0)
 			be_samples_window = be_samples_counter;
 	}
 
-	for (; current_field < ST_I_PX_MAX; current_field++) {
-		struct field metric = { 0 };
+	for (; i < ST_I_PX_MAX; i++) {
+		struct field field = { 0 };
 
-		switch (current_field) {
+		switch (i) {
 			case ST_I_PX_PXNAME:
-				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
+				field = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 				break;
 			case ST_I_PX_SVNAME:
-				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "BACKEND");
+				field = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "BACKEND");
 				break;
 			case ST_I_PX_MODE:
-				metric = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
+				field = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 				break;
 			case ST_I_PX_QCUR:
-				metric = mkf_u32(0, px->queue.length);
+				field = mkf_u32(0, px->queue.length);
 				break;
 			case ST_I_PX_QMAX:
-				metric = mkf_u32(FN_MAX, px->be_counters.nbpend_max);
+				field = mkf_u32(FN_MAX, px->be_counters.nbpend_max);
 				break;
 			case ST_I_PX_SCUR:
-				metric = mkf_u32(0, px->beconn);
+				field = mkf_u32(0, px->beconn);
 				break;
 			case ST_I_PX_SMAX:
-				metric = mkf_u32(FN_MAX, px->be_counters.conn_max);
+				field = mkf_u32(FN_MAX, px->be_counters.conn_max);
 				break;
 			case ST_I_PX_SLIM:
-				metric = mkf_u32(FO_CONFIG|FN_LIMIT, px->fullconn);
+				field = mkf_u32(FO_CONFIG|FN_LIMIT, px->fullconn);
 				break;
 			case ST_I_PX_STOT:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.cum_sess);
+				field = mkf_u64(FN_COUNTER, px->be_counters.cum_sess);
 				break;
 			case ST_I_PX_BIN:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.bytes_in);
+				field = mkf_u64(FN_COUNTER, px->be_counters.bytes_in);
 				break;
 			case ST_I_PX_BOUT:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.bytes_out);
+				field = mkf_u64(FN_COUNTER, px->be_counters.bytes_out);
 				break;
 			case ST_I_PX_DREQ:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.denied_req);
+				field = mkf_u64(FN_COUNTER, px->be_counters.denied_req);
 				break;
 			case ST_I_PX_DRESP:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.denied_resp);
+				field = mkf_u64(FN_COUNTER, px->be_counters.denied_resp);
 				break;
 			case ST_I_PX_ECON:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.failed_conns);
+				field = mkf_u64(FN_COUNTER, px->be_counters.failed_conns);
 				break;
 			case ST_I_PX_ERESP:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.failed_resp);
+				field = mkf_u64(FN_COUNTER, px->be_counters.failed_resp);
 				break;
 			case ST_I_PX_WRETR:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.retries);
+				field = mkf_u64(FN_COUNTER, px->be_counters.retries);
 				break;
 			case ST_I_PX_WREDIS:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.redispatches);
+				field = mkf_u64(FN_COUNTER, px->be_counters.redispatches);
 				break;
 			case ST_I_PX_WREW:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.failed_rewrites);
+				field = mkf_u64(FN_COUNTER, px->be_counters.failed_rewrites);
 				break;
 			case ST_I_PX_EINT:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.internal_errors);
+				field = mkf_u64(FN_COUNTER, px->be_counters.internal_errors);
 				break;
 			case ST_I_PX_CONNECT:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.connect);
+				field = mkf_u64(FN_COUNTER, px->be_counters.connect);
 				break;
 			case ST_I_PX_REUSE:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.reuse);
+				field = mkf_u64(FN_COUNTER, px->be_counters.reuse);
 				break;
 			case ST_I_PX_STATUS:
 				fld = chunk_newstr(out);
 				chunk_appendf(out, "%s", (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN");
 				if (flags & (STAT_HIDE_MAINT|STAT_HIDE_DOWN))
 					chunk_appendf(out, " (%d/%d)", nbup, nbsrv);
-				metric = mkf_str(FO_STATUS, fld);
+				field = mkf_str(FO_STATUS, fld);
 				break;
 			case ST_I_PX_AGG_SRV_CHECK_STATUS:   // DEPRECATED
 			case ST_I_PX_AGG_SRV_STATUS:
-				metric = mkf_u32(FN_GAUGE, 0);
+				field = mkf_u32(FN_GAUGE, 0);
 				break;
 			case ST_I_PX_AGG_CHECK_STATUS:
-				metric = mkf_u32(FN_GAUGE, 0);
+				field = mkf_u32(FN_GAUGE, 0);
 				break;
 			case ST_I_PX_WEIGHT:
-				metric = mkf_u32(FN_AVG, (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
+				field = mkf_u32(FN_AVG, (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
 				break;
 			case ST_I_PX_UWEIGHT:
-				metric = mkf_u32(FN_AVG, totuw);
+				field = mkf_u32(FN_AVG, totuw);
 				break;
 			case ST_I_PX_ACT:
-				metric = mkf_u32(0, px->srv_act);
+				field = mkf_u32(0, px->srv_act);
 				break;
 			case ST_I_PX_BCK:
-				metric = mkf_u32(0, px->srv_bck);
+				field = mkf_u32(0, px->srv_bck);
 				break;
 			case ST_I_PX_CHKDOWN:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.down_trans);
+				field = mkf_u64(FN_COUNTER, px->be_counters.down_trans);
 				break;
 			case ST_I_PX_LASTCHG:
-				metric = mkf_u32(FN_AGE, ns_to_sec(now_ns) - px->last_change);
+				field = mkf_u32(FN_AGE, ns_to_sec(now_ns) - px->last_change);
 				break;
 			case ST_I_PX_DOWNTIME:
 				if (px->srv)
-					metric = mkf_u32(FN_COUNTER, be_downtime(px));
+					field = mkf_u32(FN_COUNTER, be_downtime(px));
 				break;
 			case ST_I_PX_PID:
-				metric = mkf_u32(FO_KEY, 1);
+				field = mkf_u32(FO_KEY, 1);
 				break;
 			case ST_I_PX_IID:
-				metric = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
+				field = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
 				break;
 			case ST_I_PX_SID:
-				metric = mkf_u32(FO_KEY|FS_SERVICE, 0);
+				field = mkf_u32(FO_KEY|FS_SERVICE, 0);
 				break;
 			case ST_I_PX_LBTOT:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.cum_lbconn);
+				field = mkf_u64(FN_COUNTER, px->be_counters.cum_lbconn);
 				break;
 			case ST_I_PX_TYPE:
-				metric = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_BE);
+				field = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_BE);
 				break;
 			case ST_I_PX_RATE:
-				metric = mkf_u32(0, read_freq_ctr(&px->be_sess_per_sec));
+				field = mkf_u32(0, read_freq_ctr(&px->be_sess_per_sec));
 				break;
 			case ST_I_PX_RATE_MAX:
-				metric = mkf_u32(0, px->be_counters.sps_max);
+				field = mkf_u32(0, px->be_counters.sps_max);
 				break;
 			case ST_I_PX_COOKIE:
 				if (flags & STAT_SHLGNDS && px->cookie_name)
-					metric = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, px->cookie_name);
+					field = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, px->cookie_name);
 				break;
 			case ST_I_PX_ALGO:
 				if (flags & STAT_SHLGNDS)
-					metric = mkf_str(FO_CONFIG|FS_SERVICE, backend_lb_algo_str(px->lbprm.algo & BE_LB_ALGO));
+					field = mkf_str(FO_CONFIG|FS_SERVICE, backend_lb_algo_str(px->lbprm.algo & BE_LB_ALGO));
 				break;
 			case ST_I_PX_REQ_TOT:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.cum_req);
+					field = mkf_u64(FN_COUNTER, px->be_counters.p.http.cum_req);
 				break;
 			case ST_I_PX_HRSP_1XX:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[1]);
+					field = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[1]);
 				break;
 			case ST_I_PX_HRSP_2XX:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[2]);
+					field = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[2]);
 				break;
 			case ST_I_PX_HRSP_3XX:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[3]);
+					field = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[3]);
 				break;
 			case ST_I_PX_HRSP_4XX:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[4]);
+					field = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[4]);
 				break;
 			case ST_I_PX_HRSP_5XX:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[5]);
+					field = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[5]);
 				break;
 			case ST_I_PX_HRSP_OTHER:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[0]);
+					field = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[0]);
 				break;
 			case ST_I_PX_CACHE_LOOKUPS:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.cache_lookups);
+					field = mkf_u64(FN_COUNTER, px->be_counters.p.http.cache_lookups);
 				break;
 			case ST_I_PX_CACHE_HITS:
 				if (px->mode == PR_MODE_HTTP)
-					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.cache_hits);
+					field = mkf_u64(FN_COUNTER, px->be_counters.p.http.cache_hits);
 				break;
 			case ST_I_PX_CLI_ABRT:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.cli_aborts);
+				field = mkf_u64(FN_COUNTER, px->be_counters.cli_aborts);
 				break;
 			case ST_I_PX_SRV_ABRT:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.srv_aborts);
+				field = mkf_u64(FN_COUNTER, px->be_counters.srv_aborts);
 				break;
 			case ST_I_PX_COMP_IN:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.comp_in[COMP_DIR_RES]);
+				field = mkf_u64(FN_COUNTER, px->be_counters.comp_in[COMP_DIR_RES]);
 				break;
 			case ST_I_PX_COMP_OUT:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.comp_out[COMP_DIR_RES]);
+				field = mkf_u64(FN_COUNTER, px->be_counters.comp_out[COMP_DIR_RES]);
 				break;
 			case ST_I_PX_COMP_BYP:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.comp_byp[COMP_DIR_RES]);
+				field = mkf_u64(FN_COUNTER, px->be_counters.comp_byp[COMP_DIR_RES]);
 				break;
 			case ST_I_PX_COMP_RSP:
-				metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.comp_rsp);
+				field = mkf_u64(FN_COUNTER, px->be_counters.p.http.comp_rsp);
 				break;
 			case ST_I_PX_LASTSESS:
-				metric = mkf_s32(FN_AGE, be_lastsession(px));
+				field = mkf_s32(FN_AGE, be_lastsession(px));
 				break;
 			case ST_I_PX_QTIME:
-				metric = mkf_u32(FN_AVG, swrate_avg(px->be_counters.q_time, be_samples_window));
+				field = mkf_u32(FN_AVG, swrate_avg(px->be_counters.q_time, be_samples_window));
 				break;
 			case ST_I_PX_CTIME:
-				metric = mkf_u32(FN_AVG, swrate_avg(px->be_counters.c_time, be_samples_window));
+				field = mkf_u32(FN_AVG, swrate_avg(px->be_counters.c_time, be_samples_window));
 				break;
 			case ST_I_PX_RTIME:
-				metric = mkf_u32(FN_AVG, swrate_avg(px->be_counters.d_time, be_samples_window));
+				field = mkf_u32(FN_AVG, swrate_avg(px->be_counters.d_time, be_samples_window));
 				break;
 			case ST_I_PX_TTIME:
-				metric = mkf_u32(FN_AVG, swrate_avg(px->be_counters.t_time, be_samples_window));
+				field = mkf_u32(FN_AVG, swrate_avg(px->be_counters.t_time, be_samples_window));
 				break;
 			case ST_I_PX_QT_MAX:
-				metric = mkf_u32(FN_MAX, px->be_counters.qtime_max);
+				field = mkf_u32(FN_MAX, px->be_counters.qtime_max);
 				break;
 			case ST_I_PX_CT_MAX:
-				metric = mkf_u32(FN_MAX, px->be_counters.ctime_max);
+				field = mkf_u32(FN_MAX, px->be_counters.ctime_max);
 				break;
 			case ST_I_PX_RT_MAX:
-				metric = mkf_u32(FN_MAX, px->be_counters.dtime_max);
+				field = mkf_u32(FN_MAX, px->be_counters.dtime_max);
 				break;
 			case ST_I_PX_TT_MAX:
-				metric = mkf_u32(FN_MAX, px->be_counters.ttime_max);
+				field = mkf_u32(FN_MAX, px->be_counters.ttime_max);
 				break;
 			default:
-				/* not used for backends. If a specific metric
+				/* not used for backends. If a specific field
 				 * is requested, return an error. Otherwise continue.
 				 */
-				if (selected_field != NULL)
+				if (index)
 					return 0;
 				continue;
 		}
-		stats[current_field] = metric;
-		if (selected_field != NULL)
+		line[i] = field;
+		if (index)
 			break;
 	}
 	return 1;
@@ -1853,11 +1853,11 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
  * stream interface <si>. The caller is responsible for clearing chunk buffer
  * if needed. Returns non-zero if it emits anything, zero otherwise.
  */
-static int stats_dump_be_stats(struct stconn *sc, struct proxy *px)
+static int stats_dump_be_line(struct stconn *sc, struct proxy *px)
 {
 	struct appctx *appctx = __sc_appctx(sc);
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	struct field *stats = stat_lines[STATS_DOMAIN_PROXY];
+	struct field *line = stat_lines[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
 	size_t stats_count = ST_I_PX_MAX;
 
@@ -1867,9 +1867,9 @@ static int stats_dump_be_stats(struct stconn *sc, struct proxy *px)
 	if ((ctx->flags & STAT_BOUND) && !(ctx->type & (1 << STATS_TYPE_BE)))
 		return 0;
 
-	memset(stats, 0, sizeof(struct field) * metrics_len[STATS_DOMAIN_PROXY]);
+	memset(line, 0, sizeof(struct field) * metrics_len[STATS_DOMAIN_PROXY]);
 
-	if (!stats_fill_be_stats(px, ctx->flags, stats, ST_I_PX_MAX, NULL))
+	if (!stats_fill_be_line(px, ctx->flags, line, ST_I_PX_MAX, NULL))
 		return 0;
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
@@ -1884,12 +1884,12 @@ static int stats_dump_be_stats(struct stconn *sc, struct proxy *px)
 		}
 
 		counters = EXTRA_COUNTERS_GET(px->extra_counters_be, mod);
-		if (!mod->fill_stats(counters, stats + stats_count, NULL))
+		if (!mod->fill_stats(counters, line + stats_count, NULL))
 			continue;
 		stats_count += mod->stats_count;
 	}
 
-	return stats_dump_one_line(stats, stats_count, appctx);
+	return stats_dump_one_line(line, stats_count, appctx);
 }
 
 /*
@@ -1974,7 +1974,7 @@ more:
 
 	case STAT_PX_ST_FE:
 		/* print the frontend */
-		if (stats_dump_fe_stats(sc, px)) {
+		if (stats_dump_fe_line(sc, px)) {
 			if (!stats_putchk(appctx, buf, htx))
 				goto full;
 			ctx->flags |= STAT_STARTED;
@@ -2006,7 +2006,7 @@ more:
 			}
 
 			/* print the frontend */
-			if (stats_dump_li_stats(sc, px, l)) {
+			if (stats_dump_li_line(sc, px, l)) {
 				if (!stats_putchk(appctx, buf, htx))
 					goto full;
 				ctx->flags |= STAT_STARTED;
@@ -2083,7 +2083,7 @@ more:
 				continue;
 			}
 
-			if (stats_dump_sv_stats(sc, px, sv)) {
+			if (stats_dump_sv_line(sc, px, sv)) {
 				if (!stats_putchk(appctx, buf, htx))
 					goto full;
 				ctx->flags |= STAT_STARTED;
@@ -2098,7 +2098,7 @@ more:
 
 	case STAT_PX_ST_BE:
 		/* print the backend */
-		if (stats_dump_be_stats(sc, px)) {
+		if (stats_dump_be_line(sc, px)) {
 			if (!stats_putchk(appctx, buf, htx))
 				goto full;
 			ctx->flags |= STAT_STARTED;
@@ -2274,23 +2274,23 @@ int stats_dump_stat_to_buffer(struct stconn *sc, struct buffer *buf, struct htx 
 
 }
 
-/* Dump all fields from <info> into <out> using the "show info" format (name: value) */
+/* Dump all fields from <info_fields> into <out> using the "show info" format (name: value) */
 static int stats_dump_info_fields(struct buffer *out,
-                                  const struct field *info,
+                                  const struct field *line,
                                   struct show_stat_ctx *ctx)
 {
 	int flags = ctx->flags;
-	int field;
+	int i;
 
-	for (field = 0; field < ST_I_INF_MAX; field++) {
-		if (!field_format(info, field))
+	for (i = 0; i < ST_I_INF_MAX; i++) {
+		if (!field_format(line, i))
 			continue;
 
-		if (!chunk_appendf(out, "%s: ", metrics_info[field].name))
+		if (!chunk_appendf(out, "%s: ", metrics_info[i].name))
 			return 0;
-		if (!stats_emit_raw_data_field(out, &info[field]))
+		if (!stats_emit_raw_data_field(out, &line[i]))
 			return 0;
-		if ((flags & STAT_SHOW_FDESC) && !chunk_appendf(out, ":\"%s\"", metrics_info[field].desc))
+		if ((flags & STAT_SHOW_FDESC) && !chunk_appendf(out, ":\"%s\"", metrics_info[i].desc))
 			return 0;
 		if (!chunk_strcat(out, "\n"))
 			return 0;
@@ -2298,25 +2298,27 @@ static int stats_dump_info_fields(struct buffer *out,
 	return 1;
 }
 
-/* Dump all fields from <info> into <out> using the "show info typed" format */
+/* Dump all fields from <line> into <out> using the "show info typed" format */
 static int stats_dump_typed_info_fields(struct buffer *out,
-                                        const struct field *info,
+                                        const struct field *line,
                                         struct show_stat_ctx *ctx)
 {
 	int flags = ctx->flags;
-	int field;
+	int i;
 
-	for (field = 0; field < ST_I_INF_MAX; field++) {
-		if (!field_format(info, field))
+	for (i = 0; i < ST_I_INF_MAX; i++) {
+		if (!field_format(line, i))
 			continue;
 
-		if (!chunk_appendf(out, "%d.%s.%u:", field, metrics_info[field].name, info[ST_I_INF_PROCESS_NUM].u.u32))
+		if (!chunk_appendf(out, "%d.%s.%u:", i, metrics_info[i].name,
+		                   line[ST_I_INF_PROCESS_NUM].u.u32)) {
 			return 0;
-		if (!stats_emit_field_tags(out, &info[field], ':'))
+		}
+		if (!stats_emit_field_tags(out, &line[i], ':'))
 			return 0;
-		if (!stats_emit_typed_data_field(out, &info[field]))
+		if (!stats_emit_typed_data_field(out, &line[i]))
 			return 0;
-		if ((flags & STAT_SHOW_FDESC) && !chunk_appendf(out, ":\"%s\"", metrics_info[field].desc))
+		if ((flags & STAT_SHOW_FDESC) && !chunk_appendf(out, ":\"%s\"", metrics_info[i].desc))
 			return 0;
 		if (!chunk_strcat(out, "\n"))
 			return 0;
@@ -2330,7 +2332,7 @@ static int stats_dump_typed_info_fields(struct buffer *out,
  * fields' presence or precision may depend on some of the STAT_* flags present
  * in <flags>.
  */
-int stats_fill_info(struct field *info, int len, uint flags)
+int stats_fill_info(struct field *line, int len, uint flags)
 {
 	struct buffer *out = get_trash_chunk();
 	uint64_t glob_out_bytes, glob_spl_bytes, glob_out_b32;
@@ -2367,98 +2369,98 @@ int stats_fill_info(struct field *info, int len, uint flags)
 		return 0;
 
 	chunk_reset(out);
-	memset(info, 0, sizeof(*info) * len);
+	memset(line, 0, sizeof(*line) * len);
 
-	info[ST_I_INF_NAME]                           = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, PRODUCT_NAME);
-	info[ST_I_INF_VERSION]                        = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_version);
-	info[ST_I_INF_BUILD_INFO]                     = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_version);
-	info[ST_I_INF_RELEASE_DATE]                   = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_date);
+	line[ST_I_INF_NAME]                           = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, PRODUCT_NAME);
+	line[ST_I_INF_VERSION]                        = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_version);
+	line[ST_I_INF_BUILD_INFO]                     = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_version);
+	line[ST_I_INF_RELEASE_DATE]                   = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_date);
 
-	info[ST_I_INF_NBTHREAD]                       = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbthread);
-	info[ST_I_INF_NBPROC]                         = mkf_u32(FO_CONFIG|FS_SERVICE, 1);
-	info[ST_I_INF_PROCESS_NUM]                    = mkf_u32(FO_KEY, 1);
-	info[ST_I_INF_PID]                            = mkf_u32(FO_STATUS, pid);
+	line[ST_I_INF_NBTHREAD]                       = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbthread);
+	line[ST_I_INF_NBPROC]                         = mkf_u32(FO_CONFIG|FS_SERVICE, 1);
+	line[ST_I_INF_PROCESS_NUM]                    = mkf_u32(FO_KEY, 1);
+	line[ST_I_INF_PID]                            = mkf_u32(FO_STATUS, pid);
 
-	info[ST_I_INF_UPTIME]                         = mkf_str(FN_DURATION, chunk_newstr(out));
+	line[ST_I_INF_UPTIME]                         = mkf_str(FN_DURATION, chunk_newstr(out));
 	chunk_appendf(out, "%ud %uh%02um%02us", up_sec / 86400, (up_sec % 86400) / 3600, (up_sec % 3600) / 60, (up_sec % 60));
 
-	info[ST_I_INF_UPTIME_SEC]                     = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_DURATION, up_sec + up_usec / 1000000.0) : mkf_u32(FN_DURATION, up_sec);
-	info[ST_I_INF_START_TIME_SEC]                 = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_DURATION, start_date.tv_sec + start_date.tv_usec / 1000000.0) : mkf_u32(FN_DURATION, start_date.tv_sec);
-	info[ST_I_INF_MEMMAX_MB]                      = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax);
-	info[ST_I_INF_MEMMAX_BYTES]                   = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax * 1048576L);
-	info[ST_I_INF_POOL_ALLOC_MB]                  = mkf_u32(0, (unsigned)(pool_total_allocated() / 1048576L));
-	info[ST_I_INF_POOL_ALLOC_BYTES]               = mkf_u64(0, pool_total_allocated());
-	info[ST_I_INF_POOL_USED_MB]                   = mkf_u32(0, (unsigned)(pool_total_used() / 1048576L));
-	info[ST_I_INF_POOL_USED_BYTES]                = mkf_u64(0, pool_total_used());
-	info[ST_I_INF_POOL_FAILED]                    = mkf_u32(FN_COUNTER, pool_total_failures());
-	info[ST_I_INF_ULIMIT_N]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_nofile);
-	info[ST_I_INF_MAXSOCK]                        = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxsock);
-	info[ST_I_INF_MAXCONN]                        = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxconn);
-	info[ST_I_INF_HARD_MAXCONN]                   = mkf_u32(FO_CONFIG|FN_LIMIT, global.hardmaxconn);
-	info[ST_I_INF_CURR_CONN]                      = mkf_u32(0, actconn);
-	info[ST_I_INF_CUM_CONN]                       = mkf_u32(FN_COUNTER, totalconn);
-	info[ST_I_INF_CUM_REQ]                        = mkf_u32(FN_COUNTER, global.req_count);
+	line[ST_I_INF_UPTIME_SEC]                     = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_DURATION, up_sec + up_usec / 1000000.0) : mkf_u32(FN_DURATION, up_sec);
+	line[ST_I_INF_START_TIME_SEC]                 = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_DURATION, start_date.tv_sec + start_date.tv_usec / 1000000.0) : mkf_u32(FN_DURATION, start_date.tv_sec);
+	line[ST_I_INF_MEMMAX_MB]                      = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax);
+	line[ST_I_INF_MEMMAX_BYTES]                   = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax * 1048576L);
+	line[ST_I_INF_POOL_ALLOC_MB]                  = mkf_u32(0, (unsigned)(pool_total_allocated() / 1048576L));
+	line[ST_I_INF_POOL_ALLOC_BYTES]               = mkf_u64(0, pool_total_allocated());
+	line[ST_I_INF_POOL_USED_MB]                   = mkf_u32(0, (unsigned)(pool_total_used() / 1048576L));
+	line[ST_I_INF_POOL_USED_BYTES]                = mkf_u64(0, pool_total_used());
+	line[ST_I_INF_POOL_FAILED]                    = mkf_u32(FN_COUNTER, pool_total_failures());
+	line[ST_I_INF_ULIMIT_N]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_nofile);
+	line[ST_I_INF_MAXSOCK]                        = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxsock);
+	line[ST_I_INF_MAXCONN]                        = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxconn);
+	line[ST_I_INF_HARD_MAXCONN]                   = mkf_u32(FO_CONFIG|FN_LIMIT, global.hardmaxconn);
+	line[ST_I_INF_CURR_CONN]                      = mkf_u32(0, actconn);
+	line[ST_I_INF_CUM_CONN]                       = mkf_u32(FN_COUNTER, totalconn);
+	line[ST_I_INF_CUM_REQ]                        = mkf_u32(FN_COUNTER, global.req_count);
 #ifdef USE_OPENSSL
-	info[ST_I_INF_MAX_SSL_CONNS]                  = mkf_u32(FN_MAX, global.maxsslconn);
-	info[ST_I_INF_CURR_SSL_CONNS]                 = mkf_u32(0, global.sslconns);
-	info[ST_I_INF_CUM_SSL_CONNS]                  = mkf_u32(FN_COUNTER, global.totalsslconns);
+	line[ST_I_INF_MAX_SSL_CONNS]                  = mkf_u32(FN_MAX, global.maxsslconn);
+	line[ST_I_INF_CURR_SSL_CONNS]                 = mkf_u32(0, global.sslconns);
+	line[ST_I_INF_CUM_SSL_CONNS]                  = mkf_u32(FN_COUNTER, global.totalsslconns);
 #endif
-	info[ST_I_INF_MAXPIPES]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxpipes);
-	info[ST_I_INF_PIPES_USED]                     = mkf_u32(0, pipes_used);
-	info[ST_I_INF_PIPES_FREE]                     = mkf_u32(0, pipes_free);
-	info[ST_I_INF_CONN_RATE]                      = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.conn_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.conn_per_sec));
-	info[ST_I_INF_CONN_RATE_LIMIT]                = mkf_u32(FO_CONFIG|FN_LIMIT, global.cps_lim);
-	info[ST_I_INF_MAX_CONN_RATE]                  = mkf_u32(FN_MAX, global.cps_max);
-	info[ST_I_INF_SESS_RATE]                      = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.sess_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.sess_per_sec));
-	info[ST_I_INF_SESS_RATE_LIMIT]                = mkf_u32(FO_CONFIG|FN_LIMIT, global.sps_lim);
-	info[ST_I_INF_MAX_SESS_RATE]                  = mkf_u32(FN_RATE, global.sps_max);
+	line[ST_I_INF_MAXPIPES]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxpipes);
+	line[ST_I_INF_PIPES_USED]                     = mkf_u32(0, pipes_used);
+	line[ST_I_INF_PIPES_FREE]                     = mkf_u32(0, pipes_free);
+	line[ST_I_INF_CONN_RATE]                      = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.conn_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.conn_per_sec));
+	line[ST_I_INF_CONN_RATE_LIMIT]                = mkf_u32(FO_CONFIG|FN_LIMIT, global.cps_lim);
+	line[ST_I_INF_MAX_CONN_RATE]                  = mkf_u32(FN_MAX, global.cps_max);
+	line[ST_I_INF_SESS_RATE]                      = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.sess_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.sess_per_sec));
+	line[ST_I_INF_SESS_RATE_LIMIT]                = mkf_u32(FO_CONFIG|FN_LIMIT, global.sps_lim);
+	line[ST_I_INF_MAX_SESS_RATE]                  = mkf_u32(FN_RATE, global.sps_max);
 
 #ifdef USE_OPENSSL
-	info[ST_I_INF_SSL_RATE]                       = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_sess_rate) : mkf_u32(FN_RATE, ssl_sess_rate);
-	info[ST_I_INF_SSL_RATE_LIMIT]                 = mkf_u32(FO_CONFIG|FN_LIMIT, global.ssl_lim);
-	info[ST_I_INF_MAX_SSL_RATE]                   = mkf_u32(FN_MAX, global.ssl_max);
-	info[ST_I_INF_SSL_FRONTEND_KEY_RATE]          = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_key_rate) : mkf_u32(0, ssl_key_rate);
-	info[ST_I_INF_SSL_FRONTEND_MAX_KEY_RATE]      = mkf_u32(FN_MAX, global.ssl_fe_keys_max);
-	info[ST_I_INF_SSL_FRONTEND_SESSION_REUSE_PCT] = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_reuse) : mkf_u32(0, ssl_reuse);
-	info[ST_I_INF_SSL_BACKEND_KEY_RATE]           = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.ssl_be_keys_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.ssl_be_keys_per_sec));
-	info[ST_I_INF_SSL_BACKEND_MAX_KEY_RATE]       = mkf_u32(FN_MAX, global.ssl_be_keys_max);
-	info[ST_I_INF_SSL_CACHE_LOOKUPS]              = mkf_u32(FN_COUNTER, global.shctx_lookups);
-	info[ST_I_INF_SSL_CACHE_MISSES]               = mkf_u32(FN_COUNTER, global.shctx_misses);
+	line[ST_I_INF_SSL_RATE]                       = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_sess_rate) : mkf_u32(FN_RATE, ssl_sess_rate);
+	line[ST_I_INF_SSL_RATE_LIMIT]                 = mkf_u32(FO_CONFIG|FN_LIMIT, global.ssl_lim);
+	line[ST_I_INF_MAX_SSL_RATE]                   = mkf_u32(FN_MAX, global.ssl_max);
+	line[ST_I_INF_SSL_FRONTEND_KEY_RATE]          = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_key_rate) : mkf_u32(0, ssl_key_rate);
+	line[ST_I_INF_SSL_FRONTEND_MAX_KEY_RATE]      = mkf_u32(FN_MAX, global.ssl_fe_keys_max);
+	line[ST_I_INF_SSL_FRONTEND_SESSION_REUSE_PCT] = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_reuse) : mkf_u32(0, ssl_reuse);
+	line[ST_I_INF_SSL_BACKEND_KEY_RATE]           = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.ssl_be_keys_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.ssl_be_keys_per_sec));
+	line[ST_I_INF_SSL_BACKEND_MAX_KEY_RATE]       = mkf_u32(FN_MAX, global.ssl_be_keys_max);
+	line[ST_I_INF_SSL_CACHE_LOOKUPS]              = mkf_u32(FN_COUNTER, global.shctx_lookups);
+	line[ST_I_INF_SSL_CACHE_MISSES]               = mkf_u32(FN_COUNTER, global.shctx_misses);
 #endif
-	info[ST_I_INF_COMPRESS_BPS_IN]                = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.comp_bps_in)) : mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_in));
-	info[ST_I_INF_COMPRESS_BPS_OUT]               = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.comp_bps_out)) : mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_out));
-	info[ST_I_INF_COMPRESS_BPS_RATE_LIM]          = mkf_u32(FO_CONFIG|FN_LIMIT, global.comp_rate_lim);
+	line[ST_I_INF_COMPRESS_BPS_IN]                = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.comp_bps_in)) : mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_in));
+	line[ST_I_INF_COMPRESS_BPS_OUT]               = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.comp_bps_out)) : mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_out));
+	line[ST_I_INF_COMPRESS_BPS_RATE_LIM]          = mkf_u32(FO_CONFIG|FN_LIMIT, global.comp_rate_lim);
 #ifdef USE_ZLIB
-	info[ST_I_INF_ZLIB_MEM_USAGE]                 = mkf_u32(0, zlib_used_memory);
-	info[ST_I_INF_MAX_ZLIB_MEM_USAGE]             = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxzlibmem);
+	line[ST_I_INF_ZLIB_MEM_USAGE]                 = mkf_u32(0, zlib_used_memory);
+	line[ST_I_INF_MAX_ZLIB_MEM_USAGE]             = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxzlibmem);
 #endif
-	info[ST_I_INF_TASKS]                          = mkf_u32(0, total_allocated_tasks());
-	info[ST_I_INF_RUN_QUEUE]                      = mkf_u32(0, total_run_queues());
-	info[ST_I_INF_IDLE_PCT]                       = mkf_u32(FN_AVG, clock_report_idle());
-	info[ST_I_INF_NODE]                           = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.node);
+	line[ST_I_INF_TASKS]                          = mkf_u32(0, total_allocated_tasks());
+	line[ST_I_INF_RUN_QUEUE]                      = mkf_u32(0, total_run_queues());
+	line[ST_I_INF_IDLE_PCT]                       = mkf_u32(FN_AVG, clock_report_idle());
+	line[ST_I_INF_NODE]                           = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.node);
 	if (global.desc)
-		info[ST_I_INF_DESCRIPTION]            = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.desc);
-	info[ST_I_INF_STOPPING]                       = mkf_u32(0, stopping);
-	info[ST_I_INF_JOBS]                           = mkf_u32(0, jobs);
-	info[ST_I_INF_UNSTOPPABLE_JOBS]               = mkf_u32(0, unstoppable_jobs);
-	info[ST_I_INF_LISTENERS]                      = mkf_u32(0, listeners);
-	info[ST_I_INF_ACTIVE_PEERS]                   = mkf_u32(0, active_peers);
-	info[ST_I_INF_CONNECTED_PEERS]                = mkf_u32(0, connected_peers);
-	info[ST_I_INF_DROPPED_LOGS]                   = mkf_u32(0, dropped_logs);
-	info[ST_I_INF_BUSY_POLLING]                   = mkf_u32(0, !!(global.tune.options & GTUNE_BUSY_POLLING));
-	info[ST_I_INF_FAILED_RESOLUTIONS]             = mkf_u32(0, resolv_failed_resolutions);
-	info[ST_I_INF_TOTAL_BYTES_OUT]                = mkf_u64(0, glob_out_bytes);
-	info[ST_I_INF_TOTAL_SPLICED_BYTES_OUT]        = mkf_u64(0, glob_spl_bytes);
-	info[ST_I_INF_BYTES_OUT_RATE]                 = mkf_u64(FN_RATE, glob_out_b32);
-	info[ST_I_INF_DEBUG_COMMANDS_ISSUED]          = mkf_u32(0, debug_commands_issued);
-	info[ST_I_INF_CUM_LOG_MSGS]                   = mkf_u32(FN_COUNTER, cum_log_messages);
+		line[ST_I_INF_DESCRIPTION]            = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.desc);
+	line[ST_I_INF_STOPPING]                       = mkf_u32(0, stopping);
+	line[ST_I_INF_JOBS]                           = mkf_u32(0, jobs);
+	line[ST_I_INF_UNSTOPPABLE_JOBS]               = mkf_u32(0, unstoppable_jobs);
+	line[ST_I_INF_LISTENERS]                      = mkf_u32(0, listeners);
+	line[ST_I_INF_ACTIVE_PEERS]                   = mkf_u32(0, active_peers);
+	line[ST_I_INF_CONNECTED_PEERS]                = mkf_u32(0, connected_peers);
+	line[ST_I_INF_DROPPED_LOGS]                   = mkf_u32(0, dropped_logs);
+	line[ST_I_INF_BUSY_POLLING]                   = mkf_u32(0, !!(global.tune.options & GTUNE_BUSY_POLLING));
+	line[ST_I_INF_FAILED_RESOLUTIONS]             = mkf_u32(0, resolv_failed_resolutions);
+	line[ST_I_INF_TOTAL_BYTES_OUT]                = mkf_u64(0, glob_out_bytes);
+	line[ST_I_INF_TOTAL_SPLICED_BYTES_OUT]        = mkf_u64(0, glob_spl_bytes);
+	line[ST_I_INF_BYTES_OUT_RATE]                 = mkf_u64(FN_RATE, glob_out_b32);
+	line[ST_I_INF_DEBUG_COMMANDS_ISSUED]          = mkf_u32(0, debug_commands_issued);
+	line[ST_I_INF_CUM_LOG_MSGS]                   = mkf_u32(FN_COUNTER, cum_log_messages);
 
-	info[ST_I_INF_TAINTED]                        = mkf_str(FO_STATUS, chunk_newstr(out));
+	line[ST_I_INF_TAINTED]                        = mkf_str(FO_STATUS, chunk_newstr(out));
 	chunk_appendf(out, "%#x", get_tainted());
-	info[ST_I_INF_WARNINGS]                       = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&tot_warnings));
-	info[ST_I_INF_MAXCONN_REACHED]                = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&maxconn_reached));
-	info[ST_I_INF_BOOTTIME_MS]                    = mkf_u32(FN_DURATION, boot);
-	info[ST_I_INF_NICED_TASKS]                    = mkf_u32(0, total_niced_running_tasks());
+	line[ST_I_INF_WARNINGS]                       = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&tot_warnings));
+	line[ST_I_INF_MAXCONN_REACHED]                = mkf_u32(FN_COUNTER, HA_ATOMIC_LOAD(&maxconn_reached));
+	line[ST_I_INF_BOOTTIME_MS]                    = mkf_u32(FN_DURATION, boot);
+	line[ST_I_INF_NICED_TASKS]                    = mkf_u32(0, total_niced_running_tasks());
 
 	return 1;
 }

@@ -160,9 +160,9 @@ void stats_dump_json_header(struct buffer *out)
 	chunk_strcat(out, "[");
 }
 
-/* Dump all fields from <stats> into <out> using a typed "field:desc:type:value" format */
+/* Dump all fields from <line> into <out> using a typed "field:desc:type:value" format */
 int stats_dump_fields_json(struct buffer *out,
-                           const struct field *stats, size_t stats_count,
+                           const struct field *line, size_t stats_count,
                            struct show_stat_ctx *ctx)
 {
 	int flags = ctx->flags;
@@ -177,9 +177,9 @@ int stats_dump_fields_json(struct buffer *out,
 
 	for (; ctx->field < stats_count; ctx->field++) {
 		int old_len;
-		int field = ctx->field;
+		int i = ctx->field;
 
-		if (!stats[field].type)
+		if (!line[i].type)
 			continue;
 
 		if (started && !chunk_strcat(out, ","))
@@ -188,26 +188,26 @@ int stats_dump_fields_json(struct buffer *out,
 
 		old_len = out->data;
 		if (domain == STATS_DOMAIN_PROXY) {
-			stats_print_proxy_field_json(out, &stats[field],
-			                             metrics[domain][field].name,
-			                             field,
-			                             stats[ST_I_PX_TYPE].u.u32,
-			                             stats[ST_I_PX_IID].u.u32,
-			                             stats[ST_I_PX_SID].u.u32,
-			                             stats[ST_I_PX_PID].u.u32);
+			stats_print_proxy_field_json(out, &line[i],
+			                             metrics[domain][i].name,
+			                             i,
+			                             line[ST_I_PX_TYPE].u.u32,
+			                             line[ST_I_PX_IID].u.u32,
+			                             line[ST_I_PX_SID].u.u32,
+			                             line[ST_I_PX_PID].u.u32);
 		} else if (domain == STATS_DOMAIN_RESOLVERS) {
-			stats_print_rslv_field_json(out, &stats[field],
-			                            metrics[domain][field].name,
-			                            field);
+			stats_print_rslv_field_json(out, &line[i],
+			                            metrics[domain][i].name,
+			                            i);
 		}
 
 		if (old_len == out->data)
 			goto err;
 
-		if (!stats_emit_json_field_tags(out, &stats[field]))
+		if (!stats_emit_json_field_tags(out, &line[i]))
 			goto err;
 
-		if (!stats_emit_json_data_field(out, &stats[field]))
+		if (!stats_emit_json_data_field(out, &line[i]))
 			goto err;
 
 		if (!chunk_strcat(out, "}"))
@@ -256,9 +256,9 @@ int stats_dump_json_info_fields(struct buffer *out,
 
 	for (; ctx->field < ST_I_INF_MAX; ctx->field++) {
 		int old_len;
-		int field = ctx->field;
+		int i = ctx->field;
 
-		if (!field_format(info, field))
+		if (!field_format(info, i))
 			continue;
 
 		if (started && !chunk_strcat(out, ","))
@@ -269,15 +269,15 @@ int stats_dump_json_info_fields(struct buffer *out,
 		chunk_appendf(out,
 			      "{\"field\":{\"pos\":%d,\"name\":\"%s\"},"
 			      "\"processNum\":%u,",
-			      field, metrics_info[field].name,
+			      i, metrics_info[i].name,
 			      info[ST_I_INF_PROCESS_NUM].u.u32);
 		if (old_len == out->data)
 			goto err;
 
-		if (!stats_emit_json_field_tags(out, &info[field]))
+		if (!stats_emit_json_field_tags(out, &info[i]))
 			goto err;
 
-		if (!stats_emit_json_data_field(out, &info[field]))
+		if (!stats_emit_json_data_field(out, &info[i]))
 			goto err;
 
 		if (!chunk_strcat(out, "}"))

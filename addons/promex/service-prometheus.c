@@ -659,7 +659,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 			if ((px->flags & PR_FL_DISABLED) || px->uuid <= 0 || !(px->cap & PR_CAP_FE))
 				goto next_px;
 
-			if (!stats_fill_fe_stats(px, stats, ST_I_PX_MAX, &(ctx->field_num)))
+			if (!stats_fill_fe_line(px, stats, ST_I_PX_MAX, &(ctx->field_num)))
 				return -1;
 
 			switch (ctx->field_num) {
@@ -856,8 +856,8 @@ static int promex_dump_listener_metrics(struct appctx *appctx, struct htx *htx)
 				labels[1].name  = ist("listener");
 				labels[1].value = ist2(li->name, strlen(li->name));
 
-				if (!stats_fill_li_stats(px, li, 0, stats,
-				                         ST_I_PX_MAX, &(ctx->field_num)))
+				if (!stats_fill_li_line(px, li, 0, stats,
+				                        ST_I_PX_MAX, &(ctx->field_num)))
 					return -1;
 
 				switch (ctx->field_num) {
@@ -1037,7 +1037,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 			if ((px->flags & PR_FL_DISABLED) || px->uuid <= 0 || !(px->cap & PR_CAP_BE))
 				goto next_px;
 
-			if (!stats_fill_be_stats(px, 0, stats, ST_I_PX_MAX, &(ctx->field_num)))
+			if (!stats_fill_be_line(px, 0, stats, ST_I_PX_MAX, &(ctx->field_num)))
 				return -1;
 
 			switch (ctx->field_num) {
@@ -1307,7 +1307,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 				labels[1].name  = ist("server");
 				labels[1].value = ist2(sv->id, strlen(sv->id));
 
-				if (!stats_fill_sv_stats(px, sv, 0, stats, ST_I_PX_MAX, &(ctx->field_num)))
+				if (!stats_fill_sv_line(px, sv, 0, stats, ST_I_PX_MAX, &(ctx->field_num)))
 					return -1;
 
 				if ((ctx->flags & PROMEX_FL_NO_MAINT_SRV) && (sv->cur_admin & SRV_ADMF_MAINT))
