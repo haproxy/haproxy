@@ -165,4 +165,20 @@ struct net_addr_type {
 	int xprt_type;  // transport layer
 };
 
+/* To easily pass context to cbor encode functions
+ */
+struct cbor_encode_ctx {
+	/* function pointer that cbor encode functions will use to encode a
+	 * single byte.
+	 *
+	 * The function needs to return the position of the last written byte
+	 * on success and NULL on failure. The function cannot write past <stop>
+	 */
+	char *(*e_byte_fct)(struct cbor_encode_ctx *ctx,
+	                    char *start, char *stop, uint8_t byte);
+
+	/* to pass some context to the encode_byte fct */
+	void *e_byte_fct_ctx;
+};
+
 #endif /* _HAPROXY_TOOLS_T_H */
