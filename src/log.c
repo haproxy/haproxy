@@ -1905,7 +1905,7 @@ static inline char *_lf_quotetext_len(char *dst, const char *src,
  *
  * Return the address of the \0 character, or NULL on error
  */
-char *lf_text_len(char *dst, const char *src, size_t len, size_t size, const struct logformat_node *node)
+static char *lf_text_len(char *dst, const char *src, size_t len, size_t size, const struct logformat_node *node)
 {
 	if ((node->options & LOG_OPT_QUOTE))
 		return _lf_quotetext_len(dst, src, len, size, node);
@@ -1927,7 +1927,7 @@ char *lf_text_len(char *dst, const char *src, size_t len, size_t size, const str
  * Same as lf_text_len() except that it ignores mandatory and quoting options.
  * Quoting is only performed when strictly required by the encoding method.
  */
-char *lf_rawtext_len(char *dst, const char *src, size_t len, size_t size, const struct logformat_node *node)
+static char *lf_rawtext_len(char *dst, const char *src, size_t len, size_t size, const struct logformat_node *node)
 {
 	return _lf_text_len(dst, src, len, size, node);
 }
@@ -1948,7 +1948,7 @@ static inline char *lf_rawtext(char *dst, const char *src, size_t size, const st
  * Write a IP address to the log string
  * +X option write in hexadecimal notation, most significant byte on the left
  */
-char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node)
+static char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node)
 {
 	char *ret = dst;
 	int iret;
@@ -2033,7 +2033,7 @@ static inline char *lf_int(char *dst, size_t size, int64_t value,
  * Write a port to the log
  * +X option write in hexadecimal notation, most significant byte on the left
  */
-char *lf_port(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node)
+static char *lf_port(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node)
 {
 	char *ret = dst;
 	int iret;

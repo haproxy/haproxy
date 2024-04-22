@@ -148,27 +148,6 @@ int get_log_level(const char *lev);
 int get_log_facility(const char *fac);
 
 /*
- * Write a string in the log string
- * Take cares of quote options
- *
- * Return the address of the \0 character, or NULL on error
- */
-char *lf_text_len(char *dst, const char *src, size_t len, size_t size, const struct logformat_node *node);
-
-/*
- * Write a IP address to the log string
- * +X option write in hexadecimal notation, most significant byte on the left
- */
-char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node);
-
-/*
- * Write a port to the log
- * +X option write in hexadecimal notation, most significant byte on the left
- */
-char *lf_port(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node);
-
-
-/*
  * Function to handle log header building (exported for sinks)
  */
 char *update_log_hdr_rfc5424(const time_t time, suseconds_t frac);
