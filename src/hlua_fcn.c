@@ -1158,7 +1158,7 @@ int hlua_listener_get_stats(lua_State *L)
 		return 1;
 	}
 
-	stats_fill_li_line(li->bind_conf->frontend, li, STAT_SHLGNDS, stats,
+	stats_fill_li_line(li->bind_conf->frontend, li, STAT_F_SHLGNDS, stats,
 	                   STATS_LEN, NULL);
 
 	lua_newtable(L);
@@ -1204,7 +1204,7 @@ int hlua_server_get_stats(lua_State *L)
 		return 1;
 	}
 
-	stats_fill_sv_line(srv->proxy, srv, STAT_SHLGNDS, stats,
+	stats_fill_sv_line(srv->proxy, srv, STAT_F_SHLGNDS, stats,
 	                   STATS_LEN, NULL);
 
 	lua_newtable(L);
@@ -2052,7 +2052,7 @@ int hlua_proxy_get_stats(lua_State *L)
 
 	px = hlua_check_proxy(L, 1);
 	if (px->cap & PR_CAP_BE)
-		stats_fill_be_line(px, STAT_SHLGNDS, stats, STATS_LEN, NULL);
+		stats_fill_be_line(px, STAT_F_SHLGNDS, stats, STATS_LEN, NULL);
 	else
 		stats_fill_fe_line(px, stats, STATS_LEN, NULL);
 	lua_newtable(L);

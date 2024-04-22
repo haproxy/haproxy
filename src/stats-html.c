@@ -213,8 +213,8 @@ void stats_dump_html_head(struct appctx *appctx)
 	              "}\n"
 	              "-->\n"
 	              "</style></head>\n",
-	              (ctx->flags & STAT_SHNODE) ? " on " : "",
-	              (ctx->flags & STAT_SHNODE) ? (uri && uri->node ? uri->node : global.node) : ""
+	              (ctx->flags & STAT_F_SHNODE) ? " on " : "",
+	              (ctx->flags & STAT_F_SHNODE) ? (uri && uri->node ? uri->node : global.node) : ""
 	              );
 }
 
@@ -290,11 +290,11 @@ void stats_dump_html_info(struct stconn *sc)
 	              "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
 	              "<b>Display option:</b><ul style=\"margin-top: 0.25em;\">"
 	              "",
-	              (ctx->flags & STAT_HIDEVER) ? "" : (stats_version_string),
-	              pid, (ctx->flags & STAT_SHNODE) ? " on " : "",
-		      (ctx->flags & STAT_SHNODE) ? (uri->node ? uri->node : global.node) : "",
-	              (ctx->flags & STAT_SHDESC) ? ": " : "",
-		      (ctx->flags & STAT_SHDESC) ? (uri->desc ? uri->desc : global.desc) : "",
+	              (ctx->flags & STAT_F_HIDEVER) ? "" : (stats_version_string),
+	              pid, (ctx->flags & STAT_F_SHNODE) ? " on " : "",
+		      (ctx->flags & STAT_F_SHNODE) ? (uri->node ? uri->node : global.node) : "",
+	              (ctx->flags & STAT_F_SHDESC) ? ": " : "",
+		      (ctx->flags & STAT_F_SHDESC) ? (uri->desc ? uri->desc : global.desc) : "",
 	              pid, 1, 1, global.nbthread,
 	              up / 86400, (up % 86400) / 3600,
 	              (up % 3600) / 60, (up % 60),
@@ -325,34 +325,34 @@ void stats_dump_html_info(struct stconn *sc)
 		scope_txt[strlen(STAT_SCOPE_PATTERN) + ctx->scope_len] = 0;
 	}
 
-	if (ctx->flags & STAT_HIDE_DOWN)
+	if (ctx->flags & STAT_F_HIDE_DOWN)
 		chunk_appendf(chk,
 		              "<li><a href=\"%s%s%s%s\">Show all servers</a><br>\n",
 		              uri->uri_prefix,
 		              "",
-		              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+		              (ctx->flags & STAT_F_NO_REFRESH) ? ";norefresh" : "",
 			      scope_txt);
 	else
 		chunk_appendf(chk,
 		              "<li><a href=\"%s%s%s%s\">Hide 'DOWN' servers</a><br>\n",
 		              uri->uri_prefix,
 		              ";up",
-		              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+		              (ctx->flags & STAT_F_NO_REFRESH) ? ";norefresh" : "",
 			      scope_txt);
 
 	if (uri->refresh > 0) {
-		if (ctx->flags & STAT_NO_REFRESH)
+		if (ctx->flags & STAT_F_NO_REFRESH)
 			chunk_appendf(chk,
 			              "<li><a href=\"%s%s%s%s\">Enable refresh</a><br>\n",
 			              uri->uri_prefix,
-			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_F_HIDE_DOWN) ? ";up" : "",
 			              "",
 				      scope_txt);
 		else
 			chunk_appendf(chk,
 			              "<li><a href=\"%s%s%s%s\">Disable refresh</a><br>\n",
 			              uri->uri_prefix,
-			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_F_HIDE_DOWN) ? ";up" : "",
 			              ";norefresh",
 				      scope_txt);
 	}
@@ -360,8 +360,8 @@ void stats_dump_html_info(struct stconn *sc)
 	chunk_appendf(chk,
 	              "<li><a href=\"%s%s%s%s\">Refresh now</a><br>\n",
 	              uri->uri_prefix,
-	              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
-	              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+	              (ctx->flags & STAT_F_HIDE_DOWN) ? ";up" : "",
+	              (ctx->flags & STAT_F_NO_REFRESH) ? ";norefresh" : "",
 		      scope_txt);
 
 	chunk_appendf(chk,
@@ -397,8 +397,8 @@ void stats_dump_html_info(struct stconn *sc)
 			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "Action processed successfully."
 			              "</div>\n", uri->uri_prefix,
-			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              (ctx->flags & STAT_F_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_F_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 			break;
 		case STAT_STATUS_NONE:
@@ -407,8 +407,8 @@ void stats_dump_html_info(struct stconn *sc)
 			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "Nothing has changed."
 			              "</div>\n", uri->uri_prefix,
-			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              (ctx->flags & STAT_F_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_F_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 			break;
 		case STAT_STATUS_PART:
@@ -418,8 +418,8 @@ void stats_dump_html_info(struct stconn *sc)
 			              "Action partially processed.<br>"
 			              "Some server names are probably unknown or ambiguous (duplicated names in the backend)."
 			              "</div>\n", uri->uri_prefix,
-			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              (ctx->flags & STAT_F_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_F_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 			break;
 		case STAT_STATUS_ERRP:
@@ -434,8 +434,8 @@ void stats_dump_html_info(struct stconn *sc)
 			              "<li>Some server names are probably unknown or ambiguous (duplicated names in the backend).</li>"
 			              "</ul>"
 			              "</div>\n", uri->uri_prefix,
-			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              (ctx->flags & STAT_F_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_F_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 			break;
 		case STAT_STATUS_EXCD:
@@ -445,8 +445,8 @@ void stats_dump_html_info(struct stconn *sc)
 			              "<b>Action not processed : the buffer couldn't store all the data.<br>"
 			              "You should retry with less servers at a time.</b>"
 			              "</div>\n", uri->uri_prefix,
-			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              (ctx->flags & STAT_F_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_F_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 			break;
 		case STAT_STATUS_DENY:
@@ -455,8 +455,8 @@ void stats_dump_html_info(struct stconn *sc)
 			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "<b>Action denied.</b>"
 			              "</div>\n", uri->uri_prefix,
-			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              (ctx->flags & STAT_F_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_F_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 			break;
 		case STAT_STATUS_IVAL:
@@ -465,8 +465,8 @@ void stats_dump_html_info(struct stconn *sc)
 			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "<b>Invalid requests (unsupported method or chunked encoded request).</b>"
 			              "</div>\n", uri->uri_prefix,
-			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              (ctx->flags & STAT_F_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_F_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 			break;
 		default:
@@ -475,8 +475,8 @@ void stats_dump_html_info(struct stconn *sc)
 			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "Unexpected result."
 			              "</div>\n", uri->uri_prefix,
-			              (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              (ctx->flags & STAT_F_HIDE_DOWN) ? ";up" : "",
+			              (ctx->flags & STAT_F_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 		}
 		chunk_appendf(chk, "<p>\n");
@@ -484,9 +484,9 @@ void stats_dump_html_info(struct stconn *sc)
 }
 
 /* Dump all fields from <stats> into <out> using the HTML format. A column is
- * reserved for the checkbox is STAT_ADMIN is set in <flags>. Some extra info
- * are provided if STAT_SHLGNDS is present in <flags>. The statistics from
- * extra modules are displayed at the end of the lines if STAT_SHMODULES is
+ * reserved for the checkbox is STAT_F_ADMIN is set in <flags>. Some extra info
+ * are provided if STAT_F_SHLGNDS is present in <flags>. The statistics from
+ * extra modules are displayed at the end of the lines if STAT_F_SHMODULES is
  * present in <flags>.
  */
 int stats_dump_fields_html(struct buffer *out,
@@ -503,7 +503,7 @@ int stats_dump_fields_html(struct buffer *out,
 		              /* name, queue */
 		              "<tr class=\"frontend\">");
 
-		if (flags & STAT_ADMIN) {
+		if (flags & STAT_F_ADMIN) {
 			/* Column sub-heading for Enable or Disable server */
 			chunk_appendf(out, "<td></td>");
 		}
@@ -668,7 +668,7 @@ int stats_dump_fields_html(struct buffer *out,
 		              U2H(stats[ST_I_PX_EREQ].u.u64),
 		              field_str(stats, ST_I_PX_STATUS));
 
-		if (flags & STAT_SHMODULES) {
+		if (flags & STAT_F_SHMODULES) {
 			list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 				chunk_appendf(out, "<td>");
 
@@ -695,7 +695,7 @@ int stats_dump_fields_html(struct buffer *out,
 	}
 	else if (stats[ST_I_PX_TYPE].u.u32 == STATS_TYPE_SO) {
 		chunk_appendf(out, "<tr class=socket>");
-		if (flags & STAT_ADMIN) {
+		if (flags & STAT_F_ADMIN) {
 			/* Column sub-heading for Enable or Disable server */
 			chunk_appendf(out, "<td></td>");
 		}
@@ -706,10 +706,10 @@ int stats_dump_fields_html(struct buffer *out,
 		              "<a class=lfsb href=\"#%s/+%s\">%s</a>"
 		              "",
 		              field_str(stats, ST_I_PX_PXNAME), field_str(stats, ST_I_PX_SVNAME),
-		              (flags & STAT_SHLGNDS)?"<u>":"",
+		              (flags & STAT_F_SHLGNDS)?"<u>":"",
 		              field_str(stats, ST_I_PX_PXNAME), field_str(stats, ST_I_PX_SVNAME), field_str(stats, ST_I_PX_SVNAME));
 
-		if (flags & STAT_SHLGNDS) {
+		if (flags & STAT_F_SHLGNDS) {
 			chunk_appendf(out, "<div class=tips>");
 
 			if (isdigit((unsigned char)*field_str(stats, ST_I_PX_ADDR)))
@@ -736,7 +736,7 @@ int stats_dump_fields_html(struct buffer *out,
 		              /* bytes: in, out */
 		              "<td>%s</td><td>%s</td>"
 		              "",
-		              (flags & STAT_SHLGNDS)?"</u>":"",
+		              (flags & STAT_F_SHLGNDS)?"</u>":"",
 		              U2H(stats[ST_I_PX_SCUR].u.u32), U2H(stats[ST_I_PX_SMAX].u.u32), U2H(stats[ST_I_PX_SLIM].u.u32),
 		              U2H(stats[ST_I_PX_STOT].u.u64), U2H(stats[ST_I_PX_BIN].u.u64), U2H(stats[ST_I_PX_BOUT].u.u64));
 
@@ -756,7 +756,7 @@ int stats_dump_fields_html(struct buffer *out,
 		              U2H(stats[ST_I_PX_EREQ].u.u64),
 		              field_str(stats, ST_I_PX_STATUS));
 
-		if (flags & STAT_SHMODULES) {
+		if (flags & STAT_F_SHMODULES) {
 			list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 				chunk_appendf(out, "<td>");
 
@@ -830,7 +830,7 @@ int stats_dump_fields_html(struct buffer *out,
 			              (stats[ST_I_PX_BCK].u.u32) ? "backup" : "active", style);
 
 
-		if (flags & STAT_ADMIN)
+		if (flags & STAT_F_ADMIN)
 			chunk_appendf(out,
 			              "<td><input class='%s-checkbox' type=\"checkbox\" name=\"s\" value=\"%s\"></td>",
 			              field_str(stats, ST_I_PX_PXNAME),
@@ -841,10 +841,10 @@ int stats_dump_fields_html(struct buffer *out,
 		              "<a class=lfsb href=\"#%s/%s\">%s</a>"
 		              "",
 		              field_str(stats, ST_I_PX_PXNAME), field_str(stats, ST_I_PX_SVNAME),
-		              (flags & STAT_SHLGNDS) ? "<u>" : "",
+		              (flags & STAT_F_SHLGNDS) ? "<u>" : "",
 		              field_str(stats, ST_I_PX_PXNAME), field_str(stats, ST_I_PX_SVNAME), field_str(stats, ST_I_PX_SVNAME));
 
-		if (flags & STAT_SHLGNDS) {
+		if (flags & STAT_F_SHLGNDS) {
 			chunk_appendf(out, "<div class=tips>");
 
 			if (isdigit((unsigned char)*field_str(stats, ST_I_PX_ADDR)))
@@ -874,7 +874,7 @@ int stats_dump_fields_html(struct buffer *out,
 		              /* sessions rate : current, max, limit */
 		              "<td>%s</td><td>%s</td><td></td>"
 		              "",
-		              (flags & STAT_SHLGNDS) ? "</u>" : "",
+		              (flags & STAT_F_SHLGNDS) ? "</u>" : "",
 		              U2H(stats[ST_I_PX_QCUR].u.u32), U2H(stats[ST_I_PX_QMAX].u.u32), LIM2A(stats[ST_I_PX_QLIMIT].u.u32, "-"),
 		              U2H(stats[ST_I_PX_RATE].u.u32), U2H(stats[ST_I_PX_RATE_MAX].u.u32));
 
@@ -1096,7 +1096,7 @@ int stats_dump_fields_html(struct buffer *out,
 		else
 			chunk_appendf(out, "<td class=ac>-</td>");
 
-		if (flags & STAT_SHMODULES) {
+		if (flags & STAT_F_SHMODULES) {
 			list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 				chunk_appendf(out, "<td>");
 
@@ -1123,7 +1123,7 @@ int stats_dump_fields_html(struct buffer *out,
 	}
 	else if (stats[ST_I_PX_TYPE].u.u32 == STATS_TYPE_BE) {
 		chunk_appendf(out, "<tr class=\"backend\">");
-		if (flags & STAT_ADMIN) {
+		if (flags & STAT_F_ADMIN) {
 			/* Column sub-heading for Enable or Disable server */
 			chunk_appendf(out, "<td></td>");
 		}
@@ -1133,10 +1133,10 @@ int stats_dump_fields_html(struct buffer *out,
 		              "%s<a name=\"%s/Backend\"></a>"
 		              "<a class=lfsb href=\"#%s/Backend\">Backend</a>"
 		              "",
-		              (flags & STAT_SHLGNDS)?"<u>":"",
+		              (flags & STAT_F_SHLGNDS)?"<u>":"",
 		              field_str(stats, ST_I_PX_PXNAME), field_str(stats, ST_I_PX_PXNAME));
 
-		if (flags & STAT_SHLGNDS) {
+		if (flags & STAT_F_SHLGNDS) {
 			/* balancing */
 			chunk_appendf(out, "<div class=tips>balancing: %s",
 			              field_str(stats, ST_I_PX_ALGO));
@@ -1158,7 +1158,7 @@ int stats_dump_fields_html(struct buffer *out,
 		              /* sessions rate : current, max, limit */
 		              "<td>%s</td><td>%s</td><td></td>"
 		              "",
-		              (flags & STAT_SHLGNDS)?"</u>":"",
+		              (flags & STAT_F_SHLGNDS)?"</u>":"",
 		              U2H(stats[ST_I_PX_QCUR].u.u32), U2H(stats[ST_I_PX_QMAX].u.u32),
 		              U2H(stats[ST_I_PX_RATE].u.u32), U2H(stats[ST_I_PX_RATE_MAX].u.u32));
 
@@ -1289,7 +1289,7 @@ int stats_dump_fields_html(struct buffer *out,
 		              stats[ST_I_PX_CHKDOWN].u.u32,
 		              stats[ST_I_PX_DOWNTIME].type ? human_time(stats[ST_I_PX_DOWNTIME].u.u32, 1) : "&nbsp;");
 
-		if (flags & STAT_SHMODULES) {
+		if (flags & STAT_F_SHMODULES) {
 			list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 				chunk_appendf(out, "<td>");
 
@@ -1331,7 +1331,7 @@ void stats_dump_html_px_hdr(struct stconn *sc, struct proxy *px)
 	struct stats_module *mod;
 	int stats_module_len = 0;
 
-	if (px->cap & PR_CAP_BE && px->srv && (ctx->flags & STAT_ADMIN)) {
+	if (px->cap & PR_CAP_BE && px->srv && (ctx->flags & STAT_F_ADMIN)) {
 		/* A form to enable/disable this proxy servers */
 
 		/* scope_txt = search pattern + search query, ctx->scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
@@ -1358,10 +1358,10 @@ void stats_dump_html_px_hdr(struct stconn *sc, struct proxy *px)
 	              "<a name=\"%s\"></a>%s"
 	              "<a class=px href=\"#%s\">%s</a>",
 	              px->id,
-	              (ctx->flags & STAT_SHLGNDS) ? "<u>":"",
+	              (ctx->flags & STAT_F_SHLGNDS) ? "<u>":"",
 	              px->id, px->id);
 
-	if (ctx->flags & STAT_SHLGNDS) {
+	if (ctx->flags & STAT_F_SHLGNDS) {
 		/* cap, mode, id */
 		chunk_appendf(chk, "<div class=tips>cap: %s, mode: %s, id: %d",
 		              proxy_cap_str(px->cap), proxy_mode_str(px->mode),
@@ -1376,10 +1376,10 @@ void stats_dump_html_px_hdr(struct stconn *sc, struct proxy *px)
 	              "</table>\n"
 	              "<table class=\"tbl\" width=\"100%%\">\n"
 	              "<tr class=\"titre\">",
-	              (ctx->flags & STAT_SHLGNDS) ? "</u>":"",
+	              (ctx->flags & STAT_F_SHLGNDS) ? "</u>":"",
 	              px->desc ? "desc" : "empty", px->desc ? px->desc : "");
 
-	if (ctx->flags & STAT_ADMIN) {
+	if (ctx->flags & STAT_F_ADMIN) {
 		/* Column heading for Enable or Disable server */
 		if ((px->cap & PR_CAP_BE) && px->srv)
 			chunk_appendf(chk,
@@ -1400,7 +1400,7 @@ void stats_dump_html_px_hdr(struct stconn *sc, struct proxy *px)
 	              "<th colspan=3>Errors</th><th colspan=2>Warnings</th>"
 	              "<th colspan=9>Server</th>");
 
-	if (ctx->flags & STAT_SHMODULES) {
+	if (ctx->flags & STAT_F_SHMODULES) {
 		// calculate the count of module for colspan attribute
 		list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 			++stats_module_len;
@@ -1421,7 +1421,7 @@ void stats_dump_html_px_hdr(struct stconn *sc, struct proxy *px)
 	              "<th>Bck</th><th>Chk</th><th>Dwn</th><th>Dwntme</th>"
 	              "<th>Thrtle</th>\n");
 
-	if (ctx->flags & STAT_SHMODULES) {
+	if (ctx->flags & STAT_F_SHMODULES) {
 		list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 			chunk_appendf(chk, "<th>%s</th>", mod->name);
 		}
@@ -1442,7 +1442,7 @@ void stats_dump_html_px_end(struct stconn *sc, struct proxy *px)
 
 	chunk_appendf(chk, "</table>");
 
-	if ((px->cap & PR_CAP_BE) && px->srv && (ctx->flags & STAT_ADMIN)) {
+	if ((px->cap & PR_CAP_BE) && px->srv && (ctx->flags & STAT_F_ADMIN)) {
 		/* close the form used to enable/disable this proxy servers */
 		chunk_appendf(chk,
 			      "Choose the action to perform on the checked servers : "
@@ -1499,11 +1499,11 @@ static int stats_send_http_headers(struct stconn *sc, struct htx *htx)
 
 	if (!htx_add_header(htx, ist("Cache-Control"), ist("no-cache")))
 		goto full;
-	if (ctx->flags & STAT_FMT_HTML) {
+	if (ctx->flags & STAT_F_FMT_HTML) {
 		if (!htx_add_header(htx, ist("Content-Type"), ist("text/html")))
 			goto full;
 	}
-	else if (ctx->flags & (STAT_FMT_JSON|STAT_JSON_SCHM)) {
+	else if (ctx->flags & (STAT_F_FMT_JSON|STAT_F_JSON_SCHM)) {
 		if (!htx_add_header(htx, ist("Content-Type"), ist("application/json")))
 			goto full;
 	}
@@ -1512,13 +1512,13 @@ static int stats_send_http_headers(struct stconn *sc, struct htx *htx)
 			goto full;
 	}
 
-	if (uri->refresh > 0 && !(ctx->flags & STAT_NO_REFRESH)) {
+	if (uri->refresh > 0 && !(ctx->flags & STAT_F_NO_REFRESH)) {
 		const char *refresh = U2A(uri->refresh);
 		if (!htx_add_header(htx, ist("Refresh"), ist(refresh)))
 			goto full;
 	}
 
-	if (ctx->flags & STAT_CHUNKED) {
+	if (ctx->flags & STAT_F_CHUNKED) {
 		if (!htx_add_header(htx, ist("Transfer-Encoding"), ist("chunked")))
 			goto full;
 	}
@@ -1567,8 +1567,8 @@ static int stats_send_http_redirect(struct stconn *sc, struct htx *htx)
 		      stat_status_codes[ctx->st_code]) ?
 		     stat_status_codes[ctx->st_code] :
 		     stat_status_codes[STAT_STATUS_UNKN],
-		     (ctx->flags & STAT_HIDE_DOWN) ? ";up" : "",
-		     (ctx->flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+		     (ctx->flags & STAT_F_HIDE_DOWN) ? ";up" : "",
+		     (ctx->flags & STAT_F_NO_REFRESH) ? ";norefresh" : "",
 		     scope_txt);
 
 	flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN|HTX_SL_F_CLEN|HTX_SL_F_CHNK);

@@ -81,7 +81,7 @@ const char *stat_status_codes[STAT_STATUS_SIZE] = {
 	[STAT_STATUS_IVAL] = "IVAL",
 };
 
-/* These are the names for each ST_I_INF_* field position. Please pay attention
+/* These are the metric names for each ST_I_INF_* field position. Please pay attention
  * to always use the exact same name except that the strings for new names must
  * be lower case or CamelCase while the enum entries must be upper case.
  */
@@ -571,7 +571,7 @@ static int stats_dump_fields_typed(struct buffer *out,
 		if (!stats_emit_typed_data_field(out, &line[i]))
 			return 0;
 
-		if (flags & STAT_SHOW_FDESC &&
+		if (flags & STAT_F_SHOW_FDESC &&
 		    !chunk_appendf(out, ":\"%s\"", metrics[domain][i].desc)) {
 			return 0;
 		}
@@ -590,11 +590,11 @@ int stats_dump_one_line(const struct field *line, size_t stats_count,
 	struct buffer *chk = &ctx->chunk;
 	int ret;
 
-	if (ctx->flags & STAT_FMT_HTML)
+	if (ctx->flags & STAT_F_FMT_HTML)
 		ret = stats_dump_fields_html(chk, line, ctx);
-	else if (ctx->flags & STAT_FMT_TYPED)
+	else if (ctx->flags & STAT_F_FMT_TYPED)
 		ret = stats_dump_fields_typed(chk, line, stats_count, ctx);
-	else if (ctx->flags & STAT_FMT_JSON)
+	else if (ctx->flags & STAT_F_FMT_JSON)
 		ret = stats_dump_fields_json(chk, line, stats_count, ctx);
 	else
 		ret = stats_dump_fields_csv(chk, line, stats_count, ctx);
@@ -841,7 +841,7 @@ static int stats_dump_fe_line(struct stconn *sc, struct proxy *px)
 	if (!(px->cap & PR_CAP_FE))
 		return 0;
 
-	if ((ctx->flags & STAT_BOUND) && !(ctx->type & (1 << STATS_TYPE_FE)))
+	if ((ctx->flags & STAT_F_BOUND) && !(ctx->type & (1 << STATS_TYPE_FE)))
 		return 0;
 
 	memset(line, 0, sizeof(struct field) * metrics_len[STATS_DOMAIN_PROXY]);
@@ -870,7 +870,7 @@ static int stats_dump_fe_line(struct stconn *sc, struct proxy *px)
  * length <len>. The length of the array must be at least ST_I_PX_MAX. If
  * this length is less then this value, the function returns 0, otherwise, it
  * returns 1.  If selected_field is != NULL, only fill this one. <flags> can
- * take the value STAT_SHLGNDS.
+ * take the value STAT_F_SHLGNDS.
  */
 int stats_fill_li_line(struct proxy *px, struct listener *l, int flags,
                        struct field *line, int len, enum stat_idx_px *selected_field)
@@ -957,7 +957,7 @@ int stats_fill_li_line(struct proxy *px, struct listener *l, int flags,
 				field = mkf_u64(FN_COUNTER, l->counters->internal_errors);
 				break;
 			case ST_I_PX_ADDR:
-				if (flags & STAT_SHLGNDS) {
+				if (flags & STAT_F_SHLGNDS) {
 					char str[INET6_ADDRSTRLEN];
 					int port;
 
@@ -1119,7 +1119,7 @@ static void stats_fill_sv_computestate(struct server *sv, struct server *ref,
  * of the array must be at least ST_I_PX_MAX. If this length is less than
  * this value, or if the selected field is not implemented for servers, the
  * function returns 0, otherwise, it returns 1. <flags> can take the value
- * STAT_SHLGNDS.
+ * STAT_F_SHLGNDS.
  */
 int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
                        struct field *line, int len,
@@ -1476,7 +1476,7 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 				field = mkf_u32(FN_MAX, sv->counters.ttime_max);
 				break;
 			case ST_I_PX_ADDR:
-				if (flags & STAT_SHLGNDS) {
+				if (flags & STAT_F_SHLGNDS) {
 					switch (addr_to_str(&sv->addr, str, sizeof(str))) {
 						case AF_INET:
 							field = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
@@ -1499,7 +1499,7 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 				}
 				break;
 			case ST_I_PX_COOKIE:
-				if (flags & STAT_SHLGNDS && sv->cookie)
+				if (flags & STAT_F_SHLGNDS && sv->cookie)
 					field = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, sv->cookie);
 				break;
 			default:
@@ -1590,7 +1590,7 @@ static void stats_fill_be_computesrv(struct proxy *px, int *nbup, int *nbsrv, in
  * of the array must be at least ST_I_PX_MAX. If this length is less than
  * this value, or if the selected field is not implemented for backends, the
  * function returns 0, otherwise, it returns 1. <flags> can take the value
- * STAT_SHLGNDS.
+ * STAT_F_SHLGNDS.
  */
 int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
                        enum stat_idx_px *index)
@@ -1691,7 +1691,7 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 			case ST_I_PX_STATUS:
 				fld = chunk_newstr(out);
 				chunk_appendf(out, "%s", (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN");
-				if (flags & (STAT_HIDE_MAINT|STAT_HIDE_DOWN))
+				if (flags & (STAT_F_HIDE_MAINT|STAT_F_HIDE_DOWN))
 					chunk_appendf(out, " (%d/%d)", nbup, nbsrv);
 				field = mkf_str(FO_STATUS, fld);
 				break;
@@ -1746,11 +1746,11 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 				field = mkf_u32(0, px->be_counters.sps_max);
 				break;
 			case ST_I_PX_COOKIE:
-				if (flags & STAT_SHLGNDS && px->cookie_name)
+				if (flags & STAT_F_SHLGNDS && px->cookie_name)
 					field = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, px->cookie_name);
 				break;
 			case ST_I_PX_ALGO:
-				if (flags & STAT_SHLGNDS)
+				if (flags & STAT_F_SHLGNDS)
 					field = mkf_str(FO_CONFIG|FS_SERVICE, backend_lb_algo_str(px->lbprm.algo & BE_LB_ALGO));
 				break;
 			case ST_I_PX_REQ_TOT:
@@ -1864,7 +1864,7 @@ static int stats_dump_be_line(struct stconn *sc, struct proxy *px)
 	if (!(px->cap & PR_CAP_BE))
 		return 0;
 
-	if ((ctx->flags & STAT_BOUND) && !(ctx->type & (1 << STATS_TYPE_BE)))
+	if ((ctx->flags & STAT_F_BOUND) && !(ctx->type & (1 << STATS_TYPE_BE)))
 		return 0;
 
 	memset(line, 0, sizeof(struct field) * metrics_len[STATS_DOMAIN_PROXY]);
@@ -1954,7 +1954,7 @@ more:
 				return 1;
 		}
 
-		if ((ctx->flags & STAT_BOUND) &&
+		if ((ctx->flags & STAT_F_BOUND) &&
 		    (ctx->iid != -1) &&
 		    (px->uuid != ctx->iid))
 			return 1;
@@ -1963,7 +1963,7 @@ more:
 		__fallthrough;
 
 	case STAT_PX_ST_TH:
-		if (ctx->flags & STAT_FMT_HTML) {
+		if (ctx->flags & STAT_F_FMT_HTML) {
 			stats_dump_html_px_hdr(sc, px);
 			if (!stats_putchk(appctx, buf, htx))
 				goto full;
@@ -1977,7 +1977,7 @@ more:
 		if (stats_dump_fe_line(sc, px)) {
 			if (!stats_putchk(appctx, buf, htx))
 				goto full;
-			ctx->flags |= STAT_STARTED;
+			ctx->flags |= STAT_F_STARTED;
 			if (ctx->field)
 				goto more;
 		}
@@ -1997,7 +1997,7 @@ more:
 			if (!l->counters)
 				continue;
 
-			if (ctx->flags & STAT_BOUND) {
+			if (ctx->flags & STAT_F_BOUND) {
 				if (!(ctx->type & (1 << STATS_TYPE_SO)))
 					break;
 
@@ -2009,7 +2009,7 @@ more:
 			if (stats_dump_li_line(sc, px, l)) {
 				if (!stats_putchk(appctx, buf, htx))
 					goto full;
-				ctx->flags |= STAT_STARTED;
+				ctx->flags |= STAT_F_STARTED;
 				if (ctx->field)
 					goto more;
 			}
@@ -2053,7 +2053,7 @@ more:
 			if (stats_is_full(appctx, buf, htx))
 				goto full;
 
-			if (ctx->flags & STAT_BOUND) {
+			if (ctx->flags & STAT_F_BOUND) {
 				if (!(ctx->type & (1 << STATS_TYPE_SV))) {
 					srv_drop(sv);
 					break;
@@ -2064,7 +2064,7 @@ more:
 			}
 
 			/* do not report disabled servers */
-			if (ctx->flags & STAT_HIDE_MAINT &&
+			if (ctx->flags & STAT_F_HIDE_MAINT &&
 			    sv->cur_admin & SRV_ADMF_MAINT) {
 				continue;
 			}
@@ -2074,7 +2074,7 @@ more:
 				svs = svs->track;
 
 			/* do not report servers which are DOWN and not changing state */
-			if ((ctx->flags & STAT_HIDE_DOWN) &&
+			if ((ctx->flags & STAT_F_HIDE_DOWN) &&
 			    ((sv->cur_admin & SRV_ADMF_MAINT) || /* server is in maintenance */
 			     (sv->cur_state == SRV_ST_STOPPED && /* server is down */
 			      (!((svs->agent.state | svs->check.state) & CHK_ST_ENABLED) ||
@@ -2086,7 +2086,7 @@ more:
 			if (stats_dump_sv_line(sc, px, sv)) {
 				if (!stats_putchk(appctx, buf, htx))
 					goto full;
-				ctx->flags |= STAT_STARTED;
+				ctx->flags |= STAT_F_STARTED;
 				if (ctx->field)
 					goto more;
 			}
@@ -2101,7 +2101,7 @@ more:
 		if (stats_dump_be_line(sc, px)) {
 			if (!stats_putchk(appctx, buf, htx))
 				goto full;
-			ctx->flags |= STAT_STARTED;
+			ctx->flags |= STAT_F_STARTED;
 			if (ctx->field)
 				goto more;
 		}
@@ -2111,7 +2111,7 @@ more:
 		__fallthrough;
 
 	case STAT_PX_ST_END:
-		if (ctx->flags & STAT_FMT_HTML) {
+		if (ctx->flags & STAT_F_FMT_HTML) {
 			stats_dump_html_px_end(sc, px);
 			if (!stats_putchk(appctx, buf, htx))
 				goto full;
@@ -2192,19 +2192,19 @@ int stats_dump_stat_to_buffer(struct stconn *sc, struct buffer *buf, struct htx 
 		__fallthrough;
 
 	case STAT_STATE_HEAD:
-		if (ctx->flags & STAT_FMT_HTML)
+		if (ctx->flags & STAT_F_FMT_HTML)
 			stats_dump_html_head(appctx);
-		else if (ctx->flags & STAT_JSON_SCHM)
+		else if (ctx->flags & STAT_F_JSON_SCHM)
 			stats_dump_json_schema(chk);
-		else if (ctx->flags & STAT_FMT_JSON)
+		else if (ctx->flags & STAT_F_FMT_JSON)
 			stats_dump_json_header(chk);
-		else if (!(ctx->flags & STAT_FMT_TYPED))
+		else if (!(ctx->flags & STAT_F_FMT_TYPED))
 			stats_dump_csv_header(ctx->domain, chk);
 
 		if (!stats_putchk(appctx, buf, htx))
 			goto full;
 
-		if (ctx->flags & STAT_JSON_SCHM) {
+		if (ctx->flags & STAT_F_JSON_SCHM) {
 			ctx->state = STAT_STATE_FIN;
 			return 1;
 		}
@@ -2212,7 +2212,7 @@ int stats_dump_stat_to_buffer(struct stconn *sc, struct buffer *buf, struct htx 
 		__fallthrough;
 
 	case STAT_STATE_INFO:
-		if (ctx->flags & STAT_FMT_HTML) {
+		if (ctx->flags & STAT_F_FMT_HTML) {
 			stats_dump_html_info(sc);
 			if (!stats_putchk(appctx, buf, htx))
 				goto full;
@@ -2248,8 +2248,8 @@ int stats_dump_stat_to_buffer(struct stconn *sc, struct buffer *buf, struct htx 
 		__fallthrough;
 
 	case STAT_STATE_END:
-		if (ctx->flags & (STAT_FMT_HTML|STAT_FMT_JSON)) {
-			if (ctx->flags & STAT_FMT_HTML)
+		if (ctx->flags & (STAT_F_FMT_HTML|STAT_F_FMT_JSON)) {
+			if (ctx->flags & STAT_F_FMT_HTML)
 				stats_dump_html_end(chk);
 			else
 				stats_dump_json_end(chk);
@@ -2290,7 +2290,7 @@ static int stats_dump_info_fields(struct buffer *out,
 			return 0;
 		if (!stats_emit_raw_data_field(out, &line[i]))
 			return 0;
-		if ((flags & STAT_SHOW_FDESC) && !chunk_appendf(out, ":\"%s\"", metrics_info[i].desc))
+		if ((flags & STAT_F_SHOW_FDESC) && !chunk_appendf(out, ":\"%s\"", metrics_info[i].desc))
 			return 0;
 		if (!chunk_strcat(out, "\n"))
 			return 0;
@@ -2318,7 +2318,7 @@ static int stats_dump_typed_info_fields(struct buffer *out,
 			return 0;
 		if (!stats_emit_typed_data_field(out, &line[i]))
 			return 0;
-		if ((flags & STAT_SHOW_FDESC) && !chunk_appendf(out, ":\"%s\"", metrics_info[i].desc))
+		if ((flags & STAT_F_SHOW_FDESC) && !chunk_appendf(out, ":\"%s\"", metrics_info[i].desc))
 			return 0;
 		if (!chunk_strcat(out, "\n"))
 			return 0;
@@ -2329,7 +2329,7 @@ static int stats_dump_typed_info_fields(struct buffer *out,
 /* Fill <info> with HAProxy global info. <info> is preallocated array of length
  * <len>. The length of the array must be ST_I_INF_MAX. If this length is
  * less then this value, the function returns 0, otherwise, it returns 1. Some
- * fields' presence or precision may depend on some of the STAT_* flags present
+ * fields' presence or precision may depend on some of the STAT_F_* flags present
  * in <flags>.
  */
 int stats_fill_info(struct field *line, int len, uint flags)
@@ -2384,8 +2384,8 @@ int stats_fill_info(struct field *line, int len, uint flags)
 	line[ST_I_INF_UPTIME]                         = mkf_str(FN_DURATION, chunk_newstr(out));
 	chunk_appendf(out, "%ud %uh%02um%02us", up_sec / 86400, (up_sec % 86400) / 3600, (up_sec % 3600) / 60, (up_sec % 60));
 
-	line[ST_I_INF_UPTIME_SEC]                     = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_DURATION, up_sec + up_usec / 1000000.0) : mkf_u32(FN_DURATION, up_sec);
-	line[ST_I_INF_START_TIME_SEC]                 = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_DURATION, start_date.tv_sec + start_date.tv_usec / 1000000.0) : mkf_u32(FN_DURATION, start_date.tv_sec);
+	line[ST_I_INF_UPTIME_SEC]                     = (flags & STAT_F_USE_FLOAT) ? mkf_flt(FN_DURATION, up_sec + up_usec / 1000000.0) : mkf_u32(FN_DURATION, up_sec);
+	line[ST_I_INF_START_TIME_SEC]                 = (flags & STAT_F_USE_FLOAT) ? mkf_flt(FN_DURATION, start_date.tv_sec + start_date.tv_usec / 1000000.0) : mkf_u32(FN_DURATION, start_date.tv_sec);
 	line[ST_I_INF_MEMMAX_MB]                      = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax);
 	line[ST_I_INF_MEMMAX_BYTES]                   = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax * 1048576L);
 	line[ST_I_INF_POOL_ALLOC_MB]                  = mkf_u32(0, (unsigned)(pool_total_allocated() / 1048576L));
@@ -2408,27 +2408,27 @@ int stats_fill_info(struct field *line, int len, uint flags)
 	line[ST_I_INF_MAXPIPES]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxpipes);
 	line[ST_I_INF_PIPES_USED]                     = mkf_u32(0, pipes_used);
 	line[ST_I_INF_PIPES_FREE]                     = mkf_u32(0, pipes_free);
-	line[ST_I_INF_CONN_RATE]                      = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.conn_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.conn_per_sec));
+	line[ST_I_INF_CONN_RATE]                      = (flags & STAT_F_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.conn_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.conn_per_sec));
 	line[ST_I_INF_CONN_RATE_LIMIT]                = mkf_u32(FO_CONFIG|FN_LIMIT, global.cps_lim);
 	line[ST_I_INF_MAX_CONN_RATE]                  = mkf_u32(FN_MAX, global.cps_max);
-	line[ST_I_INF_SESS_RATE]                      = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.sess_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.sess_per_sec));
+	line[ST_I_INF_SESS_RATE]                      = (flags & STAT_F_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.sess_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.sess_per_sec));
 	line[ST_I_INF_SESS_RATE_LIMIT]                = mkf_u32(FO_CONFIG|FN_LIMIT, global.sps_lim);
 	line[ST_I_INF_MAX_SESS_RATE]                  = mkf_u32(FN_RATE, global.sps_max);
 
 #ifdef USE_OPENSSL
-	line[ST_I_INF_SSL_RATE]                       = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_sess_rate) : mkf_u32(FN_RATE, ssl_sess_rate);
+	line[ST_I_INF_SSL_RATE]                       = (flags & STAT_F_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_sess_rate) : mkf_u32(FN_RATE, ssl_sess_rate);
 	line[ST_I_INF_SSL_RATE_LIMIT]                 = mkf_u32(FO_CONFIG|FN_LIMIT, global.ssl_lim);
 	line[ST_I_INF_MAX_SSL_RATE]                   = mkf_u32(FN_MAX, global.ssl_max);
-	line[ST_I_INF_SSL_FRONTEND_KEY_RATE]          = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_key_rate) : mkf_u32(0, ssl_key_rate);
+	line[ST_I_INF_SSL_FRONTEND_KEY_RATE]          = (flags & STAT_F_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_key_rate) : mkf_u32(0, ssl_key_rate);
 	line[ST_I_INF_SSL_FRONTEND_MAX_KEY_RATE]      = mkf_u32(FN_MAX, global.ssl_fe_keys_max);
-	line[ST_I_INF_SSL_FRONTEND_SESSION_REUSE_PCT] = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_reuse) : mkf_u32(0, ssl_reuse);
-	line[ST_I_INF_SSL_BACKEND_KEY_RATE]           = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.ssl_be_keys_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.ssl_be_keys_per_sec));
+	line[ST_I_INF_SSL_FRONTEND_SESSION_REUSE_PCT] = (flags & STAT_F_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_reuse) : mkf_u32(0, ssl_reuse);
+	line[ST_I_INF_SSL_BACKEND_KEY_RATE]           = (flags & STAT_F_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.ssl_be_keys_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.ssl_be_keys_per_sec));
 	line[ST_I_INF_SSL_BACKEND_MAX_KEY_RATE]       = mkf_u32(FN_MAX, global.ssl_be_keys_max);
 	line[ST_I_INF_SSL_CACHE_LOOKUPS]              = mkf_u32(FN_COUNTER, global.shctx_lookups);
 	line[ST_I_INF_SSL_CACHE_MISSES]               = mkf_u32(FN_COUNTER, global.shctx_misses);
 #endif
-	line[ST_I_INF_COMPRESS_BPS_IN]                = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.comp_bps_in)) : mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_in));
-	line[ST_I_INF_COMPRESS_BPS_OUT]               = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.comp_bps_out)) : mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_out));
+	line[ST_I_INF_COMPRESS_BPS_IN]                = (flags & STAT_F_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.comp_bps_in)) : mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_in));
+	line[ST_I_INF_COMPRESS_BPS_OUT]               = (flags & STAT_F_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.comp_bps_out)) : mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_out));
 	line[ST_I_INF_COMPRESS_BPS_RATE_LIM]          = mkf_u32(FO_CONFIG|FN_LIMIT, global.comp_rate_lim);
 #ifdef USE_ZLIB
 	line[ST_I_INF_ZLIB_MEM_USAGE]                 = mkf_u32(0, zlib_used_memory);
@@ -2484,9 +2484,9 @@ static int stats_dump_info_to_buffer(struct stconn *sc)
 more:
 	current_field = ctx->field;
 
-	if (ctx->flags & STAT_FMT_TYPED)
+	if (ctx->flags & STAT_F_FMT_TYPED)
 		ret = stats_dump_typed_info_fields(chk, stat_line_info, ctx);
-	else if (ctx->flags & STAT_FMT_JSON)
+	else if (ctx->flags & STAT_F_FMT_JSON)
 		ret = stats_dump_json_info_fields(chk, stat_line_info, ctx);
 	else
 		ret = stats_dump_info_fields(chk, stat_line_info, ctx);
@@ -2630,13 +2630,13 @@ static int cli_parse_show_info(char **args, char *payload, struct appctx *appctx
 
 	while (*args[arg]) {
 		if (strcmp(args[arg], "typed") == 0)
-			ctx->flags = (ctx->flags & ~STAT_FMT_MASK) | STAT_FMT_TYPED;
+			ctx->flags = (ctx->flags & ~STAT_F_FMT_MASK) | STAT_F_FMT_TYPED;
 		else if (strcmp(args[arg], "json") == 0)
-			ctx->flags = (ctx->flags & ~STAT_FMT_MASK) | STAT_FMT_JSON;
+			ctx->flags = (ctx->flags & ~STAT_F_FMT_MASK) | STAT_F_FMT_JSON;
 		else if (strcmp(args[arg], "desc") == 0)
-			ctx->flags |= STAT_SHOW_FDESC;
+			ctx->flags |= STAT_F_SHOW_FDESC;
 		else if (strcmp(args[arg], "float") == 0)
-			ctx->flags |= STAT_USE_FLOAT;
+			ctx->flags |= STAT_F_USE_FLOAT;
 		arg++;
 	}
 	return 0;
@@ -2651,10 +2651,10 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 	ctx->scope_str = 0;
 	ctx->scope_len = 0;
 	ctx->http_px = NULL; // not under http context
-	ctx->flags = STAT_SHNODE | STAT_SHDESC;
+	ctx->flags = STAT_F_SHNODE | STAT_F_SHDESC;
 
 	if ((strm_li(appctx_strm(appctx))->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER)
-		ctx->flags |= STAT_SHLGNDS;
+		ctx->flags |= STAT_F_SHLGNDS;
 
 	/* proxy is the default domain */
 	ctx->domain = STATS_DOMAIN_PROXY;
@@ -2684,7 +2684,7 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 		if (!ctx->iid)
 			return cli_err(appctx, "No such proxy.\n");
 
-		ctx->flags |= STAT_BOUND;
+		ctx->flags |= STAT_F_BOUND;
 		ctx->type = atoi(args[arg+1]);
 		ctx->sid = atoi(args[arg+2]);
 		arg += 3;
@@ -2692,15 +2692,15 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 
 	while (*args[arg]) {
 		if (strcmp(args[arg], "typed") == 0)
-			ctx->flags = (ctx->flags & ~STAT_FMT_MASK) | STAT_FMT_TYPED;
+			ctx->flags = (ctx->flags & ~STAT_F_FMT_MASK) | STAT_F_FMT_TYPED;
 		else if (strcmp(args[arg], "json") == 0)
-			ctx->flags = (ctx->flags & ~STAT_FMT_MASK) | STAT_FMT_JSON;
+			ctx->flags = (ctx->flags & ~STAT_F_FMT_MASK) | STAT_F_FMT_JSON;
 		else if (strcmp(args[arg], "desc") == 0)
-			ctx->flags |= STAT_SHOW_FDESC;
+			ctx->flags |= STAT_F_SHOW_FDESC;
 		else if (strcmp(args[arg], "no-maint") == 0)
-			ctx->flags |= STAT_HIDE_MAINT;
+			ctx->flags |= STAT_F_HIDE_MAINT;
 		else if (strcmp(args[arg], "up") == 0)
-			ctx->flags |= STAT_HIDE_DOWN;
+			ctx->flags |= STAT_F_HIDE_DOWN;
 		arg++;
 	}
 

@@ -170,7 +170,7 @@ int stats_dump_fields_json(struct buffer *out,
 	int started = (ctx->field) ? 1 : 0;
 	int ready_data = 0;
 
-	if (!started && (flags & STAT_STARTED) && !chunk_strcat(out, ","))
+	if (!started && (flags & STAT_F_STARTED) && !chunk_strcat(out, ","))
 		return 0;
 	if (!started && !chunk_strcat(out, "["))
 		return 0;
@@ -225,7 +225,7 @@ err:
 	if (!ready_data) {
 		/* not enough buffer space for a single entry.. */
 		chunk_reset(out);
-		if (ctx->flags & STAT_STARTED)
+		if (ctx->flags & STAT_F_STARTED)
 			chunk_strcat(out, ",");
 		chunk_appendf(out, "{\"errorStr\":\"output buffer too short\"}");
 		return 0; /* hard error */

@@ -3878,9 +3878,9 @@ static int http_handle_stats(struct stream *s, struct channel *req, struct proxy
 	ctx->st_code = STAT_STATUS_INIT;
 	ctx->http_px = px;
 	ctx->flags |= uri_auth->flags;
-	ctx->flags |= STAT_FMT_HTML; /* assume HTML mode by default */
+	ctx->flags |= STAT_F_FMT_HTML; /* assume HTML mode by default */
 	if ((msg->flags & HTTP_MSGF_VER_11) && (txn->meth != HTTP_METH_HEAD))
-		ctx->flags |= STAT_CHUNKED;
+		ctx->flags |= STAT_F_CHUNKED;
 
 	htx = htxbuf(&req->buf);
 	sl = http_get_stline(htx);
@@ -3889,14 +3889,14 @@ static int http_handle_stats(struct stream *s, struct channel *req, struct proxy
 
 	for (h = lookup; h <= end - 3; h++) {
 		if (memcmp(h, ";up", 3) == 0) {
-			ctx->flags |= STAT_HIDE_DOWN;
+			ctx->flags |= STAT_F_HIDE_DOWN;
 			break;
 		}
 	}
 
 	for (h = lookup; h <= end - 9; h++) {
 		if (memcmp(h, ";no-maint", 9) == 0) {
-			ctx->flags |= STAT_HIDE_MAINT;
+			ctx->flags |= STAT_F_HIDE_MAINT;
 			break;
 		}
 	}
@@ -3904,7 +3904,7 @@ static int http_handle_stats(struct stream *s, struct channel *req, struct proxy
 	if (uri_auth->refresh) {
 		for (h = lookup; h <= end - 10; h++) {
 			if (memcmp(h, ";norefresh", 10) == 0) {
-				ctx->flags |= STAT_NO_REFRESH;
+				ctx->flags |= STAT_F_NO_REFRESH;
 				break;
 			}
 		}
@@ -3912,31 +3912,31 @@ static int http_handle_stats(struct stream *s, struct channel *req, struct proxy
 
 	for (h = lookup; h <= end - 4; h++) {
 		if (memcmp(h, ";csv", 4) == 0) {
-			ctx->flags &= ~(STAT_FMT_MASK|STAT_JSON_SCHM);
+			ctx->flags &= ~(STAT_F_FMT_MASK|STAT_F_JSON_SCHM);
 			break;
 		}
 	}
 
 	for (h = lookup; h <= end - 6; h++) {
 		if (memcmp(h, ";typed", 6) == 0) {
-			ctx->flags &= ~(STAT_FMT_MASK|STAT_JSON_SCHM);
-			ctx->flags |= STAT_FMT_TYPED;
+			ctx->flags &= ~(STAT_F_FMT_MASK|STAT_F_JSON_SCHM);
+			ctx->flags |= STAT_F_FMT_TYPED;
 			break;
 		}
 	}
 
 	for (h = lookup; h <= end - 5; h++) {
 		if (memcmp(h, ";json", 5) == 0) {
-			ctx->flags &= ~(STAT_FMT_MASK|STAT_JSON_SCHM);
-			ctx->flags |= STAT_FMT_JSON;
+			ctx->flags &= ~(STAT_F_FMT_MASK|STAT_F_JSON_SCHM);
+			ctx->flags |= STAT_F_FMT_JSON;
 			break;
 		}
 	}
 
 	for (h = lookup; h <= end - 12; h++) {
 		if (memcmp(h, ";json-schema", 12) == 0) {
-			ctx->flags &= ~STAT_FMT_MASK;
-			ctx->flags |= STAT_JSON_SCHM;
+			ctx->flags &= ~STAT_F_FMT_MASK;
+			ctx->flags |= STAT_F_JSON_SCHM;
 			break;
 		}
 	}
@@ -4005,7 +4005,7 @@ static int http_handle_stats(struct stream *s, struct channel *req, struct proxy
 
 		if (ret) {
 			/* no rule, or the rule matches */
-			ctx->flags |= STAT_ADMIN;
+			ctx->flags |= STAT_F_ADMIN;
 			break;
 		}
 	}
@@ -4013,21 +4013,21 @@ static int http_handle_stats(struct stream *s, struct channel *req, struct proxy
 	if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
 		appctx->st0 = STAT_HTTP_HEAD;
 	else if (txn->meth == HTTP_METH_POST) {
-		if (ctx->flags & STAT_ADMIN) {
+		if (ctx->flags & STAT_F_ADMIN) {
 			appctx->st0 = STAT_HTTP_POST;
 			if (msg->msg_state < HTTP_MSG_DATA)
 				req->analysers |= AN_REQ_HTTP_BODY;
 		}
 		else {
 			/* POST without admin level */
-			ctx->flags &= ~STAT_CHUNKED;
+			ctx->flags &= ~STAT_F_CHUNKED;
 			ctx->st_code = STAT_STATUS_DENY;
 			appctx->st0 = STAT_HTTP_LAST;
 		}
 	}
 	else {
 		/* Unsupported method */
-		ctx->flags &= ~STAT_CHUNKED;
+		ctx->flags &= ~STAT_F_CHUNKED;
 		ctx->st_code = STAT_STATUS_IVAL;
 		appctx->st0 = STAT_HTTP_LAST;
 	}

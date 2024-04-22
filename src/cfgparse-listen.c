@@ -1819,13 +1819,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			if (!stats_check_init_uri_auth(&curproxy->uri_auth))
 				goto alloc_error;
 		} else if (strcmp(args[1], "hide-version") == 0) {
-			if (!stats_set_flag(&curproxy->uri_auth, STAT_HIDEVER))
+			if (!stats_set_flag(&curproxy->uri_auth, STAT_F_HIDEVER))
 				goto alloc_error;
 		} else if (strcmp(args[1], "show-legends") == 0) {
-			if (!stats_set_flag(&curproxy->uri_auth, STAT_SHLGNDS))
+			if (!stats_set_flag(&curproxy->uri_auth, STAT_F_SHLGNDS))
 				goto alloc_error;
 		} else if (strcmp(args[1], "show-modules") == 0) {
-			if (!stats_set_flag(&curproxy->uri_auth, STAT_SHMODULES))
+			if (!stats_set_flag(&curproxy->uri_auth, STAT_F_SHMODULES))
 				goto alloc_error;
 		} else if (strcmp(args[1], "show-node") == 0) {
 

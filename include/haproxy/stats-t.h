@@ -26,29 +26,29 @@
 #include <haproxy/buf-t.h>
 
 /* Flags for applet.ctx.stats.flags */
-#define STAT_FMT_HTML   0x00000001      /* dump the stats in HTML format */
-#define STAT_FMT_TYPED  0x00000002      /* use the typed output format */
-#define STAT_FMT_JSON   0x00000004      /* dump the stats in JSON format */
-#define STAT_HIDE_DOWN  0x00000008	/* hide 'down' servers in the stats page */
-#define STAT_NO_REFRESH 0x00000010	/* do not automatically refresh the stats page */
-#define STAT_ADMIN      0x00000020	/* indicate a stats admin level */
-#define STAT_CHUNKED    0x00000040      /* use chunked encoding (HTTP/1.1) */
-#define STAT_JSON_SCHM  0x00000080      /* dump the json schema */
+#define STAT_F_FMT_HTML   0x00000001    /* dump the stats in HTML format */
+#define STAT_F_FMT_TYPED  0x00000002    /* use the typed output format */
+#define STAT_F_FMT_JSON   0x00000004    /* dump the stats in JSON format */
+#define STAT_F_HIDE_DOWN  0x00000008    /* hide 'down' servers in the stats page */
+#define STAT_F_NO_REFRESH 0x00000010    /* do not automatically refresh the stats page */
+#define STAT_F_ADMIN      0x00000020    /* indicate a stats admin level */
+#define STAT_F_CHUNKED    0x00000040    /* use chunked encoding (HTTP/1.1) */
+#define STAT_F_JSON_SCHM  0x00000080    /* dump the json schema */
 
-#define STAT_HIDEVER    0x00000100      /* conf: do not report the version and reldate */
-#define STAT_SHNODE     0x00000200      /* conf: show node name */
-#define STAT_SHDESC     0x00000400      /* conf: show description */
-#define STAT_SHLGNDS    0x00000800      /* conf: show legends */
-#define STAT_SHOW_FDESC 0x00001000      /* show the column descriptions when possible */
-#define STAT_SHMODULES  0x00002000      /* conf: show modules */
-#define STAT_HIDE_MAINT 0x00004000	/* hide maint/disabled servers */
-#define STAT_CONVDONE   0x00008000	/* conf: rules conversion done */
-#define STAT_USE_FLOAT  0x00010000      /* use floats where possible in the outputs */
+#define STAT_F_HIDEVER    0x00000100    /* conf: do not report the version and reldate */
+#define STAT_F_SHNODE     0x00000200    /* conf: show node name */
+#define STAT_F_SHDESC     0x00000400    /* conf: show description */
+#define STAT_F_SHLGNDS    0x00000800    /* conf: show legends */
+#define STAT_F_SHOW_FDESC 0x00001000    /* show the column descriptions when possible */
+#define STAT_F_SHMODULES  0x00002000    /* conf: show modules */
+#define STAT_F_HIDE_MAINT 0x00004000    /* hide maint/disabled servers */
+#define STAT_F_CONVDONE   0x00008000    /* conf: rules conversion done */
+#define STAT_F_USE_FLOAT  0x00010000    /* use floats where possible in the outputs */
 
-#define STAT_BOUND      0x00800000	/* bound statistics to selected proxies/types/services */
-#define STAT_STARTED    0x01000000	/* some output has occurred */
+#define STAT_F_BOUND      0x00800000    /* bound statistics to selected proxies/types/services */
+#define STAT_F_STARTED    0x01000000    /* some output has occurred */
 
-#define STAT_FMT_MASK   0x00000007
+#define STAT_F_FMT_MASK   0x00000007
 
 #define STATS_TYPE_FE  0
 #define STATS_TYPE_BE  1
@@ -539,7 +539,7 @@ struct show_stat_ctx {
 	int scope_len;		/* length of the string above in the buffer */
 	int field;              /* current field iterator when stat line is dumped through returning function */
 	int px_st;		/* STAT_PX_ST* */
-	unsigned int flags;	/* STAT_* from stats-t.h */
+	unsigned int flags;	/* STAT_F_* from stats-t.h */
 	int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
 	int st_code;		/* the status code returned by an action */
 	struct buffer chunk;    /* temporary buffer which holds a single-line output */
