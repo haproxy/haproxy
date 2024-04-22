@@ -97,6 +97,7 @@ static const struct log_fmt_st log_formats[LOG_FORMATS] = {
  */
 long no_escape_map[(256/8) / sizeof(long)];
 long rfc5424_escape_map[(256/8) / sizeof(long)];
+long json_escape_map[(256/8) / sizeof(long)];
 long hdr_encode_map[(256/8) / sizeof(long)];
 long url_encode_map[(256/8) / sizeof(long)];
 long http_encode_map[(256/8) / sizeof(long)];
@@ -328,6 +329,7 @@ struct logformat_tag_args tag_args_list[] = {
 	{ "X", LOG_OPT_HEXA },
 	{ "E", LOG_OPT_ESC },
 	{ "bin", LOG_OPT_BIN },
+	{ "json", LOG_OPT_ENCODE_JSON },
 	{  0,  0 }
 };
 
@@ -380,7 +382,13 @@ int parse_logformat_tag_args(char *args, struct logformat_node *node, char **err
 			for (i = 0; sp && tag_args_list[i].name; i++) {
 				if (strcmp(sp, tag_args_list[i].name) == 0) {
 					if (flags == 1) {
-						node->options |= tag_args_list[i].mask;
+						/* Ensure we don't mix encoding types, existing
+						 * encoding type prevails over new ones
+						 */
+						if (node->options & LOG_OPT_ENCODE)
+							node->options |= (tag_args_list[i].mask & ~LOG_OPT_ENCODE);
+						else
+							node->options |= tag_args_list[i].mask;
 						break;
 					} else if (flags == 2) {
 						node->options &= ~tag_args_list[i].mask;
@@ -1751,12 +1759,28 @@ static inline void lf_buildctx_prepare(struct lf_buildctx *ctx,
 		 * globally
 		 *
 		 * Also, ignore LOG_OPT_BIN since it is a global-only option
+		 *
+		 * Finally, ensure we don't mix encoding types, global setting
+		 * prevails over per-node one.
 		 */
-		ctx->options |= (node->options & ~LOG_OPT_BIN);
+		if (g_options & LOG_OPT_ENCODE)
+			ctx->options |= (node->options & ~(LOG_OPT_BIN | LOG_OPT_ENCODE));
+		else
+			ctx->options |= (node->options & ~LOG_OPT_BIN);
 
 		/* consider node's typecast setting */
 		ctx->typecast = node->typecast;
 	}
+
+	/* encoding is incompatible with HTTP option, so it is ignored
+	 * if HTTP option is set
+	 */
+	if (ctx->options & LOG_OPT_HTTP)
+		ctx->options &= ~LOG_OPT_ENCODE;
+
+	/* when encoding is set, ignore +E option */
+	if (ctx->options & LOG_OPT_ENCODE)
+		ctx->options &= ~LOG_OPT_ESC;
 }
 
 /* helper function for _lf_encode_bytes() to escape a single byte
@@ -1825,6 +1849,36 @@ static inline char *_lf_rfc5424_escape_byte(char *start, char *stop,
 	return start;
 }
 
+/* helper function for _lf_encode_bytes() to encode a single byte
+ * and escape it with <escape> if found in <map> or escape it with
+ * '\' if found in json_escape_map
+ *
+ * The function assumes that at least 1 byte is available for writing
+ *
+ * Returns the address of the last written byte on success, or NULL
+ * on error
+ */
+static inline char *_lf_json_escape_byte(char *start, char *stop,
+                                         const char *byte,
+                                         const char escape, const long *map,
+                                         struct lf_buildctx *ctx)
+{
+	if (!ha_bit_test((unsigned char)(*byte), map)) {
+		if (!ha_bit_test((unsigned char)(*byte), json_escape_map))
+			*start++ = *byte;
+		else {
+			if (start + 2 >= stop)
+				return NULL;
+			*start++ = '\\';
+			*start++ = *byte;
+		}
+	}
+	else
+		start = _lf_escape_byte(start, stop, *byte, escape);
+
+	return start;
+}
+
 /*
  * helper for lf_encode_{string,chunk}:
  * encode the input bytes, input <bytes> is processed until <bytes_stop>
@@ -1834,6 +1888,9 @@ static inline char *_lf_rfc5424_escape_byte(char *start, char *stop,
  * When using the +E log format option, it will try to escape '"\]'
  * characters with '\' as prefix. The same prefix should not be used as
  * <escape>.
+ *
+ * When using json encoding, string will be escaped according to
+ * json escape map
  *
  * Return the address of the \0 character, or NULL on error
  */
@@ -1848,7 +1905,9 @@ static char *_lf_encode_bytes(char *start, char *stop,
 	                     const char escape, const long *map,
 	                     struct lf_buildctx *ctx);
 
-	if (ctx->options & LOG_OPT_ESC)
+	if (ctx->options & LOG_OPT_ENCODE_JSON)
+		encode_byte = _lf_json_escape_byte;
+	else if (ctx->options & LOG_OPT_ESC)
 		encode_byte = _lf_rfc5424_escape_byte;
 	else
 		encode_byte = _lf_map_escape_byte;
@@ -1912,19 +1971,29 @@ static char *lf_encode_chunk(char *start, char *stop,
  * Write a raw string in the log string
  * Take care of escape option
  *
+ * When using json encoding, string will be escaped according
+ * to json escape map
+ *
  * Return the address of the \0 character, or NULL on error
  */
 static inline char *_lf_text_len(char *dst, const char *src,
                                  size_t len, size_t size, struct lf_buildctx *ctx)
 {
+	const long *escape_map = NULL;
+
+	if (ctx->options & LOG_OPT_ENCODE_JSON)
+		escape_map = json_escape_map;
+	else if (ctx->options & LOG_OPT_ESC)
+		escape_map = rfc5424_escape_map;
+
 	if (src && len) {
 		/* escape_string and strlcpy2 will both try to add terminating NULL-byte
 		 * to dst
 		 */
-		if (ctx->options & LOG_OPT_ESC) {
+		if (escape_map) {
 			char *ret;
 
-			ret = escape_string(dst, dst + size, '\\', rfc5424_escape_map, src, src + len);
+			ret = escape_string(dst, dst + size, '\\', escape_map, src, src + len);
 			if (ret == NULL)
 				return NULL;
 			len = ret - dst;
@@ -1979,13 +2048,13 @@ static inline char *_lf_quotetext_len(char *dst, const char *src,
 
 /*
  * Write a string in the log string
- * Take care of quote, mandatory and escape options
+ * Take care of quote, mandatory and escape and encoding options
  *
  * Return the address of the \0 character, or NULL on error
  */
 static char *lf_text_len(char *dst, const char *src, size_t len, size_t size, struct lf_buildctx *ctx)
 {
-	if ((ctx->options & LOG_OPT_QUOTE))
+	if ((ctx->options & (LOG_OPT_QUOTE | LOG_OPT_ENCODE_JSON)))
 		return _lf_quotetext_len(dst, src, len, size, ctx);
 	else if (src && len)
 		return _lf_text_len(dst, src, len, size, ctx);
@@ -2007,6 +2076,9 @@ static char *lf_text_len(char *dst, const char *src, size_t len, size_t size, st
  */
 static char *lf_rawtext_len(char *dst, const char *src, size_t len, size_t size, struct lf_buildctx *ctx)
 {
+	if (!ctx->in_text &&
+	    (ctx->options & LOG_OPT_ENCODE_JSON))
+		return _lf_quotetext_len(dst, src, len, size, ctx);
 	return _lf_text_len(dst, src, len, size, ctx);
 }
 
@@ -2075,6 +2147,69 @@ static char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, stru
 	return ret;
 }
 
+/* Logformat expr wrapper to write a boolean according to node
+ * encoding settings
+ */
+static char *lf_bool_encode(char *dst, size_t size, uint8_t value,
+                            struct lf_buildctx *ctx)
+{
+	/* encode as a regular bool value */
+
+	if (ctx->options & LOG_OPT_ENCODE_JSON) {
+		char *ret = dst;
+		int iret;
+
+		if (value)
+			iret = snprintf(dst, size, "true");
+		else
+			iret = snprintf(dst, size, "false");
+
+		if (iret < 0 || iret >= size)
+			return NULL;
+		ret += iret;
+		return ret;
+	}
+
+	return NULL; /* not supported */
+}
+
+/* Logformat expr wrapper to write an integer according to node
+ * encoding settings and typecast settings.
+ */
+static char *lf_int_encode(char *dst, size_t size, int64_t value,
+                           struct lf_buildctx *ctx)
+{
+	if (ctx->typecast == SMP_T_BOOL) {
+		/* either true or false */
+		return lf_bool_encode(dst, size, !!value, ctx);
+	}
+
+	if (ctx->options & LOG_OPT_ENCODE_JSON) {
+		char *ret = dst;
+		int iret = 0;
+
+		if (ctx->typecast == SMP_T_STR) {
+			/* encode as a string number (base10 with "quotes"):
+			 *   may be useful to work around the limited resolution
+			 *   of JS number types for instance
+			 */
+			iret = snprintf(dst, size, "\"%lld\"", (long long int)value);
+		}
+		else {
+			/* encode as a regular int64 number (base10) */
+			iret = snprintf(dst, size, "%lld", (long long int)value);
+		}
+
+		if (iret < 0 || iret >= size)
+			return NULL;
+		ret += iret;
+
+		return ret;
+	}
+
+	return NULL; /* not supported */
+}
+
 enum lf_int_hdl {
 	LF_INT_LTOA = 0,
 	LF_INT_LLTOA,
@@ -2084,12 +2219,15 @@ enum lf_int_hdl {
 
 /*
  * Logformat expr wrapper to write an integer, uses <dft_hdl> to know
- * how to encode the value by default
+ * how to encode the value by default (if no encoding is used)
  */
 static inline char *lf_int(char *dst, size_t size, int64_t value,
                            struct lf_buildctx *ctx,
                            enum lf_int_hdl dft_hdl)
 {
+	if (ctx->options & LOG_OPT_ENCODE)
+		return lf_int_encode(dst, size, value, ctx);
+
 	switch (dft_hdl) {
 		case LF_INT_LTOA:
 			return ltoa_o(value, dst, size);
@@ -2800,10 +2938,11 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
  */
 #define LOG_VARTEXT_START() do {                                       \
 			ctx.in_text = 1;                               \
-			/* put the text within quotes if quoting is    \
-			 * enabled                                     \
+			/* put the text within quotes if JSON encoding \
+			 * is used or quoting is enabled               \
 			 */                                            \
-			if (ctx.options & LOG_OPT_QUOTE) {             \
+			if (ctx.options &                              \
+			    (LOG_OPT_QUOTE | LOG_OPT_ENCODE_JSON)) {   \
 				LOGCHAR('"');                          \
 			}                                              \
 		} while (0)
@@ -2817,9 +2956,11 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 			if (!ctx.in_text)                              \
 				break;                                 \
 			ctx.in_text = 0;                               \
-			/* add the ending quote if quoting is enabled  \
+			/* add the ending quote if JSON encoding is    \
+			 * used or quoting is enabled                  \
 			 */                                            \
-			if (ctx.options & LOG_OPT_QUOTE) {             \
+			if (ctx.options &                              \
+			    (LOG_OPT_QUOTE | LOG_OPT_ENCODE_JSON)) {   \
 				LOGCHAR('"');                          \
 			}                                              \
 		} while (0)
@@ -2829,20 +2970,32 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
  * should be considered as optional metadata instead.
  */
 #define LOGMETACHAR(chr) do {                                          \
+			/* ignored when encoding is used */            \
+			if (ctx.options & LOG_OPT_ENCODE)              \
+				break;                                 \
 			LOGCHAR(chr);                                  \
 		} while (0)
 
 /* indicate the start of a string array */
 #define LOG_STRARRAY_START() do {                                      \
+			if (ctx.options & LOG_OPT_ENCODE_JSON)         \
+				LOGCHAR('[');                          \
 		} while (0)
 
 /* indicate that a new element is added to the string array */
 #define LOG_STRARRAY_NEXT() do {                                       \
-			LOGCHAR(' ');                                  \
+			if (ctx.options & LOG_OPT_ENCODE_JSON) {       \
+				LOGCHAR(',');                          \
+				LOGCHAR(' ');                          \
+			}                                              \
+			else                                           \
+				LOGCHAR(' ');                          \
 		} while (0)
 
 /* indicate the end of a string array */
 #define LOG_STRARRAY_END() do {                                        \
+			if (ctx.options & LOG_OPT_ENCODE_JSON)         \
+				LOGCHAR(']');                          \
 		} while (0)
 
 /* Initializes some log data at boot */
@@ -2864,6 +3017,15 @@ static void init_log()
 	tmp = "\"\\]";
 	while (*tmp) {
 		ha_bit_set(*tmp, rfc5424_escape_map);
+		tmp++;
+	}
+
+	/* Initialize the escape map for JSON strings : '"\' */
+	memset(json_escape_map, 0, sizeof(json_escape_map));
+
+	tmp = "\"\\";
+	while (*tmp) {
+		ha_bit_set(*tmp, json_escape_map);
 		tmp++;
 	}
 
@@ -3106,6 +3268,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	struct ist path;
 	struct http_uri_parser parser;
 	int g_options = lf_expr->nodes.options; /* global */
+	int first_node = 1;
 
 	/* FIXME: let's limit ourselves to frontend logging for now. */
 
@@ -3191,8 +3354,11 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	lf_buildctx_prepare(&ctx, g_options, NULL);
 
 	/* fill logbuffer */
-	if (lf_expr_isempty(lf_expr))
+	if (!(ctx.options & LOG_OPT_ENCODE) && lf_expr_isempty(lf_expr))
 		return 0;
+
+	if (ctx.options & LOG_OPT_ENCODE_JSON)
+		LOGCHAR('{');
 
 	list_for_each_entry(tmp, list_format, list) {
 #ifdef USE_OPENSSL
@@ -3200,8 +3366,44 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 #endif
 		const struct sockaddr_storage *addr;
 		const char *src = NULL;
+		const char *value_beg = NULL;
 		struct sample *key;
 		const struct buffer empty = { };
+
+		if (ctx.options & LOG_OPT_ENCODE) {
+			/* only consider global ctx for key encoding */
+			lf_buildctx_prepare(&ctx, g_options, NULL);
+
+			/* types that cannot be named such as text or separator are ignored
+			 * when encoding is set
+			 */
+			if (tmp->type != LOG_FMT_EXPR && tmp->type != LOG_FMT_TAG)
+				goto next_fmt;
+
+			if (!tmp->name)
+				goto next_fmt; /* cannot represent anonymous field, ignore */
+
+			if (!first_node) {
+				if (ctx.options & LOG_OPT_ENCODE_JSON) {
+					LOGCHAR(',');
+					LOGCHAR(' ');
+				}
+			}
+
+			if (ctx.options & LOG_OPT_ENCODE_JSON) {
+				LOGCHAR('"');
+				iret = strlcpy2(tmplog, tmp->name, dst + maxsize - tmplog);
+				if (iret == 0)
+					goto out;
+				tmplog += iret;
+				LOGCHAR('"');
+				LOGCHAR(':');
+				LOGCHAR(' ');
+			}
+
+			first_node = 0;
+		}
+		value_beg = tmplog;
 
 		/* get the chance to consider per-node options (if not already
 		 * set globally) for printing the value
@@ -3250,6 +3452,25 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 						type = SMP_T_BIN;
 				}
 
+				/* if encoding is set, try to preserve output type
+				 * with respect to typecast settings
+				 * (ie: str, sint, bool)
+				 */
+				if (ctx.options & LOG_OPT_ENCODE) {
+					if (ctx.typecast == SMP_T_STR ||
+					    ctx.typecast == SMP_T_SINT ||
+					    ctx.typecast == SMP_T_BOOL) {
+						/* enforce type */
+						type = ctx.typecast;
+					}
+					else if (key &&
+					         (key->data.type == SMP_T_SINT ||
+					          key->data.type == SMP_T_BOOL)) {
+						/* preserve type */
+						type = key->data.type;
+					}
+				}
+
 				if (key && !sample_convert(key, type))
 					key = NULL;
 
@@ -3262,6 +3483,12 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 						                      0, no_escape_map,
 						                      &key->data.u.str,
 						                      &ctx);
+					else if (key && type == SMP_T_SINT)
+						ret = lf_int_encode(tmplog, dst + maxsize - tmplog,
+						                    key->data.u.sint, &ctx);
+					else if (key && type == SMP_T_BOOL)
+						ret = lf_bool_encode(tmplog, dst + maxsize - tmplog,
+						                     key->data.u.sint, &ctx);
 					else
 						ret = lf_text_len(tmplog,
 						                  key ? key->data.u.str.area : NULL,
@@ -4236,11 +4463,32 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		if (tmp->type != LOG_FMT_SEPARATOR)
 			last_isspace = 0; // not a separator, hence not a space
 
+		if (value_beg == tmplog) {
+			/* handle the case where no data was generated for the value after
+			 * the key was already announced
+			 */
+			if (ctx.options & LOG_OPT_ENCODE_JSON) {
+				/* for JSON, we simply output 'null' */
+				iret = snprintf(tmplog, dst + maxsize - tmplog, "null");
+				if (iret < 0 || iret >= dst + maxsize - tmplog)
+					goto out;
+				tmplog += iret;
+			}
+		}
+
 		/* if variable text was started for the current node data, we need
 		 * to end it
 		 */
 		LOG_VARTEXT_END();
 	}
+
+	/* back to global ctx (some encoding types may need to output
+	 * ending closure)
+	*/
+	lf_buildctx_prepare(&ctx, g_options, NULL);
+
+	if (ctx.options & LOG_OPT_ENCODE_JSON)
+		LOGCHAR('}');
 
 out:
 	/* *tmplog is a unused character */

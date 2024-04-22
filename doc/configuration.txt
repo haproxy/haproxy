@@ -25747,6 +25747,11 @@ Flags are :
          rings and binary-capable log endpoints.
          This option can only be set globally (with %o), it will be ignored
          if set on an individual node's options.
+  * json: automatically encode value in JSON format
+          (when set globally, only named format variables are considered)
+          Incomplete numerical values (e.g.: '%B' when logasap is used),
+          which are normally prefixed with '+' without encoding, will be
+          encoded as-is. Also, '+E' option will be ignored.
 
   Example:
 
@@ -25754,6 +25759,8 @@ Flags are :
     log-format %{+Q}o\ %t\ %s\ %{-Q}r
 
     log-format-sd %{+Q,+E}o\ [exampleSDID@1234\ header=%[capture.req.hdr(0)]]
+
+    log-format "%{+json}o %(request)r %(custom_expr)[str(custom)]"
 
 Please refer to the table below for currently defined variables :
 
