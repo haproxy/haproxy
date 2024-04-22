@@ -627,7 +627,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 	struct channel *chn = sc_ic(appctx_sc(appctx));
 	struct ist name, desc, out = ist2(trash.area, 0);
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
-	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
+	struct field *stats = stat_lines[STATS_DOMAIN_PROXY];
 	int ret = 1;
 	enum promex_front_state state;
 
@@ -814,7 +814,7 @@ static int promex_dump_listener_metrics(struct appctx *appctx, struct htx *htx)
 	struct channel *chn = sc_ic(appctx_sc(appctx));
 	struct ist name, desc, out = ist2(trash.area, 0);
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
-	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
+	struct field *stats = stat_lines[STATS_DOMAIN_PROXY];
 	int ret = 1;
 	enum li_status status;
 
@@ -999,7 +999,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 	struct channel *chn = sc_ic(appctx_sc(appctx));
 	struct ist name, desc, out = ist2(trash.area, 0);
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
-	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
+	struct field *stats = stat_lines[STATS_DOMAIN_PROXY];
 	int ret = 1;
 	double secs;
 	enum promex_back_state bkd_state;
@@ -1266,7 +1266,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 	struct channel *chn = sc_ic(appctx_sc(appctx));
 	struct ist name, desc, out = ist2(trash.area, 0);
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
-	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
+	struct field *stats = stat_lines[STATS_DOMAIN_PROXY];
 	int ret = 1;
 	double secs;
 	enum promex_srv_state state;

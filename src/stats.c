@@ -284,11 +284,13 @@ const struct name_desc metrics_px[ST_I_PX_MAX] = {
 };
 
 /* one line for stats */
-THREAD_LOCAL struct field *stat_l[STATS_DOMAIN_COUNT];
+THREAD_LOCAL struct field *stat_lines[STATS_DOMAIN_COUNT];
 
-/* description of statistics (static and dynamic) */
-struct name_desc *stat_f[STATS_DOMAIN_COUNT];
-static size_t stat_count[STATS_DOMAIN_COUNT];
+/* Unified storage for metrics from all stats module
+ * TODO merge info stats into it as global statistic domain.
+ */
+struct name_desc *metrics[STATS_DOMAIN_COUNT];
+static size_t metrics_len[STATS_DOMAIN_COUNT];
 
 /* list of all registered stats module */
 struct list stats_module_list[STATS_DOMAIN_COUNT] = {
@@ -400,9 +402,9 @@ static void stats_dump_csv_header(enum stats_domain domain, struct buffer *out)
 	int field;
 
 	chunk_appendf(out, "# ");
-	if (stat_f[domain]) {
-		for (field = 0; field < stat_count[domain]; ++field) {
-			chunk_appendf(out, "%s,", stat_f[domain][field].name);
+	if (metrics[domain]) {
+		for (field = 0; field < metrics_len[domain]; ++field) {
+			chunk_appendf(out, "%s,", metrics[domain][field].name);
 
 			/* print special delimiter on proxy stats to mark end of
 			   static fields */
@@ -551,13 +553,13 @@ static int stats_dump_fields_typed(struct buffer *out,
 			              '?',
 			              stats[ST_I_PX_IID].u.u32, stats[ST_I_PX_SID].u.u32,
 			              field,
-			              stat_f[domain][field].name,
+			              metrics[domain][field].name,
 			              stats[ST_I_PX_PID].u.u32);
 			break;
 
 		case STATS_DOMAIN_RESOLVERS:
 			chunk_appendf(out, "N.%d.%s:", field,
-			              stat_f[domain][field].name);
+			              metrics[domain][field].name);
 			break;
 
 		default:
@@ -570,7 +572,7 @@ static int stats_dump_fields_typed(struct buffer *out,
 			return 0;
 
 		if (flags & STAT_SHOW_FDESC &&
-		    !chunk_appendf(out, ":\"%s\"", stat_f[domain][field].desc)) {
+		    !chunk_appendf(out, ":\"%s\"", metrics[domain][field].desc)) {
 			return 0;
 		}
 
@@ -832,7 +834,7 @@ static int stats_dump_fe_stats(struct stconn *sc, struct proxy *px)
 {
 	struct appctx *appctx = __sc_appctx(sc);
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
+	struct field *stats = stat_lines[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
 	size_t stats_count = ST_I_PX_MAX;
 
@@ -842,7 +844,7 @@ static int stats_dump_fe_stats(struct stconn *sc, struct proxy *px)
 	if ((ctx->flags & STAT_BOUND) && !(ctx->type & (1 << STATS_TYPE_FE)))
 		return 0;
 
-	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
+	memset(stats, 0, sizeof(struct field) * metrics_len[STATS_DOMAIN_PROXY]);
 
 	if (!stats_fill_fe_stats(px, stats, ST_I_PX_MAX, NULL))
 		return 0;
@@ -1008,11 +1010,11 @@ static int stats_dump_li_stats(struct stconn *sc, struct proxy *px, struct liste
 {
 	struct appctx *appctx = __sc_appctx(sc);
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
+	struct field *stats = stat_lines[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
 	size_t stats_count = ST_I_PX_MAX;
 
-	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
+	memset(stats, 0, sizeof(struct field) * metrics_len[STATS_DOMAIN_PROXY]);
 
 	if (!stats_fill_li_stats(px, l, ctx->flags, stats,
 				 ST_I_PX_MAX, NULL))
@@ -1525,10 +1527,10 @@ static int stats_dump_sv_stats(struct stconn *sc, struct proxy *px, struct serve
 	struct appctx *appctx = __sc_appctx(sc);
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	struct stats_module *mod;
-	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
+	struct field *stats = stat_lines[STATS_DOMAIN_PROXY];
 	size_t stats_count = ST_I_PX_MAX;
 
-	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
+	memset(stats, 0, sizeof(struct field) * metrics_len[STATS_DOMAIN_PROXY]);
 
 	if (!stats_fill_sv_stats(px, sv, ctx->flags, stats,
 				 ST_I_PX_MAX, NULL))
@@ -1855,7 +1857,7 @@ static int stats_dump_be_stats(struct stconn *sc, struct proxy *px)
 {
 	struct appctx *appctx = __sc_appctx(sc);
 	struct show_stat_ctx *ctx = appctx->svcctx;
-	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
+	struct field *stats = stat_lines[STATS_DOMAIN_PROXY];
 	struct stats_module *mod;
 	size_t stats_count = ST_I_PX_MAX;
 
@@ -1865,7 +1867,7 @@ static int stats_dump_be_stats(struct stconn *sc, struct proxy *px)
 	if ((ctx->flags & STAT_BOUND) && !(ctx->type & (1 << STATS_TYPE_BE)))
 		return 0;
 
-	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
+	memset(stats, 0, sizeof(struct field) * metrics_len[STATS_DOMAIN_PROXY]);
 
 	if (!stats_fill_be_stats(px, ctx->flags, stats, ST_I_PX_MAX, NULL))
 		return 0;
@@ -2227,8 +2229,8 @@ int stats_dump_stat_to_buffer(struct stconn *sc, struct buffer *buf, struct htx 
 	case STAT_STATE_LIST:
 		switch (domain) {
 		case STATS_DOMAIN_RESOLVERS:
-			if (!stats_dump_resolvers(sc, stat_l[domain],
-			                          stat_count[domain],
+			if (!stats_dump_resolvers(sc, stat_lines[domain],
+			                          metrics_len[domain],
 			                          &stats_module_list[domain])) {
 				return 0;
 			}
@@ -2812,7 +2814,7 @@ void stats_register_module(struct stats_module *m)
 	const uint8_t domain = stats_get_domain(m->domain_flags);
 
 	LIST_APPEND(&stats_module_list[domain], &m->list);
-	stat_count[domain] += m->stats_count;
+	metrics_len[domain] += m->stats_count;
 }
 
 
@@ -2823,20 +2825,20 @@ static int allocate_stats_px_postcheck(void)
 	int err_code = 0;
 	struct proxy *px;
 
-	stat_count[STATS_DOMAIN_PROXY] += ST_I_PX_MAX;
+	metrics_len[STATS_DOMAIN_PROXY] += ST_I_PX_MAX;
 
-	stat_f[STATS_DOMAIN_PROXY] = malloc(stat_count[STATS_DOMAIN_PROXY] * sizeof(struct name_desc));
-	if (!stat_f[STATS_DOMAIN_PROXY]) {
+	metrics[STATS_DOMAIN_PROXY] = malloc(metrics_len[STATS_DOMAIN_PROXY] * sizeof(struct name_desc));
+	if (!metrics[STATS_DOMAIN_PROXY]) {
 		ha_alert("stats: cannot allocate all fields for proxy statistics\n");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		return err_code;
 	}
 
-	memcpy(stat_f[STATS_DOMAIN_PROXY], metrics_px,
+	memcpy(metrics[STATS_DOMAIN_PROXY], metrics_px,
 	       ST_I_PX_MAX * sizeof(struct name_desc));
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
-		memcpy(stat_f[STATS_DOMAIN_PROXY] + i,
+		memcpy(metrics[STATS_DOMAIN_PROXY] + i,
 		       mod->stats,
 		       mod->stats_count * sizeof(struct name_desc));
 		i += mod->stats_count;
@@ -2850,7 +2852,7 @@ static int allocate_stats_px_postcheck(void)
 		}
 	}
 
-	/* wait per-thread alloc to perform corresponding stat_l allocation */
+	/* wait per-thread alloc to perform corresponding stat_lines allocation */
 
 	return err_code;
 }
@@ -2863,15 +2865,15 @@ static int allocate_stats_rslv_postcheck(void)
 	size_t i = 0;
 	int err_code = 0;
 
-	stat_f[STATS_DOMAIN_RESOLVERS] = malloc(stat_count[STATS_DOMAIN_RESOLVERS] * sizeof(struct name_desc));
-	if (!stat_f[STATS_DOMAIN_RESOLVERS]) {
+	metrics[STATS_DOMAIN_RESOLVERS] = malloc(metrics_len[STATS_DOMAIN_RESOLVERS] * sizeof(struct name_desc));
+	if (!metrics[STATS_DOMAIN_RESOLVERS]) {
 		ha_alert("stats: cannot allocate all fields for resolver statistics\n");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		return err_code;
 	}
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_RESOLVERS], list) {
-		memcpy(stat_f[STATS_DOMAIN_RESOLVERS] + i,
+		memcpy(metrics[STATS_DOMAIN_RESOLVERS] + i,
 		       mod->stats,
 		       mod->stats_count * sizeof(struct name_desc));
 		i += mod->stats_count;
@@ -2883,7 +2885,7 @@ static int allocate_stats_rslv_postcheck(void)
 		return err_code;
 	}
 
-	/* wait per-thread alloc to perform corresponding stat_l allocation */
+	/* wait per-thread alloc to perform corresponding stat_lines allocation */
 
 	return err_code;
 }
@@ -2897,8 +2899,8 @@ static int allocate_stat_lines_per_thread(void)
 	for (i = 0; i < STATS_DOMAIN_COUNT; ++i) {
 		const int domain = domains[i];
 
-		stat_l[domain] = malloc(stat_count[domain] * sizeof(struct field));
-		if (!stat_l[domain])
+		stat_lines[domain] = malloc(metrics_len[domain] * sizeof(struct field));
+		if (!stat_lines[domain])
 			return 0;
 	}
 	return 1;
@@ -2941,7 +2943,7 @@ static void deinit_stat_lines_per_thread(void)
 	for (i = 0; i < STATS_DOMAIN_COUNT; ++i) {
 		const int domain = domains[i];
 
-		ha_free(&stat_l[domain]);
+		ha_free(&stat_lines[domain]);
 	}
 }
 
@@ -2955,8 +2957,8 @@ static void deinit_stats(void)
 	for (i = 0; i < STATS_DOMAIN_COUNT; ++i) {
 		const int domain = domains[i];
 
-		if (stat_f[domain])
-			free(stat_f[domain]);
+		if (metrics[domain])
+			free(metrics[domain]);
 	}
 }
 
