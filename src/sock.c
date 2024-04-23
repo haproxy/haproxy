@@ -236,6 +236,13 @@ static int sock_handle_system_err(struct connection *conn, struct proxy *be)
 			conn->err_code = CO_ER_NOPROTO;
 			break;
 
+		case EPERM:
+			send_log(be, LOG_EMERG,
+				 "Proxy %s has insufficient permissions to open server socket.\n",
+				 be->id);
+
+			return SF_ERR_PRXCOND;
+
 		default:
 			send_log(be, LOG_EMERG,
 				 "Proxy %s cannot create a server socket: %s\n",
