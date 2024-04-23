@@ -121,6 +121,39 @@ static inline void offer_buffers(void *from, unsigned int count)
 		__offer_buffers(from, count);
 }
 
+/* Queues a buffer request for the current thread via <bw>, and returns
+ * non-zero if the criticality allows to queue a request, otherwise returns
+ * zero. If the <bw> was already queued, non-zero is returned so that the call
+ * is idempotent. It is assumed that the buffer_wait struct had already been
+ * preset with its context and callback, otherwise please use b_queue()
+ * instead.
+ */
+static inline int b_requeue(enum dynbuf_crit crit, struct buffer_wait *bw)
+{
+	if (LIST_INLIST(&bw->list))
+		return 1;
+
+	/* these ones are never queued */
+	if (crit < DB_MUX_RX)
+		return 0;
+
+	LIST_APPEND(&th_ctx->buffer_wq, &bw->list);
+	return 1;
+}
+
+/* Queues a buffer request for the current thread via <bw> with the given <ctx>
+ * and <cb>, and returns non-zero if the criticality allows to queue a request,
+ * otherwise returns zero. If the <bw> was already queued, non-zero is returned
+ * so that the call is idempotent.  If the buffer_wait struct had already been
+ * preset with the ctx and cb, please use the lighter b_requeue() instead.
+ */
+static inline int b_queue(enum dynbuf_crit crit, struct buffer_wait *bw, void *ctx, int (*cb)(void *))
+{
+	bw->target    = ctx;
+	bw->wakeup_cb = cb;
+	return b_requeue(crit, bw);
+}
+
 
 #endif /* _HAPROXY_DYNBUF_H */
 

@@ -52,10 +52,12 @@
 enum dynbuf_crit {
 	DB_GROW_RING = 0, // used to grow an existing buffer ring
 	DB_UNLIKELY,      // unlikely to be needed (e.g. L7 retries)
+	/* The 4 levels below are subject to queueing */
 	DB_MUX_RX,        // buffer used to store incoming data from the system
 	DB_SE_RX,         // buffer used to store incoming data for the channel
 	DB_CHANNEL,       // buffer used by the channel for synchronous reads
 	DB_MUX_TX,        // buffer used to store outgoing mux data
+	/* The one below may never fail */
 	DB_PERMANENT,     // buffers permanently allocated.
 };
 
