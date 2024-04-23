@@ -3619,17 +3619,32 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_TERMSTATE: // %ts
-				LOGCHAR(sess_term_cond[(s_flags & SF_ERR_MASK) >> SF_ERR_SHIFT]);
-				LOGCHAR(sess_fin_state[(s_flags & SF_FINST_MASK) >> SF_FINST_SHIFT]);
-				*tmplog = '\0';
+			{
+				char _ts[2];
+
+				_ts[0] = sess_term_cond[(s_flags & SF_ERR_MASK) >> SF_ERR_SHIFT];
+				_ts[1] = sess_fin_state[(s_flags & SF_FINST_MASK) >> SF_FINST_SHIFT];
+				ret = lf_rawtext_len(tmplog, _ts, 2, maxsize - (tmplog - dst), tmp);
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_TERMSTATE_CK: // %tsc, same as TS with cookie state (for mode HTTP)
-				LOGCHAR(sess_term_cond[(s_flags & SF_ERR_MASK) >> SF_ERR_SHIFT]);
-				LOGCHAR(sess_fin_state[(s_flags & SF_FINST_MASK) >> SF_FINST_SHIFT]);
-				LOGCHAR((txn && (be->ck_opts & PR_CK_ANY)) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-');
-				LOGCHAR((txn && (be->ck_opts & PR_CK_ANY)) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-');
+			{
+				char _tsc[4];
+
+				_tsc[0] = sess_term_cond[(s_flags & SF_ERR_MASK) >> SF_ERR_SHIFT];
+				_tsc[1] = sess_fin_state[(s_flags & SF_FINST_MASK) >> SF_FINST_SHIFT];
+				_tsc[2] = (txn && (be->ck_opts & PR_CK_ANY)) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-';
+				_tsc[3] = (txn && (be->ck_opts & PR_CK_ANY)) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-';
+				ret = lf_rawtext_len(tmplog, _tsc, 4, maxsize - (tmplog - dst), tmp);
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_ACTCONN: // %ac
 				ret = lf_int(tmplog, dst + maxsize - tmplog, actconn, tmp, LF_INT_LTOA);
