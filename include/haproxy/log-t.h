@@ -50,7 +50,7 @@
 #define LOG_OPT_BIN             0x00000100
 /* unused: 0x00000200 ... 0x00000800 */
 #define LOG_OPT_ENCODE_JSON     0x00001000
-/* unused encode: 0x00002000 */
+#define LOG_OPT_ENCODE_CBOR     0x00002000
 #define LOG_OPT_ENCODE          0x00003000
 
 

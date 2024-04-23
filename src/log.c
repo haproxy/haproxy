@@ -330,6 +330,7 @@ struct logformat_tag_args tag_args_list[] = {
 	{ "E", LOG_OPT_ESC },
 	{ "bin", LOG_OPT_BIN },
 	{ "json", LOG_OPT_ENCODE_JSON },
+	{ "cbor", LOG_OPT_ENCODE_CBOR },
 	{  0,  0 }
 };
 
@@ -1743,7 +1744,40 @@ struct lf_buildctx {
 	int options; /* LOG_OPT_* options */
 	int typecast;/* same as logformat_node->typecast */
 	int in_text; /* inside variable-length text */
+	union {
+		struct cbor_encode_ctx cbor; /* cbor-encode specific ctx */
+	} encode;
 };
+
+/* helper to encode a single byte in hex form
+ *
+ * Returns the position of the last written byte on success and NULL on
+ * error.
+ */
+static char *_encode_byte_hex(char *start, char *stop, unsigned char byte)
+{
+	/* hex form requires 2 bytes */
+	if ((stop - start) < 2)
+		return NULL;
+	*start++ = hextab[(byte >> 4) & 15];
+	*start++ = hextab[byte & 15];
+	return start;
+}
+
+/* lf cbor function ptr used to encode a single byte according to RFC8949
+ *
+ * for now only hex form is supported.
+ *
+ * Returns the position of the last written byte on success and NULL on
+ * error.
+ */
+static char *_lf_cbor_encode_byte(struct cbor_encode_ctx *cbor_ctx,
+                                  char *start, char *stop, unsigned char byte)
+{
+	__maybe_unused struct lf_buildctx *ctx = cbor_ctx->e_byte_fct_ctx;
+
+	return _encode_byte_hex(start, stop, byte);
+}
 
 /* helper function to prepare lf_buildctx struct based on global options
  * and current node settings (may be NULL)
@@ -1778,9 +1812,16 @@ static inline void lf_buildctx_prepare(struct lf_buildctx *ctx,
 	if (ctx->options & LOG_OPT_HTTP)
 		ctx->options &= ~LOG_OPT_ENCODE;
 
-	/* when encoding is set, ignore +E option */
-	if (ctx->options & LOG_OPT_ENCODE)
+	if (ctx->options & LOG_OPT_ENCODE) {
+		/* when encoding is set, ignore +E option */
 		ctx->options &= ~LOG_OPT_ESC;
+
+		if (ctx->options & LOG_OPT_ENCODE_CBOR) {
+			/* prepare cbor-specific encode ctx */
+			ctx->encode.cbor.e_byte_fct = _lf_cbor_encode_byte;
+			ctx->encode.cbor.e_byte_fct_ctx = ctx;
+		}
+	}
 }
 
 /* helper function for _lf_encode_bytes() to escape a single byte
@@ -1798,6 +1839,27 @@ static inline char *_lf_escape_byte(char *start, char *stop,
 	return start;
 }
 
+/* helper function for _lf_encode_bytes() to escape a single byte
+ * with <escape> and deal with cbor-specific encoding logic
+ */
+static inline char *_lf_cbor_escape_byte(char *start, char *stop,
+                                         char byte, const char escape,
+                                         uint8_t cbor_string_prefix,
+                                         struct lf_buildctx *ctx)
+{
+	char escaped_byte[3];
+
+	escaped_byte[0] = escape;
+	escaped_byte[1] = hextab[(byte >> 4) & 15];
+	escaped_byte[2] = hextab[byte & 15];
+
+	start = cbor_encode_bytes_prefix(&ctx->encode.cbor, start, stop,
+	                                 escaped_byte, 3,
+	                                 cbor_string_prefix);
+
+	return start;
+}
+
 /* helper function for _lf_encode_bytes() to encode a single byte
  * and escape it with <escape> if found in <map>
  *
@@ -1809,12 +1871,57 @@ static inline char *_lf_escape_byte(char *start, char *stop,
 static inline char *_lf_map_escape_byte(char *start, char *stop,
                                         const char *byte,
                                         const char escape, const long *map,
+                                        const char **pending, uint8_t cbor_string_prefix,
                                         struct lf_buildctx *ctx)
 {
 	if (!ha_bit_test((unsigned char)(*byte), map))
 		*start++ = *byte;
 	else
 		start = _lf_escape_byte(start, stop, *byte, escape);
+
+	return start;
+}
+
+/* helper function for _lf_encode_bytes() to encode a single byte
+ * and escape it with <escape> if found in <map> and deal with
+ * cbor-specific encoding logic.
+ *
+ * The function assumes that at least 1 byte is available for writing
+ *
+ * Returns the address of the last written byte on success, or NULL
+ * on error
+ */
+static inline char *_lf_cbor_map_escape_byte(char *start, char *stop,
+                                             const char *byte,
+                                             const char escape, const long *map,
+                                             const char **pending, uint8_t cbor_string_prefix,
+                                             struct lf_buildctx *ctx)
+{
+	/* We try our best to minimize the number of chunks produced for the
+	 * indefinite-length byte string as each chunk has an extra overhead
+	 * as per RFC8949.
+	 *
+	 * To achieve that, we try to emit consecutive bytes together
+	 */
+	if (!ha_bit_test((unsigned char)(*byte), map)) {
+		/* do nothing and let the caller continue seeking data,
+		 * pending data will be flushed later
+		 */
+	} else {
+		/* first, flush pending unescaped bytes */
+		start = cbor_encode_bytes_prefix(&ctx->encode.cbor, start, stop,
+		                                 *pending, (byte - *pending),
+		                                 cbor_string_prefix);
+		if (start == NULL)
+			return NULL;
+
+		*pending = byte + 1;
+
+		/* escape current matching byte */
+		start = _lf_cbor_escape_byte(start, stop, *byte, escape,
+		                             cbor_string_prefix,
+		                             ctx);
+	}
 
 	return start;
 }
@@ -1831,6 +1938,7 @@ static inline char *_lf_map_escape_byte(char *start, char *stop,
 static inline char *_lf_rfc5424_escape_byte(char *start, char *stop,
                                             const char *byte,
                                             const char escape, const long *map,
+                                            const char **pending, uint8_t cbor_string_prefix,
                                             struct lf_buildctx *ctx)
 {
 	if (!ha_bit_test((unsigned char)(*byte), map)) {
@@ -1861,6 +1969,7 @@ static inline char *_lf_rfc5424_escape_byte(char *start, char *stop,
 static inline char *_lf_json_escape_byte(char *start, char *stop,
                                          const char *byte,
                                          const char escape, const long *map,
+                                         const char **pending, uint8_t cbor_string_prefix,
                                          struct lf_buildctx *ctx)
 {
 	if (!ha_bit_test((unsigned char)(*byte), map)) {
@@ -1892,6 +2001,9 @@ static inline char *_lf_json_escape_byte(char *start, char *stop,
  * When using json encoding, string will be escaped according to
  * json escape map
  *
+ * When using cbor encoding, escape option is ignored. However bytes found
+ * in <map> will still be escaped with <escape>.
+ *
  * Return the address of the \0 character, or NULL on error
  */
 static char *_lf_encode_bytes(char *start, char *stop,
@@ -1900,27 +2012,54 @@ static char *_lf_encode_bytes(char *start, char *stop,
                               struct lf_buildctx *ctx)
 {
 	char *ret;
+	const char *pending;
+	uint8_t cbor_string_prefix = 0;
 	char *(*encode_byte)(char *start, char *stop,
 	                     const char *byte,
 	                     const char escape, const long *map,
+	                     const char **pending, uint8_t cbor_string_prefix,
 	                     struct lf_buildctx *ctx);
 
 	if (ctx->options & LOG_OPT_ENCODE_JSON)
 		encode_byte = _lf_json_escape_byte;
+	else if (ctx->options & LOG_OPT_ENCODE_CBOR)
+		encode_byte = _lf_cbor_map_escape_byte;
 	else if (ctx->options & LOG_OPT_ESC)
 		encode_byte = _lf_rfc5424_escape_byte;
 	else
 		encode_byte = _lf_map_escape_byte;
 
+	if (ctx->options & LOG_OPT_ENCODE_CBOR) {
+		if (!bytes_stop) {
+			/* printable chars: use cbor text */
+			cbor_string_prefix = 0x60;
+		}
+		else {
+			/* non printable chars: use cbor byte string */
+			cbor_string_prefix = 0x40;
+		}
+	}
+
 	if (start < stop) {
 		stop--; /* reserve one byte for the final '\0' */
+
+		if ((ctx->options & LOG_OPT_ENCODE_CBOR) && !ctx->in_text) {
+			/* start indefinite-length cbor byte string or text */
+			start = _lf_cbor_encode_byte(&ctx->encode.cbor, start, stop,
+			                             (cbor_string_prefix | 0x1F));
+			if (start == NULL)
+				return NULL;
+		}
+		pending = bytes;
 
 		/* we have 2 distinct loops to keep checks outside of the loop
 		 * for better performance
 		 */
 		if (bytes && !bytes_stop) {
 			while (start < stop && *bytes != '\0') {
-				ret = encode_byte(start, stop, bytes, escape, map, ctx);
+				ret = encode_byte(start, stop, bytes, escape, map,
+				                  &pending, cbor_string_prefix,
+				                  ctx);
 				if (ret == NULL)
 					break;
 				start = ret;
@@ -1928,13 +2067,33 @@ static char *_lf_encode_bytes(char *start, char *stop,
 			}
 		} else if (bytes) {
 			while (start < stop && bytes < bytes_stop) {
-				ret = encode_byte(start, stop, bytes, escape, map, ctx);
+				ret = encode_byte(start, stop, bytes, escape, map,
+				                  &pending, cbor_string_prefix,
+				                  ctx);
 				if (ret == NULL)
 					break;
 				start = ret;
 				bytes++;
 			}
 		}
+
+		if (ctx->options & LOG_OPT_ENCODE_CBOR) {
+			if (pending != bytes) {
+				/* flush pending unescaped bytes */
+				start = cbor_encode_bytes_prefix(&ctx->encode.cbor, start, stop,
+				                                 pending, (bytes - pending),
+				                                 cbor_string_prefix);
+				if (start == NULL)
+					return NULL;
+			}
+			if (!ctx->in_text) {
+				/* cbor break (to end indefinite-length text or byte string) */
+				start = _lf_cbor_encode_byte(&ctx->encode.cbor, start, stop, 0xFF);
+				if (start == NULL)
+					return NULL;
+			}
+		}
+
 		*start = '\0';
 		return start;
 	}
@@ -1974,12 +2133,15 @@ static char *lf_encode_chunk(char *start, char *stop,
  * When using json encoding, string will be escaped according
  * to json escape map
  *
+ * When using cbor encoding, escape option is ignored.
+ *
  * Return the address of the \0 character, or NULL on error
  */
 static inline char *_lf_text_len(char *dst, const char *src,
                                  size_t len, size_t size, struct lf_buildctx *ctx)
 {
 	const long *escape_map = NULL;
+	char *ret;
 
 	if (ctx->options & LOG_OPT_ENCODE_JSON)
 		escape_map = json_escape_map;
@@ -1987,10 +2149,24 @@ static inline char *_lf_text_len(char *dst, const char *src,
 		escape_map = rfc5424_escape_map;
 
 	if (src && len) {
+		if (ctx->options & LOG_OPT_ENCODE_CBOR) {
+			/* it's actually less costly to compute the actual text size to
+			 * write a single fixed length text at once rather than emitting
+			 * indefinite length text in cbor, because indefinite-length text
+			 * has to be made of multiple chunks of known size as per RFC8949...
+			 */
+			len = strnlen(src, len);
+
+			ret = cbor_encode_text(&ctx->encode.cbor, dst, dst + size, src, len);
+			if (ret == NULL)
+				return NULL;
+			len = ret - dst;
+		}
+
 		/* escape_string and strlcpy2 will both try to add terminating NULL-byte
 		 * to dst
 		 */
-		if (escape_map) {
+		else if (escape_map) {
 			char *ret;
 
 			ret = escape_string(dst, dst + size, '\\', escape_map, src, src + len);
@@ -2056,7 +2232,8 @@ static char *lf_text_len(char *dst, const char *src, size_t len, size_t size, st
 {
 	if ((ctx->options & (LOG_OPT_QUOTE | LOG_OPT_ENCODE_JSON)))
 		return _lf_quotetext_len(dst, src, len, size, ctx);
-	else if (src && len)
+	else if ((ctx->options & LOG_OPT_ENCODE_CBOR) ||
+	         (src && len))
 		return _lf_text_len(dst, src, len, size, ctx);
 
 	if (size < 2)
@@ -2169,6 +2346,11 @@ static char *lf_bool_encode(char *dst, size_t size, uint8_t value,
 		ret += iret;
 		return ret;
 	}
+	if (ctx->options & LOG_OPT_ENCODE_CBOR) {
+		if (value)
+			return _lf_cbor_encode_byte(&ctx->encode.cbor, dst, dst + size, 0xF5);
+		return _lf_cbor_encode_byte(&ctx->encode.cbor, dst, dst + size, 0xF4);
+	}
 
 	return NULL; /* not supported */
 }
@@ -2205,6 +2387,12 @@ static char *lf_int_encode(char *dst, size_t size, int64_t value,
 		ret += iret;
 
 		return ret;
+	}
+	else if (ctx->options & LOG_OPT_ENCODE_CBOR) {
+		/* Always print as a regular int64 number (STR typecast isn't
+		 * supported)
+		 */
+		return cbor_encode_int64(&ctx->encode.cbor, dst, dst + size, value);
 	}
 
 	return NULL; /* not supported */
@@ -2922,29 +3110,62 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 						   Set-cookie Updated, unknown, unknown */
 
 /*
+ * try to write a cbor byte if there is enough space, or goto out
+ */
+#define LOG_CBOR_BYTE(x) do {                                          \
+			ret = _lf_cbor_encode_byte(&ctx.encode.cbor,   \
+			                           tmplog,             \
+			                           dst + maxsize,      \
+			                           (x));               \
+			if (ret == NULL)                               \
+				goto out;                              \
+			tmplog = ret;                                  \
+		} while (0)
+
+/*
  * try to write a character if there is enough space, or goto out
  */
 #define LOGCHAR(x) do { \
-			if (tmplog < dst + maxsize - 1) { \
-				*(tmplog++) = (x);                     \
-			} else {                                       \
-				goto out;                              \
-			}                                              \
+			if ((ctx.options & LOG_OPT_ENCODE_CBOR) &&             \
+			    ctx.in_text) {                                     \
+				char _x[1];                                    \
+				/* encode the char as text chunk since we      \
+				 * cannot just throw random bytes and expect   \
+				 * cbor decoder to know how to handle them     \
+				 */                                            \
+				_x[0] = (x);                                   \
+				ret = cbor_encode_text(&ctx.encode.cbor,       \
+				                       tmplog,                 \
+				                       dst + maxsize,          \
+				                       _x, sizeof(_x));        \
+				tmplog = ret;                                  \
+				break;                                         \
+			}                                                      \
+			if (tmplog < dst + maxsize - 1) {                      \
+				*(tmplog++) = (x);                             \
+			} else {                                               \
+				goto out;                                      \
+			}                                                      \
 		} while(0)
 
 /* indicate that a new variable-length text is starting, sets in_text
  * variable to indicate that a var text was started and deals with
  * encoding and options to know if some special treatment is needed.
  */
-#define LOG_VARTEXT_START() do {                                       \
-			ctx.in_text = 1;                               \
-			/* put the text within quotes if JSON encoding \
-			 * is used or quoting is enabled               \
-			 */                                            \
-			if (ctx.options &                              \
-			    (LOG_OPT_QUOTE | LOG_OPT_ENCODE_JSON)) {   \
-				LOGCHAR('"');                          \
-			}                                              \
+#define LOG_VARTEXT_START() do {                                               \
+			ctx.in_text = 1;                                       \
+			if (ctx.options & LOG_OPT_ENCODE_CBOR) {               \
+				/* start indefinite-length cbor text */        \
+				LOG_CBOR_BYTE(0x7F);                           \
+				break;                                         \
+			}                                                      \
+			/* put the text within quotes if JSON encoding         \
+			 * is used or quoting is enabled                       \
+			 */                                                    \
+			if (ctx.options &                                      \
+			    (LOG_OPT_QUOTE | LOG_OPT_ENCODE_JSON)) {           \
+				LOGCHAR('"');                                  \
+			}                                                      \
 		} while (0)
 
 /* properly finish a variable text that was started using LOG_VARTEXT_START
@@ -2952,17 +3173,22 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
  * deals with encoding and options to know if some special treatment is
  * needed.
  */
-#define LOG_VARTEXT_END() do {                                         \
-			if (!ctx.in_text)                              \
-				break;                                 \
-			ctx.in_text = 0;                               \
-			/* add the ending quote if JSON encoding is    \
-			 * used or quoting is enabled                  \
-			 */                                            \
-			if (ctx.options &                              \
-			    (LOG_OPT_QUOTE | LOG_OPT_ENCODE_JSON)) {   \
-				LOGCHAR('"');                          \
-			}                                              \
+#define LOG_VARTEXT_END() do {                                                 \
+			if (!ctx.in_text)                                      \
+				break;                                         \
+			ctx.in_text = 0;                                       \
+			if (ctx.options & LOG_OPT_ENCODE_CBOR) {               \
+				/* end indefinite-length cbor text with break*/\
+				LOG_CBOR_BYTE(0xFF);                           \
+				break;                                         \
+			}                                                      \
+			/* add the ending quote if JSON encoding is            \
+			 * used or quoting is enabled                          \
+			 */                                                    \
+			if (ctx.options &                                      \
+			    (LOG_OPT_QUOTE | LOG_OPT_ENCODE_JSON)) {           \
+				LOGCHAR('"');                                  \
+			}                                                      \
 		} while (0)
 
 /* Prints additional logvalue hint represented by <chr>.
@@ -2980,10 +3206,16 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 #define LOG_STRARRAY_START() do {                                      \
 			if (ctx.options & LOG_OPT_ENCODE_JSON)         \
 				LOGCHAR('[');                          \
+			if (ctx.options & LOG_OPT_ENCODE_CBOR) {       \
+				/* start indefinite-length array */    \
+				LOG_CBOR_BYTE(0x9F);                   \
+			}                                              \
 		} while (0)
 
 /* indicate that a new element is added to the string array */
 #define LOG_STRARRAY_NEXT() do {                                       \
+			if (ctx.options & LOG_OPT_ENCODE_CBOR)         \
+				break;                                 \
 			if (ctx.options & LOG_OPT_ENCODE_JSON) {       \
 				LOGCHAR(',');                          \
 				LOGCHAR(' ');                          \
@@ -2996,6 +3228,10 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 #define LOG_STRARRAY_END() do {                                        \
 			if (ctx.options & LOG_OPT_ENCODE_JSON)         \
 				LOGCHAR(']');                          \
+			if (ctx.options & LOG_OPT_ENCODE_CBOR) {       \
+				/* cbor break */                       \
+				LOG_CBOR_BYTE(0xFF);                   \
+			}                                              \
 		} while (0)
 
 /* Initializes some log data at boot */
@@ -3359,6 +3595,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 	if (ctx.options & LOG_OPT_ENCODE_JSON)
 		LOGCHAR('{');
+	else if (ctx.options & LOG_OPT_ENCODE_CBOR) {
+		/* start indefinite-length map */
+		LOG_CBOR_BYTE(0xBF);
+	}
 
 	list_for_each_entry(tmp, list_format, list) {
 #ifdef USE_OPENSSL
@@ -3399,6 +3639,14 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				LOGCHAR('"');
 				LOGCHAR(':');
 				LOGCHAR(' ');
+			}
+			else if (ctx.options & LOG_OPT_ENCODE_CBOR) {
+				ret = cbor_encode_text(&ctx.encode.cbor, tmplog,
+				                       dst + maxsize, tmp->name,
+				                       strlen(tmp->name));
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
 			}
 
 			first_node = 0;
@@ -3455,6 +3703,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				/* if encoding is set, try to preserve output type
 				 * with respect to typecast settings
 				 * (ie: str, sint, bool)
+				 *
+				 * Special case for cbor encoding: we also try to
+				 * preserve bin output type since cbor encoders
+				 * know how to deal with binary data.
 				 */
 				if (ctx.options & LOG_OPT_ENCODE) {
 					if (ctx.typecast == SMP_T_STR ||
@@ -3465,7 +3717,9 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					}
 					else if (key &&
 					         (key->data.type == SMP_T_SINT ||
-					          key->data.type == SMP_T_BOOL)) {
+					          key->data.type == SMP_T_BOOL ||
+					          ((ctx.options & LOG_OPT_ENCODE_CBOR) &&
+					           key->data.type == SMP_T_BIN))) {
 						/* preserve type */
 						type = key->data.type;
 					}
@@ -4474,6 +4728,13 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					goto out;
 				tmplog += iret;
 			}
+			if (ctx.options & LOG_OPT_ENCODE_CBOR) {
+				/* for CBOR, we have the '22' primitive which is known as
+				 * NULL
+				 */
+				LOG_CBOR_BYTE(0xF6);
+			}
+
 		}
 
 		/* if variable text was started for the current node data, we need
@@ -4489,6 +4750,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 	if (ctx.options & LOG_OPT_ENCODE_JSON)
 		LOGCHAR('}');
+	else if (ctx.options & LOG_OPT_ENCODE_CBOR) {
+		/* end indefinite-length map */
+		LOG_CBOR_BYTE(0xFF);
+	}
 
 out:
 	/* *tmplog is a unused character */
