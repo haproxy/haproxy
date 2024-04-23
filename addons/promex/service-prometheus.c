@@ -579,7 +579,7 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 			continue;
 
 		name = promex_global_metrics[ctx->field_num].n;
-		desc = ist(metrics_info[ctx->field_num].desc);
+		desc = ist(stat_cols_info[ctx->field_num].desc);
 
 		if (promex_filter_metric(appctx, prefix, name))
 			continue;
@@ -641,7 +641,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 		if (!isttest(name))
 			name = promex_st_metrics[ctx->field_num].n;
 		if (!isttest(desc))
-			desc = ist(metrics_px[ctx->field_num].desc);
+			desc = ist(stat_cols_px[ctx->field_num].desc);
 
 		if (promex_filter_metric(appctx, prefix, name))
 			continue;
@@ -828,7 +828,7 @@ static int promex_dump_listener_metrics(struct appctx *appctx, struct htx *htx)
 		if (!isttest(name))
 			name = promex_st_metrics[ctx->field_num].n;
 		if (!isttest(desc))
-			desc = ist(metrics_px[ctx->field_num].desc);
+			desc = ist(stat_cols_px[ctx->field_num].desc);
 
 		if (promex_filter_metric(appctx, prefix, name))
 			continue;
@@ -1016,7 +1016,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 		if (!isttest(name))
 			name = promex_st_metrics[ctx->field_num].n;
 		if (!isttest(desc))
-			desc = ist(metrics_px[ctx->field_num].desc);
+			desc = ist(stat_cols_px[ctx->field_num].desc);
 
 		if (promex_filter_metric(appctx, prefix, name))
 			continue;
@@ -1282,7 +1282,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 		if (!isttest(name))
 			name = promex_st_metrics[ctx->field_num].n;
 		if (!isttest(desc))
-			desc = ist(metrics_px[ctx->field_num].desc);
+			desc = ist(stat_cols_px[ctx->field_num].desc);
 
 		if (promex_filter_metric(appctx, prefix, name))
 			continue;

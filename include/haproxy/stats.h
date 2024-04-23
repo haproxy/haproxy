@@ -38,14 +38,14 @@ struct stconn;
 /* These two structs contains all column names and descriptions according to
  * the the number of entries in "enum stat_idx_px" and "enum stat_idx_info"
  */
-extern const struct name_desc metrics_px[];
-extern const struct name_desc metrics_info[];
+extern const struct name_desc stat_cols_px[];
+extern const struct name_desc stat_cols_info[];
 extern const char *stat_status_codes[];
 extern struct applet http_stats_applet;
 extern struct list stats_module_list[];
 extern THREAD_LOCAL struct field stat_line_info[];
 extern THREAD_LOCAL struct field *stat_lines[];
-extern struct name_desc *metrics[STATS_DOMAIN_COUNT];
+extern struct name_desc *stat_cols[STATS_DOMAIN_COUNT];
 
 struct htx;
 int stats_putchk(struct appctx *appctx, struct buffer *buf, struct htx *htx);

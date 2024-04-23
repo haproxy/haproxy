@@ -189,7 +189,7 @@ int stats_dump_fields_json(struct buffer *out,
 		old_len = out->data;
 		if (domain == STATS_DOMAIN_PROXY) {
 			stats_print_proxy_field_json(out, &line[i],
-			                             metrics[domain][i].name,
+			                             stat_cols[domain][i].name,
 			                             i,
 			                             line[ST_I_PX_TYPE].u.u32,
 			                             line[ST_I_PX_IID].u.u32,
@@ -197,7 +197,7 @@ int stats_dump_fields_json(struct buffer *out,
 			                             line[ST_I_PX_PID].u.u32);
 		} else if (domain == STATS_DOMAIN_RESOLVERS) {
 			stats_print_rslv_field_json(out, &line[i],
-			                            metrics[domain][i].name,
+			                            stat_cols[domain][i].name,
 			                            i);
 		}
 
@@ -269,7 +269,7 @@ int stats_dump_json_info_fields(struct buffer *out,
 		chunk_appendf(out,
 			      "{\"field\":{\"pos\":%d,\"name\":\"%s\"},"
 			      "\"processNum\":%u,",
-			      i, metrics_info[i].name,
+			      i, stat_cols_info[i].name,
 			      info[ST_I_INF_PROCESS_NUM].u.u32);
 		if (old_len == out->data)
 			goto err;
