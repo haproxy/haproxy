@@ -204,7 +204,7 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 int sock_create_server_socket(struct connection *conn)
 {
 	const struct netns_entry *ns = NULL;
-	int sock;
+	int sock_fd;
 
 #ifdef USE_NS
 	if (objt_server(conn->target)) {
@@ -214,16 +214,16 @@ int sock_create_server_socket(struct connection *conn)
 			ns = __objt_server(conn->target)->netns;
 	}
 #endif
-	sock = my_socketat(ns, conn->dst->ss_family, SOCK_STREAM, 0);
-	if (sock == -1)
+	sock_fd = my_socketat(ns, conn->dst->ss_family, SOCK_STREAM, 0);
+	if (sock_fd == -1)
 		goto end;
 	if (conn->flags & CO_FL_OPT_MARK)
-		sock_set_mark(sock, conn->mark);
+		sock_set_mark(sock_fd, conn->mark);
 	if (conn->flags & CO_FL_OPT_TOS)
-		sock_set_tos(sock, conn->dst, conn->tos);
+		sock_set_tos(sock_fd, conn->dst, conn->tos);
 
  end:
-	return sock;
+	return sock_fd;
 }
 
 /* Enables receiving on receiver <rx> once already bound. */
