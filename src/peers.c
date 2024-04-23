@@ -71,7 +71,7 @@
 #define PEERS_F_RESYNC_REMOTEPARTIAL  0x00000800 /* A remote node teach us but was partially up to date */
 #define PEERS_F_RESYNC_LOCALASSIGN    0x00001000 /* A local node was assigned for a full resync */
 #define PEERS_F_RESYNC_REMOTEASSIGN   0x00002000 /* A remote node was assigned for a full resync */
-#define PEERS_F_RESYNC_REQUESTED      0x00004000 /* A resync was explicitly requested */
+
 #define PEERS_F_DONOTSTOP             0x00010000 /* Main table sync task block process during soft stop
                                                     to push data to new process */
 
@@ -3379,9 +3379,6 @@ static void __process_peer_learn_status(struct peers *peers, struct peer *peer)
 
 static void __process_peer_state(struct peers *peers, struct peer *peer)
 {
-	if (peer->flags & PEER_F_RESYNC_REQUESTED)
-		peers->flags |= PEERS_F_RESYNC_REQUESTED;
-
 	/* Check peer state. Order is important */
 	if (peer->flags & (PEER_F_ST_RELEASED|PEER_F_ST_CONNECTED|PEER_F_ST_ACCEPTED)) {
 		if (peer->flags & PEER_F_LEARN_ASSIGN) {
