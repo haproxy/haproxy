@@ -195,13 +195,63 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 	goto done;
 }
 
+/* Common code to handle in one place different ERRNOs, that socket() et setns()
+ * may return
+ */
+static int sock_handle_system_err(struct connection *conn, struct proxy *be)
+{
+	qfprintf(stderr, "Cannot get a server socket.\n");
+
+	conn->flags |= CO_FL_ERROR;
+	conn->err_code = CO_ER_SOCK_ERR;
+
+	switch(errno) {
+		case ENFILE:
+			conn->err_code = CO_ER_SYS_FDLIM;
+			send_log(be, LOG_EMERG,
+				 "Proxy %s reached system FD limit (maxsock=%d). "
+				 "Please check system tunables.\n", be->id, global.maxsock);
+
+			return SF_ERR_RESOURCE;
+
+		case EMFILE:
+			conn->err_code = CO_ER_PROC_FDLIM;
+			send_log(be, LOG_EMERG,
+				 "Proxy %s reached process FD limit (maxsock=%d). "
+				 "Please check 'ulimit-n' and restart.\n", be->id, global.maxsock);
+
+			return SF_ERR_RESOURCE;
+
+		case ENOBUFS:
+		case ENOMEM:
+			conn->err_code = CO_ER_SYS_MEMLIM;
+			send_log(be, LOG_EMERG,
+				 "Proxy %s reached system memory limit (maxsock=%d). "
+				 "Please check system tunables.\n", be->id, global.maxsock);
+
+			return SF_ERR_RESOURCE;
+
+		case EAFNOSUPPORT:
+		case EPROTONOSUPPORT:
+			conn->err_code = CO_ER_NOPROTO;
+			break;
+
+		default:
+			send_log(be, LOG_EMERG,
+				 "Proxy %s cannot create a server socket: %s\n",
+				 be->id, strerror(errno));
+	}
+
+	return SF_ERR_INTERNAL;
+}
+
 /* Create a socket to connect to the server in conn->dst (which MUST be valid),
  * using the configured namespace if needed, or the one passed by the proxy
  * protocol if required to do so. It then calls socket() or socketat(). On
  * success, checks if mark or tos sockopts need to be set on the file handle.
  * Returns the FD or error code.
  */
-int sock_create_server_socket(struct connection *conn)
+int sock_create_server_socket(struct connection *conn, struct proxy *be)
 {
 	const struct netns_entry *ns = NULL;
 	int sock_fd;
@@ -215,14 +265,52 @@ int sock_create_server_socket(struct connection *conn)
 	}
 #endif
 	sock_fd = my_socketat(ns, conn->dst->ss_family, SOCK_STREAM, 0);
-	if (sock_fd == -1)
-		goto end;
+
+	/* at first, handle common to all proto families system limits and permission related errors */
+	if (sock_fd == -1) {
+		return sock_handle_system_err(conn, be);
+	}
+
+	/* now perform some runtime condition checks */
+	if (sock_fd >= global.maxsock) {
+		/* do not log anything there, it's a normal condition when this option
+		 * is used to serialize connections to a server !
+		 */
+		ha_alert("socket(): not enough free sockets. Raise -n argument. Giving up.\n");
+		send_log(be, LOG_EMERG, "socket(): not enough free sockets. Raise -n argument. Giving up.\n");
+		close(sock_fd);
+		conn->err_code = CO_ER_CONF_FDLIM;
+		conn->flags |= CO_FL_ERROR;
+
+		return SF_ERR_PRXCOND; /* it is a configuration limit */
+	}
+
+	if (fd_set_nonblock(sock_fd) == -1 ||
+		((conn->ctrl->sock_prot == IPPROTO_TCP) && (setsockopt(sock_fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) == -1))) {
+		qfprintf(stderr,"Cannot set client socket to non blocking mode.\n");
+		send_log(be, LOG_EMERG, "Cannot set client socket to non blocking mode.\n");
+		close(sock_fd);
+		conn->err_code = CO_ER_SOCK_ERR;
+		conn->flags |= CO_FL_ERROR;
+
+		return SF_ERR_INTERNAL;
+	}
+
+	if (master == 1 && fd_set_cloexec(sock_fd) == -1) {
+		ha_alert("Cannot set CLOEXEC on client socket.\n");
+		send_log(be, LOG_EMERG, "Cannot set CLOEXEC on client socket.\n");
+		close(sock_fd);
+		conn->err_code = CO_ER_SOCK_ERR;
+		conn->flags |= CO_FL_ERROR;
+
+		return SF_ERR_INTERNAL;
+	}
+
 	if (conn->flags & CO_FL_OPT_MARK)
 		sock_set_mark(sock_fd, conn->ctrl->fam->sock_family, conn->mark);
 	if (conn->flags & CO_FL_OPT_TOS)
 		sock_set_tos(sock_fd, conn->dst, conn->tos);
 
- end:
 	return sock_fd;
 }
 

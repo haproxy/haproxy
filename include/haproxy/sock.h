@@ -30,7 +30,7 @@
 #include <haproxy/listener-t.h>
 #include <haproxy/sock-t.h>
 
-int sock_create_server_socket(struct connection *conn);
+int sock_create_server_socket(struct connection *conn, struct proxy *be);
 void sock_enable(struct receiver *rx);
 void sock_disable(struct receiver *rx);
 void sock_unbind(struct receiver *rx);
