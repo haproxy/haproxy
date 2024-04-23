@@ -1774,8 +1774,15 @@ static char *_encode_byte_hex(char *start, char *stop, unsigned char byte)
 static char *_lf_cbor_encode_byte(struct cbor_encode_ctx *cbor_ctx,
                                   char *start, char *stop, unsigned char byte)
 {
-	__maybe_unused struct lf_buildctx *ctx = cbor_ctx->e_byte_fct_ctx;
+	struct lf_buildctx *ctx = cbor_ctx->e_byte_fct_ctx;
 
+	if (ctx->options & LOG_OPT_BIN) {
+		/* raw output */
+		if ((stop - start) < 1)
+			return NULL;
+		*start++ = byte;
+		return start;
+	}
 	return _encode_byte_hex(start, stop, byte);
 }
 

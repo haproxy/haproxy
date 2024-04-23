@@ -25759,6 +25759,10 @@ Flags are :
           syslog endpoints.
           As with json encoding, incomplete numerical values will be encoded
           as-is and '+E' option will be ignored.
+          When combined with '+bin' option, it will directly generate raw
+          binary CBOR payload. Be careful, because it will obviously generate
+          non-printable chars, thus it is mainly intented for use with
+          set-var-fmt, rings and binary-capable log endpoints.
 
   Example:
 
