@@ -118,6 +118,7 @@
 #include <haproxy/sock.h>
 #include <haproxy/sock_inet.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/stats-file.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
@@ -2365,6 +2366,9 @@ static void init(int argc, char **argv)
 	/* Apply server states */
 	apply_server_state();
 
+	/* Preload internal counters. */
+	apply_stats_file();
+
 	for (px = proxies_list; px; px = px->next)
 		srv_compute_all_admin_states(px);
 
@@ -2943,6 +2947,7 @@ void deinit(void)
 	ha_free(&localpeer);
 	ha_free(&global.server_state_base);
 	ha_free(&global.server_state_file);
+	ha_free(&global.stats_file);
 	task_destroy(idle_conn_task);
 	idle_conn_task = NULL;
 

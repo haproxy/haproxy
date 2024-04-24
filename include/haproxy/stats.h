@@ -47,6 +47,8 @@ extern THREAD_LOCAL struct field stat_line_info[];
 extern THREAD_LOCAL struct field *stat_lines[];
 extern struct name_desc *stat_cols[STATS_DOMAIN_COUNT];
 
+int generate_stat_tree(struct eb_root *st_tree, const struct stat_col cols[]);
+
 struct htx;
 int stats_putchk(struct appctx *appctx, struct buffer *buf, struct htx *htx);
 

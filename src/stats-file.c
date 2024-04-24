@@ -1,8 +1,15 @@
 #include <haproxy/stats-file.h>
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <import/ebmbtree.h>
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
+#include <haproxy/errors.h>
+#include <haproxy/global.h>
 #include <haproxy/guid-t.h>
 #include <haproxy/list.h>
 #include <haproxy/listener-t.h>
@@ -89,4 +96,53 @@ void stats_dump_file_header(int type, struct buffer *out)
 	}
 
 	chunk_strcat(out, "\n");
+}
+
+/* Parse a stats-file and preload haproxy internal counters. */
+void apply_stats_file(void)
+{
+	struct eb_root st_tree = EB_ROOT;
+	FILE *file;
+	char *line = NULL;
+	ssize_t len;
+	size_t alloc_len;
+	int linenum;
+
+	if (!global.stats_file)
+		return;
+
+	file = fopen(global.stats_file, "r");
+	if (!file) {
+		ha_warning("config: Can't load stats file: cannot open file.\n");
+		return;
+	}
+
+	/* Generate stat columns map indexed by name. */
+	if (generate_stat_tree(&st_tree, stat_cols_px)) {
+		ha_warning("config: Can't load stats file: not enough memory.\n");
+		goto out;
+	}
+
+	linenum = 0;
+	while (1) {
+		len = getline(&line, &alloc_len, file);
+		if (len < 0)
+			break;
+
+		++linenum;
+		if (!len || (len == 1 && line[0] == '\n'))
+			continue;
+	}
+
+ out:
+	while (!eb_is_empty(&st_tree)) {
+		struct ebmb_node *node = ebmb_first(&st_tree);
+		struct stcol_node *snode = ebmb_entry(node, struct stcol_node, name);
+
+		ebmb_delete(node);
+		ha_free(&snode);
+	}
+
+	ha_free(&line);
+	fclose(file);
 }

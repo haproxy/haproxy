@@ -22,6 +22,7 @@
 #ifndef _HAPROXY_STATS_T_H
 #define _HAPROXY_STATS_T_H
 
+#include <import/ebtree-t.h>
 #include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
 
@@ -477,6 +478,12 @@ enum stat_idx_px {
 
 	/* must always be the last one */
 	ST_I_PX_MAX
+};
+
+/* Node for name-indexed stat tree from generate_stat_tree(). */
+struct stcol_node {
+	const struct stat_col *col;
+	struct ebmb_node name;
 };
 
 struct field {

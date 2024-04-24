@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <import/ebsttree.h>
 #include <haproxy/api.h>
 #include <haproxy/activity.h>
 #include <haproxy/applet.h>
@@ -335,6 +336,36 @@ struct list stats_module_list[STATS_DOMAIN_COUNT] = {
 };
 
 THREAD_LOCAL void *trash_counters;
+
+/* Insert into <st_tree> all stat columns from <cols> indexed by their name. */
+int generate_stat_tree(struct eb_root *st_tree, const struct stat_col cols[])
+{
+	const struct stat_col *col;
+	struct stcol_node *node;
+	size_t len;
+	int i;
+
+	for (i = 0; i < ST_I_PX_MAX; ++i) {
+		col = &cols[i];
+		if (stcol_nature(col) == FN_COUNTER) {
+			len = strlen(col->name);
+			node = malloc(sizeof(struct stcol_node) + len + 1);
+			if (!node)
+				goto err;
+
+			node->col = col;
+			memcpy(node->name.key, col->name, len);
+			node->name.key[len] = '\0';
+
+			ebst_insert(st_tree, &node->name);
+		}
+	}
+
+	return 0;
+
+ err:
+	return 1;
+}
 
 
 int stats_putchk(struct appctx *appctx, struct buffer *buf, struct htx *htx)
