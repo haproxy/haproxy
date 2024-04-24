@@ -103,6 +103,9 @@
 /* unused : 0x00004000  */
 #define PEER_F_ST_RELEASED          0x00008000 /* Used to set a peer in released state.  */
 #define PEER_F_RESYNC_REQUESTED     0x00010000 /* A resnyc was explicitly requested */
+
+#define PEER_F_WAIT_SYNCTASK_ACK   0x00020000 /* Stop all processing waiting for the sync task acknowledgement when the applet state changes */
+
 /* unused : 0x00020000..0x10000000 */
 #define PEER_F_ALIVE                0x20000000 /* Used to flag a peer a alive. */
 #define PEER_F_HEARTBEAT            0x40000000 /* Heartbeat message to send. */
@@ -1078,7 +1081,7 @@ void __peer_session_deinit(struct peer *peer)
 
 	/* Mark peer as released */
 	peer->flags &= PEER_STATE_RESET;
-	peer->flags |= PEER_F_ST_RELEASED;
+	peer->flags |= (PEER_F_ST_RELEASED|PEER_F_WAIT_SYNCTASK_ACK);
 
 	task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
 }
@@ -2852,7 +2855,7 @@ static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
         peer->flags &= PEER_TEACH_RESET;
 
 	peer->flags &= PEER_STATE_RESET;
-	peer->flags |= PEER_F_ST_ACCEPTED;
+	peer->flags |= (PEER_F_ST_ACCEPTED|PEER_F_WAIT_SYNCTASK_ACK);
 
 	/* Init cursors */
 	for (st = peer->tables; st ; st = st->next) {
@@ -2943,7 +2946,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 	}
 
 	peer->flags &= PEER_STATE_RESET;
-	peer->flags |= PEER_F_ST_CONNECTED;
+	peer->flags |= (PEER_F_ST_CONNECTED|PEER_F_WAIT_SYNCTASK_ACK);
 }
 
 /*
@@ -3153,7 +3156,7 @@ switchstate:
 					}
 				}
 
-				if (curpeer->flags & (PEER_F_ST_RELEASED|PEER_F_ST_ACCEPTED|PEER_F_ST_CONNECTED))
+				if (curpeer->flags & PEER_F_WAIT_SYNCTASK_ACK)
 					goto out;
 
 				reql = peer_recv_msg(appctx, (char *)msg_head, sizeof msg_head, &msg_len, &totl);
@@ -3486,6 +3489,12 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 		__process_peer_learn_status(peers, ps);
 		__process_peer_state(peers, ps);
 
+		/* Peer changes, if any, were now ack by the sync task. Unblock
+		 * the peer (any wakeup should already be performed, no need to
+		 * do it here)
+		 */
+		ps->flags &= ~PEER_F_WAIT_SYNCTASK_ACK;
+
 		/* For each remote peers */
 		if (!ps->local) {
 			if (!ps->appctx) {
@@ -3624,6 +3633,12 @@ static void __process_stopping_peer_sync(struct task *task, struct peers *peers,
 
 		__process_peer_learn_status(peers, ps);
 		__process_peer_state(peers, ps);
+
+		/* Peer changes, if any, were now ack by the sync task. Unblock
+		 * the peer (any wakeup should already be performed, no need to
+		 * do it here)
+		 */
+		ps->flags &= ~PEER_F_WAIT_SYNCTASK_ACK;
 
 		if ((state & TASK_WOKEN_SIGNAL) && !(peers->flags & PEERS_F_DONOTSTOP)) {
 			/* we're killing a connection, we must apply a random delay before
