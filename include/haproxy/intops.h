@@ -96,6 +96,132 @@ static inline uint64_t rotr64(uint64_t v, uint8_t bits)
 	return v;
 }
 
+/* Returns non-zero if any of the 4 bytes composing the u32 <x> is below the
+ * value <min8> or above <min8>+127. Please note that the result will be made
+ * of a 0x80 at positions corresponding to the offending bytes, and that as
+ * such the result is a u32 as well. It is designed like this so that the
+ * operation can be cascaded by ORing the results of multiple blocks. It is
+ * crucial for performance that <min8> is passed as a build-time constant so
+ * as to avoid an expensive multiply. A zero on output confirms that all four
+ * bytes are greater than or equal to <min8> and not lower than <min8>-127.
+ * This is essentially used to skip long sequences of text matching the rule
+ * when the cost of stopping on a false positive is low (i.e. parse multiple
+ * bytes at a time and continue one byte at a time at the end of the series).
+ */
+static inline __attribute__((always_inline))
+uint32_t is_char4_below_opt(uint32_t x, uint8_t min8)
+{
+	uint32_t min32 = min8 * 0x01010101U;
+
+	return (x - min32) & 0x80808080U;
+}
+
+/* Returns non-zero if any of the 4 bytes composing the u32 <x> is above the
+ * value <max8> or below <max8>-127. Please note that the result will be made
+ * of a 0x80 at positions corresponding to the offending bytes, and that as
+ * such the result is a u32 as well. It is designed like this so that the
+ * operation can be cascaded by ORing the results of multiple blocks. It is
+ * crucial for performance that <max8> is passed as a build-time constant so
+ * as to avoid an expensive multiply. A zero on output confirms that all four
+ * bytes are lower than or equal to <max8> and not greater than <max8>+127.
+ * This is essentially used to skip long sequences of text matching the rule
+ * when the cost of stopping on a false positive is low (i.e. parse multiple
+ * bytes at a time and continue one byte at a time at the end of the series).
+ */
+static inline __attribute__((always_inline))
+uint32_t is_char4_above_opt(uint32_t x, uint8_t max8)
+{
+	uint32_t max32 = max8 * 0x01010101U;
+
+	return (max32 - x) & 0x80808080U;
+}
+
+/* Returns non-zero if any of the 4 bytes composing the u32 <x> is outside of
+ * the range defined by <min8> to <max8> included. Please note that the result
+ * will be made of a 0x80 at positions corresponding to the offending bytes,
+ * and that as such the result is a u32 as well. It is designed like this so
+ * that the operation can be cascaded by ORing the results of multiple blocks.
+ * There is one restriction in this simplified version, the distance between
+ * min8 and max8 must be lower than 0x80. It is crucial for performance that
+ * the bounds (min8 and max8) are passed as build-time constants so as to avoid
+ * an expensive multiply. A zero on output confirms that all four bytes are
+ * included in the defined range.
+ */
+static inline __attribute__((always_inline))
+uint32_t is_char4_outside(uint32_t x, uint8_t min8, uint8_t max8)
+{
+	uint32_t min32 = min8 * 0x01010101U;
+	uint32_t max32 = max8 * 0x01010101U;
+
+	return (((x - min32) | (max32 - x)) & 0x80808080U);
+}
+
+/* Returns non-zero if any of the 8 bytes composing the u64 <x> is below the
+ * value <min8> or above <min8>+127. Please note that the result will be made
+ * of a 0x80 at positions corresponding to the offending bytes, and that as
+ * such the result is a u64 as well. It is designed like this so that the
+ * operation can be cascaded by ORing the results of multiple blocks. It is
+ * crucial for performance that <min8> is passed as a build-time constant so
+ * as to avoid an expensive multiply. A zero on output confirms that all eight
+ * bytes are greater than or equal to <min8> and not lower than <min8>-127.
+ * This is essentially used to skip long sequences of text matching the rule
+ * when the cost of stopping on a false positive is low (i.e. parse multiple
+ * bytes at a time and continue one byte at a time at the end of the series).
+ */
+static inline __attribute__((always_inline))
+uint64_t is_char8_below_opt(uint64_t x, uint8_t min8)
+{
+	uint64_t min64 = min8 * 0x0101010101010101ULL;
+
+	return (x - min64) & 0x8080808080808080ULL;
+}
+
+/* Returns non-zero if any of the 8 bytes composing the u64 <x> is above the
+ * value <max8> or below <max8>-127. Please note that the result will be made
+ * of a 0x80 at positions corresponding to the offending bytes, and that as
+ * such the result is a u64 as well. It is designed like this so that the
+ * operation can be cascaded by ORing the results of multiple blocks. It is
+ * crucial for performance that <max8> is passed as a build-time constant so
+ * as to avoid an expensive multiply. A zero on output confirms that all eight
+ * bytes are lower than or equal to <max8> and not greater than <max8>+127.
+ * This is essentially used to skip long sequences of text matching the rule
+ * when the cost of stopping on a false positive is low (i.e. parse multiple
+ * bytes at a time and continue one byte at a time at the end of the series).
+ */
+static inline __attribute__((always_inline))
+uint64_t is_char8_above_opt(uint64_t x, uint8_t max8)
+{
+	uint64_t max64 = max8 * 0x0101010101010101ULL;
+
+	return (max64 - x) & 0x8080808080808080ULL;
+}
+
+/* Returns non-zero if any of the 8 bytes composing the u64 <x> is outside of
+ * the range defined by <min8> to <max8> included. Please note that the result
+ * will be made of a 0x80 at positions corresponding to some of the offending
+ * bytes, and that as such the result is a u64 as well. On 32-bit mcahines, the
+ * operation will be made of two adjacent 32-bit checks. It is designed like
+ * this so that the operation can be cascaded by ORing the results of multiple
+ * blocks. There is one restriction in this simplified version, the distance
+ * between min8 and max8 must be lower than 0x80. It is crucial for performance
+ * that the bounds (min8 and max8) are passed as build-time constants so as to
+ * avoid an expensive multiply. A zero on output confirms that all eight bytes
+ * are included in the defined range.
+ */
+static inline __attribute__((always_inline))
+uint64_t is_char8_outside(uint64_t x, uint8_t min8, uint8_t max8)
+{
+	if (sizeof(long) >= 8) {
+		uint64_t min64 = min8 * 0x0101010101010101ULL;
+		uint64_t max64 = max8 * 0x0101010101010101ULL;
+
+		return (((x - min64) | (max64 - x)) & 0x8080808080808080ULL);
+	}
+	else
+		return is_char4_outside(x >>  0, min8, max8) |
+		       is_char4_outside(x >> 32, min8, max8);
+}
+
 /* Simple popcountl implementation. It returns the number of ones in a word.
  * Described here : https://graphics.stanford.edu/~seander/bithacks.html
  */
