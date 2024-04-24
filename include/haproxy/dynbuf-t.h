@@ -50,7 +50,8 @@
  *     buffers). If these fail, we can't boot.
  *
  * Please DO NOT CHANGE THESE LEVELS without first getting a full understanding
- * of how all this works and touching the DB_CRIT_TO_QUEUE() macro below!
+ * of how all this works and touching the DB_F_CRIT_MASK and DB_CRIT_TO_QUEUE()
+ * macros below!
  */
 enum dynbuf_crit {
 	DB_GROW_RING = 0, // used to grow an existing buffer ring
@@ -63,6 +64,14 @@ enum dynbuf_crit {
 	/* The one below may never fail */
 	DB_PERMANENT,     // buffers permanently allocated.
 };
+
+/* The values above are expected to be passed to b_alloc(). In addition, some
+ * Extra flags can be passed by oring the crit value above with one of these
+ * high-bit flags.
+ */
+#define DB_F_NOQUEUE   0x80000000U   // ignore presence of others in queue
+#define DB_F_CRIT_MASK 0x000000FFU   // mask to keep the criticality bits
+
 
 /* We'll deal with 4 queues, with indexes numbered from 0 to 3 based on the
  * criticality of the allocation. All criticality levels are mapped to a 2-bit

@@ -56,22 +56,38 @@ static inline int buffer_almost_full(const struct buffer *buf)
 /* Functions below are used for buffer allocation */
 /**************************************************/
 
+/* returns non-zero if one may try to allocate a buffer for criticality flags
+ * <crit> (made of a criticality and optional flags).
+ */
+static inline int b_may_alloc_for_crit(uint crit)
+{
+	int q = DB_CRIT_TO_QUEUE(crit & DB_F_CRIT_MASK);
+
+	/* if this queue or any more critical ones have entries, we must wait */
+	if (!(crit & DB_F_NOQUEUE) && th_ctx->bufq_map & ((2 << q) - 1))
+		return 0;
+
+	return 1;
+}
+
 /* Ensures that <buf> is allocated, or allocates it. If no memory is available,
  * ((char *)1) is assigned instead with a zero size. The allocated buffer is
  * returned, or NULL in case no memory is available. Since buffers only contain
  * user data, poisonning is always disabled as it brings no benefit and impacts
  * performance. Due to the difficult buffer_wait management, they are not
- * subject to forced allocation failures either.
+ * subject to forced allocation failures either. If other waiters are present
+ * at higher criticality levels, we refrain from allocating.
  */
-#define b_alloc(_buf, _crit)			\
-({						\
-	char *_area;				\
-	struct buffer *_retbuf = _buf;		\
-	enum dynbuf_crit _criticality __maybe_unused = _crit;	\
-						\
-	if (!_retbuf->size) {			\
+#define b_alloc(_buf, _crit)						\
+({									\
+	char *_area = NULL;						\
+	struct buffer *_retbuf = _buf;					\
+	uint _criticality = _crit;					\
+									\
+	if (!_retbuf->size) {						\
 		*_retbuf = BUF_WANTED;					\
-		_area = pool_alloc_flag(pool_head_buffer, POOL_F_NO_POISON | POOL_F_NO_FAIL); \
+		if (b_may_alloc_for_crit(_criticality))			\
+			_area = pool_alloc_flag(pool_head_buffer, POOL_F_NO_POISON | POOL_F_NO_FAIL); \
 		if (unlikely(!_area)) {					\
 			activity[tid].buf_wait++;			\
 			_retbuf = NULL;					\
