@@ -918,9 +918,7 @@ static inline int channel_alloc_buffer(struct channel *chn, struct buffer_wait *
 	if (b_alloc(&chn->buf, DB_CHANNEL) != NULL)
 		return 1;
 
-	if (!LIST_INLIST(&wait->list))
-		LIST_APPEND(&th_ctx->buffer_wq, &wait->list);
-
+	b_requeue(DB_CHANNEL, wait);
 	return 0;
 }
 

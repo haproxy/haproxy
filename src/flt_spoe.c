@@ -2858,7 +2858,7 @@ spoe_acquire_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 	if (b_alloc(buf, DB_CHANNEL))
 		return 1;
 
-	LIST_APPEND(&th_ctx->buffer_wq, &buffer_wait->list);
+	b_requeue(DB_CHANNEL, buffer_wait);
 	return 0;
 }
 

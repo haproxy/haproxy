@@ -524,9 +524,7 @@ static inline struct buffer *fcgi_get_buf(struct fcgi_conn *fconn, struct buffer
 
 	if (likely(!LIST_INLIST(&fconn->buf_wait.list)) &&
 	    unlikely((buf = b_alloc(bptr, DB_MUX_RX)) == NULL)) {
-		fconn->buf_wait.target = fconn;
-		fconn->buf_wait.wakeup_cb = fcgi_buf_available;
-		LIST_APPEND(&th_ctx->buffer_wq, &fconn->buf_wait.list);
+		b_queue(DB_MUX_RX, &fconn->buf_wait, fconn, fcgi_buf_available);
 	}
 	return buf;
 }

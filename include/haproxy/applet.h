@@ -91,10 +91,8 @@ static inline struct buffer *appctx_get_buf(struct appctx *appctx, struct buffer
 	struct buffer *buf = NULL;
 
 	if (likely(!LIST_INLIST(&appctx->buffer_wait.list)) &&
-	    unlikely((buf = b_alloc(bptr, DB_CHANNEL)) == NULL)) {
-		appctx->buffer_wait.target = appctx;
-		appctx->buffer_wait.wakeup_cb = appctx_buf_available;
-		LIST_APPEND(&th_ctx->buffer_wq, &appctx->buffer_wait.list);
+	    unlikely((buf = b_alloc(bptr, DB_SE_RX)) == NULL)) {
+		b_queue(DB_SE_RX, &appctx->buffer_wait, appctx, appctx_buf_available);
 	}
 	return buf;
 }

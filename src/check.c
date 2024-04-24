@@ -1530,9 +1530,7 @@ struct buffer *check_get_buf(struct check *check, struct buffer *bptr)
 
 	if (likely(!LIST_INLIST(&check->buf_wait.list)) &&
 	    unlikely((buf = b_alloc(bptr, DB_CHANNEL)) == NULL)) {
-		check->buf_wait.target = check;
-		check->buf_wait.wakeup_cb = check_buf_available;
-		LIST_APPEND(&th_ctx->buffer_wq, &check->buf_wait.list);
+		b_queue(DB_CHANNEL, &check->buf_wait, check, check_buf_available);
 	}
 	return buf;
 }
