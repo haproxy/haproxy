@@ -60,7 +60,7 @@
 #define PEERS_F_RESYNC_LOCAL          0x00000001 /* Learn from local finished or no more needed */
 #define PEERS_F_RESYNC_REMOTE         0x00000002 /* Learn from remote finished or no more needed */
 #define PEERS_F_RESYNC_ASSIGN         0x00000004 /* A peer was assigned to learn our lesson */
-#define PEERS_F_RESYNC_PROCESS        0x00000008 /* The assigned peer was requested for resync */
+/* unused 0x00000008 */
 #define PEERS_F_RESYNC_LOCALTIMEOUT   0x00000010 /* Timeout waiting for a full resync from a local node */
 #define PEERS_F_RESYNC_REMOTETIMEOUT  0x00000020 /* Timeout waiting for a full resync from a remote node */
 #define PEERS_F_RESYNC_LOCALABORT     0x00000040 /* Session aborted learning from a local node */
@@ -3341,9 +3341,6 @@ static void __process_peer_learn_status(struct peers *peers, struct peer *peer)
 {
 	struct peer *ps;
 
-	if (peer->flags & PEER_F_LEARN_PROCESS)
-		peers->flags |= PEERS_F_RESYNC_PROCESS;
-
 	if (!(peer->flags & PEER_F_LEARN_FINISHED))
 		return;
 
@@ -3392,7 +3389,7 @@ static void __process_peer_learn_status(struct peers *peers, struct peer *peer)
 		}
 	}
 	peer->flags &= ~(PEER_F_LEARN_ASSIGN|PEER_F_LEARN_PROCESS|PEER_F_LEARN_FINISHED);
-	peers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
+	peers->flags &= ~PEERS_F_RESYNC_ASSIGN;
 
 	appctx_wakeup(peer->appctx);
 }
@@ -3403,7 +3400,7 @@ static void __process_peer_state(struct peers *peers, struct peer *peer)
 	if (peer->flags & (PEER_F_ST_RELEASED|PEER_F_ST_CONNECTED|PEER_F_ST_ACCEPTED)) {
 		if (peer->flags & PEER_F_LEARN_ASSIGN) {
 			/* unassign current peer for learning */
-			peers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
+			peers->flags &= ~PEERS_F_RESYNC_ASSIGN;
 			peers->flags |= (peer->local ? PEERS_F_RESYNC_LOCALABORT : PEERS_F_RESYNC_REMOTEABORT);
 			/* reschedule a resync */
 			peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(5000));
@@ -3420,7 +3417,7 @@ static void __process_peer_state(struct peers *peers, struct peer *peer)
 			    !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
 				/* assign local peer for a lesson, consider lesson already requested */
 				peer->flags |= (PEER_F_LEARN_ASSIGN|PEER_F_LEARN_PROCESS);
-				peers->flags |= (PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
+				peers->flags |= PEERS_F_RESYNC_ASSIGN;
 				peers->flags |= PEERS_F_RESYNC_LOCALASSIGN;
 			}
 		}
