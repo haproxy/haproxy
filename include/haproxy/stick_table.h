@@ -199,7 +199,11 @@ static inline void *stktable_data_ptr_idx(struct stktable *t, struct stksess *ts
  */
 static inline uint stktable_calc_shard_num(const struct stktable *t, const void *key, size_t len)
 {
+#if CONFIG_HAP_TBL_BUCKETS > 1
 	return XXH32(key, len, t->hash_seed) % CONFIG_HAP_TBL_BUCKETS;
+#else
+	return 0;
+#endif
 }
 
 /* kill an entry if it's expired and its ref_cnt is zero */
@@ -226,6 +230,9 @@ static inline void stksess_kill_if_expired(struct stktable *t, struct stksess *t
 			len = t->key_size;
 
 		shard = stktable_calc_shard_num(t, ts->key.key, len);
+
+		/* make the compiler happy when shard is not used without threads */
+		ALREADY_CHECKED(shard);
 
 		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 		__stksess_kill_if_expired(t, ts);

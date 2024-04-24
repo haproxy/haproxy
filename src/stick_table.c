@@ -127,6 +127,9 @@ void stksess_free(struct stktable *t, struct stksess *ts)
 
 	shard = stktable_calc_shard_num(t, ts->key.key, len);
 
+	/* make the compiler happy when shard is not used without threads */
+	ALREADY_CHECKED(shard);
+
 	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 	__stksess_free(t, ts);
 	HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
@@ -172,6 +175,9 @@ int stksess_kill(struct stktable *t, struct stksess *ts, int decrefcnt)
 		len = t->key_size;
 
 	shard = stktable_calc_shard_num(t, ts->key.key, len);
+
+	/* make the compiler happy when shard is not used without threads */
+	ALREADY_CHECKED(shard);
 
 	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 	ret = __stksess_kill(t, ts);
