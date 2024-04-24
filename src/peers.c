@@ -3566,6 +3566,7 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 								ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
 								ps->heartbeat = TICK_ETERNITY;
 								peer_session_forceshutdown(ps);
+								__process_peer_state(peers, ps);
 								ps->no_hbt++;
 							}
 						}
@@ -3626,6 +3627,7 @@ static void __process_stopping_peer_sync(struct task *task, struct peers *peers,
 			ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
 			if (ps->appctx) {
 				peer_session_forceshutdown(ps);
+				__process_peer_state(peers, ps);
 			}
 		}
 
