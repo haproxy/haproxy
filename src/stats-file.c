@@ -5,6 +5,8 @@
 #include <string.h>
 
 #include <import/ebmbtree.h>
+#include <import/ebsttree.h>
+#include <import/ist.h>
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
@@ -98,11 +100,103 @@ void stats_dump_file_header(int type, struct buffer *out)
 	chunk_strcat(out, "\n");
 }
 
+/* Parse an identified header line <header> starting with '#' character.
+ *
+ * If the section is recognized, <domain> will point to the current stats-file
+ * scope. <cols> will be filled as a matrix to identify each stat_col position
+ * using <st_tree> as prefilled proxy stats columns. If stats-file section is
+ * unknown, only <domain> will be set to STFILE_DOMAIN_UNSET.
+ *
+ * Returns 0 on sucess. On fatal error, non-zero is returned and parsing shoud
+ * be interrupted.
+ */
+static int parse_header_line(struct ist header, struct eb_root *st_tree,
+                             enum stfile_domain *domain,
+                             const struct stat_col *cols[])
+{
+	enum stfile_domain dom = STFILE_DOMAIN_UNSET;
+	struct ist token;
+	char last;
+	int i;
+
+	header = iststrip(header);
+	last = istptr(header)[istlen(header) - 1];
+	token = istsplit(&header, ' ');
+
+	/* A header line is considered valid if:
+	 * - a space delimiter is found and first token is several chars
+	 * - last line character must be a comma separator
+	 */
+	if (!istlen(header) || istlen(token) == 1 || last != ',')
+		goto err;
+
+	if (isteq(token, ist("#fe")))
+		dom = STFILE_DOMAIN_PX_FE;
+	else if (isteq(token, ist("#be")))
+		dom = STFILE_DOMAIN_PX_BE;
+
+	/* Remove 'guid' field. */
+	token = istsplit(&header, ',');
+	if (!isteq(token, ist("guid"))) {
+		/* Fatal error if FE/BE domain without guid token. */
+		if (dom == STFILE_DOMAIN_PX_FE || dom == STFILE_DOMAIN_PX_BE)
+			goto err;
+	}
+
+	/* Unknown domain. Following lines should be ignored until next header. */
+	if (dom == STFILE_DOMAIN_UNSET)
+		return 0;
+
+	/* Generate matrix of stats column into cols[]. */
+	memset(cols, 0, sizeof(void *) * STAT_FILE_MAX_COL_COUNT);
+
+	i = 0;
+	while (istlen(header) && i < STAT_FILE_MAX_COL_COUNT) {
+		struct stcol_node *col_node;
+		const struct stat_col *col;
+		struct ebmb_node *node;
+
+		/* Lookup column by its name into <st_tree>. */
+		token = istsplit(&header, ',');
+		node = ebst_lookup(st_tree, ist0(token));
+		if (!node) {
+			++i;
+			continue;
+		}
+
+		col_node = ebmb_entry(node, struct stcol_node, name);
+		col = col_node->col;
+
+		/* Ignore column if its cap is not valid with current stats-file section. */
+		if ((dom == STFILE_DOMAIN_PX_FE &&
+		    !(col->cap & (STATS_PX_CAP_FE|STATS_PX_CAP_LI))) ||
+		    (dom == STFILE_DOMAIN_PX_BE &&
+		     !(col->cap & (STATS_PX_CAP_BE|STATS_PX_CAP_SRV)))) {
+			++i;
+			continue;
+		}
+
+		cols[i] = col;
+		++i;
+	}
+
+	*domain = dom;
+	return 0;
+
+ err:
+	*domain = STFILE_DOMAIN_UNSET;
+	return 1;
+}
+
 /* Parse a stats-file and preload haproxy internal counters. */
 void apply_stats_file(void)
 {
+	const struct stat_col *cols[STAT_FILE_MAX_COL_COUNT];
 	struct eb_root st_tree = EB_ROOT;
+	enum stfile_domain domain;
+	int valid_format = 0;
 	FILE *file;
+	struct ist istline;
 	char *line = NULL;
 	ssize_t len;
 	size_t alloc_len;
@@ -124,14 +218,38 @@ void apply_stats_file(void)
 	}
 
 	linenum = 0;
+	domain = STFILE_DOMAIN_UNSET;
 	while (1) {
 		len = getline(&line, &alloc_len, file);
 		if (len < 0)
 			break;
 
 		++linenum;
-		if (!len || (len == 1 && line[0] == '\n'))
+		istline = iststrip(ist2(line, len));
+		if (!istlen(istline))
 			continue;
+
+		if (*istptr(istline) == '#') {
+			if (parse_header_line(istline, &st_tree, &domain, cols)) {
+				if (!valid_format) {
+					ha_warning("config: Invalid stats-file format.\n");
+					break;
+				}
+
+				ha_warning("config: Ignored stats-file header line '%d'.\n", linenum);
+			}
+
+			valid_format = 1;
+		}
+		else if (domain == STFILE_DOMAIN_UNSET) {
+			/* Stop parsing if first line is not a valid header.
+			 * Allows to immediately stop reading garbage file.
+			 */
+			if (!valid_format) {
+				ha_warning("config: Invalid stats-file format.\n");
+				break;
+			}
+		}
 	}
 
  out:

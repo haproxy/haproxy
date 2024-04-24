@@ -1,6 +1,8 @@
 #ifndef _HAPROXY_STATS_FILE_H
 #define _HAPROXY_STATS_FILE_H
 
+#include <haproxy/stats-file-t.h>
+
 #include <sys/types.h>
 
 #include <haproxy/buf-t.h>
