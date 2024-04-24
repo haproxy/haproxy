@@ -1138,7 +1138,7 @@ static int http_check_vary_header(struct htx *htx, unsigned int *vary_signature)
  * "vary" on the accept-encoding value.
  * Returns 0 if we found a known encoding in the response, -1 otherwise.
  */
-static int set_secondary_key_encoding(struct htx *htx, char *secondary_key)
+static int set_secondary_key_encoding(struct htx *htx, unsigned int vary_signature, char *secondary_key)
 {
 	unsigned int resp_encoding_bitmap = 0;
 	const struct vary_hashing_information *info = vary_information;
@@ -1147,6 +1147,11 @@ static int set_secondary_key_encoding(struct htx *htx, char *secondary_key)
 	unsigned int hash_info_count = sizeof(vary_information)/sizeof(*vary_information);
 	unsigned int encoding_value;
 	struct http_hdr_ctx ctx = { .blk = NULL };
+
+	/* We must not set the accept encoding part of the secondary signature
+	 * if the response does not vary on 'Accept Encoding'. */
+	if (!(vary_signature & VARY_ACCEPT_ENCODING))
+		return 0;
 
 	/* Look for the accept-encoding part of the secondary_key. */
 	while (count < hash_info_count && info->value != VARY_ACCEPT_ENCODING) {
@@ -1409,7 +1414,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	 * We will not cache a response that has an unknown encoding (not
 	 * explicitly supported in parse_encoding_value function). */
 	if (cache->vary_processing_enabled && vary_signature)
-		if (set_secondary_key_encoding(htx, object->secondary_key))
+		if (set_secondary_key_encoding(htx, vary_signature, object->secondary_key))
 		    goto out;
 
 	if (!shctx_row_reserve_hot(shctx, first, trash.data)) {
