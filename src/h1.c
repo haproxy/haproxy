@@ -575,9 +575,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 #ifdef HA_UNALIGNED_LE
 		/* speedup: skip bytes not between 0x24 and 0x7e inclusive */
 		while (ptr <= end - sizeof(int)) {
-			uint x = *(uint *)ptr;
-
-			if (((x - 0x24242424) | (0x7e7e7e7e - x)) & 0x80808080U)
+			if (is_char4_outside(*(uint *)ptr, 0x24, 0x7e))
 				break;
 
 			ptr += sizeof(int);
@@ -927,14 +925,14 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		 */
 #ifdef HA_UNALIGNED_LE64
 		while (ptr <= end - sizeof(long)) {
-			if ((*(long *)ptr - 0x0e0e0e0e0e0e0e0eULL) & 0x8080808080808080ULL)
+			if (is_char8_below_opt(*(ulong *)ptr, 0x0e))
 				goto http_msg_hdr_val2;
 			ptr += sizeof(long);
 		}
 #endif
 #ifdef HA_UNALIGNED_LE
 		while (ptr <= end - sizeof(int)) {
-			if ((*(int*)ptr - 0x0e0e0e0e) & 0x80808080)
+			if (is_char4_below_opt(*(uint *)ptr, 0x0e))
 				goto http_msg_hdr_val2;
 			ptr += sizeof(int);
 		}
