@@ -34,6 +34,13 @@
 #include <haproxy/stick_table-t.h>
 #include <haproxy/thread-t.h>
 
+/* peer state with respects of its applet, as seen from outside */
+enum peer_app_state {
+	PEER_APP_ST_STOPPED = 0, /* The peer has no applet */
+	PEER_APP_ST_STARTING,    /* The peer has an applet with a validated connection but sync task must ack it first */
+	PEER_APP_ST_RUNNING,     /* The starting state was processed by the sync task and the peer can process messages */
+	PEER_APP_ST_STOPPING,    /* The peer applet was released but the sync task must ack it before switching the peer in STOPPED state */
+};
 
 struct shared_table {
 	struct stktable *table;       /* stick table to sync */
@@ -52,6 +59,7 @@ struct shared_table {
 
 struct peer {
 	int local;                    /* proxy state */
+	enum peer_app_state appstate;    /* peer app state */
 	__decl_thread(HA_SPINLOCK_T lock); /* lock used to handle this peer section */
 	char *id;
 	struct {
