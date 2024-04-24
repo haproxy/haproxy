@@ -52,6 +52,7 @@ static const char *common_kw_list[] = {
 	"presetenv", "unsetenv", "resetenv", "strict-limits", "localpeer",
 	"numa-cpu-mapping", "defaults", "listen", "frontend", "backend",
 	"peers", "resolvers", "cluster-secret", "no-quic", "limited-quic",
+	"stats-file",
 	NULL /* must be last */
 };
 
@@ -1030,6 +1031,21 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 
 		global.server_state_file = strdup(args[1]);
+	}
+	else if (strcmp(args[0], "stats-file") == 0) { /* path to the file where HAProxy can load the server states */
+		if (global.stats_file != NULL) {
+			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT;
+			goto out;
+		}
+
+		if (!*(args[1])) {
+			ha_alert("parsing [%s:%d] : '%s' expect one argument: a file path.\n", file, linenum, args[0]);
+			err_code |= ERR_FATAL;
+			goto out;
+		}
+
+		global.stats_file = strdup(args[1]);
 	}
 	else if (strcmp(args[0], "log-tag") == 0) {  /* tag to report to syslog */
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))

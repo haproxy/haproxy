@@ -1318,6 +1318,7 @@ The following keywords are supported in the "global" section :
    - ssl-server-verify
    - ssl-skip-self-issued-ca
    - stats
+   - stats-file
    - strict-limits
    - uid
    - ulimit-n
@@ -2660,6 +2661,11 @@ stats timeout <timeout, in milliseconds>
   The default timeout on the stats socket is set to 10 seconds. It is possible
   to change this value with "stats timeout". The value must be passed in
   milliseconds, or be suffixed by a time unit among { us, ms, s, m, h, d }.
+
+stats-file <path>
+  Path to a generated haproxy stats-file. On startup haproxy will preload the
+  values to its internal counters. Use the CLI command "dump stats-file" to
+  produce such stats-file. See the management manual for more details.
 
 strict-limits
   Makes process fail at startup when a setrlimit fails. HAProxy tries to set the
