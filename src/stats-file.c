@@ -12,7 +12,8 @@
 #include <haproxy/chunk.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
-#include <haproxy/guid-t.h>
+#include <haproxy/guid.h>
+#include <haproxy/intops.h>
 #include <haproxy/list.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type.h>
@@ -188,6 +189,116 @@ static int parse_header_line(struct ist header, struct eb_root *st_tree,
 	return 1;
 }
 
+/* Parse a non header stats-file line <line>. Specify current parsing <domain>
+ * and <cols> stats column matrix derived from the last header line.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int parse_stat_line(struct ist line,
+                           enum stfile_domain domain,
+                           const struct stat_col *cols[])
+{
+	struct guid_node *node;
+	struct listener *li;
+	struct server *srv;
+	struct proxy *px;
+	struct ist token;
+	char *base_off;
+	char *guid;
+	int i, off;
+
+	token = istsplit(&line, ',');
+	guid = ist0(token);
+	if (!guid_is_valid_fmt(guid, NULL))
+		goto err;
+
+	node = guid_lookup(guid);
+	if (!node) {
+		/* Silently ignored unknown GUID. */
+		return 0;
+	}
+
+	switch (obj_type(node->obj_type)) {
+	case OBJ_TYPE_PROXY:
+		px = objt_proxy(node->obj_type);
+
+		if (domain == STFILE_DOMAIN_PX_FE) {
+			if (!(px->cap & PR_CAP_FE))
+				goto err;
+			base_off = (char *)&px->fe_counters;
+			off = 0;
+		}
+		else if (domain == STFILE_DOMAIN_PX_BE) {
+			if (!(px->cap & PR_CAP_BE))
+				goto err;
+			base_off = (char *)&px->be_counters;
+			off = 1;
+		}
+		else {
+			goto err;
+		}
+
+		break;
+
+	case OBJ_TYPE_LISTENER:
+		if (domain != STFILE_DOMAIN_PX_FE)
+			goto err;
+
+		li = objt_listener(node->obj_type);
+		/* Listeners counters are not allocated if 'option socket-stats' unset. */
+		if (!li->counters)
+			return 0;
+
+		base_off = (char *)li->counters;
+		off = 0;
+		break;
+
+	case OBJ_TYPE_SERVER:
+		if (domain != STFILE_DOMAIN_PX_BE)
+			goto err;
+
+		srv = objt_server(node->obj_type);
+		base_off = (char *)&srv->counters;
+		off = 1;
+		break;
+
+	default:
+		goto err;
+	}
+
+	i = 0;
+	while (istlen(line) && i < STAT_FILE_MAX_COL_COUNT) {
+		const struct stat_col *col = cols[i++];
+		enum field_format ff;
+
+		token = istsplit(&line, ',');
+		if (!istlen(token))
+			continue;
+
+		if (!col)
+			continue;
+
+		ff = stcol_format(col);
+		if (ff == FF_U64) {
+			uint64_t *offset, value;
+			const char *ptr;
+
+			ptr = istptr(token);
+			value = read_uint64(&ptr, istend(token));
+			/* Do not load value if non numeric characters present. */
+			if (ptr == istend(token)) {
+				offset = (uint64_t *)(base_off + col->metric.offset[off]);
+				*offset = value;
+			}
+		}
+	}
+
+	return 0;
+
+ err:
+	return 1;
+}
+
 /* Parse a stats-file and preload haproxy internal counters. */
 void apply_stats_file(void)
 {
@@ -241,7 +352,11 @@ void apply_stats_file(void)
 
 			valid_format = 1;
 		}
-		else if (domain == STFILE_DOMAIN_UNSET) {
+		else if (domain != STFILE_DOMAIN_UNSET) {
+			if (parse_stat_line(istline, domain, cols))
+				ha_warning("config: Ignored stats-file line %d.\n", linenum);
+		}
+		else {
 			/* Stop parsing if first line is not a valid header.
 			 * Allows to immediately stop reading garbage file.
 			 */
