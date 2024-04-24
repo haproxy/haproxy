@@ -91,6 +91,20 @@ server s1 {
               -hdr "Content-Encoding: gzip" \
               -bodylen 59
 
+       rxreq
+       expect req.url == "/origin-referer"
+       txresp -hdr "Vary: origin,referer" \
+              -hdr "Cache-Control: max-age=5" \
+              -hdr "Content-Encoding: gzip" \
+              -bodylen 60
+
+       rxreq
+       expect req.url == "/origin-referer"
+       txresp -hdr "Vary: origin,referer" \
+              -hdr "Cache-Control: max-age=5" \
+              -hdr "Content-Encoding: gzip" \
+              -bodylen 61
+
        # Multiple Accept-Encoding headers
        rxreq
        expect req.url == "/multiple_headers"
@@ -364,6 +378,43 @@ client c1 -connect ${h1_fe_sock} {
        rxresp
        expect resp.status == 200
        expect resp.bodylen == 59
+       expect resp.http.X-Cache-Hit == 1
+
+       # Mixed Vary (origin + Referer)
+       txreq -url "/origin-referer" \
+               -hdr "Accept-Encoding: br, gzip" \
+               -hdr "Referer: referer" \
+               -hdr "Origin: origin"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 60
+       expect resp.http.X-Cache-Hit == 0
+
+       txreq -url "/origin-referer" \
+               -hdr "Accept-Encoding: br, gzip" \
+               -hdr "Referer: referer" \
+               -hdr "Origin: origin"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 60
+       expect resp.http.X-Cache-Hit == 1
+
+       txreq -url "/origin-referer" \
+               -hdr "Accept-Encoding: br, gzip" \
+               -hdr "Referer: other-referer" \
+               -hdr "Origin: other-origin"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 61
+       expect resp.http.X-Cache-Hit == 0
+
+       txreq -url "/origin-referer" \
+               -hdr "Accept-Encoding: br, gzip" \
+               -hdr "Referer: other-referer" \
+               -hdr "Origin: other-origin"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 61
        expect resp.http.X-Cache-Hit == 1
 
        # Multiple Accept-encoding headers
