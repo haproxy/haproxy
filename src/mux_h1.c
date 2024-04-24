@@ -1238,9 +1238,7 @@ static void h1_release(struct h1c *h1c)
 	}
 
 
-	if (LIST_INLIST(&h1c->buf_wait.list))
-		LIST_DEL_INIT(&h1c->buf_wait.list);
-
+	b_dequeue(&h1c->buf_wait);
 	h1_release_buf(h1c, &h1c->ibuf);
 	h1_release_buf(h1c, &h1c->obuf);
 

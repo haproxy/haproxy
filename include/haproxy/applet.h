@@ -121,8 +121,7 @@ static inline void __appctx_free(struct appctx *appctx)
 	appctx_release_buf(appctx, &appctx->outbuf);
 
 	task_destroy(appctx->t);
-	if (LIST_INLIST(&appctx->buffer_wait.list))
-		LIST_DEL_INIT(&appctx->buffer_wait.list);
+	b_dequeue(&appctx->buffer_wait);
 	if (appctx->sess)
 		session_free(appctx->sess);
 	BUG_ON(appctx->sedesc && !se_fl_test(appctx->sedesc, SE_FL_ORPHAN));

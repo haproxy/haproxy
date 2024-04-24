@@ -2852,8 +2852,7 @@ spoe_acquire_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 	if (buf->size)
 		return 1;
 
-	if (LIST_INLIST(&buffer_wait->list))
-		LIST_DEL_INIT(&buffer_wait->list);
+	b_dequeue(buffer_wait);
 
 	if (b_alloc(buf, DB_CHANNEL))
 		return 1;
@@ -2865,8 +2864,7 @@ spoe_acquire_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 static void
 spoe_release_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 {
-	if (LIST_INLIST(&buffer_wait->list))
-		LIST_DEL_INIT(&buffer_wait->list);
+	b_dequeue(buffer_wait);
 
 	/* Release the buffer if needed */
 	if (buf->size) {

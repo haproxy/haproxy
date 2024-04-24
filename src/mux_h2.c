@@ -1193,8 +1193,7 @@ static void h2_release(struct h2c *h2c)
 
 	hpack_dht_free(h2c->ddht);
 
-	if (LIST_INLIST(&h2c->buf_wait.list))
-		LIST_DEL_INIT(&h2c->buf_wait.list);
+	b_dequeue(&h2c->buf_wait);
 
 	h2_release_buf(h2c, &h2c->dbuf);
 	h2_release_mbuf(h2c);

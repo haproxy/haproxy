@@ -753,8 +753,7 @@ static void fcgi_release(struct fcgi_conn *fconn)
 
 	TRACE_POINT(FCGI_EV_FCONN_END);
 
-	if (LIST_INLIST(&fconn->buf_wait.list))
-		LIST_DEL_INIT(&fconn->buf_wait.list);
+	b_dequeue(&fconn->buf_wait);
 
 	fcgi_release_buf(fconn, &fconn->dbuf);
 	fcgi_release_mbuf(fconn);

@@ -632,8 +632,7 @@ void stream_free(struct stream *s)
 	}
 
 	/* We may still be present in the buffer wait queue */
-	if (LIST_INLIST(&s->buffer_wait.list))
-		LIST_DEL_INIT(&s->buffer_wait.list);
+	b_dequeue(&s->buffer_wait);
 
 	if (s->req.buf.size || s->res.buf.size) {
 		int count = !!s->req.buf.size + !!s->res.buf.size;

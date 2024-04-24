@@ -1415,8 +1415,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		}
 	}
 
-        if (LIST_INLIST(&check->buf_wait.list))
-                LIST_DEL_INIT(&check->buf_wait.list);
+	b_dequeue(&check->buf_wait);
 
 	check_release_buf(check, &check->bi);
 	check_release_buf(check, &check->bo);
