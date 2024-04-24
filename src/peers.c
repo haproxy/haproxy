@@ -2510,7 +2510,7 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 			            NULL, &msg_head[1], peers->local->id, peer->id);
 			if (peer->flags & PEER_F_LEARN_PROCESS) {
 				peer->flags &= ~PEER_F_LEARN_PROCESS;
-				peer->flags |= PEER_F_LEARN_FINISHED;
+				peer->flags |= (PEER_F_LEARN_FINISHED|PEER_F_WAIT_SYNCTASK_ACK);
 				task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
 			}
 			peer->confirm++;
@@ -2520,7 +2520,7 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 			            NULL, &msg_head[1], peers->local->id, peer->id);
 			if (peer->flags & PEER_F_LEARN_PROCESS) {
 				peer->flags &= ~PEER_F_LEARN_PROCESS;
-				peer->flags |= (PEER_F_LEARN_FINISHED|PEER_F_LEARN_NOTUP2DATE);
+				peer->flags |= (PEER_F_LEARN_FINISHED|PEER_F_LEARN_NOTUP2DATE|PEER_F_WAIT_SYNCTASK_ACK);
 				task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
 			}
 			peer->confirm++;
@@ -3393,6 +3393,8 @@ static void __process_peer_learn_status(struct peers *peers, struct peer *peer)
 	}
 	peer->flags &= ~(PEER_F_LEARN_ASSIGN|PEER_F_LEARN_PROCESS|PEER_F_LEARN_FINISHED);
 	peers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
+
+	appctx_wakeup(peer->appctx);
 }
 
 static void __process_peer_state(struct peers *peers, struct peer *peer)
