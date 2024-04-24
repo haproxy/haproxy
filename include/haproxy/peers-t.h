@@ -42,6 +42,14 @@ enum peer_app_state {
 	PEER_APP_ST_STOPPING,    /* The peer applet was released but the sync task must ack it before switching the peer in STOPPED state */
 };
 
+/* peer learn state */
+enum peer_learn_state {
+	PEER_LR_ST_NOTASSIGNED = 0,/* The peer is not assigned for a leason */
+	PEER_LR_ST_ASSIGNED,       /* The peer is assigned for a leason  */
+	PEER_LR_ST_PROCESSING,     /* The peer has started the leason and it is not finished */
+	PEER_LR_ST_FINISHED,       /* The peer has finished the leason, this state must be ack by the sync task */
+};
+
 struct shared_table {
 	struct stktable *table;       /* stick table to sync */
 	int local_id;
@@ -60,6 +68,7 @@ struct shared_table {
 struct peer {
 	int local;                    /* proxy state */
 	enum peer_app_state appstate;    /* peer app state */
+	enum peer_learn_state learnstate; /* peer learn state */
 	__decl_thread(HA_SPINLOCK_T lock); /* lock used to handle this peer section */
 	char *id;
 	struct {
