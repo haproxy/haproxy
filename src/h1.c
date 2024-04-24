@@ -575,12 +575,9 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 #ifdef HA_UNALIGNED_LE
 		/* speedup: skip bytes not between 0x24 and 0x7e inclusive */
 		while (ptr <= end - sizeof(int)) {
-			int x = *(int *)ptr - 0x24242424;
-			if (x & 0x80808080)
-				break;
+			uint x = *(uint *)ptr;
 
-			x -= 0x5b5b5b5b;
-			if (!(x & 0x80808080))
+			if (((x - 0x24242424) | (0x7e7e7e7e - x)) & 0x80808080U)
 				break;
 
 			ptr += sizeof(int);
