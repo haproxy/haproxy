@@ -106,6 +106,13 @@
  */
 #define LIST_INLIST(el) ((el)->n != (el))
 
+/* checks if the list element <el> has the same prev and next, i.e. it's either
+ * detached or alone in a list since (it points to itself or to a single other
+ * node). One can check that an element is strictly attached and alone by
+ * combining this with LIST_INLIST().
+ */
+#define LIST_ATMOST1(el) ((el)->n == (el)->p)
+
 /* atomically checks if the list element's next pointer points to anything
  * different from itself, implying the element should be part of a list. This
  * usually is similar to LIST_INLIST() except that while that one might be
