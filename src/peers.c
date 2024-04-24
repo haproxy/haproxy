@@ -98,7 +98,7 @@
 #define PEER_F_LEARN_NOTUP2DATE     0x00000200 /* Learn from peer finished but peer is not up to date */
 #define PEER_F_LEARN_PROCESS        0x00000400 /* Learn from peer was started */
 #define PEER_F_LEARN_FINISHED       0x00000800 /* Learn from peer fully finished */
-#define PEER_F_ST_ACCEPTED          0x00001000 /* Used to set a peer in accepted state.  */
+/* unused : 0x00001000  */
 #define PEER_F_ST_CONNECTED         0x00002000 /* Used to set a peer in connected state.  */
 /* unused : 0x00004000  */
 #define PEER_F_ST_RELEASED          0x00008000 /* Used to set a peer in released state.  */
@@ -113,7 +113,7 @@
 
 #define PEER_TEACH_RESET            ~(PEER_F_TEACH_PROCESS|PEER_F_TEACH_FINISHED) /* PEER_F_TEACH_COMPLETE should never be reset */
 #define PEER_LEARN_RESET            ~(PEER_F_LEARN_ASSIGN|PEER_F_LEARN_PROCESS|PEER_F_LEARN_FINISHED|PEER_F_LEARN_NOTUP2DATE)
-#define PEER_STATE_RESET            ~(PEER_F_ST_ACCEPTED|PEER_F_ST_CONNECTED|PEER_F_ST_RELEASED)
+#define PEER_STATE_RESET            ~(PEER_F_ST_CONNECTED|PEER_F_ST_RELEASED)
 
 
 #define PEER_RESYNC_TIMEOUT         5000 /* 5 seconds */
@@ -2834,70 +2834,16 @@ static inline int peer_getline_last(struct appctx *appctx, struct peer **curpeer
 }
 
 /*
- * Init <peer> peer after having accepted it at peer protocol level.
- */
-static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
-{
-	struct shared_table *st;
-
-	peer->heartbeat = tick_add(now_ms, MS_TO_TICKS(PEER_HEARTBEAT_TIMEOUT));
-	/* Register status code */
-	peer->statuscode = PEER_SESS_SC_SUCCESSCODE;
-	peer->last_hdshk = now_ms;
-
-	/* Awake main task */
-	task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
-
-	/* Init confirm counter */
-	peer->confirm = 0;
-
-        /* reset teaching flags to 0 */
-        peer->flags &= PEER_TEACH_RESET;
-
-	peer->flags &= PEER_STATE_RESET;
-	peer->flags |= (PEER_F_ST_ACCEPTED|PEER_F_WAIT_SYNCTASK_ACK);
-
-	/* Init cursors */
-	for (st = peer->tables; st ; st = st->next) {
-		uint commitid, updateid;
-
-		st->last_get = st->last_acked = 0;
-		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
-		/* if st->update appears to be in future it means
-		 * that the last acked value is very old and we
-		 * remain unconnected a too long time to use this
-		 * acknowledgement as a reset.
-		 * We should update the protocol to be able to
-		 * signal the remote peer that it needs a full resync.
-		 * Here a partial fix consist to set st->update at
-		 * the max past value
-		 */
-		if ((int)(st->table->localupdate - st->update) < 0)
-			st->update = st->table->localupdate + (2147483648U);
-		st->teaching_origin = st->last_pushed = st->update;
-		st->flags = 0;
-
-		updateid = st->last_pushed;
-		commitid = _HA_ATOMIC_LOAD(&st->table->commitupdate);
-
-		while ((int)(updateid - commitid) > 0) {
-			if (_HA_ATOMIC_CAS(&st->table->commitupdate, &commitid, updateid))
-				break;
-			__ha_cpu_relax();
-		}
-
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
-	}
-}
-
-/*
- * Init <peer> peer after having connected it at peer protocol level.
+ * Init <peer> peer after validating a connection at peer protocol level. It may
+ * a incoming or outgoing connection. The peer init must be acknowledge by the
+ * sync task. Message processing is blocked in the meanwhile.
  */
 static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 {
 	struct shared_table *st;
 
 	peer->heartbeat = tick_add(now_ms, MS_TO_TICKS(PEER_HEARTBEAT_TIMEOUT));
+
 	/* Init cursors */
 	for (st = peer->tables; st ; st = st->next) {
 		uint updateid, commitid;
@@ -2930,7 +2876,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
 	}
 
-	/* Awake main task */
+	/* Awake main task to ack the new peer state */
 	task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
 
 	/* Init confirm counter */
@@ -2939,10 +2885,11 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
         /* reset teaching flags to 0 */
         peer->flags &= PEER_TEACH_RESET;
 
-	if (peer->local) {
-		/* flag to start to teach lesson */
+	if (peer->local && !(appctx_is_back(peer->appctx))) {
+		/* If the local peer has established the connection (appctx is
+		 * on the frontend side), flag it to start to teach lesson.
+		 */
                 peer->flags |= PEER_F_TEACH_PROCESS;
-
 	}
 
 	peer->flags &= PEER_STATE_RESET;
@@ -3067,7 +3014,11 @@ switchstate:
 					goto switchstate;
 				}
 
-				init_accepted_peer(curpeer, curpeers);
+				/* Register status code */
+				curpeer->statuscode = PEER_SESS_SC_SUCCESSCODE;
+				curpeer->last_hdshk = now_ms;
+
+				init_connected_peer(curpeer, curpeers);
 
 				/* switch to waiting message state */
 				_HA_ATOMIC_INC(&connected_peers);
@@ -3397,7 +3348,7 @@ static void __process_peer_learn_status(struct peers *peers, struct peer *peer)
 static void __process_peer_state(struct peers *peers, struct peer *peer)
 {
 	/* Check peer state. Order is important */
-	if (peer->flags & (PEER_F_ST_RELEASED|PEER_F_ST_CONNECTED|PEER_F_ST_ACCEPTED)) {
+	if (peer->flags & (PEER_F_ST_RELEASED|PEER_F_ST_CONNECTED)) {
 		if (peer->flags & PEER_F_LEARN_ASSIGN) {
 			/* unassign current peer for learning */
 			peers->flags &= ~PEERS_F_RESYNC_ASSIGN;
@@ -3407,47 +3358,42 @@ static void __process_peer_state(struct peers *peers, struct peer *peer)
 		}
 		peer->flags &= PEER_LEARN_RESET;
 	}
-	if (peer->flags & PEER_F_ST_ACCEPTED) {
+	if (peer->flags & PEER_F_ST_CONNECTED) {
 		peer->flags &= PEER_LEARN_RESET;
 
-		/* if current peer is local */
-		if (peer->local) {
-			/* if current host need resyncfrom local and no process assigned  */
+		if (peer->local & appctx_is_back(peer->appctx)) {
+			/* if local peer has accepted the connection (appctx is
+			 * on the backend side), flag it to learn a lesson and
+			 * be sure it will start immediately. This only happens
+			 * if no resync is in progress and if the lacal resync
+			 * was not already performed.
+			 */
 			if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMLOCAL &&
 			    !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
-				/* assign local peer for a lesson, consider lesson already requested */
+				/* assign local peer for a lesson, consider lesson was already requested */
 				peer->flags |= (PEER_F_LEARN_ASSIGN|PEER_F_LEARN_PROCESS);
 				peers->flags |= PEERS_F_RESYNC_ASSIGN;
 				peers->flags |= PEERS_F_RESYNC_LOCALASSIGN;
 			}
 		}
-		else if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
-			 !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
-			/* assign peer for a lesson  */
-			peer->flags |= PEER_F_LEARN_ASSIGN;
-			peers->flags |= PEERS_F_RESYNC_ASSIGN;
-			peers->flags |= PEERS_F_RESYNC_REMOTEASSIGN;
+		else if (!peer->local) {
+			/* If a connection was validated for a remote peer, flag
+			 * it to learn a lesson but don't start it yet. The peer
+			 * must request it explicitly.  This only happens if no
+			 * resync is in progress and if the remote resync was
+			 * not already performed.
+			 */
+			if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
+			    !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
+				/* assign remote peer for a lesson. Must be requested explicitly  */
+				peer->flags |= PEER_F_LEARN_ASSIGN;
+				peers->flags |= PEERS_F_RESYNC_ASSIGN;
+				peers->flags |= PEERS_F_RESYNC_REMOTEASSIGN;
+			}
 		}
-	}
-	if (peer->flags & PEER_F_ST_CONNECTED) {
-		peer->flags &= PEER_TEACH_RESET;
-		peer->flags &= PEER_LEARN_RESET;
-
-		if (!peer->local &&
-		    (peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
-		    !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
-			/* If peer is remote and resync from remote is needed,
-			   and no peer currently assigned */
-
-			/* assign peer for a lesson */
-			peer->flags |= PEER_F_LEARN_ASSIGN;
-			peers->flags |= PEERS_F_RESYNC_ASSIGN;
-			peers->flags |= PEERS_F_RESYNC_REMOTEASSIGN;
-		}
-	}
-
-	if (peer->flags & (PEER_F_ST_ACCEPTED|PEER_F_ST_CONNECTED))
 		appctx_wakeup(peer->appctx);
+	}
+
 	peer->flags &= PEER_STATE_RESET;
 }
 
