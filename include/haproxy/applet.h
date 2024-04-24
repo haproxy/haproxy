@@ -153,6 +153,16 @@ static inline struct stream *appctx_strm(const struct appctx *appctx)
 	return __sc_strm(appctx->sedesc->sc);
 }
 
+/* returns 1 if the appctx is attached on the backend side or 0 if it is
+ * attached on the frontend side. Note that only frontend appctx may have no SC.
+ */
+static inline int appctx_is_back(const struct appctx *appctx)
+{
+	struct stconn *sc = appctx_sc(appctx);
+
+	return !!(sc && (sc->flags & SC_FL_ISBACK));
+}
+
 static forceinline void applet_fl_zero(struct appctx *appctx)
 {
 	appctx->flags = 0;
