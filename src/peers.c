@@ -1073,6 +1073,9 @@ void __peer_session_deinit(struct peer *peer)
 	peer->remote_table = peer->last_local_table = peer->stop_local_table = NULL;
 	peer->appctx = NULL;
 
+        /* reset teaching flags to 0 */
+        peer->flags &= PEER_TEACH_RESET;
+
 	/* Mark peer as released */
 	peer->flags &= PEER_STATE_RESET;
 	peer->flags |= PEER_F_ST_RELEASED;
@@ -2845,6 +2848,9 @@ static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
 	/* Init confirm counter */
 	peer->confirm = 0;
 
+        /* reset teaching flags to 0 */
+        peer->flags &= PEER_TEACH_RESET;
+
 	peer->flags &= PEER_STATE_RESET;
 	peer->flags |= PEER_F_ST_ACCEPTED;
 
@@ -2926,6 +2932,15 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 
 	/* Init confirm counter */
 	peer->confirm = 0;
+
+        /* reset teaching flags to 0 */
+        peer->flags &= PEER_TEACH_RESET;
+
+	if (peer->local) {
+		/* flag to start to teach lesson */
+                peer->flags |= PEER_F_TEACH_PROCESS;
+
+	}
 
 	peer->flags &= PEER_STATE_RESET;
 	peer->flags |= PEER_F_ST_CONNECTED;
@@ -3388,11 +3403,9 @@ static void __process_peer_state(struct peers *peers, struct peer *peer)
 			/* reschedule a resync */
 			peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(5000));
 		}
-		peer->flags &= PEER_TEACH_RESET;
 		peer->flags &= PEER_LEARN_RESET;
 	}
 	if (peer->flags & PEER_F_ST_ACCEPTED) {
-		peer->flags &= PEER_TEACH_RESET;
 		peer->flags &= PEER_LEARN_RESET;
 
 		/* if current peer is local */
@@ -3418,13 +3431,9 @@ static void __process_peer_state(struct peers *peers, struct peer *peer)
 		peer->flags &= PEER_TEACH_RESET;
 		peer->flags &= PEER_LEARN_RESET;
 
-		/* If current peer is local */
-		if (peer->local) {
-			/* flag to start to teach lesson */
-			peer->flags |= PEER_F_TEACH_PROCESS;
-		}
-		else if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
-			 !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
+		if (!peer->local &&
+		    (peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
+		    !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
 			/* If peer is remote and resync from remote is needed,
 			   and no peer currently assigned */
 
