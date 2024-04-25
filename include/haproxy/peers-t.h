@@ -74,6 +74,27 @@ enum peer_learn_state {
 #define PEERS_RESYNC_STATEMASK      (PEERS_F_RESYNC_LOCAL_FINISHED|PEERS_F_RESYNC_REMOTE_FINISHED)
 #define PEERS_RESYNC_FINISHED       (PEERS_F_RESYNC_LOCAL_FINISHED|PEERS_F_RESYNC_REMOTE_FINISHED)
 
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *peers_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(PEERS_F_RESYNC_LOCAL_FINISHED, _(PEERS_F_RESYNC_REMOTE_FINISHED, _(PEERS_F_RESYNC_ASSIGN, _(PEERS_F_DONOTSTOP,
+        _(PEERS_F_DBG_RESYNC_LOCALTIMEOUT, _(PEERS_F_DBG_RESYNC_REMOTETIMEOUT,
+        _(PEERS_F_DBG_RESYNC_LOCALABORT, _(PEERS_F_DBG_RESYNC_REMOTEABORT,
+	_(PEERS_F_DBG_RESYNC_LOCALFINISHED, _(PEERS_F_DBG_RESYNC_REMOTEFINISHED,
+	_(PEERS_F_DBG_RESYNC_LOCALPARTIAL, _(PEERS_F_DBG_RESYNC_REMOTEPARTIAL,
+	_(PEERS_F_DBG_RESYNC_LOCALASSIGN, _(PEERS_F_DBG_RESYNC_REMOTEABORT))))))))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
 
 /******************************/
 /* Peer flags                 */
@@ -90,6 +111,26 @@ enum peer_learn_state {
 #define PEER_F_DBG_RESYNC_REQUESTED 0x00100000 /* A resnyc was explicitly requested at least once (for debugging purpose) */
 
 #define PEER_TEACH_FLAGS            (PEER_F_TEACH_PROCESS|PEER_F_TEACH_FINISHED)
+
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *peer_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(PEER_F_TEACH_PROCESS, _(PEER_F_TEACH_FINISHED, _(PEER_F_LOCAL_TEACH_COMPLETE,
+        _(PEER_F_LEARN_NOTUP2DATE, _(PEER_F_WAIT_SYNCTASK_ACK,
+        _(PEER_F_ALIVE, _(PEER_F_HEARTBEAT, _(PEER_F_DWNGRD,
+	_(PEER_F_DBG_RESYNC_REQUESTED)))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
 
 struct shared_table {
 	struct stktable *table;       /* stick table to sync */
