@@ -218,7 +218,7 @@ int sock_create_server_socket(struct connection *conn)
 	if (sock_fd == -1)
 		goto end;
 	if (conn->flags & CO_FL_OPT_MARK)
-		sock_set_mark(sock_fd, conn->mark);
+		sock_set_mark(sock_fd, conn->ctrl->fam->sock_family, conn->mark);
 	if (conn->flags & CO_FL_OPT_TOS)
 		sock_set_tos(sock_fd, conn->dst, conn->tos);
 

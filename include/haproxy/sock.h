@@ -70,15 +70,19 @@ static inline void sock_set_tos(int fd, struct sockaddr_storage *addr, int tos)
 }
 
 /* Sets mark sockopt on socket */
-static inline void sock_set_mark(int fd, int mark)
+static inline void sock_set_mark(int fd, sa_family_t sock_family, int mark)
 {
+	if ((sock_family == AF_INET) || (sock_family == AF_INET6)) {
 #if defined(SO_MARK)
-	setsockopt(fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
+		setsockopt(fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
+/* FreeBSD */
 #elif defined(SO_USER_COOKIE)
-	setsockopt(fd, SOL_SOCKET, SO_USER_COOKIE, &mark, sizeof(mark));
+		setsockopt(fd, SOL_SOCKET, SO_USER_COOKIE, &mark, sizeof(mark));
+/* OpenBSD */
 #elif defined(SO_RTABLE)
-	setsockopt(fd, SOL_SOCKET, SO_RTABLE, &mark, sizeof(mark));
+		setsockopt(fd, SOL_SOCKET, SO_RTABLE, &mark, sizeof(mark));
 #endif
+	}
 }
 
 #endif /* _HAPROXY_SOCK_H */

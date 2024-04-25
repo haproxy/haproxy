@@ -433,7 +433,7 @@ static inline void conn_set_mark(const struct connection *conn, int mark)
 	if (!conn || !conn_ctrl_ready(conn) || (conn->flags & CO_FL_FDLESS))
 		return;
 
-	sock_set_mark(conn->handle.fd, mark);
+	sock_set_mark(conn->handle.fd, conn->ctrl->fam->sock_family, mark);
 }
 
 /* Sets adjust the TCP quick-ack feature on the connection's socket. The
