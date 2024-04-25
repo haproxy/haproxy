@@ -56,8 +56,7 @@ enum peer_learn_state {
 #define PEERS_F_RESYNC_LOCAL_FINISHED     0x00000001 /* Learn from local peer finished or no more needed */
 #define PEERS_F_RESYNC_REMOTE_FINISHED    0x00000002 /* Learn from remote peer finished or no more needed */
 #define PEERS_F_RESYNC_ASSIGN             0x00000004 /* A peer was assigned to learn our lesson */
-#define PEERS_F_DONOTSTOP                 0x00000008 /* Main table sync task block process during soft stop to push data to new process */
-/* unsued 0x00000010..0x00080000 */
+/* unsued 0x00000008..0x00080000 */
 #define PEERS_F_DBG_RESYNC_LOCALTIMEOUT   0x00100000 /* Timeout waiting for a full resync from a local node was experienced at lest once (for debugging purpose) */
 #define PEERS_F_DBG_RESYNC_REMOTETIMEOUT  0x00200000 /* Timeout waiting for a full resync from a remote node was experienced at lest once (for debugging purpose) */
 #define PEERS_F_DBG_RESYNC_LOCALABORT     0x00400000 /* Session aborted learning from a local node was experienced at lest once (for debugging purpose) */
@@ -84,12 +83,12 @@ static forceinline char *peers_show_flags(char *buf, size_t len, const char *del
 	/* prologue */
 	_(0);
 	/* flags */
-	_(PEERS_F_RESYNC_LOCAL_FINISHED, _(PEERS_F_RESYNC_REMOTE_FINISHED, _(PEERS_F_RESYNC_ASSIGN, _(PEERS_F_DONOTSTOP,
+	_(PEERS_F_RESYNC_LOCAL_FINISHED, _(PEERS_F_RESYNC_REMOTE_FINISHED, _(PEERS_F_RESYNC_ASSIGN,
         _(PEERS_F_DBG_RESYNC_LOCALTIMEOUT, _(PEERS_F_DBG_RESYNC_REMOTETIMEOUT,
         _(PEERS_F_DBG_RESYNC_LOCALABORT, _(PEERS_F_DBG_RESYNC_REMOTEABORT,
 	_(PEERS_F_DBG_RESYNC_LOCALFINISHED, _(PEERS_F_DBG_RESYNC_REMOTEFINISHED,
 	_(PEERS_F_DBG_RESYNC_LOCALPARTIAL, _(PEERS_F_DBG_RESYNC_REMOTEPARTIAL,
-	_(PEERS_F_DBG_RESYNC_LOCALASSIGN, _(PEERS_F_DBG_RESYNC_REMOTEABORT))))))))))))));
+	_(PEERS_F_DBG_RESYNC_LOCALASSIGN, _(PEERS_F_DBG_RESYNC_REMOTEABORT)))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

@@ -3560,7 +3560,7 @@ static void __process_stopping_peer_sync(struct task *task, struct peers *peers,
 {
 	struct peer *ps;
 	struct shared_table *st;
-
+	static int dont_stop = 0;
 
 	/* For each peer */
 	for (ps = peers->remote; ps; ps = ps->next) {
@@ -3575,7 +3575,7 @@ static void __process_stopping_peer_sync(struct task *task, struct peers *peers,
 		 */
 		ps->flags &= ~PEER_F_WAIT_SYNCTASK_ACK;
 
-		if ((state & TASK_WOKEN_SIGNAL) && !(peers->flags & PEERS_F_DONOTSTOP)) {
+		if ((state & TASK_WOKEN_SIGNAL) && !dont_stop) {
 			/* we're killing a connection, we must apply a random delay before
 			 * retrying otherwise the other end will do the same and we can loop
 			 * for a while.
@@ -3592,10 +3592,10 @@ static void __process_stopping_peer_sync(struct task *task, struct peers *peers,
 
 	/* We've just received the signal */
 	if (state & TASK_WOKEN_SIGNAL) {
-		if (!(peers->flags & PEERS_F_DONOTSTOP)) {
+		if (!dont_stop) {
 			/* add DO NOT STOP flag if not present */
 			_HA_ATOMIC_INC(&jobs);
-			peers->flags |= PEERS_F_DONOTSTOP;
+			dont_stop = 1;
 
 			/* Set resync timeout for the local peer and request a immediate reconnect */
 			peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
@@ -3606,10 +3606,10 @@ static void __process_stopping_peer_sync(struct task *task, struct peers *peers,
 	ps = peers->local;
 	HA_SPIN_LOCK(PEER_LOCK, &ps->lock);
 	if (ps->flags & PEER_F_LOCAL_TEACH_COMPLETE) {
-		if (peers->flags & PEERS_F_DONOTSTOP) {
+		if (dont_stop) {
 			/* resync of new process was complete, current process can die now */
 			_HA_ATOMIC_DEC(&jobs);
-			peers->flags &= ~PEERS_F_DONOTSTOP;
+			dont_stop = 0;
 			for (st = ps->tables; st ; st = st->next)
 				HA_ATOMIC_DEC(&st->table->refcnt);
 		}
@@ -3639,17 +3639,17 @@ static void __process_stopping_peer_sync(struct task *task, struct peers *peers,
 			}
 			else  {
 				/* connect to the local peer if we must push a local sync */
-				if (peers->flags & PEERS_F_DONOTSTOP) {
+				if (dont_stop) {
 					peer_session_create(peers, ps);
 				}
 			}
 		}
 		else {
 			/* Other error cases */
-			if (peers->flags & PEERS_F_DONOTSTOP) {
+			if (dont_stop) {
 				/* unable to resync new process, current process can die now */
 				_HA_ATOMIC_DEC(&jobs);
-				peers->flags &= ~PEERS_F_DONOTSTOP;
+				dont_stop = 0;
 				for (st = ps->tables; st ; st = st->next)
 					HA_ATOMIC_DEC(&st->table->refcnt);
 			}
