@@ -421,7 +421,7 @@ static int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len,
 			node->type = LOG_FMT_TAG;
 			node->tag = &logformat_tags[j];
 			node->typecast = typecast;
-			if (name)
+			if (name && name_len)
 				node->name = my_strndup(name, name_len);
 			node->options = lf_expr->nodes.options;
 			if (arg_len) {
@@ -523,7 +523,7 @@ static int add_sample_to_logformat_list(char *text, char *name, int name_len, in
 		memprintf(err, "out of memory error");
 		goto error_free;
 	}
-	if (name)
+	if (name && name_len)
 		node->name = my_strndup(name, name_len);
 	node->type = LOG_FMT_EXPR;
 	node->typecast = typecast;
