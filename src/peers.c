@@ -1375,7 +1375,7 @@ static inline int peer_send_resync_finishedmsg(struct appctx *appctx,
 		.control.head = { PEER_MSG_CLASS_CONTROL, },
 	};
 
-	p.control.head[1] = (peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FINISHED ?
+	p.control.head[1] = (HA_ATOMIC_LOAD(&peers->flags) & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FINISHED ?
 		PEER_MSG_CTRL_RESYNCFINISHED : PEER_MSG_CTRL_RESYNCPARTIAL;
 
 	TRACE_PROTO("send control message", PEERS_EV_CTRLMSG,
@@ -3271,9 +3271,12 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 static void clear_peer_learning_status(struct peer *peer)
 {
 	if (peer->learnstate != PEER_LR_ST_NOTASSIGNED) {
+		struct peers *peers = peer->peers;
+
 		/* unassign current peer for learning */
-		peer->peers->flags &= ~PEERS_F_RESYNC_ASSIGN;
-		peer->peers->flags |= (peer->local ? PEERS_F_DBG_RESYNC_LOCALABORT : PEERS_F_DBG_RESYNC_REMOTEABORT);
+		HA_ATOMIC_AND(&peers->flags, ~PEERS_F_RESYNC_ASSIGN);
+		HA_ATOMIC_OR(&peers->flags, (peer->local ? PEERS_F_DBG_RESYNC_LOCALABORT : PEERS_F_DBG_RESYNC_REMOTEABORT));
+
 		/* reschedule a resync */
 		peer->peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(5000));
 		peer->learnstate = PEER_LR_ST_NOTASSIGNED;
@@ -3284,6 +3287,7 @@ static void clear_peer_learning_status(struct peer *peer)
 static void sync_peer_learn_state(struct peers *peers, struct peer *peer)
 {
 	struct peer *ps;
+	unsigned int flags = 0;
 
 	if (peer->learnstate != PEER_LR_ST_FINISHED)
 		return;
@@ -3291,7 +3295,7 @@ static void sync_peer_learn_state(struct peers *peers, struct peer *peer)
 	/* The learning process is now fnished */
 	if (peer->flags & PEER_F_LEARN_NOTUP2DATE) {
 		/* Partial resync */
-		peers->flags |= (peer->local ? PEERS_F_DBG_RESYNC_LOCALPARTIAL : PEERS_F_DBG_RESYNC_REMOTEPARTIAL);
+		flags |= (peer->local ? PEERS_F_DBG_RESYNC_LOCALPARTIAL : PEERS_F_DBG_RESYNC_REMOTEPARTIAL);
 		peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
 	}
 	else {
@@ -3299,7 +3303,7 @@ static void sync_peer_learn_state(struct peers *peers, struct peer *peer)
 		int commit_a_finish = 1;
 
 		if (peer->srv->shard) {
-			peers->flags |= PEERS_F_DBG_RESYNC_REMOTEPARTIAL;
+			flags |= PEERS_F_DBG_RESYNC_REMOTEPARTIAL;
 			peer->flags |= PEER_F_LEARN_NOTUP2DATE;
 			for (ps = peers->remote; ps; ps = ps->next) {
 				if (ps->srv->shard && ps != peer) {
@@ -3329,12 +3333,13 @@ static void sync_peer_learn_state(struct peers *peers, struct peer *peer)
 		}
 
 		if (commit_a_finish) {
-			peers->flags |= (PEERS_F_RESYNC_LOCAL_FINISHED|PEERS_F_RESYNC_REMOTE_FINISHED);
-			peers->flags |= (peer->local ? PEERS_F_DBG_RESYNC_LOCALFINISHED : PEERS_F_DBG_RESYNC_REMOTEFINISHED);
+			flags |= (PEERS_F_RESYNC_LOCAL_FINISHED|PEERS_F_RESYNC_REMOTE_FINISHED);
+			flags |= (peer->local ? PEERS_F_DBG_RESYNC_LOCALFINISHED : PEERS_F_DBG_RESYNC_REMOTEFINISHED);
 		}
 	}
 	peer->learnstate = PEER_LR_ST_NOTASSIGNED;
-	peers->flags &= ~PEERS_F_RESYNC_ASSIGN;
+	HA_ATOMIC_AND(&peers->flags, ~PEERS_F_RESYNC_ASSIGN);
+	HA_ATOMIC_OR(&peers->flags, flags);
 
 	appctx_wakeup(peer->appctx);
 }
@@ -3361,8 +3366,7 @@ static void sync_peer_app_state(struct peers *peers, struct peer *peer)
 			    !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
 				/* assign local peer for a lesson */
 				peer->learnstate = PEER_LR_ST_ASSIGNED;
-				peers->flags |= PEERS_F_RESYNC_ASSIGN;
-				peers->flags |= PEERS_F_DBG_RESYNC_LOCALASSIGN;
+				HA_ATOMIC_OR(&peers->flags, PEERS_F_RESYNC_ASSIGN|PEERS_F_DBG_RESYNC_LOCALASSIGN);
 			}
 		}
 		else if (!peer->local) {
@@ -3376,8 +3380,7 @@ static void sync_peer_app_state(struct peers *peers, struct peer *peer)
 			    !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
 				/* assign remote peer for a lesson */
 				peer->learnstate = PEER_LR_ST_ASSIGNED;
-				peers->flags |= PEERS_F_RESYNC_ASSIGN;
-				peers->flags |= PEERS_F_DBG_RESYNC_REMOTEASSIGN;
+				HA_ATOMIC_OR(&peers->flags, PEERS_F_RESYNC_ASSIGN|PEERS_F_DBG_RESYNC_REMOTEASSIGN);
 			}
 		}
 		peer->appstate = PEER_APP_ST_RUNNING;
@@ -3409,8 +3412,7 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 		   or resync timeout expire */
 
 		/* flag no more resync from local, to try resync from remotes */
-		peers->flags |= PEERS_F_RESYNC_LOCAL_FINISHED;
-		peers->flags |= PEERS_F_DBG_RESYNC_LOCALTIMEOUT;
+		HA_ATOMIC_OR(&peers->flags, PEERS_F_RESYNC_LOCAL_FINISHED|PEERS_F_DBG_RESYNC_LOCALTIMEOUT);
 
 		/* reschedule a resync */
 		peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
@@ -3466,8 +3468,7 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 
 					/* assign peer for the lesson */
 					ps->learnstate = PEER_LR_ST_ASSIGNED;
-					peers->flags |= PEERS_F_RESYNC_ASSIGN;
-					peers->flags |= PEERS_F_DBG_RESYNC_REMOTEASSIGN;
+					HA_ATOMIC_OR(&peers->flags, PEERS_F_RESYNC_ASSIGN|PEERS_F_DBG_RESYNC_REMOTEASSIGN);
 
 					/* wake up peer handler to handle a request of resync */
 					appctx_wakeup(ps->appctx);
@@ -3543,8 +3544,7 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 		 * and resync timeout expire */
 
 		/* flag no more resync from remote, consider resync is finished */
-		peers->flags |= PEERS_F_RESYNC_REMOTE_FINISHED;
-		peers->flags |= PEERS_F_DBG_RESYNC_REMOTETIMEOUT;
+		HA_ATOMIC_OR(&peers->flags, PEERS_F_RESYNC_REMOTE_FINISHED|PEERS_F_DBG_RESYNC_REMOTETIMEOUT);
 	}
 
 	if ((peers->flags & PEERS_RESYNC_STATEMASK) != PEERS_RESYNC_FINISHED) {
@@ -3969,7 +3969,7 @@ static int peers_dump_head(struct buffer *msg, struct appctx *appctx, struct pee
 	              peers,
 	              tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 	              tm.tm_hour, tm.tm_min, tm.tm_sec,
-	              peers->id, peers->disabled, peers->flags,
+	              peers->id, peers->disabled, HA_ATOMIC_LOAD(&peers->flags),
 	              peers->resync_timeout ?
 			             tick_is_expired(peers->resync_timeout, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(peers->resync_timeout - now_ms),
