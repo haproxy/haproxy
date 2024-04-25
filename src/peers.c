@@ -92,7 +92,7 @@
 #define PEER_F_TEACH_PROCESS        0x00000001 /* Teach a lesson to current peer */
 /* unused : 0x00000002..0x00000004 */
 #define PEER_F_TEACH_FINISHED       0x00000008 /* Teach conclude, (wait for confirm) */
-#define PEER_F_TEACH_COMPLETE       0x00000010 /* All that we know already taught to current peer, used only for a local peer */
+#define PEER_F_LOCAL_TEACH_COMPLETE 0x00000010 /* All that we know already taught to current peer, used only for a local peer */
 /* unused : 0x00000020..0x00000100 */
 #define PEER_F_LEARN_NOTUP2DATE     0x00000200 /* Learn from peer finished but peer is not up to date */
 /* unused : 0x00000400..0x00008000  */
@@ -105,7 +105,7 @@
 #define PEER_F_HEARTBEAT            0x40000000 /* Heartbeat message to send. */
 #define PEER_F_DWNGRD               0x80000000 /* When this flag is enabled, we must downgrade the supported version announced during peer sessions. */
 
-#define PEER_TEACH_RESET            ~(PEER_F_TEACH_PROCESS|PEER_F_TEACH_FINISHED) /* PEER_F_TEACH_COMPLETE should never be reset */
+#define PEER_TEACH_RESET            ~(PEER_F_TEACH_PROCESS|PEER_F_TEACH_FINISHED)
 
 
 #define PEER_RESYNC_TIMEOUT         5000 /* 5 seconds */
@@ -2557,7 +2557,7 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 			/* If stopping state */
 			if (stopping) {
 				/* Close session, push resync no more needed */
-				peer->flags |= PEER_F_TEACH_COMPLETE;
+				peer->flags |= PEER_F_LOCAL_TEACH_COMPLETE;
 				appctx->st0 = PEER_SESS_ST_END;
 				return 0;
 			}
@@ -3655,7 +3655,7 @@ static void __process_stopping_peer_sync(struct task *task, struct peers *peers,
 
 	ps = peers->local;
 	HA_SPIN_LOCK(PEER_LOCK, &ps->lock);
-	if (ps->flags & PEER_F_TEACH_COMPLETE) {
+	if (ps->flags & PEER_F_LOCAL_TEACH_COMPLETE) {
 		if (peers->flags & PEERS_F_DONOTSTOP) {
 			/* resync of new process was complete, current process can die now */
 			_HA_ATOMIC_DEC(&jobs);
