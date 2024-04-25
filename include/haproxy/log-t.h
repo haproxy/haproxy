@@ -38,6 +38,7 @@
 #define UNIQUEID_LEN            128
 
 /* flags used in logformat_node->options */
+#define LOG_OPT_NONE            0x00000000
 #define LOG_OPT_HEXA            0x00000001
 #define LOG_OPT_MANDATORY       0x00000002
 #define LOG_OPT_QUOTE           0x00000004
