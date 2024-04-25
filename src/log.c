@@ -327,6 +327,7 @@ struct logformat_tag_args tag_args_list[] = {
 	{ "Q", LOG_OPT_QUOTE },
 	{ "X", LOG_OPT_HEXA },
 	{ "E", LOG_OPT_ESC },
+	{ "bin", LOG_OPT_BIN },
 	{  0,  0 }
 };
 
@@ -1748,8 +1749,10 @@ static inline void lf_buildctx_prepare(struct lf_buildctx *ctx,
 	if (node) {
 		/* per-node options are only considered if not already set
 		 * globally
+		 *
+		 * Also, ignore LOG_OPT_BIN since it is a global-only option
 		 */
-		ctx->options |= node->options;
+		ctx->options |= (node->options & ~LOG_OPT_BIN);
 
 		/* consider node's typecast setting */
 		ctx->typecast = node->typecast;
@@ -3237,18 +3240,35 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 				type = SMP_T_STR; // default
 
+				if (key && key->data.type == SMP_T_BIN &&
+				    (ctx.options & LOG_OPT_BIN)) {
+					/* output type is binary, and binary option is set:
+					 * preserve output type unless typecast is set to
+					 * force output type to string
+					 */
+					if (ctx.typecast != SMP_T_STR)
+						type = SMP_T_BIN;
+				}
+
 				if (key && !sample_convert(key, type))
 					key = NULL;
 
 				if (ctx.options & LOG_OPT_HTTP)
 					ret = lf_encode_chunk(tmplog, dst + maxsize,
 					                      '%', http_encode_map, key ? &key->data.u.str : &empty, &ctx);
-				else
-					ret = lf_text_len(tmplog,
-							  key ? key->data.u.str.area : NULL,
-							  key ? key->data.u.str.data : 0,
-							  dst + maxsize - tmplog,
-							  &ctx);
+				else {
+					if (key && type == SMP_T_BIN)
+						ret = lf_encode_chunk(tmplog, dst + maxsize,
+						                      0, no_escape_map,
+						                      &key->data.u.str,
+						                      &ctx);
+					else
+						ret = lf_text_len(tmplog,
+						                  key ? key->data.u.str.area : NULL,
+						                  key ? key->data.u.str.data : 0,
+						                  dst + maxsize - tmplog,
+						                  &ctx);
+				}
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;

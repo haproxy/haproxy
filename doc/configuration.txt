@@ -25739,6 +25739,14 @@ Flags are :
   * X: hexadecimal representation (IPs, Ports, %Ts, %rt, %pid)
   * E: escape characters '"', '\' and ']' in a string with '\' as prefix
        (intended purpose is for the RFC5424 structured-data log formats)
+  * bin: try to preserve binary data, this can be useful with sample
+         expressions that output binary data in order to preserve the original
+         data. Be careful however, because it can obviously generate non-
+         printable chars, including NULL-byte, which most syslog endpoints
+         don't expect. Thus it is mainly intended for use with set-var-fmt,
+         rings and binary-capable log endpoints.
+         This option can only be set globally (with %o), it will be ignored
+         if set on an individual node's options.
 
   Example:
 
