@@ -50,6 +50,47 @@ enum peer_learn_state {
 	PEER_LR_ST_FINISHED,       /* The peer has finished the leason, this state must be ack by the sync task */
 };
 
+/******************************/
+/* peers section resync flags */
+/******************************/
+#define PEERS_F_RESYNC_LOCAL_FINISHED     0x00000001 /* Learn from local peer finished or no more needed */
+#define PEERS_F_RESYNC_REMOTE_FINISHED    0x00000002 /* Learn from remote peer finished or no more needed */
+#define PEERS_F_RESYNC_ASSIGN             0x00000004 /* A peer was assigned to learn our lesson */
+#define PEERS_F_DONOTSTOP                 0x00000008 /* Main table sync task block process during soft stop to push data to new process */
+/* unsued 0x00000010..0x00080000 */
+#define PEERS_F_DBG_RESYNC_LOCALTIMEOUT   0x00100000 /* Timeout waiting for a full resync from a local node was experienced at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_REMOTETIMEOUT  0x00200000 /* Timeout waiting for a full resync from a remote node was experienced at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_LOCALABORT     0x00400000 /* Session aborted learning from a local node was experienced at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_REMOTEABORT    0x00800000 /* Session aborted learning from a remote node was experienced at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_LOCALFINISHED  0x01000000 /* A fully up to date local node teach us at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_REMOTEFINISHED 0x02000000 /* A fully up to remote node teach us at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_LOCALPARTIAL   0x04000000 /* A partially up to date local node teach us at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_REMOTEPARTIAL  0x08000000 /* A partially up to date remote node teach us at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_LOCALASSIGN    0x10000000 /* A local node was assigned for a full resync at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_REMOTEASSIGN   0x20000000 /* A remote node was assigned for a full resync at lest once (for debugging purpose) */
+
+#define PEERS_RESYNC_FROMLOCAL      0x00000000                     /* No resync finished, must be performed from local first */
+#define PEERS_RESYNC_FROMREMOTE     PEERS_F_RESYNC_LOCAL_FINISHED  /* Resync from local peer finished, must be performed from remote peer now */
+#define PEERS_RESYNC_STATEMASK      (PEERS_F_RESYNC_LOCAL_FINISHED|PEERS_F_RESYNC_REMOTE_FINISHED)
+#define PEERS_RESYNC_FINISHED       (PEERS_F_RESYNC_LOCAL_FINISHED|PEERS_F_RESYNC_REMOTE_FINISHED)
+
+
+/******************************/
+/* Peer flags                 */
+/******************************/
+#define PEER_F_TEACH_PROCESS        0x00000001 /* Teach a lesson to current peer */
+#define PEER_F_TEACH_FINISHED       0x00000002 /* Teach conclude, (wait for confirm) */
+#define PEER_F_LOCAL_TEACH_COMPLETE 0x00000004 /* The old local peer taught all that it known to new one */
+#define PEER_F_LEARN_NOTUP2DATE     0x00000008 /* Learn from peer finished but peer is not up to date */
+#define PEER_F_WAIT_SYNCTASK_ACK    0x00000010 /* Stop all processing waiting for the sync task acknowledgement when the applet state changes */
+#define PEER_F_ALIVE                0x00000020 /* Used to flag a peer a alive. */
+#define PEER_F_HEARTBEAT            0x00000040 /* Heartbeat message to send. */
+#define PEER_F_DWNGRD               0x00000080 /* When this flag is enabled, we must downgrade the supported version announced during peer sessions. */
+/* unused 0x00000100..0x00080000 */
+#define PEER_F_DBG_RESYNC_REQUESTED 0x00100000 /* A resnyc was explicitly requested at least once (for debugging purpose) */
+
+#define PEER_TEACH_FLAGS            (PEER_F_TEACH_PROCESS|PEER_F_TEACH_FINISHED)
+
 struct shared_table {
 	struct stktable *table;       /* stick table to sync */
 	int local_id;
