@@ -1731,6 +1731,7 @@ int get_log_facility(const char *fac)
 
 struct lf_buildctx {
 	int options; /* LOG_OPT_* options */
+	int typecast;/* same as logformat_node->typecast */
 	int in_text; /* inside variable-length text */
 };
 
@@ -1742,11 +1743,15 @@ static inline void lf_buildctx_prepare(struct lf_buildctx *ctx,
                                        const struct logformat_node *node)
 {
 	ctx->options = g_options;
+	ctx->typecast = SMP_T_SAME; /* default */
 	if (node) {
 		/* per-node options are only considered if not already set
 		 * globally
 		 */
 		ctx->options |= node->options;
+
+		/* consider node's typecast setting */
+		ctx->typecast = node->typecast;
 	}
 }
 
