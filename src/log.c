@@ -3218,15 +3218,23 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_EXPR: // sample expression, may be request or response
+			{
+				int type;
+
 				key = NULL;
 				if (ctx.options & LOG_OPT_REQ_CAP)
-					key = sample_fetch_as_type(be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, tmp->expr, SMP_T_STR);
+					key = sample_process(be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, tmp->expr, NULL);
 
 				if (!key && (ctx.options & LOG_OPT_RES_CAP))
-					key = sample_fetch_as_type(be, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, tmp->expr, SMP_T_STR);
+					key = sample_process(be, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, tmp->expr, NULL);
 
 				if (!key && !(ctx.options & (LOG_OPT_REQ_CAP|LOG_OPT_RES_CAP))) // cfg, cli
-					key = sample_fetch_as_type(be, sess, s, SMP_OPT_FINAL, tmp->expr, SMP_T_STR);
+					key = sample_process(be, sess, s, SMP_OPT_FINAL, tmp->expr, NULL);
+
+				type = SMP_T_STR; // default
+
+				if (key && !sample_convert(key, type))
+					key = NULL;
 
 				if (ctx.options & LOG_OPT_HTTP)
 					ret = lf_encode_chunk(tmplog, dst + maxsize,
@@ -3241,6 +3249,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 					goto out;
 				tmplog = ret;
 				break;
+			}
 		}
 
 		if (tmp->type != LOG_FMT_TAG)
