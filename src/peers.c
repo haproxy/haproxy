@@ -50,10 +50,6 @@
 #include <haproxy/trace.h>
 
 
-/*******************************/
-/* Current peer learning state */
-/*******************************/
-
 /******************************/
 /* Current peers section resync state */
 /******************************/
@@ -87,25 +83,20 @@
 #define SHTABLE_F_TEACH_STAGE2      0x00000002 /* Teach state 2 complete */
 
 /******************************/
-/* Remote peer teaching state */
+/* Peer flags                 */
 /******************************/
 #define PEER_F_TEACH_PROCESS        0x00000001 /* Teach a lesson to current peer */
-/* unused : 0x00000002..0x00000004 */
-#define PEER_F_TEACH_FINISHED       0x00000008 /* Teach conclude, (wait for confirm) */
-#define PEER_F_LOCAL_TEACH_COMPLETE 0x00000010 /* All that we know already taught to current peer, used only for a local peer */
-/* unused : 0x00000020..0x00000100 */
-#define PEER_F_LEARN_NOTUP2DATE     0x00000200 /* Learn from peer finished but peer is not up to date */
-/* unused : 0x00000400..0x00008000  */
-#define PEER_F_RESYNC_REQUESTED     0x00010000 /* A resnyc was explicitly requested */
+#define PEER_F_TEACH_FINISHED       0x00000002 /* Teach conclude, (wait for confirm) */
+#define PEER_F_LOCAL_TEACH_COMPLETE 0x00000004 /* The old local peer taught all that it known to new one */
+#define PEER_F_LEARN_NOTUP2DATE     0x00000008 /* Learn from peer finished but peer is not up to date */
+#define PEER_F_WAIT_SYNCTASK_ACK    0x00000010 /* Stop all processing waiting for the sync task acknowledgement when the applet state changes */
+#define PEER_F_ALIVE                0x00000020 /* Used to flag a peer a alive. */
+#define PEER_F_HEARTBEAT            0x00000040 /* Heartbeat message to send. */
+#define PEER_F_DWNGRD               0x00000080 /* When this flag is enabled, we must downgrade the supported version announced during peer sessions. */
+/* unused 0x00000100..0x00080000 */
+#define PEER_F_DBG_RESYNC_REQUESTED 0x00100000 /* A resnyc was explicitly requested at least once (for debugging purpose) */
 
-#define PEER_F_WAIT_SYNCTASK_ACK   0x00020000 /* Stop all processing waiting for the sync task acknowledgement when the applet state changes */
-
-/* unused : 0x00020000..0x10000000 */
-#define PEER_F_ALIVE                0x20000000 /* Used to flag a peer a alive. */
-#define PEER_F_HEARTBEAT            0x40000000 /* Heartbeat message to send. */
-#define PEER_F_DWNGRD               0x80000000 /* When this flag is enabled, we must downgrade the supported version announced during peer sessions. */
-
-#define PEER_TEACH_RESET            ~(PEER_F_TEACH_PROCESS|PEER_F_TEACH_FINISHED)
+#define PEER_TEACH_FLAGS            (PEER_F_TEACH_PROCESS|PEER_F_TEACH_FINISHED)
 
 
 #define PEER_RESYNC_TIMEOUT         5000 /* 5 seconds */
@@ -1101,7 +1092,7 @@ void __peer_session_deinit(struct peer *peer)
 	peer->appctx = NULL;
 
         /* reset teaching flags to 0 */
-        peer->flags &= PEER_TEACH_RESET;
+        peer->flags &= ~PEER_TEACH_FLAGS;
 
 	/* Mark the peer as stopping and wait for the sync task */
 	peer->flags |= PEER_F_WAIT_SYNCTASK_ACK;
@@ -2524,10 +2515,10 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 			}
 
 			/* reset teaching flags to 0 */
-			peer->flags &= PEER_TEACH_RESET;
+			peer->flags &= ~PEER_TEACH_FLAGS;
 
 			/* flag to start to teach lesson */
-			peer->flags |= (PEER_F_TEACH_PROCESS|PEER_F_RESYNC_REQUESTED);
+			peer->flags |= (PEER_F_TEACH_PROCESS|PEER_F_DBG_RESYNC_REQUESTED);
 		}
 		else if (msg_head[1] == PEER_MSG_CTRL_RESYNCFINISHED) {
 			TRACE_PROTO("received control message", PEERS_EV_CTRLMSG,
@@ -2567,7 +2558,7 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 			}
 
 			/* reset teaching flags to 0 */
-			peer->flags &= PEER_TEACH_RESET;
+			peer->flags &= ~PEER_TEACH_FLAGS;
 		}
 		else if (msg_head[1] == PEER_MSG_CTRL_HEARTBEAT) {
 			TRACE_PROTO("received control message", PEERS_EV_CTRLMSG,
@@ -2907,7 +2898,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 	peer->confirm = 0;
 
         /* reset teaching flags to 0 */
-        peer->flags &= PEER_TEACH_RESET;
+        peer->flags &= ~PEER_TEACH_FLAGS;
 
 	if (peer->local && !(appctx_is_back(peer->appctx))) {
 		/* If the local peer has established the connection (appctx is
