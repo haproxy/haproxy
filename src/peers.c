@@ -51,30 +51,28 @@
 
 
 /******************************/
-/* Current peers section resync state */
+/* peers section resync flags */
 /******************************/
-#define PEERS_F_RESYNC_LOCAL          0x00000001 /* Learn from local finished or no more needed */
-#define PEERS_F_RESYNC_REMOTE         0x00000002 /* Learn from remote finished or no more needed */
-#define PEERS_F_RESYNC_ASSIGN         0x00000004 /* A peer was assigned to learn our lesson */
-/* unused 0x00000008 */
-#define PEERS_F_RESYNC_LOCALTIMEOUT   0x00000010 /* Timeout waiting for a full resync from a local node */
-#define PEERS_F_RESYNC_REMOTETIMEOUT  0x00000020 /* Timeout waiting for a full resync from a remote node */
-#define PEERS_F_RESYNC_LOCALABORT     0x00000040 /* Session aborted learning from a local node */
-#define PEERS_F_RESYNC_REMOTEABORT    0x00000080 /* Session aborted learning from a remote node */
-#define PEERS_F_RESYNC_LOCALFINISHED  0x00000100 /* A local node teach us and was fully up to date */
-#define PEERS_F_RESYNC_REMOTEFINISHED 0x00000200 /* A remote node teach us and was fully up to date */
-#define PEERS_F_RESYNC_LOCALPARTIAL   0x00000400 /* A local node teach us but was partially up to date */
-#define PEERS_F_RESYNC_REMOTEPARTIAL  0x00000800 /* A remote node teach us but was partially up to date */
-#define PEERS_F_RESYNC_LOCALASSIGN    0x00001000 /* A local node was assigned for a full resync */
-#define PEERS_F_RESYNC_REMOTEASSIGN   0x00002000 /* A remote node was assigned for a full resync */
+#define PEERS_F_RESYNC_LOCAL_FINISHED     0x00000001 /* Learn from local peer finished or no more needed */
+#define PEERS_F_RESYNC_REMOTE_FINISHED    0x00000002 /* Learn from remote peer finished or no more needed */
+#define PEERS_F_RESYNC_ASSIGN             0x00000004 /* A peer was assigned to learn our lesson */
+#define PEERS_F_DONOTSTOP                 0x00000008 /* Main table sync task block process during soft stop to push data to new process */
+/* unsued 0x00000010..0x00080000 */
+#define PEERS_F_DBG_RESYNC_LOCALTIMEOUT   0x00100000 /* Timeout waiting for a full resync from a local node was experienced at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_REMOTETIMEOUT  0x00200000 /* Timeout waiting for a full resync from a remote node was experienced at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_LOCALABORT     0x00400000 /* Session aborted learning from a local node was experienced at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_REMOTEABORT    0x00800000 /* Session aborted learning from a remote node was experienced at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_LOCALFINISHED  0x01000000 /* A fully up to date local node teach us at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_REMOTEFINISHED 0x02000000 /* A fully up to remote node teach us at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_LOCALPARTIAL   0x04000000 /* A partially up to date local node teach us at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_REMOTEPARTIAL  0x08000000 /* A partially up to date remote node teach us at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_LOCALASSIGN    0x10000000 /* A local node was assigned for a full resync at lest once (for debugging purpose) */
+#define PEERS_F_DBG_RESYNC_REMOTEASSIGN   0x20000000 /* A remote node was assigned for a full resync at lest once (for debugging purpose) */
 
-#define PEERS_F_DONOTSTOP             0x00010000 /* Main table sync task block process during soft stop
-                                                    to push data to new process */
-
-#define PEERS_RESYNC_STATEMASK      (PEERS_F_RESYNC_LOCAL|PEERS_F_RESYNC_REMOTE)
-#define PEERS_RESYNC_FROMLOCAL      0x00000000
-#define PEERS_RESYNC_FROMREMOTE     PEERS_F_RESYNC_LOCAL
-#define PEERS_RESYNC_FINISHED       (PEERS_F_RESYNC_LOCAL|PEERS_F_RESYNC_REMOTE)
+#define PEERS_RESYNC_FROMLOCAL      0x00000000                     /* No resync finished, must be performed from local first */
+#define PEERS_RESYNC_FROMREMOTE     PEERS_F_RESYNC_LOCAL_FINISHED  /* Resync from local peer finished, must be performed from remote peer now */
+#define PEERS_RESYNC_STATEMASK      (PEERS_F_RESYNC_LOCAL_FINISHED|PEERS_F_RESYNC_REMOTE_FINISHED)
+#define PEERS_RESYNC_FINISHED       (PEERS_F_RESYNC_LOCAL_FINISHED|PEERS_F_RESYNC_REMOTE_FINISHED)
 
 /***********************************/
 /* Current shared table sync state */
@@ -3316,7 +3314,7 @@ static void clear_peer_learning_status(struct peer *peer)
 	if (peer->learnstate != PEER_LR_ST_NOTASSIGNED) {
 		/* unassign current peer for learning */
 		peer->peers->flags &= ~PEERS_F_RESYNC_ASSIGN;
-		peer->peers->flags |= (peer->local ? PEERS_F_RESYNC_LOCALABORT : PEERS_F_RESYNC_REMOTEABORT);
+		peer->peers->flags |= (peer->local ? PEERS_F_DBG_RESYNC_LOCALABORT : PEERS_F_DBG_RESYNC_REMOTEABORT);
 		/* reschedule a resync */
 		peer->peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(5000));
 		peer->learnstate = PEER_LR_ST_NOTASSIGNED;
@@ -3334,7 +3332,7 @@ static void sync_peer_learn_state(struct peers *peers, struct peer *peer)
 	/* The learning process is now fnished */
 	if (peer->flags & PEER_F_LEARN_NOTUP2DATE) {
 		/* Partial resync */
-		peers->flags |= (peer->local ? PEERS_F_RESYNC_LOCALPARTIAL : PEERS_F_RESYNC_REMOTEPARTIAL);
+		peers->flags |= (peer->local ? PEERS_F_DBG_RESYNC_LOCALPARTIAL : PEERS_F_DBG_RESYNC_REMOTEPARTIAL);
 		peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
 	}
 	else {
@@ -3342,7 +3340,7 @@ static void sync_peer_learn_state(struct peers *peers, struct peer *peer)
 		int commit_a_finish = 1;
 
 		if (peer->srv->shard) {
-			peers->flags |= PEERS_F_RESYNC_REMOTEPARTIAL;
+			peers->flags |= PEERS_F_DBG_RESYNC_REMOTEPARTIAL;
 			peer->flags |= PEER_F_LEARN_NOTUP2DATE;
 			for (ps = peers->remote; ps; ps = ps->next) {
 				if (ps->srv->shard && ps != peer) {
@@ -3372,8 +3370,8 @@ static void sync_peer_learn_state(struct peers *peers, struct peer *peer)
 		}
 
 		if (commit_a_finish) {
-			peers->flags |= (PEERS_F_RESYNC_LOCAL|PEERS_F_RESYNC_REMOTE);
-			peers->flags |= (peer->local ? PEERS_F_RESYNC_LOCALFINISHED : PEERS_F_RESYNC_REMOTEFINISHED);
+			peers->flags |= (PEERS_F_RESYNC_LOCAL_FINISHED|PEERS_F_RESYNC_REMOTE_FINISHED);
+			peers->flags |= (peer->local ? PEERS_F_DBG_RESYNC_LOCALFINISHED : PEERS_F_DBG_RESYNC_REMOTEFINISHED);
 		}
 	}
 	peer->learnstate = PEER_LR_ST_NOTASSIGNED;
@@ -3405,7 +3403,7 @@ static void sync_peer_app_state(struct peers *peers, struct peer *peer)
 				/* assign local peer for a lesson */
 				peer->learnstate = PEER_LR_ST_ASSIGNED;
 				peers->flags |= PEERS_F_RESYNC_ASSIGN;
-				peers->flags |= PEERS_F_RESYNC_LOCALASSIGN;
+				peers->flags |= PEERS_F_DBG_RESYNC_LOCALASSIGN;
 			}
 		}
 		else if (!peer->local) {
@@ -3420,7 +3418,7 @@ static void sync_peer_app_state(struct peers *peers, struct peer *peer)
 				/* assign remote peer for a lesson */
 				peer->learnstate = PEER_LR_ST_ASSIGNED;
 				peers->flags |= PEERS_F_RESYNC_ASSIGN;
-				peers->flags |= PEERS_F_RESYNC_REMOTEASSIGN;
+				peers->flags |= PEERS_F_DBG_RESYNC_REMOTEASSIGN;
 			}
 		}
 		peer->appstate = PEER_APP_ST_RUNNING;
@@ -3451,8 +3449,8 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 		   or resync timeout expire */
 
 		/* flag no more resync from local, to try resync from remotes */
-		peers->flags |= PEERS_F_RESYNC_LOCAL;
-		peers->flags |= PEERS_F_RESYNC_LOCALTIMEOUT;
+		peers->flags |= PEERS_F_RESYNC_LOCAL_FINISHED;
+		peers->flags |= PEERS_F_DBG_RESYNC_LOCALTIMEOUT;
 
 		/* reschedule a resync */
 		peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
@@ -3509,7 +3507,7 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 					/* assign peer for the lesson */
 					ps->learnstate = PEER_LR_ST_ASSIGNED;
 					peers->flags |= PEERS_F_RESYNC_ASSIGN;
-					peers->flags |= PEERS_F_RESYNC_REMOTEASSIGN;
+					peers->flags |= PEERS_F_DBG_RESYNC_REMOTEASSIGN;
 
 					/* wake up peer handler to handle a request of resync */
 					appctx_wakeup(ps->appctx);
@@ -3585,8 +3583,8 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 		 * and resync timeout expire */
 
 		/* flag no more resync from remote, consider resync is finished */
-		peers->flags |= PEERS_F_RESYNC_REMOTE;
-		peers->flags |= PEERS_F_RESYNC_REMOTETIMEOUT;
+		peers->flags |= PEERS_F_RESYNC_REMOTE_FINISHED;
+		peers->flags |= PEERS_F_DBG_RESYNC_REMOTETIMEOUT;
 	}
 
 	if ((peers->flags & PEERS_RESYNC_STATEMASK) != PEERS_RESYNC_FINISHED) {
