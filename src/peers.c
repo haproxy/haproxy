@@ -3535,10 +3535,10 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 		HA_SPIN_UNLOCK(PEER_LOCK, &peer->lock);
 	} /* for */
 
-	/* Resync from remotes expired: consider resync is finished */
+	/* Resync from remotes expired or no remote peer: consider resync is finished */
 	if (((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE) &&
 	    !(peers->flags & PEERS_F_RESYNC_ASSIGN) &&
-	    tick_is_expired(peers->resync_timeout, now_ms)) {
+	    (tick_is_expired(peers->resync_timeout, now_ms) || !peers->remote->next)) {
 		/* Resync from remote peer needed
 		 * no peer was assigned for the lesson
 		 * and resync timeout expire */
