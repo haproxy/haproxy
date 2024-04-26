@@ -4607,33 +4607,35 @@ compiled with USE_LINUX_CAP=1, it is able to preserve capabilities given in
 'setcap' keyword during switching from root user to a non-root.
 
 Since version v3.1 haproxy also checks if capabilities given in 'setcap'
-keyword were set in its binary file permitted set by administrator
+keyword were set in its binary file Permitted set by administrator
 (capget syscall). If this a case it performs transition of these capabilities
-in its process effective set (capset syscall), while running as a non-root
+in its process Effective set (capset syscall), while running as a non-root
 user.
 
 This was done to avoid all potential use cases when haproxy starts and runs as
 root: transparent proxy mode, binding to privileged ports.
 
 'setcap' keyword supports following network capabilities:
-- cap_net_admin
-- cap_net_raw (subset of cap_net_admin)
-- cap_net_bind_service
+- cap_net_admin: transparent proxying, binding socket to a specific network
+  interface, using set-mark action;
+- cap_net_raw (subset of cap_net_admin): transparent proxying;
+- cap_net_bind_service: binding socket to a specific network interface;
+- cap_sys_admin: creating socket in a specific network namespace.
 
-Haproxy never does the transition of these capabilities from its permitted set
-to the effective, if they are not listed as 'setcap' argument. See more
+Haproxy never does the transition of these capabilities from its Permitted set
+to the Effective, if they are not listed as 'setcap' argument. See more
 information about 'setcap' keyword and supported capabilities in the chapter
 3.1 Process management and security in the Configuration guide.
 
-Administrator may add needed capabilities in the haproxy binary file permitted
+Administrator may add needed capabilities in the haproxy binary file Permitted
 set with the following command:
 
 Example:
 	# setcap cap_net_admin,cap_net_bind_service=p /usr/local/sbin/haproxy
 
-Added capabilities will be seen in process permitted set after its start.
+Added capabilities will be seen in process Permitted set after its start.
 If the same capabilities are the arguments of 'setcap' keyword, they could be
-also seen in the process effective set. This could be check with the following
+also seen in the process Effective set. This could be check with the following
 command:
 
 Example:
@@ -4647,20 +4649,20 @@ Example:
 See more details about setcap and capabilities sets in Linux man pages
 (capabilities(7)).
 
-In some cases like transparent proxying, binding socket to a specific network
-interface, using set-mark action, configuration file parser detects that
-cap_net_admin or cap_net_raw capabilities are needed. Then, during
-initialization stage, haproxy process checks, if these capabilities could be
-put in its effective set. If it's not possible due to capget or capset syscall
-failure (restrictions set on syscalls by some security modules like SELinux,
-Seccomp, etc), process emits diagnostic warnings (start with -dD).
+In some use cases like transparent proxying or creating socket in a specific
+network namespace, configuration file parser detects that cap_net_raw or
+cap_sys_admin or some other supported capabilities are needed. Then, during
+the initialization stage, haproxy process checks, if these capabilities could
+be put in its Effective set. If it's not possible due to capget or capset
+syscall failure (restrictions set on syscalls by some security modules like
+SELinux, Seccomp, etc), process emits diagnostic warnings (start with -dD).
 
 Due to support of many different platforms with different system settings,
 it's impossible for the parser to deduce from the configuration file, if
 binding to privileged ports will be done. So, in the case of insufficient
 privileges (run as non-root) process will terminate only with an alert
-message like below. It's up to a user to recheck its configuration and
-capabilities set for haproxy binary.
+message like below. It's up to a user to recheck its configuration and haproxy
+binary capabilities set.
 
 Example:
 	$ haproxy -dD -f haproxy.cfg

@@ -1241,6 +1241,7 @@ static int srv_parse_namespace(char **args, int *cur_arg,
 	if (strcmp(arg, "*") == 0) {
 		/* Use the namespace associated with the connection (if present). */
 		newsrv->flags |= SRV_F_USE_NS_FROM_PP;
+		global.last_checks |= LSTCHK_SYSADM;
 		return 0;
 	}
 
@@ -1259,6 +1260,7 @@ static int srv_parse_namespace(char **args, int *cur_arg,
 		memprintf(err, "Cannot open namespace '%s'", arg);
 		return ERR_ALERT | ERR_FATAL;
 	}
+	global.last_checks |= LSTCHK_SYSADM;
 
 	return 0;
 #else

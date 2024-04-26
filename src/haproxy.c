@@ -3626,13 +3626,13 @@ int main(int argc, char **argv)
 	if ((global.mode & (MODE_MWORKER | MODE_DAEMON)) == 0)
 		set_identity(argv[0]);
 
-	/* set_identity() above might have dropped LSTCHK_NETADM if
-	 * it changed to a new UID while preserving enough permissions
-	 * to honnor LSTCHK_NETADM.
+	/* set_identity() above might have dropped LSTCHK_NETADM or/and
+	 * LSTCHK_SYSADM if it changed to a new UID while preserving enough
+	 * permissions to honnor LSTCHK_NETADM/LSTCHK_SYSADM.
 	 */
-	if ((global.last_checks & LSTCHK_NETADM) && getuid()) {
+	if ((global.last_checks & (LSTCHK_NETADM|LSTCHK_SYSADM)) && getuid()) {
 		/* If global.uid is present in config, it is already set as euid
-		 * and ruid by set_identity() call just above, so it's better to
+		 * and ruid by set_identity() just above, so it's better to
 		 * remind the user to fix uncoherent settings.
 		 */
 		if (global.uid) {
