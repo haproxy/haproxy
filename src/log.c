@@ -1729,8 +1729,77 @@ int get_log_facility(const char *fac)
 	return facility;
 }
 
+/* helper function for _lf_encode_bytes() to escape a single byte
+ * with <escape>
+ */
+static inline char *_lf_escape_byte(char *start, char *stop,
+                                    char byte, const char escape)
+{
+	if (start + 3 >= stop)
+		return NULL;
+	*start++ = escape;
+	*start++ = hextab[(byte >> 4) & 15];
+	*start++ = hextab[byte & 15];
+
+	return start;
+}
+
+/* helper function for _lf_encode_bytes() to encode a single byte
+ * and escape it with <escape> if found in <map>
+ *
+ * The function assumes that at least 1 byte is available for writing
+ *
+ * Returns the address of the last written byte on success, or NULL
+ * on error
+ */
+static inline char *_lf_map_escape_byte(char *start, char *stop,
+                                        const char *byte,
+                                        const char escape, const long *map,
+                                        struct logformat_node *node)
+{
+	if (!ha_bit_test((unsigned char)(*byte), map))
+		*start++ = *byte;
+	else
+		start = _lf_escape_byte(start, stop, *byte, escape);
+
+	return start;
+}
+
+/* helper function for _lf_encode_bytes() to encode a single byte
+ * and escape it with <escape> if found in <map> or escape it with
+ * '\' if found in rfc5424_escape_map
+ *
+ * The function assumes that at least 1 byte is available for writing
+ *
+ * Returns the address of the last written byte on success, or NULL
+ * on error
+ */
+static inline char *_lf_rfc5424_escape_byte(char *start, char *stop,
+                                            const char *byte,
+                                            const char escape, const long *map,
+                                            struct logformat_node *node)
+{
+	if (!ha_bit_test((unsigned char)(*byte), map)) {
+		if (!ha_bit_test((unsigned char)(*byte), rfc5424_escape_map))
+			*start++ = *byte;
+		else {
+			if (start + 2 >= stop)
+				return NULL;
+			*start++ = '\\';
+			*start++ = *byte;
+		}
+	}
+	else
+		start = _lf_escape_byte(start, stop, *byte, escape);
+
+	return start;
+}
+
 /*
- * Encode the string.
+ * helper for lf_encode_{string,chunk}:
+ * encode the input bytes, input <bytes> is processed until <bytes_stop>
+ * is reached. If <bytes_stop> is NULL, <bytes> is expected to be NULL
+ * terminated.
  *
  * When using the +E log format option, it will try to escape '"\]'
  * characters with '\' as prefix. The same prefix should not be used as
@@ -1738,96 +1807,75 @@ int get_log_facility(const char *fac)
  *
  * Return the address of the \0 character, or NULL on error
  */
-static char *lf_encode_string(char *start, char *stop,
+static char *_lf_encode_bytes(char *start, char *stop,
                               const char escape, const long *map,
-                              const char *string,
+                              const char *bytes, const char *bytes_stop,
                               struct logformat_node *node)
 {
-	if (node->options & LOG_OPT_ESC) {
-		if (start < stop) {
-			stop--; /* reserve one byte for the final '\0' */
-			while (start < stop && *string != '\0') {
-				if (!ha_bit_test((unsigned char)(*string), map)) {
-					if (!ha_bit_test((unsigned char)(*string), rfc5424_escape_map))
-						*start++ = *string;
-					else {
-						if (start + 2 >= stop)
-							break;
-						*start++ = '\\';
-						*start++ = *string;
-					}
-				}
-				else {
-					if (start + 3 >= stop)
-						break;
-					*start++ = escape;
-					*start++ = hextab[(*string >> 4) & 15];
-					*start++ = hextab[*string & 15];
-				}
-				string++;
+	char *ret;
+	char *(*encode_byte)(char *start, char *stop,
+	                     const char *byte,
+	                     const char escape, const long *map,
+	                     struct logformat_node *node);
+
+	if (node->options & LOG_OPT_ESC)
+		encode_byte = _lf_rfc5424_escape_byte;
+	else
+		encode_byte = _lf_map_escape_byte;
+
+	if (start < stop) {
+		stop--; /* reserve one byte for the final '\0' */
+
+		/* we have 2 distinct loops to keep checks outside of the loop
+		 * for better performance
+		 */
+		if (bytes && !bytes_stop) {
+			while (start < stop && *bytes != '\0') {
+				ret = encode_byte(start, stop, bytes, escape, map, node);
+				if (ret == NULL)
+					break;
+				start = ret;
+				bytes++;
 			}
-			*start = '\0';
-			return start;
+		} else if (bytes) {
+			while (start < stop && bytes < bytes_stop) {
+				ret = encode_byte(start, stop, bytes, escape, map, node);
+				if (ret == NULL)
+					break;
+				start = ret;
+				bytes++;
+			}
 		}
-	}
-	else {
-		return encode_string(start, stop, escape, map, string);
+		*start = '\0';
+		return start;
 	}
 
 	return NULL;
 }
 
 /*
+ * Encode the string.
+ */
+static char *lf_encode_string(char *start, char *stop,
+                              const char escape, const long *map,
+                              const char *string,
+                              struct logformat_node *node)
+{
+	return _lf_encode_bytes(start, stop, escape, map,
+	                        string, NULL, node);
+}
+
+/*
  * Encode the chunk.
- *
- * When using the +E log format option, it will try to escape '"\]'
- * characters with '\' as prefix. The same prefix should not be used as
- * <escape>.
- *
- * Return the address of the \0 character, or NULL on error
  */
 static char *lf_encode_chunk(char *start, char *stop,
                              const char escape, const long *map,
                              const struct buffer *chunk,
                              struct logformat_node *node)
 {
-	char *str, *end;
-
-	if (node->options & LOG_OPT_ESC) {
-		if (start < stop) {
-			str = chunk->area;
-			end = chunk->area + chunk->data;
-
-			stop--; /* reserve one byte for the final '\0' */
-			while (start < stop && str < end) {
-				if (!ha_bit_test((unsigned char)(*str), map)) {
-					if (!ha_bit_test((unsigned char)(*str), rfc5424_escape_map))
-						*start++ = *str;
-					else {
-						if (start + 2 >= stop)
-							break;
-						*start++ = '\\';
-						*start++ = *str;
-					}
-				}
-				else {
-					if (start + 3 >= stop)
-						break;
-					*start++ = escape;
-					*start++ = hextab[(*str >> 4) & 15];
-					*start++ = hextab[*str & 15];
-				}
-				str++;
-			}
-			*start = '\0';
-			return start;
-		}
-	}
-	else {
-		return encode_chunk(start, stop, escape, map, chunk);
-	}
-
-	return NULL;
+	return _lf_encode_bytes(start, stop, escape, map,
+	                        chunk->area, chunk->area + chunk->data,
+	                        node);
 }
 
 /*
