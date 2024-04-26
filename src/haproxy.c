@@ -721,6 +721,7 @@ static void mworker_reexec(int hardreload)
 	char *msg = NULL;
 	struct rlimit limit;
 	struct mworker_proc *current_child = NULL;
+	int x_off = 0; /* disable -x by putting -x /dev/null */
 
 	mworker_block_signals();
 	setenv("HAPROXY_MWORKER_REEXEC", "1", 1);
@@ -768,6 +769,10 @@ static void mworker_reexec(int hardreload)
 	/* copy the program name */
 	next_argv[next_argc++] = old_argv[0];
 
+	/* we need to reintroduce /dev/null everytime */
+	if (old_unixsocket && strcmp(old_unixsocket, "/dev/null") == 0)
+		x_off = 1;
+
 	/* insert the new options just after argv[0] in case we have a -- */
 
 	if (getenv("HAPROXY_MWORKER_WAIT_ONLY") == NULL) {
@@ -791,14 +796,19 @@ static void mworker_reexec(int hardreload)
 				msg = NULL;
 			}
 		}
-
-		if (current_child) {
+		if (!x_off && current_child) {
 			/* add the -x option with the socketpair of the current worker */
 			next_argv[next_argc++] = "-x";
 			if ((next_argv[next_argc++] = memprintf(&msg, "sockpair@%d", current_child->ipc_fd[0])) == NULL)
 				goto alloc_error;
 			msg = NULL;
 		}
+	}
+
+	if (x_off) {
+		/* if the cmdline contained a -x /dev/null, continue to use it */
+		next_argv[next_argc++] = "-x";
+		next_argv[next_argc++] = "/dev/null";
 	}
 
 	/* copy the previous options */
