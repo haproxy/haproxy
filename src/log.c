@@ -95,6 +95,7 @@ static const struct log_fmt_st log_formats[LOG_FORMATS] = {
  * that the byte should be escaped. Be careful to always pass bytes from 0 to
  * 255 exclusively to the macros.
  */
+long no_escape_map[(256/8) / sizeof(long)];
 long rfc5424_escape_map[(256/8) / sizeof(long)];
 long hdr_encode_map[(256/8) / sizeof(long)];
 long url_encode_map[(256/8) / sizeof(long)];
@@ -2846,6 +2847,9 @@ static void init_log()
 {
 	char *tmp;
 	int i;
+
+	/* Initialize the no escape map, which may be used to bypass escaping */
+	memset(no_escape_map, 0, sizeof(no_escape_map));
 
 	/* Initialize the escape map for the RFC5424 structured-data : '"\]'
 	 * inside PARAM-VALUE should be escaped with '\' as prefix.
