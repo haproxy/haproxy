@@ -3104,26 +3104,24 @@ tune.applet.zero-copy-forwarding { on | off }
 
 tune.buffers.limit <number>
   Sets a hard limit on the number of buffers which may be allocated per process.
-  The default value is zero which means unlimited. The minimum non-zero value
-  will always be greater than "tune.buffers.reserve" and should ideally always
-  be about twice as large. Forcing this value can be particularly useful to
-  limit the amount of memory a process may take, while retaining a sane
-  behavior. When this limit is reached, streams which need a buffer wait for
-  another one to be released by another stream. Since buffers are dynamically
-  allocated and released, the waiting time is very short and not perceptible
-  provided that limits remain reasonable. In fact sometimes reducing the limit
-  may even increase performance by increasing the CPU cache's efficiency. Tests
-  have shown good results on average HTTP traffic with a limit to 1/10 of the
-  expected global maxconn setting, which also significantly reduces memory
-  usage. The memory savings come from the fact that a number of connections
-  will not allocate 2*tune.bufsize. It is best not to touch this value unless
-  advised to do so by an HAProxy core developer.
+  The default value is zero which means unlimited. The limit will automatically
+  be re-adjusted to satisfy the reserved buffers for emergency situations so
+  that the user doesn't have to perform complicated calculations. Forcing this
+  value can be particularly useful to limit the amount of memory a process may
+  take, while retaining a sane behavior. When this limit is reached, a task
+  that requests a buffer waits for another one to be released first. Most of
+  the time the waiting time is very short and not perceptible provided that
+  limits remain reasonable. However, some historical limitations have weakened
+  this mechanism over versions and it is known that in certain situations of
+  sustained shortage, some tasks may freeze until their timeout expires, so it
+  is safer to avoid using this when not strictly necessary.
 
 tune.buffers.reserve <number>
-  Sets the number of buffers which are pre-allocated and reserved for use only
-  during memory shortage conditions resulting in failed memory allocations. The
-  minimum value is 2 and is also the default. There is no reason a user would
-  want to change this value, it's mostly aimed at HAProxy core developers.
+  Sets the number of per-thread buffers which are pre-allocated and reserved
+  for use only during memory shortage conditions resulting in failed memory
+  allocations. The minimum value is 0 and the default is 4. There is no reason
+  a user would want to change this value, unless a core developer suggests to
+  change it for a very specific reason.
 
 tune.bufsize <number>
   Sets the buffer size to this size (in bytes). Lower values allow more

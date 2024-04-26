@@ -71,18 +71,9 @@
 #define BUFSIZE	        16384
 #endif
 
-/* certain buffers may only be allocated for responses in order to avoid
- * deadlocks caused by request queuing. 2 buffers is the absolute minimum
- * acceptable to ensure that a request gaining access to a server can get
- * a response buffer even if it doesn't completely flush the request buffer.
- * The worst case is an applet making use of a request buffer that cannot
- * completely be sent while the server starts to respond, and all unreserved
- * buffers are allocated by request buffers from pending connections in the
- * queue waiting for this one to flush. Both buffers reserved buffers may
- * thus be used at the same time.
- */
+// number of per-thread emergency buffers for low-memory conditions
 #ifndef RESERVED_BUFS
-#define RESERVED_BUFS   2
+#define RESERVED_BUFS   4
 #endif
 
 // reserved buffer space for header rewriting

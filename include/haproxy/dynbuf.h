@@ -70,6 +70,20 @@ static inline int b_may_alloc_for_crit(uint crit)
 	return 1;
 }
 
+/* Allocates one of the emergency buffers or returns NULL if there are none left */
+static inline char *__b_get_emergency_buf(void)
+{
+	char *ret;
+
+	if (!th_ctx->emergency_bufs_left)
+		return NULL;
+
+	th_ctx->emergency_bufs_left--;
+	ret = th_ctx->emergency_bufs[th_ctx->emergency_bufs_left];
+	th_ctx->emergency_bufs[th_ctx->emergency_bufs_left] = NULL;
+	return ret;
+}
+
 /* Ensures that <buf> is allocated, or allocates it. If no memory is available,
  * ((char *)1) is assigned instead with a zero size. The allocated buffer is
  * returned, or NULL in case no memory is available. Since buffers only contain
@@ -112,7 +126,10 @@ static inline int b_may_alloc_for_crit(uint crit)
 		 */							            \
 		*(_buf) = BUF_NULL;					\
 		__ha_barrier_store();					\
-		pool_free(pool_head_buffer, area);			\
+		if (th_ctx->emergency_bufs_left < global.tune.reserved_bufs) \
+			th_ctx->emergency_bufs[th_ctx->emergency_bufs_left++] = area; \
+		else							\
+			pool_free(pool_head_buffer, area);		\
 	} while (0)							\
 
 /* Releases buffer <buf> if allocated, and marks it empty. */

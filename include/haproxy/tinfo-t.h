@@ -149,7 +149,10 @@ struct thread_ctx {
 	struct list quic_conns_clo;         /* list of closing quic-conns attached to this thread */
 	struct list queued_checks;          /* checks waiting for a connection slot */
 	struct list tasklets[TL_CLASSES];   /* tasklets (and/or tasks) to run, by class */
-	// around 48 bytes here for thread-local variables
+
+	void **emergency_bufs;              /* array of buffers allocated at boot. Next free one is [emergency_bufs_left-1] */
+	uint emergency_bufs_left;           /* number of emergency buffers left in magic_bufs[] */
+	// around 36 bytes here for thread-local variables
 
 	// third cache line here on 64 bits: accessed mostly using atomic ops
 	ALWAYS_ALIGN(64);

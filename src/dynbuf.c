@@ -163,8 +163,6 @@ static int cfg_parse_tune_buffers_limit(char **args, int section_type, struct pr
 	if (global.tune.buf_limit) {
 		if (global.tune.buf_limit < 3)
 			global.tune.buf_limit = 3;
-		if (global.tune.buf_limit <= global.tune.reserved_bufs)
-			global.tune.buf_limit = global.tune.reserved_bufs + 1;
 	}
 
 	return 0;
@@ -187,12 +185,42 @@ static int cfg_parse_tune_buffers_reserve(char **args, int section_type, struct 
 	}
 
 	global.tune.reserved_bufs = reserve;
-	if (global.tune.reserved_bufs < 2)
-		global.tune.reserved_bufs = 2;
-	if (global.tune.buf_limit && global.tune.buf_limit <= global.tune.reserved_bufs)
-		global.tune.buf_limit = global.tune.reserved_bufs + 1;
-
 	return 0;
+}
+
+/* allocate emergency buffers for the thread */
+static int alloc_emergency_buffers_per_thread(void)
+{
+	int idx;
+
+	th_ctx->emergency_bufs_left = global.tune.reserved_bufs;
+	th_ctx->emergency_bufs = calloc(global.tune.reserved_bufs, sizeof(*th_ctx->emergency_bufs));
+	if (!th_ctx->emergency_bufs)
+		return 0;
+
+	for (idx = 0; idx < global.tune.reserved_bufs; idx++) {
+		/* reserved bufs are not subject to the limit, so we must push it */
+		if (_HA_ATOMIC_LOAD(&pool_head_buffer->limit))
+			_HA_ATOMIC_INC(&pool_head_buffer->limit);
+		th_ctx->emergency_bufs[idx] = pool_alloc_flag(pool_head_buffer, POOL_F_NO_POISON | POOL_F_NO_FAIL);
+		if (!th_ctx->emergency_bufs[idx])
+			return 0;
+	}
+
+	return 1;
+}
+
+/* frees the thread's emergency buffers */
+static void free_emergency_buffers_per_thread(void)
+{
+	int idx;
+
+	if (th_ctx->emergency_bufs) {
+		for (idx = 0; idx < global.tune.reserved_bufs; idx++)
+			pool_free(pool_head_buffer, th_ctx->emergency_bufs[idx]);
+	}
+
+	ha_free(&th_ctx->emergency_bufs);
 }
 
 /* config keyword parsers */
@@ -203,6 +231,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 }};
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+REGISTER_PER_THREAD_ALLOC(alloc_emergency_buffers_per_thread);
+REGISTER_PER_THREAD_FREE(free_emergency_buffers_per_thread);
 
 /*
  * Local variables:
