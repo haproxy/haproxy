@@ -331,6 +331,25 @@ static inline struct ist istzero(const struct ist ist, size_t size)
 	return ret;
 }
 
+/* Remove trailing newline characters if present in <ist> by reducing its
+ * length. Both '\n', '\r' and '\n\r' match. Return the modified ist.
+ */
+static inline struct ist iststrip(const struct ist ist)
+{
+	struct ist ret = ist;
+
+	if (ret.len) {
+		if (ret.ptr[ret.len - 1] == '\n')
+			--ret.len;
+	}
+	if (ret.len) {
+		if (ret.ptr[ret.len - 1] == '\r')
+			--ret.len;
+	}
+
+	return ret;
+}
+
 /* returns the ordinal difference between two strings :
  *    < 0 if ist1 < ist2
  *    = 0 if ist1 == ist2

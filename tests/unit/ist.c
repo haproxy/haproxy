@@ -129,6 +129,30 @@ int test_istzero()
 	return 0;
 }
 
+struct ist f_iststrip(struct ist ist) { return iststrip(ist); }
+int test_iststrip()
+{
+	if (iststrip(ist("foo")).len != 3)
+		return __LINE__;
+
+	if (iststrip(ist("foo\n")).len != 3)
+		return __LINE__;
+
+	if (iststrip(ist("foo\r")).len != 3)
+		return __LINE__;
+
+	if (iststrip(ist("foo\r\n")).len != 3)
+		return __LINE__;
+
+	if (iststrip(ist("")).len != 0)
+		return __LINE__;
+
+	if (iststrip(ist("\n")).len != 0)
+		return __LINE__;
+
+	return 0;
+}
+
 int f_istdiff(const struct ist ist1, const struct ist ist2) { return istdiff(ist1, ist2); }
 int test_istdiff()
 {
@@ -682,6 +706,7 @@ int main(void)
         printf("%4d istpad()\n", test_istpad());
         printf("%4d isttrim()\n", test_isttrim());
         printf("%4d istzero()\n", test_istzero());
+        printf("%4d iststrip()\n", test_iststrip());
         printf("%4d istdiff()\n", test_istdiff());
         printf("%4d istmatch()\n", test_istmatch());
         printf("%4d istnmatch()\n", test_istnmatch());
