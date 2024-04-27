@@ -2045,7 +2045,7 @@ static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, voi
 			return cli_err(appctx, "Invalid duration.\n");
 	}
 
-	if (strcmp(args[2], "srv-unused") == 0) {
+	if (strcmp(args[2], "srv-removable") == 0) {
 		struct ist be_name, sv_name;
 
 		if (!*args[3])
@@ -2077,7 +2077,7 @@ static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, voi
 			"  - <condition> indicates what to wait for, no longer than the specified\n"
 			"    duration. Supported conditions are:\n"
 			"    - <none> : by default, just sleep for the specified duration.\n"
-			"    - srv-unused <px>/<sv> : wait for this server to become unused.\n"
+			"    - srv-removable <px>/<sv> : wait for this server to become removable.\n"
 			"";
 
 		if (strcmp(args[2], "-h") == 0)
