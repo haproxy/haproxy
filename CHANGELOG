@@ -1,6 +1,92 @@
 ChangeLog :
 ===========
 
+2024/04/27 : 3.0-dev9
+    - BUILD: ssl: use %zd for sizeof() in ssl_ckch.c
+    - MINOR: backend: use be_counters for health down accounting
+    - BUG/MINOR: backend: use cum_sess counters instead of cum_conn
+    - BUG/MINOR: stats: fix stot metric for listeners
+    - REGTESTS: use -dI for insecure fork by default in the regtest scripts
+    - MINOR: stats: rename proxy stats
+    - MINOR: stats: rename ambiguous stat_l and stat_count
+    - MINOR: stats: rename info stats
+    - MINOR: stats: use stricter naming stats/field/line
+    - MINOR: stats: use STAT_F_* prefix for flags
+    - BUG/MEDIUM: applet: Let's applets decide if they have more data to deliver
+    - BUILD: stick-tables: silence build warnings when threads are disabled
+    - MINOR: tools: Rename `ha_generate_uuid` to `ha_generate_uuid_v4`
+    - MINOR: Add `ha_generate_uuid_v7`
+    - MINOR: Add support for UUIDv7 to the `uuid` sample fetch
+    - MEDIUM: shctx: Naming shared memory context
+    - BUG/MINOR: h1: fix detection of upper bytes in the URI
+    - MINOR: intops: add a pair of functions to check multi-byte ranges
+    - TESTS: add a unit test for the multi-byte range checks
+    - CLEANUP: h1: make use of the multi-byte matching functions
+    - REGTESTS: ssl: Remove "sleep" calls from ocsp auto update test
+    - BUG/MEDIUM: peers: Automatically start to learn on local peer
+    - BUG/MEDIUM: peers: Reprocess peer state after all session shutdowns
+    - MINOR: peers: Remove unused PEERS_F_RESYNC_REQUESTED flag
+    - MINOR: peers: Don't set TEACH flags on a peer from the sync task
+    - MINOR: peers: Use a peer flag to block the applet waiting ack of the sync task
+    - BUG/MEDIUM: peers: Wait for sync task ack when a resynchro is finished
+    - MINOR: peers: Remove unused PEERS_F_RESYNC_PROCESS flag
+    - MINOR: applet: Add a function to know the side where an applet was created
+    - MEDIUM: peers: Simplify the peer flags dealing with the connection state
+    - MEDIUM: peers: Use true states for the peer applets as seen from outside
+    - MEDIUM: peers: Use true states for the learn state of a peer
+    - MINOR: peers: Start learning for local peer before receiving messages
+    - MINOR: peers: Rename PEERS_F_TEACH_COMPLETE to PEERS_F_LOCAL_TEACH_COMPLETE
+    - MINOR: peers: Reorder and slightly rename PEER flags
+    - MINOR: peers: Reorder and rename PEERS flags
+    - REORG: peers: Move peer and peers flags in the corresponding header file
+    - DEV: flags/peers: Decode PEER and PEERS flags
+    - MINOR: peers: Add comment on processing functions of the sync task
+    - MINOR: peers: Use a static variable to wait a resync on reload
+    - BUG/MEDIUM: peers: Use atomic operations on peers flags when necessary
+    - REORG: peers: Rename all occurrences to 'ps' variable
+    - BUG/MINOR: peers: Don't wait for a remote resync if there no remote peer
+    - MINOR: stats: update ambiguous "metrics" naming to "stat_cols"
+    - MINOR: stats: introduce a more expressive stat definition method
+    - MINOR: stats: implement automatic metric generation from stat_col
+    - MINOR: stats: hide some columns in output
+    - MEDIUM: stats: convert counters to new column definition
+    - MINOR: stats: define stats-file output format support
+    - MEDIUM: stats: implement dump stats-file CLI
+    - MINOR: ist: define iststrip() new function
+    - MINOR: guid: define guid_is_valid_fmt()
+    - MINOR: stats: apply stats-file on process startup
+    - MINOR: stats: parse header lines from stats-file
+    - MINOR: stats: parse values from stats-file
+    - MEDIUM: stats: define stats-file keyword
+    - BUG/MINOR: mworker: reintroduce way to disable seamless reload with -x /dev/null
+    - CLEANUP: log: remove unused checks for encode_{chunk,string}
+    - MINOR: log: store lf_expr nodes inside substruct
+    - MINOR: log: global lf_expr node options
+    - CLEANUP: log: simplify complex values usages in sess_build_logline()
+    - MINOR: log: skip custom logformat_node name if empty
+    - MINOR: log: add lf_int() wrapper to print integers
+    - MINOR: log: add lf_rawtext{_len}() functions
+    - MEDIUM: log: pass date strings to lf_rawtext()
+    - MEDIUM: log: write raw strings using lf_rawtext()
+    - MEDIUM: log: use lf_rawtext for lf_ip() and lf_port() hex strings
+    - MINOR: log: explicitly handle %ts and %tsc as text strings
+    - MINOR: log: use LOG_VARTEXT_{START,END} to enclose text strings
+    - MINOR: log: make all lf_* sess build helper static
+    - MINOR: log: merge lf_encode_string() and lf_encode_chunk() logic
+    - MEDIUM: log: lf_* build helpers now take a ctx argument
+    - MINOR: log: expose node typecast in lf_buildctx struct
+    - MINOR: log: postpone conversion for sample expressions in sess_build_logline()
+    - MINOR: log: add LOG_OPT_NONE flag
+    - MINOR: log: add no_escape_map to bypass escape with _lf_encode_bytes()
+    - MINOR: log: add +bin logformat node option
+    - MINOR: log: add +json encoding option
+    - MINOR: tools: add cbor encode helpers
+    - MINOR: log: add +cbor encoding option
+    - MINOR: log: support true cbor binary encoding
+    - CLEANUP: dynbuf: move the reserve and limit parsers to dynbuf.c
+    - MINOR: list: add a macro to detect that a list contains at most one element
+    - MINOR: cli/wait: rename the condition "srv-unused" to "srv-removable"
+
 2024/04/19 : 3.0-dev8
     - BUG/MINOR: cli: Don't warn about a too big command for incomplete commands
     - BUG/MINOR: listener: always assign distinct IDs to shards
