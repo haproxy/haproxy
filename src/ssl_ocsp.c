@@ -47,6 +47,7 @@
 #include <haproxy/applet.h>
 #include <haproxy/arg.h>
 #include <haproxy/base64.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/chunk.h>
 #include <haproxy/cli.h>
@@ -97,6 +98,8 @@
  * Whenever possible if a macro is missing in certain versions, it's better
  * to conditionally define it in openssl-compat.h than using lots of ifdefs.
  */
+
+static struct sockaddr_storage *ocsp_update_dst;
 
 #ifndef OPENSSL_NO_OCSP
 int ocsp_ex_index = -1;
@@ -1319,6 +1322,15 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 			goto leave;
 		}
 
+		/* if the ocsp_update.http_proxy option was set */
+		if (ocsp_update_dst) {
+			hc->flags |= HC_F_HTTPPROXY;
+			if (!sockaddr_alloc(&hc->dst, ocsp_update_dst, sizeof(*ocsp_update_dst))) {
+				ha_alert("ocsp-update: Failed to allocate sockaddr in %s:%d.\n", __FUNCTION__, __LINE__);
+				goto leave;
+			}
+		}
+
 		if (httpclient_req_gen(hc, hc->req.url, hc->req.meth,
 		                       b_data(req_body) ? ocsp_request_hdrs : NULL,
 		                       b_data(req_body) ? ist2(b_orig(req_body), b_data(req_body)) : IST_NULL) != ERR_NONE) {
@@ -1907,6 +1919,34 @@ static void cli_release_show_ocsp_updates(struct appctx *appctx)
 	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 }
 
+static int ocsp_update_parse_global_http_proxy(char **args, int section_type, struct proxy *curpx,
+                                        const struct proxy *defpx, const char *file, int line,
+                                        char **err)
+{
+	struct sockaddr_storage *sk;
+	char *errmsg = NULL;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	sockaddr_free(&ocsp_update_dst);
+	/* 'sk' is statically allocated (no need to be freed). */
+	sk = str2sa_range(args[1], NULL, NULL, NULL, NULL, NULL, NULL,
+	                  &errmsg, NULL, NULL,
+	                  PA_O_PORT_OK | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
+	if (!sk) {
+		ha_alert("ocsp-update: Failed to parse destination address in %s\n", errmsg);
+		free(errmsg);
+		return -1;
+	}
+
+	if (!sockaddr_alloc(&ocsp_update_dst, sk, sizeof(*sk))) {
+		ha_alert("ocsp-update: Failed to allocate sockaddr in %s:%d.\n", __FUNCTION__, __LINE__);
+		return -1;
+	}
+
+	return 0;
+}
 
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "ocsp-response", NULL }, "set ssl ocsp-response <resp|payload>       : update a certificate's OCSP Response from a base64-encode DER",      cli_parse_set_ocspresponse, NULL },
@@ -1921,6 +1961,12 @@ static struct cli_kw_list cli_kws = {{ },{
 
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "ocsp_update.http_proxy", ocsp_update_parse_global_http_proxy },
+	{ 0, NULL, NULL },
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /*
  * Local variables:
