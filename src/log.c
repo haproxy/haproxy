@@ -1768,13 +1768,19 @@ static char *_encode_byte_hex(char *start, char *stop, unsigned char byte)
  *
  * for now only hex form is supported.
  *
+ * The function may only be called under CBOR context (that is when
+ * LOG_OPT_ENCODE_CBOR option is set).
+ *
  * Returns the position of the last written byte on success and NULL on
  * error.
  */
 static char *_lf_cbor_encode_byte(struct cbor_encode_ctx *cbor_ctx,
                                   char *start, char *stop, unsigned char byte)
 {
-	struct lf_buildctx *ctx = cbor_ctx->e_fct_ctx;
+	struct lf_buildctx *ctx;
+
+	BUG_ON(!cbor_ctx);
+	ctx = cbor_ctx->e_fct_ctx;
 
 	if (ctx->options & LOG_OPT_BIN) {
 		/* raw output */
