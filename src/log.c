@@ -1774,7 +1774,7 @@ static char *_encode_byte_hex(char *start, char *stop, unsigned char byte)
 static char *_lf_cbor_encode_byte(struct cbor_encode_ctx *cbor_ctx,
                                   char *start, char *stop, unsigned char byte)
 {
-	struct lf_buildctx *ctx = cbor_ctx->e_byte_fct_ctx;
+	struct lf_buildctx *ctx = cbor_ctx->e_fct_ctx;
 
 	if (ctx->options & LOG_OPT_BIN) {
 		/* raw output */
@@ -1825,8 +1825,8 @@ static inline void lf_buildctx_prepare(struct lf_buildctx *ctx,
 
 		if (ctx->options & LOG_OPT_ENCODE_CBOR) {
 			/* prepare cbor-specific encode ctx */
-			ctx->encode.cbor.e_byte_fct = _lf_cbor_encode_byte;
-			ctx->encode.cbor.e_byte_fct_ctx = ctx;
+			ctx->encode.cbor.e_fct_byte = _lf_cbor_encode_byte;
+			ctx->encode.cbor.e_fct_ctx = ctx;
 		}
 	}
 }

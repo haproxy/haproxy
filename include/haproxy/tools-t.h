@@ -174,11 +174,11 @@ struct cbor_encode_ctx {
 	 * The function needs to return the position of the last written byte
 	 * on success and NULL on failure. The function cannot write past <stop>
 	 */
-	char *(*e_byte_fct)(struct cbor_encode_ctx *ctx,
+	char *(*e_fct_byte)(struct cbor_encode_ctx *ctx,
 	                    char *start, char *stop, uint8_t byte);
 
-	/* to pass some context to the encode_byte fct */
-	void *e_byte_fct_ctx;
+	/* to provide some user-context to the encode_fct_* funcs */
+	void *e_fct_ctx;
 };
 
 #endif /* _HAPROXY_TOOLS_T_H */

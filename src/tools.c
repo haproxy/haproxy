@@ -2109,7 +2109,7 @@ char *cbor_encode_uint64_prefix(struct cbor_encode_ctx *ctx,
 		}
 	}
 
-	start = ctx->e_byte_fct(ctx, start, stop, prefix);
+	start = ctx->e_fct_byte(ctx, start, stop, prefix);
 	if (start == NULL)
 		return NULL;
 
@@ -2117,7 +2117,7 @@ char *cbor_encode_uint64_prefix(struct cbor_encode_ctx *ctx,
 	while (nb_bytes) {
 		uint8_t cur_byte = (value >> ((nb_bytes - 1) * 8)) & 0xFFU;
 
-		start = ctx->e_byte_fct(ctx, start, stop, cur_byte);
+		start = ctx->e_fct_byte(ctx, start, stop, cur_byte);
 		if (start == NULL)
 			return NULL;
 
@@ -2181,7 +2181,7 @@ char *cbor_encode_bytes_prefix(struct cbor_encode_ctx *ctx,
 
 	/* write actual bytes if provided */
 	while (bytes && it < len) {
-		start = ctx->e_byte_fct(ctx, start, stop, bytes[it]);
+		start = ctx->e_fct_byte(ctx, start, stop, bytes[it]);
 		if (start == NULL)
 			return NULL;
 		it++;
