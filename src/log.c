@@ -3163,6 +3163,8 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 				                       tmplog,                 \
 				                       dst + maxsize,          \
 				                       _x, sizeof(_x));        \
+				if (ret == NULL)                               \
+					goto out;                              \
 				tmplog = ret;                                  \
 				break;                                         \
 			}                                                      \
