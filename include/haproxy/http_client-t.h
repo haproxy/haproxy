@@ -64,6 +64,7 @@ enum {
 #define HC_F_RES_HDR        0x02
 #define HC_F_RES_BODY       0x04
 #define HC_F_RES_END        0x08
+#define HC_F_HTTPPROXY      0x10
 
 
 #endif /* ! _HAPROXY_HTTCLIENT__T_H */

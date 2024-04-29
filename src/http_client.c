@@ -277,9 +277,12 @@ int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_me
 	struct htx *htx;
 	int err_code = 0;
 	struct ist meth_ist, vsn;
-	unsigned int flags = HTX_SL_F_VER_11 | HTX_SL_F_NORMALIZED_URI | HTX_SL_F_HAS_SCHM;
+	unsigned int flags = HTX_SL_F_VER_11 | HTX_SL_F_HAS_SCHM | HTX_SL_F_HAS_AUTHORITY;
 	int i;
 	int foundhost = 0, foundaccept = 0, foundua = 0;
+
+	if (!(hc->flags & HC_F_HTTPPROXY))
+		flags |= HTX_SL_F_NORMALIZED_URI;
 
 	if (!b_alloc(&hc->req.buf))
 		goto error;
