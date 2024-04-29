@@ -253,7 +253,8 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_HANAFAIL]      = ME_NEW_BE("hanafail",      FN_COUNTER, FF_U64, failed_hana,            STATS_PX_CAP____S, "Total number of failed checks caused by an 'on-error' directive after an 'observe' condition matched"),
 	[ST_I_PX_REQ_RATE]                      = { .name = "req_rate",                    .desc = "Number of HTTP requests processed over the last second on this object" },
 	[ST_I_PX_REQ_RATE_MAX]                  = { .name = "req_rate_max",                .desc = "Highest value of http requests observed since the worker process started" },
-	[ST_I_PX_REQ_TOT]                       = { .name = "req_tot",                     .desc = "Total number of HTTP requests processed by this object since the worker process started" },
+	/* Note: ST_I_PX_REQ_TOT is also diplayed on frontend but does not uses a raw counter value, see me_generate_field() for details. */
+	[ST_I_PX_REQ_TOT]       = ME_NEW_BE("req_tot",       FN_COUNTER, FF_U64, p.http.cum_req,         STATS_PX_CAP___BS, "Total number of HTTP requests processed by this object since the worker process started"),
 	[ST_I_PX_CLI_ABRT]      = ME_NEW_BE("cli_abrt",      FN_COUNTER, FF_U64, cli_aborts,             STATS_PX_CAP_LFBS, "Total number of requests or connections aborted by the client since the worker process started"),
 	[ST_I_PX_SRV_ABRT]      = ME_NEW_BE("srv_abrt",      FN_COUNTER, FF_U64, srv_aborts,             STATS_PX_CAP_LFBS, "Total number of requests or connections aborted by the server since the worker process started"),
 	[ST_I_PX_COMP_IN]       = ME_NEW_PX("comp_in",       FN_COUNTER, FF_U64, comp_in[COMP_DIR_RES],  STATS_PX_CAP__FB_, "Total number of bytes submitted to the HTTP compressor for this object since the worker process started"),
@@ -703,6 +704,7 @@ static int stcol_hide(enum stat_idx_px idx, enum obj_type *objt)
 	case ST_I_PX_HRSP_3XX:
 	case ST_I_PX_HRSP_4XX:
 	case ST_I_PX_HRSP_5XX:
+	case ST_I_PX_REQ_TOT:
 	case ST_I_PX_INTERCEPTED:
 	case ST_I_PX_CACHE_LOOKUPS:
 	case ST_I_PX_CACHE_HITS:
@@ -760,6 +762,23 @@ static struct field me_generate_field(const struct stat_col *col,
 	default:
 		/* invalid cap requested */
 		ABORT_NOW();
+	}
+
+	/* TODO Special case needed for ST_I_PX_REQ_TOT. It is defined as a
+	 * generic column for backend side. Extra code required to diplay it on
+	 * frontend side as an aggregate of values splitted by HTTP version.
+	 */
+	if (idx == ST_I_PX_REQ_TOT && cap == STATS_PX_CAP_FE && !stat_file) {
+		struct proxy *px = __objt_proxy(objt);
+		const size_t nb_reqs =
+		  sizeof(px->fe_counters.p.http.cum_req) /
+		  sizeof(*px->fe_counters.p.http.cum_req);
+		uint64_t total_req = 0;
+		int i;
+
+		for (i = 0; i < nb_reqs; i++)
+			total_req += px->fe_counters.p.http.cum_req[i];
+		return mkf_u64(FN_COUNTER, total_req);
 	}
 
 	if (stat_file) {
@@ -869,18 +888,6 @@ int stats_fill_fe_line(struct proxy *px, int flags, struct field *line, int len,
 			case ST_I_PX_REQ_RATE_MAX:
 				field = mkf_u32(FN_MAX, px->fe_counters.p.http.rps_max);
 				break;
-			case ST_I_PX_REQ_TOT: {
-				int i;
-				uint64_t total_req;
-				size_t nb_reqs =
-					sizeof(px->fe_counters.p.http.cum_req) / sizeof(*px->fe_counters.p.http.cum_req);
-
-				total_req = 0;
-				for (i = 0; i < nb_reqs; i++)
-					total_req += px->fe_counters.p.http.cum_req[i];
-				field = mkf_u64(FN_COUNTER, total_req);
-				break;
-			}
 			case ST_I_PX_CONN_RATE:
 				field = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_conn_per_sec));
 				break;
@@ -1442,10 +1449,6 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
 					field = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.health);
 				break;
-			case ST_I_PX_REQ_TOT:
-				if (px->mode == PR_MODE_HTTP)
-					field = mkf_u64(FN_COUNTER, sv->counters.p.http.cum_req);
-				break;
 			case ST_I_PX_LASTSESS:
 				field = mkf_s32(FN_AGE, srv_lastsession(sv));
 				break;
@@ -1716,10 +1719,6 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 			case ST_I_PX_ALGO:
 				if (flags & STAT_F_SHLGNDS)
 					field = mkf_str(FO_CONFIG|FS_SERVICE, backend_lb_algo_str(px->lbprm.algo & BE_LB_ALGO));
-				break;
-			case ST_I_PX_REQ_TOT:
-				if (px->mode == PR_MODE_HTTP)
-					field = mkf_u64(FN_COUNTER, px->be_counters.p.http.cum_req);
 				break;
 			case ST_I_PX_LASTSESS:
 				field = mkf_s32(FN_AGE, be_lastsession(px));
