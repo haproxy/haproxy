@@ -255,8 +255,8 @@ int sock_unix_bind_receiver(struct receiver *rx, char **errmsg)
 	}
 	addr.sun_family = AF_UNIX;
 
-	/* WT: shouldn't we use my_socketat(rx->netns) here instead ? */
-	fd = socket(rx->proto->fam->sock_domain, rx->proto->sock_type, rx->proto->sock_prot);
+	fd = my_socketat(rx->settings->netns, rx->proto->fam->sock_domain,
+		rx->proto->sock_type, rx->proto->sock_prot);
 	if (fd < 0) {
 		err |= ERR_FATAL | ERR_ALERT;
 		memprintf(errmsg, "cannot create receiving socket (%s)", strerror(errno));
