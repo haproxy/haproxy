@@ -74,6 +74,12 @@ int stats_emit_field_tags(struct buffer *out, const struct field *f,
 			  char delim);
 
 
+/* Returns true if <col> is fully defined, false if only used as name-desc. */
+static inline int stcol_is_generic(const struct stat_col *col)
+{
+	return !!(col->cap);
+}
+
 static inline enum field_format stcol_format(const struct stat_col *col)
 {
 	return col->type & FF_MASK;

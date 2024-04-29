@@ -92,12 +92,6 @@
     .cap = (cap_f),                                                           \
   }
 
-/* Returns true if <col> is fully defined, false if only used as name-desc. */
-static int stcol_is_generic(const struct stat_col *col)
-{
-	return !!(col->cap);
-}
-
 /* Convert stat_col <col> to old-style <name> as name_desc. */
 static void stcol2ndesc(struct name_desc *name, const struct stat_col *col)
 {
@@ -338,7 +332,7 @@ struct list stats_module_list[STATS_DOMAIN_COUNT] = {
 
 THREAD_LOCAL void *trash_counters;
 
-/* Insert into <st_tree> all stat columns from <cols> indexed by their name. */
+/* Insert <cols> generic stat columns into <st_tree> indexed by their name. */
 int generate_stat_tree(struct eb_root *st_tree, const struct stat_col cols[])
 {
 	const struct stat_col *col;
@@ -348,7 +342,8 @@ int generate_stat_tree(struct eb_root *st_tree, const struct stat_col cols[])
 
 	for (i = 0; i < ST_I_PX_MAX; ++i) {
 		col = &cols[i];
-		if (stcol_nature(col) == FN_COUNTER) {
+
+		if (stcol_is_generic(col)) {
 			len = strlen(col->name);
 			node = malloc(sizeof(struct stcol_node) + len + 1);
 			if (!node)
@@ -739,6 +734,7 @@ static struct field me_generate_field(const struct stat_col *col,
                                       const void *counters, uint8_t cap,
                                       int stat_file)
 {
+	enum field_nature fn;
 	struct field value;
 	void *counter = NULL;
 	int wrong_side = 0;
@@ -794,12 +790,19 @@ static struct field me_generate_field(const struct stat_col *col,
 			return (struct field){ .type = FF_EMPTY };
 	}
 
-	switch (stcol_format(col)) {
-	case FF_U64:
-		value = mkf_u64(stcol_nature(col), *(uint64_t *)counter);
-		break;
-	default:
-		/* only FF_U64 counters currently use generic metric calculation */
+	fn = stcol_nature(col);
+	if (fn == FN_COUNTER) {
+		switch (stcol_format(col)) {
+		case FF_U64:
+			value = mkf_u64(FN_COUNTER, *(uint64_t *)counter);
+			break;
+		default:
+			/* only FF_U64 counters currently use generic metric calculation */
+			ABORT_NOW();
+		}
+	}
+	else {
+		/* No generic column available for other field nature. */
 		ABORT_NOW();
 	}
 
