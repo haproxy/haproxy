@@ -3635,7 +3635,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		struct sample *key;
 		const struct buffer empty = { };
 
-		if (ctx.options & LOG_OPT_ENCODE) {
+		if (g_options & LOG_OPT_ENCODE) {
 			/* only consider global ctx for key encoding */
 			lf_buildctx_prepare(&ctx, g_options, NULL);
 
