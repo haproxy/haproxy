@@ -528,15 +528,50 @@ static int h1_buf_available(void *target)
 }
 
 /*
- * Allocate a buffer. If if fails, it adds the mux in buffer wait queue.
+ * Allocate the h1c's ibuf. If if fails, it adds the mux in buffer wait queue,
+ * and sets the H1C_F_IN_ALLOC flag on the connection. It will advertise a more
+ * urgent allocation when a stream is already present than when none is present
+ * since in one case a buffer might be needed to permit to release another one,
+ * while in the other case we've simply not started anything.
  */
-static inline struct buffer *h1_get_buf(struct h1c *h1c, struct buffer *bptr)
+static inline struct buffer *h1_get_ibuf(struct h1c *h1c)
 {
-	struct buffer *buf = NULL;
+	struct buffer *buf;
 
-	if (likely(!LIST_INLIST(&h1c->buf_wait.list)) &&
-	    unlikely((buf = b_alloc(bptr, DB_MUX_RX)) == NULL)) {
+	if (unlikely((buf = b_alloc(&h1c->ibuf, DB_MUX_RX)) == NULL)) {
 		b_queue(DB_MUX_RX, &h1c->buf_wait, h1c, h1_buf_available);
+		h1c->flags |= H1C_F_IN_ALLOC;
+	}
+	return buf;
+}
+
+/*
+ * Allocate the h1c's obuf. If if fails, it adds the mux in buffer wait queue,
+ * and sets the H1C_F_OUT_ALLOC flag on the connection.
+ */
+static inline struct buffer *h1_get_obuf(struct h1c *h1c)
+{
+	struct buffer *buf;
+
+	if (unlikely((buf = b_alloc(&h1c->obuf, DB_MUX_TX)) == NULL)) {
+		b_queue(DB_MUX_TX, &h1c->buf_wait, h1c, h1_buf_available);
+		h1c->flags |= H1C_F_OUT_ALLOC;
+	}
+	return buf;
+}
+
+/*
+ * Allocate the h1s's rxbuf. If if fails, it adds the mux in buffer wait queue,
+ * and sets the H1C_F_IN_SALLOC flag on the connection.
+ */
+static inline struct buffer *h1_get_rxbuf(struct h1s *h1s)
+{
+	struct h1c *h1c = h1s->h1c;
+	struct buffer *buf;
+
+	if (unlikely((buf = b_alloc(&h1s->rxbuf, DB_SE_RX)) == NULL)) {
+		b_queue(DB_SE_RX, &h1c->buf_wait, h1c, h1_buf_available);
+		h1c->flags |= H1C_F_IN_SALLOC;
 	}
 	return buf;
 }
@@ -3216,8 +3251,7 @@ static size_t h1_make_chunk(struct h1s *h1s, struct h1m * h1m, size_t len)
 
 	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s);
 
-	if (!h1_get_buf(h1c, &h1c->obuf)) {
-		h1c->flags |= H1C_F_OUT_ALLOC;
+	if (!h1_get_obuf(h1c)) {
 		TRACE_STATE("waiting for h1c obuf allocation", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
 		goto end;
 	}
@@ -3270,8 +3304,7 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 	if (h1s->flags & (H1S_F_INTERNAL_ERROR|H1S_F_PROCESSING_ERROR|H1S_F_TX_BLK))
 		goto end;
 
-	if (!h1_get_buf(h1c, &h1c->obuf)) {
-		h1c->flags |= H1C_F_OUT_ALLOC;
+	if (!h1_get_obuf(h1c)) {
 		TRACE_STATE("waiting for h1c obuf allocation", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
 		goto end;
 	}
@@ -3445,8 +3478,8 @@ static int h1_send_error(struct h1c *h1c)
 		goto out;
 	}
 
-	if (!h1_get_buf(h1c, &h1c->obuf)) {
-		h1c->flags |= (H1C_F_OUT_ALLOC|H1C_F_ABRT_PENDING);
+	if (!h1_get_obuf(h1c)) {
+		h1c->flags |= H1C_F_ABRT_PENDING;
 		TRACE_STATE("waiting for h1c obuf allocation", H1_EV_H1C_ERR|H1_EV_H1C_BLK, h1c->conn);
 		goto out;
 	}
@@ -3635,8 +3668,7 @@ static int h1_recv(struct h1c *h1c)
 		return 1;
 	}
 
-	if (!h1_get_buf(h1c, &h1c->ibuf)) {
-		h1c->flags |= H1C_F_IN_ALLOC;
+	if (!h1_get_ibuf(h1c)) {
 		TRACE_STATE("waiting for h1c ibuf allocation", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 		return 0;
 	}
@@ -3850,9 +3882,8 @@ static int h1_process(struct h1c * h1c)
 			h1s->sess->t_idle = ns_to_ms(now_ns - h1s->sess->accept_ts) - h1s->sess->t_handshake;
 
 		/* Get the stream rxbuf */
-		buf = h1_get_buf(h1c, &h1s->rxbuf);
+		buf = h1_get_rxbuf(h1s);
 		if (!buf) {
-			h1c->flags |= H1C_F_IN_SALLOC;
 			TRACE_STATE("waiting for stream rxbuf allocation", H1_EV_H1C_WAKE|H1_EV_H1C_BLK, h1c->conn);
 			return 0;
 		}
@@ -4613,8 +4644,7 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 	}
 
   no_splicing:
-	if (!h1_get_buf(h1c, &h1c->obuf)) {
-		h1c->flags |= H1C_F_OUT_ALLOC;
+	if (!h1_get_obuf(h1c)) {
 		h1s->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
 		TRACE_STATE("waiting for opposite h1c obuf allocation", H1_EV_STRM_SEND|H1_EV_H1S_BLK, h1c->conn, h1s);
 		goto out;
