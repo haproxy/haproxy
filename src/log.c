@@ -442,6 +442,21 @@ static int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len,
 			}
 			if (node->tag->type == LOG_FMT_GLOBAL) {
 				*defoptions = node->options;
+				if (lf_expr->nodes.options == LOG_OPT_NONE)
+					lf_expr->nodes.options = node->options;
+				else {
+					/* global options were previously set and were
+					 * overwritten for nodes that appear after the
+					 * current one.
+					 *
+					 * However, for lf_expr->nodes.options we must
+					 * keep a track of options common to ALL nodes,
+					 * thus we take previous global options into
+					 * account to compute the new logformat
+					 * expression wide (global) node options.
+					 */
+					lf_expr->nodes.options &= node->options;
+				}
 				free_logformat_node(node);
 			} else {
 				LIST_APPEND(list_format, &node->list);
@@ -620,6 +635,7 @@ int lf_expr_compile(struct lf_expr *lf_expr,
 	 * returning.
 	 */
 	LIST_INIT(&lf_expr->nodes.list);
+	lf_expr->nodes.options = LOG_OPT_NONE;
 	/* we must set the compiled flag now for proper deinit in case of failure */
 	lf_expr->flags |= LF_FL_COMPILED;
 
@@ -885,11 +901,6 @@ int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err)
 	if (!(px->flags & PR_FL_CHECKED))
 		px->to_log |= LW_INIT;
 
-	/* start with all options, then perform ANDmask with each node's
-	 * options to end with options common to ALL nodes
-	 */
-	lf_expr->nodes.options = ~LOG_OPT_NONE;
-
 	list_for_each_entry(lf, &lf_expr->nodes.list, list) {
 		if (lf->type == LOG_FMT_EXPR) {
 			struct sample_expr *expr = lf->expr;
@@ -902,7 +913,7 @@ int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err)
 					          expr->fetch->kw);
 					goto fail;
 				}
-				goto next_node;
+				continue;
 			}
 			/* check if we need to allocate an http_txn struct for HTTP parsing */
 			/* Note, we may also need to set curpx->to_log with certain fetches */
@@ -930,14 +941,6 @@ int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err)
 			}
 			if (!(px->flags & PR_FL_CHECKED))
 				px->to_log |= lf->tag->lw;
-		}
- next_node:
-		if (LF_NODE_WITH_OPT(lf)) {
-			/* For configurable nodes, apply current node's option
-			 * mask to global node options to keep options common
-			 * to all nodes
-			 */
-			lf_expr->nodes.options &= lf->options;
 		}
 	}
 	if ((px->to_log & (LW_REQ | LW_RESP)) &&

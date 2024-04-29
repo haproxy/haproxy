@@ -189,7 +189,7 @@ struct lf_expr {
 	union {
 		struct {
 			struct list list; /* logformat_node list */
-			int options;      /* global options (common to all nodes) */
+			int options;      /* global '%o' options (common to all nodes) */
 		} nodes;
 		char *str;                /* original string prior to parsing (NULL once compiled) */
 	};
