@@ -232,7 +232,7 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_LBTOT]         = ME_NEW_BE("lbtot",         FN_COUNTER, FF_U64, cum_lbconn,             STATS_PX_CAP_LFBS, "Total number of requests routed by load balancing since the worker process started (ignores queue pop and stickiness)"),
 	[ST_I_PX_TRACKED]                       = { .name = "tracked",                     .desc = "Name of the other server this server tracks for its state" },
 	[ST_I_PX_TYPE]                          = { .name = "type",                        .desc = "Type of the object (Listener, Frontend, Backend, Server)" },
-	[ST_I_PX_RATE]                          = { .name = "rate",                        .desc = "Total number of sessions processed by this object over the last second (sessions for listeners/frontends, requests for backends/servers)" },
+	[ST_I_PX_RATE]          = ME_NEW_PX("rate",          FN_RATE,    FF_U32, sess_per_sec,           STATS_PX_CAP__FBS, "Total number of sessions processed by this object over the last second (sessions for listeners/frontends, requests for backends/servers)"),
 	[ST_I_PX_RATE_LIM]                      = { .name = "rate_lim",                    .desc = "Limit on the number of sessions accepted in a second (frontend only, 'rate-limit sessions' setting)" },
 	[ST_I_PX_RATE_MAX]                      = { .name = "rate_max",                    .desc = "Highest value of sessions per second observed since the worker process started" },
 	[ST_I_PX_CHECK_STATUS]                  = { .name = "check_status",                .desc = "Status report of the server's latest health check, prefixed with '*' if a check is currently in progress" },
@@ -245,7 +245,7 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_HRSP_5XX]      = ME_NEW_PX("hrsp_5xx",      FN_COUNTER, FF_U64, p.http.rsp[5],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status 500-599 returned by this object since the worker process started"),
 	[ST_I_PX_HRSP_OTHER]    = ME_NEW_PX("hrsp_other",    FN_COUNTER, FF_U64, p.http.rsp[0],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status <100, >599 returned by this object since the worker process started (error -1 included)"),
 	[ST_I_PX_HANAFAIL]      = ME_NEW_BE("hanafail",      FN_COUNTER, FF_U64, failed_hana,            STATS_PX_CAP____S, "Total number of failed checks caused by an 'on-error' directive after an 'observe' condition matched"),
-	[ST_I_PX_REQ_RATE]                      = { .name = "req_rate",                    .desc = "Number of HTTP requests processed over the last second on this object" },
+	[ST_I_PX_REQ_RATE]      = ME_NEW_FE("req_rate",      FN_RATE,    FF_U32, req_per_sec,            STATS_PX_CAP__F__, "Number of HTTP requests processed over the last second on this object"),
 	[ST_I_PX_REQ_RATE_MAX]                  = { .name = "req_rate_max",                .desc = "Highest value of http requests observed since the worker process started" },
 	/* Note: ST_I_PX_REQ_TOT is also diplayed on frontend but does not uses a raw counter value, see me_generate_field() for details. */
 	[ST_I_PX_REQ_TOT]       = ME_NEW_BE("req_tot",       FN_COUNTER, FF_U64, p.http.cum_req,         STATS_PX_CAP___BS, "Total number of HTTP requests processed by this object since the worker process started"),
@@ -277,7 +277,7 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_COOKIE]                        = { .name = "cookie",                      .desc = "Backend's cookie name or Server's cookie value, shown only if show-legends is set, or at levels oper/admin for the CLI" },
 	[ST_I_PX_MODE]                          = { .name = "mode",                        .desc = "'mode' setting (tcp/http/health/cli)" },
 	[ST_I_PX_ALGO]                          = { .name = "algo",                        .desc = "Backend's load balancing algorithm, shown only if show-legends is set, or at levels oper/admin for the CLI" },
-	[ST_I_PX_CONN_RATE]                     = { .name = "conn_rate",                   .desc = "Number of new connections accepted over the last second on the frontend for this worker process" },
+	[ST_I_PX_CONN_RATE]     = ME_NEW_FE("conn_rate",     FN_RATE,    FF_U32, conn_per_sec,           STATS_PX_CAP__F__, "Number of new connections accepted over the last second on the frontend for this worker process"),
 	[ST_I_PX_CONN_RATE_MAX]                 = { .name = "conn_rate_max",               .desc = "Highest value of connections per second observed since the worker process started" },
 	[ST_I_PX_CONN_TOT]      = ME_NEW_FE("conn_tot",      FN_COUNTER, FF_U64, cum_conn,               STATS_PX_CAP_LF__, "Total number of new connections accepted on this frontend since the worker process started"),
 	[ST_I_PX_INTERCEPTED]   = ME_NEW_FE("intercepted",   FN_COUNTER, FF_U64, intercepted_req,        STATS_PX_CAP__F__, "Total number of HTTP requests intercepted on the frontend (redirects/stats/services) since the worker process started"),
@@ -881,23 +881,14 @@ int stats_fill_fe_line(struct proxy *px, int flags, struct field *line, int len,
 			case ST_I_PX_TYPE:
 				field = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_FE);
 				break;
-			case ST_I_PX_RATE:
-				field = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_counters.sess_per_sec));
-				break;
 			case ST_I_PX_RATE_LIM:
 				field = mkf_u32(FO_CONFIG|FN_LIMIT, px->fe_sps_lim);
 				break;
 			case ST_I_PX_RATE_MAX:
 				field = mkf_u32(FN_MAX, px->fe_counters.sps_max);
 				break;
-			case ST_I_PX_REQ_RATE:
-				field = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_counters.req_per_sec));
-				break;
 			case ST_I_PX_REQ_RATE_MAX:
 				field = mkf_u32(FN_MAX, px->fe_counters.p.http.rps_max);
-				break;
-			case ST_I_PX_CONN_RATE:
-				field = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_counters.conn_per_sec));
 				break;
 			case ST_I_PX_CONN_RATE_MAX:
 				field = mkf_u32(FN_MAX, px->fe_counters.cps_max);
@@ -1368,9 +1359,6 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 			case ST_I_PX_TYPE:
 				field = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SV);
 				break;
-			case ST_I_PX_RATE:
-				field = mkf_u32(FN_RATE, read_freq_ctr(&sv->counters.sess_per_sec));
-				break;
 			case ST_I_PX_RATE_MAX:
 				field = mkf_u32(FN_MAX, sv->counters.sps_max);
 				break;
@@ -1713,9 +1701,6 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 				break;
 			case ST_I_PX_TYPE:
 				field = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_BE);
-				break;
-			case ST_I_PX_RATE:
-				field = mkf_u32(0, read_freq_ctr(&px->be_counters.sess_per_sec));
 				break;
 			case ST_I_PX_RATE_MAX:
 				field = mkf_u32(0, px->be_counters.sps_max);
