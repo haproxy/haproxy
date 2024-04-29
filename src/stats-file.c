@@ -220,7 +220,7 @@ static int parse_stat_line(struct ist line,
 
 	switch (obj_type(node->obj_type)) {
 	case OBJ_TYPE_PROXY:
-		px = objt_proxy(node->obj_type);
+		px = __objt_proxy(node->obj_type);
 
 		if (domain == STFILE_DOMAIN_PX_FE) {
 			if (!(px->cap & PR_CAP_FE))
@@ -244,7 +244,7 @@ static int parse_stat_line(struct ist line,
 		if (domain != STFILE_DOMAIN_PX_FE)
 			goto err;
 
-		li = objt_listener(node->obj_type);
+		li = __objt_listener(node->obj_type);
 		/* Listeners counters are not allocated if 'option socket-stats' unset. */
 		if (!li->counters)
 			return 0;
@@ -257,7 +257,7 @@ static int parse_stat_line(struct ist line,
 		if (domain != STFILE_DOMAIN_PX_BE)
 			goto err;
 
-		srv = objt_server(node->obj_type);
+		srv = __objt_server(node->obj_type);
 		base_off = (char *)&srv->counters;
 		off = 1;
 		break;
