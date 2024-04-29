@@ -932,7 +932,7 @@ int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err)
 				px->to_log |= lf->tag->lw;
 		}
  next_node:
-		if (lf->type == LOG_FMT_EXPR || lf->type == LOG_FMT_TAG) {
+		if (LF_NODE_WITH_OPT(lf)) {
 			/* For configurable nodes, apply current node's option
 			 * mask to global node options to keep options common
 			 * to all nodes
@@ -3642,7 +3642,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			/* types that cannot be named such as text or separator are ignored
 			 * when encoding is set
 			 */
-			if (tmp->type != LOG_FMT_EXPR && tmp->type != LOG_FMT_TAG)
+			if (!LF_NODE_WITH_OPT(tmp))
 				goto next_fmt;
 
 			if (!tmp->name)
