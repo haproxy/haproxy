@@ -501,30 +501,25 @@ static int h1_buf_available(void *target)
 {
 	struct h1c *h1c = target;
 
-	if ((h1c->flags & H1C_F_IN_ALLOC) && b_alloc(&h1c->ibuf, DB_MUX_RX)) {
+	if ((h1c->flags & H1C_F_IN_ALLOC) && h1_recv_allowed(h1c)) {
 		TRACE_STATE("unblocking h1c, ibuf allocated", H1_EV_H1C_RECV|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn);
 		h1c->flags &= ~H1C_F_IN_ALLOC;
-		if (h1_recv_allowed(h1c))
-			tasklet_wakeup(h1c->wait_event.tasklet);
-		return 1;
+		tasklet_wakeup(h1c->wait_event.tasklet);
 	}
 
-	if ((h1c->flags & H1C_F_OUT_ALLOC) && b_alloc(&h1c->obuf, DB_MUX_TX)) {
+	if ((h1c->flags & H1C_F_OUT_ALLOC) && h1c->h1s) {
 		TRACE_STATE("unblocking h1s, obuf allocated", H1_EV_TX_DATA|H1_EV_H1S_BLK|H1_EV_STRM_WAKE, h1c->conn, h1c->h1s);
 		h1c->flags &= ~H1C_F_OUT_ALLOC;
-		if (h1c->h1s)
-			h1_wake_stream_for_send(h1c->h1s);
-		return 1;
+		h1_wake_stream_for_send(h1c->h1s);
 	}
 
-	if ((h1c->flags & H1C_F_IN_SALLOC) && h1c->h1s && b_alloc(&h1c->h1s->rxbuf, DB_SE_RX)) {
+	if ((h1c->flags & H1C_F_IN_SALLOC) && h1c->h1s) {
 		TRACE_STATE("unblocking h1c, stream rxbuf allocated", H1_EV_H1C_RECV|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn);
 		h1c->flags &= ~H1C_F_IN_SALLOC;
 		tasklet_wakeup(h1c->wait_event.tasklet);
-		return 1;
 	}
 
-	return 0;
+	return 1;
 }
 
 /*
