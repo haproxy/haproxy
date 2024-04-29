@@ -801,6 +801,11 @@ static struct field me_generate_field(const struct stat_col *col,
 			ABORT_NOW();
 		}
 	}
+	else if (fn == FN_RATE) {
+		/* freq-ctr always uses FF_U32 */
+		BUG_ON(stcol_format(col) != FF_U32);
+		value = mkf_u32(FN_RATE, read_freq_ctr(counter));
+	}
 	else {
 		/* No generic column available for other field nature. */
 		ABORT_NOW();

@@ -32,6 +32,14 @@ ullong freq_ctr_total(const struct freq_ctr *ctr, uint period, int pend);
 int freq_ctr_overshoot_period(const struct freq_ctr *ctr, uint period, uint freq);
 uint update_freq_ctr_period_slow(struct freq_ctr *ctr, uint period, uint inc);
 
+/* Only usable during single threaded startup phase. */
+static inline void preload_freq_ctr(struct freq_ctr *ctr, uint value)
+{
+	ctr->curr_ctr = 0;
+	ctr->prev_ctr = value;
+	ctr->curr_tick = now_ms & ~1;
+}
+
 /* Update a frequency counter by <inc> incremental units. It is automatically
  * rotated if the period is over. It is important that it correctly initializes
  * a null area.

@@ -211,6 +211,10 @@ static int load_ctr(const struct stat_col *col, const struct ist token,
 		value.u.u64 = read_uint64(&ptr, istend(token));
 		break;
 
+	case FF_U32:
+		value.u.u32 = read_uint(&ptr, istend(token));
+		break;
+
 	default:
 		/* Unsupported field nature. */
 		return 1;
@@ -222,6 +226,9 @@ static int load_ctr(const struct stat_col *col, const struct ist token,
 
 	if (fn == FN_COUNTER && ff == FF_U64) {
 		*(uint64_t *)counter = value.u.u64;
+	}
+	else if (fn == FN_RATE && ff == FF_U32) {
+		preload_freq_ctr(counter, value.u.u32);
 	}
 	else {
 		/* Unsupported field format/nature combination. */
