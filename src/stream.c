@@ -753,6 +753,8 @@ static int stream_alloc_work_buffer(struct stream *s)
 {
 	if (b_alloc(&s->res.buf, DB_CHANNEL))
 		return 1;
+
+	b_requeue(DB_CHANNEL, &s->buffer_wait);
 	return 0;
 }
 
@@ -1793,25 +1795,12 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	}
 
  resync_stconns:
-	/* below we may emit error messages so we have to ensure that we have
-	 * our buffers properly allocated. If the allocation failed, an error is
-	 * triggered.
-	 *
-	 * NOTE: An error is returned because the mechanism to queue entities
-	 *       waiting for a buffer is totally broken for now. However, this
-	 *       part must be refactored. When it will be handled, this part
-	 *       must be be reviewed too.
-	 */
 	if (!stream_alloc_work_buffer(s)) {
-		scf->flags |= SC_FL_ERROR;
-		s->conn_err_type = STRM_ET_CONN_RES;
-
-		scb->flags |= SC_FL_ERROR;
-		s->conn_err_type = STRM_ET_CONN_RES;
-
-		if (!(s->flags & SF_ERR_MASK))
-			s->flags |= SF_ERR_RESOURCE;
-		sess_set_term_flags(s);
+		scf->flags &= ~SC_FL_DONT_WAKE;
+		scb->flags &= ~SC_FL_DONT_WAKE;
+		/* we're stuck for now */
+		t->expire = TICK_ETERNITY;
+		goto leave;
 	}
 
 	/* 1b: check for low-level errors reported at the stream connector.
@@ -2551,7 +2540,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			stream_handle_timeouts(s);
 			goto resync_stconns;
 		}
-
+	leave:
 		s->pending_events &= ~(TASK_WOKEN_TIMER | TASK_WOKEN_RES);
 		stream_release_buffers(s);
 
