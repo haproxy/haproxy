@@ -32,6 +32,7 @@
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/dynbuf-t.h>
+#include <haproxy/global.h>
 #include <haproxy/pool.h>
 
 extern struct pool_head *pool_head_buffer;
@@ -67,6 +68,18 @@ static inline int b_may_alloc_for_crit(uint crit)
 	if (!(crit & DB_F_NOQUEUE) && th_ctx->bufq_map & ((2 << q) - 1))
 		return 0;
 
+	/* If the emergency buffers are too low, we won't try to allocate a
+	 * buffer either so that we speed up their release. As a corrolary, it
+	 * means that we're always allowed to try to fall back to an emergency
+	 * buffer if pool_alloc() fails. The minimum number of available
+	 * emergency buffers for an allocation depends on the queue:
+	 *  q == 0 -> 0%
+	 *  q == 1 -> 33%
+	 *  q == 2 -> 66%
+	 *  q == 3 -> 100%
+	 */
+	if (th_ctx->emergency_bufs_left * 3 < q * global.tune.reserved_bufs)
+		return 0;
 	return 1;
 }
 
@@ -100,8 +113,11 @@ static inline char *__b_get_emergency_buf(void)
 									\
 	if (!_retbuf->size) {						\
 		*_retbuf = BUF_WANTED;					\
-		if (b_may_alloc_for_crit(_criticality))			\
+		if (b_may_alloc_for_crit(_criticality)) {		\
 			_area = pool_alloc_flag(pool_head_buffer, POOL_F_NO_POISON | POOL_F_NO_FAIL); \
+			if (unlikely(!_area))				\
+				_area = __b_get_emergency_buf();	\
+		}							\
 		if (unlikely(!_area)) {					\
 			activity[tid].buf_wait++;			\
 			_retbuf = NULL;					\
