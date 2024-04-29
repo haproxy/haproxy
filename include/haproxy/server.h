@@ -181,7 +181,7 @@ static inline void srv_inc_sess_ctr(struct server *s)
 {
 	_HA_ATOMIC_INC(&s->counters.cum_sess);
 	HA_ATOMIC_UPDATE_MAX(&s->counters.sps_max,
-			     update_freq_ctr(&s->sess_per_sec, 1));
+	                     update_freq_ctr(&s->counters.sess_per_sec, 1));
 }
 
 /* set the time of last session on the designated server */

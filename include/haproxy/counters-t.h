@@ -23,6 +23,8 @@
 #ifndef _HAPROXY_COUNTERS_T_H
 #define _HAPROXY_COUNTERS_T_H
 
+#include <haproxy/freq_ctr-t.h>
+
 /* counters used by listeners and frontends */
 struct fe_counters {
 	unsigned int conn_max;                  /* max # of active sessions */
@@ -63,6 +65,10 @@ struct fe_counters {
 			long long cache_hits;   /* cache hits */
 		} http;
 	} p;                                    /* protocol-specific stats */
+
+	struct freq_ctr sess_per_sec;           /* sessions per second on this server */
+	struct freq_ctr req_per_sec;            /* HTTP requests per second on the frontend */
+	struct freq_ctr conn_per_sec;           /* received connections per second on the frontend */
 };
 
 /* counters used by servers and backends */
@@ -115,6 +121,8 @@ struct be_counters {
 			long long cache_hits;   /* cache hits */
 		} http;
 	} p;                                    /* protocol-specific stats */
+
+	struct freq_ctr sess_per_sec;           /* sessions per second on this server */
 };
 
 #endif /* _HAPROXY_COUNTERS_T_H */

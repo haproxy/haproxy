@@ -252,7 +252,7 @@ smp_fetch_fe_req_rate(const struct arg *args, struct sample *smp, const char *kw
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = read_freq_ctr(&px->fe_req_per_sec);
+	smp->data.u.sint = read_freq_ctr(&px->fe_counters.req_per_sec);
 	return 1;
 }
 
@@ -272,7 +272,7 @@ smp_fetch_fe_sess_rate(const struct arg *args, struct sample *smp, const char *k
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = read_freq_ctr(&px->fe_sess_per_sec);
+	smp->data.u.sint = read_freq_ctr(&px->fe_counters.sess_per_sec);
 	return 1;
 }
 

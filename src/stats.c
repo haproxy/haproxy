@@ -877,7 +877,7 @@ int stats_fill_fe_line(struct proxy *px, int flags, struct field *line, int len,
 				field = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_FE);
 				break;
 			case ST_I_PX_RATE:
-				field = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_sess_per_sec));
+				field = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_counters.sess_per_sec));
 				break;
 			case ST_I_PX_RATE_LIM:
 				field = mkf_u32(FO_CONFIG|FN_LIMIT, px->fe_sps_lim);
@@ -886,13 +886,13 @@ int stats_fill_fe_line(struct proxy *px, int flags, struct field *line, int len,
 				field = mkf_u32(FN_MAX, px->fe_counters.sps_max);
 				break;
 			case ST_I_PX_REQ_RATE:
-				field = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_req_per_sec));
+				field = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_counters.req_per_sec));
 				break;
 			case ST_I_PX_REQ_RATE_MAX:
 				field = mkf_u32(FN_MAX, px->fe_counters.p.http.rps_max);
 				break;
 			case ST_I_PX_CONN_RATE:
-				field = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_conn_per_sec));
+				field = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_counters.conn_per_sec));
 				break;
 			case ST_I_PX_CONN_RATE_MAX:
 				field = mkf_u32(FN_MAX, px->fe_counters.cps_max);
@@ -1364,7 +1364,7 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 				field = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SV);
 				break;
 			case ST_I_PX_RATE:
-				field = mkf_u32(FN_RATE, read_freq_ctr(&sv->sess_per_sec));
+				field = mkf_u32(FN_RATE, read_freq_ctr(&sv->counters.sess_per_sec));
 				break;
 			case ST_I_PX_RATE_MAX:
 				field = mkf_u32(FN_MAX, sv->counters.sps_max);
@@ -1710,7 +1710,7 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 				field = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_BE);
 				break;
 			case ST_I_PX_RATE:
-				field = mkf_u32(0, read_freq_ctr(&px->be_sess_per_sec));
+				field = mkf_u32(0, read_freq_ctr(&px->be_counters.sess_per_sec));
 				break;
 			case ST_I_PX_RATE_MAX:
 				field = mkf_u32(0, px->be_counters.sps_max);

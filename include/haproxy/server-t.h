@@ -31,7 +31,6 @@
 #include <haproxy/check-t.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/counters-t.h>
-#include <haproxy/freq_ctr-t.h>
 #include <haproxy/guid-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
@@ -366,7 +365,6 @@ struct server {
 	int cur_sess;				/* number of currently active sessions (including syn_sent) */
 	int served;				/* # of active sessions currently being served (ie not pending) */
 	int consecutive_errors;			/* current number of consecutive errors */
-	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
 	struct be_counters counters;		/* statistics counters */
 
 	/* Below are some relatively stable settings, only changed under the lock */

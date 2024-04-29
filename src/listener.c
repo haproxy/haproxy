@@ -1070,11 +1070,11 @@ void listener_accept(struct listener *l)
 	}
 #endif
 	if (p && p->fe_sps_lim) {
-		int max = freq_ctr_remain(&p->fe_sess_per_sec, p->fe_sps_lim, 0);
+		int max = freq_ctr_remain(&p->fe_counters.sess_per_sec, p->fe_sps_lim, 0);
 
 		if (unlikely(!max)) {
 			/* frontend accept rate limit was reached */
-			expire = tick_add(now_ms, next_event_delay(&p->fe_sess_per_sec, p->fe_sps_lim, 0));
+			expire = tick_add(now_ms, next_event_delay(&p->fe_counters.sess_per_sec, p->fe_sps_lim, 0));
 			goto limit_proxy;
 		}
 
@@ -1545,7 +1545,7 @@ void listener_accept(struct listener *l)
 		dequeue_all_listeners();
 
 		if (p && !MT_LIST_ISEMPTY(&p->listener_queue) &&
-		    (!p->fe_sps_lim || freq_ctr_remain(&p->fe_sess_per_sec, p->fe_sps_lim, 0) > 0))
+		    (!p->fe_sps_lim || freq_ctr_remain(&p->fe_counters.sess_per_sec, p->fe_sps_lim, 0) > 0))
 			dequeue_proxy_listeners(p);
 	}
 	return;
@@ -1604,14 +1604,14 @@ void listener_release(struct listener *l)
 	dequeue_all_listeners();
 
 	if (fe && !MT_LIST_ISEMPTY(&fe->listener_queue) &&
-	    (!fe->fe_sps_lim || freq_ctr_remain(&fe->fe_sess_per_sec, fe->fe_sps_lim, 0) > 0))
+	    (!fe->fe_sps_lim || freq_ctr_remain(&fe->fe_counters.sess_per_sec, fe->fe_sps_lim, 0) > 0))
 		dequeue_proxy_listeners(fe);
 	else {
 		unsigned int wait;
 		int expire = TICK_ETERNITY;
 
 		if (fe->task && fe->fe_sps_lim &&
-		    (wait = next_event_delay(&fe->fe_sess_per_sec,fe->fe_sps_lim, 0))) {
+		    (wait = next_event_delay(&fe->fe_counters.sess_per_sec,fe->fe_sps_lim, 0))) {
 			/* we're blocking because a limit was reached on the number of
 			 * requests/s on the frontend. We want to re-check ASAP, which
 			 * means in 1 ms before estimated expiration date, because the
