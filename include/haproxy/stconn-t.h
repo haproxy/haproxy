@@ -266,6 +266,24 @@ enum sc_state_bit {
 
 struct stconn;
 
+/* represent the abort code, enriched with contextual info:
+ *  - First 5 bits are used for the source (31 possible sources)
+ *  - other bits are reserved for now
+ */
+#define SE_ABRT_SRC_SHIFT 0
+#define SE_ABRT_SRC_MASK  0x0000001f
+
+#define SE_ABRT_SRC_MUX_PT    0x01 /* Code set by the PT mux */
+#define SE_ABRT_SRC_MUX_H1    0x02 /* Code set bu the H1 mux */
+#define SE_ABRT_SRC_MUX_H2    0x03 /* Code set bu the H2 mux */
+#define SE_ABRT_SRC_MUX_QUIC  0x04 /* Code set bu the QUIC/H3 mux */
+#define SE_ABRT_SRC_MUX_FCGI  0x05 /* Code set bu the FCGI mux */
+
+struct se_abort_info {
+	uint32_t info;
+	uint64_t code;
+};
+
 /* A Stream Endpoint Descriptor (sedesc) is the link between the stream
  * connector (ex. stconn) and the Stream Endpoint (mux or appctx).
  * It always exists for either of them, and binds them together. It also
@@ -296,6 +314,7 @@ struct sedesc {
 	struct stconn *sc;         /* the stream connector we're attached to, or NULL */
 	struct iobuf iobuf;        /* contains data forwarded by the other side and that must be sent by the stream endpoint */
 	unsigned int flags;        /* SE_FL_* */
+	struct se_abort_info abort_info; /* Info about abort, as reported by the endpoint and eventually enriched by the app level */
 	unsigned int lra;          /* the last read activity */
 	unsigned int fsb;          /* the first send blocked */
 	/* 4 bytes hole here */

@@ -4291,7 +4291,7 @@ static void h1_detach(struct sedesc *sd)
 	TRACE_LEAVE(H1_EV_STRM_END);
 }
 
-static void h1_shut(struct stconn *sc, enum se_shut_mode mode)
+static void h1_shut(struct stconn *sc, enum se_shut_mode mode, struct se_abort_info *reason)
 {
 	struct h1s *h1s = __sc_mux_strm(sc);
 	struct h1c *h1c;

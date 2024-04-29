@@ -3791,7 +3791,7 @@ struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned int state)
 	return NULL;
 }
 
-static void fcgi_shut(struct stconn *sc, enum se_shut_mode mode)
+static void fcgi_shut(struct stconn *sc, enum se_shut_mode mode, struct se_abort_info *reason)
 {
 	struct fcgi_strm *fstrm = __sc_mux_strm(sc);
 

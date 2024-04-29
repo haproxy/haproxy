@@ -100,6 +100,9 @@ void sedesc_init(struct sedesc *sedesc)
 	sedesc->xref.peer = NULL;
 	se_fl_setall(sedesc, SE_FL_NONE);
 
+	sedesc->abort_info.info = 0;
+	sedesc->abort_info.code = 0;
+
 	sedesc->iobuf.pipe = NULL;
 	sedesc->iobuf.buf = NULL;
 	sedesc->iobuf.offset = sedesc->iobuf.data = 0;
@@ -150,8 +153,20 @@ void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode)
 			flags |= (mode & SE_SHR_DRAIN) ? SE_FL_SHRD : SE_FL_SHRR;
 
 		if (flags) {
-			if (mux && mux->shut)
-				mux->shut(sedesc->sc, mode);
+			if (mux && mux->shut) {
+				struct se_abort_info *reason = NULL;
+				struct xref *peer = xref_get_peer_and_lock(&sedesc->xref);
+
+				if (peer) {
+					struct sedesc *sdo = container_of(peer, struct sedesc, xref);
+
+					reason = &sdo->abort_info;
+					xref_unlock(&sedesc->xref, peer);
+				}
+
+				mux->shut(sedesc->sc, mode, reason);
+
+			}
 			se_fl_set(sedesc, flags);
 		}
 	}
