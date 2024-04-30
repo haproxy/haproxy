@@ -4754,7 +4754,7 @@ httpclient.timeout.connect <timeout>
 3.12. Certificate Storage
 -------------------------
 
-HAProxy uses an internal storage mecanism to load and store certificates used
+HAProxy uses an internal storage mechanism to load and store certificates used
 in the configuration. This storage can be configured by using a "crt-store"
 section. It allows to configure certificate definitions and which files should
 be loaded in it. A certificate definition must be written before it is used
@@ -25767,7 +25767,7 @@ Flags are :
           as-is and '+E' option will be ignored.
           When combined with '+bin' option, it will directly generate raw
           binary CBOR payload. Be careful, because it will obviously generate
-          non-printable chars, thus it is mainly intented for use with
+          non-printable chars, thus it is mainly intended for use with
           set-var-fmt, rings and binary-capable log endpoints.
 
   Example:

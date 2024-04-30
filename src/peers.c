@@ -3291,7 +3291,7 @@ static void sync_peer_learn_state(struct peers *peers, struct peer *peer)
 	if (peer->learnstate != PEER_LR_ST_FINISHED)
 		return;
 
-	/* The learning process is now fnished */
+	/* The learning process is now finished */
 	if (peer->flags & PEER_F_LEARN_NOTUP2DATE) {
 		/* Partial resync */
 		flags |= (peer->local ? PEERS_F_DBG_RESYNC_LOCALPARTIAL : PEERS_F_DBG_RESYNC_REMOTEPARTIAL);

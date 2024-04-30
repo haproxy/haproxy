@@ -1026,7 +1026,7 @@ static int cli_io_handler_dump_stat_file(struct appctx *appctx)
 	struct show_stat_ctx *ctx = appctx->svcctx;
 	int ret;
 
-	/* Frontend and backend sides are ouputted separatedly on stats-file.
+	/* Frontend and backend sides are outputted separately on stats-file.
 	 * As such, use STAT_F_BOUND to restrict proxies looping over frontend
 	 * side first before first stats_dump_stat_to_buffer(). A second
 	 * iteration is conducted for backend side after.

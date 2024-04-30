@@ -769,7 +769,7 @@ static void mworker_reexec(int hardreload)
 	/* copy the program name */
 	next_argv[next_argc++] = old_argv[0];
 
-	/* we need to reintroduce /dev/null everytime */
+	/* we need to reintroduce /dev/null every time */
 	if (old_unixsocket && strcmp(old_unixsocket, "/dev/null") == 0)
 		x_off = 1;
 

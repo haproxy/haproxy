@@ -56,7 +56,7 @@ enum peer_learn_state {
 #define PEERS_F_RESYNC_LOCAL_FINISHED     0x00000001 /* Learn from local peer finished or no more needed */
 #define PEERS_F_RESYNC_REMOTE_FINISHED    0x00000002 /* Learn from remote peer finished or no more needed */
 #define PEERS_F_RESYNC_ASSIGN             0x00000004 /* A peer was assigned to learn our lesson */
-/* unsued 0x00000008..0x00080000 */
+/* unused 0x00000008..0x00080000 */
 #define PEERS_F_DBG_RESYNC_LOCALTIMEOUT   0x00100000 /* Timeout waiting for a full resync from a local node was experienced at lest once (for debugging purpose) */
 #define PEERS_F_DBG_RESYNC_REMOTETIMEOUT  0x00200000 /* Timeout waiting for a full resync from a remote node was experienced at lest once (for debugging purpose) */
 #define PEERS_F_DBG_RESYNC_LOCALABORT     0x00400000 /* Session aborted learning from a local node was experienced at lest once (for debugging purpose) */

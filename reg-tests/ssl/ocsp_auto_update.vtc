@@ -16,7 +16,7 @@
 #
 # The ocsp responder used in all the tests will be an openssl using the
 # certificate database in ocsp_update/index.txt. It will listen on port 12345
-# which was specified explicitely in the certificates used in the tests.
+# which was specified explicitly in the certificates used in the tests.
 # The synchronization will be based on the logs emitted by the OCSP update task
 # directly. When this log is created, we will know that the update was
 # effective and the updated OCSP response is loaded in the tree. So any

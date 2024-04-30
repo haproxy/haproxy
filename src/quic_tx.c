@@ -685,7 +685,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
  * specified via quic_enc_level <send_list> through their send_frms member. Set
  * <old_data> when reemitted duplicated data.
  *
-* Returns 1 on success else 0. Note that <send_list> will always be resetted
+* Returns 1 on success else 0. Note that <send_list> will always be reset
 * after qc_send() exit.
  */
 int qc_send(struct quic_conn *qc, int old_data, struct list *send_list)

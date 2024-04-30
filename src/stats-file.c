@@ -114,7 +114,7 @@ void stats_dump_file_header(int type, struct buffer *out)
  * using <st_tree> as prefilled proxy stats columns. If stats-file section is
  * unknown, only <domain> will be set to STFILE_DOMAIN_UNSET.
  *
- * Returns 0 on sucess. On fatal error, non-zero is returned and parsing shoud
+ * Returns 0 on success. On fatal error, non-zero is returned and parsing should
  * be interrupted.
  */
 static int parse_header_line(struct ist header, struct eb_root *st_tree,

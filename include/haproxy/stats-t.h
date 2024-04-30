@@ -551,7 +551,7 @@ enum stats_domain_px_cap {
 	STATS_PX_CAP_MASK = 0xff
 };
 
-/* Shorcut names for enum stats_domain_px_cap only for declaration convenience */
+/* Shortcut names for enum stats_domain_px_cap only for declaration convenience */
 #define STATS_PX_CAP_LFBS (STATS_PX_CAP_MASK)
 #define STATS_PX_CAP_LFB_ (STATS_PX_CAP_FE|STATS_PX_CAP_BE|STATS_PX_CAP_LI)
 #define STATS_PX_CAP_LF__ (STATS_PX_CAP_FE|STATS_PX_CAP_LI)

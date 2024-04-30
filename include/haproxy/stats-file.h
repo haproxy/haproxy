@@ -14,7 +14,7 @@ int stats_dump_fields_file(struct buffer *out,
 
 void stats_dump_file_header(int type, struct buffer *out);
 
-/* Maximun number of parsed stat column in a header line.
+/* Maximum number of parsed stat column in a header line.
  * Directly based on ST_I_PX_MAX, with value doubled to obtain compatibility
  * between haproxy adjacent versions.
  */
