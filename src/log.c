@@ -1814,24 +1814,28 @@ static inline void lf_buildctx_prepare(struct lf_buildctx *ctx,
                                        int g_options,
                                        const struct logformat_node *node)
 {
-	ctx->options = g_options;
-	ctx->typecast = SMP_T_SAME; /* default */
 	if (node) {
-		/* per-node options are only considered if not already set
-		 * globally
+		/* per-node encoding options cannot be disabled if already
+		 * enabled globally
 		 *
-		 * Also, ignore LOG_OPT_BIN since it is a global-only option
-		 *
-		 * Finally, ensure we don't mix encoding types, global setting
+		 * Also, ensure we don't mix encoding types, global setting
 		 * prevails over per-node one.
+		 *
+		 * Finally, ignore LOG_OPT_BIN since it is a global-only option
 		 */
-		if (g_options & LOG_OPT_ENCODE)
+		if (g_options & LOG_OPT_ENCODE) {
+			ctx->options = (g_options & LOG_OPT_ENCODE);
 			ctx->options |= (node->options & ~(LOG_OPT_BIN | LOG_OPT_ENCODE));
+		}
 		else
-			ctx->options |= (node->options & ~LOG_OPT_BIN);
+			ctx->options = (node->options & ~LOG_OPT_BIN);
 
 		/* consider node's typecast setting */
 		ctx->typecast = node->typecast;
+	}
+	else {
+		ctx->options = g_options;
+		ctx->typecast = SMP_T_SAME; /* default */
 	}
 
 	/* encoding is incompatible with HTTP option, so it is ignored
