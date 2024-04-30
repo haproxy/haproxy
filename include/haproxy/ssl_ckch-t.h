@@ -65,6 +65,7 @@ struct ckch_conf {
 	char *ocsp;
 	char *issuer;
 	char *sctl;
+	int ocsp_update_mode;
 };
 
 /*

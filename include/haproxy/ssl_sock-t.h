@@ -105,11 +105,9 @@ enum {
 };
 
 /* bind ocsp update mode */
-enum {
-	SSL_SOCK_OCSP_UPDATE_DFLT     = 0,
-	SSL_SOCK_OCSP_UPDATE_OFF      = 1,
-	SSL_SOCK_OCSP_UPDATE_ON       = 2,
-};
+#define	SSL_SOCK_OCSP_UPDATE_OFF   -1
+#define	SSL_SOCK_OCSP_UPDATE_DFLT   0
+#define	SSL_SOCK_OCSP_UPDATE_ON     1
 
 /* states of the CLI IO handler for 'set ssl cert' */
 enum {

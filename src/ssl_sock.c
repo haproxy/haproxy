@@ -1127,7 +1127,9 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_store 
 	char *err = NULL;
 	size_t path_len;
 	int inc_refcount_store = 0;
-	int enable_auto_update = 0;
+	int enable_auto_update = (store->conf.ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON) ||
+	                         (store->conf.ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_DFLT &&
+	                          global_ssl.ocsp_update.mode == SSL_SOCK_OCSP_UPDATE_ON);
 
 	x = data->cert;
 	if (!x)

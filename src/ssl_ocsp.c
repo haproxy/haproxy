@@ -1974,6 +1974,19 @@ static int ocsp_update_parse_global_http_proxy(char **args, int section_type, st
 	return 0;
 }
 
+int ocsp_update_init(void *value, char *buf, struct ckch_data *d, char **err)
+{
+	int ocsp_update_mode = *(int *)value;
+	int ret = 0;
+
+	if (ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON) {
+		/* We might need to create the main ocsp update task */
+		ret = ssl_create_ocsp_update_task(err);
+	}
+
+	return ret;
+}
+
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "ocsp-response", NULL }, "set ssl ocsp-response <resp|payload>       : update a certificate's OCSP Response from a base64-encode DER",      cli_parse_set_ocspresponse, NULL },
 

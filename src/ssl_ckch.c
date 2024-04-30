@@ -4032,6 +4032,7 @@ struct ckch_conf_kws ckch_conf_kws[] = {
 	{ "ocsp",   offsetof(struct ckch_conf, ocsp),   PARSE_TYPE_STR, ckch_conf_load_ocsp_response, &current_crtbase },
 	{ "issuer", offsetof(struct ckch_conf, issuer), PARSE_TYPE_STR, ckch_conf_load_ocsp_issuer,   &current_crtbase },
 	{ "sctl",   offsetof(struct ckch_conf, sctl),   PARSE_TYPE_STR, ckch_conf_load_sctl,          &current_crtbase },
+	{ "ocsp-update", offsetof(struct ckch_conf, ocsp_update_mode), PARSE_TYPE_ONOFF, ocsp_update_init, NULL   },
 	{ NULL,     -1,                                  PARSE_TYPE_STR, NULL,                                  NULL            }
 };
 
