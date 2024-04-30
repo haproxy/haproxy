@@ -323,6 +323,8 @@ enum mux_ctl_type {
 	MUX_CTL_REVERSE_CONN, /* Notify about an active reverse connection accepted. */
 	MUX_CTL_SUBS_RECV, /* Notify the mux it must wait for read events again  */
 	MUX_CTL_GET_GLITCHES, /* returns number of glitches on the connection */
+	MUX_CTL_GET_NBSTRM, /* Return the current number of streams on the connection */
+	MUX_CTL_GET_MAXSTRM, /* Return the max number of streams supported by the connection */
 };
 
 /* sctl command used by mux->sctl() */

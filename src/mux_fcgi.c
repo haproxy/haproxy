@@ -3089,7 +3089,9 @@ static int fcgi_wake(struct connection *conn)
 
 static int fcgi_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *output)
 {
+	struct fcgi_conn *fconn = conn->ctx;
 	int ret = 0;
+
 	switch (mux_ctl) {
 	case MUX_CTL_STATUS:
 		if (!(conn->flags & CO_FL_WAIT_XPRT))
@@ -3097,6 +3099,10 @@ static int fcgi_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *ou
 		return ret;
 	case MUX_CTL_EXIT_STATUS:
 		return MUX_ES_UNKNOWN;
+	case MUX_CTL_GET_NBSTRM:
+		return fconn->nb_streams;
+	case MUX_CTL_GET_MAXSTRM:
+		return fconn->streams_limit;
 	default:
 		return -1;
 	}

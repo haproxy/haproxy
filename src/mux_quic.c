@@ -3144,6 +3144,18 @@ static int qmux_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *ou
 	case MUX_CTL_EXIT_STATUS:
 		return MUX_ES_UNKNOWN;
 
+	case MUX_CTL_GET_NBSTRM: {
+		struct qcs *qcs;
+		unsigned int nb_strm = qcc->nb_sc;
+
+		list_for_each_entry(qcs, &qcc->opening_list, el_opening)
+			nb_strm++;
+		return nb_strm;
+	}
+
+	case MUX_CTL_GET_MAXSTRM:
+		return qcc->lfctl.ms_bidi_init;
+
 	default:
 		return -1;
 	}

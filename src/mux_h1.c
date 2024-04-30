@@ -5025,6 +5025,10 @@ static int h1_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 		if (!(h1c->wait_event.events & SUB_RETRY_RECV))
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 		return 0;
+	case MUX_CTL_GET_NBSTRM:
+		return h1_used_streams(conn);
+	case MUX_CTL_GET_MAXSTRM:
+		return 1;
 	default:
 		return -1;
 	}

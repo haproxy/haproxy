@@ -4729,6 +4729,12 @@ static int h2_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 	case MUX_CTL_GET_GLITCHES:
 		return h2c->glitches;
 
+	case MUX_CTL_GET_NBSTRM:
+		return h2c->nb_streams;
+
+	case MUX_CTL_GET_MAXSTRM:
+		return h2c->streams_limit;
+
 	default:
 		return -1;
 	}
