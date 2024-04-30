@@ -4166,7 +4166,7 @@ int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, c
 				if (strcmp(args[cur_arg + 1], "on") == 0) {
 					*t = 1;
 				} else if (strcmp(args[cur_arg + 1], "off") == 0) {
-					*t = 0;
+					*t = -1;
 				} else {
 					memprintf(err, "parsing [%s:%d] : cannot parse '%s' value '%s', 'on' or 'off' is expected.\n",
 					          file, linenum, args[cur_arg], args[cur_arg + 1]);
