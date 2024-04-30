@@ -62,14 +62,6 @@
 
 #define TRACE_SOURCE &trace_strm
 
-int be_lastsession(const struct proxy *be)
-{
-	if (be->be_counters.last_sess)
-		return ns_to_sec(now_ns) - be->be_counters.last_sess;
-
-	return -1;
-}
-
 /* helper function to invoke the correct hash method */
 unsigned int gen_hash(const struct proxy* px, const char* key, unsigned long len)
 {

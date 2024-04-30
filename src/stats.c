@@ -222,7 +222,7 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_BCK]                           = { .name = "bck",                         .desc = "Total number of backup UP servers with a non-zero weight" },
 	[ST_I_PX_CHKFAIL]       = ME_NEW_BE("chkfail",       FN_COUNTER, FF_U64, failed_checks,          STATS_PX_CAP____S, "Total number of failed individual health checks per server/backend, since the worker process started"),
 	[ST_I_PX_CHKDOWN]       = ME_NEW_BE("chkdown",       FN_COUNTER, FF_U64, down_trans,             STATS_PX_CAP___BS, "Total number of failed checks causing UP to DOWN server transitions, per server/backend, since the worker process started"),
-	[ST_I_PX_LASTCHG]                       = { .name = "lastchg",                     .desc = "How long ago the last server state changed, in seconds" },
+	[ST_I_PX_LASTCHG]       = ME_NEW_BE("lastchg",       FN_AGE,     FF_U32, last_change,            STATS_PX_CAP___BS, "How long ago the last server state changed, in seconds"),
 	[ST_I_PX_DOWNTIME]                      = { .name = "downtime",                    .desc = "Total time spent in DOWN state, for server or backend" },
 	[ST_I_PX_QLIMIT]                        = { .name = "qlimit",                      .desc = "Limit on the number of connections in queue, for servers only (maxqueue argument)" },
 	[ST_I_PX_PID]                           = { .name = "pid",                         .desc = "Relative worker process number (1)" },
@@ -255,7 +255,7 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_COMP_OUT]      = ME_NEW_PX("comp_out",      FN_COUNTER, FF_U64, comp_out[COMP_DIR_RES], STATS_PX_CAP__FB_, "Total number of bytes emitted by the HTTP compressor for this object since the worker process started"),
 	[ST_I_PX_COMP_BYP]      = ME_NEW_PX("comp_byp",      FN_COUNTER, FF_U64, comp_byp[COMP_DIR_RES], STATS_PX_CAP__FB_, "Total number of bytes that bypassed HTTP compression for this object since the worker process started (CPU/memory/bandwidth limitation)"),
 	[ST_I_PX_COMP_RSP]      = ME_NEW_PX("comp_rsp",      FN_COUNTER, FF_U64, p.http.comp_rsp,        STATS_PX_CAP__FB_, "Total number of HTTP responses that were compressed for this object since the worker process started"),
-	[ST_I_PX_LASTSESS]                      = { .name = "lastsess",                    .desc = "How long ago some traffic was seen on this object on this worker process, in seconds" },
+	[ST_I_PX_LASTSESS]      = ME_NEW_BE("lastsess",      FN_AGE,     FF_S32, last_sess,              STATS_PX_CAP___BS, "How long ago some traffic was seen on this object on this worker process, in seconds"),
 	[ST_I_PX_LAST_CHK]                      = { .name = "last_chk",                    .desc = "Short description of the latest health check report for this server (see also check_desc)" },
 	[ST_I_PX_LAST_AGT]                      = { .name = "last_agt",                    .desc = "Short description of the latest agent check report for this server (see also agent_desc)" },
 	[ST_I_PX_QTIME]                         = { .name = "qtime",                       .desc = "Time spent in the queue, in milliseconds, averaged over the 1024 last requests (backend/server)" },
@@ -716,6 +716,14 @@ static int stcol_hide(enum stat_idx_px idx, enum obj_type *objt)
 		while (ref->track)
 			ref = ref->track;
 		return !ref->observe;
+
+	case ST_I_PX_LASTSESS:
+		if (srv)
+			return !srv->counters.last_sess;
+		else if (px)
+			return !px->be_counters.last_sess;
+		else
+			return 0;
 
 	default:
 		return 0;
@@ -1335,9 +1343,6 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 
 				field = mkf_str(FO_STATUS, fld_status);
 				break;
-			case ST_I_PX_LASTCHG:
-				field = mkf_u32(FN_AGE, ns_to_sec(now_ns) - sv->counters.last_change);
-				break;
 			case ST_I_PX_WEIGHT:
 				field = mkf_u32(FN_AVG, (sv->cur_eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
 				break;
@@ -1469,9 +1474,6 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 			case ST_I_PX_AGENT_HEALTH:
 				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
 					field = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.health);
-				break;
-			case ST_I_PX_LASTSESS:
-				field = mkf_s32(FN_AGE, srv_lastsession(sv));
 				break;
 			case ST_I_PX_QTIME:
 				field = mkf_u32(FN_AVG, swrate_avg(sv->counters.q_time, srv_samples_window));
@@ -1708,9 +1710,6 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 			case ST_I_PX_BCK:
 				field = mkf_u32(0, px->srv_bck);
 				break;
-			case ST_I_PX_LASTCHG:
-				field = mkf_u32(FN_AGE, ns_to_sec(now_ns) - px->be_counters.last_change);
-				break;
 			case ST_I_PX_DOWNTIME:
 				if (px->srv)
 					field = mkf_u32(FN_COUNTER, be_downtime(px));
@@ -1737,9 +1736,6 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 			case ST_I_PX_ALGO:
 				if (flags & STAT_F_SHLGNDS)
 					field = mkf_str(FO_CONFIG|FS_SERVICE, backend_lb_algo_str(px->lbprm.algo & BE_LB_ALGO));
-				break;
-			case ST_I_PX_LASTSESS:
-				field = mkf_s32(FN_AGE, be_lastsession(px));
 				break;
 			case ST_I_PX_QTIME:
 				field = mkf_u32(FN_AVG, swrate_avg(px->be_counters.q_time, be_samples_window));

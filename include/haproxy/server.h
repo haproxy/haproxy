@@ -43,7 +43,6 @@ extern struct list servers_list;
 extern struct dict server_key_dict;
 
 int srv_downtime(const struct server *s);
-int srv_lastsession(const struct server *s);
 int srv_getinter(const struct check *check);
 void srv_settings_init(struct server *srv);
 void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl);

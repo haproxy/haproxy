@@ -59,7 +59,6 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit);
 int be_downtime(struct proxy *px);
 void recount_servers(struct proxy *px);
 void update_backend_weight(struct proxy *px);
-int be_lastsession(const struct proxy *be);
 
 /* Returns number of usable servers in backend */
 static inline int be_usable_srv(struct proxy *be)
