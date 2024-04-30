@@ -742,6 +742,8 @@ static struct field me_generate_field(const struct stat_col *col,
 	/* Only generic stat column must be used as input. */
 	BUG_ON(!stcol_is_generic(col));
 
+	fn = stcol_nature(col);
+
 	switch (cap) {
 	case STATS_PX_CAP_FE:
 	case STATS_PX_CAP_LI:
@@ -786,11 +788,17 @@ static struct field me_generate_field(const struct stat_col *col,
 	}
 	else {
 		/* Ensure metric is defined for the current cap. */
-		if (!(col->cap & cap) || stcol_hide(idx, objt))
+		if (!(col->cap & cap))
 			return (struct field){ .type = FF_EMPTY };
+
+		if (stcol_hide(idx, objt)) {
+			if (fn == FN_AGE)
+				return mkf_s32(FN_AGE, -1);
+			else
+				return (struct field){ .type = FF_EMPTY };
+		}
 	}
 
-	fn = stcol_nature(col);
 	if (fn == FN_COUNTER) {
 		switch (stcol_format(col)) {
 		case FF_U64:
@@ -805,6 +813,23 @@ static struct field me_generate_field(const struct stat_col *col,
 		/* freq-ctr always uses FF_U32 */
 		BUG_ON(stcol_format(col) != FF_U32);
 		value = mkf_u32(FN_RATE, read_freq_ctr(counter));
+	}
+	else if (fn == FN_AGE) {
+		unsigned long age = *(unsigned long *)counter;
+		if (age)
+			age = ns_to_sec(now_ns) - age;
+
+		switch (stcol_format(col)) {
+		case FF_U32:
+			value = mkf_u32(FN_AGE, age);
+			break;
+		case FF_S32:
+			value = mkf_s32(FN_AGE, age);
+			break;
+		default:
+			/* only FF_U32/FF+S32 for age as generic stat column */
+			ABORT_NOW();
+		}
 	}
 	else {
 		/* No generic column available for other field nature. */

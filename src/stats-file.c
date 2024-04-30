@@ -10,6 +10,7 @@
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
+#include <haproxy/clock.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/guid.h>
@@ -20,6 +21,7 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/stats.h>
+#include <haproxy/time.h>
 
 /* Dump all fields from <stats> into <out> for stats-file. */
 int stats_dump_fields_file(struct buffer *out,
@@ -211,6 +213,7 @@ static int load_ctr(const struct stat_col *col, const struct ist token,
 		value.u.u64 = read_uint64(&ptr, istend(token));
 		break;
 
+	case FF_S32:
 	case FF_U32:
 		value.u.u32 = read_uint(&ptr, istend(token));
 		break;
@@ -229,6 +232,9 @@ static int load_ctr(const struct stat_col *col, const struct ist token,
 	}
 	else if (fn == FN_RATE && ff == FF_U32) {
 		preload_freq_ctr(counter, value.u.u32);
+	}
+	else if (fn == FN_AGE && (ff == FF_U32 || ff == FF_S32)) {
+		*(uint32_t *)counter = ns_to_sec(now_ns) - value.u.u32;
 	}
 	else {
 		/* Unsupported field format/nature combination. */
