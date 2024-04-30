@@ -1106,8 +1106,9 @@ static int tlskeys_finalize_config(void)
  * Returns 1 if no ".ocsp" file found, 0 if OCSP status extension is
  * successfully enabled, or -1 in other error case.
  */
-static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *data, STACK_OF(X509) *chain)
+static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_store *store, STACK_OF(X509) *chain)
 {
+	struct ckch_data *data = store->data;
 	X509 *x, *issuer;
 	int i, ret = -1;
 	struct certificate_ocsp *ocsp = NULL, *iocsp;
@@ -3313,9 +3314,10 @@ end:
  * The value 0 means there is no error nor warning and
  * the operation succeed.
  */
-static int ssl_sock_put_ckch_into_ctx(const char *path, struct ckch_data *data, SSL_CTX *ctx, char **err)
+static int ssl_sock_put_ckch_into_ctx(const char *path, struct ckch_store *store, SSL_CTX *ctx, char **err)
 {
 	int errcode = 0;
+	struct ckch_data *data = store->data;
 	STACK_OF(X509) *find_chain = NULL;
 
 	ERR_clear_error();
@@ -3367,7 +3369,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, struct ckch_data *data, 
 	 * ocsp tree even if no ocsp_response was known during init, unless the
 	 * frontend's conf disables ocsp update explicitly.
 	 */
-	if (ssl_sock_load_ocsp(path, ctx, data, find_chain) < 0) {
+	if (ssl_sock_load_ocsp(path, ctx, store, find_chain) < 0) {
 		if (data->ocsp_response)
 			memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
 				  err && *err ? *err : "", path);
@@ -3466,7 +3468,7 @@ int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct 
 	if (global_ssl.security_level > -1)
 		SSL_CTX_set_security_level(ctx, global_ssl.security_level);
 
-	errcode |= ssl_sock_put_ckch_into_ctx(path, data, ctx, err);
+	errcode |= ssl_sock_put_ckch_into_ctx(path, ckchs, ctx, err);
 	if (errcode & ERR_CODE)
 		goto error;
 
