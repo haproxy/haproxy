@@ -361,7 +361,6 @@ struct proxy {
 	unsigned int retry_type;                /* Type of retry allowed */
 	int redispatch_after;			/* number of retries before redispatch */
 	unsigned down_time;			/* total time the proxy was down */
-	time_t last_change;			/* last time, when the state was changed */
 	int (*accept)(struct stream *s);       /* application layer's accept() */
 	struct conn_src conn_src;               /* connection source settings */
 	enum obj_type *default_target;		/* default target to use for accepted streams or NULL */

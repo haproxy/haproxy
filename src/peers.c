@@ -3219,7 +3219,7 @@ static void peer_session_forceshutdown(struct peer *peer)
 /* Pre-configures a peers frontend to accept incoming connections */
 void peers_setup_frontend(struct proxy *fe)
 {
-	fe->last_change = ns_to_sec(now_ns);
+	fe->fe_counters.last_change = ns_to_sec(now_ns);
 	fe->cap = PR_CAP_FE | PR_CAP_BE;
 	fe->mode = PR_MODE_PEERS;
 	fe->maxconn = 0;

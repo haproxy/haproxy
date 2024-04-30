@@ -1311,7 +1311,7 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 				field = mkf_str(FO_STATUS, fld_status);
 				break;
 			case ST_I_PX_LASTCHG:
-				field = mkf_u32(FN_AGE, ns_to_sec(now_ns) - sv->last_change);
+				field = mkf_u32(FN_AGE, ns_to_sec(now_ns) - sv->counters.last_change);
 				break;
 			case ST_I_PX_WEIGHT:
 				field = mkf_u32(FN_AVG, (sv->cur_eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
@@ -1684,7 +1684,7 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 				field = mkf_u32(0, px->srv_bck);
 				break;
 			case ST_I_PX_LASTCHG:
-				field = mkf_u32(FN_AGE, ns_to_sec(now_ns) - px->last_change);
+				field = mkf_u32(FN_AGE, ns_to_sec(now_ns) - px->be_counters.last_change);
 				break;
 			case ST_I_PX_DOWNTIME:
 				if (px->srv)

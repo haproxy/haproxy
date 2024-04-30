@@ -69,6 +69,8 @@ struct fe_counters {
 	struct freq_ctr sess_per_sec;           /* sessions per second on this server */
 	struct freq_ctr req_per_sec;            /* HTTP requests per second on the frontend */
 	struct freq_ctr conn_per_sec;           /* received connections per second on the frontend */
+
+	unsigned long last_change;              /* last time, when the state was changed */
 };
 
 /* counters used by servers and backends */
@@ -76,7 +78,6 @@ struct be_counters {
 	unsigned int conn_max;                  /* max # of active sessions */
 	long long    cum_sess;                  /* cumulated number of accepted connections */
 	long long  cum_lbconn;                  /* cumulated number of sessions processed by load balancing (BE only) */
-	unsigned long last_sess;                /* last session time */
 
 	unsigned int cps_max;                   /* maximum of new connections received per second */
 	unsigned int sps_max;                   /* maximum of new connections accepted per second (sessions) */
@@ -123,6 +124,9 @@ struct be_counters {
 	} p;                                    /* protocol-specific stats */
 
 	struct freq_ctr sess_per_sec;           /* sessions per second on this server */
+
+	unsigned long last_sess;                /* last session time */
+	unsigned long last_change;              /* last time, when the state was changed */
 };
 
 #endif /* _HAPROXY_COUNTERS_T_H */

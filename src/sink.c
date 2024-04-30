@@ -332,7 +332,7 @@ static int cli_parse_show_events(char **args, char *payload, struct appctx *appc
 /* Pre-configures a ring proxy to emit connections */
 void sink_setup_proxy(struct proxy *px)
 {
-	px->last_change = ns_to_sec(now_ns);
+	px->be_counters.last_change = ns_to_sec(now_ns);
 	px->cap = PR_CAP_BE;
 	px->maxconn = 0;
 	px->conn_retries = 1;

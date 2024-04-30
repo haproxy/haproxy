@@ -381,7 +381,6 @@ struct server {
 	struct xprt_ops *xprt;                  /* transport-layer operations */
 	unsigned int svc_port;                  /* the port to connect to (for relevant families) */
 	unsigned down_time;			/* total time the server was down */
-	time_t last_change;			/* last time, when the state was changed */
 
 	int puid;				/* proxy-unique server ID, used for SNMP, and "first" LB algo */
 	int tcp_ut;                             /* for TCP, user timeout */

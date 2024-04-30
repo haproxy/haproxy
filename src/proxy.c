@@ -1570,6 +1570,7 @@ void proxy_unref_defaults(struct proxy *px)
  */
 struct proxy *alloc_new_proxy(const char *name, unsigned int cap, char **errmsg)
 {
+	uint last_change;
 	struct proxy *curproxy;
 
 	if ((curproxy = calloc(1, sizeof(*curproxy))) == NULL) {
@@ -1578,7 +1579,13 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, char **errmsg)
 	}
 
 	init_new_proxy(curproxy);
-	curproxy->last_change = ns_to_sec(now_ns);
+
+	last_change = ns_to_sec(now_ns);
+	if (cap & PR_CAP_FE)
+		curproxy->fe_counters.last_change = last_change;
+	if (cap & PR_CAP_BE)
+		curproxy->be_counters.last_change = last_change;
+
 	curproxy->id = strdup(name);
 	curproxy->cap = cap;
 
@@ -2723,7 +2730,7 @@ static int dump_servers_state(struct appctx *appctx)
 		dump_server_addr(&srv->check.addr, srv_check_addr);
 		dump_server_addr(&srv->agent.addr, srv_agent_addr);
 
-		srv_time_since_last_change = ns_to_sec(now_ns) - srv->last_change;
+		srv_time_since_last_change = ns_to_sec(now_ns) - srv->counters.last_change;
 		bk_f_forced_id = px->options & PR_O_FORCED_ID ? 1 : 0;
 		srv_f_forced_id = srv->flags & SRV_F_FORCED_ID ? 1 : 0;
 

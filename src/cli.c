@@ -455,7 +455,7 @@ static struct proxy *cli_alloc_fe(const char *name, const char *file, int line)
 	init_new_proxy(fe);
 	fe->next = proxies_list;
 	proxies_list = fe;
-	fe->last_change = ns_to_sec(now_ns);
+	fe->fe_counters.last_change = ns_to_sec(now_ns);
 	fe->id = strdup("GLOBAL");
 	fe->cap = PR_CAP_FE|PR_CAP_INT;
 	fe->maxconn = 10;                 /* default to 10 concurrent connections */

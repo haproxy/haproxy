@@ -3014,7 +3014,7 @@ spoe_init(struct proxy *px, struct flt_conf *fconf)
 
 	/* conf->agent_fe was already initialized during the config
 	 * parsing. Finish initialization. */
-        conf->agent_fe.last_change = ns_to_sec(now_ns);
+        conf->agent_fe.fe_counters.last_change = ns_to_sec(now_ns);
         conf->agent_fe.cap = PR_CAP_FE;
         conf->agent_fe.mode = PR_MODE_TCP;
         conf->agent_fe.maxconn = 0;
