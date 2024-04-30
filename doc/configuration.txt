@@ -21366,9 +21366,11 @@ bc_err                                             integer
 bc_err_str                                         string
 bc_glitches                                        integer
 bc_http_major                                      integer
+bc_nb_streams                                      integer
 bc_src                                             ip
 bc_src_port                                        integer
 bc_srv_queue                                       integer
+bc_settings_streams_limit                          integer
 be_id                                              integer
 be_name                                            string
 bc_rtt(<unit>)                                     integer
@@ -21395,6 +21397,7 @@ fc_fackets                                         integer
 fc_glitches                                        integer
 fc_http_major                                      integer
 fc_lost                                            integer
+fc_nb_streams                                      integer
 fc_pp_authority                                    string
 fc_pp_unique_id                                    string
 fc_pp_tlv(<id>)                                    string
@@ -21407,6 +21410,7 @@ fc_sacked                                          integer
 fc_src                                             ip
 fc_src_is_local                                    boolean
 fc_src_port                                        integer
+fc_settings_streams_limit                          integer
 fc_unacked                                         integer
 fe_defbe                                           string
 fe_id                                              integer
@@ -21639,6 +21643,9 @@ bc_http_major : integer
   for HTTP/0.9 to HTTP/1.1 or 2 for HTTP/2. Note, this is based on the on-wire
   encoding and not the version present in the request header.
 
+bc_nb_streams : integer
+  Returns the number of streams opened on the backend connection.
+
 bc_src : ip
   This is the source ip address of the connection on the server side, which is
   the server address HAProxy connected from. It is of type IP and works on both
@@ -21652,6 +21659,11 @@ bc_src_port : integer
 bc_srv_queue : integer
   Number of streams de-queued while waiting for a connection slot on the
   target server. This is the equivalent of %sq in the log-format.
+
+bc_settings_streams_limit : integer
+  Returns the maximum number of streams allowed on the backend connection. For
+  TCP and HTTP/1.1 connections, it is always 1. For other protocols, it depends
+  on the settings negociated with the server.
 
 be_id : integer
   Returns an integer containing the current backend's id. It can be used in
@@ -21877,6 +21889,9 @@ fc_lost : integer
   not TCP or if the operating system does not support TCP_INFO, for example
   Linux kernels before 2.4, the sample fetch fails.
 
+fc_nb_streams : integer
+  Returns the number of streams opened on the frontend connection.
+
 fc_pp_authority : string
   Returns the first authority TLV sent by the client in the PROXY protocol
   header, if any.
@@ -21962,6 +21977,10 @@ fc_src_port : integer
   connection on the client side. Only "tcp-request connection" rules may alter
   this address. See "src-port" for details.
 
+fc_settings_streams_limit : integer
+  Returns the maximum number of streams allowed on the frontend connection. For
+  TCP and HTTP/1.1 connections, it is always 1. For other protocols, it depends
+  on the settings negociated with the client.
 
 fc_unacked : integer
   Returns the unacked counter measured by the kernel for the client connection.

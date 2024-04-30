@@ -2529,6 +2529,59 @@ int smp_fetch_fc_err_str(const struct arg *args, struct sample *smp, const char 
 	return 1;
 }
 
+
+/* fetch the current number of streams opened for a connection */
+int smp_fetch_fc_nb_streams(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+	unsigned int nb_strm;
+
+	conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) : smp->strm ? sc_conn(smp->strm->scb) : NULL;
+
+	if (!conn)
+		return 0;
+
+	if (!conn->mux || !conn->mux->ctl) {
+		if (!conn->mux)
+			smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	nb_strm = conn->mux->ctl(conn, MUX_CTL_GET_NBSTRM, NULL);
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = nb_strm;
+
+	return 1;
+}
+
+/* fetch the maximum number of streams supported by a connection */
+int smp_fetch_fc_streams_limit(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+	unsigned int strm_limit;
+
+	conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) : smp->strm ? sc_conn(smp->strm->scb) : NULL;
+
+	if (!conn)
+		return 0;
+
+	if (!conn->mux || !conn->mux->ctl) {
+		if (!conn->mux)
+			smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	strm_limit = conn->mux->ctl(conn, MUX_CTL_GET_MAXSTRM, NULL);
+
+	smp->flags = 0;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = strm_limit;
+
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Note: fetches that may return multiple types should be declared using the
  * appropriate pseudo-type. If not available it must be declared as the lowest
@@ -2539,14 +2592,18 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "bc_err_str", smp_fetch_fc_err_str, 0, NULL, SMP_T_STR, SMP_USE_L4SRV },
 	{ "bc_glitches", smp_fetch_fc_glitches, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
 	{ "bc_http_major", smp_fetch_fc_http_major, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
+	{ "bc_nb_streams", smp_fetch_fc_nb_streams, 0, NULL, SMP_T_SINT, SMP_USE_L5SRV },
+	{ "bc_setting_streams_limit", smp_fetch_fc_streams_limit, 0, NULL, SMP_T_SINT, SMP_USE_L5SRV },
 	{ "fc_err", smp_fetch_fc_err, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "fc_err_str", smp_fetch_fc_err_str, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
 	{ "fc_glitches", smp_fetch_fc_glitches, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "fc_http_major", smp_fetch_fc_http_major, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "fc_rcvd_proxy", smp_fetch_fc_rcvd_proxy, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
+	{ "fc_nb_streams", smp_fetch_fc_nb_streams, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "fc_pp_authority", smp_fetch_fc_pp_authority, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
 	{ "fc_pp_unique_id", smp_fetch_fc_pp_unique_id, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
-	{ "fc_pp_tlv", smp_fetch_fc_pp_tlv, ARG1(1, STR), smp_check_tlv_type, SMP_T_STR, SMP_USE_L4CLI },
+	{ "fc_pp_tlv", smp_fetch_fc_pp_tlv, ARG1(1, STR), smp_check_tlv_type, SMP_T_STR, SMP_USE_L5CLI },
+	{ "fc_settings_streams_limit", smp_fetch_fc_streams_limit, 0, NULL, SMP_T_SINT, SMP_USE_L5CLI },
 	{ /* END */ },
 }};
 
