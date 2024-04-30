@@ -2812,6 +2812,10 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 
 	if (h2s_sc(h2s)) {
 		se_fl_set_error(h2s->sd);
+		if (!h2s->sd->abort_info.info) {
+			h2s->sd->abort_info.info = (SE_ABRT_SRC_MUX_H2 << SE_ABRT_SRC_SHIFT);
+			h2s->sd->abort_info.code = h2s->errcode;
+		}
 		h2s_alert(h2s);
 	}
 
@@ -4888,7 +4892,7 @@ static void h2_detach(struct sedesc *sd)
 }
 
 /* Performs a synchronous or asynchronous shutr(). */
-static void h2_do_shutr(struct h2s *h2s)
+static void h2_do_shutr(struct h2s *h2s, struct se_abort_info *reason)
 {
 	struct h2c *h2c = h2s->h2c;
 
