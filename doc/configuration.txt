@@ -1290,7 +1290,7 @@ The following keywords are supported in the "global" section :
    - nbthread
    - node
    - numa-cpu-mapping
-   - ocsp_update.http_proxy
+   - ocsp-update.httpproxy
    - pidfile
    - pp2-never-send-local
    - presetenv
@@ -2169,7 +2169,7 @@ numa-cpu-mapping
   already specified, for example via the 'cpu-map' directive or the taskset
   utility.
 
-ocsp_update.http_proxy <address>[:port]
+ocsp-update.httpproxy <address>[:port]
   Allow to use an HTTP proxy for the OCSP updates. This only works with HTTP,
   HTTPS is not supported. This option will allow the OCSP updater to send
   absolute URI in the request to the proxy.

@@ -2025,7 +2025,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.ssl.ocsp-update.maxdelay", ssl_parse_global_ocsp_maxdelay },
 	{ CFG_GLOBAL, "tune.ssl.ocsp-update.mindelay", ssl_parse_global_ocsp_mindelay },
 	{ CFG_GLOBAL, "tune.ssl.ocsp-update.mode", ssl_parse_global_ocsp_update_mode },
-	{ CFG_GLOBAL, "ocsp_update.http_proxy", ocsp_update_parse_global_http_proxy },
+	{ CFG_GLOBAL, "ocsp-update.httpproxy", ocsp_update_parse_global_http_proxy },
 #endif
 	{ 0, NULL, NULL },
 }};
