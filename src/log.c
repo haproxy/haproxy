@@ -887,6 +887,58 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy,
 	return 0;
 }
 
+/* automatically resolves incompatible LOG_OPT options by taking into
+ * account current options and global options
+ */
+static inline void _lf_expr_postcheck_node_opt(int *options, int g_options)
+{
+	/* encoding is incompatible with HTTP option, so it is ignored
+	 * if HTTP option is set, unless HTTP option wasn't set globally
+	 * and encoding was set globally, which means encoding takes the
+	 * precedence>
+	 */
+	if (*options & LOG_OPT_HTTP) {
+		if ((g_options & (LOG_OPT_HTTP | LOG_OPT_ENCODE)) == LOG_OPT_ENCODE) {
+			/* global encoding enabled and http enabled individually */
+			*options &= ~LOG_OPT_HTTP;
+		}
+		else
+			*options &= ~LOG_OPT_ENCODE;
+	}
+
+	if (*options & LOG_OPT_ENCODE) {
+		/* when encoding is set, ignore +E option */
+		*options &= ~LOG_OPT_ESC;
+	}
+}
+
+/* Performs LOG_OPT postparsing check on logformat node <node> belonging to a
+ * given logformat expression <lf_expr>
+ *
+ * It returns 1 on success and 0 on error, <err> will be set in case of error
+ */
+static int lf_expr_postcheck_node_opt(struct lf_expr *lf_expr, struct logformat_node *node, char **err)
+{
+	/* per-node encoding options cannot be disabled if already
+	 * enabled globally
+	 *
+	 * Also, ensure we don't mix encoding types, global setting
+	 * prevails over per-node one.
+	 *
+	 * Finally, ignore LOG_OPT_BIN since it is a global-only option
+	 */
+	if (lf_expr->nodes.options & LOG_OPT_ENCODE) {
+		node->options &= ~(LOG_OPT_BIN | LOG_OPT_ENCODE);
+		node->options |= (lf_expr->nodes.options & LOG_OPT_ENCODE);
+	}
+	else
+		node->options &= ~LOG_OPT_BIN;
+
+	_lf_expr_postcheck_node_opt(&node->options, lf_expr->nodes.options);
+
+	return 1;
+}
+
 /* Performs a postparsing check on logformat expression <expr> for a given <px>
  * proxy. The function will behave differently depending on the proxy state
  * (during parsing we will try to adapt proxy configuration to make it
@@ -902,6 +954,9 @@ int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err)
 	if (!(px->flags & PR_FL_CHECKED))
 		px->to_log |= LW_INIT;
 
+	/* postcheck global node options */
+	_lf_expr_postcheck_node_opt(&lf_expr->nodes.options, LOG_OPT_NONE);
+
 	list_for_each_entry(lf, &lf_expr->nodes.list, list) {
 		if (lf->type == LOG_FMT_EXPR) {
 			struct sample_expr *expr = lf->expr;
@@ -914,7 +969,7 @@ int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err)
 					          expr->fetch->kw);
 					goto fail;
 				}
-				continue;
+				goto next_node;
 			}
 			/* check if we need to allocate an http_txn struct for HTTP parsing */
 			/* Note, we may also need to set curpx->to_log with certain fetches */
@@ -943,6 +998,10 @@ int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err)
 			if (!(px->flags & PR_FL_CHECKED))
 				px->to_log |= lf->tag->lw;
 		}
+ next_node:
+		/* postcheck individual node's options */
+		if (!lf_expr_postcheck_node_opt(lf_expr, lf, err))
+			goto fail;
 	}
 	if ((px->to_log & (LW_REQ | LW_RESP)) &&
 	    (px->mode != PR_MODE_HTTP && !(px->options & PR_O_HTTP_UPG))) {
@@ -1819,22 +1878,8 @@ static inline void lf_buildctx_prepare(struct lf_buildctx *ctx,
                                        const struct logformat_node *node)
 {
 	if (node) {
-		/* per-node encoding options cannot be disabled if already
-		 * enabled globally
-		 *
-		 * Also, ensure we don't mix encoding types, global setting
-		 * prevails over per-node one.
-		 *
-		 * Finally, ignore LOG_OPT_BIN since it is a global-only option
-		 */
-		if (g_options & LOG_OPT_ENCODE) {
-			ctx->options = (g_options & LOG_OPT_ENCODE);
-			ctx->options |= (node->options & ~(LOG_OPT_BIN | LOG_OPT_ENCODE));
-		}
-		else
-			ctx->options = (node->options & ~LOG_OPT_BIN);
-
-		/* consider node's typecast setting */
+		/* consider node's options and typecast setting */
+		ctx->options = node->options;
 		ctx->typecast = node->typecast;
 	}
 	else {
@@ -1842,21 +1887,10 @@ static inline void lf_buildctx_prepare(struct lf_buildctx *ctx,
 		ctx->typecast = SMP_T_SAME; /* default */
 	}
 
-	/* encoding is incompatible with HTTP option, so it is ignored
-	 * if HTTP option is set
-	 */
-	if (ctx->options & LOG_OPT_HTTP)
-		ctx->options &= ~LOG_OPT_ENCODE;
-
-	if (ctx->options & LOG_OPT_ENCODE) {
-		/* when encoding is set, ignore +E option */
-		ctx->options &= ~LOG_OPT_ESC;
-
-		if (ctx->options & LOG_OPT_ENCODE_CBOR) {
-			/* prepare cbor-specific encode ctx */
-			ctx->encode.cbor.e_fct_byte = _lf_cbor_encode_byte;
-			ctx->encode.cbor.e_fct_ctx = ctx;
-		}
+	if (ctx->options & LOG_OPT_ENCODE_CBOR) {
+		/* prepare cbor-specific encode ctx */
+		ctx->encode.cbor.e_fct_byte = _lf_cbor_encode_byte;
+		ctx->encode.cbor.e_fct_ctx = ctx;
 	}
 }
 
