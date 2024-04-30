@@ -174,10 +174,6 @@ struct logformat_node {
 	const struct logformat_tag *tag; // set if ->type == LOG_FMT_TAG
 };
 
-/* returns true if the node options may be set (according to it's type) */
-#define LF_NODE_WITH_OPT(node) \
-  (node->type == LOG_FMT_EXPR || node->type == LOG_FMT_TAG)
-
 enum lf_expr_flags {
 	LF_FL_NONE     = 0x00,
 	LF_FL_COMPILED = 0x01

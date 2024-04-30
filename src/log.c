@@ -3644,15 +3644,42 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		struct sample *key;
 		const struct buffer empty = { };
 
+		/* first start with basic types (use continue statement to skip
+		 * the current node)
+		 */
+		if (tmp->type == LOG_FMT_SEPARATOR) {
+			if (g_options & LOG_OPT_ENCODE) {
+				/* ignored when global encoding is set */
+				continue;
+			}
+			if (!last_isspace) {
+				LOGCHAR(' ');
+				last_isspace = 1;
+			}
+			continue;
+		}
+		else if (tmp->type == LOG_FMT_TEXT) {
+			/* text */
+			if (g_options & LOG_OPT_ENCODE) {
+				/* ignored when global encoding is set */
+				continue;
+			}
+			src = tmp->arg;
+			iret = strlcpy2(tmplog, src, dst + maxsize - tmplog);
+			if (iret == 0)
+				goto out;
+			tmplog += iret;
+			last_isspace = 0; /* data was written */
+			continue;
+		}
+
+		/* dynamic types handling (use "goto next_fmt" statement to skip
+		 * the current node)
+		 */
+
 		if (g_options & LOG_OPT_ENCODE) {
 			/* only consider global ctx for key encoding */
 			lf_buildctx_prepare(&ctx, g_options, NULL);
-
-			/* types that cannot be named such as text or separator are ignored
-			 * when encoding is set
-			 */
-			if (!LF_NODE_WITH_OPT(tmp))
-				goto next_fmt;
 
 			if (!tmp->name)
 				goto next_fmt; /* cannot represent anonymous field, ignore */
@@ -3692,107 +3719,88 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		 */
 		lf_buildctx_prepare(&ctx, g_options, tmp);
 
-		switch (tmp->type) {
-			case LOG_FMT_SEPARATOR:
-				if (!last_isspace) {
-					LOGCHAR(' ');
-					last_isspace = 1;
-				}
-				break;
+		if (tmp->type == LOG_FMT_EXPR) {
+			/* sample expression, may be request or response */
+			int type;
 
-			case LOG_FMT_TEXT: // text
-				src = tmp->arg;
-				iret = strlcpy2(tmplog, src, dst + maxsize - tmplog);
-				if (iret == 0)
-					goto out;
-				tmplog += iret;
-				break;
+			key = NULL;
+			if (ctx.options & LOG_OPT_REQ_CAP)
+				key = sample_process(be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, tmp->expr, NULL);
 
-			case LOG_FMT_EXPR: // sample expression, may be request or response
-			{
-				int type;
+			if (!key && (ctx.options & LOG_OPT_RES_CAP))
+				key = sample_process(be, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, tmp->expr, NULL);
 
-				key = NULL;
-				if (ctx.options & LOG_OPT_REQ_CAP)
-					key = sample_process(be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, tmp->expr, NULL);
+			if (!key && !(ctx.options & (LOG_OPT_REQ_CAP|LOG_OPT_RES_CAP))) // cfg, cli
+				key = sample_process(be, sess, s, SMP_OPT_FINAL, tmp->expr, NULL);
 
-				if (!key && (ctx.options & LOG_OPT_RES_CAP))
-					key = sample_process(be, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, tmp->expr, NULL);
+			type = SMP_T_STR; // default
 
-				if (!key && !(ctx.options & (LOG_OPT_REQ_CAP|LOG_OPT_RES_CAP))) // cfg, cli
-					key = sample_process(be, sess, s, SMP_OPT_FINAL, tmp->expr, NULL);
-
-				type = SMP_T_STR; // default
-
-				if (key && key->data.type == SMP_T_BIN &&
-				    (ctx.options & LOG_OPT_BIN)) {
-					/* output type is binary, and binary option is set:
-					 * preserve output type unless typecast is set to
-					 * force output type to string
-					 */
-					if (ctx.typecast != SMP_T_STR)
-						type = SMP_T_BIN;
-				}
-
-				/* if encoding is set, try to preserve output type
-				 * with respect to typecast settings
-				 * (ie: str, sint, bool)
-				 *
-				 * Special case for cbor encoding: we also try to
-				 * preserve bin output type since cbor encoders
-				 * know how to deal with binary data.
+			if (key && key->data.type == SMP_T_BIN &&
+			    (ctx.options & LOG_OPT_BIN)) {
+				/* output type is binary, and binary option is set:
+				 * preserve output type unless typecast is set to
+				 * force output type to string
 				 */
-				if (ctx.options & LOG_OPT_ENCODE) {
-					if (ctx.typecast == SMP_T_STR ||
-					    ctx.typecast == SMP_T_SINT ||
-					    ctx.typecast == SMP_T_BOOL) {
-						/* enforce type */
-						type = ctx.typecast;
-					}
-					else if (key &&
-					         (key->data.type == SMP_T_SINT ||
-					          key->data.type == SMP_T_BOOL ||
-					          ((ctx.options & LOG_OPT_ENCODE_CBOR) &&
-					           key->data.type == SMP_T_BIN))) {
-						/* preserve type */
-						type = key->data.type;
-					}
-				}
-
-				if (key && !sample_convert(key, type))
-					key = NULL;
-
-				if (ctx.options & LOG_OPT_HTTP)
-					ret = lf_encode_chunk(tmplog, dst + maxsize,
-					                      '%', http_encode_map, key ? &key->data.u.str : &empty, &ctx);
-				else {
-					if (key && type == SMP_T_BIN)
-						ret = lf_encode_chunk(tmplog, dst + maxsize,
-						                      0, no_escape_map,
-						                      &key->data.u.str,
-						                      &ctx);
-					else if (key && type == SMP_T_SINT)
-						ret = lf_int_encode(tmplog, dst + maxsize - tmplog,
-						                    key->data.u.sint, &ctx);
-					else if (key && type == SMP_T_BOOL)
-						ret = lf_bool_encode(tmplog, dst + maxsize - tmplog,
-						                     key->data.u.sint, &ctx);
-					else
-						ret = lf_text_len(tmplog,
-						                  key ? key->data.u.str.area : NULL,
-						                  key ? key->data.u.str.data : 0,
-						                  dst + maxsize - tmplog,
-						                  &ctx);
-				}
-				if (ret == NULL)
-					goto out;
-				tmplog = ret;
-				break;
+				if (ctx.typecast != SMP_T_STR)
+					type = SMP_T_BIN;
 			}
+
+			/* if encoding is set, try to preserve output type
+			 * with respect to typecast settings
+			 * (ie: str, sint, bool)
+			 *
+			 * Special case for cbor encoding: we also try to
+			 * preserve bin output type since cbor encoders
+			 * know how to deal with binary data.
+			 */
+			if (ctx.options & LOG_OPT_ENCODE) {
+				if (ctx.typecast == SMP_T_STR ||
+				    ctx.typecast == SMP_T_SINT ||
+				    ctx.typecast == SMP_T_BOOL) {
+					/* enforce type */
+					type = ctx.typecast;
+				}
+				else if (key &&
+				         (key->data.type == SMP_T_SINT ||
+				          key->data.type == SMP_T_BOOL ||
+				          ((ctx.options & LOG_OPT_ENCODE_CBOR) &&
+				           key->data.type == SMP_T_BIN))) {
+					/* preserve type */
+					type = key->data.type;
+				}
+			}
+
+			if (key && !sample_convert(key, type))
+				key = NULL;
+			if (ctx.options & LOG_OPT_HTTP)
+				ret = lf_encode_chunk(tmplog, dst + maxsize,
+				                      '%', http_encode_map, key ? &key->data.u.str : &empty, &ctx);
+			else {
+				if (key && type == SMP_T_BIN)
+					ret = lf_encode_chunk(tmplog, dst + maxsize,
+					                      0, no_escape_map,
+					                      &key->data.u.str,
+					                      &ctx);
+				else if (key && type == SMP_T_SINT)
+					ret = lf_int_encode(tmplog, dst + maxsize - tmplog,
+					                    key->data.u.sint, &ctx);
+				else if (key && type == SMP_T_BOOL)
+					ret = lf_bool_encode(tmplog, dst + maxsize - tmplog,
+					                     key->data.u.sint, &ctx);
+				else
+					ret = lf_text_len(tmplog,
+					                  key ? key->data.u.str.area : NULL,
+					                  key ? key->data.u.str.data : 0,
+					                  dst + maxsize - tmplog,
+					                  &ctx);
+			}
+			if (ret == NULL)
+				goto out;
+			tmplog = ret;
+			goto next_fmt;
 		}
 
-		if (tmp->type != LOG_FMT_TAG)
-			goto next_fmt;
+		BUG_ON(tmp->type != LOG_FMT_TAG);
 
 		/* logformat tag */
 		switch (tmp->tag->type) {
@@ -4748,8 +4756,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 		}
  next_fmt:
-		if (tmp->type != LOG_FMT_SEPARATOR)
-			last_isspace = 0; // not a separator, hence not a space
+		last_isspace = 0;
 
 		if (value_beg == tmplog) {
 			/* handle the case where no data was generated for the value after
