@@ -620,10 +620,6 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 
 				entry->node.key = ckchs;
 				entry->crtlist = newlist;
-				if (entry->ssl_conf)
-					ckchs->data->ocsp_update_mode = entry->ssl_conf->ocsp_update;
-				if (ckchs->data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_DFLT)
-					ckchs->data->ocsp_update_mode = global_ssl.ocsp_update.mode;
 				ebpt_insert(&newlist->entries, &entry->node);
 				LIST_APPEND(&newlist->ord_entries, &entry->by_crtlist);
 				LIST_APPEND(&ckchs->crtlist_entry, &entry->by_ckch_store);
@@ -680,14 +676,6 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 					entry_dup->node.key = ckchs;
 					entry_dup->crtlist = newlist;
 
-					cfgerr |= ocsp_update_check_cfg_consistency(ckchs, entry, crt_path, err);
-					if (cfgerr & ERR_FATAL)
-						goto error;
-
-					if (entry->ssl_conf)
-						ckchs->data->ocsp_update_mode = entry->ssl_conf->ocsp_update;
-					if (ckchs->data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_DFLT)
-						ckchs->data->ocsp_update_mode = global_ssl.ocsp_update.mode;
 					ebpt_insert(&newlist->entries, &entry_dup->node);
 					LIST_APPEND(&newlist->ord_entries, &entry_dup->by_crtlist);
 					LIST_APPEND(&ckchs->crtlist_entry, &entry_dup->by_ckch_store);
@@ -712,14 +700,6 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 			entry->node.key = ckchs;
 			entry->crtlist = newlist;
 
-			cfgerr |= ocsp_update_check_cfg_consistency(ckchs, entry, crt_path, err);
-			if (cfgerr & ERR_FATAL)
-				goto error;
-
-			if (entry->ssl_conf)
-				ckchs->data->ocsp_update_mode = entry->ssl_conf->ocsp_update;
-			if (ckchs->data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_DFLT)
-				ckchs->data->ocsp_update_mode = global_ssl.ocsp_update.mode;
 			ebpt_insert(&newlist->entries, &entry->node);
 			LIST_APPEND(&newlist->ord_entries, &entry->by_crtlist);
 			LIST_APPEND(&ckchs->crtlist_entry, &entry->by_ckch_store);
@@ -978,12 +958,7 @@ static void dump_crtlist_sslconf(struct buffer *buf, const struct ssl_bind_conf 
 		space++;
 	}
 
-	if (conf->ocsp_update != SSL_SOCK_OCSP_UPDATE_DFLT) {
-		if (space) chunk_appendf(buf, " ");
-		chunk_appendf(buf, "ocsp-update %s",
-		              conf->ocsp_update == SSL_SOCK_OCSP_UPDATE_OFF ? "off" : "on");
-		space++;
-	}
+	/* FIXME: dump crt-store keywords */
 
 	chunk_appendf(buf, "]");
 
@@ -1387,18 +1362,6 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 		memprintf(&err, "certificate '%s' is empty!", cert_path);
 		goto error;
 	}
-
-	/* No need to check 'ocsp-update' inconsistency on a store that is not
-	 * used yet (it was just added through the CLI for instance).
-	 */
-	if (!LIST_ISEMPTY(&store->ckch_inst) &&
-	    ocsp_update_check_cfg_consistency(store, entry, cert_path, &err))
-		goto error;
-
-	if (entry->ssl_conf)
-		store->data->ocsp_update_mode = entry->ssl_conf->ocsp_update;
-	if (store->data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_DFLT)
-		store->data->ocsp_update_mode = global_ssl.ocsp_update.mode;
 
 	/* check if it's possible to insert this new crtlist_entry */
 	entry->node.key = store;

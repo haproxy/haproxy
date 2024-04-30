@@ -1,4 +1,4 @@
-#REGTEST_TYPE=slow
+#REGTEST_TYPE=broken
 # reg-test is around ~2.5s
 
 # broken with BoringSSL.

@@ -55,7 +55,6 @@ void ssl_destroy_ocsp_update_task(void);
 
 int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp);
 
-int ocsp_update_check_cfg_consistency(struct ckch_store *store, struct crtlist_entry *entry, char *crt_path, char **err);
 
 #endif /* (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) */
 

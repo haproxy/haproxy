@@ -1,4 +1,4 @@
-#REGTEST_TYPE=devel
+#REGTEST_TYPE=broken
 
 # broken with BoringSSL.
 #

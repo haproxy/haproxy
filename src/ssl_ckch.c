@@ -356,8 +356,6 @@ int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, char
 		goto end;
 	}
 
-	data->ocsp_update_mode = global_ssl.ocsp_update.mode;
-
 	/* remove the ".crt" extension */
 	if (global_ssl.extra_files_noext) {
 		char *ext;
@@ -828,8 +826,6 @@ struct ckch_data *ssl_sock_copy_cert_key_and_chain(struct ckch_data *src,
 	}
 
 	dst->ocsp_cid = OCSP_CERTID_dup(src->ocsp_cid);
-
-	dst->ocsp_update_mode = src->ocsp_update_mode;
 
 	return dst;
 

@@ -1126,9 +1126,7 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 	char *err = NULL;
 	size_t path_len;
 	int inc_refcount_store = 0;
-	int enable_auto_update = (data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON ||
-				  (data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_DFLT &&
-				   global_ssl.ocsp_update.mode == SSL_SOCK_OCSP_UPDATE_ON));
+	int enable_auto_update = 0;
 
 	x = data->cert;
 	if (!x)
@@ -1143,11 +1141,6 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 			ret = 0;
 			goto out;
 		}
-	} else {
-		/* If we have an OCSP response provided and the ocsp auto update
-		 * enabled, we must raise an error if no OCSP URI was found. */
-		if (data->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON && b_data(ocsp_uri) == 0)
-			goto out;
 	}
 
 	issuer = data->ocsp_issuer;
@@ -3847,12 +3840,6 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, int is_default, 
 	if ((ckchs = ckchs_lookup(path))) {
 		/* we found the ckchs in the tree, we can use it directly */
 		 cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, is_default, &ckch_inst, err);
-
-		 /* The ckch_store might have been created through a crt-list
-		  * line so we must check that the ocsp-update modes are still
-		  * compatible between the global mode and the explicit one from
-		  * the crt-list. */
-		 cfgerr |= ocsp_update_check_cfg_consistency(ckchs, NULL, path, err);
 
 		 found++;
 	} else if (stat(path, &buf) == 0) {
