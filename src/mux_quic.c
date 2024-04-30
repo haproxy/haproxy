@@ -3136,6 +3136,19 @@ static void qmux_strm_shut(struct stconn *sc, enum se_shut_mode mode, struct se_
 	TRACE_LEAVE(QMUX_EV_STRM_SHUT, qcc->conn, qcs);
 }
 
+static int qmux_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *output)
+{
+	struct qcc *qcc = conn->ctx;
+
+	switch (mux_ctl) {
+	case MUX_CTL_EXIT_STATUS:
+		return MUX_ES_UNKNOWN;
+
+	default:
+		return -1;
+	}
+}
+
 static int qmux_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *output)
 {
 	int ret = 0;
@@ -3192,6 +3205,7 @@ static const struct mux_ops qmux_ops = {
 	.unsubscribe = qmux_strm_unsubscribe,
 	.wake        = qmux_wake,
 	.shut       = qmux_strm_shut,
+	.ctl         = qmux_ctl,
 	.sctl        = qmux_sctl,
 	.show_sd     = qmux_strm_show_sd,
 	.flags = MX_FL_HTX|MX_FL_NO_UPG|MX_FL_FRAMED,
