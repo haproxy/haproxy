@@ -1794,7 +1794,7 @@ static char *_lf_cbor_encode_byte(struct cbor_encode_ctx *cbor_ctx,
 {
 	struct lf_buildctx *ctx;
 
-	BUG_ON(!cbor_ctx);
+	BUG_ON(!cbor_ctx || !cbor_ctx->e_fct_ctx);
 	ctx = cbor_ctx->e_fct_ctx;
 
 	if (ctx->options & LOG_OPT_BIN) {
