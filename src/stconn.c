@@ -2309,7 +2309,8 @@ int sc_applet_process(struct stconn *sc)
 	 * appctx but in the case the task is not in runqueue we may have to
 	 * wakeup the appctx immediately.
 	 */
-	if (sc_is_recv_allowed(sc) || sc_is_send_allowed(sc))
+	if ((sc_is_recv_allowed(sc) && !applet_fl_test(__sc_appctx(sc), APPCTX_FL_OUTBLK_ALLOC)) ||
+	    (sc_is_send_allowed(sc) && !applet_fl_test(__sc_appctx(sc), APPCTX_FL_INBLK_ALLOC)))
 		appctx_wakeup(__sc_appctx(sc));
 	return 0;
 }
