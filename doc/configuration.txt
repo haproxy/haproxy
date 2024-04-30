@@ -1291,6 +1291,7 @@ The following keywords are supported in the "global" section :
    - node
    - numa-cpu-mapping
    - ocsp-update.httpproxy
+   - ocsp-update.mode
    - pidfile
    - pp2-never-send-local
    - presetenv
@@ -2170,10 +2171,18 @@ numa-cpu-mapping
   already specified, for example via the 'cpu-map' directive or the taskset
   utility.
 
+
 ocsp-update.httpproxy <address>[:port]
   Allow to use an HTTP proxy for the OCSP updates. This only works with HTTP,
   HTTPS is not supported. This option will allow the OCSP updater to send
   absolute URI in the request to the proxy.
+
+ocsp-update.mode [ on | off ]
+  Sets the default ocsp-update mode for all certificates used in the
+  configuration. This global option can be superseded by the crt-list
+  "ocsp-update" option. This option is set to "off" by default.
+  See option "ocsp-update" for more information about the auto update
+  mechanism.
 
 pidfile <pidfile>
   Writes PIDs of all daemons into file <pidfile> when daemon mode or writes PID
@@ -4024,15 +4033,6 @@ tune.ssl.ocsp-update.mindelay <number>
   expiration times. It must be set to a lower value than
   "tune.ssl.ocsp-update.maxdelay". See option "ocsp-update" for more
   information about the auto update mechanism.
-
-tune.ssl.ocsp-update.mode [ on | off ]
-  Sets the default ocsp-update mode for all certificates used in the
-  configuration. This global option can be superseded by the crt-list
-  "ocsp-update" option but an error will be raised if a given certificate has
-  two distinct configurations simultaneously. This option is set to "off" by
-  default.
-  See option "ocsp-update" for more information about the auto update
-  mechanism.
 
 tune.stick-counters <number>
   Sets the number of stick-counters that may be tracked at the same time by a
