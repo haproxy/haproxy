@@ -250,7 +250,7 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_HRSP_4XX]      = ME_NEW_PX("hrsp_4xx",      FN_COUNTER, FF_U64, p.http.rsp[4],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status 400-499 returned by this object since the worker process started"),
 	[ST_I_PX_HRSP_5XX]      = ME_NEW_PX("hrsp_5xx",      FN_COUNTER, FF_U64, p.http.rsp[5],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status 500-599 returned by this object since the worker process started"),
 	[ST_I_PX_HRSP_OTHER]    = ME_NEW_PX("hrsp_other",    FN_COUNTER, FF_U64, p.http.rsp[0],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status <100, >599 returned by this object since the worker process started (error -1 included)"),
-	[ST_I_PX_HANAFAIL]      = ME_NEW_BE("hanafail",      FN_COUNTER, FF_U64, failed_hana,            STATS_PX_CAP_SRV, "Total number of failed checks caused by an 'on-error' directive after an 'observe' condition matched"),
+	[ST_I_PX_HANAFAIL]      = ME_NEW_BE("hanafail",      FN_COUNTER, FF_U64, failed_hana,            STATS_PX_CAP____S, "Total number of failed checks caused by an 'on-error' directive after an 'observe' condition matched"),
 	[ST_I_PX_REQ_RATE]                      = { .name = "req_rate",                    .desc = "Number of HTTP requests processed over the last second on this object" },
 	[ST_I_PX_REQ_RATE_MAX]                  = { .name = "req_rate_max",                .desc = "Highest value of http requests observed since the worker process started" },
 	[ST_I_PX_REQ_TOT]                       = { .name = "req_tot",                     .desc = "Total number of HTTP requests processed by this object since the worker process started" },
