@@ -119,6 +119,7 @@ const char *log_levels[NB_LOG_LEVELS] = {
 
 const char sess_term_cond[16] = "-LcCsSPRIDKUIIII"; /* normal, Local, CliTo, CliErr, SrvTo, SrvErr, PxErr, Resource, Internal, Down, Killed, Up, -- */
 const char sess_fin_state[8]  = "-RCHDLQT";	/* cliRequest, srvConnect, srvHeader, Data, Last, Queue, Tarpit */
+const struct buffer empty = { };
 
 
 int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy);
@@ -3642,7 +3643,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		const char *src = NULL;
 		const char *value_beg = NULL;
 		struct sample *key;
-		const struct buffer empty = { };
 
 		/* first start with basic types (use continue statement to skip
 		 * the current node)
