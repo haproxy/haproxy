@@ -1264,6 +1264,20 @@ static inline int h2s_mws(const struct h2s *h2s)
 	return h2s->sws + h2s->h2c->miw;
 }
 
+/* Returns 1 if the H2 error of the opposite side is forwardable to the peer.
+ * Otherwise 0 is returned.
+ * For now, only CANCEL from the client is forwardable to the server.
+ */
+static inline int h2s_is_forwardable_abort(struct h2s *h2s, struct se_abort_info *reason)
+{
+	enum h2_err err = H2_ERR_NO_ERROR;
+
+	if (reason && ((reason->info & SE_ABRT_SRC_MASK) >> SE_ABRT_SRC_SHIFT) == SE_ABRT_SRC_MUX_H2)
+		err = reason->code;
+
+	return ((h2s->h2c->flags & H2_CF_IS_BACK) && (err == H2_ERR_CANCEL));
+}
+
 /* marks an error on the connection. Before settings are sent, we must not send
  * a GOAWAY frame, and the error state will prevent h2c_send_goaway_error()
  * from verifying this so we set H2_CF_GOAWAY_FAILED to make sure it will not
@@ -4915,6 +4929,10 @@ static void h2_do_shutr(struct h2s *h2s, struct se_abort_info *reason)
 		h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
 		h2s_error(h2s, H2_ERR_ENHANCE_YOUR_CALM);
 	}
+	else if (h2s_is_forwardable_abort(h2s, reason)) {
+		TRACE_STATE("shutr using opposite endp code", H2_EV_STRM_SHUT, h2c->conn, h2s);
+		h2s_error(h2s, reason->code);
+	}
 	else if (!(h2s->flags & H2_SF_HEADERS_SENT)) {
 		/* Nothing was never sent for this stream, so reset with
 		 * REFUSED_STREAM error to let the client retry the
@@ -4960,8 +4978,9 @@ add_to_list:
 	return;
 }
 
+
 /* Performs a synchronous or asynchronous shutw(). */
-static void h2_do_shutw(struct h2s *h2s)
+static void h2_do_shutw(struct h2s *h2s, struct se_abort_info *reason)
 {
 	struct h2c *h2c = h2s->h2c;
 
@@ -4971,6 +4990,7 @@ static void h2_do_shutw(struct h2s *h2s)
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2c->conn, h2s);
 
 	if (h2s->st != H2_SS_ERROR &&
+	    !h2s_is_forwardable_abort(h2s, reason) &&
 	    (h2s->flags & (H2_SF_HEADERS_SENT | H2_SF_MORE_HTX_DATA)) == H2_SF_HEADERS_SENT) {
 		/* we can cleanly close using an empty data frame only after headers
 		 * and if no more data is expected to be sent.
@@ -4994,6 +5014,10 @@ static void h2_do_shutw(struct h2s *h2s)
 			TRACE_STATE("stream wants to kill the connection", H2_EV_STRM_SHUT, h2c->conn, h2s);
 			h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
 			h2s_error(h2s, H2_ERR_ENHANCE_YOUR_CALM);
+		}
+		else if (h2s_is_forwardable_abort(h2s, reason)) {
+			TRACE_STATE("shutw using opposite endp code", H2_EV_STRM_SHUT, h2c->conn, h2s);
+			h2s_error(h2s, reason->code);
 		}
 		else if (h2s->flags & H2_SF_MORE_HTX_DATA) {
 			/* some unsent data were pending (e.g. abort during an upload),
@@ -5061,10 +5085,10 @@ struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state)
 	}
 
 	if (h2s->flags & H2_SF_WANT_SHUTW)
-		h2_do_shutw(h2s);
+		h2_do_shutw(h2s, NULL);
 
 	if (h2s->flags & H2_SF_WANT_SHUTR)
-		h2_do_shutr(h2s);
+		h2_do_shutr(h2s, NULL);
 
 	if (!(h2s->flags & (H2_SF_WANT_SHUTR|H2_SF_WANT_SHUTW))) {
 		/* We're done trying to send, remove ourself from the send_list */
@@ -5088,10 +5112,12 @@ static void h2_shut(struct stconn *sc, enum se_shut_mode mode, struct se_abort_i
 	struct h2s *h2s = __sc_mux_strm(sc);
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
-	if (mode & (SE_SHW_SILENT|SE_SHW_NORMAL))
-		h2_do_shutw(h2s);
+	if (mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) {
+		/* Pass the reason for silent shutw only (abort) */
+		h2_do_shutw(h2s, (mode & SE_SHW_SILENT) ? reason : NULL);
+	}
 	if (mode & SE_SHR_RESET)
-		h2_do_shutr(h2s);
+		h2_do_shutr(h2s, reason);
 	TRACE_LEAVE(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
 }
 
