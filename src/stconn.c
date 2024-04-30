@@ -2401,6 +2401,57 @@ smp_fetch_sid(const struct arg *args, struct sample *smp, const char *kw, void *
 	return 1;
 }
 
+/* return 1 if the frontend or backend mux stream has received an abort and 0 otherwise.
+ */
+static int
+smp_fetch_strm_aborted(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct stconn *sc;
+	unsigned int aborted = 0;
+
+	if (!smp->strm)
+		return 0;
+
+	sc = (kw[0] == 'f' ? smp->strm->scf : smp->strm->scb);
+	if (sc->sedesc->abort_info.info)
+		aborted = 1;
+
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_BOOL;
+	smp->data.u.sint = aborted;
+
+	return 1;
+}
+
+/* return the H2/QUIC RESET code of the frontend or backend mux stream. Any value
+ * means an a RST_STREAM was received on H2 and a STOP_SENDING on QUIC. Otherwise the sample fetch fails.
+ */
+static int
+smp_fetch_strm_rst_code(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct stconn *sc;
+	unsigned int source;
+	unsigned long long code = 0;
+
+	if (!smp->strm)
+		return 0;
+
+	sc = (kw[0] == 'f' ? smp->strm->scf : smp->strm->scb);
+	source = ((sc->sedesc->abort_info.info & SE_ABRT_SRC_MASK) >> SE_ABRT_SRC_SHIFT);
+	if (source != SE_ABRT_SRC_MUX_H2 && source != SE_ABRT_SRC_MUX_QUIC) {
+		if (!source)
+			smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+	code = sc->sedesc->abort_info.code;
+
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = code;
+
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Note: fetches that may return multiple types should be declared using the
  * appropriate pseudo-type. If not available it must be declared as the lowest
@@ -2408,7 +2459,11 @@ smp_fetch_sid(const struct arg *args, struct sample *smp, const char *kw, void *
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "bs.id", smp_fetch_sid, 0, NULL, SMP_T_SINT, SMP_USE_L6REQ },
+	{ "bs.aborted", smp_fetch_strm_aborted, 0, NULL, SMP_T_SINT, SMP_USE_L5SRV },
+	{ "bs.rst_code", smp_fetch_strm_rst_code, 0, NULL, SMP_T_SINT, SMP_USE_L5SRV },
 	{ "fs.id", smp_fetch_sid, 0, NULL, SMP_T_STR, SMP_USE_L6RES },
+	{ "fs.aborted", smp_fetch_strm_aborted, 0, NULL, SMP_T_SINT, SMP_USE_L5CLI },
+	{ "fs.rst_code", smp_fetch_strm_rst_code, 0, NULL, SMP_T_SINT, SMP_USE_L5CLI },
 	{ /* END */ },
 }};
 

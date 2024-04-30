@@ -23604,9 +23604,13 @@ Summary of sample fetch methods in this section and their respective types:
   keyword                                             output type
 ----------------------------------------------------+-------------
 bs.id                                                 integer
+bs.aborted                                            boolean
+bs.rst_code                                           integer
 distcc_body(<token>[,<occ>])                          binary
 distcc_param(<token>[,<occ>])                         integer
 fs.id                                                 integer
+fs.aborted                                            boolean
+fs.rst_code                                           integer
 payload(<offset>,<length>)                            binary
 payload_lv(<offset1>,<length>[,<offset2>])            binary
 req.len                                               integer
@@ -23642,6 +23646,16 @@ bs.id : integer
   Returns the multiplexer's stream ID on the server side. It is the
   multiplexer's responsibility to return the appropriate information.
 
+bs.aborted: boolean
+  Returns true is an abort was received from the server for the current
+  stream. Otherwise false is returned.
+
+bs.rst_code: integer
+  Returns the reset code received from the server for the current stream. The
+  code of the H2 RST_STEAM frame or the QUIC STOP_SENDING frame received from
+  the server is returned. The sample fetch fails if no abort was received or if
+  the server stream is not an H2/QUIC stream.
+
 distcc_body(<token>[,<occ>]) : binary
   Parses a distcc message and returns the body associated to occurrence #<occ>
   of the token <token>. Occurrences start at 1, and when unspecified, any may
@@ -23672,6 +23686,16 @@ fs.id : integer
   Returns the multiplexer's stream ID on the client side. It is the
   multiplexer's responsibility to return the appropriate information. For
   instance, on a raw TCP, 0 is always returned because there is no stream.
+
+fs.aborted: boolean
+  Returns true is an abort was received from the client for the current
+  stream. Otherwise false is returned.
+
+fs.rst_code: integer
+  Returns the reset code received from the client for the current stream. The
+  code of the H2 RST_STEAM frame or the QUIC STOP_SENDING frame received from the
+  client is returned. The sample fetch fails if no abort was received or
+  if the client stream is not an H2/QUIC stream.
 
 payload(<offset>,<length>) : binary (deprecated)
   This is an alias for "req.payload" when used in the context of a request (e.g.
