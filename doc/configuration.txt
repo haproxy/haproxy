@@ -1290,6 +1290,8 @@ The following keywords are supported in the "global" section :
    - nbthread
    - node
    - numa-cpu-mapping
+   - ocsp-update.maxdelay
+   - ocsp-update.mindelay
    - ocsp-update.httpproxy
    - ocsp-update.mode
    - pidfile
@@ -1438,8 +1440,8 @@ The following keywords are supported in the "global" section :
    - tune.ssl.lifetime
    - tune.ssl.maxrecord
    - tune.ssl.ssl-ctx-cache-size
-   - tune.ssl.ocsp-update.maxdelay
-   - tune.ssl.ocsp-update.mindelay
+   - tune.ssl.ocsp-update.maxdelay (deprecated)
+   - tune.ssl.ocsp-update.mindelay (deprecated)
    - tune.vars.global-max-size
    - tune.vars.proc-max-size
    - tune.vars.reqres-max-size
@@ -2171,11 +2173,26 @@ numa-cpu-mapping
   already specified, for example via the 'cpu-map' directive or the taskset
   utility.
 
-
 ocsp-update.httpproxy <address>[:port]
   Allow to use an HTTP proxy for the OCSP updates. This only works with HTTP,
   HTTPS is not supported. This option will allow the OCSP updater to send
   absolute URI in the request to the proxy.
+
+ocsp-update.maxdelay <number>
+tune.ssl.ocsp-update.maxdelay <number> (deprecated)
+  Sets the maximum interval between two automatic updates of the same OCSP
+  response. This time is expressed in seconds and defaults to 3600 (1 hour). It
+  must be set to a higher value than "ocsp-update.mindelay". See
+  option "ocsp-update" for more information about the auto update mechanism.
+
+ocsp-update.mindelay <number>
+tune.ssl.ocsp-update.mindelay <number> (deprecated)
+  Sets the minimum interval between two automatic updates of the same OCSP
+  response. This time is expressed in seconds and defaults to 300 (5 minutes).
+  It is particularly useful for OCSP response that do not have explicit
+  expiration times. It must be set to a lower value than
+  "ocsp-update.maxdelay". See option "ocsp-update" for more
+  information about the auto update mechanism.
 
 ocsp-update.mode [ on | off ]
   Sets the default ocsp-update mode for all certificates used in the
@@ -4019,20 +4036,6 @@ tune.ssl.ssl-ctx-cache-size <number>
   entries. This is a LRU cache. Because generating a SSL certificate
   dynamically is expensive, they are cached. The default cache size is set to
   1000 entries.
-
-tune.ssl.ocsp-update.maxdelay <number>
-  Sets the maximum interval between two automatic updates of the same OCSP
-  response. This time is expressed in seconds and defaults to 3600 (1 hour). It
-  must be set to a higher value than "tune.ssl.ocsp-update.mindelay". See
-  option "ocsp-update" for more information about the auto update mechanism.
-
-tune.ssl.ocsp-update.mindelay <number>
-  Sets the minimum interval between two automatic updates of the same OCSP
-  response. This time is expressed in seconds and defaults to 300 (5 minutes).
-  It is particularly useful for OCSP response that do not have explicit
-  expiration times. It must be set to a lower value than
-  "tune.ssl.ocsp-update.maxdelay". See option "ocsp-update" for more
-  information about the auto update mechanism.
 
 tune.stick-counters <number>
   Sets the number of stick-counters that may be tracked at the same time by a
