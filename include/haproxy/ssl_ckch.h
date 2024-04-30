@@ -75,5 +75,12 @@ int __ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_
 extern struct cert_exts cert_exts[];
 extern int (*ssl_commit_crlfile_cb)(const char *path, X509_STORE *ctx, char **err);
 
+/* ckch_conf keyword loading */
+static inline int ckch_conf_load_pem(void *value, char *buf, struct ckch_data *d, char **err) { return ssl_sock_load_pem_into_ckch(value, buf, d, err); }
+static inline int ckch_conf_load_key(void *value, char *buf, struct ckch_data *d, char **err) { return ssl_sock_load_key_into_ckch(value, buf, d, err); }
+static inline int ckch_conf_load_ocsp_response(void *value, char *buf, struct ckch_data *d, char **err) { return ssl_sock_load_ocsp_response_from_file(value, buf, d, err); }
+static inline int ckch_conf_load_ocsp_issuer(void *value, char *buf, struct ckch_data *d, char **err) { return ssl_sock_load_issuer_file_into_ckch(value, buf, d, err); }
+static inline int ckch_conf_load_sctl(void *value, char *buf, struct ckch_data *d, char **err) { return ssl_sock_load_sctl_from_file(value, buf, d, err); }
+
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_CRTLIST_H */

@@ -4027,11 +4027,11 @@ static int crtstore_load = 0; /* did we already load in this crt-store */
 
 struct ckch_conf_kws ckch_conf_kws[] = {
 	{ "alias",                               -1,                 PARSE_TYPE_NONE, NULL,                                  NULL },
-	{ "crt",    offsetof(struct ckch_conf, crt),    PARSE_TYPE_STR, ssl_sock_load_pem_into_ckch,           &current_crtbase },
-	{ "key",    offsetof(struct ckch_conf, key),    PARSE_TYPE_STR, ssl_sock_load_key_into_ckch,           &current_keybase },
-	{ "ocsp",   offsetof(struct ckch_conf, ocsp),   PARSE_TYPE_STR, ssl_sock_load_ocsp_response_from_file, &current_crtbase },
-	{ "issuer", offsetof(struct ckch_conf, issuer), PARSE_TYPE_STR, ssl_sock_load_issuer_file_into_ckch,   &current_crtbase },
-	{ "sctl",   offsetof(struct ckch_conf, sctl),   PARSE_TYPE_STR, ssl_sock_load_sctl_from_file,          &current_crtbase },
+	{ "crt",    offsetof(struct ckch_conf, crt),    PARSE_TYPE_STR, ckch_conf_load_pem,           &current_crtbase },
+	{ "key",    offsetof(struct ckch_conf, key),    PARSE_TYPE_STR, ckch_conf_load_key,           &current_keybase },
+	{ "ocsp",   offsetof(struct ckch_conf, ocsp),   PARSE_TYPE_STR, ckch_conf_load_ocsp_response, &current_crtbase },
+	{ "issuer", offsetof(struct ckch_conf, issuer), PARSE_TYPE_STR, ckch_conf_load_ocsp_issuer,   &current_crtbase },
+	{ "sctl",   offsetof(struct ckch_conf, sctl),   PARSE_TYPE_STR, ckch_conf_load_sctl,          &current_crtbase },
 	{ NULL,     -1,                                  PARSE_TYPE_STR, NULL,                                  NULL            }
 };
 
@@ -4040,7 +4040,7 @@ int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, char **err)
 {
 	int i;
 	int err_code = 0;
-	int rc = 0;
+	int rc = 1;
 	struct ckch_data *d = c->data;
 
 	/* crt */
@@ -4050,40 +4050,66 @@ int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, char **err)
 	}
 
 	for (i = 0; ckch_conf_kws[i].name; i++) {
-		char *src = NULL;
-		char **base = ckch_conf_kws[i].base;
+		void *src = NULL;
 
 		if (ckch_conf_kws[i].offset < 0)
 			continue;
 
-		src = *(char **)((intptr_t)f + (ptrdiff_t)ckch_conf_kws[i].offset);
-		if (src) {
-			char *path;
-			char path_base[PATH_MAX];
+		if (!ckch_conf_kws[i].func)
+			continue;
 
-			if (!ckch_conf_kws[i].func || ckch_conf_kws[i].type != PARSE_TYPE_STR)
-				continue;
+		src = (void *)((intptr_t)f + (ptrdiff_t)ckch_conf_kws[i].offset);
 
-			path = src;
+		switch (ckch_conf_kws[i].type) {
+			case PARSE_TYPE_STR:
+			{
+				char *v;
+				char *path;
+				char **base = ckch_conf_kws[i].base;
+				char path_base[PATH_MAX];
 
-			if (base && *base) {
-				if (*src != '/') {
-					int rv = snprintf(path_base, sizeof(path_base), "%s/%s", *base, src);
+				v = *(char **)src;
+				if (!v)
+					goto next;
+
+				path = v;
+				if (base && *base && *path != '/') {
+					int rv = snprintf(path_base, sizeof(path_base), "%s/%s", *base, path);
 					if (rv >= sizeof(path_base)) {
-						memprintf(err, "'%s/%s' : path too long", *base, src);
+						memprintf(err, "'%s/%s' : path too long", *base, path);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}
 					path = path_base;
 				}
+				rc = ckch_conf_kws[i].func(path, NULL, d, err);
+				if (rc) {
+					err_code |= ERR_ALERT | ERR_FATAL;
+					memprintf(err, "%s '%s' cannot be read or parsed.", err && *err ? *err : "", path);
+					goto out;
+				}
+				break;
 			}
-			rc = ckch_conf_kws[i].func(path, NULL, d, err);
-			if (rc) {
-				err_code |= ERR_ALERT | ERR_FATAL;
-				memprintf(err, "%s '%s' cannot be read or parsed.", err && *err ? *err : "", path);
-				goto out;
+
+			case PARSE_TYPE_INT:
+			case PARSE_TYPE_ONOFF:
+			{
+				int v = *(int *)src;
+				rc = ckch_conf_kws[i].func(&v, NULL, d, err);
+				if (rc) {
+					err_code |= ERR_ALERT | ERR_FATAL;
+					memprintf(err, "%s '%d' cannot be read or parsed.", err && *err ? *err : "", v);
+					goto out;
+				}
+
+				break;
 			}
+
+			default:
+				break;
 		}
+next:
+		;
 	}
 
 out:
