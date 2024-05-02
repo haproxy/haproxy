@@ -1,0 +1,36 @@
+varnishtest "Preload counters via stats-file"
+
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=3.0
+
+haproxy h1 -conf {
+	global
+		stats-file ${testdir}/sample-stats-file
+
+	frontend fe
+		guid guid-fe
+		bind "fd@${feS}" guid-prefix guid-feS
+
+	frontend fe2
+		guid guid-fe2
+		option socket-stats
+		bind "fd@${fe2S}" guid-prefix guid-fe2S
+
+	backend be
+		guid guid-be
+		server srv ${s1_addr}:${s1_port} guid guid-srv
+} -start
+
+haproxy h1 -cli {
+	send "show stat fe 15 -1 typed"
+	expect ~ "F.*.*.*.stot.1:MCP:u64:1024"
+
+	send "show stat fe2 15 -1 typed"
+	expect ~ "L.*.*.*.stot.1:MCP:u64:1024"
+
+	send "show stat be 15 -1 typed"
+	expect ~ "B.*.*.*.stot.1:MCP:u64:1024"
+	send "show stat be 15 -1 typed"
+	expect ~ "S.*.*.*.stot.1:MCP:u64:1024"
+}

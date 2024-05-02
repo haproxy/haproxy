@@ -1,0 +1,26 @@
+#fe guid,stot,
+
+// valid line
+guid-fe,1024,
+
+// invalid non numerical value must be silently ignored
+guid-fe,abc,
+
+// listener counters not allocated if no option socket-stats
+guid-feS-0,1024
+guid-fe2S-0,1024
+
+// unknown GUID must be silently ignored
+guid-unknown,1024,
+
+// invalid GUID side must be silently ignored
+guid-be,1024
+
+// unknown section line must be silently ignored
+#inval guid,other,
+guid-foo,0,0,
+
+// valid lines
+#be guid,unknown,stot,
+guid-be,512,1024,
+guid-srv,512,1024,
