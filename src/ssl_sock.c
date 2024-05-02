@@ -140,7 +140,8 @@ struct global_ssl global_ssl = {
 #ifndef OPENSSL_NO_OCSP
 	.ocsp_update.delay_max = SSL_OCSP_UPDATE_DELAY_MAX,
 	.ocsp_update.delay_min = SSL_OCSP_UPDATE_DELAY_MIN,
-	.ocsp_update.mode = SSL_SOCK_OCSP_UPDATE_DFLT,
+	.ocsp_update.mode = SSL_SOCK_OCSP_UPDATE_OFF,
+	.ocsp_update.disable = 0,
 #endif
 };
 

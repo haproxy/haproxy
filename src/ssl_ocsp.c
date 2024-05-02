@@ -1919,8 +1919,6 @@ static int ssl_parse_global_ocsp_update_mode(char **args, int section_type, stru
                                              const struct proxy *defpx, const char *file, int line,
                                              char **err)
 {
-	int ret = 0;
-
 	if (!*args[1]) {
 		memprintf(err, "'%s' : expecting <on|off>", args[0]);
 		return ERR_ALERT | ERR_FATAL;
@@ -1935,15 +1933,29 @@ static int ssl_parse_global_ocsp_update_mode(char **args, int section_type, stru
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if (global_ssl.ocsp_update.mode != SSL_SOCK_OCSP_UPDATE_OFF) {
-		/* We might need to create the main ocsp update task */
-		ret = ssl_create_ocsp_update_task(err);
-	}
-
-	return ret;
+	return 0;
 }
 
+static int ssl_parse_global_ocsp_update_disable(char **args, int section_type, struct proxy *curpx,
+                                                const struct proxy *defpx, const char *file, int line,
+                                                char **err)
+{
+	if (!*args[1]) {
+		memprintf(err, "'%s' : expecting <on|off>", args[0]);
+		return ERR_ALERT | ERR_FATAL;
+	}
 
+	if (strcmp(args[1], "on") == 0)
+		global_ssl.ocsp_update.disable = 1;
+	else if (strcmp(args[1], "off") == 0)
+		global_ssl.ocsp_update.disable = 0;
+	else {
+		memprintf(err, "'%s' : expecting <on|off>", args[0]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
 
 static int ocsp_update_parse_global_http_proxy(char **args, int section_type, struct proxy *curpx,
                                         const struct proxy *defpx, const char *file, int line,
@@ -1979,13 +1991,33 @@ int ocsp_update_init(void *value, char *buf, struct ckch_data *d, char **err)
 	int ocsp_update_mode = *(int *)value;
 	int ret = 0;
 
-	if (ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON) {
+	/* inherit from global section */
+	ocsp_update_mode = (ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_DFLT) ? global_ssl.ocsp_update.mode : ocsp_update_mode;
+
+	if (!global_ssl.ocsp_update.disable && ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON) {
 		/* We might need to create the main ocsp update task */
 		ret = ssl_create_ocsp_update_task(err);
 	}
 
 	return ret;
 }
+
+int ocsp_update_postparser_init()
+{
+	int ret = 0;
+	char *err = NULL;
+
+	/* if the global ocsp-update.mode option is not set to "on", there is
+	 * no need to start the task, it would have been started when parsing a
+	 * crt-store or a crt-list */
+	if (!global_ssl.ocsp_update.disable && (global_ssl.ocsp_update.mode == SSL_SOCK_OCSP_UPDATE_ON)) {
+		/* We might need to create the main ocsp update task */
+		ret = ssl_create_ocsp_update_task(&err);
+	}
+
+	return ret;
+}
+
 
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "ocsp-response", NULL }, "set ssl ocsp-response <resp|payload>       : update a certificate's OCSP Response from a base64-encode DER",      cli_parse_set_ocspresponse, NULL },
@@ -2002,6 +2034,7 @@ INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 static struct cfg_kw_list cfg_kws = {ILH, {
 #ifndef OPENSSL_NO_OCSP
+	{ CFG_GLOBAL, "ocsp-update.disable", ssl_parse_global_ocsp_update_disable },
 	{ CFG_GLOBAL, "tune.ssl.ocsp-update.maxdelay", ssl_parse_global_ocsp_maxdelay },
 	{ CFG_GLOBAL, "ocsp-update.maxdelay", ssl_parse_global_ocsp_maxdelay },
 	{ CFG_GLOBAL, "tune.ssl.ocsp-update.mindelay", ssl_parse_global_ocsp_mindelay },
@@ -2014,6 +2047,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
+REGISTER_CONFIG_POSTPARSER("ocsp-update", ocsp_update_postparser_init);
 /*
  * Local variables:
  *  c-indent-level: 8
