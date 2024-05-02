@@ -3858,7 +3858,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, int is_default, 
 	} else if (stat(path, &buf) == 0) {
 		found++;
 		if (S_ISDIR(buf.st_mode) == 0) {
-			ckchs = new_ckch_store_load_files_path(path, err);
+			ckchs = ckch_store_new_load_files_path(path, err);
 			if (!ckchs)
 				cfgerr |= ERR_ALERT | ERR_FATAL;
 			cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, is_default, &ckch_inst, err);
@@ -3886,7 +3886,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, int is_default, 
 				} else {
 					if (stat(fp, &buf) == 0) {
 						found++;
-						ckchs =  new_ckch_store_load_files_path(fp, err);
+						ckchs =  ckch_store_new_load_files_path(fp, err);
 						if (!ckchs)
 							cfgerr |= ERR_ALERT | ERR_FATAL;
 						cfgerr |= ssl_sock_load_ckchs(fp, ckchs, bind_conf, NULL, NULL, 0, is_default, &ckch_inst, err);
@@ -3939,7 +3939,7 @@ int ssl_sock_load_srv_cert(char *path, struct server *server, int create_if_none
 			/* We do not manage directories on backend side. */
 			if (S_ISDIR(buf.st_mode) == 0) {
 				++found;
-				ckchs = new_ckch_store_load_files_path(path, err);
+				ckchs = ckch_store_new_load_files_path(path, err);
 				if (!ckchs)
 					cfgerr |= ERR_ALERT | ERR_FATAL;
 				cfgerr |= ssl_sock_load_srv_ckchs(path, ckchs, server, &server->ssl_ctx.inst, err);
