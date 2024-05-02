@@ -862,10 +862,6 @@ more:
 
 static int cli_parse_clear_counters(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct proxy *px;
-	struct server *sv;
-	struct listener *li;
-	struct stats_module *mod;
 	int clrall = 0;
 
 	if (strcmp(args[2], "all") == 0)
@@ -876,96 +872,13 @@ static int cli_parse_clear_counters(char **args, char *payload, struct appctx *a
 	    (clrall && !cli_has_level(appctx, ACCESS_LVL_ADMIN)))
 		return 1;
 
-	for (px = proxies_list; px; px = px->next) {
-		if (clrall) {
-			memset(&px->be_counters, 0, sizeof(px->be_counters));
-			memset(&px->fe_counters, 0, sizeof(px->fe_counters));
-		}
-		else {
-			px->be_counters.conn_max = 0;
-			px->be_counters.p.http.rps_max = 0;
-			px->be_counters.sps_max = 0;
-			px->be_counters.cps_max = 0;
-			px->be_counters.nbpend_max = 0;
-			px->be_counters.qtime_max = 0;
-			px->be_counters.ctime_max = 0;
-			px->be_counters.dtime_max = 0;
-			px->be_counters.ttime_max = 0;
-
-			px->fe_counters.conn_max = 0;
-			px->fe_counters.p.http.rps_max = 0;
-			px->fe_counters.sps_max = 0;
-			px->fe_counters.cps_max = 0;
-		}
-
-		for (sv = px->srv; sv; sv = sv->next)
-			if (clrall)
-				memset(&sv->counters, 0, sizeof(sv->counters));
-			else {
-				sv->counters.cur_sess_max = 0;
-				sv->counters.nbpend_max = 0;
-				sv->counters.sps_max = 0;
-				sv->counters.qtime_max = 0;
-				sv->counters.ctime_max = 0;
-				sv->counters.dtime_max = 0;
-				sv->counters.ttime_max = 0;
-			}
-
-		list_for_each_entry(li, &px->conf.listeners, by_fe)
-			if (li->counters) {
-				if (clrall)
-					memset(li->counters, 0, sizeof(*li->counters));
-				else
-					li->counters->conn_max = 0;
-			}
-	}
-
 	global.cps_max = 0;
 	global.sps_max = 0;
 	global.ssl_max = 0;
 	global.ssl_fe_keys_max = 0;
 	global.ssl_be_keys_max = 0;
 
-	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
-		if (!mod->clearable && !clrall)
-			continue;
-
-		for (px = proxies_list; px; px = px->next) {
-			enum stats_domain_px_cap mod_cap = stats_px_get_cap(mod->domain_flags);
-
-			if (px->cap & PR_CAP_FE && mod_cap & STATS_PX_CAP_FE) {
-				EXTRA_COUNTERS_INIT(px->extra_counters_fe,
-				                    mod,
-				                    mod->counters,
-				                    mod->counters_size);
-			}
-
-			if (px->cap & PR_CAP_BE && mod_cap & STATS_PX_CAP_BE) {
-				EXTRA_COUNTERS_INIT(px->extra_counters_be,
-				                    mod,
-				                    mod->counters,
-				                    mod->counters_size);
-			}
-
-			if (mod_cap & STATS_PX_CAP_SRV) {
-				for (sv = px->srv; sv; sv = sv->next) {
-					EXTRA_COUNTERS_INIT(sv->extra_counters,
-				                            mod,
-					                    mod->counters,
-					                    mod->counters_size);
-				}
-			}
-
-			if (mod_cap & STATS_PX_CAP_LI) {
-				list_for_each_entry(li, &px->conf.listeners, by_fe) {
-					EXTRA_COUNTERS_INIT(li->extra_counters,
-				                            mod,
-					                    mod->counters,
-					                    mod->counters_size);
-				}
-			}
-		}
-	}
+	proxy_stats_clear_counters(clrall, &stats_module_list[STATS_DOMAIN_PROXY]);
 
 	resolv_stats_clear_counters(clrall, &stats_module_list[STATS_DOMAIN_RESOLVERS]);
 
