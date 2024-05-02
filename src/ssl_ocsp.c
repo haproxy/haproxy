@@ -33,13 +33,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <netdb.h>
-#include <netinet/tcp.h>
-
-#include <import/ebpttree.h>
 #include <import/ebsttree.h>
 #include <import/lru.h>
 
@@ -48,44 +41,26 @@
 #include <haproxy/arg.h>
 #include <haproxy/base64.h>
 #include <haproxy/cfgparse.h>
-#include <haproxy/channel.h>
 #include <haproxy/chunk.h>
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>
-#include <haproxy/dynbuf.h>
 #include <haproxy/errors.h>
-#include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
-#include <haproxy/http_rules.h>
+#include <haproxy/http_client.h>
+#include <haproxy/istbuf.h>
 #include <haproxy/log.h>
 #include <haproxy/openssl-compat.h>
-#include <haproxy/pattern-t.h>
-#include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
-#include <haproxy/sample.h>
-#include <haproxy/sc_strm.h>
-#include <haproxy/quic_conn.h>
-#include <haproxy/quic_tp.h>
-#include <haproxy/server.h>
 #include <haproxy/shctx.h>
 #include <haproxy/ssl_ckch.h>
-#include <haproxy/ssl_crtlist.h>
+#include <haproxy/ssl_ocsp-t.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
-#include <haproxy/stats.h>
-#include <haproxy/stconn.h>
-#include <haproxy/stream-t.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
-#include <haproxy/tools.h>
-#include <haproxy/vars.h>
-#include <haproxy/xxhash.h>
-#include <haproxy/istbuf.h>
-#include <haproxy/ssl_ocsp-t.h>
-#include <haproxy/http_client.h>
 
 
 /* ***** READ THIS before adding code here! *****
