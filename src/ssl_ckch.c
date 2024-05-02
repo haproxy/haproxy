@@ -1003,6 +1003,8 @@ struct ckch_store *ckch_store_new_load_files_path(char *path, char **err)
 	if (ssl_sock_load_files_into_ckch(path, ckchs->data, err) == 1)
 		goto end;
 
+	ckchs->conf.used = CKCH_CONF_SET_EMPTY;
+
 	/* insert into the ckchs tree */
 	memcpy(ckchs->path, path, strlen(path) + 1);
 	ebst_insert(&ckchs_tree, &ckchs->node);
@@ -4147,6 +4149,122 @@ out:
 	return err_code;
 }
 
+/*
+ * Check if ckch_conf <prev> and <new> are compatible:
+ *
+ * new \ prev | EMPTY | CRTLIST  | CRTSTORE
+ * ----------------------------------------
+ *  EMPTY     |  OK   |  X       |   OK
+ * ----------------------------------------
+ *  CRTLIST   |  X    | CMP      |  CMP
+ * ----------------------------------------
+ *
+ * Return:
+ *  1 when the 2 structures have different variables or are incompatible
+ *  0 when the 2 structures have equal variables or are compatibles
+ */
+int ckch_conf_cmp(struct ckch_conf *prev, struct ckch_conf *new, char **err)
+{
+	int ret = 0;
+	int i;
+
+	/* compatibility check */
+
+	if (prev->used == CKCH_CONF_SET_EMPTY) {
+		if (new->used == CKCH_CONF_SET_CRTLIST) {
+			memprintf(err, "%sCan't use the certificate previously defined without any keyword with these keywords:\n", *err ? *err : "");
+			ret = 1;
+		}
+		if (new->used == CKCH_CONF_SET_EMPTY)
+			return 0;
+
+	} else if (prev->used == CKCH_CONF_SET_CRTLIST) {
+		if (new->used == CKCH_CONF_SET_EMPTY) {
+			memprintf(err, "%sCan't use the certificate previously defined with keywords without these keywords:\n", *err ? *err : "");
+			ret = 1;
+		}
+	} else if (prev->used == CKCH_CONF_SET_CRTSTORE) {
+		if (new->used == CKCH_CONF_SET_EMPTY)
+			return 0;
+	}
+
+
+	for (i = 0; ckch_conf_kws[i].name != NULL; i++) {
+
+		if (strcmp(ckch_conf_kws[i].name, "crt") == 0)
+			continue;
+
+		switch (ckch_conf_kws[i].type) {
+			case PARSE_TYPE_STR: {
+				char *avail1, *avail2;
+				avail1 = prev ? *(char **)((intptr_t)prev + (ptrdiff_t)ckch_conf_kws[i].offset) : NULL;
+				avail2 = new ? *(char **)((intptr_t)new + (ptrdiff_t)ckch_conf_kws[i].offset) : NULL;
+
+				/* must alert when strcmp is wrong, or when one of the field is NULL */
+				if (((avail1 && avail2) && strcmp(avail1, avail2) != 0) || (!!avail1 ^ !!avail2)) {
+					memprintf(err, "%s- different parameter '%s' : previously '%s' vs '%s'\n", *err ? *err : "", ckch_conf_kws[i].name, avail1, avail2);
+					ret = 1;
+				}
+			}
+			break;
+
+			default:
+				break;
+		}
+		/* special case for ocsp-update and default */
+		if (strcmp(ckch_conf_kws[i].name, "ocsp-update") == 0) {
+			int o1, o2; /* ocsp-update from the configuration */
+			int q1, q2; /* final ocsp-update value (from default) */
+
+
+			o1 = prev ? *(int *)((intptr_t)prev + (ptrdiff_t)ckch_conf_kws[i].offset) : 0;
+			o2 = new ? *(int *)((intptr_t)new + (ptrdiff_t)ckch_conf_kws[i].offset) : 0;
+
+			q1 = (o1 == SSL_SOCK_OCSP_UPDATE_DFLT) ? global_ssl.ocsp_update.mode : o1;
+			q2 = (o2 == SSL_SOCK_OCSP_UPDATE_DFLT) ? global_ssl.ocsp_update.mode : o2;
+
+			if (q1 != q2) {
+				int j = 1;
+				int o = o1;
+				int q = q1;
+				memprintf(err, "%s- different parameter '%s' : previously ", *err ? *err : "", ckch_conf_kws[i].name);
+
+				do {
+					switch (o) {
+						case SSL_SOCK_OCSP_UPDATE_DFLT:
+							memprintf(err, "%s'default' (ocsp-update.mode %s)", *err ? *err : "", (q > 0) ? "on" : "off");
+						break;
+						case SSL_SOCK_OCSP_UPDATE_ON:
+							memprintf(err, "%s'%s'", *err ? *err : "", "on");
+						break;
+						case SSL_SOCK_OCSP_UPDATE_OFF:
+							memprintf(err, "%s'%s'", *err ? *err : "", "off");
+						break;
+					}
+					o = o2;
+					q = q2;
+					if (j)
+						memprintf(err, "%s vs ", *err ? *err : "");
+				} while (j--);
+				memprintf(err, "%s\n", *err ? *err : "");
+				ret = 1;
+			}
+		}
+	}
+
+out:
+	return ret;
+}
+
+/*
+ *  Compare a previously generated ckch_conf with an empty one, using ckch_conf_cmp().
+ */
+int ckch_conf_cmp_empty(struct ckch_conf *prev, char **err)
+{
+	struct ckch_conf new = {};
+
+	return ckch_conf_cmp(prev, &new, err);
+}
 
 /* parse ckch_conf keywords for crt-list */
 int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, const char *file, int linenum, char **err)
@@ -4315,6 +4433,7 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 		goto out;
 
 	c->conf = f;
+	c->conf.used = CKCH_CONF_SET_CRTSTORE;
 
 	if (ebst_insert(&ckchs_tree, &c->node) != &c->node) {
 		memprintf(err,"parsing [%s:%d] : '%s' in section 'crt-store': store '%s' was already defined.",

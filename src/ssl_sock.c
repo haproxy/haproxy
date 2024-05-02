@@ -3843,6 +3843,13 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, int is_default, 
 	}
 
 	if ((ckchs = ckchs_lookup(path))) {
+
+		cfgerr |= ckch_conf_cmp_empty(&ckchs->conf, err);
+		if (cfgerr & ERR_CODE) {
+			memprintf(err, "Can't load '%s', is already defined with incompatible parameters:\n %s", path, err ? *err : "");
+			return cfgerr;
+		}
+
 		/* we found the ckchs in the tree, we can use it directly */
 		 cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, is_default, &ckch_inst, err);
 

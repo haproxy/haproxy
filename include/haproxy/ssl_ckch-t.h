@@ -161,6 +161,16 @@ enum {
 	CERT_TYPE_MAX,
 };
 
+/*
+ * When crt-store options are set from a crt-list, the crt-store options must be explicit everywhere.
+ * When crt-store options are set from a crt-store, the crt-store options can be empty, or the exact same
+ */
+enum {
+	CKCH_CONF_SET_EMPTY    = 0,     /* config is empty */
+	CKCH_CONF_SET_CRTLIST  = 1,     /* config is set from a crt-list */
+	CKCH_CONF_SET_CRTSTORE = 2,     /* config is defined in a crt-store */
+};
+
 struct cert_exts {
 	const char *ext;
 	int type;

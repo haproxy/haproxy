@@ -472,9 +472,11 @@ int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry,
 			if (cfgerr & ERR_FATAL)
 				goto error;
 
-			cc->used = 1;
-			if (newarg) /* skip 2 words if the keyword was found */
-				cur_arg += 2;
+			if (newarg) {
+				cur_arg += 2;  /* skip 2 words if the keyword was found */
+				cc->used = CKCH_CONF_SET_CRTLIST; /* if they are options they must be used everywhere */
+			}
+
 		}
 out:
 		if (!cfgerr && !newarg) {
@@ -697,6 +699,12 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 			}
 
 		} else {
+			if (ckch_conf_cmp(&ckchs->conf, &cc, err) != 0) {
+				memprintf(err, "'%s' in crt-list '%s' line %d, is already defined with incompatible parameters:\n %s", crt_path, file, linenum, err ? *err : "");
+				cfgerr |= ERR_ALERT | ERR_FATAL;
+				goto error;
+			}
+
 			entry->node.key = ckchs;
 			entry->crtlist = newlist;
 

@@ -50,6 +50,8 @@ int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, int cli, ch
 
 int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, const char *file, int linenum, char **err);
 void ckch_conf_clean(struct ckch_conf *conf);
+int ckch_conf_cmp(struct ckch_conf *conf1, struct ckch_conf *conf2, char **err);
+int ckch_conf_cmp_empty(struct ckch_conf *prev, char **err);
 
 /* ckch_inst functions */
 void ckch_inst_free(struct ckch_inst *inst);
