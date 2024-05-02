@@ -1757,9 +1757,10 @@ int get_log_facility(const char *fac)
 }
 
 struct lf_buildctx {
-	int options; /* LOG_OPT_* options */
-	int typecast;/* same as logformat_node->typecast */
-	int in_text; /* inside variable-length text */
+	char _buf[256];/* fixed size buffer for building small strings */
+	int options;   /* LOG_OPT_* options */
+	int typecast;  /* same as logformat_node->typecast */
+	int in_text;   /* inside variable-length text */
 	union {
 		struct cbor_encode_ctx cbor; /* cbor-encode specific ctx */
 	} encode;
@@ -2321,23 +2322,19 @@ static char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, stru
 		switch (sockaddr->sa_family) {
 		case AF_INET:
 		{
-			char ip4_hex[9]; // 8 bytes + \0
-
 			addr = (unsigned char *)&((struct sockaddr_in *)sockaddr)->sin_addr.s_addr;
-			iret = snprintf(ip4_hex, sizeof(ip4_hex), "%02X%02X%02X%02X",
+			iret = snprintf(ctx->_buf, sizeof(ctx->_buf), "%02X%02X%02X%02X",
 			                addr[0], addr[1], addr[2], addr[3]);
 			if (iret < 0 || iret >= size)
 				return NULL;
-			ret = lf_rawtext(dst, ip4_hex, size, ctx);
+			ret = lf_rawtext(dst, ctx->_buf, size, ctx);
 
 			break;
 		}
 		case AF_INET6:
 		{
-			char ip6_hex[33]; // 32 bytes + \0
-
 			addr = (unsigned char *)&((struct sockaddr_in6 *)sockaddr)->sin6_addr.s6_addr;
-			iret = snprintf(ip6_hex, sizeof(ip6_hex),
+			iret = snprintf(ctx->_buf, sizeof(ctx->_buf),
 			                "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
 			                addr[0], addr[1], addr[2], addr[3],
 			                addr[4], addr[5], addr[6], addr[7],
@@ -2345,7 +2342,7 @@ static char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, stru
 			                addr[12], addr[13], addr[14], addr[15]);
 			if (iret < 0 || iret >= size)
 				return NULL;
-			ret = lf_rawtext(dst, ip6_hex, size, ctx);
+			ret = lf_rawtext(dst, ctx->_buf, size, ctx);
 
 			break;
 		}
@@ -2478,13 +2475,12 @@ static char *lf_port(char *dst, const struct sockaddr *sockaddr, size_t size, st
 	int iret;
 
 	if (ctx->options & LOG_OPT_HEXA) {
-		char port_hex[5]; // 4 bytes + \0
 		const unsigned char *port = (const unsigned char *)&((struct sockaddr_in *)sockaddr)->sin_port;
 
-		iret = snprintf(port_hex, sizeof(port_hex), "%02X%02X", port[0], port[1]);
+		iret = snprintf(ctx->_buf, sizeof(ctx->_buf), "%02X%02X", port[0], port[1]);
 		if (iret < 0 || iret >= size)
 			return NULL;
-		ret = lf_rawtext(dst, port_hex, size, ctx);
+		ret = lf_rawtext(dst, ctx->_buf, size, ctx);
 	} else {
 		ret = lf_int(dst, size, get_host_port((struct sockaddr_storage *)sockaddr),
 		             ctx, LF_INT_LTOA);
@@ -3916,12 +3912,12 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_DATE: // %t = accept date
 			{
-				char date_str[25]; // "26/Apr/2024:09:39:58.774"
+				// "26/Apr/2024:09:39:58.774"
 
 				get_localtime(logs->accept_date.tv_sec, &tm);
-				if (!date2str_log(date_str, &tm, &logs->accept_date, sizeof(date_str)))
+				if (!date2str_log(ctx->_buf, &tm, &logs->accept_date, sizeof(ctx->_buf)))
 					goto out;
-				ret = lf_rawtext(tmplog, date_str, dst + maxsize - tmplog, ctx);
+				ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3930,14 +3926,14 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_tr: // %tr = start of request date
 			{
-				char date_str[25]; // "26/Apr/2024:09:39:58.774"
+				// "26/Apr/2024:09:39:58.774"
 
 				/* Note that the timers are valid if we get here */
 				tv_ms_add(&tv, &logs->accept_date, logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
 				get_localtime(tv.tv_sec, &tm);
-				if (!date2str_log(date_str, &tm, &tv, sizeof(date_str)))
+				if (!date2str_log(ctx->_buf, &tm, &tv, sizeof(ctx->_buf)))
 					goto out;
-				ret = lf_rawtext(tmplog, date_str, dst + maxsize - tmplog, ctx);
+				ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3946,12 +3942,12 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_DATEGMT: // %T = accept date, GMT
 			{
-				char gmt_str[27]; // "26/Apr/2024:07:41:11 +0000"
+				// "26/Apr/2024:07:41:11 +0000"
 
 				get_gmtime(logs->accept_date.tv_sec, &tm);
-				if (!gmt2str_log(gmt_str, &tm, sizeof(gmt_str)))
+				if (!gmt2str_log(ctx->_buf, &tm, sizeof(ctx->_buf)))
 					goto out;
-				ret = lf_rawtext(tmplog, gmt_str, dst + maxsize - tmplog, ctx);
+				ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3960,13 +3956,13 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_trg: // %trg = start of request date, GMT
 			{
-				char gmt_str[27]; // "26/Apr/2024:07:41:11 +0000"
+				// "26/Apr/2024:07:41:11 +0000"
 
 				tv_ms_add(&tv, &logs->accept_date, logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
 				get_gmtime(tv.tv_sec, &tm);
-				if (!gmt2str_log(gmt_str, &tm, sizeof(gmt_str)))
+				if (!gmt2str_log(ctx->_buf, &tm, sizeof(ctx->_buf)))
 					goto out;
-				ret = lf_rawtext(tmplog, gmt_str, dst + maxsize - tmplog, ctx);
+				ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3975,12 +3971,12 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_DATELOCAL: // %Tl = accept date, local
 			{
-				char localdate_str[27]; // "26/Apr/2024:09:42:32 +0200"
+				// "26/Apr/2024:09:42:32 +0200"
 
 				get_localtime(logs->accept_date.tv_sec, &tm);
-				if (!localdate2str_log(localdate_str, logs->accept_date.tv_sec, &tm, sizeof(localdate_str)))
+				if (!localdate2str_log(ctx->_buf, logs->accept_date.tv_sec, &tm, sizeof(ctx->_buf)))
 					goto out;
-				ret = lf_rawtext(tmplog, localdate_str, dst + maxsize - tmplog, ctx);
+				ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3989,13 +3985,13 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_trl: // %trl = start of request date, local
 			{
-				char localdate_str[27]; // "26/Apr/2024:09:42:32 +0200"
+				// "26/Apr/2024:09:42:32 +0200"
 
 				tv_ms_add(&tv, &logs->accept_date, logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
 				get_localtime(tv.tv_sec, &tm);
-				if (!localdate2str_log(localdate_str, tv.tv_sec, &tm, sizeof(localdate_str)))
+				if (!localdate2str_log(ctx->_buf, tv.tv_sec, &tm, sizeof(ctx->_buf)))
 					goto out;
-				ret = lf_rawtext(tmplog, localdate_str, dst + maxsize - tmplog, ctx);
+				ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -4007,12 +4003,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				unsigned long value = logs->accept_date.tv_sec;
 
 				if (ctx->options & LOG_OPT_HEXA) {
-					char hex[9]; // enough to hold 32bit hex representation + NULL byte
-
-					iret = snprintf(hex, sizeof(hex), "%04X", (unsigned int)value);
+					iret = snprintf(ctx->_buf, sizeof(ctx->_buf), "%04X", (unsigned int)value);
 					if (iret < 0 || iret >= dst + maxsize - tmplog)
 						goto out;
-					ret = lf_rawtext(tmplog, hex, dst + maxsize - tmplog, ctx);
+					ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
 				} else {
 					ret = lf_int(tmplog, dst + maxsize - tmplog, value, ctx, LF_INT_LTOA);
 				}
@@ -4027,12 +4021,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				unsigned int value = (unsigned int)logs->accept_date.tv_usec/1000;
 
 				if (ctx->options & LOG_OPT_HEXA) {
-					char hex[9]; // enough to hold 32bit hex representation + NULL byte
-
-					iret = snprintf(hex, sizeof(hex), "%02X", value);
+					iret = snprintf(ctx->_buf, sizeof(ctx->_buf), "%02X", value);
 					if (iret < 0 || iret >= dst + maxsize - tmplog)
 						goto out;
-					ret = lf_rawtext(tmplog, hex, dst + maxsize - tmplog, ctx);
+					ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
 				} else {
 					ret = lf_int(tmplog, dst + maxsize - tmplog, value,
 					             ctx, LF_INT_UTOA_PAD_4);
@@ -4277,11 +4269,9 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_TERMSTATE: // %ts
 			{
-				char _ts[2];
-
-				_ts[0] = sess_term_cond[(s_flags & SF_ERR_MASK) >> SF_ERR_SHIFT];
-				_ts[1] = sess_fin_state[(s_flags & SF_FINST_MASK) >> SF_FINST_SHIFT];
-				ret = lf_rawtext_len(tmplog, _ts, 2, maxsize - (tmplog - dst), ctx);
+				ctx->_buf[0] = sess_term_cond[(s_flags & SF_ERR_MASK) >> SF_ERR_SHIFT];
+				ctx->_buf[1] = sess_fin_state[(s_flags & SF_FINST_MASK) >> SF_FINST_SHIFT];
+				ret = lf_rawtext_len(tmplog, ctx->_buf, 2, maxsize - (tmplog - dst), ctx);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -4290,13 +4280,11 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_TERMSTATE_CK: // %tsc, same as TS with cookie state (for mode HTTP)
 			{
-				char _tsc[4];
-
-				_tsc[0] = sess_term_cond[(s_flags & SF_ERR_MASK) >> SF_ERR_SHIFT];
-				_tsc[1] = sess_fin_state[(s_flags & SF_FINST_MASK) >> SF_FINST_SHIFT];
-				_tsc[2] = (txn && (be->ck_opts & PR_CK_ANY)) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-';
-				_tsc[3] = (txn && (be->ck_opts & PR_CK_ANY)) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-';
-				ret = lf_rawtext_len(tmplog, _tsc, 4, maxsize - (tmplog - dst), ctx);
+				ctx->_buf[0] = sess_term_cond[(s_flags & SF_ERR_MASK) >> SF_ERR_SHIFT];
+				ctx->_buf[1] = sess_fin_state[(s_flags & SF_FINST_MASK) >> SF_FINST_SHIFT];
+				ctx->_buf[2] = (txn && (be->ck_opts & PR_CK_ANY)) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-';
+				ctx->_buf[3] = (txn && (be->ck_opts & PR_CK_ANY)) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-';
+				ret = lf_rawtext_len(tmplog, ctx->_buf, 4, maxsize - (tmplog - dst), ctx);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -4694,12 +4682,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_COUNTER: // %rt
 				if (ctx->options & LOG_OPT_HEXA) {
-					char hex[9]; // enough to hold 32bit hex representation + NULL byte
-
-					iret = snprintf(hex, sizeof(hex), "%04X", uniq_id);
+					iret = snprintf(ctx->_buf, sizeof(ctx->_buf), "%04X", uniq_id);
 					if (iret < 0 || iret >= dst + maxsize - tmplog)
 						goto out;
-					ret = lf_rawtext(tmplog, hex, dst + maxsize - tmplog, ctx);
+					ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
 				} else {
 					ret = lf_int(tmplog, dst + maxsize - tmplog, uniq_id, ctx, LF_INT_LTOA);
 				}
@@ -4710,12 +4696,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_LOGCNT: // %lc
 				if (ctx->options & LOG_OPT_HEXA) {
-					char hex[9]; // enough to hold 32bit hex representation + NULL byte
-
-					iret = snprintf(hex, sizeof(hex), "%04X", fe->log_count);
+					iret = snprintf(ctx->_buf, sizeof(ctx->_buf), "%04X", fe->log_count);
 					if (iret < 0 || iret >= dst + maxsize - tmplog)
 						goto out;
-					ret = lf_rawtext(tmplog, hex, dst + maxsize - tmplog, ctx);
+					ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
 				} else {
 					ret = lf_int(tmplog, dst + maxsize - tmplog, fe->log_count,
 					             ctx, LF_INT_ULTOA);
@@ -4735,12 +4719,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_PID: // %pid
 				if (ctx->options & LOG_OPT_HEXA) {
-					char hex[9]; // enough to hold 32bit hex representation + NULL byte
-
-					iret = snprintf(hex, sizeof(hex), "%04X", pid);
+					iret = snprintf(ctx->_buf, sizeof(ctx->_buf), "%04X", pid);
 					if (iret < 0 || iret >= dst + maxsize - tmplog)
 						goto out;
-					ret = lf_rawtext(tmplog, hex, dst + maxsize - tmplog, ctx);
+					ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
 				} else {
 					ret = lf_int(tmplog, dst + maxsize - tmplog, pid, ctx, LF_INT_LTOA);
 				}
