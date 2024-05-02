@@ -975,7 +975,8 @@ OBJS += src/mux_h2.o src/mux_fcgi.o src/mux_h1.o src/tcpcheck.o               \
         src/dynbuf.o src/wdt.o src/pipe.o src/init.o src/http_acl.o           \
         src/hpack-huff.o src/hpack-enc.o src/dict.o src/freq_ctr.o            \
         src/ebtree.o src/hash.o src/dgram.o src/version.o src/proto_rhttp.o   \
-        src/guid.o src/stats-html.o src/stats-json.o src/stats-file.o
+        src/guid.o src/stats-html.o src/stats-json.o src/stats-file.o         \
+        src/stats-proxy.o
 
 ifneq ($(TRACE),)
   OBJS += src/calltrace.o
