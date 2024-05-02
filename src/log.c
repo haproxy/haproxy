@@ -3797,6 +3797,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			if (ret == NULL)
 				goto out;
 			tmplog = ret;
+			last_isspace = 0; /* consider that data was written */
 			goto next_fmt;
 		}
 
@@ -4756,8 +4757,6 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 		}
  next_fmt:
-		last_isspace = 0;
-
 		if (value_beg == tmplog) {
 			/* handle the case where no data was generated for the value after
 			 * the key was already announced
@@ -4782,6 +4781,13 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		 * to end it
 		 */
 		LOG_VARTEXT_END();
+		if (tmplog != value_beg) {
+			/* data was actually generated for the current dynamic
+			 * node, reset the space hint so that a new space may
+			 * now be emitted when relevant.
+			 */
+			last_isspace = 0;
+		}
 	}
 
 	/* back to global ctx (some encoding types may need to output
