@@ -3915,9 +3915,13 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				// "26/Apr/2024:09:39:58.774"
 
 				get_localtime(logs->accept_date.tv_sec, &tm);
-				if (!date2str_log(ctx->_buf, &tm, &logs->accept_date, sizeof(ctx->_buf)))
-					goto out;
-				ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
+				if (ctx->options & LOG_OPT_ENCODE) {
+					if (!date2str_log(ctx->_buf, &tm, &logs->accept_date, sizeof(ctx->_buf)))
+						goto out;
+					ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
+				}
+				else // speedup
+					ret = date2str_log(tmplog, &tm, &logs->accept_date, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3931,9 +3935,13 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				/* Note that the timers are valid if we get here */
 				tv_ms_add(&tv, &logs->accept_date, logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
 				get_localtime(tv.tv_sec, &tm);
-				if (!date2str_log(ctx->_buf, &tm, &tv, sizeof(ctx->_buf)))
-					goto out;
-				ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
+				if (ctx->options & LOG_OPT_ENCODE) {
+					if (!date2str_log(ctx->_buf, &tm, &tv, sizeof(ctx->_buf)))
+						goto out;
+					ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
+				}
+				else // speedup
+					ret = date2str_log(tmplog, &tm, &tv, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3945,9 +3953,13 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				// "26/Apr/2024:07:41:11 +0000"
 
 				get_gmtime(logs->accept_date.tv_sec, &tm);
-				if (!gmt2str_log(ctx->_buf, &tm, sizeof(ctx->_buf)))
-					goto out;
-				ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
+				if (ctx->options & LOG_OPT_ENCODE) {
+					if (!gmt2str_log(ctx->_buf, &tm, sizeof(ctx->_buf)))
+						goto out;
+					ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
+				}
+				else // speedup
+					ret = gmt2str_log(tmplog, &tm, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3960,9 +3972,13 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 				tv_ms_add(&tv, &logs->accept_date, logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
 				get_gmtime(tv.tv_sec, &tm);
-				if (!gmt2str_log(ctx->_buf, &tm, sizeof(ctx->_buf)))
-					goto out;
-				ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
+				if (ctx->options & LOG_OPT_ENCODE) {
+					if (!gmt2str_log(ctx->_buf, &tm, sizeof(ctx->_buf)))
+						goto out;
+					ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
+				}
+				else // speedup
+					ret = gmt2str_log(tmplog, &tm, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3974,9 +3990,15 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				// "26/Apr/2024:09:42:32 +0200"
 
 				get_localtime(logs->accept_date.tv_sec, &tm);
-				if (!localdate2str_log(ctx->_buf, logs->accept_date.tv_sec, &tm, sizeof(ctx->_buf)))
-					goto out;
-				ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
+				if (ctx->options & LOG_OPT_ENCODE) {
+					if (!localdate2str_log(ctx->_buf, logs->accept_date.tv_sec,
+					                       &tm, sizeof(ctx->_buf)))
+						goto out;
+					ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
+				}
+				else // speedup
+					ret = localdate2str_log(tmplog, logs->accept_date.tv_sec,
+					                        &tm, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -3989,9 +4011,13 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 				tv_ms_add(&tv, &logs->accept_date, logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
 				get_localtime(tv.tv_sec, &tm);
-				if (!localdate2str_log(ctx->_buf, tv.tv_sec, &tm, sizeof(ctx->_buf)))
-					goto out;
-				ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
+				if (ctx->options & LOG_OPT_ENCODE) {
+					if (!localdate2str_log(ctx->_buf, tv.tv_sec, &tm, sizeof(ctx->_buf)))
+						goto out;
+					ret = lf_rawtext(tmplog, ctx->_buf, dst + maxsize - tmplog, ctx);
+				}
+				else // speedup
+					ret = localdate2str_log(tmplog, tv.tv_sec, &tm, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
