@@ -909,11 +909,7 @@ void ckch_store_free(struct ckch_store *store)
 	ha_free(&store->data);
 
 	/* free the ckch_conf content */
-	free(store->conf.crt);
-	free(store->conf.key);
-	free(store->conf.ocsp);
-	free(store->conf.issuer);
-	free(store->conf.sctl);
+	ckch_conf_clean(&store->conf);
 
 	free(store);
 }
@@ -4206,6 +4202,16 @@ int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, c
 	}
 out:
 	return err_code;
+}
+
+/* freeing the content of a ckch_conf structure */
+void ckch_conf_clean(struct ckch_conf *conf)
+{
+	free(conf->crt);
+	free(conf->key);
+	free(conf->ocsp);
+	free(conf->issuer);
+	free(conf->sctl);
 }
 
 static char current_crtstore_name[PATH_MAX] = {};

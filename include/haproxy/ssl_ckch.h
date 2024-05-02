@@ -46,7 +46,11 @@ void ckch_store_free(struct ckch_store *store);
 void ckch_store_replace(struct ckch_store *old_ckchs, struct ckch_store *new_ckchs);
 int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, char **err);
 
+/* ckch_conf functions */
+
 int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, const char *file, int linenum, char **err);
+void ckch_conf_clean(struct ckch_conf *conf);
+
 /* ckch_inst functions */
 void ckch_inst_free(struct ckch_inst *inst);
 struct ckch_inst *ckch_inst_new();
