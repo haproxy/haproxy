@@ -1,8 +1,7 @@
 varnishtest "Preload counters via stats-file"
 
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.0-dev9)'"
 feature ignore_unknown_macro
-
-#REQUIRE_VERSION=3.0
 
 haproxy h1 -conf {
 	global
