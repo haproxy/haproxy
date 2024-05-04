@@ -1,6 +1,55 @@
 ChangeLog :
 ===========
 
+2024/05/04 : 3.0-dev10
+    - BUG/MEDIUM: cache: Vary not working properly on anything other than accept-encoding
+    - REGTESTS: cache: Add test on 'vary' other than accept-encoding
+    - BUG/MINOR: stats: replace objt_* by __objt_* macros
+    - CLEANUP: tools/cbor: rename cbor_encode_ctx struct members
+    - MINOR: log/cbor: _lf_cbor_encode_byte() explicitly requires non-NULL ctx
+    - BUG/MINOR: log: fix global lf_expr node options behavior
+    - CLEANUP: log: add a macro to know if a lf_node is configurable
+    - MINOR: httpclient: allow to use absolute URI with new flag HC_F_HTTPROXY
+    - MINOR: ssl: introduce ocsp_update.http_proxy for ocsp-update keyword
+    - BUG/MINOR: log/encode: consider global options for key encoding
+    - BUG/MINOR: log/encode: fix potential NULL-dereference in LOGCHAR()
+    - BUG/MINOR: log: fix global lf_expr node options behavior (2nd try)
+    - MINOR: log/cbor: _lf_cbor_encode_byte() explicitly requires non-NULL ctx (again)
+    - BUG/MEDIUM: log: don't ignore disabled node's options
+    - BUG/MINOR: stconn: don't wake up an applet waiting on buffer allocation
+    - MINOR: sock: rename sock to sock_fd in sock_create_server_socket
+    - MEDIUM: proto_uxst: take in account server namespace
+    - MEIDUM: unix sock: use my_socketat to create bind socket
+    - MINOR: sock_set_mark: take sock family in account
+    - MEDIUM: proto: make common fd checks in sock_create_server_socket
+    - MINOR: sock: add EPERM case in sock_handle_system_err
+    - MINOR: capabilities: add cap_sys_admin support
+    - CLEANUP: ssl: clean the includes in ssl_ocsp.c
+    - CLEANUP: ssl: move the global ocsp-update options parsing to ssl_ocsp.c
+    - MINOR: stats: fix visual alignment for stat_cols_px definition
+    - MINOR: stats: convert req_tot as generic column
+    - MINOR: stats: prepare stats-file support for values other than FN_COUNTER
+    - MINOR: counters: move freq-ctr from proxy/server into counters struct
+    - MINOR: stats: support rate in stats-file
+    - MINOR: stats: convert rate as generic column for proxy stats
+    - MINOR: counters: move last_change into counters struct
+    - MINOR: stats: support age in stats-file
+    - MINOR: stats: convert age as generic column for proxy stat
+    - CLEANUP: ssl: rename new_ckch_store_load_files_path() to ckch_store_new_load_files_path()
+    - MINOR: ssl: rename ocsp_update.http_proxy into ocsp-update.httpproxy
+    - REORG: stats: define stats-proxy source module
+    - MINOR: stats: extract proxy clear-counter in a dedicated function
+    - REGTESTS: stats: add test stats-file counters preload
+    - CI: netbsd: adjust packages after NetBSD-10 released
+    - CLEANUP: assorted typo fixes in the code and comments
+    - REGTESTS: replace REQUIRE_VERSION by version_atleast
+    - MEDIUM: log: optimizing tmp->type handling in sess_build_logline()
+    - BUG/MINOR: log: prevent double spaces emission in sess_build_logline()
+    - OPTIM: log: declare empty buffer as global variable
+    - OPTIM: log: use thread local lf_buildctx to stop pushing it on the stack
+    - OPTIM: log: use lf_buildctx's buffer instead of temporary stack buffers
+    - OPTIM: log: speedup date printing in sess_build_logline() when no encoding is used
+
 2024/04/27 : 3.0-dev9
     - BUILD: ssl: use %zd for sizeof() in ssl_ckch.c
     - MINOR: backend: use be_counters for health down accounting
