@@ -7,6 +7,7 @@ on:
 jobs:
   gcc:
     runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'haproxy' }}
     permissions:
       contents: read
     steps:
