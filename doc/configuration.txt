@@ -25948,6 +25948,22 @@ Special alias "%o" may be used to propagate its flags to all other
 logformat items on the same format string. This is particularly handy with
 quoted ("Q") and escaped ("E") string formats.
 
+Special alias "%OG" may be used to retrieve the log origin (when / where
+the log was generated) in a human readable format. It is particularly useful
+with "option logasap" because some log variables or sample fetches could report
+incomplete values or behave diffently depending on when / where the logformat
+expression was evaluated. Possible values are:
+  - "sess_error": log was generated during session error handling
+  - "sess_killed": log was generated during session abortion (killed
+    embryonic session)
+  - "txn_accept": log was generated right after frontend conn was accepted
+  - "txn_request": log was generated after client request was received
+  - "txn_connect": log was generated after backend connection establishment
+  - "txn_response": log was generated during server response handling
+  - "txn_close": log was generated at the final txn step, before closing
+  - "unspec": unknown or not specified
+"%OG" is only relevant in logging context.
+
 Items can optionally be named using ('()'). The name must be provided right
 after '%' (before arguments). It will automatically be used as key name when
 encoding flag such as "json" or "cbor" is set. When no encoding flag is
@@ -26174,6 +26190,8 @@ Please refer to the table below for currently defined aliases :
   |   | %hsl | captured_response_headers CLF style                  | string  |
   |   |      |                                                      | list    |
   +---+------+------------------------------------------------------+---------+
+  | L | %OG  | human readable log origin                            | string  |
+  +---+------+------------------------------------------------------+---------+
   |   | %pid | PID                                                  |         |
   |   |      | %[pid]                                               | numeric |
   +---+------+------------------------------------------------------+---------+
@@ -26211,7 +26229,7 @@ Please refer to the table below for currently defined aliases :
   | H | %tsc | termination_state with cookie status                 | string  |
   +---+------+------------------------------------------------------+---------+
 
-    R = Restrictions : H = mode http only ; S = SSL only
+    R = Restrictions : H = mode http only ; S = SSL only ; L = log only
 
 
 8.3. Advanced logging options

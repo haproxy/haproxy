@@ -151,6 +151,7 @@ int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy);
 /* logformat alias types (internal use) */
 enum logformat_alias_type {
 	LOG_FMT_GLOBAL,
+	LOG_FMT_ORIGIN,
 	LOG_FMT_CLIENTIP,
 	LOG_FMT_CLIENTPORT,
 	LOG_FMT_BACKENDIP,
@@ -219,6 +220,7 @@ enum logformat_alias_type {
 /* log_format alias names */
 static const struct logformat_alias logformat_aliases[] = {
 	{ "o", LOG_FMT_GLOBAL, PR_MODE_TCP, 0, NULL },  /* global option */
+	{ "OG", LOG_FMT_ORIGIN, PR_MODE_TCP, 0, NULL }, /* human readable log origin */
 
 	/* please keep these lines sorted ! */
 	{ "B", LOG_FMT_BYTES, PR_MODE_TCP, LW_BYTES, NULL },     /* bytes from server to client */
@@ -3603,7 +3605,9 @@ int lf_expr_dup(const struct lf_expr *orig, struct lf_expr *dest)
  * is not zero. It requires a valid session and optionally a stream. If the
  * stream is NULL, default values will be assumed for the stream part.
  */
-int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t maxsize, struct lf_expr *lf_expr)
+int sess_build_logline_orig(struct session *sess, struct stream *s,
+                            char *dst, size_t maxsize, struct lf_expr *lf_expr,
+                            enum log_orig log_orig)
 {
 	struct lf_buildctx *ctx = &lf_buildctx;
 	struct proxy *fe = sess->fe;
@@ -4865,6 +4869,14 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				tmplog = ret;
 				break;
 
+			case LOG_FMT_ORIGIN: // %OG
+				ret = lf_text(tmplog, log_orig_to_str(log_orig),
+				              dst + maxsize - tmplog, ctx);
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
+				break;
+
 		}
  next_fmt:
 		if (value_beg == tmplog) {
@@ -4960,11 +4972,11 @@ void strm_log(struct stream *s, int origin)
 	}
 
 	if (!lf_expr_isempty(&sess->fe->logformat_sd)) {
-		sd_size = build_logline(s, logline_rfc5424, global.max_syslog_len,
-		                        &sess->fe->logformat_sd);
+		sd_size = build_logline_orig(s, logline_rfc5424, global.max_syslog_len,
+		                        &sess->fe->logformat_sd, origin);
 	}
 
-	size = build_logline(s, logline, global.max_syslog_len, &sess->fe->logformat);
+	size = build_logline_orig(s, logline, global.max_syslog_len, &sess->fe->logformat, origin);
 	if (size > 0) {
 		struct process_send_log_ctx ctx;
 
@@ -4995,6 +5007,7 @@ void _sess_log(struct session *sess, int embryonic)
 {
 	int size, level;
 	int sd_size = 0;
+	int orig = (embryonic) ? LOG_ORIG_SESS_KILL : LOG_ORIG_SESS_ERROR;
 
 	if (!sess)
 		return;
@@ -5007,15 +5020,20 @@ void _sess_log(struct session *sess, int embryonic)
 		level = LOG_ERR;
 
 	if (!lf_expr_isempty(&sess->fe->logformat_sd)) {
-		sd_size = sess_build_logline(sess, NULL,
-		                             logline_rfc5424, global.max_syslog_len,
-		                             &sess->fe->logformat_sd);
+		sd_size = sess_build_logline_orig(sess, NULL,
+		                                  logline_rfc5424, global.max_syslog_len,
+		                                  &sess->fe->logformat_sd,
+		                                  orig);
 	}
 
 	if (!lf_expr_isempty(&sess->fe->logformat_error))
-		size = sess_build_logline(sess, NULL, logline, global.max_syslog_len, &sess->fe->logformat_error);
+		size = sess_build_logline_orig(sess, NULL, logline,
+		                               global.max_syslog_len, &sess->fe->logformat_error,
+		                               orig);
 	else if (!embryonic)
-		size = sess_build_logline(sess, NULL, logline, global.max_syslog_len, &sess->fe->logformat);
+		size = sess_build_logline_orig(sess, NULL, logline,
+		                               global.max_syslog_len, &sess->fe->logformat,
+		                               orig);
 	else { /* no logformat_error and embryonic==1 */
 		struct buffer buf;
 
@@ -5027,7 +5045,7 @@ void _sess_log(struct session *sess, int embryonic)
 		struct process_send_log_ctx ctx;
 
 		_HA_ATOMIC_INC(&sess->fe->log_count);
-		ctx.origin = (embryonic) ? LOG_ORIG_SESS_KILL : LOG_ORIG_SESS_ERROR;
+		ctx.origin = orig;
 		ctx.sess = sess;
 		ctx.stream = NULL;
 		__send_log(&ctx, &sess->fe->loggers,
