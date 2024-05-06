@@ -88,6 +88,30 @@ static const struct log_fmt_st log_formats[LOG_FORMATS] = {
 	},
 };
 
+/* get human readable representation for log_orig enum members */
+const char *log_orig_to_str(enum log_orig orig)
+{
+	switch (orig) {
+		case LOG_ORIG_SESS_ERROR:
+			return "sess_error";
+		case LOG_ORIG_SESS_KILL:
+			return "sess_killed";
+		case LOG_ORIG_TXN_ACCEPT:
+			return "txn_accept";
+		case LOG_ORIG_TXN_REQUEST:
+			return "txn_request";
+		case LOG_ORIG_TXN_CONNECT:
+			return "txn_connect";
+		case LOG_ORIG_TXN_RESPONSE:
+			return "txn_response";
+		case LOG_ORIG_TXN_CLOSE:
+			return "txn_close";
+		default:
+			break;
+	}
+	return "unspec";
+}
+
 /*
  * This map is used with all the FD_* macros to check whether a particular bit
  * is set or not. Each bit represents an ASCII code. ha_bit_set() sets those

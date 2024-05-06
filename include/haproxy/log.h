@@ -64,6 +64,8 @@ void syslog_fd_handler(int fd);
 int init_log_buffers(void);
 void deinit_log_buffers(void);
 
+const char *log_orig_to_str(enum log_orig orig);
+
 void lf_expr_init(struct lf_expr *expr);
 int lf_expr_dup(const struct lf_expr *orig, struct lf_expr *dest);
 void lf_expr_xfer(struct lf_expr *src, struct lf_expr *dst);
