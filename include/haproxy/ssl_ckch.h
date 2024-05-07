@@ -44,7 +44,7 @@ struct ckch_store *ckchs_dup(const struct ckch_store *src);
 struct ckch_store *ckch_store_new(const char *filename);
 void ckch_store_free(struct ckch_store *store);
 void ckch_store_replace(struct ckch_store *old_ckchs, struct ckch_store *new_ckchs);
-int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, char **err);
+int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, int cli, char **err);
 
 /* ckch_conf functions */
 
@@ -80,11 +80,11 @@ extern struct cert_exts cert_exts[];
 extern int (*ssl_commit_crlfile_cb)(const char *path, X509_STORE *ctx, char **err);
 
 /* ckch_conf keyword loading */
-static inline int ckch_conf_load_pem(void *value, char *buf, struct ckch_data *d, char **err) { return ssl_sock_load_pem_into_ckch(value, buf, d, err); }
-static inline int ckch_conf_load_key(void *value, char *buf, struct ckch_data *d, char **err) { return ssl_sock_load_key_into_ckch(value, buf, d, err); }
-static inline int ckch_conf_load_ocsp_response(void *value, char *buf, struct ckch_data *d, char **err) { return ssl_sock_load_ocsp_response_from_file(value, buf, d, err); }
-static inline int ckch_conf_load_ocsp_issuer(void *value, char *buf, struct ckch_data *d, char **err) { return ssl_sock_load_issuer_file_into_ckch(value, buf, d, err); }
-static inline int ckch_conf_load_sctl(void *value, char *buf, struct ckch_data *d, char **err) { return ssl_sock_load_sctl_from_file(value, buf, d, err); }
+static inline int ckch_conf_load_pem(void *value, char *buf, struct ckch_data *d, int cli, char **err) { if (cli) return 0; return ssl_sock_load_pem_into_ckch(value, buf, d, err); }
+static inline int ckch_conf_load_key(void *value, char *buf, struct ckch_data *d, int cli, char **err) { if (cli) return 0; return ssl_sock_load_key_into_ckch(value, buf, d, err); }
+static inline int ckch_conf_load_ocsp_response(void *value, char *buf, struct ckch_data *d, int cli, char **err) { if (cli) return 0; return ssl_sock_load_ocsp_response_from_file(value, buf, d, err); }
+static inline int ckch_conf_load_ocsp_issuer(void *value, char *buf, struct ckch_data *d, int cli, char **err) { if (cli) return 0; return ssl_sock_load_issuer_file_into_ckch(value, buf, d, err); }
+static inline int ckch_conf_load_sctl(void *value, char *buf, struct ckch_data *d, int cli, char **err) { if (cli) return 0; return ssl_sock_load_sctl_from_file(value, buf, d, err); }
 
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_CRTLIST_H */

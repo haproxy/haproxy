@@ -825,14 +825,21 @@ end:
  * Take an ssl_bind_conf structure and append the configuration line used to
  * create it in the buffer
  */
-static void dump_crtlist_sslconf(struct buffer *buf, const struct ssl_bind_conf *conf)
+static void dump_crtlist_conf(struct buffer *buf, const struct ssl_bind_conf *conf, const struct ckch_conf *cc)
 {
 	int space = 0;
 
-	if (conf == NULL)
+	if (conf == NULL && cc->used == 0)
 		return;
 
 	chunk_appendf(buf, " [");
+
+
+	if (conf == NULL)
+		goto dump_ckch;
+
+	/* first dump all ssl_conf keywords */
+
 #ifdef OPENSSL_NPN_NEGOTIATED
 	if (conf->npn_str) {
 		int len = conf->npn_len;
@@ -958,7 +965,22 @@ static void dump_crtlist_sslconf(struct buffer *buf, const struct ssl_bind_conf 
 		space++;
 	}
 
-	/* FIXME: dump crt-store keywords */
+	/* then dump the ckch_conf */
+dump_ckch:
+	if (!cc->used)
+		goto end;
+
+	if (cc->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_OFF) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "ocsp-update off");
+		space++;
+	} else if (cc->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_ON) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "ocsp-update on");
+		space++;
+	}
+
+end:
 
 	chunk_appendf(buf, "]");
 
@@ -1042,7 +1064,7 @@ static int cli_io_handler_dump_crtlist_entries(struct appctx *appctx)
 		chunk_appendf(trash, "%s", filename);
 		if (ctx->mode == 's') /* show */
 			chunk_appendf(trash, ":%d", entry->linenum);
-		dump_crtlist_sslconf(trash, entry->ssl_conf);
+		dump_crtlist_conf(trash, entry->ssl_conf, &store->conf);
 		dump_crtlist_filters(trash, entry);
 		chunk_appendf(trash, "\n");
 
@@ -1272,6 +1294,7 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 	struct ebpt_node *inserted;
 	struct crtlist *crtlist;
 	struct crtlist_entry *entry = NULL;
+	struct ckch_conf cc = {};
 	char *end;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
@@ -1302,6 +1325,7 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 		goto error;
 	}
 
+
 	if (payload) {
 		char *lf;
 
@@ -1311,8 +1335,7 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 			goto error;
 		}
 		/* cert_path is filled here */
-		cfgerr |= crtlist_parse_line(payload, &cert_path, entry, NULL, "CLI", 1, 1, &err);
-		/* FIXME: handle the ckch_conf */
+		cfgerr |= crtlist_parse_line(payload, &cert_path, entry, &cc, "CLI", 1, 1, &err);
 		if (cfgerr & ERR_CODE)
 			goto error;
 	} else {
@@ -1363,6 +1386,24 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 		goto error;
 	}
 
+	/* We can use a crt-store keyword when:
+	 * - no ckch_inst are linked OR
+	 * - ckch_inst are linked but exact same ckch_conf is used.
+	 */
+	if (LIST_ISEMPTY(&store->ckch_inst)) {
+
+		store->conf = cc;
+		/* fresh new, run more init (for example init ocsp-update tasks) */
+		cfgerr |= ckch_store_load_files(&cc, store, 1, &err);
+		if (cfgerr & ERR_FATAL)
+			goto error;
+
+	} else if (ckch_conf_cmp(&store->conf, &cc, &err) != 0) {
+		memprintf(&err, "'%s' is already instantiated with incompatible parameters:\n %s", cert_path, err ? err : "");
+		cfgerr |= ERR_ALERT | ERR_FATAL;
+		goto error;
+	}
+
 	/* check if it's possible to insert this new crtlist_entry */
 	entry->node.key = store;
 	inserted = ebpt_insert(&crtlist->entries, &entry->node);
@@ -1372,8 +1413,8 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 	}
 
 	/* this is supposed to be a directory (EB_ROOT_UNIQUE), so no ssl_conf are allowed */
-	if ((entry->ssl_conf || entry->filters) && eb_gettag(crtlist->entries.b[EB_RGHT])) {
-		memprintf(&err, "this is a directory, SSL configuration and filters are not allowed");
+	if ((entry->ssl_conf || entry->filters || cc.used) && eb_gettag(crtlist->entries.b[EB_RGHT])) {
+		memprintf(&err, "this is a directory, SSL configuration, crt-store keywords and filters are not allowed");
 		goto error;
 	}
 
@@ -1389,6 +1430,7 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 	return 0;
 
 error:
+	ckch_conf_clean(&cc);
 	crtlist_entry_free(entry);
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 	err = memprintf(&err, "Can't edit the crt-list: %s\n", err ? err : "");

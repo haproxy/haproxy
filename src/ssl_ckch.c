@@ -962,6 +962,9 @@ struct ckch_store *ckchs_dup(const struct ckch_store *src)
 	if (!ssl_sock_copy_cert_key_and_chain(src->data, dst->data))
 		goto error;
 
+
+	dst->conf.ocsp_update_mode = src->conf.ocsp_update_mode;
+
 	return dst;
 
 error:
@@ -1026,7 +1029,7 @@ struct ckch_store *ckch_store_new_load_files_conf(char *name, struct ckch_conf *
 		goto end;
 	}
 
-	cfgerr = ckch_store_load_files(conf, ckchs, err);
+	cfgerr = ckch_store_load_files(conf, ckchs, 0, err);
 	if (cfgerr & ERR_FATAL)
 		goto end;
 
@@ -4033,18 +4036,12 @@ struct ckch_conf_kws ckch_conf_kws[] = {
 };
 
 /* crt-store does not try to find files, but use the stored filename */
-int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, char **err)
+int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, int cli, char **err)
 {
 	int i;
 	int err_code = 0;
 	int rc = 1;
 	struct ckch_data *d = c->data;
-
-	/* crt */
-	if (!f->crt) {
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
 
 	for (i = 0; ckch_conf_kws[i].name; i++) {
 		void *src = NULL;
@@ -4079,7 +4076,7 @@ int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, char **err)
 					}
 					path = path_base;
 				}
-				rc = ckch_conf_kws[i].func(path, NULL, d, err);
+				rc = ckch_conf_kws[i].func(path, NULL, d, cli, err);
 				if (rc) {
 					err_code |= ERR_ALERT | ERR_FATAL;
 					memprintf(err, "%s '%s' cannot be read or parsed.", err && *err ? *err : "", path);
@@ -4092,7 +4089,7 @@ int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, char **err)
 			case PARSE_TYPE_ONOFF:
 			{
 				int v = *(int *)src;
-				rc = ckch_conf_kws[i].func(&v, NULL, d, err);
+				rc = ckch_conf_kws[i].func(&v, NULL, d, cli, err);
 				if (rc) {
 					err_code |= ERR_ALERT | ERR_FATAL;
 					memprintf(err, "%s '%d' cannot be read or parsed.", err && *err ? *err : "", v);
@@ -4313,7 +4310,7 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 	if (!c)
 		goto alloc_error;
 
-	err_code |= ckch_store_load_files(&f, c, err);
+	err_code |= ckch_store_load_files(&f, c,  0, err);
 	if (err_code & ERR_FATAL)
 		goto out;
 
