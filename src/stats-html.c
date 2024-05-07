@@ -1955,7 +1955,6 @@ static void http_stats_io_handler(struct appctx *appctx)
 		goto out;
 
 	if (!appctx_get_buf(appctx, &appctx->outbuf)) {
-		applet_fl_set(appctx, APPCTX_FL_OUTBLK_ALLOC);
 		goto out;
 	}
 

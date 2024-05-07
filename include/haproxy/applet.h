@@ -59,6 +59,7 @@ size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 
 int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags);
 ssize_t applet_append_line(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len);
+static forceinline void applet_fl_set(struct appctx *appctx, uint on);
 
 static inline struct appctx *appctx_new_here(struct applet *applet, struct sedesc *sedesc)
 {
@@ -84,15 +85,20 @@ static inline void appctx_release_buf(struct appctx *appctx, struct buffer *bptr
 }
 
 /*
- * Allocate a buffer. If if fails, it adds the appctx in buffer wait queue.
+ * Allocate a buffer. If if fails, it adds the appctx in buffer wait queue and
+ * sets the relevant blocking flag depending on the side (assuming that bptr is
+ * either &appctx->inbuf or &appctx->outbuf)
  */
 static inline struct buffer *appctx_get_buf(struct appctx *appctx, struct buffer *bptr)
 {
 	struct buffer *buf = NULL;
+	int is_inbuf = (bptr == &appctx->inbuf);
 
-	if (likely(!LIST_INLIST(&appctx->buffer_wait.list)) &&
-	    unlikely((buf = b_alloc(bptr, DB_SE_RX)) == NULL)) {
-		b_queue(DB_SE_RX, &appctx->buffer_wait, appctx, appctx_buf_available);
+	if (likely(!LIST_INLIST(&appctx->buffer_wait.list))) {
+		if (unlikely((buf = b_alloc(bptr, DB_SE_RX)) == NULL)) {
+			b_queue(DB_SE_RX, &appctx->buffer_wait, appctx, appctx_buf_available);
+			applet_fl_set(appctx, is_inbuf ? APPCTX_FL_INBLK_ALLOC : APPCTX_FL_OUTBLK_ALLOC);
+		}
 	}
 	return buf;
 }

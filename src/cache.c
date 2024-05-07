@@ -1790,7 +1790,6 @@ static void http_cache_io_handler(struct appctx *appctx)
 		goto exit;
 
 	if (!appctx_get_buf(appctx, &appctx->outbuf)) {
-		applet_fl_set(appctx, APPCTX_FL_OUTBLK_ALLOC);
 		goto exit;
 	}
 

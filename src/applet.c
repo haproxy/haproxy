@@ -528,7 +528,6 @@ size_t appctx_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 		goto end;
 
 	if (!appctx_get_buf(appctx, &appctx->outbuf)) {
-		applet_fl_set(appctx, APPCTX_FL_OUTBLK_ALLOC);
 		TRACE_STATE("waiting for appctx outbuf allocation", APPLET_EV_RECV|APPLET_EV_BLK, appctx);
 		goto end;
 	}
@@ -626,7 +625,6 @@ size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 		goto end;
 
 	if (!appctx_get_buf(appctx, &appctx->inbuf)) {
-		applet_fl_set(appctx, APPCTX_FL_INBLK_ALLOC);
 		TRACE_STATE("waiting for appctx inbuf allocation", APPLET_EV_SEND|APPLET_EV_BLK, appctx);
 		goto end;
 	}
