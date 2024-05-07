@@ -1,4 +1,4 @@
-#REGTEST_TYPE=broken
+#REGTEST_TYPE=slow
 # reg-test is around ~2.5s
 
 # broken with BoringSSL.
@@ -653,7 +653,7 @@ haproxy h8 -cli {
 # Check that the auto update option consistency check work even when crt-list
 # lines are added through the cli
 shell {
-    printf "add ssl crt-list ${testdir}/ocsp_update/multicert_both_certs.crt-list <<\nmulticert/server_ocsp.pem.ecdsa foo.foo\n\n" | socat "${tmpdir}/h8/stats" - | grep "Incompatibilities found in OCSP update mode for certificate"
+    printf "add ssl crt-list ${testdir}/ocsp_update/multicert_both_certs.crt-list <<\nmulticert/server_ocsp.pem.ecdsa foo.foo\n\n" | socat "${tmpdir}/h8/stats" - | grep "different parameter 'ocsp-update'"
 }
 
 haproxy h8 -wait
