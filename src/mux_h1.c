@@ -539,7 +539,8 @@ static inline struct buffer *h1_get_ibuf(struct h1c *h1c)
 {
 	struct buffer *buf;
 
-	if (unlikely((buf = b_alloc(&h1c->ibuf, DB_MUX_RX)) == NULL)) {
+	if (unlikely((buf = b_alloc(&h1c->ibuf, DB_MUX_RX |
+				    ((h1c->flags & H1C_F_IN_MAYALLOC) ? DB_F_NOQUEUE : 0))) == NULL)) {
 		b_queue(DB_MUX_RX, &h1c->buf_wait, h1c, h1_buf_available);
 		h1c->flags |= H1C_F_IN_ALLOC;
 	}
@@ -557,7 +558,8 @@ static inline struct buffer *h1_get_obuf(struct h1c *h1c)
 {
 	struct buffer *buf;
 
-	if (unlikely((buf = b_alloc(&h1c->obuf, DB_MUX_TX)) == NULL)) {
+	if (unlikely((buf = b_alloc(&h1c->obuf, DB_MUX_TX |
+				    ((h1c->flags & H1C_F_OUT_MAYALLOC) ? DB_F_NOQUEUE : 0))) == NULL)) {
 		b_queue(DB_MUX_TX, &h1c->buf_wait, h1c, h1_buf_available);
 		h1c->flags |= H1C_F_OUT_ALLOC;
 	}
@@ -576,7 +578,8 @@ static inline struct buffer *h1_get_rxbuf(struct h1s *h1s)
 	struct h1c *h1c = h1s->h1c;
 	struct buffer *buf;
 
-	if (unlikely((buf = b_alloc(&h1s->rxbuf, DB_SE_RX)) == NULL)) {
+	if (unlikely((buf = b_alloc(&h1s->rxbuf, DB_SE_RX |
+				    ((h1c->flags & H1C_F_IN_SMAYALLOC) ? DB_F_NOQUEUE : 0))) == NULL)) {
 		b_queue(DB_SE_RX, &h1c->buf_wait, h1c, h1_buf_available);
 		h1c->flags |= H1C_F_IN_SALLOC;
 	}
