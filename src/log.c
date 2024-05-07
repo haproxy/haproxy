@@ -5517,7 +5517,7 @@ ssize_t syslog_applet_append_event(void *ctx, struct ist v1, struct ist v2, size
 		return -2;
 
 	/* try to transfer it or report full */
-	trash.data += vp_peek_ofs(v1, v2, ofs, trash.area, len);
+	trash.data += vp_peek_ofs(v1, v2, ofs, trash.area + trash.data, len);
 	if (applet_putchk(appctx, &trash) == -1)
 		return -1;
 
