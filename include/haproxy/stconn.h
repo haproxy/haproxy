@@ -377,12 +377,15 @@ static inline void se_need_remote_conn(struct sedesc *se)
 }
 
 /* The application layer tells the stream connector that it just got the input
- * buffer it was waiting for. A read activity is reported.
+ * buffer it was waiting for. A read activity is reported. The SC_FL_HAVE_BUFF
+ * flag is set and held until sc_used_buff() is called to indicatee it was
+ * used.
  */
 static inline void sc_have_buff(struct stconn *sc)
 {
 	if (sc->flags & SC_FL_NEED_BUFF) {
 		sc->flags &= ~SC_FL_NEED_BUFF;
+		sc->flags |=  SC_FL_HAVE_BUFF;
 		sc_ep_report_read_activity(sc);
 	}
 }
@@ -395,6 +398,14 @@ static inline void sc_have_buff(struct stconn *sc)
 static inline void sc_need_buff(struct stconn *sc)
 {
 	sc->flags |= SC_FL_NEED_BUFF;
+}
+
+/* The stream connector indicates that it has successfully allocated the buffer
+ * it was previously waiting for so it drops the SC_FL_HAVE_BUFF bit.
+ */
+static inline void sc_used_buff(struct stconn *sc)
+{
+	sc->flags &= ~SC_FL_HAVE_BUFF;
 }
 
 /* Tell a stream connector some room was made in the input buffer and any

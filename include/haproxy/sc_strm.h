@@ -155,8 +155,11 @@ static inline int sc_alloc_ibuf(struct stconn *sc, struct buffer_wait *wait)
 	int ret;
 
 	ret = channel_alloc_buffer(sc_ic(sc), wait);
-	if (!ret)
+	if (ret)
+		sc_used_buff(sc);
+	else
 		sc_need_buff(sc);
+
 	return ret;
 }
 
