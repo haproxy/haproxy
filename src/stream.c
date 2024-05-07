@@ -749,7 +749,7 @@ void stream_free(struct stream *s)
  */
 static int stream_alloc_work_buffer(struct stream *s)
 {
-	if (b_alloc(&s->res.buf, DB_CHANNEL)) {
+	if (b_alloc(&s->res.buf, DB_CHANNEL | ((s->flags & SF_MAYALLOC) ? DB_F_NOQUEUE : 0))) {
 		s->flags &= ~SF_MAYALLOC;
 		return 1;
 	}
