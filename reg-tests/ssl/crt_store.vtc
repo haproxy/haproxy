@@ -1,4 +1,4 @@
-#REGTEST_TYPE=devel
+#REGTEST_TYPE=broken
 varnishtest "Test the crt-store section"
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.0-dev7)'"
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
