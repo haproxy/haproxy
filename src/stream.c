@@ -326,6 +326,7 @@ int stream_buf_available(void *arg)
 	if (!s->res.buf.size && !sc_ep_have_ff_data(s->scf) && s->scb->flags & SC_FL_NEED_BUFF)
 		sc_have_buff(s->scb);
 
+	s->flags |= SF_MAYALLOC;
 	task_wakeup(s->task, TASK_WOKEN_RES);
 	return 1;
 
@@ -748,8 +749,10 @@ void stream_free(struct stream *s)
  */
 static int stream_alloc_work_buffer(struct stream *s)
 {
-	if (b_alloc(&s->res.buf, DB_CHANNEL))
+	if (b_alloc(&s->res.buf, DB_CHANNEL)) {
+		s->flags &= ~SF_MAYALLOC;
 		return 1;
+	}
 
 	b_requeue(DB_CHANNEL, &s->buffer_wait);
 	return 0;
