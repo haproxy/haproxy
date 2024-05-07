@@ -530,7 +530,7 @@ haproxy h7 -conf {
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h7/stats" level admin
         crt-base ${testdir}
-        tune.ssl.ocsp-update.mode on
+        ocsp-update.mode on
         log ${Syslog_ocsp7_addr}:${Syslog_ocsp7_port} local0 notice notice
 
     defaults
@@ -723,7 +723,7 @@ shell {
 # Check that the line is in the crt-list
 haproxy h9 -cli {
     send "show ssl crt-list ${testdir}/ocsp_update/multicert_ecdsa_no_update.crt-list"
-    expect ~ "${testdir}/ocsp_update/rsa.pem .* foo.bar"
+    expect ~ "${testdir}/ocsp_update/rsa.pem.*ocsp-update off.*foo.bar"
 }
 
 # Check that the new certificate is NOT in the auto update list

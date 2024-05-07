@@ -3,7 +3,7 @@
 # broken with BoringSSL.
 #
 # This reg-test tries loading multiple configurations that make use of the
-# 'ocsp-update' crt-list option and the global 'tune.ssl.ocsp-update.mode'
+# 'ocsp-update' crt-list option and the global 'ocsp-update.mode'
 # option. It ensures that an error message is raised when the user provides an
 # incoherent configuration. Any configuration in which a given certificate has
 # the ocsp auto update mode set to 'on' as well as 'off' simultaneously should
@@ -37,7 +37,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-#    tune.ssl.ocsp-update.mode on
+#    ocsp-update.mode on
 
 defaults
     log stderr local0 debug err
@@ -67,7 +67,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-    tune.ssl.ocsp-update.mode on
+    ocsp-update.mode on
 
 defaults
     log stderr local0 debug err
@@ -97,7 +97,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-    tune.ssl.ocsp-update.mode off
+    ocsp-update.mode off
 
 defaults
     log stderr local0 debug err
@@ -127,7 +127,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-#    tune.ssl.ocsp-update.mode off
+#    ocsp-update.mode off
 
 defaults
     log stderr local0 debug err
@@ -158,7 +158,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-    tune.ssl.ocsp-update.mode on
+    ocsp-update.mode on
 
 defaults
     log stderr local0 debug err
@@ -189,7 +189,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-    tune.ssl.ocsp-update.mode off
+    ocsp-update.mode off
 
 defaults
     log stderr local0 debug err
@@ -222,7 +222,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-#    tune.ssl.ocsp-update.mode off
+#    ocsp-update.mode off
 
 defaults
     log stderr local0 debug err
@@ -254,7 +254,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-#    tune.ssl.ocsp-update.mode off
+#    ocsp-update.mode off
 
 defaults
     log stderr local0 debug err
@@ -286,7 +286,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-    tune.ssl.ocsp-update.mode on
+    ocsp-update.mode on
 
 defaults
     log stderr local0 debug err
@@ -318,7 +318,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-    tune.ssl.ocsp-update.mode on
+    ocsp-update.mode on
 
 defaults
     log stderr local0 debug err
@@ -350,7 +350,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-    tune.ssl.ocsp-update.mode off
+    ocsp-update.mode off
 
 defaults
     log stderr local0 debug err
@@ -382,7 +382,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-    tune.ssl.ocsp-update.mode off
+    ocsp-update.mode off
 
 defaults
     log stderr local0 debug err
@@ -421,7 +421,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-#    tune.ssl.ocsp-update.mode on
+#    ocsp-update.mode on
 
 defaults
     log stderr local0 debug err
@@ -449,7 +449,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-    tune.ssl.ocsp-update.mode on
+    ocsp-update.mode on
 
 defaults
     log stderr local0 debug err
@@ -477,7 +477,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-    tune.ssl.ocsp-update.mode off
+    ocsp-update.mode off
 
 defaults
     log stderr local0 debug err
@@ -505,7 +505,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-#    tune.ssl.ocsp-update.mode off
+#    ocsp-update.mode off
 
 defaults
     log stderr local0 debug err
@@ -534,7 +534,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-    tune.ssl.ocsp-update.mode on
+    ocsp-update.mode on
 
 defaults
     log stderr local0 debug err
@@ -563,7 +563,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-    tune.ssl.ocsp-update.mode off
+    ocsp-update.mode off
 
 defaults
     log stderr local0 debug err
@@ -594,7 +594,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-#    tune.ssl.ocsp-update.mode off
+#    ocsp-update.mode off
 
 defaults
     log stderr local0 debug err
@@ -624,7 +624,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-#    tune.ssl.ocsp-update.mode off
+#    ocsp-update.mode off
 
 defaults
     log stderr local0 debug err
@@ -654,7 +654,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-    tune.ssl.ocsp-update.mode on
+    ocsp-update.mode on
 
 defaults
     log stderr local0 debug err
@@ -684,7 +684,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-    tune.ssl.ocsp-update.mode on
+    ocsp-update.mode on
 
 defaults
     log stderr local0 debug err
@@ -714,7 +714,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-    tune.ssl.ocsp-update.mode off
+    ocsp-update.mode off
 
 defaults
     log stderr local0 debug err
@@ -744,7 +744,7 @@ EOF
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
     crt-base ${testdir}/ocsp_update/multicert
-    tune.ssl.ocsp-update.mode off
+    ocsp-update.mode off
 
 defaults
     log stderr local0 debug err
