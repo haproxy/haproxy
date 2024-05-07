@@ -501,21 +501,27 @@ static int h1_buf_available(void *target)
 {
 	struct h1c *h1c = target;
 
-	if ((h1c->flags & H1C_F_IN_ALLOC) && h1_recv_allowed(h1c)) {
-		TRACE_STATE("unblocking h1c, ibuf allocated", H1_EV_H1C_RECV|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn);
+	if (h1c->flags & H1C_F_IN_ALLOC) {
 		h1c->flags &= ~H1C_F_IN_ALLOC;
-		tasklet_wakeup(h1c->wait_event.tasklet);
+		h1c->flags |=  H1C_F_IN_MAYALLOC;
 	}
 
 	if ((h1c->flags & H1C_F_OUT_ALLOC) && h1c->h1s) {
-		TRACE_STATE("unblocking h1s, obuf allocated", H1_EV_TX_DATA|H1_EV_H1S_BLK|H1_EV_STRM_WAKE, h1c->conn, h1c->h1s);
+		TRACE_STATE("unblocking h1s, obuf allocatable", H1_EV_TX_DATA|H1_EV_H1S_BLK|H1_EV_STRM_WAKE, h1c->conn, h1c->h1s);
 		h1c->flags &= ~H1C_F_OUT_ALLOC;
+		h1c->flags |=  H1C_F_OUT_MAYALLOC;
 		h1_wake_stream_for_send(h1c->h1s);
 	}
 
 	if ((h1c->flags & H1C_F_IN_SALLOC) && h1c->h1s) {
-		TRACE_STATE("unblocking h1c, stream rxbuf allocated", H1_EV_H1C_RECV|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn);
+		TRACE_STATE("unblocking h1c, stream rxbuf allocatable", H1_EV_H1C_RECV|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn);
 		h1c->flags &= ~H1C_F_IN_SALLOC;
+		h1c->flags |=  H1C_F_IN_SMAYALLOC;
+		tasklet_wakeup(h1c->wait_event.tasklet);
+	}
+
+	if ((h1c->flags & H1C_F_IN_MAYALLOC) && h1_recv_allowed(h1c)) {
+		TRACE_STATE("unblocking h1c, ibuf allocatable", H1_EV_H1C_RECV|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn);
 		tasklet_wakeup(h1c->wait_event.tasklet);
 	}
 
@@ -537,6 +543,9 @@ static inline struct buffer *h1_get_ibuf(struct h1c *h1c)
 		b_queue(DB_MUX_RX, &h1c->buf_wait, h1c, h1_buf_available);
 		h1c->flags |= H1C_F_IN_ALLOC;
 	}
+	else
+		h1c->flags &= ~H1C_F_IN_MAYALLOC;
+
 	return buf;
 }
 
@@ -552,6 +561,9 @@ static inline struct buffer *h1_get_obuf(struct h1c *h1c)
 		b_queue(DB_MUX_TX, &h1c->buf_wait, h1c, h1_buf_available);
 		h1c->flags |= H1C_F_OUT_ALLOC;
 	}
+	else
+		h1c->flags &= ~H1C_F_OUT_MAYALLOC;
+
 	return buf;
 }
 
@@ -568,6 +580,9 @@ static inline struct buffer *h1_get_rxbuf(struct h1s *h1s)
 		b_queue(DB_SE_RX, &h1c->buf_wait, h1c, h1_buf_available);
 		h1c->flags |= H1C_F_IN_SALLOC;
 	}
+	else
+		h1c->flags &= ~H1C_F_IN_SMAYALLOC;
+
 	return buf;
 }
 
@@ -932,7 +947,8 @@ static void h1s_destroy(struct h1s *h1s)
 		h1_release_buf(h1c, &h1s->rxbuf);
 
 		h1c->flags &= ~(H1C_F_WANT_FASTFWD|
-				H1C_F_OUT_FULL|H1C_F_OUT_ALLOC|H1C_F_IN_SALLOC|
+				H1C_F_OUT_FULL|H1C_F_OUT_ALLOC|H1C_F_OUT_MAYALLOC|
+				H1C_F_IN_SALLOC|H1C_F_IN_SMAYALLOC|
 				H1C_F_CO_MSG_MORE|H1C_F_CO_STREAMER);
 
 		if (!(h1c->flags & (H1C_F_EOS|H1C_F_ERR_PENDING|H1C_F_ERROR|H1C_F_ABRT_PENDING|H1C_F_ABRTED)) &&  /* No error/read0/abort */
