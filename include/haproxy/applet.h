@@ -95,8 +95,8 @@ static inline struct buffer *appctx_get_buf(struct appctx *appctx, struct buffer
 	int is_inbuf = (bptr == &appctx->inbuf);
 
 	if (likely(!LIST_INLIST(&appctx->buffer_wait.list))) {
-		if (unlikely((buf = b_alloc(bptr, DB_SE_RX)) == NULL)) {
-			b_queue(DB_SE_RX, &appctx->buffer_wait, appctx, appctx_buf_available);
+		if (unlikely((buf = b_alloc(bptr, is_inbuf ? DB_MUX_TX : DB_SE_RX)) == NULL)) {
+			b_queue(is_inbuf ? DB_MUX_TX : DB_SE_RX, &appctx->buffer_wait, appctx, appctx_buf_available);
 			applet_fl_set(appctx, is_inbuf ? APPCTX_FL_INBLK_ALLOC : APPCTX_FL_OUTBLK_ALLOC);
 		}
 	}
