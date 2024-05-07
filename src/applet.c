@@ -447,12 +447,14 @@ int appctx_buf_available(void *arg)
 
 	if (applet_fl_test(appctx, APPCTX_FL_INBLK_ALLOC)) {
 		applet_fl_clr(appctx, APPCTX_FL_INBLK_ALLOC);
+		applet_fl_set(appctx, APPCTX_FL_IN_MAYALLOC);
 		TRACE_STATE("unblocking appctx on inbuf allocation", APPLET_EV_RECV|APPLET_EV_BLK|APPLET_EV_WAKE, appctx);
 		ret = 1;
 	}
 
 	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC)) {
 		applet_fl_clr(appctx, APPCTX_FL_OUTBLK_ALLOC);
+		applet_fl_set(appctx, APPCTX_FL_OUT_MAYALLOC);
 		TRACE_STATE("unblocking appctx on outbuf allocation", APPLET_EV_SEND|APPLET_EV_BLK|APPLET_EV_WAKE, appctx);
 		ret = 1;
 	}

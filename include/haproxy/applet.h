@@ -60,6 +60,7 @@ size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags);
 ssize_t applet_append_line(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len);
 static forceinline void applet_fl_set(struct appctx *appctx, uint on);
+static forceinline void applet_fl_clr(struct appctx *appctx, uint off);
 
 static inline struct appctx *appctx_new_here(struct applet *applet, struct sedesc *sedesc)
 {
@@ -87,7 +88,8 @@ static inline void appctx_release_buf(struct appctx *appctx, struct buffer *bptr
 /*
  * Allocate a buffer. If if fails, it adds the appctx in buffer wait queue and
  * sets the relevant blocking flag depending on the side (assuming that bptr is
- * either &appctx->inbuf or &appctx->outbuf)
+ * either &appctx->inbuf or &appctx->outbuf). Upon success it will also clear
+ * the equivalent MAYALLOC flags.
  */
 static inline struct buffer *appctx_get_buf(struct appctx *appctx, struct buffer *bptr)
 {
@@ -98,6 +100,8 @@ static inline struct buffer *appctx_get_buf(struct appctx *appctx, struct buffer
 		if (unlikely((buf = b_alloc(bptr, is_inbuf ? DB_MUX_TX : DB_SE_RX)) == NULL)) {
 			b_queue(is_inbuf ? DB_MUX_TX : DB_SE_RX, &appctx->buffer_wait, appctx, appctx_buf_available);
 			applet_fl_set(appctx, is_inbuf ? APPCTX_FL_INBLK_ALLOC : APPCTX_FL_OUTBLK_ALLOC);
+		} else {
+			applet_fl_clr(appctx, is_inbuf ? APPCTX_FL_IN_MAYALLOC : APPCTX_FL_OUT_MAYALLOC);
 		}
 	}
 	return buf;

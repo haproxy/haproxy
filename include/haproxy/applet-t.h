@@ -48,6 +48,8 @@
 #define APPCTX_FL_WANT_DIE       0x00000200  /* applet was running and requested to die */
 #define APPCTX_FL_INOUT_BUFS     0x00000400  /* applet uses its own buffers */
 #define APPCTX_FL_FASTFWD        0x00000800  /* zero-copy forwarding is in-use, don't fill the outbuf */
+#define APPCTX_FL_IN_MAYALLOC    0x00001000  /* applet may try again to allocate its inbuf */
+#define APPCTX_FL_OUT_MAYALLOC   0x00002000  /* applet may try again to allocate its outbuf */
 
 struct appctx;
 struct proxy;
