@@ -141,9 +141,6 @@ jobs:
       run: echo "::add-matcher::.github/vtest.json"
     - name: Run VTest for HAProxy ${{ steps.show-version.outputs.version }}
       id: vtest
-      env:
-        # Force ASAN output into asan.log to make the output more readable.
-        ASAN_OPTIONS: log_path=asan.log
       run: |
         # This is required for macOS which does not actually allow to increase
         # the '-n' soft limit to the hard limit, thus failing to run.
@@ -165,12 +162,6 @@ jobs:
           printf "::group::"
           cat $folder/INFO
           cat $folder/LOG
-          echo "::endgroup::"
-        done
-        shopt -s nullglob
-        for asan in asan.log*; do
-          echo "::group::$asan"
-          cat $asan
           echo "::endgroup::"
         done
         exit 1
