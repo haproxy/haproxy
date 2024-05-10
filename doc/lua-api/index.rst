@@ -3929,7 +3929,7 @@ Filter class
 
   This class contains return codes some filter callback functions may return. It
   also contains configuration flags and some helper functions. To understand how
-  the filter API works, see `doc/internal/filters.txt` documentation.
+  the filter API works, see `doc/internals/api/filters.txt` documentation.
 
 .. js:attribute:: filter.CONTINUE
 
