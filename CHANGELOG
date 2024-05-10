@@ -1,6 +1,51 @@
 ChangeLog :
 ===========
 
+2024/05/10 : 3.0-dev11
+    - BUILD: clock: improve check for pthread_getcpuclockid()
+    - CI: add Illumos scheduled workflow
+    - CI: netbsd: limit scheduled workflow to parent repo only
+    - OPTIM: log: resolve logformat options during postparsing
+    - BUG/MINOR: haproxy: only tid 0 must not sleep if got signal
+    - REGTEST: add tests for acl() sample fetch
+    - BUG/MINOR: acl: support built-in ACLs with acl() sample
+    - BUG/MINOR: cfgparse: use curproxy global var from config post validation
+    - MEDIUM: stconn/muxes: Add an abort reason for SE shutdowns on muxes
+    - MINOR: mux-h2: Set the SE abort reason when a RST_STREAM frame is received
+    - MEDIUM: mux-h2: Forward h2 client cancellations to h2 servers
+    - MINOR: mux-quic: Set tha SE abort reason when a STOP_SENDING frame is received
+    - MINOR: stconn: Add samples to retrieve about stream aborts
+    - MINOR: mux-quic: Add .ctl callback function to get info about a mux connection
+    - MINOR: muxes: Add ctl commands to get info on streams for a connection
+    - MINOR: connection: Add samples to retrieve info on streams for a connection
+    - BUG/MEDIUM: log/ring: broken syslog octet counting
+    - BUG/MEDIUM: mux-quic: fix crash on STOP_SENDING received without SD
+    - DOC: lua: fix filters.txt file location
+    - MINOR: dynbuf: pass a criticality argument to b_alloc()
+    - MINOR: dynbuf: add functions to help queue/requeue buffer_wait fields
+    - MINOR: dynbuf: use the b_queue()/b_requeue() functions everywhere
+    - MEDIUM: dynbuf: make the buffer_wq an array of list heads
+    - CLEANUP: tinfo: better align fields in thread_ctx
+    - MINOR: dynbuf: provide a b_dequeue() function to detach a bw from the queue
+    - MEDIUM: dynbuf: generalize the use of b_dequeue() to detach buffer_wait
+    - MEDIUM: dynbuf/stream: re-enable queueing upon failed buffer allocation
+    - MEDIUM: dynbuf/stream: do not allocate the buffers in the callback
+    - MEDIUM: applet: make appctx_buf_available() only wake the applet up, not allocate
+    - MINOR: applet: set the blocking flag in the buffer allocation function
+    - MINOR: applet: adjust the allocation criticity based on the requested buffer
+    - MINOR: dynbuf/mux-h1: use different criticalities for buffer allocations
+    - MEDIUM: dynbuf/mux-h1: do not allocate the buffers in the callback
+    - MEDIUM: dynbuf: refrain from offering a buffer if more critical ones are waiting
+    - MINOR: stconn: report that a buffer allocation succeeded
+    - MINOR: stream: report that a buffer allocation succeeded
+    - MINOR: applet: report about buffer allocation success
+    - MINOR: mux-h1: report that a buffer allocation succeeded
+    - MEDIUM: stream: allocate without queuing when retrying
+    - MEDIUM: channel: allocate without queuing when retrying
+    - MEDIUM: mux-h1: allocate without queuing when retrying
+    - MEDIUM: dynbuf: implement emergency buffers
+    - MEDIUM: dynbuf: use emergency buffers upon failed memory allocations
+
 2024/05/04 : 3.0-dev10
     - BUG/MEDIUM: cache: Vary not working properly on anything other than accept-encoding
     - REGTESTS: cache: Add test on 'vary' other than accept-encoding
