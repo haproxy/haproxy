@@ -1585,18 +1585,18 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 		}
 	}
 
-	/* If FIN already reached, future RESET_STREAMS will be ignored.
-	 * Manually set EOS in this case.
-	 */
-	if (qcs_sc(qcs) && se_fl_test(qcs->sd, SE_FL_EOI)) {
-		se_fl_set(qcs->sd, SE_FL_EOS);
-		qcs_alert(qcs);
-	}
+	if (qcs_sc(qcs)) {
+		/* Manually set EOS if FIN already reached as futures RESET_STREAM will be ignored in this case. */
+		if (se_fl_test(qcs->sd, SE_FL_EOI)) {
+			se_fl_set(qcs->sd, SE_FL_EOS);
+			qcs_alert(qcs);
+		}
 
-	/* If not defined yet, set abort info for the sedesc */
-	if (!qcs->sd->abort_info.info) {
-		qcs->sd->abort_info.info = (SE_ABRT_SRC_MUX_QUIC << SE_ABRT_SRC_SHIFT);
-		qcs->sd->abort_info.code = err;
+		/* If not defined yet, set abort info for the sedesc */
+		if (!qcs->sd->abort_info.info) {
+			qcs->sd->abort_info.info = (SE_ABRT_SRC_MUX_QUIC << SE_ABRT_SRC_SHIFT);
+			qcs->sd->abort_info.code = err;
+		}
 	}
 
 	/* RFC 9000 3.5. Solicited State Transitions
