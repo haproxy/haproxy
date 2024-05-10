@@ -218,12 +218,12 @@ static int qpack_decode_fs_pfx(uint64_t *enc_ric, uint64_t *db, int *sign_bit,
 {
 	*enc_ric = qpack_get_varint(raw, len, 8);
 	if (*len == (uint64_t)-1)
-		return -QPACK_ERR_RIC;
+		return -QPACK_RET_RIC;
 
 	*sign_bit = **raw & 0x8;
 	*db = qpack_get_varint(raw, len, 7);
 	if (*len == (uint64_t)-1)
-		return -QPACK_ERR_DB;
+		return -QPACK_RET_DB;
 
 	return 0;
 }
@@ -234,7 +234,7 @@ static int qpack_decode_fs_pfx(uint64_t *enc_ric, uint64_t *db, int *sign_bit,
  * the end of the list with empty strings as name/value.
  *
  * Returns the number of headers inserted into list excluding the end marker.
- * In case of error, a negative code QPACK_ERR_* is returned.
+ * In case of error, a negative code QPACK_RET_* is returned.
  */
 int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
                     struct http_hdr *list, int list_size)
@@ -262,7 +262,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 	while (len) {
 		if (hdr_idx >= list_size) {
 			qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-			ret = -QPACK_ERR_TOO_LARGE;
+			ret = -QPACK_RET_TOO_LARGE;
 			goto out;
 		}
 
@@ -283,7 +283,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			index = qpack_get_varint(&raw, &len, 3);
 			if (len == (uint64_t)-1) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-				ret = -QPACK_ERR_TRUNCATED;
+				ret = -QPACK_RET_TRUNCATED;
 				goto out;
 			}
 
@@ -292,7 +292,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			length = qpack_get_varint(&raw, &len, 7);
 			if (len == (uint64_t)-1) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-				ret = -QPACK_ERR_TRUNCATED;
+				ret = -QPACK_RET_TRUNCATED;
 				goto out;
 			}
 
@@ -300,7 +300,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 
 			if (len < length) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-				ret = -QPACK_ERR_TRUNCATED;
+				ret = -QPACK_RET_TRUNCATED;
 				goto out;
 			}
 
@@ -316,7 +316,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			 * Count (Section 4.5.1), it MUST treat this as a connection error of
 			 * type QPACK_DECOMPRESSION_FAILED.
 			 */
-			return -QPACK_ERR_DECOMP;
+			return -QPACK_RET_DECOMP;
 		}
 		else if (efl_type == QPACK_IFL_WPBI) {
 			/* Indexed field line with post-base index
@@ -329,7 +329,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			index = qpack_get_varint(&raw, &len, 4);
 			if (len == (uint64_t)-1) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-				ret = -QPACK_ERR_TRUNCATED;
+				ret = -QPACK_RET_TRUNCATED;
 				goto out;
 			}
 
@@ -344,7 +344,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			 * Count (Section 4.5.1), it MUST treat this as a connection error of
 			 * type QPACK_DECOMPRESSION_FAILED.
 			 */
-			return -QPACK_ERR_DECOMP;
+			return -QPACK_RET_DECOMP;
 		}
 		else if (efl_type & QPACK_IFL_BIT) {
 			/* Indexed field line */
@@ -356,7 +356,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			index = qpack_get_varint(&raw, &len, 6);
 			if (len == (uint64_t)-1) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-				ret = -QPACK_ERR_TRUNCATED;
+				ret = -QPACK_RET_TRUNCATED;
 				goto out;
 			}
 
@@ -375,7 +375,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 				 *
 				 * TODO adjust this when dynamic table support is implemented.
 				 */
-				return -QPACK_ERR_DECOMP;
+				return -QPACK_RET_DECOMP;
 			}
 
 			qpack_debug_printf(stderr,  " t=%d index=%llu", !!static_tbl, (unsigned long long)index);
@@ -391,7 +391,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			index = qpack_get_varint(&raw, &len, 4);
 			if (len == (uint64_t)-1) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-				ret = -QPACK_ERR_TRUNCATED;
+				ret = -QPACK_RET_TRUNCATED;
 				goto out;
 			}
 
@@ -409,7 +409,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 				 *
 				 * TODO adjust this when dynamic table support is implemented.
 				 */
-				return -QPACK_ERR_DECOMP;
+				return -QPACK_RET_DECOMP;
 			}
 
 			qpack_debug_printf(stderr, " n=%d t=%d index=%llu", !!n, !!static_tbl, (unsigned long long)index);
@@ -417,7 +417,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			length = qpack_get_varint(&raw, &len, 7);
 			if (len == (uint64_t)-1) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-				ret = -QPACK_ERR_TRUNCATED;
+				ret = -QPACK_RET_TRUNCATED;
 				goto out;
 			}
 
@@ -429,13 +429,13 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 				trash = chunk_newstr(tmp);
 				if (!trash) {
 					qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-					ret = -QPACK_ERR_TOO_LARGE;
+					ret = -QPACK_RET_TOO_LARGE;
 					goto out;
 				}
 				nlen = huff_dec(raw, length, trash, tmp->size - tmp->data);
 				if (nlen == (uint32_t)-1) {
 					qpack_debug_printf(stderr, " can't decode huffman.\n");
-					ret = -QPACK_ERR_HUFFMAN;
+					ret = -QPACK_RET_HUFFMAN;
 					goto out;
 				}
 
@@ -450,7 +450,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 
 			if (len < length) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-				ret = -QPACK_ERR_TRUNCATED;
+				ret = -QPACK_RET_TRUNCATED;
 				goto out;
 			}
 
@@ -468,7 +468,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			name_len = qpack_get_varint(&raw, &len, 3);
 			if (len == (uint64_t)-1) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-				ret = -QPACK_ERR_TRUNCATED;
+				ret = -QPACK_RET_TRUNCATED;
 				goto out;
 			}
 
@@ -477,7 +477,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 
 			if (len < name_len) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-				ret = -QPACK_ERR_TRUNCATED;
+				ret = -QPACK_RET_TRUNCATED;
 				goto out;
 			}
 
@@ -488,13 +488,13 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 				trash = chunk_newstr(tmp);
 				if (!trash) {
 					qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-					ret = -QPACK_ERR_TOO_LARGE;
+					ret = -QPACK_RET_TOO_LARGE;
 					goto out;
 				}
 				nlen = huff_dec(raw, name_len, trash, tmp->size - tmp->data);
 				if (nlen == (uint32_t)-1) {
 					qpack_debug_printf(stderr, " can't decode huffman.\n");
-					ret = -QPACK_ERR_HUFFMAN;
+					ret = -QPACK_RET_HUFFMAN;
 					goto out;
 				}
 
@@ -514,7 +514,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			value_len = qpack_get_varint(&raw, &len, 7);
 			if (len == (uint64_t)-1) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-				ret = -QPACK_ERR_TRUNCATED;
+				ret = -QPACK_RET_TRUNCATED;
 				goto out;
 			}
 
@@ -522,7 +522,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 
 			if (len < value_len) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-				ret = -QPACK_ERR_TRUNCATED;
+				ret = -QPACK_RET_TRUNCATED;
 				goto out;
 			}
 
@@ -533,13 +533,13 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 				trash = chunk_newstr(tmp);
 				if (!trash) {
 					qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-					ret = -QPACK_ERR_TOO_LARGE;
+					ret = -QPACK_RET_TOO_LARGE;
 					goto out;
 				}
 				nlen = huff_dec(raw, value_len, trash, tmp->size - tmp->data);
 				if (nlen == (uint32_t)-1) {
 					qpack_debug_printf(stderr, " can't decode huffman.\n");
-					ret = -QPACK_ERR_HUFFMAN;
+					ret = -QPACK_RET_HUFFMAN;
 					goto out;
 				}
 
@@ -561,7 +561,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 		 */
 		if (!name.len) {
 			qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-			ret = -QPACK_ERR_DECOMP;
+			ret = -QPACK_RET_DECOMP;
 			goto out;
 		}
 
@@ -574,7 +574,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 
 	if (hdr_idx >= list_size) {
 		qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-		ret = -QPACK_ERR_TOO_LARGE;
+		ret = -QPACK_RET_TOO_LARGE;
 		goto out;
 	}
 
@@ -592,5 +592,5 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
  */
 int qpack_err_decode(const int value)
 {
-	return (value == -QPACK_ERR_DECOMP) ? QPACK_DECOMPRESSION_FAILED : -1;
+	return (value == -QPACK_RET_DECOMP) ? QPACK_DECOMPRESSION_FAILED : -1;
 }

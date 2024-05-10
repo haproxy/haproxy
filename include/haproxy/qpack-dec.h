@@ -30,13 +30,13 @@ struct http_hdr;
  *Nothing to see with the RFC.
  */
 enum {
-	QPACK_ERR_NONE = 0,  /* no error */
-	QPACK_ERR_DECOMP,    /* corresponds to RFC 9204 decompression error */
-	QPACK_ERR_RIC,       /* cannot decode Required Insert Count prefix field */
-	QPACK_ERR_DB,        /* cannot decode Delta Base prefix field */
-	QPACK_ERR_TRUNCATED, /* truncated stream */
-	QPACK_ERR_HUFFMAN,   /* huffman decoding error */
-	QPACK_ERR_TOO_LARGE, /* decoded request/response is too large */
+	QPACK_RET_NONE = 0,  /* no error */
+	QPACK_RET_DECOMP,    /* corresponds to RFC 9204 decompression error */
+	QPACK_RET_RIC,       /* cannot decode Required Insert Count prefix field */
+	QPACK_RET_DB,        /* cannot decode Delta Base prefix field */
+	QPACK_RET_TRUNCATED, /* truncated stream */
+	QPACK_RET_HUFFMAN,   /* huffman decoding error */
+	QPACK_RET_TOO_LARGE, /* decoded request/response is too large */
 };
 
 struct qpack_dec {
