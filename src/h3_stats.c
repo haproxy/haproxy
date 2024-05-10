@@ -1,4 +1,5 @@
 #include <haproxy/h3.h>
+#include <haproxy/qpack-t.h>
 #include <haproxy/stats.h>
 
 enum {
@@ -254,64 +255,64 @@ INITCALL1(STG_REGISTER, stats_register_module, &h3_stats_module);
 void h3_inc_err_cnt(struct h3_counters *ctrs, int error_code)
 {
 	switch (error_code) {
-	case H3_NO_ERROR:
+	case H3_ERR_NO_ERROR:
 		HA_ATOMIC_INC(&ctrs->h3_no_error);
 		break;
-	case H3_GENERAL_PROTOCOL_ERROR:
+	case H3_ERR_GENERAL_PROTOCOL_ERROR:
 		HA_ATOMIC_INC(&ctrs->h3_general_protocol_error);
 		break;
-	case H3_INTERNAL_ERROR:
+	case H3_ERR_INTERNAL_ERROR:
 		HA_ATOMIC_INC(&ctrs->h3_internal_error);
 		break;
-	case H3_STREAM_CREATION_ERROR:
+	case H3_ERR_STREAM_CREATION_ERROR:
 		HA_ATOMIC_INC(&ctrs->h3_stream_creation_error);
 		break;
-	case H3_CLOSED_CRITICAL_STREAM:
+	case H3_ERR_CLOSED_CRITICAL_STREAM:
 		HA_ATOMIC_INC(&ctrs->h3_closed_critical_stream);
 		break;
-	case H3_FRAME_UNEXPECTED:
+	case H3_ERR_FRAME_UNEXPECTED:
 		HA_ATOMIC_INC(&ctrs->h3_frame_unexpected);
 		break;
-	case H3_FRAME_ERROR:
+	case H3_ERR_FRAME_ERROR:
 		HA_ATOMIC_INC(&ctrs->h3_frame_error);
 		break;
-	case H3_EXCESSIVE_LOAD:
+	case H3_ERR_EXCESSIVE_LOAD:
 		HA_ATOMIC_INC(&ctrs->h3_excessive_load);
 		break;
-	case H3_ID_ERROR:
+	case H3_ERR_ID_ERROR:
 		HA_ATOMIC_INC(&ctrs->h3_id_error);
 		break;
-	case H3_SETTINGS_ERROR:
+	case H3_ERR_SETTINGS_ERROR:
 		HA_ATOMIC_INC(&ctrs->h3_settings_error);
 		break;
-	case H3_MISSING_SETTINGS:
+	case H3_ERR_MISSING_SETTINGS:
 		HA_ATOMIC_INC(&ctrs->h3_missing_settings);
 		break;
-	case H3_REQUEST_REJECTED:
+	case H3_ERR_REQUEST_REJECTED:
 		HA_ATOMIC_INC(&ctrs->h3_request_rejected);
 		break;
-	case H3_REQUEST_CANCELLED:
+	case H3_ERR_REQUEST_CANCELLED:
 		HA_ATOMIC_INC(&ctrs->h3_request_cancelled);
 		break;
-	case H3_REQUEST_INCOMPLETE:
+	case H3_ERR_REQUEST_INCOMPLETE:
 		HA_ATOMIC_INC(&ctrs->h3_request_incomplete);
 		break;
-	case H3_MESSAGE_ERROR:
+	case H3_ERR_MESSAGE_ERROR:
 		HA_ATOMIC_INC(&ctrs->h3_message_error);
 		break;
-	case H3_CONNECT_ERROR:
+	case H3_ERR_CONNECT_ERROR:
 		HA_ATOMIC_INC(&ctrs->h3_connect_error);
 		break;
-	case H3_VERSION_FALLBACK:
+	case H3_ERR_VERSION_FALLBACK:
 		HA_ATOMIC_INC(&ctrs->h3_version_fallback);
 		break;
-	case QPACK_DECOMPRESSION_FAILED:
+	case QPACK_ERR_DECOMPRESSION_FAILED:
 		HA_ATOMIC_INC(&ctrs->qpack_decompression_failed);
 		break;
-	case QPACK_ENCODER_STREAM_ERROR:
+	case QPACK_ERR_ENCODER_STREAM_ERROR:
 		HA_ATOMIC_INC(&ctrs->qpack_encoder_stream_error);
 		break;
-	case QPACK_DECODER_STREAM_ERROR:
+	case QPACK_ERR_DECODER_STREAM_ERROR:
 		HA_ATOMIC_INC(&ctrs->qpack_decoder_stream_error);
 		break;
 	default:

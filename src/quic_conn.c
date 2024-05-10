@@ -355,7 +355,7 @@ int qc_h3_request_reject(struct quic_conn *qc, uint64_t id)
 	int ret = 0;
 	struct quic_frame *ss, *rs;
 	struct quic_enc_level *qel = qc->ael;
-	const uint64_t app_error_code = H3_REQUEST_REJECTED;
+	const uint64_t app_error_code = H3_ERR_REQUEST_REJECTED;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
 

@@ -43,5 +43,12 @@
 #define QPACK_DEC_INST_SCCL     0x40 // Stream Cancellation
 #define QPACK_DEC_INST_SACK     0x80 // Section Acknowledgment
 
+/* RFC 9204 6. Error Handling */
+enum qpack_err {
+	QPACK_ERR_DECOMPRESSION_FAILED = 0x200,
+	QPACK_ERR_ENCODER_STREAM_ERROR = 0x201,
+	QPACK_ERR_DECODER_STREAM_ERROR = 0x202,
+};
+
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_QPACK_T_H */
