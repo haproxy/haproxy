@@ -4795,7 +4795,7 @@ static int smp_check_uuid(struct arg *args, char **err)
 	return 1;
 }
 
-// Generate a RFC4122 UUID (default is v4 = fully random)
+// Generate a RFC 9562 UUID (default is v4 = fully random)
 static int smp_fetch_uuid(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	long long int type = -1;

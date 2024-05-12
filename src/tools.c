@@ -5739,8 +5739,8 @@ void ha_random_jump96(uint32_t dist)
 	}
 }
 
-/* Generates an RFC4122 version 4 UUID into chunk <output> which must be at least 37
- * bytes large.
+/* Generates an RFC 9562 version 4 UUID into chunk
+ * <output> which must be at least 37 bytes large.
  */
 void ha_generate_uuid_v4(struct buffer *output)
 {
@@ -5763,7 +5763,7 @@ void ha_generate_uuid_v4(struct buffer *output)
 	             (long long)((rnd[2] >> 14u) | ((uint64_t) rnd[3] << 18u)) & 0xFFFFFFFFFFFFull);
 }
 
-/* Generates a draft-ietf-uuidrev-rfc4122bis-14 version 7 UUID into chunk
+/* Generates an RFC 9562 version 7 UUID into chunk
  * <output> which must be at least 37 bytes large.
  */
 void ha_generate_uuid_v7(struct buffer *output)
