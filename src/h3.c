@@ -504,12 +504,6 @@ static int h3_set_authority(struct qcs *qcs, struct ist *auth, const struct ist 
 	return 0;
 }
 
-/* Return <value> as is or H3_ERR_INTERNAL_ERROR if negative. Useful to prepare a standard error code. */
-static int h3_err(const int value)
-{
-	return value >= 0 ? value : H3_ERR_INTERNAL_ERROR;
-}
-
 /* Parse from buffer <buf> a H3 HEADERS frame of length <len>. Data are copied
  * in a local HTX buffer and transfer to the stream connector layer. <fin> must be
  * set if this is the last data to transfer from this stream.
@@ -535,6 +529,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	int cookie = -1, last_cookie = -1, i;
 	const char *ctl;
 	int relaxed = !!(h3c->qcc->proxy->options2 & PR_O2_REQBUG_OK);
+	int qpack_err;
 
 	/* RFC 9114 4.1.2. Malformed Requests and Responses
 	 *
@@ -566,14 +561,14 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	                    list, sizeof(list) / sizeof(list[0]));
 	if (ret < 0) {
 		TRACE_ERROR("QPACK decoding error", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		h3c->err = h3_err(qpack_err_decode(ret));
+		if ((qpack_err = qpack_err_decode(ret)) >= 0)
+			h3c->err = qpack_err;
 		len = -1;
 		goto out;
 	}
 
 	if (!b_alloc(&htx_buf, DB_SE_RX)) {
 		TRACE_ERROR("HTX buffer alloc failure", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		h3c->err = H3_ERR_INTERNAL_ERROR;
 		len = -1;
 		goto out;
 	}
@@ -706,7 +701,6 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth, path, ist("HTTP/3.0"));
 	if (!sl) {
-		h3c->err = H3_ERR_INTERNAL_ERROR;
 		len = -1;
 		goto out;
 	}
@@ -718,7 +712,6 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	if (isttest(authority)) {
 		if (!htx_add_header(htx, ist("host"), authority)) {
-			h3c->err = H3_ERR_INTERNAL_ERROR;
 			len = -1;
 			goto out;
 		}
@@ -837,7 +830,6 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		}
 
 		if (!htx_add_header(htx, list[hdr_idx].n, list[hdr_idx].v)) {
-			h3c->err = H3_ERR_INTERNAL_ERROR;
 			len = -1;
 			goto out;
 		}
@@ -860,14 +852,12 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	if (cookie >= 0) {
 		if (http_cookie_merge(htx, list, cookie)) {
-			h3c->err = H3_ERR_INTERNAL_ERROR;
 			len = -1;
 			goto out;
 		}
 	}
 
 	if (!htx_add_endof(htx, HTX_BLK_EOH)) {
-		h3c->err = H3_ERR_INTERNAL_ERROR;
 		len = -1;
 		goto out;
 	}
@@ -879,7 +869,6 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	htx = NULL;
 
 	if (!qcs_attach_sc(qcs, &htx_buf, fin)) {
-		h3c->err = H3_ERR_INTERNAL_ERROR;
 		len = -1;
 		goto out;
 	}
@@ -935,6 +924,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	struct http_hdr list[global.tune.max_http_hdr];
 	int hdr_idx, ret;
 	const char *ctl;
+	int qpack_err;
 	int i;
 
 	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
@@ -945,14 +935,14 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	                    list, sizeof(list) / sizeof(list[0]));
 	if (ret < 0) {
 		TRACE_ERROR("QPACK decoding error", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		h3c->err = h3_err(qpack_err_decode(ret));
+		if ((qpack_err = qpack_err_decode(ret)) >= 0)
+			h3c->err = qpack_err;
 		len = -1;
 		goto out;
 	}
 
 	if (!(appbuf = qcc_get_stream_rxbuf(qcs))) {
 		TRACE_ERROR("HTX buffer alloc failure", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		h3c->err = H3_ERR_INTERNAL_ERROR;
 		len = -1;
 		goto out;
 	}
@@ -1036,7 +1026,6 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 		if (!htx_add_trailer(htx, list[hdr_idx].n, list[hdr_idx].v)) {
 			TRACE_ERROR("cannot add trailer", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-			h3c->err = H3_ERR_INTERNAL_ERROR;
 			len = -1;
 			goto out;
 		}
@@ -1046,7 +1035,6 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	if (!htx_add_endof(htx, HTX_BLK_EOT)) {
 		TRACE_ERROR("cannot add trailer", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		h3c->err = H3_ERR_INTERNAL_ERROR;
 		len = -1;
 		goto out;
 	}
@@ -1072,8 +1060,6 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 static ssize_t h3_data_to_htx(struct qcs *qcs, const struct buffer *buf,
                               uint64_t len, char fin)
 {
-	struct h3s *h3s = qcs->ctx;
-	struct h3c *h3c = h3s->h3c;
 	struct buffer *appbuf;
 	struct htx *htx = NULL;
 	size_t htx_sent = 0;
@@ -1084,9 +1070,7 @@ static ssize_t h3_data_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	if (!(appbuf = qcc_get_stream_rxbuf(qcs))) {
 		TRACE_ERROR("data buffer alloc failure", H3_EV_RX_FRAME|H3_EV_RX_DATA, qcs->qcc->conn, qcs);
-		h3c->err = H3_ERR_INTERNAL_ERROR;
-		len = -1;
-		goto out;
+		goto err;
 	}
 
 	htx = htx_from_buf(appbuf);
@@ -1137,6 +1121,10 @@ static ssize_t h3_data_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	TRACE_LEAVE(H3_EV_RX_FRAME|H3_EV_RX_DATA, qcs->qcc->conn, qcs);
 	return htx_sent;
+
+ err:
+	TRACE_DEVEL("leaving on error", H3_EV_RX_FRAME|H3_EV_RX_DATA, qcs->qcc->conn, qcs);
+	return -1;
 }
 
 /* Parse a SETTINGS frame of length <len> of payload <buf>.
@@ -1226,7 +1214,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 {
 	struct h3s *h3s = qcs->ctx;
 	struct h3c *h3c = h3s->h3c;
-	ssize_t total = 0, ret;
+	ssize_t total = 0, ret = 0;
 
 	TRACE_ENTER(H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 
@@ -1271,24 +1259,28 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	if (!b_data(b) && fin && quic_stream_is_bidi(qcs->id)) {
 		struct buffer *appbuf;
 		struct htx *htx;
+		int eom;
 
 		TRACE_PROTO("received FIN without data", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 		if (!(appbuf = qcc_get_stream_rxbuf(qcs))) {
 			TRACE_ERROR("data buffer alloc failure", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-			h3c->err = H3_ERR_INTERNAL_ERROR;
+			qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1);
 			goto err;
 		}
 
 		htx = htx_from_buf(appbuf);
-		if (!htx_set_eom(htx)) {
-			TRACE_ERROR("cannot set EOM", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-			h3c->err = H3_ERR_INTERNAL_ERROR;
-		}
+		eom = htx_set_eom(htx);
 		htx_to_buf(htx, appbuf);
+		if (!eom) {
+			TRACE_ERROR("cannot set EOM", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+			qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1);
+			goto err;
+		}
+
 		goto done;
 	}
 
-	while (b_data(b) && !(qcs->flags & QC_SF_DEM_FULL) && !h3c->err && !h3s->err) {
+	while (b_data(b) && !(qcs->flags & QC_SF_DEM_FULL) && ret >= 0) {
 		uint64_t ftype, flen;
 		char last_stream_frame = 0;
 
@@ -1412,6 +1404,10 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	else if (h3c->err) {
 		qcc_set_error(qcs->qcc, h3c->err, 1);
 		return b_data(b);
+	}
+	else if (unlikely(ret < 0)) {
+		qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1);
+		goto err;
 	}
 
 	/* TODO may be useful to wakeup the MUX if blocked due to full buffer.
