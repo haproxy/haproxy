@@ -316,7 +316,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			 * Count (Section 4.5.1), it MUST treat this as a connection error of
 			 * type QPACK_DECOMPRESSION_FAILED.
 			 */
-			return -QPACK_DECOMPRESSION_FAILED;
+			return -QPACK_ERR_DECOMP;
 		}
 		else if (efl_type == QPACK_IFL_WPBI) {
 			/* Indexed field line with post-base index
@@ -344,7 +344,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			 * Count (Section 4.5.1), it MUST treat this as a connection error of
 			 * type QPACK_DECOMPRESSION_FAILED.
 			 */
-			return -QPACK_DECOMPRESSION_FAILED;
+			return -QPACK_ERR_DECOMP;
 		}
 		else if (efl_type & QPACK_IFL_BIT) {
 			/* Indexed field line */
@@ -375,7 +375,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 				 *
 				 * TODO adjust this when dynamic table support is implemented.
 				 */
-				return -QPACK_DECOMPRESSION_FAILED;
+				return -QPACK_ERR_DECOMP;
 			}
 
 			qpack_debug_printf(stderr,  " t=%d index=%llu", !!static_tbl, (unsigned long long)index);
@@ -409,7 +409,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 				 *
 				 * TODO adjust this when dynamic table support is implemented.
 				 */
-				return -QPACK_DECOMPRESSION_FAILED;
+				return -QPACK_ERR_DECOMP;
 			}
 
 			qpack_debug_printf(stderr, " n=%d t=%d index=%llu", !!n, !!static_tbl, (unsigned long long)index);
@@ -429,7 +429,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 				trash = chunk_newstr(tmp);
 				if (!trash) {
 					qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-					ret = -QPACK_DECOMPRESSION_FAILED;
+					ret = -QPACK_ERR_TOO_LARGE;
 					goto out;
 				}
 				nlen = huff_dec(raw, length, trash, tmp->size - tmp->data);
@@ -488,7 +488,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 				trash = chunk_newstr(tmp);
 				if (!trash) {
 					qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-					ret = -QPACK_DECOMPRESSION_FAILED;
+					ret = -QPACK_ERR_TOO_LARGE;
 					goto out;
 				}
 				nlen = huff_dec(raw, name_len, trash, tmp->size - tmp->data);
@@ -533,7 +533,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 				trash = chunk_newstr(tmp);
 				if (!trash) {
 					qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-					ret = -QPACK_DECOMPRESSION_FAILED;
+					ret = -QPACK_ERR_TOO_LARGE;
 					goto out;
 				}
 				nlen = huff_dec(raw, value_len, trash, tmp->size - tmp->data);
@@ -561,7 +561,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 		 */
 		if (!name.len) {
 			qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-			ret = -QPACK_DECOMPRESSION_FAILED;
+			ret = -QPACK_ERR_DECOMP;
 			goto out;
 		}
 
@@ -585,4 +585,12 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
  out:
 	qpack_debug_printf(stderr, "-- done: ret=%d\n", ret);
 	return ret;
+}
+
+/* Convert return value from qpack_decode_fs() to a standard error code usable
+ * in CONNECTION_CLOSE or -1 for an internal error.
+ */
+int qpack_err_decode(const int value)
+{
+	return (value == -QPACK_ERR_DECOMP) ? QPACK_DECOMPRESSION_FAILED : -1;
 }

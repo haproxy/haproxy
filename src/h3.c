@@ -131,7 +131,7 @@ static uint64_t h3_settings_max_field_section_size = QUIC_VARINT_8_BYTE_MAX; /* 
 struct h3c {
 	struct qcc *qcc;
 	struct qcs *ctrl_strm; /* Control stream */
-	enum h3_err err;
+	int err;
 	uint32_t flags;
 
 	/* Settings */
@@ -504,6 +504,12 @@ static int h3_set_authority(struct qcs *qcs, struct ist *auth, const struct ist 
 	return 0;
 }
 
+/* Return <value> as is or H3_INTERNAL_ERROR if negative. Useful to prepare a standard error code. */
+static int h3_err(const int value)
+{
+	return value >= 0 ? value : H3_INTERNAL_ERROR;
+}
+
 /* Parse from buffer <buf> a H3 HEADERS frame of length <len>. Data are copied
  * in a local HTX buffer and transfer to the stream connector layer. <fin> must be
  * set if this is the last data to transfer from this stream.
@@ -560,7 +566,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	                    list, sizeof(list) / sizeof(list[0]));
 	if (ret < 0) {
 		TRACE_ERROR("QPACK decoding error", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		h3c->err = -ret;
+		h3c->err = h3_err(qpack_err_decode(ret));
 		len = -1;
 		goto out;
 	}
@@ -939,7 +945,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	                    list, sizeof(list) / sizeof(list[0]));
 	if (ret < 0) {
 		TRACE_ERROR("QPACK decoding error", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		h3c->err = -ret;
+		h3c->err = h3_err(qpack_err_decode(ret));
 		len = -1;
 		goto out;
 	}

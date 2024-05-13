@@ -31,6 +31,7 @@ struct http_hdr;
  */
 enum {
 	QPACK_ERR_NONE = 0,  /* no error */
+	QPACK_ERR_DECOMP,    /* corresponds to RFC 9204 decompression error */
 	QPACK_ERR_RIC,       /* cannot decode Required Insert Count prefix field */
 	QPACK_ERR_DB,        /* cannot decode Delta Base prefix field */
 	QPACK_ERR_TRUNCATED, /* truncated stream */
@@ -49,5 +50,7 @@ int qpack_decode_fs(const unsigned char *buf, uint64_t len, struct buffer *tmp,
                     struct http_hdr *list, int list_size);
 int qpack_decode_enc(struct buffer *buf, int fin, void *ctx);
 int qpack_decode_dec(struct buffer *buf, int fin, void *ctx);
+
+int qpack_err_decode(const int value);
 
 #endif /* _HAPROXY_QPACK_DEC_H */
