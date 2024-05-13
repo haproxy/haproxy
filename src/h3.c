@@ -198,6 +198,7 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 		if (h3c->flags & H3_CF_UNI_CTRL_SET) {
 			TRACE_ERROR("duplicated control stream", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 			qcc_set_error(qcs->qcc, H3_ERR_STREAM_CREATION_ERROR, 1);
+			qcc_report_glitch(qcs->qcc, 1);
 			goto err;
 		}
 		h3c->flags |= H3_CF_UNI_CTRL_SET;
@@ -213,6 +214,7 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 		if (h3c->flags & H3_CF_UNI_QPACK_DEC_SET) {
 			TRACE_ERROR("duplicated qpack decoder stream", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 			qcc_set_error(qcs->qcc, H3_ERR_STREAM_CREATION_ERROR, 1);
+			qcc_report_glitch(qcs->qcc, 1);
 			goto err;
 		}
 		h3c->flags |= H3_CF_UNI_QPACK_DEC_SET;
@@ -224,6 +226,7 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 		if (h3c->flags & H3_CF_UNI_QPACK_ENC_SET) {
 			TRACE_ERROR("duplicated qpack encoder stream", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 			qcc_set_error(qcs->qcc, H3_ERR_STREAM_CREATION_ERROR, 1);
+			qcc_report_glitch(qcs->qcc, 1);
 			goto err;
 		}
 		h3c->flags |= H3_CF_UNI_QPACK_ENC_SET;
@@ -464,6 +467,7 @@ static int h3_check_body_size(struct qcs *qcs, int fin)
 	    (fin && h3s->data_len < h3s->body_len)) {
 		TRACE_ERROR("Content-length does not match DATA frame size", H3_EV_RX_FRAME|H3_EV_RX_DATA, qcs->qcc->conn, qcs);
 		h3s->err = H3_ERR_MESSAGE_ERROR;
+		qcc_report_glitch(qcs->qcc, 1);
 		ret = -1;
 	}
 
@@ -561,8 +565,10 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	                    list, sizeof(list) / sizeof(list[0]));
 	if (ret < 0) {
 		TRACE_ERROR("QPACK decoding error", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		if ((qpack_err = qpack_err_decode(ret)) >= 0)
+		if ((qpack_err = qpack_err_decode(ret)) >= 0) {
 			h3c->err = qpack_err;
+			qcc_report_glitch(qcs->qcc, 1);
+		}
 		len = -1;
 		goto out;
 	}
@@ -608,6 +614,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		if (unlikely(ctl) && http_header_has_forbidden_char(list[hdr_idx].v, ctl)) {
 			TRACE_ERROR("control character present in pseudo-header value", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
 			len = -1;
 			goto out;
 		}
@@ -619,6 +626,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			if (isttest(meth)) {
 				TRACE_ERROR("duplicated method pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 				h3s->err = H3_ERR_MESSAGE_ERROR;
+				qcc_report_glitch(h3c->qcc, 1);
 				len = -1;
 				goto out;
 			}
@@ -628,6 +636,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			if (isttest(path)) {
 				TRACE_ERROR("duplicated path pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 				h3s->err = H3_ERR_MESSAGE_ERROR;
+				qcc_report_glitch(h3c->qcc, 1);
 				len = -1;
 				goto out;
 			}
@@ -640,6 +649,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 				if (unlikely(ctl) && http_path_has_forbidden_char(list[hdr_idx].v, ctl)) {
 					TRACE_ERROR("forbidden character in ':path' pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 					h3s->err = H3_ERR_MESSAGE_ERROR;
+					qcc_report_glitch(h3c->qcc, 1);
 					len = -1;
 					goto out;
 				}
@@ -652,6 +662,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 				/* duplicated pseudo-header */
 				TRACE_ERROR("duplicated scheme pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 				h3s->err = H3_ERR_MESSAGE_ERROR;
+				qcc_report_glitch(h3c->qcc, 1);
 				len = -1;
 				goto out;
 			}
@@ -661,12 +672,14 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			if (isttest(authority)) {
 				TRACE_ERROR("duplicated authority pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 				h3s->err = H3_ERR_MESSAGE_ERROR;
+				qcc_report_glitch(h3c->qcc, 1);
 				len = -1;
 				goto out;
 			}
 
 			if (h3_set_authority(qcs, &authority, list[hdr_idx].v)) {
 				h3s->err = H3_ERR_MESSAGE_ERROR;
+				qcc_report_glitch(h3c->qcc, 1);
 				len = -1;
 				goto out;
 			}
@@ -674,6 +687,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		else {
 			TRACE_ERROR("unknown pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
 			len = -1;
 			goto out;
 		}
@@ -691,6 +705,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		if (!isttest(meth) || !isttest(scheme) || !isttest(path)) {
 			TRACE_ERROR("missing mandatory pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
 			len = -1;
 			goto out;
 		}
@@ -725,6 +740,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		if (istmatch(list[hdr_idx].n, ist(":"))) {
 			TRACE_ERROR("pseudo-header field after fields", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
 			len = -1;
 			goto out;
 		}
@@ -734,6 +750,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			if ((uint8_t)(c - 'A') < 'Z' - 'A' || !HTTP_IS_TOKEN(c)) {
 				TRACE_ERROR("invalid characters in field name", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 				h3s->err = H3_ERR_MESSAGE_ERROR;
+				qcc_report_glitch(h3c->qcc, 1);
 				len = -1;
 				goto out;
 			}
@@ -755,6 +772,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		if (unlikely(ctl) && http_header_has_forbidden_char(list[hdr_idx].v, ctl)) {
 			TRACE_ERROR("control character present in header value", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
 			len = -1;
 			goto out;
 		}
@@ -762,6 +780,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		if (isteq(list[hdr_idx].n, ist("host"))) {
 			if (h3_set_authority(qcs, &authority, list[hdr_idx].v)) {
 				h3s->err = H3_ERR_MESSAGE_ERROR;
+				qcc_report_glitch(h3c->qcc, 1);
 				len = -1;
 				goto out;
 			}
@@ -778,6 +797,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			if (ret < 0) {
 				TRACE_ERROR("invalid content-length", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 				h3s->err = H3_ERR_MESSAGE_ERROR;
+				qcc_report_glitch(h3c->qcc, 1);
 				len = -1;
 				goto out;
 			}
@@ -812,6 +832,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		         */
 			TRACE_ERROR("invalid connection header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
 			len = -1;
 			goto out;
 		}
@@ -825,6 +846,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			 */
 			TRACE_ERROR("invalid te header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
 			len = -1;
 			goto out;
 		}
@@ -846,6 +868,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	if (!isttest(authority)) {
 		TRACE_ERROR("missing mandatory pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 		h3s->err = H3_ERR_MESSAGE_ERROR;
+		qcc_report_glitch(h3c->qcc, 1);
 		len = -1;
 		goto out;
 	}
@@ -935,8 +958,10 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	                    list, sizeof(list) / sizeof(list[0]));
 	if (ret < 0) {
 		TRACE_ERROR("QPACK decoding error", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		if ((qpack_err = qpack_err_decode(ret)) >= 0)
+		if ((qpack_err = qpack_err_decode(ret)) >= 0) {
 			h3c->err = qpack_err;
+			qcc_report_glitch(qcs->qcc, 1);
+		}
 		len = -1;
 		goto out;
 	}
@@ -977,6 +1002,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		if (istmatch(list[hdr_idx].n, ist(":"))) {
 			TRACE_ERROR("pseudo-header field in trailers", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
 			len = -1;
 			goto out;
 		}
@@ -986,6 +1012,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			if ((uint8_t)(c - 'A') < 'Z' - 'A' || !HTTP_IS_TOKEN(c)) {
 				TRACE_ERROR("invalid characters in field name", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 				h3s->err = H3_ERR_MESSAGE_ERROR;
+				qcc_report_glitch(h3c->qcc, 1);
 				len = -1;
 				goto out;
 			}
@@ -1001,6 +1028,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		    isteq(list[hdr_idx].n, ist("transfer-encoding"))) {
 			TRACE_ERROR("forbidden HTTP/3 headers", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
 			len = -1;
 			goto out;
 		}
@@ -1020,6 +1048,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		if (unlikely(ctl) && http_header_has_forbidden_char(list[hdr_idx].v, ctl)) {
 			TRACE_ERROR("control character present in trailer value", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
 			len = -1;
 			goto out;
 		}
@@ -1147,6 +1176,7 @@ static ssize_t h3_parse_settings_frm(struct h3c *h3c, const struct buffer *buf,
 	while (b_data(&b)) {
 		if (!b_quic_dec_int(&id, &b, &ret) || !b_quic_dec_int(&value, &b, &ret)) {
 			h3c->err = H3_ERR_FRAME_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
 			return -1;
 		}
 
@@ -1164,6 +1194,7 @@ static ssize_t h3_parse_settings_frm(struct h3c *h3c, const struct buffer *buf,
 		if (id < sizeof(mask)) {
 			if (ha_bit_test(id, &mask)) {
 				h3c->err = H3_ERR_SETTINGS_ERROR;
+				qcc_report_glitch(h3c->qcc, 1);
 				return -1;
 			}
 			ha_bit_set(id, &mask);
@@ -1194,6 +1225,7 @@ static ssize_t h3_parse_settings_frm(struct h3c *h3c, const struct buffer *buf,
 			 * H3_SETTINGS_ERROR.
 			 */
 			h3c->err = H3_ERR_SETTINGS_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
 			return -1;
 		default:
 			/* MUST be ignored */
@@ -1253,6 +1285,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	if (h3s->type == H3S_T_CTRL && fin) {
 		TRACE_ERROR("control stream closed by remote peer", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 		qcc_set_error(qcs->qcc, H3_ERR_CLOSED_CRITICAL_STREAM, 1);
+		qcc_report_glitch(qcs->qcc, 1);
 		goto err;
 	}
 
@@ -1307,6 +1340,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			if ((ret = h3_check_frame_valid(h3c, qcs, ftype))) {
 				TRACE_ERROR("received an invalid frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 				qcc_set_error(qcs->qcc, ret, 1);
+				qcc_report_glitch(qcs->qcc, 1);
 				goto err;
 			}
 
@@ -1330,6 +1364,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			if (flen > QC_S_RX_BUF_SZ) {
 				TRACE_ERROR("received a too big frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 				qcc_set_error(qcs->qcc, H3_ERR_EXCESSIVE_LOAD, 1);
+				qcc_report_glitch(qcs->qcc, 1);
 				goto err;
 			}
 			break;
@@ -2158,6 +2193,7 @@ static int h3_close(struct qcs *qcs, enum qcc_app_ops_close_side side)
 	if (qcs == h3c->ctrl_strm || h3s->type == H3S_T_CTRL) {
 		TRACE_ERROR("closure detected on control stream", H3_EV_H3S_END, qcs->qcc->conn, qcs);
 		qcc_set_error(qcs->qcc, H3_ERR_CLOSED_CRITICAL_STREAM, 1);
+		qcc_report_glitch(qcs->qcc, 1);
 		return 1;
 	}
 
