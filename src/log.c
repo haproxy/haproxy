@@ -547,6 +547,7 @@ static int add_sample_to_logformat_list(char *text, char *name, int name_len, in
 
 	node = calloc(1, sizeof(*node));
 	if (!node) {
+		release_sample_expr(expr);
 		memprintf(err, "out of memory error");
 		goto error_free;
 	}
