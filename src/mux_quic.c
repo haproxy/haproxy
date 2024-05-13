@@ -2352,7 +2352,7 @@ static void qcc_shutdown(struct qcc *qcc)
 		qcc_io_send(qcc);
 	}
 	else {
-		qcc->err = quic_err_app(QC_ERR_NO_ERROR);
+		qcc->err = quic_err_transport(QC_ERR_NO_ERROR);
 	}
 
 	/* Register "no error" code at transport layer. Do not use
