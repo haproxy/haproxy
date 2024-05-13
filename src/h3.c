@@ -2399,6 +2399,12 @@ static void h3_stats_inc_err_cnt(void *ctx, int err_code)
 	h3_inc_err_cnt(h3c->prx_counters, err_code);
 }
 
+static void h3_report_susp(void *ctx)
+{
+	struct h3c *h3c = ctx;
+	h3c->qcc->err = quic_err_app(H3_ERR_EXCESSIVE_LOAD);
+}
+
 static inline const char *h3_ft_str(uint64_t type)
 {
 	switch (type) {
@@ -2455,5 +2461,6 @@ const struct qcc_app_ops h3_ops = {
 	.detach      = h3_detach,
 	.shutdown    = h3_shutdown,
 	.inc_err_cnt = h3_stats_inc_err_cnt,
+	.report_susp = h3_report_susp,
 	.release     = h3_release,
 };

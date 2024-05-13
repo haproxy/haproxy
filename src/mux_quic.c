@@ -556,6 +556,28 @@ void qcc_set_error(struct qcc *qcc, int err, int app)
 	tasklet_wakeup(qcc->wait_event.tasklet);
 }
 
+/* Increment glitch counter for <qcc> connection by <inc> steps. If configured
+ * threshold reached, close the connection with an error code.
+ */
+int qcc_report_glitch(struct qcc *qcc, int inc)
+{
+	const int max = global.tune.quic_frontend_glitches_threshold;
+
+	qcc->glitches += inc;
+	if (max && qcc->glitches >= max && !(qcc->flags & QC_CF_ERRL)) {
+		if (qcc->app_ops->report_susp) {
+			qcc->app_ops->report_susp(qcc->ctx);
+			qcc_set_error(qcc, qcc->err.code, 1);
+		}
+		else {
+			qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0);
+		}
+		return 1;
+	}
+
+	return 0;
+}
+
 /* Open a locally initiated stream for the connection <qcc>. Set <bidi> for a
  * bidirectional stream, else an unidirectional stream is opened. The next
  * available ID on the connection will be used according to the stream type.
@@ -2622,6 +2644,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	conn->ctx = qcc;
 	qcc->nb_hreq = qcc->nb_sc = 0;
 	qcc->flags = 0;
+	qcc->glitches = 0;
 	qcc->err = quic_err_transport(QC_ERR_NO_ERROR);
 
 	/* Server parameters, params used for RX flow control. */
@@ -3143,6 +3166,9 @@ static int qmux_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *ou
 	switch (mux_ctl) {
 	case MUX_CTL_EXIT_STATUS:
 		return MUX_ES_UNKNOWN;
+
+	case MUX_CTL_GET_GLITCHES:
+		return qcc->glitches;
 
 	case MUX_CTL_GET_NBSTRM: {
 		struct qcs *qcs;

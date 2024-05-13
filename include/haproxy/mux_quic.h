@@ -13,6 +13,7 @@
 #include <haproxy/stconn.h>
 
 void qcc_set_error(struct qcc *qcc, int err, int app);
+int qcc_report_glitch(struct qcc *qcc, int inc);
 struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi);
 struct stconn *qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin);
 int qcs_is_close_local(struct qcs *qcs);

@@ -41,6 +41,7 @@ struct qcc {
 	uint64_t nb_sc; /* number of attached stream connectors */
 	uint64_t nb_hreq; /* number of in-progress http requests */
 	uint32_t flags; /* QC_CF_* */
+	int glitches;   /* total number of glitches on this connection */
 
 	/* flow-control fields set by us enforced on our side. */
 	struct {
@@ -216,6 +217,8 @@ struct qcc_app_ops {
 
 	/* Increment app counters on CONNECTION_CLOSE_APP reception. */
 	void (*inc_err_cnt)(void *ctx, int err_code);
+	/* Set QCC error code as suspicious activity has been detected. */
+	void (*report_susp)(void *ctx);
 };
 
 #endif /* USE_QUIC */

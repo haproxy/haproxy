@@ -1406,6 +1406,7 @@ The following keywords are supported in the "global" section :
    - tune.pt.zero-copy-forwarding
    - tune.quic.cc-hystart
    - tune.quic.frontend.conn-tx-buffers.limit
+   - tune.quic.frontend.glitches-threshold
    - tune.quic.frontend.max-idle-timeout
    - tune.quic.frontend.max-streams-bidi
    - tune.quic.max-frame-loss
@@ -3695,6 +3696,18 @@ tune.quic.frontend.conn-tx-buffers.limit <number>
   drained on ACK reception. This setting has a direct impact on the throughput
   and memory consumption and can be adjusted according to an estimated round
   time-trip. Each buffer is tune.bufsize.
+
+tune.quic.frontend.glitches-threshold <number>
+  Sets the threshold for the number of glitches on a frontend connection, where
+  that connection will automatically be killed. This allows to automatically
+  kill misbehaving connections without having to write explicit rules for them.
+  The default value is zero, indicating that no threshold is set so that no
+  event will cause a connection to be closed. Beware that some QUIC clients may
+  occasionally cause a few glitches over long lasting connection, so any non-
+  zero value here should probably be in the hundreds or thousands to be
+  effective without affecting slightly bogus clients.
+
+  See also: fc_glitches
 
 tune.quic.frontend.max-idle-timeout <timeout>
   Sets the QUIC max_idle_timeout transport parameters in milliseconds for
