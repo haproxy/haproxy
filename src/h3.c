@@ -1505,8 +1505,6 @@ static int h3_control_send(struct qcs *qcs, void *ctx)
 static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 {
 	int err;
-	struct h3s *h3s = qcs->ctx;
-	struct h3c *h3c = h3s->h3c;
 	struct buffer outbuf;
 	struct buffer headers_buf = BUF_NULL;
 	struct buffer *res;
@@ -1542,7 +1540,6 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 		else if (type == HTX_BLK_HDR) {
 			if (unlikely(hdr >= sizeof(list) / sizeof(list[0]) - 1)) {
 				TRACE_ERROR("too many headers", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-				h3c->err = H3_ERR_INTERNAL_ERROR;
 				goto err;
 			}
 			list[hdr].n = htx_get_blk_name(htx, blk);
@@ -1562,7 +1559,6 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	if (!(res = qcc_get_stream_txbuf(qcs, &err))) {
 		if (err) {
 			TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-			h3c->err = H3_ERR_INTERNAL_ERROR;
 			goto err;
 		}
 
@@ -1585,7 +1581,6 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 		ABORT_NOW();
 	if (qpack_encode_int_status(&headers_buf, status)) {
 		TRACE_ERROR("invalid status code", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-		h3c->err = H3_ERR_INTERNAL_ERROR;
 		goto err;
 	}
 
@@ -1663,8 +1658,6 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 {
 	int err;
-	struct h3s *h3s = qcs->ctx;
-	struct h3c *h3c = h3s->h3c;
 	struct buffer headers_buf = BUF_NULL;
 	struct buffer *res;
 	struct http_hdr list[global.tune.max_http_hdr];
@@ -1689,7 +1682,6 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 		if (type == HTX_BLK_TLR) {
 			if (unlikely(hdr >= sizeof(list) / sizeof(list[0]) - 1)) {
 				TRACE_ERROR("too many headers", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-				h3c->err = H3_ERR_INTERNAL_ERROR;
 				goto err;
 			}
 			list[hdr].n = htx_get_blk_name(htx, blk);
@@ -1698,7 +1690,6 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 		}
 		else {
 			TRACE_ERROR("unexpected HTX block", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-			h3c->err = H3_ERR_INTERNAL_ERROR;
 			goto err;
 		}
 	}
@@ -1727,7 +1718,6 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 	if (!(res = qcc_get_stream_txbuf(qcs, &err))) {
 		if (err) {
 			TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-			h3c->err = H3_ERR_INTERNAL_ERROR;
 			goto err;
 		}
 
@@ -1837,8 +1827,6 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
                              struct buffer *buf, size_t count)
 {
 	int err;
-	struct h3s *h3s = qcs->ctx;
-	struct h3c *h3c = h3s->h3c;
 	struct buffer outbuf;
 	struct buffer *res;
 	size_t total = 0;
@@ -1865,7 +1853,6 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
 	if (!(res = qcc_get_stream_txbuf(qcs, &err))) {
 		if (err) {
 			TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_DATA, qcs->qcc->conn, qcs);
-			h3c->err = H3_ERR_INTERNAL_ERROR;
 			goto err;
 		}
 
@@ -1962,8 +1949,6 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
 
 static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 {
-	struct h3s *h3s = qcs->ctx;
-	struct h3c *h3c = h3s->h3c;
 	size_t total = 0;
 	enum htx_blk_type btype;
 	struct htx *htx;
@@ -1976,9 +1961,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 
 	htx = htx_from_buf(buf);
 
-	while (count && !htx_is_empty(htx) && qcc_stream_can_send(qcs) &&
-	       !h3c->err) {
-
+	while (count && !htx_is_empty(htx) && qcc_stream_can_send(qcs) && ret >= 0) {
 		idx = htx_get_head(htx);
 		blk = htx_get_blk(htx, idx);
 		btype = htx_get_blk_type(blk);
@@ -2029,14 +2012,11 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 			count -= bsize;
 			break;
 		}
-
-		/* If an error occurred, connection error must be set to break from the current loop. */
-		BUG_ON(ret < 0 && !h3c->err);
 	}
 
-	/* Interrupt sending on connection error. */
-	if (unlikely(h3c->err)) {
-		qcc_set_error(qcs->qcc, h3c->err, 1);
+	/* Interrupt sending on fatal error. */
+	if (unlikely(ret < 0)) {
+		qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1);
 		goto out;
 	}
 
