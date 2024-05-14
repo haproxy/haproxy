@@ -1129,110 +1129,111 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			break;
 		}
 
-		/* TLV parsing */
-		while (tlv_offset < total_v2_len) {
-			struct ist tlv;
-			struct tlv *tlv_packet = NULL;
-			struct conn_tlv_list *new_tlv = NULL;
-			size_t data_len = 0;
-
-			/* Verify that we have at least TLV_HEADER_SIZE bytes left */
-			if (tlv_offset + TLV_HEADER_SIZE > total_v2_len)
-				goto bad_header;
-
-			tlv_packet = (struct tlv *) &trash.area[tlv_offset];
-			tlv = ist2((const char *)tlv_packet->value, get_tlv_length(tlv_packet));
-			tlv_offset += istlen(tlv) + TLV_HEADER_SIZE;
-
-			/* Verify that the TLV length does not exceed the total PROXYv2 length */
-			if (tlv_offset > total_v2_len)
-				goto bad_header;
-
-			/* Prepare known TLV types */
-			switch (tlv_packet->type) {
-			case PP2_TYPE_CRC32C: {
-				uint32_t n_crc32c;
-
-				/* Verify that this TLV is exactly 4 bytes long */
-				if (istlen(tlv) != PP2_CRC32C_LEN)
-					goto bad_header;
-
-				n_crc32c = read_n32(istptr(tlv));
-				write_n32(istptr(tlv), 0); // compute with CRC==0
-
-				if (hash_crc32c(trash.area, total_v2_len) != n_crc32c)
-					goto bad_header;
-				break;
-			}
-#ifdef USE_NS
-			case PP2_TYPE_NETNS: {
-				const struct netns_entry *ns;
-
-				ns = netns_store_lookup(istptr(tlv), istlen(tlv));
-				if (ns)
-					conn->proxy_netns = ns;
-				break;
-			}
-#endif
-			case PP2_TYPE_AUTHORITY: {
-				/* For now, keep the length restriction by HAProxy */
-				if (istlen(tlv) > HA_PP2_AUTHORITY_MAX)
-					goto bad_header;
-
-				break;
-			}
-			case PP2_TYPE_UNIQUE_ID: {
-				if (istlen(tlv) > UNIQUEID_LEN)
-					goto bad_header;
-				break;
-			}
-			default:
-				break;
-			}
-
-			/* If we did not find a known TLV type that we can optimize for, we generically allocate it */
-			data_len = get_tlv_length(tlv_packet);
-
-			/* Prevent attackers from allocating too much memory */
-			if (unlikely(data_len > HA_PP2_MAX_ALLOC))
-				goto fail;
-
-			/* Alloc memory based on data_len */
-			if (data_len > HA_PP2_TLV_VALUE_256)
-				new_tlv = malloc(get_tlv_length(tlv_packet) + sizeof(struct conn_tlv_list));
-			else if (data_len <= HA_PP2_TLV_VALUE_128)
-				new_tlv = pool_alloc(pool_head_pp_tlv_128);
-			else
-				new_tlv = pool_alloc(pool_head_pp_tlv_256);
-
-			if (unlikely(!new_tlv))
-				goto fail;
-
-			new_tlv->type = tlv_packet->type;
-
-			/* Save TLV to make it accessible via sample fetch */
-			memcpy(new_tlv->value, tlv.ptr, data_len);
-			new_tlv->len = data_len;
-
-			LIST_APPEND(&conn->tlv_list, &new_tlv->list);
-		}
-
-
-		/* Verify that the PROXYv2 header ends at a TLV boundary.
-		 * This is can not be true, because the TLV parsing already
-		 * verifies that a TLV does not exceed the total length and
-		 * also that there is space for a TLV header.
-		 */
-		BUG_ON(tlv_offset != total_v2_len);
-
 		/* unsupported protocol, keep local connection address */
 		break;
 	case 0x00: /* LOCAL command */
 		/* keep local connection address for LOCAL */
+
+		tlv_offset = PP2_HEADER_LEN;
 		break;
 	default:
 		goto bad_header; /* not a supported command */
 	}
+
+	/* TLV parsing */
+	while (tlv_offset < total_v2_len) {
+		struct ist tlv;
+		struct tlv *tlv_packet = NULL;
+		struct conn_tlv_list *new_tlv = NULL;
+		size_t data_len = 0;
+
+		/* Verify that we have at least TLV_HEADER_SIZE bytes left */
+		if (tlv_offset + TLV_HEADER_SIZE > total_v2_len)
+			goto bad_header;
+
+		tlv_packet = (struct tlv *) &trash.area[tlv_offset];
+		tlv = ist2((const char *)tlv_packet->value, get_tlv_length(tlv_packet));
+		tlv_offset += istlen(tlv) + TLV_HEADER_SIZE;
+
+		/* Verify that the TLV length does not exceed the total PROXYv2 length */
+		if (tlv_offset > total_v2_len)
+			goto bad_header;
+
+		/* Prepare known TLV types */
+		switch (tlv_packet->type) {
+		case PP2_TYPE_CRC32C: {
+			uint32_t n_crc32c;
+
+			/* Verify that this TLV is exactly 4 bytes long */
+			if (istlen(tlv) != PP2_CRC32C_LEN)
+				goto bad_header;
+
+			n_crc32c = read_n32(istptr(tlv));
+			write_n32(istptr(tlv), 0); // compute with CRC==0
+
+			if (hash_crc32c(trash.area, total_v2_len) != n_crc32c)
+				goto bad_header;
+			break;
+		}
+#ifdef USE_NS
+		case PP2_TYPE_NETNS: {
+			const struct netns_entry *ns;
+
+			ns = netns_store_lookup(istptr(tlv), istlen(tlv));
+			if (ns)
+				conn->proxy_netns = ns;
+			break;
+		}
+#endif
+		case PP2_TYPE_AUTHORITY: {
+			/* For now, keep the length restriction by HAProxy */
+			if (istlen(tlv) > HA_PP2_AUTHORITY_MAX)
+				goto bad_header;
+
+			break;
+		}
+		case PP2_TYPE_UNIQUE_ID: {
+			if (istlen(tlv) > UNIQUEID_LEN)
+				goto bad_header;
+			break;
+		}
+		default:
+			break;
+		}
+
+		/* If we did not find a known TLV type that we can optimize for, we generically allocate it */
+		data_len = get_tlv_length(tlv_packet);
+
+		/* Prevent attackers from allocating too much memory */
+		if (unlikely(data_len > HA_PP2_MAX_ALLOC))
+			goto fail;
+
+		/* Alloc memory based on data_len */
+		if (data_len > HA_PP2_TLV_VALUE_256)
+			new_tlv = malloc(get_tlv_length(tlv_packet) + sizeof(struct conn_tlv_list));
+		else if (data_len <= HA_PP2_TLV_VALUE_128)
+			new_tlv = pool_alloc(pool_head_pp_tlv_128);
+		else
+			new_tlv = pool_alloc(pool_head_pp_tlv_256);
+
+		if (unlikely(!new_tlv))
+			goto fail;
+
+		new_tlv->type = tlv_packet->type;
+
+		/* Save TLV to make it accessible via sample fetch */
+		memcpy(new_tlv->value, tlv.ptr, data_len);
+		new_tlv->len = data_len;
+
+		LIST_APPEND(&conn->tlv_list, &new_tlv->list);
+	}
+
+	/* Verify that the PROXYv2 header ends at a TLV boundary.
+	 * This is can not be true, because the TLV parsing already
+	 * verifies that a TLV does not exceed the total length and
+	 * also that there is space for a TLV header.
+	 */
+	BUG_ON(tlv_offset != total_v2_len);
 
 	trash.data = total_v2_len;
 	goto eat_header;
