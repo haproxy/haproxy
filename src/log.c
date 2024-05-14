@@ -1406,13 +1406,15 @@ static int postcheck_log_backend(struct proxy *be)
 /* resolves a single logger entry (it is expected to be called
  * at postparsing stage)
  *
+ * <px> is parent proxy, used for context (may be NULL)
+ *
  * Returns err_code which defaults to ERR_NONE and can be set to a combination
  * of ERR_WARN, ERR_ALERT, ERR_FATAL and ERR_ABORT in case of errors.
  * <msg> could be set at any time (it will usually be set on error, but
  * could also be set when no error occurred to report a diag warning), thus is
  * up to the caller to check it and to free it.
  */
-static int resolve_logger(struct logger *logger, char **msg)
+static int resolve_logger(struct proxy *px, struct logger *logger, char **msg)
 {
 	struct log_target *target = &logger->target;
 	int err_code = ERR_NONE;
@@ -5882,7 +5884,8 @@ out:
  * Returns err_code which defaults to ERR_NONE and can be set to a combination
  * of ERR_WARN, ERR_ALERT, ERR_FATAL and ERR_ABORT in case of errors.
  */
-int postresolve_logger_list(struct list *loggers, const char *section, const char *section_name)
+int postresolve_logger_list(struct proxy *px, struct list *loggers,
+                            const char *section, const char *section_name)
 {
 	int err_code = ERR_NONE;
 	struct logger *logger;
@@ -5891,7 +5894,7 @@ int postresolve_logger_list(struct list *loggers, const char *section, const cha
 		int cur_code;
 		char *msg = NULL;
 
-		cur_code = resolve_logger(logger, &msg);
+		cur_code = resolve_logger(px, logger, &msg);
 		if (msg) {
 			void (*e_func)(const char *fmt, ...) = NULL;
 
@@ -5923,13 +5926,13 @@ static int postresolve_loggers()
 	int err_code = ERR_NONE;
 
 	/* global log directives */
-	err_code |= postresolve_logger_list(&global.loggers, NULL, NULL);
+	err_code |= postresolve_logger_list(NULL, &global.loggers, NULL, NULL);
 	/* proxy log directives */
 	for (px = proxies_list; px; px = px->next)
-		err_code |= postresolve_logger_list(&px->loggers, "proxy", px->id);
+		err_code |= postresolve_logger_list(px, &px->loggers, "proxy", px->id);
 	/* log-forward log directives */
 	for (px = cfg_log_forward; px; px = px->next)
-		err_code |= postresolve_logger_list(&px->loggers, "log-forward", px->id);
+		err_code |= postresolve_logger_list(NULL, &px->loggers, "log-forward", px->id);
 
 	return err_code;
 }

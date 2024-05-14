@@ -129,7 +129,7 @@ ssize_t syslog_applet_append_event(void *ctx, struct ist v1, struct ist v2, size
  */
 int parse_logformat_string(const char *str, struct proxy *curproxy, struct lf_expr *lf_expr, int options, int cap, char **err);
 
-int postresolve_logger_list(struct list *loggers, const char *section, const char *section_name);
+int postresolve_logger_list(struct proxy *px, struct list *loggers, const char *section, const char *section_name);
 
 struct logger *dup_logger(struct logger *def);
 void free_logger(struct logger *logger);

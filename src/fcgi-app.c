@@ -691,7 +691,7 @@ static int cfg_fcgi_apps_postparser()
 			curapp->maxreqs = 1;
 		}
 
-		err_code |= postresolve_logger_list(&curapp->loggers, "fcgi-app", curapp->name);
+		err_code |= postresolve_logger_list(NULL, &curapp->loggers, "fcgi-app", curapp->name);
 	}
 
   end:

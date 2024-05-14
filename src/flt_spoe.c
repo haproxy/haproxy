@@ -3110,7 +3110,7 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 		HA_SPIN_INIT(&conf->agent->rt[i].lock);
 	}
 
-	if (postresolve_logger_list(&conf->agent_fe.loggers, "SPOE agent", conf->agent->id) & ERR_CODE)
+	if (postresolve_logger_list(NULL, &conf->agent_fe.loggers, "SPOE agent", conf->agent->id) & ERR_CODE)
 		return 1;
 
 	ha_free(&conf->agent->b.name);
