@@ -1100,11 +1100,15 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
 		if (!(h1m->flags & (H1_MF_HDRS_ONLY|H1_MF_RESP))) {
 			struct http_uri_parser parser = http_uri_parser_init(sl.rq.u);
-			struct ist scheme, authority;
+			struct ist scheme, authority = IST_NULL;
 			int ret;
 
 			scheme = http_parse_scheme(&parser);
-			authority = http_parse_authority(&parser, 1);
+			if (istlen(scheme) || sl.rq.meth == HTTP_METH_CONNECT) {
+				/* Expect an authority if for CONNECT method or if there is a scheme */
+				authority = http_parse_authority(&parser, 1);
+			}
+
 			if (sl.rq.meth == HTTP_METH_CONNECT) {
 				struct ist *host = ((host_idx != -1) ? &hdr[host_idx].v : NULL);
 
