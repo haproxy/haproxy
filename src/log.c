@@ -1406,8 +1406,6 @@ static int postcheck_log_backend(struct proxy *be)
 /* resolves a single logger entry (it is expected to be called
  * at postparsing stage)
  *
- * <logger> is parent logger used for implicit settings
- *
  * Returns err_code which defaults to ERR_NONE and can be set to a combination
  * of ERR_WARN, ERR_ALERT, ERR_FATAL and ERR_ABORT in case of errors.
  * <msg> could be set at any time (it will usually be set on error, but
