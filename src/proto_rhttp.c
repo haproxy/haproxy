@@ -79,6 +79,14 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 	*conn->dst = srv->addr;
 	set_host_port(conn->dst, srv->svc_port);
 
+	conn->send_proxy_ofs = 0;
+	if (srv->pp_opts) {
+		conn->flags |= CO_FL_SEND_PROXY;
+		conn->send_proxy_ofs = 1; /* must compute size */
+	}
+
+	/* TODO support SOCKS4 */
+
 	if (conn_prepare(conn, protocol_lookup(conn->dst->ss_family, PROTO_TYPE_STREAM, 0), srv->xprt))
 		goto err;
 
@@ -97,6 +105,14 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 	}
 #endif /* USE_OPENSSL */
 
+	/* The CO_FL_SEND_PROXY flag may have been set by the connect method,
+	 * if so, add our handshake pseudo-XPRT now.
+	 */
+	if (conn->flags & CO_FL_HANDSHAKE) {
+		if (xprt_add_hs(conn) < 0)
+			goto err;
+	}
+
 	if (conn_xprt_start(conn) < 0)
 		goto err;
 
@@ -107,8 +123,6 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 			goto err;
 	}
 
-	/* Not expected here. */
-	BUG_ON((conn->flags & CO_FL_HANDSHAKE));
 	return conn;
 
  err:
