@@ -1412,7 +1412,7 @@ static int postcheck_log_backend(struct proxy *be)
  * could also be set when no error occurred to report a diag warning), thus is
  * up to the caller to check it and to free it.
  */
-int resolve_logger(struct logger *logger, char **msg)
+static int resolve_logger(struct logger *logger, char **msg)
 {
 	struct log_target *target = &logger->target;
 	int err_code = ERR_NONE;
