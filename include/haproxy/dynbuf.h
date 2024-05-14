@@ -217,6 +217,29 @@ static inline int b_queue(enum dynbuf_crit crit, struct buffer_wait *bw, void *c
 	return b_requeue(crit, bw);
 }
 
+/* Dequeues bw element <bw> from its list at for thread <thr> and updates the
+ * thread's bufq_map if it was the last element. The element is assumed to be
+ * in a list (it's the caller's job to test it). This is only meant to really
+ * be used either by the owner thread or under thread isolation. You should
+ * use b_dequeue() instead.
+ */
+static inline void _b_dequeue(struct buffer_wait *bw, int thr)
+{
+	struct thread_ctx *ctx = &ha_thread_ctx[thr];
+	uint q;
+
+	/* trick: detect if we're the last one and pointing to a root, so we
+	 * can figure the queue number since the root belongs to an array.
+	 */
+	if (LIST_ATMOST1(&bw->list)) {
+		/* OK then which root? */
+		q = bw->list.n - &ctx->buffer_wq[0];
+		BUG_ON_HOT(q >= DYNBUF_NBQ);
+		ctx->bufq_map &= ~(1 << q);
+	}
+	LIST_DEL_INIT(&bw->list);
+}
+
 /* Dequeues bw element <bw> from its list and updates the bufq_map if if was
  * the last element. All users of buffer_wait should use this to dequeue (e.g.
  * when killing a pending request on timeout) so as to make sure that we keep
@@ -224,21 +247,8 @@ static inline int b_queue(enum dynbuf_crit crit, struct buffer_wait *bw, void *c
  */
 static inline void b_dequeue(struct buffer_wait *bw)
 {
-	uint q;
-
-	if (likely(!LIST_INLIST(&bw->list)))
-		return;
-
-	/* trick: detect if we're the last one and pointing to a root, so we
-	 * can figure the queue number since the root belongs to an array.
-	 */
-	if (LIST_ATMOST1(&bw->list)) {
-		/* OK then which root? */
-		q = bw->list.n - &th_ctx->buffer_wq[0];
-		BUG_ON_HOT(q >= DYNBUF_NBQ);
-		th_ctx->bufq_map &= ~(1 << q);
-	}
-	LIST_DEL_INIT(&bw->list);
+	if (unlikely(LIST_INLIST(&bw->list)))
+		_b_dequeue(bw, tid);
 }
 
 #endif /* _HAPROXY_DYNBUF_H */
