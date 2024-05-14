@@ -6222,7 +6222,7 @@ static void ssl_set_used(struct connection *conn, void *xprt_ctx)
 	if (!ctx || !ctx->wait_event.tasklet)
 		return;
 
-	HA_ATOMIC_OR(&ctx->wait_event.tasklet->state, TASK_F_USR1);
+	HA_ATOMIC_AND(&ctx->wait_event.tasklet->state, ~TASK_F_USR1);
 	if (ctx->xprt)
 		xprt_set_used(conn, ctx->xprt, ctx->xprt_ctx);
 }
