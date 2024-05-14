@@ -183,11 +183,11 @@ int h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value)
  * is hast header, its value is normalized. 0 is returned on success, -1 if the
  * authority is invalid and -2 if the host is invalid.
  */
-static int h1_validate_connect_authority(struct ist authority, struct ist *host_hdr)
+static int h1_validate_connect_authority(struct ist scheme, struct ist authority, struct ist *host_hdr)
 {
 	struct ist uri_host, uri_port, host, host_port;
 
-	if (!isttest(authority))
+	if (isttest(scheme) || !isttest(authority))
 		goto invalid_authority;
 	uri_host = authority;
 	uri_port = http_get_host_port(authority);
@@ -1112,7 +1112,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			if (sl.rq.meth == HTTP_METH_CONNECT) {
 				struct ist *host = ((host_idx != -1) ? &hdr[host_idx].v : NULL);
 
-				ret = h1_validate_connect_authority(authority, host);
+				ret = h1_validate_connect_authority(scheme, authority, host);
 				if (ret < 0) {
 					if (h1m->err_pos < -1) {
 						state = H1_MSG_LAST_LF;
