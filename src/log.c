@@ -1427,18 +1427,15 @@ int resolve_logger(struct logger *logger, char **msg)
 		if (!be) {
 			memprintf(msg, "uses unknown log backend '%s'", target->be_name);
 			err_code |= ERR_ALERT | ERR_FATAL;
-			goto end;
 		}
 		else if (be->mode != PR_MODE_SYSLOG) {
 			memprintf(msg, "uses incompatible log backend '%s'", target->be_name);
 			err_code |= ERR_ALERT | ERR_FATAL;
-			goto end;
 		}
 		ha_free(&target->be_name); /* backend is resolved and will replace name hint */
 		target->be = be;
 	}
 
- end:
 	target->flags |= LOG_TARGET_FL_RESOLVED;
 
 	return err_code;
