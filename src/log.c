@@ -1423,6 +1423,7 @@ struct logger *dup_logger(struct logger *def)
 
 	/* default values */
 	cpy->conf.file = NULL;
+	cpy->lb.smp_rgs = NULL;
 	LIST_INIT(&cpy->list);
 
 	/* special members */
@@ -1432,6 +1433,13 @@ struct logger *dup_logger(struct logger *def)
 		cpy->conf.file = strdup(def->conf.file);
 		if (!cpy->conf.file)
 			goto error;
+	}
+	if (def->lb.smp_rgs) {
+		cpy->lb.smp_rgs = malloc(sizeof(*cpy->lb.smp_rgs) * def->lb.smp_rgs_sz);
+		if (!cpy->lb.smp_rgs)
+			goto error;
+		memcpy(cpy->lb.smp_rgs, def->lb.smp_rgs,
+		       sizeof(*cpy->lb.smp_rgs) * def->lb.smp_rgs_sz);
 	}
 
 	/* inherit from original reference if set */
@@ -1456,6 +1464,7 @@ void free_logger(struct logger *logger)
 	BUG_ON(LIST_INLIST(&logger->list));
 	ha_free(&logger->conf.file);
 	deinit_log_target(&logger->target);
+	free(logger->lb.smp_rgs);
 	free(logger);
 }
 
