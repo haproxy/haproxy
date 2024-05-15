@@ -53,6 +53,10 @@ build_openssl () {
 		'Linux')
 			build_openssl_linux
 			;;
+		*)
+                        echo "not yet implemented"
+                        exit 1
+			;;
 	esac
         echo "${OPENSSL_VERSION}" > "${HOME}/opt/.openssl-version"
     fi
