@@ -344,16 +344,16 @@ if [ $preparefailed ]; then
 fi
 
 { read HAPROXY_VERSION; read TARGET; read FEATURES; read SERVICES; } << EOF
-$($HAPROXY_PROGRAM $HAPROXY_ARGS -vv | grep 'HA-\?Proxy version\|TARGET.*=\|^Feature\|^Available services' | sed 's/.* [:=] //')
+$($HAPROXY_PROGRAM $HAPROXY_ARGS -vv | grep -E 'HA-?Proxy version|TARGET.*=|^Feature|^Available services' | sed 's/.* [:=] //')
 EOF
 
 HAPROXY_VERSION=$(echo $HAPROXY_VERSION | cut -d " " -f 3)
 echo "Testing with haproxy version: $HAPROXY_VERSION"
 
-PROJECT_VERSION=$(${MAKE:-make} version 2>&1 | grep '^VERSION:\|^SUBVERS:'|cut -f2 -d' '|tr -d '\012')
+PROJECT_VERSION=$(${MAKE:-make} version 2>&1 | grep -E '^VERSION:|^SUBVERS:'|cut -f2 -d' '|tr -d '\012')
 if [ -z "${PROJECT_VERSION}${MAKE}" ]; then
         # try again with gmake, just in case
-        PROJECT_VERSION=$(gmake version 2>&1 | grep '^VERSION:\|^SUBVERS:'|cut -f2 -d' '|tr -d '\012')
+        PROJECT_VERSION=$(gmake version 2>&1 | grep -E '^VERSION:|^SUBVERS:'|cut -f2 -d' '|tr -d '\012')
 fi
 
 FEATURES_PATTERN=" $FEATURES "
