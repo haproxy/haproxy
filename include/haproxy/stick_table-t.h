@@ -119,7 +119,7 @@ union stktable_data {
 	unsigned long long std_t_ull;
 	struct freq_ctr std_t_frqp;
 	struct dict_entry *std_t_dict;
-};
+} __attribute__((packed));
 
 /* known data types */
 struct stktable_data_type {
