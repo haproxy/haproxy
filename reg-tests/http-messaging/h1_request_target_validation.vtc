@@ -1,0 +1,111 @@
+varnishtest "HTTP request tests: H1 request target parsing"
+
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=3.0
+
+haproxy h1 -conf {
+    global
+        # WT: limit false-positives causing "HTTP header incomplete" due to
+        # idle server connections being randomly used and randomly expiring
+        # under us.
+        tune.idle-pool.shared off
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen li1
+        bind "fd@${li1}"
+        http-request return status 200
+} -start
+
+client c1 -connect ${h1_li1_sock} {
+    txreq -req "OPTIONS" -url "*"
+    rxresp
+    expect resp.status == 200
+
+} -run
+
+client c2 -connect ${h1_li1_sock} {
+    txreq -req "OPTIONS" -url "/"
+    rxresp
+    expect resp.status == 200
+
+} -run
+
+client c3 -connect ${h1_li1_sock} {
+    txreq -req "OPTIONS" -url "http://haproxy.org" \
+          -hdr "Host: haproxy.org"
+    rxresp
+    expect resp.status == 200
+
+} -run
+
+client c4 -connect ${h1_li1_sock} {
+    txreq -req "OPTIONS" -url "*/test"
+    rxresp
+    expect resp.status == 400
+} -run
+
+client c5 -connect ${h1_li1_sock} {
+    txreq -req "GET" -url "*"
+    rxresp
+    expect resp.status == 400
+} -run
+
+client c6 -connect ${h1_li1_sock} {
+    txreq -req "CONNECT" -url "haproxy.org:80" \
+          -hdr "Host: haproxy.org"
+    rxresp
+    expect resp.status == 200
+
+} -run
+
+client c7 -connect ${h1_li1_sock} {
+    txreq -req "CONNECT" -url "haproxy.org" \
+          -hdr "Host: haproxy.org"
+    rxresp
+    expect resp.status == 400
+} -run
+
+client c8 -connect ${h1_li1_sock} {
+    txreq -req "CONNECT" -url "/"
+    rxresp
+    expect resp.status == 400
+} -run
+
+client c9 -connect ${h1_li1_sock} {
+    txreq -req "CONNECT" -url "http://haproxy.org:80" \
+          -hdr "Host: haproxy.org"
+    rxresp
+    expect resp.status == 400
+} -run
+
+client c11 -connect ${h1_li1_sock} {
+    txreq -req "GET" -url "/" \
+          -hdr "Host: haproxy.org"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c12 -connect ${h1_li1_sock} {
+    txreq -req "GET" -url "haproxy.org:80" \
+          -hdr "Host: haproxy.org"
+    rxresp
+    expect resp.status == 400
+} -run
+
+client c13 -connect ${h1_li1_sock} {
+    txreq -req "GET" -url "admin"
+    rxresp
+    expect resp.status == 400
+} -run
+
+client c14 -connect ${h1_li1_sock} {
+    txreq -req "GET" -url "admin/a/b"
+    rxresp
+    expect resp.status == 400
+} -run
