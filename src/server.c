@@ -5971,6 +5971,14 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 			conn_release(conn);
 		}
 
+		/* Also remove all purgeable conns as some of them may still
+		 * reference the currently deleted server.
+		 */
+		while ((conn = MT_LIST_POP(&idle_conns[i].toremove_conns,
+		                           struct connection *, toremove_list))) {
+			conn_release(conn);
+		}
+
 		if ((i = ((i + 1 == global.nbthread) ? 0 : i + 1)) == tid)
 			break;
 	}
