@@ -225,7 +225,9 @@ struct htx_ret {
 	struct htx_blk *blk; /* An HTX block */
 };
 
-/* HTX start-line */
+/* HTX start-line. This is almost always aligned except in rare cases where
+ * parts of the URI are rewritten, hence the packed attribute.
+ */
 struct htx_sl {
 	unsigned int flags; /* HTX_SL_F_* */
 	union {
@@ -237,11 +239,16 @@ struct htx_sl {
 		} res;
 	} info;
 
-	/* XXX 2 bytes unused */
+	/* XXX 2 bytes unused, must be present to keep the rest aligned
+	 * (check with "pahole -C htx_sl" that len[] is aligned in case
+	 * of doubt).
+	 */
+	char __pad_1;
+	char __pad_2;
 
 	unsigned int len[3]; /* length of different parts of the start-line */
 	char         l[VAR_ARRAY];
-};
+} __attribute__((packed));
 
 /* Internal representation of an HTTP message */
 struct htx {
