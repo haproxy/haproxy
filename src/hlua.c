@@ -541,6 +541,14 @@ static inline int hlua_timer_check(const struct hlua_timer *timer)
  */
 static unsigned int hlua_nb_instruction = 10000;
 
+/* Wrapper to retrieve the number of instructions between two interrupts
+ * depending on user settings and current hlua context.
+ */
+static inline unsigned int hlua_get_nb_instruction(struct hlua *hlua)
+{
+	return hlua_nb_instruction;
+}
+
 /* Descriptor for the memory allocation state. The limit is pre-initialised to
  * 0 until it is replaced by "tune.lua.maxmem" during the config parsing, or it
  * is replaced with ~0 during post_init after everything was loaded. This way
@@ -1783,7 +1791,7 @@ void hlua_hook(lua_State *L, lua_Debug *ar)
 	/* Try to interrupt the process at the end of the current
 	 * unyieldable function.
 	 */
-	lua_sethook(hlua->T, hlua_hook, LUA_MASKRET|LUA_MASKCOUNT, hlua_nb_instruction);
+	lua_sethook(hlua->T, hlua_hook, LUA_MASKRET|LUA_MASKCOUNT, hlua_get_nb_instruction(hlua));
 }
 
 /* This function start or resumes the Lua stack execution. If the flag
@@ -1823,10 +1831,10 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 
 resume_execution:
 
-	/* This hook interrupts the Lua processing each 'hlua_nb_instruction'
+	/* This hook interrupts the Lua processing each 'hlua_get_nb_instruction()
 	 * instructions. it is used for preventing infinite loops.
 	 */
-	lua_sethook(lua->T, hlua_hook, LUA_MASKCOUNT, hlua_nb_instruction);
+	lua_sethook(lua->T, hlua_hook, LUA_MASKCOUNT, hlua_get_nb_instruction(lua));
 
 	/* Remove all flags except the running flags. */
 	HLUA_SET_RUN(lua);
