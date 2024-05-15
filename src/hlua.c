@@ -516,7 +516,15 @@ static inline int hlua_timer_check(const struct hlua_timer *timer)
 
 /* Interrupts the Lua processing each "hlua_nb_instruction" instructions.
  * it is used for preventing infinite loops.
+ */
+static unsigned int hlua_nb_instruction = 0;
+
+/* Wrapper to retrieve the number of instructions between two interrupts
+ * depending on user settings and current hlua context. If not already
+ * explicitly set, we compute the ideal value using hard limits releaved
+ * by Thierry Fournier's work, whose original notes may be found below:
  *
+ * --
  * I test the scheer with an infinite loop containing one incrementation
  * and one test. I run this loop between 10 seconds, I raise a ceil of
  * 710M loops from one interrupt each 9000 instructions, so I fix the value
@@ -537,16 +545,41 @@ static inline int hlua_timer_check(const struct hlua_timer *timer)
  *  10000         | 710
  *  100000        | 710
  *  1000000       | 710
+ * --
  *
- */
-static unsigned int hlua_nb_instruction = 10000;
-
-/* Wrapper to retrieve the number of instructions between two interrupts
- * depending on user settings and current hlua context.
+ * Thanks to his work, we know we can safely use values between 500 and 10000
+ * without a significant impact on performance.
  */
 static inline unsigned int hlua_get_nb_instruction(struct hlua *hlua)
 {
-	return hlua_nb_instruction;
+	int ceil = 10000; /* above 10k, no significant performance gain */
+	int floor = 500;  /* below 500, significant performance loss */
+
+	if (hlua_nb_instruction) {
+		/* value enforced by user */
+		return hlua_nb_instruction;
+	}
+
+	/* not set, assign automatic value */
+	if (hlua->state_id == 0) {
+		/* this function is expected to be called during runtime (after config
+		 * parsing), thus global.nb_thread is expected to be set.
+		 */
+		BUG_ON(global.nbthread == 0);
+
+		/* main lua stack (shared global lock), take number of threads into
+		 * account in an attempt to reduce thread contention
+		 */
+		return MAX(floor, ceil / global.nbthread);
+	}
+	else {
+		/* per-thread lua stack, less contention is expected (no global lock),
+		 * allow up to the maximum number of instructions and hope that the
+		 * user manually yields after heavy (lock dependent) work from lua
+		 * script (e.g.: map manipulation).
+		 */
+		return ceil;
+	}
 }
 
 /* Descriptor for the memory allocation state. The limit is pre-initialised to

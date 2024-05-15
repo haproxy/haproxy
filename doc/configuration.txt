@@ -3456,10 +3456,17 @@ tune.lua.forced-yield <number>
   This directive forces the Lua engine to execute a yield each <number> of
   instructions executed. This permits interrupting a long script and allows the
   HAProxy scheduler to process other tasks like accepting connections or
-  forwarding traffic. The default value is 10000 instructions. If HAProxy often
-  executes some Lua code but more responsiveness is required, this value can be
-  lowered. If the Lua code is quite long and its result is absolutely required
-  to process the data, the <number> can be increased.
+  forwarding traffic. The default value is 10000 instructions for scripts loaded
+  using "lua-load-per-thread" and MAX(500, 10000 / nbthread) instructions for
+  scripts loaded using "lua-load" (it was found to be an optimal value for
+  performance while taking care of not creating thread contention with multiple
+  threads competing for the global lua lock).
+
+  If HAProxy often executes some Lua code but more responsiveness is required,
+  this value can be lowered. If the Lua code is quite long and its result is
+  absolutely required to process the data, the <number> can be increased, but
+  the value should be set wisely as in multithreading context it could increase
+  contention.
 
 tune.lua.maxmem <number>
   Sets the maximum amount of RAM in megabytes per process usable by Lua. By
