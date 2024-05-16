@@ -1199,4 +1199,7 @@ int openssl_compare_current_version(const char *version);
 /* compare the current OpenSSL name to a string */
 int openssl_compare_current_name(const char *name);
 
+/* vma helpers */
+void vma_set_name(void *addr, size_t size, const char *type, const char *name);
+
 #endif /* _HAPROXY_TOOLS_H */

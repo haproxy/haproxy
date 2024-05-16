@@ -41,6 +41,7 @@ extern void *__elf_aux_vector;
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -50,6 +51,10 @@ extern void *__elf_aux_vector;
 
 #if defined(__linux__) && defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 16))
 #include <sys/auxv.h>
+#endif
+
+#if defined(USE_PRCTL)
+#include <sys/prctl.h>
 #endif
 
 #include <import/eb32sctree.h>
@@ -6457,6 +6462,83 @@ int openssl_compare_current_name(const char *name)
 	}
 #endif
 	return 1;
+}
+
+/* prctl/PR_SET_VMA wrapper to easily give a name to virtual memory areas,
+ * knowing their address and size.
+ *
+ * It is only intended for use with memory allocated using mmap (private or
+ * shared anonymous maps) or malloc (provided that <size> is at least one page
+ * large), which is memory that may be released using munmap(). For memory
+ * allocated using malloc(), no naming will be attempted if the vma is less
+ * than one page large, because naming is only relevant for large memory
+ * blocks. For instance, glibc/malloc() will directly use mmap() once
+ * MMAP_THRESHOLD is reached (defaults to 128K), and will try to use the
+ * heap as much as possible below that.
+ *
+ * <type> and <name> are mandatory
+ *
+ * The function does nothing if naming API is not available, and naming errors
+ * are ignored.
+ */
+void vma_set_name(void *addr, size_t size, const char *type, const char *name)
+{
+	long pagesize = sysconf(_SC_PAGESIZE);
+	void *aligned_addr;
+	__maybe_unused size_t aligned_size;
+
+	BUG_ON(!type || !name);
+
+	/* prctl/PR_SET/VMA expects the start of an aligned memory address, but
+	 * user may have provided address returned by malloc() which may not be
+	 * aligned nor point to the beginning of the map
+	 */
+	aligned_addr = (void *)((uintptr_t)addr & -4096);
+	aligned_size = (((addr +  size) - aligned_addr) + 4095) & -4096;
+
+	if (aligned_addr != addr) {
+		/* provided pointer likely comes from malloc(), at least it
+		 * doesn't come from mmap() which only returns aligned addresses
+		 */
+		if (size < pagesize)
+			return;
+	}
+#if defined(USE_PRCTL) && defined(PR_SET_VMA)
+	{
+		/*
+		 * From Linux 5.17 (and if the `CONFIG_ANON_VMA_NAME` kernel config is set)`,
+		 * anonymous regions can be named.
+		 * We intentionally ignore errors as it should not jeopardize the memory context
+		 * mapping whatsoever (e.g. older kernels).
+		 *
+		 * The naming can take up to 79 characters, accepting valid ASCII values
+		 * except [, ], \, $ and '.
+		 * As a result, when looking for /proc/<pid>/maps, we can see the anonymous range
+		 * as follow :
+		 * `7364c4fff000-736508000000 rw-s 00000000 00:01 3540  [anon_shmem:scope.name]`
+		 * (MAP_SHARED)
+		 * `7364c4fff000-736508000000 rw-s 00000000 00:01 3540  [anon:scope.name]`
+		 * (MAP_PRIVATE)
+		 */
+		char fullname[80];
+		int rn;
+
+		rn = snprintf(fullname, sizeof(fullname), "%s:%s", type, name);
+
+		if (rn >= 0) {
+			/* Give a name to the map by setting PR_SET_VMA_ANON_NAME attribute
+			 * using prctl/PR_SET_VMA combination.
+			 *
+			 * note from 'man prctl':
+			 *   assigning an attribute to a virtual memory area might prevent it
+			 *   from being merged with adjacent virtual memory areas due to the
+			 *   difference in that attribute's value.
+			 */
+			(void)prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME,
+			            aligned_addr, aligned_size, fullname);
+		}
+	}
+#endif
 }
 
 #if defined(RTLD_DEFAULT) || defined(RTLD_NEXT)
