@@ -33,6 +33,7 @@ struct protocol proto_rhttp = {
 	.listen      = rhttp_bind_listener,
 	.enable      = rhttp_enable_listener,
 	.disable     = rhttp_disable_listener,
+	.suspend     = rhttp_suspend_listener,
 	.add         = default_add_listener,
 	.unbind      = rhttp_unbind_receiver,
 	.resume      = default_resume_listener,
@@ -368,6 +369,13 @@ int rhttp_bind_listener(struct listener *listener, char *errmsg, int errlen)
  err:
 	ha_free(&name);
 	return ERR_ALERT | ERR_FATAL;
+}
+
+/* Do not support "disable frontend" for rhttp protocol. */
+int rhttp_suspend_listener(struct listener *l)
+{
+	send_log(l->bind_conf->frontend, LOG_ERR, "cannot disable a reverse-HTTP listener.\n");
+	return -1;
 }
 
 void rhttp_enable_listener(struct listener *l)

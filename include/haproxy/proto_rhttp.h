@@ -10,6 +10,7 @@ int rhttp_bind_receiver(struct receiver *rx, char **errmsg);
 int rhttp_bind_listener(struct listener *listener, char *errmsg, int errlen);
 void rhttp_enable_listener(struct listener *l);
 void rhttp_disable_listener(struct listener *l);
+int rhttp_suspend_listener(struct listener *l);
 struct connection *rhttp_accept_conn(struct listener *l, int *status);
 void rhttp_unbind_receiver(struct listener *l);
 int rhttp_set_affinity(struct connection *conn, int new_tid);
