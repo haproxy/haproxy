@@ -93,7 +93,7 @@ static forceinline char *h1c_show_flags(char *buf, size_t len, const char *delim
 #define H1S_F_WANT_CLO       0x00000040
 #define H1S_F_WANT_MSK       0x00000070
 #define H1S_F_NOT_FIRST      0x00000080 /* The H1 stream is not the first one */
-#define H1S_F_BODYLESS_RESP  0x00000100 /* Bodyless response message */
+/* 0x00000100 unused */
 
 #define H1S_F_INTERNAL_ERROR 0x00000200 /* Set when an internal error occurred during the message parsing */
 #define H1S_F_NOT_IMPL_ERROR 0x00000400 /* Set when a feature is not implemented during the message parsing */
@@ -108,6 +108,7 @@ static forceinline char *h1c_show_flags(char *buf, size_t len, const char *delim
 #define H1S_F_HAVE_CHNK      0x00020000 /* Set during output process to know "T-E; chunk" header was found or generated */
 
 #define H1S_F_BODYLESS_REQ   0x00040000 /* Bodyless request message */
+#define H1S_F_BODYLESS_RESP  0x00080000 /* Bodyless response message */
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
@@ -121,10 +122,10 @@ static forceinline char *h1s_show_flags(char *buf, size_t len, const char *delim
 	/* flags */
 	_(H1S_F_RX_BLK, _(H1S_F_TX_BLK, _(H1S_F_RX_CONGESTED,
 	_(H1S_F_WANT_KAL, _(H1S_F_WANT_TUN, _(H1S_F_WANT_CLO,
-	_(H1S_F_NOT_FIRST, _(H1S_F_BODYLESS_RESP,
+	_(H1S_F_NOT_FIRST,
 	_(H1S_F_INTERNAL_ERROR, _(H1S_F_NOT_IMPL_ERROR, _(H1S_F_PARSING_ERROR, _(H1S_F_PROCESSING_ERROR,
 	_(H1S_F_HAVE_SRV_NAME, _(H1S_F_HAVE_O_CONN, _(H1S_F_HAVE_WS_KEY,
-	_(H1S_F_HAVE_CLEN, _(H1S_F_HAVE_CHNK, _(H1S_F_BODYLESS_REQ))))))))))))))))));
+	_(H1S_F_HAVE_CLEN, _(H1S_F_HAVE_CHNK, _(H1S_F_BODYLESS_REQ, _(H1S_F_BODYLESS_RESP))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
