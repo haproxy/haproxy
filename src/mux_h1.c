@@ -2576,6 +2576,44 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 		b_slow_realign(&h1c->obuf, trash.area, b_data(&h1c->obuf));
 	outbuf = b_make(b_tail(&h1c->obuf), b_contig_space(&h1c->obuf), 0, 0);
 
+	/* Deal with removed "Content-Length" or "Transfer-Encoding" headers during analysis */
+	if (((h1m->flags & H1_MF_CLEN) && !(h1s->flags & H1S_F_HAVE_CLEN))||
+	    ((h1m->flags & H1_MF_CHNK) && !(h1s->flags & H1S_F_HAVE_CHNK))) {
+		TRACE_STATE("\"Content-Length\" or \"Transfer-Encoding\" header removed during analysis", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
+
+		if (h1s->flags & (H1S_F_HAVE_CLEN|H1S_F_HAVE_CHNK)) {
+			/* At least on header is present, we can continue */
+			if (!(h1s->flags & H1S_F_HAVE_CLEN)) {
+				h1m->curr_len = h1m->body_len = 0;
+				h1m->flags &= ~H1_MF_CLEN;
+			}
+			else /* h1s->flags & H1S_F_HAVE_CHNK */
+				h1m->flags &= ~(H1_MF_XFER_ENC|H1_MF_CHNK);
+		}
+		else {
+			/* Both headers are missing */
+			if (h1m->flags & H1_MF_RESP) {
+				/* It is a esponse: Switch to unknown xfer length */
+				h1m->flags &= ~(H1_MF_XFER_LEN|H1_MF_XFER_ENC|H1_MF_CLEN|H1_MF_CHNK);
+				h1s->flags &= ~(H1S_F_HAVE_CLEN|H1S_F_HAVE_CHNK);
+				TRACE_STATE("Switch response to unknown XFER length", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
+			}
+			else {
+				/* It is the request: Add "Content-Length: 0" header and skip payload */
+				struct ist n = ist("content-length");
+				if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
+					h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
+				if (!h1_format_htx_hdr(n, ist("0"), &outbuf))
+					goto full;
+
+				h1m->flags = (h1m->flags & ~(H1_MF_XFER_ENC|H1_MF_CHNK)) | H1_MF_CLEN;
+				h1s->flags = (h1s->flags & ~H1S_F_HAVE_CHNK) | (H1S_F_HAVE_CLEN|H1S_F_BODYLESS_REQ);
+				h1m->curr_len = h1m->body_len = 0;
+				TRACE_STATE("Set request content-length to 0 and skip payload", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
+			}
+		}
+	}
+
 	/* Deal with "Connection" header */
 	if (!(h1s->flags & H1S_F_HAVE_O_CONN)) {
 		if ((h1m->flags & (H1_MF_XFER_ENC|H1_MF_CLEN)) == (H1_MF_XFER_ENC|H1_MF_CLEN)) {
@@ -2624,23 +2662,6 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 			goto full;
 		TRACE_STATE("add \"Transfer-Encoding: chunked\"", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 		h1s->flags |= H1S_F_HAVE_CHNK;
-	}
-
-	/* Deal with "Content-Length header */
-	if ((h1m->flags & H1_MF_CLEN) && !(h1s->flags & H1S_F_HAVE_CLEN)) {
-		char *end;
-
-		h1m->curr_len = h1m->body_len = htx->data + htx->extra - sz;
-                end = DISGUISE(ulltoa(h1m->body_len, trash.area, b_size(&trash)));
-
-		n = ist("content-length");
-		v = ist2(trash.area, end-trash.area);
-		if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
-			h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
-		if (!h1_format_htx_hdr(n, v, &outbuf))
-			goto full;
-		TRACE_STATE("add \"Content-Length: <LEN>\"", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
-		h1s->flags |= H1S_F_HAVE_CLEN;
 	}
 
 	/* Add the server name to a header (if requested) */
