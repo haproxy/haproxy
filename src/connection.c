@@ -134,7 +134,7 @@ fail:
 			/* If connection is interrupted  without CO_FL_ERROR, receiver task won't free it. */
 			BUG_ON(!(conn->flags & CO_FL_ERROR));
 
-			task_wakeup(l->rx.rhttp.task, TASK_WOKEN_ANY);
+			task_wakeup(l->rx.rhttp.task, TASK_WOKEN_RES);
 		}
 		return -1;
 	} else
@@ -2796,7 +2796,7 @@ int conn_reverse(struct connection *conn)
 
 		conn->target = &l->obj_type;
 		conn->flags |= CO_FL_ACT_REVERSING;
-		task_wakeup(l->rx.rhttp.task, TASK_WOKEN_ANY);
+		task_wakeup(l->rx.rhttp.task, TASK_WOKEN_RES);
 	}
 
 	/* Invert source and destination addresses if already set. */

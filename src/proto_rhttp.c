@@ -387,7 +387,7 @@ void rhttp_enable_listener(struct listener *l)
 		l->rx.rhttp.state = LI_PRECONN_ST_INIT;
 	}
 
-	task_wakeup(l->rx.rhttp.task, TASK_WOKEN_ANY);
+	task_wakeup(l->rx.rhttp.task, TASK_WOKEN_INIT);
 }
 
 void rhttp_disable_listener(struct listener *l)
