@@ -1321,10 +1321,11 @@ int conn_send_proxy(struct connection *conn, unsigned int flag)
 		 */
 
 		if (sc && sc_strm(sc)) {
+			struct stream *strm = __sc_strm(sc);
 			ret = make_proxy_line(trash.area, trash.size,
 					      objt_server(conn->target),
 					      sc_conn(sc_opposite(sc)),
-					      __sc_strm(sc));
+					      strm, strm_sess(strm));
 		}
 		else {
 			/* The target server expects a LOCAL line to be sent first. Retrieving
@@ -1335,7 +1336,7 @@ int conn_send_proxy(struct connection *conn, unsigned int flag)
 
 			ret = make_proxy_line(trash.area, trash.size,
 					      objt_server(conn->target), conn,
-					      NULL);
+					      NULL, conn->owner);
 		}
 
 		if (!ret)
@@ -1941,7 +1942,7 @@ static int make_tlv(char *dest, int dest_len, char type, uint16_t length, const 
 }
 
 /* Note: <remote> is explicitly allowed to be NULL */
-static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote, struct stream *strm)
+static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote, struct stream *strm, struct session *sess)
 {
 	const char pp2_signature[] = PP2_SIGNATURE;
 	void *tlv_crc32c_p = NULL;
@@ -2022,7 +2023,7 @@ static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct
 		}
 	}
 
-	if (strm) {
+	if (sess) {
 		struct buffer *replace = NULL;
 
 		list_for_each_entry(srv_tlv, &srv->pp_tlvs, list) {
@@ -2036,7 +2037,7 @@ static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct
 				if (unlikely(!replace))
 					return 0;
 
-				replace->data = build_logline(strm, replace->area, replace->size, &srv_tlv->fmt);
+				replace->data = sess_build_logline(sess, strm, replace->area, replace->size, &srv_tlv->fmt);
 
 				if (unlikely((buf_len - ret) < sizeof(struct tlv))) {
 					free_trash_chunk(replace);
@@ -2179,12 +2180,12 @@ static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct
 }
 
 /* Note: <remote> is explicitly allowed to be NULL */
-int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connection *remote, struct stream *strm)
+int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connection *remote, struct stream *strm, struct session *sess)
 {
 	int ret = 0;
 
 	if (srv && (srv->pp_opts & SRV_PP_V2)) {
-		ret = make_proxy_line_v2(buf, buf_len, srv, remote, strm);
+		ret = make_proxy_line_v2(buf, buf_len, srv, remote, strm, sess);
 	}
 	else {
 		const struct sockaddr_storage *src = NULL;

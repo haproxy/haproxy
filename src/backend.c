@@ -1424,7 +1424,7 @@ int connect_server(struct stream *s)
 
 	/* 5. proxy protocol */
 	if (srv && srv->pp_opts) {
-		proxy_line_ret = make_proxy_line(trash.area, trash.size, srv, cli_conn, s);
+		proxy_line_ret = make_proxy_line(trash.area, trash.size, srv, cli_conn, s, strm_sess(s));
 		if (proxy_line_ret) {
 			hash_params.proxy_prehash =
 			  conn_hash_prehash(trash.area, proxy_line_ret);
