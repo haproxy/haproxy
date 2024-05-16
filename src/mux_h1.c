@@ -2797,7 +2797,8 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 	 * end-to-end. This is the situation that happens all the time with
 	 * large files.
 	 */
-	if ((!(h1m->flags & H1_MF_RESP) || !(h1s->flags & H1S_F_BODYLESS_RESP)) &&
+	if (((!(h1m->flags & H1_MF_RESP) && !(h1s->flags & H1S_F_BODYLESS_REQ)) ||
+	     ((h1m->flags & H1_MF_RESP) && !(h1s->flags & H1S_F_BODYLESS_RESP))) &&
 	    !b_data(&h1c->obuf) &&
 	    (!(h1m->flags & H1_MF_CHNK) || ((h1m->flags & H1_MF_CHNK) && (!h1m->curr_len || count == h1m->curr_len))) &&
 	    htx_nbblks(htx) == 1 &&
@@ -2924,8 +2925,9 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 				last_data = 1;
 			}
 
-			if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
-				TRACE_PROTO("Skip data for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx);
+			if ((!(h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_REQ)) ||
+			    ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP))) {
+				TRACE_PROTO("Skip data for bodyless message", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx);
 				goto nextblk;
 			}
 
@@ -2996,7 +2998,8 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 
 		}
 		else if (type == HTX_BLK_EOT || type == HTX_BLK_TLR) {
-			if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
+			if ((!(h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_REQ)) ||
+			    ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP))) {
 				/* Do nothing the payload must be skipped
 				 * because it is a bodyless response
 				 */
@@ -3196,7 +3199,9 @@ static size_t h1_make_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx
 			if (sz > count)
 				goto error;
 
-			if (!(h1m->flags & H1_MF_CHNK) || ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)))
+			if (!(h1m->flags & H1_MF_CHNK) ||
+			    (!(h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_REQ)) ||
+			    ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)))
 				goto nextblk;
 
 			n = htx_get_blk_name(htx, blk);
@@ -3209,7 +3214,9 @@ static size_t h1_make_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx
 				goto full;
 		}
 		else if (type == HTX_BLK_EOT) {
-			if (!(h1m->flags & H1_MF_CHNK) || ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP))) {
+			if (!(h1m->flags & H1_MF_CHNK) ||
+			    (!(h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_REQ)) ||
+			    ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP))) {
 				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request trailers skipped" : "H1 response trailers skipped"),
 					    H1_EV_TX_DATA|H1_EV_TX_TLRS, h1c->conn, h1s);
 			}
@@ -4588,6 +4595,13 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 
 
 	if (global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_H1_SND) {
+		h1s->sd->iobuf.flags |= IOBUF_FL_NO_FF;
+		goto out;
+	}
+
+	if ((!(h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_REQ)) ||
+	    ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP))) {
+		TRACE_STATE("Bodyless message, disable fastfwd", H1_EV_STRM_SEND|H1_EV_STRM_ERR, h1c->conn, h1s);
 		h1s->sd->iobuf.flags |= IOBUF_FL_NO_FF;
 		goto out;
 	}

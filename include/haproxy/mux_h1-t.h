@@ -107,6 +107,8 @@ static forceinline char *h1c_show_flags(char *buf, size_t len, const char *delim
 #define H1S_F_HAVE_CLEN      0x00010000 /* Set during output process to know C*L header was found or generated */
 #define H1S_F_HAVE_CHNK      0x00020000 /* Set during output process to know "T-E; chunk" header was found or generated */
 
+#define H1S_F_BODYLESS_REQ   0x00040000 /* Bodyless request message */
+
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
  * __APPEND_FLAG macro. The new end of the buffer is returned.
@@ -122,7 +124,7 @@ static forceinline char *h1s_show_flags(char *buf, size_t len, const char *delim
 	_(H1S_F_NOT_FIRST, _(H1S_F_BODYLESS_RESP,
 	_(H1S_F_INTERNAL_ERROR, _(H1S_F_NOT_IMPL_ERROR, _(H1S_F_PARSING_ERROR, _(H1S_F_PROCESSING_ERROR,
 	_(H1S_F_HAVE_SRV_NAME, _(H1S_F_HAVE_O_CONN, _(H1S_F_HAVE_WS_KEY,
-	_(H1S_F_HAVE_CLEN, _(H1S_F_HAVE_CHNK)))))))))))))))));
+	_(H1S_F_HAVE_CLEN, _(H1S_F_HAVE_CHNK, _(H1S_F_BODYLESS_REQ))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
