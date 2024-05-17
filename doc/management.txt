@@ -37,7 +37,7 @@ Summary
 11.   Well-known traps to avoid
 12.   Debugging and performance issues
 13.   Security considerations
-13.1      Linux capabilities support
+13.1.     Linux capabilities support
 
 
 1. Prerequisites
@@ -4599,7 +4599,7 @@ A safe configuration will have :
 
       stats socket /var/run/haproxy.stat uid hatop gid hatop mode 600
 
-13.1 Linux capabilities support
+13.1. Linux capabilities support
 ------------------------------
 
 Since version v2.9 haproxy supports Linux capabilities. If the binary is
