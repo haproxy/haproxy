@@ -1158,7 +1158,7 @@ int init_pollers()
 	int p;
 	struct poller *bp;
 
-	if ((fdtab_addr = calloc(global.maxsock, sizeof(*fdtab) + 64)) == NULL) {
+	if ((fdtab_addr = calloc(1, global.maxsock * sizeof(*fdtab) + 64)) == NULL) {
 		ha_alert("Not enough memory to allocate %d entries for fdtab!\n", global.maxsock);
 		goto fail_tab;
 	}
