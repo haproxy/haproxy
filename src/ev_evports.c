@@ -185,7 +185,15 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	do {
 		int timeout = (global.tune.options & GTUNE_BUSY_POLLING) ? 0 : wait_time;
 		int interrupted = 0;
-		nevlist = global.tune.maxpollevents; /* desired number of events to be retrieved */
+		/* Note: normally we should probably expect to pass
+		 * global.tune.maxpollevents here so as to process multiple
+		 * events at once, but it appears unreliable in tests, even
+		 * starting with value 2, and it seems basically nobody's
+		 * using that anymore so it's probably not worth spending days
+		 * investigating this poller more to improve its performance,
+		 * let's switch back to 1. --WT
+		 */
+		nevlist = 1; /* desired number of events to be retrieved */
 		timeout_ts.tv_sec  = (timeout / 1000);
 		timeout_ts.tv_nsec = (timeout % 1000) * 1000000;
 
