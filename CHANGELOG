@@ -1,6 +1,62 @@
 ChangeLog :
 ===========
 
+2024/05/18 : 3.0-dev12
+    - CI: drop asan.log umbrella completely
+    - BUG/MINOR: log: fix leak in add_sample_to_logformat_list() error path
+    - BUG/MINOR: log: smp_rgs array issues with inherited global log directives
+    - MINOR: rhttp: Don't require SSL when attach-srv name parsing
+    - REGTESTS: ssl: be more verbose with ocsp_compat_check.vtc
+    - DOC: Update UUID references to RFC 9562
+    - MINOR: hlua: add hlua_nb_instruction getter
+    - MEDIUM: hlua: take nbthread into account in hlua_get_nb_instruction()
+    - BUG/MEDIUM: server: clear purgeable conns before server deletion
+    - BUG/MINOR: mux-quic: fix error code on shutdown for non HTTP/3
+    - BUG/MINOR: qpack: fix error code reported on QPACK decoding failure
+    - BUG/MEDIUM: htx: mark htx_sl as packed since it may be realigned
+    - BUG/MEDIUM: stick-tables: properly mark stktable_data as packed
+    - SCRIPTS: run-regtests: fix a few occurrences of extended regexes
+    - BUG/MINOR: ssl_sock: fix xprt_set_used() to properly clear the TASK_F_USR1 bit
+    - MINOR: dynbuf: provide a b_dequeue() variant for multi-thread
+    - BUG/MEDIUM: muxes: enforce buf_wait check in takeover()
+    - BUG/MINOR: h1: Check authority for non-CONNECT methods only if a scheme is found
+    - BUG/MEDIUM: h1: Reject CONNECT request if the target has a scheme
+    - BUG/MAJOR: h1: Be stricter on request target validation during message parsing
+    - MINOR: qpack: prepare error renaming
+    - MINOR: h3/qpack: adjust naming for errors
+    - MINOR: h3: adjust error reporting on sending
+    - MINOR: h3: adjust error reporting on receive
+    - MINOR: mux-quic: support glitches
+    - MINOR: h3: report glitch on RFC violation
+    - BUILD: stick-tables: better mark the stktable_data as 32-bit aligned
+    - MINOR: ssl: rename tune.ssl.ocsp-update.mode in ocsp-update.mode
+    - REGTESTS: update the ocsp-update tests
+    - BUILD: stats: remove non portable getline() usage
+    - MEDIUM: ssl: add ocsp-update.mindelay and ocsp-update.maxdelay
+    - BUILD: log: get rid of non-portable strnlen() func
+    - BUG/MEDIUM: fd: prevent memory waste in fdtab array
+    - CLEANUP: compat: make the MIN/MAX macros more reliable
+    - Revert: MEDIUM: evports: permit to report multiple events at once"
+    - BUG/MINOR: stats: Don't state the 303 redirect response is chunked
+    - MINOR: mux-h1: Add a flag to ignore the request payload
+    - REORG: mux-h1: Group H1S_F_BODYLESS_* flags
+    - CLEANUP: mux-h1: Remove unused H1S_F_ERROR_MASK mask value
+    - MEDIUM: mux-h1: Support C-L/T-E header suppressions when sending messages
+    - MINOR: ssl: ckch_store_new_load_files_conf() loads filenames from ckch_conf
+    - MEDIUM: ssl/crtlist: loading crt-store keywords from a crt-list
+    - CLEANUP: ssl/ocsp: remove the deprecated parsing code for "ocsp-update"
+    - MINOR: ssl: pass ckch_store instead of ckch_data to ssl_sock_load_ocsp()
+    - MEDIUM: ssl: ckch_conf_parse() uses -1/0/1 for off/default/on
+    - MINOR: ssl: handle PARSE_TYPE_INT and PARSE_TYPE_ONOFF in ckch_store_load_files()
+    - MINOR: ssl/ocsp: use 'ocsp-update' in crt-store
+    - MINOR: ssl: ckch_conf_clean() utility function for ckch_conf
+    - MEDIUM: ssl: add ocsp-update.disable global option
+    - MEDIUM: ssl/cli: handle crt-store keywords in crt-list over the CLI
+    - MINOR: ssl: ckch_conf_cmp() compare multiple ckch_conf structures
+    - MEDIUM: ssl: temporarily load files by detecting their presence in crt-store
+    - REGTESTS: ocsp-update: change the reg-test to support the new crt-store mode
+    - DOC: capabilities: fix chapter header rendering
+
 2024/05/10 : 3.0-dev11
     - BUILD: clock: improve check for pthread_getcpuclockid()
     - CI: add Illumos scheduled workflow
