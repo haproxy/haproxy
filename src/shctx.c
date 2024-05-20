@@ -16,9 +16,7 @@
 #include <import/ebmbtree.h>
 #include <haproxy/list.h>
 #include <haproxy/shctx.h>
-#if defined(USE_PRCTL)
-#include <sys/prctl.h>
-#endif
+#include <haproxy/tools.h>
 
 /*
  * Reserve a new row if <first> is null, put it in the hotlist, set the refcount to 1
@@ -295,30 +293,7 @@ int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
 		goto err;
 	}
 
-#if defined(USE_PRCTL) && defined(PR_SET_VMA)
-	{
-		/**
-		 * From Linux 5.17 (and if the `CONFIG_ANON_VMA_NAME` kernel config is set)`,
-		 * anonymous regions can be named.
-		 * We intentionally ignore errors as it should not jeopardize the memory context
-		 * mapping whatsoever (e.g. older kernels).
-		 *
-		 * The naming can take up to 79 characters, accepting valid ASCII values
-		 * except [, ], \, $ and '.
-		 * As a result, when looking for /proc/<pid>/maps, we can see the anonymous range
-		 * as follow :
-		 * `7364c4fff000-736508000000 rw-s 00000000 00:01 3540  [anon_shmem:HAProxy globalCache]`
-		 */
-		int rn;
-		char fullname[80];
-
-		rn = snprintf(fullname, sizeof(fullname), "HAProxy %s", name);
-		if (rn >= 0) {
-			(void)prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, (uintptr_t)shctx,
-				totalsize, (uintptr_t)fullname);
-		}
-	}
-#endif
+	vma_set_name(shctx, totalsize, "shctx", name);
 
 	shctx->nbav = 0;
 
