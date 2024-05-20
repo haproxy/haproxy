@@ -829,6 +829,12 @@ static int sink_finalize(struct sink *sink)
 			ha_alert("error when trying to initialize sink buffer forwarding.\n");
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
+		if (!sink->store) {
+			/* virtual memory backed sink */
+			vma_set_name(ring_allocated_area(sink->ctx.ring),
+			             ring_allocated_size(sink->ctx.ring),
+			             "ring", sink->name);
+		}
 	}
 	return err_code;
 }
