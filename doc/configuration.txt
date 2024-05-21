@@ -60,6 +60,7 @@ Summary
 3.10.     Log forwarding
 3.11.     HTTPClient tuning
 3.12.     Certificate Storage
+3.12.1.       Load options
 
 4.    Proxies
 4.1.      Proxy keywords matrix
@@ -4814,39 +4815,8 @@ key-base <dir>
   section is ignored.
 
 load [crt <filename>] [param*]
-  Load SSL files in the certificate storage.
-
-  Arguments:
-
-    alias <string>     Optional argument. Allow to name the certificate with an
-                       alias, so it can be referenced with it in the
-                       configuration. An alias must be prefixed with '@/' when
-                       called elsewhere in the configuration.
-
-    crt <filename>     This argument is mandatory, it loads a PEM which must
-                       contain the public certificate but could also contain
-                       the intermediate certificates and the private key.
-                       If no private key is provided in this file, a key can be
-                       provided with the "key" keyword.
-
-    key <filename>     This argument is optional. Load a private key in PEM
-                       format. If a private key was already defined in "crt",
-                       it will overwrite it.
-
-    ocsp <filename>    This argument is optional, it loads an OCSP response in
-                       DER format. It can be updated with the CLI.
-
-    issuer <filename>  This argument is optional. Load the OCSP issuer in PEM
-                       format. In order to identify which certificate an OCSP
-                       Response applies to, the issuer's certificate is necessary.
-                       If the issuer's certificate is not found in the "crt" file,
-                       it could be loaded from a file with this argument.
-
-    sctl <filename>    This argument is optional. Support for Certificate
-                       Transparency (RFC6962) TLS extension is enabled. The file
-                       must contain a valid Signed Certificate Timestamp List,
-                       as described in RFC. File is parsed to check basic syntax,
-                       but no signatures are verified.
+  Load SSL files in the certificate storage. For the parameter list, see section
+  "3.12.1. Load options"
 
 Example:
 
@@ -4865,6 +4835,139 @@ Example:
 
     frontend in2
         bind *:443 ssl crt "@web/site1" crt "site2.crt"  crt "@web/site3" crt "@web/site4.crt"
+
+3.12.1. Load options
+--------------------
+
+Load SSL files in the certificate storage. The load keyword can take multiple
+parameters which are listed below. These keywords are also usable in a
+crt-list.
+
+crt <filename>
+  This argument is mandatory, it loads a PEM which must contain the public
+  certificate but could also contain the intermediate certificates and the
+  private key.  If no private key is provided in this file, a key can be provided
+  with the "key" keyword.
+
+alias <string>
+  Optional argument. Allow to name the certificate with an alias, so it can be
+  referenced with it in the configuration. An alias must be prefixed with '@/'
+  when called elsewhere in the configuration.
+
+key <filename>
+  This argument is optional. Load a private key in PEM format. If a private key
+  was already defined in "crt", it will overwrite it.
+
+ocsp <filename>
+  This argument is optional, it loads an OCSP response in DER format. It can
+  be updated with the CLI.
+
+issuer <filename>
+  This argument is optional. Load the OCSP issuer in PEM format. In order to
+  identify which certificate an OCSP Response applies to, the issuer's
+  certificate is necessary.  If the issuer's certificate is not found in the
+  "crt" file, it could be loaded from a file with this argument.
+
+sctl <filename>
+  This argument is optional. Support for Certificate Transparency (RFC6962) TLS
+  extension is enabled. The file must contain a valid Signed Certificate
+  Timestamp List, as described in RFC. File is parsed to check basic syntax,
+  but no signatures are verified.
+
+ocsp-update [ off | on ]
+  Enable automatic OCSP response update when set to 'on', disable it otherwise.
+  Its value defaults to 'off'.
+  To enable the OCSP auto update on a bind line, you can use this option in a
+  crt-store or you can use the global option "tune.ocsp-update.mode".
+  If a given certificate is used in multiple crt-lists with different values of
+  the 'ocsp-update' set, an error will be raised. Likewise, if a certificate
+  inherits from the global option on a bind line and has an incompatible
+  explicit 'ocsp-update' option set in a crt-list, the same error will be
+  raised.
+
+  Examples:
+
+  Here is an example configuration enabling it with a crt-list:
+
+  haproxy.cfg:
+      frontend fe
+          bind :443 ssl crt-list haproxy.list
+
+  haproxy.list:
+      server_cert.pem [ocsp-update on] foo.bar
+
+  Here is an example configuration enabling it with a crt-store:
+
+  haproxy.cfg:
+
+      crt-store
+        load crt foobar.pem ocsp-update on
+
+      frontend fe
+          bind :443 ssl crt foobar.pem
+
+  When the option is set to 'on', we will try to get an ocsp response whenever
+  an ocsp uri is found in the frontend's certificate. The only limitation of
+  this mode is that the certificate's issuer will have to be known in order for
+  the OCSP certid to be built.
+  Each OCSP response will be updated at least once an hour, and even more
+  frequently if a given OCSP response has an expire date earlier than this one
+  hour limit. A minimum update interval of 5 minutes will still exist in order
+  to avoid updating too often responses that have a really short expire time or
+  even no 'Next Update' at all. Because of this hard limit, please note that
+  when auto update is set to 'on', any OCSP response loaded during init will
+  not be updated until at least 5 minutes, even if its expire time ends before
+  now+5m. This should not be too much of a hassle since an OCSP response must
+  be valid when it gets loaded during init (its expire time must be in the
+  future) so it is unlikely that this response expires in such a short time
+  after init.
+  On the other hand, if a certificate has an OCSP uri specified and no OCSP
+  response, setting this option to 'on' for the given certificate will ensure
+  that the OCSP response gets fetched automatically right after init.
+  The default minimum and maximum delays (5 minutes and 1 hour respectively)
+  can be configured by the "tune.ssl.ocsp-update.maxdelay" and
+  "tune.ssl.ocsp-update.mindelay" global options.
+
+  Whenever an OCSP response is updated by the auto update task or following a
+  call to the "update ssl ocsp-response" CLI command, a dedicated log line is
+  emitted. It follows a dedicated format that contains the following header
+  "<OCSP-UPDATE>" and is followed by specific OCSP-related information:
+    - the path of the corresponding frontend certificate
+    - a numerical update status
+    - a textual update status
+    - the number of update failures for the given response
+    - the number of update successes for the givan response
+  See "show ssl ocsp-updates" CLI command for a full list of error codes and
+  error messages. This line is emitted regardless of the success or failure of
+  the concerned OCSP response update.
+  The OCSP request/response is sent and received through an http_client
+  instance that has the dontlog-normal option set and that uses the regular
+  HTTP log format in case of error (unreachable OCSP responder for instance).
+  If such an error occurs, another log line that contains HTTP-related
+  information will then be emitted alongside the "regular" OCSP one (which will
+  likely have "HTTP error" as text status). But if a purely HTTP error happens
+  (unreachable OCSP responder for instance), an extra log line that follows the
+  regular HTTP log-format will be emitted.
+  Here are two examples of such log lines, with a successful OCSP update log
+  line first and then an example of an HTTP error with the two different lines
+  (lines were spit and the URL was shortened for readability):
+    <133>Mar  6 11:16:53 haproxy[14872]: <OCSP-UPDATE> /path_to_cert/foo.pem 1 \
+            "Update successful" 0 1
+
+    <133>Mar  6 11:18:55 haproxy[14872]: <OCSP-UPDATE> /path_to_cert/bar.pem 2 \
+            "HTTP error" 1 0
+    <133>Mar  6 11:18:55 haproxy[14872]: -:- [06/Mar/2023:11:18:52.200] \
+            <OCSP-UPDATE> -/- 2/0/-1/-1/3009 503 217 - - SC-- 0/0/0/0/3 0/0 {} \
+            "GET http://127.0.0.1:12345/MEMwQT HTTP/1.1"
+
+  Troubleshooting:
+  A common error that can happen with let's encrypt certificates is if the DNS
+  resolution provides an IPv6 address and your system does not have a valid
+  outgoing IPv6 route. In such a case, you can either create the appropriate
+  route or set the "httpclient.resolvers.prefer ipv4" option in the global
+  section.
+  In case of "OCSP response check failure" error, you might want to check that
+  the issuer certificate that you provided is valid.
 
 4. Proxies
 ----------
@@ -16254,91 +16357,6 @@ npn <protocols>
   version of OpenSSL, NPN might still be used as most clients still support it
   at the time of writing this. It is possible to enable both NPN and ALPN
   though it probably doesn't make any sense out of testing.
-
-ocsp-update [ off | on ] (crt-list only)
-  Enable automatic OCSP response update when set to 'on', disable it otherwise.
-  Its value defaults to 'off'.
-  Please note that for now, this option can only be used in a crt-list line, it
-  cannot be used directly on a bind line. It lies in this "Bind options"
-  section because it is still a frontend option. For now, the only way to
-  enable OCSP auto update on a bind line certificate is via the global option
-  "tune.ocsp-update.mode".
-  If a given certificate is used in multiple crt-lists with different values of
-  the 'ocsp-update' set, an error will be raised. Likewise, if a certificate
-  inherits from the global option on a bind line and has an incompatible
-  explicit 'ocsp-update' option set in a crt-list, the same error will be
-  raised.
-  Here is an example configuration enabling it:
-
-  haproxy.cfg:
-      frontend fe
-          bind :443 ssl crt-list haproxy.list
-
-  haproxy.list:
-      server_cert.pem [ocsp-update on] foo.bar
-
-  When the option is set to 'on', we will try to get an ocsp response whenever
-  an ocsp uri is found in the frontend's certificate. The only limitation of
-  this mode is that the certificate's issuer will have to be known in order for
-  the OCSP certid to be built.
-  Each OCSP response will be updated at least once an hour, and even more
-  frequently if a given OCSP response has an expire date earlier than this one
-  hour limit. A minimum update interval of 5 minutes will still exist in order
-  to avoid updating too often responses that have a really short expire time or
-  even no 'Next Update' at all. Because of this hard limit, please note that
-  when auto update is set to 'on', any OCSP response loaded during init will
-  not be updated until at least 5 minutes, even if its expire time ends before
-  now+5m. This should not be too much of a hassle since an OCSP response must
-  be valid when it gets loaded during init (its expire time must be in the
-  future) so it is unlikely that this response expires in such a short time
-  after init.
-  On the other hand, if a certificate has an OCSP uri specified and no OCSP
-  response, setting this option to 'on' for the given certificate will ensure
-  that the OCSP response gets fetched automatically right after init.
-  The default minimum and maximum delays (5 minutes and 1 hour respectively)
-  can be configured by the "tune.ssl.ocsp-update.maxdelay" and
-  "tune.ssl.ocsp-update.mindelay" global options.
-
-  Whenever an OCSP response is updated by the auto update task or following a
-  call to the "update ssl ocsp-response" CLI command, a dedicated log line is
-  emitted. It follows a dedicated format that contains the following header
-  "<OCSP-UPDATE>" and is followed by specific OCSP-related information:
-    - the path of the corresponding frontend certificate
-    - a numerical update status
-    - a textual update status
-    - the number of update failures for the given response
-    - the number of update successes for the givan response
-  See "show ssl ocsp-updates" CLI command for a full list of error codes and
-  error messages. This line is emitted regardless of the success or failure of
-  the concerned OCSP response update.
-  The OCSP request/response is sent and received through an http_client
-  instance that has the dontlog-normal option set and that uses the regular
-  HTTP log format in case of error (unreachable OCSP responder for instance).
-  If such an error occurs, another log line that contains HTTP-related
-  information will then be emitted alongside the "regular" OCSP one (which will
-  likely have "HTTP error" as text status). But if a purely HTTP error happens
-  (unreachable OCSP responder for instance), an extra log line that follows the
-  regular HTTP log-format will be emitted.
-  Here are two examples of such log lines, with a successful OCSP update log
-  line first and then an example of an HTTP error with the two different lines
-  (lines were spit and the URL was shortened for readability):
-    <133>Mar  6 11:16:53 haproxy[14872]: <OCSP-UPDATE> /path_to_cert/foo.pem 1 \
-            "Update successful" 0 1
-
-    <133>Mar  6 11:18:55 haproxy[14872]: <OCSP-UPDATE> /path_to_cert/bar.pem 2 \
-            "HTTP error" 1 0
-    <133>Mar  6 11:18:55 haproxy[14872]: -:- [06/Mar/2023:11:18:52.200] \
-            <OCSP-UPDATE> -/- 2/0/-1/-1/3009 503 217 - - SC-- 0/0/0/0/3 0/0 {} \
-            "GET http://127.0.0.1:12345/MEMwQT HTTP/1.1"
-
-  Troubleshooting:
-  A common error that can happen with let's encrypt certificates is if the DNS
-  resolution provides an IPv6 address and your system does not have a valid
-  outgoing IPv6 route. In such a case, you can either create the appropriate
-  route or set the "httpclient.resolvers.prefer ipv4" option in the global
-  section.
-  In case of "OCSP response check failure" error, you might want to check that
-  the issuer certificate that you provided is valid.
 
 prefer-client-ciphers
   Use the client's preference when selecting the cipher suite, by default
