@@ -1108,6 +1108,7 @@ void poller_pipe_io_handler(int fd)
 static int alloc_pollers_per_thread()
 {
 	fd_updt = calloc(global.maxsock, sizeof(*fd_updt));
+	vma_set_name(fd_updt, global.maxsock * sizeof(*fd_updt), "fd", "fd_updt");
 	return fd_updt != NULL;
 }
 
@@ -1162,6 +1163,7 @@ int init_pollers()
 		ha_alert("Not enough memory to allocate %d entries for fdtab!\n", global.maxsock);
 		goto fail_tab;
 	}
+	vma_set_name(fdtab_addr, global.maxsock * sizeof(*fdtab) + 64, "fd", "fdtab_addr");
 
 	/* always provide an aligned fdtab */
 	fdtab = (struct fdtab*)((((size_t)fdtab_addr) + 63) & -(size_t)64);
@@ -1170,11 +1172,13 @@ int init_pollers()
 		ha_alert("Not enough memory to allocate %d entries for polled_mask!\n", global.maxsock);
 		goto fail_polledmask;
 	}
+	vma_set_name(polled_mask, global.maxsock * sizeof(*polled_mask), "fd", "polled_mask");
 
 	if ((fdinfo = calloc(global.maxsock, sizeof(*fdinfo))) == NULL) {
 		ha_alert("Not enough memory to allocate %d entries for fdinfo!\n", global.maxsock);
 		goto fail_info;
 	}
+	vma_set_name(fdinfo, global.maxsock * sizeof(*fdinfo), "fd", "fdinfo");
 
 	for (p = 0; p < MAX_TGROUPS; p++)
 		update_list[p].first = update_list[p].last = -1;
