@@ -606,13 +606,9 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 		if (ckchs == NULL) {
 			if (stat(crt_path, &buf) == 0) {
 				found++;
-				if (cc.used) {
-					free(cc.crt);
-					cc.crt = strdup(crt_path);
-					ckchs = ckch_store_new_load_files_conf(crt_path, &cc, err);
-				} else {
-					ckchs = ckch_store_new_load_files_path(crt_path, err);
-				}
+				free(cc.crt);
+				cc.crt = strdup(crt_path);
+				ckchs = ckch_store_new_load_files_conf(crt_path, &cc, err);
 				if (ckchs == NULL) {
 					cfgerr |= ERR_ALERT | ERR_FATAL;
 					goto error;

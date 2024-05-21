@@ -1024,6 +1024,7 @@ struct ckch_store *ckch_store_new_load_files_conf(char *name, struct ckch_conf *
 {
 	struct ckch_store *ckchs;
 	int cfgerr = ERR_NONE;
+	char *tmpcrt = conf->crt;
 
 	ckchs = ckch_store_new(name);
 	if (!ckchs) {
@@ -1031,9 +1032,24 @@ struct ckch_store *ckch_store_new_load_files_conf(char *name, struct ckch_conf *
 		goto end;
 	}
 
+	/* this is done for retro-compatibility. When no "filename" crt-store
+	 * options were configured in a crt-list, try to load the files by
+	 * auto-detecting them. */
+	if ((conf->used == CKCH_CONF_SET_EMPTY || conf->used == CKCH_CONF_SET_CRTLIST) &&
+		(!conf->key && !conf->ocsp && !conf->issuer && !conf->sctl)) {
+		cfgerr = ssl_sock_load_files_into_ckch(conf->crt, ckchs->data, err);
+		if (cfgerr & ERR_FATAL)
+			goto end;
+		/* set conf->crt to NULL so it's not erased */
+		conf->crt = NULL;
+	}
+
+	/* load files using the ckch_conf */
 	cfgerr = ckch_store_load_files(conf, ckchs, 0, err);
 	if (cfgerr & ERR_FATAL)
 		goto end;
+
+	conf->crt = tmpcrt;
 
 	/* insert into the ckchs tree */
 	memcpy(ckchs->path, name, strlen(name) + 1);
