@@ -4168,6 +4168,9 @@ int ckch_conf_cmp(struct ckch_conf *prev, struct ckch_conf *new, char **err)
 	int ret = 0;
 	int i;
 
+	if (!prev || !new)
+	    return 1;
+
 	/* compatibility check */
 
 	if (prev->used == CKCH_CONF_SET_EMPTY) {
@@ -4197,8 +4200,8 @@ int ckch_conf_cmp(struct ckch_conf *prev, struct ckch_conf *new, char **err)
 		switch (ckch_conf_kws[i].type) {
 			case PARSE_TYPE_STR: {
 				char *avail1, *avail2;
-				avail1 = prev ? *(char **)((intptr_t)prev + (ptrdiff_t)ckch_conf_kws[i].offset) : NULL;
-				avail2 = new ? *(char **)((intptr_t)new + (ptrdiff_t)ckch_conf_kws[i].offset) : NULL;
+				avail1 = *(char **)((intptr_t)prev + (ptrdiff_t)ckch_conf_kws[i].offset);
+				avail2 = *(char **)((intptr_t)new + (ptrdiff_t)ckch_conf_kws[i].offset);
 
 				/* must alert when strcmp is wrong, or when one of the field is NULL */
 				if (((avail1 && avail2) && strcmp(avail1, avail2) != 0) || (!!avail1 ^ !!avail2)) {
@@ -4217,8 +4220,8 @@ int ckch_conf_cmp(struct ckch_conf *prev, struct ckch_conf *new, char **err)
 			int q1, q2; /* final ocsp-update value (from default) */
 
 
-			o1 = prev ? *(int *)((intptr_t)prev + (ptrdiff_t)ckch_conf_kws[i].offset) : 0;
-			o2 = new ? *(int *)((intptr_t)new + (ptrdiff_t)ckch_conf_kws[i].offset) : 0;
+			o1 = *(int *)((intptr_t)prev + (ptrdiff_t)ckch_conf_kws[i].offset);
+			o2 = *(int *)((intptr_t)new + (ptrdiff_t)ckch_conf_kws[i].offset);
 
 			q1 = (o1 == SSL_SOCK_OCSP_UPDATE_DFLT) ? global_ssl.ocsp_update.mode : o1;
 			q2 = (o2 == SSL_SOCK_OCSP_UPDATE_DFLT) ? global_ssl.ocsp_update.mode : o2;
