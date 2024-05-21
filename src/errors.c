@@ -112,7 +112,7 @@ error:
  * Once in wait mode, the shm must be copied and closed.
  *
  */
-void startup_logs_init()
+void startup_logs_init_shm()
 {
 	struct ring *r = NULL;
 	char *str_fd, *endptr;
@@ -176,14 +176,20 @@ error:
 
 }
 
-#else /* ! USE_SHM_OPEN */
+#endif /* ! USE_SHM_OPEN */
 
 void startup_logs_init()
 {
+#ifdef USE_SHM_OPEN
+	startup_logs_init_shm();
+#else /* ! USE_SHM_OPEN */
 	startup_logs = ring_new(STARTUP_LOG_SIZE);
-}
-
 #endif
+	if (startup_logs)
+		vma_set_name(ring_allocated_area(startup_logs),
+		             ring_allocated_size(startup_logs),
+		             "errors", "startup_logs");
+}
 
 /* free the startup logs, unmap if it was an shm */
 void startup_logs_free(struct ring *r)
