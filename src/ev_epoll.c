@@ -275,6 +275,8 @@ static int init_epoll_per_thread()
 	epoll_events = calloc(1, sizeof(struct epoll_event) * global.tune.maxpollevents);
 	if (epoll_events == NULL)
 		goto fail_alloc;
+	vma_set_name(epoll_events, sizeof(struct epoll_event) * global.tune.maxpollevents,
+	             "ev_epoll", "epoll_events");
 
 	if (MAX_THREADS > 1 && tid) {
 		epoll_fd[tid] = epoll_create(global.maxsock + 1);

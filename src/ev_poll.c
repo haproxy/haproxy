@@ -25,6 +25,7 @@
 #include <haproxy/signal.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
+#include <haproxy/tools.h>
 
 
 #ifndef POLLRDHUP
@@ -249,6 +250,7 @@ static int init_poll_per_thread()
 	poll_events = calloc(1, sizeof(struct pollfd) * global.maxsock);
 	if (poll_events == NULL)
 		return 0;
+	vma_set_name(poll_events, sizeof(struct pollfd) * global.maxsock, "ev_poll", "poll_events");
 	return 1;
 }
 
@@ -279,8 +281,10 @@ static int _do_init(struct poller *p)
 
 	if ((fd_evts[DIR_RD] = calloc(1, fd_evts_bytes)) == NULL)
 		goto fail_srevt;
+	vma_set_name(fd_evts[DIR_RD], fd_evts_bytes, "ev_poll", "fd_evts_rd");
 	if ((fd_evts[DIR_WR] = calloc(1, fd_evts_bytes)) == NULL)
 		goto fail_swevt;
+	vma_set_name(fd_evts[DIR_WR], fd_evts_bytes, "ev_poll", "fd_evts_wr");
 
 	hap_register_per_thread_init(init_poll_per_thread);
 	hap_register_per_thread_deinit(deinit_poll_per_thread);

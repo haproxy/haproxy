@@ -21,6 +21,7 @@
 #include <haproxy/global.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
+#include <haproxy/tools.h>
 
 
 /* private data */
@@ -223,9 +224,11 @@ static int init_select_per_thread()
 	tmp_evts[DIR_RD] = calloc(1, fd_set_bytes);
 	if (tmp_evts[DIR_RD] == NULL)
 		goto fail;
+	vma_set_name(tmp_evts[DIR_RD], fd_set_bytes, "ev_select", "tmp_evts_rd");
 	tmp_evts[DIR_WR] = calloc(1, fd_set_bytes);
 	if (tmp_evts[DIR_WR] == NULL)
 		goto fail;
+	vma_set_name(tmp_evts[DIR_WR], fd_set_bytes, "ev_select", "tmp_evts_wr");
 	return 1;
   fail:
 	free(tmp_evts[DIR_RD]);
@@ -263,8 +266,10 @@ static int _do_init(struct poller *p)
 
 	if ((fd_evts[DIR_RD] = calloc(1, fd_set_bytes)) == NULL)
 		goto fail_srevt;
+	vma_set_name(fd_evts[DIR_RD], fd_set_bytes, "ev_select", "fd_evts_rd");
 	if ((fd_evts[DIR_WR] = calloc(1, fd_set_bytes)) == NULL)
 		goto fail_swevt;
+	vma_set_name(fd_evts[DIR_WR], fd_set_bytes, "ev_select", "fd_evts_wr");
 
 	hap_register_per_thread_init(init_select_per_thread);
 	hap_register_per_thread_deinit(deinit_select_per_thread);
