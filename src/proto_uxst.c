@@ -219,7 +219,7 @@ static int uxst_suspend_receiver(struct receiver *rx)
  */
 static int uxst_connect_server(struct connection *conn, int flags)
 {
-	int fd;
+	int fd, stream_err;
 	struct server *srv;
 	struct proxy *be;
 
@@ -240,9 +240,10 @@ static int uxst_connect_server(struct connection *conn, int flags)
 	}
 
 	/* perform common checks on obtained socket FD, return appropriate Stream Error Flag in case of failure */
-	fd = conn->handle.fd = sock_create_server_socket(conn, be);
-	if (fd & SF_ERR_MASK)
-		return fd;
+	fd = conn->handle.fd = sock_create_server_socket(conn, be, &stream_err);
+	if (fd == -1) {
+		return stream_err;
+	}
 
 	/* FD is ok, continue with protocol specific settings */
 	if (global.tune.server_sndbuf)

@@ -256,9 +256,11 @@ static int sock_handle_system_err(struct connection *conn, struct proxy *be)
  * using the configured namespace if needed, or the one passed by the proxy
  * protocol if required to do so. It then calls socket() or socketat(). On
  * success, checks if mark or tos sockopts need to be set on the file handle.
- * Returns the FD or error code.
+ * Returns backend connection socket FD on success, stream_err flag needed by
+ * upper level is set as SF_ERR_NONE; -1 on failure, stream_err is set to
+ * appropriate value.
  */
-int sock_create_server_socket(struct connection *conn, struct proxy *be)
+int sock_create_server_socket(struct connection *conn, struct proxy *be, int *stream_err)
 {
 	const struct netns_entry *ns = NULL;
 	int sock_fd;
@@ -275,7 +277,9 @@ int sock_create_server_socket(struct connection *conn, struct proxy *be)
 
 	/* at first, handle common to all proto families system limits and permission related errors */
 	if (sock_fd == -1) {
-		return sock_handle_system_err(conn, be);
+		*stream_err = sock_handle_system_err(conn, be);
+
+		return -1;
 	}
 
 	/* now perform some runtime condition checks */
@@ -288,8 +292,9 @@ int sock_create_server_socket(struct connection *conn, struct proxy *be)
 		close(sock_fd);
 		conn->err_code = CO_ER_CONF_FDLIM;
 		conn->flags |= CO_FL_ERROR;
+		*stream_err = SF_ERR_PRXCOND; /* it is a configuration limit */
 
-		return SF_ERR_PRXCOND; /* it is a configuration limit */
+		return -1;
 	}
 
 	if (fd_set_nonblock(sock_fd) == -1 ||
@@ -299,8 +304,9 @@ int sock_create_server_socket(struct connection *conn, struct proxy *be)
 		close(sock_fd);
 		conn->err_code = CO_ER_SOCK_ERR;
 		conn->flags |= CO_FL_ERROR;
+		*stream_err = SF_ERR_INTERNAL;
 
-		return SF_ERR_INTERNAL;
+		return -1;
 	}
 
 	if (master == 1 && fd_set_cloexec(sock_fd) == -1) {
@@ -309,8 +315,9 @@ int sock_create_server_socket(struct connection *conn, struct proxy *be)
 		close(sock_fd);
 		conn->err_code = CO_ER_SOCK_ERR;
 		conn->flags |= CO_FL_ERROR;
+		*stream_err = SF_ERR_INTERNAL;
 
-		return SF_ERR_INTERNAL;
+		return -1;
 	}
 
 	if (conn->flags & CO_FL_OPT_MARK)
@@ -318,6 +325,7 @@ int sock_create_server_socket(struct connection *conn, struct proxy *be)
 	if (conn->flags & CO_FL_OPT_TOS)
 		sock_set_tos(sock_fd, conn->dst, conn->tos);
 
+	stream_err = SF_ERR_NONE;
 	return sock_fd;
 }
 

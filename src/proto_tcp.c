@@ -265,7 +265,7 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 
 int tcp_connect_server(struct connection *conn, int flags)
 {
-	int fd;
+	int fd, stream_err;
 	struct server *srv;
 	struct proxy *be;
 	struct conn_src *src;
@@ -301,9 +301,10 @@ int tcp_connect_server(struct connection *conn, int flags)
 
 
 	/* perform common checks on obtained socket FD, return appropriate Stream Error Flag in case of failure */
-	fd = conn->handle.fd = sock_create_server_socket(conn, be);
-	if ((fd & SF_ERR_MASK) == fd)
-		return fd;
+	fd = conn->handle.fd = sock_create_server_socket(conn, be, &stream_err);
+	if (fd == -1) {
+		return stream_err;
+	}
 
 	/* FD is OK, continue with protocol specific settings */
 	if (be->options & PR_O_TCP_SRV_KA) {
