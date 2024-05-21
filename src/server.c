@@ -2898,6 +2898,8 @@ void srv_take(struct server *srv)
 /* deallocate common server parameters (may be used by default-servers) */
 void srv_free_params(struct server *srv)
 {
+	struct srv_pp_tlv_list *srv_tlv = NULL;
+
 	free(srv->cookie);
 	free(srv->rdr_pfx);
 	free(srv->hostname);
@@ -2916,6 +2918,14 @@ void srv_free_params(struct server *srv)
 
 	if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->destroy_srv)
 		xprt_get(XPRT_SSL)->destroy_srv(srv);
+
+	while (!LIST_ISEMPTY(&srv->pp_tlvs)) {
+		srv_tlv = LIST_ELEM(srv->pp_tlvs.n, struct srv_pp_tlv_list *, list);
+		LIST_DEL_INIT(&srv_tlv->list);
+		lf_expr_deinit(&srv_tlv->fmt);
+		ha_free(&srv_tlv->fmt_string);
+		ha_free(&srv_tlv);
+	}
 }
 
 /* Deallocate a server <srv> and its member. <srv> must be allocated. For
