@@ -291,7 +291,7 @@ int rhttp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	/* Retrieve the first thread usable for this listener. */
 	mask = listener->rx.bind_thread & _HA_ATOMIC_LOAD(&tg->threads_enabled);
-	task_tid = my_ffsl(mask) + ha_tgroup_info[listener->rx.bind_tgroup].base;
+	task_tid = my_ffsl(mask) - 1 + ha_tgroup_info[listener->rx.bind_tgroup].base;
 	if (!(task = task_new_on(task_tid))) {
 		snprintf(errmsg, errlen, "Out of memory.");
 		goto err;
