@@ -78,8 +78,12 @@ void session_free(struct session *sess)
 	struct connection *conn, *conn_back;
 	struct sess_priv_conns *pconns, *pconns_back;
 
-	if (sess->listener)
+	if (sess->flags & SESS_FL_RELEASE_LI) {
+		/* listener must be set for session used to account FE conns. */
+		BUG_ON(!sess->listener);
 		listener_release(sess->listener);
+	}
+
 	session_store_counters(sess);
 	pool_free(pool_head_stk_ctr, sess->stkctr);
 	vars_prune_per_sess(&sess->vars);
@@ -285,12 +289,19 @@ int session_accept_fd(struct connection *cli_conn)
 		sess->task->process = session_expire_embryonic;
 		sess->task->expire  = tick_add_ifset(now_ms, timeout);
 		task_queue(sess->task);
+
+		/* Session is responsible to decrement listener conns counters. */
+		sess->flags |= SESS_FL_RELEASE_LI;
+
 		return 1;
 	}
 
 	/* OK let's complete stream initialization since there is no handshake */
-	if (conn_complete_session(cli_conn) >= 0)
+	if (conn_complete_session(cli_conn) >= 0) {
+		/* Session is responsible to decrement listener conns counters. */
+		sess->flags |= SESS_FL_RELEASE_LI;
 		return 1;
+	}
 
 	/* if we reach here we have deliberately decided not to keep this
 	 * session (e.g. tcp-request rule), so that's not an error we should
@@ -300,9 +311,9 @@ int session_accept_fd(struct connection *cli_conn)
 
 	/* error unrolling */
  out_free_sess:
-	 /* prevent call to listener_release during session_free. It will be
-	  * done below, for all errors. */
-	sess->listener = NULL;
+	/* SESS_FL_RELEASE_LI must not be set here as listener_release() is
+	 * called manually for all errors.
+	 */
 	session_free(sess);
 
  out_free_conn:

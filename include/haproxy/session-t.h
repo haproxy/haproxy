@@ -39,6 +39,7 @@
 enum {
 	SESS_FL_NONE          = 0x00000000, /* nothing */
 	SESS_FL_PREFER_LAST   = 0x00000001, /* NTML authent, we should reuse last conn */
+	SESS_FL_RELEASE_LI    = 0x00000002, /* session responsible to decrement listener counters on release */
 };
 
 /* max number of idle server connections kept attached to a session */
