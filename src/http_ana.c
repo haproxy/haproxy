@@ -329,7 +329,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
  return_int_err:
 	txn->status = 500;
-	s->flags |= SF_ERR_INTERNAL;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
@@ -585,7 +586,8 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
  return_int_err:
 	txn->status = 500;
-	s->flags |= SF_ERR_INTERNAL;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	if (s->flags & SF_BE_ASSIGNED)
 		_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
@@ -735,7 +737,8 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 
  return_int_err:
 	txn->status = 500;
-	s->flags |= SF_ERR_INTERNAL;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	if (s->flags & SF_BE_ASSIGNED)
 		_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
@@ -837,7 +840,8 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 
  return_int_err:
 	txn->status = 500;
-	s->flags |= SF_ERR_INTERNAL;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	if (s->flags & SF_BE_ASSIGNED)
 		_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
@@ -1085,7 +1089,8 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	goto return_prx_cond;
 
   return_int_err:
-	s->flags |= SF_ERR_INTERNAL;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
 	if (sess->listener && sess->listener->counters)
@@ -1618,7 +1623,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	if (objt_server(s->target))
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.internal_errors);
 	txn->status = 500;
-	s->flags |= SF_ERR_INTERNAL;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
 	goto return_prx_cond;
 
   return_bad_res:
@@ -1937,7 +1943,8 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 
  return_int_err:
 	txn->status = 500;
-	s->flags |= SF_ERR_INTERNAL;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
 	if (sess->listener && sess->listener->counters)
@@ -2205,7 +2212,8 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
 	if (objt_server(s->target))
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.internal_errors);
-	s->flags |= SF_ERR_INTERNAL;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
 	goto return_error;
 
   return_bad_res:
