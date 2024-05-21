@@ -264,6 +264,7 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 	int max_per_shard = (to_batch + CONFIG_HAP_TBL_BUCKETS - 1) / CONFIG_HAP_TBL_BUCKETS;
 	int done_per_shard;
 	int batched = 0;
+	int updt_locked;
 	int looped;
 	int shard;
 
@@ -272,6 +273,7 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 	while (batched < to_batch) {
 		done_per_shard = 0;
 		looped = 0;
+		updt_locked = 0;
 
 		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 
@@ -328,17 +330,34 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 				continue;
 			}
 
+			/* if the entry is in the update list, we must be extremely careful
+			 * because peers can see it at any moment and start to use it. Peers
+			 * will take the table's updt_lock for reading when doing that, and
+			 * with that lock held, will grab a ref_cnt before releasing the
+			 * lock. So we must take this lock as well and check the ref_cnt.
+			 */
+			if (ts->upd.node.leaf_p) {
+				if (!updt_locked) {
+					updt_locked = 1;
+					HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
+				}
+				/* now we're locked, new peers can't grab it anymore,
+				 * existing ones already have the ref_cnt.
+				 */
+				if (HA_ATOMIC_LOAD(&ts->ref_cnt))
+					continue;
+			}
+
 			/* session expired, trash it */
 			ebmb_delete(&ts->key);
-			if (ts->upd.node.leaf_p) {
-				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
-				eb32_delete(&ts->upd);
-				HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
-			}
+			eb32_delete(&ts->upd);
 			__stksess_free(t, ts);
 			batched++;
 			done_per_shard++;
 		}
+
+		if (updt_locked)
+			HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
 
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 
