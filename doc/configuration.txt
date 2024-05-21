@@ -16046,6 +16046,16 @@ crt-list <file>
   - ssl-max-ver
   - verify
 
+  sslbindconf also supports the following keywords from the crt-store load
+  keyword (see Section 3.12.1. Load options):
+
+  - crt
+  - key
+  - ocsp
+  - issuer
+  - sctl
+  - ocsp-update
+
   It overrides the configuration set in bind line for the certificate.
 
   Wildcards are supported in the SNI filter. Negative filter are also supported,
