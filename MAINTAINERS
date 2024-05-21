@@ -138,7 +138,7 @@ ScientiaMobile WURFL Device Detection
 Maintainer: Paul Borile, Massimiliano Bellomi <wurfl-haproxy-support@scientiamobile.com>
 Files: addons/wurfl, doc/WURFL-device-detection.txt
 
-SPOE (deprecated)
+SPOE
 Maintainer: Christopher Faulet <cfaulet@haproxy.com>
 Files: src/flt_spoe.c, include/haproxy/spoe*.h, doc/SPOE.txt
 

@@ -7,10 +7,6 @@
                       Contact : cfaulet at haproxy dot com
 
 
-
-  WARNING: The SPOE is now deprecated and will be removed in future version.
-
-
 SUMMARY
 --------
 

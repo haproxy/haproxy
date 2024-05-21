@@ -14194,7 +14194,7 @@ sc-inc-gpc0                    X     X     X     X            X   X   X
 sc-inc-gpc1                    X     X     X     X            X   X   X
 sc-set-gpt                     X     X     X     X            X   X   X
 sc-set-gpt0                    X     X     X     X            X   X   X
-send-spoe-group (deprecated)   -     -     X     X            X   X   -
+send-spoe-group                -     -     X     X            X   X   -
 set-bandwidth-limit            -     -     X     X            X   X   -
 set-bc-mark                    -     -     X     -            X   -   -
 set-bc-tos                     -     -     X     -            X   -   -
@@ -15055,7 +15055,7 @@ sc-set-gpt0(<sc-id>) { <int> | <expr> }
   See also the "sc-set-gpt" action.
 
 
-send-spoe-group <engine-name> <group-name> (deprecated)
+send-spoe-group <engine-name> <group-name>
   Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     -  |   -  |   X  |   X  |          X |  X |  -
 
@@ -27046,9 +27046,6 @@ the Stream Processing Offload Protocol (SPOP).
 
 For all information about the SPOE configuration and the SPOP specification, see
 "doc/SPOE.txt".
-
-WARNING: The SPOE filter is now deprecated. Use 'expose-deprecated-directives'
-         to silent warnings if you must use it.
 
 9.4. Cache
 ----------
