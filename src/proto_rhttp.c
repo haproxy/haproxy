@@ -104,6 +104,13 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 	return conn;
 
  err:
+	if (l->rx.rhttp.state != LI_PRECONN_ST_ERR) {
+		send_log(l->bind_conf->frontend, LOG_ERR,
+		         "preconnect %s::%s: Error on conn allocation.\n",
+		         l->bind_conf->frontend->id, l->bind_conf->rhttp_srvname);
+		l->rx.rhttp.state = LI_PRECONN_ST_ERR;
+	}
+
 	if (conn) {
 		conn_stop_tracking(conn);
 		conn_xprt_shutw(conn);
