@@ -16025,11 +16025,28 @@ crt-list <file>
 
         <crtfile> [\[<sslbindconf> ...\]] [[!]<snifilter> ...]
 
-  sslbindconf supports "allow-0rtt", "alpn", "ca-file", "ca-verify-file",
-  "ciphers", "ciphersuites", "crl-file", "curves", "ecdhe", "no-ca-names",
-  "npn", "verify" configuration. With BoringSSL and Openssl >= 1.1.1
-  "ssl-min-ver" and "ssl-max-ver" are also supported. It overrides the
-  configuration set in bind line for the certificate.
+  sslbindconf supports the following keywords from the bind line
+  (see Section 5.1. Bind options):
+
+  - allow-0rtt
+  - alpn
+  - ca-file
+  - ca-verify-file
+  - ciphers
+  - ciphersuites
+  - client-sigalgs
+  - crl-file
+  - curves
+  - ecdhe
+  - no-alpn
+  - no-ca-names
+  - npn
+  - sigalgs
+  - ssl-min-ver
+  - ssl-max-ver
+  - verify
+
+  It overrides the configuration set in bind line for the certificate.
 
   Wildcards are supported in the SNI filter. Negative filter are also supported,
   useful in combination with a wildcard filter to exclude a particular SNI, or
