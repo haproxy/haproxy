@@ -695,8 +695,8 @@ static void sink_free(struct sink *sink)
 		return;
 	if (sink->type == SINK_TYPE_BUFFER) {
 		if (sink->store) {
-			size_t size = (ring_size(sink->ctx.ring) + 4095UL) & -4096UL;
-			void *area = ring_area(sink->ctx.ring);
+			size_t size = (ring_allocated_size(sink->ctx.ring) + 4095UL) & -4096UL;
+			void *area = ring_allocated_area(sink->ctx.ring);
 
 			msync(area, size, MS_SYNC);
 			munmap(area, size);

@@ -190,7 +190,7 @@ void startup_logs_free(struct ring *r)
 {
 #ifdef USE_SHM_OPEN
 	if (r == shm_startup_logs)
-		munmap(ring_area(r), STARTUP_LOG_SIZE);
+		munmap(ring_allocated_area(r), STARTUP_LOG_SIZE);
 #endif /* ! USE_SHM_OPEN */
 	ring_free(r);
 }

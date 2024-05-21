@@ -45,10 +45,18 @@ size_t ring_max_payload(const struct ring *ring);
 int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t *last_ofs_ptr, uint flags,
 			   ssize_t (*msg_handler)(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len));
 
-/* returns the ring storage's area */
+/* returns the ring storage's usable area */
 static inline void *ring_area(const struct ring *ring)
 {
 	return ring->storage->area;
+}
+
+/* returns the allocated area for the ring. It covers the whole
+ * area made of both the ring_storage and the usable area.
+ */
+static inline void *ring_allocated_area(const struct ring *ring)
+{
+	return ring->storage;
 }
 
 /* returns the number of bytes in the ring */
