@@ -233,6 +233,7 @@ struct log_target {
 
 enum logger_flags {
 	LOGGER_FL_NONE     = 0x00,
+	LOGGER_FL_RESOLVED = 0x01,
 };
 
 struct logger {
@@ -247,6 +248,10 @@ struct logger {
 	int minlvl;
 	int maxlen;
 	struct logger *ref;
+	union {
+		struct log_profile *prof; /* postparsing */
+		char *prof_str;           /* preparsing */
+	};
 	struct {
                 char *file;                     /* file where the logger appears */
                 int line;                       /* line where the logger appears */
@@ -265,6 +270,28 @@ enum log_orig {
 	LOG_ORIG_TXN_CONNECT,        /* during stream connect handling */
 	LOG_ORIG_TXN_RESPONSE,       /* during stream response handling */
 	LOG_ORIG_TXN_CLOSE,          /* during stream termination */
+};
+
+struct log_profile_step {
+	struct lf_expr logformat;
+	struct lf_expr logformat_sd;
+};
+
+struct log_profile {
+	struct list list;
+	struct {
+		char *file;
+		int line;
+	} conf;
+	char *id;
+	struct buffer log_tag;          // override log-tag
+	struct log_profile_step *accept;
+	struct log_profile_step *request;
+	struct log_profile_step *connect;
+	struct log_profile_step *response;
+	struct log_profile_step *close;
+	struct log_profile_step *error; // override error-log-format
+	struct log_profile_step *any;   // override log-format
 };
 
 #endif /* _HAPROXY_LOG_T_H */

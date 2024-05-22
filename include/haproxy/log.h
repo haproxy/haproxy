@@ -134,6 +134,7 @@ int postresolve_logger_list(struct proxy *px, struct list *loggers, const char *
 struct logger *dup_logger(struct logger *def);
 void free_logger(struct logger *logger);
 void deinit_log_target(struct log_target *target);
+struct log_profile *log_profile_find_by_name(const char *name);
 
 /* Parse "log" keyword and update the linked list. */
 int parse_logger(char **args, struct list *loggers, int do_del, const char *file, int linenum, char **err);

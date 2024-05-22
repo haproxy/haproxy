@@ -361,6 +361,8 @@ struct logformat_node_args node_args_list[] = {
 	{  0,  0 }
 };
 
+static struct list log_profile_list = LIST_HEAD_INIT(log_profile_list);
+
 /*
  * callback used to configure addr source retrieval
  */
@@ -1403,6 +1405,9 @@ static int postcheck_log_backend(struct proxy *be)
 	return err_code;
 }
 
+/* forward declaration */
+static int log_profile_postcheck(struct proxy *px, struct log_profile *prof, char **err);
+
 /* resolves a single logger entry (it is expected to be called
  * at postparsing stage)
  *
@@ -1419,6 +1424,7 @@ static int resolve_logger(struct proxy *px, struct logger *logger, char **msg)
 	struct log_target *target = &logger->target;
 	int err_code = ERR_NONE;
 
+	/* resolve logger target */
 	if (target->type == LOG_TARGET_BUFFER)
 		err_code = sink_resolve_logger_buffer(logger, msg);
 	else if (target->type == LOG_TARGET_BACKEND) {
@@ -1440,17 +1446,46 @@ static int resolve_logger(struct proxy *px, struct logger *logger, char **msg)
 
 	target->flags |= LOG_TARGET_FL_RESOLVED;
 
+	if (err_code & ERR_CODE)
+		goto end;
+
+	/* postcheck logger profile */
+	if (logger->prof_str) {
+		struct log_profile *prof;
+
+		prof = log_profile_find_by_name(logger->prof_str);
+		if (!prof) {
+			memprintf(msg, "unknown log-profile '%s'", logger->prof_str);
+			ha_free(&logger->prof_str);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
+		ha_free(&logger->prof_str);
+		logger->prof = prof;
+
+		if (!log_profile_postcheck(px, logger->prof, msg)) {
+			memprintf(msg, "uses incompatible log-profile '%s': %s", logger->prof->id, *msg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+	}
+
+ end:
+	logger->flags |= LOGGER_FL_RESOLVED;
 	return err_code;
 }
 
 /* tries to duplicate <def> logger
+ * (only possible before the logger is resolved)
  *
  * Returns the newly allocated and duplicated logger or NULL
  * in case of error.
  */
 struct logger *dup_logger(struct logger *def)
 {
-	struct logger *cpy = malloc(sizeof(*cpy));
+	struct logger *cpy;
+
+	BUG_ON(def->flags & LOGGER_FL_RESOLVED);
+	cpy = malloc(sizeof(*cpy));
 
 	/* copy everything that can be easily copied */
 	memcpy(cpy, def, sizeof(*cpy));
@@ -1474,6 +1509,11 @@ struct logger *dup_logger(struct logger *def)
 			goto error;
 		memcpy(cpy->lb.smp_rgs, def->lb.smp_rgs,
 		       sizeof(*cpy->lb.smp_rgs) * def->lb.smp_rgs_sz);
+	}
+	if (def->prof_str) {
+		cpy->prof_str = strdup(def->prof_str);
+		if (!cpy->prof_str)
+			goto error;
 	}
 
 	/* inherit from original reference if set */
@@ -1499,6 +1539,8 @@ void free_logger(struct logger *logger)
 	ha_free(&logger->conf.file);
 	deinit_log_target(&logger->target);
 	free(logger->lb.smp_rgs);
+	if (!(logger->flags & LOGGER_FL_RESOLVED))
+		ha_free(&logger->prof_str);
 	free(logger);
 }
 
@@ -1761,6 +1803,18 @@ int parse_logger(char **args, struct list *loggers, int do_del, const char *file
 		logger->lb.smp_rgs_sz = smp_rgs_sz;
 		logger->lb.smp_sz = smp_sz;
 
+		cur_arg += 2;
+	}
+
+	if (strcmp(args[cur_arg], "profile") == 0) {
+		char *prof_str;
+
+		prof_str = args[cur_arg+1];
+		if (!prof_str) {
+			memprintf(err, "expected log-profile name");
+			goto error;
+		}
+		logger->prof_str = strdup(prof_str);
 		cur_arg += 2;
 	}
 
@@ -5884,6 +5938,280 @@ out:
 	return err_code;
 }
 
+static inline void log_profile_step_init(struct log_profile_step *lprof_step)
+{
+	lf_expr_init(&lprof_step->logformat);
+	lf_expr_init(&lprof_step->logformat_sd);
+}
+
+static inline void log_profile_step_free(struct log_profile_step *lprof_step)
+{
+	if (!lprof_step)
+		return;
+
+	lf_expr_deinit(&lprof_step->logformat);
+	lf_expr_deinit(&lprof_step->logformat_sd);
+	free(lprof_step);
+}
+
+/* postcheck a single log profile step for a given <px> (it is expected to be
+ * called at postparsing stage)
+ *
+ * Returns 1 on success and 0 on error, <msg> will be set on error.
+ */
+static inline int log_profile_step_postcheck(struct proxy *px, const char *step_name,
+                                             struct log_profile_step *step,
+                                             char **err)
+{
+	if (!step)
+		return 1; // nothing to do
+
+	if (!lf_expr_isempty(&step->logformat) &&
+	    !lf_expr_postcheck(&step->logformat, px, err)) {
+		memprintf(err, "'on %s format' in file '%s' at line %d: %s",
+		          step_name,
+		          step->logformat_sd.conf.file,
+		          step->logformat_sd.conf.line,
+		          *err);
+		return 0;
+	}
+	if (!lf_expr_isempty(&step->logformat_sd) &&
+	    !lf_expr_postcheck(&step->logformat_sd, px, err)) {
+		memprintf(err, "'on %s sd' in file '%s' at line %d: %s",
+		          step_name,
+		          step->logformat_sd.conf.file,
+		          step->logformat_sd.conf.line,
+		          *err);
+		return 0;
+	}
+
+	return 1;
+}
+
+/* postcheck a log profile struct for a given <px> (it is expected to be called
+ * at postparsing stage)
+ *
+ * Returns 1 on success and 0 on error, <msg> will be set on error.
+ */
+static int log_profile_postcheck(struct proxy *px, struct log_profile *prof, char **err)
+{
+	/* log profile steps are only relevant under proxy
+	 * context
+	 */
+	if (!px)
+		return 1; /* nothing to do */
+
+	/* postcheck lf_expr for log profile steps */
+	if (!log_profile_step_postcheck(px, "accept", prof->accept, err) ||
+	    !log_profile_step_postcheck(px, "request", prof->request, err) ||
+	    !log_profile_step_postcheck(px, "connect", prof->connect, err) ||
+	    !log_profile_step_postcheck(px, "response", prof->response, err) ||
+	    !log_profile_step_postcheck(px, "close", prof->close, err) ||
+	    !log_profile_step_postcheck(px, "error", prof->error, err) ||
+	    !log_profile_step_postcheck(px, "any", prof->any, err))
+		return 0;
+
+	return 1;
+}
+
+static void log_profile_free(struct log_profile *prof)
+{
+	ha_free(&prof->id);
+	ha_free(&prof->conf.file);
+	chunk_destroy(&prof->log_tag);
+
+	log_profile_step_free(prof->accept);
+	log_profile_step_free(prof->request);
+	log_profile_step_free(prof->connect);
+	log_profile_step_free(prof->response);
+	log_profile_step_free(prof->close);
+	log_profile_step_free(prof->error);
+	log_profile_step_free(prof->any);
+
+	ha_free(&prof);
+}
+
+/* Deinitialize all known log profiles */
+static void deinit_log_profiles()
+{
+	struct log_profile *prof, *back;
+
+	list_for_each_entry_safe(prof, back, &log_profile_list, list) {
+		LIST_DEL_INIT(&prof->list);
+		log_profile_free(prof);
+	}
+}
+
+struct log_profile *log_profile_find_by_name(const char *name)
+{
+	struct log_profile *current;
+
+	list_for_each_entry(current, &log_profile_list, list) {
+		if (strcmp(current->id, name) == 0)
+			return current;
+	}
+	return NULL;
+}
+
+/*
+ * Parse "log-profile" section and register the corresponding profile
+ * with its name
+ *
+ * The function returns 0 in success case, otherwise, it returns error
+ * flags.
+ */
+int cfg_parse_log_profile(const char *file, int linenum, char **args, int kwm)
+{
+	int err_code = ERR_NONE;
+	static struct log_profile *prof = NULL;
+	char *errmsg = NULL;
+	const char *err = NULL;
+
+	if (strcmp(args[0], "log-profile") == 0) {
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d] : missing name for log-profile section.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
+		err = invalid_char(args[1]);
+		if (err) {
+			ha_alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
+			         file, linenum, *err, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		prof = log_profile_find_by_name(args[1]);
+		if (prof) {
+			ha_alert("Parsing [%s:%d]: log-profile section '%s' has the same name as another log-profile section declared at %s:%d.\n",
+				 file, linenum, args[1], prof->conf.file, prof->conf.line);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		prof = calloc(1, sizeof(*prof));
+		if (prof == NULL || !(prof->id = strdup(args[1]))) {
+			ha_alert("Parsing [%s:%d]: cannot allocate memory for log-profile section '%s'.\n",
+				 file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		prof->conf.file = strdup(file);
+		prof->conf.line = linenum;
+
+		/* add to list */
+		LIST_APPEND(&log_profile_list, &prof->list);
+	}
+	else if (strcmp(args[0], "log-tag") == 0) {  /* override log-tag */
+		if (*(args[1]) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' expects a tag for use in syslog.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		chunk_destroy(&prof->log_tag);
+		chunk_initlen(&prof->log_tag, strdup(args[1]), strlen(args[1]), strlen(args[1]));
+		if (b_orig(&prof->log_tag) == NULL) {
+			chunk_destroy(&prof->log_tag);
+			ha_alert("parsing [%s:%d]: cannot allocate memory for '%s'.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+	else if (strcmp(args[0], "on") == 0) { /* log profile step */
+		struct log_profile_step **target_step;
+		struct lf_expr *target_lf;
+		int cur_arg;
+
+		/* get targeted log-profile step */
+		if (strcmp(args[1], "accept") == 0)
+			target_step = &prof->accept;
+		else if (strcmp(args[1], "request") == 0)
+			target_step = &prof->request;
+		else if (strcmp(args[1], "connect") == 0)
+			target_step = &prof->connect;
+		else if (strcmp(args[1], "response") == 0)
+			target_step = &prof->response;
+		else if (strcmp(args[1], "close") == 0)
+			target_step = &prof->close;
+		else if (strcmp(args[1], "error") == 0)
+			target_step = &prof->error;
+		else if (strcmp(args[1], "any") == 0)
+			target_step = &prof->any;
+		else {
+			ha_alert("parsing [%s:%d] : '%s' expects a log step.\n"
+			         "expected values are: 'accept', 'request', 'connect', 'response', 'close', 'error' or 'any'\n",
+			         file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (*target_step == NULL) {
+			/* first time */
+			*target_step = malloc(sizeof(**target_step));
+			if (*target_step == NULL) {
+				ha_alert("parsing [%s:%d]: cannot allocate memory for '%s %s'.\n", file, linenum, args[0], args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			log_profile_step_init(*target_step);
+		}
+
+		cur_arg = 2;
+
+		while (*(args[cur_arg]) != 0) {
+			/* regular format or SD (structured-data) one? */
+			if (strcmp(args[cur_arg], "format") == 0)
+				target_lf = &(*target_step)->logformat;
+			else if (strcmp(args[cur_arg], "sd") == 0)
+				target_lf = &(*target_step)->logformat_sd;
+			else
+				break;
+
+			/* parse and assign logformat expression */
+			lf_expr_deinit(target_lf); /* if already configured */
+
+			if (*(args[cur_arg + 1]) == 0) {
+				ha_alert("parsing [%s:%d] : '%s %s %s' expects a logformat string.\n",
+				         file, linenum, args[0], args[1], args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			target_lf->str = strdup(args[cur_arg + 1]);
+			target_lf->conf.file = strdup(file);
+			target_lf->conf.line = linenum;
+
+			if (!lf_expr_compile(target_lf, NULL,
+			                     LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
+			                     SMP_VAL_FE_LOG_END, &errmsg)) {
+				ha_alert("Parsing [%s:%d]: failed to parse logformat: %s.\n",
+				         file, linenum, errmsg);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			cur_arg += 2;
+		}
+		if (cur_arg == 2 || *(args[cur_arg]) != 0) {
+			ha_alert("parsing [%s:%d] : '%s %s' expects 'format' and/or 'sd'.\n",
+			         file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+	else {
+		ha_alert("parsing [%s:%d] : unknown keyword '%s' in log-profile section.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
+out:
+	ha_free(&errmsg);
+	return err_code;
+}
+
 /* function: post-resolve a single list of loggers
  *
  * Returns err_code which defaults to ERR_NONE and can be set to a combination
@@ -5945,6 +6273,7 @@ static int postresolve_loggers()
 
 /* config parsers for this section */
 REGISTER_CONFIG_SECTION("log-forward", cfg_parse_log_forward, NULL);
+REGISTER_CONFIG_SECTION("log-profile", cfg_parse_log_profile, NULL);
 REGISTER_POST_CHECK(postresolve_loggers);
 REGISTER_POST_PROXY_CHECK(postcheck_log_backend);
 REGISTER_POST_PROXY_CHECK(postcheck_logformat_proxy);
@@ -5953,6 +6282,7 @@ REGISTER_PER_THREAD_ALLOC(init_log_buffers);
 REGISTER_PER_THREAD_FREE(deinit_log_buffers);
 
 REGISTER_POST_DEINIT(deinit_log_forward);
+REGISTER_POST_DEINIT(deinit_log_profiles);
 
 /*
  * Local variables:
