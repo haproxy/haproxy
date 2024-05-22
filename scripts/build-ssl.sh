@@ -1,8 +1,11 @@
 #!/bin/sh
 set -eux
 
+BUILDSSL_DESTDIR=${BUILDSSL_DESTDIR:-${HOME}/opt}
+BUILDSSL_TMPDIR=${BUILDSSL_TMPDIR:-/tmp/download-cache}
+
 download_openssl () {
-    if [ ! -f "download-cache/openssl-${OPENSSL_VERSION}.tar.gz" ]; then
+    if [ ! -f "${BUILDSSL_TMPDIR}/openssl-${OPENSSL_VERSION}.tar.gz" ]; then
 
 #
 # OpenSSL has different links for latest and previous releases
@@ -10,11 +13,11 @@ download_openssl () {
 # current version as latest, if it fails, follow with previous
 #
 
-	wget -P download-cache/ \
+	wget -P ${BUILDSSL_TMPDIR}/ \
 	    "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" || \
-        wget -P download-cache/ \
+        wget -P ${BUILDSSL_TMPDIR}/ \
             "https://www.openssl.org/source/old/${OPENSSL_VERSION%[a-z]}/openssl-${OPENSSL_VERSION}.tar.gz" || \
-	wget -P download-cache/ \
+	wget -P ${BUILDSSL_TMPDIR}/ \
 	    "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz"
     fi
 }
@@ -23,8 +26,8 @@ download_openssl () {
 # while older ones require to build everything sequentially.
 build_openssl_linux () {
     (
-        cd "openssl-${OPENSSL_VERSION}/"
-        ./config shared --prefix="${HOME}/opt" --openssldir="${HOME}/opt" --libdir=lib -DPURIFY
+        cd "${BUILDSSL_TMPDIR}/openssl-${OPENSSL_VERSION}/"
+        ./config shared --prefix="${BUILDSSL_DESTDIR}" --openssldir="${BUILDSSL_DESTDIR}" --libdir=lib -DPURIFY
         if [ -z "${OPENSSL_VERSION##1.*}" ]; then
             make all
         else
@@ -36,16 +39,18 @@ build_openssl_linux () {
 
 build_openssl_osx () {
     (
-        cd "openssl-${OPENSSL_VERSION}/"
+        cd "${BUILDSSL_TMPDIR}/openssl-${OPENSSL_VERSION}/"
         ./Configure darwin64-x86_64-cc shared \
-            --prefix="${HOME}/opt" --openssldir="${HOME}/opt" --libdir=lib -DPURIFY
+            --prefix="${BUILDSSL_DESTDIR}" --openssldir="${BUILDSSL_DESTDIR}" --libdir=lib -DPURIFY
         make depend build_sw install_sw
     )
 }
 
 build_openssl () {
-    if [ "$(cat ${HOME}/opt/.openssl-version)" != "${OPENSSL_VERSION}" ]; then
-        tar zxf "download-cache/openssl-${OPENSSL_VERSION}.tar.gz"
+    if [ "$(cat ${BUILDSSL_DESTDIR}/.openssl-version)" != "${OPENSSL_VERSION}" ]; then
+
+	mkdir -p "${BUILDSSL_TMPDIR}/openssl-${OPENSSL_VERSION}/"
+	tar zxf "${BUILDSSL_TMPDIR}/openssl-${OPENSSL_VERSION}.tar.gz" -C "${BUILDSSL_TMPDIR}/openssl-${OPENSSL_VERSION}/" --strip-components=1
 	case `uname` in
 		'Darwin')
 			build_openssl_osx
@@ -58,103 +63,108 @@ build_openssl () {
                         exit 1
 			;;
 	esac
-        echo "${OPENSSL_VERSION}" > "${HOME}/opt/.openssl-version"
+        echo "${OPENSSL_VERSION}" > "${BUILDSSL_DESTDIR}/.openssl-version"
     fi
 }
 
 download_libressl () {
-    if [ ! -f "download-cache/libressl-${LIBRESSL_VERSION}.tar.gz" ]; then
-        wget -P download-cache/ \
+    if [ ! -f "${BUILDSSL_TMPDIR}/libressl-${LIBRESSL_VERSION}.tar.gz" ]; then
+        wget -P ${BUILDSSL_TMPDIR}/ \
 	    "https://cdn.openbsd.org/pub/OpenBSD/LibreSSL/libressl-${LIBRESSL_VERSION}.tar.gz"
     fi
 }
 
 build_libressl () {
-    if [ "$(cat ${HOME}/opt/.libressl-version)" != "${LIBRESSL_VERSION}" ]; then
-        tar zxf "download-cache/libressl-${LIBRESSL_VERSION}.tar.gz"
+    if [ "$(cat ${BUILDSSL_DESTDIR}/.libressl-version)" != "${LIBRESSL_VERSION}" ]; then
+        mkdir -p "${BUILDSSL_TMPDIR}/libressl-${LIBRESSL_VERSION}/"
+        tar zxf "${BUILDSSL_TMPDIR}/libressl-${LIBRESSL_VERSION}.tar.gz" -C "${BUILDSSL_TMPDIR}/libressl-${LIBRESSL_VERSION}/" --strip-components=1
         (
-           cd "libressl-${LIBRESSL_VERSION}/"
-           ./configure --prefix="${HOME}/opt"
+           cd "${BUILDSSL_TMPDIR}/libressl-${LIBRESSL_VERSION}/"
+           ./configure --prefix="${BUILDSSL_DESTDIR}"
             make all install
         )
-        echo "${LIBRESSL_VERSION}" > "${HOME}/opt/.libressl-version"
+        echo "${LIBRESSL_VERSION}" > "${BUILDSSL_DESTDIR}/.libressl-version"
     fi
 }
 
 download_boringssl () {
-    if [ ! -d "download-cache/boringssl" ]; then
-        git clone --depth=1 https://boringssl.googlesource.com/boringssl download-cache/boringssl
+    if [ ! -d "${BUILDSSL_TMPDIR}/boringssl" ]; then
+        git clone --depth=1 https://boringssl.googlesource.com/boringssl ${BUILDSSL_TMPDIR}/boringssl
     else
        (
-        cd download-cache/boringssl
+        cd ${BUILDSSL_TMPDIR}/boringssl
         git pull
        )
     fi
 }
 
 download_aws_lc () {
-    if [ ! -f "download-cache/aws-lc-${AWS_LC_VERSION}.tar.gz" ]; then
-      mkdir -p download-cache
-        wget -q -O "download-cache/aws-lc-${AWS_LC_VERSION}.tar.gz" \
+    if [ ! -f "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_VERSION}.tar.gz" ]; then
+        mkdir -p "${BUILDSSL_TMPDIR}"
+        wget -q -O "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_VERSION}.tar.gz" \
           "https://github.com/aws/aws-lc/archive/refs/tags/v${AWS_LC_VERSION}.tar.gz"
     fi
 }
 
 build_aws_lc () {
-    if [ "$(cat ${HOME}/opt/.aws_lc-version)" != "${AWS_LC_VERSION}" ]; then
-        tar zxf "download-cache/aws-lc-${AWS_LC_VERSION}.tar.gz"
+    if [ "$(cat ${BUILDSSL_DESTDIR}/.aws_lc-version)" != "${AWS_LC_VERSION}" ]; then
+        mkdir -p "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_VERSION}/"
+        tar zxf "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_VERSION}.tar.gz" -C "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_VERSION}/" --strip-components=1
         (
-            cd "aws-lc-${AWS_LC_VERSION}/"
+           cd "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_VERSION}/"
            mkdir -p build
            cd build
            cmake -version
            cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=1 -DDISABLE_GO=1 -DDISABLE_PERL=1 \
-             -DBUILD_TESTING=0 -DCMAKE_INSTALL_PREFIX=${HOME}/opt ..
+             -DBUILD_TESTING=0 -DCMAKE_INSTALL_PREFIX=${BUILDSSL_DESTDIR} ..
            make -j$(nproc)
            make install
         )
-        echo "${AWS_LC_VERSION}" > "${HOME}/opt/.aws_lc-version"
+        echo "${AWS_LC_VERSION}" > "${BUILDSSL_DESTDIR}/.aws_lc-version"
     fi
 }
 
 download_quictls () {
-    if [ ! -d "download-cache/quictls" ]; then
-        git clone --depth=1 https://github.com/quictls/openssl download-cache/quictls
+    if [ ! -d "${BUILDSSL_TMPDIR}/quictls" ]; then
+        git clone --depth=1 https://github.com/quictls/openssl ${BUILDSSL_TMPDIR}/quictls
     else
        (
-        cd download-cache/quictls
+        cd ${BUILDSSL_TMPDIR}/quictls
         git pull
        )
     fi
 }
 
 download_wolfssl () {
-    if [ ! -f "download-cache/wolfssl-${WOLFSSL_VERSION}.tar.gz" ]; then
-      mkdir -p download-cache
+    if [ ! -f "${BUILDSSL_TMPDIR}/wolfssl-${WOLFSSL_VERSION}.tar.gz" ]; then
+      mkdir -p ${BUILDSSL_TMPDIR}
       if [ "${WOLFSSL_VERSION%%-*}" != "git" ]; then
-        wget -q -O "download-cache/wolfssl-${WOLFSSL_VERSION}.tar.gz" \
+        wget -q -O "${BUILDSSL_TMPDIR}/wolfssl-${WOLFSSL_VERSION}.tar.gz" \
              "https://github.com/wolfSSL/wolfssl/archive/refs/tags/v${WOLFSSL_VERSION}-stable.tar.gz"
       else
-        wget -q -O "download-cache/wolfssl-${WOLFSSL_VERSION}.tar.gz" \
+        wget -q -O "${BUILDSSL_TMPDIR}/wolfssl-${WOLFSSL_VERSION}.tar.gz" \
              "https://github.com/wolfSSL/wolfssl/archive/${WOLFSSL_VERSION##git-}.tar.gz"
       fi
     fi
 }
 
 build_wolfssl () {
-    if [ "$(cat ${HOME}/opt/.wolfssl-version)" != "${WOLFSSL_VERSION}" ]; then
-        mkdir "wolfssl-${WOLFSSL_VERSION}/"
-        tar zxf "download-cache/wolfssl-${WOLFSSL_VERSION}.tar.gz" -C "wolfssl-${WOLFSSL_VERSION}/" --strip-components=1
+    if [ "$(cat ${BUILDSSL_DESTDIR}/.wolfssl-version)" != "${WOLFSSL_VERSION}" ]; then
+        mkdir -p "${BUILDSSL_TMPDIR}/wolfssl-${WOLFSSL_VERSION}/"
+        tar zxf "${BUILDSSL_TMPDIR}/wolfssl-${WOLFSSL_VERSION}.tar.gz" -C "${BUILDSSL_TMPDIR}/wolfssl-${WOLFSSL_VERSION}/" --strip-components=1
         (
-           cd "wolfssl-${WOLFSSL_VERSION}/"
+           cd "${BUILDSSL_TMPDIR}/wolfssl-${WOLFSSL_VERSION}/"
             autoreconf -i
-           ./configure --enable-haproxy --enable-quic --prefix="${HOME}/opt"
+           ./configure --enable-haproxy --enable-quic --prefix="${BUILDSSL_DESTDIR}"
            make -j$(nproc)
            make install
         )
-        echo "${WOLFSSL_VERSION}" > "${HOME}/opt/.wolfssl-version"
+        echo "${WOLFSSL_VERSION}" > "${BUILDSSL_DESTDIR}/.wolfssl-version"
     fi
 }
+
+mkdir -p "${BUILDSSL_DESTDIR}"
+
 
 if [ ! -z ${LIBRESSL_VERSION+x} ]; then
 	download_libressl
@@ -173,21 +183,21 @@ if [ ! -z ${BORINGSSL+x} ]; then
 	eval "$(curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | GIMME_GO_VERSION=1.13 bash)"
 
         download_boringssl
-	cd download-cache/boringssl
+	cd ${BUILDSSL_TMPDIR}/boringssl
         if [ -d build ]; then rm -rf build; fi
 	mkdir build
 	cd build
 	cmake  -GNinja -DCMAKE_BUILD_TYPE=release -DBUILD_SHARED_LIBS=1 ..
 	ninja
 
-	rm -rf ${HOME}/opt/lib || exit 0
-	rm -rf ${HOME}/opt/include || exit 0
+	rm -rf ${BUILDSSL_DESTDIR}/lib || exit 0
+	rm -rf ${BUILDSSL_DESTDIR}/include || exit 0
 
-	mkdir -p ${HOME}/opt/lib
-	cp crypto/libcrypto.so ssl/libssl.so ${HOME}/opt/lib
+	mkdir -p ${BUILDSSL_DESTDIR}/lib
+	cp crypto/libcrypto.so ssl/libssl.so ${BUILDSSL_DESTDIR}/lib
 
-	mkdir -p ${HOME}/opt/include
-	cp -r ../include/* ${HOME}/opt/include
+	mkdir -p ${BUILDSSL_DESTDIR}/include
+	cp -r ../include/* ${BUILDSSL_DESTDIR}/include
 	)
 fi
 
@@ -199,9 +209,9 @@ fi
 if [ ! -z ${QUICTLS+x} ]; then
         (
         download_quictls
-        cd download-cache/quictls
+        cd ${BUILDSSL_TMPDIR}/quictls
 
-        ./config shared no-tests ${QUICTLS_EXTRA_ARGS:-} --prefix="${HOME}/opt" --openssldir="${HOME}/opt" --libdir=lib -DPURIFY
+        ./config shared no-tests ${QUICTLS_EXTRA_ARGS:-} --prefix="${BUILDSSL_DESTDIR}" --openssldir="${BUILDSSL_DESTDIR}" --libdir=lib -DPURIFY
         make -j$(nproc) build_sw
         make install_sw
 
