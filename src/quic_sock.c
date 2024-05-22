@@ -338,8 +338,8 @@ static struct quic_dgram *quic_rxbuf_purge_dgrams(struct quic_receiver_buf *rbuf
 	return prev;
 }
 
-/* Receive data from datagram socket <fd>. Data are placed in <out> buffer of
- * length <len>.
+/* Receive a single message from datagram socket <fd>. Data are placed in <out>
+ * buffer of length <len>.
  *
  * Datagram addresses will be returned via the next arguments. <from> will be
  * the peer address and <to> the reception one. Note that <to> can only be
