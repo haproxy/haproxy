@@ -981,24 +981,38 @@ int send_stateless_reset(struct listener *l, struct sockaddr_storage *dstaddr,
 
 	TRACE_ENTER(QUIC_EV_STATELESS_RST);
 
+	/* RFC 9000 10.3. Stateless Reset
+	 *
+	 * Endpoints MUST discard packets that are too small to be valid QUIC
+	 * packets. To give an example, with the set of AEAD functions defined
+	 * in [QUIC-TLS], short header packets that are smaller than 21 bytes
+	 * are never valid.
+	 *
+	 * [...]
+	 *
+	 * RFC 9000 10.3.3. Looping
+	 *
+	 * An endpoint MUST ensure that every Stateless Reset that it sends is
+	 * smaller than the packet that triggered it, unless it maintains state
+	 * sufficient to prevent looping. In the event of a loop, this results
+	 * in packets eventually being too small to trigger a response.
+	 */
+	if (rxpkt->len <= QUIC_STATELESS_RESET_PACKET_MINLEN) {
+		TRACE_DEVEL("rxpkt too short", QUIC_EV_STATELESS_RST);
+		goto leave;
+	}
+
 	prx = l->bind_conf->frontend;
 	prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
-	/* 10.3 Stateless Reset (https://www.rfc-editor.org/rfc/rfc9000.html#section-10.3)
-	 * The resulting minimum size of 21 bytes does not guarantee that a Stateless
-	 * Reset is difficult to distinguish from other packets if the recipient requires
-	 * the use of a connection ID. To achieve that end, the endpoint SHOULD ensure
-	 * that all packets it sends are at least 22 bytes longer than the minimum
-	 * connection ID length that it requests the peer to include in its packets,
-	 * adding PADDING frames as necessary. This ensures that any Stateless Reset
-	 * sent by the peer is indistinguishable from a valid packet sent to the endpoint.
+
+	/* RFC 9000 10.3. Stateless Reset
+	 *
 	 * An endpoint that sends a Stateless Reset in response to a packet that is
 	 * 43 bytes or shorter SHOULD send a Stateless Reset that is one byte shorter
 	 * than the packet it responds to.
 	 */
-
-	/* Note that we build at most a 42 bytes QUIC packet to mimic a short packet */
-	pktlen = rxpkt->len <= 43 ? rxpkt->len - 1 : 0;
-	pktlen = QUIC_MAX(QUIC_STATELESS_RESET_PACKET_MINLEN, pktlen);
+	pktlen = rxpkt->len <= 43 ? rxpkt->len - 1 :
+	                            QUIC_STATELESS_RESET_PACKET_MINLEN;
 	rndlen = pktlen - QUIC_STATELESS_RESET_TOKEN_LEN;
 
 	/* Put a header of random bytes */

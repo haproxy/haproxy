@@ -176,8 +176,15 @@ enum quic_pkt_type {
  */
 #define QUIC_CONN_MAX_PACKET  64
 
-#define QUIC_STATELESS_RESET_PACKET_HEADER_LEN 5
-#define QUIC_STATELESS_RESET_PACKET_MINLEN     (22 + QUIC_HAP_CID_LEN)
+/* RFC 9000 10.3. Stateless Reset
+ *
+ * To entities other than its intended recipient, a Stateless Reset will
+ * appear to be a packet with a short header. For the Stateless Reset to
+ * appear as a valid QUIC packet, the Unpredictable Bits field needs to
+ * include at least 38 bits of data (or 5 bytes, less the two fixed
+ * bits).
+ */
+#define QUIC_STATELESS_RESET_PACKET_MINLEN     (5 + QUIC_STATELESS_RESET_TOKEN_LEN)
 
 /* Similar to kernel min()/max() definitions. */
 #define QUIC_MIN(a, b) ({ \

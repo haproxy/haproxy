@@ -1687,6 +1687,9 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 		}
 	}
 	else if (!qc) {
+		/* Stateless Reset sent even for Long header packets as haproxy
+		 * emits stateless_reset_token in its TPs.
+		 */
 		TRACE_PROTO("RX non Initial pkt without connection", QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
 		if (!send_stateless_reset(l, &dgram->saddr, pkt))
 			TRACE_ERROR("stateless reset not sent", QUIC_EV_CONN_LPKT, qc);
