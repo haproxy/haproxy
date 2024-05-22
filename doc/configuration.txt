@@ -1276,6 +1276,8 @@ The following keywords are supported in the "global" section :
    - h1-case-adjust-file
    - h2-workaround-bogus-websocket-clients
    - hard-stop-after
+   - harden.reject-privileged-ports.tcp
+   - harden.reject-privileged-ports.quic
    - insecure-fork-wanted
    - insecure-setuid-wanted
    - issuers-chain-path
@@ -1943,6 +1945,12 @@ hard-stop-after <time>
       hard-stop-after 30s
 
   See also: grace
+
+harden.reject-privileged-ports.tcp { on | off }
+harden.reject-privileged-ports.quic { on | off }
+  Toggle per protocol protection which forbid communication with clients which
+  use privileged ports as their source port. This range of ports is defined
+  according to RFC 6335. Protection is inactive by default on both protocols.
 
 http-err-codes [+-]<range>[,...] [...]
   Replace, reduce or extend the list of status codes that define an error as

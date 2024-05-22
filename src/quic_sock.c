@@ -29,6 +29,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/pool.h>
+#include <haproxy/protocol-t.h>
 #include <haproxy/proto_quic.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/quic_cid.h>
@@ -392,6 +393,11 @@ static ssize_t quic_recv(int fd, void *out, size_t len,
 
 	if (ret < 0)
 		goto end;
+
+	if (unlikely(port_is_restricted((struct sockaddr_storage *)from, HA_PROTO_QUIC))) {
+		ret = -1;
+		goto end;
+	}
 
 	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
 		switch (cmsg->cmsg_level) {

@@ -210,6 +210,8 @@ struct global global = {
 	.maxsslconn = DEFAULT_MAXSSLCONN,
 #endif
 #endif
+	/* by default do not protect against clients using privileged port */
+	.clt_privileged_ports = HA_PROTO_ANY,
 	/* others NULL OK */
 };
 

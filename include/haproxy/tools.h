@@ -42,6 +42,7 @@
 #include <haproxy/api.h>
 #include <haproxy/chunk.h>
 #include <haproxy/intops.h>
+#include <haproxy/global.h>
 #include <haproxy/namespace-t.h>
 #include <haproxy/protocol-t.h>
 #include <haproxy/tools-t.h>
@@ -778,6 +779,21 @@ static inline int set_host_port(struct sockaddr_storage *addr, int port)
 		((struct sockaddr_in6 *)addr)->sin6_port = htons(port);
 		break;
 	}
+	return 0;
+}
+
+/* Returns true if <addr> port is forbidden as client source using <proto>. */
+static inline int port_is_restricted(const struct sockaddr_storage *addr,
+                                     enum ha_proto proto)
+{
+	const uint16_t port = get_host_port(addr);
+
+	BUG_ON_HOT(proto != HA_PROTO_TCP && proto != HA_PROTO_QUIC);
+
+	/* RFC 6335 6. Port Number Ranges */
+	if (unlikely(port < 1024 && port > 0))
+		return !(global.clt_privileged_ports & proto);
+
 	return 0;
 }
 

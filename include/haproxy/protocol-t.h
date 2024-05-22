@@ -138,6 +138,17 @@ struct protocol {
 	struct list list;				/* list of registered protocols (under proto_lock) */
 };
 
+/* Transport protocol identifiers which can be used as masked values. */
+enum ha_proto {
+	HA_PROTO_NONE = 0x00,
+
+	HA_PROTO_TCP  = 0x01,
+	HA_PROTO_UDP  = 0x02,
+	HA_PROTO_QUIC = 0x04,
+
+	HA_PROTO_ANY  = 0xff,
+};
+
 #endif /* _HAPROXY_PROTOCOL_T_H */
 
 /*
