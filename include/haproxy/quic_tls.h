@@ -140,7 +140,15 @@ static inline const EVP_CIPHER *tls_aead(const SSL_CIPHER *cipher)
 		return EVP_aes_128_gcm();
 	case TLS1_3_CK_AES_256_GCM_SHA384:
 		return EVP_aes_256_gcm();
-#if !defined(OPENSSL_IS_AWSLC)
+#if !defined(OPENSSL_IS_AWSLC) && (!defined(LIBRESSL_VERSION_NUMBER) || LIBRESSL_VERSION_NUMBER >= 0x4000000fL)
+	/* WT: LibreSSL has an issue with CHACHA20 running in-place till 3.9.2
+	 *     included, but the fix is already identified and will be merged
+	 *     into next major version. Given that on machines without AES-NI
+	 *     CHACHA20 is selected by default, this makes connections freeze
+	 *     on non-x86 machines, so we prefer to break them so that the
+	 *     client falls back to TCP. See GH issue #2569 for the context.
+	 *     Thanks to Theo Buehler for his help!
+	 */
 	case TLS1_3_CK_CHACHA20_POLY1305_SHA256:
 		return EVP_chacha20_poly1305();
 #endif
