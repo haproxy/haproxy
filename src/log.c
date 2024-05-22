@@ -2551,6 +2551,323 @@ static char *lf_port(char *dst, const struct sockaddr *sockaddr, size_t size, st
 	return ret;
 }
 
+/*
+ * This function sends a syslog message.
+ * <target> is the actual log target where log will be sent,
+ *
+ * Message will be prefixed by header according to <hdr> setting.
+ * Final message will be truncated <maxlen> parameter and will be
+ * terminated with an LF character.
+ *
+ * Does not return any error
+ */
+static inline void __do_send_log(struct log_target *target, struct log_header hdr,
+                                 int nblogger, size_t maxlen,
+                                 char *message, size_t size)
+{
+	static THREAD_LOCAL struct iovec iovec[NB_LOG_HDR_MAX_ELEMENTS+1+1] = { }; /* header elements + message + LF */
+	static THREAD_LOCAL struct msghdr msghdr = {
+		//.msg_iov = iovec,
+		.msg_iovlen = NB_LOG_HDR_MAX_ELEMENTS+2
+	};
+	static THREAD_LOCAL int logfdunix = -1;	/* syslog to AF_UNIX socket */
+	static THREAD_LOCAL int logfdinet = -1;	/* syslog to AF_INET socket */
+	int *plogfd;
+	int sent;
+	size_t nbelem;
+	struct ist *msg_header = NULL;
+
+	msghdr.msg_iov = iovec;
+
+	/* historically some messages used to already contain the trailing LF
+	 * or Zero. Let's remove all trailing LF or Zero
+	 */
+	while (size && (message[size-1] == '\n' || (message[size-1] == 0)))
+		size--;
+
+	if (target->type == LOG_TARGET_BUFFER) {
+		plogfd = NULL;
+		goto send;
+	}
+	else if (target->addr->ss_family == AF_CUST_EXISTING_FD) {
+		/* the socket's address is a file descriptor */
+		plogfd = (int *)&((struct sockaddr_in *)target->addr)->sin_addr.s_addr;
+	}
+	else if (target->addr->ss_family == AF_UNIX)
+		plogfd = &logfdunix;
+	else
+		plogfd = &logfdinet;
+
+	if (plogfd && unlikely(*plogfd < 0)) {
+		/* socket not successfully initialized yet */
+		if ((*plogfd = socket(target->addr->ss_family, SOCK_DGRAM,
+		                      (target->addr->ss_family == AF_UNIX) ? 0 : IPPROTO_UDP)) < 0) {
+			static char once;
+
+			if (!once) {
+				once = 1; /* note: no need for atomic ops here */
+				ha_alert("socket() failed in logger #%d: %s (errno=%d)\n",
+						 nblogger, strerror(errno), errno);
+			}
+			return;
+		} else {
+			/* we don't want to receive anything on this socket */
+			setsockopt(*plogfd, SOL_SOCKET, SO_RCVBUF, &zero, sizeof(zero));
+			/* we may want to adjust the output buffer (tune.sndbuf.backend) */
+			if (global.tune.backend_sndbuf)
+				setsockopt(*plogfd, SOL_SOCKET, SO_SNDBUF, &global.tune.backend_sndbuf, sizeof(global.tune.backend_sndbuf));
+			/* does nothing under Linux, maybe needed for others */
+			shutdown(*plogfd, SHUT_RD);
+			fd_set_cloexec(*plogfd);
+		}
+	}
+
+	msg_header = build_log_header(hdr, &nbelem);
+ send:
+	if (target->type == LOG_TARGET_BUFFER) {
+		struct ist msg;
+		size_t e_maxlen = maxlen;
+
+		msg = ist2(message, size);
+
+		/* make room for the final '\n' which may be forcefully inserted
+		 * by tcp forwarder applet (sink_forward_io_handler)
+		 */
+		e_maxlen -= 1;
+
+		sent = sink_write(target->sink, hdr, e_maxlen, &msg, 1);
+	}
+	else if (target->addr->ss_family == AF_CUST_EXISTING_FD) {
+		struct ist msg;
+
+		msg = ist2(message, size);
+
+		sent = fd_write_frag_line(*plogfd, maxlen, msg_header, nbelem, &msg, 1, 1);
+	}
+	else {
+		int i = 0;
+		int totlen = maxlen - 1; /* save space for the final '\n' */
+
+		for (i = 0 ; i < nbelem ; i++ ) {
+			iovec[i].iov_base = msg_header[i].ptr;
+			iovec[i].iov_len  = msg_header[i].len;
+			if (totlen <= iovec[i].iov_len) {
+				iovec[i].iov_len = totlen;
+				totlen = 0;
+				break;
+			}
+			totlen -= iovec[i].iov_len;
+		}
+		if (totlen) {
+			iovec[i].iov_base = message;
+			iovec[i].iov_len  = size;
+			if (totlen <= iovec[i].iov_len)
+				iovec[i].iov_len = totlen;
+			i++;
+		}
+		iovec[i].iov_base = "\n"; /* insert a \n at the end of the message */
+		iovec[i].iov_len = 1;
+		i++;
+
+		msghdr.msg_iovlen = i;
+		msghdr.msg_name = (struct sockaddr *)target->addr;
+		msghdr.msg_namelen = get_addr_len(target->addr);
+
+		sent = sendmsg(*plogfd, &msghdr, MSG_DONTWAIT | MSG_NOSIGNAL);
+	}
+
+	if (sent < 0) {
+		static char once;
+
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
+			_HA_ATOMIC_INC(&dropped_logs);
+		else if (!once) {
+			once = 1; /* note: no need for atomic ops here */
+			ha_alert("sendmsg()/writev() failed in logger #%d: %s (errno=%d)\n",
+					 nblogger, strerror(errno), errno);
+		}
+	}
+}
+
+/* does the same as __do_send_log() does for a single target, but here the log
+ * will be sent according to the log backend's lb settings. The function will
+ * leverage __do_send_log() function to actually send the log messages.
+ */
+static inline void __do_send_log_backend(struct proxy *be, struct log_header hdr,
+                                         int nblogger, size_t maxlen,
+                                         char *message, size_t size)
+{
+	struct server *srv = NULL;
+
+	/* log-balancing logic: */
+
+	if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_RR) {
+		srv = fwrr_get_next_server(be, NULL);
+	}
+	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_SS) {
+		/* sticky mode: use first server in the pool, which will always stay
+		 * first during dequeuing and requeuing, unless it becomes unavailable
+		 * and will be replaced by another one
+		 */
+		srv = ss_get_server(be);
+	}
+	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_RND) {
+		unsigned int hash;
+
+		hash = statistical_prng(); /* random */
+		srv = chash_get_server_hash(be, hash, NULL);
+	}
+	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_LH) {
+		struct sample result;
+
+		/* log-balance hash */
+		memset(&result, 0, sizeof(result));
+		result.data.type = SMP_T_STR;
+		result.flags = SMP_F_CONST;
+		result.data.u.str.area = message;
+		result.data.u.str.data = size;
+		result.data.u.str.size = size + 1; /* with terminating NULL byte */
+		if (sample_process_cnv(be->lbprm.expr, &result)) {
+			/* gen_hash takes binary input, ensure that we provide such value to it */
+			if (result.data.type == SMP_T_BIN || sample_casts[result.data.type][SMP_T_BIN]) {
+				unsigned int hash;
+
+				sample_casts[result.data.type][SMP_T_BIN](&result);
+				hash = gen_hash(be, result.data.u.str.area, result.data.u.str.data);
+				srv = map_get_server_hash(be, hash);
+			}
+		}
+	}
+
+	if (!srv) {
+		/* no srv available, can't log */
+		goto drop;
+	}
+
+	__do_send_log(srv->log_target, hdr, nblogger, maxlen, message, size);
+	return;
+
+ drop:
+	_HA_ATOMIC_INC(&dropped_logs);
+}
+
+/*
+ * This function sends a syslog message.
+ * It doesn't care about errors nor does it report them.
+ * The argument <metadata> MUST be an array of size
+ * LOG_META_FIELDS*sizeof(struct ist)  containing
+ * data to build the header.
+ */
+static void process_send_log(struct list *loggers, int level, int facility,
+                             struct ist *metadata, char *message, size_t size)
+{
+	struct logger *logger;
+	int nblogger;
+
+	/* Send log messages to syslog server. */
+	nblogger = 0;
+	list_for_each_entry(logger, loggers, list) {
+		int in_range = 1;
+
+		/* we can filter the level of the messages that are sent to each logger */
+		if (level > logger->level)
+			continue;
+
+		if (logger->lb.smp_rgs) {
+			struct smp_log_range *smp_rg;
+			uint next_idx, curr_rg;
+			ullong curr_rg_idx, next_rg_idx;
+
+			curr_rg_idx = _HA_ATOMIC_LOAD(&logger->lb.curr_rg_idx);
+			do {
+				next_idx = (curr_rg_idx & 0xFFFFFFFFU) + 1;
+				curr_rg  = curr_rg_idx >> 32;
+				smp_rg = &logger->lb.smp_rgs[curr_rg];
+
+				/* check if the index we're going to take is within range  */
+				in_range = smp_rg->low <= next_idx && next_idx <= smp_rg->high;
+				if (in_range) {
+					/* Let's consume this range. */
+					if (next_idx == smp_rg->high) {
+						/* If consumed, let's select the next range. */
+						curr_rg = (curr_rg + 1) % logger->lb.smp_rgs_sz;
+					}
+				}
+
+				next_idx = next_idx % logger->lb.smp_sz;
+				next_rg_idx = ((ullong)curr_rg << 32) + next_idx;
+			} while (!_HA_ATOMIC_CAS(&logger->lb.curr_rg_idx, &curr_rg_idx, next_rg_idx) &&
+				 __ha_cpu_relax());
+		}
+		if (in_range) {
+			struct log_header hdr;
+
+			hdr.level = MAX(level, logger->minlvl);
+			hdr.facility = (facility == -1) ? logger->facility : facility;
+			hdr.format = logger->format;
+			hdr.metadata = metadata;
+
+			nblogger += 1;
+			if (logger->target.type == LOG_TARGET_BACKEND) {
+				__do_send_log_backend(logger->target.be, hdr, nblogger, logger->maxlen, message, size);
+			}
+			else {
+				/* normal target */
+				__do_send_log(&logger->target, hdr, nblogger, logger->maxlen, message, size);
+			}
+		}
+	}
+}
+
+/*
+ * This function sends a syslog message.
+ * It doesn't care about errors nor does it report them.
+ * The arguments <sd> and <sd_size> are used for the structured-data part
+ * in RFC5424 formatted syslog messages.
+ */
+static void __send_log(struct list *loggers, struct buffer *tagb, int level,
+                       char *message, size_t size, char *sd, size_t sd_size)
+{
+	static THREAD_LOCAL pid_t curr_pid;
+	static THREAD_LOCAL char pidstr[16];
+	static THREAD_LOCAL struct ist metadata[LOG_META_FIELDS];
+
+	if (loggers == NULL) {
+		if (!LIST_ISEMPTY(&global.loggers)) {
+			loggers = &global.loggers;
+		}
+	}
+	if (!loggers || LIST_ISEMPTY(loggers))
+		return;
+
+	if (!metadata[LOG_META_HOST].len) {
+		if (global.log_send_hostname)
+			metadata[LOG_META_HOST] = ist(global.log_send_hostname);
+	}
+
+	if (!tagb || !tagb->area)
+		tagb = &global.log_tag;
+
+	if (tagb)
+		metadata[LOG_META_TAG] = ist2(tagb->area, tagb->data);
+
+	if (unlikely(curr_pid != getpid()))
+		metadata[LOG_META_PID].len = 0;
+
+	if (!metadata[LOG_META_PID].len) {
+		curr_pid = getpid();
+		ltoa_o(curr_pid, pidstr, sizeof(pidstr));
+		metadata[LOG_META_PID] = ist2(pidstr, strlen(pidstr));
+	}
+
+	metadata[LOG_META_STDATA] = ist2(sd, sd_size);
+
+	/* Remove trailing space of structured data */
+	while (metadata[LOG_META_STDATA].len && metadata[LOG_META_STDATA].ptr[metadata[LOG_META_STDATA].len-1] == ' ')
+		metadata[LOG_META_STDATA].len--;
+
+	return process_send_log(loggers, level, -1, metadata, message, size);
+}
 
 /*
  * This function sends the syslog message using a printf format string. It
@@ -2573,6 +2890,7 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 	__send_log((p ? &p->loggers : NULL), (p ? &p->log_tag : NULL), level,
 		   logline, data_len, default_rfc5424_sd_log_format, 2);
 }
+
 /*
  * This function builds a log header according to <hdr> settings.
  *
@@ -2878,324 +3196,6 @@ struct ist *build_log_header(struct log_header hdr, size_t *nbelem)
 	}
 
 	return hdr_ctx.ist_vector;
-}
-
-/*
- * This function sends a syslog message.
- * <target> is the actual log target where log will be sent,
- *
- * Message will be prefixed by header according to <hdr> setting.
- * Final message will be truncated <maxlen> parameter and will be
- * terminated with an LF character.
- *
- * Does not return any error
- */
-static inline void __do_send_log(struct log_target *target, struct log_header hdr,
-                                 int nblogger, size_t maxlen,
-                                 char *message, size_t size)
-{
-	static THREAD_LOCAL struct iovec iovec[NB_LOG_HDR_MAX_ELEMENTS+1+1] = { }; /* header elements + message + LF */
-	static THREAD_LOCAL struct msghdr msghdr = {
-		//.msg_iov = iovec,
-		.msg_iovlen = NB_LOG_HDR_MAX_ELEMENTS+2
-	};
-	static THREAD_LOCAL int logfdunix = -1;	/* syslog to AF_UNIX socket */
-	static THREAD_LOCAL int logfdinet = -1;	/* syslog to AF_INET socket */
-	int *plogfd;
-	int sent;
-	size_t nbelem;
-	struct ist *msg_header = NULL;
-
-	msghdr.msg_iov = iovec;
-
-	/* historically some messages used to already contain the trailing LF
-	 * or Zero. Let's remove all trailing LF or Zero
-	 */
-	while (size && (message[size-1] == '\n' || (message[size-1] == 0)))
-		size--;
-
-	if (target->type == LOG_TARGET_BUFFER) {
-		plogfd = NULL;
-		goto send;
-	}
-	else if (target->addr->ss_family == AF_CUST_EXISTING_FD) {
-		/* the socket's address is a file descriptor */
-		plogfd = (int *)&((struct sockaddr_in *)target->addr)->sin_addr.s_addr;
-	}
-	else if (target->addr->ss_family == AF_UNIX)
-		plogfd = &logfdunix;
-	else
-		plogfd = &logfdinet;
-
-	if (plogfd && unlikely(*plogfd < 0)) {
-		/* socket not successfully initialized yet */
-		if ((*plogfd = socket(target->addr->ss_family, SOCK_DGRAM,
-		                      (target->addr->ss_family == AF_UNIX) ? 0 : IPPROTO_UDP)) < 0) {
-			static char once;
-
-			if (!once) {
-				once = 1; /* note: no need for atomic ops here */
-				ha_alert("socket() failed in logger #%d: %s (errno=%d)\n",
-						 nblogger, strerror(errno), errno);
-			}
-			return;
-		} else {
-			/* we don't want to receive anything on this socket */
-			setsockopt(*plogfd, SOL_SOCKET, SO_RCVBUF, &zero, sizeof(zero));
-			/* we may want to adjust the output buffer (tune.sndbuf.backend) */
-			if (global.tune.backend_sndbuf)
-				setsockopt(*plogfd, SOL_SOCKET, SO_SNDBUF, &global.tune.backend_sndbuf, sizeof(global.tune.backend_sndbuf));
-			/* does nothing under Linux, maybe needed for others */
-			shutdown(*plogfd, SHUT_RD);
-			fd_set_cloexec(*plogfd);
-		}
-	}
-
-	msg_header = build_log_header(hdr, &nbelem);
- send:
-	if (target->type == LOG_TARGET_BUFFER) {
-		struct ist msg;
-		size_t e_maxlen = maxlen;
-
-		msg = ist2(message, size);
-
-		/* make room for the final '\n' which may be forcefully inserted
-		 * by tcp forwarder applet (sink_forward_io_handler)
-		 */
-		e_maxlen -= 1;
-
-		sent = sink_write(target->sink, hdr, e_maxlen, &msg, 1);
-	}
-	else if (target->addr->ss_family == AF_CUST_EXISTING_FD) {
-		struct ist msg;
-
-		msg = ist2(message, size);
-
-		sent = fd_write_frag_line(*plogfd, maxlen, msg_header, nbelem, &msg, 1, 1);
-	}
-	else {
-		int i = 0;
-		int totlen = maxlen - 1; /* save space for the final '\n' */
-
-		for (i = 0 ; i < nbelem ; i++ ) {
-			iovec[i].iov_base = msg_header[i].ptr;
-			iovec[i].iov_len  = msg_header[i].len;
-			if (totlen <= iovec[i].iov_len) {
-				iovec[i].iov_len = totlen;
-				totlen = 0;
-				break;
-			}
-			totlen -= iovec[i].iov_len;
-		}
-		if (totlen) {
-			iovec[i].iov_base = message;
-			iovec[i].iov_len  = size;
-			if (totlen <= iovec[i].iov_len)
-				iovec[i].iov_len = totlen;
-			i++;
-		}
-		iovec[i].iov_base = "\n"; /* insert a \n at the end of the message */
-		iovec[i].iov_len = 1;
-		i++;
-
-		msghdr.msg_iovlen = i;
-		msghdr.msg_name = (struct sockaddr *)target->addr;
-		msghdr.msg_namelen = get_addr_len(target->addr);
-
-		sent = sendmsg(*plogfd, &msghdr, MSG_DONTWAIT | MSG_NOSIGNAL);
-	}
-
-	if (sent < 0) {
-		static char once;
-
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			_HA_ATOMIC_INC(&dropped_logs);
-		else if (!once) {
-			once = 1; /* note: no need for atomic ops here */
-			ha_alert("sendmsg()/writev() failed in logger #%d: %s (errno=%d)\n",
-					 nblogger, strerror(errno), errno);
-		}
-	}
-}
-
-/* does the same as __do_send_log() does for a single target, but here the log
- * will be sent according to the log backend's lb settings. The function will
- * leverage __do_send_log() function to actually send the log messages.
- */
-static inline void __do_send_log_backend(struct proxy *be, struct log_header hdr,
-                                         int nblogger, size_t maxlen,
-                                         char *message, size_t size)
-{
-	struct server *srv = NULL;
-
-	/* log-balancing logic: */
-
-	if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_RR) {
-		srv = fwrr_get_next_server(be, NULL);
-	}
-	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_SS) {
-		/* sticky mode: use first server in the pool, which will always stay
-		 * first during dequeuing and requeuing, unless it becomes unavailable
-		 * and will be replaced by another one
-		 */
-		srv = ss_get_server(be);
-	}
-	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_RND) {
-		unsigned int hash;
-
-		hash = statistical_prng(); /* random */
-		srv = chash_get_server_hash(be, hash, NULL);
-	}
-	else if ((be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_LH) {
-		struct sample result;
-
-		/* log-balance hash */
-		memset(&result, 0, sizeof(result));
-		result.data.type = SMP_T_STR;
-		result.flags = SMP_F_CONST;
-		result.data.u.str.area = message;
-		result.data.u.str.data = size;
-		result.data.u.str.size = size + 1; /* with terminating NULL byte */
-		if (sample_process_cnv(be->lbprm.expr, &result)) {
-			/* gen_hash takes binary input, ensure that we provide such value to it */
-			if (result.data.type == SMP_T_BIN || sample_casts[result.data.type][SMP_T_BIN]) {
-				unsigned int hash;
-
-				sample_casts[result.data.type][SMP_T_BIN](&result);
-				hash = gen_hash(be, result.data.u.str.area, result.data.u.str.data);
-				srv = map_get_server_hash(be, hash);
-			}
-		}
-	}
-
-	if (!srv) {
-		/* no srv available, can't log */
-		goto drop;
-	}
-
-	__do_send_log(srv->log_target, hdr, nblogger, maxlen, message, size);
-	return;
-
- drop:
-	_HA_ATOMIC_INC(&dropped_logs);
-}
-
-/*
- * This function sends a syslog message.
- * It doesn't care about errors nor does it report them.
- * The argument <metadata> MUST be an array of size
- * LOG_META_FIELDS*sizeof(struct ist)  containing
- * data to build the header.
- */
-void process_send_log(struct list *loggers, int level, int facility,
-                      struct ist *metadata, char *message, size_t size)
-{
-	struct logger *logger;
-	int nblogger;
-
-	/* Send log messages to syslog server. */
-	nblogger = 0;
-	list_for_each_entry(logger, loggers, list) {
-		int in_range = 1;
-
-		/* we can filter the level of the messages that are sent to each logger */
-		if (level > logger->level)
-			continue;
-
-		if (logger->lb.smp_rgs) {
-			struct smp_log_range *smp_rg;
-			uint next_idx, curr_rg;
-			ullong curr_rg_idx, next_rg_idx;
-
-			curr_rg_idx = _HA_ATOMIC_LOAD(&logger->lb.curr_rg_idx);
-			do {
-				next_idx = (curr_rg_idx & 0xFFFFFFFFU) + 1;
-				curr_rg  = curr_rg_idx >> 32;
-				smp_rg = &logger->lb.smp_rgs[curr_rg];
-
-				/* check if the index we're going to take is within range  */
-				in_range = smp_rg->low <= next_idx && next_idx <= smp_rg->high;
-				if (in_range) {
-					/* Let's consume this range. */
-					if (next_idx == smp_rg->high) {
-						/* If consumed, let's select the next range. */
-						curr_rg = (curr_rg + 1) % logger->lb.smp_rgs_sz;
-					}
-				}
-
-				next_idx = next_idx % logger->lb.smp_sz;
-				next_rg_idx = ((ullong)curr_rg << 32) + next_idx;
-			} while (!_HA_ATOMIC_CAS(&logger->lb.curr_rg_idx, &curr_rg_idx, next_rg_idx) &&
-				 __ha_cpu_relax());
-		}
-		if (in_range) {
-			struct log_header hdr;
-
-			hdr.level = MAX(level, logger->minlvl);
-			hdr.facility = (facility == -1) ? logger->facility : facility;
-			hdr.format = logger->format;
-			hdr.metadata = metadata;
-
-			nblogger += 1;
-			if (logger->target.type == LOG_TARGET_BACKEND) {
-				__do_send_log_backend(logger->target.be, hdr, nblogger, logger->maxlen, message, size);
-			}
-			else {
-				/* normal target */
-				__do_send_log(&logger->target, hdr, nblogger, logger->maxlen, message, size);
-			}
-		}
-	}
-}
-
-/*
- * This function sends a syslog message.
- * It doesn't care about errors nor does it report them.
- * The arguments <sd> and <sd_size> are used for the structured-data part
- * in RFC5424 formatted syslog messages.
- */
-void __send_log(struct list *loggers, struct buffer *tagb, int level,
-		char *message, size_t size, char *sd, size_t sd_size)
-{
-	static THREAD_LOCAL pid_t curr_pid;
-	static THREAD_LOCAL char pidstr[16];
-	static THREAD_LOCAL struct ist metadata[LOG_META_FIELDS];
-
-	if (loggers == NULL) {
-		if (!LIST_ISEMPTY(&global.loggers)) {
-			loggers = &global.loggers;
-		}
-	}
-	if (!loggers || LIST_ISEMPTY(loggers))
-		return;
-
-	if (!metadata[LOG_META_HOST].len) {
-		if (global.log_send_hostname)
-			metadata[LOG_META_HOST] = ist(global.log_send_hostname);
-	}
-
-	if (!tagb || !tagb->area)
-		tagb = &global.log_tag;
-
-	if (tagb)
-		metadata[LOG_META_TAG] = ist2(tagb->area, tagb->data);
-
-	if (unlikely(curr_pid != getpid()))
-		metadata[LOG_META_PID].len = 0;
-
-	if (!metadata[LOG_META_PID].len) {
-		curr_pid = getpid();
-		ltoa_o(curr_pid, pidstr, sizeof(pidstr));
-		metadata[LOG_META_PID] = ist2(pidstr, strlen(pidstr));
-	}
-
-	metadata[LOG_META_STDATA] = ist2(sd, sd_size);
-
-	/* Remove trailing space of structured data */
-	while (metadata[LOG_META_STDATA].len && metadata[LOG_META_STDATA].ptr[metadata[LOG_META_STDATA].len-1] == ' ')
-		metadata[LOG_META_STDATA].len--;
-
-	return process_send_log(loggers, level, -1, metadata, message, size);
 }
 
 const char sess_cookie[8]     = "NIDVEOU7";	/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie, Expired cookie, Old cookie, Unused, unknown */

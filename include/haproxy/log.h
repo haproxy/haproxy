@@ -123,15 +123,6 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 	__attribute__ ((format(printf, 3, 4)));
 
 /*
- * This function sends a syslog message to all loggers of a proxy,
- * or to global loggers if the proxy is NULL.
- * It also tries not to waste too much time computing the message header.
- * It doesn't care about errors nor does it report them.
- */
-
-void __send_log(struct list *loggers, struct buffer *tag, int level, char *message, size_t size, char *sd, size_t sd_size);
-
-/*
  * returns log format for <fmt> or LOG_FORMAT_UNSPEC if not found.
  */
 enum log_fmt get_log_format(const char *fmt);
