@@ -566,10 +566,16 @@ static int trace_parse_statement(char **args, char **msg)
 	}
 	else if (strcmp(args[2], "level") == 0) {
 		const char *name = args[3];
-		int level;
+		int level = -1;
 
-		if (!*name) {
-			chunk_printf(&trash, "Supported trace levels for source %s:\n", src->name.ptr);
+		if (*name)
+			level = trace_parse_level(name);
+
+		if (level < 0) {
+			chunk_reset(&trash);
+			if (*name)
+				chunk_appendf(&trash, "No such trace level '%s'. ", name);
+			chunk_appendf(&trash, "Supported trace levels for source %s:\n", src->name.ptr);
 			chunk_appendf(&trash, "  %c error      : report errors\n",
 				      src->level == TRACE_LEVEL_ERROR ? '*' : ' ');
 			chunk_appendf(&trash, "  %c user       : also information useful to the end user\n",
@@ -584,13 +590,7 @@ static int trace_parse_statement(char **args, char **msg)
 				      src->level == TRACE_LEVEL_DEVELOPER ? '*' : ' ');
 			trash.area[trash.data] = 0;
 			*msg = strdup(trash.area);
-			return LOG_WARNING;
-		}
-
-		level = trace_parse_level(name);
-		if (level < 0) {
-			memprintf(msg, "No such trace level '%s'", name);
-			return LOG_ERR;
+			return *name ? LOG_ERR : LOG_WARNING;
 		}
 
 		HA_ATOMIC_STORE(&src->level, level);
@@ -734,10 +734,16 @@ static int trace_parse_statement(char **args, char **msg)
 	else if (strcmp(args[2], "verbosity") == 0) {
 		const char *name = args[3];
 		const struct name_desc *nd;
-		int verbosity;
+		int verbosity = -1;
 
-		if (!*name) {
-			chunk_printf(&trash, "Supported trace verbosities for source %s:\n", src->name.ptr);
+		if (*name)
+			verbosity = trace_source_parse_verbosity(src, name);
+
+		if (verbosity < 0) {
+			chunk_reset(&trash);
+			if (*name)
+				chunk_appendf(&trash, "No such verbosity level '%s'. ", name);
+			chunk_appendf(&trash, "Supported trace verbosities for source %s:\n", src->name.ptr);
 			chunk_appendf(&trash, "  %c quiet      : only report basic information with no decoding\n",
 				      src->verbosity == 0 ? '*' : ' ');
 			if (!src->decoding || !src->decoding[0].name) {
@@ -751,13 +757,7 @@ static int trace_parse_statement(char **args, char **msg)
 			}
 			trash.area[trash.data] = 0;
 			*msg = strdup(trash.area);
-			return LOG_WARNING;
-		}
-
-		verbosity = trace_source_parse_verbosity(src, name);
-		if (verbosity < 0) {
-			memprintf(msg, "No such verbosity level '%s'", name);
-			return LOG_ERR;
+			return *name ? LOG_ERR : LOG_WARNING;
 		}
 
 		HA_ATOMIC_STORE(&src->verbosity, verbosity);
@@ -837,7 +837,7 @@ int trace_parse_cmd(char *arg, char **errmsg)
 		if (strlen(field)) {
 			level = trace_parse_level(field);
 			if (level < 0) {
-				memprintf(errmsg, "no such level '%s'", field);
+				memprintf(errmsg, "no such trace level '%s', available levels are 'error', 'user', 'proto', 'state', 'data', and 'developer'", field);
 				return 1;
 			}
 		}
@@ -848,7 +848,7 @@ int trace_parse_cmd(char *arg, char **errmsg)
 		/* 3. verbosity */
 		field = str;
 		if (strchr(field, ':')) {
-			memprintf(errmsg, "too many double-colon separator");
+			memprintf(errmsg, "too many double-colon separators in trace definition");
 			return 1;
 		}
 
@@ -859,7 +859,12 @@ int trace_parse_cmd(char *arg, char **errmsg)
 
 		verbosity = trace_source_parse_verbosity(src, field);
 		if (verbosity < 0) {
-			memprintf(errmsg, "no such verbosity '%s' for source '%s'", field, name);
+			const struct name_desc *nd;
+
+			memprintf(errmsg, "no such trace verbosity '%s' for source '%s', available verbosities for this source are: 'quiet'", field, name);
+			for (nd = src->decoding; nd->name && nd->desc; nd++)
+				memprintf(errmsg, "%s, %s'%s'", *errmsg, (nd + 1)->name ? "" : "and ", nd->name);
+
 			return 1;
 		}
 

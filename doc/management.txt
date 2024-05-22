@@ -414,8 +414,10 @@ list of options is :
     detect protocol violations from clients or servers. An optional argument
     can be used to specify a list of various trace configurations using ',' as
     separator. Each element activates one or all trace sources. Additionally,
-    level and verbosity can be optionally specified on each element using ':' as
-    inner separator with trace name.
+    level and verbosity can be optionally specified on each element using ':'
+    as inner separator with trace name. When entering an invalid verbosity or
+    level name, the list of available keywords is presented. For example it can
+    be convenient to pass 'help' for each field to consult the list first.
 
   -m <limit> : limit allocatable memory, which is used to keep process's data,
     to <limit> megabytes. This may cause some connection refusals or some
