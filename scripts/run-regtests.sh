@@ -314,6 +314,7 @@ _version() {
 HAPROXY_PROGRAM="${HAPROXY_PROGRAM:-${PWD}/haproxy}"
 HAPROXY_ARGS="${HAPROXY_ARGS--dM -dI}"
 VTEST_PROGRAM="${VTEST_PROGRAM:-vtest}"
+VTEST_TIMEOUT="${VTEST_TIMEOUT:-10}"
 TESTDIR="${TMPDIR:-/tmp}"
 REGTESTS=""
 LINEFEED="
@@ -396,7 +397,7 @@ if [ -n "$testlist" ]; then
   if [ -n "$jobcount" ]; then
     jobcount="-j $jobcount"
   fi
-  cmd="$VTEST_PROGRAM -b $((2<<20)) -k -t 10 $keep_logs $verbose $debug $jobcount $vtestparams $testlist"
+  cmd="$VTEST_PROGRAM -b $((2<<20)) -k -t ${VTEST_TIMEOUT} $keep_logs $verbose $debug $jobcount $vtestparams $testlist"
   eval $cmd
   _vtresult=$?
 else
