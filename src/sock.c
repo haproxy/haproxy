@@ -326,7 +326,7 @@ int sock_create_server_socket(struct connection *conn, struct proxy *be, int *st
 	if (conn->flags & CO_FL_OPT_TOS)
 		sock_set_tos(sock_fd, conn->dst, conn->tos);
 
-	stream_err = SF_ERR_NONE;
+	*stream_err = SF_ERR_NONE;
 	return sock_fd;
 }
 
