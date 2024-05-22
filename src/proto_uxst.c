@@ -241,9 +241,8 @@ static int uxst_connect_server(struct connection *conn, int flags)
 
 	/* perform common checks on obtained socket FD, return appropriate Stream Error Flag in case of failure */
 	fd = conn->handle.fd = sock_create_server_socket(conn, be, &stream_err);
-	if (fd == -1) {
+	if (fd == -1)
 		return stream_err;
-	}
 
 	/* FD is ok, continue with protocol specific settings */
 	if (global.tune.server_sndbuf)
