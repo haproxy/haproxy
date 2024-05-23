@@ -130,9 +130,7 @@ void stksess_free(struct stktable *t, struct stksess *ts)
 	/* make the compiler happy when shard is not used without threads */
 	ALREADY_CHECKED(shard);
 
-	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 	__stksess_free(t, ts);
-	HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 }
 
 /*
