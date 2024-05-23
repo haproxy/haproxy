@@ -141,17 +141,25 @@ void stksess_free(struct stktable *t, struct stksess *ts)
  */
 int __stksess_kill(struct stktable *t, struct stksess *ts)
 {
+	int updt_locked = 0;
+
 	if (HA_ATOMIC_LOAD(&ts->ref_cnt))
 		return 0;
 
-	eb32_delete(&ts->exp);
 	if (ts->upd.node.leaf_p) {
+		updt_locked = 1;
 		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
-		eb32_delete(&ts->upd);
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
+		if (HA_ATOMIC_LOAD(&ts->ref_cnt))
+			goto out_unlock;
 	}
+	eb32_delete(&ts->exp);
+	eb32_delete(&ts->upd);
 	ebmb_delete(&ts->key);
 	__stksess_free(t, ts);
+
+  out_unlock:
+	if (updt_locked)
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
 	return 1;
 }
 
