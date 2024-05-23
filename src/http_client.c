@@ -1389,9 +1389,12 @@ static int httpclient_postcheck_proxy(struct proxy *curproxy)
 		/* init the SNI expression */
 		/* always use the host header as SNI, without the port */
 		srv_ssl->sni_expr = strdup("req.hdr(host),field(1,:)");
-		err_code |= server_parse_sni_expr(srv_ssl, curproxy, &errmsg);
-		if (err_code & ERR_CODE) {
-			memprintf(&errmsg, "failed to configure sni: %s.", errmsg);
+		srv_ssl->ssl_ctx.sni = _parse_srv_expr(srv_ssl->sni_expr,
+		                                       &curproxy->conf.args,
+		                                       NULL, 0, NULL);
+		if (!srv_ssl->ssl_ctx.sni) {
+			memprintf(&errmsg, "failed to configure sni.");
+			err_code |= ERR_ALERT | ERR_FATAL;
 			goto err;
 		}
 	}

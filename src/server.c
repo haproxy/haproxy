@@ -2429,42 +2429,56 @@ const char *server_parse_maxconn_change_request(struct server *sv,
 	return NULL;
 }
 
-static struct sample_expr *srv_sni_sample_parse_expr(struct server *srv, struct proxy *px,
-                                                     const char *file, int linenum, char **err)
+/* Interpret <expr> as sample expression. This function is reserved for
+ * internal server allocation. On parsing use parse_srv_expr() for extra sample
+ * check validity.
+ *
+ * Returns the allocated sample on success or NULL on error.
+ */
+struct sample_expr *_parse_srv_expr(char *expr, struct arg_list *args_px,
+                                    const char *file, int linenum, char **err)
 {
 	int idx;
 	const char *args[] = {
-		srv->sni_expr,
+		expr,
 		NULL,
 	};
 
 	idx = 0;
-	px->conf.args.ctx = ARGC_SRV;
+	args_px->ctx = ARGC_SRV;
 
-	return sample_parse_expr((char **)args, &idx, file, linenum, err, &px->conf.args, NULL);
+	return sample_parse_expr((char **)args, &idx, file, linenum, err, args_px, NULL);
 }
 
-int server_parse_sni_expr(struct server *newsrv, struct proxy *px, char **err)
+/* Interpret <str> if not empty as a sample expression and store it into <out>.
+ * Contrary to _parse_srv_expr(), fetch scope validity is checked to ensure it
+ * is valid on a server line context. It also updates <px> HTTP mode
+ * requirement depending on fetch method used.
+ *
+ * Returns 0 on success else non zero.
+ */
+static int parse_srv_expr(char *str, struct sample_expr **out, struct proxy *px,
+                          char **err)
 {
 	struct sample_expr *expr;
 
-	expr = srv_sni_sample_parse_expr(newsrv, px, px->conf.file, px->conf.line, err);
-	if (!expr) {
-		memprintf(err, "error detected while parsing sni expression : %s", *err);
+	if (!str)
+		return 0;
+
+	expr = _parse_srv_expr(str, &px->conf.args, px->conf.file, px->conf.line, err);
+	if (!expr)
 		return ERR_ALERT | ERR_FATAL;
-	}
 
 	if (!(expr->fetch->val & SMP_VAL_BE_SRV_CON)) {
-		memprintf(err, "error detected while parsing sni expression : "
-		          " fetch method '%s' extracts information from '%s', "
+		memprintf(err, "fetch method '%s' extracts information from '%s', "
 		          "none of which is available here.",
-		          newsrv->sni_expr, sample_src_names(expr->fetch->use));
+		          str, sample_src_names(expr->fetch->use));
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	px->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
-	release_sample_expr(newsrv->ssl_ctx.sni);
-	newsrv->ssl_ctx.sni = expr;
+	release_sample_expr(*out);
+	*out = expr;
 
 	return 0;
 }
@@ -3106,7 +3120,7 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 		srv_prepare_for_resolution(newsrv, srv->hostname);
 
 		if (newsrv->sni_expr) {
-			newsrv->ssl_ctx.sni = srv_sni_sample_parse_expr(newsrv, px, NULL, 0, NULL);
+			newsrv->ssl_ctx.sni = _parse_srv_expr(srv->sni_expr, &px->conf.args, NULL, 0, NULL);
 			if (!newsrv->ssl_ctx.sni)
 				goto err;
 		}
@@ -3495,25 +3509,6 @@ out:
 	return err_code;
 }
 
-/* This function is first intended to be used through parse_server to
- * initialize a new server on startup.
- */
-static int _srv_parse_sni_expr_init(char **args, int cur_arg,
-                                    struct server *srv, struct proxy *proxy,
-                                    char **errmsg)
-{
-	int ret;
-
-	if (!srv->sni_expr)
-		return 0;
-
-	ret = server_parse_sni_expr(srv, proxy, errmsg);
-	if (!ret)
-	    return 0;
-
-	return ret;
-}
-
 /* Server initializations finalization.
  * Initialize health check, agent check, SNI expression and outgoing TLVs if enabled.
  * Must not be called for a default server instance.
@@ -3540,9 +3535,9 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if ((ret = _srv_parse_sni_expr_init(args, cur_arg, srv, px, &errmsg)) != 0) {
+	if ((ret = parse_srv_expr(srv->sni_expr, &srv->ssl_ctx.sni, px, &errmsg))) {
 		if (errmsg) {
-			ha_alert("%s\n", errmsg);
+			ha_alert("error detected while parsing sni expression : %s.\n", errmsg);
 			free(errmsg);
 		}
 		return ret;
