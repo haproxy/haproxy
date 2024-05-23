@@ -572,25 +572,14 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 
 	/* If sync is enabled */
 	if (t->sync_task) {
-		/* We'll need to reliably check that the entry is in the tree.
-		 * It's only inserted/deleted using a write lock so a read lock
-		 * is sufficient to verify this. We may then need to upgrade it
-		 * to perform an update (which is rare under load), and if the
-		 * upgrade fails, we'll try again with a write lock directly.
-		 */
-		if (use_wrlock)
-			HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
-
 		if (local) {
 			/* Check if this entry is not in the tree or not
 			 * scheduled for at least one peer.
 			 */
 			if (!ts->upd.node.leaf_p || _HA_ATOMIC_LOAD(&ts->seen)) {
-				/* Time to upgrade the read lock to write lock if needed */
-				if (!use_wrlock) {
-					HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
-					use_wrlock = 1;
-				}
+				/* Time to upgrade the read lock to write lock */
+				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
+				use_wrlock = 1;
 
 				/* here we're write-locked */
 
@@ -619,10 +608,8 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 			 */
 			if (!ts->upd.node.leaf_p) {
 				/* Time to upgrade the read lock to write lock if needed */
-				if (!use_wrlock) {
-					HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
-					use_wrlock = 1;
-				}
+				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
+				use_wrlock = 1;
 
 				/* here we're write-locked */
 				if (!ts->upd.node.leaf_p) {
