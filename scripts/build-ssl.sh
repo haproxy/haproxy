@@ -88,6 +88,10 @@ build_libressl () {
 }
 
 download_boringssl () {
+
+    # travis-ci comes with go-1.11, while boringssl requires go-1.13
+    eval "$(curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | GIMME_GO_VERSION=1.13 bash)"
+
     if [ ! -d "${BUILDSSL_TMPDIR}/boringssl" ]; then
         git clone --depth=1 https://boringssl.googlesource.com/boringssl ${BUILDSSL_TMPDIR}/boringssl
     else
@@ -96,6 +100,24 @@ download_boringssl () {
         git pull
        )
     fi
+}
+
+build_boringssl () {
+	cd ${BUILDSSL_TMPDIR}/boringssl
+        if [ -d build ]; then rm -rf build; fi
+	mkdir build
+	cd build
+	cmake  -GNinja -DCMAKE_BUILD_TYPE=release -DBUILD_SHARED_LIBS=1 ..
+	ninja
+
+	rm -rf ${BUILDSSL_DESTDIR}/lib || exit 0
+	rm -rf ${BUILDSSL_DESTDIR}/include || exit 0
+
+	mkdir -p ${BUILDSSL_DESTDIR}/lib
+	cp crypto/libcrypto.so ssl/libssl.so ${BUILDSSL_DESTDIR}/lib
+
+	mkdir -p ${BUILDSSL_DESTDIR}/include
+	cp -r ../include/* ${BUILDSSL_DESTDIR}/include
 }
 
 download_aws_lc () {
@@ -133,6 +155,13 @@ download_quictls () {
         git pull
        )
     fi
+}
+
+build_quictls () {
+    cd ${BUILDSSL_TMPDIR}/quictls
+    ./config shared no-tests ${QUICTLS_EXTRA_ARGS:-} --prefix="${BUILDSSL_DESTDIR}" --openssldir="${BUILDSSL_DESTDIR}" --libdir=lib -DPURIFY
+    make -j$(nproc) build_sw
+    make install_sw
 }
 
 download_wolfssl () {
@@ -177,28 +206,8 @@ if [ ! -z ${OPENSSL_VERSION+x} ]; then
 fi
 
 if [ ! -z ${BORINGSSL+x} ]; then
-	(
-
-	# travis-ci comes with go-1.11, while boringssl requires go-1.13
-	eval "$(curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | GIMME_GO_VERSION=1.13 bash)"
-
-        download_boringssl
-	cd ${BUILDSSL_TMPDIR}/boringssl
-        if [ -d build ]; then rm -rf build; fi
-	mkdir build
-	cd build
-	cmake  -GNinja -DCMAKE_BUILD_TYPE=release -DBUILD_SHARED_LIBS=1 ..
-	ninja
-
-	rm -rf ${BUILDSSL_DESTDIR}/lib || exit 0
-	rm -rf ${BUILDSSL_DESTDIR}/include || exit 0
-
-	mkdir -p ${BUILDSSL_DESTDIR}/lib
-	cp crypto/libcrypto.so ssl/libssl.so ${BUILDSSL_DESTDIR}/lib
-
-	mkdir -p ${BUILDSSL_DESTDIR}/include
-	cp -r ../include/* ${BUILDSSL_DESTDIR}/include
-	)
+    download_boringssl
+    build_boringssl
 fi
 
 if [ ! -z ${AWS_LC_VERSION+x} ]; then
@@ -207,15 +216,8 @@ if [ ! -z ${AWS_LC_VERSION+x} ]; then
 fi
 
 if [ ! -z ${QUICTLS+x} ]; then
-        (
         download_quictls
-        cd ${BUILDSSL_TMPDIR}/quictls
-
-        ./config shared no-tests ${QUICTLS_EXTRA_ARGS:-} --prefix="${BUILDSSL_DESTDIR}" --openssldir="${BUILDSSL_DESTDIR}" --libdir=lib -DPURIFY
-        make -j$(nproc) build_sw
-        make install_sw
-
-        )
+        build_quictls
 fi
 
 if [ ! -z ${WOLFSSL_VERSION+x} ]; then
