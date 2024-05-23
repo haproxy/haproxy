@@ -62,6 +62,9 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 
 	HA_ATOMIC_INC(&th_ctx->nb_rhttp_conns);
 
+	/* session origin is only set after reversal. This ensures fetches
+	 * will be functional only after reversal, in particular src/dst.
+	 */
 	sess = session_new(l->bind_conf->frontend, l, NULL);
 	if (!sess)
 		goto err;

@@ -2798,6 +2798,9 @@ int conn_reverse(struct connection *conn)
 		conn->target = &l->obj_type;
 		conn->flags |= CO_FL_ACT_REVERSING;
 		task_wakeup(l->rx.rhttp.task, TASK_WOKEN_RES);
+
+		/* Initialize session origin after reversal. Mandatory for several fetches. */
+		sess->origin = &conn->obj_type;
 	}
 
 	/* Invert source and destination addresses if already set. */
