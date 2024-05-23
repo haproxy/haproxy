@@ -2774,6 +2774,15 @@ static inline void __do_send_log_backend(struct proxy *be, struct log_header hdr
 	_HA_ATOMIC_INC(&dropped_logs);
 }
 
+static inline void __send_log_set_metadata_sd(struct ist *metadata, char *sd, size_t sd_size)
+{
+	metadata[LOG_META_STDATA] = ist2(sd, sd_size);
+
+	/* Remove trailing space of structured data */
+	while (metadata[LOG_META_STDATA].len && metadata[LOG_META_STDATA].ptr[metadata[LOG_META_STDATA].len-1] == ' ')
+		metadata[LOG_META_STDATA].len--;
+}
+
 /* provided to low-level process_send_log() helper, may be NULL */
 struct process_send_log_ctx {
 	struct session *sess;
@@ -2892,11 +2901,7 @@ static void __send_log(struct process_send_log_ctx *ctx,
 		metadata[LOG_META_PID] = ist2(pidstr, strlen(pidstr));
 	}
 
-	metadata[LOG_META_STDATA] = ist2(sd, sd_size);
-
-	/* Remove trailing space of structured data */
-	while (metadata[LOG_META_STDATA].len && metadata[LOG_META_STDATA].ptr[metadata[LOG_META_STDATA].len-1] == ' ')
-		metadata[LOG_META_STDATA].len--;
+	__send_log_set_metadata_sd(metadata, sd, sd_size);
 
 	return process_send_log(ctx, loggers, level, -1, metadata, message, size);
 }
