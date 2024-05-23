@@ -1950,7 +1950,9 @@ harden.reject-privileged-ports.tcp { on | off }
 harden.reject-privileged-ports.quic { on | off }
   Toggle per protocol protection which forbid communication with clients which
   use privileged ports as their source port. This range of ports is defined
-  according to RFC 6335. Protection is inactive by default on both protocols.
+  according to RFC 6335. By default, protection is active for QUIC protocol as
+  this behavior is suspicious and may be used as a spoofing or DNS/NTP
+  amplification attack.
 
 http-err-codes [+-]<range>[,...] [...]
   Replace, reduce or extend the list of status codes that define an error as
