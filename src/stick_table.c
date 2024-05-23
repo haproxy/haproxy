@@ -607,8 +607,16 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 			do_wakeup = 1;
 		}
 		else {
-			/* If this entry is not in the tree */
-
+			/* Note: we land here when learning new entries from
+			 * remote peers. We hold one ref_cnt so the entry
+			 * cannot vanish under us, however if two peers create
+			 * the same key at the exact same time, we must be
+			 * careful not to perform two parallel inserts! Hence
+			 * we need to first check leaf_p to know if the entry
+			 * is new, then lock the tree and check the entry again
+			 * (since another thread could have created it in the
+			 * mean time).
+			 */
 			if (!ts->upd.node.leaf_p) {
 				/* Time to upgrade the read lock to write lock if needed */
 				if (!use_wrlock) {
@@ -617,13 +625,14 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 				}
 
 				/* here we're write-locked */
-
-				ts->seen = 0;
-				ts->upd.key= (++t->update)+(2147483648U);
-				eb = eb32_insert(&t->updates, &ts->upd);
-				if (eb != &ts->upd) {
-					eb32_delete(eb);
-					eb32_insert(&t->updates, &ts->upd);
+				if (!ts->upd.node.leaf_p) {
+					ts->seen = 0;
+					ts->upd.key= (++t->update)+(2147483648U);
+					eb = eb32_insert(&t->updates, &ts->upd);
+					if (eb != &ts->upd) {
+						eb32_delete(eb);
+						eb32_insert(&t->updates, &ts->upd);
+					}
 				}
 			}
 		}
