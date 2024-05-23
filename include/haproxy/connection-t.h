@@ -473,7 +473,7 @@ struct conn_src {
  * CAUTION! Always update CONN_HASH_PARAMS_TYPE_COUNT when adding a new entry.
  */
 enum conn_hash_params_t {
-	CONN_HASH_PARAMS_TYPE_SNI      = 0x1,
+	CONN_HASH_PARAMS_TYPE_NAME     = 0x1,
 	CONN_HASH_PARAMS_TYPE_DST_ADDR = 0x2,
 	CONN_HASH_PARAMS_TYPE_DST_PORT = 0x4,
 	CONN_HASH_PARAMS_TYPE_SRC_ADDR = 0x8,
@@ -494,7 +494,7 @@ enum conn_hash_params_t {
  * connection hash.
  */
 struct conn_hash_params {
-	uint64_t sni_prehash;
+	uint64_t name_prehash;
 	uint64_t proxy_prehash;
 	uint64_t mark_tos_prehash;
 	void *target;

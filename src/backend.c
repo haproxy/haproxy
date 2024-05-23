@@ -1349,9 +1349,7 @@ int connect_server(struct stream *s)
 	int reuse = 0;
 	int init_mux = 0;
 	int err;
-#ifdef USE_OPENSSL
-	struct sample *sni_smp = NULL;
-#endif
+	struct sample *name_smp = NULL;
 	struct sockaddr_storage *bind_addr = NULL;
 	int proxy_line_ret;
 	int64_t hash = 0;
@@ -1373,13 +1371,11 @@ int connect_server(struct stream *s)
 	if (err != SRV_STATUS_OK)
 		return SF_ERR_INTERNAL;
 
-#ifdef USE_OPENSSL
-	if (srv && srv->ssl_ctx.sni) {
-		sni_smp = sample_fetch_as_type(s->be, s->sess, s,
-		                               SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
-		                               srv->ssl_ctx.sni, SMP_T_STR);
+	if (srv && srv->pool_conn_name_expr) {
+		name_smp = sample_fetch_as_type(s->be, s->sess, s,
+		                                SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
+		                                srv->pool_conn_name_expr, SMP_T_STR);
 	}
-#endif
 
 	/* do not reuse if mode is not http */
 	if (!IS_HTX_STRM(s)) {
@@ -1403,17 +1399,12 @@ int connect_server(struct stream *s)
 	/* 1. target */
 	hash_params.target = s->target;
 
-#ifdef USE_OPENSSL
-	/* 2. sni
-	 * only test if the sample is not null as smp_make_safe (called before
-	 * ssl_sock_set_servername) can only fails if this is not the case
-	 */
-	if (sni_smp) {
-		hash_params.sni_prehash =
-		  conn_hash_prehash(sni_smp->data.u.str.area,
-		                    sni_smp->data.u.str.data);
+	/* 2. pool-conn-name */
+	if (name_smp) {
+		hash_params.name_prehash =
+		  conn_hash_prehash(name_smp->data.u.str.area,
+		                    name_smp->data.u.str.data);
 	}
-#endif /* USE_OPENSSL */
 
 	/* 3. destination address */
 	if (srv && srv_is_transparent(srv))
@@ -1787,7 +1778,13 @@ skip_reuse:
 		return err;
 
 #ifdef USE_OPENSSL
-	if (!(s->flags & SF_SRV_REUSED)) {
+	/* Set socket SNI unless connection is reused. */
+	if (srv && srv->ssl_ctx.sni && !(s->flags & SF_SRV_REUSED)) {
+		struct sample *sni_smp = NULL;
+
+		sni_smp = sample_fetch_as_type(s->be, s->sess, s,
+		                               SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
+		                               srv->ssl_ctx.sni, SMP_T_STR);
 		if (smp_make_safe(sni_smp))
 			ssl_sock_set_servername(srv_conn, sni_smp->data.u.str.area);
 	}

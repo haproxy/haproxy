@@ -2621,7 +2621,7 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 /* Generate the hash of a connection with params as input
  * Each non-null field of params is taken into account for the hash calcul.
  */
-uint64_t conn_hash_prehash(char *buf, size_t size)
+uint64_t conn_hash_prehash(const char *buf, size_t size)
 {
 	return XXH64(buf, size, 0);
 }
@@ -2699,10 +2699,10 @@ uint64_t conn_calculate_hash(const struct conn_hash_params *params)
 
 	conn_hash_update(&hash, &params->target, sizeof(params->target), &hash_flags, 0);
 
-	if (params->sni_prehash) {
+	if (params->name_prehash) {
 		conn_hash_update(&hash,
-		                 &params->sni_prehash, sizeof(params->sni_prehash),
-		                 &hash_flags, CONN_HASH_PARAMS_TYPE_SNI);
+		                 &params->name_prehash, sizeof(params->name_prehash),
+		                 &hash_flags, CONN_HASH_PARAMS_TYPE_NAME);
 	}
 
 	if (params->dst_addr) {
@@ -2770,7 +2770,7 @@ int conn_reverse(struct connection *conn)
 			/* data cannot wrap else prehash usage is incorrect */
 			BUG_ON(b_data(&conn->reverse.name) != b_contig_data(&conn->reverse.name, 0));
 
-			hash_params.sni_prehash =
+			hash_params.name_prehash =
 			  conn_hash_prehash(b_head(&conn->reverse.name),
 			                    b_data(&conn->reverse.name));
 		}
