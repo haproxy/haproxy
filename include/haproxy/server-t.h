@@ -301,6 +301,8 @@ struct server {
 	struct srv_per_tgroup *per_tgrp;        /* array of per-tgroup stuff such as idle conns */
 	unsigned int *curr_idle_thr;            /* Current number of orphan idling connections per thread */
 
+	char *pool_conn_name;
+	struct sample_expr *pool_conn_name_expr;
 	unsigned int pool_purge_delay;          /* Delay before starting to purge the idle conns pool */
 	unsigned int low_idle_conns;            /* min idle connection count to start picking from other threads */
 	unsigned int max_idle_conns;            /* Max number of connection allowed in the orphan connections list */

@@ -1397,6 +1397,16 @@ static int httpclient_postcheck_proxy(struct proxy *curproxy)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto err;
 		}
+
+		srv_ssl->pool_conn_name = strdup(srv_ssl->sni_expr);
+		srv_ssl->pool_conn_name_expr = _parse_srv_expr(srv_ssl->pool_conn_name,
+		                                               &curproxy->conf.args,
+		                                               NULL, 0, NULL);
+		if (!srv_ssl->pool_conn_name_expr) {
+			memprintf(&errmsg, "failed to configure pool-conn-name.");
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
 	}
 #endif
 

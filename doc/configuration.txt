@@ -7937,10 +7937,11 @@ http-reuse { never | safe | aggressive | always }
 
   When http connection sharing is enabled, a great care is taken to respect the
   connection properties and compatibility. Indeed, some properties are specific
-  and it is not possible to reuse it blindly. Those are the SSL SNI, source
-  and destination address, proxy protocol block as well as tos and mark
-  sockopts. A connection is reused only if it shares the same set of properties
-  with the request.
+  and it is not possible to reuse it blindly. Those are the source and
+  destination address, proxy protocol block as well as tos and mark sockopts.
+  It is also possible to manually define an extra expression identifier using
+  "pool-conn-name" server keyword, or "sni" as a fallback. A connection is
+  reused only if it shares the same set of properties with the request.
 
   Also note that connections with certain bogus authentication schemes (relying
   on the connection) like NTLM are marked private if possible and never shared.
@@ -14329,8 +14330,9 @@ attach-srv <srv> [name <expr>] [ EXPERIMENTAL ]
   An extra parameter <expr> can be specified. Its value is interpreted as a
   sample expression to name the connection inside the server idle pool. When
   routing an outgoing request through this server, this name will be matched
-  against the 'sni' parameter of the server line. Otherwise, the connection
-  will have no name and will only match requests without SNI.
+  against the 'pool-conn-name' parameter of the server line, or 'sni' as a
+  fallback. Otherwise, the connection will have no extra identifier and will
+  only match requests without name.
 
   This rule is only valid for frontend in HTTP mode. Also all listeners must
   not require a protocol different from HTTP/2.
@@ -17574,6 +17576,14 @@ on-marked-up <action>
     with an 'U' termination code (for "Up").
 
   Actions are disabled by default
+
+pool-conn-name <expr>
+  May be used in the following contexts: http
+
+  Set an expression which will be interpreted to differentiate connections
+  inside the server idle pool. On reuse, only connection with identical name
+  will be eligible. If SNI expression is defined but not this parameter, it
+  will act as idle pool identifier to guarantee that SNI match on reuse.
 
 pool-low-conn <max>
   May be used in the following contexts: http

@@ -1153,6 +1153,26 @@ static int srv_parse_pool_purge_delay(char **args, int *cur_arg, struct proxy *c
 	return 0;
 }
 
+static int srv_parse_pool_conn_name(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	char *arg;
+
+	arg = args[*cur_arg + 1];
+	if (!*arg) {
+		memprintf(err, "'%s' expects <value> as argument", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	ha_free(&newsrv->pool_conn_name);
+	newsrv->pool_conn_name = strdup(arg);
+	if (!newsrv->pool_conn_name) {
+		memprintf(err, "'%s' : out of memory", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+
 static int srv_parse_pool_low_conn(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
 {
 	char *arg;
@@ -2289,6 +2309,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "on-error",             srv_parse_on_error,             1,  1,  1 }, /* Configure the action on check failure */
 	{ "on-marked-down",       srv_parse_on_marked_down,       1,  1,  1 }, /* Configure the action when a server is marked down */
 	{ "on-marked-up",         srv_parse_on_marked_up,         1,  1,  1 }, /* Configure the action when a server is marked up */
+	{ "pool-conn-name",       srv_parse_pool_conn_name,       1,  1,  1 }, /* Define expression to identify connections in idle pool */
 	{ "pool-low-conn",        srv_parse_pool_low_conn,        1,  1,  1 }, /* Set the min number of orphan idle connecbefore being allowed to pick from other threads */
 	{ "pool-max-conn",        srv_parse_pool_max_conn,        1,  1,  1 }, /* Set the max number of orphan idle connections, -1 means unlimited */
 	{ "pool-purge-delay",     srv_parse_pool_purge_delay,     1,  1,  1 }, /* Set the time before we destroy orphan idle connections, defaults to 1s */
@@ -2819,6 +2840,8 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	srv->tcp_ut = src->tcp_ut;
 #endif
 	srv->mux_proto = src->mux_proto;
+	if (srv->pool_conn_name)
+		srv->pool_conn_name = strdup(srv->pool_conn_name);
 	srv->pool_purge_delay = src->pool_purge_delay;
 	srv->low_idle_conns = src->low_idle_conns;
 	srv->max_idle_conns = src->max_idle_conns;
@@ -2922,6 +2945,8 @@ void srv_free_params(struct server *srv)
 	free(srv->per_thr);
 	free(srv->per_tgrp);
 	free(srv->curr_idle_thr);
+	free(srv->pool_conn_name);
+	release_sample_expr(srv->pool_conn_name_expr);
 	free(srv->resolvers_id);
 	free(srv->addr_node.key);
 	free(srv->lb_nodes);
@@ -3118,6 +3143,19 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 
 		srv_settings_cpy(newsrv, srv, 1);
 		srv_prepare_for_resolution(newsrv, srv->hostname);
+
+		/* Use sni as fallback if pool_conn_name isn't set */
+		if (!newsrv->pool_conn_name && newsrv->sni_expr) {
+			newsrv->pool_conn_name = strdup(newsrv->sni_expr);
+			if (!newsrv->pool_conn_name)
+				goto err;
+		}
+
+		if (newsrv->pool_conn_name) {
+			newsrv->pool_conn_name_expr = _parse_srv_expr(srv->pool_conn_name, &px->conf.args, NULL, 0, NULL);
+			if (!newsrv->pool_conn_name_expr)
+				goto err;
+		}
 
 		if (newsrv->sni_expr) {
 			newsrv->ssl_ctx.sni = _parse_srv_expr(srv->sni_expr, &px->conf.args, NULL, 0, NULL);
@@ -3538,6 +3576,24 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 	if ((ret = parse_srv_expr(srv->sni_expr, &srv->ssl_ctx.sni, px, &errmsg))) {
 		if (errmsg) {
 			ha_alert("error detected while parsing sni expression : %s.\n", errmsg);
+			free(errmsg);
+		}
+		return ret;
+	}
+
+	/* Use sni as fallback if pool_conn_name isn't set */
+	if (!srv->pool_conn_name && srv->sni_expr) {
+		srv->pool_conn_name = strdup(srv->sni_expr);
+		if (!srv->pool_conn_name) {
+			ha_alert("out of memory\n");
+			return ERR_ALERT | ERR_FATAL;
+		}
+	}
+
+	if ((ret = parse_srv_expr(srv->pool_conn_name, &srv->pool_conn_name_expr,
+	                          px, &errmsg))) {
+		if (errmsg) {
+			ha_alert("error detected while parsing pool-conn-name expression : %s.\n", errmsg);
 			free(errmsg);
 		}
 		return ret;
