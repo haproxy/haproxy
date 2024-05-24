@@ -2326,7 +2326,7 @@ set-var-fmt <var-name> <fmt>
   are only those using internal data, typically 'int(value)' or 'str(value)'.
   It is possible to reference previously allocated variables as well. These
   variables will then be readable (and modifiable) from the regular rule sets.
-  Please see section 8.2.6 for details on the custom log-format syntax.
+  Please see section 8.2.6 for details on the Custom log format syntax.
 
   Example:
       global
@@ -6823,7 +6823,7 @@ email-alert to <emailaddr>
              "email-alert myhostname", section 3.6 about mailers.
 
 
-error-log-format <string>
+error-log-format <fmt>
   Specifies the log format string to use in case of connection error on the frontend side.
 
   May be used in the following contexts: tcp, http
@@ -7347,12 +7347,13 @@ http-check expect [min-recv <int>] [comment <msg>]
     on-success <fmt>   is optional and can be used to customize the
                        informational message reported in logs if the expect
                        rule is successfully evaluated and if it is the last rule
-                       in the tcp-check ruleset. <fmt> is a log-format string.
+                       in the tcp-check ruleset. <fmt> is a Custom log format
+                       string (see section 8.2.6).
 
     on-error <fmt>     is optional and can be used to customize the
                        informational message reported in logs if an error
                        occurred during the expect rule evaluation. <fmt> is a
-                       log-format string.
+                       Custom log format string (see section 8.2.6).
 
     <match>   is a keyword indicating how to look for a specific pattern in the
               response. The keyword may be one of "status", "rstatus", "hdr",
@@ -7398,17 +7399,18 @@ http-check expect [min-recv <int>] [comment <msg>]
                       match), "end" (suffix match), "sub" (substring match) or
                       "reg" (regex match). If not specified, exact matching
                       method is used. If the "name-lf" parameter is used,
-                      <name> is evaluated as a log-format string. If "value-lf"
-                      parameter is used, <value> is evaluated as a log-format
-                      string. These parameters cannot be used with the regex
-                      matching method. Finally, the header value is considered
-                      as comma-separated list. Note that matchings are case
-                      insensitive on the header names.
+                      <name> is evaluated as a Custom log format string (see
+                      section 8.2.6). If "value-lf" parameter is used, <value>
+                      is evaluated as a log-format string. These parameters
+                      cannot be used with the regex matching method. Finally,
+                      the header value is considered as comma-separated
+                      list. Note that matchings are case insensitive on the
+                      header names.
 
     fhdr { name | name-lf } [ -m <meth> ] <name>
          [ { value | value-lf } [ -m <meth> ] <value> :
                       test the specified full header pattern on the HTTP
-                      response headers. It does exactly the same than "hdr"
+                      response headers. It does exactly the same as the "hdr"
                       keyword, except the full header value is tested, commas
                       are not considered as delimiters.
 
@@ -7431,12 +7433,13 @@ http-check expect [min-recv <int>] [comment <msg>]
                       of a dynamic page, or to detect a failure when a specific
                       error appears on the check page (e.g. a stack trace).
 
-    string-lf <fmt> : test a log-format string match in the HTTP response body.
-                      A health check response will be considered valid if the
-                      response's body contains the  string resulting of the
-                      evaluation of <fmt>, which follows the log-format rules.
-                      If prefixed with "!", then the response will be
-                      considered invalid if the body contains the string.
+    string-lf <fmt> : test a Custom log format string (see section 8.2.6) match
+                      in the HTTP response body. A health check response will
+                      be considered valid if the response's body contains the
+                      string resulting of the evaluation of <fmt>, which
+                      follows the log-format rules. If prefixed with "!", then
+                      the response will be considered invalid if the body
+                      contains the string.
 
   It is important to note that the responses will be limited to a certain size
   defined by the global "tune.bufsize" option, which defaults to 16384 bytes.
@@ -7502,9 +7505,10 @@ http-check send [meth <method>] [{ uri <uri> | uri-lf <fmt> }>] [ver <version>]
                    other URI. Query strings are permitted.
 
     uri-lf <fmt>   is optional and set the URI referenced in the HTTP requests
-                   using the log-format string <fmt>. It defaults to "/" which
-                   is accessible by default on almost any server, but may be
-                   changed to any other URI. Query strings are permitted.
+                   using the Custom log format <fmt> (see section 8.2.6). It
+                   defaults to "/" which is accessible by default on almost any
+                   server, but may be changed to any other URI. Query strings
+                   are permitted.
 
     ver <version>  is the optional HTTP version string. It defaults to
                    "HTTP/1.0" but some servers might behave incorrectly in HTTP
@@ -7514,16 +7518,16 @@ http-check send [meth <method>] [{ uri <uri> | uri-lf <fmt> }>] [ver <version>]
 
     hdr <name> <fmt>  adds the HTTP header field whose name is specified in
                       <name> and whose value is defined by <fmt>, which follows
-                      to the log-format rules.
+                      the Custom log format rules described in section 8.2.6.
 
     body <string>  add the body defined by <string> to the request sent during
                    HTTP health checks. If defined, the "Content-Length" header
                    is thus automatically added to the request.
 
-    body-lf <fmt>  add the body defined by the log-format string <fmt> to the
-                   request sent during HTTP health checks. If defined, the
-                   "Content-Length" header is thus automatically added to the
-                   request.
+    body-lf <fmt>  add the body defined by the Custom log format <fmt> (see
+                   section 8.2.6) to the request sent during HTTP health
+                   checks. If defined, the "Content-Length" header is thus
+                   automatically added to the request.
 
   In addition to the request line defined by the "option httpchk" directive,
   this one is the valid way to add some headers and optionally a body to the
@@ -7632,7 +7636,7 @@ http-check set-var-fmt(<var-name>[,<cond>...]) <fmt>
 
     <expr>      Is a sample-fetch expression potentially followed by converters.
 
-    <fmt>       This is the value expressed using log-format rules (see Custom
+    <fmt>       This is the value expressed using Custom log format (see Custom
                 Log Format in section 8.2.6).
 
   Examples :
@@ -7715,7 +7719,7 @@ http-error status <code> [content-type <type>]
                          file is not empty, its content-type must be set as
                          argument to "content-type", otherwise, any
                          "content-type" argument is ignored. <file> is
-                         evaluated as a log-format string.
+                         evaluated as a Custom log format (see section 8.2.6).
 
     lf-string <str>      specifies the log-format string to use as response
                          payload. The content-type must always be set as
@@ -7723,8 +7727,9 @@ http-error status <code> [content-type <type>]
 
     hdr <name> <fmt>     adds to the response the HTTP header field whose name
                          is specified in <name> and whose value is defined by
-                         <fmt>, which follows to the log-format rules.
-                         This parameter is ignored if an errorfile is used.
+                         <fmt>, which follows the Custom log format rules (see
+                         section 8.2.6). This parameter is ignored if an
+                         errorfile is used.
 
   This directive may be used instead of "errorfile", to define a custom error
   message. As "errorfile" directive, it is used for errors detected and
@@ -8339,8 +8344,8 @@ no log
                                                 # level and send in tcp
     log "${LOCAL_SYSLOG}:514" local0 notice   # send to local server
 
-log-format <string>
-  Specifies the log format string to use for traffic logs
+log-format <fmt>
+  Specifies the custom log format string to use for traffic logs
 
   May be used in the following contexts: tcp, http
 
@@ -8359,8 +8364,8 @@ log-format <string>
   "log-format" directive overrides previous "option tcplog", "log-format",
   "option httplog" and "option httpslog" directives.
 
-log-format-sd <string>
-  Specifies the RFC5424 structured-data log format string
+log-format-sd <fmt>
+  Specifies the Custom log format string used to produce RFC5424 structured-data
 
   May be used in the following contexts: tcp, http
 
@@ -10924,8 +10929,8 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
   Arguments :
     <loc>     With "redirect location", the exact value in <loc> is placed into
               the HTTP "Location" header. When used in an "http-request" rule,
-              <loc> value follows the log-format rules and can include some
-              dynamic values (see Custom Log Format in section 8.2.6).
+              <loc> value follows the Custom log format rules and can include
+              some dynamic values (see Custom log format in section 8.2.6).
 
     <pfx>     With "redirect prefix", the "Location" header is built from the
               concatenation of <pfx> and the complete URI path, including the
@@ -10933,9 +10938,9 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
               below). As a special case, if <pfx> equals exactly "/", then
               nothing is inserted before the original URI. It allows one to
               redirect to the same URL (for instance, to insert a cookie). When
-              used in an "http-request" rule, <pfx> value follows the log-format
-              rules and can include some dynamic values (see Custom Log Format
-              in section 8.2.6).
+              used in an "http-request" rule, <pfx> value follows the Custom
+              Log Format rules and can include some dynamic values (see Custom
+              Log Format in section 8.2.6).
 
     <sch>     With "redirect scheme", then the "Location" header is built by
               concatenating <sch> with "://" then the first occurrence of the
@@ -10946,8 +10951,8 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
               returned, which most recent browsers interpret as redirecting to
               the same host. This directive is mostly used to redirect HTTP to
               HTTPS. When used in an "http-request" rule, <sch> value follows
-              the log-format rules and can include some dynamic values (see
-              Custom Log Format in section 8.2.6).
+              the Custom log format rules and can include some dynamic values
+              (see Custom log format in section 8.2.6).
 
     <code>    The code is optional. It indicates which type of HTTP redirection
               is desired. Only codes 301, 302, 303, 307 and 308 are supported,
@@ -12824,12 +12829,13 @@ tcp-check expect [min-recv <int>] [comment <msg>]
     on-success <fmt>   is optional and can be used to customize the
                        informational message reported in logs if the expect
                        rule is successfully evaluated and if it is the last rule
-                       in the tcp-check ruleset. <fmt> is a log-format string.
+                       in the tcp-check ruleset. <fmt> is a Custom log format
+                       (see section 8.2.6).
 
     on-error <fmt>     is optional and can be used to customize the
                        informational message reported in logs if an error
                        occurred during the expect rule evaluation. <fmt> is a
-                       log-format string.
+                       Custom log format (see section 8.2.6).
 
     status-code <expr> is optional and can be used to set the check status code
                        reported in logs, on success or on error. <expr> is a
@@ -12862,12 +12868,13 @@ tcp-check expect [min-recv <int>] [comment <msg>]
                       will be considered invalid if the body matches the
                       expression.
 
-    string-lf <fmt> : test a log-format string match in the response's buffer.
+    string-lf <fmt> : test a Custom log format match in the response's buffer.
                       A health check response will be considered valid if the
                       response's buffer contains the  string resulting of the
-                      evaluation of <fmt>, which follows the log-format rules.
-                      If prefixed with "!", then the response will be
-                      considered invalid if the buffer contains the string.
+                      evaluation of <fmt>, which follows the Custom log format
+                      rules described in section 8.2.6. If prefixed with "!",
+                      then the response will be considered invalid if the
+                      buffer contains the string.
 
     binary <hexstring> : test the exact string in its hexadecimal form matches
                          in the response buffer. A health check response will
@@ -12884,16 +12891,16 @@ tcp-check expect [min-recv <int>] [comment <msg>]
                       pattern should work on at-most half the response buffer
                       size.
 
-    binary-lf <hexfmt> : test a log-format string in its hexadecimal form
-                         match in the response's buffer. A health check response
-                         will be considered valid if the response's buffer
-                         contains the hexadecimal string resulting of the
-                         evaluation of <fmt>, which follows the log-format
-                         rules. If prefixed with "!", then the response will be
-                         considered invalid if the buffer contains the
-                         hexadecimal string. The hexadecimal string is converted
-                         in a binary string before matching the response's
-                         buffer.
+    binary-lf <hexfmt> : test a Custom log format in its hexadecimal form match
+                         in the response's buffer. A health check response will
+                         be considered valid if the response's buffer contains
+                         the hexadecimal string resulting of the evaluation of
+                         <fmt>, which follows the Custom log format rules (see
+                         section 8.2.6). If prefixed with "!", then the
+                         response will be considered invalid if the buffer
+                         contains the hexadecimal string. The hexadecimal
+                         string is converted in a binary string before matching
+                         the response's buffer.
 
   It is important to note that the responses will be limited to a certain size
   defined by the global "tune.bufsize" option, which defaults to 16384 bytes.
@@ -12932,7 +12939,7 @@ tcp-check expect [min-recv <int>] [comment <msg>]
 
 tcp-check send <data> [comment <msg>]
 tcp-check send-lf <fmt> [comment <msg>]
-  Specify a string or a log-format string to be sent as a question during a
+  Specify a string or a Custom log format to be sent as a question during a
   generic health check
 
   May be used in the following contexts: tcp, http, log
@@ -12946,8 +12953,8 @@ tcp-check send-lf <fmt> [comment <msg>]
     <data>         is the string that will be sent during a generic health
                    check session.
 
-    <fmt>          is the log-format string that will be sent, once evaluated,
-                   during a generic health check session.
+    <fmt>          is the Custom log format that will be sent, once evaluated,
+                   during a generic health check session (see section 8.2.6).
 
   Examples :
          # look for the redis master server
@@ -12961,7 +12968,7 @@ tcp-check send-lf <fmt> [comment <msg>]
 
 tcp-check send-binary <hexstring> [comment <msg>]
 tcp-check send-binary-lf <hexfmt> [comment <msg>]
-  Specify an hex digits string or an hex digits log-format string to be sent as
+  Specify an hex digits string or an hex digits Custom log format to be sent as
   a binary question during a raw tcp health check
 
   May be used in the following contexts: tcp, http, log
@@ -12975,9 +12982,9 @@ tcp-check send-binary-lf <hexfmt> [comment <msg>]
     <hexstring>    is the hexadecimal string that will be send, once converted
                    to binary, during a generic health check session.
 
-    <hexfmt>       is the hexadecimal log-format string that will be send, once
+    <hexfmt>       is the hexadecimal Custom log format that will be send, once
                    evaluated and converted to binary, during a generic health
-                   check session.
+                   check session (see section 8.2.6).
 
   Examples :
          # redis check in binary
@@ -13016,8 +13023,8 @@ tcp-check set-var-fmt(<var-name>[,<cond>...]) <fmt>
 
     <expr>      Is a sample-fetch expression potentially followed by converters.
 
-    <fmt>       This is the value expressed using log-format rules (see Custom
-                Log Format in section 8.2.6).
+    <fmt>       This is the value expressed using Custom log format rules (see
+                Custom log format in section 8.2.6).
 
   Examples :
     tcp-check set-var(check.port) int(1234)
@@ -13956,7 +13963,7 @@ transparent (deprecated)
 
   See also: "option transparent"
 
-unique-id-format <string>
+unique-id-format <fmt>
   Generate a unique ID for each request.
 
   May be used in the following contexts: tcp, http
@@ -13965,12 +13972,12 @@ unique-id-format <string>
                                   yes  |    yes   |   yes  |   no
 
   Arguments :
-    <string>   is a log-format string.
+    <fmt>   is a Custom log format string (see section 8.2.6).
 
   This keyword creates a ID for each request using the custom log format. A
   unique ID is useful to trace a request passing through many components of
   a complex infrastructure. The newly created ID may also be logged using the
-  %ID tag the log-format string.
+  %ID tag the Custom log format string.
 
   The format should be composed from elements that are guaranteed to be
   unique when combined together. For instance, if multiple HAProxy instances
@@ -14029,7 +14036,8 @@ use_backend <backend> [{if | unless} <condition>]
 
   Arguments :
     <backend>   is the name of a valid backend or "listen" section, or a
-                "log-format" string resolving to a backend name.
+                Custom log format resolving to a backend name (see Custom
+                Log Format in section 8.2.6).
 
     <condition> is a condition composed of ACLs, as described in section 7. If
                 it is omitted, the rule is unconditionally applied.
@@ -14061,7 +14069,7 @@ use_backend <backend> [{if | unless} <condition>]
 
   When <backend> is a simple name, it is resolved at configuration time, and an
   error is reported if the specified backend does not exist. If <backend> is
-  a log-format string instead, no check may be done at configuration time, so
+  a Custom log format instead, no check may be done at configuration time, so
   the backend name is resolved dynamically at run time. If the resulting
   backend name does not correspond to any valid backend, no other rule is
   evaluated, and the default_backend directive is applied instead. Note that
@@ -14100,7 +14108,8 @@ use-server <server> unless <condition>
 
   Arguments :
     <server>    is the name of a valid server in the same backend section
-                or a "log-format" string resolving to a server name.
+                or a Custom log format string resolving to a server name
+                (see section 8.2.6).
 
     <condition> is a condition composed of ACLs, as described in section 7.
 
@@ -14148,10 +14157,10 @@ use-server <server> unless <condition>
 
   When <server> is a simple name, it is checked against existing servers in the
   configuration and an error is reported if the specified server does not exist.
-  If it is a log-format, no check is performed when parsing the configuration,
-  and if we can't resolve a valid server name at runtime but the use-server rule
-  was conditioned by an ACL returning true, no other use-server rule is applied
-  and we fall back to load balancing.
+  If it is a Custom log format, no check is performed when parsing the
+  configuration, and if we can't resolve a valid server name at runtime but the
+  use-server rule was conditioned by an ACL returning true, no other use-server
+  rule is applied and we fall back to load balancing.
 
   See also: "use_backend", section 5 about server and section 7 about ACLs.
 
@@ -14288,10 +14297,10 @@ add-acl(<file-name>) <key fmt>
   This is used to add a new entry into an ACL. The ACL must be loaded from a
   file (even a dummy empty file). The file name of the ACL to be updated is
   passed between parentheses. It takes one argument: <key fmt>, which follows
-  log-format rules, to collect content of the new entry. It performs a lookup
-  in the ACL before insertion, to avoid duplicated (or more) values.
-  It is the equivalent of the "add acl" command from the stats socket, but can
-  be triggered by an HTTP request.
+  Custom log format rules described in section 8.2.6, to collect content of the
+  new entry. It performs a lookup in the ACL before insertion, to avoid
+  duplicated (or more) values. It is the equivalent of the "add acl" command
+  from the stats socket, but can be triggered by an HTTP request.
 
 
 add-header <name> <fmt>
@@ -14299,13 +14308,13 @@ add-header <name> <fmt>
                     -  |   -  |   -  |   -  |          X |  X |  X
 
   This appends an HTTP header field whose name is specified in <name> and
-  whose value is defined by <fmt> which follows the log-format rules (see
-  Custom Log Format in section 8.2.6). This is particularly useful to pass
+  whose value is defined by <fmt> which follows the Custom log format rules
+  (see Custom log format in section 8.2.6). This is particularly useful to pass
   connection-specific information to the server (e.g. the client's SSL
-  certificate), or to combine several headers into one. This rule is not
-  final, so it is possible to add other similar rules. Note that header
-  addition is performed immediately, so one rule might reuse the resulting
-  header from a previous rule.
+  certificate), or to combine several headers into one. This rule is not final,
+  so it is possible to add other similar rules. Note that header addition is
+  performed immediately, so one rule might reuse the resulting header from a
+  previous rule.
 
 
 allow
@@ -14436,9 +14445,9 @@ del-acl(<file-name>) <key fmt>
   This is used to delete an entry from an ACL. The ACL must be loaded from a
   file (even a dummy empty file). The file name of the ACL to be updated is
   passed between parentheses. It takes one argument: <key fmt>, which follows
-  log-format rules, to collect content of the entry to delete.
-  It is the equivalent of the "del acl" command from the stats socket, but can
-  be triggered by an HTTP request or response.
+  Custom log format rules of section 8.2.6, to collect content of the entry to
+  delete.  It is the equivalent of the "del acl" command from the stats socket,
+  but can be triggered by an HTTP request or response.
 
 
 del-header <name> [ -m <meth> ]
@@ -14459,10 +14468,10 @@ del-map(<map-name>) <key fmt>
   This is used to delete an entry from a MAP. <map-name> must follow the format
   described in 2.7. about name format for maps and ACLs. The name of the MAP to
   be updated is passed between parentheses. It takes one argument: <key fmt>,
-  which follows log-format rules, to collect content of the entry to delete.
-  It takes one argument: "file name" It is the equivalent of the "del map"
-  command from the stats socket, but can be triggered by an HTTP request or
-  response.
+  which follows Custom log format rules of section 8.2.6, to collect content of
+  the entry to delete.  It takes one argument: "file name" It is the equivalent
+  of the "del map" command from the stats socket, but can be triggered by an
+  HTTP request or response.
 
 
 deny [ { status | deny_status } <code> ] [ content-type <type> ]
@@ -14557,10 +14566,10 @@ early-hint <name> <fmt>
 
   This is used to build an HTTP 103 Early Hints response prior to any other one.
   This appends an HTTP header field to this response whose name is specified in
-  <name> and whose value is defined by <fmt> which follows the log-format rules
-  (see Custom Log Format in section 8.2.6). This is particularly useful to pass
-  to the client some Link headers to preload resources required to render the
-  HTML documents.
+  <name> and whose value is defined by <fmt> which follows the Custom Log
+  Format rules (see Custom log format in section 8.2.6). This is particularly
+  useful to pass to the client some Link headers to preload resources required
+  to render the HTML documents.
 
   See RFC 8297 for more information.
 
@@ -14747,7 +14756,7 @@ redirect <rule>
   This performs an HTTP redirection based on a redirect rule. This is exactly
   the same as the "redirect" statement except that it inserts a redirect rule
   which is processed in the middle of other "http-request" or "http-response"
-  rules and that these rules use the "log-format" strings. For responses, only
+  rules and that these rules use the Custom log format. For responses, only
   the "location" type of redirect is permitted. In addition, when a redirect is
   performed during a response, the transfer from the server to HAProxy is
   interrupted so that no payload can be forwarded to the client. This may cause
@@ -14973,19 +14982,20 @@ return [ status <code> ] [ content-type <type> ]
     used as the response payload. If the file is not empty, its content-type
     must be set as argument to "content-type". Otherwise, any "content-type"
     argument is ignored. With a "lf-file" argument, the file's content is
-    evaluated as a log-format string. With a "file" argument, it is considered
-    as a raw content.
+    evaluated as a Custom log format (see section 8.2.6). With a "file"
+    argument, it is considered as a raw content.
 
   * If a "string" or "lf-string" argument is specified, the defined string is
     used as the response payload. The content-type must always be set as
     argument to "content-type". With a "lf-string" argument, the string is
-    evaluated as a log-format string. With a "string" argument, it is
-    considered as a raw string.
+    evaluated as a Custom log format (see section 8.2.6). With a "string"
+    argument, it is considered as a raw string.
 
   When the response is not based on an errorfile, it is possible to append HTTP
   header fields to the response using "hdr" arguments. Otherwise, all "hdr"
   arguments are ignored. For each one, the header name is specified in <name>
-  and its value is defined by <fmt> which follows the log-format rules.
+  and its value is defined by <fmt> which follows the Custom log format rules
+  described in section 8.2.6.
 
   Note that the generated response must be smaller than a buffer. And to avoid
   any warning, when an errorfile or a raw file is loaded, the buffer space
@@ -15289,11 +15299,12 @@ set-map(<map-name>) <key fmt> <value fmt>
   This is used to add a new entry into a map. <map-name> must follow the format
   described in 2.7. about name format for maps and ACLs. The name of the MAP to
   be updated is passed between parentheses. It takes 2 arguments: <key fmt>,
-  which follows log-format rules, used to collect map key, and <value fmt>,
-  which follows log-format rules, used to collect content for the new entry.
-  It performs a lookup in the map before insertion, to avoid duplicated (or
-  more) values. It is the equivalent of the "set map" command from the
-  stats socket, but can be triggered by an HTTP request.
+  which follows Custom log format rules described in section 8.2.6, used to
+  collect map key, and <value fmt>, which follows Custom log format rules, used
+  to collect content for the new entry. It performs a lookup in the map before
+  insertion, to avoid duplicated (or more) values. It is the equivalent of the
+  "set map" command from the stats socket, but can be triggered by an HTTP
+  request.
 
 
 set-mark <mark> (deprecated)
@@ -15533,8 +15544,8 @@ set-var-fmt(<var-name>[,<cond>...]) <fmt>
     <expr>      Is a standard HAProxy expression formed by a sample-fetch
                 followed by some converters.
 
-    <fmt>       This is the value expressed using log-format rules (see Custom
-                Log Format in section 8.2.6).
+    <fmt>       This is the value expressed using Custom log format rules (see
+                Custom log format in section 8.2.6).
 
   All scopes are usable for HTTP rules, but scopes "proc" and "sess" are the
   only usable ones in rule sets which do not have access to contents such as
@@ -23724,7 +23735,7 @@ Warning : Following sample fetches are ignored if used from HTTP proxies. They
           HTTP proxies use structured content. Thus raw representation of
           these data are meaningless. A warning is emitted if an ACL relies on
           one of the following sample fetches. But it is not possible to detect
-          all invalid usage (for instance inside a log-format string or a
+          all invalid usage (for instance inside a Custom log format or a
           sample expression). So be careful.
 
 Summary of sample fetch methods in this section and their respective types:
@@ -27425,8 +27436,8 @@ no option mpxs-conns
 
 set-param <name> <fmt> [ { if | unless } <condition> ]
   Set a FastCGI parameter that should be passed to this application. Its
-  value, defined by <fmt> must follows the log-format rules (see section 8.2.6
-  "Custom Log format"). It may optionally be followed by an ACL-based
+  value, defined by <fmt> must follows the Custom log format rules (see section
+  8.2.6 "Custom Log format"). It may optionally be followed by an ACL-based
   condition, in which case it will only be evaluated if the condition is true.
 
   With this directive, it is possible to overwrite the value of default FastCGI
