@@ -376,15 +376,16 @@ static int trace_source_parse_verbosity(struct trace_source *src,
 	const struct name_desc *nd;
 	int ret;
 
+	/* Only "quiet" is defined for all sources. Other identifiers are
+	 * specific to trace source.
+	 */
 	if (strcmp(verbosity, "quiet") == 0) {
 		ret = 0;
 		goto end;
 	}
 
-	/* Only "quiet" is defined for all sources. Other identifiers are
-	 * specific to trace source.
-	 */
-	BUG_ON(!src);
+	if (!src)
+		return -1;
 
 	if (!src->decoding || !src->decoding[0].name) {
 		if (strcmp(verbosity, "default") != 0)
@@ -852,18 +853,18 @@ int trace_parse_cmd(char *arg, char **errmsg)
 			return 1;
 		}
 
-		if (!src && strcmp(field, "quiet") != 0) {
-			memprintf(errmsg, "trace source must be specified for verbosity other than 'quiet'");
-			return 1;
-		}
-
 		verbosity = trace_source_parse_verbosity(src, field);
 		if (verbosity < 0) {
 			const struct name_desc *nd;
 
-			memprintf(errmsg, "no such trace verbosity '%s' for source '%s', available verbosities for this source are: 'quiet'", field, name);
-			for (nd = src->decoding; nd->name && nd->desc; nd++)
-				memprintf(errmsg, "%s, %s'%s'", *errmsg, (nd + 1)->name ? "" : "and ", nd->name);
+			if (!src) {
+				memprintf(errmsg, "trace source must be specified for verbosity other than 'quiet'");
+			}
+			else {
+				memprintf(errmsg, "no such trace verbosity '%s' for source '%s', available verbosities for this source are: 'quiet'", field, name);
+				for (nd = src->decoding; nd->name && nd->desc; nd++)
+					memprintf(errmsg, "%s, %s'%s'", *errmsg, (nd + 1)->name ? "" : "and ", nd->name);
+			}
 
 			return 1;
 		}
