@@ -262,7 +262,8 @@ is called "head of line blocking" or "HoL blocking" or sometimes just "HoL".
 HTTP/3 is implemented over QUIC, itself implemented over UDP. QUIC solves the
 head of line blocking at the transport level by means of independently handled
 streams. Indeed, when experiencing loss, an impacted stream does not affect the
-other streams, and all of them can be accessed in parallel.
+other streams, and all of them can be accessed in parallel. QUIC also provides
+connection migration support but currently haproxy does not support it.
 
 By default HAProxy operates in keep-alive mode with regards to persistent
 connections: for each connection it processes each request and response, and
