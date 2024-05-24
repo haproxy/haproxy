@@ -2326,7 +2326,7 @@ set-var-fmt <var-name> <fmt>
   are only those using internal data, typically 'int(value)' or 'str(value)'.
   It is possible to reference previously allocated variables as well. These
   variables will then be readable (and modifiable) from the regular rule sets.
-  Please see section 8.2.4 for details on the log-format syntax.
+  Please see section 8.2.6 for details on the custom log-format syntax.
 
   Example:
       global
@@ -6838,8 +6838,8 @@ error-log-format <string>
   connection errors described in section 8.2.5.
 
   If the directive is used in a defaults section, all subsequent frontends will
-  use the same log format. Please see section 8.2.4 which covers the log format
-  string in depth.
+  use the same log format. Please see section 8.2.6 which covers the custom log
+  format string in depth.
 
   "error-log-format" directive overrides previous "error-log-format"
   directives.
@@ -7633,7 +7633,7 @@ http-check set-var-fmt(<var-name>[,<cond>...]) <fmt>
     <expr>      Is a sample-fetch expression potentially followed by converters.
 
     <fmt>       This is the value expressed using log-format rules (see Custom
-                Log Format in section 8.2.4).
+                Log Format in section 8.2.6).
 
   Examples :
         http-check set-var(check.port) int(1234)
@@ -8350,8 +8350,9 @@ log-format <string>
   This directive specifies the log format string that will be used for all logs
   resulting from traffic passing through the frontend using this line. If the
   directive is used in a defaults section, all subsequent frontends will use
-  the same log format. Please see section 8.2.4 which covers the log format
-  string in depth.
+  the same log format. Please see section 8.2.6 which covers the custom log
+  format string in depth.
+
   A specific log-format used only in case of connection error can also be
   defined, see the "error-log-format" option.
 
@@ -8369,7 +8370,7 @@ log-format-sd <string>
   This directive specifies the RFC5424 structured-data log format string that
   will be used for all logs resulting from traffic passing through the frontend
   using this line. If the directive is used in a defaults section, all
-  subsequent frontends will use the same log format. Please see section 8.2.4
+  subsequent frontends will use the same log format. Please see section 8.2.6
   which covers the log format string in depth.
 
   See https://tools.ietf.org/html/rfc5424#section-6.3 for more information
@@ -10924,7 +10925,7 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
     <loc>     With "redirect location", the exact value in <loc> is placed into
               the HTTP "Location" header. When used in an "http-request" rule,
               <loc> value follows the log-format rules and can include some
-              dynamic values (see Custom Log Format in section 8.2.4).
+              dynamic values (see Custom Log Format in section 8.2.6).
 
     <pfx>     With "redirect prefix", the "Location" header is built from the
               concatenation of <pfx> and the complete URI path, including the
@@ -10934,7 +10935,7 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
               redirect to the same URL (for instance, to insert a cookie). When
               used in an "http-request" rule, <pfx> value follows the log-format
               rules and can include some dynamic values (see Custom Log Format
-              in section 8.2.4).
+              in section 8.2.6).
 
     <sch>     With "redirect scheme", then the "Location" header is built by
               concatenating <sch> with "://" then the first occurrence of the
@@ -10946,7 +10947,7 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
               the same host. This directive is mostly used to redirect HTTP to
               HTTPS. When used in an "http-request" rule, <sch> value follows
               the log-format rules and can include some dynamic values (see
-              Custom Log Format in section 8.2.4).
+              Custom Log Format in section 8.2.6).
 
     <code>    The code is optional. It indicates which type of HTTP redirection
               is desired. Only codes 301, 302, 303, 307 and 308 are supported,
@@ -13016,7 +13017,7 @@ tcp-check set-var-fmt(<var-name>[,<cond>...]) <fmt>
     <expr>      Is a sample-fetch expression potentially followed by converters.
 
     <fmt>       This is the value expressed using log-format rules (see Custom
-                Log Format in section 8.2.4).
+                Log Format in section 8.2.6).
 
   Examples :
     tcp-check set-var(check.port) int(1234)
@@ -14299,7 +14300,7 @@ add-header <name> <fmt>
 
   This appends an HTTP header field whose name is specified in <name> and
   whose value is defined by <fmt> which follows the log-format rules (see
-  Custom Log Format in section 8.2.4). This is particularly useful to pass
+  Custom Log Format in section 8.2.6). This is particularly useful to pass
   connection-specific information to the server (e.g. the client's SSL
   certificate), or to combine several headers into one. This rule is not
   final, so it is possible to add other similar rules. Note that header
@@ -14557,7 +14558,7 @@ early-hint <name> <fmt>
   This is used to build an HTTP 103 Early Hints response prior to any other one.
   This appends an HTTP header field to this response whose name is specified in
   <name> and whose value is defined by <fmt> which follows the log-format rules
-  (see Custom Log Format in section 8.2.4). This is particularly useful to pass
+  (see Custom Log Format in section 8.2.6). This is particularly useful to pass
   to the client some Link headers to preload resources required to render the
   HTML documents.
 
@@ -15533,7 +15534,7 @@ set-var-fmt(<var-name>[,<cond>...]) <fmt>
                 followed by some converters.
 
     <fmt>       This is the value expressed using log-format rules (see Custom
-                Log Format in section 8.2.4).
+                Log Format in section 8.2.6).
 
   All scopes are usable for HTTP rules, but scopes "proc" and "sess" are the
   only usable ones in rule sets which do not have access to contents such as
@@ -21905,13 +21906,13 @@ fc_err : integer
   Returns the ID of the error that might have occurred on the current
   connection. Any strictly positive value of this fetch indicates that the
   connection did not succeed and would result in an error log being output (as
-  described in section 8.2.6). See the "fc_err_str" fetch for a full list of
+  described in section 8.2.5). See the "fc_err_str" fetch for a full list of
   error codes and their corresponding error message.
 
 fc_err_str : string
   Returns an error message describing what problem happened on the current
   connection, resulting in a connection failure. This string corresponds to the
-  "message" part of the error log format (see section 8.2.6). See below for a
+  "message" part of the error log format (see section 8.2.5). See below for a
   full list of error codes and their corresponding error messages :
 
   +----+---------------------------------------------------------------------------+
@@ -27424,7 +27425,7 @@ no option mpxs-conns
 
 set-param <name> <fmt> [ { if | unless } <condition> ]
   Set a FastCGI parameter that should be passed to this application. Its
-  value, defined by <fmt> must follows the log-format rules (see section 8.2.4
+  value, defined by <fmt> must follows the log-format rules (see section 8.2.6
   "Custom Log format"). It may optionally be followed by an ACL-based
   condition, in which case it will only be evaluated if the condition is true.
 
