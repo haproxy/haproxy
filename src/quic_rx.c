@@ -982,7 +982,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		case QUIC_FT_RETIRE_CONNECTION_ID:
 		{
-			struct quic_cid_tree *tree;
+			struct quic_cid_tree *tree __maybe_unused;
 			struct quic_connection_id *conn_id = NULL;
 
 			if (!qc_handle_retire_connection_id_frm(qc, &frm, &pkt->dcid, &conn_id))
