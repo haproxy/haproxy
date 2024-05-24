@@ -224,11 +224,11 @@ static int init_select_per_thread()
 	tmp_evts[DIR_RD] = calloc(1, fd_set_bytes);
 	if (tmp_evts[DIR_RD] == NULL)
 		goto fail;
-	vma_set_name(tmp_evts[DIR_RD], fd_set_bytes, "ev_select", "tmp_evts_rd");
+	vma_set_name_id(tmp_evts[DIR_RD], fd_set_bytes, "ev_select", "tmp_evts_rd", tid + 1);
 	tmp_evts[DIR_WR] = calloc(1, fd_set_bytes);
 	if (tmp_evts[DIR_WR] == NULL)
 		goto fail;
-	vma_set_name(tmp_evts[DIR_WR], fd_set_bytes, "ev_select", "tmp_evts_wr");
+	vma_set_name_id(tmp_evts[DIR_WR], fd_set_bytes, "ev_select", "tmp_evts_wr", tid + 1);
 	return 1;
   fail:
 	free(tmp_evts[DIR_RD]);

@@ -1108,7 +1108,7 @@ void poller_pipe_io_handler(int fd)
 static int alloc_pollers_per_thread()
 {
 	fd_updt = calloc(global.maxsock, sizeof(*fd_updt));
-	vma_set_name(fd_updt, global.maxsock * sizeof(*fd_updt), "fd", "fd_updt");
+	vma_set_name_id(fd_updt, global.maxsock * sizeof(*fd_updt), "fd", "fd_updt", tid + 1);
 	return fd_updt != NULL;
 }
 

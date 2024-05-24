@@ -250,7 +250,8 @@ static int init_poll_per_thread()
 	poll_events = calloc(1, sizeof(struct pollfd) * global.maxsock);
 	if (poll_events == NULL)
 		return 0;
-	vma_set_name(poll_events, sizeof(struct pollfd) * global.maxsock, "ev_poll", "poll_events");
+	vma_set_name_id(poll_events, sizeof(struct pollfd) * global.maxsock,
+	                "ev_poll", "poll_events", tid + 1);
 	return 1;
 }
 
