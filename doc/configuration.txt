@@ -19250,7 +19250,7 @@ aes_gcm_dec(<bits>,<nonce>,<key>,<aead_tag>)
       aes_gcm_dec(128,txn.nonce,Zm9vb2Zvb29mb29wZm9vbw==,txn.aead_tag)]
 
 aes_gcm_enc(<bits>,<nonce>,<key>,<aead_tag>)
-  Decrypts the raw byte input using the AES128-GCM, AES192-GCM or
+  Encrypts the raw byte input using the AES128-GCM, AES192-GCM or
   AES256-GCM algorithm, depending on the <bits> parameter. <nonce> and <key>
   parameters must be base64 encoded. Last parameter, <aead_tag>, must be a
   variable. The AEAD tag will be stored base64 encoded into that variable.
