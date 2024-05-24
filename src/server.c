@@ -3459,8 +3459,6 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 	else {
 		*srv = newsrv = &curproxy->defsrv;
 		*cur_arg = 1;
-		newsrv->resolv_opts.family_prio = AF_INET6;
-		newsrv->resolv_opts.accept_duplicate_ip = 0;
 	}
 
 	free(fqdn);
