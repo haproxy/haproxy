@@ -175,22 +175,62 @@ syslog S1 -level info {
 
     # C32
     recv
-    expect ~ "^.* uri: GET http:// HTTP/1.1; host: {}$"
+    expect ~ "^.* uri: GET http:/// HTTP/1.1; host: {}$"
     barrier b1 sync
 
     # C33
     recv
-    expect ~ "^.* uri: GET https:// HTTP/1.1; host: {}$"
+    expect ~ "^.* uri: GET https:/// HTTP/1.1; host: {}$"
     barrier b1 sync
 
     # C34
     recv
-    expect ~ "^.* uri: GET http:// HTTP/1.1; host: {}$"
+    expect ~ "^.* uri: GET http:/// HTTP/1.1; host: {}$"
     barrier b1 sync
 
     # C35
     recv
-    expect ~ "^.* uri: GET https:// HTTP/1.1; host: {}$"
+    expect ~ "^.* uri: GET https:/// HTTP/1.1; host: {}$"
+    barrier b1 sync
+
+    # C36
+    recv
+    expect ~ "^.* uri: GET http://hostname/ HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
+
+    # C37
+    recv
+    expect ~ "^.* uri: GET http://hostname/ HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
+
+    # C38
+    recv
+    expect ~ "^.* uri: GET http://hostname/ HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
+
+    # C39
+    recv
+    expect ~ "^.* uri: GET https://hostname/ HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
+
+    # C40
+    recv
+    expect ~ "^.* uri: GET https://hostname/ HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
+
+    # C41
+    recv
+    expect ~ "^.* uri: GET https://hostname/ HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
+
+    # C42
+    recv
+    expect ~ "^.* uri: GET http://hostname:81/ HTTP/1.1; host: {hostname:81}$"
+    barrier b1 sync
+
+    # C43
+    recv
+    expect ~ "^.* uri: GET https://hostname:444/ HTTP/1.1; host: {hostname:444}$"
 
 } -start
 
@@ -754,6 +794,110 @@ client c35 -connect ${h1_fe_sock} {
       -req "GET" \
       -url "https://:" \
       -hdr "host: :"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Wait matching on log message
+barrier b1 sync
+
+client c36 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Wait matching on log message
+barrier b1 sync
+
+client c37 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname:80" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Wait matching on log message
+barrier b1 sync
+
+client c38 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname:" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Wait matching on log message
+barrier b1 sync
+
+client c39 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "https://hostname" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Wait matching on log message
+barrier b1 sync
+
+client c40 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "https://hostname:443" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Wait matching on log message
+barrier b1 sync
+
+client c41 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "https://hostname:" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Wait matching on log message
+barrier b1 sync
+
+client c42 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname:81" \
+      -hdr "host: hostname:81"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Wait matching on log message
+barrier b1 sync
+
+client c43 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "https://hostname:444" \
+      -hdr "host: hostname:444"
 
     rxresp
     expect resp.status == 200

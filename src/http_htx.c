@@ -1828,8 +1828,9 @@ int http_scheme_based_normalize(struct htx *htx)
 {
 	struct http_hdr_ctx ctx;
 	struct htx_sl *sl;
-	struct ist uri, scheme, authority, host, port;
+	struct ist uri, scheme, authority, host, port, path;
 	struct http_uri_parser parser;
+	int normalize = 0;
 
 	sl = http_get_stline(htx);
 
@@ -1846,14 +1847,21 @@ int http_scheme_based_normalize(struct htx *htx)
 
 	/* Extract the port if present in authority */
 	authority = http_parse_authority(&parser, 1);
+	path = http_parse_path(&parser);
 	port = http_get_host_port(authority);
-	if (!isttest(port)) {
-		/* if no port found, no normalization to proceed */
-		return 0;
+	if (!isttest(port) || !http_is_default_port(scheme, port))
+		host = authority;
+	else {
+		host = isttrim(authority, istlen(authority) - istlen(port) - 1);
+		normalize = 1;
 	}
-	host = isttrim(authority, istlen(authority) - istlen(port) - 1);
 
-	if (http_is_default_port(scheme, port)) {
+	if (!isttest(path)) {
+		path = ist("/");
+		normalize = 1;
+	}
+
+	if (normalize) {
 		/* reconstruct the uri with removal of the port */
 		struct buffer *temp = get_trash_chunk();
 		struct ist meth, vsn;
@@ -1869,8 +1877,8 @@ int http_scheme_based_normalize(struct htx *htx)
 		/* reconstruct uri without port */
 		chunk_memcat(temp, uri.ptr, authority.ptr - uri.ptr);
 		chunk_istcat(temp, host);
-		chunk_memcat(temp, istend(authority), istend(uri) - istend(authority));
-		uri = ist2(temp->area + meth.len + vsn.len, host.len + uri.len - authority.len); /* uri */
+		chunk_istcat(temp, path);
+		uri = ist2(temp->area + meth.len + vsn.len, host.len + path.len + authority.ptr - uri.ptr); /* uri */
 
 		http_replace_stline(htx, meth, uri, vsn);
 
