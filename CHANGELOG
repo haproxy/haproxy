@@ -1,6 +1,74 @@
 ChangeLog :
 ===========
 
+2024/05/24 : 3.0-dev13
+    - CLEANUP: ssl/cli: remove unused code in dump_crtlist_conf
+    - MINOR: ssl: check parameter in ckch_conf_cmp()
+    - BUG/MINOR: ring: free ring's allocated area not ring's usable area when using maps
+    - DOC: configuration: rework the crt-store load documentation
+    - DEBUG: tools: add vma_set_name() helper
+    - DEBUG: shctx: name shared memory using vma_set_name()
+    - DEBUG: sink: add name hint for memory area used by memory-backed sinks
+    - DEBUG: pollers: add name hint for large memory areas used by pollers
+    - DEBUG: errors: add name hint for startup-logs memory area
+    - DEBUG: fd: add name hint for large memory areas
+    - MEDIUM: ssl: don't load file by discovering them in crt-store
+    - DOC: configuration: update the crt-list documentation
+    - DOC: configuration: add the supported crt-store options in crt-list
+    - BUG/MEDIUM: proto: fix fd leak in <proto>_connect_server
+    - MINOR: sock: set conn->err_code in case of EPERM
+    - BUG/MINOR: http-ana: Don't crush stream termination condition on internal error
+    - MAJOR: spoe: Let the SPOE back into the game
+    - BUG/MINOR: connection: parse PROXY TLV for LOCAL mode
+    - BUG/MINOR: server: free PROXY v2 TLVs on srv drop
+    - MINOR: rhttp: add log on connection allocation failure
+    - BUG/MEDIUM: rhttp: fix preconnect on single-thread
+    - BUG/MINOR: rhttp: prevent listener suspend
+    - BUG/MINOR: rhttp: fix task_wakeup state
+    - MINOR: session: define flag to explicitely release listener on free
+    - MEDIUM: rhttp: create session for active preconnect
+    - MINOR: rhttp: support PROXY emission on preconnect
+    - MINOR: connection: support PROXY v2 TLV emission without stream
+    - MINOR: traces: enumerate the list of levels/verbosities when not found
+    - BUG/MINOR: sock: fix sock_create_server_socket
+    - MINOR: proto: fix coding style
+    - BUG/MAJOR: quic: Crash with TLS_AES_128_CCM_SHA256 (libressl only)
+    - REGTESTS: scripts: allow to change the vtest timeout
+    - BUG/MEDIUM: quic_tls: prevent LibreSSL < 4.0 from negotiating CHACHA20_POLY1305
+    - CI: scripts/build-ssl.sh: loudly fail on unsupported platforms
+    - BUG/MEDIUM: mux-quic: Create sedesc in same time of the QUIC stream
+    - MINOR: mux-quic: Set abort info for SC-less QCS on STOP_SENDING frame
+    - CI: scripts/build-ssl: add a DESTDIR and TMPDIR variable
+    - CI: scripts/buil-ssl: cleanup the boringssl and quictls build
+    - MINOR: config: add thread-hard-limit to set an upper bound to nbthread
+    - BUILD: quic: fix unused variable warning when threads are disabled
+    - BUG/MEDIUM: stick-tables: Fix race with peers when trashing oldest entries
+    - BUG/MEDIUM: stick-tables: Fix race with peers when killing a sticky session
+    - BUG/MEDIUM: stick-tables: make sure never to create two same remote entries
+    - CLEANUP: stick-tables: remove a few unneeded tests for use_wrlock
+    - MINOR: stick-tables: remove the uneeded read lock in stksess_free()
+    - CLEANUP: tools: fix vma_set_name() function comment
+    - DEBUG: tools: add vma_set_name_id() helper
+    - DEBUG: pollers/fd: add thread id suffix to per-thread memory areas name hints
+    - DOC: config: fix aes_gcm_enc() description text
+    - BUILD: trace: fix warning on null dereference
+    - MEDIUM: config: prevent communication with privileged ports
+    - MAJOR: config: prevent QUIC with clients privileged port by default
+    - BUG/MINOR: quic: adjust restriction for stateless reset emission
+    - MINOR: quic: clarify doc for quic_recv()
+    - MINOR: server: generalize sni expr parsing
+    - MINOR: server: define pool-conn-name keyword
+    - MEDIUM: connection: use pool-conn-name instead of sni on reuse
+    - BUG/MINOR: rhttp: initialize session origin after preconnect reversal
+    - BUG/MEDIUM: server/dns: preserve server's port upon resolution timeout or error
+    - BUG/MINOR: http-htx: Support default path during scheme based normalization
+    - BUG/MINOR: server: Don't reset resolver options on a new default-server line
+    - DOC: quic: specify that connection migration is not supported
+    - DOC: config: fix incorrect section reference about custom log format
+    - DOC: config: uniformize the naming and description of custom log format args
+    - DOC: config: clarify the fact that custom log format is not just for logging
+    - REGTESTS: acl_cli_spaces: avoid a warning caused by undefined logs
+
 2024/05/18 : 3.0-dev12
     - CI: drop asan.log umbrella completely
     - BUG/MINOR: log: fix leak in add_sample_to_logformat_list() error path
