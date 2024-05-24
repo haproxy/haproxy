@@ -6515,9 +6515,9 @@ void vma_set_name(void *addr, size_t size, const char *type, const char *name)
 		 * except [, ], \, $ and '.
 		 * As a result, when looking for /proc/<pid>/maps, we can see the anonymous range
 		 * as follow :
-		 * `7364c4fff000-736508000000 rw-s 00000000 00:01 3540  [anon_shmem:scope.name]`
+		 * `7364c4fff000-736508000000 rw-s 00000000 00:01 3540  [anon_shmem:scope:name]`
 		 * (MAP_SHARED)
-		 * `7364c4fff000-736508000000 rw-s 00000000 00:01 3540  [anon:scope.name]`
+		 * `7364c4fff000-736508000000 rw-s 00000000 00:01 3540  [anon:scope:name]`
 		 * (MAP_PRIVATE)
 		 */
 		char fullname[80];
