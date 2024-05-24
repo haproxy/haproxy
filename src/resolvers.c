@@ -725,7 +725,7 @@ static void resolv_srvrq_cleanup_srv(struct server *srv)
 	ha_free(&srv->hostname_dn);
 	srv->hostname_dn_len = 0;
 	memset(&srv_addr, 0, sizeof(srv_addr));
-	/* unset server's addr */
+	/* unset server's addr AND port */
 	server_set_inetaddr(srv, &srv_addr, SERVER_INETADDR_UPDATER_NONE, NULL);
 	srv->flags |= SRV_F_NO_RESOLUTION;
 
