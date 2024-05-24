@@ -2730,6 +2730,13 @@ int check_config_validity()
 	if (!global.tune.requri_len)
 		global.tune.requri_len = REQURI_LEN;
 
+	if (!global.thread_limit)
+		global.thread_limit = MAX_THREADS;
+
+#if defined(USE_THREAD)
+	if (thread_cpus_enabled_at_boot > global.thread_limit)
+		thread_cpus_enabled_at_boot = global.thread_limit;
+#endif
 	if (!global.nbthread) {
 		/* nbthread not set, thus automatic. In this case, and only if
 		 * running on a single process, we enable the same number of
@@ -2753,12 +2760,23 @@ int check_config_validity()
 				global.nbtgroups = 1;
 
 			if (global.nbthread > MAX_THREADS_PER_GROUP * global.nbtgroups) {
-				ha_diag_warning("nbthread not set, found %d CPUs, limiting to %d threads (maximum is %d per thread group). Please set nbthreads and/or increase thread-groups in the global section to silence this warning.\n",
-					   global.nbthread, MAX_THREADS_PER_GROUP * global.nbtgroups, MAX_THREADS_PER_GROUP);
+				if (global.nbthread <= global.thread_limit)
+					ha_diag_warning("nbthread not set, found %d CPUs, limiting to %d threads (maximum is %d per thread group). "
+							"Please set nbthreads and/or increase thread-groups in the global section to silence this warning.\n",
+							global.nbthread, MAX_THREADS_PER_GROUP * global.nbtgroups, MAX_THREADS_PER_GROUP);
 				global.nbthread = MAX_THREADS_PER_GROUP * global.nbtgroups;
 			}
+
+			if (global.nbthread > global.thread_limit)
+				global.nbthread = global.thread_limit;
 		}
 #endif
+	}
+	else if (global.nbthread > global.thread_limit) {
+		ha_warning("nbthread forced to a higher value (%d) than the configured thread-hard-limit (%d), enforcing the limit. "
+			   "Please fix either value to remove this warning.\n",
+			   global.nbthread, global.thread_limit);
+		global.nbthread = global.thread_limit;
 	}
 
 	if (!global.nbtgroups)

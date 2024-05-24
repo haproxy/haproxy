@@ -1709,6 +1709,35 @@ static int cfg_parse_nbthread(char **args, int section_type, struct proxy *curpx
 	return 0;
 }
 
+/* Parse the "thread-hard-limit" global directive, which takes an integer
+ * argument that contains the desired maximum number of threads that will
+ * not be crossed.
+ */
+static int cfg_parse_thread_hard_limit(char **args, int section_type, struct proxy *curpx,
+                              const struct proxy *defpx, const char *file, int line,
+                              char **err)
+{
+	long nbthread;
+	char *errptr;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	nbthread = strtol(args[1], &errptr, 10);
+	if (!*args[1] || *errptr) {
+		memprintf(err, "'%s' passed a missing or unparsable integer value in '%s'", args[0], args[1]);
+		return -1;
+	}
+
+	if (nbthread < 1 || nbthread > MAX_THREADS) {
+		memprintf(err, "'%s' value must be at least 1 (was %ld)", args[0], nbthread);
+		return -1;
+	}
+
+	global.thread_limit = nbthread;
+	return 0;
+}
+
 /* Parse the "thread-group" global directive, which takes an integer argument
  * that designates a thread group, and a list of threads to put into that group.
  */
@@ -1855,6 +1884,7 @@ static int cfg_parse_thread_groups(char **args, int section_type, struct proxy *
 
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "thread-hard-limit", cfg_parse_thread_hard_limit, 0 },
 	{ CFG_GLOBAL, "nbthread",       cfg_parse_nbthread, 0 },
 	{ CFG_GLOBAL, "thread-group",   cfg_parse_thread_group, 0 },
 	{ CFG_GLOBAL, "thread-groups",  cfg_parse_thread_groups, 0 },

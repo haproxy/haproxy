@@ -2156,7 +2156,8 @@ nbthread <number>
   bound to upon startup. This means that the thread count can easily be
   adjusted from the calling process using commands like "taskset" or "cpuset".
   Otherwise, this value defaults to 1. The default value is reported in the
-  output of "haproxy -vv".
+  output of "haproxy -vv". Note that values set here or automatically detected
+  are subject to the limit set by "thread-hard-limit" (if set).
 
 no-quic
   Disable QUIC transport protocol. All the QUIC listeners will still be created.
@@ -2734,6 +2735,19 @@ thread-groups <number>
   configuration efforts. It is also the only way to use more than 64 threads
   since up to 64 threads per group may be configured. The maximum number of
   groups is configured at compile time and defaults to 16. See also "nbthread".
+
+thread-hard-limit <number>
+  This setting is used to enforce a limit to the number of threads, either
+  detected, or configured. This is particularly useful on operating systems
+  where the number of threads is automatically detected, where a number of
+  threads lower than the number of CPUs is desired in generic and portable
+  configurations. Indeed, while "nbthread" enforces a number of threads that
+  will result in a warning and bad performance if higher than CPUs available,
+  thread-hard-limit will only cap the maximum value and automatically limit
+  the number of threads to no higher than this value, but will not raise lower
+  values. If "nbthread" is forced to a higher value, thread-hard-limit wins,
+  and a warning is emitted in so that the configuration anomaly can be
+  fixed. By default there is no limit. See also "nbthread".
 
 trace <args...>
   This command configures one "trace" subsystem statement. Each of them can be
