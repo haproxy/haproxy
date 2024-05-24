@@ -6477,11 +6477,13 @@ int openssl_compare_current_name(const char *name)
  * heap as much as possible below that.
  *
  * <type> and <name> are mandatory
+ * <id> is optional, if != ~0, will be used to append an id after the name
+ * in order to differentiate 2 entries set using the same <type> and <name>
  *
  * The function does nothing if naming API is not available, and naming errors
  * are ignored.
  */
-void vma_set_name(void *addr, size_t size, const char *type, const char *name)
+void vma_set_name_id(void *addr, size_t size, const char *type, const char *name, unsigned int id)
 {
 	long pagesize = sysconf(_SC_PAGESIZE);
 	void *aligned_addr;
@@ -6515,15 +6517,18 @@ void vma_set_name(void *addr, size_t size, const char *type, const char *name)
 		 * except [, ], \, $ and '.
 		 * As a result, when looking for /proc/<pid>/maps, we can see the anonymous range
 		 * as follow :
-		 * `7364c4fff000-736508000000 rw-s 00000000 00:01 3540  [anon_shmem:scope:name]`
+		 * `7364c4fff000-736508000000 rw-s 00000000 00:01 3540  [anon_shmem:scope:name{-id}]`
 		 * (MAP_SHARED)
-		 * `7364c4fff000-736508000000 rw-s 00000000 00:01 3540  [anon:scope:name]`
+		 * `7364c4fff000-736508000000 rw-s 00000000 00:01 3540  [anon:scope:name{-id}]`
 		 * (MAP_PRIVATE)
 		 */
 		char fullname[80];
 		int rn;
 
-		rn = snprintf(fullname, sizeof(fullname), "%s:%s", type, name);
+		if (id != ~0)
+			rn = snprintf(fullname, sizeof(fullname), "%s:%s-%u", type, name, id);
+		else
+			rn = snprintf(fullname, sizeof(fullname), "%s:%s", type, name);
 
 		if (rn >= 0) {
 			/* Give a name to the map by setting PR_SET_VMA_ANON_NAME attribute
@@ -6539,6 +6544,12 @@ void vma_set_name(void *addr, size_t size, const char *type, const char *name)
 		}
 	}
 #endif
+}
+
+/* wrapper for vma_set_name_id() but without id */
+void vma_set_name(void *addr, size_t size, const char *type, const char *name)
+{
+	vma_set_name_id(addr, size, type, name, ~0);
 }
 
 #if defined(RTLD_DEFAULT) || defined(RTLD_NEXT)

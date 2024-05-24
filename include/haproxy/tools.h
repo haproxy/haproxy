@@ -1201,5 +1201,6 @@ int openssl_compare_current_name(const char *name);
 
 /* vma helpers */
 void vma_set_name(void *addr, size_t size, const char *type, const char *name);
+void vma_set_name_id(void *addr, size_t size, const char *type, const char *name, unsigned int id);
 
 #endif /* _HAPROXY_TOOLS_H */
