@@ -25872,14 +25872,36 @@ regular traffic log (see option httplog or option httpslog).
 8.2.6. Custom log format
 ------------------------
 
-When the default log formats are not sufficient, it is possible to define new
-ones in very fine details. As creating a log-format from scratch is not always
-a trivial task, it is strongly recommended to first have a look at the existing
-formats ("option tcplog", "option httplog", "option httpslog"), pick the one
-looking the closest to the expectation, copy its "log-format" equivalent string
-and adjust it.
+Historically, custom log formats were only used to produce logs. But their
+convenience when used to produce a string by assembling multiple complex
+expressions has got them adopted by many directives which used to take only
+a string in argument and which may now also take an such a Custom log format
+definition. Such arguments, which are commonly designated by "<fmt>" in this
+document, are defined exactly the same way as the argument to the "log-format"
+directive, described here.
 
-HAProxy understands some log format variables. % precedes log format variables.
+When it comes to logs and when the default log formats are not sufficient, it
+is possible to define new ones in very fine details. As creating a log-format
+from scratch is not always a trivial task, it is strongly recommended to first
+have a look at the existing formats ("option tcplog", "option httplog", "option
+httpslog"), pick the one looking the closest to the expectation, copy its
+"log-format" equivalent string and adjust it.
+
+A Custom log format definition is a single argument from a configuration
+perspective. This means that it may not contain blanks (spaces or tabs), unless
+these blanks are escaped using the backslash character ('\'), or the whole
+definition is enclosed between quotes (which is the recommended way to use
+them). The use of unquoted format strings is not recommended anymore as history
+has shown that it was very error prone since a single missing backslash
+character could result in silent truncation of the format. Such configurations
+are still commonly encountered due to the massive adoption of log formats after
+version 1.5-dev9, 3 years before quotes were usable, but it is recommended to
+convert them to quoted strings and to drop the backslashes now.
+
+HAProxy understands some log format variables, preceeded by character '%'.
+In order to emit a verbatim '%', it must be preceded by another '%' resulting
+in '%%'.
+
 Variables can take arguments using braces ('{}'), and multiple arguments are
 separated by commas within the braces. Flags may be added or removed by
 prefixing them with a '+' or '-' sign.
@@ -25891,12 +25913,23 @@ variables on the same format string. This is particularly handy with quoted
 If a variable is named between square brackets ('[' .. ']') then it is used
 as a sample expression rule (see section 7.3). This it useful to add some
 less common information such as the client's SSL certificate's DN, or to log
-the key that would be used to store an entry into a stick table.
+the key that would be used to store an entry into a stick table. It is also
+commonly used with non-log actions (header manipulation, variables etc).
 
-Note: spaces must be escaped. In configuration directives "log-format",
-"log-format-sd" and "unique-id-format", spaces are considered as
-delimiters and are merged. In order to emit a verbatim '%', it must be
-preceded by another '%' resulting in '%%'.
+Due to the original goal of custom log formats to be used for logging only,
+there is a special case made of non-printable and unsafe characters (those
+outside ASCII codes 32 to 126 plus a few other ones) depending where they are
+used. Section 8.6 describes what's done exactly for logs in order to make sure
+one will not send unsafe codes that alter the readability of the output in a
+terminal. When used to form header fields, health checks or payload responses,
+the rules are less strict and only characters forbidden in HTTP header fields
+are replaced by their hexadecimal encoding preceded by character '%'. This is
+normally not a problem, but it might affect the output when the character was
+expected to be reproduced verbatim (e.g. when building an error page or a full
+response payload, where line feeds could appear as "%0A").
+
+Note: in configuration directives "log-format", "log-format-sd" and
+"unique-id-format", spaces are considered as delimiters and are merged.
 
 Note: when using the RFC5424 syslog message format, the characters '"',
 '\' and ']' inside PARAM-VALUE should be escaped with '\' as prefix (see
