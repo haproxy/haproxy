@@ -25925,6 +25925,17 @@ Special alias "%o" may be used to propagate its flags to all other
 logformat items on the same format string. This is particularly handy with
 quoted ("Q") and escaped ("E") string formats.
 
+Items can optionally be named using ('()'). The name must be provided right
+after '%' (before arguments). It will automatically be used as key name when
+encoding flag such as "json" or "cbor" is set. When no encoding flag is
+specified (default), item name will be ignored. It is also possible to force
+the item's output to a given type by appending ':type' after the name, like
+this: %(itemname:itemtype)aliasname or %(itemname:itemtype)[expr] where
+itemtype may be 'str', 'sint' or 'bool'. Specifying the type is only relevant
+when an encoding method is used. Also, it is supported to provide an empty name
+to force the output type on an anonymous item: %(:itemtype), ie: when encoding
+is not set globally, see flags definitions below for more information.
+
 Due to the original goal of custom log formats to be used for logging only,
 there is a special case made of non-printable and unsafe characters (those
 outside ASCII codes 32 to 126 plus a few other ones) depending where they are
