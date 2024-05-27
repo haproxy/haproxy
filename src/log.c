@@ -124,8 +124,8 @@ const struct buffer empty = { };
 
 int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy);
 
-/* logformat tag types (internal use) */
-enum logformat_tag_type {
+/* logformat alias types (internal use) */
+enum logformat_alias_type {
 	LOG_FMT_GLOBAL,
 	LOG_FMT_CLIENTIP,
 	LOG_FMT_CLIENTPORT,
@@ -192,8 +192,8 @@ enum logformat_tag_type {
 	LOG_FMT_SSL_VERSION,
 };
 
-/* log_format tag names */
-static const struct logformat_tag logformat_tags[] = {
+/* log_format alias names */
+static const struct logformat_alias logformat_aliases[] = {
 	{ "o", LOG_FMT_GLOBAL, PR_MODE_TCP, 0, NULL },  /* global option */
 
 	/* please keep these lines sorted ! */
@@ -318,12 +318,12 @@ THREAD_LOCAL char *logline = NULL;
  */
 THREAD_LOCAL char *logline_rfc5424 = NULL;
 
-struct logformat_tag_args {
+struct logformat_node_args {
 	char *name;
 	int mask;
 };
 
-struct logformat_tag_args tag_args_list[] = {
+struct logformat_node_args node_args_list[] = {
 // global
 	{ "M", LOG_OPT_MANDATORY },
 	{ "Q", LOG_OPT_QUOTE },
@@ -349,10 +349,10 @@ int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy)
 
 
 /*
- * Parse args in a logformat_tag. Returns 0 in error
+ * Parse args in a logformat_node. Returns 0 in error
  * case, otherwise, it returns 1.
  */
-int parse_logformat_tag_args(char *args, struct logformat_node *node, char **err)
+int parse_logformat_node_args(char *args, struct logformat_node *node, char **err)
 {
 	int i = 0;
 	int end = 0;
@@ -360,7 +360,7 @@ int parse_logformat_tag_args(char *args, struct logformat_node *node, char **err
 	char *sp = NULL; // start pointer
 
 	if (args == NULL) {
-		memprintf(err, "internal error: parse_logformat_tag_args() expects non null 'args'");
+		memprintf(err, "internal error: parse_logformat_node_args() expects non null 'args'");
 		return 0;
 	}
 
@@ -381,19 +381,19 @@ int parse_logformat_tag_args(char *args, struct logformat_node *node, char **err
 
 		if (*args == '\0' || *args == ',') {
 			*args = '\0';
-			for (i = 0; sp && tag_args_list[i].name; i++) {
-				if (strcmp(sp, tag_args_list[i].name) == 0) {
+			for (i = 0; sp && node_args_list[i].name; i++) {
+				if (strcmp(sp, node_args_list[i].name) == 0) {
 					if (flags == 1) {
 						/* Ensure we don't mix encoding types, existing
 						 * encoding type prevails over new ones
 						 */
 						if (node->options & LOG_OPT_ENCODE)
-							node->options |= (tag_args_list[i].mask & ~LOG_OPT_ENCODE);
+							node->options |= (node_args_list[i].mask & ~LOG_OPT_ENCODE);
 						else
-							node->options |= tag_args_list[i].mask;
+							node->options |= node_args_list[i].mask;
 						break;
 					} else if (flags == 2) {
-						node->options &= ~tag_args_list[i].mask;
+						node->options &= ~node_args_list[i].mask;
 						break;
 					}
 				}
@@ -408,40 +408,40 @@ int parse_logformat_tag_args(char *args, struct logformat_node *node, char **err
 }
 
 /*
- * Parse a tag '%tagname' or '%{args}tagname' in log-format. The caller
+ * Parse an alias '%aliasname' or '%{args}aliasname' in log-format. The caller
  * must pass the args part in the <arg> pointer with its length in <arg_len>,
- * and tagname with its length in <tag> and <tag_len> respectively. <arg> is
- * ignored when arg_len is 0. Neither <tag> nor <tag_len> may be null.
+ * and aliasname with its length in <alias> and <alias_len> respectively. <arg>
+ * is ignored when arg_len is 0. Neither <alias> nor <alias_len> may be null.
  * Returns false in error case and err is filled, otherwise returns true.
  */
-static int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len, int typecast,
-                               char *tag, int tag_len, struct lf_expr *lf_expr,
-                               int *defoptions, char **err)
+static int parse_logformat_alias(char *arg, int arg_len, char *name, int name_len, int typecast,
+                                 char *alias, int alias_len, struct lf_expr *lf_expr,
+                                 int *defoptions, char **err)
 {
 	int j;
 	struct list *list_format= &lf_expr->nodes.list;
 	struct logformat_node *node = NULL;
 
-	for (j = 0; logformat_tags[j].name; j++) { // search a log type
-		if (strlen(logformat_tags[j].name) == tag_len &&
-		    strncmp(tag, logformat_tags[j].name, tag_len) == 0) {
+	for (j = 0; logformat_aliases[j].name; j++) { // search a log type
+		if (strlen(logformat_aliases[j].name) == alias_len &&
+		    strncmp(alias, logformat_aliases[j].name, alias_len) == 0) {
 			node = calloc(1, sizeof(*node));
 			if (!node) {
 				memprintf(err, "out of memory error");
 				goto error_free;
 			}
-			node->type = LOG_FMT_TAG;
-			node->tag = &logformat_tags[j];
+			node->type = LOG_FMT_ALIAS;
+			node->alias = &logformat_aliases[j];
 			node->typecast = typecast;
 			if (name && name_len)
 				node->name = my_strndup(name, name_len);
 			node->options = *defoptions;
 			if (arg_len) {
 				node->arg = my_strndup(arg, arg_len);
-				if (!parse_logformat_tag_args(node->arg, node, err))
+				if (!parse_logformat_node_args(node->arg, node, err))
 					goto error_free;
 			}
-			if (node->tag->type == LOG_FMT_GLOBAL) {
+			if (node->alias->type == LOG_FMT_GLOBAL) {
 				*defoptions = node->options;
 				if (lf_expr->nodes.options == LOG_OPT_NONE)
 					lf_expr->nodes.options = node->options;
@@ -466,10 +466,10 @@ static int parse_logformat_tag(char *arg, int arg_len, char *name, int name_len,
 		}
 	}
 
-	j = tag[tag_len];
-	tag[tag_len] = 0;
-	memprintf(err, "no such format tag '%s'. If you wanted to emit the '%%' character verbatim, you need to use '%%%%'", tag);
-	tag[tag_len] = j;
+	j = alias[alias_len];
+	alias[alias_len] = 0;
+	memprintf(err, "no such format alias '%s'. If you wanted to emit the '%%' character verbatim, you need to use '%%%%'", alias);
+	alias[alias_len] = j;
 
   error_free:
 	free_logformat_node(node);
@@ -560,7 +560,7 @@ static int add_sample_to_logformat_list(char *text, char *name, int name_len, in
 
 	if (arg_len) {
 		node->arg = my_strndup(arg, arg_len);
-		if (!parse_logformat_tag_args(node->arg, node, err))
+		if (!parse_logformat_node_args(node->arg, node, err))
 			goto error_free;
 	}
 	if (expr->fetch->val & cap & SMP_VAL_REQUEST)
@@ -591,8 +591,10 @@ static int add_sample_to_logformat_list(char *text, char *name, int name_len, in
 /*
  * Compile logformat expression (from string to list of logformat nodes)
  *
- * Tag name are preceded by % and composed by characters [a-zA-Z0-9]* : %tagname
- * You can set arguments using { } : %{many arguments}tagname.
+ * Aliases are preceded by % and composed by characters [a-zA-Z0-9]* : %aliasname
+ * Expressions are preceded by % and enclosed in square brackets: %[expr]
+ * You can set arguments using { } : %{many arguments}aliasname
+ *                                   %{many arguments}[expr]
  *
  *  lf_expr: the destination logformat expression (logformat_node list)
  *           which is supposed to be configured (str and conf set) but
@@ -610,11 +612,11 @@ int lf_expr_compile(struct lf_expr *lf_expr,
 	char *fmt = lf_expr->str; /* will be freed unless default */
 	char *sp, *str, *backfmt; /* start pointer for text parts */
 	char *arg = NULL; /* start pointer for args */
-	char *tag = NULL; /* start pointer for tags */
+	char *alias = NULL; /* start pointer for aliases */
 	char *name = NULL; /* token name (optional) */
 	char *typecast_str = NULL; /* token output type (if custom name is set) */
 	int arg_len = 0;
-	int tag_len = 0;
+	int alias_len = 0;
 	int name_len = 0;
 	int typecast = SMP_T_SAME; /* relaxed by default */
 	int cformat; /* current token format */
@@ -653,18 +655,18 @@ int lf_expr_compile(struct lf_expr *lf_expr,
 		 * We use the common LF_INIT state to dispatch to the different final states.
 		 */
 		switch (pformat) {
-		case LF_STARTTAG:                      // text immediately following a '%'
-			arg = NULL; tag = NULL;
+		case LF_STARTALIAS:                    // text immediately following a '%'
+			arg = NULL; alias = NULL;
 			name = NULL;
 			name_len = 0;
 			typecast = SMP_T_SAME;
-			arg_len = tag_len = 0;
+			arg_len = alias_len = 0;
 			if (*str == '(') {             // custom output name
 				cformat = LF_STONAME;
 				name = str + 1;
 			}
 			else
-				goto starttag;
+				goto startalias;
 			break;
 
 		case LF_STONAME:                       // text immediately following '%('
@@ -697,18 +699,18 @@ int lf_expr_compile(struct lf_expr *lf_expr,
 			break;
 
 		case LF_EDONAME:                       // text immediately following %(name)
- starttag:
+ startalias:
 			if (*str == '{') {             // optional argument
 				cformat = LF_STARG;
 				arg = str + 1;
 			}
 			else if (*str == '[') {
 				cformat = LF_STEXPR;
-				tag = str + 1;         // store expr in tag name
+				alias = str + 1;       // store expr in alias name
 			}
-			else if (isalpha((unsigned char)*str)) { // tag name
-				cformat = LF_TAG;
-				tag = str;
+			else if (isalpha((unsigned char)*str)) { // alias name
+				cformat = LF_ALIAS;
+				alias = str;
 			}
 			else if (*str == '%')
 				cformat = LF_TEXT;     // convert this character to a literal (useful for '%')
@@ -717,7 +719,7 @@ int lf_expr_compile(struct lf_expr *lf_expr,
 				cformat = LF_TEXT;
 				pformat = LF_TEXT; /* finally we include the previous char as well */
 				sp = str - 1; /* send both the '%' and the current char */
-				memprintf(err, "unexpected tag name near '%c' at position %d line : '%s'. Maybe you want to write a single '%%', use the syntax '%%%%'",
+				memprintf(err, "unexpected alias name near '%c' at position %d line : '%s'. Maybe you want to write a single '%%', use the syntax '%%%%'",
 				          *str, (int)(str - backfmt), fmt);
 				goto fail;
 
@@ -737,15 +739,15 @@ int lf_expr_compile(struct lf_expr *lf_expr,
 		case LF_EDARG:                         // text immediately following '%{arg}'
 			if (*str == '[') {
 				cformat = LF_STEXPR;
-				tag = str + 1;         // store expr in tag name
+				alias = str + 1;         // store expr in alias name
 				break;
 			}
-			else if (isalnum((unsigned char)*str)) { // tag name
-				cformat = LF_TAG;
-				tag = str;
+			else if (isalnum((unsigned char)*str)) { // alias name
+				cformat = LF_ALIAS;
+				alias = str;
 				break;
 			}
-			memprintf(err, "parse argument modifier without tag name near '%%{%s}'", arg);
+			memprintf(err, "parse argument modifier without alias name near '%%{%s}'", arg);
 			goto fail;
 
 		case LF_STEXPR:                        // text immediately following '%['
@@ -754,7 +756,7 @@ int lf_expr_compile(struct lf_expr *lf_expr,
 			 * part of the expression, which MUST be the trailing
 			 * angle bracket.
 			 */
-			if (!add_sample_to_logformat_list(tag, name, name_len, typecast, arg, arg_len, lf_expr, al, options, cap, err, &str))
+			if (!add_sample_to_logformat_list(alias, name, name_len, typecast, arg, arg_len, lf_expr, al, options, cap, err, &str))
 				goto fail;
 
 			if (*str == ']') {
@@ -766,26 +768,26 @@ int lf_expr_compile(struct lf_expr *lf_expr,
 				char c = *str;
 				*str = 0;
 				if (isprint((unsigned char)c))
-					memprintf(err, "expected ']' after '%s', but found '%c'", tag, c);
+					memprintf(err, "expected ']' after '%s', but found '%c'", alias, c);
 				else
-					memprintf(err, "missing ']' after '%s'", tag);
+					memprintf(err, "missing ']' after '%s'", alias);
 				goto fail;
 			}
 			break;
 
-		case LF_TAG:                           // text part of a tag name
-			tag_len = str - tag;
+		case LF_ALIAS:                         // text part of a alias name
+			alias_len = str - alias;
 			if (!isalnum((unsigned char)*str))
-				cformat = LF_INIT;     // not tag name anymore
+				cformat = LF_INIT;     // not alias name anymore
 			break;
 
 		default:                               // LF_INIT, LF_TEXT, LF_SEPARATOR, LF_END, LF_EDEXPR
 			cformat = LF_INIT;
 		}
 
-		if (cformat == LF_INIT) { /* resynchronize state to text/sep/starttag */
+		if (cformat == LF_INIT) { /* resynchronize state to text/sep/startalias */
 			switch (*str) {
-			case '%': cformat = LF_STARTTAG;  break;
+			case '%': cformat = LF_STARTALIAS;  break;
 			case  0 : cformat = LF_END;       break;
 			case ' ':
 				if (options & LOG_OPT_MERGE_SPACES) {
@@ -799,8 +801,8 @@ int lf_expr_compile(struct lf_expr *lf_expr,
 
 		if (cformat != pformat || pformat == LF_SEPARATOR) {
 			switch (pformat) {
-			case LF_TAG:
-				if (!parse_logformat_tag(arg, arg_len, name, name_len, typecast, tag, tag_len, lf_expr, &options, err))
+			case LF_ALIAS:
+				if (!parse_logformat_alias(arg, arg_len, name, name_len, typecast, alias, alias_len, lf_expr, &options, err))
 					goto fail;
 				break;
 			case LF_TEXT:
@@ -813,8 +815,8 @@ int lf_expr_compile(struct lf_expr *lf_expr,
 		}
 	}
 
-	if (pformat == LF_STARTTAG || pformat == LF_STARG || pformat == LF_STEXPR || pformat == LF_STONAME || pformat == LF_STOTYPE || pformat == LF_EDONAME) {
-		memprintf(err, "truncated line after '%s'", tag ? tag : arg ? arg : "%");
+	if (pformat == LF_STARTALIAS || pformat == LF_STARG || pformat == LF_STEXPR || pformat == LF_STONAME || pformat == LF_STOTYPE || pformat == LF_EDONAME) {
+		memprintf(err, "truncated line after '%s'", alias ? alias : arg ? arg : "%");
 		goto fail;
 	}
 	logformat_str_free(&fmt);
@@ -984,20 +986,20 @@ int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err)
 			if (px->http_needed)
 				px->to_log |= LW_REQ;
 		}
-		else if (lf->type == LOG_FMT_TAG) {
-			if (lf->tag->mode == PR_MODE_HTTP && px->mode != PR_MODE_HTTP) {
-				memprintf(err, "format tag '%s' is reserved for HTTP mode",
-				          lf->tag->name);
+		else if (lf->type == LOG_FMT_ALIAS) {
+			if (lf->alias->mode == PR_MODE_HTTP && px->mode != PR_MODE_HTTP) {
+				memprintf(err, "format alias '%s' is reserved for HTTP mode",
+				          lf->alias->name);
 				goto fail;
 			}
-			if (lf->tag->config_callback &&
-			    !lf->tag->config_callback(lf, px)) {
-				memprintf(err, "cannot configure format tag '%s' in this context",
-				          lf->tag->name);
+			if (lf->alias->config_callback &&
+			    !lf->alias->config_callback(lf, px)) {
+				memprintf(err, "cannot configure format alias '%s' in this context",
+				          lf->alias->name);
 				goto fail;
 			}
 			if (!(px->flags & PR_FL_CHECKED))
-				px->to_log |= lf->tag->lw;
+				px->to_log |= lf->alias->lw;
 		}
  next_node:
 		/* postcheck individual node's options */
@@ -3854,10 +3856,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			goto next_fmt;
 		}
 
-		BUG_ON(tmp->type != LOG_FMT_TAG);
+		BUG_ON(tmp->type != LOG_FMT_ALIAS);
 
-		/* logformat tag */
-		switch (tmp->tag->type) {
+		/* logformat alias */
+		switch (tmp->alias->type) {
 			case LOG_FMT_CLIENTIP:  // %ci
 				addr = (s ? sc_src(s->scf) : sess_src(sess));
 				if (addr)

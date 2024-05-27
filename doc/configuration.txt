@@ -9883,7 +9883,7 @@ no option logasap
 
   Arguments : none
 
-  By default, logs are emitted when all the log format variables and sample
+  By default, logs are emitted when all the log format aliases and sample
   fetches used in the definition of the log-format string return a value, or
   when the stream is terminated. This allows the built in log-format strings
   to account for the transfer time, or the number of bytes in log messages.
@@ -13977,7 +13977,7 @@ unique-id-format <fmt>
   This keyword creates a ID for each request using the custom log format. A
   unique ID is useful to trace a request passing through many components of
   a complex infrastructure. The newly created ID may also be logged using the
-  %ID tag the Custom log format string.
+  %ID alias in the Custom log format string.
 
   The format should be composed from elements that are guaranteed to be
   unique when combined together. For instance, if multiple HAProxy instances
@@ -24379,7 +24379,7 @@ hdr([<name>[,<occ>]]) : string
 
 request_date([<unit>]) : integer
   This is the exact date when the first byte of the HTTP request was received
-  by HAProxy (log-format tag %tr). This is computed from accept_date +
+  by HAProxy (log-format alias %tr). This is computed from accept_date +
   handshake time (%Th) + idle time (%Ti).
 
   Returns a value in number of seconds since epoch.
@@ -24646,8 +24646,8 @@ req.hdr_names([<delim>]) : string
 req.ver : string
 req_ver : string (deprecated)
   Returns the version string from the HTTP request, for example "1.1". This can
-  be useful for ACL. For logs use the "%HV" log variable. Some predefined ACL
-  already check for versions 1.0 and 1.1.
+  be useful for ACL. For logs use the "%HV" logformat alias. Some predefined
+  ACL already check for versions 1.0 and 1.1.
 
   Common values are "1.0", "1.1", "2.0" or "3.0".
 
@@ -25901,23 +25901,29 @@ are still commonly encountered due to the massive adoption of log formats after
 version 1.5-dev9, 3 years before quotes were usable, but it is recommended to
 convert them to quoted strings and to drop the backslashes now.
 
-HAProxy understands some log format variables, preceeded by character '%'.
-In order to emit a verbatim '%', it must be preceded by another '%' resulting
-in '%%'.
+A log format definition is made of any number of log format items separated
+by text and spaces. A log format item starts with character '%'. In order to
+emit a verbatim '%', it must be preceded by another '%' resulting in '%%'.
 
-Variables can take arguments using braces ('{}'), and multiple arguments are
-separated by commas within the braces. Flags may be added or removed by
-prefixing them with a '+' or '-' sign.
+Logformat items may either be aliases or sample expressions:
 
-Special variable "%o" may be used to propagate its flags to all other
-variables on the same format string. This is particularly handy with quoted
-("Q") and escaped ("E") string formats.
-
-If a variable is named between square brackets ('[' .. ']') then it is used
+If an item is named between square brackets ('[' .. ']') then it is used
 as a sample expression rule (see section 7.3). This it useful to add some
 less common information such as the client's SSL certificate's DN, or to log
 the key that would be used to store an entry into a stick table. It is also
 commonly used with non-log actions (header manipulation, variables etc).
+
+Else if the item is named using an alpha-numerical name, it is an alias.
+(Refer to the table below for the list of available aliases)
+
+Items can take arguments using braces ('{}'), and multiple arguments are
+separated by commas within the braces. Flags may be added or removed by
+prefixing them with a '+' or '-' sign (see below for the list of available
+flags).
+
+Special alias "%o" may be used to propagate its flags to all other
+logformat items on the same format string. This is particularly handy with
+quoted ("Q") and escaped ("E") string formats.
 
 Due to the original goal of custom log formats to be used for logging only,
 there is a special case made of non-printable and unsafe characters (those
@@ -25939,7 +25945,7 @@ Note: when using the RFC5424 syslog message format, the characters '"',
 https://tools.ietf.org/html/rfc5424#section-6.3.3 for more details). In
 such cases, the use of the flag "E" should be considered.
 
-Flags are :
+Supported item flags are (may be enabled/disabled from item's arguments):
   * Q: quote a string
   * X: hexadecimal representation (IPs, Ports, %Ts, %rt, %pid)
   * E: escape characters '"', '\' and ']' in a string with '\' as prefix
@@ -25951,14 +25957,14 @@ Flags are :
          don't expect. Thus it is mainly intended for use with set-var-fmt,
          rings and binary-capable log endpoints.
          This option can only be set globally (with %o), it will be ignored
-         if set on an individual node's options.
+         if set on an individual item's options.
   * json: automatically encode value in JSON format
-          (when set globally, only named format variables are considered)
+          (when set globally, only named logformat items are considered)
           Incomplete numerical values (e.g.: '%B' when logasap is used),
           which are normally prefixed with '+' without encoding, will be
           encoded as-is. Also, '+E' option will be ignored.
   * cbor: automatically encode value in CBOR format
-          (when set globally, only named format variables are considered)
+          (when set globally, only named logformat items are considered)
           By default, cbor encoded data is represented in HEX form so
           that it remains printable on stdout an can be used with usual
           syslog endpoints.
@@ -25979,13 +25985,13 @@ Flags are :
     log-format "%{+json}o %(request)r %(custom_expr)[str(custom)]"
     log-format "%{+cbor}o %(request)r %(custom_expr)[str(custom)]"
 
-Please refer to the table below for currently defined variables :
+Please refer to the table below for currently defined aliases :
 
   +---+------+------------------------------------------------------+---------+
-  | R | var  | field name (8.2.2 and 8.2.3 for description)         | type    |
+  | R | alias| field name (8.2.2 and 8.2.3 for description)         | type    |
   |   |      | sample fetch alternative                             |         |
   +===+======+======================================================+=========+
-  |   | %o   | special variable, apply flags on all next var        |         |
+  |   | %o   | special, apply flags on all following items          |         |
   +---+------+------------------------------------------------------+---------+
   |                          date formats                                     |
   +---+------+------------------------------------------------------+---------+
@@ -26290,7 +26296,7 @@ Timings events in TCP mode:
     all request to calculate the amortized value. The second and subsequent
     request will always report zero here.
 
-    This timer is named %Th as a log-format tag, and fc.timer.handshake as a
+    This timer is named %Th as a log-format alias, and fc.timer.handshake as a
     sample fetch.
 
   - Ti: is the idle time before the HTTP request (HTTP mode only). This timer
@@ -26303,7 +26309,7 @@ Timings events in TCP mode:
     pending until they need it. This delay will be reported as the idle time. A
     value of -1 indicates that nothing was received on the connection.
 
-    This timer is named %Ti as a log-format tag, and req.timer.idle as a
+    This timer is named %Ti as a log-format alias, and req.timer.idle as a
     sample fetch.
 
   - TR: total time to get the client request (HTTP mode only). It's the time
@@ -26314,7 +26320,7 @@ Timings events in TCP mode:
     since most requests fit in a single packet. A large time may indicate a
     request typed by hand during a test.
 
-    This timer is named %TR as a log-format tag, and req.timer.hdr as a
+    This timer is named %TR as a log-format alias, and req.timer.hdr as a
     sample fetch.
 
   - Tq: total time to get the client request from the accept date or since the
@@ -26325,7 +26331,7 @@ Timings events in TCP mode:
     it in favor of TR nowadays, as the idle time adds a lot of noise to the
     reports.
 
-    This timer is named %Tq as a log-format tag, and req.timer.tq as a
+    This timer is named %Tq as a log-format alias, and req.timer.tq as a
     sample fetch.
 
   - Tw: total time spent in the queues waiting for a connection slot. It
@@ -26334,7 +26340,7 @@ Timings events in TCP mode:
     requests. The value "-1" means that the request was killed before reaching
     the queue, which is generally what happens with invalid or denied requests.
 
-    This timer is named %Tw as a log-format tag, and req.timer.queue as a
+    This timer is named %Tw as a log-format alias, and req.timer.queue as a
     sample fetch.
 
   - Tc: total time to establish the TCP connection to the server. It's the time
@@ -26343,7 +26349,7 @@ Timings events in TCP mode:
     the matching SYN/ACK packet in return. The value "-1" means that the
     connection never established.
 
-    This timer is named %Tc as a log-format tag, and bc.timer.connect as a
+    This timer is named %Tc as a log-format alias, and bc.timer.connect as a
     sample fetch.
 
   - Tr: server response time (HTTP mode only). It's the time elapsed between
@@ -26358,7 +26364,7 @@ Timings events in TCP mode:
     header (empty line) was never seen, most likely because the server timeout
     stroke before the server managed to process the request.
 
-    This timer is named %Tr as a log-format tag, and res.timer.hdr as a
+    This timer is named %Tr as a log-format alias, and res.timer.hdr as a
     sample fetch.
 
   - Td: this is the total transfer time of the response payload till the last
@@ -26368,7 +26374,7 @@ Timings events in TCP mode:
     The data sent are not guaranteed to be received by the client, they can be
     stuck in either the kernel or the network.
 
-    This timer is named %Td as a log-format tag, and res.timer.data as a
+    This timer is named %Td as a log-format alias, and res.timer.data as a
     sample fetch.
 
   - Ta: total active time for the HTTP request, between the moment the proxy
@@ -26383,7 +26389,7 @@ Timings events in TCP mode:
     Timers with "-1" values have to be excluded from this equation. Note that
     "Ta" can never be negative.
 
-    This timer is named %Ta as a log-format tag, and txn.timer.total as a
+    This timer is named %Ta as a log-format alias, and txn.timer.total as a
     sample fetch.
 
   - Tt: total stream duration time, between the moment the proxy accepted it
@@ -26398,7 +26404,7 @@ Timings events in TCP mode:
     mode, "Ti", "Tq" and "Tr" have to be excluded too. Note that "Tt" can never
     be negative and that for HTTP, Tt is simply equal to (Th+Ti+Ta).
 
-    This timer is named %Tt as a log-format tag, and fc.timer.total as a
+    This timer is named %Tt as a log-format alias, and fc.timer.total as a
     sample fetch.
 
   - Tu: total estimated time as seen from client, between the moment the proxy
@@ -26410,7 +26416,7 @@ Timings events in TCP mode:
     option is specified. In this case, it only equals (Th+TR+Tw+Tc+Tr), and is
     prefixed with a '+' sign.
 
-    This timer is named %Tu as a log-format tag, and txn.timer.user as a
+    This timer is named %Tu as a log-format alias, and txn.timer.user as a
     sample fetch.
 
 These timers provide precious indications on trouble causes. Since the TCP

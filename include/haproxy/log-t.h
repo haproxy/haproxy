@@ -131,7 +131,7 @@ enum {
 	LOG_FMT_TEXT = 0,  /* raw text */
 	LOG_FMT_EXPR,      /* sample expression */
 	LOG_FMT_SEPARATOR, /* separator replaced by one space */
-	LOG_FMT_TAG,       /* reference to logformat_tag */
+	LOG_FMT_ALIAS,     /* reference to logformat_alias */
 };
 
 /* enum for parse_logformat_string */
@@ -139,8 +139,8 @@ enum {
 	LF_INIT = 0,   // before first character
 	LF_TEXT,       // normal text
 	LF_SEPARATOR,  // a single separator
-	LF_TAG,        // tag name, after '%' or '%{..}'
-	LF_STARTTAG,   // % in text
+	LF_ALIAS,      // alias name, after '%' or '%{..}'
+	LF_STARTALIAS, // % in text
 	LF_STONAME,    // after '%(' and before ')'
 	LF_STOTYPE,    // after ':' while in STONAME
 	LF_EDONAME,    // ')' after '%('
@@ -151,11 +151,11 @@ enum {
 	LF_END,        // \0 found
 };
 
-/* log_format tags (ie: %tag), see logformat_tags table in log.c for
- * available tags definitions
+/* log_format aliases (ie: %alias), see logformat_aliases table in log.c for
+ * available aliases definitions
  */
 struct logformat_node; // forward-declaration
-struct logformat_tag {
+struct logformat_alias {
 	char *name;
 	int type;
 	int mode;
@@ -171,7 +171,7 @@ struct logformat_node {
 	char *name;    // printable name for output types that require named fields (ie: json)
 	char *arg;     // text for LOG_FMT_TEXT, arg for others
 	void *expr;    // for use with LOG_FMT_EXPR
-	const struct logformat_tag *tag; // set if ->type == LOG_FMT_TAG
+	const struct logformat_alias *alias; // set if ->type == LOG_FMT_ALIAS
 };
 
 enum lf_expr_flags {

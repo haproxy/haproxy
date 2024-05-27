@@ -102,8 +102,7 @@ ssize_t syslog_applet_append_event(void *ctx, struct ist v1, struct ist v2, size
 
 /*
  * Parse the log_format string and fill a linked list.
- * Tag name are preceded by % and composed by characters [a-zA-Z0-9]* : %tagname
- * You can set arguments using { } : %{many arguments}tagname
+ * Refer to source file for details
  */
 int parse_logformat_string(const char *str, struct proxy *curproxy, struct lf_expr *lf_expr, int options, int cap, char **err);
 
