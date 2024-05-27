@@ -626,7 +626,7 @@ ifneq ($(USE_OPENSSL:0=),)
     SSL_LDFLAGS   := $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
   endif
   USE_SSL         := $(if $(USE_SSL:0=),$(USE_SSL:0=),implicit)
-  OPTIONS_OBJS += src/ssl_sock.o src/ssl_ckch.o src/ssl_sample.o src/ssl_crtlist.o src/cfgparse-ssl.o src/ssl_utils.o src/jwt.o src/ssl_ocsp.o src/ssl_gencert.o
+  OPTIONS_OBJS += src/ssl_sock.o src/ssl_ckch.o src/ssl_ocsp.o src/ssl_crtlist.o src/ssl_sample.o src/cfgparse-ssl.o src/ssl_gencert.o src/ssl_utils.o src/jwt.o
 endif
 
 ifneq ($(USE_ENGINE:0=),)
@@ -638,17 +638,20 @@ ifneq ($(USE_ENGINE:0=),)
 endif
 
 ifneq ($(USE_QUIC:0=),)
-OPTIONS_OBJS += src/quic_conn.o src/mux_quic.o src/h3.o src/xprt_quic.o    \
-                src/quic_frame.o src/quic_tls.o src/quic_tp.o              \
-                src/quic_stats.o src/quic_sock.o src/proto_quic.o          \
-                src/qmux_trace.o src/quic_loss.o src/qpack-enc.o           \
-                src/quic_cc_newreno.o src/quic_cc_cubic.o src/qpack-tbl.o  \
-                src/qpack-dec.o src/hq_interop.o src/quic_stream.o         \
-                src/h3_stats.o src/qmux_http.o src/cfgparse-quic.o         \
-                src/cbuf.o src/quic_cc.o src/quic_cc_nocc.o src/quic_ack.o \
-                src/quic_trace.o src/quic_cli.o src/quic_ssl.o             \
-                src/quic_rx.o src/quic_tx.o src/quic_cid.o src/quic_retry.o\
-                src/quic_retransmit.o src/quic_fctl.o
+
+
+OPTIONS_OBJS += src/quic_rx.o src/mux_quic.o src/h3.o src/quic_tx.o	\
+                src/quic_conn.o src/quic_frame.o src/quic_sock.o	\
+                src/quic_ssl.o src/quic_tls.o src/proto_quic.o		\
+                src/quic_trace.o src/quic_cli.o src/quic_tp.o		\
+                src/quic_cid.o src/quic_retransmit.o src/quic_retry.o	\
+                src/quic_loss.o src/quic_cc_cubic.o src/quic_stream.o	\
+                src/xprt_quic.o src/quic_ack.o src/hq_interop.o		\
+                src/quic_cc_newreno.o src/qmux_http.o			\
+                src/quic_cc_nocc.o src/qpack-dec.o src/quic_cc.o	\
+                src/cfgparse-quic.o src/qmux_trace.o src/qpack-enc.o	\
+                src/qpack-tbl.o src/h3_stats.o src/quic_stats.o		\
+                src/quic_fctl.o src/cbuf.o
 endif
 
 ifneq ($(USE_QUIC_OPENSSL_COMPAT:0=),)
@@ -943,40 +946,43 @@ ifneq ($(EXTRA_OBJS),)
   OBJS += $(EXTRA_OBJS)
 endif
 
-OBJS += src/mux_h2.o src/mux_fcgi.o src/mux_h1.o src/tcpcheck.o               \
-        src/stream.o src/stats.o src/http_ana.o src/server.o                  \
-        src/stick_table.o src/sample.o src/flt_spoe.o src/tools.o             \
-        src/log.o src/cfgparse.o src/peers.o src/backend.o src/resolvers.o    \
-        src/cli.o src/connection.o src/proxy.o src/http_htx.o                 \
-        src/cfgparse-listen.o src/pattern.o src/check.o src/haproxy.o         \
-        src/cache.o src/stconn.o src/http_act.o src/http_fetch.o              \
-        src/http_client.o src/listener.o src/dns.o src/vars.o src/debug.o     \
-        src/tcp_rules.o src/sink.o src/h1_htx.o src/task.o src/mjson.o        \
-        src/h2.o src/filters.o src/server_state.o src/payload.o               \
-        src/fcgi-app.o src/map.o src/htx.o src/h1.o src/pool.o src/dns_ring.o \
-        src/cfgparse-global.o src/trace.o src/tcp_sample.o src/http_ext.o     \
-        src/flt_http_comp.o src/mux_pt.o src/flt_trace.o src/mqtt.o           \
-        src/acl.o src/sock.o src/mworker.o src/tcp_act.o src/ring.o           \
-        src/session.o src/proto_tcp.o src/fd.o src/channel.o src/activity.o   \
-        src/queue.o src/lb_fas.o src/http_rules.o src/extcheck.o              \
-        src/flt_bwlim.o src/thread.o src/http.o src/lb_chash.o src/applet.o   \
-        src/compression.o src/raw_sock.o src/ncbuf.o src/frontend.o           \
-        src/errors.o src/uri_normalizer.o src/http_conv.o src/lb_fwrr.o       \
-        src/sha1.o src/proto_sockpair.o src/mailers.o src/lb_fwlc.o           \
-        src/ebmbtree.o src/cfgcond.o src/action.o src/xprt_handshake.o        \
-        src/protocol.o src/proto_uxst.o src/proto_udp.o src/lb_map.o          \
-        src/fix.o src/ev_select.o src/arg.o src/sock_inet.o src/event_hdl.o   \
-        src/mworker-prog.o src/hpack-dec.o src/cfgparse-tcp.o src/lb_ss.o     \
-        src/sock_unix.o src/shctx.o src/proto_uxdg.o src/fcgi.o               \
-        src/eb64tree.o src/clock.o src/chunk.o src/cfgdiag.o src/signal.o     \
-        src/regex.o src/lru.o src/eb32tree.o src/eb32sctree.o                 \
-        src/cfgparse-unix.o src/hpack-tbl.o src/ebsttree.o src/ebimtree.o     \
-        src/base64.o src/auth.o src/uri_auth.o src/time.o src/ebistree.o      \
-        src/dynbuf.o src/wdt.o src/pipe.o src/init.o src/http_acl.o           \
-        src/hpack-huff.o src/hpack-enc.o src/dict.o src/freq_ctr.o            \
-        src/ebtree.o src/hash.o src/dgram.o src/version.o src/proto_rhttp.o   \
-        src/guid.o src/stats-html.o src/stats-json.o src/stats-file.o         \
-        src/stats-proxy.o
+OBJS += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o src/stream.o		\
+        src/log.o src/server.o src/tcpcheck.o src/http_ana.o		\
+        src/stick_table.o src/tools.o src/sample.o src/flt_spoe.o	\
+        src/cfgparse.o src/peers.o src/cli.o src/resolvers.o		\
+        src/connection.o src/backend.o src/cache.o src/http_htx.o	\
+        src/proxy.o src/stconn.o src/check.o src/haproxy.o		\
+        src/stats-html.o src/listener.o src/pattern.o src/debug.o	\
+        src/cfgparse-listen.o src/http_client.o src/activity.o		\
+        src/applet.o src/http_act.o src/http_fetch.o src/http_ext.o	\
+        src/dns.o src/vars.o src/tcp_rules.o src/pool.o src/stats.o	\
+        src/stats-proxy.o src/sink.o src/filters.o src/mux_pt.o		\
+        src/event_hdl.o src/server_state.o src/h1_htx.o src/h1.o	\
+        src/flt_http_comp.o src/task.o src/payload.o src/fcgi-app.o	\
+        src/map.o src/trace.o src/tcp_sample.o src/tcp_act.o		\
+        src/session.o src/htx.o src/cfgparse-global.o src/mjson.o	\
+        src/h2.o src/ring.o src/fd.o src/sock.o src/mworker.o		\
+        src/flt_trace.o src/thread.o src/proto_rhttp.o src/acl.o	\
+        src/http.o src/flt_bwlim.o src/channel.o src/queue.o		\
+        src/mqtt.o src/proto_tcp.o src/lb_chash.o src/http_rules.o	\
+        src/errors.o src/extcheck.o src/dns_ring.o src/stats-json.o	\
+        src/http_conv.o src/frontend.o src/proto_sockpair.o		\
+        src/compression.o src/ncbuf.o src/stats-file.o src/raw_sock.o	\
+        src/lb_fwrr.o src/action.o src/uri_normalizer.o			\
+        src/proto_uxst.o src/ebmbtree.o src/xprt_handshake.o		\
+        src/protocol.o src/proto_udp.o src/lb_fwlc.o src/sha1.o		\
+        src/proto_uxdg.o src/mailers.o src/lb_fas.o src/cfgcond.o	\
+        src/cfgdiag.o src/sock_unix.o src/sock_inet.o			\
+        src/mworker-prog.o src/lb_map.o src/ev_select.o src/shctx.o	\
+        src/hpack-dec.o src/fix.o src/clock.o src/cfgparse-tcp.o	\
+        src/arg.o src/signal.o src/fcgi.o src/dynbuf.o src/regex.o	\
+        src/lru.o src/lb_ss.o src/eb64tree.o src/chunk.o		\
+        src/cfgparse-unix.o src/guid.o src/ebimtree.o src/eb32tree.o	\
+        src/eb32sctree.o src/base64.o src/uri_auth.o src/time.o		\
+        src/hpack-tbl.o src/ebsttree.o src/ebistree.o src/auth.o	\
+        src/hpack-huff.o src/freq_ctr.o src/dict.o src/wdt.o		\
+        src/pipe.o src/init.o src/http_acl.o src/hpack-enc.o		\
+        src/ebtree.o src/dgram.o src/hash.o src/version.o
 
 ifneq ($(TRACE),)
   OBJS += src/calltrace.o
