@@ -4950,8 +4950,8 @@ ocsp-update [ off | on ]
   response, setting this option to 'on' for the given certificate will ensure
   that the OCSP response gets fetched automatically right after init.
   The default minimum and maximum delays (5 minutes and 1 hour respectively)
-  can be configured by the "tune.ssl.ocsp-update.maxdelay" and
-  "tune.ssl.ocsp-update.mindelay" global options.
+  can be configured by the "ocsp-update.maxdelay" and "ocsp-update.mindelay"
+  global options.
 
   Whenever an OCSP response is updated by the auto update task or following a
   call to the "update ssl ocsp-response" CLI command, a dedicated log line is
