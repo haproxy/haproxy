@@ -21435,6 +21435,9 @@ txn.sess_term_state : string
       # Return a 429-Too-Many-Requests if stream timed out in queue
       http-after-response set-status 429 if { txn.sess_term_state  "sQ" }
 
+uptime : integer
+  Returns the uptime of the current HAProxy worker in seconds.
+
 uuid([<version>]) : string
   Returns a UUID following the RFC 9562 standard. If the version is not
   specified, a UUID version 4 (fully random) is returned.
