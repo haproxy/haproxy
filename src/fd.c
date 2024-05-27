@@ -84,8 +84,8 @@
 
 #if defined(USE_POLL)
 #include <poll.h>
-#include <errno.h>
 #endif
+#include <errno.h>
 
 #include <haproxy/api.h>
 #include <haproxy/activity.h>
