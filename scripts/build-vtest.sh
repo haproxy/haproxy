@@ -15,11 +15,16 @@ tar xvf VTest.tar.gz -C ../vtest --strip-components=1
 
 cd ../vtest
 
+set +e
+CPUS=${CPUS:-$(nproc 2>/dev/null)}
+CPUS=${CPUS:-1}
+set -e
+
 #
 # temporarily detect Apple Silicon (it's using /opt/homebrew instead of /usr/local)
 #
 if test -f /opt/homebrew/include/pcre2.h; then
-   make FLAGS="-O2 -s -Wall" INCS="-Isrc -Ilib -I/usr/local/include -I/opt/homebrew/include -pthread"
+   make -j${CPUS} FLAGS="-O2 -s -Wall" INCS="-Isrc -Ilib -I/usr/local/include -I/opt/homebrew/include -pthread"
 else
-   make FLAGS="-O2 -s -Wall"
+   make -j${CPUS} FLAGS="-O2 -s -Wall"
 fi
