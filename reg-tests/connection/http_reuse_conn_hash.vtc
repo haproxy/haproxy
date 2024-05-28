@@ -13,6 +13,16 @@ haproxy h1 -conf {
 		bind "fd@${feS_sni}"
 		server srv2 ${h1_feR_ssl_addr}:${h1_feR_ssl_port} ssl sni "req.hdr(x-sni)" verify none pool-low-conn 2
 
+	# pool-conn-name
+	listen sender-name
+		bind "fd@${feS_name}"
+		server srv2 ${h1_feR_addr}:${h1_feR_port} pool-conn-name "req.hdr(x-name)" pool-low-conn 2
+
+	# sni + pool-conn-name
+	listen sender-sni-name
+		bind "fd@${feS_sni_name}"
+		server srv2 ${h1_feR_ssl_addr}:${h1_feR_ssl_port} ssl sni "req.hdr(x-sni)" verify none pool-conn-name "req.hdr(x-name)" pool-low-conn 2
+
 	# set-dst
 	# specify dst1_addr for server, which should be identical to dst2_addr
 	# port is specified by the client in header x-dst-port
@@ -29,6 +39,7 @@ haproxy h1 -conf {
 		server srv2 ${h1_feR_proxy_addr}:${h1_feR_proxy_port} send-proxy pool-low-conn 2
 
 	listen receiver
+		bind "fd@${feR}"
 		bind "fd@${feR_ssl}" ssl crt ${testdir}/common.pem
 		bind "fd@${feR_proxy}" accept-proxy
 		http-request return status 200
@@ -68,6 +79,62 @@ client c_sni -connect ${h1_feS_sni_sock} {
 	# fourth request, reuse sni2
 	txreq \
 	  -hdr "x-sni: www.custom2.com"
+	rxresp
+	expect resp.http.http_first_request == "0"
+} -run
+
+client c_name -connect ${h1_feS_name_sock} {
+	# first request
+	txreq \
+	  -hdr "x-name: www.custom.com"
+	rxresp
+	expect resp.http.http_first_request == "1"
+
+	# second request with same name, connection must be reused
+	txreq \
+	  -hdr "x-name: www.custom.com"
+	rxresp
+	expect resp.http.http_first_request == "0"
+
+	# third request with a different name, a new connection must be used
+	txreq \
+	  -hdr "x-name: www.custom2.com"
+	rxresp
+	expect resp.http.http_first_request == "1"
+
+	# fourth request, reuse name2
+	txreq \
+	  -hdr "x-name: www.custom2.com"
+	rxresp
+	expect resp.http.http_first_request == "0"
+} -run
+
+client c_sni_name -connect ${h1_feS_sni_name_sock} {
+	# first request
+	txreq                           \
+	  -hdr "x-sni: www.custom.com"  \
+	  -hdr "x-name: www.custom.com"
+	rxresp
+	expect resp.http.http_first_request == "1"
+
+	# second request with same name but different sni, connection must be reused
+	txreq                           \
+	  -hdr "x-sni: www.custom2.com"  \
+	  -hdr "x-name: www.custom.com"
+	rxresp
+	expect resp.http.http_first_request == "0"
+
+	# third request with a different name, a new connection must be used
+	txreq                            \
+	  -hdr "x-sni: www.custom2.com"  \
+	  -hdr "x-name: www.custom2.com"
+	rxresp
+	expect resp.http.http_first_request == "1"
+
+	# fourth request, reuse name2 with a new sni
+	txreq                            \
+	  -hdr "x-sni: www.custom3.com"  \
+	  -hdr "x-name: www.custom2.com"
 	rxresp
 	expect resp.http.http_first_request == "0"
 } -run
