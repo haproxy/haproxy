@@ -7885,12 +7885,29 @@ http-reuse { never | safe | aggressive | always }
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
-  By default, a connection established between HAProxy and the backend server
-  which is considered safe for reuse is moved back to the server's idle
-  connections pool so that any other request can make use of it. This is the
-  "safe" strategy below.
+  In order to avoid the cost of setting up new connections to backend servers
+  for each HTTP request, HAProxy tries to keep such idle connections opened
+  after being used. These connections are specific to a server and are stored
+  in a list called a pool, and are grouped together by a set of common key
+  properties. Subsequent HTTP requests will cause a lookup of a compatible
+  connection sharing identical properties in the associated pool and result in
+  this connection being reused instead of establishing a new one.
 
-  The argument indicates the desired connection reuse strategy :
+  A limit on the number of idle connections to keep on a server can be
+  specified via the "pool-max-conn" server keyword. Unused connections are
+  periodically purged according to the "pool-purge-delay" interval.
+
+  The following connection properties are used to determine if an idle
+  connection is eligible for reuse on a given request:
+  - source and destination addresses
+  - proxy protocol
+  - TOS and mark socket options
+  - connection name, determined either by the result of the evaluation of the
+    "pool-conn-name" expression if present, otherwise by the "sni" expression
+
+  In some occasions, connection lookup or reuse is not performed due to extra
+  restrictions. This is determined by the reuse strategy specified via the
+  keyword argument:
 
     - "never"  : idle connections are never shared between sessions. This mode
                  may be enforced to cancel a different strategy inherited from
@@ -7941,26 +7958,12 @@ http-reuse { never | safe | aggressive | always }
                  gains as "aggressive" but with more risks. It should only be
                  used when it improves the situation over "aggressive".
 
-  When http connection sharing is enabled, a great care is taken to respect the
-  connection properties and compatibility. Indeed, some properties are specific
-  and it is not possible to reuse it blindly. Those are the source and
-  destination address, proxy protocol block as well as tos and mark sockopts.
-  It is also possible to manually define an extra expression identifier using
-  "pool-conn-name" server keyword, or "sni" as a fallback. A connection is
-  reused only if it shares the same set of properties with the request.
-
   Also note that connections with certain bogus authentication schemes (relying
   on the connection) like NTLM are marked private if possible and never shared.
   This won't be the case however when using a protocol with multiplexing
   abilities and using reuse mode level value greater than the default "safe"
   strategy as in this case nothing prevents the connection from being already
   shared.
-
-  A connection pool is involved and configurable with "pool-max-conn".
-
-  Note: connection reuse improves the accuracy of the "server maxconn" setting,
-  because almost no new connection will be established while idle connections
-  remain available. This is particularly true with the "always" strategy.
 
   The rules to decide to keep an idle connection opened or to close it after
   processing are also governed by the "tune.pool-low-fd-ratio" (default: 20%)
@@ -7974,13 +7977,14 @@ http-reuse { never | safe | aggressive | always }
   too few connections are kept open. It may be desirable in this case to adjust
   such thresholds or simply to increase the global "maxconn" value.
 
-  Similarly, when thread groups are explicitly enabled, it is important to
-  understand that idle connections are only usable between threads from a same
-  group. As such it may happen that unfair load between groups leads to more
-  idle connections being needed, causing a lower reuse rate. The same solution
-  may then be applied (increase global "maxconn" or increase pool ratios).
+  When thread groups are explicitly enabled, it is important to understand that
+  idle connections are only usable between threads from a same group. As such
+  it may happen that unfair load between groups leads to more idle connections
+  being needed, causing a lower reuse rate. The same solution may then be
+  applied (increase global "maxconn" or increase pool ratios).
 
-  See also : "option http-keep-alive", "server maxconn", "thread-groups",
+  See also : "option http-keep-alive", "pool-conn-name", "pool-max-conn",
+             "pool-purge-delay", "server maxconn", "sni", "thread-groups",
              "tune.pool-high-fd-ratio", "tune.pool-low-fd-ratio"
 
 
@@ -14338,20 +14342,18 @@ attach-srv <srv> [name <expr>] [ EXPERIMENTAL ]
   pool of server <srv>. This may only be used with servers having an 'rhttp@'
   address.
 
-  An extra parameter <expr> can be specified. Its value is interpreted as a
-  sample expression to name the connection inside the server idle pool. When
-  routing an outgoing request through this server, this name will be matched
-  against the 'pool-conn-name' parameter of the server line, or 'sni' as a
-  fallback. Otherwise, the connection will have no extra identifier and will
-  only match requests without name.
-
-  This rule is only valid for frontend in HTTP mode. Also all listeners must
-  not require a protocol different from HTTP/2.
+  The connection is inserted into the server idle pool with a name defined by
+  the result of the <expr> evaluation. This is the name that will be matched
+  against by requests subject to "pool-conn-name" or "sni" parameter. See
+  "http-reuse" for more details.
 
   Reverse HTTP is currently still in active development. Configuration
   mechanism may change in the future. For this reason it is internally marked
   as experimental, meaning that "expose-experimental-directives" must appear on
   a line before this directive.
+
+  Note that a very similar but independent protocol is under development. See
+  https://www.ietf.org/archive/id/draft-bt-httpbis-reverse-http-00.html.
 
 auth [realm <realm>]
   Usable in:  TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
@@ -17593,10 +17595,18 @@ on-marked-up <action>
 pool-conn-name <expr>
   May be used in the following contexts: http
 
-  Set an expression which will be interpreted to differentiate connections
-  inside the server idle pool. On reuse, only connection with identical name
-  will be eligible. If SNI expression is defined but not this parameter, it
-  will act as idle pool identifier to guarantee that SNI match on reuse.
+  When a backend connection is established, this expression is evaluated to
+  generate the connection name. This name is one of the key properties of the
+  connection in the idle server pool. See the "http-reuse" keyword. When a
+  request looks up an existing idle connection, this expression is evaluated to
+  match an identical connection.
+
+  In context where SSL SNI is used for backend connection, the connection name
+  is automatically assigned to the result of the "sni" expression. This suits
+  the most common usage. For more advanced setup, "pool-conn-name" may be used
+  to override this.
+
+  See also: "http-reuse", "sni"
 
 pool-low-conn <max>
   May be used in the following contexts: http
@@ -17941,6 +17951,9 @@ sni <expression>
   name will also be matched against the server certificate's names. See the
   "verify" directive for more details. If you want to set a SNI for health
   checks, see the "check-sni" directive for more details.
+
+  By default, the SNI is assigned to the connection name for "http-reuse",
+  unless overriden by the "pool-conn-name" server keyword.
 
 source <addr>[:<pl>[-<ph>]] [usesrc { <addr2>[:<port2>] | client | clientip } ]
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | hdr_ip(<hdr>[,<occ>]) } ]
