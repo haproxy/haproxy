@@ -1115,14 +1115,12 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_store 
 	struct certificate_ocsp *ocsp = NULL, *iocsp;
 	char *warn = NULL;
 	unsigned char *p;
-#ifndef USE_OPENSSL_WOLFSSL
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
-    int (*callback) (SSL *, void *);
+#ifdef USE_OPENSSL_WOLFSSL
+	tlsextStatusCb callback;
+#elif (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+	int (*callback) (SSL *, void *);
 #else
 	void (*callback) (void);
-#endif
-#else
-	tlsextStatusCb callback;
 #endif
 	struct buffer *ocsp_uri = get_trash_chunk();
 	char *err = NULL;
