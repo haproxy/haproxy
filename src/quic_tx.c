@@ -300,7 +300,7 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 
 		TRACE_PROTO("TX dgram", QUIC_EV_CONN_SPPKTS, qc);
 		if (!skip_sendto) {
-			int ret = qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0);
+			int ret = qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0, 0);
 			if (ret < 0) {
 				TRACE_ERROR("sendto fatal error", QUIC_EV_CONN_SPPKTS, qc, first_pkt);
 				qc_kill_conn(qc);
