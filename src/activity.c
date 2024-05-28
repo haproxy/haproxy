@@ -803,8 +803,14 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		else
 			chunk_appendf(&trash, "[other]");
 
-		chunk_appendf(&trash," %s(%lld)", memprof_methods[entry->method],
-			      (long long)(entry->alloc_tot - entry->free_tot) / (long long)(entry->alloc_calls + entry->free_calls));
+		if ((tmp_memstats[i].method != MEMPROF_METH_P_ALLOC) &&
+		    (tmp_memstats[i].method != MEMPROF_METH_MALLOC) &&
+		    (tmp_memstats[i].method != MEMPROF_METH_CALLOC)) {
+			chunk_appendf(&trash," %s(%lld)", memprof_methods[entry->method],
+				(long long)(entry->alloc_tot - entry->free_tot) / (long long)(entry->alloc_calls + entry->free_calls));
+		} else
+			chunk_appendf(&trash," %s(%lld)", memprof_methods[entry->method],
+				(long long)(entry->alloc_tot) / (long long)(entry->alloc_calls));
 
 		if (entry->alloc_tot && entry->free_tot) {
 			/* that's a realloc, show the total diff to help spot leaks */
@@ -829,9 +835,13 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	tot_alloc_calls = tot_free_calls = tot_alloc_bytes = tot_free_bytes = 0;
 	for (i = 0; i < max_lines; i++) {
 		tot_alloc_calls += tmp_memstats[i].alloc_calls;
-		tot_free_calls  += tmp_memstats[i].free_calls;
 		tot_alloc_bytes += tmp_memstats[i].alloc_tot;
-		tot_free_bytes  += tmp_memstats[i].free_tot;
+		if ((tmp_memstats[i].method != MEMPROF_METH_P_ALLOC) &&
+		    (tmp_memstats[i].method != MEMPROF_METH_MALLOC) &&
+		    (tmp_memstats[i].method != MEMPROF_METH_CALLOC)) {
+			tot_free_calls  += tmp_memstats[i].free_calls;
+			tot_free_bytes  += tmp_memstats[i].free_tot;
+		}
 	}
 
 	chunk_appendf(&trash,
