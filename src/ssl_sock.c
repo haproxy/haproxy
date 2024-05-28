@@ -1185,10 +1185,6 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_store 
 	if (iocsp == ocsp)
 		ocsp = NULL;
 
-#ifndef SSL_CTX_get_tlsext_status_cb
-# define SSL_CTX_get_tlsext_status_cb(ctx, cb) \
-	*cb = (void (*) (void))ctx->tlsext_status_cb;
-#endif
 	SSL_CTX_get_tlsext_status_cb(ctx, &callback);
 
 	if (inc_refcount_store)

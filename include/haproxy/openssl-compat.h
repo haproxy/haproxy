@@ -506,5 +506,10 @@ static inline unsigned long ERR_peek_error_func(const char **func)
 #define SSL_CTX_set1_sigalgs_list SSL_CTX_set1_sigalgs_list
 #endif
 
+#ifndef SSL_CTX_get_tlsext_status_cb
+# define SSL_CTX_get_tlsext_status_cb(ctx, cb) \
+	*(cb) = (void (*) (void))ctx->tlsext_status_cb
+#endif
+
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_OPENSSL_COMPAT_H */
