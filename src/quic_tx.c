@@ -153,8 +153,7 @@ struct buffer *qc_get_txb(struct quic_conn *qc)
 static void qc_txb_store(struct buffer *buf, uint16_t length,
                          struct quic_tx_packet *first_pkt)
 {
-	const size_t hdlen = sizeof(uint16_t) + sizeof(void *);
-	BUG_ON_HOT(b_contig_space(buf) < hdlen); /* this must not happen */
+	BUG_ON_HOT(b_contig_space(buf) < QUIC_DGRAM_HEADLEN); /* this must not happen */
 
 	/* If first packet is INITIAL, ensure datagram is sufficiently padded. */
 	BUG_ON(first_pkt->type == QUIC_PACKET_TYPE_INITIAL &&
@@ -163,7 +162,7 @@ static void qc_txb_store(struct buffer *buf, uint16_t length,
 
 	write_u16(b_tail(buf), length);
 	write_ptr(b_tail(buf) + sizeof(length), first_pkt);
-	b_add(buf, hdlen + length);
+	b_add(buf, QUIC_DGRAM_HEADLEN + length);
 }
 
 /* Reports if data are ready to be sent for <qel> encryption level on <qc>
@@ -254,12 +253,11 @@ static void qc_purge_tx_buf(struct quic_conn *qc, struct buffer *buf)
 	while (b_contig_data(buf, 0)) {
 		uint16_t dglen;
 		struct quic_tx_packet *pkt;
-		size_t headlen = sizeof dglen + sizeof pkt;
 
 		dglen = read_u16(b_head(buf));
-		pkt = read_ptr(b_head(buf) + sizeof dglen);
+		pkt = read_ptr(b_head(buf) + sizeof(dglen));
 		qc_free_tx_coalesced_pkts(qc, pkt);
-		b_del(buf, dglen + headlen);
+		b_del(buf, dglen + QUIC_DGRAM_HEADLEN);
 	}
 
 	BUG_ON(b_data(buf));
@@ -289,16 +287,14 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 		struct buffer tmpbuf = { };
 		struct quic_tx_packet *first_pkt, *pkt, *next_pkt;
 		uint16_t dglen;
-		size_t headlen = sizeof dglen + sizeof first_pkt;
 		unsigned int time_sent;
 
 		pos = (unsigned char *)b_head(buf);
 		dglen = read_u16(pos);
 		BUG_ON_HOT(!dglen); /* this should not happen */
 
-		pos += sizeof dglen;
-		first_pkt = read_ptr(pos);
-		pos += sizeof first_pkt;
+		first_pkt = read_ptr(pos + sizeof(dglen));
+		pos += QUIC_DGRAM_HEADLEN;
 		tmpbuf.area = (char *)pos;
 		tmpbuf.size = tmpbuf.data = dglen;
 
@@ -319,7 +315,7 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 				TRACE_ERROR("sendto fatal error", QUIC_EV_CONN_SPPKTS, qc, first_pkt);
 				qc_kill_conn(qc);
 				qc_free_tx_coalesced_pkts(qc, first_pkt);
-				b_del(buf, dglen + headlen);
+				b_del(buf, dglen + QUIC_DGRAM_HEADLEN);
 				qc_purge_tx_buf(qc, buf);
 				goto leave;
 			}
@@ -336,7 +332,7 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 			}
 		}
 
-		b_del(buf, dglen + headlen);
+		b_del(buf, dglen + QUIC_DGRAM_HEADLEN);
 		qc->bytes.tx += tmpbuf.data;
 		time_sent = now_ms;
 
