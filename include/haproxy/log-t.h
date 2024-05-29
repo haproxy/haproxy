@@ -231,10 +231,16 @@ struct log_target {
 	uint16_t flags;
 };
 
+enum logger_flags {
+	LOGGER_FL_NONE     = 0x00,
+};
+
 struct logger {
 	struct list list;
 	struct log_target target;
 	struct smp_info lb;
+	uint16_t flags;
+	/* 2 bytes hole */
 	enum log_fmt format;
 	int facility;
 	int level;
