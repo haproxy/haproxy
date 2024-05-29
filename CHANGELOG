@@ -1,6 +1,29 @@
 ChangeLog :
 ===========
 
+2024/05/29 : 3.0.0
+    - MINOR: sample: implement the uptime sample fetch
+    - CI: scripts: fix build of vtest regarding option -C
+    - CI: scripts: build vtest using multiple CPUs
+    - MINOR: log: rename 'log-format tag' to 'log-format alias'
+    - DOC: config: document logformat item naming and typecasting features
+    - BUILD: makefile: yearly reordering of objects by build time
+    - BUILD: fd: errno is also needed without poll()
+    - DOC: config: fix two typos "RST_STEAM" vs "RST_STREAM"
+    - DOC: config: refer to the non-deprecated keywords in ocsp-update on/off
+    - DOC: streamline http-reuse and connection naming definition
+    - REGTESTS: complete http-reuse test with pool-conn-name
+    - DOC: config: add %ID logformat alias alternative
+    - CLEANUP: ssl/ocsp: readable ifdef in ssl_sock_load_ocsp
+    - BUG/MINOR: ssl/ocsp: init callback func ptr as NULL
+    - CLEANUP: ssl_sock: move dirty openssl-1.0.2 wrapper to openssl-compat
+    - BUG/MINOR: activity: fix Delta_calls and Delta_bytes count
+    - CI: github: upgrade the WolfSSL job to 5.7.0
+    - DOC: install: update quick build reminders with some missing options
+    - DOC: install: update the range of tested openssl version to cover 3.3
+    - DEV: patchbot: prepare for new version 3.1-dev
+    - MINOR: version: mention that it's 3.0 LTS now.
+
 2024/05/24 : 3.0-dev13
     - CLEANUP: ssl/cli: remove unused code in dump_crtlist_conf
     - MINOR: ssl: check parameter in ckch_conf_cmp()
