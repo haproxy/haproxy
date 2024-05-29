@@ -34,18 +34,26 @@ are a few build examples :
   - recent Linux system with all options, make and install :
     $ make clean
     $ make -j $(nproc) TARGET=linux-glibc \
-                USE_OPENSSL=1 USE_LUA=1 USE_PCRE2=1 USE_SYSTEMD=1
+           USE_OPENSSL=1 USE_QUIC=1 USE_QUIC_OPENSSL_COMPAT=1 \
+           USE_LUA=1 USE_PCRE2=1
     $ sudo make install
 
-  - FreeBSD and OpenBSD, build with all options :
-    $ gmake -j 4 TARGET=freebsd USE_OPENSSL=1 USE_LUA=1 USE_PCRE2=1
+  - FreeBSD + OpenSSL, build with all options :
+    $ gmake -j $(sysctl -n hw.ncpu) TARGET=freebsd \
+           USE_OPENSSL=1 USE_QUIC=1 USE_QUIC_OPENSSL_COMPAT=1 \
+           USE_LUA=1 USE_PCRE2=1
+
+  - OpenBSD + LibreSSL, build with all options :
+    $ gmake -j $(sysctl -n hw.ncpu) TARGET=openbsd \
+           USE_OPENSSL=1 USE_QUIC=1 USE_LUA=1 USE_PCRE2=1
 
   - embedded Linux, build using a cross-compiler :
     $ make -j $(nproc) TARGET=linux-glibc USE_OPENSSL=1 USE_PCRE2=1 \
-                CC=/opt/cross/gcc730-arm/bin/gcc ADDLIB=-latomic
+           CC=/opt/cross/gcc730-arm/bin/gcc CFLAGS="-mthumb" ADDLIB=-latomic
 
   - Build with static PCRE on Solaris / UltraSPARC :
-    $ make TARGET=solaris CPU_CFLAGS="-mcpu=v9" USE_STATIC_PCRE2=1
+    $ make -j $(/usr/sbin/psrinfo -p) TARGET=solaris \
+           CPU_CFLAGS="-mcpu=v9" USE_STATIC_PCRE2=1
 
 For more advanced build options or if a command above reports an error, please
 read the following sections.
