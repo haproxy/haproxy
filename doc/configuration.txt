@@ -2,7 +2,7 @@
                                 HAProxy
                           Configuration Manual
                          ----------------------
-                              version 3.0
+                              version 3.1
                               2024/05/29
 
 
