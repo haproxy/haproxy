@@ -14,11 +14,11 @@ that are picked from the development branch.
 Branches are numbered in 0.1 increments. Every 6 months, upon a new major
 release, the development branch enters maintenance and a new development branch
 is created with a new, higher version. The current development branch is
-3.0-dev, and maintenance branches are 2.9 and below.
+3.1-dev, and maintenance branches are 3.0 and below.
 
 Fixes created in the development branch for issues that were introduced in an
 earlier branch are applied in descending order to each and every version till
-that branch that introduced the issue: 2.9 first, then 2.8, then 2.7 and so
+that branch that introduced the issue: 3.0 first, then 2.9, then 2.8 and so
 on. This operation is called "backporting". A fix for an issue is never
 backported beyond the branch that introduced the issue. An important point is
 that the project maintainers really aim at zero regression in maintenance

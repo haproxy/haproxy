@@ -17,7 +17,7 @@ Finally, based on your analysis, give your general conclusion as "Conclusion: X"
 where X is a single word among:
   - "yes", if you recommend to backport the patch right now either because
     it explicitly states this or because it's a fix for a bug that affects
-    a maintenance branch (2.9 or lower);
+    a maintenance branch (3.0 or lower);
   - "wait", if this patch explicitly mentions that it must be backported, but
     only after waiting some time.
   - "no", if nothing clearly indicates a necessity to backport this patch (e.g.
