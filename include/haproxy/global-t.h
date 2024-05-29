@@ -217,10 +217,15 @@ struct global {
 	int thread_limit;               /* hard limit on the number of threads */
 	int prealloc_fd;
 	uchar clt_privileged_ports;     /* bitmask to allow client privileged ports exchanges per protocol */
-	/* 3-bytes hole */
+	unsigned char argc;		/* cast int argc to unsigned char in order to fill better the previous
+					 * 3 bytes hole, it seems unreal, that oneday we could start with more
+					 * than 255 arguments
+					 */
+	/* 2-bytes hole */
 	int cfg_curr_line;              /* line number currently being parsed */
 	const char *cfg_curr_file;      /* config file currently being parsed or NULL */
 	char *cfg_curr_section;         /* config section name currently being parsed or NULL */
+	char **argv;			/* ptr to array with args */
 
 	/* The info above is config stuff, it doesn't change during the process' life */
 	/* A number of the elements below are updated by all threads in real time and

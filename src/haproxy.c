@@ -1557,6 +1557,11 @@ static void init_early(int argc, char **argv)
 	totalconn = actconn = listeners = stopping = 0;
 	killed = pid = 0;
 
+	/* cast to one byte in order to fill better a 3 bytes hole in the global struct,
+	 * we hopefully will never start with > than 255 args
+	 */
+	global.argc = (unsigned char)argc;
+	global.argv = argv;
 	global.maxsock = 10; /* reserve 10 fds ; will be incremented by socket eaters */
 	global.rlimit_memmax_all = HAPROXY_MEMMAX;
 	global.mode = MODE_STARTING;

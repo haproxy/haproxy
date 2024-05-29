@@ -47,6 +47,7 @@
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/trace.h>
+#include <haproxy/version.h>
 #include <import/ist.h>
 
 
@@ -114,6 +115,7 @@ struct post_mortem {
 		gid_t boot_gid;
 		struct rlimit limit_fd;  // RLIMIT_NOFILE
 		struct rlimit limit_ram; // RLIMIT_DATA
+		char **argv;
 
 #if defined(USE_THREAD)
 		struct {
@@ -121,6 +123,7 @@ struct post_mortem {
 			void *stack_top; // top of the stack
 		} thread_info[MAX_THREADS];
 #endif
+		unsigned char argc;
 	} process;
 
 #if defined(HA_HAVE_DUMP_LIBS)
@@ -498,12 +501,14 @@ static int debug_parse_cli_show_libs(char **args, char *payload, struct appctx *
 static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	const char **build_opt;
+	int i;
 
 	if (*args[2])
 		return cli_err(appctx, "This command takes no argument.\n");
 
 	chunk_reset(&trash);
 
+	chunk_appendf(&trash, "HAProxy version %s\n", haproxy_version);
 	chunk_appendf(&trash, "Features\n  %s\n", build_features);
 
 	chunk_appendf(&trash, "Build options\n");
@@ -545,8 +550,14 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 
 	chunk_appendf(&trash, "Process info\n");
 	chunk_appendf(&trash, "  pid: %d\n", post_mortem.process.pid);
+	chunk_appendf(&trash, "  cmdline: ");
+	for (i = 0; i < post_mortem.process.argc; i++)
+		chunk_appendf(&trash, "%s ", post_mortem.process.argv[i]);
+	chunk_appendf(&trash, "\n");
 	chunk_appendf(&trash, "  boot uid: %d\n", post_mortem.process.boot_uid);
+	chunk_appendf(&trash, "  runtime uid: %d\n", geteuid());
 	chunk_appendf(&trash, "  boot gid: %d\n", post_mortem.process.boot_gid);
+	chunk_appendf(&trash, "  runtime gid: %d\n", getegid());
 
 	if ((ulong)post_mortem.process.limit_fd.rlim_cur != RLIM_INFINITY)
 		chunk_appendf(&trash, "  fd limit (soft): %lu\n", (ulong)post_mortem.process.limit_fd.rlim_cur);
@@ -2271,6 +2282,8 @@ static int feed_post_mortem()
 	post_mortem.process.pid = getpid();
 	post_mortem.process.boot_uid = geteuid();
 	post_mortem.process.boot_gid = getegid();
+	post_mortem.process.argc = global.argc;
+	post_mortem.process.argv = global.argv;
 
 	getrlimit(RLIMIT_NOFILE, &post_mortem.process.limit_fd);
 	getrlimit(RLIMIT_DATA, &post_mortem.process.limit_ram);
