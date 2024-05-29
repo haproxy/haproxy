@@ -1,6 +1,5 @@
 varnishtest "sha2 converter Test"
 
-#REQUIRE_VERSION=2.1
 #REQUIRE_OPTION=OPENSSL
 
 feature ignore_unknown_macro

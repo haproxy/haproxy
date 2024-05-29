@@ -1,7 +1,5 @@
 varnishtest "srv_name sample fetche Test"
 
-#REQUIRE_VERSION=2.1
-
 feature ignore_unknown_macro
 
 server s1 {
