@@ -22,7 +22,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get --no-install-recommends -y install \
-          liblua5.3-dev \
+          liblua5.4-dev \
           libsystemd-dev
     - name: Install QUICTLS
       run: |
