@@ -14,7 +14,6 @@
 # - Check that you have socat
 
 varnishtest "Test the 'set ssl cert' feature of the CLI with separate key and crt"
-#REQUIRE_VERSION=2.2
 #REQUIRE_OPTIONS=OPENSSL
 feature cmd "command -v socat"
 feature ignore_unknown_macro

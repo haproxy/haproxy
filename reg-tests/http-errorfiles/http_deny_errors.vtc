@@ -1,10 +1,8 @@
 varnishtest "Test the custom errors for HTTP deny rules"
-#REQUIRE_VERSION=2.2
 
 # This config tests the custom errors for HTTP deny rules.
 
 feature ignore_unknown_macro
-
 
 haproxy h1 -conf {
     http-errors errors-1

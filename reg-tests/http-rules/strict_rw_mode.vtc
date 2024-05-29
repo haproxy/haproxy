@@ -1,5 +1,4 @@
 varnishtest "Test the strict rewriting mode"
-#REQUIRE_VERSION=2.2
 
 # This config tests the strict-mode of HTTP rules.
 

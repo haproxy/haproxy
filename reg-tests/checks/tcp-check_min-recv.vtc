@@ -1,7 +1,6 @@
 varnishtest "tcp-check negative bounded regex match"
 #EXCLUDE_TARGETS=freebsd,osx,generic
 #REGTEST_TYPE=slow
-#REQUIRE_VERSION=2.2
 # This test use a negative expect rule and verify that setting a required
 # minimum amount of data to match.
 feature ignore_unknown_macro

@@ -1,7 +1,5 @@
 varnishtest "Check that generic TLV IDs are sent properly"
 
-#REQUIRE_VERSION=2.2
-
 feature ignore_unknown_macro
 
 haproxy h1 -conf {

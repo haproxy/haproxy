@@ -1,5 +1,4 @@
 varnishtest "Test the HTTP return action with errorfiles"
-#REQUIRE_VERSION=2.2
 
 # This config tests the HTTP return action when error files are used to reply to
 # the client.

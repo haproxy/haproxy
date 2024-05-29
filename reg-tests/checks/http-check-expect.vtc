@@ -1,6 +1,5 @@
 varnishtest "Health-checks: some http-check expect tests"
 feature ignore_unknown_macro
-#REQUIRE_VERSION=2.2
 #REGTEST_TYPE=slow
 # This script tests http-check expect rules.
 

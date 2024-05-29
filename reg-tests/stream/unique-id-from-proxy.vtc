@@ -1,7 +1,5 @@
 varnishtest "Check that we are able to read a unique-id from PROXYv2"
 
-#REQUIRE_VERSION=2.2
-
 feature ignore_unknown_macro
 
 haproxy h1 -conf {

@@ -1,7 +1,5 @@
 varnishtest "Check that the unique ID TLV is properly sent"
 
-#REQUIRE_VERSION=2.2
-
 feature ignore_unknown_macro
 
 haproxy h1 -conf {

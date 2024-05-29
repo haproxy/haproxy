@@ -1,7 +1,6 @@
 varnishtest "cannot add the HTX EOM block because the buffer is full"
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=2.2
 #REQUIRE_VERSION_BELOW=2.4
 #REGTEST_TYPE=devel
 

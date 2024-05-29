@@ -1,10 +1,8 @@
 varnishtest "Test the errorfiles directive"
-#REQUIRE_VERSION=2.2
 
 # This config tests the errorfiles directive.
 
 feature ignore_unknown_macro
-
 
 haproxy h1 -conf {
     http-errors errors-1

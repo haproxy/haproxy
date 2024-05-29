@@ -1,5 +1,4 @@
 varnishtest "Test the HTTP return action"
-#REQUIRE_VERSION=2.2
 
 # This config tests the HTTP return action.
 

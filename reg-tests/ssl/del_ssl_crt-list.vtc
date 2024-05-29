@@ -10,7 +10,6 @@
 # of a frontend that does not have the strict-sni option enabled cannot be deleted.
 
 varnishtest "Test the 'del ssl crt-list' feature of the CLI"
-#REQUIRE_VERSION=2.2
 #REQUIRE_OPTIONS=OPENSSL
 feature ignore_unknown_macro
 

@@ -1,6 +1,5 @@
 varnishtest "Check that the unique ID TLV is properly sent for servers with ALPN option"
 
-#REQUIRE_VERSION=2.2
 #REQUIRE_OPTIONS=OPENSSL
 
 feature ignore_unknown_macro

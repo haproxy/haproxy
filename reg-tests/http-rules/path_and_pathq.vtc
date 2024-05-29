@@ -1,5 +1,4 @@
 varnishtest "path vs pathq tests"
-#REQUIRE_VERSION=2.2
 
 # This config tests various http request rules (set/replace) manipulating the
 # path, with or without the query-string. It also test path and pathq sample

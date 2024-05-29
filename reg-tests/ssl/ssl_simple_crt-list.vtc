@@ -2,7 +2,6 @@
 varnishtest "Test for the bug #940"
 # Test that the SNI are correctly inserted with the same file multiple times.
 
-#REQUIRE_VERSION=2.2
 #REQUIRE_OPTIONS=OPENSSL
 feature ignore_unknown_macro
 

@@ -1,5 +1,4 @@
 varnishtest "Test HTTP response manipulation under the http-after-response rulesets"
-#REQUIRE_VERSION=2.2
 
 # This config tests various http-after-response rules for HTTP responses from a
 # server and the stats applet, but also for internal responses

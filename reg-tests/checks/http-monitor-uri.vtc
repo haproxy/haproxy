@@ -1,5 +1,4 @@
 varnishtest "Test the HTTP directive monitor-uri"
-#REQUIRE_VERSION=2.2
 
 # This config tests the HTTP directive monitor-uri. Especially the path matching
 # when an absolute-form uri is received from the client. But also the

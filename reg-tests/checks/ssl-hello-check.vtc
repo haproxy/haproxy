@@ -1,6 +1,5 @@
 varnishtest "Health-checks: ssl-hello health-check"
 #REQUIRE_OPTION=OPENSSL
-#REQUIRE_VERSION=2.2
 #REGTEST_TYPE=slow
 feature ignore_unknown_macro
 
