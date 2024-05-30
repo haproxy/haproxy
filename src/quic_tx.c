@@ -146,7 +146,9 @@ struct buffer *qc_get_txb(struct quic_conn *qc)
 }
 
 /* Commit a datagram payload written into <buf> of length <length>. <first_pkt>
- * must contains the address of the first packet stored in the payload.
+ * must contains the address of the first packet stored in the payload. When
+ * GSO is used, several datagrams can be commited at once. In this case,
+ * <length> must be the total length of all consecutive datagrams.
  *
  * Caller is responsible that there is enough space in the buffer.
  */
@@ -286,12 +288,18 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 		unsigned char *pos;
 		struct buffer tmpbuf = { };
 		struct quic_tx_packet *first_pkt, *pkt, *next_pkt;
-		uint16_t dglen;
+		uint16_t dglen, gso = 0;
 		unsigned int time_sent;
 
 		pos = (unsigned char *)b_head(buf);
 		dglen = read_u16(pos);
 		BUG_ON_HOT(!dglen); /* this should not happen */
+
+		/* If datagram bigger than MTU, several ones were encoded for GSO usage. */
+		if (dglen > qc->path->mtu) {
+			TRACE_PROTO("send multiple datagrams with GSO", QUIC_EV_CONN_SPPKTS, qc);
+			gso = qc->path->mtu;
+		}
 
 		first_pkt = read_ptr(pos + sizeof(dglen));
 		pos += QUIC_DGRAM_HEADLEN;
@@ -300,7 +308,7 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 
 		TRACE_PROTO("TX dgram", QUIC_EV_CONN_SPPKTS, qc);
 		if (!skip_sendto) {
-			int ret = qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0, 0);
+			int ret = qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0, gso);
 			if (ret < 0) {
 				TRACE_ERROR("sendto fatal error", QUIC_EV_CONN_SPPKTS, qc, first_pkt);
 				qc_kill_conn(qc);
@@ -367,6 +375,17 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 			next_pkt = pkt->next;
 			quic_tx_packet_refinc(pkt);
 			eb64_insert(&pkt->pktns->tx.pkts, &pkt->pn_node);
+
+			/* Packets built with GSO from consecutive datagrams
+			 * are attached together but without COALESCED flag.
+			 * Unlink them to treat them separately on ACK Rx.
+			 */
+			if (!(pkt->flags & QUIC_FL_TX_PACKET_COALESCED)) {
+				if (pkt->prev) {
+					pkt->prev->next = NULL;
+					pkt->prev = NULL;
+				}
+			}
 		}
 	}
 
@@ -479,9 +498,11 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	int ret, cc, padding;
 	struct quic_tx_packet *first_pkt, *prv_pkt;
 	unsigned char *end, *pos;
+	uint32_t wrlen; /* may differ from dglen if GSO used */
 	uint16_t dglen;
 	size_t total;
 	struct quic_enc_level *qel, *tmp_qel;
+	uchar gso_dgram_cnt = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
 	/* Currently qc_prep_pkts() does not handle buffer wrapping so the
@@ -494,7 +515,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	padding = 0;
 	first_pkt = prv_pkt = NULL;
 	end = pos = (unsigned char *)b_head(buf);
-	dglen = 0;
+	dglen = wrlen = 0;
 	total = 0;
 
 	list_for_each_entry_safe(qel, tmp_qel, qels, el_send) {
@@ -531,11 +552,13 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 
 			TRACE_PROTO("TX prep pkts", QUIC_EV_CONN_PHPKTS, qc, qel);
 
+			if (!first_pkt)
+				pos += QUIC_DGRAM_HEADLEN;
+
 			/* On starting a new datagram, calculate end max offset
 			 * to stay under MTU limit.
 			 */
-			if (!first_pkt) {
-				pos += QUIC_DGRAM_HEADLEN;
+			if (!dglen) {
 				if (cc)
 					end = pos + QUIC_MIN_CC_PKTSIZE;
 				else if (!quic_peer_validated_addr(qc) && qc_is_listener(qc))
@@ -583,7 +606,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 
 				case QC_BUILD_PKT_ERR_BUFROOM:
 					if (first_pkt)
-						qc_txb_store(buf, dglen, first_pkt);
+						qc_txb_store(buf, wrlen, first_pkt);
 					TRACE_PROTO("could not prepare anymore packet", QUIC_EV_CONN_PHPKTS, qc, qel);
 					break;
 
@@ -598,13 +621,6 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			}
 
 
-			total += cur_pkt->len;
-			dglen += cur_pkt->len;
-
-			/* Reset padding if datagram is big enough. */
-			if (dglen >= QUIC_INITIAL_PACKET_MINLEN)
-				padding = 0;
-
 			if (qc->flags & QUIC_FL_CONN_RETRANS_OLD_DATA)
 				cur_pkt->flags |= QUIC_FL_TX_PACKET_PROBE_WITH_OLD_DATA;
 
@@ -616,8 +632,23 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			if (prv_pkt) {
 				prv_pkt->next = cur_pkt;
 				cur_pkt->prev = prv_pkt;
-				cur_pkt->flags |= QUIC_FL_TX_PACKET_COALESCED;
+
+				/* On GSO, do not flag consecutive packets from
+				 * 2 different datagrams as coalesced. They
+				 * will be unlinked on qc_send_ppkts().
+				 */
+				if (dglen)
+					cur_pkt->flags |= QUIC_FL_TX_PACKET_COALESCED;
 			}
+
+			total += cur_pkt->len;
+			dglen += cur_pkt->len;
+			wrlen += cur_pkt->len;
+
+			/* Reset padding if datagram is big enough. */
+			if (dglen >= QUIC_INITIAL_PACKET_MINLEN)
+				padding = 0;
+			BUG_ON(padding && !next_qel);
 
 			/* Build only one datagram when an immediate close is required. */
 			if (cc) {
@@ -630,18 +661,34 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				break;
 
 			if (LIST_ISEMPTY(frms)) {
+				/* Everything sent. Continue within the same datagram. */
 				prv_pkt = cur_pkt;
 			}
-			else {
-				/* Finalize current datagram if not all frames
-				 * left. This is due to full buffer or datagram
-				 * MTU reached.
+			else if (!(global.tune.options & GTUNE_QUIC_NO_UDP_GSO) &&
+			         dglen == qc->path->mtu &&
+			         (char *)end < b_wrap(buf) &&
+			         gso_dgram_cnt < 64) {
+				/* A datagram covering the full MTU has been
+				 * built, use GSO to built next entry. Do not
+				 * reserve extra space for datagram header.
 				 */
-				qc_txb_store(buf, dglen, first_pkt);
-				first_pkt = NULL;
+				prv_pkt = cur_pkt;
 				dglen = 0;
+
+				/* man 7 udp UDP_SEGMENT
+				 * The segment size must be chosen such that at
+				 * most 64 datagrams are sent in a single call
+				 */
+				++gso_dgram_cnt;
+			}
+			else {
+				/* Finalize current datagram if not all frames sent. */
+				qc_txb_store(buf, wrlen, first_pkt);
+				first_pkt = NULL;
+				wrlen = dglen = 0;
 				padding = 0;
 				prv_pkt = NULL;
+				gso_dgram_cnt = 0;
 			}
 
 			/* qc_do_build_pkt() is responsible to decrement probe
@@ -654,7 +701,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	}
 
 	if (first_pkt)
-		qc_txb_store(buf, dglen, first_pkt);
+		qc_txb_store(buf, wrlen, first_pkt);
 
  out:
 	if (cc && total) {
