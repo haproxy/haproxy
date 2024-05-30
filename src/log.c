@@ -2855,6 +2855,101 @@ struct process_send_log_ctx {
 	enum log_orig origin;
 };
 
+static inline void _process_send_log_final(struct logger *logger, struct log_header hdr,
+                                           char *message, size_t size, int nblogger)
+{
+	if (logger->target.type == LOG_TARGET_BACKEND) {
+		__do_send_log_backend(logger->target.be, hdr, nblogger, logger->maxlen, message, size);
+	}
+	else {
+		/* normal target */
+		__do_send_log(&logger->target, hdr, nblogger, logger->maxlen, message, size);
+	}
+}
+
+static inline void _process_send_log_override(struct process_send_log_ctx *ctx,
+                                              struct logger *logger, struct log_header hdr,
+                                              char *message, size_t size, int nblogger)
+{
+	struct log_profile *prof = logger->prof;
+	struct log_profile_step *step = NULL;
+	struct ist orig_tag = hdr.metadata[LOG_META_TAG];
+	struct ist orig_sd = hdr.metadata[LOG_META_STDATA];
+	enum log_orig orig = (ctx) ? ctx->origin : LOG_ORIG_UNSPEC;
+
+	BUG_ON(!prof);
+
+	if (!b_is_null(&prof->log_tag))
+		hdr.metadata[LOG_META_TAG] = ist2(prof->log_tag.area, prof->log_tag.data);
+
+	/* check if there is a profile step override matching
+	 * current logging step
+	 */
+	switch (orig) {
+		case LOG_ORIG_SESS_ERROR:
+		case LOG_ORIG_SESS_KILL:
+			if (prof->error)
+				step = prof->error;
+			break;
+		case LOG_ORIG_TXN_ACCEPT:
+			if (prof->accept)
+				step = prof->accept;
+			break;
+		case LOG_ORIG_TXN_REQUEST:
+			if (prof->request)
+				step = prof->request;
+			break;
+		case LOG_ORIG_TXN_CONNECT:
+			if (prof->connect)
+				step = prof->connect;
+			break;
+		case LOG_ORIG_TXN_RESPONSE:
+			if (prof->response)
+				step = prof->response;
+			break;
+		case LOG_ORIG_TXN_CLOSE:
+			if (prof->close)
+				step = prof->close;
+			break;
+		default:
+			break;
+	}
+
+	if (!step && prof->any)
+		step = prof->any;
+
+	if (ctx && ctx->sess && step) {
+		/* we may need to rebuild message using lf_expr from profile
+		 * step and possibly sd metadata if provided on the profile
+		 */
+		if (!lf_expr_isempty(&step->logformat)) {
+			size = sess_build_logline_orig(ctx->sess, ctx->stream,
+			                               logline_lpf, global.max_syslog_len,
+			                               &step->logformat,
+			                               ctx->origin);
+			if (size == 0)
+				goto end;
+			message = logline_lpf;
+		}
+		if (!lf_expr_isempty(&step->logformat_sd)) {
+			size_t sd_size;
+
+			sd_size = sess_build_logline_orig(ctx->sess, ctx->stream,
+			                                  logline_rfc5424_lpf, global.max_syslog_len,
+			                                  &step->logformat_sd,
+			                                  ctx->origin);
+			__send_log_set_metadata_sd(hdr.metadata, logline_rfc5424_lpf, sd_size);
+		}
+	}
+
+	_process_send_log_final(logger, hdr, message, size, nblogger);
+
+ end:
+	/* restore original metadata values */
+	hdr.metadata[LOG_META_TAG] = orig_tag;
+	hdr.metadata[LOG_META_STDATA] = orig_sd;
+}
+
 /*
  * This function sends a syslog message.
  * It doesn't care about errors nor does it report them.
@@ -2913,13 +3008,12 @@ static void process_send_log(struct process_send_log_ctx *ctx,
 			hdr.metadata = metadata;
 
 			nblogger += 1;
-			if (logger->target.type == LOG_TARGET_BACKEND) {
-				__do_send_log_backend(logger->target.be, hdr, nblogger, logger->maxlen, message, size);
-			}
-			else {
-				/* normal target */
-				__do_send_log(&logger->target, hdr, nblogger, logger->maxlen, message, size);
-			}
+
+			/* logger may use a profile to override a few things */
+			if (unlikely(logger->prof))
+				_process_send_log_override(ctx, logger, hdr, message, size, nblogger);
+			else
+				_process_send_log_final(logger, hdr, message, size, nblogger);
 		}
 	}
 }
