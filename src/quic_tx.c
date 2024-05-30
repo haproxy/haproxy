@@ -512,6 +512,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		const struct quic_version *ver;
 		struct list *frms = qel->send_frms;
 		struct quic_enc_level *next_qel;
+		int probe, must_ack;
 
 		if (qel == qc->eel) {
 			/* Next encryption level */
@@ -524,40 +525,21 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		next_qel = LIST_NEXT(&qel->el_send, struct quic_enc_level *, el_send);
 		if (&next_qel->el_send == qels)
 			next_qel = NULL;
+		/* We do not probe if an immediate close was asked */
+		probe = !cc ? qel->pktns->tx.pto_probe : 0;
 
-		/* Build as much as datagrams at <qel> encryption level.
-		 * Each datagram is prepended with its length followed by the address
-		 * of the first packet in the datagram (QUIC_DGRAM_HEADLEN).
+		/* Build packets for QEL until nothing to send (and no padding
+		 * required anymore) while there is still room left in buffer.
 		 */
-		while (b_contig_space(buf) > QUIC_DGRAM_HEADLEN || prv_pkt) {
-			int probe, must_ack;
+		while (b_contig_space(buf) >= QUIC_DGRAM_HEADLEN &&
+		       (qc_may_build_pkt(qc, frms, qel, cc, probe, &must_ack) ||
+		        (padding && !next_qel))) {
+
 			enum quic_pkt_type pkt_type;
 			struct quic_tx_packet *cur_pkt;
 			enum qc_build_pkt_err err;
 
 			TRACE_PROTO("TX prep pkts", QUIC_EV_CONN_PHPKTS, qc, qel);
-			probe = 0;
-			/* We do not probe if an immediate close was asked */
-			if (!cc)
-				probe = qel->pktns->tx.pto_probe;
-
-			/* Remove QEL if nothing to send anymore. Padding is only emitted for last QEL. */
-			if (!qc_may_build_pkt(qc, frms, qel, cc, probe, &must_ack) &&
-			    (!padding || next_qel)) {
-				/* Remove qel from send_list if nothing to send. */
-				LIST_DEL_INIT(&qel->el_send);
-				qel->send_frms = NULL;
-
-				if (prv_pkt && !next_qel) {
-					qc_txb_store(buf, dglen, first_pkt);
-					/* Build only one datagram when an immediate close is required. */
-					if (cc)
-						goto out;
-				}
-
-				TRACE_DEVEL("next encryption level", QUIC_EV_CONN_PHPKTS, qc);
-				break;
-			}
 
 			/* On starting a new datagram, calculate end max offset
 			 * to stay under MTU limit.
@@ -631,6 +613,11 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			total += cur_pkt->len;
 			dglen += cur_pkt->len;
 
+			/* qc_do_build_pkt() is responsible to decrement probe
+			 * value. Required to break loop on qc_may_build_pkt().
+			 */
+			probe = qel->pktns->tx.pto_probe;
+
 			/* Reset padding if datagram is big enough. */
 			if (dglen >= QUIC_INITIAL_PACKET_MINLEN)
 				padding = 0;
@@ -649,26 +636,33 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				cur_pkt->flags |= QUIC_FL_TX_PACKET_COALESCED;
 			}
 
-			/* If there is no more packet to build for this encryption level,
-			 * select the next one <next_qel>, if any, to coalesce a packet in
-			 * the same datagram, except if <qel> is the Application data
-			 * encryption level which cannot be selected to do that.
-			 */
-			if (LIST_ISEMPTY(frms) && next_qel) {
+			/* Build only one datagram when an immediate close is required. */
+			if (cc) {
+				qc_txb_store(buf, dglen, first_pkt);
+				goto out;
+			}
+
+			if (LIST_ISEMPTY(frms)) {
 				prv_pkt = cur_pkt;
 			}
 			else {
+				/* Finalize current datagram if not all frames
+				 * left. This is due to full buffer or datagram
+				 * MTU reached.
+				 */
 				qc_txb_store(buf, dglen, first_pkt);
-				/* Build only one datagram when an immediate close is required. */
-				if (cc)
-					goto out;
 				first_pkt = NULL;
 				dglen = 0;
 				padding = 0;
 				prv_pkt = NULL;
 			}
 		}
+
+		TRACE_DEVEL("next encryption level", QUIC_EV_CONN_PHPKTS, qc);
 	}
+
+	if (first_pkt)
+		qc_txb_store(buf, dglen, first_pkt);
 
  out:
 	if (cc && total) {
