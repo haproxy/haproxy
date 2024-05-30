@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <string.h>
+#include <netinet/udp.h>
 
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
@@ -259,6 +260,29 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 	return 0;
 }
 
+static int cfg_parse_quic_tune_setting0(char **args, int section_type,
+                                        struct proxy *curpx,
+                                        const struct proxy *defpx,
+                                        const char *file, int line, char **err)
+{
+	int prefix_len = strlen("tune.quic.");
+	const char *suffix;
+
+	if (too_many_args(0, args, err, NULL))
+		return -1;
+
+	suffix = args[0] + prefix_len;
+	if (strcmp(suffix, "disable-udp-gso") == 0) {
+		global.tune.options |= GTUNE_QUIC_NO_UDP_GSO;
+	}
+	else {
+		memprintf(err, "'%s' keyword unhandled (please report this bug).", args[0]);
+		return -1;
+	}
+
+	return 0;
+}
+
 /* config parser for global "tune.quic.* {on|off}" */
 static int cfg_parse_quic_tune_on_off(char **args, int section_type, struct proxy *curpx,
                                       const struct proxy *defpx, const char *file, int line,
@@ -308,6 +332,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.max-frame-loss", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.reorder-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.retry-threshold", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.disable-udp-gso", cfg_parse_quic_tune_setting0 },
 	{ CFG_GLOBAL, "tune.quic.zero-copy-fwd-send", cfg_parse_quic_tune_on_off },
 	{ 0, NULL, NULL }
 }};
