@@ -155,16 +155,27 @@ static void qc_txb_store(struct buffer *buf, uint16_t length,
 	const size_t hdlen = sizeof(uint16_t) + sizeof(void *);
 	BUG_ON_HOT(b_contig_space(buf) < hdlen); /* this must not happen */
 
+	/* If first packet is INITIAL, ensure datagram is sufficiently padded. */
+	BUG_ON(first_pkt->type == QUIC_PACKET_TYPE_INITIAL &&
+	       (first_pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING) &&
+	       length < QUIC_INITIAL_PACKET_MINLEN);
+
 	write_u16(b_tail(buf), length);
 	write_ptr(b_tail(buf) + sizeof(length), first_pkt);
 	b_add(buf, hdlen + length);
 }
 
-/* Returns 1 if a packet may be built for <qc> from <qel> encryption level
- * with <frms> as ack-eliciting frame list to send, 0 if not.
- * <cc> must equal to 1 if an immediate close was asked, 0 if not.
- * <probe> must equalt to 1 if a probing packet is required, 0 if not.
- * Also set <*must_ack> to inform the caller if an acknowledgement should be sent.
+/* Reports if data are ready to be sent for <qel> encryption level on <qc>
+ * connection.
+ *
+ * <frms> is the ack-eliciting frames list to send, if any. Other parameters
+ * can be set individually for some special frame types : <cc> for immediate
+ * close, <probe> to emit probing frames.
+ *
+ * This function will also set <must_ack> to inform the caller that an
+ * acknowledgement should be sent.
+ *
+ * Returns true if data to emit else false.
  */
 static int qc_may_build_pkt(struct quic_conn *qc, struct list *frms,
                             struct quic_enc_level *qel, int cc, int probe,
@@ -330,15 +341,7 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 
 		for (pkt = first_pkt; pkt; pkt = next_pkt) {
 			struct quic_cc *cc = &qc->path->cc;
-			/* RFC 9000 14.1 Initial datagram size
-			 * a server MUST expand the payload of all UDP datagrams carrying ack-eliciting
-			 * Initial packets to at least the smallest allowed maximum datagram size of
-			 * 1200 bytes.
-			 */
 			qc->cntrs.sent_pkt++;
-			BUG_ON_HOT(pkt->type == QUIC_PACKET_TYPE_INITIAL &&
-			           (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING) &&
-			           dglen < QUIC_INITIAL_PACKET_MINLEN);
 
 			pkt->time_sent = time_sent;
 			if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING) {
@@ -510,7 +513,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	list_for_each_entry_safe(qel, tmp_qel, qels, el_send) {
 		struct quic_tls_ctx *tls_ctx;
 		const struct quic_version *ver;
-		struct list *frms = qel->send_frms, *next_frms;
+		struct list *frms = qel->send_frms;
 		struct quic_enc_level *next_qel;
 
 		if (qel == qc->eel) {
@@ -521,14 +524,9 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		qc_select_tls_ver(qc, qel, &tls_ctx, &ver);
 
 		/* Retrieve next QEL. Set it to NULL if on qels last element. */
-		if (qel->el_send.n != qels) {
-			next_qel = LIST_ELEM(qel->el_send.n, struct quic_enc_level *, el_send);
-			next_frms = next_qel->send_frms;
-		}
-		else {
-			next_qel  = NULL;
-			next_frms = NULL;
-		}
+		next_qel = LIST_NEXT(&qel->el_send, struct quic_enc_level *, el_send);
+		if (&next_qel->el_send == qels)
+			next_qel = NULL;
 
 		/* Build as much as datagrams at <qel> encryption level.
 		 * Each datagram is prepended with its length followed by the address
@@ -546,7 +544,9 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			if (!cc)
 				probe = qel->pktns->tx.pto_probe;
 
-			if (!qc_may_build_pkt(qc, frms, qel, cc, probe, &must_ack)) {
+			/* Remove QEL if nothing to send anymore. Padding is only emitted for last QEL. */
+			if (!qc_may_build_pkt(qc, frms, qel, cc, probe, &must_ack) &&
+			    (!padding || next_qel)) {
 				/* Remove qel from send_list if nothing to send. */
 				LIST_DEL_INIT(&qel->el_send);
 				qel->send_frms = NULL;
@@ -577,30 +577,28 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			}
 
 			/* RFC 9000 14.1 Initial datagram size
-			 * a server MUST expand the payload of all UDP datagrams carrying ack-eliciting
-			 * Initial packets to at least the smallest allowed maximum datagram size of
-			 * 1200 bytes.
 			 *
-			 * Ensure that no ack-eliciting packets are sent into too small datagrams
+			 * Similarly, a server MUST expand the payload of all UDP
+			 * datagrams carrying ack-eliciting Initial packets to at least the
+			 * smallest allowed maximum datagram size of 1200 bytes.
 			 */
-			if (qel == qc->iel && !LIST_ISEMPTY(frms)) {
+			if (qel == qc->iel && (!LIST_ISEMPTY(frms) || probe)) {
+				 /* Ensure that no ack-eliciting packets are sent into too small datagrams */
 				if (end - pos < QUIC_INITIAL_PACKET_MINLEN) {
 					TRACE_PROTO("No more enough room to build an Initial packet",
 					            QUIC_EV_CONN_PHPKTS, qc);
 					break;
 				}
 
-				/* Pad this Initial packet if there is no ack-eliciting frames to send from
-				 * the next packet number space.
-				 */
-				if (!next_frms || LIST_ISEMPTY(next_frms))
-					padding = 1;
+				/* padding will be set for last QEL */
+				padding = 1;
 			}
 
 			pkt_type = quic_enc_level_pkt_type(qc, qel);
 			cur_pkt = qc_build_pkt(&pos, end, qel, tls_ctx, frms,
 			                       qc, ver, dglen, pkt_type,
-			                       must_ack, padding, probe, cc, &err);
+			                       must_ack, padding && !next_qel,
+			                       probe, cc, &err);
 			switch (err) {
 				case -3:
 					if (first_pkt)
@@ -628,6 +626,10 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			total += cur_pkt->len;
 			dglen += cur_pkt->len;
 
+			/* Reset padding if datagram is big enough. */
+			if (dglen >= QUIC_INITIAL_PACKET_MINLEN)
+				padding = 0;
+
 			if (qc->flags & QUIC_FL_CONN_RETRANS_OLD_DATA)
 				cur_pkt->flags |= QUIC_FL_TX_PACKET_PROBE_WITH_OLD_DATA;
 
@@ -647,12 +649,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			 * the same datagram, except if <qel> is the Application data
 			 * encryption level which cannot be selected to do that.
 			 */
-			if (LIST_ISEMPTY(frms) && qel != qc->ael && next_qel) {
-				if (qel == qc->iel &&
-				    (!qc_is_listener(qc) ||
-				     cur_pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING))
-					padding = 1;
-
+			if (LIST_ISEMPTY(frms) && next_qel) {
 				prv_pkt = cur_pkt;
 			}
 			else {
