@@ -82,10 +82,9 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get --no-install-recommends -y install \
-          liblua5.4-dev \
-          libpcre2-dev \
-          libsystemd-dev \
-          ninja-build \
+          ${{ contains(matrix.FLAGS, 'USE_LUA=1')     && 'liblua5.4-dev'  || '' }} \
+          ${{ contains(matrix.FLAGS, 'USE_PCRE2=1')   && 'libpcre2-dev'   || '' }} \
+          ${{ contains(matrix.ssl,   'BORINGSSL=yes') && 'ninja-build'    || '' }} \
           socat \
           gdb
     - name: Install brew dependencies
