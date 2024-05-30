@@ -2,11 +2,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #define USE_THREAD
-#include <haproxy/list.h>
+#include <mt_list.h>
 
-/* Stress test the mt_lists.
- * Compile from the haproxy directory with :
- * cc -I../../include test-list.c -pthread -O2 -o test-list
+/* Stress test for mt_lists. Compile this way:
+ *    cc -O2 -o test-list test-list.c -I../include -pthread
  * The only argument it takes is the number of threads to be used.
  * ./test-list 4
  */
@@ -19,17 +18,31 @@ struct pouet_lol {
 	struct mt_list list_elt;
 };
 
+/* Fixed RNG sequence to ease reproduction of measurements (will be offset by
+ * the thread number).
+ */
+__thread uint32_t rnd32_state = 2463534242U;
+
+/* Xorshift RNG from http://www.jstatsoft.org/v08/i14/paper */
+static inline uint32_t rnd32()
+{
+        rnd32_state ^= rnd32_state << 13;
+        rnd32_state ^= rnd32_state >> 17;
+        rnd32_state ^= rnd32_state << 5;
+        return rnd32_state;
+}
+
 void *thread(void *pouet)
 {
 	struct pouet_lol *lol;
-	struct mt_list *elt1, elt2;
+	struct mt_list elt2;
 	tid = (uintptr_t)pouet;
-	int i = 0;
+	int i;
 
-	for (int i = 0; i < MAX_ACTION; i++) {
-		struct pouet_lol *lol;
-		struct mt_list *elt1, elt2;
-		switch (random() % 4) {
+	rnd32_state += tid;
+
+	for (i = 0; i < MAX_ACTION; i++) {
+		switch (rnd32() % 4) {
 		case 0:
 			lol = malloc(sizeof(*lol));
 			MT_LIST_INIT(&lol->list_elt);
@@ -47,15 +60,12 @@ void *thread(void *pouet)
 				free(lol);
 			break;
 		case 3:
-
-			mt_list_for_each_entry_safe(lol, &pouet_list, list_elt, elt1, elt2)
-
-{
-				if (random() % 2) {
-					MT_LIST_DELETE_SAFE(elt1);
+			MT_LIST_FOR_EACH_ENTRY_LOCKED(lol, &pouet_list, list_elt, elt2) {
+				if (rnd32() % 2) {
 					free(lol);
+					lol = NULL;
 				}
-				if (random() % 2) {
+				if (rnd32() % 2) {
 					break;
 				}
 			}
@@ -63,7 +73,10 @@ void *thread(void *pouet)
 		default:
 			break;
 		}
+		if ((i) / (MAX_ACTION/10) != (i+1) / (MAX_ACTION/10))
+			printf("%u: %d\n", tid, i+1);
 	}
+	return NULL;
 }
 
 int main(int argc, char *argv[])

@@ -94,7 +94,7 @@ ssize_t dns_ring_write(struct dns_ring *ring, size_t maxlen, const struct ist pf
 	size_t lenlen;
 	uint64_t dellen;
 	int dellenlen;
-	struct mt_list *elt1, elt2;
+	struct mt_list back;
 	ssize_t sent = 0;
 	int i;
 
@@ -166,7 +166,7 @@ ssize_t dns_ring_write(struct dns_ring *ring, size_t maxlen, const struct ist pf
 	sent = lenlen + totlen + 1;
 
 	/* notify potential readers */
-	mt_list_for_each_entry_safe(appctx, &ring->waiters, wait_entry, elt1, elt2)
+	MT_LIST_FOR_EACH_ENTRY_LOCKED(appctx, &ring->waiters, wait_entry, back)
 		appctx_wakeup(appctx);
 
  done_buf:

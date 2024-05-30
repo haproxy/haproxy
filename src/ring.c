@@ -435,11 +435,11 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	if (sent && HA_ATOMIC_LOAD(&ring->readers_count)) {
 		HA_ATOMIC_INC(&ring->pending);
 		while (HA_ATOMIC_LOAD(&ring->pending) && HA_ATOMIC_XCHG(&ring->waking, 1) == 0) {
-			struct mt_list *elt1, elt2;
+			struct mt_list back;
 			struct appctx *appctx;
 
 			HA_ATOMIC_STORE(&ring->pending, 0);
-			mt_list_for_each_entry_safe(appctx, &ring->waiters, wait_entry, elt1, elt2)
+			MT_LIST_FOR_EACH_ENTRY_LOCKED(appctx, &ring->waiters, wait_entry, back)
 				appctx_wakeup(appctx);
 			HA_ATOMIC_STORE(&ring->waking, 0);
 		}

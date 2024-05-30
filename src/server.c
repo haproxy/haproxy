@@ -1994,11 +1994,11 @@ static int srv_has_streams(struct server *srv)
 void srv_shutdown_streams(struct server *srv, int why)
 {
 	struct stream *stream;
-	struct mt_list *elt1, elt2;
+	struct mt_list back;
 	int thr;
 
 	for (thr = 0; thr < global.nbthread; thr++)
-		mt_list_for_each_entry_safe(stream, &srv->per_thr[thr].streams, by_srv, elt1, elt2)
+		MT_LIST_FOR_EACH_ENTRY_LOCKED(stream, &srv->per_thr[thr].streams, by_srv, back)
 			if (stream->srv_conn == srv)
 				stream_shutdown(stream, why);
 }
@@ -5998,7 +5998,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	struct server *srv;
 	struct server *prev_del;
 	struct ist be_name, sv_name;
-	struct mt_list *elt1, elt2;
+	struct mt_list back;
 	struct sess_priv_conns *sess_conns = NULL;
 	const char *msg;
 	int ret, i;
@@ -6062,7 +6062,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	BUG_ON(srv->curr_idle_conns);
 
 	/* Close idle private connections attached to this server. */
-	mt_list_for_each_entry_safe(sess_conns, &srv->sess_conns, srv_el, elt1, elt2) {
+	MT_LIST_FOR_EACH_ENTRY_LOCKED(sess_conns, &srv->sess_conns, srv_el, back) {
 		struct connection *conn, *conn_back;
 		list_for_each_entry_safe(conn, conn_back, &sess_conns->conn_list, sess_el) {
 
@@ -6082,8 +6082,8 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 		}
 
 		LIST_DELETE(&sess_conns->sess_el);
-		MT_LIST_DELETE_SAFE(elt1);
 		pool_free(pool_head_sess_priv_conns, sess_conns);
+		sess_conns = NULL;
 	}
 
 	/* removing cannot fail anymore when we reach this:
