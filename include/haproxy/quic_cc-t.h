@@ -96,8 +96,8 @@ struct quic_cc_path {
 	/* Packet loss detection information. */
 	struct quic_loss loss;
 
-	/* MTU. */
-	size_t mtu;
+	/* MTU. Must be constant for GSO support. */
+	const size_t mtu;
 	/* Congestion window. */
 	uint64_t cwnd;
 	/* The current maximum congestion window value reached. */
