@@ -114,6 +114,7 @@ Summary
 8.3.2.        Logging before waiting for the stream to terminate
 8.3.3.        Raising log level upon errors
 8.3.4.        Disabling logging of successful connections
+8.3.5.        Log profiles
 8.4.      Timing events
 8.5.      Stream state at disconnection
 8.6.      Non-printable characters
@@ -2059,7 +2060,7 @@ localpeer <name>
   See also "-L" in the management guide and "peers" section below.
 
 log <target> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
-    <facility> [max level [min level]]
+    [profile <prof>] <facility> [max level [min level]]
   Adds a global syslog server. Several global servers can be defined. They
   will receive logs for starts and exits, as well as all logs from proxies
   configured with "log global". See "log" option for proxies for more details.
@@ -8141,7 +8142,7 @@ load-server-state-from-file { global | local | none }
 
 log global
 log <target> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
-    <facility> [<level> [<minlevel>]]
+    [profile <prof>] <facility> [<level> [<minlevel>]]
 no log
   Enable per-instance logging of events and traffic.
 
@@ -8158,10 +8159,9 @@ no log
   Arguments :
     global     should be used when the instance's logging parameters are the
                same as the global ones. This is the most common usage. "global"
-               replaces <target>, <facility> and <level> with those of the log
-               entries found in the "global" section. Only one "log global"
-               statement may be used per instance, and this form takes no other
-               parameter.
+               replaces all log arguments with those of the log entries found
+               in the "global" section. Only one "log global" statement may be
+               used per instance, and this form takes no other parameter.
 
     <target>   indicates where to send the logs. It takes the same format as
                for the "global" section's logs, and can be one of :
@@ -8286,6 +8286,10 @@ no log
                 process name and system name are omitted. This is designed to
                 be used in containers or during development, where the severity
                 only depends on the file descriptor used (stdout/stderr).
+
+    <prof>     name of the optional "log-profile" section that will be
+               considered during the log building process to override some
+               log options. Check out "8.3.5. Log profiles" for more info.
 
     <facility> must be one of the 24 standard syslog facilities :
 
@@ -26305,6 +26309,82 @@ and a response with a status 5xx is not considered normal and will be logged
 too. Of course, doing is is really discouraged as it will remove most of the
 useful information from the logs. Do this only if you have no other
 alternative.
+
+
+8.3.5. Log profiles
+-------------------
+
+While some directives such as "log-format", "log-format-sd", "error-log-format"
+or "log-tag" make it possible to configure log formatting globally or at the
+proxy level, it may be relevant to configure such settings as close as possible
+to the log endpoints, that is, per "log" directive.
+
+This is where "log-profile" section comes into play: "log-profile" may be
+defined anywhere in the configuration. This section accepts a set of different
+keywords that are used to describe how the logs emitted for a given `log`
+directive should be built.
+
+From a "log" directive, one can choose to use a specific log-profile by its
+name. The same profile may be used from multiple "log" directives.
+
+log-profile <name>
+  Creates a new log profile identified as <name>
+
+log-tag <string>
+  Override syslog log tag set globally or per-proxy using "log-tag" directive.
+
+on <step> [format <fmt>] [sd <sd_fmt>]
+  Override the log-format string normally used to build the log line at
+  <step> logging step. <fmt> is used to override "log-format" or
+  "error-log-format" strings (depending on the <step>) whereas <sd_fmt> is
+  used to override "log-format-sd" string. Possible values for <step> are:
+
+  - "accept"   : override log-format if the log is generated right after
+                 frontend conn was accepted
+  - "request"  : override log-format if the log is generated after client
+                 request was received
+  - "connect"  : override log-format if the log is generated after backend
+                 connection establishment
+  - "response" : override log-format if the log is generated during server
+                 response handling
+  - "close"    : override log-format if the log is generated at the final
+                 transaction (txn) step
+  - "error"    : override error-log-format for if the log is generated due
+                 to a transaction error
+  - "any"      : override both log-format and error-log-format for all logging
+                 steps, unless a more precise step override is declared.
+
+  This setting is only relevant for "log" directives used from contexts where
+  using "log-format" directive makes sense (e.g.: http and tcp proxies).
+  Else it will simply be ignored.
+
+  Example :
+
+    log-profile myprof
+
+      log-tag "custom-tag"
+
+      on error format "%ci: error"
+      on any sd "custom-sd"
+
+    listen myproxy
+      mode http
+      option httplog
+      log-tag "normal"
+
+      log stdout format rfc5424 local0
+      # success:
+      # <134>1 2024-06-12T10:09:11.823400+02:00 - normal 224482 - - 127.0.0.1:53594 [12/Jun/2024:10:09:11.814] myproxy myproxy/<NOSRV> 0/-1/-1/-1/0 200 49 - - LR-- 1/1/0/0/0 0/0 "GET / HTTP/1.1"
+      #
+      # error:
+      # <134>1 2024-06-12T10:09:44.810929+02:00 - normal 224482 - - 127.0.0.1:59258 [12/Jun/2024:10:09:44.426] myproxy myproxy/<NOSRV> -1/-1/-1/-1/384 400 0 - - CR-- 1/1/0/0/0 0/0 "<BADREQ>"
+
+      log 127.0.0.1:514 format rfc5424 profile myprof local0
+      # success:
+      # <134>1 2024-06-12T10:09:11.823428+02:00 - custom-tag 224482 - custom-sd 127.0.0.1:53594 [12/Jun/2024:10:09:11.814] myproxy myproxy/<NOSRV> 0/-1/-1/-1/0 200 49 - - LR-- 1/1/0/0/0 0/0 "GET / HTTP/1.1"
+      #
+      # error:
+      # <134>1 2024-06-12T10:09:51.566524+02:00 - custom-tag 224482 - - 127.0.0.1: error
 
 
 8.4. Timing events
