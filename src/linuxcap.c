@@ -14,7 +14,6 @@
  * libcap. Let's stick to what we need and the kernel documents (capset).
  * Note that prctl is needed here.
  */
-#include <linux/capability.h>
 #include <sys/prctl.h>
 #include <errno.h>
 #include <unistd.h>
@@ -24,7 +23,13 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
+#include <haproxy/linuxcap.h>
 #include <haproxy/tools.h>
+
+struct __user_cap_header_struct cap_hdr_haproxy = {
+	.pid = 0, /* current process */
+	.version = _LINUX_CAPABILITY_VERSION_1,
+};
 
 /* supported names, zero-terminated */
 static const struct {
@@ -46,12 +51,6 @@ static const struct {
 	/* must be last */
 	{ 0, 0 }
 };
-
-/* provided by sys/capability.h on some distros */
-static inline int capget(cap_user_header_t hdrp, const cap_user_data_t datap)
-{
-	return syscall(SYS_capget, hdrp, datap);
-}
 
 /* provided by sys/capability.h on some distros */
 static inline int capset(cap_user_header_t hdrp, const cap_user_data_t datap)
@@ -84,10 +83,6 @@ static uint32_t caplist;
 int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *program_name)
 {
 	struct __user_cap_data_struct start_cap_data = { };
-	struct __user_cap_header_struct cap_hdr = {
-		.pid = 0, /* current process */
-		.version = _LINUX_CAPABILITY_VERSION_1,
-	};
 
 	/* started as root */
 	if (!from_uid)
@@ -102,7 +97,7 @@ int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *progra
 	 * these capabilities and the file effective bit on haproxy binary via
 	 * setcap, see capabilities man page for details.
 	 */
-	if (capget(&cap_hdr, &start_cap_data) == -1) {
+	if (capget(&cap_hdr_haproxy, &start_cap_data) == -1) {
 		if (global.last_checks & (LSTCHK_NETADM | LSTCHK_SYSADM))
 			ha_diag_warning("Failed to get process capabilities using capget(): %s. "
 					"Can't use capabilities that might be set on %s binary "
@@ -127,7 +122,7 @@ int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *progra
 	 */
 	if (caplist && start_cap_data.permitted & caplist) {
 		start_cap_data.effective |= start_cap_data.permitted & caplist;
-		if (capset(&cap_hdr, &start_cap_data) == 0) {
+		if (capset(&cap_hdr_haproxy, &start_cap_data) == 0) {
 			if (caplist & ((1 << CAP_NET_ADMIN)|(1 << CAP_NET_RAW)))
 				global.last_checks &= ~LSTCHK_NETADM;
 			if (caplist & (1 << CAP_SYS_ADMIN))
@@ -158,10 +153,6 @@ int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *progra
 int prepare_caps_for_setuid(int from_uid, int to_uid)
 {
 	struct __user_cap_data_struct cap_data = { };
-	struct __user_cap_header_struct cap_hdr = {
-		.pid = 0, /* current process */
-		.version = _LINUX_CAPABILITY_VERSION_1,
-	};
 
 	if (from_uid != 0)
 		return 0;
@@ -178,7 +169,7 @@ int prepare_caps_for_setuid(int from_uid, int to_uid)
 	}
 
 	cap_data.effective = cap_data.permitted = caplist | (1 << CAP_SETUID);
-	if (capset(&cap_hdr, &cap_data) == -1) {
+	if (capset(&cap_hdr_haproxy, &cap_data) == -1) {
 		ha_alert("Failed to preset the capabilities to preserve using capset(): %s\n", strerror(errno));
 		return -1;
 	}
@@ -189,7 +180,7 @@ int prepare_caps_for_setuid(int from_uid, int to_uid)
 	}
 
 	cap_data.effective = cap_data.permitted = caplist | (1 << CAP_SETUID);
-	if (capset(&cap_hdr, &cap_data) == -1) {
+	if (capset(&cap_hdr_haproxy, &cap_data) == -1) {
 		ha_alert("Failed to set the final capabilities using capset(): %s\n", strerror(errno));
 		return -1;
 	}
@@ -211,10 +202,6 @@ int prepare_caps_for_setuid(int from_uid, int to_uid)
 int finalize_caps_after_setuid(int from_uid, int to_uid)
 {
 	struct __user_cap_data_struct cap_data = { };
-	struct __user_cap_header_struct cap_hdr = {
-		.pid = 0, /* current process */
-		.version = _LINUX_CAPABILITY_VERSION_1,
-	};
 
 	if (from_uid != 0)
 		return 0;
@@ -226,7 +213,7 @@ int finalize_caps_after_setuid(int from_uid, int to_uid)
 		return 0;
 
 	cap_data.effective = cap_data.permitted = caplist;
-	if (capset(&cap_hdr, &cap_data) == -1) {
+	if (capset(&cap_hdr_haproxy, &cap_data) == -1) {
 		ha_alert("Failed to drop the setuid capability using capset(): %s\n", strerror(errno));
 		return -1;
 	}
