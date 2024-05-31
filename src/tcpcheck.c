@@ -3434,7 +3434,7 @@ struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct pro
 			px->conf.args.ctx = ARGC_SRV;
 			lf_expr_init(&chk->expect.hdr.value_fmt);
 			if (!parse_logformat_string(vpat, px, &chk->expect.hdr.value_fmt, 0, SMP_VAL_BE_CHK_RUL, errmsg)) {
-				memprintf(errmsg, "'%s' invalid log-format string (%s).\n", npat, *errmsg);
+				memprintf(errmsg, "'%s' invalid log-format string (%s).\n", vpat, *errmsg);
 				goto error;
 			}
 		}
