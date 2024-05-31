@@ -691,7 +691,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 int qc_send(struct quic_conn *qc, int old_data, struct list *send_list)
 {
 	struct quic_enc_level *qel, *tmp_qel;
-	int ret, status = 0;
+	int ret = 0, status = 0;
 	struct buffer *buf;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
@@ -713,7 +713,7 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list)
 	}
 
 	/* Prepare and send packets until we could not further prepare packets. */
-	do {
+	while (!LIST_ISEMPTY(send_list)) {
 		/* Buffer must always be empty before qc_prep_pkts() usage.
 		 * qc_send_ppkts() ensures it is cleared on success.
 		 */
@@ -727,7 +727,12 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list)
 				qc_txb_release(qc);
 			goto out;
 		}
-	} while (ret > 0 && !LIST_ISEMPTY(send_list));
+
+		if (ret <= 0) {
+			TRACE_DEVEL("stopping on qc_prep_pkts() return", QUIC_EV_CONN_TXPKT, qc);
+			break;
+		}
+	}
 
 	qc_txb_release(qc);
 	if (ret < 0)
