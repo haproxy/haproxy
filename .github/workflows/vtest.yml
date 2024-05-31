@@ -80,7 +80,7 @@ jobs:
     - name: Install apt dependencies
       if: ${{ startsWith(matrix.os, 'ubuntu-') }}
       run: |
-        sudo apt-get update
+        sudo apt-get update -o Acquire::Languages=none -o Acquire::Translation=none
         sudo apt-get --no-install-recommends -y install \
           ${{ contains(matrix.FLAGS, 'USE_LUA=1')     && 'liblua5.4-dev'  || '' }} \
           ${{ contains(matrix.FLAGS, 'USE_PCRE2=1')   && 'libpcre2-dev'   || '' }} \

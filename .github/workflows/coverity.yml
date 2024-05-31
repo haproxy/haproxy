@@ -20,7 +20,7 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install apt dependencies
       run: |
-        sudo apt-get update
+        sudo apt-get update -o Acquire::Languages=none -o Acquire::Translation=none
         sudo apt-get --no-install-recommends -y install \
           liblua5.4-dev \
           libsystemd-dev
