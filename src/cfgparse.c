@@ -3053,7 +3053,7 @@ init_proxies_list_stage1:
 				ha_warning("'%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
 					   "send-state", proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
-				curproxy->options &= ~PR_O2_CHK_SNDST;
+				curproxy->options2 &= ~PR_O2_CHK_SNDST;
 			}
 		}
 
