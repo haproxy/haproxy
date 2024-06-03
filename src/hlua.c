@@ -260,6 +260,70 @@ static const char *hlua_tostring_safe(lua_State *L, int index)
 	return str;
 }
 
+/* below is an helper function similar to lua_pushvfstring() to push a
+ * formatted string on Lua stack but in a safe way (function may not LJMP).
+ * It can be useful to push allocated strings (ie: error messages) on the
+ * stack and ensure proper cleanup.
+ *
+ * Returns a pointer to the internal copy of the string on success and NULL
+ * on error.
+ *
+ * It is assumed that the calling function is allowed to manipulate <L>
+ */
+__LJMP static int _hlua_pushvfstring_safe(lua_State *L)
+{
+	const char **dst = lua_touserdata(L, 1);
+	const char *fmt = lua_touserdata(L, 2);
+	va_list *argp = lua_touserdata(L, 3);
+
+	*dst = lua_pushvfstring(L, fmt, *argp);
+	return 1;
+}
+static const char *hlua_pushvfstring_safe(lua_State *L, const char *fmt, va_list argp)
+{
+	const char *dst = NULL;
+	va_list cpy_argp; /* required if argp is implemented as array type */
+
+	if (!lua_checkstack(L, 4))
+		return NULL;
+
+	va_copy(cpy_argp, argp);
+
+	/* push our custom _hlua_pushvfstring_safe() function on the stack, then
+	 * push our destination string pointer, fmt and arg list
+	 */
+	lua_pushcfunction(L, _hlua_pushvfstring_safe);
+	lua_pushlightuserdata(L, &dst);        // 1st func argument = dst string pointer
+	lua_pushlightuserdata(L, (void *)fmt); // 2nd func argument = fmt
+	lua_pushlightuserdata(L, &cpy_argp);   // 3rd func argument = arg list
+
+	/* call our custom function with proper arguments using pcall() to catch
+	 * exceptions (if any)
+	 */
+	switch (lua_pcall(L, 3, 1, 0)) {
+		case LUA_OK:
+			break;
+		default:
+			/* error was caught */
+			dst = NULL;
+	}
+	va_end(cpy_argp);
+
+	return dst;
+}
+
+static const char *hlua_pushfstring_safe(lua_State *L, const char *fmt, ...)
+{
+	va_list argp;
+	const char *dst;
+
+	va_start(argp, fmt);
+	dst = hlua_pushvfstring_safe(L, fmt, argp);
+	va_end(argp);
+
+	return dst;
+}
+
 #define SET_SAFE_LJMP_L(__L, __HLUA) \
 	({ \
 		int ret; \
@@ -1367,8 +1431,8 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 			}
 			reg = regex_comp(argp[idx].data.str.area, !(argp[idx].type_flags & ARGF_REG_ICASE), 1, &err);
 			if (!reg) {
-				msg = lua_pushfstring(L, "error compiling regex '%s' : '%s'",
-						      argp[idx].data.str.area, err);
+				msg = hlua_pushfstring_safe(L, "error compiling regex '%s' : '%s'",
+						            argp[idx].data.str.area, err);
 				free(err);
 				goto error;
 			}
@@ -1388,7 +1452,8 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 				ul = auth_find_userlist(argp[idx].data.str.area);
 
 			if (!ul) {
-				msg = lua_pushfstring(L, "unable to find userlist '%s'", argp[idx].data.str.area);
+				msg = hlua_pushfstring_safe(L, "unable to find userlist '%s'",
+				                            argp[idx].data.str.area);
 				goto error;
 			}
 			argp[idx].type = ARGT_USR;
@@ -1412,9 +1477,9 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 
 		/* Check for type of argument. */
 		if ((mask & ARGT_MASK) != argp[idx].type) {
-			msg = lua_pushfstring(L, "'%s' expected, got '%s'",
-					      arg_type_names[(mask & ARGT_MASK)],
-					      arg_type_names[argp[idx].type & ARGT_MASK]);
+			msg = hlua_pushfstring_safe(L, "'%s' expected, got '%s'",
+					            arg_type_names[(mask & ARGT_MASK)],
+					            arg_type_names[argp[idx].type & ARGT_MASK]);
 			goto error;
 		}
 
@@ -1960,9 +2025,11 @@ resume_execution:
 		msg = hlua_tostring_safe(lua->T, -1);
 		trace = hlua_traceback(lua->T, ", ");
 		if (msg)
-			lua_pushfstring(lua->T, "[state-id %d] runtime error: %s from %s", lua->state_id, msg, trace);
+			hlua_pushfstring_safe(lua->T, "[state-id %d] runtime error: %s from %s",
+			                      lua->state_id, msg, trace);
 		else
-			lua_pushfstring(lua->T, "[state-id %d] unknown runtime error from %s", lua->state_id, trace);
+			hlua_pushfstring_safe(lua->T, "[state-id %d] unknown runtime error from %s",
+			                      lua->state_id, trace);
 
 		/* Move the error msg at the top and then empty the stack except last msg */
 		lua_insert(lua->T, -lua_gettop(lua->T));
@@ -1984,9 +2051,11 @@ resume_execution:
 		}
 		msg = hlua_tostring_safe(lua->T, -1);
 		if (msg)
-			lua_pushfstring(lua->T, "[state-id %d] message handler error: %s", lua->state_id, msg);
+			hlua_pushfstring_safe(lua->T, "[state-id %d] message handler error: %s",
+			                      lua->state_id, msg);
 		else
-			lua_pushfstring(lua->T, "[state-id %d] message handler error", lua->state_id);
+			hlua_pushfstring_safe(lua->T, "[state-id %d] message handler error",
+			                      lua->state_id);
 
 		/* Move the error msg at the top and then empty the stack except last msg */
 		lua_insert(lua->T, -lua_gettop(lua->T));
@@ -4700,7 +4769,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 
 	/* Run the special args checker. */
 	if (f->val_args && !f->val_args(args, NULL)) {
-		lua_pushfstring(L, "error in arguments");
+		hlua_pushfstring_safe(L, "error in arguments");
 		goto error;
 	}
 
