@@ -13689,7 +13689,7 @@ lua_State *hlua_init_state(int thread_num)
 	lua_newtable(L);
 	/* Register */
 	hlua_class_function(L, "set",         hlua_ckch_set);
-	lua_setglobal(L, CLASS_CERTCACHE); /* Create global object called Regex */
+	lua_setglobal(L, CLASS_CERTCACHE); /* Create global object called CertCache */
 
 	/*
 	 *
