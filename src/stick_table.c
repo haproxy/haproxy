@@ -5597,6 +5597,10 @@ static int cli_io_handler_table(struct appctx *appctx)
 					ptr = stktable_data_ptr(ctx->t,
 								ctx->entry,
 								dt);
+					/* table_prepare_data_request() normally ensures the
+					 * type is both valid and stored
+					 */
+					BUG_ON(!ptr);
 
 					data = 0;
 					switch (stktable_data_types[dt].std_type) {
