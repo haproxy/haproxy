@@ -16141,6 +16141,7 @@ crt-list <file>
         certS.pem [curves X25519:P-256 ciphers ECDHE-ECDSA-AES256-GCM-SHA384] secure.domain.tld
         default.pem.rsa *
         default.pem.ecdsa *
+        foo.crt [key bar.pem ocsp foo.ocsp ocsp-update on] foo.bar.com
 
 default-crt <cert>
   This option does the same as the "crt" option, with the difference that this
