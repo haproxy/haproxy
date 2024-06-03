@@ -295,7 +295,8 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		/* Responses known to have no body. */
 		h1m->flags |= H1_MF_XFER_LEN;
 		h1m->curr_len = h1m->body_len = 0;
-		flags |= HTX_SL_F_BODYLESS_RESP;
+		if (code >= 200)
+			flags |= HTX_SL_F_BODYLESS_RESP;
 	}
 	else if (h1m->flags & (H1_MF_CLEN|H1_MF_CHNK)) {
 		/* Responses with a known body length. */
