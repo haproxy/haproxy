@@ -4463,6 +4463,10 @@ CertCache class
   :param string certificate.issuer: The certificate of the OCSP issuer.
   :param string certificate.sctl: An SCTL file.
 
+  .. Note::
+     This function may be slow. As such, it may only be used during startup
+     (main or init context) or from a yield-capable runtime context.
+
 .. code-block:: lua
 
     CertCache.set{filename="certs/localhost9994.pem.rsa", crt=crt}

@@ -12989,8 +12989,10 @@ __LJMP static int hlua_ckch_commit_yield(lua_State *L, int status, lua_KContext 
 	list_for_each_entry_from(ckchi, &old_ckchs->ckch_inst, by_ckchs) {
 		struct ckch_inst *new_inst;
 
-		/* it takes a lot of CPU to creates SSL_CTXs, so we yield every 10 CKCH instances */
-		if (y % 10 == 0) {
+		/* it takes a lot of CPU to creates SSL_CTXs, so we yield every 10 CKCH instances
+		 * during runtime
+		 */
+		if (hlua && (y % 10) == 0) {
 
 			*lua_ckchi = ckchi;
 
@@ -13053,6 +13055,14 @@ __LJMP static int hlua_ckch_set(lua_State *L)
 		WILL_LJMP(luaL_error(L, "'CertCache.set' needs a table as argument"));
 
 	hlua = hlua_gethlua(L);
+	if (hlua && HLUA_CANT_YIELD(hlua)) {
+		/* using hlua_ckch_set() during runtime from a context that
+		 * doesn't allow yielding (e.g.: fetches) is not supported
+		 * as it may cause contention.
+		 */
+		WILL_LJMP(luaL_error(L, "Cannot use CertCache.set from a "
+		                        "non-yield capable runtime context"));
+	}
 
 	/* FIXME: this should not return an error but should come back later */
 	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
@@ -13135,8 +13145,19 @@ __LJMP static int hlua_ckch_set(lua_State *L)
 	lua_ckchi = lua_newuserdata(L, sizeof(struct ckch_inst *));
 	*lua_ckchi = NULL;
 
-	task_wakeup(hlua->task, TASK_WOKEN_MSG);
-	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_ckch_commit_yield, TICK_ETERNITY, 0));
+	if (hlua) {
+		/* yield right away to let hlua_ckch_commit_yield() benefit from
+		 * a fresh task cycle on next wakeup
+		 */
+		task_wakeup(hlua->task, TASK_WOKEN_MSG);
+		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_ckch_commit_yield, TICK_ETERNITY, 0));
+	} else {
+		/* body/init context: yielding not available, perform the commit as a
+		 * 1-shot operation (may be slow, but haproxy process is starting so
+		 * it is acceptable)
+		 */
+		hlua_ckch_commit_yield(L, LUA_OK, 0);
+	}
 
 end:
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
