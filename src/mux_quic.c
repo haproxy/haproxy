@@ -3049,11 +3049,12 @@ static size_t qmux_strm_done_ff(struct stconn *sc)
 	if (!(qcs->flags & QC_SF_FIN_STREAM) && !sd->iobuf.data) {
 		TRACE_STATE("no data sent", QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
-		/* There is nothing to forward and the SD is blocked. Try to
-		 * release the TXBUF to retry.
+		/* There is nothing to forward and the SD was blocked after a
+		 * successful nego by the producer. We can try to release the
+		 * TXBUF to retry. In this case, the TX buf MUST exist.
 		 */
-		if ((qcs->sd->iobuf.flags & IOBUF_FL_FF_BLOCKED) && !qcc_release_stream_txbuf(qcs))
-			qcs->sd->iobuf.flags &= ~IOBUF_FL_FF_BLOCKED;
+		if ((qcs->sd->iobuf.flags & IOBUF_FL_FF_WANT_ROOM) && !qcc_release_stream_txbuf(qcs))
+			qcs->sd->iobuf.flags &= ~(IOBUF_FL_FF_BLOCKED|IOBUF_FL_FF_WANT_ROOM);
 		goto end;
 	}
 

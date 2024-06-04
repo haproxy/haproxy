@@ -474,7 +474,7 @@ static inline size_t se_nego_ff(struct sedesc *se, struct buffer *input, size_t 
 	if (se_fl_test(se, SE_FL_T_MUX)) {
 		const struct mux_ops *mux = se->conn->mux;
 
-		se->iobuf.flags &= ~IOBUF_FL_FF_BLOCKED;
+		se->iobuf.flags &= ~(IOBUF_FL_FF_BLOCKED|IOBUF_FL_FF_WANT_ROOM);
 		if (mux->nego_fastfwd && mux->done_fastfwd) {
 			/* Disable zero-copy forwarding if EOS or an error was reported. */
 			if (se_fl_test(se, SE_FL_EOS|SE_FL_ERROR|SE_FL_ERR_PENDING)) {

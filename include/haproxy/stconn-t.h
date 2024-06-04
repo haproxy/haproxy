@@ -39,6 +39,7 @@ enum iobuf_flags {
 						 *  .done_fastfwd() on consumer side must take care of this flag
 						 */
 	IOBUF_FL_EOI              = 0x00000010, /* A EOI was encountered on producer side */
+	IOBUF_FL_FF_WANT_ROOM     = 0x00000020, /* Producer need more room in the IOBUF to forward data */
 };
 
 /* Flags used */
