@@ -716,8 +716,9 @@ int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	/* else */
 	/* 	applet_have_more_data(appctx); */
 
-	if (se_done_ff(sdo) != 0) {
-		/* Something was forwarding, don't reclaim more room */
+	if (se_done_ff(sdo) != 0 || !(sdo->iobuf.flags & IOBUF_FL_FF_BLOCKED)) {
+		/* Something was forwarding or the consumer states it is not
+		 * blocked anyore, don't reclaim more room */
 		se_fl_clr(appctx->sedesc, SE_FL_WANT_ROOM);
 		TRACE_STATE("more room available", APPLET_EV_RECV|APPLET_EV_BLK, appctx);
 	}
