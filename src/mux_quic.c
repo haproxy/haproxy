@@ -3046,8 +3046,16 @@ static size_t qmux_strm_done_ff(struct stconn *sc)
 		qcs->flags |= QC_SF_FIN_STREAM;
 	}
 
-	if (!(qcs->flags & QC_SF_FIN_STREAM) && !sd->iobuf.data)
+	if (!(qcs->flags & QC_SF_FIN_STREAM) && !sd->iobuf.data) {
+		TRACE_STATE("no data sent", QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
+
+		/* There is nothing to forward and the SD is blocked. Try to
+		 * release the TXBUF to retry.
+		 */
+		if ((qcs->sd->iobuf.flags & IOBUF_FL_FF_BLOCKED) && !qcc_release_stream_txbuf(qcs))
+			qcs->sd->iobuf.flags &= ~IOBUF_FL_FF_BLOCKED;
 		goto end;
+	}
 
 	data += sd->iobuf.offset;
 	total = qcs->qcc->app_ops->done_ff(qcs);
