@@ -3058,7 +3058,8 @@ static size_t qmux_strm_done_ff(struct stconn *sc)
 		goto end;
 	}
 
-	data += sd->iobuf.offset;
+	if (data)
+		data += sd->iobuf.offset;
 	total = qcs->qcc->app_ops->done_ff(qcs);
 
 	if (data || qcs->flags & QC_SF_FIN_STREAM)
