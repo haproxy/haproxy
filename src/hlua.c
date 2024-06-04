@@ -9786,19 +9786,11 @@ static struct task *hlua_event_runner(struct task *task, void *context, unsigned
 		event_hdl_pause(hlua_sub->sub);
 		hlua_sub->paused = 1;
 
-		if (SET_SAFE_LJMP(hlua_sub->hlua)) {
-			/* The following Lua call may fail. */
-			trace = hlua_traceback(hlua_sub->hlua->T, ", ");
-			/* At this point the execution is safe. */
-			RESET_SAFE_LJMP(hlua_sub->hlua);
-		} else {
-			/* Lua error was raised while fetching lua trace from current ctx */
-			SEND_ERR(NULL, "Lua event_hdl: unexpected error (memory failure?).\n");
-		}
+		trace = hlua_traceback(hlua_sub->hlua->T, ", ");
+
 		ha_warning("Lua event_hdl: pausing the subscription because the handler fails "
 			   "to keep up the pace (%u unconsumed events) from %s.\n",
-			   event_hdl_async_equeue_size(&hlua_sub->equeue),
-			   (trace) ? trace : "[unknown]");
+			   event_hdl_async_equeue_size(&hlua_sub->equeue), trace);
 	}
 
 	if (HLUA_IS_RUNNING(hlua_sub->hlua)) {
