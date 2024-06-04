@@ -919,16 +919,50 @@ __LJMP static inline void check_args(lua_State *L, int nb, char *fcn)
 
 /* This function pushes an error string prefixed by the file name
  * and the line number where the error is encountered.
+ *
+ * It returns 1 on success and 0 on failure (function won't LJMP)
  */
+__LJMP static int _hlua_pusherror(lua_State *L)
+{
+	const char *fmt = lua_touserdata(L, 1);
+	va_list *argp = lua_touserdata(L, 2);
+
+	luaL_where(L, 2);
+	lua_pushvfstring(L, fmt, *argp);
+	lua_concat(L, 2);
+
+	return 1;
+}
 static int hlua_pusherror(lua_State *L, const char *fmt, ...)
 {
 	va_list argp;
+	int ret = 1;
+
+	if (!lua_checkstack(L, 3))
+		return 0;
+
 	va_start(argp, fmt);
-	luaL_where(L, 1);
-	lua_pushvfstring(L, fmt, argp);
+
+	/* push our custom _hlua_pusherror() function on the stack, then
+	 * push fmt and arg list
+	 */
+	lua_pushcfunction(L, _hlua_pusherror);
+	lua_pushlightuserdata(L, (void *)fmt); // 1st func argument = fmt
+	lua_pushlightuserdata(L, &argp);       // 2nd func argument = arg list
+
+	/* call our custom function with proper arguments using pcall() to catch
+	 * exceptions (if any)
+	 */
+	switch (lua_pcall(L, 2, 1, 0)) {
+		case LUA_OK:
+			break;
+		default:
+			ret = 0;
+	}
+
 	va_end(argp);
-	lua_concat(L, 2);
-	return 1;
+
+	return ret;
 }
 
 /* This functions is used with sample fetch and converters. It
