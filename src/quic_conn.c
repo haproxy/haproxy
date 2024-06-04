@@ -161,7 +161,9 @@ void qc_kill_conn(struct quic_conn *qc)
 	TRACE_PROTO("killing the connection", QUIC_EV_CONN_KILL, qc);
 	qc->flags |= QUIC_FL_CONN_TO_KILL;
 	qc->flags &= ~QUIC_FL_CONN_RETRANS_NEEDED;
-	task_wakeup(qc->idle_timer_task, TASK_WOKEN_OTHER);
+
+	if (!(qc->flags & QUIC_FL_CONN_EXP_TIMER))
+		task_wakeup(qc->idle_timer_task, TASK_WOKEN_OTHER);
 
 	qc_notify_err(qc);
 
