@@ -848,20 +848,41 @@ void hlua_unref(lua_State *L, int ref)
 	luaL_unref(L, LUA_REGISTRYINDEX, ref);
 }
 
-__LJMP const char *hlua_traceback(lua_State *L, const char* sep)
+__LJMP static int _hlua_traceback(lua_State *L)
+{
+	lua_Debug *ar = lua_touserdata(L, 1);
+
+	/* Fill fields:
+	 * 'S': fills in the fields source, short_src, linedefined, lastlinedefined, and what;
+	 * 'l': fills in the field currentline;
+	 * 'n': fills in the field name and namewhat;
+	 * 't': fills in the field istailcall;
+	 */
+	return lua_getinfo(L, "Slnt", ar);
+}
+
+
+/* This function cannot fail (output will simply be truncated upon errors) */
+const char *hlua_traceback(lua_State *L, const char* sep)
 {
 	lua_Debug ar;
 	int level = 0;
 	struct buffer *msg = get_trash_chunk();
 
 	while (lua_getstack(L, level++, &ar)) {
-		/* Fill fields:
-		 * 'S': fills in the fields source, short_src, linedefined, lastlinedefined, and what;
-		 * 'l': fills in the field currentline;
-		 * 'n': fills in the field name and namewhat;
-		 * 't': fills in the field istailcall;
-		 */
-		lua_getinfo(L, "Slnt", &ar);
+		if (!lua_checkstack(L, 2))
+			goto end; // abort
+
+		lua_pushcfunction(L, _hlua_traceback);
+		lua_pushlightuserdata(L, &ar);
+
+		/* safe getinfo */
+		switch (lua_pcall(L, 1, 1, 0)) {
+			case LUA_OK:
+				break;
+			default:
+				goto end; // abort
+		}
 
 		/* skip these empty entries, usually they come from deep C functions */
 		if (ar.currentline < 0 && *ar.what == 'C' && !*ar.namewhat && !ar.name)
@@ -902,6 +923,7 @@ __LJMP const char *hlua_traceback(lua_State *L, const char* sep)
 			chunk_appendf(msg, " ...");
 	}
 
+ end:
 	return msg->area;
 }
 
