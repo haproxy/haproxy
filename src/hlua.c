@@ -2087,8 +2087,8 @@ resume_execution:
 			hlua_pushfstring_safe(lua->T, "[state-id %d] unknown runtime error from %s",
 			                      lua->state_id, trace);
 
-		/* Move the error msg at the top and then empty the stack except last msg */
-		lua_insert(lua->T, -lua_gettop(lua->T));
+		/* Move the error msg at the bottom and then empty the stack except last msg */
+		lua_insert(lua->T, 1);
 		lua_settop(lua->T, 1);
 		ret = HLUA_E_ERRMSG;
 		break;
@@ -2113,8 +2113,8 @@ resume_execution:
 			hlua_pushfstring_safe(lua->T, "[state-id %d] message handler error",
 			                      lua->state_id);
 
-		/* Move the error msg at the top and then empty the stack except last msg */
-		lua_insert(lua->T, -lua_gettop(lua->T));
+		/* Move the error msg at the bottom and then empty the stack except last msg */
+		lua_insert(lua->T, 1);
 		lua_settop(lua->T, 1);
 		ret = HLUA_E_ERRMSG;
 		break;
