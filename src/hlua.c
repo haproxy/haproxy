@@ -2369,9 +2369,7 @@ __LJMP static int hlua_map_new(struct lua_State *L)
 		/* error case: we can't use luaL_error because we must
 		 * free the err variable.
 		 */
-		luaL_where(L, 1);
-		lua_pushfstring(L, "'new': %s.", err);
-		lua_concat(L, 2);
+		hlua_pusherror(L, "'new': %s.", err);
 		free(err);
 		chunk_destroy(&args[0].data.str);
 		WILL_LJMP(lua_error(L));
