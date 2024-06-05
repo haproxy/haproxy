@@ -2268,10 +2268,14 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	}
 	if (has_ecdsa_sig) {  /* in very rare case: has ecdsa sign but not a ECDSA cipher */
 		const SSL_CIPHER *cipher;
+		STACK_OF(SSL_CIPHER) *ha_ciphers; /* haproxy side ciphers */
 		uint32_t cipher_id;
 		size_t len;
 		const uint8_t *cipher_suites;
+
+		ha_ciphers = SSL_get_ciphers(ssl);
 		has_ecdsa_sig = 0;
+
 #ifdef OPENSSL_IS_BORINGSSL
 		len = ctx->cipher_suites_len;
 		cipher_suites = ctx->cipher_suites;
@@ -2288,6 +2292,10 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 			cipher = SSL_CIPHER_find(ssl, cipher_suites);
 #endif
 			if (!cipher)
+				continue;
+
+			/* check if this cipher is available in haproxy configuration */
+			if (sk_SSL_CIPHER_find(ha_ciphers, cipher) == -1)
 				continue;
 
 			cipher_id = SSL_CIPHER_get_id(cipher);
