@@ -4376,7 +4376,7 @@ static void h1_shut(struct stconn *sc, enum se_shut_mode mode, struct se_abort_i
 
   do_shutw:
 	h1_close(h1c);
-	if (mode & SE_SHW_NORMAL)
+	if (!(mode & SE_SHW_NORMAL))
 		h1c->flags |= H1C_F_SILENT_SHUT;
 
 	if (!b_data(&h1c->obuf))
