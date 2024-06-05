@@ -532,8 +532,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		 * Each datagram is prepended with its length followed by the address
 		 * of the first packet in the datagram (QUIC_DGRAM_HEADLEN).
 		 */
-		while ((!cc && b_contig_space(buf) >= (int)qc->path->mtu + QUIC_DGRAM_HEADLEN) ||
-		        (cc && b_contig_space(buf) >= QUIC_MIN_CC_PKTSIZE + QUIC_DGRAM_HEADLEN) || prv_pkt) {
+		while (b_contig_space(buf) > QUIC_DGRAM_HEADLEN || prv_pkt) {
 			int err, probe, must_ack;
 			enum quic_pkt_type pkt_type;
 			struct quic_tx_packet *cur_pkt;
@@ -562,18 +561,21 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				break;
 			}
 
-			if (!prv_pkt) {
-				/* Leave room for the datagram header */
+			/* On starting a new datagram, calculate end max offset
+			 * to stay under MTU limit.
+			 */
+			if (!first_pkt) {
 				pos += QUIC_DGRAM_HEADLEN;
-				if (cc) {
+				if (cc)
 					end = pos + QUIC_MIN_CC_PKTSIZE;
-				}
-				else if (!quic_peer_validated_addr(qc) && qc_is_listener(qc)) {
+				else if (!quic_peer_validated_addr(qc) && qc_is_listener(qc))
 					end = pos + QUIC_MIN(qc->path->mtu, quic_may_send_bytes(qc));
-				}
-				else {
+				else
 					end = pos + qc->path->mtu;
-				}
+
+				/* Ensure end does not go beyond buffer */
+				if (end > (unsigned char *)b_wrap(buf))
+					end = (unsigned char *)b_wrap(buf);
 			}
 
 			/* RFC 9000 14.1 Initial datagram size
