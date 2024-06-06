@@ -1,0 +1,171 @@
+varnishtest "Test log-profile feature"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.1-dev0)'"
+feature ignore_unknown_macro
+
+barrier b1 cond 4 -cyclic
+barrier b2 cond 4 -cyclic
+barrier b3 cond 3 -cyclic
+barrier b4 cond 2 -cyclic
+
+server s1 {
+    rxreq
+	txresp
+} -repeat 3 -start
+
+syslog Slg1 -level info {
+    recv
+    #rfc5424, no profile and option httplog:
+    expect ~ ".* haproxy ${h1_pid} .* \"GET / HTTP/1.1\""
+    barrier b1 sync
+
+    recv
+    #rfc5424, no profile, tcp and option logasap
+    expect ~ ".* haproxy ${h1_pid} .* \\+0"
+    barrier b2 sync
+} -start
+
+syslog Slg2 -level info {
+    recv
+    #rfc5424, logprof1 httplog
+    expect ~ ".* haproxy ${h1_pid} .* sdclose close"
+    recv
+    #rfc5424, logprof2 httplog
+    expect ~ ".* custom ${h1_pid} .* - txn_close"
+    barrier b1 sync
+
+    recv
+    #rfc5424, logprof1 tcp logasap
+    expect ~ ".* haproxy ${h1_pid} .* \\+0"
+    barrier b2 sync
+
+    recv
+    #rfc5424, logprof1 tcp
+    expect ~ ".* haproxy ${h1_pid} .* sdclose close"
+    barrier b3 sync
+} -start
+
+syslog Slg3 -level info {
+    recv
+    #rfc3164, logprof1 and option httplog
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: close"
+    barrier b1 sync
+
+    recv
+    #rfc5424, logprof2, tcp and option logasap
+    expect ~ ".* custom ${h1_pid} .* - txn_connect"
+    barrier b2 sync
+
+    recv
+    #rfc5424, logprof2 tcp
+    expect ~ ".* custom ${h1_pid} .* - txn_close"
+    barrier b3 sync
+
+    recv
+    #rfc5424, logprof2, tcp error
+    expect ~ ".* custom ${h1_pid} .* error"
+    barrier b4 sync
+} -start
+
+haproxy h1 -conf {
+	defaults
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+		log-tag "haproxy"
+
+	frontend fe1
+		bind "fd@${fe_1}"
+		mode http
+		option httplog
+		log udp@${Slg1_addr}:${Slg1_port} format rfc5424 local0
+		log udp@${Slg2_addr}:${Slg2_port} format rfc5424 profile logprof1 local0
+		log udp@${Slg2_addr}:${Slg2_port} format rfc5424 profile logprof2 local0
+		log udp@${Slg3_addr}:${Slg3_port} format rfc3164 profile logprof1 local0
+
+		default_backend be
+
+	frontend fe2
+		bind "fd@${fe_2}"
+		mode tcp
+		log-format "%B"
+		option logasap
+		log udp@${Slg1_addr}:${Slg1_port} format rfc5424 local0
+		log udp@${Slg2_addr}:${Slg2_port} format rfc5424 profile logprof1 local0
+		log udp@${Slg3_addr}:${Slg3_port} format rfc5424 profile logprof2 local0
+
+		default_backend be_tcp
+
+	frontend fe3
+		bind "fd@${fe_3}"
+		mode tcp
+		log-format "%B"
+		log udp@${Slg2_addr}:${Slg2_port} format rfc5424 profile logprof1 local0
+		log udp@${Slg3_addr}:${Slg3_port} format rfc5424 profile logprof2 local0
+
+		default_backend be_tcp
+
+	listen fe4
+		bind "fd@${fe_4}"
+		timeout client 5ms
+		mode http
+		log-format "%B"
+		log udp@${Slg3_addr}:${Slg3_port} format rfc5424 profile logprof2 local0
+
+	log-profile logprof1
+		on close format "close" sd "sdclose"
+
+	log-profile logprof2
+		log-tag "custom"
+		on error format "error"
+		on any format "%OG"
+
+	backend be
+		mode http
+		server app1 ${s1_addr}:${s1_port}
+
+	backend be_tcp
+		mode tcp
+		server app1 ${s1_addr}:${s1_port}
+
+
+} -start
+
+# requests generators (to trigger log emission)
+
+client c1 -connect ${h1_fe_1_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+} -start -wait
+
+# Wait matching log messages
+barrier b1 sync
+
+client c2 -connect ${h1_fe_2_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+} -start -wait
+
+# Wait matching log messages
+barrier b2 sync
+
+client c3 -connect ${h1_fe_3_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+} -start -wait
+
+# Wait matching log messages
+barrier b3 sync
+
+client c4 -connect ${h1_fe_4_sock} {
+    # do nothing to trigger an error (fe_4 timeouts after 5ms)
+} -start -wait
+
+# Wait matching log messages
+barrier b4 sync
+
+syslog Slg1 -wait
+syslog Slg2 -wait
+syslog Slg3 -wait
