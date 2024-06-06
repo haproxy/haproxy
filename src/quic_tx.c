@@ -32,7 +32,8 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned c
                                            struct quic_enc_level *qel, struct quic_tls_ctx *ctx,
                                            struct list *frms, struct quic_conn *qc,
                                            const struct quic_version *ver, size_t dglen, int pkt_type,
-                                           int must_ack, int padding, int probe, int cc, int *err);
+                                           int must_ack, int padding, int probe, int cc,
+                                           enum qc_build_pkt_err *err);
 
 static void quic_packet_encrypt(unsigned char *payload, size_t payload_len,
                                 unsigned char *aad, size_t aad_len, uint64_t pn,
@@ -533,9 +534,10 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		 * of the first packet in the datagram (QUIC_DGRAM_HEADLEN).
 		 */
 		while (b_contig_space(buf) > QUIC_DGRAM_HEADLEN || prv_pkt) {
-			int err, probe, must_ack;
+			int probe, must_ack;
 			enum quic_pkt_type pkt_type;
 			struct quic_tx_packet *cur_pkt;
+			enum qc_build_pkt_err err;
 
 			TRACE_PROTO("TX prep pkts", QUIC_EV_CONN_PHPKTS, qc, qel);
 			probe = 0;
@@ -601,29 +603,34 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			                       qc, ver, dglen, pkt_type,
 			                       must_ack, padding && !next_qel,
 			                       probe, cc, &err);
-			switch (err) {
-				case -3:
+			if (!cur_pkt) {
+				switch (err) {
+				case QC_BUILD_PKT_ERR_ALLOC:
 					if (first_pkt)
 						qc_txb_store(buf, dglen, first_pkt);
 					qc_purge_tx_buf(qc, buf);
-					goto leave;
-				case -2:
+					break;
+
+				case QC_BUILD_PKT_ERR_ENCRYPT:
 					// trace already emitted by function above
-					goto leave;
-				case -1:
-					/* If there was already a correct packet present, set the
-					 * current datagram as prepared into <cbuf>.
-					 */
-					if (prv_pkt)
+					break;
+
+				case QC_BUILD_PKT_ERR_BUFROOM:
+					if (first_pkt)
 						qc_txb_store(buf, dglen, first_pkt);
 					TRACE_PROTO("could not prepare anymore packet", QUIC_EV_CONN_PHPKTS, qc, qel);
-					goto out;
-				default:
 					break;
+
+				default:
+					ABORT_NOW(); /* error case not handled */
+					break;
+				}
+
+				if (err == QC_BUILD_PKT_ERR_ALLOC || err == QC_BUILD_PKT_ERR_ENCRYPT)
+					goto leave;
+				goto out;
 			}
 
-			/* This is to please to GCC. We cannot have (err >= 0 && !cur_pkt) */
-			BUG_ON(!cur_pkt);
 
 			total += cur_pkt->len;
 			dglen += cur_pkt->len;
@@ -2051,12 +2058,8 @@ static inline void quic_tx_packet_init(struct quic_tx_packet *pkt, int type)
  * the end of this buffer, with <pkt_type> as packet type for <qc> QUIC connection
  * at <qel> encryption level with <frms> list of prebuilt frames.
  *
- * Return -3 if the packet could not be allocated, -2 if could not be encrypted for
- * any reason, -1 if there was not enough room to build a packet.
- * XXX NOTE XXX
- * If you provide provide qc_build_pkt() with a big enough buffer to build a packet as big as
- * possible (to fill an MTU), the unique reason why this function may fail is the congestion
- * control window limitation.
+ * Return built packet instance or NULL on error. <err> will be set to the
+ * specific error encountered.
  */
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
                                            const unsigned char *end,
@@ -2064,9 +2067,9 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
                                            struct quic_tls_ctx *tls_ctx, struct list *frms,
                                            struct quic_conn *qc, const struct quic_version *ver,
                                            size_t dglen, int pkt_type, int must_ack,
-                                           int padding, int probe, int cc, int *err)
+                                           int padding, int probe, int cc,
+                                           enum qc_build_pkt_err *err)
 {
-	struct quic_tx_packet *ret_pkt = NULL;
 	/* The pointer to the packet number field. */
 	unsigned char *buf_pn;
 	unsigned char *first_byte, *last_byte, *payload;
@@ -2077,11 +2080,11 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 	TRACE_PROTO("TX pkt build", QUIC_EV_CONN_TXPKT, qc, NULL, qel);
-	*err = 0;
+	*err = QC_BUILD_PKT_ERR_NONE;
 	pkt = pool_alloc(pool_head_quic_tx_packet);
 	if (!pkt) {
 		TRACE_DEVEL("Not enough memory for a new packet", QUIC_EV_CONN_TXPKT, qc);
-		*err = -3;
+		*err = QC_BUILD_PKT_ERR_ALLOC;
 		goto err;
 	}
 
@@ -2094,7 +2097,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	if (!qc_do_build_pkt(*pos, end, dglen, pkt, pn, &pn_len, &buf_pn,
 	                     must_ack, padding, cc, probe, qel, qc, ver, frms)) {
 		// trace already emitted by function above
-		*err = -1;
+		*err = QC_BUILD_PKT_ERR_BUFROOM;
 		goto err;
 	}
 
@@ -2107,7 +2110,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	if (encrypt_failure) {
 		/* TODO Unrecoverable failure, unencrypted data should be returned to the caller. */
 		WARN_ON("quic_packet_encrypt failure");
-		*err = -2;
+		*err = QC_BUILD_PKT_ERR_ENCRYPT;
 		goto err;
 	}
 
@@ -2117,7 +2120,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	if (encrypt_failure) {
 		/* TODO Unrecoverable failure, unencrypted data should be returned to the caller. */
 		WARN_ON("quic_apply_header_protection failure");
-		*err = -2;
+		*err = QC_BUILD_PKT_ERR_ENCRYPT;
 		goto err;
 	}
 
@@ -2154,18 +2157,15 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 
 	pkt->pktns = qel->pktns;
 
-	ret_pkt = pkt;
- leave:
-	TRACE_PROTO("TX pkt built", QUIC_EV_CONN_TXPKT, qc, ret_pkt);
+	TRACE_PROTO("TX pkt built", QUIC_EV_CONN_TXPKT, qc, pkt);
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
-	return ret_pkt;
+	return pkt;
 
  err:
-	/* TODO: what about the frames which have been built
-	 * for this packet.
-	 */
+	/* TODO What about the frames which have been built for this packet? */
 	free_quic_tx_packet(qc, pkt);
-	goto leave;
+	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_TXPKT, qc);
+	return NULL;
 }
 /*
  * Local variables:

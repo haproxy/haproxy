@@ -56,4 +56,12 @@ struct quic_tx_packet {
 	unsigned char type;
 };
 
+/* Return value for qc_build_pkt(). */
+enum qc_build_pkt_err {
+	QC_BUILD_PKT_ERR_NONE  = 0,
+	QC_BUILD_PKT_ERR_ALLOC,    /* memory allocation failure */
+	QC_BUILD_PKT_ERR_ENCRYPT,  /* error during encryption operation */
+	QC_BUILD_PKT_ERR_BUFROOM,  /* no more room in input buf or congestion window */
+};
+
 #endif /* _HAPROXY_TX_T_H */
