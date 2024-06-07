@@ -2564,6 +2564,10 @@ static int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
 			return 0;
 
 		if (SSL_version(ssl) != TLS1_3_VERSION) {
+
+			/* with TLS <= 1.2, we must use the auth which is provided by the cipher, but we don't need to
+			 * consider the auth provided by the signature algorithms */
+
 			for (idx = 0; idx < suiteSz; idx += 2) {
 				WOLFSSL_CIPHERSUITE_INFO info;
 				info = wolfSSL_get_ciphersuite_info(suites[idx], suites[idx+1]);
@@ -2572,23 +2576,22 @@ static int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
 				else if (info.eccAuth)
 					has_ecdsa_sig = 1;
 			}
-		}
+		} else {
+			/* with TLS >= 1.3, we must use the auth which is provided by the signature algorithms because
+			 * the ciphers does not provide the auth */
 
-		if (hashSigAlgoSz > 0) {
-			/* sigalgs extension takes precedence over ciphersuites */
-			has_ecdsa_sig = 0;
-			has_rsa_sig = 0;
-		}
-		for (idx = 0; idx < hashSigAlgoSz; idx += 2) {
-			int hashAlgo;
-			int sigAlgo;
+			for (idx = 0; idx < hashSigAlgoSz; idx += 2) {
+				int hashAlgo;
+				int sigAlgo;
 
-			wolfSSL_get_sigalg_info(hashSigAlgo[idx+0], hashSigAlgo[idx+1], &hashAlgo, &sigAlgo);
+				wolfSSL_get_sigalg_info(hashSigAlgo[idx+0], hashSigAlgo[idx+1], &hashAlgo, &sigAlgo);
 
-			if (sigAlgo == RSAk || sigAlgo == RSAPSSk)
-				has_rsa_sig = 1;
-			else if (sigAlgo == ECDSAk)
-				has_ecdsa_sig = 1;
+				if (sigAlgo == RSAk || sigAlgo == RSAPSSk)
+					has_rsa_sig = 1;
+				else if (sigAlgo == ECDSAk)
+					has_ecdsa_sig = 1;
+
+			}
 		}
 	}
 
