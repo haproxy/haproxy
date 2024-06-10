@@ -252,7 +252,7 @@ https://github.com/openssl/openssl/issues/17627). If a migration to 3.x is
 mandated by support reasons, at least 3.1 recovers a small fraction of this
 important loss.
 
-Four OpenSSL derivatives called LibreSSL, BoringSSL, QUICTLS, and AWS-LC are
+Three OpenSSL derivatives called LibreSSL, QUICTLS, and AWS-LC are
 reported to work as well. While there are some efforts from the community to
 ensure they work well, OpenSSL remains the primary target and this means that
 in case of conflicting choices, OpenSSL support will be favored over other
