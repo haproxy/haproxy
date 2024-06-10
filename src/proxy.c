@@ -1458,6 +1458,7 @@ void proxy_free_defaults(struct proxy *defproxy)
 #if defined(CONFIG_HAP_TRANSPARENT)
 	ha_free(&defproxy->conn_src.bind_hdr_name);
 #endif
+	istfree(&defproxy->header_unique_id);
 	istfree(&defproxy->server_id_hdr_name);
 
 	http_ext_clean(defproxy);
