@@ -1199,7 +1199,7 @@ static int _postcheck_log_backend_compat(struct proxy *be)
 		free_stick_rules(&be->sticking_rules);
 	}
 	if (isttest(be->server_id_hdr_name)) {
-		ha_warning("Cannot set \"server_id_hdr_name\" with 'mode log' in %s '%s'. It will be ignored.\n",
+		ha_warning("Cannot set \"http-send-name-header\" with 'mode log' in %s '%s'. It will be ignored.\n",
 			   proxy_type_str(be), be->id);
 
 		err_code |= ERR_WARN;
