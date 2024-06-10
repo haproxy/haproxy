@@ -199,6 +199,7 @@ static inline void proxy_free_common(struct proxy *px)
 {
 	struct acl *acl, *aclb;
 	struct logger *log, *logb;
+	struct lf_expr *lf, *lfb;
 
 	ha_free(&px->id);
 	ha_free(&px->conf.file);
@@ -244,6 +245,13 @@ static inline void proxy_free_common(struct proxy *px)
 		LIST_DEL_INIT(&log->list);
 		free_logger(log);
 	}
+
+	/* ensure that remaining lf_expr that were not postchecked (ie: disabled
+	 * or default proxy) don't keep a reference on the proxy which is about
+	 * to be freed.
+	 */
+	list_for_each_entry_safe(lf, lfb, &px->conf.lf_checks, list)
+		LIST_DEL_INIT(&lf->list);
 
 	chunk_destroy(&px->log_tag);
 
