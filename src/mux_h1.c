@@ -4862,7 +4862,7 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	ret = 0;
 
 	if (h1m->state == H1_MSG_DATA && (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN)) &&  count > h1m->curr_len) {
-		flags |= NEGO_FF_FL_EXACT_SIZE;
+		nego_flags |= NEGO_FF_FL_EXACT_SIZE;
 		count = h1m->curr_len;
 	}
 
