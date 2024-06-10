@@ -220,6 +220,7 @@ void free_proxy(struct proxy *p)
 	istfree(&p->monitor_uri);
 	istfree(&p->server_id_hdr_name);
 	free(p->rdp_cookie_name);
+	free_email_alert(p);
 	free(p->invalid_rep);
 	free(p->invalid_req);
 #if defined(CONFIG_HAP_TRANSPARENT)
