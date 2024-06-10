@@ -266,6 +266,8 @@ void free_proxy(struct proxy *p)
 		free_logger(log);
 	}
 
+	chunk_destroy(&p->log_tag);
+
 	lf_expr_deinit(&p->logformat);
 	lf_expr_deinit(&p->logformat_sd);
 	lf_expr_deinit(&p->format_unique_id);
