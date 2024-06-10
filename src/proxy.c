@@ -191,6 +191,65 @@ void free_server_rules(struct list *srules)
 	}
 }
 
+/* Frees proxy members that are common to all proxy types (either regular or
+ * default ones) for a proxy that's about to be destroyed.
+ * This is a subset of the complete proxy or default proxy deinit code.
+ */
+static inline void proxy_free_common(struct proxy *px)
+{
+	struct acl *acl, *aclb;
+	struct logger *log, *logb;
+
+	ha_free(&px->id);
+	ha_free(&px->conf.file);
+	ha_free(&px->check_command);
+	ha_free(&px->check_path);
+	ha_free(&px->cookie_name);
+	ha_free(&px->rdp_cookie_name);
+	ha_free(&px->dyncookie_key);
+	ha_free(&px->cookie_domain);
+	ha_free(&px->cookie_attrs);
+	ha_free(&px->lbprm.arg_str);
+	ha_free(&px->capture_name);
+	istfree(&px->monitor_uri);
+	ha_free(&px->conn_src.iface_name);
+#if defined(CONFIG_HAP_TRANSPARENT)
+	ha_free(&px->conn_src.bind_hdr_name);
+#endif
+	istfree(&px->server_id_hdr_name);
+	istfree(&px->header_unique_id);
+
+	http_ext_clean(px);
+
+	list_for_each_entry_safe(acl, aclb, &px->acl, list) {
+		LIST_DELETE(&acl->list);
+		prune_acl(acl);
+		free(acl);
+	}
+
+	free_act_rules(&px->tcp_req.inspect_rules);
+	free_act_rules(&px->tcp_rep.inspect_rules);
+	free_act_rules(&px->tcp_req.l4_rules);
+	free_act_rules(&px->tcp_req.l5_rules);
+	free_act_rules(&px->http_req_rules);
+	free_act_rules(&px->http_res_rules);
+	free_act_rules(&px->http_after_res_rules);
+
+	lf_expr_deinit(&px->logformat);
+	lf_expr_deinit(&px->logformat_sd);
+	lf_expr_deinit(&px->logformat_error);
+	lf_expr_deinit(&px->format_unique_id);
+
+	list_for_each_entry_safe(log, logb, &px->loggers, list) {
+		LIST_DEL_INIT(&log->list);
+		free_logger(log);
+	}
+
+	chunk_destroy(&px->log_tag);
+
+	free_email_alert(px);
+}
+
 void free_proxy(struct proxy *p)
 {
 	struct server *s;
@@ -198,39 +257,21 @@ void free_proxy(struct proxy *p)
 	struct listener *l,*l_next;
 	struct bind_conf *bind_conf, *bind_back;
 	struct acl_cond *cond, *condb;
-	struct acl *acl, *aclb;
 	struct switching_rule *rule, *ruleb;
 	struct redirect_rule *rdr, *rdrb;
-	struct logger *log, *logb;
 	struct proxy_deinit_fct *pxdf;
 	struct server_deinit_fct *srvdf;
 
 	if (!p)
 		return;
 
-	free(p->conf.file);
-	free(p->id);
-	free(p->cookie_name);
-	free(p->cookie_domain);
-	free(p->cookie_attrs);
-	free(p->lbprm.arg_str);
+	proxy_free_common(p);
+
+	/* regular proxy specific cleanup */
 	release_sample_expr(p->lbprm.expr);
 	free(p->server_state_file_name);
-	free(p->capture_name);
-	istfree(&p->monitor_uri);
-	istfree(&p->server_id_hdr_name);
-	ha_free(&p->check_command);
-	ha_free(&p->check_path);
-	ha_free(&p->dyncookie_key);
-	free(p->rdp_cookie_name);
-	free_email_alert(p);
 	free(p->invalid_rep);
 	free(p->invalid_req);
-	ha_free(&p->conn_src.iface_name);
-#if defined(CONFIG_HAP_TRANSPARENT)
-	free(p->conn_src.bind_hdr_name);
-#endif
-	istfree(&p->header_unique_id);
 	if ((p->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_MAP)
 		free(p->lbprm.map.srv);
 
@@ -243,12 +284,6 @@ void free_proxy(struct proxy *p)
 
 	EXTRA_COUNTERS_FREE(p->extra_counters_fe);
 	EXTRA_COUNTERS_FREE(p->extra_counters_be);
-
-	list_for_each_entry_safe(acl, aclb, &p->acl, list) {
-		LIST_DELETE(&acl->list);
-		prune_acl(acl);
-		free(acl);
-	}
 
 	free_server_rules(&p->server_rules);
 
@@ -265,26 +300,6 @@ void free_proxy(struct proxy *p)
 		LIST_DELETE(&rdr->list);
 		http_free_redirect_rule(rdr);
 	}
-
-	list_for_each_entry_safe(log, logb, &p->loggers, list) {
-		LIST_DEL_INIT(&log->list);
-		free_logger(log);
-	}
-
-	chunk_destroy(&p->log_tag);
-
-	lf_expr_deinit(&p->logformat);
-	lf_expr_deinit(&p->logformat_sd);
-	lf_expr_deinit(&p->format_unique_id);
-	lf_expr_deinit(&p->logformat_error);
-
-	free_act_rules(&p->tcp_req.inspect_rules);
-	free_act_rules(&p->tcp_rep.inspect_rules);
-	free_act_rules(&p->tcp_req.l4_rules);
-	free_act_rules(&p->tcp_req.l5_rules);
-	free_act_rules(&p->http_req_rules);
-	free_act_rules(&p->http_res_rules);
-	free_act_rules(&p->http_after_res_rules);
 
 	free_stick_rules(&p->storersp_rules);
 	free_stick_rules(&p->sticking_rules);
@@ -355,8 +370,6 @@ void free_proxy(struct proxy *p)
 		pxdf->fct(p);
 
 	free(p->desc);
-
-	http_ext_clean(p);
 
 	task_destroy(p->task);
 
@@ -1429,53 +1442,19 @@ void proxy_preset_defaults(struct proxy *defproxy)
 }
 
 /* Frees all dynamic settings allocated on a default proxy that's about to be
- * destroyed. This is a subset of the complete proxy deinit code, but these
- * should probably be merged ultimately. Note that most of the fields are not
- * even reset, so extreme care is required here, and calling
- * proxy_preset_defaults() afterwards would be safer.
+ * destroyed. Note that most of the fields are not even reset, so extreme care
+ * is required here, and calling proxy_preset_defaults() afterwards would be
+ * safer.
  */
 void proxy_free_defaults(struct proxy *defproxy)
 {
-	struct acl *acl, *aclb;
-	struct logger *log, *logb;
 	struct cap_hdr *h,*h_next;
 
-	ha_free(&defproxy->id);
-	ha_free(&defproxy->conf.file);
+	proxy_free_common(defproxy);
+
+	/* default proxy specific cleanup */
 	ha_free((char **)&defproxy->defsrv.conf.file);
-	ha_free(&defproxy->check_command);
-	ha_free(&defproxy->check_path);
-	ha_free(&defproxy->cookie_name);
-	ha_free(&defproxy->rdp_cookie_name);
-	ha_free(&defproxy->dyncookie_key);
-	ha_free(&defproxy->cookie_domain);
-	ha_free(&defproxy->cookie_attrs);
-	ha_free(&defproxy->lbprm.arg_str);
-	ha_free(&defproxy->capture_name);
-	istfree(&defproxy->monitor_uri);
 	ha_free(&defproxy->defbe.name);
-	ha_free(&defproxy->conn_src.iface_name);
-#if defined(CONFIG_HAP_TRANSPARENT)
-	ha_free(&defproxy->conn_src.bind_hdr_name);
-#endif
-	istfree(&defproxy->header_unique_id);
-	istfree(&defproxy->server_id_hdr_name);
-
-	http_ext_clean(defproxy);
-
-	list_for_each_entry_safe(acl, aclb, &defproxy->acl, list) {
-		LIST_DELETE(&acl->list);
-		prune_acl(acl);
-		free(acl);
-	}
-
-	free_act_rules(&defproxy->tcp_req.inspect_rules);
-	free_act_rules(&defproxy->tcp_rep.inspect_rules);
-	free_act_rules(&defproxy->tcp_req.l4_rules);
-	free_act_rules(&defproxy->tcp_req.l5_rules);
-	free_act_rules(&defproxy->http_req_rules);
-	free_act_rules(&defproxy->http_res_rules);
-	free_act_rules(&defproxy->http_after_res_rules);
 
 	h = defproxy->req_cap;
 	while (h) {
@@ -1495,19 +1474,6 @@ void proxy_free_defaults(struct proxy *defproxy)
 		h = h_next;
 	}
 
-	lf_expr_deinit(&defproxy->logformat);
-	lf_expr_deinit(&defproxy->logformat_sd);
-	lf_expr_deinit(&defproxy->logformat_error);
-	lf_expr_deinit(&defproxy->format_unique_id);
-
-	list_for_each_entry_safe(log, logb, &defproxy->loggers, list) {
-		LIST_DEL_INIT(&log->list);
-		free_logger(log);
-	}
-
-	chunk_destroy(&defproxy->log_tag);
-
-	free_email_alert(defproxy);
 	proxy_release_conf_errors(defproxy);
 	deinit_proxy_tcpcheck(defproxy);
 
