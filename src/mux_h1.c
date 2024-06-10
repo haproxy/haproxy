@@ -4724,7 +4724,9 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 
 		if (xfer > b_data(input))
 			xfer = b_data(input);
+		h1c->obuf.head += offset;
 		h1s->sd->iobuf.data = b_xfer(&h1c->obuf, input, xfer);
+		h1c->obuf.head -= offset;
 
 		/* Cannot forward more data, wait for room */
 		if (b_data(input))
