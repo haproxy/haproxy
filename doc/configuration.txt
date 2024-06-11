@@ -6955,6 +6955,8 @@ fullconn <conns>
 guid <string>
   Specify a case-sensitive global unique ID for this proxy.
 
+  May be used in the following contexts: tcp, http, log
+
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
 
@@ -17155,11 +17157,15 @@ force-tlsv13
   "ssl-default-server-options". See also "ssl-min-ver" and ssl-max-ver".
 
 guid <string>
+  May be used in the following contexts: tcp, http, log
+
   Specify a case-sensitive global unique ID for this server. This must be
   unique across all haproxy configuration on every object types. See "guid"
   proxy keyword description for more information on its format.
 
 hash-key <key>
+  May be used in the following contexts: tcp, http, log
+
   Specify how "hash-type consistent" node keys are computed
 
   Arguments :
