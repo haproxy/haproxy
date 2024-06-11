@@ -247,8 +247,7 @@ static inline void proxy_free_common(struct proxy *px)
 	}
 
 	/* ensure that remaining lf_expr that were not postchecked (ie: disabled
-	 * or default proxy) don't keep a reference on the proxy which is about
-	 * to be freed.
+	 * proxy) don't keep a reference on the proxy which is about to be freed.
 	 */
 	list_for_each_entry_safe(lf, lfb, &px->conf.lf_checks, list)
 		LIST_DEL_INIT(&lf->list);
