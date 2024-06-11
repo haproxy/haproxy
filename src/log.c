@@ -870,15 +870,17 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy,
 	if (!ret)
 		goto fail;
 
-	if (!(curproxy->flags & PR_FL_CHECKED)) {
+	if (!(curproxy->cap & PR_CAP_DEF) &&
+	    !(curproxy->flags & PR_FL_CHECKED)) {
 		/* add the lf_expr to the proxy checks to delay postparsing
 		 * since config-related proxy properties are not stable yet
 		 */
 		LIST_APPEND(&curproxy->conf.lf_checks, &lf_expr->list);
 	}
 	else {
-		/* probably called during runtime or with proxy already checked,
-		 * perform the postcheck right away
+		/* default proxy, or regular proxy and probably called during
+		 * runtime or with proxy already checked, perform the postcheck
+		 * right away
 		 */
 		if (!lf_expr_postcheck(lf_expr, curproxy, err))
 			goto fail;
@@ -948,11 +950,17 @@ static int lf_expr_postcheck_node_opt(struct lf_expr *lf_expr, struct logformat_
  * compatible with logformat expression, but once the proxy is checked, we fail
  * as soon as we face incompatibilities)
  *
+ * If the proxy is a default section, then allow the postcheck to succeed:
+ * the logformat expression may or may not work properly depending on the
+ * actual proxy that effectively runs it during runtime, but we have to stay
+ * permissive since we cannot assume it won't work.
+ *
  * It returns 1 on success and 0 on error, <err> will be set in case of error.
  */
 int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err)
 {
 	struct logformat_node *lf;
+	int default_px = (px->cap & PR_CAP_DEF);
 
 	if (!(px->flags & PR_FL_CHECKED))
 		px->to_log |= LW_INIT;
@@ -987,7 +995,8 @@ int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err)
 				px->to_log |= LW_REQ;
 		}
 		else if (lf->type == LOG_FMT_ALIAS) {
-			if (lf->alias->mode == PR_MODE_HTTP && px->mode != PR_MODE_HTTP) {
+			if (lf->alias->mode == PR_MODE_HTTP &&
+			    !default_px && px->mode != PR_MODE_HTTP) {
 				memprintf(err, "format alias '%s' is reserved for HTTP mode",
 				          lf->alias->name);
 				goto fail;
@@ -1006,7 +1015,7 @@ int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err)
 		if (!lf_expr_postcheck_node_opt(lf_expr, lf, err))
 			goto fail;
 	}
-	if ((px->to_log & (LW_REQ | LW_RESP)) &&
+	if (!default_px && (px->to_log & (LW_REQ | LW_RESP)) &&
 	    (px->mode != PR_MODE_HTTP && !(px->options & PR_O_HTTP_UPG))) {
 		memprintf(err, "logformat expression not usable here (at least one item depends on HTTP mode)");
 		goto fail;
