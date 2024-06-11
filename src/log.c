@@ -1008,7 +1008,7 @@ int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err)
 	}
 	if ((px->to_log & (LW_REQ | LW_RESP)) &&
 	    (px->mode != PR_MODE_HTTP && !(px->options & PR_O_HTTP_UPG))) {
-		memprintf(err, "logformat expression not usable here (at least one node depends on HTTP mode)");
+		memprintf(err, "logformat expression not usable here (at least one item depends on HTTP mode)");
 		goto fail;
 	}
 
