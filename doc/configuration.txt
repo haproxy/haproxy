@@ -6953,11 +6953,16 @@ fullconn <conns>
 
 
 guid <string>
-  Specify a case-sensitive global unique ID for this proxy. This must be unique
-  across all haproxy configuration on every object types. Format is left
-  unspecified to allow the user to select its naming policy. The only
-  restriction is its length which cannot be greater than 127 characters. All
-  alphanumerical values and '.', ':', '-' and '_' characters are valid.
+  Specify a case-sensitive global unique ID for this proxy.
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   yes
+
+  <string> must be unique across all haproxy configuration on every object
+  types. Format is left unspecified to allow the user to select its naming
+  policy. The only restriction is its length which cannot be greater than
+  127 characters. All alphanumerical values and '.', ':', '-' and '_'
+  characters are valid.
 
 
 hash-balance-factor <factor>
