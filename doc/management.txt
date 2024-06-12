@@ -360,6 +360,11 @@ list of options is :
         the byte's value to -dM but using this option allows to disable/enable
         use of a previously set value.
 
+  -dR : disable SO_REUSEPORT socket option on listening ports. It is equivalent
+    to the "global" section's "noreuseport" keyword. This may be applied in
+    multi-threading scenarios, when load distribution issues observed among the
+    haproxy threads (could be monitored with top).
+
   -dS : disable use of the splice() system call. It is equivalent to the
     "global" section's "nosplice" keyword. This may be used when splice() is
     suspected to behave improperly or to cause performance issues, or when
@@ -418,6 +423,12 @@ list of options is :
     as inner separator with trace name. When entering an invalid verbosity or
     level name, the list of available keywords is presented. For example it can
     be convenient to pass 'help' for each field to consult the list first.
+
+  -dv : disable the use of the "evports" poller. It is equivalent to the
+    "global" section's keyword "noevports". It is mostly useful when suspecting
+    a bug related to this poller. On systems supporting event ports (SunOS
+    derived from Solaris 10 and later), the fallback will generally be the
+    "poll" poller.
 
   -m <limit> : limit allocatable memory, which is used to keep process's data,
     to <limit> megabytes. This may cause some connection refusals or some
