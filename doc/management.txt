@@ -386,6 +386,12 @@ list of options is :
    in checked configurations to fail. This is equivalent to global option
    "zero-warning".
 
+  -dZ : disable forwarding of data in "zero-copy" mode. It is equivalent to the
+   "global" section's "tune.disable-zero-copy-forwarding" keyword. This may be
+   helpful in case of issues with data loss or data integrity, or when using
+   strace to see the forwarded data, as it also disables any kernel tcp
+   splicing.
+
   -db : disable background mode and multi-process mode. The process remains in
     foreground. It is mainly used during development or during small tests, as
     Ctrl-C is enough to stop the process. Never use it in an init script.
