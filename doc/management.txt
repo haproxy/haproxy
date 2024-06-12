@@ -3264,8 +3264,8 @@ show sess <id> | older <age> | susp | all
   is meant to be interpreted while checking function strm_dump_to_buffer() in
   src/stream.c to figure the exact meaning of certain fields.
 
-show stat [domain <dns|proxy>] [{<iid>|<proxy>} <type> <sid>] [typed|json] \
-          [desc] [up|no-maint]
+show stat [domain <resolvers|proxy>] [{<iid>|<proxy>} <type> <sid>] \
+          [typed|json] [desc] [up|no-maint]
   Dump statistics. The domain is used to select which statistics to print; dns
   and proxy are available for now. By default, the CSV format is used; you can
   activate the extended typed output format described in the section above if
