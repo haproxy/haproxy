@@ -57,35 +57,6 @@ spoe_encode_buffer(const char *str, size_t len, char **buf, char *end)
 	return len;
 }
 
-/* Encode a buffer, possibly partially. It does the same thing than
- * 'spoe_encode_buffer', but if there is not enough space, it does not fail.
- * On success, it returns the number of copied bytes and <*buf> is moved after
- * the encoded value. If an error occurred, it returns -1. */
-static inline int
-spoe_encode_frag_buffer(const char *str, size_t len, char **buf, char *end)
-{
-	char *p = *buf;
-	int   ret;
-
-	if (p >= end)
-		return -1;
-
-	if (!len) {
-		*p++ = 0;
-		*buf = p;
-		return 0;
-	}
-
-	ret = encode_varint(len, &p, end);
-	if (ret == -1 || p >= end)
-		return -1;
-
-	ret = (p+len < end) ? len : (end - p);
-	memcpy(p, str, ret);
-	*buf = p + ret;
-	return ret;
-}
-
 /* Decode a buffer. The buffer length is decoded and saved in <*len>. <*str>
  * points on the first byte of the buffer.
  * On success, it returns the buffer length and <*buf> is moved after the
@@ -161,44 +132,12 @@ spoe_encode_data(struct sample *smp, char **buf, char *end)
 
 		case SMP_T_STR:
 		case SMP_T_BIN: {
-			/* If defined, get length and offset of the sample by reading the sample
-			 * context. ctx.a[0] is the pointer to the length and ctx.a[1] is the
-			 * pointer to the offset. If the offset is greater than 0, it means the
-			 * sample is partially encoded. In this case, we only need to encode the
-			 * remaining. When all the sample is encoded, the offset is reset to 0.
-			 * So the caller know it can try to encode the next sample. */
 			struct buffer *chk = &smp->data.u.str;
-			unsigned int *len  = smp->ctx.a[0];
-			unsigned int *off  = smp->ctx.a[1];
 
-			if (!*off) {
-				/* First evaluation of the sample : encode the
-				 * type (string or binary), the buffer length
-				 * (as a varint) and at least 1 byte of the
-				 * buffer. */
-				struct buffer *chk = &smp->data.u.str;
-
-				*p++ = (smp->data.type == SMP_T_STR)
-					? SPOE_DATA_T_STR
-					: SPOE_DATA_T_BIN;
-				ret = spoe_encode_frag_buffer(chk->area,
-							      chk->data, &p,
-							      end);
-				if (ret == -1)
-					return -1;
-				*len = chk->data;
-			}
-			else {
-				/* The sample has been fragmented, encode remaining data */
-				ret = MIN(*len - *off, end - p);
-				memcpy(p, chk->area + *off, ret);
-				p += ret;
-			}
-			/* Now update <*off> */
-			if (ret + *off != *len)
-				*off += ret;
-			else
-				*off = 0;
+			*p++ = (smp->data.type == SMP_T_STR) ? SPOE_DATA_T_STR : SPOE_DATA_T_BIN;
+			ret = spoe_encode_buffer(chk->area, chk->data, &p, end);
+			if (ret == -1)
+				return -1;
 			break;
 		}
 

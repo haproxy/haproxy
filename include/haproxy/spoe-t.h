@@ -42,8 +42,8 @@
 #define SPOE_FL_CONT_ON_ERR       0x00000001 /* Do not stop events processing when an error occurred */
 #define SPOE_FL_PIPELINING        0x00000002 /* Set when SPOE agent supports pipelining (set by default) */
 #define SPOE_FL_ASYNC             0x00000004 /* Set when SPOE agent supports async (set by default) */
-#define SPOE_FL_SND_FRAGMENTATION 0x00000008 /* Set when SPOE agent supports sending fragmented payload */
-#define SPOE_FL_RCV_FRAGMENTATION 0x00000010 /* Set when SPOE agent supports receiving fragmented payload */
+/* unsused 0x00000008 */
+/* unused 0x00000010 */
 #define SPOE_FL_FORCE_SET_VAR     0x00000020 /* Set when SPOE agent will set all variables from agent (and not only known variables) */
 
 /* Flags set on the SPOE context */
@@ -51,14 +51,14 @@
 #define SPOE_CTX_FL_SRV_CONNECTED 0x00000002 /* Set after that on-server-session event was processed */
 #define SPOE_CTX_FL_REQ_PROCESS   0x00000004 /* Set when SPOE is processing the request */
 #define SPOE_CTX_FL_RSP_PROCESS   0x00000008 /* Set when SPOE is processing the response */
-#define SPOE_CTX_FL_FRAGMENTED    0x00000010 /* Set when a fragmented frame is processing */
+/* unsued 0x00000010 */
 
 #define SPOE_CTX_FL_PROCESS (SPOE_CTX_FL_REQ_PROCESS|SPOE_CTX_FL_RSP_PROCESS)
 
 /* Flags set on the SPOE applet */
 #define SPOE_APPCTX_FL_PIPELINING    0x00000001 /* Set if pipelining is supported */
 #define SPOE_APPCTX_FL_ASYNC         0x00000002 /* Set if asynchronous frames is supported */
-#define SPOE_APPCTX_FL_FRAGMENTATION 0x00000004 /* Set if fragmentation is supported */
+/* unused 0x00000004 */
 
 #define SPOE_APPCTX_ERR_NONE    0x00000000 /* no error yet, leave it to zero */
 #define SPOE_APPCTX_ERR_TOUT    0x00000001 /* SPOE applet timeout */
@@ -92,7 +92,6 @@ enum spoe_appctx_state {
 	SPOE_APPCTX_ST_CONNECTING,
 	SPOE_APPCTX_ST_IDLE,
 	SPOE_APPCTX_ST_PROCESSING,
-	SPOE_APPCTX_ST_SENDING_FRAG_NOTIFY,
 	SPOE_APPCTX_ST_WAITING_SYNC_ACK,
 	SPOE_APPCTX_ST_DISCONNECT,
 	SPOE_APPCTX_ST_DISCONNECTING,
@@ -132,7 +131,6 @@ enum spoe_context_error {
 	SPOE_CTX_ERR_TOUT,
 	SPOE_CTX_ERR_RES,
 	SPOE_CTX_ERR_TOO_BIG,
-	SPOE_CTX_ERR_FRAG_FRAME_ABRT,
 	SPOE_CTX_ERR_INTERRUPT,
 	SPOE_CTX_ERR_UNKNOWN = 255,
 	SPOE_CTX_ERRS,
@@ -357,22 +355,15 @@ struct spoe_context {
 	unsigned int        process_exp;  /* expiration date to process an event */
 
 	struct spoe_appctx *spoe_appctx; /* SPOE appctx sending the current frame */
-	struct {
-		struct spoe_message *curmsg;      /* SPOE message from which to resume encoding */
-		struct spoe_arg     *curarg;      /* SPOE arg in <curmsg> from which to resume encoding */
-		unsigned int         curoff;      /* offset in <curarg> from which to resume encoding */
-		unsigned int         curlen;      /* length of <curarg> need to be encode, for SMP_F_MAY_CHANGE data */
-		unsigned int         flags;       /* SPOE_FRM_FL_* */
-	} frag_ctx; /* Info about fragmented frames, valid on if SPOE_CTX_FL_FRAGMENTED is set */
 
 	struct {
 		ullong         start_ts;    /* start date of the current event/group */
-		ullong         request_ts;  /* date the frame processing starts (reset for each frag) */
-		ullong         queue_ts;    /* date the frame is queued (reset for each frag) */
+		ullong         request_ts;  /* date the frame processing starts */
+		ullong         queue_ts;    /* date the frame is queued */
 		ullong         wait_ts;     /* date the stream starts waiting for a response */
 		ullong         response_ts; /* date the response processing starts */
-		long           t_request;   /* delay to encode and push the frame in queue (cumulative for frags) */
-		long           t_queue;     /* delay before the frame gets out the sending queue (cumulative for frags) */
+		long           t_request;   /* delay to encode and push the frame in queue */
+		long           t_queue;     /* delay before the frame gets out the sending queue */
 		long           t_waiting;   /* delay before the response is received */
 		long           t_response;  /* delay to process the response (from the stream pov) */
 		long           t_process;   /* processing time of the last event/group */
@@ -402,12 +393,6 @@ struct spoe_appctx {
 	struct list         list;           /* next spoe appctx for the same agent */
 	struct eb32_node    node;           /* node used for applets tree */
 	unsigned int        cur_fpa;
-
-	struct {
-		struct spoe_context *ctx;    /* SPOE context owning the fragmented frame */
-		unsigned int         cursid; /* stream-id of the fragmented frame. used if the processing is aborted */
-		unsigned int         curfid; /* frame-id of the fragmented frame. used if the processing is aborted */
-	} frag_ctx; /* Info about fragmented frames, unused for unfragmented frames */
 };
 
 #endif /* _HAPROXY_SPOE_T_H */
