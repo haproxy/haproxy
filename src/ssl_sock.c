@@ -3440,7 +3440,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 		SSL_CTX_set_timeout(ctx, global_ssl.life_time);
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-# ifdef OPENSSL_IS_BORINGSSL
+# if defined(OPENSSL_IS_BORINGSSL) || defined(USE_OPENSSL_AWSLC)
 	SSL_CTX_set_select_certificate_cb(ctx, ssl_sock_switchctx_cbk);
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
 # elif defined(HAVE_SSL_CLIENT_HELLO_CB)

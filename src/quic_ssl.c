@@ -459,7 +459,10 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 	}
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-# if defined(HAVE_SSL_CLIENT_HELLO_CB)
+# if defined(OPENSSL_IS_BORINGSSL) || defined(USE_OPENSSL_AWSLC)
+	SSL_CTX_set_select_certificate_cb(ctx, ssl_sock_switchctx_cbk);
+	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
+# elif defined(HAVE_SSL_CLIENT_HELLO_CB)
 	SSL_CTX_set_client_hello_cb(ctx, ssl_sock_switchctx_cbk, NULL);
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
 # else /* ! HAVE_SSL_CLIENT_HELLO_CB */

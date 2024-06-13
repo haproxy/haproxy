@@ -104,7 +104,7 @@ void ssl_unload_providers(void);
 
 #ifdef HAVE_SSL_CLIENT_HELLO_CB
 int ssl_sock_switchctx_err_cbk(SSL *ssl, int *al, void *priv);
-# ifdef OPENSSL_IS_BORINGSSL
+# if defined(OPENSSL_IS_BORINGSSL) || defined(USE_OPENSSL_AWSLC)
 int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx);
 # else /* ! OPENSSL_IS_BORINGSSL */
 int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg);

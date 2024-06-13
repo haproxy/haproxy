@@ -79,7 +79,7 @@
 #define HAVE_ASN1_TIME_TO_TM
 #endif
 
-#if (defined(SSL_CLIENT_HELLO_CB) || defined(OPENSSL_IS_BORINGSSL))
+#if (defined(SSL_CLIENT_HELLO_CB) || defined(OPENSSL_IS_BORINGSSL) || defined(USE_OPENSSL_AWSLC))
 #define HAVE_SSL_CLIENT_HELLO_CB
 #endif
 
