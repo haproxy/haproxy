@@ -112,6 +112,9 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg);
 #else /* ! HAVE_SSL_CLIENT_HELLO_CB */
 int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv);
 #endif
+#ifdef USE_OPENSSL_WOLFSSL
+int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg);
+#endif
 
 int increment_sslconn();
 void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf *bind_conf);

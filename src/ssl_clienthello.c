@@ -545,7 +545,7 @@ sni_lookup:
  *
  * Not activated for now since the PR is not merged.
  */
-static int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
+int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
 {
 	struct bind_conf *s = arg;
 	int has_rsa_sig = 0, has_ecdsa_sig = 0;
