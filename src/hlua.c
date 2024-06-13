@@ -564,15 +564,16 @@ static inline void hlua_timer_stop(struct hlua_timer *timer)
      hlua resume, ie: time between effective yields)
  * - then check for yield cumulative timeout
  *
- * Returns 1 if the check succeeded and 0 if it failed
- * (ie: timeout exceeded)
+ * Returns 1 if the check succeeded, 0 if it failed because cumulative
+ * timeout is exceeded, and -1 if it failed because burst timeout is
+ * exceeded.
  */
 static inline int hlua_timer_check(const struct hlua_timer *timer)
 {
 	uint32_t pburst = _hlua_time_burst(timer); /* pending burst time in ms */
 
 	if (hlua_timeout_burst && (timer->burst + pburst) > hlua_timeout_burst)
-		return 0; /* burst timeout exceeded */
+		return -1; /* burst timeout exceeded */
 	if (timer->max && (timer->cumulative + timer->burst + pburst) > timer->max)
 		return 0; /* cumulative timeout exceeded */
 	return 1; /* ok */
@@ -1883,6 +1884,7 @@ static struct hlua *hlua_stream_ctx_prepare(struct stream *s, int state_id)
 void hlua_hook(lua_State *L, lua_Debug *ar)
 {
 	struct hlua *hlua;
+	int timer_check;
 
 	/* Get hlua struct, or NULL if we execute from main lua state */
 	hlua = hlua_gethlua(L);
@@ -1937,8 +1939,12 @@ void hlua_hook(lua_State *L, lua_Debug *ar)
 
  check_timeout:
 	/* If we cannot yield, check the timeout. */
-	if (!hlua_timer_check(&hlua->timer)) {
-		lua_pushfstring(L, "execution timeout");
+	timer_check = hlua_timer_check(&hlua->timer);
+	if (timer_check <= 0) {
+		if (!timer_check)
+			lua_pushfstring(L, "execution timeout");
+		else
+			lua_pushfstring(L, "burst timeout");
 		WILL_LJMP(lua_error(L));
 	}
 
@@ -2037,10 +2043,18 @@ resume_execution:
 		/* Check if the execution timeout is expired. If it is the case, we
 		 * break the Lua execution.
 		 */
-		if (!hlua_timer_check(&lua->timer)) {
-			lua_settop(lua->T, 0); /* Empty the stack. */
-			ret = HLUA_E_ETMOUT;
-			break;
+		{
+			int timer_check;
+
+			timer_check = hlua_timer_check(&lua->timer);
+			if (timer_check <= 0) {
+				if (!timer_check)
+					ret = HLUA_E_ETMOUT;
+				else
+					ret = HLUA_E_BTMOUT;
+				lua_settop(lua->T, 0); /* Empty the stack. */
+				break;
+			}
 		}
 		/* Process the forced yield. if the general yield is not allowed or
 		 * if no task were associated this the current Lua execution
@@ -2137,6 +2151,7 @@ resume_execution:
 		break;
 
 	case HLUA_E_ETMOUT:
+	case HLUA_E_BTMOUT:
 	case HLUA_E_NOMEM:
 	case HLUA_E_YIELD:
 	case HLUA_E_ERR:
@@ -9243,6 +9258,9 @@ struct task *hlua_process_task(struct task *task, void *context, unsigned int st
 	case HLUA_E_ETMOUT:
 		SEND_ERR(NULL, "Lua task: execution timeout.\n");
 		goto err_task_abort;
+	case HLUA_E_BTMOUT:
+		SEND_ERR(NULL, "Lua task: burst timeout.\n");
+		goto err_task_abort;
 	case HLUA_E_ERRMSG:
 		hlua_lock(hlua);
 		SEND_ERR(NULL, "Lua task: %s.\n", hlua_tostring_safe(hlua->T, -1));
@@ -9473,6 +9491,10 @@ static void hlua_event_handler(struct hlua *hlua)
 	/* finished with error. */
 	case HLUA_E_ETMOUT:
 		SEND_ERR(NULL, "Lua event_hdl: execution timeout.\n");
+		break;
+
+	case HLUA_E_BTMOUT:
+		SEND_ERR(NULL, "Lua event_hdl: burst timeout.\n");
 		break;
 
 	case HLUA_E_ERRMSG:
@@ -10193,6 +10215,10 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 		SEND_ERR(stream->be, "Lua converter '%s': execution timeout.\n", fcn->name);
 		return 0;
 
+	case HLUA_E_BTMOUT:
+		SEND_ERR(stream->be, "Lua converter '%s': burst timeout.\n", fcn->name);
+		return 0;
+
 	case HLUA_E_NOMEM:
 		SEND_ERR(stream->be, "Lua converter '%s': out of memory error.\n", fcn->name);
 		return 0;
@@ -10326,6 +10352,10 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 
 	case HLUA_E_ETMOUT:
 		SEND_ERR(smp->px, "Lua sample-fetch '%s': execution timeout.\n", fcn->name);
+		return 0;
+
+	case HLUA_E_BTMOUT:
+		SEND_ERR(smp->px, "Lua sample-fetch '%s': burst timeout.\n", fcn->name);
 		return 0;
 
 	case HLUA_E_NOMEM:
@@ -10686,6 +10716,10 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		SEND_ERR(px, "Lua function '%s': execution timeout.\n", rule->arg.hlua_rule->fcn->name);
 		goto end;
 
+	case HLUA_E_BTMOUT:
+		SEND_ERR(px, "Lua function '%s': burst timeout.\n", rule->arg.hlua_rule->fcn->name);
+		goto end;
+
 	case HLUA_E_NOMEM:
 		SEND_ERR(px, "Lua function '%s': out of memory error.\n", rule->arg.hlua_rule->fcn->name);
 		goto end;
@@ -10863,6 +10897,11 @@ void hlua_applet_tcp_fct(struct appctx *ctx)
 
 	case HLUA_E_ETMOUT:
 		SEND_ERR(px, "Lua applet tcp '%s': execution timeout.\n",
+		         rule->arg.hlua_rule->fcn->name);
+		goto error;
+
+	case HLUA_E_BTMOUT:
+		SEND_ERR(px, "Lua applet tcp '%s': burst timeout.\n",
 		         rule->arg.hlua_rule->fcn->name);
 		goto error;
 
@@ -11076,6 +11115,11 @@ void hlua_applet_http_fct(struct appctx *ctx)
 
 		case HLUA_E_ETMOUT:
 			SEND_ERR(px, "Lua applet http '%s': execution timeout.\n",
+				 rule->arg.hlua_rule->fcn->name);
+			goto error;
+
+		case HLUA_E_BTMOUT:
+			SEND_ERR(px, "Lua applet http '%s': burst timeout.\n",
 				 rule->arg.hlua_rule->fcn->name);
 			goto error;
 
@@ -11707,6 +11751,11 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 		         fcn->name);
 		return 1;
 
+	case HLUA_E_BTMOUT:
+		SEND_ERR(NULL, "Lua converter '%s': burst timeout.\n",
+		         fcn->name);
+		return 1;
+
 	case HLUA_E_NOMEM:
 		SEND_ERR(NULL, "Lua converter '%s': out of memory error.\n",
 		         fcn->name);
@@ -12160,6 +12209,10 @@ static int hlua_filter_new(struct stream *s, struct filter *filter)
 		SEND_ERR(s->be, "Lua filter '%s' : 'new' execution timeout.\n", conf->reg->name);
 		ret = 0;
 		goto end;
+	case HLUA_E_BTMOUT:
+		SEND_ERR(s->be, "Lua filter '%s' : 'new' burst timeout.\n", conf->reg->name);
+		ret = 0;
+		goto end;
 	case HLUA_E_NOMEM:
 		SEND_ERR(s->be, "Lua filter '%s' : out of memory error.\n", conf->reg->name);
 		ret = 0;
@@ -12358,6 +12411,9 @@ static int hlua_filter_callback(struct stream *s, struct filter *filter, const c
 		goto end;
 	case HLUA_E_ETMOUT:
 		SEND_ERR(s->be, "Lua filter '%s' : '%s' callback execution timeout.\n", conf->reg->name, fun);
+		goto end;
+	case HLUA_E_BTMOUT:
+		SEND_ERR(s->be, "Lua filter '%s' : '%s' callback burst timeout.\n", conf->reg->name, fun);
 		goto end;
 	case HLUA_E_NOMEM:
 		SEND_ERR(s->be, "Lua filter '%s' : out of memory error.\n", conf->reg->name);
