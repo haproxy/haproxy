@@ -321,5 +321,7 @@ extern const char *SSL_SOCK_KEYTYPE_NAMES[];
 
 #define SSL_SOCK_NUM_KEYTYPES 3
 
+extern struct pool_head *ssl_sock_client_sni_pool;
+
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_SOCK_T_H */
