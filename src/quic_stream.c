@@ -39,8 +39,13 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 		stream->buf = NULL;
 
 	free_size = b_size(buf);
-	b_free(buf);
-	offer_buffers(NULL, 1);
+	if ((*stream_buf)->sbuf) {
+		pool_free(pool_head_sbuf, buf->area);
+	}
+	else {
+		b_free(buf);
+		offer_buffers(NULL, 1);
+	}
 	pool_free(pool_head_quic_stream_buf, *stream_buf);
 	*stream_buf = NULL;
 
@@ -213,7 +218,10 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 	list_for_each_entry_safe(buf, buf_back, &stream->buf_list, list) {
 		if (!(b_data(&buf->buf)) || closing) {
 			free_size += b_size(&buf->buf);
-			b_free(&buf->buf);
+			if (buf->sbuf)
+				pool_free(pool_head_sbuf, buf->buf.area);
+			else
+				b_free(&buf->buf);
 			LIST_DELETE(&buf->list);
 			pool_free(pool_head_quic_stream_buf, buf);
 			++free_count;
@@ -269,7 +277,7 @@ struct buffer *qc_stream_buf_get(struct qc_stream_desc *stream)
  * Returns the buffer or NULL on error.
  */
 struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
-                                   uint64_t offset)
+                                   uint64_t offset, int small)
 {
 	/* current buffer must be released first before allocate a new one. */
 	BUG_ON(stream->buf);
@@ -280,10 +288,26 @@ struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
 		return NULL;
 
 	stream->buf->buf = BUF_NULL;
-	if (!b_alloc(&stream->buf->buf, DB_MUX_TX)) {
-		pool_free(pool_head_quic_stream_buf, stream->buf);
-		stream->buf = NULL;
-		return NULL;
+
+	if (!small) {
+		stream->buf->sbuf = 0;
+		if (!b_alloc(&stream->buf->buf, DB_MUX_TX)) {
+			pool_free(pool_head_quic_stream_buf, stream->buf);
+			stream->buf = NULL;
+			return NULL;
+		}
+	}
+	else {
+		char *area;
+
+		if (!(area = pool_alloc(pool_head_sbuf))) {
+			pool_free(pool_head_quic_stream_buf, stream->buf);
+			stream->buf = NULL;
+			return NULL;
+		}
+
+		stream->buf->sbuf = 1;
+		stream->buf->buf = b_make(area, global.tune.bufsize_small, 0, 0);
 	}
 
 	LIST_APPEND(&stream->buf_list, &stream->buf->list);

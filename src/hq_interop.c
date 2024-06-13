@@ -110,7 +110,7 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 
 		switch (btype) {
 		case HTX_BLK_DATA:
-			res = qcc_get_stream_txbuf(qcs, &err);
+			res = qcc_get_stream_txbuf(qcs, &err, 0);
 			if (!res) {
 				if (err)
 					ABORT_NOW();
@@ -185,7 +185,7 @@ static size_t hq_interop_nego_ff(struct qcs *qcs, size_t count)
 	struct buffer *res;
 
  start:
-	res = qcc_get_stream_txbuf(qcs, &err);
+	res = qcc_get_stream_txbuf(qcs, &err, 0);
 	if (!res) {
 		if (err)
 			ABORT_NOW();

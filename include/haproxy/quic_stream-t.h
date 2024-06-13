@@ -17,6 +17,7 @@
 struct qc_stream_buf {
 	struct buffer buf; /* STREAM payload */
 	struct list list; /* element for qc_stream_desc list */
+	int sbuf;
 };
 
 #define QC_SD_FL_RELEASE	0x00000001 /* set when MUX has finished to use this stream */

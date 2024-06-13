@@ -1037,7 +1037,7 @@ struct buffer *qcc_get_stream_rxbuf(struct qcs *qcs)
  * Returns buffer pointer. May be NULL on allocation failure, in which case
  * <err> will refer to the cause.
  */
-struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err)
+struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err, int small)
 {
 	struct qcc *qcc = qcs->qcc;
 	struct buffer *out = qc_stream_buf_get(qcs->stream);
@@ -1065,7 +1065,7 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err)
 			}
 		}
 
-		out = qc_stream_buf_alloc(qcs->stream, qcs->tx.fc.off_real);
+		out = qc_stream_buf_alloc(qcs->stream, qcs->tx.fc.off_real, small);
 		if (!out) {
 			TRACE_ERROR("stream desc alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
 			*err = 1;
@@ -1073,7 +1073,7 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err)
 		}
 
 		if (likely(!unlimited))
-			qcc->tx.buf_in_flight += global.tune.bufsize;
+			qcc->tx.buf_in_flight += b_size(out);
 	}
 
  out:

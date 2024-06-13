@@ -1524,7 +1524,7 @@ static int h3_control_send(struct qcs *qcs, void *ctx)
 		goto err;
 	}
 
-	if (!(res = qcc_get_stream_txbuf(qcs, &err))) {
+	if (!(res = qcc_get_stream_txbuf(qcs, &err, 0))) {
 		/* Only memory failure can cause buf alloc error for control stream due to qcs_send_metadata() usage. */
 		TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_SETTINGS, qcs->qcc->conn, qcs);
 		goto err;
@@ -1606,7 +1606,7 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 
 	list[hdr].n = ist("");
 
-	if (!(res = qcc_get_stream_txbuf(qcs, &err))) {
+	if (!(res = qcc_get_stream_txbuf(qcs, &err, 0))) {
 		if (err) {
 			TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 			goto err;
@@ -1764,7 +1764,7 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 	list[hdr].n = ist("");
 
  start:
-	if (!(res = qcc_get_stream_txbuf(qcs, &err))) {
+	if (!(res = qcc_get_stream_txbuf(qcs, &err, 0))) {
 		if (err) {
 			TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 			goto err;
@@ -1898,7 +1898,7 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
 	if (type != HTX_BLK_DATA)
 		goto end;
 
-	if (!(res = qcc_get_stream_txbuf(qcs, &err))) {
+	if (!(res = qcc_get_stream_txbuf(qcs, &err, 0))) {
 		if (err) {
 			TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_DATA, qcs->qcc->conn, qcs);
 			goto err;
@@ -2109,7 +2109,7 @@ static size_t h3_nego_ff(struct qcs *qcs, size_t count)
 	TRACE_ENTER(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
  start:
-	if (!(res = qcc_get_stream_txbuf(qcs, &err))) {
+	if (!(res = qcc_get_stream_txbuf(qcs, &err, 0))) {
 		if (err) {
 			qcs->sd->iobuf.flags |= IOBUF_FL_NO_FF;
 			goto end;
@@ -2319,7 +2319,7 @@ static int h3_send_goaway(struct h3c *h3c)
 	b_quic_enc_int(&pos, frm_len, 0);
 	b_quic_enc_int(&pos, h3c->id_goaway, 0);
 
-	res = qcc_get_stream_txbuf(qcs, &err);
+	res = qcc_get_stream_txbuf(qcs, &err, 0);
 	if (!res || b_room(res) < b_data(&pos) ||
 	    qfctl_sblocked(&qcs->tx.fc) || qfctl_sblocked(&h3c->qcc->tx.fc)) {
 		/* Do not try forcefully to emit GOAWAY if no buffer available or not enough space left. */
