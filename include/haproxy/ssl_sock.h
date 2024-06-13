@@ -129,6 +129,7 @@ void ssl_free_global_issuers(void);
 int ssl_initialize_random(void);
 int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_conf, struct proxy *curproxy, char **err);
 int ssl_init_single_engine(const char *engine_id, const char *def_algorithms);
+int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store);
 #ifdef HAVE_SSL_PROVIDERS
 int ssl_init_provider(const char *provider_name);
 #endif
