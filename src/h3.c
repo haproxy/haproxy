@@ -1612,7 +1612,7 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 			goto err;
 		}
 
-		TRACE_STATE("conn buf limit reached", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+		TRACE_STATE("buf window full", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 		goto end;
 	}
 
@@ -1770,7 +1770,7 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 			goto err;
 		}
 
-		TRACE_STATE("conn buf limit reached", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+		TRACE_STATE("buf window full", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 		goto end;
 	}
 
@@ -1904,8 +1904,7 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
 			goto err;
 		}
 
-		/* Connection buf limit reached, stconn will subscribe on SEND. */
-		TRACE_STATE("conn buf limit reached", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+		TRACE_STATE("buf window full", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 		goto end;
 	}
 

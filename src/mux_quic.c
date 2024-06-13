@@ -524,31 +524,40 @@ void qcs_notify_send(struct qcs *qcs)
 	}
 }
 
+/* Returns true if a Tx stream buffer can be allocated. */
+static inline int qcc_bufwnd_full(const struct qcc *qcc)
+{
+	const struct quic_conn *qc = qcc->conn->handle.qc;
+	return qcc->tx.buf_in_flight >= qc->path->cwnd;
+}
+
 /* Report that one or several stream-desc buffers have been released for <qcc>
- * connection. <free_size> represent the sum of freed buffers sizes.
+ * connection. <free_size> represent the sum of freed buffers sizes. May also
+ * be used to notify about congestion window increase, in which case
+ * <free_size> can be nul.
  */
-void qcc_notify_buf(struct qcc *qcc, int free_count, uint64_t free_size)
+void qcc_notify_buf(struct qcc *qcc, uint64_t free_size)
 {
 	struct qcs *qcs;
 
 	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
 
-	BUG_ON(qcc->tx.avail_bufs + free_count > global.tune.quic_streams_buf);
-	qcc->tx.avail_bufs += free_count;
-
 	/* Cannot have a negative buf_in_flight counter */
 	BUG_ON(qcc->tx.buf_in_flight < free_size);
 	qcc->tx.buf_in_flight -= free_size;
 
+	if (qcc_bufwnd_full(qcc))
+		return;
+
 	if (qcc->flags & QC_CF_CONN_FULL) {
-		TRACE_STATE("new stream desc buffer available", QMUX_EV_QCC_WAKE, qcc->conn);
+		TRACE_STATE("buf window now available", QMUX_EV_QCC_WAKE, qcc->conn);
 		qcc->flags &= ~QC_CF_CONN_FULL;
 	}
 
-	/* TODO a simple optimization would be to only wake up <free_count> QCS
-	 * instances. But it may not work if a woken QCS is in error and does
-	 * not try to allocate a buffer, leaving the unwoken QCS indefinitely
-	 * in the buflist.
+	/* TODO an optimization would be to only wake up a limited count of QCS
+	 * instances based on <free_size>. But it may not work if a woken QCS
+	 * is in error and does not try to allocate a buffer, leaving the
+	 * unwoken QCS indefinitely in the buflist.
 	 */
 	while (!LIST_ISEMPTY(&qcc->buf_wait_list)) {
 		qcs = LIST_ELEM(qcc->buf_wait_list.n, struct qcs *, el_buf);
@@ -1019,7 +1028,7 @@ struct buffer *qcc_get_stream_rxbuf(struct qcs *qcs)
  *
  * <err> is an output argument which is useful to differentiate the failure
  * cause when the buffer cannot be allocated. It is set to 0 if the connection
- * buffer limit is reached. For fatal errors, its value is non-zero.
+ * buffer window is full. For fatal errors, its value is non-zero.
  *
  * Streams reserved for application protocol metadata transfer are not subject
  * to the buffer limit per connection. Hence, for them only a memory error
@@ -1047,8 +1056,8 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err)
 				goto out;
 			}
 
-			if (!qcc->tx.avail_bufs) {
-				TRACE_STATE("hitting stream desc buffer limit", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+			if (qcc_bufwnd_full(qcc)) {
+				TRACE_STATE("no more room", QMUX_EV_QCS_SEND, qcc->conn, qcs);
 				LIST_APPEND(&qcc->buf_wait_list, &qcs->el_buf);
 				tot_time_start(&qcs->timer.buf);
 				qcc->flags |= QC_CF_CONN_FULL;
@@ -1063,10 +1072,8 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err)
 			goto out;
 		}
 
-		if (likely(!unlimited)) {
-			--qcc->tx.avail_bufs;
+		if (likely(!unlimited))
 			qcc->tx.buf_in_flight += global.tune.bufsize;
-		}
 	}
 
  out:
@@ -2733,7 +2740,6 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	qcc->rfctl.msd_bidi_r = rparams->initial_max_stream_data_bidi_remote;
 	qcc->rfctl.msd_uni_l = rparams->initial_max_stream_data_uni;
 
-	qcc->tx.avail_bufs = global.tune.quic_streams_buf;
 	qcc->tx.buf_in_flight = 0;
 
 	if (conn_is_back(conn)) {

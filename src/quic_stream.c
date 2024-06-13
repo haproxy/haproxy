@@ -46,7 +46,7 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 	if (qc->mux_state == QC_MUX_READY) {
 		if (!(stream->flags & QC_SD_FL_OOB_BUF)) {
 			/* notify MUX about available buffers. */
-			qcc_notify_buf(qc->qcc, 1, free_size);
+			qcc_notify_buf(qc->qcc, free_size);
 		}
 	}
 }
@@ -224,7 +224,7 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 		if (qc->mux_state == QC_MUX_READY) {
 			if (!(stream->flags & QC_SD_FL_OOB_BUF)) {
 				/* notify MUX about available buffers. */
-				qcc_notify_buf(qc->qcc, free_count, free_size);
+				qcc_notify_buf(qc->qcc, free_size);
 			}
 		}
 	}

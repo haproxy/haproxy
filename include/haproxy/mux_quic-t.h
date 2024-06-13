@@ -67,7 +67,6 @@ struct qcc {
 
 	struct {
 		struct quic_fctl fc; /* stream flow control applied on sending */
-		int avail_bufs; /* count of available buffers for this connection */
 		uint64_t buf_in_flight; /* sum of currently allocated Tx buffer sizes */
 	} tx;
 
