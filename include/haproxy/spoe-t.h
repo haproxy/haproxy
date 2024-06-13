@@ -41,7 +41,7 @@
 /* Flags set on the SPOE agent */
 #define SPOE_FL_CONT_ON_ERR       0x00000001 /* Do not stop events processing when an error occurred */
 #define SPOE_FL_PIPELINING        0x00000002 /* Set when SPOE agent supports pipelining (set by default) */
-#define SPOE_FL_ASYNC             0x00000004 /* Set when SPOE agent supports async (set by default) */
+/* unused 0x00000004 */
 /* unsused 0x00000008 */
 /* unused 0x00000010 */
 #define SPOE_FL_FORCE_SET_VAR     0x00000020 /* Set when SPOE agent will set all variables from agent (and not only known variables) */
@@ -57,7 +57,7 @@
 
 /* Flags set on the SPOE applet */
 #define SPOE_APPCTX_FL_PIPELINING    0x00000001 /* Set if pipelining is supported */
-#define SPOE_APPCTX_FL_ASYNC         0x00000002 /* Set if asynchronous frames is supported */
+/* unused 0x00000002 */
 /* unused 0x00000004 */
 
 #define SPOE_APPCTX_ERR_NONE    0x00000000 /* no error yet, leave it to zero */
@@ -310,7 +310,6 @@ struct spoe_agent {
 		struct eb_root  idle_applets;   /* idle SPOE applets available to process data */
 		struct list     applets;        /* all SPOE applets for this agent */
 		struct list     sending_queue;  /* Queue of streams waiting to send data */
-		struct list     waiting_queue;  /* Queue of streams waiting for a ack, in async mode */
 		__decl_thread(HA_SPINLOCK_T lock);
 	} *rt;
 

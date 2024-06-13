@@ -413,11 +413,6 @@ spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
 		memcpy(chk->area, "pipelining", 10);
 		chk->data += 10;
 	}
-	if (agent != NULL && (agent->flags & SPOE_FL_ASYNC)) {
-		if (chk->data) chk->area[chk->data++] = ',';
-		memcpy(chk->area+chk->data, "async", 5);
-		chk->data += 5;
-	}
 	if (spoe_encode_buffer(chk->area, chk->data, &p, end) == -1)
 		goto too_big;
 
@@ -682,11 +677,6 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 					if (!sz || isspace((unsigned char)*str) || *str == ',')
 						flags |= SPOE_APPCTX_FL_PIPELINING;
 				}
-				else if (sz >= 5 && !strncmp(str, "async", 5)) {
-					str += 5; sz -= 5;
-					if (!sz || isspace((unsigned char)*str) || *str == ',')
-						flags |= SPOE_APPCTX_FL_ASYNC;
-				}
 
 				/* Get the next comma or break */
 				if (!sz || (delim = memchr(str, ',', sz)) == NULL)
@@ -715,12 +705,10 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 		return -1;
 	}
 	if (!agent)
-		flags &= ~(SPOE_APPCTX_FL_PIPELINING|SPOE_APPCTX_FL_ASYNC);
+		flags &= ~SPOE_APPCTX_FL_PIPELINING;
 	else {
 		if ((flags & SPOE_APPCTX_FL_PIPELINING) && !(agent->flags & SPOE_FL_PIPELINING))
 			flags &= ~SPOE_APPCTX_FL_PIPELINING;
-		if ((flags & SPOE_APPCTX_FL_ASYNC) && !(agent->flags & SPOE_FL_ASYNC))
-			flags &= ~SPOE_APPCTX_FL_ASYNC;
 	}
 
 	SPOE_APPCTX(appctx)->version        = (unsigned int)vsn;
@@ -885,20 +873,10 @@ spoe_handle_agentack_frame(struct appctx *appctx, struct spoe_context **ctx,
 		return 0;
 	}
 
-	/* Try to find the corresponding SPOE context */
-	if (SPOE_APPCTX(appctx)->flags & SPOE_APPCTX_FL_ASYNC) {
-		list_for_each_entry((*ctx), &agent->rt[tid].waiting_queue, list) {
-			if ((*ctx)->stream_id == (unsigned int)stream_id &&
-			    (*ctx)->frame_id  == (unsigned int)frame_id)
-				goto found;
-		}
-	}
-	else {
-		list_for_each_entry((*ctx), &SPOE_APPCTX(appctx)->waiting_queue, list) {
-			if ((*ctx)->stream_id == (unsigned int)stream_id &&
-			     (*ctx)->frame_id == (unsigned int)frame_id)
-				goto found;
-		}
+	list_for_each_entry((*ctx), &SPOE_APPCTX(appctx)->waiting_queue, list) {
+		if ((*ctx)->stream_id == (unsigned int)stream_id &&
+		    (*ctx)->frame_id == (unsigned int)frame_id)
+			goto found;
 	}
 
 	/* No Stream found, ignore the frame */
@@ -1207,52 +1185,20 @@ spoe_release_appctx(struct appctx *appctx)
 		task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
 	}
 
-	if (!LIST_ISEMPTY(&agent->rt[tid].applets)) {
-		/* If there are still some running applets, remove reference on
-		 * the current one from streams in the async waiting queue. In
-		 * async mode, the ACK may be received from another appctx.
+	if (LIST_ISEMPTY(&agent->rt[tid].applets)) {
+		/* It is the last running applet and the sending queue is not empty.
+		 * So try to start a new applet if HAproxy is not stopping.
 		 */
-		list_for_each_entry_safe(ctx, back, &agent->rt[tid].waiting_queue, list) {
-			if (ctx->spoe_appctx == spoe_appctx)
-				ctx->spoe_appctx = NULL;
-		}
-		goto end;
-	}
-	else {
-		/* It is the last running applet and the sending and async
-		 * waiting queues are not empty. So try to start a new applet if
-		 * HAproxy is not stopping. On success, we remove reference on
-		 * the current appctx from streams in the async waiting queue.
-		 * In async mode, the ACK may be received from another appctx.
-		 */
-		if (!stopping &&
-		    (!LIST_ISEMPTY(&agent->rt[tid].sending_queue) || !LIST_ISEMPTY(&agent->rt[tid].waiting_queue)) &&
-		    spoe_create_appctx(agent->spoe_conf)) {
-			list_for_each_entry_safe(ctx, back, &agent->rt[tid].waiting_queue, list) {
-				if (ctx->spoe_appctx == spoe_appctx)
-					ctx->spoe_appctx = NULL;
-			}
+		if (!stopping && !LIST_ISEMPTY(&agent->rt[tid].sending_queue) && spoe_create_appctx(agent->spoe_conf))
 			goto end;
-		}
 
-		/* Otherwise, report an error to all streams in the sending and
-		 * async waiting queues.
+		/* Otherwise, report an error to all streams in the sending queue.
 		 */
 		list_for_each_entry_safe(ctx, back, &agent->rt[tid].sending_queue, list) {
 			LIST_DELETE(&ctx->list);
 			LIST_INIT(&ctx->list);
 			_HA_ATOMIC_DEC(&agent->counters.nb_sending);
 			spoe_update_stat_time(&ctx->stats.queue_ts, &ctx->stats.t_queue);
-			ctx->spoe_appctx = NULL;
-			ctx->state = SPOE_CTX_ST_ERROR;
-			ctx->status_code = (spoe_appctx->status_code + 0x100);
-			task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
-		}
-		list_for_each_entry_safe(ctx, back, &agent->rt[tid].waiting_queue, list) {
-			LIST_DELETE(&ctx->list);
-			LIST_INIT(&ctx->list);
-			_HA_ATOMIC_DEC(&agent->counters.nb_waiting);
-			spoe_update_stat_time(&ctx->stats.wait_ts, &ctx->stats.t_waiting);
 			ctx->spoe_appctx = NULL;
 			ctx->state = SPOE_CTX_ST_ERROR;
 			ctx->status_code = (spoe_appctx->status_code + 0x100);
@@ -1462,11 +1408,7 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx, int *skip)
 	goto end;
 
   frame_sent:
-	if (SPOE_APPCTX(appctx)->flags & SPOE_APPCTX_FL_ASYNC) {
-		appctx->st0 = SPOE_APPCTX_ST_PROCESSING;
-		LIST_APPEND(&agent->rt[tid].waiting_queue, &ctx->list);
-	}
-	else if (SPOE_APPCTX(appctx)->flags & SPOE_APPCTX_FL_PIPELINING) {
+	if (SPOE_APPCTX(appctx)->flags & SPOE_APPCTX_FL_PIPELINING) {
 		appctx->st0 = SPOE_APPCTX_ST_PROCESSING;
 		LIST_APPEND(&SPOE_APPCTX(appctx)->waiting_queue, &ctx->list);
 	}
@@ -2869,7 +2811,6 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 		conf->agent->rt[i].idles        = 0;
 		LIST_INIT(&conf->agent->rt[i].applets);
 		LIST_INIT(&conf->agent->rt[i].sending_queue);
-		LIST_INIT(&conf->agent->rt[i].waiting_queue);
 		HA_SPIN_INIT(&conf->agent->rt[i].lock);
 	}
 
@@ -3163,7 +3104,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		curagent->var_on_error   = NULL;
 		curagent->var_t_process  = NULL;
 		curagent->var_t_total    = NULL;
-		curagent->flags          = (SPOE_FL_ASYNC | SPOE_FL_PIPELINING);
+		curagent->flags          = SPOE_FL_PIPELINING;
 		curagent->cps_max        = 0;
 		curagent->eps_max        = 0;
 		curagent->max_frame_size = MAX_FRAME_SIZE;
@@ -3306,10 +3247,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		else if (strcmp(args[1], "async") == 0) {
 			if (alertif_too_many_args(1, file, linenum, args, &err_code))
 				goto out;
-			if (kwm == 1)
-				curagent->flags &= ~SPOE_FL_ASYNC;
-			else
-				curagent->flags |= SPOE_FL_ASYNC;
+			/* TODO: Add a warning or a diag ? Ignore it for now */
 			goto out;
 		}
 		else if (strcmp(args[1], "send-frag-payload") == 0) {
