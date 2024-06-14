@@ -48,6 +48,10 @@
 #include <haproxy/quic_openssl_compat.h>
 #endif
 
+#if defined(USE_OPENSSL_AWSLC)
+#define OPENSSL_NO_DH
+#endif
+
 
 #if defined(LIBRESSL_VERSION_NUMBER)
 /* LibreSSL is a fork of OpenSSL 1.0.1g but pretends to be 2.0.0, thus
@@ -70,7 +74,7 @@
 #define HAVE_SSL_EXTRACT_RANDOM
 #endif
 
-#if ((OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(OPENSSL_IS_BORINGSSL) && !defined(LIBRESSL_VERSION_NUMBER))
+#if ((OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(OPENSSL_IS_BORINGSSL) && !defined(USE_OPENSSL_AWSLC) && !defined(LIBRESSL_VERSION_NUMBER))
 #define HAVE_SSL_RAND_KEEP_RANDOM_DEVICES_OPEN
 #endif
 
@@ -119,7 +123,7 @@
 #endif
 
 
-#if defined(SSL_CTX_set_security_level) || HA_OPENSSL_VERSION_NUMBER >= 0x1010100fL
+#if (defined(SSL_CTX_set_security_level) || HA_OPENSSL_VERSION_NUMBER >= 0x1010100fL) && !defined(USE_OPENSSL_AWSLC)
 #define HAVE_SSL_SET_SECURITY_LEVEL
 #endif
 

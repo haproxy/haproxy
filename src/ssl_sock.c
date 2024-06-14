@@ -2560,10 +2560,12 @@ static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct ckch_data *data,
 				}
 			}
 			else {
+#ifndef OPENSSL_NO_DH
 #if (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
 				SSL_CTX_set_tmp_dh_callback(ctx, ssl_get_tmp_dh_cbk);
 #else
 				ssl_sock_set_tmp_dh_from_pkey(ctx, data ? data->key : NULL);
+#endif
 #endif
 			}
 		}
@@ -6945,7 +6947,7 @@ static void __ssl_sock_init(void)
 #ifdef HAVE_SSL_PROVIDERS
 	hap_register_post_deinit(ssl_unload_providers);
 #endif
-#if HA_OPENSSL_VERSION_NUMBER < 0x3000000fL
+#if (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL) && !defined(USE_OPENSSL_AWSLC)
 	/* Load SSL string for the verbose & debug mode. */
 	ERR_load_SSL_strings();
 #endif
