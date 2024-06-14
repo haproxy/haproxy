@@ -33,6 +33,23 @@ static int smp_check_http_date_unit(struct arg *args, struct sample_conv *conv,
     return smp_check_date_unit(args, err);
 }
 
+/* Take a string containing an HTTP date in IMF, RFC850 or ASCTIME
+ * and converts it into a integer epoch format
+ */
+static int sample_conv_http2epoch(const struct arg *args, struct sample *smp, void *private)
+{
+	int res = 0;
+	struct tm tm = {};
+
+	smp->data.type = SMP_T_SINT;
+	res = parse_http_date(smp->data.u.str.area, smp->data.u.str.data, &tm);
+	smp->data.u.sint = my_timegm(&tm);
+
+	return res;
+}
+
+
+
 /* takes an UINT value on input supposed to represent the time since EPOCH,
  * adds an optional offset found in args[0] and emits a string representing
  * the date in RFC-1123/5322 format. If optional unit param in args[1] is
@@ -435,6 +452,7 @@ static int smp_conv_res_capture(const struct arg *args, struct sample *smp, void
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "http_date",      sample_conv_http_date,    ARG2(0,SINT,STR),     smp_check_http_date_unit,   SMP_T_SINT, SMP_T_STR},
+	{ "date",           sample_conv_http2epoch,   0,             NULL,   SMP_T_STR,  SMP_T_SINT},
 	{ "language",       sample_conv_q_preferred,  ARG2(1,STR,STR),  NULL,   SMP_T_STR,  SMP_T_STR},
 	{ "capture-req",    smp_conv_req_capture,     ARG1(1,SINT),     NULL,   SMP_T_STR,  SMP_T_STR},
 	{ "capture-res",    smp_conv_res_capture,     ARG1(1,SINT),     NULL,   SMP_T_STR,  SMP_T_STR},

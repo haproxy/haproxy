@@ -19126,6 +19126,7 @@ crc32([avalanche])                                 binary       integer
 crc32c([avalanche])                                binary       integer
 cut_crlf                                           string       string
 da-csv-conv(prop[,prop*])                          string       string
+date                                               string       integer
 debug([prefix][,destination])                       any          same
 -- keyword -------------------------------------+- input type + output type -
 digest(algorithm)                                  binary       binary
@@ -19485,6 +19486,13 @@ da-csv-conv(<prop>[,<prop>*])
       bind *:8881
       default_backend servers
       http-request set-header X-DeviceAtlas-Data %[req.fhdr(User-Agent),da-csv(primaryHardwareType,osName,osVersion,browserName,browserVersion,browserRenderingEngine)]
+
+date
+  This converter is used to convert a date from an HTTP header. It can be an IMF
+  date, an ASCTIME date or a RFC850 date. It will output an UNIX timestamp.
+
+  Example:
+     http-request return lf-string "%[str('Sun, 06 Nov 1994 08:49:37 GMT'),date]\n" content-type text/plain
 
 debug([<prefix][,<destination>])
   This converter is used as debug tool. It takes a capture of the input sample
