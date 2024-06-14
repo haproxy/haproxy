@@ -4,7 +4,7 @@
 varnishtest "h2 backend websocket management via server keyword"
 
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)' && !ssllib_name_startswith(wolfSSL)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && !ssllib_name_startswith(wolfSSL)'"
 feature ignore_unknown_macro
 
 # haproxy server
