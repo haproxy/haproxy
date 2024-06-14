@@ -320,7 +320,7 @@ command line, for example:
   $ make -j $(nproc) TARGET=generic USE_OPENSSL_WOLFSSL=1 USE_QUIC=1 \
     SSL_INC=/opt/wolfssl-5.6.6/include SSL_LIB=/opt/wolfssl-5.6.6/lib
 
-To use HAProxy with AWS-LC you must have version v1.13.0 or newer of AWS-LC
+To use HAProxy with AWS-LC you must have version v1.22.0 or newer of AWS-LC
 built and installed locally.
  $ cd ~/build/aws-lc
  $ cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/aws-lc
