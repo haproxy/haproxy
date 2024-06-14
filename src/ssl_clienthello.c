@@ -317,8 +317,17 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 				continue;
 
 			/* check if this cipher is available in haproxy configuration */
+#if defined(USE_OPENSSL_AWSLC)
+                        /* because AWS-LC does not provide the TLSv1.3 ciphersuites (which are NID_auth_any) in ha_ciphers,
+                         * does not check if it's available when it's an NID_auth_any
+                         */
+                        if (sk_SSL_CIPHER_find(ha_ciphers, cipher) == -1 && SSL_CIPHER_get_auth_nid(cipher) != NID_auth_any)
+				continue;
+#else
+
 			if (sk_SSL_CIPHER_find(ha_ciphers, cipher) == -1)
 				continue;
+#endif
 
 			cipher_id = SSL_CIPHER_get_id(cipher);
 			/* skip the SCSV "fake" signaling ciphersuites because they are NID_auth_any (RFC 7507) */
