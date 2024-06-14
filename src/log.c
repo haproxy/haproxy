@@ -969,14 +969,17 @@ static int lf_expr_postcheck_node_opt(struct lf_expr *lf_expr, struct logformat_
 	 * Also, ensure we don't mix encoding types, global setting
 	 * prevails over per-node one.
 	 *
-	 * Finally, ignore LOG_OPT_BIN since it is a global-only option
+	 * Finally, only consider LOG_OPT_BIN if set globally
+	 * (it is a global-only option)
 	 */
 	if (lf_expr->nodes.options & LOG_OPT_ENCODE) {
 		node->options &= ~(LOG_OPT_BIN | LOG_OPT_ENCODE);
-		node->options |= (lf_expr->nodes.options & LOG_OPT_ENCODE);
+		node->options |= (lf_expr->nodes.options & (LOG_OPT_BIN | LOG_OPT_ENCODE));
 	}
-	else
+	else {
 		node->options &= ~LOG_OPT_BIN;
+		node->options |= (lf_expr->nodes.options & LOG_OPT_BIN);
+	}
 
 	_lf_expr_postcheck_node_opt(&node->options, lf_expr->nodes.options);
 
