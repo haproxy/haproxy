@@ -19,7 +19,7 @@
 
 varnishtest "Test the 'set ssl crl-file' feature of the CLI"
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)' && !ssllib_name_startswith(wolfSSL)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && !ssllib_name_startswith(wolfSSL)'"
 feature cmd "command -v socat"
 feature ignore_unknown_macro
 
