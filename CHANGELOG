@@ -1,6 +1,103 @@
 ChangeLog :
 ===========
 
+2024/06/14 : 3.1-dev1
+    - REGTESTS: Remove REQUIRE_VERSION=2.1 from all tests
+    - REGTESTS: Remove REQUIRE_VERSION=2.2 from all tests
+    - CI: use "--no-install-recommends" for apt-get
+    - CI: switch to lua 5.4
+    - CI: use USE_PCRE2 instead of USE_PCRE
+    - DOC: replace the README by a markdown version
+    - CI: VTest: accelerate package install a bit
+    - ADMIN: acme.sh: remove the old acme.sh code
+    - BUG/MINOR: cfgparse: remove the correct option on httpcheck send-state warning
+    - BUG/MINOR: tcpcheck: report correct error in tcp-check rule parser
+    - BUG/MINOR: tools: fix possible null-deref in env_expand() on out-of-memory
+    - DOC: configuration: add an example for keywords from crt-store
+    - CI: speedup apt package install
+    - DOC: add the FreeBSD status badge to README.md
+    - DOC: change the link to the FreeBSD CI in README.md
+    - MINOR: stktable: avoid ambiguous stktable_data_ptr() usage in cli_io_handler_table()
+    - BUG/MINOR: hlua: use CertCache.set() from various hlua contexts
+    - CLEANUP: hlua: fix CertCache class comment
+    - CI: FreeBSD: upgrade image, packages
+    - BUG/MEDIUM: h1-htx: Don't state interim responses are bodyless
+    - MEDIUM: stconn: Be able to unblock zero-copy data forwarding from done_fastfwd
+    - BUG/MEDIUM: mux-quic: Unblock zero-copy forwarding if the txbuf can be released
+    - BUG/MINOR: quic: prevent crash on qc_kill_conn()
+    - CLEANUP: hlua: use hlua_pusherror() where relevant
+    - BUG/MINOR: hlua: don't use lua_pushfstring() when we don't expect LJMP
+    - BUG/MINOR: hlua: fix unsafe hlua_pusherror() usage
+    - BUG/MINOR: hlua: prevent LJMP in hlua_traceback()
+    - CLEANUP: hlua: get rid of hlua_traceback() security checks
+    - BUG/MINOR: hlua: fix leak in hlua_ckch_set() error path
+    - CLEANUP: hlua: simplify ambiguous lua_insert() usage in hlua_ctx_resume()
+    - BUG/MEDIUM: mux-quic: Don't unblock zero-copy fwding if blocked during nego
+    - MINOR: mux-quic: Don't send an emtpy H3 DATA frame during zero-copy forwarding
+    - BUG/MEDIUM: ssl: wrong priority whem limiting ECDSA ciphers in ECDSA+RSA configuration
+    - BUG/MEDIUM: ssl: bad auth selection with TLS1.2 and WolfSSL
+    - BUG/MINOR: quic: fix computed length of emitted STREAM frames
+    - BUG/MINOR: quic: ensure Tx buf is always purged
+    - BUG/MEDIUM: stconn/mux-h1: Fix suspect change causing timeouts
+    - BUG/MAJOR: mux-h1:  Properly copy chunked input data during zero-copy nego
+    - BUG/MINOR: mux-h1: Use the right variable to set NEGO_FF_FL_EXACT_SIZE flag
+    - DOC: install: remove boringssl from the list of supported libraries
+    - MINOR: log: fix "http-send-name-header" ignore warning message
+    - BUG/MINOR: proxy: fix server_id_hdr_name leak on deinit()
+    - BUG/MINOR: proxy: fix log_tag leak on deinit()
+    - BUG/MINOR: proxy: fix email-alert leak on deinit()
+    - BUG/MINOR: proxy: fix check_{command,path} leak on deinit()
+    - BUG/MINOR: proxy: fix dyncookie_key leak on deinit()
+    - BUG/MINOR: proxy: fix source interface and usesrc leaks on deinit()
+    - BUG/MINOR: proxy: fix header_unique_id leak on deinit()
+    - MINOR: proxy: add proxy_free_common() helper function
+    - BUG/MEDIUM: proxy: fix UAF with {tcp,http}checks logformat expressions
+    - MINOR: log: change wording in lf_expr_postcheck() error message
+    - BUG/MEDIUM: log: fix lf_expr_postcheck() behavior with default section
+    - CLEANUP: log/proxy: fix comment in proxy_free_common()
+    - DOC: config: move "hash-key" from proxy to server options
+    - DOC: config: add missing section hint for "guid" proxy keyword
+    - DOC: config: add missing context hint for new server and proxy keywords
+    - BUG/MINOR: promex: Skip resolvers metrics when there is no resolver section
+    - DOC: internals: add a documentation about the master worker
+    - BUG/MAJOR: mux-h1: Prevent any UAF on H1 connection after draining a request
+    - BUG/MINOR: quic: fix padding of INITIAL packets
+    - OPTIM: quic: fill whole Tx buffer if needed
+    - MINOR: quic: refactor qc_build_pkt() error handling
+    - MINOR: quic: use global datagram headlen definition
+    - MINOR: quic: refactor qc_prep_pkts() loop
+    - DOC/MINOR: management: add missed -dR and -dv options
+    - DOC/MINOR: management: add -dZ option
+    - DOC: management: rename show stats domain cli "dns" to "resolvers"
+    - REORG: log: reorder send log helpers by dependency order
+    - MINOR: session: expose session_embryonic_build_legacy_err() function
+    - MEDIUM: log/session: handle embryonic session log within sess_log()
+    - MINOR: log: provide sending log context to process_send_log() when available
+    - MINOR: log: add log_orig_to_str() function
+    - MINOR: log: provide log origin in logformat expressions using '%OG'
+    - CLEANUP: log: remove ambiguous legacy comment for resolve_logger()
+    - MINOR: log/backend: always free parsing hints in resolve_logger()
+    - MINOR: log: make resolve_logger() static
+    - MINOR: log: provide proxy context to resolve_logger()
+    - MINOR: log: add __send_log_set_metadata_sd helper
+    - MINOR: log: add logger flags
+    - MINOR: log: add log-profile parsing logic
+    - MINOR: log: add log profile buildlines
+    - MEDIUM: log: handle log-profile in process_send_log()
+    - DOC: config: add documentation for log profiles
+    - REGTESTS: log: add a test for log-profile
+    - MINOR: ssl: add ssl_sock_bind_verifycbk() in ssl_sock.h
+    - REORG: ssl: move the SNI selection code in ssl_clienthello.c
+    - BUILD: ssl: fix build with wolfSSL
+    - CI: github: upgrade aws-lc to 1.29.0
+    - Revert "CI: github: upgrade aws-lc to 1.29.0"
+    - MEDIUM: ssl: support for ECDA+RSA certificate selection with AWS-LC
+    - BUILD: ssl: disable deprecated functions for AWS-LC 1.29.0
+    - MINOR: ssl: relax the 'ssl.default-dh-param' keyword parsing
+    - CI: github: upgrade aws-lc to 1.29.0
+    - DOC: INSTALL: minimum AWS-LC version is v1.22.0
+    - CI: github: do the AWS-LC weekly build with ERR=1
+
 2024/05/29 : 3.1-dev0
     - MINOR: version: mention that it's development again
 
