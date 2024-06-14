@@ -563,6 +563,8 @@ static int ssl_parse_global_dh_param_file(char **args, int section_type, struct 
 	return 0;
 }
 
+#endif
+
 /* parse "ssl.default-dh-param".
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
@@ -570,6 +572,8 @@ static int ssl_parse_global_default_dh(char **args, int section_type, struct pro
                                        const struct proxy *defpx, const char *file, int line,
                                        char **err)
 {
+#ifndef OPENSSL_NO_DH
+
 	if (too_many_args(1, args, err, NULL))
 		return -1;
 
@@ -584,8 +588,12 @@ static int ssl_parse_global_default_dh(char **args, int section_type, struct pro
 		return -1;
 	}
 	return 0;
-}
+#else
+	memprintf(err, "'%s' is not supported by %s, keyword ignored", args[0], OpenSSL_version(OPENSSL_VERSION));
+	return ERR_WARN;
 #endif
+
+}
 
 
 /*
@@ -2308,9 +2316,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "ssl-security-level", ssl_parse_security_level },
 	{ CFG_GLOBAL, "ssl-skip-self-issued-ca", ssl_parse_skip_self_issued_ca },
 	{ CFG_GLOBAL, "tune.ssl.cachesize", ssl_parse_global_int },
-#ifndef OPENSSL_NO_DH
 	{ CFG_GLOBAL, "tune.ssl.default-dh-param", ssl_parse_global_default_dh },
-#endif
 	{ CFG_GLOBAL, "tune.ssl.force-private-cache",  ssl_parse_global_private_cache },
 	{ CFG_GLOBAL, "tune.ssl.lifetime", ssl_parse_global_lifetime },
 	{ CFG_GLOBAL, "tune.ssl.maxrecord", ssl_parse_global_int },
