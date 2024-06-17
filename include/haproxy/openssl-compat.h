@@ -50,6 +50,7 @@
 
 #if defined(USE_OPENSSL_AWSLC)
 #define OPENSSL_NO_DH
+#define SSL_CTX_set1_sigalgs_list SSL_CTX_set1_sigalgs_list
 #endif
 
 
