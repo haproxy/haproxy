@@ -13,6 +13,7 @@
 #include <haproxy/mux_h2-t.h>
 #include <haproxy/mux_h1-t.h>
 #include <haproxy/peers-t.h>
+#include <haproxy/quic_conn-t.h>
 #include <haproxy/stconn-t.h>
 #include <haproxy/stream-t.h>
 #include <haproxy/task-t.h>
@@ -39,11 +40,12 @@
 #define SHOW_AS_FSTRM 0x00040000
 #define SHOW_AS_PEERS 0x00080000
 #define SHOW_AS_PEER  0x00100000
+#define SHOW_AS_QC    0x00200000
 
 // command line names, must be in exact same order as the SHOW_AS_* flags above
 // so that show_as_words[i] matches flag 1U<<i.
 const char *show_as_words[] = { "ana", "chn", "conn", "sc", "stet", "strm", "task", "txn", "sd", "hsl", "htx", "hmsg", "fd", "h2c", "h2s",  "h1c", "h1s", "fconn", "fstrm",
-				"peers", "peer"};
+				"peers", "peer", "qc"};
 
 /* will be sufficient for even largest flag names */
 static char buf[4096];
@@ -158,6 +160,7 @@ int main(int argc, char **argv)
 		if (show_as & SHOW_AS_FSTRM) printf("fstrm->flags = %s\n",(fstrm_show_flags  (buf, bsz, " | ", flags), buf));
 		if (show_as & SHOW_AS_PEERS) printf("peers->flags = %s\n",(peers_show_flags  (buf, bsz, " | ", flags), buf));
 		if (show_as & SHOW_AS_PEER)  printf("peer->flags = %s\n", (peer_show_flags   (buf, bsz, " | ", flags), buf));
+		if (show_as & SHOW_AS_QC)    printf("qc->flags = %s\n",   (qc_show_flags     (buf, bsz, " | ", flags), buf));
 	}
 	return 0;
 }
