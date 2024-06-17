@@ -284,10 +284,7 @@ struct spoe_agent {
 	char                 *var_t_process;  /* Variable to set to report the processing time of the last event/group, in the TXN scope */
 	char                 *var_t_total;    /* Variable to set to report the cumulative processing time, in the TXN scope */
 	unsigned int          flags;          /* SPOE_FL_* */
-	unsigned int          cps_max;        /* Maximum # of connections per second */
-	unsigned int          eps_max;        /* Maximum # of errors per second */
 	unsigned int          max_frame_size; /* Maximum frame size for this agent, before any negotiation */
-	unsigned int          max_fpa;        /* Maximum # of frames handled per applet at once */
 
 	struct list events[SPOE_EV_EVENTS];   /* List of SPOE messages that will be sent
 					       * for each supported events */
@@ -297,27 +294,8 @@ struct spoe_agent {
 	struct list messages;                 /* list of all messages attached to this SPOE agent */
 
 	char *engine_id;                      /* engine-id string */
-	/* running info */
-	struct {
-		unsigned int    frame_size;     /* current maximum frame size, only used to encode messages */
-		unsigned int    processing;
-		struct freq_ctr processing_per_sec;
-
-		struct freq_ctr conn_per_sec;   /* connections per second */
-		struct freq_ctr err_per_sec;    /* connection errors per second */
-
-		unsigned int    idles;          /* # of idle applets */
-		struct eb_root  idle_applets;   /* idle SPOE applets available to process data */
-		struct list     applets;        /* all SPOE applets for this agent */
-		struct list     sending_queue;  /* Queue of streams waiting to send data */
-		__decl_thread(HA_SPINLOCK_T lock);
-	} *rt;
 
 	struct {
-		unsigned int applets;            /* # of SPOE applets */
-		unsigned int idles;              /* # of idle applets */
-		unsigned int nb_sending;         /* # of streams waiting to send data */
-		unsigned int nb_waiting;         /* # of streams waiting for a ack */
 		unsigned long long nb_processed; /* # of frames processed by the SPOE */
 		unsigned long long nb_errors;    /* # of errors during the processing */
 	} counters;
@@ -343,7 +321,6 @@ struct spoe_context {
 
 	struct buffer       buffer;       /* Buffer used to store a encoded messages */
 	struct buffer_wait  buffer_wait;  /* position in the list of resources waiting for a buffer */
-	struct list         list;
 
 	enum spoe_ctx_state state;        /* SPOE_CTX_ST_* */
 	unsigned int        flags;        /* SPOE_CTX_FL_* */
@@ -357,14 +334,6 @@ struct spoe_context {
 
 	struct {
 		ullong         start_ts;    /* start date of the current event/group */
-		ullong         request_ts;  /* date the frame processing starts */
-		ullong         queue_ts;    /* date the frame is queued */
-		ullong         wait_ts;     /* date the stream starts waiting for a response */
-		ullong         response_ts; /* date the response processing starts */
-		long           t_request;   /* delay to encode and push the frame in queue */
-		long           t_queue;     /* delay before the frame gets out the sending queue */
-		long           t_waiting;   /* delay before the response is received */
-		long           t_response;  /* delay to process the response (from the stream pov) */
 		long           t_process;   /* processing time of the last event/group */
 		unsigned long  t_total;     /* cumulative processing time */
 	} stats; /* Stats for this stream */
@@ -384,10 +353,8 @@ struct spoe_appctx {
 
 	struct buffer       buffer;         /* Buffer used to store a encoded messages */
 	struct buffer_wait  buffer_wait;    /* position in the list of resources waiting for a buffer */
-	struct list         waiting_queue;  /* list of streams waiting for a ACK frame, in sync and pipelining mode */
-	struct list         list;           /* next spoe appctx for the same agent */
-	struct eb32_node    node;           /* node used for applets tree */
-	unsigned int        cur_fpa;
+
+	struct spoe_context *spoe_ctx;      /* The SPOE context to handle */
 };
 
 #endif /* _HAPROXY_SPOE_T_H */
