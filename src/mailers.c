@@ -172,6 +172,14 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 	return 1;
 }
 
+void free_email_alert(struct proxy *p)
+{
+	ha_free(&p->email_alert.mailers.name);
+	ha_free(&p->email_alert.from);
+	ha_free(&p->email_alert.to);
+	ha_free(&p->email_alert.myhostname);
+}
+
 static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 				   struct email_alertq *q, const char *msg)
 {

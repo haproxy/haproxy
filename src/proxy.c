@@ -34,6 +34,7 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/http_ext.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/mailers.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/obj_type-t.h>

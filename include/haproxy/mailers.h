@@ -35,6 +35,7 @@ extern struct mailers *mailers;
 extern int send_email_disabled;
 
 int init_email_alert(struct mailers *mailers, struct proxy *p, char **err);
+void free_email_alert(struct proxy *p);
 void send_email_alert(struct server *s, int priority, const char *format, ...)
 	__attribute__ ((format(printf, 3, 4)));
 

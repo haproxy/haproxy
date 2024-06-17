@@ -1259,14 +1259,6 @@ out:
 	return err_code;
 }
 
-void free_email_alert(struct proxy *p)
-{
-	ha_free(&p->email_alert.mailers.name);
-	ha_free(&p->email_alert.from);
-	ha_free(&p->email_alert.to);
-	ha_free(&p->email_alert.myhostname);
-}
-
 
 int
 cfg_parse_netns(const char *file, int linenum, char **args, int kwm)
