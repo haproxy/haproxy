@@ -1,7 +1,7 @@
 #REGTEST_TYPE=bug
 varnishtest "Test for ECDSA/RSA selection and crt-list filters"
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.8)'"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1) || feature(OPENSSL_AWSLC)'"
 # This test checks if the multiple certificate types works correctly with the
 # SNI, and that the negative filters are correctly excluded
 #
