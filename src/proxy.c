@@ -253,8 +253,6 @@ static inline void proxy_free_common(struct proxy *px)
 		LIST_DEL_INIT(&lf->list);
 
 	chunk_destroy(&px->log_tag);
-
-	free_email_alert(px);
 }
 
 void free_proxy(struct proxy *p)
@@ -1483,6 +1481,7 @@ void proxy_free_defaults(struct proxy *defproxy)
 
 	proxy_release_conf_errors(defproxy);
 	deinit_proxy_tcpcheck(defproxy);
+	free_email_alert(defproxy);
 
 	/* FIXME: we cannot free uri_auth because it might already be used by
 	 * another proxy (legacy code for stats URI ...). Refcount anyone ?
