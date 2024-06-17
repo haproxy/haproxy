@@ -342,7 +342,6 @@ struct spoe_context {
 /* SPOE context inside a appctx */
 struct spoe_appctx {
 	struct appctx      *owner;          /* the owner */
-	struct task        *task;           /* task to handle applet timeouts */
 	struct spoe_agent  *agent;          /* agent on which the applet is attached */
 
 	unsigned int        version;        /* the negotiated version */

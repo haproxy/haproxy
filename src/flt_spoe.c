@@ -982,40 +982,17 @@ spoe_wakeup_appctx(struct appctx *appctx)
 	return 1;
 }
 
-/* Callback function that catches applet timeouts. If a timeout occurred, we set
- * <appctx->st1> flag and the SPOE applet is woken up. */
-static struct task *
-spoe_process_appctx(struct task * task, void *context, unsigned int state)
-{
-	struct appctx *appctx = context;
-
-	appctx->st1 = SPOE_APPCTX_ERR_NONE;
-	if (tick_is_expired(task->expire, now_ms)) {
-		task->expire = TICK_ETERNITY;
-		appctx->st1  = SPOE_APPCTX_ERR_TOUT;
-	}
-	spoe_wakeup_appctx(appctx);
-	return task;
-}
-
 static int
 spoe_init_appctx(struct appctx *appctx)
 {
 	struct spoe_appctx *spoe_appctx = SPOE_APPCTX(appctx);
 	struct spoe_agent *agent = spoe_appctx->agent;
-	struct task *task;
 	struct stream *s;
 
-	if ((task = task_new_here()) == NULL)
-		goto out_error;
-	task->process = spoe_process_appctx;
-	task->context = appctx;
-
 	if (appctx_finalize_startup(appctx, &agent->spoe_conf->agent_fe, &BUF_NULL) == -1)
-		goto out_free_task;
+		goto error;
 
 	spoe_appctx->owner = appctx;
-	spoe_appctx->task  = task;
 
 	LIST_INIT(&spoe_appctx->buffer_wait.list);
 	spoe_appctx->buffer_wait.target = appctx;
@@ -1031,11 +1008,10 @@ spoe_init_appctx(struct appctx *appctx)
 	s->scb->flags |= SC_FL_RCV_ONCE;
 
 	appctx->st0 = SPOE_APPCTX_ST_CONNECT;
-	task_wakeup(spoe_appctx->task, TASK_WOKEN_INIT);
+	appctx_wakeup(appctx);
 	return 0;
-  out_free_task:
-	task_destroy(task);
-  out_error:
+
+  error:
 	return -1;
 }
 
@@ -1057,9 +1033,6 @@ spoe_release_appctx(struct appctx *appctx)
 		if (spoe_appctx->status_code == SPOE_FRM_ERR_NONE)
 			spoe_appctx->status_code = SPOE_FRM_ERR_IO;
 	}
-
-	/* Destroy the task attached to this applet */
-	task_destroy(spoe_appctx->task);
 
 	if (spoe_appctx->spoe_ctx)  {
 		/* Report an error to stream */
@@ -1427,7 +1400,7 @@ spoe_handle_appctx(struct appctx *appctx)
 
 	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR)))) {
 		co_skip(sc_oc(sc), co_data(sc_oc(sc)));
-		goto out;
+		return;
 	}
 
 	SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_NONE;
@@ -1442,12 +1415,12 @@ spoe_handle_appctx(struct appctx *appctx)
 	switch (appctx->st0) {
 		case SPOE_APPCTX_ST_CONNECT:
 			if (spoe_handle_connect_appctx(appctx))
-				goto out;
+				break;
 			goto switchstate;
 
 		case SPOE_APPCTX_ST_CONNECTING:
 			if (spoe_handle_connecting_appctx(appctx))
-				goto out;
+				break;
 			goto switchstate;
 
 		case SPOE_APPCTX_ST_IDLE:
@@ -1457,22 +1430,21 @@ spoe_handle_appctx(struct appctx *appctx)
 		case SPOE_APPCTX_ST_PROCESSING:
 		case SPOE_APPCTX_ST_WAITING_SYNC_ACK:
 			if (spoe_handle_processing_appctx(appctx))
-				goto out;
+				break;
 			goto switchstate;
 
 		case SPOE_APPCTX_ST_DISCONNECT:
 			if (spoe_handle_disconnect_appctx(appctx))
-				goto out;
+				break;
 			goto switchstate;
 
 		case SPOE_APPCTX_ST_DISCONNECTING:
 			if (spoe_handle_disconnecting_appctx(appctx))
-				goto out;
+				break;
 			goto switchstate;
 
 		case SPOE_APPCTX_ST_EXIT:
 			appctx->st0 = SPOE_APPCTX_ST_END;
-			SPOE_APPCTX(appctx)->task->expire = TICK_ETERNITY;
 			se_fl_set(appctx->sedesc, SE_FL_EOS);
 			if (SPOE_APPCTX(appctx)->status_code != SPOE_FRM_ERR_NONE)
 				se_fl_set(appctx->sedesc, SE_FL_ERROR);
@@ -1482,13 +1454,8 @@ spoe_handle_appctx(struct appctx *appctx)
 
 		case SPOE_APPCTX_ST_END:
 			co_skip(sc_oc(sc), co_data(sc_oc(sc)));
-			return;
+			break;
 	}
-  out:
-	if (stopping && appctx->st0 == SPOE_APPCTX_ST_IDLE)
-		task_wakeup(SPOE_APPCTX(appctx)->task, TASK_WOKEN_MSG);
-	else if (SPOE_APPCTX(appctx)->task->expire != TICK_ETERNITY)
-		task_queue(SPOE_APPCTX(appctx)->task);
 }
 
 struct applet spoe_applet = {
