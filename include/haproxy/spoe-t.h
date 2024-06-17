@@ -381,10 +381,6 @@ struct spoe_appctx {
 	unsigned int        flags;          /* SPOE_APPCTX_FL_* */
 
 	unsigned int        status_code;    /* SPOE_FRM_ERR_* */
-#if defined(DEBUG_SPOE) || defined(DEBUG_FULL)
-	char               *reason;         /* Error message, used for debugging only */
-	int                 rlen;           /* reason length */
-#endif
 
 	struct buffer       buffer;         /* Buffer used to store a encoded messages */
 	struct buffer_wait  buffer_wait;    /* position in the list of resources waiting for a buffer */
