@@ -254,6 +254,8 @@ static inline void proxy_free_common(struct proxy *px)
 		LIST_DEL_INIT(&lf->list);
 
 	chunk_destroy(&px->log_tag);
+
+	free_email_alert(px);
 }
 
 void free_proxy(struct proxy *p)
@@ -1482,7 +1484,6 @@ void proxy_free_defaults(struct proxy *defproxy)
 
 	proxy_release_conf_errors(defproxy);
 	deinit_proxy_tcpcheck(defproxy);
-	free_email_alert(defproxy);
 
 	/* FIXME: we cannot free uri_auth because it might already be used by
 	 * another proxy (legacy code for stats URI ...). Refcount anyone ?
@@ -1791,6 +1792,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	if (defproxy->check_command)
 		curproxy->check_command = strdup(defproxy->check_command);
 
+	BUG_ON(curproxy->email_alert.flags & PR_EMAIL_ALERT_RESOLVED);
 	if (defproxy->email_alert.mailers.name)
 		curproxy->email_alert.mailers.name = strdup(defproxy->email_alert.mailers.name);
 	if (defproxy->email_alert.from)
@@ -1800,7 +1802,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	if (defproxy->email_alert.myhostname)
 		curproxy->email_alert.myhostname = strdup(defproxy->email_alert.myhostname);
 	curproxy->email_alert.level = defproxy->email_alert.level;
-	curproxy->email_alert.set = defproxy->email_alert.set;
+	curproxy->email_alert.flags = defproxy->email_alert.flags;
 
 	return 0;
 }

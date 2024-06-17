@@ -22,6 +22,7 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/http_ext.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/mailers-t.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/peers.h>
@@ -974,7 +975,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		/* Indicate that the email_alert is at least partially configured */
-		curproxy->email_alert.set = 1;
+		curproxy->email_alert.flags |= PR_EMAIL_ALERT_SET;
 	}/* end else if (!strcmp(args[0], "email-alert"))  */
 	else if (strcmp(args[0], "persist") == 0) {  /* persist */
 		if (*(args[1]) == 0) {

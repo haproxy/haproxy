@@ -438,7 +438,7 @@ struct proxy {
 		char *myhostname;		/* Identity to use in HELO command sent to mailer */
 		int level;			/* Maximum syslog level of messages to send
 						 * email alerts for */
-		int set;			/* True if email_alert settings are present */
+		int flags;                      /* check mailers.h for available flags */
 		struct email_alertq *queues;	/* per-mailer alerts queues */
 	} email_alert;
 

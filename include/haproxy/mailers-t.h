@@ -35,6 +35,13 @@
 #include <haproxy/tcpcheck-t.h>
 #include <haproxy/thread-t.h>
 
+/* flags for proxy.email_alert.flags */
+enum proxy_email_alert_flags {
+	PR_EMAIL_ALERT_NONE = 0,
+	PR_EMAIL_ALERT_SET,      /* set if email alert settings are present */
+	PR_EMAIL_ALERT_RESOLVED, /* set if email alert settings were resolved */
+};
+
 struct mailer {
 	char *id;
 	struct mailers *mailers;

@@ -3067,7 +3067,7 @@ init_proxies_list_stage1:
 			}
 		}
 
-		if (curproxy->email_alert.set) {
+		if (curproxy->email_alert.flags & PR_EMAIL_ALERT_SET) {
 		    if (!(curproxy->email_alert.mailers.name && curproxy->email_alert.from && curproxy->email_alert.to)) {
 			    ha_warning("'email-alert' will be ignored for %s '%s' (the presence any of "
 				       "'email-alert from', 'email-alert level' 'email-alert mailers', "
