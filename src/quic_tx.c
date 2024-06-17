@@ -708,8 +708,13 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list)
 		qc->flags |= QUIC_FL_CONN_RETRANS_OLD_DATA;
 	}
 
-	/* Prepare and send packets until we could not further prepare packets. */
-	while (!LIST_ISEMPTY(send_list)) {
+	/* Prepare and send packets until we could not further prepare packets.
+	 * Sending must be interrupted if a CONNECTION_CLOSE was already sent
+	 * previously and is currently not needed.
+	 */
+	while (!LIST_ISEMPTY(send_list) &&
+	       (!(qc->flags & (QUIC_FL_CONN_CLOSING|QUIC_FL_CONN_DRAINING)) ||
+	        (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))) {
 		/* Buffer must always be empty before qc_prep_pkts() usage.
 		 * qc_send_ppkts() ensures it is cleared on success.
 		 */
@@ -726,6 +731,12 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list)
 
 		if (ret <= 0) {
 			TRACE_DEVEL("stopping on qc_prep_pkts() return", QUIC_EV_CONN_TXPKT, qc);
+			break;
+		}
+
+		if ((qc->flags & QUIC_FL_CONN_DRAINING) &&
+		    !(qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE)) {
+			TRACE_DEVEL("draining connection", QUIC_EV_CONN_TXPKT, qc);
 			break;
 		}
 	}
