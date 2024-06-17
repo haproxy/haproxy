@@ -175,9 +175,9 @@ spoe_release_agent(struct spoe_agent *agent)
 		LIST_DELETE(&grp->list);
 		spoe_release_group(grp);
 	}
+	free(agent->engine_id);
 	if (agent->rt) {
 		for (i = 0; i < global.nbthread; ++i) {
-			free(agent->rt[i].engine_id);
 			HA_SPIN_DESTROY(&agent->rt[i].lock);
 		}
 	}
@@ -417,14 +417,14 @@ spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
 		goto too_big;
 
 	/* (optional) "engine-id" K/V item, if present */
-	if (agent != NULL && agent->rt[tid].engine_id != NULL) {
+	if (agent != NULL && agent->engine_id != NULL) {
 		sz = SLEN(ENGINE_ID_KEY);
 		if (spoe_encode_buffer(ENGINE_ID_KEY, sz, &p, end) == -1)
 			goto too_big;
 
 		*p++ = SPOE_DATA_T_STR;
-		sz = strlen(agent->rt[tid].engine_id);
-		if (spoe_encode_buffer(agent->rt[tid].engine_id, sz, &p, end) == -1)
+		sz = strlen(agent->engine_id);
+		if (spoe_encode_buffer(agent->engine_id, sz, &p, end) == -1)
 			goto too_big;
 	}
 
@@ -2728,6 +2728,11 @@ spoe_init(struct proxy *px, struct flt_conf *fconf)
         conf->agent_fe.timeout.client = TICK_ETERNITY;
 	conf->agent_fe.fe_req_ana = AN_REQ_SWITCHING_RULES;
 
+	conf->agent->engine_id = generate_pseudo_uuid();
+	if (conf->agent->engine_id == NULL)
+		return -1;
+
+
 	if (!sighandler_registered) {
 		signal_register_fct(0, spoe_sig_stop, 0);
 		sighandler_registered = 1;
@@ -2805,7 +2810,6 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 		return 1;
 	}
 	for (i = 0; i < global.nbthread; ++i) {
-		conf->agent->rt[i].engine_id    = NULL;
 		conf->agent->rt[i].frame_size   = conf->agent->max_frame_size;
 		conf->agent->rt[i].processing   = 0;
 		conf->agent->rt[i].idles        = 0;
@@ -2819,20 +2823,6 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 
 	ha_free(&conf->agent->b.name);
 	conf->agent->b.be = target;
-	return 0;
-}
-
-/* Initializes the SPOE filter for a proxy for a specific thread.
- * Returns a negative value if an error occurs. */
-static int
-spoe_init_per_thread(struct proxy *p, struct flt_conf *fconf)
-{
-	struct spoe_config *conf = fconf->conf;
-	struct spoe_agent *agent = conf->agent;
-
-	agent->rt[tid].engine_id = generate_pseudo_uuid();
-	if (agent->rt[tid].engine_id == NULL)
-		return -1;
 	return 0;
 }
 
@@ -3034,7 +3024,6 @@ struct flt_ops spoe_ops = {
 	.init   = spoe_init,
 	.deinit = spoe_deinit,
 	.check  = spoe_check,
-	.init_per_thread = spoe_init_per_thread,
 
 	/* Handle start/stop of SPOE */
 	.attach         = spoe_start,

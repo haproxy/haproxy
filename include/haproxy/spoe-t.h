@@ -296,9 +296,9 @@ struct spoe_agent {
 
 	struct list messages;                 /* list of all messages attached to this SPOE agent */
 
+	char *engine_id;                      /* engine-id string */
 	/* running info */
 	struct {
-		char           *engine_id;      /* engine-id string */
 		unsigned int    frame_size;     /* current maximum frame size, only used to encode messages */
 		unsigned int    processing;
 		struct freq_ctr processing_per_sec;
