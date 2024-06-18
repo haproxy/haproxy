@@ -1833,7 +1833,8 @@ clear map [@<ver>] <map>
   version of the map is cleared (the one being matched against). However it is
   possible to specify another version using '@' followed by this version.
 
-clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
+clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ] |
+                    [ ptr <ptr> ]
   Remove entries from the stick-table <table>.
 
   This is typically used to unblock some users complaining they have been
@@ -1863,6 +1864,12 @@ clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
   same type as the table, which currently is limited to IPv4, IPv6, integer and
   string.
 
+  When the ptr form is used the entry <ptr> is removed. <ptr> is written in
+  the form 0xffff and must correspond to the address returned by a previous
+  "show table" command. Matching an entry using its pointer may be relevant if
+  the entry cannot be matched using the key due to empty key or incompatible
+  characters on the cli.
+
   Example :
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
     >>> # table: http_proxy, type: ip, size:204800, used:2
@@ -1870,16 +1877,26 @@ clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
           bytes_out_rate(60000)=187
     >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
           bytes_out_rate(60000)=191
+    >>> 0x80e6b40: key=127.0.0.3 use=0 exp=3594743 gpc0=2 conn_rate(30000)=10 \
+          bytes_out_rate(60000)=200
 
         $ echo "clear table http_proxy key 127.0.0.1" | socat stdio /tmp/sock1
 
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
     >>> # table: http_proxy, type: ip, size:204800, used:1
     >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
+    >>> 0x80e6b40: key=127.0.0.3 use=0 exp=3594743 gpc0=2 conn_rate(30000)=10 \
+          bytes_out_rate(60000)=200
           bytes_out_rate(60000)=191
         $ echo "clear table http_proxy data.gpc0 eq 1" | socat stdio /tmp/sock1
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
     >>> # table: http_proxy, type: ip, size:204800, used:1
+    >>> 0x80e6b40: key=127.0.0.3 use=0 exp=3594743 gpc0=2 conn_rate(30000)=10 \
+          bytes_out_rate(60000)=200
+
+        $ echo "clear table http_proxy ptr 0x80e6b40" | socat stdio /tmp/sock1
+        $ echo "show table http_proxy" | socat stdio /tmp/sock1
+    >>> # table: http_proxy, type: ip, size:204800, used:0
 
 commit acl @<ver> <acl>
   Commit all changes made to version <ver> of ACL <acl>, and deletes all past
@@ -2537,12 +2554,19 @@ set ssl tls-key <id> <tlskey>
   or 80 bits TLS ticket key (ex. openssl rand 80 | openssl base64 -A).
 
 set table <table> key <key> [data.<data_type> <value>]*
+set table <table> ptr <ptr> [data.<data_type> <value>]*
   Create or update a stick-table entry in the table. If the key is not present,
   an entry is inserted. See stick-table in section 4.2 to find all possible
   values for <data_type>. The most likely use consists in dynamically entering
   entries for source IP addresses, with a flag in gpc0 to dynamically block an
   IP address or affect its quality of service. It is possible to pass multiple
   data_types in a single call.
+
+  Optional ptr lookup may be used instead of key lookup for an existing entry:
+  <ptr> is written in the form 0xffff and must correspond to the address
+  returned by a previous "show table" command. Matching an entry using its
+  pointer may be relevant if the entry cannot be matched using the key due to
+  empty key or imcompatible characters on the cli.
 
 set timeout cli <delay>
   Change the CLI interface timeout for current connection. This can be useful
@@ -3688,7 +3712,8 @@ show table
     >>> # table: front_pub, type: ip, size:204800, used:171454
     >>> # table: back_rdp, type: ip, size:204800, used:0
 
-show table <name> [ data.<type> <operator> <value> [data.<type> ...]] | [ key <key> ]
+show table <name> [ data.<type> <operator> <value> [data.<type> ...]] |
+                  [ key <key> ] | [ ptr <ptr> ]
   Dump contents of stick-table <name>. In this mode, a first line of generic
   information about the table is reported as with "show table", then all
   entries are dumped. Since this can be quite heavy, it is possible to specify
@@ -3714,6 +3739,12 @@ show table <name> [ data.<type> <operator> <value> [data.<type> ...]] | [ key <k
   same type as the table, which currently is limited to IPv4, IPv6, integer,
   and string.
 
+  When the ptr form is used the entry <ptr> is shown. <ptr> is written in
+  the form 0xffff and must correspond to the address returned by a previous
+  "show table" command. Matching an entry using its pointer may be relevant if
+  the entry cannot be matched using the key due empty key or incompatible
+  characters on the cli.
+
   Example :
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
     >>> # table: http_proxy, type: ip, size:204800, used:2
@@ -3734,6 +3765,12 @@ show table <name> [ data.<type> <operator> <value> [data.<type> ...]] | [ key <k
           bytes_out_rate(60000)=191
 
         $ echo "show table http_proxy key 127.0.0.2" | \
+            socat stdio /tmp/sock1
+    >>> # table: http_proxy, type: ip, size:204800, used:2
+    >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
+          bytes_out_rate(60000)=191
+
+        $ echo "show table http_proxy ptr 0x80e6a80" | \
             socat stdio /tmp/sock1
     >>> # table: http_proxy, type: ip, size:204800, used:2
     >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
