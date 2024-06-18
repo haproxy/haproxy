@@ -1888,20 +1888,23 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	padding_len = 0;
 	len_sz = quic_int_getsize(len);
 	/* Add this packet size to <dglen> */
-	dglen += head_len + len_sz + len;
-	/* Note that <padding> is true only when building an Handshake packet
-	 * coalesced to an Initial packet.
-	 */
+	dglen += head_len + len;
+	if (pkt->type != QUIC_PACKET_TYPE_SHORT)
+		dglen += len_sz;
+
 	if (padding && dglen < QUIC_INITIAL_PACKET_MINLEN) {
-		/* This is a maximum padding size */
 		padding_len = QUIC_INITIAL_PACKET_MINLEN - dglen;
-		/* The length field value is of this packet is <len> + <padding_len>
-		 * the size of which may be greater than the initial computed size
-		 * <len_sz>. So, let's deduce the difference between these to packet
-		 * sizes from <padding_len>.
-		 */
-		padding_len -= quic_int_getsize(len + padding_len) - len_sz;
+
 		len += padding_len;
+		/* Update size of packet length field with new PADDING data. */
+		if (pkt->type != QUIC_PACKET_TYPE_SHORT) {
+			size_t len_sz_diff = quic_int_getsize(len) - len_sz;
+			if (len_sz_diff) {
+				padding_len -= len_sz_diff;
+				len_sz += len_sz_diff;
+				dglen += len_sz_diff;
+			}
+		}
 	}
 	else if (len_frms && len_frms < QUIC_PACKET_PN_MAXLEN) {
 		len += padding_len = QUIC_PACKET_PN_MAXLEN - len_frms;
