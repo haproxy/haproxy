@@ -15852,19 +15852,6 @@ backlog <backlog>
   Sets the socket's backlog to this value. If unspecified or 0, the frontend's
   backlog is used instead, which generally defaults to the maxconn value.
 
-curves <curves>
-  This setting is only available when support for OpenSSL was built in. It sets
-  the string describing the list of elliptic curves algorithms ("curve suite")
-  that are negotiated during the SSL/TLS handshake with ECDHE. The format of the
-  string is a colon-delimited list of curve name.
-  Example: "X25519:P-256" (without quote)
-  When "curves" is set, "ecdhe" parameter is ignored.
-
-ecdhe <named curve>
-  This setting is only available when support for OpenSSL was built in. It sets
-  the named curve (RFC 4492) used to generate ECDH ephemeral keys. By default,
-  used named curve is prime256v1.
-
 ca-file <cafile>
   This setting is only available when support for OpenSSL was built in. It
   designates a PEM file from which to load CA certificates used to verify
@@ -16147,6 +16134,14 @@ default-crt <cert>
 
   See also the "crt" keyword.
 
+curves <curves>
+  This setting is only available when support for OpenSSL was built in. It sets
+  the string describing the list of elliptic curves algorithms ("curve suite")
+  that are negotiated during the SSL/TLS handshake with ECDHE. The format of the
+  string is a colon-delimited list of curve name.
+  Example: "X25519:P-256" (without quote)
+  When "curves" is set, "ecdhe" parameter is ignored.
+
 defer-accept
   Is an optional keyword which is supported only on certain Linux kernels. It
   states that a connection will only be accepted once some data arrive on it,
@@ -16159,6 +16154,11 @@ defer-accept
   the client talks. This can cause issues with front firewalls which would see
   an established connection while the proxy will only see it in SYN_RECV. This
   option is only supported on TCPv4/TCPv6 sockets and ignored by other ones.
+
+ecdhe <named curve>
+  This setting is only available when support for OpenSSL was built in. It sets
+  the named curve (RFC 4492) used to generate ECDH ephemeral keys. By default,
+  used named curve is prime256v1.
 
 expose-fd listeners
   This option is only usable with the stats socket. It gives your stats socket
@@ -16263,18 +16263,6 @@ level <level>
     counters).
   - "admin" should be used with care, as everything is permitted (e.g. clear
     all counters).
-
-severity-output <format>
-  This setting is used with the stats sockets only to configure severity
-  level output prepended to informational feedback messages. Severity
-  level of messages can range between 0 and 7, conforming to syslog
-  rfc5424. Valid and successful socket commands requesting data
-  (i.e. "show map", "get acl foo" etc.) will never have a severity level
-  prepended. It is ignored by other sockets. <format> can be one of :
-  - "none" (default) no severity level is prepended to feedback messages.
-  - "number" severity level is prepended as a number.
-  - "string" severity level is prepended as a string following the
-    rfc5424 convention.
 
 maxconn <maxconn>
   Limits the sockets to this number of concurrent connections. Extraneous
@@ -16482,6 +16470,18 @@ quic-socket [ connection | listener ]
   the specific listeners. See "tune.quic.socket-owner" for a full description
   of its usage.
 
+severity-output <format>
+  This setting is used with the stats sockets only to configure severity
+  level output prepended to informational feedback messages. Severity
+  level of messages can range between 0 and 7, conforming to syslog
+  rfc5424. Valid and successful socket commands requesting data
+  (i.e. "show map", "get acl foo" etc.) will never have a severity level
+  prepended. It is ignored by other sockets. <format> can be one of :
+  - "none" (default) no severity level is prepended to feedback messages.
+  - "number" severity level is prepended as a number.
+  - "string" severity level is prepended as a string following the
+    rfc5424 convention.
+
 shards <number> | by-thread | by-group
   In multi-threaded mode, on operating systems supporting multiple listeners on
   the same IP:port, this will automatically create this number of multiple
@@ -16664,20 +16664,6 @@ transparent
   kernel version. Some distribution kernels include backports of the feature,
   so check for support with your vendor.
 
-v4v6
-  Is an optional keyword which is supported only on most recent systems
-  including Linux kernels >= 2.4.21. It is used to bind a socket to both IPv4
-  and IPv6 when it uses the default address. Doing so is sometimes necessary
-  on systems which bind to IPv6 only by default. It has no effect on non-IPv6
-  sockets, and is overridden by the "v6only" option.
-
-v6only
-  Is an optional keyword which is supported only on most recent systems
-  including Linux kernels >= 2.4.21. It is used to bind a socket to IPv6 only
-  when it uses the default address. Doing so is sometimes preferred to doing it
-  system-wide as it is per-listener. It has no effect on non-IPv6 sockets and
-  has precedence over the "v4v6" option.
-
 uid <uid>
   Sets the owner of the UNIX sockets to the designated system uid. It can also
   be set by default in the global section's "unix-bind" statement. Note that
@@ -16691,6 +16677,20 @@ user <user>
   some platforms simply ignore this. This setting is equivalent to the "uid"
   setting except that the user name is used instead of its uid. This setting is
   ignored by non UNIX sockets.
+
+v4v6
+  Is an optional keyword which is supported only on most recent systems
+  including Linux kernels >= 2.4.21. It is used to bind a socket to both IPv4
+  and IPv6 when it uses the default address. Doing so is sometimes necessary
+  on systems which bind to IPv6 only by default. It has no effect on non-IPv6
+  sockets, and is overridden by the "v6only" option.
+
+v6only
+  Is an optional keyword which is supported only on most recent systems
+  including Linux kernels >= 2.4.21. It is used to bind a socket to IPv6 only
+  when it uses the default address. Doing so is sometimes preferred to doing it
+  system-wide as it is per-listener. It has no effect on non-IPv6 sockets and
+  has precedence over the "v4v6" option.
 
 verify [none|optional|required]
   This setting is only available when support for OpenSSL was built in. If set
