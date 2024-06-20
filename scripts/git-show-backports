@@ -321,13 +321,13 @@ dump_commit_matrix | column -t | \
 		echo
 		echo
 		echo "In order to show and/or apply all leftmost commits to current branch :"
-		echo "   git show --pretty=format:'%C(yellow)commit  %H%C(normal)%nAuthor: %an <%ae>%nDate:   %aD%n%n%C(green)%C(bold)git cherry-pick -sx %h%n%n%w(72,4,4)%B%N' ${left_commits[@]}"
+		echo "   git show --pretty=format:'%C(yellow)commit  %H%C(normal)%nAuthor: %an <%ae>%nDate:   %aD%n%n%C(green)%C(bold)git cherry-pick -sx %h%n%n%w(0,4,4)%B%N' ${left_commits[@]}"
 		echo
 		echo "   git cherry-pick -sx ${left_commits[@]}"
 		echo
 		if [ "${left_commits[*]}" != "${right_commits[*]}" ]; then
 			echo "In order to show and/or apply all rightmost commits to current branch :"
-			echo "   git show --pretty=format:'%C(yellow)commit  %H%C(normal)%nAuthor: %an <%ae>%nDate:   %aD%n%n%C(green)%C(bold)git cherry-pick -sx %h%n%n%w(72,4,4)%B%N' ${right_commits[@]}"
+			echo "   git show --pretty=format:'%C(yellow)commit  %H%C(normal)%nAuthor: %an <%ae>%nDate:   %aD%n%n%C(green)%C(bold)git cherry-pick -sx %h%n%n%w(0,4,4)%B%N' ${right_commits[@]}"
 			echo
 			echo "   git cherry-pick -sx ${right_commits[@]}"
 			echo
