@@ -104,17 +104,6 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcs->st = QC_SS_IDLE;
 	qcs->ctx = NULL;
 
-	qcs->sd = sedesc_new();
-	if (!qcs->sd)
-		goto err;
-	qcs->sd->se   = qcs;
-	qcs->sd->conn = qcc->conn;
-	se_fl_set(qcs->sd, SE_FL_T_MUX | SE_FL_ORPHAN | SE_FL_NOT_FIRST);
-	se_expect_no_data(qcs->sd);
-
-	if (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_QUIC_SND))
-		se_fl_set(qcs->sd, SE_FL_MAY_FASTFWD_CONS);
-
 	/* App callback attach may register the stream for http-request wait.
 	 * These fields must be initialed before.
 	 */
@@ -158,6 +147,17 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcs->subs = NULL;
 
 	qcs->err = 0;
+
+	qcs->sd = sedesc_new();
+	if (!qcs->sd)
+		goto err;
+	qcs->sd->se   = qcs;
+	qcs->sd->conn = qcc->conn;
+	se_fl_set(qcs->sd, SE_FL_T_MUX | SE_FL_ORPHAN | SE_FL_NOT_FIRST);
+	se_expect_no_data(qcs->sd);
+
+	if (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_QUIC_SND))
+		se_fl_set(qcs->sd, SE_FL_MAY_FASTFWD_CONS);
 
 	/* Allocate transport layer stream descriptor. Only needed for TX. */
 	if (!quic_stream_is_uni(id) || !quic_stream_is_remote(qcc, id)) {
