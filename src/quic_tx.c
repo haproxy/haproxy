@@ -584,8 +584,6 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			if (!cur_pkt) {
 				switch (err) {
 				case QC_BUILD_PKT_ERR_ALLOC:
-					if (first_pkt)
-						qc_txb_store(buf, dglen, first_pkt);
 					qc_purge_tx_buf(qc, buf);
 					break;
 
