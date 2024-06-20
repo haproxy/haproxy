@@ -2378,20 +2378,23 @@ static int h3_finalize(void *ctx)
 
 	qcs = qcc_init_stream_local(qcc, 0);
 	if (!qcs) {
+		/* Error must be set by qcc_init_stream_local(). */
+		BUG_ON(!(qcc->flags & QC_CF_ERRL));
 		TRACE_ERROR("cannot init control stream", H3_EV_H3C_NEW, qcc->conn);
 		goto err;
 	}
 
 	h3c->ctrl_strm = qcs;
 
-	if (h3_control_send(qcs, h3c) < 0)
+	if (h3_control_send(qcs, h3c) < 0) {
+		qcc_set_error(qcc, H3_ERR_INTERNAL_ERROR, 1);
 		goto err;
+	}
 
 	TRACE_LEAVE(H3_EV_H3C_NEW, qcc->conn);
 	return 0;
 
  err:
-	qcc_set_error(qcc, H3_ERR_INTERNAL_ERROR, 1);
 	TRACE_DEVEL("leaving on error", H3_EV_H3C_NEW, qcc->conn);
 	return 1;
 }

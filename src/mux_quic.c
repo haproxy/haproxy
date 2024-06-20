@@ -617,8 +617,8 @@ struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi)
 
 	qcs = qcs_new(qcc, *next, type);
 	if (!qcs) {
-		TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn);
 		qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0);
+		TRACE_DEVEL("leaving on error", QMUX_EV_QCS_NEW, qcc->conn);
 		return NULL;
 	}
 
