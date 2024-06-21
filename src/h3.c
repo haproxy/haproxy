@@ -2200,33 +2200,17 @@ static int h3_close(struct qcs *qcs, enum qcc_app_ops_close_side side)
 	return 0;
 }
 
+/* Allocates HTTP/3 stream context relative to <qcs>. If the operation cannot
+ * be performed, an error is returned and <qcs> context is unchanged.
+ *
+ * Returns 0 on success else non-zero.
+ */
 static int h3_attach(struct qcs *qcs, void *conn_ctx)
 {
 	struct h3c *h3c = conn_ctx;
 	struct h3s *h3s = NULL;
 
 	TRACE_ENTER(H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
-
-	/* RFC 9114 5.2. Connection Shutdown
-	 *
-	 * Upon sending
-	 * a GOAWAY frame, the endpoint SHOULD explicitly cancel (see
-	 * Sections 4.1.1 and 7.2.3) any requests or pushes that have
-	 * identifiers greater than or equal to the one indicated, in
-	 * order to clean up transport state for the affected streams.
-	 * The endpoint SHOULD continue to do so as more requests or
-	 * pushes arrive.
-	 */
-	if (h3c->flags & H3_CF_GOAWAY_SENT && qcs->id >= h3c->id_goaway &&
-	    quic_stream_is_bidi(qcs->id)) {
-		/* Reject request and do not allocate a h3s context.
-		 * TODO support push uni-stream rejection.
-		 */
-		TRACE_STATE("reject stream higher than goaway", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
-		qcc_abort_stream_read(qcs);
-		qcc_reset_stream(qcs, H3_ERR_REQUEST_REJECTED);
-		goto done;
-	}
 
 	h3s = pool_alloc(pool_head_h3s);
 	if (!h3s) {
@@ -2254,7 +2238,25 @@ static int h3_attach(struct qcs *qcs, void *conn_ctx)
 		h3s->type = H3S_T_UNKNOWN;
 	}
 
- done:
+	/* RFC 9114 5.2. Connection Shutdown
+	 *
+	 * Upon sending
+	 * a GOAWAY frame, the endpoint SHOULD explicitly cancel (see
+	 * Sections 4.1.1 and 7.2.3) any requests or pushes that have
+	 * identifiers greater than or equal to the one indicated, in
+	 * order to clean up transport state for the affected streams.
+	 * The endpoint SHOULD continue to do so as more requests or
+	 * pushes arrive.
+	 */
+	if (h3c->flags & H3_CF_GOAWAY_SENT && qcs->id >= h3c->id_goaway &&
+	    quic_stream_is_bidi(qcs->id)) {
+		TRACE_STATE("close stream outside of goaway range", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
+		qcc_abort_stream_read(qcs);
+		qcc_reset_stream(qcs, H3_ERR_REQUEST_REJECTED);
+	}
+
+	/* TODO support push uni-stream rejection. */
+
 	TRACE_LEAVE(H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 	return 0;
 
