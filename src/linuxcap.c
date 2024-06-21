@@ -28,7 +28,7 @@
 
 struct __user_cap_header_struct cap_hdr_haproxy = {
 	.pid = 0, /* current process */
-	.version = _LINUX_CAPABILITY_VERSION_1,
+	.version = _LINUX_CAPABILITY_VERSION_3,
 };
 
 /* supported names, zero-terminated */
@@ -87,7 +87,7 @@ int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *progra
 	 * only _LINUX_CAPABILITY_U32S_1 * (sizeof(struct __user_cap_data_struct)),
 	 * i.e. only the __user_cap_data_struct[0].
 	 */
-	struct __user_cap_data_struct start_cap_data[_LINUX_CAPABILITY_U32S_1] = { };
+	struct __user_cap_data_struct start_cap_data[_LINUX_CAPABILITY_U32S_3] = { };
 
 	/* started as root */
 	if (!from_uid)
@@ -162,7 +162,7 @@ int prepare_caps_for_setuid(int from_uid, int to_uid)
 	 * only _LINUX_CAPABILITY_U32S_1 * (sizeof(struct __user_cap_data_struct)),
 	 * i.e. only the __user_cap_data_struct[0].
 	 */
-	struct __user_cap_data_struct cap_data[_LINUX_CAPABILITY_U32S_1] = { };
+	struct __user_cap_data_struct cap_data[_LINUX_CAPABILITY_U32S_3] = { };
 
 	if (from_uid != 0)
 		return 0;
@@ -211,7 +211,7 @@ int prepare_caps_for_setuid(int from_uid, int to_uid)
  */
 int finalize_caps_after_setuid(int from_uid, int to_uid)
 {
-	struct __user_cap_data_struct cap_data[_LINUX_CAPABILITY_U32S_1] = { };
+	struct __user_cap_data_struct cap_data[_LINUX_CAPABILITY_U32S_3] = { };
 
 	if (from_uid != 0)
 		return 0;
