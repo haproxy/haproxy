@@ -680,6 +680,15 @@ void ha_panic()
 		DISGUISE(write(2, trash.area, trash.data));
 	}
 
+	chunk_printf(&trash,
+	             "\n"
+	             "Hint: when reporting this bug to developers, please check if a core file was\n"
+	             "      produced, open it with 'gdb', issue 't a a bt full', check that the\n"
+	             "      output does not contain sensitive data, then join it with the bug report.\n"
+	             "      For more info, please see https://github.com/haproxy/haproxy/issues/2374\n");
+
+	DISGUISE(write(2, trash.area, trash.data));
+
 	for (;;)
 		abort();
 }
