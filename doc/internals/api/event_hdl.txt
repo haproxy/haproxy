@@ -1,12 +1,12 @@
                    -----------------------------------------
                          event_hdl Guide - version 2.8
-                          ( Last update: 2022-11-14 )
+                          ( Last update: 2024-06-21 )
                    ------------------------------------------
 
 ABSTRACT
 --------
 
-The event_hdl support is a new feature of HAProxy 2.7. It is a way to easily
+The event_hdl support is a new feature of HAProxy 2.8. It is a way to easily
 handle general events in a simple to maintain fashion, while keeping core code
 impact to the bare minimum.
 
@@ -38,7 +38,7 @@ SUMMARY
 
 
 1. EVENT_HDL INTRODUCTION
------------------------
+-------------------------
 
 EVENT_HDL provides two complementary APIs, both are implemented
 in src/event_hdl.c and include/haproxy/event_hdl(-t).h:
@@ -52,7 +52,7 @@ an event that is happening in the process.
 (See section 3.)
 
 2. HOW TO HANDLE EXISTING EVENTS
----------------------
+--------------------------------
 
 To handle existing events, you must first decide which events you're
 interested in.
@@ -197,7 +197,7 @@ event subscription is performed using the function:
 	As the name implies, anonymous subscriptions don't support lookups.
 
 2.1 SYNC MODE
----------------------
+-------------
 
 Example, you want to register a sync handler that will be called when
 a new server is added.
@@ -280,12 +280,12 @@ identified subscription where freeing private is required when subscription ends
 ```
 
 2.2 ASYNC MODE
----------------------
+--------------
 
 As mentioned before, async mode comes in 2 flavors, normal and task.
 
 2.2.1 NORMAL VERSION
----------------------
+--------------------
 
 Normal is meant to be really easy to use, and highly compatible with sync mode.
 
@@ -379,7 +379,7 @@ identified subscription where freeing private is required when subscription ends
 ```
 
 2.2.2 TASK VERSION
----------------------
+------------------
 
 task version requires a bit more setup, but it's pretty
 straightforward actually.
@@ -510,14 +510,14 @@ Note:  it is not recommended to perform multiple subscriptions
 			   that might already be freed. Thus UAF will occur.
 
 2.3 ADVANCED FEATURES
------------------------
+---------------------
 
 We've already covered some of these features in the previous examples.
 Here is a documented recap.
 
 
 2.3.1 SUB MGMT
------------------------
+--------------
 
 From an event handler context, either sync or async mode:
 	You have the ability to directly manage the subscription
@@ -565,7 +565,7 @@ task and notify async modes (from the event):
 ```
 
 2.3.2 SUBSCRIPTION EXTERNAL LOOKUPS
------------------------
+-----------------------------------
 
 As you've seen in 2.3.1, managing the subscription directly
 from the handler is a possibility.
@@ -620,7 +620,7 @@ unsubscribing:
 ```
 
 2.3.3 SUBSCRIPTION PTR
------------------------
+----------------------
 
 To manage existing subscriptions from external code,
 we already talked about identified subscriptions that
@@ -720,7 +720,7 @@ Example:
 ```
 
 2.3.4 PRIVATE FREE
------------------------
+------------------
 
 Upon handler subscription, you have the ability to provide
 a private data pointer that will be passed to the handler
@@ -777,7 +777,7 @@ Then:
 ```
 
 3 HOW TO ADD SUPPORT FOR NEW EVENTS
------------------------
+-----------------------------------
 
 Adding support for a new event is pretty straightforward.
 
@@ -787,9 +787,20 @@ First, you need to declare a new event subtype in event_hdl-t.h file
 You might want to declare a whole new event family, in which case
 you declare both the new family and the associated subtypes (if any).
 
+Up to 256 families containing 16 subtypes each are supported by the API.
+Family 0 is reserved for special events, which means there are 255 usable
+families.
+
+You can declare a family using EVENT_HDL_SUB_FAMILY(x) where x is the
+family.
+
+You can declare a subtype using EVENT_HDL_SUB_TYPE(x, y) where x is the
+family previously declared and y the subtype, Subtypes range from 1 to
+16 (included), 0 is not a valid subtype.
+
 ```
 	#define EVENT_HDL_SUB_NEW_FAMILY                EVENT_HDL_SUB_FAMILY(4)
-	#define EVENT_HDL_SUB_NEW_FAMILY_SUBTYPE_1      EVENT_HDL_SUB_TYPE(4,0)
+	#define EVENT_HDL_SUB_NEW_FAMILY_SUBTYPE_1      EVENT_HDL_SUB_TYPE(4,1)
 ```
 
 Then, you need to update the event_hdl_sub_type_map map,
@@ -803,7 +814,7 @@ Please follow this procedure:
 	You added a new family: go to section 3.1
 
 3.1 DECLARING A NEW EVENT DATA STRUCTURE
------------------------
+----------------------------------------
 
 You have the ability to provide additional data for a given
 event family when such events occur.
@@ -943,7 +954,7 @@ Event publishing can be performed from anywhere in the code.
 --------------------------------------------------------------------------------
 
 4 SUBSCRIPTION LISTS
------------------------
+--------------------
 
 As you may already know, EVENT_HDL API main functions rely on
 subscription lists.
