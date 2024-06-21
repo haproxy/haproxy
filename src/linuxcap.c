@@ -82,7 +82,12 @@ static uint32_t caplist;
  */
 int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *program_name)
 {
-	struct __user_cap_data_struct start_cap_data = { };
+	/* _LINUX_CAPABILITY_U32S_1 = 1 and corresponds to version 1, which is three
+	 * 32-bit integers set. So kernel in capset()/capget() will copy_from/to_user
+	 * only _LINUX_CAPABILITY_U32S_1 * (sizeof(struct __user_cap_data_struct)),
+	 * i.e. only the __user_cap_data_struct[0].
+	 */
+	struct __user_cap_data_struct start_cap_data[_LINUX_CAPABILITY_U32S_1] = { };
 
 	/* started as root */
 	if (!from_uid)
@@ -97,7 +102,7 @@ int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *progra
 	 * these capabilities and the file effective bit on haproxy binary via
 	 * setcap, see capabilities man page for details.
 	 */
-	if (capget(&cap_hdr_haproxy, &start_cap_data) == -1) {
+	if (capget(&cap_hdr_haproxy, start_cap_data) == -1) {
 		if (global.last_checks & (LSTCHK_NETADM | LSTCHK_SYSADM))
 			ha_diag_warning("Failed to get process capabilities using capget(): %s. "
 					"Can't use capabilities that might be set on %s binary "
@@ -105,12 +110,12 @@ int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *progra
 		return 0;
 	}
 
-	if (start_cap_data.effective & ((1 << CAP_NET_ADMIN)|(1 << CAP_NET_RAW))) {
+	if (start_cap_data[0].effective & ((1 << CAP_NET_ADMIN)|(1 << CAP_NET_RAW))) {
 		global.last_checks &= ~LSTCHK_NETADM;
 		return 0;
 	}
 
-	if (start_cap_data.effective & ((1 << CAP_SYS_ADMIN))) {
+	if (start_cap_data[0].effective & ((1 << CAP_SYS_ADMIN))) {
 		global.last_checks &= ~LSTCHK_SYSADM;
 		return 0;
 	}
@@ -120,9 +125,9 @@ int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *progra
 	 * set, if it is in the caplist and also presented in the binary
 	 * permitted set.
 	 */
-	if (caplist && start_cap_data.permitted & caplist) {
-		start_cap_data.effective |= start_cap_data.permitted & caplist;
-		if (capset(&cap_hdr_haproxy, &start_cap_data) == 0) {
+	if (caplist && start_cap_data[0].permitted & caplist) {
+		start_cap_data[0].effective |= start_cap_data[0].permitted & caplist;
+		if (capset(&cap_hdr_haproxy, start_cap_data) == 0) {
 			if (caplist & ((1 << CAP_NET_ADMIN)|(1 << CAP_NET_RAW)))
 				global.last_checks &= ~LSTCHK_NETADM;
 			if (caplist & (1 << CAP_SYS_ADMIN))
@@ -152,7 +157,12 @@ int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *progra
  */
 int prepare_caps_for_setuid(int from_uid, int to_uid)
 {
-	struct __user_cap_data_struct cap_data = { };
+	/* _LINUX_CAPABILITY_U32S_1 = 1 and corresponds to version 1, which is three
+	 * 32-bit integers set. So kernel in capset()/capget() will copy_from/to_user
+	 * only _LINUX_CAPABILITY_U32S_1 * (sizeof(struct __user_cap_data_struct)),
+	 * i.e. only the __user_cap_data_struct[0].
+	 */
+	struct __user_cap_data_struct cap_data[_LINUX_CAPABILITY_U32S_1] = { };
 
 	if (from_uid != 0)
 		return 0;
@@ -168,8 +178,8 @@ int prepare_caps_for_setuid(int from_uid, int to_uid)
 		return -1;
 	}
 
-	cap_data.effective = cap_data.permitted = caplist | (1 << CAP_SETUID);
-	if (capset(&cap_hdr_haproxy, &cap_data) == -1) {
+	cap_data[0].effective = cap_data[0].permitted = caplist | (1 << CAP_SETUID);
+	if (capset(&cap_hdr_haproxy, cap_data) == -1) {
 		ha_alert("Failed to preset the capabilities to preserve using capset(): %s\n", strerror(errno));
 		return -1;
 	}
@@ -179,8 +189,8 @@ int prepare_caps_for_setuid(int from_uid, int to_uid)
 		return -1;
 	}
 
-	cap_data.effective = cap_data.permitted = caplist | (1 << CAP_SETUID);
-	if (capset(&cap_hdr_haproxy, &cap_data) == -1) {
+	cap_data[0].effective = cap_data[0].permitted = caplist | (1 << CAP_SETUID);
+	if (capset(&cap_hdr_haproxy, cap_data) == -1) {
 		ha_alert("Failed to set the final capabilities using capset(): %s\n", strerror(errno));
 		return -1;
 	}
@@ -201,7 +211,7 @@ int prepare_caps_for_setuid(int from_uid, int to_uid)
  */
 int finalize_caps_after_setuid(int from_uid, int to_uid)
 {
-	struct __user_cap_data_struct cap_data = { };
+	struct __user_cap_data_struct cap_data[_LINUX_CAPABILITY_U32S_1] = { };
 
 	if (from_uid != 0)
 		return 0;
@@ -212,11 +222,12 @@ int finalize_caps_after_setuid(int from_uid, int to_uid)
 	if (!caplist)
 		return 0;
 
-	cap_data.effective = cap_data.permitted = caplist;
-	if (capset(&cap_hdr_haproxy, &cap_data) == -1) {
+	cap_data[0].effective = cap_data[0].permitted = caplist;
+	if (capset(&cap_hdr_haproxy, cap_data) == -1) {
 		ha_alert("Failed to drop the setuid capability using capset(): %s\n", strerror(errno));
 		return -1;
 	}
+
 	/* all's good */
 	return 0;
 }
