@@ -11747,22 +11747,22 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 		return 1;
 
 	case HLUA_E_ETMOUT:
-		SEND_ERR(NULL, "Lua converter '%s': execution timeout.\n",
+		SEND_ERR(NULL, "Lua cli '%s': execution timeout.\n",
 		         fcn->name);
 		return 1;
 
 	case HLUA_E_BTMOUT:
-		SEND_ERR(NULL, "Lua converter '%s': burst timeout.\n",
+		SEND_ERR(NULL, "Lua cli '%s': burst timeout.\n",
 		         fcn->name);
 		return 1;
 
 	case HLUA_E_NOMEM:
-		SEND_ERR(NULL, "Lua converter '%s': out of memory error.\n",
+		SEND_ERR(NULL, "Lua cli '%s': out of memory error.\n",
 		         fcn->name);
 		return 1;
 
 	case HLUA_E_YIELD: /* unexpected */
-		SEND_ERR(NULL, "Lua converter '%s': yield not allowed.\n",
+		SEND_ERR(NULL, "Lua cli '%s': yield not allowed.\n",
 		         fcn->name);
 		return 1;
 
