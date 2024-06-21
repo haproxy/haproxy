@@ -3,6 +3,8 @@
 #include <syscall.h>
 #include <linux/capability.h>
 
+#define CAPS_TO_ULLONG(low, high)    (((ullong)high << 32) | (ullong)low)
+
 /* for haproxy process itself, allocate this 8 byte-size struct only once in
  * .data and makes it accessible from other compile-units, because we always
  * fill it with the same values and because we could use it to collect
