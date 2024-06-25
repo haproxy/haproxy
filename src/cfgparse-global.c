@@ -46,12 +46,12 @@ static const char *common_kw_list[] = {
 	"ssl-server-verify", "maxconnrate", "maxsessrate", "maxsslrate",
 	"maxcomprate", "maxpipes", "maxzlibmem", "maxcompcpuusage", "ulimit-n",
 	"chroot", "description", "node", "pidfile", "unix-bind", "log",
-	"log-profile", "log-send-hostname", "log-tag", "server-state-base",
-	"server-state-file", "spread-checks", "max-spread-checks", "cpu-map",
-	"setenv", "presetenv", "unsetenv", "resetenv", "strict-limits",
-	"localpeer", "numa-cpu-mapping", "defaults", "listen", "frontend",
-	"backend", "peers", "resolvers", "cluster-secret", "no-quic",
-	"limited-quic", "stats-file",
+	"log-send-hostname", "server-state-base", "server-state-file",
+	"log-tag", "spread-checks", "max-spread-checks", "cpu-map", "setenv",
+	"presetenv", "unsetenv", "resetenv", "strict-limits", "localpeer",
+	"numa-cpu-mapping", "defaults", "listen", "frontend", "backend",
+	"peers", "resolvers", "cluster-secret", "no-quic", "limited-quic",
+	"stats-file",
 	NULL /* must be last */
 };
 
