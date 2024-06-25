@@ -220,9 +220,6 @@ static inline void stksess_kill_if_expired(struct stktable *t, struct stksess *t
 	uint shard;
 	size_t len;
 
-	if (decrefcnt && HA_ATOMIC_SUB_FETCH(&ts->ref_cnt, 1) != 0)
-		return;
-
 	if (t->expire != TICK_ETERNITY && tick_is_expired(ts->expire, now_ms)) {
 		if (t->type == SMP_T_STR)
 			len = strlen((const char *)ts->key.key);
@@ -235,9 +232,12 @@ static inline void stksess_kill_if_expired(struct stktable *t, struct stksess *t
 		ALREADY_CHECKED(shard);
 
 		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
-		__stksess_kill_if_expired(t, ts);
+		if (!decrefcnt || !HA_ATOMIC_SUB_FETCH(&ts->ref_cnt, 1))
+			__stksess_kill_if_expired(t, ts);
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 	}
+	else if (decrefcnt)
+		HA_ATOMIC_SUB_FETCH(&ts->ref_cnt, 1);
 }
 
 /* sets the stick counter's entry pointer */

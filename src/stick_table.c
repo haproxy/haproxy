@@ -170,10 +170,7 @@ int stksess_kill(struct stktable *t, struct stksess *ts, int decrefcnt)
 {
 	uint shard;
 	size_t len;
-	int ret;
-
-	if (decrefcnt && HA_ATOMIC_SUB_FETCH(&ts->ref_cnt, 1) != 0)
-		return 0;
+	int ret = 0;
 
 	if (t->type == SMP_T_STR)
 		len = strlen((const char *)ts->key.key);
@@ -186,7 +183,8 @@ int stksess_kill(struct stktable *t, struct stksess *ts, int decrefcnt)
 	ALREADY_CHECKED(shard);
 
 	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
-	ret = __stksess_kill(t, ts);
+	if (!decrefcnt || !HA_ATOMIC_SUB_FETCH(&ts->ref_cnt, 1))
+		ret = __stksess_kill(t, ts);
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 
 	return ret;
