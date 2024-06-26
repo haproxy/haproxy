@@ -1539,6 +1539,71 @@ static int check_if_maxsock_permitted(int maxsock)
 	return ret == 0;
 }
 
+/* Evaluates a condition provided within a conditional block of the
+ * configuration. Makes process to exit with 0, if the condition is true, with
+ * 1, if the condition is false or with 2, if parse_line encounters an error.
+ */
+static void do_check_condition(char *progname)
+{
+	int result;
+	uint32_t err;
+	const char *errptr;
+	char *errmsg = NULL;
+
+	char *args[MAX_LINE_ARGS+1];
+	int arg = sizeof(args) / sizeof(*args);
+	size_t outlen;
+	char *w;
+
+	if (!check_condition)
+		usage(progname);
+
+	outlen = strlen(check_condition) + 1;
+	err = parse_line(check_condition, check_condition, &outlen, args, &arg,
+                         PARSE_OPT_ENV | PARSE_OPT_WORD_EXPAND | PARSE_OPT_DQUOTE | PARSE_OPT_SQUOTE | PARSE_OPT_BKSLASH,
+                         &errptr);
+
+	if (err & PARSE_ERR_QUOTE) {
+		ha_alert("Syntax Error in condition: Unmatched quote.\n");
+		exit(2);
+	}
+
+	if (err & PARSE_ERR_HEX) {
+		ha_alert("Syntax Error in condition: Truncated or invalid hexadecimal sequence.\n");
+		exit(2);
+	}
+
+	if (err & (PARSE_ERR_TOOLARGE|PARSE_ERR_OVERLAP)) {
+		ha_alert("Error in condition: Line too long.\n");
+		exit(2);
+	}
+
+	if (err & PARSE_ERR_TOOMANY) {
+		ha_alert("Error in condition: Too many words.\n");
+		exit(2);
+	}
+
+	if (err) {
+		ha_alert("Unhandled error in condition, please report this to the developers.\n");
+		exit(2);
+	}
+
+	/* remerge all words into a single expression */
+	for (w = *args; (w += strlen(w)) < check_condition + outlen - 1; *w = ' ')
+		;
+
+	result = cfg_eval_condition(args, &errmsg, &errptr);
+
+	if (result < 0) {
+		if (errmsg)
+			ha_alert("Failed to evaluate condition: %s\n", errmsg);
+
+		exit(2);
+	}
+
+	exit(result ? 0 : 1);
+}
+
 /* This performs th every basic early initialization at the end of the PREPARE
  * init stage. It may only assume that list heads are initialized, but not that
  * anything else is correct. It will initialize a number of variables that
@@ -2063,66 +2128,9 @@ static void init(int argc, char **argv)
 		global.mode &= ~MODE_MWORKER;
 	}
 
-	if (global.mode & MODE_CHECK_CONDITION) {
-		int result;
-
-		uint32_t err;
-		const char *errptr;
-		char *errmsg = NULL;
-
-		char *args[MAX_LINE_ARGS+1];
-		int arg = sizeof(args) / sizeof(*args);
-		size_t outlen;
-		char *w;
-
-		if (!check_condition)
-			usage(progname);
-
-		outlen = strlen(check_condition) + 1;
-		err = parse_line(check_condition, check_condition, &outlen, args, &arg,
-		                 PARSE_OPT_ENV | PARSE_OPT_WORD_EXPAND | PARSE_OPT_DQUOTE | PARSE_OPT_SQUOTE | PARSE_OPT_BKSLASH,
-		                 &errptr);
-
-		if (err & PARSE_ERR_QUOTE) {
-			ha_alert("Syntax Error in condition: Unmatched quote.\n");
-			exit(2);
-		}
-
-		if (err & PARSE_ERR_HEX) {
-			ha_alert("Syntax Error in condition: Truncated or invalid hexadecimal sequence.\n");
-			exit(2);
-		}
-
-		if (err & (PARSE_ERR_TOOLARGE|PARSE_ERR_OVERLAP)) {
-			ha_alert("Error in condition: Line too long.\n");
-			exit(2);
-		}
-
-		if (err & PARSE_ERR_TOOMANY) {
-			ha_alert("Error in condition: Too many words.\n");
-			exit(2);
-		}
-
-		if (err) {
-			ha_alert("Unhandled error in condition, please report this to the developers.\n");
-			exit(2);
-		}
-
-		/* remerge all words into a single expression */
-		for (w = *args; (w += strlen(w)) < check_condition + outlen - 1; *w = ' ')
-			;
-
-		result = cfg_eval_condition(args, &errmsg, &errptr);
-
-		if (result < 0) {
-			if (errmsg)
-				ha_alert("Failed to evaluate condition: %s\n", errmsg);
-
-			exit(2);
-		}
-
-		exit(result ? 0 : 1);
-	}
+	/* Do check_condition, if we started with -cc, and exit. */
+	if (global.mode & MODE_CHECK_CONDITION)
+		do_check_condition(progname);
 
 	/* set the atexit functions when not doing configuration check */
 	if (!(global.mode & MODE_CHECK) && (getenv("HAPROXY_MWORKER_REEXEC") != NULL)) {
