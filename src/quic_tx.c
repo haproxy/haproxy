@@ -611,11 +611,6 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			total += cur_pkt->len;
 			dglen += cur_pkt->len;
 
-			/* qc_do_build_pkt() is responsible to decrement probe
-			 * value. Required to break loop on qc_may_build_pkt().
-			 */
-			probe = qel->pktns->tx.pto_probe;
-
 			/* Reset padding if datagram is big enough. */
 			if (dglen >= QUIC_INITIAL_PACKET_MINLEN)
 				padding = 0;
@@ -640,6 +635,10 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				goto out;
 			}
 
+			/* Only one short packet by datagram when probing. */
+			if (probe && qel == qc->ael)
+				break;
+
 			if (LIST_ISEMPTY(frms)) {
 				prv_pkt = cur_pkt;
 			}
@@ -654,6 +653,11 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				padding = 0;
 				prv_pkt = NULL;
 			}
+
+			/* qc_do_build_pkt() is responsible to decrement probe
+			 * value. Required to break loop on qc_may_build_pkt().
+			 */
+			probe = qel->pktns->tx.pto_probe;
 		}
 
 		TRACE_DEVEL("next encryption level", QUIC_EV_CONN_PHPKTS, qc);
