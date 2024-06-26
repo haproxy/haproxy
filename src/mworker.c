@@ -48,6 +48,7 @@
 static int exitcode = -1;
 static int max_reloads = -1; /* number max of reloads a worker can have until they are killed */
 struct mworker_proc *proc_self = NULL; /* process structure of current process */
+struct list mworker_cli_conf = LIST_HEAD_INIT(mworker_cli_conf); /* master CLI configuration (-S flag) */
 
 /* ----- children processes handling ----- */
 
@@ -785,6 +786,60 @@ void mworker_free_child(struct mworker_proc *child)
 	ha_free(&child->id);
 	ha_free(&child->version);
 	free(child);
+}
+
+/* Creates and binds dedicated master CLI 'reload' sockpair and listeners */
+void mworker_create_master_cli(void)
+{
+	struct wordlist *it, *c;
+
+	/* get the info of the children in the env */
+	if (mworker_env_to_proc_list() < 0) {
+		exit(EXIT_FAILURE);
+	}
+
+	if (!LIST_ISEMPTY(&mworker_cli_conf)) {
+		char *path = NULL;
+
+		if (mworker_cli_proxy_create() < 0) {
+			ha_alert("Can't create the master's CLI.\n");
+			exit(EXIT_FAILURE);
+		}
+
+		list_for_each_entry_safe(c, it, &mworker_cli_conf, list) {
+
+			if (mworker_cli_proxy_new_listener(c->s) == NULL) {
+				ha_alert("Can't create the master's CLI.\n");
+				exit(EXIT_FAILURE);
+			}
+			LIST_DELETE(&c->list);
+			free(c->s);
+			free(c);
+		}
+		/* Creates the mcli_reload listener, which is the listener used
+		 * to retrieve the master CLI session which asked for the reload.
+		 *
+		 * ipc_fd[1] will be used as a listener, and ipc_fd[0]
+		 * will be used to send the FD of the session.
+		 *
+		 * Both FDs will be kept in the master. The sockets are
+		 * created only if they weren't inherited.
+		 */
+		if ((proc_self->ipc_fd[1] == -1) &&
+		     socketpair(AF_UNIX, SOCK_STREAM, 0, proc_self->ipc_fd) < 0) {
+			ha_alert("Can't create the mcli_reload socketpair.\n");
+			exit(EXIT_FAILURE);
+		}
+
+		/* Create the mcli_reload listener from the proc_self struct */
+		memprintf(&path, "sockpair@%d", proc_self->ipc_fd[1]);
+		mcli_reload_bind_conf = mworker_cli_proxy_new_listener(path);
+		if (mcli_reload_bind_conf == NULL) {
+			ha_alert("Can't create the mcli_reload listener.\n");
+			exit(EXIT_FAILURE);
+		}
+		ha_free(&path);
+	}
 }
 
 static struct cfg_kw_list mworker_kws = {{ }, {

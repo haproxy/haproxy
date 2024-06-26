@@ -18,6 +18,8 @@
 #include <haproxy/signal-t.h>
 
 extern struct mworker_proc *proc_self;
+/* master CLI configuration (-S flag) */
+extern struct list mworker_cli_conf;
 
 void mworker_proc_list_to_env(void);
 int mworker_env_to_proc_list(void);
@@ -44,5 +46,7 @@ void mworker_kill_max_reloads(int sig);
 struct mworker_proc *mworker_proc_new();
 void mworker_free_child(struct mworker_proc *);
 void mworker_cleanup_proc();
+
+void mworker_create_master_cli(void);
 
 #endif /* _HAPROXY_MWORKER_H_ */

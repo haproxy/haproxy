@@ -287,9 +287,6 @@ int check_kw_experimental(struct cfg_keyword *kw, const char *file, int linenum,
 	return 0;
 }
 
-/* master CLI configuration (-S flag) */
-struct list mworker_cli_conf = LIST_HEAD_INIT(mworker_cli_conf);
-
 /* These are strings to be reported in the output of "haproxy -vv". They may
  * either be constants (in which case must_free must be zero) or dynamically
  * allocated strings to pass to free() on exit, and in this case must_free
@@ -2261,58 +2258,8 @@ static void init(int argc, char **argv)
 		global.nbthread = 1;
 	}
 
-	if (global.mode & (MODE_MWORKER|MODE_MWORKER_WAIT)) {
-		struct wordlist *it, *c;
-
-		master = 1;
-		/* get the info of the children in the env */
-		if (mworker_env_to_proc_list() < 0) {
-			exit(EXIT_FAILURE);
-		}
-
-		if (!LIST_ISEMPTY(&mworker_cli_conf)) {
-			char *path = NULL;
-
-			if (mworker_cli_proxy_create() < 0) {
-				ha_alert("Can't create the master's CLI.\n");
-				exit(EXIT_FAILURE);
-			}
-
-			list_for_each_entry_safe(c, it, &mworker_cli_conf, list) {
-
-				if (mworker_cli_proxy_new_listener(c->s) == NULL) {
-					ha_alert("Can't create the master's CLI.\n");
-					exit(EXIT_FAILURE);
-				}
-				LIST_DELETE(&c->list);
-				free(c->s);
-				free(c);
-			}
-			/* Creates the mcli_reload listener, which is the listener used
-			 * to retrieve the master CLI session which asked for the reload.
-			 *
-			 * ipc_fd[1] will be used as a listener, and ipc_fd[0]
-			 * will be used to send the FD of the session.
-			 *
-			 * Both FDs will be kept in the master. The sockets are
-			 * created only if they weren't inherited.
-			 */
-			if ((proc_self->ipc_fd[1] == -1) &&
-			     socketpair(AF_UNIX, SOCK_STREAM, 0, proc_self->ipc_fd) < 0) {
-				ha_alert("cannot create the mcli_reload socketpair.\n");
-				exit(EXIT_FAILURE);
-			}
-
-			/* Create the mcli_reload listener from the proc_self struct */
-			memprintf(&path, "sockpair@%d", proc_self->ipc_fd[1]);
-			mcli_reload_bind_conf = mworker_cli_proxy_new_listener(path);
-			if (mcli_reload_bind_conf == NULL) {
-				ha_alert("Cannot create the mcli_reload listener.\n");
-				exit(EXIT_FAILURE);
-			}
-			ha_free(&path);
-		}
-	}
+	if (global.mode & (MODE_MWORKER|MODE_MWORKER_WAIT))
+		mworker_create_master_cli();
 
 	if (!LIST_ISEMPTY(&mworker_cli_conf) && !(arg_mode & MODE_MWORKER)) {
 		ha_alert("a master CLI socket was defined, but master-worker mode (-W) is not enabled.\n");
