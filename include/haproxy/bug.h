@@ -124,6 +124,7 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 
 #define __ABORT_NOW(file, line, ...) do {				\
 		extern ssize_t write(int, const void *, size_t);	\
+		extern size_t strlen(const char *s);			\
 		const char *msg;					\
 		if (sizeof("" __VA_ARGS__) > 1)				\
 			complain(NULL, "\nABORT at " file ":" #line ": " __VA_ARGS__ "\n", 1); \
@@ -141,6 +142,7 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
  */
 #define __ABORT_NOW(file, line, ...) do {				\
 		extern ssize_t write(int, const void *, size_t);	\
+		extern size_t strlen(const char *s);			\
 		const char *msg;					\
 		if (sizeof("" __VA_ARGS__) > 1)				\
 			complain(NULL, "\nABORT at " file ":" #line ": " __VA_ARGS__ "\n", 1); \
