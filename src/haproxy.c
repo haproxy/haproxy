@@ -2063,26 +2063,6 @@ static void init(int argc, char **argv)
 		global.mode &= ~MODE_MWORKER;
 	}
 
-	/* set the atexit functions when not doing configuration check */
-	if (!(global.mode & (MODE_CHECK | MODE_CHECK_CONDITION))
-	    && (getenv("HAPROXY_MWORKER_REEXEC") != NULL)) {
-
-		if (global.mode & MODE_MWORKER) {
-			atexit_flag = 1;
-			atexit(reexec_on_failure);
-		} else if (global.mode & MODE_MWORKER_WAIT) {
-			atexit_flag = 1;
-			atexit(exit_on_waitmode_failure);
-		}
-	}
-
-	if (change_dir && chdir(change_dir) < 0) {
-		ha_alert("Could not change to directory %s : %s\n", change_dir, strerror(errno));
-		exit(1);
-	}
-
-	usermsgs_clr("config");
-
 	if (global.mode & MODE_CHECK_CONDITION) {
 		int result;
 
@@ -2143,6 +2123,25 @@ static void init(int argc, char **argv)
 
 		exit(result ? 0 : 1);
 	}
+
+	/* set the atexit functions when not doing configuration check */
+	if (!(global.mode & MODE_CHECK) && (getenv("HAPROXY_MWORKER_REEXEC") != NULL)) {
+
+		if (global.mode & MODE_MWORKER) {
+			atexit_flag = 1;
+			atexit(reexec_on_failure);
+		} else if (global.mode & MODE_MWORKER_WAIT) {
+			atexit_flag = 1;
+			atexit(exit_on_waitmode_failure);
+		}
+	}
+
+	if (change_dir && chdir(change_dir) < 0) {
+		ha_alert("Could not change to directory %s : %s\n", change_dir, strerror(errno));
+		exit(1);
+	}
+
+	usermsgs_clr("config");
 
 	/* in wait mode, we don't try to read the configuration files */
 	if (!(global.mode & MODE_MWORKER_WAIT)) {
