@@ -45,7 +45,7 @@ struct stktable *stktable_find_by_name(const char *name);
 struct stksess *stksess_new(struct stktable *t, struct stktable_key *key);
 void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key *key);
 void stksess_free(struct stktable *t, struct stksess *ts);
-int stksess_kill(struct stktable *t, struct stksess *ts, int decrefcount);
+int stksess_kill(struct stktable *t, struct stksess *ts);
 int stktable_get_key_shard(struct stktable *t, const void *key, size_t len);
 
 int stktable_init(struct stktable *t, char **err_msg);
@@ -215,7 +215,15 @@ static inline int __stksess_kill_if_expired(struct stktable *t, struct stksess *
 	return 0;
 }
 
-static inline void stksess_kill_if_expired(struct stktable *t, struct stksess *ts, int decrefcnt)
+/*
+ * Decrease the refcount of a stksess and relase it if the refcount falls to 0
+ * _AND_ if the session expired. Note,, the refcount is always decremented.
+ *
+ * This function locks the corresponding table shard to proceed. When this
+ * function is called, the caller must be sure it owns a reference on the
+ * stksess (refcount >= 1).
+ */
+static inline void stksess_kill_if_expired(struct stktable *t, struct stksess *ts)
 {
 	uint shard;
 	size_t len;
@@ -232,11 +240,11 @@ static inline void stksess_kill_if_expired(struct stktable *t, struct stksess *t
 		ALREADY_CHECKED(shard);
 
 		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
-		if (!decrefcnt || !HA_ATOMIC_SUB_FETCH(&ts->ref_cnt, 1))
+		if (!HA_ATOMIC_SUB_FETCH(&ts->ref_cnt, 1))
 			__stksess_kill_if_expired(t, ts);
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 	}
-	else if (decrefcnt)
+	else
 		HA_ATOMIC_SUB_FETCH(&ts->ref_cnt, 1);
 }
 

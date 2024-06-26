@@ -78,7 +78,7 @@ static inline void session_store_counters(struct session *sess)
 		}
 
 		stkctr_set_entry(stkctr, NULL);
-		stksess_kill_if_expired(stkctr->table, ts, 1);
+		stksess_kill_if_expired(stkctr->table, ts);
 	}
 }
 

@@ -140,7 +140,7 @@ static inline void stream_store_counters(struct stream *s)
 			stktable_touch_local(s->stkctr[i].table, ts, 0);
 		}
 		stkctr_set_entry(&s->stkctr[i], NULL);
-		stksess_kill_if_expired(s->stkctr[i].table, ts, 1);
+		stksess_kill_if_expired(s->stkctr[i].table, ts);
 	}
 }
 
@@ -182,7 +182,7 @@ static inline void stream_stop_content_counters(struct stream *s)
 			stktable_touch_local(s->stkctr[i].table, ts, 0);
 		}
 		stkctr_set_entry(&s->stkctr[i], NULL);
-		stksess_kill_if_expired(s->stkctr[i].table, ts, 1);
+		stksess_kill_if_expired(s->stkctr[i].table, ts);
 	}
 }
 

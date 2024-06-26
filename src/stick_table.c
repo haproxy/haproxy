@@ -162,11 +162,14 @@ int __stksess_kill(struct stktable *t, struct stksess *ts)
 }
 
 /*
- * Decrease the refcount if decrefcnt is not 0, and try to kill the stksess.
+ * Decrease the refcount of a stksess and relase it if the refcount falls to 0.
  * Returns non-zero if deleted, zero otherwise.
- * This function locks the table
+ *
+ * This function locks the corresponding table shard to proceed. When this
+ * function is called, the caller must be sure it owns a reference on the
+ * stksess (refcount >= 1).
  */
-int stksess_kill(struct stktable *t, struct stksess *ts, int decrefcnt)
+int stksess_kill(struct stktable *t, struct stksess *ts)
 {
 	uint shard;
 	size_t len;
@@ -183,7 +186,7 @@ int stksess_kill(struct stktable *t, struct stksess *ts, int decrefcnt)
 	ALREADY_CHECKED(shard);
 
 	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
-	if (!decrefcnt || !HA_ATOMIC_SUB_FETCH(&ts->ref_cnt, 1))
+	if (!HA_ATOMIC_SUB_FETCH(&ts->ref_cnt, 1))
 		ret = __stksess_kill(t, ts);
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 
@@ -5268,7 +5271,7 @@ static int table_process_entry(struct appctx *appctx, struct stksess *ts, char *
 		break;
 
 	case STK_CLI_ACT_CLR:
-		if (!stksess_kill(t, ts, 1)) {
+		if (!stksess_kill(t, ts)) {
 			/* don't delete an entry which is currently referenced */
 			return cli_err(appctx, "Entry currently in use, cannot remove\n");
 		}
@@ -5685,7 +5688,7 @@ static void cli_release_show_table(struct appctx *appctx)
 	struct show_table_ctx *ctx = appctx->svcctx;
 
 	if (ctx->state == STATE_DUMP) {
-		stksess_kill_if_expired(ctx->t, ctx->entry, 1);
+		stksess_kill_if_expired(ctx->t, ctx->entry);
 	}
 }
 
