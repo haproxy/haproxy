@@ -517,47 +517,50 @@ static int quic_alloc_rxbufs_listener(struct listener *l)
 	return 0;
 }
 
-/* Check if platform supports the required feature set for quic-conn owned
- * socket. <l> listener must already be binded; a dummy socket will be opened
- * on the same address as one of the support test.
- *
- * Returns true if platform is deemed compatible else false.
+/* Check for platform support of a set of advanced UDP network API features
+ * used by haproxy QUIC stack. Automatically disable unsupported features.
+ * Listener <l> serves to test the ability of binding multiple sockets on the
+ * same address.
  */
-static int quic_test_sock_per_conn_support(struct listener *l)
+static int quic_test_socketopts(struct listener *l)
 {
 	const struct receiver *rx = &l->rx;
-	int ret = 1, fdtest;
+	int fdtest = -1;
 
 	/* Check if IP destination address can be retrieved on recvfrom()
 	 * operation.
 	 */
-#if !defined(IP_PKTINFO) && !defined(IP_RECVDSTADDR)
-	ha_alert("Your platform does not seem to support UDP source address retrieval through IP_PKTINFO or an alternative flag. "
-	         "QUIC connections will use listener socket.\n");
-	ret = 0;
-#endif
-
-	/* Check if platform support multiple UDP sockets bind on the same
-	 * local address. Create a dummy socket and bind it on the same address
-	 * as <l> listener. If bind system call fails, deactivate socket per
-	 * connection. All other errors are not taken into account.
-	 */
-	if (ret) {
+	if (global.tune.options & GTUNE_QUIC_SOCK_PER_CONN) {
 		fdtest = socket(rx->proto->fam->sock_domain,
-		                rx->proto->sock_type, rx->proto->sock_prot);
-		if (fdtest >= 0) {
-			if (setsockopt(fdtest, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) &&
-			    bind(fdtest, (struct sockaddr *)&rx->addr, rx->proto->fam->sock_addrlen) < 0) {
-				ha_alert("Your platform does not seem to support multiple UDP sockets binded on the same address. "
-				         "QUIC connections will use listener socket.\n");
-				ret = 0;
-			}
+				rx->proto->sock_type, rx->proto->sock_prot);
+		if (fdtest < 0)
+			goto err;
 
-			close(fdtest);
+#if defined(IP_PKTINFO) || defined(IP_RECVDSTADDR)
+		/* Check if platform support multiple UDP sockets bind on the same
+		 * local address. Create a dummy socket and bind it on the same address
+		 * as <l> listener. If bind system call fails, deactivate socket per
+		 * connection. All other errors are not taken into account.
+		 */
+		if (setsockopt(fdtest, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) &&
+		    bind(fdtest, (struct sockaddr *)&rx->addr, rx->proto->fam->sock_addrlen) < 0) {
+			ha_alert("Your platform does not seem to support multiple UDP sockets binded on the same address. "
+			         "QUIC connections will use listener socket.\n");
+			global.tune.options &= ~GTUNE_QUIC_SOCK_PER_CONN;
 		}
+#else
+		ha_alert("Your platform does not seem to support UDP source address retrieval through IP_PKTINFO or an alternative flag. "
+		         "QUIC connections will use listener socket.\n");
+		global.tune.options &= ~GTUNE_QUIC_SOCK_PER_CONN;
+#endif
 	}
 
-	return ret;
+	close(fdtest);
+	return ERR_NONE;
+
+ err:
+	ha_alert("Fatal error on quic_test_sockopts(): %s.\n", strerror(errno));
+	return ERR_FATAL;
 }
 
 /* This function tries to bind a QUIC4/6 listener. It may return a warning or
@@ -621,10 +624,8 @@ static int quic_bind_listener(struct listener *listener, char *errmsg, int errle
 		goto udp_return;
 	}
 
-	if (global.tune.options & GTUNE_QUIC_SOCK_PER_CONN) {
-		if (!quic_test_sock_per_conn_support(listener))
-			global.tune.options &= ~GTUNE_QUIC_SOCK_PER_CONN;
-	}
+	if (quic_test_socketopts(listener))
+		return ERR_FATAL;
 
 	if (global.tune.frontend_rcvbuf)
 		setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.frontend_rcvbuf, sizeof(global.tune.frontend_rcvbuf));
