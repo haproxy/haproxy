@@ -163,22 +163,31 @@ int quic_get_cid_tid(const unsigned char *cid, size_t cid_len,
 	struct quic_cid_tree *tree;
 	struct quic_connection_id *conn_id;
 	struct ebmb_node *node;
+	int cid_tid = -1;
 
 	tree = &quic_cid_trees[_quic_cid_tree_idx(cid)];
 	HA_RWLOCK_RDLOCK(QC_CID_LOCK, &tree->lock);
 	node = ebmb_lookup(&tree->root, cid, cid_len);
+	if (node) {
+		conn_id = ebmb_entry(node, struct quic_connection_id, node);
+		cid_tid = HA_ATOMIC_LOAD(&conn_id->tid);
+	}
 	HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
 
-	if (!node) {
+	/* If CID not found, it may be an ODCID, thus not stored in global CID
+	 * tree. Derive it to its associated DCID value and reperform a lookup.
+	 */
+	if (cid_tid < 0) {
 		struct quic_cid orig, derive_cid;
 		struct quic_rx_packet pkt;
 
 		if (!qc_parse_hd_form(&pkt, &pos, pos + len))
-			goto not_found;
+			goto out;
 
+		/* ODCID are only used in INITIAL or 0-RTT packets */
 		if (pkt.type != QUIC_PACKET_TYPE_INITIAL &&
 		    pkt.type != QUIC_PACKET_TYPE_0RTT) {
-			goto not_found;
+			goto out;
 		}
 
 		memcpy(orig.data, cid, cid_len);
@@ -188,17 +197,15 @@ int quic_get_cid_tid(const unsigned char *cid, size_t cid_len,
 		tree = &quic_cid_trees[quic_cid_tree_idx(&derive_cid)];
 		HA_RWLOCK_RDLOCK(QC_CID_LOCK, &tree->lock);
 		node = ebmb_lookup(&tree->root, cid, cid_len);
+		if (node) {
+			conn_id = ebmb_entry(node, struct quic_connection_id, node);
+			cid_tid = HA_ATOMIC_LOAD(&conn_id->tid);
+		}
 		HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
 	}
 
-	if (!node)
-		goto not_found;
-
-	conn_id = ebmb_entry(node, struct quic_connection_id, node);
-	return HA_ATOMIC_LOAD(&conn_id->tid);
-
- not_found:
-	return -1;
+ out:
+	return cid_tid;
 }
 
 /* Retrieve a quic_conn instance from the <pkt> DCID field. If the packet is an
