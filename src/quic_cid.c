@@ -257,10 +257,11 @@ struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 		goto end;
 	}
 	qc = conn_id->qc;
+	TRACE_DEVEL("found connection", QUIC_EV_CONN_RXPKT, qc);
 
  end:
 	HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
-	TRACE_LEAVE(QUIC_EV_CONN_RXPKT, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_RXPKT);
 	return qc;
 }
 
