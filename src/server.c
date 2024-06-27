@@ -3177,12 +3177,10 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 		newsrv->conf.name.key = newsrv->id;
 		ebis_insert(&curproxy->conf.used_server_name, &newsrv->conf.name);
 	}
-	_srv_parse_set_id_from_prefix(srv, srv->tmpl_info.prefix, srv->tmpl_info.nb_low);
 
 	return i - srv->tmpl_info.nb_low;
 
  err:
-	_srv_parse_set_id_from_prefix(srv, srv->tmpl_info.prefix, srv->tmpl_info.nb_low);
 	if (newsrv)  {
 		release_sample_expr(newsrv->ssl_ctx.sni);
 		free_check(&newsrv->agent);
