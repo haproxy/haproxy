@@ -982,7 +982,6 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		case QUIC_FT_RETIRE_CONNECTION_ID:
 		{
-			struct quic_cid_tree *tree __maybe_unused;
 			struct quic_connection_id *conn_id = NULL;
 
 			if (!qc_handle_retire_connection_id_frm(qc, &frm, &pkt->dcid, &conn_id))
@@ -991,10 +990,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			if (!conn_id)
 				break;
 
-			tree = &quic_cid_trees[quic_cid_tree_idx(&conn_id->cid)];
-			HA_RWLOCK_WRLOCK(QC_CID_LOCK, &tree->lock);
-			ebmb_delete(&conn_id->node);
-			HA_RWLOCK_WRUNLOCK(QC_CID_LOCK, &tree->lock);
+			quic_cid_delete(conn_id);
 			eb64_delete(&conn_id->seq_num);
 			pool_free(pool_head_quic_connection_id, conn_id);
 			TRACE_PROTO("CID retired", QUIC_EV_CONN_PSTRM, qc);
@@ -1004,7 +1000,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				TRACE_ERROR("CID allocation error", QUIC_EV_CONN_IO_CB, qc);
 			}
 			else {
-				quic_cid_insert(conn_id);
+				_quic_cid_insert(conn_id);
 				qc_build_new_connection_id_frm(qc, conn_id);
 			}
 			break;
@@ -1583,8 +1579,6 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 		BUG_ON(!pkt->version); /* This must not happen. */
 
 		if (!qc) {
-			struct quic_cid_tree *tree;
-			struct ebmb_node *node;
 			struct quic_connection_id *conn_id;
 			int ipv4;
 
@@ -1660,14 +1654,8 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				qc->hash64 = quic_hash64_from_cid(conn_id->cid.data, conn_id->cid.len,
 								  global.cluster_secret, sizeof(global.cluster_secret));
 
-			tree = &quic_cid_trees[quic_cid_tree_idx(&conn_id->cid)];
-			HA_RWLOCK_WRLOCK(QC_CID_LOCK, &tree->lock);
-			node = ebmb_insert(&tree->root, &conn_id->node, conn_id->cid.len);
-			if (node != &conn_id->node) {
+			if (quic_cid_insert(conn_id, new_tid)) {
 				pool_free(pool_head_quic_connection_id, conn_id);
-
-				conn_id = ebmb_entry(node, struct quic_connection_id, node);
-				*new_tid = HA_ATOMIC_LOAD(&conn_id->tid);
 				quic_conn_release(qc);
 				qc = NULL;
 			}
@@ -1680,7 +1668,6 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				/* Initialize the next CID sequence number to be used for this connection. */
 				qc->next_cid_seq_num = 1;
 			}
-			HA_RWLOCK_WRUNLOCK(QC_CID_LOCK, &tree->lock);
 
 			if (*new_tid != -1)
 				goto out;

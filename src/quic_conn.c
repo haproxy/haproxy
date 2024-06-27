@@ -47,6 +47,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/quic_ack.h>
 #include <haproxy/quic_cc.h>
+#include <haproxy/quic_cid.h>
 #include <haproxy/quic_cli-t.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_enc.h>
@@ -507,7 +508,7 @@ int quic_build_post_handshake_frames(struct quic_conn *qc)
 		/* TODO To prevent CID tree locking, all CIDs created here
 		 * could be allocated at the same time as the first one.
 		 */
-		quic_cid_insert(conn_id);
+		_quic_cid_insert(conn_id);
 
 		quic_connection_id_to_frm_cpy(frm, conn_id);
 		LIST_APPEND(&frm_list, &frm->list);
@@ -1648,12 +1649,6 @@ const struct quic_version *qc_supported_version(uint32_t version)
  */
 int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len)
 {
-	const uchar idx = _quic_cid_tree_idx(dcid);
-	struct quic_connection_id *conn_id;
-	struct ebmb_node *node = NULL;
-	struct quic_cid_tree *tree = &quic_cid_trees[idx];
-	int ret;
-
 	/* Test against our default CID or client ODCID. */
 	if ((qc->scid.len == dcid_len &&
 	     memcmp(qc->scid.data, dcid, dcid_len) == 0) ||
@@ -1669,17 +1664,7 @@ int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len)
 	 *
 	 * TODO set it to our default CID to avoid this operation next time.
 	 */
-	ret = 0;
-	HA_RWLOCK_RDLOCK(QC_CID_LOCK, &tree->lock);
-	node = ebmb_lookup(&tree->root, dcid, dcid_len);
-	if (node) {
-		conn_id = ebmb_entry(node, struct quic_connection_id, node);
-		if (qc == conn_id->qc)
-			ret = 1;
-	}
-	HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
-
-	return ret;
+	return quic_cmp_cid_conn(dcid, dcid_len, qc);
 }
 
 /* Wake-up upper layer for sending if all conditions are met :
