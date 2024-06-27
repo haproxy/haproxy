@@ -1670,13 +1670,12 @@ int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len)
 	 */
 	HA_RWLOCK_RDLOCK(QC_CID_LOCK, &tree->lock);
 	node = ebmb_lookup(&tree->root, dcid, dcid_len);
-	HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
-
 	if (node) {
 		conn_id = ebmb_entry(node, struct quic_connection_id, node);
 		if (qc == conn_id->qc)
 			return 1;
 	}
+	HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
 
 	return 0;
 }
