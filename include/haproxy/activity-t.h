@@ -36,11 +36,6 @@
 
 
 #ifdef USE_MEMORY_PROFILING
-/* Elements used by memory profiling. This determines the number of buckets to
- * store stats.
- */
-#define MEMPROF_HASH_BITS 10
-#define MEMPROF_HASH_BUCKETS (1U << MEMPROF_HASH_BITS)
 
 enum memprof_method {
 	MEMPROF_METH_UNKNOWN = 0,

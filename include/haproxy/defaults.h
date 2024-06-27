@@ -547,6 +547,14 @@
 # define RING_DFLT_QUEUES   6
 #endif
 
+/* Elements used by memory profiling. This determines the number of buckets to
+ * store stats.
+ */
+#ifndef MEMPROF_HASH_BITS
+# define MEMPROF_HASH_BITS 10
+#endif
+#define MEMPROF_HASH_BUCKETS (1U << MEMPROF_HASH_BITS)
+
 /* Let's make DEBUG_STRICT default to 1 to get rid of it in the makefile */
 #ifndef DEBUG_STRICT
 # define DEBUG_STRICT 1
