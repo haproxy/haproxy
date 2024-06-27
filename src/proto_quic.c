@@ -51,7 +51,6 @@
 
 /* per-thread quic datagram handlers */
 struct quic_dghdlr *quic_dghdlrs;
-struct eb_root *quic_cid_tree;
 
 /* global CID trees */
 #define QUIC_CID_TREES_CNT 256
