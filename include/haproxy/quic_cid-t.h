@@ -3,6 +3,12 @@
 
 #include <import/ebtree-t.h>
 #include <haproxy/quic_tp-t.h>
+#include <haproxy/thread.h>
+
+struct quic_cid_tree {
+	struct eb_root root;
+	__decl_thread(HA_RWLOCK_T lock);
+};
 
 /* QUIC connection ID maximum length for version 1. */
 #define QUIC_CID_MAXLEN               20 /* bytes */

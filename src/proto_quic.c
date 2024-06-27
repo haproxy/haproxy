@@ -52,10 +52,6 @@
 /* per-thread quic datagram handlers */
 struct quic_dghdlr *quic_dghdlrs;
 
-/* global CID trees */
-#define QUIC_CID_TREES_CNT 256
-struct quic_cid_tree *quic_cid_trees;
-
 /* Size of the internal buffer of QUIC RX buffer at the fd level */
 #define QUIC_RX_BUFSZ  (1UL << 18)
 
@@ -704,17 +700,6 @@ static int quic_alloc_dghdlrs(void)
 		MT_LIST_INIT(&dghdlr->dgrams);
 	}
 
-	quic_cid_trees = calloc(QUIC_CID_TREES_CNT, sizeof(*quic_cid_trees));
-	if (!quic_cid_trees) {
-		ha_alert("Failed to allocate global quic CIDs trees.\n");
-		return 0;
-	}
-
-	for (i = 0; i < QUIC_CID_TREES_CNT; ++i) {
-		HA_RWLOCK_INIT(&quic_cid_trees[i].lock);
-		quic_cid_trees[i].root = EB_ROOT_UNIQUE;
-	}
-
 	return 1;
 }
 REGISTER_POST_CHECK(quic_alloc_dghdlrs);
@@ -728,8 +713,6 @@ static int quic_deallocate_dghdlrs(void)
 			tasklet_free(quic_dghdlrs[i].task);
 		free(quic_dghdlrs);
 	}
-
-	ha_free(&quic_cid_trees);
 
 	return 1;
 }

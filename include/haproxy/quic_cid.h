@@ -11,8 +11,11 @@
 #include <haproxy/buf-t.h>
 #include <haproxy/chunk.h>
 #include <haproxy/quic_conn-t.h>
+#include <haproxy/quic_cid-t.h>
 #include <haproxy/quic_rx-t.h>
 #include <haproxy/proto_quic.h>
+
+extern struct quic_cid_tree *quic_cid_trees;
 
 struct quic_connection_id *new_quic_cid(struct eb_root *root,
                                         struct quic_conn *qc,
