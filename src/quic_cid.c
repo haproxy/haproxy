@@ -26,10 +26,14 @@ static int quic_stateless_reset_token_init(struct quic_connection_id *conn_id)
 
 /* Generate a CID directly derived from <orig> CID and <addr> address.
  *
+ * This function is used to calculate the first connection CID derived from
+ * client ODCID. This allows to optimize CID global tree by not inserting ODCID
+ * as client is expected to replace it early.
+ *
  * Returns the derived CID.
  */
-struct quic_cid quic_derive_cid(const struct quic_cid *orig,
-                                const struct sockaddr_storage *addr)
+static struct quic_cid quic_derive_cid(const struct quic_cid *orig,
+                                       const struct sockaddr_storage *addr)
 {
 	struct quic_cid cid;
 	const struct sockaddr_in *in;
