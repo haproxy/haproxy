@@ -197,6 +197,21 @@ static inline int http_header_has_forbidden_char(const struct ist ist, const cha
 	return 0;
 }
 
+/* Check that method only contains token as required.
+ * See RFC 9110 9. Methods
+ */
+static inline int http_method_has_forbidden_char(const struct ist ist)
+{
+	const char *start = istptr(ist);
+
+	do {
+		if (!HTTP_IS_TOKEN(*start))
+			return 1;
+		start++;
+	} while (start < istend(ist));
+	return 0;
+}
+
 /* Looks into <ist> for forbidden characters for :path values (0x00..0x1F,
  * 0x20, 0x23), starting at pointer <start> which must be within <ist>.
  * Returns non-zero if such a character is found, 0 otherwise. When run on
