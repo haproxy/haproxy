@@ -4595,6 +4595,7 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 
 		/* unset server's addr, keep port */
 		server_get_inetaddr(s, &srv_addr);
+		srv_addr.family = AF_UNSPEC;
 		memset(&srv_addr.addr, 0, sizeof(srv_addr.addr));
 		server_set_inetaddr(s, &srv_addr, SERVER_INETADDR_UPDATER_NONE, NULL);
 	}
@@ -4610,6 +4611,7 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 
 		/* unset server's addr, keep port */
 		server_get_inetaddr(s, &srv_addr);
+		srv_addr.family = AF_UNSPEC;
 		memset(&srv_addr.addr, 0, sizeof(srv_addr.addr));
 		server_set_inetaddr(s, &srv_addr, SERVER_INETADDR_UPDATER_NONE, NULL);
 	}
@@ -4697,6 +4699,7 @@ int snr_resolution_error_cb(struct resolv_requester *requester, int error_code)
 
 		/* unset server's addr, keep port */
 		server_get_inetaddr(s, &srv_addr);
+		srv_addr.family = AF_UNSPEC;
 		memset(&srv_addr.addr, 0, sizeof(srv_addr.addr));
 		server_set_inetaddr(s, &srv_addr, SERVER_INETADDR_UPDATER_NONE, NULL);
 		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
