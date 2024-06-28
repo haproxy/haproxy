@@ -2115,6 +2115,22 @@ static void init(int argc, char **argv)
 		global.nbthread = 1;
 	}
 
+	/* if daemon + mworker: must fork here to let a master process live in
+	 * background before forking children.
+	 */
+	if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL) &&
+		(global.mode & MODE_DAEMON)) {
+		ret = fork();
+		if (ret < 0) {
+			ha_alert("[%s.main()] Cannot fork.\n", argv[0]);
+			protocol_unbind_all();
+			exit(1); /* there has been an error */
+		} else if (ret > 0) { /* parent leave to daemonize */
+			exit(0);
+		} else /* change the process group ID in the child (master process) */
+			setsid();
+	}
+
 	if (global.mode & (MODE_MWORKER|MODE_MWORKER_WAIT))
 		mworker_create_master_cli();
 
@@ -3527,26 +3543,6 @@ int main(int argc, char **argv)
 		int ret = 0;
 		int in_parent = 0;
 		int devnullfd = -1;
-
-		/*
-		 * if daemon + mworker: must fork here to let a master
-		 * process live in background before forking children
-		 */
-
-		if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL)
-		    && (global.mode & MODE_MWORKER)
-		    && (global.mode & MODE_DAEMON)) {
-			ret = fork();
-			if (ret < 0) {
-				ha_alert("[%s.main()] Cannot fork.\n", argv[0]);
-				protocol_unbind_all();
-				exit(1); /* there has been an error */
-			} else if (ret > 0) { /* parent leave to daemonize */
-				exit(0);
-			} else /* change the process group ID in the child (master process) */
-				setsid();
-		}
-
 
 		/* if in master-worker mode, write the PID of the father */
 		if (global.mode & MODE_MWORKER) {
