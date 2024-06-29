@@ -1,6 +1,53 @@
 ChangeLog :
 ===========
 
+2024/06/29 : 3.1-dev2
+    - BUG/MINOR: log: fix broken '+bin' logformat node option
+    - DEBUG: hlua: distinguish burst timeout errors from exec timeout errors
+    - REGTESTS: ssl: fix some regtests 'feature cmd' start condition
+    - BUG/MEDIUM: ssl: AWS-LC + TLSv1.3 won't do ECDSA in RSA+ECDSA configuration
+    - MINOR: ssl: activate sigalgs feature for AWS-LC
+    - REGTESTS: ssl: activate new SSL reg-tests with AWS-LC
+    - BUG/MEDIUM: proxy: fix email-alert invalid free
+    - REORG: mailers: move free_email_alert() to mailers.c
+    - BUG/MINOR: proxy: fix email-alert leak on deinit() (2nd try)
+    - DOC: configuration: fix alphabetical order of bind options
+    - DOC: management: document ptr lookup for table commands
+    - BUG/MAJOR: quic: fix padding with short packets
+    - BUG/MAJOR: quic: do not loop on emission on closing/draining state
+    - MINOR: sample: date converter takes HTTP date and output an UNIX timestamp
+    - SCRIPTS: git-show-backports: do not truncate git-show output
+    - DOC: api/event_hdl: small updates, fix an example and add some precisions
+    - BUG/MINOR: h3: fix crash on STOP_SENDING receive after GOAWAY emission
+    - BUG/MINOR: mux-quic: fix crash on qcs SD alloc failure
+    - BUG/MINOR: h3: fix BUG_ON() crash on control stream alloc failure
+    - BUG/MINOR: quic: fix BUG_ON() on Tx pkt alloc failure
+    - DEV: flags/show-fd-to-flags: adapt to recent versions
+    - MINOR: capabilities: export capget and __user_cap_header_struct
+    - MINOR: capabilities: prepare support for version 3
+    - MINOR: capabilities: use _LINUX_CAPABILITY_VERSION_3
+    - MINOR: cli/debug: show dev: add cmdline and version
+    - MINOR: cli/debug: show dev: show capabilities
+    - MINOR: debug: print gdb hints when crashing
+    - BUILD: debug: also declare strlen() in __ABORT_NOW()
+    - BUILD: Missing inclusion header for ssize_t type
+    - BUG/MINOR: hlua: report proper context upon error in hlua_cli_io_handler_fct()
+    - MINOR: cfgparse/log: remove leftover dead code
+    - BUG/MEDIUM: stick-table: Decrement the ref count inside lock to kill a session
+    - MINOR: stick-table: Always decrement ref count before killing a session
+    - REORG: init: do MODE_CHECK_CONDITION logic first
+    - REORG: init: encapsulate CHECK_CONDITION logic in a func
+    - REORG: init: encapsulate 'reload' sockpair and master CLI listeners creation
+    - REORG: init: encapsulate code that reads cfg files
+    - BUG/MINOR: server: fix first server template name lookup UAF
+    - MINOR: activity: make the memory profiling hash size configurable at build time
+    - BUG/MEDIUM: server/dns: prevent DOWN/UP flap upon resolution timeout or error
+    - BUG/MEDIUM: h3: ensure the ":method" pseudo header is totally valid
+    - BUG/MEDIUM: h3: ensure the ":scheme" pseudo header is totally valid
+    - BUG/MEDIUM: quic: fix race-condition in quic_get_cid_tid()
+    - BUG/MINOR: quic: fix race condition in qc_check_dcid()
+    - BUG/MINOR: quic: fix race-condition on trace for CID retrieval
+
 2024/06/14 : 3.1-dev1
     - REGTESTS: Remove REQUIRE_VERSION=2.1 from all tests
     - REGTESTS: Remove REQUIRE_VERSION=2.2 from all tests
