@@ -1652,6 +1652,7 @@ int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len)
 	struct quic_connection_id *conn_id;
 	struct ebmb_node *node = NULL;
 	struct quic_cid_tree *tree = &quic_cid_trees[idx];
+	int ret;
 
 	/* Test against our default CID or client ODCID. */
 	if ((qc->scid.len == dcid_len &&
@@ -1668,16 +1669,17 @@ int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len)
 	 *
 	 * TODO set it to our default CID to avoid this operation next time.
 	 */
+	ret = 0;
 	HA_RWLOCK_RDLOCK(QC_CID_LOCK, &tree->lock);
 	node = ebmb_lookup(&tree->root, dcid, dcid_len);
 	if (node) {
 		conn_id = ebmb_entry(node, struct quic_connection_id, node);
 		if (qc == conn_id->qc)
-			return 1;
+			ret = 1;
 	}
 	HA_RWLOCK_RDUNLOCK(QC_CID_LOCK, &tree->lock);
 
-	return 0;
+	return ret;
 }
 
 /* Wake-up upper layer for sending if all conditions are met :
