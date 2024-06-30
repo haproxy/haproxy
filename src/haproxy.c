@@ -3704,7 +3704,7 @@ int main(int argc, char **argv)
 		}
 
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
-			devnullfd = open("/dev/null", O_RDWR, 0);
+			devnullfd = open("/dev/null", (O_RDWR | O_CLOEXEC), 0);
 			if (devnullfd < 0) {
 				ha_alert("Cannot open /dev/null\n");
 				exit(EXIT_FAILURE);
