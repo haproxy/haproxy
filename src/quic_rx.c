@@ -1571,6 +1571,9 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 
 	qc = retrieve_qc_conn_from_cid(pkt, &dgram->saddr, new_tid);
 
+	/* quic_conn must be set to NULL if bind on another thread. */
+	BUG_ON_HOT(qc && *new_tid != -1);
+
 	/* If connection already created or rebinded on another thread. */
 	if (!qc && *new_tid != -1 && tid != *new_tid)
 		goto out;
@@ -2160,6 +2163,10 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 
 			dgram->qc = qc;
 		}
+
+		/* Ensure quic_conn access only occurs on its attached thread. */
+		BUG_ON_HOT(((struct quic_connection_id *)
+		               eb64_entry(eb64_first(qc->cids), struct quic_connection_id, seq_num))->tid != tid);
 
 		/* Ensure thread connection migration is finalized ASAP. */
 		if (qc->flags & QUIC_FL_CONN_AFFINITY_CHANGED)
