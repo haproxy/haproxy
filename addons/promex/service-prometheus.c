@@ -440,11 +440,6 @@ static int promex_dump_ts_header(const struct ist name, const struct ist desc, e
 
 	if (istcat(out, ist("# HELP "), max) == -1 ||
 	    istcat(out, name, max) == -1 ||
-	    istcat(out, ist(" "), max) == -1)
-		goto full;
-
-	if (istcat(out, ist("# HELP "), max) == -1 ||
-	    istcat(out, name, max) == -1 ||
 	    istcat(out, ist(" "), max) == -1 ||
 	    istcat(out, desc, max) == -1)
 		goto full;
