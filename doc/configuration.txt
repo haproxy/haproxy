@@ -15945,8 +15945,15 @@ crl-file <crlfile>
   list for every certificate of your certificate authority chain.
 
 crt <cert>
-  This setting is only available when support for OpenSSL was built in. It
-  designates a PEM file containing both the required certificates and any
+  This setting is only available when support for OpenSSL was built in.
+
+  HAProxy uses a cache system, the files are loaded only once in the certificate
+  storage, and each next "crt" keyword will use this cached version. When the
+  certificate was declared in a "crt-store", the certificate storage is
+  populated from there and don't try to load additional files by detecting file
+  extensions.
+
+  It designates a PEM file containing both the required certificates and any
   associated private keys. This file can be built by concatenating multiple
   PEM files into one (e.g. cat cert.pem key.pem > combined.pem). If your CA
   requires an intermediate certificate, this can also be concatenated into this
