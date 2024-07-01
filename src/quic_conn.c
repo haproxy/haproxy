@@ -1314,6 +1314,9 @@ void quic_conn_release(struct quic_conn *qc)
 	if (!qc)
 		goto leave;
 
+	/* Must not delete a quic_conn if thread affinity rebind in progress. */
+	BUG_ON(qc->flags & QUIC_FL_CONN_AFFINITY_CHANGED);
+
 	/* We must not free the quic-conn if the MUX is still allocated. */
 	BUG_ON(qc->mux_state == QC_MUX_READY);
 
