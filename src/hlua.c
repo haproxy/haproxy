@@ -5273,7 +5273,10 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 	size_t len2;
 
 	/* Read the maximum amount of data available. */
-	ret = co_getblk_nc(sc_oc(sc), &blk1, &len1, &blk2, &len2);
+	if (luactx->appctx->flags & APPCTX_FL_INOUT_BUFS)
+		ret = b_getblk_nc(&luactx->appctx->inbuf, &blk1, &len1, &blk2, &len2, 0, b_data(&luactx->appctx->inbuf));
+	else
+		ret = co_getblk_nc(sc_oc(sc), &blk1, &len1, &blk2, &len2);
 
 	/* Data not yet available. return yield. */
 	if (ret == 0) {
@@ -5299,7 +5302,10 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 		 */
 		luaL_addlstring(&luactx->b, blk1, len1);
 		luaL_addlstring(&luactx->b, blk2, len2);
-		co_skip(sc_oc(sc), len1 + len2);
+		if (luactx->appctx->flags & APPCTX_FL_INOUT_BUFS)
+			b_del(&luactx->appctx->inbuf, len1 + len2);
+		else
+			co_skip(sc_oc(sc), len1 + len2);
 		applet_need_more_data(luactx->appctx);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, TICK_ETERNITY, 0));
 
@@ -5317,8 +5323,10 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 		luaL_addlstring(&luactx->b, blk2, len2);
 		len -= len2;
 
-		/* Consume input channel output buffer data. */
-		co_skip(sc_oc(sc), len1 + len2);
+		if (luactx->appctx->flags & APPCTX_FL_INOUT_BUFS)
+			b_del(&luactx->appctx->inbuf, len1 + len2);
+		else
+			co_skip(sc_oc(sc), len1 + len2);
 
 		/* If there is no other data available, yield waiting for new data. */
 		if (len > 0) {
@@ -5376,13 +5384,17 @@ __LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KCont
 	struct channel *chn = sc_ic(sc);
 	int max;
 
-	/* Get the max amount of data which can write as input in the channel. */
-	max = channel_recv_max(chn);
+	/* Get the max amount of data which can be written */
+	if (luactx->appctx->flags & APPCTX_FL_INOUT_BUFS)
+		max = b_room(&luactx->appctx->outbuf);
+	else
+		max = channel_recv_max(chn);
+
 	if (max > (len - l))
 		max = len - l;
 
 	/* Copy data. */
-	ci_putblk(chn, str + l, max);
+	applet_putblk(luactx->appctx, str + l, max);
 
 	/* update counters. */
 	l += max;
@@ -5393,7 +5405,10 @@ __LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KCont
 	 * applet, and returns a yield.
 	 */
 	if (l < len) {
-		sc_need_room(sc, channel_recv_max(chn) + 1);
+		if (luactx->appctx->flags & APPCTX_FL_INOUT_BUFS)
+			applet_have_more_data(luactx->appctx);
+		else
+			sc_need_room(sc, channel_recv_max(chn) + 1);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_send_yield, TICK_ETERNITY, 0));
 	}
 
@@ -10927,7 +10942,10 @@ void hlua_applet_tcp_fct(struct appctx *ctx)
 
 out:
 	/* eat the whole request */
-	co_skip(sc_oc(sc), co_data(sc_oc(sc)));
+	if (ctx->flags & APPCTX_FL_INOUT_BUFS)
+		b_reset(&ctx->inbuf);
+	else
+		co_skip(sc_oc(sc), co_data(sc_oc(sc)));
 	return;
 
 error:
