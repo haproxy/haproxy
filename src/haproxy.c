@@ -2096,15 +2096,6 @@ static void init(int argc, char **argv)
 		LIST_APPEND(&proc_list, &tmproc->list);
 	}
 
-	if (global.mode & MODE_MWORKER_WAIT) {
-		/* in exec mode, there's always exactly one thread. Failure to
-		 * set these ones now will result in nbthread being detected
-		 * automatically.
-		 */
-		global.nbtgroups = 1;
-		global.nbthread = 1;
-	}
-
 	/* if daemon + mworker: must fork here to let a master process live in
 	 * background before forking children.
 	 */
@@ -2204,6 +2195,12 @@ static void init(int argc, char **argv)
 						break;
 				}
 			}
+			/* in exec mode, there's always exactly one thread. Failure to
+			 * set these ones now will result in nbthread being detected
+			 * automatically.
+			 */
+			global.nbtgroups = 1;
+			global.nbthread = 1;
 		}
 	}
 
