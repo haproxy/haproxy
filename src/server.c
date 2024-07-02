@@ -262,6 +262,16 @@ static struct task *server_atomic_sync(struct task *task, void *context, unsigne
 			 * to prevent invalid reads by other threads.
 			 */
 
+			/*
+			 * this requires thread isolation, which is safe since we're the only
+			 * task working for the current subscription and we don't hold locks
+			 * or resources that other threads may depend on to complete a running
+			 * cycle. Note that we do this way because we assume that this event is
+			 * rather rare.
+			 */
+			if (!thread_isolated())
+				thread_isolate_full();
+
 			/* check if related server still exists */
 			px = proxy_find_by_id(data->server.safe.proxy_uuid, PR_CAP_BE, 0);
 			if (!px)
@@ -290,15 +300,6 @@ static struct task *server_atomic_sync(struct task *task, void *context, unsigne
 					/* should not happen */
 					break;
 			}
-			/*
-			 * this requires thread isolation, which is safe since we're the only
-			 * task working for the current subscription and we don't hold locks
-			 * or resources that other threads may depend on to complete a running
-			 * cycle. Note that we do this way because we assume that this event is
-			 * rather rare.
-			 */
-			if (!thread_isolated())
-				thread_isolate_full();
 
 			/* apply new addr:port combination */
 			_srv_set_inetaddr_port(srv, &new_addr,
@@ -709,6 +710,9 @@ static void srv_set_addr_desc(struct server *s, int reattach)
 {
 	struct proxy *p = s->proxy;
 	char *key;
+
+	/* Risk of used_server_addr tree corruption if server is already deleted. */
+	BUG_ON(s->flags & SRV_F_DELETED);
 
 	key = sa2str(&s->addr, s->svc_port, s->flags & SRV_F_MAPPORTS);
 
@@ -2988,6 +2992,14 @@ struct server *srv_drop(struct server *srv)
 	 */
 	if (HA_ATOMIC_SUB_FETCH(&srv->refcount, 1))
 		goto end;
+
+	/* This BUG_ON() is invalid for now as server released on deinit will
+	 * trigger it as they are not properly removed from their tree.
+	 */
+	//BUG_ON(srv->addr_node.node.leaf_p ||
+	//       srv->idle_node.node.leaf_p ||
+	//       srv->conf.id.node.leaf_p ||
+	//       srv->conf.name.node.leaf_p);
 
 	guid_remove(&srv->guid);
 
@@ -6117,8 +6129,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	/* remove srv from addr_node tree */
 	eb32_delete(&srv->conf.id);
 	ebpt_delete(&srv->conf.name);
-	if (srv->addr_node.key)
-		ebpt_delete(&srv->addr_node);
+	ebpt_delete(&srv->addr_node);
 
 	/* remove srv from idle_node tree for idle conn cleanup */
 	eb32_delete(&srv->idle_node);
