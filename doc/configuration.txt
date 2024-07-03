@@ -1790,9 +1790,14 @@ fd-hard-limit <number>
   much RAM for regular usage. The fd-hard-limit setting is provided to enforce
   a possibly lower bound to this limit. This means that it will always respect
   the system-imposed limits when they are below <number> but the specified
-  value will be used if system-imposed limits are higher. In the example below,
-  no other setting is specified and the maxconn value will automatically adapt
-  to the lower of "fd-hard-limit" and the system-imposed limit:
+  value will be used if system-imposed limits are higher. By default
+  fd-hard-limit is set to 1048576. This default could be changed via
+  DEFAULT_MAXFD compile-time variable, that could serve as the maximum (kernel)
+  system limit, if RLIMIT_NOFILE hard limit is extremely large. fd-hard-limit
+  set in global section allows to temporarily override the value provided via
+  DEFAULT_MAXFD at the build-time. In the example below, no other setting is
+  specified and the maxconn value will automatically adapt to the lower of
+  "fd-hard-limit" and the RLIMIT_NOFILE limit:
 
       global
           # use as many FDs as possible but no more than 50000

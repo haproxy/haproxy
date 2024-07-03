@@ -1512,7 +1512,19 @@ static int compute_ideal_maxconn()
 	 *   - two FDs per connection
 	 */
 
-	if (global.fd_hard_limit && remain > global.fd_hard_limit)
+	/* on some modern distros for archs like amd64 fs.nr_open (kernel max) could
+	 * be in order of 1 billion, systemd since the version 256~rc3-3 bumped
+	 * fs.nr_open as the hard RLIMIT_NOFILE (rlim_fd_max_at_boot). If we are
+	 * started without global.maxconn or global.rlimit_memmax_all, we risk to
+	 * finish with computed global.maxconn = ~500000000 and computed
+	 * global.maxsock = ~1000000000. So, fdtab will be unnecessary and extremely
+	 * huge and watchdog will kill the process, when it tries to loop over the
+	 * fdtab (see fd_reregister_all).
+	 */
+	if (!global.fd_hard_limit)
+		global.fd_hard_limit = DEFAULT_MAXFD;
+
+	if (remain > global.fd_hard_limit)
 		remain = global.fd_hard_limit;
 
 	/* subtract listeners and checks */

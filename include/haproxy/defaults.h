@@ -295,6 +295,24 @@
 #define DEFAULT_MAXCONN 100
 #endif
 
+/* Default file descriptor limit.
+ *
+ * DEFAULT_MAXFD explicitly reduces the hard RLIMIT_NOFILE, which is used by the
+ * process as the base value to calculate the default global.maxsock, if
+ * global.maxconn, global.rlimit_memmax are not defined. This is useful in the
+ * case, when hard nofile limit has been bumped to fs.nr_open (kernel max),
+ * which is extremely large on many modern distros. So, we will also finish with
+ * an extremely large default global.maxsock. The only way to override
+ * DEFAULT_MAXFD, if defined, is to set fd_hard_limit in the config global
+ * section. If DEFAULT_MAXFD is not set, a reasonable maximum of 1048576 will be
+ * used as the default value, which almost guarantees that a process will
+ * correctly start in any situation and will be not killed then by watchdog,
+ * when it will loop over the allocated fdtab.
+*/
+#ifndef DEFAULT_MAXFD
+#define DEFAULT_MAXFD 1048576
+#endif
+
 /* Define a maxconn which will be used in the master process once it re-exec to
  * the MODE_MWORKER_WAIT and won't change when SYSTEM_MAXCONN is set.
  *
