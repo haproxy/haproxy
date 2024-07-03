@@ -2965,18 +2965,25 @@ maxcomprate <number>
 
 maxconn <number>
   Sets the maximum per-process number of concurrent connections to <number>. It
-  is equivalent to the command-line argument "-n". Proxies will stop accepting
-  connections when this limit is reached. The "ulimit-n" parameter is
-  automatically adjusted according to this value. See also "ulimit-n". Note:
-  the "select" poller cannot reliably use more than 1024 file descriptors on
-  some platforms. If your platform only supports select and reports "select
-  FAILED" on startup, you need to reduce maxconn until it works (slightly
-  below 500 in general). If this value is not set, it will automatically be
-  calculated based on the current file descriptors limit reported by the
-  "ulimit -n" command, possibly reduced to a lower value if a memory limit
-  is enforced, based on the buffer size, memory allocated to compression, SSL
-  cache size, and use or not of SSL and the associated maxsslconn (which can
-  also be automatic). In any case, the fd-hard-limit applies if set.
+  is equivalent to the command-line argument "-n". The value provided in
+  command-line argument via "-n" takes the precedence over the maxconn value set
+  in the global section. Haproxy process could be also compiled with
+  SYSTEM_MAXCONN compile-time variable, which is served in this case as the
+  system maxconn maximum. Again, the command-line "-n" argument allows at
+  runtime to bypass SYSTEM_MAXCONN limit, if set. Proxies will stop accepting
+  connections when maxconn is reached. The process soft file descriptor limit
+  (could be obtained with "ulimit -n" command) is automatically adjusted
+  according to provided maxconn. See also "ulimit-n". Note: the "select" poller
+  cannot reliably use more than 1024 file descriptors on some platforms. If your
+  platform only supports select and reports "select FAILED" on startup, you need
+  to reduce the maxconn until it works (slightly below 500 in general). If
+  maxconn value is not set, it will be automatically calculated based on the
+  current file descriptors limits, reported by the "ulimit -nH" command (we take
+  the maximum between the hard and soft values), then automatic value will be
+  possibly reduced by "fd-hard-limit" and by memory limit, if the latter was
+  enforced via "-m" command line option. Automatic value is also dependent from
+  the buffer size, memory allocated to compression, SSL cache size, and the use
+  or not of SSL and the associated maxsslconn (which can also be automatic).
 
   See also: fd-hard-limit, ulimit-n
 
