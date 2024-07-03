@@ -4262,11 +4262,12 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
 static int sample_conv_jwt_verify_check(struct arg *args, struct sample_conv *conv,
 					const char *file, int line, char **err)
 {
+	enum jwt_alg alg;
 	vars_check_arg(&args[0], NULL);
 	vars_check_arg(&args[1], NULL);
 
 	if (args[0].type == ARGT_STR) {
-		enum jwt_alg alg = jwt_parse_alg(args[0].data.str.area, args[0].data.str.data);
+		alg = jwt_parse_alg(args[0].data.str.area, args[0].data.str.data);
 
 		if (alg == JWT_ALG_DEFAULT) {
 			memprintf(err, "unknown JWT algorithm: %s", args[0].data.str.area);
@@ -4275,7 +4276,16 @@ static int sample_conv_jwt_verify_check(struct arg *args, struct sample_conv *co
 	}
 
 	if (args[1].type == ARGT_STR) {
-		jwt_tree_load_cert(args[1].data.str.area, args[1].data.str.data, err);
+		switch (alg) {
+			JWS_ALG_HS256:
+			JWS_ALG_HS384:
+			JWS_ALG_HS512:
+			/* don't try to load a file with HMAC algorithms */
+				break;
+			default:
+				jwt_tree_load_cert(args[1].data.str.area, args[1].data.str.data, err);
+				break;
+		}
 	}
 
 	return 1;
