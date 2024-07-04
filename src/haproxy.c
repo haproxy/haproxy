@@ -2206,11 +2206,10 @@ static void init(int argc, char **argv)
 			 */
 			global.nbtgroups = 1;
 			global.nbthread = 1;
+			/* master CLI */
+			mworker_create_master_cli();
 		}
 	}
-
-	if (master)
-		mworker_create_master_cli();
 
 	/* destroy unreferenced defaults proxies  */
 	proxy_destroy_all_unref_defaults();
