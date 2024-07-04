@@ -31,7 +31,6 @@
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/trace.h>
-#include <haproxy/xref.h>
 
 /* H1 connection descriptor */
 struct h1c {
@@ -4603,16 +4602,7 @@ static size_t h1_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 
 static inline struct sedesc *h1s_opposite_sd(struct h1s *h1s)
 {
-	struct xref *peer;
-	struct sedesc *sdo;
-
-	peer = xref_get_peer_and_lock(&h1s->sd->xref);
-	if (!peer)
-		return NULL;
-
-	sdo = container_of(peer, struct sedesc, xref);
-	xref_unlock(&h1s->sd->xref, peer);
-	return sdo;
+	return se_opposite(h1s->sd);
 }
 
 static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, unsigned int flags)

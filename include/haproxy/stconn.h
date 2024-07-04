@@ -27,6 +27,7 @@
 #include <haproxy/htx-t.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/stconn-t.h>
+#include <haproxy/xref.h>
 
 struct buffer;
 struct session;
@@ -132,6 +133,19 @@ static inline unsigned int se_have_ff_data(struct sedesc *se)
 static inline size_t se_ff_data(struct sedesc *se)
 {
 	return (se->iobuf.data + (se->iobuf.pipe ? se->iobuf.pipe->data : 0));
+}
+
+
+static inline struct sedesc *se_opposite(struct sedesc *se)
+{
+	struct xref *peer = xref_get_peer_and_lock(&se->xref);
+	struct sedesc *seo = NULL;;
+
+	if (peer) {
+		seo = container_of(peer, struct sedesc, xref);
+		xref_unlock(&se->xref, peer);
+	}
+	return seo;
 }
 
 /* stream connector version */

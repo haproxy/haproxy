@@ -25,7 +25,6 @@
 #include <haproxy/task.h>
 #include <haproxy/trace.h>
 #include <haproxy/vecpair.h>
-#include <haproxy/xref.h>
 
 unsigned int nb_applets = 0;
 
@@ -646,7 +645,6 @@ size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 {
 	struct appctx *appctx = __sc_appctx(sc);
-	struct xref *peer;
 	struct sedesc *sdo = NULL;
 	unsigned int len, nego_flags = NEGO_FF_FL_NONE;
 	int ret = 0;
@@ -661,13 +659,11 @@ int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 		return -1;
 	}
 
-	peer = xref_get_peer_and_lock(&appctx->sedesc->xref);
-	if (!peer) {
+	sdo = se_opposite(appctx->sedesc);
+	if (!sdo) {
 		TRACE_STATE("Opposite endpoint not available yet", APPLET_EV_RECV, appctx);
 		goto end;
 	}
-	sdo = container_of(peer, struct sedesc, xref);
-	xref_unlock(&appctx->sedesc->xref, peer);
 
 	if (appctx->to_forward && count > appctx->to_forward) {
 		count = appctx->to_forward;

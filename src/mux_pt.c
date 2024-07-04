@@ -19,7 +19,6 @@
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
 #include <haproxy/trace.h>
-#include <haproxy/xref.h>
 
 struct mux_pt_ctx {
 	struct sedesc *sd;
@@ -561,16 +560,7 @@ static size_t mux_pt_snd_buf(struct stconn *sc, struct buffer *buf, size_t count
 
 static inline struct sedesc *mux_pt_opposite_sd(struct mux_pt_ctx *ctx)
 {
-	struct xref *peer;
-	struct sedesc *sdo;
-
-	peer = xref_get_peer_and_lock(&ctx->sd->xref);
-	if (!peer)
-		return NULL;
-
-	sdo = container_of(peer, struct sedesc, xref);
-	xref_unlock(&ctx->sd->xref, peer);
-	return sdo;
+	return se_opposite(ctx->sd);
 }
 
 static size_t mux_pt_nego_ff(struct stconn *sc, struct buffer *input, size_t count, unsigned int flags)

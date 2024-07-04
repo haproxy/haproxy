@@ -141,6 +141,8 @@ void sedesc_free(struct sedesc *sedesc)
  */
 void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode)
 {
+	struct sedesc *sdo;
+	struct se_abort_info *reason = NULL;
 	unsigned int flags = 0;
 
 	if ((mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) && !se_fl_test(sedesc, SE_FL_SHW))
@@ -153,16 +155,9 @@ void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode)
 
 		if (flags) {
 			if (mux && mux->shut) {
-				struct se_abort_info *reason = NULL;
-				struct xref *peer = xref_get_peer_and_lock(&sedesc->xref);
-
-				if (peer) {
-					struct sedesc *sdo = container_of(peer, struct sedesc, xref);
-
+				sdo = se_opposite(sedesc);
+				if (sdo)
 					reason = &sdo->abort_info;
-					xref_unlock(&sedesc->xref, peer);
-				}
-
 				mux->shut(sedesc->sc, mode, reason);
 			}
 			se_fl_set(sedesc, flags);
@@ -173,16 +168,9 @@ void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode)
 
 		if (flags) {
 			if (appctx->applet->shut) {
-				struct se_abort_info *reason = NULL;
-				struct xref *peer = xref_get_peer_and_lock(&sedesc->xref);
-
-				if (peer) {
-					struct sedesc *sdo = container_of(peer, struct sedesc, xref);
-
+				sdo = se_opposite(sedesc);
+				if (sdo)
 					reason = &sdo->abort_info;
-					xref_unlock(&sedesc->xref, peer);
-				}
-
 				appctx->applet->shut(appctx, mode, reason);
 			}
 			se_fl_set(sedesc, flags);
