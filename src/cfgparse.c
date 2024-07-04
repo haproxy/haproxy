@@ -2977,6 +2977,11 @@ init_proxies_list_stage1:
 			cfgerr += proxy_cfg_ensure_no_http(curproxy);
 			break;
 
+		case PR_MODE_SPOP:
+			cfgerr += proxy_cfg_ensure_no_http(curproxy);
+			cfgerr += proxy_cfg_ensure_no_log(curproxy);
+			break;
+
 		case PR_MODE_PEERS:
 		case PR_MODES:
 			/* should not happen, bug gcc warn missing switch statement */

@@ -52,6 +52,7 @@ enum pr_mode {
 	PR_MODE_CLI,
 	PR_MODE_SYSLOG,
 	PR_MODE_PEERS,
+	PR_MODE_SPOP,
 	PR_MODES
 } __attribute__((packed));
 

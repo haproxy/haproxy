@@ -119,6 +119,20 @@ static inline void action_kw_tcp_check_build_list(struct buffer *chk)
 	action_build_list(&tcp_check_keywords.list, chk);
 }
 
+/*
+ * Map tcpcheck rules type (TCPCHK_RULES_*) to equivalent proto_proxy_mode (PROTO_MODE_*)
+ */
+static inline int tcpchk_rules_type_to_proto_mode(int tcpchk_rules_type)
+{
+	int mode;
+
+	mode = (((tcpchk_rules_type & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) ? PROTO_MODE_HTTP :
+		(((tcpchk_rules_type & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_SPOP_CHK) ? PROTO_MODE_SPOP :
+		 PROTO_MODE_TCP));
+
+	return mode;
+}
+
 #endif /* _HAPROXY_TCPCHECK_H */
 
 /*

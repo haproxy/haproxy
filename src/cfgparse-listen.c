@@ -545,6 +545,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (strcmp(args[1], "http") == 0) curproxy->mode = PR_MODE_HTTP;
 		else if (strcmp(args[1], "tcp") == 0) curproxy->mode = PR_MODE_TCP;
 		else if (strcmp(args[1], "log") == 0 && (curproxy->cap & PR_CAP_BE)) curproxy->mode = PR_MODE_SYSLOG;
+		else if (strcmp(args[1], "spop") == 0 && (curproxy->cap & PR_CAP_BE)) curproxy->mode = PR_MODE_SPOP;
 		else if (strcmp(args[1], "health") == 0) {
 			ha_alert("parsing [%s:%d] : 'mode health' doesn't exist anymore. Please use 'http-request return status 200' instead.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;

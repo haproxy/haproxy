@@ -348,6 +348,7 @@ int prepare_external_check(struct check *check)
 	case PR_MODE_PEERS:  svmode = "peers"; break;
 	case PR_MODE_HTTP:   svmode = (s->mux_proto) ? s->mux_proto->token.ptr : "h1"; break;
 	case PR_MODE_TCP:    svmode = "tcp"; break;
+	case PR_MODE_SPOP:   svmode = "spop"; break;
 	/* all valid cases must be enumerated above, below is to avoid a warning */
 	case PR_MODES:       svmode = "?"; break;
 	}

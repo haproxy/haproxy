@@ -33,6 +33,7 @@
 #include <haproxy/session.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stconn.h>
+#include <haproxy/tcpcheck.h>
 #include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 
@@ -271,12 +272,7 @@ int conn_install_mux_fe(struct connection *conn, void *ctx)
 		struct ist mux_proto;
 		const char *alpn_str = NULL;
 		int alpn_len = 0;
-		int mode;
-
-		if (bind_conf->frontend->mode == PR_MODE_HTTP)
-			mode = PROTO_MODE_HTTP;
-		else
-			mode = PROTO_MODE_TCP;
+		int mode = conn_pr_mode_to_proto_mode(bind_conf->frontend->mode);
 
 		conn_get_alpn(conn, &alpn_str, &alpn_len);
 		mux_proto = ist2(alpn_str, alpn_len);
@@ -326,12 +322,7 @@ int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess
 		struct ist mux_proto;
 		const char *alpn_str = NULL;
 		int alpn_len = 0;
-		int mode;
-
-		if (prx->mode == PR_MODE_HTTP)
-			mode = PROTO_MODE_HTTP;
-		else
-			mode = PROTO_MODE_TCP;
+		int mode = conn_pr_mode_to_proto_mode(prx->mode);
 
 		conn_get_alpn(conn, &alpn_str, &alpn_len);
 		mux_proto = ist2(alpn_str, alpn_len);
@@ -369,12 +360,7 @@ int conn_install_mux_chk(struct connection *conn, void *ctx, struct session *ses
 		struct ist mux_proto;
 		const char *alpn_str = NULL;
 		int alpn_len = 0;
-		int mode;
-
-		if ((check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK)
-			mode = PROTO_MODE_HTTP;
-		else
-			mode = PROTO_MODE_TCP;
+		int mode = tcpchk_rules_type_to_proto_mode(check->tcpcheck_rules->flags);
 
 		conn_get_alpn(conn, &alpn_str, &alpn_len);
 		mux_proto = ist2(alpn_str, alpn_len);
@@ -1811,6 +1797,8 @@ void list_mux_proto(FILE *out)
 			mode = "TCP";
 		else if (item->mode == PROTO_MODE_HTTP)
 			mode = "HTTP";
+		else if (item->mode == PROTO_MODE_SPOP)
+			mode = "SPOP";
 		else
 			mode = "NONE";
 

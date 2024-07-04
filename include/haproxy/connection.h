@@ -722,10 +722,9 @@ static inline int conn_pr_mode_to_proto_mode(int proxy_mode)
 {
 	int mode;
 
-	/* for now we only support TCP and HTTP proto_modes, so we
-	 * consider that if it's not HTTP, then it's TCP
-	 */
-	mode = 1 << (proxy_mode == PR_MODE_HTTP);
+	mode = ((proxy_mode == PR_MODE_HTTP) ? PROTO_MODE_HTTP :
+		(proxy_mode == PR_MODE_SPOP) ? PROTO_MODE_SPOP :
+		PROTO_MODE_TCP);
 
 	return mode;
 }

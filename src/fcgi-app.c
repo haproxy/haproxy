@@ -642,7 +642,7 @@ static int cfg_fcgi_apps_postparser()
 		struct fcgi_flt_conf *fcgi_conf = find_px_fcgi_conf(px);
 		int nb_fcgi_srv = 0;
 
-		if (px->mode == PR_MODE_TCP && fcgi_conf) {
+		if (px->mode != PR_MODE_HTTP && fcgi_conf) {
 			ha_alert("proxy '%s': FCGI application cannot be used in non-HTTP mode.\n",
 				 px->id);
 			err_code |= ERR_ALERT | ERR_FATAL;
