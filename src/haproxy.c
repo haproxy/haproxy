@@ -3502,21 +3502,6 @@ int main(int argc, char **argv)
 		}
 	}
 
-
-	if ((global.mode & (MODE_MWORKER|MODE_DAEMON)) == 0) {
-
-		/* chroot if needed */
-		if (global.chroot != NULL) {
-			if (chroot(global.chroot) == -1 || chdir("/") == -1) {
-				ha_alert("[%s.main()] Cannot chroot(%s).\n", argv[0], global.chroot);
-				if (nb_oldpids)
-					tell_old_pids(SIGTTIN);
-				protocol_unbind_all();
-				exit(1);
-			}
-		}
-	}
-
 	if (nb_oldpids && !(global.mode & MODE_MWORKER_WAIT))
 		nb_oldpids = tell_old_pids(oldpids_sig);
 
