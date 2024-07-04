@@ -280,6 +280,7 @@ struct stconn;
 #define SE_ABRT_SRC_MUX_H2    0x03 /* Code set by the H2 mux */
 #define SE_ABRT_SRC_MUX_QUIC  0x04 /* Code set by the QUIC/H3 mux */
 #define SE_ABRT_SRC_MUX_FCGI  0x05 /* Code set by the FCGI mux */
+#define SE_ABRT_SRC_MUX_SPOP  0x06 /* Code set by the SPOP mux */
 
 struct se_abort_info {
 	uint32_t info;

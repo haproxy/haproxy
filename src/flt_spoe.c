@@ -1099,6 +1099,20 @@ spoe_recv_frame(struct appctx *appctx, char *buf, size_t framesz)
 /********************************************************************
  * Functions that manage the SPOE applet
  ********************************************************************/
+struct spoe_agent *spoe_appctx_agent(struct appctx *appctx)
+{
+	struct spoe_appctx  *spoe_appctx;
+
+	if (!appctx)
+		return NULL;
+
+	spoe_appctx = SPOE_APPCTX(appctx);
+	if (!spoe_appctx)
+		return NULL;
+
+	return spoe_appctx->agent;
+}
+
 static int
 spoe_wakeup_appctx(struct appctx *appctx)
 {

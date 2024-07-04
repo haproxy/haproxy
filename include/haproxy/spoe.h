@@ -27,6 +27,9 @@
 #include <haproxy/sample-t.h>
 #include <haproxy/spoe-t.h>
 
+struct appctx;
+
+struct spoe_agent *spoe_appctx_agent(struct appctx *appctx);
 
 /* Encode a buffer. Its length <len> is encoded as a varint, followed by a copy
  * of <str>. It must have enough space in <*buf> to encode the buffer, else an
