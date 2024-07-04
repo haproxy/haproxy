@@ -271,8 +271,7 @@ static struct appctx *spoe_create_appctx(struct spoe_config *conf);
 /********************************************************************
  * helper functions/globals
  ********************************************************************/
-static void
-spoe_release_placeholder(struct spoe_placeholder *ph)
+static void spoe_release_placeholder(struct spoe_placeholder *ph)
 {
 	if (!ph)
 		return;
@@ -280,8 +279,7 @@ spoe_release_placeholder(struct spoe_placeholder *ph)
 	free(ph);
 }
 
-static void
-spoe_release_message(struct spoe_message *msg)
+static void spoe_release_message(struct spoe_message *msg)
 {
 	struct spoe_arg *arg, *argback;
 	struct acl      *acl, *aclback;
@@ -305,8 +303,7 @@ spoe_release_message(struct spoe_message *msg)
 	free(msg);
 }
 
-static void
-spoe_release_group(struct spoe_group *grp)
+static void spoe_release_group(struct spoe_group *grp)
 {
 	if (!grp)
 		return;
@@ -315,8 +312,7 @@ spoe_release_group(struct spoe_group *grp)
 	free(grp);
 }
 
-static void
-spoe_release_agent(struct spoe_agent *agent)
+static void spoe_release_agent(struct spoe_agent *agent)
 {
 	struct spoe_message *msg, *msgback;
 	struct spoe_group   *grp, *grpback;
@@ -358,16 +354,14 @@ static const char *spoe_event_str[SPOE_EV_EVENTS] = {
 /* Used to generates a unique id for an engine. On success, it returns a
  * allocated string. So it is the caller's responsibility to release it. If the
  * allocation failed, it returns NULL. */
-static char *
-generate_pseudo_uuid()
+static char *generate_pseudo_uuid()
 {
 	ha_generate_uuid_v4(&trash);
 	return my_strndup(trash.area, trash.data);
 }
 
 /* set/add to <t> the elapsed time since <since> and now */
-static inline void
-spoe_update_stat_time(ullong *since, long *t)
+static inline void spoe_update_stat_time(ullong *since, long *t)
 {
 	if (*t == -1)
 		*t = ns_to_ms(now_ns - *since);
@@ -383,8 +377,7 @@ spoe_update_stat_time(ullong *since, long *t)
 /* Encode the NOTIFY frame sent by HAProxy to an agent. It returns the number of
  * encoded bytes in the frame on success, 0 if an encoding error occurred and -1
  * if a fatal error occurred. */
-static int
-spoe_prepare_hanotify_frame(struct appctx *appctx, char *frame, size_t size)
+static int spoe_prepare_hanotify_frame(struct appctx *appctx, char *frame, size_t size)
 {
 	char        *p, *end;
 	size_t       sz;
@@ -412,8 +405,7 @@ spoe_prepare_hanotify_frame(struct appctx *appctx, char *frame, size_t size)
 
 /* Decode ACK frame sent by an agent. It returns the number of read bytes on
  * success, 0 if the frame can be ignored and -1 if an error occurred. */
-static int
-spoe_handle_agentack_frame(struct appctx *appctx, char *frame, size_t size)
+static int spoe_handle_agentack_frame(struct appctx *appctx, char *frame, size_t size)
 {
 	char              *p, *end;
 	int                len;
@@ -439,8 +431,7 @@ spoe_handle_agentack_frame(struct appctx *appctx, char *frame, size_t size)
 /* Send a SPOE frame to an agent. It returns -1 when an error occurred, 0 when
  * the frame can be ignored, 1 to retry later, and the frame length on
  * success. */
-static int
-spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
+static int spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 {
 	int ret;
 
@@ -453,8 +444,7 @@ spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 /* Receive a SPOE frame from an agent. It return -1 when an error occurred, 0
  * when the frame can be ignored, 1 to retry later and the frame length on
  * success. */
-static int
-spoe_recv_frame(struct appctx *appctx, char *buf, size_t framesz)
+static int spoe_recv_frame(struct appctx *appctx, char *buf, size_t framesz)
 {
 	struct stconn *sc = appctx_sc(appctx);
 	int ret;
@@ -489,8 +479,7 @@ struct spoe_agent *spoe_appctx_agent(struct appctx *appctx)
 	return spoe_appctx->agent;
 }
 
-static int
-spoe_wakeup_appctx(struct appctx *appctx)
+static int spoe_wakeup_appctx(struct appctx *appctx)
 {
 	applet_will_consume(appctx);
 	applet_have_more_data(appctx);
@@ -498,8 +487,7 @@ spoe_wakeup_appctx(struct appctx *appctx)
 	return 1;
 }
 
-static int
-spoe_init_appctx(struct appctx *appctx)
+static int spoe_init_appctx(struct appctx *appctx)
 {
 	struct spoe_appctx *spoe_appctx = SPOE_APPCTX(appctx);
 	struct spoe_agent *agent = spoe_appctx->agent;
@@ -544,8 +532,7 @@ static void spoe_shut_appctx(struct appctx *appctx, enum se_shut_mode mode, stru
 
 /* Callback function that releases a SPOE applet. This happens when the
  * connection with the agent is closed. */
-static void
-spoe_release_appctx(struct appctx *appctx)
+static void spoe_release_appctx(struct appctx *appctx)
 {
 	struct spoe_appctx  *spoe_appctx = SPOE_APPCTX(appctx);
 
@@ -577,8 +564,7 @@ spoe_release_appctx(struct appctx *appctx)
 }
 
 
-static int
-spoe_handle_sending_frame_appctx(struct appctx *appctx)
+static int spoe_handle_sending_frame_appctx(struct appctx *appctx)
 {
 	char *frame, *buf;
 	int   ret;
@@ -622,8 +608,7 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx)
 	return ret;
 }
 
-static int
-spoe_handle_receiving_frame_appctx(struct appctx *appctx)
+static int spoe_handle_receiving_frame_appctx(struct appctx *appctx)
 {
 	char *frame;
 	int   ret;
@@ -669,8 +654,7 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx)
 	return ret;
 }
 
-static int
-spoe_handle_processing_appctx(struct appctx *appctx)
+static int spoe_handle_processing_appctx(struct appctx *appctx)
 {
 	int ret;
 
@@ -715,8 +699,7 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 }
 
 /* I/O Handler processing messages exchanged with the agent */
-static void
-spoe_handle_appctx(struct appctx *appctx)
+static void spoe_handle_appctx(struct appctx *appctx)
 {
 	struct stconn *sc = appctx_sc(appctx);
 
@@ -766,8 +749,7 @@ struct applet spoe_applet = {
 
 /* Create a SPOE applet. On success, the created applet is returned, else
  * NULL. */
-static struct appctx *
-spoe_create_appctx(struct spoe_config *conf)
+static struct appctx *spoe_create_appctx(struct spoe_config *conf)
 {
 	struct spoe_agent *agent = conf->agent;
 	struct spoe_appctx *spoe_appctx;
@@ -812,10 +794,9 @@ spoe_create_appctx(struct spoe_config *conf)
  **************************************************************************/
 /* Encode a SPOE message. If the next message can be processed, it returns 0. If
  * the message is too big, it returns -1.*/
-static int
-spoe_encode_message(struct stream *s, struct spoe_context *ctx,
-		    struct spoe_message *msg, int dir,
-		    char **buf, char *end)
+static int spoe_encode_message(struct stream *s, struct spoe_context *ctx,
+			       struct spoe_message *msg, int dir,
+			       char **buf, char *end)
 {
 	struct sample   *smp;
 	struct spoe_arg *arg;
@@ -868,9 +849,8 @@ spoe_encode_message(struct stream *s, struct spoe_context *ctx,
 
 /* Encode list of SPOE messages. On success it returns 1. If an error occurred, -1
  * is returned. If nothing has been encoded, it returns 0. */
-static int
-spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
-		     struct list *messages, int dir, int type)
+static int spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
+				struct list *messages, int dir, int type)
 {
 	struct spoe_config  *conf = FLT_CONF(ctx->filter);
 	struct spoe_agent   *agent = conf->agent;
@@ -918,9 +898,8 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
  * Functions that handle SPOE actions
  **************************************************************************/
 /* Helper function to set a variable */
-static void
-spoe_set_var(struct spoe_context *ctx, char *scope, char *name, int len,
-	     struct sample *smp)
+static void spoe_set_var(struct spoe_context *ctx, char *scope, char *name, int len,
+			 struct sample *smp)
 {
 	struct spoe_config *conf = FLT_CONF(ctx->filter);
 	struct spoe_agent  *agent = conf->agent;
@@ -936,9 +915,8 @@ spoe_set_var(struct spoe_context *ctx, char *scope, char *name, int len,
 }
 
 /* Helper function to unset a variable */
-static void
-spoe_unset_var(struct spoe_context *ctx, char *scope, char *name, int len,
-	       struct sample *smp)
+static void spoe_unset_var(struct spoe_context *ctx, char *scope, char *name, int len,
+			   struct sample *smp)
 {
 	struct spoe_config *conf = FLT_CONF(ctx->filter);
 	struct spoe_agent  *agent = conf->agent;
@@ -951,9 +929,8 @@ spoe_unset_var(struct spoe_context *ctx, char *scope, char *name, int len,
 }
 
 
-static inline int
-spoe_decode_action_set_var(struct stream *s, struct spoe_context *ctx,
-			   char **buf, char *end, int dir)
+static inline int spoe_decode_action_set_var(struct stream *s, struct spoe_context *ctx,
+					     char **buf, char *end, int dir)
 {
 	char         *str, *scope, *p = *buf;
 	struct sample smp;
@@ -996,9 +973,8 @@ spoe_decode_action_set_var(struct stream *s, struct spoe_context *ctx,
 	return 0;
 }
 
-static inline int
-spoe_decode_action_unset_var(struct stream *s, struct spoe_context *ctx,
-			     char **buf, char *end, int dir)
+static inline int spoe_decode_action_unset_var(struct stream *s, struct spoe_context *ctx,
+					       char **buf, char *end, int dir)
 {
 	char         *str, *scope, *p = *buf;
 	struct sample smp;
@@ -1037,8 +1013,7 @@ spoe_decode_action_unset_var(struct stream *s, struct spoe_context *ctx,
 
 /* Process SPOE actions for a specific event. It returns 1 on success. If an
  * error occurred, 0 is returned. */
-static int
-spoe_process_actions(struct stream *s, struct spoe_context *ctx, int dir)
+static int spoe_process_actions(struct stream *s, struct spoe_context *ctx, int dir)
 {
 	char *p, *end;
 	int   ret;
@@ -1076,9 +1051,8 @@ spoe_process_actions(struct stream *s, struct spoe_context *ctx, int dir)
 /***************************************************************************
  * Functions that process SPOE events
  **************************************************************************/
-static void
-spoe_update_stats(struct stream *s, struct spoe_agent *agent,
-		  struct spoe_context *ctx, int dir)
+static void spoe_update_stats(struct stream *s, struct spoe_agent *agent,
+			      struct spoe_context *ctx, int dir)
 {
 	if (ctx->stats.start_ts != 0) {
 		spoe_update_stat_time(&ctx->stats.start_ts, &ctx->stats.t_process);
@@ -1110,9 +1084,8 @@ spoe_update_stats(struct stream *s, struct spoe_agent *agent,
 	}
 }
 
-static void
-spoe_handle_processing_error(struct stream *s, struct spoe_agent *agent,
-			     struct spoe_context *ctx, int dir)
+static void spoe_handle_processing_error(struct stream *s, struct spoe_agent *agent,
+					 struct spoe_context *ctx, int dir)
 {
 	if (agent->var_on_error) {
 		struct sample smp;
@@ -1131,8 +1104,7 @@ spoe_handle_processing_error(struct stream *s, struct spoe_agent *agent,
 		      : SPOE_CTX_ST_NONE);
 }
 
-static inline int
-spoe_start_processing(struct spoe_agent *agent, struct spoe_context *ctx, int dir)
+static inline int spoe_start_processing(struct spoe_agent *agent, struct spoe_context *ctx, int dir)
 {
 	/* If a process is already started for this SPOE context, retry
 	 * later. */
@@ -1152,8 +1124,7 @@ spoe_start_processing(struct spoe_agent *agent, struct spoe_context *ctx, int di
 	return 1;
 }
 
-static inline void
-spoe_stop_processing(struct spoe_agent *agent, struct spoe_context *ctx)
+static inline void spoe_stop_processing(struct spoe_agent *agent, struct spoe_context *ctx)
 {
 	struct spoe_appctx *sa = ctx->spoe_appctx;
 
@@ -1183,9 +1154,8 @@ spoe_stop_processing(struct spoe_agent *agent, struct spoe_context *ctx)
  *  to process corresponding actions. During all the processing, it returns 0
  *  and it returns 1 when the processing is finished. If an error occurred, -1
  *  is returned. */
-static int
-spoe_process_messages(struct stream *s, struct spoe_context *ctx,
-		      struct list *messages, int dir, int type)
+static int spoe_process_messages(struct stream *s, struct spoe_context *ctx,
+				 struct list *messages, int dir, int type)
 {
 	struct spoe_config *conf = FLT_CONF(ctx->filter);
 	struct spoe_agent  *agent = conf->agent;
@@ -1277,9 +1247,8 @@ spoe_process_messages(struct stream *s, struct spoe_context *ctx,
 
 /* Process a SPOE group, ie the list of messages attached to the group <grp>.
  * See spoe_process_message for details. */
-static int
-spoe_process_group(struct stream *s, struct spoe_context *ctx,
-		   struct spoe_group *group, int dir)
+static int spoe_process_group(struct stream *s, struct spoe_context *ctx,
+			      struct spoe_group *group, int dir)
 {
 	struct spoe_config *conf = FLT_CONF(ctx->filter);
 	struct spoe_agent  *agent = conf->agent;
@@ -1301,9 +1270,8 @@ spoe_process_group(struct stream *s, struct spoe_context *ctx,
 
 /* Process a SPOE event, ie the list of messages attached to the event <ev>.
  * See spoe_process_message for details. */
-static int
-spoe_process_event(struct stream *s, struct spoe_context *ctx,
-		   enum spoe_event ev)
+static int spoe_process_event(struct stream *s, struct spoe_context *ctx,
+			      enum spoe_event ev)
 {
 	struct spoe_config *conf = FLT_CONF(ctx->filter);
 	struct spoe_agent  *agent = conf->agent;
@@ -1328,8 +1296,7 @@ spoe_process_event(struct stream *s, struct spoe_context *ctx,
 /***************************************************************************
  * Functions that create/destroy SPOE contexts
  **************************************************************************/
-static int
-spoe_acquire_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
+static int spoe_acquire_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 {
 	if (buf->size)
 		return 1;
@@ -1343,8 +1310,7 @@ spoe_acquire_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 	return 0;
 }
 
-static void
-spoe_release_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
+static void spoe_release_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 {
 	b_dequeue(buffer_wait);
 
@@ -1355,15 +1321,13 @@ spoe_release_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 	}
 }
 
-static int
-spoe_wakeup_context(struct spoe_context *ctx)
+static int spoe_wakeup_context(struct spoe_context *ctx)
 {
 	task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
 	return 1;
 }
 
-static struct spoe_context *
-spoe_create_context(struct stream *s, struct filter *filter)
+static struct spoe_context *spoe_create_context(struct stream *s, struct filter *filter)
 {
 	struct spoe_config  *conf = FLT_CONF(filter);
 	struct spoe_context *ctx;
@@ -1398,8 +1362,7 @@ spoe_create_context(struct stream *s, struct filter *filter)
 	return ctx;
 }
 
-static void
-spoe_destroy_context(struct filter *filter)
+static void spoe_destroy_context(struct filter *filter)
 {
 	struct spoe_config  *conf = FLT_CONF(filter);
 	struct spoe_context *ctx  = filter->ctx;
@@ -1412,8 +1375,7 @@ spoe_destroy_context(struct filter *filter)
 	filter->ctx = NULL;
 }
 
-static void
-spoe_reset_context(struct spoe_context *ctx)
+static void spoe_reset_context(struct spoe_context *ctx)
 {
 	ctx->state  = SPOE_CTX_ST_READY;
 	ctx->flags &= ~SPOE_CTX_FL_PROCESS;
@@ -1428,8 +1390,7 @@ spoe_reset_context(struct spoe_context *ctx)
  * Hooks that manage the filter lifecycle (init/check/deinit)
  **************************************************************************/
 /* Initialize the SPOE filter. Returns -1 on error, else 0. */
-static int
-spoe_init(struct proxy *px, struct flt_conf *fconf)
+static int spoe_init(struct proxy *px, struct flt_conf *fconf)
 {
 	struct spoe_config *conf = fconf->conf;
 
@@ -1455,8 +1416,7 @@ spoe_init(struct proxy *px, struct flt_conf *fconf)
 }
 
 /* Free resources allocated by the SPOE filter. */
-static void
-spoe_deinit(struct proxy *px, struct flt_conf *fconf)
+static void spoe_deinit(struct proxy *px, struct flt_conf *fconf)
 {
 	struct spoe_config *conf = fconf->conf;
 
@@ -1472,8 +1432,7 @@ spoe_deinit(struct proxy *px, struct flt_conf *fconf)
 
 /* Check configuration of a SPOE filter for a specified proxy.
  * Return 1 on error, else 0. */
-static int
-spoe_check(struct proxy *px, struct flt_conf *fconf)
+static int spoe_check(struct proxy *px, struct flt_conf *fconf)
 {
 	struct flt_conf    *f;
 	struct spoe_config *conf = fconf->conf;
@@ -1532,8 +1491,7 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
  *************************************************************************/
 /* Called when a filter instance is created and attach to a stream. It creates
  * the context that will be used to process this stream. */
-static int
-spoe_start(struct stream *s, struct filter *filter)
+static int spoe_start(struct stream *s, struct filter *filter)
 {
 	struct spoe_config  *conf  = FLT_CONF(filter);
 	struct spoe_agent   *agent = conf->agent;
@@ -1569,8 +1527,7 @@ spoe_start(struct stream *s, struct filter *filter)
 
 /* Called when a filter instance is detached from a stream. It release the
  * attached SPOE context. */
-static void
-spoe_stop(struct stream *s, struct filter *filter)
+static void spoe_stop(struct stream *s, struct filter *filter)
 {
 	spoe_destroy_context(filter);
 }
@@ -1579,8 +1536,7 @@ spoe_stop(struct stream *s, struct filter *filter)
 /*
  * Called when the stream is woken up because of expired timer.
  */
-static void
-spoe_check_timeouts(struct stream *s, struct filter *filter)
+static void spoe_check_timeouts(struct stream *s, struct filter *filter)
 {
 	struct spoe_context *ctx = filter->ctx;
 
@@ -1589,8 +1545,7 @@ spoe_check_timeouts(struct stream *s, struct filter *filter)
 }
 
 /* Called when we are ready to filter data on a channel */
-static int
-spoe_start_analyze(struct stream *s, struct filter *filter, struct channel *chn)
+static int spoe_start_analyze(struct stream *s, struct filter *filter, struct channel *chn)
 {
 	struct spoe_context *ctx = filter->ctx;
 	int                  ret = 1;
@@ -1634,9 +1589,8 @@ spoe_start_analyze(struct stream *s, struct filter *filter, struct channel *chn)
 }
 
 /* Called before a processing happens on a given channel */
-static int
-spoe_chn_pre_analyze(struct stream *s, struct filter *filter,
-		     struct channel *chn, unsigned an_bit)
+static int spoe_chn_pre_analyze(struct stream *s, struct filter *filter,
+				struct channel *chn, unsigned an_bit)
 {
 	struct spoe_context *ctx = filter->ctx;
 	int                  ret = 1;
@@ -1674,8 +1628,7 @@ spoe_chn_pre_analyze(struct stream *s, struct filter *filter,
 }
 
 /* Called when the filtering on the channel ends. */
-static int
-spoe_end_analyze(struct stream *s, struct filter *filter, struct channel *chn)
+static int spoe_end_analyze(struct stream *s, struct filter *filter, struct channel *chn)
 {
 	struct spoe_context *ctx = filter->ctx;
 
@@ -1707,8 +1660,7 @@ struct flt_ops spoe_ops = {
 };
 
 
-static int
-cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
+static int cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 {
 	const char *err;
 	int         i, err_code = 0;
@@ -2144,8 +2096,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
  out:
 	return err_code;
 }
-static int
-cfg_parse_spoe_group(const char *file, int linenum, char **args, int kwm)
+static int cfg_parse_spoe_group(const char *file, int linenum, char **args, int kwm)
 {
 	struct spoe_group *grp;
 	const char        *err;
@@ -2233,8 +2184,7 @@ cfg_parse_spoe_group(const char *file, int linenum, char **args, int kwm)
 	return err_code;
 }
 
-static int
-cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
+static int cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 {
 	struct spoe_message *msg;
 	struct spoe_arg     *arg;
@@ -2429,9 +2379,8 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 }
 
 /* Return -1 on error, else 0 */
-static int
-parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
-                struct flt_conf *fconf, char **err, void *private)
+static int parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
+			  struct flt_conf *fconf, char **err, void *private)
 {
 	struct list backup_sections;
 	struct spoe_config          *conf;
@@ -2854,9 +2803,8 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
  *
  * It returns ACT_RET_CONT if processing is finished (with error or not), it returns
  * ACT_RET_YIELD if the action is in progress. */
-static enum act_return
-spoe_send_group(struct act_rule *rule, struct proxy *px,
-		struct session *sess, struct stream *s, int flags)
+static enum act_return spoe_send_group(struct act_rule *rule, struct proxy *px,
+				       struct session *sess, struct stream *s, int flags)
 {
 	struct filter      *filter;
 	struct spoe_agent   *agent = NULL;
@@ -2919,8 +2867,7 @@ spoe_send_group(struct act_rule *rule, struct proxy *px,
  * The function returns 1 in success case, otherwise, it returns 0 and err is
  * filled.
  */
-static int
-check_send_spoe_group(struct act_rule *rule, struct proxy *px, char **err)
+static int check_send_spoe_group(struct act_rule *rule, struct proxy *px, char **err)
 {
 	struct flt_conf     *fconf;
 	struct spoe_config  *conf;
@@ -3017,9 +2964,8 @@ check_send_spoe_group(struct act_rule *rule, struct proxy *px, char **err)
  * message. Otherwise, it returns ACT_RET_PRS_OK and parsing engine and group
  * ids are saved and used later, when the rule will be checked.
  */
-static enum act_parse_ret
-parse_send_spoe_group(const char **args, int *orig_arg, struct proxy *px,
-		      struct act_rule *rule, char **err)
+static enum act_parse_ret parse_send_spoe_group(const char **args, int *orig_arg, struct proxy *px,
+						struct act_rule *rule, char **err)
 {
 	if (!*args[*orig_arg] || !*args[*orig_arg+1] ||
 	    (*args[*orig_arg+2] && strcmp(args[*orig_arg+2], "if") != 0 && strcmp(args[*orig_arg+2], "unless") != 0)) {

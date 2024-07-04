@@ -36,8 +36,7 @@ struct spoe_agent *spoe_appctx_agent(struct appctx *appctx);
  * error is triggered.
  * On success, it returns <len> and <*buf> is moved after the encoded value. If
  * an error occurred, it returns -1. */
-static inline int
-spoe_encode_buffer(const char *str, size_t len, char **buf, char *end)
+static inline int spoe_encode_buffer(const char *str, size_t len, char **buf, char *end)
 {
 	char *p = *buf;
 	int   ret;
@@ -64,8 +63,7 @@ spoe_encode_buffer(const char *str, size_t len, char **buf, char *end)
  * points on the first byte of the buffer.
  * On success, it returns the buffer length and <*buf> is moved after the
  * encoded buffer. Otherwise, it returns -1. */
-static inline int
-spoe_decode_buffer(char **buf, char *end, char **str, uint64_t *len)
+static inline int spoe_decode_buffer(char **buf, char *end, char **str, uint64_t *len)
 {
 	char    *p = *buf;
 	uint64_t sz;
@@ -91,8 +89,7 @@ spoe_decode_buffer(char **buf, char *end, char **str, uint64_t *len)
  * If the value is too big to be encoded, depending on its type, then encoding
  * failed or the value is partially encoded. Only strings and binaries can be
  * partially encoded. */
-static inline int
-spoe_encode_data(struct sample *smp, char **buf, char *end)
+static inline int spoe_encode_data(struct sample *smp, char **buf, char *end)
 {
 	char *p = *buf;
 	int   ret;
@@ -189,8 +186,7 @@ spoe_encode_data(struct sample *smp, char **buf, char *end)
  *  - ipv6: 16 bytes
  *  - binary and string: a buffer prefixed by its size, a variable-length
  *    integer (see spoe_decode_buffer) */
-static inline int
-spoe_skip_data(char **buf, char *end)
+static inline int spoe_skip_data(char **buf, char *end)
 {
 	char    *str, *p = *buf;
 	int      type, ret;
@@ -236,8 +232,7 @@ spoe_skip_data(char **buf, char *end)
 /* Decode a typed data and fill <smp>. If an error occurred, -1 is returned,
  * otherwise the number of read bytes is returned and <*buf> is moved after the
  * decoded data. See spoe_skip_data for details. */
-static inline int
-spoe_decode_data(char **buf, char *end, struct sample *smp)
+static inline int spoe_decode_data(char **buf, char *end, struct sample *smp)
 {
 	char  *str, *p = *buf;
 	int    type, r = 0;
