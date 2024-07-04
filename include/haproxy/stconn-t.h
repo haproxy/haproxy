@@ -276,10 +276,10 @@ struct stconn;
 #define SE_ABRT_SRC_MASK  0x0000001f
 
 #define SE_ABRT_SRC_MUX_PT    0x01 /* Code set by the PT mux */
-#define SE_ABRT_SRC_MUX_H1    0x02 /* Code set bu the H1 mux */
-#define SE_ABRT_SRC_MUX_H2    0x03 /* Code set bu the H2 mux */
-#define SE_ABRT_SRC_MUX_QUIC  0x04 /* Code set bu the QUIC/H3 mux */
-#define SE_ABRT_SRC_MUX_FCGI  0x05 /* Code set bu the FCGI mux */
+#define SE_ABRT_SRC_MUX_H1    0x02 /* Code set by the H1 mux */
+#define SE_ABRT_SRC_MUX_H2    0x03 /* Code set by the H2 mux */
+#define SE_ABRT_SRC_MUX_QUIC  0x04 /* Code set by the QUIC/H3 mux */
+#define SE_ABRT_SRC_MUX_FCGI  0x05 /* Code set by the FCGI mux */
 
 struct se_abort_info {
 	uint32_t info;
