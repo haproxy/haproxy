@@ -177,8 +177,11 @@ void qc_kill_conn(struct quic_conn *qc);
 int qc_parse_hd_form(struct quic_rx_packet *pkt,
                      unsigned char **buf, const unsigned char *end);
 
-int qc_set_tid_affinity1(struct quic_conn *qc, uint new_tid, struct listener *new_li);
+int qc_set_tid_affinity1(struct quic_conn *qc, uint new_tid);
+void qc_set_tid_affinity2(struct quic_conn *qc, struct listener *new_li);
+void qc_reset_tid_affinity(struct quic_conn *qc);
 void qc_finalize_affinity_rebind(struct quic_conn *qc);
+
 int qc_handle_conn_migration(struct quic_conn *qc,
                              const struct sockaddr_storage *peer_addr,
                              const struct sockaddr_storage *local_addr);

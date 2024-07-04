@@ -1722,21 +1722,16 @@ void qc_notify_err(struct quic_conn *qc)
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
 }
 
-/* Move a <qc> QUIC connection and its resources from the current thread to the
- * new one <new_tid> optionally in association with <new_li> (since it may need
- * to change when migrating to a thread from a different group, otherwise leave
- * it NULL). After this call, the connection cannot be dereferenced anymore on
- * the current thread.
+/* Prepare <qc> QUIC connection rebinding to a new thread <new_tid>. Stop and
+ * release associated tasks and tasklet and allocate new ones binded to the new
+ * thread.
  *
  * Returns 0 on success else non-zero.
  */
-int qc_set_tid_affinity1(struct quic_conn *qc, uint new_tid, struct listener *new_li)
+int qc_set_tid_affinity1(struct quic_conn *qc, uint new_tid)
 {
 	struct task *t1 = NULL, *t2 = NULL;
 	struct tasklet *t3 = NULL;
-
-	struct quic_connection_id *conn_id;
-	struct eb64_node *node;
 
 	TRACE_ENTER(QUIC_EV_CONN_SET_AFFINITY, qc);
 
@@ -1775,16 +1770,54 @@ int qc_set_tid_affinity1(struct quic_conn *qc, uint new_tid, struct listener *ne
 	qc->wait_event.tasklet->context = qc;
 	qc->wait_event.events = 0;
 
+	/* Remove conn from per-thread list instance. It will be hidden from
+	 * "show quic" until qc_finalize_affinity_rebind().
+	 */
+	qc_detach_th_ctx_list(qc, 0);
+
+	qc->flags |= QUIC_FL_CONN_AFFINITY_CHANGED;
+
+	TRACE_LEAVE(QUIC_EV_CONN_SET_AFFINITY, qc);
+	return 0;
+
+ err:
+	task_destroy(t1);
+	task_destroy(t2);
+	tasklet_free(t3);
+
+	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_SET_AFFINITY, qc);
+	return 1;
+}
+
+/* Complete <qc> rebiding to an already selected new thread and associate it
+ * to <new_li> if necessary as required when migrating to a new thread group.
+ *
+ * After this function, <qc> instance must only be accessed via its newly
+ * associated thread. qc_finalize_affinity_rebind() must be called to
+ * reactivate quic_conn elements.
+ */
+void qc_set_tid_affinity2(struct quic_conn *qc, struct listener *new_li)
+{
+	const uint new_tid = qc->wait_event.tasklet->tid;
+	struct quic_connection_id *conn_id;
+	struct eb64_node *node;
+
+	TRACE_ENTER(QUIC_EV_CONN_SET_AFFINITY, qc);
+
+	/* Must only be called after qc_set_tid_affinity1(). */
+	BUG_ON(!(qc->flags & QUIC_FL_CONN_AFFINITY_CHANGED));
+
+	/* At this point no connection was accounted for yet on this
+	 * listener so it's OK to just swap the pointer.
+	 */
+	if (new_li && new_li != qc->li)
+		qc->li = new_li;
+
 	/* Rebind the connection FD. */
 	if (qc_test_fd(qc)) {
 		/* Reading is reactivated by the new thread. */
 		fd_migrate_on(qc->fd, new_tid);
 	}
-
-	/* Remove conn from per-thread list instance. It will be hidden from
-	 * "show quic" until rebinding is completed.
-	 */
-	qc_detach_th_ctx_list(qc, 0);
 
 	node = eb64_first(qc->cids);
 	/* One and only one CID must be present before affinity rebind.
@@ -1797,29 +1830,35 @@ int qc_set_tid_affinity1(struct quic_conn *qc, uint new_tid, struct listener *ne
 	BUG_ON(!node || eb64_next(node));
 	conn_id = eb64_entry(node, struct quic_connection_id, seq_num);
 
-	/* At this point no connection was accounted for yet on this
-	 * listener so it's OK to just swap the pointer.
+	/* Rebinding is considered done when CID points to the new
+	 * thread. quic-conn instance cannot be derefence after it.
 	 */
-	if (new_li && new_li != qc->li)
-		qc->li = new_li;
-
-	/* Rebinding is considered done when CID points to the new thread. No
-	 * access should be done to quic-conn instance after it.
-	 */
-	qc->flags |= QUIC_FL_CONN_AFFINITY_CHANGED;
 	HA_ATOMIC_STORE(&conn_id->tid, new_tid);
 	qc = NULL;
 
 	TRACE_LEAVE(QUIC_EV_CONN_SET_AFFINITY, NULL);
-	return 0;
+}
 
- err:
-	task_destroy(t1);
-	task_destroy(t2);
-	tasklet_free(t3);
+/* Interrupt <qc> thread migration and stick to the current tid.
+ * qc_finalize_affinity_rebind() must be called to reactivate quic_conn
+ * elements.
+ */
+void qc_reset_tid_affinity(struct quic_conn *qc)
+{
+	TRACE_ENTER(QUIC_EV_CONN_SET_AFFINITY, qc);
 
-	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_SET_AFFINITY, qc);
-	return 1;
+	/* Must only be called after qc_set_tid_affinity1(). */
+	BUG_ON(!(qc->flags & QUIC_FL_CONN_AFFINITY_CHANGED));
+
+	/* Reset tasks affinity to the current thread. quic_conn will remain
+	 * inactive until qc_finalize_affinity_rebind().
+	 */
+	task_set_thread(qc->idle_timer_task, tid);
+	if (qc->timer_task)
+		task_set_thread(qc->timer_task, tid);
+	tasklet_set_tid(qc->wait_event.tasklet, tid);
+
+	TRACE_LEAVE(QUIC_EV_CONN_SET_AFFINITY, qc);
 }
 
 /* Must be called after qc_set_tid_affinity() on the new thread. */
