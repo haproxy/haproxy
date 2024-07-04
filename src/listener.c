@@ -105,11 +105,14 @@ struct connection *accept_queue_pop_sc(struct accept_queue_ring *ring)
 }
 
 
-/* tries to push a new accepted connection <conn> into ring <ring>. Returns
- * non-zero if it succeeds, or zero if the ring is full. Supports multiple
- * producers.
+/* Tries to push a new accepted connection <conn> into ring <ring>.
+ * <accept_push_cb> is called if not NULL just prior to the push operation.
+ *
+ * Returns non-zero if it succeeds, or zero if the ring is full. Supports
+ * multiple producers.
  */
-int accept_queue_push_mp(struct accept_queue_ring *ring, struct connection *conn)
+int accept_queue_push_mp(struct accept_queue_ring *ring, struct connection *conn,
+                         void (*accept_push_cb)(struct connection *))
 {
 	unsigned int pos, next;
 	uint32_t idx = _HA_ATOMIC_LOAD(&ring->idx);  /* (head << 16) + tail */
@@ -123,6 +126,9 @@ int accept_queue_push_mp(struct accept_queue_ring *ring, struct connection *conn
 			return 0; // ring full
 		next |= (idx & 0xffff0000U);
 	} while (unlikely(!_HA_ATOMIC_CAS(&ring->idx, &idx, next) && __ha_cpu_relax()));
+
+	if (accept_push_cb)
+		accept_push_cb(conn);
 
 	ring->entry[pos] = conn;
 	__ha_barrier_store();
@@ -1013,6 +1019,7 @@ static inline int listener_uses_maxconn(const struct listener *l)
  */
 void listener_accept(struct listener *l)
 {
+	void (*li_set_affinity2)(struct connection *);
 	struct connection *cli_conn;
 	struct proxy *p;
 	unsigned int max_accept;
@@ -1023,6 +1030,7 @@ void listener_accept(struct listener *l)
 	int ret;
 
 	p = l->bind_conf->frontend;
+	li_set_affinity2 = l->rx.proto ? l->rx.proto->set_affinity2 : NULL;
 
 	/* if l->bind_conf->maxaccept is -1, then max_accept is UINT_MAX. It is
 	 * not really illimited, but it is probably enough.
@@ -1461,8 +1469,8 @@ void listener_accept(struct listener *l)
 			 * reservation in the target ring.
 			 */
 
-			if (l->rx.proto && l->rx.proto->set_affinity) {
-				if (l->rx.proto->set_affinity(cli_conn, t)) {
+			if (l->rx.proto && l->rx.proto->set_affinity1) {
+				if (l->rx.proto->set_affinity1(cli_conn, t)) {
 					/* Failed migration, stay on the same thread. */
 					goto local_accept;
 				}
@@ -1475,15 +1483,19 @@ void listener_accept(struct listener *l)
 			 * when processing this loop.
 			 */
 			ring = &accept_queue_rings[t];
-			if (accept_queue_push_mp(ring, cli_conn)) {
+			if (accept_queue_push_mp(ring, cli_conn, li_set_affinity2)) {
 				_HA_ATOMIC_INC(&activity[t].accq_pushed);
 				tasklet_wakeup(ring->tasklet);
+
 				continue;
 			}
 			/* If the ring is full we do a synchronous accept on
 			 * the local thread here.
 			 */
 			_HA_ATOMIC_INC(&activity[t].accq_full);
+
+			if (l->rx.proto && l->rx.proto->reset_affinity)
+				l->rx.proto->reset_affinity(cli_conn);
 		}
 #endif // USE_THREAD
 

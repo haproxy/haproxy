@@ -39,7 +39,7 @@ struct protocol proto_rhttp = {
 	.unbind      = rhttp_unbind_receiver,
 	.resume      = default_resume_listener,
 	.accept_conn = rhttp_accept_conn,
-	.set_affinity = rhttp_set_affinity,
+	.set_affinity1 = rhttp_set_affinity,
 
 	/* address family */
 	.fam  = &proto_fam_rhttp,

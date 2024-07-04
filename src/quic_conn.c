@@ -1730,7 +1730,7 @@ void qc_notify_err(struct quic_conn *qc)
  *
  * Returns 0 on success else non-zero.
  */
-int qc_set_tid_affinity(struct quic_conn *qc, uint new_tid, struct listener *new_li)
+int qc_set_tid_affinity1(struct quic_conn *qc, uint new_tid, struct listener *new_li)
 {
 	struct task *t1 = NULL, *t2 = NULL;
 	struct tasklet *t3 = NULL;

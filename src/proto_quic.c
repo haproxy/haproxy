@@ -61,7 +61,7 @@ static int quic_bind_listener(struct listener *listener, char *errmsg, int errle
 static int quic_connect_server(struct connection *conn, int flags);
 static void quic_enable_listener(struct listener *listener);
 static void quic_disable_listener(struct listener *listener);
-static int quic_set_affinity(struct connection *conn, int new_tid);
+static int quic_set_affinity1(struct connection *conn, int new_tid);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 struct protocol proto_quic4 = {
@@ -80,7 +80,7 @@ struct protocol proto_quic4 = {
 	.get_src        = quic_sock_get_src,
 	.get_dst        = quic_sock_get_dst,
 	.connect        = quic_connect_server,
-	.set_affinity   = quic_set_affinity,
+	.set_affinity1  = quic_set_affinity1,
 
 	/* binding layer */
 	.rx_suspend     = udp_suspend_receiver,
@@ -124,7 +124,7 @@ struct protocol proto_quic6 = {
 	.get_src        = quic_sock_get_src,
 	.get_dst        = quic_sock_get_dst,
 	.connect        = quic_connect_server,
-	.set_affinity   = quic_set_affinity,
+	.set_affinity1  = quic_set_affinity1,
 
 	/* binding layer */
 	.rx_suspend     = udp_suspend_receiver,
@@ -668,10 +668,10 @@ static void quic_disable_listener(struct listener *l)
  * target is a listener, and the caller is responsible for guaranteeing that
  * the listener assigned to the connection is bound to the requested thread.
  */
-static int quic_set_affinity(struct connection *conn, int new_tid)
+static int quic_set_affinity1(struct connection *conn, int new_tid)
 {
 	struct quic_conn *qc = conn->handle.qc;
-	return qc_set_tid_affinity(qc, new_tid, objt_listener(conn->target));
+	return qc_set_tid_affinity1(qc, new_tid, objt_listener(conn->target));
 }
 
 static int quic_alloc_dghdlrs(void)

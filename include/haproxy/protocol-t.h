@@ -119,7 +119,14 @@ struct protocol {
 	void (*ignore_events)(struct connection *conn, int event_type);  /* unsubscribe from socket events */
 	int (*get_src)(struct connection *conn, struct sockaddr *, socklen_t); /* retrieve connection's source address; -1=fail */
 	int (*get_dst)(struct connection *conn, struct sockaddr *, socklen_t); /* retrieve connection's dest address; -1=fail */
-	int (*set_affinity)(struct connection *conn, int new_tid);
+
+	/* functions related to thread affinity update */
+	/* prepare rebind connection on a new thread, may fail */
+	int (*set_affinity1)(struct connection *conn, int new_tid);
+	/* complete connection thread rebinding, no error possible */
+	void (*set_affinity2)(struct connection *conn);
+	/* cancel connection thread rebinding */
+	void (*reset_affinity)(struct connection *conn);
 
 	/* functions acting on the receiver */
 	int (*rx_suspend)(struct receiver *rx);         /* temporarily suspend this receiver for a soft restart */
