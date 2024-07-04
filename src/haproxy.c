@@ -3412,7 +3412,8 @@ int main(int argc, char **argv)
 	 * is started and run under the same non-root user, this allows
 	 * binding to privileged ports.
 	 */
-	prepare_caps_from_permitted_set(geteuid(), global.uid, argv[0]);
+	if (!(global.mode & MODE_MWORKER))
+	    prepare_caps_from_permitted_set(geteuid(), global.uid, argv[0]);
 #endif
 
 	/* Try to get the listeners FD from the previous process using
