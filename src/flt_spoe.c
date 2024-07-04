@@ -43,17 +43,6 @@
 #include <haproxy/vars.h>
 
 
-/* Reserved 4 bytes to the frame size. So a frame and its size can be written
- * together in a buffer */
-#define MAX_FRAME_SIZE     global.tune.bufsize - 4
-
-/* The minimum size for a frame */
-#define MIN_FRAME_SIZE     256
-
-/* Reserved for the metadata and the frame type.
- * So <MAX_FRAME_SIZE> - <FRAME_HDR_SIZE> is the maximum payload size */
-#define FRAME_HDR_SIZE     32
-
 /* Helper to get SPOE ctx inside an appctx */
 #define SPOE_APPCTX(appctx) ((struct spoe_appctx *)((appctx)->svcctx))
 
@@ -166,22 +155,22 @@ spoe_release_agent(struct spoe_agent *agent)
 	free(agent);
 }
 
-static const char *spoe_frm_err_reasons[SPOE_FRM_ERRS] = {
-	[SPOE_FRM_ERR_NONE]               = "normal",
-	[SPOE_FRM_ERR_IO]                 = "I/O error",
-	[SPOE_FRM_ERR_TOUT]               = "a timeout occurred",
-	[SPOE_FRM_ERR_TOO_BIG]            = "frame is too big",
-	[SPOE_FRM_ERR_INVALID]            = "invalid frame received",
-	[SPOE_FRM_ERR_NO_VSN]             = "version value not found",
-	[SPOE_FRM_ERR_NO_FRAME_SIZE]      = "max-frame-size value not found",
-	[SPOE_FRM_ERR_NO_CAP]             = "capabilities value not found",
-	[SPOE_FRM_ERR_BAD_VSN]            = "unsupported version",
-	[SPOE_FRM_ERR_BAD_FRAME_SIZE]     = "max-frame-size too big or too small",
-	[SPOE_FRM_ERR_FRAG_NOT_SUPPORTED] = "fragmentation not supported",
-	[SPOE_FRM_ERR_INTERLACED_FRAMES]  = "invalid interlaced frames",
-	[SPOE_FRM_ERR_FRAMEID_NOTFOUND]   = "frame-id not found",
-	[SPOE_FRM_ERR_RES]                = "resource allocation error",
-	[SPOE_FRM_ERR_UNKNOWN]            = "an unknown error occurred",
+static const char *spoe_frm_err_reasons[SPOP_ERR_ENTRIES] = {
+	[SPOP_ERR_NONE]               = "normal",
+	[SPOP_ERR_IO]                 = "I/O error",
+	[SPOP_ERR_TOUT]               = "a timeout occurred",
+	[SPOP_ERR_TOO_BIG]            = "frame is too big",
+	[SPOP_ERR_INVALID]            = "invalid frame received",
+	[SPOP_ERR_NO_VSN]             = "version value not found",
+	[SPOP_ERR_NO_FRAME_SIZE]      = "max-frame-size value not found",
+	[SPOP_ERR_NO_CAP]             = "capabilities value not found",
+	[SPOP_ERR_BAD_VSN]            = "unsupported version",
+	[SPOP_ERR_BAD_FRAME_SIZE]     = "max-frame-size too big or too small",
+	[SPOP_ERR_FRAG_NOT_SUPPORTED] = "fragmentation not supported",
+	[SPOP_ERR_INTERLACED_FRAMES]  = "invalid interlaced frames",
+	[SPOP_ERR_FRAMEID_NOTFOUND]   = "frame-id not found",
+	[SPOP_ERR_RES]                = "resource allocation error",
+	[SPOP_ERR_UNKNOWN]            = "an unknown error occurred",
 };
 
 static const char *spoe_event_str[SPOE_EV_EVENTS] = {
@@ -227,7 +216,7 @@ spoe_update_stat_time(ullong *since, long *t)
 /* Predefined key used in HELLO/DISCONNECT frames */
 #define SUPPORTED_VERSIONS_KEY     "supported-versions"
 #define VERSION_KEY                "version"
-#define MAX_FRAME_SIZE_KEY         "max-frame-size"
+#define SPOP_MAX_FRAME_SIZE_KEY         "max-frame-size"
 #define CAPABILITIES_KEY           "capabilities"
 #define ENGINE_ID_KEY              "engine-id"
 #define HEALTHCHECK_KEY            "healthcheck"
@@ -318,14 +307,14 @@ spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
 	struct buffer      *chk;
 	struct spoe_agent *agent = SPOE_APPCTX(appctx)->agent;
 	char              *p, *end;
-	unsigned int       flags = SPOE_FRM_FL_FIN;
+	unsigned int       flags = SPOP_FRM_FL_FIN;
 	size_t             sz;
 
 	p   = frame;
 	end = frame+size;
 
 	/* Set Frame type */
-	*p++ = SPOE_FRM_T_HAPROXY_HELLO;
+	*p++ = SPOP_FRM_T_HAPROXY_HELLO;
 
 	/* Set flags */
 	flags = htonl(flags);
@@ -343,17 +332,17 @@ spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
 	if (spoe_encode_buffer(SUPPORTED_VERSIONS_KEY, sz, &p, end) == -1)
 		goto too_big;
 
-	*p++ = SPOE_DATA_T_STR;
+	*p++ = SPOP_DATA_T_STR;
 	sz = SLEN(SUPPORTED_VERSIONS_VAL);
 	if (spoe_encode_buffer(SUPPORTED_VERSIONS_VAL, sz, &p, end) == -1)
 		goto too_big;
 
 	/* "max-fram-size" K/V item */
-	sz = SLEN(MAX_FRAME_SIZE_KEY);
-	if (spoe_encode_buffer(MAX_FRAME_SIZE_KEY, sz, &p, end) == -1)
+	sz = SLEN(SPOP_MAX_FRAME_SIZE_KEY);
+	if (spoe_encode_buffer(SPOP_MAX_FRAME_SIZE_KEY, sz, &p, end) == -1)
 		goto too_big;
 
-	*p++ = SPOE_DATA_T_UINT32;
+	*p++ = SPOP_DATA_T_UINT32;
 	if (encode_varint(SPOE_APPCTX(appctx)->max_frame_size, &p, end) == -1)
 		goto too_big;
 
@@ -362,7 +351,7 @@ spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
 	if (spoe_encode_buffer(CAPABILITIES_KEY, sz, &p, end) == -1)
 		goto too_big;
 
-	*p++ = SPOE_DATA_T_STR;
+	*p++ = SPOP_DATA_T_STR;
 	chk = get_trash_chunk();
 	if (agent != NULL && (agent->flags & SPOE_FL_PIPELINING)) {
 		memcpy(chk->area, "pipelining", 10);
@@ -377,7 +366,7 @@ spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
 		if (spoe_encode_buffer(ENGINE_ID_KEY, sz, &p, end) == -1)
 			goto too_big;
 
-		*p++ = SPOE_DATA_T_STR;
+		*p++ = SPOP_DATA_T_STR;
 		sz = strlen(agent->engine_id);
 		if (spoe_encode_buffer(agent->engine_id, sz, &p, end) == -1)
 			goto too_big;
@@ -386,7 +375,7 @@ spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
 	return (p - frame);
 
   too_big:
-	SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_TOO_BIG;
+	SPOE_APPCTX(appctx)->status_code = SPOP_ERR_TOO_BIG;
 	return 0;
 }
 
@@ -398,14 +387,14 @@ spoe_prepare_hadiscon_frame(struct appctx *appctx, char *frame, size_t size)
 {
 	const char  *reason;
 	char        *p, *end;
-	unsigned int flags = SPOE_FRM_FL_FIN;
+	unsigned int flags = SPOP_FRM_FL_FIN;
 	size_t       sz;
 
 	p   = frame;
 	end = frame+size;
 
 	 /* Set Frame type */
-	*p++ = SPOE_FRM_T_HAPROXY_DISCON;
+	*p++ = SPOP_FRM_T_HAPROXY_DISCON;
 
 	/* Set flags */
 	flags = htonl(flags);
@@ -415,8 +404,8 @@ spoe_prepare_hadiscon_frame(struct appctx *appctx, char *frame, size_t size)
 	/* No stream-id and frame-id for DISCONNECT frames */
 	*p++ = 0; *p++ = 0;
 
-	if (SPOE_APPCTX(appctx)->status_code >= SPOE_FRM_ERRS)
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_UNKNOWN;
+	if (SPOE_APPCTX(appctx)->status_code >= SPOP_ERR_ENTRIES)
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_UNKNOWN;
 
 	/* There are 2 mandatory items: "status-code" and "message" */
 
@@ -425,7 +414,7 @@ spoe_prepare_hadiscon_frame(struct appctx *appctx, char *frame, size_t size)
 	if (spoe_encode_buffer(STATUS_CODE_KEY, sz, &p, end) == -1)
 		goto too_big;
 
-	*p++ = SPOE_DATA_T_UINT32;
+	*p++ = SPOP_DATA_T_UINT32;
 	if (encode_varint(SPOE_APPCTX(appctx)->status_code, &p, end) == -1)
 		goto too_big;
 
@@ -437,7 +426,7 @@ spoe_prepare_hadiscon_frame(struct appctx *appctx, char *frame, size_t size)
 	/*Get the message corresponding to the status code */
 	reason = spoe_frm_err_reasons[SPOE_APPCTX(appctx)->status_code];
 
-	*p++ = SPOE_DATA_T_STR;
+	*p++ = SPOP_DATA_T_STR;
 	sz = strlen(reason);
 	if (spoe_encode_buffer(reason, sz, &p, end) == -1)
 		goto too_big;
@@ -445,7 +434,7 @@ spoe_prepare_hadiscon_frame(struct appctx *appctx, char *frame, size_t size)
 	return (p - frame);
 
   too_big:
-	SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_TOO_BIG;
+	SPOE_APPCTX(appctx)->status_code = SPOP_ERR_TOO_BIG;
 	return 0;
 }
 
@@ -457,7 +446,7 @@ spoe_prepare_hanotify_frame(struct appctx *appctx, char *frame, size_t size)
 {
 	char        *p, *end;
 	unsigned int stream_id, frame_id;
-	unsigned int flags = SPOE_FRM_FL_FIN;
+	unsigned int flags = SPOP_FRM_FL_FIN;
 	size_t       sz;
 
 	p   = frame;
@@ -467,7 +456,7 @@ spoe_prepare_hanotify_frame(struct appctx *appctx, char *frame, size_t size)
 	frame_id  = SPOE_APPCTX(appctx)->spoe_ctx->frame_id;
 
 	/* Set Frame type */
-	*p++ = SPOE_FRM_T_HAPROXY_NOTIFY;
+	*p++ = SPOP_FRM_T_HAPROXY_NOTIFY;
 
 	/* Set flags */
 	flags = htonl(flags);
@@ -490,7 +479,7 @@ spoe_prepare_hanotify_frame(struct appctx *appctx, char *frame, size_t size)
 	return (p - frame);
 
   too_big:
-	SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_TOO_BIG;
+	SPOE_APPCTX(appctx)->status_code = SPOP_ERR_TOO_BIG;
 	return 0;
 }
 
@@ -509,13 +498,13 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 	end = frame + size;
 
 	/* Check frame type */
-	if (*p++ != SPOE_FRM_T_AGENT_HELLO) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+	if (*p++ != SPOP_FRM_T_AGENT_HELLO) {
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 		return 0;
 	}
 
 	if (size < 7 /* TYPE + METADATA */) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 		return 0;
 	}
 
@@ -525,14 +514,14 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 	p += 4;
 
 	/* Fragmentation is not supported for HELLO frame */
-	if (!(flags & SPOE_FRM_FL_FIN)) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_FRAG_NOT_SUPPORTED;
+	if (!(flags & SPOP_FRM_FL_FIN)) {
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_FRAG_NOT_SUPPORTED;
 		return -1;
 	}
 
 	/* stream-id and frame-id must be cleared */
 	if (*p != 0 || *(p+1) != 0) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 		return 0;
 	}
 	p += 2;
@@ -550,7 +539,7 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 		/* Decode the item key */
 		ret = spoe_decode_buffer(&p, end, &str, &sz);
 		if (ret == -1 || !sz) {
-			SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+			SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 			return 0;
 		}
 
@@ -559,18 +548,18 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 			int i, type = *p++;
 
 			/* The value must be a string */
-			if ((type & SPOE_DATA_T_MASK) != SPOE_DATA_T_STR) {
-				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+			if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_STR) {
+				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 				return 0;
 			}
 			if (spoe_decode_buffer(&p, end, &str, &sz) == -1) {
-				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 				return 0;
 			}
 
 			vsn = spoe_str_to_vsn(str, sz);
 			if (vsn == -1) {
-				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_BAD_VSN;
+				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_BAD_VSN;
 				return -1;
 			}
 			for (i = 0; supported_versions[i].str != NULL; ++i) {
@@ -579,29 +568,29 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 					break;
 			}
 			if (supported_versions[i].str == NULL) {
-				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_BAD_VSN;
+				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_BAD_VSN;
 				return -1;
 			}
 		}
 		/* Check "max-frame-size" K/V item */
-		else if (sz >= strlen(MAX_FRAME_SIZE_KEY) && !memcmp(str, MAX_FRAME_SIZE_KEY, strlen(MAX_FRAME_SIZE_KEY))) {
+		else if (sz >= strlen(SPOP_MAX_FRAME_SIZE_KEY) && !memcmp(str, SPOP_MAX_FRAME_SIZE_KEY, strlen(SPOP_MAX_FRAME_SIZE_KEY))) {
 			int type = *p++;
 
 			/* The value must be integer */
-			if ((type & SPOE_DATA_T_MASK) != SPOE_DATA_T_INT32 &&
-			    (type & SPOE_DATA_T_MASK) != SPOE_DATA_T_INT64 &&
-			    (type & SPOE_DATA_T_MASK) != SPOE_DATA_T_UINT32 &&
-			    (type & SPOE_DATA_T_MASK) != SPOE_DATA_T_UINT64) {
-				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+			if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_INT32 &&
+			    (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_INT64 &&
+			    (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_UINT32 &&
+			    (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_UINT64) {
+				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 				return 0;
 			}
 			if (decode_varint(&p, end, &sz) == -1) {
-				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 				return 0;
 			}
-			if (sz < MIN_FRAME_SIZE ||
+			if (sz < SPOP_MIN_FRAME_SIZE ||
 			    sz > SPOE_APPCTX(appctx)->max_frame_size) {
-				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_BAD_FRAME_SIZE;
+				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_BAD_FRAME_SIZE;
 				return -1;
 			}
 			max_frame_size = sz;
@@ -611,12 +600,12 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 			int type = *p++;
 
 			/* The value must be a string */
-			if ((type & SPOE_DATA_T_MASK) != SPOE_DATA_T_STR) {
-				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+			if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_STR) {
+				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 				return 0;
 			}
 			if (spoe_decode_buffer(&p, end, &str, &sz) == -1) {
-				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 				return 0;
 			}
 
@@ -643,7 +632,7 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 		else {
 			/* Silently ignore unknown item */
 			if (spoe_skip_data(&p, end) == -1) {
-				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 				return 0;
 			}
 		}
@@ -651,11 +640,11 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 
 	/* Final checks */
 	if (!vsn) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_NO_VSN;
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_NO_VSN;
 		return -1;
 	}
 	if (!max_frame_size) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_NO_FRAME_SIZE;
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_NO_FRAME_SIZE;
 		return -1;
 	}
 	if (!agent)
@@ -685,13 +674,13 @@ spoe_handle_agentdiscon_frame(struct appctx *appctx, char *frame, size_t size)
 	end = frame + size;
 
 	/* Check frame type */
-	if (*p++ != SPOE_FRM_T_AGENT_DISCON) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+	if (*p++ != SPOP_FRM_T_AGENT_DISCON) {
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 		return 0;
 	}
 
 	if (size < 7 /* TYPE + METADATA */) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 		return 0;
 	}
 
@@ -701,14 +690,14 @@ spoe_handle_agentdiscon_frame(struct appctx *appctx, char *frame, size_t size)
 	p += 4;
 
 	/* Fragmentation is not supported for DISCONNECT frame */
-	if (!(flags & SPOE_FRM_FL_FIN)) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_FRAG_NOT_SUPPORTED;
+	if (!(flags & SPOP_FRM_FL_FIN)) {
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_FRAG_NOT_SUPPORTED;
 		return -1;
 	}
 
 	/* stream-id and frame-id must be cleared */
 	if (*p != 0 || *(p+1) != 0) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 		return 0;
 	}
 	p += 2;
@@ -724,7 +713,7 @@ spoe_handle_agentdiscon_frame(struct appctx *appctx, char *frame, size_t size)
 		/* Decode the item key */
 		ret = spoe_decode_buffer(&p, end, &str, &sz);
 		if (ret == -1 || !sz) {
-			SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+			SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 			return 0;
 		}
 
@@ -733,15 +722,15 @@ spoe_handle_agentdiscon_frame(struct appctx *appctx, char *frame, size_t size)
 			int type = *p++;
 
 			/* The value must be an integer */
-			if ((type & SPOE_DATA_T_MASK) != SPOE_DATA_T_INT32 &&
-			    (type & SPOE_DATA_T_MASK) != SPOE_DATA_T_INT64 &&
-			    (type & SPOE_DATA_T_MASK) != SPOE_DATA_T_UINT32 &&
-			    (type & SPOE_DATA_T_MASK) != SPOE_DATA_T_UINT64) {
-				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+			if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_INT32 &&
+			    (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_INT64 &&
+			    (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_UINT32 &&
+			    (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_UINT64) {
+				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 				return 0;
 			}
 			if (decode_varint(&p, end, &sz) == -1) {
-				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 				return 0;
 			}
 			SPOE_APPCTX(appctx)->status_code = sz;
@@ -752,20 +741,20 @@ spoe_handle_agentdiscon_frame(struct appctx *appctx, char *frame, size_t size)
 			int type = *p++;
 
 			/* The value must be a string */
-			if ((type & SPOE_DATA_T_MASK) != SPOE_DATA_T_STR) {
-				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+			if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_STR) {
+				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 				return 0;
 			}
 			ret = spoe_decode_buffer(&p, end, &str, &sz);
 			if (ret == -1 || sz > 255) {
-				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 				return 0;
 			}
 		}
 		else {
 			/* Silently ignore unknown item */
 			if (spoe_skip_data(&p, end) == -1) {
-				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 				return 0;
 			}
 		}
@@ -789,13 +778,13 @@ spoe_handle_agentack_frame(struct appctx *appctx, char *frame, size_t size)
 	end  = frame + size;
 
 	/* Check frame type */
-	if (*p++ != SPOE_FRM_T_AGENT_ACK) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+	if (*p++ != SPOP_FRM_T_AGENT_ACK) {
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 		return -1;
 	}
 
 	if (size < 7 /* TYPE + METADATA */) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 		return -1;
 	}
 
@@ -805,18 +794,18 @@ spoe_handle_agentack_frame(struct appctx *appctx, char *frame, size_t size)
 	p += 4;
 
 	/* Fragmentation is not supported for now */
-	if (!(flags & SPOE_FRM_FL_FIN)) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_FRAG_NOT_SUPPORTED;
+	if (!(flags & SPOP_FRM_FL_FIN)) {
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_FRAG_NOT_SUPPORTED;
 		return -1;
 	}
 
 	/* Get the stream-id and the frame-id */
 	if (decode_varint(&p, end, &stream_id) == -1) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 		return -1;
 	}
 	if (decode_varint(&p, end, &frame_id) == -1) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 		return -1;
 	}
 
@@ -825,7 +814,7 @@ spoe_handle_agentack_frame(struct appctx *appctx, char *frame, size_t size)
 			goto found;
 
 	/* No Stream found, ignore the frame */
-	SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_FRAMEID_NOTFOUND;
+	SPOE_APPCTX(appctx)->status_code = SPOP_ERR_FRAMEID_NOTFOUND;
 	return -1;
 
   found:
@@ -852,7 +841,7 @@ spoe_prepare_healthcheck_request(char **req, int *len)
 {
 	struct appctx      appctx;
 	struct spoe_appctx spoe_appctx;
-	char  *frame, *end, buf[MAX_FRAME_SIZE+4];
+	char  *frame, *end, buf[SPOP_MAX_FRAME_SIZE+4];
 	size_t sz;
 	int    ret;
 
@@ -861,12 +850,12 @@ spoe_prepare_healthcheck_request(char **req, int *len)
 	memset(buf, 0, sizeof(buf));
 
 	appctx.svcctx = &spoe_appctx;
-	SPOE_APPCTX(&appctx)->max_frame_size = MAX_FRAME_SIZE;
+	SPOE_APPCTX(&appctx)->max_frame_size = SPOP_MAX_FRAME_SIZE;
 
 	frame = buf+4; /* Reserved the 4 first bytes for the frame size */
-	end   = frame + MAX_FRAME_SIZE;
+	end   = frame + SPOP_MAX_FRAME_SIZE;
 
-	ret = spoe_prepare_hahello_frame(&appctx, frame, MAX_FRAME_SIZE);
+	ret = spoe_prepare_hahello_frame(&appctx, frame, SPOP_MAX_FRAME_SIZE);
 	if (ret <= 0)
 		return -1;
 	frame += ret;
@@ -875,7 +864,7 @@ spoe_prepare_healthcheck_request(char **req, int *len)
 	sz = SLEN(HEALTHCHECK_KEY);
 	if (spoe_encode_buffer(HEALTHCHECK_KEY, sz, &frame, end) == -1)
 		return -1;
-	*frame++ = (SPOE_DATA_T_BOOL | SPOE_DATA_FL_TRUE);
+	*frame++ = (SPOP_DATA_T_BOOL | SPOP_DATA_FL_TRUE);
 
 	*len = frame - buf;
 	sz   = htonl(*len - 4);
@@ -900,9 +889,9 @@ spoe_handle_healthcheck_response(char *frame, size_t size, char *err, int errlen
 	memset(&spoe_appctx, 0, sizeof(spoe_appctx));
 
 	appctx.svcctx = &spoe_appctx;
-	SPOE_APPCTX(&appctx)->max_frame_size = MAX_FRAME_SIZE;
+	SPOE_APPCTX(&appctx)->max_frame_size = SPOP_MAX_FRAME_SIZE;
 
-	if (*frame == SPOE_FRM_T_AGENT_DISCON) {
+	if (*frame == SPOP_FRM_T_AGENT_DISCON) {
 		spoe_handle_agentdiscon_frame(&appctx, frame, size);
 		goto error;
 	}
@@ -912,8 +901,8 @@ spoe_handle_healthcheck_response(char *frame, size_t size, char *err, int errlen
 	return 0;
 
   error:
-	if (SPOE_APPCTX(&appctx)->status_code >= SPOE_FRM_ERRS)
-		SPOE_APPCTX(&appctx)->status_code = SPOE_FRM_ERR_UNKNOWN;
+	if (SPOE_APPCTX(&appctx)->status_code >= SPOP_ERR_ENTRIES)
+		SPOE_APPCTX(&appctx)->status_code = SPOP_ERR_UNKNOWN;
 	strncpy(err, spoe_frm_err_reasons[SPOE_APPCTX(&appctx)->status_code], errlen);
 	return -1;
 }
@@ -951,11 +940,11 @@ spoe_recv_frame(struct appctx *appctx, char *buf, size_t framesz)
 	if (ret > 0) {
 		framesz = ntohl(netint);
 		if (framesz < 7)  {
-			SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+			SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
 			return -1;
 		}
 		if (framesz > SPOE_APPCTX(appctx)->max_frame_size) {
-			SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_TOO_BIG;
+			SPOE_APPCTX(appctx)->status_code = SPOP_ERR_TOO_BIG;
 			return -1;
 		}
 		ret = co_getblk(sc_oc(sc), buf, framesz, 4);
@@ -964,7 +953,7 @@ spoe_recv_frame(struct appctx *appctx, char *buf, size_t framesz)
 		if (ret == 0) {
 			return 1; /* retry */
 		}
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_IO;
 		return -1; /* error */
 	}
 	return framesz;
@@ -1030,8 +1019,8 @@ spoe_release_appctx(struct appctx *appctx)
 	/* Shutdown the server connection, if needed */
 	if (appctx->st0 != SPOE_APPCTX_ST_END) {
 		appctx->st0 = SPOE_APPCTX_ST_END;
-		if (spoe_appctx->status_code == SPOE_FRM_ERR_NONE)
-			spoe_appctx->status_code = SPOE_FRM_ERR_IO;
+		if (spoe_appctx->status_code == SPOP_ERR_NONE)
+			spoe_appctx->status_code = SPOP_ERR_IO;
 	}
 
 	if (spoe_appctx->spoe_ctx)  {
@@ -1067,7 +1056,7 @@ spoe_handle_connect_appctx(struct appctx *appctx)
         }
 
 	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_TOUT;
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_TOUT;
 		goto exit;
 	}
 
@@ -1111,7 +1100,7 @@ spoe_handle_connecting_appctx(struct appctx *appctx)
 	int    ret;
 
 	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_TOUT;
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_TOUT;
 		goto exit;
 	}
 
@@ -1119,7 +1108,7 @@ spoe_handle_connecting_appctx(struct appctx *appctx)
 	ret = spoe_recv_frame(appctx, frame,
 			      SPOE_APPCTX(appctx)->max_frame_size);
 	if (ret > 1) {
-		if (*frame == SPOE_FRM_T_AGENT_DISCON) {
+		if (*frame == SPOP_FRM_T_AGENT_DISCON) {
 			appctx->st0 = SPOE_APPCTX_ST_DISCONNECTING;
 			goto next;
 		}
@@ -1210,7 +1199,7 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx)
 	ret = spoe_recv_frame(appctx, frame,
 			      SPOE_APPCTX(appctx)->max_frame_size);
 	if (ret > 1) {
-		if (*frame == SPOE_FRM_T_AGENT_DISCON) {
+		if (*frame == SPOP_FRM_T_AGENT_DISCON) {
 			appctx->st0 = SPOE_APPCTX_ST_DISCONNECTING;
 			ret = -1;
 			goto end;
@@ -1350,7 +1339,7 @@ spoe_handle_disconnecting_appctx(struct appctx *appctx)
 	int    ret;
 
 	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_TOUT;
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_TOUT;
 		goto exit;
 	}
 
@@ -1403,7 +1392,7 @@ spoe_handle_appctx(struct appctx *appctx)
 		return;
 	}
 
-	SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_NONE;
+	SPOE_APPCTX(appctx)->status_code = SPOP_ERR_NONE;
 	if (!SPOE_APPCTX(appctx)->spoe_ctx) {
 		if (appctx->st0 == SPOE_APPCTX_ST_CONNECT)
 			appctx->st0 =  SPOE_APPCTX_ST_EXIT;
@@ -1446,7 +1435,7 @@ spoe_handle_appctx(struct appctx *appctx)
 		case SPOE_APPCTX_ST_EXIT:
 			appctx->st0 = SPOE_APPCTX_ST_END;
 			se_fl_set(appctx->sedesc, SE_FL_EOS);
-			if (SPOE_APPCTX(appctx)->status_code != SPOE_FRM_ERR_NONE)
+			if (SPOE_APPCTX(appctx)->status_code != SPOP_ERR_NONE)
 				se_fl_set(appctx->sedesc, SE_FL_ERROR);
 			else
 				se_fl_set(appctx->sedesc, SE_FL_EOI);
@@ -1483,7 +1472,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	spoe_appctx->version         = 0;
 	spoe_appctx->max_frame_size  = agent->max_frame_size;
 	spoe_appctx->flags           = 0;
-	spoe_appctx->status_code     = SPOE_FRM_ERR_NONE;
+	spoe_appctx->status_code     = SPOP_ERR_NONE;
 	spoe_appctx->buffer          = BUF_NULL;
 
 
@@ -1580,7 +1569,7 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 	char   *p, *end;
 
 	p   = b_head(&ctx->buffer);
-	end =  p + agent->max_frame_size - FRAME_HDR_SIZE;
+	end =  p + agent->max_frame_size - SPOP_FRAME_HDR_SIZE;
 
 	if (type == SPOE_MSGS_BY_EVENT) { /* Loop on messages by event */
 		list_for_each_entry(msg, messages, by_evt) {
@@ -1670,11 +1659,11 @@ spoe_decode_action_set_var(struct stream *s, struct spoe_context *ctx,
 		goto skip;
 
 	switch (*p++) {
-		case SPOE_SCOPE_PROC: scope = "proc"; break;
-		case SPOE_SCOPE_SESS: scope = "sess"; break;
-		case SPOE_SCOPE_TXN : scope = "txn";  break;
-		case SPOE_SCOPE_REQ : scope = "req";  break;
-		case SPOE_SCOPE_RES : scope = "res";  break;
+		case SPOP_SCOPE_PROC: scope = "proc"; break;
+		case SPOP_SCOPE_SESS: scope = "sess"; break;
+		case SPOP_SCOPE_TXN : scope = "txn";  break;
+		case SPOP_SCOPE_REQ : scope = "req";  break;
+		case SPOP_SCOPE_RES : scope = "res";  break;
 		default: goto skip;
 	}
 
@@ -1715,11 +1704,11 @@ spoe_decode_action_unset_var(struct stream *s, struct spoe_context *ctx,
 		goto skip;
 
 	switch (*p++) {
-		case SPOE_SCOPE_PROC: scope = "proc"; break;
-		case SPOE_SCOPE_SESS: scope = "sess"; break;
-		case SPOE_SCOPE_TXN : scope = "txn";  break;
-		case SPOE_SCOPE_REQ : scope = "req";  break;
-		case SPOE_SCOPE_RES : scope = "res";  break;
+		case SPOP_SCOPE_PROC: scope = "proc"; break;
+		case SPOP_SCOPE_SESS: scope = "sess"; break;
+		case SPOP_SCOPE_TXN : scope = "txn";  break;
+		case SPOP_SCOPE_REQ : scope = "req";  break;
+		case SPOP_SCOPE_RES : scope = "res";  break;
 		default: goto skip;
 	}
 
@@ -1753,13 +1742,13 @@ spoe_process_actions(struct stream *s, struct spoe_context *ctx, int dir)
 
 		type = *p++;
 		switch (type) {
-			case SPOE_ACT_T_SET_VAR:
+			case SPOP_ACT_T_SET_VAR:
 				ret = spoe_decode_action_set_var(s, ctx, &p, end, dir);
 				if (!ret)
 					goto skip;
 				break;
 
-			case SPOE_ACT_T_UNSET_VAR:
+			case SPOP_ACT_T_UNSET_VAR:
 				ret = spoe_decode_action_unset_var(s, ctx, &p, end, dir);
 				if (!ret)
 					goto skip;
@@ -2460,7 +2449,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		curagent->var_t_process  = NULL;
 		curagent->var_t_total    = NULL;
 		curagent->flags          = SPOE_FL_PIPELINING;
-		curagent->max_frame_size = MAX_FRAME_SIZE;
+		curagent->max_frame_size = SPOP_MAX_FRAME_SIZE;
 
 		for (i = 0; i < SPOE_EV_EVENTS; ++i)
 			LIST_INIT(&curagent->events[i]);
@@ -2771,10 +2760,10 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		curagent->max_frame_size = atol(args[1]);
-		if (curagent->max_frame_size < MIN_FRAME_SIZE ||
-		    curagent->max_frame_size > MAX_FRAME_SIZE) {
+		if (curagent->max_frame_size < SPOP_MIN_FRAME_SIZE ||
+		    curagent->max_frame_size > SPOP_MAX_FRAME_SIZE) {
 			ha_alert("parsing [%s:%d] : '%s' expects a positive integer argument in the range [%d, %d].\n",
-				 file, linenum, args[0], MIN_FRAME_SIZE, MAX_FRAME_SIZE);
+				 file, linenum, args[0], SPOP_MIN_FRAME_SIZE, SPOP_MAX_FRAME_SIZE);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

@@ -98,18 +98,18 @@ spoe_encode_data(struct sample *smp, char **buf, char *end)
 		return -1;
 
 	if (smp == NULL) {
-		*p++ = SPOE_DATA_T_NULL;
+		*p++ = SPOP_DATA_T_NULL;
 		goto end;
 	}
 
 	switch (smp->data.type) {
 		case SMP_T_BOOL:
-			*p    = SPOE_DATA_T_BOOL;
-			*p++ |= ((!smp->data.u.sint) ? SPOE_DATA_FL_FALSE : SPOE_DATA_FL_TRUE);
+			*p    = SPOP_DATA_T_BOOL;
+			*p++ |= ((!smp->data.u.sint) ? SPOP_DATA_FL_FALSE : SPOP_DATA_FL_TRUE);
 			break;
 
 		case SMP_T_SINT:
-			*p++ = SPOE_DATA_T_INT64;
+			*p++ = SPOP_DATA_T_INT64;
 			if (encode_varint(smp->data.u.sint, &p, end) == -1)
 				return -1;
 			break;
@@ -117,7 +117,7 @@ spoe_encode_data(struct sample *smp, char **buf, char *end)
 		case SMP_T_IPV4:
 			if (p + 5 > end)
 				return -1;
-			*p++ = SPOE_DATA_T_IPV4;
+			*p++ = SPOP_DATA_T_IPV4;
 			memcpy(p, &smp->data.u.ipv4, 4);
 			p += 4;
 			break;
@@ -125,7 +125,7 @@ spoe_encode_data(struct sample *smp, char **buf, char *end)
 		case SMP_T_IPV6:
 			if (p + 17 > end)
 				return -1;
-			*p++ = SPOE_DATA_T_IPV6;
+			*p++ = SPOP_DATA_T_IPV6;
 			memcpy(p, &smp->data.u.ipv6, 16);
 			p += 16;
 			break;
@@ -134,7 +134,7 @@ spoe_encode_data(struct sample *smp, char **buf, char *end)
 		case SMP_T_BIN: {
 			struct buffer *chk = &smp->data.u.str;
 
-			*p++ = (smp->data.type == SMP_T_STR) ? SPOE_DATA_T_STR : SPOE_DATA_T_BIN;
+			*p++ = (smp->data.type == SMP_T_STR) ? SPOP_DATA_T_STR : SPOP_DATA_T_BIN;
 			ret = spoe_encode_buffer(chk->area, chk->data, &p, end);
 			if (ret == -1)
 				return -1;
@@ -145,7 +145,7 @@ spoe_encode_data(struct sample *smp, char **buf, char *end)
 			char   *m;
 			size_t  len;
 
-			*p++ = SPOE_DATA_T_STR;
+			*p++ = SPOP_DATA_T_STR;
 			switch (smp->data.u.meth.meth) {
 				case HTTP_METH_OPTIONS: m = "OPTIONS"; len = 7; break;
 				case HTTP_METH_GET    : m = "GET";     len = 3; break;
@@ -166,7 +166,7 @@ spoe_encode_data(struct sample *smp, char **buf, char *end)
 		}
 
 		default:
-			*p++ = SPOE_DATA_T_NULL;
+			*p++ = SPOP_DATA_T_NULL;
 			break;
 	}
 
@@ -197,28 +197,28 @@ spoe_skip_data(char **buf, char *end)
 		return -1;
 
 	type = *p++;
-	switch (type & SPOE_DATA_T_MASK) {
-		case SPOE_DATA_T_BOOL:
+	switch (type & SPOP_DATA_T_MASK) {
+		case SPOP_DATA_T_BOOL:
 			break;
-		case SPOE_DATA_T_INT32:
-		case SPOE_DATA_T_INT64:
-		case SPOE_DATA_T_UINT32:
-		case SPOE_DATA_T_UINT64:
+		case SPOP_DATA_T_INT32:
+		case SPOP_DATA_T_INT64:
+		case SPOP_DATA_T_UINT32:
+		case SPOP_DATA_T_UINT64:
 			if (decode_varint(&p, end, &v) == -1)
 				return -1;
 			break;
-		case SPOE_DATA_T_IPV4:
+		case SPOP_DATA_T_IPV4:
 			if (p+4 > end)
 				return -1;
 			p += 4;
 			break;
-		case SPOE_DATA_T_IPV6:
+		case SPOP_DATA_T_IPV6:
 			if (p+16 > end)
 				return -1;
 			p += 16;
 			break;
-		case SPOE_DATA_T_STR:
-		case SPOE_DATA_T_BIN:
+		case SPOP_DATA_T_STR:
+		case SPOP_DATA_T_BIN:
 			/* All the buffer must be skipped */
 			if (spoe_decode_buffer(&p, end, &str, &sz) == -1)
 				return -1;
@@ -244,41 +244,41 @@ spoe_decode_data(char **buf, char *end, struct sample *smp)
 		return -1;
 
 	type = *p++;
-	switch (type & SPOE_DATA_T_MASK) {
-		case SPOE_DATA_T_BOOL:
-			smp->data.u.sint = ((type & SPOE_DATA_FL_MASK) == SPOE_DATA_FL_TRUE);
+	switch (type & SPOP_DATA_T_MASK) {
+		case SPOP_DATA_T_BOOL:
+			smp->data.u.sint = ((type & SPOP_DATA_FL_MASK) == SPOP_DATA_FL_TRUE);
 			smp->data.type = SMP_T_BOOL;
 			break;
-		case SPOE_DATA_T_INT32:
-		case SPOE_DATA_T_INT64:
-		case SPOE_DATA_T_UINT32:
-		case SPOE_DATA_T_UINT64:
+		case SPOP_DATA_T_INT32:
+		case SPOP_DATA_T_INT64:
+		case SPOP_DATA_T_UINT32:
+		case SPOP_DATA_T_UINT64:
 			if (decode_varint(&p, end, (uint64_t *)&smp->data.u.sint) == -1)
 				return -1;
 			smp->data.type = SMP_T_SINT;
 			break;
-		case SPOE_DATA_T_IPV4:
+		case SPOP_DATA_T_IPV4:
 			if (p+4 > end)
 				return -1;
 			smp->data.type = SMP_T_IPV4;
 			memcpy(&smp->data.u.ipv4, p, 4);
 			p += 4;
 			break;
-		case SPOE_DATA_T_IPV6:
+		case SPOP_DATA_T_IPV6:
 			if (p+16 > end)
 				return -1;
 			memcpy(&smp->data.u.ipv6, p, 16);
 			smp->data.type = SMP_T_IPV6;
 			p += 16;
 			break;
-		case SPOE_DATA_T_STR:
-		case SPOE_DATA_T_BIN:
+		case SPOP_DATA_T_STR:
+		case SPOP_DATA_T_BIN:
 			/* All the buffer must be decoded */
 			if (spoe_decode_buffer(&p, end, &str, &sz) == -1)
 				return -1;
 			smp->data.u.str.area = str;
 			smp->data.u.str.data = sz;
-			smp->data.type = (type == SPOE_DATA_T_STR) ? SMP_T_STR : SMP_T_BIN;
+			smp->data.type = (type == SPOP_DATA_T_STR) ? SMP_T_STR : SMP_T_BIN;
 			break;
 	}
 
