@@ -3513,37 +3513,6 @@ int main(int argc, char **argv)
 	 * be able to restart the old pids.
 	 */
 
-	if ((global.mode & (MODE_MWORKER | MODE_DAEMON)) == 0)
-		set_identity(argv[0]);
-
-	/* set_identity() above might have dropped LSTCHK_NETADM or/and
-	 * LSTCHK_SYSADM if it changed to a new UID while preserving enough
-	 * permissions to honnor LSTCHK_NETADM/LSTCHK_SYSADM.
-	 */
-	if ((global.last_checks & (LSTCHK_NETADM|LSTCHK_SYSADM)) && getuid()) {
-		/* If global.uid is present in config, it is already set as euid
-		 * and ruid by set_identity() just above, so it's better to
-		 * remind the user to fix uncoherent settings.
-		 */
-		if (global.uid) {
-			ha_alert("[%s.main()] Some configuration options require full "
-				 "privileges, so global.uid cannot be changed.\n", argv[0]);
-#if defined(USE_LINUX_CAP)
-			ha_alert("[%s.main()] Alternately, if your system supports "
-			         "Linux capabilities, you may also consider using "
-			         "'setcap cap_net_raw' or 'setcap cap_net_admin' in the "
-			         "'global' section.\n", argv[0]);
-#endif
-			protocol_unbind_all();
-			exit(1);
-		}
-		/* If the user is not root, we'll still let them try the configuration
-		 * but we inform them that unexpected behaviour may occur.
-		 */
-		ha_warning("[%s.main()] Some options which require full privileges"
-			   " might not work well.\n", argv[0]);
-	}
-
 	/* check ulimits */
 	limit.rlim_cur = limit.rlim_max = 0;
 	getrlimit(RLIMIT_NOFILE, &limit);
@@ -3645,6 +3614,34 @@ int main(int argc, char **argv)
 
 	ha_free(&global.chroot);
 	set_identity(argv[0]);
+
+	/* set_identity() above might have dropped LSTCHK_NETADM or/and
+	 * LSTCHK_SYSADM if it changed to a new UID while preserving enough
+	 * permissions to honnor LSTCHK_NETADM/LSTCHK_SYSADM.
+	 */
+	if ((global.last_checks & (LSTCHK_NETADM|LSTCHK_SYSADM)) && getuid()) {
+		/* If global.uid is present in config, it is already set as euid
+		 * and ruid by set_identity() just above, so it's better to
+		 * remind the user to fix uncoherent settings.
+		 */
+		if (global.uid) {
+			ha_alert("[%s.main()] Some configuration options require full "
+				 "privileges, so global.uid cannot be changed.\n", argv[0]);
+#if defined(USE_LINUX_CAP)
+			ha_alert("[%s.main()] Alternately, if your system supports "
+			         "Linux capabilities, you may also consider using "
+			         "'setcap cap_net_raw' or 'setcap cap_net_admin' in the "
+			         "'global' section.\n", argv[0]);
+#endif
+			protocol_unbind_all();
+			exit(1);
+		}
+		/* If the user is not root, we'll still let them try the configuration
+		 * but we inform them that unexpected behaviour may occur.
+		 */
+		ha_warning("[%s.main()] Some options which require full privileges"
+			   " might not work well.\n", argv[0]);
+	}
 
 	/*
 	 * This is only done in daemon mode because we might want the
