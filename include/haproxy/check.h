@@ -89,10 +89,6 @@ int init_srv_check(struct server *srv);
 int init_srv_agent_check(struct server *srv);
 int start_check_task(struct check *check, int mininter, int nbcheck, int srvpos);
 
-/* Declared here, but the definitions are in flt_spoe.c */
-int spoe_prepare_healthcheck_request(char **req, int *len);
-int spoe_handle_healthcheck_response(char *frame, size_t size, char *err, int errlen);
-
 int set_srv_agent_send(struct server *srv, const char *send);
 
 /* set agent addr and appropriate flag */

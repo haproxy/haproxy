@@ -759,55 +759,6 @@ enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct 
 	goto out;
 }
 
-/* Custom tcp-check expect function to parse and validate the SPOP hello agent
- * frame. Returns TCPCHK_EVAL_WAIT to wait for more data, TCPCHK_EVAL_CONTINUE
- * to evaluate the next rule or TCPCHK_EVAL_STOP if an error occurred.
- */
-enum tcpcheck_eval_ret tcpcheck_spop_expect_agenthello(struct check *check, struct tcpcheck_rule *rule, int last_read)
-{
-	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
-	enum healthcheck_status status;
-	struct buffer *msg = NULL;
-	struct ist desc = IST_NULL;
-	unsigned int framesz;
-
-	TRACE_ENTER(CHK_EV_TCPCHK_EXP, check);
-
-	memcpy(&framesz, b_head(&check->bi), 4);
-	framesz = ntohl(framesz);
-
-	if (!last_read && b_data(&check->bi) < (4+framesz))
-		goto wait_more_data;
-
-	memset(b_orig(&trash), 0, b_size(&trash));
-	if (spoe_handle_healthcheck_response(b_peek(&check->bi, 4), framesz, b_orig(&trash), HCHK_DESC_LEN) == -1) {
-		status = HCHK_STATUS_L7RSP;
-		desc = ist2(b_orig(&trash), strlen(b_orig(&trash)));
-		goto error;
-	}
-
-	status = ((rule->expect.ok_status != HCHK_STATUS_UNKNOWN) ? rule->expect.ok_status : HCHK_STATUS_L7OKD);
-	set_server_check_status(check, status, "SPOA server is ok");
-
-  out:
-	free_trash_chunk(msg);
-	TRACE_LEAVE(CHK_EV_TCPCHK_EXP, check, 0, 0, (size_t[]){ret});
-	return ret;
-
-  error:
-	ret = TCPCHK_EVAL_STOP;
-	msg = alloc_trash_chunk();
-	if (msg)
-		tcpcheck_expect_onerror_message(msg, check, rule, 0, desc);
-	set_server_check_status(check, status, (msg ? b_head(msg) : NULL));
-	goto out;
-
-  wait_more_data:
-	TRACE_DEVEL("waiting for more data", CHK_EV_TCPCHK_EXP, check);
-	ret = TCPCHK_EVAL_WAIT;
-	goto out;
-}
-
 /* Custom tcp-check expect function to parse and validate the agent-check
  * reply. Returns TCPCHK_EVAL_WAIT to wait for more data, TCPCHK_EVAL_CONTINUE
  * to evaluate the next rule or TCPCHK_EVAL_STOP if an error occurred.
@@ -1239,9 +1190,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && check->mux_proto)
 			mux_ops = check->mux_proto->mux;
 		else {
-			int mode = ((check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK
-				    ? PROTO_MODE_HTTP
-				    : PROTO_MODE_TCP);
+			int mode = tcpchk_rules_type_to_proto_mode(check->tcpcheck_rules->flags);
 
 			mux_ops = conn_get_best_mux(conn, IST_NULL, PROTO_SIDE_BE, mode);
 		}
@@ -4842,10 +4791,7 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 {
 	struct tcpcheck_ruleset *rs = NULL;
 	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
-	struct tcpcheck_rule *chk;
-	char *spop_req = NULL;
-	char *errmsg = NULL;
-	int spop_len = 0, err_code = 0;
+	int err_code = 0;
 
 	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[cur_arg+1], NULL))
 		err_code |= ERR_WARN;
@@ -4860,7 +4806,6 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 	rules->list  = NULL;
 	rules->flags = 0;
 
-
 	rs = find_tcpcheck_ruleset("*spop-check");
 	if (rs)
 		goto ruleset_found;
@@ -4871,41 +4816,12 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 		goto error;
 	}
 
-	if (spoe_prepare_healthcheck_request(&spop_req, &spop_len) == -1) {
-		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
-		goto error;
-	}
-	chunk_reset(&trash);
-	dump_binary(&trash, spop_req, spop_len);
-	trash.area[trash.data] = '\0';
-
-	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary", b_head(&trash), ""},
-				  1, curpx, &rs->rules, file, line, &errmsg);
-	if (!chk) {
-		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
-		goto error;
-	}
-	chk->index = 0;
-	LIST_APPEND(&rs->rules, &chk->list);
-
-	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", "min-recv", "4", ""},
-		                    1, curpx, &rs->rules, TCPCHK_RULES_SPOP_CHK, file, line, &errmsg);
-	if (!chk) {
-		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
-		goto error;
-	}
-	chk->expect.custom = tcpcheck_spop_expect_agenthello;
-	chk->index = 1;
-	LIST_APPEND(&rs->rules, &chk->list);
-
   ruleset_found:
 	rules->list = &rs->rules;
 	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
 	rules->flags |= TCPCHK_RULES_SPOP_CHK;
 
   out:
-	free(spop_req);
-	free(errmsg);
 	return err_code;
 
   error:

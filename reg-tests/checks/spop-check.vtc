@@ -2,6 +2,8 @@ varnishtest "Health-checks: SPOP health-check"
 #REGTEST_TYPE=slow
 feature ignore_unknown_macro
 
+#REGTEST_TYPE=broken
+
 # This scripts tests health-checks for SPOE agent, enabled using
 # "option spop-check" line. A intermediate listener is used to validate
 # the request because it is impossible with VTEST to read and match raw
