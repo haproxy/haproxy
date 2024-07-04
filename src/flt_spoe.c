@@ -43,6 +43,201 @@
 #include <haproxy/vars.h>
 
 
+/* Type of list of messages */
+#define SPOE_MSGS_BY_EVENT 0x01
+#define SPOE_MSGS_BY_GROUP 0x02
+
+/* Flags set on the SPOE context */
+#define SPOE_CTX_FL_CLI_CONNECTED 0x00000001 /* Set after that on-client-session event was processed */
+#define SPOE_CTX_FL_SRV_CONNECTED 0x00000002 /* Set after that on-server-session event was processed */
+#define SPOE_CTX_FL_REQ_PROCESS   0x00000004 /* Set when SPOE is processing the request */
+#define SPOE_CTX_FL_RSP_PROCESS   0x00000008 /* Set when SPOE is processing the response */
+/* unsued 0x00000010 */
+
+#define SPOE_CTX_FL_PROCESS (SPOE_CTX_FL_REQ_PROCESS|SPOE_CTX_FL_RSP_PROCESS)
+
+/* Flags set on the SPOE applet */
+#define SPOE_APPCTX_FL_PIPELINING    0x00000001 /* Set if pipelining is supported */
+/* unused 0x00000002 */
+/* unused 0x00000004 */
+
+#define SPOE_APPCTX_ERR_NONE    0x00000000 /* no error yet, leave it to zero */
+#define SPOE_APPCTX_ERR_TOUT    0x00000001 /* SPOE applet timeout */
+
+
+/* All possible states for a SPOE context */
+enum spoe_ctx_state {
+	SPOE_CTX_ST_NONE = 0,
+	SPOE_CTX_ST_READY,
+	SPOE_CTX_ST_ENCODING_MSGS,
+	SPOE_CTX_ST_SENDING_MSGS,
+	SPOE_CTX_ST_WAITING_ACK,
+	SPOE_CTX_ST_DONE,
+	SPOE_CTX_ST_ERROR,
+};
+
+/* All possible states for a SPOE applet */
+enum spoe_appctx_state {
+	SPOE_APPCTX_ST_CONNECT = 0,
+	SPOE_APPCTX_ST_CONNECTING,
+	SPOE_APPCTX_ST_IDLE,
+	SPOE_APPCTX_ST_PROCESSING,
+	SPOE_APPCTX_ST_WAITING_SYNC_ACK,
+	SPOE_APPCTX_ST_DISCONNECT,
+	SPOE_APPCTX_ST_DISCONNECTING,
+	SPOE_APPCTX_ST_EXIT,
+	SPOE_APPCTX_ST_END,
+};
+
+/* All supported SPOE events */
+enum spoe_event {
+	SPOE_EV_NONE = 0,
+
+	/* Request events */
+	SPOE_EV_ON_CLIENT_SESS = 1,
+	SPOE_EV_ON_TCP_REQ_FE,
+	SPOE_EV_ON_TCP_REQ_BE,
+	SPOE_EV_ON_HTTP_REQ_FE,
+	SPOE_EV_ON_HTTP_REQ_BE,
+
+	/* Response events */
+	SPOE_EV_ON_SERVER_SESS,
+	SPOE_EV_ON_TCP_RSP,
+	SPOE_EV_ON_HTTP_RSP,
+
+	SPOE_EV_EVENTS
+};
+
+/* Errors triggered by streams */
+enum spoe_context_error {
+	SPOE_CTX_ERR_NONE = 0,
+	SPOE_CTX_ERR_TOUT,
+	SPOE_CTX_ERR_RES,
+	SPOE_CTX_ERR_TOO_BIG,
+	SPOE_CTX_ERR_INTERRUPT,
+	SPOE_CTX_ERR_UNKNOWN = 255,
+	SPOE_CTX_ERRS,
+};
+
+/* Describe an argument that will be linked to a message. It is a sample fetch,
+ * with an optional name. */
+struct spoe_arg {
+	char               *name;     /* Name of the argument, may be NULL */
+	unsigned int        name_len; /* The name length, 0 if NULL */
+	struct sample_expr *expr;     /* Sample expression */
+	struct list         list;     /* Used to chain SPOE args */
+};
+
+/* Used during the config parsing only because, when a SPOE agent section is
+ * parsed, messages/groups can be undefined. */
+struct spoe_placeholder {
+	char       *id;    /* SPOE placeholder id */
+	struct list list;  /* Use to chain SPOE placeholders */
+};
+
+/* Used during the config parsing, when SPOE agent section is parsed, to
+ * register some variable names. */
+struct spoe_var_placeholder {
+	char        *name;  /* The variable name */
+	struct list  list;  /* Use to chain SPOE var placeholders */
+};
+
+/* Describe a message that will be sent in a NOTIFY frame. A message has a name,
+ * an argument list (see above) and it is linked to a specific event. */
+struct spoe_message {
+	char               *id;     /* SPOE message id */
+	unsigned int        id_len; /* The message id length */
+	struct spoe_agent  *agent;  /* SPOE agent owning this SPOE message */
+	struct spoe_group  *group;  /* SPOE group owning this SPOE message (can be NULL) */
+        struct {
+                char       *file;   /* file where the SPOE message appears */
+                int         line;   /* line where the SPOE message appears */
+        } conf;                     /* config information */
+	unsigned int        nargs;  /* # of arguments */
+	struct list         args;   /* Arguments added when the SPOE messages is sent */
+	struct list         list;   /* Used to chain SPOE messages */
+	struct list         by_evt; /* By event list */
+	struct list         by_grp; /* By group list */
+
+	struct list         acls;   /* ACL declared on this message */
+	struct acl_cond    *cond;   /* acl condition to meet */
+	enum spoe_event     event;  /* SPOE_EV_* */
+};
+
+/* Describe a group of messages that will be sent in a NOTIFY frame. A group has
+ * a name and a list of messages. It can be used by HAProxy, outside events
+ * processing, mainly in (tcp|http) rules. */
+struct spoe_group {
+	char              *id;      /* SPOE group id */
+	struct spoe_agent *agent;   /* SPOE agent owning this SPOE group */
+        struct {
+                char      *file;    /* file where the SPOE group appears */
+                int        line;    /* line where the SPOE group appears */
+        } conf;                     /* config information */
+
+	struct list phs;      /* List of placeholders used during conf parsing */
+	struct list messages; /* List of SPOE messages that will be sent by this
+			       * group */
+
+	struct list list;     /* Used to chain SPOE groups */
+};
+
+
+/* SPOE context attached to a stream. It is the main structure that handles the
+ * processing offload */
+struct spoe_context {
+	struct filter      *filter;       /* The SPOE filter */
+	struct stream      *strm;         /* The stream that should be offloaded */
+
+	struct list        *events;       /* List of messages that will be sent during the stream processing */
+	struct list        *groups;       /* List of available SPOE group */
+
+	struct buffer       buffer;       /* Buffer used to store a encoded messages */
+	struct buffer_wait  buffer_wait;  /* position in the list of resources waiting for a buffer */
+
+	enum spoe_ctx_state state;        /* SPOE_CTX_ST_* */
+	unsigned int        flags;        /* SPOE_CTX_FL_* */
+	unsigned int        status_code;  /* SPOE_CTX_ERR_* */
+
+	unsigned int        stream_id;    /* stream_id and frame_id are used */
+	unsigned int        frame_id;     /* to map NOTIFY and ACK frames */
+	unsigned int        process_exp;  /* expiration date to process an event */
+
+	struct spoe_appctx *spoe_appctx; /* SPOE appctx sending the current frame */
+
+	struct {
+		ullong         start_ts;    /* start date of the current event/group */
+		long           t_process;   /* processing time of the last event/group */
+		unsigned long  t_total;     /* cumulative processing time */
+	} stats; /* Stats for this stream */
+};
+
+/* SPOE context inside a appctx */
+struct spoe_appctx {
+	struct appctx      *owner;          /* the owner */
+	struct spoe_agent  *agent;          /* agent on which the applet is attached */
+
+	unsigned int        version;        /* the negotiated version */
+	unsigned int        max_frame_size; /* the negotiated max-frame-size value */
+	unsigned int        flags;          /* SPOE_APPCTX_FL_* */
+
+	unsigned int        status_code;    /* SPOE_FRM_ERR_* */
+
+	struct buffer       buffer;         /* Buffer used to store a encoded messages */
+	struct buffer_wait  buffer_wait;    /* position in the list of resources waiting for a buffer */
+
+	struct spoe_context *spoe_ctx;      /* The SPOE context to handle */
+};
+
+/* SPOE filter configuration */
+struct spoe_config {
+	char              *id;          /* The SPOE engine name. If undefined in HAProxy config,
+					 * it will be set with the SPOE agent name */
+	struct proxy      *proxy;       /* Proxy owning the filter */
+	struct spoe_agent *agent;       /* Agent used by this filter */
+};
+
+
 /* Helper to get SPOE ctx inside an appctx */
 #define SPOE_APPCTX(appctx) ((struct spoe_appctx *)((appctx)->svcctx))
 
@@ -979,7 +1174,7 @@ spoe_init_appctx(struct appctx *appctx)
 	struct spoe_agent *agent = spoe_appctx->agent;
 	struct stream *s;
 
-	if (appctx_finalize_startup(appctx, &agent->spoe_conf->agent_fe, &BUF_NULL) == -1)
+	if (appctx_finalize_startup(appctx, &agent->fe, &BUF_NULL) == -1)
 		goto error;
 
 	spoe_appctx->owner = appctx;
@@ -1493,7 +1688,7 @@ spoe_create_appctx(struct spoe_config *conf)
  out_free_spoe_appctx:
 	pool_free(pool_head_spoe_appctx, spoe_appctx);
  out_error:
-	send_log(&conf->agent_fe, LOG_EMERG, "SPOE: [%s] failed to create SPOE applet\n", agent->id);
+	send_log(&agent->fe, LOG_EMERG, "SPOE: [%s] failed to create SPOE applet\n", agent->id);
  out:
 
 	return NULL;
@@ -1982,8 +2177,8 @@ spoe_process_group(struct stream *s, struct spoe_context *ctx,
 
 	ret = spoe_process_messages(s, ctx, &group->messages, dir, SPOE_MSGS_BY_GROUP);
 	if (ret && ctx->stats.t_process != -1) {
-		if (ctx->status_code || !(conf->agent_fe.options2 & PR_O2_NOLOGNORM))
-			send_log(&conf->agent_fe, (!ctx->status_code ? LOG_NOTICE : LOG_WARNING),
+		if (ctx->status_code || !(agent->fe.options2 & PR_O2_NOLOGNORM))
+			send_log(&agent->fe, (!ctx->status_code ? LOG_NOTICE : LOG_WARNING),
 				 "SPOE: [%s] <GROUP:%s> sid=%u st=%u %ld %llu/%llu\n",
 				 agent->id, group->id, s->uniq_id, ctx->status_code, ctx->stats.t_process,
 				 agent->counters.nb_errors, agent->counters.nb_processed);
@@ -2008,8 +2203,8 @@ spoe_process_event(struct stream *s, struct spoe_context *ctx,
 
 	ret = spoe_process_messages(s, ctx, &(ctx->events[ev]), dir, SPOE_MSGS_BY_EVENT);
 	if (ret && ctx->stats.t_process != -1) {
-		if (ctx->status_code || !(conf->agent_fe.options2 & PR_O2_NOLOGNORM))
-			send_log(&conf->agent_fe, (!ctx->status_code ? LOG_NOTICE : LOG_WARNING),
+		if (ctx->status_code || !(agent->fe.options2 & PR_O2_NOLOGNORM))
+			send_log(&agent->fe, (!ctx->status_code ? LOG_NOTICE : LOG_WARNING),
 				 "SPOE: [%s] <EVENT:%s> sid=%u st=%u %ld %llu/%llu\n",
 				 agent->id, spoe_event_str[ev], s->uniq_id, ctx->status_code, ctx->stats.t_process,
 				 agent->counters.nb_errors, agent->counters.nb_processed);
@@ -2125,18 +2320,18 @@ spoe_init(struct proxy *px, struct flt_conf *fconf)
 {
 	struct spoe_config *conf = fconf->conf;
 
-	/* conf->agent_fe was already initialized during the config
+	/* conf->agent->fe was already initialized during the config
 	 * parsing. Finish initialization. */
-        conf->agent_fe.fe_counters.last_change = ns_to_sec(now_ns);
-        conf->agent_fe.cap = PR_CAP_FE;
-        conf->agent_fe.mode = PR_MODE_TCP;
-        conf->agent_fe.maxconn = 0;
-        conf->agent_fe.options2 |= PR_O2_INDEPSTR;
-        conf->agent_fe.conn_retries = CONN_RETRIES;
-        conf->agent_fe.accept = frontend_accept;
-        conf->agent_fe.srv = NULL;
-        conf->agent_fe.timeout.client = TICK_ETERNITY;
-	conf->agent_fe.fe_req_ana = AN_REQ_SWITCHING_RULES;
+	conf->agent->fe.fe_counters.last_change = ns_to_sec(now_ns);
+	conf->agent->fe.cap = PR_CAP_FE;
+	conf->agent->fe.mode = PR_MODE_TCP;
+	conf->agent->fe.maxconn = 0;
+	conf->agent->fe.options2 |= PR_O2_INDEPSTR;
+	conf->agent->fe.conn_retries = CONN_RETRIES;
+	conf->agent->fe.accept = frontend_accept;
+	conf->agent->fe.srv = NULL;
+	conf->agent->fe.timeout.client = TICK_ETERNITY;
+	conf->agent->fe.fe_req_ana = AN_REQ_SWITCHING_RULES;
 
 	conf->agent->engine_id = generate_pseudo_uuid();
 	if (conf->agent->engine_id == NULL)
@@ -2207,7 +2402,7 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 		return 1;
 	}
 
-	if (postresolve_logger_list(NULL, &conf->agent_fe.loggers, "SPOE agent", conf->agent->id) & ERR_CODE)
+	if (postresolve_logger_list(NULL, &conf->agent->fe.loggers, "SPOE agent", conf->agent->id) & ERR_CODE)
 		return 1;
 
 	ha_free(&conf->agent->b.name);
@@ -2228,7 +2423,7 @@ spoe_start(struct stream *s, struct filter *filter)
 	struct spoe_context *ctx;
 
 	if ((ctx = spoe_create_context(s, filter)) == NULL) {
-		send_log(&conf->agent_fe, LOG_EMERG,
+		send_log(&agent->fe, LOG_EMERG,
 			 "SPOE: [%s] failed to create SPOE context\n",
 			 agent->id);
 		return 0;
@@ -3456,16 +3651,16 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 
 	/* Start agent's proxy initialization here. It will be finished during
 	 * the filter init. */
-        memset(&conf->agent_fe, 0, sizeof(conf->agent_fe));
-        init_new_proxy(&conf->agent_fe);
-	conf->agent_fe.id        = conf->agent->id;
-	conf->agent_fe.parent    = conf->agent;
-	conf->agent_fe.options  |= curpxopts;
-	conf->agent_fe.options2 |= curpxopts2;
+        memset(&conf->agent->fe, 0, sizeof(conf->agent->fe));
+        init_new_proxy(&conf->agent->fe);
+	conf->agent->fe.id        = conf->agent->id;
+	conf->agent->fe.parent    = conf->agent;
+	conf->agent->fe.options  |= curpxopts;
+	conf->agent->fe.options2 |= curpxopts2;
 
 	list_for_each_entry_safe(logger, loggerback, &curloggers, list) {
 		LIST_DELETE(&logger->list);
-		LIST_APPEND(&conf->agent_fe.loggers, &logger->list);
+		LIST_APPEND(&conf->agent->fe.loggers, &logger->list);
 	}
 
 	list_for_each_entry_safe(ph, phback, &curmphs, list) {

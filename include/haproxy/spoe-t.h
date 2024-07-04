@@ -131,145 +131,6 @@ enum spop_frame_type {
 /* unused 0x00000004..0x00000010 */
 #define SPOE_FL_FORCE_SET_VAR     0x00000020 /* Set when SPOE agent will set all variables from agent (and not only known variables) */
 
-/* Type of list of messages */
-#define SPOE_MSGS_BY_EVENT 0x01
-#define SPOE_MSGS_BY_GROUP 0x02
-
-/* Flags set on the SPOE context */
-#define SPOE_CTX_FL_CLI_CONNECTED 0x00000001 /* Set after that on-client-session event was processed */
-#define SPOE_CTX_FL_SRV_CONNECTED 0x00000002 /* Set after that on-server-session event was processed */
-#define SPOE_CTX_FL_REQ_PROCESS   0x00000004 /* Set when SPOE is processing the request */
-#define SPOE_CTX_FL_RSP_PROCESS   0x00000008 /* Set when SPOE is processing the response */
-/* unsued 0x00000010 */
-
-#define SPOE_CTX_FL_PROCESS (SPOE_CTX_FL_REQ_PROCESS|SPOE_CTX_FL_RSP_PROCESS)
-
-/* Flags set on the SPOE applet */
-#define SPOE_APPCTX_FL_PIPELINING    0x00000001 /* Set if pipelining is supported */
-/* unused 0x00000002 */
-/* unused 0x00000004 */
-
-#define SPOE_APPCTX_ERR_NONE    0x00000000 /* no error yet, leave it to zero */
-#define SPOE_APPCTX_ERR_TOUT    0x00000001 /* SPOE applet timeout */
-
-
-/* All possible states for a SPOE context */
-enum spoe_ctx_state {
-	SPOE_CTX_ST_NONE = 0,
-	SPOE_CTX_ST_READY,
-	SPOE_CTX_ST_ENCODING_MSGS,
-	SPOE_CTX_ST_SENDING_MSGS,
-	SPOE_CTX_ST_WAITING_ACK,
-	SPOE_CTX_ST_DONE,
-	SPOE_CTX_ST_ERROR,
-};
-
-/* All possible states for a SPOE applet */
-enum spoe_appctx_state {
-	SPOE_APPCTX_ST_CONNECT = 0,
-	SPOE_APPCTX_ST_CONNECTING,
-	SPOE_APPCTX_ST_IDLE,
-	SPOE_APPCTX_ST_PROCESSING,
-	SPOE_APPCTX_ST_WAITING_SYNC_ACK,
-	SPOE_APPCTX_ST_DISCONNECT,
-	SPOE_APPCTX_ST_DISCONNECTING,
-	SPOE_APPCTX_ST_EXIT,
-	SPOE_APPCTX_ST_END,
-};
-
-/* All supported SPOE events */
-enum spoe_event {
-	SPOE_EV_NONE = 0,
-
-	/* Request events */
-	SPOE_EV_ON_CLIENT_SESS = 1,
-	SPOE_EV_ON_TCP_REQ_FE,
-	SPOE_EV_ON_TCP_REQ_BE,
-	SPOE_EV_ON_HTTP_REQ_FE,
-	SPOE_EV_ON_HTTP_REQ_BE,
-
-	/* Response events */
-	SPOE_EV_ON_SERVER_SESS,
-	SPOE_EV_ON_TCP_RSP,
-	SPOE_EV_ON_HTTP_RSP,
-
-	SPOE_EV_EVENTS
-};
-
-/* Errors triggered by streams */
-enum spoe_context_error {
-	SPOE_CTX_ERR_NONE = 0,
-	SPOE_CTX_ERR_TOUT,
-	SPOE_CTX_ERR_RES,
-	SPOE_CTX_ERR_TOO_BIG,
-	SPOE_CTX_ERR_INTERRUPT,
-	SPOE_CTX_ERR_UNKNOWN = 255,
-	SPOE_CTX_ERRS,
-};
-
-/* Describe an argument that will be linked to a message. It is a sample fetch,
- * with an optional name. */
-struct spoe_arg {
-	char               *name;     /* Name of the argument, may be NULL */
-	unsigned int        name_len; /* The name length, 0 if NULL */
-	struct sample_expr *expr;     /* Sample expression */
-	struct list         list;     /* Used to chain SPOE args */
-};
-
-/* Used during the config parsing only because, when a SPOE agent section is
- * parsed, messages/groups can be undefined. */
-struct spoe_placeholder {
-	char       *id;    /* SPOE placeholder id */
-	struct list list;  /* Use to chain SPOE placeholders */
-};
-
-/* Used during the config parsing, when SPOE agent section is parsed, to
- * register some variable names. */
-struct spoe_var_placeholder {
-	char        *name;  /* The variable name */
-	struct list  list;  /* Use to chain SPOE var placeholders */
-};
-
-/* Describe a message that will be sent in a NOTIFY frame. A message has a name,
- * an argument list (see above) and it is linked to a specific event. */
-struct spoe_message {
-	char               *id;     /* SPOE message id */
-	unsigned int        id_len; /* The message id length */
-	struct spoe_agent  *agent;  /* SPOE agent owning this SPOE message */
-	struct spoe_group  *group;  /* SPOE group owning this SPOE message (can be NULL) */
-        struct {
-                char       *file;   /* file where the SPOE message appears */
-                int         line;   /* line where the SPOE message appears */
-        } conf;                     /* config information */
-	unsigned int        nargs;  /* # of arguments */
-	struct list         args;   /* Arguments added when the SPOE messages is sent */
-	struct list         list;   /* Used to chain SPOE messages */
-	struct list         by_evt; /* By event list */
-	struct list         by_grp; /* By group list */
-
-	struct list         acls;   /* ACL declared on this message */
-	struct acl_cond    *cond;   /* acl condition to meet */
-	enum spoe_event     event;  /* SPOE_EV_* */
-};
-
-/* Describe a group of messages that will be sent in a NOTIFY frame. A group has
- * a name and a list of messages. It can be used by HAProxy, outside events
- * processing, mainly in (tcp|http) rules. */
-struct spoe_group {
-	char              *id;      /* SPOE group id */
-	struct spoe_agent *agent;   /* SPOE agent owning this SPOE group */
-        struct {
-                char      *file;    /* file where the SPOE group appears */
-                int        line;    /* line where the SPOE group appears */
-        } conf;                     /* config information */
-
-	struct list phs;      /* List of placeholders used during conf parsing */
-	struct list messages; /* List of SPOE messages that will be sent by this
-			       * group */
-
-	struct list list;     /* Used to chain SPOE groups */
-};
-
 /* Describe a SPOE agent. */
 struct spoe_agent {
 	char                 *id;             /* SPOE agent id (name) */
@@ -277,6 +138,7 @@ struct spoe_agent {
                 char         *file;           /* file where the SPOE agent appears */
                 int           line;           /* line where the SPOE agent appears */
         } conf;                               /* config information */
+	struct proxy       fe;                /* Agent frontend */
 	union {
 		struct proxy *be;             /* Backend used by this agent */
 		char         *name;           /* Backend name used during conf parsing */
@@ -309,61 +171,6 @@ struct spoe_agent {
 		unsigned long long nb_processed; /* # of frames processed by the SPOE */
 		unsigned long long nb_errors;    /* # of errors during the processing */
 	} counters;
-};
-
-/* SPOE filter configuration */
-struct spoe_config {
-	char              *id;          /* The SPOE engine name. If undefined in HAProxy config,
-					 * it will be set with the SPOE agent name */
-	struct proxy      *proxy;       /* Proxy owning the filter */
-	struct spoe_agent *agent;       /* Agent used by this filter */
-	struct proxy       agent_fe;    /* Agent frontend */
-};
-
-/* SPOE context attached to a stream. It is the main structure that handles the
- * processing offload */
-struct spoe_context {
-	struct filter      *filter;       /* The SPOE filter */
-	struct stream      *strm;         /* The stream that should be offloaded */
-
-	struct list        *events;       /* List of messages that will be sent during the stream processing */
-	struct list        *groups;       /* List of available SPOE group */
-
-	struct buffer       buffer;       /* Buffer used to store a encoded messages */
-	struct buffer_wait  buffer_wait;  /* position in the list of resources waiting for a buffer */
-
-	enum spoe_ctx_state state;        /* SPOE_CTX_ST_* */
-	unsigned int        flags;        /* SPOE_CTX_FL_* */
-	unsigned int        status_code;  /* SPOE_CTX_ERR_* */
-
-	unsigned int        stream_id;    /* stream_id and frame_id are used */
-	unsigned int        frame_id;     /* to map NOTIFY and ACK frames */
-	unsigned int        process_exp;  /* expiration date to process an event */
-
-	struct spoe_appctx *spoe_appctx; /* SPOE appctx sending the current frame */
-
-	struct {
-		ullong         start_ts;    /* start date of the current event/group */
-		long           t_process;   /* processing time of the last event/group */
-		unsigned long  t_total;     /* cumulative processing time */
-	} stats; /* Stats for this stream */
-};
-
-/* SPOE context inside a appctx */
-struct spoe_appctx {
-	struct appctx      *owner;          /* the owner */
-	struct spoe_agent  *agent;          /* agent on which the applet is attached */
-
-	unsigned int        version;        /* the negotiated version */
-	unsigned int        max_frame_size; /* the negotiated max-frame-size value */
-	unsigned int        flags;          /* SPOE_APPCTX_FL_* */
-
-	unsigned int        status_code;    /* SPOE_FRM_ERR_* */
-
-	struct buffer       buffer;         /* Buffer used to store a encoded messages */
-	struct buffer_wait  buffer_wait;    /* position in the list of resources waiting for a buffer */
-
-	struct spoe_context *spoe_ctx;      /* The SPOE context to handle */
 };
 
 #endif /* _HAPROXY_SPOE_T_H */
