@@ -435,65 +435,6 @@ static struct spoe_version supported_versions[] = {
 /* Comma-separated list of supported versions */
 #define SUPPORTED_VERSIONS_VAL  "2.0"
 
-/* Convert a string to a SPOE version value. The string must follow the format
- * "MAJOR.MINOR". It will be concerted into the integer (1000 * MAJOR + MINOR).
- * If an error occurred, -1 is returned. */
-static int
-spoe_str_to_vsn(const char *str, size_t len)
-{
-	const char *p, *end;
-	int   maj, min, vsn;
-
-	p   = str;
-	end = str+len;
-	maj = min = 0;
-	vsn = -1;
-
-	/* skip leading spaces */
-	while (p < end && isspace((unsigned char)*p))
-		p++;
-
-	/* parse Major number, until the '.' */
-	while (*p != '.') {
-		if (p >= end || *p < '0' || *p > '9')
-			goto out;
-		maj *= 10;
-		maj += (*p - '0');
-		p++;
-	}
-
-	/* check Major version */
-	if (!maj)
-		goto out;
-
-	p++; /* skip the '.' */
-	if (p >= end || *p < '0' || *p > '9') /* Minor number is missing */
-		goto out;
-
-	/* Parse Minor number */
-	while (p < end) {
-		if (*p < '0' || *p > '9')
-			break;
-		min *= 10;
-		min += (*p - '0');
-		p++;
-	}
-
-	/* check Minor number */
-	if (min > 999)
-		goto out;
-
-	/* skip trailing spaces */
-	while (p < end && isspace((unsigned char)*p))
-		p++;
-	if (p != end)
-		goto out;
-
-	vsn = maj * 1000 + min;
-  out:
-	return vsn;
-}
-
 /* Encode the HELLO frame sent by HAProxy to an agent. It returns the number of
  * encoded bytes in the frame on success, 0 if an encoding error occurred and -1
  * if a fatal error occurred. */
