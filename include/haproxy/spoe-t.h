@@ -296,7 +296,7 @@ struct spoe_agent {
 	unsigned int          flags;          /* SPOE_FL_* */
 	unsigned int          max_frame_size; /* Maximum frame size for this agent, before any negotiation */
 
-	struct list events[SPOE_EV_EVENTS];   /* List of SPOE messages that will be sent
+	struct list *events;                  /* List of SPOE messages that will be sent
 					       * for each supported events */
 
 	struct list groups;                   /* List of available SPOE groups */

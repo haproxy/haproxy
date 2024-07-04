@@ -151,6 +151,7 @@ spoe_release_agent(struct spoe_agent *agent)
 		LIST_DELETE(&grp->list);
 		spoe_release_group(grp);
 	}
+	free(agent->events);
 	free(agent->engine_id);
 	free(agent);
 }
@@ -2450,6 +2451,12 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		curagent->var_t_total    = NULL;
 		curagent->flags          = SPOE_FL_PIPELINING;
 		curagent->max_frame_size = SPOP_MAX_FRAME_SIZE;
+
+		if ((curagent->events = calloc(SPOE_EV_EVENTS, sizeof(*curagent->events))) == NULL) {
+			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 
 		for (i = 0; i < SPOE_EV_EVENTS; ++i)
 			LIST_INIT(&curagent->events[i]);
