@@ -61,10 +61,6 @@
 /* unused 0x00000002 */
 /* unused 0x00000004 */
 
-#define SPOE_APPCTX_ERR_NONE    0x00000000 /* no error yet, leave it to zero */
-#define SPOE_APPCTX_ERR_TOUT    0x00000001 /* SPOE applet timeout */
-
-
 /* All possible states for a SPOE context */
 enum spoe_ctx_state {
 	SPOE_CTX_ST_NONE = 0,
@@ -78,13 +74,8 @@ enum spoe_ctx_state {
 
 /* All possible states for a SPOE applet */
 enum spoe_appctx_state {
-	SPOE_APPCTX_ST_CONNECT = 0,
-	SPOE_APPCTX_ST_CONNECTING,
-	SPOE_APPCTX_ST_IDLE,
-	SPOE_APPCTX_ST_PROCESSING,
+	SPOE_APPCTX_ST_PROCESSING = 0,
 	SPOE_APPCTX_ST_WAITING_SYNC_ACK,
-	SPOE_APPCTX_ST_DISCONNECT,
-	SPOE_APPCTX_ST_DISCONNECTING,
 	SPOE_APPCTX_ST_EXIT,
 	SPOE_APPCTX_ST_END,
 };
@@ -351,24 +342,6 @@ spoe_release_agent(struct spoe_agent *agent)
 	free(agent);
 }
 
-static const char *spoe_frm_err_reasons[SPOP_ERR_ENTRIES] = {
-	[SPOP_ERR_NONE]               = "normal",
-	[SPOP_ERR_IO]                 = "I/O error",
-	[SPOP_ERR_TOUT]               = "a timeout occurred",
-	[SPOP_ERR_TOO_BIG]            = "frame is too big",
-	[SPOP_ERR_INVALID]            = "invalid frame received",
-	[SPOP_ERR_NO_VSN]             = "version value not found",
-	[SPOP_ERR_NO_FRAME_SIZE]      = "max-frame-size value not found",
-	[SPOP_ERR_NO_CAP]             = "capabilities value not found",
-	[SPOP_ERR_BAD_VSN]            = "unsupported version",
-	[SPOP_ERR_BAD_FRAME_SIZE]     = "max-frame-size too big or too small",
-	[SPOP_ERR_FRAG_NOT_SUPPORTED] = "fragmentation not supported",
-	[SPOP_ERR_INTERLACED_FRAMES]  = "invalid interlaced frames",
-	[SPOP_ERR_FRAMEID_NOTFOUND]   = "frame-id not found",
-	[SPOP_ERR_RES]                = "resource allocation error",
-	[SPOP_ERR_UNKNOWN]            = "an unknown error occurred",
-};
-
 static const char *spoe_event_str[SPOE_EV_EVENTS] = {
 	[SPOE_EV_ON_CLIENT_SESS] = "on-client-session",
 	[SPOE_EV_ON_TCP_REQ_FE]  = "on-frontend-tcp-request",
@@ -406,174 +379,6 @@ spoe_update_stat_time(ullong *since, long *t)
 /********************************************************************
  * Functions that encode/decode SPOE frames
  ********************************************************************/
-/* Helper to get static string length, excluding the terminating null byte */
-#define SLEN(str) (sizeof(str)-1)
-
-/* Predefined key used in HELLO/DISCONNECT frames */
-#define SUPPORTED_VERSIONS_KEY     "supported-versions"
-#define VERSION_KEY                "version"
-#define SPOP_MAX_FRAME_SIZE_KEY         "max-frame-size"
-#define CAPABILITIES_KEY           "capabilities"
-#define ENGINE_ID_KEY              "engine-id"
-#define HEALTHCHECK_KEY            "healthcheck"
-#define STATUS_CODE_KEY            "status-code"
-#define MSG_KEY                    "message"
-
-struct spoe_version {
-	char *str;
-	int   min;
-	int   max;
-};
-
-/* All supported versions */
-static struct spoe_version supported_versions[] = {
-	/* 1.0 is now unsupported because of a bug about frame's flags*/
-	{"2.0", 2000, 2000},
-	{NULL,  0, 0}
-};
-
-/* Comma-separated list of supported versions */
-#define SUPPORTED_VERSIONS_VAL  "2.0"
-
-/* Encode the HELLO frame sent by HAProxy to an agent. It returns the number of
- * encoded bytes in the frame on success, 0 if an encoding error occurred and -1
- * if a fatal error occurred. */
-static int
-spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
-{
-	struct buffer      *chk;
-	struct spoe_agent *agent = SPOE_APPCTX(appctx)->agent;
-	char              *p, *end;
-	unsigned int       flags = SPOP_FRM_FL_FIN;
-	size_t             sz;
-
-	p   = frame;
-	end = frame+size;
-
-	/* Set Frame type */
-	*p++ = SPOP_FRM_T_HAPROXY_HELLO;
-
-	/* Set flags */
-	flags = htonl(flags);
-	memcpy(p, (char *)&flags, 4);
-	p += 4;
-
-	/* No stream-id and frame-id for HELLO frames */
-	*p++ = 0; *p++ = 0;
-
-	/* There are 3 mandatory items: "supported-versions", "max-frame-size"
-	 * and "capabilities" */
-
-	/* "supported-versions" K/V item */
-	sz = SLEN(SUPPORTED_VERSIONS_KEY);
-	if (spoe_encode_buffer(SUPPORTED_VERSIONS_KEY, sz, &p, end) == -1)
-		goto too_big;
-
-	*p++ = SPOP_DATA_T_STR;
-	sz = SLEN(SUPPORTED_VERSIONS_VAL);
-	if (spoe_encode_buffer(SUPPORTED_VERSIONS_VAL, sz, &p, end) == -1)
-		goto too_big;
-
-	/* "max-fram-size" K/V item */
-	sz = SLEN(SPOP_MAX_FRAME_SIZE_KEY);
-	if (spoe_encode_buffer(SPOP_MAX_FRAME_SIZE_KEY, sz, &p, end) == -1)
-		goto too_big;
-
-	*p++ = SPOP_DATA_T_UINT32;
-	if (encode_varint(SPOE_APPCTX(appctx)->max_frame_size, &p, end) == -1)
-		goto too_big;
-
-	/* "capabilities" K/V item */
-	sz = SLEN(CAPABILITIES_KEY);
-	if (spoe_encode_buffer(CAPABILITIES_KEY, sz, &p, end) == -1)
-		goto too_big;
-
-	*p++ = SPOP_DATA_T_STR;
-	chk = get_trash_chunk();
-	if (agent != NULL && (agent->flags & SPOE_FL_PIPELINING)) {
-		memcpy(chk->area, "pipelining", 10);
-		chk->data += 10;
-	}
-	if (spoe_encode_buffer(chk->area, chk->data, &p, end) == -1)
-		goto too_big;
-
-	/* (optional) "engine-id" K/V item, if present */
-	if (agent != NULL && agent->engine_id != NULL) {
-		sz = SLEN(ENGINE_ID_KEY);
-		if (spoe_encode_buffer(ENGINE_ID_KEY, sz, &p, end) == -1)
-			goto too_big;
-
-		*p++ = SPOP_DATA_T_STR;
-		sz = strlen(agent->engine_id);
-		if (spoe_encode_buffer(agent->engine_id, sz, &p, end) == -1)
-			goto too_big;
-	}
-
-	return (p - frame);
-
-  too_big:
-	SPOE_APPCTX(appctx)->status_code = SPOP_ERR_TOO_BIG;
-	return 0;
-}
-
-/* Encode DISCONNECT frame sent by HAProxy to an agent. It returns the number of
- * encoded bytes in the frame on success, 0 if an encoding error occurred and -1
- * if a fatal error occurred.  */
-static int
-spoe_prepare_hadiscon_frame(struct appctx *appctx, char *frame, size_t size)
-{
-	const char  *reason;
-	char        *p, *end;
-	unsigned int flags = SPOP_FRM_FL_FIN;
-	size_t       sz;
-
-	p   = frame;
-	end = frame+size;
-
-	 /* Set Frame type */
-	*p++ = SPOP_FRM_T_HAPROXY_DISCON;
-
-	/* Set flags */
-	flags = htonl(flags);
-	memcpy(p, (char *)&flags, 4);
-	p += 4;
-
-	/* No stream-id and frame-id for DISCONNECT frames */
-	*p++ = 0; *p++ = 0;
-
-	if (SPOE_APPCTX(appctx)->status_code >= SPOP_ERR_ENTRIES)
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_UNKNOWN;
-
-	/* There are 2 mandatory items: "status-code" and "message" */
-
-	/* "status-code" K/V item */
-	sz = SLEN(STATUS_CODE_KEY);
-	if (spoe_encode_buffer(STATUS_CODE_KEY, sz, &p, end) == -1)
-		goto too_big;
-
-	*p++ = SPOP_DATA_T_UINT32;
-	if (encode_varint(SPOE_APPCTX(appctx)->status_code, &p, end) == -1)
-		goto too_big;
-
-	/* "message" K/V item */
-	sz = SLEN(MSG_KEY);
-	if (spoe_encode_buffer(MSG_KEY, sz, &p, end) == -1)
-		goto too_big;
-
-	/*Get the message corresponding to the status code */
-	reason = spoe_frm_err_reasons[SPOE_APPCTX(appctx)->status_code];
-
-	*p++ = SPOP_DATA_T_STR;
-	sz = strlen(reason);
-	if (spoe_encode_buffer(reason, sz, &p, end) == -1)
-		goto too_big;
-
-	return (p - frame);
-
-  too_big:
-	SPOE_APPCTX(appctx)->status_code = SPOP_ERR_TOO_BIG;
-	return 0;
-}
 
 /* Encode the NOTIFY frame sent by HAProxy to an agent. It returns the number of
  * encoded bytes in the frame on success, 0 if an encoding error occurred and -1
@@ -582,35 +387,20 @@ static int
 spoe_prepare_hanotify_frame(struct appctx *appctx, char *frame, size_t size)
 {
 	char        *p, *end;
-	unsigned int stream_id, frame_id;
-	unsigned int flags = SPOP_FRM_FL_FIN;
 	size_t       sz;
 
 	p   = frame;
 	end = frame+size;
 
-	stream_id = SPOE_APPCTX(appctx)->spoe_ctx->stream_id;
-	frame_id  = SPOE_APPCTX(appctx)->spoe_ctx->frame_id;
-
 	/* Set Frame type */
 	*p++ = SPOP_FRM_T_HAPROXY_NOTIFY;
-
-	/* Set flags */
-	flags = htonl(flags);
-	memcpy(p, (char *)&flags, 4);
-	p += 4;
-
-	/* Set stream-id and frame-id */
-	if (encode_varint(stream_id, &p, end) == -1)
-		goto too_big;
-	if (encode_varint(frame_id, &p, end) == -1)
-		goto too_big;
 
 	/* Copy encoded messages, if possible */
 	sz = b_data(&SPOE_APPCTX(appctx)->spoe_ctx->buffer);
 	if (p + sz >= end)
 		goto too_big;
 	memcpy(p, b_head(&SPOE_APPCTX(appctx)->spoe_ctx->buffer), sz);
+	b_del(&SPOE_APPCTX(appctx)->spoe_ctx->buffer, sz);
 	p += sz;
 
 	return (p - frame);
@@ -620,341 +410,17 @@ spoe_prepare_hanotify_frame(struct appctx *appctx, char *frame, size_t size)
 	return 0;
 }
 
-/* Decode and process the HELLO frame sent by an agent. It returns the number of
- * read bytes on success, 0 if a decoding error occurred, and -1 if a fatal
- * error occurred. */
-static int
-spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
-{
-	struct spoe_agent *agent = SPOE_APPCTX(appctx)->agent;
-	char              *p, *end;
-	int                vsn, max_frame_size;
-	unsigned int       flags;
-
-	p   = frame;
-	end = frame + size;
-
-	/* Check frame type */
-	if (*p++ != SPOP_FRM_T_AGENT_HELLO) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-		return 0;
-	}
-
-	if (size < 7 /* TYPE + METADATA */) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-		return 0;
-	}
-
-	/* Retrieve flags */
-	memcpy((char *)&flags, p, 4);
-	flags = ntohl(flags);
-	p += 4;
-
-	/* Fragmentation is not supported for HELLO frame */
-	if (!(flags & SPOP_FRM_FL_FIN)) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_FRAG_NOT_SUPPORTED;
-		return -1;
-	}
-
-	/* stream-id and frame-id must be cleared */
-	if (*p != 0 || *(p+1) != 0) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-		return 0;
-	}
-	p += 2;
-
-	/* There are 3 mandatory items: "version", "max-frame-size" and
-	 * "capabilities" */
-
-	/* Loop on K/V items */
-	vsn = max_frame_size = flags = 0;
-	while (p < end) {
-		char  *str;
-		uint64_t sz;
-		int    ret;
-
-		/* Decode the item key */
-		ret = spoe_decode_buffer(&p, end, &str, &sz);
-		if (ret == -1 || !sz) {
-			SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-			return 0;
-		}
-
-		/* Check "version" K/V item */
-		if (sz >= strlen(VERSION_KEY) && !memcmp(str, VERSION_KEY, strlen(VERSION_KEY))) {
-			int i, type = *p++;
-
-			/* The value must be a string */
-			if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_STR) {
-				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-				return 0;
-			}
-			if (spoe_decode_buffer(&p, end, &str, &sz) == -1) {
-				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-				return 0;
-			}
-
-			vsn = spoe_str_to_vsn(str, sz);
-			if (vsn == -1) {
-				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_BAD_VSN;
-				return -1;
-			}
-			for (i = 0; supported_versions[i].str != NULL; ++i) {
-				if (vsn >= supported_versions[i].min &&
-				    vsn <= supported_versions[i].max)
-					break;
-			}
-			if (supported_versions[i].str == NULL) {
-				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_BAD_VSN;
-				return -1;
-			}
-		}
-		/* Check "max-frame-size" K/V item */
-		else if (sz >= strlen(SPOP_MAX_FRAME_SIZE_KEY) && !memcmp(str, SPOP_MAX_FRAME_SIZE_KEY, strlen(SPOP_MAX_FRAME_SIZE_KEY))) {
-			int type = *p++;
-
-			/* The value must be integer */
-			if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_INT32 &&
-			    (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_INT64 &&
-			    (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_UINT32 &&
-			    (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_UINT64) {
-				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-				return 0;
-			}
-			if (decode_varint(&p, end, &sz) == -1) {
-				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-				return 0;
-			}
-			if (sz < SPOP_MIN_FRAME_SIZE ||
-			    sz > SPOE_APPCTX(appctx)->max_frame_size) {
-				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_BAD_FRAME_SIZE;
-				return -1;
-			}
-			max_frame_size = sz;
-		}
-		/* Check "capabilities" K/V item */
-		else if (sz >= strlen(CAPABILITIES_KEY) && !memcmp(str, CAPABILITIES_KEY, strlen(CAPABILITIES_KEY))) {
-			int type = *p++;
-
-			/* The value must be a string */
-			if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_STR) {
-				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-				return 0;
-			}
-			if (spoe_decode_buffer(&p, end, &str, &sz) == -1) {
-				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-				return 0;
-			}
-
-			while (sz) {
-				char *delim;
-
-				/* Skip leading spaces */
-				for (; isspace((unsigned char)*str) && sz; str++, sz--);
-
-				if (sz >= 10 && !strncmp(str, "pipelining", 10)) {
-					str += 10; sz -= 10;
-					if (!sz || isspace((unsigned char)*str) || *str == ',')
-						flags |= SPOE_APPCTX_FL_PIPELINING;
-				}
-
-				/* Get the next comma or break */
-				if (!sz || (delim = memchr(str, ',', sz)) == NULL)
-					break;
-				delim++;
-				sz -= (delim - str);
-				str = delim;
-			}
-		}
-		else {
-			/* Silently ignore unknown item */
-			if (spoe_skip_data(&p, end) == -1) {
-				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-				return 0;
-			}
-		}
-	}
-
-	/* Final checks */
-	if (!vsn) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_NO_VSN;
-		return -1;
-	}
-	if (!max_frame_size) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_NO_FRAME_SIZE;
-		return -1;
-	}
-	if (!agent)
-		flags &= ~SPOE_APPCTX_FL_PIPELINING;
-	else {
-		if ((flags & SPOE_APPCTX_FL_PIPELINING) && !(agent->flags & SPOE_FL_PIPELINING))
-			flags &= ~SPOE_APPCTX_FL_PIPELINING;
-	}
-
-	SPOE_APPCTX(appctx)->version        = (unsigned int)vsn;
-	SPOE_APPCTX(appctx)->max_frame_size = (unsigned int)max_frame_size;
-	SPOE_APPCTX(appctx)->flags         |= flags;
-
-	return (p - frame);
-}
-
-/* Decode DISCONNECT frame sent by an agent. It returns the number of by read
- * bytes on success, 0 if the frame can be ignored and -1 if an error
- * occurred. */
-static int
-spoe_handle_agentdiscon_frame(struct appctx *appctx, char *frame, size_t size)
-{
-	char        *p, *end;
-	unsigned int flags;
-
-	p   = frame;
-	end = frame + size;
-
-	/* Check frame type */
-	if (*p++ != SPOP_FRM_T_AGENT_DISCON) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-		return 0;
-	}
-
-	if (size < 7 /* TYPE + METADATA */) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-		return 0;
-	}
-
-	/* Retrieve flags */
-	memcpy((char *)&flags, p, 4);
-	flags = ntohl(flags);
-	p += 4;
-
-	/* Fragmentation is not supported for DISCONNECT frame */
-	if (!(flags & SPOP_FRM_FL_FIN)) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_FRAG_NOT_SUPPORTED;
-		return -1;
-	}
-
-	/* stream-id and frame-id must be cleared */
-	if (*p != 0 || *(p+1) != 0) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-		return 0;
-	}
-	p += 2;
-
-	/* There are 2 mandatory items: "status-code" and "message" */
-
-	/* Loop on K/V items */
-	while (p < end) {
-		char  *str;
-		uint64_t sz;
-		int    ret;
-
-		/* Decode the item key */
-		ret = spoe_decode_buffer(&p, end, &str, &sz);
-		if (ret == -1 || !sz) {
-			SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-			return 0;
-		}
-
-		/* Check "status-code" K/V item */
-		if (sz >= strlen(STATUS_CODE_KEY) && !memcmp(str, STATUS_CODE_KEY, strlen(STATUS_CODE_KEY))) {
-			int type = *p++;
-
-			/* The value must be an integer */
-			if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_INT32 &&
-			    (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_INT64 &&
-			    (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_UINT32 &&
-			    (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_UINT64) {
-				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-				return 0;
-			}
-			if (decode_varint(&p, end, &sz) == -1) {
-				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-				return 0;
-			}
-			SPOE_APPCTX(appctx)->status_code = sz;
-		}
-
-		/* Check "message" K/V item */
-		else if (sz >= strlen(MSG_KEY) && !memcmp(str, MSG_KEY, strlen(MSG_KEY))) {
-			int type = *p++;
-
-			/* The value must be a string */
-			if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_STR) {
-				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-				return 0;
-			}
-			ret = spoe_decode_buffer(&p, end, &str, &sz);
-			if (ret == -1 || sz > 255) {
-				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-				return 0;
-			}
-		}
-		else {
-			/* Silently ignore unknown item */
-			if (spoe_skip_data(&p, end) == -1) {
-				SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-				return 0;
-			}
-		}
-	}
-
-	return (p - frame);
-}
-
-
 /* Decode ACK frame sent by an agent. It returns the number of read bytes on
  * success, 0 if the frame can be ignored and -1 if an error occurred. */
 static int
 spoe_handle_agentack_frame(struct appctx *appctx, char *frame, size_t size)
 {
 	char              *p, *end;
-	uint64_t           stream_id, frame_id;
 	int                len;
-	unsigned int       flags;
 
 	p    = frame;
 	end  = frame + size;
 
-	/* Check frame type */
-	if (*p++ != SPOP_FRM_T_AGENT_ACK) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-		return -1;
-	}
-
-	if (size < 7 /* TYPE + METADATA */) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-		return -1;
-	}
-
-	/* Retrieve flags */
-	memcpy((char *)&flags, p, 4);
-	flags = ntohl(flags);
-	p += 4;
-
-	/* Fragmentation is not supported for now */
-	if (!(flags & SPOP_FRM_FL_FIN)) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_FRAG_NOT_SUPPORTED;
-		return -1;
-	}
-
-	/* Get the stream-id and the frame-id */
-	if (decode_varint(&p, end, &stream_id) == -1) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-		return -1;
-	}
-	if (decode_varint(&p, end, &frame_id) == -1) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-		return -1;
-	}
-
-	if (SPOE_APPCTX(appctx)->spoe_ctx->stream_id == (unsigned int)stream_id &&
-	    SPOE_APPCTX(appctx)->spoe_ctx->frame_id == (unsigned int)frame_id)
-			goto found;
-
-	/* No Stream found, ignore the frame */
-	SPOE_APPCTX(appctx)->status_code = SPOP_ERR_FRAMEID_NOTFOUND;
-	return -1;
-
-  found:
 	if (!spoe_acquire_buffer(&SPOE_APPCTX(appctx)->buffer,
 				 &SPOE_APPCTX(appctx)->buffer_wait)) {
 		return 1; /* Retry later */
@@ -976,14 +442,9 @@ spoe_handle_agentack_frame(struct appctx *appctx, char *frame, size_t size)
 static int
 spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 {
-	int      ret;
-	uint32_t netint;
+	int ret;
 
-	/* 4 bytes are reserved at the beginning of <buf> to store the frame
-	 * length. */
-	netint = htonl(framesz);
-	memcpy(buf, (char *)&netint, 4);
-	ret = applet_putblk(appctx, buf, framesz+4);
+	ret = applet_putblk(appctx, buf, framesz);
 	if (ret <= 0)
 		return 1; /* retry */
 	return framesz;
@@ -996,30 +457,19 @@ static int
 spoe_recv_frame(struct appctx *appctx, char *buf, size_t framesz)
 {
 	struct stconn *sc = appctx_sc(appctx);
-	int      ret;
-	uint32_t netint;
+	int ret;
 
-	ret = co_getblk(sc_oc(sc), (char *)&netint, 4, 0);
-	if (ret > 0) {
-		framesz = ntohl(netint);
-		if (framesz < 7)  {
-			SPOE_APPCTX(appctx)->status_code = SPOP_ERR_INVALID;
-			return -1;
-		}
-		if (framesz > SPOE_APPCTX(appctx)->max_frame_size) {
-			SPOE_APPCTX(appctx)->status_code = SPOP_ERR_TOO_BIG;
-			return -1;
-		}
-		ret = co_getblk(sc_oc(sc), buf, framesz, 4);
+	ret = co_data(sc_oc(sc));
+	if (!c_data(sc_oc(sc)) || c_data(sc_oc(sc)) != ret)
+		return 1; /* retry */
+	if (ret > framesz) {
+		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_TOO_BIG;
+		return -1;
 	}
-	if (ret <= 0) {
-		if (ret == 0) {
-			return 1; /* retry */
-		}
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_IO;
-		return -1; /* error */
-	}
-	return framesz;
+	memcpy(buf, b_head(sc_ob(sc)), ret);
+	co_skip(sc_oc(sc), ret);
+	BUG_ON(c_data(sc_oc(sc)));
+	return ret;
 }
 
 /********************************************************************
@@ -1073,12 +523,23 @@ spoe_init_appctx(struct appctx *appctx)
 	s->do_log = NULL;
 	s->scb->flags |= SC_FL_RCV_ONCE;
 
-	appctx->st0 = SPOE_APPCTX_ST_CONNECT;
+	appctx->st0 = SPOE_APPCTX_ST_PROCESSING;
 	appctx_wakeup(appctx);
 	return 0;
 
   error:
 	return -1;
+}
+
+static void spoe_shut_appctx(struct appctx *appctx, enum se_shut_mode mode, struct se_abort_info *reason)
+{
+	struct spoe_appctx  *spoe_appctx = SPOE_APPCTX(appctx);
+
+	if (!reason || spoe_appctx->status_code != SPOP_ERR_NONE)
+		return;
+
+	if (((reason->info & SE_ABRT_SRC_MASK) >> SE_ABRT_SRC_SHIFT) == SE_ABRT_SRC_MUX_SPOP)
+		spoe_appctx->status_code = reason->code;
 }
 
 /* Callback function that releases a SPOE applet. This happens when the
@@ -1115,111 +576,6 @@ spoe_release_appctx(struct appctx *appctx)
 	pool_free(pool_head_spoe_appctx, spoe_appctx);
 }
 
-static int
-spoe_handle_connect_appctx(struct appctx *appctx)
-{
-	struct stconn *sc = appctx_sc(appctx);
-	char *frame, *buf;
-	int   ret;
-
-	/* if the connection is not established, inform the stream that we want
-         * to be notified whenever the connection completes.
-         */
-        if (sc_opposite(sc)->state < SC_ST_EST) {
-                applet_need_more_data(appctx);
-                se_need_remote_conn(appctx->sedesc);
-                applet_have_more_data(appctx);
-                goto stop;
-        }
-
-	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_TOUT;
-		goto exit;
-	}
-
-	/* 4 bytes are reserved at the beginning of <buf> to store the frame
-	 * length. */
-	buf = trash.area; frame = buf+4;
-	ret = spoe_prepare_hahello_frame(appctx, frame,
-					 SPOE_APPCTX(appctx)->max_frame_size);
-	if (ret > 1)
-		ret = spoe_send_frame(appctx, buf, ret);
-
-	switch (ret) {
-		case -1: /* error */
-		case  0: /* ignore => an error, cannot be ignored */
-			goto exit;
-
-		case  1: /* retry later */
-			goto stop;
-
-		default:
-			/* HELLO frame successfully sent, now wait for the
-			 * reply. */
-			appctx->st0 = SPOE_APPCTX_ST_CONNECTING;
-			goto next;
-	}
-
-  next:
-	return 0;
-  stop:
-	return 1;
-  exit:
-	appctx->st0 = SPOE_APPCTX_ST_EXIT;
-	return 0;
-}
-
-static int
-spoe_handle_connecting_appctx(struct appctx *appctx)
-{
-	struct stconn *sc = appctx_sc(appctx);
-	char  *frame;
-	int    ret;
-
-	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_TOUT;
-		goto exit;
-	}
-
-	frame = trash.area; trash.data = 0;
-	ret = spoe_recv_frame(appctx, frame,
-			      SPOE_APPCTX(appctx)->max_frame_size);
-	if (ret > 1) {
-		if (*frame == SPOP_FRM_T_AGENT_DISCON) {
-			appctx->st0 = SPOE_APPCTX_ST_DISCONNECTING;
-			goto next;
-		}
-		trash.data = ret + 4;
-		ret = spoe_handle_agenthello_frame(appctx, frame, ret);
-	}
-
-	switch (ret) {
-		case -1: /* error */
-		case  0: /* ignore => an error, cannot be ignored */
-			appctx->st0 = SPOE_APPCTX_ST_DISCONNECT;
-			goto next;
-
-		case 1: /* retry later */
-			goto stop;
-
-		default:
-			appctx->st0 = SPOE_APPCTX_ST_IDLE;
-			goto next;
-	}
-
-  next:
-	/* Do not forget to remove processed frame from the output buffer */
-	if (trash.data)
-		co_skip(sc_oc(sc), trash.data);
-
-	return 0;
-  stop:
-	return 1;
-  exit:
-	appctx->st0 = SPOE_APPCTX_ST_EXIT;
-	return 0;
-}
-
 
 static int
 spoe_handle_sending_frame_appctx(struct appctx *appctx)
@@ -1229,10 +585,10 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx)
 
 	/* 4 bytes are reserved at the beginning of <buf> to store the frame
 	 * length. */
-	buf = trash.area; frame = buf+4;
+	buf = trash.area; frame = buf;
 
 	if (!SPOE_APPCTX(appctx)->spoe_ctx) {
-		appctx->st0 = SPOE_APPCTX_ST_DISCONNECT;
+		appctx->st0 = SPOE_APPCTX_ST_EXIT;
 		ret  = -1;
 		goto end;
 	}
@@ -1249,7 +605,7 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx)
 			SPOE_APPCTX(appctx)->spoe_ctx->status_code = (SPOE_APPCTX(appctx)->status_code + 0x100);
 			task_wakeup(SPOE_APPCTX(appctx)->spoe_ctx->strm->task, TASK_WOKEN_MSG);
 			SPOE_APPCTX(appctx)->spoe_ctx = NULL;
-			appctx->st0 = SPOE_APPCTX_ST_DISCONNECT;
+			appctx->st0 = SPOE_APPCTX_ST_EXIT;
 			break;
 
 		case 1: /* retry */
@@ -1272,23 +628,12 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx)
 	char *frame;
 	int   ret;
 
-	frame = trash.area; trash.data = 0;
-	ret = spoe_recv_frame(appctx, frame,
-			      SPOE_APPCTX(appctx)->max_frame_size);
-	if (ret > 1) {
-		if (*frame == SPOP_FRM_T_AGENT_DISCON) {
-			appctx->st0 = SPOE_APPCTX_ST_DISCONNECTING;
-			ret = -1;
-			goto end;
-		}
-		trash.data = ret + 4;
-		if (appctx->st0 == SPOE_APPCTX_ST_WAITING_SYNC_ACK)
-			ret = spoe_handle_agentack_frame(appctx, frame, ret);
-		else {
-			/* ignore frame by default except if we are waiting for a ack */
-			ret = 0;
-		}
-	}
+	b_reset(&trash);
+	frame = trash.area;
+	ret = spoe_recv_frame(appctx, frame, SPOE_APPCTX(appctx)->max_frame_size);
+	if (ret > 1)
+		ret = spoe_handle_agentack_frame(appctx, frame, ret);
+
 	switch (ret) {
 		case -1: /* error */
 			spoe_release_buffer(&SPOE_APPCTX(appctx)->spoe_ctx->buffer, &SPOE_APPCTX(appctx)->spoe_ctx->buffer_wait);
@@ -1297,7 +642,7 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx)
 			SPOE_APPCTX(appctx)->spoe_ctx->status_code = (SPOE_APPCTX(appctx)->status_code + 0x100);
 			task_wakeup(SPOE_APPCTX(appctx)->spoe_ctx->strm->task, TASK_WOKEN_MSG);
 			SPOE_APPCTX(appctx)->spoe_ctx = NULL;
-			appctx->st0 = SPOE_APPCTX_ST_DISCONNECT;
+			appctx->st0 = SPOE_APPCTX_ST_EXIT;
 			break;
 
 		case 0: /* ignore */
@@ -1313,7 +658,7 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx)
 			SPOE_APPCTX(appctx)->spoe_ctx->spoe_appctx = NULL;
 			task_wakeup(SPOE_APPCTX(appctx)->spoe_ctx->strm->task, TASK_WOKEN_MSG);
 			SPOE_APPCTX(appctx)->spoe_ctx = NULL;
-			appctx->st0 = SPOE_APPCTX_ST_DISCONNECT;
+			appctx->st0 = SPOE_APPCTX_ST_EXIT;
 			ret = -1;
 	}
 
@@ -1369,92 +714,6 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 	return 0;
 }
 
-static int
-spoe_handle_disconnect_appctx(struct appctx *appctx)
-{
-	char *frame, *buf;
-	int   ret;
-
-	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT)
-		goto exit;
-
-	/* 4 bytes are reserved at the beginning of <buf> to store the frame
-	 * length. */
-	buf = trash.area; frame = buf+4;
-	ret = spoe_prepare_hadiscon_frame(appctx, frame,
-					  SPOE_APPCTX(appctx)->max_frame_size);
-	if (ret > 1)
-		ret = spoe_send_frame(appctx, buf, ret);
-
-	switch (ret) {
-		case -1: /* error */
-		case  0: /* ignore  => an error, cannot be ignored */
-			goto exit;
-
-		case 1: /* retry */
-			goto stop;
-
-		default:
-			appctx->st0 = SPOE_APPCTX_ST_DISCONNECTING;
-			goto next;
-	}
-
-  next:
-	return 0;
-  stop:
-	return 1;
-  exit:
-	appctx->st0 = SPOE_APPCTX_ST_EXIT;
-	return 0;
-}
-
-static int
-spoe_handle_disconnecting_appctx(struct appctx *appctx)
-{
-	struct stconn *sc = appctx_sc(appctx);
-	char  *frame;
-	int    ret;
-
-	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT) {
-		SPOE_APPCTX(appctx)->status_code = SPOP_ERR_TOUT;
-		goto exit;
-	}
-
-	frame = trash.area; trash.data = 0;
-	ret = spoe_recv_frame(appctx, frame,
-			      SPOE_APPCTX(appctx)->max_frame_size);
-	if (ret > 1) {
-		trash.data = ret + 4;
-		ret = spoe_handle_agentdiscon_frame(appctx, frame, ret);
-	}
-
-	switch (ret) {
-		case -1: /* error  */
-			goto exit;
-
-		case  0: /* ignore */
-			goto next;
-
-		case  1: /* retry */
-			goto stop;
-
-		default:
-			goto exit;
-	}
-
-  next:
-	/* Do not forget to remove processed frame from the output buffer */
-	if (trash.data)
-		co_skip(sc_oc(sc), trash.data);
-
-	return 0;
-  stop:
-	return 1;
-  exit:
-	appctx->st0 = SPOE_APPCTX_ST_EXIT;
-	return 0;
-}
-
 /* I/O Handler processing messages exchanged with the agent */
 static void
 spoe_handle_appctx(struct appctx *appctx)
@@ -1470,42 +729,14 @@ spoe_handle_appctx(struct appctx *appctx)
 	}
 
 	SPOE_APPCTX(appctx)->status_code = SPOP_ERR_NONE;
-	if (!SPOE_APPCTX(appctx)->spoe_ctx) {
-		if (appctx->st0 == SPOE_APPCTX_ST_CONNECT)
-			appctx->st0 =  SPOE_APPCTX_ST_EXIT;
-		else if (appctx->st0 < SPOE_APPCTX_ST_DISCONNECT)
-			appctx->st0 =  SPOE_APPCTX_ST_DISCONNECT;
-	}
+	if (!SPOE_APPCTX(appctx)->spoe_ctx)
+		appctx->st0 =  SPOE_APPCTX_ST_EXIT;
 
   switchstate:
 	switch (appctx->st0) {
-		case SPOE_APPCTX_ST_CONNECT:
-			if (spoe_handle_connect_appctx(appctx))
-				break;
-			goto switchstate;
-
-		case SPOE_APPCTX_ST_CONNECTING:
-			if (spoe_handle_connecting_appctx(appctx))
-				break;
-			goto switchstate;
-
-		case SPOE_APPCTX_ST_IDLE:
-			appctx->st0 = SPOE_APPCTX_ST_PROCESSING;
-			__fallthrough;
-
 		case SPOE_APPCTX_ST_PROCESSING:
 		case SPOE_APPCTX_ST_WAITING_SYNC_ACK:
 			if (spoe_handle_processing_appctx(appctx))
-				break;
-			goto switchstate;
-
-		case SPOE_APPCTX_ST_DISCONNECT:
-			if (spoe_handle_disconnect_appctx(appctx))
-				break;
-			goto switchstate;
-
-		case SPOE_APPCTX_ST_DISCONNECTING:
-			if (spoe_handle_disconnecting_appctx(appctx))
 				break;
 			goto switchstate;
 
@@ -1529,6 +760,7 @@ struct applet spoe_applet = {
 	.name = "<SPOE>", /* used for logging */
 	.fct = spoe_handle_appctx,
 	.init = spoe_init_appctx,
+	.shut = spoe_shut_appctx,
 	.release = spoe_release_appctx,
 };
 
@@ -2205,7 +1437,7 @@ spoe_init(struct proxy *px, struct flt_conf *fconf)
 	 * parsing. Finish initialization. */
 	conf->agent->fe.fe_counters.last_change = ns_to_sec(now_ns);
 	conf->agent->fe.cap = PR_CAP_FE;
-	conf->agent->fe.mode = PR_MODE_TCP;
+	conf->agent->fe.mode = PR_MODE_SPOP;
 	conf->agent->fe.maxconn = 0;
 	conf->agent->fe.options2 |= PR_O2_INDEPSTR;
 	conf->agent->fe.conn_retries = CONN_RETRIES;
@@ -2275,9 +1507,13 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 			 conf->agent->conf.file, conf->agent->conf.line);
 		return 1;
 	}
-	if (target->mode != PR_MODE_TCP) {
+	if (target->mode == PR_MODE_TCP) {
+		/* Convert legacy SPOP backend by added the right mode */
+		target->mode = PR_MODE_SPOP;
+	}
+	if (target->mode != PR_MODE_SPOP) {
 		ha_alert("Proxy %s : backend '%s' used by SPOE agent '%s' declared"
-			 " at %s:%d does not support HTTP mode.\n",
+			 " at %s:%d must use SPOP mode.\n",
 			 px->id, target->id, conf->agent->id,
 			 conf->agent->conf.file, conf->agent->conf.line);
 		return 1;

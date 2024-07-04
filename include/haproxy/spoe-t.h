@@ -144,8 +144,6 @@ struct spoe_agent {
 		char         *name;           /* Backend name used during conf parsing */
 	} b;
 	struct {
-		unsigned int  hello;          /* Max time to receive AGENT-HELLO frame (in SPOE applet) */
-		unsigned int  idle;           /* Max Idle timeout  (in SPOE applet) */
 		unsigned int  processing;     /* Max time to process an event (in the main stream) */
 	} timeout;
 
