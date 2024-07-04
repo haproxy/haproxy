@@ -55,6 +55,7 @@ struct appctx;
 struct proxy;
 struct stconn;
 struct sedesc;
+struct se_abort_info;
 struct session;
 
 /* Applet descriptor */
@@ -68,6 +69,7 @@ struct applet {
 	size_t (*rcv_buf)(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags); /* called from the upper layer to get data */
 	size_t (*snd_buf)(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags); /* Called from the upper layet to put data */
 	size_t (*fastfwd)(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags); /* Callback to fast-forward data */
+	void (*shut)(struct appctx *appctx, unsigned int mode, struct se_abort_info *reason); /* shutdown function */
 	void (*release)(struct appctx *);  /* callback to release resources, may be NULL */
 	unsigned int timeout;              /* execution timeout. */
 };

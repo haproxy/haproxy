@@ -141,16 +141,15 @@ void sedesc_free(struct sedesc *sedesc)
  */
 void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode)
 {
+	unsigned int flags = 0;
+
+	if ((mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) && !se_fl_test(sedesc, SE_FL_SHW))
+		flags |= (mode & SE_SHW_NORMAL) ? SE_FL_SHWN : SE_FL_SHWS;
+	if ((mode & (SE_SHR_RESET|SE_SHR_DRAIN)) && !se_fl_test(sedesc, SE_FL_SHR))
+		flags |= (mode & SE_SHR_DRAIN) ? SE_FL_SHRD : SE_FL_SHRR;
+
 	if (se_fl_test(sedesc, SE_FL_T_MUX)) {
 		const struct mux_ops *mux = (sedesc->conn ? sedesc->conn->mux : NULL);
-		unsigned int flags = 0;
-
-		if ((mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) && !se_fl_test(sedesc, SE_FL_SHW))
-			flags |= (mode & SE_SHW_NORMAL) ? SE_FL_SHWN : SE_FL_SHWS;
-
-
-		if ((mode & (SE_SHR_RESET|SE_SHR_DRAIN)) && !se_fl_test(sedesc, SE_FL_SHR))
-			flags |= (mode & SE_SHR_DRAIN) ? SE_FL_SHRD : SE_FL_SHRR;
 
 		if (flags) {
 			if (mux && mux->shut) {
@@ -165,20 +164,32 @@ void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode)
 				}
 
 				mux->shut(sedesc->sc, mode, reason);
-
 			}
 			se_fl_set(sedesc, flags);
 		}
 	}
 	else if (se_fl_test(sedesc, SE_FL_T_APPLET)) {
-		if ((mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) && !se_fl_test(sedesc, SE_FL_SHW))
-			se_fl_set(sedesc, SE_FL_SHWN);
+		struct appctx *appctx = sedesc->se;
 
-		if ((mode & (SE_SHR_RESET|SE_SHR_DRAIN)) && !se_fl_test(sedesc, SE_FL_SHR))
-			se_fl_set(sedesc, SE_FL_SHRR);
+		if (flags) {
+			if (appctx->applet->shut) {
+				struct se_abort_info *reason = NULL;
+				struct xref *peer = xref_get_peer_and_lock(&sedesc->xref);
+
+				if (peer) {
+					struct sedesc *sdo = container_of(peer, struct sedesc, xref);
+
+					reason = &sdo->abort_info;
+					xref_unlock(&sedesc->xref, peer);
+				}
+
+				appctx->applet->shut(appctx, mode, reason);
+			}
+			se_fl_set(sedesc, flags);
+		}
 
 		if (se_fl_test(sedesc, SE_FL_SHR) && se_fl_test(sedesc, SE_FL_SHW))
-			appctx_shut(sedesc->se);
+			appctx_shut(appctx);
 	}
 }
 
