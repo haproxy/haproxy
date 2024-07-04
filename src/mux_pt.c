@@ -462,7 +462,7 @@ static int mux_pt_avail_streams(struct connection *conn)
 	return 1 - mux_pt_used_streams(conn);
 }
 
-static void mux_pt_shut(struct stconn *sc, enum se_shut_mode mode, struct se_abort_info *reason)
+static void mux_pt_shut(struct stconn *sc, unsigned int mode, struct se_abort_info *reason)
 {
 	struct connection *conn = __sc_conn(sc);
 	struct mux_pt_ctx *ctx = conn->ctx;

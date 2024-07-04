@@ -5110,7 +5110,7 @@ struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state)
 	return t;
 }
 
-static void h2_shut(struct stconn *sc, enum se_shut_mode mode, struct se_abort_info *reason)
+static void h2_shut(struct stconn *sc, unsigned int mode, struct se_abort_info *reason)
 {
 	struct h2s *h2s = __sc_mux_strm(sc);
 
