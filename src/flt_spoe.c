@@ -3009,6 +3009,37 @@ static int smp_fetch_spoe_engine_id(const struct arg *args, struct sample *smp, 
 	return 1;
 }
 
+static int spoe_postcheck_spop_proxy(struct proxy *px)
+{
+	struct server *srv;
+	int err_code = ERR_NONE;
+
+	if (!(px->cap & PR_CAP_BE) || px->mode != PR_MODE_SPOP)
+		goto out;
+
+	for (srv = px->srv; srv; srv = srv->next) {
+		if (srv->pool_conn_name) {
+			ha_free(&srv->pool_conn_name);
+			release_sample_expr(srv->pool_conn_name_expr);
+		}
+		srv->pool_conn_name = strdup("spoe.engine-id");
+		if (!srv->pool_conn_name) {
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		srv->pool_conn_name_expr = _parse_srv_expr(srv->pool_conn_name, &px->conf.args, NULL, 0, NULL);
+		if (!srv->pool_conn_name_expr) {
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+
+  out:
+	return err_code;
+}
+
+REGISTER_POST_PROXY_CHECK(spoe_postcheck_spop_proxy);
+
 /* Declare the filter parser for "spoe" keyword */
 static struct flt_kw_list flt_kws = { "SPOE", { }, {
 		{ "spoe", parse_spoe_flt, NULL },
