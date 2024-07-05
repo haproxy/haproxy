@@ -1512,16 +1512,28 @@ static int compute_ideal_maxconn()
 	 *   - two FDs per connection
 	 */
 
-	/* on some modern distros for archs like amd64 fs.nr_open (kernel max) could
-	 * be in order of 1 billion, systemd since the version 256~rc3-3 bumped
-	 * fs.nr_open as the hard RLIMIT_NOFILE (rlim_fd_max_at_boot). If we are
-	 * started without global.maxconn or global.rlimit_memmax_all, we risk to
-	 * finish with computed global.maxconn = ~500000000 and computed
-	 * global.maxsock = ~1000000000. So, fdtab will be unnecessary and extremely
-	 * huge and watchdog will kill the process, when it tries to loop over the
-	 * fdtab (see fd_reregister_all).
+	/* on some modern distros for archs like amd64 fs.nr_open (kernel max)
+	 * could be in order of 1 billion. Systemd since the version 256~rc3-3
+	 * bumped fs.nr_open as the hard RLIMIT_NOFILE (rlim_fd_max_at_boot).
+	 * If we are started without any limits, we risk to finish with computed
+	 * maxconn = ~500000000, maxsock = ~2*maxconn. So, fdtab will be
+	 * extremely large and watchdog will kill the process, when it will try
+	 * to loop over the fdtab (see fd_reregister_all). Please note, that
+	 * fd_hard_limit is taken in account implicitly via 'ideal_maxconn'
+	 * value in all global.maxconn adjustements, when global.rlimit_memmax
+	 * is set:
+	 *
+	 *   MIN(global.maxconn, capped by global.rlimit_memmax, ideal_maxconn);
+	 *
+	 * It also caps global.rlimit_nofile, if it couldn't be set as rlim_cur
+	 * and as rlim_max. So, fd_hard_limitit is a good parameter to serve as
+	 * a safeguard, when no haproxy-specific limits are set, i.e.
+	 * rlimit_memmax, maxconn, rlimit_nofile. But it must be kept as a zero,
+	 * if only one of these ha-specific limits is presented in config or in
+	 * the cmdline.
 	 */
-	if (!global.fd_hard_limit)
+	if (!global.fd_hard_limit && !global.maxconn && !global.rlimit_nofile
+	    && !global.rlimit_memmax)
 		global.fd_hard_limit = DEFAULT_MAXFD;
 
 	if (remain > global.fd_hard_limit)
