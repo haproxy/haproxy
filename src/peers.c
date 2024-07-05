@@ -3341,7 +3341,8 @@ static void sync_peer_learn_state(struct peers *peers, struct peer *peer)
 	HA_ATOMIC_AND(&peers->flags, ~PEERS_F_RESYNC_ASSIGN);
 	HA_ATOMIC_OR(&peers->flags, flags);
 
-	appctx_wakeup(peer->appctx);
+	if (peer->appctx)
+		appctx_wakeup(peer->appctx);
 }
 
 /* Synchronise the peer applet state with its associated peers section. This
