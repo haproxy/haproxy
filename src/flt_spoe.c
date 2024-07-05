@@ -2984,6 +2984,31 @@ static enum act_parse_ret parse_send_spoe_group(const char **args, int *orig_arg
 }
 
 
+/* returns the engine ID of the SPOE */
+static int smp_fetch_spoe_engine_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct appctx *appctx;
+	struct spoe_agent *agent;
+
+        if (!smp->strm)
+                return 0;
+
+	appctx = sc_appctx(smp->strm->scf);
+	if (!appctx || appctx->applet != &spoe_applet)
+		return 0;
+
+	agent = spoe_appctx_agent(appctx);
+	if (!agent)
+		return 0;
+
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str.area = agent->engine_id;
+	smp->data.u.str.data = strlen(agent->engine_id);
+	smp->flags = SMP_F_CONST;
+
+	return 1;
+}
+
 /* Declare the filter parser for "spoe" keyword */
 static struct flt_kw_list flt_kws = { "SPOE", { }, {
 		{ "spoe", parse_spoe_flt, NULL },
@@ -3025,3 +3050,11 @@ static struct action_kw_list http_res_action_kws = { { }, {
 };
 
 INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_action_kws);
+
+
+static struct sample_fetch_kw_list smp_kws = {ILH, {
+	{ "spoe.engine-id",  smp_fetch_spoe_engine_id, 0, NULL, SMP_T_STR, SMP_USE_INTRN},
+	{},
+}};
+
+INITCALL1(STG_REGISTER, sample_register_fetches, &smp_kws);
