@@ -4262,7 +4262,8 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
 static int sample_conv_jwt_verify_check(struct arg *args, struct sample_conv *conv,
 					const char *file, int line, char **err)
 {
-	enum jwt_alg alg;
+	enum jwt_alg alg = JWT_ALG_DEFAULT;
+
 	vars_check_arg(&args[0], NULL);
 	vars_check_arg(&args[1], NULL);
 
