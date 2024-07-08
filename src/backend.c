@@ -1377,12 +1377,6 @@ int connect_server(struct stream *s)
 		                                srv->pool_conn_name_expr, SMP_T_STR);
 	}
 
-	/* do not reuse if mode is not http */
-	if (!IS_HTX_STRM(s)) {
-		DBG_TRACE_STATE("skip idle connections reuse: no htx", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
-		goto skip_reuse;
-	}
-
 	/* disable reuse if websocket stream and the protocol to use is not the
 	 * same as the main protocol of the server.
 	 */
