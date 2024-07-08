@@ -347,6 +347,11 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 				skip_sendto = 1;
 				TRACE_ERROR("sendto error, simulate sending for the rest of data", QUIC_EV_CONN_SPPKTS, qc);
 			}
+			else {
+				qc->cntrs.sent_bytes += ret;
+				if (gso && ret > gso)
+					qc->cntrs.sent_bytes_gso += ret;
+			}
 		}
 
 		b_del(buf, dglen + QUIC_DGRAM_HEADLEN);

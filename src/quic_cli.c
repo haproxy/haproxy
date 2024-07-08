@@ -300,11 +300,14 @@ static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
 	}
 
 	if (ctx->fields & QUIC_DUMP_FLD_CC) {
-		chunk_appendf(&trash, "  srtt=%-4u rttvar=%-4u rttmin=%-4u ptoc=%-4u cwnd=%-6llu"
-		                      " mcwnd=%-6llu sentpkts=%-6llu lostpkts=%-6llu reorderedpkts=%-6llu\n",
+		chunk_appendf(&trash, "  srtt=%-4u  rttvar=%-4u rttmin=%-4u ptoc=%-4u\n"
+		                      "  cwnd=%-6llu            mcwnd=%-6llu\n"
+		                      "  sentbytes=%-12llu sentbytesgso=%-12llu sentpkts=%-6llu\n"
+		                      "  lostpkts=%-6llu        reorderedpkts=%-6llu\n",
 		              qc->path->loss.srtt, qc->path->loss.rtt_var,
 		              qc->path->loss.rtt_min, qc->path->loss.pto_count, (ullong)qc->path->cwnd,
-		              (ullong)qc->path->mcwnd, (ullong)qc->cntrs.sent_pkt, (ullong)qc->path->loss.nb_lost_pkt, (ullong)qc->path->loss.nb_reordered_pkt);
+		              (ullong)qc->path->mcwnd, (ullong)qc->cntrs.sent_bytes, (ullong)qc->cntrs.sent_bytes_gso,
+		              (ullong)qc->cntrs.sent_pkt, (ullong)qc->path->loss.nb_lost_pkt, (ullong)qc->path->loss.nb_reordered_pkt);
 	}
 
 	if (qc->cntrs.dropped_pkt) {
