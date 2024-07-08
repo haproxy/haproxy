@@ -424,15 +424,17 @@ void *pool_alloc_nocache(struct pool_head *pool, const void *caller)
 {
 	void *ptr = NULL;
 	uint bucket;
+	uint used;
 
 	ptr = pool_get_from_os_noinc(pool);
 	if (!ptr)
 		return NULL;
 
 	bucket = pool_pbucket(ptr);
-	swrate_add_scaled_opportunistic(&pool->buckets[bucket].needed_avg, POOL_AVG_SAMPLES, pool->buckets[bucket].used, POOL_AVG_SAMPLES/4);
+
 	_HA_ATOMIC_INC(&pool->buckets[bucket].allocated);
-	_HA_ATOMIC_INC(&pool->buckets[bucket].used);
+	used = _HA_ATOMIC_FETCH_ADD(&pool->buckets[bucket].used, 1);
+	swrate_add_scaled_opportunistic(&pool->buckets[bucket].needed_avg, POOL_AVG_SAMPLES, used, POOL_AVG_SAMPLES/4);
 
 	/* keep track of where the element was allocated from */
 	POOL_DEBUG_SET_MARK(pool, ptr);
@@ -447,10 +449,11 @@ void *pool_alloc_nocache(struct pool_head *pool, const void *caller)
 void pool_free_nocache(struct pool_head *pool, void *ptr)
 {
 	uint bucket = pool_pbucket(ptr);
+	uint used;
 
-	_HA_ATOMIC_DEC(&pool->buckets[bucket].used);
+	used = _HA_ATOMIC_SUB_FETCH(&pool->buckets[bucket].used, 1);
 	_HA_ATOMIC_DEC(&pool->buckets[bucket].allocated);
-	swrate_add_opportunistic(&pool->buckets[bucket].needed_avg, POOL_AVG_SAMPLES, pool->buckets[bucket].used);
+	swrate_add_opportunistic(&pool->buckets[bucket].needed_avg, POOL_AVG_SAMPLES, used);
 
 	pool_put_to_os_nodec(pool, ptr);
 }
@@ -519,6 +522,7 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 	uint cluster = 0;
 	uint to_free_max;
 	uint bucket;
+	uint used;
 
 	BUG_ON(pool_debugging & POOL_DBG_NO_CACHE);
 
@@ -534,8 +538,8 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 		LIST_DELETE(&item->by_lru);
 
 		bucket = pool_pbucket(item);
-		_HA_ATOMIC_DEC(&pool->buckets[bucket].used);
-		swrate_add_opportunistic(&pool->buckets[bucket].needed_avg, POOL_AVG_SAMPLES, pool->buckets[bucket].used);
+		used = _HA_ATOMIC_SUB_FETCH(&pool->buckets[bucket].used, 1);
+		swrate_add_opportunistic(&pool->buckets[bucket].needed_avg, POOL_AVG_SAMPLES, used);
 
 		if (to_free_max > released || cluster) {
 			/* will never match when global pools are disabled */
