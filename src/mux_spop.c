@@ -827,12 +827,14 @@ static inline int spop_conn_is_dead(struct spop_conn *spop_conn)
 }
 
 /* update spop_conn timeout if needed */
-static __maybe_unused void spop_conn_update_timeout(struct spop_conn *spop_conn)
+static void spop_conn_update_timeout(struct spop_conn *spop_conn)
 {
-	TRACE_ENTER(SPOP_EV_SPOP_CONN_WAKE, spop_conn->conn);
+	int is_idle_conn = 0;
 
 	if (!spop_conn->task)
 		goto leave;
+
+	TRACE_ENTER(SPOP_EV_SPOP_CONN_WAKE, spop_conn->conn);
 
 	if (spop_conn_may_expire(spop_conn)) {
 		/* no more streams attached */
@@ -846,6 +848,7 @@ static __maybe_unused void spop_conn_update_timeout(struct spop_conn *spop_conn)
 				int exp = tick_add_ifset(now_ms, spop_conn->shut_timeout);
 
 				spop_conn->task->expire = tick_first(spop_conn->task->expire, exp);
+				is_idle_conn = 1;
 			}
 
 			/* if a timeout above was not set, fall back to the default one */
@@ -853,13 +856,41 @@ static __maybe_unused void spop_conn_update_timeout(struct spop_conn *spop_conn)
 				spop_conn->task->expire = tick_add_ifset(now_ms, spop_conn->timeout);
 		}
 
-		// TODO: handle close_spread for now, there is no idle connection
+		if ((spop_conn->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) &&
+		    is_idle_conn && tick_isset(global.close_spread_end)) {
+			/* If a soft-stop is in progress and a close-spread-time
+			 * is set, we want to spread idle connection closing roughly
+			 * evenly across the defined window. This should only
+			 * act on idle frontend connections.
+			 * If the window end is already in the past, we wake the
+			 * timeout task up immediately so that it can be closed.
+			 */
+			int remaining_window = tick_remain(now_ms, global.close_spread_end);
+			if (remaining_window) {
+				/* We don't need to reset the expire if it would
+				 * already happen before the close window end.
+				 */
+				if (tick_isset(spop_conn->task->expire) &&
+				    tick_is_le(global.close_spread_end, spop_conn->task->expire)) {
+					/* Set an expire value shorter than the current value
+					 * because the close spread window end comes earlier.
+					 */
+					spop_conn->task->expire = tick_add(now_ms, statistical_prng_range(remaining_window));
+				}
+			}
+			else {
+				/* We are past the soft close window end, wake the timeout
+				 * task up immediately.
+				 */
+				task_wakeup(spop_conn->task, TASK_WOKEN_TIMER);
+			}
+		}
 	}
 	else
 		spop_conn->task->expire = TICK_ETERNITY;
 	task_queue(spop_conn->task);
+	TRACE_LEAVE(SPOP_EV_SPOP_CONN_WAKE, spop_conn->conn, 0, 0, (size_t[]){spop_conn->task->expire});
  leave:
-	TRACE_LEAVE(SPOP_EV_SPOP_CONN_WAKE);
 }
 
 /********************************************************/
@@ -2495,11 +2526,7 @@ static int spop_process(struct spop_conn *spop_conn)
 	    (!br_data(spop_conn->mbuf) && ((spop_conn->flags & SPOP_CF_MUX_BLOCK_ANY) || LIST_ISEMPTY(&spop_conn->send_list))))
 		spop_release_mbuf(spop_conn);
 
-	if (spop_conn->task) {
-		spop_conn->task->expire = tick_add(now_ms, (spop_conn->state == SPOP_CS_CLOSED ? spop_conn->shut_timeout : spop_conn->timeout));
-		task_queue(spop_conn->task);
-	}
-
+	spop_conn_update_timeout(spop_conn);
 	spop_send(spop_conn);
 	TRACE_LEAVE(SPOP_EV_SPOP_CONN_WAKE, conn);
 	return 0;
@@ -2810,8 +2837,7 @@ static void spop_detach(struct sedesc *sd)
 		spop_release(spop_conn);
 	}
 	else if (spop_conn->task) {
-		spop_conn->task->expire = tick_add(now_ms, (spop_conn->state == SPOP_CS_CLOSED ? spop_conn->shut_timeout : spop_conn->timeout));
-		task_queue(spop_conn->task);
+		spop_conn_update_timeout(spop_conn);
 		TRACE_DEVEL("leaving, refreshing connection's timeout", SPOP_EV_STRM_END, spop_conn->conn);
 	}
 	else
