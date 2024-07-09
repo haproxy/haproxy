@@ -85,10 +85,13 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 	/* Don't forward anything if there is nothing to forward or the waiting
 	 * time is not expired
 	 */
-	if (!len || (tick_isset(st->exp) && !tick_is_expired(st->exp, now_ms)))
+	if (tick_isset(st->exp) && !tick_is_expired(st->exp, now_ms))
 		goto end;
 
 	st->exp = TICK_ETERNITY;
+	if (!len)
+		goto end;
+
 	ret = len;
 	if (conf->flags & BWLIM_FL_SHARED) {
 		void *ptr;
@@ -177,6 +180,7 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
   end:
 	chn->analyse_exp = tick_first((tick_is_expired(chn->analyse_exp, now_ms) ? TICK_ETERNITY : chn->analyse_exp),
 				      st->exp);
+	BUG_ON(tick_is_expired(chn->analyse_exp, now_ms));
 	return ret;
 }
 
