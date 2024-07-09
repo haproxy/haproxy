@@ -13,6 +13,7 @@
 #include <haproxy/net_helper.h>
 #include <haproxy/proxy.h>
 #include <haproxy/spoe.h>
+#include <haproxy/session.h>
 #include <haproxy/stconn.h>
 #include <haproxy/task.h>
 #include <haproxy/trace.h>
@@ -2510,13 +2511,12 @@ static int spop_process(struct spop_conn *spop_conn)
 			return -1;
 		}
 
-		// TODO:
-		/* /\* connections in error must be removed from the idle lists *\/ */
-		/* if (conn->flags & CO_FL_LIST_MASK) { */
-		/* 	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock); */
-		/* 	conn_delete_from_tree(conn); */
-		/* 	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock); */
-		/* } */
+		/* connections in error must be removed from the idle lists */
+		if (conn->flags & CO_FL_LIST_MASK) {
+			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			conn_delete_from_tree(conn);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		}
 	}
 
 	if (!b_data(&spop_conn->dbuf))
@@ -2774,7 +2774,7 @@ static void spop_detach(struct sedesc *sd)
 {
 	struct spop_strm *spop_strm = sd->se;
 	struct spop_conn *spop_conn;
-	//struct session *sess;
+	struct session *sess;
 
 	TRACE_ENTER(SPOP_EV_STRM_END, (spop_strm ? spop_strm->spop_conn->conn : NULL), spop_strm);
 
@@ -2786,7 +2786,7 @@ static void spop_detach(struct sedesc *sd)
 	/* there's no txbuf so we're certain no to be able to send anything */
 	spop_strm->flags &= ~SPOP_SF_NOTIFIED;
 
-	//sess = spop_strm->sess;
+	sess = spop_strm->sess;
 	spop_conn = spop_strm->spop_conn;
 	spop_conn->nb_sc--;
 
@@ -2801,30 +2801,77 @@ static void spop_detach(struct sedesc *sd)
 		/* refresh the timeout if none was active, so that the last
 		 * leaving stream may arm it.
 		 */
-		// TODO: Add spop_update_timeout  function
-		 if (spop_conn->task && !tick_isset(spop_conn->task->expire))
-			 spop_conn->task->expire = tick_add(now_ms, (spop_conn->state == SPOP_CS_CLOSED ? spop_conn->shut_timeout : spop_conn->timeout));
-		/* 	spop_update_timeout(spop_conn); */
+		if (spop_conn->task && !tick_isset(spop_conn->task->expire))
+			spop_conn_update_timeout(spop_conn);
 		return;
 	}
 
 	if ((spop_conn->flags & SPOP_CF_DEM_BLOCK_ANY && spop_strm->id == spop_conn->dsi)) {
 		/* unblock the connection if it was blocked on this stream. */
 		spop_conn->flags &= ~SPOP_CF_DEM_BLOCK_ANY;
+		spop_conn->flags &= ~SPOP_CF_MUX_BLOCK_ANY;
 		spop_conn_restart_reading(spop_conn, 1);
 	}
 
 	spop_strm_destroy(spop_strm);
 
 	if (!(spop_conn->flags & (SPOP_CF_RCVD_SHUT|SPOP_CF_ERR_PENDING|SPOP_CF_ERROR))) {
-		// TODO: for now, cannection cannot be resued. Just close it
-		if (spop_conn->state < SPOP_CS_ERROR) {
-			/* spop_conn_error(spop_conn, SPOP_ERR_NONE); */
-			TRACE_PROTO("sending SPOP HAPROXY DISCONNECT frame", SPOP_EV_STRM_END|SPOP_EV_TX_DISCO, spop_conn->conn);
-			if (!spop_conn_send_disconnect(spop_conn))
-				spop_conn->flags |= SPOP_CF_DISCO_FAILED;
-			if (!(spop_conn->wait_event.events & SUB_RETRY_SEND))
-				tasklet_wakeup(spop_conn->wait_event.tasklet);
+		if (spop_conn->conn->flags & CO_FL_PRIVATE) {
+			/* Add the connection in the session server list, if not already done */
+			if (!session_add_conn(sess, spop_conn->conn, spop_conn->conn->target)) {
+				spop_conn->conn->owner = NULL;
+				if (eb_is_empty(&spop_conn->streams_by_id)) {
+					spop_conn->conn->mux->destroy(spop_conn);
+					TRACE_DEVEL("leaving on error after killing outgoing connection", SPOP_EV_STRM_END|SPOP_EV_SPOP_CONN_ERR);
+					return;
+				}
+			}
+			if (eb_is_empty(&spop_conn->streams_by_id)) {
+				/* mark that the tasklet may lose its context to another thread and
+				 * that the handler needs to check it under the idle conns lock.
+				 */
+				HA_ATOMIC_OR(&spop_conn->wait_event.tasklet->state, TASK_F_USR1);
+				if (session_check_idle_conn(spop_conn->conn->owner, spop_conn->conn) != 0) {
+					/* At this point either the connection is destroyed, or it's been added to the server idle list, just stop */
+					TRACE_DEVEL("leaving without reusable idle connection", SPOP_EV_STRM_END);
+					return;
+				}
+			}
+		}
+		else {
+			if (eb_is_empty(&spop_conn->streams_by_id)) {
+				/* If the connection is owned by the session, first remove it
+				 * from its list
+				 */
+				if (spop_conn->conn->owner) {
+					session_unown_conn(spop_conn->conn->owner, spop_conn->conn);
+					spop_conn->conn->owner = NULL;
+				}
+
+				/* mark that the tasklet may lose its context to another thread and
+				 * that the handler needs to check it under the idle conns lock.
+				 */
+				HA_ATOMIC_OR(&spop_conn->wait_event.tasklet->state, TASK_F_USR1);
+				xprt_set_idle(spop_conn->conn, spop_conn->conn->xprt, spop_conn->conn->xprt_ctx);
+
+				if (!srv_add_to_idle_list(objt_server(spop_conn->conn->target), spop_conn->conn, 1)) {
+					/* The server doesn't want it, let's kill the connection right away */
+					spop_conn->conn->mux->destroy(spop_conn);
+					TRACE_DEVEL("leaving on error after killing outgoing connection", SPOP_EV_STRM_END|SPOP_EV_SPOP_CONN_ERR);
+					return;
+				}
+				/* At this point, the connection has been added to the
+				 * server idle list, so another thread may already have
+				 * hijacked it, so we can't do anything with it.
+				 */
+				TRACE_DEVEL("reusable idle connection", SPOP_EV_STRM_END);
+				return;
+			}
+			else if (!spop_conn->conn->hash_node->node.node.leaf_p &&
+				 spop_avail_streams(spop_conn->conn) > 0 && objt_server(spop_conn->conn->target) &&
+				 !LIST_INLIST(&spop_conn->conn->sess_el)) {
+				srv_add_to_avail_list(__objt_server(spop_conn->conn->target), spop_conn->conn);
+			}
 		}
 	}
 
