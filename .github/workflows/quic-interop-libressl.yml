@@ -52,6 +52,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Install tshark
         run: |
           sudo apt-get update
