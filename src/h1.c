@@ -129,6 +129,10 @@ int h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value)
 	char *e, *n;
 	struct ist word;
 
+	/* Reject empty header */
+	if (istptr(value) == istend(value))
+	    goto fail;
+
 	h1m->flags |= H1_MF_XFER_ENC;
 
 	word.ptr = value.ptr - 1; // -1 for next loop's pre-increment
