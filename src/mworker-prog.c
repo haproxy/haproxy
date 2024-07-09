@@ -115,7 +115,6 @@ int mworker_ext_launch_all()
 				/* This one must not be exported, it's internal! */
 				unsetenv("HAPROXY_MWORKER_REEXEC");
 				unsetenv("HAPROXY_STARTUPLOGS_FD");
-				unsetenv("HAPROXY_MWORKER_WAIT_ONLY");
 				unsetenv("HAPROXY_PROCESSES");
 				execvp(child->command[0], child->command);
 
@@ -331,11 +330,6 @@ int cfg_program_postparser()
 {
 	int err_code = 0;
 	struct mworker_proc *child;
-
-	/* we only need to check this during configuration parsing,
-	 * wait mode doesn't have the complete description of a program */
-	if (global.mode & MODE_MWORKER_WAIT)
-		return err_code;
 
 	list_for_each_entry(child, &proc_list, list) {
 		if (child->reloads == 0 && (child->options & PROC_O_TYPE_PROG)) {

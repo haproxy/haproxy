@@ -3841,7 +3841,7 @@ int resolvers_create_default()
 {
 	int err_code = ERR_NONE;
 
-	if (global.mode & MODE_MWORKER_WAIT) /* does not create the section if in wait mode */
+	if (global.mode & MODE_MWORKER) /* does not create the section if in MODE_MWORKER */
 		return ERR_NONE;
 
 	/* if the section already exists, do nothing */

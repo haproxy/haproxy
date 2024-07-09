@@ -129,8 +129,7 @@ void startup_logs_init_shm()
 	/* during startup, or just after a reload.
 	 * Note: the WAIT_ONLY env variable must be
 	 * check in case of an early call  */
-	if (!(global.mode & MODE_MWORKER_WAIT) &&
-	    getenv("HAPROXY_MWORKER_WAIT_ONLY") == NULL) {
+	if (!(global.mode & MODE_MWORKER)) {
 		if (fd != -1)
 			close(fd);
 

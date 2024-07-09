@@ -1202,7 +1202,7 @@ struct proxy *httpclient_create_proxy(const char *id)
 	struct server *srv_ssl = NULL;
 #endif
 
-	if (global.mode & MODE_MWORKER_WAIT)
+	if (global.mode & MODE_MWORKER)
 		return ERR_NONE;
 
 	px = alloc_new_proxy(id, PR_CAP_LISTEN|PR_CAP_INT|PR_CAP_HTTPCLIENT, &errmsg);
@@ -1359,7 +1359,7 @@ static int httpclient_postcheck_proxy(struct proxy *curproxy)
 	struct server *srv_ssl = NULL;
 #endif
 
-	if (global.mode & MODE_MWORKER_WAIT)
+	if (global.mode & MODE_MWORKER)
 		return ERR_NONE;
 
 	if (!(curproxy->cap & PR_CAP_HTTPCLIENT))
