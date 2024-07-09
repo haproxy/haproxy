@@ -118,7 +118,7 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_AGENT_HEALTH]                  = { .name = "agent_health",                .desc = "Current server agent check level (0..fall-1=DOWN, fall..rise-1=UP)" },
 	[ST_I_PX_ADDR]                          = { .name = "addr",                        .desc = "Server's address:port, shown only if show-legends is set, or at levels oper/admin for the CLI" },
 	[ST_I_PX_COOKIE]                        = { .name = "cookie",                      .desc = "Backend's cookie name or Server's cookie value, shown only if show-legends is set, or at levels oper/admin for the CLI" },
-	[ST_I_PX_MODE]                          = { .name = "mode",                        .desc = "'mode' setting (tcp/http/health/cli)" },
+	[ST_I_PX_MODE]                          = { .name = "mode",                        .desc = "'mode' setting (tcp/http/health/cli/spop)" },
 	[ST_I_PX_ALGO]                          = { .name = "algo",                        .desc = "Backend's load balancing algorithm, shown only if show-legends is set, or at levels oper/admin for the CLI" },
 	[ST_I_PX_CONN_RATE]     = ME_NEW_FE("conn_rate",     FN_RATE,    FF_U32, conn_per_sec,           STATS_PX_CAP__F__, "Number of new connections accepted over the last second on the frontend for this worker process"),
 	[ST_I_PX_CONN_RATE_MAX]                 = { .name = "conn_rate_max",               .desc = "Highest value of connections per second observed since the worker process started" },

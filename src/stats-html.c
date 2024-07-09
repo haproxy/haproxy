@@ -944,6 +944,16 @@ int stats_dump_fields_html(struct buffer *out,
 			              U2H(stats[ST_I_PX_WREW].u.u64),
 			              U2H(stats[ST_I_PX_EINT].u.u64));
 		}
+		else if (strcmp(field_str(stats, ST_I_PX_MODE), "spop") == 0) {
+			chunk_appendf(out,
+			              "<tr><th>New connections:</th><td>%s</td></tr>"
+			              "<tr><th>Reused connections:</th><td>%s</td><td>(%d%%)</td></tr>"
+			              "",
+			              U2H(stats[ST_I_PX_CONNECT].u.u64),
+			              U2H(stats[ST_I_PX_REUSE].u.u64),
+			              (stats[ST_I_PX_CONNECT].u.u64 + stats[ST_I_PX_REUSE].u.u64) ?
+			              (int)(100 * stats[ST_I_PX_REUSE].u.u64 / (stats[ST_I_PX_CONNECT].u.u64 + stats[ST_I_PX_REUSE].u.u64)) : 0);
+		}
 
 		chunk_appendf(out, "<tr><th colspan=3>Max / Avg over last 1024 success. conn.</th></tr>");
 		chunk_appendf(out, "<tr><th>- Queue time:</th><td>%s / %s</td><td>ms</td></tr>",
@@ -1210,6 +1220,16 @@ int stats_dump_fields_html(struct buffer *out,
 			              (int)(100 * stats[ST_I_PX_CACHE_HITS].u.u64 / stats[ST_I_PX_CACHE_LOOKUPS].u.u64) : 0,
 			              U2H(stats[ST_I_PX_WREW].u.u64),
 			              U2H(stats[ST_I_PX_EINT].u.u64));
+		}
+		else if (strcmp(field_str(stats, ST_I_PX_MODE), "spop") == 0) {
+			chunk_appendf(out,
+			              "<tr><th>New connections:</th><td>%s</td></tr>"
+			              "<tr><th>Reused connections:</th><td>%s</td><td>(%d%%)</td></tr>"
+				      "",
+			              U2H(stats[ST_I_PX_CONNECT].u.u64),
+			              U2H(stats[ST_I_PX_REUSE].u.u64),
+			              (stats[ST_I_PX_CONNECT].u.u64 + stats[ST_I_PX_REUSE].u.u64) ?
+			              (int)(100 * stats[ST_I_PX_REUSE].u.u64 / (stats[ST_I_PX_CONNECT].u.u64 + stats[ST_I_PX_REUSE].u.u64)) : 0);
 		}
 
 		chunk_appendf(out, "<tr><th colspan=3>Max / Avg over last 1024 success. conn.</th></tr>");
