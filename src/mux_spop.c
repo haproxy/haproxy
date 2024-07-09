@@ -2086,7 +2086,25 @@ static void spop_process_demux(struct spop_conn *spop_conn)
 			spop_conn->state = SPOP_CS_FRAME_P;
 			TRACE_STATE("SPOP frame header rcvd, switching to FRAME_P", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR, spop_conn->conn);
 
-			// TODO: Perform some check (flags & FIN)
+			/* Perform sanity check on the frame header */
+			if (!(spop_conn->dff & SPOP_FRM_FL_FIN)) {
+				spop_conn_error(spop_conn, SPOP_ERR_FRAG_NOT_SUPPORTED);
+				TRACE_ERROR("frame fragmentation not supported", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				break;
+			}
+			if (!spop_conn->dsi && spop_conn->dft == SPOP_FRM_T_AGENT_ACK) {
+				spop_conn_error(spop_conn, SPOP_ERR_INVALID);
+				TRACE_ERROR("invalid SPOP frame (ACK && dsi == 0)", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				break;
+			}
+			if (spop_conn->dsi && !spop_conn->dfi) {
+				spop_conn_error(spop_conn, SPOP_ERR_INVALID);
+				TRACE_ERROR("invalid SPOP frame (dsi != 0 && dfi == 0)", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				break;
+			}
 		}
 
 
@@ -2103,7 +2121,42 @@ static void spop_process_demux(struct spop_conn *spop_conn)
 		}
 		spop_strm = tmp_spop_strm;
 
-		// check stream for frame error ?
+		/* Perform sanity checks on the SPOP stream */
+		if (spop_strm == spop_unknown_stream) {
+			if (spop_conn->dsi > spop_conn->max_id) {
+				spop_conn_error(spop_conn, SPOP_ERR_FRAMEID_NOTFOUND);
+				TRACE_ERROR("invalid SPOP frame (dsi > max_id)", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				break;
+			}
+			else {
+				/* stream not found, probably because it aborted */
+				goto ignore_frame;
+			}
+		}
+		else if (spop_strm == spop_closed_stream) {
+			if (spop_conn->dft != SPOP_FRM_T_AGENT_HELLO && spop_conn->dft != SPOP_FRM_T_AGENT_DISCON) {
+				spop_conn_error(spop_conn, SPOP_ERR_INVALID);
+				TRACE_ERROR("invalid SPOP frame (dsi == 0)", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				break;
+			}
+		}
+		else {
+			if (spop_conn->dfi == spop_strm->fid) {
+				// OK, no problem
+			}
+			else if (spop_conn->dfi > spop_strm->fid) {
+				spop_conn_error(spop_conn, SPOP_ERR_FRAMEID_NOTFOUND);
+				TRACE_ERROR("invalid SPOP frame (dfi > frame-id)", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				break;
+			}
+			else {
+				/* frame id not found, probably because it aborted */
+				goto ignore_frame;
+			}
+		}
 
 		switch (spop_conn->dft) {
 		case SPOP_FRM_T_AGENT_HELLO:
@@ -2119,6 +2172,7 @@ static void spop_process_demux(struct spop_conn *spop_conn)
 				ret = spop_conn_handle_ack(spop_conn, spop_strm);
 			break;
 		default:
+		  ignore_frame:
 			TRACE_PROTO("receiving SPOP ignored frame", SPOP_EV_RX_FRAME, spop_conn->conn, spop_strm);
 			/* drop frames that we ignore. */
 			ret = MIN(b_data(&spop_conn->dbuf), spop_conn->dfl);
