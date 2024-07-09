@@ -1724,7 +1724,6 @@ static int spop_conn_handle_hello(struct spop_conn *spop_conn)
 	/* 		flags &= ~SPOE_APPCTX_FL_PIPELINING; */
 	/* } */
 
-	/* SPOE_APPCTX(appctx)->version        = (unsigned int)vsn; */
 	/* SPOE_APPCTX(appctx)->flags         |= flags; */
 	spop_conn->max_frame_size = (unsigned int)max_frame_size;
 

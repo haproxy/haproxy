@@ -206,7 +206,6 @@ struct spoe_context {
 struct spoe_appctx {
 	struct appctx      *owner;          /* the owner */
 	struct spoe_agent  *agent;          /* agent on which the applet is attached */
-	unsigned int        version;        /* the negotiated version */
 	unsigned int        flags;          /* SPOE_APPCTX_FL_* */
 	unsigned int        status_code;    /* SPOE_FRM_ERR_* */
 	struct spoe_context *spoe_ctx;      /* The SPOE context to handle */
@@ -569,7 +568,6 @@ static struct appctx *spoe_create_appctx(struct spoe_context *ctx)
 		goto out_error;
 
 	spoe_appctx->agent           = agent;
-	spoe_appctx->version         = 0;
 	spoe_appctx->flags           = 0;
 	spoe_appctx->status_code     = SPOP_ERR_NONE;
 	spoe_appctx->spoe_ctx        = ctx;
