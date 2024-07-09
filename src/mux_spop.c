@@ -705,6 +705,8 @@ static int spop_init(struct connection *conn, struct proxy *px, struct session *
 	if (sdo) {
 		spop_conn->agent = spoe_appctx_agent(sc_appctx(sdo->sc));
 		spop_conn->max_frame_size = spop_conn->agent->max_frame_size;
+		if (spop_conn->agent->flags & SPOE_FL_PIPELINING)
+			spop_conn->streams_limit = 20;
 		BUG_ON(!spop_conn->agent);
 	}
 
@@ -1685,11 +1687,11 @@ static int spop_conn_handle_hello(struct spop_conn *spop_conn)
 				/* Skip leading spaces */
 				for (; isspace((unsigned char)*str) && sz; str++, sz--);
 
-				/* if (sz >= 10 && !strncmp(str, "pipelining", 10)) { */
-				/* 	str += 10; sz -= 10; */
-				/* 	if (!sz || isspace((unsigned char)*str) || *str == ',') */
-				/* 		flags |= SPOE_APPCTX_FL_PIPELINING; */
-				/* } */
+				if (sz >= 10 && !strncmp(str, "pipelining", 10)) {
+					str += 10; sz -= 10;
+					if (!sz || isspace((unsigned char)*str) || *str == ',')
+						flags |= SPOE_FL_PIPELINING;
+				}
 
 				/* Get the next comma or break */
 				if (!sz || (delim = memchr(str, ',', sz)) == NULL)
@@ -1717,14 +1719,9 @@ static int spop_conn_handle_hello(struct spop_conn *spop_conn)
 		spop_conn_error(spop_conn, SPOP_ERR_NO_FRAME_SIZE);
 		goto fail;
 	}
-	/* if (!agent) */
-	/* 	flags &= ~SPOE_APPCTX_FL_PIPELINING; */
-	/* else { */
-	/* 	if ((flags & SPOE_APPCTX_FL_PIPELINING) && !(agent->flags & SPOE_FL_PIPELINING)) */
-	/* 		flags &= ~SPOE_APPCTX_FL_PIPELINING; */
-	/* } */
 
-	/* SPOE_APPCTX(appctx)->flags         |= flags; */
+	if (!(flags & SPOE_FL_PIPELINING))
+		spop_conn->streams_limit = 1;
 	spop_conn->max_frame_size = (unsigned int)max_frame_size;
 
 

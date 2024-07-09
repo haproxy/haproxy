@@ -56,11 +56,6 @@
 
 #define SPOE_CTX_FL_PROCESS (SPOE_CTX_FL_REQ_PROCESS|SPOE_CTX_FL_RSP_PROCESS)
 
-/* Flags set on the SPOE applet */
-#define SPOE_APPCTX_FL_PIPELINING    0x00000001 /* Set if pipelining is supported */
-/* unused 0x00000002 */
-/* unused 0x00000004 */
-
 /* All possible states for a SPOE context */
 enum spoe_ctx_state {
 	SPOE_CTX_ST_NONE = 0,
