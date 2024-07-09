@@ -206,13 +206,9 @@ struct spoe_context {
 struct spoe_appctx {
 	struct appctx      *owner;          /* the owner */
 	struct spoe_agent  *agent;          /* agent on which the applet is attached */
-
 	unsigned int        version;        /* the negotiated version */
-	unsigned int        max_frame_size; /* the negotiated max-frame-size value */
 	unsigned int        flags;          /* SPOE_APPCTX_FL_* */
-
 	unsigned int        status_code;    /* SPOE_FRM_ERR_* */
-
 	struct spoe_context *spoe_ctx;      /* The SPOE context to handle */
 };
 
@@ -472,7 +468,7 @@ static int spoe_handle_receiving_frame_appctx(struct appctx *appctx)
 		goto end;
 	if (!spoe_acquire_buffer(&spoe_ctx->buffer, &spoe_ctx->buffer_wait))
 		goto end;
-	if (co_data(oc) > spoe_appctx->max_frame_size) {
+	if (co_data(oc) > spoe_appctx->agent->max_frame_size) {
 		spoe_appctx->status_code = SPOP_ERR_TOO_BIG;
 		goto exit;
 	}
@@ -574,7 +570,6 @@ static struct appctx *spoe_create_appctx(struct spoe_context *ctx)
 
 	spoe_appctx->agent           = agent;
 	spoe_appctx->version         = 0;
-	spoe_appctx->max_frame_size  = agent->max_frame_size;
 	spoe_appctx->flags           = 0;
 	spoe_appctx->status_code     = SPOP_ERR_NONE;
 	spoe_appctx->spoe_ctx        = ctx;

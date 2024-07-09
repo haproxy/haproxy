@@ -44,6 +44,7 @@ struct spop_conn {
 	int timeout;                         /* idle timeout duration in ticks */
 	int shut_timeout;                    /* idle timeout duration in ticks after shutdown */
 
+	unsigned int max_frame_size;         /* the negotiated max-frame-size value */
 	unsigned int nb_streams;             /* number of streams in the tree */
 	unsigned int nb_sc;                  /* number of attached stream connectors */
 	unsigned int nb_reserved;            /* number of reserved streams */
@@ -667,6 +668,7 @@ static int spop_init(struct connection *conn, struct proxy *px, struct session *
 	spop_conn->state = SPOP_CS_HA_HELLO;
 	spop_conn->errcode = SPOP_ERR_NONE;
 	spop_conn->conn = conn;
+	spop_conn->max_frame_size = SPOP_MAX_FRAME_SIZE;
 	spop_conn->streams_limit = 1;
 	spop_conn->max_id = -1;
 	spop_conn->nb_streams = 0;
@@ -702,6 +704,7 @@ static int spop_init(struct connection *conn, struct proxy *px, struct session *
 	sdo = spop_strm_opposite_sd(spop_strm);
 	if (sdo) {
 		spop_conn->agent = spoe_appctx_agent(sc_appctx(sdo->sc));
+		spop_conn->max_frame_size = spop_conn->agent->max_frame_size;
 		BUG_ON(!spop_conn->agent);
 	}
 
@@ -1386,7 +1389,7 @@ static int spop_conn_send_hello(struct spop_conn *spop_conn)
 		goto full;
 
 	*p++ = SPOP_DATA_T_UINT32;
-	if (encode_varint(spop_conn->agent ? spop_conn->agent->max_frame_size : SPOP_MAX_FRAME_SIZE, &p, end) == -1)
+	if (encode_varint(spop_conn->max_frame_size, &p, end) == -1)
 		goto full;
 
 	/* "capabilities" K/V item */
@@ -1597,7 +1600,8 @@ static int spop_conn_handle_hello(struct spop_conn *spop_conn)
 	 * "capabilities" */
 
 	/* Loop on K/V items */
-	vsn = max_frame_size = flags = 0;
+	vsn = flags = 0;
+	max_frame_size = spop_conn->max_frame_size;
 	while (p < end) {
 		char  *str;
 		uint64_t sz;
@@ -1655,8 +1659,7 @@ static int spop_conn_handle_hello(struct spop_conn *spop_conn)
 				spop_conn_error(spop_conn, SPOP_ERR_INVALID);
 				goto fail;
 			}
-			if (sz < SPOP_MIN_FRAME_SIZE ||
-			    sz > SPOP_MAX_FRAME_SIZE/* agent->max_frame_size */) {
+			if (sz < SPOP_MIN_FRAME_SIZE || sz > spop_conn->max_frame_size) {
 				spop_conn_error(spop_conn, SPOP_ERR_BAD_FRAME_SIZE);
 				goto fail;
 			}
@@ -1722,8 +1725,8 @@ static int spop_conn_handle_hello(struct spop_conn *spop_conn)
 	/* } */
 
 	/* SPOE_APPCTX(appctx)->version        = (unsigned int)vsn; */
-	/* SPOE_APPCTX(appctx)->max_frame_size = (unsigned int)max_frame_size; */
 	/* SPOE_APPCTX(appctx)->flags         |= flags; */
+	spop_conn->max_frame_size = (unsigned int)max_frame_size;
 
 
 	TRACE_PROTO("SPOP AGENT HELLO frame rcvd", SPOP_EV_RX_FRAME|SPOP_EV_RX_HELLO, spop_conn->conn, 0, 0, (size_t[]){spop_conn->dfl});
@@ -2034,7 +2037,7 @@ static void spop_process_demux(struct spop_conn *spop_conn)
 				goto done;
 			}
 
-			if ((int)hdr.len < 0 || (int)hdr.len > SPOP_MAX_FRAME_SIZE) {
+			if ((int)hdr.len < 0 || (int)hdr.len > spop_conn->max_frame_size) {
 				spop_conn_error(spop_conn, SPOP_ERR_BAD_FRAME_SIZE);
 				spop_conn->state = SPOP_CS_CLOSED;
 				TRACE_ERROR("invalid AGENT HELLO frame length", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_RX_HELLO|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
@@ -2068,7 +2071,7 @@ static void spop_process_demux(struct spop_conn *spop_conn)
 				break;
 			}
 
-			if ((int)hdr.len < 0 || (int)hdr.len > spop_conn->agent->max_frame_size) {
+			if ((int)hdr.len < 0 || (int)hdr.len > spop_conn->max_frame_size) {
 				spop_conn_error(spop_conn, SPOP_ERR_BAD_FRAME_SIZE);
 				TRACE_ERROR("invalid SPOP frame length", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
 				TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
