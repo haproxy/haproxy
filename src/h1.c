@@ -140,6 +140,10 @@ int h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value)
 			continue;
 
 		n = http_find_hdr_value_end(word.ptr, e); // next comma or end of line
+
+		/* a comma at the end means the last value is empty */
+		if (n+1 == e)
+			goto fail;
 		word.len = n - word.ptr;
 
 		/* trim trailing blanks */
