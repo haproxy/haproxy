@@ -828,13 +828,6 @@ alloc_error:
 	return;
 }
 
-/* reexec haproxy in waitmode */
-static void mworker_reexec_waitmode()
-{
-	setenv("HAPROXY_MWORKER_WAIT_ONLY", "1", 1);
-	mworker_reexec(0);
-}
-
 /* reload haproxy and emit a warning */
 void mworker_reload(int hardreload)
 {
@@ -937,7 +930,7 @@ void reexec_on_failure()
 		sd_notify(0, "READY=1\nSTATUS=Reload failed!\n");
 #endif
 
-	mworker_reexec_waitmode();
+	mworker_reexec(0);
 }
 
 /*
