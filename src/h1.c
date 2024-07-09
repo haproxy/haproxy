@@ -147,7 +147,12 @@ int h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value)
 			word.len--;
 
 		h1m->flags &= ~H1_MF_CHNK;
-		if (isteqi(word, ist("chunked"))) {
+
+		/* empty values are forbidden */
+		if (!word.len)
+			goto fail;
+
+		else if (isteqi(word, ist("chunked"))) {
 			if (h1m->flags & H1_MF_TE_CHUNKED) {
 				/* cf RFC7230#3.3.1 : A sender MUST NOT apply
 				 * chunked more than once to a message body
