@@ -82,7 +82,6 @@ ssize_t fd_write_frag_line(int fd, size_t maxlen, const struct ist pfx[], size_t
 void my_closefrom(int start);
 
 struct rlimit;
-int raise_rlim_nofile(struct rlimit *old_limit, struct rlimit *new_limit);
 
 int compute_poll_timeout(int next);
 void fd_leaving_poll(int wait_time, int status);
