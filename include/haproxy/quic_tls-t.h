@@ -26,6 +26,26 @@
 #include <haproxy/quic_ack-t.h>
 #include <haproxy/openssl-compat.h>
 
+/* Use EVP_CIPHER or EVP_AEAD API depending on the library */
+#if defined(USE_OPENSSL_AWSLC)
+
+# define QUIC_AEAD_API
+
+# define QUIC_AEAD            EVP_AEAD
+# define QUIC_AEAD_CTX        EVP_AEAD_CTX
+
+# define QUIC_AEAD_CTX_free   EVP_AEAD_CTX_free
+
+#else
+
+# define QUIC_AEAD            EVP_CIPHER
+# define QUIC_AEAD_CTX        EVP_CIPHER_CTX
+
+# define QUIC_AEAD_CTX_free   EVP_CIPHER_CTX_free
+
+#endif
+
+
 /* It seems TLS 1.3 ciphersuites macros differ between openssl and boringssl */
 
 #if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
@@ -162,7 +182,7 @@ struct quic_pktns {
 
 /* Key phase used for Key Update */
 struct quic_tls_kp {
-	EVP_CIPHER_CTX *ctx;
+	QUIC_AEAD_CTX *ctx;
 	unsigned char *secret;
 	size_t secretlen;
 	unsigned char *iv;
@@ -178,8 +198,8 @@ struct quic_tls_kp {
 #define QUIC_FL_TLS_KP_BIT_SET   (1 << 0)
 
 struct quic_tls_secrets {
-	EVP_CIPHER_CTX *ctx;
-	const EVP_CIPHER *aead;
+	QUIC_AEAD_CTX *ctx;
+	const QUIC_AEAD *aead;
 	const EVP_MD *md;
 	EVP_CIPHER_CTX *hp_ctx;
 	const EVP_CIPHER *hp;
