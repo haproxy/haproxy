@@ -14,6 +14,8 @@
 
 #include <haproxy/quic_tx.h>
 
+#include <errno.h>
+
 #include <haproxy/pool.h>
 #include <haproxy/trace.h>
 #include <haproxy/quic_cid.h>
@@ -288,7 +290,7 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 		unsigned char *pos;
 		struct buffer tmpbuf = { };
 		struct quic_tx_packet *first_pkt, *pkt, *next_pkt;
-		uint16_t dglen, gso = 0;
+		uint16_t dglen, gso = 0, gso_fallback = 0;
 		unsigned int time_sent;
 
 		pos = (unsigned char *)b_head(buf);
@@ -297,8 +299,16 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 
 		/* If datagram bigger than MTU, several ones were encoded for GSO usage. */
 		if (dglen > qc->path->mtu) {
-			TRACE_PROTO("send multiple datagrams with GSO", QUIC_EV_CONN_SPPKTS, qc);
-			gso = qc->path->mtu;
+			if (likely(!(HA_ATOMIC_LOAD(&qc->li->flags) & LI_F_UDP_GSO_NOTSUPP))) {
+				TRACE_PROTO("send multiple datagrams with GSO", QUIC_EV_CONN_SPPKTS, qc);
+				gso = qc->path->mtu;
+			}
+			else {
+				TRACE_PROTO("use non-GSO fallback emission mode", QUIC_EV_CONN_SPPKTS, qc);
+				gso_fallback = dglen;
+				/* Only send a single datagram now that GSO is disabled. */
+				dglen = qc->path->mtu;
+			}
 		}
 
 		first_pkt = read_ptr(pos + sizeof(dglen));
@@ -310,6 +320,15 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 		if (!skip_sendto) {
 			int ret = qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0, gso);
 			if (ret < 0) {
+				if (gso && ret == -EIO) {
+					/* Disable permanently UDP GSO for this listener.
+					 * Retry standard emission.
+					 */
+					TRACE_ERROR("mark listener UDP GSO as unsupported", QUIC_EV_CONN_SPPKTS, qc, first_pkt);
+					HA_ATOMIC_OR(&qc->li->flags, LI_F_UDP_GSO_NOTSUPP);
+					continue;
+				}
+
 				TRACE_ERROR("sendto fatal error", QUIC_EV_CONN_SPPKTS, qc, first_pkt);
 				qc_kill_conn(qc);
 				qc_free_tx_coalesced_pkts(qc, first_pkt);
@@ -336,6 +355,31 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 
 		for (pkt = first_pkt; pkt; pkt = next_pkt) {
 			struct quic_cc *cc = &qc->path->cc;
+
+			/* Packets built with GSO from consecutive datagrams
+			 * are attached together but without COALESCED flag.
+			 * Unlink them to treat them separately on ACK Rx.
+			 */
+			if (!(pkt->flags & QUIC_FL_TX_PACKET_COALESCED)) {
+				if (pkt->prev) {
+					pkt->prev->next = NULL;
+					pkt->prev = NULL;
+				}
+
+				/* Packet from first dgram only were sent on non-GSO fallback. */
+				if (gso_fallback) {
+					BUG_ON_HOT(gso_fallback < dglen);
+					gso_fallback -= dglen;
+
+					/* Built a new datagram header. */
+					buf->head -= QUIC_DGRAM_HEADLEN;
+					b_add(buf, QUIC_DGRAM_HEADLEN);
+					write_u16(b_head(buf), gso_fallback);
+					write_ptr(b_head(buf) + sizeof(gso_fallback), pkt);
+					break;
+				}
+			}
+
 			qc->cntrs.sent_pkt++;
 
 			pkt->time_sent = time_sent;
@@ -375,17 +419,6 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 			next_pkt = pkt->next;
 			quic_tx_packet_refinc(pkt);
 			eb64_insert(&pkt->pktns->tx.pkts, &pkt->pn_node);
-
-			/* Packets built with GSO from consecutive datagrams
-			 * are attached together but without COALESCED flag.
-			 * Unlink them to treat them separately on ACK Rx.
-			 */
-			if (!(pkt->flags & QUIC_FL_TX_PACKET_COALESCED)) {
-				if (pkt->prev) {
-					pkt->prev->next = NULL;
-					pkt->prev = NULL;
-				}
-			}
 		}
 	}
 
@@ -665,6 +698,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				prv_pkt = cur_pkt;
 			}
 			else if (!(global.tune.options & GTUNE_QUIC_NO_UDP_GSO) &&
+			         !(HA_ATOMIC_LOAD(&qc->li->flags) & LI_F_UDP_GSO_NOTSUPP) &&
 			         dglen == qc->path->mtu &&
 			         (char *)end < b_wrap(buf) &&
 			         gso_dgram_cnt < 64) {

@@ -264,6 +264,7 @@ struct listener {
 /* listener flags (16 bits) */
 #define LI_F_FINALIZED           0x0001  /* listener made it to the READY||LIMITED||FULL state at least once, may be suspended/resumed safely */
 #define LI_F_SUSPENDED           0x0002  /* listener has been suspended using suspend_listener(), it is either is LI_PAUSED or LI_ASSIGNED state */
+#define LI_F_UDP_GSO_NOTSUPP     0x0004  /* UDP GSO disabled after send error */
 
 /* Descriptor for a "bind" keyword. The ->parse() function returns 0 in case of
  * success, or a combination of ERR_* flags if an error is encountered. The
