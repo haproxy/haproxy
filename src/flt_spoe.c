@@ -513,7 +513,6 @@ static void spoe_handle_appctx(struct appctx *appctx)
 		return;
 	}
 
-	SPOE_APPCTX(appctx)->status_code = SPOP_ERR_NONE;
 	if (!SPOE_APPCTX(appctx)->spoe_ctx)
 		appctx->st0 =  SPOE_APPCTX_ST_EXIT;
 
@@ -855,6 +854,23 @@ static int spoe_process_actions(struct stream *s, struct spoe_context *ctx, int 
 /***************************************************************************
  * Functions that process SPOE events
  **************************************************************************/
+static inline enum spop_error spoe_ctx_err_to_spop_err(enum spoe_context_error err)
+{
+	switch (err) {
+	case SPOE_CTX_ERR_NONE:
+		return SPOP_ERR_NONE;
+	case SPOE_CTX_ERR_TOUT:
+		return SPOP_ERR_TOUT;
+	case SPOE_CTX_ERR_RES:
+		return SPOP_ERR_RES;
+	case SPOE_CTX_ERR_TOO_BIG:
+		return SPOP_ERR_TOO_BIG;
+	case SPOE_CTX_ERR_INTERRUPT:
+		return SPOP_ERR_IO;
+	default:
+		return SPOP_ERR_UNKNOWN;
+	}
+}
 static void spoe_update_stats(struct stream *s, struct spoe_agent *agent,
 			      struct spoe_context *ctx, int dir)
 {
@@ -936,6 +952,8 @@ static inline void spoe_stop_processing(struct spoe_agent *agent, struct spoe_co
 		return;
 	_HA_ATOMIC_INC(&agent->counters.nb_processed);
 	if (sa) {
+		if (sa->status_code == SPOP_ERR_NONE)
+			sa->status_code = spoe_ctx_err_to_spop_err(ctx->status_code);
 		sa->spoe_ctx = NULL;
 		spoe_wakeup_appctx(sa->owner);
 	}
