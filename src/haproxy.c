@@ -92,6 +92,7 @@
 #include <haproxy/global.h>
 #include <haproxy/hlua.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/limits.h>
 #if defined(USE_LINUX_CAP)
 #include <haproxy/linuxcap.h>
 #endif

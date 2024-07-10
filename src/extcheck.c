@@ -32,6 +32,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/list.h>
+#include <haproxy/limits.h>
 #include <haproxy/proxy.h>
 #include <haproxy/server.h>
 #include <haproxy/signal.h>
