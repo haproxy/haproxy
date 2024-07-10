@@ -41,6 +41,21 @@ int raise_rlim_nofile(struct rlimit *old_limit, struct rlimit *new_limit)
 	return ret;
 }
 
+/* Encapsulates the check of all supported for now process internal limits,
+ * which could be provided via config or/and cmdline. Returns 1, if even only
+ * one supported limit is set, otherwise 0.
+ */
+static int is_any_limit_configured()
+{
+       int ret = 0;
+
+       if (global.maxconn || global.rlimit_nofile || global.rlimit_memmax ||
+               global.fd_hard_limit)
+               ret = 1;
+
+       return ret;
+}
+
 /* considers splicing proxies' maxconn, computes the ideal global.maxpipes
  * setting, and returns it. It may return -1 meaning "unlimited" if some
  * unlimited proxies have been found and the global.maxconn value is not yet
@@ -134,8 +149,7 @@ int compute_ideal_maxconn()
 	 * if only one of these ha-specific limits is presented in config or in
 	 * the cmdline.
 	 */
-	if (!global.fd_hard_limit && !global.maxconn && !global.rlimit_nofile
-	    && !global.rlimit_memmax)
+	if (!is_any_limit_configured())
 		global.fd_hard_limit = DEFAULT_MAXFD;
 
 	if (remain > global.fd_hard_limit)
