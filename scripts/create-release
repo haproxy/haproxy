@@ -181,10 +181,9 @@ echo "Updating VERDATE ..."
 echo '$Format:%ci$' > VERDATE
 echo "$DATE" >> VERDATE
 
-# updating branch and date in all modified doc files except the outdated architecture.txt
+# updating branch and date in all modified doc files
 for file in doc/intro.txt doc/configuration.txt doc/management.txt $(git diff --name-only v${OLD}.. -- doc); do
 	if [ ! -e "$file" ]; then continue; fi
-	if [ "$file" = doc/architecture.txt ]; then continue; fi
 	echo "Updating $file ..."
 	sed -e "1,10s:\(\sversion\s\).*:\1$BRANCH:" \
 	    -e "1,10s:\(\s\)\(20[0-9]\{2\}/[0-9]\{1,2\}/[0-9]\{1,2\}\):\1$DATE:" \
