@@ -299,16 +299,6 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 		tmpbuf.size = tmpbuf.data = dglen;
 
 		TRACE_PROTO("TX dgram", QUIC_EV_CONN_SPPKTS, qc);
-		/* If sendto is on error just skip the call to it for the rest
-		 * of the loop but continue to purge the buffer. Data will be
-		 * transmitted when QUIC packets are detected as lost on our
-		 * side.
-		 *
-		 * TODO use fd-monitoring to detect when send operation can be
-		 * retry. This should improve the bandwidth without relying on
-		 * retransmission timer. However, it requires a major rework on
-		 * quic-conn fd management.
-		 */
 		if (!skip_sendto) {
 			int ret = qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0);
 			if (ret < 0) {
