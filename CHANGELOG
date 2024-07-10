@@ -1,6 +1,43 @@
 ChangeLog :
 ===========
 
+2024/07/10 : 3.1-dev3
+    - BUG/MINOR: quic: Wrong datagram building when probing.
+    - BUG/MEDIUM: quic: fix possible exit from qc_check_dcid() without unlocking
+    - BUG/MINOR: promex: Remove Help prefix repeated twice for each metric
+    - DOC: configuration: add details about crt-store in bind "crt" keyword
+    - BUG/MEDIUM: hlua/cli: Fix lua CLI commands to work with applet's buffers
+    - DOC: configuration: more details about the master-worker mode
+    - BUG/MEDIUM: server: fix race on server_atomic_sync()
+    - BUG/MINOR: jwt: don't try to load files with HMAC algorithm
+    - CLEANUP: quic: cleanup prototypes related to CIDs handling
+    - CLEANUP: quic: remove non-existing quic_cid_tree definition
+    - MINOR: quic: remove access to CID global tree outside of quic_cid module
+    - REORG: quic: remove quic_cid_trees reference from proto_quic
+    - MINOR: quic: add 2 BUG_ON() on datagram dispatch
+    - MINOR: quic: ensure quic_conn is never removed on thread affinity rebind
+    - MEDIUM: init: set default for fd_hard_limit via DEFAULT_MAXFD
+    - DOC: configuration: update maxconn description
+    - MINOR: proto: extend connection thread rebind API
+    - BUG/MEDIUM: quic: prevent crash on accept queue full
+    - BUG/MEDIUM: peers: Fix crash when syncing learn state of a peer without appctx
+    - CI: add weekly QUIC Interop regression against LibreSSL
+    - DEV: flags/quic: decode quic_conn flags
+    - MINOR: quic: rename "ssl error" trace
+    - BUG/MEDIUM: init: fix fd_hard_limit default in compute_ideal_maxconn
+    - BUG/MINOR: jwt: fix variable initialisation
+    - MINOR: ssl/sample: ssl_c_san returns a comma separated list of SAN
+    - OPTIM: pool: improve needed_avg cache line access pattern
+    - MAJOR: import: update mt_list to support exponential back-off (try #2)
+    - CI: weekly QUIC Interop: try to fix private image
+    - BUG/MINOR: h1: Fail to parse empty transfer coding names
+    - BUG/MINOR: h1: Reject empty coding name as last transfer-encoding value
+    - BUG/MEDIUM: h1: Reject empty Transfer-encoding header
+    - BUG/MEDIUM: spoe: Be sure to create a SPOE applet if none on the current thread
+    - BUILD: listener: silence a build warning about unused value without threads
+    - DOC: architecture: remove the totally outdated architecture manual
+    - SCRIPTS: create-release: no more need to skip architecture.txt
+
 2024/06/29 : 3.1-dev2
     - BUG/MINOR: log: fix broken '+bin' logformat node option
     - DEBUG: hlua: distinguish burst timeout errors from exec timeout errors
