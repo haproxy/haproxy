@@ -1019,7 +1019,7 @@ static inline int listener_uses_maxconn(const struct listener *l)
  */
 void listener_accept(struct listener *l)
 {
-	void (*li_set_affinity2)(struct connection *);
+	void (*li_set_affinity2)(struct connection *) __maybe_unused;
 	struct connection *cli_conn;
 	struct proxy *p;
 	unsigned int max_accept;
