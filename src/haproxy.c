@@ -1445,7 +1445,7 @@ static void ha_random_boot(char *const *argv)
  * Note that a value of zero means there is no need for pipes. -1 is never
  * returned if global.maxconn is valid.
  */
-static int compute_ideal_maxpipes()
+int compute_ideal_maxpipes()
 {
 	struct proxy *cur;
 	int nbfe = 0, nbbe = 0;
@@ -1494,7 +1494,7 @@ static int compute_ideal_maxpipes()
  * used to rely on this value as the default one. The system will emit a
  * warning indicating how many FDs are missing anyway if needed.
  */
-static int compute_ideal_maxconn()
+int compute_ideal_maxconn()
 {
 	int ssl_sides = !!global.ssl_used_frontend + !!global.ssl_used_backend;
 	int engine_fds = global.ssl_used_async_engines * ssl_sides;
@@ -1574,7 +1574,7 @@ static int compute_ideal_maxconn()
  * temporarily change global.maxconn for the time needed to propagate the
  * computations, and will reset it.
  */
-static int compute_ideal_maxsock(int maxconn)
+int compute_ideal_maxsock(int maxconn)
 {
 	int maxpipes = global.maxpipes;
 	int maxsock  = global.maxsock;
@@ -1610,7 +1610,7 @@ static int compute_ideal_maxsock(int maxconn)
  * that the setting is possible, so that we defer the error processing to the
  * final stage in charge of enforcing this.
  */
-static int check_if_maxsock_permitted(int maxsock)
+int check_if_maxsock_permitted(int maxsock)
 {
 	struct rlimit orig_limit, test_limit;
 	int ret;
