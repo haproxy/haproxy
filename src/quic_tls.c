@@ -57,9 +57,8 @@ void quic_tls_keys_hexdump(struct buffer *buf,
 
 	if (!secs->aead || !secs->hp)
 		return;
-
-	aead_keylen = (size_t)EVP_CIPHER_key_length(secs->aead);
-	aead_ivlen = (size_t)EVP_CIPHER_iv_length(secs->aead);
+	aead_keylen = (size_t)QUIC_AEAD_key_length(secs->aead);
+	aead_ivlen = (size_t)QUIC_AEAD_iv_length(secs->aead);
 	hp_len = (size_t)EVP_CIPHER_key_length(secs->hp);
 
 	chunk_appendf(buf, "\n          key=");
@@ -446,15 +445,15 @@ int quic_hkdf_expand_label(const EVP_MD *md,
  * ->hp_key is the key to be derived for header protection.
  * Obviouly these keys have the same size becaused derived with the same TLS cryptographic context.
  */
-int quic_tls_derive_keys(const EVP_CIPHER *aead, const EVP_CIPHER *hp,
+int quic_tls_derive_keys(const QUIC_AEAD *aead, const EVP_CIPHER *hp,
                          const EVP_MD *md, const struct quic_version *qv,
                          unsigned char *key, size_t keylen,
                          unsigned char *iv, size_t ivlen,
                          unsigned char *hp_key, size_t hp_keylen,
                          const unsigned char *secret, size_t secretlen)
 {
-	size_t aead_keylen = (size_t)EVP_CIPHER_key_length(aead);
-	size_t aead_ivlen = (size_t)EVP_CIPHER_iv_length(aead);
+	size_t aead_keylen = (size_t)QUIC_AEAD_key_length(aead);
+	size_t aead_ivlen = (size_t)QUIC_AEAD_iv_length(aead);
 	size_t hp_len = hp ? (size_t)EVP_CIPHER_key_length(hp) : 0;
 
 	if (aead_keylen > keylen || aead_ivlen > ivlen || hp_len > hp_keylen)
@@ -563,13 +562,18 @@ void quic_aead_iv_build(unsigned char *iv, size_t ivlen,
 /* Initialize the cipher context for RX part of <tls_ctx> QUIC TLS context.
  * Return 1 if succeeded, 0 if not.
  */
-int quic_tls_rx_ctx_init(EVP_CIPHER_CTX **rx_ctx,
-                         const EVP_CIPHER *aead, unsigned char *key)
+int quic_tls_rx_ctx_init(QUIC_AEAD_CTX **rx_ctx,
+                         const QUIC_AEAD *aead, unsigned char *key)
 {
-	EVP_CIPHER_CTX *ctx;
-	int aead_nid = EVP_CIPHER_nid(aead);
 
-	ctx = EVP_CIPHER_CTX_new();
+#ifdef QUIC_AEAD_API
+	QUIC_AEAD_CTX *ctx = EVP_AEAD_CTX_new(aead, key, EVP_AEAD_key_length(aead), EVP_AEAD_DEFAULT_TAG_LENGTH);
+	if (!ctx)
+		return 0;
+
+#else
+	int aead_nid = EVP_CIPHER_nid(aead);
+	QUIC_AEAD_CTX *ctx = EVP_CIPHER_CTX_new();
 	if (!ctx)
 		return 0;
 
@@ -580,12 +584,12 @@ int quic_tls_rx_ctx_init(EVP_CIPHER_CTX **rx_ctx,
 	    !EVP_DecryptInit_ex(ctx, NULL, NULL, key, NULL))
 		goto err;
 
+#endif
 	*rx_ctx = ctx;
-
 	return 1;
 
  err:
-	EVP_CIPHER_CTX_free(ctx);
+	QUIC_AEAD_CTX_free(ctx);
 	return 0;
 }
 
@@ -672,13 +676,18 @@ int quic_tls_aes_decrypt(unsigned char *out,
 /* Initialize the cipher context for TX part of <tls_ctx> QUIC TLS context.
  * Return 1 if succeeded, 0 if not.
  */
-int quic_tls_tx_ctx_init(EVP_CIPHER_CTX **tx_ctx,
-                         const EVP_CIPHER *aead, unsigned char *key)
+int quic_tls_tx_ctx_init(QUIC_AEAD_CTX **tx_ctx,
+                         const QUIC_AEAD *aead, unsigned char *key)
 {
-	EVP_CIPHER_CTX *ctx;
-	int aead_nid = EVP_CIPHER_nid(aead);
+#ifdef QUIC_AEAD_API
+	QUIC_AEAD_CTX *ctx = EVP_AEAD_CTX_new(aead, key, EVP_AEAD_key_length(aead), EVP_AEAD_DEFAULT_TAG_LENGTH);
+	if (!ctx)
+		return 0;
 
-	ctx = EVP_CIPHER_CTX_new();
+#else
+	int aead_nid = EVP_CIPHER_nid(aead);
+	QUIC_AEAD_CTX *ctx = EVP_CIPHER_CTX_new();
+
 	if (!ctx)
 		return 0;
 
@@ -688,13 +697,13 @@ int quic_tls_tx_ctx_init(EVP_CIPHER_CTX **tx_ctx,
 	     !EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, QUIC_TLS_TAG_LEN, NULL)) ||
 	    !EVP_EncryptInit_ex(ctx, NULL, NULL, key, NULL))
 		goto err;
+#endif
 
 	*tx_ctx = ctx;
-
 	return 1;
 
  err:
-	EVP_CIPHER_CTX_free(ctx);
+	QUIC_AEAD_CTX_free(ctx);
 	return 0;
 }
 
@@ -740,9 +749,18 @@ int quic_tls_tx_ctx_init(EVP_CIPHER_CTX **tx_ctx,
  */
 int quic_tls_encrypt(unsigned char *buf, size_t len,
                      const unsigned char *aad, size_t aad_len,
-                     EVP_CIPHER_CTX *ctx, const EVP_CIPHER *aead,
+                     QUIC_AEAD_CTX *ctx, const QUIC_AEAD *aead,
                      const unsigned char *iv)
 {
+#ifdef QUIC_AEAD_API
+	size_t outlen;
+
+	if (!EVP_AEAD_CTX_seal(ctx, buf, &outlen, len + EVP_AEAD_max_overhead(aead),
+	                       iv, QUIC_TLS_IV_LEN,
+	                       buf, len,
+	                       aad, aad_len))
+		return 0;
+#else
 	int outlen;
 	int aead_nid = EVP_CIPHER_nid(aead);
 
@@ -754,6 +772,9 @@ int quic_tls_encrypt(unsigned char *buf, size_t len,
 		!EVP_EncryptFinal_ex(ctx, buf + outlen, &outlen) ||
 		!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, QUIC_TLS_TAG_LEN, buf + len))
 		return 0;
+
+
+#endif
 
 	return 1;
 }
@@ -769,9 +790,20 @@ int quic_tls_encrypt(unsigned char *buf, size_t len,
  */
 int quic_tls_decrypt(unsigned char *buf, size_t len,
                      unsigned char *aad, size_t aad_len,
-                     EVP_CIPHER_CTX *ctx, const EVP_CIPHER *aead,
+                     QUIC_AEAD_CTX *ctx, const QUIC_AEAD *aead,
                      const unsigned char *key, const unsigned char *iv)
 {
+#ifdef QUIC_AEAD_API
+	size_t outlen;
+
+	if (!EVP_AEAD_CTX_open(ctx, buf, &outlen, len,
+	                       iv, QUIC_TLS_IV_LEN,
+	                       buf, len,
+	                       aad, aad_len))
+		return 0;
+
+#else
+
 	int outlen;
 	int aead_nid = EVP_CIPHER_nid(aead);
 
@@ -785,6 +817,8 @@ int quic_tls_decrypt(unsigned char *buf, size_t len,
 		(aead_nid != NID_aes_128_ccm &&
 		 !EVP_DecryptFinal_ex(ctx, buf + outlen, &outlen)))
 		return 0;
+
+#endif
 
 	return 1;
 }
@@ -805,9 +839,20 @@ int quic_tls_decrypt(unsigned char *buf, size_t len,
 int quic_tls_decrypt2(unsigned char *out,
                       unsigned char *in, size_t len,
                       unsigned char *aad, size_t aad_len,
-                      EVP_CIPHER_CTX *ctx, const EVP_CIPHER *aead,
+                      QUIC_AEAD_CTX *ctx, const QUIC_AEAD *aead,
                       const unsigned char *key, const unsigned char *iv)
 {
+#ifdef QUIC_AEAD_API
+	size_t outlen;
+
+	if (!EVP_AEAD_CTX_open(ctx, out, &outlen, len,
+	                       iv, QUIC_TLS_IV_LEN,
+	                       in, len,
+	                       aad, aad_len))
+		return 0;
+
+#else
+
 	int outlen;
 	int aead_nid = EVP_CIPHER_nid(aead);
 
@@ -821,6 +866,7 @@ int quic_tls_decrypt2(unsigned char *out,
 	    (aead_nid != NID_aes_128_ccm &&
 	     !EVP_DecryptFinal_ex(ctx, out + outlen, &outlen)))
 		return 0;
+#endif
 
 	return 1;
 }
@@ -961,7 +1007,7 @@ int quic_tls_key_update(struct quic_conn *qc)
 
 	kp_trace.tx = nxt_tx;
 	if (nxt_rx->ctx) {
-		EVP_CIPHER_CTX_free(nxt_rx->ctx);
+		QUIC_AEAD_CTX_free(nxt_rx->ctx);
 		nxt_rx->ctx = NULL;
 	}
 
@@ -971,7 +1017,7 @@ int quic_tls_key_update(struct quic_conn *qc)
 	}
 
 	if (nxt_tx->ctx) {
-		EVP_CIPHER_CTX_free(nxt_tx->ctx);
+		QUIC_AEAD_CTX_free(nxt_tx->ctx);
 		nxt_tx->ctx = NULL;
 	}
 
@@ -995,7 +1041,7 @@ void quic_tls_rotate_keys(struct quic_conn *qc)
 {
 	struct quic_tls_ctx *tls_ctx = &qc->ael->tls_ctx;
 	unsigned char *curr_secret, *curr_iv, *curr_key;
-	EVP_CIPHER_CTX *curr_ctx;
+	QUIC_AEAD_CTX *curr_ctx;
 
 	TRACE_ENTER(QUIC_EV_CONN_RXPKT, qc);
 

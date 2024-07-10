@@ -126,7 +126,7 @@ static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
 	unsigned char iv[QUIC_TLS_IV_LEN];
 	struct quic_tls_ctx *tls_ctx =
 		qc_select_tls_ctx(qc, qel, pkt->type, pkt->version);
-	EVP_CIPHER_CTX *rx_ctx = tls_ctx->rx.ctx;
+	QUIC_AEAD_CTX *rx_ctx = tls_ctx->rx.ctx;
 	unsigned char *rx_iv = tls_ctx->rx.iv;
 	size_t rx_iv_sz = tls_ctx->rx.ivlen;
 	unsigned char *rx_key = tls_ctx->rx.key;
