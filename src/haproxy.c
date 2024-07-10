@@ -255,8 +255,6 @@ static char **old_argv = NULL; /* previous argv but cleaned up */
 struct list proc_list = LIST_HEAD_INIT(proc_list);
 
 int master = 0; /* 1 if in master, 0 if in child */
-unsigned int rlim_fd_cur_at_boot = 0;
-unsigned int rlim_fd_max_at_boot = 0;
 
 /* per-boot randomness */
 unsigned char boot_seed[20];        /* per-boot random seed (160 bits initially) */

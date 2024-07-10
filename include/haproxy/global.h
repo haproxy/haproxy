@@ -45,8 +45,6 @@ extern char *localpeer;
 extern unsigned int warned;     /* bitfield of a few warnings to emit just once */
 extern struct list proc_list; /* list of process in mworker mode */
 extern int master; /* 1 if in master, 0 otherwise */
-extern unsigned int rlim_fd_cur_at_boot;
-extern unsigned int rlim_fd_max_at_boot;
 extern int atexit_flag;
 extern unsigned char boot_seed[20];  // per-boot random seed (160 bits initially)
 extern THREAD_LOCAL struct buffer trash;

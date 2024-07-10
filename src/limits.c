@@ -11,6 +11,9 @@
 #include <haproxy/proxy.h>
 
 
+unsigned int rlim_fd_cur_at_boot = 0;
+unsigned int rlim_fd_max_at_boot = 0;
+
 /* Sets the RLIMIT_NOFILE setting to <new_limit> and returns the previous one
  * in <old_limit> if the pointer is not NULL, even if set_rlimit() fails. The
  * two pointers may point to the same variable as the copy happens after
