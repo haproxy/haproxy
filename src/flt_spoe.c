@@ -373,14 +373,6 @@ struct spoe_agent *spoe_appctx_agent(struct appctx *appctx)
 	return spoe_appctx->agent;
 }
 
-static int spoe_wakeup_appctx(struct appctx *appctx)
-{
-	applet_will_consume(appctx);
-	applet_have_more_data(appctx);
-	appctx_wakeup(appctx);
-	return 1;
-}
-
 static int spoe_init_appctx(struct appctx *appctx)
 {
 	struct spoe_appctx *spoe_appctx = SPOE_APPCTX(appctx);
@@ -453,64 +445,55 @@ static void spoe_release_appctx(struct appctx *appctx)
 
 static int spoe_handle_receiving_frame_appctx(struct appctx *appctx)
 {
-	struct channel *oc = sc_oc(appctx_sc(appctx));
 	struct spoe_appctx *spoe_appctx = SPOE_APPCTX(appctx);
 	struct spoe_context *spoe_ctx = spoe_appctx->spoe_ctx;
-	int   ret = 0;
+	int ret = 0;
 
-	if (!c_data(oc) || c_data(oc) != co_data(oc))
+	BUG_ON(b_data(&spoe_ctx->buffer));
+
+	if (!b_data(&appctx->inbuf)) {
+		applet_need_more_data(appctx);
 		goto end;
-	if (!spoe_acquire_buffer(&spoe_ctx->buffer, &spoe_ctx->buffer_wait))
-		goto end;
-	if (co_data(oc) > spoe_appctx->agent->max_frame_size) {
+	}
+
+	if (b_data(&appctx->inbuf) > spoe_appctx->agent->max_frame_size) {
+		spoe_ctx->state = SPOE_CTX_ST_ERROR;
+		spoe_ctx->status_code = (spoe_appctx->status_code + 0x100);
+		spoe_ctx->spoe_appctx = NULL;
+		spoe_appctx->spoe_ctx = NULL;
 		spoe_appctx->status_code = SPOP_ERR_TOO_BIG;
-		goto exit;
+		appctx->st0 = SPOE_APPCTX_ST_EXIT;
+		task_wakeup(spoe_ctx->strm->task, TASK_WOKEN_MSG);
+		ret = -1;
+		goto end;
 	}
 
-	ret = co_getblk(oc, b_head(&spoe_ctx->buffer), co_data(oc), 0);
-	switch (ret) {
-		case -1: /* error */
-			spoe_release_buffer(&spoe_ctx->buffer, &spoe_ctx->buffer_wait);
-			spoe_ctx->state = SPOE_CTX_ST_ERROR;
-			spoe_ctx->status_code = (spoe_appctx->status_code + 0x100);
-			goto exit;
-
-		case 0: /* retry */
-			goto end;
-
-		default:
-			b_set_data(&spoe_ctx->buffer, ret);
-			spoe_ctx->state = SPOE_CTX_ST_DONE;
-			goto exit;
-	}
-
-  out:
-	/* Do not forget to remove processed frame from the output buffer */
-	co_skip(oc, co_data(oc));
+	b_xfer(&spoe_ctx->buffer, &appctx->inbuf, b_data(&appctx->inbuf));
+	spoe_ctx->state = SPOE_CTX_ST_DONE;
+	appctx->st0 = SPOE_APPCTX_ST_EXIT;
+	task_wakeup(spoe_ctx->strm->task, TASK_WOKEN_MSG);
+	ret = 1;
 
   end:
 	return ret;
-
-  exit:
-	spoe_ctx->spoe_appctx = NULL;
-	spoe_appctx->spoe_ctx = NULL;
-	task_wakeup(spoe_ctx->strm->task, TASK_WOKEN_MSG);
-	appctx->st0 = SPOE_APPCTX_ST_EXIT;
-	ret = 1;
-	goto out;
 }
 
 /* I/O Handler processing messages exchanged with the agent */
 static void spoe_handle_appctx(struct appctx *appctx)
 {
-	struct channel *oc = sc_oc(appctx_sc(appctx));
-
 	if (SPOE_APPCTX(appctx) == NULL)
-		return;
+		goto out;
+
+	if (applet_fl_test(appctx, APPCTX_FL_INBLK_ALLOC))
+		goto out;
+
+	if (!appctx_get_buf(appctx, &appctx->inbuf))
+		goto out;
 
 	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR)))) {
-		co_skip(oc, co_data(oc));
-		return;
+		b_reset(&appctx->inbuf);
+		applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
+		goto out;
 	}
 
 	if (!SPOE_APPCTX(appctx)->spoe_ctx)
@@ -534,9 +517,14 @@ static void spoe_handle_appctx(struct appctx *appctx)
 			__fallthrough;
 
 		case SPOE_APPCTX_ST_END:
-			co_skip(oc, co_data(oc));
+			b_reset(&appctx->inbuf);
+			applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 			break;
 	}
+
+  out:
+	applet_have_no_more_data(appctx);
+	return;
 }
 
 struct applet spoe_applet = {
@@ -545,6 +533,8 @@ struct applet spoe_applet = {
 	.fct = spoe_handle_appctx,
 	.init = spoe_init_appctx,
 	.shut = spoe_shut_appctx,
+	.rcv_buf = appctx_raw_rcv_buf,
+	.snd_buf = appctx_raw_snd_buf,
 	.release = spoe_release_appctx,
 };
 
@@ -955,7 +945,7 @@ static inline void spoe_stop_processing(struct spoe_agent *agent, struct spoe_co
 		if (sa->status_code == SPOP_ERR_NONE)
 			sa->status_code = spoe_ctx_err_to_spop_err(ctx->status_code);
 		sa->spoe_ctx = NULL;
-		spoe_wakeup_appctx(sa->owner);
+		appctx_wakeup(sa->owner);
 	}
 
 	/* Reset the flag to allow next processing */
@@ -1027,7 +1017,7 @@ static int spoe_process_messages(struct stream *s, struct spoe_context *ctx,
 
 	if (ctx->state == SPOE_CTX_ST_SENDING_MSGS) {
 		if (ctx->spoe_appctx)
-			spoe_wakeup_appctx(ctx->spoe_appctx->owner);
+			appctx_wakeup(ctx->spoe_appctx->owner);
 		ret = 0;
 		goto out;
 	}
