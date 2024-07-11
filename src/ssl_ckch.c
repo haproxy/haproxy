@@ -647,6 +647,15 @@ int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct ckch_data *d
 		}
 	}
 
+	/* If we couldn't find a chain, we should try to look for a corresponding chain in 'issuers-chain-path' */
+	if (chain == NULL) {
+		struct issuer_chain *issuer_chain;
+		issuer_chain = ssl_get0_issuer_chain(cert);
+		if (issuer_chain) {
+			chain = X509_chain_up_ref(issuer_chain->chain);
+		}
+	}
+
 	ret = ERR_get_error();
 	if (ret && !(ERR_GET_LIB(ret) == ERR_LIB_PEM && ERR_GET_REASON(ret) == PEM_R_NO_START_LINE)) {
 		memprintf(err, "%sunable to load certificate chain from file '%s': %s\n",
