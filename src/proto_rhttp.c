@@ -39,7 +39,7 @@ struct protocol proto_rhttp = {
 	.unbind      = rhttp_unbind_receiver,
 	.resume      = default_resume_listener,
 	.accept_conn = rhttp_accept_conn,
-	.set_affinity1 = rhttp_set_affinity,
+	.bind_tid_prep = rhttp_bind_tid_prep,
 
 	/* address family */
 	.fam  = &proto_fam_rhttp,
@@ -476,7 +476,7 @@ void rhttp_unbind_receiver(struct listener *l)
 	l->rx.flags &= ~RX_F_BOUND;
 }
 
-int rhttp_set_affinity(struct connection *conn, int new_tid)
+int rhttp_bind_tid_prep(struct connection *conn, int new_tid)
 {
 	/* Explicitly disable connection thread migration on accept. Indeed,
 	 * it's unsafe to move a connection with its FD to another thread. Note

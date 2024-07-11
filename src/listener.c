@@ -1019,7 +1019,7 @@ static inline int listener_uses_maxconn(const struct listener *l)
  */
 void listener_accept(struct listener *l)
 {
-	void (*li_set_affinity2)(struct connection *) __maybe_unused;
+	void (*bind_tid_commit)(struct connection *) __maybe_unused;
 	struct connection *cli_conn;
 	struct proxy *p;
 	unsigned int max_accept;
@@ -1030,7 +1030,7 @@ void listener_accept(struct listener *l)
 	int ret;
 
 	p = l->bind_conf->frontend;
-	li_set_affinity2 = l->rx.proto ? l->rx.proto->set_affinity2 : NULL;
+	bind_tid_commit = l->rx.proto ? l->rx.proto->bind_tid_commit : NULL;
 
 	/* if l->bind_conf->maxaccept is -1, then max_accept is UINT_MAX. It is
 	 * not really illimited, but it is probably enough.
@@ -1469,8 +1469,8 @@ void listener_accept(struct listener *l)
 			 * reservation in the target ring.
 			 */
 
-			if (l->rx.proto && l->rx.proto->set_affinity1) {
-				if (l->rx.proto->set_affinity1(cli_conn, t)) {
+			if (l->rx.proto && l->rx.proto->bind_tid_prep) {
+				if (l->rx.proto->bind_tid_prep(cli_conn, t)) {
 					/* Failed migration, stay on the same thread. */
 					goto local_accept;
 				}
@@ -1483,7 +1483,7 @@ void listener_accept(struct listener *l)
 			 * when processing this loop.
 			 */
 			ring = &accept_queue_rings[t];
-			if (accept_queue_push_mp(ring, cli_conn, li_set_affinity2)) {
+			if (accept_queue_push_mp(ring, cli_conn, bind_tid_commit)) {
 				_HA_ATOMIC_INC(&activity[t].accq_pushed);
 				tasklet_wakeup(ring->tasklet);
 
@@ -1494,8 +1494,8 @@ void listener_accept(struct listener *l)
 			 */
 			_HA_ATOMIC_INC(&activity[t].accq_full);
 
-			if (l->rx.proto && l->rx.proto->reset_affinity)
-				l->rx.proto->reset_affinity(cli_conn);
+			if (l->rx.proto && l->rx.proto->bind_tid_reset)
+				l->rx.proto->bind_tid_reset(cli_conn);
 		}
 #endif // USE_THREAD
 

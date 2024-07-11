@@ -120,13 +120,17 @@ struct protocol {
 	int (*get_src)(struct connection *conn, struct sockaddr *, socklen_t); /* retrieve connection's source address; -1=fail */
 	int (*get_dst)(struct connection *conn, struct sockaddr *, socklen_t); /* retrieve connection's dest address; -1=fail */
 
-	/* functions related to thread affinity update */
+	/* API for thread affinity notification from listener_accept()
+	 * [ tid selected ] -->
+	 *   <bind_tid_prep> --> [ acc queue push ] == OK --> <bind_tid_commit>
+	 *                                          == ERR -> <bind_tid_reset>
+	 */
 	/* prepare rebind connection on a new thread, may fail */
-	int (*set_affinity1)(struct connection *conn, int new_tid);
+	int (*bind_tid_prep)(struct connection *conn, int new_tid);
 	/* complete connection thread rebinding, no error possible */
-	void (*set_affinity2)(struct connection *conn);
+	void (*bind_tid_commit)(struct connection *conn);
 	/* cancel connection thread rebinding */
-	void (*reset_affinity)(struct connection *conn);
+	void (*bind_tid_reset)(struct connection *conn);
 
 	/* functions acting on the receiver */
 	int (*rx_suspend)(struct receiver *rx);         /* temporarily suspend this receiver for a soft restart */
