@@ -68,7 +68,7 @@ static const struct trace_event quic_trace_events[] = {
 	{ .mask = QUIC_EV_CONN_IDLE_TIMER, .name = "idle_timer",     .desc = "idle timer task"},
 	{ .mask = QUIC_EV_CONN_SUB,      .name = "xprt_sub",         .desc = "RX/TX subscription or unsubscription to QUIC xprt"},
 	{ .mask = QUIC_EV_CONN_RCV,      .name = "conn_recv",        .desc = "RX on connection" },
-	{ .mask = QUIC_EV_CONN_SET_AFFINITY, .name = "conn_set_affinity", .desc = "set connection thread affinity" },
+	{ .mask = QUIC_EV_CONN_BIND_TID, .name = "conn_bind_tid",    .desc = "change connection thread affinity" },
 	{ /* end */ }
 };
 

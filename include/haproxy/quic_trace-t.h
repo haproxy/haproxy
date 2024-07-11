@@ -98,6 +98,6 @@ struct quic_rx_crypto_frm {
 #define           QUIC_EV_CONN_KILL      (1ULL << 49)
 #define           QUIC_EV_CONN_KP        (1ULL << 50)
 #define           QUIC_EV_CONN_SSL_COMPAT (1ULL << 51)
-#define           QUIC_EV_CONN_SET_AFFINITY (1ULL << 52)
+#define           QUIC_EV_CONN_BIND_TID  (1ULL << 52)
 
 #endif /* _HAPROXY_QUIC_TRACE_T_H */

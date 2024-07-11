@@ -113,8 +113,8 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
 
 	/* Ensure thread connection migration is finalized ASAP. */
-	if (qc->flags & QUIC_FL_CONN_AFFINITY_CHANGED)
-		qc_finalize_affinity_rebind(qc);
+	if (qc->flags & QUIC_FL_CONN_TID_REBIND)
+		qc_finalize_tid_rebind(qc);
 
 	/* do not store the context if already set */
 	if (*xprt_ctx)

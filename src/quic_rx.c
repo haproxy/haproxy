@@ -2169,8 +2169,8 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 		               eb64_entry(eb64_first(qc->cids), struct quic_connection_id, seq_num))->tid != tid);
 
 		/* Ensure thread connection migration is finalized ASAP. */
-		if (qc->flags & QUIC_FL_CONN_AFFINITY_CHANGED)
-			qc_finalize_affinity_rebind(qc);
+		if (qc->flags & QUIC_FL_CONN_TID_REBIND)
+			qc_finalize_tid_rebind(qc);
 
 		if (qc_rx_check_closing(qc, pkt)) {
 			/* Skip the entire datagram. */

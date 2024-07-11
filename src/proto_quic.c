@@ -700,19 +700,19 @@ static void quic_disable_listener(struct listener *l)
 static int quic_bind_tid_prep(struct connection *conn, int new_tid)
 {
 	struct quic_conn *qc = conn->handle.qc;
-	return qc_set_tid_affinity1(qc, new_tid);
+	return qc_bind_tid_prep(qc, new_tid);
 }
 
 static void quic_bind_tid_commit(struct connection *conn)
 {
 	struct quic_conn *qc = conn->handle.qc;
-	qc_set_tid_affinity2(qc, objt_listener(conn->target));
+	qc_bind_tid_commit(qc, objt_listener(conn->target));
 }
 
 static void quic_bind_tid_reset(struct connection *conn)
 {
 	struct quic_conn *qc = conn->handle.qc;
-	qc_reset_tid_affinity(qc);
+	qc_bind_tid_reset(qc);
 }
 
 static int quic_alloc_dghdlrs(void)

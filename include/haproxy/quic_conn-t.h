@@ -436,7 +436,7 @@ struct quic_conn_closed {
 #define QUIC_FL_CONN_RETRANS_NEEDED              (1U << 7)
 #define QUIC_FL_CONN_RETRANS_OLD_DATA            (1U << 8) /* retransmission in progress for probing with already sent data */
 #define QUIC_FL_CONN_TLS_ALERT                   (1U << 9)
-#define QUIC_FL_CONN_AFFINITY_CHANGED            (1U << 10) /* qc_finalize_affinity_rebind() must be called to finalize affinity rebind */
+#define QUIC_FL_CONN_TID_REBIND                  (1U << 10) /* TID rebind in progress, requires qc_finalize_tid_rebind() call */
 #define QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED   (1U << 11) /* The half-open connection counter was decremented */
 #define QUIC_FL_CONN_HANDSHAKE_SPEED_UP          (1U << 12) /* Handshake speeding up was done */
 #define QUIC_FL_CONN_ACK_TIMER_FIRED             (1U << 13) /* idle timer triggered for acknowledgements */
@@ -474,7 +474,7 @@ static forceinline char *qc_show_flags(char *buf, size_t len, const char *delim,
 	_(QUIC_FL_CONN_RETRANS_NEEDED,
 	_(QUIC_FL_CONN_RETRANS_OLD_DATA,
 	_(QUIC_FL_CONN_TLS_ALERT,
-	_(QUIC_FL_CONN_AFFINITY_CHANGED,
+	_(QUIC_FL_CONN_TID_REBIND,
 	_(QUIC_FL_CONN_HALF_OPEN_CNT_DECREMENTED,
 	_(QUIC_FL_CONN_HANDSHAKE_SPEED_UP,
 	_(QUIC_FL_CONN_ACK_TIMER_FIRED,

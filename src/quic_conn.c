@@ -1315,7 +1315,7 @@ void quic_conn_release(struct quic_conn *qc)
 		goto leave;
 
 	/* Must not delete a quic_conn if thread affinity rebind in progress. */
-	BUG_ON(qc->flags & QUIC_FL_CONN_AFFINITY_CHANGED);
+	BUG_ON(qc->flags & QUIC_FL_CONN_TID_REBIND);
 
 	/* We must not free the quic-conn if the MUX is still allocated. */
 	BUG_ON(qc->mux_state == QC_MUX_READY);
@@ -1728,12 +1728,12 @@ void qc_notify_err(struct quic_conn *qc)
  *
  * Returns 0 on success else non-zero.
  */
-int qc_set_tid_affinity1(struct quic_conn *qc, uint new_tid)
+int qc_bind_tid_prep(struct quic_conn *qc, uint new_tid)
 {
 	struct task *t1 = NULL, *t2 = NULL;
 	struct tasklet *t3 = NULL;
 
-	TRACE_ENTER(QUIC_EV_CONN_SET_AFFINITY, qc);
+	TRACE_ENTER(QUIC_EV_CONN_BIND_TID, qc);
 
 	/* Pre-allocate all required resources. This ensures we do not left a
 	 * connection with only some of its field rebinded.
@@ -1771,13 +1771,13 @@ int qc_set_tid_affinity1(struct quic_conn *qc, uint new_tid)
 	qc->wait_event.events = 0;
 
 	/* Remove conn from per-thread list instance. It will be hidden from
-	 * "show quic" until qc_finalize_affinity_rebind().
+	 * "show quic" until qc_finalize_tid_rebind().
 	 */
 	qc_detach_th_ctx_list(qc, 0);
 
-	qc->flags |= QUIC_FL_CONN_AFFINITY_CHANGED;
+	qc->flags |= QUIC_FL_CONN_TID_REBIND;
 
-	TRACE_LEAVE(QUIC_EV_CONN_SET_AFFINITY, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_BIND_TID, qc);
 	return 0;
 
  err:
@@ -1785,27 +1785,27 @@ int qc_set_tid_affinity1(struct quic_conn *qc, uint new_tid)
 	task_destroy(t2);
 	tasklet_free(t3);
 
-	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_SET_AFFINITY, qc);
+	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_BIND_TID, qc);
 	return 1;
 }
 
-/* Complete <qc> rebiding to an already selected new thread and associate it
+/* Complete <qc> rebinding to an already selected new thread and associate it
  * to <new_li> if necessary as required when migrating to a new thread group.
  *
  * After this function, <qc> instance must only be accessed via its newly
- * associated thread. qc_finalize_affinity_rebind() must be called to
+ * associated thread. qc_finalize_tid_rebind() must be called to
  * reactivate quic_conn elements.
  */
-void qc_set_tid_affinity2(struct quic_conn *qc, struct listener *new_li)
+void qc_bind_tid_commit(struct quic_conn *qc, struct listener *new_li)
 {
 	const uint new_tid = qc->wait_event.tasklet->tid;
 	struct quic_connection_id *conn_id;
 	struct eb64_node *node;
 
-	TRACE_ENTER(QUIC_EV_CONN_SET_AFFINITY, qc);
+	TRACE_ENTER(QUIC_EV_CONN_BIND_TID, qc);
 
-	/* Must only be called after qc_set_tid_affinity1(). */
-	BUG_ON(!(qc->flags & QUIC_FL_CONN_AFFINITY_CHANGED));
+	/* Must only be called after qc_bind_tid_prep(). */
+	BUG_ON(!(qc->flags & QUIC_FL_CONN_TID_REBIND));
 
 	/* At this point no connection was accounted for yet on this
 	 * listener so it's OK to just swap the pointer.
@@ -1836,39 +1836,38 @@ void qc_set_tid_affinity2(struct quic_conn *qc, struct listener *new_li)
 	HA_ATOMIC_STORE(&conn_id->tid, new_tid);
 	qc = NULL;
 
-	TRACE_LEAVE(QUIC_EV_CONN_SET_AFFINITY, NULL);
+	TRACE_LEAVE(QUIC_EV_CONN_BIND_TID, NULL);
 }
 
 /* Interrupt <qc> thread migration and stick to the current tid.
- * qc_finalize_affinity_rebind() must be called to reactivate quic_conn
- * elements.
+ * qc_finalize_tid_rebind() must be called to reactivate quic_conn elements.
  */
-void qc_reset_tid_affinity(struct quic_conn *qc)
+void qc_bind_tid_reset(struct quic_conn *qc)
 {
-	TRACE_ENTER(QUIC_EV_CONN_SET_AFFINITY, qc);
+	TRACE_ENTER(QUIC_EV_CONN_BIND_TID, qc);
 
-	/* Must only be called after qc_set_tid_affinity1(). */
-	BUG_ON(!(qc->flags & QUIC_FL_CONN_AFFINITY_CHANGED));
+	/* Must only be called after qc_bind_tid_prep(). */
+	BUG_ON(!(qc->flags & QUIC_FL_CONN_TID_REBIND));
 
 	/* Reset tasks affinity to the current thread. quic_conn will remain
-	 * inactive until qc_finalize_affinity_rebind().
+	 * inactive until qc_finalize_tid_rebind().
 	 */
 	task_set_thread(qc->idle_timer_task, tid);
 	if (qc->timer_task)
 		task_set_thread(qc->timer_task, tid);
 	tasklet_set_tid(qc->wait_event.tasklet, tid);
 
-	TRACE_LEAVE(QUIC_EV_CONN_SET_AFFINITY, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_BIND_TID, qc);
 }
 
-/* Must be called after qc_set_tid_affinity() on the new thread. */
-void qc_finalize_affinity_rebind(struct quic_conn *qc)
+/* Must be called after TID rebind commit or reset on the new thread. */
+void qc_finalize_tid_rebind(struct quic_conn *qc)
 {
-	TRACE_ENTER(QUIC_EV_CONN_SET_AFFINITY, qc);
+	TRACE_ENTER(QUIC_EV_CONN_BIND_TID, qc);
 
 	/* This function must not be called twice after an affinity rebind. */
-	BUG_ON(!(qc->flags & QUIC_FL_CONN_AFFINITY_CHANGED));
-	qc->flags &= ~QUIC_FL_CONN_AFFINITY_CHANGED;
+	BUG_ON(!(qc->flags & QUIC_FL_CONN_TID_REBIND));
+	qc->flags &= ~QUIC_FL_CONN_TID_REBIND;
 
 	/* If quic_conn is closing it is unnecessary to migrate it as it will
 	 * be soon released. Besides, special care must be taken for CLOSING
@@ -1897,7 +1896,7 @@ void qc_finalize_affinity_rebind(struct quic_conn *qc)
 		qc->flags &= ~QUIC_FL_CONN_IO_TO_REQUEUE;
 	}
 
-	TRACE_LEAVE(QUIC_EV_CONN_SET_AFFINITY, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_BIND_TID, qc);
 }
 
 /*
