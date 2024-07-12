@@ -38,6 +38,7 @@
 #include <haproxy/global.h>
 #include <haproxy/hlua.h>
 #include <haproxy/http_ana.h>
+#include <haproxy/limits.h>
 #if defined(USE_LINUX_CAP)
 #include <haproxy/linuxcap.h>
 #endif
@@ -605,14 +606,14 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 		chunk_appendf(&trash, "  capget() failed at runtime with: %s.\n",
 			      strerror(post_mortem.process.caps.err_run));
 #endif
-	if ((ulong)post_mortem.process.limit_fd.rlim_cur != RLIM_INFINITY)
-		chunk_appendf(&trash, "  fd limit (soft): %lu\n", (ulong)post_mortem.process.limit_fd.rlim_cur);
-	if ((ulong)post_mortem.process.limit_fd.rlim_max != RLIM_INFINITY)
-		chunk_appendf(&trash, "  fd limit (hard): %lu\n", (ulong)post_mortem.process.limit_fd.rlim_max);
-	if ((ulong)post_mortem.process.limit_ram.rlim_cur != RLIM_INFINITY)
-		chunk_appendf(&trash, "  ram limit (soft): %lu\n", (ulong)post_mortem.process.limit_ram.rlim_cur);
-	if ((ulong)post_mortem.process.limit_ram.rlim_max != RLIM_INFINITY)
-		chunk_appendf(&trash, "  ram limit (hard): %lu\n", (ulong)post_mortem.process.limit_ram.rlim_max);
+	chunk_appendf(&trash, "  fd limit (soft): %s\n",
+		      LIM2A(normalize_rlim((ulong)post_mortem.process.limit_fd.rlim_cur), "unlimited"));
+	chunk_appendf(&trash, "  fd limit (hard): %s\n",
+		      LIM2A(normalize_rlim((ulong)post_mortem.process.limit_fd.rlim_max), "unlimited"));
+	chunk_appendf(&trash, "  ram limit (soft): %s\n",
+		      LIM2A(normalize_rlim((ulong)post_mortem.process.limit_ram.rlim_cur), "unlimited"));
+	chunk_appendf(&trash, "  ram limit (hard): %s\n",
+		      LIM2A(normalize_rlim((ulong)post_mortem.process.limit_ram.rlim_max), "unlimited"));
 
 	return cli_msg(appctx, LOG_INFO, trash.area);
 }

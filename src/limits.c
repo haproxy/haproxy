@@ -5,7 +5,6 @@
  *
  */
 
-#include <haproxy/compat.h>
 #include <haproxy/global.h>
 #include <haproxy/limits.h>
 #include <haproxy/proxy.h>
