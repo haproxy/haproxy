@@ -1,7 +1,7 @@
                 -----------------------------------------------
                    Stream Processing Offload Engine (SPOE)
                                   Version 1.2
-                          ( Last update: 2020-06-13 )
+                          ( Last update: 2024-07-12 )
                 -----------------------------------------------
                           Author : Christopher Faulet
                       Contact : cfaulet at haproxy dot com
@@ -69,13 +69,10 @@ systems (often at least the connect() is blocking). So, it is hard to properly
 implement Single Sign On solution (SSO) in HAProxy. The SPOE will ease this
 kind of processing, or we hope so.
 
-Now, the aim of SPOE is to allow any kind of offloading on the streams. First
-releases won't do lot of things. As we will see, there are few handled events
-and even less actions supported. Actually, for now, the SPOE can offload the
-processing before "tcp-request content", "tcp-response content", "http-request"
-and "http-response" rules. And it only supports variables definition. But, in
-spite of these limited features, we can easily imagine to implement SSO
-solution, ip reputation or ip geolocation services.
+The aim of SPOE is to allow any kind of offloading on the streams. It can
+offload the processing before "tcp-request content", "tcp-response content",
+"http-request" and "http-response" rules. It is also possible to offload the
+processing via an TCP/HTTP rule.
 
 Some example implementations in various languages are linked to from the
 HAProxy Wiki page dedicated to this mechanism:
@@ -85,8 +82,8 @@ HAProxy Wiki page dedicated to this mechanism:
 2. SPOE configuration
 ----------------------
 
-Because SPOE is implemented as a filter, To use it, you must declare a "filter
-spoe" line in a proxy section (frontend/backend/listen) :
+Because SPOE is implemented as a filter, To use it, a "filter spoe" line must
+be declared xin a proxy section (frontend/backend/listen) :
 
   frontend my-front
       ...
@@ -99,9 +96,10 @@ the SPOE configuration. So it is possible to use the same SPOE configuration
 for several engines. If no name is provided, the SPOE configuration must not
 contain any scope directive.
 
-We use a separate configuration file on purpose. By commenting SPOE filter
-line, you completely disable the feature, including the parsing of sections
-reserved to SPOE. This is also a way to keep the HAProxy configuration clean.
+Using a separate configuration file makes possible to disable completely an
+engine by only commenting the SPOE filter line, including the parsing of
+sections reserved to SPOE. This is also a way to keep the HAProxy configuration
+clean.
 
 A SPOE configuration file must contains, at least, the SPOA configuration
 ("spoe-agent" section) and SPOE messages/groups ("spoe-message" or "spoe-group"
@@ -114,12 +112,13 @@ file.
 2.1. SPOE scope
 -------------------------
 
-If you specify an engine name on the SPOE filter line, then you need to define
-scope in the SPOE configuration with the same name. You can have several SPOE
-scope in the same file. In each scope, you must define one and only one
-"spoe-agent" section to configure the SPOA linked to your SPOE and several
-"spoe-message" and "spoe-group" sections to describe, respectively, messages and
-group of messages sent to servers managed by your SPOA.
+If an engine name is specified on the SPOE filter line, then the corresponding
+scope must be defined in the SPOE configuration with the same name. It is
+possible to have several SPOE scopes in the same file. In each scope, one and
+only one "spoe-agent" section must be defined, to configure the SPOA linked to
+the defined engine and several "spoe-message" and "spoe-group" sections to
+describe, respectively, messages and group of messages sent to servers managed
+the SPOA.
 
 A SPOE scope starts with this kind of line :
 
@@ -148,15 +147,15 @@ If no engine name is provided on the SPOE filter line, no SPOE scope must be
 found in the SPOE configuration file. All the file is considered to be in the
 same anonymous and implicit scope.
 
-The engine name must be uniq for a proxy. If no engine name is provided on the
-SPOE filter line, the SPOE agent name is used by default.
+The engine name must be unique for a proxy. If no engine name is provided on
+the SPOE filter line, the SPOE agent name is used by default.
 
 2.2. "spoe-agent" section
 --------------------------
 
-For each engine, you must define one and only one "spoe-agent" section. In this
-section, you will declare SPOE messages and the backend you will use. You will
-also set timeouts and options to customize your agent's behaviour.
+For each engine, exactly one "spoe-agent" section must be defined. Enabled SPOE
+messages are declared in this section, and all the parameters (timeout,
+options, ...) used to customize the agent behavior.
 
 
 spoe-agent <name>
@@ -169,15 +168,10 @@ spoe-agent <name>
   following keywords are supported :
     - groups
     - log
-    - maxconnrate
-    - maxerrrate
     - max-frame-size
-    - max-waiting-frames
     - messages
-    - [no] option async
     - [no] option dontlog-normal
     - [no] option pipelining
-    - [no] option send-frag-payload
     - option continue-on-error
     - option force-set-var
     - option set-on-error
@@ -185,9 +179,16 @@ spoe-agent <name>
     - option set-total-time
     - option var-prefix
     - register-var-names
-    - timeout hello|idle|processing
+    - timeout processing
     - use-backend
 
+  following keywords are deprecated and ignored:
+    - maxconnrate
+    - maxerrrate
+    - max-waiting-frames
+    - [no] option async
+    - [no] option send-frag-payload
+    - timeout hello|idle
 
 groups <grp-name> ...
   Declare the list of SPOE groups that an agent will handle.
@@ -196,10 +197,10 @@ groups <grp-name> ...
     <grp-name>   is the name of a SPOE group.
 
   Groups declared here must be found in the same engine scope, else an error is
-  triggered during the configuration parsing. You can have many "groups" lines.
+  triggered during the configuration parsing. Several "groups" lines can be
+  defined.
 
   See also: "spoe-group" section.
-
 
 log global
 log <address> [len <length>] [format <format>] <facility> [<level> [<minlevel>]]
@@ -211,27 +212,34 @@ no log
 
   See the HAProxy Configuration Manual for details about this option.
 
-maxconnrate <number>
+maxconnrate <number> [DEPRECATED]
   Set the maximum number of connections per second to <number>. The SPOE will
   stop to open new connections if the maximum is reached and will wait to
   acquire an existing one. So it is important to set "timeout hello" to a
   relatively small value.
 
+  This parameter is now deprecated and ignored. It will be removed in future
+  versions.
 
-maxerrrate <number>
+maxerrrate <number> [DEPRECATED]
   Set the maximum number of errors per second to <number>. The SPOE will stop
   its processing if the maximum is reached.
 
+  This parameter is now deprecated and ignored. It will be removed in future
+  versions.
 
 max-frame-size <number>
   Set the maximum allowed size for frames exchanged between HAProxy and SPOA.
   It must be in the range [256, tune.bufsize-4] (4 bytes are reserved for the
   frame length). By default, it is set to (tune.bufsize-4).
 
-max-waiting-frames <number>
+max-waiting-frames <number>  [DEPRECATED]
   Set the maximum number of frames waiting for an acknowledgement on the same
   connection. This value is only used when the pipelinied or asynchronous
   exchanges between HAProxy and SPOA are enabled. By default, it is set to 20.
+
+  This parameter is now deprecated and ignored. It will be removed in future
+  versions.
 
 messages <msg-name> ...
   Declare the list of SPOE messages that an agent will handle.
@@ -240,30 +248,30 @@ messages <msg-name> ...
     <msg-name>   is the name of a SPOE message.
 
   Messages declared here must be found in the same engine scope, else an error
-  is triggered during the configuration parsing. You can have many "messages"
-  lines.
+  is triggered during the configuration parsing. Several "messages" lines can
+  be defined.
 
   See also: "spoe-message" section.
 
-
-option async
+option async [DEPRECATED]
 no option async
   Enable or disable the support of asynchronous exchanges between HAProxy and
   SPOA. By default, this option is enabled.
 
+  This parameter is now deprecated and ignored. It will be removed in future
+  versions.
 
 option continue-on-error
   Do not stop the events processing when an error occurred on a stream.
 
   By default, for a specific stream, when an abnormal/unexpected error occurs,
-  the SPOE is disabled for all the transaction. So if you have several events
+  the SPOE is disabled for all the transaction. if several events are
   configured, such error on an event will disabled all following. For TCP
   streams, this will disable the SPOE for the whole session. For HTTP streams,
   this will disable it for the transaction (request and response).
 
   When set, this option bypass this behaviour and only the current event will
   be ignored.
-
 
 option dontlog-normal
 no option dontlog-normal
@@ -273,29 +281,27 @@ no option dontlog-normal
 
   See also: "log" and section 4 about logging.
 
-
 option force-set-var
   By default, SPOE filter only register already known variables (mainly from
   parsing of the configuration), and process-wide variables (those of scope
-  "proc") cannot be created. If you want that haproxy trusts the agent and
-  registers all variables (ex: can be useful for LUA workload), activate this
-  option.
+  "proc") cannot be created. If HAProxy trusts the agent and registers all
+  variables (ex: can be useful for LUA workload), this option can be sets.
 
   Caution : this option opens to a variety of attacks such as a rogue SPOA that
   asks to register too many variables.
-
 
 option pipelining
 no option pipelining
   Enable or disable the support of pipelined exchanges between HAProxy and
   SPOA. By default, this option is enabled.
 
-
-option send-frag-payload
+option send-frag-payload [DEPRECATED]
 no option send-frag-payload
   Enable or disable the sending of fragmented payload to SPOA. By default, this
   option is enabled.
 
+  This parameter is now deprecated and ignored. It will be removed in future
+  versions.
 
 option set-on-error <var name>
   Define the variable to set when an error occurred during an event processing.
@@ -307,13 +313,13 @@ option set-on-error <var name>
 
   This variable will only be set when an error occurred in the scope of the
   transaction. As for all other variables define by the SPOE, it will be
-  prefixed. So, if your variable name is "error" and your prefix is
+  prefixed. So, if the variable name is "error" and the prefix is
   "my_spoe_pfx", the variable will be "txn.my_spoe_pfx.error".
 
   When set, the variable is an integer representing the error reason. For values
   under 256, it represents an error coming from the engine. Below 256, it
   reports a SPOP error. In this case, to retrieve the right SPOP status code,
-  you must remove 256 to this value. Here are possible values:
+  256 must be removed from this value. Here are possible values:
 
     * 1       a timeout occurred during the event processing.
 
@@ -347,8 +353,8 @@ option set-process-time <var name>
                  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
   This variable will be set in the scope of the transaction. As for all other
-  variables define by the SPOE, it will be prefixed. So, if your variable name
-  is "process_time" and your prefix is "my_spoe_pfx", the variable will be
+  variables define by the SPOE, it will be prefixed. So, if the variable name
+  is "process_time" and the prefix is "my_spoe_pfx", the variable will be
   "txn.my_spoe_pfx.process_time".
 
   When set, the variable is an integer representing the delay to process the
@@ -360,7 +366,6 @@ option set-process-time <var name>
 
   See also: "option set-total-time".
 
-
 option set-total-time <var name>
   Define the variable to set to report the total processing time SPOE for a
   stream.
@@ -371,8 +376,8 @@ option set-total-time <var name>
                  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
   This variable will be set in the scope of the transaction. As for all other
-  variables define by the SPOE, it will be prefixed. So, if your variable name
-  is "total_time" and your prefix is "my_spoe_pfx", the variable will be
+  variables define by the SPOE, it will be prefixed. So, if the variable name
+  is "total_time" and the prefix is "my_spoe_pfx", the variable will be
   "txn.my_spoe_pfx.total_time".
 
   When set, the variable is an integer representing the sum of processing times
@@ -383,7 +388,6 @@ option set-total-time <var name>
   will be updated.
 
   See also: "option set-process-time".
-
 
 option var-prefix <prefix>
   Define the prefix used when variables are set by an agent.
@@ -399,19 +403,19 @@ option var-prefix <prefix>
 
   The prefix will be added between the variable scope and its name, separated
   by a '.'. It may only contain characters 'a-z', 'A-Z', '0-9', '.' and '_', as
-  for variables name. In HAProxy configuration, you need to use this prefix as
-  a part of the variables name. For example, if an agent define the variable
-  "myvar" in the "txn" scope, with the prefix "my_spoe_pfx", then you should
-  use "txn.my_spoe_pfx.myvar" name in your HAProxy configuration.
+  for variables name. In HAProxy configuration, this prefix must be used as a
+  part of the variables name. For example, if an agent define the variable
+  "myvar" in the "txn" scope, with the prefix "my_spoe_pfx", then
+  "txn.my_spoe_pfx.myvar" name must be used in HAProxy configuration.
 
   By default, an agent will never set new variables at runtime: It can only set
-  new value for existing ones. If you want a different behaviour, see
-  force-set-var option and register-var-names directive.
+  new value for existing ones. To change this behaviour, see "force-set-var"
+  option and "register-var-names" directive.
 
 register-var-names <var name> ...
   Register some variable names. By default, an agent will not be allowed to set
   new variables at runtime. This rule can be totally relaxed by setting the
-  option "force-set-var". If you know all the variables you will need, this
+  option "force-set-var". If all the required variables are known, this
   directive is a good way to register them without letting an agent doing what
   it want. This is only required if these variables are not referenced anywhere
   in the HAProxy configuration or the SPOE one.
@@ -420,12 +424,12 @@ register-var-names <var name> ...
     <var name>   is a variable name without the scope. The name may only
                  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
-  The prefix will be automatically added during the registration. You can have
-  many "register-var-names" lines.
+  The prefix will be automatically added during the registration. Several
+  "register-var-names" lines can be used.
 
   See also: "option force-set-var", "option var-prefix".
 
-timeout hello <timeout>
+timeout hello <timeout> [DEPRECATED]
   Set the maximum time to wait for an agent to receive the AGENT-HELLO frame.
   It is applied on the stream that handle the connection with the agent.
 
@@ -437,8 +441,10 @@ timeout hello <timeout>
   This timeout is an applicative timeout. It differ from "timeout connect"
   defined on backends.
 
+  This parameter is now deprecated and ignored. It will be removed in future
+  versions.
 
-timeout idle <timeout>
+timeout idle <timeout>  [DEPRECATED]
   Set the maximum time to wait for an agent to close an idle connection. It is
   applied on the stream that handle the connection with the agent.
 
@@ -447,6 +453,8 @@ timeout idle <timeout>
                 can be in any other unit if the number is suffixed by the unit,
                 as explained at the top of this document.
 
+  This parameter is now deprecated and ignored. It will be removed in future
+  versions.
 
 timeout processing <timeout>
   Set the maximum time to wait for a stream to process an event, i.e to acquire
@@ -482,20 +490,18 @@ spoe-message <name>
   Arguments :
     <name>   is the name of the SPOE message.
 
-  Here you define a message that can be referenced in a "spoe-agent"
-  section. Following keywords are supported :
+  Here a message that can be referenced in a "spoe-agent" section is
+  defined. Following keywords are supported :
     - acl
     - args
     - event
 
   See also: "spoe-agent" section.
 
-
 acl <aclname> <criterion> [flags] [operator] <value> ...
   Declare or complete an access list.
 
   See section 7 about ACL usage in the HAProxy Configuration Manual.
-
 
 args [name=]<sample> ...
   Define arguments passed into the SPOE message.
@@ -509,7 +515,6 @@ args [name=]<sample> ...
 
   For example:
     args frontend=fe_id src dst
-
 
 event <name> [ { if | unless } <condition> ]
   Set the event that triggers sending of the message. It may optionally be
@@ -552,12 +557,11 @@ spoe-group <name>
   Arguments :
     <name>   is the name of the SPOE group.
 
-  Here you define a group of SPOE messages that can be referenced in a
+  Here a group of SPOE messages is defined. It can be referenced in a
   "spoe-agent" section. Following keywords are supported :
-     - messages
+       - messages
 
   See also: "spoe-agent" and "spoe-message" sections.
-
 
 messages <msg-name> ...
   Declare the list of SPOE messages belonging to the group.
@@ -567,7 +571,7 @@ messages <msg-name> ...
 
   Messages declared here must be found in the same engine scope, else an error
   is triggered during the configuration parsing. Furthermore, a message belongs
-  at most to a group. You can have many "messages" lines.
+  at most to a group. Several "messages" lines can be defined.
 
   See also: "spoe-message" section.
 
@@ -598,7 +602,7 @@ and 0 a blacklisted IP with no doubt).
         server http A.B.C.D:80
 
     backend iprep-servers
-        mode tcp
+        mode spop
         balance roundrobin
 
         timeout connect 5s # greater than hello timeout
@@ -616,8 +620,6 @@ and 0 a blacklisted IP with no doubt).
 
         option var-prefix iprep
 
-        timeout hello      2s
-        timeout idle       2m
         timeout processing 10ms
 
         use-backend iprep-servers
@@ -714,44 +716,27 @@ actions.
             +---+---+----------+
 
     FIN: Indicates that this is the final payload fragment. The first fragment
-         may also be the final fragment.
+         may also be the final fragment. The payload fragmentation was removed
+         and is now deprecated. It means the FIN flag must be set on all
+         frames.
 
     ABORT: Indicates that the processing of the current frame must be
-           cancelled. This bit should be set on frames with a fragmented
-           payload. It can be ignore for frames with an unfragemnted
-           payload. When it is set, the FIN bit must also be set.
+           cancelled.
 
 
 Frames cannot exceed a maximum size negotiated between HAProxy and agents
 during the HELLO handshake. Most of time, payload will be small enough to send
-it in one frame. But when supported by the peer, it will be possible to
-fragment huge payload on many frames. This ability is announced during the
-HELLO handshake and it can be asynmetric (supported by agents but not by
-HAProxy or the opposite). The following rules apply to fragmentation:
-
-  * An unfragemnted payload consists of a single frame with the FIN bit set.
-
-  * A fragemented payload consists of several frames with the FIN bit clear and
-    terminated by a single frame with the FIN bit set. All these frames must
-    share the same STREAM-ID and FRAME-ID. The first frame must set the right
-    FRAME-TYPE (e.g, NOTIFY). The following frames must have an unset type (0).
-
-Beside the support of fragmented payload by a peer, some payload must not be
-fragmented. See below for details.
+it in one frame.
 
 IMPORTANT : The maximum size supported by peers for a frame must be greater
-than or equal to 256 bytes.
+            than or equal to 256 bytes. A good common value is the HAProxy
+            buffer size minus 4 bytes, reserved for the frame length
+            (tune.bufsize - 4). It is the default value announced by HAproxy.
 
 3.2.1. Frame capabilities
 --------------------------
 
 Here are the list of official capabilities that HAProxy and agents can support:
-
-  * fragmentation: This is the ability for a peer to support fragmented
-                   payload in received frames. This is an asymmectical
-                   capability, it only concerns the peer that announces
-                   it. This is the responsibility to the other peer to use it
-                   or not.
 
   * pipelining: This is the ability for a peer to decouple NOTIFY and ACK
                 frames. This is a symmectical capability. To be used, it must
@@ -759,17 +744,9 @@ Here are the list of official capabilities that HAProxy and agents can support:
                 ACK frames can be send in any order, but always on the same TCP
                 connection used for the corresponding NOTIFY frame.
 
-  * async: This ability is similar to the pipelining, but here any TCP
-           connection established between HAProxy and the agent can be used to
-           send ACK frames. if an agent accepts connections from multiple
-           HAProxy, it can use the "engine-id" value to group TCP
-           connections. See details about HAPROXY-HELLO frame.
-
 Unsupported or unknown capabilities are silently ignored, when possible.
 
-NOTE: HAProxy does not support the fragmentation for now. This means it is not
-      able to handle fragmented frames. However, if an agent announces the
-      fragmentation support, HAProxy may choose to send fragemented frames.
+NOTE: Fragmentation and async capabilities were deprecated and are now ignored.
 
 3.2.2. Frame types overview
 ----------------------------
@@ -778,9 +755,6 @@ Here are types of frame supported by SPOE. Frames sent by HAProxy come first,
 then frames sent by agents :
 
     TYPE                       |  ID | DESCRIPTION
-  -----------------------------+-----+-------------------------------------
-     UNSET                     |  0  | Used for all frames but the first when a
-                               |     | payload is fragmented.
   -----------------------------+-----+-------------------------------------
      HAPROXY-HELLO             |  1  |  Sent by HAProxy when it opens a
                                |     |  connection on an agent.
@@ -801,7 +775,8 @@ then frames sent by agents :
      ACK                       | 103 |  Sent to acknowledge a NOTIFY frame
   -----------------------------+-----+-------------------------------------
 
-Unknown frames may be silently skipped.
+Unknown frames may be silently skipped or trigger an error, depending on the
+implementation.
 
 3.2.3. Workflow
 ----------------
@@ -865,37 +840,6 @@ Unknown frames may be silently skipped.
        | <-------------------------- |
        |                             |
 
-  * Notify / Ack exchange (fragmented payload):
-
-    HAPROXY                       AGENT SRV
-       |      NOTIFY (frag 1)        |
-       | --------------------------> |
-       |                             |
-       |       UNSET (frag 2)        |
-       | --------------------------> |
-       |            ...              |
-       |       UNSET (frag N)        |
-       | --------------------------> |
-       |                             |
-       |           ACK               |
-       | <-------------------------- |
-       |                             |
-
-  * Aborted fragmentation of a NOTIFY frame:
-
-    HAPROXY                       AGENT SRV
-       |            ...              |
-       |       UNSET (frag X)        |
-       | --------------------------> |
-       |                             |
-       |         ACK/ABORT           |
-       | <-------------------------- |
-       |                             |
-       |       UNSET (frag X+1)      |
-       | -----------X                |
-       |                             |
-       |                             |
-
   * Connection closed by haproxy:
 
     HAPROXY                       AGENT SRV
@@ -917,8 +861,8 @@ Unknown frames may be silently skipped.
 ----------------------------
 
 This frame is the first one exchanged between HAProxy and an agent, when the
-connection is established. The payload of this frame is a KV-LIST. It cannot be
-fragmented. STREAM-ID and FRAME-ID are must be set 0.
+connection is established. The payload of this frame is a KV-LIST. STREAM-ID
+and FRAME-ID are must be set 0.
 
 Following items are mandatory in the KV-LIST:
 
@@ -963,7 +907,7 @@ AGENT-DISCONNECT frame must be returned.
 
 This frame is sent in reply to a HAPROXY-HELLO frame to finish a HELLO
 handshake. As for HAPROXY-HELLO frame, STREAM-ID and FRAME-ID are also set
-0. The payload of this frame is a KV-LIST and it cannot be fragmented.
+0. The payload of this frame is a KV-LIST.
 
 Following items are mandatory in the KV-LIST:
 
@@ -997,8 +941,7 @@ will close the connection at the end of the health check.
 
 Information are sent to the agents inside NOTIFY frames. These frames are
 attached to a stream, so STREAM-ID and FRAME-ID must be set. The payload of
-NOTIFY frames is a LIST-OF-MESSAGES and, if supported by agents, it can be
-fragmented.
+NOTIFY frames is a LIST-OF-MESSAGES.
 
 NOTIFY frames must be acknowledge by agents sending an ACK frame, repeating
 right STREAM-ID and FRAME-ID.
@@ -1008,8 +951,7 @@ right STREAM-ID and FRAME-ID.
 
 ACK frames must be sent by agents to reply to NOTIFY frames. STREAM-ID and
 FRAME-ID found in a NOTIFY frame must be reuse in the corresponding ACK
-frame. The payload of ACK frames is a LIST-OF-ACTIONS and, if supported by
-HAProxy, it can be fragmented.
+frame. The payload of ACK frames is a LIST-OF-ACTIONS.
 
 3.2.8. Frame: HAPROXY-DISCONNECT
 ---------------------------------
@@ -1019,8 +961,8 @@ frame is sent with information describing the error. HAProxy will wait an
 AGENT-DISCONNECT frame in reply. All other frames will be ignored. The agent
 must then close the socket.
 
-The payload of this frame is a KV-LIST. It cannot be fragmented. STREAM-ID and
-FRAME-ID are must be set 0.
+The payload of this frame is a KV-LIST. STREAM-ID and FRAME-ID are must be set
+0.
 
 Following items are mandatory in the KV-LIST:
 
@@ -1042,8 +984,8 @@ is sent, with information describing the error. such frame is also sent in reply
 to a HAPROXY-DISCONNECT. The agent must close the socket just after sending
 this frame.
 
-The payload of this frame is a KV-LIST. It cannot be fragmented. STREAM-ID and
-FRAME-ID are must be set 0.
+The payload of this frame is a KV-LIST. STREAM-ID and FRAME-ID are must be set
+0.
 
 Following items are mandatory in the KV-LIST:
 
@@ -1060,10 +1002,10 @@ For more information about known errors, see section "Errors & timeouts"
 3.3. Events & Messages
 -----------------------
 
-Information about streams are sent in NOTIFY frames. You can specify which kind
-of information to send by defining "spoe-message" sections in your SPOE
-configuration file. for each "spoe-message" there will be a message in a NOTIFY
-frame when the right event is triggered.
+Information about streams are sent in NOTIFY frames. It is possible to specify
+which kind of information to send by defining "spoe-message" sections in the
+SPOE configuration file. for each "spoe-message" there will be a message in a
+NOTIFY frame when the right event is triggered.
 
 A NOTIFY frame is sent for an specific event when there is at least one
 "spoe-message" attached to this event. All messages for an event will be added
@@ -1185,21 +1127,15 @@ An agent can define its own errors using a not yet assigned status code.
 
 IMPORTANT NOTE: By default, for a specific stream, when an abnormal/unexpected
                 error occurs, the SPOE is disabled for all the transaction. So
-                if you have several events configured, such error on an event
-                will disabled all following. For TCP streams, this will
-                disable the SPOE for the whole session. For HTTP streams, this
-                will disable it for the transaction (request and response).
-                See 'option continue-on-error' to bypass this limitation.
+                if several events are configured, such error on an event will
+                disabled all following. For TCP streams, this will disable the
+                SPOE for the whole session. For HTTP streams, this will disable
+                it for the transaction (request and response).  See 'option
+                continue-on-error' to bypass this limitation.
 
-To avoid a stream to wait undefinetly, you must carefully choose the
-acknowledgement timeout. In most of cases, it will be quiet low. But it depends
-on the responsivness of your service.
-
-You must also choose idle timeout carefully. Because connection with your
-service depends on the backend configuration used by the SPOA, it is important
-to use a lower value for idle timeout than the server timeout. Else the
-connection will be closed by HAProxy. The same is true for hello timeout. You
-should choose a lower value than the connect timeout.
+To avoid a stream to wait undefinetly, A processing timeout should be carefully
+defined. Most of time, it will be quiet low. But it depends on the SPOA
+responsivness.
 
 4. Logging
 -----------
@@ -1214,39 +1150,18 @@ LOG_NOTICE. Otherwise, the message is logged with the level LOG_WARNING.
 The messages are logged using the agent's logger, if defined, and use the
 following format:
 
-    SPOE: [AGENT] <TYPE:NAME> sid=STREAM-ID st=STATUS-CODE reqT/qT/wT/resT/pT \
-    <idles>/<applets> <nb_sending>/<nb_waiting> <nb_error>/<nb_processed>
+    SPOE: [AGENT] <TYPE:NAME> sid=STREAM-ID st=STATUS-CODE pT <nb_error>/<nb_processed>
 
       AGENT              is the agent name
       TYPE               is EVENT of GROUP
       NAME               is the event or the group name
       STREAM-ID          is an integer, the unique id of the stream
       STATUS_CODE        is the processing's status code
-      reqT/qT/wT/resT/pT are the following time events:
-
-        * reqT : the encoding time. It includes ACLs processing, if any. For
-                 fragmented frames, it is the sum of all fragments.
-        * qT   : the delay before the request gets out the sending queue. For
-                 fragmented frames, it is the sum of all fragments.
-        * wT   : the delay before the response is received. No fragmentation
-                 supported here.
-        * resT : the delay to process the response. No fragmentation supported
-                 here.
-        * pT   : the delay to process the event or the group. From the stream
-                 point of view, it is the latency added by the SPOE processing.
-                 It is more or less the sum of values above.
-
-      <idle>             is the numbers of idle SPOE applets
-      <applets>          is the numbers of SPOE applets
-      <nb_sending>       is the numbers of streams waiting to send data
-      <nb_waiting>       is the numbers of streams waiting for a ack
+      pT                 is the delay to process the event or the group.
+                            From the stream point of view, it is the latency added
+                            by the SPOE processing.
       <nb_error>         is the numbers of processing errors
       <nb_processed>     is the numbers of events/groups processed
-
-
-For all these time events, -1 means the processing was interrupted before the
-end. So -1 for the queue time means the request was never dequeued. For
-fragmented frames it is harder to know when the interruption happened.
 
 /*
  * Local variables:
