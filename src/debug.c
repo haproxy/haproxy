@@ -116,6 +116,8 @@ struct post_mortem {
 		pid_t pid;
 		uid_t boot_uid;
 		gid_t boot_gid;
+		uid_t run_uid;
+		gid_t run_gid;
 #if defined(USE_LINUX_CAP)
 		struct {
 			// initial process capabilities
@@ -565,10 +567,11 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 	for (i = 0; i < post_mortem.process.argc; i++)
 		chunk_appendf(&trash, "%s ", post_mortem.process.argv[i]);
 	chunk_appendf(&trash, "\n");
+
 	chunk_appendf(&trash, "  boot uid: %d\n", post_mortem.process.boot_uid);
-	chunk_appendf(&trash, "  runtime uid: %d\n", geteuid());
+	chunk_appendf(&trash, "  runtime uid: %d\n", post_mortem.process.run_uid);
 	chunk_appendf(&trash, "  boot gid: %d\n", post_mortem.process.boot_gid);
-	chunk_appendf(&trash, "  runtime gid: %d\n", getegid());
+	chunk_appendf(&trash, "  runtime gid: %d\n", post_mortem.process.run_gid);
 
 #if defined(USE_LINUX_CAP)
 	/* let's dump saved in feed_post_mortem() initial capabilities sets */
@@ -2428,6 +2431,12 @@ static int feed_post_mortem_late()
 		post_mortem.process.thread_info[i].pth_id = ha_thread_info[i].pth_id;
 		post_mortem.process.thread_info[i].stack_top = ha_thread_info[i].stack_top;
 	}
+
+	/* also set runtime process settings. At this stage we are sure, that all
+	 * config options and limits adjustements are successfully applied.
+	 */
+	post_mortem.process.run_uid = geteuid();
+	post_mortem.process.run_gid = getegid();
 
 	return 1;
 }
