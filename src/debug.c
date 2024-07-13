@@ -129,8 +129,8 @@ struct post_mortem {
 			int err_run; // errno, if capget() syscall fails at runtime
 		} caps;
 #endif
-		struct rlimit limit_fd;  // RLIMIT_NOFILE
-		struct rlimit limit_ram; // RLIMIT_DATA
+		struct rlimit boot_lim_fd;  // RLIMIT_NOFILE at startup
+		struct rlimit boot_lim_ram; // RLIMIT_DATA at startup
 		char **argv;
 
 #if defined(USE_THREAD)
@@ -606,14 +606,15 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 		chunk_appendf(&trash, "  capget() failed at runtime with: %s.\n",
 			      strerror(post_mortem.process.caps.err_run));
 #endif
-	chunk_appendf(&trash, "  fd limit (soft): %s\n",
-		      LIM2A(normalize_rlim((ulong)post_mortem.process.limit_fd.rlim_cur), "unlimited"));
-	chunk_appendf(&trash, "  fd limit (hard): %s\n",
-		      LIM2A(normalize_rlim((ulong)post_mortem.process.limit_fd.rlim_max), "unlimited"));
-	chunk_appendf(&trash, "  ram limit (soft): %s\n",
-		      LIM2A(normalize_rlim((ulong)post_mortem.process.limit_ram.rlim_cur), "unlimited"));
-	chunk_appendf(&trash, "  ram limit (hard): %s\n",
-		      LIM2A(normalize_rlim((ulong)post_mortem.process.limit_ram.rlim_max), "unlimited"));
+	chunk_appendf(&trash, "  boot limits:\n");
+	chunk_appendf(&trash, "  \tfd limit (soft): %s\n",
+		      LIM2A(normalize_rlim((ulong)post_mortem.process.boot_lim_fd.rlim_cur), "unlimited"));
+	chunk_appendf(&trash, "  \tfd limit (hard): %s\n",
+		      LIM2A(normalize_rlim((ulong)post_mortem.process.boot_lim_fd.rlim_max), "unlimited"));
+	chunk_appendf(&trash, "  \tram limit (soft): %s\n",
+		      LIM2A(normalize_rlim((ulong)post_mortem.process.boot_lim_ram.rlim_cur), "unlimited"));
+	chunk_appendf(&trash, "  \tram limit (hard): %s\n",
+		      LIM2A(normalize_rlim((ulong)post_mortem.process.boot_lim_ram.rlim_max), "unlimited"));
 
 	return cli_msg(appctx, LOG_INFO, trash.area);
 }
@@ -2345,8 +2346,9 @@ static int feed_post_mortem()
 	if (capget(&cap_hdr_haproxy, post_mortem.process.caps.boot) == -1)
 		post_mortem.process.caps.err_boot = errno;
 #endif
-	getrlimit(RLIMIT_NOFILE, &post_mortem.process.limit_fd);
-	getrlimit(RLIMIT_DATA, &post_mortem.process.limit_ram);
+	post_mortem.process.boot_lim_fd.rlim_cur = rlim_fd_cur_at_boot;
+	post_mortem.process.boot_lim_fd.rlim_max = rlim_fd_max_at_boot;
+	getrlimit(RLIMIT_DATA, &post_mortem.process.boot_lim_ram);
 
 	if (strcmp(post_mortem.platform.utsname.sysname, "Linux") == 0)
 		feed_post_mortem_linux();
