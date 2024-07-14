@@ -575,35 +575,33 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 	if(!post_mortem.process.caps.err) {
 		chunk_appendf(&trash, "  boot capabilities:\n");
 		chunk_appendf(&trash, "  \tCapEff: 0x%016llx\n",
-                              CAPS_TO_ULLONG(post_mortem.process.caps.boot[0].effective,
-                                             post_mortem.process.caps.boot[1].effective));
+			      CAPS_TO_ULLONG(post_mortem.process.caps.boot[0].effective,
+					     post_mortem.process.caps.boot[1].effective));
 		chunk_appendf(&trash, "  \tCapPrm: 0x%016llx\n",
-                              CAPS_TO_ULLONG(post_mortem.process.caps.boot[0].permitted,
-                                             post_mortem.process.caps.boot[1].permitted));
+			      CAPS_TO_ULLONG(post_mortem.process.caps.boot[0].permitted,
+					     post_mortem.process.caps.boot[1].permitted));
 		chunk_appendf(&trash, "  \tCapInh: 0x%016llx\n",
-                              CAPS_TO_ULLONG(post_mortem.process.caps.boot[0].inheritable,
-                                             post_mortem.process.caps.boot[1].inheritable));
+			      CAPS_TO_ULLONG(post_mortem.process.caps.boot[0].inheritable,
+					     post_mortem.process.caps.boot[1].inheritable));
 	} else
-		chunk_appendf(&trash, "  capget() failed with: %s.\n",
-                              strerror(post_mortem.process.caps.err));
-
+		chunk_appendf(&trash, "  capget() failed at boot with: %s.\n",
+			      strerror(post_mortem.process.caps.err));
 
 	/* let's print actual capabilities sets, could be useful in order to compare */
 	if (capget(&cap_hdr_haproxy, runtime_caps) == 0) {
 		chunk_appendf(&trash, "  runtime capabilities:\n");
 		chunk_appendf(&trash, "  \tCapEff: 0x%016llx\n",
-                              CAPS_TO_ULLONG(runtime_caps[0].effective,
-                                             runtime_caps[1].effective));
+			      CAPS_TO_ULLONG(runtime_caps[0].effective,
+					     runtime_caps[1].effective));
 		chunk_appendf(&trash, "  \tCapPrm: 0x%016llx\n",
-                              CAPS_TO_ULLONG(runtime_caps[0].permitted,
-                                             runtime_caps[1].permitted));
+			      CAPS_TO_ULLONG(runtime_caps[0].permitted,
+					     runtime_caps[1].permitted));
 		chunk_appendf(&trash, "  \tCapInh: 0x%016llx\n",
-                              CAPS_TO_ULLONG(runtime_caps[0].inheritable,
-                                             runtime_caps[1].inheritable));
+			      CAPS_TO_ULLONG(runtime_caps[0].inheritable,
+					     runtime_caps[1].inheritable));
 	} else
-		chunk_appendf(&trash, "  capget() failed with: %s.\n",
-                              strerror(errno));
-
+		chunk_appendf(&trash, "  capget() failed at runtime with: %s.\n",
+			      strerror(errno));
 #endif
 	if ((ulong)post_mortem.process.limit_fd.rlim_cur != RLIM_INFINITY)
 		chunk_appendf(&trash, "  fd limit (soft): %lu\n", (ulong)post_mortem.process.limit_fd.rlim_cur);
