@@ -131,6 +131,8 @@ struct post_mortem {
 #endif
 		struct rlimit boot_lim_fd;  // RLIMIT_NOFILE at startup
 		struct rlimit boot_lim_ram; // RLIMIT_DATA at startup
+		struct rlimit run_lim_fd;  // RLIMIT_NOFILE just before enter in polling loop
+		struct rlimit run_lim_ram; // RLIMIT_DATA just before enter in polling loop
 		char **argv;
 
 #if defined(USE_THREAD)
@@ -615,6 +617,16 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 		      LIM2A(normalize_rlim((ulong)post_mortem.process.boot_lim_ram.rlim_cur), "unlimited"));
 	chunk_appendf(&trash, "  \tram limit (hard): %s\n",
 		      LIM2A(normalize_rlim((ulong)post_mortem.process.boot_lim_ram.rlim_max), "unlimited"));
+
+	chunk_appendf(&trash, "  runtime limits:\n");
+	chunk_appendf(&trash, "  \tfd limit (soft): %s\n",
+		      LIM2A(normalize_rlim((ulong)post_mortem.process.run_lim_fd.rlim_cur), "unlimited"));
+	chunk_appendf(&trash, "  \tfd limit (hard): %s\n",
+		      LIM2A(normalize_rlim((ulong)post_mortem.process.run_lim_fd.rlim_max), "unlimited"));
+	chunk_appendf(&trash, "  \tram limit (soft): %s\n",
+		      LIM2A(normalize_rlim((ulong)post_mortem.process.run_lim_ram.rlim_cur), "unlimited"));
+	chunk_appendf(&trash, "  \tram limit (hard): %s\n",
+		      LIM2A(normalize_rlim((ulong)post_mortem.process.run_lim_ram.rlim_max), "unlimited"));
 
 	return cli_msg(appctx, LOG_INFO, trash.area);
 }
@@ -2444,6 +2456,8 @@ static int feed_post_mortem_late()
 		post_mortem.process.caps.err_run = errno;
 	}
 #endif
+	getrlimit(RLIMIT_NOFILE, &post_mortem.process.run_lim_fd);
+	getrlimit(RLIMIT_DATA, &post_mortem.process.run_lim_ram);
 
 	return 1;
 }
