@@ -112,6 +112,7 @@ volatile struct fdlist update_list[MAX_TGROUPS]; // Global update list
 
 THREAD_LOCAL int *fd_updt  = NULL;  // FD updates list
 THREAD_LOCAL int  fd_nbupdt = 0;   // number of updates in the list
+THREAD_LOCAL int  fd_highest = -1; // highest FD known by the current thread
 THREAD_LOCAL int poller_rd_pipe = -1; // Pipe to wake the thread
 int poller_wr_pipe[MAX_THREADS] __read_mostly; // Pipe to wake the threads
 
@@ -836,7 +837,7 @@ void fd_reregister_all(int tgrp, ulong mask)
 {
 	int fd;
 
-	for (fd = 0; fd < global.maxsock; fd++) {
+	for (fd = 0; fd < fd_highest; fd++) {
 		if (!fdtab[fd].owner)
 			continue;
 
@@ -1271,7 +1272,7 @@ int list_pollers(FILE *out)
 int fork_poller()
 {
 	int fd;
-	for (fd = 0; fd < global.maxsock; fd++) {
+	for (fd = 0; fd < fd_highest; fd++) {
 		if (fdtab[fd].owner) {
 			HA_ATOMIC_OR(&fdtab[fd].state, FD_CLONED);
 		}

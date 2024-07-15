@@ -48,6 +48,7 @@ extern struct polled_mask *polled_mask;
 
 extern THREAD_LOCAL int *fd_updt;  // FD updates list
 extern THREAD_LOCAL int fd_nbupdt; // number of updates in the list
+extern THREAD_LOCAL int fd_highest;// highest FD known by the current thread
 
 extern int poller_wr_pipe[MAX_THREADS];
 
@@ -465,6 +466,19 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), int tgid
 	newstate = 0;
 	if ((global.tune.options & GTUNE_FD_ET) && iocb == sock_conn_iocb)
 		newstate |= FD_ET_POSSIBLE;
+
+	/* We must update fd_highest to reflect the highest known FD for this
+	 * thread. It's important to note that it's not necessarily the highest
+	 * FD the thread will see, it's the highest FD that was inserted by
+	 * this thread or by the main thread. The purpose is essentially to
+	 * let all threads know the highest known FD at boot, that will be
+	 * cloned into each thread, in order to limit the work range for init
+	 * functions such as fork_poller() and fd_reregister_all(). Keeping the
+	 * value thread-local substantially limits the cost, since after a few
+	 * thousand calls the value will just stop changing.
+	 */
+	if (unlikely(fd > fd_highest))
+		fd_highest = fd;
 
 	/* This must never happen and would definitely indicate a bug, in
 	 * addition to overwriting some unexpected memory areas.
