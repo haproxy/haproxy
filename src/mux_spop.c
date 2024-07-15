@@ -897,6 +897,7 @@ static void spop_conn_update_timeout(struct spop_conn *spop_conn)
 	task_queue(spop_conn->task);
 	TRACE_LEAVE(SPOP_EV_SPOP_CONN_WAKE, spop_conn->conn, 0, 0, (size_t[]){spop_conn->task->expire});
  leave:
+	return;
 }
 
 /********************************************************/
