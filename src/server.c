@@ -6108,18 +6108,19 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	_srv_detach(srv);
 
 	/* Some deleted servers could still point to us using their 'next',
-	 * update them as needed
-	 * Please note the small race between the POP and APPEND, although in
-	 * this situation this is not an issue as we are under full thread
-	 * isolation
+	 * migrate them as needed
 	 */
-	while ((prev_del = MT_LIST_POP(&srv->prev_deleted, struct server *, prev_deleted))) {
+	MT_LIST_FOR_EACH_ENTRY_LOCKED(prev_del, &srv->prev_deleted, prev_deleted, back) {
 		/* update its 'next' ptr */
 		prev_del->next = srv->next;
 		if (srv->next) {
 			/* now it is our 'next' responsibility */
 			MT_LIST_APPEND(&srv->next->prev_deleted, &prev_del->prev_deleted);
 		}
+		else
+			mt_list_unlock_self(&prev_del->prev_deleted);
+		/* unlink from our list */
+		prev_del = NULL;
 	}
 
 	/* we ourselves need to inform our 'next' that we will still point it */
