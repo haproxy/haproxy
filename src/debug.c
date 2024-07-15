@@ -2414,14 +2414,23 @@ void post_mortem_add_component(const char *name, const char *version,
 static int feed_post_mortem_late()
 {
 	static int per_thread_info_collected;
+	int i;
 
-	if (HA_ATOMIC_ADD_FETCH(&per_thread_info_collected, 1) == global.nbthread) {
-		int i;
-		for (i = 0; i < global.nbthread; i++) {
-			post_mortem.process.thread_info[i].pth_id = ha_thread_info[i].pth_id;
-			post_mortem.process.thread_info[i].stack_top = ha_thread_info[i].stack_top;
-		}
+	if (HA_ATOMIC_ADD_FETCH(&per_thread_info_collected, 1) != global.nbthread)
+		return 1;
+
+	/* Collect thread info, only when we are in the last thread context.
+	 * feed_post_mortem_late() is registered in per_thread_init_list. Each
+	 * thread takes a mutex before looping over this list, so
+	 * feed_post_mortem_late() will be called by each thread in exclusive
+	 * manner, one by one in synchronious order. Thread unlocks mutex only
+	 * after executing all init functions from this list.
+	*/
+	for (i = 0; i < global.nbthread; i++) {
+		post_mortem.process.thread_info[i].pth_id = ha_thread_info[i].pth_id;
+		post_mortem.process.thread_info[i].stack_top = ha_thread_info[i].stack_top;
 	}
+
 	return 1;
 }
 
