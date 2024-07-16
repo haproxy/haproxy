@@ -424,7 +424,7 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	s->pcli_next_pid = 0;
 	s->pcli_flags = 0;
 	s->unique_id = IST_NULL;
-
+	s->parent = NULL;
 	if ((t = task_new_here()) == NULL)
 		goto out_fail_alloc;
 

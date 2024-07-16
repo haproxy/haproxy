@@ -234,6 +234,9 @@ struct stream {
 	int conn_retries;               /* number of connect retries performed */
 	unsigned int conn_exp;          /* wake up time for connect, queue, turn-around, ... */
 	unsigned int conn_err_type;     /* first error detected, one of STRM_ET_* */
+
+	struct stream *parent;          /* Pointer to the parent stream, if any. NULL most of time */
+
 	struct list list;               /* position in the thread's streams list */
 	struct mt_list by_srv;          /* position in server stream list */
 	struct list back_refs;          /* list of users tracking this stream */
