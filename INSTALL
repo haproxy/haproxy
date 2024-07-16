@@ -383,10 +383,15 @@ systems, by passing "USE_SLZ=" to the "make" command.
 
 Please note that SLZ will benefit from some CPU-specific instructions like the
 availability of the CRC32 extension on some ARM processors. Thus it can further
-improve its performance to build with "CPU=native" on the target system, or
-"CPU=armv81" (modern systems such as Graviton2 or A55/A75 and beyond),
-"CPU=a72" (e.g. for RPi4, or AWS Graviton), "CPU=a53" (e.g. for RPi3), or
-"CPU=armv8-auto" (automatic detection with minor runtime penalty).
+improve its performance to build with:
+
+  - "CPU_CFLAGS=-march=native" on the target system or
+  - "CPU_CFLAGS=-march=armv81" on modern systems such as Graviton2 or A55/A75
+     and beyond)
+  - "CPU_CFLAGS=-march=a72" (e.g. for RPi4, or AWS Graviton)
+  - "CPU_CFLAGS=-march=a53" (e.g. for RPi3)
+  - "CPU_CFLAGS=-march=armv8-auto" automatic detection with minor runtime
+     penalty)
 
 A second option involves the widely known zlib library, which is very likely
 installed on your system. In order to use zlib, simply pass "USE_ZLIB=1" to the
