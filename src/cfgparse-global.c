@@ -81,25 +81,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "expose-experimental-directives") == 0) {
 		experimental_directives_allowed = 1;
 	}
-	else if (strcmp(args[0], "daemon") == 0) {
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		global.mode |= MODE_DAEMON;
-	}
-	else if (strcmp(args[0], "master-worker") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*args[1]) {
-			if (strcmp(args[1], "no-exit-on-failure") == 0) {
-				global.tune.options |= GTUNE_NOEXIT_ONFAILURE;
-			} else {
-				ha_alert("parsing [%s:%d] : '%s' only supports 'no-exit-on-failure' option.\n", file, linenum, args[0]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-		}
-		global.mode |= MODE_MWORKER;
-	}
 	else if (strcmp(args[0], "noepoll") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
@@ -186,16 +167,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		protocol_clrf_all(PROTO_F_REUSEPORT_SUPPORTED);
-	}
-	else if (strcmp(args[0], "quiet") == 0) {
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		global.mode |= MODE_QUIET;
-	}
-	else if (strcmp(args[0], "zero-warning") == 0) {
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		global.mode |= MODE_ZERO_WARNING;
 	}
 	else if (strcmp(args[0], "tune.runqueue-depth") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
@@ -1425,10 +1396,61 @@ static int cfg_parse_reject_privileged_ports(char **args, int section_type,
 	return 0;
 }
 
+/* Parser for master-worker mode */
+static int cfg_parse_global_master_worker(char **args, int section_type,
+					  struct proxy *curpx, const struct proxy *defpx,
+					  const char *file, int line, char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*args[1]) {
+		if (strcmp(args[1], "no-exit-on-failure") == 0)
+			global.tune.options |= GTUNE_NOEXIT_ONFAILURE;
+		else {
+			memprintf(err, "parsing [%s:%d] : '%s' only supports 'no-exit-on-failure' option",
+				  file, line, args[0]);
+			return -1;
+		}
+	}
+	global.mode |= MODE_MWORKER;
+
+	return 0;
+}
+
+/* Parser for other modes */
+static int cfg_parse_global_mode(char **args, int section_type,
+				 struct proxy *curpx, const struct proxy *defpx,
+				 const char *file, int line, char **err)
+{
+	if (too_many_args(0, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[0], "daemon") == 0) {
+		global.mode |= MODE_DAEMON;
+
+	} else if (strcmp(args[0], "quiet") == 0) {
+		global.mode |= MODE_QUIET;
+
+	} else if (strcmp(args[0], "zero-warning") == 0) {
+		global.mode |= MODE_ZERO_WARNING;
+
+	} else {
+		BUG_ON(1, "Triggered in cfg_parse_global_mode() by unsupported keyword.\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "prealloc-fd", cfg_parse_prealloc_fd },
 	{ CFG_GLOBAL, "harden.reject-privileged-ports.tcp",  cfg_parse_reject_privileged_ports },
 	{ CFG_GLOBAL, "harden.reject-privileged-ports.quic", cfg_parse_reject_privileged_ports },
+	{ CFG_GLOBAL, "master-worker", cfg_parse_global_master_worker },
+	{ CFG_GLOBAL, "daemon", cfg_parse_global_mode } ,
+	{ CFG_GLOBAL, "quiet", cfg_parse_global_mode },
+	{ CFG_GLOBAL, "zero-warning", cfg_parse_global_mode },
 	{ 0, NULL, NULL },
 }};
 
