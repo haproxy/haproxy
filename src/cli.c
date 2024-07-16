@@ -3219,7 +3219,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->target = NULL;
 		/* re-init store persistence */
 		s->store_count = 0;
-		s->uniq_id = global.req_count++;
+		s->uniq_id = _HA_ATOMIC_FETCH_ADD(&global.req_count, 1);
 
 		s->scf->flags &= ~(SC_FL_EOS|SC_FL_ERROR|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED);
 		s->scf->flags &= ~SC_FL_SND_NEVERWAIT;
