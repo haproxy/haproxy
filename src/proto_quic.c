@@ -577,7 +577,8 @@ static int quic_test_socketopts(struct listener *l)
 #endif
 	}
 
-	close(fdtest);
+	if (fdtest >= 0)
+		close(fdtest);
 	return ERR_NONE;
 
  err:
