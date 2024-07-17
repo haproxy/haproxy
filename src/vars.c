@@ -64,6 +64,13 @@ static inline struct vars *get_vars(struct session *sess, struct stream *strm, c
 	if (!desc)
 		return NULL;
 
+	if (desc->flags & VDF_PARENT_CTX) {
+		if (!strm || !strm->parent)
+			return NULL;
+		strm = strm->parent;
+		sess = strm_sess(strm);
+	}
+
 	switch (desc->scope) {
 	case SCOPE_PROC:
 		return &proc_vars;
@@ -758,9 +765,6 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp, const str
 	if (!vars_fill_desc(name, len, &desc, NULL))
 		return 0;
 
-	if (desc.flags & VDF_PARENT_CTX)
-		return 0;
-
 	/* Select "vars" pool according with the scope. */
 	vars = get_vars(smp->sess, smp->strm, &desc);
 	if (!vars || vars->scope != desc.scope)
@@ -785,9 +789,6 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp, const str
 int vars_get_by_desc(const struct var_desc *var_desc, struct sample *smp, const struct buffer *def)
 {
 	struct vars *vars;
-
-	if (var_desc->flags & VDF_PARENT_CTX)
-		return 0;
 
 	/* Select "vars" pool according with the scope. */
 	vars = get_vars(smp->sess, smp->strm, var_desc);
