@@ -190,8 +190,10 @@ static inline const EVP_MD *tls_md(const SSL_CIPHER *cipher)
 static inline const EVP_CIPHER *tls_hp(const SSL_CIPHER *cipher)
 {
 	switch (SSL_CIPHER_get_id(cipher)) {
-#if !defined(OPENSSL_IS_AWSLC)
 	case TLS1_3_CK_CHACHA20_POLY1305_SHA256:
+#ifdef QUIC_AEAD_API
+		return (const EVP_CIPHER *) EVP_aead_chacha20_poly1305();
+#else
 		return EVP_chacha20();
 #endif
 	case TLS1_3_CK_AES_128_CCM_SHA256:
