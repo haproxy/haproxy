@@ -54,10 +54,13 @@ struct vars {
 	__decl_thread(HA_RWLOCK_T rwlock);
 };
 
+#define VDF_PARENT_CTX       0x00000001   // Set if the variable is related to the parent stream
+
 /* This struct describes a variable as found in an arg_data */
 struct var_desc {
 	uint64_t name_hash;
 	enum vars_scope scope;
+	uint flags; /*VDF_* */
 };
 
 struct var {

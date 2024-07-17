@@ -250,40 +250,66 @@ static int vars_fill_desc(const char *name, int len, struct var_desc *desc, char
 		return 0;
 	}
 
-	/* Check scope. */
-	if (len > 5 && strncmp(name, "proc.", 5) == 0) {
+	desc->flags = 0;
+
+	/* Check scope including those related to the parent stream (prefixed by ('p'). */
+	if (len > 6 && strncmp(name, "psess.", 6) == 0) {
+		name += 6;
+		len -= 6;
+		desc->scope = SCOPE_SESS;
+		desc->flags |= VDF_PARENT_CTX;
+	}
+	else if (len > 5 && strncmp(name, "ptxn.", 5) == 0) {
 		name += 5;
 		len -= 5;
-		*scope = SCOPE_PROC;
+		desc->scope = SCOPE_TXN;
+		desc->flags |= VDF_PARENT_CTX;
+	}
+	else if (len > 5 && strncmp(name, "preq.", 5) == 0) {
+		name += 5;
+		len -= 5;
+		desc->scope = SCOPE_REQ;
+		desc->flags |= VDF_PARENT_CTX;
+	}
+	else if (len > 5 && strncmp(name, "pres.", 5) == 0) {
+		name += 5;
+		len -= 5;
+		desc->scope = SCOPE_RES;
+		desc->flags |= VDF_PARENT_CTX;
+	}
+	else if (len > 5 && strncmp(name, "proc.", 5) == 0) {
+		name += 5;
+		len -= 5;
+		desc->scope = SCOPE_PROC;
 	}
 	else if (len > 5 && strncmp(name, "sess.", 5) == 0) {
 		name += 5;
 		len -= 5;
-		*scope = SCOPE_SESS;
+		desc->scope = SCOPE_SESS;
 	}
 	else if (len > 4 && strncmp(name, "txn.", 4) == 0) {
 		name += 4;
 		len -= 4;
-		*scope = SCOPE_TXN;
+		desc->scope = SCOPE_TXN;
 	}
 	else if (len > 4 && strncmp(name, "req.", 4) == 0) {
 		name += 4;
 		len -= 4;
-		*scope = SCOPE_REQ;
+		desc->scope = SCOPE_REQ;
 	}
 	else if (len > 4 && strncmp(name, "res.", 4) == 0) {
 		name += 4;
 		len -= 4;
-		*scope = SCOPE_RES;
+		desc->scope = SCOPE_RES;
 	}
 	else if (len > 6 && strncmp(name, "check.", 6) == 0) {
 		name += 6;
 		len -= 6;
-		*scope = SCOPE_CHECK;
+		desc->scope = SCOPE_CHECK;
 	}
 	else {
 		memprintf(err, "invalid variable name '%.*s'. A variable name must be start by its scope. "
-		               "The scope can be 'proc', 'sess', 'txn', 'req', 'res' or 'check'", len, name);
+		               "The scope can be 'proc', '(p)sess', '(p)txn', '(p)req', '(p)res' or 'check'", len, name);
 		return 0;
 	}
 
@@ -375,7 +401,7 @@ int var_set(const struct var_desc *desc, struct sample *smp, uint flags)
 	int ret = 0;
 	int previous_type = SMP_T_ANY;
 
-	if (!desc)
+	if (!desc || (desc->flags & VDF_PARENT_CTX))
 		return 0;
 
 	vars = get_vars(smp->sess, smp->strm, desc->scope);
@@ -529,7 +555,7 @@ int var_unset(const struct var_desc *desc, struct sample *smp)
 	struct var  *var;
 	unsigned int size = 0;
 
-	if (!desc)
+	if (!desc || (desc->flags & VDF_PARENT_CTX))
 		return 0;
 
 	vars = get_vars(smp->sess, smp->strm, desc->scope);
@@ -729,6 +755,9 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp, const str
 	if (!vars_fill_desc(name, len, &desc, NULL))
 		return 0;
 
+	if (desc.flags & VDF_PARENT_CTX)
+		return 0;
+
 	/* Select "vars" pool according with the scope. */
 	vars = get_vars(smp->sess, smp->strm, desc.scope);
 	if (!vars || vars->scope != desc.scope)
@@ -753,6 +782,9 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp, const str
 int vars_get_by_desc(const struct var_desc *var_desc, struct sample *smp, const struct buffer *def)
 {
 	struct vars *vars;
+
+	if (var_desc->flags & VDF_PARENT_CTX)
+		return 0;
 
 	/* Select "vars" pool according with the scope. */
 	vars = get_vars(smp->sess, smp->strm, var_desc->scope);
