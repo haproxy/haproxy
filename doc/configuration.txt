@@ -2044,6 +2044,10 @@ issuers-chain-path <dir>
   "issuers-chain-path" directory. All other certificates with the same issuer
   will share the chain in memory.
 
+  The OCSP features are not able to use the completed chain from
+  'issuers-chain-path', please use an additionnal .issuer file if you want to
+  achieve OCSP stapling.
+
 key-base <dir>
   Assigns a default directory to fetch SSL private keys from when a relative
   path is used with "key" directives. Absolute locations specified prevail and
