@@ -368,21 +368,24 @@ static inline void var_clear_buffer(struct sample *smp, struct vars *vars, struc
  *
  * It returns 0 on failure, non-zero on success.
  */
-int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp, uint flags)
+int var_set(const struct var_desc *desc, struct sample *smp, uint flags)
 {
 	struct vars *vars;
 	struct var *var;
 	int ret = 0;
 	int previous_type = SMP_T_ANY;
 
-	vars = get_vars(smp->sess, smp->strm, scope);
-	if (!vars || vars->scope != scope)
+	if (!desc)
+		return 0;
+
+	vars = get_vars(smp->sess, smp->strm, desc->scope);
+	if (!vars || vars->scope != desc->scope)
 		return 0;
 
 	vars_wrlock(vars);
 
 	/* Look for existing variable name. */
-	var = var_get(vars, name_hash);
+	var = var_get(vars, desc->name_hash);
 
 	if (var) {
 		if (flags & VF_CREATEONLY) {
@@ -405,7 +408,7 @@ int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp, uint 
 		if (!var)
 			goto unlock;
 		LIST_APPEND(&vars->head, &var->l);
-		var->name_hash = name_hash;
+		var->name_hash = desc->name_hash;
 		var->flags = flags & VF_PERMANENT;
 		var->data.type = SMP_T_ANY;
 	}
@@ -520,19 +523,22 @@ int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp, uint 
  * session and stream found in <smp>. Note that stream may be null for
  * SCOPE_SESS. Returns 0 if the scope was not found otherwise 1.
  */
-int var_unset(uint64_t name_hash, enum vars_scope scope, struct sample *smp)
+int var_unset(const struct var_desc *desc, struct sample *smp)
 {
 	struct vars *vars;
 	struct var  *var;
 	unsigned int size = 0;
 
-	vars = get_vars(smp->sess, smp->strm, scope);
-	if (!vars || vars->scope != scope)
+	if (!desc)
+		return 0;
+
+	vars = get_vars(smp->sess, smp->strm, desc->scope);
+	if (!vars || vars->scope != desc->scope)
 		return 0;
 
 	/* Look for existing variable name. */
 	vars_wrlock(vars);
-	var = var_get(vars, name_hash);
+	var = var_get(vars, desc->name_hash);
 	if (var) {
 		size = var_clear(var, 0);
 		var_accounting_diff(vars, smp->sess, smp->strm, -size);
@@ -578,13 +584,13 @@ static int smp_conv_store(const struct arg *args, struct sample *smp, void *priv
 			break;
 	}
 
-	return var_set(args[0].data.var.name_hash, args[0].data.var.scope, smp, conditions);
+	return var_set(&args[0].data.var, smp, conditions);
 }
 
 /* Returns 0 if fails, else returns 1. */
 static int smp_conv_clear(const struct arg *args, struct sample *smp, void *private)
 {
-	return var_unset(args[0].data.var.name_hash, args[0].data.var.scope, smp);
+	return var_unset(&args[0].data.var, smp);
 }
 
 /* This functions check an argument entry and fill it with a variable
@@ -606,7 +612,7 @@ int vars_check_arg(struct arg *arg, char **err)
 	if (!vars_fill_desc(arg->data.str.area, arg->data.str.data, &desc, err))
 		return 0;
 
-	if (desc.scope == SCOPE_PROC && !var_set(desc.name_hash, desc.scope, &empty_smp, VF_CREATEONLY|VF_PERMANENT))
+	if (desc.scope == SCOPE_PROC && !var_set(&desc, &empty_smp, VF_CREATEONLY|VF_PERMANENT))
 		return 0;
 
 	/* properly destroy the chunk */
@@ -632,7 +638,7 @@ int vars_set_by_name_ifexist(const char *name, size_t len, struct sample *smp)
 		return 0;
 
 	/* Variable creation is allowed for all scopes apart from the PROC one. */
-	return var_set(desc.name_hash, desc.scope, smp, (desc.scope == SCOPE_PROC) ? VF_COND_IFEXISTS : 0);
+	return var_set(&desc, smp, (desc.scope == SCOPE_PROC) ? VF_COND_IFEXISTS : 0);
 }
 
 
@@ -647,7 +653,7 @@ int vars_set_by_name(const char *name, size_t len, struct sample *smp)
 	if (!vars_fill_desc(name, len, &desc, NULL))
 		return 0;
 
-	return var_set(desc.name_hash, desc.scope, smp, 0);
+	return var_set(&desc, smp, 0);
 }
 
 /* This function unsets a variable if it was already defined.
@@ -661,7 +667,7 @@ int vars_unset_by_name_ifexist(const char *name, size_t len, struct sample *smp)
 	if (!vars_fill_desc(name, len, &desc, NULL))
 		return 0;
 
-	return var_unset(desc.name_hash, desc.scope, smp);
+	return var_unset(&desc, smp);
 }
 
 
@@ -806,7 +812,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 		smp_set_owner(&smp, px, sess, s, 0);
 		smp.data.type = SMP_T_STR;
 		smp.data.u.str = *fmtstr;
-		var_set(rule->arg.vars.desc.name_hash, rule->arg.vars.desc.scope, &smp, rule->arg.vars.conditions);
+		var_set(&rule->arg.vars.desc, &smp, rule->arg.vars.conditions);
 	}
 	else {
 		/* an expression is used */
@@ -816,7 +822,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 	}
 
 	/* Store the sample, and ignore errors. */
-	var_set(rule->arg.vars.desc.name_hash, rule->arg.vars.desc.scope, &smp, rule->arg.vars.conditions);
+	var_set(&rule->arg.vars.desc, &smp, rule->arg.vars.conditions);
 	free_trash_chunk(fmtstr);
 	return ACT_RET_CONT;
 }
@@ -831,7 +837,7 @@ static enum act_return action_clear(struct act_rule *rule, struct proxy *px,
 	smp_set_owner(&smp, px, sess, s, SMP_OPT_FINAL);
 
 	/* Clear the variable using the sample context, and ignore errors. */
-	var_unset(rule->arg.vars.desc.name_hash, rule->arg.vars.desc.scope, &smp);
+	var_unset(&rule->arg.vars.desc, &smp);
 	return ACT_RET_CONT;
 }
 
@@ -946,7 +952,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 		return ACT_RET_PRS_ERR;
 
 	if (rule->arg.vars.desc.scope == SCOPE_PROC &&
-	    !var_set(rule->arg.vars.desc.name_hash, rule->arg.vars.desc.scope, &empty_smp, VF_CREATEONLY|VF_PERMANENT))
+	    !var_set(&rule->arg.vars.desc, &empty_smp, VF_CREATEONLY|VF_PERMANENT))
 		return 0;
 
 	/* There is no fetch method when variable is unset. Just set the right
