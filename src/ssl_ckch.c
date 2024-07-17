@@ -580,6 +580,7 @@ int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct ckch_data *d
 	EVP_PKEY *key = NULL;
 	HASSL_DH *dh = NULL;
 	STACK_OF(X509) *chain = NULL;
+	struct issuer_chain *issuer_chain = NULL;
 
 	if (buf) {
 		/* reading from a buffer */
@@ -649,11 +650,9 @@ int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct ckch_data *d
 
 	/* If we couldn't find a chain, we should try to look for a corresponding chain in 'issuers-chain-path' */
 	if (chain == NULL) {
-		struct issuer_chain *issuer_chain;
 		issuer_chain = ssl_get0_issuer_chain(cert);
-		if (issuer_chain) {
+		if (issuer_chain)
 			chain = X509_chain_up_ref(issuer_chain->chain);
-		}
 	}
 
 	ret = ERR_get_error();
@@ -684,6 +683,7 @@ int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct ckch_data *d
 	SWAP(data->dh, dh);
 	SWAP(data->cert, cert);
 	SWAP(data->chain, chain);
+	SWAP(data->extra_chain, issuer_chain);
 
 	ret = 0;
 

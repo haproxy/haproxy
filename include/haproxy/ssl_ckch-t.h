@@ -55,6 +55,7 @@ struct ckch_data {
 	struct buffer *ocsp_response;
 	X509 *ocsp_issuer;
 	OCSP_CERTID *ocsp_cid;
+	struct issuer_chain *extra_chain; /* chain from 'issuers-chain-path' */
 };
 
 /* configuration for the ckch_store */
