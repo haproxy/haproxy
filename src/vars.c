@@ -59,9 +59,12 @@ static struct var_set_condition conditions_array[] = {
 /* returns the struct vars pointer for a session, stream and scope, or NULL if
  * it does not exist.
  */
-static inline struct vars *get_vars(struct session *sess, struct stream *strm, enum vars_scope scope)
+static inline struct vars *get_vars(struct session *sess, struct stream *strm, const struct var_desc *desc)
 {
-	switch (scope) {
+	if (!desc)
+		return NULL;
+
+	switch (desc->scope) {
 	case SCOPE_PROC:
 		return &proc_vars;
 	case SCOPE_SESS:
@@ -404,7 +407,7 @@ int var_set(const struct var_desc *desc, struct sample *smp, uint flags)
 	if (!desc || (desc->flags & VDF_PARENT_CTX))
 		return 0;
 
-	vars = get_vars(smp->sess, smp->strm, desc->scope);
+	vars = get_vars(smp->sess, smp->strm, desc);
 	if (!vars || vars->scope != desc->scope)
 		return 0;
 
@@ -558,7 +561,7 @@ int var_unset(const struct var_desc *desc, struct sample *smp)
 	if (!desc || (desc->flags & VDF_PARENT_CTX))
 		return 0;
 
-	vars = get_vars(smp->sess, smp->strm, desc->scope);
+	vars = get_vars(smp->sess, smp->strm, desc);
 	if (!vars || vars->scope != desc->scope)
 		return 0;
 
@@ -759,7 +762,7 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp, const str
 		return 0;
 
 	/* Select "vars" pool according with the scope. */
-	vars = get_vars(smp->sess, smp->strm, desc.scope);
+	vars = get_vars(smp->sess, smp->strm, &desc);
 	if (!vars || vars->scope != desc.scope)
 		return 0;
 
@@ -787,7 +790,7 @@ int vars_get_by_desc(const struct var_desc *var_desc, struct sample *smp, const 
 		return 0;
 
 	/* Select "vars" pool according with the scope. */
-	vars = get_vars(smp->sess, smp->strm, var_desc->scope);
+	vars = get_vars(smp->sess, smp->strm, var_desc);
 
 	/* Check if the scope is available a this point of processing. */
 	if (!vars || vars->scope != var_desc->scope)
@@ -1168,6 +1171,7 @@ static int vars_parse_global_set_var(char **args, int section_type, struct proxy
 static int vars_parse_cli_get_var(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct vars *vars;
+	struct var_desc desc;
 	struct sample smp = { };
 	int i;
 
@@ -1177,8 +1181,11 @@ static int vars_parse_cli_get_var(char **args, char *payload, struct appctx *app
 	if (!*args[2])
 		return cli_err(appctx, "Missing process-wide variable identifier.\n");
 
-	vars = get_vars(NULL, NULL, SCOPE_PROC);
-	if (!vars || vars->scope != SCOPE_PROC)
+	desc.name_hash = 0;
+	desc.scope = SCOPE_PROC;
+	desc.flags = 0;
+	vars = get_vars(NULL, NULL, &desc);
+	if (!vars || vars->scope != desc.scope)
 		return 0;
 
 	if (!vars_get_by_name(args[2], strlen(args[2]), &smp, NULL))
