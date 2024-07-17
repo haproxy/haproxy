@@ -392,6 +392,7 @@ static int spoe_init_appctx(struct appctx *appctx)
 
 	s->do_log = NULL;
 	s->scb->flags |= SC_FL_RCV_ONCE;
+	s->parent = spoe_appctx->spoe_ctx->strm;
 
 	appctx->st0 = SPOE_APPCTX_ST_WAITING_ACK;
 	appctx_wakeup(appctx);
@@ -422,6 +423,7 @@ static void spoe_release_appctx(struct appctx *appctx)
 		return;
 
  	appctx->svcctx = NULL;
+	appctx_strm(appctx)->parent = NULL;
 
 	/* Shutdown the server connection, if needed */
 	if (appctx->st0 != SPOE_APPCTX_ST_END) {
@@ -459,8 +461,6 @@ static int spoe_handle_receiving_frame_appctx(struct appctx *appctx)
 	if (b_data(&appctx->inbuf) > spoe_appctx->agent->max_frame_size) {
 		spoe_ctx->state = SPOE_CTX_ST_ERROR;
 		spoe_ctx->status_code = (spoe_appctx->status_code + 0x100);
-		spoe_ctx->spoe_appctx = NULL;
-		spoe_appctx->spoe_ctx = NULL;
 		spoe_appctx->status_code = SPOP_ERR_TOO_BIG;
 		appctx->st0 = SPOE_APPCTX_ST_EXIT;
 		task_wakeup(spoe_ctx->strm->task, TASK_WOKEN_MSG);
@@ -945,6 +945,7 @@ static inline void spoe_stop_processing(struct spoe_agent *agent, struct spoe_co
 		if (sa->status_code == SPOP_ERR_NONE)
 			sa->status_code = spoe_ctx_err_to_spop_err(ctx->status_code);
 		sa->spoe_ctx = NULL;
+		appctx_strm(sa->owner)->parent = NULL;
 		appctx_wakeup(sa->owner);
 	}
 
