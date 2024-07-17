@@ -13719,14 +13719,47 @@ timeout http-keep-alive <timeout>
   There is also another difference between the two timeouts : when a connection
   expires during timeout http-keep-alive, no error is returned, the connection
   just closes. If the connection expires in "http-request" while waiting for a
-  connection to complete, a HTTP 408 error is returned.
+  request to complete, an HTTP 408 error is returned to the client before
+  closing the connection, unless "option http-ignore-probes" is set in the
+  frontend.
 
-  In general it is optimal to set this value to a few tens to hundreds of
-  milliseconds, to allow users to fetch all objects of a page at once but
-  without waiting for further clicks. Also, if set to a very small value (e.g.
-  1 millisecond) it will probably only accept pipelined requests but not the
-  non-pipelined ones. It may be a nice trade-off for very large sites running
-  with tens to hundreds of thousands of clients.
+  In general "timeout http-keep-alive" is best used to prevent clients from
+  holding open an otherwise idle connection too long on sites seeing large
+  amounts of short connections. This can be accomplished by setting the value
+  to a few tens to hundreds of milliseconds in HTTP/1.1. This will close the
+  connection after the client requests a page without having to hold that
+  connection open to wait for more activity from the client. In that scenario,
+  a new activity from the browser would result in a new handshake at the TCP
+  and/or SSL layer. A common use case for this is HTTP sites serving only a
+  redirect to the HTTPS page. Such connections are better not kept idle too
+  long because they won't be reused, unless maybe to fetch a favicon.
+
+  Another use case is the exact opposite: some sites want to permit clients
+  to reuse idle connections for a long time (e.g. 30 seconds to one minute) but
+  do not want to wait that long for the first request, in order to avoid a very
+  inexpensive attack vector. In this case, the http-keep-alive timeout would be
+  set to a large value, but http-request would remain low (a few seconds).
+
+  When set to a very small value additional requests that are not pipelined
+  are likely going to be handled over another connection unless the requests
+  are truly pipelined, which is very rare with HTTP/1.1 (requests being sent
+  back-to-back without waiting for a response). Most HTTP/1.1 implementations
+  send a request, wait for a response and then send another request. A small
+  value here for HTTP/1.1 may be advantageous to use less memory and sockets
+  for sites with hundreds of thousands of clients, at the expense of an
+  increase in handshake computation costs.
+
+  Special care should be taken with small values when dealing with HTTP/2. The
+  nature of HTTP/2 is to multiplex requests over a connection in order to save
+  on the overhead of reconnecting the TCP and/or SSL layers. The protocol also
+  uses control frames which cope poorly with early TCP connection closures, on
+  very rare occasions this may result in truncated responses when data are
+  destroyed in flight after leaving HAProxy (which then cannot even log an
+  error). A suggested low starting value for HTTP/2 connections would be around
+  4 seconds. This would prevent most modern keep-alive implementations from
+  needlessly holding open stale connections, and at the same time would allow
+  subsequent requests to reuse the connection. However, this should be adjusted
+  as needed and is simply a starting point.
 
   If this parameter is not set, the "http-request" timeout applies, and if both
   are not set, "timeout client" still applies at the lower level. It should be
