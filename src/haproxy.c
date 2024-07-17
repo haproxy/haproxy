@@ -3485,6 +3485,14 @@ int main(int argc, char **argv)
 	clock_adjust_now_offset();
 	ready_date = date;
 
+	/* catch last warnings, which could be produced while adjusting limits
+	 * or preallocating fds
+	 */
+	if (warned & WARN_ANY && global.mode & MODE_ZERO_WARNING) {
+		ha_alert("Some warnings were found and 'zero-warning' is set. Aborting.\n");
+		exit(1);
+	}
+
 	if (global.mode & (MODE_DAEMON | MODE_MWORKER | MODE_MWORKER_WAIT)) {
 		int ret = 0;
 		int in_parent = 0;

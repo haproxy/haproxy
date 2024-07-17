@@ -4176,11 +4176,18 @@ quiet
 
 zero-warning
   When this option is set, HAProxy will refuse to start if any warning was
-  emitted while processing the configuration. It is highly recommended to set
-  this option on configurations that are not changed often, as it helps detect
-  subtle mistakes and keep the configuration clean and forward-compatible. Note
-  that "haproxy -c" will also report errors in such a case. This option is
-  equivalent to command line argument "-dW".
+  emitted while processing the configuration and applying it. It means that
+  warnings about bad combinations of parameters, warnings about very high
+  limits that couldn't be set, and so on, make the process exit with an error
+  during startup. A few late startup warnings cannot be caught by this option,
+  such as the failure to drop supplementary groups when changing the group ID
+  in "daemon" or "master-worker" modes, or the failure to mark the process
+  dumpable after the fork(). This option does not catch warnings emitted at
+  runtime. It is highly recommended to set this option on configurations that
+  are not changed often, as it helps to detect subtle mistakes and keep the
+  configuration clean and forward-compatible. Note that "haproxy -c" will also
+  report errors in such a case. This option is equivalent to command line
+  argument "-dW".
 
 
 3.4. Userlists
