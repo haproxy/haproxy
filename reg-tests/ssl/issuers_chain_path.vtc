@@ -1,0 +1,40 @@
+#REGTEST_TYPE=bug
+# This reg-test checks if the 'issuers-chain-path' work correctly
+#
+varnishtest "Test the issuers-chain-path keyword"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.6)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && openssl_version_atleast(1.1.1)'"
+feature cmd "command -v openssl && command -v socat"
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+        stats socket "${tmpdir}/h1/stats" level admin
+        issuers-chain-path "${testdir}/issuers-chain-path/ca/"
+        crt-base "${testdir}/issuers-chain-path"
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend ssl-fe
+        bind "${tmpdir}/ssl.sock" ssl crt server.pem
+        http-request return status 200
+} -start
+
+
+# We should have two distinct ocsp responses known that were loaded at build time
+haproxy h1 -cli {
+	send "show ssl cert ${testdir}/issuers-chain-path/server.pem"
+	expect ~ ".*Chain Filename.*"
+	send "show ssl cert ${testdir}/issuers-chain-path/server.pem"
+	expect ~ ".*Chain Subject.*"
+}
+
+haproxy h1 -wait
+
