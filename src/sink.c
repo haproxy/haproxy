@@ -569,15 +569,10 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 	if (!appctx)
 		goto out_close;
 	appctx->svcctx = (void *)sft;
-
-	if (appctx_init(appctx) == -1)
-		goto out_free_appctx;
-
+	appctx_wakeup(appctx);
 	return appctx;
 
 	/* Error unrolling */
- out_free_appctx:
-	appctx_free_on_early_error(appctx);
  out_close:
 	return NULL;
 }
