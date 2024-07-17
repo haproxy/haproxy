@@ -170,8 +170,7 @@ struct act_rule {
 		struct {
 			struct lf_expr fmt;         /* log-format compatible expression */
 			struct sample_expr *expr;
-			uint64_t name_hash;
-			enum vars_scope scope;
+			struct var_desc desc;
 			uint conditions;            /* Bitfield of the conditions passed to this set-var call */
 		} vars;
 		struct {
