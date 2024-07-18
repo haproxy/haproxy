@@ -593,9 +593,9 @@ int quic_tls_rx_ctx_init(QUIC_AEAD_CTX **rx_ctx,
 	return 0;
 }
 
-/* Initialize <*aes_ctx> AES cipher context with <key> as key for encryption */
-int quic_tls_enc_aes_ctx_init(EVP_CIPHER_CTX **aes_ctx,
-                              const EVP_CIPHER *aes, unsigned char *key)
+/* Initialize <*hp_ctx> cipher context with <key> as key for header protection encryption */
+int quic_tls_enc_hp_ctx_init(EVP_CIPHER_CTX **hp_ctx,
+                              const EVP_CIPHER *hp, unsigned char *key)
 {
 	EVP_CIPHER_CTX *ctx;
 
@@ -603,10 +603,10 @@ int quic_tls_enc_aes_ctx_init(EVP_CIPHER_CTX **aes_ctx,
 	if (!ctx)
 		return 0;
 
-	if (!EVP_EncryptInit_ex(ctx, aes, NULL, key, NULL))
+	if (!EVP_EncryptInit_ex(ctx, hp, NULL, key, NULL))
 		goto err;
 
-	*aes_ctx = ctx;
+	*hp_ctx = ctx;
 	return 1;
 
  err:
@@ -614,12 +614,12 @@ int quic_tls_enc_aes_ctx_init(EVP_CIPHER_CTX **aes_ctx,
 	return 0;
 }
 
-/* Encrypt <inlen> bytes from <in> buffer into <out> with <ctx> as AES
+/* Encrypt <inlen> bytes from <in> buffer into <out> with <ctx> as
  * cipher context. This is the responsibility of the caller to check there
  * is at least <inlen> bytes of available space in <out> buffer.
  * Return 1 if succeeded, 0 if not.
  */
-int quic_tls_aes_encrypt(unsigned char *out,
+int quic_tls_hp_encrypt(unsigned char *out,
                          const unsigned char *in, size_t inlen,
                          EVP_CIPHER_CTX *ctx)
 {
@@ -633,9 +633,9 @@ int quic_tls_aes_encrypt(unsigned char *out,
 	return 1;
 }
 
-/* Initialize <*aes_ctx> AES cipher context with <key> as key for decryption */
-int quic_tls_dec_aes_ctx_init(EVP_CIPHER_CTX **aes_ctx,
-                              const EVP_CIPHER *aes, unsigned char *key)
+/* Initialize <*hp_ctx> cipher context with <key> as key for header protection decryption */
+int quic_tls_dec_hp_ctx_init(EVP_CIPHER_CTX **hp_ctx,
+                              const EVP_CIPHER *hp, unsigned char *key)
 {
 	EVP_CIPHER_CTX *ctx;
 
@@ -643,10 +643,10 @@ int quic_tls_dec_aes_ctx_init(EVP_CIPHER_CTX **aes_ctx,
 	if (!ctx)
 		return 0;
 
-	if (!EVP_DecryptInit_ex(ctx, aes, NULL, key, NULL))
+	if (!EVP_DecryptInit_ex(ctx, hp, NULL, key, NULL))
 		goto err;
 
-	*aes_ctx = ctx;
+	*hp_ctx = ctx;
 	return 1;
 
  err:
@@ -654,12 +654,12 @@ int quic_tls_dec_aes_ctx_init(EVP_CIPHER_CTX **aes_ctx,
 	return 0;
 }
 
-/* Decrypt <in> data into <out> with <ctx> as AES cipher context.
+/* Decrypt <in> data into <out> with <ctx> as cipher context.
  * This is the responsibility of the caller to check there is at least
  * <outlen> bytes into <in> buffer.
  * Return 1 if succeeded, 0 if not.
  */
-int quic_tls_aes_decrypt(unsigned char *out,
+int quic_tls_hp_decrypt(unsigned char *out,
                          const unsigned char *in, size_t inlen,
                          EVP_CIPHER_CTX *ctx)
 {

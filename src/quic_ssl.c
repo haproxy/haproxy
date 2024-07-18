@@ -217,7 +217,7 @@ static int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t 
 		goto leave;
 	}
 
-	if (!quic_tls_dec_aes_ctx_init(&rx->hp_ctx, rx->hp, rx->hp_key)) {
+	if (!quic_tls_dec_hp_ctx_init(&rx->hp_ctx, rx->hp, rx->hp_key)) {
 		TRACE_ERROR("could not initial RX TLS cipher context for HP", QUIC_EV_CONN_RWSEC, qc);
 		goto leave;
 	}
@@ -260,7 +260,7 @@ write:
 		goto leave;
 	}
 
-	if (!quic_tls_enc_aes_ctx_init(&tx->hp_ctx, tx->hp, tx->hp_key)) {
+	if (!quic_tls_enc_hp_ctx_init(&tx->hp_ctx, tx->hp, tx->hp_key)) {
 		TRACE_ERROR("could not initial TX TLS cipher context for HP", QUIC_EV_CONN_RWSEC, qc);
 		goto leave;
 	}

@@ -1471,13 +1471,13 @@ void quic_apply_header_protection(struct quic_conn *qc, unsigned char *pos,
 	 * and at most 4 bytes for the packet number
 	 */
 	unsigned char mask[5] = {0};
-	EVP_CIPHER_CTX *aes_ctx = tls_ctx->tx.hp_ctx;
+	EVP_CIPHER_CTX *hp_ctx = tls_ctx->tx.hp_ctx;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
 	*fail = 0;
 
-	if (!quic_tls_aes_encrypt(mask, pn + QUIC_PACKET_PN_MAXLEN, sizeof mask, aes_ctx)) {
+	if (!quic_tls_hp_encrypt(mask, pn + QUIC_PACKET_PN_MAXLEN, sizeof mask, hp_ctx)) {
 		TRACE_ERROR("could not apply header protection", QUIC_EV_CONN_TXPKT, qc);
 		*fail = 1;
 		goto out;

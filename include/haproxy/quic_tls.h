@@ -119,14 +119,14 @@ void quic_aead_iv_build(unsigned char *iv, size_t ivlen,
                         unsigned char *aead_iv, size_t aead_ivlen, uint64_t pn);
 
 /* HP protection (AES) */
-int quic_tls_dec_aes_ctx_init(EVP_CIPHER_CTX **aes_ctx,
+int quic_tls_dec_hp_ctx_init(EVP_CIPHER_CTX **aes_ctx,
                               const EVP_CIPHER *aes, unsigned char *key);
-int quic_tls_enc_aes_ctx_init(EVP_CIPHER_CTX **aes_ctx,
+int quic_tls_enc_hp_ctx_init(EVP_CIPHER_CTX **aes_ctx,
                               const EVP_CIPHER *aes, unsigned char *key);
-int quic_tls_aes_decrypt(unsigned char *out,
+int quic_tls_hp_decrypt(unsigned char *out,
                          const unsigned char *in, size_t inlen,
                          EVP_CIPHER_CTX *ctx);
-int quic_tls_aes_encrypt(unsigned char *out,
+int quic_tls_hp_encrypt(unsigned char *out,
                          const unsigned char *in, size_t inlen,
                          EVP_CIPHER_CTX *ctx);
 
@@ -959,7 +959,7 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 	if (!quic_tls_rx_ctx_init(&rx_ctx->ctx, rx_ctx->aead, rx_ctx->key))
 		goto err;
 
-	if (!quic_tls_enc_aes_ctx_init(&rx_ctx->hp_ctx, rx_ctx->hp, rx_ctx->hp_key))
+	if (!quic_tls_enc_hp_ctx_init(&rx_ctx->hp_ctx, rx_ctx->hp, rx_ctx->hp_key))
 		goto err;
 
 	if (!quic_tls_derive_keys(ctx->tx.aead, ctx->tx.hp, ctx->tx.md, ver,
@@ -972,7 +972,7 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 	if (!quic_tls_tx_ctx_init(&tx_ctx->ctx, tx_ctx->aead, tx_ctx->key))
 		goto err;
 
-	if (!quic_tls_enc_aes_ctx_init(&tx_ctx->hp_ctx, tx_ctx->hp, tx_ctx->hp_key))
+	if (!quic_tls_enc_hp_ctx_init(&tx_ctx->hp_ctx, tx_ctx->hp, tx_ctx->hp_key))
 		goto err;
 
 	TRACE_LEAVE(QUIC_EV_CONN_ISEC, qc, rx_init_sec, tx_init_sec);
