@@ -81,26 +81,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "expose-experimental-directives") == 0) {
 		experimental_directives_allowed = 1;
 	}
-	else if (strcmp(args[0], "noepoll") == 0) {
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		global.tune.options &= ~GTUNE_USE_EPOLL;
-	}
-	else if (strcmp(args[0], "nokqueue") == 0) {
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		global.tune.options &= ~GTUNE_USE_KQUEUE;
-	}
-	else if (strcmp(args[0], "noevports") == 0) {
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		global.tune.options &= ~GTUNE_USE_EVPORTS;
-	}
-	else if (strcmp(args[0], "nopoll") == 0) {
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		global.tune.options &= ~GTUNE_USE_POLL;
-	}
 	else if (strcmp(args[0], "limited-quic") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
@@ -1443,6 +1423,34 @@ static int cfg_parse_global_mode(char **args, int section_type,
 	return 0;
 }
 
+/* Disable certain poller if set */
+static int cfg_parse_global_disable_poller(char **args, int section_type,
+					   struct proxy *curpx, const struct proxy *defpx,
+					   const char *file, int line, char **err)
+{
+	if (too_many_args(0, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[0], "noepoll") == 0) {
+		global.tune.options &= ~GTUNE_USE_EPOLL;
+
+	} else if (strcmp(args[0], "nokqueue") == 0) {
+		global.tune.options &= ~GTUNE_USE_KQUEUE;
+
+	} else if (strcmp(args[0], "noevports") == 0) {
+		global.tune.options &= ~GTUNE_USE_EVPORTS;
+
+	} else if (strcmp(args[0], "nopoll") == 0) {
+		global.tune.options &= ~GTUNE_USE_POLL;
+
+	} else {
+		BUG_ON(1, "Triggered in cfg_parse_global_disable_poller() by unsupported keyword.\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "prealloc-fd", cfg_parse_prealloc_fd },
 	{ CFG_GLOBAL, "harden.reject-privileged-ports.tcp",  cfg_parse_reject_privileged_ports },
@@ -1451,6 +1459,10 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "daemon", cfg_parse_global_mode } ,
 	{ CFG_GLOBAL, "quiet", cfg_parse_global_mode },
 	{ CFG_GLOBAL, "zero-warning", cfg_parse_global_mode },
+	{ CFG_GLOBAL, "noepoll", cfg_parse_global_disable_poller },
+	{ CFG_GLOBAL, "nokqueue", cfg_parse_global_disable_poller },
+	{ CFG_GLOBAL, "noevports", cfg_parse_global_disable_poller },
+	{ CFG_GLOBAL, "nopoll", cfg_parse_global_disable_poller },
 	{ 0, NULL, NULL },
 }};
 
