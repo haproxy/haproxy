@@ -4954,8 +4954,8 @@ static int srv_iterate_initaddr(struct server *srv)
 		case SRV_IADDR_IP:
 			_srv_set_inetaddr(srv, &srv->init_addr);
 			if (return_code) {
-				ha_warning("could not resolve address '%s', falling back to configured address.\n",
-					   name);
+				ha_notice("could not resolve address '%s', falling back to configured address.\n",
+					  name);
 			}
 			goto out;
 
