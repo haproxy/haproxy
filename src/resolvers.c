@@ -836,7 +836,7 @@ static void resolv_check_response(struct resolv_resolution *res)
 
 				/* convert the key to lookup in lower case */
 				for (i = 0 ; item->data.target[i] ; i++)
-					target[i] = tolower(item->data.target[i]);
+					target[i] = tolower((unsigned char)item->data.target[i]);
 				target[i] = 0;
 
 				node = ebis_lookup(&srvrq->named_servers, target);
@@ -1810,7 +1810,7 @@ int resolv_dn_label_to_str(const char *dn, int dn_len, char *str, int str_len)
 			*ptr++ = '.';
 		/* copy the string at i+1 to lower case */
 		for (; sz > 0; sz--)
-			*(ptr++) = tolower(dn[++i]);
+			*(ptr++) = tolower((unsigned char)dn[++i]);
 	}
 	*ptr++ = '\0';
 	return (ptr - str);
@@ -1850,7 +1850,7 @@ int resolv_str_to_dn_label(const char *str, int str_len, char *dn, int dn_len)
 			offset = i+1;
 			continue;
 		}
-		dn[i+1] = tolower(str[i]);
+		dn[i+1] = tolower((unsigned char)str[i]);
 	}
 	dn[offset] = i - offset;
 	dn[i+1] = '\0';

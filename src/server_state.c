@@ -422,7 +422,7 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 		 * lookup is case sensitive but we don't care
 		 */
 		for (i = 0; tmp[i]; i++)
-			tmp[i] = tolower(tmp[i]);
+			tmp[i] = tolower((unsigned char)tmp[i]);
 
 		/* insert in tree and set the srvrq expiration date */
 		ebis_insert(&srv->srvrq->named_servers, &srv->host_dn);

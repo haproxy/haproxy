@@ -177,8 +177,8 @@ enum uri_normalizer_err uri_normalizer_percent_upper(const struct ist input, int
 			if (istlen(scanner) >= 2) {
 				if (ishex(istptr(scanner)[0]) && ishex(istptr(scanner)[1])) {
 					output = __istappend(output, current);
-					output = __istappend(output, toupper(istshift(&scanner)));
-					output = __istappend(output, toupper(istshift(&scanner)));
+					output = __istappend(output, toupper((unsigned char)istshift(&scanner)));
+					output = __istappend(output, toupper((unsigned char)istshift(&scanner)));
 					continue;
 				}
 			}

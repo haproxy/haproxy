@@ -1192,7 +1192,7 @@ static inline void update_char_fingerprint(uint8_t *fp, char prev, char curr)
 	switch (prev) {
 	case 0:         from = 28; break; // begin
 	case 'a'...'z': from = prev - 'a' + 1; break;
-	case 'A'...'Z': from = tolower(prev) - 'a' + 1; break;
+	case 'A'...'Z': from = tolower((unsigned char)prev) - 'a' + 1; break;
 	case '0'...'9': from = 27; break;
 	default:        from = 28; break;
 	}
@@ -1200,7 +1200,7 @@ static inline void update_char_fingerprint(uint8_t *fp, char prev, char curr)
 	switch (curr) {
 	case 0:         to = 28; break; // end
 	case 'a'...'z': to = curr - 'a' + 1; break;
-	case 'A'...'Z': to = tolower(curr) - 'a' + 1; break;
+	case 'A'...'Z': to = tolower((unsigned char)curr) - 'a' + 1; break;
 	case '0'...'9': to = 27; break;
 	default:        to = 28; break;
 	}

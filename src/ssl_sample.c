@@ -1484,7 +1484,7 @@ smp_fetch_ssl_fc_ec(const struct arg *args, struct sample *smp, const char *kw, 
 		int i;
 
 		for (i = 0; curve_name[i]; i++)
-			curve_name[i] = toupper(curve_name[i]);
+			curve_name[i] = toupper((unsigned char)curve_name[i]);
 	}
 # else
 	nid = SSL_get_negotiated_group(ssl);

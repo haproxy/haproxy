@@ -345,7 +345,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 sni_lookup:
 	/* we need to transform this a NULL-ended string in lowecase */
 	for (i = 0; i < trash.size && i < servername_len; i++)
-		trash.area[i] = tolower(servername[i]);
+		trash.area[i] = tolower((unsigned char)servername[i]);
 	trash.area[i] = 0;
 
 	HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
@@ -630,7 +630,7 @@ sni_lookup:
 
 	/* we need to transform this into a NULL-ended string in lowecase */
 	for (i = 0; i < trash.size && servername[i] != '\0'; i++)
-		trash.area[i] = tolower(servername[i]);
+		trash.area[i] = tolower((unsigned char)servername[i]);
 	trash.area[i] = 0;
 	servername = trash.area;
 
