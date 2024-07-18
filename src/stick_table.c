@@ -3966,7 +3966,7 @@ smp_fetch_sc_inc_gpc(const struct arg *args, struct sample *smp, const char *kw,
 	smp->data.u.sint = 0;
 
 	if (!stkctr_entry(stkctr))
-		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
 
 	if (stkctr && stkctr_entry(stkctr)) {
 		void *ptr1,*ptr2;
