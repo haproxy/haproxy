@@ -41,6 +41,9 @@ enum act_from {
 	ACT_F_TCP_CHK,     /* tcp-check. */
 	ACT_F_CFG_PARSER,  /* config parser */
 	ACT_F_CLI_PARSER,  /* command line parser */
+#ifdef USE_QUIC
+	ACT_F_QUIC_INIT,   /* quic-initial */
+#endif
 };
 
 enum act_return {

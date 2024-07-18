@@ -307,6 +307,9 @@ struct proxy {
 		unsigned int inspect_delay;     /* inspection delay */
 		struct list inspect_rules;      /* inspection rules */
 	} tcp_rep;
+#ifdef USE_QUIC
+	struct list quic_init_rules;		/* quic-initial rules */
+#endif
 	struct server *srv, defsrv;		/* known servers; default server configuration */
 	struct lbprm lbprm;			/* load-balancing parameters */
 	int srv_act, srv_bck;			/* # of servers eligible for LB (UP|!checked) AND (enabled+weight!=0) */

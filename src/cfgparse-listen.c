@@ -67,6 +67,19 @@ static const char *common_options[] = {
 	NULL /* must be last */
 };
 
+/* Report a warning if a rule is placed after a 'tcp-request connection' rule.
+ * Return 1 if the warning has been emitted, otherwise 0.
+ */
+int warnif_rule_after_tcp_conn(struct proxy *proxy, const char *file, int line, const char *arg)
+{
+	if (!LIST_ISEMPTY(&proxy->tcp_req.l4_rules)) {
+		ha_warning("parsing [%s:%d] : a '%s' rule placed after a 'tcp-request connection' rule will still be processed before.\n",
+			   file, line, arg);
+		return 1;
+	}
+	return 0;
+}
+
 /* Report a warning if a rule is placed after a 'tcp-request session' rule.
  * Return 1 if the warning has been emitted, otherwise 0.
  */
@@ -198,6 +211,12 @@ int warnif_misplaced_tcp_conn(struct proxy *proxy, const char *file, int line, c
 {
 	return	warnif_rule_after_tcp_sess(proxy, file, line, arg) ||
 		warnif_misplaced_tcp_sess(proxy, file, line, arg);
+}
+
+int warnif_misplaced_quic_init(struct proxy *proxy, const char *file, int line, const char *arg)
+{
+	return warnif_rule_after_tcp_conn(proxy, file, line, arg) ||
+	       warnif_misplaced_tcp_conn(proxy, file, line, arg);
 }
 
 int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)

@@ -22,6 +22,7 @@
 #include <haproxy/quic_cid.h>
 #include <haproxy/quic_retransmit.h>
 #include <haproxy/quic_retry.h>
+#include <haproxy/quic_rules.h>
 #include <haproxy/quic_sock.h>
 #include <haproxy/quic_stream.h>
 #include <haproxy/quic_ssl.h>
@@ -1605,8 +1606,15 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				if (!quic_retry_token_check(pkt, dgram, l, qc, &token_odcid))
 					goto err;
 			}
-			else if ((l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) ||
-			         HA_ATOMIC_LOAD(&prx_counters->half_open_conn) >= global.tune.quic_retry_threshold) {
+
+			if (!quic_init_exec_rules(l)) {
+				TRACE_USER("drop datagram on quic-initial rules", QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+				goto err;
+			}
+
+			if (!pkt->token_len &&
+			    ((l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) ||
+			     HA_ATOMIC_LOAD(&prx_counters->half_open_conn) >= global.tune.quic_retry_threshold)) {
 
 				TRACE_PROTO("Initial without token, sending retry",
 				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);

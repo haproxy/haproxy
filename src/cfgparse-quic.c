@@ -2,13 +2,15 @@
 #include <string.h>
 #include <netinet/udp.h>
 
+#include <haproxy/action.h>
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/listener.h>
-#include <haproxy/proxy-t.h>
+#include <haproxy/proxy.h>
 #include <haproxy/quic_cc-t.h>
+#include <haproxy/quic_rules.h>
 #include <haproxy/tools.h>
 
 #define QUIC_CC_NEWRENO_STR "newreno"
@@ -338,3 +340,78 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 }};
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
+static int quic_parse_quic_initial(char **args, int section_type, struct proxy *curpx,
+                                   const struct proxy *defpx, const char *file, int line,
+                                   char **err)
+{
+	struct act_rule *rule;
+	struct action_kw *kw;
+	int arg = 1;
+
+	if (curpx == defpx && strlen(defpx->id) == 0) {
+		memprintf(err, "%s is not allowed in anonymous 'defaults' sections",
+			  args[0]);
+		return -1;
+	}
+
+	if (!(curpx->cap & PR_CAP_FE)) {
+		memprintf(err, "'%s' : proxy '%s' has no frontend capability",
+		          args[0], curpx->id);
+		return -1;
+	}
+
+	if (!(curpx->mode & PR_MODE_HTTP)) {
+		memprintf(err, "'%s' : proxy '%s' does not used HTTP mode",
+		          args[0], curpx->id);
+		return -1;
+	}
+
+	rule = new_act_rule(0, file, line);
+	if (!rule) {
+		memprintf(err, "parsing [%s:%d] : out of memory", file, line);
+		return -1;
+	}
+
+	LIST_INIT(&rule->list);
+	rule->from = ACT_F_QUIC_INIT;
+
+	kw = action_quic_init_custom(args[1]);
+	if (kw) {
+		rule->kw = kw;
+		arg++;
+
+		if (kw->parse((const char **)args, &arg, curpx, rule, err) == ACT_RET_PRS_ERR)
+			goto err;
+	}
+	else {
+		const char *best = action_suggest(args[1], &quic_init_actions_list.list, NULL);
+
+		action_build_list(&quic_init_actions_list.list, &trash);
+		memprintf(err, "'quic-initial' expects %s, but got '%s'%s.%s%s%s",
+		          trash.area,
+		          args[1], *args[1] ? "" : " (missing argument)",
+		          best ? " Did you mean '" : "",
+		          best ? best : "",
+		          best ? "' maybe ?" : "");
+		goto err;
+	}
+
+	/* the following function directly emits the warning */
+	warnif_misplaced_quic_init(curpx, file, line, args[0]);
+
+	LIST_APPEND(&curpx->quic_init_rules, &rule->list);
+
+	return 0;
+
+ err:
+	free_act_rule(rule);
+	return -1;
+}
+
+static struct cfg_kw_list cfg_kws_li = {ILH, {
+	{ CFG_LISTEN, "quic-initial",  quic_parse_quic_initial },
+	{ 0, NULL, NULL },
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws_li);

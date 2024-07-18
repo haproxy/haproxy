@@ -120,6 +120,7 @@ void cfg_restore_sections(struct list *backup_sections);
 int warnif_misplaced_tcp_conn(struct proxy *proxy, const char *file, int line, const char *arg);
 int warnif_misplaced_tcp_sess(struct proxy *proxy, const char *file, int line, const char *arg);
 int warnif_misplaced_tcp_cont(struct proxy *proxy, const char *file, int line, const char *arg);
+int warnif_misplaced_quic_init(struct proxy *proxy, const char *file, int line, const char *arg);
 int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where, const char *file, int line);
 int warnif_tcp_http_cond(const struct proxy *px, const struct acl_cond *cond);
 int too_many_args_idx(int maxarg, int index, char **args, char **msg, int *err_code);
