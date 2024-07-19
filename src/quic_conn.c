@@ -755,6 +755,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	st = qc->state;
 	TRACE_PROTO("connection state", QUIC_EV_CONN_IO_CB, qc, &st);
 
+	/* TASK_HEAVY is set when received CRYPTO data have to be handled. */
 	if (HA_ATOMIC_LOAD(&tl->state) & TASK_HEAVY) {
 		qc_ssl_provide_all_quic_data(qc, qc->xprt_ctx);
 		HA_ATOMIC_AND(&tl->state, ~TASK_HEAVY);
@@ -773,6 +774,16 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 
 	if (!qc_treat_rx_pkts(qc))
 		goto out;
+
+	/* TASK_HEAVY is set when received CRYPTO data have to be handled. These data
+	 * must be acknowledged asap and replied to with others CRYPTO data. In this
+	 * case, it is more optimal to delay the ACK to send it with the CRYPTO data
+	 * from the same datagram.
+	 */
+	if (HA_ATOMIC_LOAD(&tl->state) & TASK_HEAVY) {
+		tasklet_wakeup(tl);
+		goto out;
+	}
 
 	if (qc->flags & QUIC_FL_CONN_TO_KILL) {
 		TRACE_DEVEL("connection to be killed", QUIC_EV_CONN_PHPKTS, qc);
