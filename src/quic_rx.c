@@ -1605,8 +1605,9 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				if (!quic_retry_token_check(pkt, dgram, l, qc, &token_odcid))
 					goto err;
 			}
-			else if (!(l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) &&
+			else if ((l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) ||
 			         HA_ATOMIC_LOAD(&prx_counters->half_open_conn) >= global.tune.quic_retry_threshold) {
+
 				TRACE_PROTO("Initial without token, sending retry",
 				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
 				if (send_retry(l->rx.fd, &dgram->saddr, pkt, pkt->version)) {
@@ -1797,24 +1798,6 @@ static int quic_rx_pkt_parse(struct quic_rx_packet *pkt,
 				TRACE_PROTO("Packet dropped",
 				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
 				goto drop;
-			}
-
-			/* TODO Retry should be automatically activated if
-			 * suspect network usage is detected.
-			 */
-			if (!token_len) {
-				if (l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) {
-					TRACE_PROTO("Initial without token, sending retry",
-					            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
-					if (send_retry(l->rx.fd, &dgram->saddr, pkt, pkt->version)) {
-						TRACE_PROTO("Error during Retry generation",
-						            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
-						goto drop_silent;
-					}
-
-					HA_ATOMIC_INC(&prx_counters->retry_sent);
-					goto drop_silent;
-				}
 			}
 
 			pkt->token = pos;
