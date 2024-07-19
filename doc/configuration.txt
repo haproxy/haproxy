@@ -45,7 +45,8 @@ Summary
 2.5.      Time format
 2.6.      Size format
 2.7.      Name format for maps and ACLs
-2.8.      Examples
+2.8.      Variables
+2.9.      Examples
 
 3.    Global parameters
 3.1.      Process management and security
@@ -1189,7 +1190,66 @@ Note: Even if it is unlikely, it means no regular file starting with "file@",
       front of the filename (for instance "file@./virt@map").
 
 
-2.8. Examples
+2.8. Variables
+--------------
+
+In HAProxy configuration, variables can be used in sample fetch functions,
+converters, log-format strings or TCP/HTTP actions. Process-wide variables can
+be defined, globally accessible for the whole life of the process. Some others
+have a shorter lifespan. Variables are similar to those found in shell
+scripts. It is a symbolic name for a chunk of memory. The variables size is not
+limited and is dynamically allocated. So they must be used with caution,
+especially for an intensive usage. However, it is possible to limit the maximum
+amount of memory used by the variables by setting "tune.vars" global parameters.
+
+Variables must be designated using the format "<scope>.<name>". The <scope> is
+a single word indicating the life time of the variable. The <name> part, inside
+a scope, may only contain characters 'a-z', 'A-Z', '0-9' and '_'. It is unique
+in this scope but the same name in different scopes can be used and refers to
+different variables. Supported scopes are:
+
+  * proc  : for variables known during the whole process lifespan and globally
+            accessible. "proc" variables can be manipulated from the CLI using
+            "get var" and "set var" commands. They can also be set from
+            "global" sections via "set-var" and "set-var-fmt" directives.
+
+  * sess  : for variables known during the whole lifespan of a session. "sess"
+            variables are private to a session, not visbile from outside it and
+            not shared with other sessions.
+
+  * txn   : for variables known during the whole lifespan of a transaction. "txn"
+            variables are private to a stream, not visible from outside it and
+            not shared with other streams.
+
+  * req   : for variables known during the request processing for a specific
+            stream. "req" variables are visible from the stream creation and
+            until the first server connection attempt. They are private to a
+            stream, not visible from outside it and not shared with other
+            streams. There is no overlap at all between "req" and "res"
+            variables.
+
+  * res   : for variables known during the response processing for a specific
+            stream. "res" variables are visible from the first server
+            connection attempt and until the stream destruction. They are
+            private to a stream, not visible from outside it and not shared
+            with other streams. There is no overlap at all between "req" and
+            "res" variables.
+
+  * check : for variables known during a health-check execution. "check"
+            variables are private to a health-check, not visible from outside
+            it and are not shared with other health-checks. They can be set
+            using dedicated "tcp-check" or "http-check" directives.
+
+The content of a variable is the result of the evaluation of a sample fetch
+expression and it inherits of the output type of this expression. It is
+important when the variable is used because its type must be compatible with
+its usage. For instance a variable containing a string used in "add()"
+converter must be convertible to a valid integer to succeed. It is especially
+true when variables are compared to static value. The right matching method
+must be used.
+
+
+2.9. Examples
 -------------
 
     # Simple configuration for an HTTP proxy listening on port 80 on all
@@ -7641,14 +7701,8 @@ http-check set-var-fmt(<var-name>[,<cond>...]) <fmt>
                                yes    |    no    |   yes  |   yes
 
   Arguments :
-    <var-name>  The name of the variable starts with an indication about its
-                scope. The scopes allowed for http-check are:
-                  "proc" : the variable is shared with the whole process.
-                  "sess" : the variable is shared with the tcp-check session.
-                  "check": the variable is declared for the lifetime of the tcp-check.
-                This prefix is followed by a name. The separator is a '.'.
-                The name may only contain characters 'a-z', 'A-Z', '0-9', '.',
-                and '-'.
+   <var-name>   The name of the variable. Only "proc", "sess" and "check"
+                scopes can be used. See section 2.8 about variables for details.
 
     <cond>      A set of conditions that must all be true for the variable to
                 actually be set (such as "ifnotempty", "ifgt" ...). See the
@@ -7674,14 +7728,8 @@ http-check unset-var(<var-name>)
                                yes    |    no    |   yes  |   yes
 
   Arguments :
-    <var-name>  The name of the variable starts with an indication about its
-                scope. The scopes allowed for http-check are:
-                  "proc" : the variable is shared with the whole process.
-                  "sess" : the variable is shared with the tcp-check session.
-                  "check": the variable is declared for the lifetime of the tcp-check.
-                This prefix is followed by a name. The separator is a '.'.
-                The name may only contain characters 'a-z', 'A-Z', '0-9', '.',
-                and '-'.
+   <var-name>   The name of the variable. Only "proc", "sess" and "check"
+                scopes can be used. See section 2.8 about variables for details.
 
   Examples :
         http-check unset-var(check.port)
@@ -13035,14 +13083,8 @@ tcp-check set-var-fmt(<var-name>[,<cond>...]) <fmt>
                                yes    |    no    |   yes  |   yes
 
   Arguments :
-    <var-name>  The name of the variable starts with an indication about its
-                scope. The scopes allowed for tcp-check are:
-                  "proc" : the variable is shared with the whole process.
-                  "sess" : the variable is shared with the tcp-check session.
-                  "check": the variable is declared for the lifetime of the tcp-check.
-                This prefix is followed by a name. The separator is a '.'.
-                The name may only contain characters 'a-z', 'A-Z', '0-9', '.',
-                and '-'.
+   <var-name>   The name of the variable. Only "proc", "sess" and "check"
+                scopes can be used. See section 2.8 about variables for details.
 
     <cond>      A set of conditions that must all be true for the variable to
                 actually be set (such as "ifnotempty", "ifgt" ...). See the
@@ -13068,14 +13110,8 @@ tcp-check unset-var(<var-name>)
                                yes    |    no    |   yes  |   yes
 
   Arguments :
-    <var-name>  The name of the variable starts with an indication about its
-                scope. The scopes allowed for tcp-check are:
-                  "proc" : the variable is shared with the whole process.
-                  "sess" : the variable is shared with the tcp-check session.
-                  "check": the variable is declared for the lifetime of the tcp-check.
-                This prefix is followed by a name. The separator is a '.'.
-                The name may only contain characters 'a-z', 'A-Z', '0-9', '.',
-                and '-'.
+   <var-name>   The name of the variable. Only "proc", "sess" and "check"
+                scopes can be used. See section 2.8 about variables for details.
 
   Examples :
     tcp-check unset-var(check.port)
@@ -15581,19 +15617,8 @@ set-var-fmt(<var-name>[,<cond>...]) <fmt>
   inline.
 
   Arguments:
-    <var-name>  The name of the variable starts with an indication about its
-                scope. The scopes allowed are:
-                  "proc" : the variable is shared with the whole process
-                  "sess" : the variable is shared with the whole session
-                  "txn"  : the variable is shared with the transaction
-                           (request and response)
-                  "req"  : the variable is shared only during request
-                           processing
-                  "res"  : the variable is shared only during response
-                           processing
-                This prefix is followed by a name. The separator is a '.'.
-                The name may only contain characters 'a-z', 'A-Z', '0-9'
-                and '_'.
+   <var-name>   The name of the variable. Variable of the parent stream cannot
+                be set. See section 2.8 about variables for details.
 
     <cond>      A set of conditions that must all be true for the variable to
                 actually be set (such as "ifnotempty", "ifgt" ...). See the
@@ -19335,15 +19360,7 @@ The detailed list of converter keywords follows:
 add(<value>)
   Adds <value> to the input value of type signed integer, and returns the
   result as a signed integer. <value> can be a numeric value or a variable
-  name. The name of the variable starts with an indication about its scope. The
-  scopes allowed are:
-    "proc" : the variable is shared with the whole process
-    "sess" : the variable is shared with the whole session
-    "txn"  : the variable is shared with the transaction (request and response)
-    "req"  : the variable is shared only during request processing
-    "res"  : the variable is shared only during response processing
-  This prefix is followed by a name. The separator is a '.'. The name may only
-  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+  name. See section 2.8 about variables for details.
 
 add_item(<delim>,[<var>][,<suff>]])
   Concatenates a minimum of 2 and up to 3 fields after the current sample which
@@ -19402,15 +19419,7 @@ aes_gcm_enc(<bits>,<nonce>,<key>,<aead_tag>)
 and(<value>)
   Performs a bitwise "AND" between <value> and the input value of type signed
   integer, and returns the result as an signed integer. <value> can be a
-  numeric value or a variable name. The name of the variable starts with an
-  indication about its scope. The scopes allowed are:
-    "proc" : the variable is shared with the whole process
-    "sess" : the variable is shared with the whole session
-    "txn"  : the variable is shared with the transaction (request and response)
-    "req"  : the variable is shared only during request processing
-    "res"  : the variable is shared only during response processing
-  This prefix is followed by a name. The separator is a '.'. The name may only
-  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+  numeric value or a variable name. See section 2.8 about variables for details.
 
 b64dec
   Converts (decodes) a base64 encoded input string to its binary
@@ -19597,15 +19606,7 @@ div(<value>)
   Divides the input value of type signed integer by <value>, and returns the
   result as an signed integer. If <value> is null, the largest unsigned
   integer is returned (typically 2^63-1). <value> can be a numeric value or a
-  variable name. The name of the variable starts with an indication about its
-  scope. The scopes allowed are:
-    "proc" : the variable is shared with the whole process
-    "sess" : the variable is shared with the whole session
-    "txn"  : the variable is shared with the transaction (request and response)
-    "req"  : the variable is shared only during request processing
-    "res"  : the variable is shared only during response processing
-  This prefix is followed by a name. The separator is a '.'. The name may only
-  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+  variable name. See section 2.8 about variables for details.
 
 djb2([<avalanche>])
   Hashes a binary input sample into an unsigned 32-bit quantity using the DJB2
@@ -20027,15 +20028,8 @@ map_<match_type>_<output_type>(<map_name>[,<default_value>])
 mod(<value>)
   Divides the input value of type signed integer by <value>, and returns the
   remainder as an signed integer. If <value> is null, then zero is returned.
-  <value> can be a numeric value or a variable name. The name of the variable
-  starts with an indication about its scope. The scopes allowed are:
-    "proc" : the variable is shared with the whole process
-    "sess" : the variable is shared with the whole session
-    "txn"  : the variable is shared with the transaction (request and response)
-    "req"  : the variable is shared only during request processing
-    "res"  : the variable is shared only during response processing
-  This prefix is followed by a name. The separator is a '.'. The name may only
-  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+  <value> can be a numeric value or a variable name. See section 2.8 about
+  variables for details.
 
 mqtt_field_value(<packettype>,<fieldname_or_property_ID>)
   Returns value of <fieldname> found in input MQTT payload of type
@@ -20180,15 +20174,8 @@ mul(<value>)
   Multiplies the input value of type signed integer by <value>, and returns
   the product as an signed integer. In case of overflow, the largest possible
   value for the sign is returned so that the operation doesn't wrap around.
-  <value> can be a numeric value or a variable name. The name of the variable
-  starts with an indication about its scope. The scopes allowed are:
-    "proc" : the variable is shared with the whole process
-    "sess" : the variable is shared with the whole session
-    "txn"  : the variable is shared with the transaction (request and response)
-    "req"  : the variable is shared only during request processing
-    "res"  : the variable is shared only during response processing
-  This prefix is followed by a name. The separator is a '.'. The name may only
-  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+  <value> can be a numeric value or a variable name. See section 2.8 about
+  variables for details.
 
 nbsrv
   Takes an input value of type string, interprets it as a backend name and
@@ -20215,15 +20202,7 @@ odd
 or(<value>)
   Performs a bitwise "OR" between <value> and the input value of type signed
   integer, and returns the result as an signed integer. <value> can be a
-  numeric value or a variable name. The name of the variable starts with an
-  indication about its scope. The scopes allowed are:
-    "proc" : the variable is shared with the whole process
-    "sess" : the variable is shared with the whole session
-    "txn"  : the variable is shared with the transaction (request and response)
-    "req"  : the variable is shared only during request processing
-    "res"  : the variable is shared only during response processing
-  This prefix is followed by a name. The separator is a '.'. The name may only
-  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+  numeric value or a variable name. See section 2.8 about variables for details.
 
 param(<name>,[<delim>])
   This extracts the first occurrence of the parameter <name> in the input string
@@ -20417,16 +20396,7 @@ set-var(<var>[,<cond>...])
   Sets a variable with the input content and returns the content on the output
   as-is if all of the specified conditions are true (see below for a list of
   possible conditions). The variable keeps the value and the associated input
-  type. The name of the variable starts with an indication about its scope. The
-  scopes allowed are:
-    "proc" : the variable is shared with the whole process
-    "sess" : the variable is shared with the whole session
-    "txn"  : the variable is shared with the transaction (request and
-             response),
-    "req"  : the variable is shared only during request processing,
-    "res"  : the variable is shared only during response processing.
-  This prefix is followed by a name. The separator is a '.'. The name may only
-  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+  type. See section 2.8 about variables for details.
 
   You can pass at most four conditions to the converter among the following
   possible conditions :
@@ -20494,16 +20464,7 @@ sub(<value>)
   Subtracts <value> from the input value of type signed integer, and returns
   the result as an signed integer. Note: in order to subtract the input from
   a constant, simply perform a "neg,add(value)". <value> can be a numeric value
-  or a variable name. The name of the variable starts with an indication about
-  its scope. The scopes allowed are:
-    "proc" : the variable is shared with the whole process
-    "sess" : the variable is shared with the whole session
-    "txn"  : the variable is shared with the transaction (request and
-             response),
-    "req"  : the variable is shared only during request processing,
-    "res"  : the variable is shared only during response processing.
-  This prefix is followed by a name. The separator is a '.'. The name may only
-  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+  or a variable name. See section 2.8 about variables for details.
 
 table_bytes_in_rate(<table>)
   Uses the string representation of the input sample to perform a look up in
@@ -20822,15 +20783,8 @@ ungrpc(<field_number>,[<field_type>])
 
 unset-var(<var>)
   Unsets a variable if the input content is defined. The name of the variable
-  starts with an indication about its scope. The scopes allowed are:
-    "proc" : the variable is shared with the whole process
-    "sess" : the variable is shared with the whole session
-    "txn"  : the variable is shared with the transaction (request and
-             response),
-    "req"  : the variable is shared only during request processing,
-    "res"  : the variable is shared only during response processing.
-  This prefix is followed by a name. The separator is a '.'. The name may only
-  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+  starts with an indication about its scope. See section 2.8 about variables
+  for details.
 
 upper
   Convert a string sample to upper case. This can only be placed after a string
@@ -20977,16 +20931,8 @@ x509_v_err_str
 xor(<value>)
   Performs a bitwise "XOR" (exclusive OR) between <value> and the input value
   of type signed integer, and returns the result as an signed integer.
-  <value> can be a numeric value or a variable name. The name of the variable
-  starts with an indication about its scope. The scopes allowed are:
-    "proc" : the variable is shared with the whole process
-    "sess" : the variable is shared with the whole session
-    "txn"  : the variable is shared with the transaction (request and
-             response),
-    "req"  : the variable is shared only during request processing,
-    "res"  : the variable is shared only during response processing.
-  This prefix is followed by a name. The separator is a '.'. The name may only
-  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+  <value> can be a numeric value or a variable name. See section 2.8 about
+  variables for details.
 
 xxh3([<seed>])
   Hashes a binary input sample into a signed 64-bit quantity using the XXH3
@@ -21559,16 +21505,8 @@ uuid([<version>]) : string
 var(<var-name>[,<default>]) : undefined
   Returns a variable with the stored type. If the variable is not set, the
   sample fetch fails, unless a default value is provided, in which case it will
-  return it as a string. Empty strings are permitted. The name of the variable
-  starts with an indication about its scope. The scopes allowed are:
-    "proc" : the variable is shared with the whole process
-    "sess" : the variable is shared with the whole session
-    "txn"  : the variable is shared with the transaction (request and
-             response),
-    "req"  : the variable is shared only during request processing,
-    "res"  : the variable is shared only during response processing.
-  This prefix is followed by a name. The separator is a '.'. The name may only
-  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+  return it as a string. Empty strings are permitted. See section 2.8 about
+  variables for details.
 
 7.3.3. Fetching samples at Layer 4
 ----------------------------------
