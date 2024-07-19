@@ -1240,6 +1240,35 @@ different variables. Supported scopes are:
             it and are not shared with other health-checks. They can be set
             using dedicated "tcp-check" or "http-check" directives.
 
+Depending on the context, extra scopes referencing the parent of a current
+stream can be used:
+
+  * psess : same as "sess" but using the session of the parent stream, if any.
+
+  * ptxn  : same as "txn" but using the transaction of the parent stream, if
+            any.
+
+  * preq  : same as "req" but using the parent stream, if any. "preq"
+            variables are only accessible during request processing of the
+            parent stream.
+
+  * pres  : same as "res" but using the parent stream, if any. "pres"
+            variables are only accessible during response processing of the
+            parent stream.
+
+Scopes referencing the parent stream are usable from the moment it is defined.
+Most of time, there is no parent stream. But, if applicable, this will be
+explicitly specified. For now, it is only possible to retrieve the value of
+variables defined in a scope of the parent stream. It is not possible to set
+nor unset such variables. Usually a child stream performs some processing for
+the parent at a precise moment and prevents it from making progress until the
+operation it does is completed. This means that the parent may be stopped in
+the middle of a request processing or a response processing for example. As
+such, certain scopes will not be available from the child stream. For example
+if a request is subject to some analysis performed by a child stream, this
+child stream will not find any variable in the "pres" scope since the parent is
+not processing a response, hence doesn't have any variables in its "res" scope.
+
 The content of a variable is the result of the evaluation of a sample fetch
 expression and it inherits of the output type of this expression. It is
 important when the variable is used because its type must be compatible with
