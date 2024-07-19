@@ -27336,6 +27336,12 @@ also requires dedicated backends, defined in HAProxy configuration.
 SPOE communicates with external components using an in-house binary protocol,
 the Stream Processing Offload Protocol (SPOP).
 
+When the SPOE is used on a stream, a dedicated stream is spawned to handle the
+communcation with the external component. The main stream is the parent stream
+of this "SPOE" stream. It means it is possible to retrieve variables of the
+main stream from the "SPOE" stream. See section 2.8 about variables for
+details.
+
 For all information about the SPOE configuration and the SPOP specification, see
 "doc/SPOE.txt".
 
