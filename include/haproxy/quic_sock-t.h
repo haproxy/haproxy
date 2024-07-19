@@ -3,6 +3,7 @@
 #ifdef USE_QUIC
 
 #include <haproxy/buf-t.h>
+#include <haproxy/obj_type-t.h>
 
 /* QUIC socket allocation strategy. */
 enum quic_sock_mode {
@@ -27,6 +28,7 @@ struct quic_receiver_buf {
 
 /* QUIC datagram */
 struct quic_dgram {
+	enum obj_type obj_type;
 	void *owner;
 	unsigned char *buf;
 	size_t len;

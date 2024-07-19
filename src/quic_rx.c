@@ -1607,7 +1607,7 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 					goto err;
 			}
 
-			if (!quic_init_exec_rules(l, &dgram->saddr, &dgram->daddr)) {
+			if (!quic_init_exec_rules(l, dgram)) {
 				TRACE_USER("drop datagram on quic-initial rules", QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
 				goto err;
 			}

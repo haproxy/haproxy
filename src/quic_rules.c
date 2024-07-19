@@ -4,14 +4,16 @@
 #include <haproxy/action.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
+#include <haproxy/obj_type.h>
 #include <haproxy/proxy-t.h>
+#include <haproxy/quic_sock-t.h>
 #include <haproxy/sample-t.h>
 #include <haproxy/session-t.h>
 
-/* Execute registered quic-initial rules on proxy owning <li> listener. */
-int quic_init_exec_rules(struct listener *li,
-                         struct sockaddr_storage *saddr,
-                         struct sockaddr_storage *daddr)
+/* Execute registered quic-initial rules on proxy owning <li> listener after
+ * <dgram> reception.
+ */
+int quic_init_exec_rules(struct listener *li, struct quic_dgram *dgram)
 {
 	static THREAD_LOCAL struct session rule_sess;
 	struct act_rule *rule;
@@ -26,8 +28,9 @@ int quic_init_exec_rules(struct listener *li,
 	 */
 	rule_sess.fe = px;
 	rule_sess.listener = li;
-	rule_sess.src = saddr;
-	rule_sess.dst = daddr;
+	rule_sess.src = &dgram->saddr;
+	rule_sess.dst = &dgram->daddr;
+	rule_sess.origin = &dgram->obj_type;
 
 	list_for_each_entry(rule, &px->quic_init_rules, list) {
 		ret = ACL_TEST_PASS;

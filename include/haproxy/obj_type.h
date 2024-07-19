@@ -30,6 +30,7 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/pool.h>
 #include <haproxy/proxy-t.h>
+#include <haproxy/quic_sock-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/stream-t.h>
 
@@ -54,6 +55,9 @@ static inline const char *obj_type_name(const enum obj_type *t)
 	case OBJ_TYPE_SC:       return "SC";
 	case OBJ_TYPE_STREAM:   return "STREAM";
 	case OBJ_TYPE_CHECK:    return "CHECK";
+#ifdef USE_QUIC
+	case OBJ_TYPE_DGRAM:    return "DGRAM";
+#endif
 	default:                return "!INVAL!";
 	}
 }
@@ -185,6 +189,20 @@ static inline struct check *objt_check(enum obj_type *t)
 	return __objt_check(t);
 }
 
+#ifdef USE_QUIC
+static inline struct quic_dgram *__objt_dgram(enum obj_type *t)
+{
+	return container_of(t, struct quic_dgram, obj_type);
+}
+
+static inline struct quic_dgram *objt_dgram(enum obj_type *t)
+{
+	if (!t || *t != OBJ_TYPE_DGRAM)
+		return NULL;
+	return __objt_dgram(t);
+}
+#endif
+
 static inline void *obj_base_ptr(enum obj_type *t)
 {
 	switch (obj_type(t)) {
@@ -199,6 +217,9 @@ static inline void *obj_base_ptr(enum obj_type *t)
 	case OBJ_TYPE_SC:       return __objt_sc(t);
 	case OBJ_TYPE_STREAM:   return __objt_stream(t);
 	case OBJ_TYPE_CHECK:    return __objt_check(t);
+#ifdef USE_QUIC
+	case OBJ_TYPE_DGRAM:    return __objt_dgram(t);
+#endif
 	default:                return t; // exact pointer for invalid case
 	}
 }

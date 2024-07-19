@@ -29,6 +29,7 @@
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
+#include <haproxy/obj_type.h>
 #include <haproxy/pool.h>
 #include <haproxy/protocol-t.h>
 #include <haproxy/proto_quic.h>
@@ -285,6 +286,7 @@ static int quic_lstnr_dgram_dispatch(unsigned char *pos, size_t len, void *owner
 	}
 
 	/* All the members must be initialized! */
+	dgram->obj_type = OBJ_TYPE_DGRAM;
 	dgram->owner = owner;
 	dgram->buf = pos;
 	dgram->len = len;
@@ -849,6 +851,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 
 		b_add(&buf, ret);
 
+		new_dgram->obj_type = OBJ_TYPE_DGRAM;
 		new_dgram->buf = dgram_buf;
 		new_dgram->len = ret;
 		new_dgram->dcid_len = 0;
