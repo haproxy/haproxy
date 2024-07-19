@@ -10981,7 +10981,7 @@ persist rdp-cookie(<name>)
   See also : "balance rdp-cookie", "tcp-request" and the "req.rdp_cookie" ACL.
 
 
-quic-initial <action>
+quic-initial <action> [ { if | unless } <condition> ]
   Perform an action on an incoming QUIC Initial packet. Contrary to
   "tcp-request connection", this is executed prior to any connection element
   instantiation and starting and completion of the SSL handshake, which is more
@@ -10995,6 +10995,15 @@ quic-initial <action>
   Arguments :
     <action>    defines the action to perform if the condition applies. See
                 below.
+
+    <condition> is a standard layer4-only ACL-based condition (see section 7).
+                However, QUIC initial rules are executed too early even for
+                some layer4 sample fetch methods despite no configuration
+                warning and may result in unspecified runtime behavior,
+                although they will not crash. Consider that only internal
+                samples and layer4 "src*" and "dst*" are considered as
+                supported for now.
+
 
   This action is executed early during QUIC packet parsing. As such, only a
   minimal list of actions is supported :

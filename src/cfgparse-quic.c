@@ -2,6 +2,7 @@
 #include <string.h>
 #include <netinet/udp.h>
 
+#include <haproxy/acl.h>
 #include <haproxy/action.h>
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
@@ -345,9 +346,15 @@ static int quic_parse_quic_initial(char **args, int section_type, struct proxy *
                                    const struct proxy *defpx, const char *file, int line,
                                    char **err)
 {
+	const struct acl *acl;
 	struct act_rule *rule;
 	struct action_kw *kw;
+	const char *acl_kw;
+	unsigned int where;
+	int warn = 0;
 	int arg = 1;
+
+	where = SMP_VAL_FE_CON_ACC;
 
 	if (curpx == defpx && strlen(defpx->id) == 0) {
 		memprintf(err, "%s is not allowed in anonymous 'defaults' sections",
@@ -397,12 +404,54 @@ static int quic_parse_quic_initial(char **args, int section_type, struct proxy *
 		goto err;
 	}
 
+	if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {
+		if ((rule->cond = build_acl_cond(file, line, &curpx->acl, curpx, (const char **)args+arg, err)) == NULL) {
+			memprintf(err,
+			          "'%s %s %s' : error detected in %s '%s' while parsing '%s' condition : %s",
+			          args[0], args[1], args[2], proxy_type_str(curpx), curpx->id, args[arg], *err);
+			goto err;
+		}
+	}
+	else if (*args[arg]) {
+		memprintf(err,
+			 "'%s %s %s' only accepts 'if' or 'unless', in %s '%s' (got '%s')",
+			 args[0], args[1], args[2], proxy_type_str(curpx), curpx->id, args[arg]);
+		goto err;
+	}
+
+	acl = rule->cond ? acl_cond_conflicts(rule->cond, where) : NULL;
+	if (acl) {
+		if (acl->name && *acl->name)
+			memprintf(err,
+				  "acl '%s' will never match in '%s' because it only involves keywords that are incompatible with '%s'",
+				  acl->name, args[0], sample_ckp_names(where));
+		else
+			memprintf(err,
+				  "anonymous acl will never match in '%s' because it uses keyword '%s' which is incompatible with '%s'",
+				  args[0],
+				  LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw,
+				  sample_ckp_names(where));
+
+		warn++;
+	}
+	else if (rule->cond && acl_cond_kw_conflicts(rule->cond, where, &acl, &acl_kw)) {
+		if (acl->name && *acl->name)
+			memprintf(err,
+				  "acl '%s' involves keyword '%s' which is incompatible with '%s'",
+				  acl->name, acl_kw, sample_ckp_names(where));
+		else
+			memprintf(err,
+				  "anonymous acl involves keyword '%s' which is incompatible with '%s'",
+				  acl_kw, sample_ckp_names(where));
+		warn++;
+	}
+
 	/* the following function directly emits the warning */
 	warnif_misplaced_quic_init(curpx, file, line, args[0]);
 
 	LIST_APPEND(&curpx->quic_init_rules, &rule->list);
 
-	return 0;
+	return warn;
 
  err:
 	free_act_rule(rule);

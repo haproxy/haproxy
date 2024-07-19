@@ -6,10 +6,14 @@
 #include <haproxy/listener.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/sample-t.h>
+#include <haproxy/session-t.h>
 
 /* Execute registered quic-initial rules on proxy owning <li> listener. */
-int quic_init_exec_rules(struct listener *li)
+int quic_init_exec_rules(struct listener *li,
+                         struct sockaddr_storage *saddr,
+                         struct sockaddr_storage *daddr)
 {
+	static THREAD_LOCAL struct session rule_sess;
 	struct act_rule *rule;
 	enum acl_test_res ret;
 	struct proxy *px;
@@ -17,11 +21,19 @@ int quic_init_exec_rules(struct listener *li)
 
 	px = li->bind_conf->frontend;
 
+	/* Initialize session elements specific to the current datagram. All
+	 * others members are set to 0 thanks to static storage class.
+	 */
+	rule_sess.fe = px;
+	rule_sess.listener = li;
+	rule_sess.src = saddr;
+	rule_sess.dst = daddr;
+
 	list_for_each_entry(rule, &px->quic_init_rules, list) {
 		ret = ACL_TEST_PASS;
 
 		if (rule->cond) {
-			ret = acl_exec_cond(rule->cond, px, NULL, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+			ret = acl_exec_cond(rule->cond, px, &rule_sess, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 			ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -29,7 +41,7 @@ int quic_init_exec_rules(struct listener *li)
 
 		if (ret) {
 			if (rule->action_ptr) {
-				switch (rule->action_ptr(rule, px, NULL, NULL, 0)) {
+				switch (rule->action_ptr(rule, px, &rule_sess, NULL, 0)) {
 				case ACT_RET_CONT:
 					break;
 				case ACT_RET_DONE:
