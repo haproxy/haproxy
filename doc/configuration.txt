@@ -11009,6 +11009,7 @@ quic-initial <action> [ { if | unless } <condition> ]
   minimal list of actions is supported :
     - accept
     - dgram-drop
+    - reject
 
 
 rate-limit sessions <rate>
@@ -14374,7 +14375,7 @@ expect-netscaler-cip           -           X     -     -     -            -   - 
 expect-proxy layer4            -           X     -     -     -            -   -   -
 normalize-uri                  -           -     -     -     -            X   -   -
 redirect                       -           -     -     -     -            X   X   -
-reject                         -           X     X     X     X            X   -   -
+reject                         X           X     X     X     X            X   -   -
 replace-header                 -           -     -     -     -            X   X   X
 replace-path                   -           -     -     -     -            X   -   -
 replace-pathq                  -           -     -     -     -            X   -   -
@@ -14932,7 +14933,7 @@ redirect <rule>
 
 reject
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
-                    - |          X  |   X  |   X  |   X  |          X |  - |  -
+                    X |          X  |   X  |   X  |   X  |          X |  - |  -
 
   This stops the evaluation of the rules and immediately closes the connection
   without sending any response. For HTTP rules, it acts similarly to the
@@ -14954,6 +14955,10 @@ reject
   closed and the response aborted. This is generally used to prevent sensitive
   information from leaking, typically after inspecting contents in conjunction
   with the "wait-for-body" action.
+
+  This action can also be used in "quic-initial" rules. The newly opened QUIC
+  connection is immediately closed without any SSL handshake processing and the
+  client is notified via a CONNECTION_REFUSED error code.
 
 
 replace-header <name> <match-regex> <replace-fmt>

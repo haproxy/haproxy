@@ -92,6 +92,23 @@ static enum act_parse_ret parse_dgram_drop(const char **args, int *orig_arg,
 	return ACT_RET_PRS_OK;
 }
 
+static enum act_return quic_init_action_reject(struct act_rule *rule, struct proxy *px,
+                                               struct session *sess, struct stream *s, int flags)
+{
+	struct quic_dgram *dgram = __objt_dgram(sess->origin);
+	dgram->flags |= QUIC_DGRAM_FL_REJECT;
+	return ACT_RET_DONE;
+}
+
+static enum act_parse_ret parse_reject(const char **args, int *orig_arg,
+                                       struct proxy *px,
+                                       struct act_rule *rule, char **err)
+{
+	rule->action     = ACT_CUSTOM;
+	rule->action_ptr = quic_init_action_reject;
+	return ACT_RET_PRS_OK;
+}
+
 /* List head of all known action keywords for "quic-initial" */
 struct action_kw_list quic_init_actions_list = {
        .list = LIST_HEAD_INIT(quic_init_actions_list.list)
@@ -111,6 +128,7 @@ struct action_kw *action_quic_init_custom(const char *kw)
 static struct action_kw_list quic_init_actions = { ILH, {
 		{ "accept",           parse_accept,            0 },
 		{ "dgram-drop",       parse_dgram_drop,        0 },
+		{ "reject",           parse_reject,            0 },
 		{ /* END */ },
 	}
 };

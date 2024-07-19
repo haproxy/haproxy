@@ -1612,20 +1612,22 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				goto err;
 			}
 
-			if (!pkt->token_len &&
-			    ((l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) ||
-			     HA_ATOMIC_LOAD(&prx_counters->half_open_conn) >= global.tune.quic_retry_threshold)) {
+			/* No need to emit Retry if connection is refused. */
+			if (!pkt->token_len && !(dgram->flags & QUIC_DGRAM_FL_REJECT)) {
+				if ((l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) ||
+				    HA_ATOMIC_LOAD(&prx_counters->half_open_conn) >= global.tune.quic_retry_threshold) {
 
-				TRACE_PROTO("Initial without token, sending retry",
-				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
-				if (send_retry(l->rx.fd, &dgram->saddr, pkt, pkt->version)) {
-					TRACE_ERROR("Error during Retry generation",
-					            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+					TRACE_PROTO("Initial without token, sending retry",
+						    QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+					if (send_retry(l->rx.fd, &dgram->saddr, pkt, pkt->version)) {
+						TRACE_ERROR("Error during Retry generation",
+							    QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+						goto out;
+					}
+
+					HA_ATOMIC_INC(&prx_counters->retry_sent);
 					goto out;
 				}
-
-				HA_ATOMIC_INC(&prx_counters->retry_sent);
-				goto out;
 			}
 
 			/* RFC 9000 7.2. Negotiating Connection IDs:
@@ -1679,6 +1681,9 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				eb64_insert(qc->cids, &conn_id->seq_num);
 				/* Initialize the next CID sequence number to be used for this connection. */
 				qc->next_cid_seq_num = 1;
+
+				if (dgram->flags & QUIC_DGRAM_FL_REJECT)
+					quic_set_connection_close(qc, quic_err_transport(QC_ERR_CONNECTION_REFUSED));
 			}
 
 			if (*new_tid != -1)
