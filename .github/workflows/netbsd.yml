@@ -20,4 +20,4 @@ jobs:
           prepare: |
             /usr/sbin/pkg_add gmake curl
           run: |
-            gmake CC=gcc TARGET=netbsd USE_OPENSSL=1 USE_LUA=1 USE_PCRE2=1 USE_PCRE2_JIT=1 USE_PROMEX=1 USE_ZLIB=1
+            gmake CC=gcc TARGET=netbsd ERR=1 USE_OPENSSL=1 USE_LUA=1 USE_PCRE2=1 USE_PCRE2_JIT=1 USE_PROMEX=1 USE_ZLIB=1
