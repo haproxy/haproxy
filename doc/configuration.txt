@@ -11010,6 +11010,7 @@ quic-initial <action> [ { if | unless } <condition> ]
     - accept
     - dgram-drop
     - reject
+    - send-retry
 
 
 rate-limit sessions <rate>
@@ -14389,6 +14390,7 @@ sc-inc-gpc0                    -           X     X     X     X            X   X 
 sc-inc-gpc1                    -           X     X     X     X            X   X   X
 sc-set-gpt                     -           X     X     X     X            X   X   X
 sc-set-gpt0                    -           X     X     X     X            X   X   X
+send-retry                     X           -     -     -     -            -   -   -
 send-spoe-group                -           -     -     X     X            X   X   -
 set-bandwidth-limit            -           -     -     X     X            X   X   -
 set-bc-mark                    -           -     -     X     -            X   -   -
@@ -15261,6 +15263,16 @@ sc-set-gpt0(<sc-id>) { <int> | <expr> }
   boolean. If an error occurs, this action silently fails and the actions
   evaluation continues. This action is an alias for "sc-set-gpt(0,<sc-id>)".
   See also the "sc-set-gpt" action.
+
+
+send-retry
+  Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
+                    X |          -  |   -  |   -  |   -  |          - |  - |  -
+
+  This action forces the emission of a Retry packet in response to a client
+  Initial packet without token. This is useful to ensure client address is
+  validated prior to instantiating any connection elements and starting the
+  handshake.
 
 
 send-spoe-group <engine-name> <group-name>

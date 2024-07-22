@@ -27,6 +27,7 @@ struct quic_receiver_buf {
 };
 
 #define QUIC_DGRAM_FL_REJECT			0x00000001
+#define QUIC_DGRAM_FL_SEND_RETRY		0x00000002
 
 /* QUIC datagram */
 struct quic_dgram {
