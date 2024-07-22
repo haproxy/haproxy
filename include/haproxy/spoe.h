@@ -29,6 +29,8 @@
 
 struct appctx;
 
+extern const struct spop_version spop_supported_versions[];
+
 struct spoe_agent *spoe_appctx_agent(struct appctx *appctx);
 
 /* Encode a buffer. Its length <len> is encoded as a varint, followed by a copy
@@ -344,5 +346,21 @@ out:
 	return vsn;
 }
 
+/* Check if vsn, converted into an integer, is supported by looping on the list
+ * of supported versions. It return -1 on error and 0 on success.
+ */
+static inline int spoe_check_vsn(int vsn)
+{
+	int i;
+
+	for (i = 0; spop_supported_versions[i].str != NULL; ++i) {
+		if (vsn >= spop_supported_versions[i].min &&
+		    vsn <= spop_supported_versions[i].max)
+			break;
+	}
+	if (spop_supported_versions[i].str == NULL)
+		return -1;
+	return 0;
+}
 
 #endif /* _HAPROXY_SPOE_H */

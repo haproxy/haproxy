@@ -95,6 +95,12 @@ enum spop_vars_scope {
 #define SPOP_DATA_FL_FALSE 0x00
 #define SPOP_DATA_FL_TRUE  0x10
 
+struct spop_version {
+	char *str;
+	int   min;
+	int   max;
+};
+
 /* All supported SPOP data types */
 enum spop_data_type {
 	SPOP_DATA_T_NULL = 0,

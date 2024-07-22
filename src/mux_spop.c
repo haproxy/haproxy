@@ -245,14 +245,8 @@ const char *spop_err_reasons[SPOP_ERR_ENTRIES] = {
 #define SPOP_STATUS_CODE_KEY            "status-code"
 #define SPOP_MSG_KEY                    "message"
 
-struct spop_version {
-	char *str;
-	int   min;
-	int   max;
-};
-
 /* All supported versions */
-static struct spop_version spop_supported_versions[] = {
+const struct spop_version spop_supported_versions[] = {
 	/* 1.0 is now unsupported because of a bug about frame's flags*/
 	{"2.0", 2000, 2000},
 	{NULL,  0, 0}
@@ -1619,7 +1613,7 @@ static int spop_conn_handle_hello(struct spop_conn *spop_conn)
 
 		/* Check "version" K/V item */
 		if (sz >= strlen(SPOP_VERSION_KEY) && !memcmp(str, SPOP_VERSION_KEY, strlen(SPOP_VERSION_KEY))) {
-			int i, type = *p++;
+			int type = *p++;
 
 			/* The value must be a string */
 			if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_STR) {
@@ -1633,15 +1627,10 @@ static int spop_conn_handle_hello(struct spop_conn *spop_conn)
 
 			vsn = spoe_str_to_vsn(str, sz);
 			if (vsn == -1) {
-				spop_conn_error(spop_conn, SPOP_ERR_BAD_VSN);
+				spop_conn_error(spop_conn, SPOP_ERR_INVALID);
 				goto fail;
 			}
-			for (i = 0; spop_supported_versions[i].str != NULL; ++i) {
-				if (vsn >= spop_supported_versions[i].min &&
-				    vsn <= spop_supported_versions[i].max)
-					break;
-			}
-			if (spop_supported_versions[i].str == NULL) {
+			if (spoe_check_vsn(vsn) == -1) {
 				spop_conn_error(spop_conn, SPOP_ERR_BAD_VSN);
 				goto fail;
 			}
