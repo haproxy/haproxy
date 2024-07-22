@@ -17449,7 +17449,9 @@ maxqueue <maxqueue>
   and "balance leastconn".
 
 max-reuse <count>
-  May be used in the following contexts: http
+  May be used in the following contexts: http, ring
+
+  When used under http context:
 
   The "max-reuse" argument indicates the HTTP connection processors that they
   should not reuse a server connection more than this number of times to send
@@ -17459,6 +17461,32 @@ max-reuse <count>
   resources over time. The argument is not necessarily respected by the lower
   layers as there might be technical limitations making it impossible to
   enforce. At least HTTP/2 connections to servers will respect it.
+
+  When used under ring context:
+
+  The "max-reuse" argument indicates that the sink TCP connection processors
+  that they should not reuse a server connection more than this number of
+  times to send messages. It means that the connection to the server will be
+  forcefully destroyed once at least "max-reuse + 1" messages were handled on
+  the same connection. The connection to the server will then be automatically
+  re-created. When dealing with a large amount of messages in multithreading
+  context, this can help to better distribute the ring's load over multiple
+  threads. Indeed, each connection is bound to the same CPU thread for its
+  entire duration: unlike HTTP, there is no thing like syslog transaction, so
+  the server connection could live indefinitely as long as the server doesn't
+  close the connection or no network error occurs. By destroying connections
+  from time to time we give the opportunity to other threads to pick-up some
+  messages in turn. It may also help gracefully rotate log servers in contexts
+  where there is an extra load-balancing layer between haproxy and the log
+  servers. However, keep in mind that each connection recycling will leave an
+  outgoing port in TIME_WAIT state that will not be reusable for around one
+  minute on modern operating systems, and that as such, one must be careful
+  not to use too low values to prevent rapid source port exhaustion. As a rule
+  of thumb, make sure never to close more than a few times per second, and
+  preferably much less often. Permitted values are -1 (the default), which
+  disables this limit, or any positive value. Unlike under HTTP context, when
+  used with sink servers "max-reuse" is a best-effort: ring messages are
+  batched, so the limit is checked between each batch.
 
 minconn <minconn>
   May be used in the following contexts: tcp, http

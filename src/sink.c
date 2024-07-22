@@ -387,6 +387,24 @@ static void _sink_forward_io_handler(struct appctx *appctx,
 	                             msg_handler, &processed);
 	sft->e_processed += processed;
 
+	/* if server's max-reuse is set (>= 0), destroy the applet once the
+	 * connection has been reused at least 'max-reuse' times, which means
+	 * it has processed at least 'max-reuse + 1' events (applet will
+	 * perform a new connection attempt)
+	 */
+	if (sft->srv->max_reuse >= 0) {
+		uint max_reuse = sft->srv->max_reuse + 1;
+
+		if (max_reuse < sft->srv->max_reuse)
+			max_reuse = sft->srv->max_reuse; // overflow, cap to max value
+
+		if (sft->e_processed / max_reuse !=
+		    (sft->e_processed - processed) / max_reuse) {
+			HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
+			goto soft_close;
+		}
+	}
+
 	if (ret) {
 		/* let's be woken up once new data arrive */
 		MT_LIST_APPEND(&ring->waiters, &appctx->wait_entry);
