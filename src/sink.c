@@ -382,7 +382,8 @@ static void _sink_forward_io_handler(struct appctx *appctx,
 
 	MT_LIST_DELETE(&appctx->wait_entry);
 
-	ret = ring_dispatch_messages(ring, appctx, &sft->ofs, &last_ofs, 0, msg_handler);
+	ret = ring_dispatch_messages(ring, appctx, &sft->ofs, &last_ofs, 0,
+	                             msg_handler, NULL);
 
 	if (ret) {
 		/* let's be woken up once new data arrive */
