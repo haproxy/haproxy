@@ -54,6 +54,7 @@
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
+#include <haproxy/spoe.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stconn.h>
 #include <haproxy/task.h>
@@ -752,6 +753,213 @@ enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct 
 	/* invalid length or truncated response */
 	status = HCHK_STATUS_L7RSP;
 	goto error;
+
+  wait_more_data:
+	TRACE_DEVEL("waiting for more data", CHK_EV_TCPCHK_EXP, check);
+	ret = TCPCHK_EVAL_WAIT;
+	goto out;
+}
+
+/* Custom tcp-check expect function to parse and validate the SPOP HELLO
+ * response packet. Returns TCPCHK_EVAL_WAIT to wait for more data,
+ * TCPCHK_EVAL_CONTINUE to evaluate the next rule or TCPCHK_EVAL_STOP if an
+ * error occurred.
+ */
+enum tcpcheck_eval_ret tcpcheck_spop_expect_hello(struct check *check, struct tcpcheck_rule *rule, int last_read)
+{
+	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
+	enum healthcheck_status status;
+	struct buffer *msg = NULL;
+	struct ist desc = IST_NULL;
+	char *ptr, *end;
+	unsigned int type, flags, flen = 0;
+	int vsn, max_frame_size, caps;
+
+
+	TRACE_ENTER(CHK_EV_TCPCHK_EXP, check);
+
+	/* 4 Bytes for the packet length, 1 byte for the frame type, 4bytes for flags, 2 bytes for the stream and frame id */
+	if (b_data(&check->bi) < 11)
+		goto too_short;
+
+	ptr = b_head(&check->bi);
+	flen = read_n32(ptr);
+	type = (unsigned int)*(ptr+4);
+	flags = read_n32(ptr+5);
+	if (type != 101 && type != 102) {
+		/* Frame type must be AGENT-HELLO or AGENT-DISCONNECT*/
+		goto invalid_frame;
+	}
+	if (flags != 0x01) {
+		/* Only FIN must be set */
+		goto invalid_frame;
+	}
+	if (*(ptr+9) != 0 || *(ptr+10) != 0)
+		goto invalid_frame;
+
+	if (b_data(&check->bi) < 4 + flen)
+		goto too_short;
+
+	ptr += 11;
+	end = b_tail(&check->bi);
+	if (*ptr == 102) {
+		/* AGENT-DISCONNECT frame*/
+		while (ptr < end) {
+			char  *str;
+			uint64_t sz;
+			int ret;
+
+			/* Decode the item key */
+			ret = spoe_decode_buffer(&ptr, end, &str, &sz);
+			if (ret == -1 || !sz)
+				goto invalid_frame;
+
+			/* Check "status-code" K/V item */
+			if (isteq(ist2(str, sz), ist("status-code"))) {
+				int type = *ptr++;
+
+				/* The value must be an integer */
+				if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_INT32 &&
+				    (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_INT64 &&
+				    (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_UINT32 &&
+				    (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_UINT64)
+					goto invalid_frame;
+				if (decode_varint(&ptr, end, &sz) == -1)
+					goto invalid_frame;
+				check->code = sz;
+			}
+
+			/* Check "message" K/V item */
+			else if (isteq(ist2(str, sz), ist("message"))) {
+				int type = *ptr++;
+
+				/* The value must be a string */
+				if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_STR)
+					goto invalid_frame;
+				ret = spoe_decode_buffer(&ptr, end, &str, &sz);
+				if (ret == -1 || sz > 255)
+					goto invalid_frame;
+				desc = ist2(str, sz);
+			}
+			else {
+				/* Silently ignore unknown item */
+				if (spoe_skip_data(&ptr, end) == -1)
+					goto invalid_frame;
+			}
+		}
+		goto error;
+	}
+
+	/* AGENT-HELLO frame*/
+        vsn = max_frame_size = caps = 0;
+        while (ptr < end) {
+                char  *str;
+                uint64_t sz;
+                int ret;
+
+                /* Decode the item key */
+                ret = spoe_decode_buffer(&ptr, end, &str, &sz);
+                if (ret == -1 || !sz)
+			goto invalid_frame;
+
+                /* Check "version" K/V item */
+		if (isteq(ist2(str, sz), ist("version"))) {
+                        int type = *ptr++;
+
+                        /* The value must be a string */
+                        if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_STR)
+				goto invalid_frame;
+                        if (spoe_decode_buffer(&ptr, end, &str, &sz) == -1)
+				goto invalid_frame;
+
+                        vsn = spoe_str_to_vsn(str, sz);
+                        if (vsn == -1) {
+				check->code = SPOP_ERR_INVALID;
+				goto error;
+                        }
+                        if (spoe_check_vsn(vsn) == -1) {
+				check->code = SPOP_ERR_BAD_VSN;
+				goto error;
+                        }
+		}
+                /* Check "max-frame-size" K/V item */
+                else if (isteq(ist2(str, sz), ist("max-frame-size"))) {
+                        int type = *ptr++;
+
+                        /* The value must be integer */
+                        if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_INT32 &&
+                            (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_INT64 &&
+                            (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_UINT32 &&
+                            (type & SPOP_DATA_T_MASK) != SPOP_DATA_T_UINT64)
+				goto invalid_frame;
+                        if (decode_varint(&ptr, end, &sz) == -1)
+				goto invalid_frame;
+                        if (sz < SPOP_MIN_FRAME_SIZE || sz > SPOP_MAX_FRAME_SIZE) {
+                                check->code = SPOP_ERR_BAD_FRAME_SIZE;
+                                goto error;
+                        }
+                        max_frame_size = sz;
+		}
+		/* Check "capabilities" K/V item */
+                else if (isteq(ist2(str, sz), ist("capabilities"))) {
+                        int type = *ptr++;
+
+                        /* The value must be a string */
+                        if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_STR)
+				goto invalid_frame;
+                        if (spoe_decode_buffer(&ptr, end, &str, &sz) == -1)
+				goto invalid_frame;
+			/* Capabilities value not checked */
+			caps = 1;
+                }
+                else {
+                        /* Silently ignore unknown item */
+                        if (spoe_skip_data(&ptr, end) == -1)
+				goto invalid_frame;
+                }
+        }
+	if (!vsn) {
+                check->code = SPOP_ERR_NO_VSN;
+		goto error;
+        }
+        else if (!max_frame_size) {
+                check->code = SPOP_ERR_NO_FRAME_SIZE;
+                goto error;
+        }
+        else if (!caps) {
+                check->code = SPOP_ERR_NO_CAP;
+                goto error;
+        }
+
+	status = ((rule->expect.ok_status != HCHK_STATUS_UNKNOWN) ? rule->expect.ok_status : HCHK_STATUS_L7OKD);
+	set_server_check_status(check, status, "SPOA server is ok");
+
+  out:
+	free_trash_chunk(msg);
+	TRACE_LEAVE(CHK_EV_TCPCHK_EXP, check, 0, 0, (size_t[]){ret});
+	return ret;
+
+  error:
+	ret = TCPCHK_EVAL_STOP;
+	status = HCHK_STATUS_L7RSP;
+	msg = alloc_trash_chunk();
+	if (msg) {
+		if (!isttest(desc))
+			desc = spop_err_reasons[check->code];
+		tcpcheck_expect_onerror_message(msg, check, rule, 0, desc);
+	}
+	set_server_check_status(check, status, (msg ? b_head(msg) : NULL));
+	goto out;
+
+  invalid_frame:
+	check->code = SPOP_ERR_INVALID;
+	goto error;
+
+  too_short:
+	if (!last_read)
+		goto wait_more_data;
+	/* invalid length or truncated response */
+	goto invalid_frame;
 
   wait_more_data:
 	TRACE_DEVEL("waiting for more data", CHK_EV_TCPCHK_EXP, check);
@@ -4789,8 +4997,17 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
 			       const char *file, int line)
 {
+	static char *spop_req =
+		"0000004e0100000001" /* frame length (4-bytes) + type (1-bytes) + flags (4-bytes)*/
+		"0000" /* stream-id + frame-id (unset, 2-bytes) */
+		"12737570706f727465642d76657273696f6e730803322e30"
+		"0e6d61782d6672616d652d73697a6503fcf0060c63617061"
+		"62696c697469657308000b6865616c7468636865636b11";
+
 	struct tcpcheck_ruleset *rs = NULL;
 	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck_rule *chk;
+	char *errmsg = NULL;
 	int err_code = 0;
 
 	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[cur_arg+1], NULL))
@@ -4815,6 +5032,34 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
 		goto error;
 	}
+
+	chk = parse_tcpcheck_connect((char *[]){"tcp-check", "connect", "default", "proto", "none", ""},
+				     1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 0;
+	LIST_APPEND(&rs->rules, &chk->list);
+
+	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary", spop_req, ""},
+				  1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 1;
+	LIST_APPEND(&rs->rules, &chk->list);
+
+	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", ""},
+		                    1, curpx, &rs->rules, TCPCHK_RULES_SPOP_CHK, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->expect.custom = tcpcheck_spop_expect_hello;
+	chk->index = 2;
+	LIST_APPEND(&rs->rules, &chk->list);
 
   ruleset_found:
 	rules->list = &rs->rules;
