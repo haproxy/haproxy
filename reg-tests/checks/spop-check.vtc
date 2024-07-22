@@ -2,8 +2,6 @@ varnishtest "Health-checks: SPOP health-check"
 #REGTEST_TYPE=slow
 feature ignore_unknown_macro
 
-#REGTEST_TYPE=broken
-
 # This scripts tests health-checks for SPOE agent, enabled using
 # "option spop-check" line. A intermediate listener is used to validate
 # the request because it is impossible with VTEST to read and match raw
@@ -41,7 +39,7 @@ syslog S2 -level notice {
 
 syslog S3 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv failed, reason: Layer7 invalid response.+info: \"fragmentation not supported\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv failed, reason: Layer7 invalid response.+info: \"invalid frame received\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start
 
 syslog S4 -level notice {
