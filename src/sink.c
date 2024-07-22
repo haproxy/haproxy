@@ -353,6 +353,7 @@ static void _sink_forward_io_handler(struct appctx *appctx,
 	struct sink *sink = sft->sink;
 	struct ring *ring = sink->ctx.ring;
 	size_t ofs, last_ofs;
+	size_t processed;
 	int ret = 0;
 
 	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR)))) {
@@ -383,7 +384,8 @@ static void _sink_forward_io_handler(struct appctx *appctx,
 	MT_LIST_DELETE(&appctx->wait_entry);
 
 	ret = ring_dispatch_messages(ring, appctx, &sft->ofs, &last_ofs, 0,
-	                             msg_handler, NULL);
+	                             msg_handler, &processed);
+	sft->e_processed += processed;
 
 	if (ret) {
 		/* let's be woken up once new data arrive */
