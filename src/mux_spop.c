@@ -213,22 +213,22 @@ DECLARE_STATIC_POOL(pool_head_spop_conn, "spop_conn", sizeof(struct spop_conn));
 DECLARE_STATIC_POOL(pool_head_spop_strm, "spop_strm", sizeof(struct spop_strm));
 
 
-const char *spop_err_reasons[SPOP_ERR_ENTRIES] = {
-	[SPOP_ERR_NONE]               = "normal",
-	[SPOP_ERR_IO]                 = "I/O error",
-	[SPOP_ERR_TOUT]               = "a timeout occurred",
-	[SPOP_ERR_TOO_BIG]            = "frame is too big",
-	[SPOP_ERR_INVALID]            = "invalid frame received",
-	[SPOP_ERR_NO_VSN]             = "version value not found",
-	[SPOP_ERR_NO_FRAME_SIZE]      = "max-frame-size value not found",
-	[SPOP_ERR_NO_CAP]             = "capabilities value not found",
-	[SPOP_ERR_BAD_VSN]            = "unsupported version",
-	[SPOP_ERR_BAD_FRAME_SIZE]     = "max-frame-size too big or too small",
-	[SPOP_ERR_FRAG_NOT_SUPPORTED] = "fragmentation not supported",
-	[SPOP_ERR_INTERLACED_FRAMES]  = "invalid interlaced frames",
-	[SPOP_ERR_FRAMEID_NOTFOUND]   = "frame-id not found",
-	[SPOP_ERR_RES]                = "resource allocation error",
-	[SPOP_ERR_UNKNOWN]            = "an unknown error occurred",
+const struct ist spop_err_reasons[SPOP_ERR_ENTRIES] = {
+	[SPOP_ERR_NONE]               = IST("normal"),
+	[SPOP_ERR_IO]                 = IST("I/O error"),
+	[SPOP_ERR_TOUT]               = IST("a timeout occurred"),
+	[SPOP_ERR_TOO_BIG]            = IST("frame is too big"),
+	[SPOP_ERR_INVALID]            = IST("invalid frame received"),
+	[SPOP_ERR_NO_VSN]             = IST("version value not found"),
+	[SPOP_ERR_NO_FRAME_SIZE]      = IST("max-frame-size value not found"),
+	[SPOP_ERR_NO_CAP]             = IST("capabilities value not found"),
+	[SPOP_ERR_BAD_VSN]            = IST("unsupported version"),
+	[SPOP_ERR_BAD_FRAME_SIZE]     = IST("max-frame-size too big or too small"),
+	[SPOP_ERR_FRAG_NOT_SUPPORTED] = IST("fragmentation not supported"),
+	[SPOP_ERR_INTERLACED_FRAMES]  = IST("invalid interlaced frames"),
+	[SPOP_ERR_FRAMEID_NOTFOUND]   = IST("frame-id not found"),
+	[SPOP_ERR_RES]                = IST("resource allocation error"),
+	[SPOP_ERR_UNKNOWN]            = IST("an unknown error occurred"),
 };
 
 
@@ -1463,7 +1463,7 @@ static int spop_conn_send_hello(struct spop_conn *spop_conn)
  */
 static int spop_conn_send_disconnect(struct spop_conn *spop_conn)
 {
-	const char *reason;
+	struct ist reason;
 	struct buffer outbuf;
 	struct buffer *mbuf;
 	char *p, *end;
@@ -1519,8 +1519,7 @@ static int spop_conn_send_disconnect(struct spop_conn *spop_conn)
 	reason = spop_err_reasons[spop_conn->errcode];
 
 	*p++ = SPOP_DATA_T_STR;
-	sz = strlen(reason);
-	if (spoe_encode_buffer(reason, sz, &p, end) == -1)
+	if (spoe_encode_buffer(istptr(reason), istlen(reason), &p, end) == -1)
 		goto full;
 
 	outbuf.data += p - b_tail(&outbuf);

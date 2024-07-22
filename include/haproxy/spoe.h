@@ -29,6 +29,7 @@
 
 struct appctx;
 
+extern const struct ist spop_err_reasons[SPOP_ERR_ENTRIES];
 extern const struct spop_version spop_supported_versions[];
 
 struct spoe_agent *spoe_appctx_agent(struct appctx *appctx);
