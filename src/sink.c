@@ -361,7 +361,7 @@ static void _sink_forward_io_handler(struct appctx *appctx,
 
 	/* if stopping was requested, close immediately */
 	if (unlikely(stopping))
-		goto close;
+		goto soft_close;
 
 	/* if the connection is not established, inform the stream that we want
 	 * to be notified whenever the connection completes.
@@ -377,7 +377,7 @@ static void _sink_forward_io_handler(struct appctx *appctx,
 	if (appctx != sft->appctx) {
 		/* FIXME: is this even supposed to happen? */
 		HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
-		goto close;
+		goto hard_close;
 	}
 
 	MT_LIST_DELETE(&appctx->wait_entry);
@@ -404,8 +404,11 @@ out:
 	co_skip(sc_oc(sc), sc_oc(sc)->output);
 	return;
 
-close:
+soft_close:
 	se_fl_set(appctx->sedesc, SE_FL_EOS|SE_FL_EOI);
+	return;
+hard_close:
+	se_fl_set(appctx->sedesc, SE_FL_EOS|SE_FL_ERROR);
 }
 
 /*
