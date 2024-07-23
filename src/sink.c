@@ -424,7 +424,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	size_t ofs, last_ofs;
 	int ret = 0;
 
-	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW))))
+	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR))))
 		goto out;
 
 	/* if stopping was requested, close immediately */
