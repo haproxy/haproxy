@@ -472,7 +472,6 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 
 close:
 	se_fl_set(appctx->sedesc, SE_FL_EOS|SE_FL_EOI);
-	goto out;
 }
 
 void __sink_forward_session_deinit(struct sink_forward_target *sft)
