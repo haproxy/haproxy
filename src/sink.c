@@ -495,6 +495,11 @@ static int sink_forward_session_init(struct appctx *appctx)
 	struct stream *s;
 	struct sockaddr_storage *addr = NULL;
 
+	/* sft init is performed asynchronously so <sft> must be manipulated
+	 * under the lock
+	 */
+	HA_SPIN_LOCK(SFT_LOCK, &sft->lock);
+
 	if (!sockaddr_alloc(&addr, &sft->srv->addr, sizeof(sft->srv->addr)))
 		goto out_error;
 	/* srv port should be learned from srv->svc_port not from srv->addr */
@@ -516,11 +521,14 @@ static int sink_forward_session_init(struct appctx *appctx)
 	applet_expect_no_data(appctx);
 	sft->appctx = appctx;
 
+	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
+
 	return 0;
 
  out_free_addr:
 	sockaddr_free(&addr);
  out_error:
+	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 	return -1;
 }
 
