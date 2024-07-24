@@ -1,6 +1,121 @@
 ChangeLog :
 ===========
 
+2024/07/24 : 3.1-dev4
+    - MINOR: limits: prepare to keep limits in one place
+    - REORG: fd: move raise_rlim_nofile to limits
+    - CLEANUP: fd: rm struct rlimit definition
+    - REORG: global: move rlim_fd_*_at_boot in limits
+    - MINOR: haproxy: prepare to move limits-related code
+    - REORG: haproxy: move limits handlers to limits
+    - MINOR: limits: add is_any_limit_configured
+    - CLEANUP: quic: remove obsolete comment on send
+    - MINOR: quic: extend detection of UDP API OS features
+    - MINOR: quic: activate UDP GSO for QUIC if supported
+    - MINOR: quic: define quic_cc_path MTU as constant
+    - MINOR: quic: add GSO parameter on quic_sock send API
+    - MAJOR: quic: support GSO when encoding datagrams
+    - MEDIUM: quic: implement GSO fallback mechanism
+    - MINOR: quic: add counters of sent bytes with and without GSO
+    - BUG/MEDIUM: bwlim: Be sure to never set the analyze expiration date in past
+    - CLEANUP: proto: rename TID affinity callbacks
+    - CLEANUP: quic: rename TID affinity elements
+    - BUG/MINOR: limits: fix license type in limits.h
+    - BUG/MINOR: session: Eval L4/L5 rules defined in the default section
+    - CLEANUP: stconn: Fix a typo in comments for SE_ABRT_SRC_*
+    - MEDIUM: spoe: Remove fragmentation support
+    - MEDIUM: spoe: Remove async mode support
+    - MINOR: spoe: Use only a global engine-id per agent
+    - MINOR: spoe: Remove debugging
+    - MAJOR: spoe: Remove idle applets and pipelining support
+    - MINOR: spoe: Remove the dedicated SPOE applet task
+    - MEDIUM: proxy/spoe: Add a SPOP mode
+    - MEDIUM: applet: Add a .shut callback function for applets
+    - MINOR: connection: No longer include stconn type header in connection-t.h
+    - MINOR: stconn: Use a dedicated function to get the opposite sedesc
+    - MINOR: spoe: Rename some flags and constant to use SPOP prefix
+    - MINOR: spoe: Dynamically alloc the message list per event of an agent
+    - MINOR: spoe: Move all stuff regarding the filter/applet in the C file
+    - MINOR: spoe: Move spoe_str_to_vsn() into the header file
+    - MEDIUM: mux-spop: Introduce the SPOP multiplexer
+    - MEDIUM: check/spoe: Use SPOP multiplexer to perform SPOP health-checks
+    - MAJOR: spoe: Rewrite SPOE applet to use the SPOP mux
+    - CLEANUP: spoe: Uniformize function definitions
+    - MINOR: spoe: Add internal sample fetch to retrieve the SPOE engine ID
+    - MEDIUM: spoe: Set a specific name for the connection pool of SPOP servers
+    - MINOR: backend: Remove test on HTX streams to reuse idle connections on connect
+    - MEDIUM: spoe: Force the reuse 'always' mode for SPOP backends
+    - MINOR: mux-spop: Use a dedicated function to update the SPOP connection timeout
+    - MAJOR: mux-spop: Make the SPOP connections reusable
+    - MINOR: stats-html: Display reuse ratio for spop connections
+    - MEDIUM: spoe: Directly xfer NOTIFY frame when SPOE applet is created
+    - MEDIUM: spoe: Directly receive ACK frame in the SPOE context buffer
+    - MEDIUM: mux-spop/spoe: Save negociated max-frame-size value in the mux
+    - MINOR: spoe: Remove the spop version from the SPOE appctx context
+    - MEDIUM: mux-spop: Add checks on received frames
+    - MEDIUM: mux-spop: Announce the pipeling support if possible
+    - MEDIUM: spoe: Forward SPOE context error to the SPOE applet
+    - MEDIUM: spoe: Make the SPOE applet use its own buffers
+    - DOC: spoe: Update SPOE documentation to reflect recent refactoring
+    - BUILD: mux-spop: fix build failure on gcc 4-10 and clang
+    - MINOR: fd: don't scan the full fdtab on all threads
+    - MINOR: server: better mt_list usage for node migration (prev_deleted handling)
+    - BUG/MINOR: do not close uninit FD in quic_test_socketops()
+    - BUG/MEDIUM: debug/cli: fix "show threads" crashing with low thread counts
+    - MINOR: debug: prepare feed_post_mortem_late
+    - CLEANUP: debug: fix indents in debug_parse_cli_show_dev
+    - MINOR: debug: store runtime uid/gid in postmortem
+    - MINOR: debug: keep runtime capabilities in post_mortem
+    - MINOR: debug: use LIM2A to show limits
+    - MINOR: debug: prepare to show runtime limits
+    - MINOR: debug: keep runtime limits in postmortem
+    - DOC: install: don't reference removed CPU arg
+    - BUG/MEDIUM: ssl_sock: fix deadlock in ssl_sock_load_ocsp() on error path
+    - BUG/MAJOR: mux-h2: force a hard error upon short read with pending error
+    - MEDIUM: sink: start applets asynchronously
+    - OPTIM: sink: balance applets accross threads
+    - MEDIUM: ocsp: fix ocsp when the chain is loaded from 'issuers-chain-path'
+    - MEDIUM: ssl: add extra_chain to ckch_data
+    - MINOR: ssl: change issuers-chain for show_cert_detail()
+    - REGTESTS: ssl: test the issuers-chain-path keyword
+    - DOC: configuration: issuers-chain-path not compatible with OCSP
+    - DOC: configuration: issuers-chain-path is compatible with OCSP
+    - BUG/MEDIUM: startup: fix zero-warning mode
+    - BUILD: tree-wide: cast arguments to tolower/toupper to unsigned char (2)
+    - MINOR: cfgparse-global: move mode's keywords in cfg_kw_list
+    - MINOR: cfgparse-global: move no<poller_name> in cfg_kw_list
+    - DOC: config: improve the http-keep-alive section
+    - BUG/MINOR: stick-table: fix crash for src_inc_gpc() without stkcounter
+    - BUG/MINOR: server: Don't warn fallback IP is used during init-addr resolution
+    - BUG/MINOR: cli: Atomically inc the global request counter between CLI commands
+    - MINOR: stream: Add a pointer to set the parent stream
+    - MINOR: vars: Fill a description instead of hash and scope when a name is parsed
+    - MINOR: vars: Use a description to set/unset a variable instead of its hash and scope
+    - MEDIUM: vars: Be able to parse parent scopes for variables
+    - MINOR: vars: Use a variable description to get variables of a specific scope
+    - MEDIUM: vars: Be able to retrieve variable of the parent stream, if any
+    - MEDIUM: spoe: Set the parent stream for SPOE streams
+    - BUG/MINOR: quic: Non optimal first datagram.
+    - DOC: config: Add a dedicated section about variables
+    - DOC: config: Add info about variable scopes referencing the parent stream
+    - DOC: config: Explicitly state the SPOE streams have a usable parent stream
+    - MINOR: quic: Avoid cc priv buffer overflow.
+    - MINOR: spoe: Add a function to validate a version is supported
+    - MINOR: spoe: export the list of SPOP error reasons
+    - MEDIUM: spoe/tcpcheck: Reintroduce SPOP check as a customized tcp-check
+    - REGTESTS: check/spoe: Re-enable the script performing SPOP health-checks
+    - BUG/MEDIUM: sink: properly init applet under sft lock
+    - MINOR: sink: unify and sink_forward_io_handler() and sink_forward_oc_io_handler()
+    - MINOR: sink: Remove useless test on SE_FL_SHR/SHW flags
+    - MINOR: sink: merge sink_forward_io_handler() with sink_forward_oc_io_handler()
+    - MINOR: sink: add some comments about sft->appctx usage in applet handlers
+    - MINOR: sink: distinguish between hard and soft close in _sink_forward_io_handler()
+    - MEDIUM: sink: don't set NOLINGER flag on the outgoing stream interface
+    - MINOR: ring: count processed messages in ring_dispatch_messages()
+    - MINOR: sink: add processed events counter in sft
+    - MEDIUM: sink: "max-reuse" support for sink servers
+    - OPTIM: sink: consider threads' current load when rebalancing applets
+
 2024/07/10 : 3.1-dev3
     - BUG/MINOR: quic: Wrong datagram building when probing.
     - BUG/MEDIUM: quic: fix possible exit from qc_check_dcid() without unlocking
