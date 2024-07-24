@@ -375,11 +375,7 @@ static void _sink_forward_io_handler(struct appctx *appctx,
 	}
 
 	HA_SPIN_LOCK(SFT_LOCK, &sft->lock);
-	if (appctx != sft->appctx) {
-		/* FIXME: is this even supposed to happen? */
-		HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
-		goto hard_close;
-	}
+	BUG_ON(appctx != sft->appctx);
 
 	MT_LIST_DELETE(&appctx->wait_entry);
 
@@ -426,10 +422,15 @@ out:
 	return;
 
 soft_close:
+	/* be careful: since the socket lacks the NOLINGER flag (on purpose)
+	 * soft_close will result in the port staying in TIME_WAIT state:
+	 * don't abuse from soft_close!
+	 */
 	se_fl_set(appctx->sedesc, SE_FL_EOS|SE_FL_EOI);
-	return;
-hard_close:
-	se_fl_set(appctx->sedesc, SE_FL_EOS|SE_FL_ERROR);
+	/* if required, hard_close could be achieve by using SE_FL_EOS|SE_FL_ERROR
+	 * flag combination: RST will be sent, TIME_WAIT will be avoided as if
+	 * we performed a normal close with NOLINGER flag set
+	 */
 }
 
 /*
@@ -476,6 +477,8 @@ static int sink_forward_session_init(struct appctx *appctx)
 	 */
 	HA_SPIN_LOCK(SFT_LOCK, &sft->lock);
 
+	BUG_ON(sft->appctx != appctx);
+
 	if (!sockaddr_alloc(&addr, &sft->srv->addr, sizeof(sft->srv->addr)))
 		goto out_error;
 	/* srv port should be learned from srv->svc_port not from srv->addr */
@@ -496,9 +499,6 @@ static int sink_forward_session_init(struct appctx *appctx)
 
 	applet_expect_no_data(appctx);
 
-	/* FIXME: redundant? was already assigned in process_sink_forward() */
-	sft->appctx = appctx;
-
 	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 
 	return 0;
@@ -518,9 +518,8 @@ static void sink_forward_session_release(struct appctx *appctx)
 		return;
 
 	HA_SPIN_LOCK(SFT_LOCK, &sft->lock);
-	if (sft->appctx == appctx)
-		__sink_forward_session_deinit(sft);
-	/* FIXME: is 'sft->appctx != appctx' even supposed to happen? */
+	BUG_ON(sft->appctx != appctx);
+	__sink_forward_session_deinit(sft);
 	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 }
 
@@ -609,7 +608,11 @@ static struct task *process_sink_forward(struct task * task, void *context, unsi
 	if (!stopping) {
 		while (sft) {
 			HA_SPIN_LOCK(SFT_LOCK, &sft->lock);
-			/* if appctx is NULL, start a new session */
+			/* If appctx is NULL, start a new session and perform the appctx
+			 * assigment right away since the applet is not supposed to change
+			 * during the session lifetime. By doing the assignment now we
+			 * make sure to start the session exactly once.
+			 */
 			if (!sft->appctx)
 				sft->appctx = sink_forward_session_create(sink, sft);
 			HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
