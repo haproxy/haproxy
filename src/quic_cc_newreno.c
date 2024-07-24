@@ -223,3 +223,10 @@ struct quic_cc_algo quic_cc_algo_nr = {
 	.state_trace = quic_cc_nr_state_trace,
 };
 
+void quic_cc_nr_check(void)
+{
+	struct quic_cc *cc;
+	BUG_ON_HOT(sizeof(struct nr) > sizeof(cc->priv));
+}
+
+INITCALL0(STG_REGISTER, quic_cc_nr_check);

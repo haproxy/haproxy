@@ -640,3 +640,11 @@ struct quic_cc_algo quic_cc_algo_cubic = {
 	.hystart_start_round = quic_cc_cubic_hystart_start_round,
 	.state_trace = quic_cc_cubic_state_trace,
 };
+
+void quic_cc_cubic_check(void)
+{
+	struct quic_cc *cc;
+	BUG_ON_HOT(sizeof(struct cubic) > sizeof(cc->priv));
+}
+
+INITCALL0(STG_REGISTER, quic_cc_cubic_check);
