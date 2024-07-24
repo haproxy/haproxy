@@ -375,6 +375,7 @@ static void _sink_forward_io_handler(struct appctx *appctx,
 
 	HA_SPIN_LOCK(SFT_LOCK, &sft->lock);
 	if (appctx != sft->appctx) {
+		/* FIXME: is this even supposed to happen? */
 		HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 		goto close;
 	}
@@ -470,6 +471,8 @@ static int sink_forward_session_init(struct appctx *appctx)
 	s->uniq_id = 0;
 
 	applet_expect_no_data(appctx);
+
+	/* FIXME: redundant? was already assigned in process_sink_forward() */
 	sft->appctx = appctx;
 
 	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
@@ -493,6 +496,7 @@ static void sink_forward_session_release(struct appctx *appctx)
 	HA_SPIN_LOCK(SFT_LOCK, &sft->lock);
 	if (sft->appctx == appctx)
 		__sink_forward_session_deinit(sft);
+	/* FIXME: is 'sft->appctx != appctx' even supposed to happen? */
 	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 }
 
