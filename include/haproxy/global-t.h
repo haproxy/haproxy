@@ -204,6 +204,7 @@ struct global {
 		unsigned int quic_retry_threshold;
 		unsigned int quic_reorder_ratio;
 		unsigned int quic_max_frame_loss;
+		unsigned int quic_cubic_loss_tol;
 #endif /* USE_QUIC */
 	} tune;
 	struct {

@@ -3902,6 +3902,25 @@ tune.quic.cc-hystart { on | off }
   QUIC connections used as a replacement for the slow start phase of congestion
   control algorithms which may cause high packet loss. It is disabled by default.
 
+tune.quic.cc.cubic.min-losses <number>
+  Defines how many lost packets are needed for the Cubic congestion control
+  algorithm to really consider a loss event. Normally, any loss event is
+  considered as the result of a congestion and is sufficient for Cubic to
+  restart from a smaller window. But experiments show that there can be a
+  variety of causes for losses that are not at all caused by congestion and
+  that can simply be qualified of spurious losses, and for which adjusting the
+  window will have no effect, except slowing communication down. Poor radio
+  signal, out-of-order delivery, high CPU usage on a client causing random
+  delays, as well as system timer imprecision can be among the common causes
+  for this. This setting allows to make Cubic a bit more tolerant to spurious
+  losses, by changing the minimum number of cumulated losses between two ACKs
+  to be considered as a loss event, which defaults to 1. Some significant gains
+  have been observed experimentally, but always accompanied with an aggravation
+  of the bandwidth wasted on retransmits, and an increased risk of saturation
+  of congested links. The value 2 may be used for short periods of time to
+  compare some metrics. Never go beyond 2 without an expert's prior analysis of
+  the situation. The default and minimum value is 1. Always use 1.
+
 tune.quic.disable-udp-gso
   Disable UDP GSO emission. This kernel feature allows to emit multiple
   datagrams via a single system call which is more efficient for large

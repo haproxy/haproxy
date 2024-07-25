@@ -83,6 +83,8 @@ struct cubic {
 	uint32_t recovery_start_time;
 	/* HyStart++ state. */
 	struct quic_hystart hystart;
+	/* Consecutive number of losses since last ACK */
+	uint32_t consecutive_losses;
 };
 
 static void quic_cc_cubic_reset(struct quic_cc *cc)
@@ -107,7 +109,10 @@ static void quic_cc_cubic_reset(struct quic_cc *cc)
 
 static int quic_cc_cubic_init(struct quic_cc *cc)
 {
+	struct cubic *c = quic_cc_priv(cc);
+
 	quic_cc_cubic_reset(cc);
+	c->consecutive_losses = 0;
 	return 1;
 }
 
@@ -486,13 +491,28 @@ static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 /* Congestion avoidance callback. */
 static void quic_cc_cubic_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 {
+	struct cubic *c = quic_cc_priv(cc);
+
 	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc);
 	TRACE_PROTO("CC cubic", QUIC_EV_CONN_CC, cc->qc, ev);
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
+		c->consecutive_losses = 0;
 		quic_cubic_update(cc, ev->ack.acked);
 		break;
 	case QUIC_CC_EVT_LOSS:
+		/* Principle: we may want to tolerate one or a few occasional
+		 * losses that are *not* caused by congestion that we'd have
+		 * any control on. Tests show that over long distances this
+		 * significantly improves the transfer stability and
+		 * performance, but can quickly result in a massive loss
+		 * increase if set too high. This counter is reset upon ACKs.
+		 * Maybe we could refine this to consider only certain ACKs
+		 * though.
+		 */
+		c->consecutive_losses += ev->loss.count;
+		if (c->consecutive_losses <= global.tune.quic_cubic_loss_tol)
+			goto out;
 		quic_enter_recovery(cc);
 		break;
 	case QUIC_CC_EVT_ECN_CE:

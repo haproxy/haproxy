@@ -88,7 +88,7 @@ struct quic_cc {
 	/* <conn> is there only for debugging purpose. */
 	struct quic_conn *qc;
 	struct quic_cc_algo *algo;
-	uint32_t priv[18];
+	uint32_t priv[20];
 };
 
 struct quic_cc_path {
