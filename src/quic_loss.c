@@ -242,6 +242,7 @@ int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
                          struct list *pkts, uint64_t now_us)
 {
 	struct quic_tx_packet *pkt, *tmp, *oldest_lost, *newest_lost;
+	uint tot_lost = 0;
 	int close = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
@@ -270,6 +271,7 @@ int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
 				quic_tx_packet_refdec(newest_lost);
 			newest_lost = pkt;
 		}
+		tot_lost++;
 	}
 
 	if (!close) {
@@ -279,6 +281,7 @@ int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
 
 			ev.type = QUIC_CC_EVT_LOSS;
 			ev.loss.time_sent = newest_lost->time_sent;
+			ev.loss.count = tot_lost;
 
 			quic_cc_event(&qc->path->cc, &ev);
 		}

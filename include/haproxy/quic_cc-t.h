@@ -73,6 +73,7 @@ struct quic_cc_event {
 		} ack;
 		struct loss {
 			unsigned int time_sent;
+			unsigned int count; // #pkt lost for this event
 		} loss;
 	};
 };
