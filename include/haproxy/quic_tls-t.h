@@ -17,6 +17,9 @@
 #error "Must define USE_OPENSSL"
 #endif
 
+#if defined(USE_OPENSSL_AWSLC)
+#include <openssl/chacha.h>
+#endif
 #include <openssl/evp.h>
 
 #include <import/ebtree.h>
@@ -37,6 +40,9 @@
 # define QUIC_AEAD_CTX_free   EVP_AEAD_CTX_free
 # define QUIC_AEAD_key_length EVP_AEAD_key_length
 # define QUIC_AEAD_iv_length  EVP_AEAD_nonce_length
+
+# define EVP_CIPHER_CTX_CHACHA20 ((EVP_CIPHER_CTX *)EVP_aead_chacha20_poly1305())
+# define EVP_CIPHER_CHACHA20     ((EVP_CIPHER*)EVP_aead_chacha20_poly1305())
 
 #else
 

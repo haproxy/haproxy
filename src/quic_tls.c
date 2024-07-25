@@ -454,7 +454,16 @@ int quic_tls_derive_keys(const QUIC_AEAD *aead, const EVP_CIPHER *hp,
 {
 	size_t aead_keylen = (size_t)QUIC_AEAD_key_length(aead);
 	size_t aead_ivlen = (size_t)QUIC_AEAD_iv_length(aead);
+#ifdef QUIC_AEAD_API
+	size_t hp_len = 0;
+
+	if (hp == EVP_CIPHER_CHACHA20)
+		hp_len = 32;
+	else if (hp)
+		hp_len = (size_t)EVP_CIPHER_key_length(hp);
+#else
 	size_t hp_len = hp ? (size_t)EVP_CIPHER_key_length(hp) : 0;
+#endif
 
 	if (aead_keylen > keylen || aead_ivlen > ivlen || hp_len > hp_keylen)
 		return 0;
@@ -599,6 +608,14 @@ int quic_tls_enc_hp_ctx_init(EVP_CIPHER_CTX **hp_ctx,
 {
 	EVP_CIPHER_CTX *ctx;
 
+#ifdef QUIC_AEAD_API
+
+	if (hp == EVP_CIPHER_CHACHA20) {
+		*hp_ctx = EVP_CIPHER_CTX_CHACHA20;
+		return 1;
+	}
+#endif
+
 	ctx = EVP_CIPHER_CTX_new();
 	if (!ctx)
 		return 0;
@@ -625,6 +642,25 @@ int quic_tls_hp_encrypt(unsigned char *out,
 {
 	int ret = 0;
 
+#ifdef QUIC_AEAD_API
+
+	if (ctx == EVP_CIPHER_CTX_CHACHA20) {
+		uint32_t counter;
+		/* According to RFC 9001, 5.4.4. ChaCha20-Based Header Protection:
+		 * The first 4 bytes of the sampled ciphertext are the block counter.
+		 * The remaining 12 bytes are used as the nonce.
+		 */
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+		counter = (uint32_t)in[0] + (uint32_t)(in[1] << 8) + (uint32_t)(in[2] << 16) + (uint32_t)(in[3] << 24);
+#else
+		memcpy(&counter, in, sizeof(counter));
+#endif
+		CRYPTO_chacha_20(out, out, inlen, key, in + sizeof(counter), counter);
+		return 1;
+	}
+
+#endif
+
 	if (!EVP_EncryptInit_ex(ctx, NULL, NULL, NULL, in) ||
 	    !EVP_EncryptUpdate(ctx, out, &ret, out, inlen) ||
 	    !EVP_EncryptFinal_ex(ctx, out, &ret))
@@ -638,6 +674,14 @@ int quic_tls_dec_hp_ctx_init(EVP_CIPHER_CTX **hp_ctx,
                               const EVP_CIPHER *hp, unsigned char *key)
 {
 	EVP_CIPHER_CTX *ctx;
+
+#ifdef QUIC_AEAD_API
+
+	if (hp == EVP_CIPHER_CHACHA20) {
+		*hp_ctx = EVP_CIPHER_CTX_CHACHA20;
+		return 1;
+	}
+#endif
 
 	ctx = EVP_CIPHER_CTX_new();
 	if (!ctx)
@@ -664,6 +708,25 @@ int quic_tls_hp_decrypt(unsigned char *out,
                          EVP_CIPHER_CTX *ctx, unsigned char *key)
 {
 	int ret = 0;
+
+#ifdef QUIC_AEAD_API
+	if (ctx == EVP_CIPHER_CTX_CHACHA20) {
+		uint32_t counter;
+
+		/* According to RFC 9001, 5.4.4. ChaCha20-Based Header Protection:
+		 * The first 4 bytes of the sampled ciphertext are the block counter.
+		 * The remaining 12 bytes are used as the nonce.
+		 */
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+		counter = (uint32_t)in[0] + (uint32_t)(in[1] << 8) + (uint32_t)(in[2] << 16) + (uint32_t)(in[3] << 24);
+#else
+		memcpy(&counter, in, sizeof(counter));
+#endif
+		CRYPTO_chacha_20(out, out, inlen, key, in + sizeof(counter), counter);
+		return 1;
+	}
+
+#endif
 
 	if (!EVP_DecryptInit_ex(ctx, NULL, NULL, NULL, in) ||
 	    !EVP_DecryptUpdate(ctx, out, &ret, out, inlen) ||

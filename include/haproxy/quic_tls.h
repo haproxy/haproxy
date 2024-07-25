@@ -150,7 +150,7 @@ static inline const QUIC_AEAD *tls_aead(const SSL_CIPHER *cipher)
 		return EVP_aes_256_gcm();
 #endif
 
-#if !defined(OPENSSL_IS_AWSLC) && (!defined(LIBRESSL_VERSION_NUMBER) || LIBRESSL_VERSION_NUMBER >= 0x4000000fL)
+#if (!defined(LIBRESSL_VERSION_NUMBER) || LIBRESSL_VERSION_NUMBER >= 0x4000000fL)
 	/* WT: LibreSSL has an issue with CHACHA20 running in-place till 3.9.2
 	 *     included, but the fix is already identified and will be merged
 	 *     into next major version. Given that on machines without AES-NI
@@ -160,7 +160,11 @@ static inline const QUIC_AEAD *tls_aead(const SSL_CIPHER *cipher)
 	 *     Thanks to Theo Buehler for his help!
 	 */
 	case TLS1_3_CK_CHACHA20_POLY1305_SHA256:
+# ifdef QUIC_AEAD_API
+		return EVP_aead_chacha20_poly1305();
+# else
 		return EVP_chacha20_poly1305();
+# endif
 #endif
 #if !defined(USE_OPENSSL_WOLFSSL) && !defined(OPENSSL_IS_AWSLC)
 	case TLS1_3_CK_AES_128_CCM_SHA256:
@@ -188,8 +192,10 @@ static inline const EVP_MD *tls_md(const SSL_CIPHER *cipher)
 static inline const EVP_CIPHER *tls_hp(const SSL_CIPHER *cipher)
 {
 	switch (SSL_CIPHER_get_id(cipher)) {
-#if !defined(OPENSSL_IS_AWSLC)
 	case TLS1_3_CK_CHACHA20_POLY1305_SHA256:
+#ifdef QUIC_AEAD_API
+		return EVP_CIPHER_CHACHA20;
+#else
 		return EVP_chacha20();
 #endif
 	case TLS1_3_CK_AES_128_CCM_SHA256:
@@ -754,14 +760,24 @@ static inline void quic_tls_ctx_secs_free(struct quic_tls_ctx *ctx)
 	}
 
 	/* RX HP protection */
+#ifdef QUIC_AEAD_API
+	if (ctx->rx.hp_ctx != EVP_CIPHER_CTX_CHACHA20)
+		EVP_CIPHER_CTX_free(ctx->rx.hp_ctx);
+#else
 	EVP_CIPHER_CTX_free(ctx->rx.hp_ctx);
+#endif
 	/* RX AEAD decryption */
 	QUIC_AEAD_CTX_free(ctx->rx.ctx);
 	pool_free(pool_head_quic_tls_iv,  ctx->rx.iv);
 	pool_free(pool_head_quic_tls_key, ctx->rx.key);
 
 	/* TX HP protection */
+#ifdef QUIC_AEAD_API
+	if (ctx->tx.hp_ctx != EVP_CIPHER_CTX_CHACHA20)
+		EVP_CIPHER_CTX_free(ctx->tx.hp_ctx);
+#else
 	EVP_CIPHER_CTX_free(ctx->tx.hp_ctx);
+#endif
 	/* TX AEAD encryption */
 	QUIC_AEAD_CTX_free(ctx->tx.ctx);
 	pool_free(pool_head_quic_tls_iv,  ctx->tx.iv);
