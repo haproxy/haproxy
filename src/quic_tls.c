@@ -621,7 +621,7 @@ int quic_tls_enc_hp_ctx_init(EVP_CIPHER_CTX **hp_ctx,
  */
 int quic_tls_hp_encrypt(unsigned char *out,
                          const unsigned char *in, size_t inlen,
-                         EVP_CIPHER_CTX *ctx)
+                         EVP_CIPHER_CTX *ctx, unsigned char *key)
 {
 	int ret = 0;
 
@@ -661,7 +661,7 @@ int quic_tls_dec_hp_ctx_init(EVP_CIPHER_CTX **hp_ctx,
  */
 int quic_tls_hp_decrypt(unsigned char *out,
                          const unsigned char *in, size_t inlen,
-                         EVP_CIPHER_CTX *ctx)
+                         EVP_CIPHER_CTX *ctx, unsigned char *key)
 {
 	int ret = 0;
 

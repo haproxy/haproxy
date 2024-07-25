@@ -125,10 +125,10 @@ int quic_tls_enc_hp_ctx_init(EVP_CIPHER_CTX **aes_ctx,
                               const EVP_CIPHER *aes, unsigned char *key);
 int quic_tls_hp_decrypt(unsigned char *out,
                          const unsigned char *in, size_t inlen,
-                         EVP_CIPHER_CTX *ctx);
+                         EVP_CIPHER_CTX *ctx, unsigned char *key);
 int quic_tls_hp_encrypt(unsigned char *out,
                          const unsigned char *in, size_t inlen,
-                         EVP_CIPHER_CTX *ctx);
+                         EVP_CIPHER_CTX *ctx, unsigned char *key);
 
 int quic_tls_key_update(struct quic_conn *qc);
 void quic_tls_rotate_keys(struct quic_conn *qc);
