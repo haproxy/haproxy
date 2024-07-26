@@ -39,6 +39,7 @@ unsigned int srv_dynamic_maxconn(const struct server *s);
 int pendconn_redistribute(struct server *s);
 int pendconn_grab_from_px(struct server *s);
 void pendconn_unlink(struct pendconn *p);
+int pendconn_must_try_again(struct pendconn *p);
 
 /* Removes the pendconn from the server/proxy queue. It supports being called
  * with NULL for pendconn and with a pendconn not in the list. It is the
