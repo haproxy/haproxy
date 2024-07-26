@@ -1365,6 +1365,7 @@ The following keywords are supported in the "global" section :
    - h1-accept-payload-with-any-method
    - h1-case-adjust
    - h1-case-adjust-file
+   - h1-do-not-close-on-insecure-transfer-encoding
    - h2-workaround-bogus-websocket-clients
    - hard-stop-after
    - harden.reject-privileged-ports.tcp
@@ -1966,6 +1967,32 @@ h1-accept-payload-with-any-method
 
   However, it may be an issue with some old clients. In this case, this global
   option may be set.
+
+h1-do-not-close-on-insecure-transfer-encoding
+  As mandated by the HTTP/1.1 specification (RFC9112#6.1), the presence of both
+  a Transfer-Encoding header field and a Content-Length header field in the
+  same message represents a serious risk of conveying a content smuggling
+  attack if there are any HTTP/1.0 agent anywhere in the upstream of downstream
+  chain, and when facing this, an agent must absolutely close the connection
+  after the response so as to prevent any exploitation. But this may have a
+  performance impact on some very old clients, especially if they need to
+  renegotiate a TLS connection for every request. This option is present to
+  ask HAProxy not to enforce this rule, and to just sanitize the message but
+  leave the connection alive after the response. This may only be done when
+  absolutely certain that no HTTP/1.0 agents are present in the chain and that
+  all implementations before HAProxy are fully HTTP/1.1 compliant regarding the
+  rules that apply to these header fields. In any case, HAProxy will continue
+  to ignore and drop the extraneous Content-Length header so as not to confuse
+  the next hop.
+
+  When enabling this option to work around an old broken client or server, it
+  is important to understand that regardless of the need or not for this
+  option, such an agent violating this rule faces a risk to see its messages
+  truncated by old agents that would consider Content-Length and ignore
+  Transfer-Encoding, since the cumulated size of the encoded chunk sizes are
+  not being accounted for. As such, the rule above is not just a matter of
+  security but also of taking care of getting rid of agents that may face
+  communication trouble due to incompatibilities with older ones.
 
 h1-case-adjust <from> <to>
   Defines the case adjustment to apply, when enabled, to the header name

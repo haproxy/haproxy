@@ -16,9 +16,16 @@
 
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/h1.h>
 #include <haproxy/http-hdr.h>
 #include <haproxy/tools.h>
+
+/* by default, RFC9112#6.1 applies, t-e combined with c-l represents a risk of
+ * smuggling if it crosses another 1.0 agent so we must close at the end of the
+ * transaction. But it may cause difficulties to some very old broken devices.
+ */
+int h1_do_not_close_on_insecure_t_e = 0;
 
 /* Parse the Content-Length header field of an HTTP/1 request. The function
  * checks all possible occurrences of a comma-delimited value, and verifies
@@ -1202,7 +1209,9 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		if (h1m->flags & H1_MF_XFER_ENC) {
 			if (h1m->flags & H1_MF_CLEN) {
 				/* T-E + C-L: force close and remove C-L */
-				h1m->flags |= H1_MF_CONN_CLO;
+				if (!h1_do_not_close_on_insecure_t_e)
+					h1m->flags |= H1_MF_CONN_CLO;
+
 				h1m->flags &= ~H1_MF_CLEN;
 				h1m->curr_len = h1m->body_len = 0;
 				hdr_count = http_del_hdr(hdr, ist("content-length"));
@@ -1316,3 +1325,23 @@ void h1_calculate_ws_output_key(const char *key, char *result)
 	/* encode in base64 the hash */
 	a2base64(hash_out, 20, result, 29);
 }
+
+/* config parser for global "h1-do-not-close-on-insecure-transfer-encoding" */
+static int cfg_parse_h1_do_not_close_insecure_t_e(char **args, int section_type, struct proxy *curpx,
+                                                const struct proxy *defpx, const char *file, int line,
+                                                char **err)
+{
+	if (too_many_args(0, args, err, NULL))
+		return -1;
+
+	h1_do_not_close_on_insecure_t_e = 1;
+	return 0;
+}
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {{ }, {
+	{ CFG_GLOBAL, "h1-do-not-close-on-insecure-transfer-encoding", cfg_parse_h1_do_not_close_insecure_t_e },
+	{ 0, NULL, NULL },
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
