@@ -120,6 +120,7 @@ struct quic_cc_algo {
 	void (*event)(struct quic_cc *cc, struct quic_cc_event *ev);
 	void (*slow_start)(struct quic_cc *cc);
 	void (*state_trace)(struct buffer *buf, const struct quic_cc *cc);
+	void (*state_cli)(struct buffer *buf, const struct quic_cc_path *path);
 	void (*hystart_start_round)(struct quic_cc *cc, uint64_t pn);
 };
 

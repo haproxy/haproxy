@@ -643,6 +643,15 @@ static void quic_cc_cubic_state_trace(struct buffer *buf, const struct quic_cc *
 	              TICKS_TO_MS(tick_remain(c->recovery_start_time, now_ms)));
 }
 
+static void quic_cc_cubic_state_cli(struct buffer *buf, const struct quic_cc_path *path)
+{
+	struct cubic *c = quic_cc_priv(&path->cc);
+
+	chunk_appendf(buf, "  cc: state=%s ssthresh=%u K=%u last_w_max=%u wdiff=%ld\n",
+	              quic_cc_state_str(c->state), c->ssthresh, c->K, c->last_w_max,
+	              (int64_t)(path->cwnd - c->last_w_max));
+}
+
 struct quic_cc_algo quic_cc_algo_cubic = {
 	.type        = QUIC_CC_ALGO_TP_CUBIC,
 	.init        = quic_cc_cubic_init,
@@ -650,6 +659,7 @@ struct quic_cc_algo quic_cc_algo_cubic = {
 	.slow_start  = quic_cc_cubic_slow_start,
 	.hystart_start_round = quic_cc_cubic_hystart_start_round,
 	.state_trace = quic_cc_cubic_state_trace,
+	.state_cli   = quic_cc_cubic_state_cli,
 };
 
 void quic_cc_cubic_check(void)

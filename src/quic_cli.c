@@ -300,6 +300,9 @@ static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
 	}
 
 	if (ctx->fields & QUIC_DUMP_FLD_CC) {
+		if (qc->path->cc.algo->state_cli)
+			qc->path->cc.algo->state_cli(&trash, qc->path);
+
 		chunk_appendf(&trash, "  srtt=%-4u  rttvar=%-4u rttmin=%-4u ptoc=%-4u\n"
 		                      "  cwnd=%-6llu            mcwnd=%-6llu\n"
 		                      "  sentbytes=%-12llu sentbytesgso=%-12llu sentpkts=%-6llu\n"
