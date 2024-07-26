@@ -295,6 +295,7 @@ static int quic_lstnr_dgram_dispatch(unsigned char *pos, size_t len, void *owner
 	dgram->saddr = *saddr;
 	dgram->daddr = *daddr;
 	dgram->qc = NULL;
+	dgram->flags = 0;
 
 	/* Attached datagram to its quic_receiver_buf and quic_dghdlrs. */
 	LIST_APPEND(dgrams, &dgram->recv_list);
@@ -859,6 +860,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 		new_dgram->saddr = saddr;
 		new_dgram->daddr = daddr;
 		new_dgram->qc = NULL;  /* set later via quic_dgram_parse() */
+		new_dgram->flags = 0;
 
 		TRACE_DEVEL("read datagram", QUIC_EV_CONN_RCV, qc, new_dgram);
 
