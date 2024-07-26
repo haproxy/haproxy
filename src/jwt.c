@@ -364,6 +364,13 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 
 end:
 	EVP_MD_CTX_free(evp_md_ctx);
+	if (retval != JWT_VRFY_OK) {
+		/* Don't forget to remove SSL errors to be sure they cannot be
+		 * caught elsewhere. The error queue is cleared because it seems
+		 * at least 2 errors are produced.
+		 */
+		ERR_clear_error();
+	}
 	return retval;
 }
 
