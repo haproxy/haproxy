@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <string.h>
+#include <netinet/in.h>
 #include <netinet/udp.h>
 
 #include <haproxy/acl.h>
