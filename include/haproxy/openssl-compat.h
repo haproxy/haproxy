@@ -114,7 +114,7 @@
 #define HAVE_SSL_get0_verified_chain
 #endif
 
-#if defined(SSL_OP_NO_ANTI_REPLAY)
+#if defined(SSL_OP_NO_ANTI_REPLAY) || defined(OPENSSL_IS_BORINGSSL) || defined(USE_OPENSSL_AWSLC)
 #define HAVE_SSL_0RTT
 #endif
 
