@@ -1589,6 +1589,8 @@ int sc_conn_send(struct stconn *sc)
 		if (sc->state < SC_ST_CON)
 			return 0;
 		BUG_ON(sc_ep_test(sc, SE_FL_EOS|SE_FL_ERROR|SE_FL_ERR_PENDING) == (SE_FL_EOS|SE_FL_ERR_PENDING));
+		if (sc_ep_test(sc, SE_FL_ERROR))
+			sc->flags |= SC_FL_ERROR;
 		return 1;
 	}
 
