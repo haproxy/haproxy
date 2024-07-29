@@ -315,6 +315,31 @@ struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
 	return &stream->buf->buf;
 }
 
+/* Free current <stream> buffer and allocate a new one. This function is reserved
+ * to convert a small buffer to a standard one.
+ *
+ * Returns the buffer or NULL on error.
+ */
+struct buffer *qc_stream_buf_realloc(struct qc_stream_desc *stream)
+{
+	/* This function is reserved to convert a big buffer to a smaller one. */
+	BUG_ON(!stream->buf || !stream->buf->sbuf);
+
+	/* Release buffer */
+	pool_free(pool_head_sbuf, stream->buf->buf.area);
+	stream->buf->buf = BUF_NULL;
+	stream->buf->sbuf = 0;
+
+	if (!b_alloc(&stream->buf->buf, DB_MUX_TX)) {
+		LIST_DEL_INIT(&stream->buf->list);
+		pool_free(pool_head_quic_stream_buf, stream->buf);
+		stream->buf = NULL;
+		return NULL;
+	}
+
+	return &stream->buf->buf;
+}
+
 /* Release the current buffer of <stream>. It will be kept internally by
  * the <stream>. The current buffer cannot be NULL.
  */

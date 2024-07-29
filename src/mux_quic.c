@@ -1080,6 +1080,43 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err, int small)
 	return out;
 }
 
+/* Reallocate <qcs> stream buffer to convert a small buffer to a bigger one.
+ * Contrary to standard allocation, this function will never stop due to a full
+ * buffer window. The smaller buffer is released first which guarantee that the
+ * buffer window has room left.
+ *
+ * Returns buffer pointer or NULL on allocation failure.
+ */
+struct buffer *qcc_realloc_stream_txbuf(struct qcs *qcs)
+{
+	struct qcc *qcc = qcs->qcc;
+	struct buffer *out = qc_stream_buf_get(qcs->stream);
+	const int unlimited = qcs->stream->flags & QC_SD_FL_OOB_BUF;
+
+	/* Stream must not try to reallocate a buffer if currently waiting for one. */
+	BUG_ON(LIST_INLIST(&qcs->el_buf));
+
+	if (likely(!unlimited)) {
+		/* Reduce buffer window. As such there is always some space
+		 * left for a new buffer allocation.
+		 */
+		BUG_ON(qcc->tx.buf_in_flight < b_size(out));
+		qcc->tx.buf_in_flight -= b_size(out);
+	}
+
+	out = qc_stream_buf_realloc(qcs->stream);
+	if (!out) {
+		TRACE_ERROR("buffer alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+		goto out;
+	}
+
+	if (likely(!unlimited))
+		qcc->tx.buf_in_flight += b_size(out);
+
+ out:
+	return out && b_size(out) ? out : NULL;
+}
+
 /* Returns total number of bytes not already sent to quic-conn layer. */
 static uint64_t qcs_prep_bytes(const struct qcs *qcs)
 {

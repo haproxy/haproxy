@@ -1562,6 +1562,7 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	struct htx_blk *blk;
 	enum htx_blk_type type;
 	int frame_length_size;  /* size in bytes of frame length varint field */
+	int smallbuf = 1;
 	int ret = 0;
 	int hdr;
 	int status = 0;
@@ -1606,7 +1607,10 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 
 	list[hdr].n = ist("");
 
-	if (!(res = qcc_get_stream_txbuf(qcs, &err, 1))) {
+ retry:
+	res = smallbuf ? qcc_get_stream_txbuf(qcs, &err, 1) :
+	                 qcc_realloc_stream_txbuf(qcs);
+	if (!res) {
 		if (err) {
 			TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 			goto err;
@@ -1627,11 +1631,11 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	TRACE_DATA("encoding HEADERS frame", H3_EV_TX_FRAME|H3_EV_TX_HDR,
 	           qcs->qcc->conn, qcs);
 	if (qpack_encode_field_section_line(&headers_buf))
-		goto err;
+		goto err_full;
 	if (qpack_encode_int_status(&headers_buf, status)) {
 		/* TODO handle invalid status code VS no buf space left */
 		TRACE_ERROR("error during status code encoding", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-		goto err;
+		goto err_full;
 	}
 
 	for (hdr = 0; hdr < sizeof(list) / sizeof(list[0]); ++hdr) {
@@ -1662,7 +1666,7 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 		}
 
 		if (qpack_encode_header(&headers_buf, list[hdr].n, list[hdr].v))
-			goto err;
+			goto err_full;
 	}
 
 	/* Now that all headers are encoded, we are certain that res buffer is
@@ -1688,6 +1692,12 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	TRACE_LEAVE(H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 	return ret;
 
+ err_full:
+	if (smallbuf) {
+		TRACE_DEVEL("retry with a full buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+		smallbuf = 0;
+		goto retry;
+	}
  err:
 	TRACE_DEVEL("leaving on error", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 	return -1;
