@@ -8612,7 +8612,7 @@ maxconn <conns>
   See also : "server", global section's "maxconn", "fullconn"
 
 
-mode { tcp|http|log }
+mode { tcp|http|log|spop }
   Set the running mode or protocol of the instance
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
@@ -8636,6 +8636,10 @@ mode { tcp|http|log }
               "balance" keyword. Log backends support UDP servers by prefixing
               the server's address with the "udp@" prefix. Common backend and
               server features are supported, but not TCP or HTTP specific ones.
+
+    spop      When used in a backend section, it will turn the backend into a
+              log backend. This mode is mandatory and automatically set, if
+              necessary, for backends referenced by SPOE engines.
 
   When doing content switching, it is mandatory that the frontend and the
   backend are in the same mode (generally HTTP), otherwise the configuration
