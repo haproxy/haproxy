@@ -1145,7 +1145,7 @@ static void qc_rm_hp_pkts(struct quic_conn *qc, struct quic_enc_level *el)
 			quic_rx_packet_refinc(pqpkt);
 			TRACE_PROTO("RX hp removed", QUIC_EV_CONN_ELRMHP, qc, pqpkt);
 		}
-		LIST_DELETE(&pqpkt->list);
+		LIST_DEL_INIT(&pqpkt->list);
 		quic_rx_packet_refdec(pqpkt);
 	}
 
