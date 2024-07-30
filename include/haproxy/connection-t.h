@@ -331,7 +331,15 @@ enum mux_ctl_type {
 /* sctl command used by mux->sctl() */
 enum mux_sctl_type {
 	MUX_SCTL_SID, /* Return the mux stream ID as output, as a signed 64bits integer */
+	MUX_SCTL_DBG_STR,    /* takes a mux_sctl_dbg_str_ctx argument, reads flags and returns debug info */
 };
+
+#define MUX_SCTL_DBG_STR_L_MUXS  0x00000001  // info from mux stream
+#define MUX_SCTL_DBG_STR_L_MUXC  0x00000002  // info from mux connection
+#define MUX_SCTL_DBG_STR_L_XPRT  0x00000004  // info from xprt layer
+#define MUX_SCTL_DBG_STR_L_CONN  0x00000008  // info from struct connection layer
+#define MUX_SCTL_DBG_STR_L_SOCK  0x00000010  // info from socket layer (quic_conn as well)
+
 
 /* response for ctl MUX_STATUS */
 #define MUX_STATUS_READY (1 << 0)
@@ -688,6 +696,15 @@ struct tlv_ssl {
 	uint8_t sub_tlv[VAR_ARRAY];
 }__attribute__((packed));
 
+/* context for a MUX_SCTL_DBG_STR call */
+union mux_sctl_dbg_str_ctx {
+	struct {
+		uint debug_flags; // union of MUX_SCTL_DBG_STR_L_*
+	} arg; // sctl argument for the call
+	struct {
+		struct buffer buf;
+	} ret; // sctl return contents
+};
 
 /* This structure is used to manage idle connections, their locking, and the
  * list of such idle connections to be removed. It is per-thread and must be

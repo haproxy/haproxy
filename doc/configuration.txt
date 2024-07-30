@@ -23966,11 +23966,13 @@ Summary of sample fetch methods in this section and their respective types:
   keyword                                             output type
 ----------------------------------------------------+-------------
 bs.aborted                                            boolean
+bs.debug_str([<bitmap>])                              string
 bs.id                                                 integer
 bs.rst_code                                           integer
 distcc_body(<token>[,<occ>])                          binary
 distcc_param(<token>[,<occ>])                         integer
 fs.aborted                                            boolean
+fs.debug_str([<bitmap>])                              string
 fs.id                                                 integer
 fs.rst_code                                           integer
 payload(<offset>,<length>)                            binary
@@ -24007,6 +24009,28 @@ Detailed list:
 bs.aborted: boolean
   Returns true is an abort was received from the server for the current
   stream. Otherwise false is returned.
+
+bs.debug_str([<bitmap>]) : string
+  This function is meant to be used by developers during certain complex
+  troubleshooting sessions. It extracts some internal states from the lower
+  layers of the backend stream and connection, and arranges them as a string,
+  generally in the form of a series of "name=value" delimited with spaces. The
+  <bitmap> optional argument indicates what layer(s) to extract information
+  from, and is an arithmetic OR (or a sum) of the following values:
+     - socket layer: 16
+     - connection layer: 8
+     - transport layer (e.g. SSL): 4
+     - mux connection: 2
+     - mux stream: 1
+
+  These values might change across versions. The default value of zero is
+  special and enables all layers. Please do not rely on the output of this
+  function for long-term production monitoring. It is meant to evolve even
+  within a stable branch, as the needs for increased details arise. One use
+  typical use case is to concatenate these information at the very end of a
+  log-format, along with fs.debug_str(). Example:
+
+     log-format "$HAPROXY_HTTP_LOG_FMT fs=<%[fs.debug_str]> bs=<%[bs.debug_str]>"
 
 bs.id : integer
   Returns the multiplexer's stream ID on the server side. It is the
@@ -24047,6 +24071,28 @@ distcc_param(<token>[,<occ>]) : integer
 fs.aborted: boolean
   Returns true is an abort was received from the client for the current
   stream. Otherwise false is returned.
+
+fs.debug_str([<bitmap>]) : string
+  This function is meant to be used by developers during certain complex
+  troubleshooting sessions. It extracts some internal states from the lower
+  layers of the frontend stream and connection, and arranges them as a string,
+  generally in the form of a series of "name=value" delimited with spaces. The
+  <bitmap> optional argument indicates what layer(s) to extract information
+  from, and is an arithmetic OR (or a sum) of the following values:
+     - socket layer: 16
+     - connection layer: 8
+     - transport layer (e.g. SSL): 4
+     - mux connection: 2
+     - mux stream: 1
+
+  These values might change across versions. The default value of zero is
+  special and enables all layers. Please do not rely on the output of this
+  function for long-term production monitoring. It is meant to evolve even
+  within a stable branch, as the needs for increased details arise. One use
+  typical use case is to concatenate these information at the very end of a
+  log-format, along with bs.debug_str(). Example:
+
+     log-format "$HAPROXY_HTTP_LOG_FMT fs=<%[fs.debug_str]> bs=<%[bs.debug_str]>"
 
 fs.id : integer
   Returns the multiplexer's stream ID on the client side. It is the

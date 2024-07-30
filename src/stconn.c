@@ -12,6 +12,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
+#include <haproxy/arg.h>
 #include <haproxy/connection.h>
 #include <haproxy/check.h>
 #include <haproxy/filters.h>
@@ -2364,6 +2365,45 @@ void sc_conn_commit_endp_upgrade(struct stconn *sc)
 	BUG_ON(!sc->sedesc);
 }
 
+/* Return a debug string exposing the internals of the front or back
+ * stream/connection when supported. It will be protocol-dependent and will
+ * change over time like the output of "show fd" or "show sess all".
+ */
+static int smp_fetch_debug_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+	struct stconn *sc;
+	union mux_sctl_dbg_str_ctx sctl_ctx = { };
+
+	if (!smp->strm)
+		return 0;
+
+	sc = (kw[0] == 'f' ? smp->strm->scf : smp->strm->scb);
+	conn = sc_conn(sc);
+
+	if (!conn)
+		return 0;
+
+	/* a missing mux is necessarily on the backend, and may arrive later */
+	if (!conn->mux) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	/* Not implemented, return nothing */
+	if (!conn->mux->sctl)
+		return 0;
+
+	sctl_ctx.arg.debug_flags = args->data.sint ? args->data.sint : ~0U;
+	if (conn->mux->sctl(sc, MUX_SCTL_DBG_STR, &sctl_ctx) == -1)
+		return 0;
+
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;
+	smp->data.u.str = sctl_ctx.ret.buf;
+	return 1;
+}
+
 /* return the frontend or backend mux stream ID.
  */
 static int
@@ -2459,9 +2499,11 @@ smp_fetch_strm_rst_code(const struct arg *args, struct sample *smp, const char *
  * common denominator, the type that can be casted into all other ones.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
+	{ "bs.debug_str", smp_fetch_debug_str, ARG1(0,SINT), NULL, SMP_T_STR, SMP_USE_L5SRV },
 	{ "bs.id", smp_fetch_sid, 0, NULL, SMP_T_SINT, SMP_USE_L5SRV },
 	{ "bs.aborted", smp_fetch_strm_aborted, 0, NULL, SMP_T_SINT, SMP_USE_L5SRV },
 	{ "bs.rst_code", smp_fetch_strm_rst_code, 0, NULL, SMP_T_SINT, SMP_USE_L5SRV },
+	{ "fs.debug_str", smp_fetch_debug_str, ARG1(0,SINT), NULL, SMP_T_STR, SMP_USE_L5CLI },
 	{ "fs.id", smp_fetch_sid, 0, NULL, SMP_T_STR, SMP_USE_L5CLI },
 	{ "fs.aborted", smp_fetch_strm_aborted, 0, NULL, SMP_T_SINT, SMP_USE_L5CLI },
 	{ "fs.rst_code", smp_fetch_strm_rst_code, 0, NULL, SMP_T_SINT, SMP_USE_L5CLI },
