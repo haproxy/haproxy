@@ -2459,10 +2459,10 @@ smp_fetch_strm_rst_code(const struct arg *args, struct sample *smp, const char *
  * common denominator, the type that can be casted into all other ones.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
-	{ "bs.id", smp_fetch_sid, 0, NULL, SMP_T_SINT, SMP_USE_L6REQ },
+	{ "bs.id", smp_fetch_sid, 0, NULL, SMP_T_SINT, SMP_USE_L5SRV },
 	{ "bs.aborted", smp_fetch_strm_aborted, 0, NULL, SMP_T_SINT, SMP_USE_L5SRV },
 	{ "bs.rst_code", smp_fetch_strm_rst_code, 0, NULL, SMP_T_SINT, SMP_USE_L5SRV },
-	{ "fs.id", smp_fetch_sid, 0, NULL, SMP_T_STR, SMP_USE_L6RES },
+	{ "fs.id", smp_fetch_sid, 0, NULL, SMP_T_STR, SMP_USE_L5CLI },
 	{ "fs.aborted", smp_fetch_strm_aborted, 0, NULL, SMP_T_SINT, SMP_USE_L5CLI },
 	{ "fs.rst_code", smp_fetch_strm_rst_code, 0, NULL, SMP_T_SINT, SMP_USE_L5CLI },
 	{ /* END */ },
