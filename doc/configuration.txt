@@ -22203,10 +22203,12 @@ fc_http_major : integer
   encoding and not on the version present in the request header.
 
 fc_lost : integer
-  Returns the lost counter measured by the kernel for the client
-  connection. If the server connection is not established, if the connection is
-  not TCP or if the operating system does not support TCP_INFO, for example
-  Linux kernels before 2.4, the sample fetch fails.
+  If the connection is not TCP, nor QUIC, the sample fetch fails.
+  For QUIC, returns the number of lost QUIC packets by the client connection.
+  For TCP, returns the lost counter measured by the kernel for the client
+  connection. If the server connection is not established, or if the operating
+  system does not support TCP_INFO, for example Linux kernels before 2.4, the
+  sample fetch fails.
 
 fc_nb_streams : integer
   Returns the number of streams opened on the frontend connection.
@@ -22247,10 +22249,12 @@ fc_rcvd_proxy : boolean
   header.
 
 fc_reordering : integer
-  Returns the reordering counter measured by the kernel for the client
-  connection. If the server connection is not established, if the connection is
-  not TCP or if the operating system does not support TCP_INFO, for example
-  Linux kernels before 2.4, the sample fetch fails.
+  If the connection is not TCP, nor QUIC, the sample fetch fails.
+  For QUIC, return the number of QUIC reordered packets for the client connection.
+  For TCP, returns the reordering counter measured by the kernel for the client
+  connection. If the server connection is not established, or if the operating
+  system does not support TCP_INFO, for example Linux kernels before 2.4, the
+  sample fetch fails.
 
 fc_retrans : integer
   Returns the retransmits counter measured by the kernel for the client
@@ -22259,20 +22263,22 @@ fc_retrans : integer
   Linux kernels before 2.4, the sample fetch fails.
 
 fc_rtt(<unit>) : integer
-  Returns the Round Trip Time (RTT) measured by the kernel for the client
+  If the connection is not TCP, nor QUIC, the sample fetch fails.
+  For QUIC, returns Smoothed Round Trip Time for the client connection.
+  For TCP, returns the Round Trip Time (RTT) measured by the kernel for the client
   connection. <unit> is facultative, by default the unit is milliseconds. <unit>
   can be set to "ms" for milliseconds or "us" for microseconds. If the server
-  connection is not established, if the connection is not TCP or if the
-  operating system does not support TCP_INFO, for example Linux kernels before
-  2.4, the sample fetch fails.
+  connection is not established, or if the operating system does not support
+  TCP_INFO, for example Linux kernels before 2.4, the sample fetch fails.
 
 fc_rttvar(<unit>) : integer
-  Returns the Round Trip Time (RTT) variance measured by the kernel for the
-  client connection. <unit> is facultative, by default the unit is milliseconds.
+  If the connection is not TCP, nor QUIC, the sample fetch fails.
+  For QUIC, returns Smoothed Round Trip Time variance for the client connection.
+  For TCP, returns the Round Trip Time (RTT) variance measured by the kernel for
+  the client connection. <unit> is facultative, by default the unit is milliseconds.
   <unit> can be set to "ms" for milliseconds or "us" for microseconds. If the
-  server connection is not established, if the connection is not TCP or if the
-  operating system does not support TCP_INFO, for example Linux kernels before
-  2.4, the sample fetch fails.
+  server connection is not established, or if the operating system does not
+  support TCP_INFO, for example Linux kernels before 2.4, the sample fetch fails.
 
 fc_sacked : integer
   Returns the sacked counter measured by the kernel for the client connection.

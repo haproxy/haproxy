@@ -64,6 +64,7 @@ static void quic_disable_listener(struct listener *listener);
 static int quic_bind_tid_prep(struct connection *conn, int new_tid);
 static void quic_bind_tid_commit(struct connection *conn);
 static void quic_bind_tid_reset(struct connection *conn);
+static int quic_get_info(struct connection *conn, long long int *info, int info_num);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 struct protocol proto_quic4 = {
@@ -82,6 +83,7 @@ struct protocol proto_quic4 = {
 	.get_src        = quic_sock_get_src,
 	.get_dst        = quic_sock_get_dst,
 	.connect        = quic_connect_server,
+	.get_info       = quic_get_info,
 	.bind_tid_prep   = quic_bind_tid_prep,
 	.bind_tid_commit = quic_bind_tid_commit,
 	.bind_tid_reset  = quic_bind_tid_reset,
@@ -128,6 +130,7 @@ struct protocol proto_quic6 = {
 	.get_src        = quic_sock_get_src,
 	.get_dst        = quic_sock_get_dst,
 	.connect        = quic_connect_server,
+	.get_info       = quic_get_info,
 	.bind_tid_prep   = quic_bind_tid_prep,
 	.bind_tid_commit = quic_bind_tid_commit,
 	.bind_tid_reset  = quic_bind_tid_reset,
@@ -692,6 +695,21 @@ static void quic_disable_listener(struct listener *l)
 	 */
 	if (fd_updt)
 		fd_stop_recv(l->rx.fd);
+}
+
+static int quic_get_info(struct connection *conn, long long int *info, int info_num)
+{
+	struct quic_conn *qc = conn->handle.qc;
+
+	switch (info_num) {
+	case 0:  *info = qc->path->loss.srtt;             break;
+	case 1:  *info = qc->path->loss.rtt_var;          break;
+	case 3:  *info = qc->path->loss.nb_lost_pkt;      break;
+	case 7:  *info = qc->path->loss.nb_reordered_pkt; break;
+	default: return 0;
+	}
+
+	return 1;
 }
 
 /* change the connection's thread to <new_tid>. For frontend connections, the
