@@ -17,7 +17,7 @@
 #error "Must define USE_OPENSSL"
 #endif
 
-#if defined(USE_OPENSSL_AWSLC)
+#if defined(OPENSSL_IS_AWSLC)
 #include <openssl/chacha.h>
 #endif
 #include <openssl/evp.h>
@@ -30,7 +30,7 @@
 #include <haproxy/openssl-compat.h>
 
 /* Use EVP_CIPHER or EVP_AEAD API depending on the library */
-#if defined(USE_OPENSSL_AWSLC)
+#if defined(OPENSSL_IS_AWSLC)
 
 # define QUIC_AEAD_API
 

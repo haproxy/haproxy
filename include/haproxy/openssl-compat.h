@@ -48,7 +48,7 @@
 #include <haproxy/quic_openssl_compat.h>
 #endif
 
-#if defined(USE_OPENSSL_AWSLC)
+#if defined(OPENSSL_IS_AWSLC)
 #define OPENSSL_NO_DH
 #define SSL_CTX_set1_sigalgs_list SSL_CTX_set1_sigalgs_list
 #endif
@@ -75,7 +75,7 @@
 #define HAVE_SSL_EXTRACT_RANDOM
 #endif
 
-#if ((OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(OPENSSL_IS_BORINGSSL) && !defined(USE_OPENSSL_AWSLC) && !defined(LIBRESSL_VERSION_NUMBER))
+#if ((OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(OPENSSL_IS_BORINGSSL) && !defined(OPENSSL_IS_AWSLC) && !defined(LIBRESSL_VERSION_NUMBER))
 #define HAVE_SSL_RAND_KEEP_RANDOM_DEVICES_OPEN
 #endif
 
@@ -84,7 +84,7 @@
 #define HAVE_ASN1_TIME_TO_TM
 #endif
 
-#if (defined(SSL_CLIENT_HELLO_CB) || defined(OPENSSL_IS_BORINGSSL) || defined(USE_OPENSSL_AWSLC))
+#if (defined(SSL_CLIENT_HELLO_CB) || defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC))
 #define HAVE_SSL_CLIENT_HELLO_CB
 #endif
 
@@ -96,7 +96,7 @@
 #define HAVE_SSL_CTX_get0_privatekey
 #endif
 
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000104fL || defined(USE_OPENSSL_WOLFSSL) || defined(USE_OPENSSL_AWSLC)
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000104fL || defined(USE_OPENSSL_WOLFSSL) || defined(OPENSSL_IS_AWSLC)
 /* CRYPTO_memcmp() is present since openssl 1.0.1d */
 #define HAVE_CRYPTO_memcmp
 #endif
@@ -105,7 +105,7 @@
 #define HAVE_SSL_SCTL
 #endif
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) || defined(USE_OPENSSL_AWSLC) || (defined(USE_OPENSSL_WOLFSSL) && defined(HAVE_SECRET_CALLBACK))
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) || defined(OPENSSL_IS_AWSLC) || (defined(USE_OPENSSL_WOLFSSL) && defined(HAVE_SECRET_CALLBACK))
 #define HAVE_SSL_KEYLOG
 #endif
 
@@ -114,7 +114,7 @@
 #define HAVE_SSL_get0_verified_chain
 #endif
 
-#if defined(SSL_OP_NO_ANTI_REPLAY) || defined(OPENSSL_IS_BORINGSSL) || defined(USE_OPENSSL_AWSLC)
+#if defined(SSL_OP_NO_ANTI_REPLAY) || defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
 #define HAVE_SSL_0RTT
 #endif
 
@@ -124,7 +124,7 @@
 #endif
 
 
-#if (defined(SSL_CTX_set_security_level) || HA_OPENSSL_VERSION_NUMBER >= 0x1010100fL) && !defined(USE_OPENSSL_AWSLC)
+#if (defined(SSL_CTX_set_security_level) || HA_OPENSSL_VERSION_NUMBER >= 0x1010100fL) && !defined(OPENSSL_IS_AWSLC)
 #define HAVE_SSL_SET_SECURITY_LEVEL
 #endif
 
