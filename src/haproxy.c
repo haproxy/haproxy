@@ -1991,7 +1991,7 @@ static void init(int argc, char **argv)
         wolfSSL_Debugging_ON();
 #endif
 
-#ifdef USE_OPENSSL_AWSLC
+#ifdef OPENSSL_IS_AWSLC
         const char *version_str = OpenSSL_version(OPENSSL_VERSION);
         if (strncmp(version_str, "AWS-LC", 6) != 0) {
             ha_alert("HAPRoxy built with AWS-LC but running with %s.\n", version_str);

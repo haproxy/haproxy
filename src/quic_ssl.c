@@ -452,7 +452,7 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 #if !defined(HAVE_SSL_0RTT_QUIC)
 		ha_warning("Binding [%s:%d] for %s %s: 0-RTT with QUIC is not supported by this SSL library, ignored.\n",
 		           bind_conf->file, bind_conf->line, proxy_type_str(bind_conf->frontend), bind_conf->frontend->id);
-#elif defined(OPENSSL_IS_BORINGSSL) || defined(USE_OPENSSL_AWSLC)
+#elif defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
 		SSL_CTX_set_early_data_enabled(ctx, 1);
 #else
 		SSL_CTX_set_options(ctx, SSL_OP_NO_ANTI_REPLAY);
@@ -461,7 +461,7 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 	}
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-# if defined(OPENSSL_IS_BORINGSSL) || defined(USE_OPENSSL_AWSLC)
+# if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
 	SSL_CTX_set_select_certificate_cb(ctx, ssl_sock_switchctx_cbk);
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
 # elif defined(HAVE_SSL_CLIENT_HELLO_CB)
