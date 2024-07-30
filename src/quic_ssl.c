@@ -452,6 +452,8 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 #if !defined(HAVE_SSL_0RTT_QUIC)
 		ha_warning("Binding [%s:%d] for %s %s: 0-RTT with QUIC is not supported by this SSL library, ignored.\n",
 		           bind_conf->file, bind_conf->line, proxy_type_str(bind_conf->frontend), bind_conf->frontend->id);
+#elif defined(OPENSSL_IS_BORINGSSL) || defined(USE_OPENSSL_AWSLC)
+		SSL_CTX_set_early_data_enabled(ctx, 1);
 #else
 		SSL_CTX_set_options(ctx, SSL_OP_NO_ANTI_REPLAY);
 		SSL_CTX_set_max_early_data(ctx, 0xffffffff);
