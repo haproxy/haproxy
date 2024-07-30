@@ -621,6 +621,10 @@ static size_t mux_pt_done_ff(struct stconn *sc)
 		if (conn_xprt_read0_pending(conn))
 			se_fl_set(ctx->sd, SE_FL_EOS);
 		se_fl_set_error(ctx->sd);
+		if (se->iobuf.pipe) {
+			put_pipe(se->iobuf.pipe);
+			se->iobuf.pipe = NULL;
+		}
 		TRACE_DEVEL("error on connection", PT_EV_TX_DATA|PT_EV_CONN_ERR, conn, sc);
 	}
 
@@ -736,6 +740,10 @@ static int mux_pt_resume_fastfwd(struct stconn *sc, unsigned int flags)
 		if (conn_xprt_read0_pending(conn))
 			se_fl_set(ctx->sd, SE_FL_EOS);
 		se_fl_set_error(ctx->sd);
+		if (se->iobuf.pipe) {
+			put_pipe(se->iobuf.pipe);
+			se->iobuf.pipe = NULL;
+		}
 		TRACE_DEVEL("error on connection", PT_EV_TX_DATA|PT_EV_CONN_ERR, conn, sc);
 	}
 

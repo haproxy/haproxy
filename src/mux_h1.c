@@ -4819,6 +4819,10 @@ static size_t h1_done_ff(struct stconn *sc)
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 		}
 		se_fl_set_error(h1s->sd);
+		if (sd->iobuf.pipe) {
+			put_pipe(sd->iobuf.pipe);
+			sd->iobuf.pipe = NULL;
+		}
 		TRACE_DEVEL("connection error", H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 	}
 
@@ -5074,6 +5078,10 @@ static int h1_resume_fastfwd(struct stconn *sc, unsigned int flags)
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 		}
 		se_fl_set_error(h1s->sd);
+		if (h1s->sd->iobuf.pipe) {
+			put_pipe(h1s->sd->iobuf.pipe);
+			h1s->sd->iobuf.pipe = NULL;
+		}
 		TRACE_DEVEL("connection error", H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 	}
 
