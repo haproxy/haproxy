@@ -10,6 +10,11 @@
  *
  */
 
+/* this is to have tcp_info defined on systems using musl
+ * library, such as Alpine Linux.
+ */
+#define _GNU_SOURCE
+
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
@@ -48,6 +53,7 @@ static int tcp_suspend_receiver(struct receiver *rx);
 static int tcp_resume_receiver(struct receiver *rx);
 static void tcp_enable_listener(struct listener *listener);
 static void tcp_disable_listener(struct listener *listener);
+static int tcp_get_info(struct connection *conn, long long int *info, int info_num);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 struct protocol proto_tcpv4 = {
@@ -69,6 +75,7 @@ struct protocol proto_tcpv4 = {
 	.drain          = sock_drain,
 	.check_events   = sock_check_events,
 	.ignore_events  = sock_ignore_events,
+	.get_info       = tcp_get_info,
 
 	/* binding layer */
 	.rx_suspend     = tcp_suspend_receiver,
@@ -115,6 +122,7 @@ struct protocol proto_tcpv6 = {
 	.drain          = sock_drain,
 	.check_events   = sock_check_events,
 	.ignore_events  = sock_ignore_events,
+	.get_info       = tcp_get_info,
 
 	/* binding layer */
 	.rx_suspend     = tcp_suspend_receiver,
@@ -770,6 +778,64 @@ static int tcp_resume_receiver(struct receiver *rx)
 	}
 	return -1;
 }
+
+#ifdef TCP_INFO
+/* Returns some tcp_info data if it's available for <conn> connection into <*info>.
+ * "info_num" represents the required value.
+ * If the function fails it returns 0, otherwise it returns 1 and "result" is filled.
+ */
+static int tcp_get_info(struct connection *conn, long long int *info, int info_num)
+{
+	struct tcp_info tcp_info;
+	socklen_t optlen;
+
+	/* The fd may not be available for the tcp_info struct, and the
+	  syscal can fail. */
+	optlen = sizeof(tcp_info);
+	if ((conn->flags & CO_FL_FDLESS) ||
+	    getsockopt(conn->handle.fd, IPPROTO_TCP, TCP_INFO, &tcp_info, &optlen) == -1)
+		return 0;
+
+	switch (info_num) {
+#if defined(__APPLE__)
+	case 0:  *info = tcp_info.tcpi_rttcur;         break;
+	case 1:  *info = tcp_info.tcpi_rttvar;         break;
+	case 2:  *info = tcp_info.tcpi_tfo_syn_data_acked; break;
+	case 4:  *info = tcp_info.tcpi_tfo_syn_loss;   break;
+	case 5:  *info = tcp_info.tcpi_rto;            break;
+#else
+	/* all other platforms supporting TCP_INFO have these ones */
+	case 0:  *info = tcp_info.tcpi_rtt;            break;
+	case 1:  *info = tcp_info.tcpi_rttvar;         break;
+# if defined(__linux__)
+	/* these ones are common to all Linux versions */
+	case 2:  *info = tcp_info.tcpi_unacked;        break;
+	case 3:  *info = tcp_info.tcpi_sacked;         break;
+	case 4:  *info = tcp_info.tcpi_lost;           break;
+	case 5:  *info = tcp_info.tcpi_retrans;        break;
+	case 6:  *info = tcp_info.tcpi_fackets;        break;
+	case 7:  *info = tcp_info.tcpi_reordering;     break;
+# elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
+	/* the ones are found on FreeBSD, NetBSD and OpenBSD featuring TCP_INFO */
+	case 2:  *info = tcp_info.__tcpi_unacked;      break;
+	case 3:  *info = tcp_info.__tcpi_sacked;       break;
+	case 4:  *info = tcp_info.__tcpi_lost;         break;
+	case 5:  *info = tcp_info.__tcpi_retrans;      break;
+	case 6:  *info = tcp_info.__tcpi_fackets;      break;
+	case 7:  *info = tcp_info.__tcpi_reordering;   break;
+# endif
+#endif // apple
+	default: return 0;
+	}
+
+	return 1;
+}
+#else
+static int tcp_get_info(struct connection *conn, long long int *info, int info_num)
+{
+	return 0;
+}
+#endif /* TCP_INFO */
 
 
 /*

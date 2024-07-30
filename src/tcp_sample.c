@@ -10,11 +10,6 @@
  *
  */
 
-/* this is to have tcp_info defined on systems using musl
- * library, such as Alpine Linux.
- */
-#define _GNU_SOURCE
-
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
@@ -314,61 +309,21 @@ static inline int get_tcp_info(const struct arg *args, struct sample *smp,
                                int dir, int val)
 {
 	struct connection *conn;
-	struct tcp_info info;
-	socklen_t optlen;
 
 	/* strm can be null. */
 	if (!smp->strm)
 		return 0;
 
+	smp->data.type = SMP_T_SINT;
 	/* get the object associated with the stream connector.The
 	 * object can be other thing than a connection. For example,
-	 * it be a appctx.
+	 * it could be an appctx.
 	 */
 	conn = (dir == 0 ? sc_conn(smp->strm->scf) : sc_conn(smp->strm->scb));
-	if (!conn)
+	if (!conn || !conn->ctrl->get_info ||
+	    !conn->ctrl->get_info(conn, &smp->data.u.sint, val))
 		return 0;
 
-	/* The fd may not be available for the tcp_info struct, and the
-	  syscal can fail. */
-	optlen = sizeof(info);
-	if ((conn->flags & CO_FL_FDLESS) ||
-	    getsockopt(conn->handle.fd, IPPROTO_TCP, TCP_INFO, &info, &optlen) == -1)
-		return 0;
-
-	/* extract the value. */
-	smp->data.type = SMP_T_SINT;
-	switch (val) {
-#if defined(__APPLE__)
-	case 0:  smp->data.u.sint = info.tcpi_rttcur;         break;
-	case 1:  smp->data.u.sint = info.tcpi_rttvar;         break;
-	case 2:  smp->data.u.sint = info.tcpi_tfo_syn_data_acked; break;
-	case 4:  smp->data.u.sint = info.tcpi_tfo_syn_loss;   break;
-	case 5:  smp->data.u.sint = info.tcpi_rto;            break;
-#else
-	/* all other platforms supporting TCP_INFO have these ones */
-	case 0:  smp->data.u.sint = info.tcpi_rtt;            break;
-	case 1:  smp->data.u.sint = info.tcpi_rttvar;         break;
-# if defined(__linux__)
-	/* these ones are common to all Linux versions */
-	case 2:  smp->data.u.sint = info.tcpi_unacked;        break;
-	case 3:  smp->data.u.sint = info.tcpi_sacked;         break;
-	case 4:  smp->data.u.sint = info.tcpi_lost;           break;
-	case 5:  smp->data.u.sint = info.tcpi_retrans;        break;
-	case 6:  smp->data.u.sint = info.tcpi_fackets;        break;
-	case 7:  smp->data.u.sint = info.tcpi_reordering;     break;
-# elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
-	/* the ones are found on FreeBSD, NetBSD and OpenBSD featuring TCP_INFO */
-	case 2:  smp->data.u.sint = info.__tcpi_unacked;      break;
-	case 3:  smp->data.u.sint = info.__tcpi_sacked;       break;
-	case 4:  smp->data.u.sint = info.__tcpi_lost;         break;
-	case 5:  smp->data.u.sint = info.__tcpi_retrans;      break;
-	case 6:  smp->data.u.sint = info.__tcpi_fackets;      break;
-	case 7:  smp->data.u.sint = info.__tcpi_reordering;   break;
-# endif
-#endif // apple
-	default: return 0;
-	}
 
 	return 1;
 }
