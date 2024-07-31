@@ -17,6 +17,7 @@
 #include <haproxy/quic_frame-t.h>
 #include <haproxy/quic_stream-t.h>
 #include <haproxy/stconn-t.h>
+#include <haproxy/time-t.h>
 
 /* Stream types */
 enum qcs_type {
@@ -156,6 +157,12 @@ struct qcs {
 	uint64_t err; /* error code to transmit via RESET_STREAM */
 
 	int start; /* base timestamp for http-request timeout */
+
+	struct {
+		struct tot_time base; /* total QCS lifetime */
+		struct tot_time buf;  /* stream to QCS send blocked on buffer */
+		struct tot_time fctl; /* stream to QCS send blocked on flow-control */
+	} timer;
 };
 
 /* Used as qcc_app_ops.close callback argument. */

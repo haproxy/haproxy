@@ -149,6 +149,12 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 
 	qcs->err = 0;
 
+	/* Reset all timers and start base one. */
+	tot_time_reset(&qcs->timer.base);
+	tot_time_reset(&qcs->timer.buf);
+	tot_time_reset(&qcs->timer.fctl);
+	tot_time_start(&qcs->timer.base);
+
 	qcs->sd = sedesc_new();
 	if (!qcs->sd)
 		goto err;
@@ -534,6 +540,7 @@ int qcc_notify_buf(struct qcc *qcc)
 	if (!LIST_ISEMPTY(&qcc->buf_wait_list)) {
 		qcs = LIST_ELEM(qcc->buf_wait_list.n, struct qcs *, el_buf);
 		LIST_DEL_INIT(&qcs->el_buf);
+		tot_time_stop(&qcs->timer.buf);
 		qcs_notify_send(qcs);
 		ret = 1;
 	}
@@ -1004,6 +1011,7 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err)
 	if (!out) {
 		if (qcc->flags & QC_CF_CONN_FULL) {
 			LIST_APPEND(&qcc->buf_wait_list, &qcs->el_buf);
+			tot_time_start(&qcs->timer.buf);
 			goto out;
 		}
 
@@ -1018,6 +1026,7 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err)
 
 			TRACE_STATE("hitting stream desc buffer limit", QMUX_EV_QCS_SEND, qcc->conn, qcs);
 			LIST_APPEND(&qcc->buf_wait_list, &qcs->el_buf);
+			tot_time_start(&qcs->timer.buf);
 			qcc->flags |= QC_CF_CONN_FULL;
 			goto out;
 		}
@@ -1102,6 +1111,7 @@ static void qcc_notify_fctl(struct qcc *qcc)
 	while (!LIST_ISEMPTY(&qcc->fctl_list)) {
 		qcs = LIST_ELEM(qcc->fctl_list.n, struct qcs *, el_fctl);
 		LIST_DEL_INIT(&qcs->el_fctl);
+		tot_time_stop(&qcs->timer.fctl);
 		qcs_notify_send(qcs);
 	}
 }
@@ -1454,8 +1464,10 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 				tasklet_wakeup(qcc->wait_event.tasklet);
 			}
 
-			if (unblock_soft)
+			if (unblock_soft) {
+				tot_time_stop(&qcs->timer.fctl);
 				qcs_notify_send(qcs);
+			}
 		}
 	}
 
@@ -2928,6 +2940,7 @@ static size_t qmux_strm_snd_buf(struct stconn *sc, struct buffer *buf,
 			TRACE_DEVEL("append to fctl-list",
 			            QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 			LIST_APPEND(&qcs->qcc->fctl_list, &qcs->el_fctl);
+			tot_time_start(&qcs->timer.fctl);
 		}
 		goto end;
 	}
@@ -2935,6 +2948,7 @@ static size_t qmux_strm_snd_buf(struct stconn *sc, struct buffer *buf,
 	if (qfctl_sblocked(&qcs->tx.fc)) {
 		TRACE_DEVEL("leaving on flow-control reached",
 		            QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
+		tot_time_start(&qcs->timer.fctl);
 		goto end;
 	}
 
