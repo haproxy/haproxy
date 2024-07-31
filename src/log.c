@@ -2932,7 +2932,18 @@ static inline void _process_send_log_override(struct process_send_log_ctx *ctx,
 				step = prof->close;
 			break;
 		default:
+		{
+			struct log_profile_step_extra *extra;
+
+			/* catchall for extra log origins */
+
+			/* check if there is a log step defined for this log origin */
+			extra = container_of_safe(eb32_lookup(&prof->extra, orig),
+			                          struct log_profile_step_extra, node);
+			if (extra)
+				step = &extra->step;
 			break;
+		}
 	}
 
 	if (!step && prof->any)
