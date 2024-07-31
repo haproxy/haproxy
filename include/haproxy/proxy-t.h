@@ -379,7 +379,7 @@ struct proxy {
 	struct buffer log_tag;                   /* override default syslog tag */
 	struct ist header_unique_id; 		/* unique-id header */
 	struct lf_expr format_unique_id;        /* unique-id format */
-	int to_log;				/* things to be logged (LW_*) */
+	int to_log;				/* things to be logged (LW_*), special value LW_LOGSTEPS == follow log-steps */
 	int nb_req_cap, nb_rsp_cap;		/* # of headers to be captured */
 	struct cap_hdr *req_cap;		/* chained list of request headers to be captured */
 	struct cap_hdr *rsp_cap;		/* chained list of response headers to be captured */

@@ -1293,6 +1293,13 @@ static int _postcheck_log_backend_compat(struct proxy *be)
 		err_code |= ERR_WARN;
 		free_server_rules(&be->server_rules);
 	}
+	if (be->to_log == LW_LOGSTEPS) {
+		ha_warning("Cannot use \"log-steps\" with 'mode log' in %s '%s'. It will be ignored.\n",
+			   proxy_type_str(be), be->id);
+
+		err_code |= ERR_WARN;
+		/* we don't have a convenient freeing function, let the proxy free it upon deinit */
+	}
 	if (balance_algo != BE_LB_ALGO_RR &&
 	    balance_algo != BE_LB_ALGO_RND &&
 	    balance_algo != BE_LB_ALGO_SS &&
@@ -6606,6 +6613,105 @@ static int postresolve_loggers()
 /* config parsers for this section */
 REGISTER_CONFIG_SECTION("log-forward", cfg_parse_log_forward, NULL);
 REGISTER_CONFIG_SECTION("log-profile", cfg_parse_log_profile, NULL);
+
+static int px_parse_log_steps(char **args, int section_type, struct proxy *curpx,
+                              const struct proxy *defpx, const char *file, int line,
+                              char **err)
+{
+	char *str;
+	size_t cur_sep;
+	int retval = -1;
+
+	if (!(curpx->cap & PR_CAP_FE)) {
+		memprintf(err, "%s will be ignored because %s '%s' has no frontend capability",
+		          args[0], proxy_type_str(curpx), curpx->id);
+		retval = 1;
+		goto end;
+	}
+
+	if (args[1] == NULL) {
+		memprintf(err, "%s: invalid arguments, expects 'all' or a composition of logging"
+		               "steps separated by spaces.",
+		          args[0]);
+		goto end;
+	}
+
+	if (strcmp(args[1], "all") == 0) {
+		/* enable all logging steps */
+		curpx->to_log = LW_LOGSTEPS;
+		retval = 0;
+		goto end;
+	}
+
+	/* selectively enable logging steps */
+	str = args[1];
+
+	while (str[0]) {
+		struct eb32_node *cur_step;
+		enum log_orig_id cur_id;
+
+		cur_sep = strcspn(str, ",");
+
+		/* check for valid logging step */
+                if (cur_sep == 6 && strncmp(str, "accept", cur_sep) == 0)
+			cur_id = LOG_ORIG_TXN_ACCEPT;
+                else if (cur_sep == 7 && strncmp(str, "request", cur_sep) == 0)
+			cur_id = LOG_ORIG_TXN_REQUEST;
+                else if (cur_sep == 7 && strncmp(str, "connect", cur_sep) == 0)
+			cur_id = LOG_ORIG_TXN_CONNECT;
+                else if (cur_sep == 8 && strncmp(str, "response", cur_sep) == 0)
+			cur_id = LOG_ORIG_TXN_RESPONSE;
+                else if (cur_sep == 5 && strncmp(str, "close", cur_sep) == 0)
+			cur_id = LOG_ORIG_TXN_CLOSE;
+		else {
+			struct log_origin_node *cur;
+
+			list_for_each_entry(cur, &log_origins, list) {
+				if (cur_sep == strlen(cur->name) && strncmp(str, cur->name, cur_sep) == 0) {
+					cur_id = cur->tree.key;
+					break;
+				}
+			}
+
+			memprintf(err,
+			          "invalid log step name (%.*s). Expected values are: "
+			          "accept, request, connect, response, close",
+			          (int)cur_sep, str);
+                        list_for_each_entry(cur, &log_origins, list)
+				memprintf(err, "%s, %s", *err, cur->name);
+
+			goto end;
+		}
+
+		cur_step = malloc(sizeof(*cur_step));
+		if (!cur_step) {
+			memprintf(err, "memory failure when trying to configure log-step (%.*s)",
+			          (int)cur_sep, str);
+			goto end;
+		}
+		cur_step->key = cur_id;
+		eb32_insert(&curpx->conf.log_steps, cur_step);
+ next:
+		if (str[cur_sep])
+			str += cur_sep + 1;
+		else
+			str += cur_sep;
+	}
+
+	curpx->to_log = LW_LOGSTEPS;
+	retval = 0;
+
+ end:
+	return retval;
+}
+
+static struct cfg_kw_list cfg_kws_li = {ILH, {
+	{ CFG_LISTEN, "log-steps",  px_parse_log_steps },
+	{ 0, NULL, NULL },
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws_li);
+
 REGISTER_POST_CHECK(postresolve_loggers);
 REGISTER_POST_PROXY_CHECK(postcheck_log_backend);
 REGISTER_POST_PROXY_CHECK(postcheck_logformat_proxy);

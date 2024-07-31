@@ -59,6 +59,7 @@
  * and appear as flags in session->logs.logwait, which are removed once the
  * required information has been collected.
  */
+#define LW_LOGSTEPS        -1        /* special value: ignore LW_* fields and consider proxy log-steps */
 #define LW_INIT             1        /* anything */
 #define LW_CLIP             2        /* CLient IP */
 #define LW_SVIP             4        /* SerVer IP */
