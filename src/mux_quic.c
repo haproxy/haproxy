@@ -3,6 +3,7 @@
 #include <import/eb64tree.h>
 
 #include <haproxy/api.h>
+#include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
@@ -3201,12 +3202,31 @@ static int qmux_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *ou
 static int qmux_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *output)
 {
 	int ret = 0;
-	struct qcs *qcs = __sc_mux_strm(sc);
+	const struct qcs *qcs = __sc_mux_strm(sc);
+	const struct qcc *qcc = qcs->qcc;
+	union mux_sctl_dbg_str_ctx *dbg_ctx;
+	struct buffer *buf;
 
 	switch (mux_sctl) {
 	case MUX_SCTL_SID:
 		if (output)
 			*((int64_t *)output) = qcs->id;
+		return ret;
+
+	case MUX_SCTL_DBG_STR:
+		dbg_ctx = output;
+		buf = get_trash_chunk();
+
+		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_MUXS)
+			qmux_dump_qcs_info(buf, qcs);
+
+		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_MUXC)
+			qmux_dump_qcc_info(buf, qcc);
+
+		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_CONN)
+			chunk_appendf(buf, " conn.flg=%#08x", qcc->conn->flags);
+
+		dbg_ctx->ret.buf = *buf;
 		return ret;
 
 	default:
