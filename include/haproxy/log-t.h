@@ -280,6 +280,7 @@ enum log_orig_id {
 /* log orig flags
  */
 #define LOG_ORIG_FL_NONE  0x0000
+#define LOG_ORIG_FL_ERROR 0x0001
 #define LOG_ORIG_FL_ALL   0xFFFF
 
 struct log_orig {

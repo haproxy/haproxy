@@ -2896,6 +2896,7 @@ static inline void _process_send_log_override(struct process_send_log_ctx *ctx,
 	struct ist orig_tag = hdr.metadata[LOG_META_TAG];
 	struct ist orig_sd = hdr.metadata[LOG_META_STDATA];
 	enum log_orig_id orig = (ctx) ? ctx->origin.id : LOG_ORIG_UNSPEC;
+	uint16_t orig_fl = (ctx) ? ctx->origin.flags : LOG_ORIG_FL_NONE;
 
 	BUG_ON(!prof);
 
@@ -2936,6 +2937,13 @@ static inline void _process_send_log_override(struct process_send_log_ctx *ctx,
 			struct log_profile_step_extra *extra;
 
 			/* catchall for extra log origins */
+			if ((orig_fl & LOG_ORIG_FL_ERROR) && prof->error) {
+				/* extra orig with explicit error flag, must be
+				 * handled as an error
+				 */
+				step = prof->error;
+				break;
+			}
 
 			/* check if there is a log step defined for this log origin */
 			extra = container_of_safe(eb32_lookup(&prof->extra, orig),
@@ -5150,7 +5158,8 @@ void strm_log(struct stream *s, struct log_orig origin)
 	err = (s->flags & SF_REDISP) ||
               ((s->flags & SF_ERR_MASK) > SF_ERR_LOCAL) ||
 	      (((s->flags & SF_ERR_MASK) == SF_ERR_NONE) && s->conn_retries) ||
-	      ((sess->fe->mode == PR_MODE_HTTP) && s->txn && s->txn->status >= 500);
+	      ((sess->fe->mode == PR_MODE_HTTP) && s->txn && s->txn->status >= 500) ||
+	      (origin.flags & LOG_ORIG_FL_ERROR);
 
 	if (!err && (sess->fe->options2 & PR_O2_NOLOGNORM))
 		return;
