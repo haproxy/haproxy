@@ -72,20 +72,10 @@ static void qmux_trace(enum trace_level level, uint64_t mask,
 		return;
 
 	if (src->verbosity > QMUX_VERB_CLEAN) {
-		chunk_appendf(&trace_buf, " : qcc=%p(F)", qcc);
-		if (qcc->conn->handle.qc)
-			chunk_appendf(&trace_buf, " qc=%p", qcc->conn->handle.qc);
+		qmux_dump_qcc_info(&trace_buf, qcc);
 
-		chunk_appendf(&trace_buf, " md=%llu/%llu",
-		              (ullong)qcc->tx.fc.limit, (ullong)qcc->tx.fc.off_real);
-
-		if (qcs) {
-			chunk_appendf(&trace_buf, " qcs=%p .id=%llu .st=%s",
-			              qcs, (ullong)qcs->id,
-			              qcs_st_to_str(qcs->st));
-			chunk_appendf(&trace_buf, " msd=%llu/%llu",
-			              (ullong)qcs->tx.fc.limit, (ullong)qcs->tx.fc.off_real);
-		}
+		if (qcs)
+			qmux_dump_qcs_info(&trace_buf, qcs);
 
 		if (mask & QMUX_EV_QCC_NQCS) {
 			const uint64_t *id = a3;
@@ -112,3 +102,26 @@ static void qmux_trace(enum trace_level level, uint64_t mask,
 
 /* register qmux traces */
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
+
+void qmux_dump_qcc_info(struct buffer *msg, const struct qcc *qcc)
+{
+	chunk_appendf(msg, " qcc=%p(F)", qcc);
+	if (qcc->conn->handle.qc)
+		chunk_appendf(msg, " qc=%p", qcc->conn->handle.qc);
+	chunk_appendf(msg, " .sc=%llu .hreq=%llu .flg=0x%04x", (ullong)qcc->nb_sc, (ullong)qcc->nb_hreq, qcc->flags);
+
+	chunk_appendf(msg, " .tx=%llu %llu/%llu", (ullong)qcc->tx.fc.off_soft,
+	                                          (ullong)qcc->tx.fc.off_real,
+	                                          (ullong)qcc->tx.fc.limit);
+}
+
+void qmux_dump_qcs_info(struct buffer *msg, const struct qcs *qcs)
+{
+	chunk_appendf(msg, " qcs=%p .id=%llu .st=%s .flg=0x%04x", qcs, (ullong)qcs->id,
+	              qcs_st_to_str(qcs->st), qcs->flags);
+
+	chunk_appendf(msg, " .rx=%llu/%llu", (ullong)qcs->rx.offset_max, (ullong)qcs->rx.msd);
+	chunk_appendf(msg, " .tx=%llu %llu/%llu", (ullong)qcs->tx.fc.off_soft,
+	                                          (ullong)qcs->tx.fc.off_real,
+	                                          (ullong)qcs->tx.fc.limit);
+}

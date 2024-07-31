@@ -4,7 +4,11 @@
 #ifdef USE_QUIC
 
 #include <haproxy/api-t.h>
+#include <haproxy/buf.h>
 #include <haproxy/trace.h>
+
+struct qcc;
+struct qcs;
 
 extern struct trace_source trace_qmux;
 #define TRACE_SOURCE    &trace_qmux
@@ -67,6 +71,9 @@ struct qcs_build_stream_trace_arg {
 	char fin;
 	uint64_t offset;
 };
+
+void qmux_dump_qcc_info(struct buffer *msg, const struct qcc *qcc);
+void qmux_dump_qcs_info(struct buffer *msg, const struct qcs *qcs);
 
 #endif /* USE_QUIC */
 
