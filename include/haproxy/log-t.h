@@ -270,6 +270,21 @@ enum log_orig {
 	LOG_ORIG_TXN_CONNECT,        /* during stream connect handling */
 	LOG_ORIG_TXN_RESPONSE,       /* during stream response handling */
 	LOG_ORIG_TXN_CLOSE,          /* during stream termination */
+	LOG_ORIG_EXTRA,              /* end of hard-coded/legacy log origins,
+	                              * beginning of extra ones. 1 extra orig
+	                              * = 1 logging step
+	                              */
+	LOG_ORIG_MAX = 0xFFFF,       /* max log origin number (65k) */
+};
+
+/* max number of extra log origins */
+#define LOG_ORIG_EXTRA_SLOTS LOG_ORIG_MAX - LOG_ORIG_EXTRA
+
+/* used to register extra log origins */
+struct log_origin_node {
+	struct list list;      /* per-name lookup during config */
+	const char *name;
+	uint32_t id;
 };
 
 /* log profile step flags */
@@ -282,6 +297,12 @@ struct log_profile_step {
 	struct lf_expr logformat;
 	struct lf_expr logformat_sd;
 	enum log_ps_flags flags;     /* LOG_PS_FL_* */
+};
+
+struct log_profile_step_extra {
+	struct log_profile_step step;
+	struct eb32_node node;
+	struct log_origin_node *orig; // reference to log_origin config node
 };
 
 struct log_profile {
@@ -299,6 +320,7 @@ struct log_profile {
 	struct log_profile_step *close;
 	struct log_profile_step *error; // override error-log-format
 	struct log_profile_step *any;   // override log-format
+	struct eb_root extra;           // extra log profile steps (if any)
 };
 
 #endif /* _HAPROXY_LOG_T_H */

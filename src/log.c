@@ -89,6 +89,9 @@ static const struct log_fmt_st log_formats[LOG_FORMATS] = {
 	},
 };
 
+/* list of extra log origins */
+static struct list log_origins = LIST_HEAD_INIT(log_origins);
+
 /* get human readable representation for log_orig enum members */
 const char *log_orig_to_str(enum log_orig orig)
 {
@@ -6090,13 +6093,18 @@ static inline void log_profile_step_init(struct log_profile_step *lprof_step)
 	lprof_step->flags = LOG_PS_FL_NONE;
 }
 
-static inline void log_profile_step_free(struct log_profile_step *lprof_step)
+static inline void log_profile_step_deinit(struct log_profile_step *lprof_step)
 {
 	if (!lprof_step)
 		return;
 
 	lf_expr_deinit(&lprof_step->logformat);
 	lf_expr_deinit(&lprof_step->logformat_sd);
+}
+
+static inline void log_profile_step_free(struct log_profile_step *lprof_step)
+{
+	log_profile_step_deinit(lprof_step);
 	free(lprof_step);
 }
 
@@ -6141,6 +6149,9 @@ static inline int log_profile_step_postcheck(struct proxy *px, const char *step_
  */
 static int log_profile_postcheck(struct proxy *px, struct log_profile *prof, char **err)
 {
+	struct eb32_node *node;
+	struct log_profile_step_extra *extra;
+
 	/* log profile steps are only relevant under proxy
 	 * context
 	 */
@@ -6157,11 +6168,23 @@ static int log_profile_postcheck(struct proxy *px, struct log_profile *prof, cha
 	    !log_profile_step_postcheck(px, "any", prof->any, err))
 		return 0;
 
+	/* postcheck extra steps (if any) */
+	node = eb32_first(&prof->extra);
+	while (node) {
+		extra = eb32_entry(node, struct log_profile_step_extra, node);
+		node = eb32_next(node);
+		if (!log_profile_step_postcheck(px, extra->orig->name, &extra->step, err))
+			return 0;
+	}
+
 	return 1;
 }
 
 static void log_profile_free(struct log_profile *prof)
 {
+	struct eb32_node *node;
+	struct log_profile_step_extra *extra;
+
 	ha_free(&prof->id);
 	ha_free(&prof->conf.file);
 	chunk_destroy(&prof->log_tag);
@@ -6173,6 +6196,16 @@ static void log_profile_free(struct log_profile *prof)
 	log_profile_step_free(prof->close);
 	log_profile_step_free(prof->error);
 	log_profile_step_free(prof->any);
+
+	/* free extra steps (if any) */
+	node = eb32_first(&prof->extra);
+	while (node) {
+		extra = eb32_entry(node, struct log_profile_step_extra, node);
+		node = eb32_next(node);
+		eb32_delete(&extra->node);
+		log_profile_step_deinit(&extra->step);
+		free(extra);
+	}
 
 	ha_free(&prof);
 }
@@ -6247,6 +6280,7 @@ int cfg_parse_log_profile(const char *file, int linenum, char **args, int kwm)
 		}
 		prof->conf.file = strdup(file);
 		prof->conf.line = linenum;
+		prof->extra = EB_ROOT_UNIQUE;
 
 		/* add to list */
 		LIST_APPEND(&log_profile_list, &prof->list);
@@ -6267,11 +6301,14 @@ int cfg_parse_log_profile(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (strcmp(args[0], "on") == 0) { /* log profile step */
-		struct log_profile_step **target_step;
+		struct log_profile_step **target_step = NULL;
+		struct log_profile_step *extra_step;
 		struct lf_expr *target_lf;
 		int cur_arg;
 
-		/* get targeted log-profile step */
+		/* get targeted log-profile step:
+		 *   first try with native ones
+		 */
 		if (strcmp(args[1], "accept") == 0)
 			target_step = &prof->accept;
 		else if (strcmp(args[1], "request") == 0)
@@ -6287,9 +6324,50 @@ int cfg_parse_log_profile(const char *file, int linenum, char **args, int kwm)
 		else if (strcmp(args[1], "any") == 0)
 			target_step = &prof->any;
 		else {
-			ha_alert("parsing [%s:%d] : '%s' expects a log step.\n"
-			         "expected values are: 'accept', 'request', 'connect', 'response', 'close', 'error' or 'any'\n",
-			         file, linenum, args[0]);
+			struct log_origin_node *cur;
+			struct log_profile_step_extra *extra = NULL;
+
+			/* then try extra ones (if any) */
+			list_for_each_entry(cur, &log_origins, list) {
+				if (strcmp(args[1], cur->name) == 0) {
+					/* found matching one */
+					extra = malloc(sizeof(*extra));
+					if (extra == NULL) {
+						ha_alert("parsing [%s:%d]: cannot allocate memory for '%s %s'.\n", file, linenum, args[0], args[1]);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+					log_profile_step_init(&extra->step);
+					extra->orig = cur;
+					extra->node.key = cur->id;
+					eb32_insert(&prof->extra, &extra->node);
+					extra_step = &extra->step;
+					target_step = &extra_step;
+					break;
+				}
+			}
+		}
+
+		if (target_step == NULL) {
+			char *extra_origins = NULL;
+			struct log_origin_node *cur;
+
+			list_for_each_entry(cur, &log_origins, list) {
+				if (extra_origins)
+					memprintf(&extra_origins, "%s, '%s'", extra_origins, cur->name);
+				else
+					memprintf(&extra_origins, "'%s'", cur->name);
+			}
+
+			memprintf(&errmsg, "'%s' expects a log step.\n"
+			                   "expected values are: 'accept', 'request', 'connect', "
+			                   "'response', 'close', 'error' or 'any'.",
+			                   args[0]);
+			if (extra_origins)
+				memprintf(&errmsg, "%s\nOr one of the additional log steps: %s.", errmsg, extra_origins);
+			free(extra_origins);
+
+			ha_alert("parsing [%s:%d]: %s\n", file, linenum, errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -6368,6 +6446,66 @@ out:
 	return err_code;
 }
 
+/* suitable for use with INITCALL0(STG_PREPARE), may not be used anymore
+ * once config parsing has started since it will depend on this.
+ *
+ * Returns the ID of the log origin on success and LOG_ORIG_UNSPEC on failure.
+ * ID must be saved for later use (ie: inside static variable), in order
+ * to use it as log origin during runtime.
+ *
+ * If the origin is already defined, the existing ID is returned.
+ *
+ * Don't forget to update the documentation when new log origins are added
+ * (both %OG log alias and on <step> log-profile keyword are concerned)
+ */
+enum log_orig log_orig_register(const char *name)
+{
+	struct log_origin_node *cur;
+	size_t last = 0;
+
+	list_for_each_entry(cur, &log_origins, list) {
+		if (strcmp(name, cur->name) == 0)
+			return cur->id;
+		last = cur->id;
+	}
+	/* not found, need to register new log origin */
+
+	if (last == LOG_ORIG_EXTRA_SLOTS) {
+		ha_alert("Reached maximum number of log origins. Please report to developers if you see this message.\n");
+		goto out_error;
+	}
+
+	cur = malloc(sizeof(*cur));
+	if (cur == NULL)
+		goto out_oom;
+
+	cur->id = LOG_ORIG_EXTRA + last;
+	cur->name = strdup(name);
+	if (!cur->name) {
+		free(cur);
+		goto out_oom;
+	}
+	LIST_APPEND(&log_origins, &cur->list);
+	return cur->id;
+
+ out_oom:
+	ha_alert("Failed to register additional log origin. Out of memory\n");
+ out_error:
+	return LOG_ORIG_UNSPEC;
+}
+
+/* Deinitialize all extra log origins */
+static void deinit_log_origins()
+{
+	struct log_origin_node *orig, *back;
+
+	list_for_each_entry_safe(orig, back, &log_origins, list) {
+		LIST_DEL_INIT(&orig->list);
+		free((char *)orig->name);
+		free(orig);
+	}
+}
+
 /* function: post-resolve a single list of loggers
  *
  * Returns err_code which defaults to ERR_NONE and can be set to a combination
@@ -6439,6 +6577,7 @@ REGISTER_PER_THREAD_FREE(deinit_log_buffers);
 
 REGISTER_POST_DEINIT(deinit_log_forward);
 REGISTER_POST_DEINIT(deinit_log_profiles);
+REGISTER_POST_DEINIT(deinit_log_origins);
 
 /*
  * Local variables:
