@@ -460,6 +460,12 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 	}
 
 	if (*msgf & H2_MSGF_EXT_CONNECT) {
+		/* Consider "h2c" / "h2" as invalid protocol value for Extended CONNECT. */
+		if (isteqi(phdr_val[H2_PHDR_IDX_PROT], ist("h2c")) ||
+		    isteqi(phdr_val[H2_PHDR_IDX_PROT], ist("h2"))) {
+			goto fail;
+		}
+
 		if (!htx_add_header(htx, ist("upgrade"), phdr_val[H2_PHDR_IDX_PROT]))
 			goto fail;
 		if (!htx_add_header(htx, ist("connection"), ist("upgrade")))

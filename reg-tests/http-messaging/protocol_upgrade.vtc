@@ -252,4 +252,28 @@ client c7_h2c -connect ${hap_frt_h1_h2c_sock} {
 
 	rxresp
 	expect resp.status == 200
+}
+
+# extended connect with invalid "h2c" protocol
+client c8_h2c -connect ${hap_frt_h2_h1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -req "CONNECT" \
+		  -scheme "http" \
+		  -url "/" \
+		  -hdr ":authority" "127.0.0.1" \
+		  -hdr ":protocol" "h2c"
+
+		rxrst
+		expect rst.err == 1
+	} -run
 } -run
