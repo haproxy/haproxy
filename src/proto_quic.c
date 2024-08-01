@@ -702,8 +702,8 @@ static int quic_get_info(struct connection *conn, long long int *info, int info_
 	struct quic_conn *qc = conn->handle.qc;
 
 	switch (info_num) {
-	case 0:  *info = qc->path->loss.srtt;             break;
-	case 1:  *info = qc->path->loss.rtt_var;          break;
+	case 0:  *info = qc->path->loss.srtt * 1000;      break;
+	case 1:  *info = qc->path->loss.rtt_var * 1000;   break;
 	case 3:  *info = qc->path->loss.nb_lost_pkt;      break;
 	case 7:  *info = qc->path->loss.nb_reordered_pkt; break;
 	default: return 0;
