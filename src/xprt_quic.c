@@ -11,6 +11,7 @@
  */
 
 #include <haproxy/api.h>
+#include <haproxy/buf.h>
 #include <haproxy/connection.h>
 #include <haproxy/quic_conn.h>
 #include <haproxy/ssl_sock.h>
@@ -161,6 +162,11 @@ static struct ssl_sock_ctx *qc_get_ssl_sock_ctx(struct connection *conn)
 	return conn->handle.qc->xprt_ctx;
 }
 
+static void qc_xprt_dump_info(struct buffer *msg, const struct connection *conn)
+{
+	quic_dump_qc_info(msg, conn->handle.qc);
+}
+
 /* transport-layer operations for QUIC connections. */
 static struct xprt_ops ssl_quic = {
 	.close    = quic_close,
@@ -172,6 +178,7 @@ static struct xprt_ops ssl_quic = {
 	.destroy_bind_conf = ssl_sock_destroy_bind_conf,
 	.get_alpn = ssl_sock_get_alpn,
 	.get_ssl_sock_ctx = qc_get_ssl_sock_ctx,
+	.dump_info = qc_xprt_dump_info,
 	.name     = "QUIC",
 };
 

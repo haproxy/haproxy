@@ -23,6 +23,10 @@
 
 #include <haproxy/quic_trace-t.h>
 
+#include <haproxy/buf-t.h>
+
+struct quic_conn;
+
 #define TRACE_SOURCE    &trace_quic
 
 /* Initializes a enc_debug_info struct (only for debug purpose) */
@@ -36,5 +40,7 @@ static inline void enc_debug_info_init(struct enc_debug_info *edi,
 	edi->aad_len = aad_len;
 	edi->pn = pn;
 }
+
+void quic_dump_qc_info(struct buffer *msg, const struct quic_conn *qc);
 
 #endif /* _HAPROXY_QUIC_TRACE_H */
