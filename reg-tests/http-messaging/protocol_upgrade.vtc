@@ -85,6 +85,15 @@ server srv_h2_no_ws2 {
 	} -run
 } -start
 
+# http/1.1 server
+server srv_h1_h2c {
+	rxreq
+	expect req.method == "GET"
+	expect req.http.upgrade != "h2c"
+	txresp \
+	  -status 200
+} -start
+
 haproxy hap -conf {
 	defaults
 	mode http
@@ -121,6 +130,11 @@ haproxy hap -conf {
 	listen frt_h2_h1
 	bind "fd@${frt_h2_h1}" proto h2
 	server frt_h1 ${hap_frt_h1_addr}:${hap_frt_h1_port}
+
+	# h1 frontend to handle "h2c" token
+	listen frt_h1_h2c
+	bind "fd@${frt_h1_h2c}"
+	server srv_h1_h2c ${srv_h1_h2c_addr}:${srv_h1_h2c_port}
 } -start
 
 ## connect to h1 translation frontend
@@ -225,4 +239,17 @@ client c6 -connect ${hap_frt_h1_no_ws2_sock} {
 
 	rxresp
 	expect resp.status == 502
+} -run
+
+# connect as http/1 with invalid "h2c" protocol
+client c7_h2c -connect ${hap_frt_h1_h2c_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: h2c"
+
+	rxresp
+	expect resp.status == 200
 } -run

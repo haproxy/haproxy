@@ -365,13 +365,14 @@ void h1_parse_connection_header(struct h1m *h1m, struct ist *value)
 
 /* Parse the Upgrade: header of an HTTP/1 request.
  * If "websocket" is found, set H1_MF_UPG_WEBSOCKET flag
+ * If "h2c" or "h2" found, set H1_MF_UPG_H2C flag.
  */
 void h1_parse_upgrade_header(struct h1m *h1m, struct ist value)
 {
 	char *e, *n;
 	struct ist word;
 
-	h1m->flags &= ~H1_MF_UPG_WEBSOCKET;
+	h1m->flags &= ~(H1_MF_UPG_WEBSOCKET|H1_MF_UPG_H2C);
 
 	word.ptr = value.ptr - 1; // -1 for next loop's pre-increment
 	e = istend(value);
@@ -390,6 +391,8 @@ void h1_parse_upgrade_header(struct h1m *h1m, struct ist value)
 
 		if (isteqi(word, ist("websocket")))
 			h1m->flags |= H1_MF_UPG_WEBSOCKET;
+		else if (isteqi(word, ist("h2c")) || isteqi(word, ist("h2")))
+			h1m->flags |= H1_MF_UPG_H2C;
 
 		word.ptr = n;
 	}
