@@ -456,7 +456,8 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 	    (*msgf & H2_MSGF_BODY_TUNNEL)) {
 		/* Request without body or tunnel requested */
 		sl_flags |= HTX_SL_F_BODYLESS;
-		htx->flags |= HTX_FL_EOM;
+		if (*msgf & H2_MSGF_BODY_TUNNEL)
+		    htx->flags |= HTX_FL_EOM;
 	}
 
 	if (*msgf & H2_MSGF_EXT_CONNECT) {
@@ -730,7 +731,8 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 	    (*msgf & H2_MSGF_BODY_TUNNEL)) {
 		/* Response without body or tunnel successfully established */
 		sl_flags |= HTX_SL_F_BODYLESS;
-		htx->flags |= HTX_FL_EOM;
+		if (*msgf & H2_MSGF_BODY_TUNNEL)
+		    htx->flags |= HTX_FL_EOM;
 	}
 
 	/* update the start line with last detected header info */
