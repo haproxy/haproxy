@@ -1379,6 +1379,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			http_set_term_flags(s);
 
 			/* process_stream() will take care of the error */
+			http_reply_and_close(s, txn->status, NULL);
 			DBG_TRACE_DEVEL("leaving on error",
 					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 			return 0;
