@@ -3080,8 +3080,11 @@ switchstate:
 					}
 				}
 
-				if (curpeer->flags & PEER_F_WAIT_SYNCTASK_ACK)
+				if (curpeer->flags & PEER_F_WAIT_SYNCTASK_ACK) {
+					applet_wont_consume(appctx);
 					goto out;
+				}
+				applet_will_consume(appctx);
 
 				/* local peer is assigned of a lesson, start it */
 				if (curpeer->learnstate == PEER_LR_ST_ASSIGNED && curpeer->local)
