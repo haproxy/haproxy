@@ -243,7 +243,19 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 			goto err;
 	}
 
-	LIST_APPEND(&qc->qel_list, &qel->list);
+	/* Ensure early-data encryption is not inserted at the end of this ->qel_list
+	 * list. This would perturbate the sender during handshakes. This latter adds
+	 * PADDING frames to datagrams from the last encryption level in this list,
+	 * for datagram with at least an ack-eliciting Initial packet inside.
+	 * But a QUIC server has nothing to send from this early-data encryption
+	 * level, contrary to the client.
+	 * Here early-data is added after the Initial encryption level which is
+	 * always already present.
+	 */
+	if (level == ssl_encryption_early_data)
+		LIST_APPEND(&qc->iel->list, &qel->list);
+	else
+		LIST_APPEND(&qc->qel_list, &qel->list);
 	*el = qel;
 	ret = 1;
  leave:
