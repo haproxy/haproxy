@@ -1,0 +1,77 @@
+name: QUIC Interop AWS-LC
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * 2"
+
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clone docker image definition
+        run: |
+          git clone -b aws-lc https://github.com/haproxytech/haproxy-qns
+
+      - name: Build and push Docker image
+        id: push
+        uses: docker/build-push-action@v5
+        with:
+          context: haproxy-qns
+          push: true
+          tags: ghcr.io/${{ github.repository }}:aws-lc
+
+
+  run:
+    needs: build
+    strategy:
+      matrix:
+        suite: [
+          { client: picoquic, tests: "handshake,transfer,longrtt,chacha20,multiplexing,retry,resumption,zerortt,http3,blackhole,keyupdate,ecn,amplificationlimit,handshakeloss,transferloss,handshakecorruption,transfercorruption,ipv6,v2,goodput,crosstraffic" },
+          { client: quic-go,  tests: "handshake,transfer,longrtt,chacha20,multiplexing,retry,resumption,zerortt,http3,blackhole,keyupdate,ecn,amplificationlimit,handshakeloss,transferloss,handshakecorruption,transfercorruption,ipv6,v2,goodput,crosstraffic" }
+        ]
+      fail-fast: false
+
+    name: ${{ matrix.suite.client }}
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install tshark
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install tshark
+
+      - name: Pull image
+        run: |
+          docker pull ghcr.io/${{ github.repository }}:aws-lc
+
+      - name: Run
+        run: |
+          git clone https://github.com/quic-interop/quic-interop-runner
+          cd quic-interop-runner
+          pip install -r requirements.txt --break-system-packages
+          python run.py -l logs -r haproxy=ghcr.io/${{ github.repository }}:aws-lc -t ${{ matrix.suite.tests }} -c ${{ matrix.suite.client }} -s haproxy
+
