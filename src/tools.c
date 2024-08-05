@@ -6659,6 +6659,46 @@ static int init_tools_per_thread()
 }
 REGISTER_PER_THREAD_INIT(init_tools_per_thread);
 
+/* reads at most one less than <size> from an arbitrary memory buffer and
+ * imitates the fgets behaviour, i.e. stops at '\n' or at 'EOF' and returns read
+ * data in the area pointed by <*buf>. <*position> ptr keeps the current
+ * position, from which we will start/resume reading, <*end> is a ptr to the end
+ * of the buffer to read, as we suppose don't have the EOF (see more details on
+ * it in load_cfg_in_mem(), which is now the only one producer of memory buffers
+ * to read for fgets_from_mem).
+ */
+char *fgets_from_mem(char* buf, int size, const char **position, const char *end)
+{
+	char *new_pos;
+	int len = 0;
+
+	/* keep fgets behaviour */
+	if (size <= 0)
+		return NULL;
+
+	/* EOF */
+	if (*position == end)
+		return NULL;
+
+	size--; /* keep fgets behaviour, reads at most one less than size */
+	new_pos = memchr(*position, '\n', size);
+	if (new_pos) {
+		/* '+1' to grab and copy '\n' at the end of line */
+		len = (new_pos + 1) - *position;
+	} else {
+		/* just copy either the given size, or the rest of the line
+		 * until the end
+		 */
+		len = MIN((end - *position), size);
+	}
+
+	memcpy(buf, *position, len);
+	*(buf + len)  = '\0';
+	*position += len;
+
+	return buf;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8
