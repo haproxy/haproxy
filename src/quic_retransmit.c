@@ -21,13 +21,19 @@ int qc_stream_frm_is_acked(struct quic_conn *qc, struct quic_frame *f)
 {
 	const struct qf_stream *frm = &f->stream;
 	const struct qc_stream_desc *s = frm->stream;
+	const int frm_fin = f->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT;
 
 	if (!eb64_lookup(&qc->streams_by_id, frm->id)) {
 		TRACE_DEVEL("STREAM frame already acked : stream released", QUIC_EV_CONN_PRSAFRM, qc, f);
 		return 1;
 	}
 
-	if (frm->offset.key + frm->len <= s->ack_offset) {
+	/* Frame cannot advertise FIN for a smaller data range. */
+	BUG_ON(frm_fin && frm->offset.key + frm->len < s->ack_offset);
+
+	if (frm->offset.key + frm->len < s->ack_offset ||
+	    (frm->offset.key + frm->len == s->ack_offset &&
+	     (!frm_fin || !(s->flags & QC_SD_FL_WAIT_FOR_FIN)))) {
 		TRACE_DEVEL("STREAM frame already acked : fully acked range", QUIC_EV_CONN_PRSAFRM, qc, f);
 		return 1;
 	}

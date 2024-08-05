@@ -1884,8 +1884,12 @@ void qcc_streams_sent_done(struct qcs *qcs, uint64_t data, uint64_t offset)
 		if (qcs->flags & (QC_SF_FIN_STREAM|QC_SF_DETACH)) {
 			/* Close stream locally. */
 			qcs_close_local(qcs);
-			/* Reset flag to not emit multiple FIN STREAM frames. */
-			qcs->flags &= ~QC_SF_FIN_STREAM;
+
+			if (qcs->flags & QC_SF_FIN_STREAM) {
+				qcs->stream->flags |= QC_SD_FL_WAIT_FOR_FIN;
+				/* Reset flag to not emit multiple FIN STREAM frames. */
+				qcs->flags &= ~QC_SF_FIN_STREAM;
+			}
 		}
 	}
 

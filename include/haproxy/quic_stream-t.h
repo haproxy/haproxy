@@ -20,6 +20,7 @@ struct qc_stream_buf {
 };
 
 #define QC_SD_FL_RELEASE	0x00000001 /* set when MUX has finished to use this stream */
+#define QC_SD_FL_WAIT_FOR_FIN	0x00000002 /* set if sent FIN is waiting for acknowledgement */
 
 /* QUIC STREAM descriptor.
  *
