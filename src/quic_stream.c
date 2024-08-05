@@ -78,7 +78,7 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type type, void 
 
 	stream->acked_frms = EB_ROOT;
 	stream->ack_offset = 0;
-	stream->release = 0;
+	stream->flags = 0;
 	stream->ctx = ctx;
 
 	return stream;
@@ -99,9 +99,9 @@ void qc_stream_desc_release(struct qc_stream_desc *stream,
 		return;
 
 	/* A stream can be released only one time. */
-	BUG_ON(stream->release);
+	BUG_ON(stream->flags & QC_SD_FL_RELEASE);
 
-	stream->release = 1;
+	stream->flags |= QC_SD_FL_RELEASE;
 	stream->ctx = NULL;
 
 	if (stream->buf) {
@@ -166,7 +166,7 @@ int qc_stream_desc_ack(struct qc_stream_desc **stream, size_t offset, size_t len
 		qc_stream_buf_free(s, &stream_buf);
 
 		/* Free stream instance if already released and no buffers left. */
-		if (s->release && LIST_ISEMPTY(&s->buf_list)) {
+		if ((s->flags & QC_SD_FL_RELEASE) && LIST_ISEMPTY(&s->buf_list)) {
 			qc_stream_desc_free(s, 0);
 			*stream = NULL;
 		}
@@ -187,7 +187,7 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 	unsigned int free_count = 0;
 
 	/* This function only deals with released streams. */
-	BUG_ON(!stream->release);
+	BUG_ON(!(stream->flags & QC_SD_FL_RELEASE));
 
 	/* free remaining stream buffers */
 	list_for_each_entry_safe(buf, buf_back, &stream->buf_list, list) {

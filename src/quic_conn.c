@@ -1401,7 +1401,7 @@ void quic_conn_release(struct quic_conn *qc)
 		/* all streams attached to the quic-conn are released, so
 		 * qc_stream_desc_free will liberate the stream instance.
 		 */
-		BUG_ON(!stream->release);
+		BUG_ON(!(stream->flags & QC_SD_FL_RELEASE));
 		qc_stream_desc_free(stream, 1);
 	}
 
