@@ -1751,6 +1751,71 @@ fail_entry:
 	return 0;
 }
 
+/* loads the content of the given file in .heap. On success, returns the number
+ * of bytes successfully stored at *cfg_content until EOF. On error, emits
+ * alerts, performs needed clean-up routines and returns -1.
+ */
+int load_cfg_in_mem(char* filename, char** cfg_content)
+{
+	FILE *f;
+	struct stat file_stat;
+	int read_bytes;
+
+	if (stat(filename, &file_stat) == -1) {
+		ha_alert("stat() failed for configuration file %s : %s\n",
+			 filename, strerror(errno));
+		return -1;
+	}
+
+	/* doesn't support reading from /dev/stdin for the moment */
+	if (!file_stat.st_size) {
+		if (strcmp(filename, "/dev/stdin") != 0) {
+			ha_alert("File %s has zero length. Please, check if it "
+				 "wasn't truncated.\n", filename);
+			return -1;
+		}
+		ha_alert("Reading from /dev/stdin is not supported yet.\n");
+		return -1;
+	}
+
+	if ((f = fopen(filename,"r")) == NULL) {
+		ha_alert("Could not open configuration file %s : %s\n",
+			 filename, strerror(errno));
+		return -1;
+	}
+
+	*cfg_content = malloc(file_stat.st_size * sizeof(char));
+	if (!*cfg_content) {
+		ha_alert("Not enough memory to read %s. Please, check "
+			 "'ulimit -d' or '-m' option could be set via "
+			 "the command line\n", filename);
+		goto exit_and_close;
+	}
+
+	read_bytes = fread(*cfg_content, sizeof(char), file_stat.st_size, f);
+	if (read_bytes != file_stat.st_size) {
+		/* let's check what's happened before quit */
+		if (feof(f))
+			ha_alert("Unexpectedly reached EOF, when reading %s."
+				 "Please, check if it wasn't truncated\n.",
+				 filename);
+		else
+			ha_alert("fread() failed for %s", filename);
+		goto free_mem;
+	}
+
+	fclose(f);
+
+	return read_bytes;
+
+free_mem:
+	ha_free(cfg_content);
+exit_and_close:
+	fclose(f);
+
+	return -1;
+}
+
 /*
  * This function reads and parses the configuration file given in the argument.
  * Returns the error code, 0 if OK, -1 if the config file couldn't be opened,
