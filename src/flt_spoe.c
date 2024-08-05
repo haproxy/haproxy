@@ -2271,7 +2271,7 @@ static int parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	if (cfg_file.size < 0) {
 		goto error;
 	}
-	ret = readcfgfile(&cfg_file);
+	ret = parse_cfg(&cfg_file);
 	ha_free(&cfg_file.content);
 
 	/* unregister SPOE sections and restore previous sections */
