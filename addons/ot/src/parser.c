@@ -1102,7 +1102,7 @@ static int flt_ot_parse_cfg(struct flt_ot_conf *conf, const char *flt_name, char
 			ha_free(&cfg_file.content);
 			FLT_OT_RETURN_INT(retval);
 		}
-		retval = readcfgfile(&cfg_file);
+		retval = parse_cfg(&cfg_file);
 		ha_free(&cfg_file.content);
 	}
 
