@@ -2199,6 +2199,7 @@ static int parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	struct spoe_group           *grp, *grpback;
 	struct spoe_placeholder     *ph, *phback;
 	struct spoe_var_placeholder *vph, *vphback;
+	struct cfgfile		    cfg_file = {0};
 	struct logger               *logger, *loggerback;
 	char                        *file = NULL, *engine = NULL;
 	int                          ret, pos = *cur_arg + 1;
@@ -2226,7 +2227,7 @@ static int parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 					  args[*cur_arg], args[pos]);
 				goto error;
 			}
-			file = args[pos+1];
+			cfg_file.filename = args[pos+1];
 			pos += 2;
 		}
 		else if (strcmp(args[pos], "engine") == 0) {
@@ -2243,7 +2244,7 @@ static int parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 			goto error;
 		}
 	}
-	if (file == NULL) {
+	if (cfg_file.filename == NULL) {
 		memprintf(err, "'%s' : missing config file", args[*cur_arg]);
 		goto error;
 	}
@@ -2260,7 +2261,18 @@ static int parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	curengine = engine;
 	curagent  = NULL;
 	curmsg    = NULL;
-	ret = readcfgfile(file);
+
+	/* load the content of SPOE config file from cfg_file.filename into some
+	 * area in .heap. readcfgfile() now parses the content of config files
+	 * stored in RAM as separate chunks (see struct cfgfile in cfgparse.h),
+	 * these chunks chained in cfg_cfgfiles global list.
+	 */
+	cfg_file.size = load_cfg_in_mem(cfg_file.filename, &cfg_file.content);
+	if (cfg_file.size < 0) {
+		goto error;
+	}
+	ret = readcfgfile(&cfg_file);
+	ha_free(&cfg_file.content);
 
 	/* unregister SPOE sections and restore previous sections */
 	cfg_unregister_sections();
@@ -2579,6 +2591,7 @@ static int parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	return 0;
 
  error:
+	ha_free(&cfg_file.content);
 	spoe_release_agent(curagent);
 	list_for_each_entry_safe(ph, phback, &curmphs, list) {
 		LIST_DELETE(&ph->list);
