@@ -643,7 +643,11 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 					break;
 
 				case QC_BUILD_PKT_ERR_BUFROOM:
-					if (first_pkt)
+					/* If a first packet could be built, do not lose it,
+					 * except if it is an too short Initial.
+					 */
+					if (first_pkt && (first_pkt->type != QUIC_PACKET_TYPE_INITIAL ||
+					                  wrlen >= QUIC_INITIAL_PACKET_MINLEN))
 						qc_txb_store(buf, wrlen, first_pkt);
 					TRACE_PROTO("could not prepare anymore packet", QUIC_EV_CONN_PHPKTS, qc, qel);
 					break;
