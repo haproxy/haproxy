@@ -141,6 +141,7 @@ int warnifnotcap(struct proxy *proxy, int cap, const char *file, int line, const
 int failifnotcap(struct proxy *proxy, int cap, const char *file, int line, const char *arg, const char *hint);
 void cfg_dump_registered_keywords();
 int list_append_cfgfile(struct list *li, const char *filename, char **err);
+ssize_t load_cfg_in_mem(char* filename, char** cfg_content);
 
 /* simplified way to define a section parser */
 #define REGISTER_CONFIG_SECTION(name, parse, post)                            \
