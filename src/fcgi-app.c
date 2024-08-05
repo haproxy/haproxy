@@ -606,6 +606,8 @@ static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curp
 	if (!fcgi_conf)
 		goto err;
 	fcgi_conf->name = strdup(args[1]);
+	if (!fcgi_conf->name)
+		goto err;
 	LIST_INIT(&fcgi_conf->param_rules);
 	LIST_INIT(&fcgi_conf->hdr_rules);
 
