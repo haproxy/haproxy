@@ -6659,6 +6659,74 @@ static int init_tools_per_thread()
 }
 REGISTER_PER_THREAD_INIT(init_tools_per_thread);
 
+/* reads at most one less than <size> from an arbitrary memory buffer and
+ * imitates the fgets behaviour, i.e. stops at '\n' or at 'EOF' and returns read
+ * data in an area pointed by <*buf>. <*position> ptr keeps the current
+ * position, from which we will start/resume reading, <*end> is a ptr to the end
+ * of the buffer to read, as we suppose don't have the EOF (see more details on
+ * it in load_cfg_in_ram(), which is now the only one producer of memory buffers
+ * to read for fgets_from_mem).
+ */
+char *fgets_from_mem(char* buf, int size, char **position, char *end)
+{
+	char *new_pos;
+	int len = 0;
+
+	/* keep fgets behaviour */
+	if (size <= 0)
+		return NULL;
+	/* another irregular case: since we have to store a NUL byte and
+	 * there is only room for exactly one byte, we don't have to
+	 * read anything.
+	 */
+	if (size == 1) {
+		buf[0] = '\0';
+		return buf;
+	}
+
+	/* EOF */
+	if (*position == end)
+		return NULL;
+
+	size--; /* keep fgets behaviour, reads at most one less than size */
+	new_pos = memchr(*position, '\n', size);
+	if (new_pos) {
+		/* '+1' to grab and copy '\n' at the end of line */
+		len = (new_pos + 1) - *position;
+		memcpy(buf, *position, len);
+		*(buf + len)  = '\0';
+		*position = new_pos + 1;
+
+		return buf;
+	} else {
+		/* closer to end */
+		if (*position + size >= end) {
+			/* copy the rest of line until the end, as
+			 * position + size >= end, so we are not to risk to
+			 * overflow the given buffer
+			 */
+			len = end - *position;
+			memcpy(buf, *position, len);
+			*(buf + len)  = '\0';
+			*position = end;
+
+			return buf;
+
+		} else {
+			/* case, when we just continue reading until the given
+			 * size, update the position ptr and return a buffer to
+			 * caller.
+			 */
+			memcpy(buf, *position, size);
+			*(buf + size)  = '\0';
+			*position += size;
+			return buf;
+		}
+	}
+
+	return NULL;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8
