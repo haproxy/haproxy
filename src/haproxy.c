@@ -1166,15 +1166,14 @@ next_dir_entry:
 	free(err);
 }
 
-/* Reads config files. Terminates process with exit(1), if we are luck of RAM,
+/* Reads config files. Returns -1, if we are run out of memory,
  * couldn't open provided file(s) or parser has detected some fatal error.
  * Otherwise, returns an err_code, which may contain 0 (OK) or ERR_WARN,
- * ERR_ALERT. It could be used in further initialization stages.
+ * ERR_ALERT. It is used in further initialization stages.
  */
 static int read_cfg(char *progname)
 {
 	char *env_cfgfiles = NULL;
-	int env_err = 0;
 	struct cfgfile *cfg;
 	int err_code = 0;
 
@@ -1195,27 +1194,23 @@ static int read_cfg(char *progname)
 	list_for_each_entry(cfg, &cfg_cfgfiles, list) {
 		int ret;
 
-		if (env_err == 0) {
-			if (!memprintf(&env_cfgfiles, "%s%s%s",
-					   (env_cfgfiles ? env_cfgfiles : ""),
-					   (env_cfgfiles ? ";" : ""), cfg->filename))
-				env_err = 1;
+		if (!memprintf(&env_cfgfiles, "%s%s%s",
+			       (env_cfgfiles ? env_cfgfiles : ""),
+			       (env_cfgfiles ? ";" : ""), cfg->filename)) {
+			/* free what we've already allocated and free cfglist */
+			ha_alert("Could not allocate memory for HAPROXY_CFGFILES env variable\n");
+			goto err;
 		}
 
 		ret = readcfgfile(cfg->filename);
-		if (ret == -1) {
-			ha_alert("Could not open configuration file %s : %s\n",
-				 cfg->filename, strerror(errno));
-			free(env_cfgfiles);
-			exit(1);
-		}
+		if (ret == -1)
+			goto err;
+
 		if (ret & (ERR_ABORT|ERR_FATAL))
 			ha_alert("Error(s) found in configuration file : %s\n", cfg->filename);
 		err_code |= ret;
-		if (err_code & ERR_ABORT) {
-			free(env_cfgfiles);
-			exit(1);
-		}
+		if (err_code & ERR_ABORT)
+			goto err;
 	}
 	/* remove temporary environment variables. */
 	unsetenv("HAPROXY_BRANCH");
@@ -1224,22 +1219,20 @@ static int read_cfg(char *progname)
 	unsetenv("HAPROXY_TCP_LOG_FMT");
 
 	/* do not try to resolve arguments nor to spot inconsistencies when
-	 * the configuration contains fatal errors caused by files not found
-	 * or failed memory allocations.
+	 * the configuration contains fatal errors.
 	 */
 	if (err_code & (ERR_ABORT|ERR_FATAL)) {
 		ha_alert("Fatal errors found in configuration.\n");
-		free(env_cfgfiles);
-		exit(1);
+		goto err;
 	}
-	if (env_err) {
-		ha_alert("Could not allocate memory for HAPROXY_CFGFILES env variable\n");
-		exit(1);
-	}
+
 	setenv("HAPROXY_CFGFILES", env_cfgfiles, 1);
 	free(env_cfgfiles);
 
 	return err_code;
+err:
+	free(env_cfgfiles);
+	return -1;
 }
 
 /*
@@ -1979,9 +1972,11 @@ static void init(int argc, char **argv)
 {
 	char *progname = global.log_tag.area;
 	int err_code = 0;
+	int ret = 0;
 	struct proxy *px;
 	struct post_check_fct *pcf;
 	struct pre_check_fct *prcf;
+	struct cfgfile *cfg, *cfg_tmp;
 	int ideal_maxconn;
 	const char *cc, *cflags, *opts;
 
@@ -2051,8 +2046,14 @@ static void init(int argc, char **argv)
 	usermsgs_clr("config");
 
 	/* in wait mode, we don't try to read the configuration files */
-	if (!(global.mode & MODE_MWORKER_WAIT))
-		read_cfg(progname);
+	if (!(global.mode & MODE_MWORKER_WAIT)) {
+		ret = read_cfg(progname);
+		/* free memory to store config file content */
+		list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list)
+			ha_free(&cfg->content);
+		if (ret < 0)
+			exit(1);
+	}
 
 	if (global.mode & MODE_MWORKER) {
 		struct mworker_proc *tmproc;
@@ -2767,7 +2768,6 @@ void deinit(void)
 	}
 
 	list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
-		ha_free(&cfg->content);
 		ha_free(&cfg->filename);
 		LIST_DELETE(&cfg->list);
 		ha_free(&cfg);
