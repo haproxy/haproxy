@@ -90,6 +90,14 @@ struct cfg_postparser {
 	int (*func)();
 };
 
+/* store in memory config files meta data and content */
+struct cfgfile {
+	struct list list;
+	char *filename;                         /* config file name */
+	char *content;                          /* allocated str with config file content */
+	ssize_t size;                           /* size of stored file or error indication (-1) */
+};
+
 extern struct list postparsers;
 extern int cfg_maxpconn;
 extern int cfg_maxconn;
