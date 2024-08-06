@@ -614,15 +614,15 @@ static int trace_parse_statement(char **args, char **msg)
 				chunk_appendf(&trash, "  %c check      : lock on the check that started the trace\n",
 				              src->lockon == TRACE_LOCKON_CHECK ? '*' : ' ');
 
-			if (src->arg_def & TRC_ARGS_CONN)
+			if (src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_QCON))
 				chunk_appendf(&trash, "  %c connection : lock on the connection that started the trace\n",
 				              src->lockon == TRACE_LOCKON_CONNECTION ? '*' : ' ');
 
-			if (src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_SESS|TRC_ARGS_STRM))
+			if (src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_QCON|TRC_ARGS_SESS|TRC_ARGS_STRM))
 				chunk_appendf(&trash, "  %c frontend   : lock on the frontend that started the trace\n",
 				              src->lockon == TRACE_LOCKON_FRONTEND ? '*' : ' ');
 
-			if (src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_SESS|TRC_ARGS_STRM))
+			if (src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_QCON|TRC_ARGS_SESS|TRC_ARGS_STRM))
 				chunk_appendf(&trash, "  %c listener   : lock on the listener that started the trace\n",
 				              src->lockon == TRACE_LOCKON_LISTENER ? '*' : ' ');
 
@@ -633,7 +633,7 @@ static int trace_parse_statement(char **args, char **msg)
 				chunk_appendf(&trash, "  %c server     : lock on the server that started the trace\n",
 				              src->lockon == TRACE_LOCKON_SERVER ? '*' : ' ');
 
-			if (src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_SESS|TRC_ARGS_STRM))
+			if (src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_QCON|TRC_ARGS_SESS|TRC_ARGS_STRM))
 				chunk_appendf(&trash, "  %c session    : lock on the session that started the trace\n",
 				              src->lockon == TRACE_LOCKON_SESSION ? '*' : ' ');
 
@@ -680,15 +680,15 @@ static int trace_parse_statement(char **args, char **msg)
 			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_CHECK);
 			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 		}
-		else if ((src->arg_def & TRC_ARGS_CONN) && strcmp(name, "connection") == 0) {
+		else if ((src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_QCON)) && strcmp(name, "connection") == 0) {
 			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_CONNECTION);
 			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 		}
-		else if ((src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_SESS|TRC_ARGS_STRM)) && strcmp(name, "frontend") == 0) {
+		else if ((src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_QCON|TRC_ARGS_SESS|TRC_ARGS_STRM)) && strcmp(name, "frontend") == 0) {
 			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_FRONTEND);
 			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 		}
-		else if ((src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_SESS|TRC_ARGS_STRM)) && strcmp(name, "listener") == 0) {
+		else if ((src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_QCON|TRC_ARGS_SESS|TRC_ARGS_STRM)) && strcmp(name, "listener") == 0) {
 			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_LISTENER);
 			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 		}
@@ -700,7 +700,7 @@ static int trace_parse_statement(char **args, char **msg)
 			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_SERVER);
 			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 		}
-		else if ((src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_SESS|TRC_ARGS_STRM)) && strcmp(name, "session") == 0) {
+		else if ((src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_QCON|TRC_ARGS_SESS|TRC_ARGS_STRM)) && strcmp(name, "session") == 0) {
 			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_SESSION);
 			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 		}
