@@ -101,8 +101,12 @@ int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *
 	const struct quic_conn *qc = NULL;
 	const struct appctx *appctx = NULL;
 	const void *lockon_ptr = NULL;
+	const struct trace_source *origin = NULL;
 
-	if (likely(src->state == TRACE_STATE_STOPPED))
+	/* in case we also follow another one (e.g. session) */
+	origin = HA_ATOMIC_LOAD(&src->follow);
+
+	if (likely(src->state == TRACE_STATE_STOPPED) && !origin)
 		return 0;
 
 	/* check that at least one action is interested by this event */
@@ -207,6 +211,34 @@ int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *
 
 		if (plockptr && !src->lockon_ptr && lockon_ptr && src->state == TRACE_STATE_RUNNING)
 			*plockptr = lockon_ptr;
+	}
+
+	/* or we may also follow another source's locked pointer */
+	if (origin) {
+		if (!origin->lockon_ptr)
+			return 0;
+
+		switch (origin->lockon) {
+		case TRACE_LOCKON_BACKEND:    lockon_ptr = be;     break;
+		case TRACE_LOCKON_CONNECTION: lockon_ptr = conn;   break;
+		case TRACE_LOCKON_FRONTEND:   lockon_ptr = fe;     break;
+		case TRACE_LOCKON_LISTENER:   lockon_ptr = li;     break;
+		case TRACE_LOCKON_SERVER:     lockon_ptr = srv;    break;
+		case TRACE_LOCKON_SESSION:    lockon_ptr = sess;   break;
+		case TRACE_LOCKON_STREAM:     lockon_ptr = strm;   break;
+		case TRACE_LOCKON_CHECK:      lockon_ptr = check;  break;
+		case TRACE_LOCKON_THREAD:     lockon_ptr = ti;     break;
+		case TRACE_LOCKON_QCON:       lockon_ptr = qc;     break;
+		case TRACE_LOCKON_APPCTX:     lockon_ptr = appctx; break;
+		case TRACE_LOCKON_ARG1:       lockon_ptr = a1;     break;
+		case TRACE_LOCKON_ARG2:       lockon_ptr = a2;     break;
+		case TRACE_LOCKON_ARG3:       lockon_ptr = a3;     break;
+		case TRACE_LOCKON_ARG4:       lockon_ptr = a4;     break;
+		default: break; // silence stupid gcc -Wswitch
+		}
+
+		if (origin->lockon_ptr != lockon_ptr)
+			return 0;
 	}
 
 	/* here the trace is running and is tracking a desired item */
@@ -434,7 +466,7 @@ static int trace_parse_statement(char **args, char **msg)
 		chunk_printf(&trash,
 			     "Supported trace sources and states (.=stopped, w=waiting, R=running) :\n"
 			     " [.] 0          : not a source, will immediately stop all traces\n"
-			     " [.] all        : all sources below, only for 'sink' and 'level'\n"
+			     " [.] all        : all sources below, only for 'sink', 'level' and 'follow'\n"
 			     );
 
 		list_for_each_entry(src, &trace_sources, source_link)
@@ -455,6 +487,7 @@ static int trace_parse_statement(char **args, char **msg)
 
 	if (strcmp(args[1], "all") == 0) {
 		if (*args[2] &&
+		    strcmp(args[2], "follow") != 0 &&
 		    strcmp(args[2], "sink") != 0 &&
 		    strcmp(args[2], "level") != 0) {
 			memprintf(msg, "'%s' not applicable to meta-source 'all'", args[2]);
@@ -476,6 +509,7 @@ static int trace_parse_statement(char **args, char **msg)
 			//"  filter    : list/enable/disable generic filters\n"
 			"  level     : list/set trace reporting level\n"
 			"  lock      : automatic lock on thread/connection/stream/...\n"
+			"  follow    : passively follow another source's locked pointer (e.g. session)\n"
 			"  pause     : pause and automatically restart after a specific event\n"
 			"  sink      : list/set event sinks\n"
 			"  start     : start immediately or after a specific event\n"
@@ -483,6 +517,47 @@ static int trace_parse_statement(char **args, char **msg)
 			"  verbosity : list/set trace output verbosity\n";
 		*msg = strdup(*msg);
 		return LOG_WARNING;
+	}
+	else if (strcmp(args[2], "follow") == 0) {
+		const struct trace_source *origin = src ? HA_ATOMIC_LOAD(&src->follow) : NULL;
+
+		if (!*args[3]) {
+			/* no arg => report the list of supported sources as a warning */
+			if (origin)
+				chunk_printf(&trash, "Currently following source '%s'.\n", origin->name.ptr);
+			else if (src)
+				chunk_printf(&trash, "Not currently following any other source.\n");
+			else
+				chunk_reset(&trash);
+
+			chunk_appendf(&trash,
+				     "Please specify another source to follow, among the following ones:\n"
+				     " [.] none       : follow no other source\n"
+				     );
+
+			list_for_each_entry(origin, &trace_sources, source_link)
+				chunk_appendf(&trash, " [%c] %-10s : %s\n", trace_state_char(origin->state), origin->name.ptr, origin->desc);
+
+			trash.area[trash.data] = 0;
+			*msg = strdup(trash.area);
+			return LOG_WARNING;
+		}
+
+		origin = NULL;
+		if (strcmp(args[3], "none") != 0) {
+			origin = trace_find_source(args[3]);
+			if (!origin) {
+				memprintf(msg, "No such trace source '%s'", args[3]);
+				return LOG_ERR;
+			}
+		}
+
+		if (src)
+			HA_ATOMIC_STORE(&src->follow, origin);
+		else
+			list_for_each_entry(src, &trace_sources, source_link)
+				if (src != origin)
+					HA_ATOMIC_STORE(&src->follow, origin);
 	}
 	else if ((strcmp(args[2], "event") == 0 && (ev_ptr = &src->report_events)) ||
 	         (strcmp(args[2], "pause") == 0 && (ev_ptr = &src->pause_events)) ||

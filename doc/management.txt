@@ -3936,6 +3936,27 @@ trace <source> event [ [+|-|!]<name> ]
   One way to completely disable a trace source is to pass "event none", and
   this source will instantly be totally ignored.
 
+trace <source> follow <other_source>
+  This permits the source <source> to also emit traces when the other source
+  <other_source> is locked on a criteria and the same criteria matches for the
+  current source as well. For example, if a source is locked on a session,
+  following that source from another one will make that other one emit traces
+  for all events related to this session. This may be used to some extents to
+  track backend requests along with the associated frontend connections. The
+  "session" source makes this easier by providing a "new" and an "end" events
+  that are usable for lock-on processing. Note that the source <source> does
+  not need to have its traces enabled in this case, and its tracing state will
+  not be affected either. It is, however, possible that some events may be
+  missing if they do not contain information that allow to correlate them with
+  the tracked element. The meta-source "all" may also be used with this
+  command: in this case, all sources will follow <other_source>.
+
+  Example:
+     trace session lock session
+     trace session start sess_new
+     trace session pause sess_end
+     trace h1 follow session
+
 trace <source> level [<level>]
   Without argument, this will list all trace levels for this source, and the
   current one will be indicated by a star ('*') prepended in front of it. With

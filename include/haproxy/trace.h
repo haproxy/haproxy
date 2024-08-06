@@ -45,7 +45,7 @@
  * preparation processing.
  */
 #define _trace_enabled(level, mask, src, args...)			\
-	(unlikely((src)->state != TRACE_STATE_STOPPED &&		\
+	(unlikely(((src)->state != TRACE_STATE_STOPPED || (src)->follow) && \
 		  __trace_enabled(level, mask, src, ##args, NULL) > 0))
 
 /* sends a trace for the given source. Arguments are passed in the exact same
@@ -54,7 +54,7 @@
  */
 #define _trace(level, mask, src, args...)				\
 	do {								\
-		if (unlikely((src)->state != TRACE_STATE_STOPPED))	\
+		if (unlikely((src)->state != TRACE_STATE_STOPPED || (src)->follow)) \
 			__trace(level, mask, src, ##args);		\
 	} while (0)
 

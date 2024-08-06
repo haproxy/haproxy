@@ -167,6 +167,7 @@ struct trace_source {
 	/* trace state part below */
 	enum trace_state state;
 	const void *lockon_ptr;  // what to lockon when lockon is set
+	const struct trace_source *follow; // other trace source's tracker to follow
 };
 
 #endif /* _HAPROXY_TRACE_T_H */
