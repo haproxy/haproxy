@@ -228,7 +228,11 @@ static struct task *server_atomic_sync(struct task *task, void *context, unsigne
 	struct event_hdl_async_event *event;
 
 	/* check for new server events that we care about */
-	while ((event = event_hdl_async_equeue_pop(&server_atomic_sync_queue))) {
+	do {
+		event = event_hdl_async_equeue_pop(&server_atomic_sync_queue);
+		if (!event)
+			break; /* no events in queue */
+
 		if (event_hdl_sub_type_equal(event->type, EVENT_HDL_SUB_END)) {
 			/* ending event: no more events to come */
 			event_hdl_async_free_event(event);
@@ -236,20 +240,6 @@ static struct task *server_atomic_sync(struct task *task, void *context, unsigne
 			task = NULL;
 			break;
 		}
-
-		if (!remain) {
-			/* STOP: we've already spent all our budget here, and
-			 * considering we possibly are under isolation, we cannot
-		         * keep blocking other threads any longer.
-			 *
-			 * Reschedule the task to finish where we left off if
-			 * there are remaining events in the queue.
-			 */
-			if (!event_hdl_async_equeue_isempty(&server_atomic_sync_queue))
-				task_wakeup(task, TASK_WOKEN_OTHER);
-			break;
-		}
-		remain--;
 
 		/* new event to process */
 		if (event_hdl_sub_type_equal(event->type, EVENT_HDL_SUB_SERVER_INETADDR)) {
@@ -327,7 +317,7 @@ static struct task *server_atomic_sync(struct task *task, void *context, unsigne
 			srv_set_addr_desc(srv, 1);
 		}
 		event_hdl_async_free_event(event);
-	}
+	} while (--remain); // event_hdl_tune.max_events_at_once is expected to be > 0
 
 	/* some events possibly required thread_isolation:
 	 * now that we are done, we must leave thread isolation before
@@ -335,6 +325,18 @@ static struct task *server_atomic_sync(struct task *task, void *context, unsigne
 	 */
 	if (thread_isolated())
 		thread_release();
+
+	if (!remain) {
+		/* we stopped because we've already spent all our budget here,
+		 * and considering we possibly were under isolation, we cannot
+	         * keep blocking other threads any longer.
+		 *
+		 * Reschedule the task to finish where we left off if
+		 * there are remaining events in the queue.
+		 */
+		if (!event_hdl_async_equeue_isempty(&server_atomic_sync_queue))
+			task_wakeup(task, TASK_WOKEN_OTHER);
+	}
 
 	return task;
 }
