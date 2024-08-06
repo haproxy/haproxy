@@ -156,7 +156,10 @@ int qc_stream_desc_ack(struct qc_stream_desc **stream, size_t offset, size_t len
 	/* Cannot advertise FIN for an inferior data range. */
 	BUG_ON(fin && offset + len < s->ack_offset);
 
-	if (offset + len < s->ack_offset || offset > s->ack_offset)
+	/* No support now for out-of-order ACK reporting. */
+	BUG_ON(offset > s->ack_offset);
+
+	if (offset + len < s->ack_offset)
 		return 0;
 
 	diff = offset + len - s->ack_offset;
