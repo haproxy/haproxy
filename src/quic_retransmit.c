@@ -3,11 +3,45 @@
 #include <haproxy/quic_conn.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_retransmit.h>
+#include <haproxy/quic_stream-t.h>
 #include <haproxy/quic_trace.h>
 #include <haproxy/quic_tx.h>
 #include <haproxy/trace.h>
 
 #define TRACE_SOURCE &trace_quic
+
+/* Check if STREAM frame <f> content has already been acknowledged before
+ * retransmitting it. If only a subset of <f> content is acknowledged, frame is
+ * updated to only cover the unacked data.
+ *
+ * Returns true if frame content is fully acknowledged, false if partially or
+ * not at all.
+ */
+int qc_stream_frm_is_acked(struct quic_conn *qc, struct quic_frame *f)
+{
+	const struct qf_stream *frm = &f->stream;
+	const struct qc_stream_desc *s = frm->stream;
+
+	if (!eb64_lookup(&qc->streams_by_id, frm->id)) {
+		TRACE_DEVEL("STREAM frame already acked : stream released", QUIC_EV_CONN_PRSAFRM, qc, f);
+		return 1;
+	}
+
+	if (frm->offset.key + frm->len <= s->ack_offset) {
+		TRACE_DEVEL("STREAM frame already acked : fully acked range", QUIC_EV_CONN_PRSAFRM, qc, f);
+		return 1;
+	}
+
+	if (frm->offset.key < s->ack_offset &&
+	    frm->offset.key + frm->len > s->ack_offset) {
+		/* Data range partially acked, remove it from STREAM frame. */
+		const uint64_t diff = s->ack_offset - frm->offset.key;
+		TRACE_DEVEL("updated partially acked frame", QUIC_EV_CONN_PRSAFRM, qc, f);
+		qc_stream_frm_mv_fwd(f, diff);
+	}
+
+	return 0;
+}
 
 /* Duplicate all frames from <pkt_frm_list> list into <out_frm_list> list
  * for <qc> QUIC connection.
@@ -33,32 +67,11 @@ static void qc_dup_pkt_frms(struct quic_conn *qc,
 		switch (frm->type) {
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 		{
-			struct qf_stream *strm_frm = &frm->stream;
-			struct eb64_node *node = NULL;
-			struct qc_stream_desc *stream_desc;
-
-			node = eb64_lookup(&qc->streams_by_id, strm_frm->id);
-			if (!node) {
-				TRACE_DEVEL("ignored frame for a released stream", QUIC_EV_CONN_PRSAFRM, qc, frm);
-				continue;
-			}
-
-			stream_desc = eb64_entry(node, struct qc_stream_desc, by_id);
 			/* Do not resend this frame if in the "already acked range" */
-			if (strm_frm->offset.key + strm_frm->len <= stream_desc->ack_offset) {
-				TRACE_DEVEL("ignored frame in already acked range",
-				            QUIC_EV_CONN_PRSAFRM, qc, frm);
+			if (qc_stream_frm_is_acked(qc, frm))
 				continue;
-			}
-			else if (strm_frm->offset.key < stream_desc->ack_offset) {
-				uint64_t diff = stream_desc->ack_offset - strm_frm->offset.key;
 
-				qc_stream_frm_mv_fwd(frm, diff);
-				TRACE_DEVEL("updated partially acked frame",
-				            QUIC_EV_CONN_PRSAFRM, qc, frm);
-			}
-
-			strm_frm->dup = 1;
+			frm->stream.dup = 1;
 			break;
 		}
 

@@ -1605,34 +1605,9 @@ static int qc_build_frms(struct list *outlist, struct list *inlist,
 
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 			if (cf->stream.dup) {
-				struct eb64_node *node = NULL;
-				struct qc_stream_desc *stream_desc = NULL;
-				struct qf_stream *strm_frm = &cf->stream;
-
-				/* As this frame has been already lost, ensure the stream is always
-				 * available or the range of this frame is not consumed before
-				 * resending it.
-				 */
-				node = eb64_lookup(&qc->streams_by_id, strm_frm->id);
-				if (!node) {
-					TRACE_DEVEL("released stream", QUIC_EV_CONN_PRSAFRM, qc, cf);
+				if (qc_stream_frm_is_acked(qc, cf)) {
 					qc_frm_free(qc, &cf);
 					continue;
-				}
-
-				stream_desc = eb64_entry(node, struct qc_stream_desc, by_id);
-				if (strm_frm->offset.key + strm_frm->len <= stream_desc->ack_offset) {
-					TRACE_DEVEL("ignored frame frame in already acked range",
-					            QUIC_EV_CONN_PRSAFRM, qc, cf);
-					qc_frm_free(qc, &cf);
-					continue;
-				}
-				else if (strm_frm->offset.key < stream_desc->ack_offset) {
-					uint64_t diff = stream_desc->ack_offset - strm_frm->offset.key;
-
-					qc_stream_frm_mv_fwd(cf, diff);
-					TRACE_DEVEL("updated partially acked frame",
-					            QUIC_EV_CONN_PRSAFRM, qc, cf);
 				}
 			}
 			/* Note that these frames are accepted in short packets only without

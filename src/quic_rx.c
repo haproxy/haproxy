@@ -412,33 +412,9 @@ int qc_handle_frms_of_lost_pkt(struct quic_conn *qc,
 		switch (frm->type) {
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 		{
-			struct qf_stream *strm_frm = &frm->stream;
-			struct eb64_node *node = NULL;
-			struct qc_stream_desc *stream_desc;
-
-			node = eb64_lookup(&qc->streams_by_id, strm_frm->id);
-			if (!node) {
-				TRACE_DEVEL("released stream", QUIC_EV_CONN_PRSAFRM, qc, frm);
-				TRACE_DEVEL("freeing frame from packet", QUIC_EV_CONN_PRSAFRM,
-				            qc, frm, &pn);
+			if (qc_stream_frm_is_acked(qc, frm)) {
 				qc_frm_free(qc, &frm);
 				continue;
-			}
-
-			stream_desc = eb64_entry(node, struct qc_stream_desc, by_id);
-			/* Do not resend this frame if in the "already acked range" */
-			if (strm_frm->offset.key + strm_frm->len <= stream_desc->ack_offset) {
-				TRACE_DEVEL("ignored frame in already acked range",
-				            QUIC_EV_CONN_PRSAFRM, qc, frm);
-				qc_frm_free(qc, &frm);
-				continue;
-			}
-			else if (strm_frm->offset.key < stream_desc->ack_offset) {
-				uint64_t diff = stream_desc->ack_offset - strm_frm->offset.key;
-
-				qc_stream_frm_mv_fwd(frm, diff);
-				TRACE_DEVEL("updated partially acked frame",
-				            QUIC_EV_CONN_PRSAFRM, qc, frm);
 			}
 			break;
 		}

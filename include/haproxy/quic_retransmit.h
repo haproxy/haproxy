@@ -10,6 +10,10 @@
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_tls-t.h>
 
+struct quic_frame;
+
+int qc_stream_frm_is_acked(struct quic_conn *qc, struct quic_frame *f);
+
 void qc_prep_fast_retrans(struct quic_conn *qc,
                           struct quic_pktns *pktns,
                           struct list *frms1, struct list *frms2);
