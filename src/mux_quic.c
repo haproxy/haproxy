@@ -67,6 +67,7 @@ static void qcs_free(struct qcs *qcs)
 	/* Release stream endpoint descriptor. */
 	BUG_ON(qcs->sd && !se_fl_test(qcs->sd, SE_FL_ORPHAN));
 	sedesc_free(qcs->sd);
+	qcs->sd = NULL;
 
 	/* Release app-layer context. */
 	if (qcs->ctx && qcc->app_ops->detach)
