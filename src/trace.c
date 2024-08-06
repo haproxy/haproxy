@@ -27,6 +27,7 @@
 #include <haproxy/istbuf.h>
 #include <haproxy/list.h>
 #include <haproxy/log.h>
+#include <haproxy/quic_conn-t.h>
 #include <haproxy/sink.h>
 #include <haproxy/trace.h>
 
@@ -127,6 +128,10 @@ int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *
 	if (src->arg_def & TRC_ARGS_APPCTX)
 		appctx = trace_pick_arg(src->arg_def & TRC_ARGS_APPCTX, a1, a2, a3, a4);
 
+#ifdef USE_QUIC
+	if (qc && !conn)
+		conn = qc->conn;
+#endif
 	if (!sess && strm)
 		sess = strm->sess;
 	else if (!sess && conn && LIST_INLIST(&conn->sess_el))
