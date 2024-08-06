@@ -13,6 +13,9 @@ static void qmux_trace(enum trace_level level, uint64_t mask,
                        const struct ist where, const struct ist func,
                        const void *a1, const void *a2, const void *a3, const void *a4);
 
+static void qmux_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *src,
+                                const void *a1, const void *a2, const void *a3, const void *a4);
+
 static const struct name_desc qmux_trace_lockon_args[4] = {
 	/* arg1 */ { /* already used by the connection */ },
 	/* arg2 */ { .name="qcs", .desc="QUIC stream" },
@@ -33,6 +36,7 @@ struct trace_source trace_qmux = {
 	.desc = "QUIC multiplexer",
 	.arg_def = TRC_ARG1_CONN,  /* TRACE()'s first argument is always a connection */
 	.default_cb = qmux_trace,
+	.fill_ctx = qmux_trace_fill_ctx,
 	.known_events = qmux_trace_events,
 	.lockon_args = qmux_trace_lockon_args,
 	.decoding = qmux_trace_decoding,
@@ -96,6 +100,28 @@ static void qmux_trace(enum trace_level level, uint64_t mask,
 			chunk_appendf(&trace_buf, " len=%lu fin=%d offset=%llu",
 			              (ulong)arg->len, arg->fin, (ullong)arg->offset);
 		}
+	}
+}
+
+/* This fills the trace_ctx with extra info guessed from the args */
+static void qmux_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *src,
+                               const void *a1, const void *a2, const void *a3, const void *a4)
+{
+	const struct connection *conn = a1;
+	const struct qcc *qcc   = conn ? conn->ctx : NULL;
+	const struct qcs *qcs   = a2;
+
+	if (!ctx->conn)
+		ctx->conn = conn;
+
+	if (qcc) {
+		if (!ctx->fe)
+			ctx->fe = qcc->proxy;
+	}
+
+	if (qcs) {
+		if (!ctx->strm && qcs->sd && qcs->sd->sc)
+			ctx->strm = sc_strm(qcs->sd->sc);
 	}
 }
 
