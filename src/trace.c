@@ -508,6 +508,13 @@ static int trace_parse_statement(char **args, char **msg)
 			return LOG_WARNING;
 		}
 
+		/* state transitions:
+		 *   - "start now" => TRACE_STATE_RUNNING
+		 *   - "stop now"  => TRACE_STATE_STOPPED
+		 *   - "pause now" => TRACE_STATE_WAITING
+		 *   - "start <evt>" && STATE_STOPPED => TRACE_STATE_WAITING
+		 */
+
 		if (strcmp(name, "now") == 0 && ev_ptr != &src->report_events) {
 			HA_ATOMIC_STORE(ev_ptr, 0);
 			if (ev_ptr == &src->pause_events) {
@@ -526,9 +533,16 @@ static int trace_parse_statement(char **args, char **msg)
 
 		if (strcmp(name, "none") == 0)
 			HA_ATOMIC_STORE(ev_ptr, 0);
-		else if (strcmp(name, "any") == 0)
+		else if (strcmp(name, "any") == 0) {
+			enum trace_state old = TRACE_STATE_STOPPED;
+
 			HA_ATOMIC_STORE(ev_ptr, ~0);
+			if (ev_ptr == &src->start_events)
+				HA_ATOMIC_CAS(&src->state, &old, TRACE_STATE_WAITING);
+		}
 		else {
+			enum trace_state old = TRACE_STATE_STOPPED;
+
 			ev = trace_find_event(src->known_events, name);
 			if (!ev) {
 				memprintf(msg, "No such trace event '%s'", name);
@@ -539,6 +553,9 @@ static int trace_parse_statement(char **args, char **msg)
 				HA_ATOMIC_OR(ev_ptr, ev->mask);
 			else
 				HA_ATOMIC_AND(ev_ptr, ~ev->mask);
+
+			if (ev_ptr == &src->start_events && HA_ATOMIC_LOAD(ev_ptr) != 0)
+				HA_ATOMIC_CAS(&src->state, &old, TRACE_STATE_WAITING);
 		}
 	}
 	else if (strcmp(args[2], "sink") == 0) {
