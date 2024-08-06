@@ -205,7 +205,7 @@ int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *
 		if (src->lockon_ptr && src->lockon_ptr != lockon_ptr)
 			return 0;
 
-		if (*plockptr && !src->lockon_ptr && lockon_ptr && src->state == TRACE_STATE_RUNNING)
+		if (plockptr && !src->lockon_ptr && lockon_ptr && src->state == TRACE_STATE_RUNNING)
 			*plockptr = lockon_ptr;
 	}
 
