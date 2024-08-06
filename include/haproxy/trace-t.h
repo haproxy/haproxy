@@ -166,6 +166,8 @@ struct trace_source {
 	                   const struct trace_source *src,
 	                   const struct ist where, const struct ist func,
 	                   const void *a1, const void *a2, const void *a3, const void *a4);
+	void (*fill_ctx)(struct trace_ctx *ctx, const struct trace_source *src,
+	                 const void *a1, const void *a2, const void *a3, const void *a4);
 	uint32_t arg_def;        // argument definitions (sum of TRC_ARG{1..4}_*)
 	const struct name_desc *lockon_args; // must be 4 entries if not NULL
 	const struct name_desc *decoding;    // null-terminated if not NULL
