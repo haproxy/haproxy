@@ -23,6 +23,7 @@
 #include <haproxy/session.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/tools.h>
+#include <haproxy/trace.h>
 #include <haproxy/vars.h>
 
 
@@ -32,6 +33,35 @@ DECLARE_POOL(pool_head_sess_priv_conns, "session priv conns list",
 
 int conn_complete_session(struct connection *conn);
 
+static const struct trace_event sess_trace_events[] = {
+#define           SESS_EV_NEW       (1ULL <<  0)
+	{ .mask = SESS_EV_NEW,      .name = "sess_new",     .desc = "new session creation" },
+#define           SESS_EV_END       (1ULL <<  1)
+	{ .mask = SESS_EV_END,      .name = "sess_end",     .desc = "session termination" },
+#define           SESS_EV_ERR       (1ULL <<  1)
+	{ .mask = SESS_EV_ERR,      .name = "sess_err",     .desc = "session error" },
+	{ }
+};
+
+static const struct name_desc sess_trace_lockon_args[4] = {
+	/* arg1 */ { /* already used by the session */ },
+	/* arg2 */ { },
+	/* arg3 */ { },
+	/* arg4 */ { }
+};
+
+static struct trace_source trace_sess __read_mostly = {
+	.name = IST("session"),
+	.desc = "client session management",
+	.arg_def = TRC_ARG1_SESS,  // TRACE()'s first argument is always a session
+	.known_events = sess_trace_events,
+	.lockon_args = sess_trace_lockon_args,
+	.report_events = ~0,  // report everything by default
+};
+
+#define TRACE_SOURCE &trace_sess
+INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
+
 /* Create a a new session and assign it to frontend <fe>, listener <li>,
  * origin <origin>, set the current date and clear the stick counters pointers.
  * Returns the session upon success or NULL. The session may be released using
@@ -40,6 +70,8 @@ int conn_complete_session(struct connection *conn);
 struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type *origin)
 {
 	struct session *sess;
+
+	TRACE_ENTER(SESS_EV_NEW);
 
 	sess = pool_alloc(pool_head_session);
 	if (sess) {
@@ -66,10 +98,13 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		sess->flags = SESS_FL_NONE;
 		sess->src = NULL;
 		sess->dst = NULL;
+		TRACE_STATE("new session", SESS_EV_NEW, sess);
 	}
+	TRACE_LEAVE(SESS_EV_NEW);
 	return sess;
  out_fail_alloc:
 	pool_free(pool_head_session, sess);
+	TRACE_DEVEL("leaving in error", SESS_EV_NEW|SESS_EV_END|SESS_EV_ERR);
 	return NULL;
 }
 
@@ -77,6 +112,9 @@ void session_free(struct session *sess)
 {
 	struct connection *conn, *conn_back;
 	struct sess_priv_conns *pconns, *pconns_back;
+
+	TRACE_ENTER(SESS_EV_END);
+	TRACE_STATE("releasing session", SESS_EV_END, sess);
 
 	if (sess->flags & SESS_FL_RELEASE_LI) {
 		/* listener must be set for session used to account FE conns. */
@@ -104,6 +142,8 @@ void session_free(struct session *sess)
 	sockaddr_free(&sess->dst);
 	pool_free(pool_head_session, sess);
 	_HA_ATOMIC_DEC(&jobs);
+
+	TRACE_LEAVE(SESS_EV_END);
 }
 
 /* callback used from the connection/mux layer to notify that a connection is
