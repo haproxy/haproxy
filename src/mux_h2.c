@@ -135,6 +135,9 @@ static void h2_trace(enum trace_level level, uint64_t mask, \
                      const struct ist where, const struct ist func,
                      const void *a1, const void *a2, const void *a3, const void *a4);
 
+static void h2_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *src,
+                              const void *a1, const void *a2, const void *a3, const void *a4);
+
 /* The event representation is split like this :
  *   strm  - application layer
  *   h2s   - internal H2 stream
@@ -276,6 +279,7 @@ static struct trace_source trace_h2 __read_mostly = {
 	.desc = "HTTP/2 multiplexer",
 	.arg_def = TRC_ARG1_CONN,  // TRACE()'s first argument is always a connection
 	.default_cb = h2_trace,
+	.fill_ctx = h2_trace_fill_ctx,
 	.known_events = h2_trace_events,
 	.lockon_args = h2_trace_lockon_args,
 	.decoding = h2_trace_decoding,
@@ -608,6 +612,33 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 				      HTX_SL_P1_LEN(sl), HTX_SL_P1_PTR(sl),
 				      HTX_SL_P2_LEN(sl), HTX_SL_P2_PTR(sl),
 				      HTX_SL_P3_LEN(sl), HTX_SL_P3_PTR(sl));
+	}
+}
+
+/* This fills the trace_ctx with extra info guessed from the args */
+static void h2_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *src,
+                              const void *a1, const void *a2, const void *a3, const void *a4)
+{
+	const struct connection *conn = a1;
+	const struct h2c *h2c = conn ? conn->ctx : NULL;
+	const struct h2s *h2s    = a2;
+
+	if (!ctx->conn)
+		ctx->conn = conn;
+
+	if (h2c) {
+		if (!ctx->fe && !(h2c->flags & H2_CF_IS_BACK))
+			ctx->fe = h2c->proxy;
+
+		if (!ctx->be && (h2c->flags & H2_CF_IS_BACK))
+			ctx->be = h2c->proxy;
+	}
+
+	if (h2s) {
+		if (!ctx->sess)
+			ctx->sess = h2s->sess;
+		if (!ctx->strm && h2s->sd && h2s_sc(h2s))
+			ctx->strm = sc_strm(h2s_sc(h2s));
 	}
 }
 
@@ -1621,6 +1652,7 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	h2s->shut_tl->context = h2s;
 	LIST_INIT(&h2s->list);
 	h2s->h2c       = h2c;
+	h2s->sess      = NULL;
 	h2s->sd        = NULL;
 	h2s->sws       = 0;
 	h2s->flags     = H2_SF_NONE;
