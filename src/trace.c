@@ -649,7 +649,11 @@ static int trace_parse_statement(char **args, char **msg)
 			if (src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_STRM))
 				chunk_appendf(&trash, "  %c server     : lock on the server that started the trace\n",
 				              src->lockon == TRACE_LOCKON_SERVER ? '*' : ' ');
-
+#ifdef USE_QUIC
+			if (src->arg_def & TRC_ARGS_QCON)
+				chunk_appendf(&trash, "  %c qconn      : lock on the QUIC connection that started the trace\n",
+				              src->lockon == TRACE_LOCKON_QCON ? '*' : ' ');
+#endif
 			if (src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_QCON|TRC_ARGS_SESS|TRC_ARGS_STRM))
 				chunk_appendf(&trash, "  %c session    : lock on the session that started the trace\n",
 				              src->lockon == TRACE_LOCKON_SESSION ? '*' : ' ');
@@ -719,6 +723,10 @@ static int trace_parse_statement(char **args, char **msg)
 		}
 		else if ((src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_QCON|TRC_ARGS_SESS|TRC_ARGS_STRM)) && strcmp(name, "session") == 0) {
 			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_SESSION);
+			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
+		}
+		else if ((src->arg_def & TRC_ARGS_QCON) && strcmp(name, "qconn") == 0) {
+			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_QCON);
 			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 		}
 		else if ((src->arg_def & TRC_ARGS_STRM) && strcmp(name, "stream") == 0) {
