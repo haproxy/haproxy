@@ -100,6 +100,9 @@ static void h1_trace(enum trace_level level, uint64_t mask,
                      const struct ist where, const struct ist func,
                      const void *a1, const void *a2, const void *a3, const void *a4);
 
+static void h1_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *src,
+                              const void *a1, const void *a2, const void *a3, const void *a4);
+
 /* The event representation is split like this :
  *   h1c   - internal H1 connection
  *   h1s   - internal H1 stream
@@ -199,6 +202,7 @@ static struct trace_source trace_h1 __read_mostly = {
 	.desc = "HTTP/1 multiplexer",
 	.arg_def = TRC_ARG1_CONN,  // TRACE()'s first argument is always a connection
 	.default_cb = h1_trace,
+	.fill_ctx = h1_trace_fill_ctx,
 	.known_events = h1_trace_events,
 	.lockon_args = h1_trace_lockon_args,
 	.decoding = h1_trace_decoding,
@@ -450,6 +454,33 @@ static void h1_trace(enum trace_level level, uint64_t mask, const struct trace_s
 
 		chunk_memcat(&trace_buf, "\n\t", 2);
 		htx_dump(&trace_buf, htx, full);
+	}
+}
+
+/* This fills the trace_ctx with extra info guessed from the args */
+static void h1_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *src,
+                              const void *a1, const void *a2, const void *a3, const void *a4)
+{
+	const struct connection *conn = a1;
+	const struct h1c *h1c = conn ? conn->ctx : NULL;
+	const struct h1s *h1s = a2;
+
+	if (!ctx->conn)
+		ctx->conn = conn;
+
+	if (h1c) {
+		if (!ctx->fe && !(h1c->flags & H1C_F_IS_BACK))
+			ctx->fe = h1c->px;
+
+		if (!ctx->be && (h1c->flags & H1C_F_IS_BACK))
+			ctx->be = h1c->px;
+	}
+
+	if (h1s) {
+		if (!ctx->sess)
+			ctx->sess = h1s->sess;
+		if (!ctx->strm && h1s->sd && h1s_sc(h1s))
+			ctx->strm = sc_strm(h1s_sc(h1s));
 	}
 }
 
