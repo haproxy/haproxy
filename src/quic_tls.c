@@ -199,7 +199,7 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	int ret = 0;
 	struct quic_enc_level *qel;
 
-	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
+	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
 
 	qel = pool_alloc(pool_head_quic_enc_level);
 	if (!qel)
@@ -259,7 +259,7 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	*el = qel;
 	ret = 1;
  leave:
-	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_NEW, qc);
 	return ret;
 
  err:
