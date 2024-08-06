@@ -136,6 +136,20 @@ struct trace_event {
 	const char *desc;
 };
 
+/* context of a trace in progress. Unknown fields are NULL */
+struct trace_ctx {
+	const struct listener *li;
+	const struct proxy *fe;
+	const struct proxy *be;
+	const struct server *srv;
+	const struct session *sess;
+	const struct stream *strm;
+	const struct connection *conn;
+	const struct check *check;
+	const struct quic_conn *qc;
+	const struct appctx *appctx;
+};
+
 /* Regarding the verbosity, if <decoding> is not NULL, it must point to a NULL-
  * terminated array of name:description, which will define verbosity levels
  * implemented by the decoding callback. The verbosity value will default to
