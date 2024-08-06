@@ -434,6 +434,7 @@ static int trace_parse_statement(char **args, char **msg)
 		chunk_printf(&trash,
 			     "Supported trace sources and states (.=stopped, w=waiting, R=running) :\n"
 			     " [.] 0          : not a source, will immediately stop all traces\n"
+			     " [.] all        : all sources below, only for 'sink' and 'level'\n"
 			     );
 
 		list_for_each_entry(src, &trace_sources, source_link)
@@ -452,10 +453,21 @@ static int trace_parse_statement(char **args, char **msg)
 		return LOG_NOTICE;
 	}
 
-	src = trace_find_source(args[1]);
-	if (!src) {
-		memprintf(msg, "No such trace source '%s'", args[1]);
-		return LOG_ERR;
+	if (strcmp(args[1], "all") == 0) {
+		if (*args[2] &&
+		    strcmp(args[2], "sink") != 0 &&
+		    strcmp(args[2], "level") != 0) {
+			memprintf(msg, "'%s' not applicable to meta-source 'all'", args[2]);
+			return LOG_ERR;
+		}
+		src = NULL;
+	}
+	else {
+		src = trace_find_source(args[1]);
+		if (!src) {
+			memprintf(msg, "No such trace source '%s'", args[1]);
+			return LOG_ERR;
+		}
 	}
 
 	if (!*args[2]) {
@@ -563,11 +575,11 @@ static int trace_parse_statement(char **args, char **msg)
 		struct sink *sink;
 
 		if (!*name) {
-			chunk_printf(&trash, "Supported sinks for source %s (*=current):\n", src->name.ptr);
-			chunk_appendf(&trash, "  %c none       : no sink\n", src->sink ? ' ' : '*');
+			chunk_printf(&trash, "Supported sinks for source %s (*=current):\n", src ? src->name.ptr : "all");
+			chunk_appendf(&trash, "  %c none       : no sink\n", src && src->sink ? ' ' : '*');
 			list_for_each_entry(sink, &sink_list, sink_list) {
 				chunk_appendf(&trash, "  %c %-10s : %s\n",
-					      src->sink == sink ? '*' : ' ',
+					      src && src->sink == sink ? '*' : ' ',
 					      sink->name, sink->desc);
 			}
 			trash.area[trash.data] = 0;
@@ -585,7 +597,11 @@ static int trace_parse_statement(char **args, char **msg)
 			}
 		}
 
-		HA_ATOMIC_STORE(&src->sink, sink);
+		if (src)
+			HA_ATOMIC_STORE(&src->sink, sink);
+		else
+			list_for_each_entry(src, &trace_sources, source_link)
+				HA_ATOMIC_STORE(&src->sink, sink);
 	}
 	else if (strcmp(args[2], "level") == 0) {
 		const char *name = args[3];
@@ -598,25 +614,29 @@ static int trace_parse_statement(char **args, char **msg)
 			chunk_reset(&trash);
 			if (*name)
 				chunk_appendf(&trash, "No such trace level '%s'. ", name);
-			chunk_appendf(&trash, "Supported trace levels for source %s:\n", src->name.ptr);
+			chunk_appendf(&trash, "Supported trace levels for source %s:\n", src ? src->name.ptr : "all");
 			chunk_appendf(&trash, "  %c error      : report errors\n",
-				      src->level == TRACE_LEVEL_ERROR ? '*' : ' ');
+				      src && src->level == TRACE_LEVEL_ERROR ? '*' : ' ');
 			chunk_appendf(&trash, "  %c user       : also information useful to the end user\n",
-				      src->level == TRACE_LEVEL_USER ? '*' : ' ');
+				      src && src->level == TRACE_LEVEL_USER ? '*' : ' ');
 			chunk_appendf(&trash, "  %c proto      : also protocol-level updates\n",
-				      src->level == TRACE_LEVEL_PROTO ? '*' : ' ');
+				      src && src->level == TRACE_LEVEL_PROTO ? '*' : ' ');
 			chunk_appendf(&trash, "  %c state      : also report internal state changes\n",
-				      src->level == TRACE_LEVEL_STATE ? '*' : ' ');
+				      src && src->level == TRACE_LEVEL_STATE ? '*' : ' ');
 			chunk_appendf(&trash, "  %c data       : also report data transfers\n",
-				      src->level == TRACE_LEVEL_DATA ? '*' : ' ');
+				      src && src->level == TRACE_LEVEL_DATA ? '*' : ' ');
 			chunk_appendf(&trash, "  %c developer  : also report information useful only to the developer\n",
-				      src->level == TRACE_LEVEL_DEVELOPER ? '*' : ' ');
+				      src && src->level == TRACE_LEVEL_DEVELOPER ? '*' : ' ');
 			trash.area[trash.data] = 0;
 			*msg = strdup(trash.area);
 			return *name ? LOG_ERR : LOG_WARNING;
 		}
 
-		HA_ATOMIC_STORE(&src->level, level);
+		if (src)
+			HA_ATOMIC_STORE(&src->level, level);
+		else
+			list_for_each_entry(src, &trace_sources, source_link)
+				HA_ATOMIC_STORE(&src->level, level);
 	}
 	else if (strcmp(args[2], "lock") == 0) {
 		const char *name = args[3];

@@ -3975,7 +3975,9 @@ trace <source> level [<level>]
   It is highly recommended to always use the "user" level only and switch to
   other levels only if instructed to do so by a developer. Also it is a good
   idea to first configure the events before switching to higher levels, as it
-  may save from dumping many lines if no filter is applied.
+  may save from dumping many lines if no filter is applied. The meta-source
+  "all" may also be used with this command: in this case, the level will be
+  applied to all existing sources at once.
 
 trace <source> lock [criterion]
   Without argument, this will list all the criteria supported by this source
@@ -4045,7 +4047,9 @@ trace <source> sink [<sink>]
    ring buffers should be available as well. When a name is specified, the sink
    instantly changes for the specified source. Events are not changed during a
    sink change. In the worst case some may be lost if an invalid sink is used
-   (or "none"), but operations do continue to a different destination.
+   (or "none"), but operations do continue to a different destination. The
+   meta-source "all" may also be used with this command: in this case, the
+   sink will be applied to all existing sources at once.
 
 trace <source> verbosity [<level>]
   Without argument, this will list all verbosity levels for this source, and the
