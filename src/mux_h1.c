@@ -830,6 +830,8 @@ static struct stconn *h1s_upgrade_sc(struct h1s *h1s, struct buffer *input)
 		goto err;
 	}
 
+	TRACE_STATE("upgraded H1 stream", H1_EV_H1S_NEW, h1s->h1c->conn, h1s);
+
 	h1s->h1c->state = H1_CS_RUNNING;
 	TRACE_LEAVE(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
 	return h1s_sc(h1s);
@@ -921,6 +923,8 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct stconn *sc, struct
 
 	h1c->idle_exp = TICK_ETERNITY;
 	h1_set_idle_expiration(h1c);
+
+	TRACE_STATE("created new H1 front stream", H1_EV_H1S_NEW, h1c->conn, h1s);
 	TRACE_LEAVE(H1_EV_H1S_NEW, h1c->conn, h1s);
 	return h1s;
 
@@ -957,6 +961,7 @@ static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct stconn *sc, struct
 	HA_ATOMIC_INC(&h1c->px_counters->open_streams);
 	HA_ATOMIC_INC(&h1c->px_counters->total_streams);
 
+	TRACE_STATE("created new H1 back stream", H1_EV_H1S_NEW, h1c->conn, h1s);
 	TRACE_LEAVE(H1_EV_H1S_NEW, h1c->conn, h1s);
 	return h1s;
 
