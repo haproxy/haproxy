@@ -1717,35 +1717,36 @@ static int cfg_parse_global_def_path(char **args, int section_type, struct proxy
 	return ret;
 }
 
-/* append a copy of string <str> (in a wordlist) at the end of the list <li>
+/* append a copy of string <filename>, ptr to some allocated memory at the at
+ * the end of the list <li>.
  * On failure : return 0 and <err> filled with an error message.
- * The caller is responsible for freeing the <err> and <str> copy
- * memory area using free()
+ * The caller is responsible for freeing the <err> and <filename> copy
+ * memory area using free().
  */
-int list_append_word(struct list *li, const char *str, char **err)
+int list_append_cfgfile(struct list *li, const char *filename, char **err)
 {
-	struct wordlist *wl;
+	struct cfgfile *entry = NULL;
 
-	wl = calloc(1, sizeof(*wl));
-	if (!wl) {
+	entry = calloc(1, sizeof(*entry));
+	if (!entry) {
 		memprintf(err, "out of memory");
-		goto fail_wl;
+		goto fail_entry;
 	}
 
-	wl->s = strdup(str);
-	if (!wl->s) {
+	entry->filename = strdup(filename);
+	if (!entry->filename) {
 		memprintf(err, "out of memory");
-		goto fail_wl_s;
+		goto fail_entry_name;
 	}
 
-	LIST_APPEND(li, &wl->list);
+	LIST_APPEND(li, &entry->list);
 
 	return 1;
 
-fail_wl_s:
-	free(wl->s);
-fail_wl:
-	free(wl);
+fail_entry_name:
+	free(entry->filename);
+fail_entry:
+	free(entry);
 	return 0;
 }
 
