@@ -1,6 +1,96 @@
 ChangeLog :
 ===========
 
+2024/08/07 : 3.1-dev5
+    - BUG/MINOR: quic: Lack of precision when computing K (cubic only cc)
+    - MEDIUM: ssl/quic: implement quic crypto with EVP_AEAD
+    - MINOR: quic: rename confusing wording aes to hp
+    - MEDIUM: quic: add key argument to header protection crypto functions
+    - MEDIUM: quic: implement CHACHA20_POLY1305 for AWS-LC
+    - MEDIUM: sink: assume sft appctx stickiness
+    - MINOR: quic: delay Retry emission on quic-force-retry
+    - MEDIUM: quic: implement quic-initial rules
+    - MINOR: quic: support ACL for quic-initial rules
+    - MINOR: quic: pass quic_dgram as obj_type for quic-initial rules
+    - MINOR: quic: implement reject quic-initial action
+    - MINOR: quic: implement send-retry quic-initial rules
+    - BUG/MEDIUM: quic: fix invalid conn reject with CONNECTION_REFUSED
+    - MEDIUM: h1: allow to preserve keep-alive on T-E + C-L
+    - MINOR: quic: Add information to "show quic" for CUBIC cc.
+    - MINOR: quic: Dump TX in flight bytes vs window values ratio.
+    - BUG/MEDIUM: jwt: Clear SSL error queue on error when checking the signature
+    - BUILD: cfgparse-quic: fix build error on Solaris due to missing netinet/in.h
+    - MINOR: queue: add a function to check for TOCTOU after queueing
+    - BUG/MEDIUM: queue: deal with a rare TOCTOU in assign_server_and_queue()
+    - DOC: config: Add documentation about spop mode for backends
+    - BUG/MEDIUM: stconn: Report error on SC on send if a previous SE error was set
+    - BUG/MEDIUM: mux-pt/mux-h1: Release the pipe on connection error on sending path
+    - BUILD: mux-pt: Use the right name for the sedesc variable
+    - BUG/MINOR: stconn: bs.id and fs.id had their dependencies incorrect
+    - BUG/MEDIUM: ssl: reactivate 0-RTT for AWS-LC
+    - BUG/MEDIUM: ssl: 0-RTT initialized at the wrong place for AWS-LC
+    - BUILD: ssl: replace USE_OPENSSL_AWSLC by OPENSSL_IS_AWSLC
+    - BUG/MEDIUM: quic: prevent conn freeze on 0RTT undeciphered content
+    - MINOR: tcp_sample: Move TCP low level sample fetch function to control layer
+    - MINOR: quic: Define ->get_info() control layer callback for QUIC
+    - MINOR: flags/mux-quic: decode qcc and qcs flags
+    - BUG/MINOR: quic: fix fc_rtt/srtt values
+    - BUG/MIONR: quic: fix fc_lost
+    - BUG/MINOR: h1: do not forward h2c upgrade header token
+    - BUG/MINOR: h2: reject extended connect for h2c protocol
+    - BUG/MEDIUM: http-ana: Report error on write error waiting for the response
+    - BUG/MEDIUM: h2: Only report early HTX EOM for tunneled streams
+    - BUG/MEDIUM: mux-h2: Propagate term flags to SE on error in h2s_wake_one_stream
+    - BUG/MEDIUM: peer: Notify the applet won't consume data when it waits for sync
+    - BUG/MINOR: quic: Too shord datagram during O-RTT handshakes (aws-lc only)
+    - CI: add weekly QUIC Interop regression against AWS-LC
+    - CI: harden NetBSD builds by ERR=1
+    - BUG/MINOR: quic: Too short datagram during packet building failures (aws-lc only)
+    - DEV: coccinelle: add a test to detect unchecked strdup()
+    - BUG/MINOR: fcgi-app: handle a possible strdup() failure
+    - BUG/MEDIUM: server/addr: fix tune.events.max-events-at-once event miss and leak
+    - MINOR: quic: convert qc_stream_desc release field to flags
+    - MINOR: quic: implement function to check if STREAM is fully acked
+    - BUG/MEDIUM: quic: handle retransmit for standalone FIN STREAM
+    - MINOR: quic: enforce ACK reception is handled in order
+    - DOC: configuration: fix alphabetical ordering of {bs,fs}.aborted
+    - MINOR: stconn: add a new pair of sf functions {bs,fs}.debug_str
+    - MINOR: mux-h2: implement the debug string for logs
+    - MINOR: mux-quic: define dump functions for QCC and QCS
+    - MINOR: mux-quic: implement debug string for logs
+    - MINOR: quic: dump quic_conn debug string for logs
+    - MINOR: time: define tot_time structure
+    - MINOR: mux-quic: measure QCS lifetime and its blocking state
+    - BUG/MINOR: trace/quic: enable conn/session pointer recovery from quic_conn
+    - BUG/MINOR: trace/quic: permit to lock on frontend/connect/session etc
+    - BUG/MEDIUM: trace: fix null deref in lockon mechanism since TRACE_ENABLED()
+    - BUG/MINOR: trace: automatically start in waiting mode with "start <evt>"
+    - BUG/MINOR: trace/quic: make "qconn" selectable as a lockon criterion
+    - BUG/MINOR: quic/trace: make quic_conn_enc_level_init() emit NEW not CLOSE
+    - MINOR: trace: support setting the sink and level for all sources at once
+    - MINOR: session/trace: enable very minimal session tracing
+    - MEDIUM: trace: implement a "follow" mechanism
+    - MINOR: trace: move the known trace context into a dedicated struct
+    - MINOR: trace: add a per-source helper to pre-fill the context
+    - MINOR: mux-h2: add a trace context filling helper
+    - MINOR: mux-h1: add a trace context filling helper
+    - MINOR: mux-quic: don't leave dangling pointer after freeing qcs->sd
+    - MINOR: mux-quic: add a trace context filling helper
+    - MINOR: mux-h1/trace: add a state trace on stream creation/upgrade
+    - MINOR: mux-h2/trace: add a state trace on stream creation/destruction
+    - MINOR: mux-h3/trace: add a state trace on stream creation/destruction
+    - BUG/MINOR: quic: prevent freeze after early QCS closure
+    - MINOR: server: ensure max_events_at_once > 0 in server_atomic_sync()
+    - MINOR: cfgparse: add struct cfgfile to represent config in memory
+    - REORG: tools: move list_append_word to cfgparse
+    - MINOR: startup: adapt list_append_word to use cfgfile
+    - MINOR: cfgparse: add load_cfg_in_mem
+    - MINOR: cfgparse: load_cfg_in_mem: take in account file size
+    - MINOR: tools: add fgets_from_mem
+    - MEDIUM: startup: make read_cfg() return immediately on ENOMEM
+    - MEDIUM: startup: load and parse configs from memory
+    - MINOR: startup: rename readcfgfile in parse_cfg
+
 2024/07/24 : 3.1-dev4
     - MINOR: limits: prepare to keep limits in one place
     - REORG: fd: move raise_rlim_nofile to limits
