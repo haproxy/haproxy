@@ -694,7 +694,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
  tcp_close_return:
 	free_trash_chunk(msg);
 	msg = NULL;
-	close(fd);
+	fd_delete(fd);
  tcp_return:
 	if (msg && errlen && msg->data) {
 		char pn[INET6_ADDRSTRLEN];
