@@ -73,5 +73,18 @@ jobs:
           git clone https://github.com/quic-interop/quic-interop-runner
           cd quic-interop-runner
           pip install -r requirements.txt --break-system-packages
-          python run.py -l logs -r haproxy=ghcr.io/${{ github.repository }}:aws-lc -t ${{ matrix.suite.tests }} -c ${{ matrix.suite.client }} -s haproxy
+          python run.py -j result.json -l logs -r haproxy=ghcr.io/${{ github.repository }}:aws-lc -t ${{ matrix.suite.tests }} -c ${{ matrix.suite.client }} -s haproxy
 
+      - name: Delete succeeded logs
+        if: failure()
+        run: |
+          cd quic-interop-runner/logs/haproxy_${{ matrix.suite.client }}
+          cat ../../result.json | jq -r '.results[][] | select(.result=="succeeded") | .name' | xargs rm -rf
+
+      - name: Logs upload
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs
+          path: quic-interop-runner/logs/
+          retention-days: 6
