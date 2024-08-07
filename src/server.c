@@ -227,6 +227,8 @@ static struct task *server_atomic_sync(struct task *task, void *context, unsigne
 	unsigned int remain = event_hdl_tune.max_events_at_once; // to limit max number of events per batch
 	struct event_hdl_async_event *event;
 
+	BUG_ON(remain == 0); // event_hdl_tune.max_events_at_once is expected to be > 0
+
 	/* check for new server events that we care about */
 	do {
 		event = event_hdl_async_equeue_pop(&server_atomic_sync_queue);
@@ -317,7 +319,7 @@ static struct task *server_atomic_sync(struct task *task, void *context, unsigne
 			srv_set_addr_desc(srv, 1);
 		}
 		event_hdl_async_free_event(event);
-	} while (--remain); // event_hdl_tune.max_events_at_once is expected to be > 0
+	} while (--remain);
 
 	/* some events possibly required thread_isolation:
 	 * now that we are done, we must leave thread isolation before
@@ -334,6 +336,7 @@ static struct task *server_atomic_sync(struct task *task, void *context, unsigne
 		 * Reschedule the task to finish where we left off if
 		 * there are remaining events in the queue.
 		 */
+		BUG_ON(task == NULL); // ending event doesn't decrement remain
 		if (!event_hdl_async_equeue_isempty(&server_atomic_sync_queue))
 			task_wakeup(task, TASK_WOKEN_OTHER);
 	}
