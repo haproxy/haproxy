@@ -112,7 +112,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int inv);
 int cfg_parse_listen(const char *file, int linenum, char **args, int inv);
 int cfg_parse_track_sc_num(unsigned int *track_sc_num,
                            const char *arg, const char *end, char **err);
-int readcfgfile(const char *file);
+int readcfgfile(const struct cfgfile *cfg);
 void cfg_register_keywords(struct cfg_kw_list *kwl);
 void cfg_unregister_keywords(struct cfg_kw_list *kwl);
 int check_config_validity(void);

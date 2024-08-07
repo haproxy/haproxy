@@ -1174,7 +1174,7 @@ next_dir_entry:
 static int read_cfg(char *progname)
 {
 	char *env_cfgfiles = NULL;
-	struct cfgfile *cfg;
+	struct cfgfile *cfg, *cfg_tmp;
 	int err_code = 0;
 
 	/* handle cfgfiles that are actually directories */
@@ -1191,8 +1191,12 @@ static int read_cfg(char *progname)
 	setenv("HAPROXY_HTTPS_LOG_FMT", default_https_log_format, 1);
 	setenv("HAPROXY_TCP_LOG_FMT", default_tcp_log_format, 1);
 	setenv("HAPROXY_BRANCH", PRODUCT_BRANCH, 1);
-	list_for_each_entry(cfg, &cfg_cfgfiles, list) {
+	list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
 		int ret;
+
+		cfg->size = load_cfg_in_mem(cfg->filename, &cfg->content);
+		if (cfg->size < 0)
+			goto err;
 
 		if (!memprintf(&env_cfgfiles, "%s%s%s",
 			       (env_cfgfiles ? env_cfgfiles : ""),
@@ -1202,7 +1206,7 @@ static int read_cfg(char *progname)
 			goto err;
 		}
 
-		ret = readcfgfile(cfg->filename);
+		ret = readcfgfile(cfg);
 		if (ret == -1)
 			goto err;
 

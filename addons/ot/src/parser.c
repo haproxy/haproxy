@@ -1074,8 +1074,9 @@ static int flt_ot_post_parse_cfg_scope(void)
  */
 static int flt_ot_parse_cfg(struct flt_ot_conf *conf, const char *flt_name, char **err)
 {
-	struct list backup_sections;
-	int         retval = ERR_ABORT | ERR_ALERT;
+	struct list    backup_sections;
+	struct cfgfile cfg_file = {0};
+	int            retval = ERR_ABORT | ERR_ALERT;
 
 	FLT_OT_FUNC("%p, \"%s\", %p:%p", conf, flt_name, FLT_OT_DPTR_ARGS(err));
 
@@ -1094,8 +1095,16 @@ static int flt_ot_parse_cfg(struct flt_ot_conf *conf, const char *flt_name, char
 		/* Do nothing. */;
 	else if (access(conf->cfg_file, R_OK) == -1)
 		FLT_OT_PARSE_ERR(err, "'%s' : %s", conf->cfg_file, strerror(errno));
-	else
-		retval = readcfgfile(conf->cfg_file);
+	else {
+		cfg_file.filename = conf->cfg_file;
+		cfg_file.size = load_cfg_in_mem(cfg_file.filename, &cfg_file.content);
+		if (cfg_file.size < 0) {
+			ha_free(&cfg_file.content);
+			FLT_OT_RETURN_INT(retval);
+		}
+		retval = readcfgfile(&cfg_file);
+		ha_free(&cfg_file.content);
+	}
 
 	/* Unregister OT sections and restore previous sections. */
 	cfg_unregister_sections();

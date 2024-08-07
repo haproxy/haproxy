@@ -1816,8 +1816,8 @@ free_mem:
 }
 
 /*
- * This function reads and parses the configuration file given in the argument.
- * Returns the error code, 0 if OK, -1 if the config file couldn't be opened,
+ * This function parses the configuration file given in the argument.
+ * Returns the error code, 0 if OK, -1 if we are run out of memory,
  * or any combination of :
  *  - ERR_ABORT: must abort ASAP
  *  - ERR_FATAL: we can continue parsing but not start the service
@@ -1826,11 +1826,10 @@ free_mem:
  * Only the two first ones can stop processing, the two others are just
  * indicators.
  */
-int readcfgfile(const char *file)
+int readcfgfile(const struct cfgfile *cfg)
 {
 	char *thisline = NULL;
 	int linesize = LINESIZE;
-	FILE *f = NULL;
 	int linenum = 0;
 	int err_code = 0;
 	struct cfg_section *cs = NULL, *pcs = NULL;
@@ -1844,17 +1843,14 @@ int readcfgfile(const char *file)
 	int nested_cond_lvl = 0;
 	enum nested_cond_state nested_conds[MAXNESTEDCONDS];
 	char *errmsg = NULL;
+	const char *cur_position = cfg->content;
+	char *file = cfg->filename;
 
 	global.cfg_curr_line = 0;
 	global.cfg_curr_file = file;
 
 	if ((thisline = malloc(sizeof(*thisline) * linesize)) == NULL) {
 		ha_alert("Out of memory trying to allocate a buffer for a configuration line.\n");
-		err_code = -1;
-		goto err;
-	}
-
-	if ((f = fopen(file,"r")) == NULL) {
 		err_code = -1;
 		goto err;
 	}
@@ -1868,7 +1864,8 @@ int readcfgfile(const char *file)
 	}
 
 next_line:
-	while (fgets(thisline + readbytes, linesize - readbytes, f) != NULL) {
+	while (fgets_from_mem(thisline + readbytes, linesize - readbytes,
+			      &cur_position, cfg->content + cfg->size)) {
 		int arg, kwm = KWM_STD;
 		char *end;
 		char *args[MAX_LINE_ARGS + 1];
@@ -2616,9 +2613,6 @@ err:
 	free(outline);
 	global.cfg_curr_line = 0;
 	global.cfg_curr_file = NULL;
-
-	if (f)
-		fclose(f);
 
 	return err_code;
 }
