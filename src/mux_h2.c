@@ -1556,6 +1556,7 @@ static inline void h2s_close(struct h2s *h2s)
 {
 	if (h2s->st != H2_SS_CLOSED) {
 		TRACE_ENTER(H2_EV_H2S_END, h2s->h2c->conn, h2s);
+		TRACE_STATE("releasing H2 stream", H2_EV_H2S_NEW, h2s->h2c->conn, h2s);
 		h2s->h2c->nb_streams--;
 		if (!h2s->id)
 			h2s->h2c->nb_reserved--;
@@ -1757,6 +1758,8 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	/* OK done, the stream lives its own life now */
 	if (h2_frt_has_too_many_sc(h2c))
 		h2c->flags |= H2_CF_DEM_TOOMANY;
+
+	TRACE_STATE("created new H2 front stream", H2_EV_H2S_NEW, h2c->conn, h2s);
 	TRACE_LEAVE(H2_EV_H2S_NEW, h2c->conn);
 	return h2s;
 
@@ -1814,6 +1817,7 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct stconn *sc, struct
 		se_fl_set(h2s->sd, SE_FL_MAY_FASTFWD_CONS);
 	/* on the backend we can afford to only count total streams upon success */
 	h2c->stream_cnt++;
+	TRACE_STATE("created new H2 back stream", H2_EV_H2S_NEW, h2c->conn, h2s);
 
  out:
 	if (likely(h2s))
