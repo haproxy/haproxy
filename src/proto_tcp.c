@@ -692,8 +692,6 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	goto tcp_return;
 
  tcp_close_return:
-	free_trash_chunk(msg);
-	msg = NULL;
 	fd_delete(fd);
  tcp_return:
 	if (msg && errlen && msg->data) {
