@@ -22,8 +22,11 @@
 #ifndef _HAPROXY_TIME_H
 #define _HAPROXY_TIME_H
 
+#include <haproxy/time-t.h>
+
 #include <sys/time.h>
 #include <haproxy/api.h>
+#include <haproxy/ticks.h>
 
 #define TIME_ETERNITY   (TV_ETERNITY_MS)
 
@@ -509,6 +512,40 @@ static inline struct timeval *__tv_ms_add(struct timeval *tv, const struct timev
                   *tv1 = *tv2;     \
         tv1;                       \
 })
+
+/* Initialize <timer>. */
+static inline void tot_time_reset(struct tot_time *timer)
+{
+	timer->curr = 0;
+	timer->tot = 0;
+}
+
+/* Start to account with <timer>. No-op if already started. */
+static inline void tot_time_start(struct tot_time *timer)
+{
+	if (!timer->curr)
+		timer->curr = now_ms;
+}
+
+/* Stop <timer> accounting and update its total. No-op if already stopped. */
+static inline void tot_time_stop(struct tot_time *timer)
+{
+	if (timer->curr) {
+		timer->tot += now_ms - timer->curr;
+		timer->curr = 0;
+	}
+}
+
+/* Retrieve the total value accounted by <timer>, including the current period
+ * if currently started.
+ */
+static inline uint32_t tot_time_read(const struct tot_time *timer)
+{
+	uint32_t value = timer->tot;
+	if (timer->curr)
+		value += now_ms - timer->curr;
+	return value;
+}
 
 #endif /* _HAPROXY_TIME_H */
 
