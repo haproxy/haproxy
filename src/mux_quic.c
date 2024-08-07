@@ -57,6 +57,7 @@ static void qcs_free(struct qcs *qcs)
 	struct qcc *qcc = qcs->qcc;
 
 	TRACE_ENTER(QMUX_EV_QCS_END, qcc->conn, qcs);
+	TRACE_STATE("releasing QUIC stream", QMUX_EV_QCS_END, qcc->conn, qcs);
 
 	/* Safe to use even if already removed from the list. */
 	LIST_DEL_INIT(&qcs->el_opening);
@@ -183,6 +184,7 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	}
 
  out:
+	TRACE_STATE("created new QUIC stream", QMUX_EV_QCS_NEW, qcc->conn, qcs);
 	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn, qcs);
 	return qcs;
 
