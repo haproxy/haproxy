@@ -120,12 +120,11 @@ void qc_stream_desc_release(struct qc_stream_desc *stream,
 		BUG_ON(final_size > tail_offset);
 
 		/* Remove unsent data from current buffer. */
-		if (final_size < tail_offset) {
+		if (final_size < tail_offset)
 			b_sub(buf, tail_offset - final_size);
-			/* Remove buffer if all ACK already received. */
-			if (!b_data(buf))
-				qc_stream_buf_free(stream, &stream_buf);
-		}
+
+		if (!b_data(buf))
+			qc_stream_buf_free(stream, &stream_buf);
 
 		/* A released stream does not use <stream.buf>. */
 		stream->buf = NULL;
