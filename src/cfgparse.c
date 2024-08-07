@@ -1717,6 +1717,38 @@ static int cfg_parse_global_def_path(char **args, int section_type, struct proxy
 	return ret;
 }
 
+/* append a copy of string <str> (in a wordlist) at the end of the list <li>
+ * On failure : return 0 and <err> filled with an error message.
+ * The caller is responsible for freeing the <err> and <str> copy
+ * memory area using free()
+ */
+int list_append_word(struct list *li, const char *str, char **err)
+{
+	struct wordlist *wl;
+
+	wl = calloc(1, sizeof(*wl));
+	if (!wl) {
+		memprintf(err, "out of memory");
+		goto fail_wl;
+	}
+
+	wl->s = strdup(str);
+	if (!wl->s) {
+		memprintf(err, "out of memory");
+		goto fail_wl_s;
+	}
+
+	LIST_APPEND(li, &wl->list);
+
+	return 1;
+
+fail_wl_s:
+	free(wl->s);
+fail_wl:
+	free(wl);
+	return 0;
+}
+
 /*
  * This function reads and parses the configuration file given in the argument.
  * Returns the error code, 0 if OK, -1 if the config file couldn't be opened,
