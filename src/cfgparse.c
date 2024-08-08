@@ -1771,10 +1771,9 @@ ssize_t load_cfg_in_mem(char *filename, char **cfg_content)
 		return -1;
 	}
 
-	if (file_stat.st_size) {
-		/* as we need to read EOF to have feof(f)=1 */
-		bytes_to_read = file_stat.st_size + 1;
-	}
+	if (file_stat.st_size > chunk_size)
+		bytes_to_read = file_stat.st_size;
+
 
 	if ((f = fopen(filename,"r")) == NULL) {
 		ha_alert("Could not open configuration file %s : %s\n",
