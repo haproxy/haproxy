@@ -1,0 +1,45 @@
+varnishtest "Test master CLI multiple commands with export-mode"
+
+# This test only checks if the master CLI parsing with pipelined commands is working:
+#
+# - @1 must be skipped and allow to select the worker
+# - expert-mode must be skipped and allow to send expert-mode for every command to the worker
+# - dev log must send a log to the syslog
+
+
+feature ignore_unknown_macro
+
+# Do nothing. Is there only to create s1_* macros
+server s1 {
+} -start
+
+syslog S1 -level info {
+	recv
+	expect ~ ".*Victory\n"
+} -start
+
+
+haproxy h1 -W -S -conf {
+    global
+	log ${S1_addr}:${S1_port} local0 info
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend myfrontend
+        bind "fd@${my_fe}"
+        default_backend test
+
+    backend test
+        server www1 ${s1_addr}:${s1_port}
+} -start
+
+haproxy h1 -mcli {
+    send "@1; expert-mode on; debug dev log Victory"
+    expect ~ ".*"
+} -wait
+
+syslog S1 -wait
