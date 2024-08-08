@@ -15,6 +15,7 @@
 #include <haproxy/qmux_http.h>
 #include <haproxy/qmux_trace.h>
 #include <haproxy/quic_conn.h>
+#include <haproxy/quic_enc.h>
 #include <haproxy/quic_fctl.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_sock.h>
@@ -683,6 +684,9 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 
 	/* Only stream ID not already opened can be used. */
 	BUG_ON(id < *largest);
+
+	/* MAX_STREAMS emission must not allowed too big stream ID. */
+	BUG_ON(*largest > QUIC_VARINT_8_BYTE_MAX);
 
 	while (id >= *largest) {
 		const char *str = *largest < id ? "initializing intermediary remote stream" :
@@ -1662,6 +1666,8 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 	return 1;
 }
 
+#define QUIC_MAX_STREAMS_MAX_ID (1ULL<<60)
+
 /* Signal the closing of remote stream with id <id>. Flow-control for new
  * streams may be allocated for the peer if needed.
  */
@@ -1672,8 +1678,28 @@ static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 	TRACE_ENTER(QMUX_EV_QCS_END, qcc->conn);
 
 	if (quic_stream_is_bidi(id)) {
+		/* RFC 9000 4.6. Controlling Concurrency
+		 *
+		 * If a max_streams transport parameter or a MAX_STREAMS frame is
+		 * received with a value greater than 260, this would allow a maximum
+		 * stream ID that cannot be expressed as a variable-length integer; see
+		 * Section 16. If either is received, the connection MUST be closed
+		 * immediately with a connection error of type TRANSPORT_PARAMETER_ERROR
+		 * if the offending value was received in a transport parameter or of
+		 * type FRAME_ENCODING_ERROR if it was received in a frame; see Section
+		 * 10.2.
+		 */
+		if (qcc->lfctl.ms_bidi == QUIC_MAX_STREAMS_MAX_ID) {
+			TRACE_DATA("maximum streams value reached", QMUX_EV_QCC_SEND, qcc->conn);
+			goto out;
+		}
+
 		++qcc->lfctl.cl_bidi_r;
-		if (qcc->lfctl.cl_bidi_r > qcc->lfctl.ms_bidi_init / 2) {
+		/* MAX_STREAMS needed if closed streams value more than twice
+		 * the initial window or reaching the stream ID limit.
+		 */
+		if (qcc->lfctl.cl_bidi_r > qcc->lfctl.ms_bidi_init / 2 ||
+		    qcc->lfctl.cl_bidi_r + qcc->lfctl.ms_bidi == QUIC_MAX_STREAMS_MAX_ID) {
 			TRACE_DATA("increase max stream limit with MAX_STREAMS_BIDI", QMUX_EV_QCC_SEND, qcc->conn);
 			frm = qc_frm_alloc(QUIC_FT_MAX_STREAMS_BIDI);
 			if (!frm) {
@@ -1698,8 +1724,8 @@ static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 		 */
 	}
 
+ out:
 	TRACE_LEAVE(QMUX_EV_QCS_END, qcc->conn);
-
 	return 0;
 
  err:
