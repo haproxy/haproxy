@@ -1966,8 +1966,8 @@ static int qcc_send_frames(struct qcc *qcc, struct list *frms)
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
 
 	if (LIST_ISEMPTY(frms)) {
-		TRACE_DEVEL("no frames to send", QMUX_EV_QCC_SEND, qcc->conn);
-		goto err;
+		TRACE_DEVEL("leaving on no frame to send", QMUX_EV_QCC_SEND, qcc->conn);
+		return 1;
 	}
 
 	if (!qc_send_mux(qcc->conn->handle.qc, frms)) {
