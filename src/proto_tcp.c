@@ -586,7 +586,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (listener->bind_conf->maxseg > 0) {
 		if (setsockopt(fd, IPPROTO_TCP, TCP_MAXSEG,
 			       &listener->bind_conf->maxseg, sizeof(listener->bind_conf->maxseg)) == -1) {
-			chunk_appendf(msg, "%scannot set MSS to %d", msg->data ? ", " : "", listener->bind_conf->maxseg);
+			chunk_appendf(msg, "%scannot set MSS to %d, (%s)", msg->data ? ", " : "", listener->bind_conf->maxseg,
+				      strerror(errno));
 			err |= ERR_WARN;
 		}
 	} else {
@@ -604,7 +605,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		if (defaultmss > 0 &&
 		    tmpmaxseg != defaultmss &&
 		    setsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &defaultmss, sizeof(defaultmss)) == -1) {
-			chunk_appendf(msg, "%scannot set MSS to %d", msg->data ? ", " : "", defaultmss);
+			chunk_appendf(msg, "%scannot set MSS to %d, (%s)", msg->data ? ", " : "", defaultmss,
+				      strerror(errno));
 			err |= ERR_WARN;
 		}
 	}
@@ -613,7 +615,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (listener->bind_conf->tcp_ut) {
 		if (setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT,
 			       &listener->bind_conf->tcp_ut, sizeof(listener->bind_conf->tcp_ut)) == -1) {
-			chunk_appendf(msg, "%scannot set TCP User Timeout", msg->data ? ", " : "");
+			chunk_appendf(msg, "%scannot set TCP User Timeout, (%s)", msg->data ? ", " : "",
+				      strerror(errno));
 			err |= ERR_WARN;
 		}
 	} else
@@ -625,7 +628,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		/* defer accept by up to one second */
 		int accept_delay = 1;
 		if (setsockopt(fd, IPPROTO_TCP, TCP_DEFER_ACCEPT, &accept_delay, sizeof(accept_delay)) == -1) {
-			chunk_appendf(msg, "%scannot enable DEFER_ACCEPT", msg->data ? ", " : "");
+			chunk_appendf(msg, "%scannot enable DEFER_ACCEPT, (%s)", msg->data ? ", " : "",
+				      strerror(errno));
 			err |= ERR_WARN;
 		}
 	} else
@@ -637,7 +641,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		/* TFO needs a queue length, let's use the configured backlog */
 		int qlen = listener_backlog(listener);
 		if (setsockopt(fd, IPPROTO_TCP, TCP_FASTOPEN, &qlen, sizeof(qlen)) == -1) {
-			chunk_appendf(msg, "%scannot enable TCP_FASTOPEN", msg->data ? ", " : "");
+			chunk_appendf(msg, "%scannot enable TCP_FASTOPEN, (%s)", msg->data ? ", " : "",
+				      strerror(errno));
 			err |= ERR_WARN;
 		}
 	} else {
@@ -651,7 +656,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		    qlen != 0) {
 			if (setsockopt(fd, IPPROTO_TCP, TCP_FASTOPEN, &zero,
 			    sizeof(zero)) == -1) {
-				chunk_appendf(msg, "%scannot disable TCP_FASTOPEN", msg->data ? ", " : "");
+				chunk_appendf(msg, "%scannot disable TCP_FASTOPEN, (%s)", msg->data ? ", " : "",
+					      strerror(errno));
 				err |= ERR_WARN;
 			}
 		}
@@ -663,7 +669,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (!ready && /* only listen if not already done by external process */
 	    listen(fd, listener_backlog(listener)) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
-		chunk_appendf(msg, "%scannot listen to socket", msg->data ? ", " : "");
+		chunk_appendf(msg, "%scannot listen to socket: (%s)", msg->data ? ", " : "",
+			      strerror(errno));
 		goto tcp_close_return;
 	}
 
@@ -674,7 +681,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		memset(&accept, 0, sizeof(accept));
 		strlcpy2(accept.af_name, "dataready", sizeof(accept.af_name));
 		if (setsockopt(fd, SOL_SOCKET, SO_ACCEPTFILTER, &accept, sizeof(accept)) == -1) {
-			chunk_appendf(msg, "%scannot enable ACCEPT_FILTER", msg->data ? ", " : "");
+			chunk_appendf(msg, "%scannot enable ACCEPT_FILTER, (%s)", msg->data ? ", " : "",
+				      strerror(errno));
 			err |= ERR_WARN;
 		}
 	}
