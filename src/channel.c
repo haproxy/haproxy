@@ -548,6 +548,36 @@ int ci_getline_nc(const struct channel *chn,
 	return 0;
 }
 
+/* Inserts <str> at position <pos> relative to channel <c>'s  * input head. The
+ * <len> argument informs about the length of string <str> so that we don't have
+ * to measure it. <str> must be a valid pointer.
+ *
+ * The number of bytes added is returned on success. 0 is returned on failure.
+ */
+int ci_insert(struct channel *c, int pos, const char *str, int len)
+{
+	struct buffer *b = &c->buf;
+	char *dst = c_ptr(c, pos);
+
+	if (__b_tail(b) + len >= b_wrap(b))
+		return 0;  /* no space left */
+
+	if (b_data(b) &&
+	    b_tail(b) + len > b_head(b) &&
+	    b_head(b) >= b_tail(b))
+		return 0;  /* no space left before wrapping data */
+
+	/* first, protect the end of the buffer */
+	memmove(dst + len, dst, b_tail(b) - dst);
+
+	/* now, copy str over dst */
+	memcpy(dst, str, len);
+
+	b_add(b, len);
+	return len;
+}
+
+
 /* Inserts <str> followed by "\r\n" at position <pos> relative to channel <c>'s
  * input head. The <len> argument informs about the length of string <str> so
  * that we don't have to measure it. <str> must be a valid pointer and must not
