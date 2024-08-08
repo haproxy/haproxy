@@ -44,6 +44,7 @@ int ci_putblk(struct channel *chn, const char *str, int len);
 int ci_putchr(struct channel *chn, char c);
 int ci_getline_nc(const struct channel *chn, char **blk1, size_t *len1, char **blk2, size_t *len2);
 int ci_getblk_nc(const struct channel *chn, char **blk1, size_t *len1, char **blk2, size_t *len2);
+int ci_insert(struct channel *c, int pos, const char *str, int len);
 int ci_insert_line2(struct channel *c, int pos, const char *str, int len);
 int co_inject(struct channel *chn, const char *msg, int len);
 int co_getchar(const struct channel *chn, char *c);
