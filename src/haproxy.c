@@ -1976,12 +1976,11 @@ static void init(int argc, char **argv)
 {
 	char *progname = global.log_tag.area;
 	int err_code = 0;
-	int ret = 0;
 	struct proxy *px;
 	struct post_check_fct *pcf;
 	struct pre_check_fct *prcf;
 	struct cfgfile *cfg, *cfg_tmp;
-	int ideal_maxconn;
+	int ret, ideal_maxconn;
 	const char *cc, *cflags, *opts;
 
 #ifdef USE_OPENSSL
