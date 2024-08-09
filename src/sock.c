@@ -1150,7 +1150,7 @@ int _sock_supports_reuseport(const struct proto_fam *fam, int type, int protocol
 	fd1 = fd2 = -1;
 
 	/* ignore custom sockets */
-	if (!fam || fam->sock_family >= AF_MAX)
+	if (!fam || real_family(fam->sock_family) >= AF_MAX)
 		goto leave;
 
 	fd1 = socket(fam->sock_domain, type, protocol);
@@ -1162,7 +1162,7 @@ int _sock_supports_reuseport(const struct proto_fam *fam, int type, int protocol
 
 	/* bind to any address assigned by the kernel, we'll then try to do it twice */
 	memset(&ss, 0, sizeof(ss));
-	ss.ss_family = fam->sock_family;
+	ss.ss_family = real_family(fam->sock_family);
 	if (bind(fd1, (struct sockaddr *)&ss, fam->sock_addrlen) < 0)
 		goto leave;
 
