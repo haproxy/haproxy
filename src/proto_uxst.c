@@ -143,7 +143,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	return err;
 
  uxst_close_return:
-	close(fd);
+	fd_delete(fd);
  uxst_return:
 	if (msg && errlen) {
 		char *path_str;
