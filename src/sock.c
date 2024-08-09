@@ -1147,7 +1147,7 @@ int _sock_supports_reuseport(const struct proto_fam *fam, int type, int protocol
 	fd1 = fd2 = -1;
 
 	/* ignore custom sockets */
-	if (!fam || fam->sock_domain >= AF_MAX)
+	if (!fam || fam->sock_family >= AF_MAX)
 		goto leave;
 
 	fd1 = socket(fam->sock_domain, type, protocol);

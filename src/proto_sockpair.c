@@ -50,8 +50,8 @@ struct connection *sockpair_accept_conn(struct listener *l, int *status);
 
 struct proto_fam proto_fam_sockpair = {
 	.name = "sockpair",
-	.sock_domain = AF_CUST_SOCKPAIR,
-	.sock_family = AF_UNIX,
+	.sock_domain = AF_UNIX,
+	.sock_family = AF_CUST_SOCKPAIR,
 	.sock_addrlen = sizeof(struct sockaddr_un),
 	.l3_addrlen = sizeof(((struct sockaddr_un*)0)->sun_path),
 	.addrcmp = NULL,

@@ -70,7 +70,17 @@ enum proto_type {
 #define PROTO_F_REUSEPORT_TESTED                0x00000002 /* SO_REUSEPORT support was tested */
 
 /* protocol families define standard functions acting on a given address family
- * for a socket implementation, such as AF_INET/PF_INET for example.
+ * for a socket implementation, such as AF_INET/PF_INET for example. There is
+ * permanent confusion between domain and family. Here's how it works:
+ *   - the domain defines the format of addresses (e.g. sockaddr_in etc),
+ *     it is passed as the first argument to socket()
+ *   - the family is part of the address and is stored in receivers, servers
+ *     and everywhere there is an address. It's also a proto_fam selector.
+ * Domains are often PF_xxx though man 2 socket on Linux quotes 4.x BSD's man
+ * that says AF_* can be used everywhere. At least it tends to keep the code
+ * clearer about the intent. In HAProxy we're defining new address families
+ * with AF_CUST_* which appear in addresses, and they cannot be used for the
+ * domain, the socket() call must use sock_domain instead.
  */
 struct proto_fam {
 	char name[PROTO_NAME_LEN];                      /* family name, zero-terminated */

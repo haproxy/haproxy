@@ -22,8 +22,8 @@
 
 struct proto_fam proto_fam_rhttp = {
 	.name = "rhttp",
-	.sock_domain = AF_CUST_RHTTP_SRV,
-	.sock_family = AF_INET,
+	.sock_domain = AF_INET,
+	.sock_family = AF_CUST_RHTTP_SRV,
 	.bind = rhttp_bind_receiver,
 };
 
