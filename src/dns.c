@@ -31,6 +31,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
 #include <haproxy/log.h>
+#include <haproxy/protocol.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
@@ -48,6 +49,7 @@ DECLARE_STATIC_POOL(dns_msg_buf, "dns_msg_buf", DNS_TCP_MSG_RING_MAX_SIZE);
 static int dns_connect_nameserver(struct dns_nameserver *ns)
 {
 	struct dgram_conn *dgram = &ns->dgram->conn;
+	const struct protocol *proto;
 	int fd;
 
 	/* Already connected */
@@ -55,7 +57,9 @@ static int dns_connect_nameserver(struct dns_nameserver *ns)
 		return 0;
 
 	/* Create an UDP socket and connect it on the nameserver's IP/Port */
-	if ((fd = socket(dgram->addr.to.ss_family, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+	proto = protocol_lookup(dgram->addr.to.ss_family, PROTO_TYPE_DGRAM, 1);
+	BUG_ON(!proto);
+	if ((fd = socket(proto->fam->sock_domain, proto->sock_type, proto->sock_prot)) == -1) {
 		send_log(NULL, LOG_WARNING,
 			 "DNS : section '%s': can't create socket for nameserver '%s'.\n",
 			 ns->counters->pid, ns->id);

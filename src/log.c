@@ -38,6 +38,7 @@
 #include <haproxy/lb_map.h>
 #include <haproxy/lb_ss.h>
 #include <haproxy/log.h>
+#include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
@@ -2670,6 +2671,7 @@ static inline void __do_send_log(struct log_target *target, struct log_header hd
 	};
 	static THREAD_LOCAL int logfdunix = -1;	/* syslog to AF_UNIX socket */
 	static THREAD_LOCAL int logfdinet = -1;	/* syslog to AF_INET socket */
+	const struct protocol *proto;
 	int *plogfd;
 	int sent;
 	size_t nbelem;
@@ -2698,8 +2700,13 @@ static inline void __do_send_log(struct log_target *target, struct log_header hd
 
 	if (plogfd && unlikely(*plogfd < 0)) {
 		/* socket not successfully initialized yet */
-		if ((*plogfd = socket(target->addr->ss_family, SOCK_DGRAM,
-		                      (target->addr->ss_family == AF_UNIX) ? 0 : IPPROTO_UDP)) < 0) {
+
+		/* WT: this is not compliant with AF_CUST_* usage but we don't use that
+		 * with DNS at the moment.
+		 */
+		proto = protocol_lookup(target->addr->ss_family, PROTO_TYPE_DGRAM, 1);
+		BUG_ON(!proto);
+		if ((*plogfd = socket(proto->fam->sock_domain, proto->sock_type, proto->sock_prot)) < 0) {
 			static char once;
 
 			if (!once) {

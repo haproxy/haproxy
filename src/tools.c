@@ -1941,6 +1941,7 @@ int addr_is_local(const struct netns_entry *ns,
                   const struct sockaddr_storage *orig)
 {
 	struct sockaddr_storage addr;
+	const struct proto_fam *fam;
 	int result;
 	int fd;
 
@@ -1950,7 +1951,10 @@ int addr_is_local(const struct netns_entry *ns,
 	memcpy(&addr, orig, sizeof(addr));
 	set_host_port(&addr, 0);
 
-	fd = my_socketat(ns, addr.ss_family, SOCK_DGRAM, IPPROTO_UDP);
+	fam = proto_fam_lookup(addr.ss_family);
+	BUG_ON(!fam);
+
+	fd = my_socketat(ns, fam->sock_domain, SOCK_DGRAM, IPPROTO_UDP);
 	if (fd < 0)
 		return -1;
 

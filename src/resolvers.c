@@ -2633,6 +2633,7 @@ static void resolvers_deinit(void)
  */
 static int resolvers_finalize_config(void)
 {
+	const struct protocol *proto;
 	struct resolvers *resolvers;
 	struct proxy	     *px;
 	int err_code = 0;
@@ -2650,7 +2651,9 @@ static int resolvers_finalize_config(void)
 
 			if (ns->dgram) {
 				/* Check nameserver info */
-				if ((fd = socket(ns->dgram->conn.addr.to.ss_family, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+				proto = protocol_lookup(ns->dgram->conn.addr.to.ss_family, PROTO_TYPE_DGRAM, 1);
+				BUG_ON(!proto);
+				if ((fd = socket(proto->fam->sock_domain, proto->sock_type, proto->sock_prot)) == -1) {
 					if (!resolvers->conf.implicit) {  /* emit a warning only if it was configured manually */
 						ha_alert("resolvers '%s': can't create socket for nameserver '%s'.\n",
 							 resolvers->id, ns->id);
