@@ -843,7 +843,7 @@ void mworker_create_master_cli(void)
 }
 
 static struct cfg_kw_list mworker_kws = {{ }, {
-	{ CFG_GLOBAL, "mworker-max-reloads", mworker_parse_global_max_reloads },
+	{ CFG_GLOBAL, "mworker-max-reloads", mworker_parse_global_max_reloads, KWF_DISCOVERY },
 	{ 0, NULL, NULL },
 }};
 
