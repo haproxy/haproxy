@@ -107,9 +107,15 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 {
 	int fd, err;
 	int ready;
-	char *msg = NULL;
+	struct buffer *msg = alloc_trash_chunk();
 
 	err = ERR_NONE;
+
+	if (!msg) {
+		if (errlen)
+			snprintf(errmsg, errlen, "out of memory");
+		return ERR_ALERT | ERR_FATAL;
+	}
 
 	/* ensure we never return garbage */
 	if (errlen)
@@ -119,7 +125,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		return ERR_NONE; /* already bound */
 
 	if (!(listener->rx.flags & RX_F_BOUND)) {
-		msg = "receiving socket not bound";
+		chunk_appendf(msg, "receiving socket not bound");
 		err |= ERR_FATAL | ERR_ALERT;
 		goto uxst_return;
 	}
@@ -133,14 +139,14 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	if (!ready && /* only listen if not already done by external process */
 	    listen(fd, listener_backlog(listener)) < 0) {
 		err |= ERR_FATAL | ERR_ALERT;
-		msg = "cannot listen to UNIX socket";
+		chunk_appendf(msg, "cannot listen on UNIX socket (%s)", strerror(errno));
 		goto uxst_close_return;
 	}
 
  done:
 	/* the socket is now listening */
 	listener_set_state(listener, LI_LISTEN);
-	return err;
+	goto uxst_return;
 
  uxst_close_return:
 	fd_delete(fd);
@@ -149,9 +155,11 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		char *path_str;
 
 		path_str = sa2str((struct sockaddr_storage *)&listener->rx.addr, 0, 0);
-		snprintf(errmsg, errlen, "%s for [%s]", msg, ((path_str) ? path_str : ""));
+		snprintf(errmsg, errlen, "%s for [%s]", msg->area, ((path_str) ? path_str : ""));
 		ha_free(&path_str);
 	}
+	free_trash_chunk(msg);
+	msg = NULL;
 	return err;
 }
 
@@ -269,9 +277,9 @@ static int uxst_connect_server(struct connection *conn, int flags)
 				conn->err_code = CO_ER_ADDR_INUSE;
 			}
 
-			qfprintf(stderr,"Connect() failed for backend %s: %s.\n", be->id, msg);
+			qfprintf(stderr,"Connect() failed for backend %s: %s (%s).\n", be->id, msg, strerror(errno));
 			close(fd);
-			send_log(be, LOG_ERR, "Connect() failed for backend %s: %s.\n", be->id, msg);
+			send_log(be, LOG_ERR, "Connect() failed for backend %s: %s (%s).\n", be->id, msg, strerror(errno));
 			conn->flags |= CO_FL_ERROR;
 			return SF_ERR_RESOURCE;
 		}
