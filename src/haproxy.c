@@ -2062,6 +2062,11 @@ static void init(int argc, char **argv)
 			exit(1);
 	}
 
+	if (!LIST_ISEMPTY(&mworker_cli_conf) && !(arg_mode & MODE_MWORKER)) {
+		ha_alert("a master CLI socket was defined, but master-worker mode (-W) is not enabled.\n");
+		exit(EXIT_FAILURE);
+	}
+
 	if (global.mode & MODE_MWORKER) {
 		struct mworker_proc *tmproc;
 
@@ -2206,11 +2211,6 @@ static void init(int argc, char **argv)
 
 	if (master)
 		mworker_create_master_cli();
-
-	if (!LIST_ISEMPTY(&mworker_cli_conf) && !(arg_mode & MODE_MWORKER)) {
-		ha_alert("a master CLI socket was defined, but master-worker mode (-W) is not enabled.\n");
-		exit(EXIT_FAILURE);
-	}
 
 	/* destroy unreferenced defaults proxies  */
 	proxy_destroy_all_unref_defaults();
