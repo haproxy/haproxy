@@ -28,6 +28,7 @@
 /* List head of all registered protocols */
 static struct list protocols = LIST_HEAD_INIT(protocols);
 struct protocol *__protocol_by_family[AF_CUST_MAX][PROTO_NUM_TYPES][2] __read_mostly = { };
+const struct proto_fam *__proto_fam_by_family[AF_CUST_MAX] = { };
 
 /* This is the global spinlock we may need to register/unregister listeners or
  * protocols. Its main purpose is in fact to serialize the rare stop/deinit()
@@ -48,6 +49,7 @@ void protocol_register(struct protocol *proto)
 	__protocol_by_family[sock_family]
 	                    [proto->proto_type]
 	                    [proto->xprt_type == PROTO_TYPE_DGRAM] = proto;
+	__proto_fam_by_family[sock_family] = proto->fam;
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 }
 
