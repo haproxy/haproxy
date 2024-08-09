@@ -40,6 +40,7 @@ struct proto_fam proto_fam_unix = {
 	.name = "unix",
 	.sock_domain = PF_UNIX,
 	.sock_family = AF_UNIX,
+	.real_family = AF_UNIX,
 	.sock_addrlen = sizeof(struct sockaddr_un),
 	.l3_addrlen = sizeof(((struct sockaddr_un*)0)->sun_path),
 	.addrcmp = sock_unix_addrcmp,

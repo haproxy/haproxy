@@ -74,8 +74,12 @@ enum proto_type {
  * permanent confusion between domain and family. Here's how it works:
  *   - the domain defines the format of addresses (e.g. sockaddr_in etc),
  *     it is passed as the first argument to socket()
- *   - the family is part of the address and is stored in receivers, servers
- *     and everywhere there is an address. It's also a proto_fam selector.
+ *   - the socket family is part of the address and is stored in receivers,
+ *     servers and everywhere there is an address. It's also a proto_fam
+ *     selector.
+ *   - the real family is the one passed to bind() and connect() to map
+ *     custom families to their real equivalent one.
+ *
  * Domains are often PF_xxx though man 2 socket on Linux quotes 4.x BSD's man
  * that says AF_* can be used everywhere. At least it tends to keep the code
  * clearer about the intent. In HAProxy we're defining new address families
@@ -86,6 +90,7 @@ struct proto_fam {
 	char name[PROTO_NAME_LEN];                      /* family name, zero-terminated */
 	int sock_domain;				/* socket domain, as passed to socket()   */
 	sa_family_t sock_family;			/* socket family, for sockaddr */
+	sa_family_t real_family;			/* the socket family passed to syscalls */
 	ushort l3_addrlen;				/* layer3 address length, used by hashes */
 	socklen_t sock_addrlen;				/* socket address length, used by bind() */
 	/* 4-bytes hole here */

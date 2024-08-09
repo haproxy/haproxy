@@ -52,6 +52,7 @@ struct proto_fam proto_fam_sockpair = {
 	.name = "sockpair",
 	.sock_domain = AF_UNIX,
 	.sock_family = AF_CUST_SOCKPAIR,
+	.real_family = AF_CUST_SOCKPAIR,
 	.sock_addrlen = sizeof(struct sockaddr_un),
 	.l3_addrlen = sizeof(((struct sockaddr_un*)0)->sun_path),
 	.addrcmp = NULL,

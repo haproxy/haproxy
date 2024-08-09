@@ -113,6 +113,17 @@ static inline const struct proto_fam *proto_fam_lookup(int ss_family)
 	return NULL;
 }
 
+/* returns either the real family when known or AF_UNSPEC for non-existing
+ * families. Note that real families that contain a custom value will be
+ * returned as-is. This aims at simplifying address validation tests everywhere.
+ */
+static inline int real_family(int ss_family)
+{
+	const struct proto_fam *fam = proto_fam_lookup(ss_family);
+
+	return fam ? fam->real_family : AF_UNSPEC;
+}
+
 #endif /* _HAPROXY_PROTOCOL_H */
 
 /*
