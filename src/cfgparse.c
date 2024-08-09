@@ -2293,7 +2293,7 @@ next_line:
 		/* end of config dump */
 
 		/* empty line */
-		if (!**args)
+		if (!*args || !**args)
 			continue;
 
 		/* check for config macros */
