@@ -63,6 +63,19 @@ struct proto_fam proto_fam_abns = {
 	.get_dst = sock_get_dst,
 };
 
+struct proto_fam proto_fam_abnsz = {
+	.name = "abnsz",
+	.sock_domain = AF_UNIX,
+	.sock_family = AF_CUST_ABNSZ,
+	.real_family = AF_UNIX,
+	.sock_addrlen = sizeof(struct sockaddr_un),
+	.l3_addrlen = sizeof(((struct sockaddr_un*)0)->sun_path),
+	.addrcmp = sock_unix_addrcmp,
+	.bind = sock_unix_bind_receiver,
+	.get_src = sock_get_src,
+	.get_dst = sock_get_dst,
+};
+
 /* PLEASE NOTE for functions below:
  *
  * The address family SHOULD always be checked. In some cases a function will

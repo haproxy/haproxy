@@ -306,7 +306,8 @@ int prepare_external_check(struct check *check)
 		check->argv[2] = strdup(buf);
 	}
 	else if (listener->rx.addr.ss_family == AF_UNIX ||
-	         listener->rx.addr.ss_family == AF_CUST_ABNS) {
+	         listener->rx.addr.ss_family == AF_CUST_ABNS ||
+	         listener->rx.addr.ss_family == AF_CUST_ABNSZ) {
 		const struct sockaddr_un *un;
 
 		un = (struct sockaddr_un *)&listener->rx.addr;

@@ -92,6 +92,7 @@ int frontend_accept(struct stream *s)
 					break;
 				case AF_UNIX:
 				case AF_CUST_ABNS:
+				case AF_CUST_ABNSZ:
 					/* UNIX socket, only the destination is known */
 					send_log(fe, LOG_INFO, "Connect to unix:%d (%s/%s)\n",
 						 l->luid,
@@ -133,6 +134,7 @@ int frontend_accept(struct stream *s)
 			break;
 		case AF_UNIX:
 		case AF_CUST_ABNS:
+		case AF_CUST_ABNSZ:
 			/* UNIX socket, only the destination is known */
 			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [unix:%d] ALPN=%s\n",
 			             s->uniq_id, fe->id, (unsigned short)l->rx.fd, (unsigned short)conn->handle.fd,

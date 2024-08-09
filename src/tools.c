@@ -1053,6 +1053,10 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		str2 += 5;
 		ss.ss_family = AF_CUST_ABNS;
 	}
+	else if (strncmp(str2, "abnsz@", 5) == 0) {
+		str2 += 6;
+		ss.ss_family = AF_CUST_ABNSZ;
+	}
 	else if (strncmp(str2, "ip@", 3) == 0) {
 		str2 += 3;
 		ss.ss_family = AF_UNSPEC;
@@ -1218,14 +1222,14 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			goto out;
 		}
 	}
-	else if (ss.ss_family == AF_UNIX || ss.ss_family == AF_CUST_ABNS) {
+	else if (ss.ss_family == AF_UNIX || ss.ss_family == AF_CUST_ABNS || ss.ss_family == AF_CUST_ABNSZ) {
 		struct sockaddr_un *un = (struct sockaddr_un *)&ss;
 		int prefix_path_len;
 		int max_path_len;
 		int adr_len;
 		int abstract = 0;
 
-		if (ss.ss_family == AF_CUST_ABNS)
+		if (ss.ss_family == AF_CUST_ABNS || ss.ss_family == AF_CUST_ABNSZ)
 			abstract = 1;
 
 		/* complete unix socket path name during startup or soft-restart is
@@ -1474,8 +1478,10 @@ char * sa2str(const struct sockaddr_storage *addr, int port, int map_ports)
 		break;
 	case AF_UNIX:
 	case AF_CUST_ABNS:
+	case AF_CUST_ABNSZ:
 		path = ((struct sockaddr_un *)addr)->sun_path;
-		if (addr->ss_family == AF_CUST_ABNS) {
+		if (addr->ss_family == AF_CUST_ABNS ||
+		    addr->ss_family == AF_CUST_ABNSZ) {
 			const int max_length = sizeof(struct sockaddr_un) - offsetof(struct sockaddr_un, sun_path) - 1;
 			return memprintf(&out, "abns@%.*s", max_length, path+1);
 		} else {
@@ -1922,6 +1928,7 @@ int addr_to_str(const struct sockaddr_storage *addr, char *str, int size)
 		break;
 	case AF_UNIX:
 	case AF_CUST_ABNS:
+	case AF_CUST_ABNSZ:
 		memcpy(str, "unix", 5);
 		return addr->ss_family;
 	default:
@@ -1960,6 +1967,7 @@ int port_to_str(const struct sockaddr_storage *addr, char *str, int size)
 		break;
 	case AF_UNIX:
 	case AF_CUST_ABNS:
+	case AF_CUST_ABNSZ:
 		memcpy(str, "unix", 5);
 		return addr->ss_family;
 	default:
@@ -6421,6 +6429,7 @@ const char *hash_ipanon(uint32_t scramble, char *ipstring, int hasport)
 
 			case AF_UNIX:
 			case AF_CUST_ABNS:
+			case AF_CUST_ABNSZ:
 				return HA_ANON_STR(scramble, ipstring);
 				break;
 

@@ -2684,6 +2684,7 @@ static void conn_calculate_hash_sockaddr(const struct sockaddr_storage *ss,
 		break;
 
 	case AF_CUST_ABNS:
+	case AF_CUST_ABNSZ:
 		conn_hash_update(hash,
 		                 &((struct sockaddr_un *)ss)->sun_path,
 		                 sizeof(((struct sockaddr_un *)ss)->sun_path),
