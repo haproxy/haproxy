@@ -304,7 +304,8 @@ int prepare_external_check(struct check *check)
 		port_to_str(&listener->rx.addr, buf, sizeof(buf));
 		check->argv[2] = strdup(buf);
 	}
-	else if (listener->rx.addr.ss_family == AF_UNIX) {
+	else if (listener->rx.addr.ss_family == AF_UNIX ||
+	         listener->rx.addr.ss_family == AF_CUST_ABNS) {
 		const struct sockaddr_un *un;
 
 		un = (struct sockaddr_un *)&listener->rx.addr;
@@ -412,6 +413,7 @@ static int connect_proc_chk(struct task *t)
 		extern char **environ;
 		struct rlimit limit;
 		int fd;
+		sa_family_t family;
 
 		/* close all FDs. Keep stdin/stdout/stderr in verbose mode */
 		fd = (global.mode & (MODE_QUIET|MODE_VERBOSE)) == MODE_QUIET ? 0 : 3;
@@ -436,14 +438,15 @@ static int connect_proc_chk(struct task *t)
 		/* Update some environment variables and command args: curconn, server addr and server port */
 		EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_CURCONN, ultoa_r(s->cur_sess, buf, sizeof(buf)), fail);
 
-		if (s->addr.ss_family == AF_UNIX) {
+		family = real_family(s->addr.ss_family);
+		if (family == AF_UNIX) {
 			const struct sockaddr_un *un = (struct sockaddr_un *)&s->addr;
 			strlcpy2(check->argv[3], un->sun_path, EXTCHK_SIZE_ADDR);
 			memcpy(check->argv[4], "NOT_USED", 9);
 		} else {
 			addr_to_str(&s->addr, check->argv[3], EXTCHK_SIZE_ADDR);
 			*check->argv[4] = 0; // just in case the address family changed
-			if (s->addr.ss_family == AF_INET || s->addr.ss_family == AF_INET6)
+			if (family == AF_INET || family == AF_INET6)
 				snprintf(check->argv[4], EXTCHK_SIZE_UINT, "%u", s->svc_port);
 		}
 

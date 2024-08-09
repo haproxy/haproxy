@@ -65,7 +65,39 @@ struct protocol proto_uxdg = {
 	.rx_unbind      = sock_unbind,
 };
 
+/* Note: must not be declared <const> as its list will be overwritten */
+struct protocol proto_abns_dgram = {
+	.name           = "abns_dgram",
+
+	/* connection layer */
+	.xprt_type      = PROTO_TYPE_DGRAM,
+	.listen         = uxdg_bind_listener,
+	.enable         = uxdg_enable_listener,
+	.disable        = uxdg_disable_listener,
+	.add            = default_add_listener,
+	.unbind         = default_unbind_listener,
+	.suspend        = default_suspend_listener,
+	.resume         = default_resume_listener,
+
+	/* binding layer */
+	.rx_suspend     = uxdg_suspend_receiver,
+
+	/* address family */
+	.fam            = &proto_fam_abns,
+
+	/* socket layer */
+	.proto_type     = PROTO_TYPE_DGRAM,
+	.sock_type      = SOCK_DGRAM,
+	.sock_prot      = 0,
+	.rx_enable      = sock_enable,
+	.rx_disable     = sock_disable,
+	.rx_unbind      = sock_unbind,
+	.receivers      = LIST_HEAD_INIT(proto_abns_dgram.receivers),
+	.nb_receivers   = 0,
+};
+
 INITCALL1(STG_REGISTER, protocol_register, &proto_uxdg);
+INITCALL1(STG_REGISTER, protocol_register, &proto_abns_dgram);
 
 /* This function tries to bind dgram unix socket listener. It may return a warning or
  * an error message in <errmsg> if the message is at most <errlen> bytes long

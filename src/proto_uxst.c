@@ -83,7 +83,48 @@ struct protocol proto_uxst = {
 	.default_iocb   = sock_accept_iocb,
 };
 
+/* Note: must not be declared <const> as its list will be overwritten */
+struct protocol proto_abns_stream = {
+	.name           = "abns_stream",
+
+	/* connection layer */
+	.xprt_type      = PROTO_TYPE_STREAM,
+	.listen         = uxst_bind_listener,
+	.enable         = uxst_enable_listener,
+	.disable        = uxst_disable_listener,
+	.add            = default_add_listener,
+	.unbind         = default_unbind_listener,
+	.suspend        = default_suspend_listener,
+	.resume         = default_resume_listener,
+	.accept_conn    = sock_accept_conn,
+	.ctrl_init      = sock_conn_ctrl_init,
+	.ctrl_close     = sock_conn_ctrl_close,
+	.connect        = uxst_connect_server,
+	.drain          = sock_drain,
+	.check_events   = sock_check_events,
+	.ignore_events  = sock_ignore_events,
+
+	/* binding layer */
+	.rx_suspend     = uxst_suspend_receiver,
+
+	/* address family */
+	.fam            = &proto_fam_abns,
+
+	/* socket layer */
+	.proto_type     = PROTO_TYPE_STREAM,
+	.sock_type      = SOCK_STREAM,
+	.sock_prot      = 0,
+	.rx_enable      = sock_enable,
+	.rx_disable     = sock_disable,
+	.rx_unbind      = sock_unbind,
+	.rx_listening   = sock_accepting_conn,
+	.default_iocb   = sock_accept_iocb,
+
+	.nb_receivers   = 0,
+};
+
 INITCALL1(STG_REGISTER, protocol_register, &proto_uxst);
+INITCALL1(STG_REGISTER, protocol_register, &proto_abns_stream);
 
 /********************************
  * 1) low-level socket functions

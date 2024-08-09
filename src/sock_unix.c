@@ -29,8 +29,9 @@
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
 #include <haproxy/listener.h>
-#include <haproxy/receiver-t.h>
 #include <haproxy/namespace.h>
+#include <haproxy/protocol.h>
+#include <haproxy/receiver-t.h>
 #include <haproxy/sock.h>
 #include <haproxy/sock_unix.h>
 #include <haproxy/tools.h>
@@ -40,6 +41,19 @@ struct proto_fam proto_fam_unix = {
 	.name = "unix",
 	.sock_domain = PF_UNIX,
 	.sock_family = AF_UNIX,
+	.real_family = AF_UNIX,
+	.sock_addrlen = sizeof(struct sockaddr_un),
+	.l3_addrlen = sizeof(((struct sockaddr_un*)0)->sun_path),
+	.addrcmp = sock_unix_addrcmp,
+	.bind = sock_unix_bind_receiver,
+	.get_src = sock_get_src,
+	.get_dst = sock_get_dst,
+};
+
+struct proto_fam proto_fam_abns = {
+	.name = "abns",
+	.sock_domain = AF_UNIX,
+	.sock_family = AF_CUST_ABNS,
 	.real_family = AF_UNIX,
 	.sock_addrlen = sizeof(struct sockaddr_un),
 	.l3_addrlen = sizeof(((struct sockaddr_un*)0)->sun_path),
@@ -71,10 +85,10 @@ int sock_unix_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_st
 	const struct sockaddr_un *bu = (const struct sockaddr_un *)b;
 	int idx, dot, idx2;
 
-	if (a->ss_family != b->ss_family)
+	if (real_family(a->ss_family) != real_family(b->ss_family))
 		return -1;
 
-	if (a->ss_family != AF_UNIX)
+	if (real_family(a->ss_family) != AF_UNIX)
 		return -1;
 
 	if (au->sun_path[0] != bu->sun_path[0])

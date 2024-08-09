@@ -3259,6 +3259,8 @@ __LJMP static inline int hlua_socket_info(struct lua_State *L, const struct sock
 		return 1;
 	}
 
+	ret = real_family(ret);
+
 	if (ret == AF_UNIX) {
 		lua_pushstring(L, buffer+1);
 		return 1;

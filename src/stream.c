@@ -3294,6 +3294,7 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
 		              HA_ANON_STR(anon_key, pn), get_host_port(conn->src));
 		break;
 	case AF_UNIX:
+	case AF_CUST_ABNS:
 		chunk_appendf(buf, " source=unix:%d\n", strm_li(strm)->luid);
 		break;
 	default:
@@ -3328,6 +3329,7 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
 			     HA_ANON_STR(anon_key, pn), get_host_port(conn->dst));
 		break;
 	case AF_UNIX:
+	case AF_CUST_ABNS:
 		chunk_appendf(buf, " addr=unix:%d\n", strm_li(strm)->luid);
 		break;
 	default:
@@ -3352,6 +3354,7 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
 			     HA_ANON_STR(anon_key, pn), get_host_port(conn->src));
 		break;
 	case AF_UNIX:
+	case AF_CUST_ABNS:
 		chunk_appendf(buf, " addr=unix\n");
 		break;
 	default:
@@ -3375,6 +3378,7 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
 			     HA_ANON_STR(anon_key, pn), get_host_port(conn->dst));
 		break;
 	case AF_UNIX:
+	case AF_CUST_ABNS:
 		chunk_appendf(buf, " addr=unix\n");
 		break;
 	default:
@@ -3809,6 +3813,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				     );
 			break;
 		case AF_UNIX:
+		case AF_CUST_ABNS:
 			chunk_appendf(&trash,
 				     " src=unix:%d fe=%s be=%s srv=%s",
 				     strm_li(curr_strm)->luid,

@@ -741,7 +741,10 @@ static inline int is_inet_addr(const struct sockaddr_storage *addr)
  */
 static inline int is_addr(const struct sockaddr_storage *addr)
 {
-	if (addr->ss_family == AF_UNIX || addr->ss_family == AF_CUST_SOCKPAIR)
+	/* WT: ideally we should use real_family(addr->ss_family) here, but we
+	 * have so few custom addresses that it's simple enough to test them all.
+	 */
+	if (addr->ss_family == AF_UNIX || addr->ss_family == AF_CUST_ABNS || addr->ss_family == AF_CUST_SOCKPAIR)
 		return 1;
 	else
 		return is_inet_addr(addr);
@@ -780,6 +783,7 @@ static inline int get_addr_len(const struct sockaddr_storage *addr)
 	case AF_INET6:
 		return sizeof(struct sockaddr_in6);
 	case AF_UNIX:
+	case AF_CUST_ABNS:
 		return sizeof(struct sockaddr_un);
 	}
 	return 0;

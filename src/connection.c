@@ -2678,6 +2678,7 @@ static void conn_calculate_hash_sockaddr(const struct sockaddr_storage *ss,
 		break;
 
 	case AF_UNIX:
+	case AF_CUST_ABNS:
 		un = (struct sockaddr_un *)ss;
 
 		if (un->sun_path[0]) {

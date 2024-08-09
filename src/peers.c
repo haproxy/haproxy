@@ -4067,6 +4067,7 @@ static int peers_dump_peer(struct buffer *msg, struct appctx *appctx, struct pee
 		chunk_appendf(&trash, " src=%s:%d", pn, get_host_port(conn->src));
 		break;
 	case AF_UNIX:
+	case AF_CUST_ABNS:
 		chunk_appendf(&trash, " src=unix:%d", strm_li(peer_s)->luid);
 		break;
 	}
@@ -4077,6 +4078,7 @@ static int peers_dump_peer(struct buffer *msg, struct appctx *appctx, struct pee
 		chunk_appendf(&trash, " addr=%s:%d", pn, get_host_port(conn->dst));
 		break;
 	case AF_UNIX:
+	case AF_CUST_ABNS:
 		chunk_appendf(&trash, " addr=unix:%d", strm_li(peer_s)->luid);
 		break;
 	}

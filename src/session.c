@@ -395,7 +395,7 @@ static void session_prepare_log_prefix(struct session *sess, struct buffer *out)
 	ret = (src ? addr_to_str(src, pn, sizeof(pn)) : 0);
 	if (ret <= 0)
 		chunk_printf(out, "unknown [");
-	else if (ret == AF_UNIX)
+	else if (real_family(ret) == AF_UNIX)
 		chunk_printf(out, "%s:%d [", pn, sess->listener->luid);
 	else
 		chunk_printf(out, "%s:%d [", pn, get_host_port(src));

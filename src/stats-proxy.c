@@ -570,6 +570,7 @@ int stats_fill_li_line(struct proxy *px, struct listener *l, int flags,
 						chunk_appendf(out, "[%s]:%d", str, port);
 						break;
 					case AF_UNIX:
+					case AF_CUST_ABNS:
 						field = mkf_str(FO_CONFIG|FS_SERVICE, "unix");
 						break;
 					case -1:
@@ -1002,6 +1003,7 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 							chunk_appendf(out, "[%s]:%d", str, sv->svc_port);
 							break;
 						case AF_UNIX:
+						case AF_CUST_ABNS:
 							field = mkf_str(FO_CONFIG|FS_SERVICE, "unix");
 							break;
 						case -1:

@@ -1056,7 +1056,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	else if (strncmp(str2, "abns@", 5) == 0) {
 		str2 += 5;
 		abstract = 1;
-		ss.ss_family = AF_UNIX;
+		ss.ss_family = AF_CUST_ABNS;
 	}
 	else if (strncmp(str2, "ip@", 3) == 0) {
 		str2 += 3;
@@ -1223,7 +1223,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			goto out;
 		}
 	}
-	else if (ss.ss_family == AF_UNIX) {
+	else if (ss.ss_family == AF_UNIX || ss.ss_family == AF_CUST_ABNS) {
 		struct sockaddr_un *un = (struct sockaddr_un *)&ss;
 		int prefix_path_len;
 		int max_path_len;
@@ -1474,6 +1474,7 @@ char * sa2str(const struct sockaddr_storage *addr, int port, int map_ports)
 		ptr = &((struct sockaddr_in6 *)addr)->sin6_addr;
 		break;
 	case AF_UNIX:
+	case AF_CUST_ABNS:
 		path = ((struct sockaddr_un *)addr)->sun_path;
 		if (path[0] == '\0') {
 			const int max_length = sizeof(struct sockaddr_un) - offsetof(struct sockaddr_un, sun_path) - 1;
@@ -1921,6 +1922,7 @@ int addr_to_str(const struct sockaddr_storage *addr, char *str, int size)
 		ptr = &((struct sockaddr_in6 *)addr)->sin6_addr;
 		break;
 	case AF_UNIX:
+	case AF_CUST_ABNS:
 		memcpy(str, "unix", 5);
 		return addr->ss_family;
 	default:
@@ -1958,6 +1960,7 @@ int port_to_str(const struct sockaddr_storage *addr, char *str, int size)
 		port = ((struct sockaddr_in6 *)addr)->sin6_port;
 		break;
 	case AF_UNIX:
+	case AF_CUST_ABNS:
 		memcpy(str, "unix", 5);
 		return addr->ss_family;
 	default:
@@ -6418,6 +6421,7 @@ const char *hash_ipanon(uint32_t scramble, char *ipstring, int hasport)
 				break;
 
 			case AF_UNIX:
+			case AF_CUST_ABNS:
 				return HA_ANON_STR(scramble, ipstring);
 				break;
 

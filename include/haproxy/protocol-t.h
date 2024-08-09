@@ -40,7 +40,8 @@ struct connection;
 #define AF_CUST_EXISTING_FD  (AF_MAX + 1)
 #define AF_CUST_SOCKPAIR     (AF_MAX + 2)
 #define AF_CUST_RHTTP_SRV    (AF_MAX + 3)
-#define AF_CUST_MAX          (AF_MAX + 4)
+#define AF_CUST_ABNS         (AF_MAX + 4)
+#define AF_CUST_MAX          (AF_MAX + 5)
 
 /*
  * Test in case AF_CUST_MAX overflows the sa_family_t (unsigned int)

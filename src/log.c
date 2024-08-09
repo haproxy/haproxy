@@ -2728,7 +2728,7 @@ static inline void __do_send_log(struct log_target *target, struct log_header hd
 		/* the socket's address is a file descriptor */
 		plogfd = (int *)&((struct sockaddr_in *)target->addr)->sin_addr.s_addr;
 	}
-	else if (target->addr->ss_family == AF_UNIX)
+	else if (real_family(target->addr->ss_family) == AF_UNIX)
 		plogfd = &logfdunix;
 	else
 		plogfd = &logfdinet;
@@ -4168,7 +4168,7 @@ int sess_build_logline_orig(struct session *sess, struct stream *s,
 				addr = (s ? sc_src(s->scf) : sess_src(sess));
 				if (addr) {
 					/* sess->listener is always defined when the session's owner is an inbound connections */
-					if (addr->ss_family == AF_UNIX)
+					if (real_family(addr->ss_family) == AF_UNIX)
 						ret = lf_int(tmplog, dst + maxsize - tmplog,
 						             sess->listener->luid, ctx, LF_INT_LTOA);
 					else
@@ -4198,7 +4198,7 @@ int sess_build_logline_orig(struct session *sess, struct stream *s,
 				addr = (s ? sc_dst(s->scf) : sess_dst(sess));
 				if (addr) {
 					/* sess->listener is always defined when the session's owner is an inbound connections */
-					if (addr->ss_family == AF_UNIX)
+					if (real_family(addr->ss_family) == AF_UNIX)
 						ret = lf_int(tmplog, dst + maxsize - tmplog,
 						             sess->listener->luid, ctx, LF_INT_LTOA);
 					else
