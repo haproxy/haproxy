@@ -44,6 +44,9 @@ void protocol_register(struct protocol *proto)
 	BUG_ON(sock_family < 0 || sock_family >= AF_CUST_MAX);
 	BUG_ON(proto->proto_type >= PROTO_NUM_TYPES);
 
+	LIST_INIT(&proto->receivers);
+	proto->nb_receivers = 0;
+
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	LIST_APPEND(&protocols, &proto->list);
 	__protocol_by_family[sock_family]
