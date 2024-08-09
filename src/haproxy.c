@@ -1160,18 +1160,15 @@ next_dir_entry:
 	free(err);
 }
 
-/* Reads config files. Returns -1, if we are run out of memory,
- * couldn't open provided file(s) or parser has detected some fatal error.
- * Otherwise, returns an err_code, which may contain 0 (OK) or ERR_WARN,
- * ERR_ALERT. It is used in further initialization stages. Process initial
- * environment is preserved in the init_env ptr array, as some keywords and
- * conditional blocks (.if/.else) could modify it.
+/* Loads config files. Returns -1 and frees allocated memory in env_cfgfiles, if
+ * we are run out of memory or load_cfg_in_mem() has failed. load_cfg_in_mem()
+ * frees in its stack the memory allocated for config files content, if it has
+ * encountered an error.
  */
-static int read_cfg(char *progname)
+static int load_cfg(char *progname)
 {
-	char *env_cfgfiles = NULL;
 	struct cfgfile *cfg, *cfg_tmp;
-	int err_code = 0;
+	char *env_cfgfiles = NULL;
 
 	/* handle cfgfiles that are actually directories */
 	cfgfiles_expand_directories();
@@ -1179,24 +1176,7 @@ static int read_cfg(char *progname)
 	if (LIST_ISEMPTY(&cfg_cfgfiles))
 		usage(progname);
 
-	/* backup initial process env, because parse_cfg() could modify it with
-	 * setenv/unsetenv/presetenv/resetenv keywords.
-	 */
-	if (backup_env() != 0)
-		return -1;
-
-	/* temporary create environment variables with default
-	 * values to ease user configuration. Do not forget to
-	 * unset them after the list_for_each_entry loop.
-	 */
-	setenv("HAPROXY_HTTP_LOG_FMT", default_http_log_format, 1);
-	setenv("HAPROXY_HTTP_CLF_LOG_FMT", clf_http_log_format, 1);
-	setenv("HAPROXY_HTTPS_LOG_FMT", default_https_log_format, 1);
-	setenv("HAPROXY_TCP_LOG_FMT", default_tcp_log_format, 1);
-	setenv("HAPROXY_TCP_CLF_LOG_FMT", clf_tcp_log_format, 1);
-	setenv("HAPROXY_BRANCH", PRODUCT_BRANCH, 1);
 	list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
-		int ret;
 
 		cfg->size = load_cfg_in_mem(cfg->filename, &cfg->content);
 		if (cfg->size < 0)
@@ -1209,16 +1189,51 @@ static int read_cfg(char *progname)
 			ha_alert("Could not allocate memory for HAPROXY_CFGFILES env variable\n");
 			goto err;
 		}
+	}
+
+	setenv("HAPROXY_CFGFILES", env_cfgfiles, 1);
+	free(env_cfgfiles);
+
+	return 0;
+err:
+	free(env_cfgfiles);
+	return -1;
+
+}
+
+/* Calls parser for each config file from cfg_cfgfiles list. Returns -1, if we
+ * are run out of memory, can't apply default path or when the parser function
+ * returns some fatal errors.
+ * Otherwise, it returns an err_code, which may contain 0 (OK) or ERR_WARN,
+ * ERR_ALERT.
+ */
+static int read_cfg(char *progname)
+{
+	struct cfgfile *cfg;
+	int err_code = 0;
+
+	/* temporary create environment variables with default
+	 * values to ease user configuration. Do not forget to
+	 * unset them after the list_for_each_entry loop.
+	 */
+	setenv("HAPROXY_HTTP_LOG_FMT", default_http_log_format, 1);
+	setenv("HAPROXY_HTTP_CLF_LOG_FMT", clf_http_log_format, 1);
+	setenv("HAPROXY_HTTPS_LOG_FMT", default_https_log_format, 1);
+	setenv("HAPROXY_TCP_LOG_FMT", default_tcp_log_format, 1);
+	setenv("HAPROXY_TCP_CLF_LOG_FMT", clf_tcp_log_format, 1);
+	setenv("HAPROXY_BRANCH", PRODUCT_BRANCH, 1);
+	list_for_each_entry(cfg, &cfg_cfgfiles, list) {
+		int ret;
 
 		ret = parse_cfg(cfg);
 		if (ret == -1)
-			goto err;
+			return -1;
 
 		if (ret & (ERR_ABORT|ERR_FATAL))
 			ha_alert("Error(s) found in configuration file : %s\n", cfg->filename);
 		err_code |= ret;
 		if (err_code & ERR_ABORT)
-			goto err;
+			return -1;
 	}
 	/* remove temporary environment variables. */
 	unsetenv("HAPROXY_BRANCH");
@@ -1233,16 +1248,10 @@ static int read_cfg(char *progname)
 	 */
 	if (err_code & (ERR_ABORT|ERR_FATAL)) {
 		ha_alert("Fatal errors found in configuration.\n");
-		goto err;
+		return -1;
 	}
 
-	setenv("HAPROXY_CFGFILES", env_cfgfiles, 1);
-	free(env_cfgfiles);
-
 	return err_code;
-err:
-	free(env_cfgfiles);
-	return -1;
 }
 
 /*
@@ -2037,14 +2046,23 @@ static void init(int argc, char **argv)
 
 	usermsgs_clr("config");
 
-	if (!(global.mode & MODE_MWORKER)) {
+	/* load configs and read only the keywords with KW_DISCOVERY flag */
+	global.mode |= MODE_DISCOVERY;
+
+	ret = load_cfg(progname);
+	if (ret == 0) {
+		/* read only global section in discovery mode */
 		ret = read_cfg(progname);
-		/* free memory to store config file content */
-		list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list)
-			ha_free(&cfg->content);
-		if (ret < 0)
-			exit(1);
 	}
+	if (ret < 0) {
+		list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
+			ha_free(&cfg->content);
+			ha_free(&cfg->filename);
+		}
+		exit(1);
+	}
+
+	global.mode &= ~MODE_DISCOVERY;
 
 	if (!LIST_ISEMPTY(&mworker_cli_conf) && !(arg_mode & MODE_MWORKER)) {
 		ha_alert("a master CLI socket was defined, but master-worker mode (-W) is not enabled.\n");
@@ -2192,6 +2210,20 @@ static void init(int argc, char **argv)
 			/* master CLI */
 			mworker_create_master_cli();
 		}
+	}
+
+	/* worker, daemon, foreground mode reads the rest of the config */
+	if (!(global.mode & MODE_MWORKER)) {
+		if (read_cfg(progname) < 0) {
+			list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
+				ha_free(&cfg->content);
+				ha_free(&cfg->filename);
+			}
+			exit(1);
+		}
+		/* all sections have been parsed */
+		list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list)
+			ha_free(&cfg->content);
 	}
 
 	/* destroy unreferenced defaults proxies  */
