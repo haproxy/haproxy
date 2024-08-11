@@ -6681,6 +6681,9 @@ char *fgets_from_mem(char* buf, int size, const char **position, const char *end
 		return NULL;
 
 	size--; /* keep fgets behaviour, reads at most one less than size */
+	if (size > end - *position)
+		size = end - *position;
+
 	new_pos = memchr(*position, '\n', size);
 	if (new_pos) {
 		/* '+1' to grab and copy '\n' at the end of line */
