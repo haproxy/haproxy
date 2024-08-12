@@ -1774,16 +1774,7 @@ int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const cha
 int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **err, struct pat_ref_elt *elt)
 {
 	int found = 0;
-	char *_merr;
-	char **merr;
 	struct ebmb_node *node;
-
-	if (err) {
-		merr = &_merr;
-		*merr = NULL;
-	}
-	else
-		merr = NULL;
 
 	if (elt) {
 		node = &elt->node;
@@ -1794,17 +1785,13 @@ int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **
 	}
 
 	while (node) {
+		char *tmp_err = NULL;
+
 		elt = ebmb_entry(node, struct pat_ref_elt, node);
 		node = ebmb_next_dup(node);
-		if (!pat_ref_set_elt(ref, elt, value, merr)) {
-			if (err && merr) {
-				if (!found) {
-					*err = *merr;
-				} else {
-					memprintf(err, "%s, %s", *err, *merr);
-					ha_free(merr);
-				}
-			}
+		if (!pat_ref_set_elt(ref, elt, value, &tmp_err)) {
+			memprintf(err, "%s, %s", err && *err ? *err : "", tmp_err);
+			ha_free(&tmp_err);
 		}
 		found = 1;
 	}
