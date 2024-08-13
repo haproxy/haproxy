@@ -13,7 +13,7 @@ jobs:
     if: ${{ github.repository_owner == 'haproxy' }}
     steps:
     - uses: actions/checkout@v4
-    - uses: codespell-project/codespell-problem-matcher@v1
+    - uses: codespell-project/codespell-problem-matcher@v1.2.0
     - uses: codespell-project/actions-codespell@master
       with:
         skip: CHANGELOG,Makefile,*.fig,*.pem,./doc/design-thoughts,./doc/internals
