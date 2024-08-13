@@ -90,7 +90,8 @@ static inline void quic_cc_path_init(struct quic_cc_path *path, int ipv4, unsign
 	max_dgram_sz = ipv4 ? QUIC_INITIAL_IPV4_MTU : QUIC_INITIAL_IPV6_MTU;
 	quic_loss_init(&path->loss);
 	*(size_t *)&path->mtu = max_dgram_sz;
-	path->cwnd = QUIC_MIN(10 * max_dgram_sz, QUIC_MAX(max_dgram_sz << 1, 14720U));
+	path->initial_wnd = QUIC_MIN(10 * max_dgram_sz, QUIC_MAX(max_dgram_sz << 1, 14720U));
+	path->cwnd = path->initial_wnd;
 	path->mcwnd = path->cwnd;
 	path->max_cwnd = max_cwnd;
 	path->min_cwnd = max_dgram_sz << 1;

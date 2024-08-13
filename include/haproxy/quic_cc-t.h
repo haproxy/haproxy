@@ -99,6 +99,8 @@ struct quic_cc_path {
 
 	/* MTU. Must be constant for GSO support. */
 	const size_t mtu;
+	/* Initial congestion window. */
+	uint64_t initial_wnd;
 	/* Congestion window. */
 	uint64_t cwnd;
 	/* The current maximum congestion window value reached. */
