@@ -16,6 +16,7 @@
 #
 
 from lxml import html
+from urllib.parse import urljoin
 import requests
 import traceback
 import smtplib
@@ -190,6 +191,7 @@ This is a friendly bot that watches fixes pending for the next haproxy-stable re
 
         # parse out the CHANGELOG link
         CHANGELOG = tree.xpath('//a[contains(@href,"CHANGELOG")]/@href')[0]
+        CHANGELOG = urljoin("https://", CHANGELOG)
 
         last_version = tree.xpath('//td[contains(text(), "last")]/../td/a/text()')[0]
         first_version = "%s.0" % (version)
