@@ -1,3 +1,8 @@
+#
+# chacha20 test must be enabled after LibreSSL-4.0
+# issue for tracking: https://github.com/haproxy/haproxy/issues/2569
+#
+
 name: QUIC Interop LibreSSL
 
 on:
