@@ -41,15 +41,9 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 	*stream_buf = NULL;
 
 	/* notify MUX about available buffers. */
-	--qc->stream_buf_count;
 	if (qc->mux_state == QC_MUX_READY) {
-		/* notify MUX about available buffers.
-		 *
-		 * TODO several streams may be woken up even if a single buffer
-		 * is available for now.
-		 */
-		while (qcc_notify_buf(qc->qcc))
-			;
+		/* notify MUX about available buffers. */
+		qcc_notify_buf(qc->qcc, 1);
 	}
 }
 
@@ -222,15 +216,9 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 	if (free_count) {
 		offer_buffers(NULL, free_count);
 
-		qc->stream_buf_count -= free_count;
 		if (qc->mux_state == QC_MUX_READY) {
-			/* notify MUX about available buffers.
-			 *
-			 * TODO several streams may be woken up even if a single buffer
-			 * is available for now.
-			 */
-			while (qcc_notify_buf(qc->qcc))
-				;
+			/* notify MUX about available buffers. */
+			qcc_notify_buf(qc->qcc, free_count);
 		}
 	}
 
@@ -265,45 +253,30 @@ struct buffer *qc_stream_buf_get(struct qc_stream_desc *stream)
 	return &stream->buf->buf;
 }
 
-/* Returns the count of available buffer left for <qc>. */
-static int qc_stream_buf_avail(struct quic_conn *qc)
-{
-	BUG_ON(qc->stream_buf_count > global.tune.quic_streams_buf);
-	return global.tune.quic_streams_buf - qc->stream_buf_count;
-}
-
-/* Allocate a new current buffer for <stream>. The buffer limit count for the
- * connection is checked first. This function is not allowed if current buffer
- * is not NULL prior to this call. The new buffer represents stream payload at
- * offset <offset>.
+/* Allocate a new current buffer for <stream>. This function is not allowed if
+ * current buffer is not NULL prior to this call. The new buffer represents
+ * stream payload at offset <offset>.
  *
- * Returns the buffer or NULL on error. Caller may check <avail> to ensure if
- * the connection buffer limit was reached or a fatal error was encountered.
+ * Returns the buffer or NULL on error.
  */
 struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
-                                   uint64_t offset, int *avail)
+                                   uint64_t offset)
 {
-	struct quic_conn *qc = stream->qc;
-
 	/* current buffer must be released first before allocate a new one. */
 	BUG_ON(stream->buf);
-
-	*avail = qc_stream_buf_avail(qc);
-	if (!*avail)
-		return NULL;
 
 	stream->buf_offset = offset;
 	stream->buf = pool_alloc(pool_head_quic_stream_buf);
 	if (!stream->buf)
 		return NULL;
 
+	stream->buf->buf = BUF_NULL;
 	if (!b_alloc(&stream->buf->buf, DB_MUX_TX)) {
 		pool_free(pool_head_quic_stream_buf, stream->buf);
 		stream->buf = NULL;
 		return NULL;
 	}
 
-	++qc->stream_buf_count;
 	LIST_APPEND(&stream->buf_list, &stream->buf->list);
 
 	return &stream->buf->buf;

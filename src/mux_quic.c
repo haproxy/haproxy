@@ -7,6 +7,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
+#include <haproxy/global-t.h>
 #include <haproxy/h3.h>
 #include <haproxy/list.h>
 #include <haproxy/ncbuf.h>
@@ -523,34 +524,36 @@ void qcs_notify_send(struct qcs *qcs)
 	}
 }
 
-/* Notify on a new stream-desc buffer available for <qcc> connection.
- *
- * Returns true if a stream was woken up. If false is returned, this indicates
- * to the caller that it's currently unnecessary to notify for the rest of the
- * available buffers.
+/* Report that <free_count> stream-desc buffer have been released for <qcc>
+ * connection.
  */
-int qcc_notify_buf(struct qcc *qcc)
+void qcc_notify_buf(struct qcc *qcc, int free_count)
 {
 	struct qcs *qcs;
-	int ret = 0;
 
 	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
+
+	BUG_ON(qcc->tx.avail_bufs + free_count > global.tune.quic_streams_buf);
+	qcc->tx.avail_bufs += free_count;
 
 	if (qcc->flags & QC_CF_CONN_FULL) {
 		TRACE_STATE("new stream desc buffer available", QMUX_EV_QCC_WAKE, qcc->conn);
 		qcc->flags &= ~QC_CF_CONN_FULL;
 	}
 
-	if (!LIST_ISEMPTY(&qcc->buf_wait_list)) {
+	/* TODO a simple optimization would be to only wake up <free_count> QCS
+	 * instances. But it may not work if a woken QCS is in error and does
+	 * not try to allocate a buffer, leaving the unwoken QCS indefinitely
+	 * in the buflist.
+	 */
+	while (!LIST_ISEMPTY(&qcc->buf_wait_list)) {
 		qcs = LIST_ELEM(qcc->buf_wait_list.n, struct qcs *, el_buf);
 		LIST_DEL_INIT(&qcs->el_buf);
 		tot_time_stop(&qcs->timer.buf);
 		qcs_notify_send(qcs);
-		ret = 1;
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE, qcc->conn);
-	return ret;
 }
 
 /* A fatal error is detected locally for <qcc> connection. It should be closed
@@ -1007,7 +1010,6 @@ struct buffer *qcc_get_stream_rxbuf(struct qcs *qcs)
 struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err)
 {
 	struct qcc *qcc = qcs->qcc;
-	int buf_avail;
 	struct buffer *out = qc_stream_buf_get(qcs->stream);
 
 	/* Stream must not try to reallocate a buffer if currently waiting for one. */
@@ -1022,21 +1024,22 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err)
 			goto out;
 		}
 
-		out = qc_stream_buf_alloc(qcs->stream, qcs->tx.fc.off_real,
-		                          &buf_avail);
-		if (!out) {
-			if (buf_avail) {
-				TRACE_ERROR("stream desc alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
-				*err = 1;
-				goto out;
-			}
-
+		if (!qcc->tx.avail_bufs) {
 			TRACE_STATE("hitting stream desc buffer limit", QMUX_EV_QCS_SEND, qcc->conn, qcs);
 			LIST_APPEND(&qcc->buf_wait_list, &qcs->el_buf);
 			tot_time_start(&qcs->timer.buf);
 			qcc->flags |= QC_CF_CONN_FULL;
 			goto out;
 		}
+
+		out = qc_stream_buf_alloc(qcs->stream, qcs->tx.fc.off_real);
+		if (!out) {
+			TRACE_ERROR("stream desc alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+			*err = 1;
+			goto out;
+		}
+
+		--qcc->tx.avail_bufs;
 	}
 
  out:
@@ -2702,6 +2705,8 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	qcc->rfctl.msd_bidi_l = rparams->initial_max_stream_data_bidi_local;
 	qcc->rfctl.msd_bidi_r = rparams->initial_max_stream_data_bidi_remote;
 	qcc->rfctl.msd_uni_l = rparams->initial_max_stream_data_uni;
+
+	qcc->tx.avail_bufs = global.tune.quic_streams_buf;
 
 	if (conn_is_back(conn)) {
 		qcc->next_bidi_l    = 0x00;

@@ -22,7 +22,7 @@ int qcs_is_close_remote(struct qcs *qcs);
 int qcs_subscribe(struct qcs *qcs, int event_type, struct wait_event *es);
 void qcs_notify_recv(struct qcs *qcs);
 void qcs_notify_send(struct qcs *qcs);
-int qcc_notify_buf(struct qcc *qcc);
+void qcc_notify_buf(struct qcc *qcc, int free_count);
 
 struct buffer *qcc_get_stream_rxbuf(struct qcs *qcs);
 struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err);

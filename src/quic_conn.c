@@ -1181,7 +1181,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	quic_cc_path_init(qc->path, ipv4, server ? l->bind_conf->max_cwnd : 0,
 	                  cc_algo ? cc_algo : default_quic_cc_algo, qc);
 
-	qc->stream_buf_count = 0;
 	memcpy(&qc->local_addr, local_addr, sizeof(qc->local_addr));
 	memcpy(&qc->peer_addr, peer_addr, sizeof qc->peer_addr);
 
