@@ -10821,7 +10821,7 @@ option tcpka
   See also : "option clitcpka", "option srvtcpka"
 
 
-option tcplog
+option tcplog [clf]
   Enable advanced logging of TCP connections with stream state and timers
 
   May be used in the following contexts: tcp, http
@@ -10829,7 +10829,14 @@ option tcplog
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
 
-  Arguments : none
+  Arguments :
+    clf       if the "clf" argument is added, then the output format will be
+              the CLF format instead of HAProxy's default TCP format. You can
+              use this when you need to feed HAProxy's logs through a specific
+              log analyzer which only support the CLF format and which is not
+              extensible.  Since this expects an HTTP format some of the
+              values have been pre set. The http request will show as TCP and
+              the response code will show as 000.
 
   By default, the log output format is very poor, as it only contains the
   source and destination addresses, and the instance name. By specifying
@@ -25552,6 +25559,14 @@ Refer to section 8.2.6 "Custom log format" to see how to use this:
                 %ac/%fc/%bc/%sc/%rc %sq/%bq"
     # or using the HAPROXY_TCP_LOG_FMT variable
     log-format "${HAPROXY_TCP_LOG_FMT}"
+
+And the CLF log format is internally declared as a custom log format based on
+this exact string:
+
+    # strict equivalent of "option tcplog clf"
+    log-format "%{Q}o %{-Q}ci - - [%T] \"TCP \" 000 %B \"\" \"\" %cp \
+                %ms %ft %b %s %Th %Tw %Tc %Tt %U %ts-- %ac %fc %bc \
+                %sc %rc %sq %bq \"\" \"\" "
 
 A few fields may slightly vary depending on some configuration options, those
 are marked with a star ('*') after the field name below.

@@ -37,6 +37,7 @@ extern const char *log_levels[];
 extern char *log_format;
 extern char httpclient_log_format[];
 extern char default_tcp_log_format[];
+extern char clf_tcp_log_format[];
 extern char default_http_log_format[];
 extern char clf_http_log_format[];
 extern char default_https_log_format[];

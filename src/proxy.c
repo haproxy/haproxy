@@ -1328,11 +1328,17 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 		ha_warning("Layer 7 hash not possible for %s '%s' (needs 'mode http'). Falling back to round robin.\n",
 			   proxy_type_str(curproxy), curproxy->id);
 	}
-	if (curproxy->logformat.str == default_http_log_format ||
-	    curproxy->logformat.str == clf_http_log_format) {
+	if (curproxy->logformat.str == default_http_log_format) {
 		/* Note: we don't change the directive's file:line number */
 		curproxy->logformat.str = default_tcp_log_format;
 		ha_warning("parsing [%s:%d] : 'option httplog' not usable with %s '%s' (needs 'mode http'). Falling back to 'option tcplog'.\n",
+			   curproxy->logformat.conf.file, curproxy->logformat.conf.line,
+			   proxy_type_str(curproxy), curproxy->id);
+	}
+	else if (curproxy->logformat.str == clf_http_log_format) {
+		/* Note: we don't change the directive's file:line number */
+		curproxy->logformat.str = clf_tcp_log_format;
+		ha_warning("parsing [%s:%d] : 'option httplog clf' not usable with %s '%s' (needs 'mode http'). Falling back to 'option tcplog clf'.\n",
 			   curproxy->logformat.conf.file, curproxy->logformat.conf.line,
 			   proxy_type_str(curproxy), curproxy->id);
 	}
