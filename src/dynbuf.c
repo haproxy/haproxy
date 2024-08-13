@@ -188,6 +188,34 @@ static int cfg_parse_tune_buffers_reserve(char **args, int section_type, struct 
 	return 0;
 }
 
+/* config parse for global "tune.bufsize.small" */
+static int cfg_parse_tune_bufsize_small(char **args, int section_type,
+                                        struct proxy *curpx, const struct proxy *defpx,
+                                        const char *file, int line, char **err)
+{
+	int size;
+
+	if (too_many_args(1, args, err, NULL))
+		goto err;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects an integer argument.\n", args[0]);
+		goto err;
+	}
+
+	size = atol(args[1]);
+	if (size <= 0) {
+		memprintf(err, "'%s' expects a positive integer argument.\n", args[0]);
+		goto err;
+	}
+
+	global.tune.bufsize_small = size;
+	return 0;
+
+ err:
+	return -1;
+}
+
 /* allocate emergency buffers for the thread */
 static int alloc_emergency_buffers_per_thread(void)
 {
@@ -227,6 +255,7 @@ static void free_emergency_buffers_per_thread(void)
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.buffers.limit", cfg_parse_tune_buffers_limit },
 	{ CFG_GLOBAL, "tune.buffers.reserve", cfg_parse_tune_buffers_reserve },
+	{ CFG_GLOBAL, "tune.bufsize.small", cfg_parse_tune_bufsize_small },
 	{ 0, NULL, NULL }
 }};
 

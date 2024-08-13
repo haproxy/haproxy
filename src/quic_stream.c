@@ -5,6 +5,7 @@
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/dynbuf.h>
+#include <haproxy/errors.h>
 #include <haproxy/list.h>
 #include <haproxy/mux_quic.h>
 #include <haproxy/pool.h>
@@ -16,6 +17,7 @@ DECLARE_STATIC_POOL(pool_head_quic_stream_desc, "qc_stream_desc",
 DECLARE_STATIC_POOL(pool_head_quic_stream_buf, "qc_stream_buf",
                     sizeof(struct qc_stream_buf));
 
+static struct pool_head *pool_head_sbuf;
 
 /* Returns true if nothing to ack yet for stream <s> including FIN bit. */
 static inline int qc_stream_desc_done(const struct qc_stream_desc *s)
@@ -300,3 +302,23 @@ void qc_stream_buf_release(struct qc_stream_desc *stream)
 	stream->buf = NULL;
 	stream->buf_offset = 0;
 }
+
+static int create_sbuf_pool(void)
+{
+	if (global.tune.bufsize_small > global.tune.bufsize) {
+		ha_warning("invalid small buffer size %d bytes which is greater to default bufsize %d bytes.\n",
+		           global.tune.bufsize_small, global.tune.bufsize);
+		return ERR_FATAL|ERR_ABORT;
+	}
+
+	pool_head_sbuf = create_pool("sbuf", global.tune.bufsize_small,
+	                             MEM_F_SHARED|MEM_F_EXACT);
+	if (!pool_head_sbuf) {
+		ha_warning("error on small buffer pool allocation.\n");
+		return ERR_FATAL|ERR_ABORT;
+	}
+
+	return ERR_NONE;
+}
+
+REGISTER_POST_CHECK(create_sbuf_pool);

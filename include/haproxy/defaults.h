@@ -71,6 +71,10 @@
 #define BUFSIZE	        16384
 #endif
 
+#ifndef BUFSIZE_SMALL
+#define BUFSIZE_SMALL   1024
+#endif
+
 // number of per-thread emergency buffers for low-memory conditions
 #ifndef RESERVED_BUFS
 #define RESERVED_BUFS   4

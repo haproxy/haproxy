@@ -1460,6 +1460,7 @@ The following keywords are supported in the "global" section :
    - tune.buffers.limit
    - tune.buffers.reserve
    - tune.bufsize
+   - tune.bufsize.small
    - tune.comp.maxlevel
    - tune.disable-fast-forward
    - tune.disable-zero-copy-forwarding
@@ -3339,6 +3340,17 @@ tune.bufsize <number>
   than this size, HAProxy will return HTTP 502 (Bad Gateway). Note that the
   value set using this parameter will automatically be rounded up to the next
   multiple of 8 on 32-bit machines and 16 on 64-bit machines.
+
+tune.bufsize.small <number>
+  Sets the size in bytes for small buffers. The defaults value is 1024.
+
+  These buffers are designed to be used in some specific contexts where memory
+  consumption is restrained but it seems unnecessary to allocate a full buffer.
+  If however a small buffer is not sufficient, a reallocation is automatically
+  done to switch to a standard size buffer.
+
+  For the moment, it is used only by HTTP/3 protocol to emit the response
+  headers.
 
 tune.comp.maxlevel <number>
   Sets the maximum compression level. The compression level affects CPU
