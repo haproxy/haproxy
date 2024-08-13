@@ -524,10 +524,10 @@ void qcs_notify_send(struct qcs *qcs)
 	}
 }
 
-/* Report that <free_count> stream-desc buffer have been released for <qcc>
- * connection.
+/* Report that one or several stream-desc buffers have been released for <qcc>
+ * connection. <free_size> represent the sum of freed buffers sizes.
  */
-void qcc_notify_buf(struct qcc *qcc, int free_count)
+void qcc_notify_buf(struct qcc *qcc, int free_count, uint64_t free_size)
 {
 	struct qcs *qcs;
 
@@ -535,6 +535,10 @@ void qcc_notify_buf(struct qcc *qcc, int free_count)
 
 	BUG_ON(qcc->tx.avail_bufs + free_count > global.tune.quic_streams_buf);
 	qcc->tx.avail_bufs += free_count;
+
+	/* Cannot have a negative buf_in_flight counter */
+	BUG_ON(qcc->tx.buf_in_flight < free_size);
+	qcc->tx.buf_in_flight -= free_size;
 
 	if (qcc->flags & QC_CF_CONN_FULL) {
 		TRACE_STATE("new stream desc buffer available", QMUX_EV_QCC_WAKE, qcc->conn);
@@ -1059,8 +1063,10 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err)
 			goto out;
 		}
 
-		if (likely(!unlimited))
+		if (likely(!unlimited)) {
 			--qcc->tx.avail_bufs;
+			qcc->tx.buf_in_flight += global.tune.bufsize;
+		}
 	}
 
  out:
@@ -2728,6 +2734,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	qcc->rfctl.msd_uni_l = rparams->initial_max_stream_data_uni;
 
 	qcc->tx.avail_bufs = global.tune.quic_streams_buf;
+	qcc->tx.buf_in_flight = 0;
 
 	if (conn_is_back(conn)) {
 		qcc->next_bidi_l    = 0x00;

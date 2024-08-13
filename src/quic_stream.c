@@ -28,6 +28,7 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 {
 	struct quic_conn *qc = stream->qc;
 	struct buffer *buf = &(*stream_buf)->buf;
+	uint64_t free_size;
 
 	LIST_DEL_INIT(&(*stream_buf)->list);
 
@@ -35,6 +36,7 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 	if (*stream_buf == stream->buf)
 		stream->buf = NULL;
 
+	free_size = b_size(buf);
 	b_free(buf);
 	offer_buffers(NULL, 1);
 	pool_free(pool_head_quic_stream_buf, *stream_buf);
@@ -44,7 +46,7 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 	if (qc->mux_state == QC_MUX_READY) {
 		if (!(stream->flags & QC_SD_FL_OOB_BUF)) {
 			/* notify MUX about available buffers. */
-			qcc_notify_buf(qc->qcc, 1);
+			qcc_notify_buf(qc->qcc, 1, free_size);
 		}
 	}
 }
@@ -200,6 +202,7 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 	struct quic_conn *qc = stream->qc;
 	struct eb64_node *frm_node;
 	unsigned int free_count = 0;
+	uint64_t free_size = 0;
 
 	/* This function only deals with released streams. */
 	BUG_ON(!(stream->flags & QC_SD_FL_RELEASE));
@@ -207,6 +210,7 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 	/* free remaining stream buffers */
 	list_for_each_entry_safe(buf, buf_back, &stream->buf_list, list) {
 		if (!(b_data(&buf->buf)) || closing) {
+			free_size += b_size(&buf->buf);
 			b_free(&buf->buf);
 			LIST_DELETE(&buf->list);
 			pool_free(pool_head_quic_stream_buf, buf);
@@ -220,7 +224,7 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 		if (qc->mux_state == QC_MUX_READY) {
 			if (!(stream->flags & QC_SD_FL_OOB_BUF)) {
 				/* notify MUX about available buffers. */
-				qcc_notify_buf(qc->qcc, free_count);
+				qcc_notify_buf(qc->qcc, free_count, free_size);
 			}
 		}
 	}
