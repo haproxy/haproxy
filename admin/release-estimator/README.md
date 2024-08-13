@@ -7,6 +7,21 @@ the queue.
 ## Requirements
   - Python 3.x
   - [lxml](https://lxml.de/installation.html)
+  - requests
+  - urllib3
+
+
+## Installation
+It can be easilly installed with venv from python3
+
+
+    $ python3 -m venv ~/.local/venvs/stable-bot/
+    $ source ~/.local/venvs/stable-bot/bin/activate
+    $ pip install -r requirements.txt
+
+And can be executed with:
+
+    $ ~/.local/venvs/stable-bot/bin/python release-estimator.py
 
 
 ## Usage
