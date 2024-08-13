@@ -24,8 +24,8 @@ However, this can be read by Lua beginners. Some examples are detailed.
 Why a scripting language in HAProxy
 ===================================
 
-HAProxy 1.5 makes at possible to do many things using samples, but some people
-want to more combining results of samples fetches, programming conditions and
+HAProxy 1.5 makes it possible to do many things using samples, but some people
+want to more by combining results of samples fetches, programming conditions and
 loops which is not possible. Sometimes people implement these functionalities
 in patches which have no meaning outside their network. These people must
 maintain these patches, or worse we must integrate them in the HAProxy
@@ -135,7 +135,7 @@ these functions:
 These functions are the execution entry points.
 
 HTTP action must be used for manipulating HTTP request headers. This action
-can not manipulates HTTP content. It is dangerous to use the channel
+cannot manipulates HTTP content. It is dangerous to use the channel
 manipulation object with an HTTP request in an HTTP action. The channel
 manipulation can transform a valid request in an invalid request. In this case,
 the action will never resume and the processing will be frozen. HAProxy
@@ -155,7 +155,7 @@ with only one stream, HAProxy seems to run fine. When the code is used with
 production stream, HAProxy encounters some slow processing, and it cannot
 hold the load.
 
-However, during the initialisation state, you can obviously using blocking
+However, during the initialisation state, you can obviously use blocking
 functions. There are typically used for loading files.
 
 The list of prohibited standard Lua functions during the runtime contains all
@@ -219,7 +219,7 @@ I executed a Lua loop between 10 seconds with different values for the
     100000        | 710
     1000000       | 710
 
-The result showed that from 9000 instructions between two interrupt, we reached
+The result showed that from 9000 instructions between two interrupts, we reached
 a ceil, so the default parameter is 10 000.
 
 When HAProxy interrupts the Lua processing, we have two states possible:
@@ -524,9 +524,9 @@ server, and processing the many errors which can occurs during these exchanges.
 HAProxy is not designed for having a third connection established to a third
 party server.
 
-The solution consist to put the main stream in pause waiting for the end of the
-exchanges with the third connection. This is completed by a signal between
-internal tasks. The following graph shows the HAProxy Lua socket:
+The solution consists of putting the main stream in pause, waiting for the end
+of the exchanges with the third connection. This is completed by a signal
+between internal tasks. The following graph shows the HAProxy Lua socket:
 
 
                       +--------------------+
@@ -615,7 +615,7 @@ Start point
 -----------
 
 The HAProxy global directive "lua-load <file>" allows to load an Lua file. This
-is the entry point. This load become during the configuration parsing, and the
+is the entry point. This load occurs during the configuration parsing, and the
 Lua file is immediately executed.
 
 All the register_*() functions must be called at this time because they are used
