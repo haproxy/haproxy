@@ -297,9 +297,13 @@ struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
 	if (!stream->buf)
 		return NULL;
 
-	++qc->stream_buf_count;
+	if (!b_alloc(&stream->buf->buf, DB_MUX_TX)) {
+		pool_free(pool_head_quic_stream_buf, stream->buf);
+		stream->buf = NULL;
+		return NULL;
+	}
 
-	stream->buf->buf = BUF_NULL;
+	++qc->stream_buf_count;
 	LIST_APPEND(&stream->buf_list, &stream->buf->list);
 
 	return &stream->buf->buf;

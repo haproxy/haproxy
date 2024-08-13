@@ -1037,12 +1037,6 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err)
 			qcc->flags |= QC_CF_CONN_FULL;
 			goto out;
 		}
-
-		if (!b_alloc(out, DB_MUX_TX)) {
-			TRACE_ERROR("buffer alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
-			*err = 1;
-			goto out;
-		}
 	}
 
  out:
