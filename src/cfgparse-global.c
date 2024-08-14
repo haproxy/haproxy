@@ -1388,8 +1388,8 @@ static int cfg_parse_global_master_worker(char **args, int section_type,
 		if (strcmp(args[1], "no-exit-on-failure") == 0)
 			global.tune.options |= GTUNE_NOEXIT_ONFAILURE;
 		else {
-			memprintf(err, "parsing [%s:%d] : '%s' only supports 'no-exit-on-failure' option",
-				  file, line, args[0]);
+			memprintf(err, "'%s' only supports 'no-exit-on-failure' option",
+				  args[0]);
 			return -1;
 		}
 	}
