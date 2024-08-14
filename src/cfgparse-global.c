@@ -33,8 +33,7 @@ int cluster_secret_isset;
 static const char *common_kw_list[] = {
 	"global", "busy-polling", "set-dumpable",
 	"insecure-fork-wanted", "insecure-setuid-wanted", "nosplice",
-	"nogetaddrinfo", "noreuseport",
-	"tune.fast-forward", "uid", "gid",
+	"nogetaddrinfo", "noreuseport", "uid", "gid",
 	"external-check", "user", "group", "maxconn",
 	"ssl-server-verify", "maxconnrate", "maxsessrate", "maxsslrate",
 	"maxcomprate", "maxpipes", "maxzlibmem", "maxcompcpuusage", "ulimit-n",
