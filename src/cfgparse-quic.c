@@ -25,6 +25,48 @@ static int bind_parse_quic_force_retry(char **args, int cur_arg, struct proxy *p
 	return 0;
 }
 
+/* Parse <value> as a window size integer argument to keyword <kw>. By
+ * default, value is explained as bytes. Suffixes 'k', 'm' and 'g' are valid as
+ * multipliers. <end_opt> will point to the next unparsed character.
+ *
+ * Return the parsed window size or 0 on error.
+ */
+static unsigned long parse_window_size(const char *kw, char *value,
+                                       char **end_opt, char **err)
+{
+	unsigned long size;
+
+	errno = 0;
+	size = strtoul(value, end_opt, 0);
+	if (*end_opt == value || errno != 0) {
+		memprintf(err, "'%s' : could not parse congestion window value", kw);
+		goto fail;
+	}
+
+	if (**end_opt == 'k') {
+		size <<= 10;
+		(*end_opt)++;
+	}
+	else if (**end_opt == 'm') {
+		size <<= 20;
+		(*end_opt)++;
+	}
+	else if (**end_opt == 'g') {
+		size <<= 30;
+		(*end_opt)++;
+	}
+
+	if (size < 10240 || size > (4UL << 30)) {
+		memprintf(err, "'%s' : should be between 10k and 4g", kw);
+		goto fail;
+	}
+
+	return size;
+
+ fail:
+	return 0;
+}
+
 /* parse "quic-cc-algo" bind keyword */
 static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
                                    struct bind_conf *conf, char **err)
@@ -72,33 +114,12 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 		unsigned long cwnd;
 		char *end_opt;
 
-		errno = 0;
-		cwnd = strtoul(arg, &end_opt, 0);
-		if (end_opt == arg || errno != 0) {
-			memprintf(err, "'%s' : could not parse congestion window value", args[cur_arg + 1]);
+		cwnd = parse_window_size(args[cur_arg], arg, &end_opt, err);
+		if (!cwnd)
 			goto fail;
-		}
-
-		if (*end_opt == 'k') {
-			cwnd <<= 10;
-			end_opt++;
-		}
-		else if (*end_opt == 'm') {
-			cwnd <<= 20;
-			end_opt++;
-		}
-		else if (*end_opt == 'g') {
-			cwnd <<= 30;
-			end_opt++;
-		}
 
 		if (*end_opt != ')') {
 			memprintf(err, "'%s' : expects %s(<max window>)", args[cur_arg + 1], algo);
-			goto fail;
-		}
-
-		if (cwnd < 10240 || cwnd > (4UL << 30)) {
-			memprintf(err, "'%s' : should be greater than 10k and smaller than 4g", args[cur_arg + 1]);
 			goto fail;
 		}
 
