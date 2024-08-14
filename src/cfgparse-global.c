@@ -44,7 +44,7 @@ static const char *common_kw_list[] = {
 	"external-check", "user", "group", "nbproc", "maxconn",
 	"ssl-server-verify", "maxconnrate", "maxsessrate", "maxsslrate",
 	"maxcomprate", "maxpipes", "maxzlibmem", "maxcompcpuusage", "ulimit-n",
-	"chroot", "description", "node", "pidfile", "unix-bind", "log",
+	"chroot", "description", "node", "unix-bind", "log",
 	"log-send-hostname", "server-state-base", "server-state-file",
 	"log-tag", "spread-checks", "max-spread-checks", "cpu-map", "setenv",
 	"presetenv", "unsetenv", "resetenv", "strict-limits", "localpeer",
@@ -802,21 +802,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 
 		global.node = strdup(args[1]);
 	}
-	else if (strcmp(args[0], "pidfile") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.pidfile != NULL) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects a file name as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.pidfile = strdup(args[1]);
-	}
 	else if (strcmp(args[0], "unix-bind") == 0) {
 		int cur_arg = 1;
 		while (*(args[cur_arg])) {
@@ -1449,6 +1434,31 @@ static int cfg_parse_global_disable_poller(char **args, int section_type,
 	return 0;
 }
 
+static int cfg_parse_global_pidfile(char **args, int section_type,
+				    struct proxy *curpx, const struct proxy *defpx,
+				    const char *file, int line, char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[0], "pidfile") == 0) {
+		if (global.pidfile != NULL) {
+			memprintf(err, "'%s' already specified. Continuing.", args[0]);
+			return 1;
+		}
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects a file name as an argument.", args[0]);
+			return -1;
+		}
+		global.pidfile = strdup(args[1]);
+	} else {
+		BUG_ON(1, "Triggered in cfg_parse_global_pidfile() by unsupported keyword.\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "prealloc-fd", cfg_parse_prealloc_fd },
 	{ CFG_GLOBAL, "harden.reject-privileged-ports.tcp",  cfg_parse_reject_privileged_ports },
@@ -1461,6 +1471,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "nokqueue", cfg_parse_global_disable_poller },
 	{ CFG_GLOBAL, "noevports", cfg_parse_global_disable_poller },
 	{ CFG_GLOBAL, "nopoll", cfg_parse_global_disable_poller },
+	{ CFG_GLOBAL, "pidfile", cfg_parse_global_pidfile },
 	{ 0, NULL, NULL },
 }};
 
