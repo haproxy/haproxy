@@ -1294,7 +1294,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 					else if (rc > 0) {
 						ha_warning("parsing [%s:%d] : %s\n", file, linenum, errmsg);
 						err_code |= ERR_WARN;
-						goto out;
 					}
 					goto out;
 				}
