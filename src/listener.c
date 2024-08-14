@@ -2035,10 +2035,7 @@ struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *file,
 #ifdef USE_QUIC
 	/* Use connection socket for QUIC by default. */
 	bind_conf->quic_mode = QUIC_SOCK_MODE_CONN;
-	bind_conf->max_cwnd =
-	  global.tune.quic_frontend_max_window_size ?
-	  global.tune.quic_frontend_max_window_size :
-	  global.tune.bufsize * global.tune.quic_streams_buf;
+	bind_conf->max_cwnd = global.tune.quic_frontend_max_window_size;
 #endif
 	LIST_INIT(&bind_conf->listeners);
 

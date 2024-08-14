@@ -204,7 +204,6 @@ struct global global = {
 		.quic_reorder_ratio = QUIC_DFLT_REORDER_RATIO,
 		.quic_retry_threshold = QUIC_DFLT_RETRY_THRESHOLD,
 		.quic_max_frame_loss = QUIC_DFLT_MAX_FRAME_LOSS,
-		.quic_streams_buf = 30,
 #endif /* USE_QUIC */
 	},
 #ifdef USE_OPENSSL

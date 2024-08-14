@@ -1505,7 +1505,6 @@ The following keywords are supported in the "global" section :
    - tune.pt.zero-copy-forwarding
    - tune.quic.cc-hystart
    - tune.quic.disable-udp-gso
-   - tune.quic.frontend.conn-tx-buffers.limit
    - tune.quic.frontend.glitches-threshold
    - tune.quic.frontend.max-idle-timeout
    - tune.quic.frontend.max-streams-bidi
@@ -3897,13 +3896,6 @@ tune.quic.disable-udp-gso
   transfer. It may be useful to disable it on developers suggestion when
   suspecting an issue on emission.
 
-tune.quic.frontend.conn-tx-buffers.limit <number>
-  This settings defines the maximum number of buffers allocated for a QUIC
-  connection on data emission. By default, it is set to 30. QUIC buffers are
-  drained on ACK reception. This setting has a direct impact on the throughput
-  and memory consumption and can be adjusted according to an estimated round
-  time-trip. Each buffer is tune.bufsize.
-
 tune.quic.frontend.glitches-threshold <number>
   Sets the threshold for the number of glitches on a frontend connection, where
   that connection will automatically be killed. This allows to automatically
@@ -3938,11 +3930,13 @@ tune.quic.frontend.max-streams-bidi <number>
 tune.quic.frontend.max-window-size <size>
   Sets the default maximum window size for the congestion controller of a
   single QUIC connection. The value must be written as an integer with an
-  optional suffix 'k', 'm' or 'g'. It must be between 10k and 4g. Alternatively,
-  the special value 0 can be used to automatically derive the value from
-  "quic.frontend.conn-tx-buffers.limit".
+  optional suffix 'k', 'm' or 'g'. It must be between 10k and 4g.
 
-  The default value is 0.
+  QUIC multiplexer also uses the current congestion window size to determine if
+  it can allocate new stream buffers on data emission. As such, the maximum
+  congestion window size also serves as a limit on this allocator.
+
+  The default value is 480k.
 
   See also the "quic-cc-algo" bind option.
 
