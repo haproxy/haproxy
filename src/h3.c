@@ -1606,7 +1606,7 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 
 	list[hdr].n = ist("");
 
-	if (!(res = qcc_get_stream_txbuf(qcs, &err, 0))) {
+	if (!(res = qcc_get_stream_txbuf(qcs, &err, 1))) {
 		if (err) {
 			TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 			goto err;
