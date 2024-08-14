@@ -80,6 +80,8 @@ struct h2c {
 	int timeout;        /* idle timeout duration in ticks */
 	int shut_timeout;   /* idle timeout duration in ticks after GOAWAY was sent */
 	int idle_start;     /* date of the last time the connection went idle (no stream + empty mbuf), or the start of current http req */
+	int settings_sent;  /* date last settings frame was sent */
+	int rtt;            /* last known good measure of the RTT (in ms) */
 
 	unsigned int nb_streams;  /* number of streams in the tree */
 	unsigned int nb_sc;       /* number of attached stream connectors */
@@ -1203,6 +1205,8 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->wait_event.tasklet = NULL;
 	h2c->shared_rx_bufs = NULL;
 	h2c->idle_start = now_ms;
+	h2c->settings_sent = now_ms;
+	h2c->rtt = 0;
 	if (tick_isset(h2c->timeout)) {
 		t = task_new_here();
 		if (!t)
@@ -2108,6 +2112,8 @@ static int h2c_send_settings(struct h2c *h2c)
 			ret = 0;
 		}
 	}
+	else
+		h2c->settings_sent = now_ms;
  out:
 	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_SETTINGS, h2c->conn);
 	return ret;
@@ -2575,6 +2581,7 @@ static int h2c_handle_settings(struct h2c *h2c)
 			error = H2_ERR_FRAME_SIZE_ERROR;
 			goto fail;
 		}
+		h2c->rtt = tick_remain(h2c->settings_sent, now_ms);
 		goto done;
 	}
 
