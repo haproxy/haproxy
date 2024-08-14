@@ -16660,8 +16660,8 @@ proto <name>
   instance, it is possible to force the http/2 on clear TCP by specifying "proto
   h2" on the bind line.
 
-quic-cc-algo { cubic | newreno }
-quic-cc-algo { cubic | newreno }(max_window)
+quic-cc-algo { cubic | newreno | nocc }
+quic-cc-algo { cubic | newreno | nocc }(max_window)
   This is a QUIC specific setting to select the congestion control algorithm
   for any connection attempts to the configured QUIC listeners. They are similar
   to those used by TCP. An optional value in bytes may be used to specify the
@@ -16675,6 +16675,11 @@ quic-cc-algo { cubic | newreno }(max_window)
       quic-cc-algo newreno
       # cubic congestion control algorithm with one megabytes as window
       quic-cc-algo cubic(1m)
+
+  A special value "nocc" may be used to force a fixed congestion window always
+  set at the maximum size. It is reserved for debugging scenarios to remove any
+  side effects caused by the congestion controller. It must not be used in
+  production as it can quickly lead to network issues such as a high loss rate.
 
 quic-force-retry
   This is a QUIC specific setting which forces the use of the QUIC Retry feature
