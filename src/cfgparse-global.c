@@ -35,7 +35,7 @@ static const char *common_kw_list[] = {
 	"insecure-fork-wanted", "insecure-setuid-wanted", "nosplice",
 	"nogetaddrinfo", "noreuseport",
 	"tune.fast-forward", "uid", "gid",
-	"external-check", "user", "group", "nbproc", "maxconn",
+	"external-check", "user", "group", "maxconn",
 	"ssl-server-verify", "maxconnrate", "maxsessrate", "maxsslrate",
 	"maxcomprate", "maxpipes", "maxzlibmem", "maxcompcpuusage", "ulimit-n",
 	"chroot", "description", "node", "unix-bind", "log",
@@ -136,11 +136,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		protocol_clrf_all(PROTO_F_REUSEPORT_SUPPORTED);
 	}
 
-	else if (strcmp(args[0], "tune.chksize") == 0) {
-		ha_alert("parsing [%s:%d]: option '%s' is not supported any more (tune.bufsize is used instead).\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
 	else if (strcmp(args[0], "cluster-secret") == 0) {
 		blk_SHA_CTX sha1_ctx;
 		unsigned char sha1_out[20];
@@ -256,11 +251,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	/* end of user/group name handling*/
-	else if (strcmp(args[0], "nbproc") == 0) {
-		ha_alert("parsing [%s:%d] : nbproc is not supported any more since HAProxy 2.5. Threads will automatically be used on multi-processor machines if available.\n", file, linenum);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
 	else if (strcmp(args[0], "maxconn") == 0) {
 		char *stop;
 
@@ -1455,6 +1445,24 @@ static int cfg_parse_global_tune_forward_opts(char **args, int section_type,
 
 }
 
+static int cfg_parse_global_unsupported_opts(char **args, int section_type,
+					     struct proxy *curpx, const struct proxy *defpx,
+					     const char *file, int line, char **err)
+{
+	if (strcmp(args[0], "nbproc") == 0) {
+		memprintf(err, "nbproc is not supported any more since HAProxy 2.5. "
+			  "Threads will automatically be used on multi-processor machines if available.");
+	}
+	else if (strcmp(args[0], "tune.chksize") == 0) {
+		memprintf(err, "option '%s' is not supported any more (tune.bufsize is used instead).", args[0]);
+	}
+	else {
+		BUG_ON(1, "Triggered in cfg_parse_global_unsupported_opts() by unsupported keyword.\n");
+	}
+
+	return -1;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "prealloc-fd", cfg_parse_prealloc_fd },
 	{ CFG_GLOBAL, "harden.reject-privileged-ports.tcp",  cfg_parse_reject_privileged_ports },
@@ -1489,6 +1497,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.pattern.cache-size", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.disable-fast-forward", cfg_parse_global_tune_forward_opts },
 	{ CFG_GLOBAL, "tune.disable-zero-copy-forwarding", cfg_parse_global_tune_forward_opts },
+	{ CFG_GLOBAL, "tune.chksize", cfg_parse_global_unsupported_opts },
+	{ CFG_GLOBAL, "nbproc", cfg_parse_global_unsupported_opts },
 	{ 0, NULL, NULL },
 }};
 
