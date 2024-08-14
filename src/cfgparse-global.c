@@ -74,12 +74,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		alertif_too_many_args(0, file, linenum, args, &err_code);
 		goto out;
 	}
-	else if (strcmp(args[0], "expose-deprecated-directives") == 0) {
-		deprecated_directives_allowed = 1;
-	}
-	else if (strcmp(args[0], "expose-experimental-directives") == 0) {
-		experimental_directives_allowed = 1;
-	}
 	else if (strcmp(args[0], "limited-quic") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
@@ -1459,6 +1453,26 @@ static int cfg_parse_global_pidfile(char **args, int section_type,
 	return 0;
 }
 
+static int cfg_parse_global_non_std_directives(char **args, int section_type,
+					       struct proxy *curpx, const struct proxy *defpx,
+					       const char *file, int line, char **err)
+{
+
+	if (too_many_args(0, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[0], "expose-deprecated-directives") == 0) {
+		deprecated_directives_allowed = 1;
+	} else if (strcmp(args[0], "expose-experimental-directives") == 0) {
+		experimental_directives_allowed = 1;
+	} else {
+		BUG_ON(1, "Triggered in cfg_parse_global_non_std_directives() by unsupported keyword.\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "prealloc-fd", cfg_parse_prealloc_fd },
 	{ CFG_GLOBAL, "harden.reject-privileged-ports.tcp",  cfg_parse_reject_privileged_ports },
@@ -1472,6 +1486,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "noevports", cfg_parse_global_disable_poller },
 	{ CFG_GLOBAL, "nopoll", cfg_parse_global_disable_poller },
 	{ CFG_GLOBAL, "pidfile", cfg_parse_global_pidfile },
+	{ CFG_GLOBAL, "expose-deprecated-directives", cfg_parse_global_non_std_directives },
+	{ CFG_GLOBAL, "expose-experimental-directives", cfg_parse_global_non_std_directives },
 	{ 0, NULL, NULL },
 }};
 
