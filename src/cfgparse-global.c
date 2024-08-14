@@ -31,10 +31,9 @@ int cluster_secret_isset;
  * registered anywhere. They are used as suggestions for mistyped words.
  */
 static const char *common_kw_list[] = {
-	"global", "daemon", "master-worker", "noepoll", "nokqueue",
-	"noevports", "nopoll", "busy-polling", "set-dumpable",
+	"global", "busy-polling", "set-dumpable",
 	"insecure-fork-wanted", "insecure-setuid-wanted", "nosplice",
-	"nogetaddrinfo", "noreuseport", "quiet", "zero-warning",
+	"nogetaddrinfo", "noreuseport",
 	"tune.runqueue-depth", "tune.maxpollevents", "tune.maxaccept",
 	"tune.recv_enough", "tune.bufsize", "tune.maxrewrite",
 	"tune.idletimer", "tune.rcvbuf.client", "tune.rcvbuf.server",
