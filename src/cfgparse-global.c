@@ -34,12 +34,6 @@ static const char *common_kw_list[] = {
 	"global", "busy-polling", "set-dumpable",
 	"insecure-fork-wanted", "insecure-setuid-wanted", "nosplice",
 	"nogetaddrinfo", "noreuseport",
-	"tune.runqueue-depth", "tune.maxpollevents", "tune.maxaccept",
-	"tune.recv_enough", "tune.bufsize", "tune.maxrewrite",
-	"tune.idletimer", "tune.rcvbuf.client", "tune.rcvbuf.server",
-	"tune.sndbuf.client", "tune.sndbuf.server", "tune.pipesize",
-	"tune.http.cookielen", "tune.http.logurilen", "tune.http.maxhdr",
-	"tune.comp.maxlevel", "tune.pattern.cache-size",
 	"tune.fast-forward", "uid", "gid",
 	"external-check", "user", "group", "nbproc", "maxconn",
 	"ssl-server-verify", "maxconnrate", "maxsessrate", "maxsslrate",
@@ -141,303 +135,11 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		protocol_clrf_all(PROTO_F_REUSEPORT_SUPPORTED);
 	}
-	else if (strcmp(args[0], "tune.runqueue-depth") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.tune.runqueue_depth != 0) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.runqueue_depth = atol(args[1]);
 
-	}
-	else if (strcmp(args[0], "tune.maxpollevents") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.tune.maxpollevents != 0) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.maxpollevents = atol(args[1]);
-	}
-	else if (strcmp(args[0], "tune.maxaccept") == 0) {
-		long max;
-
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.tune.maxaccept != 0) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		max = atol(args[1]);
-		if (/*max < -1 || */max > INT_MAX) {
-			ha_alert("parsing [%s:%d] : '%s' expects -1 or an integer from 0 to INT_MAX.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.maxaccept = max;
-	}
 	else if (strcmp(args[0], "tune.chksize") == 0) {
 		ha_alert("parsing [%s:%d]: option '%s' is not supported any more (tune.bufsize is used instead).\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
-	}
-	else if (strcmp(args[0], "tune.recv_enough") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.recv_enough = atol(args[1]);
-	}
-	else if (strcmp(args[0], "tune.bufsize") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.bufsize = atol(args[1]);
-		/* round it up to support a two-pointer alignment at the end */
-		global.tune.bufsize = (global.tune.bufsize + 2 * sizeof(void *) - 1) & -(2 * sizeof(void *));
-		if (global.tune.bufsize <= 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects a positive integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
-	else if (strcmp(args[0], "tune.maxrewrite") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.maxrewrite = atol(args[1]);
-		if (global.tune.maxrewrite < 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects a positive integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
-	else if (strcmp(args[0], "tune.idletimer") == 0) {
-		unsigned int idle;
-		const char *res;
-
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects a timer value between 0 and 65535 ms.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		res = parse_time_err(args[1], &idle, TIME_UNIT_MS);
-		if (res == PARSE_TIME_OVER) {
-			ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s>, maximum value is 65535 ms.\n",
-			         file, linenum, args[1], args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else if (res == PARSE_TIME_UNDER) {
-			ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s>, minimum non-null value is 1 ms.\n",
-			         file, linenum, args[1], args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else if (res) {
-			ha_alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s>.\n",
-			         file, linenum, *res, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (idle > 65535) {
-			ha_alert("parsing [%s:%d] : '%s' expects a timer value between 0 and 65535 ms.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.idle_timer = idle;
-	}
-	else if (strcmp(args[0], "tune.rcvbuf.client") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.tune.client_rcvbuf != 0) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.client_rcvbuf = atol(args[1]);
-	}
-	else if (strcmp(args[0], "tune.rcvbuf.server") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.tune.server_rcvbuf != 0) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.server_rcvbuf = atol(args[1]);
-	}
-	else if (strcmp(args[0], "tune.sndbuf.client") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.tune.client_sndbuf != 0) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.client_sndbuf = atol(args[1]);
-	}
-	else if (strcmp(args[0], "tune.sndbuf.server") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.tune.server_sndbuf != 0) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.server_sndbuf = atol(args[1]);
-	}
-	else if (strcmp(args[0], "tune.pipesize") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.pipesize = atol(args[1]);
-	}
-	else if (strcmp(args[0], "tune.http.cookielen") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.cookie_len = atol(args[1]) + 1;
-	}
-	else if (strcmp(args[0], "tune.http.logurilen") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.requri_len = atol(args[1]) + 1;
-	}
-	else if (strcmp(args[0], "tune.http.maxhdr") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.tune.max_http_hdr = atoi(args[1]);
-		if (global.tune.max_http_hdr < 1 || global.tune.max_http_hdr > 32767) {
-			ha_alert("parsing [%s:%d] : '%s' expects a numeric value between 1 and 32767\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
-	else if (strcmp(args[0], "tune.comp.maxlevel") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*args[1]) {
-			global.tune.comp_maxlevel = atoi(args[1]);
-			if (global.tune.comp_maxlevel < 1 || global.tune.comp_maxlevel > 9) {
-				ha_alert("parsing [%s:%d] : '%s' expects a numeric value between 1 and 9\n",
-					 file, linenum, args[0]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-		} else {
-			ha_alert("parsing [%s:%d] : '%s' expects a numeric value between 1 and 9\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
-	else if (strcmp(args[0], "tune.pattern.cache-size") == 0) {
-		if (*args[1]) {
-			global.tune.pattern_cache = atoi(args[1]);
-			if (global.tune.pattern_cache < 0) {
-				ha_alert("parsing [%s:%d] : '%s' expects a positive numeric value\n",
-					 file, linenum, args[0]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-		} else {
-			ha_alert("parsing [%s:%d] : '%s' expects a positive numeric value\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
-	else if (strcmp(args[0], "tune.disable-fast-forward") == 0) {
-		if (!experimental_directives_allowed) {
-			ha_alert("parsing [%s:%d] : '%s' directive is experimental, must be allowed via a global 'expose-experimental-directives'",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
-
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		global.tune.options &= ~GTUNE_USE_FAST_FWD;
-	}
-	else if (strcmp(args[0], "tune.disable-zero-copy-forwarding") == 0) {
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		global.tune.no_zero_copy_fwd |= NO_ZERO_COPY_FWD;
 	}
 	else if (strcmp(args[0], "cluster-secret") == 0) {
 		blk_SHA_CTX sha1_ctx;
@@ -1473,6 +1175,286 @@ static int cfg_parse_global_non_std_directives(char **args, int section_type,
 	return 0;
 }
 
+static int cfg_parse_global_tune_opts(char **args, int section_type,
+				      struct proxy *curpx, const struct proxy *defpx,
+				      const char *file, int line, char **err)
+{
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+
+	if (strcmp(args[0], "tune.runqueue-depth") == 0) {
+		if (global.tune.runqueue_depth != 0) {
+			memprintf(err, "'%s' already specified. Continuing.", args[0]);
+			return 1;
+		}
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		global.tune.runqueue_depth = atol(args[1]);
+
+		return 0;
+
+	}
+	else if (strcmp(args[0], "tune.maxpollevents") == 0) {
+		if (global.tune.maxpollevents != 0) {
+			memprintf(err, "'%s' already specified. Continuing.", args[0]);
+			return 1;
+		}
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		global.tune.maxpollevents = atol(args[1]);
+
+		return 0;
+	}
+	else if (strcmp(args[0], "tune.maxaccept") == 0) {
+		long max;
+
+		if (global.tune.maxaccept != 0) {
+			memprintf(err, "'%s' already specified. Continuing.", args[0]);
+			return 1;
+		}
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument", args[0]);
+			return -1;
+		}
+		max = atol(args[1]);
+		if (/*max < -1 || */max > INT_MAX) {
+			memprintf(err, "'%s' expects -1 or an integer from 0 to INT_MAX.", args[0]);
+			return -1;
+		}
+		global.tune.maxaccept = max;
+
+		return 0;
+	}
+	else if (strcmp(args[0], "tune.recv_enough") == 0) {
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		global.tune.recv_enough = atol(args[1]);
+
+		return 0;
+	}
+	else if (strcmp(args[0], "tune.bufsize") == 0) {
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument", args[0]);
+			return -1;
+		}
+		global.tune.bufsize = atol(args[1]);
+		/* round it up to support a two-pointer alignment at the end */
+		global.tune.bufsize = (global.tune.bufsize + 2 * sizeof(void *) - 1) & -(2 * sizeof(void *));
+		if (global.tune.bufsize <= 0) {
+			memprintf(err, "'%s' expects a positive integer argument.", args[0]);
+			return -1;
+		}
+
+		return 0;
+	}
+	else if (strcmp(args[0], "tune.maxrewrite") == 0) {
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		global.tune.maxrewrite = atol(args[1]);
+		if (global.tune.maxrewrite < 0) {
+			memprintf(err, "'%s' expects a positive integer argument.", args[0]);
+			return -1;
+		}
+
+		return 0;
+	}
+	else if (strcmp(args[0], "tune.idletimer") == 0) {
+		unsigned int idle;
+		const char *res;
+
+
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects a timer value between 0 and 65535 ms.", args[0]);
+			return -1;
+		}
+
+		res = parse_time_err(args[1], &idle, TIME_UNIT_MS);
+		if (res == PARSE_TIME_OVER) {
+			memprintf(err, "timer overflow in argument <%s> to <%s>, maximum value is 65535 ms.",
+			         args[1], args[0]);
+			return -1;
+		}
+		else if (res == PARSE_TIME_UNDER) {
+			memprintf(err, "timer underflow in argument <%s> to <%s>, minimum non-null value is 1 ms.",
+			         args[1], args[0]);
+			return -1;
+		}
+		else if (res) {
+			memprintf(err, "unexpected character '%c' in argument to <%s>.", *res, args[0]);
+			return -1;
+		}
+
+		if (idle > 65535) {
+			memprintf(err, "'%s' expects a timer value between 0 and 65535 ms.", args[0]);
+			return -1;
+		}
+		global.tune.idle_timer = idle;
+
+		return 0;
+	}
+	else if (strcmp(args[0], "tune.rcvbuf.client") == 0) {
+		if (global.tune.client_rcvbuf != 0) {
+			memprintf(err, "'%s' already specified. Continuing.", args[0]);
+			return 1;
+		}
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		global.tune.client_rcvbuf = atol(args[1]);
+
+		return 0;
+	}
+	else if (strcmp(args[0], "tune.rcvbuf.server") == 0) {
+		if (global.tune.server_rcvbuf != 0) {
+			memprintf(err, "'%s' already specified. Continuing.", args[0]);
+			return 1;
+		}
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		global.tune.server_rcvbuf = atol(args[1]);
+
+		return 0;
+	}
+	else if (strcmp(args[0], "tune.sndbuf.client") == 0) {
+		if (global.tune.client_sndbuf != 0) {
+			memprintf(err, "'%s' already specified. Continuing.", args[0]);
+			return 1;
+		}
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		global.tune.client_sndbuf = atol(args[1]);
+
+		return 0;
+	}
+	else if (strcmp(args[0], "tune.sndbuf.server") == 0) {
+		if (global.tune.server_sndbuf != 0) {
+			memprintf(err, "'%s' already specified. Continuing.", args[0]);
+			return 1;
+		}
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		global.tune.server_sndbuf = atol(args[1]);
+
+		return 0;
+	}
+	else if (strcmp(args[0], "tune.pipesize") == 0) {
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		global.tune.pipesize = atol(args[1]);
+
+		return 0;
+	}
+	else if (strcmp(args[0], "tune.http.cookielen") == 0) {
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		global.tune.cookie_len = atol(args[1]) + 1;
+
+		return 0;
+	}
+	else if (strcmp(args[0], "tune.http.logurilen") == 0) {
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		global.tune.requri_len = atol(args[1]) + 1;
+
+		return 0;
+	}
+	else if (strcmp(args[0], "tune.http.maxhdr") == 0) {
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		global.tune.max_http_hdr = atoi(args[1]);
+		if (global.tune.max_http_hdr < 1 || global.tune.max_http_hdr > 32767) {
+			memprintf(err, "'%s' expects a numeric value between 1 and 32767", args[0]);
+			return -1;
+		}
+
+		return 0;
+	}
+	else if (strcmp(args[0], "tune.comp.maxlevel") == 0) {
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects a numeric value between 1 and 9", args[0]);
+			return -1;
+		}
+		global.tune.comp_maxlevel = atoi(args[1]);
+		if (global.tune.comp_maxlevel < 1 || global.tune.comp_maxlevel > 9) {
+			memprintf(err, "'%s' expects a numeric value between 1 and 9", args[0]);
+			return -1;
+		}
+
+		return 0;
+	}
+	else if (strcmp(args[0], "tune.pattern.cache-size") == 0) {
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects a positive numeric value", args[0]);
+			return -1;
+		}
+		global.tune.pattern_cache = atoi(args[1]);
+		if (global.tune.pattern_cache < 0) {
+			memprintf(err, "'%s' expects a positive numeric value", args[0]);
+			return -1;
+		}
+	}
+	else {
+		BUG_ON(1, "Triggered in cfg_parse_global_tune_opts() by unsupported keyword.\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int cfg_parse_global_tune_forward_opts(char **args, int section_type,
+					      struct proxy *curpx, const struct proxy *defpx,
+					      const char *file, int line, char **err)
+{
+
+	if (too_many_args(0, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[0], "tune.disable-fast-forward") == 0) {
+		if (!experimental_directives_allowed) {
+			memprintf(err, "'%s' directive is experimental, must be allowed via a global 'expose-experimental-directives'",
+				 args[0]);
+			return -1;
+		}
+		mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
+		global.tune.options &= ~GTUNE_USE_FAST_FWD;
+	}
+	else if (strcmp(args[0], "tune.disable-zero-copy-forwarding") == 0) {
+		global.tune.no_zero_copy_fwd |= NO_ZERO_COPY_FWD;
+	}
+	else {
+		BUG_ON(1, "Triggered in cfg_parse_global_tune_forward_opts() by unsupported keyword.\n");
+		return -1;
+	}
+
+	return 0;
+
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "prealloc-fd", cfg_parse_prealloc_fd },
 	{ CFG_GLOBAL, "harden.reject-privileged-ports.tcp",  cfg_parse_reject_privileged_ports },
@@ -1488,6 +1470,25 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "pidfile", cfg_parse_global_pidfile },
 	{ CFG_GLOBAL, "expose-deprecated-directives", cfg_parse_global_non_std_directives },
 	{ CFG_GLOBAL, "expose-experimental-directives", cfg_parse_global_non_std_directives },
+	{ CFG_GLOBAL, "tune.runqueue-depth", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.maxpollevents", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.maxaccept", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.recv_enough", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.bufsize", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.maxrewrite", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.idletimer", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.rcvbuf.client", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.rcvbuf.server", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.sndbuf.client", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.sndbuf.server", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.pipesize", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.http.cookielen", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.http.logurilen", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.http.maxhdr", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.comp.maxlevel", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.pattern.cache-size", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.disable-fast-forward", cfg_parse_global_tune_forward_opts },
+	{ CFG_GLOBAL, "tune.disable-zero-copy-forwarding", cfg_parse_global_tune_forward_opts },
 	{ 0, NULL, NULL },
 }};
 
