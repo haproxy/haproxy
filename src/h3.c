@@ -1525,7 +1525,7 @@ static int h3_control_send(struct qcs *qcs, void *ctx)
 	}
 
 	if (!(res = qcc_get_stream_txbuf(qcs, &err))) {
-		/* Consider alloc failure fatal for control stream even on conn buf limit. */
+		/* Only memory failure can cause buf alloc error for control stream due to qcs_send_metadata() usage. */
 		TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_SETTINGS, qcs->qcc->conn, qcs);
 		goto err;
 	}
@@ -2401,6 +2401,7 @@ static int h3_finalize(void *ctx)
 		goto err;
 	}
 
+	qcs_send_metadata(qcs);
 	h3c->ctrl_strm = qcs;
 
 	if (h3_control_send(qcs, h3c) < 0) {
