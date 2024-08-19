@@ -285,6 +285,48 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 	return 0;
 }
 
+/* Parse any tune.quic.* setting accepting any integer values.
+ * Return -1 on alert, or 0 if succeeded.
+ */
+static int cfg_parse_quic_tune_setting1(char **args, int section_type,
+                                       struct proxy *curpx,
+                                       const struct proxy *defpx,
+                                       const char *file, int line, char **err)
+{
+	int prefix_len = strlen("tune.quic.");
+	const char *suffix;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	suffix = args[0] + prefix_len;
+	if (strcmp(suffix, "frontend.max-window-size") == 0) {
+		unsigned long cwnd;
+		char *end_opt;
+
+		if (strcmp(args[1], "0") == 0) {
+			/* 0 is a special value to set the limit based on quic_streams_buf */
+			cwnd = 0;
+		}
+		else {
+			cwnd = parse_window_size(args[0], args[1], &end_opt, err);
+			if (!cwnd)
+				return -1;
+			if (*end_opt != '\0') {
+				memprintf(err, "'%s' : expects an integer value with an optional suffix 'k', 'm' or 'g'", args[0]);
+				return -1;
+			}
+		}
+		global.tune.quic_frontend_max_window_size = cwnd;
+	}
+	else {
+		memprintf(err, "'%s' keyword not unhandled (please report this bug).", args[0]);
+		return -1;
+	}
+
+	return 0;
+}
+
 static int cfg_parse_quic_tune_setting0(char **args, int section_type,
                                         struct proxy *curpx,
                                         const struct proxy *defpx,
@@ -354,6 +396,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.frontend.glitches-threshold", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-streams-bidi", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-idle-timeout", cfg_parse_quic_time },
+	{ CFG_GLOBAL, "tune.quic.frontend.max-window-size", cfg_parse_quic_tune_setting1 },
 	{ CFG_GLOBAL, "tune.quic.max-frame-loss", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.reorder-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.retry-threshold", cfg_parse_quic_tune_setting },

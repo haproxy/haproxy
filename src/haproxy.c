@@ -200,6 +200,7 @@ struct global global = {
 		.quic_backend_max_idle_timeout = QUIC_TP_DFLT_BACK_MAX_IDLE_TIMEOUT,
 		.quic_frontend_max_idle_timeout = QUIC_TP_DFLT_FRONT_MAX_IDLE_TIMEOUT,
 		.quic_frontend_max_streams_bidi = QUIC_TP_DFLT_FRONT_MAX_STREAMS_BIDI,
+		.quic_frontend_max_window_size = QUIC_DFLT_MAX_WINDOW_SIZE,
 		.quic_reorder_ratio = QUIC_DFLT_REORDER_RATIO,
 		.quic_retry_threshold = QUIC_DFLT_RETRY_THRESHOLD,
 		.quic_max_frame_loss = QUIC_DFLT_MAX_FRAME_LOSS,

@@ -97,6 +97,8 @@ typedef unsigned long long ull;
 #define QUIC_DFLT_REORDER_RATIO        50 /* in percent */
 /* Default limit of loss detection on a single frame. If exceeded, connection is closed. */
 #define QUIC_DFLT_MAX_FRAME_LOSS       10
+/* Default congestion window size. 0 has a special value based on global.tune.quic_streams_buf */
+#define QUIC_DFLT_MAX_WINDOW_SIZE       0
 
 /*
  *  0                   1                   2                   3
