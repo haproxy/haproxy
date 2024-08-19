@@ -42,8 +42,10 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 
 	/* notify MUX about available buffers. */
 	if (qc->mux_state == QC_MUX_READY) {
-		/* notify MUX about available buffers. */
-		qcc_notify_buf(qc->qcc, 1);
+		if (!(stream->flags & QC_SD_FL_OOB_BUF)) {
+			/* notify MUX about available buffers. */
+			qcc_notify_buf(qc->qcc, 1);
+		}
 	}
 }
 
@@ -208,7 +210,6 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 			b_free(&buf->buf);
 			LIST_DELETE(&buf->list);
 			pool_free(pool_head_quic_stream_buf, buf);
-
 			++free_count;
 		}
 	}
@@ -217,8 +218,10 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 		offer_buffers(NULL, free_count);
 
 		if (qc->mux_state == QC_MUX_READY) {
-			/* notify MUX about available buffers. */
-			qcc_notify_buf(qc->qcc, free_count);
+			if (!(stream->flags & QC_SD_FL_OOB_BUF)) {
+				/* notify MUX about available buffers. */
+				qcc_notify_buf(qc->qcc, free_count);
+			}
 		}
 	}
 

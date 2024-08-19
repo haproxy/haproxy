@@ -715,6 +715,19 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 	return NULL;
 }
 
+/* Mark <qcs> as reserved for metadata transfer. As such, future txbuf
+ * allocation won't be accounted against connection limit.
+ */
+void qcs_send_metadata(struct qcs *qcs)
+{
+	/* Reserved for stream with Tx capability. */
+	BUG_ON(!qcs->stream);
+	/* Cannot use if some data already transferred for this stream. */
+	BUG_ON(!LIST_ISEMPTY(&qcs->stream->buf_list));
+
+	qcs->stream->flags |= QC_SD_FL_OOB_BUF;
+}
+
 struct stconn *qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
 {
 	struct qcc *qcc = qcs->qcc;
@@ -1004,6 +1017,10 @@ struct buffer *qcc_get_stream_rxbuf(struct qcs *qcs)
  * cause when the buffer cannot be allocated. It is set to 0 if the connection
  * buffer limit is reached. For fatal errors, its value is non-zero.
  *
+ * Streams reserved for application protocol metadata transfer are not subject
+ * to the buffer limit per connection. Hence, for them only a memory error
+ * can prevent a buffer allocation.
+ *
  * Returns buffer pointer. May be NULL on allocation failure, in which case
  * <err> will refer to the cause.
  */
@@ -1011,6 +1028,7 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err)
 {
 	struct qcc *qcc = qcs->qcc;
 	struct buffer *out = qc_stream_buf_get(qcs->stream);
+	const int unlimited = qcs->stream->flags & QC_SD_FL_OOB_BUF;
 
 	/* Stream must not try to reallocate a buffer if currently waiting for one. */
 	BUG_ON(LIST_INLIST(&qcs->el_buf));
@@ -1018,18 +1036,20 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err)
 	*err = 0;
 
 	if (!out) {
-		if (qcc->flags & QC_CF_CONN_FULL) {
-			LIST_APPEND(&qcc->buf_wait_list, &qcs->el_buf);
-			tot_time_start(&qcs->timer.buf);
-			goto out;
-		}
+		if (likely(!unlimited)) {
+			if ((qcc->flags & QC_CF_CONN_FULL)) {
+				LIST_APPEND(&qcc->buf_wait_list, &qcs->el_buf);
+				tot_time_start(&qcs->timer.buf);
+				goto out;
+			}
 
-		if (!qcc->tx.avail_bufs) {
-			TRACE_STATE("hitting stream desc buffer limit", QMUX_EV_QCS_SEND, qcc->conn, qcs);
-			LIST_APPEND(&qcc->buf_wait_list, &qcs->el_buf);
-			tot_time_start(&qcs->timer.buf);
-			qcc->flags |= QC_CF_CONN_FULL;
-			goto out;
+			if (!qcc->tx.avail_bufs) {
+				TRACE_STATE("hitting stream desc buffer limit", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+				LIST_APPEND(&qcc->buf_wait_list, &qcs->el_buf);
+				tot_time_start(&qcs->timer.buf);
+				qcc->flags |= QC_CF_CONN_FULL;
+				goto out;
+			}
 		}
 
 		out = qc_stream_buf_alloc(qcs->stream, qcs->tx.fc.off_real);
@@ -1039,7 +1059,8 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err)
 			goto out;
 		}
 
-		--qcc->tx.avail_bufs;
+		if (likely(!unlimited))
+			--qcc->tx.avail_bufs;
 	}
 
  out:
