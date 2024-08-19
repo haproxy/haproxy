@@ -66,6 +66,13 @@ syslog Slg3 -level info {
     barrier b4 sync
 } -start
 
+syslog Slg4 -level info {
+    recv
+    #rfc5424, logprof3, tcp error (other steps should be dropped)
+    expect ~ ".* custom ${h1_pid} .* error"
+    barrier b4 sync
+} -start
+
 haproxy h1 -conf {
 	defaults
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -92,6 +99,7 @@ haproxy h1 -conf {
 		log udp@${Slg1_addr}:${Slg1_port} format rfc5424 local0
 		log udp@${Slg2_addr}:${Slg2_port} format rfc5424 profile logprof1 local0
 		log udp@${Slg3_addr}:${Slg3_port} format rfc5424 profile logprof2 local0
+		log udp@${Slg4_addr}:${Slg4_port} format rfc5424 profile logprof3 local0
 
 		default_backend be_tcp
 
@@ -118,6 +126,10 @@ haproxy h1 -conf {
 		log-tag "custom"
 		on error format "error"
 		on any format "%OG"
+
+	log-profile logprof3
+		on error format "error"
+		on any drop
 
 	backend be
 		mode http

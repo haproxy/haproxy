@@ -2927,6 +2927,9 @@ static inline void _process_send_log_override(struct process_send_log_ctx *ctx,
 		step = prof->any;
 
 	if (ctx && ctx->sess && step) {
+		if (step->flags & LOG_PS_FL_DROP)
+			goto end; // skip logging
+
 		/* we may need to rebuild message using lf_expr from profile
 		 * step and possibly sd metadata if provided on the profile
 		 */
@@ -6065,6 +6068,7 @@ static inline void log_profile_step_init(struct log_profile_step *lprof_step)
 {
 	lf_expr_init(&lprof_step->logformat);
 	lf_expr_init(&lprof_step->logformat_sd);
+	lprof_step->flags = LOG_PS_FL_NONE;
 }
 
 static inline void log_profile_step_free(struct log_profile_step *lprof_step)
@@ -6285,13 +6289,23 @@ int cfg_parse_log_profile(const char *file, int linenum, char **args, int kwm)
 		cur_arg = 2;
 
 		while (*(args[cur_arg]) != 0) {
+			/* drop logs ? */
+			if (strcmp(args[cur_arg], "drop") == 0) {
+				if (cur_arg != 2)
+					break;
+				(*target_step)->flags |= LOG_PS_FL_DROP;
+				cur_arg += 1;
+				continue;
+			}
 			/* regular format or SD (structured-data) one? */
-			if (strcmp(args[cur_arg], "format") == 0)
+			else if (strcmp(args[cur_arg], "format") == 0)
 				target_lf = &(*target_step)->logformat;
 			else if (strcmp(args[cur_arg], "sd") == 0)
 				target_lf = &(*target_step)->logformat_sd;
 			else
 				break;
+
+			(*target_step)->flags &= ~LOG_PS_FL_DROP;
 
 			/* parse and assign logformat expression */
 			lf_expr_deinit(target_lf); /* if already configured */
@@ -6319,7 +6333,7 @@ int cfg_parse_log_profile(const char *file, int linenum, char **args, int kwm)
 			cur_arg += 2;
 		}
 		if (cur_arg == 2 || *(args[cur_arg]) != 0) {
-			ha_alert("parsing [%s:%d] : '%s %s' expects 'format' and/or 'sd'.\n",
+			ha_alert("parsing [%s:%d] : '%s %s' expects 'drop', 'format' or 'sd'.\n",
 			         file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;

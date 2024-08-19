@@ -272,9 +272,16 @@ enum log_orig {
 	LOG_ORIG_TXN_CLOSE,          /* during stream termination */
 };
 
+/* log profile step flags */
+enum log_ps_flags {
+	LOG_PS_FL_NONE = 0,
+	LOG_PS_FL_DROP,              /* don't emit log for this step */
+};
+
 struct log_profile_step {
 	struct lf_expr logformat;
 	struct lf_expr logformat_sd;
+	enum log_ps_flags flags;     /* LOG_PS_FL_* */
 };
 
 struct log_profile {

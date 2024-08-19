@@ -26572,11 +26572,17 @@ log-profile <name>
 log-tag <string>
   Override syslog log tag set globally or per-proxy using "log-tag" directive.
 
-on <step> [format <fmt>] [sd <sd_fmt>]
+on <step> [drop] [format <fmt>] [sd <sd_fmt>]
   Override the log-format string normally used to build the log line at
   <step> logging step. <fmt> is used to override "log-format" or
   "error-log-format" strings (depending on the <step>) whereas <sd_fmt> is
-  used to override "log-format-sd" string. Possible values for <step> are:
+  used to override "log-format-sd" string (both can be combined).
+
+  "drop" special keyword may be used to specify that no log should be
+  emitted for the given <step>. It takes precedence over "format" and
+  "sd" if previously defined.
+
+  Possible values for <step> are:
 
   - "accept"   : override log-format if the log is generated right after
                  frontend conn was accepted
@@ -26604,6 +26610,7 @@ on <step> [format <fmt>] [sd <sd_fmt>]
       log-tag "custom-tag"
 
       on error format "%ci: error"
+      on connect drop
       on any sd "custom-sd"
 
     listen myproxy
