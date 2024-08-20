@@ -1784,6 +1784,13 @@ ssize_t load_cfg_in_mem(char *filename, char **cfg_content)
 	*cfg_content = NULL;
 
 	while (1) {
+		if (!file_stat.st_size && ((read_bytes + bytes_to_read) > MAX_CFG_SIZE)) {
+			ha_alert("Loading %s: input is too large %ldMB, limited to %dMB. Exiting.\n",
+				 filename, (long)(read_bytes + bytes_to_read)/(1024*1024),
+				 MAX_CFG_SIZE/(1024*1024));
+			goto free_mem;
+		}
+
 		if (read_bytes + bytes_to_read > chunk_size) {
 			chunk_size = (read_bytes + bytes_to_read) * 2;
 			new_area  = realloc(*cfg_content, chunk_size);
