@@ -60,7 +60,7 @@ void stats_dump_html_head(struct appctx *appctx)
 	/* WARNING! This must fit in the first buffer !!! */
 	chunk_appendf(chk,
 	              "<!DOCTYPE html>\n"
-	              "<html><head><title>Statistics Report for " PRODUCT_NAME "%s%s</title>\n"
+	              "<html lang=\"en\"><head><title>Statistics Report for " PRODUCT_NAME "%s%s</title>\n"
 	              "<link rel=\"icon\" href=\"data:,\">\n"
 	              "<meta http-equiv=\"content-type\" content=\"text/html; charset=iso-8859-1\">\n"
 	              "<style type=\"text/css\"><!--\n"
