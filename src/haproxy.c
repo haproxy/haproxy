@@ -1189,8 +1189,10 @@ static int read_cfg(char *progname)
 	 * unset them after the list_for_each_entry loop.
 	 */
 	setenv("HAPROXY_HTTP_LOG_FMT", default_http_log_format, 1);
+	setenv("HAPROXY_HTTP_CLF_LOG_FMT", clf_http_log_format, 1);
 	setenv("HAPROXY_HTTPS_LOG_FMT", default_https_log_format, 1);
 	setenv("HAPROXY_TCP_LOG_FMT", default_tcp_log_format, 1);
+	setenv("HAPROXY_TCP_CLF_LOG_FMT", clf_tcp_log_format, 1);
 	setenv("HAPROXY_BRANCH", PRODUCT_BRANCH, 1);
 	list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
 		int ret;
@@ -1220,8 +1222,10 @@ static int read_cfg(char *progname)
 	/* remove temporary environment variables. */
 	unsetenv("HAPROXY_BRANCH");
 	unsetenv("HAPROXY_HTTP_LOG_FMT");
+	unsetenv("HAPROXY_HTTP_CLF_LOG_FMT");
 	unsetenv("HAPROXY_HTTPS_LOG_FMT");
 	unsetenv("HAPROXY_TCP_LOG_FMT");
+	unsetenv("HAPROXY_TCP_CLF_LOG_FMT");
 
 	/* do not try to resolve arguments nor to spot inconsistencies when
 	 * the configuration contains fatal errors.

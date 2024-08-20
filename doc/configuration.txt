@@ -927,6 +927,11 @@ file, or could be inherited by a program (See 3.7. Programs):
   defined in section 8.2.3 "HTTP log format". It can be used to override the
   default log format without having to copy the whole original definition.
 
+* HAPROXY_HTTP_CLF_LOG_FMT: contains the value of the default HTTP CLF log
+  format as defined in section 8.2.3 "HTTP log format". It can be used to
+  override the default log format without having to copy the whole original
+  definition.
+
   Example:
     # Add the rule that gave the final verdict to the log
     log-format "${HAPROXY_TCP_LOG_FMT} lr=last_rule_file:last_rule_line"
@@ -936,6 +941,9 @@ file, or could be inherited by a program (See 3.7. Programs):
 
 * HAPROXY_TCP_LOG_FMT: similar to HAPROXY_HTTP_LOG_FMT but for TCP log format
   as defined in section 8.2.2 "TCP log format".
+
+* HAPROXY_TCP_CLF_LOG_FMT: similar to HAPROXY_HTTP_CLF_LOG_FMT but for TCP CLF
+  log format as defined in section 8.2.2 "TCP log format".
 
 * HAPROXY_MWORKER: In master-worker mode, this variable is set to 1.
 
