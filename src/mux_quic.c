@@ -3399,9 +3399,12 @@ static const struct mux_ops qmux_ops = {
 
 void qcc_show_quic(struct qcc *qcc)
 {
+	const struct quic_conn *qc = qcc->conn->handle.qc;
 	struct eb64_node *node;
-	chunk_appendf(&trash, "  qcc=0x%p flags=0x%x sc=%llu hreq=%llu\n",
-	              qcc, qcc->flags, (ullong)qcc->nb_sc, (ullong)qcc->nb_hreq);
+
+	chunk_appendf(&trash, "  qcc=0x%p flags=0x%x sc=%llu hreq=%llu bwnd=%llu/%llu\n",
+	              qcc, qcc->flags, (ullong)qcc->nb_sc, (ullong)qcc->nb_hreq,
+	              (ullong)qcc->tx.buf_in_flight, (ullong)qc->path->cwnd);
 
 	node = eb64_first(&qcc->streams_by_id);
 	while (node) {

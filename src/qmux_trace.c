@@ -5,6 +5,7 @@
 #include <haproxy/connection.h>
 #include <haproxy/chunk.h>
 #include <haproxy/mux_quic.h>
+#include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_frame-t.h>
 
 /* trace source and events */
@@ -131,14 +132,16 @@ INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 void qmux_dump_qcc_info(struct buffer *msg, const struct qcc *qcc)
 {
+	const struct quic_conn *qc = qcc->conn->handle.qc;
+
 	chunk_appendf(msg, " qcc=%p(F)", qcc);
 	if (qcc->conn->handle.qc)
 		chunk_appendf(msg, " qc=%p", qcc->conn->handle.qc);
 	chunk_appendf(msg, " .sc=%llu .hreq=%llu .flg=0x%04x", (ullong)qcc->nb_sc, (ullong)qcc->nb_hreq, qcc->flags);
 
-	chunk_appendf(msg, " .tx=%llu %llu/%llu", (ullong)qcc->tx.fc.off_soft,
-	                                          (ullong)qcc->tx.fc.off_real,
-	                                          (ullong)qcc->tx.fc.limit);
+	chunk_appendf(msg, " .tx=%llu %llu/%llu bwnd=%llu/%llu",
+	              (ullong)qcc->tx.fc.off_soft, (ullong)qcc->tx.fc.off_real, (ullong)qcc->tx.fc.limit,
+	              (ullong)qcc->tx.buf_in_flight, (ullong)qc->path->cwnd);
 }
 
 void qmux_dump_qcs_info(struct buffer *msg, const struct qcs *qcs)
