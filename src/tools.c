@@ -6706,6 +6706,127 @@ char *fgets_from_mem(char* buf, int size, const char **position, const char *end
 	return buf;
 }
 
+/* Does a backup of the process environment variables. Returns 0 on success and
+ * -1 on failure, which can happen only due to the lack of memory.
+ */
+int backup_env(void)
+{
+	char **env = environ;
+	char **tmp;
+
+	/* get size of **environ */
+	while (*env++)
+		;
+
+	init_env = malloc((env - environ) * sizeof(*env));
+	if (init_env == NULL) {
+		ha_alert("Cannot allocate memory to backup env variables.\n");
+		return -1;
+	}
+	tmp = init_env;
+	for (env = environ; *env; env++) {
+		*tmp = strdup(*env);
+		if (*tmp == NULL) {
+			ha_alert("Cannot allocate memory to backup env variable '%s'.\n",
+				 *env);
+			return -1;
+		}
+		tmp++;
+	}
+	/* last entry */
+	*tmp = NULL;
+
+	return 0;
+}
+
+/* Unsets all variables presented in **environ. Returns 0 on success and -1 on
+ * failure, when the process has run out of memory. Emits warnings and continues
+ * if unsetenv() fails (it fails only with EINVAL) or if the parsed string
+ * doesn't contain "=" (the latter is mandatory format for strings kept in
+ * **environ). This allows to terminate the process at the startup stage, if it
+ * was launched in zero-warning mode and there are some problems with
+ * environment.
+ */
+int clean_env(void)
+{
+	char **env = environ;
+	char *name, *pos;
+	size_t name_len;
+
+	while (*env) {
+		pos = strchr(*env, '=');
+		if (pos)
+			name_len = pos - *env;
+		else {
+			ha_warning("Unsupported env variable format '%s' "
+				   "(doesn't contain '='), won't be unset.\n",
+				   *env);
+			continue;
+		}
+		name = my_strndup(*env, name_len);
+		if (name == NULL) {
+			ha_alert("Cannot allocate memory to parse env variable: '%s'.\n",
+				 *env);
+			return -1;
+		}
+
+		if (unsetenv(name) != 0)
+			ha_warning("unsetenv() fails for '%s': %s.\n",
+				   name, strerror(errno));
+		free(name);
+	}
+
+	return 0;
+}
+
+/* Restores **environ from backup created by backup_env(). Must be always
+ * preceded by clean_env() in order to properly restore the process environment.
+ * global init_env ptr array must be freed by the upper layers.
+ * Returns 0 on sucess and -1 in case if the process has run out of memory. If
+ * setenv() fails with EINVAL or the parsed string doesn't contain '=' (the
+ * latter is mandatory format for strings kept in **environ), emits warning and
+ * continues. This allows to terminate the process at the startup stage, if it
+ * was launched in zero-warning mode and there are some problems with
+ * environment.
+ */
+int restore_env(void)
+{
+	char **env = init_env;
+	char *pos;
+	char *value;
+
+	BUG_ON(!init_env, "Triggered in restore_env(): must be preceded by "
+	       "backup_env(), which allocates init_env.\n");
+
+	while (*env) {
+		pos = strchr(*env, '=');
+		if (!pos) {
+			ha_warning("Unsupported env variable format '%s' "
+				   "(doesn't contain '='), won't be restored.\n",
+				   *env);
+			env++;
+			continue;
+		}
+		/* replace '=' with /0 to split on 'NAME' and 'VALUE' tokens */
+		*pos = '\0';
+		pos++;
+		value = pos;
+		if (setenv(*env, value, 1) != 0) {
+			if (errno == EINVAL)
+				ha_warning("setenv() fails for '%s'='%s': %s.\n",
+					   *env, value, strerror(errno));
+			else {
+				ha_alert("Cannot allocate memory to set env variable: '%s'.\n",
+					 *env);
+				return -1;
+			}
+		}
+		env++;
+	}
+
+	return 0;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

@@ -1220,4 +1220,9 @@ void vma_set_name_id(void *addr, size_t size, const char *type, const char *name
 /* cfgparse helpers */
 char *fgets_from_mem(char* buf, int size, const char **position, const char *end);
 
+/* helpers to backup/clean/restore process env */
+int backup_env(void);
+int clean_env(void);
+int restore_env(void);
+
 #endif /* _HAPROXY_TOOLS_H */
