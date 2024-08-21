@@ -1,6 +1,75 @@
 ChangeLog :
 ===========
 
+2024/08/21 : 3.1-dev6
+    - BUG/MINOR: proto_tcp: delete fd from fdtab if listen() fails
+    - BUG/MINOR: proto_tcp: keep error msg if listen() fails
+    - MINOR: proto_tcp: tcp_bind_listener: copy errno in errmsg
+    - MINOR: channel: implement ci_insert() function
+    - BUG/MEDIUM: mworker/cli: fix pipelined modes on master CLI
+    - REGTESTS: mcli: test the pipelined commands on master CLI
+    - MINOR: cfgparse: load_cfg_in_mem: fix null ptr dereference reported by coverity
+    - MINOR: startup: fix unused value reported by coverity
+    - BUG/MINOR: mux-quic: do not send too big MAX_STREAMS ID
+    - BUG/MINOR: proto_uxst: delete fd from fdtab if listen() fails
+    - BUG/MINOR: cfgparse: parse_cfg: fix null ptr dereference reported by coverity
+    - MINOR: proto_uxst: copy errno in errmsg for syscalls
+    - MINOR: mux-quic: do not trace error in qcc_send_frames() on empty list
+    - BUG/MINOR: h3: properly reject too long header responses
+    - CLEANUP: mworker/cli: clean up the mode handling
+    - BUG/MINOR: tools: make fgets_from_mem() stop at the end of the input
+    - BUG/MINOR: pattern: pat_ref_set: fix UAF reported by coverity
+    - BUG/MINOR: pattern: pat_ref_set: return 0 if err was found
+    - CI: keep logs for failed QIUC Interop jobs
+    - BUG/MINOR: release-estimator: fix relative scheme in CHANGELOG URL
+    - MINOR: release-estimator: add requirements.txt
+    -  MINOR: release-estimator: add installation steps in README.md
+    - MINOR: release-estimator: fix the shebang of the python script
+    - DOC: config: correct the table for option tcplog
+    - MEDIUM: log: relax some checks and emit diag warnings instead in lf_expr_postcheck()
+    - MINOR: log: "drop" support for log-profile steps
+    - CI: QUIC Interop LibreSSL: document chacha20 test status
+    - CI: modernize codespell action, switch to node 16
+    - CI: QUIC Interop AWS-LC: enable chrome client
+    - DOC: lua: fix incorrect english in lua.txt
+    - MINOR: Implements new log format of option tcplog clf
+    - MINOR: cfgparse: limit file size loaded via /dev/stdin
+    - BUG/MINOR: stats: fix color of input elements in dark mode
+    - CLEANUP: stats: use modern DOCTYPE tag
+    - BUG/MINOR: stats: add lang attribute to html tag
+    - DOC: quic: fix default minimal value for max window size
+    - DOC: quic: document nocc debug congestion algorithm
+    - MINOR: quic: extract config window-size parsing
+    - MINOR: quic: define max-window-size config setting
+    - MINOR: quic: allocate stream txbuf via qc_stream_desc API
+    - MINOR: mux-quic: account stream txbuf in QCC
+    - MEDIUM: mux-quic: implement API to ignore txbuf limit for some streams
+    - MINOR: h3: mark control stream as metadata
+    - MINOR: mux-quic: define buf_in_flight
+    - MAJOR: mux-quic: allocate Tx buffers based on congestion window
+    - MINOR: quic/config: adapt settings to new conn buffer limit
+    - MINOR: quic: define sbuf pool
+    - MINOR: quic: support sbuf allocation in quic_stream
+    - MEDIUM: h3: allocate small buffers for headers frames
+    - MINOR: mux-quic: retry after small buf alloc failure
+    - BUG/MINOR: cfgparse-global: fix err msg in mworker keyword parser
+    - BUG/MINOR: cfgparse-global: clean common_kw_list
+    - BUG/MINOR: cfgparse-global: remove redundant goto
+    - MINOR: cfgparse-global: move 'pidfile' in global keywords list
+    - MINOR: cfgparse-global: move 'expose-*' in global keywords list
+    - MINOR: cfgparse-global: move tune options in global keywords list
+    - MINOR: cfgparse-global: move unsupported keywords in global list
+    - BUG/MINOR: cfgparse-global: remove tune.fast-forward from common_kw_list
+    - MINOR: quic: store the lost packets counter in the quic_cc_event element
+    - MINOR: quic: support a tolerance for spurious losses
+    - MINOR: protocol: properly assign the sock_domain and sock_family
+    - MINOR: protocol: add a family lookup
+    - MEDIUM: socket: always properly use the sock_domain for requested families
+    - MINOR: protocol: add the real address family to the protocol
+    - MINOR: socket: don't ban all custom families from reuseport
+    - MINOR: protocol: always initialize the receivers list on registration
+    - CLEANUP: protocol: no longer initialize .receivers nor .nb_receivers
+
 2024/08/07 : 3.1-dev5
     - BUG/MINOR: quic: Lack of precision when computing K (cubic only cc)
     - MEDIUM: ssl/quic: implement quic crypto with EVP_AEAD
