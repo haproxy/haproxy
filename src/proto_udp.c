@@ -72,8 +72,6 @@ struct protocol proto_udp4 = {
 	.rx_enable      = sock_enable,
 	.rx_disable     = sock_disable,
 	.rx_unbind      = sock_unbind,
-	.receivers      = LIST_HEAD_INIT(proto_udp4.receivers),
-	.nb_receivers   = 0,
 #ifdef SO_REUSEPORT
 	.flags          = PROTO_F_REUSEPORT_SUPPORTED,
 #endif
@@ -109,8 +107,6 @@ struct protocol proto_udp6 = {
 	.rx_enable      = sock_enable,
 	.rx_disable     = sock_disable,
 	.rx_unbind      = sock_unbind,
-	.receivers      = LIST_HEAD_INIT(proto_udp6.receivers),
-	.nb_receivers   = 0,
 #ifdef SO_REUSEPORT
 	.flags          = PROTO_F_REUSEPORT_SUPPORTED,
 #endif

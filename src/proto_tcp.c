@@ -93,8 +93,6 @@ struct protocol proto_tcpv4 = {
 	.rx_unbind      = sock_unbind,
 	.rx_listening   = sock_accepting_conn,
 	.default_iocb   = sock_accept_iocb,
-	.receivers      = LIST_HEAD_INIT(proto_tcpv4.receivers),
-	.nb_receivers   = 0,
 #ifdef SO_REUSEPORT
 	.flags          = PROTO_F_REUSEPORT_SUPPORTED,
 #endif
@@ -140,8 +138,6 @@ struct protocol proto_tcpv6 = {
 	.rx_unbind      = sock_unbind,
 	.rx_listening   = sock_accepting_conn,
 	.default_iocb   = sock_accept_iocb,
-	.receivers      = LIST_HEAD_INIT(proto_tcpv6.receivers),
-	.nb_receivers   = 0,
 #ifdef SO_REUSEPORT
 	.flags          = PROTO_F_REUSEPORT_SUPPORTED,
 #endif

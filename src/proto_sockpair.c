@@ -95,8 +95,6 @@ struct protocol proto_sockpair = {
 	.rx_unbind      = sock_unbind,
 	.rx_listening   = sockpair_accepting_conn,
 	.default_iocb   = sock_accept_iocb,
-	.receivers      = LIST_HEAD_INIT(proto_sockpair.receivers),
-	.nb_receivers   = 0,
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_sockpair);

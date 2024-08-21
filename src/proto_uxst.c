@@ -81,8 +81,6 @@ struct protocol proto_uxst = {
 	.rx_unbind      = sock_unbind,
 	.rx_listening   = sock_accepting_conn,
 	.default_iocb   = sock_accept_iocb,
-	.receivers      = LIST_HEAD_INIT(proto_uxst.receivers),
-	.nb_receivers   = 0,
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_uxst);
