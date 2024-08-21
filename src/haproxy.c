@@ -154,6 +154,7 @@ char *build_features = "";
 /* list of config files */
 static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
 int  pid;			/* current process id */
+char **init_env;
 
 static unsigned long stopping_tgroup_mask; /* Thread groups acknowledging stopping */
 
@@ -1170,7 +1171,9 @@ next_dir_entry:
 /* Reads config files. Returns -1, if we are run out of memory,
  * couldn't open provided file(s) or parser has detected some fatal error.
  * Otherwise, returns an err_code, which may contain 0 (OK) or ERR_WARN,
- * ERR_ALERT. It is used in further initialization stages.
+ * ERR_ALERT. It is used in further initialization stages. Process initial
+ * environment is preserved in the init_env ptr array, as some keywords and
+ * conditional blocks (.if/.else) could modify it.
  */
 static int read_cfg(char *progname)
 {
@@ -1183,6 +1186,12 @@ static int read_cfg(char *progname)
 
 	if (LIST_ISEMPTY(&cfg_cfgfiles))
 		usage(progname);
+
+	/* backup initial process env, because parse_cfg() could modify it with
+	 * setenv/unsetenv/presetenv/resetenv keywords.
+	 */
+	if (backup_env() != 0)
+		return -1;
 
 	/* temporary create environment variables with default
 	 * values to ease user configuration. Do not forget to
@@ -2654,6 +2663,7 @@ void deinit(void)
 	struct post_proxy_check_fct *ppcf, *ppcfb;
 	struct pre_check_fct *prcf, *prcfb;
 	struct cfg_postparser *pprs, *pprsb;
+	char **tmp = init_env;
 	int cur_fd;
 
 	/* the user may want to skip this phase */
@@ -2851,6 +2861,14 @@ void deinit(void)
 	vars_prune(&proc_vars, NULL, NULL);
 	pool_destroy_all();
 	deinit_pollers();
+
+	/* free env variables backup */
+	while (*tmp) {
+		free(*tmp);
+		tmp++;
+	}
+	free(init_env);
+
 } /* end deinit() */
 
 __attribute__((noreturn)) void deinit_and_exit(int status)
@@ -3623,7 +3641,18 @@ int main(int argc, char **argv)
 					if (global.tune.options & GTUNE_USE_SYSTEMD)
 						sd_notifyf(0, "READY=1\nMAINPID=%lu\nSTATUS=Ready.\n", (unsigned long)getpid());
 #endif
-					/* if not in wait mode, reload in wait mode to free the memory */
+					/* if not in wait mode, restore initial environment (before parsing the config) and
+					 * reload in wait mode to free the memory. The initial process environment should
+					 * be restored here, preceded by clean_env(), which do the same job as clearenv().
+					 * Otherwise, we will lost HAPROXY_LOAD_SUCCESS, HAPROXY_MWORKER_WAIT_ONLY and
+					 * HAPROXY_MWORKER_REEXEC variables, which will be set further.
+					 */
+					if (clean_env() != 0)
+						exit(EXIT_FAILURE);
+
+					if (restore_env() != 0)
+						exit(EXIT_FAILURE);
+
 					setenv("HAPROXY_LOAD_SUCCESS", "1", 1);
 					ha_notice("Loading success.\n");
 					proc_self->failedreloads = 0; /* reset the number of failure */
