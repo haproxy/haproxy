@@ -23168,6 +23168,7 @@ ssl_fc_server_random                               binary
 ssl_fc_session_id                                  binary
 ssl_fc_session_key                                 binary
 ssl_fc_sni                                         string
+ssl_fc_supported_versions_bin([<filter_option>])   binary
 ssl_fc_use_keysize                                 integer
 ssl_s_der                                          binary
 ssl_s_chain_der                                    binary
@@ -23910,6 +23911,17 @@ ssl_fc_sni : string
   ACL derivatives :
     ssl_fc_sni_end : suffix match
     ssl_fc_sni_reg : regex match
+
+ssl_fc_supported_versions_bin([<filter_option>]) : binary
+  Returns the content of the supported_versions (43) TLS extension presented
+  during the Client Hello. It provides a binary list of 2-bytes versions.
+  TLSv1.3 (0x0304), TLSv1.2 (0x0303).
+
+  This value can return only if the value "tune.ssl.capture-buffer-size" is set
+  greater than 0. Setting <filter_option> allows to filter returned data.
+  Accepted values:
+  0 : return the full list of ciphers (default)
+  1 : exclude GREASE (RFC8701) values from the output
 
 ssl_fc_use_keysize : integer
   Returns the symmetric cipher key size used in bits when the incoming
