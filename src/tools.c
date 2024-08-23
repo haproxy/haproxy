@@ -82,6 +82,8 @@ extern void *__elf_aux_vector;
 #include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 
+extern char **environ;
+
 /* This macro returns false if the test __x is false. Many
  * of the following parsing function must be abort the processing
  * if it returns 0, so this macro is useful for writing light code.
