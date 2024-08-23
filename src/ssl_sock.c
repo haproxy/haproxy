@@ -1598,6 +1598,8 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 	uchar *extensions_end;
 	uchar *ec_start = NULL;
 	uchar *ec_formats_start = NULL;
+	uchar *supver_start = NULL;      /* supported_versions */
+	uchar supver_len = 0;            /* supported_versions len */
 	uchar *list_end;
 	ushort protocol_version;
 	ushort extension_id;
@@ -1789,6 +1791,19 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 			ec_formats_start = msg;
 			ec_formats_len = rec_len;
 			break;
+		case 43:
+			/* supported_versions(43)
+			 * https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.1 */
+			if (msg + 1 > list_end)
+				goto store_capture;
+			rec_len = msg[0];
+			msg += 1;
+			if (msg + rec_len > list_end || msg + rec_len < msg)
+				goto store_capture;
+			/* Store location/size of the list */
+			supver_start = msg;
+			supver_len = rec_len;
+			break;
 		default:
 			break;
 		}
@@ -1812,6 +1827,16 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 		capture->ec_formats_offset = offset;
 		capture->ec_formats_len = rec_len;
 		offset += rec_len;
+	}
+	if (supver_start) {
+		rec_len = supver_len;
+		if (offset + rec_len > global_ssl.capture_buffer_size)
+			rec_len = global_ssl.capture_buffer_size - offset;
+		memcpy(capture->data + offset, supver_start, rec_len);
+		capture->supver_offset = offset;
+		capture->supver_len = rec_len;
+		offset += rec_len;
+
 	}
 
  store_capture:
