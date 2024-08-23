@@ -524,7 +524,7 @@ void qcs_notify_send(struct qcs *qcs)
 	}
 }
 
-/* Returns true if a Tx stream buffer can be allocated. */
+/* Returns true if <qcc> buffer window does not have room for a new buffer. */
 static inline int qcc_bufwnd_full(const struct qcc *qcc)
 {
 	const struct quic_conn *qc = qcc->conn->handle.qc;
