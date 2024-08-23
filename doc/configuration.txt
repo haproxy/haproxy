@@ -23167,6 +23167,7 @@ ssl_fc_server_traffic_secret_0                     string
 ssl_fc_server_random                               binary
 ssl_fc_session_id                                  binary
 ssl_fc_session_key                                 binary
+ssl_fc_sigalgs_bin([<filter_option>])              binary
 ssl_fc_sni                                         string
 ssl_fc_supported_versions_bin([<filter_option>])   binary
 ssl_fc_use_keysize                                 integer
@@ -23884,6 +23885,16 @@ ssl_fc_session_key : binary
   traffic sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or
   BoringSSL.
 
+ssl_fc_sigalgs_bin([<filter_option>]) : binary
+  Returns the content of the signatures_algorithms (13) TLS extension presented
+  during the Client Hello. It provides a binary list of 2-bytes algorithms
+  defined in the TLS RFC: https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.3.
+
+  This value can return only if the value "tune.ssl.capture-buffer-size" is set
+  greater than 0. Setting <filter_option> allows to filter returned data.
+  Accepted values:
+  0 : return the full list of ciphers (default)
+  1 : exclude GREASE (RFC8701) values from the output
 
 ssl_fc_sni : string
   This extracts the Server Name Indication TLS extension (SNI) field from an
