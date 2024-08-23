@@ -221,6 +221,8 @@ struct ssl_capture {
 	uchar ec_formats_len;
 	uchar supver_len;
 	uint supver_offset;
+	ushort sigalgs_len;
+	uint sigalgs_offset;
 	char data[VAR_ARRAY];
 };
 

@@ -1600,6 +1600,8 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 	uchar *ec_formats_start = NULL;
 	uchar *supver_start = NULL;      /* supported_versions */
 	uchar supver_len = 0;            /* supported_versions len */
+	uchar *sigalgs_start = NULL;
+	ushort sigalgs_len = 0;
 	uchar *list_end;
 	ushort protocol_version;
 	ushort extension_id;
@@ -1791,6 +1793,20 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 			ec_formats_start = msg;
 			ec_formats_len = rec_len;
 			break;
+		case 13:
+			/* signature_algorithms(13)
+			 * https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.3 */
+			if (msg + 2 > list_end)
+				goto store_capture;
+			rec_len = (msg[0] << 8) + msg[1];
+			msg += 2;
+
+			if (msg + rec_len > list_end || msg + rec_len < msg)
+				goto store_capture;
+			/* Store location/size of the list */
+			sigalgs_start = msg;
+			sigalgs_len = rec_len;
+			break;
 		case 43:
 			/* supported_versions(43)
 			 * https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.1 */
@@ -1836,8 +1852,17 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 		capture->supver_offset = offset;
 		capture->supver_len = rec_len;
 		offset += rec_len;
-
 	}
+	if (sigalgs_start) {
+		rec_len = sigalgs_len;
+		if (offset + rec_len > global_ssl.capture_buffer_size)
+			rec_len = global_ssl.capture_buffer_size - offset;
+		memcpy(capture->data + offset, sigalgs_start, rec_len);
+		capture->sigalgs_offset = offset;
+		capture->sigalgs_len = rec_len;
+		offset += rec_len;
+	}
+
 
  store_capture:
 	SSL_set_ex_data(ssl, ssl_capture_ptr_index, capture);
