@@ -1753,13 +1753,16 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 		msg += 2 + 2;
 		if (msg + rec_len > extensions_end || msg + rec_len < msg)
 			goto store_capture;
+
+		list_end = msg + rec_len; /* end of the current extension */
 		/* TLS Extensions
 		 * https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml */
-		if (extension_id == 0x000a) {
-			/* Elliptic Curves:
+		switch (extension_id) {
+		case 10:
+			/* supported_groups(10)
+			 * Elliptic Curves:
 			 * https://www.rfc-editor.org/rfc/rfc8422.html
 			 * https://www.rfc-editor.org/rfc/rfc7919.html */
-			list_end = msg + rec_len;
 			if (msg + 2 > list_end)
 				goto store_capture;
 			rec_len = (msg[0] << 8) + msg[1];
@@ -1770,11 +1773,11 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 			/* Store location/size of the list */
 			ec_start = msg;
 			ec_len = rec_len;
-		}
-		else if (extension_id == 0x000b) {
-			/* Elliptic Curves Point Formats:
+			break;
+		case 11:
+			/* ec_point_formats(11)
+			 * Elliptic Curves Point Formats:
 			 * https://www.rfc-editor.org/rfc/rfc8422.html */
-			list_end = msg + rec_len;
 			if (msg + 1 > list_end)
 				goto store_capture;
 			rec_len = msg[0];
@@ -1785,6 +1788,9 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 			/* Store location/size of the list */
 			ec_formats_start = msg;
 			ec_formats_len = rec_len;
+			break;
+		default:
+			break;
 		}
 		msg += rec_len;
 	}
