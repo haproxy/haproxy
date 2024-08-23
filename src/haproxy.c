@@ -2863,11 +2863,13 @@ void deinit(void)
 	deinit_pollers();
 
 	/* free env variables backup */
-	while (*tmp) {
-		free(*tmp);
-		tmp++;
+	if (init_env) {
+		while (*tmp) {
+			free(*tmp);
+			tmp++;
+		}
+		free(init_env);
 	}
-	free(init_env);
 
 } /* end deinit() */
 
