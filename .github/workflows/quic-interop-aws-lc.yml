@@ -91,6 +91,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: logs
+          name: logs-${{ matrix.suite.client }}
           path: quic-interop-runner/logs/
           retention-days: 6
