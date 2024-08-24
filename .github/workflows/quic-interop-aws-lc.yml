@@ -1,3 +1,7 @@
+#
+# goodput,crosstraffic are not run on purpose, those tests are intended to bandwidth measurement, we currently do not want to use GitHub runners for that
+#
+
 name: QUIC Interop AWS-LC
 
 on:
@@ -42,9 +46,9 @@ jobs:
       matrix:
         suite: [
           { client: chrome, tests: "http3" },
-          { client: picoquic, tests: "handshake,transfer,longrtt,chacha20,multiplexing,retry,resumption,zerortt,http3,blackhole,keyupdate,ecn,amplificationlimit,handshakeloss,transferloss,handshakecorruption,transfercorruption,ipv6,v2,goodput,crosstraffic" },
-          { client: quic-go,  tests: "handshake,transfer,longrtt,chacha20,multiplexing,retry,resumption,zerortt,http3,blackhole,keyupdate,ecn,amplificationlimit,handshakeloss,transferloss,handshakecorruption,transfercorruption,ipv6,v2,goodput,crosstraffic" },
-          { client: ngtcp2,  tests: "handshake,transfer,longrtt,chacha20,multiplexing,retry,resumption,zerortt,http3,blackhole,keyupdate,ecn,amplificationlimit,handshakeloss,transferloss,handshakecorruption,transfercorruption,ipv6,v2,goodput,crosstraffic" }
+          { client: picoquic, tests: "handshake,transfer,longrtt,chacha20,multiplexing,retry,resumption,zerortt,http3,blackhole,keyupdate,ecn,amplificationlimit,handshakeloss,transferloss,handshakecorruption,transfercorruption,ipv6,v2" },
+          { client: quic-go,  tests: "handshake,transfer,longrtt,chacha20,multiplexing,retry,resumption,zerortt,http3,blackhole,keyupdate,ecn,amplificationlimit,handshakeloss,transferloss,handshakecorruption,transfercorruption,ipv6,v2" },
+          { client: ngtcp2,  tests: "handshake,transfer,longrtt,chacha20,multiplexing,retry,resumption,zerortt,http3,blackhole,keyupdate,ecn,amplificationlimit,handshakeloss,transferloss,handshakecorruption,transfercorruption,ipv6,v2" }
         ]
       fail-fast: false
 

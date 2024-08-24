@@ -2,6 +2,8 @@
 # chacha20 test must be enabled after LibreSSL-4.0
 # issue for tracking: https://github.com/haproxy/haproxy/issues/2569
 #
+# goodput,crosstraffic are not run on purpose, those tests are intended to bandwidth measurement, we currently do not want to use GitHub runners for that
+#
 
 name: QUIC Interop LibreSSL
 
@@ -46,8 +48,8 @@ jobs:
     strategy:
       matrix:
         suite: [
-          { client: picoquic, tests: "handshake,transfer,longrtt,multiplexing,retry,http3,blackhole,amplificationlimit,handshakeloss,transferloss,handshakecorruption,transfercorruption,v2,goodput,crosstraffic" },
-          { client: quic-go,  tests: "handshake,transfer,longrtt,multiplexing,retry,http3,blackhole,amplificationlimit,transferloss,transfercorruption,v2,goodput,crosstraffic" }
+          { client: picoquic, tests: "handshake,transfer,longrtt,multiplexing,retry,http3,blackhole,amplificationlimit,handshakeloss,transferloss,handshakecorruption,transfercorruption,v2" },
+          { client: quic-go,  tests: "handshake,transfer,longrtt,multiplexing,retry,http3,blackhole,amplificationlimit,transferloss,transfercorruption,v2" }
         ]
       fail-fast: false
 
