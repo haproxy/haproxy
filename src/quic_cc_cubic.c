@@ -667,9 +667,9 @@ static void quic_cc_cubic_state_cli(struct buffer *buf, const struct quic_cc_pat
 {
 	struct cubic *c = quic_cc_priv(&path->cc);
 
-	chunk_appendf(buf, "  cc: state=%s ssthresh=%u K=%u last_w_max=%u wdiff=%ld\n",
+	chunk_appendf(buf, "  cc: state=%s ssthresh=%u K=%u last_w_max=%u wdiff=%lld\n",
 	              quic_cc_state_str(c->state), c->ssthresh, c->K, c->last_w_max,
-	              (int64_t)(path->cwnd - c->last_w_max));
+	              (long long)(path->cwnd - c->last_w_max));
 }
 
 struct quic_cc_algo quic_cc_algo_cubic = {

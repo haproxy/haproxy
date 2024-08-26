@@ -282,23 +282,23 @@ static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
 	if (ctx->fields & QUIC_DUMP_FLD_PKTNS) {
 		pktns = qc->ipktns;
 		if (pktns) {
-			chunk_appendf(&trash, "  [initl] rx.ackrng=%-6zu tx.inflight=%-6zu(%ld%%)\n",
+			chunk_appendf(&trash, "  [initl] rx.ackrng=%-6zu tx.inflight=%-6zu(%llu%%)\n",
 			              pktns->rx.arngs.sz, pktns->tx.in_flight,
-			              pktns->tx.in_flight * 100 / qc->path->cwnd);
+			              (ull)pktns->tx.in_flight * 100 / qc->path->cwnd);
 		}
 
 		pktns = qc->hpktns;
 		if (pktns) {
-			chunk_appendf(&trash, "  [hndshk] rx.ackrng=%-6zu tx.inflight=%-6zu(%ld%%)\n",
+			chunk_appendf(&trash, "  [hndshk] rx.ackrng=%-6zu tx.inflight=%-6zu(%llu%%)\n",
 			              pktns->rx.arngs.sz, pktns->tx.in_flight,
-			              pktns->tx.in_flight * 100 / qc->path->cwnd);
+			              (ull)pktns->tx.in_flight * 100 / qc->path->cwnd);
 		}
 
 		pktns = qc->apktns;
 		if (pktns) {
-			chunk_appendf(&trash, "  [01rtt] rx.ackrng=%-6zu tx.inflight=%-6zu(%ld%%)\n",
+			chunk_appendf(&trash, "  [01rtt] rx.ackrng=%-6zu tx.inflight=%-6zu(%llu%%)\n",
 			              pktns->rx.arngs.sz, pktns->tx.in_flight,
-			              pktns->tx.in_flight * 100 / qc->path->cwnd);
+			              (ull)pktns->tx.in_flight * 100 / qc->path->cwnd);
 		}
 	}
 
