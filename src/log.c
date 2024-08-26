@@ -1600,7 +1600,7 @@ static int parse_log_target(char *raw, struct log_target *target, char **err)
 
 	/* parse the target address */
 	sk = str2sa_range(raw, NULL, &port1, &port2, &fd, &proto, NULL,
-	                  err, NULL, NULL,
+	                  err, NULL, NULL, NULL,
 	                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_RAW_FD | PA_O_DGRAM | PA_O_STREAM | PA_O_DEFAULT_DGRAM);
 	if (!sk)
 		goto error;

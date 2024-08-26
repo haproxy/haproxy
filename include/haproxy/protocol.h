@@ -95,10 +95,10 @@ int protocol_enable_all(void);
  * supported protocol types, and ctrl_type of either SOCK_STREAM or SOCK_DGRAM
  * depending on the requested values, or NULL if not found.
  */
-static inline struct protocol *protocol_lookup(int family, enum proto_type proto_type, int ctrl_dgram)
+static inline struct protocol *protocol_lookup(int family, enum proto_type proto_type, int alt)
 {
 	if (family >= 0 && family < AF_CUST_MAX)
-		return __protocol_by_family[family][proto_type][!!ctrl_dgram];
+		return __protocol_by_family[family][proto_type][!!alt];
 	return NULL;
 }
 

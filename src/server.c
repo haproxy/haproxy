@@ -1749,7 +1749,7 @@ static int srv_parse_source(char **args, int *cur_arg,
 
 	/* 'sk' is statically allocated (no need to be freed). */
 	sk = str2sa_range(args[*cur_arg + 1], NULL, &port_low, &port_high, NULL, NULL, NULL,
-	                  &errmsg, NULL, NULL,
+	                  &errmsg, NULL, NULL, NULL,
 		          PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_RANGE | PA_O_STREAM | PA_O_CONNECT);
 	if (!sk) {
 		memprintf(err, "'%s %s' : %s\n", args[*cur_arg], args[*cur_arg + 1], errmsg);
@@ -1837,7 +1837,7 @@ static int srv_parse_source(char **args, int *cur_arg,
 
 				/* 'sk' is statically allocated (no need to be freed). */
 				sk = str2sa_range(args[*cur_arg + 1], NULL, &port1, &port2, NULL, NULL, NULL,
-				                  &errmsg, NULL, NULL,
+				                  &errmsg, NULL, NULL, NULL,
 				                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
 				if (!sk) {
 					ha_alert("'%s %s' : %s\n", args[*cur_arg], args[*cur_arg + 1], errmsg);
@@ -1927,7 +1927,7 @@ static int srv_parse_socks4(char **args, int *cur_arg,
 
 	/* 'sk' is statically allocated (no need to be freed). */
 	sk = str2sa_range(args[*cur_arg + 1], NULL, &port_low, &port_high, NULL, NULL, NULL,
-	                  &errmsg, NULL, NULL,
+	                  &errmsg, NULL, NULL, NULL,
 	                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_STREAM | PA_O_CONNECT);
 	if (!sk) {
 		memprintf(err, "'%s %s' : %s\n", args[*cur_arg], args[*cur_arg + 1], errmsg);
@@ -3396,7 +3396,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 			goto skip_addr;
 
 		sk = str2sa_range(args[*cur_arg], &port, &port1, &port2, NULL, NULL, &newsrv->addr_type,
-		                  &errmsg, NULL, &fqdn,
+		                  &errmsg, NULL, &fqdn, NULL,
 		                  (parse_flags & SRV_PARSE_INITIAL_RESOLVE ? PA_O_RESOLVE : 0) | PA_O_PORT_OK |
 				  (parse_flags & SRV_PARSE_IN_PEER_SECTION ? PA_O_PORT_MAND : PA_O_PORT_OFS) |
 				  PA_O_STREAM | PA_O_DGRAM | PA_O_XPRT);

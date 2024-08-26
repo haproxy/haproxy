@@ -158,7 +158,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 
 		ss2 = str2sa_range(str, NULL, &port, &end, &fd, &proto, NULL, err,
 		                   (curproxy == global.cli_fe || curproxy == mworker_proxy) ? NULL : global.unix_bind.prefix,
-		                   NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
+		                   NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
 		                          PA_O_SOCKET_FD | PA_O_STREAM | PA_O_XPRT);
 		if (!ss2)
 			goto fail;
@@ -244,7 +244,7 @@ int str2receiver(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 
 		ss2 = str2sa_range(str, NULL, &port, &end, &fd, &proto, NULL, err,
 		                   curproxy == global.cli_fe ? NULL : global.unix_bind.prefix,
-		                   NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
+		                   NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
 		                          PA_O_SOCKET_FD | PA_O_DGRAM | PA_O_XPRT);
 		if (!ss2)
 			goto fail;
@@ -1185,7 +1185,7 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 		newmailer->id = strdup(args[1]);
 
 		sk = str2sa_range(args[2], NULL, &port1, &port2, NULL, &proto, NULL,
-		                  &errmsg, NULL, NULL,
+		                  &errmsg, NULL, NULL, NULL,
 		                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
 		if (!sk) {
 			ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);

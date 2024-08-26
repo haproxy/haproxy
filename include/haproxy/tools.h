@@ -286,7 +286,7 @@ static inline int is_idchar(char c)
  */
 struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int *high, int *fd,
                                       struct protocol **proto, struct net_addr_type *sa_type,
-                                      char **err, const char *pfx, char **fqdn, unsigned int opts);
+                                      char **err, const char *pfx, char **fqdn, int *alt, unsigned int opts);
 
 
 /* converts <addr> and <port> into a string representation of the address and port. This is sort

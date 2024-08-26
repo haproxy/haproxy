@@ -3519,7 +3519,8 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 		csk_ctx->srv = socket_tcp;
 
 	/* Parse ip address. */
-	addr = str2sa_range(ip, NULL, &low, &high, NULL, NULL, NULL, NULL, NULL, NULL, PA_O_PORT_OK | PA_O_STREAM);
+	addr = str2sa_range(ip, NULL, &low, &high, NULL, NULL, NULL, NULL,
+	                    NULL, NULL, NULL, PA_O_PORT_OK | PA_O_STREAM);
 	if (!addr) {
 		xref_unlock(&socket->xref, peer);
 		WILL_LJMP(luaL_error(L, "connect: cannot parse destination address '%s'", ip));
