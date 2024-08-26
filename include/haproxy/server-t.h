@@ -381,6 +381,7 @@ struct server {
 
 	const struct netns_entry *netns;        /* contains network namespace name or NULL. Network namespace comes from configuration */
 	struct xprt_ops *xprt;                  /* transport-layer operations */
+	int alt_proto;                          /* alternate protocol to use in protocol_lookup */
 	unsigned int svc_port;                  /* the port to connect to (for relevant families) */
 	unsigned down_time;			/* total time the server was down */
 

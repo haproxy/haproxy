@@ -3306,6 +3306,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 	const char *err = NULL;
 	int err_code = 0;
 	char *fqdn = NULL;
+	int alt_proto = 0;
 	int tmpl_range_low = 0, tmpl_range_high = 0;
 	char *errmsg = NULL;
 
@@ -3396,7 +3397,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 			goto skip_addr;
 
 		sk = str2sa_range(args[*cur_arg], &port, &port1, &port2, NULL, NULL, &newsrv->addr_type,
-		                  &errmsg, NULL, &fqdn, NULL,
+		                  &errmsg, NULL, &fqdn, &alt_proto,
 		                  (parse_flags & SRV_PARSE_INITIAL_RESOLVE ? PA_O_RESOLVE : 0) | PA_O_PORT_OK |
 				  (parse_flags & SRV_PARSE_IN_PEER_SECTION ? PA_O_PORT_MAND : PA_O_PORT_OFS) |
 				  PA_O_STREAM | PA_O_DGRAM | PA_O_XPRT);
@@ -3439,6 +3440,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 
 		newsrv->addr = *sk;
 		newsrv->svc_port = port;
+		newsrv->alt_proto = alt_proto;
 		/*
 		 * we don't need to lock the server here, because
 		 * we are in the process of initializing.
