@@ -216,7 +216,7 @@ static inline int __stksess_kill_if_expired(struct stktable *t, struct stksess *
 }
 
 /*
- * Decrease the refcount of a stksess and relase it if the refcount falls to 0
+ * Decrease the refcount of a stksess and release it if the refcount falls to 0
  * _AND_ if the session expired. Note,, the refcount is always decremented.
  *
  * This function locks the corresponding table shard to proceed. When this

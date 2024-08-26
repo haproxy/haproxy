@@ -14748,7 +14748,7 @@ dgram-drop
                     X |          -  |   -  |   -  |   -  |          - |  - |  -
 
   This silently ignores the reception of a QUIC initial packet which otherwise
-  whould have resulted in a new QUIC connection instantiation and its SSL
+  would have resulted in a new QUIC connection instantiation and its SSL
   handshake execution.
 
 
@@ -18280,7 +18280,7 @@ sni <expression>
   checks, see the "check-sni" directive for more details.
 
   By default, the SNI is assigned to the connection name for "http-reuse",
-  unless overriden by the "pool-conn-name" server keyword.
+  unless overridden by the "pool-conn-name" server keyword.
 
 source <addr>[:<pl>[-<ph>]] [usesrc { <addr2>[:<port2>] | client | clientip } ]
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | hdr_ip(<hdr>[,<occ>]) } ]
@@ -21586,7 +21586,7 @@ queue([<backend>]) : integer
 
 quic_enabled : boolean
   Return true when the support for QUIC transport protocol was compiled and
-  if this procotol was not disabled by "no-quic" global option. See also "no-quic"
+  if this protocol was not disabled by "no-quic" global option. See also "no-quic"
   global option.
 
 rand([<range>]) : integer
@@ -22047,7 +22047,7 @@ bc_srv_queue : integer
 bc_settings_streams_limit : integer
   Returns the maximum number of streams allowed on the backend connection. For
   TCP and HTTP/1.1 connections, it is always 1. For other protocols, it depends
-  on the settings negociated with the server.
+  on the settings negotiated with the server.
 
 be_id : integer
   Returns an integer containing the current backend's id. It can be used in
@@ -22370,7 +22370,7 @@ fc_src_port : integer
 fc_settings_streams_limit : integer
   Returns the maximum number of streams allowed on the frontend connection. For
   TCP and HTTP/1.1 connections, it is always 1. For other protocols, it depends
-  on the settings negociated with the client.
+  on the settings negotiated with the client.
 
 fc_unacked : integer
   Returns the unacked counter measured by the kernel for the client connection.
@@ -26290,7 +26290,7 @@ quoted ("Q") and escaped ("E") string formats.
 Special alias "%OG" may be used to retrieve the log origin (when / where
 the log was generated) in a human readable format. It is particularly useful
 with "option logasap" because some log variables or sample fetches could report
-incomplete values or behave diffently depending on when / where the logformat
+incomplete values or behave differently depending on when / where the logformat
 expression was evaluated. Possible values are:
   - "sess_error": log was generated during session error handling
   - "sess_killed": log was generated during session abortion (killed
@@ -27609,7 +27609,7 @@ SPOE communicates with external components using an in-house binary protocol,
 the Stream Processing Offload Protocol (SPOP).
 
 When the SPOE is used on a stream, a dedicated stream is spawned to handle the
-communcation with the external component. The main stream is the parent stream
+communication with the external component. The main stream is the parent stream
 of this "SPOE" stream. It means it is possible to retrieve variables of the
 main stream from the "SPOE" stream. See section 2.8 about variables for
 details.

@@ -313,7 +313,7 @@ __ebst_insert(struct eb_root *root, struct ebmb_node *new)
 
 	/* We need the common higher bits between new->key and old->key.
 	 * This number of bits is already in <bit>.
-	 * NOTE: we can't get here whit bit < 0 since we found a dup !
+	 * NOTE: we can't get here with bit < 0 since we found a dup !
 	 */
 	new->node.bit = bit;
 	root->b[side] = eb_dotag(&new->node.branches, EB_NODE);

@@ -12,7 +12,7 @@ the queue.
 
 
 ## Installation
-It can be easilly installed with venv from python3
+It can be easily installed with venv from python3
 
 
     $ python3 -m venv ~/.local/venvs/stable-bot/

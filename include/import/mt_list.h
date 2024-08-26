@@ -86,7 +86,7 @@ struct mt_list {
 #define MT_LIST_NEXT(a, t, m) (MT_LIST_ELEM((a)->next, t, m))
 
 
-/* Returns a pointer of type <t> to a structure preceeding the element which
+/* Returns a pointer of type <t> to a structure preceding the element which
  * contains the list element at address <a>, which is known as member <m> in
  * struct t*. Example:
  *
@@ -162,7 +162,7 @@ struct mt_list {
 
 /* The macros below directly map to their function equivalent. They are
  * provided for ease of use. Please refer to the equivalent functions
- * for their decription.
+ * for their description.
  */
 #define MT_LIST_INIT(e)                 (mt_list_init(e))
 #define MT_LIST_ISEMPTY(e)              (mt_list_isempty(e))

@@ -2566,7 +2566,7 @@ set table <table> ptr <ptr> [data.<data_type> <value>]*
   <ptr> is written in the form 0xffff and must correspond to the address
   returned by a previous "show table" command. Matching an entry using its
   pointer may be relevant if the entry cannot be matched using the key due to
-  empty key or imcompatible characters on the cli.
+  empty key or incompatible characters on the cli.
 
 set timeout cli <delay>
   Change the CLI interface timeout for current connection. This can be useful

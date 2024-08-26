@@ -2438,7 +2438,7 @@ static int feed_post_mortem_late()
 	 * feed_post_mortem_late() is registered in per_thread_init_list. Each
 	 * thread takes a mutex before looping over this list, so
 	 * feed_post_mortem_late() will be called by each thread in exclusive
-	 * manner, one by one in synchronious order. Thread unlocks mutex only
+	 * manner, one by one in synchronous order. Thread unlocks mutex only
 	 * after executing all init functions from this list.
 	*/
 	for (i = 0; i < global.nbthread; i++) {
@@ -2447,7 +2447,7 @@ static int feed_post_mortem_late()
 	}
 
 	/* also set runtime process settings. At this stage we are sure, that all
-	 * config options and limits adjustements are successfully applied.
+	 * config options and limits adjustments are successfully applied.
 	 */
 	post_mortem.process.run_uid = geteuid();
 	post_mortem.process.run_gid = getegid();
