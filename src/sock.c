@@ -281,7 +281,7 @@ int sock_create_server_socket(struct connection *conn, struct proxy *be, int *st
 #endif
 	proto = protocol_lookup(conn->dst->ss_family, PROTO_TYPE_STREAM, 0);
 	BUG_ON(!proto);
-	sock_fd = my_socketat(ns, proto->fam->sock_domain, SOCK_STREAM, 0);
+	sock_fd = my_socketat(ns, proto->fam->sock_domain, SOCK_STREAM, proto->sock_prot);
 
 	/* at first, handle common to all proto families system limits and permission related errors */
 	if (sock_fd == -1) {
