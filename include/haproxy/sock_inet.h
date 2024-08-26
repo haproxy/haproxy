@@ -31,6 +31,14 @@ extern int sock_inet6_v6only_default;
 extern int sock_inet_tcp_maxseg_default;
 extern int sock_inet6_tcp_maxseg_default;
 
+#ifdef HA_HAVE_MPTCP
+extern int sock_inet_mptcp_maxseg_default;
+extern int sock_inet6_mptcp_maxseg_default;
+#else 
+#define sock_inet_mptcp_maxseg_default -1
+#define sock_inet6_mptcp_maxseg_default -1
+#endif
+
 extern struct proto_fam proto_fam_inet4;
 extern struct proto_fam proto_fam_inet6;
 

@@ -145,6 +145,98 @@ struct protocol proto_tcpv6 = {
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_tcpv6);
 
+#ifdef HA_HAVE_MPTCP
+/* Most fields are copied from proto_tcpv4 */
+struct protocol proto_mptcpv4 = {
+	.name           = "mptcpv4",
+
+	/* connection layer */
+	.xprt_type      = PROTO_TYPE_STREAM,
+	.listen         = tcp_bind_listener,
+	.enable         = tcp_enable_listener,
+	.disable        = tcp_disable_listener,
+	.add            = default_add_listener,
+	.unbind         = default_unbind_listener,
+	.suspend        = default_suspend_listener,
+	.resume         = default_resume_listener,
+	.accept_conn    = sock_accept_conn,
+	.ctrl_init      = sock_conn_ctrl_init,
+	.ctrl_close     = sock_conn_ctrl_close,
+	.connect        = tcp_connect_server,
+	.drain          = sock_drain,
+	.check_events   = sock_check_events,
+	.ignore_events  = sock_ignore_events,
+	.get_info       = tcp_get_info,
+
+	/* binding layer */
+	.rx_suspend     = tcp_suspend_receiver,
+	.rx_resume      = tcp_resume_receiver,
+
+	/* address family */
+	.fam            = &proto_fam_inet4,
+
+	/* socket layer */
+	.proto_type     = PROTO_TYPE_STREAM,
+	.sock_type      = SOCK_STREAM,
+	.sock_prot      = IPPROTO_MPTCP,		/* MPTCP specific */
+	.rx_enable      = sock_enable,
+	.rx_disable     = sock_disable,
+	.rx_unbind      = sock_unbind,
+	.rx_listening   = sock_accepting_conn,
+	.default_iocb   = sock_accept_iocb,
+#ifdef SO_REUSEPORT
+	.flags          = PROTO_F_REUSEPORT_SUPPORTED,
+#endif
+};
+
+INITCALL1(STG_REGISTER, protocol_register, &proto_mptcpv4);
+
+/* Most fields are copied from proto_tcpv6 */
+struct protocol proto_mptcpv6 = {
+	.name           = "mptcpv6",
+
+	/* connection layer */
+	.xprt_type      = PROTO_TYPE_STREAM,
+	.listen         = tcp_bind_listener,
+	.enable         = tcp_enable_listener,
+	.disable        = tcp_disable_listener,
+	.add            = default_add_listener,
+	.unbind         = default_unbind_listener,
+	.suspend        = default_suspend_listener,
+	.resume         = default_resume_listener,
+	.accept_conn    = sock_accept_conn,
+	.ctrl_init      = sock_conn_ctrl_init,
+	.ctrl_close     = sock_conn_ctrl_close,
+	.connect        = tcp_connect_server,
+	.drain          = sock_drain,
+	.check_events   = sock_check_events,
+	.ignore_events  = sock_ignore_events,
+	.get_info       = tcp_get_info,
+
+	/* binding layer */
+	.rx_suspend     = tcp_suspend_receiver,
+	.rx_resume      = tcp_resume_receiver,
+
+	/* address family */
+	.fam            = &proto_fam_inet6,
+
+	/* socket layer */
+	.proto_type     = PROTO_TYPE_STREAM,
+	.sock_type      = SOCK_STREAM,
+	.sock_prot      = IPPROTO_MPTCP,		/* MPTCP specific */
+	.rx_enable      = sock_enable,
+	.rx_disable     = sock_disable,
+	.rx_unbind      = sock_unbind,
+	.rx_listening   = sock_accepting_conn,
+	.default_iocb   = sock_accept_iocb,
+#ifdef SO_REUSEPORT
+	.flags          = PROTO_F_REUSEPORT_SUPPORTED,
+#endif
+};
+
+INITCALL1(STG_REGISTER, protocol_register, &proto_mptcpv6);
+#endif
+
 /* Binds ipv4/ipv6 address <local> to socket <fd>, unless <flags> is set, in which
  * case we try to bind <remote>. <flags> is a 2-bit field consisting of :
  *  - 0 : ignore remote address (may even be a NULL pointer)
@@ -590,12 +682,20 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		/* we may want to try to restore the default MSS if the socket was inherited */
 		int tmpmaxseg = -1;
 		int defaultmss;
+		int v4 = listener->rx.addr.ss_family == AF_INET;
 		socklen_t len = sizeof(tmpmaxseg);
 
-		if (listener->rx.addr.ss_family == AF_INET)
-			defaultmss = sock_inet_tcp_maxseg_default;
-		else
-			defaultmss = sock_inet6_tcp_maxseg_default;
+		if (listener->rx.proto->sock_prot == IPPROTO_MPTCP) {
+			if (v4)
+				defaultmss = sock_inet_mptcp_maxseg_default;
+			else
+				defaultmss = sock_inet6_mptcp_maxseg_default;
+		} else {
+			if (v4)
+				defaultmss = sock_inet_tcp_maxseg_default;
+			else
+				defaultmss = sock_inet6_tcp_maxseg_default;
+		}
 
 		getsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &tmpmaxseg, &len);
 		if (defaultmss > 0 &&

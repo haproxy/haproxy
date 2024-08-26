@@ -28279,6 +28279,27 @@ report this to the maintainers.
                                  range can or must be specified.
                                  It is considered as an alias of 'stream+ipv4@'.
 
+'mptcp@<address>[:port1[-port2]]' following <address> is considered as an IPv4
+                                  or IPv6 address depending of the syntax but
+                                  socket type and transport method is forced to
+                                  "stream", with the MPTCP protocol. Depending
+                                  on the statement using this address, a port or
+                                  a port range can or must be specified.
+
+'mptcp4@<address>[:port1[-port2]]' following <address> is always considered as
+                                   an IPv4 address but socket type and transport
+                                   method is forced to "stream", with the MPTCP
+                                   protocol. Depending on the statement using
+                                   this address, a port or port range can or
+                                   must be specified.
+
+'mptcp6@<address>[:port1[-port2]]' following <address> is always considered as
+                                   an IPv6 address but socket type and transport
+                                   method is forced to "stream", with the MPTCP
+                                   protocol. Depending on the statement using
+                                   this address, a port or port range can or
+                                   must be specified.
+
 'udp@<address>[:port1[-port2]]' following <address> is considered as an IPv4
                                 or IPv6 address depending of the syntax but
                                 socket type and transport method is forced to

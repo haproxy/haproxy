@@ -1690,8 +1690,9 @@ skip_reuse:
 
 	if (!srv_conn->xprt) {
 		/* set the correct protocol on the output stream connector */
+
 		if (srv) {
-			if (conn_prepare(srv_conn, protocol_lookup(srv_conn->dst->ss_family, PROTO_TYPE_STREAM, 0), srv->xprt)) {
+			if (conn_prepare(srv_conn, protocol_lookup(srv_conn->dst->ss_family, PROTO_TYPE_STREAM, srv->alt_proto), srv->xprt)) {
 				conn_free(srv_conn);
 				return SF_ERR_INTERNAL;
 			}

@@ -279,7 +279,7 @@ int sock_create_server_socket(struct connection *conn, struct proxy *be, int *st
 			ns = __objt_server(conn->target)->netns;
 	}
 #endif
-	proto = protocol_lookup(conn->dst->ss_family, PROTO_TYPE_STREAM, 0);
+	proto = protocol_lookup(conn->dst->ss_family, PROTO_TYPE_STREAM, conn->ctrl->sock_prot == IPPROTO_MPTCP);
 	BUG_ON(!proto);
 	sock_fd = my_socketat(ns, proto->fam->sock_domain, SOCK_STREAM, proto->sock_prot);
 
@@ -306,7 +306,8 @@ int sock_create_server_socket(struct connection *conn, struct proxy *be, int *st
 	}
 
 	if (fd_set_nonblock(sock_fd) == -1 ||
-		((conn->ctrl->sock_prot == IPPROTO_TCP) && (setsockopt(sock_fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) == -1))) {
+		((conn->ctrl->sock_prot == IPPROTO_TCP || conn->ctrl->sock_prot == IPPROTO_MPTCP) &&
+		 (setsockopt(sock_fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) == -1))) {
 		qfprintf(stderr,"Cannot set client socket to non blocking mode.\n");
 		send_log(be, LOG_EMERG, "Cannot set client socket to non blocking mode.\n");
 		close(sock_fd);
