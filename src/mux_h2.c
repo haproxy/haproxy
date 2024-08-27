@@ -113,6 +113,9 @@ struct h2s {
 	enum h2_ss st;
 	uint16_t status;     /* HTTP response status */
 	unsigned long long body_len; /* remaining body length according to content-length if H2_SF_DATA_CLEN */
+	uint64_t curr_rx_ofs;  /* stream offset at which next FC-data will arrive (includes padding) */
+	uint64_t last_adv_ofs; /* stream offset corresponding to last emitted WU */
+	uint64_t next_max_ofs; /* max stream offset that next WU must permit (curr_rx_ofs+rx_win) */
 	struct buffer rxbuf; /* receive buffer, always valid (buf_empty or real buffer) */
 	struct wait_event *subs;  /* recv wait_event the stream connector associated is waiting on (via h2_subscribe) */
 	struct list list; /* To be used when adding in h2c->send_list or h2c->fctl_lsit */
@@ -1644,6 +1647,7 @@ static void h2s_destroy(struct h2s *h2s)
 static struct h2s *h2s_new(struct h2c *h2c, int id)
 {
 	struct h2s *h2s;
+	uint iws;
 
 	TRACE_ENTER(H2_EV_H2S_NEW, h2c->conn);
 
@@ -1677,6 +1681,16 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 		h2c->max_id      = id;
 	else
 		h2c->nb_reserved++;
+
+	/* calculate the max offset permitted by the currently active
+	 * initial window size.
+	 */
+	iws = (h2c->flags & H2_CF_IS_BACK) ?
+	      h2_be_settings_initial_window_size:
+	      h2_fe_settings_initial_window_size;
+	iws = iws ? iws : h2_settings_initial_window_size;
+	h2s->last_adv_ofs = h2s->next_max_ofs = iws;
+	h2s->curr_rx_ofs = 0;
 
 	eb32_insert(&h2c->streams_by_id, &h2s->by_id);
 	h2c->nb_streams++;
