@@ -1417,11 +1417,11 @@ static void ha_random_boot(char *const *argv)
 		m += 4;
 	}
 
-	/* stack address (benefit form operating system's ASLR) */
+	/* stack address (benefit from operating system's ASLR) */
 	l = (unsigned long)&m;
 	memcpy(m, &l, sizeof(l)); m += sizeof(l);
 
-	/* argv address (benefit form operating system's ASLR) */
+	/* argv address (benefit from operating system's ASLR) */
 	l = (unsigned long)&argv;
 	memcpy(m, &l, sizeof(l)); m += sizeof(l);
 
