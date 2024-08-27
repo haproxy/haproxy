@@ -2647,12 +2647,27 @@ static int h2c_send_conn_wu(struct h2c *h2c)
 static int h2c_update_strm_rx_win(struct h2c *h2c)
 {
 	struct h2s *h2s;
+	int win = 0;
 
 	h2s = h2c_st_by_id(h2c, h2c->dsi);
 	if (h2s && h2s->h2c) {
 		/* real stream */
+		if (h2s->st < H2_SS_ERROR) {
+			/* let's use the configured static window size */
+			win = (h2c->flags & H2_CF_IS_BACK) ?
+				h2_be_settings_initial_window_size:
+				h2_fe_settings_initial_window_size;
+			win = win ? win : h2_settings_initial_window_size;
+		}
+
+		/* Principle below: the calculate the next max window offset
+		 * from what was received added to the static window size. In
+		 * practice, for a static window it makes the next max offset
+		 * grow at the same speed as what was received, and
+		 * WINDOW_UPDATE frames will also match one for one.
+		 */
 		h2s->curr_rx_ofs += h2c->rcvd_s;
-		h2s->next_max_ofs += h2c->rcvd_s;
+		h2s->next_max_ofs = h2s->curr_rx_ofs + win;
 		h2c->rcvd_s = 0;
 		h2c->wu_s = (h2s->next_max_ofs > h2s->last_adv_ofs) ?
 		            (h2s->next_max_ofs - h2s->last_adv_ofs) :
@@ -7516,8 +7531,9 @@ static int h2_dump_h2s_info(struct buffer *msg, const struct h2s *h2s, const cha
 	if (!h2s)
 		return ret;
 
-	chunk_appendf(msg, " h2s.id=%d .st=%s .flg=0x%04x .rxbuf=%u@%p+%u/%u",
+	chunk_appendf(msg, " h2s.id=%d .st=%s .flg=0x%04x .rxwin=%u .rxbuf=%u@%p+%u/%u",
 		      h2s->id, h2s_st_to_str(h2s->st), h2s->flags,
+		      (uint)(h2s->next_max_ofs - h2s->curr_rx_ofs),
 		      (unsigned int)b_data(&h2s->rxbuf), b_orig(&h2s->rxbuf),
 		      (unsigned int)b_head_ofs(&h2s->rxbuf), (unsigned int)b_size(&h2s->rxbuf));
 
