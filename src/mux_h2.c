@@ -11,7 +11,6 @@
  */
 
 #include <import/eb32tree.h>
-#include <import/ebmbtree.h>
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
