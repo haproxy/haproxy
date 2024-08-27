@@ -54,7 +54,9 @@ struct h2c {
 	uint32_t streams_limit; /* maximum number of concurrent streams the peer supports */
 	int32_t max_id; /* highest ID known on this connection, <0 before preface */
 	uint32_t rcvd_c; /* newly received data to ACK for the connection */
-	uint32_t rcvd_s; /* newly received data to ACK for the current stream (dsi) or zero */
+	uint32_t rcvd_s; /* newly received data for the current stream (dsi) or zero */
+	uint32_t wu_s;   /* amount of data to write in the next WU frame for dsi, or zero */
+	/* 32-bit hole here */
 
 	/* states for the demux direction */
 	struct hpack_dht *ddht; /* demux dynamic header table */
@@ -1126,6 +1128,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->errcode = H2_ERR_NO_ERROR;
 	h2c->rcvd_c = 0;
 	h2c->rcvd_s = 0;
+	h2c->wu_s = 0;
 	h2c->nb_streams = 0;
 	h2c->nb_sc = 0;
 	h2c->nb_reserved = 0;
@@ -2630,13 +2633,18 @@ static int h2c_send_strm_wu(struct h2c *h2c)
 
 	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn);
 
-	if (h2c->rcvd_s <= 0)
+	if (h2c->rcvd_s) {
+		h2c->wu_s += h2c->rcvd_s;
+		h2c->rcvd_s = 0;
+	}
+
+	if (h2c->wu_s <= 0)
 		goto out;
 
 	/* send WU for the stream */
-	ret = h2c_send_window_update(h2c, h2c->dsi, h2c->rcvd_s);
+	ret = h2c_send_window_update(h2c, h2c->dsi, h2c->wu_s);
 	if (ret > 0)
-		h2c->rcvd_s = 0;
+		h2c->wu_s = 0;
  out:
 	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn);
 	return ret;
@@ -3712,7 +3720,7 @@ static void h2_process_demux(struct h2c *h2c)
 				break;
 			}
 
-			if (h2c->rcvd_s && h2c->dsi != hdr.sid) {
+			if ((h2c->rcvd_s || h2c->wu_s) && h2c->dsi != hdr.sid) {
 				/* changed stream with a pending WU, need to
 				 * send it now.
 				 */
@@ -3974,7 +3982,7 @@ static void h2_process_demux(struct h2c *h2c)
 		}
 	}
 
-	if (h2c->rcvd_s > 0 &&
+	if ((h2c->rcvd_s || h2c->wu_s) &&
 	    !(h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MROOM))) {
 		TRACE_PROTO("sending stream WINDOW_UPDATE frame", H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn, h2s);
 		h2c_send_strm_wu(h2c);
@@ -4103,7 +4111,7 @@ static int h2_process_mux(struct h2c *h2c)
 	}
 
 	/* start by sending possibly pending window updates */
-	if (h2c->rcvd_s > 0 &&
+	if ((h2c->rcvd_s || h2c->wu_s) &&
 	    !(h2c->flags & (H2_CF_MUX_MFULL | H2_CF_MUX_MALLOC)) &&
 	    h2c_send_strm_wu(h2c) < 0)
 		goto fail;
