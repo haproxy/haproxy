@@ -7372,6 +7372,7 @@ static size_t h2_done_ff(struct stconn *sc)
 	struct buffer *mbuf;
 	char *head;
 	size_t total = 0;
+	int es_now = 0;
 
 	TRACE_ENTER(H2_EV_H2S_SEND|H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
 
@@ -7380,8 +7381,10 @@ static size_t h2_done_ff(struct stconn *sc)
 		goto end;
 	head = b_peek(mbuf, b_data(mbuf) - sd->iobuf.data);
 
-	if (sd->iobuf.flags & IOBUF_FL_EOI)
+	if (sd->iobuf.flags & IOBUF_FL_EOI) {
+		es_now = 1;
 		h2s->flags &= ~H2_SF_MORE_HTX_DATA;
+	}
 
 	if (!(sd->iobuf.flags & IOBUF_FL_FF_BLOCKED) &&
 	    !(h2s->flags & H2_SF_BLK_SFCTL) &&
@@ -7398,11 +7401,23 @@ static size_t h2_done_ff(struct stconn *sc)
 	 */
 	total = sd->iobuf.data;
 	h2_set_frame_size(head, total);
+	if (es_now)
+		head[4] |= H2_F_DATA_END_STREAM;
 	b_add(mbuf, 9);
 	h2s->sws -= total;
 	h2c->mws -= total;
 	if (h2_send(h2s->h2c))
 		tasklet_wakeup(h2s->h2c->wait_event.tasklet);
+
+	if (es_now) {
+		if (h2s->st == H2_SS_OPEN)
+			h2s->st = H2_SS_HLOC;
+		else
+			h2s_close(h2s);
+
+		h2s->flags |= H2_SF_ES_SENT;
+		TRACE_PROTO("ES flag set on outgoing frame", H2_EV_TX_FRAME|H2_EV_TX_DATA|H2_EV_TX_EOI, h2c->conn, h2s);
+	}
 
  end:
 	sd->iobuf.buf = NULL;
