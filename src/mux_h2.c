@@ -2637,28 +2637,57 @@ static int h2c_send_conn_wu(struct h2c *h2c)
 	return ret;
 }
 
-/* try to send pending window update for the current dmux stream. It's safe to
+/* Recalculate the current stream's rx window based on h2c->rcvd_s, which is
+ * reset if consumed. The amount of bytes to ACK is the difference between
+ * next_max_ofs and last_adv_ofs, and is put into h2c->wu_s. For dummy streams,
+ * rcvd_s is directly transferred to wu_s so that it outlives the stream. The
+ * function returns non-zero if the resulting wu_s is non-zero, indicating that
+ * a WU is deserved, otherwise zero.
+ */
+static int h2c_update_strm_rx_win(struct h2c *h2c)
+{
+	struct h2s *h2s;
+
+	h2s = h2c_st_by_id(h2c, h2c->dsi);
+	if (h2s && h2s->h2c) {
+		/* real stream */
+		h2s->curr_rx_ofs += h2c->rcvd_s;
+		h2s->next_max_ofs += h2c->rcvd_s;
+		h2c->rcvd_s = 0;
+		h2c->wu_s = (h2s->next_max_ofs > h2s->last_adv_ofs) ?
+		            (h2s->next_max_ofs - h2s->last_adv_ofs) :
+		            0;
+	} else {
+		/* non-existing stream */
+		h2c->wu_s += h2c->rcvd_s;
+		h2c->rcvd_s = 0;
+	}
+
+	return !!h2c->wu_s;
+}
+
+/* Try to send pending window update for the current dmux stream. It's safe to
  * call it with no pending updates. Returns > 0 on success or zero on missing
  * room or failure. It may return an error in h2c.
  */
 static int h2c_send_strm_wu(struct h2c *h2c)
 {
+	struct h2s *h2s = NULL;
 	int ret = 1;
 
 	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn);
-
-	if (h2c->rcvd_s) {
-		h2c->wu_s += h2c->rcvd_s;
-		h2c->rcvd_s = 0;
-	}
 
 	if (h2c->wu_s <= 0)
 		goto out;
 
 	/* send WU for the stream */
 	ret = h2c_send_window_update(h2c, h2c->dsi, h2c->wu_s);
-	if (ret > 0)
+	if (ret > 0) {
 		h2c->wu_s = 0;
+		h2s = h2c_st_by_id(h2c, h2c->dsi);
+		if (h2s)
+			h2s->last_adv_ofs = h2s->next_max_ofs;
+	}
  out:
 	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn);
 	return ret;
@@ -3734,7 +3763,7 @@ static void h2_process_demux(struct h2c *h2c)
 				break;
 			}
 
-			if ((h2c->rcvd_s || h2c->wu_s) && h2c->dsi != hdr.sid) {
+			if (h2c_update_strm_rx_win(h2c) && h2c->dsi != hdr.sid) {
 				/* changed stream with a pending WU, need to
 				 * send it now.
 				 */
@@ -3996,7 +4025,7 @@ static void h2_process_demux(struct h2c *h2c)
 		}
 	}
 
-	if ((h2c->rcvd_s || h2c->wu_s) &&
+	if (h2c_update_strm_rx_win(h2c) &&
 	    !(h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MROOM))) {
 		TRACE_PROTO("sending stream WINDOW_UPDATE frame", H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn, h2s);
 		h2c_send_strm_wu(h2c);
@@ -4125,7 +4154,7 @@ static int h2_process_mux(struct h2c *h2c)
 	}
 
 	/* start by sending possibly pending window updates */
-	if ((h2c->rcvd_s || h2c->wu_s) &&
+	if (h2c_update_strm_rx_win(h2c) &&
 	    !(h2c->flags & (H2_CF_MUX_MFULL | H2_CF_MUX_MALLOC)) &&
 	    h2c_send_strm_wu(h2c) < 0)
 		goto fail;
