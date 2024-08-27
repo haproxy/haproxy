@@ -2650,9 +2650,22 @@ static int h2c_send_conn_wu(struct h2c *h2c)
 static void h2s_update_rx_win(struct h2s *h2s)
 {
 	struct h2c *h2c = h2s->h2c;
+	int win;
 
+	/* let's use the configured static window size */
+	win = (h2c->flags & H2_CF_IS_BACK) ?
+	      h2_be_settings_initial_window_size:
+	      h2_fe_settings_initial_window_size;
+	win = win ? win : h2_settings_initial_window_size;
+
+	/* Principle below: the calculate the next max window offset from what
+	 * was received added to the static window size. In practice, for a
+	 * static window it makes the next max offset grow at the same speed
+	 * as what was received, and WINDOW_UPDATE frames will also match one
+	 * for one.
+	 */
 	h2s->curr_rx_ofs += h2c->rcvd_s;
-	h2s->next_max_ofs += h2c->rcvd_s;
+	h2s->next_max_ofs = h2s->curr_rx_ofs + win;
 	h2c->wu_s = (h2s->next_max_ofs > h2s->last_adv_ofs) ?
 	            (h2s->next_max_ofs - h2s->last_adv_ofs) :
 	            0;
