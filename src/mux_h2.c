@@ -2644,18 +2644,43 @@ static int h2c_send_conn_wu(struct h2c *h2c)
 	return ret;
 }
 
+/* recalculate the new stream's rx window based on h2c->rcvd_s. The amount of
+ * bytes to ACK is updated in h2c->wu_s.
+ */
+static void h2s_update_rx_win(struct h2s *h2s)
+{
+	struct h2c *h2c = h2s->h2c;
+
+	h2s->curr_rx_ofs += h2c->rcvd_s;
+	h2s->next_max_ofs += h2c->rcvd_s;
+	h2c->wu_s = (h2s->next_max_ofs > h2s->last_adv_ofs) ?
+	            (h2s->next_max_ofs - h2s->last_adv_ofs) :
+	            0;
+}
+
 /* try to send pending window update for the current dmux stream. It's safe to
  * call it with no pending updates. Returns > 0 on success or zero on missing
  * room or failure. It may return an error in h2c.
  */
 static int h2c_send_strm_wu(struct h2c *h2c)
 {
+	struct h2s *h2s = NULL;
 	int ret = 1;
 
 	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn);
 
 	if (h2c->rcvd_s) {
+		/* The window update concerns the stream h2c->dsi. It might or might
+		 * not exist (e.g. aborted uploads). If the stream exists, we must
+		 * maintain its current stream offset up to date with the amount of
+		 * received data, otherwise we simply ack what was received.
+		 */
 		h2c->wu_s += h2c->rcvd_s;
+		h2s = h2c_st_by_id(h2c, h2c->dsi);
+		if (h2s && h2s->h2c) {
+			/* that's a real stream, wu_s will be recalculated */
+			h2s_update_rx_win(h2s);
+		}
 		h2c->rcvd_s = 0;
 	}
 
@@ -2664,8 +2689,11 @@ static int h2c_send_strm_wu(struct h2c *h2c)
 
 	/* send WU for the stream */
 	ret = h2c_send_window_update(h2c, h2c->dsi, h2c->wu_s);
-	if (ret > 0)
+	if (ret > 0) {
 		h2c->wu_s = 0;
+		if (h2s)
+			h2s->last_adv_ofs = h2s->next_max_ofs;
+	}
  out:
 	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn);
 	return ret;
