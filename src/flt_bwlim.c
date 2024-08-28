@@ -106,7 +106,7 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 		if (!ptr)
 			goto end;
 
-		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &st->ts->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &st->ts->lock);
 		bytes_rate = &stktable_data_cast(ptr, std_t_frqp);
 		period = conf->table.t->data_arg[type].u;
 		limit = conf->limit;
@@ -137,7 +137,7 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 	overshoot = freq_ctr_overshoot_period(bytes_rate, period, limit);
 	if (overshoot > 0) {
 		if (conf->flags & BWLIM_FL_SHARED)
-			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &st->ts->lock);
+			HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &st->ts->lock);
 		wait = div64_32((uint64_t)(conf->min_size + overshoot) * period * users,
 				limit);
 		st->exp = tick_add(now_ms, (wait ? wait : 1));
@@ -178,7 +178,7 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 	}
 
 	if (conf->flags & BWLIM_FL_SHARED)
-		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &st->ts->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &st->ts->lock);
 
   end:
 	chn->analyse_exp = tick_first((tick_is_expired(chn->analyse_exp, now_ms) ? TICK_ETERNITY : chn->analyse_exp),
