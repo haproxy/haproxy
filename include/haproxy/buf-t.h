@@ -52,6 +52,26 @@ struct buffer {
 #define BUF_WANTED ((struct buffer){ .area = (char *)1 })
 #define BUF_RING   ((struct buffer){ .area = (char *)2 })
 
+/* An element of a buffer list (bl_*). They're all stored in an array. The
+ * holder contains a pointer to that array and a count. The first element
+ * (index zero) builds the free list and may never be used. All owners simply
+ * have a head and a tail index pointing to their own list. In order to ease
+ * initialization, for each allocatable cell, next==0 indicates that all
+ * following cells till the end of the array are free. The end of a list is
+ * marked by next==~0. For the head, next is always valid or is zero when no
+ * more entries are available. The struct element doesn't have holes. It's 24
+ * bytes in 32 bits and 40 bytes in 64 bits, so offsets are trivially obtained
+ * from indexes. The <next> pointer may be split into two 16 bits fields if
+ * needed in order to make room for something else later, since we don't
+ * expect to make 64k-buffer arrays. The first element's buf stores size,
+ * allocated space and number of users.
+ */
+struct bl_elem {
+	struct buffer buf;
+	uint32_t next;
+	uint32_t flags;
+};
+
 #endif /* _HAPROXY_BUF_T_H */
 
 /*

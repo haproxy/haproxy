@@ -55,6 +55,9 @@ int b_put_varint(struct buffer *b, uint64_t v);
 int b_get_varint(struct buffer *b, uint64_t *vptr);
 int b_peek_varint(struct buffer *b, size_t ofs, uint64_t *vptr);
 
+void bl_deinit(struct bl_elem *head);
+uint32_t bl_get(struct bl_elem *head, uint32_t idx);
+
 /***************************************************************************/
 /* Functions used to compute offsets and pointers. Most of them exist in   */
 /* both wrapping-safe and unchecked ("__" prefix) variants. Some returning */
@@ -654,6 +657,79 @@ static inline struct buffer *br_del_head(struct buffer *r)
 			r->head = 1;
 	}
 	return br_head(r);
+}
+
+/*
+ * Buffer list management.
+ */
+
+/* Returns the number of users of at least one entry */
+static inline uint32_t bl_users(const struct bl_elem *head)
+{
+	return head->buf.head;
+}
+
+/* Returns the number of allocatable cells */
+static inline uint32_t bl_size(const struct bl_elem *head)
+{
+	return head->buf.size - 1;
+}
+
+/* Returns the number of cells currently in use */
+static inline uint32_t bl_used(const struct bl_elem *head)
+{
+	return head->buf.data;
+}
+
+/* Returns the number of cells still available */
+static inline uint32_t bl_avail(const struct bl_elem *head)
+{
+	return bl_size(head) - bl_used(head);
+}
+
+/* Initializes an array of <nbelem> elements of type bl_elem (one less will be
+ * allocatable). The initialized array is returned on success, otherwise NULL
+ * on allocation failure.
+ */
+static inline void bl_init(struct bl_elem *head, uint32_t nbelem)
+{
+	BUG_ON_HOT(nbelem < 2);
+	memset(head, 0, nbelem * sizeof(*head));
+	head->buf.size = nbelem;
+	head->next = 1;
+}
+
+/* Puts the cell at index <idx> back into the list <head>. It must have been
+ * freed from its buffer before calling this, and must correspond to the head
+ * of the caller. It returns the new head for the caller (the next cell
+ * immediately after the current one), or zero if the list is empty, in which
+ * case the caller is considered as no longer belonging to the list.
+ */
+static inline uint32_t bl_put(struct bl_elem *head, uint32_t idx)
+{
+	uint32_t n;
+
+	BUG_ON_HOT(!idx || idx >= head->buf.size);
+	n = head[idx].next;
+
+	/* if the element was the last one (head[idx].next == ~0) then the
+	 * chain is entirely gone and the caller is no longer in the list.
+	 */
+	if (n == ~0) {
+		BUG_ON_HOT(!head->buf.head);
+		head->buf.head--; // #users
+		n = 0;            // no next
+	}
+
+	/* If the free list was empty (next==0), this element becomes both the
+	 * first and the last one, otherwise it inserts itself before the
+	 * previous first free element.
+	 */
+	head[idx].next = head->next ? head->next : ~0U;
+	head->next = idx;
+	BUG_ON_HOT(!head->buf.data);
+	head->buf.data--; // one less allocated
+	return n;
 }
 
 #endif /* _HAPROXY_BUF_H */

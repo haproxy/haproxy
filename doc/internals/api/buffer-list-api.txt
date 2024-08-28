@@ -1,0 +1,128 @@
+2024-09-30 - Buffer List API
+
+
+1. Use case
+
+The buffer list API allows one to share a certain amount of buffers between
+multiple entities, which will each see their own as lists of buffers, while
+keeping a sharedd free list. The immediate use case is for muxes, which may
+want to allocate up to a certain number of buffers per connection, shared
+among all streams. In this case, each stream will first request a new list
+for its own use, then may request extra entries from the free list. At any
+moment it will be possible to enumerate all allocated lists and to know which
+buffer follows which one.
+
+
+2. Representation
+
+The buffer list is an array of struct bl_elem. It can hold up to N-1 buffers
+for N elements. The first one serves as the bookkeeping head and creates the
+free list.
+
+Each bl_elem contains a struct buffer, a pointer to the next cell, and a few
+flags. The struct buffer is a real struct buffer for all cells, except the
+first one where it holds useful data to describe the state of the array:
+
+    struct bl_elem {
+        struct buffer {
+            size_t size;  // head: size of the array in number of elements
+            char  *area;  // head: not used (0)
+            size_t data;  // head: number of elements allocated
+            size_t head;  // head: number of users
+        } buf;
+        uint32_t next;
+        uint32_t flags;
+    };
+
+There are a few important properties here:
+
+  - for the free list, the first element isn't part of the list, otherwise
+    there wouldn't be any head storage anymore.
+
+  - the head's buf.data doesn't include the first cell of the array, thus its
+    maximum value is buf.size - 1.
+
+  - allocations are always made by appending to end of the existing list
+
+  - releases are always made by releasing the beginning of the existing list
+
+  - next == 0 for an allocatable cell implies that all the cells from this
+    element to the last one of the array are free. This allows to simply
+    initialize a whole new array with memset(array, 0, sizeof(array))
+
+  - next == ~0 for an allocated cell indicates we've reached the last element
+    of the current list.
+
+  - for the head of the list, next points to the first available cell, or 0 if
+    the free list is depleted.
+
+
+3. Example
+
+The array starts like this, created with a calloc() and having size initialized
+to the total number of cells. The number represented is the 'next' value. "~"
+here standands for ~0 (i.e. end marker).
+
+  [1|0|0|0|0|0|0|0|0|0]    => array entirely free
+
+strm1: bl_get(0) -> 1 = assign 1 to strm1's first cell
+
+  [2|~|0|0|0|0|0|0|0|0]    => strm1 allocated at [1]
+     1
+
+strm1: bl_get(1) -> 2 = allocate one cell after cell 1
+
+  [3|2|~|0|0|0|0|0|0|0]
+     1
+
+strm1: bl_get(2) -> 3 = allocate one cell after cell 2
+
+  [4|2|3|~|0|0|0|0|0|0]
+     1
+
+strm2: bl_get(0) -> 4 = assign 4 to strm2's first cell
+
+  [5|2|3|~|~|0|0|0|0|0]
+     1     2
+
+strm1: bl_put(1) -> 2 = release cell 1, jump to next one (2)
+
+  [1|5|3|~|~|0|0|0|0|0]
+       1   2
+
+
+4. Manipulating buffer lists
+
+The API is very simple, it allows to reserve a buffer for a new stream or for
+an existing one, to release a stream's first buffer or release the entire
+stream, and to initialize / release the whole array.
+
+====================+==================+=======================================
+Function            | Arguments/Return | Description
+--------------------+------------------+---------------------------------------
+bl_users()          | const bl_elem *b | returns the current number of users on
+                    | ret: uint32_t    | the array (i.e. buf.head).
+--------------------+------------------+---------------------------------------
+bl_size()           | const bl_elem *b | returns the total number of
+                    | ret: uint32_t    | allocatable cells (i.e. buf.size-1)
+--------------------+------------------+---------------------------------------
+bl_used()           | const bl_elem *b | returns the number of cells currently
+                    | ret: uint32_t    | in use (i.e. buf.data)
+--------------------+------------------+---------------------------------------
+bl_avail()          | const bl_elem *b | returns the number of cells still
+                    | ret: uint32_t    | available.
+--------------------+------------------+---------------------------------------
+bl_init()           | bl_elem *b       | initializes b for n elements. All are
+                    | uint32_t n       | in the free list.
+--------------------+------------------+---------------------------------------
+bl_put()            | bl_elem *b       | releases cell <idx> to the free list,
+                    | uint32_t n       | possibly deleting the user. Returns
+                    | ret: uint32_t    | next cell idx or 0 if none (last one).
+--------------------+------------------+---------------------------------------
+bl_deinit()         | bl_elem *b       | only when DEBUG_STRICT==2, scans the
+                    |                  | array to check for leaks.
+--------------------+------------------+---------------------------------------
+bl_get()            | bl_elem *b       | allocates a new cell after to add to n
+                    | uint32_t n       | or a new stream. Returns the cell or 0
+                    | ret: uint32_t    | if no more space.
+====================+==================+=======================================

@@ -730,3 +730,82 @@ int b_peek_varint(struct buffer *b, size_t ofs, uint64_t *vptr)
 	size = b->data - ofs - data;
 	return size;
 }
+
+/*
+ * Buffer List management.
+ */
+
+/* Deinits an array of buffer list. It's the caller's responsibility to check
+ * that all buffers were already released. This should be done before any
+ * free() of the array.
+ */
+void bl_deinit(struct bl_elem *head)
+{
+	BUG_ON_HOT(
+		/* make sure that all elements are properly released, i.e. all
+		 * are reachable from the free list.
+		 */
+		({
+			uint32_t elem = 0, free = 1;
+			if (head->next && !head->buf.data && !head->buf.head) {
+				do {
+					free++;
+					elem = head[elem].next ? head[elem].next : elem + 1;
+				} while (elem != ~0 && elem != head->buf.size);
+			}
+			free != head->buf.size;
+		}), "bl_deinit() of a non-completely released list");
+}
+
+/* Gets the index of a spare entry in the buffer list, to be used after element
+ * of index <idx>. It is detached, appended to the end of the existing list and
+ * marked as the last one. If <idx> is zero, the caller requests the creation
+ * of a new list entry. If no more buffer slots are available, the function
+ * returns zero.
+ */
+uint32_t bl_get(struct bl_elem *head, uint32_t idx)
+{
+	uint32_t e, n;
+
+	BUG_ON_HOT(idx >= head->buf.size);
+
+	/* Get the first free element. In the head it's always a valid index or
+	 * 0 to indicate the end of list. We can then always dereference it,
+	 * and if 0 (empty, which is rare), it'll loop back to itself. This
+	 * allows us to save a test in the fast path.
+	 */
+	e = head->next;    // element to be allocated
+	n = head[e].next;  // next one to replace the free list's top
+	if (!n) {
+		/* Happens only with a freshly initialized array, or when the
+		 * free list is depleted (e==0).
+		 */
+		if (!e)
+			goto done;
+
+		/* n is in the free area till the end, let's report the next
+		 * free entry, otherwise leave it at zero to mark the end of
+		 * the free list.
+		 */
+		if (e + 1 != head->buf.size)
+			n = e + 1;
+	}
+
+	head->next = n == ~0U ? 0 : n;
+	head->buf.data++;
+
+	if (idx) {
+		/* append to a tail: idx must point to a tail */
+		BUG_ON_HOT(head[idx].next != ~0);
+		head[idx].next = e;
+	}
+	else {
+		/* allocate a new user and offer it this slot */
+		head->buf.head++; // #users
+	}
+
+	head[e].next = ~0; // mark the end of list
+ done:
+	/* and finally return the element's index */
+	return e;
+}
