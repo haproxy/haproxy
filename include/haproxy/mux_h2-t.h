@@ -130,6 +130,8 @@ static forceinline char *h2c_show_flags(char *buf, size_t len, const char *delim
 
 #define H2_SF_TUNNEL_ABRT       0x00100000  // A tunnel attempt was aborted
 #define H2_SF_MORE_HTX_DATA     0x00200000  // more data expected from HTX
+#define H2_SF_EXPECT_RXDATA     0x00400000  // more data expected from the peer
+
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
