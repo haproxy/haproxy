@@ -1184,6 +1184,7 @@ int parse_stick_table(const char *file, int linenum, char **args,
 	t->conf.file = file;
 	t->conf.line = linenum;
 	t->write_to.name = NULL;
+	t->brates_factor = 1;
 
 	while (*args[idx]) {
 		const char *err;
@@ -1386,6 +1387,28 @@ int parse_stick_table(const char *file, int linenum, char **args,
 			}
 			ha_free(&t->write_to.name);
 			t->write_to.name = strdup(write_to);
+			idx++;
+		}
+		else if (strcmp(args[idx], "brates-factor") == 0) {
+			idx++;
+			if (!*(args[idx])) {
+				ha_alert("parsing [%s:%d] : %s: missing argument after '%s'.\n",
+					 file, linenum, args[0], args[idx-1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			if ((err = parse_size_err(args[idx], &t->brates_factor))) {
+				ha_alert("parsing [%s:%d] : %s: unexpected character '%c' in argument of '%s'.\n",
+					 file, linenum, args[0], *err, args[idx-1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			if (t->brates_factor == 0 || t->brates_factor > 1024) {
+				ha_alert("parsing [%s:%d] : %s: argument '%s' must be greater than 0 and lower or equal than 1024.\n",
+					 file, linenum, args[0], args[idx-1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
 			idx++;
 		}
 		else {
@@ -1677,8 +1700,8 @@ static int sample_conv_table_bytes_in_rate(const struct arg *arg_p, struct sampl
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_BYTES_IN_RATE);
 	if (ptr)
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-                                                       t->data_arg[STKTABLE_DT_BYTES_IN_RATE].u);
+		smp->data.u.sint = (uint64_t)read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+								  t->data_arg[STKTABLE_DT_BYTES_IN_RATE].u) * t->brates_factor;
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -1899,8 +1922,9 @@ static int sample_conv_table_bytes_out_rate(const struct arg *arg_p, struct samp
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_BYTES_OUT_RATE);
 	if (ptr)
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-                                                       t->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u);
+		smp->data.u.sint = (uint64_t)read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+								  t->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u) * t->brates_factor;
+
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -4918,8 +4942,8 @@ smp_fetch_sc_bytes_in_rate(const struct arg *args, struct sample *smp, const cha
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-					       stkctr->table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u);
+		smp->data.u.sint = (uint64_t)read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+								  stkctr->table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u) * stkctr->table->brates_factor;
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -4997,8 +5021,8 @@ smp_fetch_sc_bytes_out_rate(const struct arg *args, struct sample *smp, const ch
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-					       stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u);
+		smp->data.u.sint = (uint64_t)read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+								  stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u) * stkctr->table->brates_factor;
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -5110,6 +5134,7 @@ static int table_dump_entry_to_buffer(struct buffer *msg,
 
 	for (dt = 0; dt < STKTABLE_DATA_TYPES; dt++) {
 		void *ptr;
+		long long data;
 
 		if (t->data_ofs[dt] == 0)
 			continue;
@@ -5151,9 +5176,11 @@ static int table_dump_entry_to_buffer(struct buffer *msg,
 					chunk_appendf(msg, "%llu", stktable_data_cast(ptr, std_t_ull));
 					break;
 				case STD_T_FRQP:
-					chunk_appendf(msg, "%u",
-						     read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-									  t->data_arg[dt].u));
+					data = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+								    t->data_arg[dt].u);
+					if (dt == STKTABLE_DT_BYTES_IN_RATE || dt == STKTABLE_DT_BYTES_OUT_RATE)
+						data *= t->brates_factor;
+					chunk_appendf(msg, "%llu", data);
 					break;
 				}
 				ptr = stktable_data_ptr_idx(t, entry, dt, ++idx);
@@ -5177,9 +5204,11 @@ static int table_dump_entry_to_buffer(struct buffer *msg,
 			chunk_appendf(msg, "%llu", stktable_data_cast(ptr, std_t_ull));
 			break;
 		case STD_T_FRQP:
-			chunk_appendf(msg, "%u",
-				     read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-							  t->data_arg[dt].u));
+			data = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+						    t->data_arg[dt].u);
+			if (dt == STKTABLE_DT_BYTES_IN_RATE || dt == STKTABLE_DT_BYTES_OUT_RATE)
+				data *= t->brates_factor;
+			chunk_appendf(msg, "%llu", data);
 			break;
 		case STD_T_DICT: {
 			struct dict_entry *de;
@@ -5617,6 +5646,8 @@ static int cli_io_handler_table(struct appctx *appctx)
 					case STD_T_FRQP:
 						data = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
 									    ctx->t->data_arg[dt].u);
+						if (dt == STKTABLE_DT_BYTES_IN_RATE || dt == STKTABLE_DT_BYTES_OUT_RATE)
+							data *= ctx->t->brates_factor;
 						break;
 					}
 

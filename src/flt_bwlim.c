@@ -78,7 +78,8 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 	struct bwlim_config *conf = FLT_CONF(filter);
 	struct bwlim_state *st = filter->ctx;
 	struct freq_ctr *bytes_rate;
-	unsigned int period, limit, remain, tokens, users;
+	uint64_t remain;
+	unsigned int period, limit, tokens, users, factor;
 	unsigned int wait = 0;
 	int overshoot, ret = 0;
 
@@ -110,6 +111,7 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 		period = conf->table.t->data_arg[type].u;
 		limit = conf->limit;
 		users = st->ts->ref_cnt;
+		factor = conf->table.t->brates_factor;
 	}
 	else {
 		/* On per-stream mode, the freq-counter is private to the
@@ -121,6 +123,7 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 		period = (st->period ? st->period : conf->period);
 		limit = (st->limit ? st->limit : conf->limit);
 		users = 1;
+		factor = 1;
 	}
 
 	/* Be sure the current rate does not exceed the limit over the current
@@ -143,7 +146,7 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 	}
 
 	/* Get the allowed quota per user. */
-	remain = freq_ctr_remain_period(bytes_rate, period, limit, 0);
+	remain = (uint64_t)freq_ctr_remain_period(bytes_rate, period, limit, 0) * factor;
 	tokens = div64_32((uint64_t)(remain + users - 1), users);
 
 	if (tokens < len) {
@@ -159,16 +162,16 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 				: conf->min_size;
 
 			if (ret <= remain)
-				wait = div64_32((uint64_t)(ret - tokens) * period * users + limit - 1, limit);
+				wait = div64_32((uint64_t)(ret - tokens) * period * users + limit * factor - 1, limit * factor);
 			else
-				ret = (limit < ret) ? remain : 0;
+				ret = (limit * factor < ret) ? remain : 0;
 		}
 	}
 
 	/* At the end, update the freq-counter and compute the waiting time if
 	 * the stream is limited
 	 */
-	update_freq_ctr_period(bytes_rate, period, ret);
+	update_freq_ctr_period(bytes_rate, period, div64_32((uint64_t)ret + factor -1, factor));
 	if (ret < len) {
 		wait += next_event_delay_period(bytes_rate, period, limit, MIN(len - ret, conf->min_size * users));
 		st->exp = tick_add(now_ms, (wait ? wait : 1));

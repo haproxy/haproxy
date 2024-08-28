@@ -395,7 +395,8 @@ static inline int stkctr_inc_bytes_in_ctr(struct stkctr *stkctr, unsigned long l
 	ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_BYTES_IN_RATE);
 	if (ptr2)
 		update_freq_ctr_period(&stktable_data_cast(ptr2, std_t_frqp),
-				       stkctr->table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u, bytes);
+				       stkctr->table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u,
+				       div64_32(bytes + stkctr->table->brates_factor - 1, stkctr->table->brates_factor));
 	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
 
@@ -426,7 +427,8 @@ static inline int stkctr_inc_bytes_out_ctr(struct stkctr *stkctr, unsigned long 
 	ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_BYTES_OUT_RATE);
 	if (ptr2)
 		update_freq_ctr_period(&stktable_data_cast(ptr2, std_t_frqp),
-				       stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u, bytes);
+				       stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u,
+				       div64_32(bytes + stkctr->table->brates_factor - 1, stkctr->table->brates_factor));
 	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
 

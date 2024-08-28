@@ -184,6 +184,7 @@ struct stktable {
 	int data_size;            /* the size of the data that is prepended *before* stksess */
 	int data_ofs[STKTABLE_DATA_TYPES]; /* negative offsets of present data types, or 0 if absent */
 	unsigned int data_nbelem[STKTABLE_DATA_TYPES]; /* to store nb_elem in case of array types */
+	unsigned int brates_factor; /* Factor used for IN/OUT bytes rates */
 	union {
 		int i;
 		unsigned int u;

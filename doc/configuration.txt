@@ -12446,7 +12446,7 @@ stick store-request <pattern> [table <table>] [{if | unless} <condition>]
 
 stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
             size <size> [expire <expire>] [nopurge] [peers <peersect>] [srvkey <srvkey>]
-            [write-to <wtable>] [store <data_type>]*
+            [write-to <wtable>] [store <data_type>]* [brates-factor <factor>]
   Configure the stickiness table for the current section
 
   May be used in the following contexts: tcp, http
@@ -12567,6 +12567,13 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
                data types require an argument which must be passed just after
                the type between parenthesis. See below for the supported data
                types and their arguments.
+
+   <factor>    is used to define a factor to be applied on in/out bytes rate.
+               Instead of counting each bytes, blocks of bytes are counted.
+               Internally, rates are defined on 32-bits counters. By using this
+               parameter, it is possible to have rates exceeding the 4G on the
+               defined period. The factor must be greater than 0 and lower or
+               equal to 1024.
 
   The data types that can be stored with an entry are the following :
     - server_id : this is an integer which holds the numeric ID of the server a
