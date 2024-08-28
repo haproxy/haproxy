@@ -1489,6 +1489,10 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 		return 0;
 
 	conn = sc_conn(sc);
+
+	if (!sc_conn_ready(sc))
+		return 0;
+
 	if (conn) {
 		se_have_more_data(s->scf->sedesc);
 		/* Make sure we're unsubscribed, the the new
