@@ -353,6 +353,23 @@ static int ha_quic_add_handshake_data(SSL *ssl, enum ssl_encryption_level_t leve
 
 	TRACE_ENTER(QUIC_EV_CONN_ADDDATA, qc);
 
+	TRACE_PROTO("ha_quic_add_handshake_data() called", QUIC_EV_CONN_IO_CB, qc, NULL, ssl);
+
+#ifdef HAVE_SSL_0RTT_QUIC
+	/* Detect asap if some 0-RTT data were accepted for this connection.
+	 * If this is the case and no token was provided, interrupt the useless
+	 * secrets derivations. A Retry packet must be sent, and this connection
+	 * must be killed.
+	 * Note that QUIC_FL_CONN_NO_TOKEN_RCVD is possibly set only for when 0-RTT is
+	 * enabled for the connection.
+	 */
+	if ((qc->flags & QUIC_FL_CONN_NO_TOKEN_RCVD) && qc_ssl_eary_data_accepted(ssl)) {
+		TRACE_PROTO("connection to be killed", QUIC_EV_CONN_ADDDATA, qc);
+		qc->flags |= QUIC_FL_CONN_TO_KILL|QUIC_FL_CONN_SEND_RETRY;
+		goto leave;
+	}
+#endif
+
 	if (qc->flags & QUIC_FL_CONN_TO_KILL) {
 		TRACE_PROTO("connection to be killed", QUIC_EV_CONN_ADDDATA, qc);
 		goto out;
@@ -533,9 +550,10 @@ static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 	state = qc->state;
 	if (state < QUIC_HS_ST_COMPLETE) {
 		ssl_err = SSL_do_handshake(ctx->ssl);
+		TRACE_PROTO("SSL_do_handshake() called", QUIC_EV_CONN_IO_CB, qc, NULL, ctx->ssl);
 
 		if (qc->flags & QUIC_FL_CONN_TO_KILL) {
-			TRACE_DEVEL("connection to be killed", QUIC_EV_CONN_IO_CB, qc);
+			TRACE_DEVEL("connection to be killed", QUIC_EV_CONN_IO_CB, qc, &state, ctx->ssl);
 			goto leave;
 		}
 
