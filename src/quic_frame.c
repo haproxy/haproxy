@@ -485,6 +485,7 @@ static int quic_build_new_token_frame(unsigned char **pos, const unsigned char *
 		return 0;
 
 	memcpy(*pos, new_token_frm->data, new_token_frm->len);
+	*pos += new_token_frm->len;
 
 	return 1;
 }
