@@ -842,6 +842,11 @@ int ipcmp2net(const struct sockaddr_storage *addr, const struct net_addr *net);
  */
 struct sockaddr_storage *ipcpy(const struct sockaddr_storage *source, struct sockaddr_storage *dest);
 
+/* Copy only the IP address from <saddr> socket address data into <buf> buffer. *
+ * Return the number of bytes copied.
+ */
+size_t ipaddrcpy(unsigned char *buf, const struct sockaddr_storage *saddr);
+
 char *human_time(int t, short hz_div);
 
 extern const char *monthname[];

@@ -3685,6 +3685,33 @@ struct sockaddr_storage *ipcpy(const struct sockaddr_storage *source, struct soc
 	return dest;
 }
 
+/* Copy only the IP address from <saddr> socket address data into <buf> buffer.
+ * This is the responsibility of the caller to check the <buf> buffer is big
+ * enough to contain these socket address data.
+ * Return the number of bytes copied.
+ */
+size_t ipaddrcpy(unsigned char *buf, const struct sockaddr_storage *saddr)
+{
+	void *addr;
+	unsigned char *p;
+	size_t addr_len;
+
+	p = buf;
+	if (saddr->ss_family == AF_INET6) {
+		addr = &((struct sockaddr_in6 *)saddr)->sin6_addr;
+		addr_len = sizeof ((struct sockaddr_in6 *)saddr)->sin6_addr;
+	}
+	else {
+		addr = &((struct sockaddr_in *)saddr)->sin_addr;
+		addr_len = sizeof ((struct sockaddr_in *)saddr)->sin_addr;
+	}
+	memcpy(p, addr, addr_len);
+	p += addr_len;
+
+	return p - buf;
+}
+
+
 char *human_time(int t, short hz_div) {
 	static char rv[sizeof("24855d23h")+1];	// longest of "23h59m" and "59m59s"
 	char *p = rv;
