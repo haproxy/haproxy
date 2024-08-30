@@ -473,7 +473,8 @@ static int quic_parse_crypto_frame(struct quic_frame *frm, struct quic_conn *qc,
 	return 1;
 }
 
-/* Encode a NEW_TOKEN frame at <pos> buffer position.
+/* Server only function.
+ * Encode a NEW_TOKEN frame at <pos> buffer position.
  * Returns 1 if succeeded (enough room at <pos> buffer position to encode the frame), 0 if not.
  */
 static int quic_build_new_token_frame(unsigned char **pos, const unsigned char *end,
@@ -490,7 +491,8 @@ static int quic_build_new_token_frame(unsigned char **pos, const unsigned char *
 	return 1;
 }
 
-/* Parse a NEW_TOKEN frame at <pos> buffer position with <end> as end into <frm> frame.
+/* Client only function.
+ * Parse a NEW_TOKEN frame at <pos> buffer position with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room at <pos> buffer position to parse this frame), 0 if not.
  */
 static int quic_parse_new_token_frame(struct quic_frame *frm, struct quic_conn *qc,
@@ -498,10 +500,11 @@ static int quic_parse_new_token_frame(struct quic_frame *frm, struct quic_conn *
 {
 	struct qf_new_token *new_token_frm = &frm->new_token;
 
-	if (!quic_dec_int(&new_token_frm->len, pos, end) || end - *pos < new_token_frm->len)
+	if (!quic_dec_int(&new_token_frm->len, pos, end) || end - *pos < new_token_frm->len ||
+	    sizeof(new_token_frm->data) < new_token_frm->len)
 		return 0;
 
-	new_token_frm->data = *pos;
+	memcpy(new_token_frm->data, *pos, new_token_frm->len);
 	*pos += new_token_frm->len;
 
 	return 1;

@@ -33,6 +33,7 @@
 #include <haproxy/buf-t.h>
 #include <haproxy/list.h>
 #include <haproxy/quic_stream-t.h>
+#include <haproxy/quic_token.h>
 
 extern struct pool_head *pool_head_quic_frame;
 extern struct pool_head *pool_head_qf_crypto;
@@ -154,7 +155,7 @@ struct qf_crypto {
 
 struct qf_new_token {
 	uint64_t len;
-	const unsigned char *data;
+	unsigned char data[QUIC_TOKEN_LEN];
 };
 
 struct qf_stream {
