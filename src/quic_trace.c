@@ -15,6 +15,7 @@
 #include <haproxy/api-t.h>
 #include <haproxy/chunk.h>
 #include <haproxy/quic_conn.h>
+#include <haproxy/quic_ssl.h>
 #include <haproxy/quic_tls.h>
 #include <haproxy/quic_trace.h>
 #include <haproxy/quic_tp.h>
@@ -260,9 +261,13 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 		if (mask & QUIC_EV_CONN_IO_CB) {
 			const enum quic_handshake_state *state = a2;
+			const SSL *ssl = a3;
 
 			if (state)
 				chunk_appendf(&trace_buf, " state=%s", quic_hdshk_state_str(*state));
+			if (ssl)
+				chunk_appendf(&trace_buf, " early_data_status=%s",
+				              quic_ssl_early_data_status_str(ssl));
 		}
 
 		if (mask & (QUIC_EV_CONN_TRMHP|QUIC_EV_CONN_ELRMHP|QUIC_EV_CONN_SPKT)) {
