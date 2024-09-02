@@ -470,9 +470,7 @@ static void mux_pt_shut(struct stconn *sc, unsigned int mode, struct se_abort_in
 	if (mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) {
 		if (conn_xprt_ready(conn) && conn->xprt->shutw)
 			conn->xprt->shutw(conn, conn->xprt_ctx, (mode & SE_SHW_NORMAL));
-		if (conn->flags & CO_FL_SOCK_RD_SH)
-			conn_full_close(conn);
-		else
+		if (!(conn->flags & CO_FL_SOCK_RD_SH))
 			conn_sock_shutw(conn, (mode & SE_SHW_NORMAL));
 	}
 
@@ -482,8 +480,6 @@ static void mux_pt_shut(struct stconn *sc, unsigned int mode, struct se_abort_in
 			conn->xprt->shutr(conn, conn->xprt_ctx, (mode & SE_SHR_DRAIN));
 		else if (mode & SE_SHR_DRAIN)
 			conn_ctrl_drain(conn);
-		if (conn->flags & CO_FL_SOCK_WR_SH)
-			conn_full_close(conn);
 	}
 
 	TRACE_LEAVE(PT_EV_STRM_SHUT, conn, sc);
