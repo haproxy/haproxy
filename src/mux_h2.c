@@ -4321,7 +4321,7 @@ static int h2_send(struct h2c *h2c)
 		 * data from the other side when it's known that this one is
 		 * still congested.
 		 */
-		if (sent && br_single(h2c->mbuf))
+		if (br_single(h2c->mbuf))
 			h2c->flags &= ~(H2_CF_MUX_MFULL | H2_CF_DEM_MROOM);
 	}
 
@@ -4671,6 +4671,12 @@ do_leave:
 		if (released)
 			offer_buffers(NULL, released);
 	}
+
+	/* Above we might have prepared a GOAWAY that was sent along with
+	 * pending data, make sure to clear the FULL flags.
+	 */
+	if (br_single(h2c->mbuf))
+		h2c->flags &= ~(H2_CF_MUX_MFULL | H2_CF_DEM_MROOM);
 
 	/* in any case this connection must not be considered idle anymore */
 	if (h2c->conn->flags & CO_FL_LIST_MASK) {
