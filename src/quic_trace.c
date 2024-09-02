@@ -261,10 +261,13 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 		if (mask & QUIC_EV_CONN_IO_CB) {
 			const enum quic_handshake_state *state = a2;
-			const SSL *ssl = a3;
+			const int *ssl_err = a3;
+			const SSL *ssl = a4;
 
 			if (state)
 				chunk_appendf(&trace_buf, " state=%s", quic_hdshk_state_str(*state));
+			if (ssl_err)
+				chunk_appendf(&trace_buf, "  ssl_err=%d", *ssl_err);
 			if (ssl)
 				chunk_appendf(&trace_buf, " early_data_status=%s",
 				              quic_ssl_early_data_status_str(ssl));
