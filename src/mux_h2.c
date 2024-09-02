@@ -900,6 +900,9 @@ static inline void h2_release_mbuf(struct h2c *h2c)
 		b_free(buf);
 		count++;
 	}
+
+	h2c->flags &= ~(H2_CF_MUX_MFULL | H2_CF_DEM_MROOM);
+
 	if (count)
 		offer_buffers(NULL, count);
 }
