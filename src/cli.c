@@ -3183,20 +3183,16 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		s->target = NULL;
 
-		/* only release our endpoint if we don't intend to reuse the
-		 * connection.
-		 */
-		if (!sc_conn_ready(s->scb)) {
-			s->srv_conn = NULL;
-			if (sc_reset_endp(s->scb) < 0) {
-				if (!s->conn_err_type)
-					s->conn_err_type = STRM_ET_CONN_OTHER;
-				if (s->srv_error)
-					s->srv_error(s, s->scb);
-				return 1;
-			}
-			se_fl_clr(s->scb->sedesc, ~SE_FL_DETACHED);
+		/* Always release our endpoint */
+		s->srv_conn = NULL;
+		if (sc_reset_endp(s->scb) < 0) {
+			if (!s->conn_err_type)
+				s->conn_err_type = STRM_ET_CONN_OTHER;
+			if (s->srv_error)
+				s->srv_error(s, s->scb);
+			return 1;
 		}
+		se_fl_clr(s->scb->sedesc, ~SE_FL_DETACHED);
 
 		sockaddr_free(&s->scb->dst);
 
