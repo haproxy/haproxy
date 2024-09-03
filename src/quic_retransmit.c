@@ -243,7 +243,8 @@ void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 				TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_SPPKTS, qc, pkt->next);
 			if (qel == iqel && may_send >= QUIC_INITIAL_PACKET_MINLEN)
 				TRACE_PROTO("will probe Initial packet number space", QUIC_EV_CONN_SPPKTS, qc);
-			goto end;
+			else
+				goto end;
 		}
 	}
 
