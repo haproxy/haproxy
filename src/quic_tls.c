@@ -252,8 +252,12 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	 * Here early-data is added after the Initial encryption level which is
 	 * always already present.
 	 */
-	if (level == ssl_encryption_early_data)
-		LIST_APPEND(&qc->iel->list, &qel->list);
+	if (level == ssl_encryption_early_data) {
+		if (qc->iel)
+			LIST_APPEND(&qc->iel->list, &qel->list);
+		else
+			LIST_INSERT(&qc->qel_list, &qel->list);
+	}
 	else
 		LIST_APPEND(&qc->qel_list, &qel->list);
 	*el = qel;
