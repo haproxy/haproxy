@@ -222,6 +222,12 @@ void clock_update_local_date(int max_wait, int interrupted)
 		     __tv_islt(&max_deadline, &date))) {                  // big jump forwards
 		if (!interrupted)
 			now_ns += ms_to_ns(max_wait);
+
+		/* this event is rare, but it requires proper handling because if
+		 * we just left now_ns where it was, the date will not be updated
+		 * by clock_update_global_date().
+		 */
+		HA_ATOMIC_STORE(&now_offset, now_ns - tv_to_ns(&date));
 	} else {
 		/* The date is still within expectations. Let's apply the
 		 * now_offset to the system date. Note: ofs if made of two
