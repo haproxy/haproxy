@@ -257,6 +257,16 @@ function updt(line,value) {
   updt_output();
 }
 
+function show_only(b,n,u,w,y) {
+    document.getElementById("sh_b").checked = !!b;
+    document.getElementById("sh_n").checked = !!n;
+    document.getElementById("sh_u").checked = !!u;
+    document.getElementById("sh_w").checked = !!w;
+    document.getElementById("sh_y").checked = !!y;
+    document.getElementById("show_all").checked = true;
+    updt(0,"r");
+}
+
 // -->
 </script>
 </HEAD>
@@ -264,17 +274,17 @@ EOF
 
 echo "<BODY>"
 echo -n "<table cellpadding=3 cellspacing=5 style='font-size: 150%;'><tr><th align=left>Backported</th>"
-echo -n "<td style='background-color:$BG_N'> N: <span id='cnt_bn'>0</span> </td>"
-echo -n "<td style='background-color:$BG_U'> U: <span id='cnt_bu'>0</span> </td>"
-echo -n "<td style='background-color:$BG_W'> W: <span id='cnt_bw'>0</span> </td>"
-echo -n "<td style='background-color:$BG_Y'> Y: <span id='cnt_by'>0</span> </td>"
+echo -n "<td style='background-color:$BG_N'><a href='#' onclick='show_only(1,1,0,0,0);'> N: <span id='cnt_bn'>0</span> </a></td>"
+echo -n "<td style='background-color:$BG_U'><a href='#' onclick='show_only(1,0,1,0,0);'> U: <span id='cnt_bu'>0</span> </a></td>"
+echo -n "<td style='background-color:$BG_W'><a href='#' onclick='show_only(1,0,0,1,0);'> W: <span id='cnt_bw'>0</span> </a></td>"
+echo -n "<td style='background-color:$BG_Y'><a href='#' onclick='show_only(1,0,0,0,1);'> Y: <span id='cnt_by'>0</span> </a></td>"
 echo -n "<td>total: <span id='cnt_bt'>0</span></td>"
 echo "</tr><tr>"
 echo -n "<th align=left>Not backported</th>"
-echo -n "<td style='background-color:$BG_N'> N: <span id='cnt_nbn'>0</span> </td>"
-echo -n "<td style='background-color:$BG_U'> U: <span id='cnt_nbu'>0</span> </td>"
-echo -n "<td style='background-color:$BG_W'> W: <span id='cnt_nbw'>0</span> </td>"
-echo -n "<td style='background-color:$BG_Y'> Y: <span id='cnt_nby'>0</span> </td>"
+echo -n "<td style='background-color:$BG_N'><a href='#' onclick='show_only(0,1,0,0,0);'> N: <span id='cnt_nbn'>0</span> </a></td>"
+echo -n "<td style='background-color:$BG_U'><a href='#' onclick='show_only(0,0,1,0,0);'> U: <span id='cnt_nbu'>0</span> </a></td>"
+echo -n "<td style='background-color:$BG_W'><a href='#' onclick='show_only(0,0,0,1,0);'> W: <span id='cnt_nbw'>0</span> </a></td>"
+echo -n "<td style='background-color:$BG_Y'><a href='#' onclick='show_only(0,0,0,0,1);'> Y: <span id='cnt_nby'>0</span> </a></td>"
 echo -n "<td>total: <span id='cnt_nbt'>0</span></td>"
 echo "</tr></table><P/>"
 echo -n "<big><big>Show:"
@@ -287,7 +297,7 @@ echo -n "</big/></big><br/>(B=show backported, N=no/drop, U=uncertain, W=wait/ne
 echo ")<P/>"
 
 echo "<TABLE COLS=5 BORDER=1 CELLSPACING=0 CELLPADDING=3>"
-echo "<TR><TH>All<br/><input type='radio' name='review' onclick='updt(0,\"r\");' checked title='Start review here'/></TH><TH>CID</TH><TH>Subject</TH><TH>Verdict<BR>N U W Y</BR></TH><TH>Reason</TH></TR>"
+echo "<TR><TH>All<br/><input type='radio' name='review' id='show_all' onclick='updt(0,\"r\");' checked title='Start review here'/></TH><TH>CID</TH><TH>Subject</TH><TH>Verdict<BR>N U W Y</BR></TH><TH>Reason</TH></TR>"
 seq_num=1; do_check=1; review=0;
 for patch in "${PATCHES[@]}"; do
         # try to retrieve the patch's numbering (0001-9999)
