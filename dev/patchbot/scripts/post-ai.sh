@@ -380,7 +380,7 @@ for patch in "${PATCHES[@]}"; do
         resp=$(echo "$resp" | sed -e "s|#\([0-9]\{1,5\}\)|<a href='${ISSUES}\1'>#\1</a>|g")
 
         # put links to commit IDs
-        resp=$(echo "$resp" | sed -e "s|\([0-9a-f]\{8,40\}\)|<a href='${GITURL}\1'>\1</a>|g")
+        resp=$(echo "$resp" | sed -e "s|\([0-9a-f]\{7,40\}\)|<a href='${GITURL}\1'>\1</a>|g")
 
         echo -n "<TD nowrap align=center ${bkp[$cid]:+style='background-color:${BG_B}'}>$seq_num<BR/>"
         echo -n "<input type='radio' name='review' onclick='updt($seq_num,\"r\");' ${do_check:+checked} title='Start review here'/></TD>"
