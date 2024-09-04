@@ -66,6 +66,7 @@ int init_log_buffers(void);
 void deinit_log_buffers(void);
 
 const char *log_orig_to_str(enum log_orig_id orig);
+int log_orig_proxy(enum log_orig_id orig, struct proxy *px);
 
 void lf_expr_init(struct lf_expr *expr);
 int lf_expr_dup(const struct lf_expr *orig, struct lf_expr *dest);

@@ -128,6 +128,27 @@ const char *log_orig_to_str(enum log_orig_id orig)
 	return "unspec";
 }
 
+/* Check if <orig> log origin is set for logging on <px>
+ *
+ * It is assumed that the caller already checked that log-steps were
+ * enabled on the proxy (do_log special value LW_LOGSTEPS)
+ *
+ * Returns 1 for true and 0 for false
+ */
+int log_orig_proxy(enum log_orig_id orig, struct proxy *px)
+{
+	if (eb_is_empty(&px->conf.log_steps)) {
+		/* empty tree means all log steps are enabled, thus
+		 * all log origins are considered
+		 */
+		return 1;
+	}
+	/* selectively check if the current log origin is referenced in
+	 * proxy log-steps
+	 */
+	return !!eb32_lookup(&px->conf.log_steps, orig);
+}
+
 /*
  * This map is used with all the FD_* macros to check whether a particular bit
  * is set or not. Each bit represents an ASCII code. ha_bit_set() sets those
