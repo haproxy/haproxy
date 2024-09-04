@@ -82,6 +82,7 @@ static int http_reply_100_continue(struct stream *s);
  */
 int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 {
+	uint8_t do_log = 0;
 
 	/*
 	 * We will analyze a complete HTTP request to check the its syntax.
@@ -264,7 +265,20 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * Note: we cannot log anymore if the request has been
 	 * classified as invalid.
 	 */
-	if (unlikely(s->logs.logwait & LW_REQ)) {
+	if (unlikely(sess->fe->to_log == LW_LOGSTEPS)) {
+		if (log_orig_proxy(LOG_ORIG_TXN_REQUEST, sess->fe))
+			do_log = 1; /* forced log (through "log-steps") */
+	}
+	else if (unlikely(s->logs.logwait & LW_REQ)) {
+		/* default behavior when log-steps isn't specified:
+		 * don't log systematically, but only if conditions are
+		 * met, ie: not log emitted yet for this txn, all data available
+		 * (unless "option logasap" is used)
+		 */
+		do_log = 2;
+	}
+
+	if (do_log) {
 		/* we have a complete HTTP request that we must log */
 		if ((txn->uri = pool_alloc(pool_head_requri)) != NULL) {
 			size_t len;
@@ -272,7 +286,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			len = http_fmt_req_line(sl, txn->uri, global.tune.requri_len - 1);
 			txn->uri[len] = 0;
 
-			if (!(s->logs.logwait &= ~(LW_REQ|LW_INIT)))
+			if (do_log == 1 || !(s->logs.logwait &= ~(LW_REQ|LW_INIT)))
 				s->do_log(s, log_orig(LOG_ORIG_TXN_REQUEST, LOG_ORIG_FL_NONE));
 		} else {
 			ha_alert("HTTP logging : out of memory.\n");
@@ -1682,6 +1696,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	struct htx *htx;
 	struct proxy *cur_proxy;
 	enum rule_result ret = HTTP_RULE_RES_CONT;
+	uint8_t do_log = 0;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))	/* we need more data */
 		return 0;
@@ -1904,11 +1919,18 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	rep->analysers &= ~AN_RES_FLT_XFER_DATA;
 	rep->analysers |= AN_RES_HTTP_XFER_BODY;
 
+	if (sess->fe->to_log == LW_LOGSTEPS) {
+		if (log_orig_proxy(LOG_ORIG_TXN_RESPONSE, sess->fe))
+			do_log = 1;
+	}
+	else if ((!lf_expr_isempty(&sess->fe->logformat) && !(s->logs.logwait & LW_BYTES)))
+		do_log = 1;
+
 	/* if the user wants to log as soon as possible, without counting
 	 * bytes from the server, then this is the right moment. We have
 	 * to temporarily assign bytes_out to log what we currently have.
 	 */
-	if (!lf_expr_isempty(&sess->fe->logformat) && !(s->logs.logwait & LW_BYTES)) {
+	if (do_log) {
 		s->logs.t_close = s->logs.t_data; /* to get a valid end date */
 		s->logs.bytes_out = htx->data;
 		s->do_log(s, log_orig(LOG_ORIG_TXN_RESPONSE, LOG_ORIG_FL_NONE));

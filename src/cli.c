@@ -3112,6 +3112,8 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	}
 
 	if (s->scb->flags & (SC_FL_ABRT_DONE|SC_FL_EOS)) {
+		uint8_t do_log = 0;
+
 		/* stream cleanup */
 
 		pcli_write_prompt(s);
@@ -3145,7 +3147,14 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		pendconn_free(s);
 
 		/* let's do a final log if we need it */
-		if (!lf_expr_isempty(&fe->logformat) && s->logs.logwait &&
+		if (fe->to_log == LW_LOGSTEPS) {
+			if (log_orig_proxy(LOG_ORIG_TXN_CLOSE, fe))
+				do_log = 1;
+		}
+		else if (!lf_expr_isempty(&fe->logformat) && s->logs.logwait)
+			do_log = 1;
+
+		if (do_log &&
 		    !(s->flags & SF_MONITOR) &&
 		    (!(fe->options & PR_O_NULLNOLOG) || s->req.total)) {
 			s->do_log(s, log_orig(LOG_ORIG_TXN_CLOSE, LOG_ORIG_FL_NONE));

@@ -896,6 +896,7 @@ void back_establish(struct stream *s)
 	struct connection *conn = sc_conn(s->scb);
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
+	uint8_t do_log = 0;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 	/* First, centralize the timers information, and clear any irrelevant
@@ -916,17 +917,26 @@ void back_establish(struct stream *s)
 	if (objt_server(s->target))
 		health_adjust(__objt_server(s->target), HANA_STATUS_L4_OK);
 
+	if (strm_fe(s)->to_log == LW_LOGSTEPS) {
+		if (log_orig_proxy(LOG_ORIG_TXN_CONNECT, strm_fe(s)))
+			do_log = 1;
+	}
+
 	if (!IS_HTX_STRM(s)) { /* let's allow immediate data connection in this case */
 		/* if the user wants to log as soon as possible, without counting
 		 * bytes from the server, then this is the right moment. */
-		if (!lf_expr_isempty(&strm_fe(s)->logformat) && !(s->logs.logwait & LW_BYTES)) {
-			/* note: no pend_pos here, session is established */
-			s->logs.t_close = s->logs.t_connect; /* to get a valid end date */
-			s->do_log(s, log_orig(LOG_ORIG_TXN_CONNECT, LOG_ORIG_FL_NONE));
-		}
+		if (strm_fe(s)->to_log != LW_LOGSTEPS &&
+		    !lf_expr_isempty(&strm_fe(s)->logformat) && !(s->logs.logwait & LW_BYTES))
+			do_log = 1;
 	}
 	else {
 		s->scb->flags |= SC_FL_RCV_ONCE; /* a single read is enough to get response headers */
+	}
+
+	if (do_log) {
+		/* note: no pend_pos here, session is established */
+		s->logs.t_close = s->logs.t_connect; /* to get a valid end date */
+		s->do_log(s, log_orig(LOG_ORIG_TXN_CONNECT, LOG_ORIG_FL_NONE));
 	}
 
 	rep->analysers |= strm_fe(s)->fe_rsp_ana | s->be->be_rsp_ana;
@@ -2564,6 +2574,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	}
 
 	if (!(s->flags & SF_IGNORE)) {
+		uint8_t do_log = 0;
+
 		s->logs.t_close = ns_to_ms(now_ns - s->logs.accept_ts);
 
 		stream_process_counters(s);
@@ -2586,7 +2598,14 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		}
 
 		/* let's do a final log if we need it */
-		if (!lf_expr_isempty(&sess->fe->logformat) && s->logs.logwait &&
+		if (sess->fe->to_log == LW_LOGSTEPS) {
+			if (log_orig_proxy(LOG_ORIG_TXN_CLOSE, sess->fe))
+				do_log = 1;
+		}
+		else if (!lf_expr_isempty(&sess->fe->logformat) && s->logs.logwait)
+			do_log = 1;
+
+		if (do_log &&
 		    !(s->flags & SF_MONITOR) &&
 		    (!(sess->fe->options & PR_O_NULLNOLOG) || req->total)) {
 			/* we may need to know the position in the queue */
