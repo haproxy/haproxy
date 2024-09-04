@@ -17551,6 +17551,51 @@ downinter <delay>
   "inter" setting will have a very limited effect as it will not be able to
   reduce the time spent in the queue.
 
+init-state { fully-up | up | down | fully-down }
+  May be used in the following contexts: tcp, http
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no   |    no    |   yes  |   yes
+
+  The "init-state" option sets the initial state of the server:
+    - when set to 'fully-up', the server is considered immediately available
+      and can turn to the DOWN sate when ALL health checks fail.
+    - when set to 'up' (the default), the server is considered immediately
+      available and will initiate a health check that can turn it to the DOWN
+      state immediately if it fails.
+    - when set to 'down', the server initially is considered unavailable and
+      will initiate a health check that can turn it to the UP state immediately
+      if it succeeds.
+    - when set to 'fully-down', the server is initially considered unavailable
+      and can turn to the UP state when ALL health checks succeed.
+
+  The server's init-state is considered when the HAProxy instance is
+  (re)started, a new server is detected (for example via service discovery /
+  DNS resolution), a server exits maintenance, etc.
+
+  Examples:
+      # pass client traffic ONLY to Redis "master" node
+      backend redis-master
+        mode tcp
+        balance first
+        option tcp-check
+        tcp-check send role\r\n
+        tcp-check expect string master
+        server-template redis 3 _redis._tcp.redis-headless-service.sandbox.svc.cluster.local:6379 check ... init-state down
+
+      # pass traffic to the server only after 3 successful health checks
+      backend google-backend
+        mode http
+        server srv1 google.com:80 check init-state down rise 3
+        server srv2 google.com:80 check init-state down rise 3
+
+      # or
+      listen
+        mode http
+        server-template srv 2 google.com:80 check init-state down rise 3
+
+See also: "option tcp-check", "option httpchk"
+
 log-bufsize <bufsize>
   May be used in the following contexts: log
 

@@ -101,6 +101,17 @@ enum srv_initaddr {
 	SRV_IADDR_IP       = 4,           /* we set an arbitrary IP address to the server */
 } __attribute__((packed));
 
+/* options for servers' "init-state" parameter this parameter may be
+ * used to drive HAProxy's behavior when determining a server's status
+ * at start up time.
+ */
+enum srv_init_state {
+	SRV_INIT_STATE_FULLY_DOWN = 0,     /* the server should initially be considered DOWN until it passes all health checks. Please keep set to zero. */
+	SRV_INIT_STATE_DOWN,               /* the server should initially be considered DOWN until it passes one health check. */
+	SRV_INIT_STATE_UP,                 /* the server should initially be considered UP, but will go DOWN if it fails one health check. */
+	SRV_INIT_STATE_FULLY_UP,           /* the server should initially be considered UP, but will go DOWN if it fails all health checks. */
+} __attribute__((packed));
+
 /* server-state-file version */
 #define SRV_STATE_FILE_VERSION 1
 #define SRV_STATE_FILE_VERSION_MIN 1
@@ -279,6 +290,7 @@ struct proxy;
 struct server {
 	/* mostly config or admin stuff, doesn't change often */
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_SERVER */
+	enum srv_init_state init_state;         /* server's initial state among SRV_INIT_STATE */
 	enum srv_state next_state, cur_state;   /* server state among SRV_ST_* */
 	enum srv_admin next_admin, cur_admin;   /* server maintenance status : SRV_ADMF_* */
 	signed char use_ssl;		        /* ssl enabled (1: on, 0: disabled, -1 forced off)  */

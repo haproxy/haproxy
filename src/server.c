@@ -1054,6 +1054,27 @@ static int srv_parse_init_addr(char **args, int *cur_arg,
 	return 0;
 }
 
+/* Parse the "init-state" server keyword */
+static int srv_parse_init_state(char **args, int *cur_arg,
+							   struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	if (strcmp(args[*cur_arg + 1], "fully-up") == 0)
+		newsrv->init_state= SRV_INIT_STATE_FULLY_UP;
+	else if (strcmp(args[*cur_arg + 1], "up") == 0)
+		newsrv->init_state = SRV_INIT_STATE_UP;
+	else if (strcmp(args[*cur_arg + 1], "down") == 0)
+		newsrv->init_state= SRV_INIT_STATE_DOWN;
+	else if (strcmp(args[*cur_arg + 1], "fully-down") == 0)
+		newsrv->init_state= SRV_INIT_STATE_FULLY_DOWN;
+	else {
+		memprintf(err, "'%s' expects one of 'fully-up', 'up', 'down', or 'fully-down' but got '%s'",
+				  args[*cur_arg], args[*cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+
 /* Parse the "log-bufsize" server keyword */
 static int srv_parse_log_bufsize(char **args, int *cur_arg,
                                  struct proxy *curproxy, struct server *newsrv, char **err)
@@ -2302,6 +2323,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "hash-key",             srv_parse_hash_key,             1,  1,  1 }, /* Configure how chash keys are computed */
 	{ "id",                   srv_parse_id,                   1,  0,  1 }, /* set id# of server */
 	{ "init-addr",            srv_parse_init_addr,            1,  1,  0 }, /* */
+	{ "init-state",           srv_parse_init_state,           1,  1,  0 }, /* Set the initial state of the server */
 	{ "log-bufsize",          srv_parse_log_bufsize,          1,  1,  0 }, /* Set the ring bufsize for log server (only for log backends) */
 	{ "log-proto",            srv_parse_log_proto,            1,  1,  0 }, /* Set the protocol for event messages, only relevant in a log or ring section */
 	{ "maxconn",              srv_parse_maxconn,              1,  1,  1 }, /* Set the max number of concurrent connection */
@@ -2713,6 +2735,8 @@ void srv_settings_init(struct server *srv)
 	srv->agent.fall = DEF_AGENT_FALLTIME;
 	srv->agent.port = 0;
 
+	srv->init_state = SRV_INIT_STATE_UP;
+
 	srv->maxqueue = 0;
 	srv->minconn = 0;
 	srv->maxconn = 0;
@@ -2842,6 +2866,8 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 
 	srv->init_addr_methods        = src->init_addr_methods;
 	srv->init_addr                = src->init_addr;
+
+	srv->init_state               = src->init_state;
 #if defined(USE_OPENSSL)
 	srv_ssl_settings_cpy(srv, src);
 #endif
@@ -6504,7 +6530,17 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 		 */
 		if (s->check.state & CHK_ST_ENABLED) {
 			s->check.state &= ~CHK_ST_PAUSED;
-			s->check.health = s->check.rise; /* start OK but check immediately */
+			if(s->init_state == SRV_INIT_STATE_FULLY_UP) {
+				s->check.health = s->check.rise + s->check.fall - 1; /* initially UP, when all checks fail to bring server DOWN */
+			}
+			else if(s->init_state == SRV_INIT_STATE_DOWN) {
+				s->check.health = s->check.rise - 1; /* initially DOWN, when one check is successful bring server UP */
+			}
+			else if(s->init_state == SRV_INIT_STATE_FULLY_DOWN) {
+				s->check.health = 0; /* initially DOWN, when all checks are successful bring server UP */
+			} else {
+				s->check.health = s->check.rise; /* initially UP, when one check fails check brings server DOWN */
+			}
 		}
 
 		if ((!s->track || s->track->next_state != SRV_ST_STOPPED) &&
