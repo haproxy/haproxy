@@ -53,6 +53,16 @@ struct quic_tx_packet {
 	struct quic_tx_packet *prev;
 	/* Largest acknowledged packet number if this packet contains an ACK frame */
 	int64_t largest_acked_pn;
+	/* Delivery rate sampling information */
+	struct {
+		uint64_t delivered;
+		uint64_t tx_in_flight;
+		uint64_t lost;
+		int64_t end_seq;
+		uint32_t delivered_time;
+		uint32_t first_sent_time;
+		int is_app_limited;
+	} rs;
 	unsigned char type;
 };
 

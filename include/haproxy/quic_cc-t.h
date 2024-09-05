@@ -117,6 +117,7 @@ struct quic_cc_path {
 	uint64_t ifae_pkts;
 	/* Burst size if pacing is used. Not used if congestion algo handle pacing itself. */
 	uint32_t pacing_burst;
+	uint64_t delivery_rate; /* bytes per second */
 };
 
 struct quic_cc_algo {
