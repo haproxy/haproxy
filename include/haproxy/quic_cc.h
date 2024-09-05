@@ -101,6 +101,8 @@ static inline void quic_cc_path_init(struct quic_cc_path *path, int ipv4, unsign
 	path->pacing_burst = burst;
 	quic_cc_init(&path->cc, algo, qc);
 	path->delivery_rate = 0;
+	path->send_quantum = 64 * 1024;
+	path->recovery_start_ts = TICK_ETERNITY;
 }
 
 /* Return the remaining <room> available on <path> QUIC path for prepared data

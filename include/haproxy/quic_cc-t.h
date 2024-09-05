@@ -36,6 +36,7 @@
 
 extern struct quic_cc_algo quic_cc_algo_nr;
 extern struct quic_cc_algo quic_cc_algo_cubic;
+extern struct quic_cc_algo quic_cc_algo_bbr;
 extern struct quic_cc_algo *default_quic_cc_algo;
 
 /* Fake algorithm with its fixed window */
@@ -81,6 +82,7 @@ struct quic_cc_event {
 enum quic_cc_algo_type {
 	QUIC_CC_ALGO_TP_NEWRENO,
 	QUIC_CC_ALGO_TP_CUBIC,
+	QUIC_CC_ALGO_TP_BBR,
 	QUIC_CC_ALGO_TP_NOCC,
 };
 
@@ -88,7 +90,7 @@ struct quic_cc {
 	/* <conn> is there only for debugging purpose. */
 	struct quic_conn *qc;
 	struct quic_cc_algo *algo;
-	uint32_t priv[20];
+	uint32_t priv[158];
 };
 
 struct quic_cc_path {
@@ -118,6 +120,8 @@ struct quic_cc_path {
 	/* Burst size if pacing is used. Not used if congestion algo handle pacing itself. */
 	uint32_t pacing_burst;
 	uint64_t delivery_rate; /* bytes per second */
+	size_t send_quantum;
+	uint32_t recovery_start_ts;
 };
 
 struct quic_cc_algo {

@@ -654,7 +654,8 @@ OPTIONS_OBJS += src/quic_rx.o src/mux_quic.o src/h3.o src/quic_tx.o	\
                 src/cfgparse-quic.o src/qmux_trace.o src/qpack-enc.o	\
                 src/qpack-tbl.o src/h3_stats.o src/quic_stats.o		\
                 src/quic_fctl.o src/cbuf.o src/quic_rules.o         \
-                src/quic_token.o src/quic_pacing.o src/quic_cc_drs.o
+                src/quic_token.o src/quic_pacing.o src/quic_cc_drs.o \
+                src/quic_cc_bbr.o
 endif
 
 ifneq ($(USE_QUIC_OPENSSL_COMPAT:0=),)
