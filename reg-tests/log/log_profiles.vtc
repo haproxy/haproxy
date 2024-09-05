@@ -6,11 +6,12 @@ barrier b1 cond 4 -cyclic
 barrier b2 cond 4 -cyclic
 barrier b3 cond 3 -cyclic
 barrier b4 cond 3 -cyclic
+barrier b5 cond 2 -cyclic
 
 server s1 {
     rxreq
 	txresp
-} -repeat 3 -start
+} -repeat 5 -start
 
 syslog Slg1 -level info {
     recv
@@ -73,6 +74,27 @@ syslog Slg4 -level info {
     barrier b4 sync
 } -start
 
+syslog Slg5 -level info {
+    #rfc5424, logprof4, http connect, close
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* connect"
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* close"
+    barrier b5 sync
+
+    #rfc5424, logprof4, http all steps
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* accept"
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* request"
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* connect"
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* response"
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* close"
+} -start
+
 haproxy h1 -conf {
 	defaults
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -120,6 +142,22 @@ haproxy h1 -conf {
 		log udp@${Slg3_addr}:${Slg3_port} format rfc5424 profile logprof2 local0
 		log udp@${Slg4_addr}:${Slg4_port} format rfc5424 profile logprof3 local0
 
+	listen fe5
+		bind "fd@${fe_5}"
+		mode http
+		log-format "dummy"
+		log-steps connect,close
+		log udp@${Slg5_addr}:${Slg5_port} format rfc5424 profile logprof4 local0
+		default_backend be
+
+	listen fe6
+		bind "fd@${fe_6}"
+		mode http
+		log-format "dummy"
+		log-steps all
+		log udp@${Slg5_addr}:${Slg5_port} format rfc5424 profile logprof4 local0
+		default_backend be
+
 	log-profile logprof1
 		on close format "close" sd "sdclose"
 
@@ -131,6 +169,13 @@ haproxy h1 -conf {
 	log-profile logprof3
 		on error format "error"
 		on any drop
+
+	log-profile logprof4
+		on accept format "accept"
+		on request format "request"
+		on connect format "connect"
+		on response format "response"
+		on close format "close"
 
 	backend be
 		mode http
@@ -179,7 +224,23 @@ client c4 -connect ${h1_fe_4_sock} {
 # Wait matching log messages
 barrier b4 sync
 
+client c5 -connect ${h1_fe_5_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+} -start -wait
+
+# Wait matching log messages
+barrier b5 sync
+
+client c6 -connect ${h1_fe_6_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+} -start -wait
+
 syslog Slg1 -wait
 syslog Slg2 -wait
 syslog Slg3 -wait
 syslog Slg4 -wait
+syslog Slg5 -wait
