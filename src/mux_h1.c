@@ -2130,8 +2130,16 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 			}
 
 			if ((h1m->flags & H1_MF_RESP) &&
-			    ((h1s->meth == HTTP_METH_CONNECT && h1s->status >= 200 && h1s->status < 300) || h1s->status == 101))
+			    ((h1s->meth == HTTP_METH_CONNECT && h1s->status >= 200 && h1s->status < 300) || h1s->status == 101)) {
+				if (h1s->req.state != H1_MSG_DONE) {
+					TRACE_STATE("Reject tunnel because request is not finished", H1_EV_RX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
+					h1s->flags |= H1S_F_PARSING_ERROR;
+					htx->flags |= HTX_FL_PARSING_ERROR;
+					h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+					break;
+				}
 				h1_set_tunnel_mode(h1s);
+			}
 			else {
 				if (h1s->req.state < H1_MSG_DONE || h1s->res.state < H1_MSG_DONE) {
 					/* Unfinished transaction: block this input side waiting the end of the output side */

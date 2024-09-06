@@ -5989,6 +5989,12 @@ static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 			if ((sl->flags & HTX_SL_F_CONN_UPG) && isteqi(list[hdr].n, ist("connection"))) {
 				/* rfc 7230 #6.1 Connection = list of tokens */
 				struct ist connection_ist = list[hdr].v;
+
+				if (!(sl->flags & HTX_SL_F_BODYLESS)) {
+					TRACE_STATE("cannot convert upgrade for request with payload", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
+					goto fail;
+				}
+
 				do {
 					if (isteqi(iststop(connection_ist, ','),
 					           ist("upgrade"))) {

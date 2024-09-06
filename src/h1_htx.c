@@ -182,11 +182,9 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	flags |= h1m_htx_sl_flags(h1m);
 
 	/* Remove Upgrade header in problematic cases :
-	 * - body present
 	 * - "h2c" or "h2" token specified as token
 	 */
-	if (((flags & (HTX_SL_F_CONN_UPG|HTX_SL_F_BODYLESS)) == HTX_SL_F_CONN_UPG) ||
-	    ((h1m->flags & (H1_MF_CONN_UPG|H1_MF_UPG_H2C)) == (H1_MF_CONN_UPG|H1_MF_UPG_H2C))) {
+	if ((h1m->flags & (H1_MF_CONN_UPG|H1_MF_UPG_H2C)) == (H1_MF_CONN_UPG|H1_MF_UPG_H2C)) {
 		int i;
 
 		for (i = 0; hdrs[i].n.len; i++) {
