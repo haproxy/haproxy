@@ -23,6 +23,33 @@ server srv_h1 {
 	  -hdr "upgrade: custom_protocol"
 } -repeat 2 -start
 
+
+# http/1.1 server
+server srv_h1_partial_post {
+	rxreqhdrs
+	expect req.method == "POST"
+	expect req.http.connection == "upgrade"
+	expect req.http.upgrade == "custom_protocol"
+
+	txresp \
+	  -status 101 \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: custom_protocol"
+} -start
+
+# http/1.1 server
+server srv_h1_post {
+	rxreq
+	expect req.method == "POST"
+	expect req.http.connection == "upgrade"
+	expect req.http.upgrade == "custom_protocol"
+
+	txresp \
+	  -status 101 \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: custom_protocol"
+} -start
+
 # http2 server
 server srv_h2 {
 	rxpri
@@ -85,6 +112,24 @@ server srv_h2_no_ws2 {
 	} -run
 } -start
 
+# http2 server with support for RFC8441 by H1 client is sending a request with payload
+server srv_h2_no_post {
+	rxpri
+
+	stream 0 {
+		# manually send RFC8441 SETTINGS_ENABLE_CONNECT_PROTOCOL
+		sendhex "00 00 06 04   00    00 00 00 00    00 08   00 00 00 01"
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		rxrst
+	} -run
+} -start
+
 # http/1.1 server
 server srv_h1_h2c {
 	rxreq
@@ -126,6 +171,11 @@ haproxy hap -conf {
 	bind "fd@${frt_h1_no_ws2}"
 	server srv_h2_no_ws2 ${srv_h2_no_ws2_addr}:${srv_h2_no_ws2_port} proto h2
 
+	# h1 frontend connected to srv_h2_no_post
+	listen frt_h1_no_post
+	bind "fd@${frt_h1_no_post}"
+	server srv_h2_no_post ${srv_h2_no_post_addr}:${srv_h2_no_post_port} proto h2
+
 	# h2 frontend connected to h1 frontend
 	listen frt_h2_h1
 	bind "fd@${frt_h2_h1}" proto h2
@@ -135,6 +185,16 @@ haproxy hap -conf {
 	listen frt_h1_h2c
 	bind "fd@${frt_h1_h2c}"
 	server srv_h1_h2c ${srv_h1_h2c_addr}:${srv_h1_h2c_port}
+
+	# h1 frontend connected to h1 server replying before end of POST request
+	listen frt_h1_partial_post
+	bind "fd@${frt_h1_partial_post}"
+	server srv_h1_partial_post ${srv_h1_partial_post_addr}:${srv_h1_partial_post_port}
+
+	# h1 frontend connected to h1 server replying post end of POST request
+	listen frt_h1_post
+	bind "fd@${frt_h1_post}"
+	server srv_h1_post ${srv_h1_post_addr}:${srv_h1_post_port}
 } -start
 
 ## connect to h1 translation frontend
@@ -241,8 +301,22 @@ client c6 -connect ${hap_frt_h1_no_ws2_sock} {
 	expect resp.status == 502
 } -run
 
+# connect via h1 server frontend to h2 server with RFC8441 support but send a POST request
+client c7 -connect ${hap_frt_h1_no_post_sock} {
+	txreq \
+	  -req "POST" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: custom_protocol" \
+	  -bodylen 50
+
+	rxresp
+	expect resp.status == 502
+} -run
+
 # connect as http/1 with invalid "h2c" protocol
-client c7_h2c -connect ${hap_frt_h1_h2c_sock} {
+client c8_h2c -connect ${hap_frt_h1_h2c_sock} {
 	txreq \
 	  -req "GET" \
 	  -url "/" \
@@ -255,7 +329,7 @@ client c7_h2c -connect ${hap_frt_h1_h2c_sock} {
 }
 
 # extended connect with invalid "h2c" protocol
-client c8_h2c -connect ${hap_frt_h2_h1_sock} {
+client c9_h2c -connect ${hap_frt_h2_h1_sock} {
 	txpri
 	stream 0 {
 		txsettings
@@ -276,4 +350,39 @@ client c8_h2c -connect ${hap_frt_h2_h1_sock} {
 		rxrst
 		expect rst.err == 1
 	} -run
+} -run
+
+
+## connect to h1 frontend forwarding to a server not waiting end of POST request
+client c10_h1_partial_post -connect ${hap_frt_h1_partial_post_sock} {
+	txreq \
+	  -req "POST" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: custom_protocol" \
+	  -hdr "content-length: 50"
+
+	rxresp
+	expect resp.status == 502
+} -run
+
+## connect to h1 frontend forwarding to a server waiting end of POST request
+client c10_h1_post -connect ${hap_frt_h1_post_sock} {
+	txreq \
+	  -req "POST" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: custom_protocol" \
+	  -hdr "content-length: 50"
+
+        delay 0.5
+
+	send_n 5 "0123456789"
+
+	rxresp
+	expect resp.status == 101
+	expect resp.http.connection == "upgrade"
+	expect resp.http.upgrade == "custom_protocol"
 } -run
