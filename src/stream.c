@@ -792,7 +792,7 @@ void stream_process_counters(struct stream *s)
 
 	bytes = s->req.total - s->logs.bytes_in;
 	s->logs.bytes_in = s->req.total;
-	if (bytes) {
+	if (((signed long long) bytes) > 0) {
 		_HA_ATOMIC_ADD(&sess->fe->fe_counters.bytes_in, bytes);
 		_HA_ATOMIC_ADD(&s->be->be_counters.bytes_in,    bytes);
 
@@ -810,7 +810,7 @@ void stream_process_counters(struct stream *s)
 
 	bytes = s->res.total - s->logs.bytes_out;
 	s->logs.bytes_out = s->res.total;
-	if (bytes) {
+	if (((signed long long) bytes) > 0) {
 		_HA_ATOMIC_ADD(&sess->fe->fe_counters.bytes_out, bytes);
 		_HA_ATOMIC_ADD(&s->be->be_counters.bytes_out,    bytes);
 
