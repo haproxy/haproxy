@@ -25877,6 +25877,8 @@ instead. Refer to section 8.2.6 "Custom log format" to see how to use this:
     # strict equivalent of "option httplog"
     log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC \
                 %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"
+    # or using the HAPROXY_HTTP_LOG_FMT variable
+    log-format "${HAPROXY_HTTP_LOG_FMT}"
 
 And the CLF log format is internally declared as a custom log format based on
 this exact string:
@@ -25885,8 +25887,6 @@ this exact string:
     log-format "%{+Q}o %{-Q}ci - - [%trg] %r %ST %B \"\" \"\" %cp \
                 %ms %ft %b %s %TR %Tw %Tc %Tr %Ta %tsc %ac %fc \
                 %bc %sc %rc %sq %bq %CC %CS %hrl %hsl"
-    # or using the HAPROXY_HTTP_LOG_FMT variable
-    log-format "${HAPROXY_HTTP_LOG_FMT}"
 
 Most fields are shared with the TCP log, some being different. A few fields may
 slightly vary depending on some configuration options. Those ones are marked
