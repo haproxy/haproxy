@@ -2228,13 +2228,15 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 
 	/* Set EOI on stream connector in DONE state iff:
 	 *  - it is a response
+	 *  - it is a request and the response is DONE too
 	 *  - it is a request but no a protocol upgrade nor a CONNECT
 	 *
 	 * If not set, Wait the response to do so or not depending on the status
 	 * code.
 	 */
-	if (((h1m->state == H1_MSG_DONE) && (h1m->flags & H1_MF_RESP)) ||
-	    ((h1m->state == H1_MSG_DONE) && (h1s->meth != HTTP_METH_CONNECT) && !(h1m->flags & H1_MF_CONN_UPG)))
+	if ((h1m->state == H1_MSG_DONE) && ((h1m->flags & H1_MF_RESP) ||
+					    (h1s->res.state == H1_MSG_DONE) ||
+					    ((h1s->meth != HTTP_METH_CONNECT) && !(h1m->flags & H1_MF_CONN_UPG))))
 		se_fl_set(h1s->sd, SE_FL_EOI);
 
   out:
