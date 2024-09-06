@@ -651,11 +651,18 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 
 		if (smp->data.u.str.data < smp->data.u.str.size) {
 			/* we may have to force a trailing zero on the test pattern and
-			 * the buffer is large enough to accommodate it.
+			 * the buffer is large enough to accommodate it. If the flag
+			 * CONST is set, duplicate the string
 			 */
 			prev = smp->data.u.str.area[smp->data.u.str.data];
-			if (prev)
-				smp->data.u.str.area[smp->data.u.str.data] = '\0';
+			if (prev) {
+				if (smp->flags & SMP_F_CONST) {
+					if (!smp_dup(smp))
+						return NULL;
+				} else {
+					smp->data.u.str.area[smp->data.u.str.data] = '\0';
+				}
+			}
 		}
 		else {
 			/* Otherwise, the sample is duplicated. A trailing zero
