@@ -403,6 +403,22 @@ void clock_entering_poll(void)
 
 	gettimeofday(&before_poll, NULL);
 
+	/* The time might have jumped either backwards or forwards during tasks
+	 * processing. It's easy to detect a backwards jump, but a forward jump
+	 * needs a marging. Here the upper limit of 2 seconds corresponds to a
+	 * large margin at which the watchdog would already trigger so it looks
+	 * sufficient to avoid false positives most of the time. The goal here
+	 * is to make sure that before_poll can be trusted when entering
+	 * clock_update_local_date() so that we can detect and fix time jumps.
+	 * All this will also make sure we don't report idle/run times that are
+	 * too much wrong during such jumps.
+	 */
+
+	if (unlikely(__tv_islt(&before_poll, &after_poll)))
+		before_poll = after_poll;
+	else if (unlikely(__tv_ms_elapsed(&after_poll, &before_poll) >= 2000))
+		tv_ms_add(&before_poll, &after_poll, 2000);
+
 	run_time = (before_poll.tv_sec - after_poll.tv_sec) * 1000000U + (before_poll.tv_usec - after_poll.tv_usec);
 
 	new_cpu_time   = now_cpu_time();
