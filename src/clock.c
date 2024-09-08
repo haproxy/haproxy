@@ -39,6 +39,7 @@ THREAD_LOCAL ullong              now_ns;          /* internal monotonic date der
 THREAD_LOCAL uint                now_ms;          /* internal monotonic date in milliseconds (may wrap) */
 THREAD_LOCAL struct timeval      date;            /* the real current date (wall-clock time) */
 
+static THREAD_LOCAL ullong  before_poll_mono_ns;  /* system wide monotonic time when entering poll last */
 static THREAD_LOCAL struct timeval before_poll;   /* system date before calling poll() */
 static THREAD_LOCAL struct timeval after_poll;    /* system date after leaving poll() */
 static THREAD_LOCAL unsigned int samp_time;       /* total elapsed time over current sample */
@@ -310,7 +311,8 @@ void clock_update_global_date()
 void clock_init_process_date(void)
 {
 	now_offset = 0;
-	th_ctx->prev_mono_time = th_ctx->curr_mono_time = now_mono_time(); // 0 if not supported
+	before_poll_mono_ns = now_mono_time(); // 0 if not supported
+	th_ctx->prev_mono_time = th_ctx->curr_mono_time = before_poll_mono_ns;
 	gettimeofday(&date, NULL);
 	after_poll = before_poll = date;
 	global_now_ns = th_ctx->curr_mono_time;
@@ -356,6 +358,7 @@ void clock_init_thread_date(void)
 	th_ctx->prev_cpu_time  = now_cpu_time();
 	th_ctx->prev_mono_time = now_mono_time();
 	th_ctx->curr_mono_time = th_ctx->prev_mono_time;
+	before_poll_mono_ns = th_ctx->curr_mono_time;
 	clock_update_date(0, 1);
 }
 
@@ -390,15 +393,23 @@ static inline void clock_measure_idle(void)
 	 */
 	int delta;
 
-	if ((delta = date.tv_sec - before_poll.tv_sec))
-		delta *= 1000000;
-	idle_time += delta + (date.tv_usec - before_poll.tv_usec);
+	if (before_poll_mono_ns) {
+		/* CLOCK_MONOTONIC in use, use it and convert it to microseconds */
 
-	if ((delta = date.tv_sec - after_poll.tv_sec))
-		delta *= 1000000;
-	samp_time += delta + (date.tv_usec - after_poll.tv_usec);
+		idle_time += (th_ctx->curr_mono_time - before_poll_mono_ns) / 1000ull;
+		samp_time += (th_ctx->curr_mono_time - th_ctx->prev_mono_time) / 1000ull;
+	} else {
+		/* CLOCK_MONOTONIC not used */
+		if ((delta = date.tv_sec - before_poll.tv_sec))
+			delta *= 1000000;
+		idle_time += delta + (date.tv_usec - before_poll.tv_usec);
 
-	after_poll.tv_sec = date.tv_sec; after_poll.tv_usec = date.tv_usec;
+		if ((delta = date.tv_sec - after_poll.tv_sec))
+			delta *= 1000000;
+		samp_time += delta + (date.tv_usec - after_poll.tv_usec);
+
+		after_poll.tv_sec = date.tv_sec; after_poll.tv_usec = date.tv_usec;
+	}
 	if (samp_time < 500000)
 		return;
 
@@ -433,6 +444,12 @@ void clock_entering_poll(void)
 
 	gettimeofday(&before_poll, NULL);
 
+	new_cpu_time   = now_cpu_time();
+	new_mono_time  = now_mono_time();
+
+	/* the the time when we entere poll */
+	before_poll_mono_ns = new_mono_time;
+
 	/* The time might have jumped either backwards or forwards during tasks
 	 * processing. It's easy to detect a backwards jump, but a forward jump
 	 * needs a marging. Here the upper limit of 2 seconds corresponds to a
@@ -449,10 +466,10 @@ void clock_entering_poll(void)
 	else if (unlikely(__tv_ms_elapsed(&after_poll, &before_poll) >= 2000))
 		tv_ms_add(&before_poll, &after_poll, 2000);
 
-	run_time = (before_poll.tv_sec - after_poll.tv_sec) * 1000000U + (before_poll.tv_usec - after_poll.tv_usec);
-
-	new_cpu_time   = now_cpu_time();
-	new_mono_time  = now_mono_time();
+	if (before_poll_mono_ns)
+		run_time = (before_poll_mono_ns - th_ctx->curr_mono_time) / 1000ull;
+	else
+		run_time = (before_poll.tv_sec - after_poll.tv_sec) * 1000000U + (before_poll.tv_usec - after_poll.tv_usec);
 
 	if (th_ctx->prev_cpu_time && th_ctx->prev_mono_time) {
 		new_cpu_time  -= th_ctx->prev_cpu_time;
