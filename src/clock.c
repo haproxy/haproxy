@@ -442,8 +442,6 @@ void clock_entering_poll(void)
 	uint32_t run_time;
 	int64_t stolen;
 
-	gettimeofday(&before_poll, NULL);
-
 	new_cpu_time   = now_cpu_time();
 	new_mono_time  = now_mono_time();
 
@@ -461,15 +459,18 @@ void clock_entering_poll(void)
 	 * too much wrong during such jumps.
 	 */
 
-	if (unlikely(__tv_islt(&before_poll, &after_poll)))
-		before_poll = after_poll;
-	else if (unlikely(__tv_ms_elapsed(&after_poll, &before_poll) >= 2000))
-		tv_ms_add(&before_poll, &after_poll, 2000);
-
 	if (before_poll_mono_ns)
 		run_time = (before_poll_mono_ns - th_ctx->curr_mono_time) / 1000ull;
-	else
+	else {
+		gettimeofday(&before_poll, NULL);
+
+		if (unlikely(__tv_islt(&before_poll, &after_poll)))
+			before_poll = after_poll;
+		else if (unlikely(__tv_ms_elapsed(&after_poll, &before_poll) >= 2000))
+			tv_ms_add(&before_poll, &after_poll, 2000);
+
 		run_time = (before_poll.tv_sec - after_poll.tv_sec) * 1000000U + (before_poll.tv_usec - after_poll.tv_usec);
+	}
 
 	if (th_ctx->prev_cpu_time && th_ctx->prev_mono_time) {
 		new_cpu_time  -= th_ctx->prev_cpu_time;
