@@ -169,6 +169,7 @@ struct thread_ctx {
 
 	uint64_t prev_cpu_time;             /* previous per thread CPU time */
 	uint64_t prev_mono_time;            /* previous system wide monotonic time  */
+	uint64_t curr_mono_time;            /* latest system wide monotonic time  */
 
 	struct eb_root rqueue_shared;       /* run queue fed by other threads */
 	__decl_thread(HA_SPINLOCK_T rqsh_lock); /* lock protecting the shared runqueue */

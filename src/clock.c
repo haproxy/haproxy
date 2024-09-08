@@ -205,6 +205,8 @@ void clock_update_local_date(int max_wait, int interrupted)
 	gettimeofday(&date, NULL);
 	date_ns = tv_to_ns(&date);
 
+	th_ctx->curr_mono_time = now_mono_time();
+
 	/* compute the minimum and maximum local date we may have reached based
 	 * on our past date and the associated timeout. There are three possible
 	 * extremities:
@@ -296,6 +298,7 @@ void clock_update_global_date()
 void clock_init_process_date(void)
 {
 	now_offset = 0;
+	th_ctx->prev_mono_time = th_ctx->curr_mono_time = now_mono_time(); // 0 if not supported
 	gettimeofday(&date, NULL);
 	after_poll = before_poll = date;
 	now_ns = global_now_ns = tv_to_ns(&date);
@@ -332,6 +335,8 @@ void clock_init_thread_date(void)
 	now_ns = _HA_ATOMIC_LOAD(&global_now_ns);
 	th_ctx->idle_pct = 100;
 	th_ctx->prev_cpu_time  = now_cpu_time();
+	th_ctx->prev_mono_time = now_mono_time();
+	th_ctx->curr_mono_time = th_ctx->prev_mono_time;
 	clock_update_date(0, 1);
 }
 
@@ -391,7 +396,7 @@ void clock_leaving_poll(int timeout, int interrupted)
 {
 	clock_measure_idle();
 	th_ctx->prev_cpu_time  = now_cpu_time();
-	th_ctx->prev_mono_time = now_mono_time();
+	th_ctx->prev_mono_time = th_ctx->curr_mono_time;
 }
 
 /* Collect date and time information before calling poll(). This will be used
