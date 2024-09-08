@@ -32,6 +32,7 @@ ullong                           start_time_ns;   /* the process's start date in
 volatile ullong                  global_now_ns;   /* common monotonic date between all threads, in ns (wraps every 585 yr) */
 volatile uint                    global_now_ms;   /* common monotonic date in milliseconds (may wrap) */
 
+/* when CLOCK_MONOTONIC is supported, the offset is applied from th_ctx->prev_mono_time instead */
 THREAD_ALIGNED(64) static llong  now_offset;      /* global offset between system time and global time in ns */
 
 THREAD_LOCAL ullong              now_ns;          /* internal monotonic date derived from real clock, in ns (wraps every 585 yr) */
@@ -203,9 +204,15 @@ void clock_update_local_date(int max_wait, int interrupted)
 	llong date_ns;
 
 	gettimeofday(&date, NULL);
-	date_ns = tv_to_ns(&date);
-
 	th_ctx->curr_mono_time = now_mono_time();
+
+	date_ns = th_ctx->curr_mono_time;
+	if (date_ns) {
+		/* no need to go through complex calculations, we have
+		 * monotonic time. The offset will never change.
+		 */
+		goto done;
+	}
 
 	/* compute the minimum and maximum local date we may have reached based
 	 * on our past date and the associated timeout. There are three possible
@@ -220,6 +227,7 @@ void clock_update_local_date(int max_wait, int interrupted)
 	 */
 	_tv_ms_add(&min_deadline, &before_poll, max_wait);
 	_tv_ms_add(&max_deadline, &before_poll, max_wait + 100);
+	date_ns = tv_to_ns(&date);
 
 	if (unlikely(__tv_islt(&date, &before_poll)                    || // big jump backwards
 		     (!interrupted && __tv_islt(&date, &min_deadline)) || // small jump backwards
@@ -237,6 +245,7 @@ void clock_update_local_date(int max_wait, int interrupted)
 		 */
 		HA_ATOMIC_STORE(&now_offset, now_ns - date_ns);
 	} else {
+	done:
 		/* The date is still within expectations. Let's apply the
 		 * now_offset to the system date. Note: ofs if made of two
 		 * independent signed ints.
@@ -286,12 +295,15 @@ void clock_update_global_date()
 		  (now_ms  != old_now_ms && !_HA_ATOMIC_CAS(&global_now_ms, &old_now_ms, now_ms))) &&
 		 __ha_cpu_relax());
 
-	/* <now_ns> and <now_ms> are now updated to the last value of
-	 * global_now_ns and global_now_ms, which were also monotonically
-	 * updated. We can compute the latest offset, we don't care who writes
-	 * it last, the variations will not break the monotonic property.
-	 */
-	HA_ATOMIC_STORE(&now_offset, now_ns - tv_to_ns(&date));
+	if (!th_ctx->curr_mono_time) {
+		/* Only update the offset when monotonic time is not available.
+		 * <now_ns> and <now_ms> are now updated to the last value of
+		 * global_now_ns and global_now_ms, which were also monotonically
+		 * updated. We can compute the latest offset, we don't care who writes
+		 * it last, the variations will not break the monotonic property.
+		 */
+		HA_ATOMIC_STORE(&now_offset, now_ns - tv_to_ns(&date));
+	}
 }
 
 /* must be called once at boot to initialize some global variables */
@@ -301,7 +313,10 @@ void clock_init_process_date(void)
 	th_ctx->prev_mono_time = th_ctx->curr_mono_time = now_mono_time(); // 0 if not supported
 	gettimeofday(&date, NULL);
 	after_poll = before_poll = date;
-	now_ns = global_now_ns = tv_to_ns(&date);
+	global_now_ns = th_ctx->curr_mono_time;
+	if (!global_now_ns) // CLOCK_MONOTONIC not supported
+		global_now_ns = tv_to_ns(&date);
+	now_ns = global_now_ns;
 	global_now_ms = ns_to_ms(now_ns);
 
 	/* force time to wrap 20s after boot: we first compute the time offset
@@ -321,6 +336,10 @@ void clock_init_process_date(void)
 
 void clock_adjust_now_offset(void)
 {
+	/* Only update the offset when monotonic time is not available. */
+	if (th_ctx->curr_mono_time)
+		return;
+
 	HA_ATOMIC_STORE(&now_offset, now_ns - tv_to_ns(&date));
 }
 
