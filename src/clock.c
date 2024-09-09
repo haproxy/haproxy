@@ -200,8 +200,11 @@ int clock_setup_signal_timer(void *tmr, int sig, int val)
 void clock_update_local_date(int max_wait, int interrupted)
 {
 	struct timeval min_deadline, max_deadline;
+	llong ofs = HA_ATOMIC_LOAD(&now_offset);
+	llong date_ns;
 
 	gettimeofday(&date, NULL);
+	date_ns = tv_to_ns(&date);
 
 	/* compute the minimum and maximum local date we may have reached based
 	 * on our past date and the associated timeout. There are three possible
@@ -219,6 +222,7 @@ void clock_update_local_date(int max_wait, int interrupted)
 
 	if (unlikely(__tv_islt(&date, &before_poll)                    || // big jump backwards
 		     (!interrupted && __tv_islt(&date, &min_deadline)) || // small jump backwards
+		     date_ns + ofs >= now_ns + ms_to_ns(max_wait + 100)|| // offset changed by another thread
 		     __tv_islt(&max_deadline, &date))) {                  // big jump forwards
 		if (!interrupted)
 			now_ns += ms_to_ns(max_wait);
@@ -230,13 +234,13 @@ void clock_update_local_date(int max_wait, int interrupted)
 		 * we just left now_ns where it was, the date will not be updated
 		 * by clock_update_global_date().
 		 */
-		HA_ATOMIC_STORE(&now_offset, now_ns - tv_to_ns(&date));
+		HA_ATOMIC_STORE(&now_offset, now_ns - date_ns);
 	} else {
 		/* The date is still within expectations. Let's apply the
 		 * now_offset to the system date. Note: ofs if made of two
 		 * independent signed ints.
 		 */
-		now_ns = tv_to_ns(&date) + HA_ATOMIC_LOAD(&now_offset);
+		now_ns = date_ns + ofs;
 	}
 	now_ms = ns_to_ms(now_ns);
 }
