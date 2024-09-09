@@ -53,10 +53,10 @@ static clockid_t per_thread_clock_id[MAX_THREADS];
 uint64_t now_mono_time(void)
 {
 	uint64_t ret = 0;
-#if defined(_POSIX_TIMERS) && defined(_POSIX_TIMERS) && (_POSIX_TIMERS > 0) && defined(_POSIX_MONOTONIC_CLOCK)
+#if defined(_POSIX_TIMERS) && (_POSIX_TIMERS > 0) && defined(_POSIX_MONOTONIC_CLOCK)
 	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	ret = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+	if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0)
+		ret = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 #endif
 	return ret;
 }
@@ -72,14 +72,13 @@ uint64_t now_mono_time_fast(void)
 #if defined(CLOCK_MONOTONIC_COARSE)
 	struct timespec ts;
 
-	clock_gettime(CLOCK_MONOTONIC_COARSE, &ts);
-	return (ts.tv_sec * 1000000000ULL + ts.tv_nsec);
-#else
+	if (clock_gettime(CLOCK_MONOTONIC_COARSE, &ts) == 0)
+		return (ts.tv_sec * 1000000000ULL + ts.tv_nsec);
+#endif
 	/* fallback to regular mono time,
 	 * returns 0 if not supported
 	 */
 	return now_mono_time();
-#endif
 }
 
 /* returns the current thread's cumulated CPU time in nanoseconds if supported, otherwise zero */
@@ -88,8 +87,8 @@ uint64_t now_cpu_time(void)
 	uint64_t ret = 0;
 #if defined(_POSIX_TIMERS) && (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
 	struct timespec ts;
-	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
-	ret = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+	if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) == 0)
+		ret = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 #endif
 	return ret;
 }
@@ -126,8 +125,8 @@ uint64_t now_cpu_time_thread(int thr)
 	uint64_t ret = 0;
 #if defined(_POSIX_TIMERS) && (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
 	struct timespec ts;
-	clock_gettime(per_thread_clock_id[thr], &ts);
-	ret = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+	if (clock_gettime(per_thread_clock_id[thr], &ts) == 0)
+		ret = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 #endif
 	return ret;
 }
