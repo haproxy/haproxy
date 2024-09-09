@@ -4112,7 +4112,7 @@ static int h1_process(struct h1c * h1c)
 		}
 	}
 
-	if (h1c->state == H1_CS_RUNNING && (h1c->flags & H1C_F_WANT_FASTFWD) && !h1s_data_pending(h1c->h1s)) {
+	if (h1c->state >= H1_CS_RUNNING && (h1c->flags & H1C_F_WANT_FASTFWD) && !h1s_data_pending(h1c->h1s)) {
 		TRACE_DEVEL("xprt rcv_buf blocked (want_fastfwd), notify h1s for recv", H1_EV_H1C_RECV, h1c->conn);
 		h1_wake_stream_for_recv(h1c->h1s);
 	}
