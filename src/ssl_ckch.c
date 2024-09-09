@@ -86,6 +86,12 @@ struct show_cert_ctx {
 	int transaction;
 };
 
+/* CLI context used by "dump ssl cert" */
+struct dump_cert_ctx {
+	struct ckch_store *ckchs;
+	int index;
+};
+
 /* CLI context used by "commit cert" */
 struct commit_cert_ctx {
 	struct ckch_store *old_ckchs;
@@ -2038,6 +2044,160 @@ static int cli_parse_show_cert(char **args, char *payload, struct appctx *appctx
 error:
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 	return cli_err(appctx, "Can't display the certificate: Not found or the certificate is a bundle!\n");
+}
+
+/* parsing function for 'dump ssl cert <certfile>' */
+static int cli_parse_dump_cert(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct dump_cert_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+	struct ckch_store *ckchs;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return cli_err(appctx, "Can't allocate memory!\n");
+
+	/* The operations on the CKCH architecture are locked so we can
+	 * manipulate ckch_store and ckch_inst */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't show!\nOperations on certificates are currently locked!\n");
+
+	/* check if there is a certificate to lookup */
+	if (*args[3]) {
+
+		if (*args[3] == '*') {
+			if (!ckchs_transaction.new_ckchs)
+				goto error;
+
+			ckchs = ckchs_transaction.new_ckchs;
+
+			if (strcmp(args[3] + 1, ckchs->path) != 0)
+				goto error;
+
+		} else {
+			if ((ckchs = ckchs_lookup(args[3])) == NULL)
+				goto error;
+
+		}
+
+		ctx->ckchs = ckchs;
+		ctx->index = -2; /* -2 for pkey, -1 for cert, >= 0 for chain */
+
+		return 0;
+
+	}
+error:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_err(appctx, "Can't display the certificate: Not found or the certificate is a bundle!\n");
+}
+
+
+/*
+ * Dump a CKCH in PEM format over the CLI
+ * - dump the PKEY
+ * - dump the cert
+ * - dump the chain element by element
+ *
+ *   Store an index to know what we need to dump at next yield
+ */
+static int cli_io_handler_dump_cert(struct appctx *appctx)
+{
+	struct dump_cert_ctx *ctx = appctx->svcctx;
+	struct ckch_store *ckchs = ctx->ckchs;
+	struct buffer *out = alloc_trash_chunk();
+	size_t write = 0;
+	BIO *bio = NULL;
+	int index = ctx->index;
+
+	if (!out)
+		goto end_no_putchk;
+
+
+	if ((bio = BIO_new(BIO_s_mem())) ==  NULL)
+		goto end_no_putchk;
+
+	if (index == -2) {
+
+		if (BIO_reset(bio) == -1)
+			goto end_no_putchk;
+
+		if (!PEM_write_bio_PrivateKey(bio, ckchs->data->key, NULL, NULL, 0, 0, NULL))
+			goto end_no_putchk;
+
+		write = BIO_read(bio, out->area, out->size-1);
+		if (write == 0)
+			goto end_no_putchk;
+		out->area[write] = '\0';
+		out->data = write;
+
+		if (applet_putchk(appctx, out) == -1)
+			goto end_no_putchk;
+
+		index++;
+
+	}
+
+	if (index == -1) {
+
+		if (BIO_reset(bio) == -1)
+			goto end_no_putchk;
+
+		if (!PEM_write_bio_X509(bio, ckchs->data->cert))
+			goto end_no_putchk;
+
+		write = BIO_read(bio, out->area, out->size-1);
+		if (write == 0)
+			goto end_no_putchk;
+		out->area[write] = '\0';
+		out->data = write;
+
+		if (applet_putchk(appctx, out) == -1)
+			goto yield;
+
+		index++;
+	}
+
+
+	for (; index < sk_X509_num(ckchs->data->chain); index++) {
+		X509 *cert = sk_X509_value(ckchs->data->chain, index);
+
+		if (BIO_reset(bio) == -1)
+			goto end_no_putchk;
+
+		if (!PEM_write_bio_X509(bio, cert))
+			goto end_no_putchk;
+
+		write = BIO_read(bio, out->area, out->size-1);
+		if (write == 0)
+			goto end_no_putchk;
+		out->area[write] = '\0';
+		out->data = write;
+
+		if (applet_putchk(appctx, out) == -1)
+			goto yield;
+	}
+
+end:
+	free_trash_chunk(out);
+	BIO_free(bio);
+	return 1; /* end, don't come back */
+
+end_no_putchk:
+	free_trash_chunk(out);
+	BIO_free(bio);
+	return 1;
+yield:
+	/* save the current state */
+	ctx->index = index;
+	free_trash_chunk(out);
+	BIO_free(bio);
+	return 0; /* should come back */
+
+}
+
+
+/* release function of the 'show ssl ca-file' command */
+static void cli_release_dump_cert(struct appctx *appctx)
+{
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 }
 
 /* release function of the  `set ssl cert' command, free things and unlock the spinlock */
@@ -4023,6 +4183,8 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "abort", "ssl", "cert", NULL },     "abort ssl cert <certfile>               : abort a transaction for a certificate file",                            cli_parse_abort_cert, NULL, NULL },
 	{ { "del", "ssl", "cert", NULL },       "del ssl cert <certfile>                 : delete an unused certificate file",                                     cli_parse_del_cert, NULL, NULL },
 	{ { "show", "ssl", "cert", NULL },      "show ssl cert [<certfile>]              : display the SSL certificates used in memory, or the details of a file", cli_parse_show_cert, cli_io_handler_show_cert, cli_release_show_cert },
+	{ { "dump", "ssl", "cert", NULL },      "dump ssl cert <certfile>                : dump the SSL certificates in PEM format",                               cli_parse_dump_cert, cli_io_handler_dump_cert, cli_release_dump_cert },
+
 
 	{ { "new", "ssl", "ca-file", NULL },    "new ssl ca-file <cafile>                : create a new CA file to be used in a crt-list",                         cli_parse_new_cafile, NULL, NULL },
 	{ { "add", "ssl", "ca-file", NULL },    "add ssl ca-file <cafile> <payload>      : add a certificate into the CA file",                                    cli_parse_set_cafile, NULL, NULL },
