@@ -2190,18 +2190,13 @@ struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref 
 		expr->ref = ref;
 
 		HA_RWLOCK_INIT(&expr->lock);
-
-		/* We must free this pattern if it is no more used. */
-		list->do_free = 1;
 	}
 	else {
-		/* If the pattern used already exists, it is already linked
-		 * with ref and we must not free it.
-		 */
-		list->do_free = 0;
 		if (reuse)
 			*reuse = 1;
 	}
+
+	HA_ATOMIC_INC(&expr->refcount);
 
 	/* The new list element reference the pattern_expr. */
 	list->expr = expr;
@@ -2583,7 +2578,7 @@ void pattern_prune(struct pattern_head *head)
 
 	list_for_each_entry_safe(list, safe, &head->head, list) {
 		LIST_DELETE(&list->list);
-		if (list->do_free) {
+		if (HA_ATOMIC_SUB_FETCH(&list->expr->refcount, 1) == 0) {
 			LIST_DELETE(&list->expr->list);
 			HA_RWLOCK_WRLOCK(PATEXP_LOCK, &list->expr->lock);
 			head->prune(list->expr);
