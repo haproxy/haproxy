@@ -2305,14 +2305,50 @@ void srv_compute_all_admin_states(struct proxy *px)
 }
 
 /* Note: must not be declared <const> as its list will be overwritten.
- * Please take care of keeping this list alphabetically sorted, doing so helps
- * all code contributors.
+ *
+ ***   P L E A S E   R E A D   B E L O W   B E F O R E   T O U C H I N G  !!! ***
+ *
+ * Some mistakes are commonly repeated when touching this table, so please
+ * read the following rules before changing / adding an entry, and better
+ * ask on the mailing list in case of doubt.
+ *
+ *  - this list is alphabetically ordered, doing so helps all code contributors
+ *    spot how to name a keyword, which helps users thanks to a form of naming
+ *    consistency. Please insert new entries at the right position so as not
+ *    to break alphabetical ordering. If in doubt, sorting the lines in your
+ *    editor should not change anything (or should fix your addition).
+ *
+ *  - the fields for each entry in the array are, from left to right:
+ *      - the keyword itself (a string, all characters lower case, no special
+ *        chars, no space/dot/underscore, use-dash-to-delimit-multiple-words)
+ *      - the parsing function (edit or copy one close to your needs, parsers
+ *        can easily support multiple keywords if adapted to check args[0]).
+ *      - the number of arguments the keyword takes. Please do not add new
+ *        keywords taking other than exactly 1 argument, they're hard to adapt
+ *        to for external parsers. The special value -1 indicates a variable
+ *        number, used by "source" only. Never do this.
+ *      - whether or not the keyword is supported on default-server lines
+ *        (0 = not supported, 1 = supported). Please do not add unsupported
+ *        keywords without a prior discussion with maintainers on the list,
+ *        as usually it hides a deeper problem.
+ *      - whether or not the keyword is supported for dynamic servers added at
+ *        run time on the CLI (0 = not supported, 1 = supported). Please do not
+ *        add unsupported keywords without a prior discussion with maintainers
+ *        on the list, as usually it hides a deeper problem.
+ *
+ *  - please also add a short comment reminding what the keyword does.
+ *
+ *  - please test your changes with default-server and dynamic servers on the
+ *    CLI (see "add server" in the management guide).
+ *
+ ***   P L E A S E   R E A D   A B O V E   B E F O R E   T O U C H I N G  !!! ***
+ *
  * Optional keywords are also declared with a NULL ->parse() function so that
  * the config parser can report an appropriate error when a known keyword was
  * not enabled.
- * Note: -1 as ->skip value means that the number of arguments are variable.
  */
 static struct srv_kw_list srv_kws = { "ALL", { }, {
+/*	{ "keyword",              parsing_function,            args, def, dyn }, */
 	{ "backup",               srv_parse_backup,               0,  1,  1 }, /* Flag as backup server */
 	{ "cookie",               srv_parse_cookie,               1,  1,  1 }, /* Assign a cookie to the server */
 	{ "disabled",             srv_parse_disabled,             0,  1,  1 }, /* Start the server in 'disabled' state */
