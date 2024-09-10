@@ -91,6 +91,8 @@ static const struct log_fmt_st log_formats[LOG_FORMATS] = {
 
 /* list of extra log origins */
 static struct list log_origins = LIST_HEAD_INIT(log_origins);
+/* tree of extra log origins (lookup by id) */
+static struct eb_root log_origins_per_id = EB_ROOT_UNIQUE;
 
 /* get human readable representation for log_orig enum members */
 const char *log_orig_to_str(enum log_orig_id orig)
@@ -111,7 +113,17 @@ const char *log_orig_to_str(enum log_orig_id orig)
 		case LOG_ORIG_TXN_CLOSE:
 			return "txn_close";
 		default:
+		{
+			/* catchall for extra log origins */
+			struct log_origin_node *origin;
+
+			/* lookup raw origin id */
+			origin = container_of_safe(eb32_lookup(&log_origins_per_id, orig),
+			                           struct log_origin_node, tree);
+			if (origin)
+				return origin->name;
 			break;
+		}
 	}
 	return "unspec";
 }
@@ -6364,7 +6376,7 @@ int cfg_parse_log_profile(const char *file, int linenum, char **args, int kwm)
 					}
 					log_profile_step_init(&extra->step);
 					extra->orig = cur;
-					extra->node.key = cur->id;
+					extra->node.key = cur->tree.key;
 					eb32_insert(&prof->extra, &extra->node);
 					extra_step = &extra->step;
 					target_step = &extra_step;
@@ -6490,8 +6502,8 @@ enum log_orig_id log_orig_register(const char *name)
 
 	list_for_each_entry(cur, &log_origins, list) {
 		if (strcmp(name, cur->name) == 0)
-			return cur->id;
-		last = cur->id;
+			return cur->tree.key;
+		last = cur->tree.key;
 	}
 	/* not found, need to register new log origin */
 
@@ -6504,14 +6516,15 @@ enum log_orig_id log_orig_register(const char *name)
 	if (cur == NULL)
 		goto out_oom;
 
-	cur->id = LOG_ORIG_EXTRA + last;
 	cur->name = strdup(name);
 	if (!cur->name) {
 		free(cur);
 		goto out_oom;
 	}
+	cur->tree.key = LOG_ORIG_EXTRA + last;
 	LIST_APPEND(&log_origins, &cur->list);
-	return cur->id;
+	eb32_insert(&log_origins_per_id, &cur->tree);
+	return cur->tree.key;
 
  out_oom:
 	ha_alert("Failed to register additional log origin. Out of memory\n");

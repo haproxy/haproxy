@@ -294,8 +294,8 @@ struct log_orig {
 /* used to register extra log origins */
 struct log_origin_node {
 	struct list list;      /* per-name lookup during config */
+	struct eb32_node tree; /* per-id lookup during runtime */
 	const char *name;
-	uint32_t id;
 };
 
 /* log profile step flags */
