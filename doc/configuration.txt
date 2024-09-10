@@ -17571,7 +17571,8 @@ init-state { fully-up | up | down | fully-down }
 
   The server's init-state is considered when the HAProxy instance is
   (re)started, a new server is detected (for example via service discovery /
-  DNS resolution), a server exits maintenance, etc.
+  DNS resolution), a dynamic server is inlived, a server exits maintenance,
+  etc.
 
   Examples:
       # pass client traffic ONLY to Redis "master" node

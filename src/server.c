@@ -2323,7 +2323,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "hash-key",             srv_parse_hash_key,             1,  1,  1 }, /* Configure how chash keys are computed */
 	{ "id",                   srv_parse_id,                   1,  0,  1 }, /* set id# of server */
 	{ "init-addr",            srv_parse_init_addr,            1,  1,  0 }, /* */
-	{ "init-state",           srv_parse_init_state,           1,  1,  0 }, /* Set the initial state of the server */
+	{ "init-state",           srv_parse_init_state,           1,  1,  1 }, /* Set the initial state of the server */
 	{ "log-bufsize",          srv_parse_log_bufsize,          1,  1,  0 }, /* Set the ring bufsize for log server (only for log backends) */
 	{ "log-proto",            srv_parse_log_proto,            1,  1,  0 }, /* Set the protocol for event messages, only relevant in a log or ring section */
 	{ "maxconn",              srv_parse_maxconn,              1,  1,  1 }, /* Set the max number of concurrent connection */
