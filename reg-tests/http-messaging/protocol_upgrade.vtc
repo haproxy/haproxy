@@ -377,7 +377,7 @@ client c10_h1_post -connect ${hap_frt_h1_post_sock} {
 	  -hdr "upgrade: custom_protocol" \
 	  -hdr "content-length: 50"
 
-        delay 0.5
+        delay 0.2
 
 	send_n 5 "0123456789"
 
