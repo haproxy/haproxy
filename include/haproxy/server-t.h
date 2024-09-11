@@ -361,6 +361,7 @@ struct server {
 
 	struct queue queue;			/* pending connections */
 	struct mt_list sess_conns;		/* list of private conns managed by a session on this server */
+	unsigned int dequeuing;                 /* non-zero = dequeuing in progress (atomic) */
 
 	/* Element below are usd by LB algorithms and must be doable in
 	 * parallel to other threads reusing connections above.
