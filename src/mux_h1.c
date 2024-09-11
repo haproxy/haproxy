@@ -2507,8 +2507,9 @@ static size_t h1_make_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 					goto nextblk;
 				if (!(h1m->flags & H1_MF_CHNK))
 					goto nextblk;
-				if (h1_parse_xfer_enc_header(h1m, v) < 0)
-					goto error;
+				if (h1s->flags & H1S_F_HAVE_CHNK)
+					goto nextblk;
+				v = ist("chunked");
 				h1s->flags |= H1S_F_HAVE_CHNK;
                         }
 			else if (isteq(n, ist("content-length"))) {
