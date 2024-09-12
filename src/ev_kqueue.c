@@ -183,7 +183,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		                kev,       // struct kevent *eventlist
 		                fd,        // int nevents
 		                &timeout_ts); // const struct timespec *timeout
-		clock_update_local_date(timeout, status);
+		clock_update_local_date(wait_time, (global.tune.options & GTUNE_BUSY_POLLING) ? 1 : status);
 
 		if (status) {
 			activity[tid].poll_io++;
