@@ -223,6 +223,9 @@ void clock_update_local_date(int max_wait, int interrupted)
 		if (!interrupted)
 			now_ns += ms_to_ns(max_wait);
 
+		/* consider the most recent known date */
+		now_ns = MAX(now_ns, HA_ATOMIC_LOAD(&global_now_ns));
+
 		/* this event is rare, but it requires proper handling because if
 		 * we just left now_ns where it was, the date will not be updated
 		 * by clock_update_global_date().
