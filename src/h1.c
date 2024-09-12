@@ -628,7 +628,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		}
 		if (likely((unsigned char)*ptr >= 128)) {
 			/* non-ASCII chars are forbidden unless option
-			 * accept-invalid-http-request is enabled in the frontend.
+			 * accept-unsafe-violations-in-http-request is enabled in the frontend.
 			 * In any case, we capture the faulty char.
 			 */
 			if (h1m->err_pos < -1)

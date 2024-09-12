@@ -4488,11 +4488,12 @@ best thing to do is to connect to the CLI and issue "show errors", which will
 report the last captured faulty request and response for each frontend and
 backend, with all the necessary information to indicate precisely the first
 character of the input stream that was rejected. This is sometimes needed to
-prove to customers or to developers that a bug is present in their code. In
-this case it is often possible to relax the checks (but still keep the
-captures) using "option accept-invalid-http-request" or its equivalent for
-responses coming from the server "option accept-invalid-http-response". Please
-see the configuration manual for more details.
+prove to customers or to developers that a bug is present in their code. In this
+case it is often possible to relax the checks (but still keep the captures)
+using "option accept-unsafe-violations-in-http-request" or its equivalent for
+responses coming from the server "option
+accept-unsafe-violations-in-http-response". Please see the configuration manual
+for more details.
 
 Example :
 

@@ -2324,6 +2324,45 @@ stats_error_parsing:
 				goto out;
 			}
 		}
+		else if (strcmp(args[1], "accept-invalid-http-request") == 0 ||
+			 strcmp(args[1], "accept-invalid-http-response") == 0) {
+			unsigned int val;
+
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
+			if (warnifnotcap(curproxy, PR_MODE_HTTP, file, linenum, args[1], NULL)) {
+				err_code |= ERR_WARN;
+				goto out;
+			}
+
+			if (args[1][22] == 'q') {
+				ha_alert("parsing [%s:%d]: option '%s' is deprecated. please use 'option accept-unsafe-violations-in-http-request' if absolutely needed.\n",
+					 file, linenum, args[1]);
+				val = PR_O2_REQBUG_OK;
+			}
+			else {
+				ha_alert("parsing [%s:%d]: option '%s' is deprecated. please use 'option accept-unsafe-violations-in-http-response' if absolutely needed.\n",
+					 file, linenum, args[1]);
+				val = PR_O2_RSPBUG_OK;
+			}
+
+			curproxy->no_options2 &= ~val;
+			curproxy->options2    &= ~val;
+
+			switch (kwm) {
+			case KWM_STD:
+				curproxy->options2 |= val;
+				break;
+			case KWM_NO:
+				curproxy->no_options2 |= val;
+				break;
+			case KWM_DEF: /* already cleared */
+				break;
+			}
+
+			err_code |= ERR_WARN;
+			goto out;
+		}
 		else {
 			const char *best = proxy_find_best_option(args[1], common_options);
 

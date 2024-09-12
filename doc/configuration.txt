@@ -5418,8 +5418,10 @@ mode                                      X          X         X         X
 monitor fail                              -          X         X         -
 monitor-uri                               X          X         X         -
 option abortonclose                  (*)  X          -         X         X
-option accept-invalid-http-request   (*)  X          X         X         -
-option accept-invalid-http-response  (*)  X          -         X         X
+option accept-invalid-http-request   (deprecated) (*)  X          X         X         -
+option accept-invalid-http-response  (deprecated) (*)  X          -         X         X
+option accept-unsafe-violations-in-http-request   (*)  X          X         X         -
+option accept-unsafe-violations-in-http-response  (*)  X          -         X         X
 option allbackups                    (*)  X          -         X         X
 option checkcache                    (*)  X          -         X         X
 option clitcpka                      (*)  X          X         X         -
@@ -8830,8 +8832,24 @@ no option abortonclose
   See also : "timeout queue" and server's "maxconn" and "maxqueue" parameters
 
 
-option accept-invalid-http-request
-no option accept-invalid-http-request
+option accept-invalid-http-request     (deprecated)
+no option accept-invalid-http-request  (deprecated)
+  Enable or disable relaxing of HTTP request parsing
+
+  The "accept-invalid-http-request" keyword is deprecated, use "option
+  accept-unsafe-violations-in-http-request" instead.
+
+
+option accept-invalid-http-response     (deprecated)
+no option accept-invalid-http-response  (deprecated)
+  Enable or disable relaxing of HTTP response parsing
+
+  The "accept-invalid-http-response" keyword is deprecated, use "option
+  accept-unsafe-violations-in-http-response" instead.
+
+
+option accept-unsafe-violations-in-http-request
+no option accept-unsafe-violations-in-http-request
   Enable or disable relaxing of HTTP request parsing
 
   May be used in the following contexts: http
@@ -8892,12 +8910,12 @@ no option accept-invalid-http-request
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option accept-invalid-http-response" and "show errors" on the
-             stats socket.
+  See also : "option accept-unsafe-violations-in-http-response" and "show
+             errors" on the stats socket.
 
 
-option accept-invalid-http-response
-no option accept-invalid-http-response
+option accept-unsafe-violations-in-http-response
+no option accept-unsafe-violations-in-http-response
   Enable or disable relaxing of HTTP response parsing
 
   May be used in the following contexts: http
@@ -8907,11 +8925,11 @@ no option accept-invalid-http-response
 
   Arguments : none
 
-  Similarly to "option accept-invalid-http-request", this option may be used to
-  relax parsing rules of HTTP responses. It should only be enabled for trusted
-  legacy servers to accept some invalid responses. Most of rules concern the H1
-  parsing for historical reason. Newer HTTP versions tends to be cleaner and
-  applications follow more stickly these protocols.
+  Similarly to "option accept-unsafe-violations-in-http-request", this option
+  may be used to relax parsing rules of HTTP responses. It should only be
+  enabled for trusted legacy servers to accept some invalid responses. Most of
+  rules concern the H1 parsing for historical reason. Newer HTTP versions tends
+  to be cleaner and applications follow more stickly these protocols.
 
   When this option is set, the following rules are observed:
 
@@ -8942,8 +8960,8 @@ no option accept-invalid-http-response
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option accept-invalid-http-request" and "show errors" on the
-             stats socket.
+  See also : "option accept-unsafe-violations-in-http-request" and "show
+             errors" on the stats socket.
 
 
 option allbackups
@@ -25033,8 +25051,8 @@ path : string
   the derivative forms. See also the "url" and "base" fetch methods. Please
   note that any fragment reference in the URI ('#' after the path) is strictly
   forbidden by the HTTP standard and will be rejected. However, if the frontend
-  receiving the request has "option accept-invalid-http-request", then this
-  fragment part will be accepted and will also appear in the path.
+  receiving the request has "option accept-unsafe-violations-in-http-request",
+  then this fragment part will be accepted and will also appear in the path.
 
   ACL derivatives :
     path     : exact string match
@@ -25055,8 +25073,8 @@ pathq : string
   result in both cases. Please note that any fragment reference in the URI ('#'
   after the path) is strictly forbidden by the HTTP standard and will be
   rejected. However, if the frontend receiving the request has "option
-  accept-invalid-http-request", then this fragment part will be accepted and
-  will also appear in the path.
+  accept-unsafe-violations-in-http-request", then this fragment part will be
+  accepted and will also appear in the path.
 
 query : string
   This extracts the request's query string, which starts after the first
@@ -25324,8 +25342,8 @@ url : string
   also "path" and "base". Please note that any fragment reference in the URI
   ('#' after the path) is strictly forbidden by the HTTP standard and will be
   rejected. However, if the frontend receiving the request has "option
-  accept-invalid-http-request", then this fragment part will be accepted and
-  will also appear in the url.
+  accept-unsafe-violations-in-http-request", then this fragment part will be
+  accepted and will also appear in the url.
 
   ACL derivatives :
     url     : exact string match

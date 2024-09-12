@@ -51,7 +51,7 @@ static int h1_process_req_vsn(struct h1m *h1m, union h1_sl *sl)
 {
 	/* RFC7230#2.6 has enforced the format of the HTTP version string to be
 	 * exactly one digit "." one digit. This check may be disabled using
-	 * option accept-invalid-http-request.
+	 * option accept-unsafe-violations-in-http-request.
 	 */
 	if (h1m->err_pos == -2) { /* PR_O2_REQBUG_OK not set */
 		if (sl->rq.v.len != 8)
@@ -93,9 +93,9 @@ static int h1_process_res_vsn(struct h1m *h1m, union h1_sl *sl)
 {
 	/* RFC7230#2.6 has enforced the format of the HTTP version string to be
 	 * exactly one digit "." one digit. This check may be disabled using
-	 * option accept-invalid-http-request.
+	 * option accept-unsafe-violations-in-http-response.
 	 */
-	if (h1m->err_pos == -2) { /* PR_O2_REQBUG_OK not set */
+	if (h1m->err_pos == -2) { /* PR_O2_RSPBUG_OK not set */
 		if (sl->st.v.len != 8)
 			return 0;
 

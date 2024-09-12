@@ -652,7 +652,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 			if (!relaxed) {
 				/* we need to reject any control chars or '#' from the path,
-				 * unless option accept-invalid-http-request is set.
+				 * unless option accept-unsafe-violations-in-http-request is set.
 				 */
 				ctl = ist_find_range(list[hdr_idx].v, 0, '#');
 				if (unlikely(ctl) && http_path_has_forbidden_char(list[hdr_idx].v, ctl)) {
