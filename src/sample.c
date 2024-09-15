@@ -1318,12 +1318,14 @@ int sample_process_cnv(struct sample_expr *expr, struct sample *p)
 		 *  - c_none => nothing to do (let's optimize it)
 		 *  - other  => apply cast and prepare to fail
 		 */
-		if (!sample_casts[p->data.type][conv_expr->conv->in_type])
-			return 0;
+		if (p->data.type != conv_expr->conv->in_type) {
+			if (!sample_casts[p->data.type][conv_expr->conv->in_type])
+				return 0;
 
-		if (sample_casts[p->data.type][conv_expr->conv->in_type] != c_none &&
-		    !sample_casts[p->data.type][conv_expr->conv->in_type](p))
-			return 0;
+			if (sample_casts[p->data.type][conv_expr->conv->in_type] != c_none &&
+			    !sample_casts[p->data.type][conv_expr->conv->in_type](p))
+				return 0;
+		}
 
 		/* OK cast succeeded */
 
@@ -1690,12 +1692,14 @@ struct sample *sample_fetch_as_type(struct proxy *px, struct session *sess,
 		return NULL;
 	}
 
-	if (!sample_casts[smp->data.type][smp_type])
-		return NULL;
+	if (smp->data.type != smp_type) {
+		if (!sample_casts[smp->data.type][smp_type])
+			return NULL;
 
-	if (sample_casts[smp->data.type][smp_type] != c_none &&
-	    !sample_casts[smp->data.type][smp_type](smp))
-		return NULL;
+		if (sample_casts[smp->data.type][smp_type] != c_none &&
+		    !sample_casts[smp->data.type][smp_type](smp))
+			return NULL;
+	}
 
 	smp->flags &= ~SMP_F_MAY_CHANGE;
 	return smp;
