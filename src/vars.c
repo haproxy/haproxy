@@ -207,6 +207,9 @@ void vars_prune_per_sess(struct vars *vars)
 		size += var_clear(var, 1);
 	}
 
+	if (!size)
+		return;
+
 	if (var_sess_limit)
 		_HA_ATOMIC_SUB(&vars->size, size);
 	if (var_proc_limit || var_global_limit)

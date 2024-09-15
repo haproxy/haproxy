@@ -85,6 +85,9 @@ static inline void vars_prune(struct vars *vars, struct session *sess, struct st
 		size += var_clear(var, 1);
 	}
 
+	if (!size)
+		return;
+
 	var_accounting_diff(vars, sess, strm, -size);
 }
 

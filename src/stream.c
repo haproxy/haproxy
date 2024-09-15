@@ -695,10 +695,8 @@ void stream_free(struct stream *s)
 	}
 
 	/* Cleanup all variable contexts. */
-	if (!LIST_ISEMPTY(&s->vars_txn.head))
-		vars_prune(&s->vars_txn, s->sess, s);
-	if (!LIST_ISEMPTY(&s->vars_reqres.head))
-		vars_prune(&s->vars_reqres, s->sess, s);
+	vars_prune(&s->vars_txn, s->sess, s);
+	vars_prune(&s->vars_reqres, s->sess, s);
 
 	stream_store_counters(s);
 	pool_free(pool_head_stk_ctr, s->stkctr);
@@ -2309,8 +2307,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (sc_state_in(scb->state, SC_SB_REQ|SC_SB_QUE|SC_SB_TAR|SC_SB_ASS)) {
 		/* prune the request variables and swap to the response variables. */
 		if (s->vars_reqres.scope != SCOPE_RES) {
-			if (!LIST_ISEMPTY(&s->vars_reqres.head))
-				vars_prune(&s->vars_reqres, s->sess, s);
+			vars_prune(&s->vars_reqres, s->sess, s);
 			vars_init_head(&s->vars_reqres, SCOPE_RES);
 		}
 

@@ -2967,8 +2967,7 @@ int http_eval_after_res_rules(struct stream *s)
 
 	/* prune the request variables if not already done and swap to the response variables. */
 	if (s->vars_reqres.scope != SCOPE_RES) {
-		if (!LIST_ISEMPTY(&s->vars_reqres.head))
-			vars_prune(&s->vars_reqres, s->sess, s);
+		vars_prune(&s->vars_reqres, s->sess, s);
 		vars_init_head(&s->vars_reqres, SCOPE_RES);
 	}
 
@@ -5094,10 +5093,8 @@ void http_destroy_txn(struct stream *s)
 	txn->srv_cookie = NULL;
 	txn->cli_cookie = NULL;
 
-	if (!LIST_ISEMPTY(&s->vars_txn.head))
-		vars_prune(&s->vars_txn, s->sess, s);
-	if (!LIST_ISEMPTY(&s->vars_reqres.head))
-		vars_prune(&s->vars_reqres, s->sess, s);
+	vars_prune(&s->vars_txn, s->sess, s);
+	vars_prune(&s->vars_reqres, s->sess, s);
 
 	b_free(&txn->l7_buffer);
 
