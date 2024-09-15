@@ -203,11 +203,10 @@ void vars_prune(struct vars *vars, struct session *sess, struct stream *strm)
 	struct var *var, *tmp;
 	unsigned int size = 0;
 
-	vars_wrlock(vars);
 	list_for_each_entry_safe(var, tmp, &vars->head, l) {
 		size += var_clear(var, 1);
 	}
-	vars_wrunlock(vars);
+
 	var_accounting_diff(vars, sess, strm, -size);
 }
 
@@ -219,11 +218,9 @@ void vars_prune_per_sess(struct vars *vars)
 	struct var *var, *tmp;
 	unsigned int size = 0;
 
-	vars_wrlock(vars);
 	list_for_each_entry_safe(var, tmp, &vars->head, l) {
 		size += var_clear(var, 1);
 	}
-	vars_wrunlock(vars);
 
 	if (var_sess_limit)
 		_HA_ATOMIC_SUB(&vars->size, size);
