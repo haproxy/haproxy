@@ -190,7 +190,7 @@ unsigned int var_clear(struct vars *vars, struct var *var, int force)
 	var->data.type = SMP_T_ANY;
 
 	if (!(var->flags & VF_PERMANENT) || force) {
-		cebu64_delete(&vars->name_root, &var->node);
+		cebu64_delete(&vars->name_root[var->name_hash % VAR_NAME_ROOTS], &var->node);
 		pool_free(var_pool, var);
 		size += sizeof(struct var);
 	}
@@ -205,10 +205,13 @@ void vars_prune_per_sess(struct vars *vars)
 	struct ceb_node *node;
 	struct var *var;
 	unsigned int size = 0;
+	int i;
 
-	while ((node = cebu64_first(&vars->name_root))) {
-		var = container_of(node, struct var, node);
-		size += var_clear(vars, var, 1);
+	for (i = 0; i < VAR_NAME_ROOTS; i++) {
+		while ((node = cebu64_first(&vars->name_root[i]))) {
+			var = container_of(node, struct var, node);
+			size += var_clear(vars, var, 1);
+		}
 	}
 
 	if (!size)
@@ -223,7 +226,7 @@ void vars_prune_per_sess(struct vars *vars)
 /* This function initializes a variables list head */
 void vars_init_head(struct vars *vars, enum vars_scope scope)
 {
-	vars->name_root = NULL;
+	memset(vars->name_root, 0, sizeof(vars->name_root));
 	vars->scope = scope;
 	vars->size = 0;
 	HA_RWLOCK_INIT(&vars->rwlock);
@@ -333,7 +336,7 @@ static struct var *var_get(struct vars *vars, uint64_t name_hash)
 {
 	struct ceb_node *node;
 
-	node = cebu64_lookup(&vars->name_root, name_hash);
+	node = cebu64_lookup(&vars->name_root[name_hash % VAR_NAME_ROOTS], name_hash);
 	if (node)
 		return container_of(node, struct var, node);
 
@@ -436,7 +439,7 @@ int var_set(const struct var_desc *desc, struct sample *smp, uint flags)
 		var->name_hash = desc->name_hash;
 		var->flags = flags & VF_PERMANENT;
 		var->data.type = SMP_T_ANY;
-		cebu64_insert(&vars->name_root, &var->node);
+		cebu64_insert(&vars->name_root[var->name_hash % VAR_NAME_ROOTS], &var->node);
 	}
 
 	/* A variable of type SMP_T_ANY is considered as unset (either created

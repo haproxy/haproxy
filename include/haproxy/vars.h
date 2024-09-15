@@ -83,10 +83,13 @@ static inline void vars_prune(struct vars *vars, struct session *sess, struct st
 	struct ceb_node *node;
 	struct var *var;
 	unsigned int size = 0;
+	int i;
 
-	while ((node = cebu64_first(&vars->name_root))) {
-		var = container_of(node, struct var, node);
-		size += var_clear(vars, var, 1);
+	for (i = 0; i < VAR_NAME_ROOTS; i++) {
+		while ((node = cebu64_first(&vars->name_root[i]))) {
+			var = container_of(node, struct var, node);
+			size += var_clear(vars, var, 1);
+		}
 	}
 
 	if (!size)

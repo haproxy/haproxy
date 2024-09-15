@@ -48,8 +48,9 @@ enum vars_scope {
 	SCOPE_CHECK,
 };
 
+#define VAR_NAME_ROOTS	4
 struct vars {
-	struct ceb_node *name_root;
+	struct ceb_node *name_root[VAR_NAME_ROOTS];
 	enum vars_scope scope;
 	unsigned int size;
 	__decl_thread(HA_RWLOCK_T rwlock);
