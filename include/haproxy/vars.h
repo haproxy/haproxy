@@ -35,7 +35,6 @@ struct arg;
 void vars_init_head(struct vars *vars, enum vars_scope scope);
 void var_accounting_diff(struct vars *vars, struct session *sess, struct stream *strm, int size);
 unsigned int var_clear(struct var *var, int force);
-void vars_prune(struct vars *vars, struct session *sess, struct stream *strm);
 void vars_prune_per_sess(struct vars *vars);
 int var_set(const struct var_desc *desc, struct sample *smp, uint flags);
 int var_unset(const struct var_desc *desc, struct sample *smp);
@@ -72,6 +71,21 @@ static inline void vars_rdunlock(struct vars *vars)
 {
 	if (vars->scope == SCOPE_PROC)
 		HA_RWLOCK_RDUNLOCK(VARS_LOCK, &vars->rwlock);
+}
+
+/* This function free all the memory used by all the variables
+ * in the list.
+ */
+static inline void vars_prune(struct vars *vars, struct session *sess, struct stream *strm)
+{
+	struct var *var, *tmp;
+	unsigned int size = 0;
+
+	list_for_each_entry_safe(var, tmp, &vars->head, l) {
+		size += var_clear(var, 1);
+	}
+
+	var_accounting_diff(vars, sess, strm, -size);
 }
 
 #endif

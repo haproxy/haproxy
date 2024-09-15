@@ -195,21 +195,6 @@ unsigned int var_clear(struct var *var, int force)
 	return size;
 }
 
-/* This function free all the memory used by all the variables
- * in the list.
- */
-void vars_prune(struct vars *vars, struct session *sess, struct stream *strm)
-{
-	struct var *var, *tmp;
-	unsigned int size = 0;
-
-	list_for_each_entry_safe(var, tmp, &vars->head, l) {
-		size += var_clear(var, 1);
-	}
-
-	var_accounting_diff(vars, sess, strm, -size);
-}
-
 /* This function frees all the memory used by all the session variables in the
  * list starting at <vars>.
  */
