@@ -20,6 +20,8 @@
 #include <haproxy/vars.h>
 #include <haproxy/xxhash.h>
 
+#include <import/cebu64_tree.h>
+
 
 /* This contains a pool of struct vars */
 DECLARE_STATIC_POOL(var_pool, "vars", sizeof(struct var));
@@ -172,7 +174,7 @@ scope_sess:
  * using. If the variable is marked "VF_PERMANENT", the sample_data is only
  * reset to SMP_T_ANY unless <force> is non nul. Returns the freed size.
  */
-unsigned int var_clear(struct var *var, int force)
+unsigned int var_clear(struct vars *vars, struct var *var, int force)
 {
 	unsigned int size = 0;
 
@@ -188,7 +190,7 @@ unsigned int var_clear(struct var *var, int force)
 	var->data.type = SMP_T_ANY;
 
 	if (!(var->flags & VF_PERMANENT) || force) {
-		LIST_DELETE(&var->l);
+		cebu64_delete(&vars->name_root, &var->node);
 		pool_free(var_pool, var);
 		size += sizeof(struct var);
 	}
@@ -200,11 +202,13 @@ unsigned int var_clear(struct var *var, int force)
  */
 void vars_prune_per_sess(struct vars *vars)
 {
-	struct var *var, *tmp;
+	struct ceb_node *node;
+	struct var *var;
 	unsigned int size = 0;
 
-	list_for_each_entry_safe(var, tmp, &vars->head, l) {
-		size += var_clear(var, 1);
+	while ((node = cebu64_first(&vars->name_root))) {
+		var = container_of(node, struct var, node);
+		size += var_clear(vars, var, 1);
 	}
 
 	if (!size)
@@ -219,7 +223,7 @@ void vars_prune_per_sess(struct vars *vars)
 /* This function initializes a variables list head */
 void vars_init_head(struct vars *vars, enum vars_scope scope)
 {
-	LIST_INIT(&vars->head);
+	vars->name_root = NULL;
 	vars->scope = scope;
 	vars->size = 0;
 	HA_RWLOCK_INIT(&vars->rwlock);
@@ -327,11 +331,12 @@ static int vars_fill_desc(const char *name, int len, struct var_desc *desc, char
  */
 static struct var *var_get(struct vars *vars, uint64_t name_hash)
 {
-	struct var *var;
+	struct ceb_node *node;
 
-	list_for_each_entry(var, &vars->head, l)
-		if (var->name_hash == name_hash)
-			return var;
+	node = cebu64_lookup(&vars->name_root, name_hash);
+	if (node)
+		return container_of(node, struct var, node);
+
 	return NULL;
 }
 
@@ -428,10 +433,10 @@ int var_set(const struct var_desc *desc, struct sample *smp, uint flags)
 		var = pool_alloc(var_pool);
 		if (!var)
 			goto unlock;
-		LIST_APPEND(&vars->head, &var->l);
 		var->name_hash = desc->name_hash;
 		var->flags = flags & VF_PERMANENT;
 		var->data.type = SMP_T_ANY;
+		cebu64_insert(&vars->name_root, &var->node);
 	}
 
 	/* A variable of type SMP_T_ANY is considered as unset (either created
@@ -561,7 +566,7 @@ int var_unset(const struct var_desc *desc, struct sample *smp)
 	vars_wrlock(vars);
 	var = var_get(vars, desc->name_hash);
 	if (var) {
-		size = var_clear(var, 0);
+		size = var_clear(vars, var, 0);
 		var_accounting_diff(vars, smp->sess, smp->strm, -size);
 	}
 	vars_wrunlock(vars);

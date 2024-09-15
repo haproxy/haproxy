@@ -24,6 +24,7 @@
 
 #include <haproxy/sample_data-t.h>
 #include <haproxy/thread-t.h>
+#include <import/cebtree.h>
 
 /* flags used when setting/clearing variables */
 #define VF_CREATEONLY       0x00000001   // do nothing if the variable already exists
@@ -48,7 +49,7 @@ enum vars_scope {
 };
 
 struct vars {
-	struct list head;
+	struct ceb_node *name_root;
 	enum vars_scope scope;
 	unsigned int size;
 	__decl_thread(HA_RWLOCK_T rwlock);
@@ -64,8 +65,8 @@ struct var_desc {
 };
 
 struct var {
-	struct list l; /* Used for chaining vars. */
-	uint64_t name_hash;      /* XXH3() of the variable's name */
+	struct ceb_node node; /* Used for chaining vars. */
+	uint64_t name_hash;      /* XXH3() of the variable's name, must be just after node */
 	uint flags;       // VF_*
 	/* 32-bit hole here */
 	struct sample_data data; /* data storage. */

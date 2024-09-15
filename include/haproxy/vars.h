@@ -22,6 +22,8 @@
 #ifndef _HAPROXY_VARS_H
 #define _HAPROXY_VARS_H
 
+#include <import/cebu64_tree.h>
+
 #include <haproxy/api-t.h>
 #include <haproxy/session-t.h>
 #include <haproxy/stream-t.h>
@@ -34,7 +36,7 @@ struct arg;
 
 void vars_init_head(struct vars *vars, enum vars_scope scope);
 void var_accounting_diff(struct vars *vars, struct session *sess, struct stream *strm, int size);
-unsigned int var_clear(struct var *var, int force);
+unsigned int var_clear(struct vars *vars, struct var *var, int force);
 void vars_prune_per_sess(struct vars *vars);
 int var_set(const struct var_desc *desc, struct sample *smp, uint flags);
 int var_unset(const struct var_desc *desc, struct sample *smp);
@@ -78,11 +80,13 @@ static inline void vars_rdunlock(struct vars *vars)
  */
 static inline void vars_prune(struct vars *vars, struct session *sess, struct stream *strm)
 {
-	struct var *var, *tmp;
+	struct ceb_node *node;
+	struct var *var;
 	unsigned int size = 0;
 
-	list_for_each_entry_safe(var, tmp, &vars->head, l) {
-		size += var_clear(var, 1);
+	while ((node = cebu64_first(&vars->name_root))) {
+		var = container_of(node, struct var, node);
+		size += var_clear(vars, var, 1);
 	}
 
 	if (!size)
