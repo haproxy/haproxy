@@ -5350,6 +5350,11 @@ specified in a previous "defaults" section. Keywords supported in defaults
 sections marked with "(!)" are only supported in named defaults sections, not
 anonymous ones.
 
+Note: Some dangerous and not recommanded directives are intentionnaly not
+      listed in the following matrix. It is on purpose. These directives are
+      documentated. But by not listing them below is one more way to discourage
+      anyone to use it.
+
 
  keyword                              defaults   frontend   listen    backend
 ------------------------------------+----------+----------+---------+---------
@@ -5418,10 +5423,6 @@ mode                                      X          X         X         X
 monitor fail                              -          X         X         -
 monitor-uri                               X          X         X         -
 option abortonclose                  (*)  X          -         X         X
-option accept-invalid-http-request   (deprecated) (*)  X          X         X         -
-option accept-invalid-http-response  (deprecated) (*)  X          -         X         X
-option accept-unsafe-violations-in-http-request   (*)  X          X         X         -
-option accept-unsafe-violations-in-http-response  (*)  X          -         X         X
 option allbackups                    (*)  X          -         X         X
 option checkcache                    (*)  X          -         X         X
 option clitcpka                      (*)  X          X         X         -
