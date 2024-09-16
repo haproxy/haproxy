@@ -2105,6 +2105,10 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 
 	switch (appctx->st0) {
 		case PROMEX_ST_INIT:
+			if (!co_data(req)) {
+				applet_need_more_data(appctx);
+				goto out;
+			}
 			ret = promex_parse_uri(appctx, sc);
 			if (ret <= 0) {
 				if (ret == -1)
