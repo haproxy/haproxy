@@ -1783,11 +1783,22 @@ static void http_cache_io_handler(struct appctx *appctx)
 	unsigned int len;
 	size_t ret;
 
-	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL))
+	if (applet_fl_test(appctx, APPCTX_FL_INBLK_ALLOC|APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL))
 		goto exit;
 
 	if (applet_fl_test(appctx, APPCTX_FL_FASTFWD) && se_fl_test(appctx->sedesc, SE_FL_MAY_FASTFWD_PROD))
 		goto exit;
+
+	if (appctx->st0 == HTX_CACHE_INIT) {
+		if (!appctx_get_buf(appctx, &appctx->inbuf) || htx_is_empty(htxbuf(&appctx->inbuf)))
+			goto wait_request;
+
+		ctx->next = block_ptr(cache_ptr);
+		ctx->offset = sizeof(*cache_ptr);
+		ctx->sent = 0;
+		ctx->rem_data = 0;
+		appctx->st0 = HTX_CACHE_HEADER;
+	}
 
 	if (!appctx_get_buf(appctx, &appctx->outbuf)) {
 		goto exit;
@@ -1801,14 +1812,6 @@ static void http_cache_io_handler(struct appctx *appctx)
 
 	len = first->len - sizeof(*cache_ptr) - ctx->sent;
 	res_htx = htx_from_buf(&appctx->outbuf);
-
-	if (appctx->st0 == HTX_CACHE_INIT) {
-		ctx->next = block_ptr(cache_ptr);
-		ctx->offset = sizeof(*cache_ptr);
-		ctx->sent = 0;
-		ctx->rem_data = 0;
-		appctx->st0 = HTX_CACHE_HEADER;
-	}
 
 	if (appctx->st0 == HTX_CACHE_HEADER) {
 		struct ist meth;
@@ -1882,6 +1885,11 @@ static void http_cache_io_handler(struct appctx *appctx)
 	b_reset(&appctx->inbuf);
 	applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 	appctx->sedesc->iobuf.flags &= ~IOBUF_FL_FF_BLOCKED;
+	return;
+
+  wait_request:
+	/* Wait for the request before starting to deliver the response */
+	applet_need_more_data(appctx);
 	return;
 
   error:
