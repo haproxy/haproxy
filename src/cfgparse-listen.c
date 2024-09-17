@@ -285,6 +285,16 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				 curproxy->id, curproxy->conf.file, curproxy->conf.line);
 				err_code |= ERR_ALERT | ERR_FATAL;
 		}
+		else {
+			curproxy = proxy_find_by_name(args[1], 0, 0);
+			if (curproxy) {
+				/* different capabilities but still same name: forbidden soon */
+				ha_warning("Parsing [%s:%d]: %s '%s' has the same name as %s '%s' declared at %s:%d. This is dangerous and will not be supported anymore in version 3.3.\n",
+				           file, linenum, proxy_cap_str(rc), args[1], proxy_type_str(curproxy),
+				           curproxy->id, curproxy->conf.file, curproxy->conf.line);
+				err_code |= ERR_WARN;
+			}
+		}
 
 		curproxy = log_forward_by_name(args[1]);
 		if (curproxy) {
