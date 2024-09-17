@@ -389,6 +389,14 @@ struct ceb_node *_cebu_descend(struct ceb_node **root,
                                int *ret_gpside,
                                struct ceb_node **ret_back)
 {
+#if !defined(__OPTIMIZE__) && __GNUC_PREREQ__(12, 0)
+/* Avoid a bogus warning with gcc 12 and above: it warns about negative
+ * memcmp() length in non-existing code paths at -O0, as reported here:
+ *    https://gcc.gnu.org/bugzilla/show_bug.cgi?id=114622
+ */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overread"
+#endif
 	struct ceb_node *p;
 	union ceb_key_storage *l, *r, *k;
 	struct ceb_node *gparent = NULL;
@@ -1015,6 +1023,9 @@ struct ceb_node *_cebu_descend(struct ceb_node **root,
 	 * caller to proceed since the element is not there.
 	 */
 	return NULL;
+#if __GNUC_PREREQ__(12, 0)
+#pragma GCC diagnostic pop
+#endif
 }
 
 
