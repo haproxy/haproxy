@@ -271,8 +271,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
-		curproxy = (rc & PR_CAP_FE) ? proxy_fe_by_name(args[1]) : proxy_be_by_name(args[1]);
+		curproxy = NULL;
+		if (rc & PR_CAP_FE)
+			curproxy = proxy_fe_by_name(args[1]);
+
+		if (!curproxy && (rc & PR_CAP_BE))
+			curproxy = proxy_be_by_name(args[1]);
+
 		if (curproxy) {
+			/* same capability in common: always forbidden */
 			ha_alert("Parsing [%s:%d]: %s '%s' has the same name as %s '%s' declared at %s:%d.\n",
 				 file, linenum, proxy_cap_str(rc), args[1], proxy_type_str(curproxy),
 				 curproxy->id, curproxy->conf.file, curproxy->conf.line);
