@@ -1730,6 +1730,7 @@ add server <backend>/<server> [args]*
   - fastinter
   - force-sslv3/tlsv10/tlsv11/tlsv12/tlsv13
   - id
+  - init-state
   - inter
   - maxconn
   - maxqueue
