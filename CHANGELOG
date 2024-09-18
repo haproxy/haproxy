@@ -1,6 +1,58 @@
 ChangeLog :
 ===========
 
+2024/09/18 : 3.1-dev8
+    - DOC: configuration: place the HAPROXY_HTTP_LOG_FMT example on the correct line
+    - MINOR: mux-h1: Set EOI on SE during demux when both side are in DONE state
+    - BUG/MEDIUM: mux-h1/mux-h2: Reject upgrades with payload on H2 side only
+    - REGTESTS: h1/h2: Update script testing H1/H2 protocol upgrades
+    - BUG/MEDIUM: clock: detect and cover jumps during execution
+    - BUG/MINOR: pattern: prevent const sample from being tampered in pat_match_beg()
+    - BUG/MEDIUM: pattern: prevent uninitialized reads in pat_match_{str,beg}
+    - BUG/MEDIUM: pattern: prevent UAF on reused pattern expr
+    - MEDIUM: ssl/cli: "dump ssl cert" allow to dump a certificate in PEM format
+    - BUG/MAJOR: mux-h1: Wake SC to perform 0-copy forwarding in CLOSING state
+    - BUG/MINOR: h1-htx: Don't flag response as bodyless when a tunnel is established
+    - REGTESTS: fix random failures with wrong_ip_port_logging.vtc under load
+    - BUG/MINOR: pattern: do not leave a leading comma on "set" error messages
+    - REGTESTS: shorten a bit the delay for the h1/h2 upgrade test
+    - MINOR: server: allow init-state for dynamic servers
+    - DOC: server: document what to check for when adding new server keywords
+    - MEDIUM: h1: Accept invalid T-E values with accept-invalid-http-response option
+    - BUG/MINOR: polling: fix time reporting when using busy polling
+    - BUG/MINOR: clock: make time jump corrections a bit more accurate
+    - BUG/MINOR: clock: validate that now_offset still applies to the current date
+    - BUG/MEDIUM: queue: implement a flag to check for the dequeuing
+    - OPTIM: sample: don't check casts for samples of same type
+    - OPTIM: vars: remove the unneeded lock in vars_prune_*
+    - OPTIM: vars: inline vars_prune() to avoid many calls
+    - MINOR: vars: remove the emptiness tests in callers before pruning
+    - IMPORT: import cebtree (compact elastic binary trees)
+    - OPTIM: vars: use a cebtree instead of a list for variable names
+    - OPTIM: vars: use multiple name heads in the vars struct
+    - BUG/MINOR: peers: local entries updates may not be advertised after resync
+    - DOC: config: Explicitly list relaxing rules for accept-invalid-http-* options
+    - MINOR: proxy: Rename accept-invalid-http-* options
+    - DOC: configuration: Remove dangerous directives from the proxy matrix
+    - BUG/MEDIUM: sc_strm/applet: Wake applet after a successfull synchronous send
+    - BUG/MEDIUM: cache/stats: Wait to have the request before sending the response
+    - BUG/MEDIUM: promex: Wait to have the request before sending the response
+    - MINOR: clock: test all clock_gettime() return values
+    - MEDIUM: clock: collect the monotonic time in clock_local_update_date()
+    - MEDIUM: clock: opportunistically use CLOCK_MONOTONIC for the internal time
+    - MEDIUM: clock: use the monotonic clock for idle time calculation
+    - MEDIUM: clock: don't compute before_poll when using monotonic clock
+    - BUG/MINOR: fix missing "log-format overrides previous 'option tcplog clf'..." detection
+    - BUG/MINOR: fix missing "'option httpslog' overrides previous 'option tcplog clf'..." detection
+    - BUG/MINOR: cfgparse-listen: fix option httpslog override warning message
+    - BUG/MINOR: cfgparse: detect incorrect overlap of same backend names
+    - MEDIUM: cfgparse: warn about proxies having the same names
+    - DOC: management: add init-state to add server keywords
+    - BUG/MINOR: mux-quic: report glitches to session
+    - BUILD: cebtree: silence a bogus gcc warning on impossible code paths
+    - MEDIUM: cfgparse: warn about colliding names between defaults and proxies
+    - MEDIUM: cfgparse: detect collisions between defaults and log-forward
+
 2024/09/05 : 3.1-dev7
     - MINOR: config: Created env variables for http and tcp clf formats
     - MINOR: mux-quic: add buf_in_flight to QCC debug infos
