@@ -23,18 +23,23 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
                                struct qc_stream_buf **stream_buf)
 {
 	struct buffer *buf = &(*stream_buf)->buf;
-	uint64_t free_size;
+	uint64_t room;
 
 	/* Caller is responsible to remove buffered ACK frames before destroying a buffer instance. */
 	BUG_ON(!eb_is_empty(&(*stream_buf)->acked_frms));
 
 	eb64_delete(&(*stream_buf)->offset_node);
 
-	/* Reset current buf ptr if deleted instance is the same one. */
-	if (*stream_buf == stream->buf)
+	if (*stream_buf == stream->buf) {
+		/* Reset current buffer ptr. */
 		stream->buf = NULL;
+		room = b_size(buf);
+	}
+	else {
+		/* For released buffer, acked data were already notified. */
+		room = b_data(buf);
+	}
 
-	free_size = b_size(buf);
 	if ((*stream_buf)->sbuf) {
 		pool_free(pool_head_sbuf, buf->area);
 	}
@@ -46,8 +51,8 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 	*stream_buf = NULL;
 
 	/* notify MUX about available buffers. */
-	if (stream->notify_room)
-		stream->notify_room(stream, free_size);
+	if (stream->notify_room && room)
+		stream->notify_room(stream, room);
 }
 
 /* Allocate a new stream descriptor with id <id>. The caller is responsible to
@@ -108,6 +113,7 @@ void qc_stream_desc_release(struct qc_stream_desc *stream,
 	stream->flags |= QC_SD_FL_RELEASE;
 	stream->ctx = new_ctx;
 
+	/* Release active buffer if still present on streamdesc release. */
 	if (stream->buf) {
 		struct qc_stream_buf *stream_buf = stream->buf;
 		struct buffer *buf = &stream_buf->buf;
@@ -121,10 +127,14 @@ void qc_stream_desc_release(struct qc_stream_desc *stream,
 		if (final_size < tail_offset)
 			b_sub(buf, tail_offset - final_size);
 
-		if (!b_data(buf))
+		if (!b_data(buf)) {
+			/* This will ensure notify_room is triggered. */
 			qc_stream_buf_free(stream, &stream_buf);
+		}
+		else if (stream->notify_room && b_room(buf)) {
+			stream->notify_room(stream, b_room(buf));
+		}
 
-		/* A released stream does not use <stream.buf>. */
 		stream->buf = NULL;
 	}
 
@@ -153,6 +163,10 @@ static struct qc_stream_buf *qc_stream_buf_ack(struct qc_stream_buf *buf,
 		const uint64_t diff = offset + len - stream->ack_offset;
 		b_del(&buf->buf, diff);
 		stream->ack_offset += diff;
+
+		/* notify room from acked data if buffer has been released. */
+		if (stream->notify_room && buf != stream->buf)
+			stream->notify_room(stream, diff);
 	}
 
 	if (fin) {
@@ -407,11 +421,18 @@ struct buffer *qc_stream_buf_realloc(struct qc_stream_desc *stream)
  */
 void qc_stream_buf_release(struct qc_stream_desc *stream)
 {
+	uint64_t room;
+
 	/* current buffer already released */
 	BUG_ON(!stream->buf);
 
+	room = b_room(&stream->buf->buf);
 	stream->buf = NULL;
 	stream->buf_offset = 0;
+
+	/* Released buffer won't receive any new data. Reports non consumed space as free room. */
+	if (stream->notify_room && room)
+		stream->notify_room(stream, room);
 }
 
 static int create_sbuf_pool(void)
