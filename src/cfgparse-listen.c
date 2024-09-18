@@ -318,6 +318,19 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				   curproxy->id, curproxy->conf.file, curproxy->conf.line);
 			err_code |= ERR_WARN;
 		}
+		else if (rc & PR_CAP_DEF) {
+			/* only defaults need to be checked here, other proxies
+			 * have already been above.
+			 */
+			curproxy = log_forward_by_name(args[1]);
+			if (curproxy) {
+				ha_warning("Parsing [%s:%d]: %s '%s' has the same name as log-forward section '%s' declared at %s:%d."
+					   " This is dangerous and will not be supported anymore in version 3.3.\n",
+					   file, linenum, proxy_cap_str(rc), args[1],
+					   curproxy->id, curproxy->conf.file, curproxy->conf.line);
+				err_code |= ERR_WARN;
+			}
+		}
 
 		if (rc & PR_CAP_DEF && strcmp(args[1], "from") == 0 && *args[2] && !*args[3]) {
 			// also support "defaults from blah" (no name then)
