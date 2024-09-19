@@ -414,7 +414,7 @@ struct proxy {
 	int no_options2;			/* PR_O2_* */
 
 	struct {
-		char *file;			/* file where the section appears */
+		const char *file;		/* file where the section appears */
 		struct eb32_node id;		/* place in the tree of used IDs */
 		int line;			/* line where the section appears */
 		struct eb_root used_listener_id;/* list of listener IDs in use */

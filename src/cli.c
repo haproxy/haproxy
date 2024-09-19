@@ -3293,7 +3293,7 @@ int mworker_cli_proxy_create()
 	mworker_proxy->mode = PR_MODE_CLI;
 	mworker_proxy->maxconn = 10;                 /* default to 10 concurrent connections */
 	mworker_proxy->timeout.client = 0; /* no timeout */
-	mworker_proxy->conf.file = strdup("MASTER");
+	mworker_proxy->conf.file = copy_file_name("MASTER");
 	mworker_proxy->conf.line = 0;
 	mworker_proxy->accept = frontend_accept;
 	mworker_proxy-> lbprm.algo = BE_LB_ALGO_NONE;

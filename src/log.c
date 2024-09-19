@@ -5886,7 +5886,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		init_new_proxy(px);
 		px->next = cfg_log_forward;
 		cfg_log_forward = px;
-		px->conf.file = strdup(file);
+		px->conf.file = copy_file_name(file);
 		px->conf.line = linenum;
 		px->mode = PR_MODE_SYSLOG;
 		px->fe_counters.last_change = ns_to_sec(now_ns);

@@ -203,7 +203,7 @@ static inline void proxy_free_common(struct proxy *px)
 	struct lf_expr *lf, *lfb;
 
 	ha_free(&px->id);
-	ha_free(&px->conf.file);
+	drop_file_name(&px->conf.file);
 	ha_free(&px->check_command);
 	ha_free(&px->check_path);
 	ha_free(&px->cookie_name);
@@ -1850,7 +1850,7 @@ struct proxy *parse_new_proxy(const char *name, unsigned int cap,
 		}
 	}
 
-	curproxy->conf.args.file = curproxy->conf.file = strdup(file);
+	curproxy->conf.args.file = curproxy->conf.file = copy_file_name(file);
 	curproxy->conf.args.line = curproxy->conf.line = linenum;
 
 	return curproxy;

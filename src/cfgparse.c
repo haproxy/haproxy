@@ -574,8 +574,8 @@ static int init_peers_frontend(const char *file, int linenum,
  out:
 	if (id && !p->id)
 		p->id = strdup(id);
-	free(p->conf.file);
-	p->conf.args.file = p->conf.file = strdup(file);
+	drop_file_name(&p->conf.file);
+	p->conf.args.file = p->conf.file = copy_file_name(file);
 	if (linenum != -1)
 		p->conf.args.line = p->conf.line = linenum;
 
