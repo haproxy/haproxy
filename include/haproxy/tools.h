@@ -96,6 +96,18 @@ static inline const char *ultoa(unsigned long n)
 	return ultoa_r(n, itoa_str[0], sizeof(itoa_str[0]));
 }
 
+/* file names management */
+const char *copy_file_name(const char *name);
+void free_all_file_names();
+
+/* This is only used as a marker for call places where a free() of a file name
+ * is expected to be performed, and to reset the pointer.
+ */
+static inline void drop_file_name(const char **name)
+{
+	*name = NULL;
+}
+
 /*
  * unsigned long long ASCII representation
  *

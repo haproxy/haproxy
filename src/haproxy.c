@@ -2859,6 +2859,7 @@ void deinit(void)
 	}
 
 	vars_prune(&proc_vars, NULL, NULL);
+	free_all_file_names();
 	pool_destroy_all();
 	deinit_pollers();
 

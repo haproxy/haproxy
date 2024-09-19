@@ -23,6 +23,7 @@
 #define _HAPROXY_TOOLS_T_H
 
 #include <netinet/in.h>
+#include <import/cebtree.h>
 
 /* size used for max length of decimal representation of long long int. */
 #define NB_LLMAX_STR (sizeof("-9223372036854775807")-1)
@@ -179,6 +180,18 @@ struct cbor_encode_ctx {
 
 	/* to provide some user-context to the encode_fct_* funcs */
 	void *e_fct_ctx;
+};
+
+/* An indexed file name node, to be used at various places where a config file
+ * location is expected. These elements live forever and are only released on
+ * deinit. The goal is to use them in place of a regular "char* file" in many
+ * structures so that they can remain referenced without being strduped nor
+ * refcounted. Refcounts might appear in the future. The root is file_names in
+ * tools.c.
+ */
+struct file_name_node {
+	struct ceb_node node; /* indexing node */
+	char name[VAR_ARRAY]; /* storage, used with cebus_*() */
 };
 
 #endif /* _HAPROXY_TOOLS_T_H */

@@ -57,6 +57,7 @@ extern void *__elf_aux_vector;
 #include <sys/prctl.h>
 #endif
 
+#include <import/cebus_tree.h>
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>
 #include <import/ebmbtree.h>
@@ -121,6 +122,12 @@ THREAD_LOCAL unsigned int statistical_prng_state = 2463534242U;
 
 /* set to true if this is a static build */
 int build_is_static = 0;
+
+/* known file names, made of file_name_node, to be used with file_name_*() */
+struct {
+	struct ceb_node *root; // file names tree, used with cebus_*()
+	__decl_thread(HA_RWLOCK_T lock);
+} file_names = { 0 };
 
 /* A global static table to store hashed words */
 static THREAD_LOCAL char hash_word[NB_L_HASH_WORD][20];
@@ -6884,6 +6891,71 @@ int restore_env(void)
 	}
 
 	return 0;
+}
+
+/*
+ * File Name Lookups. Principle: the file_names struct at the top stores all
+ * known file names in a tree. Each node is a struct file_name_node. A take()
+ * call will either locate an existing entry or allocate a new one, and return
+ * a pointer to the string itself. The returned strings are const so as to
+ * easily detect unwanted free() calls. Structures using this mechanism only
+ * need a "const char *" and will never free their entries.
+ */
+
+/* finds or copies the file name, returns a reference to the char* storage area
+ * or NULL if name is NULL or upon allocation error.
+ */
+const char *copy_file_name(const char *name)
+{
+	struct file_name_node *file;
+	struct ceb_node *node;
+	size_t len;
+
+	if (!name)
+		return NULL;
+
+	HA_RWLOCK_RDLOCK(OTHER_LOCK, &file_names.lock);
+	node = cebus_lookup(&file_names.root, name);
+	HA_RWLOCK_RDUNLOCK(OTHER_LOCK, &file_names.lock);
+
+	if (node) {
+		file = container_of(node, struct file_name_node, node);
+		return file->name;
+	}
+
+	len = strlen(name);
+	file = malloc(sizeof(struct file_name_node) + len + 1);
+	if (!file)
+		return NULL;
+
+	memcpy(file->name, name, len + 1);
+	HA_RWLOCK_WRLOCK(OTHER_LOCK, &file_names.lock);
+	node = cebus_insert(&file_names.root, &file->node);
+	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &file_names.lock);
+
+	if (node != &file->node) {
+		/* the node was created in between */
+		free(file);
+		file = container_of(node, struct file_name_node, node);
+	}
+	return file->name;
+}
+
+/* free all registered file names */
+void free_all_file_names()
+{
+	struct file_name_node *file;
+	struct ceb_node *node;
+
+	HA_RWLOCK_WRLOCK(OTHER_LOCK, &file_names.lock);
+
+	while ((node = cebus_first(&file_names.root))) {
+		file = container_of(node, struct file_name_node, node);
+		cebus_delete(&file_names.root, node);
+		free(file);
+	}
+
+	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &file_names.lock);
 }
 
 /*
