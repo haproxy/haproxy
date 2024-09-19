@@ -224,7 +224,7 @@ struct stktable {
 	/* rarely used config stuff below (should not interfere with updt_lock) */
 	struct proxy *proxies_list; /* The list of proxies which reference this stick-table. */
 	struct {
-		const char *file;     /* The file where the stick-table is declared. */
+		const char *file;     /* The file where the stick-table is declared (global name). */
 		int line;             /* The line in this <file> the stick-table is declared. */
 	} conf;
 };

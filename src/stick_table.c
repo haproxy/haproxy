@@ -1181,7 +1181,7 @@ int parse_stick_table(const char *file, int linenum, char **args,
 	t->idlen = strlen(id);
 	t->nid =  nid;
 	t->type = (unsigned int)-1;
-	t->conf.file = file;
+	t->conf.file = copy_file_name(file);
 	t->conf.line = linenum;
 	t->write_to.name = NULL;
 	t->brates_factor = 1;
