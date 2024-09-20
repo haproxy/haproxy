@@ -307,6 +307,26 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
+		if (*args[1] && rc & PR_CAP_DEF) {
+			/* for default proxies, if another one has the same
+			 * name and was explicitly referenced, this is an error
+			 * that we must reject. E.g.
+			 *     defaults def
+			 *     backend bck from def
+			 *     defaults def
+			 */
+			curproxy = proxy_find_by_name(args[1], PR_CAP_DEF, 0);
+			if (curproxy && curproxy->flags & PR_FL_EXPLICIT_REF) {
+				ha_alert("Parsing [%s:%d]: %s '%s' has the same name as another defaults section declared at"
+					 " %s:%d which was explicitly referenced hence cannot be replaced. Please remove or"
+					 " rename one of the offending defaults section.\n",
+					 file, linenum, proxy_cap_str(rc), args[1],
+					 curproxy->conf.file, curproxy->conf.line);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+		}
+
 		curproxy = proxy_find_by_name(args[1], 0, 0);
 		if (!curproxy && !(rc & PR_CAP_DEF))
 			curproxy = proxy_find_by_name(args[1], PR_CAP_DEF, 0);
