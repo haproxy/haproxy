@@ -3772,6 +3772,11 @@ out_uri_auth_compat:
 					cfgerr++;
 					break;
 				}
+
+				ha_warning("parsing [%s:%d] : %s '%s', another server named '%s' was already defined at line %d. This is dangerous and will not be supported anymore in version 3.3. Please use distinct names.\n",
+					   newsrv->conf.file, newsrv->conf.line,
+					   proxy_type_str(curproxy), curproxy->id,
+					   newsrv->id, other_srv->conf.line);
 			}
 		}
 
