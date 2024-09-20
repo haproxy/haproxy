@@ -27,6 +27,7 @@
 #define _GNU_SOURCE
 #endif
 
+#include <errno.h>
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
@@ -1331,5 +1332,60 @@ char *fgets_from_mem(char* buf, int size, const char **position, const char *end
 int backup_env(void);
 int clean_env(void);
 int restore_env(void);
+
+/* helper to print the name of errno's corresponding macro (for example "EINVAL"
+ * for errno=22) instead of calling strerror(errno).
+ */
+#define CASE_ERR(err) \
+	case err: return #err
+
+static inline const char *errname(int err_num, char **out)
+{
+	/* only currently used errno values, please, add a new one, if you
+	 * start using it in the code.
+	 */
+	switch (err_num) {
+	case 0: return "SUCCESS";
+	CASE_ERR(EPERM);
+	CASE_ERR(ENOENT);
+	CASE_ERR(EINTR);
+	CASE_ERR(EIO);
+	CASE_ERR(E2BIG);
+	CASE_ERR(EBADF);
+	CASE_ERR(ECHILD);
+	CASE_ERR(EAGAIN);
+	CASE_ERR(ENOMEM);
+	CASE_ERR(EACCES);
+	CASE_ERR(EFAULT);
+	CASE_ERR(EINVAL);
+	CASE_ERR(ENFILE);
+	CASE_ERR(EMFILE);
+	CASE_ERR(ENOSPC);
+	CASE_ERR(ERANGE);
+	CASE_ERR(ENOSYS);
+	CASE_ERR(EADDRINUSE);
+	CASE_ERR(ECONNABORTED);
+	CASE_ERR(ECONNRESET);
+	CASE_ERR(EINPROGRESS);
+	CASE_ERR(ENOTCONN);
+	CASE_ERR(EADDRNOTAVAIL);
+	CASE_ERR(ECONNREFUSED);
+	CASE_ERR(ENETUNREACH);
+	CASE_ERR(ETIME);
+	CASE_ERR(EPROTO);
+	CASE_ERR(ENOTSOCK);
+	CASE_ERR(EMSGSIZE);
+	CASE_ERR(EPROTONOSUPPORT);
+	CASE_ERR(EAFNOSUPPORT);
+	CASE_ERR(ENOBUFS);
+	CASE_ERR(EISCONN);
+	CASE_ERR(ETIMEDOUT);
+	CASE_ERR(EALREADY);
+
+	default:
+		memprintf(out, "%d", err_num);
+		return *out;
+	}
+}
 
 #endif /* _HAPROXY_TOOLS_H */
