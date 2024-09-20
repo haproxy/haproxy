@@ -61,6 +61,7 @@ struct proxy *proxies_list  = NULL;	/* list of all existing proxies */
 struct eb_root used_proxy_id = EB_ROOT;	/* list of proxy IDs in use */
 struct eb_root proxy_by_name = EB_ROOT; /* tree of proxies sorted by name */
 struct eb_root defproxy_by_name = EB_ROOT; /* tree of default proxies sorted by name (dups possible) */
+struct proxy *orphaned_default_proxies = NULL; /* deleted ones with refcount != 0 */
 unsigned int error_snapshot_id = 0;     /* global ID assigned to each error then incremented */
 
 /* CLI context used during "show servers {state|conn}" */
@@ -1528,15 +1529,43 @@ void proxy_destroy_defaults(struct proxy *px)
 void proxy_destroy_all_unref_defaults()
 {
 	struct ebpt_node *n;
+	struct proxy *px, *nx;
 
 	n = ebpt_first(&defproxy_by_name);
 	while (n) {
-		struct proxy *px = container_of(n, struct proxy, conf.by_name);
+		px = container_of(n, struct proxy, conf.by_name);
 		BUG_ON(!(px->cap & PR_CAP_DEF));
 		n = ebpt_next(n);
 		if (!px->conf.refcount)
 			proxy_destroy_defaults(px);
 	}
+
+	px = orphaned_default_proxies;
+	while (px) {
+		BUG_ON(!(px->cap & PR_CAP_DEF));
+		nx = px->next;
+		if (!px->conf.refcount)
+			proxy_destroy_defaults(px);
+		px = nx;
+	}
+}
+
+/* Try to destroy a defaults section, or just unreference it if still
+ * refcounted. In this case it's added to the orphaned_default_proxies list
+ * so that it can later be found.
+ */
+void proxy_unref_or_destroy_defaults(struct proxy *px)
+{
+	if (!px || !(px->cap & PR_CAP_DEF))
+		return;
+
+	ebpt_delete(&px->conf.by_name);
+	if (px->conf.refcount) {
+		/* still referenced just append it to the orphaned list */
+		px->next = orphaned_default_proxies;
+		orphaned_default_proxies = px;
+	} else
+		proxy_destroy_defaults(px);
 }
 
 /* Add a reference on the default proxy <defpx> for the proxy <px> Nothing is
