@@ -3748,16 +3748,23 @@ out_uri_auth_compat:
 		 * in order to avoid combinatory explosion if all servers have the same
 		 * name. We do that only for servers which do not have an explicit ID,
 		 * because these IDs were made also for distinguishing them and we don't
-		 * want to annoy people who correctly manage them.
+		 * want to annoy people who correctly manage them. Since servers names
+		 * are stored in a tree before landing here, we simply have to check for
+		 * the current server's duplicates to spot conflicts.
 		 */
 		for (newsrv = curproxy->srv; newsrv; newsrv = newsrv->next) {
 			struct server *other_srv;
 
-			if (newsrv->puid)
+			/* Note: internal servers are not always registered and
+			 * they do not conflict.
+			 */
+			if (!newsrv->conf.name.node.leaf_p)
 				continue;
 
-			for (other_srv = curproxy->srv; other_srv && other_srv != newsrv; other_srv = other_srv->next) {
-				if (!other_srv->puid && strcmp(other_srv->id, newsrv->id) == 0) {
+			for (other_srv = newsrv;
+			     (other_srv = container_of_safe(ebpt_prev_dup(&other_srv->conf.name),
+			                                    struct server, conf.name)); ) {
+				if (!newsrv->puid && !other_srv->puid) {
 					ha_alert("parsing [%s:%d] : %s '%s', another server named '%s' was already defined at line %d, please use distinct names.\n",
 						   newsrv->conf.file, newsrv->conf.line,
 						   proxy_type_str(curproxy), curproxy->id,
