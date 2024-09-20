@@ -286,14 +286,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
-		curproxy = log_forward_by_name(args[1]);
-		if (curproxy) {
-			ha_alert("Parsing [%s:%d]: %s '%s' has the same name as log forward section '%s' declared at %s:%d.\n",
-			         file, linenum, proxy_cap_str(rc), args[1],
-			         curproxy->id, curproxy->conf.file, curproxy->conf.line);
-			err_code |= ERR_ALERT | ERR_FATAL;
-		}
-
 		if ((*args[2] && (!*args[3] || strcmp(args[2], "from") != 0)) ||
 		    alertif_too_many_args(3, file, linenum, args, &err_code)) {
 			if (rc & PR_CAP_FE)
@@ -306,6 +298,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		const char *name = args[1];
 		int arg = 2;
 
+		/* conflict with log-forward forbidden for listen/frontend/backend/defaults */
+		curproxy = log_forward_by_name(args[1]);
+		if (curproxy) {
+			ha_alert("Parsing [%s:%d]: %s '%s' has the same name as log forward section '%s' declared at %s:%d.\n",
+			         file, linenum, proxy_cap_str(rc), args[1],
+			         curproxy->id, curproxy->conf.file, curproxy->conf.line);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+
 		curproxy = proxy_find_by_name(args[1], 0, 0);
 		if (!curproxy && !(rc & PR_CAP_DEF))
 			curproxy = proxy_find_by_name(args[1], PR_CAP_DEF, 0);
@@ -317,19 +318,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				   file, linenum, proxy_cap_str(rc), args[1], proxy_type_str(curproxy),
 				   curproxy->id, curproxy->conf.file, curproxy->conf.line);
 			err_code |= ERR_WARN;
-		}
-		else if (rc & PR_CAP_DEF) {
-			/* only defaults need to be checked here, other proxies
-			 * have already been above.
-			 */
-			curproxy = log_forward_by_name(args[1]);
-			if (curproxy) {
-				ha_warning("Parsing [%s:%d]: %s '%s' has the same name as log-forward section '%s' declared at %s:%d."
-					   " This is dangerous and will not be supported anymore in version 3.3.\n",
-					   file, linenum, proxy_cap_str(rc), args[1],
-					   curproxy->id, curproxy->conf.file, curproxy->conf.line);
-				err_code |= ERR_WARN;
-			}
 		}
 
 		if (rc & PR_CAP_DEF && strcmp(args[1], "from") == 0 && *args[2] && !*args[3]) {
