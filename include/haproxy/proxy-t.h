@@ -424,9 +424,11 @@ struct proxy {
 		struct list listeners;		/* list of listeners belonging to this frontend */
 		struct list errors;             /* list of all custom error files */
 		struct arg_list args;           /* sample arg list that need to be resolved */
-		unsigned int refcount;          /* refcount on this proxy (only used for default proxy for now) */
 		struct ebpt_node by_name;       /* proxies are stored sorted by name here */
 		struct list lf_checks;          /* list of logformats found in the proxy section that needs to be checked during postparse */
+		const char *file_prev;          /* file of the previous instance found with the same name, or NULL */
+		int line_prev;                  /* line of the previous instance found with the same name, or 0 */
+		unsigned int refcount;          /* refcount on this proxy (only used for default proxy for now) */
 	} conf;					/* config information */
 	struct http_ext *http_ext;	        /* http ext options */
 	struct eb_root used_server_addr;        /* list of server addresses in use */
