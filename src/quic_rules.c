@@ -4,6 +4,7 @@
 #include <haproxy/action.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
+#include <haproxy/log.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/quic_sock-t.h>
@@ -92,6 +93,23 @@ static enum act_parse_ret parse_dgram_drop(const char **args, int *orig_arg,
 	return ACT_RET_PRS_OK;
 }
 
+static enum log_orig_id do_log_quic_init;
+
+static void init_do_log(void)
+{
+	do_log_quic_init = log_orig_register("quic-init");
+	BUG_ON(do_log_quic_init == LOG_ORIG_UNSPEC);
+}
+
+INITCALL0(STG_PREPARE, init_do_log);
+
+static enum act_parse_ret parse_do_log(const char **args, int *orig_arg,
+                                       struct proxy *px,
+                                       struct act_rule *rule, char **err)
+{
+	return do_log_parse_act(do_log_quic_init, args, orig_arg, px, rule, err);
+}
+
 static enum act_return quic_init_action_reject(struct act_rule *rule, struct proxy *px,
                                                struct session *sess, struct stream *s, int flags)
 {
@@ -145,6 +163,7 @@ struct action_kw *action_quic_init_custom(const char *kw)
 static struct action_kw_list quic_init_actions = { ILH, {
 		{ "accept",           parse_accept,            0 },
 		{ "dgram-drop",       parse_dgram_drop,        0 },
+		{ "do-log",           parse_do_log,            0 },
 		{ "reject",           parse_reject,            0 },
 		{ "send-retry",       parse_send_retry,        0 },
 		{ /* END */ },

@@ -31,6 +31,7 @@
 #include <haproxy/connection.h>
 #include <haproxy/global.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/log.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
@@ -789,8 +790,51 @@ static enum act_parse_ret tcp_parse_silent_drop(const char **args, int *cur_arg,
 	return ACT_RET_PRS_OK;
 }
 
+static enum log_orig_id do_log_tcp_req_conn;
+static enum log_orig_id do_log_tcp_req_sess;
+static enum log_orig_id do_log_tcp_req_cont;
+static enum log_orig_id do_log_tcp_res_cont;
+
+static void init_do_log(void)
+{
+	do_log_tcp_req_conn = log_orig_register("tcp-req-conn");
+	BUG_ON(do_log_tcp_req_conn == LOG_ORIG_UNSPEC);
+	do_log_tcp_req_sess = log_orig_register("tcp-req-sess");
+	BUG_ON(do_log_tcp_req_sess == LOG_ORIG_UNSPEC);
+	do_log_tcp_req_cont = log_orig_register("tcp-req-cont");
+	BUG_ON(do_log_tcp_req_cont == LOG_ORIG_UNSPEC);
+	do_log_tcp_res_cont = log_orig_register("tcp-res-cont");
+	BUG_ON(do_log_tcp_res_cont == LOG_ORIG_UNSPEC);
+}
+
+INITCALL0(STG_PREPARE, init_do_log);
+
+static enum act_parse_ret tcp_req_conn_parse_do_log(const char **args, int *orig_arg, struct proxy *px,
+                                                    struct act_rule *rule, char **err)
+{
+	return do_log_parse_act(do_log_tcp_req_conn, args, orig_arg, px, rule, err);
+}
+
+static enum act_parse_ret tcp_req_sess_parse_do_log(const char **args, int *orig_arg, struct proxy *px,
+                                                    struct act_rule *rule, char **err)
+{
+	return do_log_parse_act(do_log_tcp_req_sess, args, orig_arg, px, rule, err);
+}
+
+static enum act_parse_ret tcp_req_cont_parse_do_log(const char **args, int *orig_arg, struct proxy *px,
+                                                    struct act_rule *rule, char **err)
+{
+	return do_log_parse_act(do_log_tcp_req_cont, args, orig_arg, px, rule, err);
+}
+
+static enum act_parse_ret tcp_res_cont_parse_do_log(const char **args, int *orig_arg, struct proxy *px,
+                                                    struct act_rule *rule, char **err)
+{
+	return do_log_parse_act(do_log_tcp_res_cont, args, orig_arg, px, rule, err);
+}
 
 static struct action_kw_list tcp_req_conn_actions = {ILH, {
+	{ "do-log"      , tcp_req_conn_parse_do_log },
 	{ "set-dst"     , tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
 	{ "set-fc-mark",  tcp_parse_set_mark    },
@@ -807,6 +851,7 @@ INITCALL1(STG_REGISTER, tcp_req_conn_keywords_register, &tcp_req_conn_actions);
 
 static struct action_kw_list tcp_req_sess_actions = {ILH, {
 	{ "attach-srv"  , tcp_parse_attach_srv  },
+	{ "do-log",       tcp_req_sess_parse_do_log },
 	{ "set-dst"     , tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
 	{ "set-fc-mark",  tcp_parse_set_mark    },
@@ -822,6 +867,7 @@ static struct action_kw_list tcp_req_sess_actions = {ILH, {
 INITCALL1(STG_REGISTER, tcp_req_sess_keywords_register, &tcp_req_sess_actions);
 
 static struct action_kw_list tcp_req_cont_actions = {ILH, {
+	{ "do-log",       tcp_req_cont_parse_do_log },
 	{ "set-bc-mark",  tcp_parse_set_mark    },
 	{ "set-bc-tos",   tcp_parse_set_tos     },
 	{ "set-dst"     , tcp_parse_set_src_dst },
@@ -839,6 +885,7 @@ static struct action_kw_list tcp_req_cont_actions = {ILH, {
 INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &tcp_req_cont_actions);
 
 static struct action_kw_list tcp_res_cont_actions = {ILH, {
+	{ "do-log",      tcp_res_cont_parse_do_log },
 	{ "set-fc-mark", tcp_parse_set_mark    },
 	{ "set-fc-tos",  tcp_parse_set_tos     },
 	{ "set-mark",    tcp_parse_set_mark    }, // DEPRECATED, see set-fc-mark

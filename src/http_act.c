@@ -2371,6 +2371,40 @@ static enum act_parse_ret parse_http_wait_for_body(const char **args, int *orig_
 	return ACT_RET_PRS_OK;
 }
 
+static enum log_orig_id do_log_http_req;
+static enum log_orig_id do_log_http_res;
+static enum log_orig_id do_log_http_after_res;
+
+static void init_do_log(void)
+{
+	do_log_http_req = log_orig_register("http-req");
+	BUG_ON(do_log_http_req == LOG_ORIG_UNSPEC);
+	do_log_http_res = log_orig_register("http-res");
+	BUG_ON(do_log_http_res == LOG_ORIG_UNSPEC);
+	do_log_http_after_res = log_orig_register("http-after-res");
+	BUG_ON(do_log_http_after_res == LOG_ORIG_UNSPEC);
+}
+
+INITCALL0(STG_PREPARE, init_do_log);
+
+static enum act_parse_ret parse_http_req_do_log(const char **args, int *orig_arg, struct proxy *px,
+                                                struct act_rule *rule, char **err)
+{
+	return do_log_parse_act(do_log_http_req, args, orig_arg, px, rule, err);
+}
+
+static enum act_parse_ret parse_http_res_do_log(const char **args, int *orig_arg, struct proxy *px,
+                                                struct act_rule *rule, char **err)
+{
+	return do_log_parse_act(do_log_http_res, args, orig_arg, px, rule, err);
+}
+
+static enum act_parse_ret parse_http_after_res_do_log(const char **args, int *orig_arg, struct proxy *px,
+                                                      struct act_rule *rule, char **err)
+{
+	return do_log_parse_act(do_log_http_after_res, args, orig_arg, px, rule, err);
+}
+
 /************************************************************************/
 /*   All supported http-request action keywords must be declared here.  */
 /************************************************************************/
@@ -2387,6 +2421,7 @@ static struct action_kw_list http_req_actions = {
 		{ "del-map",          parse_http_set_map,              KWF_MATCH_PREFIX },
 		{ "deny",             parse_http_deny,                 0 },
 		{ "disable-l7-retry", parse_http_req_disable_l7_retry, 0 },
+		{ "do-log",           parse_http_req_do_log,           0 },
 		{ "early-hint",       parse_http_set_header,           0 },
 		{ "normalize-uri",    parse_http_normalize_uri,        KWF_EXPERIMENTAL },
 		{ "redirect",         parse_http_redirect,             0 },
@@ -2425,6 +2460,7 @@ static struct action_kw_list http_res_actions = {
 		{ "del-header",      parse_http_del_header,     0 },
 		{ "del-map",         parse_http_set_map,        KWF_MATCH_PREFIX },
 		{ "deny",            parse_http_deny,           0 },
+		{ "do-log",          parse_http_res_do_log,     0 },
 		{ "redirect",        parse_http_redirect,       0 },
 		{ "replace-header",  parse_http_replace_header, 0 },
 		{ "replace-value",   parse_http_replace_header, 0 },
@@ -2450,6 +2486,7 @@ static struct action_kw_list http_after_res_actions = {
 		{ "del-acl",          parse_http_set_map,       KWF_MATCH_PREFIX },
 		{ "del-header",      parse_http_del_header,     0 },
 		{ "del-map",          parse_http_set_map,       KWF_MATCH_PREFIX },
+		{ "do-log",          parse_http_after_res_do_log, 0 },
 		{ "replace-header",  parse_http_replace_header, 0 },
 		{ "replace-value",   parse_http_replace_header, 0 },
 		{ "set-header",      parse_http_set_header,     0 },
