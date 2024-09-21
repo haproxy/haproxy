@@ -2015,7 +2015,9 @@ static int srv_has_streams(struct server *srv)
  * code in <why>, which must be one of SF_ERR_* indicating the reason for the
  * shutdown.
  *
- * Must be called with the server lock held.
+ * Note: the function will switch to thread isolation (due to shutdown_stream()
+ * modifying the streams directly), and commonly called  with the server's lock
+ * held as well though not needed anymore (this is not a bug).
  */
 void srv_shutdown_streams(struct server *srv, int why)
 {
@@ -2023,10 +2025,14 @@ void srv_shutdown_streams(struct server *srv, int why)
 	struct mt_list back;
 	int thr;
 
+	thread_isolate();
+
 	for (thr = 0; thr < global.nbthread; thr++)
 		MT_LIST_FOR_EACH_ENTRY_LOCKED(stream, &srv->per_thr[thr].streams, by_srv, back)
 			if (stream->srv_conn == srv)
 				stream_shutdown(stream, why);
+
+	thread_release();
 }
 
 /* Shutdown all connections of all backup servers of a proxy. The caller must
