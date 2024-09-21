@@ -542,6 +542,7 @@ static int debug_parse_cli_show_libs(char **args, char *payload, struct appctx *
 static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	const char **build_opt;
+	char *err = NULL;
 	int i;
 
 	if (*args[2])
@@ -616,7 +617,7 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 					     post_mortem.process.caps.boot[1].inheritable));
 	} else
 		chunk_appendf(&trash, "  capget() failed at boot with: %s.\n",
-			      strerror(post_mortem.process.caps.err_boot));
+			      errname(post_mortem.process.caps.err_boot, &err));
 
 	/* let's print actual capabilities sets, could be useful in order to compare */
 	if (!post_mortem.process.caps.err_run) {
@@ -632,7 +633,7 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 					     post_mortem.process.caps.run[1].inheritable));
 	} else
 		chunk_appendf(&trash, "  capget() failed at runtime with: %s.\n",
-			      strerror(post_mortem.process.caps.err_run));
+			      errname(post_mortem.process.caps.err_run, &err));
 #endif
 	chunk_appendf(&trash, "  boot limits:\n");
 	chunk_appendf(&trash, "  \tfd limit (soft): %s\n",
@@ -653,6 +654,8 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 		      LIM2A(normalize_rlim(post_mortem.process.run_lim_ram.rlim_cur), "unlimited"));
 	chunk_appendf(&trash, "  \tram limit (hard): %s\n",
 		      LIM2A(normalize_rlim(post_mortem.process.run_lim_ram.rlim_max), "unlimited"));
+
+	ha_free(&err);
 
 	return cli_msg(appctx, LOG_INFO, trash.area);
 }
