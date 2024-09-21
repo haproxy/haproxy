@@ -460,7 +460,7 @@ static struct proxy *cli_alloc_fe(const char *name, const char *file, int line)
 	fe->cap = PR_CAP_FE|PR_CAP_INT;
 	fe->maxconn = 10;                 /* default to 10 concurrent connections */
 	fe->timeout.client = MS_TO_TICKS(10000); /* default timeout of 10 seconds */
-	fe->conf.file = strdup(file);
+	fe->conf.file = copy_file_name(file);
 	fe->conf.line = line;
 	fe->accept = frontend_accept;
 	fe->default_target = &cli_applet.obj_type;
