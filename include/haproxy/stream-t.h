@@ -30,6 +30,7 @@
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/filters-t.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/log-t.h>
 #include <haproxy/show_flags-t.h>
 #include <haproxy/stick_table-t.h>
 #include <haproxy/vars-t.h>
@@ -269,7 +270,7 @@ struct stream {
 	struct strm_logs logs;                  /* logs for this stream */
 
 	void (*do_log)(struct stream *s,        /* the function to call in order to log (or NULL) */
-	               int origin);
+	               struct log_orig origin);
 	void (*srv_error)(struct stream *s,     /* the function to call upon unrecoverable server errors (or NULL) */
 			  struct stconn *sc);
 

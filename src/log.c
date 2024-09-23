@@ -93,7 +93,7 @@ static const struct log_fmt_st log_formats[LOG_FORMATS] = {
 static struct list log_origins = LIST_HEAD_INIT(log_origins);
 
 /* get human readable representation for log_orig enum members */
-const char *log_orig_to_str(enum log_orig orig)
+const char *log_orig_to_str(enum log_orig_id orig)
 {
 	switch (orig) {
 		case LOG_ORIG_SESS_ERROR:
@@ -2872,7 +2872,7 @@ static inline void __send_log_set_metadata_sd(struct ist *metadata, char *sd, si
 struct process_send_log_ctx {
 	struct session *sess;
 	struct stream *stream;
-	enum log_orig origin;
+	struct log_orig origin;
 };
 
 static inline void _process_send_log_final(struct logger *logger, struct log_header hdr,
@@ -2895,7 +2895,7 @@ static inline void _process_send_log_override(struct process_send_log_ctx *ctx,
 	struct log_profile_step *step = NULL;
 	struct ist orig_tag = hdr.metadata[LOG_META_TAG];
 	struct ist orig_sd = hdr.metadata[LOG_META_STDATA];
-	enum log_orig orig = (ctx) ? ctx->origin : LOG_ORIG_UNSPEC;
+	enum log_orig_id orig = (ctx) ? ctx->origin.id : LOG_ORIG_UNSPEC;
 
 	BUG_ON(!prof);
 
@@ -3812,7 +3812,7 @@ int lf_expr_dup(const struct lf_expr *orig, struct lf_expr *dest)
  */
 int sess_build_logline_orig(struct session *sess, struct stream *s,
                             char *dst, size_t maxsize, struct lf_expr *lf_expr,
-                            enum log_orig log_orig)
+                            struct log_orig log_orig)
 {
 	struct lf_buildctx *ctx = &lf_buildctx;
 	struct proxy *fe = sess->fe;
@@ -5075,7 +5075,7 @@ int sess_build_logline_orig(struct session *sess, struct stream *s,
 				break;
 
 			case LOG_FMT_ORIGIN: // %OG
-				ret = lf_text(tmplog, log_orig_to_str(log_orig),
+				ret = lf_text(tmplog, log_orig_to_str(log_orig.id),
 				              dst + maxsize - tmplog, ctx);
 				if (ret == NULL)
 					goto out;
@@ -5140,7 +5140,7 @@ out:
  * send a log for the stream when we have enough info about it.
  * Will not log if the frontend has no log defined.
  */
-void strm_log(struct stream *s, int origin)
+void strm_log(struct stream *s, struct log_orig origin)
 {
 	struct session *sess = s->sess;
 	int size, err, level;
@@ -5212,10 +5212,15 @@ void _sess_log(struct session *sess, int embryonic)
 {
 	int size, level;
 	int sd_size = 0;
-	int orig = (embryonic) ? LOG_ORIG_SESS_KILL : LOG_ORIG_SESS_ERROR;
+	struct log_orig orig;
 
 	if (!sess)
 		return;
+
+	if (embryonic)
+		orig = log_orig(LOG_ORIG_SESS_KILL, LOG_ORIG_FL_NONE);
+	else
+		orig = log_orig(LOG_ORIG_SESS_ERROR, LOG_ORIG_FL_NONE);
 
 	if (LIST_ISEMPTY(&sess->fe->loggers))
 		return;
@@ -6469,7 +6474,7 @@ out:
  * Don't forget to update the documentation when new log origins are added
  * (both %OG log alias and on <step> log-profile keyword are concerned)
  */
-enum log_orig log_orig_register(const char *name)
+enum log_orig_id log_orig_register(const char *name)
 {
 	struct log_origin_node *cur;
 	size_t last = 0;

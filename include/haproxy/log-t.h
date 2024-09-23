@@ -261,7 +261,7 @@ struct logger {
 /* integer used to provide some context about the log origin
  * when sending log through logging functions
  */
-enum log_orig {
+enum log_orig_id {
 	LOG_ORIG_UNSPEC = 0,         /* unspecified */
 	LOG_ORIG_SESS_ERROR,         /* general error during session handling */
 	LOG_ORIG_SESS_KILL,          /* during embryonic session kill */
@@ -275,6 +275,16 @@ enum log_orig {
 	                              * = 1 logging step
 	                              */
 	LOG_ORIG_MAX = 0xFFFF,       /* max log origin number (65k) */
+};
+
+/* log orig flags
+ */
+#define LOG_ORIG_FL_NONE  0x0000
+#define LOG_ORIG_FL_ALL   0xFFFF
+
+struct log_orig {
+	enum log_orig_id id;
+	uint16_t flags; /* any LOG_ORIG_FL_* */
 };
 
 /* max number of extra log origins */

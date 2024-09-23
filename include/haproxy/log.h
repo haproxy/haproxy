@@ -65,7 +65,7 @@ void syslog_fd_handler(int fd);
 int init_log_buffers(void);
 void deinit_log_buffers(void);
 
-const char *log_orig_to_str(enum log_orig orig);
+const char *log_orig_to_str(enum log_orig_id orig);
 
 void lf_expr_init(struct lf_expr *expr);
 int lf_expr_dup(const struct lf_expr *orig, struct lf_expr *dest);
@@ -82,22 +82,33 @@ int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err);
 void free_logformat_list(struct list *fmt);
 void free_logformat_node(struct logformat_node *node);
 
+/* helper to build log_orig struct from known id and flags values */
+static inline struct log_orig log_orig(enum log_orig_id id, uint16_t flags)
+{
+	struct log_orig orig;
+
+	orig.id = id;
+	orig.flags = flags;
+	return orig;
+}
+
 /* build a log line for the session and an optional stream */
 int sess_build_logline_orig(struct session *sess, struct stream *s, char *dst, size_t maxsize,
-                            struct lf_expr *lf_expr, enum log_orig orig);
+                            struct lf_expr *lf_expr, struct log_orig orig);
 
 /* wrapper for sess_build_logline_orig(), uses LOG_ORIG_UNSPEC log origin */
 static inline int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t maxsize,
                                      struct lf_expr *lf_expr)
 {
-	return sess_build_logline_orig(sess, s, dst, maxsize, lf_expr, LOG_ORIG_UNSPEC);
+	return sess_build_logline_orig(sess, s, dst, maxsize, lf_expr,
+	                               log_orig(LOG_ORIG_UNSPEC, LOG_ORIG_FL_NONE));
 }
 
 /*
  * send a log for the stream when we have enough info about it.
  * Will not log if the frontend has no log defined.
  */
-void strm_log(struct stream *s, int origin);
+void strm_log(struct stream *s, struct log_orig origin);
 
 /* send an error log for the session, embryonic version should be used
  * when the log is emitted for a session which is still in embryonic state
@@ -136,7 +147,7 @@ struct logger *dup_logger(struct logger *def);
 void free_logger(struct logger *logger);
 void deinit_log_target(struct log_target *target);
 struct log_profile *log_profile_find_by_name(const char *name);
-enum log_orig log_orig_register(const char *name);
+enum log_orig_id log_orig_register(const char *name);
 
 /* Parse "log" keyword and update the linked list. */
 int parse_logger(char **args, struct list *loggers, int do_del, const char *file, int linenum, char **err);
@@ -175,7 +186,7 @@ char * get_format_pid_sep2(int format, size_t *len);
  * Builds a log line for the stream (must be valid).
  */
 static inline int build_logline_orig(struct stream *s, char *dst, size_t maxsize,
-                                     struct lf_expr *lf_expr, enum log_orig orig)
+                                     struct lf_expr *lf_expr, struct log_orig orig)
 {
 	return sess_build_logline_orig(strm_sess(s), s, dst, maxsize, lf_expr, orig);
 }
@@ -185,7 +196,8 @@ static inline int build_logline_orig(struct stream *s, char *dst, size_t maxsize
  */
 static inline int build_logline(struct stream *s, char *dst, size_t maxsize, struct lf_expr *lf_expr)
 {
-	return build_logline_orig(s, dst, maxsize, lf_expr, LOG_ORIG_UNSPEC);
+	return build_logline_orig(s, dst, maxsize, lf_expr,
+	                          log_orig(LOG_ORIG_UNSPEC, LOG_ORIG_FL_NONE));
 }
 
 struct ist *build_log_header(struct log_header hdr, size_t *nbelem);

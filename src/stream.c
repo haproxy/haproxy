@@ -922,7 +922,7 @@ void back_establish(struct stream *s)
 		if (!lf_expr_isempty(&strm_fe(s)->logformat) && !(s->logs.logwait & LW_BYTES)) {
 			/* note: no pend_pos here, session is established */
 			s->logs.t_close = s->logs.t_connect; /* to get a valid end date */
-			s->do_log(s, LOG_ORIG_TXN_CONNECT);
+			s->do_log(s, log_orig(LOG_ORIG_TXN_CONNECT, LOG_ORIG_FL_NONE));
 		}
 	}
 	else {
@@ -2593,7 +2593,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			pendconn_free(s);
 
 			stream_cond_update_cpu_usage(s);
-			s->do_log(s, LOG_ORIG_TXN_CLOSE);
+			s->do_log(s, log_orig(LOG_ORIG_TXN_CLOSE, LOG_ORIG_FL_NONE));
 		}
 
 		/* update time stats for this stream */
