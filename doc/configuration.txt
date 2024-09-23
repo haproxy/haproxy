@@ -4600,7 +4600,8 @@ table <tablename> type {ip | integer | string [len <length>] | binary [len <leng
 ------------
 It is possible to send email alerts when the state of servers changes.
 If configured email alerts are sent to each mailer that is configured
-in a mailers section. Email is sent to mailers using SMTP.
+in a mailers section. Email is sent to mailers through Lua (see
+examples/lua/mailers.lua).
 
 mailers <mailersect>
   Creates a new mailer list with the name <mailersect>. It is an
@@ -4610,6 +4611,11 @@ mailer <mailername> <ip>:<port>
   Defines a mailer inside a mailers section.
 
   Example:
+    global
+        # mailers.lua file as provided in the git repository
+        # adjust path as needed
+        lua-load examples/lua/mailers.lua
+
     mailers mymailers
         mailer smtp1 192.168.0.1:587
         mailer smtp2 192.168.0.2:587
