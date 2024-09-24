@@ -4,6 +4,7 @@
 /* make the include files below expose their flags */
 #define HA_EXPOSE_FLAGS
 
+#include <haproxy/applet-t.h>
 #include <haproxy/channel-t.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/fd-t.h>
@@ -47,11 +48,12 @@
 #define SHOW_AS_SPOPS 0x00800000
 #define SHOW_AS_QCC   0x01000000
 #define SHOW_AS_QCS   0x02000000
+#define SHOW_AS_APPCTX 0x04000000
 
 // command line names, must be in exact same order as the SHOW_AS_* flags above
 // so that show_as_words[i] matches flag 1U<<i.
 const char *show_as_words[] = { "ana", "chn", "conn", "sc", "stet", "strm", "task", "txn", "sd", "hsl", "htx", "hmsg", "fd", "h2c", "h2s",  "h1c", "h1s", "fconn", "fstrm",
-				"peers", "peer", "qc", "spopc", "spops", "qcc", "qcs"};
+				"peers", "peer", "qc", "spopc", "spops", "qcc", "qcs", "appctx"};
 
 /* will be sufficient for even largest flag names */
 static char buf[4096];
@@ -171,6 +173,7 @@ int main(int argc, char **argv)
 		if (show_as & SHOW_AS_SPOPS) printf("spops->flags = %s\n",(spop_strm_show_flags(buf, bsz, " | ", flags), buf));
 		if (show_as & SHOW_AS_QCC)    printf("qcc->flags = %s\n", (qcc_show_flags    (buf, bsz, " | ", flags), buf));
 		if (show_as & SHOW_AS_QCS)    printf("qcs->flags = %s\n", (qcs_show_flags    (buf, bsz, " | ", flags), buf));
+		if (show_as & SHOW_AS_APPCTX) printf("appctx->flags = %s\n", (appctx_show_flags(buf, bsz, " | ", flags), buf));
 	}
 	return 0;
 }

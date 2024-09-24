@@ -27,6 +27,7 @@
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/show_flags-t.h>
 #include <haproxy/task-t.h>
 #include <haproxy/xref-t.h>
 
@@ -57,6 +58,28 @@ struct stconn;
 struct sedesc;
 struct se_abort_info;
 struct session;
+
+/* This function is used to report flags in debugging tools. Please reflect
+ * below any single-bit flag addition above in the same order via the
+ * __APPEND_FLAG macro. The new end of the buffer is returned.
+ */
+static forceinline char *appctx_show_flags(char *buf, size_t len, const char *delim, uint flg)
+{
+#define _(f, ...) __APPEND_FLAG(buf, len, delim, flg, f, #f, __VA_ARGS__)
+	/* prologue */
+	_(0);
+	/* flags */
+	_(APPCTX_FL_INBLK_ALLOC, _(APPCTX_FL_INBLK_FULL,
+	_(APPCTX_FL_OUTBLK_ALLOC, _(APPCTX_FL_OUTBLK_FULL,
+	_(APPCTX_FL_EOI, _(APPCTX_FL_EOS,
+	_(APPCTX_FL_ERR_PENDING, _(APPCTX_FL_ERROR,
+	_(APPCTX_FL_SHUTDOWN, _(APPCTX_FL_WANT_DIE, _(APPCTX_FL_INOUT_BUFS,
+	_(APPCTX_FL_FASTFWD, _(APPCTX_FL_IN_MAYALLOC, _(APPCTX_FL_OUT_MAYALLOC))))))))))))));
+	/* epilogue */
+	_(~0U);
+	return buf;
+#undef _
+}
 
 /* Applet descriptor */
 struct applet {
