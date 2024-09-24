@@ -1070,7 +1070,6 @@ static void cli_io_handler(struct appctx *appctx)
 		if (appctx->st0 == CLI_ST_INIT) {
 			/* reset severity to default at init */
 			cli_init(appctx);
-			break;
 		}
 		else if (appctx->st0 == CLI_ST_END) {
 			applet_set_eos(appctx);
