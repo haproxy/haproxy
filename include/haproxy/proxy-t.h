@@ -193,15 +193,16 @@ enum PR_SRV_STATE_FILE {
 #define PR_RE_404                 0x00000020 /* Retry if we got a 404 */
 #define PR_RE_408                 0x00000040 /* Retry if we got a 408 */
 #define PR_RE_425                 0x00000080 /* Retry if we got a 425 */
-#define PR_RE_500                 0x00000100 /* Retry if we got a 500 */
-#define PR_RE_501                 0x00000200 /* Retry if we got a 501 */
-#define PR_RE_502                 0x00000400 /* Retry if we got a 502 */
-#define PR_RE_503                 0x00000800 /* Retry if we got a 503 */
-#define PR_RE_504                 0x00001000 /* Retry if we got a 504 */
+#define PR_RE_429                 0x00000100 /* Retry if we got a 429 */
+#define PR_RE_500                 0x00000200 /* Retry if we got a 500 */
+#define PR_RE_501                 0x00000400 /* Retry if we got a 501 */
+#define PR_RE_502                 0x00000800 /* Retry if we got a 502 */
+#define PR_RE_503                 0x00001000 /* Retry if we got a 503 */
+#define PR_RE_504                 0x00002000 /* Retry if we got a 504 */
 #define PR_RE_STATUS_MASK         (PR_RE_401 | PR_RE_403 | PR_RE_404 | \
-                                   PR_RE_408 | PR_RE_425 | PR_RE_500 | \
-                                   PR_RE_501 | PR_RE_502 | PR_RE_503 | \
-                                   PR_RE_504)
+                                   PR_RE_408 | PR_RE_425 | PR_RE_429 | \
+                                   PR_RE_500 | PR_RE_501 | PR_RE_502 | \
+                                   PR_RE_503 | PR_RE_504)
 /* 0x00000800, 0x00001000, 0x00002000, 0x00004000 and 0x00008000 unused,
  * reserved for eventual future status codes
  */
@@ -413,7 +414,7 @@ struct proxy {
 	int no_options2;			/* PR_O2_* */
 
 	struct {
-		char *file;			/* file where the section appears */
+		const char *file;		/* file where the section appears */
 		struct eb32_node id;		/* place in the tree of used IDs */
 		int line;			/* line where the section appears */
 		struct eb_root used_listener_id;/* list of listener IDs in use */
@@ -423,9 +424,11 @@ struct proxy {
 		struct list listeners;		/* list of listeners belonging to this frontend */
 		struct list errors;             /* list of all custom error files */
 		struct arg_list args;           /* sample arg list that need to be resolved */
-		unsigned int refcount;          /* refcount on this proxy (only used for default proxy for now) */
 		struct ebpt_node by_name;       /* proxies are stored sorted by name here */
 		struct list lf_checks;          /* list of logformats found in the proxy section that needs to be checked during postparse */
+		const char *file_prev;          /* file of the previous instance found with the same name, or NULL */
+		int line_prev;                  /* line of the previous instance found with the same name, or 0 */
+		unsigned int refcount;          /* refcount on this proxy (only used for default proxy for now) */
 	} conf;					/* config information */
 	struct http_ext *http_ext;	        /* http ext options */
 	struct eb_root used_server_addr;        /* list of server addresses in use */

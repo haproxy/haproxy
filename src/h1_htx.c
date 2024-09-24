@@ -51,7 +51,7 @@ static int h1_process_req_vsn(struct h1m *h1m, union h1_sl *sl)
 {
 	/* RFC7230#2.6 has enforced the format of the HTTP version string to be
 	 * exactly one digit "." one digit. This check may be disabled using
-	 * option accept-invalid-http-request.
+	 * option accept-unsafe-violations-in-http-request.
 	 */
 	if (h1m->err_pos == -2) { /* PR_O2_REQBUG_OK not set */
 		if (sl->rq.v.len != 8)
@@ -93,9 +93,9 @@ static int h1_process_res_vsn(struct h1m *h1m, union h1_sl *sl)
 {
 	/* RFC7230#2.6 has enforced the format of the HTTP version string to be
 	 * exactly one digit "." one digit. This check may be disabled using
-	 * option accept-invalid-http-request.
+	 * option accept-unsafe-violations-in-http-response.
 	 */
-	if (h1m->err_pos == -2) { /* PR_O2_REQBUG_OK not set */
+	if (h1m->err_pos == -2) { /* PR_O2_RSPBUG_OK not set */
 		if (sl->st.v.len != 8)
 			return 0;
 
@@ -182,11 +182,9 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	flags |= h1m_htx_sl_flags(h1m);
 
 	/* Remove Upgrade header in problematic cases :
-	 * - body present
 	 * - "h2c" or "h2" token specified as token
 	 */
-	if (((flags & (HTX_SL_F_CONN_UPG|HTX_SL_F_BODYLESS)) == HTX_SL_F_CONN_UPG) ||
-	    ((h1m->flags & (H1_MF_CONN_UPG|H1_MF_UPG_H2C)) == (H1_MF_CONN_UPG|H1_MF_UPG_H2C))) {
+	if ((h1m->flags & (H1_MF_CONN_UPG|H1_MF_UPG_H2C)) == (H1_MF_CONN_UPG|H1_MF_UPG_H2C)) {
 		int i;
 
 		for (i = 0; hdrs[i].n.len; i++) {
@@ -295,7 +293,6 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		h1m->flags &= ~(H1_MF_CLEN|H1_MF_CHNK);
 		h1m->flags |= H1_MF_XFER_LEN;
 		h1m->curr_len = h1m->body_len = 0;
-		flags |= HTX_SL_F_BODYLESS_RESP;
 	}
 	else if ((h1m->flags & H1_MF_METH_HEAD) || (code >= 100 && code < 200) ||
 		 (code == 204) || (code == 304)) {

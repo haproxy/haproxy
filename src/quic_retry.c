@@ -258,16 +258,10 @@ int quic_retry_token_check(struct quic_rx_packet *pkt,
 	TRACE_ENTER(QUIC_EV_CONN_LPKT, qc);
 
 	/* The caller must ensure this. */
-	BUG_ON(!pkt->token_len);
+	BUG_ON(!pkt->token_len || *pkt->token != QUIC_TOKEN_FMT_RETRY);
 
 	prx = l->bind_conf->frontend;
 	prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
-
-	if (*pkt->token != QUIC_TOKEN_FMT_RETRY) {
-		/* TODO: New token check */
-		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc, NULL, NULL, pkt->version);
-		goto leave;
-	}
 
 	if (sizeof buf < tokenlen) {
 		TRACE_ERROR("too short buffer", QUIC_EV_CONN_LPKT, qc);

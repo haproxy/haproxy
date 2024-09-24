@@ -513,6 +513,9 @@ static inline void spop_release_mbuf(struct spop_conn *spop_conn)
 		b_free(buf);
 		count++;
 	}
+
+	spop_conn->flags &= ~(SPOP_CF_MUX_MFULL | SPOP_CF_DEM_MROOM);
+
 	if (count)
 		offer_buffers(NULL, count);
 }

@@ -432,6 +432,33 @@ struct pattern *pat_match_nothing(struct sample *smp, struct pattern_expr *expr,
 		return NULL;
 }
 
+/* ensure the input sample can be read as a string without knowing its size,
+ * that is, ensure the terminating null byte is there
+ *
+ * The function may fail. Returns 1 on success and 0 on failure
+ */
+static inline int pat_match_ensure_str(struct sample *smp)
+{
+	if (smp->data.u.str.data < smp->data.u.str.size) {
+		/* we have to force a trailing zero on the test pattern and
+		 * the buffer is large enough to accommodate it. If the flag
+		 * CONST is set, duplicate the string
+		 */
+		if (smp->flags & SMP_F_CONST) {
+			if (!smp_dup(smp))
+				return 0;
+		} else
+			smp->data.u.str.area[smp->data.u.str.data] = '\0';
+	}
+	else {
+		/* Otherwise, the sample is duplicated. A trailing zero
+		 * is automatically added to the string.
+		 */
+		if (!smp_dup(smp))
+			return 0;
+	}
+	return 1;
+}
 
 /* NB: For two strings to be identical, it is required that their length match */
 struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int fill)
@@ -446,34 +473,10 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 
 	/* Lookup a string in the expression's pattern tree. */
 	if (!eb_is_empty(&expr->pattern_tree)) {
-		char prev = 0;
-
-		if (smp->data.u.str.data < smp->data.u.str.size) {
-			/* we may have to force a trailing zero on the test pattern and
-			 * the buffer is large enough to accommodate it. If the flag
-			 * CONST is set, duplicate the string
-			 */
-			prev = smp->data.u.str.area[smp->data.u.str.data];
-			if (prev) {
-				if (smp->flags & SMP_F_CONST) {
-					if (!smp_dup(smp))
-						return NULL;
-				} else {
-					smp->data.u.str.area[smp->data.u.str.data] = '\0';
-				}
-			}
-		}
-		else {
-			/* Otherwise, the sample is duplicated. A trailing zero
-			 * is automatically added to the string.
-			 */
-			if (!smp_dup(smp))
-				return NULL;
-		}
+		if (!pat_match_ensure_str(smp))
+			return NULL;
 
 		node = ebst_lookup(&expr->pattern_tree, smp->data.u.str.area);
-		if (prev)
-			smp->data.u.str.area[smp->data.u.str.data] = prev;
 
 		while (node) {
 			elt = ebmb_entry(node, struct pattern_tree, node);
@@ -647,28 +650,11 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 
 	/* Lookup a string in the expression's pattern tree. */
 	if (!eb_is_empty(&expr->pattern_tree)) {
-		char prev = 0;
-
-		if (smp->data.u.str.data < smp->data.u.str.size) {
-			/* we may have to force a trailing zero on the test pattern and
-			 * the buffer is large enough to accommodate it.
-			 */
-			prev = smp->data.u.str.area[smp->data.u.str.data];
-			if (prev)
-				smp->data.u.str.area[smp->data.u.str.data] = '\0';
-		}
-		else {
-			/* Otherwise, the sample is duplicated. A trailing zero
-			 * is automatically added to the string.
-			 */
-			if (!smp_dup(smp))
-				return NULL;
-		}
+		if (!pat_match_ensure_str(smp))
+			return NULL;
 
 		node = ebmb_lookup_longest(&expr->pattern_tree,
 					   smp->data.u.str.area);
-		if (prev)
-			smp->data.u.str.area[smp->data.u.str.data] = prev;
 
 		while (node) {
 			elt = ebmb_entry(node, struct pattern_tree, node);
@@ -1790,8 +1776,10 @@ int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **
 		elt = ebmb_entry(node, struct pat_ref_elt, node);
 		node = ebmb_next_dup(node);
 		if (!pat_ref_set_elt(ref, elt, value, &tmp_err)) {
-			memprintf(err, "%s, %s", err && *err ? *err : "", tmp_err);
-			ha_free(&tmp_err);
+			if (err)
+				*err = tmp_err;
+			else
+				ha_free(&tmp_err);
 			return 0;
 		}
 		found = 1;
@@ -2204,18 +2192,13 @@ struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref 
 		expr->ref = ref;
 
 		HA_RWLOCK_INIT(&expr->lock);
-
-		/* We must free this pattern if it is no more used. */
-		list->do_free = 1;
 	}
 	else {
-		/* If the pattern used already exists, it is already linked
-		 * with ref and we must not free it.
-		 */
-		list->do_free = 0;
 		if (reuse)
 			*reuse = 1;
 	}
+
+	HA_ATOMIC_INC(&expr->refcount);
 
 	/* The new list element reference the pattern_expr. */
 	list->expr = expr;
@@ -2597,7 +2580,7 @@ void pattern_prune(struct pattern_head *head)
 
 	list_for_each_entry_safe(list, safe, &head->head, list) {
 		LIST_DELETE(&list->list);
-		if (list->do_free) {
+		if (HA_ATOMIC_SUB_FETCH(&list->expr->refcount, 1) == 0) {
 			LIST_DELETE(&list->expr->list);
 			HA_RWLOCK_WRLOCK(PATEXP_LOCK, &list->expr->lock);
 			head->prune(list->expr);

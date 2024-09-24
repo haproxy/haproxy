@@ -317,6 +317,16 @@ typedef struct { } empty_t;
 #define queue _queue
 #endif
 
+/* Define a flag indicating if MPTCP is available */
+#ifdef __linux__
+#define HA_HAVE_MPTCP 1
+#endif
+
+/* only Linux defines IPPROTO_MPTCP */
+#ifndef IPPROTO_MPTCP
+#define IPPROTO_MPTCP 262
+#endif
+
 #endif /* _HAPROXY_COMPAT_H */
 
 /*

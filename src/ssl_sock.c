@@ -1598,6 +1598,10 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 	uchar *extensions_end;
 	uchar *ec_start = NULL;
 	uchar *ec_formats_start = NULL;
+	uchar *supver_start = NULL;      /* supported_versions */
+	uchar supver_len = 0;            /* supported_versions len */
+	uchar *sigalgs_start = NULL;
+	ushort sigalgs_len = 0;
 	uchar *list_end;
 	ushort protocol_version;
 	ushort extension_id;
@@ -1753,13 +1757,16 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 		msg += 2 + 2;
 		if (msg + rec_len > extensions_end || msg + rec_len < msg)
 			goto store_capture;
+
+		list_end = msg + rec_len; /* end of the current extension */
 		/* TLS Extensions
 		 * https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml */
-		if (extension_id == 0x000a) {
-			/* Elliptic Curves:
+		switch (extension_id) {
+		case 10:
+			/* supported_groups(10)
+			 * Elliptic Curves:
 			 * https://www.rfc-editor.org/rfc/rfc8422.html
 			 * https://www.rfc-editor.org/rfc/rfc7919.html */
-			list_end = msg + rec_len;
 			if (msg + 2 > list_end)
 				goto store_capture;
 			rec_len = (msg[0] << 8) + msg[1];
@@ -1770,11 +1777,11 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 			/* Store location/size of the list */
 			ec_start = msg;
 			ec_len = rec_len;
-		}
-		else if (extension_id == 0x000b) {
-			/* Elliptic Curves Point Formats:
+			break;
+		case 11:
+			/* ec_point_formats(11)
+			 * Elliptic Curves Point Formats:
 			 * https://www.rfc-editor.org/rfc/rfc8422.html */
-			list_end = msg + rec_len;
 			if (msg + 1 > list_end)
 				goto store_capture;
 			rec_len = msg[0];
@@ -1785,6 +1792,36 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 			/* Store location/size of the list */
 			ec_formats_start = msg;
 			ec_formats_len = rec_len;
+			break;
+		case 13:
+			/* signature_algorithms(13)
+			 * https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.3 */
+			if (msg + 2 > list_end)
+				goto store_capture;
+			rec_len = (msg[0] << 8) + msg[1];
+			msg += 2;
+
+			if (msg + rec_len > list_end || msg + rec_len < msg)
+				goto store_capture;
+			/* Store location/size of the list */
+			sigalgs_start = msg;
+			sigalgs_len = rec_len;
+			break;
+		case 43:
+			/* supported_versions(43)
+			 * https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.1 */
+			if (msg + 1 > list_end)
+				goto store_capture;
+			rec_len = msg[0];
+			msg += 1;
+			if (msg + rec_len > list_end || msg + rec_len < msg)
+				goto store_capture;
+			/* Store location/size of the list */
+			supver_start = msg;
+			supver_len = rec_len;
+			break;
+		default:
+			break;
 		}
 		msg += rec_len;
 	}
@@ -1807,6 +1844,25 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 		capture->ec_formats_len = rec_len;
 		offset += rec_len;
 	}
+	if (supver_start) {
+		rec_len = supver_len;
+		if (offset + rec_len > global_ssl.capture_buffer_size)
+			rec_len = global_ssl.capture_buffer_size - offset;
+		memcpy(capture->data + offset, supver_start, rec_len);
+		capture->supver_offset = offset;
+		capture->supver_len = rec_len;
+		offset += rec_len;
+	}
+	if (sigalgs_start) {
+		rec_len = sigalgs_len;
+		if (offset + rec_len > global_ssl.capture_buffer_size)
+			rec_len = global_ssl.capture_buffer_size - offset;
+		memcpy(capture->data + offset, sigalgs_start, rec_len);
+		capture->sigalgs_offset = offset;
+		capture->sigalgs_len = rec_len;
+		offset += rec_len;
+	}
+
 
  store_capture:
 	SSL_set_ex_data(ssl, ssl_capture_ptr_index, capture);

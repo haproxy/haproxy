@@ -22,6 +22,8 @@
 #ifndef _HAPROXY_VARS_H
 #define _HAPROXY_VARS_H
 
+#include <import/cebu64_tree.h>
+
 #include <haproxy/api-t.h>
 #include <haproxy/session-t.h>
 #include <haproxy/stream-t.h>
@@ -34,8 +36,7 @@ struct arg;
 
 void vars_init_head(struct vars *vars, enum vars_scope scope);
 void var_accounting_diff(struct vars *vars, struct session *sess, struct stream *strm, int size);
-unsigned int var_clear(struct var *var, int force);
-void vars_prune(struct vars *vars, struct session *sess, struct stream *strm);
+unsigned int var_clear(struct vars *vars, struct var *var, int force);
 void vars_prune_per_sess(struct vars *vars);
 int var_set(const struct var_desc *desc, struct sample *smp, uint flags);
 int var_unset(const struct var_desc *desc, struct sample *smp);
@@ -72,6 +73,29 @@ static inline void vars_rdunlock(struct vars *vars)
 {
 	if (vars->scope == SCOPE_PROC)
 		HA_RWLOCK_RDUNLOCK(VARS_LOCK, &vars->rwlock);
+}
+
+/* This function free all the memory used by all the variables
+ * in the list.
+ */
+static inline void vars_prune(struct vars *vars, struct session *sess, struct stream *strm)
+{
+	struct ceb_node *node;
+	struct var *var;
+	unsigned int size = 0;
+	int i;
+
+	for (i = 0; i < VAR_NAME_ROOTS; i++) {
+		while ((node = cebu64_first(&vars->name_root[i]))) {
+			var = container_of(node, struct var, node);
+			size += var_clear(vars, var, 1);
+		}
+	}
+
+	if (!size)
+		return;
+
+	var_accounting_diff(vars, sess, strm, -size);
 }
 
 #endif

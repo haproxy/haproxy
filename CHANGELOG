@@ -1,6 +1,116 @@
 ChangeLog :
 ===========
 
+2024/09/18 : 3.1-dev8
+    - DOC: configuration: place the HAPROXY_HTTP_LOG_FMT example on the correct line
+    - MINOR: mux-h1: Set EOI on SE during demux when both side are in DONE state
+    - BUG/MEDIUM: mux-h1/mux-h2: Reject upgrades with payload on H2 side only
+    - REGTESTS: h1/h2: Update script testing H1/H2 protocol upgrades
+    - BUG/MEDIUM: clock: detect and cover jumps during execution
+    - BUG/MINOR: pattern: prevent const sample from being tampered in pat_match_beg()
+    - BUG/MEDIUM: pattern: prevent uninitialized reads in pat_match_{str,beg}
+    - BUG/MEDIUM: pattern: prevent UAF on reused pattern expr
+    - MEDIUM: ssl/cli: "dump ssl cert" allow to dump a certificate in PEM format
+    - BUG/MAJOR: mux-h1: Wake SC to perform 0-copy forwarding in CLOSING state
+    - BUG/MINOR: h1-htx: Don't flag response as bodyless when a tunnel is established
+    - REGTESTS: fix random failures with wrong_ip_port_logging.vtc under load
+    - BUG/MINOR: pattern: do not leave a leading comma on "set" error messages
+    - REGTESTS: shorten a bit the delay for the h1/h2 upgrade test
+    - MINOR: server: allow init-state for dynamic servers
+    - DOC: server: document what to check for when adding new server keywords
+    - MEDIUM: h1: Accept invalid T-E values with accept-invalid-http-response option
+    - BUG/MINOR: polling: fix time reporting when using busy polling
+    - BUG/MINOR: clock: make time jump corrections a bit more accurate
+    - BUG/MINOR: clock: validate that now_offset still applies to the current date
+    - BUG/MEDIUM: queue: implement a flag to check for the dequeuing
+    - OPTIM: sample: don't check casts for samples of same type
+    - OPTIM: vars: remove the unneeded lock in vars_prune_*
+    - OPTIM: vars: inline vars_prune() to avoid many calls
+    - MINOR: vars: remove the emptiness tests in callers before pruning
+    - IMPORT: import cebtree (compact elastic binary trees)
+    - OPTIM: vars: use a cebtree instead of a list for variable names
+    - OPTIM: vars: use multiple name heads in the vars struct
+    - BUG/MINOR: peers: local entries updates may not be advertised after resync
+    - DOC: config: Explicitly list relaxing rules for accept-invalid-http-* options
+    - MINOR: proxy: Rename accept-invalid-http-* options
+    - DOC: configuration: Remove dangerous directives from the proxy matrix
+    - BUG/MEDIUM: sc_strm/applet: Wake applet after a successfull synchronous send
+    - BUG/MEDIUM: cache/stats: Wait to have the request before sending the response
+    - BUG/MEDIUM: promex: Wait to have the request before sending the response
+    - MINOR: clock: test all clock_gettime() return values
+    - MEDIUM: clock: collect the monotonic time in clock_local_update_date()
+    - MEDIUM: clock: opportunistically use CLOCK_MONOTONIC for the internal time
+    - MEDIUM: clock: use the monotonic clock for idle time calculation
+    - MEDIUM: clock: don't compute before_poll when using monotonic clock
+    - BUG/MINOR: fix missing "log-format overrides previous 'option tcplog clf'..." detection
+    - BUG/MINOR: fix missing "'option httpslog' overrides previous 'option tcplog clf'..." detection
+    - BUG/MINOR: cfgparse-listen: fix option httpslog override warning message
+    - BUG/MINOR: cfgparse: detect incorrect overlap of same backend names
+    - MEDIUM: cfgparse: warn about proxies having the same names
+    - DOC: management: add init-state to add server keywords
+    - BUG/MINOR: mux-quic: report glitches to session
+    - BUILD: cebtree: silence a bogus gcc warning on impossible code paths
+    - MEDIUM: cfgparse: warn about colliding names between defaults and proxies
+    - MEDIUM: cfgparse: detect collisions between defaults and log-forward
+
+2024/09/05 : 3.1-dev7
+    - MINOR: config: Created env variables for http and tcp clf formats
+    - MINOR: mux-quic: add buf_in_flight to QCC debug infos
+    - MINOR: mux-quic: correct qcc_bufwnd_full() documentation
+    - MINOR: tools: add helpers to backup/clean/restore env
+    - MINOR: mworker: restore initial env before wait mode
+    - BUG/MINOR: haproxy: free init_env in deinit only if allocated
+    - BUILD: tools: environ is not defined in OS X and BSD
+    - DEV: coccinelle: add a test to detect unchecked malloc()
+    - DEV: coccinelle: add a test to detect unchecked calloc()
+    - CI: QUIC Interop AWS-LC: enable ngtcp2 client
+    - CI: fix missing comma introduced in 956839c0f68a7722acc586ecd91ffefad2ccb303
+    - CI: QUIC Interop: do not run bandwidth measurement tests
+    - CI: QUIC Interop: use different artifact names for uploading logs
+    - BUILD: quic: 32bits build broken by wrong integer conversions for printf()
+    - CLEANUP: ssl: cleanup the clienthello capture
+    - MEDIUM: ssl: capture the supported_versions extension from Client Hello
+    - MEDIUM: ssl/sample: add ssl_fc_supported_versions_bin sample fetch
+    - MEDIUM: ssl: capture the signature_algorithms extension from Client Hello
+    - MEDIUM: ssl/sample: add ssl_fc_sigalgs_bin sample fetch
+    - MINOR: proxy: Add support of 429-Too-Many-Requests in retry-on status
+    - BUG/MEDIUM: mux-h2: Set ES flag when necessary on 0-copy data forwarding
+    - BUG/MEDIUM: stream: Prevent mux upgrades if client connection is no longer ready
+    - BUG/MINIR: proxy: Match on 429 status when trying to perform a L7 retry
+    - CLEANUP: haproxy: fix typos in code comment
+    - CLEANUP: mqtt: fix typo in MQTT_REMAINING_LENGHT_MAX_SIZE
+    - MINOR: tools: Implement ipaddrcpy().
+    - MINOR: quic: Implement quic_tls_derive_token_secret().
+    - MINOR: quic: Token for future connections implementation.
+    - BUG/MINOR: quic: Missing incrementation in NEW_TOKEN frame builder
+    - MINOR: quic: Modify NEW_TOKEN frame structure (qf_new_token struct)
+    - MINOR: quic: Implement qc_ssl_eary_data_accepted().
+    - MINOR: quic: Add trace for QUIC_EV_CONN_IO_CB event.
+    - BUG/MEDIUM: quic: always validate sender address on 0-RTT
+    - BUILD: quic: fix build errors on FreeBSD since recent GSO changes
+    - MINOR: tools: extend str2sa_range to add an alt parameter
+    - MINOR: server: add a alt_proto field for server
+    - MEDIUM: sock: use protocol when creating socket
+    - MEDIUM: protocol: add MPTCP per address support
+    - BUG/MINOR: quic: Crash from trace dumping SSL eary data status (AWS-LC)
+    - MEDIUM: stick-table: Add support of a factor for IN/OUT bytes rates
+    - MEDIUM: bwlim: Use a read-lock on the sticky session to apply a shared limit
+    - BUG/MEDIUM: mux-pt: Never fully close the connection on shutdown
+    - BUG/MEDIUM: cli: Always release back endpoint between two commands on the mcli
+    - BUG/MINOR: quic: unexploited retransmission cases for Initial pktns.
+    - BUG/MEDIUM: mux-h1: Properly handle empty message when an error is triggered
+    - MINOR: mux-h2: try to clear DEM_MROOM and MUX_MFULL at more places
+    - BUG/MAJOR: mux-h2: always clear MUX_MFULL and DEM_MROOM when clearing the mbuf
+    - BUG/MINOR: mux-spop: always clear MUX_MFULL and DEM_MROOM when clearing the mbuf
+    - BUG/MINOR: Crash on O-RTT RX packet after dropping Initial pktns
+    - BUG/MEDIUM: mux-pt: Fix condition to perform a shutdown for writes in mux_pt_shut()
+    - CLEANUP: assorted typo fixes in the code and comments
+    - DEV: patchbot: count the number of backported/non-backported patches
+    - DEV: patchbot: add direct links to show only specific categories
+    - DEV: patchbot: detect commit IDs starting with 7 chars
+    - BUG/MEDIUM: clock: also update the date offset on time jumps
+    - MEDIUM: server: add init-state
+
 2024/08/21 : 3.1-dev6
     - BUG/MINOR: proto_tcp: delete fd from fdtab if listen() fails
     - BUG/MINOR: proto_tcp: keep error msg if listen() fails

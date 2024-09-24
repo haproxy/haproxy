@@ -56,7 +56,7 @@ struct fcgi_rule_conf {
 	struct list list;
 };
 
-/* parameter rule evaluated during request analyzis */
+/* parameter rule evaluated during request analysis */
 struct fcgi_rule {
 	enum fcgi_rule_type type;
 	struct ist name;       /* name of the parameter/header */
@@ -65,14 +65,14 @@ struct fcgi_rule {
 	struct list list;
 };
 
-/* parameter rule to set/unset a param at the end of the analyzis */
+/* parameter rule to set/unset a param at the end of the analysis */
 struct fcgi_param_rule {
 	struct ist name;
 	struct lf_expr *value; /* if empty , unset the parameter */
 	struct ebpt_node node;
 };
 
-/* header rule to pass/hide a header at the end of the analyzis */
+/* header rule to pass/hide a header at the end of the analysis */
 struct fcgi_hdr_rule {
 	struct ist name;
 	int pass; /* 1 to pass the header, 0 Otherwise */

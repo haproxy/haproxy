@@ -57,6 +57,7 @@ extern void *__elf_aux_vector;
 #include <sys/prctl.h>
 #endif
 
+#include <import/cebus_tree.h>
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>
 #include <import/ebmbtree.h>
@@ -81,6 +82,8 @@ extern void *__elf_aux_vector;
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
+
+extern char **environ;
 
 /* This macro returns false if the test __x is false. Many
  * of the following parsing function must be abort the processing
@@ -119,6 +122,12 @@ THREAD_LOCAL unsigned int statistical_prng_state = 2463534242U;
 
 /* set to true if this is a static build */
 int build_is_static = 0;
+
+/* known file names, made of file_name_node, to be used with file_name_*() */
+struct {
+	struct ceb_node *root; // file names tree, used with cebus_*()
+	__decl_thread(HA_RWLOCK_T lock);
+} file_names = { 0 };
 
 /* A global static table to store hashed words */
 static THREAD_LOCAL char hash_word[NB_L_HASH_WORD][20];
@@ -965,7 +974,7 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
  */
 struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int *high, int *fd,
                                       struct protocol **proto, struct net_addr_type *sa_type,
-                                      char **err, const char *pfx, char **fqdn, unsigned int opts)
+                                      char **err, const char *pfx, char **fqdn, int *alt, unsigned int opts)
 {
 	static THREAD_LOCAL struct sockaddr_storage ss;
 	struct sockaddr_storage *ret = NULL;
@@ -977,6 +986,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	int new_fd = -1;
 	enum proto_type proto_type = 0; // to shut gcc warning
 	int ctrl_type = 0; // to shut gcc warning
+	int alt_proto = 0;
 
 	portl = porth = porta = 0;
 	if (fqdn)
@@ -1000,6 +1010,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	    ((opts & (PA_O_STREAM|PA_O_DGRAM)) == (PA_O_DGRAM|PA_O_STREAM) && (opts & PA_O_DEFAULT_DGRAM))) {
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
+		alt_proto = 1;
 	} else {
 		proto_type = PROTO_TYPE_STREAM;
 		ctrl_type = SOCK_STREAM;
@@ -1014,6 +1025,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		str2 += 6;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
+		alt_proto = 1;
 	}
 	else if (strncmp(str2, "quic+", 5) == 0) {
 		str2 += 5;
@@ -1032,6 +1044,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		ss.ss_family = AF_UNIX;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
+		alt_proto = 1;
 	}
 	else if (strncmp(str2, "uxst@", 5) == 0) {
 		str2 += 5;
@@ -1063,11 +1076,19 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		proto_type = PROTO_TYPE_STREAM;
 		ctrl_type = SOCK_STREAM;
 	}
+	else if (strncmp(str2, "mptcp4@", 7) == 0) {
+		str2 += 7;
+		ss.ss_family = AF_INET;
+		proto_type = PROTO_TYPE_STREAM;
+		ctrl_type = SOCK_STREAM;
+		alt_proto = 1;
+	}
 	else if (strncmp(str2, "udp4@", 5) == 0) {
 		str2 += 5;
 		ss.ss_family = AF_INET;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
+		alt_proto = 1;
 	}
 	else if (strncmp(str2, "tcp6@", 5) == 0) {
 		str2 += 5;
@@ -1075,11 +1096,19 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		proto_type = PROTO_TYPE_STREAM;
 		ctrl_type = SOCK_STREAM;
 	}
+	else if (strncmp(str2, "mptcp6@", 7) == 0) {
+		str2 += 7;
+		ss.ss_family = AF_INET6;
+		proto_type = PROTO_TYPE_STREAM;
+		ctrl_type = SOCK_STREAM;
+		alt_proto = 1;
+	}
 	else if (strncmp(str2, "udp6@", 5) == 0) {
 		str2 += 5;
 		ss.ss_family = AF_INET6;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
+		alt_proto = 1;
 	}
 	else if (strncmp(str2, "tcp@", 4) == 0) {
 		str2 += 4;
@@ -1087,11 +1116,19 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		proto_type = PROTO_TYPE_STREAM;
 		ctrl_type = SOCK_STREAM;
 	}
+	else if (strncmp(str2, "mptcp@", 6) == 0) {
+		str2 += 6;
+		ss.ss_family = AF_UNSPEC;
+		proto_type = PROTO_TYPE_STREAM;
+		ctrl_type = SOCK_STREAM;
+		alt_proto = 1;
+	}
 	else if (strncmp(str2, "udp@", 4) == 0) {
 		str2 += 4;
 		ss.ss_family = AF_UNSPEC;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
+		alt_proto = 1;
 	}
 	else if (strncmp(str2, "quic4@", 6) == 0) {
 		str2 += 6;
@@ -1365,7 +1402,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		 */
 		new_proto = protocol_lookup(ss.ss_family,
 					    proto_type,
-					    ctrl_type == SOCK_DGRAM);
+					    alt_proto);
 
 		if (!new_proto && (!fqdn || !*fqdn) && (ss.ss_family != AF_CUST_EXISTING_FD)) {
 			memprintf(err, "unsupported %s protocol for %s family %d address '%s'%s",
@@ -1406,6 +1443,8 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		sa_type->proto_type = proto_type;
 		sa_type->xprt_type = (ctrl_type == SOCK_DGRAM) ? PROTO_TYPE_DGRAM : PROTO_TYPE_STREAM;
 	}
+	if (alt)
+		*alt = alt_proto;
 	free(back);
 	return ret;
 }
@@ -3682,6 +3721,33 @@ struct sockaddr_storage *ipcpy(const struct sockaddr_storage *source, struct soc
 
 	return dest;
 }
+
+/* Copy only the IP address from <saddr> socket address data into <buf> buffer.
+ * This is the responsibility of the caller to check the <buf> buffer is big
+ * enough to contain these socket address data.
+ * Return the number of bytes copied.
+ */
+size_t ipaddrcpy(unsigned char *buf, const struct sockaddr_storage *saddr)
+{
+	void *addr;
+	unsigned char *p;
+	size_t addr_len;
+
+	p = buf;
+	if (saddr->ss_family == AF_INET6) {
+		addr = &((struct sockaddr_in6 *)saddr)->sin6_addr;
+		addr_len = sizeof ((struct sockaddr_in6 *)saddr)->sin6_addr;
+	}
+	else {
+		addr = &((struct sockaddr_in *)saddr)->sin_addr;
+		addr_len = sizeof ((struct sockaddr_in *)saddr)->sin_addr;
+	}
+	memcpy(p, addr, addr_len);
+	p += addr_len;
+
+	return p - buf;
+}
+
 
 char *human_time(int t, short hz_div) {
 	static char rv[sizeof("24855d23h")+1];	// longest of "23h59m" and "59m59s"
@@ -6308,7 +6374,7 @@ const char *hash_ipanon(uint32_t scramble, char *ipstring, int hasport)
 			sa = &ss;
 		}
 		else {
-			sa = str2sa_range(ipstring, NULL, NULL, NULL, NULL, NULL, NULL, &errmsg, NULL, NULL,
+			sa = str2sa_range(ipstring, NULL, NULL, NULL, NULL, NULL, NULL, &errmsg, NULL, NULL, NULL,
 					  PA_O_PORT_OK | PA_O_STREAM | PA_O_DGRAM | PA_O_XPRT | PA_O_CONNECT |
 					  PA_O_PORT_RANGE | PA_O_PORT_OFS | PA_O_RESOLVE);
 			if (sa == NULL) {
@@ -6704,6 +6770,192 @@ char *fgets_from_mem(char* buf, int size, const char **position, const char *end
 	*position += len;
 
 	return buf;
+}
+
+/* Does a backup of the process environment variables. Returns 0 on success and
+ * -1 on failure, which can happen only due to the lack of memory.
+ */
+int backup_env(void)
+{
+	char **env = environ;
+	char **tmp;
+
+	/* get size of **environ */
+	while (*env++)
+		;
+
+	init_env = malloc((env - environ) * sizeof(*env));
+	if (init_env == NULL) {
+		ha_alert("Cannot allocate memory to backup env variables.\n");
+		return -1;
+	}
+	tmp = init_env;
+	for (env = environ; *env; env++) {
+		*tmp = strdup(*env);
+		if (*tmp == NULL) {
+			ha_alert("Cannot allocate memory to backup env variable '%s'.\n",
+				 *env);
+			return -1;
+		}
+		tmp++;
+	}
+	/* last entry */
+	*tmp = NULL;
+
+	return 0;
+}
+
+/* Unsets all variables presented in **environ. Returns 0 on success and -1 on
+ * failure, when the process has run out of memory. Emits warnings and continues
+ * if unsetenv() fails (it fails only with EINVAL) or if the parsed string
+ * doesn't contain "=" (the latter is mandatory format for strings kept in
+ * **environ). This allows to terminate the process at the startup stage, if it
+ * was launched in zero-warning mode and there are some problems with
+ * environment.
+ */
+int clean_env(void)
+{
+	char **env = environ;
+	char *name, *pos;
+	size_t name_len;
+
+	while (*env) {
+		pos = strchr(*env, '=');
+		if (pos)
+			name_len = pos - *env;
+		else {
+			ha_warning("Unsupported env variable format '%s' "
+				   "(doesn't contain '='), won't be unset.\n",
+				   *env);
+			continue;
+		}
+		name = my_strndup(*env, name_len);
+		if (name == NULL) {
+			ha_alert("Cannot allocate memory to parse env variable: '%s'.\n",
+				 *env);
+			return -1;
+		}
+
+		if (unsetenv(name) != 0)
+			ha_warning("unsetenv() fails for '%s': %s.\n",
+				   name, strerror(errno));
+		free(name);
+	}
+
+	return 0;
+}
+
+/* Restores **environ from backup created by backup_env(). Must be always
+ * preceded by clean_env() in order to properly restore the process environment.
+ * global init_env ptr array must be freed by the upper layers.
+ * Returns 0 on sucess and -1 in case if the process has run out of memory. If
+ * setenv() fails with EINVAL or the parsed string doesn't contain '=' (the
+ * latter is mandatory format for strings kept in **environ), emits warning and
+ * continues. This allows to terminate the process at the startup stage, if it
+ * was launched in zero-warning mode and there are some problems with
+ * environment.
+ */
+int restore_env(void)
+{
+	char **env = init_env;
+	char *pos;
+	char *value;
+
+	BUG_ON(!init_env, "Triggered in restore_env(): must be preceded by "
+	       "backup_env(), which allocates init_env.\n");
+
+	while (*env) {
+		pos = strchr(*env, '=');
+		if (!pos) {
+			ha_warning("Unsupported env variable format '%s' "
+				   "(doesn't contain '='), won't be restored.\n",
+				   *env);
+			env++;
+			continue;
+		}
+		/* replace '=' with /0 to split on 'NAME' and 'VALUE' tokens */
+		*pos = '\0';
+		pos++;
+		value = pos;
+		if (setenv(*env, value, 1) != 0) {
+			if (errno == EINVAL)
+				ha_warning("setenv() fails for '%s'='%s': %s.\n",
+					   *env, value, strerror(errno));
+			else {
+				ha_alert("Cannot allocate memory to set env variable: '%s'.\n",
+					 *env);
+				return -1;
+			}
+		}
+		env++;
+	}
+
+	return 0;
+}
+
+/*
+ * File Name Lookups. Principle: the file_names struct at the top stores all
+ * known file names in a tree. Each node is a struct file_name_node. A take()
+ * call will either locate an existing entry or allocate a new one, and return
+ * a pointer to the string itself. The returned strings are const so as to
+ * easily detect unwanted free() calls. Structures using this mechanism only
+ * need a "const char *" and will never free their entries.
+ */
+
+/* finds or copies the file name, returns a reference to the char* storage area
+ * or NULL if name is NULL or upon allocation error.
+ */
+const char *copy_file_name(const char *name)
+{
+	struct file_name_node *file;
+	struct ceb_node *node;
+	size_t len;
+
+	if (!name)
+		return NULL;
+
+	HA_RWLOCK_RDLOCK(OTHER_LOCK, &file_names.lock);
+	node = cebus_lookup(&file_names.root, name);
+	HA_RWLOCK_RDUNLOCK(OTHER_LOCK, &file_names.lock);
+
+	if (node) {
+		file = container_of(node, struct file_name_node, node);
+		return file->name;
+	}
+
+	len = strlen(name);
+	file = malloc(sizeof(struct file_name_node) + len + 1);
+	if (!file)
+		return NULL;
+
+	memcpy(file->name, name, len + 1);
+	HA_RWLOCK_WRLOCK(OTHER_LOCK, &file_names.lock);
+	node = cebus_insert(&file_names.root, &file->node);
+	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &file_names.lock);
+
+	if (node != &file->node) {
+		/* the node was created in between */
+		free(file);
+		file = container_of(node, struct file_name_node, node);
+	}
+	return file->name;
+}
+
+/* free all registered file names */
+void free_all_file_names()
+{
+	struct file_name_node *file;
+	struct ceb_node *node;
+
+	HA_RWLOCK_WRLOCK(OTHER_LOCK, &file_names.lock);
+
+	while ((node = cebus_first(&file_names.root))) {
+		file = container_of(node, struct file_name_node, node);
+		cebus_delete(&file_names.root, node);
+		free(file);
+	}
+
+	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &file_names.lock);
 }
 
 /*

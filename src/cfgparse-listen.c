@@ -229,6 +229,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	struct acl_cond *cond = NULL;
 	char *errmsg = NULL;
 	struct bind_conf *bind_conf;
+	const char *file_prev = NULL;
+	int line_prev = 0;
 
 	if (!last_defproxy) {
 		/* we need a default proxy and none was created yet */
@@ -271,20 +273,19 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
-		curproxy = (rc & PR_CAP_FE) ? proxy_fe_by_name(args[1]) : proxy_be_by_name(args[1]);
+		curproxy = NULL;
+		if (rc & PR_CAP_FE)
+			curproxy = proxy_fe_by_name(args[1]);
+
+		if (!curproxy && (rc & PR_CAP_BE))
+			curproxy = proxy_be_by_name(args[1]);
+
 		if (curproxy) {
+			/* same capability in common: always forbidden */
 			ha_alert("Parsing [%s:%d]: %s '%s' has the same name as %s '%s' declared at %s:%d.\n",
 				 file, linenum, proxy_cap_str(rc), args[1], proxy_type_str(curproxy),
 				 curproxy->id, curproxy->conf.file, curproxy->conf.line);
 				err_code |= ERR_ALERT | ERR_FATAL;
-		}
-
-		curproxy = log_forward_by_name(args[1]);
-		if (curproxy) {
-			ha_alert("Parsing [%s:%d]: %s '%s' has the same name as log forward section '%s' declared at %s:%d.\n",
-			         file, linenum, proxy_cap_str(rc), args[1],
-			         curproxy->id, curproxy->conf.file, curproxy->conf.line);
-			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
 		if ((*args[2] && (!*args[3] || strcmp(args[2], "from") != 0)) ||
@@ -299,6 +300,60 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		const char *name = args[1];
 		int arg = 2;
 
+		/* conflict with log-forward forbidden for listen/frontend/backend/defaults */
+		curproxy = log_forward_by_name(args[1]);
+		if (curproxy) {
+			ha_alert("Parsing [%s:%d]: %s '%s' has the same name as log forward section '%s' declared at %s:%d.\n",
+			         file, linenum, proxy_cap_str(rc), args[1],
+			         curproxy->id, curproxy->conf.file, curproxy->conf.line);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+
+		if (*args[1] && rc & PR_CAP_DEF) {
+			/* for default proxies, if another one has the same
+			 * name and was explicitly referenced, this is an error
+			 * that we must reject. E.g.
+			 *     defaults def
+			 *     backend bck from def
+			 *     defaults def
+			 */
+			curproxy = proxy_find_by_name(args[1], PR_CAP_DEF, 0);
+			if (curproxy && curproxy->flags & PR_FL_EXPLICIT_REF) {
+				ha_alert("Parsing [%s:%d]: %s '%s' has the same name as another defaults section declared at"
+					 " %s:%d which was explicitly referenced hence cannot be replaced. Please remove or"
+					 " rename one of the offending defaults section.\n",
+					 file, linenum, proxy_cap_str(rc), args[1],
+					 curproxy->conf.file, curproxy->conf.line);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+
+			/* if the other proxy exists, we don't need to keep it
+			 * since neither will support being explicitly referenced
+			 * so let's drop it from the index but keep a reference to
+			 * its location for error messages.
+			 */
+			if (curproxy) {
+				file_prev = curproxy->conf.file;
+				line_prev = curproxy->conf.line;
+				proxy_unref_or_destroy_defaults(curproxy);
+				curproxy = NULL;
+			}
+		}
+
+		curproxy = proxy_find_by_name(args[1], 0, 0);
+		if (!curproxy && !(rc & PR_CAP_DEF))
+			curproxy = proxy_find_by_name(args[1], PR_CAP_DEF, 0);
+
+		if (curproxy) {
+			/* different capabilities but still same name: forbidden soon */
+			ha_warning("Parsing [%s:%d]: %s '%s' has the same name as %s '%s' declared at %s:%d."
+				   " This is dangerous and will not be supported anymore in version 3.3.\n",
+				   file, linenum, proxy_cap_str(rc), args[1], proxy_type_str(curproxy),
+				   curproxy->id, curproxy->conf.file, curproxy->conf.line);
+			err_code |= ERR_WARN;
+		}
+
 		if (rc & PR_CAP_DEF && strcmp(args[1], "from") == 0 && *args[2] && !*args[3]) {
 			// also support "defaults from blah" (no name then)
 			arg = 1;
@@ -310,8 +365,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curr_defproxy = last_defproxy;
 
 		if (strcmp(args[arg], "from") == 0) {
-			struct ebpt_node *next_by_name;
-
 			curr_defproxy = proxy_find_by_name(args[arg+1], PR_CAP_DEF, 0);
 
 			if (!curr_defproxy) {
@@ -320,12 +373,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 
-			if ((next_by_name = ebpt_next_dup(&curr_defproxy->conf.by_name))) {
-				struct proxy *px2 = container_of(next_by_name, struct proxy, conf.by_name);
-
+			if (curr_defproxy->conf.line_prev) {
 				ha_alert("parsing [%s:%d] : ambiguous defaults section name '%s' referenced by %s '%s' exists at least at %s:%d and %s:%d.\n",
 					 file, linenum, args[arg+1], proxy_cap_str(rc), name,
-					 curr_defproxy->conf.file, curr_defproxy->conf.line, px2->conf.file, px2->conf.line);
+					 curr_defproxy->conf.file, curr_defproxy->conf.line,
+					 curr_defproxy->conf.file_prev, curr_defproxy->conf.line_prev);
 				err_code |= ERR_ALERT | ERR_FATAL;
 			}
 
@@ -352,6 +404,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
+
+		curproxy->conf.file_prev = file_prev;
+		curproxy->conf.line_prev = line_prev;
 
 		if (curr_defproxy && (!LIST_ISEMPTY(&curr_defproxy->http_req_rules)        ||
 				      !LIST_ISEMPTY(&curr_defproxy->http_res_rules)        ||
@@ -2208,11 +2263,13 @@ stats_error_parsing:
 					oldlogformat = "option httplog";
 				else if (curproxy->logformat.str == default_tcp_log_format)
 					oldlogformat = "option tcplog";
+				else if (curproxy->logformat.str == clf_tcp_log_format)
+					oldlogformat = "option tcplog clf";
 				else if (curproxy->logformat.str == clf_http_log_format)
 					oldlogformat = "option httplog clf";
 				else if (curproxy->logformat.str == default_https_log_format)
 					oldlogformat = "option httpslog";
-				ha_warning("parsing [%s:%d]: 'option httplog' overrides previous '%s' in 'defaults' section.\n",
+				ha_warning("parsing [%s:%d]: 'option httpslog' overrides previous '%s' in 'defaults' section.\n",
 					   file, linenum, oldlogformat);
 			}
 			lf_expr_deinit(&curproxy->logformat);
@@ -2323,6 +2380,45 @@ stats_error_parsing:
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+		}
+		else if (strcmp(args[1], "accept-invalid-http-request") == 0 ||
+			 strcmp(args[1], "accept-invalid-http-response") == 0) {
+			unsigned int val;
+
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
+			if (warnifnotcap(curproxy, PR_MODE_HTTP, file, linenum, args[1], NULL)) {
+				err_code |= ERR_WARN;
+				goto out;
+			}
+
+			if (args[1][22] == 'q') {
+				ha_alert("parsing [%s:%d]: option '%s' is deprecated. please use 'option accept-unsafe-violations-in-http-request' if absolutely needed.\n",
+					 file, linenum, args[1]);
+				val = PR_O2_REQBUG_OK;
+			}
+			else {
+				ha_alert("parsing [%s:%d]: option '%s' is deprecated. please use 'option accept-unsafe-violations-in-http-response' if absolutely needed.\n",
+					 file, linenum, args[1]);
+				val = PR_O2_RSPBUG_OK;
+			}
+
+			curproxy->no_options2 &= ~val;
+			curproxy->options2    &= ~val;
+
+			switch (kwm) {
+			case KWM_STD:
+				curproxy->options2 |= val;
+				break;
+			case KWM_NO:
+				curproxy->no_options2 |= val;
+				break;
+			case KWM_DEF: /* already cleared */
+				break;
+			}
+
+			err_code |= ERR_WARN;
+			goto out;
 		}
 		else {
 			const char *best = proxy_find_best_option(args[1], common_options);
@@ -2497,7 +2593,7 @@ stats_error_parsing:
 			err_code |= ERR_WARN;
 
 		sk = str2sa_range(args[1], NULL, &port1, &port2, NULL, NULL, NULL,
-		                  &errmsg, NULL, NULL,
+		                  &errmsg, NULL, NULL, NULL,
 		                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
 		if (!sk) {
 			ha_alert("parsing [%s:%d] : '%s' : %s\n", file, linenum, args[0], errmsg);
@@ -2660,6 +2756,8 @@ stats_error_parsing:
 				oldlogformat = "option httplog";
 			else if (curproxy->logformat.str == default_tcp_log_format)
 				oldlogformat = "option tcplog";
+			else if (curproxy->logformat.str == clf_tcp_log_format)
+				oldlogformat = "option tcplog clf";
 			else if (curproxy->logformat.str == clf_http_log_format)
 				oldlogformat = "option httplog clf";
 			else if (curproxy->logformat.str == default_https_log_format)
@@ -2786,7 +2884,8 @@ stats_error_parsing:
 		curproxy->conn_src.iface_len = 0;
 
 		sk = str2sa_range(args[1], NULL, &port1, &port2, NULL, NULL, NULL,
-		                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
+		                  &errmsg, NULL, NULL, NULL,
+		                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
 		if (!sk) {
 			ha_alert("parsing [%s:%d] : '%s %s' : %s\n",
 				 file, linenum, args[0], args[1], errmsg);
@@ -2860,7 +2959,8 @@ stats_error_parsing:
 					struct sockaddr_storage *sk;
 
 					sk = str2sa_range(args[cur_arg + 1], NULL, &port1, &port2, NULL, NULL, NULL,
-					                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
+					                  &errmsg, NULL, NULL, NULL,
+					                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
 					if (!sk) {
 						ha_alert("parsing [%s:%d] : '%s %s' : %s\n",
 							 file, linenum, args[cur_arg], args[cur_arg+1], errmsg);

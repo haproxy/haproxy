@@ -57,6 +57,7 @@
 #include <haproxy/quic_sock.h>
 #include <haproxy/quic_stats.h>
 #include <haproxy/quic_stream.h>
+#include <haproxy/quic_token.h>
 #include <haproxy/quic_tp.h>
 #include <haproxy/quic_trace.h>
 #include <haproxy/quic_tx.h>
@@ -479,6 +480,30 @@ int quic_build_post_handshake_frames(struct quic_conn *qc)
 		}
 
 		LIST_APPEND(&frm_list, &frm->list);
+
+#ifdef HAVE_SSL_0RTT_QUIC
+		if (qc->li->bind_conf->ssl_conf.early_data) {
+			size_t new_token_frm_len;
+
+			frm = qc_frm_alloc(QUIC_FT_NEW_TOKEN);
+			if (!frm) {
+				TRACE_ERROR("frame allocation error", QUIC_EV_CONN_IO_CB, qc);
+				goto leave;
+			}
+
+			new_token_frm_len =
+				quic_generate_token(frm->new_token.data,
+				                    sizeof(frm->new_token.data), &qc->peer_addr);
+			if (!new_token_frm_len) {
+				TRACE_ERROR("token generation failed", QUIC_EV_CONN_IO_CB, qc);
+				goto leave;
+			}
+
+			BUG_ON(new_token_frm_len != sizeof(frm->new_token.data));
+			frm->new_token.len = new_token_frm_len;
+			LIST_APPEND(&frm_list, &frm->list);
+		}
+#endif
 	}
 
 	/* Initialize <max> connection IDs minus one: there is
@@ -761,6 +786,11 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		HA_ATOMIC_AND(&tl->state, ~TASK_HEAVY);
 	}
 
+	if (qc->flags & QUIC_FL_CONN_TO_KILL) {
+		TRACE_DEVEL("connection to be killed", QUIC_EV_CONN_PHPKTS, qc);
+		goto out;
+	}
+
 	/* Retranmissions */
 	if (qc->flags & QUIC_FL_CONN_RETRANS_NEEDED) {
 		TRACE_DEVEL("retransmission needed", QUIC_EV_CONN_PHPKTS, qc);
@@ -862,7 +892,25 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		quic_nictx_free(qc);
 	}
 
-	if ((qc->flags & QUIC_FL_CONN_CLOSING) && qc->mux_state != QC_MUX_READY) {
+	if (qc->flags & QUIC_FL_CONN_SEND_RETRY) {
+		struct quic_counters *prx_counters;
+		struct proxy *prx = qc->li->bind_conf->frontend;
+		struct quic_rx_packet pkt = {
+			.scid = qc->dcid,
+			.dcid = qc->odcid,
+		};
+
+		prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
+		if (send_retry(qc->li->rx.fd, &qc->peer_addr, &pkt, qc->original_version)) {
+			TRACE_ERROR("Error during Retry generation",
+			            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qc->original_version);
+		}
+		else
+			HA_ATOMIC_INC(&prx_counters->retry_sent);
+	}
+
+	if ((qc->flags & (QUIC_FL_CONN_CLOSING|QUIC_FL_CONN_TO_KILL)) &&
+	    qc->mux_state != QC_MUX_READY) {
 		quic_conn_release(qc);
 		qc = NULL;
 	}
@@ -969,11 +1017,15 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
  * for QUIC servers (or haproxy listeners).
  * <dcid> is the destination connection ID, <scid> is the source connection ID.
  * This latter <scid> CID as the same value on the wire as the one for <conn_id>
- * which is the first CID of this connection but a different internal representation used to build
+ * which is the first CID of this connection but a different internal
+ * representation used to build
  * NEW_CONNECTION_ID frames. This is the responsibility of the caller to insert
  * <conn_id> in the CIDs tree for this connection (qc->cids).
- * <token> is the token found to be used for this connection with <token_len> as
- * length. Endpoints addresses are specified via <local_addr> and <peer_addr>.
+ * <token> is a boolean denoting if a token was received for this connection
+ * from an Initial packet.
+ * <token_odcid> is the original destination connection ID which was embedded
+ * into the Retry token sent to the client before instantiated this connection.
+ * Endpoints addresses are specified via <local_addr> and <peer_addr>.
  * Returns the connection if succeeded, NULL if not.
  */
 struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
@@ -1080,6 +1132,9 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		qc->prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe,
 		                                      &quic_stats_module);
 		qc->flags = QUIC_FL_CONN_LISTENER;
+		/* Mark this connection as having not received any token when 0-RTT is enabled. */
+		if (l->bind_conf->ssl_conf.early_data && !token)
+			qc->flags |= QUIC_FL_CONN_NO_TOKEN_RCVD;
 		qc->state = QUIC_HS_ST_SERVER_INITIAL;
 		/* Copy the client original DCID. */
 		qc->odcid = *dcid;
@@ -1102,7 +1157,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	/* If connection is instantiated due to an INITIAL packet with an
 	 * already checked token, consider the peer address as validated.
 	 */
-	if (token_odcid->len) {
+	if (token) {
 		TRACE_STATE("validate peer address due to initial token",
 		            QUIC_EV_CONN_INIT, qc);
 		qc->flags |= QUIC_FL_CONN_PEER_VALIDATED_ADDR;

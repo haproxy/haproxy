@@ -20,7 +20,7 @@
  * global tree. Tree access must only be done under lock protection.
  *
  * . CID global tree splitting
- * To reduce thread contention, global CID tree is in reality splitted into 256
+ * To reduce thread contention, global CID tree is in reality split into 256
  * distinct tree instances. Each CID is assigned to a single tree instance
  * based on its content. Use quic_cid_tree_idx() to retrieve the expected tree
  * location for a CID.

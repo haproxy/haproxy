@@ -51,7 +51,8 @@ void protocol_register(struct protocol *proto)
 	LIST_APPEND(&protocols, &proto->list);
 	__protocol_by_family[sock_family]
 	                    [proto->proto_type]
-	                    [proto->xprt_type == PROTO_TYPE_DGRAM] = proto;
+	                    [proto->xprt_type == PROTO_TYPE_DGRAM ||
+	                     proto->sock_prot == IPPROTO_MPTCP] = proto;
 	__proto_fam_by_family[sock_family] = proto->fam;
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 }

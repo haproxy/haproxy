@@ -238,7 +238,7 @@ static inline struct ist mqtt_read_4byte_int(struct ist parser, uint32_t *i)
  * Thus each byte encodes 128 values and a "continuation bit".
  *
  * The maximum number of bytes in the Remaining Length field is four
- * (MQTT_REMAINING_LENGHT_MAX_SIZE).
+ * (MQTT_REMAINING_LENGTH_MAX_SIZE).
  *
  * <parser> is supposed to point to the first byte of the integer. On success
  * the integer is stored in <*i> and the new parser state is returned. On
@@ -251,7 +251,7 @@ static inline struct ist mqtt_read_varint(struct ist parser, uint32_t *i)
 	off = m = 0;
 	if (i)
 		*i = 0;
-	for (off = 0; off < MQTT_REMAINING_LENGHT_MAX_SIZE && istlen(parser); off++) {
+	for (off = 0; off < MQTT_REMAINING_LENGTH_MAX_SIZE && istlen(parser); off++) {
 		uint8_t byte = (uint8_t)*istptr(parser);
 
 		if (i) {
@@ -265,7 +265,7 @@ static inline struct ist mqtt_read_varint(struct ist parser, uint32_t *i)
 			break;
 	}
 
-	if (off == MQTT_REMAINING_LENGHT_MAX_SIZE)
+	if (off == MQTT_REMAINING_LENGTH_MAX_SIZE)
 		return IST_NULL;
 	return parser;
 }

@@ -158,7 +158,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 
 		ss2 = str2sa_range(str, NULL, &port, &end, &fd, &proto, NULL, err,
 		                   (curproxy == global.cli_fe || curproxy == mworker_proxy) ? NULL : global.unix_bind.prefix,
-		                   NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
+		                   NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
 		                          PA_O_SOCKET_FD | PA_O_STREAM | PA_O_XPRT);
 		if (!ss2)
 			goto fail;
@@ -244,7 +244,7 @@ int str2receiver(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 
 		ss2 = str2sa_range(str, NULL, &port, &end, &fd, &proto, NULL, err,
 		                   curproxy == global.cli_fe ? NULL : global.unix_bind.prefix,
-		                   NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
+		                   NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
 		                          PA_O_SOCKET_FD | PA_O_DGRAM | PA_O_XPRT);
 		if (!ss2)
 			goto fail;
@@ -574,8 +574,8 @@ static int init_peers_frontend(const char *file, int linenum,
  out:
 	if (id && !p->id)
 		p->id = strdup(id);
-	free(p->conf.file);
-	p->conf.args.file = p->conf.file = strdup(file);
+	drop_file_name(&p->conf.file);
+	p->conf.args.file = p->conf.file = copy_file_name(file);
 	if (linenum != -1)
 		p->conf.args.line = p->conf.line = linenum;
 
@@ -1185,7 +1185,7 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 		newmailer->id = strdup(args[1]);
 
 		sk = str2sa_range(args[2], NULL, &port1, &port2, NULL, &proto, NULL,
-		                  &errmsg, NULL, NULL,
+		                  &errmsg, NULL, NULL, NULL,
 		                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
 		if (!sk) {
 			ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
@@ -3748,16 +3748,23 @@ out_uri_auth_compat:
 		 * in order to avoid combinatory explosion if all servers have the same
 		 * name. We do that only for servers which do not have an explicit ID,
 		 * because these IDs were made also for distinguishing them and we don't
-		 * want to annoy people who correctly manage them.
+		 * want to annoy people who correctly manage them. Since servers names
+		 * are stored in a tree before landing here, we simply have to check for
+		 * the current server's duplicates to spot conflicts.
 		 */
 		for (newsrv = curproxy->srv; newsrv; newsrv = newsrv->next) {
 			struct server *other_srv;
 
-			if (newsrv->puid)
+			/* Note: internal servers are not always registered and
+			 * they do not conflict.
+			 */
+			if (!newsrv->conf.name.node.leaf_p)
 				continue;
 
-			for (other_srv = curproxy->srv; other_srv && other_srv != newsrv; other_srv = other_srv->next) {
-				if (!other_srv->puid && strcmp(other_srv->id, newsrv->id) == 0) {
+			for (other_srv = newsrv;
+			     (other_srv = container_of_safe(ebpt_prev_dup(&other_srv->conf.name),
+			                                    struct server, conf.name)); ) {
+				if (!newsrv->puid && !other_srv->puid) {
 					ha_alert("parsing [%s:%d] : %s '%s', another server named '%s' was already defined at line %d, please use distinct names.\n",
 						   newsrv->conf.file, newsrv->conf.line,
 						   proxy_type_str(curproxy), curproxy->id,
@@ -3765,6 +3772,11 @@ out_uri_auth_compat:
 					cfgerr++;
 					break;
 				}
+
+				ha_warning("parsing [%s:%d] : %s '%s', another server named '%s' was already defined at line %d. This is dangerous and will not be supported anymore in version 3.3. Please use distinct names.\n",
+					   newsrv->conf.file, newsrv->conf.line,
+					   proxy_type_str(curproxy), curproxy->id,
+					   newsrv->id, other_srv->conf.line);
 			}
 		}
 

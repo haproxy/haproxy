@@ -90,6 +90,12 @@ int quic_tls_derive_retry_token_secret(const EVP_MD *md,
                                        const unsigned char *salt, size_t saltlen,
                                        const unsigned char *secret, size_t secretlen);
 
+int quic_tls_derive_token_secret(const EVP_MD *md,
+                                 unsigned char *key, size_t keylen,
+                                 unsigned char *iv, size_t ivlen,
+                                 const unsigned char *salt, size_t saltlen,
+                                 const unsigned char *secret, size_t secretlen);
+
 int quic_hkdf_expand(const EVP_MD *md,
                      unsigned char *buf, size_t buflen,
                      const unsigned char *key, size_t keylen,

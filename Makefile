@@ -651,7 +651,8 @@ OPTIONS_OBJS += src/quic_rx.o src/mux_quic.o src/h3.o src/quic_tx.o	\
                 src/quic_cc_nocc.o src/qpack-dec.o src/quic_cc.o	\
                 src/cfgparse-quic.o src/qmux_trace.o src/qpack-enc.o	\
                 src/qpack-tbl.o src/h3_stats.o src/quic_stats.o		\
-                src/quic_fctl.o src/cbuf.o src/quic_rules.o
+                src/quic_fctl.o src/cbuf.o src/quic_rules.o         \
+                src/quic_token.o
 endif
 
 ifneq ($(USE_QUIC_OPENSSL_COMPAT:0=),)
@@ -982,6 +983,9 @@ OBJS += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o src/stream.o		\
         src/hpack-tbl.o src/ebsttree.o src/ebistree.o src/auth.o	\
         src/hpack-huff.o src/freq_ctr.o src/dict.o src/wdt.o		\
         src/pipe.o src/init.o src/http_acl.o src/hpack-enc.o		\
+        src/cebu32_tree.o src/cebu64_tree.o src/cebua_tree.o		\
+        src/cebub_tree.o src/cebuib_tree.o src/cebuis_tree.o		\
+        src/cebul_tree.o src/cebus_tree.o				\
         src/ebtree.o src/dgram.o src/hash.o src/version.o		\
 	 src/limits.o src/mux_spop.o
 

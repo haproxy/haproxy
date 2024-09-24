@@ -207,6 +207,7 @@ struct pattern_expr {
 	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
 	struct eb_root pattern_tree_2;  /* may be used for different types */
 	int mflags;                     /* flags relative to the parsing or matching method. */
+	uint32_t refcount;            /* refcount used to know if the expr can be deleted or not */
 	__decl_thread(HA_RWLOCK_T lock);               /* lock used to protect patterns */
 };
 
@@ -216,7 +217,6 @@ struct pattern_expr {
  */
 struct pattern_expr_list {
 	struct list list; /* Used for chaining pattern_expr in pattern_head. */
-	int do_free;
 	struct pattern_expr *expr; /* The used expr. */
 };
 

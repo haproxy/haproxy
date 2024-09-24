@@ -68,6 +68,7 @@ void proxy_destroy_defaults(struct proxy *px);
 void proxy_destroy_all_unref_defaults(void);
 void proxy_ref_defaults(struct proxy *px, struct proxy *defpx);
 void proxy_unref_defaults(struct proxy *px);
+void proxy_unref_or_destroy_defaults(struct proxy *px);
 struct proxy *alloc_new_proxy(const char *name, unsigned int cap,
                               char **errmsg);
 struct proxy *parse_new_proxy(const char *name, unsigned int cap,
@@ -206,6 +207,8 @@ static inline int l7_status_match(struct proxy *p, int status)
 		return (p->retry_type & PR_RE_408);
 	case 425:
 		return (p->retry_type & PR_RE_425);
+	case 429:
+		return (p->retry_type & PR_RE_429);
 	case 500:
 		return (p->retry_type & PR_RE_500);
 	case 501:

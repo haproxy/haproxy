@@ -900,6 +900,9 @@ static inline void h2_release_mbuf(struct h2c *h2c)
 		b_free(buf);
 		count++;
 	}
+
+	h2c->flags &= ~(H2_CF_MUX_MFULL | H2_CF_DEM_MROOM);
+
 	if (count)
 		offer_buffers(NULL, count);
 }
@@ -4321,7 +4324,7 @@ static int h2_send(struct h2c *h2c)
 		 * data from the other side when it's known that this one is
 		 * still congested.
 		 */
-		if (sent && br_single(h2c->mbuf))
+		if (br_single(h2c->mbuf))
 			h2c->flags &= ~(H2_CF_MUX_MFULL | H2_CF_DEM_MROOM);
 	}
 
@@ -4671,6 +4674,12 @@ do_leave:
 		if (released)
 			offer_buffers(NULL, released);
 	}
+
+	/* Above we might have prepared a GOAWAY that was sent along with
+	 * pending data, make sure to clear the FULL flags.
+	 */
+	if (br_single(h2c->mbuf))
+		h2c->flags &= ~(H2_CF_MUX_MFULL | H2_CF_DEM_MROOM);
 
 	/* in any case this connection must not be considered idle anymore */
 	if (h2c->conn->flags & CO_FL_LIST_MASK) {
@@ -5980,6 +5989,12 @@ static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 			if ((sl->flags & HTX_SL_F_CONN_UPG) && isteqi(list[hdr].n, ist("connection"))) {
 				/* rfc 7230 #6.1 Connection = list of tokens */
 				struct ist connection_ist = list[hdr].v;
+
+				if (!(sl->flags & HTX_SL_F_BODYLESS)) {
+					TRACE_STATE("cannot convert upgrade for request with payload", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
+					goto fail;
+				}
+
 				do {
 					if (isteqi(iststop(connection_ist, ','),
 					           ist("upgrade"))) {
@@ -7372,6 +7387,7 @@ static size_t h2_done_ff(struct stconn *sc)
 	struct buffer *mbuf;
 	char *head;
 	size_t total = 0;
+	int es_now = 0;
 
 	TRACE_ENTER(H2_EV_H2S_SEND|H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
 
@@ -7380,8 +7396,10 @@ static size_t h2_done_ff(struct stconn *sc)
 		goto end;
 	head = b_peek(mbuf, b_data(mbuf) - sd->iobuf.data);
 
-	if (sd->iobuf.flags & IOBUF_FL_EOI)
+	if (sd->iobuf.flags & IOBUF_FL_EOI) {
+		es_now = 1;
 		h2s->flags &= ~H2_SF_MORE_HTX_DATA;
+	}
 
 	if (!(sd->iobuf.flags & IOBUF_FL_FF_BLOCKED) &&
 	    !(h2s->flags & H2_SF_BLK_SFCTL) &&
@@ -7398,11 +7416,23 @@ static size_t h2_done_ff(struct stconn *sc)
 	 */
 	total = sd->iobuf.data;
 	h2_set_frame_size(head, total);
+	if (es_now)
+		head[4] |= H2_F_DATA_END_STREAM;
 	b_add(mbuf, 9);
 	h2s->sws -= total;
 	h2c->mws -= total;
 	if (h2_send(h2s->h2c))
 		tasklet_wakeup(h2s->h2c->wait_event.tasklet);
+
+	if (es_now) {
+		if (h2s->st == H2_SS_OPEN)
+			h2s->st = H2_SS_HLOC;
+		else
+			h2s_close(h2s);
+
+		h2s->flags |= H2_SF_ES_SENT;
+		TRACE_PROTO("ES flag set on outgoing frame", H2_EV_TX_FRAME|H2_EV_TX_DATA|H2_EV_TX_EOI, h2c->conn, h2s);
+	}
 
  end:
 	sd->iobuf.buf = NULL;

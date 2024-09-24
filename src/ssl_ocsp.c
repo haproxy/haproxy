@@ -1970,7 +1970,7 @@ static int ocsp_update_parse_global_http_proxy(char **args, int section_type, st
 	sockaddr_free(&ocsp_update_dst);
 	/* 'sk' is statically allocated (no need to be freed). */
 	sk = str2sa_range(args[1], NULL, NULL, NULL, NULL, NULL, NULL,
-	                  &errmsg, NULL, NULL,
+	                  &errmsg, NULL, NULL, NULL,
 	                  PA_O_PORT_OK | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
 	if (!sk) {
 		ha_alert("ocsp-update: Failed to parse destination address in %s\n", errmsg);

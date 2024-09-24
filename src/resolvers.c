@@ -3496,7 +3496,7 @@ static int resolvers_new(struct resolvers **resolvers, const char *id, const cha
 	resolvers_setup_proxy(p);
 	p->parent = r;
 	p->id = strdup(id);
-	p->conf.args.file = p->conf.file = strdup(file);
+	p->conf.args.file = p->conf.file = copy_file_name(file);
 	p->conf.args.line = p->conf.line = linenum;
 	r->px = p;
 
@@ -3616,7 +3616,8 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		sk = str2sa_range(args[2], NULL, &port1, &port2, NULL, &proto, NULL,
-		                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_DGRAM | PA_O_STREAM | PA_O_DEFAULT_DGRAM);
+		                  &errmsg, NULL, NULL, NULL,
+		                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_DGRAM | PA_O_STREAM | PA_O_DEFAULT_DGRAM);
 		if (!sk) {
 			ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;

@@ -1985,6 +1985,72 @@ smp_fetch_ssl_fc_protocol_hello_id(const struct arg *args, struct sample *smp, c
 }
 
 static int
+smp_fetch_ssl_fc_supver_bin(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct buffer *smp_trash;
+	struct connection *conn;
+	struct ssl_capture *capture;
+	SSL *ssl;
+
+	conn = objt_conn(smp->sess->origin);
+	ssl = ssl_sock_get_ssl_object(conn);
+	if (!ssl)
+		return 0;
+
+	capture = SSL_get_ex_data(ssl, ssl_capture_ptr_index);
+	if (!capture)
+		return 0;
+
+	if (args[0].data.sint) {
+		smp_trash = get_trash_chunk();
+		exclude_tls_grease(capture->data + capture->supver_offset, capture->supver_len, smp_trash);
+		smp->data.u.str.area = smp_trash->area;
+		smp->data.u.str.data = smp_trash->data;
+		smp->flags = SMP_F_VOL_SESS;
+		smp->data.type = SMP_T_BIN;
+	} else {
+		smp->flags = SMP_F_VOL_SESS | SMP_F_CONST;
+		smp->data.type = SMP_T_BIN;
+		smp->data.u.str.area = capture->data + capture->supver_offset;
+		smp->data.u.str.data = capture->supver_len;
+	}
+	return 1;
+}
+
+static int
+smp_fetch_ssl_fc_sigalgs_bin(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct buffer *smp_trash;
+	struct connection *conn;
+	struct ssl_capture *capture;
+	SSL *ssl;
+
+	conn = objt_conn(smp->sess->origin);
+	ssl = ssl_sock_get_ssl_object(conn);
+	if (!ssl)
+		return 0;
+
+	capture = SSL_get_ex_data(ssl, ssl_capture_ptr_index);
+	if (!capture)
+		return 0;
+
+	if (args[0].data.sint) {
+		smp_trash = get_trash_chunk();
+		exclude_tls_grease(capture->data + capture->sigalgs_offset, capture->sigalgs_len, smp_trash);
+		smp->data.u.str.area = smp_trash->area;
+		smp->data.u.str.data = smp_trash->data;
+		smp->flags = SMP_F_VOL_SESS;
+		smp->data.type = SMP_T_BIN;
+	} else {
+		smp->flags = SMP_F_VOL_SESS | SMP_F_CONST;
+		smp->data.type = SMP_T_BIN;
+		smp->data.u.str.area = capture->data + capture->sigalgs_offset;
+		smp->data.u.str.data = capture->sigalgs_len;
+	}
+	return 1;
+}
+
+static int
 smp_fetch_ssl_fc_err_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn;
@@ -2487,6 +2553,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_fc_extlist_bin",     smp_fetch_ssl_fc_ext_bin,     ARG1(0,SINT),        NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_eclist_bin",      smp_fetch_ssl_fc_ecl_bin,     ARG1(0,SINT),        NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_ecformats_bin",   smp_fetch_ssl_fc_ecf_bin,     0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_supported_versions_bin", smp_fetch_ssl_fc_supver_bin, ARG1(0,SINT),  NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
+	{ "ssl_fc_sigalgs_bin",     smp_fetch_ssl_fc_sigalgs_bin, ARG1(0,SINT),        NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 
 /* SSL server certificate fetches */
 	{ "ssl_s_der",              smp_fetch_ssl_x_der,          0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },

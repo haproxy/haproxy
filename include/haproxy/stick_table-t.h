@@ -184,6 +184,7 @@ struct stktable {
 	int data_size;            /* the size of the data that is prepended *before* stksess */
 	int data_ofs[STKTABLE_DATA_TYPES]; /* negative offsets of present data types, or 0 if absent */
 	unsigned int data_nbelem[STKTABLE_DATA_TYPES]; /* to store nb_elem in case of array types */
+	unsigned int brates_factor; /* Factor used for IN/OUT bytes rates */
 	union {
 		int i;
 		unsigned int u;
@@ -223,7 +224,7 @@ struct stktable {
 	/* rarely used config stuff below (should not interfere with updt_lock) */
 	struct proxy *proxies_list; /* The list of proxies which reference this stick-table. */
 	struct {
-		const char *file;     /* The file where the stick-table is declared. */
+		const char *file;     /* The file where the stick-table is declared (global name). */
 		int line;             /* The line in this <file> the stick-table is declared. */
 	} conf;
 };

@@ -348,8 +348,15 @@ static inline void sc_sync_send(struct stconn *sc)
 {
 	if (sc_ep_test(sc, SE_FL_T_MUX))
 		sc_conn_sync_send(sc);
-	else if (sc_ep_test(sc, SE_FL_T_APPLET))
+	else if (sc_ep_test(sc, SE_FL_T_APPLET)) {
 		sc_applet_sync_send(sc);
+		if (sc_oc(sc)->flags & CF_WRITE_EVENT) {
+			/* Data was send, wake the applet up. It is safe to do so becasuse sc_applet_sync_send()
+			 * removes CF_WRITE_EVENT flag from the channel before trying to send data to the applet.
+			 */
+			task_wakeup(__sc_appctx(sc)->t, TASK_WOKEN_OTHER);
+		}
+	}
 }
 
 /* Combines both sc_update_rx() and sc_update_tx() at once */

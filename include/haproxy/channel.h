@@ -694,7 +694,7 @@ static inline int channel_htx_recv_limit(const struct channel *chn, const struct
 	unsigned int transit;
 	int reserve;
 
-	/* return zeor if not allocated */
+	/* return zero if not allocated */
 	if (!htx->size)
 		return 0;
 

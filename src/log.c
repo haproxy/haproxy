@@ -1600,7 +1600,7 @@ static int parse_log_target(char *raw, struct log_target *target, char **err)
 
 	/* parse the target address */
 	sk = str2sa_range(raw, NULL, &port1, &port2, &fd, &proto, NULL,
-	                  err, NULL, NULL,
+	                  err, NULL, NULL, NULL,
 	                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_RAW_FD | PA_O_DGRAM | PA_O_STREAM | PA_O_DEFAULT_DGRAM);
 	if (!sk)
 		goto error;
@@ -5867,6 +5867,16 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		px = proxy_find_by_name(args[1], PR_CAP_DEF, 0);
+		if (px) {
+			/* collision with a "defaults" section */
+			ha_warning("Parsing [%s:%d]: log-forward section '%s' has the same name as %s '%s' declared at %s:%d."
+				   " This is dangerous and will not be supported anymore in version 3.3.\n",
+				   file, linenum, args[1], proxy_type_str(px),
+				   px->id, px->conf.file, px->conf.line);
+			err_code |= ERR_WARN;
+		}
+
 		px = calloc(1, sizeof *px);
 		if (!px) {
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -5876,7 +5886,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		init_new_proxy(px);
 		px->next = cfg_log_forward;
 		cfg_log_forward = px;
-		px->conf.file = strdup(file);
+		px->conf.file = copy_file_name(file);
 		px->conf.line = linenum;
 		px->mode = PR_MODE_SYSLOG;
 		px->fe_counters.last_change = ns_to_sec(now_ns);

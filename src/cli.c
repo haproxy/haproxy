@@ -460,7 +460,7 @@ static struct proxy *cli_alloc_fe(const char *name, const char *file, int line)
 	fe->cap = PR_CAP_FE|PR_CAP_INT;
 	fe->maxconn = 10;                 /* default to 10 concurrent connections */
 	fe->timeout.client = MS_TO_TICKS(10000); /* default timeout of 10 seconds */
-	fe->conf.file = strdup(file);
+	fe->conf.file = copy_file_name(file);
 	fe->conf.line = line;
 	fe->accept = frontend_accept;
 	fe->default_target = &cli_applet.obj_type;
@@ -3183,20 +3183,16 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		s->target = NULL;
 
-		/* only release our endpoint if we don't intend to reuse the
-		 * connection.
-		 */
-		if (!sc_conn_ready(s->scb)) {
-			s->srv_conn = NULL;
-			if (sc_reset_endp(s->scb) < 0) {
-				if (!s->conn_err_type)
-					s->conn_err_type = STRM_ET_CONN_OTHER;
-				if (s->srv_error)
-					s->srv_error(s, s->scb);
-				return 1;
-			}
-			se_fl_clr(s->scb->sedesc, ~SE_FL_DETACHED);
+		/* Always release our endpoint */
+		s->srv_conn = NULL;
+		if (sc_reset_endp(s->scb) < 0) {
+			if (!s->conn_err_type)
+				s->conn_err_type = STRM_ET_CONN_OTHER;
+			if (s->srv_error)
+				s->srv_error(s, s->scb);
+			return 1;
 		}
+		se_fl_clr(s->scb->sedesc, ~SE_FL_DETACHED);
 
 		sockaddr_free(&s->scb->dst);
 
@@ -3297,7 +3293,7 @@ int mworker_cli_proxy_create()
 	mworker_proxy->mode = PR_MODE_CLI;
 	mworker_proxy->maxconn = 10;                 /* default to 10 concurrent connections */
 	mworker_proxy->timeout.client = 0; /* no timeout */
-	mworker_proxy->conf.file = strdup("MASTER");
+	mworker_proxy->conf.file = copy_file_name("MASTER");
 	mworker_proxy->conf.line = 0;
 	mworker_proxy->accept = frontend_accept;
 	mworker_proxy-> lbprm.algo = BE_LB_ALGO_NONE;
@@ -3335,7 +3331,7 @@ int mworker_cli_proxy_create()
 
 		memprintf(&msg, "sockpair@%d", child->ipc_fd[0]);
 		if ((sk = str2sa_range(msg, &port, &port1, &port2, NULL, &proto, NULL,
-		                       &errmsg, NULL, NULL, PA_O_STREAM)) == 0) {
+		                       &errmsg, NULL, NULL, NULL, PA_O_STREAM)) == 0) {
 			goto error;
 		}
 		ha_free(&msg);

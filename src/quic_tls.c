@@ -252,8 +252,12 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	 * Here early-data is added after the Initial encryption level which is
 	 * always already present.
 	 */
-	if (level == ssl_encryption_early_data)
-		LIST_APPEND(&qc->iel->list, &qel->list);
+	if (level == ssl_encryption_early_data) {
+		if (qc->iel)
+			LIST_APPEND(&qc->iel->list, &qel->list);
+		else
+			LIST_INSERT(&qc->qel_list, &qel->list);
+	}
 	else
 		LIST_APPEND(&qc->qel_list, &qel->list);
 	*el = qel;
@@ -950,25 +954,54 @@ int quic_tls_decrypt2(unsigned char *out,
  * with <secret> which is not pseudo-random.
  * Return 1 if succeeded, 0 if not.
  */
+static inline int quic_do_tls_derive_token_secret(const EVP_MD *md, unsigned char *key, size_t keylen,
+                                                  unsigned char *iv, size_t ivlen,
+                                                  const unsigned char *salt, size_t saltlen,
+                                                  const unsigned char *secret, size_t secretlen,
+                                                  const unsigned char *klabel, size_t klabellen,
+                                                  const unsigned char *ivlabel, size_t ivlabellen)
+{
+	unsigned char tmpkey[QUIC_TLS_KEY_LEN];
+
+	if (!quic_hkdf_extract(md, tmpkey, sizeof tmpkey,
+	                       secret, secretlen, salt, saltlen) ||
+	    !quic_hkdf_expand(md, key, keylen, tmpkey, sizeof tmpkey,
+	                      klabel, klabellen) ||
+	    !quic_hkdf_expand(md, iv, ivlen, tmpkey, sizeof tmpkey,
+	                      ivlabel, ivlabellen))
+		return 0;
+
+	return 1;
+}
+
 int quic_tls_derive_retry_token_secret(const EVP_MD *md,
                                        unsigned char *key, size_t keylen,
                                        unsigned char *iv, size_t ivlen,
                                        const unsigned char *salt, size_t saltlen,
                                        const unsigned char *secret, size_t secretlen)
 {
-	unsigned char tmpkey[QUIC_TLS_KEY_LEN];
 	const unsigned char key_label[] = "retry token key";
 	const unsigned char iv_label[] = "retry token iv";
 
-	if (!quic_hkdf_extract(md, tmpkey, sizeof tmpkey,
-	                       secret, secretlen, salt, saltlen) ||
-	    !quic_hkdf_expand(md, key, keylen, tmpkey, sizeof tmpkey,
-	                      key_label, sizeof key_label - 1) ||
-	    !quic_hkdf_expand(md, iv, ivlen, tmpkey, sizeof tmpkey,
-	                      iv_label, sizeof iv_label - 1))
-		return 0;
+	return quic_do_tls_derive_token_secret(md, key, keylen, iv, ivlen,
+	                                       salt, saltlen, secret, secretlen,
+	                                       key_label, sizeof(key_label) - 1,
+	                                       iv_label, sizeof(iv_label) -1);
+}
 
-	return 1;
+int quic_tls_derive_token_secret(const EVP_MD *md,
+                                 unsigned char *key, size_t keylen,
+                                 unsigned char *iv, size_t ivlen,
+                                 const unsigned char *salt, size_t saltlen,
+                                 const unsigned char *secret, size_t secretlen)
+{
+	const unsigned char key_label[] = "token key";
+	const unsigned char iv_label[] = "token iv";
+
+	return quic_do_tls_derive_token_secret(md, key, keylen, iv, ivlen,
+	                                       salt, saltlen, secret, secretlen,
+	                                       key_label, sizeof(key_label) - 1,
+	                                       iv_label, sizeof(iv_label) -1);
 }
 
 /* Generate the AEAD tag for the Retry packet <pkt> of <pkt_len> bytes and

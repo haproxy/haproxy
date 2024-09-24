@@ -1054,6 +1054,27 @@ static int srv_parse_init_addr(char **args, int *cur_arg,
 	return 0;
 }
 
+/* Parse the "init-state" server keyword */
+static int srv_parse_init_state(char **args, int *cur_arg,
+							   struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	if (strcmp(args[*cur_arg + 1], "fully-up") == 0)
+		newsrv->init_state= SRV_INIT_STATE_FULLY_UP;
+	else if (strcmp(args[*cur_arg + 1], "up") == 0)
+		newsrv->init_state = SRV_INIT_STATE_UP;
+	else if (strcmp(args[*cur_arg + 1], "down") == 0)
+		newsrv->init_state= SRV_INIT_STATE_DOWN;
+	else if (strcmp(args[*cur_arg + 1], "fully-down") == 0)
+		newsrv->init_state= SRV_INIT_STATE_FULLY_DOWN;
+	else {
+		memprintf(err, "'%s' expects one of 'fully-up', 'up', 'down', or 'fully-down' but got '%s'",
+				  args[*cur_arg], args[*cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+
 /* Parse the "log-bufsize" server keyword */
 static int srv_parse_log_bufsize(char **args, int *cur_arg,
                                  struct proxy *curproxy, struct server *newsrv, char **err)
@@ -1749,7 +1770,7 @@ static int srv_parse_source(char **args, int *cur_arg,
 
 	/* 'sk' is statically allocated (no need to be freed). */
 	sk = str2sa_range(args[*cur_arg + 1], NULL, &port_low, &port_high, NULL, NULL, NULL,
-	                  &errmsg, NULL, NULL,
+	                  &errmsg, NULL, NULL, NULL,
 		          PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_RANGE | PA_O_STREAM | PA_O_CONNECT);
 	if (!sk) {
 		memprintf(err, "'%s %s' : %s\n", args[*cur_arg], args[*cur_arg + 1], errmsg);
@@ -1837,7 +1858,7 @@ static int srv_parse_source(char **args, int *cur_arg,
 
 				/* 'sk' is statically allocated (no need to be freed). */
 				sk = str2sa_range(args[*cur_arg + 1], NULL, &port1, &port2, NULL, NULL, NULL,
-				                  &errmsg, NULL, NULL,
+				                  &errmsg, NULL, NULL, NULL,
 				                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
 				if (!sk) {
 					ha_alert("'%s %s' : %s\n", args[*cur_arg], args[*cur_arg + 1], errmsg);
@@ -1927,7 +1948,7 @@ static int srv_parse_socks4(char **args, int *cur_arg,
 
 	/* 'sk' is statically allocated (no need to be freed). */
 	sk = str2sa_range(args[*cur_arg + 1], NULL, &port_low, &port_high, NULL, NULL, NULL,
-	                  &errmsg, NULL, NULL,
+	                  &errmsg, NULL, NULL, NULL,
 	                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_STREAM | PA_O_CONNECT);
 	if (!sk) {
 		memprintf(err, "'%s %s' : %s\n", args[*cur_arg], args[*cur_arg + 1], errmsg);
@@ -1994,7 +2015,9 @@ static int srv_has_streams(struct server *srv)
  * code in <why>, which must be one of SF_ERR_* indicating the reason for the
  * shutdown.
  *
- * Must be called with the server lock held.
+ * Note: the function will switch to thread isolation (due to shutdown_stream()
+ * modifying the streams directly), and commonly called  with the server's lock
+ * held as well though not needed anymore (this is not a bug).
  */
 void srv_shutdown_streams(struct server *srv, int why)
 {
@@ -2002,10 +2025,14 @@ void srv_shutdown_streams(struct server *srv, int why)
 	struct mt_list back;
 	int thr;
 
+	thread_isolate();
+
 	for (thr = 0; thr < global.nbthread; thr++)
 		MT_LIST_FOR_EACH_ENTRY_LOCKED(stream, &srv->per_thr[thr].streams, by_srv, back)
 			if (stream->srv_conn == srv)
 				stream_shutdown(stream, why);
+
+	thread_release();
 }
 
 /* Shutdown all connections of all backup servers of a proxy. The caller must
@@ -2284,14 +2311,50 @@ void srv_compute_all_admin_states(struct proxy *px)
 }
 
 /* Note: must not be declared <const> as its list will be overwritten.
- * Please take care of keeping this list alphabetically sorted, doing so helps
- * all code contributors.
+ *
+ ***   P L E A S E   R E A D   B E L O W   B E F O R E   T O U C H I N G  !!! ***
+ *
+ * Some mistakes are commonly repeated when touching this table, so please
+ * read the following rules before changing / adding an entry, and better
+ * ask on the mailing list in case of doubt.
+ *
+ *  - this list is alphabetically ordered, doing so helps all code contributors
+ *    spot how to name a keyword, which helps users thanks to a form of naming
+ *    consistency. Please insert new entries at the right position so as not
+ *    to break alphabetical ordering. If in doubt, sorting the lines in your
+ *    editor should not change anything (or should fix your addition).
+ *
+ *  - the fields for each entry in the array are, from left to right:
+ *      - the keyword itself (a string, all characters lower case, no special
+ *        chars, no space/dot/underscore, use-dash-to-delimit-multiple-words)
+ *      - the parsing function (edit or copy one close to your needs, parsers
+ *        can easily support multiple keywords if adapted to check args[0]).
+ *      - the number of arguments the keyword takes. Please do not add new
+ *        keywords taking other than exactly 1 argument, they're hard to adapt
+ *        to for external parsers. The special value -1 indicates a variable
+ *        number, used by "source" only. Never do this.
+ *      - whether or not the keyword is supported on default-server lines
+ *        (0 = not supported, 1 = supported). Please do not add unsupported
+ *        keywords without a prior discussion with maintainers on the list,
+ *        as usually it hides a deeper problem.
+ *      - whether or not the keyword is supported for dynamic servers added at
+ *        run time on the CLI (0 = not supported, 1 = supported). Please do not
+ *        add unsupported keywords without a prior discussion with maintainers
+ *        on the list, as usually it hides a deeper problem.
+ *
+ *  - please also add a short comment reminding what the keyword does.
+ *
+ *  - please test your changes with default-server and dynamic servers on the
+ *    CLI (see "add server" in the management guide).
+ *
+ ***   P L E A S E   R E A D   A B O V E   B E F O R E   T O U C H I N G  !!! ***
+ *
  * Optional keywords are also declared with a NULL ->parse() function so that
  * the config parser can report an appropriate error when a known keyword was
  * not enabled.
- * Note: -1 as ->skip value means that the number of arguments are variable.
  */
 static struct srv_kw_list srv_kws = { "ALL", { }, {
+/*	{ "keyword",              parsing_function,            args, def, dyn }, */
 	{ "backup",               srv_parse_backup,               0,  1,  1 }, /* Flag as backup server */
 	{ "cookie",               srv_parse_cookie,               1,  1,  1 }, /* Assign a cookie to the server */
 	{ "disabled",             srv_parse_disabled,             0,  1,  1 }, /* Start the server in 'disabled' state */
@@ -2302,6 +2365,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "hash-key",             srv_parse_hash_key,             1,  1,  1 }, /* Configure how chash keys are computed */
 	{ "id",                   srv_parse_id,                   1,  0,  1 }, /* set id# of server */
 	{ "init-addr",            srv_parse_init_addr,            1,  1,  0 }, /* */
+	{ "init-state",           srv_parse_init_state,           1,  1,  1 }, /* Set the initial state of the server */
 	{ "log-bufsize",          srv_parse_log_bufsize,          1,  1,  0 }, /* Set the ring bufsize for log server (only for log backends) */
 	{ "log-proto",            srv_parse_log_proto,            1,  1,  0 }, /* Set the protocol for event messages, only relevant in a log or ring section */
 	{ "maxconn",              srv_parse_maxconn,              1,  1,  1 }, /* Set the max number of concurrent connection */
@@ -2713,6 +2777,8 @@ void srv_settings_init(struct server *srv)
 	srv->agent.fall = DEF_AGENT_FALLTIME;
 	srv->agent.port = 0;
 
+	srv->init_state = SRV_INIT_STATE_UP;
+
 	srv->maxqueue = 0;
 	srv->minconn = 0;
 	srv->maxconn = 0;
@@ -2842,6 +2908,8 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 
 	srv->init_addr_methods        = src->init_addr_methods;
 	srv->init_addr                = src->init_addr;
+
+	srv->init_state               = src->init_state;
 #if defined(USE_OPENSSL)
 	srv_ssl_settings_cpy(srv, src);
 #endif
@@ -3306,6 +3374,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 	const char *err = NULL;
 	int err_code = 0;
 	char *fqdn = NULL;
+	int alt_proto = 0;
 	int tmpl_range_low = 0, tmpl_range_high = 0;
 	char *errmsg = NULL;
 
@@ -3396,7 +3465,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 			goto skip_addr;
 
 		sk = str2sa_range(args[*cur_arg], &port, &port1, &port2, NULL, NULL, &newsrv->addr_type,
-		                  &errmsg, NULL, &fqdn,
+		                  &errmsg, NULL, &fqdn, &alt_proto,
 		                  (parse_flags & SRV_PARSE_INITIAL_RESOLVE ? PA_O_RESOLVE : 0) | PA_O_PORT_OK |
 				  (parse_flags & SRV_PARSE_IN_PEER_SECTION ? PA_O_PORT_MAND : PA_O_PORT_OFS) |
 				  PA_O_STREAM | PA_O_DGRAM | PA_O_XPRT);
@@ -3439,6 +3508,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 
 		newsrv->addr = *sk;
 		newsrv->svc_port = port;
+		newsrv->alt_proto = alt_proto;
 		/*
 		 * we don't need to lock the server here, because
 		 * we are in the process of initializing.
@@ -6502,7 +6572,17 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 		 */
 		if (s->check.state & CHK_ST_ENABLED) {
 			s->check.state &= ~CHK_ST_PAUSED;
-			s->check.health = s->check.rise; /* start OK but check immediately */
+			if(s->init_state == SRV_INIT_STATE_FULLY_UP) {
+				s->check.health = s->check.rise + s->check.fall - 1; /* initially UP, when all checks fail to bring server DOWN */
+			}
+			else if(s->init_state == SRV_INIT_STATE_DOWN) {
+				s->check.health = s->check.rise - 1; /* initially DOWN, when one check is successful bring server UP */
+			}
+			else if(s->init_state == SRV_INIT_STATE_FULLY_DOWN) {
+				s->check.health = 0; /* initially DOWN, when all checks are successful bring server UP */
+			} else {
+				s->check.health = s->check.rise; /* initially UP, when one check fails check brings server DOWN */
+			}
 		}
 
 		if ((!s->track || s->track->next_state != SRV_ST_STOPPED) &&

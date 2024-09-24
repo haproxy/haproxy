@@ -128,17 +128,21 @@ int h1_parse_cont_len_header(struct h1m *h1m, struct ist *value)
  * H1_MF_TE_OTHER flag is set if any other encoding is found. The H1_MF_XFER_ENC
  * flag is always set. The H1_MF_CHNK is set when "chunked" encoding is the last
  * one. Note that transfer codings are case-insensitive (cf RFC7230#4). This
- * function returns <0 if a error is found, 0 if the whole header can be dropped
- * (not used yet), or >0 if the value can be indexed.
+ * function returns -2 for a fatal error, -1 for an error that may be hiidden by
+ * config, 0 if the whole header can be dropped (not used yet), or >0 if the
+ * value can be indexed.
  */
 int h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value)
 {
 	char *e, *n;
 	struct ist word;
+	int ret = 1;
 
 	/* Reject empty header */
-	if (istptr(value) == istend(value))
-	    goto fail;
+	if (istptr(value) == istend(value)) {
+		ret = -1;
+		goto end;
+	}
 
 	h1m->flags |= H1_MF_XFER_ENC;
 
@@ -154,7 +158,7 @@ int h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value)
 
 		/* a comma at the end means the last value is empty */
 		if (n+1 == e)
-			goto fail;
+			ret = -1;
 		word.len = n - word.ptr;
 
 		/* trim trailing blanks */
@@ -165,8 +169,7 @@ int h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value)
 
 		/* empty values are forbidden */
 		if (!word.len)
-			goto fail;
-
+			ret = -1;
 		else if (isteqi(word, ist("chunked"))) {
 			if (h1m->flags & H1_MF_TE_CHUNKED) {
 				/* cf RFC7230#3.3.1 : A sender MUST NOT apply
@@ -174,7 +177,7 @@ int h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value)
 				 * (i.e., chunking an already chunked message is
 				 * not allowed)
 				 */
-				goto fail;
+				ret = -1;
 			}
 			h1m->flags |= (H1_MF_TE_CHUNKED|H1_MF_CHNK);
 		}
@@ -186,7 +189,8 @@ int h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value)
 				 * as the final transfer coding to ensure that
 				 * the message is properly framed.
 				 */
-				goto fail;
+				ret = -2;
+				goto end;
 			}
 			h1m->flags |= H1_MF_TE_OTHER;
 		}
@@ -194,9 +198,8 @@ int h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value)
 		word.ptr = n;
 	}
 
-	return 1;
-  fail:
-	return -1;
+  end:
+	return ret;
 }
 
 /* Validate the authority and the host header value for CONNECT method. If there
@@ -625,7 +628,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		}
 		if (likely((unsigned char)*ptr >= 128)) {
 			/* non-ASCII chars are forbidden unless option
-			 * accept-invalid-http-request is enabled in the frontend.
+			 * accept-unsafe-violations-in-http-request is enabled in the frontend.
 			 * In any case, we capture the faulty char.
 			 */
 			if (h1m->err_pos < -1)
@@ -1035,9 +1038,15 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				if (isteqi(n, ist("transfer-encoding"))) {
 					ret = h1_parse_xfer_enc_header(h1m, v);
 					if (ret < 0) {
-						state = H1_MSG_HDR_L2_LWS;
-						ptr = v.ptr; /* Set ptr on the error */
-						goto http_msg_invalid;
+						/* For the response only, don't report error if PR_O2_RSPBUG_OK is set
+						 * and the error can be hidden */
+						if (ret == -2 || !(h1m->flags & H1_MF_RESP) || (h1m->err_pos < -1)) {
+							state = H1_MSG_HDR_L2_LWS;
+							ptr = v.ptr; /* Set ptr on the error */
+							goto http_msg_invalid;
+						}
+						if (h1m->err_pos == -1)
+							h1m->err_pos = ptr - start + skip;
 					}
 					else if (ret == 0) {
 						/* skip it */

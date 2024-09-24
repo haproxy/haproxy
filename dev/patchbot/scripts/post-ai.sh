@@ -150,11 +150,14 @@ function updt_table(line) {
   var w = document.getElementById("sh_w").checked;
   var y = document.getElementById("sh_y").checked;
   var tn = 0, tu = 0, tw = 0, ty = 0;
+  var bn = 0, bu = 0, bw = 0, by = 0;
   var i, el;
 
   for (i = 1; i < nb_patches; i++) {
     if (document.getElementById("bt_" + i + "_n").checked) {
       tn++;
+      if (bkp[i])
+         bn++;
       if (line && i != line)
         continue;
       el = document.getElementById("tr_" + i);
@@ -163,6 +166,8 @@ function updt_table(line) {
     }
     else if (document.getElementById("bt_" + i + "_u").checked) {
       tu++;
+      if (bkp[i])
+         bu++;
       if (line && i != line)
         continue;
       el = document.getElementById("tr_" + i);
@@ -171,6 +176,8 @@ function updt_table(line) {
     }
     else if (document.getElementById("bt_" + i + "_w").checked) {
       tw++;
+      if (bkp[i])
+         bw++;
       if (line && i != line)
         continue;
       el = document.getElementById("tr_" + i);
@@ -179,6 +186,8 @@ function updt_table(line) {
     }
     else if (document.getElementById("bt_" + i + "_y").checked) {
       ty++;
+      if (bkp[i])
+         by++;
       if (line && i != line)
         continue;
       el = document.getElementById("tr_" + i);
@@ -198,6 +207,18 @@ function updt_table(line) {
   document.getElementById("cnt_u").innerText = tu;
   document.getElementById("cnt_w").innerText = tw;
   document.getElementById("cnt_y").innerText = ty;
+
+  document.getElementById("cnt_bn").innerText = bn;
+  document.getElementById("cnt_bu").innerText = bu;
+  document.getElementById("cnt_bw").innerText = bw;
+  document.getElementById("cnt_by").innerText = by;
+  document.getElementById("cnt_bt").innerText = bn + bu + bw + by;
+
+  document.getElementById("cnt_nbn").innerText = tn - bn;
+  document.getElementById("cnt_nbu").innerText = tu - bu;
+  document.getElementById("cnt_nbw").innerText = tw - bw;
+  document.getElementById("cnt_nby").innerText = ty - by;
+  document.getElementById("cnt_nbt").innerText = tn - bn + tu - bu + tw - bw + ty - by;
 }
 
 function updt_output() {
@@ -236,23 +257,47 @@ function updt(line,value) {
   updt_output();
 }
 
+function show_only(b,n,u,w,y) {
+    document.getElementById("sh_b").checked = !!b;
+    document.getElementById("sh_n").checked = !!n;
+    document.getElementById("sh_u").checked = !!u;
+    document.getElementById("sh_w").checked = !!w;
+    document.getElementById("sh_y").checked = !!y;
+    document.getElementById("show_all").checked = true;
+    updt(0,"r");
+}
+
 // -->
 </script>
 </HEAD>
 EOF
 
 echo "<BODY>"
+echo -n "<table cellpadding=3 cellspacing=5 style='font-size: 150%;'><tr><th align=left>Backported</th>"
+echo -n "<td style='background-color:$BG_N'><a href='#' onclick='show_only(1,1,0,0,0);'> N: <span id='cnt_bn'>0</span> </a></td>"
+echo -n "<td style='background-color:$BG_U'><a href='#' onclick='show_only(1,0,1,0,0);'> U: <span id='cnt_bu'>0</span> </a></td>"
+echo -n "<td style='background-color:$BG_W'><a href='#' onclick='show_only(1,0,0,1,0);'> W: <span id='cnt_bw'>0</span> </a></td>"
+echo -n "<td style='background-color:$BG_Y'><a href='#' onclick='show_only(1,0,0,0,1);'> Y: <span id='cnt_by'>0</span> </a></td>"
+echo -n "<td>total: <span id='cnt_bt'>0</span></td>"
+echo "</tr><tr>"
+echo -n "<th align=left>Not backported</th>"
+echo -n "<td style='background-color:$BG_N'><a href='#' onclick='show_only(0,1,0,0,0);'> N: <span id='cnt_nbn'>0</span> </a></td>"
+echo -n "<td style='background-color:$BG_U'><a href='#' onclick='show_only(0,0,1,0,0);'> U: <span id='cnt_nbu'>0</span> </a></td>"
+echo -n "<td style='background-color:$BG_W'><a href='#' onclick='show_only(0,0,0,1,0);'> W: <span id='cnt_nbw'>0</span> </a></td>"
+echo -n "<td style='background-color:$BG_Y'><a href='#' onclick='show_only(0,0,0,0,1);'> Y: <span id='cnt_nby'>0</span> </a></td>"
+echo -n "<td>total: <span id='cnt_nbt'>0</span></td>"
+echo "</tr></table><P/>"
 echo -n "<big><big>Show:"
 echo -n " <span style='background-color:$BG_B'><input type='checkbox' onclick='updt_table(0);' id='sh_b' checked />B (${#bkp[*]})</span> "
 echo -n " <span style='background-color:$BG_N'><input type='checkbox' onclick='updt_table(0);' id='sh_n' checked />N (<span id='cnt_n'>0</span>)</span> "
 echo -n " <span style='background-color:$BG_U'><input type='checkbox' onclick='updt_table(0);' id='sh_u' checked />U (<span id='cnt_u'>0</span>)</span> "
 echo -n " <span style='background-color:$BG_W'><input type='checkbox' onclick='updt_table(0);' id='sh_w' checked />W (<span id='cnt_w'>0</span>)</span> "
 echo -n " <span style='background-color:$BG_Y'><input type='checkbox' onclick='updt_table(0);' id='sh_y' checked />Y (<span id='cnt_y'>0</span>)</span> "
-echo -n "</big/></big> (B=show backported, N=no/drop, U=uncertain, W=wait/next, Y=yes/pick"
+echo -n "</big/></big><br/>(B=show backported, N=no/drop, U=uncertain, W=wait/next, Y=yes/pick"
 echo ")<P/>"
 
 echo "<TABLE COLS=5 BORDER=1 CELLSPACING=0 CELLPADDING=3>"
-echo "<TR><TH>All<br/><input type='radio' name='review' onclick='updt(0,\"r\");' checked title='Start review here'/></TH><TH>CID</TH><TH>Subject</TH><TH>Verdict<BR>N U W Y</BR></TH><TH>Reason</TH></TR>"
+echo "<TR><TH>All<br/><input type='radio' name='review' id='show_all' onclick='updt(0,\"r\");' checked title='Start review here'/></TH><TH>CID</TH><TH>Subject</TH><TH>Verdict<BR>N U W Y</BR></TH><TH>Reason</TH></TR>"
 seq_num=1; do_check=1; review=0;
 for patch in "${PATCHES[@]}"; do
         # try to retrieve the patch's numbering (0001-9999)
@@ -335,7 +380,7 @@ for patch in "${PATCHES[@]}"; do
         resp=$(echo "$resp" | sed -e "s|#\([0-9]\{1,5\}\)|<a href='${ISSUES}\1'>#\1</a>|g")
 
         # put links to commit IDs
-        resp=$(echo "$resp" | sed -e "s|\([0-9a-f]\{8,40\}\)|<a href='${GITURL}\1'>\1</a>|g")
+        resp=$(echo "$resp" | sed -e "s|\([0-9a-f]\{7,40\}\)|<a href='${GITURL}\1'>\1</a>|g")
 
         echo -n "<TD nowrap align=center ${bkp[$cid]:+style='background-color:${BG_B}'}>$seq_num<BR/>"
         echo -n "<input type='radio' name='review' onclick='updt($seq_num,\"r\");' ${do_check:+checked} title='Start review here'/></TD>"

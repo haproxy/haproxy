@@ -32,12 +32,14 @@ ullong                           start_time_ns;   /* the process's start date in
 volatile ullong                  global_now_ns;   /* common monotonic date between all threads, in ns (wraps every 585 yr) */
 volatile uint                    global_now_ms;   /* common monotonic date in milliseconds (may wrap) */
 
+/* when CLOCK_MONOTONIC is supported, the offset is applied from th_ctx->prev_mono_time instead */
 THREAD_ALIGNED(64) static llong  now_offset;      /* global offset between system time and global time in ns */
 
 THREAD_LOCAL ullong              now_ns;          /* internal monotonic date derived from real clock, in ns (wraps every 585 yr) */
 THREAD_LOCAL uint                now_ms;          /* internal monotonic date in milliseconds (may wrap) */
 THREAD_LOCAL struct timeval      date;            /* the real current date (wall-clock time) */
 
+static THREAD_LOCAL ullong  before_poll_mono_ns;  /* system wide monotonic time when entering poll last */
 static THREAD_LOCAL struct timeval before_poll;   /* system date before calling poll() */
 static THREAD_LOCAL struct timeval after_poll;    /* system date after leaving poll() */
 static THREAD_LOCAL unsigned int samp_time;       /* total elapsed time over current sample */
@@ -53,10 +55,10 @@ static clockid_t per_thread_clock_id[MAX_THREADS];
 uint64_t now_mono_time(void)
 {
 	uint64_t ret = 0;
-#if defined(_POSIX_TIMERS) && defined(_POSIX_TIMERS) && (_POSIX_TIMERS > 0) && defined(_POSIX_MONOTONIC_CLOCK)
+#if defined(_POSIX_TIMERS) && (_POSIX_TIMERS > 0) && defined(_POSIX_MONOTONIC_CLOCK)
 	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	ret = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+	if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0)
+		ret = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 #endif
 	return ret;
 }
@@ -72,14 +74,13 @@ uint64_t now_mono_time_fast(void)
 #if defined(CLOCK_MONOTONIC_COARSE)
 	struct timespec ts;
 
-	clock_gettime(CLOCK_MONOTONIC_COARSE, &ts);
-	return (ts.tv_sec * 1000000000ULL + ts.tv_nsec);
-#else
+	if (clock_gettime(CLOCK_MONOTONIC_COARSE, &ts) == 0)
+		return (ts.tv_sec * 1000000000ULL + ts.tv_nsec);
+#endif
 	/* fallback to regular mono time,
 	 * returns 0 if not supported
 	 */
 	return now_mono_time();
-#endif
 }
 
 /* returns the current thread's cumulated CPU time in nanoseconds if supported, otherwise zero */
@@ -88,8 +89,8 @@ uint64_t now_cpu_time(void)
 	uint64_t ret = 0;
 #if defined(_POSIX_TIMERS) && (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
 	struct timespec ts;
-	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
-	ret = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+	if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) == 0)
+		ret = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 #endif
 	return ret;
 }
@@ -126,8 +127,8 @@ uint64_t now_cpu_time_thread(int thr)
 	uint64_t ret = 0;
 #if defined(_POSIX_TIMERS) && (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
 	struct timespec ts;
-	clock_gettime(per_thread_clock_id[thr], &ts);
-	ret = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+	if (clock_gettime(per_thread_clock_id[thr], &ts) == 0)
+		ret = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 #endif
 	return ret;
 }
@@ -200,8 +201,19 @@ int clock_setup_signal_timer(void *tmr, int sig, int val)
 void clock_update_local_date(int max_wait, int interrupted)
 {
 	struct timeval min_deadline, max_deadline;
+	llong ofs = HA_ATOMIC_LOAD(&now_offset);
+	llong date_ns;
 
 	gettimeofday(&date, NULL);
+	th_ctx->curr_mono_time = now_mono_time();
+
+	date_ns = th_ctx->curr_mono_time;
+	if (date_ns) {
+		/* no need to go through complex calculations, we have
+		 * monotonic time. The offset will never change.
+		 */
+		goto done;
+	}
 
 	/* compute the minimum and maximum local date we may have reached based
 	 * on our past date and the associated timeout. There are three possible
@@ -216,18 +228,30 @@ void clock_update_local_date(int max_wait, int interrupted)
 	 */
 	_tv_ms_add(&min_deadline, &before_poll, max_wait);
 	_tv_ms_add(&max_deadline, &before_poll, max_wait + 100);
+	date_ns = tv_to_ns(&date);
 
 	if (unlikely(__tv_islt(&date, &before_poll)                    || // big jump backwards
 		     (!interrupted && __tv_islt(&date, &min_deadline)) || // small jump backwards
+		     date_ns + ofs >= now_ns + ms_to_ns(max_wait + 100)|| // offset changed by another thread
 		     __tv_islt(&max_deadline, &date))) {                  // big jump forwards
 		if (!interrupted)
 			now_ns += ms_to_ns(max_wait);
+
+		/* consider the most recent known date */
+		now_ns = MAX(now_ns, HA_ATOMIC_LOAD(&global_now_ns));
+
+		/* this event is rare, but it requires proper handling because if
+		 * we just left now_ns where it was, the date will not be updated
+		 * by clock_update_global_date().
+		 */
+		HA_ATOMIC_STORE(&now_offset, now_ns - date_ns);
 	} else {
+	done:
 		/* The date is still within expectations. Let's apply the
 		 * now_offset to the system date. Note: ofs if made of two
 		 * independent signed ints.
 		 */
-		now_ns = tv_to_ns(&date) + HA_ATOMIC_LOAD(&now_offset);
+		now_ns = date_ns + ofs;
 	}
 	now_ms = ns_to_ms(now_ns);
 }
@@ -272,21 +296,29 @@ void clock_update_global_date()
 		  (now_ms  != old_now_ms && !_HA_ATOMIC_CAS(&global_now_ms, &old_now_ms, now_ms))) &&
 		 __ha_cpu_relax());
 
-	/* <now_ns> and <now_ms> are now updated to the last value of
-	 * global_now_ns and global_now_ms, which were also monotonically
-	 * updated. We can compute the latest offset, we don't care who writes
-	 * it last, the variations will not break the monotonic property.
-	 */
-	HA_ATOMIC_STORE(&now_offset, now_ns - tv_to_ns(&date));
+	if (!th_ctx->curr_mono_time) {
+		/* Only update the offset when monotonic time is not available.
+		 * <now_ns> and <now_ms> are now updated to the last value of
+		 * global_now_ns and global_now_ms, which were also monotonically
+		 * updated. We can compute the latest offset, we don't care who writes
+		 * it last, the variations will not break the monotonic property.
+		 */
+		HA_ATOMIC_STORE(&now_offset, now_ns - tv_to_ns(&date));
+	}
 }
 
 /* must be called once at boot to initialize some global variables */
 void clock_init_process_date(void)
 {
 	now_offset = 0;
+	before_poll_mono_ns = now_mono_time(); // 0 if not supported
+	th_ctx->prev_mono_time = th_ctx->curr_mono_time = before_poll_mono_ns;
 	gettimeofday(&date, NULL);
 	after_poll = before_poll = date;
-	now_ns = global_now_ns = tv_to_ns(&date);
+	global_now_ns = th_ctx->curr_mono_time;
+	if (!global_now_ns) // CLOCK_MONOTONIC not supported
+		global_now_ns = tv_to_ns(&date);
+	now_ns = global_now_ns;
 	global_now_ms = ns_to_ms(now_ns);
 
 	/* force time to wrap 20s after boot: we first compute the time offset
@@ -306,6 +338,10 @@ void clock_init_process_date(void)
 
 void clock_adjust_now_offset(void)
 {
+	/* Only update the offset when monotonic time is not available. */
+	if (th_ctx->curr_mono_time)
+		return;
+
 	HA_ATOMIC_STORE(&now_offset, now_ns - tv_to_ns(&date));
 }
 
@@ -320,6 +356,9 @@ void clock_init_thread_date(void)
 	now_ns = _HA_ATOMIC_LOAD(&global_now_ns);
 	th_ctx->idle_pct = 100;
 	th_ctx->prev_cpu_time  = now_cpu_time();
+	th_ctx->prev_mono_time = now_mono_time();
+	th_ctx->curr_mono_time = th_ctx->prev_mono_time;
+	before_poll_mono_ns = th_ctx->curr_mono_time;
 	clock_update_date(0, 1);
 }
 
@@ -354,15 +393,23 @@ static inline void clock_measure_idle(void)
 	 */
 	int delta;
 
-	if ((delta = date.tv_sec - before_poll.tv_sec))
-		delta *= 1000000;
-	idle_time += delta + (date.tv_usec - before_poll.tv_usec);
+	if (before_poll_mono_ns) {
+		/* CLOCK_MONOTONIC in use, use it and convert it to microseconds */
 
-	if ((delta = date.tv_sec - after_poll.tv_sec))
-		delta *= 1000000;
-	samp_time += delta + (date.tv_usec - after_poll.tv_usec);
+		idle_time += (th_ctx->curr_mono_time - before_poll_mono_ns) / 1000ull;
+		samp_time += (th_ctx->curr_mono_time - th_ctx->prev_mono_time) / 1000ull;
+	} else {
+		/* CLOCK_MONOTONIC not used */
+		if ((delta = date.tv_sec - before_poll.tv_sec))
+			delta *= 1000000;
+		idle_time += delta + (date.tv_usec - before_poll.tv_usec);
 
-	after_poll.tv_sec = date.tv_sec; after_poll.tv_usec = date.tv_usec;
+		if ((delta = date.tv_sec - after_poll.tv_sec))
+			delta *= 1000000;
+		samp_time += delta + (date.tv_usec - after_poll.tv_usec);
+
+		after_poll.tv_sec = date.tv_sec; after_poll.tv_usec = date.tv_usec;
+	}
 	if (samp_time < 500000)
 		return;
 
@@ -379,7 +426,7 @@ void clock_leaving_poll(int timeout, int interrupted)
 {
 	clock_measure_idle();
 	th_ctx->prev_cpu_time  = now_cpu_time();
-	th_ctx->prev_mono_time = now_mono_time();
+	th_ctx->prev_mono_time = th_ctx->curr_mono_time;
 }
 
 /* Collect date and time information before calling poll(). This will be used
@@ -395,12 +442,35 @@ void clock_entering_poll(void)
 	uint32_t run_time;
 	int64_t stolen;
 
-	gettimeofday(&before_poll, NULL);
-
-	run_time = (before_poll.tv_sec - after_poll.tv_sec) * 1000000U + (before_poll.tv_usec - after_poll.tv_usec);
-
 	new_cpu_time   = now_cpu_time();
 	new_mono_time  = now_mono_time();
+
+	/* the the time when we entere poll */
+	before_poll_mono_ns = new_mono_time;
+
+	/* The time might have jumped either backwards or forwards during tasks
+	 * processing. It's easy to detect a backwards jump, but a forward jump
+	 * needs a marging. Here the upper limit of 2 seconds corresponds to a
+	 * large margin at which the watchdog would already trigger so it looks
+	 * sufficient to avoid false positives most of the time. The goal here
+	 * is to make sure that before_poll can be trusted when entering
+	 * clock_update_local_date() so that we can detect and fix time jumps.
+	 * All this will also make sure we don't report idle/run times that are
+	 * too much wrong during such jumps.
+	 */
+
+	if (before_poll_mono_ns)
+		run_time = (before_poll_mono_ns - th_ctx->curr_mono_time) / 1000ull;
+	else {
+		gettimeofday(&before_poll, NULL);
+
+		if (unlikely(__tv_islt(&before_poll, &after_poll)))
+			before_poll = after_poll;
+		else if (unlikely(__tv_ms_elapsed(&after_poll, &before_poll) >= 2000))
+			tv_ms_add(&before_poll, &after_poll, 2000);
+
+		run_time = (before_poll.tv_sec - after_poll.tv_sec) * 1000000U + (before_poll.tv_usec - after_poll.tv_usec);
+	}
 
 	if (th_ctx->prev_cpu_time && th_ctx->prev_mono_time) {
 		new_cpu_time  -= th_ctx->prev_cpu_time;

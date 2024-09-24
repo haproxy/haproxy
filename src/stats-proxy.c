@@ -263,7 +263,7 @@ static struct field me_generate_field(const struct stat_col *col,
 
 	/* TODO Special case needed for ST_I_PX_REQ_TOT. It is defined as a
 	 * generic column for backend side. Extra code required to diplay it on
-	 * frontend side as an aggregate of values splitted by HTTP version.
+	 * frontend side as an aggregate of values split by HTTP version.
 	 */
 	if (idx == ST_I_PX_REQ_TOT && cap == STATS_PX_CAP_FE && !stat_file) {
 		struct proxy *px = __objt_proxy(objt);

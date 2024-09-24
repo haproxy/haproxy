@@ -2062,6 +2062,12 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 	stktable_touch_remote(table, ts, 1);
 
+	/* Entry was just learned from a peer, we want to notify this peer
+	 * if we happen to modify it. Thus let's consider at least one
+	 * peer has seen the update (ie: the peer that sent us the update)
+	 */
+	HA_ATOMIC_STORE(&ts->seen, 1);
+
 	if (wts) {
 		/* Start over the message decoding for wts as we got a valid stksess
 		 * for write_to table, so we need to refresh the entry with supported

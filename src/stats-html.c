@@ -1973,6 +1973,11 @@ static void http_stats_io_handler(struct appctx *appctx)
 	if (applet_fl_test(appctx, APPCTX_FL_FASTFWD) && se_fl_test(appctx->sedesc, SE_FL_MAY_FASTFWD_PROD))
 		goto out;
 
+	if (appctx->st0 != STAT_HTTP_END) {
+		if (!appctx_get_buf(appctx, &appctx->inbuf) || htx_is_empty(htxbuf(&appctx->inbuf)))
+			goto wait_request;
+	}
+
 	if (!appctx_get_buf(appctx, &appctx->outbuf)) {
 		goto out;
 	}
@@ -2062,6 +2067,13 @@ static void http_stats_io_handler(struct appctx *appctx)
 	}
 	else if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_FULL))
 		applet_wont_consume(appctx);
+	return;
+
+  wait_request:
+	/* Wait for the request before starting to deliver the response */
+	applet_need_more_data(appctx);
+	return;
+
 }
 
 static size_t http_stats_fastfwd(struct appctx *appctx, struct buffer *buf,

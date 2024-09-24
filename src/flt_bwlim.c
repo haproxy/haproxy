@@ -78,7 +78,8 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 	struct bwlim_config *conf = FLT_CONF(filter);
 	struct bwlim_state *st = filter->ctx;
 	struct freq_ctr *bytes_rate;
-	unsigned int period, limit, remain, tokens, users;
+	uint64_t remain;
+	unsigned int period, limit, tokens, users, factor;
 	unsigned int wait = 0;
 	int overshoot, ret = 0;
 
@@ -105,11 +106,12 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 		if (!ptr)
 			goto end;
 
-		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &st->ts->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &st->ts->lock);
 		bytes_rate = &stktable_data_cast(ptr, std_t_frqp);
 		period = conf->table.t->data_arg[type].u;
 		limit = conf->limit;
 		users = st->ts->ref_cnt;
+		factor = conf->table.t->brates_factor;
 	}
 	else {
 		/* On per-stream mode, the freq-counter is private to the
@@ -121,6 +123,7 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 		period = (st->period ? st->period : conf->period);
 		limit = (st->limit ? st->limit : conf->limit);
 		users = 1;
+		factor = 1;
 	}
 
 	/* Be sure the current rate does not exceed the limit over the current
@@ -134,7 +137,7 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 	overshoot = freq_ctr_overshoot_period(bytes_rate, period, limit);
 	if (overshoot > 0) {
 		if (conf->flags & BWLIM_FL_SHARED)
-			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &st->ts->lock);
+			HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &st->ts->lock);
 		wait = div64_32((uint64_t)(conf->min_size + overshoot) * period * users,
 				limit);
 		st->exp = tick_add(now_ms, (wait ? wait : 1));
@@ -143,7 +146,7 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 	}
 
 	/* Get the allowed quota per user. */
-	remain = freq_ctr_remain_period(bytes_rate, period, limit, 0);
+	remain = (uint64_t)freq_ctr_remain_period(bytes_rate, period, limit, 0) * factor;
 	tokens = div64_32((uint64_t)(remain + users - 1), users);
 
 	if (tokens < len) {
@@ -159,23 +162,23 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 				: conf->min_size;
 
 			if (ret <= remain)
-				wait = div64_32((uint64_t)(ret - tokens) * period * users + limit - 1, limit);
+				wait = div64_32((uint64_t)(ret - tokens) * period * users + limit * factor - 1, limit * factor);
 			else
-				ret = (limit < ret) ? remain : 0;
+				ret = (limit * factor < ret) ? remain : 0;
 		}
 	}
 
 	/* At the end, update the freq-counter and compute the waiting time if
 	 * the stream is limited
 	 */
-	update_freq_ctr_period(bytes_rate, period, ret);
+	update_freq_ctr_period(bytes_rate, period, div64_32((uint64_t)ret + factor -1, factor));
 	if (ret < len) {
 		wait += next_event_delay_period(bytes_rate, period, limit, MIN(len - ret, conf->min_size * users));
 		st->exp = tick_add(now_ms, (wait ? wait : 1));
 	}
 
 	if (conf->flags & BWLIM_FL_SHARED)
-		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &st->ts->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &st->ts->lock);
 
   end:
 	chn->analyse_exp = tick_first((tick_is_expired(chn->analyse_exp, now_ms) ? TICK_ETERNITY : chn->analyse_exp),

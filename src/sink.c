@@ -757,7 +757,7 @@ static struct sink *sink_new_ringbuf(const char *id, const char *description,
 	init_new_proxy(p);
 	sink_setup_proxy(p);
 	p->id = strdup(id);
-	p->conf.args.file = p->conf.file = strdup(file);
+	p->conf.args.file = p->conf.file = copy_file_name(file);
 	p->conf.args.line = p->conf.line = linenum;
 
 	sink = sink_new_buf(id, description, LOG_FORMAT_RAW, BUFSIZE);

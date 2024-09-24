@@ -3,7 +3,7 @@
                           Configuration Manual
                          ----------------------
                               version 3.1
-                              2024/08/21
+                              2024/09/18
 
 
 This document covers the configuration language as implemented in the version
@@ -927,6 +927,11 @@ file, or could be inherited by a program (See 3.7. Programs):
   defined in section 8.2.3 "HTTP log format". It can be used to override the
   default log format without having to copy the whole original definition.
 
+* HAPROXY_HTTP_CLF_LOG_FMT: contains the value of the default HTTP CLF log
+  format as defined in section 8.2.3 "HTTP log format". It can be used to
+  override the default log format without having to copy the whole original
+  definition.
+
   Example:
     # Add the rule that gave the final verdict to the log
     log-format "${HAPROXY_TCP_LOG_FMT} lr=last_rule_file:last_rule_line"
@@ -936,6 +941,9 @@ file, or could be inherited by a program (See 3.7. Programs):
 
 * HAPROXY_TCP_LOG_FMT: similar to HAPROXY_HTTP_LOG_FMT but for TCP log format
   as defined in section 8.2.2 "TCP log format".
+
+* HAPROXY_TCP_CLF_LOG_FMT: similar to HAPROXY_HTTP_CLF_LOG_FMT but for TCP CLF
+  log format as defined in section 8.2.2 "TCP log format".
 
 * HAPROXY_MWORKER: In master-worker mode, this variable is set to 1.
 
@@ -4592,7 +4600,8 @@ table <tablename> type {ip | integer | string [len <length>] | binary [len <leng
 ------------
 It is possible to send email alerts when the state of servers changes.
 If configured email alerts are sent to each mailer that is configured
-in a mailers section. Email is sent to mailers using SMTP.
+in a mailers section. Email is sent to mailers through Lua (see
+examples/lua/mailers.lua).
 
 mailers <mailersect>
   Creates a new mailer list with the name <mailersect>. It is an
@@ -4602,6 +4611,11 @@ mailer <mailername> <ip>:<port>
   Defines a mailer inside a mailers section.
 
   Example:
+    global
+        # mailers.lua file as provided in the git repository
+        # adjust path as needed
+        lua-load examples/lua/mailers.lua
+
     mailers mymailers
         mailer smtp1 192.168.0.1:587
         mailer smtp2 192.168.0.2:587
@@ -5342,6 +5356,11 @@ specified in a previous "defaults" section. Keywords supported in defaults
 sections marked with "(!)" are only supported in named defaults sections, not
 anonymous ones.
 
+Note: Some dangerous and not recommanded directives are intentionnaly not
+      listed in the following matrix. It is on purpose. These directives are
+      documentated. But by not listing them below is one more way to discourage
+      anyone to use it.
+
 
  keyword                              defaults   frontend   listen    backend
 ------------------------------------+----------+----------+---------+---------
@@ -5410,8 +5429,6 @@ mode                                      X          X         X         X
 monitor fail                              -          X         X         -
 monitor-uri                               X          X         X         -
 option abortonclose                  (*)  X          -         X         X
-option accept-invalid-http-request   (*)  X          X         X         -
-option accept-invalid-http-response  (*)  X          -         X         X
 option allbackups                    (*)  X          -         X         X
 option checkcache                    (*)  X          -         X         X
 option clitcpka                      (*)  X          X         X         -
@@ -8822,8 +8839,24 @@ no option abortonclose
   See also : "timeout queue" and server's "maxconn" and "maxqueue" parameters
 
 
-option accept-invalid-http-request
-no option accept-invalid-http-request
+option accept-invalid-http-request     (deprecated)
+no option accept-invalid-http-request  (deprecated)
+  Enable or disable relaxing of HTTP request parsing
+
+  The "accept-invalid-http-request" keyword is deprecated, use "option
+  accept-unsafe-violations-in-http-request" instead.
+
+
+option accept-invalid-http-response     (deprecated)
+no option accept-invalid-http-response  (deprecated)
+  Enable or disable relaxing of HTTP response parsing
+
+  The "accept-invalid-http-response" keyword is deprecated, use "option
+  accept-unsafe-violations-in-http-response" instead.
+
+
+option accept-unsafe-violations-in-http-request
+no option accept-unsafe-violations-in-http-request
   Enable or disable relaxing of HTTP request parsing
 
   May be used in the following contexts: http
@@ -8833,45 +8866,63 @@ no option accept-invalid-http-request
 
   Arguments : none
 
-  By default, HAProxy complies with RFC7230 in terms of message parsing. This
-  means that invalid characters in header names are not permitted and cause an
-  error to be returned to the client. This is the desired behavior as such
-  forbidden characters are essentially used to build attacks exploiting server
-  weaknesses, and bypass security filtering. Sometimes, a buggy browser or
-  server will emit invalid header names for whatever reason (configuration,
-  implementation) and the issue will not be immediately fixed. In such a case,
-  it is possible to relax HAProxy's header name parser to accept any character
-  even if that does not make sense, by specifying this option. Similarly, the
-  list of characters allowed to appear in a URI is well defined by RFC3986, and
-  chars 0-31, 32 (space), 34 ('"'), 60 ('<'), 62 ('>'), 92 ('\'), 94 ('^'), 96
-  ('`'), 123 ('{'), 124 ('|'), 125 ('}'), 127 (delete) and anything above are
-  not allowed at all. HAProxy always blocks a number of them (0..32, 127). The
-  remaining ones are blocked by default unless this option is enabled. This
-  option also relaxes the test on the HTTP version, it allows HTTP/0.9 requests
-  to pass through (no version specified), as well as different protocol names
-  (e.g. RTSP), and multiple digits for both the major and the minor version.
-  Finally, this option also allows incoming URLs to contain fragment references
-  ('#' after the path).
+  By default, HAProxy complies with the different HTTP RFCs in terms of message
+  parsing. This means the message parsing is quite strict and causes an error
+  to be returned to the client for malformed messages. This is the desired
+  behavior as such malformed messages are essentially used to build attacks
+  exploiting server weaknesses, and bypass security filtering. Sometimes, a
+  buggy browser will not respect these RCFs for whatever reason (configuration,
+  implementation...) and the issue will not be immediately fixed. In such case,
+  it is possible to relax HAProxy's parser to accept some invalid requests by
+  specifying this option. Most of rules concern the H1 parsing for historical
+  reason. Newer HTTP versions tends to be cleaner and applications follow more
+  stickly these protocols.
+
+  When this option is set, the following rules are observed:
+
+    * In H1 only, invalid characters, including NULL character, in header name
+      will be accepted;
+
+    * In H1 only, NULL character in header value will be accepted;
+
+    * The list of characters allowed to appear in a URI is well defined by
+      RFC3986, and chars 0-31, 32 (space), 34 ('"'), 60 ('<'), 62 ('>'), 92
+      ('\'), 94 ('^'), 96 ('`'), 123 ('{'), 124 ('|'), 125 ('}'), 127 (delete)
+      and anything above are normally not allowed. But here, in H1 only,
+      HAProxy will only block a number of them (0..32, 127);
+
+    * In H1 and H2, URLs containing fragment references ('#' after the path)
+      will be accepted;
+
+    * In H1 only, no check will be performed on the authority for CONNECT
+      requests;
+
+    * In H1 only, no check will be performed against the authority and the Host
+      header value.
+
+    * In H1 only, tests on the HTTP version will be relaxed. It will allow
+      HTTP/0.9 GET requests to pass through (no version specified), as well as
+      different protocol names (e.g. RTSP), and multiple digits for both the
+      major and the minor version.
 
   This option should never be enabled by default as it hides application bugs
   and open security breaches. It should only be deployed after a problem has
   been confirmed.
 
-  When this option is enabled, erroneous header names will still be accepted in
-  requests, but the complete request will be captured in order to permit later
-  analysis using the "show errors" request on the UNIX stats socket. Similarly,
-  requests containing invalid chars in the URI part will be logged. Doing this
-  also helps confirming that the issue has been solved.
+  When this option is enabled, invalid but accepted H1 requests will be
+  captured in order to permit later analysis using the "show errors" request on
+  the UNIX stats socket.Doing this also helps confirming that the issue has
+  been solved.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option accept-invalid-http-response" and "show errors" on the
-             stats socket.
+  See also : "option accept-unsafe-violations-in-http-response" and "show
+             errors" on the stats socket.
 
 
-option accept-invalid-http-response
-no option accept-invalid-http-response
+option accept-unsafe-violations-in-http-response
+no option accept-unsafe-violations-in-http-response
   Enable or disable relaxing of HTTP response parsing
 
   May be used in the following contexts: http
@@ -8881,17 +8932,28 @@ no option accept-invalid-http-response
 
   Arguments : none
 
-  By default, HAProxy complies with RFC7230 in terms of message parsing. This
-  means that invalid characters in header names are not permitted and cause an
-  error to be returned to the client. This is the desired behavior as such
-  forbidden characters are essentially used to build attacks exploiting server
-  weaknesses, and bypass security filtering. Sometimes, a buggy browser or
-  server will emit invalid header names for whatever reason (configuration,
-  implementation) and the issue will not be immediately fixed. In such a case,
-  it is possible to relax HAProxy's header name parser to accept any character
-  even if that does not make sense, by specifying this option. This option also
-  relaxes the test on the HTTP version format, it allows multiple digits for
-  both the major and the minor version.
+  Similarly to "option accept-unsafe-violations-in-http-request", this option
+  may be used to relax parsing rules of HTTP responses. It should only be
+  enabled for trusted legacy servers to accept some invalid responses. Most of
+  rules concern the H1 parsing for historical reason. Newer HTTP versions tends
+  to be cleaner and applications follow more stickly these protocols.
+
+  When this option is set, the following rules are observed:
+
+    * In H1 only, invalid characters, including NULL character, in header name
+      will be accepted;
+
+    * In H1 only, NULL character in header value will be accepted;
+
+    * In H1 only, empty values or several "chunked" value occurrences for
+      Transfer-Encoding header will be accepted;
+
+    * In H1 only, no check will be performed against the authority and the Host
+      header value.
+
+    * In H1 only, tests on the HTTP version will be relaxed. It will allow
+      different protocol names (e.g. RTSP), and multiple digits for both the
+      major and the minor version.
 
   This option should never be enabled by default as it hides application bugs
   and open security breaches. It should only be deployed after a problem has
@@ -8905,8 +8967,8 @@ no option accept-invalid-http-response
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option accept-invalid-http-request" and "show errors" on the
-             stats socket.
+  See also : "option accept-unsafe-violations-in-http-request" and "show
+             errors" on the stats socket.
 
 
 option allbackups
@@ -11329,9 +11391,10 @@ retry-on [space-delimited list of keywords]
 
       <status>          any HTTP status code among "401" (Unauthorized), "403"
                         (Forbidden), "404" (Not Found), "408" (Request Timeout),
-                        "425" (Too Early), "500" (Server Error), "501" (Not
-                        Implemented), "502" (Bad Gateway), "503" (Service
-                        Unavailable), "504" (Gateway Timeout).
+                        "425" (Too Early), "429" (Too Many Requests), "500"
+                        (Server Error), "501" (Not Implemented), "502"
+                        (Bad Gateway), "503" (Service Unavailable), "504"
+                        (Gateway Timeout).
 
       all-retryable-errors
                         retry request for any error that are considered
@@ -12437,7 +12500,7 @@ stick store-request <pattern> [table <table>] [{if | unless} <condition>]
 
 stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
             size <size> [expire <expire>] [nopurge] [peers <peersect>] [srvkey <srvkey>]
-            [write-to <wtable>] [store <data_type>]*
+            [write-to <wtable>] [store <data_type>]* [brates-factor <factor>]
   Configure the stickiness table for the current section
 
   May be used in the following contexts: tcp, http
@@ -12558,6 +12621,13 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
                data types require an argument which must be passed just after
                the type between parenthesis. See below for the supported data
                types and their arguments.
+
+   <factor>    is used to define a factor to be applied on in/out bytes rate.
+               Instead of counting each bytes, blocks of bytes are counted.
+               Internally, rates are defined on 32-bits counters. By using this
+               parameter, it is possible to have rates exceeding the 4G on the
+               defined period. The factor must be greater than 0 and lower or
+               equal to 1024.
 
   The data types that can be stored with an entry are the following :
     - server_id : this is an integer which holds the numeric ID of the server a
@@ -14732,7 +14802,7 @@ dgram-drop
                     X |          -  |   -  |   -  |   -  |          - |  - |  -
 
   This silently ignores the reception of a QUIC initial packet which otherwise
-  whould have resulted in a new QUIC connection instantiation and its SSL
+  would have resulted in a new QUIC connection instantiation and its SSL
   handshake execution.
 
 
@@ -17535,6 +17605,52 @@ downinter <delay>
   "inter" setting will have a very limited effect as it will not be able to
   reduce the time spent in the queue.
 
+init-state { fully-up | up | down | fully-down }
+  May be used in the following contexts: tcp, http
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no   |    no    |   yes  |   yes
+
+  The "init-state" option sets the initial state of the server:
+    - when set to 'fully-up', the server is considered immediately available
+      and can turn to the DOWN sate when ALL health checks fail.
+    - when set to 'up' (the default), the server is considered immediately
+      available and will initiate a health check that can turn it to the DOWN
+      state immediately if it fails.
+    - when set to 'down', the server initially is considered unavailable and
+      will initiate a health check that can turn it to the UP state immediately
+      if it succeeds.
+    - when set to 'fully-down', the server is initially considered unavailable
+      and can turn to the UP state when ALL health checks succeed.
+
+  The server's init-state is considered when the HAProxy instance is
+  (re)started, a new server is detected (for example via service discovery /
+  DNS resolution), a dynamic server is inlived, a server exits maintenance,
+  etc.
+
+  Examples:
+      # pass client traffic ONLY to Redis "master" node
+      backend redis-master
+        mode tcp
+        balance first
+        option tcp-check
+        tcp-check send role\r\n
+        tcp-check expect string master
+        server-template redis 3 _redis._tcp.redis-headless-service.sandbox.svc.cluster.local:6379 check ... init-state down
+
+      # pass traffic to the server only after 3 successful health checks
+      backend google-backend
+        mode http
+        server srv1 google.com:80 check init-state down rise 3
+        server srv2 google.com:80 check init-state down rise 3
+
+      # or
+      listen
+        mode http
+        server-template srv 2 google.com:80 check init-state down rise 3
+
+See also: "option tcp-check", "option httpchk"
+
 log-bufsize <bufsize>
   May be used in the following contexts: log
 
@@ -18264,7 +18380,7 @@ sni <expression>
   checks, see the "check-sni" directive for more details.
 
   By default, the SNI is assigned to the connection name for "http-reuse",
-  unless overriden by the "pool-conn-name" server keyword.
+  unless overridden by the "pool-conn-name" server keyword.
 
 source <addr>[:<pl>[-<ph>]] [usesrc { <addr2>[:<port2>] | client | clientip } ]
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | hdr_ip(<hdr>[,<occ>]) } ]
@@ -21570,7 +21686,7 @@ queue([<backend>]) : integer
 
 quic_enabled : boolean
   Return true when the support for QUIC transport protocol was compiled and
-  if this procotol was not disabled by "no-quic" global option. See also "no-quic"
+  if this protocol was not disabled by "no-quic" global option. See also "no-quic"
   global option.
 
 rand([<range>]) : integer
@@ -22031,7 +22147,7 @@ bc_srv_queue : integer
 bc_settings_streams_limit : integer
   Returns the maximum number of streams allowed on the backend connection. For
   TCP and HTTP/1.1 connections, it is always 1. For other protocols, it depends
-  on the settings negociated with the server.
+  on the settings negotiated with the server.
 
 be_id : integer
   Returns an integer containing the current backend's id. It can be used in
@@ -22354,7 +22470,7 @@ fc_src_port : integer
 fc_settings_streams_limit : integer
   Returns the maximum number of streams allowed on the frontend connection. For
   TCP and HTTP/1.1 connections, it is always 1. For other protocols, it depends
-  on the settings negociated with the client.
+  on the settings negotiated with the client.
 
 fc_unacked : integer
   Returns the unacked counter measured by the kernel for the client connection.
@@ -23159,7 +23275,9 @@ ssl_fc_server_traffic_secret_0                     string
 ssl_fc_server_random                               binary
 ssl_fc_session_id                                  binary
 ssl_fc_session_key                                 binary
+ssl_fc_sigalgs_bin([<filter_option>])              binary
 ssl_fc_sni                                         string
+ssl_fc_supported_versions_bin([<filter_option>])   binary
 ssl_fc_use_keysize                                 integer
 ssl_s_der                                          binary
 ssl_s_chain_der                                    binary
@@ -23875,6 +23993,16 @@ ssl_fc_session_key : binary
   traffic sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or
   BoringSSL.
 
+ssl_fc_sigalgs_bin([<filter_option>]) : binary
+  Returns the content of the signatures_algorithms (13) TLS extension presented
+  during the Client Hello. It provides a binary list of 2-bytes algorithms
+  defined in the TLS RFC: https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.3.
+
+  This value can return only if the value "tune.ssl.capture-buffer-size" is set
+  greater than 0. Setting <filter_option> allows to filter returned data.
+  Accepted values:
+  0 : return the full list of ciphers (default)
+  1 : exclude GREASE (RFC8701) values from the output
 
 ssl_fc_sni : string
   This extracts the Server Name Indication TLS extension (SNI) field from an
@@ -23902,6 +24030,17 @@ ssl_fc_sni : string
   ACL derivatives :
     ssl_fc_sni_end : suffix match
     ssl_fc_sni_reg : regex match
+
+ssl_fc_supported_versions_bin([<filter_option>]) : binary
+  Returns the content of the supported_versions (43) TLS extension presented
+  during the Client Hello. It provides a binary list of 2-bytes versions.
+  TLSv1.3 (0x0304), TLSv1.2 (0x0303).
+
+  This value can return only if the value "tune.ssl.capture-buffer-size" is set
+  greater than 0. Setting <filter_option> allows to filter returned data.
+  Accepted values:
+  0 : return the full list of ciphers (default)
+  1 : exclude GREASE (RFC8701) values from the output
 
 ssl_fc_use_keysize : integer
   Returns the symmetric cipher key size used in bits when the incoming
@@ -24919,8 +25058,8 @@ path : string
   the derivative forms. See also the "url" and "base" fetch methods. Please
   note that any fragment reference in the URI ('#' after the path) is strictly
   forbidden by the HTTP standard and will be rejected. However, if the frontend
-  receiving the request has "option accept-invalid-http-request", then this
-  fragment part will be accepted and will also appear in the path.
+  receiving the request has "option accept-unsafe-violations-in-http-request",
+  then this fragment part will be accepted and will also appear in the path.
 
   ACL derivatives :
     path     : exact string match
@@ -24941,8 +25080,8 @@ pathq : string
   result in both cases. Please note that any fragment reference in the URI ('#'
   after the path) is strictly forbidden by the HTTP standard and will be
   rejected. However, if the frontend receiving the request has "option
-  accept-invalid-http-request", then this fragment part will be accepted and
-  will also appear in the path.
+  accept-unsafe-violations-in-http-request", then this fragment part will be
+  accepted and will also appear in the path.
 
 query : string
   This extracts the request's query string, which starts after the first
@@ -25210,8 +25349,8 @@ url : string
   also "path" and "base". Please note that any fragment reference in the URI
   ('#' after the path) is strictly forbidden by the HTTP standard and will be
   rejected. However, if the frontend receiving the request has "option
-  accept-invalid-http-request", then this fragment part will be accepted and
-  will also appear in the url.
+  accept-unsafe-violations-in-http-request", then this fragment part will be
+  accepted and will also appear in the url.
 
   ACL derivatives :
     url     : exact string match
@@ -25793,6 +25932,8 @@ instead. Refer to section 8.2.6 "Custom log format" to see how to use this:
     # strict equivalent of "option httplog"
     log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC \
                 %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"
+    # or using the HAPROXY_HTTP_LOG_FMT variable
+    log-format "${HAPROXY_HTTP_LOG_FMT}"
 
 And the CLF log format is internally declared as a custom log format based on
 this exact string:
@@ -25801,8 +25942,6 @@ this exact string:
     log-format "%{+Q}o %{-Q}ci - - [%trg] %r %ST %B \"\" \"\" %cp \
                 %ms %ft %b %s %TR %Tw %Tc %Tr %Ta %tsc %ac %fc \
                 %bc %sc %rc %sq %bq %CC %CS %hrl %hsl"
-    # or using the HAPROXY_HTTP_LOG_FMT variable
-    log-format "${HAPROXY_HTTP_LOG_FMT}"
 
 Most fields are shared with the TCP log, some being different. A few fields may
 slightly vary depending on some configuration options. Those ones are marked
@@ -26251,7 +26390,7 @@ quoted ("Q") and escaped ("E") string formats.
 Special alias "%OG" may be used to retrieve the log origin (when / where
 the log was generated) in a human readable format. It is particularly useful
 with "option logasap" because some log variables or sample fetches could report
-incomplete values or behave diffently depending on when / where the logformat
+incomplete values or behave differently depending on when / where the logformat
 expression was evaluated. Possible values are:
   - "sess_error": log was generated during session error handling
   - "sess_killed": log was generated during session abortion (killed
@@ -27570,7 +27709,7 @@ SPOE communicates with external components using an in-house binary protocol,
 the Stream Processing Offload Protocol (SPOP).
 
 When the SPOE is used on a stream, a dedicated stream is spawned to handle the
-communcation with the external component. The main stream is the parent stream
+communication with the external component. The main stream is the parent stream
 of this "SPOE" stream. It means it is possible to retrieve variables of the
 main stream from the "SPOE" stream. See section 2.8 about variables for
 details.
@@ -28246,6 +28385,27 @@ report this to the maintainers.
                                  statement using this address, a port or port
                                  range can or must be specified.
                                  It is considered as an alias of 'stream+ipv4@'.
+
+'mptcp@<address>[:port1[-port2]]' following <address> is considered as an IPv4
+                                  or IPv6 address depending of the syntax but
+                                  socket type and transport method is forced to
+                                  "stream", with the MPTCP protocol. Depending
+                                  on the statement using this address, a port or
+                                  a port range can or must be specified.
+
+'mptcp4@<address>[:port1[-port2]]' following <address> is always considered as
+                                   an IPv4 address but socket type and transport
+                                   method is forced to "stream", with the MPTCP
+                                   protocol. Depending on the statement using
+                                   this address, a port or port range can or
+                                   must be specified.
+
+'mptcp6@<address>[:port1[-port2]]' following <address> is always considered as
+                                   an IPv6 address but socket type and transport
+                                   method is forced to "stream", with the MPTCP
+                                   protocol. Depending on the statement using
+                                   this address, a port or port range can or
+                                   must be specified.
 
 'udp@<address>[:port1[-port2]]' following <address> is considered as an IPv4
                                 or IPv6 address depending of the syntax but

@@ -392,7 +392,7 @@ static inline void se_need_remote_conn(struct sedesc *se)
 
 /* The application layer tells the stream connector that it just got the input
  * buffer it was waiting for. A read activity is reported. The SC_FL_HAVE_BUFF
- * flag is set and held until sc_used_buff() is called to indicatee it was
+ * flag is set and held until sc_used_buff() is called to indicate it was
  * used.
  */
 static inline void sc_have_buff(struct stconn *sc)

@@ -96,7 +96,7 @@ enum spop_conn_st {
 	SPOP_CS_AGENT_HELLO,     /* HELLO frame sent, waiting for agent HELLO frame to define the connection settings */
 	SPOP_CS_FRAME_H,       /* HELLO handshake finished, waiting for a frame header */
 	SPOP_CS_FRAME_P,       /* Frame header received, waiting for a frame data */
-	SPOP_CS_ERROR,         /* send DISCONNECT frame to be able ti close the conneciton */
+	SPOP_CS_ERROR,         /* send DISCONNECT frame to be able ti close the connection */
 	SPOP_CS_CLOSING,       /* DISCONNECT frame sent, waiting for the agent DISCONNECT frame before closing */
 	SPOP_CS_CLOSED,        /* Agent DISCONNECT frame received and  close the connection ASAP */
 	SPOP_CS_ENTRIES

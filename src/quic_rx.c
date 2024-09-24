@@ -27,6 +27,7 @@
 #include <haproxy/quic_stream.h>
 #include <haproxy/quic_ssl.h>
 #include <haproxy/quic_tls.h>
+#include <haproxy/quic_token.h>
 #include <haproxy/quic_trace.h>
 #include <haproxy/quic_tx.h>
 #include <haproxy/ssl_sock.h>
@@ -1522,6 +1523,47 @@ static inline int quic_padding_check(const unsigned char *pos,
 	return pos == end;
 }
 
+/* Validate the token, retry or not (provided by NEW_TOKEN) parsed into
+ * <pkt> RX packet from <dgram> datagram.
+ * Return 1 if succeded, 0 if not.
+ */
+static inline int quic_token_validate(struct quic_rx_packet *pkt,
+                                      struct quic_dgram *dgram,
+                                      struct listener *l, struct quic_conn *qc,
+                                      struct quic_cid *odcid)
+{
+	int ret = 0;
+
+	TRACE_ENTER(QUIC_EV_CONN_LPKT, qc);
+
+	switch (*pkt->token) {
+	case QUIC_TOKEN_FMT_RETRY:
+		ret = quic_retry_token_check(pkt, dgram, l, qc, odcid);
+		break;
+	case QUIC_TOKEN_FMT_NEW:
+		ret = quic_token_check(pkt, dgram, qc);
+		if (!ret) {
+			/* Fallback to a retry token in case of any error. */
+			dgram->flags |= QUIC_DGRAM_FL_SEND_RETRY;
+		}
+		break;
+	default:
+		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc, NULL, NULL, pkt->version);
+		break;
+	}
+
+	if (!ret)
+		goto err;
+
+	ret = 1;
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc);
+	return ret;
+ err:
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_LPKT, qc);
+	goto leave;
+}
+
 /* Find the associated connection to the packet <pkt> or create a new one if
  * this is an Initial packet. <dgram> is the datagram containing the packet and
  * <l> is the listener instance on which it was received.
@@ -1581,9 +1623,25 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 			}
 
 			if (pkt->token_len) {
-				/* Validate the token only when connection is unknown. */
-				if (!quic_retry_token_check(pkt, dgram, l, qc, &token_odcid))
+				TRACE_PROTO("Initial with token", QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+				/* Validate the token, retry or not only when connection is unknown. */
+				if (!quic_token_validate(pkt, dgram, l, qc, &token_odcid)) {
+					if (dgram->flags & QUIC_DGRAM_FL_SEND_RETRY) {
+						if (send_retry(l->rx.fd, &dgram->saddr, pkt, pkt->version)) {
+							TRACE_ERROR("Error during Retry generation",
+							            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+						}
+						else
+							HA_ATOMIC_INC(&prx_counters->retry_sent);
+
+						goto out;
+					}
+
 					goto err;
+				}
+			}
+			else {
+				TRACE_PROTO("Initial without token", QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
 			}
 
 			if (!quic_init_exec_rules(l, dgram)) {

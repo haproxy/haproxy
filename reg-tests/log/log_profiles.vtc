@@ -5,7 +5,7 @@ feature ignore_unknown_macro
 barrier b1 cond 4 -cyclic
 barrier b2 cond 4 -cyclic
 barrier b3 cond 3 -cyclic
-barrier b4 cond 2 -cyclic
+barrier b4 cond 3 -cyclic
 
 server s1 {
     rxreq
@@ -69,7 +69,7 @@ syslog Slg3 -level info {
 syslog Slg4 -level info {
     recv
     #rfc5424, logprof3, tcp error (other steps should be dropped)
-    expect ~ ".* custom ${h1_pid} .* error"
+    expect ~ ".* haproxy ${h1_pid} .* error"
     barrier b4 sync
 } -start
 
@@ -118,6 +118,7 @@ haproxy h1 -conf {
 		mode http
 		log-format "%B"
 		log udp@${Slg3_addr}:${Slg3_port} format rfc5424 profile logprof2 local0
+		log udp@${Slg4_addr}:${Slg4_port} format rfc5424 profile logprof3 local0
 
 	log-profile logprof1
 		on close format "close" sd "sdclose"
@@ -181,3 +182,4 @@ barrier b4 sync
 syslog Slg1 -wait
 syslog Slg2 -wait
 syslog Slg3 -wait
+syslog Slg4 -wait

@@ -118,7 +118,7 @@ enum {
 
 /* MQTT minimal packet size */
 #define MQTT_MIN_PKT_SIZE              2
-#define MQTT_REMAINING_LENGHT_MAX_SIZE 4
+#define MQTT_REMAINING_LENGTH_MAX_SIZE 4
 
 /* list of supported capturable Field Names and configuration file string */
 enum {
