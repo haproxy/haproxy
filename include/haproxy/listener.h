@@ -94,7 +94,7 @@ void enable_listener(struct listener *listener);
 void dequeue_all_listeners(void);
 
 /* Dequeues all listeners waiting for a resource in proxy <px>'s queue */
-void dequeue_proxy_listeners(struct proxy *px);
+void dequeue_proxy_listeners(struct proxy *px, int lpx);
 
 /* This function closes the listening socket for the specified listener,
  * provided that it's already in a listening state. The listener enters the
