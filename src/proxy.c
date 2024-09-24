@@ -2045,7 +2045,7 @@ struct task *manage_proxy(struct task *t, void *context, unsigned int state)
 	}
 
 	/* The proxy is not limited so we can re-enable any waiting listener */
-	dequeue_proxy_listeners(p);
+	dequeue_proxy_listeners(p, 0);
  out:
 	t->expire = next;
 	task_queue(t);
@@ -3041,7 +3041,7 @@ static int cli_parse_set_maxconn_frontend(char **args, char *payload, struct app
 	}
 
 	if (px->maxconn > px->feconn)
-		dequeue_proxy_listeners(px);
+		dequeue_proxy_listeners(px, 1);
 
 	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &px->lock);
 

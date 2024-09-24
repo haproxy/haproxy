@@ -602,7 +602,7 @@ void dequeue_all_listeners()
 }
 
 /* Dequeues all listeners waiting for a resource in proxy <px>'s queue */
-void dequeue_proxy_listeners(struct proxy *px)
+void dequeue_proxy_listeners(struct proxy *px, int lpx)
 {
 	struct listener *listener;
 
@@ -610,7 +610,7 @@ void dequeue_proxy_listeners(struct proxy *px)
 		/* This cannot fail because the listeners are by definition in
 		 * the LI_LIMITED state.
 		 */
-		resume_listener(listener, 0);
+		resume_listener(listener, lpx);
 	}
 }
 
@@ -1187,7 +1187,7 @@ void listener_accept(struct listener *l)
 
 		if (p && !MT_LIST_ISEMPTY(&p->listener_queue) &&
 		    (!p->fe_sps_lim || freq_ctr_remain(&p->fe_sess_per_sec, p->fe_sps_lim, 0) > 0))
-			dequeue_proxy_listeners(p);
+			dequeue_proxy_listeners(p, 0);
 	}
 	return;
 
@@ -1246,7 +1246,7 @@ void listener_release(struct listener *l)
 
 	if (fe && !MT_LIST_ISEMPTY(&fe->listener_queue) &&
 	    (!fe->fe_sps_lim || freq_ctr_remain(&fe->fe_sess_per_sec, fe->fe_sps_lim, 0) > 0))
-		dequeue_proxy_listeners(fe);
+		dequeue_proxy_listeners(fe, 0);
 }
 
 /* Initializes the listener queues. Returns 0 on success, otherwise ERR_* flags */
