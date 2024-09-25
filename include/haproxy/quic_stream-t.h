@@ -46,7 +46,8 @@ struct qc_stream_desc {
 
 	int flags; /* QC_SD_FL_* values */
 
-	void *ctx; /* MUX specific context */
+	void (*notify_send)(struct qc_stream_desc *, uint64_t offset, uint64_t len);
+	void *ctx; /* notify context */
 };
 
 #endif /* USE_QUIC */

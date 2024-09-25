@@ -20,5 +20,22 @@ struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
 struct buffer *qc_stream_buf_realloc(struct qc_stream_desc *stream);
 void qc_stream_buf_release(struct qc_stream_desc *stream);
 
+/* Reports emission of STREAM frame starting at <offset> and of length <len>,
+ * related to <stream> data storage.
+ */
+static inline void qc_stream_desc_send(struct qc_stream_desc *stream,
+                                       uint64_t offset, uint64_t len)
+{
+	if (stream->notify_send)
+		stream->notify_send(stream, len, offset);
+}
+
+/* Subscribe for send notification on <stream>. */
+static inline void qc_stream_desc_sub_send(struct qc_stream_desc *stream,
+                                           void (*cb)(struct qc_stream_desc *s, uint64_t offset, uint64_t len))
+{
+	stream->notify_send = cb;
+}
+
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_QUIC_STREAM_H_ */
