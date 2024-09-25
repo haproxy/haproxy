@@ -334,6 +334,7 @@ enum stat_idx_info {
 	ST_I_INF_MAXCONN_REACHED,
 	ST_I_INF_BOOTTIME_MS,
 	ST_I_INF_NICED_TASKS,
+	ST_I_INF_CURR_STRM,
 
 	/* must always be the last one */
 	ST_I_INF_MAX

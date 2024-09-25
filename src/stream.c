@@ -546,6 +546,7 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	s->tunnel_timeout = TICK_ETERNITY;
 
 	LIST_APPEND(&th_ctx->streams, &s->list);
+	_HA_ATOMIC_INC(&th_ctx->stream_cnt);
 
 	if (flt_stream_init(s) < 0 || flt_stream_start(s) < 0)
 		goto out_fail_accept;
@@ -716,6 +717,7 @@ void stream_free(struct stream *s)
 		__ha_barrier_store();
 	}
 	LIST_DELETE(&s->list);
+	_HA_ATOMIC_DEC(&th_ctx->stream_cnt);
 
 	sc_destroy(s->scb);
 	sc_destroy(s->scf);
