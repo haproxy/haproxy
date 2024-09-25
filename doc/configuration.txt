@@ -14595,6 +14595,7 @@ set-priority-class             -           -     -     X     -            X   - 
 set-priority-offset            -           -     -     X     -            X   -   -
 --keyword---------------QUIC--Ini---TCP--RqCon-RqSes-RqCnt-RsCnt---HTTP--Req-Res-Aft-
 set-query                      -           -     -     -     -            X   -   -
+set-retries                    -           -     -     X     -            X   -   -
 set-src                        -           X     X     X     -            X   -   -
 set-src-port                   -           X     X     X     -            X   -   -
 set-status                     -           -     -     -     -            -   X   X
@@ -15771,6 +15772,22 @@ set-query <fmt>
     # replace "%3D" with "=" in the query string
     http-request set-query %[query,regsub(%3D,=,g)]
 
+
+set-retries <int> | <epxr>
+  Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
+                    - |          -  |   -  |   X  |   -  |          X |  - |  -
+
+  This action overrides the specified "retries" value for the current stream
+  only. It can be an integer value, in the range [0, 100], or an expression
+  which must return a integer in the range [0, 100].
+
+  Note that this action is only relevant on the backend side and thus this rule
+  is only available for the proxies with backend capability. It is also not
+  allowed in "defaults" sections.
+
+  Example:
+    tcp-request content set-retries 3
+    http-request set-retries var(txn.retries)
 
 set-src <expr>
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft

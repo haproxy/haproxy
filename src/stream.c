@@ -430,7 +430,8 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 
 	s->task = t;
 	s->pending_events = 0;
-	s->conn_retries = s->max_retries = 0;
+	s->conn_retries = 0;
+	s->max_retries = 0;
 	s->conn_exp = TICK_ETERNITY;
 	s->conn_err_type = STRM_ET_NONE;
 	s->prev_conn_state = SC_ST_INI;
@@ -1123,7 +1124,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 
 	}
 
-	/* Se the max connection retries for the stream. */
+	/* Se the max connection retries for the stream. may be overwriten later */
 	s->max_retries = s->be->conn_retries;
 
 	/* we don't want to run the TCP or HTTP filters again if the backend has not changed */
@@ -2893,6 +2894,87 @@ struct ist stream_generate_unique_id(struct stream *strm, struct lf_expr *format
 /************************************************************************/
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/
+static enum act_return stream_action_set_retries(struct act_rule *rule, struct proxy *px,
+						   struct session *sess, struct stream *s, int flags)
+{
+	struct sample *smp;
+
+	if (!rule->arg.expr_int.expr)
+		s->max_retries = rule->arg.expr_int.value;
+	else  {
+		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr_int.expr, SMP_T_SINT);
+		if (!smp || smp->data.u.sint < 0 || smp->data.u.sint > 100)
+			goto end;
+		s->max_retries = smp->data.u.sint;
+	}
+
+  end:
+	return ACT_RET_CONT;
+}
+
+
+/* Parse a "set-retries" action. It takes the level value as argument. It
+ * returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret stream_parse_set_retries(const char **args, int *cur_arg, struct proxy *px,
+						   struct act_rule *rule, char **err)
+{
+	struct sample_expr *expr;
+	char *endp;
+	unsigned int where;
+
+	if (!*args[*cur_arg]) {
+	  bad_retries:
+		memprintf(err, "expects exactly 1 argument (an expression or an integer between 1 and 100)");
+		return ACT_RET_PRS_ERR;
+	}
+	if (!(px->cap & PR_CAP_BE)) {
+		memprintf(err, "'%s' only available in backend or listen section", args[0]);
+		return ACT_RET_PRS_ERR;
+	}
+	if (px->cap & PR_CAP_DEF) {
+		memprintf(err, "'%s' is not allowed in 'defaults' sections", args[0]);
+		return ACT_RET_PRS_ERR;
+	}
+
+	/* value may be either an unsigned integer or an expression */
+	rule->arg.expr_int.expr = NULL;
+	rule->arg.expr_int.value = strtol(args[*cur_arg], &endp, 0);
+	if (*endp == '\0') {
+		if (rule->arg.expr_int.value < 0  || rule->arg.expr_int.value > 100) {
+			memprintf(err, "expects an expression or an integer between 1 and 100");
+			return ACT_RET_PRS_ERR;
+		}
+		/* valid unsigned integer */
+		(*cur_arg)++;
+	}
+	else {		/* invalid unsigned integer, fallback to expr */
+		expr = sample_parse_expr((char **)args, cur_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args, NULL);
+		if (!expr)
+			return ACT_RET_PRS_ERR;
+		where = 0;
+		if (px->cap & PR_CAP_FE)
+			where |= SMP_VAL_FE_HRQ_HDR;
+		if (px->cap & PR_CAP_BE)
+			where |= SMP_VAL_BE_HRQ_HDR;
+
+		if (!(expr->fetch->val & where)) {
+			memprintf(err,
+				  "fetch method '%s' extracts information from '%s', none of which is available here",
+				  args[*cur_arg-1], sample_src_names(expr->fetch->use));
+			free(expr);
+			return ACT_RET_PRS_ERR;
+		}
+		rule->arg.expr_int.expr = expr;
+	}
+
+	/* Register processing function. */
+	rule->action = ACT_CUSTOM;
+	rule->action_ptr = stream_action_set_retries;
+	rule->release_ptr = release_expr_int_action;
+	return ACT_RET_PRS_OK;
+}
+
 static enum act_return stream_action_set_log_level(struct act_rule *rule, struct proxy *px,
 						   struct session *sess, struct stream *s, int flags)
 {
@@ -3907,6 +3989,7 @@ INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 /* main configuration keyword registration. */
 static struct action_kw_list stream_tcp_req_keywords = { ILH, {
+	{ "set-retries",   stream_parse_set_retries },
 	{ "set-log-level", stream_parse_set_log_level },
 	{ "set-nice",      stream_parse_set_nice },
 	{ "switch-mode",   stream_parse_switch_mode },
@@ -3926,6 +4009,7 @@ static struct action_kw_list stream_tcp_res_keywords = { ILH, {
 INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &stream_tcp_res_keywords);
 
 static struct action_kw_list stream_http_req_keywords = { ILH, {
+	{ "set-retries",   stream_parse_set_retries },
 	{ "set-log-level", stream_parse_set_log_level },
 	{ "set-nice",      stream_parse_set_nice },
 	{ "use-service",   stream_parse_use_service },
