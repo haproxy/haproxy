@@ -117,6 +117,14 @@ static inline void release_timeout_action(struct act_rule *rule)
 	release_sample_expr(rule->arg.timeout.expr);
 }
 
+/*
+ * Release expr_int rule argument when action is no longer used
+ */
+static inline void release_expr_int_action(struct act_rule *rule)
+{
+	release_sample_expr(rule->arg.expr_int.expr);
+}
+
 struct act_rule *new_act_rule(enum act_from from, const char *file, int linenum);
 void free_act_rules(struct list *rules);
 void dump_act_rules(const struct list *rules, const char *pfx);

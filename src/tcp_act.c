@@ -24,7 +24,7 @@
 #include <netinet/tcp.h>
 #include <netinet/in.h>
 
-#include <haproxy/action-t.h>
+#include <haproxy/action.h>
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
 #include <haproxy/channel.h>
@@ -482,14 +482,6 @@ static void release_attach_srv_action(struct act_rule *rule)
 static void release_set_src_dst_action(struct act_rule *rule)
 {
 	release_sample_expr(rule->arg.expr);
-}
-
-/*
- * Release expr_int rule argument when action is no longer used
- */
-static __maybe_unused void release_expr_int_action(struct act_rule *rule)
-{
-	release_sample_expr(rule->arg.expr_int.expr);
 }
 
 static int tcp_check_attach_srv(struct act_rule *rule, struct proxy *px, char **err)
