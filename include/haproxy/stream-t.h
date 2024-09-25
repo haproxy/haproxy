@@ -234,6 +234,7 @@ struct stream {
 					 * This is a bit field of TASK_WOKEN_* */
 	int conn_retries;               /* number of connect retries performed */
 	unsigned int conn_exp;          /* wake up time for connect, queue, turn-around, ... */
+	unsigned int max_retries;     /* Maximum number of connection retried (=0 is backend is not set) */
 	unsigned int conn_err_type;     /* first error detected, one of STRM_ET_* */
 
 	struct stream *parent;          /* Pointer to the parent stream, if any. NULL most of time */

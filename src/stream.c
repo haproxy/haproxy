@@ -430,7 +430,7 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 
 	s->task = t;
 	s->pending_events = 0;
-	s->conn_retries = 0;
+	s->conn_retries = s->max_retries = 0;
 	s->conn_exp = TICK_ETERNITY;
 	s->conn_err_type = STRM_ET_NONE;
 	s->prev_conn_state = SC_ST_INI;
@@ -1122,6 +1122,9 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 		}
 
 	}
+
+	/* Se the max connection retries for the stream. */
+	s->max_retries = s->be->conn_retries;
 
 	/* we don't want to run the TCP or HTTP filters again if the backend has not changed */
 	if (fe == s->be) {
