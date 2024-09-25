@@ -707,8 +707,12 @@ void dequeue_all_listeners()
 	}
 }
 
-/* Dequeues all listeners waiting for a resource in proxy <px>'s queue */
-void dequeue_proxy_listeners(struct proxy *px)
+/* Dequeues all listeners waiting for a resource in proxy <px>'s queue
+ * The caller is responsible for indicating in lpx, whether the proxy's lock
+ * is already held (non-zero) or not (zero) so that this information can be
+ * passed to relax_listener
+*/
+void dequeue_proxy_listeners(struct proxy *px, int lpx)
 {
 	struct listener *listener;
 
@@ -716,7 +720,7 @@ void dequeue_proxy_listeners(struct proxy *px)
 		/* This cannot fail because the listeners are by definition in
 		 * the LI_LIMITED state.
 		 */
-		relax_listener(listener, 0, 0);
+		relax_listener(listener, lpx, 0);
 	}
 }
 
@@ -1558,7 +1562,7 @@ void listener_accept(struct listener *l)
 
 		if (p && !MT_LIST_ISEMPTY(&p->listener_queue) &&
 		    (!p->fe_sps_lim || freq_ctr_remain(&p->fe_counters.sess_per_sec, p->fe_sps_lim, 0) > 0))
-			dequeue_proxy_listeners(p);
+			dequeue_proxy_listeners(p, 0);
 	}
 	return;
 
@@ -1617,7 +1621,7 @@ void listener_release(struct listener *l)
 
 	if (fe && !MT_LIST_ISEMPTY(&fe->listener_queue) &&
 	    (!fe->fe_sps_lim || freq_ctr_remain(&fe->fe_counters.sess_per_sec, fe->fe_sps_lim, 0) > 0))
-		dequeue_proxy_listeners(fe);
+		dequeue_proxy_listeners(fe, 0);
 	else {
 		unsigned int wait;
 		int expire = TICK_ETERNITY;
