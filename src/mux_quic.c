@@ -33,6 +33,7 @@ DECLARE_POOL(pool_head_qcc, "qcc", sizeof(struct qcc));
 DECLARE_POOL(pool_head_qcs, "qcs", sizeof(struct qcs));
 
 static void qmux_ctrl_send(struct qc_stream_desc *, uint64_t data, uint64_t offset);
+static void qmux_ctrl_room(struct qc_stream_desc *, uint64_t room);
 
 static void qcs_free_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
 {
@@ -82,7 +83,7 @@ static void qcs_free(struct qcs *qcs)
 	/* Release qc_stream_desc buffer from quic-conn layer. */
 	if (qcs->stream) {
 		qc_stream_desc_sub_send(qcs->stream, NULL);
-		qc_stream_desc_release(qcs->stream, qcs->tx.fc.off_real);
+		qc_stream_desc_release(qcs->stream, qcs->tx.fc.off_real, qcc);
 	}
 
 	/* Free Rx buffer. */
@@ -186,6 +187,7 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 		}
 
 		qc_stream_desc_sub_send(qcs->stream, qmux_ctrl_send);
+		qc_stream_desc_sub_room(qcs->stream, qmux_ctrl_room);
 	}
 
 	if (qcc->app_ops->attach && qcc->app_ops->attach(qcs, qcc->ctx)) {
@@ -634,6 +636,14 @@ static inline int qcc_bufwnd_full(const struct qcc *qcc)
 	return qcc->tx.buf_in_flight >= qc->path->cwnd;
 }
 
+static void qmux_ctrl_room(struct qc_stream_desc *stream, uint64_t room)
+{
+	/* Context is different for active and released streams. */
+	struct qcc *qcc = !(stream->flags & QC_SD_FL_RELEASE) ?
+	  ((struct qcs *)stream->ctx)->qcc : stream->ctx;
+	qcc_notify_buf(qcc, room);
+}
+
 /* Report that one or several stream-desc buffers have been released for <qcc>
  * connection. <free_size> represent the sum of freed buffers sizes. May also
  * be used to notify about congestion window increase, in which case
@@ -841,7 +851,8 @@ void qcs_send_metadata(struct qcs *qcs)
 	/* Cannot use if some data already transferred for this stream. */
 	BUG_ON(qcs->stream->ack_offset || !LIST_ISEMPTY(&qcs->stream->buf_list));
 
-	qcs->stream->flags |= QC_SD_FL_OOB_BUF;
+	qcs->flags |= QC_SF_TXBUB_OOB;
+	qc_stream_desc_sub_room(qcs->stream, NULL);
 }
 
 struct stconn *qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
@@ -1149,7 +1160,6 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err, int small)
 {
 	struct qcc *qcc = qcs->qcc;
 	struct buffer *out = qc_stream_buf_get(qcs->stream);
-	const int unlimited = qcs->stream->flags & QC_SD_FL_OOB_BUF;
 
 	/* Stream must not try to reallocate a buffer if currently waiting for one. */
 	BUG_ON(LIST_INLIST(&qcs->el_buf));
@@ -1157,7 +1167,7 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err, int small)
 	*err = 0;
 
 	if (!out) {
-		if (likely(!unlimited)) {
+		if (likely(!(qcs->flags & QC_SF_TXBUB_OOB))) {
 			if ((qcc->flags & QC_CF_CONN_FULL)) {
 				LIST_APPEND(&qcc->buf_wait_list, &qcs->el_buf);
 				tot_time_start(&qcs->timer.buf);
@@ -1180,7 +1190,7 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err, int small)
 			goto out;
 		}
 
-		if (likely(!unlimited))
+		if (likely(!(qcs->flags & QC_SF_TXBUB_OOB)))
 			qcc->tx.buf_in_flight += b_size(out);
 	}
 
@@ -1199,12 +1209,11 @@ struct buffer *qcc_realloc_stream_txbuf(struct qcs *qcs)
 {
 	struct qcc *qcc = qcs->qcc;
 	struct buffer *out = qc_stream_buf_get(qcs->stream);
-	const int unlimited = qcs->stream->flags & QC_SD_FL_OOB_BUF;
 
 	/* Stream must not try to reallocate a buffer if currently waiting for one. */
 	BUG_ON(LIST_INLIST(&qcs->el_buf));
 
-	if (likely(!unlimited)) {
+	if (likely(!(qcs->flags & QC_SF_TXBUB_OOB))) {
 		/* Reduce buffer window. As such there is always some space
 		 * left for a new buffer allocation.
 		 */
@@ -1218,7 +1227,7 @@ struct buffer *qcc_realloc_stream_txbuf(struct qcs *qcs)
 		goto out;
 	}
 
-	if (likely(!unlimited))
+	if (likely(!(qcs->flags & QC_SF_TXBUB_OOB)))
 		qcc->tx.buf_in_flight += b_size(out);
 
  out:
@@ -2617,6 +2626,7 @@ static void qcc_release(struct qcc *qcc)
 {
 	struct connection *conn = qcc->conn;
 	struct eb64_node *node;
+	struct quic_conn *qc = conn->handle.qc;
 
 	TRACE_ENTER(QMUX_EV_QCC_END, conn);
 
@@ -2631,6 +2641,14 @@ static void qcc_release(struct qcc *qcc)
 		struct qcs *qcs = eb64_entry(node, struct qcs, by_id);
 		node = eb64_next(node);
 		qcs_free(qcs);
+	}
+
+	/* unsubscribe from all remaining qc_stream_desc */
+	node = eb64_first(&qc->streams_by_id);
+	while (node) {
+		struct qc_stream_desc *stream = eb64_entry(node, struct qc_stream_desc, by_id);
+		qc_stream_desc_sub_room(stream, NULL);
+		node = eb64_next(node);
 	}
 
 	tasklet_free(qcc->wait_event.tasklet);

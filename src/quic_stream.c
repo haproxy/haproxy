@@ -28,7 +28,6 @@ static inline int qc_stream_desc_done(const struct qc_stream_desc *s)
 static void qc_stream_buf_free(struct qc_stream_desc *stream,
                                struct qc_stream_buf **stream_buf)
 {
-	struct quic_conn *qc = stream->qc;
 	struct buffer *buf = &(*stream_buf)->buf;
 	uint64_t free_size;
 
@@ -50,12 +49,8 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 	*stream_buf = NULL;
 
 	/* notify MUX about available buffers. */
-	if (qc->mux_state == QC_MUX_READY) {
-		if (!(stream->flags & QC_SD_FL_OOB_BUF)) {
-			/* notify MUX about available buffers. */
-			qcc_notify_buf(qc->qcc, free_size);
-		}
-	}
+	if (stream->notify_room)
+		stream->notify_room(stream, free_size);
 }
 
 /* Allocate a new stream descriptor with id <id>. The caller is responsible to
@@ -92,6 +87,7 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type type, void 
 	stream->flags = 0;
 	stream->ctx = ctx;
 	stream->notify_send = NULL;
+	stream->notify_room = NULL;
 
 	return stream;
 }
@@ -102,15 +98,19 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type type, void 
  * <final_size> corresponds to the last offset sent for this stream. If there
  * is unsent data present, they will be remove first to guarantee that buffer
  * is freed after receiving all acknowledges.
+ *
+ * It is expected that upper layer instance related to <stream> may disappear
+ * after this operation. As such, <new_ctx> must be set to reassociate <stream>
+ * for notifications.
  */
 void qc_stream_desc_release(struct qc_stream_desc *stream,
-                            uint64_t final_size)
+                            uint64_t final_size, void *new_ctx)
 {
 	/* A stream can be released only one time. */
 	BUG_ON(stream->flags & QC_SD_FL_RELEASE);
 
 	stream->flags |= QC_SD_FL_RELEASE;
-	stream->ctx = NULL;
+	stream->ctx = new_ctx;
 
 	if (stream->buf) {
 		struct qc_stream_buf *stream_buf = stream->buf;

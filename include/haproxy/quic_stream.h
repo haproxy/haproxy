@@ -10,7 +10,8 @@ struct quic_conn;
 
 struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type, void *ctx,
                                           struct quic_conn *qc);
-void qc_stream_desc_release(struct qc_stream_desc *stream, uint64_t final_size);
+void qc_stream_desc_release(struct qc_stream_desc *stream, uint64_t final_size,
+                            void *new_ctx);
 int qc_stream_desc_ack(struct qc_stream_desc **stream, size_t offset, size_t len, int fin);
 void qc_stream_desc_free(struct qc_stream_desc *stream, int closing);
 
@@ -35,6 +36,13 @@ static inline void qc_stream_desc_sub_send(struct qc_stream_desc *stream,
                                            void (*cb)(struct qc_stream_desc *s, uint64_t offset, uint64_t len))
 {
 	stream->notify_send = cb;
+}
+
+/* Subscribe for room notification on <stream>. */
+static inline void qc_stream_desc_sub_room(struct qc_stream_desc *stream,
+                                           void (*cb)(struct qc_stream_desc *s, uint64_t offset))
+{
+	stream->notify_room = cb;
 }
 
 #endif /* USE_QUIC */
