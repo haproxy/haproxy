@@ -219,7 +219,7 @@ static int quic_stream_try_to_consume(struct quic_conn *qc,
 		struct qf_stream *strm_frm;
 		struct quic_frame *frm;
 		size_t offset, len;
-		int fin;
+		int fin, ack;
 
 		strm_frm = eb64_entry(frm_node, struct qf_stream, offset);
 		frm = container_of(strm_frm, struct quic_frame, stream);
@@ -230,21 +230,11 @@ static int quic_stream_try_to_consume(struct quic_conn *qc,
 		if (offset > stream->ack_offset)
 			break;
 
-		if (qc_stream_desc_ack(&stream, offset, len, fin)) {
-			/* cf. next comment : frame may be freed at this stage. */
+		ack = qc_stream_desc_ack(stream, offset, len, fin);
+		if (ack) {
 			TRACE_DEVEL("stream consumed", QUIC_EV_CONN_ACKSTRM,
-			            qc, stream ? strm_frm : NULL, stream);
+			            qc, strm_frm, stream);
 			ret = 1;
-		}
-
-		/* If stream is NULL after qc_stream_desc_ack(), it means frame
-		 * has been freed. with the stream frames tree. Nothing to do
-		 * anymore in here.
-		 */
-		if (!stream) {
-			qc_check_close_on_released_mux(qc);
-			ret = 1;
-			goto leave;
 		}
 
 		frm_node = eb64_next(frm_node);
@@ -253,7 +243,6 @@ static int quic_stream_try_to_consume(struct quic_conn *qc,
 		qc_release_frm(qc, frm);
 	}
 
- leave:
 	TRACE_LEAVE(QUIC_EV_CONN_ACKSTRM, qc);
 	return ret;
 }
@@ -276,6 +265,7 @@ static void qc_handle_newly_acked_frm(struct quic_conn *qc, struct quic_frame *f
 		const size_t offset = strm_frm->offset.key;
 		const size_t len = strm_frm->len;
 		const int fin = frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT;
+		int ack;
 
 		/* do not use strm_frm->stream as the qc_stream_desc instance
 		 * might be freed at this stage. Use the id to do a proper
@@ -295,28 +285,25 @@ static void qc_handle_newly_acked_frm(struct quic_conn *qc, struct quic_frame *f
 
 		TRACE_DEVEL("acked stream", QUIC_EV_CONN_ACKSTRM, qc, strm_frm, stream);
 		if (offset <= stream->ack_offset) {
-			if (qc_stream_desc_ack(&stream, offset, len, fin)) {
+			ack = qc_stream_desc_ack(stream, offset, len, fin);
+			if (ack || fin) {
 				TRACE_DEVEL("stream consumed", QUIC_EV_CONN_ACKSTRM,
 				            qc, strm_frm, stream);
+
+				quic_stream_try_to_consume(qc, stream);
+
+				if (qc_stream_desc_done(stream)) {
+					/* no need to continue if stream freed. */
+					TRACE_DEVEL("stream released and freed", QUIC_EV_CONN_ACKSTRM, qc);
+					qc_check_close_on_released_mux(qc);
+				}
 			}
 
-			if (!stream) {
-				/* no need to continue if stream freed. */
-				TRACE_DEVEL("stream released and freed", QUIC_EV_CONN_ACKSTRM, qc);
-				qc_release_frm(qc, frm);
-				qc_check_close_on_released_mux(qc);
-				break;
-			}
-
-			TRACE_DEVEL("stream consumed", QUIC_EV_CONN_ACKSTRM,
-			            qc, strm_frm, stream);
 			qc_release_frm(qc, frm);
 		}
 		else {
 			eb64_insert(&stream->acked_frms, &strm_frm->offset);
 		}
-
-		quic_stream_try_to_consume(qc, stream);
 	}
 	break;
 	default:

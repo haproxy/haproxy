@@ -19,12 +19,6 @@ DECLARE_STATIC_POOL(pool_head_quic_stream_buf, "qc_stream_buf",
 
 static struct pool_head *pool_head_sbuf;
 
-/* Returns true if nothing to ack yet for stream <s> including FIN bit. */
-static inline int qc_stream_desc_done(const struct qc_stream_desc *s)
-{
-	return !(s->flags & QC_SD_FL_WAIT_FOR_FIN) && LIST_ISEMPTY(&s->buf_list);
-}
-
 static void qc_stream_buf_free(struct qc_stream_desc *stream,
                                struct qc_stream_buf **stream_buf)
 {
@@ -139,58 +133,48 @@ void qc_stream_desc_release(struct qc_stream_desc *stream,
 }
 
 /* Acknowledge data at <offset> of length <len> for <stream> with <fin> set for
- * the final data. After data removal, if the stream does not contains data
- * any more and is already released, the instance stream is freed. <stream> is
- * set to NULL to indicate this.
+ * the final data.
  *
- * Returns the count of byte removed from stream. Do not forget to check if
- * <stream> is NULL after invocation.
+ * Returns the count of byte removed from stream.
  */
-int qc_stream_desc_ack(struct qc_stream_desc **stream, size_t offset, size_t len,
+int qc_stream_desc_ack(struct qc_stream_desc *stream, size_t offset, size_t len,
                        int fin)
 {
-	struct qc_stream_desc *s = *stream;
 	struct qc_stream_buf *stream_buf = NULL;
 	struct buffer *buf = NULL;
 	size_t diff;
 
 	/* Cannot advertise FIN for an inferior data range. */
-	BUG_ON(fin && offset + len < s->ack_offset);
+	BUG_ON(fin && offset + len < stream->ack_offset);
 
 	/* No support now for out-of-order ACK reporting. */
-	BUG_ON(offset > s->ack_offset);
+	BUG_ON(offset > stream->ack_offset);
 
-	if (offset + len < s->ack_offset)
+	if (offset + len < stream->ack_offset)
 		return 0;
 
-	diff = offset + len - s->ack_offset;
+	diff = offset + len - stream->ack_offset;
 	if (diff) {
 		/* Buf list cannot be empty if there is still unacked data. */
-		BUG_ON(LIST_ISEMPTY(&s->buf_list));
+		BUG_ON(LIST_ISEMPTY(&stream->buf_list));
 
 		/* get oldest buffer from buf_list */
-		stream_buf = LIST_NEXT(&s->buf_list, struct qc_stream_buf *, list);
+		stream_buf = LIST_NEXT(&stream->buf_list, struct qc_stream_buf *, list);
 		buf = &stream_buf->buf;
 
-		s->ack_offset += diff;
+		stream->ack_offset += diff;
 		b_del(buf, diff);
 
 		/* Free oldest buffer if all data acknowledged. */
 		if (!b_data(buf)) {
-			qc_stream_buf_free(s, &stream_buf);
+			qc_stream_buf_free(stream, &stream_buf);
 			buf = NULL;
 		}
 	}
 
 	if (fin) {
 		/* Mark FIN as acknowledged. */
-		s->flags &= ~QC_SD_FL_WAIT_FOR_FIN;
-	}
-
-	/* Free stream instance if already released and everything acknowledged. */
-	if ((s->flags & QC_SD_FL_RELEASE) && qc_stream_desc_done(s)) {
-		qc_stream_desc_free(s, 0);
-		*stream = NULL;
+		stream->flags &= ~QC_SD_FL_WAIT_FOR_FIN;
 	}
 
 	return diff;

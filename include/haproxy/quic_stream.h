@@ -12,7 +12,7 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type, void *ctx,
                                           struct quic_conn *qc);
 void qc_stream_desc_release(struct qc_stream_desc *stream, uint64_t final_size,
                             void *new_ctx);
-int qc_stream_desc_ack(struct qc_stream_desc **stream, size_t offset, size_t len, int fin);
+int qc_stream_desc_ack(struct qc_stream_desc *stream, size_t offset, size_t len, int fin);
 void qc_stream_desc_free(struct qc_stream_desc *stream, int closing);
 
 struct buffer *qc_stream_buf_get(struct qc_stream_desc *stream);
@@ -20,6 +20,13 @@ struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
                                    uint64_t offset, int small);
 struct buffer *qc_stream_buf_realloc(struct qc_stream_desc *stream);
 void qc_stream_buf_release(struct qc_stream_desc *stream);
+
+/* Returns true if nothing to ack yet for stream <s> including FIN bit. */
+static inline int qc_stream_desc_done(const struct qc_stream_desc *s)
+{
+	return (s->flags & (QC_SD_FL_RELEASE|QC_SD_FL_WAIT_FOR_FIN)) == QC_SD_FL_RELEASE &&
+	       LIST_ISEMPTY(&s->buf_list);
+}
 
 /* Reports emission of STREAM frame starting at <offset> and of length <len>,
  * related to <stream> data storage.
