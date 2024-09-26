@@ -1722,6 +1722,12 @@ void stream_update_timings(struct task *t, uint64_t lat, uint64_t cpu)
  * nothing too many times, the request and response buffers flags are monitored
  * and each function is called only if at least another function has changed at
  * least one flag it is interested in.
+ *
+ * This task handler understands a few wake up reasons:
+ *  - TASK_WOKEN_MSG forces analysers to be re-evaluated
+ *  - TASK_WOKEN_OTHER+TASK_F_UEVT1 shuts the stream down on server down
+ *  - TASK_WOKEN_OTHER+TASK_F_UEVT2 shuts the stream down on active kill
+ *  - TASK_WOKEN_OTHER alone has no effect
  */
 struct task *process_stream(struct task *t, void *context, unsigned int state)
 {
@@ -1741,6 +1747,11 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 	activity[tid].stream_calls++;
 	stream_cond_update_cpu_latency(s);
+
+	if ((state & TASK_WOKEN_OTHER) && (state & (TASK_F_UEVT1 | TASK_F_UEVT2))) {
+		/* that an instant kill message, the reason is in _UEVT* */
+		stream_shutdown_self(s, (state & TASK_F_UEVT2) ? SF_ERR_KILLED : SF_ERR_DOWN);
+	}
 
 	req = &s->req;
 	res = &s->res;
@@ -2776,8 +2787,12 @@ void default_srv_error(struct stream *s, struct stconn *sc)
 		s->flags |= fin;
 }
 
-/* kill a stream and set the termination flags to <why> (one of SF_ERR_*) */
-void stream_shutdown(struct stream *stream, int why)
+/* shutdown the stream from itself. It's also possible for another one from the
+ * same thread but then an explicit wakeup will be needed since this function
+ * does not perform it. <why> is a set of SF_ERR_* flags to pass as the cause
+ * for shutting down.
+ */
+void stream_shutdown_self(struct stream *stream, int why)
 {
 	if (stream->scb->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))
 		return;
@@ -2787,7 +2802,6 @@ void stream_shutdown(struct stream *stream, int why)
 	stream->task->nice = 1024;
 	if (!(stream->flags & SF_ERR_MASK))
 		stream->flags |= why;
-	task_wakeup(stream->task, TASK_WOKEN_OTHER);
 }
 
 /* dumps an error message for type <type> at ptr <ptr> related to stream <s>,

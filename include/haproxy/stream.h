@@ -64,8 +64,8 @@ void stream_free(struct stream *s);
 int stream_upgrade_from_sc(struct stconn *sc, struct buffer *input);
 int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_proto);
 
-/* kill a stream and set the termination flags to <why> (one of SF_ERR_*) */
-void stream_shutdown(struct stream *stream, int why);
+/* shutdown the stream from itself */
+void stream_shutdown_self(struct stream *stream, int why);
 void stream_dump_and_crash(enum obj_type *obj, int rate);
 void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const char *pfx, uint32_t anon_key);
 
@@ -383,6 +383,22 @@ static inline int stream_check_conn_timeout(struct stream *s)
 		return 1;
 	}
 	return 0;
+}
+
+/* Wake a stream up for shutdown by sending it an event. The stream must be
+ * locked one way or another so that it cannot leave (i.e. when inspecting
+ * a locked list or under thread isolation). Process_stream() will recognize
+ * the message and complete the job. <why> only supports SF_ERR_DOWN (mapped
+ * to UEVT1) and SF_ERR_KILLED (mapped to UEVT2). Other values will just
+ * trigger TASK_WOKEN_OTHER. The stream handler will first call function
+ * stream_shutdown_self() on wakeup to complete the notification.
+ */
+static inline void stream_shutdown(struct stream *s, int why)
+{
+	task_wakeup(s->task, TASK_WOKEN_OTHER |
+	            ((why == SF_ERR_DOWN) ? TASK_F_UEVT1 :
+	             (why == SF_ERR_KILLED) ? TASK_F_UEVT2 :
+	             0));
 }
 
 int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout);
