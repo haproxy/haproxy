@@ -5164,7 +5164,7 @@ void strm_log(struct stream *s, int origin)
 
 	if (!lf_expr_isempty(&sess->fe->logformat_sd)) {
 		sd_size = build_logline_orig(s, logline_rfc5424, global.max_syslog_len,
-		                        &sess->fe->logformat_sd, origin);
+		                             &sess->fe->logformat_sd, origin);
 	}
 
 	size = build_logline_orig(s, logline, global.max_syslog_len, &sess->fe->logformat, origin);
