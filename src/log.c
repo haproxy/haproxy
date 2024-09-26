@@ -5185,6 +5185,61 @@ out:
 }
 
 /*
+ * opportunistic log when at least the session is known to exist
+ * <s> may be NULL
+ *
+ * Will not log if the frontend has no log defined. By default it will
+ * try to emit the log as INFO, unless the stream already exists and
+ * set-log-level was used.
+ */
+void do_log(struct session *sess, struct stream *s, struct log_orig origin)
+{
+	int size;
+	int sd_size = 0;
+	int level = -1;
+
+	if (LIST_ISEMPTY(&sess->fe->loggers))
+		return;
+
+	if (s) {
+		if (s->logs.level) { /* loglevel was overridden */
+			if (s->logs.level == -1) {
+				/* log disabled */
+				return;
+			}
+			level = s->logs.level - 1;
+		}
+		/* if unique-id was not generated */
+		if (!isttest(s->unique_id) && !lf_expr_isempty(&sess->fe->format_unique_id)) {
+			stream_generate_unique_id(s, &sess->fe->format_unique_id);
+		}
+	}
+
+	if (level == -1) {
+		level = LOG_INFO;
+		if ((origin.flags & LOG_ORIG_FL_ERROR) &&
+		    (sess->fe->options2 & PR_O2_LOGERRORS))
+			level = LOG_ERR;
+	}
+
+	if (!lf_expr_isempty(&sess->fe->logformat_sd)) {
+		sd_size = sess_build_logline_orig(sess, s, logline_rfc5424, global.max_syslog_len,
+		                                  &sess->fe->logformat_sd, origin);
+	}
+
+	size = sess_build_logline_orig(sess, s, logline, global.max_syslog_len, &sess->fe->logformat, origin);
+	if (size > 0) {
+		struct process_send_log_ctx ctx;
+
+		ctx.origin = origin;
+		ctx.sess = sess;
+		ctx.stream = s;
+		__send_log(&ctx, &sess->fe->loggers, &sess->fe->log_tag, level,
+			   logline, size + 1, logline_rfc5424, sd_size);
+	}
+}
+
+/*
  * send a log for the stream when we have enough info about it.
  * Will not log if the frontend has no log defined.
  */

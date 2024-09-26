@@ -105,6 +105,9 @@ static inline int sess_build_logline(struct session *sess, struct stream *s, cha
 	                               log_orig(LOG_ORIG_UNSPEC, LOG_ORIG_FL_NONE));
 }
 
+/* opportunistic log when session already exists (<s> may be null) */
+void do_log(struct session *sess, struct stream *s, struct log_orig origin);
+
 /*
  * send a log for the stream when we have enough info about it.
  * Will not log if the frontend has no log defined.
