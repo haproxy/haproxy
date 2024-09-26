@@ -3429,7 +3429,10 @@ void qcc_show_quic(struct qcc *qcc)
 		if (!quic_stream_is_uni(qcs->id) || !quic_stream_is_local(qcc, qcs->id))
 			chunk_appendf(&trash, " rxoff=%llu", (ullong)qcs->rx.offset);
 		if (!quic_stream_is_uni(qcs->id) || !quic_stream_is_remote(qcc, qcs->id))
-			chunk_appendf(&trash, " txoff=%llu", (ullong)qcs->tx.fc.off_real);
+			chunk_appendf(&trash, " txoff=%llu(%llu) msd=%llu",
+			              (ullong)qcs->tx.fc.off_real,
+			              (ullong)qcs->tx.fc.off_soft - (ullong)qcs->tx.fc.off_soft,
+			              (ullong)qcs->tx.fc.limit);
 		chunk_appendf(&trash, "\n");
 		node = eb64_next(node);
 	}
