@@ -47,9 +47,9 @@
 #define TASK_WOKEN_TIMER  0x00000200  /* woken up because of expired timer */
 #define TASK_WOKEN_IO     0x00000400  /* woken up because of completed I/O */
 #define TASK_WOKEN_SIGNAL 0x00000800  /* woken up by a system signal */
-#define TASK_WOKEN_MSG    0x00001000  /* woken up by another task's message */
+#define TASK_WOKEN_MSG    0x00001000  /* woken up by another task's message (see also UEVT/USR1) */
 #define TASK_WOKEN_RES    0x00002000  /* woken up because of available resource */
-#define TASK_WOKEN_OTHER  0x00004000  /* woken up for an unspecified reason */
+#define TASK_WOKEN_OTHER  0x00004000  /* woken up for an unspecified reason (see also UEVT/USR1) */
 
 /* use this to check a task state or to clean it up before queueing */
 #define TASK_WOKEN_ANY    (TASK_WOKEN_OTHER|TASK_WOKEN_INIT|TASK_WOKEN_TIMER| \
@@ -58,7 +58,9 @@
 
 #define TASK_F_TASKLET    0x00008000  /* nature of this task: 0=task 1=tasklet */
 #define TASK_F_USR1       0x00010000  /* preserved user flag 1, application-specific, def:0 */
-/* unused: 0x20000..0x80000000 */
+#define TASK_F_UEVT1      0x00020000  /* one-shot user event type 1, application specific, def:0 */
+#define TASK_F_UEVT2      0x00040000  /* one-shot user event type 2, application specific, def:0 */
+/* unused: 0x80000..0x80000000 */
 
 /* These flags are persistent across scheduler calls */
 #define TASK_PERSISTENT   (TASK_SELF_WAKING | TASK_KILLED | \
