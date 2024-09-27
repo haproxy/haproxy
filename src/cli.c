@@ -3230,9 +3230,11 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->store_count = 0;
 		s->uniq_id = _HA_ATOMIC_FETCH_ADD(&global.req_count, 1);
 
-		s->scf->flags &= ~(SC_FL_EOS|SC_FL_ERROR|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED);
+		s->scf->flags &= ~(SC_FL_EOI|SC_FL_EOS|SC_FL_ERROR|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED);
 		s->scf->flags &= ~SC_FL_SND_NEVERWAIT;
 		s->scf->flags |= SC_FL_RCV_ONCE; /* one read is usually enough */
+
+		se_have_more_data(s->scf->sedesc);
 
 		s->req.flags |= CF_WAKE_ONCE; /* need to be called again if there is some command left in the request */
 
