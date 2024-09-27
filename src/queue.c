@@ -498,8 +498,10 @@ int pendconn_redistribute(struct server *s)
 	int xferred = 0;
 
 	/* The REDISP option was specified. We will ignore cookie and force to
-	 * balance or use the dispatcher. */
-	if ((s->proxy->options & (PR_O_REDISP|PR_O_PERSIST)) != PR_O_REDISP)
+	 * balance or use the dispatcher.
+	 */
+	if (!(s->cur_admin & SRV_ADMF_MAINT) &&
+	    (s->proxy->options & (PR_O_REDISP|PR_O_PERSIST)) != PR_O_REDISP)
 		return 0;
 
 	HA_SPIN_LOCK(QUEUE_LOCK, &s->queue.lock);
@@ -512,7 +514,8 @@ int pendconn_redistribute(struct server *s)
 
 		/* it's left to the dispatcher to choose a server */
 		__pendconn_unlink_srv(p);
-		p->strm_flags &= ~(SF_DIRECT | SF_ASSIGNED);
+		if (!(s->proxy->options & PR_O_REDISP))
+			p->strm_flags &= ~(SF_DIRECT | SF_ASSIGNED);
 
 		task_wakeup(p->strm->task, TASK_WOKEN_RES);
 		xferred++;
