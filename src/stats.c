@@ -169,6 +169,7 @@ const struct name_desc stat_cols_info[ST_I_INF_MAX] = {
 	[ST_I_INF_BOOTTIME_MS]                    = { .name = "BootTime_ms",                 .desc = "How long ago it took to parse and process the config before being ready (milliseconds)" },
 	[ST_I_INF_NICED_TASKS]                    = { .name = "Niced_tasks",                 .desc = "Total number of active tasks+tasklets in the current worker process (Run_queue) that are niced" },
 	[ST_I_INF_CURR_STRM]                      = { .name = "CurrStreams",                 .desc = "Current number of streams on this worker process" },
+	[ST_I_INF_CUM_STRM]                       = { .name = "CurrStreams",                 .desc = "Total number of streams created on this worker process since started" },
 };
 
 /* one line of info */
@@ -692,7 +693,7 @@ static int stats_dump_typed_info_fields(struct buffer *out,
 int stats_fill_info(struct field *line, int len, uint flags)
 {
 	struct buffer *out = get_trash_chunk();
-	uint64_t glob_out_bytes, glob_spl_bytes, glob_out_b32, glob_curr_strms;
+	uint64_t glob_out_bytes, glob_spl_bytes, glob_out_b32, glob_curr_strms, glob_cum_strms;
 	uint up_sec, up_usec;
 	ullong up;
 	ulong boot;
@@ -708,12 +709,13 @@ int stats_fill_info(struct field *line, int len, uint flags)
 #endif
 
 	/* sum certain per-thread totals (mostly byte counts) */
-	glob_out_bytes = glob_spl_bytes = glob_out_b32 = glob_curr_strms = 0;
+	glob_out_bytes = glob_spl_bytes = glob_out_b32 = glob_curr_strms = glob_cum_strms = 0;
 	for (thr = 0; thr < global.nbthread; thr++) {
 		glob_out_bytes += HA_ATOMIC_LOAD(&ha_thread_ctx[thr].out_bytes);
 		glob_spl_bytes += HA_ATOMIC_LOAD(&ha_thread_ctx[thr].spliced_out_bytes);
 		glob_out_b32   += read_freq_ctr(&ha_thread_ctx[thr].out_32bps);
 		glob_curr_strms+= HA_ATOMIC_LOAD(&ha_thread_ctx[thr].stream_cnt);
+		glob_cum_strms += HA_ATOMIC_LOAD(&ha_thread_ctx[thr].total_streams);
 	}
 	glob_out_b32 *= 32; // values are 32-byte units
 
@@ -820,6 +822,7 @@ int stats_fill_info(struct field *line, int len, uint flags)
 	line[ST_I_INF_BOOTTIME_MS]                    = mkf_u32(FN_DURATION, boot);
 	line[ST_I_INF_NICED_TASKS]                    = mkf_u32(0, total_niced_running_tasks());
 	line[ST_I_INF_CURR_STRM]                      = mkf_u64(0, glob_curr_strms);
+	line[ST_I_INF_CUM_STRM]                       = mkf_u64(0, glob_cum_strms);
 
 	return 1;
 }

@@ -180,9 +180,10 @@ struct thread_ctx {
 	unsigned long long out_bytes;           /* total #of bytes emitted */
 	unsigned long long spliced_out_bytes;   /* total #of bytes emitted though a kernel pipe */
 	struct buffer *thread_dump_buffer;      /* NULL out of dump, valid during a dump, 0x01 once done */
+	unsigned long long total_streams;       /* Total number of streams created on this thread */
 	unsigned int stream_cnt;                /* Number of streams attached to this thread */
 
-	// around 52 bytes here for shared variables
+	// around 44 bytes here for shared variables
 
 	ALWAYS_ALIGN(128);
 };

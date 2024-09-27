@@ -546,6 +546,7 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	s->tunnel_timeout = TICK_ETERNITY;
 
 	LIST_APPEND(&th_ctx->streams, &s->list);
+	_HA_ATOMIC_INC(&th_ctx->total_streams);
 	_HA_ATOMIC_INC(&th_ctx->stream_cnt);
 
 	if (flt_stream_init(s) < 0 || flt_stream_start(s) < 0)
