@@ -1520,19 +1520,33 @@ int sc_conn_recv(struct stconn *sc)
 		sc_conn_eos(sc);
 		ret = 1;
 	}
-
 	if (sc_ep_test(sc, SE_FL_ERROR)) {
 		sc->flags |= SC_FL_ERROR;
 		ret = 1;
 	}
+
+	if (sc->flags & (SC_FL_EOS|SC_FL_ERROR)) {
+		/* No more data are expected at this stage */
+		se_have_no_more_data(sc->sedesc);
+	}
 	else if (!cur_read &&
 		 !(sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM)) &&
 		 !(sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))) {
-		/* Subscribe to receive events if we're blocking on I/O */
+		/* Subscribe to receive events if we're blocking on I/O. Nothing
+		 * was received and it was not because of a blocking
+		 * condition.
+		 */
 		conn->mux->subscribe(sc, SUB_RETRY_RECV, &sc->wait_event);
 		se_have_no_more_data(sc->sedesc);
 	}
+	else if (sc->flags & SC_FL_EOI) {
+		/* No more data are expected at this stage */
+		se_have_no_more_data(sc->sedesc);
+	}
 	else {
+		/* The mux may have more data to deliver. Be sure to be able to
+		 * ask it ASAP
+		 */
 		se_have_more_data(sc->sedesc);
 		ret = 1;
 	}
