@@ -209,35 +209,31 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 	struct quic_conn *qc = stream->qc;
 	struct eb64_node *frm_node;
 	unsigned int free_count = 0;
-	uint64_t free_size = 0;
 
 	/* This function only deals with released streams. */
 	BUG_ON(!(stream->flags & QC_SD_FL_RELEASE));
 
 	/* free remaining stream buffers */
 	list_for_each_entry_safe(buf, buf_back, &stream->buf_list, list) {
-		if (!(b_data(&buf->buf)) || closing) {
-			free_size += b_size(&buf->buf);
-			if (buf->sbuf)
-				pool_free(pool_head_sbuf, buf->buf.area);
-			else
-				b_free(&buf->buf);
-			LIST_DELETE(&buf->list);
-			pool_free(pool_head_quic_stream_buf, buf);
-			++free_count;
-		}
+
+		/* qc_stream_desc_free() can only be used after all data is
+		 * acknowledged or on connection shutdown. In the contrary
+		 * case, MUX must be notified about room available.
+		 */
+		BUG_ON(b_data(&buf->buf) && !closing);
+
+		if (buf->sbuf)
+			pool_free(pool_head_sbuf, buf->buf.area);
+		else
+			b_free(&buf->buf);
+
+		LIST_DELETE(&buf->list);
+		pool_free(pool_head_quic_stream_buf, buf);
+		++free_count;
 	}
 
-	if (free_count) {
+	if (free_count)
 		offer_buffers(NULL, free_count);
-
-		if (qc->mux_state == QC_MUX_READY) {
-			if (!(stream->flags & QC_SD_FL_OOB_BUF)) {
-				/* notify MUX about available buffers. */
-				qcc_notify_buf(qc->qcc, free_size);
-			}
-		}
-	}
 
 	/* qc_stream_desc might be freed before having received all its ACKs.
 	 * This is the case if some frames were retransmitted.
