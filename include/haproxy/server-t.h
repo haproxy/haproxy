@@ -77,13 +77,14 @@ enum srv_state {
 enum srv_admin {
 	SRV_ADMF_FMAINT    = 0x01,        /* the server was explicitly forced into maintenance */
 	SRV_ADMF_IMAINT    = 0x02,        /* the server has inherited the maintenance status from a tracked server */
-	SRV_ADMF_MAINT     = 0x23,        /* mask to check if any maintenance flag is present */
-	SRV_ADMF_CMAINT    = 0x04,        /* the server is in maintenance because of the configuration */
+	SRV_ADMF_CMAINT    = 0x04,        /* the server is in maintenance because of the configuration (separate) */
 	SRV_ADMF_FDRAIN    = 0x08,        /* the server was explicitly forced into drain state */
 	SRV_ADMF_IDRAIN    = 0x10,        /* the server has inherited the drain status from a tracked server */
 	SRV_ADMF_DRAIN     = 0x18,        /* mask to check if any drain flag is present */
 	SRV_ADMF_RMAINT    = 0x20,        /* the server is down because of an IP address resolution failure */
 	SRV_ADMF_HMAINT    = 0x40,        /* the server FQDN has been set from socket stats */
+
+	SRV_ADMF_MAINT     = 0x63,        /* mask to check if any maintenance flag except CMAINT is present */
 } __attribute__((packed));
 
 /* options for servers' "init-addr" parameter
