@@ -240,7 +240,11 @@ typedef struct { } empty_t;
  * than ours.
  */
 #ifdef USE_BACKTRACE
-#if defined(__aarch64__)
+#if defined(__linux__) && !defined(__GNU_LIBRARY__)
+/* On Linux, backtrace() is only available in glibc. Others will need the
+ * in-house implementation.
+ */
+#elif defined(__aarch64__)
 /* on aarch64 at least from gcc-4.7.4 to 7.4.1 we only get a single entry, which
  * is pointless. Ours works though it misses the faulty function itself,
  * probably due to an alternate stack for the signal handler which does not
