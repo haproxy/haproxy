@@ -23,8 +23,8 @@
 #define _HAPROXY_TOOLS_H
 
 #ifdef USE_BACKTRACE
+// for backtrace() on Linux
 #define _GNU_SOURCE
-#include <execinfo.h>
 #endif
 
 #include <string.h>
@@ -46,6 +46,10 @@
 #include <haproxy/namespace-t.h>
 #include <haproxy/protocol-t.h>
 #include <haproxy/tools-t.h>
+
+#if defined(USE_BACKTRACE) && defined(HA_HAVE_WORKING_BACKTRACE)
+#include <execinfo.h>
+#endif
 
 /****** string-specific macros and functions ******/
 /* if a > max, then bound <a> to <max>. The macro returns the new <a> */
