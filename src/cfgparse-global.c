@@ -39,8 +39,8 @@ static const char *common_kw_list[] = {
 	"maxcomprate", "maxpipes", "maxzlibmem", "maxcompcpuusage", "ulimit-n",
 	"chroot", "description", "node", "unix-bind", "log",
 	"log-send-hostname", "server-state-base", "server-state-file",
-	"log-tag", "spread-checks", "max-spread-checks", "cpu-map", "setenv",
-	"presetenv", "unsetenv", "resetenv", "strict-limits", "localpeer",
+	"log-tag", "spread-checks", "max-spread-checks", "cpu-map",
+	"strict-limits", "localpeer",
 	"numa-cpu-mapping", "defaults", "listen", "frontend", "backend",
 	"peers", "resolvers", "cluster-secret", "no-quic", "limited-quic",
 	"stats-file",
@@ -797,78 +797,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		goto out;
 #endif /* ! USE_CPU_AFFINITY */
 	}
-	else if (strcmp(args[0], "setenv") == 0 || strcmp(args[0], "presetenv") == 0) {
-		if (alertif_too_many_args(2, file, linenum, args, &err_code))
-			goto out;
-
-		if (*(args[2]) == 0) {
-			ha_alert("parsing [%s:%d]: '%s' expects a name and a value.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		/* "setenv" overwrites, "presetenv" only sets if not yet set */
-		if (setenv(args[1], args[2], (args[0][0] == 's')) != 0) {
-			ha_alert("parsing [%s:%d]: '%s' failed on variable '%s' : %s.\n", file, linenum, args[0], args[1], strerror(errno));
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
-	else if (strcmp(args[0], "unsetenv") == 0) {
-		int arg;
-
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d]: '%s' expects at least one variable name.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		for (arg = 1; *args[arg]; arg++) {
-			if (unsetenv(args[arg]) != 0) {
-				ha_alert("parsing [%s:%d]: '%s' failed on variable '%s' : %s.\n", file, linenum, args[0], args[arg], strerror(errno));
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-		}
-	}
-	else if (strcmp(args[0], "resetenv") == 0) {
-		extern char **environ;
-		char **env = environ;
-
-		/* args contain variable names to keep, one per argument */
-		while (*env) {
-			int arg;
-
-			/* look for current variable in among all those we want to keep */
-			for (arg = 1; *args[arg]; arg++) {
-				if (strncmp(*env, args[arg], strlen(args[arg])) == 0 &&
-				    (*env)[strlen(args[arg])] == '=')
-					break;
-			}
-
-			/* delete this variable */
-			if (!*args[arg]) {
-				char *delim = strchr(*env, '=');
-
-				if (!delim || delim - *env >= trash.size) {
-					ha_alert("parsing [%s:%d]: '%s' failed to unset invalid variable '%s'.\n", file, linenum, args[0], *env);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				memcpy(trash.area, *env, delim - *env);
-				trash.area[delim - *env] = 0;
-
-				if (unsetenv(trash.area) != 0) {
-					ha_alert("parsing [%s:%d]: '%s' failed to unset variable '%s' : %s.\n", file, linenum, args[0], *env, strerror(errno));
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-			}
-			else
-				env++;
-		}
-	}
 	else if (strcmp(args[0], "quick-exit") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
@@ -1462,6 +1390,90 @@ static int cfg_parse_global_unsupported_opts(char **args, int section_type,
 	return -1;
 }
 
+static int cfg_parse_global_env_opts(char **args, int section_type,
+				     struct proxy *curpx, const struct proxy *defpx,
+				     const char *file, int line, char **err)
+{
+
+	if (strcmp(args[0], "setenv") == 0 || strcmp(args[0], "presetenv") == 0) {
+		if (too_many_args(2, args, err, NULL))
+			return -1;
+
+		if (*(args[2]) == 0) {
+			memprintf(err, "'%s' expects an env variable name and a value.\n.",
+				  args[0]);
+			return -1;
+		}
+
+		/* "setenv" overwrites, "presetenv" only sets if not yet set */
+		if (setenv(args[1], args[2], (args[0][0] == 's')) != 0) {
+			memprintf(err, "'%s' failed on variable '%s' : %s.\n",
+				  args[0], args[1], strerror(errno));
+			return -1;
+		}
+	}
+	else if (strcmp(args[0], "unsetenv") == 0) {
+		int arg;
+
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects at least one variable name.\n", args[0]);
+			return -1;
+		}
+
+		for (arg = 1; *args[arg]; arg++) {
+			if (unsetenv(args[arg]) != 0) {
+				memprintf(err, "'%s' failed on variable '%s' : %s.\n",
+					  args[0], args[arg], strerror(errno));
+				return -1;
+			}
+		}
+	}
+	else if (strcmp(args[0], "resetenv") == 0) {
+		extern char **environ;
+		char **env = environ;
+
+		/* args contain variable names to keep, one per argument */
+		while (*env) {
+			int arg;
+
+			/* look for current variable in among all those we want to keep */
+			for (arg = 1; *args[arg]; arg++) {
+				if (strncmp(*env, args[arg], strlen(args[arg])) == 0 &&
+				    (*env)[strlen(args[arg])] == '=')
+					break;
+			}
+
+			/* delete this variable */
+			if (!*args[arg]) {
+				char *delim = strchr(*env, '=');
+
+				if (!delim || delim - *env >= trash.size) {
+					memprintf(err, "'%s' failed to unset invalid variable '%s'.\n",
+						  args[0], *env);
+					return -1;
+				}
+
+				memcpy(trash.area, *env, delim - *env);
+				trash.area[delim - *env] = 0;
+
+				if (unsetenv(trash.area) != 0) {
+					memprintf(err, "'%s' failed to unset variable '%s' : %s.\n",
+						  args[0], *env, strerror(errno));
+					return -1;
+				}
+			}
+			else
+				env++;
+		}
+	}
+	else {
+		BUG_ON(1, "Triggered in cfg_parse_global_env_opts() by unsupported keyword.\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "prealloc-fd", cfg_parse_prealloc_fd },
 	{ CFG_GLOBAL, "harden.reject-privileged-ports.tcp",  cfg_parse_reject_privileged_ports },
@@ -1498,6 +1510,10 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.disable-zero-copy-forwarding", cfg_parse_global_tune_forward_opts },
 	{ CFG_GLOBAL, "tune.chksize", cfg_parse_global_unsupported_opts },
 	{ CFG_GLOBAL, "nbproc", cfg_parse_global_unsupported_opts },
+	{ CFG_GLOBAL, "setenv", cfg_parse_global_env_opts },
+	{ CFG_GLOBAL, "unsetenv", cfg_parse_global_env_opts },
+	{ CFG_GLOBAL, "resetenv", cfg_parse_global_env_opts },
+	{ CFG_GLOBAL, "presetenv", cfg_parse_global_env_opts },
 	{ 0, NULL, NULL },
 }};
 
