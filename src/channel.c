@@ -324,7 +324,7 @@ int co_getword(const struct channel *chn, char *str, int len, char sep)
 int co_getline(const struct channel *chn, char *str, int len)
 {
 	int ret, max;
-	char *p;
+	size_t ofs;
 
 	ret = 0;
 	max = len;
@@ -336,20 +336,30 @@ int co_getline(const struct channel *chn, char *str, int len)
 		goto out;
 	}
 
-	p = co_head(chn);
-
 	if (max > co_data(chn)) {
 		max = co_data(chn);
 		str[max-1] = 0;
 	}
-	while (max) {
-		*str++ = *p;
-		ret++;
-		max--;
 
-		if (*p == '\n')
+	ofs = 0;
+
+	while (max) {
+		size_t contig = b_contig_data(&chn->buf, ofs);
+		size_t len = MIN(max, contig);
+		const char *beg = b_peek(&chn->buf, ofs);
+		const char *lf = memchr(beg, '\n', len);
+
+		if (lf) /* take the LF with it before stopping */
+			len = lf + 1 - beg;
+
+		memcpy(str, beg, len);
+		ret += len;
+		str += len;
+		ofs += len;
+		max -= len;
+
+		if (lf)
 			break;
-		p = b_next(&chn->buf, p);
 	}
 	if (ret > 0 && ret < len &&
 	    (ret < co_data(chn) || channel_may_recv(chn)) &&
