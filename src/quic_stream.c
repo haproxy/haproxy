@@ -9,7 +9,7 @@
 #include <haproxy/mux_quic.h>
 #include <haproxy/pool.h>
 #include <haproxy/quic_conn.h>
-#include <haproxy/quic_frame.h>
+#include <haproxy/quic_frame-t.h>
 #include <haproxy/task.h>
 
 DECLARE_STATIC_POOL(pool_head_quic_stream_desc, "qc_stream_desc",
@@ -134,26 +134,39 @@ void qc_stream_desc_release(struct qc_stream_desc *stream,
 	}
 }
 
-/* Acknowledge data at <offset> of length <len> for <stream> with <fin> set for
- * the final data.
+/* Acknowledge <frm> STREAM frame whose content is managed by <stream>
+ * descriptor.
  *
- * Returns the count of byte removed from stream.
+ * Returns 0 if the frame has been handled and can be removed.
+ * Returns a positive value if acknowledgement is out-of-order and
+ * corresponding STREAM frame has been buffered.
  */
-int qc_stream_desc_ack(struct qc_stream_desc *stream, size_t offset, size_t len,
-                       int fin)
+int qc_stream_desc_ack(struct qc_stream_desc *stream, struct quic_frame *frm)
 {
+	struct qf_stream *strm_frm = &frm->stream;
+	const uint64_t offset = strm_frm->offset.key;
+	const uint64_t len = strm_frm->len;
+	const int fin = frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT;
+
 	struct qc_stream_buf *stream_buf = NULL;
+	struct eb64_node *buf_node;
 	struct buffer *buf = NULL;
 	size_t diff;
 
 	/* Cannot advertise FIN for an inferior data range. */
 	BUG_ON(fin && offset + len < stream->ack_offset);
 
-	/* No support now for out-of-order ACK reporting. */
-	BUG_ON(offset > stream->ack_offset);
-
-	if (offset + len < stream->ack_offset)
+	if (offset + len < stream->ack_offset) {
 		return 0;
+	}
+	else if (offset > stream->ack_offset) {
+		buf_node = eb64_lookup_le(&stream->buf_tree, offset);
+		BUG_ON(!buf_node); /* Cannot acknowledged a STREAM frame for a non existing buffer. */
+
+		stream_buf = eb64_entry(buf_node, struct qc_stream_buf, offset_node);
+		eb64_insert(&stream_buf->acked_frms, &strm_frm->offset);
+		return 1;
+	}
 
 	diff = offset + len - stream->ack_offset;
 	if (diff) {
@@ -193,7 +206,7 @@ int qc_stream_desc_ack(struct qc_stream_desc *stream, size_t offset, size_t len,
 		stream->flags &= ~QC_SD_FL_WAIT_FOR_FIN;
 	}
 
-	return diff;
+	return 0;
 }
 
 /* Free the stream descriptor <stream> content. This function should be used
