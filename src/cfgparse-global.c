@@ -798,7 +798,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 #endif /* ! USE_CPU_AFFINITY */
 	}
 	else if (strcmp(args[0], "setenv") == 0 || strcmp(args[0], "presetenv") == 0) {
-		if (alertif_too_many_args(3, file, linenum, args, &err_code))
+		if (alertif_too_many_args(2, file, linenum, args, &err_code))
 			goto out;
 
 		if (*(args[2]) == 0) {
