@@ -969,7 +969,7 @@ OBJS += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o src/stream.o		\
         src/errors.o src/extcheck.o src/dns_ring.o src/stats-json.o	\
         src/http_conv.o src/frontend.o src/proto_sockpair.o		\
         src/compression.o src/ncbuf.o src/stats-file.o src/raw_sock.o	\
-        src/lb_fwrr.o src/action.o src/uri_normalizer.o			\
+        src/lb_fwrr.o src/action.o src/uri_normalizer.o src/buf.o	\
         src/proto_uxst.o src/ebmbtree.o src/xprt_handshake.o		\
         src/protocol.o src/proto_udp.o src/lb_fwlc.o src/sha1.o		\
         src/proto_uxdg.o src/mailers.o src/lb_fas.o src/cfgcond.o	\
