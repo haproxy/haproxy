@@ -201,71 +201,6 @@ static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
 	return ret;
 }
 
-/* Remove from <stream> the acknowledged frames.
- *
- * Returns 1 if at least one frame was removed else 0.
- */
-static int quic_stream_try_to_consume(struct quic_conn *qc,
-                                      struct qc_stream_desc *stream)
-{
-	int ret;
-	struct eb64_node *frm_node;
-	struct qc_stream_buf *stream_buf;
-	struct eb64_node *buf_node;
-
-	TRACE_ENTER(QUIC_EV_CONN_ACKSTRM, qc);
-
-	ret = 0;
-	buf_node = eb64_first(&stream->buf_tree);
-	if (buf_node) {
-		stream_buf = eb64_entry(buf_node, struct qc_stream_buf,
-		                        offset_node);
-
-		frm_node = eb64_first(&stream_buf->acked_frms);
-		while (frm_node) {
-			struct qf_stream *strm_frm;
-			struct quic_frame *frm;
-			size_t offset;
-
-			strm_frm = eb64_entry(frm_node, struct qf_stream, offset);
-			frm = container_of(strm_frm, struct quic_frame, stream);
-			offset = strm_frm->offset.key;
-
-			if (offset > stream->ack_offset)
-				break;
-
-			/* First delete frm from tree. This prevents BUG_ON() if
-			 * stream_buf instance is removed via qc_stream_desc_ack().
-			 */
-			eb64_delete(frm_node);
-
-			if (qc_stream_desc_ack(stream, frm)) {
-				TRACE_DEVEL("stream consumed", QUIC_EV_CONN_ACKSTRM,
-				            qc, strm_frm, stream);
-				ret = 1;
-			}
-			qc_release_frm(qc, frm);
-
-			/* Always retrieve first buffer as the previously used
-			 * instance could have been removed during qc_stream_desc_ack().
-			 */
-			buf_node = eb64_first(&stream->buf_tree);
-			if (buf_node) {
-				stream_buf = eb64_entry(buf_node, struct qc_stream_buf,
-				                        offset_node);
-				frm_node = eb64_first(&stream_buf->acked_frms);
-				BUG_ON(!frm_node && !b_data(&stream_buf->buf));
-			}
-			else {
-				frm_node = NULL;
-			}
-		}
-	}
-
-	TRACE_LEAVE(QUIC_EV_CONN_ACKSTRM, qc);
-	return ret;
-}
-
 /* Handle <frm> frame whose packet it is attached to has just been acknowledged. The memory allocated
  * for this frame will be at least released in every cases.
  * Never fail.
@@ -298,12 +233,9 @@ static void qc_handle_newly_acked_frm(struct quic_conn *qc, struct quic_frame *f
 		}
 		stream = eb64_entry(node, struct qc_stream_desc, by_id);
 
-		TRACE_DEVEL("acked stream", QUIC_EV_CONN_ACKSTRM, qc, strm_frm, stream);
 		if (!qc_stream_desc_ack(stream, frm)) {
-			TRACE_DEVEL("stream consumed", QUIC_EV_CONN_ACKSTRM,
+			TRACE_DEVEL("stream consumed on ACK received", QUIC_EV_CONN_ACKSTRM,
 			            qc, strm_frm, stream);
-
-			quic_stream_try_to_consume(qc, stream);
 
 			if (qc_stream_desc_done(stream)) {
 				/* no need to continue if stream freed. */
