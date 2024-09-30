@@ -97,8 +97,7 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type type, void 
 }
 
 /* Mark the stream descriptor <stream> as released. It will be freed as soon as
- * all its buffered data are acknowledged. Does nothing if <stream> is already
- * NULL.
+ * all its buffered data are acknowledged.
  *
  * <final_size> corresponds to the last offset sent for this stream. If there
  * is unsent data present, they will be remove first to guarantee that buffer
@@ -107,9 +106,6 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type type, void 
 void qc_stream_desc_release(struct qc_stream_desc *stream,
                             uint64_t final_size)
 {
-	if (!stream)
-		return;
-
 	/* A stream can be released only one time. */
 	BUG_ON(stream->flags & QC_SD_FL_RELEASE);
 

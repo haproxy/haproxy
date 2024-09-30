@@ -80,7 +80,10 @@ static void qcs_free(struct qcs *qcs)
 		qcc->app_ops->detach(qcs);
 
 	/* Release qc_stream_desc buffer from quic-conn layer. */
-	qc_stream_desc_release(qcs->stream, qcs->tx.fc.off_real);
+	if (qcs->stream) {
+		qc_stream_desc_sub_send(qcs->stream, NULL);
+		qc_stream_desc_release(qcs->stream, qcs->tx.fc.off_real);
+	}
 
 	/* Free Rx buffer. */
 	qcs_free_ncbuf(qcs, &qcs->rx.ncbuf);
@@ -561,7 +564,8 @@ static void qmux_ctrl_send(struct qc_stream_desc *stream, uint64_t data, uint64_
 	/* check if the STREAM frame has already been notified. It can happen
 	 * for retransmission.
 	 */
-	if (offset + data < qcs->tx.fc.off_real) {
+	if (offset + data < qcs->tx.fc.off_real ||
+	    (!data && (!(qcs->flags & QC_SF_FIN_STREAM) || qc_stream_buf_get(qcs->stream) || qcs_prep_bytes(qcs)))) {
 		TRACE_DEVEL("offset already notified", QMUX_EV_QCS_SEND, qcc->conn, qcs);
 		goto out;
 	}
