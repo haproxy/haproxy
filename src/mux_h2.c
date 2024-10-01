@@ -117,6 +117,9 @@ struct h2s {
 	uint64_t curr_rx_ofs;  /* stream offset at which next FC-data will arrive (includes padding) */
 	uint64_t last_adv_ofs; /* stream offset corresponding to last emitted WU */
 	uint64_t next_max_ofs; /* max stream offset that next WU must permit (curr_rx_ofs+rx_win) */
+	uint rx_head, rx_tail; /* head and tail of rx buffer in the conn's shared rx buf */
+	uint rx_count;         /* total number of allocated rxbufs */
+	/* 4 bytes hole here */
 	struct buffer rxbuf; /* receive buffer, always valid (buf_empty or real buffer) */
 	struct wait_event *subs;  /* recv wait_event the stream connector associated is waiting on (via h2_subscribe) */
 	struct list list; /* To be used when adding in h2c->send_list or h2c->fctl_lsit */
@@ -690,6 +693,94 @@ static inline int h2c_max_concurrent_streams(const struct h2c *h2c)
 
 	ret = ret ? ret : h2_settings_max_concurrent_streams;
 	return ret;
+}
+
+/* Returns a pointer to the oldest rxbuf of the stream, or NULL if there is
+ * none. Note that this doesn't indicate that the buffer is allocated nor
+ * contains any data.
+ */
+static inline struct buffer *h2s_rxbuf_head(const struct h2s *h2s)
+{
+	if (!h2s->rx_head)
+		return NULL;
+	return &h2s->h2c->shared_rx_bufs[h2s->rx_head].buf;
+}
+
+/* Returns a pointer to the newest rxbuf of the stream, or NULL if there is
+ * none. Note that this doesn't indicate that the buffer is allocated nor
+ * contains any data.
+ */
+static inline struct buffer *h2s_rxbuf_tail(const struct h2s *h2s)
+{
+	if (!h2s->rx_tail)
+		return NULL;
+	return &h2s->h2c->shared_rx_bufs[h2s->rx_tail].buf;
+}
+
+/* Returns the number of allocated rxbuf slots for the stream */
+static inline uint h2s_rxbuf_cnt(const struct h2s *h2s)
+{
+	return h2s->rx_count;
+}
+
+/* Tries to get an rxbuf slot from the connection for the stream, returns its
+ * non-zero number on success, or 0 on failure. On success, it will update the
+ * stream's tail and count, and possibly head (if there was no buffer before).
+ * The buffer cell is not initialized, it's up to the caller to do it.
+ */
+static inline uint h2s_get_rxbuf(struct h2s *h2s)
+{
+	uint slot;
+
+	/* FIXME: for now each stream is granted exactly one buffer */
+	if (h2s->rx_count)
+		return 0;
+
+	slot = bl_get(h2s->h2c->shared_rx_bufs, h2s->rx_tail);
+	if (!slot)
+		return 0;
+
+	h2s->rx_count++;
+	h2s->rx_tail = slot;
+	if (!h2s->rx_head)
+		h2s->rx_head = slot;
+	return slot;
+}
+
+/* Gives back the oldest rxbuf to the connection. It's the caller's
+ * responsibility to make sure that the possible buffer there was released
+ * prior to calling this function (it may change in the future). It's safe
+ * to call this if no rxbufs are allocated. The index of the next remaining
+ * rxbuf slot is returned, or 0 when none remain.
+ */
+static inline uint h2s_put_rxbuf(struct h2s *h2s)
+{
+	if (h2s->rx_head) {
+		BUG_ON_HOT(({ const struct buffer *buf = h2s_rxbuf_head(h2s); !!(buf && b_size(buf)); }),
+			   "Attempted to release a used buffer slot");
+		h2s->rx_head = bl_put(h2s->h2c->shared_rx_bufs, h2s->rx_head);
+		if (!h2s->rx_head)
+			h2s->rx_tail = 0;
+		h2s->rx_count--;
+	}
+	return h2s->rx_head;
+}
+
+/* Checks if the the HTX rxbuf still has available room. Returns 1 if OK, 0 if
+ * it's full. The buffer is cast to HTX for the operation, but no buffer is
+ * allocated if there is none (in which case 0 is returned).
+ */
+static inline int h2s_may_append_to_rxbuf(const struct h2s *h2s)
+{
+	struct buffer *rxbuf;
+	struct htx *htx;
+
+	rxbuf = h2s_rxbuf_tail(h2s);
+	if (!rxbuf || b_is_null(rxbuf))
+		return 0;
+
+	htx = htxbuf(rxbuf);
+	return !!htx_free_data_space(htx);
 }
 
 /* update h2c timeout if needed */
@@ -1709,6 +1800,9 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	h2s->status    = 0;
 	h2s->body_len  = 0;
 	h2s->rxbuf     = BUF_NULL;
+	h2s->rx_tail   = 0;
+	h2s->rx_head   = 0;
+	h2s->rx_count  = 0;
 	memset(h2s->upgrade_protocol, 0, sizeof(h2s->upgrade_protocol));
 
 	h2s->by_id.key = h2s->id = id;
