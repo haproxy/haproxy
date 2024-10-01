@@ -1991,7 +1991,7 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 
 	frm->stream.stream = qcs->stream;
 	frm->stream.id = qcs->id;
-	frm->stream.offset.key = 0;
+	frm->stream.offset = 0;
 	frm->stream.dup = 0;
 
 	if (total) {
@@ -2010,7 +2010,7 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 
 	if (qcs->tx.fc.off_real) {
 		frm->type |= QUIC_STREAM_FRAME_TYPE_OFF_BIT;
-		frm->stream.offset.key = qcs->tx.fc.off_real;
+		frm->stream.offset = qcs->tx.fc.off_real;
 	}
 
 	/* Always set length bit as we do not know if there is remaining frames
@@ -2025,7 +2025,7 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 	{
 		struct qcs_build_stream_trace_arg arg = {
 			.len = frm->stream.len, .fin = fin,
-			.offset = frm->stream.offset.key,
+			.offset = frm->stream.offset,
 		};
 		TRACE_LEAVE(QMUX_EV_QCS_SEND|QMUX_EV_QCS_BUILD_STRM,
 		            qcc->conn, qcs, &arg);

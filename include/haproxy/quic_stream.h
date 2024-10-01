@@ -7,13 +7,13 @@
 #include <haproxy/quic_stream-t.h>
 
 struct quic_conn;
-struct quic_frame;
 
 struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type, void *ctx,
                                           struct quic_conn *qc);
 void qc_stream_desc_release(struct qc_stream_desc *stream, uint64_t final_size,
                             void *new_ctx);
-int qc_stream_desc_ack(struct qc_stream_desc *stream, struct quic_frame *frm);
+int qc_stream_desc_ack(struct qc_stream_desc *stream,
+                       uint64_t offset, uint64_t len, int fin);
 void qc_stream_desc_free(struct qc_stream_desc *stream, int closing);
 
 struct buffer *qc_stream_buf_get(struct qc_stream_desc *stream);

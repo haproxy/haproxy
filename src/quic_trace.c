@@ -412,7 +412,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			const struct qc_stream_desc *stream = a3;
 
 			if (strm_frm)
-				chunk_appendf(&trace_buf, " off=%llu len=%llu", (ull)strm_frm->offset.key, (ull)strm_frm->len);
+				chunk_appendf(&trace_buf, " off=%llu len=%llu", (ull)strm_frm->offset, (ull)strm_frm->len);
 			if (stream)
 				chunk_appendf(&trace_buf, " ack_offset=%llu", (ull)stream->ack_offset);
 		}

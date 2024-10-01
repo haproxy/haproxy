@@ -1617,7 +1617,7 @@ static int qc_build_frms(struct list *outlist, struct list *inlist,
 			 * excepting the variable ones. Note that +1 is for the type of this frame.
 			 */
 			hlen = 1 + quic_int_getsize(cf->stream.id) +
-				((cf->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) ? quic_int_getsize(cf->stream.offset.key) : 0);
+				((cf->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) ? quic_int_getsize(cf->stream.offset) : 0);
 			/* Compute the data length of this STREAM frame. */
 			avail_room = room - hlen;
 			if ((ssize_t)avail_room <= 0)
@@ -1662,7 +1662,7 @@ static int qc_build_frms(struct list *outlist, struct list *inlist,
 				LIST_APPEND(outlist, &cf->list);
 
 				qc_stream_desc_send(cf->stream.stream,
-				                    cf->stream.offset.key,
+				                    cf->stream.offset,
 				                    cf->stream.len);
 			}
 			else {
@@ -1702,11 +1702,11 @@ static int qc_build_frms(struct list *outlist, struct list *inlist,
 				                b_size(cf->stream.buf),
 				                (char *)cf->stream.data - b_orig(cf->stream.buf), 0);
 				cf->stream.len -= dlen;
-				cf->stream.offset.key += dlen;
+				cf->stream.offset += dlen;
 				cf->stream.data = (unsigned char *)b_peek(&cf_buf, dlen);
 
 				qc_stream_desc_send(new_cf->stream.stream,
-				                    new_cf->stream.offset.key,
+				                    new_cf->stream.offset,
 				                    new_cf->stream.len);
 			}
 

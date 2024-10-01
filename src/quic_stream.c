@@ -9,13 +9,14 @@
 #include <haproxy/mux_quic.h>
 #include <haproxy/pool.h>
 #include <haproxy/quic_conn.h>
-#include <haproxy/quic_frame-t.h>
 #include <haproxy/task.h>
 
 DECLARE_STATIC_POOL(pool_head_quic_stream_desc, "qc_stream_desc",
                     sizeof(struct qc_stream_desc));
 DECLARE_STATIC_POOL(pool_head_quic_stream_buf, "qc_stream_buf",
                     sizeof(struct qc_stream_buf));
+DECLARE_STATIC_POOL(pool_head_quic_stream_ack, "qc_stream_ack",
+                    sizeof(struct qc_stream_ack));
 
 static struct pool_head *pool_head_sbuf;
 
@@ -26,7 +27,7 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 	uint64_t room;
 
 	/* Caller is responsible to remove buffered ACK frames before destroying a buffer instance. */
-	BUG_ON(!eb_is_empty(&(*stream_buf)->acked_frms));
+	BUG_ON(!eb_is_empty(&(*stream_buf)->ack_tree));
 
 	eb64_delete(&(*stream_buf)->offset_node);
 
@@ -174,7 +175,7 @@ static struct qc_stream_buf *qc_stream_buf_ack(struct qc_stream_buf *buf,
 		stream->flags &= ~QC_SD_FL_WAIT_FOR_FIN;
 	}
 
-	if (!b_data(&buf->buf) && eb_is_empty(&buf->acked_frms)) {
+	if (!b_data(&buf->buf) && eb_is_empty(&buf->ack_tree)) {
 		qc_stream_buf_free(stream, &buf);
 		/* Retrieve next buffer instance. */
 		buf = !eb_is_empty(&stream->buf_tree) ?
@@ -192,33 +193,24 @@ static struct qc_stream_buf *qc_stream_buf_ack(struct qc_stream_buf *buf,
 static void qc_stream_buf_consume(struct qc_stream_buf *stream_buf,
                                   struct qc_stream_desc *stream)
 {
-	struct quic_conn *qc = stream->qc;
-	struct eb64_node *frm_node;
-	struct qf_stream *strm_frm;
-	struct quic_frame *frm;
-	uint64_t offset, len;
-	int fin;
+	struct qc_stream_ack *ack;
+	struct eb64_node *ack_node;
 
-	frm_node = eb64_first(&stream_buf->acked_frms);
-	while (frm_node) {
-		strm_frm = eb64_entry(frm_node, struct qf_stream, offset);
-		frm = container_of(strm_frm, struct quic_frame, stream);
-
-		offset = strm_frm->offset.key;
-		len = strm_frm->len;
-		fin = frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT;
-
-		if (offset > stream->ack_offset)
+	ack_node = eb64_first(&stream_buf->ack_tree);
+	while (ack_node) {
+		ack = eb64_entry(ack_node, struct qc_stream_ack, offset_node);
+		if (ack->offset_node.key > stream->ack_offset)
 			break;
 
-		/* Delete frame before acknowledged it. This prevents BUG_ON()
-		 * on non-empty acked_frms tree when stream_buf is empty and removed.
+		/* Delete range before acknowledged it. This prevents BUG_ON()
+		 * on non-empty ack_tree tree when stream_buf is empty and removed.
 		 */
-		eb64_delete(frm_node);
-		stream_buf = qc_stream_buf_ack(stream_buf, stream, offset, len, fin);
-		qc_release_frm(qc, frm);
+		eb64_delete(ack_node);
+		stream_buf = qc_stream_buf_ack(stream_buf, stream,
+		                               ack->offset_node.key, ack->len, ack->fin);
+		pool_free(pool_head_quic_stream_ack, ack);
 
-		frm_node = stream_buf ? eb64_first(&stream_buf->acked_frms) : NULL;
+		ack_node = stream_buf ? eb64_first(&stream_buf->ack_tree) : NULL;
 	}
 }
 
@@ -228,14 +220,11 @@ static void qc_stream_buf_consume(struct qc_stream_buf *stream_buf,
  * Returns 0 if the frame has been handled and can be removed.
  * Returns a positive value if acknowledgement is out-of-order and
  * corresponding STREAM frame has been buffered.
+ * Returns a negative value on fatal error.
  */
-int qc_stream_desc_ack(struct qc_stream_desc *stream, struct quic_frame *frm)
+int qc_stream_desc_ack(struct qc_stream_desc *stream,
+                       uint64_t offset, uint64_t len, int fin)
 {
-	struct qf_stream *strm_frm = &frm->stream;
-	const uint64_t offset = strm_frm->offset.key;
-	const uint64_t len = strm_frm->len;
-	const int fin = frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT;
-
 	struct qc_stream_buf *stream_buf = NULL;
 	struct eb64_node *buf_node;
 	int ret = 0;
@@ -254,10 +243,21 @@ int qc_stream_desc_ack(struct qc_stream_desc *stream, struct quic_frame *frm)
 		stream->flags &= ~QC_SD_FL_WAIT_FOR_FIN;
 	}
 	else if (offset > stream->ack_offset) {
+		struct qc_stream_ack *ack;
+
 		buf_node = eb64_lookup_le(&stream->buf_tree, offset);
 		BUG_ON(!buf_node); /* Cannot acknowledged a STREAM frame for a non existing buffer. */
 		stream_buf = eb64_entry(buf_node, struct qc_stream_buf, offset_node);
-		eb64_insert(&stream_buf->acked_frms, &strm_frm->offset);
+
+		ack = pool_alloc(pool_head_quic_stream_ack);
+		if (!ack)
+			return -1;
+
+		ack->offset_node.key = offset;
+		ack->len = len;
+		ack->fin = fin;
+
+		eb64_insert(&stream_buf->ack_tree, &ack->offset_node);
 		ret = 1;
 	}
 	else if (offset + len > stream->ack_offset) {
@@ -283,8 +283,7 @@ int qc_stream_desc_ack(struct qc_stream_desc *stream, struct quic_frame *frm)
 void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 {
 	struct qc_stream_buf *buf;
-	struct quic_conn *qc = stream->qc;
-	struct eb64_node *frm_node, *buf_node;
+	struct eb64_node *ack_node, *buf_node;
 	unsigned int free_count = 0;
 
 	/* This function only deals with released streams. */
@@ -302,16 +301,14 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 		BUG_ON(b_data(&buf->buf) && !closing);
 
 		/* qc_stream_desc might be freed before having received all its ACKs. */
-		while (!eb_is_empty(&buf->acked_frms)) {
-			struct qf_stream *strm_frm;
-			struct quic_frame *frm;
+		while (!eb_is_empty(&buf->ack_tree)) {
+			struct qc_stream_ack *ack;
 
-			frm_node = eb64_first(&buf->acked_frms);
-			eb64_delete(frm_node);
+			ack_node = eb64_first(&buf->ack_tree);
+			eb64_delete(ack_node);
 
-			strm_frm = eb64_entry(frm_node, struct qf_stream, offset);
-			frm = container_of(strm_frm, struct quic_frame, stream);
-			qc_release_frm(qc, frm);
+			ack = eb64_entry(ack_node, struct qc_stream_ack, offset_node);
+			pool_free(pool_head_quic_stream_ack, ack);
 		}
 
 		if (buf->sbuf)
@@ -358,7 +355,7 @@ struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
 	if (!stream->buf)
 		return NULL;
 
-	stream->buf->acked_frms = EB_ROOT;
+	stream->buf->ack_tree = EB_ROOT;
 	stream->buf->buf = BUF_NULL;
 	stream->buf->offset_node.key = offset;
 

@@ -171,7 +171,7 @@ struct qf_stream {
 	 */
 	struct buffer *buf;
 
-	struct eb64_node offset;
+	uint64_t offset;
 	uint64_t len;
 
 	/* for TX pointer into <buf> field.

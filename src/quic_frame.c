@@ -138,7 +138,7 @@ void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm)
 		chunk_appendf(&trace_buf, " uni=%d fin=%d id=%llu off=%llu len=%llu",
 		              !!(strm_frm->id & QUIC_STREAM_FRAME_ID_DIR_BIT),
 		              !!(frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT),
-		              (ull)strm_frm->id, (ull)strm_frm->offset.key, (ull)strm_frm->len);
+		              (ull)strm_frm->id, (ull)strm_frm->offset, (ull)strm_frm->len);
 		break;
 	}
 	case QUIC_FT_MAX_DATA:
@@ -521,10 +521,10 @@ static int quic_build_stream_frame(unsigned char **pos, const unsigned char *end
 
 	/* Caller must set OFF bit if and only if a non-null offset is used. */
 	BUG_ON(!!(frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) !=
-	       !!strm_frm->offset.key);
+	       !!strm_frm->offset);
 
 	if (!quic_enc_int(pos, end, strm_frm->id) ||
-	    ((frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) && !quic_enc_int(pos, end, strm_frm->offset.key)) ||
+	    ((frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) && !quic_enc_int(pos, end, strm_frm->offset)) ||
 	    ((frm->type & QUIC_STREAM_FRAME_TYPE_LEN_BIT) &&
 	     (!quic_enc_int(pos, end, strm_frm->len) || end - *pos < strm_frm->len)))
 		return 0;
@@ -563,10 +563,9 @@ static int quic_parse_stream_frame(struct quic_frame *frm, struct quic_conn *qc,
 		return 0;
 
 	/* Offset parsing */
-	if (!(frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT)) {
-		strm_frm->offset.key = 0;
-	}
-	else if (!quic_dec_int((uint64_t *)&strm_frm->offset.key, pos, end))
+	if (!(frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT))
+		strm_frm->offset = 0;
+	else if (!quic_dec_int((uint64_t *)&strm_frm->offset, pos, end))
 		return 0;
 
 	/* Length parsing */

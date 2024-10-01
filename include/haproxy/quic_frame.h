@@ -97,7 +97,7 @@ static inline size_t qc_frm_len(struct quic_frame *frm)
 	case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F: {
 		struct qf_stream *f = &frm->stream;
 		len += 1 + quic_int_getsize(f->id) +
-			((frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) ? quic_int_getsize(f->offset.key) : 0) +
+			((frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) ? quic_int_getsize(f->offset) : 0) +
 			((frm->type & QUIC_STREAM_FRAME_TYPE_LEN_BIT) ? quic_int_getsize(f->len) : 0) + f->len;
 		break;
 	}
@@ -267,7 +267,7 @@ static inline void qc_stream_frm_mv_fwd(struct quic_frame *frm, uint64_t data)
 	struct buffer cf_buf;
 
 	/* Set offset bit if not already there. */
-	strm_frm->offset.key += data;
+	strm_frm->offset += data;
 	frm->type |= QUIC_STREAM_FRAME_TYPE_OFF_BIT;
 
 	strm_frm->len -= data;

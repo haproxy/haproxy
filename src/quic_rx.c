@@ -203,10 +203,13 @@ static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
 
 /* Handle <frm> frame whose packet it is attached to has just been acknowledged. The memory allocated
  * for this frame will be at least released in every cases.
- * Never fail.
+ *
+ * Returns 1 on sucess else 0.
  */
-static void qc_handle_newly_acked_frm(struct quic_conn *qc, struct quic_frame *frm)
+static int qc_handle_newly_acked_frm(struct quic_conn *qc, struct quic_frame *frm)
 {
+	int ret = 0;
+
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
 	TRACE_PROTO("RX ack TX frm", QUIC_EV_CONN_PRSAFRM, qc, frm);
 
@@ -216,6 +219,7 @@ static void qc_handle_newly_acked_frm(struct quic_conn *qc, struct quic_frame *f
 		struct qf_stream *strm_frm = &frm->stream;
 		struct eb64_node *node = NULL;
 		struct qc_stream_desc *stream = NULL;
+		int ack;
 
 		/* do not use strm_frm->stream as the qc_stream_desc instance
 		 * might be freed at this stage. Use the id to do a proper
@@ -231,23 +235,33 @@ static void qc_handle_newly_acked_frm(struct quic_conn *qc, struct quic_frame *f
 			/* early return */
 			goto leave;
 		}
-		stream = eb64_entry(node, struct qc_stream_desc, by_id);
-
-		if (!qc_stream_desc_ack(stream, frm)) {
-			TRACE_DEVEL("stream consumed on ACK received", QUIC_EV_CONN_ACKSTRM,
-			            qc, strm_frm, stream);
-
-			if (qc_stream_desc_done(stream)) {
-				/* no need to continue if stream freed. */
-				TRACE_DEVEL("stream released and freed", QUIC_EV_CONN_ACKSTRM, qc);
-				qc_check_close_on_released_mux(qc);
-			}
-
-			qc_release_frm(qc, frm);
-		}
 		else {
-			TRACE_DEVEL("handled out-of-order stream ACK", QUIC_EV_CONN_ACKSTRM,
-			            qc, strm_frm, stream);
+			stream = eb64_entry(node, struct qc_stream_desc, by_id);
+
+			ack = qc_stream_desc_ack(stream, strm_frm->offset,
+			                         strm_frm->len,
+			                         frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT);
+			if (!ack) {
+				TRACE_DEVEL("stream consumed on ACK received",
+				            QUIC_EV_CONN_ACKSTRM, qc, strm_frm, stream);
+
+				if (qc_stream_desc_done(stream)) {
+					/* no need to continue if stream freed. */
+					TRACE_DEVEL("stream released and freed", QUIC_EV_CONN_ACKSTRM, qc);
+					qc_check_close_on_released_mux(qc);
+				}
+
+				qc_release_frm(qc, frm);
+			}
+			else if (ack > 0) {
+				TRACE_DEVEL("handled out-of-order stream ACK",
+				            QUIC_EV_CONN_ACKSTRM, qc, strm_frm, stream);
+				qc_release_frm(qc, frm);
+			}
+			else {
+				/* Fatal error during qc_stream_desc_ack(). */
+				goto leave;
+			}
 		}
 	}
 	break;
@@ -255,8 +269,10 @@ static void qc_handle_newly_acked_frm(struct quic_conn *qc, struct quic_frame *f
 		qc_release_frm(qc, frm);
 	}
 
+	ret = 1;
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
+	return ret;
 }
 
 /* Collect newly acknowledged TX packets from <pkts> ebtree into <newly_acked_pkts>
@@ -293,11 +309,15 @@ static void qc_newly_acked_pkts(struct quic_conn *qc, struct eb_root *pkts,
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
 }
 
-/* Handle <newly_acked_pkts> list of newly acknowledged TX packets */
-static void qc_handle_newly_acked_pkts(struct quic_conn *qc,
-                                       unsigned int *pkt_flags, struct list *newly_acked_pkts)
+/* Handle <newly_acked_pkts> list of newly acknowledged TX packets.
+ *
+ * Returns 1 on sucess else 0.
+ */
+static int qc_handle_newly_acked_pkts(struct quic_conn *qc,
+                                      unsigned int *pkt_flags, struct list *newly_acked_pkts)
 {
 	struct quic_tx_packet *pkt, *tmp;
+	int ret = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
 
@@ -306,8 +326,10 @@ static void qc_handle_newly_acked_pkts(struct quic_conn *qc,
 
 		*pkt_flags |= pkt->flags;
 		TRACE_DEVEL("Removing packet #", QUIC_EV_CONN_PRSAFRM, qc, NULL, &pkt->pn_node.key);
-		list_for_each_entry_safe(frm, frmbak, &pkt->frms, list)
-			qc_handle_newly_acked_frm(qc, frm);
+		list_for_each_entry_safe(frm, frmbak, &pkt->frms, list) {
+			if (!qc_handle_newly_acked_frm(qc, frm))
+				goto leave;
+		}
 		/* If there are others packet in the same datagram <pkt> is attached to,
 		 * detach the previous one and the next one from <pkt>.
 		 */
@@ -315,8 +337,10 @@ static void qc_handle_newly_acked_pkts(struct quic_conn *qc,
 		eb64_delete(&pkt->pn_node);
 	}
 
+	ret = 1;
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
+	return ret;
 }
 
 /* Handle all frames sent from <pkt> packet and reinsert them in the same order
@@ -528,7 +552,9 @@ static int qc_parse_ack_frm(struct quic_conn *qc,
 	} while (1);
 
 	if (!LIST_ISEMPTY(&newly_acked_pkts)) {
-		qc_handle_newly_acked_pkts(qc, &pkt_flags, &newly_acked_pkts);
+		if (!qc_handle_newly_acked_pkts(qc, &pkt_flags, &newly_acked_pkts))
+			goto leave;
+
 		if (new_largest_acked_pn && (pkt_flags & QUIC_FL_TX_PACKET_ACK_ELICITING)) {
 			*rtt_sample = tick_remain(time_sent, now_ms);
 			qel->pktns->rx.largest_acked_pn = ack_frm->largest_ack;
@@ -583,7 +609,7 @@ static int qc_handle_strm_frm(struct quic_rx_packet *pkt,
 	TRACE_ENTER(QUIC_EV_CONN_PRSFRM, qc);
 
 	ret = qcc_recv(qc->qcc, strm_frm->id, strm_frm->len,
-	               strm_frm->offset.key, fin, (char *)strm_frm->data);
+	               strm_frm->offset, fin, (char *)strm_frm->data);
 
 	/* frame rejected - packet must not be acknowledeged */
 	TRACE_LEAVE(QUIC_EV_CONN_PRSFRM, qc);

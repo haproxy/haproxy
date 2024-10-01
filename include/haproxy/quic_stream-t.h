@@ -15,7 +15,7 @@
  * can be freed in strict order.
  */
 struct qc_stream_buf {
-	struct eb_root acked_frms; /* storage for out-of-order ACKs */
+	struct eb_root ack_tree; /* storage for out-of-order ACKs */
 	struct eb64_node offset_node; /* node for qc_stream_desc buf tree */
 	struct buffer buf; /* STREAM payload */
 	int sbuf;
@@ -48,6 +48,13 @@ struct qc_stream_desc {
 	void (*notify_send)(struct qc_stream_desc *, uint64_t offset, uint64_t len);
 	void (*notify_room)(struct qc_stream_desc *, uint64_t room);
 	void *ctx; /* notify context */
+};
+
+/* Represents a range of acknowledged data that cannot be immediately deleted. */
+struct qc_stream_ack {
+	struct eb64_node offset_node; /* range starting offset, used as attach point to streambuf <ack_tree>. */
+	uint64_t len;                 /* length of the acknowledged range */
+	int fin;                      /* set if the related STREAM frame had FIN bit set */
 };
 
 #endif /* USE_QUIC */
