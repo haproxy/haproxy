@@ -44,6 +44,7 @@
 #define	MODE_DUMP_KWD   0x4000  /* dump registered keywords (see kwd_dump for the list) */
 #define	MODE_DUMP_CFG   0x8000  /* dump the configuration file */
 #define	MODE_DUMP_NB_L  0x10000 /* dump line numbers when the configuration file is dump */
+#define	MODE_DISCOVERY  0x20000 /* parse only keywords with KW_DISCOVERY flag to discover other global modes, i.e. daemon, master-worker */
 
 /* list of last checks to perform, depending on config options */
 #define LSTCHK_SYSADM	0x00000001	/* check that we have CAP_SYS_ADMIN */
