@@ -25,7 +25,7 @@ void qc_stream_buf_release(struct qc_stream_desc *stream);
 static inline int qc_stream_desc_done(const struct qc_stream_desc *s)
 {
 	return (s->flags & (QC_SD_FL_RELEASE|QC_SD_FL_WAIT_FOR_FIN)) == QC_SD_FL_RELEASE &&
-	       LIST_ISEMPTY(&s->buf_list);
+	       eb_is_empty(&s->buf_tree);
 }
 
 /* Reports emission of STREAM frame starting at <offset> and of length <len>,
