@@ -1025,7 +1025,72 @@ static int cfg_parse_trace(char **args, int section_type, struct proxy *curpx,
 		}
 		ha_free(&msg);
 	}
+
 	return 0;
+}
+
+/*
+ * parse a line in a <traces> section. Returns the error code, 0 if OK, or
+ * any combination of :
+ *  - ERR_ABORT: must abort ASAP
+ *  - ERR_FATAL: we can continue parsing but not start the service
+ *  - ERR_WARN: a warning has been emitted
+ *  - ERR_ALERT: an alert has been emitted
+ * Only the two first ones can stop processing, the two others are just
+ * indicators.
+ */
+int cfg_parse_traces(const char *file, int linenum, char **args, int inv)
+{
+	int err_code = 0;
+	char *errmsg = NULL;
+
+	if (strcmp(args[0], "traces") == 0) {  /* new section */
+		/* no option, nothing special to do */
+		alertif_too_many_args(0, file, linenum, args, &err_code);
+		goto out;
+	}
+	else {
+		struct cfg_kw_list *kwl;
+		const char *best;
+		int index;
+		int rc;
+
+		list_for_each_entry(kwl, &cfg_keywords.list, list) {
+			for (index = 0; kwl->kw[index].kw != NULL; index++) {
+				if (kwl->kw[index].section != CFG_TRACES)
+					continue;
+				if (strcmp(kwl->kw[index].kw, args[0]) == 0) {
+					if (check_kw_experimental(&kwl->kw[index], file, linenum, &errmsg)) {
+						ha_alert("%s\n", errmsg);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+
+					rc = kwl->kw[index].parse(args, CFG_TRACES, NULL, NULL, file, linenum, &errmsg);
+					if (rc < 0) {
+						ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+						err_code |= ERR_ALERT | ERR_FATAL;
+					}
+					else if (rc > 0) {
+						ha_warning("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+						err_code |= ERR_WARN;
+					}
+					goto out;
+				}
+			}
+		}
+
+		best = cfg_find_best_match(args[0], &cfg_keywords.list, CFG_TRACES, NULL);
+		if (best)
+			ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section; did you mean '%s' maybe ?\n", file, linenum, args[0], cursection, best);
+		else
+			ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "global");
+		err_code |= ERR_ALERT | ERR_FATAL;
+	}
+
+  out:
+	free(errmsg);
+	return err_code;
 }
 
 /* parse the command, returns 1 if a message is returned, otherwise zero */
@@ -1108,7 +1173,7 @@ static struct cli_kw_list cli_kws = {{ },{
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 static struct cfg_kw_list cfg_kws = {ILH, {
-	{ CFG_GLOBAL, "trace", cfg_parse_trace, KWF_EXPERIMENTAL },
+	{ CFG_TRACES, "trace", cfg_parse_trace },
 	{ /* END */ },
 }};
 

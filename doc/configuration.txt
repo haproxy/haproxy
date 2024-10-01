@@ -52,6 +52,7 @@ Summary
 3.1.      Process management and security
 3.2.      Performance tuning
 3.3.      Debugging
+3.3.1.    Traces
 3.4.      Userlists
 3.5.      Peers
 3.6.      Mailers
@@ -2903,25 +2904,6 @@ thread-hard-limit <number>
   and a warning is emitted in so that the configuration anomaly can be
   fixed. By default there is no limit. See also "nbthread".
 
-trace <args...>
-  This command configures one "trace" subsystem statement. Each of them can be
-  found in the management manual, and follow the exact same syntax. Only one
-  statement per line is permitted (i.e. if some long trace configurations using
-  semi-colons are to be imported, they must be placed one per line). Any output
-  that the "trace" command would produce will be emitted during the parsing
-  step of the section. Most of the time these will be errors and warnings, but
-  certain incomplete commands might list permissible choices. This command is
-  not meant for regular use, it will generally only be suggested by developers
-  along complex debugging sessions. For this reason it is internally marked as
-  experimental, meaning that "expose-experimental-directives" must appear on a
-  line before any "trace" statement. Note that these directives are parsed on
-  the fly, so referencing a ring buffer that is only declared further will not
-  work. For such use cases it is suggested to place another "global" section
-  with only the "trace" statements after the declaration of that ring. It is
-  important to keep in mind that depending on the trace level and details,
-  enabling traces can severely degrade the global performance. Please refer to
-  the management manual for the statements syntax.
-
 uid <number>
   Changes the process's user ID to <number>. It is recommended that the user ID
   is dedicated to HAProxy or to a small set of similar daemons. HAProxy must
@@ -4350,6 +4332,60 @@ zero-warning
   report errors in such a case. This option is equivalent to command line
   argument "-dW".
 
+3.3.1. Traces
+-------------
+
+For debugging purpose, it is possible to activate traces on an HAProxy's
+subsystem. This will dump debug messages about a specific subsystem. It is a
+very powerful tool to diagnose issues. Traces can be dynamically configured via
+the CLI. It is also possible to predefined some settings in the configuration
+file, in dedicated "traces" sections. More details about traces can be found in
+the management guide. It remains a developper tools used during complex
+debugging sessions.  It is pretty verbose and have a cost, so use it with
+caution. And because it is a developper tool, there is no warranty about the
+backward compatibility of this section.
+
+traces
+  Starts a new traces section. One or multiple "traces" section may be
+  used. All direcitives are evaluated in the declararion order, the last ones
+  overriding previous ones.
+
+trace <args...>
+  Configures on "trace" subsystem. Each of them can be found in the management
+  manual, and follow the exact same syntax. Only one statement per line is
+  permitted (i.e. if some long trace configurations using semi-colons are to be
+  imported, they must be placed one per line). Any output that the "trace"
+  command would produce will be emitted during the parsing step of the
+  section. Most of the time these will be errors and warnings, but certain
+  incomplete commands might list permissible choices. This command is not meant
+  for regular use, it will generally only be suggested by developers along
+  complex debugging sessions. Note that these directives are parsed on the fly,
+  so referencing a ring buffer that is only declared further will not work. It
+  is important to keep in mind that depending on the trace level and details,
+  enabling traces can severely degrade the global performance. Please refer to
+  the management manual for the statements syntax.
+
+  Example:
+    ring buf1
+      size 10485760 # 10MB
+      format timed
+      backing-file /tmp/h1.traces
+
+    ring buf2
+      size 10485760 # 10MB
+      format timed
+      backing-file /tmp/h2.traces
+
+    traces
+      trace h1 sink buf1
+      trace h1 level developer
+      trace h1 verbosity complete
+      trace h1 start now
+
+      trace h2 sink buf1
+      trace h2 level developer
+      trace h2 verbosity complete
+      trace h2 start now
 
 3.4. Userlists
 --------------

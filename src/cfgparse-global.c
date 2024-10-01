@@ -897,7 +897,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 				}
 			}
 		}
-		
+
 		best = cfg_find_best_match(args[0], &cfg_keywords.list, CFG_GLOBAL, common_kw_list);
 		if (best)
 			ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section; did you mean '%s' maybe ?\n", file, linenum, args[0], cursection, best);
