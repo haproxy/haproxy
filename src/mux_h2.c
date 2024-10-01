@@ -72,6 +72,7 @@ struct h2c {
 
 	/* states for the mux direction */
 	struct buffer mbuf[H2C_MBUF_CNT];   /* mux buffers (ring) */
+	struct bl_elem *shared_rx_bufs;     /* shared rx bufs */
 	int32_t miw; /* mux initial window size for all new streams */
 	int32_t mws; /* mux window size. Can be negative. */
 	int32_t mfs; /* mux's max frame size */
@@ -444,6 +445,9 @@ DECLARE_STATIC_POOL(pool_head_h2c, "h2c", sizeof(struct h2c));
 
 /* the h2s stream pool */
 DECLARE_STATIC_POOL(pool_head_h2s, "h2s", sizeof(struct h2s));
+
+/* the shared rx_bufs pool */
+struct pool_head *pool_head_h2_rx_bufs __read_mostly = NULL;
 
 /* The default connection window size is 65535, it may only be enlarged using
  * a WINDOW_UPDATE message. Since the window must never be larger than 2G-1,
@@ -1091,6 +1095,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->proxy = prx;
 	h2c->task = NULL;
 	h2c->wait_event.tasklet = NULL;
+	h2c->shared_rx_bufs = NULL;
 	h2c->idle_start = now_ms;
 	if (tick_isset(h2c->timeout)) {
 		t = task_new_here();
@@ -1118,6 +1123,10 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 			            &conn->stopping_list);
 		}
 	}
+
+	h2c->shared_rx_bufs = pool_alloc(pool_head_h2_rx_bufs);
+	if (!h2c->shared_rx_bufs)
+		goto fail;
 
 	h2c->ddht = hpack_dht_alloc();
 	if (!h2c->ddht)
@@ -1255,6 +1264,7 @@ static void h2_release(struct h2c *h2c)
 
 	HA_ATOMIC_DEC(&h2c->px_counters->open_conns);
 
+	pool_free(pool_head_h2_rx_bufs, h2c->shared_rx_bufs);
 	pool_free(pool_head_h2c, h2c);
 
 	if (conn) {
@@ -8022,11 +8032,30 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
  */
 static int init_h2()
 {
+	uint max_bufs;
+
 	pool_head_hpack_tbl = create_pool("hpack_tbl",
 	                                  h2_settings_header_table_size,
 	                                  MEM_F_SHARED|MEM_F_EXACT);
 	if (!pool_head_hpack_tbl) {
 		ha_alert("failed to allocate hpack_tbl memory pool\n");
+		return (ERR_ALERT | ERR_FATAL);
+	}
+
+	max_bufs = h2_fe_settings_max_concurrent_streams ?
+	           h2_fe_settings_max_concurrent_streams :
+	           h2_settings_max_concurrent_streams;
+
+	max_bufs = MAX(max_bufs,
+	               h2_be_settings_max_concurrent_streams ?
+	               h2_be_settings_max_concurrent_streams :
+	               h2_settings_max_concurrent_streams);
+
+	pool_head_h2_rx_bufs = create_pool("h2_rx_bufs",
+	                                   (max_bufs + 1) * sizeof(struct bl_elem),
+	                                   MEM_F_SHARED|MEM_F_EXACT);
+	if (!pool_head_h2_rx_bufs) {
+		ha_alert("failed to allocate h2_rx_bufs memory pool\n");
 		return (ERR_ALERT | ERR_FATAL);
 	}
 	return ERR_NONE;
