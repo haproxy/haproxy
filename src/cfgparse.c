@@ -2565,6 +2565,10 @@ next_line:
 		if (pcs && pcs->post_section_parser) {
 			int status;
 
+			/* for the moment don't call post_section_parser in MODE_DISCOVERY */
+			if (global.mode & MODE_DISCOVERY)
+				continue;
+
 			status = pcs->post_section_parser();
 			err_code |= status;
 			if (status & ERR_FATAL)
@@ -2576,11 +2580,18 @@ next_line:
 		pcs = NULL;
 
 		if (!cs) {
+			/* ignore unknown section names during the first read in MODE_DISCOVERY */
+			if (global.mode & MODE_DISCOVERY)
+				continue;
 			ha_alert("parsing [%s:%d]: unknown keyword '%s' out of section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			fatal++;
 		} else {
 			int status;
+
+			/* for the moment read only the "global" section in MODE_DISCOVERY */
+			if ((global.mode & MODE_DISCOVERY) && (strcmp(cs->section_name, "global") != 0))
+				continue;
 
 			status = cs->section_parser(file, linenum, args, kwm);
 			err_code |= status;
