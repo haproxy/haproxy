@@ -4350,11 +4350,9 @@ traces
   used. All direcitives are evaluated in the declararion order, the last ones
   overriding previous ones.
 
-trace <args...>
+trace <source> <args...>
   Configures on "trace" subsystem. Each of them can be found in the management
-  manual, and follow the exact same syntax. Only one statement per line is
-  permitted (i.e. if some long trace configurations using semi-colons are to be
-  imported, they must be placed one per line). Any output that the "trace"
+  manual, and follow the exact same syntax. Any output that the "trace"
   command would produce will be emitted during the parsing step of the
   section. Most of the time these will be errors and warnings, but certain
   incomplete commands might list permissible choices. This command is not meant
@@ -4377,15 +4375,8 @@ trace <args...>
       backing-file /tmp/h2.traces
 
     traces
-      trace h1 sink buf1
-      trace h1 level developer
-      trace h1 verbosity complete
-      trace h1 start now
-
-      trace h2 sink buf1
-      trace h2 level developer
-      trace h2 verbosity complete
-      trace h2 start now
+      trace h1 sink buf1 level developer verbosity complete start now
+      trace h2 sink buf1 level developer verbosity complete start now
 
 3.4. Userlists
 --------------

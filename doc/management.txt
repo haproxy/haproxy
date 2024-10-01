@@ -3931,183 +3931,186 @@ trace 0
   to terminate a debugging session or as an emergency action to be used in case
   complex traces were enabled on multiple sources and impact the service.
 
-trace <source> event [ [+|-|!]<name> ]
-  Without argument, this will list all the events supported by the designated
-  source. They are prefixed with a "-" if they are not enabled, or a "+" if
-  they are enabled. It is important to note that a single trace may be labelled
-  with multiple events, and as long as any of the enabled events matches one of
-  the events labelled on the trace, the event will be passed to the trace
-  subsystem. For example, receiving an HTTP/2 frame of type HEADERS may trigger
-  a frame event and a stream event since the frame creates a new stream. If
-  either the frame event or the stream event are enabled for this source, the
-  frame will be passed to the trace framework.
+trace <source> [<args...>]
+  Configure traces for the source <source>. Without argument, this will list all
+  supported sub-commands to the given source. Multiple sub-commands can be
+  chained. Following sub-commands are supported:
 
-  With an argument, it is possible to toggle the state of each event and
-  individually enable or disable them. Two special keywords are supported,
-  "none", which matches no event, and is used to disable all events at once,
-  and "any" which matches all events, and is used to enable all events at
-  once. Other events are specific to the event source. It is possible to
-  enable one event by specifying its name, optionally prefixed with '+' for
-  better readability. It is possible to disable one event by specifying its
-  name prefixed by a '-' or a '!'.
+  event [ [+|-|!]<name> ]
+    Without argument, this will list all the events supported by the designated
+    source. They are prefixed with a "-" if they are not enabled, or a "+" if
+    they are enabled. It is important to note that a single trace may be
+    labelled with multiple events, and as long as any of the enabled events
+    matches one of the events labelled on the trace, the event will be passed to
+    the trace subsystem. For example, receiving an HTTP/2 frame of type HEADERS
+    may trigger a frame event and a stream event since the frame creates a new
+    stream. If either the frame event or the stream event are enabled for this
+    source, the frame will be passed to the trace framework.
 
-  One way to completely disable a trace source is to pass "event none", and
-  this source will instantly be totally ignored.
+    With an argument, it is possible to toggle the state of each event and
+    individually enable or disable them. Two special keywords are supported,
+    "none", which matches no event, and is used to disable all events at once,
+    and "any" which matches all events, and is used to enable all events at
+    once. Other events are specific to the event source. It is possible to
+    enable one event by specifying its name, optionally prefixed with '+' for
+    better readability. It is possible to disable one event by specifying its
+    name prefixed by a '-' or a '!'.
 
-trace <source> follow <other_source>
-  This permits the source <source> to also emit traces when the other source
-  <other_source> is locked on a criteria and the same criteria matches for the
-  current source as well. For example, if a source is locked on a session,
-  following that source from another one will make that other one emit traces
-  for all events related to this session. This may be used to some extents to
-  track backend requests along with the associated frontend connections. The
-  "session" source makes this easier by providing a "new" and an "end" events
-  that are usable for lock-on processing. Note that the source <source> does
-  not need to have its traces enabled in this case, and its tracing state will
-  not be affected either. It is, however, possible that some events may be
-  missing if they do not contain information that allow to correlate them with
-  the tracked element. The meta-source "all" may also be used with this
-  command: in this case, all sources will follow <other_source>.
+    One way to completely disable a trace source is to pass "event none", and
+    this source will instantly be totally ignored.
 
-  Example:
-     trace session lock session
-     trace session start sess_new
-     trace session pause sess_end
-     trace h1 follow session
+  follow <other_source>
+    This permits the source <source> to also emit traces when the other source
+    <other_source> is locked on a criteria and the same criteria matches for the
+    current source as well. For example, if a source is locked on a session,
+    following that source from another one will make that other one emit traces
+    for all events related to this session. This may be used to some extents to
+    track backend requests along with the associated frontend connections. The
+    "session" source makes this easier by providing a "new" and an "end" events
+    that are usable for lock-on processing. Note that the source <source> does
+    not need to have its traces enabled in this case, and its tracing state will
+    not be affected either. It is, however, possible that some events may be
+    missing if they do not contain information that allow to correlate them with
+    the tracked element. The meta-source "all" may also be used with this
+    command: in this case, all sources will follow <other_source>.
 
-trace <source> level [<level>]
-  Without argument, this will list all trace levels for this source, and the
-  current one will be indicated by a star ('*') prepended in front of it. With
-  an argument, this will change the trace level to the specified level. Detail
-  levels are a form of filters that are applied before reporting the events.
-  These filters are used to selectively include or exclude events depending on
-  their level of importance. For example a developer might need to know
-  precisely where in the code an HTTP header was considered invalid while the
-  end user may not even care about this header's validity at all. There are
-  currently 5 distinct levels for a trace :
+    Example:
+       trace h1 lock session start sess_new pause sess_end follow session
 
-      user         this will report information that are suitable for use by a
+  level [<level>]
+    Without argument, this will list all trace levels for this source, and the
+    current one will be indicated by a star ('*') prepended in front of it. With
+    an argument, this will change the trace level to the specified level. Detail
+    levels are a form of filters that are applied before reporting the events.
+    These filters are used to selectively include or exclude events depending on
+    their level of importance. For example a developer might need to know
+    precisely where in the code an HTTP header was considered invalid while the
+    end user may not even care about this header's validity at all. There are
+    currently 5 distinct levels for a trace :
+
+        user       this will report information that are suitable for use by a
                    regular haproxy user who wants to observe his traffic.
                    Typically some HTTP requests and responses will be reported
                    without much detail. Most sources will set this as the
                    default level to ease operations.
 
-      proto        in addition to what is reported at the "user" level, it also
+        proto      in addition to what is reported at the "user" level, it also
                    displays protocol-level updates. This can for example be the
                    frame types or HTTP headers after decoding.
 
-      state        in addition to what is reported at the "proto" level, it
+        state      in addition to what is reported at the "proto" level, it
                    will also display state transitions (or failed transitions)
                    which happen in parsers, so this will show attempts to
                    perform an operation while the "proto" level only shows
                    the final operation.
 
-      data         in addition to what is reported at the "state" level, it
+        data       in addition to what is reported at the "state" level, it
                    will also include data transfers between the various layers.
 
-      developer    it reports everything available, which can include advanced
+        developer  it reports everything available, which can include advanced
                    information such as "breaking out of this loop" that are
                    only relevant to a developer trying to understand a bug that
                    only happens once in a while in field. Function names are
                    only reported at this level.
 
-  It is highly recommended to always use the "user" level only and switch to
-  other levels only if instructed to do so by a developer. Also it is a good
-  idea to first configure the events before switching to higher levels, as it
-  may save from dumping many lines if no filter is applied. The meta-source
-  "all" may also be used with this command: in this case, the level will be
-  applied to all existing sources at once.
+    It is highly recommended to always use the "user" level only and switch to
+    other levels only if instructed to do so by a developer. Also it is a good
+    idea to first configure the events before switching to higher levels, as it
+    may save from dumping many lines if no filter is applied. The meta-source
+    "all" may also be used with this command: in this case, the level will be
+    applied to all existing sources at once.
 
-trace <source> lock [criterion]
-  Without argument, this will list all the criteria supported by this source
-  for lock-on processing, and display the current choice by a star ('*') in
-  front of it. Lock-on means that the source will focus on the first matching
-  event and only stick to the criterion which triggered this event, and ignore
-  all other ones until the trace stops. This allows for example to take a trace
-  on a single connection or on a single stream. The following criteria are
-  supported by some traces, though not necessarily all, since some of them
-  might not be available to the source :
+  lock [criterion]
+    Without argument, this will list all the criteria supported by this source
+    for lock-on processing, and display the current choice by a star ('*') in
+    front of it. Lock-on means that the source will focus on the first matching
+    event and only stick to the criterion which triggered this event, and ignore
+    all other ones until the trace stops. This allows for example to take a
+    trace on a single connection or on a single stream. The following criteria
+    are supported by some traces, though not necessarily all, since some of them
+    might not be available to the source :
 
-      backend      lock on the backend that started the trace
-      connection   lock on the connection that started the trace
-      frontend     lock on the frontend that started the trace
-      listener     lock on the listener that started the trace
-      nothing      do not lock on anything
-      server       lock on the server that started the trace
-      session      lock on the session that started the trace
-      thread       lock on the thread that started the trace
+        backend      lock on the backend that started the trace
+        connection   lock on the connection that started the trace
+        frontend     lock on the frontend that started the trace
+        listener     lock on the listener that started the trace
+        nothing      do not lock on anything
+        server       lock on the server that started the trace
+        session      lock on the session that started the trace
+        thread       lock on the thread that started the trace
 
-  In addition to this, each source may provide up to 4 specific criteria such
-  as internal states or connection IDs. For example in HTTP/2 it is possible
-  to lock on the H2 stream and ignore other streams once a strace starts.
+    In addition to this, each source may provide up to 4 specific criteria such
+    as internal states or connection IDs. For example in HTTP/2 it is possible
+    to lock on the H2 stream and ignore other streams once a strace starts.
 
-  When a criterion is passed in argument, this one is used instead of the
-  other ones and any existing tracking is immediately terminated so that it can
-  restart with the new criterion. The special keyword "nothing" is supported by
-  all sources to permanently disable tracking.
+    When a criterion is passed in argument, this one is used instead of the
+    other ones and any existing tracking is immediately terminated so that it
+    can restart with the new criterion. The special keyword "nothing" is
+    supported by all sources to permanently disable tracking.
 
-trace <source> { pause | start | stop } [ [+|-|!]event]
-  Without argument, this will list the events enabled to automatically pause,
-  start, or stop a trace for this source. These events are specific to each
-  trace source. With an argument, this will either enable the event for the
-  specified action (if optionally prefixed by a '+') or disable it (if
-  prefixed by a '-' or '!'). The special keyword "now" is not an event and
-  requests to take the action immediately. The keywords "none" and "any" are
-  supported just like in "trace event".
+  { pause | start | stop } [ [+|-|!]event]
+    Without argument, this will list the events enabled to automatically pause,
+    start, or stop a trace for this source. These events are specific to each
+    trace source. With an argument, this will either enable the event for the
+    specified action (if optionally prefixed by a '+') or disable it (if
+    prefixed by a '-' or '!'). The special keyword "now" is not an event and
+    requests to take the action immediately. The keywords "none" and "any" are
+    supported just like in "trace event".
 
-  The 3 supported actions are respectively "pause", "start" and "stop". The
-  "pause" action enumerates events which will cause a running trace to stop and
-  wait for a new start event to restart it. The "start" action enumerates the
-  events which switch the trace into the waiting mode until one of the start
-  events appears. And the "stop" action enumerates the events which definitely
-  stop the trace until it is manually enabled again. In practice it makes sense
-  to manually start a trace using "start now" without caring about events, and
-  to stop it using "stop now". In order to capture more subtle event sequences,
-  setting "start" to a normal event (like receiving an HTTP request) and "stop"
-  to a very rare event like emitting a certain error, will ensure that the last
-  captured events will match the desired criteria. And the pause event is
-  useful to detect the end of a sequence, disable the lock-on and wait for
-  another opportunity to take a capture. In this case it can make sense to
-  enable lock-on to spot only one specific criterion (e.g. a stream), and have
-  "start" set to anything that starts this criterion (e.g. all events which
-  create a stream), "stop" set to the expected anomaly, and "pause" to anything
-  that ends that criterion (e.g. any end of stream event). In this case the
-  trace log will contain complete sequences of perfectly clean series affecting
-  a single object, until the last sequence containing everything from the
-  beginning to the anomaly.
+    The 3 supported actions are respectively "pause", "start" and "stop". The
+    "pause" action enumerates events which will cause a running trace to stop
+    and wait for a new start event to restart it. The "start" action enumerates
+    the events which switch the trace into the waiting mode until one of the
+    start events appears. And the "stop" action enumerates the events which
+    definitely stop the trace until it is manually enabled again. In practice it
+    makes sense to manually start a trace using "start now" without caring about
+    events, and to stop it using "stop now". In order to capture more subtle
+    event sequences, setting "start" to a normal event (like receiving an HTTP
+    request) and "stop" to a very rare event like emitting a certain error, will
+    ensure that the last captured events will match the desired criteria. And
+    the pause event is useful to detect the end of a sequence, disable the
+    lock-on and wait for another opportunity to take a capture. In this case it
+    can make sense to enable lock-on to spot only one specific criterion (e.g. a
+    stream), and have "start" set to anything that starts this criterion
+    (e.g. all events which create a stream), "stop" set to the expected anomaly,
+    and "pause" to anything that ends that criterion (e.g. any end of stream
+    event). In this case the trace log will contain complete sequences of
+    perfectly clean series affecting a single object, until the last sequence
+    containing everything from the beginning to the anomaly.
 
-trace <source> sink [<sink>]
-   Without argument, this will list all event sinks available for this source,
-   and the currently configured one will have a star ('*') prepended in front
-   of it. Sink "none" is always available and means that all events are simply
-   dropped, though their processing is not ignored (e.g. lock-on does occur).
-   Other sinks are available depending on configuration and build options, but
-   typically "stdout" and "stderr" will be usable in debug mode, and in-memory
-   ring buffers should be available as well. When a name is specified, the sink
-   instantly changes for the specified source. Events are not changed during a
-   sink change. In the worst case some may be lost if an invalid sink is used
-   (or "none"), but operations do continue to a different destination. The
-   meta-source "all" may also be used with this command: in this case, the
-   sink will be applied to all existing sources at once.
+  sink [<sink>]
+     Without argument, this will list all event sinks available for this source,
+     and the currently configured one will have a star ('*') prepended in front
+     of it. Sink "none" is always available and means that all events are simply
+     dropped, though their processing is not ignored (e.g. lock-on does occur).
+     Other sinks are available depending on configuration and build options, but
+     typically "stdout" and "stderr" will be usable in debug mode, and in-memory
+     ring buffers should be available as well. When a name is specified, the
+     sink instantly changes for the specified source. Events are not changed
+     during a sink change. In the worst case some may be lost if an invalid sink
+     is used (or "none"), but operations do continue to a different
+     destination. The meta-source "all" may also be used with this command: in
+     this case, the sink will be applied to all existing sources at once.
 
-trace <source> verbosity [<level>]
-  Without argument, this will list all verbosity levels for this source, and the
-  current one will be indicated by a star ('*') prepended in front of it. With
-  an argument, this will change the verbosity level to the specified one.
+  verbosity [<level>]
+    Without argument, this will list all verbosity levels for this source, and
+    the current one will be indicated by a star ('*') prepended in front of
+    it. With an argument, this will change the verbosity level to the specified
+    one.
 
-  Verbosity levels indicate how far the trace decoder should go to provide
-  detailed information. It depends on the trace source, since some sources will
-  not even provide a specific decoder. Level "quiet" is always available and
-  disables any decoding. It can be useful when trying to figure what's
-  happening before trying to understand the details, since it will have a very
-  low impact on performance and trace size. When no verbosity levels are
-  declared by a source, level "default" is available and will cause a decoder
-  to be called when specified in the traces. It is an opportunistic decoding.
-  When the source declares some verbosity levels, these ones are listed with
-  a description of what they correspond to. In this case the trace decoder
-  provided by the source will be as accurate as possible based on the
-  information available at the trace point. The first level above "quiet" is
-  set by default.
+    Verbosity levels indicate how far the trace decoder should go to provide
+    detailed information. It depends on the trace source, since some sources
+    will not even provide a specific decoder. Level "quiet" is always available
+    and disables any decoding. It can be useful when trying to figure what's
+    happening before trying to understand the details, since it will have a very
+    low impact on performance and trace size. When no verbosity levels are
+    declared by a source, level "default" is available and will cause a decoder
+    to be called when specified in the traces. It is an opportunistic decoding.
+    When the source declares some verbosity levels, these ones are listed with a
+    description of what they correspond to. In this case the trace decoder
+    provided by the source will be as accurate as possible based on the
+    information available at the trace point. The first level above "quiet" is
+    set by default.
 
 update ssl ocsp-response <certfile>
   Create an OCSP request for the specified <certfile> and send it to the OCSP
