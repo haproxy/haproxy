@@ -977,6 +977,9 @@ static int cfg_parse_global_master_worker(char **args, int section_type,
 					  struct proxy *curpx, const struct proxy *defpx,
 					  const char *file, int line, char **err)
 {
+	if (!(global.mode & MODE_DISCOVERY))
+		return 0;
+
 	if (too_many_args(1, args, err, NULL))
 		return -1;
 
@@ -999,6 +1002,9 @@ static int cfg_parse_global_mode(char **args, int section_type,
 				 struct proxy *curpx, const struct proxy *defpx,
 				 const char *file, int line, char **err)
 {
+	if (!(global.mode & MODE_DISCOVERY))
+		return 0;
+
 	if (too_many_args(0, args, err, NULL))
 		return -1;
 
@@ -1024,6 +1030,9 @@ static int cfg_parse_global_disable_poller(char **args, int section_type,
 					   struct proxy *curpx, const struct proxy *defpx,
 					   const char *file, int line, char **err)
 {
+	if (!(global.mode & MODE_DISCOVERY))
+		return 0;
+
 	if (too_many_args(0, args, err, NULL))
 		return -1;
 
@@ -1051,6 +1060,9 @@ static int cfg_parse_global_pidfile(char **args, int section_type,
 				    struct proxy *curpx, const struct proxy *defpx,
 				    const char *file, int line, char **err)
 {
+	if (!(global.mode & MODE_DISCOVERY))
+		return 0;
+
 	if (too_many_args(1, args, err, NULL))
 		return -1;
 

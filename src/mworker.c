@@ -751,6 +751,8 @@ static int mworker_parse_global_max_reloads(char **args, int section_type, struc
 {
 
 	int err_code = 0;
+	if (!(global.mode & MODE_DISCOVERY))
+		return 0;
 
 	if (alertif_too_many_args(1, file, linenum, args, &err_code))
 		goto out;
