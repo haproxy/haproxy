@@ -737,7 +737,7 @@ void qcs_send_metadata(struct qcs *qcs)
 	/* Reserved for stream with Tx capability. */
 	BUG_ON(!qcs->stream);
 	/* Cannot use if some data already transferred for this stream. */
-	BUG_ON(!LIST_ISEMPTY(&qcs->stream->buf_list));
+	BUG_ON(qcs->stream->ack_offset || !LIST_ISEMPTY(&qcs->stream->buf_list));
 
 	qcs->stream->flags |= QC_SD_FL_OOB_BUF;
 }
