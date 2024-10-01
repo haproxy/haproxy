@@ -9858,6 +9858,7 @@ option httpchk
 option httpchk <uri>
 option httpchk <method> <uri>
 option httpchk <method> <uri> <version>
+option httpchk <method> <uri> <version> <host>
   Enables HTTP protocol to check on the servers health
 
   May be used in the following contexts: tcp, http
@@ -9879,7 +9880,10 @@ option httpchk <method> <uri> <version>
     <version> is the optional HTTP version string. It defaults to "HTTP/1.0"
               but some servers might behave incorrectly in HTTP 1.0, so turning
               it to HTTP/1.1 may sometimes help. Note that the Host field is
-              mandatory in HTTP/1.1, use "http-check send" directive to add it.
+              mandatory in HTTP/1.1.
+
+    <host>    is the optional HTTP Host header value. It is not set by default.
+              It is a log-format string.
 
   By default, server health checks only consist in trying to establish a TCP
   connection. When "option httpchk" is specified, a complete HTTP request is

@@ -8,6 +8,7 @@ server s1 {
     expect req.method == OPTIONS
     expect req.url == /
     expect req.proto == HTTP/1.0
+    expect req.http.host == <undef>
     txresp
 } -start
 
@@ -16,6 +17,7 @@ server s2 {
     expect req.method == GET
     expect req.url == /status
     expect req.proto == HTTP/1.1
+    expect req.http.host == "www.haproxy.org"
     txresp
 } -start
 
@@ -102,7 +104,7 @@ haproxy h1 -conf {
 
     backend be2
         log ${S1_addr}:${S1_port} len 2048 local0
-        option httpchk GET /status HTTP/1.1
+        option httpchk GET /status HTTP/1.1 www.haproxy.org
         server srv ${s2_addr}:${s2_port} check inter 100ms rise 1 fall 1
 
     backend be3

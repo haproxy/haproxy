@@ -5081,7 +5081,7 @@ static struct tcpcheck_rule *proxy_parse_httpchk_req(char **args, int cur_arg, s
 {
 	struct tcpcheck_rule *chk = NULL;
 	struct tcpcheck_http_hdr *hdr = NULL;
-	char *meth = NULL, *uri = NULL, *vsn = NULL;
+	char *meth = NULL, *uri = NULL, *vsn = NULL, *host = NULL;
 	char *hdrs, *body;
 
 	hdrs = (*args[cur_arg+2] ? strstr(args[cur_arg+2], "\r\n") : NULL);
@@ -5114,6 +5114,8 @@ static struct tcpcheck_rule *proxy_parse_httpchk_req(char **args, int cur_arg, s
 		uri = args[cur_arg+1];
 	if (*args[cur_arg+2])
 		vsn = args[cur_arg+2];
+	if (*args[cur_arg+3])
+		host = args[cur_arg+3];
 
 	if (meth) {
 		chk->send.http.meth.meth = find_http_meth(meth, strlen(meth));
@@ -5138,6 +5140,24 @@ static struct tcpcheck_rule *proxy_parse_httpchk_req(char **args, int cur_arg, s
 			goto error;
 		}
 	}
+	if (host) {
+		hdr = calloc(1, sizeof(*hdr));
+		if (!hdr) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+		lf_expr_init(&hdr->value);
+		hdr->name = istdup(ist("host"));
+		if (!isttest(hdr->name)) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+
+		if (!parse_logformat_string(host, px, &hdr->value, 0, SMP_VAL_BE_CHK_RUL, errmsg))
+			goto error;
+		LIST_APPEND(&chk->send.http.hdrs, &hdr->list);
+		hdr = NULL;
+	}
 
 	return chk;
 
@@ -5160,7 +5180,7 @@ int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[cur_arg+1], NULL))
 		err_code |= ERR_WARN;
 
-	if (alertif_too_many_args_idx(3, 1, file, line, args, &err_code))
+	if (alertif_too_many_args_idx(4, 1, file, line, args, &err_code))
 		goto out;
 
 	chk = proxy_parse_httpchk_req(args, cur_arg+2, curpx, &errmsg);
