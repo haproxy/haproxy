@@ -6781,6 +6781,36 @@ static int px_parse_log_steps(char **args, int section_type, struct proxy *curpx
 	return retval;
 }
 
+/* needed by do_log_parse_act() */
+static enum act_return do_log_action(struct act_rule *rule, struct proxy *px,
+                                     struct session *sess, struct stream *s, int flags)
+{
+	/* do_log() expects valid session pointer */
+	BUG_ON(sess == NULL);
+
+	do_log(sess, s, log_orig(rule->arg.expr_int.value, LOG_ORIG_FL_NONE));
+	return ACT_RET_CONT;
+}
+
+/* Parse a "do_log" action. It doesn't take any argument
+ * May be used from places where per-context actions are usually registered
+ */
+enum act_parse_ret do_log_parse_act(enum log_orig_id id,
+                                    const char **args, int *orig_arg, struct proxy *px,
+                                    struct act_rule *rule, char **err)
+{
+	if (*args[*orig_arg]) {
+		memprintf(err, "doesn't expects any argument");
+		return ACT_RET_PRS_ERR;
+	}
+
+	rule->action_ptr = do_log_action;
+	rule->action = ACT_CUSTOM;
+	rule->release_ptr = NULL;
+	rule->arg.expr_int.value = id;
+	return ACT_RET_PRS_OK;
+}
+
 static struct cfg_kw_list cfg_kws_li = {ILH, {
 	{ CFG_LISTEN, "log-steps",  px_parse_log_steps },
 	{ 0, NULL, NULL },

@@ -105,6 +105,13 @@ static inline int sess_build_logline(struct session *sess, struct stream *s, cha
 	                               log_orig(LOG_ORIG_UNSPEC, LOG_ORIG_FL_NONE));
 }
 
+/* Parse a "do_log" action. It doesn't take any argument
+ * May be used from places where per-context actions are usually registered
+ */
+enum act_parse_ret do_log_parse_act(enum log_orig_id id,
+                                    const char **args, int *orig_arg, struct proxy *px,
+                                    struct act_rule *rule, char **err);
+
 /* opportunistic log when session already exists (<s> may be null) */
 void do_log(struct session *sess, struct stream *s, struct log_orig origin);
 
