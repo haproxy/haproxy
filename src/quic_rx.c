@@ -210,37 +210,59 @@ static int quic_stream_try_to_consume(struct quic_conn *qc,
 {
 	int ret;
 	struct eb64_node *frm_node;
+	struct qc_stream_buf *stream_buf;
+	struct eb64_node *buf_node;
 
 	TRACE_ENTER(QUIC_EV_CONN_ACKSTRM, qc);
 
 	ret = 0;
-	frm_node = eb64_first(&stream->acked_frms);
-	while (frm_node) {
-		struct qf_stream *strm_frm;
-		struct quic_frame *frm;
-		size_t offset, len;
-		int fin, ack;
+	buf_node = eb64_first(&stream->buf_tree);
+	if (buf_node) {
+		stream_buf = eb64_entry(buf_node, struct qc_stream_buf,
+		                        offset_node);
 
-		strm_frm = eb64_entry(frm_node, struct qf_stream, offset);
-		frm = container_of(strm_frm, struct quic_frame, stream);
-		offset = strm_frm->offset.key;
-		len = strm_frm->len;
-		fin = frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT;
+		frm_node = eb64_first(&stream_buf->acked_frms);
+		while (frm_node) {
+			struct qf_stream *strm_frm;
+			struct quic_frame *frm;
+			size_t offset, len;
+			int fin;
 
-		if (offset > stream->ack_offset)
-			break;
+			strm_frm = eb64_entry(frm_node, struct qf_stream, offset);
+			frm = container_of(strm_frm, struct quic_frame, stream);
+			offset = strm_frm->offset.key;
+			len = strm_frm->len;
+			fin = frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT;
 
-		ack = qc_stream_desc_ack(stream, offset, len, fin);
-		if (ack) {
-			TRACE_DEVEL("stream consumed", QUIC_EV_CONN_ACKSTRM,
-			            qc, strm_frm, stream);
-			ret = 1;
+			if (offset > stream->ack_offset)
+				break;
+
+			/* First delete frm from tree. This prevents BUG_ON() if
+			 * stream_buf instance is removed via qc_stream_desc_ack().
+			 */
+			eb64_delete(frm_node);
+			qc_release_frm(qc, frm);
+
+			if (qc_stream_desc_ack(stream, offset, len, fin)) {
+				TRACE_DEVEL("stream consumed", QUIC_EV_CONN_ACKSTRM,
+				            qc, strm_frm, stream);
+				ret = 1;
+			}
+
+			/* Always retrieve first buffer as the previously used
+			 * instance could have been removed during qc_stream_desc_ack().
+			 */
+			buf_node = eb64_first(&stream->buf_tree);
+			if (buf_node) {
+				stream_buf = eb64_entry(buf_node, struct qc_stream_buf,
+				                        offset_node);
+				frm_node = eb64_first(&stream_buf->acked_frms);
+				BUG_ON(!frm_node && !b_data(&stream_buf->buf));
+			}
+			else {
+				frm_node = NULL;
+			}
 		}
-
-		frm_node = eb64_next(frm_node);
-		eb64_delete(&strm_frm->offset);
-
-		qc_release_frm(qc, frm);
 	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_ACKSTRM, qc);
@@ -302,7 +324,13 @@ static void qc_handle_newly_acked_frm(struct quic_conn *qc, struct quic_frame *f
 			qc_release_frm(qc, frm);
 		}
 		else {
-			eb64_insert(&stream->acked_frms, &strm_frm->offset);
+			struct qc_stream_buf *stream_buf;
+			struct eb64_node *buf_node;
+
+			buf_node = eb64_lookup_le(&stream->buf_tree, offset);
+			BUG_ON(!buf_node);
+			stream_buf = eb64_entry(buf_node, struct qc_stream_buf, offset_node);
+			eb64_insert(&stream_buf->acked_frms, &strm_frm->offset);
 		}
 	}
 	break;

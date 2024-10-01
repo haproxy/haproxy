@@ -9,6 +9,7 @@
 #include <haproxy/mux_quic.h>
 #include <haproxy/pool.h>
 #include <haproxy/quic_conn.h>
+#include <haproxy/quic_frame.h>
 #include <haproxy/task.h>
 
 DECLARE_STATIC_POOL(pool_head_quic_stream_desc, "qc_stream_desc",
@@ -23,6 +24,9 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 {
 	struct buffer *buf = &(*stream_buf)->buf;
 	uint64_t free_size;
+
+	/* Caller is responsible to remove buffered ACK frames before destroying a buffer instance. */
+	BUG_ON(!eb_is_empty(&(*stream_buf)->acked_frms));
 
 	eb64_delete(&(*stream_buf)->offset_node);
 
@@ -75,7 +79,6 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type type, void 
 	stream->buf_tree = EB_ROOT_UNIQUE;
 	stream->buf_offset = 0;
 
-	stream->acked_frms = EB_ROOT;
 	stream->ack_offset = 0;
 	stream->flags = 0;
 	stream->ctx = ctx;
@@ -166,6 +169,20 @@ int qc_stream_desc_ack(struct qc_stream_desc *stream, size_t offset, size_t len,
 
 		/* Free oldest buffer if all data acknowledged. */
 		if (!b_data(buf)) {
+			/* Remove buffered ACK before deleting buffer instance. */
+			while (!eb_is_empty(&stream_buf->acked_frms)) {
+				struct quic_conn *qc = stream->qc;
+				struct eb64_node *frm_node;
+				struct qf_stream *strm_frm;
+				struct quic_frame *frm;
+
+				frm_node = eb64_first(&stream_buf->acked_frms);
+				eb64_delete(frm_node);
+
+				strm_frm = eb64_entry(frm_node, struct qf_stream, offset);
+				frm = container_of(strm_frm, struct quic_frame, stream);
+				qc_release_frm(qc, frm);
+			}
 			qc_stream_buf_free(stream, &stream_buf);
 			buf = NULL;
 		}
@@ -204,6 +221,19 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 		 */
 		BUG_ON(b_data(&buf->buf) && !closing);
 
+		/* qc_stream_desc might be freed before having received all its ACKs. */
+		while (!eb_is_empty(&buf->acked_frms)) {
+			struct qf_stream *strm_frm;
+			struct quic_frame *frm;
+
+			frm_node = eb64_first(&buf->acked_frms);
+			eb64_delete(frm_node);
+
+			strm_frm = eb64_entry(frm_node, struct qf_stream, offset);
+			frm = container_of(strm_frm, struct quic_frame, stream);
+			qc_release_frm(qc, frm);
+		}
+
 		if (buf->sbuf)
 			pool_free(pool_head_sbuf, buf->buf.area);
 		else
@@ -216,23 +246,6 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 
 	if (free_count)
 		offer_buffers(NULL, free_count);
-
-	/* qc_stream_desc might be freed before having received all its ACKs.
-	 * This is the case if some frames were retransmitted.
-	 */
-	frm_node = eb64_first(&stream->acked_frms);
-	while (frm_node) {
-		struct qf_stream *strm_frm;
-		struct quic_frame *frm;
-
-		strm_frm = eb64_entry(frm_node, struct qf_stream, offset);
-
-		frm_node = eb64_next(frm_node);
-		eb64_delete(&strm_frm->offset);
-
-		frm = container_of(strm_frm, struct quic_frame, stream);
-		qc_release_frm(qc, frm);
-	}
 
 	if (stream->by_id.key != (uint64_t)-1)
 		eb64_delete(&stream->by_id);
@@ -265,6 +278,7 @@ struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
 	if (!stream->buf)
 		return NULL;
 
+	stream->buf->acked_frms = EB_ROOT;
 	stream->buf->buf = BUF_NULL;
 	stream->buf->offset_node.key = offset;
 

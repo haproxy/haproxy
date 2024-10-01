@@ -15,6 +15,7 @@
  * can be freed in strict order.
  */
 struct qc_stream_buf {
+	struct eb_root acked_frms; /* storage for out-of-order ACKs */
 	struct eb64_node offset_node; /* node for qc_stream_desc buf tree */
 	struct buffer buf; /* STREAM payload */
 	int sbuf;
@@ -41,7 +42,6 @@ struct qc_stream_desc {
 
 	uint64_t ack_offset; /* last acknowledged offset */
 	struct eb_root buf_tree; /* list of active and released buffers */
-	struct eb_root acked_frms; /* ACK frames tree for non-contiguous ACK ranges */
 
 	int flags; /* QC_SD_FL_* values */
 
