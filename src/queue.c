@@ -495,6 +495,8 @@ int pendconn_redistribute(struct server *s)
 {
 	struct pendconn *p;
 	struct eb32_node *node, *nodeb;
+	struct proxy *px = s->proxy;
+	int px_xferred = 0;
 	int xferred = 0;
 
 	/* The REDISP option was specified. We will ignore cookie and force to
@@ -502,7 +504,7 @@ int pendconn_redistribute(struct server *s)
 	 */
 	if (!(s->cur_admin & SRV_ADMF_MAINT) &&
 	    (s->proxy->options & (PR_O_REDISP|PR_O_PERSIST)) != PR_O_REDISP)
-		return 0;
+		goto skip_srv_queue;
 
 	HA_SPIN_LOCK(QUEUE_LOCK, &s->queue.lock);
 	for (node = eb32_first(&s->queue.head); node; node = nodeb) {
@@ -526,7 +528,33 @@ int pendconn_redistribute(struct server *s)
 		_HA_ATOMIC_SUB(&s->queue.length, xferred);
 		_HA_ATOMIC_SUB(&s->proxy->totpend, xferred);
 	}
-	return xferred;
+
+ skip_srv_queue:
+	if (px->lbprm.tot_wact || px->lbprm.tot_wbck)
+		goto done;
+
+	HA_SPIN_LOCK(QUEUE_LOCK, &px->queue.lock);
+	for (node = eb32_first(&px->queue.head); node; node = nodeb) {
+		nodeb =	eb32_next(node);
+		p = eb32_entry(node, struct pendconn, node);
+
+		/* force-persist streams may occasionally appear in the
+		 * proxy's queue, and we certainly don't want them here!
+		 */
+		p->strm_flags &= ~SF_FORCE_PRST;
+		__pendconn_unlink_prx(p);
+
+		task_wakeup(p->strm->task, TASK_WOKEN_RES);
+		px_xferred++;
+	}
+	HA_SPIN_UNLOCK(QUEUE_LOCK, &px->queue.lock);
+
+	if (px_xferred) {
+		_HA_ATOMIC_SUB(&px->queue.length, px_xferred);
+		_HA_ATOMIC_SUB(&px->totpend, px_xferred);
+	}
+ done:
+	return xferred + px_xferred;
 }
 
 /* Check for pending connections at the backend, and assign some of them to
