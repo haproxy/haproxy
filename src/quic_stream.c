@@ -325,6 +325,9 @@ struct buffer *qc_stream_buf_realloc(struct qc_stream_desc *stream)
 	/* This function is reserved to convert a big buffer to a smaller one. */
 	BUG_ON(!stream->buf || !stream->buf->sbuf);
 
+	/* This function can only be used if targetted buffer is empty. */
+	BUG_ON(b_data(&stream->buf->buf));
+
 	/* Release buffer */
 	pool_free(pool_head_sbuf, stream->buf->buf.area);
 	stream->buf->buf = BUF_NULL;
