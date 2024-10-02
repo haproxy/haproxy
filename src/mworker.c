@@ -115,7 +115,6 @@ void mworker_proc_list_to_env()
 {
 	char *msg = NULL;
 	struct mworker_proc *child;
-	int minreloads = INT_MAX; /* minimum number of reloads to chose which processes are "current" ones */
 
 	list_for_each_entry(child, &proc_list, list) {
 		char type = '?';
@@ -127,22 +126,11 @@ void mworker_proc_list_to_env()
 		else if (child->options &= PROC_O_TYPE_WORKER)
 			type = 'w';
 
-		if (child->reloads < minreloads)
-			minreloads = child->reloads;
-
 		if (child->pid > -1)
 			memprintf(&msg, "%s|type=%c;fd=%d;cfd=%d;pid=%d;reloads=%d;failedreloads=%d;timestamp=%d;id=%s;version=%s", msg ? msg : "", type, child->ipc_fd[0], child->ipc_fd[1], child->pid, child->reloads, child->failedreloads, child->timestamp, child->id ? child->id : "", child->version);
 	}
 	if (msg)
 		setenv("HAPROXY_PROCESSES", msg, 1);
-
-	list_for_each_entry(child, &proc_list, list) {
-		if (child->reloads > minreloads && !(child->options & PROC_O_TYPE_MASTER)) {
-			child->options |= PROC_O_LEAVING;
-		}
-	}
-
-
 }
 
 struct mworker_proc *mworker_proc_new()
@@ -172,7 +160,6 @@ int mworker_env_to_proc_list()
 {
 	char *env, *msg, *omsg = NULL, *token = NULL, *s1;
 	struct mworker_proc *child;
-	int minreloads = INT_MAX; /* minimum number of reloads to chose which processes are "current" ones */
 	int err = 0;
 
 	env = getenv("HAPROXY_PROCESSES");
@@ -229,9 +216,6 @@ int mworker_env_to_proc_list()
 			} else if (strncmp(subtoken, "reloads=", 8) == 0) {
 				/* we only increment the number of asked reload */
 				child->reloads = atoi(subtoken+8);
-
-				if (child->reloads < minreloads)
-					minreloads = child->reloads;
 			} else if (strncmp(subtoken, "failedreloads=", 14) == 0) {
 				child->failedreloads = atoi(subtoken+14);
 			} else if (strncmp(subtoken, "timestamp=", 10) == 0) {
@@ -252,7 +236,7 @@ int mworker_env_to_proc_list()
 	/* set the leaving processes once we know which number of reloads are the current processes */
 
 	list_for_each_entry(child, &proc_list, list) {
-		if (child->reloads > minreloads)
+		if (child->reloads > 0)
 			child->options |= PROC_O_LEAVING;
 	}
 

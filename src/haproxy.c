@@ -839,7 +839,10 @@ void mworker_reload(int hardreload)
 	list_for_each_entry(ptdf, &per_thread_deinit_list, list)
 		ptdf->fct();
 
-	/* increment the number of reloads */
+	/* increment the number of reloads, child->reloads is checked in
+	 * mworker_env_to_proc_list() (after reload) in order to set
+	 * PROC_O_LEAVING flag for the process
+	 */
 	list_for_each_entry(child, &proc_list, list) {
 		child->reloads++;
 	}
