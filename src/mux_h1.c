@@ -779,6 +779,22 @@ static void h1_set_idle_expiration(struct h1c *h1c)
 /*****************************************************************/
 /* functions below are dedicated to the mux setup and management */
 /*****************************************************************/
+/* Set EOI on stream connector in DONE state iff:
+ *  - it is a response
+ *  - it is a request and the response is DONE too
+ *  - it is a request but no a protocol upgrade nor a CONNECT
+ *
+ * If not set, Wait the response to do so or not depending on the status
+ * code.
+ */
+static inline void h1s_set_se_eoi_cond(struct h1s *h1s, const struct h1m *h1m)
+{
+
+	if ((h1m->state == H1_MSG_DONE) && ((h1m->flags & H1_MF_RESP) ||
+					    (h1s->res.state == H1_MSG_DONE) ||
+					    ((h1s->meth != HTTP_METH_CONNECT) && !(h1m->flags & H1_MF_CONN_UPG))))
+		se_fl_set(h1s->sd, SE_FL_EOI);
+}
 
 /* returns non-zero if there are input data pending for stream h1s. */
 static inline size_t h1s_data_pending(const struct h1s *h1s)
@@ -2234,18 +2250,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		h1c->flags &= ~H1C_F_WANT_FASTFWD;
 	}
 
-	/* Set EOI on stream connector in DONE state iff:
-	 *  - it is a response
-	 *  - it is a request and the response is DONE too
-	 *  - it is a request but no a protocol upgrade nor a CONNECT
-	 *
-	 * If not set, Wait the response to do so or not depending on the status
-	 * code.
-	 */
-	if ((h1m->state == H1_MSG_DONE) && ((h1m->flags & H1_MF_RESP) ||
-					    (h1s->res.state == H1_MSG_DONE) ||
-					    ((h1s->meth != HTTP_METH_CONNECT) && !(h1m->flags & H1_MF_CONN_UPG))))
-		se_fl_set(h1s->sd, SE_FL_EOI);
+	h1s_set_se_eoi_cond(h1s, h1m);
 
   out:
 	/* When Input data are pending for this message, notify upper layer that
@@ -5004,18 +5009,8 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 		h1m->curr_len -= total;
 		if (!h1m->curr_len) {
 			if (h1m->flags & H1_MF_CLEN) {
-				/* Set EOI on stream connector in DONE state iff:
-				 *  - it is a response
-				 *  - it is a request and the response is DONE too
-				 *  - it is a request but no a protocol upgrade nor a CONNECT
-				 *
-				 * If not set, Wait the response to do so or not depending on the status
-				 * code.
-				 */
 				h1m->state = H1_MSG_DONE;
-				if ((h1m->flags & H1_MF_RESP) || (h1s->res.state == H1_MSG_DONE) ||
-				    ((h1s->meth != HTTP_METH_CONNECT) && !(h1m->flags & H1_MF_CONN_UPG)))
-					se_fl_set(h1s->sd, SE_FL_EOI);
+				h1s_set_se_eoi_cond(h1s, h1m);
 			}
 			else
 				h1m->state = H1_MSG_CHUNK_CRLF;
