@@ -2626,7 +2626,7 @@ static void qcc_release(struct qcc *qcc)
 {
 	struct connection *conn = qcc->conn;
 	struct eb64_node *node;
-	struct quic_conn *qc = conn->handle.qc;
+	struct quic_conn *qc;
 
 	TRACE_ENTER(QMUX_EV_QCC_END, conn);
 
@@ -2644,11 +2644,14 @@ static void qcc_release(struct qcc *qcc)
 	}
 
 	/* unsubscribe from all remaining qc_stream_desc */
-	node = eb64_first(&qc->streams_by_id);
-	while (node) {
-		struct qc_stream_desc *stream = eb64_entry(node, struct qc_stream_desc, by_id);
-		qc_stream_desc_sub_room(stream, NULL);
-		node = eb64_next(node);
+	if (conn) {
+		qc = conn->handle.qc;
+		node = eb64_first(&qc->streams_by_id);
+		while (node) {
+			struct qc_stream_desc *stream = eb64_entry(node, struct qc_stream_desc, by_id);
+			qc_stream_desc_sub_room(stream, NULL);
+			node = eb64_next(node);
+		}
 	}
 
 	tasklet_free(qcc->wait_event.tasklet);
