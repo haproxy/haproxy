@@ -18,6 +18,7 @@ struct qc_stream_buf {
 	struct eb_root ack_tree; /* storage for out-of-order ACKs */
 	struct eb64_node offset_node; /* node for qc_stream_desc buf tree */
 	struct buffer buf; /* STREAM payload */
+	uint64_t room; /* room already notified from buffered ACKs */
 	int sbuf;
 };
 
