@@ -5004,11 +5004,18 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 		h1m->curr_len -= total;
 		if (!h1m->curr_len) {
 			if (h1m->flags & H1_MF_CLEN) {
+				/* Set EOI on stream connector in DONE state iff:
+				 *  - it is a response
+				 *  - it is a request and the response is DONE too
+				 *  - it is a request but no a protocol upgrade nor a CONNECT
+				 *
+				 * If not set, Wait the response to do so or not depending on the status
+				 * code.
+				 */
 				h1m->state = H1_MSG_DONE;
-				se_fl_set(h1s->sd, SE_FL_EOI); /* TODO: this line is tricky and must be evaluated first
-								*       Its purpose is to avoid to set CO_SFL_MSG_MORE on the
-								*       next calls to ->complete_fastfwd().
-								*/
+				if ((h1m->flags & H1_MF_RESP) || (h1s->res.state == H1_MSG_DONE) ||
+				    ((h1s->meth != HTTP_METH_CONNECT) && !(h1m->flags & H1_MF_CONN_UPG)))
+					se_fl_set(h1s->sd, SE_FL_EOI);
 			}
 			else
 				h1m->state = H1_MSG_CHUNK_CRLF;
