@@ -2910,7 +2910,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 			error = h2c_dec_hdrs(h2c, &h2s->rxbuf, &h2s->flags, &body_len, NULL);
 			/* unrecoverable error ? */
 			if (h2c->st0 >= H2_CS_ERROR) {
-				TRACE_USER("Unrecoverable error decoding H2 trailers", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, 0, &rxbuf);
+				TRACE_USER("Unrecoverable error decoding H2 trailers", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, 0, &h2s->rxbuf);
 				sess_log(h2c->conn->owner);
 				goto out;
 			}
@@ -2928,7 +2928,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 				 */
 				sess_log(h2c->conn->owner);
 				h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
-				TRACE_USER("Stream error decoding H2 trailers", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, 0, &rxbuf);
+				TRACE_USER("Stream error decoding H2 trailers", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, 0, &h2s->rxbuf);
 				h2c->st0 = H2_CS_FRAME_E;
 				goto out;
 			}
