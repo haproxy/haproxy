@@ -178,6 +178,7 @@ static struct qc_stream_buf *qc_stream_buf_ack(struct qc_stream_buf *buf,
 static void qc_stream_buf_consume(struct qc_stream_buf *stream_buf,
                                   struct qc_stream_desc *stream)
 {
+	struct quic_conn *qc = stream->qc;
 	struct eb64_node *frm_node;
 	struct qf_stream *strm_frm;
 	struct quic_frame *frm;
@@ -201,7 +202,7 @@ static void qc_stream_buf_consume(struct qc_stream_buf *stream_buf,
 		 */
 		eb64_delete(frm_node);
 		stream_buf = qc_stream_buf_ack(stream_buf, stream, offset, len, fin);
-		qc_release_frm(NULL, frm);
+		qc_release_frm(qc, frm);
 
 		frm_node = stream_buf ? eb64_first(&stream_buf->acked_frms) : NULL;
 	}
