@@ -46,7 +46,7 @@
 #endif
 
 static int exitcode = -1;
-static int max_reloads = -1; /* number max of reloads a worker can have until they are killed */
+int max_reloads = INT_MAX; /* max number of reloads a worker can have until they are killed */
 struct mworker_proc *proc_self = NULL; /* process structure of current process */
 struct list mworker_cli_conf = LIST_HEAD_INIT(mworker_cli_conf); /* master CLI configuration (-S flag) */
 

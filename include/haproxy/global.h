@@ -35,6 +35,7 @@ extern int  unstoppable_jobs;   /* # of active jobs that can't be stopped during
 extern int  active_peers;       /* # of active peers (connection attempts and successes) */
 extern int  connected_peers;    /* # of really connected peers */
 extern int nb_oldpids;          /* contains the number of old pids found */
+extern int oldpids_sig;         /* signal to sent in order to stop the previous (old) process */
 extern const int zero;
 extern const int one;
 extern const struct linger nolinger;

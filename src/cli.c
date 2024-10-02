@@ -2463,6 +2463,42 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 	return 1;
 }
 
+static int _send_status(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct mworker_proc *proc;
+	int pid;
+
+	BUG_ON((strcmp(args[0], "_send_status") != 0),
+		"Triggered in _send_status by unsupported command name.\n");
+
+	pid = atoi(args[2]);
+
+	list_for_each_entry(proc, &proc_list, list) {
+		/* update status of the new worker */
+		if (proc->pid == pid)
+			proc->options &= ~PROC_O_INIT;
+		/* send TERM to workers, which have exceeded max_reloads counter */
+		if (max_reloads != -1) {
+			if ((proc->options & PROC_O_TYPE_WORKER) &&
+				(proc->options & PROC_O_LEAVING) &&
+				(proc->reloads > max_reloads) && (proc->pid > 0)) {
+				kill(proc->pid, SIGTERM);
+			}
+
+		}
+	}
+	/* stop previous worker process, if it wasn't signaled during max reloads check */
+	list_for_each_entry(proc, &proc_list, list) {
+		if ((proc->options & PROC_O_TYPE_WORKER) &&
+			(proc->options & PROC_O_LEAVING) &&
+			(proc->reloads >= 1)) {
+			kill(proc->pid, oldpids_sig);
+		}
+	}
+
+	return 1;
+}
+
 void pcli_write_prompt(struct stream *s)
 {
 	struct buffer *msg = get_trash_chunk();
@@ -3594,6 +3630,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "operator", NULL },                  "operator                                : lower the level of the current CLI session to operator",  cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "user", NULL },                      "user                                    : lower the level of the current CLI session to user",      cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "wait", NULL },                      "wait {-h|<delay_ms>} cond [args...]     : wait the specified delay or condition (-h to see list)",  cli_parse_wait, cli_io_handler_wait, cli_release_wait, NULL },
+	{ { "_send_status", NULL },              NULL,  											      _send_status, NULL, NULL, NULL, ACCESS_MASTER_ONLY },
 	{{},}
 }};
 

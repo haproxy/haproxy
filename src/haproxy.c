@@ -238,7 +238,7 @@ char *check_condition = NULL; /* check condition passed to -cc */
  */
 #define MAX_START_RETRIES	200
 static int *oldpids = NULL;
-static int oldpids_sig; /* use USR1 or TERM */
+int oldpids_sig; /* use USR1 or TERM */
 
 /* Path to the unix socket we use to retrieve listener sockets from the old process */
 static const char *old_unixsocket;
