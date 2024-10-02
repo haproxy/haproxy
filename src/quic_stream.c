@@ -145,6 +145,87 @@ void qc_stream_desc_release(struct qc_stream_desc *stream,
 	}
 }
 
+/* Store an out-of-order stream ACK for <buf>. This corresponds to a frame
+ * starting at <offset> of length <len> with <fin> set if FIN is present.
+ *
+ * Returns 0 on success or a negative error code if the new range cannot be
+ * stored due to a fatal error.
+ */
+static int qc_stream_buf_store_ack(struct qc_stream_buf *buf,
+                                   uint64_t offset, uint64_t len, int fin)
+{
+	struct eb64_node *less, *more;
+	struct qc_stream_ack *ack, *ack_less = NULL, *ack_more = NULL;
+	int ret = 0;
+
+	more = eb64_lookup_ge(&buf->ack_tree, offset);
+	if (more)
+		ack_more = eb64_entry(more, struct qc_stream_ack, offset_node);
+
+	/* Ranges are always merged before insertion so there could be no
+	 * overlapping or just contiguous different ranges. No need to use
+	 * <ack_less> if an existing range already starts at requested offset.
+	 */
+	less = eb64_lookup_le(&buf->ack_tree, offset);
+	if (less && more != less)
+		ack_less = eb64_entry(less, struct qc_stream_ack, offset_node);
+
+	/* Ensure that offset:len range has not been already acknowledged, at least partially. */
+	if ((ack_more && offset == ack_more->offset_node.key && offset + len <= ack_more->offset_node.key) ||
+	    (ack_less && ack_less->offset_node.key + ack_less->len >= offset + len)) {
+		goto end;
+	}
+
+	/* If current range is contiguous or overlapping with one or several
+	 * superior ranges, extend current range and delete superior ranges.
+	 */
+	while (ack_more && offset + len >= ack_more->offset_node.key) {
+		struct eb64_node *next;
+
+		if (offset + len < ack_more->offset_node.key + ack_more->len) {
+			/* Extend current range to cover the next entry. */
+			len += (ack_more->offset_node.key + ack_more->len) - (offset + len);
+			fin = ack_more->fin;
+		}
+
+		/* Remove the next range as it is covered by the current one. */
+		next = eb64_next(more);
+		eb64_delete(more);
+		pool_free(pool_head_quic_stream_ack, ack_more);
+
+		more = next;
+		ack_more = more ? eb64_entry(more, struct qc_stream_ack, offset_node) : NULL;
+	}
+
+	/* If there is a contiguous or overlapping smaller range, extend it
+	 * without adding a new entry.
+	 */
+	if (ack_less &&
+	    ack_less->offset_node.key + ack_less->len >= offset) {
+		/* Extend previous entry to fully cover the current range. */
+		ack_less->len += (offset + len) -
+		                 (ack_less->offset_node.key + ack_less->len);
+		ack_less->fin = fin;
+	}
+	else {
+		/* Store a new ACK stream range. */
+		ack = pool_alloc(pool_head_quic_stream_ack);
+		if (!ack) {
+			ret = -1;
+			goto end;
+		}
+
+		ack->offset_node.key = offset;
+		ack->len = len;
+		ack->fin = fin;
+
+		eb64_insert(&buf->ack_tree, &ack->offset_node);
+	}
+
+ end:
+	return ret;
+}
+
 /* Acknowledges data for buffer <buf> attached to <stream> instance. This covers
  * the range strating at <offset> and of length <len>, with <fin> sets for the
  * last stream frame.
@@ -243,22 +324,10 @@ int qc_stream_desc_ack(struct qc_stream_desc *stream,
 		stream->flags &= ~QC_SD_FL_WAIT_FOR_FIN;
 	}
 	else if (offset > stream->ack_offset) {
-		struct qc_stream_ack *ack;
-
 		buf_node = eb64_lookup_le(&stream->buf_tree, offset);
 		BUG_ON(!buf_node); /* Cannot acknowledged a STREAM frame for a non existing buffer. */
 		stream_buf = eb64_entry(buf_node, struct qc_stream_buf, offset_node);
-
-		ack = pool_alloc(pool_head_quic_stream_ack);
-		if (!ack)
-			return -1;
-
-		ack->offset_node.key = offset;
-		ack->len = len;
-		ack->fin = fin;
-
-		eb64_insert(&stream_buf->ack_tree, &ack->offset_node);
-		ret = 1;
+		ret = qc_stream_buf_store_ack(stream_buf, offset, len, fin);
 	}
 	else if (offset + len > stream->ack_offset) {
 		/* Buf list cannot be empty if there is still unacked data. */
@@ -355,7 +424,7 @@ struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
 	if (!stream->buf)
 		return NULL;
 
-	stream->buf->ack_tree = EB_ROOT;
+	stream->buf->ack_tree = EB_ROOT_UNIQUE;
 	stream->buf->buf = BUF_NULL;
 	stream->buf->offset_node.key = offset;
 
