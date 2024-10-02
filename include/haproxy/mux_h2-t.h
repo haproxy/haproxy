@@ -41,12 +41,12 @@
  */
 #define H2_CF_DEM_DALLOC        0x00000004  // demux blocked on lack of connection's demux buffer
 #define H2_CF_DEM_DFULL         0x00000008  // demux blocked on connection's demux buffer full
-/* unused: 0x10 */
+#define H2_CF_DEM_RXBUF         0x00000010  // demux blocked on missing rxbuf slots
 #define H2_CF_DEM_MROOM         0x00000020  // demux blocked on lack of room in mux buffer
 #define H2_CF_DEM_SALLOC        0x00000040  // demux blocked on lack of stream's request buffer
 #define H2_CF_DEM_SFULL         0x00000080  // demux blocked on stream request buffer full
 #define H2_CF_DEM_TOOMANY       0x00000100  // demux blocked waiting for some stream connectors to leave
-#define H2_CF_DEM_BLOCK_ANY     0x000001E0  // aggregate of the demux flags above except DALLOC/DFULL
+#define H2_CF_DEM_BLOCK_ANY     0x000001F0  // aggregate of the demux flags above except DALLOC/DFULL
                                             // (SHORT_READ is also excluded)
 
 #define H2_CF_DEM_SHORT_READ    0x00000200  // demux blocked on incomplete frame
