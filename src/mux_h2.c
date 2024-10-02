@@ -7234,6 +7234,13 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	ret -= h2s_htx->data;
 
   end:
+	/* release the rxbuf if it's not used anymore */
+	if (!b_data(&h2s->rxbuf) && b_size(&h2s->rxbuf)) {
+		b_free(&h2s->rxbuf);
+		offer_buffers(NULL, 1);
+	}
+
+	/* tell the stream layer whether there are data left or not */
 	if (b_data(&h2s->rxbuf))
 		se_fl_set(h2s->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 	else {
@@ -7246,10 +7253,6 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 
 		se_fl_clr(h2s->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 		h2s_propagate_term_flags(h2c, h2s);
-		if (b_size(&h2s->rxbuf)) {
-			b_free(&h2s->rxbuf);
-			offer_buffers(NULL, 1);
-		}
 	}
 
 	if (ret && h2c->dsi == h2s->id) {
