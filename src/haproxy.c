@@ -2096,9 +2096,8 @@ static void init(int argc, char **argv)
 		}
 		tmproc->options |= PROC_O_TYPE_WORKER; /* worker */
 
-		if (mworker_cli_sockpair_new(tmproc, 0) < 0) {
+		if (mworker_cli_global_proxy_new_listener(tmproc) < 0)
 			exit(EXIT_FAILURE);
-		}
 
 		LIST_APPEND(&proc_list, &tmproc->list);
 	}

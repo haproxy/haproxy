@@ -3487,10 +3487,11 @@ err:
 }
 
 /*
- * Create a new CLI socket using a socketpair for a worker process
- * <mworker_proc> is the process structure, and <proc> is the process number
+ * Creates a sockpair, a "master-socket" bind conf and a listener. Assigns
+ * this new listener to the one "end" of the given process <proc> sockpair in
+ * order to have a new master CLI listening socket for this process.
  */
-int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
+int mworker_cli_global_proxy_new_listener(struct mworker_proc *proc)
 {
 	struct bind_conf *bind_conf;
 	struct listener *l;
@@ -3498,7 +3499,7 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 	char *err = NULL;
 
 	/* master pipe to ensure the master is still alive  */
-	if (socketpair(AF_UNIX, SOCK_STREAM, 0, mworker_proc->ipc_fd) < 0) {
+	if (socketpair(AF_UNIX, SOCK_STREAM, 0, proc->ipc_fd) < 0) {
 		ha_alert("Cannot create worker socketpair.\n");
 		return -1;
 	}
@@ -3519,14 +3520,14 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 	bind_conf->level |= ACCESS_LVL_ADMIN; /* TODO: need to lower the rights with a CLI keyword*/
 	bind_conf->level |= ACCESS_FD_LISTENERS;
 
-	if (!memprintf(&path, "sockpair@%d", mworker_proc->ipc_fd[1])) {
+	if (!memprintf(&path, "sockpair@%d", proc->ipc_fd[1])) {
 		ha_alert("Cannot allocate listener.\n");
 		goto error;
 	}
 
 	if (!str2listener(path, global.cli_fe, bind_conf, "master-socket", 0, &err)) {
 		free(path);
-		ha_alert("Cannot create a CLI sockpair listener for process #%d\n", proc);
+		ha_alert("Cannot create a CLI sockpair listener.\n");
 		goto error;
 	}
 	ha_free(&path);
@@ -3548,8 +3549,8 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 	return 0;
 
 error:
-	close(mworker_proc->ipc_fd[0]);
-	close(mworker_proc->ipc_fd[1]);
+	close(proc->ipc_fd[0]);
+	close(proc->ipc_fd[1]);
 	free(err);
 
 	return -1;

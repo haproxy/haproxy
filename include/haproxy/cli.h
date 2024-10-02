@@ -43,7 +43,7 @@ int cli_parse_default(char **args, char *payload, struct appctx *appctx, void *p
 
 int mworker_cli_proxy_create(void);
 struct bind_conf *mworker_cli_master_proxy_new_listener(char *line);
-int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc);
+int mworker_cli_global_proxy_new_listener(struct mworker_proc *proc);
 void mworker_cli_proxy_stop(void);
 
 extern struct bind_conf *mcli_reload_bind_conf;
