@@ -109,6 +109,7 @@
 #include <haproxy/peers.h>
 #include <haproxy/pool.h>
 #include <haproxy/protocol.h>
+#include <haproxy/proto_sockpair.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
 #include <haproxy/regex.h>
@@ -2096,8 +2097,18 @@ static void init(int argc, char **argv)
 		}
 		tmproc->options |= PROC_O_TYPE_WORKER; /* worker */
 
-		if (mworker_cli_global_proxy_new_listener(tmproc) < 0)
+		/* create a sockpair to copy it via fork(), thus it will be in
+		 * master and in worker processes
+		 */
+		if (socketpair(AF_UNIX, SOCK_STREAM, 0, tmproc->ipc_fd) < 0) {
+			ha_alert("Cannot create worker master CLI socketpair.\n");
 			exit(EXIT_FAILURE);
+		}
+		if (mworker_cli_global_proxy_new_listener(tmproc) < 0) {
+			close(tmproc->ipc_fd[0]);
+			close(tmproc->ipc_fd[1]);
+			exit(EXIT_FAILURE);
+		}
 
 		LIST_APPEND(&proc_list, &tmproc->list);
 	}

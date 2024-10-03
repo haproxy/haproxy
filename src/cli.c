@@ -3487,7 +3487,7 @@ err:
 }
 
 /*
- * Creates a sockpair, a "master-socket" bind conf and a listener. Assigns
+ * Creates a "master-socket" bind conf and a listener. Assigns
  * this new listener to the one "end" of the given process <proc> sockpair in
  * order to have a new master CLI listening socket for this process.
  */
@@ -3497,12 +3497,6 @@ int mworker_cli_global_proxy_new_listener(struct mworker_proc *proc)
 	struct listener *l;
 	char *path = NULL;
 	char *err = NULL;
-
-	/* master pipe to ensure the master is still alive  */
-	if (socketpair(AF_UNIX, SOCK_STREAM, 0, proc->ipc_fd) < 0) {
-		ha_alert("Cannot create worker socketpair.\n");
-		return -1;
-	}
 
 	/* XXX: we might want to use a separate frontend at some point */
 	if (!global.cli_fe) {
