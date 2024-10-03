@@ -744,6 +744,7 @@ static inline uint h2s_rxbuf_cnt(const struct h2s *h2s)
  */
 static inline int h2s_may_get_rxbuf(const struct h2s *h2s)
 {
+	return !!h2s->h2c->shared_rx_bufs->next;
 	/* FIXME: for now each stream is granted exactly one buffer */
 	if (h2s->rx_count)
 		return 0;
