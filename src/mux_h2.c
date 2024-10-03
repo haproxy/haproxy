@@ -582,6 +582,9 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 			if (h2s->id && h2s->errcode)
 				chunk_appendf(&trace_buf, " err=%s/%02x", h2_err_str(h2s->errcode), h2s->errcode);
 		}
+
+		if ((mask & H2_EV_RX_DATA) && level == TRACE_LEVEL_DATA)
+			chunk_appendf(&trace_buf, " data=%llu", (ullong)a4);
 	}
 
 	/* Let's dump decoded requests and responses right after parsing. They
