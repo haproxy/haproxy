@@ -745,10 +745,6 @@ static inline uint h2s_get_rxbuf(struct h2s *h2s)
 {
 	uint slot;
 
-	/* FIXME: for now each stream is granted exactly one buffer */
-	if (h2s->rx_count)
-		return 0;
-
 	slot = bl_get(h2s->h2c->shared_rx_bufs, h2s->rx_tail);
 	if (!slot)
 		return 0;
