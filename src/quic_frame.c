@@ -1242,6 +1242,12 @@ void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm)
 	uint64_t pn;
 	struct quic_frame *origin, *f, *tmp;
 
+	/* <frm> will be detached from its Tx packet via origin->reflist loop
+	 * implemented below. It is thus expected that its pkt field is not
+	 * NULL or else it may free the frame too soon.
+	 */
+	BUG_ON(!frm->pkt);
+
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc, frm);
 
 	/* Identify this frame: a frame copy or one of its copies */
