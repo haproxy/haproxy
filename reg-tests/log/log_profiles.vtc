@@ -11,7 +11,7 @@ barrier b5 cond 2 -cyclic
 server s1 {
     rxreq
 	txresp
-} -repeat 5 -start
+} -repeat 6 -start
 
 syslog Slg1 -level info {
     recv
@@ -95,6 +95,21 @@ syslog Slg5 -level info {
     expect ~ ".* haproxy ${h1_pid} .* close"
 } -start
 
+syslog Slg6 -level info {
+    #rfc5424, logprof5:
+    # tcp-req-conn, http-req, http-res, http-after-res, txn.close
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* start:tcp-req-conn"
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* http-req"
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* http-res"
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* http-after-res"
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* txn_close"
+} -start
+
 haproxy h1 -conf {
 	defaults
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -158,6 +173,19 @@ haproxy h1 -conf {
 		log udp@${Slg5_addr}:${Slg5_port} format rfc5424 profile logprof4 local0
 		default_backend be
 
+	listen fe7
+		bind "fd@${fe_7}"
+		mode http
+		log-format "dummy"
+		log-steps close
+		log udp@${Slg6_addr}:${Slg6_port} format rfc5424 profile logprof5 local0
+		default_backend be
+
+		tcp-request connection do-log
+		http-request do-log
+		http-response do-log
+		http-after-response do-log
+
 	log-profile logprof1
 		on close format "close" sd "sdclose"
 
@@ -176,6 +204,10 @@ haproxy h1 -conf {
 		on connect format "connect"
 		on response format "response"
 		on close format "close"
+
+	log-profile logprof5
+                on tcp-req-conn format "start:tcp-req-conn"
+                on any format "%OG"
 
 	backend be
 		mode http
@@ -239,8 +271,15 @@ client c6 -connect ${h1_fe_6_sock} {
     expect resp.status == 200
 } -start -wait
 
+client c7 -connect ${h1_fe_7_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+} -start -wait
+
 syslog Slg1 -wait
 syslog Slg2 -wait
 syslog Slg3 -wait
 syslog Slg4 -wait
 syslog Slg5 -wait
+syslog Slg6 -wait
