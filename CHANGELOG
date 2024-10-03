@@ -1,6 +1,75 @@
 ChangeLog :
 ===========
 
+2024/10/03 : 3.1-dev9
+    - MINOR: tools: add minimal file name management
+    - CLEANUP: stick-table: make the file location point to a global file name
+    - MINOR: proxy: use the global file names for conf->file
+    - CLEANUP: cfgparse: factor proxy vs log-forward collisions
+    - BUG/MINOR: cfgparse: detect another uncaught case of duplicate defaults
+    - MINOR: proxy: add a list of orphaned defaults sections
+    - MEDIUM: cfgparse: drop duplicate named defaults sections after use
+    - OPTIM: cfgparse: speed up duplicate server detection
+    - MEDIUM: cfgparse: warn about deprecated use of duplicate server names
+    - BUG/MINOR: server: shut down streams under thread isolation
+    - BUG/MINOR: proxy: also make the cli and resolvers use the global name
+    - REGTESTS: log: fix log-profile.vtc
+    - MEDIUM: mailers: warn about deprecated legacy mailers
+    - BUG/MEDIUM: cli: Be sure to catch immediate client abort
+    - DEV: flags/applet: decode appctx flags
+    - BUG/MEDIUM: cli: Deadlock when setting frontend maxconn
+    - MINOR: log: fix indent in strm_log()
+    - MINOR: log: introduce extra log profile steps
+    - MINOR: log: handle extra log origins in _process_send_log_override()
+    - MINOR: log: introduce log_orig flags
+    - MINOR: log: explicitly handle extra log origins as error when relevant
+    - MINOR: log: support extra log origins for '%OG' alias
+    - MINOR: proxy: add log_steps struct member
+    - MINOR: log: introduce "log-steps" proxy keyword
+    - MINOR: log: add log_orig_proxy() helper function
+    - MEDIUM: log: consider log-steps proxy setting for existing log origins
+    - DOC: config: document proxy "log-steps" keyword
+    - REGTESTS: add a test for proxy "log-steps"
+    - Revert "BUG/MINOR: server: shut down streams under thread isolation"
+    - MINOR: task: define two new one-shot events for use with WOKEN_OTHER or MSG
+    - BUG/MEDIUM: stream: make stream_shutdown() async-safe
+    - BUG/MINOR: server: make sure the HMAINT state is part of MAINT
+    - BUG/MINOR: queue: make sure that maintenance redispatches server queue
+    - MINOR: server: make srv_shutdown_sessions() call pendconn_redistribute()
+    - BUILD: tools: only include execinfo.h for the real backtrace() function
+    - MINOR: tools: do not attempt to use backtrace() on linux without glibc
+    - OPTIM: channel: speed up co_getline()'s search of the end of line
+    - OPTIM: stconn: Don't pretend mux have more data to deliver on EOI/EOS/ERROR
+    - BUG/MINOR: mcli: Pretend the mux have more data to deliver between two commands
+    - MINOR: action: Export release_expr_int_action() release function
+    - MINOR: stream: Rely on a per-stream max connection retries value
+    - MINOR: stream: Support dynamic changes of the number of connection retries
+    - MINOR: stream/stats: Expose the current number of streams in stats
+    - MINOR: stream/stats: Expose the total number of streams ever created in stats
+    - BUG/MINOR: cfgparse-global: fix allowed args number for setenv
+    - MINOR: cfgparse-global: add dedicated parser for *env keywords
+    - MINOR: mux-quic: complete Tx infos for QCS dump
+    - MINOR: quic: ensure txbuf realloc is only performed on empty buffer
+    - MINOR: mux-quic: strengthen qcs_send_metadata() usage
+    - MINOR: quic: remove unneeded notification of txbuf room
+    - MINOR: quic: refactor MUX send notification
+    - MEDIUM: quic: strengthen MUX send notification
+    - MINOR: quic: refactor STREAM room notification
+    - MINOR: quic: do not remove qc_stream_desc automatically on ACK handling
+    - MINOR: quic: store streambuf in a streamdesc tree
+    - MINOR: quic: move buffered ACK to streambuf
+    - MEDIUM: quic: handle out-of-order ACK at streamdesc layer
+    - MEDIUM: quic: refactor buffered STREAM ACK consuming
+    - BUG/MEDIUM: queue: always dequeue the backend when redistributing the last server
+    - MINOR: config/trace: Add a 'traces' section to declare debug traces
+    - MINOR: trace: Be able to chain commands for a source in one line
+    - MINOR: tcpcheck: Add support for an option host header value for httpchk option
+    - BUG/MINOR: mux-h1: Fix condition to set EOI on SE during zero-copy forwarding
+    - MINOR: mux-h1: Use a dedicated function to conditionnaly set EOI flag on SE
+    - BUG/MINOR: http-ana: Disable fast-fwd for unfinished req waiting for upgrade
+    - BUG/MINOR: mux-quic: fix crash on qcc_init() early return
+    - BUG/MINOR: quic: fix trace on releasing STREAM frame after ack
+
 2024/09/18 : 3.1-dev8
     - DOC: configuration: place the HAPROXY_HTTP_LOG_FMT example on the correct line
     - MINOR: mux-h1: Set EOI on SE during demux when both side are in DONE state
