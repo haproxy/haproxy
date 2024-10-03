@@ -3546,16 +3546,6 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (nb_oldpids && !master)
-		nb_oldpids = tell_old_pids(oldpids_sig);
-
-	/* Send a SIGTERM to workers who have a too high reloads number.
-	 * master=1 means that fork() was done before. So, at this stage we already
-	 * have at least one new worker with reloads=0, which is bound to sockets.
-	 */
-	if (master)
-		mworker_kill_max_reloads(SIGTERM);
-
 	/* Note that any error at this stage will be fatal because we will not
 	 * be able to restart the old pids.
 	 */
@@ -3610,8 +3600,6 @@ int main(int argc, char **argv)
 			global.mode &= ~MODE_VERBOSE;
 			global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
 		}
-		setenv("HAPROXY_LOAD_SUCCESS", "1", 1);
-		ha_notice("Loading success.\n");
 		proc_self->failedreloads = 0; /* reset the number of failure */
 		mworker_loop();
 #if defined(USE_OPENSSL) && !defined(OPENSSL_NO_DH)
@@ -3660,6 +3648,15 @@ int main(int argc, char **argv)
 	}
 
 	ha_free(&global.chroot);
+
+	/* In master-worker mode master sends TERM to previous workers up to
+	 * receiving status READY
+	 */
+	if (!(global.mode & MODE_MWORKER) && nb_oldpids) {
+		nb_oldpids = tell_old_pids(oldpids_sig);
+	}
+
+	/* oldpids_sig was sent to the previous process, can change uid/gid now */
 	set_identity(argv[0]);
 
 	/* set_identity() above might have dropped LSTCHK_NETADM or/and
@@ -3795,6 +3792,46 @@ int main(int argc, char **argv)
 
 	/* when multithreading we need to let only the thread 0 handle the signals */
 	haproxy_unblock_signals();
+
+	/* send "READY" message to remove status PROC_O_INIT for the newly forked worker,
+	 * master will send TERM to the previous in _send_status()
+	 */
+	if (global.mode & MODE_MWORKER) {
+		struct mworker_proc *proc;
+		int sock_pair[2];
+		char *msg = NULL;
+
+		if (socketpair(PF_UNIX, SOCK_STREAM, 0, sock_pair) == -1) {
+			ha_alert("[%s.main()] Cannot create socketpair to update the new worker state\n",
+				 argv[0]);
+
+			exit(1);
+		}
+
+		list_for_each_entry(proc, &proc_list, list) {
+			if (proc->pid == -1)
+				break;
+		}
+
+		if (send_fd_uxst(proc->ipc_fd[1], sock_pair[0]) == -1) {
+			ha_alert("[%s.main()] Cannot transfer connection fd %d over the sockpair@%d\n",
+				 argv[0], sock_pair[0], proc->ipc_fd[1]);
+			close(sock_pair[0]);
+			close(sock_pair[1]);
+
+			exit(1);
+		}
+		close(sock_pair[0]);
+
+		memprintf(&msg, "_send_status READY %d\n", getpid());
+		if (send(sock_pair[1], msg, strlen(msg), 0) != strlen(msg)) {
+			ha_alert("[%s.main()] Failed to send READY status to master\n", argv[0]);
+
+			exit(1);
+		}
+		close(sock_pair[1]);
+		ha_free(&msg);
+	}
 
 #if defined(USE_SYSTEMD)
 	if (global.tune.options & GTUNE_USE_SYSTEMD)
