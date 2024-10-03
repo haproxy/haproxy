@@ -3386,7 +3386,7 @@ error_proxy:
 /*
  * Create a new listener for the master CLI proxy
  */
-struct bind_conf *mworker_cli_proxy_new_listener(char *line)
+struct bind_conf *mworker_cli_master_proxy_new_listener(char *line)
 {
 	struct bind_conf *bind_conf;
 	struct listener *l;

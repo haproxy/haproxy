@@ -809,8 +809,7 @@ void mworker_create_master_cli(void)
 		}
 
 		list_for_each_entry_safe(c, it, &mworker_cli_conf, list) {
-
-			if (mworker_cli_proxy_new_listener(c->s) == NULL) {
+			if (mworker_cli_master_proxy_new_listener(c->s) == NULL) {
 				ha_alert("Can't create the master's CLI.\n");
 				exit(EXIT_FAILURE);
 			}
@@ -835,7 +834,8 @@ void mworker_create_master_cli(void)
 
 		/* Create the mcli_reload listener from the proc_self struct */
 		memprintf(&path, "sockpair@%d", proc_self->ipc_fd[1]);
-		mcli_reload_bind_conf = mworker_cli_proxy_new_listener(path);
+
+		mcli_reload_bind_conf = mworker_cli_master_proxy_new_listener(path);
 		if (mcli_reload_bind_conf == NULL) {
 			ha_alert("Can't create the mcli_reload listener.\n");
 			exit(EXIT_FAILURE);
