@@ -365,7 +365,6 @@ restart_wait:
 				continue;
 
 			LIST_DELETE(&child->list);
-			close(child->ipc_fd[0]);
 			childfound = 1;
 			break;
 		}
@@ -377,6 +376,7 @@ restart_wait:
 			/* check if exited child is a current child */
 			if (!(child->options & PROC_O_LEAVING)) {
 				if (child->options & PROC_O_TYPE_WORKER) {
+					fd_delete(child->ipc_fd[0]);
 					if (status < 128)
 						ha_warning("Current worker (%d) exited with code %d (%s)\n", exitpid, status, "Exit");
 					else
@@ -399,6 +399,7 @@ restart_wait:
 				if (exitcode < 0 && status != 0 && status != 143)
 					exitcode = status;
 			} else {
+				fd_delete(child->ipc_fd[0]);
 				if (child->options & PROC_O_TYPE_WORKER) {
 					ha_warning("Former worker (%d) exited with code %d (%s)\n", exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 					delete_oldpid(exitpid);
