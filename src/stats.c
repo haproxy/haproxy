@@ -169,7 +169,7 @@ const struct name_desc stat_cols_info[ST_I_INF_MAX] = {
 	[ST_I_INF_BOOTTIME_MS]                    = { .name = "BootTime_ms",                 .desc = "How long ago it took to parse and process the config before being ready (milliseconds)" },
 	[ST_I_INF_NICED_TASKS]                    = { .name = "Niced_tasks",                 .desc = "Total number of active tasks+tasklets in the current worker process (Run_queue) that are niced" },
 	[ST_I_INF_CURR_STRM]                      = { .name = "CurrStreams",                 .desc = "Current number of streams on this worker process" },
-	[ST_I_INF_CUM_STRM]                       = { .name = "CurrStreams",                 .desc = "Total number of streams created on this worker process since started" },
+	[ST_I_INF_CUM_STRM]                       = { .name = "CumStreams",                  .desc = "Total number of streams created on this worker process since started" },
 };
 
 /* one line of info */
