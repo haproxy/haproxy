@@ -3547,8 +3547,7 @@ int main(int argc, char **argv)
 	 * _getsocks on the stat socket, it must never been done in wait mode
 	 * and check mode
 	 */
-	if (old_unixsocket &&
-	    !(global.mode & (MODE_MWORKER|MODE_CHECK|MODE_CHECK_CONDITION))) {
+	if (old_unixsocket && !(global.mode & MODE_MWORKER)) {
 		if (strcmp("/dev/null", old_unixsocket) != 0) {
 			if (sock_get_old_sockets(old_unixsocket) != 0) {
 				ha_alert("Failed to get the sockets from the old process!\n");
