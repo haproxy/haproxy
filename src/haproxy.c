@@ -3006,6 +3006,38 @@ static void step_init_4(void)
 	ha_free(&global.pidfile);
 }
 
+/* parse conf in disovery mode and set modes from config */
+static void read_cfg_in_discovery_mode(int argc, char **argv)
+{
+	struct cfgfile *cfg, *cfg_tmp;
+	int ret;
+
+	/* load configs and read only the keywords with KW_DISCOVERY flag */
+	global.mode |= MODE_DISCOVERY;
+
+	usermsgs_clr("config");
+	ret = load_cfg(progname);
+	if (ret == 0) {
+		/* read only global section in discovery mode */
+		ret = read_cfg(progname);
+	}
+	if (ret < 0) {
+		list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
+			ha_free(&cfg->content);
+			ha_free(&cfg->filename);
+		}
+		exit(1);
+	}
+	usermsgs_clr(NULL);
+
+	global.mode &= ~MODE_DISCOVERY;
+
+	if (!LIST_ISEMPTY(&mworker_cli_conf) && !(arg_mode & MODE_MWORKER)) {
+		ha_alert("a master CLI socket was defined, but master-worker mode (-W) is not enabled.\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
 void deinit(void)
 {
 	struct proxy *p = proxies_list, *p0;
@@ -3537,7 +3569,6 @@ static void set_identity(const char *program_name)
 
 int main(int argc, char **argv)
 {
-	int ret;
 	int devnullfd = -1;
 	struct rlimit limit;
 	int intovf = (unsigned char)argc + 1; /* let the compiler know it's strictly positive */
@@ -3624,30 +3655,8 @@ int main(int argc, char **argv)
 	 */
 	step_init_1();
 
-	/* load configs and read only the keywords with KW_DISCOVERY flag */
-	global.mode |= MODE_DISCOVERY;
-
-	usermsgs_clr("config");
-	ret = load_cfg(progname);
-	if (ret == 0) {
-		/* read only global section in discovery mode */
-		ret = read_cfg(progname);
-	}
-	if (ret < 0) {
-		list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
-			ha_free(&cfg->content);
-			ha_free(&cfg->filename);
-		}
-		exit(1);
-	}
-	usermsgs_clr(NULL);
-
-	global.mode &= ~MODE_DISCOVERY;
-
-	if (!LIST_ISEMPTY(&mworker_cli_conf) && !(arg_mode & MODE_MWORKER)) {
-		ha_alert("a master CLI socket was defined, but master-worker mode (-W) is not enabled.\n");
-		exit(EXIT_FAILURE);
-	}
+	/* parse conf in disovery mode and set modes from config */
+	read_cfg_in_discovery_mode(argc, argv);
 
 	/* From this stage all runtime modes are known. So let's do below some
 	 * preparation steps and then let's apply all discovered modes.
