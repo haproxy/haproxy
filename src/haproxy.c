@@ -231,6 +231,7 @@ int connected_peers = 0; /* number of connected peers (verified ones) */
 int arg_mode = 0;	/* MODE_DEBUG etc as passed on command line ... */
 char *change_dir = NULL; /* set when -C is passed */
 char *check_condition = NULL; /* check condition passed to -cc */
+char *progname;
 
 /* Here we store information about the pids of the processes we may pause
  * or kill. We will send them a signal every 10 ms until we can bind to all
@@ -1518,7 +1519,6 @@ static void do_check_condition(char *progname)
  */
 static void init_early(int argc, char **argv)
 {
-	char *progname;
 	char *tmp;
 	int len;
 
@@ -1586,8 +1586,9 @@ static void init_early(int argc, char **argv)
  */
 static void init_args(int argc, char **argv)
 {
-	char *progname = global.log_tag.area;
 	char *err_msg = NULL;
+
+	progname = global.log_tag.area;
 
 	/* pre-fill in the global tuning options before we let the cmdline
 	 * change them.
@@ -1977,22 +1978,200 @@ static void generate_random_cluster_secret()
 	cluster_secret_isset = 1;
 }
 
-/*
- * This function initializes all the necessary variables. It only returns
- * if everything is OK. If something fails, it exits.
+/* This function fills proc_list for master-worker mode and creates a sockpair,
+ * copied after master-worker fork() to each process context to enable master
+ * CLI at worker side (worker can send its status to master).It only returns if
+ * everything is OK. If something fails, it exits.
  */
-static void init(int argc, char **argv)
+static void prepare_master()
 {
-	char *progname = global.log_tag.area;
-	int err_code = 0;
-	struct proxy *px;
-	struct post_check_fct *pcf;
-	struct pre_check_fct *prcf;
-	struct cfgfile *cfg, *cfg_tmp;
-	int ret, ideal_maxconn;
-	const char *cc, *cflags, *opts;
+	struct mworker_proc *tmproc;
+
+	setenv("HAPROXY_MWORKER", "1", 1);
+
+	if (getenv("HAPROXY_MWORKER_REEXEC") == NULL) {
+
+		tmproc = mworker_proc_new();
+		if (!tmproc) {
+			ha_alert("Cannot allocate process structures.\n");
+			exit(EXIT_FAILURE);
+		}
+		tmproc->options |= PROC_O_TYPE_MASTER; /* master */
+		tmproc->pid = pid;
+		tmproc->timestamp = start_date.tv_sec;
+		proc_self = tmproc;
+
+		LIST_APPEND(&proc_list, &tmproc->list);
+	}
+
+	tmproc = mworker_proc_new();
+	if (!tmproc) {
+		ha_alert("Cannot allocate process structures.\n");
+		exit(EXIT_FAILURE);
+	}
+	/* worker */
+	tmproc->options |= (PROC_O_TYPE_WORKER | PROC_O_INIT);
+
+	/* create a sockpair to copy it via fork(), thus it will be in
+	 * master and in worker processes
+	 */
+	if (socketpair(AF_UNIX, SOCK_STREAM, 0, tmproc->ipc_fd) < 0) {
+		ha_alert("Cannot create worker master CLI socketpair.\n");
+		exit(EXIT_FAILURE);
+	}
+	LIST_APPEND(&proc_list, &tmproc->list);
+}
+
+/*
+ * This function does daemonization fork. It only returns if everything is OK.
+ * If something fails, it exits.
+ */
+static void apply_daemon_mode()
+{
+	int ret;
+
+	ret = fork();
+	switch(ret) {
+	case -1:
+		ha_alert("[%s.main()] Cannot fork.\n", progname);
+		protocol_unbind_all();
+		exit(1); /* there has been an error */
+	case 0:
+		/* in child, change the process group ID, in the master-worker
+		 * mode, this will be the master process
+		 */
+		setsid();
+
+		break;
+	default:
+		/* in parent, which leaves to daemonize */
+		exit(0);
+	}
+}
+
+/* Only returns if everything is OK. If something fails, it exits. */
+static void handle_pidfile()
+{
 	char pidstr[100];
 
+	unlink(global.pidfile);
+	pidfd = open(global.pidfile, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+	if (pidfd < 0) {
+		ha_alert("[%s.main()] Cannot create pidfile %s\n", progname, global.pidfile);
+		if (nb_oldpids)
+			tell_old_pids(SIGTTIN);
+		protocol_unbind_all();
+		exit(1);
+	}
+	snprintf(pidstr, sizeof(pidstr), "%d\n", (int)getpid());
+	DISGUISE(write(pidfd, pidstr, strlen(pidstr)));
+}
+
+/* This function at first does master-worker fork. It creates then GLOBAL and
+ * MASTER proxies, allocates listeners for these proxies and binds a GLOBAL
+ * proxy listener in worker process on ipc_fd[1] and MASTER proxy listener
+ * in master process on ipc_fd[0]. ipc_fd[0] and ipc_fd[1] are the "ends" of the
+ * sockpair, created in prepare_master(). This sockpair is copied via fork to
+ * each process and serves as communication channel between master and worker
+ * (master CLI applet is attached in master process to MASTER proxy). This
+ * function returns only if everything is OK. If something fails, it exits.
+ */
+static void apply_master_worker_mode()
+{
+	int worker_pid;
+	struct mworker_proc *child;
+	struct ring *tmp_startup_logs = NULL;
+	char *sock_name = NULL;
+
+	worker_pid = fork();
+	switch (worker_pid) {
+	case -1:
+		ha_alert("[%s.main()] Cannot fork.\n", progname);
+
+		exit(EXIT_FAILURE);
+	case 0:
+		/* in child: at this point the worker must have his own startup_logs buffer */
+		tmp_startup_logs = startup_logs_dup(startup_logs);
+		if (tmp_startup_logs == NULL)
+			exit(EXIT_FAILURE);
+		startup_logs_free(startup_logs);
+		startup_logs = tmp_startup_logs;
+		/* This one must not be exported, it's internal! */
+		unsetenv("HAPROXY_MWORKER_REEXEC");
+		ha_random_jump96(1);
+
+		list_for_each_entry(child, &proc_list, list) {
+			if ((child->options & PROC_O_TYPE_WORKER) && (child->options & PROC_O_INIT)) {
+				close(child->ipc_fd[0]);
+				child->ipc_fd[0] = -1;
+				/* proc_self needs to point to the new forked worker in
+				 * worker's context, as it's dereferenced in
+				 * mworker_sockpair_register_per_thread(), called for
+				 * master and for worker.
+				 */
+				proc_self = child;
+				/* attach listener to GLOBAL proxy on child->ipc_fd[1] */
+				if (mworker_cli_global_proxy_new_listener(child) < 0)
+					exit(EXIT_FAILURE);
+
+				break;
+			}
+		}
+		break;
+	default:
+		/* in parent */
+		ha_notice("Initializing new worker (%d)\n", worker_pid);
+		master = 1;
+		atexit_flag = 1;
+		atexit(exit_on_failure);
+
+		/* in exec mode, there's always exactly one thread. Failure to
+		 * set these ones now will result in nbthread being detected
+		 * automatically.
+		 */
+		global.nbtgroups = 1;
+		global.nbthread = 1;
+
+		/* creates MASTER proxy and attaches server to child->ipc_fd[0] */
+		if (mworker_cli_proxy_create() < 0) {
+			ha_alert("Can't create the master's CLI.\n");
+			exit(EXIT_FAILURE);
+		}
+
+		/* creates reload sockpair and listeners for master CLI (-S) */
+		mworker_create_master_cli();
+
+		/* find the right mworker_proc */
+		list_for_each_entry(child, &proc_list, list) {
+			if ((child->options & PROC_O_TYPE_WORKER) && (child->options & PROC_O_INIT)) {
+				child->timestamp = date.tv_sec;
+				child->pid = worker_pid;
+				child->version = strdup(haproxy_version);
+
+				close(child->ipc_fd[1]);
+				child->ipc_fd[1] = -1;
+
+				/* attach listener to MASTER proxy on child->ipc_fd[0] */
+				memprintf(&sock_name, "sockpair@%d", child->ipc_fd[0]);
+				if (mworker_cli_master_proxy_new_listener(sock_name) == NULL) {
+					ha_free(&sock_name);
+					exit(EXIT_FAILURE);
+				}
+				ha_free(&sock_name);
+
+				break;
+			}
+		}
+	}
+}
+
+/*
+ * This function does some initialization steps, which are better to perform
+ * before config parsing. It only returns if everything is OK. If something
+ * fails, it exits.
+ */
+static void step_init_1()
+{
 #ifdef USE_OPENSSL
 #ifdef USE_OPENSSL_WOLFSSL
         wolfSSL_Init();
@@ -2014,7 +2193,7 @@ static void init(int argc, char **argv)
 	 * up. */
 	SSL_load_error_strings();
 #endif
-#endif
+#endif /* USE_OPENSSL */
 
 	startup_logs_init();
 
@@ -2024,6 +2203,7 @@ static void init(int argc, char **argv)
 	/* Initialise lua. */
 	hlua_init();
 
+	/* set modes given from cmdline */
 	global.mode |= (arg_mode & (MODE_DAEMON | MODE_MWORKER | MODE_FOREGROUND | MODE_VERBOSE
 				    | MODE_QUIET | MODE_CHECK | MODE_DEBUG | MODE_ZERO_WARNING
 				    | MODE_DIAG | MODE_CHECK_CONDITION | MODE_DUMP_LIBS | MODE_DUMP_KWD
@@ -2037,222 +2217,24 @@ static void init(int argc, char **argv)
 		ha_alert("Could not change to directory %s : %s\n", change_dir, strerror(errno));
 		exit(1);
 	}
+}
 
-	usermsgs_clr("config");
-
-	/* load configs and read only the keywords with KW_DISCOVERY flag */
-	global.mode |= MODE_DISCOVERY;
-
-	ret = load_cfg(progname);
-	if (ret == 0) {
-		/* read only global section in discovery mode */
-		ret = read_cfg(progname);
-	}
-	if (ret < 0) {
-		list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
-			ha_free(&cfg->content);
-			ha_free(&cfg->filename);
-		}
-		exit(1);
-	}
-
-	global.mode &= ~MODE_DISCOVERY;
-
-	if (!LIST_ISEMPTY(&mworker_cli_conf) && !(arg_mode & MODE_MWORKER)) {
-		ha_alert("a master CLI socket was defined, but master-worker mode (-W) is not enabled.\n");
-		exit(EXIT_FAILURE);
-	}
-
-	if (global.mode & MODE_MWORKER) {
-		struct mworker_proc *tmproc;
-
-		setenv("HAPROXY_MWORKER", "1", 1);
-
-		if (getenv("HAPROXY_MWORKER_REEXEC") == NULL) {
-
-			tmproc = mworker_proc_new();
-			if (!tmproc) {
-				ha_alert("Cannot allocate process structures.\n");
-				exit(EXIT_FAILURE);
-			}
-			tmproc->options |= PROC_O_TYPE_MASTER; /* master */
-			tmproc->pid = pid;
-			tmproc->timestamp = start_date.tv_sec;
-			proc_self = tmproc;
-
-			LIST_APPEND(&proc_list, &tmproc->list);
-		}
-
-		tmproc = mworker_proc_new();
-		if (!tmproc) {
-			ha_alert("Cannot allocate process structures.\n");
-			exit(EXIT_FAILURE);
-		}
-		/* worker */
-		tmproc->options |= (PROC_O_TYPE_WORKER | PROC_O_INIT);
-		/* create a sockpair to copy it via fork(), thus it will be in
-		 * master and in worker processes
-		 */
-		if (socketpair(AF_UNIX, SOCK_STREAM, 0, tmproc->ipc_fd) < 0) {
-			ha_alert("Cannot create worker master CLI socketpair.\n");
-			exit(EXIT_FAILURE);
-		}
-
-		LIST_APPEND(&proc_list, &tmproc->list);
-	}
-
-	/* if daemon + mworker: must fork here to let a master process live in
-	 * background before forking children.
-	 */
-	if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL) &&
-		(global.mode & MODE_DAEMON)) {
-		ret = fork();
-		switch(ret) {
-		case -1:
-			ha_alert("[%s.main()] Cannot fork.\n", argv[0]);
-			protocol_unbind_all();
-			exit(1); /* there has been an error */
-		case 0:
-			/* in child, change the process group ID, in the master-worker
-			 * mode, this will be the master process
-			 */
-			setsid();
-
-			break;
-		default:
-			/* in parent, which leaves to daemonize */
-			exit(0);
-		}
-	}
-
-	/* open log & pid files before the chroot */
-	if ((global.mode & MODE_DAEMON || global.mode & MODE_MWORKER) &&
-		global.pidfile != NULL) {
-		unlink(global.pidfile);
-		pidfd = open(global.pidfile, O_CREAT | O_WRONLY | O_TRUNC, 0644);
-		if (pidfd < 0) {
-			ha_alert("[%s.main()] Cannot create pidfile %s\n", argv[0], global.pidfile);
-			if (nb_oldpids)
-				tell_old_pids(SIGTTIN);
-			protocol_unbind_all();
-			exit(1);
-		}
-		snprintf(pidstr, sizeof(pidstr), "%d\n", (int)getpid());
-		DISGUISE(write(pidfd, pidstr, strlen(pidstr)));
-	}
-
-	/* master-worker mode fork() */
-	if (global.mode & MODE_MWORKER) {
-		int worker_pid;
-		struct mworker_proc *child;
-		struct ring *tmp_startup_logs = NULL;
-		char *sock_name = NULL;
-
-		worker_pid = fork();
-		switch (worker_pid) {
-		case -1:
-			ha_alert("[%s.main()] Cannot fork.\n", argv[0]);
-
-			exit(EXIT_FAILURE);
-		case 0:
-			/* in child: at this point the worker must have his own startup_logs buffer */
-			tmp_startup_logs = startup_logs_dup(startup_logs);
-			if (tmp_startup_logs == NULL)
-				exit(EXIT_FAILURE);
-
-			startup_logs_free(startup_logs);
-			startup_logs = tmp_startup_logs;
-			/* This one must not be exported, it's internal! */
-			unsetenv("HAPROXY_MWORKER_REEXEC");
-			ha_random_jump96(1);
-
-			list_for_each_entry(child, &proc_list, list) {
-				if ((child->options & PROC_O_TYPE_WORKER) && (child->options & PROC_O_INIT)) {
-					close(child->ipc_fd[0]);
-					child->ipc_fd[0] = -1;
-					/* proc_self needs to point to the new forked worker in
-					 * worker's context, as it's dereferenced in
-					 * mworker_sockpair_register_per_thread(), called for
-					 * master and for worker.
-					 */
-					proc_self = child;
-					/* attach listener to GLOBAL proxy on child->ipc_fd[1] */
-					if (mworker_cli_global_proxy_new_listener(child) < 0) {
-						close(child->ipc_fd[1]);
-						exit(EXIT_FAILURE);
-					}
-
-					break;
-				}
-			}
-			break;
-		default:
-			/* in parent */
-			ha_notice("Initializing new worker (%d)\n", worker_pid);
-			master = 1;
-			atexit_flag = 1;
-			atexit(exit_on_failure);
-
-			/* in exec mode, there's always exactly one thread. Failure to
-			 * set these ones now will result in nbthread being detected
-			 * automatically.
-			 */
-			global.nbtgroups = 1;
-			global.nbthread = 1;
-
-			/* creates MASTER proxy and attaches server to child->ipc_fd[0] */
-			if (mworker_cli_proxy_create() < 0) {
-				ha_alert("Can't create the master's CLI.\n");
-				exit(EXIT_FAILURE);
-			}
-
-			/* creates reload sockpair and listeners for master CLI (-S) */
-			mworker_create_master_cli();
-
-			/* find the right mworker_proc */
-			list_for_each_entry(child, &proc_list, list) {
-				if ((child->options & PROC_O_TYPE_WORKER) && (child->options & PROC_O_INIT)) {
-					child->timestamp = date.tv_sec;
-					child->pid = worker_pid;
-					child->version = strdup(haproxy_version);
-
-					close(child->ipc_fd[1]);
-					child->ipc_fd[1] = -1;
-
-					/* attach listener to MASTER proxy on child->ipc_fd[0] */
-					memprintf(&sock_name, "sockpair@%d", child->ipc_fd[0]);
-					if (mworker_cli_master_proxy_new_listener(sock_name) == NULL) {
-						ha_free(&sock_name);
-						exit(EXIT_FAILURE);
-					}
-					ha_free(&sock_name);
-
-					break;
-				}
-			}
-		}
-	}
-
-	/* worker, daemon, foreground mode reads the rest of the config */
-	if (!(global.mode & MODE_MWORKER)) {
-		/* nbthread and *thread keywords parsers are sensible to global
-		 * section position, it should be placed as the first in
-		 * the configuration, if these keywords are inside. So, let's
-		 * reset non_global_section_parsed counter for the second
-		 * configuration reading
-		 */
-		non_global_section_parsed = 0;
-		if (read_cfg(progname) < 0) {
-			list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
-				ha_free(&cfg->content);
-				ha_free(&cfg->filename);
-			}
-			exit(1);
-		}
-		/* all sections have been parsed */
-		list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list)
-			ha_free(&cfg->content);
-	}
+/*
+ * This is a second part of the late init (previous init() function). It should
+ * be called after the stage, when all basic runtime modes (daemon, master-worker)
+ * are already applied. It calls routines from pre_check_list and also functions,
+ * which allocate pools, initialize proxies, compute ideal maxconn, it also
+ * initializes postmortem structure at the end. It only returns if everything is
+ * OK. If something fails, it exits.
+ */
+static void step_init_2(int argc, char** argv)
+{
+	int err_code = 0;
+	struct proxy *px;
+	struct post_check_fct *pcf;
+	struct pre_check_fct *prcf;
+	int ideal_maxconn;
+	const char *cc, *cflags, *opts;
 
 	/* destroy unreferenced defaults proxies  */
 	proxy_destroy_all_unref_defaults();
@@ -2637,8 +2619,6 @@ static void init(int argc, char **argv)
 
 	if (global.tune.maxrewrite >= global.tune.bufsize / 2)
 		global.tune.maxrewrite = global.tune.bufsize / 2;
-
-	usermsgs_clr(NULL);
 
 	if (arg_mode & (MODE_DEBUG | MODE_FOREGROUND)) {
 		/* command line debug mode inhibits configuration mode */
@@ -3306,10 +3286,11 @@ static void set_identity(const char *program_name)
 
 int main(int argc, char **argv)
 {
-	int err, retry;
+	int err, retry, ret;
 	int devnullfd = -1;
 	struct rlimit limit;
 	int intovf = (unsigned char)argc + 1; /* let the compiler know it's strictly positive */
+	struct cfgfile *cfg, *cfg_tmp;
 
 	/* Catch broken toolchains */
 	if (sizeof(long) != sizeof(void *) || (intovf + 0x7FFFFFFF >= intovf)) {
@@ -3386,8 +3367,94 @@ int main(int argc, char **argv)
 
 	RUN_INITCALLS(STG_INIT);
 
-	/* this is the late init where the config is parsed */
-	init(argc, argv);
+	/* Late init step: SSL crypto libs init and check, Lua lib init, ACL init,
+	 * set modes from cmdline and change dir, if this option is provided via
+	 * cmdline.
+	 */
+	step_init_1();
+
+	/* load configs and read only the keywords with KW_DISCOVERY flag */
+	global.mode |= MODE_DISCOVERY;
+
+	usermsgs_clr("config");
+	ret = load_cfg(progname);
+	if (ret == 0) {
+		/* read only global section in discovery mode */
+		ret = read_cfg(progname);
+	}
+	if (ret < 0) {
+		list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
+			ha_free(&cfg->content);
+			ha_free(&cfg->filename);
+		}
+		exit(1);
+	}
+	usermsgs_clr(NULL);
+
+	global.mode &= ~MODE_DISCOVERY;
+
+	if (!LIST_ISEMPTY(&mworker_cli_conf) && !(arg_mode & MODE_MWORKER)) {
+		ha_alert("a master CLI socket was defined, but master-worker mode (-W) is not enabled.\n");
+		exit(EXIT_FAILURE);
+	}
+
+	/* From this stage all runtime modes are known. So let's do below some
+	 * preparation steps and then let's apply all discovered modes.
+	 */
+
+	/* Add entries for master and worker in proc_list, create sockpair,
+	 * that will be copied to both processes after master-worker fork to
+	 * enable the master CLI at worker side (worker can send messages to master),
+	 * setenv("HAPROXY_MWORKER", "1", 1).
+	 */
+	if (global.mode & MODE_MWORKER)
+		prepare_master();
+
+	/* If we are in a daemon mode and we might be also in master-worker mode:
+	 * we should do daemonization fork here to put the main process (which
+	 * will become then a master) in background, before it will fork a
+	 * worker, because the worker should be also in background for this case.
+	 */
+	if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL) && (global.mode & MODE_DAEMON))
+		apply_daemon_mode();
+
+	/* Open pid file before the chroot */
+	if ((global.mode & MODE_DAEMON || global.mode & MODE_MWORKER) && global.pidfile != NULL)
+		handle_pidfile();
+
+	/* Master-worker fork */
+	if (global.mode & MODE_MWORKER)
+		apply_master_worker_mode();
+
+	/* Worker, daemon, foreground modes read the rest of the config */
+	if (!master) {
+		usermsgs_clr("config");
+
+		/* nbthread and *thread keywords parsers are sensible to global
+		 * section position, it should be placed as the first in
+		 * the configuration, if these keywords are inside. So, let's
+		 * reset non_global_section_parsed counter for the second
+		 * configuration reading
+		 */
+		non_global_section_parsed = 0;
+		if (read_cfg(progname) < 0) {
+			list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
+				ha_free(&cfg->content);
+				ha_free(&cfg->filename);
+			}
+			exit(1);
+		}
+		/* all sections have been parsed, we can free the content */
+		list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list)
+			ha_free(&cfg->content);
+		usermsgs_clr(NULL);
+	}
+
+	/* Late init step: routines from pre_check_list, functions, which
+	 * allocate pools, initialize proxies, compute ideal maxconn and
+	 * initialize postmortem structure.
+	 */
+	step_init_2(argc, argv);
 
 	signal_register_fct(SIGQUIT, dump, SIGQUIT);
 	signal_register_fct(SIGUSR1, sig_soft_stop, SIGUSR1);
