@@ -2158,8 +2158,6 @@ static void apply_master_worker_mode()
 		/* in parent */
 		ha_notice("Initializing new worker (%d)\n", worker_pid);
 		master = 1;
-		atexit_flag = 1;
-		atexit(exit_on_failure);
 
 		/* in exec mode, there's always exactly one thread. Failure to
 		 * set these ones now will result in nbthread being detected
@@ -3003,27 +3001,83 @@ static void step_init_4(void)
 	ha_free(&global.pidfile);
 }
 
+static void run_master_in_recovery_mode(int argc, char **argv)
+{
+	struct mworker_proc *proc;
+
+	/* increment the number failed reloads */
+	list_for_each_entry(proc, &proc_list, list) {
+		proc->failedreloads++;
+	}
+
+	global.nbtgroups = 1;
+	global.nbthread = 1;
+	master = 1;
+	atexit(exit_on_failure);
+
+	/* creates MASTER proxy and attaches server to child->ipc_fd[0] */
+	if (mworker_cli_proxy_create() < 0) {
+		ha_alert("Can't create the master's CLI.\n");
+		exit(EXIT_FAILURE);
+	}
+
+	/* master CLI */
+	mworker_create_master_cli();
+	step_init_2(argc, argv);
+	step_init_3();
+	if (protocol_bind_all(1) != 0) {
+		ha_alert("Master failed to bind master CLI socket.\n");
+		exit(1);
+	}
+
+	step_init_4();
+	/* enter in master polling loop */
+	run_master();
+}
+
 /* parse conf in disovery mode and set modes from config */
 static void read_cfg_in_discovery_mode(int argc, char **argv)
 {
 	struct cfgfile *cfg, *cfg_tmp;
-	int ret;
 
-	/* load configs and read only the keywords with KW_DISCOVERY flag */
+	/* load configs in memory and parse only global section (MODE_DISCOVERY) */
 	global.mode |= MODE_DISCOVERY;
 
 	usermsgs_clr("config");
-	ret = load_cfg(progname);
-	if (ret == 0) {
-		/* read only global section in discovery mode */
-		ret = read_cfg(progname);
+	if (load_cfg(progname) < 0) {
+		if (getenv("HAPROXY_MWORKER_REEXEC") != NULL) {
+			ha_warning("Master failed to load new configuration and "
+				   "can't start a new worker. Already running worker "
+				   "will be kept. Please, check configuration file path "
+				   "and memory limits and reload %s.\n", progname);
+			/* failed to load new conf, so setup master CLI for master side,
+			 * do some init steps and just enter in mworker_loop
+			 * to monitor the existed worker from previous start
+			 */
+			run_master_in_recovery_mode(argc, argv);
+			/* never get there */
+		} else
+			exit(1);
 	}
-	if (ret < 0) {
+
+	if (read_cfg(progname) < 0) {
 		list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
 			ha_free(&cfg->content);
 			ha_free(&cfg->filename);
 		}
-		exit(1);
+		if (getenv("HAPROXY_MWORKER_REEXEC") != NULL) {
+			ha_warning("Master failed to parse new configuration and "
+				   "can't start a new worker. Already running worker "
+				   "will be kept. Please, check global section settings "
+				   "and memory limits and reload %s.\n", progname);
+			/* failed to load new conf, so setup master CLI for master side,
+			 * do some init steps and just enter in mworker_loop
+			 * to monitor the existed worker from previous start
+			 */
+			run_master_in_recovery_mode(argc, argv);
+			/* never get there */
+		} else
+			exit(1);
 	}
 	usermsgs_clr(NULL);
 
