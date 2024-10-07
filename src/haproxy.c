@@ -2165,6 +2165,22 @@ static void apply_master_worker_mode()
 	}
 }
 
+static void get_listeners_fd()
+{
+	/* Try to get the listeners FD from the previous process using
+	 * _getsocks on the stat socket, it must never been done in wait mode
+	 * and check mode
+	 */
+
+	if (strcmp("/dev/null", old_unixsocket) != 0) {
+		if (sock_get_old_sockets(old_unixsocket) != 0) {
+			ha_alert("Failed to get the sockets from the old process!\n");
+			if (!(global.mode & MODE_MWORKER))
+				exit(1);
+		}
+	}
+}
+
 /*
  * This function does some initialization steps, which are better to perform
  * before config parsing. It only returns if everything is OK. If something
@@ -3543,19 +3559,12 @@ int main(int argc, char **argv)
 	 */
 	step_init_3();
 
-	/* Try to get the listeners FD from the previous process using
-	 * _getsocks on the stat socket, it must never been done in wait mode
-	 * and check mode
+	/* In standalone or in worker mode get the listeners fds from the previous
+	 * process using _getsocks on stat socket or on the master CLI socket
+	 * respectively.
 	 */
-	if (old_unixsocket && !(global.mode & MODE_MWORKER)) {
-		if (strcmp("/dev/null", old_unixsocket) != 0) {
-			if (sock_get_old_sockets(old_unixsocket) != 0) {
-				ha_alert("Failed to get the sockets from the old process!\n");
-				if (!(global.mode & MODE_MWORKER))
-					exit(1);
-			}
-		}
-	}
+	if (!master && old_unixsocket)
+		get_listeners_fd();
 
 	/* We will loop at most 100 times with 10 ms delay each time.
 	 * That's at most 1 second. We only send a signal to old pids
