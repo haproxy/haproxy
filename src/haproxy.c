@@ -2022,6 +2022,45 @@ static void prepare_master()
 	LIST_APPEND(&proc_list, &tmproc->list);
 }
 
+static void run_master()
+{
+	struct mworker_proc *child, *it;
+
+	if ((!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
+		(global.mode & MODE_DAEMON)) {
+		/* detach from the tty, this is required to properly daemonize. */
+		if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL))
+			stdio_quiet(-1);
+		global.mode &= ~MODE_VERBOSE;
+		global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
+	}
+	proc_self->failedreloads = 0; /* reset the number of failure */
+	mworker_loop();
+#if defined(USE_OPENSSL) && !defined(OPENSSL_NO_DH)
+	ssl_free_dh();
+#endif
+	master = 0;
+	/* close useless master sockets */
+	mworker_cli_proxy_stop();
+
+	/* free proc struct of other processes  */
+	list_for_each_entry_safe(child, it, &proc_list, list) {
+		/* close the FD of the master side for all
+		 * workers, we don't need to close the worker
+		 * side of other workers since it's done with
+		 * the bind_proc */
+		if (child->ipc_fd[0] >= 0) {
+			close(child->ipc_fd[0]);
+			child->ipc_fd[0] = -1;
+		}
+		LIST_DELETE(&child->list);
+		mworker_free_child(child);
+		child = NULL;
+	}
+	/* master must leave */
+	exit(0);
+}
+
 /*
  * This function does daemonization fork. It only returns if everything is OK.
  * If something fails, it exits.
@@ -3704,44 +3743,13 @@ int main(int argc, char **argv)
 	 */
 	step_init_4();
 
+	/* Master enters in its polling loop */
 	if (master) {
-		struct mworker_proc *child, *it;
-
-		if ((!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
-			(global.mode & MODE_DAEMON)) {
-			/* detach from the tty, this is required to properly daemonize. */
-			if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL))
-				stdio_quiet(-1);
-			global.mode &= ~MODE_VERBOSE;
-			global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
-		}
-		proc_self->failedreloads = 0; /* reset the number of failure */
-		mworker_loop();
-#if defined(USE_OPENSSL) && !defined(OPENSSL_NO_DH)
-		ssl_free_dh();
-#endif
-		master = 0;
-		/* close useless master sockets */
-		mworker_cli_proxy_stop();
-
-		/* free proc struct of other processes  */
-		list_for_each_entry_safe(child, it, &proc_list, list) {
-			/* close the FD of the master side for all
-			 * workers, we don't need to close the worker
-			 * side of other workers since it's done with
-			 * the bind_proc */
-			if (child->ipc_fd[0] >= 0) {
-				close(child->ipc_fd[0]);
-				child->ipc_fd[0] = -1;
-			}
-			LIST_DELETE(&child->list);
-			mworker_free_child(child);
-			child = NULL;
-		}
-		/* master must leave */
-		exit(0);
+		run_master();
+		/* never get there in master context */
 	}
 
+	/* End of initialization for standalone and worker modes */
 	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
 		devnullfd = open("/dev/null", (O_RDWR | O_CLOEXEC), 0);
 		if (devnullfd < 0) {
