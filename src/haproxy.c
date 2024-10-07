@@ -2755,6 +2755,88 @@ static void step_init_2(int argc, char** argv)
 	post_mortem_add_component("haproxy", haproxy_version, cc, cflags, opts, argv[0]);
 }
 
+/* This is a third part of the late init sequence, where we register signals for
+ * process in worker and in standalone modes. We also check here, if the
+ * global.maxsock calculated in step_init_2() could be applied as the nofile limit
+ * for the process. Memory limit, if set, will be applied here as well. If some
+ * capabilities were set on the haproxy binary by administrator, we will try to
+ * put it into the process Effective capabilities set.
+ */
+static void step_init_3(void)
+{
+	struct rlimit limit;
+
+	signal_register_fct(SIGQUIT, dump, SIGQUIT);
+	signal_register_fct(SIGUSR1, sig_soft_stop, SIGUSR1);
+	signal_register_fct(SIGHUP, sig_dump_state, SIGHUP);
+	signal_register_fct(SIGUSR2, NULL, 0);
+
+	/* Always catch SIGPIPE even on platforms which define MSG_NOSIGNAL.
+	 * Some recent FreeBSD setups report broken pipes, and MSG_NOSIGNAL
+	 * was defined there, so let's stay on the safe side.
+	 */
+	signal_register_fct(SIGPIPE, NULL, 0);
+
+	/* ulimits */
+	if (!global.rlimit_nofile)
+		global.rlimit_nofile = global.maxsock;
+
+	if (global.rlimit_nofile) {
+		limit.rlim_cur = global.rlimit_nofile;
+		limit.rlim_max = MAX(rlim_fd_max_at_boot, limit.rlim_cur);
+
+		if ((global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit) ||
+		    raise_rlim_nofile(NULL, &limit) != 0) {
+			getrlimit(RLIMIT_NOFILE, &limit);
+			if (global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit)
+				limit.rlim_cur = global.fd_hard_limit;
+
+			if (global.tune.options & GTUNE_STRICT_LIMITS) {
+				ha_alert("[%s.main()] Cannot raise FD limit to %d, limit is %d.\n",
+					 progname, global.rlimit_nofile, (int)limit.rlim_cur);
+				exit(1);
+			}
+			else {
+				/* try to set it to the max possible at least */
+				limit.rlim_cur = limit.rlim_max;
+				if (global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit)
+					limit.rlim_cur = global.fd_hard_limit;
+
+				if (raise_rlim_nofile(&limit, &limit) == 0)
+					getrlimit(RLIMIT_NOFILE, &limit);
+
+				ha_warning("[%s.main()] Cannot raise FD limit to %d, limit is %d.\n",
+					   progname, global.rlimit_nofile, (int)limit.rlim_cur);
+				global.rlimit_nofile = limit.rlim_cur;
+			}
+		}
+	}
+
+	if (global.rlimit_memmax) {
+		limit.rlim_cur = limit.rlim_max =
+			global.rlimit_memmax * 1048576ULL;
+		if (setrlimit(RLIMIT_DATA, &limit) == -1) {
+			if (global.tune.options & GTUNE_STRICT_LIMITS) {
+				ha_alert("[%s.main()] Cannot fix MEM limit to %d megs.\n",
+					 progname, global.rlimit_memmax);
+				exit(1);
+			}
+			else
+				ha_warning("[%s.main()] Cannot fix MEM limit to %d megs.\n",
+					   progname, global.rlimit_memmax);
+		}
+	}
+
+#if defined(USE_LINUX_CAP)
+	/* If CAP_NET_BIND_SERVICE is in binary file permitted set and process
+	 * is started and run under the same non-root user, this allows
+	 * binding to privileged ports.
+	 */
+	if (!master)
+	    prepare_caps_from_permitted_set(geteuid(), global.uid, progname);
+#endif
+}
+
 void deinit(void)
 {
 	struct proxy *p = proxies_list, *p0;
@@ -3456,75 +3538,10 @@ int main(int argc, char **argv)
 	 */
 	step_init_2(argc, argv);
 
-	signal_register_fct(SIGQUIT, dump, SIGQUIT);
-	signal_register_fct(SIGUSR1, sig_soft_stop, SIGUSR1);
-	signal_register_fct(SIGHUP, sig_dump_state, SIGHUP);
-	signal_register_fct(SIGUSR2, NULL, 0);
-
-	/* Always catch SIGPIPE even on platforms which define MSG_NOSIGNAL.
-	 * Some recent FreeBSD setups report broken pipes, and MSG_NOSIGNAL
-	 * was defined there, so let's stay on the safe side.
+	/* Late init step: register signals for worker and standalon modes, apply
+	 * nofile and memory limits, apply capabilities from binary, if any.
 	 */
-	signal_register_fct(SIGPIPE, NULL, 0);
-
-	/* ulimits */
-	if (!global.rlimit_nofile)
-		global.rlimit_nofile = global.maxsock;
-
-	if (global.rlimit_nofile) {
-		limit.rlim_cur = global.rlimit_nofile;
-		limit.rlim_max = MAX(rlim_fd_max_at_boot, limit.rlim_cur);
-
-		if ((global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit) ||
-		    raise_rlim_nofile(NULL, &limit) != 0) {
-			getrlimit(RLIMIT_NOFILE, &limit);
-			if (global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit)
-				limit.rlim_cur = global.fd_hard_limit;
-
-			if (global.tune.options & GTUNE_STRICT_LIMITS) {
-				ha_alert("[%s.main()] Cannot raise FD limit to %d, limit is %d.\n",
-					 argv[0], global.rlimit_nofile, (int)limit.rlim_cur);
-				exit(1);
-			}
-			else {
-				/* try to set it to the max possible at least */
-				limit.rlim_cur = limit.rlim_max;
-				if (global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit)
-					limit.rlim_cur = global.fd_hard_limit;
-
-				if (raise_rlim_nofile(&limit, &limit) == 0)
-					getrlimit(RLIMIT_NOFILE, &limit);
-
-				ha_warning("[%s.main()] Cannot raise FD limit to %d, limit is %d.\n",
-					   argv[0], global.rlimit_nofile, (int)limit.rlim_cur);
-				global.rlimit_nofile = limit.rlim_cur;
-			}
-		}
-	}
-
-	if (global.rlimit_memmax) {
-		limit.rlim_cur = limit.rlim_max =
-			global.rlimit_memmax * 1048576ULL;
-		if (setrlimit(RLIMIT_DATA, &limit) == -1) {
-			if (global.tune.options & GTUNE_STRICT_LIMITS) {
-				ha_alert("[%s.main()] Cannot fix MEM limit to %d megs.\n",
-					 argv[0], global.rlimit_memmax);
-				exit(1);
-			}
-			else
-				ha_warning("[%s.main()] Cannot fix MEM limit to %d megs.\n",
-					   argv[0], global.rlimit_memmax);
-		}
-	}
-
-#if defined(USE_LINUX_CAP)
-	/* If CAP_NET_BIND_SERVICE is in binary file permitted set and process
-	 * is started and run under the same non-root user, this allows
-	 * binding to privileged ports.
-	 */
-	if (!master)
-	    prepare_caps_from_permitted_set(geteuid(), global.uid, argv[0]);
-#endif
+	step_init_3();
 
 	/* Try to get the listeners FD from the previous process using
 	 * _getsocks on the stat socket, it must never been done in wait mode
