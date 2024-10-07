@@ -2821,7 +2821,8 @@ static void step_init_2(int argc, char** argv)
  * global.maxsock calculated in step_init_2() could be applied as the nofile limit
  * for the process. Memory limit, if set, will be applied here as well. If some
  * capabilities were set on the haproxy binary by administrator, we will try to
- * put it into the process Effective capabilities set.
+ * put it into the process Effective capabilities set. It only returns if
+ * everything is OK. If something fails, it exits.
  */
 static void step_init_3(void)
 {
@@ -2896,6 +2897,74 @@ static void step_init_3(void)
 	if (!master)
 	    prepare_caps_from_permitted_set(geteuid(), global.uid, progname);
 #endif
+}
+
+/* This is a forth part of the late init sequence, where we apply verbosity
+ * modes, check nofile current limit, preallocate fds, update the ready date
+ * the last time, and close PID fd. It only returns if everything is OK. If
+ * something fails, it exits.
+ */
+static void step_init_4(void)
+{
+	struct rlimit limit;
+
+	/* MODE_QUIET is applied here, it can inhibit alerts and warnings below this line */
+	if (getenv("HAPROXY_MWORKER_REEXEC") != NULL) {
+		/* either stdin/out/err are already closed or should stay as they are. */
+		if ((global.mode & MODE_DAEMON)) {
+			/* daemon mode re-executing, stdin/stdout/stderr are already closed so keep quiet */
+			global.mode &= ~MODE_VERBOSE;
+			global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
+		}
+	} else {
+		if ((global.mode & MODE_QUIET) && !(global.mode & MODE_VERBOSE)) {
+			/* detach from the tty */
+			stdio_quiet(-1);
+		}
+	}
+
+	/* Note that any error at this stage will be fatal because we will not
+	 * be able to restart the old pids.
+	 */
+
+	/* check ulimits */
+	limit.rlim_cur = limit.rlim_max = 0;
+	getrlimit(RLIMIT_NOFILE, &limit);
+	if (limit.rlim_cur < global.maxsock) {
+		if (global.tune.options & GTUNE_STRICT_LIMITS) {
+			ha_alert("[%s.main()] FD limit (%d) too low for maxconn=%d/maxsock=%d. "
+				 "Please raise 'ulimit-n' to %d or more to avoid any trouble.\n",
+			         progname, (int)limit.rlim_cur, global.maxconn, global.maxsock,
+				 global.maxsock);
+			exit(1);
+		}
+		else
+			ha_alert("[%s.main()] FD limit (%d) too low for maxconn=%d/maxsock=%d. "
+				 "Please raise 'ulimit-n' to %d or more to avoid any trouble.\n",
+			         progname, (int)limit.rlim_cur, global.maxconn, global.maxsock,
+				 global.maxsock);
+	}
+
+	if (global.prealloc_fd && fcntl((int)limit.rlim_cur - 1, F_GETFD) == -1) {
+		if (dup2(0, (int)limit.rlim_cur - 1) == -1)
+			ha_warning("[%s.main()] Unable to preallocate file descriptor %d : %s",
+				progname, (int)limit.rlim_cur - 1, strerror(errno));
+		else
+			close((int)limit.rlim_cur - 1);
+	}
+
+	/* update the ready date a last time to also account for final setup time */
+	clock_update_date(0, 1);
+	clock_adjust_now_offset();
+	ready_date = date;
+
+	/* close the pidfile both in children and father */
+	if (pidfd >= 0) {
+		//lseek(pidfd, 0, SEEK_SET);  /* debug: emulate eglibc bug */
+		close(pidfd);
+	}
+	/* We won't ever use this anymore */
+	ha_free(&global.pidfile);
 }
 
 void deinit(void)
@@ -3630,64 +3699,10 @@ int main(int argc, char **argv)
 	signal_register_fct(SIGTTOU, sig_pause, SIGTTOU);
 	signal_register_fct(SIGTTIN, sig_listen, SIGTTIN);
 
-	/* MODE_QUIET can inhibit alerts and warnings below this line */
-
-	if (getenv("HAPROXY_MWORKER_REEXEC") != NULL) {
-		/* either stdin/out/err are already closed or should stay as they are. */
-		if ((global.mode & MODE_DAEMON)) {
-			/* daemon mode re-executing, stdin/stdout/stderr are already closed so keep quiet */
-			global.mode &= ~MODE_VERBOSE;
-			global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
-		}
-	} else {
-		if ((global.mode & MODE_QUIET) && !(global.mode & MODE_VERBOSE)) {
-			/* detach from the tty */
-			stdio_quiet(-1);
-		}
-	}
-
-	/* Note that any error at this stage will be fatal because we will not
-	 * be able to restart the old pids.
+	/* Apply verbosity modes, check the process current nofile limit,
+	 * update the ready date and close the pidfile.
 	 */
-
-	/* check ulimits */
-	limit.rlim_cur = limit.rlim_max = 0;
-	getrlimit(RLIMIT_NOFILE, &limit);
-	if (limit.rlim_cur < global.maxsock) {
-		if (global.tune.options & GTUNE_STRICT_LIMITS) {
-			ha_alert("[%s.main()] FD limit (%d) too low for maxconn=%d/maxsock=%d. "
-				 "Please raise 'ulimit-n' to %d or more to avoid any trouble.\n",
-			         argv[0], (int)limit.rlim_cur, global.maxconn, global.maxsock,
-				 global.maxsock);
-			exit(1);
-		}
-		else
-			ha_alert("[%s.main()] FD limit (%d) too low for maxconn=%d/maxsock=%d. "
-				 "Please raise 'ulimit-n' to %d or more to avoid any trouble.\n",
-			         argv[0], (int)limit.rlim_cur, global.maxconn, global.maxsock,
-				 global.maxsock);
-	}
-
-	if (global.prealloc_fd && fcntl((int)limit.rlim_cur - 1, F_GETFD) == -1) {
-		if (dup2(0, (int)limit.rlim_cur - 1) == -1)
-			ha_warning("[%s.main()] Unable to preallocate file descriptor %d : %s",
-			           argv[0], (int)limit.rlim_cur - 1, strerror(errno));
-		else
-			close((int)limit.rlim_cur - 1);
-	}
-
-	/* update the ready date a last time to also account for final setup time */
-	clock_update_date(0, 1);
-	clock_adjust_now_offset();
-	ready_date = date;
-
-	/* close the pidfile both in children and father */
-	if (pidfd >= 0) {
-		//lseek(pidfd, 0, SEEK_SET);  /* debug: emulate eglibc bug */
-		close(pidfd);
-	}
-	/* We won't ever use this anymore */
-	ha_free(&global.pidfile);
+	step_init_4();
 
 	if (master) {
 		struct mworker_proc *child, *it;
