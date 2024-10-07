@@ -2181,6 +2181,51 @@ static void get_listeners_fd()
 	}
 }
 
+static void bind_listeners()
+{
+	int err, retry;
+
+	/* We will loop at most 100 times with 10 ms delay each time.
+	 * That's at most 1 second. We only send a signal to old pids
+	 * if we cannot grab at least one port.
+	 */
+	retry = MAX_START_RETRIES;
+	err = ERR_NONE;
+	while (retry >= 0) {
+		struct timeval w;
+		err = protocol_bind_all(retry == 0 || nb_oldpids == 0);
+		/* exit the loop on no error or fatal error */
+		if ((err & (ERR_RETRYABLE|ERR_FATAL)) != ERR_RETRYABLE)
+			break;
+		if (nb_oldpids == 0 || retry == 0)
+			break;
+
+		/* FIXME-20060514: Solaris and OpenBSD do not support shutdown() on
+		 * listening sockets. So on those platforms, it would be wiser to
+		 * simply send SIGUSR1, which will not be undoable.
+		 */
+		if (tell_old_pids(SIGTTOU) == 0) {
+			/* no need to wait if we can't contact old pids */
+			retry = 0;
+			continue;
+		}
+		/* give some time to old processes to stop listening */
+		w.tv_sec = 0;
+		w.tv_usec = 10*1000;
+		select(0, NULL, NULL, NULL, &w);
+		retry--;
+	}
+
+	/* Note: protocol_bind_all() sends an alert when it fails. */
+	if ((err & ~ERR_WARN) != ERR_NONE) {
+		ha_alert("[%s.main()] Some protocols failed to start their listeners! Exiting.\n", progname);
+		if (retry != MAX_START_RETRIES && nb_oldpids)
+			tell_old_pids(SIGTTIN);
+		protocol_unbind_all(); /* cleanup everything we can */
+		exit(1);
+	}
+}
+
 /*
  * This function does some initialization steps, which are better to perform
  * before config parsing. It only returns if everything is OK. If something
@@ -3384,7 +3429,7 @@ static void set_identity(const char *program_name)
 
 int main(int argc, char **argv)
 {
-	int err, retry, ret;
+	int ret;
 	int devnullfd = -1;
 	struct rlimit limit;
 	int intovf = (unsigned char)argc + 1; /* let the compiler know it's strictly positive */
@@ -3566,47 +3611,10 @@ int main(int argc, char **argv)
 	if (!master && old_unixsocket)
 		get_listeners_fd();
 
-	/* We will loop at most 100 times with 10 ms delay each time.
-	 * That's at most 1 second. We only send a signal to old pids
-	 * if we cannot grab at least one port.
-	 */
-	retry = MAX_START_RETRIES;
-	err = ERR_NONE;
-	while (retry >= 0) {
-		struct timeval w;
-		err = protocol_bind_all(retry == 0 || nb_oldpids == 0);
-		/* exit the loop on no error or fatal error */
-		if ((err & (ERR_RETRYABLE|ERR_FATAL)) != ERR_RETRYABLE)
-			break;
-		if (nb_oldpids == 0 || retry == 0)
-			break;
+	bind_listeners();
 
-		/* FIXME-20060514: Solaris and OpenBSD do not support shutdown() on
-		 * listening sockets. So on those platforms, it would be wiser to
-		 * simply send SIGUSR1, which will not be undoable.
-		 */
-		if (tell_old_pids(SIGTTOU) == 0) {
-			/* no need to wait if we can't contact old pids */
-			retry = 0;
-			continue;
-		}
-		/* give some time to old processes to stop listening */
-		w.tv_sec = 0;
-		w.tv_usec = 10*1000;
-		select(0, NULL, NULL, NULL, &w);
-		retry--;
-	}
-
-	/* Note: protocol_bind_all() sends an alert when it fails. */
-	if ((err & ~ERR_WARN) != ERR_NONE) {
-		ha_alert("[%s.main()] Some protocols failed to start their listeners! Exiting.\n", argv[0]);
-		if (retry != MAX_START_RETRIES && nb_oldpids)
-			tell_old_pids(SIGTTIN);
-		protocol_unbind_all(); /* cleanup everything we can */
-		exit(1);
-	}
-
-	if (!master && listeners == 0) {
+	/* Exit in standalone mode, if no listeners found */
+	if (!(global.mode & MODE_MWORKER) && listeners == 0) {
 		ha_alert("[%s.main()] No enabled listener found (check for 'bind' directives) ! Exiting.\n", argv[0]);
 		/* Note: we don't have to send anything to the old pids because we
 		 * never stopped them. */
