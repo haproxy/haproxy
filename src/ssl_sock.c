@@ -4432,6 +4432,7 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 #if defined(SSL_CTX_set1_curves_list)
 	const char *conf_curves = NULL;
 #endif
+	X509_STORE *store = SSL_CTX_get_cert_store(ctx);
 
 	if (conf_ssl_methods->flags && (conf_ssl_methods->min || conf_ssl_methods->max))
 		ha_warning("no-sslv3/no-tlsv1x are ignored for this server. "
@@ -4520,6 +4521,10 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 					 srv->ssl_ctx.ca_file);
 				cfgerr++;
 			}
+#ifdef USE_OPENSSL_WOLFSSL
+			/* WolfSSL activates CRL checks by default so we need to disable it */
+			X509_STORE_set_flags(store, 0) ;
+#endif
 		}
 		else {
 			if (global.ssl_server_verify == SSL_SERVER_VERIFY_REQUIRED)
@@ -4530,8 +4535,6 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 		}
 #ifdef X509_V_FLAG_CRL_CHECK
 		if (srv->ssl_ctx.crl_file) {
-			X509_STORE *store = SSL_CTX_get_cert_store(ctx);
-
 			if (!ssl_set_cert_crl_file(store, srv->ssl_ctx.crl_file)) {
 				ha_alert("unable to configure CRL file '%s'.\n",
 					 srv->ssl_ctx.crl_file);
