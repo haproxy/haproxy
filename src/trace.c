@@ -439,6 +439,36 @@ static int trace_source_parse_verbosity(struct trace_source *src,
 	return ret;
 }
 
+/* helper to get trace source sink name. Behavior is different during parsing
+ * time (<file> != NULL) and during runtime: this is to make sure that during
+ * parsing time sink name is properly postresolved
+ *
+ * Returns the sink pointer on success and NULL on error. <msg> will be set
+ * in case of error.
+ */
+static struct sink *_trace_get_sink(const char *name, char **msg,
+                                    const char *file, int line)
+{
+	struct sink *sink = NULL;
+
+	if (file) {
+		/* only during parsing time */
+		sink = sink_find_early(name, "traces", file, line);
+		if (!sink) {
+			memprintf(msg, "Memory error while setting up sink '%s' \n", name);
+			return NULL;
+		}
+	} else {
+		/* runtime */
+		sink = sink_find(name);
+		if (!sink) {
+			memprintf(msg, "No such trace sink '%s' \n", name);
+			return NULL;
+		}
+	}
+	return sink;
+}
+
 /* Parse a "trace" statement. Returns a severity as a LOG_* level and a status
  * message that may be delivered to the user, in <msg>. The message will be
  * nulled first and msg must be an allocated pointer. A null status message output
@@ -447,7 +477,7 @@ static int trace_source_parse_verbosity(struct trace_source *src,
  * function may/will use the trash buffer as the storage for the response
  * message so that the caller never needs to release anything.
  */
-static int trace_parse_statement(char **args, char **msg)
+static int _trace_parse_statement(char **args, char **msg, const char *file, int line)
 {
 	struct trace_source *orig_src, *src;
 	uint64_t *ev_ptr = NULL;
@@ -663,6 +693,8 @@ static int trace_parse_statement(char **args, char **msg)
 					      src && src->sink == sink ? '*' : ' ',
 					      sink->name, sink->desc);
 			}
+			if (file)
+				chunk_appendf(&trash, "(forward-declared sinks are not displayed here!)\n");
 			trash.area[trash.data] = 0;
 			*msg = strdup(trash.area);
 			return LOG_WARNING;
@@ -671,11 +703,9 @@ static int trace_parse_statement(char **args, char **msg)
 		if (strcmp(name, "none") == 0)
 			sink = NULL;
 		else {
-			sink = sink_find(name);
-			if (!sink) {
-				memprintf(msg, "No such trace sink '%s'", name);
+			sink = _trace_get_sink(name, msg, file, line);
+			if (!sink)
 				return LOG_ERR;
-			}
 		}
 
 		if (src)
@@ -916,6 +946,14 @@ static int trace_parse_statement(char **args, char **msg)
 
 }
 
+/* same as _trace_parse_statement but when no file:line context is available
+ * (during runtime)
+ */
+static int trace_parse_statement(char **args, char **msg)
+{
+	return _trace_parse_statement(args, msg, NULL, 0);
+}
+
 void _trace_parse_cmd(struct trace_source *src, int level, int verbosity)
 {
 	src->sink = sink_find("stderr");
@@ -1038,7 +1076,7 @@ static int cfg_parse_trace(char **args, int section_type, struct proxy *curpx,
 	char *msg;
 	int severity;
 
-	severity = trace_parse_statement(args, &msg);
+	severity = _trace_parse_statement(args, &msg, file, line);
 	if (msg) {
 		if (severity >= LOG_NOTICE)
 			ha_notice("parsing [%s:%d] : '%s': %s\n", file, line, args[0], msg);

@@ -4357,11 +4357,9 @@ trace <source> <args...>
   section. Most of the time these will be errors and warnings, but certain
   incomplete commands might list permissible choices. This command is not meant
   for regular use, it will generally only be suggested by developers along
-  complex debugging sessions. Note that these directives are parsed on the fly,
-  so referencing a ring buffer that is only declared further will not work. It
-  is important to keep in mind that depending on the trace level and details,
-  enabling traces can severely degrade the global performance. Please refer to
-  the management manual for the statements syntax.
+  complex debugging sessions. It is important to keep in mind that depending on
+  the trace level and details, enabling traces can severely degrade the global
+  performance. Please refer to the management manual for the statements syntax.
 
   Example:
     ring buf1
