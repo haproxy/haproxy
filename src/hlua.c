@@ -1811,10 +1811,15 @@ static int hlua_ctx_renew(struct hlua *lua, int keep_msg)
 	lua_State *T;
 	int new_ref;
 
+	if (!SET_SAFE_LJMP_PARENT(lua))
+		return 0;
+
 	/* New Lua coroutine. */
 	T = lua_newthread(hlua_states[lua->state_id]);
-	if (!T)
+	if (!T) {
+		RESET_SAFE_LJMP_PARENT(lua);
 		return 0;
+	}
 
 	/* Copy last error message. */
 	if (keep_msg)
@@ -1835,6 +1840,8 @@ static int hlua_ctx_renew(struct hlua *lua, int keep_msg)
 	lua->Mref = new_ref;
 	lua->T = T;
 	lua->Tref = luaL_ref(hlua_states[lua->state_id], LUA_REGISTRYINDEX);
+
+	RESET_SAFE_LJMP_PARENT(lua);
 
 	/* Set context. */
 	hlua_sethlua(lua);
