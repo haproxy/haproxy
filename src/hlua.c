@@ -4816,6 +4816,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 {
 	struct hlua_smp *hsmp;
 	struct sample_fetch *f;
+	char *errmsg = NULL;
 	struct arg args[ARGM_NBARGS + 1] = {{0}};
 	int i;
 	struct sample smp;
@@ -4847,8 +4848,9 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	MAY_LJMP(hlua_lua2arg_check(L, 2, args, f->arg_mask, hsmp->p));
 
 	/* Run the special args checker. */
-	if (f->val_args && !f->val_args(args, NULL)) {
-		hlua_pushfstring_safe(L, "error in arguments");
+	if (f->val_args && !f->val_args(args, &errmsg)) {
+		hlua_pushfstring_safe(L, "error in arguments: %s", errmsg);
+		ha_free(&errmsg);
 		goto error;
 	}
 
@@ -4938,6 +4940,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 {
 	struct hlua_smp *hsmp;
 	struct sample_conv *conv;
+	char *errmsg = NULL;
 	struct arg args[ARGM_NBARGS + 1] = {{0}};
 	int i;
 	struct sample smp;
@@ -4961,8 +4964,9 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	MAY_LJMP(hlua_lua2arg_check(L, 3, args, conv->arg_mask, hsmp->p));
 
 	/* Run the special args checker. */
-	if (conv->val_args && !conv->val_args(args, conv, "", 0, NULL)) {
-		hlua_pusherror(L, "error in arguments");
+	if (conv->val_args && !conv->val_args(args, conv, "", 0, &errmsg)) {
+		hlua_pushfstring_safe(L, "error in arguments: %s", errmsg);
+		ha_free(&errmsg);
 		goto error;
 	}
 
