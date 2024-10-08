@@ -2798,16 +2798,59 @@ static int h2c_update_strm_rx_win(struct h2c *h2c)
 {
 	struct h2s *h2s;
 	int win = 0;
+	int rxbsz;
 
 	h2s = h2c_st_by_id(h2c, h2c->dsi);
 	if (h2s && h2s->h2c) {
-		/* real stream */
+		/* This is real stream. Principle: We have a total number of
+		 * allocatable rxbufs per connection (bl_size). We always grant
+		 * one to any existing stream (as long as there are some left),
+		 * so we deduce from those all non receiving streams. We
+		 * further deduce 1/8 to assign to any new stream. The
+		 * remaining ones can be evenly shared between receiving
+		 * streams. Finally, for front streams, this is rounded
+		 * up to the buffer size while for back streams we round
+		 * it down. The rationale here is that front to back is
+		 * very fast to flush and slow to refill while it's the
+		 * opposite in the other way so we try to minimize HoL.
+		 */
 		if (h2s->st < H2_SS_ERROR) {
+			int allocatable;
+			int non_rx;
+			int reserved;
+			int to_share;
+
 			/* let's use the configured static window size */
 			win = (h2c->flags & H2_CF_IS_BACK) ?
 				h2_be_settings_initial_window_size:
 				h2_fe_settings_initial_window_size;
 			win = win ? win : h2_settings_initial_window_size;
+
+			/* default to one buffer when not receiving data */
+			rxbsz = global.tune.bufsize - 9;
+
+			/* only advertise a larger window if we really expect more data than
+			 * the default window (or we don't know how much we expect).
+			 */
+			if ((h2s->flags & H2_SF_EXPECT_RXDATA) &&
+			    (!(h2s->flags & H2_SF_DATA_CLEN) || h2s->body_len > (ullong)win)) {
+				non_rx = MAX((int)(h2c->nb_sc - h2c->receiving_streams), 0);
+				allocatable = MAX((int)(bl_size(h2c->shared_rx_bufs) - non_rx), 0);
+				reserved = (h2c->streams_limit - h2c->nb_sc + 7) / 8;
+				to_share = MAX(allocatable - reserved, 0);
+
+				rxbsz = (global.tune.bufsize - 9) * to_share;
+				if (!(h2c->flags & H2_CF_IS_BACK))
+					rxbsz += global.tune.bufsize - 9 - 1;
+				rxbsz /= h2c->receiving_streams;
+
+				/* only provide integral multiples of buffer size */
+				if (rxbsz)
+					rxbsz = rxbsz / (global.tune.bufsize - 9) * (global.tune.bufsize - 9);
+			}
+
+			if (rxbsz > win)
+				win = rxbsz;
 		}
 
 		/* Principle below: the calculate the next max window offset
