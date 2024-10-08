@@ -927,14 +927,11 @@ void on_new_child_failure()
 }
 
 /*
- * Exit with an error message upon a wait-mode failure.
+ * Exit with an error message upon a master recovery mode failure.
  */
-void exit_on_failure()
+static void exit_on_failure()
 {
-	if (!atexit_flag)
-		return;
-
-	ha_alert("Non-recoverable mworker wait-mode error, exiting.\n");
+	ha_alert("Master encountered an error in recovery mode, exiting.\n");
 }
 
 
