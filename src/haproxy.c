@@ -2715,25 +2715,6 @@ static void step_init_2(int argc, char** argv)
 	if (global.tune.maxrewrite >= global.tune.bufsize / 2)
 		global.tune.maxrewrite = global.tune.bufsize / 2;
 
-	if (arg_mode & (MODE_DEBUG | MODE_FOREGROUND)) {
-		/* command line debug mode inhibits configuration mode */
-		global.mode &= ~(MODE_DAEMON | MODE_QUIET);
-		global.mode |= (arg_mode & (MODE_DEBUG | MODE_FOREGROUND));
-	}
-
-	if (arg_mode & MODE_DAEMON) {
-		/* command line daemon mode inhibits foreground and debug modes mode */
-		global.mode &= ~(MODE_DEBUG | MODE_FOREGROUND);
-		global.mode |= arg_mode & MODE_DAEMON;
-	}
-
-	global.mode |= (arg_mode & (MODE_QUIET | MODE_VERBOSE));
-
-	if ((global.mode & MODE_DEBUG) && (global.mode & (MODE_DAEMON | MODE_QUIET))) {
-		ha_warning("<debug> mode incompatible with <quiet> and <daemon>. Keeping <debug> only.\n");
-		global.mode &= ~(MODE_DAEMON | MODE_QUIET);
-	}
-
 	/* Realloc trash buffers because global.tune.bufsize may have changed */
 	if (!init_trash_buffers(0)) {
 		ha_alert("failed to initialize trash buffers.\n");
@@ -3001,6 +2982,32 @@ static void step_init_4(void)
 	ha_free(&global.pidfile);
 }
 
+/* This function sets verbosity modes. Should be called after the first
+ * configuration read in order that in master-worker mode, both master and
+ * worker have the same verbosiness.
+ */
+static void set_verbosity(void) {
+
+	if (arg_mode & (MODE_DEBUG | MODE_FOREGROUND)) {
+		/* command line debug mode inhibits configuration mode */
+		global.mode &= ~(MODE_DAEMON | MODE_QUIET);
+		global.mode |= (arg_mode & (MODE_DEBUG | MODE_FOREGROUND));
+	}
+
+	if (arg_mode & MODE_DAEMON) {
+		/* command line daemon mode inhibits foreground and debug modes mode */
+		global.mode &= ~(MODE_DEBUG | MODE_FOREGROUND);
+		global.mode |= arg_mode & MODE_DAEMON;
+	}
+
+	global.mode |= (arg_mode & (MODE_QUIET | MODE_VERBOSE));
+
+	if ((global.mode & MODE_DEBUG) && (global.mode & (MODE_DAEMON | MODE_QUIET))) {
+		ha_warning("<debug> mode incompatible with <quiet> and <daemon>. Keeping <debug> only.\n");
+		global.mode &= ~(MODE_DAEMON | MODE_QUIET);
+	}
+}
+
 static void run_master_in_recovery_mode(int argc, char **argv)
 {
 	struct mworker_proc *proc;
@@ -3014,6 +3021,7 @@ static void run_master_in_recovery_mode(int argc, char **argv)
 	global.nbthread = 1;
 	master = 1;
 	atexit(exit_on_failure);
+	set_verbosity();
 
 	/* creates MASTER proxy and attaches server to child->ipc_fd[0] */
 	if (mworker_cli_proxy_create() < 0) {
@@ -3712,6 +3720,7 @@ int main(int argc, char **argv)
 	/* From this stage all runtime modes are known. So let's do below some
 	 * preparation steps and then let's apply all discovered modes.
 	 */
+	set_verbosity();
 
 	/* Add entries for master and worker in proc_list, create sockpair,
 	 * that will be copied to both processes after master-worker fork to
