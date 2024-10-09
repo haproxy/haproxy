@@ -128,15 +128,14 @@ void qc_stream_desc_release(struct qc_stream_desc *stream,
 		if (final_size < tail_offset)
 			b_sub(buf, tail_offset - final_size);
 
-		if (!b_data(buf)) {
-			/* This will ensure notify_room is triggered. */
+		/* Release active buffer, or delete it immediatly if there is
+		 * no data to acknowledge. Both functions will reset active
+		 * buf pointer and invoke <notify_room> if necessary.
+		 */
+		if (!b_data(buf))
 			qc_stream_buf_free(stream, &stream_buf);
-		}
-		else if (stream->notify_room && b_room(buf)) {
-			stream->notify_room(stream, b_room(buf));
-		}
-
-		stream->buf = NULL;
+		else
+			qc_stream_buf_release(stream);
 	}
 
 	if (qc_stream_desc_done(stream)) {
