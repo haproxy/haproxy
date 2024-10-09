@@ -178,7 +178,7 @@ static int qc_stream_buf_store_ack(struct qc_stream_buf *buf,
 		ack_less = eb64_entry(less, struct qc_stream_ack, offset_node);
 
 	/* Ensure that offset:len range has not been already acknowledged, at least partially. */
-	if ((ack_more && offset == ack_more->offset_node.key && offset + len <= ack_more->offset_node.key) ||
+	if ((ack_more && offset == ack_more->offset_node.key && offset + len <= ack_more->offset_node.key + ack_more->len) ||
 	    (ack_less && ack_less->offset_node.key + ack_less->len >= offset + len)) {
 		newly_acked = 0;
 		goto end;
