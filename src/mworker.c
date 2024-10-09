@@ -341,6 +341,8 @@ void mworker_catch_sigchld(struct sig_handler *sh)
 	int exitpid = -1;
 	int status = 0;
 	int childfound;
+	struct listener *l, *l_next;
+	struct proxy *curproxy;
 
 restart_wait:
 
@@ -372,6 +374,36 @@ restart_wait:
 		if (!childfound) {
 			/* We didn't find the PID in the list, that shouldn't happen but we can emit a warning */
 			ha_warning("Process %d exited with code %d (%s)\n", exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
+		} else if (child->options & PROC_O_INIT) {
+			on_new_child_failure();
+
+			/* Detach all listeners */
+			for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
+				list_for_each_entry_safe(l, l_next, &curproxy->conf.listeners, by_fe) {
+					if ((l->rx.fd == child->ipc_fd[0]) || (l->rx.fd == child->ipc_fd[1])) {
+						unbind_listener(l);
+						delete_listener(l);
+					}
+				}
+			}
+
+			/* Drop server */
+			if (child->srv)
+				srv_drop(child->srv);
+
+			/* Delete fd from poller fdtab, which will close it */
+			fd_delete(child->ipc_fd[0]);
+			child->ipc_fd[0] = -1;
+			mworker_free_child(child);
+			child = NULL;
+
+			/* When worker fails during the first startup, there is
+			 * no previous workers with state PROC_O_LEAVING, master
+			 * process should exit here as well to keep the
+			 * previous behaviour
+			 */
+			if ((proc_self->options & PROC_O_TYPE_MASTER) && (proc_self->reloads == 0))
+				exit(status);
 		} else {
 			/* check if exited child is a current child */
 			if (!(child->options & PROC_O_LEAVING)) {
@@ -390,7 +422,8 @@ restart_wait:
 						ha_warning("A worker process unexpectedly died and this can only be explained by a bug in haproxy or its dependencies.\nPlease check that you are running an up to date and maintained version of haproxy and open a bug report.\n");
 						display_version();
 					}
-					if (!(global.tune.options & GTUNE_NOEXIT_ONFAILURE)) {
+					/* new worker, which has been launched at reload has status PROC_O_INIT */
+					if (!(global.tune.options & GTUNE_NOEXIT_ONFAILURE) && !(child->options & PROC_O_INIT)) {
 						ha_alert("exit-on-failure: killing every processes with SIGTERM\n");
 						mworker_kill(SIGTERM);
 					}
