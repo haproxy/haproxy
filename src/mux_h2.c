@@ -468,6 +468,8 @@ static int h2_be_settings_initial_window_size =     0; /* backend's default init
 static int h2_fe_settings_initial_window_size =     0; /* frontend's default initial value */
 static int h2_be_glitches_threshold           =     0; /* backend's max glitches: unlimited */
 static int h2_fe_glitches_threshold           =     0; /* frontend's max glitches: unlimited */
+static uint h2_be_rxbuf                       =     0; /* backend's default total rxbuf (bytes) */
+static uint h2_fe_rxbuf                       =     0; /* frontend's default total rxbuf (bytes) */
 static unsigned int h2_settings_max_concurrent_streams    = 100; /* default value */
 static unsigned int h2_be_settings_max_concurrent_streams =   0; /* backend value */
 static unsigned int h2_fe_settings_max_concurrent_streams =   0; /* frontend value */
@@ -1170,6 +1172,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	struct h2c *h2c;
 	struct task *t = NULL;
 	void *conn_ctx = conn->ctx;
+	uint nb_rxbufs;
 
 	TRACE_ENTER(H2_EV_H2C_NEW);
 
@@ -1239,7 +1242,10 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->st0 = H2_CS_PREFACE;
 	h2c->conn = conn;
 	h2c->streams_limit = h2c_max_concurrent_streams(h2c);
-	bl_init(h2c->shared_rx_bufs, h2c->streams_limit + 1);
+	nb_rxbufs = (h2c->flags & H2_CF_IS_BACK) ? h2_be_rxbuf : h2_fe_rxbuf;
+	nb_rxbufs = (nb_rxbufs + global.tune.bufsize - 9 - 1) / (global.tune.bufsize - 9);
+	nb_rxbufs = MAX(nb_rxbufs, h2c->streams_limit);
+	bl_init(h2c->shared_rx_bufs, nb_rxbufs + 1);
 
 	h2c->max_id = -1;
 	h2c->errcode = H2_ERR_NO_ERROR;
@@ -8221,6 +8227,27 @@ static int h2_parse_max_frame_size(char **args, int section_type, struct proxy *
 	return 0;
 }
 
+/* config parser for global "tune.h2.{be.,fe.}rxbuf" */
+static int h2_parse_rxbuf(char **args, int section_type, struct proxy *curpx,
+                          const struct proxy *defpx, const char *file, int line,
+                          char **err)
+{
+	const char *errptr;
+	uint *vptr;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	/* backend/frontend */
+	vptr = (args[0][8] == 'b') ? &h2_be_rxbuf : &h2_fe_rxbuf;
+
+	*vptr = atoi(args[1]);
+	if ((errptr = parse_size_err(args[1], vptr)) != NULL) {
+		memprintf(err, "'%s': unexpected character '%c' in size argument '%s'.", args[0], *errptr, args[1]);
+		return -1;
+	}
+	return 0;
+}
 
 /* config parser for global "tune.h2.zero-copy-fwd-send" */
 static int h2_parse_zero_copy_fwd_snd(char **args, int section_type, struct proxy *curpx,
@@ -8282,10 +8309,12 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.h2.be.glitches-threshold",  h2_parse_glitches_threshold     },
 	{ CFG_GLOBAL, "tune.h2.be.initial-window-size", h2_parse_initial_window_size    },
 	{ CFG_GLOBAL, "tune.h2.be.max-concurrent-streams", h2_parse_max_concurrent_streams },
+	{ CFG_GLOBAL, "tune.h2.be.rxbuf",               h2_parse_rxbuf                  },
 	{ CFG_GLOBAL, "tune.h2.fe.glitches-threshold",  h2_parse_glitches_threshold     },
 	{ CFG_GLOBAL, "tune.h2.fe.initial-window-size", h2_parse_initial_window_size    },
 	{ CFG_GLOBAL, "tune.h2.fe.max-concurrent-streams", h2_parse_max_concurrent_streams },
 	{ CFG_GLOBAL, "tune.h2.fe.max-total-streams",   h2_parse_max_total_streams      },
+	{ CFG_GLOBAL, "tune.h2.fe.rxbuf",               h2_parse_rxbuf                  },
 	{ CFG_GLOBAL, "tune.h2.header-table-size",      h2_parse_header_table_size      },
 	{ CFG_GLOBAL, "tune.h2.initial-window-size",    h2_parse_initial_window_size    },
 	{ CFG_GLOBAL, "tune.h2.max-concurrent-streams", h2_parse_max_concurrent_streams },
@@ -8302,6 +8331,7 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 static int init_h2()
 {
 	uint max_bufs;
+	uint rx_bufs;
 
 	pool_head_hpack_tbl = create_pool("hpack_tbl",
 	                                  h2_settings_header_table_size,
@@ -8319,6 +8349,11 @@ static int init_h2()
 	               h2_be_settings_max_concurrent_streams ?
 	               h2_be_settings_max_concurrent_streams :
 	               h2_settings_max_concurrent_streams);
+
+	/* check for forced rxbufs */
+	rx_bufs = MAX(h2_be_rxbuf, h2_fe_rxbuf);
+	rx_bufs = (rx_bufs + global.tune.bufsize - 9 - 1) / (global.tune.bufsize - 9);
+	max_bufs = MAX(max_bufs, rx_bufs);
 
 	pool_head_h2_rx_bufs = create_pool("h2_rx_bufs",
 	                                   (max_bufs + 1) * sizeof(struct bl_elem),
