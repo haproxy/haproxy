@@ -958,9 +958,9 @@ static inline int h2_may_demux(const struct h2c *h2c)
 	 * affecting recv_allowed or may_demux.
 	 */
 	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
-//	if ((h2c->wait_event.events & SUB_RETRY_RECV) &&
-//	    (h2c->flags & H2_CF_DEM_SHORT_READ))
-//		return 0;
+	if ((h2c->wait_event.events & SUB_RETRY_RECV) &&
+	    (h2c->flags & H2_CF_DEM_SHORT_READ))
+		return 0;
 
 	/* note: DALLOC & DFULL are not in these ones */
 	if (h2c->flags & H2_CF_DEM_BLOCK_ANY)
