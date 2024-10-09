@@ -3226,7 +3226,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 				/* Demux not blocked because of the stream, it is an incomplete frame,
 				 * or the rxbuf is not empty (e.g. for trailers).
 				 */
-				if (!(h2c->flags &H2_CF_DEM_BLOCK_ANY))
+				if (!(h2c->flags & (H2_CF_DEM_BLOCK_ANY | H2_CF_DEM_DFULL)))
 					h2c->flags |= H2_CF_DEM_SHORT_READ;
 				goto out; // missing data
 			}
@@ -3286,7 +3286,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 
 	if (error == 0) {
 		/* No error but missing data for demuxing, it is an incomplete frame */
-		if (!(h2c->flags &H2_CF_DEM_BLOCK_ANY))
+		if (!(h2c->flags & (H2_CF_DEM_BLOCK_ANY | H2_CF_DEM_DFULL)))
 			h2c->flags |= H2_CF_DEM_SHORT_READ;
 		goto out;
 	}
@@ -3462,7 +3462,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (error <= 0) {
 		if (error == 0) {
 			/* Demux not blocked because of the stream, it is an incomplete frame */
-			if (!(h2c->flags &H2_CF_DEM_BLOCK_ANY))
+			if (!(h2c->flags & (H2_CF_DEM_BLOCK_ANY | H2_CF_DEM_DFULL)))
 				h2c->flags |= H2_CF_DEM_SHORT_READ;
 			goto fail; // missing data
 		}
