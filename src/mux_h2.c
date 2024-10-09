@@ -3114,8 +3114,10 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 			}
 
 			if (error == 0) {
-				/* Demux not blocked because of the stream, it is an incomplete frame */
-				if (!(h2c->flags &H2_CF_DEM_BLOCK_ANY))
+				/* Demux not blocked because of the stream, it is an incomplete frame,
+				 * or the rxbuf is not empty (e.g. for trailers).
+				 */
+				if (!(h2c->flags & (H2_CF_DEM_BLOCK_ANY | H2_CF_DEM_DFULL)))
 					h2c->flags |= H2_CF_DEM_SHORT_READ;
 				goto out; // missing data
 			}
@@ -3175,7 +3177,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 
 	if (error == 0) {
 		/* No error but missing data for demuxing, it is an incomplete frame */
-		if (!(h2c->flags &H2_CF_DEM_BLOCK_ANY))
+		if (!(h2c->flags & (H2_CF_DEM_BLOCK_ANY | H2_CF_DEM_DFULL)))
 			h2c->flags |= H2_CF_DEM_SHORT_READ;
 		goto out;
 	}
@@ -3345,8 +3347,10 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 
 	if (error <= 0) {
 		if (error == 0) {
-			/* Demux not blocked because of the stream, it is an incomplete frame */
-			if (!(h2c->flags &H2_CF_DEM_BLOCK_ANY))
+			/* Demux not blocked because of the stream, it is an incomplete frame,
+			 * or the rxbuf is not empty (e.g. for trailers).
+			 */
+			if (!(h2c->flags & (H2_CF_DEM_BLOCK_ANY | H2_CF_DEM_DFULL)))
 				h2c->flags |= H2_CF_DEM_SHORT_READ;
 			goto fail; // missing data
 		}
@@ -3886,6 +3890,10 @@ static void h2_process_demux(struct h2c *h2c)
 	while (1) {
 		int ret = 0;
 
+		/* Make sure to clear DFULL if contents were deleted */
+		if (!b_full(&h2c->dbuf))
+			h2c->flags &= ~H2_CF_DEM_DFULL;
+
 		if (!b_data(&h2c->dbuf)) {
 			TRACE_DEVEL("no more Rx data", H2_EV_RX_FRAME, h2c->conn);
 			h2c->flags |= H2_CF_DEM_SHORT_READ;
@@ -4003,6 +4011,10 @@ static void h2_process_demux(struct h2c *h2c)
 			if (hdr.ft == H2_FT_HEADERS)
 				h2c->idle_start = now_ms;
 		}
+
+		/* Make sure to clear DFULL if contents were deleted */
+		if (!b_full(&h2c->dbuf))
+			h2c->flags &= ~H2_CF_DEM_DFULL;
 
 		/* Only H2_CS_FRAME_P, H2_CS_FRAME_A and H2_CS_FRAME_E here.
 		 * H2_CS_FRAME_P indicates an incomplete previous operation
@@ -4195,6 +4207,10 @@ static void h2_process_demux(struct h2c *h2c)
 		if (h2c->flags & H2_CF_RCVD_SHUT)
 			h2c->flags |= H2_CF_END_REACHED;
 	}
+
+	/* Make sure to clear DFULL if contents were deleted */
+	if (!b_full(&h2c->dbuf))
+		h2c->flags &= ~H2_CF_DEM_DFULL;
 
 	if (h2s && h2s_sc(h2s) &&
 	    (b_data(&h2s->rxbuf) ||
@@ -4659,9 +4675,6 @@ static int h2_process(struct h2c *h2c)
 
 		if (h2c->st0 >= H2_CS_ERROR || (h2c->flags & H2_CF_ERROR))
 			b_reset(&h2c->dbuf);
-
-		if (!b_full(&h2c->dbuf))
-			h2c->flags &= ~H2_CF_DEM_DFULL;
 	}
 	h2_send(h2c);
 
