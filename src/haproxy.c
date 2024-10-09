@@ -3751,9 +3751,13 @@ int main(int argc, char **argv)
 	if ((global.mode & MODE_DAEMON || global.mode & MODE_MWORKER) && global.pidfile != NULL)
 		handle_pidfile();
 
-	/* Master-worker fork */
-	if (global.mode & MODE_MWORKER)
+	/* Master-worker and program forks */
+	if (global.mode & MODE_MWORKER) {
+		/* fork and run binary from command keyword in program section */
+		mworker_ext_launch_all();
+		/* fork worker */
 		apply_master_worker_mode();
+	}
 
 	/* Worker, daemon, foreground modes read the rest of the config */
 	if (!master) {
