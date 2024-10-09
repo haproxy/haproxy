@@ -944,6 +944,7 @@ static inline int h2_may_process(const struct h2c *h2c)
 	if (!(h2c->flags & H2_CF_DEM_DALLOC) &&
 	    !(h2c->flags & H2_CF_DEM_BLOCK_ANY & ~H2_CF_DEM_DFULL))
 		return 1;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 
 	return 0;
 }
@@ -2158,6 +2159,7 @@ static int h2c_frt_recv_preface(struct h2c *h2c)
 	if (unlikely(ret1 <= 0)) {
 		if (!ret1)
 			h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 		if (ret1 < 0 || (h2c->flags & H2_CF_RCVD_SHUT)) {
 			h2c_report_glitch(h2c, 1);
 			TRACE_ERROR("I/O error or short read", H2_EV_RX_FRAME|H2_EV_RX_PREFACE, h2c->conn);
@@ -2612,6 +2614,7 @@ static int h2c_handle_settings(struct h2c *h2c)
 	/* process full frame only */
 	if (b_data(&h2c->dbuf) < h2c->dfl) {
 		h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 		goto out0;
 	}
 
@@ -3003,6 +3006,7 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 	/* process full frame only */
 	if (b_data(&h2c->dbuf) < h2c->dfl) {
 		h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 		goto out0;
 	}
 
@@ -3099,6 +3103,7 @@ static int h2c_handle_goaway(struct h2c *h2c)
 	if (b_data(&h2c->dbuf) < h2c->dfl) {
 		TRACE_DEVEL("leaving on missing data", H2_EV_RX_FRAME|H2_EV_RX_GOAWAY, h2c->conn);
 		h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 		return 0;
 	}
 
@@ -3124,6 +3129,7 @@ static int h2c_handle_priority(struct h2c *h2c)
 	if (b_data(&h2c->dbuf) < h2c->dfl) {
 		TRACE_DEVEL("leaving on missing data", H2_EV_RX_FRAME|H2_EV_RX_PRIO, h2c->conn);
 		h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 		return 0;
 	}
 
@@ -3152,6 +3158,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	if (b_data(&h2c->dbuf) < h2c->dfl) {
 		TRACE_DEVEL("leaving on missing data", H2_EV_RX_FRAME|H2_EV_RX_RST|H2_EV_RX_EOI, h2c->conn, h2s);
 		h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 		return 0;
 	}
 
@@ -3196,11 +3203,13 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 
 	if (!b_size(&h2c->dbuf)) {
 		h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 		goto out; // empty buffer
 	}
 
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf)) {
 		h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 		goto out; // incomplete frame
 	}
 
@@ -3228,6 +3237,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 				 */
 				if (!(h2c->flags & (H2_CF_DEM_BLOCK_ANY | H2_CF_DEM_DFULL)))
 					h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 				goto out; // missing data
 			}
 
@@ -3288,6 +3298,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		/* No error but missing data for demuxing, it is an incomplete frame */
 		if (!(h2c->flags & (H2_CF_DEM_BLOCK_ANY | H2_CF_DEM_DFULL)))
 			h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 		goto out;
 	}
 
@@ -3417,11 +3428,13 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 
 	if (!b_size(&h2c->dbuf)) {
 		h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 		goto fail; // empty buffer
 	}
 
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf)) {
 		h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 		goto fail; // incomplete frame
 	}
 
@@ -3464,6 +3477,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 			/* Demux not blocked because of the stream, it is an incomplete frame */
 			if (!(h2c->flags & (H2_CF_DEM_BLOCK_ANY | H2_CF_DEM_DFULL)))
 				h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 			goto fail; // missing data
 		}
 
@@ -3534,11 +3548,13 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 
 	if (!b_size(&h2c->dbuf) && h2c->dfl) {
 		h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 		goto fail; // empty buffer
 	}
 
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf)) {
 		h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 		goto fail; // incomplete frame
 	}
 
@@ -3957,6 +3973,7 @@ static void h2_process_demux(struct h2c *h2c)
 			if (!h2_get_frame_hdr(&h2c->dbuf, &hdr)) {
 				/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
 				h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 				if (h2c->st0 == H2_CS_ERROR) {
 					h2c_report_glitch(h2c, 1);
 					TRACE_ERROR("failed to receive settings", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_SETTINGS|H2_EV_PROTO_ERR, h2c->conn);
@@ -4011,6 +4028,7 @@ static void h2_process_demux(struct h2c *h2c)
 		if (!b_data(&h2c->dbuf)) {
 			TRACE_DEVEL("no more Rx data", H2_EV_RX_FRAME, h2c->conn);
 			h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 			break;
 		}
 
@@ -4023,6 +4041,7 @@ static void h2_process_demux(struct h2c *h2c)
 			TRACE_STATE("expecting H2 frame header", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
 			if (!h2_peek_frame_hdr(&h2c->dbuf, 0, &hdr)) {
 				h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 				break;
 			}
 
@@ -4070,6 +4089,7 @@ static void h2_process_demux(struct h2c *h2c)
 
 				if (b_data(&h2c->dbuf) < 10) {
 					h2c->flags |= H2_CF_DEM_SHORT_READ;
+	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
 					break; // missing padlen
 				}
 
