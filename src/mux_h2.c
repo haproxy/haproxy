@@ -932,27 +932,47 @@ static inline int h2_recv_allowed(const struct h2c *h2c)
 	return 0;
 }
 
-/* indicates whether it's worth waking up the I/O handler to restart working.
- * it ressembles h2_recv_allowed() but doesn't block on DEM_DFULL.
+/* indicates whether it's worth waking up the I/O handler to restart demuxing.
+ * it ressembles h2_recv_allowed() but doesn't block on DEM_DALLOC etc but
+ * stops working on SHORT_READ.
  */
-static inline int h2_may_process(const struct h2c *h2c)
+static inline int h2_may_demux(const struct h2c *h2c)
 {
 	if (b_data(&h2c->dbuf) == 0 &&
 	    ((h2c->flags & (H2_CF_RCVD_SHUT|H2_CF_ERROR)) || h2c->st0 >= H2_CS_ERROR))
 		return 0;
 
-	if (!(h2c->flags & H2_CF_DEM_DALLOC) &&
-	    !(h2c->flags & H2_CF_DEM_BLOCK_ANY & ~H2_CF_DEM_DFULL))
-		return 1;
+	/* no way to demux on short read, and no I/O done, pointless*/
+	/* why is it super slow when doing this? Sounds like sometimes
+	 * we should restart even on short reads. Maybe sometimes we quit
+	 * on short read just due to a buffer full ? Indeed it at least
+	 * happens for trailers. Indeed:
+	 $ /g/public/haproxy/dev/flags/flags h2c 0x118e08
+	 h2c->flags = H2_CF_RCVD_RFC8441 | H2_CF_WINDOW_OPENED | H2_CF_IS_BACK | H2_CF_MBUF_HAS_DATA | H2_CF_DEM_IN_PROGRESS | H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL
+	 * It might be needed to avoid shutting too early, see commit
+	 *   b5f7b52968b617ce527f307089ec1c42ffeeab03
+	 * In fact it was an accident because 1/ the DFULL flag was not checked
+	 * as part of the block_any flags where SHORT_READ is set, and 2/
+	 * DFULL is not cleared inside the demux loop, causing empty buffers
+	 * to still be considered as full during all the parsing, hence possibly
+	 * affecting recv_allowed or may_demux.
+	 */
 	BUG_ON((h2c->flags & (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL)) == (H2_CF_DEM_SHORT_READ | H2_CF_DEM_DFULL));
+//	if ((h2c->wait_event.events & SUB_RETRY_RECV) &&
+//	    (h2c->flags & H2_CF_DEM_SHORT_READ))
+//		return 0;
 
-	return 0;
+	/* note: DALLOC & DFULL are not in these ones */
+	if (h2c->flags & H2_CF_DEM_BLOCK_ANY)
+		return 0;
+
+	return 1;
 }
 
 /* restarts reading on the connection if it was not enabled */
 static inline void h2c_restart_reading(const struct h2c *h2c, int consider_buffer)
 {
-	if (!h2_may_process(h2c))
+	if (!h2_may_demux(h2c))
 		return;
 	if ((!consider_buffer || !b_data(&h2c->dbuf))
 	    && (h2c->wait_event.events & SUB_RETRY_RECV))
@@ -4810,6 +4830,7 @@ static int h2_process(struct h2c *h2c)
 
 		if (h2c->st0 >= H2_CS_ERROR || (h2c->flags & H2_CF_ERROR))
 			b_reset(&h2c->dbuf);
+
 		//		if (!b_full(&h2c->dbuf))
 		//			h2c->flags &= ~H2_CF_DEM_DFULL;
 	} else
