@@ -2565,8 +2565,8 @@ next_line:
 		if (pcs && pcs->post_section_parser) {
 			int status;
 
-			/* for the moment don't call post_section_parser in MODE_DISCOVERY */
-			if (global.mode & MODE_DISCOVERY)
+			/* don't call post_section_parser in MODE_DISCOVERY, except program section */
+			if ((global.mode & MODE_DISCOVERY) && (strcmp(pcs->section_name, "program") != 0))
 				continue;
 
 			status = pcs->post_section_parser();
@@ -2589,8 +2589,9 @@ next_line:
 		} else {
 			int status;
 
-			/* for the moment read only the "global" section in MODE_DISCOVERY */
-			if ((global.mode & MODE_DISCOVERY) && (strcmp(cs->section_name, "global") != 0))
+			/* read only the "global" and "program" sections in MODE_DISCOVERY */
+			if (((global.mode & MODE_DISCOVERY) && (strcmp(cs->section_name, "global") != 0)
+			     && (strcmp(cs->section_name, "program") != 0)))
 				continue;
 
 			status = cs->section_parser(file, linenum, args, kwm);
