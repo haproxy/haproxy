@@ -4041,10 +4041,6 @@ static void h2_process_demux(struct h2c *h2c)
 	while (1) {
 		int ret = 0;
 
-		/* important to clear this early so that it copes well with SHORT_READ */
-		if (!b_full(&h2c->dbuf))
-			h2c->flags &= ~H2_CF_DEM_DFULL;
-
 		if (!b_data(&h2c->dbuf)) {
 			TRACE_DEVEL("no more Rx data", H2_EV_RX_FRAME, h2c->conn);
 			h2c->flags |= H2_CF_DEM_SHORT_READ;
@@ -4165,6 +4161,10 @@ static void h2_process_demux(struct h2c *h2c)
 			if (hdr.ft == H2_FT_HEADERS)
 				h2c->idle_start = now_ms;
 		}
+
+		/* important to clear this early so that it copes well with SHORT_READ */
+		if (!b_full(&h2c->dbuf))
+			h2c->flags &= ~H2_CF_DEM_DFULL;
 
 		/* Only H2_CS_FRAME_P, H2_CS_FRAME_A and H2_CS_FRAME_E here.
 		 * H2_CS_FRAME_P indicates an incomplete previous operation
