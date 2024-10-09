@@ -699,9 +699,26 @@ static int cli_parse_reload(char **args, char *payload, struct appctx *appctx, v
 	struct connection *conn = NULL;
 	int fd = -1;
 	int hardreload = 0;
+	struct mworker_proc *proc;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
+
+	list_for_each_entry(proc, &proc_list, list) {
+		/* if there is a process with PROC_O_INIT, i.e. new worker is
+		 * doing its init routine, block the reload
+		 */
+		if (proc->options & PROC_O_INIT) {
+			chunk_printf(&trash, "Success=0\n");
+			chunk_appendf(&trash, "--\n");
+			chunk_appendf(&trash, "Another reload is still in progress.\n");
+
+			if (applet_putchk(appctx, &trash) == -1)
+				return 0;
+
+			return 1;
+		}
+	}
 
 	/* hard reload requested */
 	if (*args[0] == 'h')
