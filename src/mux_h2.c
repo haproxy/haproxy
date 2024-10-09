@@ -931,10 +931,26 @@ static inline int h2_recv_allowed(const struct h2c *h2c)
 	return 0;
 }
 
+/* indicates whether it's worth waking up the I/O handler to restart working.
+ * it ressembles h2_recv_allowed() but doesn't block on DEM_DFULL.
+ */
+static inline int h2_may_process(const struct h2c *h2c)
+{
+	if (b_data(&h2c->dbuf) == 0 &&
+	    ((h2c->flags & (H2_CF_RCVD_SHUT|H2_CF_ERROR)) || h2c->st0 >= H2_CS_ERROR))
+		return 0;
+
+	if (!(h2c->flags & H2_CF_DEM_DALLOC) &&
+	    !(h2c->flags & H2_CF_DEM_BLOCK_ANY & ~H2_CF_DEM_DFULL))
+		return 1;
+
+	return 0;
+}
+
 /* restarts reading on the connection if it was not enabled */
 static inline void h2c_restart_reading(const struct h2c *h2c, int consider_buffer)
 {
-	if (!h2_recv_allowed(h2c))
+	if (!h2_may_process(h2c))
 		return;
 	if ((!consider_buffer || !b_data(&h2c->dbuf))
 	    && (h2c->wait_event.events & SUB_RETRY_RECV))
@@ -1774,8 +1790,14 @@ static void h2s_destroy(struct h2s *h2s)
 		freed++;
 	}
 
-	if (freed)
+	if (freed) {
 		offer_buffers(NULL, freed);
+		if (h2s->h2c->flags & (H2_CF_DEM_SFULL | H2_CF_DEM_RXBUF)) {
+			/* just released resources the demux is waiting for */
+			h2s->h2c->flags &= ~(H2_CF_DEM_SFULL | H2_CF_DEM_RXBUF);
+			h2c_restart_reading(h2s->h2c, 1);
+		}
+	}
 
 	if (h2s->subs)
 		h2s->subs->events = 0;
@@ -2552,6 +2574,7 @@ static void h2c_unblock_sfctl(struct h2c *h2c)
 	while (node) {
 		h2s = container_of(node, struct h2s, by_id);
 		if (h2s->flags & H2_SF_BLK_SFCTL && h2s_mws(h2s) > 0) {
+			printf("[%s-%c] %04d: h2s=%p(%d) .f=%#x clr(sfctl) mws=%d (%s)\n", h2c->proxy->id, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', __LINE__, h2s, h2s->id, h2s->flags, h2s_mws(h2s), __func__);
 			h2s->flags &= ~H2_SF_BLK_SFCTL;
 			LIST_DEL_INIT(&h2s->list);
 			if ((h2s->subs && h2s->subs->events & SUB_RETRY_SEND) ||
@@ -2904,10 +2927,12 @@ static int h2c_send_strm_wu(struct h2c *h2c)
 	/* send WU for the stream */
 	ret = h2c_send_window_update(h2c, h2c->dsi, h2c->wu_s);
 	if (ret > 0) {
-		h2c->wu_s = 0;
 		h2s = h2c_st_by_id(h2c, h2c->dsi);
-		if (h2s)
+		if (h2s) {
 			h2s->last_adv_ofs = h2s->next_max_ofs;
+			printf("[%s-%c] %04d: h2s=%p(%d) .f=%#x sent_wu inc=%d(win=%d) (%s)\n", h2c->proxy->id, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', __LINE__, h2s, h2s->id, h2s->flags, (int)h2c->wu_s, (int)(h2s->next_max_ofs - h2s->curr_rx_ofs), __func__);
+		}
+		h2c->wu_s = 0;
 	}
  out:
 	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn);
@@ -3014,6 +3039,7 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 
 		h2s->sws += inc;
 		if (h2s_mws(h2s) > 0 && (h2s->flags & H2_SF_BLK_SFCTL)) {
+			printf("[%s-%c] %04d: h2s=%p(%d) .f=%#x clr(sfctl) inc=%d mws=%d (%s)\n", h2c->proxy->id, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', __LINE__, h2s, h2s->id, h2s->flags, inc, h2s_mws(h2s), __func__);
 			h2s->flags &= ~H2_SF_BLK_SFCTL;
 			LIST_DEL_INIT(&h2s->list);
 			if ((h2s->subs && h2s->subs->events & SUB_RETRY_SEND) ||
@@ -3496,6 +3522,8 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 {
 	int error;
+
+	printf("[%s-%c] %04d: h2s=%p(%d,%d) .f=%#x mws=%d dbuf=%d/%d dfl=%d .full=%d (entering %s)\n", h2s->h2c->proxy->id, (h2s->h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', __LINE__, h2s, h2s->id, (int)h2s->st, h2s->flags, h2s_mws(h2s), (int)b_data(&h2c->dbuf), (int)b_size(&h2c->dbuf), (int)h2c->dfl, (int)b_full(&h2c->dbuf), __func__);
 
 	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 
@@ -4476,8 +4504,12 @@ static int h2_recv(struct h2c *h2c)
 		max = buf_room_for_htx_data(buf) + 9;
 		buf->head = sizeof(struct htx) - 9;
 	}
-	else
+	else {
 		max = b_room(buf);
+		TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, H2_EV_H2C_RECV,
+			     h2c->conn, 0, 0, 0,
+			     "buffer still has data. room=%d", max);
+	}
 
 	ret = max ? conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, max, 0) : 0;
 
@@ -4741,6 +4773,7 @@ static int h2_process(struct h2c *h2c)
 	    (b_data(&h2c->dbuf) || (h2c->flags & H2_CF_RCVD_SHUT))) {
 		int prev_glitches = h2c->glitches;
 
+		printf("[%s-%c] %04d: h2c=%p .dsi=%d .f=%#x (%s demuxing)\n", h2c->proxy->id, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', __LINE__, h2c, h2c->dsi, h2c->flags, __func__);
 		h2_process_demux(h2c);
 
 		if (h2c->glitches != prev_glitches && !(h2c->flags & H2_CF_IS_BACK))
@@ -4751,7 +4784,9 @@ static int h2_process(struct h2c *h2c)
 
 		if (!b_full(&h2c->dbuf))
 			h2c->flags &= ~H2_CF_DEM_DFULL;
-	}
+	} else
+		printf("[%s-%c] %04d: h2c=%p .dsi=%d .f=%#x (%s blocked)\n", h2c->proxy->id, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', __LINE__, h2c, h2c->dsi, h2c->flags, __func__);
+
 	h2_send(h2c);
 
 	if (unlikely(h2c->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) && !(h2c->flags & H2_CF_IS_BACK)) {
@@ -5872,6 +5907,8 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 	unsigned int sent;
 	int full = 0;
 
+	printf("[%s-%c] %04d: h2s=%p(%d) .f=%#x mws=%d (entering %s)\n", h2s->h2c->proxy->id, (h2s->h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', __LINE__, h2s, h2s->id, h2s->flags, h2s_mws(h2s), __func__);
+
 	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 
 	h2c->flags &= ~(H2_CF_DEM_SFULL | H2_CF_DEM_RXBUF);
@@ -5884,6 +5921,7 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 	if ((!h2s_rxbuf_tail(h2s) || (full || !h2s_may_append_to_rxbuf(h2s))) && !h2s_get_rxbuf(h2s)) {
 		h2c->flags |= H2_CF_DEM_RXBUF;
 		TRACE_STATE("waiting for an h2s rxbuf slot", H2_EV_RX_FRAME|H2_EV_RX_DATA|H2_EV_H2S_BLK, h2c->conn, h2s);
+		//BUG_ON(__LINE__);
 		goto fail;
 	}
 
@@ -5935,6 +5973,8 @@ try_again:
 	h2c->rcvd_c += sent;
 	h2c->rcvd_s += sent;  // warning, this can also affect the closed streams!
 
+	printf("[%s-%c] %04d: h2s=%p(%d) .f=%#x rcvd(%d) mws=%d (%s)\n", h2s->h2c->proxy->id, (h2s->h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', __LINE__, h2s, h2s->id, h2s->flags, (int)sent, h2s_mws(h2s), __func__);
+
 	if (h2s->flags & H2_SF_DATA_CLEN) {
 		h2s->body_len -= sent;
 		htx->extra = h2s->body_len;
@@ -5973,6 +6013,9 @@ try_again:
 
 	h2c->rcvd_c += h2c->dpl;
 	h2c->rcvd_s += h2c->dpl;
+	if (h2c->dpl)
+		printf("[%s-%c] %04d: h2s=%p(%d) .f=%#x rcvd(%d) mws=%d (%s)\n", h2s->h2c->proxy->id, (h2s->h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', __LINE__, h2s, h2s->id, h2s->flags, (int)h2c->dpl, h2s_mws(h2s), __func__);
+
 	h2c->dpl = 0;
 	h2c->st0 = H2_CS_FRAME_A; // send the corresponding window update
 	htx_to_buf(htx, scbuf);
@@ -6863,6 +6906,7 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 		goto send_empty;
 
 	if (h2s_mws(h2s) <= 0) {
+		printf("[%s-%c] %04d: h2s=%p(%d) .f=%#x set(sfctl) mws=%d (%s)\n", h2c->proxy->id, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', __LINE__, h2s, h2s->id, h2s->flags, h2s_mws(h2s), __func__);
 		h2s->flags |= H2_SF_BLK_SFCTL;
 		if (LIST_INLIST(&h2s->list))
 			h2_remove_from_list(h2s);
@@ -7307,6 +7351,7 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	struct htx *buf_htx = NULL;
 	struct buffer *rxbuf = NULL;
 	size_t ret = 0;
+	int prev_h2c_flags = h2c->flags;
 
 	TRACE_ENTER(H2_EV_STRM_RECV, h2c->conn, h2s);
 
@@ -7385,11 +7430,20 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 		h2s_propagate_term_flags(h2c, h2s);
 	}
 
-	if (ret && h2c->dsi == h2s->id) {
-		/* demux is blocking on this stream's buffer */
+	// works with this below
+	//if (ret && !(h2c->flags & H2_CF_DEM_SHORT_READ)/* && (h2c->dsi == h2s->id || (h2c->flags & H2_CF_DEM_RXBUF))*/) {
+
+	if (ret)
 		h2c->flags &= ~H2_CF_DEM_SFULL;
+
+	if ((prev_h2c_flags & ~h2c->flags) & (H2_CF_DEM_RXBUF | H2_CF_DEM_SALLOC | H2_CF_DEM_SFULL)) {
+		/* we've just unblocked the demux, let's wake it up now */
+		//h2c->flags &= ~(H2_CF_DEM_SFULL | H2_CF_DEM_RXBUF);
+		printf("[%s-%c] %04d: h2s=%p(%d,%d) .f=%#x h2c=%p .f=%#x prev_f=%#x .dsi=%d mws=%d dbuf=%d/%d dfl=%d .full=%d ret=%d (leaving %s waking)\n", h2s->h2c->proxy->id, (h2s->h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', __LINE__, h2s, h2s->id, (int)h2s->st, h2s->flags, h2c, h2c->flags, prev_h2c_flags, h2c->dsi, h2s_mws(h2s), (int)b_data(&h2c->dbuf), (int)b_size(&h2c->dbuf), (int)h2c->dfl, (int)b_full(&h2c->dbuf), (int)ret, __func__);
 		h2c_restart_reading(h2c, 1);
-	}
+	} else
+		printf("[%s-%c] %04d: h2s=%p(%d,%d) .f=%#x h2c=%p .f=%#x prev_f=%#x .dsi=%d mws=%d dbuf=%d/%d dfl=%d .full=%d ret=%d (leaving %s without waking)\n", h2s->h2c->proxy->id, (h2s->h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', __LINE__, h2s, h2s->id, (int)h2s->st, h2s->flags, h2c, h2c->flags, prev_h2c_flags, h2c->dsi, h2s_mws(h2s), (int)b_data(&h2c->dbuf), (int)b_size(&h2c->dbuf), (int)h2c->dfl, (int)b_full(&h2c->dbuf), (int)ret, __func__);
+
 
 	BUG_ON_HOT(!buf->data && se_fl_test(h2s->sd, SE_FL_WANT_ROOM));
 
@@ -7506,6 +7560,8 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 				else
 					ret = h2s_make_data(h2s, buf, count);
 				if (ret > 0) {
+					printf("[%s-%c] %04d: h2s=%p(%d) .f=%#x send(%d) mws=%d (%s)\n", h2s->h2c->proxy->id, (h2s->h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', __LINE__, h2s, h2s->id, h2s->flags, (int)ret, h2s_mws(h2s), __func__);
+
 					htx = htx_from_buf(buf);
 					total += ret;
 					count -= ret;
@@ -7612,6 +7668,7 @@ static size_t h2_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 	}
 
 	if (h2s_mws(h2s) <= 0) {
+		printf("[%s-%c] %04d: h2s=%p(%d) .f=%#x set(sfctl) mws=%d (%s)\n", h2c->proxy->id, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', __LINE__, h2s, h2s->id, h2s->flags, h2s_mws(h2s), __func__);
 		h2s->flags |= H2_SF_BLK_SFCTL;
 		if (LIST_INLIST(&h2s->list))
 			LIST_DEL_INIT(&h2s->list);
@@ -7762,6 +7819,7 @@ static size_t h2_done_ff(struct stconn *sc)
 	b_add(mbuf, 9);
 	h2s->sws -= total;
 	h2c->mws -= total;
+	printf("[%s-%c] %04d: h2s=%p(%d) .f=%#x send(%d) mws=%d (%s)\n", h2c->proxy->id, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', __LINE__, h2s, h2s->id, h2s->flags, (int)total, h2s_mws(h2s), __func__);
 	if (h2_send(h2s->h2c))
 		tasklet_wakeup(h2s->h2c->wait_event.tasklet);
 
