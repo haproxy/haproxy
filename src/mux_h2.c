@@ -925,6 +925,7 @@ static inline int h2_recv_allowed(const struct h2c *h2c)
 		return 0;
 
 	if (!(h2c->flags & H2_CF_DEM_DALLOC) &&
+	    !(h2c->flags & H2_CF_DEM_DFULL) &&
 	    !(h2c->flags & H2_CF_DEM_BLOCK_ANY))
 		return 1;
 
