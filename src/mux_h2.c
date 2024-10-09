@@ -4790,9 +4790,8 @@ static int h2_process(struct h2c *h2c)
 
 		if (h2c->st0 >= H2_CS_ERROR || (h2c->flags & H2_CF_ERROR))
 			b_reset(&h2c->dbuf);
-
-		if (!b_full(&h2c->dbuf))
-			h2c->flags &= ~H2_CF_DEM_DFULL;
+		//		if (!b_full(&h2c->dbuf))
+		//			h2c->flags &= ~H2_CF_DEM_DFULL;
 	} else
 		printf("[%s-%c] %04d: h2c=%p .dsi=%d .f=%#x (%s blocked)\n", h2c->proxy->id, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', __LINE__, h2c, h2c->dsi, h2c->flags, __func__);
 
