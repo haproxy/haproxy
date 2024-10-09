@@ -463,7 +463,7 @@ struct pool_head *pool_head_h2_rx_bufs __read_mostly = NULL;
 
 /* a few settings from the global section */
 static int h2_settings_header_table_size      =  4096; /* initial value */
-static int h2_settings_initial_window_size    = 65536; /* default initial value */
+static int h2_settings_initial_window_size    =     0; /* default initial value: bufsize */
 static int h2_be_settings_initial_window_size =     0; /* backend's default initial value */
 static int h2_fe_settings_initial_window_size =     0; /* frontend's default initial value */
 static int h2_be_glitches_threshold           =     0; /* backend's max glitches: unlimited */
@@ -8340,6 +8340,10 @@ static int init_h2()
 		ha_alert("failed to allocate hpack_tbl memory pool\n");
 		return (ERR_ALERT | ERR_FATAL);
 	}
+
+	if (!h2_settings_initial_window_size)
+		h2_settings_initial_window_size =
+			MAX(16384, global.tune.bufsize - sizeof(struct htx) - sizeof(struct htx_blk));
 
 	max_bufs = h2_fe_settings_max_concurrent_streams ?
 	           h2_fe_settings_max_concurrent_streams :
