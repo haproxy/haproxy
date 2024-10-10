@@ -31,6 +31,7 @@ extern struct list sink_list;
 extern struct proxy *sink_proxies_list;
 
 struct sink *sink_find(const char *name);
+struct sink *sink_find_early(const char *name, const char *from, const char *file, int line);
 struct sink *sink_new_fd(const char *name, const char *desc, enum log_fmt, int fd);
 ssize_t __sink_write(struct sink *sink, struct log_header hdr, size_t maxlen,
                      const struct ist msg[], size_t nmsg);

@@ -46,13 +46,70 @@ struct proxy *sink_proxies_list;
 
 struct sink *cfg_sink;
 
-struct sink *sink_find(const char *name)
+static struct sink *_sink_find(const char *name)
 {
 	struct sink *sink;
 
 	list_for_each_entry(sink, &sink_list, sink_list)
 		if (strcmp(sink->name, name) == 0)
 			return sink;
+	return NULL;
+}
+
+/* returns sink if it really exists */
+struct sink *sink_find(const char *name)
+{
+	struct sink *sink;
+
+	sink = _sink_find(name);
+	if (sink && sink->type != SINK_TYPE_FORWARD_DECLARED)
+		return sink;
+	return NULL;
+}
+
+/* Similar to sink_find(), but intended to be used during config parsing:
+ * tries to resolve sink name, if it fails, creates the sink and marks
+ * it as forward-declared and hope that it will be defined later.
+ *
+ * The caller has to identify itself using <from>, <file> and <line> in
+ * order to report precise error messages in the event that the sink is
+ * never defined later (only the first misuse will be considered).
+ *
+ * It returns the sink on success and NULL on failure (memory error)
+ */
+struct sink *sink_find_early(const char *name, const char *from, const char *file, int line)
+{
+	struct sink *sink;
+
+	/* not expected to be used during runtime */
+	BUG_ON(!(global.mode & MODE_STARTING));
+
+	sink = _sink_find(name);
+	if (sink)
+		return sink;
+
+	/* not found, try to forward-declare it */
+	sink = calloc(1, sizeof(*sink));
+	if (!sink)
+		return NULL;
+
+	sink->name = strdup(name);
+	if (!sink->name)
+		goto err;
+
+	memprintf(&sink->desc, "parsing [%s:%d] : %s", file, line, from);
+	if (!sink->desc)
+		goto err;
+
+	sink->type = SINK_TYPE_FORWARD_DECLARED;
+	LIST_APPEND(&sink_list, &sink->sink_list);
+
+	return sink;
+
+ err:
+	ha_free(&sink->name);
+	ha_free(&sink->desc);
+	ha_free(&sink);
 	return NULL;
 }
 
@@ -64,12 +121,19 @@ struct sink *sink_find(const char *name)
 static struct sink *__sink_new(const char *name, const char *desc, int fmt)
 {
 	struct sink *sink;
+	uint8_t _new = 0;
 
-	sink = sink_find(name);
-	if (sink)
+	sink = _sink_find(name);
+	if (sink) {
+		if (sink->type == SINK_TYPE_FORWARD_DECLARED) {
+			ha_free(&sink->desc); // free previous desc
+			goto forward_declared;
+		}
 		goto end;
+	}
 
 	sink = calloc(1, sizeof(*sink));
+	_new = 1;
 	if (!sink)
 		goto end;
 
@@ -77,6 +141,7 @@ static struct sink *__sink_new(const char *name, const char *desc, int fmt)
 	if (!sink->name)
 		goto err;
 
+ forward_declared:
 	sink->desc = strdup(desc);
 	if (!sink->desc)
 		goto err;
@@ -87,7 +152,8 @@ static struct sink *__sink_new(const char *name, const char *desc, int fmt)
 	/* address will be filled by the caller if needed */
 	sink->ctx.fd = -1;
 	sink->ctx.dropped = 0;
-	LIST_APPEND(&sink_list, &sink->sink_list);
+	if (_new)
+		LIST_APPEND(&sink_list, &sink->sink_list);
  end:
 	return sink;
 
@@ -1329,6 +1395,23 @@ static void sink_init()
 	sink_new_buf("buf0",  "in-memory ring buffer", LOG_FORMAT_TIMED, 1048576);
 }
 
+static int sink_postcheck()
+{
+	struct sink *sink;
+
+	list_for_each_entry(sink, &sink_list, sink_list) {
+		if (sink->type == SINK_TYPE_FORWARD_DECLARED) {
+			/* sink wasn't upgraded to actual sink despite being
+			 * forward-declared: it is an error (the sink doesn't
+			 * really exist)
+			 */
+			ha_alert("%s: sink '%s' doesn't exist.\n", sink->desc, sink->name);
+			return ERR_ALERT | ERR_FATAL;
+		}
+	}
+	return ERR_NONE;
+}
+
 static void sink_deinit()
 {
 	struct sink *sink, *sb;
@@ -1338,6 +1421,7 @@ static void sink_deinit()
 }
 
 INITCALL0(STG_REGISTER, sink_init);
+REGISTER_POST_CHECK(sink_postcheck);
 REGISTER_POST_DEINIT(sink_deinit);
 
 static struct cli_kw_list cli_kws = {{ },{
