@@ -416,11 +416,15 @@ restart_wait:
 				if (exitcode < 0 && status != 0 && status != 143)
 					exitcode = status;
 			} else {
-				fd_delete(child->ipc_fd[0]);
 				if (child->options & PROC_O_TYPE_WORKER) {
 					ha_warning("Former worker (%d) exited with code %d (%s)\n", exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
+					/* Delete fd from poller fdtab, which will close it */
+					fd_delete(child->ipc_fd[0]);
 					delete_oldpid(exitpid);
 				} else if (child->options & PROC_O_TYPE_PROG) {
+					/* ipc_fd[0] and ipc_fd[1] are not used for PROC_O_TYPE_PROG and kept as -1,
+					 * thus they are never inserted in fdtab (otherwise, BUG_ON in fd_insert if fd <0)
+					 */
 					ha_warning("Former program '%s' (%d) exited with code %d (%s)\n", child->id, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 				}
 			}
