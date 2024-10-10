@@ -1819,9 +1819,9 @@ static int smp_check_debug(struct arg *args, struct sample_conv *conv,
 	if (args[1].type == ARGT_STR)
 		name = args[1].data.str.area;
 
-	sink = sink_find(name);
+	sink = sink_find_early(name, "debug converter", file, line);
 	if (!sink) {
-		memprintf(err, "No such sink '%s'", name);
+		memprintf(err, "Memory error while setting up sink '%s'", name);
 		return 0;
 	}
 
