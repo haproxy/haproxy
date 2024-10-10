@@ -887,9 +887,13 @@ struct stconn *qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
 	BUG_ON_HOT(!LIST_INLIST(&qcs->el_opening));
 	LIST_DEL_INIT(&qcs->el_opening);
 
+	/* rcv_buf may be skipped if request is wholly received on attach.
+	 * Ensure that similar flags are set for FIN both on rcv_buf and here.
+	 */
 	if (fin) {
 		TRACE_STATE("report end-of-input", QMUX_EV_STRM_RECV, qcc->conn, qcs);
 		se_fl_set(qcs->sd, SE_FL_EOI);
+		se_expect_data(qcs->sd);
 	}
 
 	/* A QCS can be already locally closed before stream layer
