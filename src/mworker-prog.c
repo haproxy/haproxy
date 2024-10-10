@@ -49,6 +49,10 @@ int mworker_ext_launch_all()
 
 	/* find the right mworker_proc */
 	list_for_each_entry_safe(child, tmp, &proc_list, list) {
+		/* need to stop progs, which were launched before reload */
+		if ((child->options & PROC_O_TYPE_PROG) && (child->options & PROC_O_LEAVING))
+			kill(child->pid, oldpids_sig);
+
 		if (child->reloads == 0 && (child->options & PROC_O_TYPE_PROG)) {
 
 			if (reexec && (!(child->options & PROC_O_START_RELOAD))) {
