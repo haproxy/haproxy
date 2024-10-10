@@ -1197,7 +1197,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	struct cache *cache = cconf->c.cache;
 	struct shared_context *shctx = shctx_ptr(cache);
 	struct cache_st *cache_ctx = NULL;
-	struct cache_entry *object, *old;
+	struct cache_entry *object = NULL, *old;
 	unsigned int key = read_u32(txn->cache_hash);
 	struct htx *htx;
 	struct http_hdr_ctx ctx;
