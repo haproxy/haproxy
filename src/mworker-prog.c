@@ -137,6 +137,9 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 	struct mworker_proc *child;
 	int err_code = 0;
 
+	if (!(global.mode & MODE_DISCOVERY))
+		return err_code;
+
 	if (strcmp(args[0], "program") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
 			err_code |= ERR_ABORT;
@@ -330,6 +333,9 @@ int cfg_program_postparser()
 {
 	int err_code = 0;
 	struct mworker_proc *child;
+
+	if (!(global.mode & MODE_DISCOVERY))
+		return err_code;
 
 	list_for_each_entry(child, &proc_list, list) {
 		if (child->reloads == 0 && (child->options & PROC_O_TYPE_PROG)) {
