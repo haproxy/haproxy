@@ -903,39 +903,56 @@ h2c_is_dead(const struct h2c *h2c)
 /* indicates whether or not the we may call the h2_recv() function to attempt
  * to receive data into the buffer and/or demux pending data. The condition is
  * a bit complex due to some API limits for now. The rules are the following :
- *   - if an error or a shutdown was detected on the connection and the buffer
- *     is empty, we must not attempt to receive
+ *   - if an error or a shutdown was detected on the connection, we must not
+ *     attempt to receive
+ *   - if we're subscribed for receving, no need to try again
  *   - if the demux buf failed to be allocated, we must not try to receive and
- *     we know there is nothing pending
- *   - if no flag indicates a blocking condition, we may attempt to receive,
- *     regardless of whether the demux buffer is full or not, so that only
- *     de demux part decides whether or not to block. This is needed because
- *     the connection API indeed prevents us from re-enabling receipt that is
- *     already enabled in a polled state, so we must always immediately stop
- *     as soon as the demux can't proceed so as never to hit an end of read
- *     with data pending in the buffers.
- *   - otherwise must may not attempt
+ *     we know there is nothing pending (we'll be woken up once allocated)
+ *   - if the demux buf is full, we will not be able to receive.
+ *   - otherwise we may attempt to receive
  */
 static inline int h2_recv_allowed(const struct h2c *h2c)
 {
-	if (b_data(&h2c->dbuf) == 0 &&
-	    ((h2c->flags & (H2_CF_RCVD_SHUT|H2_CF_ERROR)) || h2c->st0 >= H2_CS_ERROR))
+	if ((h2c->flags & (H2_CF_RCVD_SHUT|H2_CF_ERROR)) || h2c->st0 >= H2_CS_ERROR)
 		return 0;
 
-	if (!(h2c->flags & H2_CF_DEM_DALLOC) &&
-	    !(h2c->flags & H2_CF_DEM_BLOCK_ANY))
-		return 1;
+	if ((h2c->wait_event.events & SUB_RETRY_RECV))
+		return 0;
 
-	return 0;
+	if (h2c->flags & (H2_CF_DEM_DALLOC | H2_CF_DEM_DFULL))
+		return 0;
+
+	return 1;
 }
 
-/* restarts reading on the connection if it was not enabled */
+/* Indicates whether it's worth waking up the I/O handler to restart demuxing.
+ * Its conditions are the following:
+ *   - if the buffer is empty and the connection is in error, there's nothing
+ *     to demux
+ *   - if a short read was reported, no need to try demuxing again
+ *   - if some blocking conditions remain, no need to try again
+ *   - otherwise it's safe to try demuxing again
+ */
+static inline int h2_may_demux(const struct h2c *h2c)
+{
+	if (h2c->st0 >= H2_CS_ERROR && !b_data(&h2c->dbuf))
+		return 0;
+
+	if (h2c->flags & H2_CF_DEM_SHORT_READ)
+		return 0;
+
+	if (h2c->flags & H2_CF_DEM_BLOCK_ANY)
+		return 0;
+
+	return 1;
+}
+
+/* restarts reading/processing on the connection if we can receive or demux
+ * (both are called from the same tasklet).
+ */
 static inline void h2c_restart_reading(const struct h2c *h2c, int consider_buffer)
 {
-	if (!h2_recv_allowed(h2c))
-		return;
-	if ((!consider_buffer || !b_data(&h2c->dbuf))
-	    && (h2c->wait_event.events & SUB_RETRY_RECV))
+	if (!h2_recv_allowed(h2c) && !h2_may_demux(h2c))
 		return;
 	tasklet_wakeup(h2c->wait_event.tasklet);
 }
