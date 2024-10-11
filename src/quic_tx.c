@@ -487,12 +487,12 @@ int qc_send_mux(struct quic_conn *qc, struct list *frms)
 	    qc->state >= QUIC_HS_ST_COMPLETE) {
 		quic_build_post_handshake_frames(qc);
 		qel_register_send(&send_list, qc->ael, &qc->ael->pktns->tx.frms);
-		qc_send(qc, 0, &send_list);
+		qc_send(qc, 0, &send_list, NULL);
 	}
 
 	TRACE_STATE("preparing data (from MUX)", QUIC_EV_CONN_TXPKT, qc);
 	qel_register_send(&send_list, qc->ael, frms);
-	ret = qc_send(qc, 0, &send_list);
+	ret = qc_send(qc, 0, &send_list, NULL);
 
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 	return ret;
@@ -530,7 +530,7 @@ static inline void qc_select_tls_ver(struct quic_conn *qc,
  * (may be 0), or -1 if something wrong happened.
  */
 static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
-                         struct list *qels)
+                         struct list *qels, int *max_pkts)
 {
 	int ret, cc, padding;
 	struct quic_tx_packet *first_pkt, *prv_pkt;
@@ -546,6 +546,8 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	 * caller must ensure that buf is reset.
 	 */
 	BUG_ON_HOT(buf->head || buf->data);
+
+	BUG_ON(max_pkts && *max_pkts <= 0);
 
 	ret = -1;
 	cc =  qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE;
@@ -588,6 +590,15 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			enum qc_build_pkt_err err;
 
 			TRACE_PROTO("TX prep pkts", QUIC_EV_CONN_PHPKTS, qc, qel);
+
+			/* Start to decrement <max_pkts> after the first packet built. */
+			if (!dglen && pos != (unsigned char *)b_head(buf)) {
+				if (max_pkts && !--(*max_pkts)) {
+					BUG_ON(LIST_ISEMPTY(frms));
+					TRACE_PROTO("reached max allowed built datagrams", QUIC_EV_CONN_PHPKTS, qc, qel);
+					goto out;
+				}
+			}
 
 			if (!first_pkt)
 				pos += QUIC_DGRAM_HEADLEN;
@@ -764,7 +775,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 * Returns 1 on success else 0. Note that <send_list> will always be reset
 * after qc_send() exit.
  */
-int qc_send(struct quic_conn *qc, int old_data, struct list *send_list)
+int qc_send(struct quic_conn *qc, int old_data, struct list *send_list, int *max_pkts)
 {
 	struct quic_enc_level *qel, *tmp_qel;
 	int ret = 0, status = 0;
@@ -801,7 +812,7 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list)
 		BUG_ON_HOT(b_data(buf));
 		b_reset(buf);
 
-		ret = qc_prep_pkts(qc, buf, send_list);
+		ret = qc_prep_pkts(qc, buf, send_list, max_pkts);
 
 		if (b_data(buf) && !qc_send_ppkts(buf, qc->xprt_ctx)) {
 			if (qc->flags & QUIC_FL_CONN_TO_KILL)
@@ -811,6 +822,11 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list)
 
 		if (ret <= 0) {
 			TRACE_DEVEL("stopping on qc_prep_pkts() return", QUIC_EV_CONN_TXPKT, qc);
+			break;
+		}
+
+		if (max_pkts && !*max_pkts) {
+			TRACE_DEVEL("stopping for artificial pacing", QUIC_EV_CONN_TXPKT, qc);
 			break;
 		}
 
@@ -904,7 +920,7 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 				if (qc->hel)
 					qel_register_send(&send_list, qc->hel, &hfrms);
 
-				sret = qc_send(qc, 1, &send_list);
+				sret = qc_send(qc, 1, &send_list, NULL);
 				qc_free_frm_list(qc, &ifrms);
 				qc_free_frm_list(qc, &hfrms);
 				if (!sret)
@@ -917,7 +933,7 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 				 */
 				ipktns->tx.pto_probe = 1;
 				qel_register_send(&send_list, qc->iel, &ifrms);
-				sret = qc_send(qc, 0, &send_list);
+				sret = qc_send(qc, 0, &send_list, NULL);
 				qc_free_frm_list(qc, &ifrms);
 				qc_free_frm_list(qc, &hfrms);
 				if (!sret)
@@ -946,7 +962,7 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 				if (!LIST_ISEMPTY(&frms1)) {
 					hpktns->tx.pto_probe = 1;
 					qel_register_send(&send_list, qc->hel, &frms1);
-					sret = qc_send(qc, 1, &send_list);
+					sret = qc_send(qc, 1, &send_list, NULL);
 					qc_free_frm_list(qc, &frms1);
 					if (!sret)
 						goto leave;
@@ -969,7 +985,7 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 			if (!LIST_ISEMPTY(&frms1)) {
 				apktns->tx.pto_probe = 1;
 				qel_register_send(&send_list, qc->ael, &frms1);
-				sret = qc_send(qc, 1, &send_list);
+				sret = qc_send(qc, 1, &send_list, NULL);
 				qc_free_frm_list(qc, &frms1);
 				if (!sret) {
 					qc_free_frm_list(qc, &frms2);
@@ -980,7 +996,7 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 			if (!LIST_ISEMPTY(&frms2)) {
 				apktns->tx.pto_probe = 1;
 				qel_register_send(&send_list, qc->ael, &frms2);
-				sret = qc_send(qc, 1, &send_list);
+				sret = qc_send(qc, 1, &send_list, NULL);
 				qc_free_frm_list(qc, &frms2);
 				if (!sret)
 					goto leave;
