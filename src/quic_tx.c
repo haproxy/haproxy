@@ -488,12 +488,12 @@ int qc_send_mux(struct quic_conn *qc, struct list *frms)
 	    qc->state >= QUIC_HS_ST_COMPLETE) {
 		quic_build_post_handshake_frames(qc);
 		qel_register_send(&send_list, qc->ael, &qc->ael->pktns->tx.frms);
-		qc_send(qc, 0, &send_list);
+		qc_send(qc, 0, &send_list, 0);
 	}
 
 	TRACE_STATE("preparing data (from MUX)", QUIC_EV_CONN_TXPKT, qc);
 	qel_register_send(&send_list, qc->ael, frms);
-	ret = qc_send(qc, 0, &send_list);
+	ret = qc_send(qc, 0, &send_list, 0);
 
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 	return ret;
@@ -520,18 +520,21 @@ static inline void qc_select_tls_ver(struct quic_conn *qc,
 	}
 }
 
-/* Prepare as much as possible QUIC datagrams/packets for sending from <qels>
- * list of encryption levels. Several packets can be coalesced into a single
+/* Prepare one or several QUIC datagrams/packets for sending from <qels> list
+ * of encryption levels. Several packets can be coalesced into a single
  * datagram. The result is written into <buf>.
+ *
+ * If <max_dgrams> is non null, it limits the number of prepared datagrams.
+ * Useful to support pacing emission.
  *
  * Each datagram is prepended by a two fields header : the datagram length and
  * the address of first packet in the datagram.
  *
- * Returns the number of bytes prepared in datragrams/packets if succeeded
- * (may be 0), or -1 if something wrong happened.
+ * Returns the number of prepared datagrams on success which may be 0. On error
+ * a negative error code is returned.
  */
 static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
-                         struct list *qels)
+                         struct list *qels, int max_dgrams)
 {
 	int cc, padding;
 	struct quic_tx_packet *first_pkt, *prv_pkt;
@@ -540,6 +543,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	uint16_t dglen;
 	int total = 0;
 	struct quic_enc_level *qel, *tmp_qel;
+	int dgram_cnt = 0;
 	uchar gso_dgram_cnt = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
@@ -587,6 +591,15 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			enum qc_build_pkt_err err;
 
 			TRACE_PROTO("TX prep pkts", QUIC_EV_CONN_PHPKTS, qc, qel);
+
+			/* Start to decrement <max_dgrams> after the first packet built. */
+			if (!dglen && pos != (unsigned char *)b_head(buf)) {
+				if (max_dgrams && !--max_dgrams) {
+					BUG_ON(LIST_ISEMPTY(frms));
+					TRACE_PROTO("reached max allowed built datagrams", QUIC_EV_CONN_PHPKTS, qc, qel);
+					goto out;
+				}
+			}
 
 			if (!first_pkt)
 				pos += QUIC_DGRAM_HEADLEN;
@@ -655,8 +668,10 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 					 * except if it is an too short Initial.
 					 */
 					if (first_pkt && (first_pkt->type != QUIC_PACKET_TYPE_INITIAL ||
-					                  wrlen >= QUIC_INITIAL_PACKET_MINLEN))
+					                  wrlen >= QUIC_INITIAL_PACKET_MINLEN)) {
 						qc_txb_store(buf, wrlen, first_pkt);
+						++dgram_cnt;
+					}
 					TRACE_PROTO("could not prepare anymore packet", QUIC_EV_CONN_PHPKTS, qc, qel);
 					break;
 
@@ -725,6 +740,8 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				prv_pkt = cur_pkt;
 				dglen = 0;
 
+				++dgram_cnt;
+
 				/* man 7 udp UDP_SEGMENT
 				 * The segment size must be chosen such that at
 				 * most 64 datagrams are sent in a single call
@@ -738,6 +755,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				wrlen = dglen = 0;
 				padding = 0;
 				prv_pkt = NULL;
+				++dgram_cnt;
 				gso_dgram_cnt = 0;
 			}
 
@@ -761,7 +779,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
-	return total;
+	return dgram_cnt;
 
  err:
 	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_PHPKTS, qc);
@@ -772,13 +790,21 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
  * specified via quic_enc_level <send_list> through their send_frms member. Set
  * <old_data> when reemitted duplicated data.
  *
-* Returns 1 on success else 0. Note that <send_list> will always be reset
-* after qc_send() exit.
+ * If <max_dgrams> is non null, it limits the number of emitted datagrams.
+ * Useful to support pacing emission.
+ *
+ * Note that <send_list> will always be emptied on function completion, both on
+ * success and error.
+ *
+ * Returns the number of sent datagrams on success. It means either that all
+ * input frames were sent or emission is interrupted due to pacing. Else a
+ * negative error code is returned.
  */
-int qc_send(struct quic_conn *qc, int old_data, struct list *send_list)
+int qc_send(struct quic_conn *qc, int old_data, struct list *send_list,
+            int max_dgrams)
 {
 	struct quic_enc_level *qel, *tmp_qel;
-	int ret = 0, status = 0;
+	int prep = 0, ret = 0;
 	struct buffer *buf;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
@@ -786,11 +812,13 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list)
 	buf = qc_get_txb(qc);
 	if (!buf) {
 		TRACE_ERROR("buffer allocation failed", QUIC_EV_CONN_TXPKT, qc);
+		ret = -1;
 		goto out;
 	}
 
 	if (b_data(buf) && !qc_purge_txbuf(qc, buf)) {
 		TRACE_ERROR("Could not purge TX buffer", QUIC_EV_CONN_TXPKT, qc);
+		ret = -1;
 		goto out;
 	}
 
@@ -806,22 +834,33 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list)
 	while (!LIST_ISEMPTY(send_list) &&
 	       (!(qc->flags & (QUIC_FL_CONN_CLOSING|QUIC_FL_CONN_DRAINING)) ||
 	        (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))) {
+
 		/* Buffer must always be empty before qc_prep_pkts() usage.
 		 * qc_send_ppkts() ensures it is cleared on success.
 		 */
 		BUG_ON_HOT(b_data(buf));
 		b_reset(buf);
 
-		ret = qc_prep_pkts(qc, buf, send_list);
+		prep = qc_prep_pkts(qc, buf, send_list, max_dgrams ? max_dgrams - ret : 0);
+		BUG_ON(max_dgrams && prep > max_dgrams);
 
 		if (b_data(buf) && !qc_send_ppkts(buf, qc->xprt_ctx)) {
 			if (qc->flags & QUIC_FL_CONN_TO_KILL)
 				qc_txb_release(qc);
+			ret = -1;
 			goto out;
 		}
 
-		if (ret <= 0) {
+		if (prep <= 0) {
+			/* TODO should this be considered error if prep<0 ? */
 			TRACE_DEVEL("stopping on qc_prep_pkts() return", QUIC_EV_CONN_TXPKT, qc);
+			break;
+		}
+
+		ret += prep;
+		BUG_ON(max_dgrams && ret > max_dgrams);
+		if (max_dgrams && ret == max_dgrams && !LIST_ISEMPTY(send_list)) {
+			TRACE_DEVEL("stopping for artificial pacing", QUIC_EV_CONN_TXPKT, qc);
 			break;
 		}
 
@@ -833,10 +872,6 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list)
 	}
 
 	qc_txb_release(qc);
-	if (ret < 0)
-		goto out;
-
-	status = 1;
 
  out:
 	if (old_data) {
@@ -850,8 +885,8 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list)
 		qel->send_frms = NULL;
 	}
 
-	TRACE_DEVEL((status ? "leaving" : "leaving in error"), QUIC_EV_CONN_TXPKT, qc);
-	return status;
+	TRACE_DEVEL((ret > 0 ? "leaving" : "leaving in error"), QUIC_EV_CONN_TXPKT, qc);
+	return ret;
 }
 
 /* Insert <qel> into <send_list> in preparation for sending. Set its send
@@ -915,10 +950,10 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 				if (qc->hel)
 					qel_register_send(&send_list, qc->hel, &hfrms);
 
-				sret = qc_send(qc, 1, &send_list);
+				sret = qc_send(qc, 1, &send_list, 0);
 				qc_free_frm_list(qc, &ifrms);
 				qc_free_frm_list(qc, &hfrms);
-				if (!sret)
+				if (sret < 0)
 					goto leave;
 			}
 			else {
@@ -928,10 +963,10 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 				 */
 				ipktns->tx.pto_probe = 1;
 				qel_register_send(&send_list, qc->iel, &ifrms);
-				sret = qc_send(qc, 0, &send_list);
+				sret = qc_send(qc, 0, &send_list, 0);
 				qc_free_frm_list(qc, &ifrms);
 				qc_free_frm_list(qc, &hfrms);
-				if (!sret)
+				if (sret < 0)
 					goto leave;
 
 				break;
@@ -957,9 +992,9 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 				if (!LIST_ISEMPTY(&frms1)) {
 					hpktns->tx.pto_probe = 1;
 					qel_register_send(&send_list, qc->hel, &frms1);
-					sret = qc_send(qc, 1, &send_list);
+					sret = qc_send(qc, 1, &send_list, 0);
 					qc_free_frm_list(qc, &frms1);
-					if (!sret)
+					if (sret < 0)
 						goto leave;
 				}
 			}
@@ -980,9 +1015,9 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 			if (!LIST_ISEMPTY(&frms1)) {
 				apktns->tx.pto_probe = 1;
 				qel_register_send(&send_list, qc->ael, &frms1);
-				sret = qc_send(qc, 1, &send_list);
+				sret = qc_send(qc, 1, &send_list, 0);
 				qc_free_frm_list(qc, &frms1);
-				if (!sret) {
+				if (sret < 0) {
 					qc_free_frm_list(qc, &frms2);
 					goto leave;
 				}
@@ -991,9 +1026,9 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 			if (!LIST_ISEMPTY(&frms2)) {
 				apktns->tx.pto_probe = 1;
 				qel_register_send(&send_list, qc->ael, &frms2);
-				sret = qc_send(qc, 1, &send_list);
+				sret = qc_send(qc, 1, &send_list, 0);
 				qc_free_frm_list(qc, &frms2);
-				if (!sret)
+				if (sret < 0)
 					goto leave;
 			}
 			TRACE_STATE("no more need to probe 01RTT packet number space",
