@@ -1474,8 +1474,51 @@ static int cfg_parse_global_env_opts(char **args, int section_type,
 	return 0;
 }
 
+static int cfg_parse_global_parser_pause(char **args, int section_type,
+                                         struct proxy *curpx, const struct proxy *defpx,
+                                         const char *file, int line, char **err)
+{
+	unsigned int ms = 0;
+	const char *res;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects a timer value between 0 and 65535 ms.", args[0]);
+		return -1;
+	}
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+
+	res = parse_time_err(args[1], &ms, TIME_UNIT_MS);
+	if (res == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument <%s> to <%s>, maximum value is 65535 ms.",
+				args[1], args[0]);
+		return -1;
+	}
+	else if (res == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument <%s> to <%s>, minimum non-null value is 1 ms.",
+				args[1], args[0]);
+		return -1;
+	}
+	else if (res) {
+		memprintf(err, "unexpected character '%c' in argument to <%s>.", *res, args[0]);
+		return -1;
+	}
+
+	if (ms > 65535) {
+		memprintf(err, "'%s' expects a timer value between 0 and 65535 ms.", args[0]);
+		return -1;
+	}
+
+	usleep(ms * 1000);
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "prealloc-fd", cfg_parse_prealloc_fd },
+	{ CFG_GLOBAL, "force-cfg-parser-pause", cfg_parse_global_parser_pause, KWF_EXPERIMENTAL },
 	{ CFG_GLOBAL, "harden.reject-privileged-ports.tcp",  cfg_parse_reject_privileged_ports },
 	{ CFG_GLOBAL, "harden.reject-privileged-ports.quic", cfg_parse_reject_privileged_ports },
 	{ CFG_GLOBAL, "master-worker", cfg_parse_global_master_worker },

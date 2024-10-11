@@ -4304,6 +4304,23 @@ anonkey <key>
   from the CLI command "set anon global-key". See also command line argument
   "-dC" in the management manual.
 
+force-cfg-parser-pause <timeout>
+  This command is pausing the configuration parser for <timeout> milliseconds.
+  This is useful for development or for testing timeouts of init scripts,
+  particularly to simulate a very long reload.
+  It requires the expose-experimental-directives to be set.
+
+  <timeout> is the timeout value specified in milliseconds by default, but
+              can be in any other unit if the number is suffixed by the unit,
+              as explained at the top of this document.
+
+  Example:
+
+    global
+        expose-experimental-directives
+        force-cfg-parser-pause 10s
+
+
 quick-exit
   This speeds up the old process exit upon reload by skipping the releasing of
   memory objects and listeners, since all of these are reclaimed by the
