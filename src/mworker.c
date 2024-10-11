@@ -417,7 +417,10 @@ restart_wait:
 					exitcode = status;
 			} else {
 				if (child->options & PROC_O_TYPE_WORKER) {
-					ha_warning("Former worker (%d) exited with code %d (%s)\n", exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
+					if (child->reloads > max_reloads)
+						ha_warning("Former worker (%d) exited with code %d (%s), as it exceeds max reloads (%d)\n", exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit", max_reloads);
+					else
+						ha_warning("Former worker (%d) exited with code %d (%s)\n", exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 					/* Delete fd from poller fdtab, which will close it */
 					fd_delete(child->ipc_fd[0]);
 					delete_oldpid(exitpid);
