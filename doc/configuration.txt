@@ -9331,16 +9331,16 @@ no option forwarded
     <host_expr>     optional argument to specify a custom sample expression
                     those result will be used as 'host' parameter value
 
-    <by_expr>       optional argument to specicy a custom sample expression
+    <by_expr>       optional argument to specify a custom sample expression
                     those result will be used as 'by' parameter nodename value
 
-    <for_expr>      optional argument to specicy a custom sample expression
+    <for_expr>      optional argument to specify a custom sample expression
                     those result will be used as 'for' parameter nodename value
 
-    <by_port_expr>  optional argument to specicy a custom sample expression
+    <by_port_expr>  optional argument to specify a custom sample expression
                     those result will be used as 'by' parameter nodeport value
 
-    <for_port_expr> optional argument to specicy a custom sample expression
+    <for_port_expr> optional argument to specify a custom sample expression
                     those result will be used as 'for' parameter nodeport value
 
 
