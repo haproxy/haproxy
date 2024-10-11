@@ -845,11 +845,6 @@ void mworker_create_master_cli(void)
 {
 	struct wordlist *it, *c;
 
-	/* get the info of the children in the env */
-	if (mworker_env_to_proc_list() < 0) {
-		exit(EXIT_FAILURE);
-	}
-
 	if (!LIST_ISEMPTY(&mworker_cli_conf)) {
 		char *path = NULL;
 

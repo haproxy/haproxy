@@ -3714,6 +3714,15 @@ int main(int argc, char **argv)
 	 */
 	step_init_1();
 
+	/* deserialize processes list, if we do reload in master-worker mode */
+	if ((getenv("HAPROXY_MWORKER_REEXEC") != NULL)) {
+		if (mworker_env_to_proc_list() < 0) {
+			ha_alert("Master failed to deserialize monitored processes list, "
+				 "it's a non-recoverable error, exiting.\n");
+			exit(EXIT_FAILURE);
+		}
+	}
+
 	/* parse conf in disovery mode and set modes from config */
 	read_cfg_in_discovery_mode(argc, argv);
 
