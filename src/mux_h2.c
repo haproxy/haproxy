@@ -4354,7 +4354,6 @@ static void h2_process_demux(struct h2c *h2c)
 		h2c_unblock_sfctl(h2c);
 	}
 
-	h2c_restart_reading(h2c, 0);
  out:
 	TRACE_LEAVE(H2_EV_H2C_WAKE, h2c->conn);
 	return;
@@ -4789,6 +4788,7 @@ leave:
 static int h2_process(struct h2c *h2c)
 {
 	struct connection *conn = h2c->conn;
+	int extra_reads = MIN(MAX(bl_avail(h2c->shared_rx_bufs), 1) - 1, 12);
 
 	TRACE_ENTER(H2_EV_H2C_WAKE, conn);
 
@@ -4796,7 +4796,26 @@ static int h2_process(struct h2c *h2c)
 	    (b_data(&h2c->dbuf) || (h2c->flags & H2_CF_RCVD_SHUT))) {
 		int prev_glitches = h2c->glitches;
 
-		h2_process_demux(h2c);
+		do {
+			h2_process_demux(h2c);
+			if (!extra_reads--)
+				break;
+
+			/* hint: if we ended up aligned on a frame, we've very
+			 * likely reached the end, no point trying again.
+			 */
+			if (h2c->st0 == H2_CS_FRAME_H)
+				break;
+
+			if (!h2_recv_allowed(h2c))
+				break;
+
+			/* OK, it's worth trying to grab a few more frames */
+			h2_recv(h2c);
+		} while ((b_data(&h2c->dbuf) && h2_may_demux(h2c)) || (h2c->flags & H2_CF_RCVD_SHUT));
+
+		/* now's time to wake the task up */
+		h2c_restart_reading(h2c, 0);
 
 		if (h2c->glitches != prev_glitches && !(h2c->flags & H2_CF_IS_BACK))
 			session_add_glitch_ctr(h2c->conn->owner, h2c->glitches - prev_glitches);
