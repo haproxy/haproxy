@@ -3016,6 +3016,12 @@ static void run_master_in_recovery_mode(int argc, char **argv)
 	list_for_each_entry(proc, &proc_list, list) {
 		proc->failedreloads++;
 	}
+#if defined(USE_SYSTEMD)
+	/* the sd_notify API is not able to send a reload failure signal. So
+	 * the READY=1 signal still need to be sent */
+	if (global.tune.options & GTUNE_USE_SYSTEMD)
+		sd_notify(0, "READY=1\nSTATUS=Reload failed (master failed to load or to parse new configuration)!\n");
+#endif
 
 	global.nbtgroups = 1;
 	global.nbthread = 1;
@@ -4038,10 +4044,6 @@ int main(int argc, char **argv)
 		ha_free(&msg);
 	}
 
-#if defined(USE_SYSTEMD)
-	if (global.tune.options & GTUNE_USE_SYSTEMD)
-		sd_notifyf(0, "READY=1\nMAINPID=%lu\nSTATUS=Ready.\n", (unsigned long)getpid());
-#endif
 	/* Finally, start the poll loop for the first thread */
 	run_thread_poll_loop(&ha_thread_info[0]);
 

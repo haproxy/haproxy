@@ -26,6 +26,10 @@
 
 #include <net/if.h>
 
+#if defined(USE_SYSTEMD)
+#include <haproxy/systemd.h>
+#endif
+
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
 #include <haproxy/base64.h>
@@ -2498,6 +2502,10 @@ static int _send_status(char **args, char *payload, struct appctx *appctx, void 
 	setenv("HAPROXY_LOAD_SUCCESS", "1", 1);
 	ha_notice("Loading success.\n");
 
+#if defined(USE_SYSTEMD)
+	if (global.tune.options & GTUNE_USE_SYSTEMD)
+		sd_notifyf(0, "READY=1\nMAINPID=%lu\nSTATUS=Ready.\n", (unsigned long)getpid());
+#endif
 	return 1;
 }
 
