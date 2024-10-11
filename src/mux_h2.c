@@ -7193,6 +7193,7 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	struct htx *h2s_htx = NULL;
 	struct htx *buf_htx = NULL;
 	size_t ret = 0;
+	uint prev_h2c_flags = h2c->flags;
 
 	TRACE_ENTER(H2_EV_STRM_RECV, h2c->conn, h2s);
 
@@ -7255,11 +7256,13 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 		h2s_propagate_term_flags(h2c, h2s);
 	}
 
-	if (ret && h2c->dsi == h2s->id) {
-		/* demux is blocking on this stream's buffer */
+	/* the demux might have been blocking on this stream's buffer */
+	if (ret && h2c->dsi == h2s->id)
 		h2c->flags &= ~H2_CF_DEM_SFULL;
+
+	/* wake up processing if we've unblocked something */
+	if ((prev_h2c_flags & ~h2c->flags) & H2_CF_DEM_SFULL)
 		h2c_restart_reading(h2c, 1);
-	}
 
 	TRACE_LEAVE(H2_EV_STRM_RECV, h2c->conn, h2s);
 	return ret;
