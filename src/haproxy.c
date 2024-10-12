@@ -155,7 +155,7 @@ char *build_features = "";
 /* list of config files */
 static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
 int  pid;			/* current process id */
-char **init_env;
+char **init_env;		/* to keep current process env variables backup */
 int  pidfd = -1;		/* FD to keep PID */
 
 static unsigned long stopping_tgroup_mask; /* Thread groups acknowledging stopping */
@@ -727,6 +727,24 @@ static void mworker_reexec(int hardreload)
 	int x_off = 0; /* disable -x by putting -x /dev/null */
 
 	mworker_block_signals();
+
+	/* restore initial environment (before parsing the config) and do re-exec.
+	 * The initial process environment should be restored here, preceded by
+	 * clean_env(), which do the same job as clearenv().
+	 * Otherwise, after the re-exec we will start the new worker in the
+	 * environment modified by '*env' keywords from the previous configuration,
+	 * i.e. existed before the reload.
+	 */
+	if (clean_env() != 0) {
+		ha_alert("Master encountered a non-recoverable error, exiting.\n");
+		exit(EXIT_FAILURE);
+	}
+
+	if (restore_env() != 0) {
+		ha_alert("Master encountered a non-recoverable error, exiting.\n");
+		exit(EXIT_FAILURE);
+	}
+
 	setenv("HAPROXY_MWORKER_REEXEC", "1", 1);
 
 	mworker_cleanup_proc();
@@ -3729,6 +3747,12 @@ int main(int argc, char **argv)
 		}
 	}
 
+	/* backup initial process env, because parse_cfg() could modify it with
+	 * setenv/unsetenv/presetenv/resetenv keywords.
+	 */
+	if (backup_env() != 0)
+		exit(EXIT_FAILURE);
+
 	/* parse conf in disovery mode and set modes from config */
 	read_cfg_in_discovery_mode(argc, argv);
 
@@ -3775,6 +3799,18 @@ int main(int argc, char **argv)
 		 * reset non_global_section_parsed counter for the second
 		 * configuration reading
 		 */
+		if (global.mode & MODE_MWORKER) {
+			if (clean_env() != 0) {
+				ha_alert("Worker failed to clean its env, exiting.\n");
+				exit(EXIT_FAILURE);
+			}
+
+			if (restore_env() != 0) {
+				ha_alert("Worker failed to restore its env, exiting.\n");
+				exit(EXIT_FAILURE);
+			}
+			setenv("HAPROXY_MWORKER", "1", 1);
+		}
 		non_global_section_parsed = 0;
 		if (read_cfg(progname) < 0) {
 			list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
