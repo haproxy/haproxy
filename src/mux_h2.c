@@ -568,7 +568,9 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 		return;
 
 	if (src->verbosity > H2_VERB_CLEAN) {
-		chunk_appendf(&trace_buf, " : h2c=%p(%c,%s)", h2c, conn_is_back(conn) ? 'B' : 'F', h2c_st_to_str(h2c->st0));
+		chunk_appendf(&trace_buf, " : h2c=%p(%c=%s,%s,%#x)",
+		              h2c, conn_is_back(conn) ? 'B' : 'F', h2c->proxy->id,
+		              h2c_st_to_str(h2c->st0), h2c->flags);
 
 		if (mask & H2_EV_H2C_NEW) // inside h2_init, otherwise it's hard to match conn & h2c
 			conn_append_debug_info(&trace_buf, conn, " : ");
@@ -590,7 +592,10 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 			if (h2s == h2_idle_stream)
 				chunk_appendf(&trace_buf, " h2s=IDL");
 			else if (h2s != h2_closed_stream && h2s != h2_refused_stream && h2s != h2_error_stream)
-				chunk_appendf(&trace_buf, " h2s=%p(%d,%s)", h2s, h2s->id, h2s_st_to_str(h2s->st));
+				chunk_appendf(&trace_buf, " h2s=%p(%d,%s,%#x) .rxw=%u .txw=%d",
+				              h2s, h2s->id, h2s_st_to_str(h2s->st), h2s->flags,
+				              (uint)(h2s->next_max_ofs - h2s->curr_rx_ofs),
+				              h2s->sws + h2c->miw);
 			else if (h2c->dsi > 0) // don't show that before sid is known
 				chunk_appendf(&trace_buf, " h2s=CLO");
 			if (h2s->id && h2s->errcode)
