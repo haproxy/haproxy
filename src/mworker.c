@@ -802,29 +802,29 @@ static int cli_io_handler_show_loadstatus(struct appctx *appctx)
 static int mworker_parse_global_max_reloads(char **args, int section_type, struct proxy *curpx,
            const struct proxy *defpx, const char *file, int linenum, char **err)
 {
-
-	int err_code = 0;
 	if (!(global.mode & MODE_DISCOVERY))
 		return 0;
 
-	if (alertif_too_many_args(1, file, linenum, args, &err_code))
-		goto out;
+	if (strcmp(args[0], "mworker-max-reloads") == 0) {
+		if (too_many_args(1, args, err, NULL))
+			return -1;
 
-	if (*(args[1]) == 0) {
-		memprintf(err, "%sparsing [%s:%d] : '%s' expects an integer argument.\n", *err, file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+
+		max_reloads = atol(args[1]);
+		if (max_reloads < 0) {
+			memprintf(err, "'%s' expects a positive value or zero.", args[0]);
+			return -1;
+		}
+	} else {
+		BUG_ON(1, "Triggered in mworker_parse_global_max_reloads() by unsupported keyword.\n");
+		return -1;
 	}
 
-	max_reloads = atol(args[1]);
-	if (max_reloads < 0) {
-		memprintf(err, "%sparsing [%s:%d] '%s' : invalid value %d, must be >= 0", *err, file, linenum, args[0], max_reloads);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-
-out:
-	return err_code;
+	return 0;
 }
 
 void mworker_free_child(struct mworker_proc *child)
