@@ -96,6 +96,8 @@ struct h2c {
 	struct list blocked_list; /* list of streams blocked for other reasons (e.g. sfctl, dep) */
 	struct buffer_wait buf_wait; /* wait list for buffer allocations */
 	struct wait_event wait_event;  /* To be used if we're waiting for I/Os */
+
+	struct list *next_tasklet; /* which applet to wake up next (NULL by default) */
 };
 
 
@@ -1218,6 +1220,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->proxy = prx;
 	h2c->task = NULL;
 	h2c->wait_event.tasklet = NULL;
+	h2c->next_tasklet = NULL;
 	h2c->shared_rx_bufs = NULL;
 	h2c->idle_start = now_ms;
 	if (tick_isset(h2c->timeout)) {
@@ -1491,7 +1494,11 @@ static void __maybe_unused h2s_notify_recv(struct h2s *h2s)
 {
 	if (h2s->subs && h2s->subs->events & SUB_RETRY_RECV) {
 		TRACE_POINT(H2_EV_STRM_WAKE, h2s->h2c->conn, h2s);
-		tasklet_wakeup(h2s->subs->tasklet);
+		if (h2s->h2c->next_tasklet ||
+		    (th_ctx->current && th_ctx->current->process == h2_io_cb))
+			h2s->h2c->next_tasklet = tasklet_wakeup_after(h2s->h2c->next_tasklet, h2s->subs->tasklet);
+		else
+			tasklet_wakeup(h2s->subs->tasklet);
 		h2s->subs->events &= ~SUB_RETRY_RECV;
 		if (!h2s->subs->events)
 			h2s->subs = NULL;
@@ -4763,10 +4770,13 @@ struct task *h2_io_cb(struct task *t, void *ctx, unsigned int state)
 	/* If we were in an idle list, we want to add it back into it,
 	 * unless h2_process() returned -1, which mean it has destroyed
 	 * the connection (testing !ret is enough, if h2_process() wasn't
-	 * called then ret will be 0 anyway.
+	 * called then ret will be 0 anyway. Otherwise we reset the next
+	 * tasklet to disable instant wakeups from external callers.
 	 */
 	if (ret < 0)
 		t = NULL;
+	else
+		h2c->next_tasklet = NULL;
 
 	if (!ret && conn_in_list) {
 		struct server *srv = objt_server(conn->target);
