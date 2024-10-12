@@ -541,6 +541,10 @@ static void h2s_alert(struct h2s *h2s);
 static inline void h2_remove_from_list(struct h2s *h2s);
 static int h2_dump_h2c_info(struct buffer *msg, struct h2c *h2c, const char *pfx);
 static int h2_dump_h2s_info(struct buffer *msg, const struct h2s *h2s, const char *pfx);
+static inline struct buffer *h2s_rxbuf_head(const struct h2s *h2s);
+static inline struct buffer *h2s_rxbuf_tail(const struct h2s *h2s);
+static inline struct buffer *h2s_rxbuf_head(const struct h2s *h2s);
+static inline struct buffer *h2s_rxbuf_tail(const struct h2s *h2s);
 
 /* returns the stconn associated to the H2 stream */
 static forceinline struct stconn *h2s_sc(const struct h2s *h2s)
@@ -557,6 +561,7 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
                      const struct ist where, const struct ist func,
                      const void *a1, const void *a2, const void *a3, const void *a4)
 {
+	const struct buffer *hmbuf, *tmbuf;
 	const struct connection *conn = a1;
 	const struct h2c *h2c    = conn ? conn->ctx : NULL;
 	const struct h2s *h2s    = a2;
@@ -586,16 +591,40 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 			chunk_appendf(&trace_buf, " dft=%s/%02x dfl=%d", h2_ft_str(h2c->dft), h2c->dff, h2c->dfl);
 		}
 
+		hmbuf = br_head((struct buffer*)h2c->mbuf);
+		tmbuf = br_tail((struct buffer*)h2c->mbuf);
+		chunk_appendf(&trace_buf, " .dbuf=%u@%p+%u/%u .mbuf=[%u..%u|%u],h=[%u@%p+%u/%u],t=[%u@%p+%u/%u]",
+		              (uint)b_data(&h2c->dbuf), b_orig(&h2c->dbuf),
+		              (uint)b_head_ofs(&h2c->dbuf), (uint)b_size(&h2c->dbuf),
+		              br_head_idx(h2c->mbuf), br_tail_idx(h2c->mbuf), br_size(h2c->mbuf),
+		              (uint)b_data(hmbuf), b_orig(hmbuf),
+		              (uint)b_head_ofs(hmbuf), (uint)b_size(hmbuf),
+		              (uint)b_data(tmbuf), b_orig(tmbuf),
+		              (uint)b_head_ofs(tmbuf), (uint)b_size(tmbuf));
+
 		if (h2s) {
 			if (h2s->id <= 0)
 				chunk_appendf(&trace_buf, " dsi=%d", h2c->dsi);
 			if (h2s == h2_idle_stream)
 				chunk_appendf(&trace_buf, " h2s=IDL");
-			else if (h2s != h2_closed_stream && h2s != h2_refused_stream && h2s != h2_error_stream)
-				chunk_appendf(&trace_buf, " h2s=%p(%d,%s,%#x) .rxw=%u .txw=%d",
+			else if (h2s != h2_closed_stream && h2s != h2_refused_stream && h2s != h2_error_stream) {
+				const struct buffer *head, *tail;
+
+				head = h2s_rxbuf_head(h2s);
+				tail = h2s_rxbuf_tail(h2s);
+				chunk_appendf(&trace_buf, " h2s=%p(%d,%s,%#x) .txw=%d .rxw=%u .rxb.c=%u .h=%u@%p+%u/%u .t=%u@%p+%u/%u",
 				              h2s, h2s->id, h2s_st_to_str(h2s->st), h2s->flags,
-				              (uint)(h2s->next_max_ofs - h2s->curr_rx_ofs),
-				              h2s->sws + h2c->miw);
+				              h2s->sws + h2c->miw, (uint)(h2s->next_max_ofs - h2s->curr_rx_ofs),
+				              h2s->rx_count,
+				              head ? (uint)b_data(head) : 0,
+				              head ? b_orig(head) : NULL,
+				              head ? (uint)b_head_ofs(head) : 0,
+				              head ? (uint)b_size(head) : 0,
+				              tail ? (uint)b_data(tail) : 0,
+				              tail ? b_orig(tail) : NULL,
+				              tail ? (uint)b_head_ofs(tail) : 0,
+				              tail ? (uint)b_size(tail) : 0);
+			}
 			else if (h2c->dsi > 0) // don't show that before sid is known
 				chunk_appendf(&trace_buf, " h2s=CLO");
 			if (h2s->id && h2s->errcode)
