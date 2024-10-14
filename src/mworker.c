@@ -803,11 +803,6 @@ void mworker_create_master_cli(void)
 	if (!LIST_ISEMPTY(&mworker_cli_conf)) {
 		char *path = NULL;
 
-		if (mworker_cli_proxy_create() < 0) {
-			ha_alert("Can't create the master's CLI.\n");
-			exit(EXIT_FAILURE);
-		}
-
 		list_for_each_entry_safe(c, it, &mworker_cli_conf, list) {
 			if (mworker_cli_master_proxy_new_listener(c->s) == NULL) {
 				ha_alert("Can't create the master's CLI.\n");

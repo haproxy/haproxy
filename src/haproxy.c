@@ -2217,7 +2217,14 @@ static void init(int argc, char **argv)
 			 */
 			global.nbtgroups = 1;
 			global.nbthread = 1;
-			/* master CLI */
+
+			/* creates MASTER proxy and attaches server to child->ipc_fd[0] */
+			if (mworker_cli_proxy_create() < 0) {
+				ha_alert("Can't create the master's CLI.\n");
+				exit(EXIT_FAILURE);
+			}
+
+			/* creates reload sockpair and listeners for master CLI (-S) */
 			mworker_create_master_cli();
 		}
 	}
