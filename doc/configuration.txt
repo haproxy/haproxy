@@ -19760,6 +19760,8 @@ rfc7239_field(field)                               string       string
 rfc7239_is_valid                                   string       boolean
 rfc7239_n2nn                                       string       address / str
 rfc7239_n2np                                       string       integer / str
+rfc7239_nn                                         address/str  string
+rfc7239_np                                         integer/str  string
 rtrim(chars)                                       string       string
 sdbm([avalanche])                                  binary       integer
 secure_memcmp(var)                                 string       boolean
@@ -20837,6 +20839,52 @@ rfc7239_n2np
     #  output: 9998 (integer)
     #input: "_name:_port"
     #  output: "_port" (string)
+
+rfc7239_nn
+  Converts provided address / string input into RFC7239-compliant node name.
+  It may be used to manually build 'for' or 'by' 7239 header fields.
+
+  When provided input is string, it will be automatically prefixed with '_'
+  char to represent obfuscated identifier. String must comply with RFC7239
+  charset. If string is empty, it will be converter to "unknown" identifier.
+
+  Example:
+    #input: ipv6(ab:cd:ff:ff:ff:ff:ff:ff)
+    #  output: "[ab:cd:ff:ff:ff:ff:ff:ff]"
+    #input: str(test)
+    #  output: "_test"
+    #input: str()
+    #  output: "unknown"
+
+  See also: "rfc7239_np"
+
+rfc7239_np
+  Converts provided unsigned integer / string input into RFC7239-compliant node
+  port. It may be used to manually build 'for' or 'by' 7239 header fields.
+
+  When provided input is string, it will be automatically prefixed with '_'
+  char to represent obfuscated identifier. String must comply with RFC7239
+  charset and cannot be empty.
+
+  Example:
+    #input: int(12)
+    #  output: "12"
+    #input: str(test)
+    #  output: "_test"
+
+    # build 'for' forwarded header field
+    http-request set-var-fmt(txn.test) "for=\"%[ipv6(::1),rfc7239_nn]:%[int(8080),rfc7239_np]\";"
+    #  output: "for=\"[::1]:8080\";"
+
+    # build RFC-compliant 7239 header:
+    http-request set-var-fmt(txn.forwarded) "for=\"%[ipv6(::1),rfc7239_nn]:%[str(8888),rfc7239_np]\";host=\"haproxy.org\";proto=http"
+    # check RFC-compliancy:
+    http-request set-var(txn.test) "var(txn.forwarded),debug(test,stderr),rfc7239_is_valid,debug(test,stderr)"
+    #  stderr output:
+    #    [debug] test: type=str <for="[::1]:_8888";host="haproxy.org";proto=http>
+    #    [debug] test: type=bool <1>
+
+  See also: "rfc7239_nn"
 
 rtrim(<chars>)
   Skips any characters from <chars> from the end of the string representation
