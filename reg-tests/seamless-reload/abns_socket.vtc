@@ -45,6 +45,7 @@ haproxy h1 -W -S -conf {
 } -start
 
 shell {
+    sleep 0.1  ;# let the master process fully start and bind
     echo "reload" | socat -t1000 TCP:${h1_mcli_addr}:${h1_mcli_port} - | grep 'Success=1'
 }
 
