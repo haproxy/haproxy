@@ -748,10 +748,21 @@ static int cli_parse_reload(char **args, char *payload, struct appctx *appctx, v
  * If the startup-logs is available, dump it.  */
 static int cli_io_handler_show_loadstatus(struct appctx *appctx)
 {
+	struct mworker_proc *proc;
 	char *env;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
+
+	/* if the worker is still in the process of starting, we have to
+	 * wait a little bit before trying again to get a final status.
+	 */
+	list_for_each_entry(proc, &proc_list, list) {
+		if (proc->options & PROC_O_INIT) {
+			appctx->t->expire = tick_add(now_ms, 50);
+			return 0;
+		}
+	}
 
 	env = getenv("HAPROXY_LOAD_SUCCESS");
 	if (!env)
