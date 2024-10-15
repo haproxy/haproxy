@@ -2151,8 +2151,6 @@ static void init(int argc, char **argv)
 		struct mworker_proc *child;
 		struct ring *tmp_startup_logs = NULL;
 
-		/* at this point the worker must have his own startup_logs buffer */
-		tmp_startup_logs = startup_logs_dup(startup_logs);
 		worker_pid = fork();
 		switch (worker_pid) {
 		case -1:
@@ -2160,7 +2158,11 @@ static void init(int argc, char **argv)
 
 			exit(EXIT_FAILURE);
 		case 0:
-			/* in child */
+			/* in child: at this point the worker must have his own startup_logs buffer */
+			tmp_startup_logs = startup_logs_dup(startup_logs);
+			if (tmp_startup_logs == NULL)
+				exit(EXIT_FAILURE);
+
 			startup_logs_free(startup_logs);
 			startup_logs = tmp_startup_logs;
 			/* This one must not be exported, it's internal! */
