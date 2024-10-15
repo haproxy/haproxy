@@ -2565,6 +2565,44 @@ static int qcc_wake_some_streams(struct qcc *qcc)
 	return 0;
 }
 
+/* Checks whether QUIC handshake is still active or not. This is necessary to
+ * mark that connection may convey early data to delay stream processing if
+ * wait-for-handshake is active. On handshake completion, any SE_FL_WAIT_FOR_HS
+ * streams are woken up to restart their processing.
+ */
+static void qcc_wait_for_hs(struct qcc *qcc)
+{
+	struct connection *conn = qcc->conn;
+	struct quic_conn *qc = conn->handle.qc;
+	struct eb64_node *node;
+	struct qcs *qcs;
+
+	if (qc->state < QUIC_HS_ST_COMPLETE) {
+		if (!(conn->flags & CO_FL_EARLY_SSL_HS)) {
+			TRACE_STATE("flag connection with early data", QMUX_EV_QCC_WAKE, conn);
+			conn->flags |= CO_FL_EARLY_SSL_HS;
+			/* subscribe for handshake completion */
+			conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV,
+			                      &qcc->wait_event);
+		}
+	}
+	else {
+		if (conn->flags & CO_FL_EARLY_SSL_HS) {
+			TRACE_STATE("mark early data as ready", QMUX_EV_QCC_WAKE, conn);
+			conn->flags &= ~CO_FL_EARLY_SSL_HS;
+		}
+		qcc->flags |= QC_CF_WAIT_FOR_HS;
+
+		node = eb64_first(&qcc->streams_by_id);
+		while (node) {
+			qcs = container_of(node, struct qcs, by_id);
+			if (se_fl_test(qcs->sd, SE_FL_WAIT_FOR_HS))
+				qcs_notify_recv(qcs);
+			node = eb64_next(node);
+		}
+	}
+}
+
 /* Conduct operations which should be made for <qcc> connection after
  * input/output. Most notably, closed streams are purged which may leave the
  * connection has ready to be released.
@@ -2574,6 +2612,9 @@ static int qcc_wake_some_streams(struct qcc *qcc)
 static int qcc_io_process(struct qcc *qcc)
 {
 	qcc_purge_streams(qcc);
+
+	if (!(qcc->flags & QC_CF_WAIT_FOR_HS))
+		qcc_wait_for_hs(qcc);
 
 	/* Check if a soft-stop is in progress.
 	 *
