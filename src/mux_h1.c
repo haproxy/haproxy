@@ -433,10 +433,17 @@ static void h1_trace(enum trace_level level, uint64_t mask, const struct trace_s
 				      (unsigned int)b_data(&h1c->ibuf), b_orig(&h1c->ibuf),
 				      (unsigned int)b_head_ofs(&h1c->ibuf), (unsigned int)b_size(&h1c->ibuf));
 		if (src->verbosity == H1_VERB_COMPLETE ||
-		    (src->verbosity == H1_VERB_ADVANCED && (mask & (H1_EV_H1C_SEND|H1_EV_STRM_SEND))))
+		    (src->verbosity == H1_VERB_ADVANCED && (mask & (H1_EV_H1C_SEND|H1_EV_STRM_SEND)))) {
 			chunk_appendf(&trace_buf, " obuf=%u@%p+%u/%u",
 				      (unsigned int)b_data(&h1c->obuf), b_orig(&h1c->obuf),
 				      (unsigned int)b_head_ofs(&h1c->obuf), (unsigned int)b_size(&h1c->obuf));
+
+			if (h1s && h1s->sd)
+				chunk_appendf(&trace_buf, " iobuf(.pipe=%d, .data=%u+%u, .flags=0x%x)",
+					      (h1s->sd->iobuf.pipe ? h1s->sd->iobuf.pipe->data : 0),
+					      (unsigned int)h1s->sd->iobuf.data, (unsigned int)h1s->sd->iobuf.offset,
+					      h1s->sd->iobuf.flags);
+		}
 	}
 
 	/* Display htx info if defined (level > USER) */
