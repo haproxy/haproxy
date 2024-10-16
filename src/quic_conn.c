@@ -861,6 +861,14 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 			 * TODO implement discarding of 0-RTT keys
 			 */
 		}
+
+		/* Wake up connection layer if on wait-for-handshake. */
+		if (qc->subs && qc->subs->events & SUB_RETRY_RECV) {
+			tasklet_wakeup(qc->subs->tasklet);
+			qc->subs->events &= ~SUB_RETRY_RECV;
+			if (!qc->subs->events)
+				qc->subs = NULL;
+		}
 	}
 
 	/* Insert each QEL into sending list if needed. */
