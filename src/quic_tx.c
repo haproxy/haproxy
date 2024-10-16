@@ -658,6 +658,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 
 				if (err == QC_BUILD_PKT_ERR_ALLOC || err == QC_BUILD_PKT_ERR_ENCRYPT)
 					goto leave;
+				first_pkt = NULL;
 				goto out;
 			}
 
@@ -692,10 +693,8 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			BUG_ON(padding && !next_qel);
 
 			/* Build only one datagram when an immediate close is required. */
-			if (cc) {
-				qc_txb_store(buf, dglen, first_pkt);
+			if (cc)
 				goto out;
-			}
 
 			/* Only one short packet by datagram when probing. */
 			if (probe && qel == qc->ael)
@@ -742,10 +741,10 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		TRACE_DEVEL("next encryption level", QUIC_EV_CONN_PHPKTS, qc);
 	}
 
+ out:
 	if (first_pkt)
 		qc_txb_store(buf, wrlen, first_pkt);
 
- out:
 	if (cc && total) {
 		BUG_ON(buf != &qc->tx.cc_buf);
 		BUG_ON(dglen != total);
