@@ -81,13 +81,13 @@ static forceinline char *h2c_show_flags(char *buf, size_t len, const char *delim
 	_(0);
 	/* flags */
 	_(H2_CF_MUX_MALLOC, _(H2_CF_MUX_MFULL, _(H2_CF_DEM_DALLOC,
-	_(H2_CF_DEM_DFULL, _(H2_CF_WAIT_INLIST, _(H2_CF_DEM_MROOM,
+	_(H2_CF_DEM_DFULL, _(H2_CF_WAIT_INLIST, _(H2_CF_DEM_RXBUF, _(H2_CF_DEM_MROOM,
 	_(H2_CF_DEM_SALLOC, _(H2_CF_DEM_SFULL, _(H2_CF_DEM_TOOMANY,
 	_(H2_CF_DEM_SHORT_READ, _(H2_CF_DEM_IN_PROGRESS, _(H2_CF_MBUF_HAS_DATA,
 	_(H2_CF_GOAWAY_SENT, _(H2_CF_GOAWAY_FAILED, _(H2_CF_WAIT_FOR_HS, _(H2_CF_IS_BACK,
 	_(H2_CF_WINDOW_OPENED, _(H2_CF_RCVD_SHUT, _(H2_CF_END_REACHED,
 	_(H2_CF_RCVD_RFC8441, _(H2_CF_SHTS_UPDATED, _(H2_CF_DTSU_EMITTED,
-	_(H2_CF_ERR_PENDING, _(H2_CF_ERROR))))))))))))))))))))))));
+	_(H2_CF_ERR_PENDING, _(H2_CF_ERROR)))))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
@@ -149,7 +149,7 @@ static forceinline char *h2s_show_flags(char *buf, size_t len, const char *delim
 	_(H2_SF_BODY_TUNNEL, _(H2_SF_NOTIFIED, _(H2_SF_HEADERS_SENT,
 	_(H2_SF_OUTGOING_DATA, _(H2_SF_HEADERS_RCVD, _(H2_SF_WANT_SHUTR,
 	_(H2_SF_WANT_SHUTW, _(H2_SF_EXT_CONNECT_SENT, _(H2_SF_EXT_CONNECT_RCVD,
-	_(H2_SF_TUNNEL_ABRT, _(H2_SF_MORE_HTX_DATA)))))))))))))))))))));
+	_(H2_SF_TUNNEL_ABRT, _(H2_SF_MORE_HTX_DATA, _(H2_SF_EXPECT_RXDATA))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
