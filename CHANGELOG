@@ -1,6 +1,127 @@
 ChangeLog :
 ===========
 
+2024/10/16 : 3.1-dev10
+    - BUG/MAJOR: mux-quic: do not crash on empty STREAM frame emission
+    - BUG/MINOR: stats: Fix the name for the total number of streams created
+    - MINOR: quic: strengthen qc_release_frm()
+    - MEDIUM: quic: decount acknowledged data for MUX txbuf window
+    - MINOR: quic: implement dedicated type for out-of-order stream ACK
+    - MEDIUM: quic: merge contiguous/overlapping buffered ack stream range
+    - MEDIUM: quic: decount out-of-order ACK data range for MUX txbuf window
+    - MINOR: log: add do_log() logging helper
+    - MINOR: log: add do_log_parse_act() helper func
+    - MINOR: action: add do-log action
+    - REGTESTS: add some tests for 'do-log' action
+    - BUG/MEDIUM: hlua: make hlua_ctx_renew() safe
+    - BUG/MEDIUM: hlua: properly handle sample func errors in hlua_run_sample_{fetch,conv}()
+    - BUG/MINOR: quic: fix discarding of already stored out-of-order ACK
+    - BUG/MEDIUM: quic: properly decount out-of-order ACK on stream release
+    - MINOR: ssl: disable server side default CRL check with WolfSSL
+    - MEDIUM: sink: implement sink_find_early()
+    - MINOR: trace: postresolve sink names
+    - MINOR: sample: postresolve sink names in debug() converter
+    - BUG/MEDIUM: mux-quic: ensure timeout server is active for short requests
+    - MINOR: cfgparse: simulate long configuration parsing with force-cfg-parser-pause
+    - BUILD: cache: silence an uninitialized warning at -Og with gcc-12.2
+    - BUG/MINOR: mux-h2/traces: present the correct buffer for trailers errors traces
+    - MINOR: mux-h2/traces: print the size of the DATA frames
+    - CLEANUP: muxes: remove useless inclusion of ebmbtree.h
+    - REORG: buffers: move some of the heavy functions from buf.h to buf.c
+    - MINOR: buffer: add a buffer list type with functions
+    - MINOR: mux-h2: split the amount of rx data from the amount to ack
+    - MINOR: mux-h2: create and initialize an rx offset per stream
+    - MEDIUM: mux-h2: start to update stream when sending WU
+    - MEDIUM: mux-h2: start to introduce the window size in the offset calculation
+    - MINOR: mux-h2: count within a connection, how many streams are receiving data
+    - MINOR: mux-h2: allocate the array of shared rx bufs in the h2c
+    - MINOR: mux-h2: add rxbuf head/tail/count management for h2s
+    - MINOR: mux-h2: move H2_CF_WAIT_IN_LIST flag away from the demux flags
+    - MINOR: mux-h2: simplify the exit code in h2_rcv_buf()
+    - MINOR: mux-h2: simplify the wake up code in h2_rcv_buf()
+    - MINOR: mux-h2: clear up H2_CF_DEM_DFULL and H2_CF_DEM_SHORT_READ ambiguity
+    - MAJOR: mux-h2: make streams use the connection's buffers
+    - MAJOR: mux-h2: permit a stream to allocate as many buffers as desired
+    - MAJOR: mux-h2: make the rxbuf allocation algorithm a bit smarter
+    - MINOR: mux-h2: add tune.h2.be.rxbuf and tune.h2.fe.rxbuf global settings
+    - MEDIUM: mux-h2: change the default initial window to 16kB
+    - DOC: design-thoughts: add diagrams illustrating an rx win groth
+    - MEDIUM: mux-h2: rework h2_restart_reading() to differentiate recv and demux
+    - OPTIM: mux-h2: make h2_send() report more accurate wake up conditions
+    - OPTIM: mux-h2: try to continue reading after demuxing when useful
+    - OPTIM: mux-h2: use tasklet_wakeup_after() in h2s_notify_recv()
+    - MINOR: mux-h2/traces: add missing flags and proxy ID in traces
+    - MINOR: mux-h2/traces: add buffer-related info to h2s and h2c
+    - CI: cirrus-ci: bump FreeBSD image to 14-1
+    - REGTESTS: fix a reload race in abns_socket.vtc
+    - MINOR: activity/memprofile: always return "other" bin on NULL return address
+    - MINOR: quic: notify connection layer on handshake completion
+    - BUG/MINOR: stream: unblock stream on wait-for-handshake completion
+    - BUG/MEDIUM: quic: support wait-for-handshake
+    - BUG/MEDIUM: server: server stuck in maintenance after FQDN change
+    - BUG/MEDIUM: queue: make sure never to queue when there's no more served conns
+    - DEBUG: mux-h2/flags: add H2_CF_DEM_RXBUF & H2_SF_EXPECT_RXDATA for the decoder
+    - REGTESTS: cli: add delay 0.1 before connect to cli
+    - MINOR: startup: add O_CLOEXEC flag to open /dev/null
+    - MEDIUM: startup: move daemonization fork in init
+    - MINOR: startup: refactor "daemonization" fork
+    - MEDIUM: startup: move PID handling in init()
+    - MAJOR: mworker: move master-worker fork in init()
+    - BUG/MINOR: mworker: fix memory leak due to master-worker fork
+    - REORG: mworker: set nbthread=1 for master after fork
+    - MINOR: init: check MODE_MWORKER before creating master CLI
+    - REORG: mworker: move mworker_create_master_cli in master 'case'
+    - MEDIUM: startup: call chroot() if needed in one place
+    - MEDIUM: startup: do set_identity() if needed in one place
+    - MINOR: startup: only worker gets capabilities from bin
+    - CLEANUP: haproxy: rm no longer used mworker_reexec_waitmode
+    - MINOR: startup: rename exit_on_waitmode_failure to exit_on_failure
+    - MINOR: defaults: update MASTER_MAXCONN description
+    - MEDIUM: startup: remove MODE_MWORKER_WAIT
+    - MINOR: global: add MODE_DISCOVERY flag
+    - MEDIUM: cfgparse: add KWF_DISCOVERY keyword flag
+    - MEDIUM: cfgparse: call some parsers only in MODE_DISCOVERY
+    - MEDIUM: cfgparse-global: parse only KWF_DISCOVERY keywords in MODE_DISCOVERY
+    - MEDIUM: cfgparse: parse only "global" section in MODE_DISCOVERY
+    - MEDIUM: startup: introduce load_cfg and read_cfg
+    - MINOR: cfgparse: fix *thread keywords sensitive to global section position
+    - MINOR: mworker/cli: rename mworker_cli_proxy_new_listener
+    - MINOR: mworker/cli: rename and clean mworker_cli_sockpair_new
+    - MINOR: mworker/cli: create master CLI sockpair before fork
+    - MINOR: mworker/cli: create MASTER proxy before mcli listeners
+    - MINOR: mworker: add and set state PROC_O_INIT for new worker
+    - MEDIUM: mworker/cli: close child and parent fds, setup listeners
+    - MINOR: mworker: mworker_catch_sigchld: use fd_delete instead of close
+    - MINOR: startup: rename and adapt reexec_on_failure
+    - MINOR: mworker: add support for case when new worker dies
+    - MINOR: mworker: simplify the code that sets PROC_O_LEAVING
+    - MINOR: mworker/cli: add _send_status to support state transition
+    - MEDIUM: startup: split sending oldpids_sig logic for standalone and mworker modes
+    - MINOR: startup: split init() into separate initialization routines
+    - MINOR: startup: split main: add step_init_3
+    - MINOR: startup: simplify check for calling sock_get_old_sockets
+    - MINOR: startup: encapsulate sock_get_old_sockets in a function
+    - MINOR: startup: add bind_listeners
+    - MINOR: startup: split main: add step_init_4
+    - MINOR: startup: encapsulate master's code in run_master
+    - MINOR: startup: add read_cfg_in_discovery_mode
+    - MINOR: mworker: adapt exit_on_failure for master recovery mode
+    - MEDIUM: mworker: add support of master recovery mode
+    - MINOR: startup: add set_verbosity
+    - MEDIUM: mworker: block reloads
+    - MINOR: mworker: slow load status delivery if worker is starting
+    - MINOR: mworker: readapt program support in mworker_catch_sigchld
+    - MINOR: mworker: deserialize process list before read_cfg_in_discovery_mode
+    - MINOR: mworker: parse program only in MODE_DISCOVERY
+    - MINOR: cfgparse: add support for program section
+    - MINOR: startup: reintroduce program support
+    - MINOR: mworker-prog: stop old programs in mworker_ext_launch_all
+    - MINOR: mworker: reintroduce systemd support
+    - MINOR: mworker: report explicitly when worker exits due to max reloads
+    - MINOR: cfgparse-global: parse *env keywords in MODE_DISCOVERY
+    - MINOR: startup: reintroduce *env keywords support
+    - MINOR: startup: close devnullfd, when daemon mode is applied
+
 2024/10/03 : 3.1-dev9
     - MINOR: tools: add minimal file name management
     - CLEANUP: stick-table: make the file location point to a global file name
