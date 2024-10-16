@@ -494,8 +494,10 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
 		qc_send(qc, 0, &send_list, 0);
 	}
 
-	if (pacer)
-		max_dgram = 1;
+	if (pacer) {
+		const ullong ns_pkts = quic_pacing_ns_pkt(pacer);
+		max_dgram = global.tune.quic_frontend_max_tx_burst * 1000000 / (ns_pkts + 1) + 1;
+	}
 
 	TRACE_STATE("preparing data (from MUX)", QUIC_EV_CONN_TXPKT, qc);
 	qel_register_send(&send_list, qc->ael, frms);
