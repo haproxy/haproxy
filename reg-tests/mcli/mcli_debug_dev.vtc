@@ -38,6 +38,7 @@ haproxy h1 -W -S -conf {
 } -start
 
 haproxy h1 -mcli {
+    delay 0.1
     send "@1; expert-mode on; debug dev log Victory"
     expect ~ ".*"
 } -wait
