@@ -68,6 +68,7 @@ struct qcc {
 	struct {
 		struct quic_fctl fc; /* stream flow control applied on sending */
 		uint64_t buf_in_flight; /* sum of currently allocated Tx buffer sizes */
+		struct list frms; /* prepared STREAM frames */
 	} tx;
 
 	uint64_t largest_bidi_r; /* largest remote bidi stream ID opened. */

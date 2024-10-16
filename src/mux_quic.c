@@ -2243,7 +2243,6 @@ static int qcs_send(struct qcs *qcs, struct list *frms, uint64_t window_conn)
  */
 static int qcc_io_send(struct qcc *qcc)
 {
-	struct list frms = LIST_HEAD_INIT(frms);
 	/* Temporary list for QCS on error. */
 	struct list qcs_failed = LIST_HEAD_INIT(qcs_failed);
 	struct qcs *qcs, *qcs_tmp, *first_qcs = NULL;
@@ -2337,7 +2336,7 @@ static int qcc_io_send(struct qcc *qcc)
 
 		if (!qfctl_rblocked(&qcc->tx.fc) &&
 		    !qfctl_rblocked(&qcs->tx.fc) && window_conn > total) {
-			if ((ret = qcs_send(qcs, &frms, window_conn - total)) < 0) {
+			if ((ret = qcs_send(qcs, &qcc->tx.frms, window_conn - total)) < 0) {
 				/* Temporarily remove QCS from send-list. */
 				LIST_DEL_INIT(&qcs->el_send);
 				LIST_APPEND(&qcs_failed, &qcs->el_send);
@@ -2361,7 +2360,7 @@ static int qcc_io_send(struct qcc *qcc)
 	/* Retry sending until no frame to send, data rejected or connection
 	 * flow-control limit reached.
 	 */
-	while (qcc_send_frames(qcc, &frms) == 0 && !qfctl_rblocked(&qcc->tx.fc)) {
+	while (qcc_send_frames(qcc, &qcc->tx.frms) == 0 && !qfctl_rblocked(&qcc->tx.fc)) {
 		window_conn = qfctl_rcap(&qcc->tx.fc);
 		resent = 0;
 
@@ -2379,7 +2378,7 @@ static int qcc_io_send(struct qcc *qcc)
 			BUG_ON(resent > window_conn);
 
 			if (!qfctl_rblocked(&qcs->tx.fc) && window_conn > resent) {
-				if ((ret = qcs_send(qcs, &frms, window_conn - resent)) < 0) {
+				if ((ret = qcs_send(qcs, &qcc->tx.frms, window_conn - resent)) < 0) {
 					LIST_DEL_INIT(&qcs->el_send);
 					LIST_APPEND(&qcs_failed, &qcs->el_send);
 					continue;
@@ -2393,10 +2392,10 @@ static int qcc_io_send(struct qcc *qcc)
 
  sent_done:
 	/* Deallocate frames that the transport layer has rejected. */
-	if (!LIST_ISEMPTY(&frms)) {
+	if (!LIST_ISEMPTY(&qcc->tx.frms)) {
 		struct quic_frame *frm, *frm2;
 
-		list_for_each_entry_safe(frm, frm2, &frms, list)
+		list_for_each_entry_safe(frm, frm2, &qcc->tx.frms, list)
 			qc_frm_free(qcc->conn->handle.qc, &frm);
 	}
 
@@ -2717,6 +2716,10 @@ static void qcc_release(struct qcc *qcc)
 		struct quic_frame *frm = LIST_ELEM(qcc->lfctl.frms.n, struct quic_frame *, list);
 		qc_frm_free(qcc->conn->handle.qc, &frm);
 	}
+	while (!LIST_ISEMPTY(&qcc->tx.frms)) {
+		struct quic_frame *frm = LIST_ELEM(qcc->tx.frms.n, struct quic_frame *, list);
+		qc_frm_free(qcc->conn->handle.qc, &frm);
+	}
 
 	if (qcc->app_ops && qcc->app_ops->release)
 		qcc->app_ops->release(qcc->ctx);
@@ -2831,6 +2834,7 @@ static void _qcc_init(struct qcc *qcc)
 	qcc->app_ops = NULL;
 	qcc->streams_by_id = EB_ROOT_UNIQUE;
 	LIST_INIT(&qcc->lfctl.frms);
+	LIST_INIT(&qcc->tx.frms);
 }
 
 static int qmux_init(struct connection *conn, struct proxy *prx,
