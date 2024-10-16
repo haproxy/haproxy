@@ -533,12 +533,12 @@ static inline void qc_select_tls_ver(struct quic_conn *qc,
 static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
                          struct list *qels)
 {
-	int ret, cc, padding;
+	int cc, padding;
 	struct quic_tx_packet *first_pkt, *prv_pkt;
 	unsigned char *end, *pos;
 	uint32_t wrlen; /* may differ from dglen if GSO used */
 	uint16_t dglen;
-	size_t total;
+	int total = 0;
 	struct quic_enc_level *qel, *tmp_qel;
 	uchar gso_dgram_cnt = 0;
 
@@ -548,13 +548,11 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	 */
 	BUG_ON_HOT(buf->head || buf->data);
 
-	ret = -1;
 	cc =  qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE;
 	padding = 0;
 	first_pkt = prv_pkt = NULL;
 	end = pos = (unsigned char *)b_head(buf);
 	dglen = wrlen = 0;
-	total = 0;
 
 	list_for_each_entry_safe(qel, tmp_qel, qels, el_send) {
 		struct quic_tls_ctx *tls_ctx;
@@ -668,7 +666,8 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				}
 
 				if (err == QC_BUILD_PKT_ERR_ALLOC || err == QC_BUILD_PKT_ERR_ENCRYPT)
-					goto leave;
+					goto err;
+				first_pkt = NULL;
 				goto out;
 			}
 
@@ -703,10 +702,8 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			BUG_ON(padding && !next_qel);
 
 			/* Build only one datagram when an immediate close is required. */
-			if (cc) {
-				qc_txb_store(buf, dglen, first_pkt);
+			if (cc)
 				goto out;
-			}
 
 			/* Only one short packet by datagram when probing. */
 			if (probe && qel == qc->ael)
@@ -753,20 +750,22 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		TRACE_DEVEL("next encryption level", QUIC_EV_CONN_PHPKTS, qc);
 	}
 
+ out:
 	if (first_pkt)
 		qc_txb_store(buf, wrlen, first_pkt);
 
- out:
 	if (cc && total) {
 		BUG_ON(buf != &qc->tx.cc_buf);
 		BUG_ON(dglen != total);
 		qc->tx.cc_dgram_len = dglen;
 	}
 
-	ret = total;
- leave:
 	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
-	return ret;
+	return total;
+
+ err:
+	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_PHPKTS, qc);
+	return -1;
 }
 
 /* Encode frames and send them as packets for <qc> connection. Input frames are
