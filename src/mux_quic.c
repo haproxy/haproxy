@@ -388,6 +388,11 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn);
 }
 
+void qcc_wakeup(struct qcc *qcc)
+{
+	tasklet_wakeup(qcc->wait_event.tasklet);
+}
+
 /* Mark a stream as open if it was idle. This can be used on every
  * successful emission/reception operation to update the stream state.
  */
@@ -713,7 +718,7 @@ void qcc_set_error(struct qcc *qcc, int err, int app)
 	 * is too tedious too not forget a wakeup outside of this function for
 	 * the moment.
 	 */
-	tasklet_wakeup(qcc->wait_event.tasklet);
+	qcc_wakeup(qcc);
 }
 
 /* Increment glitch counter for <qcc> connection by <inc> steps. If configured
@@ -1067,7 +1072,7 @@ static void qcs_consume(struct qcs *qcs, uint64_t bytes)
 		frm->max_stream_data.max_stream_data = qcs->rx.msd;
 
 		LIST_APPEND(&qcc->lfctl.frms, &frm->list);
-		tasklet_wakeup(qcc->wait_event.tasklet);
+		qcc_wakeup(qcc);
 	}
 
  conn_fctl:
@@ -1085,7 +1090,7 @@ static void qcs_consume(struct qcs *qcs, uint64_t bytes)
 		frm->max_data.max_data = qcc->lfctl.md;
 
 		LIST_APPEND(&qcs->qcc->lfctl.frms, &frm->list);
-		tasklet_wakeup(qcs->qcc->wait_event.tasklet);
+		qcc_wakeup(qcc);
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCS_RECV, qcc->conn, qcs);
@@ -1345,7 +1350,7 @@ void qcc_reset_stream(struct qcs *qcs, int err)
 	}
 
 	qcc_send_stream(qcs, 1, 0);
-	tasklet_wakeup(qcc->wait_event.tasklet);
+	qcc_wakeup(qcc);
 }
 
 /* Register <qcs> stream for emission of STREAM, STOP_SENDING or RESET_STREAM.
@@ -1393,7 +1398,7 @@ void qcc_abort_stream_read(struct qcs *qcs)
 	qcs->flags |= (QC_SF_TO_STOP_SENDING|QC_SF_READ_ABORTED);
 
 	qcc_send_stream(qcs, 1, 0);
-	tasklet_wakeup(qcc->wait_event.tasklet);
+	qcc_wakeup(qcc);
 
  end:
 	TRACE_LEAVE(QMUX_EV_QCC_NEW, qcc->conn, qcs);
@@ -1426,7 +1431,7 @@ int qcc_install_app_ops(struct qcc *qcc, const struct qcc_app_ops *app_ops)
 			TRACE_ERROR("app ops finalize error", QMUX_EV_QCC_NEW, qcc->conn);
 			goto err;
 		}
-		tasklet_wakeup(qcc->wait_event.tasklet);
+		qcc_wakeup(qcc);
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_NEW, qcc->conn);
@@ -1605,7 +1610,7 @@ int qcc_recv_max_data(struct qcc *qcc, uint64_t max)
 		TRACE_DATA("increase remote max-data", QMUX_EV_QCC_RECV, qcc->conn);
 
 		if (unblock_real)
-			tasklet_wakeup(qcc->wait_event.tasklet);
+			qcc_wakeup(qcc);
 
 		if (unblock_soft)
 			qcc_notify_fctl(qcc);
@@ -1651,7 +1656,7 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 			TRACE_DATA("increase remote max-stream-data", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
 			if (unblock_real) {
 				/* TODO optim: only wakeup IO-CB if stream has data to sent. */
-				tasklet_wakeup(qcc->wait_event.tasklet);
+				qcc_wakeup(qcc);
 			}
 
 			if (unblock_soft) {
@@ -1901,7 +1906,7 @@ static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 			frm->max_streams_bidi.max_streams = qcc->lfctl.ms_bidi +
 			                                    qcc->lfctl.cl_bidi_r;
 			LIST_APPEND(&qcc->lfctl.frms, &frm->list);
-			tasklet_wakeup(qcc->wait_event.tasklet);
+			qcc_wakeup(qcc);
 
 			qcc->lfctl.ms_bidi += qcc->lfctl.cl_bidi_r;
 			qcc->lfctl.cl_bidi_r = 0;
@@ -2408,7 +2413,7 @@ static int qcc_io_send(struct qcc *qcc)
 		}
 
 		if (!qfctl_rblocked(&qcc->tx.fc))
-			tasklet_wakeup(qcc->wait_event.tasklet);
+			qcc_wakeup(qcc);
 	}
 
  out:
@@ -2951,7 +2956,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 		LIST_APPEND(&mux_stopping_data[tid].list, &conn->stopping_list);
 
 	/* init read cycle */
-	tasklet_wakeup(qcc->wait_event.tasklet);
+	qcc_wakeup(qcc);
 
 	TRACE_LEAVE(QMUX_EV_QCC_NEW, conn);
 	return 0;
@@ -3097,7 +3102,7 @@ static size_t qmux_strm_rcv_buf(struct stconn *sc, struct buffer *buf,
 
 		qcs->flags &= ~QC_SF_DEM_FULL;
 		if (!(qcc->flags & QC_CF_ERRL))
-			tasklet_wakeup(qcc->wait_event.tasklet);
+			qcc_wakeup(qcc);
 	}
 
 	TRACE_LEAVE(QMUX_EV_STRM_RECV, qcc->conn, qcs);
@@ -3161,7 +3166,7 @@ static size_t qmux_strm_snd_buf(struct stconn *sc, struct buffer *buf,
 		if (data || fin)
 			qcc_send_stream(qcs, 0, data);
 		if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
-			tasklet_wakeup(qcs->qcc->wait_event.tasklet);
+			qcc_wakeup(qcs->qcc);
 	}
 
  end:
@@ -3282,7 +3287,7 @@ static size_t qmux_strm_done_ff(struct stconn *sc)
 	if (data || qcs->flags & QC_SF_FIN_STREAM)
 		qcc_send_stream(qcs, 0, data);
 	if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
-		tasklet_wakeup(qcc->wait_event.tasklet);
+		qcc_wakeup(qcc);
 
   end:
 	TRACE_LEAVE(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
@@ -3380,7 +3385,7 @@ static void qmux_strm_shut(struct stconn *sc, unsigned int mode, struct se_abort
 			qcc_reset_stream(qcs, 0);
 		}
 
-		tasklet_wakeup(qcc->wait_event.tasklet);
+		qcc_wakeup(qcc);
 	}
 
  out:
