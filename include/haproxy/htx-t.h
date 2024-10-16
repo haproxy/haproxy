@@ -177,7 +177,7 @@ static forceinline char *hsl_show_flags(char *buf, size_t len, const char *delim
 #define HTX_FL_PARSING_ERROR     0x00000001 /* Set when a parsing error occurred */
 #define HTX_FL_PROCESSING_ERROR  0x00000002 /* Set when a processing error occurred */
 #define HTX_FL_FRAGMENTED        0x00000004 /* Set when the HTX buffer is fragmented */
-/* 0x00000008 unused */
+#define HTX_FL_ALTERED_PAYLOAD   0x00000008 /* The payload is altered, the extra value must not be trusted */
 #define HTX_FL_EOM               0x00000010 /* Set when end-of-message is reached from the HTTP point of view
 					     * (at worst, on the EOM block is missing)
 					     */

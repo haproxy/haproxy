@@ -700,6 +700,8 @@ static inline struct htx *htxbuf(const struct buffer *buf)
 		htx->size = buf->size - sizeof(*htx);
 		htx_reset(htx);
 	}
+	if (htx->flags & HTX_FL_ALTERED_PAYLOAD)
+		htx->extra = 0;
 	return htx;
 }
 
