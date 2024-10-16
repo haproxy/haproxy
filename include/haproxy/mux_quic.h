@@ -124,6 +124,8 @@ static inline void qcs_wait_http_req(struct qcs *qcs)
 
 void qcc_show_quic(struct qcc *qcc);
 
+void qcc_wakeup(struct qcc *qcc);
+
 #endif /* USE_QUIC */
 
 #endif /* _HAPROXY_MUX_QUIC_H */
