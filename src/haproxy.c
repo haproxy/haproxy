@@ -3948,6 +3948,8 @@ int main(int argc, char **argv)
 		stdio_quiet(devnullfd);
 		global.mode &= ~MODE_VERBOSE;
 		global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
+		close(devnullfd);
+		devnullfd = -1;
 	}
 	pid = getpid(); /* update pid */
 	setsid();
