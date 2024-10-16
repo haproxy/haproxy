@@ -1807,7 +1807,7 @@ void qc_notify_err(struct quic_conn *qc)
 		 * is made between MUX and quic-conn layer, wake up could be
 		 * conducted only with qc.subs.
 		 */
-		tasklet_wakeup(qc->qcc->wait_event.tasklet);
+		qcc_wakeup(qc->qcc);
 	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
