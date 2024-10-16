@@ -1066,6 +1066,7 @@ static int h1s_must_shut_conn(struct h1s *h1s)
 	}
 	else {
 		/* The default case, do the shutdown */
+		TRACE_STATE("shutdown on connection (abort || want_clo)", H1_EV_STRM_SHUT, h1c->conn, h1s);
 		ret = 1;
 	}
 
