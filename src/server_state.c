@@ -53,7 +53,7 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 	int srv_check_state, srv_agent_state;
 	int bk_f_forced_id;
 	int srv_f_forced_id;
-	int fqdn_set_by_cli;
+	int fqdn_changed;
 	const char *fqdn;
 	const char *port_st;
 	unsigned int port_svc;
@@ -112,12 +112,12 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 	p = NULL;
 	errno = 0;
 	srv_admin_state = strtol(params[2], &p, 10);
-	fqdn_set_by_cli = !!(srv_admin_state & SRV_ADMF_HMAINT);
+	fqdn_changed = !!(srv_admin_state & SRV_ADMF_FQDN_CHANGED);
 
 	/* inherited statuses will be recomputed later.
-	 * Also disable SRV_ADMF_HMAINT flag (set from stats socket fqdn).
+	 * Also disable SRV_ADMF_FQDN_CHANGED flag (set from stats socket fqdn).
 	 */
-	srv_admin_state &= ~SRV_ADMF_IDRAIN & ~SRV_ADMF_IMAINT & ~SRV_ADMF_HMAINT & ~SRV_ADMF_RMAINT;
+	srv_admin_state &= ~SRV_ADMF_IDRAIN & ~SRV_ADMF_IMAINT & ~SRV_ADMF_RMAINT & ~SRV_ADMF_FQDN_CHANGED;
 
 	if ((p == params[2]) || errno == EINVAL || errno == ERANGE ||
 	    (srv_admin_state != 0 &&
@@ -372,7 +372,7 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 			 * So we must reset the 'set from stats socket FQDN' flag to be consistent with
 			 * any further FQDN modification.
 			 */
-			srv->next_admin &= ~SRV_ADMF_HMAINT;
+			srv->next_admin &= ~SRV_ADMF_FQDN_CHANGED;
 		}
 		else {
 			/* If the FDQN has been changed from stats socket,
@@ -380,10 +380,10 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 			 * from stats socket).
 			 * Also ensure the runtime resolver will process this resolution.
 			 */
-			if (fqdn_set_by_cli) {
+			if (fqdn_changed) {
 				srv_set_fqdn(srv, fqdn, 0);
 				srv->flags &= ~SRV_F_NO_RESOLUTION;
-				srv->next_admin |= SRV_ADMF_HMAINT;
+				srv->next_admin |= SRV_ADMF_FQDN_CHANGED;
 			}
 		}
 	}

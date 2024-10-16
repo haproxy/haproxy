@@ -5115,8 +5115,8 @@ const char *srv_update_fqdn(struct server *server, const char *fqdn, const char 
 		goto out;
 	}
 
-	/* Flag as FQDN set from stats socket. */
-	server->next_admin |= SRV_ADMF_HMAINT;
+	/* Flag as FQDN changed (e.g.: set from stats socket or resolvers) */
+	server->next_admin |= SRV_ADMF_FQDN_CHANGED;
 
  out:
 	if (updater)

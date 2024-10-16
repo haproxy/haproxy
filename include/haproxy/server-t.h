@@ -82,9 +82,13 @@ enum srv_admin {
 	SRV_ADMF_IDRAIN    = 0x10,        /* the server has inherited the drain status from a tracked server */
 	SRV_ADMF_DRAIN     = 0x18,        /* mask to check if any drain flag is present */
 	SRV_ADMF_RMAINT    = 0x20,        /* the server is down because of an IP address resolution failure */
-	SRV_ADMF_HMAINT    = 0x40,        /* the server FQDN has been set from socket stats */
 
-	SRV_ADMF_MAINT     = 0x63,        /* mask to check if any maintenance flag except CMAINT is present */
+	SRV_ADMF_MAINT     = 0x23,        /* mask to check if any maintenance flag except CMAINT is present */
+
+	SRV_ADMF_FQDN_CHANGED = 0x40,     /* Special value: set (and never removed) if the server fqdn has
+	                                   * changed (from cli or resolvers) since its initial value from
+	                                   * config. This flag is exported and restored through state-file
+					   */
 } __attribute__((packed));
 
 /* options for servers' "init-addr" parameter
