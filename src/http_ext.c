@@ -870,7 +870,6 @@ int http_handle_xot_header(struct stream *s, struct channel *req)
 	}
 	if (s->be->http_ext && s->be->http_ext->xot) {
 		/* backend */
-		BUG_ON(!s->be->http_ext);
 		b_xot = s->be->http_ext->xot;
 	}
 
