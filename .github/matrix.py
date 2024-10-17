@@ -96,7 +96,7 @@ def main(ref_name):
     if "haproxy-" in ref_name:
         os = "ubuntu-22.04" # stable branch
     else:
-        os = "ubuntu-latest" # development branch
+        os = "ubuntu-24.04" # development branch
 
     TARGET = "linux-glibc"
     for CC in ["gcc", "clang"]:
