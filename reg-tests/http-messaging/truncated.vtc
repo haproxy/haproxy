@@ -7,7 +7,9 @@ server s1 {
 	txresp \
 	  -status 200 \
 	  -nolen \
-	  -hdr "Transfer-encoding: chunked"
+	  -hdr "Transfer-encoding: chunked" \
+	  -hdr "Connection: close"
+
 	#  -bodylen 16300
 	#chunkedlen 16300
 	#delay 0.05
