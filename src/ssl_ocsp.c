@@ -1388,6 +1388,11 @@ http_error:
  */
 static int ssl_ocsp_update_precheck()
 {
+
+	/* the ocsp-update is not usable in the master process */
+	if (master)
+		return ERR_NONE;
+
 	/* initialize the OCSP update dedicated httpclient */
 	httpclient_ocsp_update_px = httpclient_create_proxy("<OCSP-UPDATE>");
 	if (!httpclient_ocsp_update_px)
