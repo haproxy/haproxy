@@ -473,6 +473,8 @@ int quic_build_post_handshake_frames(struct quic_conn *qc)
 	qel = qc->ael;
 	/* Only servers must send a HANDSHAKE_DONE frame. */
 	if (qc_is_listener(qc)) {
+		size_t new_token_frm_len;
+
 		frm = qc_frm_alloc(QUIC_FT_HANDSHAKE_DONE);
 		if (!frm) {
 			TRACE_ERROR("frame allocation error", QUIC_EV_CONN_IO_CB, qc);
@@ -481,29 +483,23 @@ int quic_build_post_handshake_frames(struct quic_conn *qc)
 
 		LIST_APPEND(&frm_list, &frm->list);
 
-#ifdef HAVE_SSL_0RTT_QUIC
-		if (qc->li->bind_conf->ssl_conf.early_data) {
-			size_t new_token_frm_len;
-
-			frm = qc_frm_alloc(QUIC_FT_NEW_TOKEN);
-			if (!frm) {
-				TRACE_ERROR("frame allocation error", QUIC_EV_CONN_IO_CB, qc);
-				goto err;
-			}
-
-			new_token_frm_len =
-				quic_generate_token(frm->new_token.data,
-				                    sizeof(frm->new_token.data), &qc->peer_addr);
-			if (!new_token_frm_len) {
-				TRACE_ERROR("token generation failed", QUIC_EV_CONN_IO_CB, qc);
-				goto err;
-			}
-
-			BUG_ON(new_token_frm_len != sizeof(frm->new_token.data));
-			frm->new_token.len = new_token_frm_len;
-			LIST_APPEND(&frm_list, &frm->list);
+		frm = qc_frm_alloc(QUIC_FT_NEW_TOKEN);
+		if (!frm) {
+			TRACE_ERROR("frame allocation error", QUIC_EV_CONN_IO_CB, qc);
+			goto err;
 		}
-#endif
+
+		new_token_frm_len =
+			quic_generate_token(frm->new_token.data,
+			                    sizeof(frm->new_token.data), &qc->peer_addr);
+		if (!new_token_frm_len) {
+			TRACE_ERROR("token generation failed", QUIC_EV_CONN_IO_CB, qc);
+			goto err;
+		}
+
+		BUG_ON(new_token_frm_len != sizeof(frm->new_token.data));
+		frm->new_token.len = new_token_frm_len;
+		LIST_APPEND(&frm_list, &frm->list);
 	}
 
 	/* Initialize <max> connection IDs minus one: there is
