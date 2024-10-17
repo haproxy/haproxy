@@ -2087,7 +2087,12 @@ static int qcc_subscribe_send(struct qcc *qcc)
 static int qcc_send_frames(struct qcc *qcc, struct list *frms, int strm_content)
 {
 	enum quic_tx_err ret;
-	int max_burst = strm_content ? global.tune.quic_frontend_max_tx_burst : 0;
+	//int max_burst = strm_content ? global.tune.quic_frontend_max_tx_burst : 0;
+
+	struct quic_conn *qc = qcc->conn->handle.qc;
+	ullong ns_pkts = qc->path->loss.srtt * 1000000 / (qc->path->cwnd / 1200 + 1);
+	int max_burst = strm_content ? 4000000 / (ns_pkts + 1) + 1 : 0;
+	//int max_burst = 1;
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
 
@@ -2096,14 +2101,14 @@ static int qcc_send_frames(struct qcc *qcc, struct list *frms, int strm_content)
 		return -1;
 	}
 
-	ret = qc_send_mux(qcc->conn->handle.qc, frms, max_burst);
+	ret = qc_send_mux(qcc->conn->handle.qc, frms, &max_burst);
 	if (ret == QUIC_TX_ERR_FATAL) {
 		TRACE_DEVEL("error on sending", QMUX_EV_QCC_SEND, qcc->conn);
 		qcc_subscribe_send(qcc);
 		goto err;
 	}
 
-	BUG_ON(ret == QUIC_TX_ERR_AGAIN && !max_burst);
+	//BUG_ON(ret == QUIC_TX_ERR_AGAIN && !max_burst);
 
 	/* If there is frames left at this stage, transport layer is blocked.
 	 * Subscribe on it to retry later.
@@ -2113,6 +2118,10 @@ static int qcc_send_frames(struct qcc *qcc, struct list *frms, int strm_content)
 		qcc_subscribe_send(qcc);
 		goto err;
 	}
+
+	BUG_ON(ret == QUIC_TX_ERR_AGAIN && !max_burst);
+	qcc->tx.next = now_mono_time() + (qc->path->loss.srtt * 1000000 / (qc->path->cwnd / 1200 + 1)) * max_burst;
+	//qcc->tx.next = now_mono_time() + (MAX(qc->path->loss.srtt, 10) * 800000 / (qc->path->cwnd / 1200 + 1)) * max_burst;
 
 	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
 	return ret == QUIC_TX_ERR_AGAIN ? 1 : 0;
@@ -2266,7 +2275,7 @@ static int qcc_io_send(struct qcc *qcc)
 	struct list qcs_failed = LIST_HEAD_INIT(qcs_failed);
 	struct qcs *qcs, *qcs_tmp, *first_qcs = NULL;
 	uint64_t window_conn = qfctl_rcap(&qcc->tx.fc);
-	int ret, total = 0, resent;
+	int ret = 0, total = 0, resent;
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
 
@@ -2376,6 +2385,11 @@ static int qcc_io_send(struct qcc *qcc)
 		}
 	}
 
+	if (qcc->tx.next > now_mono_time()) {
+		qcc_wakeup_pacing(qcc);
+		return 1;
+	}
+
 	/* Retry sending until no frame to send, data rejected or connection
 	 * flow-control limit reached.
 	 */
@@ -2412,6 +2426,9 @@ static int qcc_io_send(struct qcc *qcc)
  sent_done:
 	/* Deallocate frames that the transport layer has rejected. */
 	if (ret == 1) {
+		//struct quic_conn *qc = qcc->conn->handle.qc;
+		//qcc->tx.next = now_ns + global.tune.pipesize;
+		//qcc->tx.next = now_mono_time() + qc->path->loss.srtt * 1000000 / (qc->path->cwnd / 1200 + 1);
 		qcc_wakeup_pacing(qcc);
 	}
 	else if (!LIST_ISEMPTY(&qcc->tx.frms)) {
@@ -2772,9 +2789,17 @@ static int qcc_purge_sending(struct qcc *qcc)
 {
 	int ret;
 
+	if (qcc->tx.next > now_mono_time()) {
+		qcc_wakeup_pacing(qcc);
+		return 1;
+	}
+
 	//fprintf(stderr, "%s\n", __func__);
 	ret = qcc_send_frames(qcc, &qcc->tx.frms, 1);
 	if (ret > 0) {
+		//struct quic_conn *qc = qcc->conn->handle.qc;
+		//qcc->tx.next = now_ns + global.tune.pipesize;
+		//qcc->tx.next = now_mono_time() + qc->path->loss.srtt * 1000000 / (qc->path->cwnd / 1200 + 1);
 		qcc_wakeup_pacing(qcc);
 		return 1;
 	}
@@ -2829,6 +2854,7 @@ static struct task *qcc_timeout_task(struct task *t, void *ctx, unsigned int sta
 	int expired = tick_is_expired(t->expire, now_ms);
 
 	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc ? qcc->conn : NULL);
+	//ABORT_NOW();
 
 	if (qcc) {
 		if (!expired) {
@@ -2881,6 +2907,7 @@ static void _qcc_init(struct qcc *qcc)
 	qcc->wait_event.tasklet = NULL;
 	qcc->app_ops = NULL;
 	qcc->streams_by_id = EB_ROOT_UNIQUE;
+	qcc->tx.next = 0;
 	LIST_INIT(&qcc->lfctl.frms);
 	LIST_INIT(&qcc->tx.frms);
 }

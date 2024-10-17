@@ -1246,4 +1246,7 @@ int backup_env(void);
 int clean_env(void);
 int restore_env(void);
 
+void work_gtod(int usec);
+
+
 #endif /* _HAPROXY_TOOLS_H */

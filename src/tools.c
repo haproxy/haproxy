@@ -6958,6 +6958,26 @@ void free_all_file_names()
 	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &file_names.lock);
 }
 
+void work_gtod(int usec)
+{
+        struct timeval now, expire;
+
+        gettimeofday(&expire, NULL);
+        expire.tv_sec  += usec / 1000000;
+        expire.tv_usec += usec % 1000000;
+
+        if (expire.tv_usec >= 1000000) {
+                expire.tv_usec -= 1000000;
+                expire.tv_sec += 1;
+        }
+
+        do {
+                gettimeofday(&now, NULL);
+        } while (now.tv_sec < expire.tv_sec ||
+                 (now.tv_sec == expire.tv_sec &&
+                  now.tv_usec < expire.tv_usec));
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

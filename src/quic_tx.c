@@ -359,6 +359,8 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 		qc->bytes.tx += tmpbuf.data;
 		time_sent = now_ms;
 
+		//work_gtod(global.tune.pipesize);
+
 		for (pkt = first_pkt; pkt; pkt = next_pkt) {
 			struct quic_cc *cc = &qc->path->cc;
 
@@ -469,11 +471,11 @@ int qc_purge_txbuf(struct quic_conn *qc, struct buffer *buf)
  * Returns the result from qc_send() function.
  */
 enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
-                             int max_dgram)
+                             int *max_dgram)
 {
 	struct list send_list = LIST_HEAD_INIT(send_list);
 	enum quic_tx_err ret = QUIC_TX_ERR_NONE;
-	int max = max_dgram;
+	int max = *max_dgram;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 	BUG_ON(qc->mux_state != QC_MUX_READY); /* Only MUX can uses this function so it must be ready. */
@@ -494,14 +496,14 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
 
 	TRACE_STATE("preparing data (from MUX)", QUIC_EV_CONN_TXPKT, qc);
 	qel_register_send(&send_list, qc->ael, frms);
-	if (!qc_send(qc, 0, &send_list, max_dgram ? &max : NULL)) {
+	if (!qc_send(qc, 0, &send_list, *max_dgram ? &max : NULL))
 		ret = QUIC_TX_ERR_FATAL;
-		ABORT_NOW();
-	}
-
-	if (max_dgram && !max) {
+	else if (*max_dgram && !max)
 		ret = QUIC_TX_ERR_AGAIN;
-		//ABORT_NOW();
+	else {
+		if (*max_dgram)
+			*max_dgram = *max_dgram - max;
+
 	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
