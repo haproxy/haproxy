@@ -2247,8 +2247,6 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_RSP);
 	}
 	stream_inc_http_fail_ctr(s);
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_SRVCL;
 	/* fall through */
 
    return_error:
