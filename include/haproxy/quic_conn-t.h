@@ -446,7 +446,6 @@ struct quic_conn_closed {
 #define QUIC_FL_CONN_HPKTNS_DCD                  (1U << 16) /* Handshake packet number space discarded  */
 #define QUIC_FL_CONN_PEER_VALIDATED_ADDR         (1U << 17) /* Peer address is considered as validated for this connection. */
 #define QUIC_FL_CONN_NO_TOKEN_RCVD               (1U << 18) /* Client dit not send any token */
-#define QUIC_FL_CONN_SEND_RETRY                  (1U << 19) /* A send retry packet must be sent */
 /* gap here */
 #define QUIC_FL_CONN_TO_KILL                     (1U << 24) /* Unusable connection, to be killed */
 #define QUIC_FL_CONN_TX_TP_RECEIVED              (1U << 25) /* Peer transport parameters have been received (used for the transmitting part) */

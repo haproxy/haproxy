@@ -223,12 +223,21 @@ static int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t 
 	}
 
 	/* Enqueue this connection asap if we could derive O-RTT secrets as
-	 * listener. Note that a listener derives only RX secrets for this
-	 * level.
+	 * listener and if a token was received. Note that a listener derives only RX
+	 * secrets for this level.
 	 */
 	if (qc_is_listener(qc) && level == ssl_encryption_early_data) {
-		TRACE_DEVEL("pushing connection into accept queue", QUIC_EV_CONN_RWSEC, qc);
-		quic_accept_push_qc(qc);
+		if (qc->flags & QUIC_FL_CONN_NO_TOKEN_RCVD) {
+			/* Leave a chance to the address validation to be completed by the
+			 * handshake without starting the mux: one does not want to process
+			 * the 0RTT data in this case.
+			 */
+			TRACE_PROTO("0RTT session without token", QUIC_EV_CONN_RWSEC, qc);
+		}
+		else {
+			TRACE_DEVEL("pushing connection into accept queue", QUIC_EV_CONN_RWSEC, qc);
+			quic_accept_push_qc(qc);
+		}
 	}
 
 write:
@@ -354,21 +363,6 @@ static int ha_quic_add_handshake_data(SSL *ssl, enum ssl_encryption_level_t leve
 	TRACE_ENTER(QUIC_EV_CONN_ADDDATA, qc);
 
 	TRACE_PROTO("ha_quic_add_handshake_data() called", QUIC_EV_CONN_IO_CB, qc, NULL, NULL, ssl);
-
-#ifdef HAVE_SSL_0RTT_QUIC
-	/* Detect asap if some 0-RTT data were accepted for this connection.
-	 * If this is the case and no token was provided, interrupt the useless
-	 * secrets derivations. A Retry packet must be sent, and this connection
-	 * must be killed.
-	 * Note that QUIC_FL_CONN_NO_TOKEN_RCVD is possibly set only for when 0-RTT is
-	 * enabled for the connection.
-	 */
-	if ((qc->flags & QUIC_FL_CONN_NO_TOKEN_RCVD) && qc_ssl_eary_data_accepted(ssl)) {
-		TRACE_PROTO("connection to be killed", QUIC_EV_CONN_ADDDATA, qc);
-		qc->flags |= QUIC_FL_CONN_TO_KILL|QUIC_FL_CONN_SEND_RETRY;
-		goto leave;
-	}
-#endif
 
 	if (qc->flags & QUIC_FL_CONN_TO_KILL) {
 		TRACE_PROTO("connection to be killed", QUIC_EV_CONN_ADDDATA, qc);

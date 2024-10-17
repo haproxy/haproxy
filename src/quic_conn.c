@@ -811,11 +811,6 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		goto out;
 	}
 
-	if (qc->flags & QUIC_FL_CONN_TO_KILL) {
-		TRACE_DEVEL("connection to be killed", QUIC_EV_CONN_PHPKTS, qc);
-		goto out;
-	}
-
 	if ((qc->flags & QUIC_FL_CONN_DRAINING) &&
 	    !(qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))
 		goto out;
@@ -831,11 +826,20 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 			qc_release_pktns_frms(qc, qc->hel->pktns);
 		}
 
-		/* Release 0RTT packets still waiting for HP removal. These
+		/* Note: if no token for address validation was received
+		 * for a 0RTT connection, some 0RTT packet could still be
+		 * waiting for HP removal AFTER the successful handshake completion.
+		 * Indeed a successful handshake completion implicitely valids
+		 * the peer address. In this case, one wants to process
+		 * these ORTT packets AFTER the succesful handshake completion.
+		 *
+		 * On the contrary, when a token for address validation was received,
+		 * release 0RTT packets still waiting for HP removal. These
 		 * packets are considered unneeded after handshake completion.
 		 * They will be freed later from Rx buf via quic_rx_pkts_del().
 		 */
-		if (qc->eel && !LIST_ISEMPTY(&qc->eel->rx.pqpkts)) {
+		if (qc->eel && !LIST_ISEMPTY(&qc->eel->rx.pqpkts) &&
+		    !(qc->flags & QUIC_FL_CONN_NO_TOKEN_RCVD)) {
 			struct quic_rx_packet *pqpkt, *pkttmp;
 			list_for_each_entry_safe(pqpkt, pkttmp, &qc->eel->rx.pqpkts, list) {
 				LIST_DEL_INIT(&pqpkt->list);
@@ -896,25 +900,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		quic_nictx_free(qc);
 	}
 
-	if (qc->flags & QUIC_FL_CONN_SEND_RETRY) {
-		struct quic_counters *prx_counters;
-		struct proxy *prx = qc->li->bind_conf->frontend;
-		struct quic_rx_packet pkt = {
-			.scid = qc->dcid,
-			.dcid = qc->odcid,
-		};
-
-		prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
-		if (send_retry(qc->li->rx.fd, &qc->peer_addr, &pkt, qc->original_version)) {
-			TRACE_ERROR("Error during Retry generation",
-			            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, qc->original_version);
-		}
-		else
-			HA_ATOMIC_INC(&prx_counters->retry_sent);
-	}
-
-	if ((qc->flags & (QUIC_FL_CONN_CLOSING|QUIC_FL_CONN_TO_KILL)) &&
-	    qc->mux_state != QC_MUX_READY) {
+	if ((qc->flags & QUIC_FL_CONN_CLOSING) && qc->mux_state != QC_MUX_READY) {
 		quic_conn_release(qc);
 		qc = NULL;
 	}
