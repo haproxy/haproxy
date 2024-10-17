@@ -628,6 +628,9 @@ struct httpclient *httpclient_new(void *caller, enum http_meth_t meth, struct is
 {
 	struct httpclient *hc;
 
+	if (!httpclient_proxy)
+		return NULL;
+
 	hc = calloc(1, sizeof(*hc));
 	if (!hc)
 		goto err;
@@ -654,6 +657,9 @@ err:
 struct httpclient *httpclient_new_from_proxy(struct proxy *px, void *caller, enum http_meth_t meth, struct ist url)
 {
 	struct httpclient *hc;
+
+	if (!px)
+		return NULL;
 
 	hc = httpclient_new(caller, meth, url);
 	if (!hc)
