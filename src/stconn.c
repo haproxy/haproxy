@@ -1119,7 +1119,7 @@ void sc_notify(struct stconn *sc)
 	struct task *task = sc_strm_task(sc);
 
 	/* process consumer side */
-	if (!co_data(oc) && !sc_ep_have_ff_data(sco)) {
+	if (!co_data(oc) && !sc_ep_have_ff_data(sc)) {
 		struct connection *conn = sc_conn(sc);
 
 		if (((sc->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) == SC_FL_SHUT_WANTED) &&
