@@ -24,6 +24,7 @@ const char *arg_type_names[ARGT_NBTYPES] = {
 	[ARGT_STOP] = "end of arguments",
 	[ARGT_SINT] = "integer",
 	[ARGT_STR]  = "string",
+	[ARGT_ID]   = "identifier",
 	[ARGT_IPV4] = "IPv4 address",
 	[ARGT_MSK4] = "IPv4 mask",
 	[ARGT_IPV6] = "IPv6 address",
@@ -237,6 +238,7 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 			arg->type = ARGT_SINT;
 			break;
 
+		case ARGT_ID:
 		case ARGT_FE:
 		case ARGT_BE:
 		case ARGT_TAB:

@@ -1444,6 +1444,20 @@ int smp_resolve_args(struct proxy *p, char **err)
 		pname = p->id;
 
 		switch (arg->type) {
+		case ARGT_ID:
+			err2 = NULL;
+
+			if (arg->resolve_ptr && !arg->resolve_ptr(arg, &err2)) {
+				memprintf(err, "%sparsing [%s:%d]: error in identifier '%s' in arg %d of %s%s%s%s '%s' %s proxy '%s' : %s.\n",
+					  *err ? *err : "", cur->file, cur->line,
+					 arg->data.str.area,
+					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id, err2);
+				ha_free(&err2);
+				cfgerr++;
+				continue;
+			}
+			break;
+
 		case ARGT_SRV:
 			if (!arg->data.str.data) {
 				memprintf(err, "%sparsing [%s:%d]: missing server name in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",

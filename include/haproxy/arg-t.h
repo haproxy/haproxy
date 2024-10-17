@@ -46,6 +46,7 @@ enum {
 	ARGT_STOP = 0, /* end of the arg list */
 	ARGT_SINT,     /* signed 64 bit integer. */
 	ARGT_STR,      /* string */
+	ARGT_ID,       /* identifier */
 	ARGT_IPV4,     /* an IPv4 address */
 	ARGT_MSK4,     /* an IPv4 address mask (integer or dotted), stored as ARGT_IPV4 */
 	ARGT_IPV6,     /* an IPv6 address */
@@ -124,6 +125,12 @@ struct arg {
 	unsigned char unresolved; /* argument contains a string in <str> that must be resolved and freed */
 	unsigned char type_flags; /* type-specific extra flags (eg: case sensitivity for regex), ARGF_* */
 	union arg_data data;      /* argument data */
+
+	int (*resolve_ptr)(struct arg *arg, char **err); /* ptr to custom resolve function that can be used
+	                                                  * for the arg of type ARGT_ID; the err must always
+	                                                  * be compatible with free() (i.e. either null or
+	                                                  * the result of a malloc/strdup/memprintf call)
+	                                                  */
 };
 
 /* arg lists are used to store information about arguments that could not be
