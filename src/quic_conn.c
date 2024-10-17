@@ -462,7 +462,7 @@ int quic_stateless_reset_token_cpy(unsigned char *pos, size_t len,
  */
 int quic_build_post_handshake_frames(struct quic_conn *qc)
 {
-	int ret = 0, max;
+	int ret = 0, max = 0;
 	struct quic_enc_level *qel;
 	struct quic_frame *frm, *frmbak;
 	struct list frm_list = LIST_HEAD_INIT(frm_list);
@@ -488,7 +488,7 @@ int quic_build_post_handshake_frames(struct quic_conn *qc)
 			frm = qc_frm_alloc(QUIC_FT_NEW_TOKEN);
 			if (!frm) {
 				TRACE_ERROR("frame allocation error", QUIC_EV_CONN_IO_CB, qc);
-				goto leave;
+				goto err;
 			}
 
 			new_token_frm_len =
@@ -496,7 +496,7 @@ int quic_build_post_handshake_frames(struct quic_conn *qc)
 				                    sizeof(frm->new_token.data), &qc->peer_addr);
 			if (!new_token_frm_len) {
 				TRACE_ERROR("token generation failed", QUIC_EV_CONN_IO_CB, qc);
-				goto leave;
+				goto err;
 			}
 
 			BUG_ON(new_token_frm_len != sizeof(frm->new_token.data));
