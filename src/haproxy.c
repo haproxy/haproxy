@@ -3030,6 +3030,11 @@ static void run_master_in_recovery_mode(int argc, char **argv)
 {
 	struct mworker_proc *proc;
 
+	/* HAPROXY_LOAD_SUCCESS is checked in cli_io_handler_show_cli_sock() to
+	 * dump master startup logs with its alerts/warnings via master CLI sock.
+	 */
+	setenv("HAPROXY_LOAD_SUCCESS", "0", 1);
+
 	/* increment the number failed reloads */
 	list_for_each_entry(proc, &proc_list, list) {
 		proc->failedreloads++;
