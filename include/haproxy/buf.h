@@ -183,8 +183,9 @@ static inline size_t b_peek_ofs(const struct buffer *b, size_t ofs)
 {
 	size_t ret = __b_peek_ofs(b, ofs);
 
-	if (ret >= b->size)
-		ret -= b->size;
+	if (likely(!__builtin_constant_p(ofs) || ofs))
+		if (ret >= b->size)
+			ret -= b->size;
 
 	return ret;
 }
