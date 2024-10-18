@@ -499,6 +499,12 @@ static inline uint32_t event_hdl_async_equeue_size(event_hdl_async_equeue *queue
 /* use this to initialize <sub_list> event subscription list */
 void event_hdl_sub_list_init(event_hdl_sub_list *sub_list);
 
+/* check if <sub_list> subscriber count is 0 or not */
+static inline int event_hdl_sub_list_empty(event_hdl_sub_list *sub_list)
+{
+	return MT_LIST_ISEMPTY(&sub_list->head);
+}
+
 /* use this function when you need to destroy <sub_list>
  * event subscription list
  * All subscriptions will be removed and properly freed according
