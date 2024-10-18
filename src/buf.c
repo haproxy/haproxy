@@ -81,38 +81,6 @@ size_t b_getblk(const struct buffer *buf, char *blk, size_t len, size_t offset)
 	return len;
 }
 
-/* b_getblk_nc() : gets one or two blocks of data at once from a buffer,
- * starting from offset <ofs> after the beginning of its output, and limited to
- * no more than <max> bytes. The caller is responsible for ensuring that
- * neither <ofs> nor <ofs>+<max> exceed the total number of bytes available in
- * the buffer. Return values :
- *   >0 : number of blocks filled (1 or 2). blk1 is always filled before blk2.
- *   =0 : not enough data available. <blk*> are left undefined.
- * The buffer is left unaffected. Unused buffers are left in an undefined state.
- */
-size_t b_getblk_nc(const struct buffer *buf, const char **blk1, size_t *len1, const char **blk2, size_t *len2, size_t ofs, size_t max)
-{
-	size_t l1;
-
-	BUG_ON_HOT(buf->data > buf->size);
-	BUG_ON_HOT(ofs > buf->data);
-	BUG_ON_HOT(ofs + max > buf->data);
-
-	if (!max)
-		return 0;
-
-	*blk1 = b_peek(buf, ofs);
-	l1 = b_wrap(buf) - *blk1;
-	if (l1 < max) {
-		*len1 = l1;
-		*len2 = max - l1;
-		*blk2 = b_orig(buf);
-		return 2;
-	}
-	*len1 = max;
-	return 1;
-}
-
 /* Locates the longest part of the buffer that is composed exclusively of
  * characters not in the <delim> set, and delimited by one of these characters,
  * and returns the initial part and the first of such delimiters. A single
@@ -688,48 +656,6 @@ int b_get_varint(struct buffer *b, uint64_t *vptr)
 	return size;
 }
 
-/* b_peek_varint(): try to decode a varint from buffer <b> at offset <ofs>
- * relative to head, into value <vptr>. Returns the number of bytes parsed in
- * case of success, or 0 if there were not enough bytes, in which case the
- * contents of <vptr> are not updated. Wrapping is supported. The buffer's head
- * will NOT be updated. It is illegal to call this function with <ofs> greater
- * than b->data.
- */
-int b_peek_varint(struct buffer *b, size_t ofs, uint64_t *vptr)
-{
-	const uint8_t *head = (const uint8_t *)b_peek(b, ofs);
-	const uint8_t *wrap = (const uint8_t *)b_wrap(b);
-	size_t data = b_data(b) - ofs;
-	size_t size = b_size(b);
-	uint64_t v = 0;
-	int bits = 0;
-
-	BUG_ON_HOT(ofs > b_data(b));
-
-	if (data != 0 && (*head >= 0xF0)) {
-		v = *head;
-		bits += 4;
-		while (1) {
-			if (++head == wrap)
-				head -= size;
-			data--;
-			if (!data || !(*head & 0x80))
-				break;
-			v += (uint64_t)*head << bits;
-			bits += 7;
-		}
-	}
-
-	/* last byte */
-	if (!data)
-		return 0;
-
-	v += (uint64_t)*head << bits;
-	*vptr = v;
-	data--;
-	size = b->data - ofs - data;
-	return size;
-}
 
 /*
  * Buffer List management.
