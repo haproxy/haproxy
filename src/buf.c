@@ -623,35 +623,9 @@ int b_put_varint(struct buffer *b, uint64_t v)
  */
 int b_get_varint(struct buffer *b, uint64_t *vptr)
 {
-	const uint8_t *head = (const uint8_t *)b_head(b);
-	const uint8_t *wrap = (const uint8_t *)b_wrap(b);
-	size_t data = b->data;
-	size_t size = b_size(b);
-	uint64_t v = 0;
-	int bits = 0;
+	int size;
 
-	if (data != 0 && (*head >= 0xF0)) {
-		v = *head;
-		bits += 4;
-		while (1) {
-			if (++head == wrap)
-				head -= size;
-			data--;
-			if (!data || !(*head & 0x80))
-				break;
-			v += (uint64_t)*head << bits;
-			bits += 7;
-		}
-	}
-
-	/* last byte */
-	if (!data)
-		return 0;
-
-	v += (uint64_t)*head << bits;
-	*vptr = v;
-	data--;
-	size = b->data - data;
+	size = b_peek_varint(b, 0, vptr);
 	b_del(b, size);
 	return size;
 }
