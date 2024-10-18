@@ -1606,6 +1606,7 @@ int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
 	/* delete pattern from reference */
 	list_for_each_entry_safe(elt, safe, &ref->head, list) {
 		if (elt == refelt) {
+			event_hdl_publish(&ref->e_subs, EVENT_HDL_SUB_PAT_REF_DEL, NULL);
 			pat_ref_delete_by_ptr(ref, elt);
 			return 1;
 		}
@@ -1635,6 +1636,9 @@ int pat_ref_gen_delete(struct pat_ref *ref, unsigned int gen_id, const char *key
 		pat_ref_delete_by_ptr(ref, elt);
 		found = 1;
 	}
+
+	if (found)
+		event_hdl_publish(&ref->e_subs, EVENT_HDL_SUB_PAT_REF_DEL, NULL);
 
 	return found;
 }
@@ -1815,6 +1819,10 @@ static int pat_ref_set_from_node(struct pat_ref *ref, struct ebmb_node *node, co
 		memprintf(err, "entry not found");
 		return 0;
 	}
+
+	if (gen == ref->curr_gen) // gen cannot be uninitialized here
+		event_hdl_publish(&ref->e_subs, EVENT_HDL_SUB_PAT_REF_SET, NULL);
+
 	return 1;
 }
 
@@ -1887,6 +1895,7 @@ static struct pat_ref *_pat_ref_new(const char *display, unsigned int flags)
 	ref->ebmb_root = EB_ROOT;
 	LIST_INIT(&ref->pat);
 	HA_RWLOCK_INIT(&ref->lock);
+	event_hdl_sub_list_init(&ref->e_subs);
 
 	return ref;
 }
@@ -1896,6 +1905,7 @@ static void pat_ref_free(struct pat_ref *ref)
 {
 	ha_free(&ref->reference);
 	ha_free(&ref->display);
+	event_hdl_sub_list_destroy(&ref->e_subs);
 	free(ref);
 }
 
@@ -2095,6 +2105,10 @@ struct pat_ref_elt *pat_ref_load(struct pat_ref *ref, unsigned int gen,
 	} else
 		memprintf(err, "out of memory error");
 
+	/* ignore if update requires committing to be seen */
+	if (elt && gen == ref->curr_gen)
+		event_hdl_publish(&ref->e_subs, EVENT_HDL_SUB_PAT_REF_ADD, NULL);
+
 	return elt;
 }
 
@@ -2166,6 +2180,12 @@ int pat_ref_purge_range(struct pat_ref *ref, uint from, uint to, int budget)
 
 	list_for_each_entry(expr, &ref->pat, list)
 		HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
+
+	/* only publish when we're done and if curr_gen was impacted by the
+	 * purge
+	 */
+	if (done && ref->curr_gen - from <= to - from)
+		event_hdl_publish(&ref->e_subs, EVENT_HDL_SUB_PAT_REF_CLEAR, NULL);
 
 	return done;
 }

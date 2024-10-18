@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include <haproxy/api.h>
+#include <haproxy/event_hdl.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/sample-t.h>
 
@@ -238,8 +239,10 @@ static inline void pat_ref_giveup(struct pat_ref *ref, unsigned int gen)
  */
 static inline int pat_ref_commit(struct pat_ref *ref, unsigned int gen)
 {
-	if ((int)(gen - ref->curr_gen) > 0)
+	if ((int)(gen - ref->curr_gen) > 0) {
 		ref->curr_gen = gen;
+		event_hdl_publish(&ref->e_subs, EVENT_HDL_SUB_PAT_REF_COMMIT, NULL);
+	}
 	return gen - ref->curr_gen;
 }
 
