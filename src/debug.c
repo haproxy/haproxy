@@ -264,8 +264,9 @@ void ha_backtrace_to_stderr(void)
  * indicate the requesting one. Any stuck thread is also prefixed with a '>'.
  * The caller is responsible for atomically setting up the thread's dump buffer
  * to point to a valid buffer with enough room. Output will be truncated if it
- * does not fit. When the dump is complete, the dump buffer will be switched to
- * (void*)0x1 that the caller must turn to 0x0 once the contents are collected.
+ * does not fit. When the dump is complete, the dump buffer will have bit 0 set
+ * to 1 to tell the caller it's done, and the caller will then change that value
+ * to indicate it's done once the contents are collected.
  */
 void ha_thread_dump_one(int thr, int from_signal)
 {
@@ -347,7 +348,7 @@ void ha_thread_dump_one(int thr, int from_signal)
 	}
  leave:
 	/* end of dump, setting the buffer to 0x1 will tell the caller we're done */
-	HA_ATOMIC_STORE(&ha_thread_ctx[thr].thread_dump_buffer, (void*)0x1UL);
+	HA_ATOMIC_OR((ulong*)&ha_thread_ctx[thr].thread_dump_buffer, 0x1UL);
 }
 
 /* Triggers a thread dump from thread <thr>, either directly if it's the
@@ -355,10 +356,11 @@ void ha_thread_dump_one(int thr, int from_signal)
  * a signal if it's a remote one and the feature is supported. The buffer <buf>
  * will get the dump appended, and the caller is responsible for making sure
  * there is enough room otherwise some contents will be truncated. The function
- * waits for the called thread to fill the buffer before returning. It does not
- * release the called thread yet.
+ * waits for the called thread to fill the buffer before returning (or cancelling
+ * by reporting NULL). It does not release the called thread yet. It returns a
+ * pointer to the buffer used if the dump was done, otherwise NULL.
  */
-void ha_thread_dump_fill(struct buffer *buf, int thr)
+struct buffer *ha_thread_dump_fill(struct buffer *buf, int thr)
 {
 	struct buffer *old = NULL;
 
@@ -381,22 +383,32 @@ void ha_thread_dump_fill(struct buffer *buf, int thr)
 #endif
 		ha_thread_dump_one(thr, thr != tid);
 
-	/* now wait for the dump to be done */
-	while (HA_ATOMIC_LOAD(&ha_thread_ctx[thr].thread_dump_buffer) != (void*)0x1UL)
+	/* now wait for the dump to be done (or cancelled) */
+	while (1) {
+		old = HA_ATOMIC_LOAD(&ha_thread_ctx[thr].thread_dump_buffer);
+		if ((ulong)old & 0x1)
+			break;
+		if (!old)
+			return old;
 		ha_thread_relax();
+	}
+	return (struct buffer *)((ulong)old & ~0x1UL);
 }
 
 /* Indicates to the called thread that the dumped data are collected. It waits
- * for the dump to be completed if it was not the case.
+ * for the dump to be completed if it was not the case, and can also leave if
+ * the pointer is NULL (e.g. if a thread has aborted).
  */
 void ha_thread_dump_done(struct buffer *buf, int thr)
 {
 	struct buffer *old;
 
-	/* now wait for the dump to be done, and release it */
+	/* now wait for the dump to be done or cancelled, and release it */
 	do {
 		old = HA_ATOMIC_LOAD(&ha_thread_ctx[thr].thread_dump_buffer);
-		if (old != (void*)0x1UL) {
+		if (!((ulong)old & 0x1)) {
+			if (!old)
+				return;
 			ha_thread_relax();
 			continue;
 		}
@@ -2106,7 +2118,7 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	/* first, let's check it's really for us and that we didn't just get
 	 * a spurious DEBUGSIG.
 	 */
-	if (!buf || buf == (void*)(0x1UL))
+	if (!buf || (ulong)buf & 0x1UL)
 		return;
 
 	/* now dump the current state into the designated buffer, and indicate
