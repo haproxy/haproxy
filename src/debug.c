@@ -395,9 +395,10 @@ struct buffer *ha_thread_dump_fill(struct buffer *buf, int thr)
 	return (struct buffer *)((ulong)old & ~0x1UL);
 }
 
-/* Indicates to the called thread that the dumped data are collected. It waits
- * for the dump to be completed if it was not the case, and can also leave if
- * the pointer is NULL (e.g. if a thread has aborted).
+/* Indicates to the called thread that the dumped data are collected by writing
+ * <buf> into the designated thread's dump buffer (usually buf is NULL). It
+ * waits for the dump to be completed if it was not the case, and can also
+ * leave if the pointer is NULL (e.g. if a thread has aborted).
  */
 void ha_thread_dump_done(struct buffer *buf, int thr)
 {
@@ -412,7 +413,7 @@ void ha_thread_dump_done(struct buffer *buf, int thr)
 			ha_thread_relax();
 			continue;
 		}
-	} while (!HA_ATOMIC_CAS(&ha_thread_ctx[thr].thread_dump_buffer, &old, 0));
+	} while (!HA_ATOMIC_CAS(&ha_thread_ctx[thr].thread_dump_buffer, &old, buf));
 }
 
 /* performs a complete thread dump: calls the remote thread and marks the
@@ -421,7 +422,7 @@ void ha_thread_dump_done(struct buffer *buf, int thr)
 void ha_thread_dump(struct buffer *buf, int thr)
 {
 	ha_thread_dump_fill(buf, thr);
-	ha_thread_dump_done(buf, thr);
+	ha_thread_dump_done(NULL, thr);
 }
 
 /* dumps into the buffer some information related to task <task> (which may
