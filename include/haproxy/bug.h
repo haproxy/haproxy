@@ -337,9 +337,9 @@ extern unsigned int tainted;
 
 void complain(int *counter, const char *msg, int taint);
 
-static inline void mark_tainted(const enum tainted_flags flag)
+static inline unsigned int mark_tainted(const enum tainted_flags flag)
 {
-	HA_ATOMIC_OR(&tainted, flag);
+	return HA_ATOMIC_FETCH_OR(&tainted, flag);
 }
 
 static inline unsigned int get_tainted()
