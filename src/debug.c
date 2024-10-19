@@ -672,18 +672,22 @@ void ha_panic()
 		return;
 	}
 
-	buf = get_trash_chunk();
-
-	chunk_reset(&trash);
-	chunk_appendf(&trash, "Thread %u is about to kill the process.\n", tid + 1);
+	chunk_printf(&trash, "Thread %u is about to kill the process.\n", tid + 1);
+	DISGUISE(write(2, trash.area, trash.data));
 
 	for (thr = 0; thr < global.nbthread; thr++) {
-		if (!ha_thread_dump_fill(&trash, thr))
+		if (thr == tid)
+			buf = get_trash_chunk();
+		else
+			buf = (void *)0x2UL; // let the target thread allocate it
+
+		buf = ha_thread_dump_fill(buf, thr);
+		if (!buf)
 			continue;
-		DISGUISE(write(2, trash.area, trash.data));
-		ha_thread_dump_done(NULL, thr);
-		b_force_xfer(buf, &trash, b_room(buf));
-		chunk_reset(&trash);
+
+		DISGUISE(write(2, buf->area, buf->data));
+		/* restore the thread's dump pointer for easier post-mortem analysis */
+		ha_thread_dump_done(buf, thr);
 	}
 
 #ifdef USE_LUA
@@ -2103,18 +2107,32 @@ static void debug_release_memstats(struct appctx *appctx)
 
 /* handles DEBUGSIG to dump the state of the thread it's working on. This is
  * appended at the end of thread_dump_buffer which must be protected against
- * reentrance from different threads (a thread-local buffer works fine).
+ * reentrance from different threads (a thread-local buffer works fine). If
+ * the buffer pointer is equal to 0x2, then it's a panic. The thread allocates
+ * the buffer from its own trash chunks so that the contents remain visible in
+ * the core, and it never returns.
  */
 void debug_handler(int sig, siginfo_t *si, void *arg)
 {
 	struct buffer *buf = HA_ATOMIC_LOAD(&th_ctx->thread_dump_buffer);
 	int harmless = is_thread_harmless();
+	int no_return = 0;
 
 	/* first, let's check it's really for us and that we didn't just get
 	 * a spurious DEBUGSIG.
 	 */
 	if (!buf || (ulong)buf & 0x1UL)
 		return;
+
+	/* Special value 0x2 is used during panics and requires that the thread
+	 * allocates its own dump buffer among its own trash buffers. The goal
+	 * is that all threads keep a copy of their own dump.
+	 */
+	if ((ulong)buf == 0x2UL) {
+		no_return = 1;
+		buf = get_trash_chunk();
+		HA_ATOMIC_STORE(&th_ctx->thread_dump_buffer, buf);
+	}
 
 	/* now dump the current state into the designated buffer, and indicate
 	 * we come from a sig handler.
@@ -2127,6 +2145,12 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	if (!harmless &&
 	    !(_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_SLEEPING))
 		_HA_ATOMIC_OR(&th_ctx->flags, TH_FL_STUCK);
+
+	/* in case of panic, no return is planned so that we don't destroy
+	 * the buffer's contents and we make sure not to trigger in loops.
+	 */
+	while (no_return)
+		wait(NULL);
 }
 
 static int init_debug_per_thread()
