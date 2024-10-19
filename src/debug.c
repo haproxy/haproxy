@@ -157,10 +157,6 @@ struct post_mortem {
 	struct post_mortem_component *components; // NULL or array
 } post_mortem ALIGNED(256) = { };
 
-/* Points to a copy of the buffer where the dump functions should write, when
- * non-null. It's only used by debuggers for core dump analysis.
- */
-struct buffer *thread_dump_buffer = NULL;
 unsigned int debug_commands_issued = 0;
 
 /* dumps a backtrace of the current thread that is appended to buffer <buf>.
@@ -631,21 +627,13 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 	return cli_msg(appctx, LOG_INFO, trash.area);
 }
 
-/* Dumps a state of all threads into the trash and on fd #2, then aborts.
- * A copy will be put into a trash chunk that's assigned to thread_dump_buffer
- * so that the debugger can easily find it. This buffer might be truncated if
- * too many threads are being dumped, but at least we'll dump them all on stderr.
- * If thread_dump_buffer is set, it means that a panic has already begun.
- */
+/* Dumps a state of all threads into the trash and on fd #2, then aborts. */
 void ha_panic()
 {
-	struct buffer *old;
+	struct buffer *buf;
 	unsigned int thr;
 
-	mark_tainted(TAINTED_PANIC);
-
-	old = NULL;
-	if (!HA_ATOMIC_CAS(&thread_dump_buffer, &old, get_trash_chunk())) {
+	if (mark_tainted(TAINTED_PANIC) & TAINTED_PANIC) {
 		/* a panic dump is already in progress, let's not disturb it,
 		 * we'll be called via signal DEBUGSIG. By returning we may be
 		 * able to leave a current signal handler (e.g. WDT) so that
@@ -654,13 +642,15 @@ void ha_panic()
 		return;
 	}
 
+	buf = get_trash_chunk();
+
 	chunk_reset(&trash);
 	chunk_appendf(&trash, "Thread %u is about to kill the process.\n", tid + 1);
 
 	for (thr = 0; thr < global.nbthread; thr++) {
 		ha_thread_dump(&trash, thr);
 		DISGUISE(write(2, trash.area, trash.data));
-		b_force_xfer(thread_dump_buffer, &trash, b_room(thread_dump_buffer));
+		b_force_xfer(buf, &trash, b_room(buf));
 		chunk_reset(&trash);
 	}
 
