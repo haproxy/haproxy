@@ -354,9 +354,11 @@ void ha_thread_dump_one(int thr, int from_signal)
  * current thread or if thread dump signals are not implemented, or by sending
  * a signal if it's a remote one and the feature is supported. The buffer <buf>
  * will get the dump appended, and the caller is responsible for making sure
- * there is enough room otherwise some contents will be truncated.
+ * there is enough room otherwise some contents will be truncated. The function
+ * waits for the called thread to fill the buffer before returning. It does not
+ * release the called thread yet.
  */
-void ha_thread_dump(struct buffer *buf, int thr)
+void ha_thread_dump_fill(struct buffer *buf, int thr)
 {
 	struct buffer *old = NULL;
 
@@ -379,12 +381,35 @@ void ha_thread_dump(struct buffer *buf, int thr)
 #endif
 		ha_thread_dump_one(thr, thr != tid);
 
+	/* now wait for the dump to be done */
+	while (HA_ATOMIC_LOAD(&ha_thread_ctx[thr].thread_dump_buffer) != (void*)0x1UL)
+		ha_thread_relax();
+}
+
+/* Indicates to the called thread that the dumped data are collected. It waits
+ * for the dump to be completed if it was not the case.
+ */
+void ha_thread_dump_done(struct buffer *buf, int thr)
+{
+	struct buffer *old;
+
 	/* now wait for the dump to be done, and release it */
 	do {
-		if (old)
+		old = HA_ATOMIC_LOAD(&ha_thread_ctx[thr].thread_dump_buffer);
+		if (old != (void*)0x1UL) {
 			ha_thread_relax();
-		old = (void*)0x01;
+			continue;
+		}
 	} while (!HA_ATOMIC_CAS(&ha_thread_ctx[thr].thread_dump_buffer, &old, 0));
+}
+
+/* performs a complete thread dump: calls the remote thread and marks the
+ * buffer as read.
+ */
+void ha_thread_dump(struct buffer *buf, int thr)
+{
+	ha_thread_dump_fill(buf, thr);
+	ha_thread_dump_done(buf, thr);
 }
 
 /* dumps into the buffer some information related to task <task> (which may
