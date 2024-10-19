@@ -416,15 +416,6 @@ void ha_thread_dump_done(struct buffer *buf, int thr)
 	} while (!HA_ATOMIC_CAS(&ha_thread_ctx[thr].thread_dump_buffer, &old, buf));
 }
 
-/* performs a complete thread dump: calls the remote thread and marks the
- * buffer as read.
- */
-void ha_thread_dump(struct buffer *buf, int thr)
-{
-	ha_thread_dump_fill(buf, thr);
-	ha_thread_dump_done(NULL, thr);
-}
-
 /* dumps into the buffer some information related to task <task> (which may
  * either be a task or a tasklet, and prepend each line except the first one
  * with <pfx>. The buffer is only appended and the first output starts by the
@@ -519,11 +510,12 @@ static int cli_io_handler_show_threads(struct appctx *appctx)
 
 	do {
 		chunk_reset(&trash);
-		ha_thread_dump(&trash, *thr);
-
-		if (applet_putchk(appctx, &trash) == -1) {
-			/* failed, try again */
-			return 0;
+		if (ha_thread_dump_fill(&trash, *thr)) {
+			ha_thread_dump_done(NULL, *thr);
+			if (applet_putchk(appctx, &trash) == -1) {
+				/* failed, try again */
+				return 0;
+			}
 		}
 		(*thr)++;
 	} while (*thr < global.nbthread);
@@ -686,8 +678,10 @@ void ha_panic()
 	chunk_appendf(&trash, "Thread %u is about to kill the process.\n", tid + 1);
 
 	for (thr = 0; thr < global.nbthread; thr++) {
-		ha_thread_dump(&trash, thr);
+		if (!ha_thread_dump_fill(&trash, thr))
+			continue;
 		DISGUISE(write(2, trash.area, trash.data));
+		ha_thread_dump_done(NULL, thr);
 		b_force_xfer(buf, &trash, b_room(buf));
 		chunk_reset(&trash);
 	}
