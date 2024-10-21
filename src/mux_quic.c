@@ -563,14 +563,18 @@ static void qmux_ctrl_send(struct qc_stream_desc *stream, uint64_t data, uint64_
 	/* Real off MUST always be the greatest offset sent. */
 	BUG_ON(offset > qcs->tx.fc.off_real);
 
-	/* check if the STREAM frame has already been notified. It can happen
-	 * for retransmission. Special care must be taken to ensure an empty
-	 * STREAM frame with FIN set is not considered as retransmitted
+	/* Check if the STREAM frame has already been notified. An empty FIN
+	 * frame must not be considered retransmitted.
 	 */
-	if (offset + data < qcs->tx.fc.off_real || (!data && !(qcs->flags & QC_SF_FIN_STREAM))) {
+	if (data && offset + data <= qcs->tx.fc.off_real) {
 		TRACE_DEVEL("offset already notified", QMUX_EV_QCS_SEND, qcc->conn, qcs);
 		goto out;
 	}
+
+	/* An empty STREAM frame is only used to notify FIN. A retransmitted
+	 * empty FIN cannot be notified as QCS will be unsubscribed first.
+	 */
+	BUG_ON(!data && !(qcs->flags & QC_SF_FIN_STREAM));
 
 	qcs_idle_open(qcs);
 
@@ -622,6 +626,9 @@ static void qmux_ctrl_send(struct qc_stream_desc *stream, uint64_t data, uint64_
 				/* Reset flag to not emit multiple FIN STREAM frames. */
 				qcs->flags &= ~QC_SF_FIN_STREAM;
 			}
+
+			/* Unsubscribe from streamdesc when everything sent. */
+			qc_stream_desc_sub_send(qcs->stream, NULL);
 		}
 	}
 
