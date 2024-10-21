@@ -157,6 +157,71 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 	} while (0)
 #endif
 
+/* Counting the number of matches on a given BUG_ON()/WARN_ON()/CHECK_IF()
+ * invocation requires a special section ("dbg_cnt") hence a modern
+ * linker.
+ */
+#if !defined(USE_OBSOLETE_LINKER)
+
+/* type of checks that can be verified. We cannot really distinguish between
+ * BUG/WARN/CHECK_IF as they all pass through __BUG_ON() at a different level,
+ * but there's at least a difference between __BUG_ON() and __BUG_ON_ONCE().
+ */
+enum debug_counter_type {
+	DBG_BUG,
+	DBG_BUG_ONCE,
+	DBG_COUNTER_TYPES // must be last
+};
+
+/* this is the struct that we store in section "dbg_cnt". Better keep it
+ * well aligned.
+ */
+struct debug_count {
+	const char *file;
+	const char *func;
+	const char *desc;
+	uint16_t    line;
+	uint8_t     type;
+	/* one-byte hole here */
+	uint32_t   count;
+};
+
+/* Declare a section for condition counters. The start and stop pointers are
+ * set by the linker itself, which is why they're declared extern here. The
+ * weak attribute is used so that we declare them ourselves if the section is
+ * empty. The corresponding section must contain exclusively struct debug_count
+ * to make sure each location may safely be visited by incrementing a pointer.
+ */
+extern __attribute__((__weak__)) struct debug_count __start_dbg_cnt HA_SECTION_START("dbg_cnt");
+extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_STOP("dbg_cnt");
+
+/* This macro adds a pass counter at the line where it's declared. It can be
+ * used by the various BUG_ON, COUNT_IF etc flavors. The condition is only
+ * passed for the sake of being turned into a string; the caller is expected
+ * to have already verified it.
+ */
+#define __DBG_COUNT(_cond, _file, _line, _type, ...) do {			\
+		static struct debug_count __dbg_cnt_##_line HA_SECTION("dbg_cnt") \
+		__attribute__((__used__,__aligned__(sizeof(void*)))) = { 	\
+			.file = _file,						\
+			.func = __func__,					\
+			.line = _line,						\
+			.type = _type,						\
+			.desc = (sizeof("" __VA_ARGS__) > 1) ?			\
+				"\"" #_cond "\" [" __VA_ARGS__ "]" :		\
+				"\"" #_cond "\"",				\
+			.count = 0,						\
+		};								\
+		HA_WEAK(__start_dbg_cnt);					\
+		HA_WEAK(__stop_dbg_cnt);					\
+		_HA_ATOMIC_INC(&__dbg_cnt_##_line.count);			\
+	} while (0)
+
+#else /* USE_OBSOLETE_LINKER not defined below  */
+# define __DBG_COUNT(cond, file, line, type, ...) do { } while (0)
+# define _COUNT_IF(cond, file, line, ...) do { } while (0)
+#endif
+
 /* This is the generic low-level macro dealing with conditional warnings and
  * bugs. The caller decides whether to crash or not and what prefix and suffix
  * to pass. The macro returns the boolean value of the condition as an int for
@@ -169,6 +234,7 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
  */
 #define _BUG_ON(cond, file, line, crash, pfx, sfx, ...)				\
 	(void)(unlikely(cond) ? ({						\
+		__DBG_COUNT(cond, file, line, DBG_BUG, __VA_ARGS__); 		\
 		__BUG_ON(cond, file, line, crash, pfx, sfx, __VA_ARGS__);	\
 		1; /* let's return the true condition */			\
 	}) : 0)
@@ -193,6 +259,7 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
  */
 #define _BUG_ON_ONCE(cond, file, line, crash, pfx, sfx, ...)			\
 	(void)(unlikely(cond) ? ({						\
+		__DBG_COUNT(cond, file, line, DBG_BUG_ONCE, __VA_ARGS__); 	\
 		__BUG_ON_ONCE(cond, file, line, crash, pfx, sfx, __VA_ARGS__);	\
 		1; /* let's return the true condition */			\
 	}) : 0)
