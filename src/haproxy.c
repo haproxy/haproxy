@@ -2136,7 +2136,6 @@ static void apply_master_worker_mode()
 {
 	int worker_pid;
 	struct mworker_proc *child;
-	struct ring *tmp_startup_logs = NULL;
 	char *sock_name = NULL;
 
 	worker_pid = fork();
@@ -2146,12 +2145,6 @@ static void apply_master_worker_mode()
 
 		exit(EXIT_FAILURE);
 	case 0:
-		/* in child: at this point the worker must have his own startup_logs buffer */
-		tmp_startup_logs = startup_logs_dup(startup_logs);
-		if (tmp_startup_logs == NULL)
-			exit(EXIT_FAILURE);
-		startup_logs_free(startup_logs);
-		startup_logs = tmp_startup_logs;
 		/* This one must not be exported, it's internal! */
 		unsetenv("HAPROXY_MWORKER_REEXEC");
 		ha_random_jump96(1);
@@ -3664,6 +3657,7 @@ int main(int argc, char **argv)
 	struct rlimit limit;
 	int intovf = (unsigned char)argc + 1; /* let the compiler know it's strictly positive */
 	struct cfgfile *cfg, *cfg_tmp;
+	struct ring *tmp_startup_logs = NULL;
 
 	/* Catch broken toolchains */
 	if (sizeof(long) != sizeof(void *) || (intovf + 0x7FFFFFFF >= intovf)) {
@@ -4041,8 +4035,6 @@ int main(int argc, char **argv)
 #endif
 	}
 
-	global.mode &= ~MODE_STARTING;
-	reset_usermsgs_ctx();
 
 	/* start threads 2 and above */
 	setup_extra_threads(&run_thread_poll_loop);
@@ -4088,7 +4080,19 @@ int main(int argc, char **argv)
 		}
 		close(sock_pair[1]);
 		ha_free(&msg);
+
+		/* at this point the worker must have his own startup_logs buffer */
+		tmp_startup_logs = startup_logs_dup(startup_logs);
+		if (tmp_startup_logs == NULL)
+			exit(EXIT_FAILURE);
+		startup_logs_free(startup_logs);
+		startup_logs = tmp_startup_logs;
 	}
+	/* can't unset MODE_STARTING earlier, otherwise worker's last alerts
+	 * should be not written in startup logs.
+	 */
+	global.mode &= ~MODE_STARTING;
+	reset_usermsgs_ctx();
 
 	/* Finally, start the poll loop for the first thread */
 	run_thread_poll_loop(&ha_thread_info[0]);
