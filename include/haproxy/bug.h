@@ -167,11 +167,13 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
  * on a second line after the condition message, to give a bit more context
  * about the problem.
  */
-#define _BUG_ON(cond, file, line, crash, pfx, sfx, ...)                 \
-	__BUG_ON(cond, file, line, crash, pfx, sfx, __VA_ARGS__)
+#define _BUG_ON(cond, file, line, crash, pfx, sfx, ...)				\
+	(void)(unlikely(cond) ? ({						\
+		__BUG_ON(cond, file, line, crash, pfx, sfx, __VA_ARGS__);	\
+		1; /* let's return the true condition */			\
+	}) : 0)
 
-#define __BUG_ON(cond, file, line, crash, pfx, sfx, ...)                \
-	(void)(unlikely(cond) ? ({					\
+#define __BUG_ON(cond, file, line, crash, pfx, sfx, ...) do {		\
 		const char *msg;					\
 		if (sizeof("" __VA_ARGS__) > 1)				\
 			msg ="\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n" __VA_ARGS__ "\n"; \
@@ -182,8 +184,7 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 			ABORT_NOW();					\
 		else							\
 			DUMP_TRACE();					\
-		1; /* let's return the true condition */		\
-	}) : 0)
+	} while (0)
 
 /* This one is equivalent except that it only emits the message once by
  * maintaining a static counter. This may be used with warnings to detect
@@ -191,10 +192,12 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
  * possible to verify these counters.
  */
 #define _BUG_ON_ONCE(cond, file, line, crash, pfx, sfx, ...)			\
-	__BUG_ON_ONCE(cond, file, line, crash, pfx, sfx, __VA_ARGS__)
+	(void)(unlikely(cond) ? ({						\
+		__BUG_ON_ONCE(cond, file, line, crash, pfx, sfx, __VA_ARGS__);	\
+		1; /* let's return the true condition */			\
+	}) : 0)
 
-#define __BUG_ON_ONCE(cond, file, line, crash, pfx, sfx, ...)                \
-	(void)(unlikely(cond) ? ({					\
+#define __BUG_ON_ONCE(cond, file, line, crash, pfx, sfx, ...) do {	\
 		static int __match_count_##line;			\
 		const char *msg;					\
 		if (sizeof("" __VA_ARGS__) > 1)				\
@@ -206,8 +209,8 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 			ABORT_NOW();					\
 		else							\
 			DUMP_TRACE();					\
-		1; /* let's return the true condition */		\
-	}) : 0)
+	} while (0)
+
 
 /* DEBUG_STRICT enables/disables runtime checks on condition <cond>
  * DEBUG_STRICT_ACTION indicates the level of verification on the rules when
