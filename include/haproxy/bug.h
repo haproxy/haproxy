@@ -157,19 +157,21 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 	} while (0)
 #endif
 
-/* Counting the number of matches on a given BUG_ON()/WARN_ON()/CHECK_IF()
- * invocation requires a special section ("dbg_cnt") hence a modern
+/* Counting the number of matches on a given BUG_ON()/WARN_ON()/CHECK_IF()/
+ * COUNT_IF() invocation requires a special section ("dbg_cnt") hence a modern
  * linker.
  */
 #if !defined(USE_OBSOLETE_LINKER)
 
 /* type of checks that can be verified. We cannot really distinguish between
  * BUG/WARN/CHECK_IF as they all pass through __BUG_ON() at a different level,
- * but there's at least a difference between __BUG_ON() and __BUG_ON_ONCE().
+ * but there's at least a difference between __BUG_ON() and __BUG_ON_ONCE()
+ * (and of course COUNT_IF).
  */
 enum debug_counter_type {
 	DBG_BUG,
 	DBG_BUG_ONCE,
+	DBG_COUNT_IF,
 	DBG_COUNTER_TYPES // must be last
 };
 
@@ -216,6 +218,16 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		HA_WEAK(__stop_dbg_cnt);					\
 		_HA_ATOMIC_INC(&__dbg_cnt_##_line.count);			\
 	} while (0)
+
+/* Core of the COUNT_IF() macro, checks the condition and counts one hit if
+ * true.
+ */
+#define _COUNT_IF(cond, file, line, ...) do {					\
+	(void)(unlikely(cond) ? ({						\
+		__DBG_COUNT(cond, file, line, DBG_COUNT_IF, __VA_ARGS__);	\
+		1; /* let's return the true condition */			\
+	}) : 0); } while (0)
+
 
 #else /* USE_OBSOLETE_LINKER not defined below  */
 # define __DBG_COUNT(cond, file, line, type, ...) do { } while (0)
@@ -297,26 +309,31 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, 2, "WARNING: bug ",   " (not crashing but process is untrusted now, please report to developers)", __VA_ARGS__)
 #  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: warn ",  " (please report to developers)", __VA_ARGS__)
 #  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)", __VA_ARGS__)
+#  define COUNT_IF(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # elif !defined(DEBUG_STRICT_ACTION) || (DEBUG_STRICT_ACTION == 1)
 /* default level: BUG_ON() crashes, WARN_ON() warns, CHECK_IF() warns */
 #  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "", __VA_ARGS__)
 #  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, 0, "WARNING: warn ",  " (please report to developers)", __VA_ARGS__)
 #  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)", __VA_ARGS__)
+#  define COUNT_IF(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # elif defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION == 2)
 /* Stricter level: BUG_ON() crashes, WARN_ON() crashes, CHECK_IF() warns */
 #  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "", __VA_ARGS__)
 #  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, 1, "FATAL: warn ",    "", __VA_ARGS__)
 #  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)", __VA_ARGS__)
+#  define COUNT_IF(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # elif defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION >= 3)
 /* Developer/CI level: BUG_ON() crashes, WARN_ON() crashes, CHECK_IF() crashes */
 #  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "", __VA_ARGS__)
 #  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, 1, "FATAL: warn ",    "", __VA_ARGS__)
 #  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 1, "FATAL: check ",   "", __VA_ARGS__)
+#  define COUNT_IF(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # endif
 #else
 #  define BUG_ON(cond, ...)   do { (void)sizeof(cond); } while (0)
 #  define WARN_ON(cond, ...)  do { (void)sizeof(cond); } while (0)
 #  define CHECK_IF(cond, ...) do { (void)sizeof(cond); } while (0)
+#  define COUNT_IF(cond, ...) do { (void)sizeof(cond); } while (0)
 #endif
 
 /* These macros are only for hot paths and remain disabled unless DEBUG_STRICT is 2 or above.
@@ -328,18 +345,22 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 /* Lowest level: BUG_ON() warns, CHECK_IF() warns */
 #  define BUG_ON_HOT(cond, ...)   _BUG_ON_ONCE(cond, __FILE__, __LINE__, 2, "WARNING: bug ",   " (not crashing but process is untrusted now, please report to developers)", __VA_ARGS__)
 #  define CHECK_IF_HOT(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)", __VA_ARGS__)
+#  define COUNT_IF_HOT(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # elif !defined(DEBUG_STRICT_ACTION) || (DEBUG_STRICT_ACTION < 3)
 /* default level: BUG_ON() crashes, CHECK_IF() warns */
 #  define BUG_ON_HOT(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "", __VA_ARGS__)
 #  define CHECK_IF_HOT(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 0, "WARNING: check ", " (please report to developers)", __VA_ARGS__)
+#  define COUNT_IF_HOT(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # elif defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION >= 3)
 /* Developer/CI level: BUG_ON() crashes, CHECK_IF() crashes */
 #  define BUG_ON_HOT(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, 3, "FATAL: bug ",     "", __VA_ARGS__)
 #  define CHECK_IF_HOT(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 1, "FATAL: check ",   "", __VA_ARGS__)
+#  define COUNT_IF_HOT(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # endif
 #else
 #  define BUG_ON_HOT(cond, ...)   do { (void)sizeof(cond) ; } while (0)
 #  define CHECK_IF_HOT(cond, ...) do { (void)sizeof(cond) ; } while (0)
+#  define COUNT_IF_HOT(cond, ...) do { (void)sizeof(cond) ; } while (0)
 #endif
 
 
