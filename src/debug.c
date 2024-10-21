@@ -2103,6 +2103,127 @@ static void debug_release_memstats(struct appctx *appctx)
 }
 #endif
 
+#if !defined(USE_OBSOLETE_LINKER)
+
+/* CLI state for "debug dev counters" */
+struct dev_cnt_ctx {
+	struct debug_count *start, *stop; /* begin/end of dump */
+	int types;                        /* OR mask of 1<<type */
+	int show_all;                     /* show all entries if non-null */
+};
+
+/* CLI parser for the "debug dev counters" command. Sets a dev_cnt_ctx shown above. */
+static int debug_parse_cli_counters(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct dev_cnt_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+	int action;
+	int arg;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	action = 0; // 0=show, 1=reset
+	for (arg = 3; *args[arg]; arg++) {
+		if (strcmp(args[arg], "reset") == 0) {
+			action = 1;
+			continue;
+		}
+		else if (strcmp(args[arg], "all") == 0) {
+			ctx->show_all = 1;
+			continue;
+		}
+		else if (strcmp(args[arg], "show") == 0) {
+			action = 0;
+			continue;
+		}
+		else if (strcmp(args[arg], "bug") == 0) {
+			ctx->types |= 1 << DBG_BUG;
+			continue;
+		}
+		else if (strcmp(args[arg], "chk") == 0) {
+			ctx->types |= 1 << DBG_BUG_ONCE;
+			continue;
+		}
+		else if (strcmp(args[arg], "cnt") == 0) {
+			ctx->types |= 1 << DBG_COUNT_IF;
+			continue;
+		}
+		else
+			return cli_err(appctx, "Expects an optional action ('reset','show'), optional types ('bug','chk','cnt') and optionally 'all' to even dump null counters.\n");
+	}
+
+	if (action == 1) { // reset
+		struct debug_count *ptr;
+
+		if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+			return 1;
+
+		for (ptr = &__start_dbg_cnt; ptr < &__stop_dbg_cnt; ptr++) {
+			if (ctx->types && !(ctx->types & (1 << ptr->type)))
+				continue;
+			_HA_ATOMIC_STORE(&ptr->count, 0);
+		}
+		return 1;
+	}
+
+	/* OK it's a show, let's dump relevant counters */
+	ctx->start = &__start_dbg_cnt;
+	ctx->stop  = &__stop_dbg_cnt;
+	return 0;
+}
+
+/* CLI I/O handler for the "debug dev counters" command using a dev_cnt_ctx
+ * found in appctx->svcctx. Dumps all mem_stats structs referenced by pointers
+ * located between ->start and ->stop. Dumps all entries if ->show_all != 0,
+ * otherwise only non-zero calls.
+ */
+static int debug_iohandler_counters(struct appctx *appctx)
+{
+	const char *bug_type[DBG_COUNTER_TYPES] = {
+		[DBG_BUG]      = "BUG",
+		[DBG_BUG_ONCE] = "CHK",
+		[DBG_COUNT_IF] = "CNT",
+	};
+	struct dev_cnt_ctx *ctx = appctx->svcctx;
+	struct debug_count *ptr;
+	int ret = 1;
+
+	/* we have two inner loops here, one for the proxy, the other one for
+	 * the buffer.
+	 */
+	chunk_printf(&trash, "Count     Type Location function(): \"condition\" [comment]\n");
+	for (ptr = ctx->start; ptr != ctx->stop; ptr++) {
+		const char *p, *name;
+
+		if (ctx->types && !(ctx->types & (1 << ptr->type)))
+			continue;
+
+		if (!ptr->count && !ctx->show_all)
+			continue;
+
+		for (p = name = ptr->file; *p; p++) {
+			if (*p == '/')
+				name = p + 1;
+		}
+
+		if (ptr->type < DBG_COUNTER_TYPES)
+			chunk_appendf(&trash, "%-10u %3s %s:%d %s(): %s\n",
+				      ptr->count, bug_type[ptr->type],
+				      name, ptr->line, ptr->func, ptr->desc);
+
+		if (applet_putchk(appctx, &trash) == -1) {
+			ctx->start = ptr;
+			ret = 0;
+			goto end;
+		}
+	}
+
+	/* we could even dump a summary here if needed, returning ret=0 */
+ end:
+	return ret;
+}
+#endif /* USE_OBSOLETE_LINKER */
+
 #ifdef USE_THREAD_DUMP
 
 /* handles DEBUGSIG to dump the state of the thread it's working on. This is
@@ -2516,6 +2637,9 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "bug", NULL },      "debug dev bug                           : call BUG_ON() and crash",                 debug_parse_cli_bug,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "check", NULL },    "debug dev check                         : call CHECK_IF() and possibly crash",      debug_parse_cli_check, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "close", NULL },    "debug dev close  <fd>                   : close this file descriptor",              debug_parse_cli_close, NULL, NULL, NULL, ACCESS_EXPERT },
+#if !defined(USE_OBSOLETE_LINKER)
+	{{ "debug", "dev", "counters", NULL }, "debug dev counters [all|bug|cnt|chk|?]* : dump/reset rare event counters",          debug_parse_cli_counters, debug_iohandler_counters, NULL, NULL, 0 },
+#endif
 	{{ "debug", "dev", "deadlock", NULL }, "debug dev deadlock [nbtask]             : deadlock between this number of tasks",   debug_parse_cli_deadlock, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "delay", NULL },    "debug dev delay  [ms]                   : sleep this long",                         debug_parse_cli_delay, NULL, NULL, NULL, ACCESS_EXPERT },
 #if defined(DEBUG_DEV)
