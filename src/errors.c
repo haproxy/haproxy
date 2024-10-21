@@ -102,77 +102,29 @@ error:
 }
 
 /*
- * Use a shm across reexec of the master.
- *
- * During the startup of the master, a shm_open must be done and the FD saved
- * into the HAPROXY_STARTUPLOGS_FD environment variable.
- *
- * When forking workers, the child must use a copy of the shm, not the shm itself.
- *
- * Once in wait mode, the shm must be copied and closed.
- *
+ * At process start (step_init_1) opens shm and allocates the ring area for the
+ * startup logs into it. In master-worker mode master and worker share the same
+ * ring until the moment, when worker sends READY state to master. This is done
+ * in order to show worker's init logs in master CLI as the output of the
+ * 'reload' command. After sending its READY status to master, worker must use
+ * its copy of the shm, not the shm itself.
  */
-void startup_logs_init_shm()
+static struct ring *startup_logs_init_shm()
 {
 	struct ring *r = NULL;
-	char *str_fd, *endptr;
 	int fd = -1;
 
-	str_fd = getenv("HAPROXY_STARTUPLOGS_FD");
-	if (str_fd) {
-		fd = strtol(str_fd, &endptr, 10);
-		if (*endptr != '\0')
-			goto error;
-		unsetenv("HAPROXY_STARTUPLOGS_FD");
-	}
+	fd = startup_logs_new_shm();
+	if (fd == -1)
+		return NULL;
 
-	/* during startup, or just after a reload.
-	 * Note: the WAIT_ONLY env variable must be
-	 * check in case of an early call  */
-	if (!(global.mode & MODE_MWORKER)) {
-		if (fd != -1)
-			close(fd);
+	r = startup_logs_from_fd(fd, 1);
+	close(fd);
 
-		fd = startup_logs_new_shm();
-		if (fd == -1)
-			goto error;
+	if (!r)
+		return NULL;
 
-		r = startup_logs_from_fd(fd, 1);
-		if (!r)
-			goto error;
-
-		str_fd = NULL;
-		memprintf(&str_fd, "%d", fd);
-		setenv("HAPROXY_STARTUPLOGS_FD", str_fd, 1);
-		ha_free(&str_fd);
-
-	} else {
-		/* in wait mode, copy the shm to an allocated buffer */
-		struct ring *prev = NULL;
-
-		if (fd == -1)
-			goto error;
-
-		prev = startup_logs_from_fd(fd, 0);
-		if (!prev)
-			goto error;
-
-		r = startup_logs_dup(prev);
-		if (!r)
-			goto error;
-		startup_logs_free(prev);
-		close(fd);
-	}
-
-	startup_logs = r;
-
-	return;
-error:
-	if (fd != -1)
-		close(fd);
-	/* couldn't get a mmap to work */
-	startup_logs = ring_new(STARTUP_LOG_SIZE);
-
+	return r;
 }
 
 #endif /* ! USE_SHM_OPEN */
@@ -180,7 +132,7 @@ error:
 void startup_logs_init()
 {
 #ifdef USE_SHM_OPEN
-	startup_logs_init_shm();
+	startup_logs = startup_logs_init_shm();
 #else /* ! USE_SHM_OPEN */
 	startup_logs = ring_new(STARTUP_LOG_SIZE);
 #endif

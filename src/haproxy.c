@@ -753,6 +753,8 @@ static void mworker_reexec(int hardreload)
 	/* ensure that we close correctly every listeners before reexecuting */
 	mworker_cleanlisteners();
 
+	startup_logs_free(startup_logs);
+
 	/* during the reload we must ensure that every FDs that can't be
 	 * reuse (ie those that are not referenced in the proc_list)
 	 * are closed or they will leak. */
@@ -2308,6 +2310,7 @@ static void step_init_1()
 #endif
 #endif /* USE_OPENSSL */
 
+	/* saves ptr to ring in startup_logs var */
 	startup_logs_init();
 
 	if (init_acl() != 0)
