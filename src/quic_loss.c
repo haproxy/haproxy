@@ -1,5 +1,6 @@
 #include <import/eb64tree.h>
 
+#include <haproxy/quic_cc-t.h>
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_loss.h>
 #include <haproxy/quic_tls.h>
@@ -151,7 +152,7 @@ struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
  * Always succeeds.
  */
 void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
-                           struct list *lost_pkts)
+                           struct list *lost_pkts, uint32_t *bytes_lost)
 {
 	struct eb_root *pkts;
 	struct eb64_node *node;
@@ -213,8 +214,14 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 			ql->nb_reordered_pkt++;
 
 		if (tick_is_le(loss_time_limit, now_ms) || reordered) {
+			struct quic_cc *cc = &qc->path->cc;
+
+			if (cc->algo->on_pkt_lost)
+				cc->algo->on_pkt_lost(cc, pkt, pkt->rs.lost);
 			eb64_delete(&pkt->pn_node);
 			LIST_APPEND(lost_pkts, &pkt->list);
+			if (bytes_lost)
+				*bytes_lost += pkt->len;
 			ql->nb_lost_pkt++;
 		}
 		else {
@@ -276,6 +283,7 @@ int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
 
 	if (!close) {
 		if (newest_lost) {
+			struct quic_cc *cc = &qc->path->cc;
 			/* Sent a congestion event to the controller */
 			struct quic_cc_event ev = { };
 
@@ -283,7 +291,9 @@ int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
 			ev.loss.time_sent = newest_lost->time_sent;
 			ev.loss.count = tot_lost;
 
-			quic_cc_event(&qc->path->cc, &ev);
+			quic_cc_event(cc, &ev);
+			if (cc->algo->congestion_event)
+			    cc->algo->congestion_event(cc, newest_lost->time_sent);
 		}
 
 		/* If an RTT have been already sampled, <rtt_min> has been set.
@@ -295,7 +305,8 @@ int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
 			unsigned int period = newest_lost->time_sent - oldest_lost->time_sent;
 
 			if (quic_loss_persistent_congestion(&qc->path->loss, period,
-							    now_ms, qc->max_ack_delay))
+							    now_ms, qc->max_ack_delay) &&
+			    qc->path->cc.algo->slow_start)
 				qc->path->cc.algo->slow_start(&qc->path->cc);
 		}
 	}

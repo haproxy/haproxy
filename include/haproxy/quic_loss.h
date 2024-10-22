@@ -85,7 +85,7 @@ struct quic_pktns *quic_pto_pktns(struct quic_conn *qc,
                                   unsigned int *pto);
 
 void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
-                           struct list *lost_pkts);
+                           struct list *lost_pkts, uint32_t *bytes_lost);
 int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
                          struct list *pkts, uint64_t now_us);
 #endif /* USE_QUIC */

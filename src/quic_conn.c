@@ -931,7 +931,7 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 	if (tick_isset(pktns->tx.loss_time)) {
 		struct list lost_pkts = LIST_HEAD_INIT(lost_pkts);
 
-		qc_packet_loss_lookup(pktns, qc, &lost_pkts);
+		qc_packet_loss_lookup(pktns, qc, &lost_pkts, NULL);
 		if (!LIST_ISEMPTY(&lost_pkts))
 		    tasklet_wakeup(qc->wait_event.tasklet);
 		if (qc_release_lost_pkts(qc, pktns, &lost_pkts, now_ms))
