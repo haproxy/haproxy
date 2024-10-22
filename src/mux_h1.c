@@ -346,6 +346,8 @@ static void h1_shutw_conn(struct connection *conn);
 static void h1_wake_stream_for_recv(struct h1s *h1s);
 static void h1_wake_stream_for_send(struct h1s *h1s);
 static void h1s_destroy(struct h1s *h1s);
+static int h1_dump_h1c_info(struct buffer *msg, struct h1c *h1c, const char *pfx);
+static int h1_dump_h1s_info(struct buffer *msg, const struct h1s *h1s, const char *pfx);
 
 /* returns the stconn associated to the H1 stream */
 static forceinline struct stconn *h1s_sc(const struct h1s *h1s)
@@ -5198,13 +5200,30 @@ static int h1_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *output)
 {
 	int ret = 0;
 	struct h1s *h1s = __sc_mux_strm(sc);
+	union mux_sctl_dbg_str_ctx *dbg_ctx;
+	struct buffer *buf;
 
 	switch (mux_sctl) {
 	case MUX_SCTL_SID:
 		if (output)
 			*((int64_t *)output) = h1s->h1c->req_count;
 		return ret;
+	case MUX_SCTL_DBG_STR:
+		dbg_ctx = output;
+		buf = get_trash_chunk();
 
+		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_MUXS)
+			h1_dump_h1s_info(buf, h1s, NULL);
+
+		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_MUXC)
+			h1_dump_h1c_info(buf, h1s->h1c, NULL);
+
+		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_CONN)
+			chunk_appendf(buf, " conn.flg=%#08x", h1s->h1c->conn->flags);
+
+		/* other layers not implemented */
+		dbg_ctx->ret.buf = *buf;
+		return ret;
 	default:
 		return -1;
 	}
