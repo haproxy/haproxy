@@ -396,6 +396,10 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 				qc->path->ifae_pkts++;
 				if (qc->flags & QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ)
 					qc_idle_timer_rearm(qc, 0, 0);
+				if (cc->algo->on_transmit)
+					cc->algo->on_transmit(cc);
+				if (cc->algo->drs_on_transmit)
+					cc->algo->drs_on_transmit(cc, pkt);
 			}
 			if (!(qc->flags & QUIC_FL_CONN_CLOSING) &&
 			    (pkt->flags & QUIC_FL_TX_PACKET_CC)) {
