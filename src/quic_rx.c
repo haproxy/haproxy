@@ -19,6 +19,7 @@
 #include <haproxy/ncbuf.h>
 #include <haproxy/proto_quic.h>
 #include <haproxy/quic_ack.h>
+#include <haproxy/quic_cc_drs.h>
 #include <haproxy/quic_cid.h>
 #include <haproxy/quic_retransmit.h>
 #include <haproxy/quic_retry.h>
@@ -421,32 +422,51 @@ int qc_handle_frms_of_lost_pkt(struct quic_conn *qc,
  * Always succeeds.
  */
 static void qc_notify_cc_of_newly_acked_pkts(struct quic_conn *qc,
-                                             struct list *newly_acked_pkts)
+                                             struct list *newly_acked_pkts,
+                                             unsigned int bytes_lost,
+                                             unsigned int rtt)
 {
 	struct quic_tx_packet *pkt, *tmp;
 	struct quic_cc_event ev = { .type = QUIC_CC_EVT_ACK, };
+	struct quic_cc_path *p = qc->path;
+	struct quic_cc_drs *drs =
+		p->cc.algo->get_drs ? p->cc.algo->get_drs(&p->cc) : NULL;
+	unsigned int bytes_delivered = 0, pkt_delivered = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
 
 	list_for_each_entry_safe(pkt, tmp, newly_acked_pkts, list) {
 		pkt->pktns->tx.in_flight -= pkt->in_flight_len;
-		qc->path->prep_in_flight -= pkt->in_flight_len;
-		qc->path->in_flight -= pkt->in_flight_len;
+		p->prep_in_flight -= pkt->in_flight_len;
+		p->in_flight -= pkt->in_flight_len;
 		if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)
-			qc->path->ifae_pkts--;
+			p->ifae_pkts--;
 		/* If this packet contained an ACK frame, proceed to the
 		 * acknowledging of range of acks from the largest acknowledged
 		 * packet number which was sent in an ACK frame by this packet.
 		 */
 		if (pkt->largest_acked_pn != -1)
 			qc_treat_ack_of_ack(qc, &pkt->pktns->rx.arngs, pkt->largest_acked_pn);
+		bytes_delivered += pkt->len;
+		pkt_delivered = pkt->rs.delivered;
 		ev.ack.acked = pkt->in_flight_len;
 		ev.ack.time_sent = pkt->time_sent;
 		ev.ack.pn = pkt->pn_node.key;
-		quic_cc_event(&qc->path->cc, &ev);
+		/* Note that this event is not emitted for BBR. */
+		quic_cc_event(&p->cc, &ev);
+		if (drs && (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING))
+			quic_cc_drs_update_rate_sample(drs, pkt);
 		LIST_DEL_INIT(&pkt->list);
 		quic_tx_packet_refdec(pkt);
 	}
+
+	if (drs) {
+		quic_cc_drs_on_ack_recv(drs, p, pkt_delivered);
+		drs->lost += bytes_lost;
+	}
+	if (p->cc.algo->on_ack_rcvd)
+		p->cc.algo->on_ack_rcvd(&p->cc, bytes_delivered, pkt_delivered,
+		                        rtt, bytes_lost, now_ms);
 
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
 
@@ -551,6 +571,8 @@ static int qc_parse_ack_frm(struct quic_conn *qc,
 	} while (1);
 
 	if (!LIST_ISEMPTY(&newly_acked_pkts)) {
+		unsigned int bytes_lost = 0;
+
 		if (!qc_handle_newly_acked_pkts(qc, &pkt_flags, &newly_acked_pkts))
 			goto leave;
 
@@ -560,11 +582,13 @@ static int qc_parse_ack_frm(struct quic_conn *qc,
 		}
 
 		if (!eb_is_empty(&qel->pktns->tx.pkts)) {
-			qc_packet_loss_lookup(qel->pktns, qc, &lost_pkts);
+			qc_packet_loss_lookup(qel->pktns, qc, &lost_pkts, &bytes_lost);
 			if (!qc_release_lost_pkts(qc, qel->pktns, &lost_pkts, now_ms))
 				goto leave;
 		}
-		qc_notify_cc_of_newly_acked_pkts(qc, &newly_acked_pkts);
+
+		qc_notify_cc_of_newly_acked_pkts(qc, &newly_acked_pkts,
+		                                 bytes_lost, *rtt_sample);
 		if (quic_peer_validated_addr(qc))
 			qc->path->loss.pto_count = 0;
 		qc_set_timer(qc);
