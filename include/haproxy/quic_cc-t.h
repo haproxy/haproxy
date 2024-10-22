@@ -31,6 +31,7 @@
 
 #include <haproxy/buf-t.h>
 #include <haproxy/quic_loss-t.h>
+#include <haproxy/quic_tx-t.h>
 
 #define QUIC_CC_INFINITE_SSTHESH ((uint32_t)-1)
 
@@ -136,6 +137,16 @@ struct quic_cc_algo {
 	/* Defined only if pacing is used. */
 	uint (*pacing_rate)(const struct quic_cc *cc);
 	uint (*pacing_burst)(const struct quic_cc *cc);
+
+	struct quic_cc_drs *(*get_drs)(struct quic_cc *cc);
+	void (*on_transmit)(struct quic_cc *cc);
+	void (*drs_on_transmit)(struct quic_cc *cc, struct quic_tx_packet *pkt);
+	void (*on_ack_rcvd)(struct quic_cc *cc, uint32_t acked, uint32_t delivered,
+	                    uint32_t ack_rtt, uint32_t bytes_lost,
+	                    unsigned int largest_pkt_sent_ts);
+	void (*on_pkt_lost)(struct quic_cc *cc,
+	                    struct quic_tx_packet *pkt, uint32_t lost_bytes);
+	void (*congestion_event)(struct quic_cc *cc, uint32_t ts);
 };
 
 #endif /* USE_QUIC */
