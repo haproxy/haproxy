@@ -2316,6 +2316,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				if (s->be->options & PR_O_ABRT_CLOSE) {
 					struct connection *conn = sc_conn(scf);
 
+					se_have_more_data(scf->sedesc);
 					if (conn && conn->mux && conn->mux->ctl)
 						conn->mux->ctl(conn, MUX_CTL_SUBS_RECV, NULL);
 				}
