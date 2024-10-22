@@ -2469,6 +2469,7 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 
 static int _send_status(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct listener *mproxy_li;
 	struct mworker_proc *proc;
 	int pid;
 
@@ -2479,8 +2480,11 @@ static int _send_status(char **args, char *payload, struct appctx *appctx, void 
 
 	list_for_each_entry(proc, &proc_list, list) {
 		/* update status of the new worker */
-		if (proc->pid == pid)
+		if (proc->pid == pid) {
 			proc->options &= ~PROC_O_INIT;
+			mproxy_li = fdtab[proc->ipc_fd[0]].owner;
+			stop_listener(mproxy_li, 0, 0, 0);
+		}
 		/* send TERM to workers, which have exceeded max_reloads counter */
 		if (max_reloads != -1) {
 			if ((proc->options & PROC_O_TYPE_WORKER) &&
