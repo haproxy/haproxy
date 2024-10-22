@@ -5975,10 +5975,14 @@ out:
 		if (srv->track)
 			release_server_track(srv);
 
-		if (srv->check.state & CHK_ST_CONFIGURED)
+		if (srv->check.state & CHK_ST_CONFIGURED) {
 			free_check(&srv->check);
-		if (srv->agent.state & CHK_ST_CONFIGURED)
+			srv_drop(srv);
+		}
+		if (srv->agent.state & CHK_ST_CONFIGURED) {
 			free_check(&srv->agent);
+			srv_drop(srv);
+		}
 
 		/* remove the server from the proxy linked list */
 		_srv_detach(srv);
