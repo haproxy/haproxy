@@ -7860,13 +7860,6 @@ static size_t h2_done_ff(struct stconn *sc)
 		h2s->flags &= ~H2_SF_MORE_HTX_DATA;
 	}
 
-	if (!(sd->iobuf.flags & IOBUF_FL_FF_BLOCKED) &&
-	    !(h2s->flags & H2_SF_BLK_SFCTL) &&
-	    !(h2s->flags & (H2_SF_WANT_SHUTR|H2_SF_WANT_SHUTW))) {
-		/* Ok we managed to send something, leave the send_list if we were still there */
-		h2_remove_from_list(h2s);
-	}
-
 	if (!sd->iobuf.data)
 		goto end;
 
@@ -7900,6 +7893,13 @@ static size_t h2_done_ff(struct stconn *sc)
 
 	if (!(sd->iobuf.flags & IOBUF_FL_INTERIM_FF))
 	    h2s->flags &= ~H2_SF_NOTIFIED;
+
+	if ((total || !(sd->iobuf.flags & IOBUF_FL_FF_BLOCKED)) &&
+	    !(h2s->flags & H2_SF_BLK_SFCTL) &&
+	    !(h2s->flags & (H2_SF_WANT_SHUTR|H2_SF_WANT_SHUTW))) {
+		/* Ok we managed to send something, leave the send_list if we were still there */
+		h2_remove_from_list(h2s);
+	}
 
 	TRACE_LEAVE(H2_EV_H2S_SEND|H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
 	return total;
