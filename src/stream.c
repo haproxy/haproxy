@@ -421,6 +421,7 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 
 	s->lat_time = s->cpu_time = 0;
 	s->call_rate.curr_tick = s->call_rate.curr_ctr = s->call_rate.prev_ctr = 0;
+	s->passes_stconn = s->passes_reqana = s->passes_resana = s->passes_propag = 0;
 	s->pcli_next_pid = 0;
 	s->pcli_flags = 0;
 	s->unique_id = IST_NULL;
@@ -1840,6 +1841,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 * the client cannot have connect (hence retryable) errors. Also, the
 	 * connection setup code must be able to deal with any type of abort.
 	 */
+	s->passes_stconn++;
 	srv = objt_server(s->target);
 	if (unlikely(scf->flags & SC_FL_ERROR)) {
 		if (sc_state_in(scf->state, SC_SB_EST|SC_SB_DIS)) {
@@ -1969,6 +1971,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 */
 
  resync_request:
+	s->passes_reqana++;
 	/* Analyse request */
 	if (((req->flags & ~rqf_last) & CF_MASK_ANALYSER) ||
 	    ((scf->flags ^ scf_flags) & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) ||
@@ -2073,6 +2076,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	req_ana_back = req->analysers;
 
  resync_response:
+	s->passes_resana++;
 	/* Analyse response */
 
 	if (((res->flags & ~rpf_last) & CF_MASK_ANALYSER) ||
@@ -2155,7 +2159,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 * both buffers.
 	 */
 
-
+	s->passes_propag++;
 	/*
 	 * Now we propagate unhandled errors to the stream. Normally
 	 * we're just in a data phase here since it means we have not
@@ -3307,6 +3311,9 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
 		                     TICKS_TO_MS(1000)) : "<NEVER>",
 		     strm->conn_err_type, strm->srv_conn, strm->pend_pos,
 		     LIST_INLIST(&strm->buffer_wait.list), strm->stream_epoch);
+
+	chunk_appendf(buf, "%s  p_stc=%u p_req=%u p_res=%u p_prp=%u\n", pfx,
+		      strm->passes_stconn, strm->passes_reqana, strm->passes_resana, strm->passes_propag);
 
 	chunk_appendf(buf,
 		     "%s  frontend=%s (id=%u mode=%s), listener=%s (id=%u)", pfx,

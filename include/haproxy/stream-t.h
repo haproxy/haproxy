@@ -246,6 +246,10 @@ struct stream {
 	uint64_t lat_time;		/* total latency time experienced */
 	uint64_t cpu_time;              /* total CPU time consumed */
 	struct freq_ctr call_rate;      /* stream task call rate without making progress */
+	uint32_t passes_stconn;         /* number of passes on the stconn evaluation code */
+	uint32_t passes_reqana;         /* number of passes on the req analysers block */
+	uint32_t passes_resana;         /* number of passes on the res analysers block */
+	uint32_t passes_propag;         /* number of passes on the shut/err propag code */
 
 	unsigned short max_retries;     /* Maximum number of connection retried (=0 is backend is not set) */
 	short store_count;
