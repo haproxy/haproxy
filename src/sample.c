@@ -31,6 +31,7 @@
 #include <haproxy/global.h>
 #include <haproxy/hash.h>
 #include <haproxy/http.h>
+#include <haproxy/http_ana-t.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/mqtt.h>
 #include <haproxy/net_helper.h>
@@ -38,6 +39,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/sink.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/time.h>
@@ -3816,6 +3818,122 @@ static int sample_conv_iif(const struct arg *arg_p, struct sample *smp, void *pr
 	return 1;
 }
 
+enum {
+	WHEN_COND_STOPPING,
+	WHEN_COND_NORMAL,
+	WHEN_COND_ERROR,
+	WHEN_COND_FORWARDED,
+	WHEN_COND_TOAPPLET,
+	WHEN_COND_PROCESSED,
+	WHEN_COND_CONDITIONS
+};
+
+const char *when_cond_kw[WHEN_COND_CONDITIONS] = {
+	[WHEN_COND_STOPPING]    = "stopping",
+	[WHEN_COND_NORMAL]      = "normal",
+	[WHEN_COND_ERROR]       = "error",
+	[WHEN_COND_FORWARDED]	= "forwarded",
+	[WHEN_COND_TOAPPLET]	= "toapplet",
+	[WHEN_COND_PROCESSED]	= "processed",
+};
+
+/* Evaluates a condition and decides whether or not to pass the input sample
+ * to the output. The purpose is to hide some info when certain conditions are
+ * (not) met. These conditions belong to a fixed list that can verify internal
+ * states (debug mode, too high load, reloading, server down, stream in error
+ * etc). The condition's sign is placed in arg_p[0].data.int. 0=direct, 1=inv.
+ * The condition keyword is in arg_p[1].data.int (WHEN_COND_*).
+ */
+static int sample_conv_when(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct session *sess = smp->sess;
+	struct stream *strm = smp->strm;
+	int neg  = arg_p[0].data.sint;
+	int cond = arg_p[1].data.sint;
+	int ret = 0;
+
+	switch (cond) {
+	case WHEN_COND_STOPPING:
+		ret = !!stopping;
+		break;
+
+	case WHEN_COND_NORMAL:
+		neg = !neg;
+		__fallthrough;
+
+	case WHEN_COND_ERROR:
+		if (strm &&
+		    ((strm->flags & SF_REDISP) ||
+		     ((strm->flags & SF_ERR_MASK) > SF_ERR_LOCAL) ||
+		     (((strm->flags & SF_ERR_MASK) == SF_ERR_NONE) && strm->conn_retries) ||
+		     ((sess->fe->mode == PR_MODE_HTTP) && strm->txn && strm->txn->status >= 500)))
+			ret = 1;
+		break;
+
+	case WHEN_COND_FORWARDED: // true if forwarded to a connection
+		ret = !!sc_conn(smp->strm->scb);
+		break;
+
+	case WHEN_COND_TOAPPLET:  // true if handled as an applet
+		ret = !!sc_appctx(smp->strm->scb);
+		break;
+
+	case WHEN_COND_PROCESSED: // true if forwarded or appctx
+		ret = sc_conn(smp->strm->scb) || sc_appctx(smp->strm->scb);
+		break;
+	}
+
+	ret = !!ret ^ !!neg;
+	if (!ret) {
+		/* kill the sample */
+		return 0;
+	}
+
+	/* pass the sample as-is */
+	return 1;
+}
+
+/* checks and resolves the type of the argument passed to when().
+ * It supports an optional '!' to negate the condition, followed by
+ * a keyword among the list above.
+ */
+static int check_when_cond(struct arg *args, struct sample_conv *conv,
+                             const char *file, int line, char **err)
+{
+	const char *kw;
+	int neg = 0;
+	int i;
+
+	kw = args[0].data.str.area;
+	if (*kw == '!') {
+		kw++;
+		neg = 1;
+	}
+
+	for (i = 0; i < WHEN_COND_CONDITIONS; i++) {
+		if (strcmp(kw, when_cond_kw[i]) == 0)
+			break;
+	}
+
+	if (i == WHEN_COND_CONDITIONS) {
+		memprintf(err, "expects a supported keyword among {");
+		for (i = 0; i < WHEN_COND_CONDITIONS; i++)
+			memprintf(err, "%s%s%s", *err, when_cond_kw[i],  (i == WHEN_COND_CONDITIONS - 1) ? "}" : ",");
+		memprintf(err, "%s but got '%s'", *err, kw);
+		return 0;
+	}
+
+	chunk_destroy(&args[0].data.str);
+	// store condition
+	args[0].type = ARGT_SINT;
+	args[0].data.sint = neg; // '!' present
+
+	// and keyword
+	args[1].type = ARGT_SINT;
+	args[1].data.sint = i;
+	return 1;
+}
+
 #define GRPC_MSG_COMPRESS_FLAG_SZ 1 /* 1 byte */
 #define GRPC_MSG_LENGTH_SZ        4 /* 4 bytes */
 #define GRPC_MSG_HEADER_SZ        (GRPC_MSG_COMPRESS_FLAG_SZ + GRPC_MSG_LENGTH_SZ)
@@ -5268,6 +5386,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "jwt_payload_query", sample_conv_jwt_payload_query, ARG2(0,STR,STR), sample_conv_jwt_query_check,   SMP_T_BIN, SMP_T_ANY },
 	{ "jwt_verify",        sample_conv_jwt_verify,        ARG2(2,STR,STR), sample_conv_jwt_verify_check,  SMP_T_BIN, SMP_T_SINT },
 #endif
+	{ "when",              sample_conv_when,              ARG1(1,STR),     check_when_cond,               SMP_T_ANY, SMP_T_ANY  },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

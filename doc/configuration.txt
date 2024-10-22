@@ -19810,6 +19810,7 @@ url_enc([enc_type])                                string       string
 us_ltime(format[,offset])                          integer      string
 us_utime(format[,offset])                          integer      string
 utime(format[,offset])                             integer      string
+when(condition)                                     any          same
 word(index,delimiters[,count])                     string       string
 wt6([avalanche])                                   binary       integer
 x509_v_err_str                                     integer      string
@@ -21396,6 +21397,67 @@ utime(<format>[,<offset>])
       # Emit two colons, one with the UTC time and another with ip:port
       # e.g.  20140710162350 127.0.0.1:57325
       log-format %[date,utime(%Y%m%d%H%M%S)]\ %ci:%cp
+
+when(<condition>)
+  Evaluates the condition and when true, passes the input sample as-is to the
+  output, otherwise return nothing. This is designed specifically to produce
+  some rarely needed data that should only be emitted under certain conditions,
+  such as debugging information when an error is met.
+
+  The condition is made of a keyword among the list below, optionally preceeded
+  by an exclamation mark ('!') to negate it:
+
+    - "error" returns true when an error was encountered during the processing
+      of the request or stream. It uses the same rules as "dontlog-normal"
+      (e.g. a successful redispatch counts as an error).
+
+    - "forwarded" returns true when the request was forwarded to a backend
+      server
+
+    - "normal" returns true when no error happened (this is equivalent to
+      "!error").
+
+    - "processed" returns true when the request was either forwarded to a
+      backend server, or processed by an applet.
+
+    - "stopping" returns true if the process is currently stopping when the
+      rule is evaluated
+
+    - "toapplet" returns true when the request was processed by an applet.
+
+  Note that the content is evaluated in any case, so doing this does not avoid
+  the generation of that information. It's only meant to avoid producing that
+  information.
+
+  An example would be to add backend stream debugging information in the logs
+  only when an error was encountered during processing, or logging extra
+  information when stopping, etc.
+
+  Example:
+    # log "dbg={-}" when fine, or "dbg={... debug info ...}" on error:
+    log-format "$HAPROXY_HTTP_LOG_FMT dbg={%[bs.debug_str,when(!normal)]}"
+
+    Here, the "dbg" field in the log will only contain an dash ('-') to
+    indicate a missing content when the rule is not validated, and will emit a
+    whole debugging block when it is.
+
+  Example
+    # only emit the backend src/port when a real connection was issued:
+    log-format "$HAPROXY_HTTP_LOG_FMT \
+               src=[%[bc_src,when(forwarded)]:%[bc_src_port,when(forwarded)]]"
+
+  Since it kills the evaluation of the expression when it is not true, it is
+  also possible to use it to stop a subsequent converter from being called.
+  This may for example be used to call the debug() converter only upon error,
+  to log an element only when absolutely necessary.
+
+  Example:
+    # emit the whole response headers list to stderr only on error and only
+    # when the output is a connection. We abuse a dummy variable here.
+    http-after-response set-var(res.test) \
+                  res.hdrs,when(error),when(forwarded),debug(hdrs,stderr)
+
+  See also: debug converter
 
 word(<index>,<delimiters>[,<count>])
   Extracts the nth word counting from the beginning (positive index) or from
