@@ -2080,16 +2080,17 @@ static size_t http_stats_fastfwd(struct appctx *appctx, struct buffer *buf,
                                  size_t count, unsigned int flags)
 {
 	struct stconn *sc = appctx_sc(appctx);
-	size_t ret = 0;
+	struct buffer outbuf;
+	size_t ret;
 
-	ret = b_data(buf);
-	if (stats_dump_stat_to_buffer(sc, buf, NULL)) {
+	outbuf = b_make(b_tail(buf), MIN(count, b_contig_space(buf)), 0, 0);
+	if (stats_dump_stat_to_buffer(sc, &outbuf, NULL)) {
 		se_fl_clr(appctx->sedesc, SE_FL_MAY_FASTFWD_PROD);
 		applet_fl_clr(appctx, APPCTX_FL_FASTFWD);
 		appctx->st0 = STAT_HTTP_DONE;
 	}
-
-	ret = b_data(buf) - ret;
+	ret = b_data(&outbuf);
+	b_add(buf, ret);
 	return ret;
 }
 
