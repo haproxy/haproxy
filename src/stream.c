@@ -1845,7 +1845,6 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if (sc_state_in(scf->state, SC_SB_EST|SC_SB_DIS)) {
 			sc_abort(scf);
 			sc_shutdown(scf);
-			//sc_report_error(scf); TODO: Be sure it is useless
 			if (!(req->analysers) && !(res->analysers)) {
 				_HA_ATOMIC_INC(&s->be->be_counters.cli_aborts);
 				_HA_ATOMIC_INC(&sess->fe->fe_counters.cli_aborts);
@@ -1865,7 +1864,6 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if (sc_state_in(scb->state, SC_SB_EST|SC_SB_DIS)) {
 			sc_abort(scb);
 			sc_shutdown(scb);
-			//sc_report_error(scb); TODO: Be sure it is useless
 			_HA_ATOMIC_INC(&s->be->be_counters.failed_resp);
 			if (srv)
 				_HA_ATOMIC_INC(&srv->counters.failed_resp);
