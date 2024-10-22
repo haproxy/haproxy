@@ -3537,7 +3537,7 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
 		list_for_each_entry(flt, &strm->strm_flt.filters, list) {
 			if (flt->list.p != &strm->strm_flt.filters)
 				chunk_appendf(buf, ", ");
-			chunk_appendf(buf, "%p=\"%s\"", flt, FLT_ID(flt));
+			chunk_appendf(buf, "%p=\"%s\" [%u]", flt, FLT_ID(flt), flt->calls);
 		}
 		chunk_appendf(buf, "}\n");
 	}

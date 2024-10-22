@@ -227,6 +227,7 @@ struct filter {
 	struct flt_conf *config;           /* the filter's configuration */
 	void           *ctx;               /* The filter context (opaque) */
 	unsigned short  flags;             /* FLT_FL_* */
+	unsigned int    calls;             /* number of calls */
 	unsigned long long offset[2];      /* Offset of input data already filtered for a specific channel
 	                                    * 0: request channel, 1: response channel */
 	unsigned int    pre_analyzers;     /* bit field indicating analyzers to pre-process */
