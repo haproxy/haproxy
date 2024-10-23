@@ -2644,6 +2644,7 @@ static void conn_calculate_hash_sockaddr(const struct sockaddr_storage *ss,
 {
 	struct sockaddr_in *addr;
 	struct sockaddr_in6 *addr6;
+	struct sockaddr_un *un;
 
 	switch (ss->ss_family) {
 	case AF_INET:
@@ -2674,6 +2675,42 @@ static void conn_calculate_hash_sockaddr(const struct sockaddr_storage *ss,
 			                 hash_flags, param_type_port);
 		}
 
+		break;
+
+	case AF_UNIX:
+		un = (struct sockaddr_un *)ss;
+
+		if (un->sun_path[0]) {
+			/* regular UNIX socket */
+			conn_hash_update(hash,
+			                 &un->sun_path, strlen(un->sun_path),
+			                 hash_flags, param_type_addr);
+		} else {
+			/* ABNS UNIX socket */
+			conn_hash_update(hash,
+			                 &un->sun_path, sizeof(un->sun_path),
+			                 hash_flags, param_type_addr);
+		}
+		break;
+
+	case AF_CUST_SOCKPAIR:
+		/* simply hash the fd */
+		conn_hash_update(hash,
+		                 &((struct sockaddr_in *)ss)->sin_addr.s_addr,
+		                 sizeof(int),
+		                 hash_flags, param_type_addr);
+		break;
+
+	default:
+		/* We don't know how to specifically handle this address family.
+		 * yet we cannot afford to have 2 sockaddr_storage structs
+		 * colliding with different parameters. So instead of risking
+		 * hash collision (which would result in HTTP reuse issues),
+		 * let's switch to generic sockaddr storage hashing (unoptimal
+		 * as it is slower and may not be able to group similar
+		 * addresses if they're not byte to byte equivalents).
+		 */
+		conn_hash_update(hash, ss, sizeof(*ss), hash_flags, param_type_addr);
 		break;
 	}
 }
