@@ -747,11 +747,7 @@ static void mworker_reexec(int hardreload)
 
 	setenv("HAPROXY_MWORKER_REEXEC", "1", 1);
 
-	mworker_cleanup_proc();
 	mworker_proc_list_to_env(); /* put the children description in the env */
-
-	/* ensure that we close correctly every listeners before reexecuting */
-	mworker_cleanlisteners();
 
 	startup_logs_free(startup_logs);
 
