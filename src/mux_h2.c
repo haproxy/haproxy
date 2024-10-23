@@ -4607,10 +4607,7 @@ static int h2_recv(struct h2c *h2c)
 }
 
 /* Try to send data if possible.
- * The function returns non-zero if some state changes require to call the
- * tasklet handler to deal with changes, otherwise zero. Reasons for a wakeup
- * are non-zero data sent and ability to demux (indicating a previous blocking)
- * or report of a an error.
+ * The function returns 1 if data have been sent, otherwise zero.
  */
 static int h2_send(struct h2c *h2c)
 {
@@ -4749,7 +4746,7 @@ static int h2_send(struct h2c *h2c)
 	}
 	TRACE_DEVEL("leaving with some data left to send", H2_EV_H2C_SEND, h2c->conn);
 end:
-	return (sent && h2_may_demux(h2c)) || (h2c->flags & (H2_CF_ERR_PENDING|H2_CF_ERROR));
+	return sent || (h2c->flags & (H2_CF_ERR_PENDING|H2_CF_ERROR));
 }
 
 /* this is the tasklet referenced in h2c->wait_event.tasklet */
