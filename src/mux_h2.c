@@ -983,12 +983,23 @@ static inline int h2_may_demux(const struct h2c *h2c)
 	return 1;
 }
 
+/* Returns non-zero if the h2c needs to be updated after a successful I/O */
+static inline int h2_update_needed(const struct h2c *h2c)
+{
+	/* some streams are blocked in the send list, maybe they can
+	 * be released now.
+	 */
+	if (h2c->flags & H2_CF_WAIT_INLIST)
+		return 1;
+	return 0;
+}
+
 /* restarts reading/processing on the connection if we can receive or demux
  * (both are called from the same tasklet).
  */
 static inline void h2c_restart_reading(const struct h2c *h2c, int consider_buffer)
 {
-	if (!h2_recv_allowed(h2c) && !h2_may_demux(h2c))
+	if (!h2_recv_allowed(h2c) && !h2_may_demux(h2c) && !h2_update_needed(h2c))
 		return;
 	tasklet_wakeup(h2c->wait_event.tasklet);
 }
@@ -4749,7 +4760,7 @@ static int h2_send(struct h2c *h2c)
 	}
 	TRACE_DEVEL("leaving with some data left to send", H2_EV_H2C_SEND, h2c->conn);
 end:
-	return (sent && h2_may_demux(h2c)) || (h2c->flags & (H2_CF_ERR_PENDING|H2_CF_ERROR));
+	return (sent && (h2_may_demux(h2c) || h2_update_needed(h2c))) || (h2c->flags & (H2_CF_ERR_PENDING|H2_CF_ERROR));
 }
 
 /* this is the tasklet referenced in h2c->wait_event.tasklet */
