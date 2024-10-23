@@ -2199,7 +2199,7 @@ static int parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	struct spoe_group           *grp, *grpback;
 	struct spoe_placeholder     *ph, *phback;
 	struct spoe_var_placeholder *vph, *vphback;
-	struct cfgfile		    cfg_file = {0};
+	struct cfgfile		    cfg_file = { };
 	struct logger               *logger, *loggerback;
 	char                        *file = NULL, *engine = NULL;
 	int                          ret, pos = *cur_arg + 1;
