@@ -2810,6 +2810,7 @@ int check_config_validity()
 	struct proxy *init_proxies_list = NULL;
 	struct stktable *t;
 	struct server *newsrv = NULL;
+	struct mt_list back;
 	int err_code = 0;
 	unsigned int next_pxid = 1;
 	struct bind_conf *bind_conf;
@@ -4250,7 +4251,7 @@ out_uri_auth_compat:
 
 	/* we must finish to initialize certain things on the servers */
 
-	list_for_each_entry(newsrv, &servers_list, global_list) {
+	MT_LIST_FOR_EACH_ENTRY_LOCKED(newsrv, &servers_list, global_list, back) {
 		/* initialize idle conns lists */
 		if (srv_init_per_thr(newsrv) == -1) {
 			ha_alert("parsing [%s:%d] : failed to allocate per-thread lists for server '%s'.\n",

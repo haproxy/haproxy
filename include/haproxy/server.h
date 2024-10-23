@@ -41,7 +41,7 @@
 __decl_thread(extern HA_SPINLOCK_T idle_conn_srv_lock);
 extern struct idle_conns idle_conns[MAX_THREADS];
 extern struct task *idle_conn_task;
-extern struct list servers_list;
+extern struct mt_list servers_list;
 extern struct dict server_key_dict;
 
 int srv_downtime(const struct server *s);

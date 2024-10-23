@@ -301,7 +301,7 @@ struct server {
 	signed char use_ssl;		        /* ssl enabled (1: on, 0: disabled, -1 forced off)  */
 	unsigned int flags;                     /* server flags (SRV_F_*) */
 	unsigned int pp_opts;                   /* proxy protocol options (SRV_PP_*) */
-	struct list global_list;                /* attach point in the global servers_list */
+	struct mt_list global_list;             /* attach point in the global servers_list */
 	struct server *next;
 	struct mt_list prev_deleted;            /* deleted servers with 'next' ptr pointing to us */
 	int cklen;				/* the len of the cookie, to speed up checks */
