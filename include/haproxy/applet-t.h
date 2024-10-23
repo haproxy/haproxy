@@ -34,7 +34,7 @@
 /* flags for appctx->state */
 
 /* Room for per-command context (mostly CLI commands but not only) */
-#define APPLET_MAX_SVCCTX 128
+#define APPLET_MAX_SVCCTX 256
 
 /* Appctx Flags */
 #define APPCTX_FL_INBLK_ALLOC    0x00000001

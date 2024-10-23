@@ -4008,6 +4008,7 @@ static int http_handle_stats(struct stream *s, struct channel *req, struct proxy
 	ctx->flags |= STAT_F_FMT_HTML; /* assume HTML mode by default */
 	if ((msg->flags & HTTP_MSGF_VER_11) && (txn->meth != HTTP_METH_HEAD))
 		ctx->flags |= STAT_F_CHUNKED;
+	watcher_init(&ctx->srv_watch, &ctx->obj2, offsetof(struct server, watcher_list));
 
 	htx = htxbuf(&req->buf);
 	sl = http_get_stline(htx);

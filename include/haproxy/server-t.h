@@ -350,6 +350,7 @@ struct server {
 	enum srv_ws_mode ws;                    /* configure the protocol selection for websocket */
 	/* 3 bytes hole here */
 
+	struct mt_list watcher_list;		/* list of elems which currently references this server instance */
 	uint refcount;                          /* refcount used to remove a server at runtime */
 
 	/* The elements below may be changed on every single request by any

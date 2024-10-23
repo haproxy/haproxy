@@ -578,6 +578,7 @@ struct show_stat_ctx {
 	int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
 	int st_code;		/* the status code returned by an action */
 	struct buffer chunk;    /* temporary buffer which holds a single-line output */
+	struct watcher srv_watch; /* watcher to automatically update obj2 on server deletion */
 	enum stat_state state;  /* phase of output production */
 };
 

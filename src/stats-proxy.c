@@ -1335,7 +1335,6 @@ static int stats_dump_proxy_to_buffer(struct stconn *sc, struct buffer *buf,
 	struct listener *l;
 	struct uri_auth *uri = NULL;
 	int current_field;
-	int px_st = ctx->px_st;
 
 	if (ctx->http_px)
 		uri = ctx->http_px->uri_auth;
@@ -1442,46 +1441,23 @@ more:
 			current_field = 0;
 		}
 
-		ctx->obj2 = px->srv; /* may be NULL */
+		/* for servers ctx.obj2 is set via watcher_attach() */
+		watcher_attach(&ctx->srv_watch, px->srv);
 		ctx->px_st = STAT_PX_ST_SV;
+
 		__fallthrough;
 
 	case STAT_PX_ST_SV:
-		/* check for dump resumption */
-		if (px_st == STAT_PX_ST_SV) {
-			struct server *cur = ctx->obj2;
-
-			/* re-entrant dump */
-			BUG_ON(!cur);
-			if (cur->flags & SRV_F_DELETED) {
-				/* the server could have been marked as deleted
-				 * between two dumping attempts, skip it.
-				 */
-				cur = cur->next;
-			}
-			srv_drop(ctx->obj2); /* drop old srv taken on last dumping attempt */
-			ctx->obj2 = cur; /* could be NULL */
-			/* back to normal */
-		}
-
-		/* obj2 points to servers list as initialized above.
-		 *
-		 * A server may be removed during the stats dumping.
-		 * Temporarily increment its refcount to prevent its
-		 * anticipated cleaning. Call srv_drop() to release it.
-		 */
-		for (; ctx->obj2 != NULL;
-		       ctx->obj2 = srv_drop(sv)) {
-
-			sv = ctx->obj2;
-			srv_take(sv);
+		/* obj2 is updated and returned through watcher_next() */
+		for (sv = ctx->obj2; sv;
+		     sv = watcher_next(&ctx->srv_watch, sv->next)) {
 
 			if (stats_is_full(appctx, buf, htx))
 				goto full;
 
 			if (ctx->flags & STAT_F_BOUND) {
 				if (!(ctx->type & (1 << STATS_TYPE_SV))) {
-					srv_drop(sv);
+					watcher_detach(&ctx->srv_watch);
 					break;
 				}
 

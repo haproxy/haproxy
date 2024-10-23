@@ -2097,9 +2097,8 @@ static size_t http_stats_fastfwd(struct appctx *appctx, struct buffer *buf,
 static void http_stats_release(struct appctx *appctx)
 {
 	struct show_stat_ctx *ctx = appctx->svcctx;
-
-	if (ctx->px_st == STAT_PX_ST_SV)
-		srv_drop(ctx->obj2);
+	if (ctx->px_st == STAT_PX_ST_SV && ctx->obj2)
+		watcher_detach(&ctx->srv_watch);
 }
 
 struct applet http_stats_applet = {

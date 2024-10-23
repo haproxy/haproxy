@@ -929,6 +929,7 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 	ctx->scope_len = 0;
 	ctx->http_px = NULL; // not under http context
 	ctx->flags = STAT_F_SHNODE | STAT_F_SHDESC;
+	watcher_init(&ctx->srv_watch, &ctx->obj2, offsetof(struct server, watcher_list));
 
 	if ((strm_li(appctx_strm(appctx))->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER)
 		ctx->flags |= STAT_F_SHLGNDS;
@@ -1004,9 +1005,8 @@ static int cli_io_handler_dump_stat(struct appctx *appctx)
 static void cli_io_handler_release_stat(struct appctx *appctx)
 {
 	struct show_stat_ctx *ctx = appctx->svcctx;
-
-	if (ctx->px_st == STAT_PX_ST_SV)
-		srv_drop(ctx->obj2);
+	if (ctx->px_st == STAT_PX_ST_SV && ctx->obj2)
+		watcher_detach(&ctx->srv_watch);
 }
 
 static int cli_io_handler_dump_json_schema(struct appctx *appctx)
@@ -1024,6 +1024,7 @@ static int cli_parse_dump_stat_file(char **args, char *payload,
 	ctx->chunk = b_make(trash.area, trash.size, 0, 0);
 	ctx->domain = STATS_DOMAIN_PROXY;
 	ctx->flags |= STAT_F_FMT_FILE;
+	watcher_init(&ctx->srv_watch, &ctx->obj2, offsetof(struct server, watcher_list));
 
 	return 0;
 }
@@ -1065,9 +1066,8 @@ static int cli_io_handler_dump_stat_file(struct appctx *appctx)
 static void cli_io_handler_release_dump_stat_file(struct appctx *appctx)
 {
 	struct show_stat_ctx *ctx = appctx->svcctx;
-
-	if (ctx->px_st == STAT_PX_ST_SV)
-		srv_drop(ctx->obj2);
+	if (ctx->px_st == STAT_PX_ST_SV && ctx->obj2)
+		watcher_detach(&ctx->srv_watch);
 }
 
 int stats_allocate_proxy_counters_internal(struct extra_counters **counters,
