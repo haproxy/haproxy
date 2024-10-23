@@ -2133,6 +2133,7 @@ static void apply_master_worker_mode()
 	int worker_pid;
 	struct mworker_proc *child;
 	char *sock_name = NULL;
+	char *errmsg = NULL;
 
 	worker_pid = fork();
 	switch (worker_pid) {
@@ -2175,9 +2176,17 @@ static void apply_master_worker_mode()
 		global.nbtgroups = 1;
 		global.nbthread = 1;
 
-		/* creates MASTER proxy and attaches server to child->ipc_fd[0] */
-		if (mworker_cli_proxy_create() < 0) {
-			ha_alert("Can't create the master's CLI.\n");
+		/* creates MASTER proxy */
+		if (mworker_cli_create_master_proxy(&errmsg) < 0) {
+			ha_alert("Can't create MASTER proxy: %s\n", errmsg);
+			free(errmsg);
+			exit(EXIT_FAILURE);
+		}
+
+		/* attaches servers to all existed workers on its shared MCLI sockpair ends, ipc_fd[0] */
+		if (mworker_cli_attach_server(&errmsg) < 0) {
+			ha_alert("Can't attach servers needed for master CLI %s\n", errmsg ? errmsg : "");
+			free(errmsg);
 			exit(EXIT_FAILURE);
 		}
 
@@ -3021,6 +3030,7 @@ static void set_verbosity(void) {
 static void run_master_in_recovery_mode(int argc, char **argv)
 {
 	struct mworker_proc *proc;
+	char *errmsg = NULL;
 
 	/* HAPROXY_LOAD_SUCCESS is checked in cli_io_handler_show_cli_sock() to
 	 * dump master startup logs with its alerts/warnings via master CLI sock.
@@ -3044,9 +3054,17 @@ static void run_master_in_recovery_mode(int argc, char **argv)
 	atexit(exit_on_failure);
 	set_verbosity();
 
-	/* creates MASTER proxy and attaches server to child->ipc_fd[0] */
-	if (mworker_cli_proxy_create() < 0) {
-		ha_alert("Can't create the master's CLI.\n");
+	/* creates MASTER proxy */
+	if (mworker_cli_create_master_proxy(&errmsg) < 0) {
+		ha_alert("Can't create MASTER proxy: %s\n", errmsg);
+		free(errmsg);
+		exit(EXIT_FAILURE);
+	}
+
+	/* attaches servers to all existed workers on its shared MCLI sockpair ends, ipc_fd[0] */
+	if (mworker_cli_attach_server(&errmsg) < 0) {
+		ha_alert("Can't attach servers needed for master CLI %s\n", errmsg ? errmsg : "");
+		free(errmsg);
 		exit(EXIT_FAILURE);
 	}
 

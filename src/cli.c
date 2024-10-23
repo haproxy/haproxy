@@ -3338,29 +3338,47 @@ void mworker_cli_proxy_stop()
 }
 
 /*
- * Create the mworker CLI proxy
+ * Create the MASTER proxy
  */
-int mworker_cli_proxy_create()
+int mworker_cli_create_master_proxy(char **errmsg)
 {
-	struct mworker_proc *child;
-	char *msg = NULL;
-	char *errmsg = NULL;
-
-	mworker_proxy = alloc_new_proxy("MASTER", PR_CAP_LISTEN|PR_CAP_INT, &errmsg);
-	if (!mworker_proxy)
-		goto error_proxy;
+	mworker_proxy = alloc_new_proxy("MASTER", PR_CAP_LISTEN|PR_CAP_INT, errmsg);
+	if (!mworker_proxy) {
+		return -1;
+	}
 
 	mworker_proxy->mode = PR_MODE_CLI;
-	mworker_proxy->maxconn = 10;                 /* default to 10 concurrent connections */
-	mworker_proxy->timeout.client = 0; /* no timeout */
-	mworker_proxy->conf.file = copy_file_name("MASTER");
+	/* default to 10 concurrent connections */
+	mworker_proxy->maxconn = 10;
+	/* no timeout */
+	mworker_proxy->timeout.client = 0;
+	mworker_proxy->conf.file = strdup("MASTER");
 	mworker_proxy->conf.line = 0;
 	mworker_proxy->accept = frontend_accept;
-	mworker_proxy-> lbprm.algo = BE_LB_ALGO_NONE;
+	mworker_proxy->lbprm.algo = BE_LB_ALGO_NONE;
 
 	/* Does not init the default target the CLI applet, but must be done in
 	 * the request parsing code */
 	mworker_proxy->default_target = NULL;
+	mworker_proxy->next = proxies_list;
+	proxies_list = mworker_proxy;
+
+	return 0;
+}
+
+/*
+ * Attach servers to ipc_fd[0] of all presented in proc_list workers. Master and
+ * worker share MCLI sockpair (ipc_fd[0] and ipc_fd[1]). Servers are attached to
+ * ipc_fd[0], which is always opened at master side. ipc_fd[0] of worker, started
+ * before the reload, is inherited in master after the reload (execvp).
+ */
+int mworker_cli_attach_server(char **errmsg)
+{
+	char *msg = NULL;
+	struct mworker_proc *child;
+
+	BUG_ON((mworker_proxy == NULL), "Triggered in mworker_cli_attach_server(), "
+		"mworker_proxy must be created before this call.\n");
 
 	/* create all servers using the mworker_proc list */
 	list_for_each_entry(child, &proc_list, list) {
@@ -3377,8 +3395,7 @@ int mworker_cli_proxy_create()
 		if (!newsrv)
 			goto error;
 
-		/* we don't know the new pid yet */
-		if (child->pid == -1)
+		if (child->options & PROC_O_INIT)
 			memprintf(&msg, "cur-%d", 1);
 		else
 			memprintf(&msg, "old-%d", child->pid);
@@ -3391,7 +3408,7 @@ int mworker_cli_proxy_create()
 
 		memprintf(&msg, "sockpair@%d", child->ipc_fd[0]);
 		if ((sk = str2sa_range(msg, &port, &port1, &port2, NULL, &proto, NULL,
-		                       &errmsg, NULL, NULL, NULL, PA_O_STREAM)) == 0) {
+		                       errmsg, NULL, NULL, NULL, PA_O_STREAM)) == 0) {
 			goto error;
 		}
 		ha_free(&msg);
@@ -3411,9 +3428,6 @@ int mworker_cli_proxy_create()
 		child->srv = newsrv;
 	}
 
-	mworker_proxy->next = proxies_list;
-	proxies_list = mworker_proxy;
-
 	return 0;
 
 error:
@@ -3423,12 +3437,7 @@ error:
 		free(child->srv->id);
 		ha_free(&child->srv);
 	}
-	free_proxy(mworker_proxy);
 	free(msg);
-
-error_proxy:
-	ha_alert("%s\n", errmsg);
-	free(errmsg);
 
 	return -1;
 }

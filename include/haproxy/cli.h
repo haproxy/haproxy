@@ -40,8 +40,8 @@ int cli_has_level(struct appctx *appctx, int level);
 int cli_parse_default(char **args, char *payload, struct appctx *appctx, void *private);
 
 /* mworker proxy functions */
-
-int mworker_cli_proxy_create(void);
+int mworker_cli_create_master_proxy(char **errmsg);
+int mworker_cli_attach_server(char **errmsg);
 struct bind_conf *mworker_cli_master_proxy_new_listener(char *line);
 int mworker_cli_global_proxy_new_listener(struct mworker_proc *proc);
 void mworker_cli_proxy_stop(void);
