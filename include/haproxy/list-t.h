@@ -57,6 +57,17 @@ struct bref {
 	struct list *ref; /* pointer to the target's list entry */
 };
 
+/* Similar to bref. Used to reference an element which is tracking a dynamic
+ * target. The main advantage over bref is that when target is freed, each
+ * elements pointers are automatically updated to the next entry or NULL if
+ * target was the last one.
+ */
+struct watcher {
+	struct mt_list el; /* attach point into target list */
+	void **pptr;       /* pointer to element which points to target */
+	size_t off;        /* offset into target type for mtlist storage of watcher */
+};
+
 /* a word list is a generic list with a pointer to a string in each element. */
 struct wordlist {
 	struct list list;

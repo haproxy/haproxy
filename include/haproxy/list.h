@@ -260,4 +260,46 @@ static __inline struct mt_list *list_to_mt_list(struct list *list)
 
 }
 
+/* Init a <w> watcher entry to track targets. <pptr> is the pointer to the
+ * target pointer which will be updated via watcher_attach/detach operations.
+ * <attach_off> is the offset to access the target mt_list attach point for the
+ * watcher entry.
+ */
+static __inline void watcher_init(struct watcher *w, void *pptr, size_t attach_off)
+{
+	MT_LIST_INIT(&w->el);
+	w->pptr = pptr;
+	w->off = attach_off;
+}
+
+/* Tracks <target> via <w> watcher. Invalid if <w> is already attached. */
+static __inline void watcher_attach(struct watcher *w, void *target)
+{
+	struct mt_list *list = target + w->off;
+
+	BUG_ON_HOT(MT_LIST_INLIST(&w->el));
+
+	*w->pptr = target;
+	if (target)
+		MT_LIST_APPEND(list, &w->el);
+}
+
+/* Untracks target via <w> watcher. Invalid if <w> is not attached first. */
+static __inline void watcher_detach(struct watcher *w)
+{
+	BUG_ON_HOT(!MT_LIST_INLIST(&w->el));
+	*w->pptr = NULL;
+	MT_LIST_DELETE(&w->el);
+}
+
+/* Equivalent to a detach then attach on <target> via <w> watcher. Returns
+ * <target> as a convenience to use this function as increment in a for-loop.
+ */
+static __inline void *watcher_next(struct watcher *w, void *target)
+{
+	watcher_detach(w);
+	watcher_attach(w, target);
+	return target;
+}
+
 #endif /* _HAPROXY_LIST_H */
