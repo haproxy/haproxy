@@ -2875,6 +2875,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	qcc->rfctl.msd_uni_l = rparams->initial_max_stream_data_uni;
 
 	qcc->tx.buf_in_flight = 0;
+	quic_pacing_init(&qcc->tx.pacer, conn->handle.qc->path);
 
 	if (conn_is_back(conn)) {
 		qcc->next_bidi_l    = 0x00;

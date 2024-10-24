@@ -45,6 +45,7 @@
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_loss.h>
+#include <haproxy/quic_pacing.h>
 #include <haproxy/quic_rx.h>
 #include <haproxy/mux_quic.h>
 
