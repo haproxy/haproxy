@@ -156,7 +156,7 @@ struct post_mortem {
 	 */
 	uint nb_components;              // # of components below
 	struct post_mortem_component *components; // NULL or array
-} post_mortem ALIGNED(256) = { };
+} post_mortem ALIGNED(256) HA_SECTION("_post_mortem") = { };
 
 unsigned int debug_commands_issued = 0;
 
