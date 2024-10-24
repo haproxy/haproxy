@@ -3623,7 +3623,6 @@ int mworker_cli_global_proxy_new_listener(struct mworker_proc *proc)
 	return 0;
 
 error:
-	close(proc->ipc_fd[0]);
 	close(proc->ipc_fd[1]);
 	free(err);
 
