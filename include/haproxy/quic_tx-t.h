@@ -67,6 +67,7 @@ enum qc_build_pkt_err {
 enum quic_tx_err {
 	QUIC_TX_ERR_NONE,
 	QUIC_TX_ERR_FATAL,
+	QUIC_TX_ERR_PACING,
 };
 
 #endif /* _HAPROXY_TX_T_H */

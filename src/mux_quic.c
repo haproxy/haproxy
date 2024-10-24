@@ -2083,7 +2083,7 @@ static int qcc_send_frames(struct qcc *qcc, struct list *frms)
 		return 1;
 	}
 
-	ret = qc_send_mux(qcc->conn->handle.qc, frms);
+	ret = qc_send_mux(qcc->conn->handle.qc, frms, NULL);
 	if (ret == QUIC_TX_ERR_FATAL) {
 		TRACE_DEVEL("error on sending", QMUX_EV_QCC_SEND, qcc->conn);
 		qcc_subscribe_send(qcc);
