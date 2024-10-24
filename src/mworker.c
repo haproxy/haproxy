@@ -599,6 +599,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	struct cli_showproc_ctx *ctx = appctx->svcctx;
 	char *uptime = NULL;
 	char *reloadtxt = NULL;
+	int program_nb = 0;
 
 	if (up < 0) /* must never be negative because of clock drift */
 		up = 0;
@@ -665,7 +666,6 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	}
 
 	/* displays external process */
-	chunk_appendf(&trash, "# programs\n");
 	old = 0;
 	list_for_each_entry(child, &proc_list, list) {
 		up = date.tv_sec - child->timestamp;
@@ -679,6 +679,9 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 			old++;
 			continue;
 		}
+		if (program_nb == 0)
+			chunk_appendf(&trash, "# programs\n");
+		program_nb++;
 		memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
 		chunk_appendf(&trash, "%-15u %-15s %-15d %-15s %-15s\n", child->pid, child->id, child->reloads, uptime, "-");
 		ha_free(&uptime);
