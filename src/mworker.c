@@ -658,7 +658,10 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 
 			if (child->options & PROC_O_LEAVING) {
 				memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-				chunk_appendf(&trash, "%-15u %-15s %-15d %-15s %-15s\n", child->pid, "worker", child->reloads, uptime, child->version);
+				chunk_appendf(&trash, "%-15u %-15s %-15d %-15s %-15s", child->pid, "worker", child->reloads, uptime, child->version);
+				if (ctx->debug)
+					chunk_appendf(&trash, "\t\t %-15d %-15d", child->ipc_fd[0], child->ipc_fd[1]);
+				chunk_appendf(&trash, "\n");
 				ha_free(&uptime);
 			}
 		}
