@@ -20,6 +20,7 @@
 #include <haproxy/trace.h>
 #include <haproxy/quic_cid.h>
 #include <haproxy/quic_conn.h>
+#include <haproxy/quic_pacing.h>
 #include <haproxy/quic_retransmit.h>
 #include <haproxy/quic_retry.h>
 #include <haproxy/quic_sock.h>
@@ -469,11 +470,12 @@ int qc_purge_txbuf(struct quic_conn *qc, struct buffer *buf)
  *
  * Returns the result from qc_send() function.
  */
-enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms)
+enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
+                             struct quic_pacer *pacer)
 {
 	struct list send_list = LIST_HEAD_INIT(send_list);
 	enum quic_tx_err ret = QUIC_TX_ERR_NONE;
-	int sent;
+	int max_dgram = 0, sent;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 	BUG_ON(qc->mux_state != QC_MUX_READY); /* Only MUX can uses this function so it must be ready. */
@@ -492,11 +494,20 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms)
 		qc_send(qc, 0, &send_list, 0);
 	}
 
+	if (pacer)
+		max_dgram = 1;
+
 	TRACE_STATE("preparing data (from MUX)", QUIC_EV_CONN_TXPKT, qc);
 	qel_register_send(&send_list, qc->ael, frms);
-	sent = qc_send(qc, 0, &send_list, 0);
-	if (sent <= 0)
+	sent = qc_send(qc, 0, &send_list, max_dgram);
+	if (sent <= 0) {
 		ret = QUIC_TX_ERR_FATAL;
+	}
+	else if (pacer) {
+		if (max_dgram && max_dgram == sent && !LIST_ISEMPTY(frms))
+			ret = QUIC_TX_ERR_AGAIN;
+		quic_pacing_sent_done(pacer, sent);
+	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 	return ret;
