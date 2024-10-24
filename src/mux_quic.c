@@ -22,6 +22,7 @@
 #include <haproxy/quic_sock.h>
 #include <haproxy/quic_stream.h>
 #include <haproxy/quic_tp-t.h>
+#include <haproxy/quic_tx.h>
 #include <haproxy/session.h>
 #include <haproxy/ssl_sock-t.h>
 #include <haproxy/stconn.h>
