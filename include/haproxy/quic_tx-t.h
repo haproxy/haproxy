@@ -66,6 +66,7 @@ enum qc_build_pkt_err {
 
 enum quic_tx_err {
 	QUIC_TX_ERR_NONE,
+	QUIC_TX_ERR_AGAIN,
 	QUIC_TX_ERR_FATAL,
 };
 
