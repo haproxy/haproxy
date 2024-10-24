@@ -4909,7 +4909,7 @@ static size_t h1_done_ff(struct stconn *sc)
 			 */
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 		}
-		COUNT_IF(b_data(&h1c->obuf) || sd->iobuf.pipe->data, "connection error (done_ff) with pending output data");
+		COUNT_IF(b_data(&h1c->obuf) || (sd->iobuf.pipe && sd->iobuf.pipe->data), "connection error (done_ff) with pending output data");
 		se_fl_set_error(h1s->sd);
 		if (sd->iobuf.pipe) {
 			put_pipe(sd->iobuf.pipe);
@@ -5089,7 +5089,7 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 		se_fl_set(h1s->sd, SE_FL_ERROR);
 		h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_ERROR;
 		COUNT_IF(h1m->state < H1_MSG_DONE, "H1C ERROR before the end of the message");
-		COUNT_IF(b_data(&h1c->obuf) || h1s->sd->iobuf.pipe->data, "connection error (fastfwd) with pending output data");
+		COUNT_IF(b_data(&h1c->obuf) || (h1s->sd->iobuf.pipe && h1s->sd->iobuf.pipe->data), "connection error (fastfwd) with pending output data");
 		TRACE_DEVEL("connection error", H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 	}
 
@@ -5171,7 +5171,7 @@ static int h1_resume_fastfwd(struct stconn *sc, unsigned int flags)
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 		}
 		se_fl_set_error(h1s->sd);
-		COUNT_IF(b_data(&h1c->obuf) || h1s->sd->iobuf.pipe->data, "connection error (resume_ff) with pending output data");
+		COUNT_IF(b_data(&h1c->obuf) || (h1s->sd->iobuf.pipe && h1s->sd->iobuf.pipe->data), "connection error (resume_ff) with pending output data");
 		if (h1s->sd->iobuf.pipe) {
 			put_pipe(h1s->sd->iobuf.pipe);
 			h1s->sd->iobuf.pipe = NULL;
