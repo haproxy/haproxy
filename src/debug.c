@@ -45,6 +45,7 @@
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/sc_strm.h>
+#include <haproxy/proxy.h>
 #include <haproxy/stconn.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
@@ -149,6 +150,12 @@ struct post_mortem {
 	/* information about dynamic shared libraries involved */
 	char *libs;                      // dump of one addr / path per line, or NULL
 #endif
+	struct tgroup_info *tgroup_info; // pointer to ha_tgroup_info
+	struct thread_info *thread_info; // pointer to ha_thread_info
+	struct tgroup_ctx  *tgroup_ctx;  // pointer to ha_tgroup_ctx
+	struct thread_ctx  *thread_ctx;  // pointer to ha_thread_ctx
+	struct list *pools;              // pointer to the head of the pools list
+	struct proxy **proxies;          // pointer to the head of the proxies list
 
 	/* info about identified distinct components (executable, shared libs, etc).
 	 * These can be all listed at once in gdb using:
@@ -2542,6 +2549,13 @@ static int feed_post_mortem()
 	if (dump_libs(&trash, 1))
 		post_mortem.libs = strdup(trash.area);
 #endif
+
+	post_mortem.tgroup_info = ha_tgroup_info;
+	post_mortem.thread_info = ha_thread_info;
+	post_mortem.tgroup_ctx  = ha_tgroup_ctx;
+	post_mortem.thread_ctx  = ha_thread_ctx;
+	post_mortem.pools = &pools;
+	post_mortem.proxies = &proxies_list;
 
 	return ERR_NONE;
 }
