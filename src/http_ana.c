@@ -2185,7 +2185,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	 * server abort.
 	 */
 	if (msg->msg_state < HTTP_MSG_ENDING && (s->scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))) {
-		if ((s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
+		if ((s->scf->flags & SC_FL_ABRT_DONE) &&
 		    (s->scb->flags & SC_FL_SHUT_DONE)) {
 			COUNT_IF(1, "Client abort during response forwarding");
 			goto return_cli_abort;
