@@ -1865,6 +1865,8 @@ static int debug_iohandler_fd(struct appctx *appctx)
 
 		salen = sizeof(sa);
 		if (getsockname(fd, (struct sockaddr *)&sa, &salen) != -1) {
+			int i;
+
 			if (sa.ss_family == AF_INET)
 				port = ntohs(((const struct sockaddr_in *)&sa)->sin_port);
 			else if (sa.ss_family == AF_INET6)
@@ -1872,6 +1874,12 @@ static int debug_iohandler_fd(struct appctx *appctx)
 			else
 				port = 0;
 			addrstr = sa2str(&sa, port, 0);
+			/* cleanup the output */
+			for  (i = 0; i < strlen(addrstr); i++) {
+				if (iscntrl((unsigned char)addrstr[i]) || !isprint((unsigned char)addrstr[i]))
+					addrstr[i] = '.';
+			}
+
 			chunk_appendf(&trash, " laddr=%s", addrstr);
 			free(addrstr);
 		}
@@ -1885,6 +1893,11 @@ static int debug_iohandler_fd(struct appctx *appctx)
 			else
 				port = 0;
 			addrstr = sa2str(&sa, port, 0);
+			/* cleanup the output */
+			for  (i = 0; i < strlen(addrstr); i++) {
+				if ((iscntrl((unsigned char)addrstr[i])) || !isprint((unsigned char)addrstr[i]))
+					addrstr[i] = '.';
+			}
 			chunk_appendf(&trash, " raddr=%s", addrstr);
 			free(addrstr);
 		}
