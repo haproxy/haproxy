@@ -163,7 +163,6 @@ void quic_set_connection_close(struct quic_conn *qc, const struct quic_err err);
 void quic_set_tls_alert(struct quic_conn *qc, int alert);
 int quic_set_app_ops(struct quic_conn *qc, const unsigned char *alpn, size_t alpn_len);
 int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len);
-int qc_send_mux(struct quic_conn *qc, struct list *frms);
 
 void qc_notify_err(struct quic_conn *qc);
 int qc_notify_send(struct quic_conn *qc);
