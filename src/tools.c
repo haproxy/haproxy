@@ -982,7 +982,6 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	char *back, *str2;
 	char *port1, *port2;
 	int portl, porth, porta;
-	int abstract = 0;
 	int new_fd = -1;
 	enum proto_type proto_type = 0; // to shut gcc warning
 	int ctrl_type = 0; // to shut gcc warning
@@ -1035,12 +1034,10 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 
 	if (strncmp(str2, "unix@", 5) == 0) {
 		str2 += 5;
-		abstract = 0;
 		ss.ss_family = AF_UNIX;
 	}
 	else if (strncmp(str2, "uxdg@", 5) == 0) {
 		str2 += 5;
-		abstract = 0;
 		ss.ss_family = AF_UNIX;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
@@ -1048,14 +1045,12 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	}
 	else if (strncmp(str2, "uxst@", 5) == 0) {
 		str2 += 5;
-		abstract = 0;
 		ss.ss_family = AF_UNIX;
 		proto_type = PROTO_TYPE_STREAM;
 		ctrl_type = SOCK_STREAM;
 	}
 	else if (strncmp(str2, "abns@", 5) == 0) {
 		str2 += 5;
-		abstract = 1;
 		ss.ss_family = AF_CUST_ABNS;
 	}
 	else if (strncmp(str2, "ip@", 3) == 0) {
@@ -1228,6 +1223,10 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		int prefix_path_len;
 		int max_path_len;
 		int adr_len;
+		int abstract = 0;
+
+		if (ss.ss_family == AF_CUST_ABNS)
+			abstract = 1;
 
 		/* complete unix socket path name during startup or soft-restart is
 		 * <unix_bind_prefix><path>.<pid>.<bak|tmp>
