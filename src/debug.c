@@ -348,7 +348,7 @@ void ha_thread_dump_one(int thr, int from_signal)
 	}
  leave:
 	/* end of dump, setting the buffer to 0x1 will tell the caller we're done */
-	HA_ATOMIC_OR((ulong*)&ha_thread_ctx[thr].thread_dump_buffer, 0x1UL);
+	HA_ATOMIC_OR((ulong*)DISGUISE(&ha_thread_ctx[thr].thread_dump_buffer), 0x1UL);
 }
 
 /* Triggers a thread dump from thread <thr>, either directly if it's the
