@@ -322,7 +322,8 @@ void ha_thread_dump_one(int thr, int from_signal)
 	chunk_appendf(buf, "             curr_task=");
 	ha_task_dump(buf, th_ctx->current, "             ");
 
-	if (stuck && thr == tid) {
+	if (thr == tid && !(HA_ATOMIC_LOAD(&tg_ctx->threads_idle) & ti->ltid_bit)) {
+		/* only dump the stack of active threads */
 #ifdef USE_LUA
 		if (th_ctx->current &&
 		    th_ctx->current->process == process_stream && th_ctx->current->context) {
@@ -346,12 +347,6 @@ void ha_thread_dump_one(int thr, int from_signal)
 		if (HA_ATOMIC_LOAD(&pool_trim_in_progress))
 			mark_tainted(TAINTED_MEM_TRIMMING_STUCK);
 
-		/* We only emit the backtrace for stuck threads in order not to
-		 * waste precious output buffer space with non-interesting data.
-		 * Please leave this as the last instruction in this function
-		 * so that the compiler uses tail merging and the current
-		 * function does not appear in the stack.
-		 */
 		ha_dump_backtrace(buf, "             ", 0);
 	}
  leave:
