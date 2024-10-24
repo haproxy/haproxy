@@ -2467,6 +2467,27 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 	return 1;
 }
 
+static int cli_parse_echo(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	int i = 1; /* starts after 'echo' */
+
+	chunk_reset(&trash);
+
+	while (*args[i]) {
+		/* add a space if there was a word before */
+		if (i == 1)
+			chunk_printf(&trash, "%s", args[i]);
+		else
+			chunk_appendf(&trash, " %s", args[i]);
+		i++;
+	}
+	chunk_appendf(&trash, "\n");
+
+	cli_msg(appctx, LOG_INFO, trash.area);
+
+	return 1;
+}
+
 static int _send_status(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct listener *mproxy_li;
@@ -3631,6 +3652,7 @@ static struct applet mcli_applet = {
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "help", NULL },                      NULL,                                                                                                cli_parse_simple, NULL, NULL, NULL, ACCESS_MASTER },
+	{ { "echo", NULL },                      "echo <text>                             : print text to the output",                                cli_parse_echo,   NULL, NULL, NULL, ACCESS_MASTER },
 	{ { "prompt", NULL },                    NULL,                                                                                                cli_parse_simple, NULL, NULL, NULL, ACCESS_MASTER },
 	{ { "quit", NULL },                      NULL,                                                                                                cli_parse_simple, NULL, NULL, NULL, ACCESS_MASTER },
 	{ { "_getsocks", NULL },                 NULL,                                                                                                _getsocks, NULL },

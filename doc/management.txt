@@ -2131,6 +2131,15 @@ dump stats-file
   Generate a stats-file which can be used to preload haproxy counters values on
   startup. See "Stats-file" section for more detail.
 
+echo <text>
+  Print some text with the CLI. Can be useful to wrote commentaries between
+  commands when dumping the result of multiple commands.
+
+  Example:
+
+    echo "expert-mode on; echo FDs from fdtab; show fd; echo wild FDs; debug dev fd" | socat /var/run/haproxy.sock -
+
+
 enable agent <backend>/<server>
   Resume auxiliary agent check that was temporarily stopped.
 
