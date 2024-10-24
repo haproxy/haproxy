@@ -849,6 +849,97 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		}
 	}
 
+	/* last step: summarize by DSO. We create one entry per new DSO in
+	 * tmp_memstats, which is thus destroyed. The DSO's name is allocated
+	 * and stored into tmp_stats.info. Must be freed at the end. We store
+	 * <max> dso entries total. There are very few so we do that in a single
+	 * pass and append it after the total.
+	 */
+	for (i = max = 0; i < max_lines; i++) {
+		struct memprof_stats *entry = &tmp_memstats[i];
+		char *p;
+
+		if (!entry->alloc_calls && !entry->free_calls)
+			continue;
+
+		chunk_reset(name_buffer);
+		if (!entry->caller)
+			chunk_printf(name_buffer, "other:");
+		else
+			resolve_sym_name(name_buffer, "", entry->caller);
+
+		/* figure the DSO name (before colon) otherwise "*program*" */
+		p = strchr(name_buffer->area, ':');
+		if (p) {
+			*p = 0;
+			p = name_buffer->area;
+		}
+		else
+			p = "*program*";
+
+		/* look it up among known names (0..max) */
+		for (j = 0; j < max; j++) {
+			if (tmp_memstats[j].info && strcmp(p, tmp_memstats[j].info) == 0)
+				break;
+		}
+
+		if (j == max) {
+			/* not found, create a new entry at <j>. We need to be
+			 * careful as it could be the same as <entry> (i)!
+			 */
+			max++;
+
+			if (j != i) // set max to keep min caller's address
+				tmp_memstats[j].caller = (void*)-1;
+
+			tmp_memstats[j].info = strdup(p);   // may fail, but checked when used
+			tmp_memstats[j].alloc_calls = entry->alloc_calls;
+			tmp_memstats[j].alloc_tot   = entry->alloc_tot;
+			if ((entry->method != MEMPROF_METH_P_ALLOC) &&
+			    (entry->method != MEMPROF_METH_MALLOC) &&
+			    (entry->method != MEMPROF_METH_CALLOC)) {
+				tmp_memstats[j].free_calls  = entry->free_calls;
+				tmp_memstats[j].free_tot    = entry->free_tot;
+			}
+		} else {
+			tmp_memstats[j].alloc_calls += entry->alloc_calls;
+			tmp_memstats[j].alloc_tot += entry->alloc_tot;
+			if ((entry->method != MEMPROF_METH_P_ALLOC) &&
+			    (entry->method != MEMPROF_METH_MALLOC) &&
+			    (entry->method != MEMPROF_METH_CALLOC)) {
+				tmp_memstats[j].free_calls  += entry->free_calls;
+				tmp_memstats[j].free_tot  += entry->free_tot;
+			}
+		}
+
+		if (entry->caller &&
+		    tmp_memstats[j].caller > entry->caller)
+			tmp_memstats[j].caller = entry->caller; // keep lowest address
+	}
+
+	/* now we have entries 0..max-1 that are filled with per-DSO stats. This is
+	 * compact enough to fit next to the total line in one buffer, hence no
+	 * state kept.
+	 */
+	chunk_appendf(&trash,
+	              "-----------------------|-----------------------------| "
+		      " - min caller - | -- by DSO below --\n");
+
+	for (i = 0; i < max; i++) {
+		struct memprof_stats *entry = &tmp_memstats[i];
+
+		chunk_appendf(&trash, "%11llu %11llu %14llu %14llu| %16p DSO:%s;",
+			      entry->alloc_calls, entry->free_calls,
+			      entry->alloc_tot, entry->free_tot,
+			      entry->caller, entry->info ? (const char*)entry->info : "other");
+
+		if (entry->alloc_tot != entry->free_tot)
+			chunk_appendf(&trash, " delta_calls=%lld; delta_bytes=%lld",
+				      (long long)(entry->alloc_calls - entry->free_calls),
+				      (long long)(entry->alloc_tot - entry->free_tot));
+		chunk_appendf(&trash, "\n");
+	}
+
 	chunk_appendf(&trash,
 	              "-----------------------|-----------------------------|\n"
 		      "%11llu %11llu %14llu %14llu| <- Total; Delta_calls=%lld; Delta_bytes=%lld\n",
