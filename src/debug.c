@@ -98,6 +98,7 @@ struct post_mortem_component {
  */
 struct post_mortem {
 	/* platform-specific information */
+	char post_mortem_magic[32];     // "POST-MORTEM STARTS HERE+7654321\0"
 	struct {
 		struct utsname utsname; // OS name+ver+arch+hostname
 		char hw_vendor[64];     // hardware/hypervisor vendor when known
@@ -2511,6 +2512,10 @@ static void feed_post_mortem_linux()
 
 static int feed_post_mortem()
 {
+	/* write an easily identifiable magic at the beginning of the struct */
+	strncpy(post_mortem.post_mortem_magic,
+		"POST-MORTEM STARTS HERE+7654321\0",
+		sizeof(post_mortem.post_mortem_magic));
 	/* kernel type, version and arch */
 	uname(&post_mortem.platform.utsname);
 
