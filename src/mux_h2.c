@@ -5982,7 +5982,6 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 	struct htx *htx = NULL;
 	struct buffer *scbuf = NULL;
 	unsigned int sent;
-	int full = 0;
 
 	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 
@@ -5993,7 +5992,7 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 	 * allocating an rxbuf if possible. If we fail we'll more aggressively
 	 * retry.
 	 */
-	if ((!h2s_rxbuf_tail(h2s) || (full || !h2s_may_append_to_rxbuf(h2s))) && !h2s_get_rxbuf(h2s)) {
+	if ((!h2s_rxbuf_tail(h2s) || !h2s_may_append_to_rxbuf(h2s)) && !h2s_get_rxbuf(h2s)) {
 		h2c->flags |= H2_CF_DEM_RXBUF;
 		TRACE_STATE("waiting for an h2s rxbuf slot", H2_EV_RX_FRAME|H2_EV_RX_DATA|H2_EV_H2S_BLK, h2c->conn, h2s);
 		goto fail;
@@ -6010,7 +6009,6 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 	htx = htx_from_buf(scbuf);
 
 try_again:
-	full = 0;
 	flen = h2c->dfl - h2c->dpl;
 	if (!flen)
 		goto end_transfer;
@@ -6023,7 +6021,6 @@ try_again:
 
 	block = htx_free_data_space(htx);
 	if (!block) {
-		full = 1;
 		if (h2s_get_rxbuf(h2s))
 			goto next_buffer;
 
@@ -6053,8 +6050,6 @@ try_again:
 	}
 
 	if (sent < flen) {
-		if (!sent)
-			full = 1;
 		if (h2s_get_rxbuf(h2s))
 			goto next_buffer;
 
