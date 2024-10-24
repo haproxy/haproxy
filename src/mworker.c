@@ -586,6 +586,9 @@ void mworker_cleanup_proc()
 	}
 }
 
+struct cli_showproc_ctx {
+	int debug;
+};
 
 /*  Displays workers and processes  */
 static int cli_io_handler_show_proc(struct appctx *appctx)
@@ -593,6 +596,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	struct mworker_proc *child;
 	int old = 0;
 	int up = date.tv_sec - proc_self->timestamp;
+	struct cli_showproc_ctx *ctx = appctx->svcctx;
 	char *uptime = NULL;
 	char *reloadtxt = NULL;
 
@@ -602,9 +606,15 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	chunk_reset(&trash);
 
 	memprintf(&reloadtxt, "%d [failed: %d]", proc_self->reloads, proc_self->failedreloads);
-	chunk_printf(&trash, "#%-14s %-15s %-15s %-15s %-15s\n", "<PID>", "<type>", "<reloads>", "<uptime>", "<version>");
+	chunk_printf(&trash, "#%-14s %-15s %-15s %-15s %-15s", "<PID>", "<type>", "<reloads>", "<uptime>", "<version>");
+	if (ctx->debug)
+		chunk_appendf(&trash, "\t\t %-15s %-15s", "<ipc_fd[0]>", "<ipc_fd[1]>");
+	chunk_appendf(&trash, "\n");
 	memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-	chunk_appendf(&trash, "%-15u %-15s %-15s %-15s %-15s\n", (unsigned int)getpid(), "master", reloadtxt, uptime, haproxy_version);
+	chunk_appendf(&trash, "%-15u %-15s %-15s %-15s %-15s", (unsigned int)getpid(), "master", reloadtxt, uptime, haproxy_version);
+	if (ctx->debug)
+		chunk_appendf(&trash, "\t\t %-15d %-15d", proc_self->ipc_fd[0], proc_self->ipc_fd[1]);
+	chunk_appendf(&trash, "\n");
 	ha_free(&reloadtxt);
 	ha_free(&uptime);
 
@@ -624,7 +634,10 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 			continue;
 		}
 		memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-		chunk_appendf(&trash, "%-15u %-15s %-15d %-15s %-15s\n", child->pid, "worker", child->reloads, uptime, child->version);
+		chunk_appendf(&trash, "%-15u %-15s %-15d %-15s %-15s", child->pid, "worker", child->reloads, uptime, child->version);
+		if (ctx->debug)
+			chunk_appendf(&trash, "\t\t %-15d %-15d", child->ipc_fd[0], child->ipc_fd[1]);
+		chunk_appendf(&trash, "\n");
 		ha_free(&uptime);
 	}
 
@@ -696,6 +709,26 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 
 	/* dump complete */
 	return 1;
+}
+/* reload the master process */
+static int cli_parse_show_proc(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct cli_showproc_ctx *ctx;
+
+	ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	if (*args[2]) {
+
+		if (strcmp(args[2], "debug") == 0)
+			ctx->debug = 1;
+		else
+			return cli_err(appctx, "'show proc' only supports 'debug' as argument\n");
+	}
+
+	return 0;
 }
 
 /* reload the master process */
@@ -900,7 +933,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "@<relative pid>", NULL }, "@<relative pid>                         : send a command to the <relative pid> process", NULL, cli_io_handler_show_proc, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "@!<pid>", NULL },         "@!<pid>                                 : send a command to the <pid> process", cli_parse_default, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "@master", NULL },         "@master                                 : send a command to the master process", cli_parse_default, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
-	{ { "show", "proc", NULL },    "show proc                               : show processes status", cli_parse_default, cli_io_handler_show_proc, NULL, NULL, ACCESS_MASTER_ONLY},
+	{ { "show", "proc", NULL },    "show proc                               : show processes status", cli_parse_show_proc, cli_io_handler_show_proc, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "reload", NULL },          "reload                                  : achieve a soft-reload (-sf) of haproxy", cli_parse_reload, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "hard-reload", NULL },     "hard-reload                             : achieve a hard-reload (-st) of haproxy", cli_parse_reload, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "_loadstatus", NULL },     NULL,                                                             cli_parse_default, cli_io_handler_show_loadstatus, NULL, NULL, ACCESS_MASTER_ONLY},

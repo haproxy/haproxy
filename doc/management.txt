@@ -4314,7 +4314,7 @@ reload
   Note that a reload will close all connections to the master CLI.
   See also the "hard-reload" command.
 
-show proc
+show proc [debug]
   The master CLI introduces a 'show proc' command to surpervise the
   processe.
 
@@ -4334,6 +4334,10 @@ show proc
   In this example, the master has been reloaded 5 times but one of the old
   worker is still running and survived 3 reloads. You could access the CLI of
   this worker to understand what's going on.
+
+  The 'debug' parameter is useful to show debug details, it currently shows the
+  FDs for IPC communication. Note that the debug output is not guaranteed to be
+  stable between haproxy versions.
 
 show startup-logs
   HAProxy needs to be compiled with USE_SHM_OPEN=1 to be used correctly on the
