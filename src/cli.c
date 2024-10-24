@@ -659,7 +659,7 @@ int listeners_setenv(struct proxy *frontend, const char *varname)
 					const struct sockaddr_un *un;
 
 					un = (struct sockaddr_un *)&l->rx.addr;
-					if (un->sun_path[0] == '\0') {
+					if (l->rx.addr.ss_family == AF_CUST_ABNS) {
 						chunk_appendf(trash, "abns@%s", un->sun_path+1);
 					} else {
 						chunk_appendf(trash, "unix@%s", un->sun_path);
@@ -1588,7 +1588,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 				const struct sockaddr_un *un;
 
 				un = (struct sockaddr_un *)&l->rx.addr;
-				if (un->sun_path[0] == '\0') {
+				if (l->rx.addr.ss_family == AF_CUST_ABNS) {
 					chunk_appendf(&trash, "abns@%s ", un->sun_path+1);
 				} else {
 					chunk_appendf(&trash, "unix@%s ", un->sun_path);

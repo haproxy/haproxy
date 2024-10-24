@@ -30,6 +30,7 @@
 #include <haproxy/http.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/pattern-t.h>
+#include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
 #include <haproxy/regex.h>
 #include <haproxy/server.h>

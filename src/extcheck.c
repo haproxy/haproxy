@@ -33,6 +33,7 @@
 #include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/limits.h>
+#include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
 #include <haproxy/server.h>
 #include <haproxy/signal.h>

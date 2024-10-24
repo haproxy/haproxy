@@ -1476,7 +1476,7 @@ char * sa2str(const struct sockaddr_storage *addr, int port, int map_ports)
 	case AF_UNIX:
 	case AF_CUST_ABNS:
 		path = ((struct sockaddr_un *)addr)->sun_path;
-		if (path[0] == '\0') {
+		if (addr->ss_family == AF_CUST_ABNS) {
 			const int max_length = sizeof(struct sockaddr_un) - offsetof(struct sockaddr_un, sun_path) - 1;
 			return memprintf(&out, "abns@%.*s", max_length, path+1);
 		} else {

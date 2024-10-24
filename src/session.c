@@ -19,6 +19,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/pool.h>
+#include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
 #include <haproxy/session.h>
 #include <haproxy/tcp_rules.h>

@@ -2644,7 +2644,6 @@ static void conn_calculate_hash_sockaddr(const struct sockaddr_storage *ss,
 {
 	struct sockaddr_in *addr;
 	struct sockaddr_in6 *addr6;
-	struct sockaddr_un *un;
 
 	switch (ss->ss_family) {
 	case AF_INET:
@@ -2678,20 +2677,17 @@ static void conn_calculate_hash_sockaddr(const struct sockaddr_storage *ss,
 		break;
 
 	case AF_UNIX:
-	case AF_CUST_ABNS:
-		un = (struct sockaddr_un *)ss;
+		conn_hash_update(hash,
+		                 &((struct sockaddr_un *)ss)->sun_path,
+		                 strlen(((struct sockaddr_un *)ss)->sun_path),
+		                 hash_flags, param_type_addr);
+		break;
 
-		if (un->sun_path[0]) {
-			/* regular UNIX socket */
-			conn_hash_update(hash,
-			                 &un->sun_path, strlen(un->sun_path),
-			                 hash_flags, param_type_addr);
-		} else {
-			/* ABNS UNIX socket */
-			conn_hash_update(hash,
-			                 &un->sun_path, sizeof(un->sun_path),
-			                 hash_flags, param_type_addr);
-		}
+	case AF_CUST_ABNS:
+		conn_hash_update(hash,
+		                 &((struct sockaddr_un *)ss)->sun_path,
+		                 sizeof(((struct sockaddr_un *)ss)->sun_path),
+		                 hash_flags, param_type_addr);
 		break;
 
 	case AF_CUST_SOCKPAIR:
