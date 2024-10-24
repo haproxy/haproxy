@@ -36,7 +36,7 @@
 THREAD_LOCAL size_t pool_cache_bytes = 0;                /* total cache size */
 THREAD_LOCAL size_t pool_cache_count = 0;                /* #cache objects   */
 
-static struct list pools __read_mostly = LIST_HEAD_INIT(pools);
+struct list pools __read_mostly = LIST_HEAD_INIT(pools);
 int mem_poison_byte __read_mostly = 'P';
 int pool_trim_in_progress = 0;
 uint pool_debugging __read_mostly =               /* set of POOL_DBG_* flags */
