@@ -37,6 +37,8 @@ static inline ullong quic_pacing_ns_pkt(const struct quic_pacer *pacer)
 
 int quic_pacing_expired(const struct quic_pacer *pacer);
 
+enum quic_tx_err quic_pacing_send(struct quic_pacer *pacer, struct quic_conn *qc);
+
 void quic_pacing_sent_done(struct quic_pacer *pacer, int sent);
 
 #endif /* _HAPROXY_QUIC_PACING_H */
