@@ -83,6 +83,21 @@
 extern int strlcpy2(char *dst, const char *src, int size);
 
 /*
+ * portable equivalent to POSIX strnlen():
+ * returns the number of bytes in the string pointed to by <s>, excluding
+ * the terminating null byte, but at most <maxlen>. The function does not
+ * look at characters passed <maxlen>.
+ */
+static inline size_t strnlen2(const char *s, size_t maxlen)
+{
+	size_t len;
+
+	for (len = 0; len < maxlen && s[len]; len++)
+		;
+	return len;
+}
+
+/*
  * This function simply returns a locally allocated string containing
  * the ascii representation for number 'n' in decimal.
  */
