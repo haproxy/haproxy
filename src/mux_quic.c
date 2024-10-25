@@ -2074,6 +2074,8 @@ static int qcc_subscribe_send(struct qcc *qcc)
  */
 static int qcc_send_frames(struct qcc *qcc, struct list *frms)
 {
+	enum quic_tx_err ret;
+
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
 
 	if (LIST_ISEMPTY(frms)) {
@@ -2081,7 +2083,8 @@ static int qcc_send_frames(struct qcc *qcc, struct list *frms)
 		return 1;
 	}
 
-	if (!qc_send_mux(qcc->conn->handle.qc, frms)) {
+	ret = qc_send_mux(qcc->conn->handle.qc, frms);
+	if (ret == QUIC_TX_ERR_FATAL) {
 		TRACE_DEVEL("error on sending", QMUX_EV_QCC_SEND, qcc->conn);
 		qcc_subscribe_send(qcc);
 		goto err;
