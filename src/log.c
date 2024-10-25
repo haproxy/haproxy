@@ -2388,15 +2388,7 @@ static inline char *_lf_text_len(char *dst, const char *src,
 			 * indefinite length text in cbor, because indefinite-length text
 			 * has to be made of multiple chunks of known size as per RFC8949...
 			 */
-			{
-				int _len;
-
-				/* strnlen(src, len) portable equivalent: */
-				for (_len = 0; _len < len && src[_len]; _len++)
-					;
-
-				len = _len;
-			}
+			len = strnlen2(src, len);
 
 			ret = cbor_encode_text(&ctx->encode.cbor, dst, dst + size, src, len);
 			if (ret == NULL)
