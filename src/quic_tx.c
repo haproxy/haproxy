@@ -469,10 +469,11 @@ int qc_purge_txbuf(struct quic_conn *qc, struct buffer *buf)
  *
  * Returns the result from qc_send() function.
  */
-int qc_send_mux(struct quic_conn *qc, struct list *frms)
+enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms)
 {
 	struct list send_list = LIST_HEAD_INIT(send_list);
-	int ret;
+	enum quic_tx_err ret = QUIC_TX_ERR_NONE;
+	int sent;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 	BUG_ON(qc->mux_state != QC_MUX_READY); /* Only MUX can uses this function so it must be ready. */
@@ -480,7 +481,7 @@ int qc_send_mux(struct quic_conn *qc, struct list *frms)
 	if (qc->conn->flags & CO_FL_SOCK_WR_SH) {
 		qc->conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH;
 		TRACE_DEVEL("connection on error", QUIC_EV_CONN_TXPKT, qc);
-		return 0;
+		return QUIC_TX_ERR_FATAL;
 	}
 
 	/* Try to send post handshake frames first unless on 0-RTT. */
@@ -493,7 +494,9 @@ int qc_send_mux(struct quic_conn *qc, struct list *frms)
 
 	TRACE_STATE("preparing data (from MUX)", QUIC_EV_CONN_TXPKT, qc);
 	qel_register_send(&send_list, qc->ael, frms);
-	ret = qc_send(qc, 0, &send_list, 0);
+	sent = qc_send(qc, 0, &send_list, 0);
+	if (sent <= 0)
+		ret = QUIC_TX_ERR_FATAL;
 
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 	return ret;

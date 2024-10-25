@@ -64,4 +64,9 @@ enum qc_build_pkt_err {
 	QC_BUILD_PKT_ERR_BUFROOM,  /* no more room in input buf or congestion window */
 };
 
+enum quic_tx_err {
+	QUIC_TX_ERR_NONE,
+	QUIC_TX_ERR_FATAL,
+};
+
 #endif /* _HAPROXY_TX_T_H */
