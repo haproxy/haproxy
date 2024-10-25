@@ -33,7 +33,7 @@ void qc_txb_release(struct quic_conn *qc);
 int qc_purge_txbuf(struct quic_conn *qc, struct buffer *buf);
 struct buffer *qc_get_txb(struct quic_conn *qc);
 
-int qc_send_mux(struct quic_conn *qc, struct list *frms);
+enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms);
 
 void qel_register_send(struct list *send_list, struct quic_enc_level *qel,
                        struct list *frms);
