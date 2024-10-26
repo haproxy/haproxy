@@ -2162,6 +2162,18 @@ static void apply_master_worker_mode()
 
 				break;
 			}
+
+			/* need to close reload sockpair fds, inherited after master's execvp and fork(),
+			 * we can't close these fds in master before the fork(), as ipc_fd[1] serves after
+			 * the mworker_reexec to obtain the MCLI client connection fd, like this we can
+			 * write to this connection fd the content of the startup_logs ring.
+			 */
+			if (child->options & PROC_O_TYPE_MASTER) {
+				if (child->ipc_fd[0] > 0)
+					close(child->ipc_fd[0]);
+				if (child->ipc_fd[1] > 0)
+					close(child->ipc_fd[1]);
+			}
 		}
 		break;
 	default:
@@ -3672,6 +3684,7 @@ int main(int argc, char **argv)
 	int intovf = (unsigned char)argc + 1; /* let the compiler know it's strictly positive */
 	struct cfgfile *cfg, *cfg_tmp;
 	struct ring *tmp_startup_logs = NULL;
+	struct mworker_proc *proc;
 
 	/* Catch broken toolchains */
 	if (sizeof(long) != sizeof(void *) || (intovf + 0x7FFFFFFF >= intovf)) {
@@ -3860,6 +3873,27 @@ int main(int argc, char **argv)
 		get_listeners_fd();
 
 	bind_listeners();
+
+	/* worker context: now listeners fds were transferred from the previous
+	 * worker, all listeners fd are bound. So we can close ipc_fd[0]s of all
+	 * previous workers, which are still referenced in the proc_list, i.e.
+	 * they are not exited yet at the moment, when this current worker was
+	 * forked. Thus the current worker inherits ipc_fd[0]s from the previous
+	 * ones by it's parent, master, because we have to keep shared sockpair
+	 * ipc_fd[0] always opened in master (master CLI server is listening on
+	 * this fd). It's safe to call close() at this point on these inhereted
+	 * ipc_fd[0]s, as they are inhereted after master re-exec unbound, we
+	 * keep them like this during bind_listeners() call. So, these fds were
+	 * never referenced in the current worker's fdtab.
+	 */
+	if ((global.mode & MODE_MWORKER) && !master) {
+		list_for_each_entry(proc, &proc_list, list) {
+			if ((proc->options & PROC_O_TYPE_WORKER) && (proc->options & PROC_O_LEAVING)) {
+				close(proc->ipc_fd[0]);
+				proc->ipc_fd[0] = -1;
+			}
+		}
+	}
 
 	/* Exit in standalone mode, if no listeners found */
 	if (!(global.mode & MODE_MWORKER) && listeners == 0) {
