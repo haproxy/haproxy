@@ -749,8 +749,6 @@ static void mworker_reexec(int hardreload)
 
 	mworker_proc_list_to_env(); /* put the children description in the env */
 
-	startup_logs_free(startup_logs);
-
 	/* during the reload we must ensure that every FDs that can't be
 	 * reuse (ie those that are not referenced in the proc_list)
 	 * are closed or they will leak. */
@@ -831,6 +829,12 @@ static void mworker_reexec(int hardreload)
 	/* copy the previous options */
 	for (i = 1; i < old_argc; i++)
 		next_argv[next_argc++] = old_argv[i];
+
+	/* need to withdraw MODE_STARTING from master, because we have to free
+	 * the startup logs ring here, see more details in print_message()
+	 */
+	global.mode &= ~MODE_STARTING;
+	startup_logs_free(startup_logs);
 
 	signal(SIGPROF, SIG_IGN);
 	execvp(next_argv[0], next_argv);
