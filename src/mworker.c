@@ -908,10 +908,11 @@ void mworker_create_master_cli(void)
 		 * Both FDs will be kept in the master. The sockets are
 		 * created only if they weren't inherited.
 		 */
-		if ((proc_self->ipc_fd[1] == -1) &&
-		     socketpair(AF_UNIX, SOCK_STREAM, 0, proc_self->ipc_fd) < 0) {
-			ha_alert("Can't create the mcli_reload socketpair.\n");
-			exit(EXIT_FAILURE);
+		if (proc_self->ipc_fd[1] == -1) {
+			if (socketpair(AF_UNIX, SOCK_STREAM, 0, proc_self->ipc_fd) < 0) {
+				ha_alert("Can't create the mcli_reload socketpair.\n");
+				exit(EXIT_FAILURE);
+			}
 		}
 
 		/* Create the mcli_reload listener from the proc_self struct */
