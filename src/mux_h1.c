@@ -694,24 +694,24 @@ static void h1_refresh_timeout(struct h1c *h1c)
 			 * timeouts so that we don't hang too long on clients that have
 			 * gone away (especially in tunnel mode).
 			 */
-			h1c->task->expire = tick_add(now_ms, h1c->shut_timeout);
+			h1c->task->expire = tick_add_ifset(now_ms, h1c->shut_timeout);
 			TRACE_DEVEL("refreshing connection's timeout (dead or half-closed)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
 			is_idle_conn = 1;
 		}
 		else if (b_data(&h1c->obuf)) {
 			/* alive connection with pending outgoing data, need a timeout (server or client). */
-			h1c->task->expire = tick_add(now_ms, h1c->timeout);
+			h1c->task->expire = tick_add_ifset(now_ms, h1c->timeout);
 			TRACE_DEVEL("refreshing connection's timeout (pending outgoing data)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
 		}
 		else if (!(h1c->flags & H1C_F_IS_BACK) && (h1c->state == H1_CS_IDLE)) {
 			/* idle front connections. */
-			h1c->task->expire = (tick_isset(h1c->idle_exp) ? h1c->idle_exp : tick_add(now_ms, h1c->timeout));
+			h1c->task->expire = (tick_isset(h1c->idle_exp) ? h1c->idle_exp : tick_add_ifset(now_ms, h1c->timeout));
 			TRACE_DEVEL("refreshing connection's timeout (idle front h1c)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
 			is_idle_conn = 1;
 		}
 		else if (!(h1c->flags & H1C_F_IS_BACK) && (h1c->state != H1_CS_RUNNING)) {
 			/* alive front connections waiting for a fully usable stream need a timeout. */
-			h1c->task->expire = tick_add(now_ms, h1c->timeout);
+			h1c->task->expire = tick_first(h1c->idle_exp, tick_add_ifset(now_ms, h1c->timeout));
 			TRACE_DEVEL("refreshing connection's timeout (alive front h1c but not ready)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
 			/* A frontend connection not yet ready could be treated the same way as an idle
 			 * one in case of soft-close.
@@ -723,9 +723,6 @@ static void h1_refresh_timeout(struct h1c *h1c)
 			h1c->task->expire = TICK_ETERNITY;
 			TRACE_DEVEL("no connection timeout (alive back h1c or front h1c with an SC)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
 		}
-
-		/* Finally set the idle expiration date if shorter */
-		h1c->task->expire = tick_first(h1c->task->expire, h1c->idle_exp);
 
 		if ((h1c->px->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) &&
 		     is_idle_conn && tick_isset(global.close_spread_end)) {
@@ -1276,19 +1273,16 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 		LIST_APPEND(&mux_stopping_data[tid].list,
 		            &h1c->conn->stopping_list);
 	}
-	if (tick_isset(h1c->timeout)) {
-		t = task_new_here();
-		if (!t) {
-			TRACE_ERROR("H1C task allocation failure", H1_EV_H1C_NEW|H1_EV_H1C_END|H1_EV_H1C_ERR);
-			goto fail;
-		}
 
-		h1c->task = t;
-		t->process = h1_timeout_task;
-		t->context = h1c;
-
-		t->expire = tick_add(now_ms, h1c->timeout);
+	t = task_new_here();
+	if (!t) {
+		TRACE_ERROR("H1C task allocation failure", H1_EV_H1C_NEW|H1_EV_H1C_END|H1_EV_H1C_ERR);
+		goto fail;
 	}
+	h1c->task = t;
+	t->process = h1_timeout_task;
+	t->context = h1c;
+	t->expire = tick_add_ifset(now_ms, h1c->timeout);
 
 	conn->ctx = h1c;
 
