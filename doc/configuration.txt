@@ -6073,6 +6073,11 @@ bind /<path> [, ...] [param*]
                       only in log-forward sections.
                     - 'unix@'  -> address is a path to a local unix socket
                     - 'abns@'  -> address is in abstract namespace (Linux only).
+                    - 'abnsz@'  -> address is in abstract namespace (Linux only)
+                       but it is explicitly zero-terminated. This means no \0
+                       padding is used to complete sun_path. It is useful to
+                       interconnect with programs that don't implement the
+                       default abns naming logic that haproxy uses.
                     - 'fd@<n>' -> use file descriptor <n> inherited from the
                       parent. The fd must be bound and may or may not already
                       be listening.
@@ -6165,11 +6170,12 @@ bind /<path> [, ...] [param*]
         listen h3_quic_proxy
             bind quic4@10.0.0.1:8888 ssl crt /etc/mycrt
 
-  Note: regarding Linux's abstract namespace sockets, HAProxy uses the whole
-        sun_path length is used for the address length. Some other programs
-        such as socat use the string length only by default. Pass the option
-        ",unix-tightsocklen=0" to any abstract socket definition in socat to
-        make it compatible with HAProxy's.
+  Note: regarding Linux's abstract namespace sockets, "abns" HAProxy sockets
+        uses the whole sun_path length is used for the address length. Some
+        other programs such as socat use the string length only by default.
+        Pass the option ",unix-tightsocklen=0" to any abstract socket
+        definition in socat to make it compatible with HAProxy's, or use the
+        "abnsz" HAProxy socket family instead.
 
   See also : "source", "option forwardfor", "unix-bind" and the PROXY protocol
              documentation, and section 5 about bind options.
@@ -11586,6 +11592,11 @@ server <name> <address>[:[port]] [param*]
                     - 'ipv6@'  -> address is always IPv6
                     - 'unix@'  -> address is a path to a local unix socket
                     - 'abns@'  -> address is in abstract namespace (Linux only)
+                    - 'abnsz@'  -> address is in abstract namespace (Linux only)
+                       but it is explicitly zero-terminated. This means no \0
+                       padding is used to complete sun_path. It is useful to
+                       interconnect with programs that don't implement the
+                       default abns naming logic that haproxy uses.
                     - 'sockpair@' -> address is the FD of a connected unix
                       socket or of a socketpair. During a connection, the
                       backend creates a pair of connected sockets, and passes
@@ -11620,11 +11631,12 @@ server <name> <address>[:[port]] [param*]
         server www1_dc1 "${LAN_DC1}.101:80"
         server www1_dc2 "${LAN_DC2}.101:80"
 
-  Note: regarding Linux's abstract namespace sockets, HAProxy uses the whole
-        sun_path length is used for the address length. Some other programs
-        such as socat use the string length only by default. Pass the option
-        ",unix-tightsocklen=0" to any abstract socket definition in socat to
-        make it compatible with HAProxy's.
+  Note: regarding Linux's abstract namespace sockets, "abns" HAProxy sockets
+        uses the whole sun_path length is used for the address length. Some
+        other programs such as socat use the string length only by default.
+        Pass the option ",unix-tightsocklen=0" to any abstract socket
+        definition in socat to make it compatible with HAProxy's, or use the
+        "abnsz" HAProxy socket family instead.
 
   See also: "default-server", "http-send-name-header" and section 5 about
              server options
@@ -11721,6 +11733,9 @@ source <addr>[:<port>] [interface <name>]
                 - 'ipv6@' -> address is always IPv6
                 - 'unix@' -> address is a path to a local unix socket
                 - 'abns@' -> address is in abstract namespace (Linux only)
+                - 'abnsz@'  -> address is in zero-terminated abstract namespace
+                               (Linux only)
+
               You may want to reference some environment variables in the
               address parameter, see section 2.3 about environment variables.
 
@@ -28563,6 +28578,9 @@ socket type and the transport method.
 -----------------------------
 
 'abns@<name>' following <name> is an abstract namespace (Linux only).
+
+'abnsz@<name>' following <name> is a zero-terminated abstract namespace
+               (Linux only).
 
 'fd@<n>'      following address is a file descriptor <n> inherited from the
               parent. The fd must be bound and may or may not already be

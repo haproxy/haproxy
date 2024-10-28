@@ -785,8 +785,15 @@ static inline int get_addr_len(const struct sockaddr_storage *addr)
 		return sizeof(struct sockaddr_in6);
 	case AF_UNIX:
 	case AF_CUST_ABNS:
-	case AF_CUST_ABNSZ:
 		return sizeof(struct sockaddr_un);
+	case AF_CUST_ABNSZ:
+		{
+			const struct sockaddr_un *un = (struct sockaddr_un *)addr;
+
+			/* stop at first NULL-byte */
+			return offsetof(struct sockaddr_un, sun_path) + 1 +
+			       strnlen2(un->sun_path + 1, sizeof(un->sun_path) - 1);
+		}
 	}
 	return 0;
 }

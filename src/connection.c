@@ -2684,12 +2684,21 @@ static void conn_calculate_hash_sockaddr(const struct sockaddr_storage *ss,
 		break;
 
 	case AF_CUST_ABNS:
-	case AF_CUST_ABNSZ:
 		conn_hash_update(hash,
 		                 &((struct sockaddr_un *)ss)->sun_path,
 		                 sizeof(((struct sockaddr_un *)ss)->sun_path),
 		                 hash_flags, param_type_addr);
 		break;
+
+	case AF_CUST_ABNSZ:
+	{
+		const struct sockaddr_un *un = (struct sockaddr_un *)ss;
+		conn_hash_update(hash,
+		                 &un->sun_path,
+		                 1 + strnlen2(un->sun_path + 1, sizeof(un->sun_path) - 1),
+		                 hash_flags, param_type_addr);
+		break;
+	}
 
 	case AF_CUST_SOCKPAIR:
 		/* simply hash the fd */

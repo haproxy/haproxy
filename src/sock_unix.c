@@ -362,7 +362,7 @@ int sock_unix_bind_receiver(struct receiver *rx, char **errmsg)
 		goto bind_close_return;
 	}
 
-	if (!ext && bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+	if (!ext && bind(fd, (struct sockaddr *)&addr, get_addr_len(&rx->addr)) < 0) {
 		/* note that bind() creates the socket <tempname> on the file system */
 		if (errno == EADDRINUSE) {
 			/* the old process might still own it, let's retry */
