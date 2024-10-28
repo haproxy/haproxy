@@ -136,13 +136,6 @@ struct post_mortem {
 		struct rlimit run_lim_fd;  // RLIMIT_NOFILE just before enter in polling loop
 		struct rlimit run_lim_ram; // RLIMIT_DATA just before enter in polling loop
 		char **argv;
-
-#if defined(USE_THREAD)
-		struct {
-			ullong pth_id;   // pthread_t cast to a ullong
-			void *stack_top; // top of the stack
-		} thread_info[MAX_THREADS];
-#endif
 		unsigned char argc;
 	} process;
 
@@ -2629,22 +2622,9 @@ void post_mortem_add_component(const char *name, const char *version,
 static int feed_post_mortem_late()
 {
 	static int per_thread_info_collected;
-	int i;
 
 	if (HA_ATOMIC_ADD_FETCH(&per_thread_info_collected, 1) != global.nbthread)
 		return 1;
-
-	/* Collect thread info, only when we are in the last thread context.
-	 * feed_post_mortem_late() is registered in per_thread_init_list. Each
-	 * thread takes a mutex before looping over this list, so
-	 * feed_post_mortem_late() will be called by each thread in exclusive
-	 * manner, one by one in synchronous order. Thread unlocks mutex only
-	 * after executing all init functions from this list.
-	*/
-	for (i = 0; i < global.nbthread; i++) {
-		post_mortem.process.thread_info[i].pth_id = ha_thread_info[i].pth_id;
-		post_mortem.process.thread_info[i].stack_top = ha_thread_info[i].stack_top;
-	}
 
 	/* also set runtime process settings. At this stage we are sure, that all
 	 * config options and limits adjustments are successfully applied.
