@@ -150,6 +150,7 @@ void startup_logs_free(struct ring *r)
 		munmap(ring_allocated_area(r), STARTUP_LOG_SIZE);
 #endif /* ! USE_SHM_OPEN */
 	ring_free(r);
+	startup_logs = NULL;
 }
 
 /* duplicate a startup logs which was previously allocated in a shm */
