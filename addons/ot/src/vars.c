@@ -39,14 +39,21 @@
  */
 static void flt_ot_vars_scope_dump(struct vars *vars, const char *scope)
 {
-	const struct var *var;
+	int i;
 
 	if (vars == NULL)
 		return;
 
 	vars_rdlock(vars);
-	list_for_each_entry(var, &(vars->head), l)
-		FLT_OT_DBG(2, "'%s.%016" PRIx64 "' -> '%.*s'", scope, var->name_hash, (int)b_data(&(var->data.u.str)), b_orig(&(var->data.u.str)));
+	for (i = 0; i < VAR_NAME_ROOTS; i++) {
+		struct ceb_node *node = cebu64_first(&(vars->name_root[i]));
+
+		for ( ; node != NULL; node = cebu64_next(&(vars->name_root[i]), node)) {
+			struct var *var = container_of(node, struct var, node);
+
+			FLT_OT_DBG(2, "'%s.%016" PRIx64 "' -> '%.*s'", scope, var->name_hash, (int)b_data(&(var->data.u.str)), b_orig(&(var->data.u.str)));
+		}
+	}
 	vars_rdunlock(vars);
 }
 
