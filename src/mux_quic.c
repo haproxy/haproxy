@@ -2097,7 +2097,7 @@ static int qcc_send_frames(struct qcc *qcc, struct list *frms, int stream)
 		return -1;
 	}
 
-	if (stream)
+	if (stream && likely(!(global.tune.options & GTUNE_QUIC_NO_PACING)))
 		pacer = &qcc->tx.pacer;
 
 	ret = qc_send_mux(qcc->conn->handle.qc, frms, pacer);
