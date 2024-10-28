@@ -1,0 +1,114 @@
+2024-10-28 - error reporting
+----------------------------
+
+- rules:
+    -> stream->current_rule ~= yielding rule or error
+       pb: not always set.
+    -> todo: curr_rule_in_progress points to &rule->conf (file+line)
+       - set on ACT_RET_ERR, ACT_RET_YIELD, ACT_RET_INV.
+       - sample_fetch: curr_rule
+
+- filters:
+    -> strm_flt.filters[2] (1 per direction) ~= yielding filter or error
+    -> to check: what to do on forward filters (e.g. compression)
+    -> check spoe / waf (stream data)
+    -> sample_fetch: curr_filt
+
+- cleanup:
+  - last_rule_line + last_rule_file can point to &rule->conf
+
+- xprt:
+  - all handshakes use the dummy xprt "xprt_handshake" ("HS"). No data
+    exchange is possible there. The ctx is of type xprt_handshake_ctx
+    for all of them, and contains a wait_event.
+    => conn->xprt_ctx->wait_event contains the sub for current handshake
+       *if* xprt points to xprt_handshake.
+  - at most 2 active xprt at once: top and bottom (bottom=raw_sock)
+
+- proposal:
+  - combine 2 bits for muxc, 2 bits for xprt, 4 bits for fd (active,ready).
+    => 8 bits for muxc and below. QUIC uses something different TBD.
+
+  - muxs uses 6 bits max (ex: h2 send_list, fctl_list, full etc; h1: full,
+    blocked connect...).
+
+  - 2 bits for sc's sub
+
+  - mux_sctl to retrieve a 32-bit code padded right, limited to 16 bits
+    for now.
+    => [ 0000 | 0000 | 0000 | 0000 | SC | MUXS | MUXC | XPRT | FD ]
+                                      2     6      2      2     4
+  - sample-fetch for each side.
+
+- shut / abort
+  - history, almost human-readable.
+  - event locations:
+     - fd (detected by rawsock)
+     - handshake (detected by xprt_handshake). Eg. parsing or address encoding
+     - xprt (ssl)
+     - muxc
+     - se: muxs / applet
+     - stream
+
+     < 8 total. +8 to distinguish front from back at stream level.
+     suggest:
+       - F, H, X, M, E, S  front or back
+       - f, h, x, m, e, s  back or front
+
+  - event types:
+      - 0 = no event yet
+      - 1 = timeout
+      - 2 = intercepted (rule, etc)
+      - 3 unused
+
+      // shutr / shutw: +1 if other side already shut
+      - 4 = aligned shutr
+      - 6 = aligned recv error
+      - 8 = early shutr (truncation)
+      - 10 = early error (truncation)
+      - 12 = shutw
+      - 14 = send error
+
+  - event location = MSB
+    event type     = LSB
+
+    appending a single event:
+      -- if code not full --
+      code <<= 8;
+      code |= location << 4;
+      code |= event type;
+
+  - up to 4 events per connection in 32-bit mode stored on connection
+    (since raw_sock & ssl_sock need to access it).
+
+  - SE (muxs/applet) store their event log in the SD: se_event_log (64 bits).
+
+  - muxs must aggregate the connection's flags with its own:
+    - store last known connection state in SD: conn_event_log
+    - detect changes at the connection level by comparing with SD conn_event_log
+    - create a new SD event with difference(s) into SD se_event_log
+    - update connection state in SD conn_event_log
+
+  - stream
+    - store their event log in the stream: strm_event_log (64 bits).
+    - for each side:
+      - store last known SE state in SD: last_se_event_log
+      - detect changes at the SE level by comparing with SD se_event_log
+      - create a new STREAM event with difference(s) into STREAM strm_event_log
+        and patch the location depending on front vs back (+8 for back).
+      - update SE state in SD last_se_event_log
+
+    => strm_event_log contains a composite of each side + stream.
+    - converted to string using the location letters
+    - if more event types needed later, can enlarge bits and use another letter.
+    - note: also possible to create an exhaustive enumeration of all possible codes
+      (types+locations).
+
+- sample fetch to retrieve strm_event_log.
+
+- Note that fc_err and fc_err_str are already usable
+
+- questions:
+  - htx layer needed ?
+  - ability to map EOI/EOS etc to SE activity ?
+  - we'd like to detect an HTTP response before end of POST.
