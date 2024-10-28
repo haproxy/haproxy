@@ -33,6 +33,8 @@ extern struct proto_fam proto_fam_abns;
 extern struct proto_fam proto_fam_abnsz;
 
 int sock_unix_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b);
+int sock_abns_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b);
+int sock_abnsz_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b);
 int sock_unix_bind_receiver(struct receiver *rx, char **errmsg);
 
 #endif /* _HAPROXY_SOCK_UNIX_H */

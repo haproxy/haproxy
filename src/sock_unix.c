@@ -57,7 +57,7 @@ struct proto_fam proto_fam_abns = {
 	.real_family = AF_UNIX,
 	.sock_addrlen = sizeof(struct sockaddr_un),
 	.l3_addrlen = sizeof(((struct sockaddr_un*)0)->sun_path),
-	.addrcmp = sock_unix_addrcmp,
+	.addrcmp = sock_abns_addrcmp,
 	.bind = sock_unix_bind_receiver,
 	.get_src = sock_get_src,
 	.get_dst = sock_get_dst,
@@ -70,7 +70,7 @@ struct proto_fam proto_fam_abnsz = {
 	.real_family = AF_UNIX,
 	.sock_addrlen = sizeof(struct sockaddr_un),
 	.l3_addrlen = sizeof(((struct sockaddr_un*)0)->sun_path),
-	.addrcmp = sock_unix_addrcmp,
+	.addrcmp = sock_abnsz_addrcmp,
 	.bind = sock_unix_bind_receiver,
 	.get_src = sock_get_src,
 	.get_dst = sock_get_dst,
@@ -85,12 +85,58 @@ struct proto_fam proto_fam_abnsz = {
  */
 
 
-/* Compares two AF_UNIX sockaddr addresses. Returns 0 if they match or non-zero
- * if they do not match. It also supports ABNS socket addresses (those starting
- * with \0). For regular UNIX sockets however, this does explicitly support
- * matching names ending exactly with .XXXXX.tmp which are newly bound sockets
- * about to be replaced; this suffix is then ignored. Note that our UNIX socket
- * paths are always zero-terminated.
+/* Compares two AF_CUST_ABNS sockaddr addresses (ABNS UNIX sockets). Returns 0 if
+ * they match or non-zero.
+ */
+int sock_abns_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b)
+{
+	const struct sockaddr_un *au = (const struct sockaddr_un *)a;
+	const struct sockaddr_un *bu = (const struct sockaddr_un *)b;
+
+	if (a->ss_family != b->ss_family)
+		return -1;
+
+	if (a->ss_family != AF_CUST_ABNS)
+		return -1;
+
+	if (au->sun_path[0] != bu->sun_path[0])
+		return -1;
+
+	if (au->sun_path[0] != '\0')
+		return -1;
+
+	return memcmp(au->sun_path, bu->sun_path, sizeof(au->sun_path));
+}
+
+
+/* Compares two AF_CUST_ABNSZ sockaddr addresses (ABNSZ UNIX sockets). Returns 0 if
+ * they match or non-zero.
+ */
+int sock_abnsz_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b)
+{
+	const struct sockaddr_un *au = (const struct sockaddr_un *)a;
+	const struct sockaddr_un *bu = (const struct sockaddr_un *)b;
+
+	if (a->ss_family != b->ss_family)
+		return -1;
+
+	if (a->ss_family != AF_CUST_ABNSZ)
+		return -1;
+
+	if (au->sun_path[0] != bu->sun_path[0])
+		return -1;
+
+	if (au->sun_path[0] != '\0')
+		return -1;
+
+	return strncmp(au->sun_path + 1, bu->sun_path + 1, sizeof(au->sun_path) - 1);
+}
+
+/* Compares two AF_UNIX sockaddr addresses (regular UNIX sockets). Returns 0 if
+ * they match or non-zero. Tis does explicitly support matching names ending
+ * exactly with .XXXXX.tmp which are newly bound sockets about to be replaced;
+ * this suffix is then ignored. Note that our UNIX socket paths are always
+ * zero-terminated.
  */
 int sock_unix_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b)
 {
@@ -98,19 +144,13 @@ int sock_unix_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_st
 	const struct sockaddr_un *bu = (const struct sockaddr_un *)b;
 	int idx, dot, idx2;
 
-	if (real_family(a->ss_family) != real_family(b->ss_family))
+	if (a->ss_family != b->ss_family)
 		return -1;
 
-	if (real_family(a->ss_family) != AF_UNIX)
+	if (a->ss_family != AF_UNIX)
 		return -1;
 
-	if (au->sun_path[0] != bu->sun_path[0])
-		return -1;
-
-	if (au->sun_path[0] == 0)
-		return memcmp(au->sun_path, bu->sun_path, sizeof(au->sun_path));
-
-	idx = 1; dot = 0;
+	idx = 0; dot = 0;
 	while (au->sun_path[idx] == bu->sun_path[idx]) {
 		if (au->sun_path[idx] == 0)
 			return 0;
