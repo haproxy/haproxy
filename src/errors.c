@@ -340,9 +340,6 @@ static void print_message(int use_usermsgs_ctx, const char *label, const char *f
 	}
 
 	if (global.mode & MODE_STARTING) {
-		if (unlikely(!startup_logs))
-			startup_logs_init();
-
 		if (likely(startup_logs)) {
 			struct ist m[3];
 
@@ -351,7 +348,8 @@ static void print_message(int use_usermsgs_ctx, const char *label, const char *f
 			m[2] = msg_ist;
 
 			ring_write(startup_logs, ~0, 0, 0, m, 3);
-		}
+		} else
+			usermsgs_put(&msg_ist);
 	}
 	else {
 		usermsgs_put(&msg_ist);
