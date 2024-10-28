@@ -600,6 +600,23 @@ int sock_get_old_sockets(const char *unixsocket)
 			ha_free(&xfer_sock);
 			continue;
 		}
+		if (xfer_sock->addr.ss_family == AF_UNIX) {
+			const struct sockaddr_un *un = (const struct sockaddr_un *)&xfer_sock->addr;
+
+			/* restore effective family if needed, because getsockname()
+			 * only knows about real families:
+			 */
+			if (un->sun_path[0]); // regular UNIX socket, not a custom family
+			else if (socklen == sizeof(*un))
+				xfer_sock->addr.ss_family = AF_CUST_ABNS;
+			else {
+				/* not all struct sockaddr_un space is used..
+				 * (sun_path is partially filled)
+				 */
+				xfer_sock->addr.ss_family = AF_CUST_ABNSZ;
+			}
+		}
+
 
 		if (curoff >= maxoff) {
 			ha_warning("Inconsistency while transferring sockets\n");
