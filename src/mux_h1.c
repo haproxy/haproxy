@@ -416,6 +416,15 @@ static void h1_trace(enum trace_level level, uint64_t mask, const struct trace_s
 	chunk_appendf(&trace_buf, " - h1c=%p(0x%08x)", h1c, h1c->flags);
 	if (h1c->conn)
 		chunk_appendf(&trace_buf, " conn=%p(0x%08x)", h1c->conn, h1c->conn->flags);
+	chunk_appendf(&trace_buf, " .task=%p", h1c->task);
+	if (h1c->task) {
+		chunk_appendf(&trace_buf, " .exp=%s",
+			      h1c->task->expire ? tick_is_expired(h1c->task->expire, now_ms) ? "<PAST>" :
+			      human_time(TICKS_TO_MS(h1c->task->expire - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+	}
+	chunk_appendf(&trace_buf, " .idle_exp=%s",
+		      h1c->idle_exp ? tick_is_expired(h1c->idle_exp, now_ms) ? "<PAST>" :
+		      human_time(TICKS_TO_MS(h1c->idle_exp - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
 	if (h1s) {
 		chunk_appendf(&trace_buf, " h1s=%p(0x%08x)", h1s, h1s->flags);
 		if (h1s->sd)
