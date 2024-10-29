@@ -175,6 +175,8 @@ resume_execution:
 							send_log(s->be, LOG_WARNING,
 								 "Internal error: yield not allowed if the inspect-delay expired "
 								 "for the tcp-request content actions.");
+							s->last_rule_file = rule->conf.file;
+							s->last_rule_line = rule->conf.line;
 							goto internal;
 						}
 						goto missing_data;
@@ -357,6 +359,8 @@ resume_execution:
 							send_log(s->be, LOG_WARNING,
 								 "Internal error: yield not allowed if the inspect-delay expired "
 								 "for the tcp-response content actions.");
+							s->last_rule_file = rule->conf.file;
+							s->last_rule_line = rule->conf.line;
 							goto internal;
 						}
 						channel_dont_close(rep);

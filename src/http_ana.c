@@ -2748,6 +2748,8 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 						send_log(s->be, LOG_WARNING,
 							 "Internal error: action yields while it is  no long allowed "
 							 "for the http-request actions.");
+						s->last_rule_file = rule->conf.file;
+						s->last_rule_line = rule->conf.line;
 						rule_ret = HTTP_RULE_RES_ERROR;
 						goto end;
 					}
@@ -2920,6 +2922,8 @@ resume_execution:
 						send_log(s->be, LOG_WARNING,
 							 "Internal error: action yields while it is no long allowed "
 							 "for the http-response/http-after-response actions.");
+						s->last_rule_file = rule->conf.file;
+						s->last_rule_line = rule->conf.line;
 						rule_ret = HTTP_RULE_RES_ERROR;
 						goto end;
 					}
