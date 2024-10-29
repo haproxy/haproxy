@@ -30,18 +30,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Clone docker image definition
-        run: |
-          git clone -b libressl https://github.com/haproxytech/haproxy-qns
-
       - name: Build and push Docker image
         id: push
         uses: docker/build-push-action@v5
         with:
           context: haproxy-qns
           push: true
+          build-args: |
+            SSLLIB: LibreSSL
           tags: ghcr.io/${{ github.repository }}:libressl
-
 
   run:
     needs: build
