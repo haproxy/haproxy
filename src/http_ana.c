@@ -2744,6 +2744,13 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 					goto end;
 				case ACT_RET_YIELD:
 					s->current_rule = rule;
+					if (act_opts & ACT_OPT_FINAL) {
+						send_log(s->be, LOG_WARNING,
+							 "Internal error: action yields while it is  no long allowed "
+							 "for the http-request actions.");
+						rule_ret = HTTP_RULE_RES_ERROR;
+						goto end;
+					}
 					rule_ret = HTTP_RULE_RES_YIELD;
 					goto end;
 				case ACT_RET_ERR:
@@ -2909,6 +2916,13 @@ resume_execution:
 					goto end;
 				case ACT_RET_YIELD:
 					s->current_rule = rule;
+					if (act_opts & ACT_OPT_FINAL) {
+						send_log(s->be, LOG_WARNING,
+							 "Internal error: action yields while it is no long allowed "
+							 "for the http-response/http-after-response actions.");
+						rule_ret = HTTP_RULE_RES_ERROR;
+						goto end;
+					}
 					rule_ret = HTTP_RULE_RES_YIELD;
 					goto end;
 				case ACT_RET_ERR:
