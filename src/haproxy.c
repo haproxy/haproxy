@@ -3150,6 +3150,12 @@ static void read_cfg_in_discovery_mode(int argc, char **argv)
 		ha_alert("a master CLI socket was defined, but master-worker mode (-W) is not enabled.\n");
 		exit(EXIT_FAILURE);
 	}
+
+	/* in MODE_CHECK and in MODE_DUMP_CFG we just need to parse the
+	 * configuration and exit, see step_init_2()
+	 */
+	if ((global.mode & MODE_MWORKER) && (global.mode & (MODE_CHECK | MODE_DUMP_CFG)))
+		global.mode &= ~MODE_MWORKER;
 }
 
 void deinit(void)
