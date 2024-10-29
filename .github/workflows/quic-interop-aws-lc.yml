@@ -27,18 +27,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Clone docker image definition
-        run: |
-          git clone -b aws-lc https://github.com/haproxytech/haproxy-qns
-
       - name: Build and push Docker image
         id: push
         uses: docker/build-push-action@v5
         with:
-          context: haproxy-qns
+          context: https://github.com/haproxytech/haproxy-qns.git
           push: true
+          build-args: |
+            SSLLIB: AWS-LC
           tags: ghcr.io/${{ github.repository }}:aws-lc
-
 
   run:
     needs: build
