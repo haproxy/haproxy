@@ -2464,7 +2464,7 @@ static void step_init_2(int argc, char** argv)
 	}
 #endif
 
-	if (global.mode & MODE_DUMP_KWD)
+	if (global.mode & MODE_DUMP_KWD && !master)
 		dump_registered_keywords();
 
 	if (global.mode & MODE_DIAG) {
