@@ -19,6 +19,7 @@
 
 #define QUIC_CC_NEWRENO_STR "newreno"
 #define QUIC_CC_CUBIC_STR   "cubic"
+#define QUIC_CC_BBR_STR     "bbr"
 #define QUIC_CC_NO_CC_STR   "nocc"
 
 static int bind_parse_quic_force_retry(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
@@ -140,6 +141,18 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 			conf->quic_pacing_burst = 1;
 			arg += strlen(str_pacing);
 		}
+	}
+	else if (strncmp(arg, QUIC_CC_BBR_STR, strlen(QUIC_CC_BBR_STR)) == 0) {
+		if (!experimental_directives_allowed) {
+			ha_alert("'%s' algo is experimental, must be allowed via a global "
+			         "'expose-experimental-directives'\n", arg);
+			goto fail;
+		}
+
+		/* bbr */
+		algo = QUIC_CC_BBR_STR;
+		cc_algo = &quic_cc_algo_bbr;
+		arg += strlen(QUIC_CC_BBR_STR);
 	}
 	else if (strncmp(arg, QUIC_CC_NO_CC_STR, strlen(QUIC_CC_NO_CC_STR)) == 0) {
 		/* nocc */

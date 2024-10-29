@@ -17199,7 +17199,7 @@ proto <name>
   instance, it is possible to force the http/2 on clear TCP by specifying "proto
   h2" on the bind line.
 
-quic-cc-algo { cubic[-pacing] | newreno | nocc }[(<args,...>)]
+quic-cc-algo { cubic[-pacing] | newreno | bbr | nocc }[(<args,...>)]
   This is a QUIC specific setting to select the congestion control algorithm
   for any connection attempts to the configured QUIC listeners. They are similar
   to those used by TCP.
@@ -17212,7 +17212,10 @@ quic-cc-algo { cubic[-pacing] | newreno | nocc }[(<args,...>)]
   scenario, it can significantly improve network throughput. However, it can
   also increase CPU usage if haproxy is forced to wait too long between each
   emission. Pacing support is still experimental, as such it requires
-  "expose-experimental-directives".
+  "expose-experimental-directives". BBR congestion control algorithm depends on
+  the pacing support which is in this case implicitely activated by "bbr".
+  Note that BBR haproxy implementation is still considered as experimental and
+  cannot be enabled without "expose-experimental-directives".
 
   For further customization, a list of parameters can be specified after the
   algorithm token. It must be written between parenthesis, separated by a comma
