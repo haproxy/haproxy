@@ -2456,7 +2456,7 @@ static void step_init_2(int argc, char** argv)
 	}
 
 #if defined(HA_HAVE_DUMP_LIBS)
-	if (global.mode & MODE_DUMP_LIBS) {
+	if (global.mode & MODE_DUMP_LIBS && !master) {
 		qfprintf(stdout, "List of loaded object files:\n");
 		chunk_reset(&trash);
 		if (dump_libs(&trash, ((arg_mode & (MODE_QUIET|MODE_VERBOSE)) == MODE_VERBOSE)))
