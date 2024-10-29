@@ -2600,7 +2600,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 					errcode |= ERR_ALERT | ERR_FATAL;
 					goto end;
 				}
-
+				/* check again with the right extension */
 				if (strcmp(ckchs_transaction.path, buf->area) != 0) {
 					/* remove .crt of the error message */
 					*(b_orig(buf) + b_data(buf) + strlen(".crt")) = '\0';
@@ -2610,6 +2610,11 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 					errcode |= ERR_ALERT | ERR_FATAL;
 					goto end;
 				}
+			} else {
+				/* without del-ext the error is definitive */
+				memprintf(&err, "The ongoing transaction is about '%s' but you are trying to set '%s'\n", ckchs_transaction.path, buf->area);
+				errcode |= ERR_ALERT | ERR_FATAL;
+				goto end;
 			}
 		}
 
