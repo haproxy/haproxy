@@ -190,7 +190,7 @@ void trace_no_cb(enum trace_level level, uint64_t mask, const struct trace_sourc
 
 void trace_register_source(struct trace_source *source);
 
-int trace_parse_cmd(char *arg, char **errmsg);
+int trace_parse_cmd(const char *arg_src, char **errmsg);
 
 /* return a single char to describe a trace state */
 static inline char trace_state_char(enum trace_state st)
