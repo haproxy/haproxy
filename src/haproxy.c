@@ -2786,7 +2786,7 @@ static void step_init_2(int argc, char** argv)
 
 	/* Note: we could disable any poller by name here */
 
-	if (global.mode & (MODE_VERBOSE|MODE_DEBUG)) {
+	if ((global.mode & (MODE_VERBOSE|MODE_DEBUG)) && !master) {
 		list_pollers(stderr);
 		fprintf(stderr, "\n");
 		list_filters(stderr);
