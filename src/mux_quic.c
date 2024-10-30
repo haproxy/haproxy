@@ -273,131 +273,26 @@ static inline int qcc_may_expire(struct qcc *qcc)
 /* Refresh the timeout on <qcc> if needed depending on its state. */
 static void qcc_refresh_timeout(struct qcc *qcc)
 {
-	const struct proxy *px = qcc->proxy;
-
-	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
-
-	if (!qcc->task) {
-		TRACE_DEVEL("already expired", QMUX_EV_QCC_WAKE, qcc->conn);
-		goto leave;
-	}
-
-	/* Check if upper layer is responsible of timeout management. */
-	if (!qcc_may_expire(qcc)) {
-		TRACE_DEVEL("not eligible for timeout", QMUX_EV_QCC_WAKE, qcc->conn);
-		qcc->task->expire = TICK_ETERNITY;
-		task_queue(qcc->task);
-		goto leave;
-	}
-
-	/* Frontend timeout management
-	 * - shutdown done -> timeout client-fin
-	 * - detached streams with data left to send -> default timeout
-	 * - stream waiting on incomplete request or no stream yet activated -> timeout http-request
-	 * - idle after stream processing -> timeout http-keep-alive
-	 *
-	 * If proxy stop-stop in progress, immediate or spread close will be
-	 * processed if shutdown already one or connection is idle.
-	 */
-	if (!conn_is_back(qcc->conn)) {
-		if (qcc->nb_hreq && !(qcc->flags & QC_CF_APP_SHUT)) {
-			TRACE_DEVEL("one or more requests still in progress", QMUX_EV_QCC_WAKE, qcc->conn);
-			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
-			task_queue(qcc->task);
-			goto leave;
-		}
-
-		if ((!LIST_ISEMPTY(&qcc->opening_list) || unlikely(!qcc->largest_bidi_r)) &&
-		    !(qcc->flags & QC_CF_APP_SHUT)) {
-			int timeout = px->timeout.httpreq;
-			struct qcs *qcs = NULL;
-			int base_time;
-
-			/* Use start time of first stream waiting on HTTP or
-			 * qcc idle if no stream not yet used.
-			 */
-			if (likely(!LIST_ISEMPTY(&qcc->opening_list)))
-				qcs = LIST_ELEM(qcc->opening_list.n, struct qcs *, el_opening);
-			base_time = qcs ? qcs->start : qcc->idle_start;
-
-			TRACE_DEVEL("waiting on http request", QMUX_EV_QCC_WAKE, qcc->conn, qcs);
-			qcc->task->expire = tick_add_ifset(base_time, timeout);
-		}
-		else {
-			if (qcc->flags & QC_CF_APP_SHUT) {
-				TRACE_DEVEL("connection in closing", QMUX_EV_QCC_WAKE, qcc->conn);
-				qcc->task->expire = tick_add_ifset(now_ms,
-				                                   qcc->shut_timeout);
-			}
-			else {
-				/* Use http-request timeout if keep-alive timeout not set */
-				int timeout = tick_isset(px->timeout.httpka) ?
-				              px->timeout.httpka : px->timeout.httpreq;
-				TRACE_DEVEL("at least one request achieved but none currently in progress", QMUX_EV_QCC_WAKE, qcc->conn);
-				qcc->task->expire = tick_add_ifset(qcc->idle_start, timeout);
-			}
-
-			/* If proxy soft-stop in progress and connection is
-			 * inactive, close the connection immediately. If a
-			 * close-spread-time is configured, randomly spread the
-			 * timer over a closing window.
-			 */
-			if ((qcc->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) &&
-			    !(global.tune.options & GTUNE_DISABLE_ACTIVE_CLOSE)) {
-
-				/* Wake timeout task immediately if window already expired. */
-				int remaining_window = tick_isset(global.close_spread_end) ?
-				  tick_remain(now_ms, global.close_spread_end) : 0;
-
-				TRACE_DEVEL("proxy disabled, prepare connection soft-stop", QMUX_EV_QCC_WAKE, qcc->conn);
-				if (remaining_window) {
-					/* We don't need to reset the expire if it would
-					 * already happen before the close window end.
-					 */
-					if (!tick_isset(qcc->task->expire) ||
-					    tick_is_le(global.close_spread_end, qcc->task->expire)) {
-						/* Set an expire value shorter than the current value
-						 * because the close spread window end comes earlier.
-						 */
-						qcc->task->expire = tick_add(now_ms,
-						                             statistical_prng_range(remaining_window));
-					}
-				}
-				else {
-					/* We are past the soft close window end, wake the timeout
-					 * task up immediately.
-					 */
-					qcc->task->expire = now_ms;
-					task_wakeup(qcc->task, TASK_WOKEN_TIMER);
-				}
-			}
-		}
-	}
-
-	/* fallback to default timeout if frontend specific undefined or for
-	 * backend connections.
-	 */
-	if (!tick_isset(qcc->task->expire)) {
-		TRACE_DEVEL("fallback to default timeout", QMUX_EV_QCC_WAKE, qcc->conn);
-		qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
-	}
-
-	task_queue(qcc->task);
-
- leave:
-	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn);
 }
 
 void qcc_wakeup(struct qcc *qcc)
 {
 	HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
 	tasklet_wakeup(qcc->wait_event.tasklet);
+
+	//qcc->task->expire = TICK_ETERNITY;
+	//task_queue(qcc->task);
+	//TRACE_POINT(QMUX_EV_STRM_WAKE, qcc->conn);
 }
 
 static void qcc_wakeup_pacing(struct qcc *qcc)
 {
 	HA_ATOMIC_OR(&qcc->wait_event.tasklet->state, TASK_F_USR1);
 	tasklet_wakeup(qcc->wait_event.tasklet);
+	//qcc->task->expire = qcc->tx.pacer.next;
+	//BUG_ON(tick_is_expired(qcc->task->expire, now_ms));
+	//task_queue(qcc->task);
+	//TRACE_POINT(QMUX_EV_STRM_WAKE, qcc->conn);
 }
 
 /* Mark a stream as open if it was idle. This can be used on every
@@ -674,7 +569,7 @@ void qcc_notify_buf(struct qcc *qcc, uint64_t free_size)
 {
 	struct qcs *qcs;
 
-	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
+	//TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
 
 	/* Cannot have a negative buf_in_flight counter */
 	BUG_ON(qcc->tx.buf_in_flight < free_size);
@@ -700,7 +595,7 @@ void qcc_notify_buf(struct qcc *qcc, uint64_t free_size)
 		qcs_notify_send(qcs);
 	}
 
-	TRACE_LEAVE(QMUX_EV_QCC_WAKE, qcc->conn);
+	//TRACE_LEAVE(QMUX_EV_QCC_WAKE, qcc->conn);
 }
 
 /* A fatal error is detected locally for <qcc> connection. It should be closed
@@ -2774,7 +2669,7 @@ static void qcc_release(struct qcc *qcc)
 	TRACE_LEAVE(QMUX_EV_QCC_END);
 }
 
-static void qcc_purge_sending(struct qcc *qcc)
+static int qcc_purge_sending(struct qcc *qcc)
 {
 	struct quic_conn *qc = qcc->conn->handle.qc;
 	struct quic_pacer *pacer = &qcc->tx.pacer;
@@ -2783,16 +2678,22 @@ static void qcc_purge_sending(struct qcc *qcc)
 	ret = quic_pacing_send(pacer, qc);
 	if (ret == QUIC_TX_ERR_AGAIN) {
 		BUG_ON(LIST_ISEMPTY(quic_pacing_frms(pacer)));
+		TRACE_POINT(QMUX_EV_QCC_WAKE, qcc->conn);
 		qcc_wakeup_pacing(qcc);
+		return 1;
 	}
 	else if (ret == QUIC_TX_ERR_FATAL) {
 		TRACE_DEVEL("error on sending", QMUX_EV_QCC_SEND, qcc->conn);
+		TRACE_POINT(QMUX_EV_QCC_WAKE, qcc->conn);
 		HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
 		qcc_subscribe_send(qcc);
+		return 0;
 	}
 	else {
+		TRACE_POINT(QMUX_EV_QCC_WAKE, qcc->conn);
 		if (!LIST_ISEMPTY(quic_pacing_frms(pacer)))
 			qcc_subscribe_send(qcc);
+		return 0;
 	}
 }
 
@@ -2803,6 +2704,7 @@ struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int status)
 	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
 
 	if (status & TASK_F_USR1) {
+		//ABORT_NOW();
 		qcc_purge_sending(qcc);
 		return NULL;
 	}
@@ -2842,14 +2744,27 @@ static struct task *qcc_timeout_task(struct task *t, void *ctx, unsigned int sta
 			TRACE_DEVEL("not expired", QMUX_EV_QCC_WAKE, qcc->conn);
 			goto requeue;
 		}
+		//fprintf(stderr, "woken up after %dms\n", now_ms - qcc->tx.pacer.next);
 
+#if 0
 		if (!qcc_may_expire(qcc)) {
 			TRACE_DEVEL("cannot expired", QMUX_EV_QCC_WAKE, qcc->conn);
 			t->expire = TICK_ETERNITY;
 			goto requeue;
 		}
+#endif
 	}
 
+	if (qcc_purge_sending(qcc)) {
+		qcc->task->expire = qcc->tx.pacer.next;
+		BUG_ON(tick_is_expired(qcc->task->expire, now_ms));
+		TRACE_POINT(QMUX_EV_QCC_WAKE, qcc->conn);
+		goto requeue;
+	}
+	t->expire = TICK_ETERNITY;
+	goto requeue;
+
+#if 0
 	task_destroy(t);
 
 	if (!qcc) {
@@ -2870,6 +2785,7 @@ static struct task *qcc_timeout_task(struct task *t, void *ctx, unsigned int sta
 		qcc_shutdown(qcc);
 		qcc_release(qcc);
 	}
+#endif
 
  out:
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
@@ -2984,7 +2900,8 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	}
 	qcc->task->process = qcc_timeout_task;
 	qcc->task->context = qcc;
-	qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
+	//qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
+	qcc->task->expire = TICK_ETERNITY;
 
 	qcc_reset_idle_start(qcc);
 	LIST_INIT(&qcc->opening_list);

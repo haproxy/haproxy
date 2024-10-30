@@ -495,8 +495,27 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
 	}
 
 	if (pacer) {
-		const ullong ns_pkts = quic_pacing_ns_pkt(pacer);
-		max_dgram = global.tune.quic_frontend_max_tx_burst * 1000000 / (ns_pkts + 1) + 1;
+#if 0
+		const int ns_pkts = quic_pacing_ns_pkt(pacer, 1);
+		//max_dgram = global.tune.quic_frontend_max_tx_burst * 1000000 / (ns_pkts + 1) + 1;
+		//max_dgram = global.tune.quic_frontend_max_tx_burst / (ns_pkts + 1) + 1;
+		max_dgram = ns_pkts;
+	       	if (global.tune.quic_frontend_max_tx_burst)
+	       		max_dgram *= global.tune.quic_frontend_max_tx_burst;
+		//fprintf(stderr, "max_dgram=%d\n", max_dgram);
+		//fprintf(stderr, "max_dgram = %d (%lu/%d), sent = %d\n", max_dgram, qc->path->cwnd, qc->path->loss.srtt, pacer->curr == now_ms ? pacer->sent : 0);
+		if (now_ms == pacer->curr) {
+		       	if (max_dgram <= pacer->sent) {
+				BUG_ON(tick_is_expired(pacer->next, now_ms));
+				return QUIC_TX_ERR_AGAIN;
+			}
+			max_dgram -= pacer->sent;
+		}
+#endif
+		max_dgram = quic_pacing_prepare(pacer);
+		BUG_ON(!max_dgram);
+		if (!max_dgram)
+			return QUIC_TX_ERR_AGAIN;
 	}
 
 	TRACE_STATE("preparing data (from MUX)", QUIC_EV_CONN_TXPKT, qc);
@@ -508,7 +527,9 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
 	else if (pacer) {
 		if (max_dgram && max_dgram == sent && !LIST_ISEMPTY(frms))
 			ret = QUIC_TX_ERR_AGAIN;
-		quic_pacing_sent_done(pacer, sent);
+		quic_pacing_sent_done(pacer, sent, ret);
+		//if (quic_pacing_sent_done(pacer, sent, ret))
+		//	ret = QUIC_TX_ERR_AGAIN;
 	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
@@ -609,13 +630,18 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 
 			TRACE_PROTO("TX prep pkts", QUIC_EV_CONN_PHPKTS, qc, qel);
 
-			/* Start to decrement <max_dgrams> after the first packet built. */
-			if (!dglen && pos != (unsigned char *)b_head(buf)) {
-				if (max_dgrams && !--max_dgrams) {
-					BUG_ON(LIST_ISEMPTY(frms));
-					TRACE_PROTO("reached max allowed built datagrams", QUIC_EV_CONN_PHPKTS, qc, qel);
-					goto out;
-				}
+			///* Start to decrement <max_dgrams> after the first packet built. */
+			//if (!dglen && pos != (unsigned char *)b_head(buf)) {
+			//	if (max_dgrams && !--max_dgrams) {
+			//		BUG_ON(LIST_ISEMPTY(frms));
+			//		TRACE_PROTO("reached max allowed built datagrams", QUIC_EV_CONN_PHPKTS, qc, qel);
+			//		goto out;
+			//	}
+			//}
+			if (max_dgrams && dgram_cnt == max_dgrams) {
+				BUG_ON(LIST_ISEMPTY(frms));
+				TRACE_PROTO("reached max allowed built datagrams", QUIC_EV_CONN_PHPKTS, qc, qel);
+				goto out;
 			}
 
 			if (!first_pkt)
@@ -778,7 +804,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
  out:
 	if (first_pkt) {
 		qc_txb_store(buf, wrlen, first_pkt);
-		++dgram_cnt;
+		//++dgram_cnt;
 	}
 
 	if (cc && total) {
@@ -849,7 +875,7 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list,
 		BUG_ON_HOT(b_data(buf));
 		b_reset(buf);
 
-		prep_pkts = qc_prep_pkts(qc, buf, send_list, max_dgrams);
+		prep_pkts = qc_prep_pkts(qc, buf, send_list, max_dgrams ? max_dgrams - ret : 0);
 
 		if (b_data(buf) && !qc_send_ppkts(buf, qc->xprt_ctx)) {
 			ret = -1;

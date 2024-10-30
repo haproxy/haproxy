@@ -5,13 +5,20 @@
 
 #include <haproxy/list.h>
 #include <haproxy/quic_frame.h>
+#include <haproxy/quic_tx-t.h>
 
 static inline void quic_pacing_init(struct quic_pacer *pacer,
                                     const struct quic_cc_path *path)
 {
 	LIST_INIT(&pacer->frms);
 	pacer->path = path;
-	pacer->next = 0;
+	//pacer->next = TICK_ETERNITY;
+	pacer->next = now_ms;
+
+	//pacer->curr = now_ms;
+	pacer->curr = TICK_ETERNITY;
+	pacer->pkt_ms = 0;
+	pacer->sent = 0;
 }
 
 static inline void quic_pacing_reset(struct quic_pacer *pacer)
@@ -30,15 +37,23 @@ static inline struct list *quic_pacing_frms(struct quic_pacer *pacer)
 	return &pacer->frms;
 }
 
-static inline ullong quic_pacing_ns_pkt(const struct quic_pacer *pacer)
+static inline int quic_pacing_ns_pkt(const struct quic_pacer *pacer, int sent)
 {
-	return pacer->path->loss.srtt * 1000000 / (pacer->path->cwnd / pacer->path->mtu + 1);
+	//return pacer->path->loss.srtt * 1000000 / (pacer->path->cwnd / pacer->path->mtu + 1);
+	//ullong val = pacer->path->loss.srtt / (pacer->path->cwnd / (pacer->path->mtu * sent) + 1);
+	//fprintf(stderr, "val=%llu %d/(%lu/(%zu * %d) + 1\n",
+	//        val, pacer->path->loss.srtt, pacer->path->cwnd, pacer->path->mtu, sent);
+	//return pacer->path->loss.srtt / (pacer->path->cwnd / (pacer->path->mtu * sent) + 1);
+	return (pacer->path->cwnd / (pacer->path->mtu + 1)) / (pacer->path->loss.srtt + 1) + 1;
 }
 
 int quic_pacing_expired(const struct quic_pacer *pacer);
 
 enum quic_tx_err quic_pacing_send(struct quic_pacer *pacer, struct quic_conn *qc);
 
-void quic_pacing_sent_done(struct quic_pacer *pacer, int sent);
+int quic_pacing_prepare(struct quic_pacer *pacer);
+
+//void quic_pacing_sent_done(struct quic_pacer *pacer, int sent);
+int quic_pacing_sent_done(struct quic_pacer *pacer, int sent, enum quic_tx_err err);
 
 #endif /* _HAPROXY_QUIC_PACING_H */

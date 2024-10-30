@@ -139,9 +139,9 @@ void qmux_dump_qcc_info(struct buffer *msg, const struct qcc *qcc)
 		chunk_appendf(msg, " qc=%p", qcc->conn->handle.qc);
 	chunk_appendf(msg, " .sc=%llu .hreq=%llu .flg=0x%04x", (ullong)qcc->nb_sc, (ullong)qcc->nb_hreq, qcc->flags);
 
-	chunk_appendf(msg, " .tx=%llu %llu/%llu bwnd=%llu/%llu",
+	chunk_appendf(msg, " .tx=%llu %llu/%llu bwnd=%llu/%llu exp=%llu",
 	              (ullong)qcc->tx.fc.off_soft, (ullong)qcc->tx.fc.off_real, (ullong)qcc->tx.fc.limit,
-	              (ullong)qcc->tx.buf_in_flight, (ullong)qc->path->cwnd);
+	              (ullong)qcc->tx.buf_in_flight, (ullong)qc->path->cwnd, qcc->task && tick_isset(qcc->task->expire) ? (ullong)tick_remain(now_ms, qcc->task->expire) : 0);
 }
 
 void qmux_dump_qcs_info(struct buffer *msg, const struct qcs *qcs)
