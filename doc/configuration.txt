@@ -12953,6 +12953,21 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
       smoothed with "option contstats" though this is not perfect yet. Use of
       byte_out_cnt is recommended for better fairness.
 
+    - glitch_cnt : front glitches count. It is a positive 32-bit integer which
+      counts the cumulative number of glitches reported on a front connection.
+      Glitches correspond to either unusual or unexpected actions (protocol-
+      wise) from the client that could indicate a badly defective client or
+      possibly an attacker. As such, this counter can help in order to decide
+      how to act with them in such case.
+
+    - glitch_rate(<period>) : frequency counter (takes 12 bytes). It takes an
+      integer parameter <period> which indicates in milliseconds the length of
+      the period over which the average is measured. It reports the average
+      front glitches rate over that period. It may be used to detect defective
+      clients or potential attackers that perform uncommon or unexpected
+      actions from a protocol point of view, provided that HAProxy flagged them
+      them as such.
+
   There is only one stick-table per proxy. At the moment of writing this doc,
   it does not seem useful to have multiple tables per proxy. If this happens
   to be required, simply create a dummy backend with a stick-table in it and
