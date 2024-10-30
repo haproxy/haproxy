@@ -1236,7 +1236,7 @@ static void sc_conn_eos(struct stconn *sc)
 	ic->flags |= CF_READ_EVENT;
 	sc_ep_report_read_activity(sc);
 
-	if (!sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
+	if (sc->state != SC_ST_EST)
 		return;
 
 	if (sc->flags & SC_FL_SHUT_DONE)
@@ -1940,7 +1940,7 @@ static void sc_applet_eos(struct stconn *sc)
 
 	/* Note: on abort, we don't call the applet */
 
-	if (!sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
+	if (sc->state != SC_ST_EST)
 		return;
 
 	if (sc->flags & SC_FL_SHUT_DONE) {
