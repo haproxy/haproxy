@@ -19808,6 +19808,8 @@ table_conn_cnt(table)                              string       integer
 table_conn_cur(table)                              string       integer
 table_conn_rate(table)                             string       integer
 table_expire(table[,default_value])                string       integer
+table_glitch_cnt(table)                            string       integer
+table_glitch_rate(table)                           string       integer
 table_gpc(idx,table)                               string       integer
 table_gpc0(table)                                  string       integer
 table_gpc0_rate(table)                             string       integer
@@ -22342,6 +22344,8 @@ src_get_gpc0([<table>])                            integer
 src_get_gpc1([<table>])                            integer
 src_get_gpt(<idx>[,<table>])                       integer
 src_get_gpt0([<table>])                            integer
+src_glitch_cnt([<table>])                          integer
+src_glitch_rate([<table>])                         integer
 src_gpc_rate(<idx>[,<table>])                      integer
 src_gpc0_rate([<table>])                           integer
 src_gpc1_rate([<table>])                           integer
