@@ -21650,6 +21650,7 @@ txn.id32                                           integer
 txn.sess_term_state                                string
 uuid([<version>])                                  string
 var(<var-name>[,<default>])                        undefined
+waiting_entity                                     string
 -------------------------------------------------+-------------
 
 Detailed list:
@@ -22158,6 +22159,30 @@ var(<var-name>[,<default>]) : undefined
   sample fetch fails, unless a default value is provided, in which case it will
   return it as a string. Empty strings are permitted. See section 2.8 about
   variables for details.
+
+waiting_entity : string
+  This returns the identity of the entity that was waiting to continue its
+  processing when an error or a timeout was encountered. It may be the a rule
+  or a filter for instance. However, this list is not exhaustive and the format
+  of all possible entities is not forcefully documented.
+
+  When the entity is a rule, its location is returned. It is the configuration
+  file containing the rule followed by the line where the rule is defined in
+  this file, separated by a colon.
+
+  For a filter, its identifier is returned as defined by the developers. If
+  this identifier is not defined, an hexadecimal value is returned
+  corresponding to an unique internal identifier.
+
+  The main purpose of this function is to be able to report in logs the entity
+  blocking the stream analysis when an error or a timeout was encountered,
+  interrupting this processing, in order to help debugging issues. The
+  information returned on entities may changed in time and must not be used for
+  something else than debugging.
+
+  Example:
+      # Log the waiting entity, if any, and only if an error is reported
+      log-format "$HAPROXY_HTTP_LOG_FMT %{Q}[waiting_entity,when(error)]
 
 7.3.3. Fetching samples at Layer 4
 ----------------------------------
