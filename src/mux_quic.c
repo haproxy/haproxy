@@ -267,12 +267,14 @@ static inline int qcc_is_dead(const struct qcc *qcc)
 /* Return true if the mux timeout should be armed. */
 static inline int qcc_may_expire(struct qcc *qcc)
 {
-	return !qcc->nb_sc;
+	//return !qcc->nb_sc;
+	return 1;
 }
 
 /* Refresh the timeout on <qcc> if needed depending on its state. */
 static void qcc_refresh_timeout(struct qcc *qcc)
 {
+#if 0
 	const struct proxy *px = qcc->proxy;
 
 	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
@@ -386,18 +388,25 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 
  leave:
 	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn);
+#endif
 }
 
 void qcc_wakeup(struct qcc *qcc)
 {
 	HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
 	tasklet_wakeup(qcc->wait_event.tasklet);
+
+	qcc->task->expire = TICK_ETERNITY;
+	task_queue(qcc->task);
 }
 
 static void qcc_wakeup_pacing(struct qcc *qcc)
 {
-	HA_ATOMIC_OR(&qcc->wait_event.tasklet->state, TASK_F_USR1);
-	tasklet_wakeup(qcc->wait_event.tasklet);
+	//HA_ATOMIC_OR(&qcc->wait_event.tasklet->state, TASK_F_USR1);
+	//tasklet_wakeup(qcc->wait_event.tasklet);
+	qcc->task->expire = qcc->tx.pacer.next;
+	BUG_ON(tick_is_expired(qcc->task->expire, now_ms));
+	task_queue(qcc->task);
 }
 
 /* Mark a stream as open if it was idle. This can be used on every
@@ -2774,7 +2783,7 @@ static void qcc_release(struct qcc *qcc)
 	TRACE_LEAVE(QMUX_EV_QCC_END);
 }
 
-static void qcc_purge_sending(struct qcc *qcc)
+static int qcc_purge_sending(struct qcc *qcc)
 {
 	struct quic_conn *qc = qcc->conn->handle.qc;
 	struct quic_pacer *pacer = &qcc->tx.pacer;
@@ -2783,9 +2792,10 @@ static void qcc_purge_sending(struct qcc *qcc)
 	ret = quic_pacing_send(pacer, qc);
 	if (ret == QUIC_TX_ERR_AGAIN) {
 		BUG_ON(LIST_ISEMPTY(quic_pacing_frms(pacer)));
-		qcc_wakeup_pacing(qcc);
+		return 1;
 	}
-	else if (ret == QUIC_TX_ERR_FATAL) {
+
+	if (ret == QUIC_TX_ERR_FATAL) {
 		TRACE_DEVEL("error on sending", QMUX_EV_QCC_SEND, qcc->conn);
 		HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
 		qcc_subscribe_send(qcc);
@@ -2794,6 +2804,8 @@ static void qcc_purge_sending(struct qcc *qcc)
 		if (!LIST_ISEMPTY(quic_pacing_frms(pacer)))
 			qcc_subscribe_send(qcc);
 	}
+
+	return 0;
 }
 
 struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int status)
@@ -2844,12 +2856,14 @@ static struct task *qcc_timeout_task(struct task *t, void *ctx, unsigned int sta
 		}
 
 		if (!qcc_may_expire(qcc)) {
+			ABORT_NOW();
 			TRACE_DEVEL("cannot expired", QMUX_EV_QCC_WAKE, qcc->conn);
 			t->expire = TICK_ETERNITY;
 			goto requeue;
 		}
 	}
 
+#if 0
 	task_destroy(t);
 
 	if (!qcc) {
@@ -2870,12 +2884,23 @@ static struct task *qcc_timeout_task(struct task *t, void *ctx, unsigned int sta
 		qcc_shutdown(qcc);
 		qcc_release(qcc);
 	}
+#endif
+
+	if (qcc_purge_sending(qcc)) {
+		t->expire = qcc->tx.pacer.next;
+		goto requeue;
+	}
+	else {
+		t->expire = TICK_ETERNITY;
+		goto requeue;
+	}
 
  out:
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
 	return NULL;
 
  requeue:
+ 	BUG_ON(tick_is_expired(t->expire, now_ms));
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
 	return t;
 }
@@ -2984,7 +3009,8 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	}
 	qcc->task->process = qcc_timeout_task;
 	qcc->task->context = qcc;
-	qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
+	//qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
+	qcc->task->expire = TICK_ETERNITY;
 
 	qcc_reset_idle_start(qcc);
 	LIST_INIT(&qcc->opening_list);

@@ -495,13 +495,20 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
 	}
 
 	if (pacer) {
-		const ullong ns_pkts = quic_pacing_ns_pkt(pacer);
-		max_dgram = global.tune.quic_frontend_max_tx_burst * 1000000 / (ns_pkts + 1) + 1;
+		//const ullong ns_pkts = quic_pacing_ns_pkt(pacer);
+		//max_dgram = global.tune.quic_frontend_max_tx_burst * 1000000 / (ns_pkts + 1) + 1;
+		const int pkt_ms = quic_pacing_pkt_ms(pacer);
+		max_dgram = pkt_ms;
+		if (global.tune.quic_frontend_max_tx_burst)
+			max_dgram *= global.tune.quic_frontend_max_tx_burst;
+		fprintf(stderr, "max_dgram = %d (%lu/%d)\n", max_dgram, qc->path->cwnd, qc->path->loss.srtt);
 	}
 
 	TRACE_STATE("preparing data (from MUX)", QUIC_EV_CONN_TXPKT, qc);
 	qel_register_send(&send_list, qc->ael, frms);
 	sent = qc_send(qc, 0, &send_list, max_dgram);
+	BUG_ON(max_dgram && sent > max_dgram);
+
 	if (sent <= 0) {
 		ret = QUIC_TX_ERR_FATAL;
 	}
@@ -552,6 +559,7 @@ static inline void qc_select_tls_ver(struct quic_conn *qc,
 static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
                          struct list *qels, int max_dgrams)
 {
+	//int max_dgrams_copy = max_dgrams;
 	int ret, cc, padding;
 	struct quic_tx_packet *first_pkt, *prv_pkt;
 	unsigned char *end, *pos;
@@ -609,13 +617,11 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 
 			TRACE_PROTO("TX prep pkts", QUIC_EV_CONN_PHPKTS, qc, qel);
 
-			/* Start to decrement <max_dgrams> after the first packet built. */
-			if (!dglen && pos != (unsigned char *)b_head(buf)) {
-				if (max_dgrams && !--max_dgrams) {
-					BUG_ON(LIST_ISEMPTY(frms));
-					TRACE_PROTO("reached max allowed built datagrams", QUIC_EV_CONN_PHPKTS, qc, qel);
-					goto out;
-				}
+			TRACE_PRINTF(TRACE_LEVEL_ERROR, QUIC_EV_CONN_PHPKTS, qc, 0, 0, 0, "%d/%d", dgram_cnt, max_dgrams);
+			if (max_dgrams && dgram_cnt == max_dgrams) {
+				BUG_ON(LIST_ISEMPTY(frms));
+				TRACE_PROTO("reached max allowed built datagrams", QUIC_EV_CONN_PHPKTS, qc, qel);
+				goto out;
 			}
 
 			if (!first_pkt)
@@ -678,6 +684,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 					                  wrlen >= QUIC_INITIAL_PACKET_MINLEN)) {
 						qc_txb_store(buf, wrlen, first_pkt);
 						++dgram_cnt;
+						BUG_ON(max_dgrams && dgram_cnt > max_dgrams);
 					}
 					TRACE_PROTO("could not prepare anymore packet", QUIC_EV_CONN_PHPKTS, qc, qel);
 					break;
@@ -748,6 +755,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				dglen = 0;
 
 				++dgram_cnt;
+				BUG_ON(max_dgrams && dgram_cnt > max_dgrams);
 
 				/* man 7 udp UDP_SEGMENT
 				 * The segment size must be chosen such that at
@@ -763,6 +771,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				padding = 0;
 				prv_pkt = NULL;
 				++dgram_cnt;
+				BUG_ON(max_dgrams && dgram_cnt > max_dgrams);
 				gso_dgram_cnt = 0;
 			}
 
@@ -778,7 +787,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
  out:
 	if (first_pkt) {
 		qc_txb_store(buf, wrlen, first_pkt);
-		++dgram_cnt;
+		//++dgram_cnt;
 	}
 
 	if (cc && total) {
@@ -787,8 +796,10 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		qc->tx.cc_dgram_len = dglen;
 	}
 
+	BUG_ON(max_dgrams && dgram_cnt > max_dgrams);
 	ret = dgram_cnt;
  leave:
+	TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_PHPKTS, qc, 0, 0, 0, "ret=%d", ret);
 	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
 	return ret;
 }
@@ -849,7 +860,7 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list,
 		BUG_ON_HOT(b_data(buf));
 		b_reset(buf);
 
-		prep_pkts = qc_prep_pkts(qc, buf, send_list, max_dgrams);
+		prep_pkts = qc_prep_pkts(qc, buf, send_list, max_dgrams ? max_dgrams - ret : 0);
 
 		if (b_data(buf) && !qc_send_ppkts(buf, qc->xprt_ctx)) {
 			ret = -1;
@@ -864,6 +875,7 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list,
 		}
 
 		ret += prep_pkts;
+		BUG_ON(max_dgrams && ret > max_dgrams);
 		if (max_dgrams && ret == max_dgrams && !LIST_ISEMPTY(send_list)) {
 			TRACE_DEVEL("stopping for artificial pacing", QUIC_EV_CONN_TXPKT, qc);
 			break;

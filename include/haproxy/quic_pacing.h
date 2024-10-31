@@ -11,7 +11,10 @@ static inline void quic_pacing_init(struct quic_pacer *pacer,
 {
 	LIST_INIT(&pacer->frms);
 	pacer->path = path;
-	pacer->next = 0;
+
+	pacer->curr = now_ms;
+	pacer->next = now_ms;
+	pacer->sent = 0;
 }
 
 static inline void quic_pacing_reset(struct quic_pacer *pacer)
@@ -30,9 +33,10 @@ static inline struct list *quic_pacing_frms(struct quic_pacer *pacer)
 	return &pacer->frms;
 }
 
-static inline ullong quic_pacing_ns_pkt(const struct quic_pacer *pacer)
+static inline int quic_pacing_pkt_ms(const struct quic_pacer *pacer)
 {
-	return pacer->path->loss.srtt * 1000000 / (pacer->path->cwnd / pacer->path->mtu + 1);
+	return (pacer->path->cwnd / (pacer->path->mtu + 1)) /
+	       (pacer->path->loss.srtt + 1) + 1;
 }
 
 int quic_pacing_expired(const struct quic_pacer *pacer);

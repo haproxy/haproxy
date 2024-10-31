@@ -7,7 +7,10 @@
 struct quic_pacer {
 	struct list frms;
 	const struct quic_cc_path *path;
-	ullong next;
+
+	unsigned int curr;
+	unsigned int next;
+	int sent;
 };
 
 #endif /* _HAPROXY_QUIC_PACING_T_H */
