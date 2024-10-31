@@ -13,12 +13,18 @@ static inline void quic_pacing_init(struct quic_pacer *pacer,
 	LIST_INIT(&pacer->frms);
 	pacer->path = path;
 	//pacer->next = TICK_ETERNITY;
-	pacer->next = now_ms;
+	//pacer->next = now_ms;
 
 	//pacer->curr = now_ms;
-	pacer->curr = TICK_ETERNITY;
-	pacer->pkt_ms = 0;
-	pacer->sent = 0;
+	//pacer->curr = TICK_ETERNITY;
+	//pacer->pkt_ms = 0;
+	//pacer->sent = 0;
+	
+	pacer->last_sent = now_ms;
+	//pacer->budget = global.tune.quic_frontend_max_tx_burst;
+	pacer->budget = 0;
+	pacer->burst = global.tune.quic_frontend_max_tx_burst;
+	pacer->next = TICK_ETERNITY;
 }
 
 static inline void quic_pacing_reset(struct quic_pacer *pacer)
@@ -47,7 +53,7 @@ static inline int quic_pacing_ns_pkt(const struct quic_pacer *pacer, int sent)
 	return (pacer->path->cwnd / (pacer->path->mtu + 1)) / (pacer->path->loss.srtt + 1) + 1;
 }
 
-int quic_pacing_expired(const struct quic_pacer *pacer);
+//int quic_pacing_expired(const struct quic_pacer *pacer);
 
 enum quic_tx_err quic_pacing_send(struct quic_pacer *pacer, struct quic_conn *qc);
 
@@ -55,5 +61,7 @@ int quic_pacing_prepare(struct quic_pacer *pacer);
 
 //void quic_pacing_sent_done(struct quic_pacer *pacer, int sent);
 int quic_pacing_sent_done(struct quic_pacer *pacer, int sent, enum quic_tx_err err);
+
+int quic_pacing_next(struct quic_pacer *pacer);
 
 #endif /* _HAPROXY_QUIC_PACING_H */

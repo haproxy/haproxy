@@ -277,6 +277,7 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 
 void qcc_wakeup(struct qcc *qcc)
 {
+	TRACE_POINT(QMUX_EV_QCC_WAKE, qcc->conn);
 	HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
 	tasklet_wakeup(qcc->wait_event.tasklet);
 
@@ -287,12 +288,23 @@ void qcc_wakeup(struct qcc *qcc)
 
 static void qcc_wakeup_pacing(struct qcc *qcc)
 {
+	TRACE_POINT(QMUX_EV_QCC_WAKE, qcc->conn);
+	BUG_ON(LIST_ISEMPTY(&qcc->tx.pacer.frms));
 	HA_ATOMIC_OR(&qcc->wait_event.tasklet->state, TASK_F_USR1);
 	tasklet_wakeup(qcc->wait_event.tasklet);
-	//qcc->task->expire = qcc->tx.pacer.next;
-	//BUG_ON(tick_is_expired(qcc->task->expire, now_ms));
-	//task_queue(qcc->task);
-	//TRACE_POINT(QMUX_EV_STRM_WAKE, qcc->conn);
+
+	qcc->task->expire = TICK_ETERNITY;
+	task_queue(qcc->task);
+}
+
+static void qcc_task_pacing(struct qcc *qcc)
+{
+	TRACE_POINT(QMUX_EV_QCC_WAKE, qcc->conn);
+	//HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
+	qcc->task->expire = now_ms == qcc->tx.pacer.next ? tick_add(qcc->tx.pacer.next, 1) : qcc->tx.pacer.next;
+	BUG_ON(tick_is_expired(qcc->task->expire, now_ms));
+	task_queue(qcc->task);
+	TRACE_POINT(QMUX_EV_STRM_WAKE, qcc->conn);
 }
 
 /* Mark a stream as open if it was idle. This can be used on every
@@ -2176,6 +2188,7 @@ static int qcc_io_send(struct qcc *qcc)
 	 */
 
 	quic_pacing_reset(pacer);
+	//HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
 
 	/* Check for transport error. */
 	if (qcc->flags & QC_CF_ERR_CONN || qcc->conn->flags & CO_FL_ERROR) {
@@ -2277,9 +2290,17 @@ static int qcc_io_send(struct qcc *qcc)
 		}
 	}
 
-	if (!LIST_ISEMPTY(frms) && !quic_pacing_expired(&qcc->tx.pacer)) {
-		qcc_wakeup_pacing(qcc);
-		return 1;
+	//if (!LIST_ISEMPTY(frms) && !quic_pacing_expired(&qcc->tx.pacer)) {
+	if (!LIST_ISEMPTY(frms)) {
+	       if (!qcc->tx.pacer.budget) {
+		       qcc->tx.pacer.next = tick_add(now_ms, quic_pacing_next(pacer));
+		       //fprintf(stderr, "wait for %ldms\n", qcc->tx.pacer.burst * qcc->tx.pacer.path->loss.srtt * qcc->tx.pacer.path->mtu / qcc->tx.pacer.path->cwnd);
+		       qcc_task_pacing(qcc);
+		       return 1;
+	       }
+	       //else {
+	       //        qcc_wakeup_pacing(qcc);
+	       //}
 	}
 
 	/* Retry sending until no frame to send, data rejected or connection
@@ -2317,11 +2338,14 @@ static int qcc_io_send(struct qcc *qcc)
 
  sent_done:
 	if (ret == 1) {
+		qcc->tx.pacer.next = tick_add(now_ms, quic_pacing_next(pacer));
+		//fprintf(stderr, "wait for %ldms\n", pacer->burst * pacer->path->loss.srtt * pacer->path->mtu / pacer->path->cwnd);
 		qcc_wakeup_pacing(qcc);
 	}
 	else if (!LIST_ISEMPTY(quic_pacing_frms(pacer))) {
 		/* Deallocate frames that the transport layer has rejected. */
 		quic_pacing_reset(pacer);
+		//HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
 	}
 
 	/* Re-insert on-error QCS at the end of the send-list. */
@@ -2643,6 +2667,7 @@ static void qcc_release(struct qcc *qcc)
 	}
 
 	quic_pacing_reset(&qcc->tx.pacer);
+	//HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
 
 	if (qcc->app_ops && qcc->app_ops->release)
 		qcc->app_ops->release(qcc->ctx);
@@ -2679,7 +2704,7 @@ static int qcc_purge_sending(struct qcc *qcc)
 	if (ret == QUIC_TX_ERR_AGAIN) {
 		BUG_ON(LIST_ISEMPTY(quic_pacing_frms(pacer)));
 		TRACE_POINT(QMUX_EV_QCC_WAKE, qcc->conn);
-		qcc_wakeup_pacing(qcc);
+		//qcc_wakeup_pacing(qcc);
 		return 1;
 	}
 	else if (ret == QUIC_TX_ERR_FATAL) {
@@ -2693,6 +2718,8 @@ static int qcc_purge_sending(struct qcc *qcc)
 		TRACE_POINT(QMUX_EV_QCC_WAKE, qcc->conn);
 		if (!LIST_ISEMPTY(quic_pacing_frms(pacer)))
 			qcc_subscribe_send(qcc);
+		//else
+		//	HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
 		return 0;
 	}
 }
@@ -2704,8 +2731,18 @@ struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int status)
 	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
 
 	if (status & TASK_F_USR1) {
+		++activity[tid].ctr0;
+		//HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
 		//ABORT_NOW();
-		qcc_purge_sending(qcc);
+		if (qcc_purge_sending(qcc)) {
+			if (!qcc->tx.pacer.budget) {
+			       qcc->tx.pacer.next = tick_add(now_ms, quic_pacing_next(&qcc->tx.pacer));
+			       //fprintf(stderr, "wait for %ldms\n", qcc->tx.pacer.burst * qcc->tx.pacer.path->loss.srtt * qcc->tx.pacer.path->mtu / qcc->tx.pacer.path->cwnd);
+			       qcc_task_pacing(qcc);
+			}
+			else
+				qcc_wakeup_pacing(qcc);
+		}
 		return NULL;
 	}
 
@@ -2745,21 +2782,21 @@ static struct task *qcc_timeout_task(struct task *t, void *ctx, unsigned int sta
 			goto requeue;
 		}
 		//fprintf(stderr, "woken up after %dms\n", now_ms - qcc->tx.pacer.next);
-
-#if 0
-		if (!qcc_may_expire(qcc)) {
-			TRACE_DEVEL("cannot expired", QMUX_EV_QCC_WAKE, qcc->conn);
-			t->expire = TICK_ETERNITY;
-			goto requeue;
-		}
-#endif
 	}
 
+	++activity[tid].ctr1;
 	if (qcc_purge_sending(qcc)) {
-		qcc->task->expire = qcc->tx.pacer.next;
-		BUG_ON(tick_is_expired(qcc->task->expire, now_ms));
-		TRACE_POINT(QMUX_EV_QCC_WAKE, qcc->conn);
-		goto requeue;
+		//qcc->task->expire = qcc->tx.pacer.next;
+		if (!qcc->tx.pacer.budget) {
+			qcc->tx.pacer.next = tick_add(now_ms, quic_pacing_next(&qcc->tx.pacer));
+			qcc->task->expire = now_ms == qcc->tx.pacer.next ? tick_add(qcc->tx.pacer.next, 1) : qcc->tx.pacer.next;
+			BUG_ON(tick_is_expired(qcc->task->expire, now_ms));
+			TRACE_POINT(QMUX_EV_QCC_WAKE, qcc->conn);
+			goto requeue;
+		}
+		else {
+			qcc_wakeup_pacing(qcc);
+		}
 	}
 	t->expire = TICK_ETERNITY;
 	goto requeue;

@@ -5,23 +5,24 @@
 
 struct quic_conn;
 
-int quic_pacing_expired(const struct quic_pacer *pacer)
-{
-	//return !pacer->next || pacer->next <= now_mono_time();
-	//return !pacer->next || pacer->next <= now_ms;
-	return tick_is_expired(pacer->next, now_ms);
-}
+//int quic_pacing_expired(const struct quic_pacer *pacer)
+//{
+//	//return !pacer->next || pacer->next <= now_mono_time();
+//	//return !pacer->next || pacer->next <= now_ms;
+//	return tick_is_expired(pacer->next, now_ms);
+//}
 
 enum quic_tx_err quic_pacing_send(struct quic_pacer *pacer, struct quic_conn *qc)
 {
 	enum quic_tx_err ret;
 
-	if (!quic_pacing_expired(pacer))
-		return QUIC_TX_ERR_AGAIN;
+	//if (!quic_pacing_expired(pacer))
+	//if (!pacer->budget)
+	//	return QUIC_TX_ERR_AGAIN;
 
 	BUG_ON(LIST_ISEMPTY(&pacer->frms));
 	ret = qc_send_mux(qc, &pacer->frms, pacer);
-	BUG_ON(ret == QUIC_TX_ERR_AGAIN && tick_is_expired(pacer->next, now_ms));
+	//BUG_ON(ret == QUIC_TX_ERR_AGAIN && tick_is_expired(pacer->next, now_ms));
 
 	/* TODO handle QUIC_TX_ERR_FATAL */
 	return ret;
@@ -29,60 +30,34 @@ enum quic_tx_err quic_pacing_send(struct quic_pacer *pacer, struct quic_conn *qc
 
 int quic_pacing_prepare(struct quic_pacer *pacer)
 {
-	if (pacer->curr == now_ms) {
-		BUG_ON(pacer->sent > pacer->pkt_ms);
-		return pacer->pkt_ms - pacer->sent;
+	int idle = tick_remain(pacer->last_sent, now_ms);
+	int pkts = idle * pacer->path->cwnd / (pacer->path->loss.srtt * pacer->path->mtu + 1); 
+
+	TRACE_POINT(QMUX_EV_QCC_WAKE, NULL);
+
+	pacer->budget += pkts;
+	if (pacer->budget > pacer->burst * 2) {
+		TRACE_POINT(QMUX_EV_QCC_WAKE, NULL);
+		pacer->budget = pacer->burst * 2;
 	}
-	else {
-		int not_consumed = pacer->pkt_ms - pacer->sent;
-		BUG_ON(not_consumed < 0);
-		//if (not_consumed)
-		//	fprintf(stderr, "not consumed %d (%d - %d)\n", not_consumed, pacer->pkt_ms, pacer->sent);
+	//fprintf(stderr, "prepare = %d %d/%d\n", pkts, pacer->budget, pacer->burst);
+	return MIN(pacer->budget, pacer->burst);
+}
 
-		pacer->curr = now_ms;
-		pacer->sent = 0;
-		pacer->pkt_ms = quic_pacing_ns_pkt(pacer, 0);
-		//pacer->pkt_ms = quic_pacing_ns_pkt(pacer, 0) + not_consumed;
-
-		BUG_ON(!pacer->pkt_ms);
-		return pacer->pkt_ms;
-	}
-
+int quic_pacing_next(struct quic_pacer *pacer)
+{
+	//return (pacer->burst / 4) * pacer->path->loss.srtt * pacer->path->mtu / pacer->path->cwnd;
+	return 1;
 }
 
 int quic_pacing_sent_done(struct quic_pacer *pacer, int sent, enum quic_tx_err err)
 {
-	//const int pkt_ms = quic_pacing_ns_pkt(pacer, 1);
-
-#if 0
-	if (pacer->curr == now_ms) {
-		pacer->sent += sent;
+	BUG_ON(sent > pacer->budget);
+	TRACE_POINT(QMUX_EV_QCC_WAKE, NULL);
+	pacer->budget -= sent;
+	if (sent) {
+		TRACE_POINT(QMUX_EV_QCC_WAKE, NULL);
+		pacer->last_sent = now_ms;
 	}
-	else {
-		int not_consumed = pkt_ms - pacer->sent;
-		if (not_consumed < 0)
-			not_consumed = 0;	
-		if (not_consumed)
-			fprintf(stderr, "not consumed %d (%d - %d)\n", not_consumed, pkt_ms, pacer->sent);
-
-		//pacer->sent = 0;
-		//pacer->sent -= not_consumed;
-
-		pacer->curr = now_ms;
-		pacer->sent = sent;
-	}
-#endif
-	BUG_ON(pacer->curr != now_ms);
-	pacer->sent += sent;
-
-	if (pacer->sent >= pacer->pkt_ms) {
-		//pacer->next = tick_add(now_ms, 1);
-		pacer->next = tick_add(now_ms, MAX((pacer->sent / pacer->pkt_ms), 1));
-		BUG_ON(tick_is_expired(pacer->next, now_ms));
-		//fprintf(stderr, "pacing in %dms (%d / %d)\n", pacer->sent / pkt_ms, pacer->sent, pkt_ms);
-		return 1;
-	}
-	else {
-		return 0;
-	}
+	return 0;
 }

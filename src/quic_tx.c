@@ -513,9 +513,12 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
 		}
 #endif
 		max_dgram = quic_pacing_prepare(pacer);
-		BUG_ON(!max_dgram);
-		if (!max_dgram)
+		//BUG_ON(!max_dgram);
+		if (!max_dgram) {
+			pacer->next = tick_add(now_ms, quic_pacing_next(pacer));
+			//fprintf(stderr, "wait for %ldms\n", pacer->burst * pacer->path->loss.srtt * pacer->path->mtu / pacer->path->cwnd);
 			return QUIC_TX_ERR_AGAIN;
+		}
 	}
 
 	TRACE_STATE("preparing data (from MUX)", QUIC_EV_CONN_TXPKT, qc);
@@ -638,6 +641,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			//		goto out;
 			//	}
 			//}
+			BUG_ON(max_dgrams && dgram_cnt > max_dgrams);
 			if (max_dgrams && dgram_cnt == max_dgrams) {
 				BUG_ON(LIST_ISEMPTY(frms));
 				TRACE_PROTO("reached max allowed built datagrams", QUIC_EV_CONN_PHPKTS, qc, qel);
@@ -890,6 +894,7 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list,
 		}
 
 		ret += prep_pkts;
+		BUG_ON(max_dgrams && ret > max_dgrams);
 		if (max_dgrams && ret == max_dgrams && !LIST_ISEMPTY(send_list)) {
 			TRACE_DEVEL("stopping for artificial pacing", QUIC_EV_CONN_TXPKT, qc);
 			break;
