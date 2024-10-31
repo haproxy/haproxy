@@ -292,7 +292,7 @@ struct stream {
 
 	struct {
 		void *ptr;                      /* Pointer on the entity  (def: NULL) */
-		int type;                       /* entity type (0: undef, 1: rule) */
+		int type;                       /* entity type (0: undef, 1: rule, 2: filter) */
 	} last_entity;                          /* last evaluated entity that interrupted processing */
 
 	unsigned int stream_epoch;              /* copy of stream_epoch when the stream was created */

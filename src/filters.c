@@ -72,7 +72,11 @@ static int handle_analyzer_result(struct stream *s, struct channel *chn, unsigne
 
 #define BREAK_EXECUTION(strm, chn, label)				\
 	do {								\
-		strm_flt(strm)->current[CHN_IDX(chn)] = filter;	\
+		if (ret < 0) {						\
+			(strm)->last_entity.type = 2;			\
+			(strm)->last_entity.ptr = filter;		\
+		}							\
+		strm_flt(strm)->current[CHN_IDX(chn)] = filter;		\
 		goto label;						\
 	} while (0)
 
@@ -556,8 +560,11 @@ flt_set_stream_backend(struct stream *s, struct proxy *be)
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		if (FLT_OPS(filter)->stream_set_backend) {
 			filter->calls++;
-			if (FLT_OPS(filter)->stream_set_backend(s, filter, be) < 0)
+			if (FLT_OPS(filter)->stream_set_backend(s, filter, be) < 0) {
+				s->last_entity.type = 2;
+				s->last_entity.ptr = filter;
 				return -1;
+			}
 		}
 	}
 	if (be->be_req_ana & AN_REQ_FLT_START_BE) {
@@ -693,8 +700,11 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 			filter->calls++;
 			ret = FLT_OPS(filter)->http_payload(s, filter, msg, out + offset, data - offset);
-			if (ret < 0)
+			if (ret < 0) {
+				s->last_entity.type = 2;
+				s->last_entity.ptr = filter;
 				goto end;
+			}
 			data = ret + *flt_off - *strm_off;
 			*flt_off += ret;
 		}
@@ -832,8 +842,11 @@ flt_post_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
 			filter->calls++;
 			ret = FLT_OPS(filter)->channel_post_analyze(s, filter, chn, an_bit);
-			if (ret < 0)
+			if (ret < 0) {
+				s->last_entity.type = 2;
+				s->last_entity.ptr = filter;
 				break;
+			}
 			filter->post_analyzers &= ~an_bit;
 		}
 	}
@@ -986,8 +999,11 @@ flt_tcp_payload(struct stream *s, struct channel *chn, unsigned int len)
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
 			filter->calls++;
 			ret = FLT_OPS(filter)->tcp_payload(s, filter, chn, out + offset, data - offset);
-			if (ret < 0)
+			if (ret < 0) {
+				s->last_entity.type = 2;
+				s->last_entity.ptr = filter;
 				goto end;
+			}
 			data = ret + *flt_off - *strm_off;
 			*flt_off += ret;
 		}

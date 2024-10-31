@@ -4137,6 +4137,21 @@ static int smp_fetch_last_entity(const struct arg *args, struct sample *smp, con
 		trash->data = snprintf(trash->area, trash->size, "%s:%d", rule->conf.file, rule->conf.line);
 		smp->data.u.str = *trash;
 	}
+	else if (smp->strm->last_entity.type == 2) {
+		struct filter *filter = smp->strm->last_entity.ptr;
+
+		if (FLT_ID(filter)) {
+			smp->flags |= SMP_F_CONST;
+			smp->data.u.str.area = (char *)FLT_ID(filter);
+			smp->data.u.str.data = strlen(FLT_ID(filter));
+		}
+		else {
+			struct buffer *trash = get_trash_chunk();
+
+			trash->data = snprintf(trash->area, trash->size, "%p", filter->config);
+			smp->data.u.str = *trash;
+		}
+	}
 	else
 		return 0;
 
