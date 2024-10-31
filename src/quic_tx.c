@@ -778,7 +778,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
  out:
 	if (first_pkt) {
 		qc_txb_store(buf, wrlen, first_pkt);
-		++dgram_cnt;
+		//++dgram_cnt;
 	}
 
 	if (cc && total) {
@@ -849,7 +849,8 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list,
 		BUG_ON_HOT(b_data(buf));
 		b_reset(buf);
 
-		prep_pkts = qc_prep_pkts(qc, buf, send_list, max_dgrams);
+		prep_pkts = qc_prep_pkts(qc, buf, send_list, max_dgrams ? max_dgrams - ret : 0);
+		BUG_ON(max_dgrams && prep_pkts > max_dgrams);
 
 		if (b_data(buf) && !qc_send_ppkts(buf, qc->xprt_ctx)) {
 			ret = -1;
@@ -864,6 +865,7 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list,
 		}
 
 		ret += prep_pkts;
+		BUG_ON(max_dgrams && ret > max_dgrams);
 		if (max_dgrams && ret == max_dgrams && !LIST_ISEMPTY(send_list)) {
 			TRACE_DEVEL("stopping for artificial pacing", QUIC_EV_CONN_TXPKT, qc);
 			break;
