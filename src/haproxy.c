@@ -3102,6 +3102,7 @@ static void run_master_in_recovery_mode(int argc, char **argv)
 static void read_cfg_in_discovery_mode(int argc, char **argv)
 {
 	struct cfgfile *cfg, *cfg_tmp;
+	struct mworker_proc *proc;
 
 	/* load configs in memory and parse only global section (MODE_DISCOVERY) */
 	global.mode |= MODE_DISCOVERY;
@@ -3149,6 +3150,36 @@ static void read_cfg_in_discovery_mode(int argc, char **argv)
 	if (!LIST_ISEMPTY(&mworker_cli_conf) && !(arg_mode & MODE_MWORKER)) {
 		ha_alert("a master CLI socket was defined, but master-worker mode (-W) is not enabled.\n");
 		exit(EXIT_FAILURE);
+	}
+
+	/* "progam" sections, if there are any, were alredy parsed only by master
+	 * and programs are forked before calling postparser functions from
+	 * postparser list. So, all checks related to "program" section integrity
+	 * and sections vs MODE_MWORKER combinations should be done here.
+	 */
+	list_for_each_entry(proc, &proc_list, list) {
+		if (proc->options & PROC_O_TYPE_PROG) {
+			if (!(global.mode & MODE_MWORKER)) {
+				ha_alert("'program' section is defined in configuration, "
+				         "but master-worker mode (-W) is not enabled.\n");
+				exit(EXIT_FAILURE);
+			}
+
+			if ((proc->reloads == 0) && (proc->command == NULL)) {
+				if (getenv("HAPROXY_MWORKER_REEXEC") != NULL) {
+					ha_warning("Master failed to parse new configuration: "
+					           "the program section '%s' lacks a command to launch. "
+					           "It can't start a new worker and launch defined programs. "
+					           "Already running worker and programs "
+					           "will be kept. Please, check program section settings\n", proc->id);
+
+					run_master_in_recovery_mode(argc, argv);
+				} else {
+					ha_alert("The program section '%s' lacks a command to launch.\n", proc->id);
+					exit(EXIT_FAILURE);
+				}
+			}
+		}
 	}
 
 	/* in MODE_CHECK and in MODE_DUMP_CFG we just need to parse the

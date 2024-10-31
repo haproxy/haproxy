@@ -332,31 +332,4 @@ out:
 
 }
 
-int cfg_program_postparser()
-{
-	int err_code = 0;
-	struct mworker_proc *child;
-
-	if (!(global.mode & MODE_DISCOVERY))
-		return err_code;
-
-	list_for_each_entry(child, &proc_list, list) {
-		if (child->reloads == 0 && (child->options & PROC_O_TYPE_PROG)) {
-			if (child->command == NULL) {
-				ha_alert("The program section '%s' lacks a command to launch.\n", child->id);
-				err_code |= ERR_ALERT | ERR_FATAL;
-			}
-		}
-	}
-
-	if (use_program && !(global.mode & MODE_MWORKER)) {
-		ha_alert("Can't use a 'program' section without master worker mode.\n");
-		err_code |= ERR_ALERT | ERR_FATAL;
-	}
-
-	return err_code;
-}
-
-
 REGISTER_CONFIG_SECTION("program", cfg_parse_program, NULL);
-REGISTER_CONFIG_POSTPARSER("program", cfg_program_postparser);
