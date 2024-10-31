@@ -295,6 +295,11 @@ struct stream {
 		int type;                       /* entity type (0: undef, 1: rule, 2: filter) */
 	} last_entity;                          /* last evaluated entity that interrupted processing */
 
+	struct {
+		void *ptr;                      /* Pointer on the entity  (def: NULL) */
+		int type;                       /* entity type (0: undef, 1: rule, 2: filter) */
+	} waiting_entity;                       /* The entity waiting to continue its processing and interrupted by an error/timeout */
+
 	unsigned int stream_epoch;              /* copy of stream_epoch when the stream was created */
 	struct hlua *hlua[2];                   /* lua runtime context (0: global, 1: per-thread) */
 

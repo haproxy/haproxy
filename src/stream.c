@@ -391,6 +391,8 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	s->rules_exp = TICK_ETERNITY;
 	s->last_entity.type = 0;
 	s->last_entity.ptr = NULL;
+	s->waiting_entity.type = 0;
+	s->waiting_entity.ptr = NULL;
 
 	s->stkctr = NULL;
 	if (pool_head_stk_ctr) {
@@ -4158,6 +4160,41 @@ static int smp_fetch_last_entity(const struct arg *args, struct sample *smp, con
 	return 1;
 }
 
+static int smp_fetch_waiting_entity(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_STR;
+	if (!smp->strm)
+		return 0;
+
+	if (smp->strm->waiting_entity.type == 1) {
+		struct act_rule *rule = smp->strm->waiting_entity.ptr;
+		struct buffer *trash = get_trash_chunk();
+
+		trash->data = snprintf(trash->area, trash->size, "%s:%d", rule->conf.file, rule->conf.line);
+		smp->data.u.str = *trash;
+	}
+	else if (smp->strm->waiting_entity.type == 2) {
+		struct filter *filter = smp->strm->waiting_entity.ptr;
+
+		if (FLT_ID(filter)) {
+			smp->flags |= SMP_F_CONST;
+			smp->data.u.str.area = (char *)FLT_ID(filter);
+			smp->data.u.str.data = strlen(FLT_ID(filter));
+		}
+		else {
+			struct buffer *trash = get_trash_chunk();
+
+			trash->data = snprintf(trash->area, trash->size, "%p", filter->config);
+			smp->data.u.str = *trash;
+		}
+	}
+	else
+		return 0;
+
+	return 1;
+}
+
 static int smp_fetch_sess_term_state(const struct arg *args, struct sample *smp, const char *km, void *private)
 {
 	struct buffer *trash = get_trash_chunk();
@@ -4226,6 +4263,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "txn.id32",           smp_fetch_id32,               0, NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "txn.redispatched",   smp_fetch_redispatched,       0, NULL, SMP_T_BOOL, SMP_USE_L4SRV, },
 	{ "txn.sess_term_state",smp_fetch_sess_term_state,    0, NULL, SMP_T_STR,  SMP_USE_INTRN, },
+	{ "waiting_entity",     smp_fetch_waiting_entity,     0, NULL, SMP_T_STR,  SMP_USE_INTRN, },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

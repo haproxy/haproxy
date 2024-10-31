@@ -137,6 +137,10 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 	if (s->current_rule) {
 		rule = s->current_rule;
 		s->current_rule = NULL;
+		if (!(req->flags & SC_FL_ERROR) && !(req->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
+			s->waiting_entity.type = 0;
+			s->waiting_entity.ptr = NULL;
+		}
 		if ((def_rules && s->current_rule_list == def_rules) || s->current_rule_list == rules)
 			goto resume_execution;
 	}
@@ -179,6 +183,8 @@ resume_execution:
 							s->last_entity.ptr  = rule;
 							goto internal;
 						}
+						s->waiting_entity.type = 1;
+						s->waiting_entity.ptr  = rule;
 						goto missing_data;
 					case ACT_RET_DENY:
 						s->last_entity.type = 1;
@@ -321,6 +327,10 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 	if (s->current_rule) {
 		rule = s->current_rule;
 		s->current_rule = NULL;
+		if (!(rep->flags & SC_FL_ERROR) && !(rep->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
+			s->waiting_entity.type = 0;
+			s->waiting_entity.ptr = NULL;
+		}
 		if ((def_rules && s->current_rule_list == def_rules) || s->current_rule_list == rules)
 			goto resume_execution;
 	}
@@ -343,6 +353,7 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 		if (ret) {
 			act_opts |= ACT_OPT_FIRST;
 resume_execution:
+
 			/* Always call the action function if defined */
 			if (rule->action_ptr) {
 				switch (rule->action_ptr(rule, s->be, s->sess, s, act_opts)) {
@@ -363,6 +374,8 @@ resume_execution:
 							s->last_entity.ptr  = rule;
 							goto internal;
 						}
+						s->waiting_entity.type = 1;
+						s->waiting_entity.ptr  = rule;
 						channel_dont_close(rep);
 						goto missing_data;
 					case ACT_RET_DENY:

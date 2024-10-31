@@ -57,9 +57,14 @@ static int handle_analyzer_result(struct stream *s, struct channel *chn, unsigne
 	do {								\
 		struct filter *filter;					\
 									\
-		if (strm_flt(strm)->current[CHN_IDX(chn)]) {	\
+		if (strm_flt(strm)->current[CHN_IDX(chn)]) {		\
 			filter = strm_flt(strm)->current[CHN_IDX(chn)]; \
-			strm_flt(strm)->current[CHN_IDX(chn)] = NULL; \
+			strm_flt(strm)->current[CHN_IDX(chn)] = NULL;	\
+			if (!(chn_prod(chn)->flags & SC_FL_ERROR) &&	\
+			    !(chn->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) { \
+				(strm)->waiting_entity.type = 0;	\
+				(strm)->waiting_entity.ptr = NULL;	\
+			}						\
 			goto resume_execution;				\
 		}							\
 									\
@@ -72,7 +77,11 @@ static int handle_analyzer_result(struct stream *s, struct channel *chn, unsigne
 
 #define BREAK_EXECUTION(strm, chn, label)				\
 	do {								\
-		if (ret < 0) {						\
+		if (ret == 0) {						\
+			s->waiting_entity.type = 2;			\
+			s->waiting_entity.ptr  = filter;		\
+		}							\
+		else if (ret < 0) {					\
 			(strm)->last_entity.type = 2;			\
 			(strm)->last_entity.ptr = filter;		\
 		}							\

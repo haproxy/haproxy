@@ -2734,6 +2734,11 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 			     (px->options & PR_O_ABRT_CLOSE)))
 				act_opts |= ACT_OPT_FINAL;
 
+			if (!(s->scf->flags & SC_FL_ERROR) & !(s->req.flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
+				s->waiting_entity.type = 0;
+				s->waiting_entity.ptr  = NULL;
+			}
+
 			switch (rule->action_ptr(rule, px, sess, s, act_opts)) {
 				case ACT_RET_CONT:
 					break;
@@ -2753,6 +2758,8 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 						rule_ret = HTTP_RULE_RES_ERROR;
 						goto end;
 					}
+					s->waiting_entity.type = 1;
+					s->waiting_entity.ptr  = rule;
 					rule_ret = HTTP_RULE_RES_YIELD;
 					goto end;
 				case ACT_RET_ERR:
@@ -2908,6 +2915,11 @@ resume_execution:
 			     (px->options & PR_O_ABRT_CLOSE)))
 				act_opts |= ACT_OPT_FINAL;
 
+			if (!(s->scb->flags & SC_FL_ERROR) & !(s->res.flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
+				s->waiting_entity.type = 0;
+				s->waiting_entity.ptr  = NULL;
+			}
+
 			switch (rule->action_ptr(rule, px, sess, s, act_opts)) {
 				case ACT_RET_CONT:
 					break;
@@ -2927,6 +2939,8 @@ resume_execution:
 						rule_ret = HTTP_RULE_RES_ERROR;
 						goto end;
 					}
+					s->waiting_entity.type = 1;
+					s->waiting_entity.ptr  = rule;
 					rule_ret = HTTP_RULE_RES_YIELD;
 					goto end;
 				case ACT_RET_ERR:
