@@ -161,9 +161,10 @@ enum {
  * depending on the context;
  */
 enum {
-	STRM_ENTITY_NONE   = 0x0000,
-	STRM_ENTITY_RULE   = 0x0001,
-	STRM_ENTITY_FILTER = 0x0002,
+	STRM_ENTITY_NONE      = 0x0000,
+	STRM_ENTITY_RULE      = 0x0001,
+	STRM_ENTITY_FILTER    = 0x0002,
+	STRM_ENTITY_WREQ_BODY = 0x0003,
 };
 
 /* This function is used to report flags in debugging tools. Please reflect

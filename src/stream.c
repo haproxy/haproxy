@@ -4189,6 +4189,12 @@ static int smp_fetch_waiting_entity(const struct arg *args, struct sample *smp, 
 			smp->data.u.str = *trash;
 		}
 	}
+	else if (smp->strm->waiting_entity.type == STRM_ENTITY_WREQ_BODY) {
+		struct buffer *trash = get_trash_chunk();
+
+		chunk_memcat(trash, "http-buffer-request", 19);
+		smp->data.u.str = *trash;
+	}
 	else
 		return 0;
 

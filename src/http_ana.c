@@ -826,8 +826,12 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 
 	switch (http_wait_for_msg_body(s, req, s->be->timeout.httpreq, 0)) {
 	case HTTP_RULE_RES_CONT:
+		s->waiting_entity.type = STRM_ENTITY_NONE;
+		s->waiting_entity.ptr = NULL;
 		goto http_end;
 	case HTTP_RULE_RES_YIELD:
+		s->waiting_entity.type = STRM_ENTITY_WREQ_BODY;
+		s->waiting_entity.ptr = NULL;
 		goto missing_data_or_waiting;
 	case HTTP_RULE_RES_BADREQ:
 		goto return_bad_req;
