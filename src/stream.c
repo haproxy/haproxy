@@ -389,9 +389,9 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	s->current_rule_list = NULL;
 	s->current_rule = NULL;
 	s->rules_exp = TICK_ETERNITY;
-	s->last_entity.type = 0;
+	s->last_entity.type = STRM_ENTITY_NONE;
 	s->last_entity.ptr = NULL;
-	s->waiting_entity.type = 0;
+	s->waiting_entity.type = STRM_ENTITY_NONE;
 	s->waiting_entity.ptr = NULL;
 
 	s->stkctr = NULL;
@@ -4101,7 +4101,7 @@ static int smp_fetch_last_rule_file(const struct arg *args, struct sample *smp, 
 
 	smp->flags = SMP_F_VOL_TXN;
 	smp->data.type = SMP_T_STR;
-	if (!smp->strm || smp->strm->last_entity.type != 1)
+	if (!smp->strm || smp->strm->last_entity.type != STRM_ENTITY_RULE)
 		return 0;
 
 	rule = smp->strm->last_entity.ptr;
@@ -4117,7 +4117,7 @@ static int smp_fetch_last_rule_line(const struct arg *args, struct sample *smp, 
 
 	smp->flags = SMP_F_VOL_TXN;
 	smp->data.type = SMP_T_SINT;
-	if (!smp->strm || smp->strm->last_entity.type != 1)
+	if (!smp->strm || smp->strm->last_entity.type != STRM_ENTITY_RULE)
 		return 0;
 
 	rule = smp->strm->last_entity.ptr;
@@ -4132,14 +4132,14 @@ static int smp_fetch_last_entity(const struct arg *args, struct sample *smp, con
 	if (!smp->strm)
 		return 0;
 
-	if (smp->strm->last_entity.type == 1) {
+	if (smp->strm->last_entity.type == STRM_ENTITY_RULE) {
 		struct act_rule *rule = smp->strm->last_entity.ptr;
 		struct buffer *trash = get_trash_chunk();
 
 		trash->data = snprintf(trash->area, trash->size, "%s:%d", rule->conf.file, rule->conf.line);
 		smp->data.u.str = *trash;
 	}
-	else if (smp->strm->last_entity.type == 2) {
+	else if (smp->strm->last_entity.type == STRM_ENTITY_FILTER) {
 		struct filter *filter = smp->strm->last_entity.ptr;
 
 		if (FLT_ID(filter)) {
@@ -4167,14 +4167,14 @@ static int smp_fetch_waiting_entity(const struct arg *args, struct sample *smp, 
 	if (!smp->strm)
 		return 0;
 
-	if (smp->strm->waiting_entity.type == 1) {
+	if (smp->strm->waiting_entity.type == STRM_ENTITY_RULE) {
 		struct act_rule *rule = smp->strm->waiting_entity.ptr;
 		struct buffer *trash = get_trash_chunk();
 
 		trash->data = snprintf(trash->area, trash->size, "%s:%d", rule->conf.file, rule->conf.line);
 		smp->data.u.str = *trash;
 	}
-	else if (smp->strm->waiting_entity.type == 2) {
+	else if (smp->strm->waiting_entity.type == STRM_ENTITY_FILTER) {
 		struct filter *filter = smp->strm->waiting_entity.ptr;
 
 		if (FLT_ID(filter)) {

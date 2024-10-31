@@ -2735,7 +2735,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				act_opts |= ACT_OPT_FINAL;
 
 			if (!(s->scf->flags & SC_FL_ERROR) & !(s->req.flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
-				s->waiting_entity.type = 0;
+				s->waiting_entity.type = STRM_ENTITY_NONE;
 				s->waiting_entity.ptr  = NULL;
 			}
 
@@ -2744,7 +2744,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 					break;
 				case ACT_RET_STOP:
 					rule_ret = HTTP_RULE_RES_STOP;
-					s->last_entity.type = 1;
+					s->last_entity.type = STRM_ENTITY_RULE;
 					s->last_entity.ptr  = rule;
 					goto end;
 				case ACT_RET_YIELD:
@@ -2753,40 +2753,40 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 						send_log(s->be, LOG_WARNING,
 							 "Internal error: action yields while it is  no long allowed "
 							 "for the http-request actions.");
-						s->last_entity.type = 1;
+						s->last_entity.type = STRM_ENTITY_RULE;
 						s->last_entity.ptr  = rule;
 						rule_ret = HTTP_RULE_RES_ERROR;
 						goto end;
 					}
-					s->waiting_entity.type = 1;
+					s->waiting_entity.type = STRM_ENTITY_RULE;
 					s->waiting_entity.ptr  = rule;
 					rule_ret = HTTP_RULE_RES_YIELD;
 					goto end;
 				case ACT_RET_ERR:
 					rule_ret = HTTP_RULE_RES_ERROR;
-					s->last_entity.type = 1;
+					s->last_entity.type = STRM_ENTITY_RULE;
 					s->last_entity.ptr  = rule;
 					goto end;
 				case ACT_RET_DONE:
 					rule_ret = HTTP_RULE_RES_DONE;
-					s->last_entity.type = 1;
+					s->last_entity.type = STRM_ENTITY_RULE;
 					s->last_entity.ptr  = rule;
 					goto end;
 				case ACT_RET_DENY:
 					if (txn->status == -1)
 						txn->status = 403;
 					rule_ret = HTTP_RULE_RES_DENY;
-					s->last_entity.type = 1;
+					s->last_entity.type = STRM_ENTITY_RULE;
 					s->last_entity.ptr  = rule;
 					goto end;
 				case ACT_RET_ABRT:
 					rule_ret = HTTP_RULE_RES_ABRT;
-					s->last_entity.type = 1;
+					s->last_entity.type = STRM_ENTITY_RULE;
 					s->last_entity.ptr  = rule;
 					goto end;
 				case ACT_RET_INV:
 					rule_ret = HTTP_RULE_RES_BADREQ;
-					s->last_entity.type = 1;
+					s->last_entity.type = STRM_ENTITY_RULE;
 					s->last_entity.ptr  = rule;
 					goto end;
 			}
@@ -2797,7 +2797,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 		switch (rule->action) {
 			case ACT_ACTION_ALLOW:
 				rule_ret = HTTP_RULE_RES_STOP;
-				s->last_entity.type = 1;
+				s->last_entity.type = STRM_ENTITY_RULE;
 				s->last_entity.ptr  = rule;
 				goto end;
 
@@ -2805,7 +2805,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				txn->status = rule->arg.http_reply->status;
 				txn->http_reply = rule->arg.http_reply;
 				rule_ret = HTTP_RULE_RES_DENY;
-				s->last_entity.type = 1;
+				s->last_entity.type = STRM_ENTITY_RULE;
 				s->last_entity.ptr  = rule;
 				goto end;
 
@@ -2814,7 +2814,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				txn->status = rule->arg.http_reply->status;
 				txn->http_reply = rule->arg.http_reply;
 				rule_ret = HTTP_RULE_RES_DENY;
-				s->last_entity.type = 1;
+				s->last_entity.type = STRM_ENTITY_RULE;
 				s->last_entity.ptr  = rule;
 				goto end;
 
@@ -2825,7 +2825,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 					break;
 
 				rule_ret = ret ? HTTP_RULE_RES_ABRT : HTTP_RULE_RES_ERROR;
-				s->last_entity.type = 1;
+				s->last_entity.type = STRM_ENTITY_RULE;
 				s->last_entity.ptr  = rule;
 				goto end;
 			}
@@ -2916,7 +2916,7 @@ resume_execution:
 				act_opts |= ACT_OPT_FINAL;
 
 			if (!(s->scb->flags & SC_FL_ERROR) & !(s->res.flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
-				s->waiting_entity.type = 0;
+				s->waiting_entity.type = STRM_ENTITY_NONE;
 				s->waiting_entity.ptr  = NULL;
 			}
 
@@ -2925,7 +2925,7 @@ resume_execution:
 					break;
 				case ACT_RET_STOP:
 					rule_ret = HTTP_RULE_RES_STOP;
-					s->last_entity.type = 1;
+					s->last_entity.type = STRM_ENTITY_RULE;
 					s->last_entity.ptr  = rule;
 					goto end;
 				case ACT_RET_YIELD:
@@ -2934,40 +2934,40 @@ resume_execution:
 						send_log(s->be, LOG_WARNING,
 							 "Internal error: action yields while it is no long allowed "
 							 "for the http-response/http-after-response actions.");
-						s->last_entity.type = 1;
+						s->last_entity.type = STRM_ENTITY_RULE;
 						s->last_entity.ptr  = rule;
 						rule_ret = HTTP_RULE_RES_ERROR;
 						goto end;
 					}
-					s->waiting_entity.type = 1;
+					s->waiting_entity.type = STRM_ENTITY_RULE;
 					s->waiting_entity.ptr  = rule;
 					rule_ret = HTTP_RULE_RES_YIELD;
 					goto end;
 				case ACT_RET_ERR:
 					rule_ret = HTTP_RULE_RES_ERROR;
-					s->last_entity.type = 1;
+					s->last_entity.type = STRM_ENTITY_RULE;
 					s->last_entity.ptr  = rule;
 					goto end;
 				case ACT_RET_DONE:
 					rule_ret = HTTP_RULE_RES_DONE;
-					s->last_entity.type = 1;
+					s->last_entity.type = STRM_ENTITY_RULE;
 					s->last_entity.ptr  = rule;
 					goto end;
 				case ACT_RET_DENY:
 					if (txn->status == -1)
 						txn->status = 502;
 					rule_ret = HTTP_RULE_RES_DENY;
-					s->last_entity.type = 1;
+					s->last_entity.type = STRM_ENTITY_RULE;
 					s->last_entity.ptr  = rule;
 					goto end;
 				case ACT_RET_ABRT:
 					rule_ret = HTTP_RULE_RES_ABRT;
-					s->last_entity.type = 1;
+					s->last_entity.type = STRM_ENTITY_RULE;
 					s->last_entity.ptr  = rule;
 					goto end;
 				case ACT_RET_INV:
 					rule_ret = HTTP_RULE_RES_BADREQ;
-					s->last_entity.type = 1;
+					s->last_entity.type = STRM_ENTITY_RULE;
 					s->last_entity.ptr  = rule;
 					goto end;
 			}
@@ -2978,7 +2978,7 @@ resume_execution:
 		switch (rule->action) {
 			case ACT_ACTION_ALLOW:
 				rule_ret = HTTP_RULE_RES_STOP; /* "allow" rules are OK */
-				s->last_entity.type = 1;
+				s->last_entity.type = STRM_ENTITY_RULE;
 				s->last_entity.ptr  = rule;
 				goto end;
 
@@ -2986,7 +2986,7 @@ resume_execution:
 				txn->status = rule->arg.http_reply->status;
 				txn->http_reply = rule->arg.http_reply;
 				rule_ret = HTTP_RULE_RES_DENY;
-				s->last_entity.type = 1;
+				s->last_entity.type = STRM_ENTITY_RULE;
 				s->last_entity.ptr  = rule;
 				goto end;
 
@@ -2997,7 +2997,7 @@ resume_execution:
 					break;
 
 				rule_ret = ret ? HTTP_RULE_RES_ABRT : HTTP_RULE_RES_ERROR;
-				s->last_entity.type = 1;
+				s->last_entity.type = STRM_ENTITY_RULE;
 				s->last_entity.ptr  = rule;
 				goto end;
 			}

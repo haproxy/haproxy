@@ -62,7 +62,7 @@ static int handle_analyzer_result(struct stream *s, struct channel *chn, unsigne
 			strm_flt(strm)->current[CHN_IDX(chn)] = NULL;	\
 			if (!(chn_prod(chn)->flags & SC_FL_ERROR) &&	\
 			    !(chn->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) { \
-				(strm)->waiting_entity.type = 0;	\
+				(strm)->waiting_entity.type = STRM_ENTITY_NONE;	\
 				(strm)->waiting_entity.ptr = NULL;	\
 			}						\
 			goto resume_execution;				\
@@ -78,11 +78,11 @@ static int handle_analyzer_result(struct stream *s, struct channel *chn, unsigne
 #define BREAK_EXECUTION(strm, chn, label)				\
 	do {								\
 		if (ret == 0) {						\
-			s->waiting_entity.type = 2;			\
+			s->waiting_entity.type = STRM_ENTITY_FILTER;	\
 			s->waiting_entity.ptr  = filter;		\
 		}							\
 		else if (ret < 0) {					\
-			(strm)->last_entity.type = 2;			\
+			(strm)->last_entity.type = STRM_ENTITY_FILTER;	\
 			(strm)->last_entity.ptr = filter;		\
 		}							\
 		strm_flt(strm)->current[CHN_IDX(chn)] = filter;		\
@@ -570,7 +570,7 @@ flt_set_stream_backend(struct stream *s, struct proxy *be)
 		if (FLT_OPS(filter)->stream_set_backend) {
 			filter->calls++;
 			if (FLT_OPS(filter)->stream_set_backend(s, filter, be) < 0) {
-				s->last_entity.type = 2;
+				s->last_entity.type = STRM_ENTITY_FILTER;
 				s->last_entity.ptr = filter;
 				return -1;
 			}
@@ -710,7 +710,7 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 			filter->calls++;
 			ret = FLT_OPS(filter)->http_payload(s, filter, msg, out + offset, data - offset);
 			if (ret < 0) {
-				s->last_entity.type = 2;
+				s->last_entity.type = STRM_ENTITY_FILTER;
 				s->last_entity.ptr = filter;
 				goto end;
 			}
@@ -852,7 +852,7 @@ flt_post_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 			filter->calls++;
 			ret = FLT_OPS(filter)->channel_post_analyze(s, filter, chn, an_bit);
 			if (ret < 0) {
-				s->last_entity.type = 2;
+				s->last_entity.type = STRM_ENTITY_FILTER;
 				s->last_entity.ptr = filter;
 				break;
 			}
@@ -1009,7 +1009,7 @@ flt_tcp_payload(struct stream *s, struct channel *chn, unsigned int len)
 			filter->calls++;
 			ret = FLT_OPS(filter)->tcp_payload(s, filter, chn, out + offset, data - offset);
 			if (ret < 0) {
-				s->last_entity.type = 2;
+				s->last_entity.type = STRM_ENTITY_FILTER;
 				s->last_entity.ptr = filter;
 				goto end;
 			}

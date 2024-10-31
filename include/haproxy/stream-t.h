@@ -156,6 +156,16 @@ enum {
 	STRM_ET_DATA_ABRT  = 0x0400,  /* data phase aborted by external cause */
 };
 
+
+/* Types of entities that may interrupt a processing, teomporarily or not
+ * depending on the context;
+ */
+enum {
+	STRM_ENTITY_NONE   = 0x0000,
+	STRM_ENTITY_RULE   = 0x0001,
+	STRM_ENTITY_FILTER = 0x0002,
+};
+
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
  * __APPEND_FLAG macro. The new end of the buffer is returned.
@@ -292,12 +302,12 @@ struct stream {
 
 	struct {
 		void *ptr;                      /* Pointer on the entity  (def: NULL) */
-		int type;                       /* entity type (0: undef, 1: rule, 2: filter) */
+		int type;                       /* entity type (STRM_ENTITY_*) */
 	} last_entity;                          /* last evaluated entity that interrupted processing */
 
 	struct {
 		void *ptr;                      /* Pointer on the entity  (def: NULL) */
-		int type;                       /* entity type (0: undef, 1: rule, 2: filter) */
+		int type;                       /* entity type (STRM_ENTITY_*) */
 	} waiting_entity;                       /* The entity waiting to continue its processing and interrupted by an error/timeout */
 
 	unsigned int stream_epoch;              /* copy of stream_epoch when the stream was created */

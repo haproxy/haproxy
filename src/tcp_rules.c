@@ -138,7 +138,7 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 		rule = s->current_rule;
 		s->current_rule = NULL;
 		if (!(req->flags & SC_FL_ERROR) && !(req->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
-			s->waiting_entity.type = 0;
+			s->waiting_entity.type = STRM_ENTITY_NONE;
 			s->waiting_entity.ptr = NULL;
 		}
 		if ((def_rules && s->current_rule_list == def_rules) || s->current_rule_list == rules)
@@ -170,7 +170,7 @@ resume_execution:
 						break;
 					case ACT_RET_STOP:
 					case ACT_RET_DONE:
-						s->last_entity.type = 1;
+						s->last_entity.type = STRM_ENTITY_RULE;
 						s->last_entity.ptr  = rule;
 						goto end;
 					case ACT_RET_YIELD:
@@ -179,27 +179,27 @@ resume_execution:
 							send_log(s->be, LOG_WARNING,
 								 "Internal error: yield not allowed if the inspect-delay expired "
 								 "for the tcp-request content actions.");
-							s->last_entity.type = 1;
+							s->last_entity.type = STRM_ENTITY_RULE;
 							s->last_entity.ptr  = rule;
 							goto internal;
 						}
-						s->waiting_entity.type = 1;
+						s->waiting_entity.type = STRM_ENTITY_RULE;
 						s->waiting_entity.ptr  = rule;
 						goto missing_data;
 					case ACT_RET_DENY:
-						s->last_entity.type = 1;
+						s->last_entity.type = STRM_ENTITY_RULE;
 						s->last_entity.ptr  = rule;
 						goto deny;
 					case ACT_RET_ABRT:
-						s->last_entity.type = 1;
+						s->last_entity.type = STRM_ENTITY_RULE;
 						s->last_entity.ptr  = rule;
 						goto abort;
 					case ACT_RET_ERR:
-						s->last_entity.type = 1;
+						s->last_entity.type = STRM_ENTITY_RULE;
 						s->last_entity.ptr  = rule;
 						goto internal;
 					case ACT_RET_INV:
-						s->last_entity.type = 1;
+						s->last_entity.type = STRM_ENTITY_RULE;
 						s->last_entity.ptr  = rule;
 						goto invalid;
 				}
@@ -208,12 +208,12 @@ resume_execution:
 
 			/* If not action function defined, check for known actions */
 			if (rule->action == ACT_ACTION_ALLOW) {
-				s->last_entity.type = 1;
+				s->last_entity.type = STRM_ENTITY_RULE;
 				s->last_entity.ptr  = rule;
 				goto end;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
-				s->last_entity.type = 1;
+				s->last_entity.type = STRM_ENTITY_RULE;
 				s->last_entity.ptr  = rule;
 				goto deny;
 			}
@@ -328,7 +328,7 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 		rule = s->current_rule;
 		s->current_rule = NULL;
 		if (!(rep->flags & SC_FL_ERROR) && !(rep->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
-			s->waiting_entity.type = 0;
+			s->waiting_entity.type = STRM_ENTITY_NONE;
 			s->waiting_entity.ptr = NULL;
 		}
 		if ((def_rules && s->current_rule_list == def_rules) || s->current_rule_list == rules)
@@ -361,7 +361,7 @@ resume_execution:
 						break;
 					case ACT_RET_STOP:
 					case ACT_RET_DONE:
-						s->last_entity.type = 1;
+						s->last_entity.type = STRM_ENTITY_RULE;
 						s->last_entity.ptr  = rule;
 						goto end;
 					case ACT_RET_YIELD:
@@ -370,28 +370,28 @@ resume_execution:
 							send_log(s->be, LOG_WARNING,
 								 "Internal error: yield not allowed if the inspect-delay expired "
 								 "for the tcp-response content actions.");
-							s->last_entity.type = 1;
+							s->last_entity.type = STRM_ENTITY_RULE;
 							s->last_entity.ptr  = rule;
 							goto internal;
 						}
-						s->waiting_entity.type = 1;
+						s->waiting_entity.type = STRM_ENTITY_RULE;
 						s->waiting_entity.ptr  = rule;
 						channel_dont_close(rep);
 						goto missing_data;
 					case ACT_RET_DENY:
-						s->last_entity.type = 1;
+						s->last_entity.type = STRM_ENTITY_RULE;
 						s->last_entity.ptr  = rule;
 						goto deny;
 					case ACT_RET_ABRT:
-						s->last_entity.type = 1;
+						s->last_entity.type = STRM_ENTITY_RULE;
 						s->last_entity.ptr  = rule;
 						goto abort;
 					case ACT_RET_ERR:
-						s->last_entity.type = 1;
+						s->last_entity.type = STRM_ENTITY_RULE;
 						s->last_entity.ptr  = rule;
 						goto internal;
 					case ACT_RET_INV:
-						s->last_entity.type = 1;
+						s->last_entity.type = STRM_ENTITY_RULE;
 						s->last_entity.ptr  = rule;
 						goto invalid;
 				}
@@ -400,12 +400,12 @@ resume_execution:
 
 			/* If not action function defined, check for known actions */
 			if (rule->action == ACT_ACTION_ALLOW) {
-				s->last_entity.type = 1;
+				s->last_entity.type = STRM_ENTITY_RULE;
 				s->last_entity.ptr  = rule;
 				goto end;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
-				s->last_entity.type = 1;
+				s->last_entity.type = STRM_ENTITY_RULE;
 				s->last_entity.ptr  = rule;
 				goto deny;
 			}
@@ -414,7 +414,7 @@ resume_execution:
 				sc_must_kill_conn(s->scb);
 				sc_abort(s->scb);
 				sc_shutdown(s->scb);
-				s->last_entity.type = 1;
+				s->last_entity.type = STRM_ENTITY_RULE;
 				s->last_entity.ptr  = rule;
 				goto end;
 			}
