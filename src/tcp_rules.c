@@ -166,8 +166,8 @@ resume_execution:
 						break;
 					case ACT_RET_STOP:
 					case ACT_RET_DONE:
-						s->last_rule_file = rule->conf.file;
-						s->last_rule_line = rule->conf.line;
+						s->last_entity.type = 1;
+						s->last_entity.ptr  = rule;
 						goto end;
 					case ACT_RET_YIELD:
 						s->current_rule = rule;
@@ -175,26 +175,26 @@ resume_execution:
 							send_log(s->be, LOG_WARNING,
 								 "Internal error: yield not allowed if the inspect-delay expired "
 								 "for the tcp-request content actions.");
-							s->last_rule_file = rule->conf.file;
-							s->last_rule_line = rule->conf.line;
+							s->last_entity.type = 1;
+							s->last_entity.ptr  = rule;
 							goto internal;
 						}
 						goto missing_data;
 					case ACT_RET_DENY:
-						s->last_rule_file = rule->conf.file;
-						s->last_rule_line = rule->conf.line;
+						s->last_entity.type = 1;
+						s->last_entity.ptr  = rule;
 						goto deny;
 					case ACT_RET_ABRT:
-						s->last_rule_file = rule->conf.file;
-						s->last_rule_line = rule->conf.line;
+						s->last_entity.type = 1;
+						s->last_entity.ptr  = rule;
 						goto abort;
 					case ACT_RET_ERR:
-						s->last_rule_file = rule->conf.file;
-						s->last_rule_line = rule->conf.line;
+						s->last_entity.type = 1;
+						s->last_entity.ptr  = rule;
 						goto internal;
 					case ACT_RET_INV:
-						s->last_rule_file = rule->conf.file;
-						s->last_rule_line = rule->conf.line;
+						s->last_entity.type = 1;
+						s->last_entity.ptr  = rule;
 						goto invalid;
 				}
 				continue; /* eval the next rule */
@@ -202,13 +202,13 @@ resume_execution:
 
 			/* If not action function defined, check for known actions */
 			if (rule->action == ACT_ACTION_ALLOW) {
-				s->last_rule_file = rule->conf.file;
-				s->last_rule_line = rule->conf.line;
+				s->last_entity.type = 1;
+				s->last_entity.ptr  = rule;
 				goto end;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
-				s->last_rule_file = rule->conf.file;
-				s->last_rule_line = rule->conf.line;
+				s->last_entity.type = 1;
+				s->last_entity.ptr  = rule;
 				goto deny;
 			}
 		}
@@ -350,8 +350,8 @@ resume_execution:
 						break;
 					case ACT_RET_STOP:
 					case ACT_RET_DONE:
-						s->last_rule_file = rule->conf.file;
-						s->last_rule_line = rule->conf.line;
+						s->last_entity.type = 1;
+						s->last_entity.ptr  = rule;
 						goto end;
 					case ACT_RET_YIELD:
 						s->current_rule = rule;
@@ -359,27 +359,27 @@ resume_execution:
 							send_log(s->be, LOG_WARNING,
 								 "Internal error: yield not allowed if the inspect-delay expired "
 								 "for the tcp-response content actions.");
-							s->last_rule_file = rule->conf.file;
-							s->last_rule_line = rule->conf.line;
+							s->last_entity.type = 1;
+							s->last_entity.ptr  = rule;
 							goto internal;
 						}
 						channel_dont_close(rep);
 						goto missing_data;
 					case ACT_RET_DENY:
-						s->last_rule_file = rule->conf.file;
-						s->last_rule_line = rule->conf.line;
+						s->last_entity.type = 1;
+						s->last_entity.ptr  = rule;
 						goto deny;
 					case ACT_RET_ABRT:
-						s->last_rule_file = rule->conf.file;
-						s->last_rule_line = rule->conf.line;
+						s->last_entity.type = 1;
+						s->last_entity.ptr  = rule;
 						goto abort;
 					case ACT_RET_ERR:
-						s->last_rule_file = rule->conf.file;
-						s->last_rule_line = rule->conf.line;
+						s->last_entity.type = 1;
+						s->last_entity.ptr  = rule;
 						goto internal;
 					case ACT_RET_INV:
-						s->last_rule_file = rule->conf.file;
-						s->last_rule_line = rule->conf.line;
+						s->last_entity.type = 1;
+						s->last_entity.ptr  = rule;
 						goto invalid;
 				}
 				continue; /* eval the next rule */
@@ -387,13 +387,13 @@ resume_execution:
 
 			/* If not action function defined, check for known actions */
 			if (rule->action == ACT_ACTION_ALLOW) {
-				s->last_rule_file = rule->conf.file;
-				s->last_rule_line = rule->conf.line;
+				s->last_entity.type = 1;
+				s->last_entity.ptr  = rule;
 				goto end;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
-				s->last_rule_file = rule->conf.file;
-				s->last_rule_line = rule->conf.line;
+				s->last_entity.type = 1;
+				s->last_entity.ptr  = rule;
 				goto deny;
 			}
 			else if (rule->action == ACT_TCP_CLOSE) {
@@ -401,8 +401,8 @@ resume_execution:
 				sc_must_kill_conn(s->scb);
 				sc_abort(s->scb);
 				sc_shutdown(s->scb);
-				s->last_rule_file = rule->conf.file;
-				s->last_rule_line = rule->conf.line;
+				s->last_entity.type = 1;
+				s->last_entity.ptr  = rule;
 				goto end;
 			}
 		}

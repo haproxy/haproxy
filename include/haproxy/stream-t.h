@@ -289,8 +289,11 @@ struct stream {
 	void *current_rule;                     /* this is used to store the current rule to be resumed. */
 	int rules_exp;                          /* expiration date for current rules execution */
 	int tunnel_timeout;
-	const char *last_rule_file;             /* last evaluated final rule's file (def: NULL) */
-	int last_rule_line;                     /* last evaluated final rule's line (def: 0) */
+
+	struct {
+		void *ptr;                      /* Pointer on the entity  (def: NULL) */
+		int type;                       /* entity type (0: undef, 1: rule) */
+	} last_entity;                          /* last evaluated entity that interrupted processing */
 
 	unsigned int stream_epoch;              /* copy of stream_epoch when the stream was created */
 	struct hlua *hlua[2];                   /* lua runtime context (0: global, 1: per-thread) */

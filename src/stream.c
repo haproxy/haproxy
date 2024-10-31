@@ -389,8 +389,8 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	s->current_rule_list = NULL;
 	s->current_rule = NULL;
 	s->rules_exp = TICK_ETERNITY;
-	s->last_rule_file = NULL;
-	s->last_rule_line = 0;
+	s->last_entity.type = 0;
+	s->last_entity.ptr = NULL;
 
 	s->stkctr = NULL;
 	if (pool_head_stk_ctr) {
@@ -4095,25 +4095,51 @@ static int smp_fetch_cur_tunnel_timeout(const struct arg *args, struct sample *s
 
 static int smp_fetch_last_rule_file(const struct arg *args, struct sample *smp, const char *km, void *private)
 {
+	struct act_rule *rule;
+
 	smp->flags = SMP_F_VOL_TXN;
 	smp->data.type = SMP_T_STR;
-	if (!smp->strm || !smp->strm->last_rule_file)
+	if (!smp->strm || smp->strm->last_entity.type != 1)
 		return 0;
 
+	rule = smp->strm->last_entity.ptr;
 	smp->flags |= SMP_F_CONST;
-	smp->data.u.str.area = (char *)smp->strm->last_rule_file;
-	smp->data.u.str.data = strlen(smp->strm->last_rule_file);
+	smp->data.u.str.area = (char *)rule->conf.file;
+	smp->data.u.str.data = strlen(rule->conf.file);
 	return 1;
 }
 
 static int smp_fetch_last_rule_line(const struct arg *args, struct sample *smp, const char *km, void *private)
 {
+	struct act_rule *rule;
+
 	smp->flags = SMP_F_VOL_TXN;
 	smp->data.type = SMP_T_SINT;
-	if (!smp->strm || !smp->strm->last_rule_line)
+	if (!smp->strm || smp->strm->last_entity.type != 1)
 		return 0;
 
-	smp->data.u.sint = smp->strm->last_rule_line;
+	rule = smp->strm->last_entity.ptr;
+	smp->data.u.sint = rule->conf.line;
+	return 1;
+}
+
+static int smp_fetch_last_entity(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_STR;
+	if (!smp->strm)
+		return 0;
+
+	if (smp->strm->last_entity.type == 1) {
+		struct act_rule *rule = smp->strm->last_entity.ptr;
+		struct buffer *trash = get_trash_chunk();
+
+		trash->data = snprintf(trash->area, trash->size, "%s:%d", rule->conf.file, rule->conf.line);
+		smp->data.u.str = *trash;
+	}
+	else
+		return 0;
+
 	return 1;
 }
 
@@ -4178,6 +4204,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "cur_client_timeout", smp_fetch_cur_client_timeout, 0, NULL, SMP_T_SINT, SMP_USE_FTEND, },
 	{ "cur_server_timeout", smp_fetch_cur_server_timeout, 0, NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "cur_tunnel_timeout", smp_fetch_cur_tunnel_timeout, 0, NULL, SMP_T_SINT, SMP_USE_BKEND, },
+	{ "last_entity",        smp_fetch_last_entity,        0, NULL, SMP_T_STR,  SMP_USE_INTRN, },
 	{ "last_rule_file",     smp_fetch_last_rule_file,     0, NULL, SMP_T_STR,  SMP_USE_INTRN, },
 	{ "last_rule_line",     smp_fetch_last_rule_line,     0, NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "txn.conn_retries",   smp_fetch_conn_retries,       0, NULL, SMP_T_SINT, SMP_USE_L4SRV, },
