@@ -21619,6 +21619,7 @@ hostname                                           string
 int(<integer>)                                     signed
 ipv4(<ipv4>)                                       ipv4
 ipv6(<ipv6>)                                       ipv6
+last_entity                                        string
 last_rule_file                                     string
 last_rule_line                                     integer
 lat_ns_avg                                         integer
@@ -21886,6 +21887,35 @@ ipv4(<ipv4>) : ipv4
 
 ipv6(<ipv6>) : ipv6
   Returns an ipv6.
+
+last_entity : string
+  This returns the identity of the last entity that was evaluated during stream
+  analysis. It may be the final rule that matched or the filter that
+  interrupted the processing.
+
+  A final rule is one that terminates the evaluation of the rule set (like an
+  "accept", "deny" or "redirect"). This works for TCP request and response
+  rules acting on the "content" rulesets, and on HTTP rules from
+  "http-request", "http-response" and "http-after-response" rule sets. The
+  legacy "redirect" rulesets are not supported (such information is not stored
+  there), and neither "tcp-request connection" nor "tcp-request session"
+  rulesets are supported because the information is stored at the stream level
+  and streams do not exist during these rules. In that case, the returned value
+  is equivalent to "last_rule_file:last_rule_line".
+  See also "last_rule_file", "last_rule_line".
+
+  For a filter, its identifier is returned as defined by the developers. If
+  this identifier is not defined, an hexadecimal value is returned
+  corresponding to an unique internal identifier.
+
+  The main purpose of this function is to be able to report in logs the last
+  entity that interrupted a processing, in order to help debugging issues. The
+  information returned on entities may changed in time and must not be used for
+  something else than debugging.
+
+  Example:
+      # Log the last entity, if any, and only if an error is reported
+      log-format "$HAPROXY_HTTP_LOG_FMT %{Q}[last_entity,when(error)]
 
 last_rule_file : string
   This returns the name of the configuration file containing the last final
