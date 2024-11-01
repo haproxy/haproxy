@@ -1,6 +1,133 @@
 ChangeLog :
 ===========
 
+2024/11/01 : 3.1-dev11
+    - BUG/MINOR: httpclient: return NULL when no proxy available during httpclient_new()
+    - BUG/MEDIUM: mworker/httpclient: initialization skipped by accident in mworker mode
+    - BUG/MINOR: resolvers/mworker: missing default resolvers in mworker mode
+    - MINOR: mworker/ocsp: skip ocsp-update proxy init in master
+    - BUG/MEDIUM: stconn: Wait iobuf is empty to shut SE down during a check send
+    - MINOR: mux-h1: Show the SD iobuf in trace messages on stream send events
+    - MINOR: mux-h1: Add a trace on shutdown when keep-alive is not possible
+    - BUG/MINOR: http-ana: Don't report a server abort if response payload is invalid
+    - BUG/MEDIUM: stconn: Check FF data of SC to perform a shutdown in sc_notify()
+    - BUG/MAJOR: filters/htx: Add a flag to state the payload is altered by a filter
+    - REGTESTS: Never reuse server connection in http-messaging/truncated.vtc
+    - BUG/MINOR: quic: avoid leaking post handshake frames
+    - MINOR: quic: send new tokens (NEW_TOKEN) even for 1RTT sessions
+    - BUG/MEDIUM: quic: avoid freezing 0RTT connections
+    - DOC: config: fix rfc7239 forwarded typo in desc
+    - MINOR: http_ext: implement rfc7239_{nn,np} converters
+    - CLEANUP: http_ext: remove useless BUG_ON() in http_handle_xot_header()
+    - BUG/MINOR: sample: free err2 in smp_resolve_args for type ARGT_REG
+    - MINOR: arg: add an argument type for identifier
+    - BUILD: buffers: keep b_getblk_nc() and b_peek_varint() in buf.h
+    - CLEANUP: buffers: simplify b_get_varint()
+    - OPTIM: buffers: avoid a useless wrapping check for ofs == 0
+    - MINOR: debug: make mark_tainted() return the previous value
+    - MINOR: chunk: drop the global thread_dump_buffer
+    - MINOR: debug: split ha_thread_dump() in two parts
+    - MINOR: debug: slightly change the thread_dump_pointer signification
+    - MINOR: debug: make ha_thread_dump_done() take the pointer to be used
+    - MINOR: debug: replace ha_thread_dump() with its two components
+    - MEDIUM: debug: on panic, make the target thread automatically allocate its buf
+    - BUILD: mux-h2/traces: fix build on 32-bit due to size of the DATA frame
+    - CI: prepare Coverity build for Ubuntu 24
+    - CI: bump development builds explicitely to Ubuntu 24.04
+    - CI: modernize macos builds to macos-15
+    - BUG/MINOR: mworker: fix mworker-max-reloads parser
+    - MINOR: mux-quic: simplify sending of empty STREAM FIN
+    - BUG/MINOR: mux-quic: do not close STREAM with empty FIN if no data sent
+    - CLEANUP: debug: make the BUG_ON() macros check the condition in the outer one
+    - MEDIUM: debug: add match counters for BUG_ON/WARN_ON/CHECK_IF
+    - MINOR: debug: add a new debug macro COUNT_IF()
+    - MINOR: debug: add "debug dev counters" to list code counters
+    - BUG/MEDIUM: stats-html: Never dump more data than expected during 0-copy FF
+    - BUG/MEDIUM: mux-h2: Remove H2S from send list if data are sent via 0-copy FF
+    - BUG/MINOR: stconn: Pretend the SE have more data to deliver on abortonclose
+    - CLEANUP: stream: remove outdated comments
+    - DEBUG: stream: Add debug counters to track some client/server aborts
+    - DEBUG: mux-h1: Add debug counters to track some errors
+    - MINOR: mux-h1: Add support of the debug string for logs
+    - MINOR: stream: maintain per-stream counters of the number of passes on code
+    - MINOR: filters: add per-filter call counters
+    - MINOR: sample: add the "when" converter to condition some expressions
+    - BUG/MEDIUM: connection/http-reuse: fix address collision on unhandled address families
+    - BUILD: spoe: fix build warning on older gcc around sub-struct initialization
+    - Revert "OPTIM: mux-h2: make h2_send() report more accurate wake up conditions"
+    - DEBUG: mux-h1: Add debug counters to track errors with in/out pending data
+    - BUG/MINOR: mux-h1: Fix conditions on pipe in some COUNT_IF()
+    - MINOR: activity/memprofile: show per-DSO stats
+    - BUG/MINOR: mworker/cli: show master startup logs in recovery mode
+    - MINOR: mworker: stop MASTER proxy listener on worker mcli sockpair
+    - MINOR: error: simplify startup_logs_init_shm
+    - BUG/MINOR: mworker: show worker warnings in startup logs
+    - CLEANUP: mworker: clean mworker_reexec
+    - MINOR: mworker/cli: split mworker_cli_proxy_create
+    - BUG/MINOR: server: fix dynamic server leak with check on failed init
+    - BUG/MEDIUM: server: fix race on servers_list during server deletion
+    - BUG/MEDIUM: stconn: Report blocked send if sends are blocked by an error
+    - BUG/MINOR: http-ana: Fix wrong client abort reports during responses forwarding
+    - BUG/MINOR: stconn: Don't disable 0-copy FF if EOS was reported on consumer side
+    - MINOR: mworker/cli: add 'debug' to 'show proc'
+    - MINOR: mworker/cli: remove comment line for program when useless
+    - MINOR: mworker/cli: 'show proc debug' for old workers
+    - BUILD: debug: silence a build warning with threads disabled
+    - CLEANUP: mux-h2: remove the unused "full" variable in h2_frt_transfer_data()
+    - MINOR: pools: export the pools variable
+    - MINOR: debug: place a magic pattern at the beginning of post_mortem
+    - MINOR: debug: place the post_mortem struct in its own section.
+    - MINOR: debug: store important pointers in post_mortem
+    - MINOR: debug: do not limit backtraces to stuck threads
+    - MINOR: cli: remove non-printable characters from 'debug dev fd'
+    - MINOR: cli: add an 'echo' command
+    - MINOR: debug: also add a pointer to struct global to post_mortem
+    - CLEANUP: mworker: make mworker_create_master_cli more readable
+    - BUG/MEIDUM: mworker: fix fd leak from master to worker
+    - BUG/MINOR: mworker/cli: fix mworker_cli_global_proxy_new_listener
+    - MINOR: tools: add strnlen2() helper
+    - CLEANUP: log: use strnlen2() in _lf_text_len() to compute string length
+    - DOC: design: add notes about more detailed error reporting for logs
+    - MINOR: debug: also add fdtab and acitvity to struct post_mortem
+    - MINOR: debug: remove the redundant process.thread_info array from post_mortem
+    - DEV: gdb: add a number of gdb scripts to navigate in core dumps
+    - BUG/MINOR: trace: stop rewriting argv with -dt
+    - MEDIUM: protocol: make abns a custom unix socket address family
+    - MEDIUM: protocol: rely on AF_CUST_ABNS family to recognize ABNS sockets
+    - CLEANUP: tools: rely on address family to detect ABNS sockets
+    - MINOR: protocol: create abnsz socket address family
+    - MINOR: sock: restore effective UNIX family in sock_get_old_sockets()
+    - MEDIUM: sock: also restore effective unix family in get_{src,dst}()
+    - MEDIUM: sock_unix: use per-family addrcmp function
+    - MEDIUM: socket: add zero-terminated ABNS alternative
+    - BUG/MINOR: ssl/cli: 'set ssl cert' does not check the transaction name correctly
+    - BUG/MINOR: mworker: mworker_reexec: unset MODE_STARTING before free startup logs ring
+    - BUG/MINOR: errors: startup_logs_free: set global startup_logs ptr to NULL
+    - BUG/MINOR: errors: print_message: don't allocate startup logs ring
+    - BUG/MINOR: startup: don't fork worker if started with -c -W
+    - BUG/MINOR: startup: dump libs only in worker if started with -W -dL
+    - BUG/MINOR: startup: dump keywords only in worker if started with -W -dKAll
+    - BUG/MINOR: startup: don't dump polling info for master in verbose mode
+    - CI: switch QUIC Interop on AWS-LC to common docker image
+    - CI: switch QUIC Interop on LibreSSL to common docker image
+    - CI: enable chacha20 test on LibreSSL QUIC Interop
+    - DOC: config: add missing glitch_{cnt,rate} data types
+    - DOC: config: add missing glitch_{cnt,rate} sample definitions
+    - CI: LibreSSL QUIC Interop: fix docker context
+    - DEBUG: mux-h1: Add H1C expiration dates in trace messages
+    - BUG/MEDIUM: mux-h1: Fix how timeouts are applied on H1 connections
+    - BUG/MINOR: http-ana: Report internal error if an action yields on a final eval
+    - MINOR: stream: Save last evaluated rule on invalid yield
+    - MINOR: quic: complete trace in qc_may_build_pkt()
+    - MINOR: quic: move qc_send_mux() prototype into quic_tx.h
+    - MINOR: stream: Replace last_rule_file/line fields by a more generic field
+    - MINOR: stream: Save the last filter evaluated interrupting the processing
+    - MINOR: stream: Save the entity waiting to continue its processing
+    - MINOR: stream: Use an enum to identify last and waiting entities for streams
+    - MINOR: stream: Add http-buffer-request option in the waiting entities
+    - DOC: config: Add documentation about last_entity sample fetch
+    - DOC: config: Add documentation about waiting_entity sample fetch
+
 2024/10/16 : 3.1-dev10
     - BUG/MAJOR: mux-quic: do not crash on empty STREAM frame emission
     - BUG/MINOR: stats: Fix the name for the total number of streams created
