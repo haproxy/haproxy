@@ -496,7 +496,7 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 	}
 
 	/* look in the list */
-	if (pat_lru_tree && !LIST_ISEMPTY(&expr->patterns)) {
+	if (pat_lru_tree && !LIST_ISEMPTY(&expr->patterns) && expr->ref->entry_cnt >= 20) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
 		lru = lru64_get(XXH3(smp->data.u.str.area, smp->data.u.str.data, seed),
@@ -539,7 +539,7 @@ struct pattern *pat_match_bin(struct sample *smp, struct pattern_expr *expr, int
 	struct pattern *ret = NULL;
 	struct lru64 *lru = NULL;
 
-	if (pat_lru_tree && !LIST_ISEMPTY(&expr->patterns)) {
+	if (pat_lru_tree && !LIST_ISEMPTY(&expr->patterns) && expr->ref->entry_cnt >= 20) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
 		lru = lru64_get(XXH3(smp->data.u.str.area, smp->data.u.str.data, seed),
@@ -608,7 +608,7 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
 	struct pattern *ret = NULL;
 	struct lru64 *lru = NULL;
 
-	if (pat_lru_tree && !LIST_ISEMPTY(&expr->patterns)) {
+	if (pat_lru_tree && !LIST_ISEMPTY(&expr->patterns) && expr->ref->entry_cnt >= 5) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
 		lru = lru64_get(XXH3(smp->data.u.str.area, smp->data.u.str.data, seed),
@@ -674,7 +674,7 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 	}
 
 	/* look in the list */
-	if (pat_lru_tree && !LIST_ISEMPTY(&expr->patterns)) {
+	if (pat_lru_tree && !LIST_ISEMPTY(&expr->patterns) && expr->ref->entry_cnt >= 20) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
 		lru = lru64_get(XXH3(smp->data.u.str.area, smp->data.u.str.data, seed),
@@ -718,7 +718,7 @@ struct pattern *pat_match_end(struct sample *smp, struct pattern_expr *expr, int
 	struct pattern *ret = NULL;
 	struct lru64 *lru = NULL;
 
-	if (pat_lru_tree && !LIST_ISEMPTY(&expr->patterns)) {
+	if (pat_lru_tree && !LIST_ISEMPTY(&expr->patterns) && expr->ref->entry_cnt >= 20) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
 		lru = lru64_get(XXH3(smp->data.u.str.area, smp->data.u.str.data, seed),
@@ -766,7 +766,7 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
 	struct pattern *ret = NULL;
 	struct lru64 *lru = NULL;
 
-	if (pat_lru_tree && !LIST_ISEMPTY(&expr->patterns)) {
+	if (pat_lru_tree && !LIST_ISEMPTY(&expr->patterns) && expr->ref->entry_cnt >= 20) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
 		lru = lru64_get(XXH3(smp->data.u.str.area, smp->data.u.str.data, seed),
