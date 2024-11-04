@@ -2071,6 +2071,8 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		goto no_room;
 	}
 
+	BUG_ON(qel->pktns->tx.pto_probe &&
+	       !(pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING));
 	/* If this packet is ack-eliciting and we are probing let's
 	 * decrement the PTO probe counter.
 	 */
