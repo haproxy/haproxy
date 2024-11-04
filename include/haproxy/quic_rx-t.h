@@ -58,4 +58,10 @@ struct quic_rx_packet {
 	unsigned int time_received;
 };
 
+enum quic_rx_ret_frm {
+	QUIC_RX_RET_FRM_DONE = 0, /* frame handled correctly */
+	QUIC_RX_RET_FRM_DUP,      /* frame ignored as already handled previously */
+	QUIC_RX_RET_FRM_FATAL,    /* error during frame handling, packet must not be acknowledged */
+};
+
 #endif /* _HAPROXY_RX_T_H */
