@@ -22234,6 +22234,7 @@ bc_be_queue                                        integer
 bc_dst                                             ip
 bc_dst_port                                        integer
 bc_err                                             integer
+bc_err_name                                        string
 bc_err_str                                         string
 bc_glitches                                        integer
 bc_http_major                                      integer
@@ -22263,6 +22264,7 @@ fc_dst                                             ip
 fc_dst_is_local                                    boolean
 fc_dst_port                                        integer
 fc_err                                             integer
+fc_err_name                                        string
 fc_err_str                                         string
 fc_fackets                                         integer
 fc_glitches                                        integer
@@ -22491,6 +22493,12 @@ bc_err : integer
   connection. See the "fc_err_str" fetch for a full list of error codes
   and their corresponding error message.
 
+bc_err_name : string
+  Returns the internal error name describing what problem happened on the
+  backend connection, resulting in a connection failure. This string is made of
+  a single word and is empty when no error is present. It corresponds to the
+  "name" column in the table presented in the "fc_err_str" keyword.
+
 bc_err_str : string
   Returns an error message describing what problem happened on the current
   backend connection, resulting in a connection failure. See the
@@ -22673,73 +22681,79 @@ fc_err : integer
   described in section 8.2.5). See the "fc_err_str" fetch for a full list of
   error codes and their corresponding error message.
 
+fc_err_name : string
+  Returns the internal error name describing what problem happened on the
+  frontend connection, resulting in a connection failure. This string is made
+  of a single word and is empty when no error is present. It corresponds to the
+  "name" column in the table presented in the "fc_err_str" keyword.
+
 fc_err_str : string
   Returns an error message describing what problem happened on the current
   connection, resulting in a connection failure. This string corresponds to the
   "message" part of the error log format (see section 8.2.5). See below for a
   full list of error codes and their corresponding error messages :
 
-  +----+---------------------------------------------------------------------------+
-  | ID | message                                                                   |
-  +----+---------------------------------------------------------------------------+
-  | 0  | "Success"                                                                 |
-  | 1  | "Reached configured maxconn value"                                        |
-  | 2  | "Too many sockets on the process"                                         |
-  | 3  | "Too many sockets on the system"                                          |
-  | 4  | "Out of system buffers"                                                   |
-  | 5  | "Protocol or address family not supported"                                |
-  | 6  | "General socket error"                                                    |
-  | 7  | "Source port range exhausted"                                             |
-  | 8  | "Can't bind to source address"                                            |
-  | 9  | "Out of local source ports on the system"                                 |
-  | 10 | "Local source address already in use"                                     |
-  | 11 | "Connection closed while waiting for PROXY protocol header"               |
-  | 12 | "Connection error while waiting for PROXY protocol header"                |
-  | 13 | "Timeout while waiting for PROXY protocol header"                         |
-  | 14 | "Truncated PROXY protocol header received"                                |
-  | 15 | "Received something which does not look like a PROXY protocol header"     |
-  | 16 | "Received an invalid PROXY protocol header"                               |
-  | 17 | "Received an unhandled protocol in the PROXY protocol header"             |
-  | 18 | "Connection closed while waiting for NetScaler Client IP header"          |
-  | 19 | "Connection error while waiting for NetScaler Client IP header"           |
-  | 20 | "Timeout while waiting for a NetScaler Client IP header"                  |
-  | 21 | "Truncated NetScaler Client IP header received"                           |
-  | 22 | "Received an invalid NetScaler Client IP magic number"                    |
-  | 23 | "Received an unhandled protocol in the NetScaler Client IP header"        |
-  | 24 | "Connection closed during SSL handshake"                                  |
-  | 25 | "Connection error during SSL handshake"                                   |
-  | 26 | "Timeout during SSL handshake"                                            |
-  | 27 | "Too many SSL connections"                                                |
-  | 28 | "Out of memory when initializing an SSL connection"                       |
-  | 29 | "Rejected a client-initiated SSL renegotiation attempt"                   |
-  | 30 | "SSL client CA chain cannot be verified"                                  |
-  | 31 | "SSL client certificate not trusted"                                      |
-  | 32 | "Server presented an SSL certificate different from the configured one"   |
-  | 33 | "Server presented an SSL certificate different from the expected one"     |
-  | 34 | "SSL handshake failure"                                                   |
-  | 35 | "SSL handshake failure after heartbeat"                                   |
-  | 36 | "Stopped a TLSv1 heartbeat attack (CVE-2014-0160)"                        |
-  | 37 | "Attempt to use SSL on an unknown target (internal error)"                |
-  | 38 | "Server refused early data"                                               |
-  | 39 | "SOCKS4 Proxy write error during handshake"                               |
-  | 40 | "SOCKS4 Proxy read error during handshake"                                |
-  | 41 | "SOCKS4 Proxy deny the request"                                           |
-  | 42 | "SOCKS4 Proxy handshake aborted by server"                                |
-  | 43 | "SSL fatal error"                                                         |
-  | 44 | "Reverse connect failure"                                                 |
-  | 45 | "Poller reported POLLERR"                                                 |
-  | 46 | "ECONNREFUSED returned by OS"                                             |
-  | 47 | "ECONNRESET returned by OS"                                               |
-  | 48 | "ENETUNREACH returned by OS"                                              |
-  | 49 | "ENOMEM returned by OS"                                                   |
-  | 50 | "EBADF returned by OS"                                                    |
-  | 51 | "EFAULT returned by OS"                                                   |
-  | 52 | "EINVAL returned by OS"                                                   |
-  | 53 | "ENCONN returned by OS"                                                   |
-  | 54 | "ENSOCK returned by OS"                                                   |
-  | 55 | "ENOBUFS returned by OS"                                                  |
-  | 56 | "EPIPE returned by OS"                                                    |
-  +----+---------------------------------------------------------------------------+
+  +----+------------------+-------------------------------------------------------------------------+
+  | ID | name             | message                                                                 |
+  +----+------------------+-------------------------------------------------------------------------+
+  | 0  | -                | "Success"                                                               |
+  | 1  | CONF_FDLIM       | "Reached configured maxconn value"                                      |
+  | 2  | PROC_FDLIM       | "Too many sockets on the process"                                       |
+  | 3  | SYS_FDLIM        | "Too many sockets on the system"                                        |
+  | 4  | SYS_MEMLIM       | "Out of system buffers"                                                 |
+  | 5  | NOPROTO          | "Protocol or address family not supported"                              |
+  | 6  | SOCK_ERR         | "General socket error"                                                  |
+  | 7  | PORT_RANGE       | "Source port range exhausted"                                           |
+  | 8  | CANT_BIND        | "Can't bind to source address"                                          |
+  | 9  | FREE_PORTS       | "Out of local source ports on the system"                               |
+  | 10 | ADDR_INUSE       | "Local source address already in use"                                   |
+  | 11 | PRX_EMPTY        | "Connection closed while waiting for PROXY protocol header"             |
+  | 12 | PRX_ABORT        | "Connection error while waiting for PROXY protocol header"              |
+  | 13 | PRX_TIMEOUT      | "Timeout while waiting for PROXY protocol header"                       |
+  | 14 | PRX_TRUNCATED    | "Truncated PROXY protocol header received"                              |
+  | 15 | PRX_NOT_HDR      | "Received something which does not look like a PROXY protocol header"   |
+  | 16 | PRX_BAD_HDR      | "Received an invalid PROXY protocol header"                             |
+  | 17 | PRX_BAD_PROTO    | "Received an unhandled protocol in the PROXY protocol header"           |
+  | 18 | CIP_EMPTY        | "Connection closed while waiting for NetScaler Client IP header"        |
+  | 19 | CIP_ABORT        | "Connection error while waiting for NetScaler Client IP header"         |
+  | 20 | CIP_TIMEOUT      | "Timeout while waiting for a NetScaler Client IP header"                |
+  | 21 | CIP_TRUNCATED    | "Truncated NetScaler Client IP header received"                         |
+  | 22 | CIP_BAD_MAGIC    | "Received an invalid NetScaler Client IP magic number"                  |
+  | 23 | CIP_BAD_PROTO    | "Received an unhandled protocol in the NetScaler Client IP header"      |
+  | 24 | SSL_EMPTY        | "Connection closed during SSL handshake"                                |
+  | 25 | SSL_ABORT        | "Connection error during SSL handshake"                                 |
+  | 26 | SSL_TIMEOUT      | "Timeout during SSL handshake"                                          |
+  | 27 | SSL_TOO_MANY     | "Too many SSL connections"                                              |
+  | 28 | SSL_NO_MEM       | "Out of memory when initializing an SSL connection"                     |
+  | 29 | SSL_RENEG        | "Rejected a client-initiated SSL renegotiation attempt"                 |
+  | 30 | SSL_CA_FAIL      | "SSL client CA chain cannot be verified"                                |
+  | 31 | SSL_CRT_FAIL     | "SSL client certificate not trusted"                                    |
+  | 32 | SSL_MISMATCH     | "Server presented an SSL certificate different from the configured one" |
+  | 33 | SSL_MISMATCH_SNI | "Server presented an SSL certificate different from the expected one"   |
+  | 34 | SSL_HANDSHAKE    | "SSL handshake failure"                                                 |
+  | 35 | SSL_HANDSHAKE_HB | "SSL handshake failure after heartbeat"                                 |
+  | 36 | SSL_KILLED_HB    | "Stopped a TLSv1 heartbeat attack (CVE-2014-0160)"                      |
+  | 37 | SSL_NO_TARGET    | "Attempt to use SSL on an unknown target (internal error)"              |
+  | 38 | SSL_EARLY_FAILED | "Server refused early data"                                             |
+  | 39 | SOCKS4_SEND      | "SOCKS4 Proxy write error during handshake"                             |
+  | 40 | SOCKS4_RECV      | "SOCKS4 Proxy read error during handshake"                              |
+  | 41 | SOCKS4_DENY      | "SOCKS4 Proxy deny the request"                                         |
+  | 42 | SOCKS4_ABORT     | "SOCKS4 Proxy handshake aborted by server"                              |
+  | 43 | SSL_FATAL        | "SSL fatal error"                                                       |
+  | 44 | REVERSE          | "Reverse connect failure"                                               |
+  | 45 | POLLERR          | "Poller reported POLLERR"                                               |
+  | 46 | EREFUSED         | "ECONNREFUSED returned by OS"                                           |
+  | 47 | ERESET           | "ECONNRESET returned by OS"                                             |
+  | 48 | EUNREACH         | "ENETUNREACH returned by OS"                                            |
+  | 49 | ENOMEM           | "ENOMEM returned by OS"                                                 |
+  | 50 | EBADF            | "EBADF returned by OS"                                                  |
+  | 51 | EFAULT           | "EFAULT returned by OS"                                                 |
+  | 52 | EINVAL           | "EINVAL returned by OS"                                                 |
+  | 53 | ENCONN           | "ENCONN returned by OS"                                                 |
+  | 54 | ENSOCK           | "ENSOCK returned by OS"                                                 |
+  | 55 | ENOBUFS          | "ENOBUFS returned by OS"                                                |
+  | 56 | EPIPE            | "EPIPE returned by OS"                                                  |
+  +----+------------------+-------------------------------------------------------------------------+
 
 fc_fackets : integer
   Returns the fack counter measured by the kernel for the client

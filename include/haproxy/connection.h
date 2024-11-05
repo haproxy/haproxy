@@ -102,6 +102,7 @@ uint64_t conn_hash_prehash(const char *buf, size_t size);
 
 int conn_reverse(struct connection *conn);
 
+const char *conn_err_code_name(struct connection *c);
 const char *conn_err_code_str(struct connection *c);
 int xprt_add_hs(struct connection *conn);
 void register_mux_proto(struct mux_proto_list *list);
