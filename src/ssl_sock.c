@@ -5852,7 +5852,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 				struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
 				if (ctx && !ctx->error_code)
 					ctx->error_code = ERR_peek_error();
-				conn->err_code = CO_ERR_SSL_FATAL;
+				conn->err_code = CO_ER_SSL_FATAL;
 			}
 			/* For SSL_ERROR_SYSCALL, make sure to clear the error
 			 * stack before shutting down the connection for
@@ -6028,7 +6028,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 
 				if (ctx && !ctx->error_code)
 					ctx->error_code = ERR_peek_error();
-				conn->err_code = CO_ERR_SSL_FATAL;
+				conn->err_code = CO_ER_SSL_FATAL;
 			}
 			goto out_error;
 		}

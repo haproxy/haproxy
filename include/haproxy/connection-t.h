@@ -238,7 +238,7 @@ enum {
 	CO_ER_SOCKS4_DENY,       /* SOCKS4 Proxy deny the request */
 	CO_ER_SOCKS4_ABORT,      /* SOCKS4 Proxy handshake aborted by server */
 
-	CO_ERR_SSL_FATAL,        /* SSL fatal error during a SSL_read or SSL_write */
+	CO_ER_SSL_FATAL,         /* SSL fatal error during a SSL_read or SSL_write */
 
 	CO_ER_REVERSE,           /* Error during reverse connect */
 };
