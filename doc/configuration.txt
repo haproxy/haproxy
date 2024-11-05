@@ -22727,6 +22727,18 @@ fc_err_str : string
   | 42 | "SOCKS4 Proxy handshake aborted by server"                                |
   | 43 | "SSL fatal error"                                                         |
   | 44 | "Reverse connect failure"                                                 |
+  | 45 | "Poller reported POLLERR"                                                 |
+  | 46 | "ECONNREFUSED returned by OS"                                             |
+  | 47 | "ECONNRESET returned by OS"                                               |
+  | 48 | "ENETUNREACH returned by OS"                                              |
+  | 49 | "ENOMEM returned by OS"                                                   |
+  | 50 | "EBADF returned by OS"                                                    |
+  | 51 | "EFAULT returned by OS"                                                   |
+  | 52 | "EINVAL returned by OS"                                                   |
+  | 53 | "ENCONN returned by OS"                                                   |
+  | 54 | "ENSOCK returned by OS"                                                   |
+  | 55 | "ENOBUFS returned by OS"                                                  |
+  | 56 | "EPIPE returned by OS"                                                    |
   +----+---------------------------------------------------------------------------+
 
 fc_fackets : integer

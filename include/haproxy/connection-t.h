@@ -241,6 +241,19 @@ enum {
 	CO_ER_SSL_FATAL,         /* SSL fatal error during a SSL_read or SSL_write */
 
 	CO_ER_REVERSE,           /* Error during reverse connect */
+
+	CO_ER_POLLERR,           /* we only noticed POLLERR */
+	CO_ER_EREFUSED,          /* ECONNREFUSED returned to recv/send */
+	CO_ER_ERESET,            /* ECONNRESET returned to recv/send */
+	CO_ER_EUNREACH,          /* ENETUNREACH returned to recv/send */
+	CO_ER_ENOMEM,            /* ENOMEM returned to recv/send */
+	CO_ER_EBADF,             /* EBADF returned to recv/send (serious bug) */
+	CO_ER_EFAULT,            /* EFAULT returned to recv/send (serious bug) */
+	CO_ER_EINVAL,            /* EINVAL returned to recv/send (serious bug) */
+	CO_ER_ENCONN,            /* ENCONN returned to recv/send */
+	CO_ER_ENSOCK,            /* ENSOCK returned to recv/send */
+	CO_ER_ENOBUFS,           /* ENOBUFS returned to send */
+	CO_ER_EPIPE,             /* EPIPE returned to send */
 };
 
 /* error return codes for accept_conn() */

@@ -744,8 +744,52 @@ const char *conn_err_code_str(struct connection *c)
 	case CO_ER_SSL_FATAL:      return "SSL fatal error";
 
 	case CO_ER_REVERSE:        return "Reverse connect failure";
+
+	case CO_ER_POLLERR:        return "Poller reported POLLERR";
+	case CO_ER_EREFUSED:       return "ECONNREFUSED returned by OS";
+	case CO_ER_ERESET:         return "ECONNRESET returned by OS";
+	case CO_ER_EUNREACH:       return "ENETUNREACH returned by OS";
+	case CO_ER_ENOMEM:         return "ENOMEM returned by OS";
+	case CO_ER_EBADF:          return "EBADF returned by OS";
+	case CO_ER_EFAULT:         return "EFAULT returned by OS";
+	case CO_ER_EINVAL:         return "EINVAL returned by OS";
+	case CO_ER_ENCONN:         return "ENCONN returned by OS";
+	case CO_ER_ENSOCK:         return "ENSOCK returned by OS";
+	case CO_ER_ENOBUFS:        return "ENOBUFS returned by OS";
+	case CO_ER_EPIPE:          return "EPIPE returned by OS";
 	}
 	return NULL;
+}
+
+/* Try to set conn->err_code to a meaningful value based on the errno value
+ * passed in <err>. Values of errno are meant to be set on return from recv/
+ * send mostly, so not all of them are handled. Any existing err_code is
+ * preserved.
+ */
+void conn_set_errno(struct connection *conn, int err)
+{
+	uchar code = 0;
+
+	if (conn->err_code)
+		return;
+
+	switch (err) {
+	case ECONNREFUSED: code = CO_ER_EREFUSED; break;
+	case ECONNRESET:   code = CO_ER_ERESET;   break;
+	case EHOSTUNREACH: code = CO_ER_EUNREACH; break;
+	case ENETUNREACH:  code = CO_ER_EUNREACH; break;
+	case ENOMEM:       code = CO_ER_ENOMEM;   break;
+	case EBADF:        code = CO_ER_EBADF;    break;
+	case EFAULT:       code = CO_ER_EFAULT;   break;
+	case EINVAL:       code = CO_ER_EINVAL;   break;
+	case ENOTCONN:     code = CO_ER_ENCONN;   break;
+	case ENOTSOCK:     code = CO_ER_ENSOCK;   break;
+	case ENOBUFS:      code = CO_ER_ENOBUFS;  break;
+	case EPIPE:        code = CO_ER_EPIPE;    break;
+	default:           code = CO_ER_SOCK_ERR; break;
+	}
+
+	conn->err_code = code;
 }
 
 /* Send a message over an established connection. It makes use of send() and

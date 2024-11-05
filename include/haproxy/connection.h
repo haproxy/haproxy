@@ -90,6 +90,7 @@ void conn_init(struct connection *conn, void *target);
 struct connection *conn_new(void *target);
 void conn_free(struct connection *conn);
 void conn_release(struct connection *conn);
+void conn_set_errno(struct connection *conn, int err);
 struct conn_hash_node *conn_alloc_hash_node(struct connection *conn);
 struct sockaddr_storage *sockaddr_alloc(struct sockaddr_storage **sap, const struct sockaddr_storage *orig, socklen_t len);
 void sockaddr_free(struct sockaddr_storage **sap);
@@ -106,6 +107,15 @@ int xprt_add_hs(struct connection *conn);
 void register_mux_proto(struct mux_proto_list *list);
 
 extern struct idle_conns idle_conns[MAX_THREADS];
+
+/* set conn->err_code to any CO_ER_* code if it was not set yet, otherwise
+ * does nothing.
+ */
+static inline void conn_set_errcode(struct connection *conn, int err_code)
+{
+	if (!conn->err_code)
+		conn->err_code = err_code;
+}
 
 /* returns true if the transport layer is ready */
 static inline int conn_xprt_ready(const struct connection *conn)
