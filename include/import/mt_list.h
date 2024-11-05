@@ -33,6 +33,19 @@
 #include <inttypes.h>
 #include <stddef.h>
 
+#if defined(__TINYC__)
+/* TCC has __atomic_exchange() for gcc's __atomic_exchange_n(). However it does
+ * not have any barrier, so we're forcing the order to the stricter SEQ_CST
+ * instead. There's no thread-local, thus we define __thread, which is only
+ * used for the PRNG used when sleeping, so we don't care. Anyway tcc with this
+ * code is mostly used to validate builds and run single-threaded tests.
+ */
+#include <stdatomic.h>
+#define __atomic_exchange_n(val, new, order) __atomic_exchange(val, new, __ATOMIC_SEQ_CST)
+#define __atomic_thread_fence(order) do { } while (0)
+#define __thread
+#endif
+
 /* set NOINLINE to forcefully disable user functions inlining */
 #if defined(NOINLINE)
 #define MT_INLINE __attribute__((noinline))
