@@ -768,7 +768,7 @@ static inline unsigned int quic_ack_delay_ms(struct qf_ack *ack_frm,
 static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
                              struct quic_enc_level *qel)
 {
-	struct quic_frame frm;
+	struct quic_frame *frm = NULL;
 	const unsigned char *pos, *end;
 	int fast_retrans = 0;
 
@@ -792,12 +792,17 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	}
 
 	while (pos < end) {
-		if (!qc_parse_frm(&frm, pkt, &pos, end, qc)) {
+		if (!frm && !(frm = qc_frm_alloc(0))) {
+			TRACE_ERROR("cannot allocate frame", QUIC_EV_CONN_PRSHPKT, qc);
+			goto err;
+		}
+
+		if (!qc_parse_frm(frm, pkt, &pos, end, qc)) {
 			// trace already emitted by function above
 			goto err;
 		}
 
-		switch (frm.type) {
+		switch (frm->type) {
 		case QUIC_FT_PADDING:
 			break;
 		case QUIC_FT_PING:
@@ -808,7 +813,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			unsigned int rtt_sample;
 			rtt_sample = UINT_MAX;
 
-			if (!qc_parse_ack_frm(qc, &frm, qel, &rtt_sample, &pos, end)) {
+			if (!qc_parse_ack_frm(qc, frm, qel, &rtt_sample, &pos, end)) {
 				// trace already emitted by function above
 				goto err;
 			}
@@ -818,21 +823,21 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 
 				ack_delay = !quic_application_pktns(qel->pktns, qc) ? 0 :
 					qc->state >= QUIC_HS_ST_CONFIRMED ?
-					MS_TO_TICKS(QUIC_MIN(quic_ack_delay_ms(&frm.ack, qc), qc->max_ack_delay)) :
-					MS_TO_TICKS(quic_ack_delay_ms(&frm.ack, qc));
+					MS_TO_TICKS(QUIC_MIN(quic_ack_delay_ms(&frm->ack, qc), qc->max_ack_delay)) :
+					MS_TO_TICKS(quic_ack_delay_ms(&frm->ack, qc));
 				quic_loss_srtt_update(&qc->path->loss, rtt_sample, ack_delay, qc);
 			}
 			break;
 		}
 		case QUIC_FT_RESET_STREAM:
 			if (qc->mux_state == QC_MUX_READY) {
-				struct qf_reset_stream *rs_frm = &frm.reset_stream;
+				struct qf_reset_stream *rs_frm = &frm->reset_stream;
 				qcc_recv_reset_stream(qc->qcc, rs_frm->id, rs_frm->app_error_code, rs_frm->final_size);
 			}
 			break;
 		case QUIC_FT_STOP_SENDING:
 		{
-			struct qf_stop_sending *ss_frm = &frm.stop_sending;
+			struct qf_stop_sending *ss_frm = &frm->stop_sending;
 			if (qc->mux_state == QC_MUX_READY) {
 				if (qcc_recv_stop_sending(qc->qcc, ss_frm->id,
 				                          ss_frm->app_error_code)) {
@@ -843,7 +848,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		}
 		case QUIC_FT_CRYPTO:
-			if (!qc_handle_crypto_frm(qc, &frm.crypto, pkt, qel, &fast_retrans))
+			if (!qc_handle_crypto_frm(qc, &frm->crypto, pkt, qel, &fast_retrans))
 				goto err;
 			break;
 		case QUIC_FT_NEW_TOKEN:
@@ -851,9 +856,9 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 		{
-			struct qf_stream *strm_frm = &frm.stream;
+			struct qf_stream *strm_frm = &frm->stream;
 			unsigned nb_streams = qc->rx.strms[qcs_id_type(strm_frm->id)].nb_streams;
-			const char fin = frm.type & QUIC_STREAM_FRAME_TYPE_FIN_BIT;
+			const char fin = frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT;
 
 			/* The upper layer may not be allocated. */
 			if (qc->mux_state != QC_MUX_READY) {
@@ -887,13 +892,13 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		}
 		case QUIC_FT_MAX_DATA:
 			if (qc->mux_state == QC_MUX_READY) {
-				struct qf_max_data *md_frm = &frm.max_data;
+				struct qf_max_data *md_frm = &frm->max_data;
 				qcc_recv_max_data(qc->qcc, md_frm->max_data);
 			}
 			break;
 		case QUIC_FT_MAX_STREAM_DATA:
 			if (qc->mux_state == QC_MUX_READY) {
-				struct qf_max_stream_data *msd_frm = &frm.max_stream_data;
+				struct qf_max_stream_data *msd_frm = &frm->max_stream_data;
 				if (qcc_recv_max_stream_data(qc->qcc, msd_frm->id,
 				                              msd_frm->max_stream_data)) {
 					TRACE_ERROR("qcc_recv_max_stream_data() failed", QUIC_EV_CONN_PRSHPKT, qc);
@@ -923,7 +928,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		{
 			struct quic_connection_id *conn_id = NULL;
 
-			if (!qc_handle_retire_connection_id_frm(qc, &frm, &pkt->dcid, &conn_id))
+			if (!qc_handle_retire_connection_id_frm(qc, frm, &pkt->dcid, &conn_id))
 				goto err;
 
 			if (!conn_id)
@@ -951,7 +956,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		case QUIC_FT_CONNECTION_CLOSE:
 		case QUIC_FT_CONNECTION_CLOSE_APP:
 			/* Increment the error counters */
-			quic_conn_closed_err_count_inc(qc, &frm);
+			quic_conn_closed_err_count_inc(qc, frm);
 			if (!(qc->flags & QUIC_FL_CONN_DRAINING)) {
 				TRACE_STATE("Entering draining state", QUIC_EV_CONN_PRSHPKT, qc);
 				/* RFC 9000 10.2. Immediate Close:
@@ -992,6 +997,9 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		}
 	}
 
+	if (frm)
+		qc_frm_free(qc, &frm);
+
 	if (fast_retrans && qc->iel && qc->hel) {
 		struct quic_enc_level *iqel = qc->iel;
 		struct quic_enc_level *hqel = qc->hel;
@@ -1024,6 +1032,8 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	return 1;
 
  err:
+	if (frm)
+		qc_frm_free(qc, &frm);
 	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_PRSHPKT, qc);
 	return 0;
 }
