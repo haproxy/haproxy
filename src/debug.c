@@ -806,17 +806,23 @@ static int debug_parse_cli_close(char **args, char *payload, struct appctx *appc
 		return 1;
 
 	if (!*args[3])
-		return cli_err(appctx, "Missing file descriptor number.\n");
+		return cli_err(appctx, "Missing file descriptor number (optionally followed by 'hard').\n");
 
 	fd = atoi(args[3]);
 	if (fd < 0 || fd >= global.maxsock)
 		return cli_err(appctx, "File descriptor out of range.\n");
 
+	if (strcmp(args[4], "hard") == 0) {
+		/* hard silent close, even for unknown FDs */
+		close(fd);
+		goto done;
+	}
 	if (!fdtab[fd].owner)
 		return cli_msg(appctx, LOG_INFO, "File descriptor was already closed.\n");
 
-	_HA_ATOMIC_INC(&debug_commands_issued);
 	fd_delete(fd);
+ done:
+	_HA_ATOMIC_INC(&debug_commands_issued);
 	return 1;
 }
 
@@ -2649,7 +2655,7 @@ REGISTER_PER_THREAD_INIT(feed_post_mortem_late);
 static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "bug", NULL },      "debug dev bug                           : call BUG_ON() and crash",                 debug_parse_cli_bug,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "check", NULL },    "debug dev check                         : call CHECK_IF() and possibly crash",      debug_parse_cli_check, NULL, NULL, NULL, ACCESS_EXPERT },
-	{{ "debug", "dev", "close", NULL },    "debug dev close  <fd>                   : close this file descriptor",              debug_parse_cli_close, NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "close", NULL },    "debug dev close  <fd> [hard]            : close this file descriptor",              debug_parse_cli_close, NULL, NULL, NULL, ACCESS_EXPERT },
 #if !defined(USE_OBSOLETE_LINKER)
 	{{ "debug", "dev", "counters", NULL }, "debug dev counters [all|bug|cnt|chk|?]* : dump/reset rare event counters",          debug_parse_cli_counters, debug_iohandler_counters, NULL, NULL, 0 },
 #endif
