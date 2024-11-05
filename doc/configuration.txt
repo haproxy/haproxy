@@ -22726,6 +22726,7 @@ fc_err_str : string
   | 41 | "SOCKS4 Proxy deny the request"                                           |
   | 42 | "SOCKS4 Proxy handshake aborted by server"                                |
   | 43 | "SSL fatal error"                                                         |
+  | 44 | "Reverse connect failure"                                                 |
   +----+---------------------------------------------------------------------------+
 
 fc_fackets : integer
