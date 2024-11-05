@@ -78,6 +78,7 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 		/* report error on POLL_ERR before connection establishment */
 		if ((fdtab[conn->handle.fd].state & FD_POLL_ERR) && (conn->flags & CO_FL_WAIT_L4_CONN)) {
 			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
+			conn_set_errcode(conn, CO_ER_POLLERR);
 			errno = 0; /* let the caller do a getsockopt() if it wants it */
 			goto leave;
 		}
@@ -127,6 +128,7 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 			}
 			/* here we have another error */
 			conn->flags |= CO_FL_ERROR;
+			conn_set_errno(conn, errno);
 			break;
 		} /* ret <= 0 */
 
@@ -176,6 +178,7 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
 		/* it's already closed */
 		conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH;
 		errno = EPIPE;
+		conn_set_errno(conn, errno);
 		return 0;
 	}
 
@@ -197,6 +200,7 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
 
 			/* here we have another error */
 			conn->flags |= CO_FL_ERROR;
+			conn_set_errno(conn, errno);
 			break;
 		}
 
@@ -248,6 +252,7 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 		/* report error on POLL_ERR before connection establishment */
 		if ((fdtab[conn->handle.fd].state & FD_POLL_ERR) && (conn->flags & CO_FL_WAIT_L4_CONN)) {
 			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
+			conn_set_errcode(conn, CO_ER_POLLERR);
 			goto leave;
 		}
 	}
@@ -306,6 +311,7 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 		}
 		else if (errno != EINTR) {
 			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
+			conn_set_errno(conn, errno);
 			break;
 		}
 	}
@@ -327,8 +333,10 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 	 * of recv()'s return value 0, so we have no way to tell there was
 	 * an error without checking.
 	 */
-	if (unlikely(!done && fdtab[conn->handle.fd].state & FD_POLL_ERR))
+	if (unlikely(!done && fdtab[conn->handle.fd].state & FD_POLL_ERR)) {
 		conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
+		conn_set_errcode(conn, CO_ER_POLLERR);
+	}
 	goto leave;
 }
 
@@ -361,6 +369,7 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 	if (unlikely(fdtab[conn->handle.fd].state & FD_POLL_ERR)) {
 		/* an error was reported on the FD, we can't send anymore */
 		conn->flags |= CO_FL_ERROR | CO_FL_SOCK_WR_SH | CO_FL_SOCK_RD_SH;
+		conn_set_errcode(conn, CO_ER_POLLERR);
 		errno = EPIPE;
 		return 0;
 	}
@@ -369,6 +378,7 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 		/* it's already closed */
 		conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH;
 		errno = EPIPE;
+		conn_set_errno(conn, errno);
 		return 0;
 	}
 
@@ -407,6 +417,7 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 		}
 		else if (errno != EINTR) {
 			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
+			conn_set_errno(conn, errno);
 			break;
 		}
 	}
