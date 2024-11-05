@@ -264,6 +264,11 @@
 #endif
 #endif
 
+/* Define the missing __builtin_prefetch() for tcc. */
+#if defined(__TINYC__)
+#define __builtin_prefetch(addr, ...) do { } while (0)
+#endif
+
 #ifndef __GNUC_PREREQ__
 #if defined(__GNUC__) && !defined(__INTEL_COMPILER)
 #define __GNUC_PREREQ__(ma, mi) \
