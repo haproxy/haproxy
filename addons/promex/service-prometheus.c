@@ -726,11 +726,8 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 	list_for_each_entry_from(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 		void *counters;
 
-		if (!(stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_FE)) {
-			ctx->field_num += mod->stats_count;
-			ctx->mod_field_num = 0;
+		if (!(stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_FE))
 			continue;
-		}
 
 		for (;ctx->mod_field_num < mod->stats_count; ctx->mod_field_num++) {
 			name = ist2(mod->stats[ctx->mod_field_num].name, strlen(mod->stats[ctx->mod_field_num].name));
@@ -898,11 +895,8 @@ static int promex_dump_listener_metrics(struct appctx *appctx, struct htx *htx)
 	list_for_each_entry_from(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 		void *counters;
 
-		if (!(stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_LI)) {
-			ctx->field_num += mod->stats_count;
-			ctx->mod_field_num = 0;
+		if (!(stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_LI))
 			continue;
-		}
 
 		for (;ctx->mod_field_num < mod->stats_count; ctx->mod_field_num++) {
 			name = ist2(mod->stats[ctx->mod_field_num].name, strlen(mod->stats[ctx->mod_field_num].name));
@@ -1179,11 +1173,8 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 	list_for_each_entry_from(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 		void *counters;
 
-		if (!(stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_BE)) {
-			ctx->field_num += mod->stats_count;
-			ctx->mod_field_num = 0;
+		if (!(stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_BE))
 			continue;
-		}
 
 		for (;ctx->mod_field_num < mod->stats_count; ctx->mod_field_num++) {
 			name = ist2(mod->stats[ctx->mod_field_num].name, strlen(mod->stats[ctx->mod_field_num].name));
@@ -1437,11 +1428,8 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 	list_for_each_entry_from(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
 		void *counters;
 
-		if (!(stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_SRV)) {
-			ctx->field_num += mod->stats_count;
-			ctx->mod_field_num = 0;
+		if (!(stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_SRV))
 			continue;
-		}
 
 		for (;ctx->mod_field_num < mod->stats_count; ctx->mod_field_num++) {
 			name = ist2(mod->stats[ctx->mod_field_num].name, strlen(mod->stats[ctx->mod_field_num].name));
