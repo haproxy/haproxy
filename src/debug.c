@@ -162,6 +162,7 @@ struct post_mortem {
 } post_mortem ALIGNED(256) HA_SECTION("_post_mortem") = { };
 
 unsigned int debug_commands_issued = 0;
+unsigned int warn_blocked_issued = 0;
 
 /* dumps a backtrace of the current thread that is appended to buffer <buf>.
  * Lines are prefixed with the string <prefix> which may be empty (used for
@@ -746,6 +747,8 @@ void ha_stuck_warning(int thr)
 		 */
 		return;
 	}
+
+	HA_ATOMIC_INC(&warn_blocked_issued);
 
 	buf = b_make(msg_buf, sizeof(msg_buf), 0, 0);
 

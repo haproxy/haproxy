@@ -170,6 +170,7 @@ const struct name_desc stat_cols_info[ST_I_INF_MAX] = {
 	[ST_I_INF_NICED_TASKS]                    = { .name = "Niced_tasks",                 .desc = "Total number of active tasks+tasklets in the current worker process (Run_queue) that are niced" },
 	[ST_I_INF_CURR_STRM]                      = { .name = "CurrStreams",                 .desc = "Current number of streams on this worker process" },
 	[ST_I_INF_CUM_STRM]                       = { .name = "CumStreams",                  .desc = "Total number of streams created on this worker process since started" },
+	[ST_I_INF_WARN_BLOCKED]                   = { .name = "BlockedTrafficWarnings",      .desc = "Total number of warnings issued about traffic being blocked by too slow a task" },
 };
 
 /* one line of info */
@@ -823,6 +824,7 @@ int stats_fill_info(struct field *line, int len, uint flags)
 	line[ST_I_INF_NICED_TASKS]                    = mkf_u32(0, total_niced_running_tasks());
 	line[ST_I_INF_CURR_STRM]                      = mkf_u64(0, glob_curr_strms);
 	line[ST_I_INF_CUM_STRM]                       = mkf_u64(0, glob_cum_strms);
+	line[ST_I_INF_WARN_BLOCKED]                   = mkf_u32(0, warn_blocked_issued);
 
 	return 1;
 }
