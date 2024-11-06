@@ -157,7 +157,7 @@ static int sample_conv_q_preferred(const struct arg *args, struct sample *smp, v
 				if (http_language_range_match(token, toklen, w, str - w))
 					goto look_for_q;
 				if (*str == '\0')
-					goto expect_comma;
+					break;
 				w = str + 1;
 			}
 			str++;
