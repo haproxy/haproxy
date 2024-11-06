@@ -33,7 +33,12 @@
 #define TIMER_INVALID ((timer_t)(unsigned long)(0xfffffffful))
 #endif
 
-static timer_t per_thread_wd_timer[MAX_THREADS];
+/* per-thread context for the watchdog, permits to store timers, counters,
+ * task pointers, etc (anything that helps providing accurate reports).
+ */
+static struct {
+	timer_t timer;
+} per_thread_wd_ctx[MAX_THREADS];
 
 /* Setup (or ping) the watchdog timer for thread <thr>. Returns non-zero on
  * success, zero on failure. It interrupts once per second of CPU time. It
@@ -46,7 +51,7 @@ int wdt_ping(int thr)
 
 	its.it_value.tv_sec    = 1; its.it_value.tv_nsec    = 0;
 	its.it_interval.tv_sec = 0; its.it_interval.tv_nsec = 0;
-	return timer_settime(per_thread_wd_timer[thr], 0, &its, NULL) == 0;
+	return timer_settime(per_thread_wd_ctx[thr].timer, 0, &its, NULL) == 0;
 }
 
 /* This is the WDTSIG signal handler */
@@ -150,7 +155,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 
 int init_wdt_per_thread()
 {
-	if (!clock_setup_signal_timer(&per_thread_wd_timer[tid], WDTSIG, tid))
+	if (!clock_setup_signal_timer(&per_thread_wd_ctx[tid].timer, WDTSIG, tid))
 		goto fail1;
 
 	if (!wdt_ping(tid))
@@ -159,17 +164,17 @@ int init_wdt_per_thread()
 	return 1;
 
  fail2:
-	timer_delete(per_thread_wd_timer[tid]);
+	timer_delete(per_thread_wd_ctx[tid].timer);
  fail1:
-	per_thread_wd_timer[tid] = TIMER_INVALID;
+	per_thread_wd_ctx[tid].timer = TIMER_INVALID;
 	ha_warning("Failed to setup watchdog timer for thread %u, disabling lockup detection.\n", tid);
 	return 1;
 }
 
 void deinit_wdt_per_thread()
 {
-	if (per_thread_wd_timer[tid] != TIMER_INVALID)
-		timer_delete(per_thread_wd_timer[tid]);
+	if (per_thread_wd_ctx[tid].timer != TIMER_INVALID)
+		timer_delete(per_thread_wd_ctx[tid].timer);
 }
 
 /* registers the watchdog signal handler and returns 0. This sets up the signal
