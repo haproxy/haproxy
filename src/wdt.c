@@ -12,6 +12,7 @@
 #include <signal.h>
 #include <time.h>
 
+#include <haproxy/activity.h>
 #include <haproxy/api.h>
 #include <haproxy/clock.h>
 #include <haproxy/debug.h>
@@ -38,6 +39,7 @@
  */
 static struct {
 	timer_t timer;
+	uint prev_ctxsw;
 } per_thread_wd_ctx[MAX_THREADS];
 
 /* Setup (or ping) the watchdog timer for thread <thr>. Returns non-zero on
@@ -106,10 +108,18 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 		 * scheduler is still alive by setting the TH_FL_STUCK flag
 		 * that the scheduler clears when switching to the next task.
 		 * If it's already set, then it's our second call with no
-		 * progress and the thread is dead.
+		 * progress and the thread is dead. However, if we figure
+		 * that the scheduler made no progress since last time, we'll
+		 * at least emit a warning.
 		 */
 		if (!(_HA_ATOMIC_LOAD(&ha_thread_ctx[thr].flags) & TH_FL_STUCK)) {
+			uint prev_ctxsw;
+
 			_HA_ATOMIC_OR(&ha_thread_ctx[thr].flags, TH_FL_STUCK);
+			prev_ctxsw = HA_ATOMIC_LOAD(&per_thread_wd_ctx[tid].prev_ctxsw);
+			if (HA_ATOMIC_LOAD(&activity[thr].ctxsw) == prev_ctxsw)
+				ha_stuck_warning(thr);
+			HA_ATOMIC_STORE(&activity[thr].ctxsw, prev_ctxsw);
 			goto update_and_leave;
 		}
 

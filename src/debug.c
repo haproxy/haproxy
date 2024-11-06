@@ -738,7 +738,7 @@ void ha_stuck_warning(int thr)
 	struct buffer buf;
 	ullong n, p;
 
-	if (get_tainted() & TAINTED_PANIC) {
+	if (mark_tainted(TAINTED_WARN_BLOCKED_TRAFFIC) & TAINTED_PANIC) {
 		/* a panic dump is already in progress, let's not disturb it,
 		 * we'll be called via signal DEBUGSIG. By returning we may be
 		 * able to leave a current signal handler (e.g. WDT) so that

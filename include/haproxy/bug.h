@@ -421,6 +421,7 @@ enum tainted_flags {
 	TAINTED_LUA_STUCK              = 0x00000400, /* stuck in a Lua context */
 	TAINTED_LUA_STUCK_SHARED       = 0x00000800, /* stuck in a shared Lua context */
 	TAINTED_MEM_TRIMMING_STUCK     = 0x00001000, /* stuck while trimming memory */
+	TAINTED_WARN_BLOCKED_TRAFFIC   = 0x00002000, /* emitted a warning about blocked traffic */
 };
 
 /* this is a bit field made of TAINTED_*, and is declared in haproxy.c */
