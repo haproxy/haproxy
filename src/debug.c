@@ -729,6 +729,84 @@ void ha_panic()
 		abort();
 }
 
+/* Dumps a state of the current thread on fd #2 and returns. It takes a great
+ * care about not using any global state variable so as to gracefully recover.
+ */
+void ha_stuck_warning(int thr)
+{
+	char msg_buf[4096];
+	struct buffer buf;
+	ullong n, p;
+
+	if (get_tainted() & TAINTED_PANIC) {
+		/* a panic dump is already in progress, let's not disturb it,
+		 * we'll be called via signal DEBUGSIG. By returning we may be
+		 * able to leave a current signal handler (e.g. WDT) so that
+		 * this will ensure more reliable signal delivery.
+		 */
+		return;
+	}
+
+	buf = b_make(msg_buf, sizeof(msg_buf), 0, 0);
+
+	p = HA_ATOMIC_LOAD(&ha_thread_ctx[thr].prev_cpu_time);
+	n = now_cpu_time_thread(thr);
+
+	chunk_printf(&buf,
+		     "\nWARNING! thread %u has stopped processing traffic for %llu milliseconds\n"
+		     "    with %d streams currently blocked, prevented from making any progress.\n"
+		     "    While this may occasionally happen with inefficient configurations\n"
+		     "    involving excess of regular expressions, map_reg, or heavy Lua processing,\n"
+		     "    this must remain exceptional because the system's stability is now at risk.\n"
+		     "    Timers in logs may be reported incorrectly, spurious timeouts may happen,\n"
+		     "    some incoming connections may silently be dropped, health checks may\n"
+		     "    randomly fail, and accesses to the CLI may block the whole process. Please\n"
+		     "    check the trace below for any clues about configuration elements that need\n"
+		     "    to be corrected:\n\n",
+		     thr + 1, (n - p) / 1000000ULL,
+		     HA_ATOMIC_LOAD(&ha_thread_ctx[thr].stream_cnt));
+
+	DISGUISE(write(2, buf.area, buf.data));
+
+	/* Note below: the target thread will dump itself */
+	chunk_reset(&buf);
+	if (ha_thread_dump_fill(&buf, thr)) {
+		DISGUISE(write(2, buf.area, buf.data));
+		/* restore the thread's dump pointer for easier post-mortem analysis */
+		ha_thread_dump_done(NULL, thr);
+	}
+
+	chunk_printf(&buf, " => Trying to gracefully recover now.\n");
+	DISGUISE(write(2, buf.area, buf.data));
+
+#ifdef USE_LUA
+	if (get_tainted() & TAINTED_LUA_STUCK_SHARED && global.nbthread > 1) {
+		chunk_printf(&buf,
+			     "### Note: at least one thread was stuck in a Lua context loaded using the\n"
+			     "          'lua-load' directive, which is known for causing heavy contention\n"
+			     "          when used with threads. Please consider using 'lua-load-per-thread'\n"
+			     "          instead if your code is safe to run in parallel on multiple threads.\n");
+		DISGUISE(write(2, buf.area, buf.data));
+	}
+	else if (get_tainted() & TAINTED_LUA_STUCK) {
+		chunk_printf(&buf,
+			     "### Note: at least one thread was stuck in a Lua context in a way that suggests\n"
+			     "          heavy processing inside a dependency or a long loop that can't yield.\n"
+			     "          Please make sure any external code you may rely on is safe for use in\n"
+			     "          an event-driven engine.\n");
+		DISGUISE(write(2, buf.area, buf.data));
+	}
+#endif
+	if (get_tainted() & TAINTED_MEM_TRIMMING_STUCK) {
+		chunk_printf(&buf,
+			     "### Note: one thread was found stuck under malloc_trim(), which can run for a\n"
+			     "          very long time on large memory systems. You way want to disable this\n"
+			     "          memory reclaiming feature by setting 'no-memory-trimming' in the\n"
+			     "          'global' section of your configuration to avoid this in the future.\n");
+		DISGUISE(write(2, buf.area, buf.data));
+	}
+}
+
 /* Complain with message <msg> on stderr. If <counter> is not NULL, it is
  * atomically incremented, and the message is only printed when the counter
  * was zero, so that the message is only printed once. <taint> is only checked
