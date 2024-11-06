@@ -1799,7 +1799,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			memprintf(errmsg, "a content type must be defined with a log-format payload");
 			goto error;
 		}
-		if (!parse_logformat_string(obj, px, &reply->body.fmt, LOG_OPT_HTTP, cap, errmsg))
+		if (!parse_logformat_string(obj, px, &reply->body.fmt, LOG_OPT_NONE, cap, errmsg))
 			goto error;
 	}
 

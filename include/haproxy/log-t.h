@@ -44,7 +44,7 @@
 #define LOG_OPT_QUOTE           0x00000004
 #define LOG_OPT_REQ_CAP         0x00000008
 #define LOG_OPT_RES_CAP         0x00000010
-#define LOG_OPT_HTTP            0x00000020
+#define LOG_OPT_HTTP            0x00000020 // forces http-encoding on the payload, incompatible with LOG_OPT_ENCODE
 #define LOG_OPT_ESC             0x00000040
 #define LOG_OPT_MERGE_SPACES    0x00000080
 #define LOG_OPT_BIN             0x00000100
