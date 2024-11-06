@@ -1562,6 +1562,7 @@ The following keywords are supported in the "global" section :
  * Debugging
    - anonkey
    - quiet
+   - warn-blocked-traffic-after
    - zero-warning
 
  * HTTPClient
@@ -4393,6 +4394,24 @@ quick-exit
 quiet
   Do not display any message during startup. It is equivalent to the command-
   line argument "-q".
+
+warn-blocked-traffic-after <time>
+  This allows to adjust the delay after which a stuck task blocking the traffic
+  will trigger the emission of a warning on the standard error output. The
+  delay is expressed in milliseconds and defaults to 1000 ms. Permitted values
+  must be comprised between 1 ms and 1000 ms included. Lower values will
+  trigger warnings frequently and higher ones will rarely. The watchdog will
+  kill a runaway task that fails to respond twice for one second anyway, so a
+  1000 ms warning delay will normally not trigger any warning. It is
+  recommended to stay with values between 10 and 100ms to detect configuration
+  anomalies that may degrade the user's experience, causing long response times
+  or jerkiness on interactive sessions. For example, a poorly designed Lua
+  sample-fetch function doing heavy computations, or a very large map_reg or
+  map_regm map file with a very high evaluation cost may cause such trouble.
+  For comparison a TLS handshake can eat between one and two milliseconds, and
+  compressing a 16kB HTTP response buffer is around one millisecond. The output
+  contains a thread dump of the offending task with a backtrace and some
+  context that helps figure where the time is being spent.
 
 zero-warning
   When this option is set, HAProxy will refuse to start if any warning was

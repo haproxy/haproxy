@@ -760,9 +760,10 @@ void ha_stuck_warning(int thr)
 		     "    this must remain exceptional because the system's stability is now at risk.\n"
 		     "    Timers in logs may be reported incorrectly, spurious timeouts may happen,\n"
 		     "    some incoming connections may silently be dropped, health checks may\n"
-		     "    randomly fail, and accesses to the CLI may block the whole process. Please\n"
-		     "    check the trace below for any clues about configuration elements that need\n"
-		     "    to be corrected:\n\n",
+		     "    randomly fail, and accesses to the CLI may block the whole process. The\n"
+		     "    blocking delay before emitting this warning may be adjusted via the global\n"
+		     "    'warn-blocked-traffic-after' directive. Please check the trace below for\n"
+		     "    any clues about configuration elements that need to be corrected:\n\n",
 		     thr + 1, (n - p) / 1000000ULL,
 		     HA_ATOMIC_LOAD(&ha_thread_ctx[thr].stream_cnt));
 

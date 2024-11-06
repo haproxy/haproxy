@@ -14,6 +14,7 @@
 
 #include <haproxy/activity.h>
 #include <haproxy/api.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/clock.h>
 #include <haproxy/debug.h>
 #include <haproxy/errors.h>
@@ -42,6 +43,9 @@ static struct {
 	uint prev_ctxsw;
 } per_thread_wd_ctx[MAX_THREADS];
 
+/* warn about stuck tasks after this delay (ns) */
+static unsigned int wdt_warn_blocked_traffic_ns = 1000000000U;
+
 /* Setup (or ping) the watchdog timer for thread <thr>. Returns non-zero on
  * success, zero on failure. It interrupts once per second of CPU time. It
  * happens that timers based on the CPU time are not automatically re-armed
@@ -51,7 +55,8 @@ int wdt_ping(int thr)
 {
 	struct itimerspec its;
 
-	its.it_value.tv_sec    = 1; its.it_value.tv_nsec    = 0;
+	its.it_value.tv_sec    = wdt_warn_blocked_traffic_ns / 1000000000U;
+	its.it_value.tv_nsec   = wdt_warn_blocked_traffic_ns % 1000000000U;
 	its.it_interval.tv_sec = 0; its.it_interval.tv_nsec = 0;
 	return timer_settime(per_thread_wd_ctx[thr].timer, 0, &its, NULL) == 0;
 }
@@ -87,7 +92,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 		/* not yet reached the deadline of 1 sec,
 		 * or p wasn't initialized yet
 		 */
-		if (!p || n - p < 1000000000UL)
+		if (!p)
 			goto update_and_leave;
 
 		if ((_HA_ATOMIC_LOAD(&ha_thread_ctx[thr].flags) & TH_FL_SLEEPING) ||
@@ -115,11 +120,22 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 		if (!(_HA_ATOMIC_LOAD(&ha_thread_ctx[thr].flags) & TH_FL_STUCK)) {
 			uint prev_ctxsw;
 
-			_HA_ATOMIC_OR(&ha_thread_ctx[thr].flags, TH_FL_STUCK);
 			prev_ctxsw = HA_ATOMIC_LOAD(&per_thread_wd_ctx[tid].prev_ctxsw);
-			if (HA_ATOMIC_LOAD(&activity[thr].ctxsw) == prev_ctxsw)
-				ha_stuck_warning(thr);
-			HA_ATOMIC_STORE(&activity[thr].ctxsw, prev_ctxsw);
+
+			/* only after one second it's clear we're stuck */
+			if (n - p >= 1000000000ULL)
+				_HA_ATOMIC_OR(&ha_thread_ctx[thr].flags, TH_FL_STUCK);
+
+			/* have we crossed the warning boundary ? If so we note were we
+			 * where, and second time called from the same place will trigger
+			 * a warning (unless already stuck).
+			 */
+			if (n - p >= (ullong)wdt_warn_blocked_traffic_ns) {
+				if (HA_ATOMIC_LOAD(&activity[thr].ctxsw) == prev_ctxsw)
+					ha_stuck_warning(thr);
+				HA_ATOMIC_STORE(&activity[thr].ctxsw, prev_ctxsw);
+			}
+
 			goto update_and_leave;
 		}
 
@@ -163,6 +179,44 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 	wdt_ping(thr);
 }
 
+/* parse the "warn-blocked-traffic-after" parameter */
+static int wdt_parse_warn_blocked(char **args, int section_type, struct proxy *curpx,
+                                  const struct proxy *defpx, const char *file, int line,
+                                  char **err)
+{
+	const char *res;
+	uint value;
+
+	if (!*args[1]) {
+		memprintf(err, "'%s' expects <time> as argument between 1 and 1000 ms.\n", args[0]);
+		return -1;
+	}
+
+	res = parse_time_err(args[1], &value, TIME_UNIT_MS);
+	if (res == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument '%s' to '%s' (maximum value is 1000 ms)",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (res == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument '%s' to '%s' (minimum value is 1 ms)",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (res) {
+		memprintf(err, "unexpected character '%c' in argument to <%s>.\n", *res, args[0]);
+		return -1;
+	}
+	else if (value > 1000 || value < 1) {
+		memprintf(err, "timer out of range in argument '%s' to '%s' (value must be between 1 and 1000 ms)",
+			  args[1], args[0]);
+		return -1;
+	}
+
+	wdt_warn_blocked_traffic_ns = value * 1000000U;
+	return 0;
+}
+
 int init_wdt_per_thread()
 {
 	if (!clock_setup_signal_timer(&per_thread_wd_ctx[tid].timer, WDTSIG, tid))
@@ -202,6 +256,12 @@ int init_wdt()
 	return ERR_NONE;
 }
 
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "warn-blocked-traffic-after", wdt_parse_warn_blocked },
+	{ 0, NULL, NULL },
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 REGISTER_POST_CHECK(init_wdt);
 REGISTER_PER_THREAD_INIT(init_wdt_per_thread);
 REGISTER_PER_THREAD_DEINIT(deinit_wdt_per_thread);
