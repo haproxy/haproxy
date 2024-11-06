@@ -232,8 +232,7 @@ static int qc_handle_newly_acked_frm(struct quic_conn *qc, struct quic_frame *fr
 		if (!node) {
 			TRACE_DEVEL("acked stream for released stream", QUIC_EV_CONN_ACKSTRM, qc, strm_frm);
 			qc_release_frm(qc, frm);
-			/* early return */
-			goto leave;
+			/* return as success */
 		}
 		else {
 			stream = eb64_entry(node, struct qc_stream_desc, by_id);
