@@ -263,8 +263,6 @@ struct event_hdl_sub {
  * event type to string conversions
  */
 
-/* TODO */
-
 /* SERVER FAMILY, provides event_hdl_cb_data_server struct
  * (will be defined in haproxy/server-t.h)
  */
@@ -281,6 +279,16 @@ struct event_hdl_sub {
 #define EVENT_HDL_SUB_SERVER_CHECK                      EVENT_HDL_SUB_TYPE(1,7)
 /* server inet addr (addr:svc_port tuple) change event */
 #define EVENT_HDL_SUB_SERVER_INETADDR                   EVENT_HDL_SUB_TYPE(1,8)
+
+/* PAT_REF family, only published in pat ref subscription list
+ * (not published in global subscription list for performance reasons)
+ */
+#define EVENT_HDL_SUB_PAT_REF                           EVENT_HDL_SUB_FAMILY(2)
+#define EVENT_HDL_SUB_PAT_REF_ADD                       EVENT_HDL_SUB_TYPE(2,1)
+#define EVENT_HDL_SUB_PAT_REF_DEL                       EVENT_HDL_SUB_TYPE(2,2)
+#define EVENT_HDL_SUB_PAT_REF_SET                       EVENT_HDL_SUB_TYPE(2,3)
+#define EVENT_HDL_SUB_PAT_REF_COMMIT                    EVENT_HDL_SUB_TYPE(2,4)
+#define EVENT_HDL_SUB_PAT_REF_CLEAR                     EVENT_HDL_SUB_TYPE(2,5)
 
 /*	---------------------------------------        */
 
