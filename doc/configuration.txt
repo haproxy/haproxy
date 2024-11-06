@@ -4398,7 +4398,7 @@ quiet
 warn-blocked-traffic-after <time>
   This allows to adjust the delay after which a stuck task blocking the traffic
   will trigger the emission of a warning on the standard error output. The
-  delay is expressed in milliseconds and defaults to 1000 ms. Permitted values
+  delay is expressed in milliseconds and defaults to 100 ms. Permitted values
   must be comprised between 1 ms and 1000 ms included. Lower values will
   trigger warnings frequently and higher ones will rarely. The watchdog will
   kill a runaway task that fails to respond twice for one second anyway, so a

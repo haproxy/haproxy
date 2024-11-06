@@ -44,7 +44,7 @@ static struct {
 } per_thread_wd_ctx[MAX_THREADS];
 
 /* warn about stuck tasks after this delay (ns) */
-static unsigned int wdt_warn_blocked_traffic_ns = 1000000000U;
+static unsigned int wdt_warn_blocked_traffic_ns = 100000000U;
 
 /* Setup (or ping) the watchdog timer for thread <thr>. Returns non-zero on
  * success, zero on failure. It interrupts once per second of CPU time. It
